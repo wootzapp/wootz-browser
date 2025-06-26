@@ -11,7 +11,6 @@
 #include <type_traits>
 #include <vector>
 
-#include "base/atomicops.h"
 #include "base/auto_reset.h"
 #include "base/base_export.h"
 #include "base/bits.h"
@@ -150,7 +149,6 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
   // Initializes HangWatcher. Must be called once on the main thread during
   // startup while single-threaded.
   static void InitializeOnMainThread(ProcessType process_type,
-                                     bool is_zygote_child,
                                      bool emit_crashes);
 
   // Returns the values that were set through InitializeOnMainThread() to their
@@ -192,6 +190,10 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
   // end of the WatchHangsInScope that was current at the time of invalidation.
   //
   static void InvalidateActiveExpectations();
+
+  // Marks the current process as "shutting down". This changes the histograms
+  // emitted every interval for all threads.
+  static void SetShuttingDown();
 
   // Sets up the calling thread to be monitored for threads. Returns a
   // ScopedClosureRunner that unregisters the thread. This closure has to be
@@ -309,7 +311,8 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
     // This function cannot be called more than once without an associated call
     // to Clear().
     void Init(const HangWatchStates& watch_states,
-              base::TimeTicks deadline_ignore_threshold);
+              base::TimeTicks deadline_ignore_threshold,
+              base::TimeDelta monitoring_period);
 
     // Reset the snapshot object to be reused. Can only be called after Init().
     void Clear();
@@ -359,7 +362,7 @@ class BASE_EXPORT HangWatcher : public DelegateSimpleThread::Delegate {
   // set time interval.
   void Run() override;
 
-  base::TimeDelta monitor_period_;
+  base::TimeDelta monitoring_period_;
 
   // Use to make the HangWatcher thread wake or sleep to schedule the
   // appropriate monitoring frequency.
@@ -660,7 +663,7 @@ class BASE_EXPORT HangWatchState {
 
   // A unique ID of the thread under watch. Used for logging in crash reports
   // only.
-  PlatformThreadId thread_id_;
+  PlatformThreadId thread_id_ = kInvalidThreadId;
 
   // Number of active HangWatchScopeEnables on this thread.
   int nesting_level_ = 0;

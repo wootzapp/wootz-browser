@@ -51,19 +51,16 @@ class BASE_EXPORT SamplingHeapProfiler
    private:
     friend class SamplingHeapProfiler;
 
-
     uint32_t ordinal;
   };
 
-  // On Android this is logged to UMA - keep in sync AndroidStackUnwinder in
-  // enums.xml.
   enum class StackUnwinder {
-    DEPRECATED_kNotChecked,
+    // Use default unwind tables.
     kDefault,
-    DEPRECATED_kCFIBacktrace,
+    // No stack unwinder available - profiler will be disabled.
     kUnavailable,
+    // Use frame pointers, which are faster if available.
     kFramePointers,
-    kMaxValue = kFramePointers,
   };
 
   // Starts collecting allocation samples. Returns the current profile_id.
@@ -78,7 +75,7 @@ class BASE_EXPORT SamplingHeapProfiler
   void SetSamplingInterval(size_t sampling_interval_bytes);
 
   // Enables recording thread name that made the sampled allocation.
-  void SetRecordThreadNames(bool value);
+  void EnableRecordThreadNames();
 
   // Returns the current thread name.
   static const char* CachedThreadName();
@@ -93,12 +90,10 @@ class BASE_EXPORT SamplingHeapProfiler
   // List of strings used in the profile call stacks.
   std::vector<const char*> GetStrings();
 
-  // Captures up to |max_entries| stack frames using the buffer pointed by
-  // |frames|. Puts the number of captured frames into the |count| output
-  // parameters. Returns the pointer to the topmost frame.
-  const void** CaptureStackTrace(const void** frames,
-                                 size_t max_entries,
-                                 size_t* count);
+  // Captures stack `frames`, up to as many as the size of the `frames` span.
+  // Returns a subspan of `frames` holding the captured frames. The top-most
+  // frame is at the front of the returned span.
+  span<const void*> CaptureStackTrace(span<const void*> frames);
 
   static void Init();
   static SamplingHeapProfiler* Get();
@@ -140,12 +135,11 @@ class BASE_EXPORT SamplingHeapProfiler
   // Contains pointers to static sample context strings that are never deleted.
   std::unordered_set<const char*> strings_ GUARDED_BY(mutex_);
 
-  // Mutex to make |running_sessions_| and Add/Remove samples observer access
-  // atomic.
+  // Mutex to guard |running_sessions_| and Add/Remove samples.
   Lock start_stop_mutex_;
 
   // Number of the running sessions.
-  int running_sessions_ = 0;
+  int running_sessions_ GUARDED_BY(start_stop_mutex_) = 0;
 
   // Last sample ordinal used to mark samples recorded during single session.
   std::atomic<uint32_t> last_sample_ordinal_{1};

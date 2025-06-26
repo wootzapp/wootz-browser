@@ -6,7 +6,6 @@
 
 #include "ash/login/ui/hover_notifier.h"
 #include "ash/login/ui/non_accessible_view.h"
-#include "ash/style/ash_color_provider.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ref.h"
 #include "base/strings/utf_string_conversions.h"
@@ -23,7 +22,7 @@ class PublicAccountComboboxModel : public ui::ComboboxModel {
  public:
   PublicAccountComboboxModel(
       const std::vector<PublicAccountMenuView::Item>& items,
-      size_t default_index)
+      std::optional<size_t> default_index)
       : items_(items), default_index_(default_index) {}
 
   PublicAccountComboboxModel(const PublicAccountComboboxModel&) = delete;
@@ -56,16 +55,17 @@ class PublicAccountComboboxModel : public ui::ComboboxModel {
 
  private:
   const raw_ref<const std::vector<PublicAccountMenuView::Item>> items_;
-  const size_t default_index_;
+  const std::optional<size_t> default_index_;
 };
 
 }  // namespace
 
 PublicAccountMenuView::Item::Item() = default;
 
-PublicAccountMenuView::PublicAccountMenuView(const std::vector<Item>& items,
-                                             size_t selected_index,
-                                             const OnSelect& on_select)
+PublicAccountMenuView::PublicAccountMenuView(
+    const std::vector<Item>& items,
+    std::optional<size_t> selected_index,
+    const OnSelect& on_select)
     : views::Combobox(
           std::make_unique<PublicAccountComboboxModel>(items, selected_index)),
       items_(items),

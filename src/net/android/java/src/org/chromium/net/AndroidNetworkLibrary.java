@@ -22,6 +22,7 @@ import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
+import android.security.NetworkSecurityPolicy;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
@@ -34,10 +35,8 @@ import org.jni_zero.CalledByNativeUnchecked;
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.compat.ApiHelperForM;
-import org.chromium.base.compat.ApiHelperForN;
-import org.chromium.base.compat.ApiHelperForP;
-import org.chromium.base.compat.ApiHelperForQ;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
@@ -59,13 +58,14 @@ import java.util.Enumeration;
 import java.util.List;
 
 /** This class implements net utilities required by the net component. */
+@NullMarked
 class AndroidNetworkLibrary {
     private static final String TAG = "AndroidNetworkLibrary";
 
     // Cached value indicating if app has ACCESS_NETWORK_STATE permission.
-    private static Boolean sHaveAccessNetworkState;
+    private static @Nullable Boolean sHaveAccessNetworkState;
     // Cached value indicating if app has ACCESS_WIFI_STATE permission.
-    private static Boolean sHaveAccessWifiState;
+    private static @Nullable Boolean sHaveAccessWifiState;
 
     /**
      * @return the mime type (if any) that is associated with the file
@@ -104,19 +104,27 @@ class AndroidNetworkLibrary {
     }
 
     /**
-     * Validate the server's certificate chain is trusted. Note that the caller
-     * must still verify the name matches that of the leaf certificate.
+     * Validate the server's certificate chain is trusted. Note that the caller must still verify
+     * the name matches that of the leaf certificate.
      *
      * @param certChain The ASN.1 DER encoded bytes for certificates.
      * @param authType The key exchange algorithm name (e.g. RSA).
      * @param host The hostname of the server.
+     * @param If not null, ocspResponse should contain an OCSP response obtained via OCSP stapling.
+     * @param If not null, sctList should contain a SignedCertificateTimestampList from the TLS
+     *     extension as described in RFC6962 section 3.3.1.
      * @return Android certificate verification result code.
      */
     @CalledByNative
     public static AndroidCertVerifyResult verifyServerCertificates(
-            byte[][] certChain, String authType, String host) {
+            byte[][] certChain,
+            String authType,
+            String host,
+            byte @Nullable [] ocspResponse,
+            byte @Nullable [] sctList) {
         try {
-            return X509Util.verifyServerCertificates(certChain, authType, host);
+            return X509Util.verifyServerCertificates(
+                    certChain, authType, host, ocspResponse, sctList);
         } catch (KeyStoreException e) {
             return new AndroidCertVerifyResult(CertVerifyStatusAndroid.FAILED);
         } catch (NoSuchAlgorithmException e) {
@@ -205,7 +213,7 @@ class AndroidNetworkLibrary {
                                 .getSystemService(Context.CONNECTIVITY_SERVICE);
         if (connectivityManager == null) return false;
 
-        Network network = ApiHelperForM.getActiveNetwork(connectivityManager);
+        Network network = connectivityManager.getActiveNetwork();
         if (network == null) return false;
 
         NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
@@ -219,7 +227,7 @@ class AndroidNetworkLibrary {
      * WifiManager} for earlier versions. Otherwise, we try to get the WifiInfo via broadcast (Note
      * that this approach does not work on Android P and above).
      */
-    private static WifiInfo getWifiInfo() {
+    private static @Nullable WifiInfo getWifiInfo() {
         if (haveAccessWifiState()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 // On Android S+, need to use NetworkCapabilities to get the WifiInfo.
@@ -237,8 +245,7 @@ class AndroidNetworkLibrary {
                     if (networkCapabilities != null
                             && networkCapabilities.hasTransport(
                                     NetworkCapabilities.TRANSPORT_WIFI)) {
-                        TransportInfo transportInfo =
-                                ApiHelperForQ.getTransportInfo(networkCapabilities);
+                        TransportInfo transportInfo = networkCapabilities.getTransportInfo();
                         if (transportInfo != null && transportInfo instanceof WifiInfo) {
                             return (WifiInfo) transportInfo;
                         }
@@ -377,7 +384,7 @@ class AndroidNetworkLibrary {
                 // No per-host configuration before N.
                 return isCleartextTrafficPermitted();
             }
-            return ApiHelperForN.isCleartextTrafficPermitted(host);
+            return NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted(host);
         }
 
         @RequiresApi(Build.VERSION_CODES.M)
@@ -386,12 +393,13 @@ class AndroidNetworkLibrary {
                 // Always true before M.
                 return true;
             }
-            return ApiHelperForM.isCleartextTrafficPermitted();
+            return NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted();
         }
     }
 
     /** Returns true if cleartext traffic to |host| is allowed by the current app. */
     @CalledByNative
+    @RequiresApi(Build.VERSION_CODES.N)
     private static boolean isCleartextPermitted(String host) {
         try {
             return NetworkSecurityPolicyProxy.getInstance().isCleartextTrafficPermitted(host);
@@ -438,7 +446,7 @@ class AndroidNetworkLibrary {
      */
     @RequiresApi(Build.VERSION_CODES.P)
     @CalledByNative
-    public static DnsStatus getDnsStatusForNetwork(long networkHandle) {
+    public static @Nullable DnsStatus getDnsStatusForNetwork(long networkHandle) {
         // In case the network handle is invalid don't crash, instead return an empty DnsStatus and
         // let native code handle that.
         try {
@@ -455,7 +463,7 @@ class AndroidNetworkLibrary {
      */
     @RequiresApi(Build.VERSION_CODES.M)
     @CalledByNative
-    public static DnsStatus getCurrentDnsStatus() {
+    public static @Nullable DnsStatus getCurrentDnsStatus() {
         return getDnsStatus(null);
     }
 
@@ -464,7 +472,7 @@ class AndroidNetworkLibrary {
      * network. If |network| is null, uses the active network.
      */
     @RequiresApi(Build.VERSION_CODES.M)
-    public static DnsStatus getDnsStatus(Network network) {
+    public static @Nullable DnsStatus getDnsStatus(@Nullable Network network) {
         if (!haveAccessNetworkState()) {
             return null;
         }
@@ -476,7 +484,7 @@ class AndroidNetworkLibrary {
             return null;
         }
         if (network == null) {
-            network = ApiHelperForM.getActiveNetwork(connectivityManager);
+            network = connectivityManager.getActiveNetwork();
         }
         if (network == null) {
             return null;
@@ -495,8 +503,8 @@ class AndroidNetworkLibrary {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             return new DnsStatus(
                     dnsServersList,
-                    ApiHelperForP.isPrivateDnsActive(linkProperties),
-                    ApiHelperForP.getPrivateDnsServerName(linkProperties),
+                    linkProperties.isPrivateDnsActive(),
+                    linkProperties.getPrivateDnsServerName(),
                     searchDomains);
         } else {
             return new DnsStatus(dnsServersList, false, "", searchDomains);
@@ -514,7 +522,7 @@ class AndroidNetworkLibrary {
                                 .getSystemService(Context.CONNECTIVITY_SERVICE);
         if (connectivityManager == null) return false;
 
-        ApiHelperForM.reportNetworkConnectivity(connectivityManager, null, false);
+        connectivityManager.reportNetworkConnectivity(null, false);
         return true;
     }
 
@@ -662,7 +670,7 @@ class AndroidNetworkLibrary {
         if (tag != oldTag) {
             TrafficStats.setThreadStatsTag(tag);
         }
-        if (uid != TrafficStatsUid.UNSET) {
+        if (uid != TrafficStatsUid.UNSET_UID) {
             ThreadStatsUid.set(uid);
         }
 
@@ -698,8 +706,26 @@ class AndroidNetworkLibrary {
         if (tag != oldTag) {
             TrafficStats.setThreadStatsTag(oldTag);
         }
-        if (uid != TrafficStatsUid.UNSET) {
+        if (uid != TrafficStatsUid.UNSET_UID) {
             ThreadStatsUid.clear();
         }
+    }
+
+    @CalledByNative
+    public static void registerQuicConnectionClosePayload(final int socket, final byte[] payload) {
+        final ConnectivityManager cm =
+                (ConnectivityManager)
+                        ContextUtils.getApplicationContext()
+                                .getSystemService(Context.CONNECTIVITY_SERVICE);
+        ConnectivityManagerShim.registerQuicConnectionClosePayload(cm, socket, payload);
+    }
+
+    @CalledByNative
+    public static void unregisterQuicConnectionClosePayload(final int socket) {
+        final ConnectivityManager cm =
+                (ConnectivityManager)
+                        ContextUtils.getApplicationContext()
+                                .getSystemService(Context.CONNECTIVITY_SERVICE);
+        ConnectivityManagerShim.unregisterQuicConnectionClosePayload(cm, socket);
     }
 }

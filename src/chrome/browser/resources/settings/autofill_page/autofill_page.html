@@ -15,28 +15,22 @@
             role-description="$i18n{subpageArrowRoleDescription}"
             start-icon="cr20:password" external>
         </cr-link-row>
-        <template is="dom-if" if="[[isPlusAddressSettingEnabled_]]">
-          <cr-link-row id="plusAddressManagerButton"
-              label="$i18n{plusAddressSettings}"
-              on-click="onPlusAddressClick_"
-              role-description="$i18n{subpageArrowRoleDescription}"
-              <if expr="_google_chrome">
-                start-icon="settings-internal:plus-addresses-logo"
-              </if>
-              <if expr="not _google_chrome">
-                start-icon="settings:email"
-              </if>
-              external>
-          </cr-link-row>
-        </template>
         <cr-link-row id="paymentManagerButton"
             start-icon="settings20:credit-card" label="$i18n{creditCards}"
             on-click="onPaymentsClick_"
             role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
         <cr-link-row id="addressesManagerButton"
             start-icon="settings:location-on" label="$i18n{addressesTitle}"
+            sub-label="[[addressesSublabel_()]]"
             on-click="onAddressesClick_"
             role-description="$i18n{subpageArrowRoleDescription}"></cr-link-row>
+        <template is="dom-if" if="[[autofillAiAvailable_]]">
+          <cr-link-row id="autofillAiManagerButton"
+              start-icon="settings20:text-analysis"
+              label="$i18n{autofillAiPageTitle}"
+              sub-label="$i18n{autofillAiDescription}"
+              on-click="onAutofillAiClick_"></cr-link-row>
+        </template>
       </div>
       <if expr="is_win or is_macosx">
         <template is="dom-if" route-path="/passkeys">
@@ -66,6 +60,17 @@
             learn-more-url="$i18n{addressesAndPaymentMethodsLearnMoreURL}">
           <settings-autofill-section id="autofillSection" prefs="{{prefs}}">
           </settings-autofill-section>
+        </settings-subpage>
+      </template>
+      <template is="dom-if" route-path="/autofillAi"
+          no-search="[[!autofillAiAvailable_]]">
+        <settings-subpage
+            associated-control="[[$$('#autofillAiManagerButton')]]"
+            page-title="$i18n{autofillAiPageTitle}">
+          <settings-autofill-ai-section
+              id="autofillAiSection" prefs="{{prefs}}"
+              ineligible-user="[[!userEligibleForAutofillAi_]]">
+          </settings-autofill-ai-section>
         </settings-subpage>
       </template>
     </settings-animated-pages>

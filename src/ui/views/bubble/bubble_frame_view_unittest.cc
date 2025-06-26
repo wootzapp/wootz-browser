@@ -16,6 +16,7 @@
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/event.h"
 #include "ui/gfx/geometry/insets.h"
@@ -23,6 +24,7 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/text_utils.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/bubble/bubble_border.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/bubble/footnote_container_view.h"
@@ -33,6 +35,7 @@
 #include "ui/views/test/test_views.h"
 #include "ui/views/test/view_metadata_test_utils.h"
 #include "ui/views/test/views_test_base.h"
+#include "ui/views/test/views_test_utils.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
@@ -94,9 +97,9 @@ class TestBubbleFrameView : public BubbleFrameView {
     widget_ = std::make_unique<Widget>();
     widget_delegate_ = std::make_unique<TestBubbleFrameViewWidgetDelegate>();
     Widget::InitParams params =
-        test_base->CreateParams(Widget::InitParams::TYPE_BUBBLE);
+        test_base->CreateParams(Widget::InitParams::CLIENT_OWNS_WIDGET,
+                                Widget::InitParams::TYPE_BUBBLE);
     params.delegate = widget_delegate_.get();
-    params.ownership = Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
     widget_->Init(std::move(params));
   }
 
@@ -152,6 +155,16 @@ class BubbleFrameViewTest : public ViewsTestBase {
   BubbleFrameViewTest& operator=(const BubbleFrameViewTest&) = delete;
 
   ~BubbleFrameViewTest() override = default;
+
+  void SetUp() override {
+    ViewsTestBase::SetUp();
+    provider_ = std::make_unique<test::TestLayoutProvider>();
+  }
+
+  test::TestLayoutProvider& provider() { return *provider_; }
+
+ private:
+  std::unique_ptr<test::TestLayoutProvider> provider_;
 };
 
 TEST_F(BubbleFrameViewTest, GetBoundsForClientView) {
@@ -951,37 +964,43 @@ TEST_F(BubbleFrameViewTest, MetadataTest) {
   test::TestViewMetadata(frame_pointer);
 }
 
-namespace {
-
-class TestBubbleDialogDelegateView : public BubbleDialogDelegateView {
-  METADATA_HEADER(TestBubbleDialogDelegateView, BubbleDialogDelegateView)
+class FrameViewTestBubbleDialogDelegateView : public BubbleDialogDelegateView {
+  METADATA_HEADER(FrameViewTestBubbleDialogDelegateView,
+                  BubbleDialogDelegateView)
 
  public:
-  TestBubbleDialogDelegateView()
+  FrameViewTestBubbleDialogDelegateView()
       : BubbleDialogDelegateView(nullptr,
                                  BubbleBorder::NONE,
                                  BubbleBorder::NO_SHADOW,
                                  true) {
     SetAnchorRect(gfx::Rect());
-    DialogDelegate::SetButtons(ui::DIALOG_BUTTON_OK);
+    DialogDelegate::SetButtons(static_cast<int>(ui::mojom::DialogButton::kOk));
   }
 
-  TestBubbleDialogDelegateView(const TestBubbleDialogDelegateView&) = delete;
-  TestBubbleDialogDelegateView& operator=(const TestBubbleDialogDelegateView&) =
-      delete;
+  FrameViewTestBubbleDialogDelegateView(
+      const FrameViewTestBubbleDialogDelegateView&) = delete;
+  FrameViewTestBubbleDialogDelegateView& operator=(
+      const FrameViewTestBubbleDialogDelegateView&) = delete;
 
-  ~TestBubbleDialogDelegateView() override = default;
+  ~FrameViewTestBubbleDialogDelegateView() override = default;
 
   void ChangeTitle(const std::u16string& title) {
     title_ = title;
     // UpdateWindowTitle() will lead to an invalidation if the title's string or
     // visibility changes.
     GetWidget()->UpdateWindowTitle();
+
+    // UpdateWindowTitle() will trigger an asynchronous autosize task.
+    views::test::RunScheduledLayout(GetWidget());
   }
 
   void ChangeSubtitle(const std::u16string& subtitle) {
     subtitle_ = subtitle;
     GetBubbleFrameView()->UpdateSubtitle();
+
+    // UpdateSubtitle() will trigger an asynchronous autosize task.
+    views::test::RunScheduledLayout(GetWidget());
   }
 
   // BubbleDialogDelegateView:
@@ -1010,13 +1029,15 @@ class TestBubbleDialogDelegateView : public BubbleDialogDelegateView {
   bool should_show_close_ = false;
 };
 
-BEGIN_METADATA(TestBubbleDialogDelegateView)
+BEGIN_METADATA(FrameViewTestBubbleDialogDelegateView)
 END_METADATA
+
+namespace {
 
 class TestAnchor {
  public:
   explicit TestAnchor(Widget::InitParams params) {
-    params.ownership = Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+    params.ownership = Widget::InitParams::CLIENT_OWNS_WIDGET;
     widget_.Init(std::move(params));
     widget_.Show();
   }
@@ -1031,13 +1052,14 @@ class TestAnchor {
 };
 
 // BubbleDialogDelegate with no margins to test width snapping.
-class TestWidthSnapDelegate : public TestBubbleDialogDelegateView {
-  METADATA_HEADER(TestWidthSnapDelegate, TestBubbleDialogDelegateView)
+class TestWidthSnapDelegate : public FrameViewTestBubbleDialogDelegateView {
+  METADATA_HEADER(TestWidthSnapDelegate, FrameViewTestBubbleDialogDelegateView)
 
  public:
   TestWidthSnapDelegate(TestAnchor* anchor, bool should_snap) {
-    DialogDelegate::SetButtons(should_snap ? ui::DIALOG_BUTTON_OK
-                                           : ui::DIALOG_BUTTON_NONE);
+    DialogDelegate::SetButtons(
+        should_snap ? static_cast<int>(ui::mojom::DialogButton::kOk)
+                    : static_cast<int>(ui::mojom::DialogButton::kNone));
     SetAnchorView(anchor->widget().GetContentsView());
     set_margins(gfx::Insets());
     BubbleDialogDelegateView::CreateBubble(this);
@@ -1056,7 +1078,6 @@ END_METADATA
 // This test ensures that if the installed LayoutProvider snaps dialog widths,
 // BubbleFrameView correctly sizes itself to that width.
 TEST_F(BubbleFrameViewTest, WidthSnaps) {
-  test::TestLayoutProvider provider;
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
 
   {
@@ -1068,7 +1089,7 @@ TEST_F(BubbleFrameViewTest, WidthSnaps) {
   }
 
   constexpr int kTestWidth = 300;
-  provider.SetSnappedDialogWidth(kTestWidth);
+  provider().SetSnappedDialogWidth(kTestWidth);
 
   {
     TestWidthSnapDelegate* const delegate =
@@ -1095,9 +1116,9 @@ TEST_F(BubbleFrameViewTest, WidthSnaps) {
 // size for a given client view are consistent with the eventual size that the
 // client view takes after layout.
 TEST_F(BubbleFrameViewTest, LayoutEdgeCases) {
-  test::TestLayoutProvider provider;
-  auto delegate_unique = std::make_unique<TestBubbleDialogDelegateView>();
-  TestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
   delegate->SetAnchorView(anchor.widget().GetContentsView());
 
@@ -1140,12 +1161,14 @@ TEST_F(BubbleFrameViewTest, LayoutEdgeCases) {
   EXPECT_GT(80u, title.size());
 
   // Now add dialog snapping.
-  provider.SetSnappedDialogWidth(300);
+  provider().SetSnappedDialogWidth(300);
   // Only test::TestLayoutProvider has a setter(SetSnappedDialogWidth()), it
   // can not invalidate the exact view. So it only actively InvalidateLayout()
   // after SetSnappedDialogWidth() in the test code.
   delegate->InvalidateLayout();
 
+  // InvalidateLayout() will trigger an asynchronous autosize task.
+  views::test::RunScheduledLayout(bubble);
   // Height should go back to |min_bubble_height| since the window is wider:
   // word wrapping should no longer happen.
   EXPECT_EQ(min_bubble_height, bubble->GetWindowBoundsInScreen().height());
@@ -1179,9 +1202,9 @@ TEST_F(BubbleFrameViewTest, LayoutEdgeCases) {
 // header view is set. This is to ensure the title leaves enough space for the
 // close button when there is a header or not.
 TEST_F(BubbleFrameViewTest, LayoutEdgeCasesWithHeader) {
-  test::TestLayoutProvider provider;
-  auto delegate_unique = std::make_unique<TestBubbleDialogDelegateView>();
-  TestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
   delegate->SetAnchorView(anchor.widget().GetContentsView());
   delegate->SetShouldShowCloseButton(true);
@@ -1222,6 +1245,8 @@ TEST_F(BubbleFrameViewTest, LayoutEdgeCasesWithHeader) {
   frame->SetHeaderView(
       std::make_unique<StaticSizedView>(gfx::Size(10, close_margin)));
 
+  // SetHeaderView() will trigger an asynchronous autosize task.
+  views::test::RunScheduledLayout(bubble);
   // Height should go back to |min_bubble_height| + 1 since the window is wider:
   // word wrapping should no longer happen, the 1 dip extra height is caused by
   // growing the header view.
@@ -1233,9 +1258,9 @@ TEST_F(BubbleFrameViewTest, LayoutEdgeCasesWithHeader) {
 // Layout tests with Subtitle label.
 // This will test adding a Subtitle and wrap-around case for Subtitle.
 TEST_F(BubbleFrameViewTest, LayoutSubtitleEdgeCases) {
-  test::TestLayoutProvider provider;
-  auto delegate_unique = std::make_unique<TestBubbleDialogDelegateView>();
-  TestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
   delegate->SetAnchorView(anchor.widget().GetContentsView());
   delegate->SetSubtitleAllowCharacterBreak(true);
@@ -1284,12 +1309,17 @@ TEST_F(BubbleFrameViewTest, LayoutSubtitleEdgeCases) {
   // Turn off character breaks and confirm the height has returned to the single
   // line height.
   delegate->SetSubtitleAllowCharacterBreak(false);
+
+  // SetSubtitleAllowCharacterBreak() will trigger an asynchronous autosize
+  // task.
+  views::test::RunScheduledLayout(bubble);
   EXPECT_EQ(bubble->GetWindowBoundsInScreen().height(), min_bubble_height);
 }
 
 TEST_F(BubbleFrameViewTest, LayoutWithIcon) {
-  auto delegate_unique = std::make_unique<TestBubbleDialogDelegateView>();
-  TestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
   delegate->SetAnchorView(anchor.widget().GetContentsView());
   SkBitmap bitmap;
@@ -1320,9 +1350,9 @@ TEST_F(BubbleFrameViewTest, LayoutWithIcon) {
 // Test the size of the bubble allows a |gfx::NO_ELIDE| title to fit, even if
 // there is no content.
 TEST_F(BubbleFrameViewTest, NoElideTitle) {
-  test::TestLayoutProvider provider;
-  auto delegate_unique = std::make_unique<TestBubbleDialogDelegateView>();
-  TestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
   delegate->SetAnchorView(anchor.widget().GetContentsView());
 
@@ -1353,6 +1383,8 @@ TEST_F(BubbleFrameViewTest, NoElideTitle) {
   title_label->SetElideBehavior(gfx::NO_ELIDE);
   title_label->SetMultiLine(false);
 
+  // SetMultiLine() will trigger an asynchronous autosize task.
+  views::test::RunScheduledLayout(bubble);
   // The title/bubble should now be bigger than in multiline tail-eliding mode.
   EXPECT_LT(empty_bubble_width, title_label->width());
   EXPECT_LT(empty_bubble_width, bubble->GetClientAreaBoundsInScreen().width());
@@ -1367,10 +1399,38 @@ TEST_F(BubbleFrameViewTest, NoElideTitle) {
   EXPECT_EQ(title, title_label->GetDisplayTextForTesting());
 }
 
+TEST_F(BubbleFrameViewTest, LabelWithHeadingLevel) {
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
+  delegate->SetAnchorView(anchor.widget().GetContentsView());
+  delegate->SetSubtitleAllowCharacterBreak(true);
+
+  Widget* bubble =
+      BubbleDialogDelegateView::CreateBubble(std::move(delegate_unique));
+  bubble->Show();
+
+  std::u16string title = u"This is a title string";
+  delegate->ChangeTitle(title);
+  Label* title_label =
+      static_cast<Label*>(delegate->GetBubbleFrameView()->title());
+  EXPECT_EQ(title, title_label->GetDisplayTextForTesting());
+
+  ui::AXNodeData node_data;
+  title_label->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  EXPECT_TRUE(
+      node_data.HasIntAttribute(ax::mojom::IntAttribute::kHierarchicalLevel));
+  EXPECT_EQ(
+      node_data.GetIntAttribute(ax::mojom::IntAttribute::kHierarchicalLevel),
+      1);
+}
+
 // Ensures that clicks are ignored for short time after view has been shown.
 TEST_F(BubbleFrameViewTest, IgnorePossiblyUnintendedClicksClose) {
-  auto delegate_unique = std::make_unique<TestBubbleDialogDelegateView>();
-  TestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
   delegate->SetAnchorView(anchor.widget().GetContentsView());
   delegate->SetShouldShowCloseButton(true);
@@ -1380,14 +1440,14 @@ TEST_F(BubbleFrameViewTest, IgnorePossiblyUnintendedClicksClose) {
 
   BubbleFrameView* frame = delegate->GetBubbleFrameView();
   test::ButtonTestApi(frame->close_)
-      .NotifyClick(ui::MouseEvent(ui::ET_MOUSE_PRESSED, gfx::Point(),
+      .NotifyClick(ui::MouseEvent(ui::EventType::kMousePressed, gfx::Point(),
                                   gfx::Point(), ui::EventTimeForNow(),
                                   ui::EF_NONE, ui::EF_NONE));
   EXPECT_FALSE(bubble->IsClosed());
 
   test::ButtonTestApi(frame->close_)
       .NotifyClick(ui::MouseEvent(
-          ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
+          ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
           ui::EventTimeForNow() + base::Milliseconds(GetDoubleClickInterval()),
           ui::EF_NONE, ui::EF_NONE));
   EXPECT_TRUE(bubble->IsClosed());
@@ -1395,8 +1455,9 @@ TEST_F(BubbleFrameViewTest, IgnorePossiblyUnintendedClicksClose) {
 
 // Ensures that clicks are ignored for short time after view has been shown.
 TEST_F(BubbleFrameViewTest, IgnorePossiblyUnintendedClicksMinimize) {
-  auto delegate_unique = std::make_unique<TestBubbleDialogDelegateView>();
-  TestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
   delegate->SetAnchorView(anchor.widget().GetContentsView());
   delegate->SetCanMinimize(true);
@@ -1406,7 +1467,7 @@ TEST_F(BubbleFrameViewTest, IgnorePossiblyUnintendedClicksMinimize) {
 
   BubbleFrameView* frame = delegate->GetBubbleFrameView();
   test::ButtonTestApi(frame->minimize_)
-      .NotifyClick(ui::MouseEvent(ui::ET_MOUSE_PRESSED, gfx::Point(),
+      .NotifyClick(ui::MouseEvent(ui::EventType::kMousePressed, gfx::Point(),
                                   gfx::Point(), ui::EventTimeForNow(),
                                   ui::EF_NONE, ui::EF_NONE));
   EXPECT_FALSE(bubble->IsClosed());
@@ -1416,7 +1477,7 @@ TEST_F(BubbleFrameViewTest, IgnorePossiblyUnintendedClicksMinimize) {
       true);
   test::ButtonTestApi(frame->minimize_)
       .NotifyClick(ui::MouseEvent(
-          ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
+          ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
           ui::EventTimeForNow() + base::Milliseconds(GetDoubleClickInterval()),
           ui::EF_NONE, ui::EF_NONE));
   EXPECT_TRUE(minimize_waiter.Wait());
@@ -1426,16 +1487,18 @@ TEST_F(BubbleFrameViewTest, IgnorePossiblyUnintendedClicksMinimize) {
 // Ensures that clicks are ignored for short time after anchor view bounds
 // changed.
 TEST_F(BubbleFrameViewTest, IgnorePossiblyUnintendedClicksAnchorBoundsChanged) {
-  auto delegate_unique = std::make_unique<TestBubbleDialogDelegateView>();
-  TestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
   delegate->SetAnchorView(anchor.widget().GetContentsView());
   delegate->SetCanMinimize(true);
   Widget* bubble =
       BubbleDialogDelegateView::CreateBubble(std::move(delegate_unique));
   bubble->Show();
-  ui::MouseEvent mouse_event(ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
-                             ui::EventTimeForNow(), ui::EF_NONE, ui::EF_NONE);
+  ui::MouseEvent mouse_event(ui::EventType::kMousePressed, gfx::Point(),
+                             gfx::Point(), ui::EventTimeForNow(), ui::EF_NONE,
+                             ui::EF_NONE);
   BubbleFrameView* frame = delegate->GetBubbleFrameView();
   test::ButtonTestApi(frame->minimize_).NotifyClick(mouse_event);
   auto* widget = delegate->GetWidget();
@@ -1449,15 +1512,16 @@ TEST_F(BubbleFrameViewTest, IgnorePossiblyUnintendedClicksAnchorBoundsChanged) {
       base::Milliseconds(GetDoubleClickInterval()));
   anchor.widget().SetBounds(gfx::Rect(10, 10, 100, 100));
 
-  ui::MouseEvent mouse_event_1(ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
-                               ui::EventTimeForNow(), ui::EF_NONE, ui::EF_NONE);
+  ui::MouseEvent mouse_event_1(ui::EventType::kMousePressed, gfx::Point(),
+                               gfx::Point(), ui::EventTimeForNow(), ui::EF_NONE,
+                               ui::EF_NONE);
   test::ButtonTestApi(ok_button).NotifyClick(mouse_event_1);
   test::ButtonTestApi(frame->minimize_).NotifyClick(mouse_event_1);
   EXPECT_FALSE(widget->IsClosed());
   EXPECT_FALSE(bubble->IsMinimized());
 
   test::ButtonTestApi(ok_button).NotifyClick(ui::MouseEvent(
-      ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
+      ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
       ui::EventTimeForNow() + base::Milliseconds(GetDoubleClickInterval()),
       ui::EF_NONE, ui::EF_NONE));
   EXPECT_TRUE(widget->IsClosed());
@@ -1465,8 +1529,9 @@ TEST_F(BubbleFrameViewTest, IgnorePossiblyUnintendedClicksAnchorBoundsChanged) {
 
 // Ensures that layout is correct when the progress indicator is visible.
 TEST_F(BubbleFrameViewTest, LayoutWithProgressIndicator) {
-  auto delegate_unique = std::make_unique<TestBubbleDialogDelegateView>();
-  TestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
   delegate->SetAnchorView(anchor.widget().GetContentsView());
   Widget* bubble =
@@ -1487,8 +1552,9 @@ TEST_F(BubbleFrameViewTest, LayoutWithProgressIndicator) {
 
 // Close should be the next element after minimize.
 TEST_F(BubbleFrameViewTest, MinimizeBeforeClose) {
-  auto delegate_unique = std::make_unique<TestBubbleDialogDelegateView>();
-  TestBubbleDialogDelegateView* const delegate = delegate_unique.get();
+  auto delegate_unique =
+      std::make_unique<FrameViewTestBubbleDialogDelegateView>();
+  FrameViewTestBubbleDialogDelegateView* const delegate = delegate_unique.get();
   TestAnchor anchor(CreateParams(Widget::InitParams::TYPE_WINDOW));
   delegate->SetAnchorView(anchor.widget().GetContentsView());
   delegate->SetShouldShowCloseButton(true);

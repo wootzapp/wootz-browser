@@ -49,11 +49,6 @@ const char kExampleUrl1[] = "http://www.example1.com/123";
 
 }  // namespace
 
-class MockPlatformDelegate : public SupervisedUserService::PlatformDelegate {
- public:
-  MOCK_METHOD(void, CloseIncognitoTabs, (), (override));
-};
-
 class SupervisedUserServiceTestBase : public ::testing::Test {
  public:
   explicit SupervisedUserServiceTestBase(bool is_supervised) {
@@ -70,11 +65,8 @@ class SupervisedUserServiceTestBase : public ::testing::Test {
         identity_test_env_.identity_manager(),
         test_url_loader_factory_.GetSafeWeakWrapper(), syncable_pref_service_,
         settings_service_, &sync_service_,
-        /*check_webstore_url_callback=*/
-        base::BindRepeating([](const GURL& url) { return false; }),
         std::make_unique<FakeURLFilterDelegate>(),
-        std::make_unique<MockPlatformDelegate>(),
-        /*can_show_first_time_interstitial_banner=*/true);
+        std::make_unique<FakePlatformDelegate>());
 
     service_->Init();
   }
@@ -102,6 +94,35 @@ class SupervisedUserServiceTest : public SupervisedUserServiceTestBase {
   SupervisedUserServiceTest()
       : SupervisedUserServiceTestBase(/*is_supervised=*/true) {}
 };
+
+// Tests that web approvals are enabled for supervised users.
+TEST_F(SupervisedUserServiceTest, ApprovalRequestsEnabled) {
+  ASSERT_TRUE(
+      service_->remote_web_approvals_manager().AreApprovalRequestsEnabled());
+}
+
+// Tests that restricting all site navigation is applied to supervised users.
+TEST_F(SupervisedUserServiceTest, UrlIsBlockedForUser) {
+  // Set "only allow certain sites" filter.
+  syncable_pref_service_.SetInteger(
+      prefs::kDefaultSupervisedUserFilteringBehavior,
+      static_cast<int>(FilteringBehavior::kBlock));
+  service_->GetURLFilter()->SetDefaultFilteringBehavior(
+      FilteringBehavior::kBlock);
+
+  ASSERT_TRUE(service_->IsBlockedURL(GURL("http://google.com")));
+}
+
+// Tests that allowing all site navigation is applied to supervised users.
+TEST_F(SupervisedUserServiceTest, UrlIsAllowedForUser) {
+  // Set "allow all sites" filter.
+  syncable_pref_service_.SetInteger(
+      prefs::kDefaultSupervisedUserFilteringBehavior,
+      static_cast<int>(FilteringBehavior::kAllow));
+  syncable_pref_service_.SetBoolean(prefs::kSupervisedUserSafeSites, false);
+
+  ASSERT_FALSE(service_->IsBlockedURL(GURL("http://google.com")));
+}
 
 // Tests that changes in parent configuration for web filter types are recorded.
 TEST_F(SupervisedUserServiceTest, WebFilterTypeOnPrefsChange) {
@@ -231,40 +252,30 @@ TEST_F(SupervisedUserServiceTest, ManagedSiteListTypeMetricOnPrefsChange) {
       /*expected_count=*/3);
 }
 
-TEST_F(SupervisedUserServiceTest, InterstitialBannerState) {
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_IOS)
-  EXPECT_TRUE(service_->GetUpdatedBannerState(
-                  FirstTimeInterstitialBannerState::kUnknown) ==
-              FirstTimeInterstitialBannerState::kNeedToShow);
-  EXPECT_TRUE(service_->GetUpdatedBannerState(
-                  FirstTimeInterstitialBannerState::kNeedToShow) ==
-              FirstTimeInterstitialBannerState::kNeedToShow);
-  EXPECT_TRUE(service_->GetUpdatedBannerState(
-                  FirstTimeInterstitialBannerState::kSetupComplete) ==
-              FirstTimeInterstitialBannerState::kSetupComplete);
-#else
-  {
-    // On other platforms, the state is marked complete.
-    EXPECT_TRUE(service_->GetUpdatedBannerState(
-                    FirstTimeInterstitialBannerState::kUnknown) ==
-                FirstTimeInterstitialBannerState::kSetupComplete);
-    EXPECT_TRUE(service_->GetUpdatedBannerState(
-                    FirstTimeInterstitialBannerState::kNeedToShow) ==
-                FirstTimeInterstitialBannerState::kSetupComplete);
-    EXPECT_TRUE(service_->GetUpdatedBannerState(
-                    FirstTimeInterstitialBannerState::kSetupComplete) ==
-                FirstTimeInterstitialBannerState::kSetupComplete);
-  }
-#endif
-}
-
 class SupervisedUserServiceTestUnsupervised
     : public SupervisedUserServiceTestBase {
  public:
   SupervisedUserServiceTestUnsupervised()
       : SupervisedUserServiceTestBase(/*is_supervised=*/false) {}
 };
+
+// Tests that web approvals are not enabled for unsupervised users.
+TEST_F(SupervisedUserServiceTestUnsupervised, ApprovalRequestsDisabled) {
+  ASSERT_FALSE(
+      service_->remote_web_approvals_manager().AreApprovalRequestsEnabled());
+}
+
+// Tests that supervision restrictions do not apply to unsupervised users.
+TEST_F(SupervisedUserServiceTestUnsupervised, UrlIsAllowedForUser) {
+  // Set "only allow certain sites" filter.
+  syncable_pref_service_.SetInteger(
+      prefs::kDefaultSupervisedUserFilteringBehavior,
+      static_cast<int>(FilteringBehavior::kBlock));
+  service_->GetURLFilter()->SetDefaultFilteringBehavior(
+      FilteringBehavior::kBlock);
+
+  ASSERT_FALSE(service_->IsBlockedURL(GURL("http://google.com")));
+}
 
 // TODO(crbug.com/1364589): Failing consistently on linux-chromeos-dbg
 // due to failed timezone conversion assertion.

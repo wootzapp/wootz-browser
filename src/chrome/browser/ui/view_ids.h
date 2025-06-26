@@ -67,6 +67,7 @@ enum ViewID {
   VIEW_ID_AVATAR_BUTTON,
   VIEW_ID_WEBAUTHN_BUTTON,
   VIEW_ID_SHARING_HUB_BUTTON,
+  VIEW_ID_MANAGEMENT_BUTTON,
 
   // Location bar content settings icons.
   VIEW_ID_CONTENT_SETTING_JAVASCRIPT,
@@ -91,6 +92,9 @@ enum ViewID {
   // Docked dev tools.
   VIEW_ID_DEV_TOOLS_DOCKED,
 
+  // Lens overlay.
+  VIEW_ID_LENS_OVERLAY,
+
   // The contents split.
   VIEW_ID_CONTENTS_SPLIT,
 
@@ -109,6 +113,9 @@ enum ViewID {
 
   // Plus button on location bar.
   VIEW_ID_ACTION_BOX_BUTTON,
+
+  // Media Picker screen scroll view.
+  VIEW_ID_MEDIA_PICKER_SCREEN_SCROLL_VIEW,
 };
 
 #endif  // CHROME_BROWSER_UI_VIEW_IDS_H_

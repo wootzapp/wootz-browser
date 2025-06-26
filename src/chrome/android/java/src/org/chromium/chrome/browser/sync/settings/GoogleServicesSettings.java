@@ -15,11 +15,13 @@ import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceGroup;
 
+import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.commerce.ShoppingFeatures;
+import org.chromium.chrome.browser.commerce.ShoppingServiceFactory;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchFieldTrial;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchManager;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.metrics.ChangeMetricsReportingStateCalledFrom;
 import org.chromium.chrome.browser.metrics.UmaSessionStats;
 import org.chromium.chrome.browser.preferences.Pref;
@@ -29,23 +31,18 @@ import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManagerImp
 import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
-import org.chromium.chrome.browser.signin.services.ProfileDataCache;
 import org.chromium.chrome.browser.signin.services.UnifiedConsentServiceBridge;
-import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.signin.SignOutCoordinator;
 import org.chromium.chrome.browser.usage_stats.UsageStatsConsentDialog;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.settings.ManagedPreferenceDelegate;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
+import org.chromium.components.commerce.core.CommerceFeatureUtils;
 import org.chromium.components.prefs.PrefService;
-import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.SignoutReason;
-import org.chromium.components.sync.SyncService;
-import org.chromium.components.sync.SyncService.SyncStateChangedListener;
-import org.chromium.components.sync.UserSelectableType;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.ui.modaldialog.ModalDialogManagerHolder;
 
@@ -54,9 +51,7 @@ import org.chromium.ui.modaldialog.ModalDialogManagerHolder;
  * search autocomplete and the automatic upload of crash reports.
  */
 public class GoogleServicesSettings extends ChromeBaseSettingsFragment
-        implements Preference.OnPreferenceChangeListener,
-                SyncStateChangedListener,
-                ProfileDataCache.Observer {
+        implements Preference.OnPreferenceChangeListener {
     // No longer used. Do not delete. Do not reuse these same strings.
     // private static final String SIGN_OUT_DIALOG_TAG = "sign_out_dialog_tag";
     // public static final String PREF_AUTOFILL_ASSISTANT = "autofill_assistant";
@@ -64,9 +59,6 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
     // "autofill_assistant_subsection";
 
     @VisibleForTesting public static final String PREF_ALLOW_SIGNIN = "allow_signin";
-
-    @VisibleForTesting
-    public static final String PREF_PASSWORDS_ACCOUNT_STORAGE = "passwords_account_storage";
 
     private static final String PREF_SEARCH_SUGGESTIONS = "search_suggestions";
     private static final String PREF_USAGE_AND_CRASH_REPORTING = "usage_and_crash_reports";
@@ -85,10 +77,8 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
 
     private ManagedPreferenceDelegate mManagedPreferenceDelegate;
     private PrefService mPrefService;
-    private ProfileDataCache mProfileDataCache;
 
     private ChromeSwitchPreference mAllowSignin;
-    private ChromeSwitchPreference mPasswordsAccountStorage;
     private ChromeSwitchPreference mSearchSuggestions;
     private ChromeSwitchPreference mUsageAndCrashReporting;
     private ChromeSwitchPreference mUrlKeyedAnonymizedData;
@@ -96,15 +86,14 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
     private @Nullable Preference mContextualSearch;
     private Preference mPriceNotificationSection;
     private Preference mUsageStatsReporting;
-    private SnackbarManager mSnackbarManager;
+    private OneshotSupplier<SnackbarManager> mSnackbarManagerSupplier;
+    private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, String rootKey) {
-        getActivity().setTitle(R.string.prefs_google_services);
+        mPageTitle.set(getString(R.string.prefs_google_services));
         setHasOptionsMenu(true);
 
-        mProfileDataCache = ProfileDataCache.createWithDefaultImageSizeAndNoBadge(getActivity());
-        mProfileDataCache.addObserver(this);
         mPrefService = UserPrefs.get(getProfile());
         mManagedPreferenceDelegate = createManagedPreferenceDelegate();
 
@@ -120,11 +109,6 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
             mAllowSignin.setOnPreferenceChangeListener(this);
             mAllowSignin.setManagedPreferenceDelegate(mManagedPreferenceDelegate);
         }
-
-        mPasswordsAccountStorage =
-                (ChromeSwitchPreference) findPreference(PREF_PASSWORDS_ACCOUNT_STORAGE);
-        mPasswordsAccountStorage.setOnPreferenceChangeListener(this);
-        SyncServiceFactory.getForProfile(getProfile()).addSyncStateChangedListener(this);
 
         mSearchSuggestions = (ChromeSwitchPreference) findPreference(PREF_SEARCH_SUGGESTIONS);
         mSearchSuggestions.setOnPreferenceChangeListener(this);
@@ -157,7 +141,8 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
         }
 
         mPriceNotificationSection = findPreference(PREF_PRICE_NOTIFICATION_SECTION);
-        if (ShoppingFeatures.isShoppingListEligible(getProfile())) {
+        if (CommerceFeatureUtils.isShoppingListEligible(
+                ShoppingServiceFactory.getForProfile(getProfile()))) {
             mPriceNotificationSection.setVisible(true);
         } else {
             removePreference(getPreferenceScreen(), mPriceNotificationSection);
@@ -171,10 +156,8 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        SyncServiceFactory.getForProfile(getProfile()).removeSyncStateChangedListener(this);
-        mProfileDataCache.removeObserver(this);
+    public ObservableSupplier<String> getPageTitle() {
+        return mPageTitle;
     }
 
     @Override
@@ -216,24 +199,14 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
                 return true;
             }
 
-            if (!ChromeFeatureList.isEnabled(
-                            ChromeFeatureList.REPLACE_SYNC_PROMOS_WITH_SIGN_IN_PROMOS)
-                    && !identityManager.hasPrimaryAccount(ConsentLevel.SYNC)) {
-                // Don't show signout dialog if there's no sync consent, as it never wipes the data.
-                IdentityServicesProvider.get()
-                        .getSigninManager(getProfile())
-                        .signOut(SignoutReason.USER_CLICKED_SIGNOUT_SETTINGS, null, false);
-                mPrefService.setBoolean(Pref.SIGNIN_ALLOWED, false);
-                return true;
-            }
-
             SignOutCoordinator.startSignOutFlow(
                     requireContext(),
                     getProfile(),
-                    getChildFragmentManager(),
+                    getActivity().getSupportFragmentManager(),
                     ((ModalDialogManagerHolder) getActivity()).getModalDialogManager(),
-                    mSnackbarManager,
-                    SignoutReason.USER_CLICKED_SIGNOUT_SETTINGS,
+                    mSnackbarManagerSupplier.get(),
+                    SignoutReason.USER_DISABLED_ALLOW_CHROME_SIGN_IN,
+                    /* showConfirmDialog= */ true,
                     () -> {
                         mPrefService.setBoolean(Pref.SIGNIN_ALLOWED, false);
                         updatePreferences();
@@ -241,9 +214,6 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
             // Don't change the preference state yet, it will be updated by SignOutCoordinator if
             // the user actually confirms the sign-out.
             return false;
-        } else if (PREF_PASSWORDS_ACCOUNT_STORAGE.equals(key)) {
-            SyncServiceFactory.getForProfile(getProfile())
-                    .setSelectedType(UserSelectableType.PASSWORDS, (boolean) newValue);
         } else if (PREF_SEARCH_SUGGESTIONS.equals(key)) {
             mPrefService.setBoolean(Pref.SEARCH_SUGGEST_ENABLED, (boolean) newValue);
         } else if (PREF_USAGE_AND_CRASH_REPORTING.equals(key)) {
@@ -258,20 +228,9 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
         return true;
     }
 
-    public void setSnackbarManager(SnackbarManager snackbarManager) {
-        mSnackbarManager = snackbarManager;
-    }
-
-    // SyncStateChangedListener overrides.
-    @Override
-    public void syncStateChanged() {
-        updatePasswordsAccountStoragePreference();
-    }
-
-    // ProfileDataCache.Observer overrides.
-    @Override
-    public void onProfileDataUpdated(String accountEmail) {
-        updatePasswordsAccountStoragePreference();
+    public void setSnackbarManagerSupplier(
+            OneshotSupplier<SnackbarManager> snackbarManagerSupplier) {
+        mSnackbarManagerSupplier = snackbarManagerSupplier;
     }
 
     private static void removePreference(PreferenceGroup from, Preference preference) {
@@ -281,7 +240,6 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
 
     private void updatePreferences() {
         mAllowSignin.setChecked(mPrefService.getBoolean(Pref.SIGNIN_ALLOWED));
-        updatePasswordsAccountStoragePreference();
         mSearchSuggestions.setChecked(mPrefService.getBoolean(Pref.SEARCH_SUGGEST_ENABLED));
         mUsageAndCrashReporting.setChecked(mPrivacyPrefManager.isUsageAndCrashReportingPermitted());
         mUrlKeyedAnonymizedData.setChecked(
@@ -322,36 +280,6 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
         }
     }
 
-    private void updatePasswordsAccountStoragePreference() {
-        SyncService syncService = SyncServiceFactory.getForProfile(getProfile());
-        mPasswordsAccountStorage.setChecked(
-                syncService.getSelectedTypes().contains(UserSelectableType.PASSWORDS));
-        // TODO(crbug.com/340629575): Handle outdated GmsCore.
-        CoreAccountInfo account = syncService.getAccountInfo();
-        mPasswordsAccountStorage.setVisible(
-                syncService.getAccountInfo() != null
-                        && !syncService.hasSyncConsent()
-                        && ChromeFeatureList.isEnabled(
-                                ChromeFeatureList
-                                        .ENABLE_PASSWORDS_ACCOUNT_STORAGE_FOR_NON_SYNCING_USERS)
-                        && !ChromeFeatureList.isEnabled(
-                                ChromeFeatureList.REPLACE_SYNC_PROMOS_WITH_SIGN_IN_PROMOS));
-        if (account == null) {
-            // The toggle is not visible, no need to set a summary.
-            return;
-        }
-        boolean canDisplayEmail =
-                mProfileDataCache
-                        .getProfileDataOrDefault(account.getEmail())
-                        .hasDisplayableEmailAddress();
-        mPasswordsAccountStorage.setSummary(
-                canDisplayEmail
-                        ? getString(
-                                R.string.passwords_account_storage_toggle_summary,
-                                syncService.getAccountInfo().getEmail())
-                        : getString(R.string.passwords_account_storage_toggle_summary_no_email));
-    }
-
     private ChromeManagedPreferenceDelegate createManagedPreferenceDelegate() {
         return new ChromeManagedPreferenceDelegate(getProfile()) {
             @Override
@@ -359,10 +287,6 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
                 String key = preference.getKey();
                 if (PREF_ALLOW_SIGNIN.equals(key)) {
                     return mPrefService.isManagedPreference(Pref.SIGNIN_ALLOWED);
-                }
-                if (PREF_PASSWORDS_ACCOUNT_STORAGE.equals(key)) {
-                    return SyncServiceFactory.getForProfile(getProfile())
-                            .isTypeManagedByPolicy(UserSelectableType.PASSWORDS);
                 }
                 if (PREF_SEARCH_SUGGESTIONS.equals(key)) {
                     return mPrefService.isManagedPreference(Pref.SEARCH_SUGGEST_ENABLED);

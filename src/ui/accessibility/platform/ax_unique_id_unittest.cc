@@ -4,6 +4,7 @@
 
 #include "ui/accessibility/platform/ax_unique_id.h"
 
+#include <array>
 #include <memory>
 
 #include "testing/gtest/include/gtest/gtest.h"
@@ -43,7 +44,7 @@ TEST(AXPlatformUniqueIdTest, UnassignedIdsAreReused) {
   // Then remove an id and replace with a new one. Since it's the only
   // slot available, the id will end up having the same value, rather than
   // starting over at 1.
-  std::unique_ptr<AXUniqueId> ids[kMaxId];
+  std::array<std::unique_ptr<AXUniqueId>, kMaxId> ids;
 
   for (auto& id : ids) {
     id = std::make_unique<AXUniqueId>(CreateSmallBankUniqueId());
@@ -61,8 +62,8 @@ TEST(AXPlatformUniqueIdTest, UnassignedIdsAreReused) {
 }
 
 TEST(AXPlatformUniqueIdTest, DoesCreateCorrectId) {
-  int kLargerThanMaxId = kMaxId * 2;
-  std::unique_ptr<AXUniqueId> ids[kLargerThanMaxId];
+  constexpr int kLargerThanMaxId = kMaxId * 2;
+  std::array<std::unique_ptr<AXUniqueId>, kLargerThanMaxId> ids;
   // Creates and releases to fill up the internal static counter.
   for (int i = 0; i < kLargerThanMaxId; i++) {
     ids[i] = std::make_unique<AXUniqueId>(AXUniqueId::Create());
@@ -76,6 +77,11 @@ TEST(AXPlatformUniqueIdTest, DoesCreateCorrectId) {
       std::make_unique<AXUniqueId>(CreateSmallBankUniqueId());
 
   EXPECT_LE(unique_id->Get(), kMaxId);
+}
+
+TEST(AXPlatformUniqueIdTest, DefaultPlatformNodeIdIsInvalid) {
+  AXPlatformNodeId default_id;
+  ASSERT_EQ(default_id, kInvalidAXNodeID);
 }
 
 }  // namespace ui

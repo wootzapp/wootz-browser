@@ -20,6 +20,8 @@
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
 #include "ui/base/accelerators/accelerator.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
+#include "ui/base/mojom/window_show_state.mojom-forward.h"
 #include "ui/display/display_observer.h"
 #include "ui/views/context_menu_controller.h"
 
@@ -29,7 +31,8 @@ enum class TabletState;
 
 namespace gfx {
 class ImageSkia;
-}
+class RoundedCornersF;
+}  // namespace gfx
 
 namespace ui {
 class MenuModel;
@@ -63,12 +66,10 @@ class ChromeNativeAppWindowViewsAuraAsh
   ~ChromeNativeAppWindowViewsAuraAsh() override;
 
  protected:
-  // NativeAppWindowViews:
+  // ChromeNativeAppWindowViewsAura:
   void InitializeWindow(
       extensions::AppWindow* app_window,
       const extensions::AppWindow::CreateParams& create_params) override;
-
-  // ChromeNativeAppWindowViews:
   void OnBeforeWidgetInit(
       const extensions::AppWindow::CreateParams& create_params,
       views::Widget::InitParams* init_params,
@@ -77,16 +78,18 @@ class ChromeNativeAppWindowViewsAuraAsh
       override;
   bool ShouldRemoveStandardFrame() override;
   void EnsureAppIconCreated() override;
+  gfx::RoundedCornersF GetWindowRadii() const override;
 
   // ui::BaseWindow:
   gfx::Rect GetRestoredBounds() const override;
-  ui::WindowShowState GetRestoredState() const override;
+  ui::mojom::WindowShowState GetRestoredState() const override;
   ui::ZOrderLevel GetZOrderLevel() const override;
 
   // views::ContextMenuController:
-  void ShowContextMenuForViewImpl(views::View* source,
-                                  const gfx::Point& p,
-                                  ui::MenuSourceType source_type) override;
+  void ShowContextMenuForViewImpl(
+      views::View* source,
+      const gfx::Point& p,
+      ui::mojom::MenuSourceType source_type) override;
 
   // WidgetDelegate:
   std::unique_ptr<views::NonClientFrameView> CreateNonClientFrameView(
@@ -108,7 +111,7 @@ class ChromeNativeAppWindowViewsAuraAsh
   // ExclusiveAccessContext:
   Profile* GetProfile() override;
   bool IsFullscreen() const override;
-  void EnterFullscreen(const GURL& url,
+  void EnterFullscreen(const url::Origin& origin,
                        ExclusiveAccessBubbleType bubble_type,
                        int64_t display_id) override;
   void ExitFullscreen() override;
@@ -117,7 +120,8 @@ class ChromeNativeAppWindowViewsAuraAsh
       ExclusiveAccessBubbleHideCallback first_hide_callback) override;
   bool IsExclusiveAccessBubbleDisplayed() const override;
   void OnExclusiveAccessUserInput() override;
-  content::WebContents* GetActiveWebContents() override;
+  content::WebContents* GetWebContentsForExclusiveAccess() override;
+  bool CanUserEnterFullscreen() const override;
   bool CanUserExitFullscreen() const override;
 
   // ExclusiveAccessBubbleViewsContext:

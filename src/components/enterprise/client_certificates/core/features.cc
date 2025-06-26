@@ -14,4 +14,12 @@ bool IsManagedClientCertificateForUserEnabled() {
   return base::FeatureList::IsEnabled(kManagedClientCertificateForUserEnabled);
 }
 
+BASE_FEATURE(kManagedBrowserClientCertificateEnabled,
+             "ManagedBrowserClientCertificateEnabled",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+bool IsManagedBrowserClientCertificateEnabled() {
+  return base::FeatureList::IsEnabled(kManagedBrowserClientCertificateEnabled);
+}
+
 }  // namespace client_certificates::features

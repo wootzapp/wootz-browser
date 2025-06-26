@@ -5,25 +5,21 @@
 #ifndef CHROME_BROWSER_PERFORMANCE_MANAGER_USER_TUNING_USER_PERFORMANCE_TUNING_NOTIFIER_H_
 #define CHROME_BROWSER_PERFORMANCE_MANAGER_USER_TUNING_USER_PERFORMANCE_TUNING_NOTIFIER_H_
 
-#include <utility>
-#include <vector>
+#include <memory>
 
 #include "components/performance_manager/public/decorators/process_metrics_decorator.h"
 #include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/graph/page_node.h"
 #include "components/performance_manager/public/graph/system_node.h"
-#include "components/performance_manager/public/web_contents_proxy.h"
 
 namespace performance_manager::user_tuning {
-
-using ProxyAndPmfKbVector = std::vector<std::pair<WebContentsProxy, uint64_t>>;
 
 // This helper lives on the Performance Manager sequence to observe changes to
 // the graph and notify the UserPerformanceTuningManager when certain thresholds
 // are met.
 class UserPerformanceTuningNotifier : public performance_manager::GraphOwned,
-                                      public PageNode::ObserverDefaultImpl,
-                                      public SystemNode::ObserverDefaultImpl {
+                                      public PageNodeObserver,
+                                      public SystemNodeObserver {
  public:
   // The tab count and memory % that, when reached, trigger an opt-in bubble for
   // memory saver.
@@ -55,20 +51,19 @@ class UserPerformanceTuningNotifier : public performance_manager::GraphOwned,
   void OnPassedToGraph(Graph* graph) override;
   void OnTakenFromGraph(Graph* graph) override;
 
-  // PageNode::ObserverDefaultImpl:
+  // PageNodeObserver:
   void OnPageNodeAdded(const PageNode* page_node) override;
   void OnBeforePageNodeRemoved(const PageNode* page_node) override;
   void OnTypeChanged(const PageNode* page_node,
                      PageType previous_type) override;
 
-  // SystemNode::ObserverDefaultImpl:
+  // SystemNodeObserver:
   void OnProcessMemoryMetricsAvailable(const SystemNode* system_node) override;
 
  private:
   void MaybeAddTabAndNotify(const PageNode* page_node);
 
   std::unique_ptr<Receiver> receiver_;
-  raw_ptr<Graph> graph_;
 
   std::unique_ptr<
       performance_manager::ProcessMetricsDecorator::ScopedMetricsInterestToken>

@@ -17,9 +17,10 @@
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile_test_api.h"
+#include "components/autofill/core/browser/foundations/autofill_client.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/messages/android/mock_message_dispatcher_bridge.h"
 #include "components/signin/public/base/consent_level.h"
@@ -195,8 +196,9 @@ TEST_F(SaveUpdateAddressProfileMessageControllerTest,
 // migration flow.
 TEST_F(SaveUpdateAddressProfileMessageControllerTest,
        SaveMessageContent_AddressProfileMigrationFlow) {
-  profile_->set_source_for_testing(AutofillProfile::Source::kAccount);
-  original_profile_->set_source_for_testing(AutofillProfile::Source::kAccount);
+  test_api(*profile_).set_record_type(AutofillProfile::RecordType::kAccount);
+  test_api(*original_profile_)
+      .set_record_type(AutofillProfile::RecordType::kAccount);
   SigninUser(TestingProfile::kDefaultProfileUserName,
              signin::ConsentLevel::kSignin);
   EnqueueSaveMessage(*profile_, /*is_migration_to_account=*/true,
@@ -207,7 +209,7 @@ TEST_F(SaveUpdateAddressProfileMessageControllerTest,
             GetMessageWrapper()->GetTitle());
   EXPECT_EQ(
       l10n_util::GetStringUTF16(
-          IDS_AUTOFILL_SAVE_IN_ACCOUNT_MESSAGE_ADDRESS_MIGRATION_SOURCE_NOTICE),
+          IDS_AUTOFILL_SAVE_IN_ACCOUNT_MESSAGE_ADDRESS_MIGRATION_RECORD_TYPE_NOTICE),
       GetMessageWrapper()->GetDescription());
 
   EXPECT_EQ(l10n_util::GetStringUTF16(
@@ -228,8 +230,9 @@ TEST_F(SaveUpdateAddressProfileMessageControllerTest,
 // profile is saved in account.
 TEST_F(SaveUpdateAddressProfileMessageControllerTest,
        SaveMessageContent_AccountAddressProfile) {
-  profile_->set_source_for_testing(AutofillProfile::Source::kAccount);
-  original_profile_->set_source_for_testing(AutofillProfile::Source::kAccount);
+  test_api(*profile_).set_record_type(AutofillProfile::RecordType::kAccount);
+  test_api(*original_profile_)
+      .set_record_type(AutofillProfile::RecordType::kAccount);
   SigninUser(TestingProfile::kDefaultProfileUserName,
              signin::ConsentLevel::kSignin);
   EnqueueSaveMessage(*profile_, /*is_migration_to_account=*/false,
@@ -238,7 +241,7 @@ TEST_F(SaveUpdateAddressProfileMessageControllerTest,
   EXPECT_EQ(l10n_util::GetStringUTF16(IDS_AUTOFILL_SAVE_ADDRESS_PROMPT_TITLE),
             GetMessageWrapper()->GetTitle());
   EXPECT_EQ(l10n_util::GetStringFUTF16(
-                IDS_AUTOFILL_SAVE_IN_ACCOUNT_MESSAGE_ADDRESS_SOURCE_NOTICE,
+                IDS_AUTOFILL_SAVE_IN_ACCOUNT_MESSAGE_ADDRESS_RECORD_TYPE_NOTICE,
                 base::ASCIIToUTF16(TestingProfile::kDefaultProfileUserName)),
             GetMessageWrapper()->GetDescription());
 
@@ -308,7 +311,7 @@ TEST_F(SaveUpdateAddressProfileMessageControllerTest,
 }
 
 // Tests that the save callback is triggered with
-// |AddressPromptUserDecision::kMessageDeclined| when the user
+// `AddressPromptUserDecision::kMessageDeclined` when the user
 // dismisses the message via gesture.
 TEST_F(SaveUpdateAddressProfileMessageControllerTest,
        DecisionIsMessageDeclinedOnGestureDismiss) {
@@ -322,7 +325,7 @@ TEST_F(SaveUpdateAddressProfileMessageControllerTest,
 }
 
 // Tests that the save callback is triggered with
-// |AddressPromptUserDecision::kMessageTimeout| when the message is
+// `AddressPromptUserDecision::kMessageTimeout` when the message is
 // auto-dismissed after a timeout.
 TEST_F(SaveUpdateAddressProfileMessageControllerTest,
        DecisionIsMessageTimeoutOnTimerAutodismiss) {

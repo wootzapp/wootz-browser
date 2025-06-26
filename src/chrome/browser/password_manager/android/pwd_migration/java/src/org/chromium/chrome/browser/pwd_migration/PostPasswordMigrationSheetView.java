@@ -7,14 +7,18 @@ package org.chromium.chrome.browser.pwd_migration;
 import static org.chromium.chrome.browser.password_manager.PasswordMetricsUtil.logPostPasswordMigrationOutcome;
 
 import android.content.Context;
+import android.content.res.Resources;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.RelativeLayout;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 import androidx.appcompat.content.res.AppCompatResources;
+import androidx.appcompat.widget.DialogTitle;
 
 import org.chromium.base.Callback;
 import org.chromium.chrome.browser.password_manager.PasswordManagerResourceProviderFactory;
@@ -73,9 +77,16 @@ class PostPasswordMigrationSheetView implements BottomSheetContent {
                 AppCompatResources.getDrawable(
                         context,
                         PasswordManagerResourceProviderFactory.create().getPasswordManagerIcon()));
+        String titleText;
+        String baseSubtitleText;
+        titleText = context.getString(R.string.post_password_migration_sheet_title_about_local_pwd);
+        baseSubtitleText =
+                context.getString(R.string.post_pwd_migration_sheet_subtitle_about_local_pwd);
+        DialogTitle titleView = mContentView.findViewById(R.id.sheet_title);
+        titleView.setText(titleText);
         String subtitleText =
-                context.getString(R.string.post_password_migration_sheet_subtitle)
-                        .replace("%1$s", PasswordMigrationWarningUtil.getChannelString(context));
+                baseSubtitleText.replace(
+                        "%1$s", PasswordMigrationWarningUtil.getChannelString(context));
         TextViewWithLeading subtitleView = mContentView.findViewById(R.id.sheet_subtitle);
         subtitleView.setText(subtitleText);
         Button acknowledgeButton = mContentView.findViewById(R.id.acknowledge_button);
@@ -134,24 +145,24 @@ class PostPasswordMigrationSheetView implements BottomSheetContent {
     }
 
     @Override
-    public int getSheetContentDescriptionStringId() {
-        return R.string.password_migration_warning_content_description;
+    public @NonNull String getSheetContentDescription(Context context) {
+        return context.getString(R.string.password_migration_warning_content_description);
     }
 
     @Override
-    public int getSheetHalfHeightAccessibilityStringId() {
+    public @StringRes int getSheetHalfHeightAccessibilityStringId() {
         // The sheet doesn't have a half height state.
         assert false;
-        return 0;
+        return Resources.ID_NULL;
     }
 
     @Override
-    public int getSheetFullHeightAccessibilityStringId() {
+    public @StringRes int getSheetFullHeightAccessibilityStringId() {
         return R.string.password_migration_warning_content_description;
     }
 
     @Override
-    public int getSheetClosedAccessibilityStringId() {
+    public @StringRes int getSheetClosedAccessibilityStringId() {
         return R.string.password_migration_warning_closed;
     }
 

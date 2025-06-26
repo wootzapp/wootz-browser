@@ -9,14 +9,17 @@ import android.content.res.Resources;
 import androidx.annotation.Nullable;
 
 import org.jni_zero.CalledByNative;
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.blink.mojom.RpContext;
+import org.chromium.blink.mojom.RpMode;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabUtils;
 import org.chromium.chrome.browser.ui.android.webid.data.Account;
-import org.chromium.chrome.browser.ui.android.webid.data.ClientIdMetadata;
 import org.chromium.chrome.browser.ui.android.webid.data.IdentityCredentialTokenError;
+import org.chromium.chrome.browser.ui.android.webid.data.IdentityProviderData;
 import org.chromium.chrome.browser.ui.android.webid.data.IdentityProviderMetadata;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
@@ -46,38 +49,47 @@ class AccountSelectionBridge implements AccountSelectionComponent.Delegate {
             long nativeView,
             Tab tab,
             WindowAndroid windowAndroid,
-            BottomSheetController bottomSheetController) {
+            BottomSheetController bottomSheetController,
+            @RpMode.EnumType int rpMode) {
         mNativeView = nativeView;
         mAccountSelectionComponent =
-                new AccountSelectionCoordinator(tab, windowAndroid, bottomSheetController, this);
+                new AccountSelectionCoordinator(
+                        tab, windowAndroid, bottomSheetController, rpMode, this);
     }
 
     @CalledByNative
-    static int getBrandIconMinimumSize() {
+    static int getBrandIconMinimumSize(@RpMode.EnumType int rpMode) {
         // Icon needs to be big enough for the smallest screen density (1x).
         Resources resources = ContextUtils.getApplicationContext().getResources();
         // Density < 1.0f on ldpi devices. Adjust density to ensure that
         // {@link getBrandIconMinimumSize()} <= {@link getBrandIconIdealSize()}.
         float density = Math.max(resources.getDisplayMetrics().density, 1.0f);
-        return Math.round(getBrandIconIdealSize() / density);
+        return Math.round(getBrandIconIdealSize(rpMode) / density);
     }
 
     @CalledByNative
-    static int getBrandIconIdealSize() {
+    static int getBrandIconIdealSize(@RpMode.EnumType int rpMode) {
         Resources resources = ContextUtils.getApplicationContext().getResources();
         return Math.round(
-                resources.getDimension(R.dimen.account_selection_sheet_icon_size)
+                resources.getDimension(
+                                rpMode == RpMode.ACTIVE
+                                        ? R.dimen.account_selection_active_mode_sheet_icon_size
+                                        : R.dimen.account_selection_sheet_icon_size)
                         / MASKABLE_ICON_SAFE_ZONE_DIAMETER_RATIO);
     }
 
     @CalledByNative
     private static @Nullable AccountSelectionBridge create(
-            long nativeView, WebContents webContents, WindowAndroid windowAndroid) {
+            long nativeView,
+            WebContents webContents,
+            WindowAndroid windowAndroid,
+            @RpMode.EnumType int rpMode) {
         BottomSheetController bottomSheetController =
                 BottomSheetControllerProvider.from(windowAndroid);
         if (bottomSheetController == null) return null;
         Tab tab = TabUtils.fromWebContents(webContents);
-        return new AccountSelectionBridge(nativeView, tab, windowAndroid, bottomSheetController);
+        return new AccountSelectionBridge(
+                nativeView, tab, windowAndroid, bottomSheetController, rpMode);
     }
 
     @CalledByNative
@@ -89,112 +101,124 @@ class AccountSelectionBridge implements AccountSelectionComponent.Delegate {
     /**
      * Shows the accounts in a bottom sheet UI allowing user to select one.
      *
-     * @param topFrameForDisplay is the formatted RP top frame URL to display in the FedCM prompt.
-     * @param iframeForDisplay is the formatted RP iframe URL to display in the FedCM prompt.
-     * @param idpForDisplay is the formatted IDP URL to display in the FedCM prompt.
+     * @param rpForDisplay is the formatted RP URL to display in the FedCM prompt.
      * @param accounts is the list of accounts to be shown.
-     * @param idpMetadata is the metadata of the IDP.
-     * @param clientIdMetadata is the metadata of the RP.
+     * @param idpDataList is the list of IDP datas.
      * @param isAutoReauthn represents whether this is an auto re-authn flow.
-     * @param rpContext is a {@link String} representing the desired text to be used in the title of
-     *     the FedCM prompt: "signin", "continue", etc.
-     * @param requestPermission A {@link boolean} indicating whether we need to request permission
-     *     from the user to share their data with the IDP, if the user is not a returning user.
+     * @param newAccounts represents the newly logged in accounts.
+     * @return whether the invocation is successful. If false is returned, the caller must assume
+     *     that onDismiss was called and must return early.
      */
     @CalledByNative
-    private void showAccounts(
-            String topFrameForDisplay,
-            String iframeForDisplay,
-            String idpForDisplay,
+    private boolean showAccounts(
+            @JniType("std::string") String rpForDisplay,
             Account[] accounts,
-            IdentityProviderMetadata idpMetadata,
-            ClientIdMetadata clientIdMetadata,
+            IdentityProviderData[] idpDataList,
             boolean isAutoReauthn,
-            String rpContext,
-            boolean requestPermission) {
+            Account[] newAccounts) {
         assert accounts != null && accounts.length > 0;
-        mAccountSelectionComponent.showAccounts(
-                topFrameForDisplay,
-                iframeForDisplay,
-                idpForDisplay,
+        return mAccountSelectionComponent.showAccounts(
+                rpForDisplay,
                 Arrays.asList(accounts),
-                idpMetadata,
-                clientIdMetadata,
+                Arrays.asList(idpDataList),
                 isAutoReauthn,
-                rpContext,
-                requestPermission);
+                Arrays.asList(newAccounts));
     }
 
     /**
      * Shows a bottomsheet prompting the user to sign in to an IDP for the purpose of federated
      * login when the IDP sign-in status is signin but no accounts are received from the fetch.
      *
-     * @param topFrameForDisplay is the formatted RP top frame URL to display in the FedCM prompt.
-     * @param iframeForDisplay is the formatted RP iframe URL to display in the FedCM prompt.
+     * @param rpForDisplay is the formatted RP URL to display in the FedCM prompt.
      * @param idpForDisplay is the formatted IDP URL to display in the FedCM prompt.
      * @param idpMetadata is the metadata of the IDP.
-     * @param rpContext is a {@link String} representing the desired text to be used in the title of
-     *         the FedCM prompt: "signin", "continue", etc.
+     * @param rpContext is an enum representing the desired text to be used in the title of the
+     *     FedCM prompt: "signin", "continue", etc.
+     * @return whether the invocation is successful. If false is returned, the caller must assume
+     *     that onDismiss was called and must return early.
      */
     @CalledByNative
-    private void showFailureDialog(
-            String topFrameForDisplay,
-            String iframeForDisplay,
-            String idpForDisplay,
+    private boolean showFailureDialog(
+            @JniType("std::string") String rpForDisplay,
+            @JniType("std::string") String idpForDisplay,
             IdentityProviderMetadata idpMetadata,
-            String rpContext) {
-        mAccountSelectionComponent.showFailureDialog(
-                topFrameForDisplay, iframeForDisplay, idpForDisplay, idpMetadata, rpContext);
+            @RpContext.EnumType int rpContext) {
+        return mAccountSelectionComponent.showFailureDialog(
+                rpForDisplay, idpForDisplay, idpMetadata, rpContext);
     }
 
     /**
      * Shows a bottomsheet detailing the error that has occurred in the user's attempt to sign-in
      * through federated login.
      *
-     * @param topFrameForDisplay is the formatted RP top frame URL to display in the FedCM prompt.
-     * @param iframeForDisplay is the formatted RP iframe URL to display in the FedCM prompt.
+     * @param rpForDisplay is the formatted RP URL to display in the FedCM prompt.
      * @param idpForDisplay is the formatted IDP URL to display in the FedCM prompt.
      * @param idpMetadata is the metadata of the IDP.
      * @param rpContext is a {@link String} representing the desired text to be used in the title of
-     *         the FedCM prompt: "signin", "continue", etc.
+     *     the FedCM prompt: "signin", "continue", etc.
      * @param IdentityCredentialTokenError is contains the error code and url to display in the
-     *         FedCM prompt.
+     *     FedCM prompt.
+     * @return whether the invocation is successful. If false is returned, the caller must assume
+     *     that onDismiss was called and must return early.
      */
     @CalledByNative
-    private void showErrorDialog(
-            String topFrameForDisplay,
-            String iframeForDisplay,
-            String idpForDisplay,
+    private boolean showErrorDialog(
+            @JniType("std::string") String rpForDisplay,
+            @JniType("std::string") String idpForDisplay,
             IdentityProviderMetadata idpMetadata,
-            String rpContext,
+            @RpContext.EnumType int rpContext,
             IdentityCredentialTokenError error) {
-        mAccountSelectionComponent.showErrorDialog(
-                topFrameForDisplay, iframeForDisplay, idpForDisplay, idpMetadata, rpContext, error);
+        return mAccountSelectionComponent.showErrorDialog(
+                rpForDisplay, idpForDisplay, idpMetadata, rpContext, error);
+    }
+
+    /**
+     * Shows a bottomsheet prompting the user to sign-in to an RP with an IDP with a spinner to
+     * indicate that contents are loading.
+     *
+     * @param rpForDisplay is the formatted RP URL to display in the FedCM prompt.
+     * @param idpForDisplay is the formatted IDP URL to display in the FedCM prompt.
+     * @param rpContext is a {@link String} representing the desired text to be used in the title of
+     *     the FedCM prompt: "signin", "continue", etc.
+     * @return whether the invocation is successful. If false is returned, the caller must assume
+     *     that onDismiss was called and must return early.
+     */
+    @CalledByNative
+    private boolean showLoadingDialog(
+            @JniType("std::string") String rpForDisplay,
+            @JniType("std::string") String idpForDisplay,
+            @RpContext.EnumType int rpContext) {
+        return mAccountSelectionComponent.showLoadingDialog(rpForDisplay, idpForDisplay, rpContext);
     }
 
     @CalledByNative
-    private String getTitle() {
+    private @JniType("std::string") String getTitle() {
         return mAccountSelectionComponent.getTitle();
     }
 
     @CalledByNative
-    private String getSubtitle() {
+    private @JniType("std::optional<std::string>") String getSubtitle() {
         return mAccountSelectionComponent.getSubtitle();
     }
 
     @CalledByNative
-    private void showUrl(@IdentityRequestDialogLinkType int linkType, GURL url) {
+    private void showUrl(@IdentityRequestDialogLinkType int linkType, @JniType("GURL") GURL url) {
         mAccountSelectionComponent.showUrl(linkType, url);
     }
 
     @CalledByNative
-    private WebContents showModalDialog(GURL url) {
+    private WebContents showModalDialog(@JniType("GURL") GURL url) {
         return mAccountSelectionComponent.showModalDialog(url);
     }
 
     @CalledByNative
     private void closeModalDialog() {
         mAccountSelectionComponent.closeModalDialog();
+    }
+
+    @CalledByNative
+    private WebContents getRpWebContents() {
+        return mAccountSelectionComponent.getRpWebContents();
     }
 
     @Override
@@ -205,7 +229,7 @@ class AccountSelectionBridge implements AccountSelectionComponent.Delegate {
     }
 
     @Override
-    public void onAccountSelected(GURL idpConfigUrl, Account account) {
+    public void onAccountSelected(Account account) {
         if (mNativeView != 0) {
             // This call passes the account fields directly as String and GURL parameters as an
             // optimization to avoid needing multiple JNI getters on the Account class on for each
@@ -213,9 +237,8 @@ class AccountSelectionBridge implements AccountSelectionComponent.Delegate {
             AccountSelectionBridgeJni.get()
                     .onAccountSelected(
                             mNativeView,
-                            idpConfigUrl,
-                            account.getStringFields(),
-                            account.getPictureUrl(),
+                            account.getIdentityProviderData().getIdpMetadata().getConfigUrl(),
+                            account.getId(),
                             account.isSignIn());
         }
     }
@@ -246,13 +269,22 @@ class AccountSelectionBridge implements AccountSelectionComponent.Delegate {
         mAccountSelectionComponent.onModalDialogClosed();
     }
 
+    @Override
+    public WebContents getWebContents() {
+        return mAccountSelectionComponent.getWebContents();
+    }
+
+    @Override
+    public void setPopupComponent(AccountSelectionComponent popupComponent) {
+        mAccountSelectionComponent.setPopupComponent(popupComponent);
+    }
+
     @NativeMethods
     interface Natives {
         void onAccountSelected(
                 long nativeAccountSelectionViewAndroid,
-                GURL idpConfigUrl,
-                String[] accountFields,
-                GURL accountPictureUrl,
+                @JniType("GURL") GURL idpConfigUrl,
+                @JniType("std::string") String accountId,
                 boolean isSignedIn);
 
         void onDismiss(
@@ -260,7 +292,9 @@ class AccountSelectionBridge implements AccountSelectionComponent.Delegate {
                 @IdentityRequestDialogDismissReason int dismissReason);
 
         void onLoginToIdP(
-                long nativeAccountSelectionViewAndroid, GURL idpConfigUrl, GURL idpLoginUrl);
+                long nativeAccountSelectionViewAndroid,
+                @JniType("GURL") GURL idpConfigUrl,
+                @JniType("GURL") GURL idpLoginUrl);
 
         void onMoreDetails(long nativeAccountSelectionViewAndroid);
 

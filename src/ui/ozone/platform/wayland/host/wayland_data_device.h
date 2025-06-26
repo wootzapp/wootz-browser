@@ -46,8 +46,6 @@ class WaylandDataDevice : public WaylandDataDeviceBase {
     virtual void OnDragLeave(base::TimeTicks timestamp) = 0;
     virtual void OnDragDrop(base::TimeTicks timestamp) = 0;
 
-    virtual const WaylandWindow* GetDragTarget() const = 0;
-
    protected:
     virtual ~DragDelegate() = default;
   };
@@ -80,6 +78,13 @@ class WaylandDataDevice : public WaylandDataDeviceBase {
   // this is equivalent to "writing" to the clipboard, although the actual
   // transfer of data happens asynchronously, on-demand-only.
   void SetSelectionSource(WaylandDataSource* source, uint32_t serial);
+
+  // Returns true if there is an active wayland drag session.
+  bool IsDragInProgress() const;
+
+  void set_drag_delegate_for_testing(DragDelegate* drag_delegate) {
+    drag_delegate_ = drag_delegate;
+  }
 
  private:
   FRIEND_TEST_ALL_PREFIXES(WaylandDataDragControllerTest, StartDrag);

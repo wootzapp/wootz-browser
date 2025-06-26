@@ -4,8 +4,8 @@
 
 import("//extensions/buildflags/buildflags.gni")
 
-# assert(enable_extensions,
-#        "Cannot depend on extensions because enable_extensions=false.")
+assert(enable_extensions,
+       "Cannot depend on extensions because enable_extensions=false.")
 
 source_set("app_window") {
   sources = [
@@ -15,12 +15,19 @@ source_set("app_window") {
 
   configs += [ "//build/config/compiler:wexit_time_destructors" ]
 
+  public_deps = [ "//extensions/browser:browser_sources" ]
+
   deps = [
+    "//base",
     "//build:chromeos_buildflags",
     "//content/public/browser",
+    "//content/public/common",
     "//extensions/common",
+    "//extensions/common:mojom",
     "//extensions/common/api",
+    "//skia",
+    "//ui/base/mojom:ui_base_types",
+    "//ui/gfx/geometry",
+    "//url",
   ]
-
-  public_deps = [ "//extensions/browser:browser_sources" ]
 }

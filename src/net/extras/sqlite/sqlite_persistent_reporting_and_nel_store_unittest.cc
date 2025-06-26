@@ -24,10 +24,12 @@
 #include "net/base/features.h"
 #include "net/base/network_anonymization_key.h"
 #include "net/network_error_logging/network_error_logging_service.h"
+#include "net/reporting/reporting_target_type.h"
 #include "net/reporting/reporting_test_util.h"
 #include "net/test/test_with_task_environment.h"
 #include "sql/database.h"
 #include "sql/meta_table.h"
+#include "sql/test/test_helpers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace net {
@@ -212,8 +214,8 @@ class SQLitePersistentReportingAndNelStoreTest
     info.priority = priority;
     info.weight = weight;
     ReportingEndpoint endpoint(
-        ReportingEndpointGroupKey(network_anonymization_key, origin,
-                                  group_name),
+        ReportingEndpointGroupKey(network_anonymization_key, origin, group_name,
+                                  ReportingTargetType::kDeveloper),
         std::move(info));
     return endpoint;
   }
@@ -226,8 +228,8 @@ class SQLitePersistentReportingAndNelStoreTest
       OriginSubdomains include_subdomains = OriginSubdomains::DEFAULT,
       base::Time expires = kExpires) {
     return CachedReportingEndpointGroup(
-        ReportingEndpointGroupKey(network_anonymization_key, origin,
-                                  group_name),
+        ReportingEndpointGroupKey(network_anonymization_key, origin, group_name,
+                                  ReportingTargetType::kDeveloper),
         include_subdomains, expires, last_used);
   }
 
@@ -292,7 +294,7 @@ TEST_F(SQLitePersistentReportingAndNelStoreTest, TestInvalidMetaTableRecovery) {
 
   // Now corrupt the meta table.
   {
-    sql::Database db;
+    sql::Database db(sql::test::kTestTag);
     ASSERT_TRUE(
         db.Open(temp_dir_.GetPath().Append(kReportingAndNELStoreFilename)));
     sql::MetaTable meta_table;
@@ -526,8 +528,7 @@ TEST_F(SQLitePersistentReportingAndNelStoreTest, CoalesceNelPolicyOperations) {
           break;
 
         default:
-          NOTREACHED_IN_MIGRATION();
-          break;
+          NOTREACHED();
       }
     }
 
@@ -1289,8 +1290,7 @@ TEST_F(SQLitePersistentReportingAndNelStoreTest,
           break;
 
         default:
-          NOTREACHED_IN_MIGRATION();
-          break;
+          NOTREACHED();
       }
     }
 
@@ -1381,8 +1381,7 @@ TEST_F(SQLitePersistentReportingAndNelStoreTest,
           break;
 
         default:
-          NOTREACHED_IN_MIGRATION();
-          break;
+          NOTREACHED();
       }
     }
 

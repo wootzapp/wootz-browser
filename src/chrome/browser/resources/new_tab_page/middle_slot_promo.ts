@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
+import './mobile_promo.js';
 
 import {CrAutoImgElement} from 'chrome://resources/cr_elements/cr_auto_img/cr_auto_img.js';
 import type {CrToastElement} from 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
@@ -11,11 +11,13 @@ import {Command} from 'chrome://resources/js/browser_command.mojom-webui.js';
 import {BrowserCommandProxy} from 'chrome://resources/js/browser_command/browser_command_proxy.js';
 import {EventTracker} from 'chrome://resources/js/event_tracker.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
+import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 import type {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
-import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {getTemplate} from './middle_slot_promo.html.js';
-import type {Promo} from './new_tab_page.mojom-webui.js';
+import {getCss} from './middle_slot_promo.css.js';
+import {getHtml} from './middle_slot_promo.html.js';
+import type {PageHandlerRemote, Promo} from './new_tab_page.mojom-webui.js';
 import {NewTabPageProxy} from './new_tab_page_proxy.js';
 import {WindowProxy} from './window_proxy.js';
 
@@ -138,6 +140,7 @@ export interface MiddleSlotPromoElement {
     promoAndDismissContainer: HTMLElement,
     dismissPromoButtonToast: CrToastElement,
     dismissPromoButtonToastMessage: HTMLElement,
+    mobilePromo: HTMLElement,
     undoDismissPromoButton: HTMLElement,
   };
 }
@@ -145,35 +148,50 @@ export interface MiddleSlotPromoElement {
 // Element that requests and renders the middle-slot promo. The element is
 // hidden until the promo is rendered, If no promo exists or the promo is empty,
 // the element remains hidden.
-export class MiddleSlotPromoElement extends PolymerElement {
+export class MiddleSlotPromoElement extends CrLitElement {
   static get is() {
     return 'ntp-middle-slot-promo';
   }
 
-  static get template() {
-    return getTemplate();
+  static override get styles() {
+    return getCss();
   }
 
-  static get properties() {
+  override render() {
+    return getHtml.bind(this)();
+  }
+
+  static override get properties() {
     return {
+      mobilePromoEnabled_: {type: Boolean},
+
       shownMiddleSlotPromoId_: {
         type: String,
-        reflectToAttribute: true,
+        reflect: true,
       },
 
-      promo_: {
-        type: Object,
-        observer: 'onPromoChange_',
-      },
+      hasDefaultPromo_: {type: Boolean},
+      hasMobilePromoContent_: {type: Boolean},
+      promo_: {type: Object},
     };
   }
 
-  private eventTracker_: EventTracker = new EventTracker();
-  private shownMiddleSlotPromoId_: string;
-  private blocklistedMiddleSlotPromoId_: string;
-  private promo_: Promo;
+  protected accessor mobilePromoEnabled_: boolean =
+      loadTimeData.getBoolean('mobilePromoEnabled');
+  protected accessor shownMiddleSlotPromoId_: string;
+  private accessor hasDefaultPromo_: boolean|null = null;
+  private accessor hasMobilePromoContent_: boolean|null = null;
+  private accessor promo_: Promo;
 
+  private blocklistedMiddleSlotPromoId_: string;
+  private eventTracker_: EventTracker = new EventTracker();
+  private pageHandler_: PageHandlerRemote;
   private setPromoListenerId_: number|null = null;
+
+  constructor() {
+    super();
+    this.pageHandler_ = NewTabPageProxy.getInstance().handler;
+  }
 
   override connectedCallback() {
     super.connectedCallback();
@@ -183,7 +201,7 @@ export class MiddleSlotPromoElement extends PolymerElement {
               this.promo_ = promo;
             });
     this.eventTracker_.add(window, 'keydown', this.onWindowKeydown_.bind(this));
-    NewTabPageProxy.getInstance().handler.updatePromoData();
+    this.pageHandler_.updatePromoData();
   }
 
   override disconnectedCallback() {
@@ -193,13 +211,70 @@ export class MiddleSlotPromoElement extends PolymerElement {
         this.setPromoListenerId_!);
   }
 
+  override updated(changedProperties: PropertyValues<this>) {
+    super.updated(changedProperties);
+
+    const changedPrivateProperties =
+        changedProperties as Map<PropertyKey, unknown>;
+
+    if (changedPrivateProperties.has('promo_')) {
+      this.onPromoChange_();
+    }
+
+    if (changedPrivateProperties.has('hasDefaultPromo_') ||
+        changedPrivateProperties.has('hasMobilePromoContent_')) {
+      this.updatePromoVisibility_();
+    }
+  }
+
+  private updatePromoVisibility_() {
+    // `renderPromo()` must be called first to initialize promo data.
+    if (this.hasDefaultPromo_ === null) {
+      return;
+    }
+
+    // Up to one promo type can show at any given time.
+    // Note: This logic doesn't apply when handling promo dismissal to avoid
+    // immediately showing a new promo after one is dismissed.
+    this.$.promoAndDismissContainer.hidden = !this.hasDefaultPromo_;
+    if (this.mobilePromoEnabled_) {
+      const showMobilePromo =
+          !this.hasDefaultPromo_ && this.hasMobilePromoContent_;
+      this.$.mobilePromo.hidden = !showMobilePromo;
+      if (showMobilePromo) {
+        this.pageHandler_.onMobilePromoShown();
+      }
+    }
+
+    // Don't fire a load event until we've verified that one or neither of the
+    // promo types (default or mobile) can show. `this.mobilePromoEnabled_`
+    // becomes false in `renderPromo()` whenever a default promo is about to
+    // render.
+    if (!this.mobilePromoEnabled_ || this.hasMobilePromoContent_ !== null) {
+      this.fire('ntp-middle-slot-promo-loaded');
+    }
+  }
+
+  protected onMobilePromoQrCodeChanged_(e: CustomEvent<{value: string}>) {
+    this.hasMobilePromoContent_ = !!e.detail.value;
+  }
+
   private onPromoChange_() {
+    if (this.mobilePromoEnabled_) {
+      if (this.hasMobilePromoContent_ && this.hasDefaultPromo_ !== null) {
+        // Skip calling `renderPromo()` if we already attempted to render a
+        // promo before AND there is mobile promo content to display. This
+        // prevents the default promo from showing if the mobile promo has
+        // already been displayed, and vice versa.
+        return;
+      }
+    }
+
     renderPromo(this.promo_).then(promo => {
       if (!promo) {
-        this.$.promoAndDismissContainer.hidden = true;
+        this.hasDefaultPromo_ = false;
       } else {
-        const promoContainer =
-            this.shadowRoot!.getElementById('promoContainer');
+        const promoContainer = this.shadowRoot.getElementById('promoContainer');
         if (promoContainer) {
           promoContainer.remove();
         }
@@ -209,14 +284,19 @@ export class MiddleSlotPromoElement extends PolymerElement {
         const renderedPromoContainer = promo.container;
         assert(renderedPromoContainer);
         this.$.promoAndDismissContainer.prepend(renderedPromoContainer);
-        this.$.promoAndDismissContainer.hidden = false;
+        // Disable the mobile promo since a default promo is going to render.
+        this.mobilePromoEnabled_ = false;
+        this.hasDefaultPromo_ = true;
       }
-      this.dispatchEvent(new Event(
-          'ntp-middle-slot-promo-loaded', {bubbles: true, composed: true}));
     });
   }
 
+  // Allow users to undo the dismissal of the default promo using Ctrl+Z (or
+  // Cmd+Z on macOS). Mobile promo dismissal is handled by `mobile_promo.ts`.
   private onWindowKeydown_(e: KeyboardEvent) {
+    if (!this.blocklistedMiddleSlotPromoId_) {
+      return;
+    }
     let ctrlKeyPressed = e.ctrlKey;
     // <if expr="is_macosx">
     ctrlKeyPressed = ctrlKeyPressed || e.metaKey;
@@ -226,20 +306,18 @@ export class MiddleSlotPromoElement extends PolymerElement {
     }
   }
 
-  private onDismissPromoButtonClick_() {
+  protected onDismissPromoButtonClick_() {
     assert(this.$.promoAndDismissContainer);
     this.$.promoAndDismissContainer.hidden = true;
-    NewTabPageProxy.getInstance().handler.blocklistPromo(
-        this.shownMiddleSlotPromoId_);
+    this.pageHandler_.blocklistPromo(this.shownMiddleSlotPromoId_);
     this.blocklistedMiddleSlotPromoId_ = this.shownMiddleSlotPromoId_;
     this.$.dismissPromoButtonToast.show();
     recordPromoDismissAction(PromoDismissAction.DISMISS);
   }
 
-  private onUndoDismissPromoButtonClick_() {
+  protected onUndoDismissPromoButtonClick_() {
     assert(this.$.promoAndDismissContainer);
-    NewTabPageProxy.getInstance().handler.undoBlocklistPromo(
-        this.blocklistedMiddleSlotPromoId_);
+    this.pageHandler_.undoBlocklistPromo(this.blocklistedMiddleSlotPromoId_);
     this.$.promoAndDismissContainer.hidden = false;
     this.$.dismissPromoButtonToast.hide();
     recordPromoDismissAction(PromoDismissAction.RESTORE);

@@ -34,7 +34,6 @@ import androidx.annotation.VisibleForTesting;
 import androidx.core.view.MarginLayoutParamsCompat;
 import androidx.gridlayout.widget.GridLayout;
 
-import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ui.theme.ChromeSemanticColorUtils;
 import org.chromium.components.autofill.EditableOption;
@@ -43,7 +42,6 @@ import org.chromium.components.browser_ui.widget.DualControlLayout;
 import org.chromium.components.browser_ui.widget.DualControlLayout.ButtonType;
 import org.chromium.components.browser_ui.widget.TintedDrawable;
 import org.chromium.ui.HorizontalListDividerDrawable;
-import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.interpolators.Interpolators;
 
@@ -51,35 +49,32 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Represents a single section in the {@link PaymentRequestUI} that flips between multiple states.
+ * Represents a single section in the {@link PaymentRequestUi} that flips between multiple states.
  *
- * The row is broken up into three major, vertically-centered sections:
+ * <p>The row is broken up into three major, vertically-centered sections:
+ * ............................................................................................. .
+ * TITLE | | CHEVRON . .................................................................| | or . .
+ * LEFT SUMMARY TEXT | RIGHT SUMMARY TEXT | LOGO | ADD .
+ * .................................................................| | or . . MAIN SECTION CONTENT
+ * | | CHOOSE .
  * .............................................................................................
- * . TITLE                                                          |                | CHEVRON .
- * .................................................................|                |    or   .
- * . LEFT SUMMARY TEXT                        |  RIGHT SUMMARY TEXT |           LOGO |   ADD   .
- * .................................................................|                |    or   .
- * . MAIN SECTION CONTENT                                           |                |  CHOOSE .
- * .............................................................................................
  *
- * 1) MAIN CONTENT
- *    The main content is on the left side of the UI.  This includes the title of the section and
- *    two bits of optional summary text.  Subclasses may extend this class to append more controls
- *    via the {@link #createMainSectionContent} function.
+ * <p>1) MAIN CONTENT The main content is on the left side of the UI. This includes the title of the
+ * section and two bits of optional summary text. Subclasses may extend this class to append more
+ * controls via the {@link #createMainSectionContent} function.
  *
- * 2) LOGO
- *    Displays an optional logo (e.g. a credit card image) that floats to the right of the main
- *    content.
+ * <p>2) LOGO Displays an optional logo (e.g. a credit card image) that floats to the right of the
+ * main content.
  *
- * 3) CHEVRON or ADD or CHOOSE
- *    Drawn to indicate that the current section may be expanded.  Displayed only when the view is
- *    in the {@link #DISPLAY_MODE_EXPANDABLE} state and only if an ADD or CHOOSE button isn't shown.
+ * <p>3) CHEVRON or ADD or CHOOSE Drawn to indicate that the current section may be expanded.
+ * Displayed only when the view is in the {@link #DISPLAY_MODE_EXPANDABLE} state and only if an ADD
+ * or CHOOSE button isn't shown.
  *
- * There are three states that the UI may flip between; see {@link #DISPLAY_MODE_NORMAL},
- * {@link #DISPLAY_MODE_EXPANDABLE}, and {@link #DISPLAY_MODE_FOCUSED} for details.
+ * <p>There are three states that the UI may flip between; see {@link #DISPLAY_MODE_NORMAL}, {@link
+ * #DISPLAY_MODE_EXPANDABLE}, and {@link #DISPLAY_MODE_FOCUSED} for details.
  */
 public abstract class PaymentRequestSection extends LinearLayout implements View.OnClickListener {
-    public static final String TAG = "PaymentRequestUI";
+    public static final String TAG = "PaymentRequestUi";
 
     /** Handles clicks on the widgets and providing data to the PaymentsRequestSection. */
     public interface SectionDelegate extends View.OnClickListener {
@@ -173,7 +168,7 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
 
         // Set the styling of the view.
         mUnfocusedBackgroundColor = ChromeSemanticColorUtils.getPaymentRequestBg(context);
-        mFocusedBackgroundColor = SemanticColorUtils.getDefaultBgColorElev1(context);
+        mFocusedBackgroundColor = SemanticColorUtils.getColorSurfaceContainerLow(context);
         mLargeSpacing =
                 getResources().getDimensionPixelSize(R.dimen.editor_dialog_section_large_spacing);
         mVerticalSpacing =
@@ -277,28 +272,28 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
     /**
      * Changes the appearance of the title.
      *
-     * @param resId @see android.widget.TextView#setTextAppearance(int id).
+     * @see android.widget.TextView#setTextAppearance(int id).
      */
     protected void setTitleAppearance(int resId) {
-        ApiCompatibilityUtils.setTextAppearance(mTitleView, resId);
+        mTitleView.setTextAppearance(resId);
     }
 
     /**
      * Changes the appearance of the summary.
      *
-     * @param resId @see android.widget.TextView#setTextAppearance(int id).
+     * @see android.widget.TextView#setTextAppearance(int id).
      */
     protected void setSummaryAppearance(int leftResId, int rightResId) {
-        ApiCompatibilityUtils.setTextAppearance(mSummaryLeftTextView, leftResId);
-        ApiCompatibilityUtils.setTextAppearance(mSummaryRightTextView, rightResId);
+        mSummaryLeftTextView.setTextAppearance(leftResId);
+        mSummaryRightTextView.setTextAppearance(rightResId);
     }
 
     /**
      * Sets how the summary text should be displayed.
      *
-     * @param leftTruncate      How to truncate the left summary text.  Set to null to clear.
-     * @param leftIsSingleLine  Whether the left summary text should be a single line.
-     * @param rightTruncate     How to truncate the right summary text.  Set to null to clear.
+     * @param leftTruncate How to truncate the left summary text. Set to null to clear.
+     * @param leftIsSingleLine Whether the left summary text should be a single line.
+     * @param rightTruncate How to truncate the right summary text. Set to null to clear.
      * @param rightIsSingleLine Whether the right summary text should be a single line.
      */
     public void setSummaryProperties(
@@ -369,20 +364,17 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
         // The title is always displayed for the row at the top of the main section.
         mTitleView = new TextView(getContext());
         mTitleView.setText(sectionName);
-        ApiCompatibilityUtils.setTextAppearance(
-                mTitleView, R.style.TextAppearance_TextMedium_Accent1);
+        mTitleView.setTextAppearance(R.style.TextAppearance_TextMedium_Accent1);
         mainSectionLayout.addView(
                 mTitleView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
         // Create the two TextViews for showing the summary text.
         mSummaryLeftTextView = new TextView(getContext());
         mSummaryLeftTextView.setId(R.id.payments_left_summary_label);
-        ApiCompatibilityUtils.setTextAppearance(
-                mSummaryLeftTextView, R.style.TextAppearance_TextLarge_Primary);
+        mSummaryLeftTextView.setTextAppearance(R.style.TextAppearance_TextLarge_Primary);
 
         mSummaryRightTextView = new TextView(getContext());
-        ApiCompatibilityUtils.setTextAppearance(
-                mSummaryRightTextView, R.style.TextAppearance_TextLarge_Primary);
+        mSummaryRightTextView.setTextAppearance(R.style.TextAppearance_TextLarge_Primary);
         mSummaryRightTextView.setTextAlignment(TEXT_ALIGNMENT_TEXT_END);
 
         // The main TextView sucks up all the available space.
@@ -618,8 +610,7 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
 
             // Create the view and set the text appearance and layout parameters.
             mUpdatedView = new TextView(context);
-            ApiCompatibilityUtils.setTextAppearance(
-                    mUpdatedView, R.style.TextAppearance_TextLarge_Primary);
+            mUpdatedView.setTextAppearance(R.style.TextAppearance_TextLarge_Primary);
             LinearLayout.LayoutParams updatedLayoutParams =
                     new LinearLayout.LayoutParams(
                             LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
@@ -677,8 +668,7 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
                 LineItem item = cart.getContents().get(i);
 
                 TextView description = new TextView(context);
-                ApiCompatibilityUtils.setTextAppearance(
-                        description,
+                description.setTextAppearance(
                         item.getIsPending()
                                 ? R.style.TextAppearance_PaymentsUiSectionPendingTextEndAligned
                                 : R.style
@@ -691,8 +681,7 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
                 }
 
                 TextView amount = new TextView(context);
-                ApiCompatibilityUtils.setTextAppearance(
-                        amount,
+                amount.setTextAppearance(
                         item.getIsPending()
                                 ? R.style.TextAppearance_PaymentsUiSectionPendingTextEndAligned
                                 : R.style
@@ -865,18 +854,17 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
              * @param dataType  The type of the data contained in the section.
              * @param willFocus Whether the section is getting the focus.
              */
-            void onFocusChanged(@PaymentRequestUI.DataType int dataType, boolean willFocus);
+            void onFocusChanged(@PaymentRequestUi.DataType int dataType, boolean willFocus);
         }
 
         /**
          * Displays a row representing either a selectable option or some flavor text.
          *
-         * + The "button" is on the left and shows either an icon or a radio button to represent th
-         *   row type.
-         * + The "label" is text describing the row.
-         * + The "icon" is a logo representing the option, like a credit card.
-         * + The "edit icon" is a pencil icon with a vertical separator to indicate the option is
-         *   editable, clicking on it brings up corresponding editor.
+         * <p>+ The "button" is on the left and shows either an icon or a radio button to represent
+         * th row type. + The "label" is text describing the row. + The "icon" is a logo
+         * representing the option, like a credit card. + The "edit icon" is a pencil icon with a
+         * vertical separator to indicate the option is editable, clicking on it brings up
+         * corresponding editor.
          */
         public class OptionRow {
             private static final int OPTION_ROW_TYPE_OPTION = 0;
@@ -1033,24 +1021,22 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
                             resources.getDimensionPixelSize(
                                     R.dimen.payments_section_add_button_height);
 
-                    ApiCompatibilityUtils.setTextAppearance(
-                            labelView, R.style.TextAppearance_EditorDialogSectionAddButton);
+                    labelView.setTextAppearance(
+                            R.style.TextAppearance_EditorDialogSectionAddButton);
                     labelView.setMinimumHeight(buttonHeight);
                     labelView.setGravity(Gravity.CENTER_VERTICAL);
-                    labelView.setTypeface(UiUtils.createRobotoMediumTypeface());
                 } else if (mRowType == OPTION_ROW_TYPE_DESCRIPTION) {
                     // The description spans all the columns.
                     columnStart = 0;
                     columnSpan = 4;
 
-                    ApiCompatibilityUtils.setTextAppearance(
-                            labelView, R.style.TextAppearance_TextMedium_Secondary);
+                    labelView.setTextAppearance(R.style.TextAppearance_TextMedium_Secondary);
                     labelView.setId(R.id.payments_description_label);
                 } else if (mRowType == OPTION_ROW_TYPE_WARNING) {
                     // Warnings use three columns.
                     columnSpan = 3;
-                    ApiCompatibilityUtils.setTextAppearance(
-                            labelView, R.style.TextAppearance_PaymentsUiSectionWarningText);
+                    labelView.setTextAppearance(
+                            R.style.TextAppearance_PaymentsUiSectionWarningText);
                     labelView.setId(R.id.payments_warning_label);
                 }
 
@@ -1185,11 +1171,7 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
             setSummaryText(null, null);
         }
 
-        /**
-         * Registers the delegate to be notified when this OptionSection gains or loses focus.
-         *
-         * @param delegate The delegate to notify.
-         */
+        /** Registers the delegate to be notified when this OptionSection gains or loses focus. */
         public void setOptionSectionFocusChangedObserver(FocusChangedObserver observer) {
             mFocusChangedObserver = observer;
         }
@@ -1303,7 +1285,7 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
                             LayoutInflater.from(getContext())
                                     .inflate(R.layout.payment_request_spinny, null);
 
-            TextView textView = (TextView) spinnyLayout.findViewById(R.id.message);
+            TextView textView = spinnyLayout.findViewById(R.id.message);
             textView.setText(getContext().getString(R.string.payments_checking_option));
 
             return spinnyLayout;
@@ -1402,8 +1384,8 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
                 setLogoDrawable(null);
                 // Section summary should be displayed as descriptive text style.
                 if (!mSummaryInDescriptiveText) {
-                    ApiCompatibilityUtils.setTextAppearance(
-                            getSummaryLeftTextView(), R.style.TextAppearance_TextMedium_Secondary);
+                    TextView view = getSummaryLeftTextView();
+                    view.setTextAppearance(R.style.TextAppearance_TextMedium_Secondary);
                     mSummaryInDescriptiveText = true;
                 }
                 SectionUiUtils.showSectionSummaryInTextViewInSingeLine(
@@ -1413,8 +1395,8 @@ public abstract class PaymentRequestSection extends LinearLayout implements View
                 // Selected item summary should be displayed as
                 // R.style.TextAppearance_TextLarge_Primary.
                 if (mSummaryInDescriptiveText) {
-                    ApiCompatibilityUtils.setTextAppearance(
-                            getSummaryLeftTextView(), R.style.TextAppearance_TextLarge_Primary);
+                    TextView view = getSummaryLeftTextView();
+                    view.setTextAppearance(R.style.TextAppearance_TextLarge_Primary);
                     mSummaryInDescriptiveText = false;
                 }
                 // Split summary in DISPLAY_MODE_NORMAL if caller specified. The first part is

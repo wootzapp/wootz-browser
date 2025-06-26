@@ -14,6 +14,7 @@ import static org.chromium.chrome.browser.multiwindow.MultiWindowTestHelper.crea
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Build;
+import android.os.Build.VERSION_CODES;
 
 import androidx.test.filters.SmallTest;
 
@@ -29,6 +30,7 @@ import org.mockito.Mockito;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
@@ -44,14 +46,14 @@ import org.chromium.chrome.test.AutomotiveContextWrapperTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.ui.test.util.UiDisableIf;
+import org.chromium.ui.base.DeviceFormFactor;
 
 import java.util.concurrent.TimeoutException;
 
 /** Class for testing MultiWindowUtils. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@DisableIf.Build(sdk_is_greater_than = VERSION_CODES.R) // https://crbug.com/1297370
 public class MultiWindowUtilsTest {
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
@@ -76,7 +78,7 @@ public class MultiWindowUtilsTest {
     /** Tests that ChromeTabbedActivity2 is used for intents when EXTRA_WINDOW_ID is set to 2. */
     @Test
     @SmallTest
-    @DisableIf.Device(type = {UiDisableIf.TABLET}) // https://crbug.com/338976206
+    @DisableIf.Device(DeviceFormFactor.TABLET) // https://crbug.com/338976206
     @Feature("MultiWindow")
     public void testTabbedActivityForIntentWithExtraWindowId() {
         ChromeTabbedActivity activity1 = mActivityTestRule.getActivity();
@@ -97,7 +99,7 @@ public class MultiWindowUtilsTest {
      */
     @Test
     @SmallTest
-    @DisableIf.Device(type = {UiDisableIf.TABLET}) // https://crbug.com/338976206
+    @DisableIf.Device(DeviceFormFactor.TABLET) // https://crbug.com/338976206
     @Feature("MultiWindow")
     public void testTabbedActivityForIntentLastResumedActivity() {
         ChromeTabbedActivity activity1 = mActivityTestRule.getActivity();
@@ -114,7 +116,7 @@ public class MultiWindowUtilsTest {
         CriteriaHelper.pollUiThread(() -> activity2.getCurrentTabModel().getProfile() != null);
 
         // Open settings and wait for ChromeTabbedActivity2 to pause.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     activity2.onMenuOrKeyboardAction(R.id.preferences_id, true);
                 });
@@ -158,7 +160,7 @@ public class MultiWindowUtilsTest {
      */
     @Test
     @SmallTest
-    @DisableIf.Device(type = {UiDisableIf.TABLET}) // https://crbug.com/338976206
+    @DisableIf.Device(DeviceFormFactor.TABLET) // https://crbug.com/338976206
     @Feature("MultiWindow")
     public void testTabbedActivityForIntentOnlyActivity2IsRunning() {
         ChromeTabbedActivity activity1 = mActivityTestRule.getActivity();
@@ -215,7 +217,7 @@ public class MultiWindowUtilsTest {
      */
     @Test
     @SmallTest
-    @DisableIf.Device(type = {UiDisableIf.TABLET}) // https://crbug.com/338976206
+    @DisableIf.Device(DeviceFormFactor.TABLET) // https://crbug.com/338976206
     @Feature("MultiWindow")
     public void testAreMultipleChromeInstancesRunningSecondInstanceKilledFirst()
             throws TimeoutException {
@@ -245,7 +247,7 @@ public class MultiWindowUtilsTest {
                         }
                     }
                 };
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ApplicationStatus.registerStateListenerForActivity(
                             activity1StateListener, activity1);
@@ -271,7 +273,7 @@ public class MultiWindowUtilsTest {
                         }
                     }
                 };
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ApplicationStatus.registerStateListenerForActivity(
                             activity2StateListener, activity2);
@@ -281,7 +283,7 @@ public class MultiWindowUtilsTest {
         // necessary to make sure activity1 gets resumed.
         activity1CallCount = activity1ResumedCallback.getCallCount();
         activity2.finishAndRemoveTask();
-        activity2DestroyedCallback.waitForFirst();
+        activity2DestroyedCallback.waitForOnly();
         activity1ResumedCallback.waitForCallback(activity1CallCount);
         Assert.assertFalse(
                 "Only a single instance should be running after the second is killed.",
@@ -312,7 +314,7 @@ public class MultiWindowUtilsTest {
     @DisableIf.Build(
             sdk_is_less_than = Build.VERSION_CODES.O,
             message = "https://crbug.com/1077249")
-    @DisableIf.Device(type = {UiDisableIf.TABLET}) // https://crbug.com/338976206
+    @DisableIf.Device(DeviceFormFactor.TABLET) // https://crbug.com/338976206
     public void testAreMultipleChromeInstancesRunningFirstInstanceKilledFirst()
             throws TimeoutException {
         ChromeTabbedActivity activity1 = mActivityTestRule.getActivity();
@@ -337,7 +339,7 @@ public class MultiWindowUtilsTest {
                         }
                     }
                 };
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ApplicationStatus.registerStateListenerForActivity(
                             activity1StateListener, activity1);
@@ -347,7 +349,7 @@ public class MultiWindowUtilsTest {
         // activity1 may be killed in the background, but since it is never foregrounded again
         // there should be only one call for both stopped and destroyed in this test.
         ChromeTabbedActivity activity2 = createSecondChromeTabbedActivity(activity1);
-        activity1StoppedCallback.waitForFirst();
+        activity1StoppedCallback.waitForOnly();
         Assert.assertTrue(
                 "Both instances should be running now that the second has started.",
                 MultiWindowUtils.getInstance().areMultipleChromeInstancesRunning(activity1));
@@ -364,21 +366,21 @@ public class MultiWindowUtilsTest {
                         }
                     }
                 };
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ApplicationStatus.registerStateListenerForActivity(
                             activity2StateListener, activity2);
                 });
 
         activity1.finishAndRemoveTask();
-        activity1DestroyedCallback.waitForFirst();
+        activity1DestroyedCallback.waitForOnly();
         Assert.assertFalse(
                 "Only a single instance should be running after the first is killed.",
                 MultiWindowUtils.getInstance().areMultipleChromeInstancesRunning(activity2));
 
         // activity2 is always in the foreground so this should be the first time it is destroyed.
         activity2.finishAndRemoveTask();
-        activity2DestroyedCallback.waitForFirst();
+        activity2DestroyedCallback.waitForOnly();
         Assert.assertFalse(
                 "No instances should be running as all instances are killed.",
                 MultiWindowUtils.getInstance().areMultipleChromeInstancesRunning(activity2));

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "net/http/http_response_body_drainer.h"
 
 #include <stdint.h>
@@ -33,6 +38,7 @@
 #include "net/socket/socket_test_util.h"
 #include "net/ssl/ssl_config_service_defaults.h"
 #include "net/test/test_with_task_environment.h"
+#include "net/url_request/static_http_user_agent_settings.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace net {
@@ -251,6 +257,7 @@ class HttpResponseBodyDrainerTest : public TestWithTaskEnvironment {
     context.client_socket_factory = &socket_factory_;
     context.proxy_resolution_service = proxy_resolution_service_.get();
     context.ssl_config_service = ssl_config_service_.get();
+    context.http_user_agent_settings = &http_user_agent_settings_;
     context.http_server_properties = http_server_properties_.get();
     context.cert_verifier = &cert_verifier_;
     context.transport_security_state = &transport_security_state_;
@@ -261,6 +268,7 @@ class HttpResponseBodyDrainerTest : public TestWithTaskEnvironment {
 
   std::unique_ptr<ProxyResolutionService> proxy_resolution_service_;
   std::unique_ptr<SSLConfigService> ssl_config_service_;
+  StaticHttpUserAgentSettings http_user_agent_settings_ = {"*", "test-ua"};
   std::unique_ptr<HttpServerProperties> http_server_properties_;
   MockCertVerifier cert_verifier_;
   TransportSecurityState transport_security_state_;

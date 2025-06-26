@@ -10,8 +10,6 @@ import '/shared/settings/controls/cr_policy_pref_indicator.js';
 import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
 import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
-import 'chrome://resources/cr_elements/md_select.css.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
 import '/shared/settings/controls/extension_controlled_indicator.js';
 import '../settings_page/settings_animated_pages.js';
 import '../settings_page/settings_subpage.js';
@@ -22,7 +20,6 @@ import '../site_favicon.js';
 import type {CrToastElement} from 'chrome://resources/cr_elements/cr_toast/cr_toast.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
-import {assert} from 'chrome://resources/js/assert.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {BaseMixin} from '../base_mixin.js';
@@ -30,7 +27,7 @@ import {loadTimeData} from '../i18n_setup.js';
 import {routes} from '../route.js';
 import {Router} from '../router.js';
 import type {SearchEngine, SearchEnginesBrowserProxy, SearchEnginesInfo} from '../search_engines_page/search_engines_browser_proxy.js';
-import {ChoiceMadeLocation, SearchEnginesBrowserProxyImpl} from '../search_engines_page/search_engines_browser_proxy.js';
+import {SearchEnginesBrowserProxyImpl} from '../search_engines_page/search_engines_browser_proxy.js';
 
 import {getTemplate} from './search_page.html.js';
 
@@ -55,23 +52,6 @@ export class SettingsSearchPageElement extends SettingsSearchPageElementBase {
        */
       searchEngines_: Array,
 
-      // Whether the `SearchEngineChoiceTrigger` feature is enabled.
-      searchEngineChoiceSettingsUi_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.getBoolean('searchEngineChoiceSettingsUi');
-        },
-      },
-
-      // Whether we need to set the icon size to large because they are loaded
-      // in the binary or smaller because we get them from the favicon service.
-      isEeaChoiceCountry_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.getBoolean('isEeaChoiceCountry');
-        },
-      },
-
       // The selected default search engine.
       defaultSearchEngine_: {
         type: Object,
@@ -92,17 +72,21 @@ export class SettingsSearchPageElement extends SettingsSearchPageElementBase {
     };
   }
 
-  prefs: Object;
-  private searchEngines_: SearchEngine[];
-  private searchEnginesFilter_: string;
-  private searchEngineChoiceSettingsUi_: boolean;
-  private showSearchEngineListDialog_: boolean;
-  private defaultSearchEngine_: SearchEngine|null;
-  private focusConfig_: Map<string, string>|null;
+  declare prefs: Object;
+  declare private searchEngines_: SearchEngine[];
+  declare private searchEnginesFilter_: string;
+  declare private showSearchEngineListDialog_: boolean;
+  declare private defaultSearchEngine_: SearchEngine|null;
+  declare private focusConfig_: Map<string, string>|null;
   private browserProxy_: SearchEnginesBrowserProxy =
       SearchEnginesBrowserProxyImpl.getInstance();
-  private useLargeSearchEngineIcons_: boolean;
-  private confirmationToastLabel_: string;
+
+  // Whether we need to set the icon size to large because they are loaded
+  // in the binary or smaller because we get them from the favicon service.
+  private isEeaChoiceCountry_: boolean =
+      loadTimeData.getBoolean('isEeaChoiceCountry');
+
+  declare private confirmationToastLabel_: string;
 
   override ready() {
     super.ready();
@@ -124,15 +108,6 @@ export class SettingsSearchPageElement extends SettingsSearchPageElementBase {
   override connectedCallback() {
     super.connectedCallback();
     this.setFaviconSize_();
-  }
-
-  private onChange_() {
-    assert(!this.searchEngineChoiceSettingsUi_);
-    const select = this.shadowRoot!.querySelector('select');
-    assert(select);
-    const searchEngine = this.searchEngines_[select.selectedIndex];
-    this.browserProxy_.setDefaultSearchEngine(
-        searchEngine.modelIndex, ChoiceMadeLocation.SEARCH_SETTINGS);
   }
 
   private onDisableExtension_() {
@@ -159,7 +134,7 @@ export class SettingsSearchPageElement extends SettingsSearchPageElementBase {
   }
 
   private computeDefaultSearchEngine_() {
-    if (!this.searchEngines_.length || !this.searchEngineChoiceSettingsUi_) {
+    if (!this.searchEngines_.length) {
       return null;
     }
 
@@ -167,7 +142,6 @@ export class SettingsSearchPageElement extends SettingsSearchPageElementBase {
   }
 
   private onOpenDialogButtonClick_() {
-    assert(this.searchEngineChoiceSettingsUi_);
     this.showSearchEngineListDialog_ = true;
     chrome.metricsPrivate.recordUserAction('ChooseDefaultSearchEngine');
   }
@@ -180,13 +154,12 @@ export class SettingsSearchPageElement extends SettingsSearchPageElementBase {
   }
 
   private onSearchEngineListDialogClose_() {
-    assert(this.searchEngineChoiceSettingsUi_);
     this.showSearchEngineListDialog_ = false;
   }
 
   private setFaviconSize_() {
     this.style.setProperty(
-        '--favicon-size', this.useLargeSearchEngineIcons_ ? '24px' : '16px');
+        '--favicon-size', this.isEeaChoiceCountry_ ? '24px' : '16px');
   }
 }
 

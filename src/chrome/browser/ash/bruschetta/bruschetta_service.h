@@ -36,9 +36,6 @@ class BruschettaService : public KeyedService,
   explicit BruschettaService(Profile* profile);
   ~BruschettaService() override;
 
-  // Helper method to get the service instance for the given profile.
-  static BruschettaService* GetForProfile(Profile* profile);
-
   // Register an existing bruschetta instance with the terminal app.
   void RegisterWithTerminal(const guest_os::GuestId& guest_id);
 
@@ -71,6 +68,12 @@ class BruschettaService : public KeyedService,
   // up.
   void RemoveVm(const guest_os::GuestId& guest_id,
                 base::OnceCallback<void(bool)> callback);
+
+  // Checks if the vm identified by `vm_name` is in the running list.
+  bool IsVmRunning(std::string_view vm_name);
+
+  // Stops all running VMs.
+  void StopRunningVms();
 
  private:
   struct VmRegistration {

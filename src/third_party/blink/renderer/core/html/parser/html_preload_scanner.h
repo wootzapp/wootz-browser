@@ -73,7 +73,7 @@ using MetaCHValues = Vector<MetaCHValue>;
 struct PendingPreloadData {
   MetaCHValues meta_ch_values;
   std::optional<ViewportDescription> viewport;
-  bool has_csp_meta_tag = false;
+  int csp_meta_tag_count = 0;
   bool has_located_potential_lcp_element = false;
   PreloadRequestStream requests;
 };
@@ -87,18 +87,21 @@ struct CORE_EXPORT CachedDocumentParameters {
  public:
   explicit CachedDocumentParameters(Document*);
   CachedDocumentParameters() = default;
+  static void SetLcppPreloadLazyLoadImageTypeForTesting(
+      std::optional<features::LcppPreloadLazyLoadImageType> type);
 
   bool do_html_preload_scanning;
   Length default_viewport_min_width;
   bool viewport_meta_zero_values_quirk;
   bool viewport_meta_enabled;
   network::mojom::ReferrerPolicy referrer_policy;
-  SubresourceIntegrity::IntegrityFeatures integrity_features;
   LocalFrame::LazyLoadImageSetting lazy_load_image_setting;
   // Work with the element locators. If the LCP candidate image is found and
   // that has a lazy loading indicator, ignore it and create preload request.
   // This will override |lazy_load_image_setting| behavior.
   features::LcppPreloadLazyLoadImageType preload_lazy_load_image_type;
+  static std::optional<features::LcppPreloadLazyLoadImageType>
+      preload_lazy_load_image_type_for_testing;
   HashSet<String> disabled_image_types;
 };
 
@@ -122,7 +125,7 @@ class TokenPreloadScanner {
             PreloadRequestStream& requests,
             MetaCHValues& meta_ch_values,
             std::optional<ViewportDescription>*,
-            bool* is_csp_meta_tag);
+            int* csp_meta_tag_counter);
 
   void SetPredictedBaseElementURL(const KURL& url) {
     predicted_base_element_url_ = url;

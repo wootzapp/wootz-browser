@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/not_fatal_until.h"
 #include "components/image_fetcher/core/image_fetcher_metrics_reporter.h"
 #include "net/base/data_url.h"
 #include "net/base/load_flags.h"
@@ -37,7 +38,7 @@ struct ImageDataFetcher::ImageDataFetcherRequest {
                           std::unique_ptr<network::SimpleURLLoader> loader)
       : callback(std::move(callback)), loader(std::move(loader)) {}
 
-  ~ImageDataFetcherRequest() {}
+  ~ImageDataFetcherRequest() = default;
 
   // The callback to run after the image data was fetched. The callback will
   // be run even if the image data could not be fetched successfully.
@@ -121,9 +122,12 @@ void ImageDataFetcher::FetchImageData(const GURL& image_url,
   request->url = image_url;
   request->referrer_policy = referrer_policy;
   request->referrer = GURL(referrer);
-  request->credentials_mode = send_cookies
-                                  ? network::mojom::CredentialsMode::kInclude
-                                  : network::mojom::CredentialsMode::kOmit;
+  if (send_cookies) {
+    request->credentials_mode = network::mojom::CredentialsMode::kInclude;
+    request->site_for_cookies = net::SiteForCookies::FromUrl(image_url);
+  } else {
+    request->credentials_mode = network::mojom::CredentialsMode::kOmit;
+  }
 
   std::unique_ptr<network::SimpleURLLoader> loader =
       network::SimpleURLLoader::Create(std::move(request),
@@ -170,7 +174,7 @@ void ImageDataFetcher::OnURLLoaderComplete(
     net::HttpResponseHeaders* headers = source->ResponseInfo()->headers.get();
     metadata.mime_type = source->ResponseInfo()->mime_type;
     metadata.http_response_code = headers->response_code();
-    // Just read the first value-pair for this header (not caring about |iter|).
+    // Just read the first value-pair for this header (not caring about `iter`).
     headers->EnumerateHeader(
         /*iter=*/nullptr, kContentLocationHeader,
         &metadata.content_location_header);
@@ -193,11 +197,11 @@ void ImageDataFetcher::FinishRequest(const network::SimpleURLLoader* source,
                                      const std::string& image_data) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto request_iter = pending_requests_.find(source);
-  DCHECK(request_iter != pending_requests_.end());
+  CHECK(request_iter != pending_requests_.end(), base::NotFatalUntil::M130);
   auto callback = std::move(request_iter->second->callback);
   pending_requests_.erase(request_iter);
   std::move(callback).Run(image_data, metadata);
-  // |this| might be destroyed now.
+  // `this` might be destroyed now.
 }
 
 void ImageDataFetcher::InjectResultForTesting(const RequestMetadata& metadata,

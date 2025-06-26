@@ -4,8 +4,9 @@
 
 #include "components/power_bookmarks/core/power_bookmark_service.h"
 
+#include <algorithm>
+
 #include "base/feature_list.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/sequenced_task_runner.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/power_bookmarks/common/power.h"
@@ -16,7 +17,7 @@
 #include "components/power_bookmarks/core/power_bookmark_utils.h"
 #include "components/power_bookmarks/core/proto/power_bookmark_meta.pb.h"
 #include "components/power_bookmarks/storage/power_bookmark_backend.h"
-#include "components/sync/model/proxy_model_type_controller_delegate.h"
+#include "components/sync/model/proxy_data_type_controller_delegate.h"
 #include "components/sync/protocol/power_bookmark_specifics.pb.h"
 
 using bookmarks::BookmarkModel;
@@ -31,7 +32,7 @@ PowerBookmarkService::PowerBookmarkService(
     scoped_refptr<base::SequencedTaskRunner> backend_task_runner)
     : model_(model), backend_task_runner_(backend_task_runner) {
   if (model_)
-    model_->AddObserver(this);
+    model_observation_.Observe(model_);
 
   backend_ = std::make_unique<PowerBookmarkBackend>(
       database_dir, frontend_task_runner, weak_ptr_factory_.GetWeakPtr());
@@ -43,15 +44,12 @@ PowerBookmarkService::PowerBookmarkService(
 }
 
 PowerBookmarkService::~PowerBookmarkService() {
-  if (model_)
-    model_->RemoveObserver(this);
-
   backend_task_runner_->DeleteSoon(FROM_HERE, std::move(backend_));
 }
 
-std::unique_ptr<syncer::ModelTypeControllerDelegate>
+std::unique_ptr<syncer::DataTypeControllerDelegate>
 PowerBookmarkService::CreateSyncControllerDelegate() {
-  return std::make_unique<syncer::ProxyModelTypeControllerDelegate>(
+  return std::make_unique<syncer::ProxyDataTypeControllerDelegate>(
       backend_task_runner_,
       base::BindRepeating(&PowerBookmarkBackend::GetSyncControllerDelegate,
                           base::Unretained(backend_.get())));
@@ -171,7 +169,7 @@ void PowerBookmarkService::AddDataProvider(
 void PowerBookmarkService::RemoveDataProvider(
     PowerBookmarkDataProvider* data_provider) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  auto it = base::ranges::find(data_providers_, data_provider);
+  auto it = std::ranges::find(data_providers_, data_provider);
   if (it != data_providers_.end())
     data_providers_.erase(it);
 }

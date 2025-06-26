@@ -10,6 +10,7 @@
 #include "base/compiler_specific.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/version.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -18,9 +19,8 @@
 #include "extensions/common/extension_id.h"
 #include "extensions/common/extension_set.h"
 
-#if !BUILDFLAG(ENABLE_EXTENSIONS)
-#error "Extensions must be enabled"
-#endif
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS) ||
+              BUILDFLAG(ENABLE_DESKTOP_ANDROID_EXTENSIONS));
 
 namespace content {
 class BrowserContext;
@@ -57,6 +57,8 @@ class ExtensionRegistry : public KeyedService {
 
   // Returns the instance for the given |browser_context|.
   static ExtensionRegistry* Get(content::BrowserContext* browser_context);
+
+  base::WeakPtr<ExtensionRegistry> GetWeakPtr();
 
   content::BrowserContext* browser_context() const { return browser_context_; }
 
@@ -217,6 +219,8 @@ class ExtensionRegistry : public KeyedService {
       observers_;
 
   const raw_ptr<content::BrowserContext> browser_context_;
+
+  base::WeakPtrFactory<ExtensionRegistry> weak_factory_{this};
 };
 
 }  // namespace extensions

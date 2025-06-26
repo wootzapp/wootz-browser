@@ -18,6 +18,10 @@ namespace base {
 class TickClock;
 }  // namespace base
 
+namespace input {
+struct NativeWebKeyboardEvent;
+}  // namespace input
+
 namespace content {
 struct NativeWebKeyboardEvent;
 class WebContents;
@@ -57,7 +61,11 @@ class KeyboardLockController : public ExclusiveAccessControllerBase {
 
   // Allows for special handling for KeyDown/KeyUp events.  Returns true if the
   // event was handled by the KeyboardLockController.
-  bool HandleKeyEvent(const content::NativeWebKeyboardEvent& event);
+  bool HandleKeyEvent(const input::NativeWebKeyboardEvent& event);
+
+  void set_lock_state_callback_for_test(base::OnceClosure callback) {
+    lock_state_callback_for_test_ = std::move(callback);
+  }
 
  private:
   friend class ExclusiveAccessTest;
@@ -76,11 +84,17 @@ class KeyboardLockController : public ExclusiveAccessControllerBase {
   // Notifies the exclusive access tab that it must deactivate keyboard lock.
   void UnlockKeyboard();
 
+  // Notifies `web_contents` that it must deactivate keyboard lock.
+  void UnlockKeyboardForWebContents(
+      base::WeakPtr<content::WebContents> web_contents);
+
   // Called when the user has held down Escape.
   void HandleUserHeldEscapeDeprecated();
 
   // Displays the exit instructions if the user presses escape rapidly.
   void ReShowExitBubbleIfNeeded();
+
+  void NotifyLockRequestResult();
 
   // Called after the bubble is hidden in tests, if set.
   ExclusiveAccessBubbleHideCallbackForTest bubble_hide_callback_for_test_;
@@ -98,7 +112,10 @@ class KeyboardLockController : public ExclusiveAccessControllerBase {
 
   base::circular_deque<base::TimeTicks> esc_keypress_tracker_;
 
+  // Called when a page acquires, fails to acquire, or loses keyboard lock.
+  base::OnceClosure lock_state_callback_for_test_;
+
   base::WeakPtrFactory<KeyboardLockController> weak_ptr_factory_{this};
 };
 
-#endif  //  CHROME_BROWSER_UI_EXCLUSIVE_ACCESS_KEYBOARD_LOCK_CONTROLLER_H_
+#endif  // CHROME_BROWSER_UI_EXCLUSIVE_ACCESS_KEYBOARD_LOCK_CONTROLLER_H_

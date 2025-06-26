@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/drive/drive_api_util.h"
 
+#include <array>
 #include <string>
 #include <string_view>
 
@@ -26,7 +32,7 @@ struct HostedDocumentKind {
   const char* extension;
 };
 
-const HostedDocumentKind kHostedDocumentKinds[] = {
+constexpr auto kHostedDocumentKinds = std::to_array<HostedDocumentKind>({
     {kGoogleDocumentMimeType, ".gdoc"},
     {kGoogleSpreadsheetMimeType, ".gsheet"},
     {kGooglePresentationMimeType, ".gslides"},
@@ -35,7 +41,8 @@ const HostedDocumentKind kHostedDocumentKinds[] = {
     {kGoogleFormMimeType, ".gform"},
     {kGoogleMapMimeType, ".gmaps"},
     {kGoogleSiteMimeType, ".gsite"},
-    {kEmailLayoutsMimeType, ".gmaillayout"}};
+    {kEmailLayoutsMimeType, ".gmaillayout"},
+});
 
 const char kUnknownHostedDocumentExtension[] = ".glink";
 

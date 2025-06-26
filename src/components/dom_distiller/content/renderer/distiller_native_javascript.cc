@@ -14,7 +14,7 @@
 #include "content/public/renderer/render_frame.h"
 #include "gin/arguments.h"
 #include "gin/function_template.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "v8/include/v8.h"
@@ -70,29 +70,31 @@ void DistillerNativeJavaScript::AddJavaScriptObjectToFrame(
 
   EnsureServiceConnected();
 
-  // Many functions can simply call the Mojo interface directly and have no
-  // wrapper function for binding. Note that calling distiller_js_service.get()
-  // does not transfer ownership of the interface.
   BindFunctionToObject(
       isolate, distiller_obj, "openSettings",
       base::BindRepeating(
-          &mojom::DistillerJavaScriptService::HandleDistillerOpenSettingsCall,
-          base::Unretained(distiller_js_service_.get())));
+          [](base::WeakPtr<DistillerNativeJavaScript> service) {
+            if (!service || !service->distiller_js_service_) {
+              return;
+            }
+            service->distiller_js_service_->HandleDistillerOpenSettingsCall();
+          },
+          weak_factory_.GetWeakPtr()));
 
   BindFunctionToObject(
       isolate, distiller_obj, "storeThemePref",
       base::BindRepeating(&DistillerNativeJavaScript::StoreIntTheme,
-                          base::Unretained(this)));
+                          weak_factory_.GetWeakPtr()));
 
   BindFunctionToObject(
       isolate, distiller_obj, "storeFontFamilyPref",
       base::BindRepeating(&DistillerNativeJavaScript::StoreIntFontFamily,
-                          base::Unretained(this)));
+                          weak_factory_.GetWeakPtr()));
 
   BindFunctionToObject(
       isolate, distiller_obj, "storeFontScalingPref",
       base::BindRepeating(&DistillerNativeJavaScript::StoreFloatFontScaling,
-                          base::Unretained(this)));
+                          weak_factory_.GetWeakPtr()));
 }
 
 template <typename Sig>
@@ -113,7 +115,7 @@ void DistillerNativeJavaScript::BindFunctionToObject(
 
 void DistillerNativeJavaScript::EnsureServiceConnected() {
   if (!distiller_js_service_) {
-    render_frame_->GetBrowserInterfaceBroker()->GetInterface(
+    render_frame_->GetBrowserInterfaceBroker().GetInterface(
         distiller_js_service_.BindNewPipeAndPassReceiver());
   }
 }

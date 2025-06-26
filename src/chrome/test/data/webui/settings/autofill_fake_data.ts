@@ -4,7 +4,7 @@
 
 // clang-format off
 import type {AutofillManagerProxy, PaymentsManagerProxy, PersonalDataChangedListener} from 'chrome://settings/lazy_load.js';
-import {assertEquals} from 'chrome://webui-test/chai_assert.js';
+import {assertEquals, assertFalse} from 'chrome://webui-test/chai_assert.js';
 import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 
 // clang-format on
@@ -84,24 +84,30 @@ export function createEmptyCreditCardEntry():
 /**
  * Creates a new random credit card entry for testing.
  */
-export function createCreditCardEntry():
-    chrome.autofillPrivate.CreditCardEntry {
+export function createCreditCardEntry(
+    isNewFopDisplay: boolean = true,
+    hasIdentifier: boolean = false): chrome.autofillPrivate.CreditCardEntry {
   const cards = ['Visa', 'Mastercard', 'Discover', 'Card'];
   const card = cards[Math.floor(Math.random() * cards.length)];
-  const cardNumber = patternMaker('xxxx', 10);
+  const cardNumber = appendLuhnCheckBit(patternMaker('xxxxxxxxxxxxxxx', 10));
+  const now = new Date();
+  const networkAndLastFour = card + ' ' +
+      '****' + cardNumber.substr(-4);
   return {
     guid: makeGuid(),
     name: 'Jane Doe',
     cardNumber: cardNumber,
     expirationMonth: Math.ceil(Math.random() * 11).toString(),
-    expirationYear: (2016 + Math.floor(Math.random() * 5)).toString(),
+    expirationYear:
+        (now.getFullYear() + Math.floor(Math.random() * 5) + 1).toString(),
     network: `${card}_network`,
     imageSrc: 'chrome://theme/IDR_AUTOFILL_CC_GENERIC',
     metadata: {
       isLocal: true,
-      summaryLabel: card + ' ' +
-          '****' + cardNumber.substr(-4),
-      summarySublabel: 'Jane Doe',
+      summaryLabel: hasIdentifier ? `My Credit Card` : networkAndLastFour,
+      summarySublabel: isNewFopDisplay ?
+          (hasIdentifier ? networkAndLastFour : '') :
+          'Jane Doe',
     },
   };
 }
@@ -126,6 +132,19 @@ export function createIbanEntry(
 }
 
 /**
+ * Creates a new valid Pay Over Time entry for testing.
+ */
+export function createPayOverTimeIssuerEntry():
+    chrome.autofillPrivate.PayOverTimeIssuerEntry {
+  return {
+    issuerId: 'issuer1',
+    instrumentId: '123456',
+    displayName: 'Issuer1',
+    imageSrc: 'chrome://theme/IDR_AUTOFILL_METADATA_BNPL_GENERIC',
+  };
+}
+
+/**
  * Creates a new random GUID for testing.
  */
 export function makeGuid(): string {
@@ -141,6 +160,31 @@ function patternMaker(pattern: string, base: number): string {
   return pattern.replace(/x/g, function() {
     return Math.floor(Math.random() * base).toString(base);
   });
+}
+
+/**
+ * Calculates and appends a Luhn check bit for the given card number.
+ * https://en.wikipedia.org/wiki/Luhn_algorithm
+ * @param cardNumber The card number to calculate a check bit for
+ */
+function appendLuhnCheckBit(cardNumber: string): string {
+  const digitsInReverse = cardNumber.split('').reverse();
+  let sum = 0;
+  let doubleDigit = true;
+  for (const digit of digitsInReverse) {
+    let intDigit = Number(digit);
+    assertFalse(Number.isNaN(intDigit));
+    if (doubleDigit) {
+      intDigit *= 2;
+      sum += Math.floor(intDigit / 10) + (intDigit % 10);
+    } else {
+      sum += intDigit;
+    }
+    doubleDigit = !doubleDigit;
+  }
+
+  const checkDigit = (10 - (sum % 10)) % 10;
+  return cardNumber + checkDigit.toString();
 }
 
 /**
@@ -268,6 +312,7 @@ export class PaymentsManagerExpectations {
   requestedIbans: number = 0;
   removedIbans: number = 0;
   isValidIban: number = 0;
+  requestedPayOverTimeIssuers: number = 0;
   authenticateUserAndFlipMandatoryAuthToggle: number = 0;
   getLocalCard: number = 0;
   bulkDeleteAllCvcs: number = 0;
@@ -278,6 +323,7 @@ export class PaymentsManagerExpectations {
  */
 export class TestPaymentsManager extends TestBrowserProxy implements
     PaymentsManagerProxy {
+  private isValidIbanResult_: boolean = true;
   private isUserVerifyingPlatformAuthenticatorAvailable_: boolean|null = null;
   // <if expr="is_win or is_macosx">
   private isDeviceAuthAvailable_: boolean = false;
@@ -286,6 +332,7 @@ export class TestPaymentsManager extends TestBrowserProxy implements
   data: {
     creditCards: chrome.autofillPrivate.CreditCardEntry[],
     ibans: chrome.autofillPrivate.IbanEntry[],
+    payOverTimeIssuers: chrome.autofillPrivate.PayOverTimeIssuerEntry[],
   };
 
   lastCallback:
@@ -302,6 +349,7 @@ export class TestPaymentsManager extends TestBrowserProxy implements
       'isValidIban',
       'removeCreditCard',
       'removeIban',
+      'getPayOverTimeIssuerList',
       'removePersonalDataManagerListener',
       'setPersonalDataManagerListener',
     ]);
@@ -310,6 +358,7 @@ export class TestPaymentsManager extends TestBrowserProxy implements
     this.data = {
       creditCards: [],
       ibans: [],
+      payOverTimeIssuers: [],
     };
 
     // Holds the last callbacks so they can be called when needed.
@@ -336,8 +385,6 @@ export class TestPaymentsManager extends TestBrowserProxy implements
 
   logServerIbanLinkClicked() {}
 
-  migrateCreditCards() {}
-
   removeCreditCard(_guid: string) {
     this.methodCalled('removeCreditCard');
   }
@@ -361,9 +408,18 @@ export class TestPaymentsManager extends TestBrowserProxy implements
     return Promise.resolve(this.data.ibans);
   }
 
+  setIsValidIban(isValidIbanResult: boolean) {
+    this.isValidIbanResult_ = isValidIbanResult;
+  }
+
   isValidIban(_ibanValue: string) {
     this.methodCalled('isValidIban');
-    return Promise.resolve(true);
+    return Promise.resolve(this.isValidIbanResult_);
+  }
+
+  getPayOverTimeIssuerList() {
+    this.methodCalled('getPayOverTimeIssuerList');
+    return Promise.resolve(structuredClone(this.data.payOverTimeIssuers));
   }
 
   setIsUserVerifyingPlatformAuthenticatorAvailable(available: boolean|null) {
@@ -426,6 +482,10 @@ export class TestPaymentsManager extends TestBrowserProxy implements
     assertEquals(
         expected.removedIbans, this.getCallCount('removeIban'),
         'removedIbans mismatch');
+    assertEquals(
+        expected.requestedPayOverTimeIssuers,
+        this.getCallCount('getPayOverTimeIssuerList'),
+        'requestedPayOverTimeIssuers mismatch');
     assertEquals(
         expected.authenticateUserAndFlipMandatoryAuthToggle,
         this.getCallCount('authenticateUserAndFlipMandatoryAuthToggle'),

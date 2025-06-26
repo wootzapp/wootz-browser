@@ -43,8 +43,12 @@ namespace blink {
 
 class Document;
 class ExceptionState;
+class SetHTMLOptions;
+class SetHTMLUnsafeOptions;
 class SlotAssignment;
-class V8ObservableArrayCSSStyleSheet;
+class ReferenceTargetIdObserver;
+class V8ShadowRootMode;
+class V8SlotAssignmentMode;
 class WhitespaceAttacher;
 
 enum class ShadowRootMode { kOpen, kClosed, kUserAgent };
@@ -76,18 +80,7 @@ class CORE_EXPORT ShadowRoot final : public DocumentFragment,
     return *To<Element>(ParentOrShadowHostNode());
   }
   ShadowRootMode GetMode() const { return static_cast<ShadowRootMode>(mode_); }
-  String mode() const {
-    switch (GetMode()) {
-      case ShadowRootMode::kOpen:
-        return "open";
-      case ShadowRootMode::kClosed:
-        return "closed";
-      case ShadowRootMode::kUserAgent:
-        // UA ShadowRoot should not be exposed to the Web.
-        NOTREACHED_IN_MIGRATION();
-        return "";
-    }
-  }
+  V8ShadowRootMode mode() const;
 
   bool IsOpen() const { return GetMode() == ShadowRootMode::kOpen; }
   bool IsUserAgent() const { return GetMode() == ShadowRootMode::kUserAgent; }
@@ -130,6 +123,10 @@ class CORE_EXPORT ShadowRoot final : public DocumentFragment,
   String innerHTML() const;
   void setInnerHTML(const String&, ExceptionState& = ASSERT_NO_EXCEPTION);
   void setHTMLUnsafe(const String& html, ExceptionState&);
+  void setHTMLUnsafe(const String& html,
+                     SetHTMLUnsafeOptions*,
+                     ExceptionState&);
+  void setHTML(const String& html, SetHTMLOptions*, ExceptionState&);
 
   Node* Clone(Document& factory,
               NodeCloningData& data,
@@ -138,6 +135,10 @@ class CORE_EXPORT ShadowRoot final : public DocumentFragment,
 
   void SetDelegatesFocus(bool flag) { delegates_focus_ = flag; }
   bool delegatesFocus() const { return delegates_focus_; }
+
+  void setReferenceTarget(const AtomicString& reference_target);
+  const AtomicString& referenceTarget() const;
+  Element* referenceTargetElement() const;
 
   bool IsManualSlotting() const {
     return slot_assignment_mode_ ==
@@ -150,9 +151,7 @@ class CORE_EXPORT ShadowRoot final : public DocumentFragment,
   SlotAssignmentMode GetSlotAssignmentMode() const {
     return static_cast<SlotAssignmentMode>(slot_assignment_mode_);
   }
-  String slotAssignment() const {
-    return IsManualSlotting() ? "manual" : "named";
-  }
+  V8SlotAssignmentMode slotAssignment() const;
 
   void SetIsDeclarativeShadowRoot(bool flag) {
     DCHECK(!flag || GetMode() == ShadowRootMode::kOpen ||
@@ -180,22 +179,20 @@ class CORE_EXPORT ShadowRoot final : public DocumentFragment,
   void SetRegistry(CustomElementRegistry*);
   CustomElementRegistry* registry() const { return registry_.Get(); }
 
+  // Revamped scoped custom element registry renames
+  // `.registry` to `.customElementRegistry`, and it is read only.
+  CustomElementRegistry* customElementRegistry() const override {
+    DCHECK(RuntimeEnabledFeatures::ScopedCustomElementRegistryEnabled());
+    return registry_.Get();
+  }
+
   bool ContainsShadowRoots() const { return child_shadow_root_count_; }
 
   void Trace(Visitor*) const override;
 
- protected:
-  void OnAdoptedStyleSheetSet(ScriptState*,
-                              V8ObservableArrayCSSStyleSheet&,
-                              uint32_t,
-                              Member<CSSStyleSheet>&,
-                              ExceptionState&) override;
-  void OnAdoptedStyleSheetDelete(ScriptState*,
-                                 V8ObservableArrayCSSStyleSheet&,
-                                 uint32_t,
-                                 ExceptionState&) override;
-
  private:
+  friend class ReferenceTargetIdObserver;
+
   void ChildrenChanged(const ChildrenChange&) override;
 
   SlotAssignment& EnsureSlotAssignment();
@@ -206,8 +203,11 @@ class CORE_EXPORT ShadowRoot final : public DocumentFragment,
     --child_shadow_root_count_;
   }
 
+  void ReferenceTargetChanged();
+
   Member<SlotAssignment> slot_assignment_;
   Member<CustomElementRegistry> registry_;
+  Member<ReferenceTargetIdObserver> reference_target_id_observer_;
   unsigned child_shadow_root_count_ : 16;
   unsigned mode_ : 2;
   unsigned registered_with_parent_shadow_root_ : 1;
@@ -229,6 +229,30 @@ inline ShadowRoot* Node::GetShadowRoot() const {
   if (!this_element)
     return nullptr;
   return this_element->GetShadowRoot();
+}
+
+inline bool IsShadowHost(const Node* node) {
+  return node && node->GetShadowRoot();
+}
+
+inline bool IsShadowHost(const Node& node) {
+  return node.GetShadowRoot();
+}
+
+inline bool IsShadowHost(const Element* element) {
+  return element && element->GetShadowRoot();
+}
+
+inline bool IsShadowHost(const Element& element) {
+  return element.GetShadowRoot();
+}
+
+inline bool IsAtShadowBoundary(const Element* element) {
+  if (!element) {
+    return false;
+  }
+  ContainerNode* parent_node = element->parentNode();
+  return parent_node && parent_node->IsShadowRoot();
 }
 
 template <>

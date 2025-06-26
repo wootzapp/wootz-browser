@@ -24,8 +24,10 @@ END_METADATA
 
 ReadLaterSidePanelWebView::ReadLaterSidePanelWebView(
     Browser* browser,
+    SidePanelEntryScope& scope,
     base::RepeatingClosure close_cb)
     : SidePanelWebUIViewT(
+          scope,
           base::BindRepeating(
               &ReadLaterSidePanelWebView::UpdateActiveURLToActiveTab,
               base::Unretained(this)),
@@ -34,7 +36,6 @@ ReadLaterSidePanelWebView::ReadLaterSidePanelWebView(
               GURL(chrome::kChromeUIReadLaterURL),
               browser->profile(),
               IDS_READ_LATER_TITLE,
-              /*webui_resizes_host=*/false,
               /*esc_closes_ui=*/false)),
       browser_(browser) {
   SetProperty(views::kElementIdentifierKey,
@@ -50,8 +51,9 @@ void ReadLaterSidePanelWebView::OnTabStripModelChanged(
     TabStripModel* tab_strip_model,
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
-  if (GetVisible() && selection.active_tab_changed())
+  if (GetVisible() && selection.active_tab_changed()) {
     UpdateActiveURL(tab_strip_model->GetActiveWebContents());
+  }
 }
 
 void ReadLaterSidePanelWebView::TabChangedAt(content::WebContents* contents,
@@ -66,8 +68,9 @@ void ReadLaterSidePanelWebView::TabChangedAt(content::WebContents* contents,
 void ReadLaterSidePanelWebView::UpdateActiveURL(
     content::WebContents* contents) {
   auto* controller = contents_wrapper()->GetWebUIController();
-  if (!controller || !contents)
+  if (!controller || !contents) {
     return;
+  }
 
   controller->GetAs<ReadingListUI>()->SetActiveTabURL(
       chrome::GetURLToBookmark(contents));

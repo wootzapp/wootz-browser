@@ -26,6 +26,9 @@ class HelpAppUIDelegate {
   // if the dialog was determined to have opened successfully.
   virtual std::optional<std::string> OpenFeedbackDialog() = 0;
 
+  // Opens OS Settings at the on device app controls section.
+  virtual void ShowOnDeviceAppControls() = 0;
+
   // Opens OS Settings at the parental controls section.
   virtual void ShowParentalControls() = 0;
 
@@ -56,6 +59,11 @@ class HelpAppUIDelegate {
   // process to crash.
   virtual std::optional<std::string> OpenUrlInBrowserAndTriggerInstallDialog(
       const GURL& url) = 0;
+
+  // Open an os settings of a specified settings component. If a specified
+  // component is not available on a device, it is handled as no-op.
+  virtual void OpenSettings(
+      ash::help_app::mojom::SettingsComponent component) = 0;
 };
 
 }  // namespace ash

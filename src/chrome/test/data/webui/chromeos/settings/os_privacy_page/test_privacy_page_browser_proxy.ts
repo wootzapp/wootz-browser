@@ -3,7 +3,8 @@
 // found in the LICENSE file.
 
 // clang-format off
-import {MetricsReporting, PrivacyPageBrowserProxy, ResolverOption, SecureDnsMode, SecureDnsSetting, SecureDnsUiManagementMode} from 'chrome://os-settings/os_settings.js';
+import type {MetricsReporting, PrivacyPageBrowserProxy, ResolverOption, SecureDnsSetting} from 'chrome://os-settings/os_settings.js';
+import {SecureDnsMode, SecureDnsUiManagementMode} from 'chrome://os-settings/os_settings.js';
 import {assertFalse} from 'chrome://webui-test/chai_assert.js';
 import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 
@@ -37,9 +38,12 @@ export class TestPrivacyPageBrowserProxy extends TestBrowserProxy implements
     this.secureDnsSetting = {
       mode: SecureDnsMode.AUTOMATIC,
       config: '',
+      osMode: SecureDnsMode.AUTOMATIC,
+      osConfig: '',
       managementMode: SecureDnsUiManagementMode.NO_OVERRIDE,
       dohWithIdentifiersActive: false,
       configForDisplay: '',
+      dohDomainConfigSet: false,
     };
 
     this.resolverList_ = [{name: 'Custom', value: 'custom', policy: ''}];

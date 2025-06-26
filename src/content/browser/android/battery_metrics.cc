@@ -28,6 +28,10 @@
 namespace content {
 namespace {
 
+using ScenarioScope = performance_scenarios::ScenarioScope;
+using LoadingScenario = performance_scenarios::LoadingScenario;
+using InputScenario = performance_scenarios::InputScenario;
+
 perfetto::protos::pbzero::DeviceThermalState ToTraceEnum(
     base::PowerThermalObserver::DeviceThermalState state) {
   switch (state) {
@@ -44,11 +48,55 @@ perfetto::protos::pbzero::DeviceThermalState ToTraceEnum(
   }
 }
 
-void Report30SecondDrain(int capacity_consumed, bool is_exclusive_measurement) {
+std::string GetLoadingScenarioSuffix(std::optional<LoadingScenario> scenario) {
+  // LINT.IfChange(LoadingScenarioSuffix)
+  if (!scenario.has_value()) {
+    return "UnknownLoadingScenario";
+  }
+  switch (*scenario) {
+    case LoadingScenario::kFocusedPageLoading:
+      return "FocusedPageLoading";
+    case LoadingScenario::kVisiblePageLoading:
+      return "VisiblePageLoading";
+    case LoadingScenario::kBackgroundPageLoading:
+      return "BackgroundPageLoading";
+    case LoadingScenario::kNoPageLoading:
+      return "NoPageLoading";
+  }
+  // LINT.ThenChange(/tools/metrics/histograms/metadata/power/histograms.xml:LoadingScenarioSuffix)
+  NOTREACHED();
+}
+
+std::string GetInputScenarioSuffix(std::optional<InputScenario> scenario) {
+  // LINT.IfChange(InputScenarioSuffix)
+  if (!scenario.has_value()) {
+    return "UnknownInputScenario";
+  }
+  switch (*scenario) {
+    case InputScenario::kScroll:
+      return "Scroll";
+    case InputScenario::kTap:
+      return "Tap";
+    case InputScenario::kTyping:
+      return "Typing";
+    case InputScenario::kNoInput:
+      return "NoInput";
+  }
+  // LINT.ThenChange(/tools/metrics/histograms/metadata/power/histograms.xml:InputScenarioSuffix)
+  NOTREACHED();
+}
+
+void Report30SecondDrain(int capacity_consumed,
+                         bool is_exclusive_measurement,
+                         const std::string& scenario) {
   // Drain over the last 30 seconds in uAh. We assume a max current of 10A which
   // translates to a little under 100mAh capacity drain over 30 seconds.
   UMA_HISTOGRAM_COUNTS_100000("Power.ForegroundBatteryDrain.30Seconds",
                               capacity_consumed);
+  base::UmaHistogramCounts100000(
+      std::string("Power.ForegroundBatteryDrainPerScenario.30Seconds.") +
+          scenario,
+      capacity_consumed);
 
   // Record a separate metric for power drain that was completely observed while
   // we were the foreground app. This avoids attributing power draw from other
@@ -56,6 +104,11 @@ void Report30SecondDrain(int capacity_consumed, bool is_exclusive_measurement) {
   if (is_exclusive_measurement) {
     UMA_HISTOGRAM_COUNTS_100000(
         "Power.ForegroundBatteryDrain.30Seconds.Exclusive", capacity_consumed);
+    base::UmaHistogramCounts100000(
+        std::string(
+            "Power.ForegroundBatteryDrainPerScenario.30Seconds.Exclusive.") +
+            scenario,
+        capacity_consumed);
   }
 }
 
@@ -177,16 +230,41 @@ AndroidBatteryMetrics::AndroidBatteryMetrics()
 
 AndroidBatteryMetrics::~AndroidBatteryMetrics() {
   // Never called, this is a no-destruct singleton.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void AndroidBatteryMetrics::InitializeOnSequence() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  on_battery_power_ =
-      base::PowerMonitor::AddPowerStateObserverAndReturnOnBatteryState(this);
-  base::PowerMonitor::AddPowerThermalObserver(this);
+  auto* power_monitor = base::PowerMonitor::GetInstance();
+  battery_power_status_ =
+      power_monitor->AddPowerStateObserverAndReturnBatteryPowerStatus(this);
+  power_monitor->AddPowerThermalObserver(this);
+  // The observer is never removed because this class uses base::NoDestructor.
   content::ProcessVisibilityTracker::GetInstance()->AddObserver(this);
+  // TODO(b/339859756): Update this call to take into account the unknown battery
+  // status.
   UpdateMetricsEnabled();
+}
+
+void AndroidBatteryMetrics::TryObservePerformanceScenarios() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (is_observing_performance_scenarios_) {
+    return;
+  }
+  // We're using ScenarioScope::kGlobal because we're interested in the overall
+  // app state, not just the current process.
+  if (auto observer_list =
+          performance_scenarios::PerformanceScenarioObserverList::GetForScope(
+              ScenarioScope::kGlobal)) {
+    is_observing_performance_scenarios_ = true;
+    performance_scenario_tracker_.UpdateLoadingScenario(
+        performance_scenarios::GetLoadingScenario(ScenarioScope::kGlobal)
+            ->load(std::memory_order_relaxed));
+    performance_scenario_tracker_.UpdateInputScenario(
+        performance_scenarios::GetInputScenario(ScenarioScope::kGlobal)
+            ->load(std::memory_order_relaxed));
+    observer_list->AddObserver(this);
+  }
 }
 
 void AndroidBatteryMetrics::OnVisibilityChanged(bool visible) {
@@ -195,10 +273,26 @@ void AndroidBatteryMetrics::OnVisibilityChanged(bool visible) {
   UpdateMetricsEnabled();
 }
 
-void AndroidBatteryMetrics::OnPowerStateChange(bool on_battery_power) {
+void AndroidBatteryMetrics::OnBatteryPowerStatusChange(
+    base::PowerStateObserver::BatteryPowerStatus battery_power_status) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  on_battery_power_ = on_battery_power;
+  battery_power_status_ = battery_power_status;
   UpdateMetricsEnabled();
+}
+
+void AndroidBatteryMetrics::OnLoadingScenarioChanged(
+    ScenarioScope scope,
+    LoadingScenario old_scenario,
+    LoadingScenario new_scenario) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  performance_scenario_tracker_.UpdateLoadingScenario(new_scenario);
+}
+
+void AndroidBatteryMetrics::OnInputScenarioChanged(ScenarioScope scope,
+                                                   InputScenario old_scenario,
+                                                   InputScenario new_scenario) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  performance_scenario_tracker_.UpdateInputScenario(new_scenario);
 }
 
 void AndroidBatteryMetrics::OnThermalStateChange(DeviceThermalState new_state) {
@@ -211,30 +305,28 @@ void AndroidBatteryMetrics::OnThermalStateChange(DeviceThermalState new_state) {
                 base::android::ApplicationStatusListener::GetState()));
         event->set_device_thermal_state(ToTraceEnum(new_state));
       });
-
-  if (!app_visible_)
-    return;
-
-  base::UmaHistogramEnumeration(
-      "Power.ForegroundThermalState.ChangeEvent.Android", new_state);
 }
 
 void AndroidBatteryMetrics::OnSpeedLimitChange(int speed_limit) {}
 
 void AndroidBatteryMetrics::UpdateMetricsEnabled() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  TryObservePerformanceScenarios();
 
   // We want to attribute battery drain to chromium while the embedding app is
   // visible. Battery drain will only be reflected in remaining battery capacity
   // when the device is not on a charger.
-  bool should_be_enabled = app_visible_ && on_battery_power_;
+  bool should_be_enabled =
+      app_visible_ && (battery_power_status_ ==
+                       PowerStateObserver::BatteryPowerStatus::kBatteryPower);
 
   if (should_be_enabled && !metrics_timer_.IsRunning()) {
     // Capture first capacity measurement and enable the repeating timer.
     last_remaining_capacity_uah_ =
-        base::PowerMonitor::GetRemainingBatteryCapacity();
+        base::PowerMonitor::GetInstance()->GetRemainingBatteryCapacity();
     skipped_timers_ = 0;
     observed_capacity_drops_ = 0;
+    performance_scenario_tracker_.UseLatestScenarios();
 
     metrics_timer_.Start(
         FROM_HERE, kMetricsInterval,
@@ -250,7 +342,10 @@ void AndroidBatteryMetrics::UpdateMetricsEnabled() {
 
 void AndroidBatteryMetrics::CaptureAndReportMetrics(bool disabling) {
   int remaining_capacity_uah =
-      base::PowerMonitor::GetRemainingBatteryCapacity();
+      base::PowerMonitor::GetInstance()->GetRemainingBatteryCapacity();
+
+  const std::string scenario = performance_scenario_tracker_.GetMetricSuffix();
+  performance_scenario_tracker_.UseLatestScenarios();
 
   if (remaining_capacity_uah >= last_remaining_capacity_uah_) {
     // No change in battery capacity, or it increased. The latter could happen
@@ -258,7 +353,7 @@ void AndroidBatteryMetrics::CaptureAndReportMetrics(bool disabling) {
     // device reports bogus values. We don't change last_remaining_capacity_uah_
     // here to avoid overreporting in case of fluctuating values.
     skipped_timers_++;
-    Report30SecondDrain(0, IsMeasuringDrainExclusively());
+    Report30SecondDrain(0, IsMeasuringDrainExclusively(), scenario);
 
     if (disabling) {
       // Disabling the timer, but without a change in capacity counter -- We
@@ -277,7 +372,8 @@ void AndroidBatteryMetrics::CaptureAndReportMetrics(bool disabling) {
 
   // Report the consumed capacity delta over the last 30 seconds.
   int capacity_consumed = last_remaining_capacity_uah_ - remaining_capacity_uah;
-  Report30SecondDrain(capacity_consumed, IsMeasuringDrainExclusively());
+  Report30SecondDrain(capacity_consumed, IsMeasuringDrainExclusively(),
+                      scenario);
 
   // Also record drain over 30 second intervals, but averaged since the last
   // time we recorded an increase (or started recording samples). Because the
@@ -290,7 +386,7 @@ void AndroidBatteryMetrics::CaptureAndReportMetrics(bool disabling) {
 
   // Also track the total capacity consumed in a single-bucket-histogram,
   // emitting one sample for every 100 uAh drained.
-  static constexpr base::Histogram::Sample kSampleFactor = 100;
+  static constexpr base::Histogram::Sample32 kSampleFactor = 100;
   UMA_HISTOGRAM_SCALED_EXACT_LINEAR("Power.ForegroundBatteryDrain",
                                     /*sample=*/1, capacity_consumed,
                                     /*sample_max=*/1, kSampleFactor);
@@ -306,6 +402,35 @@ void AndroidBatteryMetrics::CaptureAndReportMetrics(bool disabling) {
 
 bool AndroidBatteryMetrics::IsMeasuringDrainExclusively() const {
   return observed_capacity_drops_ >= 2;
+}
+
+void AndroidBatteryMetrics::PerformanceScenarioTracker::UpdateLoadingScenario(
+    performance_scenarios::LoadingScenario new_scenario) {
+  latest_loading_scenario_ = new_scenario;
+  if (loading_scenario_to_report_.value_or(LoadingScenario::kNoPageLoading) <=
+      new_scenario) {
+    loading_scenario_to_report_ = new_scenario;
+  }
+}
+
+void AndroidBatteryMetrics::PerformanceScenarioTracker::UpdateInputScenario(
+    performance_scenarios::InputScenario new_scenario) {
+  latest_input_scenario_ = new_scenario;
+  if (input_scenario_to_report_.value_or(InputScenario::kNoInput) <=
+      new_scenario) {
+    input_scenario_to_report_ = new_scenario;
+  }
+}
+
+std::string AndroidBatteryMetrics::PerformanceScenarioTracker::GetMetricSuffix()
+    const {
+  return GetLoadingScenarioSuffix(loading_scenario_to_report_) + "_" +
+         GetInputScenarioSuffix(input_scenario_to_report_);
+}
+
+void AndroidBatteryMetrics::PerformanceScenarioTracker::UseLatestScenarios() {
+  loading_scenario_to_report_ = latest_loading_scenario_;
+  input_scenario_to_report_ = latest_input_scenario_;
 }
 
 }  // namespace content

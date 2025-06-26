@@ -11,11 +11,12 @@
 #include <set>
 #include <vector>
 
-#include "base/containers/flat_set.h"
+#include "base/containers/span.h"
 #include "base/memory/raw_ref.h"
 #include "base/sequence_checker.h"
 #include "base/thread_annotations.h"
 #include "base/time/time.h"
+#include "base/types/expected.h"
 #include "content/browser/attribution_reporting/attribution_report.h"
 #include "content/browser/attribution_reporting/stored_source.h"
 #include "content/common/content_export.h"
@@ -37,7 +38,8 @@ class Database;
 namespace content {
 
 struct AttributionInfo;
-class AttributionStorageDelegate;
+class AttributionResolverDelegate;
+class AttributionTrigger;
 class CommonSourceInfo;
 class StorableSource;
 
@@ -70,7 +72,9 @@ class CONTENT_EXPORT RateLimitTable {
     kMaxValue = kError,
   };
 
-  explicit RateLimitTable(const AttributionStorageDelegate*);
+  struct Error {};
+
+  explicit RateLimitTable(const AttributionResolverDelegate*);
   RateLimitTable(const RateLimitTable&) = delete;
   RateLimitTable& operator=(const RateLimitTable&) = delete;
   RateLimitTable(RateLimitTable&&) = delete;
@@ -83,7 +87,8 @@ class CONTENT_EXPORT RateLimitTable {
 
   // Returns false on failure.
   [[nodiscard]] bool AddRateLimitForSource(sql::Database* db,
-                                           const StoredSource& source);
+                                           const StoredSource& source,
+                                           int64_t destination_limit_priority);
 
   // Returns false on failure.
   [[nodiscard]] bool AddRateLimitForAttribution(
@@ -103,12 +108,21 @@ class CONTENT_EXPORT RateLimitTable {
       const StorableSource& source,
       base::Time source_time);
 
-  [[nodiscard]] RateLimitResult SourceAllowedForDestinationLimit(
+  [[nodiscard]] base::expected<std::vector<StoredSource::Id>, Error>
+  GetSourcesToDeactivateForDestinationLimit(sql::Database* db,
+                                            const StorableSource& source,
+                                            base::Time source_time);
+
+  [[nodiscard]] bool DeactivateSourcesForDestinationLimit(
+      sql::Database* db,
+      base::span<const StoredSource::Id>);
+
+  [[nodiscard]] DestinationRateLimitResult SourceAllowedForDestinationRateLimit(
       sql::Database* db,
       const StorableSource& source,
       base::Time source_time);
 
-  [[nodiscard]] DestinationRateLimitResult SourceAllowedForDestinationRateLimit(
+  [[nodiscard]] RateLimitResult SourceAllowedForDestinationPerDayRateLimit(
       sql::Database* db,
       const StorableSource& source,
       base::Time source_time);
@@ -124,9 +138,29 @@ class CONTENT_EXPORT RateLimitTable {
       const StoredSource&,
       Scope scope);
 
-  bool DeleteAttributionRateLimit(sql::Database* db,
-                                  Scope scope,
-                                  AttributionReport::Id);
+  // Returns a negative value on failure.
+  int64_t CountUniqueReportingOriginsPerSiteForAttribution(
+      sql::Database* db,
+      const AttributionTrigger&,
+      base::Time trigger_time);
+
+  // Returns a negative value on failure.
+  int64_t CountUniqueDailyReportingOriginsPerReportingSiteForSource(
+      sql::Database* db,
+      const net::SchemefulSite& reporting_site,
+      base::Time source_time);
+
+  // Returns a negative value on failure.
+  int64_t
+  CountUniqueDailyReportingOriginsPerDestinationAndReportingSiteForSource(
+      sql::Database* db,
+      const net::SchemefulSite& destination_site,
+      const net::SchemefulSite& reporting_site,
+      base::Time source_time);
+
+  [[nodiscard]] bool DeleteAttributionRateLimit(sql::Database* db,
+                                                Scope scope,
+                                                AttributionReport::Id);
 
   // These should be 1:1 with |AttributionStorageSql|'s |ClearData| functions.
   // Returns false on failure.
@@ -138,16 +172,15 @@ class CONTENT_EXPORT RateLimitTable {
       base::Time delete_end,
       StoragePartition::StorageKeyMatcherFunction filter);
   // Returns false on failure.
-  [[nodiscard]] bool ClearDataForSourceIds(
-      sql::Database* db,
-      const std::vector<StoredSource::Id>& source_ids);
+  [[nodiscard]] bool ClearDataForSourceIds(sql::Database* db,
+                                           base::span<const StoredSource::Id>);
 
   void AppendRateLimitDataKeys(sql::Database* db,
                                std::set<AttributionDataModel::DataKey>& keys);
 
-  void SetDelegate(const AttributionStorageDelegate&);
+  void SetDelegate(const AttributionResolverDelegate&);
 
-  static constexpr int64_t kUnsetReportId = -1;
+  static constexpr int64_t kUnsetRecordId = -1;
 
  private:
   [[nodiscard]] bool AddRateLimit(
@@ -156,7 +189,8 @@ class CONTENT_EXPORT RateLimitTable {
       std::optional<base::Time> trigger_time,
       const attribution_reporting::SuitableOrigin& context_origin,
       Scope,
-      std::optional<AttributionReport::Id>)
+      std::optional<AttributionReport::Id>,
+      std::optional<int64_t> destination_limit_priority)
       VALID_CONTEXT_REQUIRED(sequence_checker_);
 
   [[nodiscard]] RateLimitResult AllowedForReportingOriginLimit(
@@ -164,7 +198,7 @@ class CONTENT_EXPORT RateLimitTable {
       bool is_source,
       const CommonSourceInfo& common_info,
       base::Time time,
-      const base::flat_set<net::SchemefulSite>& destination_sites)
+      base::span<const net::SchemefulSite> destination_sites)
       VALID_CONTEXT_REQUIRED(sequence_checker_);
 
   // Returns false on failure.
@@ -179,7 +213,9 @@ class CONTENT_EXPORT RateLimitTable {
   [[nodiscard]] bool DeleteExpiredRateLimits(sql::Database* db)
       VALID_CONTEXT_REQUIRED(sequence_checker_);
 
-  raw_ref<const AttributionStorageDelegate> delegate_
+  const bool rate_limit_check_source_time_enabled_;
+
+  raw_ref<const AttributionResolverDelegate> delegate_
       GUARDED_BY_CONTEXT(sequence_checker_);
 
   // Time at which `DeleteExpiredRateLimits()` was last called. Initialized to

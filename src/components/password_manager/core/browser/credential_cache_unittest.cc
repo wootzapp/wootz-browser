@@ -9,7 +9,6 @@
 #include <string_view>
 
 #include "base/strings/utf_string_conversions.h"
-#include "base/test/scoped_feature_list.h"
 #include "components/password_manager/core/browser/origin_credential_store.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
@@ -34,10 +33,12 @@ UiCredential MakeUiCredential(
     std::string_view username,
     std::string_view password,
     std::string_view origin = kExampleSite,
+    std::string_view display_name = kExampleSite,
     password_manager_util::GetLoginMatchType match_type =
         password_manager_util::GetLoginMatchType::kExact) {
   return UiCredential(base::UTF8ToUTF16(username), base::UTF8ToUTF16(password),
-                      Origin::Create(GURL(origin)), match_type, base::Time());
+                      Origin::Create(GURL(origin)), std::string(display_name),
+                      match_type, base::Time());
 }
 
 }  // namespace
@@ -94,27 +95,28 @@ TEST_F(CredentialCacheTest, StoresCredentialsSortedByAplhabetAndOrigins) {
           // Affiliation based matches are first class citizens and should be
           // treated as a first-party credential.
           MakeUiCredential(
-              "Cesar", "V3V1V", kExampleSite,
+              "Cesar", "V3V1V", kExampleSite, kExampleSite,
               password_manager_util::GetLoginMatchType::kAffiliated),
           MakeUiCredential("Dora", "PakudC"),
 
           // Alphabetical entries of PSL-match https://accounts.example.com:
           MakeUiCredential("Elfi", "a65ddm", kExampleSiteSubdomain,
+                           kExampleSiteSubdomain,
                            password_manager_util::GetLoginMatchType::kPSL),
           MakeUiCredential("Greg", "5fnd1m", kExampleSiteSubdomain,
+                           kExampleSiteSubdomain,
                            password_manager_util::GetLoginMatchType::kPSL),
 
           // Alphabetical entries of PSL-match https://m.example.com:
           MakeUiCredential("Alf", "R4nd50m", kExampleSiteMobile,
+                           kExampleSiteMobile,
                            password_manager_util::GetLoginMatchType::kPSL),
           MakeUiCredential("Rolf", "A4nd0m", kExampleSiteMobile,
+                           kExampleSiteMobile,
                            password_manager_util::GetLoginMatchType::kPSL)));
 }
 
 TEST_F(CredentialCacheTest, StoresUnnotifiedSharedCredentialsCredentials) {
-  base::test::ScopedFeatureList feature_list(
-      password_manager::features::kSharedPasswordNotificationUI);
-
   Origin origin = Origin::Create(GURL(kExampleSite));
   const std::string kNonShared = "non_shared";
   const std::string kSharedNotified = "shared_notified";
@@ -155,44 +157,6 @@ TEST_F(CredentialCacheTest, StoresUnnotifiedSharedCredentialsCredentials) {
           Property(&UiCredential::username, base::UTF8ToUTF16(kNonShared)),
           Property(&UiCredential::username,
                    base::UTF8ToUTF16(kSharedNotified))));
-}
-
-TEST_F(
-    CredentialCacheTest,
-    DoesNotStoreUnnotifiedSharedCredentialsCredentialsWhenFeatureIsDisabled) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndDisableFeature(
-      password_manager::features::kSharedPasswordNotificationUI);
-
-  Origin origin = Origin::Create(GURL(kExampleSite));
-  const std::string kNonShared = "non_shared";
-  const std::string kSharedUnnotified = "shared_unnotified";
-
-  PasswordForm non_shared_credentials = CreateEntry(
-      kNonShared, "pass", GURL(kExampleSite), PasswordForm::MatchType::kExact);
-
-  PasswordForm shared_unnotified_credentials =
-      CreateEntry(kSharedUnnotified, "pass", GURL(kExampleSite),
-                  PasswordForm::MatchType::kExact);
-  shared_unnotified_credentials.type = PasswordForm::Type::kReceivedViaSharing;
-  shared_unnotified_credentials.sharing_notification_displayed = false;
-  std::vector<PasswordForm> matches = {
-      std::move(non_shared_credentials),
-      std::move(shared_unnotified_credentials)};
-  cache()->SaveCredentialsAndBlocklistedForOrigin(
-      matches, IsOriginBlocklisted(false), origin);
-
-  EXPECT_THAT(
-      cache()->GetCredentialStore(origin).GetUnnotifiedSharedCredentials(),
-      testing::IsEmpty());
-
-  // The order shouldn't be changed since the feature is disabled.
-  EXPECT_THAT(
-      cache()->GetCredentialStore(origin).GetCredentials(),
-      testing::ElementsAre(
-          Property(&UiCredential::username, base::UTF8ToUTF16(kNonShared)),
-          Property(&UiCredential::username,
-                   base::UTF8ToUTF16(kSharedUnnotified))));
 }
 
 TEST_F(CredentialCacheTest, StoresCredentialsForIndependentOrigins) {

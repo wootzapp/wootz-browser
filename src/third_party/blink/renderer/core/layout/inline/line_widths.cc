@@ -31,28 +31,29 @@ bool LineWidths::Set(const InlineNode& node,
   // Compute the metrics when only one font is used in the block. This is the
   // same as "strut". https://drafts.csswg.org/css2/visudet.html#strut
   const ComputedStyle& block_style = node.Style();
-  const Font& block_font = block_style.GetFont();
+  const Font* block_font = block_style.GetFont();
   const FontBaseline baseline_type = block_style.GetFontBaseline();
   InlineBoxState line_box;
-  line_box.ComputeTextMetrics(block_style, block_font, baseline_type);
+  line_box.ComputeTextMetrics(block_style, *block_font, baseline_type);
 
   // Check if all lines have the same line heights.
-  const SimpleFontData* primary_font = block_font.PrimaryFont();
+  const SimpleFontData* primary_font = block_font->PrimaryFont();
   DCHECK(primary_font);
   const InlineItemsData& items_data = node.ItemsData(/*is_first_line*/ false);
   // `::first-line` is not supported.
   DCHECK_EQ(&items_data, &node.ItemsData(true));
-  base::span<const InlineItem> items(items_data.items);
+  base::span<const Member<InlineItem>> items(items_data.items);
   bool is_empty_so_far = true;
   if (break_token) {
     DCHECK(break_token->Start());
     items = items.subspan(break_token->StartItemIndex());
     is_empty_so_far = false;
   }
-  for (const InlineItem& item : items) {
+  for (const Member<InlineItem>& item_ptr : items) {
+    const InlineItem& item = *item_ptr;
     switch (item.Type()) {
       case InlineItem::kText: {
-        if (UNLIKELY(!item.Length())) {
+        if (!item.Length()) [[unlikely]] {
           break;
         }
         const ShapeResult* shape_result = item.TextShapeResult();
@@ -63,7 +64,7 @@ bool LineWidths::Set(const InlineNode& node,
           DCHECK(item.Style());
           const ComputedStyle& item_style = *item.Style();
           InlineBoxState text_box;
-          text_box.ComputeTextMetrics(item_style, item_style.GetFont(),
+          text_box.ComputeTextMetrics(item_style, *item_style.GetFont(),
                                       baseline_type);
           if (text_box.include_used_fonts) {
             text_box.style = &item_style;
@@ -81,7 +82,7 @@ bool LineWidths::Set(const InlineNode& node,
       case InlineItem::kOpenTag: {
         DCHECK(item.Style());
         const ComputedStyle& style = *item.Style();
-        if (UNLIKELY(style.VerticalAlign() != EVerticalAlign::kBaseline)) {
+        if (style.VerticalAlign() != EVerticalAlign::kBaseline) [[unlikely]] {
           return false;
         }
         break;
@@ -127,7 +128,7 @@ bool LineWidths::Set(const InlineNode& node,
   // All lines have the same line height.
   // Compute the number of lines that have the exclusion.
   const LayoutUnit line_height = line_box.metrics.LineHeight();
-  if (UNLIKELY(line_height <= LayoutUnit())) {
+  if (line_height <= LayoutUnit()) [[unlikely]] {
     return false;
   }
   DCHECK_GE(opportunities.size(), 2u);

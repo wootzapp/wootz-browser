@@ -2,9 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <stdio.h>
 
 #include <memory>
+#include <optional>
 
 #include "base/environment.h"
 #include "base/files/file_path.h"
@@ -22,20 +28,20 @@ class AddressSanitizerTests : public ::testing::Test {
  public:
   void SetUp() override {
     env_ = base::Environment::Create();
-    had_asan_options_ = env_->GetVar("ASAN_OPTIONS", &old_asan_options_);
+    old_asan_options_ = env_->GetVar("ASAN_OPTIONS");
   }
 
   void TearDown() override {
-    if (had_asan_options_)
-      ASSERT_TRUE(env_->SetVar("ASAN_OPTIONS", old_asan_options_));
-    else
+    if (old_asan_options_.has_value()) {
+      ASSERT_TRUE(env_->SetVar("ASAN_OPTIONS", *old_asan_options_));
+    } else {
       env_->UnSetVar("ASAN_OPTIONS");
+    }
   }
 
  protected:
   std::unique_ptr<base::Environment> env_;
-  bool had_asan_options_;
-  std::string old_asan_options_;
+  std::optional<std::string> old_asan_options_;
 };
 
 SBOX_TESTS_COMMAND int AddressSanitizerTests_Report(int argc, wchar_t** argv) {

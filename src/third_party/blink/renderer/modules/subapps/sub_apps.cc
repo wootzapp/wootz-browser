@@ -7,7 +7,7 @@
 #include <utility>
 
 #include "base/check.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_sub_apps_add_params.h"
@@ -279,7 +279,7 @@ bool SubApps::CheckPreconditionsMaybeThrow(ScriptState* script_state,
                                            ExceptionState& exception_state) {
   if (!ExecutionContext::From(script_state)
            ->IsFeatureEnabled(
-               mojom::blink::PermissionsPolicyFeature::kSubApps)) {
+               network::mojom::PermissionsPolicyFeature::kSubApps)) {
     exception_state.ThrowSecurityError(
         "The executing top-level browsing context is not granted the "
         "\"sub-apps\" permissions policy.");

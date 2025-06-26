@@ -28,6 +28,7 @@
 #include <limits>
 
 #include "base/auto_reset.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/security_context/insecure_request_policy.h"
 #include "third_party/blink/public/mojom/security_context/insecure_request_policy.mojom-blink.h"
 #include "third_party/blink/public/web/web_form_related_change_type.h"
@@ -46,6 +47,7 @@
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/local_frame_client.h"
 #include "third_party/blink/renderer/core/frame/remote_frame.h"
+#include "third_party/blink/renderer/core/html/collection_type.h"
 #include "third_party/blink/renderer/core/html/custom/custom_element.h"
 #include "third_party/blink/renderer/core/html/custom/element_internals.h"
 #include "third_party/blink/renderer/core/html/forms/form_controller.h"
@@ -79,18 +81,15 @@ using mojom::blink::FormControlType;
 
 namespace {
 
-bool HasFormInBetween(const Node* root, const Node* descendant) {
-  DCHECK(!IsA<HTMLFormElement>(descendant));
-  // |descendant| might not actually be a descendant of |root|.
-  if (!descendant->IsDescendantOf(root))
-    return false;
-  for (ContainerNode* parent = descendant->parentNode();
-       parent && parent != root; parent = parent->parentNode()) {
-    if (DynamicTo<HTMLFormElement>(parent)) {
-      return true;
+// Invalidates the cache of all form elements that are ancestors of
+// `starting_node` or `starting_node` itself.
+void InvalidateShadowIncludingAncestorForms(ContainerNode* starting_node) {
+  for (ContainerNode* node = starting_node; node;
+       node = node->ParentOrShadowHostNode()) {
+    if (HTMLFormElement* form = DynamicTo<HTMLFormElement>(node)) {
+      form->InvalidateListedElementsIncludingShadowTrees();
     }
   }
-  return false;
 }
 
 }  // namespace
@@ -138,6 +137,7 @@ Node::InsertionNotificationRequest HTMLFormElement::InsertedInto(
   LogAddElementIfIsolatedWorldAndInDocument("form", html_names::kMethodAttr,
                                             html_names::kActionAttr);
   if (insertion_point.isConnected()) {
+    InvalidateShadowIncludingAncestorForms(ParentElementOrShadowRoot());
     GetDocument().MarkTopLevelFormsDirty();
     GetDocument().DidChangeFormRelatedElementDynamically(
         this, WebFormRelatedChangeType::kAdd);
@@ -162,9 +162,9 @@ void HTMLFormElement::RemovedFrom(ContainerNode& insertion_point) {
     } else {
       ListedElement::List elements;
       CollectListedElements(
-          NodeTraversal::HighestAncestorOrSelf(insertion_point), elements);
+          &NodeTraversal::HighestAncestorOrSelf(insertion_point), elements);
       NotifyFormRemovedFromTree(elements, root);
-      CollectListedElements(root, elements);
+      CollectListedElements(&root, elements);
       NotifyFormRemovedFromTree(elements, root);
     }
 
@@ -184,6 +184,7 @@ void HTMLFormElement::RemovedFrom(ContainerNode& insertion_point) {
   HTMLElement::RemovedFrom(insertion_point);
 
   if (insertion_point.isConnected()) {
+    InvalidateShadowIncludingAncestorForms(&insertion_point);
     GetDocument().MarkTopLevelFormsDirty();
     GetDocument().DidChangeFormRelatedElementDynamically(
         this, WebFormRelatedChangeType::kRemove);
@@ -528,9 +529,9 @@ void HTMLFormElement::ScheduleFormSubmission(
     // All other schemes are checked in the browser.
     //
     // TODO(antoniosartori): Should we keep the 'form-action' check for
-    // javascript: URLs? For 'frame-src' and 'navigate-to', we do not check
-    // javascript: URLs. Reading the specification, it looks like 'form-action'
-    // should not apply to javascript: URLs.
+    // javascript: URLs? For 'frame-src', we do not check javascript: URLs.
+    // Reading the specification, it looks like 'form-action' should not apply
+    // to javascript: URLs.
     if (!GetExecutionContext()->GetContentSecurityPolicy()->AllowFormAction(
             form_submission->Action())) {
       return;
@@ -760,56 +761,60 @@ HTMLFormControlsCollection* HTMLFormElement::elements() {
 }
 
 void HTMLFormElement::CollectListedElements(
-    const Node& root,
+    const Node* root,
     ListedElement::List& elements,
     ListedElement::List* elements_including_shadow_trees,
     bool in_shadow_tree) const {
+  CHECK(root);
   DCHECK(!in_shadow_tree || elements_including_shadow_trees);
-  // A performance optimization used below - if `root_is_descendant` is true,
-  // then we can save some checks whether elements that we are traversing are
-  // descendants of `this`.
-  const bool root_is_descendant = in_shadow_tree || &root == this;
   HeapVector<Member<HTMLFormElement>> nested_forms;
   if (!in_shadow_tree) {
     elements.clear();
-    if (base::FeatureList::IsEnabled(
-            features::kAutofillIncludeFormElementsInShadowDom)) {
+    if (elements_including_shadow_trees) {
       for (HTMLFormElement& nested_form :
            Traversal<HTMLFormElement>::DescendantsOf(*this)) {
         nested_forms.push_back(nested_form);
       }
     }
   }
-  for (HTMLElement& element : Traversal<HTMLElement>::StartsAfter(root)) {
+
+  // We flatten elements of nested forms into `elements_including_shadow_trees`.
+  // If one of the nested forms has an element associated by form attribute,
+  // that element may be outside of `root`'s subtree and we need to start at the
+  // root node.
+  const bool nested_forms_have_form_associated_elements =
+      std::ranges::any_of(nested_forms, [](const auto& form) {
+        return form->has_elements_associated_by_form_attribute_ ||
+               (form->has_elements_associated_by_parser_ &&
+                base::FeatureList::IsEnabled(
+                    features::
+                        kAutofillFixFieldsAssociatedWithNestedFormsByParser));
+      });
+  if (nested_forms_have_form_associated_elements && isConnected()) {
+    root = &GetTreeScope().RootNode();
+  }
+
+  // A performance optimization - if `root_is_descendant` is true,
+  // then we can save some checks whether elements that we are traversing are
+  // descendants of `this`.
+  const bool root_is_descendant = in_shadow_tree || root == this;
+
+  for (HTMLElement& element : Traversal<HTMLElement>::DescendantsOf(*root)) {
     if (ListedElement* listed_element = ListedElement::From(element)) {
-      // There are two scenarios:
-      // - If `kAutofillIncludeFormElementsInShadowDom` is disabled, then we
-      //   expect every form control element to belong to at most one form
-      //   element. This means that if there is a <form> in between `root` and
-      //   `listed_element, then we should not include it in
-      //   `elements_including_shadow_trees`. Otherwise, multiple forms would
-      //    "own" the same `listed_element` as indicated by their
-      //    `elements_including_shadow_trees`.
-      // - If `kAutofillIncludeFormElementsInShadowDom` is enabled, then
-      //   Autofill only considers top level forms - forms that have form
-      //   ancestors are ignored. In that case, we should include all form
-      //   control descendants of the form for which we collect the listed
-      //   elements.
-      // Note that `elements` does not have this problem because it can check
+      // Autofill only considers top level forms. We therefore include all form
+      // control descendants of the form whose elements we collect in
+      // `elements_including_shadow_trees`, even if their closest ancestor is a
+      // different form.
+      // `elements` does not have this complication because it can check
       // `listed_element->Form()`.
-      if (in_shadow_tree &&
-          (base::FeatureList::IsEnabled(
-               features::kAutofillIncludeFormElementsInShadowDom) ||
-           (!HasFormInBetween(&root, &element) && !listed_element->Form()))) {
+      if (in_shadow_tree) {
         elements_including_shadow_trees->push_back(listed_element);
       } else if (listed_element->Form() == this) {
         elements.push_back(listed_element);
         if (elements_including_shadow_trees)
           elements_including_shadow_trees->push_back(listed_element);
       } else if (base::Contains(nested_forms, listed_element->Form())) {
-        if (elements_including_shadow_trees) {
-          elements_including_shadow_trees->push_back(listed_element);
-        }
+        elements_including_shadow_trees->push_back(listed_element);
       }
     }
     // Descend recursively into shadow DOM if the following conditions are met:
@@ -817,39 +822,39 @@ void HTMLFormElement::CollectListedElements(
     // - `element` is a shadow root.
     // - `element` is a shadow-including descendant of `this`. If `root` is a
     //   descendant of `this`, then that is trivially true.
-    // - If `kAutofillIncludeFormElementsInShadowDom` is disabled, then we also
-    //   require that there no nested forms.
     if (elements_including_shadow_trees && element.AuthorShadowRoot() &&
-        (root_is_descendant || element.IsDescendantOf(this)) &&
-        (base::FeatureList::IsEnabled(
-             features::kAutofillIncludeFormElementsInShadowDom) ||
-         !HasFormInBetween(in_shadow_tree ? &root : this, &element))) {
-      const Node& shadow = *element.AuthorShadowRoot();
-      CollectListedElements(shadow, elements, elements_including_shadow_trees,
+        (root_is_descendant || element.IsDescendantOf(this))) {
+      CollectListedElements(element.AuthorShadowRoot(), elements,
+                            elements_including_shadow_trees,
                             /*in_shadow_tree=*/true);
     }
   }
 }
 
-// This function should be const conceptually. However we update some fields
-// because of lazy evaluation.
-const ListedElement::List& HTMLFormElement::ListedElements(
+const Node* HTMLFormElement::GetListedElementsScope() const {
+  HTMLFormElement* mutable_this = const_cast<HTMLFormElement*>(this);
+  Node* scope = mutable_this;
+  if (has_elements_associated_by_parser_) {
+    scope = &NodeTraversal::HighestAncestorOrSelf(*mutable_this);
+  }
+  if (isConnected() && has_elements_associated_by_form_attribute_) {
+    scope = &GetTreeScope().RootNode();
+  }
+  return scope;
+}
+
+const ListedElement::List& HTMLFormElement::CollectAndCacheListedElements(
     bool include_shadow_trees) const {
   bool collect_shadow_inputs =
       include_shadow_trees && listed_elements_including_shadow_trees_are_dirty_;
 
   if (listed_elements_are_dirty_ || collect_shadow_inputs) {
     HTMLFormElement* mutable_this = const_cast<HTMLFormElement*>(this);
-    Node* scope = mutable_this;
-    if (has_elements_associated_by_parser_)
-      scope = &NodeTraversal::HighestAncestorOrSelf(*mutable_this);
-    if (isConnected() && has_elements_associated_by_form_attribute_)
-      scope = &GetTreeScope().RootNode();
-    DCHECK(scope);
     mutable_this->listed_elements_.clear();
     mutable_this->listed_elements_including_shadow_trees_.clear();
+    const Node* scope = GetListedElementsScope();
     CollectListedElements(
-        *scope, mutable_this->listed_elements_,
+        scope, mutable_this->listed_elements_,
         collect_shadow_inputs
             ? &mutable_this->listed_elements_including_shadow_trees_
             : nullptr);
@@ -866,7 +871,7 @@ void HTMLFormElement::CollectImageElements(
     HeapVector<Member<HTMLImageElement>>& elements) {
   elements.clear();
   for (HTMLImageElement& image :
-       Traversal<HTMLImageElement>::StartsAfter(root)) {
+       Traversal<HTMLImageElement>::DescendantsOf(root)) {
     if (image.formOwner() == this)
       elements.push_back(&image);
   }
@@ -984,6 +989,10 @@ Element* HTMLFormElement::ElementFromPastNamesMap(
   return element;
 }
 
+bool HTMLFormElement::PastNamesEmpty() const {
+  return !past_names_map_;
+}
+
 void HTMLFormElement::AddToPastNamesMap(Element* element,
                                         const AtomicString& past_name) {
   if (past_name.empty())
@@ -1045,6 +1054,12 @@ void HTMLFormElement::FinishParsingChildren() {
   HTMLElement::FinishParsingChildren();
   GetDocument().GetFormController().RestoreControlStateIn(*this);
   did_finish_parsing_children_ = true;
+}
+
+bool HTMLFormElement::HasAnyNamedProperties() const {
+  const auto* elements =
+      CachedCollection<HTMLFormControlsCollection>(kFormControls);
+  return (elements && !elements->NamedItemsEmpty()) || !PastNamesEmpty();
 }
 
 V8UnionElementOrRadioNodeList* HTMLFormElement::AnonymousNamedGetter(

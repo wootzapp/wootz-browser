@@ -11,6 +11,7 @@
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/not_fatal_until.h"
 #include "base/task/bind_post_task.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
@@ -76,10 +77,9 @@ void ReportResourceSourceUsage(TransferableResource::ResourceSource source,
           "Memory.Renderer.EvictedLockedResources.PepperGraphics2D",
           usage_in_kb);
       break;
-    case TransferableResource::ResourceSource::kSharedElementTransition:
+    case TransferableResource::ResourceSource::kViewTransition:
       CustomUmaHistogramMemoryKB(
-          "Memory.Renderer.EvictedLockedResources.SharedElementTransition",
-          usage_in_kb);
+          "Memory.Renderer.EvictedLockedResources.ViewTransition", usage_in_kb);
       break;
     case TransferableResource::ResourceSource::kStaleContent:
       CustomUmaHistogramMemoryKB(
@@ -108,6 +108,18 @@ void ReportResourceSourceUsage(TransferableResource::ResourceSource source,
       break;
   }
 }
+
+class ScopedBatchResourcesReleaseImpl
+    : public ClientResourceProvider::ScopedBatchResourcesRelease {
+ public:
+  using ScopedBatchResourcesRelease::ScopedBatchResourcesRelease;
+  explicit ScopedBatchResourcesReleaseImpl(
+      base::OnceClosure batch_release_callback);
+};
+
+ScopedBatchResourcesReleaseImpl::ScopedBatchResourcesReleaseImpl(
+    base::OnceClosure batch_release_callback)
+    : ScopedBatchResourcesRelease(std::move(batch_release_callback)) {}
 
 }  // namespace
 
@@ -141,7 +153,7 @@ struct ClientResourceProvider::ImportedResource {
         returned_sync_token(resource.sync_token()),
         evicted_callback(std::move(evicted_callback)) {
     // We should never have no ReleaseCallback.
-    DCHECK(this->impl_release_callback || this->main_thread_release_callback);
+    CHECK(this->impl_release_callback || this->main_thread_release_callback);
     // Replace the |resource| id with the local id from this
     // ClientResourceProvider.
     this->resource.id = id;
@@ -162,16 +174,28 @@ struct ClientResourceProvider::ImportedResource {
     // independently. Since we currently do not know when these removals would
     // start/stop, we cannot batch them. Instead maintain previous behaviour
     // of just calling these directly.
-    //
-    // TODO(crbug.com/40269731): Create a "Scoped Resources Release" class that
-    // can collect all of the `main_thread_release_callbacks` being removed
-    // independently. Which can then perform a single thread hop to run them.
     if (main_thread_release_callback) {
       std::move(main_thread_release_callback)
           .Run(returned_sync_token, returned_lost);
     }
   }
 };
+
+ClientResourceProvider::ScopedBatchResourcesRelease::
+    ScopedBatchResourcesRelease(
+        ClientResourceProvider::ScopedBatchResourcesRelease&& other) = default;
+
+ClientResourceProvider::ScopedBatchResourcesRelease::
+    ~ScopedBatchResourcesRelease() {
+  if (batch_release_callback_) {
+    std::move(batch_release_callback_).Run();
+  }
+}
+
+ClientResourceProvider::ScopedBatchResourcesRelease::
+    ScopedBatchResourcesRelease(
+        base::OnceCallback<void()> batch_release_callback)
+    : batch_release_callback_(std::move(batch_release_callback)) {}
 
 ClientResourceProvider::ClientResourceProvider() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
@@ -180,7 +204,8 @@ ClientResourceProvider::ClientResourceProvider() {
 ClientResourceProvider::ClientResourceProvider(
     scoped_refptr<base::SequencedTaskRunner> main_task_runner,
     scoped_refptr<base::SequencedTaskRunner> impl_task_runner,
-    ResourceFlushCallback resource_flush_callback)
+    ResourceFlushCallback resource_flush_callback,
+    bool use_imported_resource_id)
     : main_task_runner_(main_task_runner),
       impl_task_runner_(impl_task_runner),
       resource_flush_callback_(std::move(resource_flush_callback)),
@@ -188,7 +213,8 @@ ClientResourceProvider::ClientResourceProvider(
           base::FeatureList::IsEnabled(
               features::kBatchMainThreadReleaseCallbacks) &&
           main_task_runner_ && impl_task_runner_ &&
-          main_task_runner_ != impl_task_runner_ && resource_flush_callback_) {}
+          main_task_runner_ != impl_task_runner_ && resource_flush_callback_),
+      use_imported_resource_id_(use_imported_resource_id) {}
 
 ClientResourceProvider::~ClientResourceProvider() {
   // If this fails, there are outstanding resources exported that should be
@@ -198,16 +224,10 @@ ClientResourceProvider::~ClientResourceProvider() {
   // ShutdownAndReleaseAllResources() will help, as it will report which
   // resources were imported without being removed as well.
   DCHECK(imported_resources_.empty());
-}
 
-gpu::SyncToken ClientResourceProvider::GenerateSyncTokenHelper(
-    gpu::gles2::GLES2Interface* gl) {
-  DCHECK(gl);
-  gpu::SyncToken sync_token;
-  gl->GenUnverifiedSyncTokenCHROMIUM(sync_token.GetData());
-  DCHECK(sync_token.HasData() ||
-         gl->GetGraphicsResetStatusKHR() != GL_NO_ERROR);
-  return sync_token;
+  // It is possible that we were deleted while a `ScopedBatchResourcesRelease`
+  // was still being held. This ensures the callbacks are ran.
+  BatchResourceRelease();
 }
 
 gpu::SyncToken ClientResourceProvider::GenerateSyncTokenHelper(
@@ -249,7 +269,7 @@ void ClientResourceProvider::PrepareSendToParentInternal(
   imports.reserve(export_ids.size());
   for (const ResourceId id : export_ids) {
     auto it = imported_resources_.find(id);
-    DCHECK(it != imported_resources_.end());
+    CHECK(it != imported_resources_.end(), base::NotFatalUntil::M130);
     imports.push_back(&it->second);
   }
 
@@ -268,6 +288,7 @@ void ClientResourceProvider::PrepareSendToParentInternal(
     std::move(verify_sync_tokens).Run(&unverified_sync_tokens);
   }
 
+  list->reserve(list->size() + imports.size());
   for (ImportedResource* imported : imports) {
     list->push_back(imported->resource);
     imported->exported_count++;
@@ -359,9 +380,6 @@ void ClientResourceProvider::ReceiveReturnsFromParent(
     // Save the sync token only when the exported count is going to 0. Or IOW
     // drop all by the last returned sync token.
     if (returned.sync_token.HasData()) {
-      DCHECK(
-          !imported.resource.is_software ||
-          base::FeatureList::IsEnabled(features::kSharedBitmapToSharedImage));
       imported.returned_sync_token = returned.sync_token;
     }
 
@@ -420,7 +438,16 @@ ResourceId ClientResourceProvider::ImportResource(
     ReleaseCallback main_thread_release_callback,
     ResourceEvictedCallback evicted_callback) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  ResourceId id = id_generator_.GenerateNextId();
+
+  // Clients are not allowed to import any empty resource.
+  CHECK(!resource.is_empty());
+  ResourceId id;
+  if (use_imported_resource_id_) {
+    CHECK_NE(resource.id, kInvalidResourceId);
+    id = resource.id;
+  } else {
+    id = id_generator_.GenerateNextId();
+  }
   auto result = imported_resources_.emplace(
       id, ImportedResource(id, resource, std::move(impl_release_callback),
                            std::move(main_thread_release_callback),
@@ -432,21 +459,27 @@ ResourceId ClientResourceProvider::ImportResource(
 void ClientResourceProvider::RemoveImportedResource(ResourceId id) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   auto it = imported_resources_.find(id);
-  DCHECK(it != imported_resources_.end());
+  CHECK(it != imported_resources_.end(), base::NotFatalUntil::M130);
   ImportedResource& imported = it->second;
   imported.marked_for_deletion = true;
   // We clear the callback here, as we will hold onto `imported` until it has
   // been returned. Which could occur after the lifetime of the importer.
   imported.evicted_callback = ResourceEvictedCallback();
   if (imported.exported_count == 0) {
-    imported.RunReleaseCallbacks();
+    TakeOrRunResourceReleases(batch_release_callbacks_, imported);
     imported_resources_.erase(it);
   }
 }
 
 void ClientResourceProvider::ReleaseAllExportedResources(bool lose) {
+  const bool batch =
+      base::FeatureList::IsEnabled(features::kBatchResourceRelease);
+  if (batch) {
+    batch_main_release_callbacks_.reserve(imported_resources_.size());
+  }
+
   auto release_and_remove =
-      [lose](std::pair<ResourceId, ImportedResource>& pair) {
+      [lose, batch, this](std::pair<ResourceId, ImportedResource>& pair) {
         ImportedResource& imported = pair.second;
         if (!imported.exported_count) {
           // Not exported, not up for consideration to be returned here.
@@ -460,7 +493,7 @@ void ClientResourceProvider::ReleaseAllExportedResources(bool lose) {
           return false;
         }
 
-        imported.RunReleaseCallbacks();
+        TakeOrRunResourceReleases(batch, imported);
         // Was exported and removed by the client, so return it now.
         return true;
       };
@@ -468,9 +501,16 @@ void ClientResourceProvider::ReleaseAllExportedResources(bool lose) {
   // This will run |release_and_remove| on each element of |imported_resources_|
   // and drop any resources from the set that it requests.
   base::EraseIf(imported_resources_, release_and_remove);
+  BatchResourceRelease();
 }
 
 void ClientResourceProvider::ShutdownAndReleaseAllResources() {
+  const bool batch =
+      base::FeatureList::IsEnabled(features::kBatchResourceRelease);
+  if (batch) {
+    batch_main_release_callbacks_.reserve(imported_resources_.size());
+  }
+
   for (auto& pair : imported_resources_) {
     ImportedResource& imported = pair.second;
 
@@ -478,17 +518,29 @@ void ClientResourceProvider::ShutdownAndReleaseAllResources() {
     // If this is false, then the resource has not been removed via
     // RemoveImportedResource(), and all resources should be removed before
     // we resort to marking resources as lost during shutdown.
-    DCHECK(imported.marked_for_deletion)
-        << "id: " << pair.first << " from:\n"
-        << imported.stack_trace.ToString() << "===";
-    DCHECK(imported.exported_count) << "id: " << pair.first << " from:\n"
-                                    << imported.stack_trace.ToString() << "===";
+    // Note that |use_imported_resource_id_| is true for TreesInViz. In that
+    // case, Viz side ClientResourceProvider's imported resources are only
+    // marked for deletion when signaled by the Renderer.
+    // ::ShutdownAndReleaseAllResources() can be called when LayerTreeHostImpl
+    // owning the ClientResourceProvider is being destroyed and Viz
+    // might not have yet received the marked_for_deletion signal from the
+    // Renderer, Hence this check is invalid for those scenarios and hence for
+    // Viz side ClientResourceProvider.
+    if (!use_imported_resource_id_) {
+      DCHECK(imported.marked_for_deletion)
+          << "id: " << pair.first << " from:\n"
+          << imported.stack_trace.ToString() << "===";
+      DCHECK(imported.exported_count)
+          << "id: " << pair.first << " from:\n"
+          << imported.stack_trace.ToString() << "===";
+    }
 #endif
 
     imported.returned_lost = true;
-    imported.RunReleaseCallbacks();
+    TakeOrRunResourceReleases(batch, imported);
   }
   imported_resources_.clear();
+  BatchResourceRelease();
 }
 
 void ClientResourceProvider::ValidateResource(ResourceId id) const {
@@ -499,7 +551,7 @@ void ClientResourceProvider::ValidateResource(ResourceId id) const {
 
 bool ClientResourceProvider::InUseByConsumer(ResourceId id) {
   auto it = imported_resources_.find(id);
-  DCHECK(it != imported_resources_.end());
+  CHECK(it != imported_resources_.end(), base::NotFatalUntil::M130);
   ImportedResource& imported = it->second;
   return imported.exported_count > 0 || imported.returned_lost;
 }
@@ -518,6 +570,20 @@ void ClientResourceProvider::SetVisible(bool visible) {
   }
   visible_ = visible;
   HandleEviction();
+}
+
+ClientResourceProvider::ScopedBatchResourcesRelease
+ClientResourceProvider::CreateScopedBatchResourcesRelease() {
+  // Typically `batch_release_callbacks_` will remain `true` until the callback
+  // `BatchResourceRelease` is called.
+  //
+  // However other internal batching can lead to this being `false` as bot
+  // `ReleaseAllExportedResources` and `ShutdownAndReleaseAllResources`.
+  batch_release_callbacks_ =
+      base::FeatureList::IsEnabled(features::kBatchResourceRelease);
+  return ScopedBatchResourcesReleaseImpl(
+      base::BindOnce(&ClientResourceProvider::BatchResourceRelease,
+                     weak_factory_.GetWeakPtr()));
 }
 
 void ClientResourceProvider::HandleEviction() {
@@ -575,25 +641,51 @@ void ClientResourceProvider::HandleEviction() {
 }
 
 void ClientResourceProvider::BatchMainReleaseCallbacks(
-    std::vector<base::OnceClosure> impl_release_callbacks) {
+    std::vector<base::OnceClosure> release_callbacks) {
   if (threaded_release_callbacks_supported_) {
     main_task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(
-            [](std::vector<base::OnceClosure> impl_release_callbacks,
+            [](std::vector<base::OnceClosure> release_callbacks,
                scoped_refptr<base::SequencedTaskRunner> impl_task_runner,
                base::OnceClosure completed_callback) {
-              for (auto& cb : impl_release_callbacks) {
+              for (auto& cb : release_callbacks) {
                 std::move(cb).Run();
               }
               std::move(completed_callback).Run();
             },
-            std::move(impl_release_callbacks), impl_task_runner_,
+            std::move(release_callbacks), impl_task_runner_,
             base::BindPostTask(impl_task_runner_, resource_flush_callback_)));
   } else {
-    for (auto& cb : impl_release_callbacks) {
+    for (auto& cb : release_callbacks) {
       std::move(cb).Run();
     }
+  }
+}
+
+void ClientResourceProvider::BatchResourceRelease() {
+  batch_release_callbacks_ = false;
+  if (!batch_main_release_callbacks_.empty()) {
+    BatchMainReleaseCallbacks(std::move(batch_main_release_callbacks_));
+  }
+  batch_main_release_callbacks_.clear();
+}
+
+void ClientResourceProvider::TakeOrRunResourceReleases(
+    bool batch,
+    ImportedResource& imported) {
+  if (batch) {
+    if (imported.impl_release_callback) {
+      std::move(imported.impl_release_callback)
+          .Run(imported.returned_sync_token, imported.returned_lost);
+    }
+    if (imported.main_thread_release_callback) {
+      batch_main_release_callbacks_.push_back(
+          base::BindOnce(std::move(imported.main_thread_release_callback),
+                         imported.returned_sync_token, imported.returned_lost));
+    }
+  } else {
+    imported.RunReleaseCallbacks();
   }
 }
 

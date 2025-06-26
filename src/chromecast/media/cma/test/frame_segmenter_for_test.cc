@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chromecast/media/cma/test/frame_segmenter_for_test.h"
 
 #include <stdint.h>
@@ -22,7 +27,7 @@
 #include "media/base/test_helpers.h"
 #include "media/filters/ffmpeg_demuxer.h"
 #include "media/filters/file_data_source.h"
-#include "media/video/h264_parser.h"
+#include "media/parsers/h264_parser.h"
 
 namespace chromecast {
 namespace media {
@@ -92,7 +97,7 @@ AudioFrameHeader FindNextMp3Header(const uint8_t* data, size_t data_size) {
 
 BufferList Mp3SegmenterForTest(const uint8_t* data_ptr, size_t data_size) {
   // TODO(crbug.com/40284755): These functions should be based on span.
-  auto data = UNSAFE_BUFFERS(base::span(data_ptr, data_size));
+  auto data = UNSAFE_TODO(base::span(data_ptr, data_size));
   BufferList audio_frames;
   base::TimeDelta timestamp;
 
@@ -135,7 +140,7 @@ H264AccessUnit::H264AccessUnit()
 
 BufferList H264SegmenterForTest(const uint8_t* data_ptr, size_t data_size) {
   // TODO(crbug.com/40284755): These functions should be based on span.
-  auto data = UNSAFE_BUFFERS(base::span(data_ptr, data_size));
+  auto data = UNSAFE_TODO(base::span(data_ptr, data_size));
   BufferList video_frames;
   std::list<H264AccessUnit> access_unit_list;
   H264AccessUnit access_unit;

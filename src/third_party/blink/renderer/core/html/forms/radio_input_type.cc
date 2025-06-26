@@ -33,6 +33,7 @@
 #include "third_party/blink/renderer/core/html/forms/html_input_element.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/input_type_names.h"
+#include "third_party/blink/renderer/core/keywords.h"
 #include "third_party/blink/renderer/core/page/spatial_navigation.h"
 #include "third_party/blink/renderer/platform/text/platform_locale.h"
 
@@ -43,8 +44,12 @@ using mojom::blink::FormControlType;
 namespace {
 
 HTMLInputElement* NextInputElement(const HTMLInputElement& element,
-                                   const HTMLFormElement* stay_within,
+                                   const HTMLFormElement* form,
                                    bool forward) {
+  const Node* stay_within =
+      form && RuntimeEnabledFeatures::RadioInputNextButtonInScopeEnabled()
+          ? form->GetListedElementsScope()
+          : form;
   return forward ? Traversal<HTMLInputElement>::Next(element, stay_within)
                  : Traversal<HTMLInputElement>::Previous(element, stay_within);
 }
@@ -55,8 +60,8 @@ void RadioInputType::CountUsage() {
   CountUsageIfVisible(WebFeature::kInputTypeRadio);
 }
 
-ControlPart RadioInputType::AutoAppearance() const {
-  return kRadioPart;
+AppearanceValue RadioInputType::AutoAppearance() const {
+  return AppearanceValue::kRadio;
 }
 
 bool RadioInputType::ValueMissing(const String&) const {
@@ -118,10 +123,11 @@ void RadioInputType::HandleKeydownEvent(KeyboardEvent& event) {
   BaseCheckableInputType::HandleKeydownEvent(event);
   if (event.DefaultHandled())
     return;
-  const String& key = event.key();
-  if (key != "ArrowUp" && key != "ArrowDown" && key != "ArrowLeft" &&
-      key != "ArrowRight")
+  const AtomicString key(event.key());
+  if (key != keywords::kArrowUp && key != keywords::kArrowDown &&
+      key != keywords::kArrowLeft && key != keywords::kArrowRight) {
     return;
+  }
 
   if (event.ctrlKey() || event.metaKey() || event.altKey())
     return;
@@ -135,9 +141,10 @@ void RadioInputType::HandleKeydownEvent(KeyboardEvent& event) {
   Document& document = GetElement().GetDocument();
   if (IsSpatialNavigationEnabled(document.GetFrame()))
     return;
-  bool forward = ComputedTextDirection() == TextDirection::kRtl
-                     ? (key == "ArrowDown" || key == "ArrowLeft")
-                     : (key == "ArrowDown" || key == "ArrowRight");
+  bool forward =
+      ComputedTextDirection() == TextDirection::kRtl
+          ? (key == keywords::kArrowDown || key == keywords::kArrowLeft)
+          : (key == keywords::kArrowDown || key == keywords::kArrowRight);
 
   // Force layout for isFocusable() in findNextFocusableRadioButtonInGroup().
   document.UpdateStyleAndLayout(DocumentUpdateReason::kInput);
@@ -172,7 +179,7 @@ void RadioInputType::HandleKeyupEvent(KeyboardEvent& event) {
   // Use Enter key simulated click when Spatial Navigation enabled.
   if (event.key() == " " ||
       (IsSpatialNavigationEnabled(GetElement().GetDocument().GetFrame()) &&
-       event.key() == "Enter")) {
+       event.key() == keywords::kCapitalEnter)) {
     // If an unselected radio is tabbed into (because the entire group has
     // nothing checked, or because of some explicit .focus() call), then allow
     // space to check it.
@@ -187,9 +194,9 @@ void RadioInputType::HandleKeyupEvent(KeyboardEvent& event) {
   }
 }
 
-bool RadioInputType::IsKeyboardFocusable(
+bool RadioInputType::IsKeyboardFocusableSlow(
     Element::UpdateBehavior update_behavior) const {
-  if (!InputType::IsKeyboardFocusable(update_behavior)) {
+  if (!InputType::IsKeyboardFocusableSlow(update_behavior)) {
     return false;
   }
 
@@ -271,9 +278,6 @@ bool RadioInputType::ShouldAppearIndeterminate() const {
 HTMLInputElement* RadioInputType::NextRadioButtonInGroup(
     HTMLInputElement* current,
     bool forward) {
-  // TODO(https://crbug.com/323953913): Staying within form() is
-  // incorrect.  This code ignore input elements associated by |form|
-  // content attribute.
   // TODO(tkent): Comparing name() with == is incorrect.  It should be
   // case-insensitive.
   for (HTMLInputElement* input_element =

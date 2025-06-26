@@ -7,7 +7,9 @@
 #include <memory>
 #include <sstream>
 
+#include "base/feature_list.h"
 #include "base/functional/callback_helpers.h"
+#include "base/logging.h"
 #include "base/observer_list.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/default_clock.h"
@@ -16,10 +18,14 @@
 #include "components/segmentation_platform/internal/database/signal_storage_config.h"
 #include "components/segmentation_platform/internal/database/storage_service.h"
 #include "components/segmentation_platform/internal/metadata/metadata_utils.h"
+#include "components/segmentation_platform/internal/post_processor/post_processor.h"
 #include "components/segmentation_platform/internal/scheduler/execution_service.h"
 #include "components/segmentation_platform/internal/selection/segment_result_provider.h"
 #include "components/segmentation_platform/internal/selection/segment_selector_impl.h"
+#include "components/segmentation_platform/internal/selection/selection_utils.h"
 #include "components/segmentation_platform/public/config.h"
+#include "components/segmentation_platform/public/features.h"
+#include "components/segmentation_platform/public/result.h"
 #include "components/segmentation_platform/public/segment_selection_result.h"
 
 namespace segmentation_platform {
@@ -29,34 +35,29 @@ std::string SegmentMetadataToString(const proto::SegmentInfo& segment_info) {
   if (!segment_info.has_model_metadata())
     return std::string();
 
-  return "model_metadata: { " +
-         metadata_utils::SegmetationModelMetadataToString(
-             segment_info.model_metadata()) +
-         " }";
+  return base::StringPrintf("model_metadata: { %s }, model_version: %lld",
+                            metadata_utils::SegmetationModelMetadataToString(
+                                segment_info.model_metadata()),
+                            segment_info.model_version());
 }
 
 std::string PredictionResultToString(const proto::SegmentInfo& segment_info,
                                      const std::optional<float>& segment_rank) {
-  if (!segment_info.has_prediction_result()) {
-    if (!segment_rank)
-      return std::string();
-    // Rank maybe available without segment info since it is stored in prefs.
-    return base::StringPrintf("rank: %f", *segment_rank);
+  if (!segment_info.has_prediction_result() ||
+      !segment_info.prediction_result().has_output_config()) {
+    return std::string();
   }
-  const auto prediction_result = segment_info.prediction_result();
-  base::Time time;
-  if (prediction_result.has_timestamp_us()) {
-    time = base::Time::FromDeltaSinceWindowsEpoch(
-        base::Microseconds(prediction_result.timestamp_us()));
+  const auto& prediction_result = segment_info.prediction_result();
+  if (PostProcessor::IsClassificationResult(prediction_result)) {
+    return PostProcessor()
+        .GetPostProcessedClassificationResult(prediction_result,
+                                              PredictionStatus::kSucceeded)
+        .ToDebugString();
+  } else {
+    return PostProcessor()
+        .GetRawResult(prediction_result, PredictionStatus::kSucceeded)
+        .ToDebugString();
   }
-  std::ostringstream time_string;
-  time_string << time;
-  const float kInvalidScore = -1;
-  // TODO(ritikagup) : Make changes to print all the values in result.
-  return base::StringPrintf(
-      "result: %f, time: %s, rank: %f",
-      prediction_result.result_size() > 0 ? prediction_result.result()[0] : 0,
-      time_string.str().c_str(), segment_rank ? *segment_rank : kInvalidScore);
 }
 
 base::flat_set<proto::SegmentId> GetAllSegmentIds(
@@ -125,9 +126,14 @@ void ServiceProxyImpl::UpdateObservers(bool update_service_status) {
 void ServiceProxyImpl::SetExecutionService(
     ExecutionService* model_execution_scheduler) {
   execution_service_ = model_execution_scheduler;
+  // Survey page needs to check the signal requirements. Surveys would be
+  // disabled when not running, so local tests should not be affected. Consider
+  // passing this value from the internals page and reset the bool based on
+  // which internals page is active.
+  bool force_refresh = !features::kSegmentationSurveyInternalsPage.Get();
   segment_result_provider_ = SegmentResultProvider::Create(
       segment_db_, signal_storage_config_, execution_service_,
-      base::DefaultClock::GetInstance(), /*force_refresh_results=*/true);
+      base::DefaultClock::GetInstance(), force_refresh);
 }
 
 void ServiceProxyImpl::GetServiceStatus() {
@@ -143,7 +149,9 @@ void ServiceProxyImpl::ExecuteModel(SegmentId segment_id) {
   request->save_results_to_db = true;
   request->segment_id = segment_id;
   request->ignore_db_scores = true;
-  request->callback = base::DoNothing();
+  request->callback =
+      base::BindOnce(&ServiceProxyImpl::OnModelExecutionFinished,
+                     weak_ptr_factory_.GetWeakPtr());
   segment_result_provider_->GetSegmentResult(std::move(request));
 }
 
@@ -221,12 +229,19 @@ void ServiceProxyImpl::OnGetAllSegmentationInfo(
       result.back().segment_status.emplace_back(
           segment_id.first, SegmentMetadataToString(*info),
           PredictionResultToString(*info, current_segment_rank),
+          base::Time::FromDeltaSinceWindowsEpoch(
+              base::Microseconds(info->prediction_result().timestamp_us())),
           can_execute_segment);
     }
   }
 
   for (auto& obs : observers_)
     obs.OnClientInfoAvailable(result);
+}
+
+void ServiceProxyImpl::OnModelExecutionFinished(
+    std::unique_ptr<SegmentResultProvider::SegmentResult> result) {
+  UpdateObservers(false);
 }
 
 void ServiceProxyImpl::OnModelExecutionCompleted(SegmentId segment_id) {

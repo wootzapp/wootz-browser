@@ -32,6 +32,7 @@
 #include <algorithm>
 #include <optional>
 #include <utility>
+#include <variant>
 
 #include "base/compiler_specific.h"
 #include "base/containers/span.h"
@@ -51,17 +52,14 @@
 #include "services/network/public/cpp/cross_origin_embedder_policy.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/resource_request.h"
-#include "services/network/public/cpp/shared_dictionary_encoding_names.h"
 #include "services/network/public/mojom/blocked_by_response_reason.mojom-shared.h"
 #include "services/network/public/mojom/fetch_api.mojom-blink.h"
 #include "third_party/blink/public/common/client_hints/client_hints.h"
 #include "third_party/blink/public/common/features.h"
-#include "third_party/blink/public/common/permissions_policy/permissions_policy.h"
 #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
 #include "third_party/blink/public/mojom/blob/blob_registry.mojom-blink.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom-blink.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
 #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-shared.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/web_data.h"
@@ -81,6 +79,7 @@
 #include "third_party/blink/renderer/platform/loader/fetch/console_logger.h"
 #include "third_party/blink/renderer/platform/loader/fetch/detachable_use_counter.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_context.h"
+#include "third_party/blink/renderer/platform/loader/fetch/fetch_initiator_type_names.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_utils.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_error.h"
@@ -97,7 +96,6 @@
 #include "third_party/blink/renderer/platform/network/http_parsers.h"
 #include "third_party/blink/renderer/platform/network/mime/mime_type_registry.h"
 #include "third_party/blink/renderer/platform/network/network_utils.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread_scheduler.h"
 #include "third_party/blink/renderer/platform/weborigin/reporting_disposition.h"
 #include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
@@ -285,13 +283,7 @@ ResourceLoader::ResourceLoader(ResourceFetcher* fetcher,
   const auto& request = resource_->GetResourceRequest();
   auto request_context = request.GetRequestContext();
   if (auto* frame_or_worker_scheduler = fetcher->GetFrameOrWorkerScheduler()) {
-    if (!base::FeatureList::IsEnabled(
-            features::kBackForwardCacheWithKeepaliveRequest) &&
-        request.GetKeepalive()) {
-      frame_or_worker_scheduler->RegisterStickyFeature(
-          SchedulingPolicy::Feature::kKeepaliveRequest,
-          {SchedulingPolicy::DisableBackForwardCache()});
-    } else if (!RequestContextObserveResponse(request_context)) {
+    if (!RequestContextObserveResponse(request_context)) {
       // Only when this feature is turned on and the loading tasks keep being
       // processed and the data is queued up on the renderer, a page can stay in
       // BackForwardCache with network requests.
@@ -326,11 +318,14 @@ void ResourceLoader::Start() {
   if (request.GetKeepalive()) {
     FetchUtils::LogFetchKeepAliveRequestMetric(
         request.GetRequestContext(),
-        FetchUtils::FetchKeepAliveRequestState::kStarted);
+        FetchUtils::FetchKeepAliveRequestState::kStarted,
+        fetcher_->GetProperties().IsDetached());
   }
 
   if (!resource_->Url().ProtocolIsData()) {
     network_resource_request_ = CreateNetworkRequest(request, request_body_);
+    fetcher_->PopulateResourceRequestPermissionsPolicy(
+        network_resource_request_.get());
     if (is_cache_aware_loading_activated_) {
       // Override cache policy for cache-aware loading. If this request fails, a
       // reload with original request will be triggered in DidFail().
@@ -408,10 +403,6 @@ void ResourceLoader::Run() {
   // TODO(crbug.com/1169032): Manage cookies' capability control here for the
   // Prerender2.
   StartFetch();
-}
-
-void ResourceLoader::DidReceiveData(base::span<const char> data) {
-  DidReceiveData(data.data(), data.size());
 }
 
 void ResourceLoader::DidReceiveDecodedData(
@@ -606,9 +597,7 @@ bool ResourceLoader::WillFollowRedirect(
   // the placement of this code, together with the //net counterpart.
   if (removed_headers) {
     // Step 13 of https://fetch.spec.whatwg.org/#http-redirect-fetch
-    if (base::FeatureList::IsEnabled(
-            features::kRemoveAuthroizationOnCrossOriginRedirect) &&
-        !SecurityOrigin::AreSameOrigin(resource_->LastResourceRequest().Url(),
+    if (!SecurityOrigin::AreSameOrigin(resource_->LastResourceRequest().Url(),
                                        new_url)) {
       removed_headers->push_back(net::HttpRequestHeaders::kAuthorization);
     }
@@ -676,8 +665,9 @@ bool ResourceLoader::WillFollowRedirect(
     // CanRequest() checks only enforced CSP, so check report-only here to
     // ensure that violations are sent.
     Context().CheckCSPForRequest(
-        request_context, request_destination, new_url_prior_upgrade, options,
-        reporting_disposition, url_before_redirects,
+        request_context, request_destination, request_mode,
+        new_url_prior_upgrade, options, reporting_disposition,
+        url_before_redirects,
         ResourceRequest::RedirectStatus::kFollowedRedirect);
 
     std::optional<ResourceRequestBlockedReason> blocked_reason =
@@ -779,7 +769,7 @@ FetchContext& ResourceLoader::Context() const {
 
 void ResourceLoader::DidReceiveResponse(
     const WebURLResponse& response,
-    mojo::ScopedDataPipeConsumerHandle body,
+    std::variant<mojo::ScopedDataPipeConsumerHandle, SegmentedBuffer> body,
     std::optional<mojo_base::BigBuffer> cached_metadata) {
   DCHECK(!response.IsNull());
 
@@ -788,15 +778,46 @@ void ResourceLoader::DidReceiveResponse(
     // response is a multipart resource or not.
     FetchUtils::LogFetchKeepAliveRequestMetric(
         resource_->GetResourceRequest().GetRequestContext(),
-        FetchUtils::FetchKeepAliveRequestState::kSucceeded);
+        FetchUtils::FetchKeepAliveRequestState::kSucceeded,
+        fetcher_->GetProperties().IsDetached());
   }
 
   DidReceiveResponseInternal(response.ToResourceResponse(),
                              std::move(cached_metadata));
-  if (!IsLoading() || !body) {
+  if (!IsLoading()) {
     return;
   }
-
+  if (resource_->HasSuccessfulRevalidation()) {
+    // When we succeeded the revalidation, the response is a 304 Not Modified.
+    // The body of the 304 Not Modified response must be empty.
+    //   RFC9110: https://www.rfc-editor.org/rfc/rfc9110.html#section-6.4.1-8
+    //     All 1xx (Informational), 204 (No Content), and 304 (Not Modified)
+    //     responses do not include content.
+    // net::HttpStreamParser::CalculateResponseBodySize() is skipping loading
+    // the body of 304 Not Modified response. And Blink don't fetch the
+    // revalidating request when the page is controlled by a service worker.
+    // So, We don't need to handle the body for 304 Not Modified responses.
+    if (std::holds_alternative<SegmentedBuffer>(body)) {
+      CHECK(std::get<SegmentedBuffer>(body).empty());
+    } else {
+      CHECK(std::holds_alternative<mojo::ScopedDataPipeConsumerHandle>(body));
+      // If the `body` is released here, the network service will treat the
+      // disconnection of the `body` handle as if the request was cancelled. So
+      // we keeps the `body` handle.
+      empty_body_handle_for_revalidation_ =
+          std::move(std::get<mojo::ScopedDataPipeConsumerHandle>(body));
+    }
+    return;
+  }
+  if (std::holds_alternative<SegmentedBuffer>(body)) {
+    DidReceiveDataImpl(std::move(std::get<SegmentedBuffer>(body)));
+    return;
+  }
+  mojo::ScopedDataPipeConsumerHandle body_handle =
+      std::move(std::get<mojo::ScopedDataPipeConsumerHandle>(body));
+  if (!body_handle) {
+    return;
+  }
   if (resource_->GetResourceRequest().DownloadToBlob()) {
     DCHECK(!blob_response_started_);
     blob_response_started_ = true;
@@ -808,7 +829,7 @@ void ResourceLoader::DidReceiveResponse(
     fetcher_->GetBlobRegistry()->RegisterFromStream(
         mime_type.IsNull() ? g_empty_string : mime_type.LowerASCII(), "",
         std::max(static_cast<int64_t>(0), response.ExpectedContentLength()),
-        std::move(body),
+        std::move(body_handle),
         progress_receiver_.BindNewEndpointAndPassRemote(GetLoadingTaskRunner()),
         WTF::BindOnce(&ResourceLoader::FinishedCreatingBlob,
                       WrapWeakPersistent(this)));
@@ -817,9 +838,14 @@ void ResourceLoader::DidReceiveResponse(
 
   DataPipeBytesConsumer::CompletionNotifier* completion_notifier = nullptr;
   DidStartLoadingResponseBodyInternal(
-      *MakeGarbageCollected<DataPipeBytesConsumer>(
-          task_runner_for_body_loader_, std::move(body), &completion_notifier));
+      *MakeGarbageCollected<DataPipeBytesConsumer>(task_runner_for_body_loader_,
+                                                   std::move(body_handle),
+                                                   &completion_notifier));
   data_pipe_completion_notifier_ = completion_notifier;
+}
+
+void ResourceLoader::DidReceiveDataForTesting(base::span<const char> data) {
+  DidReceiveDataImpl(data);
 }
 
 void ResourceLoader::DidReceiveResponseInternal(
@@ -830,8 +856,10 @@ void ResourceLoader::DidReceiveResponseInternal(
   AtomicString content_encoding =
       response.HttpHeaderField(http_names::kContentEncoding);
   bool used_zstd = false;
-  if (content_encoding.LowerASCII() == "zstd") {
+  if (EqualIgnoringASCIICase(content_encoding, "zstd")) {
     fetcher_->GetUseCounter().CountUse(WebFeature::kZstdContentEncoding);
+    fetcher_->GetUseCounter().CountUse(
+        WebFeature::kZstdContentEncodingForSubresource);
     used_zstd = true;
   }
 
@@ -850,12 +878,10 @@ void ResourceLoader::DidReceiveResponseInternal(
     fetcher_->GetUseCounter().CountUse(WebFeature::kSharedDictionaryUsed);
     fetcher_->GetUseCounter().CountUse(
         WebFeature::kSharedDictionaryUsedForSubresource);
-    if (content_encoding.LowerASCII() ==
-        network::GetSharedBrotliContentEncodingName()) {
+    if (EqualIgnoringASCIICase(content_encoding, "dcb")) {
       fetcher_->GetUseCounter().CountUse(
           WebFeature::kSharedDictionaryUsedWithSharedBrotli);
-    } else if (content_encoding.LowerASCII() ==
-               network::GetSharedZstdContentEncodingName()) {
+    } else if (EqualIgnoringASCIICase(content_encoding, "dcz")) {
       fetcher_->GetUseCounter().CountUse(
           WebFeature::kSharedDictionaryUsedWithSharedZstd);
     }
@@ -864,6 +890,25 @@ void ResourceLoader::DidReceiveResponseInternal(
   if (response.HasAuthorizationCoveredByWildcardOnPreflight()) {
     fetcher_->GetUseCounter().CountDeprecation(
         mojom::WebFeature::kAuthorizationCoveredByWildcard);
+  }
+
+  if (response.HttpHeaderField(http_names::kSecSessionRegistration)) {
+    fetcher_->GetUseCounter().CountUse(
+        WebFeature::kDeviceBoundSessionRegistered);
+  }
+
+  switch (response.DeviceBoundSessionUsage()) {
+    case network::mojom::DeviceBoundSessionUsage::kDeferred:
+      fetcher_->GetUseCounter().CountUse(
+          WebFeature::kDeviceBoundSessionRequestDeferral);
+      [[fallthrough]];
+    case network::mojom::DeviceBoundSessionUsage::kInScopeNotDeferred:
+      fetcher_->GetUseCounter().CountUse(
+          WebFeature::kDeviceBoundSessionRequestInScope);
+      break;
+    case network::mojom::DeviceBoundSessionUsage::kNoUsage:
+    case network::mojom::DeviceBoundSessionUsage::kUnknown:
+      break;
   }
 
   CountPrivateNetworkAccessPreflightResult(
@@ -884,6 +929,7 @@ void ResourceLoader::DidReceiveResponseInternal(
       initial_request.GetRequestContext();
   network::mojom::RequestDestination request_destination =
       initial_request.GetRequestDestination();
+  network::mojom::RequestMode request_mode = initial_request.GetMode();
 
   const ResourceLoaderOptions& options = resource_->Options();
 
@@ -898,20 +944,6 @@ void ResourceLoader::DidReceiveResponseInternal(
           CheckResponseNosniff(request_context, nosniffed_response)) {
     HandleError(ResourceError::CancelledDueToAccessCheckError(
         response.CurrentRequestUrl(), blocked_reason.value()));
-    return;
-  }
-
-  // https://wicg.github.io/cross-origin-embedder-policy/#integration-html
-  // TODO(crbug.com/1064920): Remove this once PlzDedicatedWorker ships.
-  if (options.reject_coep_unsafe_none &&
-      !network::CompatibleWithCrossOriginIsolated(
-          response.GetCrossOriginEmbedderPolicy()) &&
-      !response.CurrentRequestUrl().ProtocolIsData() &&
-      !response.CurrentRequestUrl().ProtocolIs("blob")) {
-    DCHECK(!base::FeatureList::IsEnabled(features::kPlzDedicatedWorker));
-    HandleError(ResourceError::BlockedByResponse(
-        response.CurrentRequestUrl(), network::mojom::BlockedByResponseReason::
-                                          kCoepFrameResourceNeedsCoepHeader));
     return;
   }
 
@@ -948,8 +980,8 @@ void ResourceLoader::DidReceiveResponseInternal(
     // here to ensure violations are sent.
     const KURL& response_url = response.ResponseUrl();
     Context().CheckCSPForRequest(
-        request_context, request_destination, response_url, options,
-        ReportingDisposition::kReport, original_url,
+        request_context, request_destination, request_mode, response_url,
+        options, ReportingDisposition::kReport, original_url,
         ResourceRequest::RedirectStatus::kFollowedRedirect);
 
     std::optional<ResourceRequestBlockedReason> blocked_reason =
@@ -973,9 +1005,6 @@ void ResourceLoader::DidReceiveResponseInternal(
       return;
     }
   }
-
-  scheduler_->SetConnectionInfo(scheduler_client_id_,
-                                response.ConnectionInfo());
 
   // A response should not serve partial content if it was not requested via a
   // Range header: https://fetch.spec.whatwg.org/#main-fetch
@@ -1043,16 +1072,34 @@ void ResourceLoader::DidReceiveResponseInternal(
   }
 }
 
-void ResourceLoader::DidReceiveData(const char* data, size_t length) {
-  if (auto* observer = fetcher_->GetResourceLoadObserver()) {
-    observer->DidReceiveData(resource_->InspectorId(),
-                             base::make_span(data, length));
+void ResourceLoader::DidReceiveData(base::span<const char> data) {
+  DidReceiveDataImpl(data);
+}
+
+void ResourceLoader::DidReceiveDataImpl(
+    std::variant<SegmentedBuffer, base::span<const char>> data) {
+  size_t data_size = 0;
+  // If a BackgroundResponseProcessor consumed the body data on the background
+  // thread, this method is called with a SegmentedBuffer data. Otherwise, it is
+  // called with a span<const char> data several times.
+  if (std::holds_alternative<SegmentedBuffer>(data)) {
+    data_size = std::get<SegmentedBuffer>(data).size();
+    if (auto* observer = fetcher_->GetResourceLoadObserver()) {
+      for (const auto& span : std::get<SegmentedBuffer>(data)) {
+        observer->DidReceiveData(resource_->InspectorId(),
+                                 base::SpanOrSize(span));
+      }
+    }
+  } else {
+    CHECK(std::holds_alternative<base::span<const char>>(data));
+    base::span<const char> span = std::get<base::span<const char>>(data);
+    data_size = span.size();
+    if (auto* observer = fetcher_->GetResourceLoadObserver()) {
+      observer->DidReceiveData(resource_->InspectorId(),
+                               base::SpanOrSize(span));
+    }
   }
-  resource_->AppendData(
-      // SAFETY: `data` must point to `length` elements.
-      // TODO(crbug.com/40284755): Make this method take a span to capture it in
-      // the type system.
-      UNSAFE_BUFFERS(base::span(data, length)));
+  resource_->AppendData(std::move(data));
 
   // This value should not be exposed for opaque responses.
   if (resource_->response_.WasFetchedViaServiceWorker() &&
@@ -1065,7 +1112,7 @@ void ResourceLoader::DidReceiveData(const char* data, size_t length) {
     // will always be >= 0, but the CheckAdd is used to enforce the second
     // constraint.
     received_body_length_from_service_worker_ =
-        base::CheckAdd(received_body_length_from_service_worker_, length)
+        base::CheckAdd(received_body_length_from_service_worker_, data_size)
             .ValueOrDie<int64_t>();
   }
 }
@@ -1195,17 +1242,23 @@ void ResourceLoader::HandleError(const ResourceError& error) {
     Restart();
     return;
   }
-  if (error.CorsErrorStatus() &&
-      !base::FeatureList::IsEnabled(blink::features::kCORSErrorsIssueOnly)) {
+  if (error.CorsErrorStatus()) {
     // CORS issues are reported via network service instrumentation.
-    fetcher_->GetConsoleLogger().AddConsoleMessage(
-        mojom::ConsoleMessageSource::kJavaScript,
-        mojom::ConsoleMessageLevel::kError,
-        cors::GetErrorString(
-            *error.CorsErrorStatus(), resource_->GetResourceRequest().Url(),
-            resource_->LastResourceRequest().Url(), *resource_->GetOrigin(),
-            resource_->GetType(), resource_->Options().initiator_info.name),
-        false /* discard_duplicates */, mojom::ConsoleMessageCategory::Cors);
+    const AtomicString& initiator_name =
+        resource_->Options().initiator_info.name;
+    if (initiator_name != fetch_initiator_type_names::kFetch ||
+        !base::FeatureList::IsEnabled(
+            features::kDevToolsImprovedNetworkError)) {
+      fetcher_->GetConsoleLogger().AddConsoleMessage(
+          mojom::blink::ConsoleMessageSource::kJavaScript,
+          mojom::blink::ConsoleMessageLevel::kError,
+          cors::GetErrorStringForConsoleMessage(
+              *error.CorsErrorStatus(), resource_->GetResourceRequest().Url(),
+              resource_->LastResourceRequest().Url(), *resource_->GetOrigin(),
+              resource_->GetType(), initiator_name),
+          false /* discard_duplicates */,
+          mojom::blink::ConsoleMessageCategory::Cors);
+    }
   }
 
   Release(ResourceLoadScheduler::ReleaseOption::kReleaseAndSchedule,
@@ -1253,8 +1306,9 @@ void ResourceLoader::RequestSynchronously() {
     // the data url with invalid mime type in some cases.
     // CanHandleDataURLRequestLocally() has already checked if the data url can
     // be handled here.
-    auto [result, response, data] =
-        network_utils::ParseDataURL(resource_->Url(), request.HttpMethod());
+    auto [result, response, data] = network_utils::ParseDataURL(
+        resource_->Url(), request.HttpMethod(), request.GetUkmSourceId(),
+        fetcher_->UkmRecorder());
     if (result != net::OK) {
       error_out = WebURLError(result, resource_->Url());
     } else {
@@ -1299,7 +1353,7 @@ void ResourceLoader::RequestSynchronously() {
   // a 304, where it will overwrite the cached data we should be reusing.
   if (data_out && data_out->size()) {
     for (const auto& span : *data_out) {
-      DidReceiveData(span.data(), span.size());
+      DidReceiveData(span);
     }
   }
 
@@ -1410,9 +1464,9 @@ void ResourceLoader::OnProgress(uint64_t delta) {
   }
 
   if (auto* observer = fetcher_->GetResourceLoadObserver()) {
-    observer->DidReceiveData(resource_->InspectorId(),
-                             base::make_span(static_cast<const char*>(nullptr),
-                                             static_cast<size_t>(delta)));
+    observer->DidReceiveData(
+        resource_->InspectorId(),
+        base::SpanOrSize<const char>(base::checked_cast<size_t>(delta)));
   }
   resource_->DidDownloadData(delta);
 }
@@ -1484,7 +1538,9 @@ void ResourceLoader::HandleDataUrl() {
   // CanHandleDataURLRequestLocally() has already checked if the data url can be
   // handled here.
   auto [result, response, data] = network_utils::ParseDataURL(
-      resource_->Url(), resource_->GetResourceRequest().HttpMethod());
+      resource_->Url(), resource_->GetResourceRequest().HttpMethod(),
+      resource_->GetResourceRequest().GetUkmSourceId(),
+      fetcher_->UkmRecorder());
   if (result != net::OK) {
     HandleError(ResourceError(result, resource_->Url(), std::nullopt));
     return;

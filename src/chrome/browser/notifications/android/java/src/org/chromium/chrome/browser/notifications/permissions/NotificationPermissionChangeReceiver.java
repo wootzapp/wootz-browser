@@ -9,12 +9,15 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.notifications.NotificationUmaTracker;
+import org.chromium.components.browser_ui.notifications.NotificationProxyUtils;
 
 /**
  * A {@link android.content.BroadcastReceiver} that detects when our App level notifications are
  * blocked or unblocked via the settings menu. When this happens we record a metric.
  */
+@NullMarked
 public class NotificationPermissionChangeReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -26,6 +29,7 @@ public class NotificationPermissionChangeReceiver extends BroadcastReceiver {
                 && intent.hasExtra(NotificationManager.EXTRA_BLOCKED_STATE)) {
             boolean blockedState =
                     intent.getBooleanExtra(NotificationManager.EXTRA_BLOCKED_STATE, false);
+            NotificationProxyUtils.setNotificationEnabled(!blockedState);
             NotificationUmaTracker.getInstance()
                     .onNotificationPermissionSettingChange(blockedState);
         }

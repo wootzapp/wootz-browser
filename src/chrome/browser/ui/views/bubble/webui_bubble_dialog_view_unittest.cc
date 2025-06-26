@@ -17,6 +17,7 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/vector2d.h"
 #include "ui/views/controls/webview/webview.h"
+#include "ui/views/test/views_test_utils.h"
 #include "ui/views/widget/unique_widget_ptr.h"
 
 namespace {
@@ -42,8 +43,7 @@ class TestWebUIContentsWrapper : public WebUIContentsWrapper {
 };
 }  // namespace
 
-namespace views {
-namespace test {
+namespace views::test {
 
 class WebUIBubbleDialogViewTest : public ChromeViewsTestBase,
                                   public testing::WithParamInterface<bool> {
@@ -59,7 +59,9 @@ class WebUIBubbleDialogViewTest : public ChromeViewsTestBase,
     ChromeViewsTestBase::SetUp();
     profile_ = std::make_unique<TestingProfile>();
 
-    anchor_widget_ = CreateTestWidget(Widget::InitParams::TYPE_WINDOW);
+    anchor_widget_ =
+        CreateTestWidget(Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+                         Widget::InitParams::TYPE_WINDOW);
     anchor_widget_->Show();
     contents_wrapper_ = std::make_unique<TestWebUIContentsWrapper>(
         profile_.get(), /*supports_draggable_regions=*/GetParam());
@@ -96,6 +98,10 @@ class WebUIBubbleDialogViewTest : public ChromeViewsTestBase,
 TEST_P(WebUIBubbleDialogViewTest, BubbleRespondsToWebViewPreferredSizeChanges) {
   constexpr gfx::Size web_view_initial_size(100, 100);
   bubble_dialog_view()->ResizeDueToAutoResize(nullptr, web_view_initial_size);
+
+  // ResizeDueToAutoResize() will trigger an asynchronous autosize task.
+  views::test::RunScheduledLayout(bubble_widget());
+
   const gfx::Size widget_initial_size =
       bubble_widget()->GetWindowBoundsInScreen().size();
   // The bubble should be at least as big as the webview.
@@ -105,6 +111,9 @@ TEST_P(WebUIBubbleDialogViewTest, BubbleRespondsToWebViewPreferredSizeChanges) {
   // Resize the webview.
   constexpr gfx::Size web_view_final_size(200, 200);
   bubble_dialog_view()->ResizeDueToAutoResize(nullptr, web_view_final_size);
+
+  // ResizeDueToAutoResize() will trigger an asynchronous autosize task.
+  views::test::RunScheduledLayout(bubble_widget());
 
   // Ensure the bubble resizes as expected.
   const gfx::Size widget_final_size =
@@ -141,7 +150,9 @@ TEST_P(WebUIBubbleDialogViewTest, CloseUIClearsContentsWrapper) {
 
 TEST_P(WebUIBubbleDialogViewTest, GetAnchorRectWithProvidedAnchorRect) {
   UniqueWidgetPtr anchor_widget = std::make_unique<Widget>();
-  Widget::InitParams params = CreateParams(Widget::InitParams::TYPE_WINDOW);
+  Widget::InitParams params =
+      CreateParams(Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+                   Widget::InitParams::TYPE_WINDOW);
   anchor_widget->Init(std::move(params));
   auto profile = std::make_unique<TestingProfile>();
   auto contents_wrapper =
@@ -160,7 +171,9 @@ TEST_P(WebUIBubbleDialogViewTest, GetAnchorRectWithProvidedAnchorRect) {
 
 TEST_P(WebUIBubbleDialogViewTest, DestroyingContentsWrapperDoesNotSegfault) {
   UniqueWidgetPtr anchor_widget = std::make_unique<Widget>();
-  Widget::InitParams params = CreateParams(Widget::InitParams::TYPE_WINDOW);
+  Widget::InitParams params =
+      CreateParams(Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+                   Widget::InitParams::TYPE_WINDOW);
   anchor_widget->Init(std::move(params));
   auto profile = std::make_unique<TestingProfile>();
   auto contents_wrapper =
@@ -181,6 +194,8 @@ TEST_P(WebUIBubbleDialogViewTest, DraggableRegionIsReflectedInHitTest) {
   // Create the WebUI bubble with an appropriate size.
   bubble_dialog_view()->ResizeDueToAutoResize(nullptr, {400, 400});
 
+  // ResizeDueToAutoResize() will trigger an asynchronous autosize task.
+  views::test::RunScheduledLayout(bubble_widget());
   // Perform a hittest with no draggable regions set.
   EXPECT_EQ(HTCLIENT, bubble_widget()->GetNonClientComponent({50, 50}));
 
@@ -205,6 +220,10 @@ TEST_P(WebUIBubbleDialogViewTest, DraggableBubbleRetainsBoundsWhenVisible) {
   // anchor.
   EXPECT_FALSE(bubble_widget()->IsVisible());
   bubble_dialog_view()->ResizeDueToAutoResize(nullptr, {400, 400});
+
+  // ResizeDueToAutoResize() will trigger an asynchronous autosize task.
+  views::test::RunScheduledLayout(bubble_widget());
+
   const gfx::Rect initial_bounds = bubble_widget()->GetWindowBoundsInScreen();
 
   // Show the bubble and reposition the bubble on screen, it should translate
@@ -220,6 +239,10 @@ TEST_P(WebUIBubbleDialogViewTest, DraggableBubbleRetainsBoundsWhenVisible) {
   // Update the bubble size. The bubble's size should update but it should
   // remain at its new position.
   bubble_dialog_view()->ResizeDueToAutoResize(nullptr, {500, 500});
+
+  // ResizeDueToAutoResize() will trigger an asynchronous autosize task.
+  views::test::RunScheduledLayout(bubble_widget());
+
   const gfx::Rect new_bounds_post_resize =
       bubble_widget()->GetWindowBoundsInScreen();
   EXPECT_EQ(new_bounds_pre_resize.origin(), new_bounds_post_resize.origin());
@@ -235,5 +258,4 @@ INSTANTIATE_TEST_SUITE_P(All,
                                              : "DraggableRegionsDisabled";
                          });
 
-}  // namespace test
-}  // namespace views
+}  // namespace views::test

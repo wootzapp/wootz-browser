@@ -20,7 +20,6 @@
 class PrefService;
 
 namespace ash {
-class ChromeUserManagerImpl;
 class FakeChromeUserManager;
 class UserAddingScreenTest;
 class UserSessionManager;
@@ -41,7 +40,7 @@ class ProfilePolicyConnectorTest;
 
 namespace user_manager {
 
-class UserManagerBase;
+class UserManagerImpl;
 class FakeUserManager;
 
 // A class representing information about a previously logged in user.
@@ -63,19 +62,6 @@ class USER_MANAGER_EXPORT User {
     OAUTH2_TOKEN_STATUS_VALID = 4,
   } OAuthTokenStatus;
 
-  // TODO(jasontt): Explore adding a new value for image taken from camera.
-  // These special values are used instead of actual default image indices.
-  typedef enum {
-    USER_IMAGE_INVALID = -3,
-
-    // Returned as |image_index| when user profile image is used as user image.
-    USER_IMAGE_PROFILE = -2,
-
-    // Returned as |image_index| when user-selected file or photo is used as
-    // user image.
-    USER_IMAGE_EXTERNAL = -1,
-  } UserImageType;
-
   // Returns true if user type has gaia account.
   static bool TypeHasGaiaAccount(UserType user_type);
 
@@ -96,9 +82,6 @@ class USER_MANAGER_EXPORT User {
   // Returns the user type.
   UserType GetType() const { return type_; }
 
-  // Will LOG(FATAL) unless overridden.
-  void UpdateType(UserType new_type);
-
   // Returns true if user has gaia account. True for users of types
   // UserType::kRegular and UserType::kChild.
   bool HasGaiaAccount() const;
@@ -108,6 +91,9 @@ class USER_MANAGER_EXPORT User {
 
   // The displayed (non-canonical) user email.
   std::string display_email() const;
+
+  // Returns whether the User is managed by policy.
+  const std::optional<bool>& is_managed() const;
 
   // True if the user is affiliated to the device. Returns false if the
   // affiliation is not known. Use IsAffiliatedAsync if it's possible the call
@@ -140,14 +126,13 @@ class USER_MANAGER_EXPORT User {
   // email if available and use_display_name == true. Otherwise use canonical.
   std::string GetAccountName(bool use_display_email) const;
 
+  const std::string* GetAccountLocale() const { return account_locale_.get(); }
+
   // True if the user's session can be locked (i.e. the user has a password with
   // which to unlock the session).
   // This depends on Profile preference, and if it's not yet ready, this
   // returns false as fallback.
   bool CanLock() const;
-
-  // Whether the user has a default image.
-  bool HasDefaultImage() const;
 
   int image_index() const { return image_index_; }
   bool has_image_bytes() const { return user_image_->has_image_bytes(); }
@@ -208,15 +193,14 @@ class USER_MANAGER_EXPORT User {
 
   static User* CreateRegularUserForTesting(const AccountId& account_id) {
     User* user = CreateRegularUser(account_id, UserType::kRegular);
-    user->SetImage(std::unique_ptr<UserImage>(new UserImage), 0);
+    user->SetImage(std::make_unique<UserImage>(), 0);
     return user;
   }
 
   void AddProfileCreatedObserver(base::OnceClosure on_profile_created);
 
- protected:
-  friend class UserManagerBase;
-  friend class ash::ChromeUserManagerImpl;
+ private:
+  friend class UserManagerImpl;
   friend class chromeos::SupervisedUserManagerImpl;
   friend class ash::UserImageManagerImpl;
   friend class ash::UserSessionManager;
@@ -234,24 +218,21 @@ class USER_MANAGER_EXPORT User {
                                  const UserType user_type);
   static User* CreateGuestUser(const AccountId& guest_account_id);
   static User* CreateKioskAppUser(const AccountId& kiosk_app_account_id);
-  static User* CreateArcKioskAppUser(const AccountId& arc_kiosk_account_id);
   static User* CreateWebKioskAppUser(const AccountId& web_kiosk_account_id);
+  static User* CreateKioskIwaUser(const AccountId& kiosk_iwa_account_id);
   static User* CreatePublicAccountUser(const AccountId& account_id,
                                        bool is_using_saml = false);
 
   User(const AccountId& account_id, UserType type);
 
-  const std::string* GetAccountLocale() const { return account_locale_.get(); }
-
   // Setters are private so only UserManager can call them.
   void SetAccountLocale(const std::string& resolved_account_locale);
-
   void SetImage(std::unique_ptr<UserImage> user_image, int image_index);
-
   void SetImageURL(const GURL& image_url);
+  void SetType(UserType new_type);
 
   // Sets a stub image until the next |SetImage| call. |image_index| may be
-  // one of |USER_IMAGE_EXTERNAL| or |USER_IMAGE_PROFILE|.
+  // one of |UserImage::Type::kExternal| or |UserImage::Type::kProfile|.
   // If |is_loading| is |true|, that means user image is being loaded from file.
   void SetStubImage(std::unique_ptr<UserImage> stub_user_image,
                     int image_index,
@@ -281,8 +262,8 @@ class USER_MANAGER_EXPORT User {
     force_online_signin_ = force_online_signin;
   }
 
-  void set_username_hash(const std::string& username_hash) {
-    username_hash_ = username_hash;
+  void set_username_hash(std::string_view username_hash) {
+    username_hash_ = std::string(username_hash);
   }
 
   void set_is_logged_in(bool is_logged_in) { is_logged_in_ = is_logged_in; }
@@ -293,9 +274,8 @@ class USER_MANAGER_EXPORT User {
 
   void SetProfilePrefs(PrefService* prefs) { profile_prefs_ = prefs; }
 
-  void SetAffiliated(bool is_affiliated);
+  void SetUserPolicyStatus(bool is_managed, bool is_affiliated);
 
- private:
   AccountId account_id_;
   UserType type_;
   std::u16string display_name_;
@@ -319,9 +299,9 @@ class USER_MANAGER_EXPORT User {
   // Used to identify homedir mount point.
   std::string username_hash_;
 
-  // Either index of a default image for the user, |USER_IMAGE_EXTERNAL| or
-  // |USER_IMAGE_PROFILE|.
-  int image_index_ = USER_IMAGE_INVALID;
+  // Either index of a default image for the user, |UserImage::Type::kExternal|
+  // or |UserImage::Type::kProfile|.
+  int image_index_ = UserImage::Type::kInvalid;
 
   // True if current user image is a stub set by a |SetStubImage| call.
   bool image_is_stub_ = false;
@@ -343,6 +323,9 @@ class USER_MANAGER_EXPORT User {
 
   // True if the user is affiliated to the device.
   std::optional<bool> is_affiliated_;
+
+  // True if the user is managed by policy.
+  std::optional<bool> is_managed_;
 
   std::vector<base::OnceClosure> on_profile_created_observers_;
   std::vector<base::OnceCallback<void(bool is_affiliated)>>

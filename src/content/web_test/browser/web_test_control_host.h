@@ -133,7 +133,7 @@ class WebTestControlHost : public WebContentsObserver,
   void DidCreateOrAttachWebContents(WebContents* web_contents);
 
   void SetTempPath(const base::FilePath& temp_path);
-  void OverrideWebkitPrefs(blink::web_pref::WebPreferences* prefs);
+  void OverrideWebPreferences(blink::web_pref::WebPreferences* prefs);
   void OpenURL(const GURL& url);
   bool IsMainWindow(WebContents* web_contents) const;
   std::unique_ptr<BluetoothChooser> RunBluetoothChooser(
@@ -242,8 +242,6 @@ class WebTestControlHost : public WebContentsObserver,
   void SetTrustTokenKeyCommitments(const std::string& raw_commitments,
                                    base::OnceClosure callback) override;
   void ClearTrustTokenState(base::OnceClosure callback) override;
-  void SetDatabaseQuota(int32_t quota) override;
-  void ClearAllDatabases() override;
   void SimulateWebNotificationClick(
       const std::string& title,
       int32_t action_index,
@@ -293,7 +291,7 @@ class WebTestControlHost : public WebContentsObserver,
   void OnAudioDump(const std::vector<unsigned char>& audio_dump);
   void OnImageDump(const std::string& actual_pixel_hash, const SkBitmap& image);
   void OnTextDump(const std::string& dump);
-  void OnDumpFrameLayoutResponse(int frame_tree_node_id,
+  void OnDumpFrameLayoutResponse(FrameTreeNodeId frame_tree_node_id,
                                  const std::string& dump);
   void OnTestFinished();
   void OnCaptureSessionHistory();
@@ -435,7 +433,7 @@ class WebTestControlHost : public WebContentsObserver,
 
   // Map from frame_tree_node_id into frame-specific dumps while collecting
   // text dumps from all frames, before stitching them together.
-  std::map<int, std::string> frame_to_layout_dump_map_;
+  std::map<FrameTreeNodeId, std::string> frame_to_layout_dump_map_;
 
   std::vector<std::unique_ptr<Node>> composite_all_frames_node_storage_;
   std::queue<raw_ptr<Node, CtnExperimental>> composite_all_frames_node_queue_;

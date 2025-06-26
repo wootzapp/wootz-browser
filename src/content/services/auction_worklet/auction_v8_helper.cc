@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "content/services/auction_worklet/auction_v8_helper.h"
 
 #include <limits>
@@ -17,6 +22,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
@@ -34,11 +40,13 @@
 #include "build/build_config.h"
 #include "content/services/auction_worklet/auction_v8_devtools_agent.h"
 #include "content/services/auction_worklet/debug_command_queue.h"
+#include "content/services/auction_worklet/public/cpp/auction_worklet_features.h"
 #include "gin/array_buffer.h"
 #include "gin/converter.h"
 #include "gin/gin_features.h"
 #include "gin/public/isolate_holder.h"
 #include "gin/v8_initializer.h"
+#include "third_party/blink/public/common/features.h"
 #include "v8/include/v8-context.h"
 #include "v8/include/v8-exception.h"
 #include "v8/include/v8-function.h"
@@ -58,15 +66,20 @@ namespace {
 
 // Initialize V8 (and gin).
 void InitV8() {
-  // TODO(mmenke): All these calls touch global state, which seems rather unsafe
-  // if the process is shared with anything else (e.g. --single-process mode, or
-  // on Android?).  Is there some safer way to do this?
+  // All these calls touch global state, which seems rather unsafe if the
+  // process is shared with anything else; so we do not call this on Android.
 #if defined(V8_USE_EXTERNAL_STARTUP_DATA)
   gin::V8Initializer::LoadV8Snapshot();
 #endif
 
+  std::string js_command_line_flags = "";
+  if (base::FeatureList::IsEnabled(features::kFledgeNoWasmLazyCompilation)) {
+    js_command_line_flags = "--no-wasm-lazy-compilation";
+  }
   gin::IsolateHolder::Initialize(gin::IsolateHolder::kNonStrictMode,
-                                 gin::ArrayBufferAllocator::SharedInstance());
+                                 gin::ArrayBufferAllocator::SharedInstance(),
+                                 /*reference_table=*/nullptr,
+                                 js_command_line_flags);
 }
 
 // Helper class to notify debugger of context creation/destruction.
@@ -118,7 +131,7 @@ class TrivialSerializerDelegate : public v8::ValueSerializer::Delegate {
   ~TrivialSerializerDelegate() override = default;
 
   void ThrowDataCloneError(v8::Local<v8::String> message) override {
-    NOTREACHED_IN_MIGRATION();  // Should not have any weird types in our usage.
+    NOTREACHED();  // Should not have any weird types in our usage.
   }
 };
 
@@ -328,6 +341,7 @@ AuctionV8Helper::SerializedValue::~SerializedValue() {
 
 AuctionV8Helper::SerializedValue& AuctionV8Helper::SerializedValue::operator=(
     SerializedValue&& other) {
+  free(buffer_.ExtractAsDangling());
   buffer_ = other.buffer_;
   size_ = other.size_;
   other.buffer_ = nullptr;
@@ -337,8 +351,10 @@ AuctionV8Helper::SerializedValue& AuctionV8Helper::SerializedValue::operator=(
 
 // static
 scoped_refptr<AuctionV8Helper> AuctionV8Helper::Create(
-    scoped_refptr<base::SingleThreadTaskRunner> v8_runner) {
-  scoped_refptr<AuctionV8Helper> result(new AuctionV8Helper(v8_runner));
+    scoped_refptr<base::SingleThreadTaskRunner> v8_runner,
+    bool init_v8) {
+  scoped_refptr<AuctionV8Helper> result(
+      new AuctionV8Helper(v8_runner, init_v8));
 
   // This can't be in the constructor since something else needs to also keep
   // a reference to the object, hence this factory method.
@@ -454,29 +470,31 @@ bool AuctionV8Helper::InsertJsonValue(v8::Local<v8::Context> context,
 }
 
 // Attempts to convert |value| to JSON and write it to |out|.
-AuctionV8Helper::ExtractJsonResult AuctionV8Helper::ExtractJson(
+AuctionV8Helper::Result AuctionV8Helper::ExtractJson(
     v8::Local<v8::Context> context,
     v8::Local<v8::Value> value,
+    TimeLimit* script_timeout,
     std::string* out) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   v8::TryCatch try_catch(isolate());
+  TimeLimitScope time_limit_scope(script_timeout);
   v8::MaybeLocal<v8::String> maybe_json = v8::JSON::Stringify(context, value);
   if (try_catch.HasTerminated()) {
-    return ExtractJsonResult::kTimeout;
+    return Result::kTimeout;
   }
   v8::Local<v8::String> json;
   if (!maybe_json.ToLocal(&json))
-    return ExtractJsonResult::kFailure;
+    return Result::kFailure;
   bool success = gin::ConvertFromV8(isolate(), json, out);
   if (!success)
-    return ExtractJsonResult::kFailure;
+    return Result::kFailure;
   // Stringify can return the string "undefined" for certain inputs, which is
   // not actually JSON. Treat those as failures.
   if (*out == "undefined") {
     out->clear();
-    return ExtractJsonResult::kFailure;
+    return Result::kFailure;
   }
-  return ExtractJsonResult::kSuccess;
+  return Result::kSuccess;
 }
 
 AuctionV8Helper::SerializedValue AuctionV8Helper::Serialize(
@@ -509,10 +527,10 @@ v8::MaybeLocal<v8::UnboundScript> AuctionV8Helper::Compile(
     const std::string& src,
     const GURL& src_url,
     const DebugId* debug_id,
+    v8::ScriptCompiler::CachedData* cached_data,
     std::optional<std::string>& error_out) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   constexpr const char* kTraceEventCategoryGroup = "v8,devtools.timeline";
-
   v8::Isolate* v8_isolate = isolate();
 
   DebugContextScope maybe_debug(inspector(), v8_isolate->GetCurrentContext(),
@@ -530,14 +548,25 @@ v8::MaybeLocal<v8::UnboundScript> AuctionV8Helper::Compile(
   v8::TryCatch try_catch(isolate());
   v8::ScriptCompiler::Source script_source(
       src_string.ToLocalChecked(),
-      v8::ScriptOrigin(origin_string.ToLocalChecked()));
+      v8::ScriptOrigin(origin_string.ToLocalChecked()), cached_data);
+  v8::ScriptCompiler::CompileOptions compile_options =
+      v8::ScriptCompiler::kNoCompileOptions;
+  if (cached_data) {
+    compile_options = v8::ScriptCompiler::kConsumeCodeCache;
+  } else if (base::FeatureList::IsEnabled(
+                 features::kFledgeEagerJSCompilation) &&
+             eagerly_compile_js_) {
+    compile_options = v8::ScriptCompiler::kEagerCompile;
+  }
   auto result = v8::ScriptCompiler::CompileUnboundScript(
-      v8_isolate, &script_source, v8::ScriptCompiler::kNoCompileOptions,
-      v8::ScriptCompiler::NoCacheReason::kNoCacheNoReason);
+      v8_isolate, &script_source, compile_options);
   if (try_catch.HasCaught()) {
     error_out = FormatExceptionMessage(v8_isolate->GetCurrentContext(),
                                        try_catch.Message());
   }
+
+  DCHECK(!cached_data || (script_source.GetCachedData() &&
+                          !script_source.GetCachedData()->rejected));
 
   TRACE_EVENT_END1(kTraceEventCategoryGroup, "v8.compile", "data",
                    [&](perfetto::TracedValue trace_context) {
@@ -597,11 +626,12 @@ AuctionV8Helper::TimeLimit* AuctionV8Helper::GetTimeLimit() {
   return timeout_helper_;
 }
 
-bool AuctionV8Helper::RunScript(v8::Local<v8::Context> context,
-                                v8::Local<v8::UnboundScript> script,
-                                const DebugId* debug_id,
-                                TimeLimit* script_timeout,
-                                std::vector<std::string>& error_out) {
+AuctionV8Helper::Result AuctionV8Helper::RunScript(
+    v8::Local<v8::Context> context,
+    v8::Local<v8::UnboundScript> script,
+    const DebugId* debug_id,
+    TimeLimit* script_timeout,
+    std::vector<std::string>& error_out) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_EQ(isolate(), context->GetIsolate());
 
@@ -624,32 +654,34 @@ bool AuctionV8Helper::RunScript(v8::Local<v8::Context> context,
   if (try_catch.HasTerminated()) {
     error_out.push_back(
         base::StrCat({script_name, " top-level execution timed out."}));
-    return false;
+    return Result::kTimeout;
   }
 
   if (try_catch.HasCaught()) {
     error_out.push_back(FormatExceptionMessage(context, try_catch.Message()));
-    return false;
+    return Result::kFailure;
   }
 
   if (result.IsEmpty()) {
-    return false;
+    return Result::kFailure;
   }
 
-  return true;
+  return Result::kSuccess;
 }
 
-v8::MaybeLocal<v8::Value> AuctionV8Helper::CallFunction(
+AuctionV8Helper::Result AuctionV8Helper::CallFunction(
     v8::Local<v8::Context> context,
     const DebugId* debug_id,
     const std::string& script_name,
     std::string_view function_name,
     base::span<v8::Local<v8::Value>> args,
     TimeLimit* script_timeout,
+    v8::MaybeLocal<v8::Value>& value_out,
     std::vector<std::string>& error_out) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_EQ(isolate(), context->GetIsolate());
 
+  value_out = v8::MaybeLocal<v8::Value>();
   DebugContextScope maybe_debug(inspector(), context, debug_id, script_name);
 
   v8::TryCatch try_catch(isolate());
@@ -658,20 +690,20 @@ v8::MaybeLocal<v8::Value> AuctionV8Helper::CallFunction(
 
   v8::Local<v8::String> v8_function_name;
   if (!CreateUtf8String(function_name).ToLocal(&v8_function_name)) {
-    return v8::MaybeLocal<v8::Value>();
+    return Result::kFailure;
   }
 
   v8::Local<v8::Value> function;
   if (!context->Global()->Get(context, v8_function_name).ToLocal(&function)) {
     error_out.push_back(base::StrCat(
         {script_name, " function `", function_name, "` not found."}));
-    return v8::MaybeLocal<v8::Value>();
+    return Result::kFailure;
   }
 
   if (!function->IsFunction()) {
     error_out.push_back(base::StrCat(
         {script_name, " `", function_name, "` is not a function."}));
-    return v8::MaybeLocal<v8::Value>();
+    return Result::kFailure;
   }
 
   v8::Function* func_ptr = v8::Function::Cast(*function);
@@ -684,8 +716,9 @@ v8::MaybeLocal<v8::Value> AuctionV8Helper::CallFunction(
           dict.Add("functionName", function_name);
           dict.Add("scriptId", base::NumberToString(func_ptr->ScriptId()));
           dict.Add("url", script_name);
-          dict.Add("lineNumber", func_ptr->GetScriptLineNumber() + 1);
-          dict.Add("columnNumber", func_ptr->GetScriptColumnNumber() + 1);
+          v8::Location location = func_ptr->GetScriptLocation();
+          dict.Add("lineNumber", location.GetLineNumber() + 1);
+          dict.Add("columnNumber", location.GetColumnNumber() + 1);
         });
     func_result =
         func_ptr->Call(context, context->Global(), args.size(), args.data());
@@ -694,13 +727,14 @@ v8::MaybeLocal<v8::Value> AuctionV8Helper::CallFunction(
   if (try_catch.HasTerminated()) {
     error_out.push_back(base::StrCat(
         {script_name, " execution of `", function_name, "` timed out."}));
-    return v8::MaybeLocal<v8::Value>();
+    return Result::kTimeout;
   }
   if (try_catch.HasCaught()) {
     error_out.push_back(FormatExceptionMessage(context, try_catch.Message()));
-    return v8::MaybeLocal<v8::Value>();
+    return Result::kFailure;
   }
-  return func_result;
+  value_out = func_result;
+  return value_out.IsEmpty() ? Result::kFailure : Result::kSuccess;
 }
 
 void AuctionV8Helper::AbortDebuggerPauses(int context_group_id) {
@@ -743,7 +777,7 @@ void AuctionV8Helper::SetResumeCallback(int context_group_id,
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   base::AutoLock hold_lock(context_groups_lock_);
   auto it = resume_callbacks_.find(context_group_id);
-  DCHECK(it != resume_callbacks_.end());
+  CHECK(it != resume_callbacks_.end(), base::NotFatalUntil::M130);
   DCHECK(it->second.is_null());
   it->second = std::move(resume_callback);
 }
@@ -843,7 +877,8 @@ std::string AuctionV8Helper::FormatScriptName(
 }
 
 AuctionV8Helper::AuctionV8Helper(
-    scoped_refptr<base::SingleThreadTaskRunner> v8_runner)
+    scoped_refptr<base::SingleThreadTaskRunner> v8_runner,
+    bool init_v8)
     : base::RefCountedDeleteOnSequence<AuctionV8Helper>(v8_runner),
       v8_runner_(v8_runner),
       timer_task_runner_(base::ThreadPool::CreateSequencedTaskRunner({})),
@@ -853,8 +888,9 @@ AuctionV8Helper::AuctionV8Helper(
   // InitV8 on main thread, to avoid races if multiple instances exist with
   // different runners.
   static int v8_initialized = false;
-  if (!v8_initialized)
+  if (init_v8 && !v8_initialized) {
     InitV8();
+  }
 
   v8_initialized = true;
 }

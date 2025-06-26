@@ -11,6 +11,7 @@
 #include <set>
 #include <vector>
 
+#include "base/auto_reset.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -72,6 +73,10 @@ class PreinstalledWebAppManager {
   static const char* kHistogramCorruptUserUninstallPrefsCount;
   static const char* kHistogramInstallResult;
   static const char* kHistogramUninstallAndReplaceCount;
+  static const char* kHistogramInstallCount;
+  static const char* kHistogramUninstallTotalCount;
+  static const char* kHistogramUninstallSourceRemovedCount;
+  static const char* kHistogramUninstallAppRemovedCount;
   static const char* kHistogramAppToReplaceStillInstalledCount;
   static const char* kHistogramAppToReplaceStillDefaultInstalledCount;
   static const char* kHistogramAppToReplaceStillInstalledInShelfCount;
@@ -124,7 +129,7 @@ class PreinstalledWebAppManager {
     std::vector<ConfigWithLog> ignore_configs;
     std::map<InstallUrl, ExternallyManagedAppManager::InstallResult>
         install_results;
-    std::map<InstallUrl, bool> uninstall_results;
+    std::map<InstallUrl, webapps::UninstallResultCode> uninstall_results;
   };
   const DebugInfo* debug_info() const { return debug_info_.get(); }
 
@@ -154,11 +159,11 @@ class PreinstalledWebAppManager {
           desired_uninstall_and_replaces,
       std::map<InstallUrl, ExternallyManagedAppManager::InstallResult>
           install_results,
-      std::map<InstallUrl, bool> uninstall_results);
+      std::map<InstallUrl, webapps::UninstallResultCode> uninstall_results);
   void OnStartUpTaskCompleted(
       std::map<InstallUrl, ExternallyManagedAppManager::InstallResult>
           install_results,
-      std::map<InstallUrl, bool> uninstall_results);
+      std::map<InstallUrl, webapps::UninstallResultCode> uninstall_results);
 
   // Returns whether this is the first time we've deployed default apps on this
   // profile.

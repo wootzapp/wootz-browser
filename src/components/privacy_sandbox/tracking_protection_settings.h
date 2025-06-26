@@ -7,10 +7,10 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/scoped_observation.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
+#include "components/content_settings/core/common/content_settings_types.h"
 #include "components/keyed_service/core/keyed_service.h"
-#include "components/privacy_sandbox/tracking_protection_onboarding.h"
+#include "components/policy/core/common/management/management_service.h"
 #include "components/privacy_sandbox/tracking_protection_prefs.h"
 
 class HostContentSettingsMap;
@@ -22,14 +22,12 @@ class TrackingProtectionSettingsObserver;
 
 // A service which provides an interface for observing and reading tracking
 // protection settings.
-class TrackingProtectionSettings
-    : public TrackingProtectionOnboarding::Observer,
-      public KeyedService {
+class TrackingProtectionSettings : public KeyedService {
  public:
   explicit TrackingProtectionSettings(
       PrefService* pref_service,
       HostContentSettingsMap* host_content_settings_map,
-      TrackingProtectionOnboarding* onboarding_service,
+      policy::ManagementService* management_service,
       bool is_incognito);
   ~TrackingProtectionSettings() override;
 
@@ -49,54 +47,52 @@ class TrackingProtectionSettings
   // (i.e. without mitigations).
   bool AreAllThirdPartyCookiesBlocked() const;
 
-  // Returns whether 3PCs are allowed in spite of 3PCD due to an enterprise
-  // policy.
-  bool AreThirdPartyCookiesAllowedByEnterprise() const;
-
-  // Returns whether anti-fingerprinting is enabled.
-  bool IsFingerprintingProtectionEnabled() const;
-
   // Returns whether IP protection is enabled.
   bool IsIpProtectionEnabled() const;
 
-  // From TrackingProtectionOnboarding::Observer
-  void OnTrackingProtectionOnboardingUpdated(
-      TrackingProtectionOnboarding::OnboardingStatus onboarding_status)
-      override;
+  // Returns whether fingerprinting protection is enabled.
+  bool IsFpProtectionEnabled() const;
 
-  // Adds a Tracking Protection site-scoped (wildcarded) exception for a given
-  // url. `is_user_bypass_exception` should be true if the exception was set via
-  // user bypass and will therefore be temporary.
-  void AddTrackingProtectionException(const GURL& first_party_url,
-                                      bool is_user_bypass_exception = false);
+  // Adds a site-scoped TRACKING_PROTECTION content setting equal to ALLOW for
+  // `first_party_url`.
+  void AddTrackingProtectionException(const GURL& first_party_url);
 
-  // Removes a Tracking Protection exception for a given url.
-  // This removes both site-scoped (wildcarded) and origin-scoped exceptions.
+  // Resets the TRACKING_PROTECTION content setting for `first_party_url`.
+  // Can reset both site-scoped (wildcarded) and origin-scoped exceptions.
   void RemoveTrackingProtectionException(const GURL& first_party_url);
 
-  // Returns whether a given url has a tracking protection exception.
-  bool HasTrackingProtectionException(const GURL& first_party_url) const;
+  // Returns true if the user has a TRACKING_PROTECTION content setting equal to
+  // ALLOW, indicating ACT features should be disabled on `first_party_url`.
+  // NOTE: the default for TRACKING_PROTECTION is BLOCK and cannot be changed,
+  // meaning this function will only return true for site-level content settings
+  // (i.e. exceptions). To check whether individual ACT features are
+  // enabled/disabled please use the functions specific to those features.
+  bool HasTrackingProtectionException(
+      const GURL& first_party_url,
+      content_settings::SettingInfo* info = nullptr) const;
+
+  // Returns whether IP protection is managed.
+  bool IsIpProtectionManaged();
 
  private:
   void OnEnterpriseControlForPrefsChanged();
+  void MigrateUserBypassExceptions(ContentSettingsType from,
+                                   ContentSettingsType to);
 
   // Callbacks for pref observation.
   void OnDoNotTrackEnabledPrefChanged();
   void OnBlockAllThirdPartyCookiesPrefChanged();
   void OnTrackingProtection3pcdPrefChanged();
   void OnIpProtectionPrefChanged();
-  void OnFingerprintingProtectionPrefChanged();
+  void OnFpProtectionPrefChanged();
 
   base::ObserverList<TrackingProtectionSettingsObserver>::Unchecked observers_;
   PrefChangeRegistrar pref_change_registrar_;
   raw_ptr<PrefService> pref_service_;
   raw_ptr<HostContentSettingsMap> host_content_settings_map_;
-  raw_ptr<TrackingProtectionOnboarding> onboarding_service_;
-  bool is_incognito_;
+  raw_ptr<policy::ManagementService> management_service_;
 
-  base::ScopedObservation<TrackingProtectionOnboarding,
-                          TrackingProtectionOnboarding::Observer>
-      onboarding_observation_{this};
+  bool is_incognito_;
 };
 
 }  // namespace privacy_sandbox

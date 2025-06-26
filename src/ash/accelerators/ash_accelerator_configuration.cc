@@ -26,6 +26,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
+#include "chromeos/ash/services/assistant/public/cpp/features.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/accelerators/accelerator.h"
@@ -104,7 +105,8 @@ AcceleratorModificationData ValueToAcceleratorModificationData(
 
 void SetLookupMaps(base::span<const ash::AcceleratorData> accelerators,
                    ash::ActionIdToAcceleratorsMap& id_to_accelerator,
-                   AcceleratorActionMap& accelerator_to_id) {
+                   AcceleratorActionMap& accelerator_to_id,
+                   base::flat_set<ui::Accelerator>& locked_accelerator_set) {
   for (const auto& acceleratorData : accelerators) {
     ui::Accelerator accelerator(acceleratorData.keycode,
                                 acceleratorData.modifiers);
@@ -115,74 +117,65 @@ void SetLookupMaps(base::span<const ash::AcceleratorData> accelerators,
         std::make_pair(accelerator, acceleratorData.action));
     id_to_accelerator[static_cast<uint32_t>(acceleratorData.action)].push_back(
         accelerator);
+    if (acceleratorData.accelerator_locked) {
+      locked_accelerator_set.insert(accelerator);
+    }
   }
 }
 
 std::vector<ash::AcceleratorData> GetDefaultAccelerators() {
   std::vector<ash::AcceleratorData> accelerators;
-  AppendAcceleratorData(
-      accelerators,
-      base::make_span(ash::kAcceleratorData, ash::kAcceleratorDataLength));
+  AppendAcceleratorData(accelerators, ash::kAcceleratorData);
 
   if (::features::IsImprovedKeyboardShortcutsEnabled()) {
+    AppendAcceleratorData(accelerators,
+                          ash::kEnableWithPositionalAcceleratorsData);
     AppendAcceleratorData(
         accelerators,
-        base::make_span(ash::kEnableWithPositionalAcceleratorsData,
-                        ash::kEnableWithPositionalAcceleratorsDataLength));
-    AppendAcceleratorData(
-        accelerators,
-        base::make_span(
-            ash::kEnabledWithImprovedDesksKeyboardShortcutsAcceleratorData,
-            ash::
-                kEnabledWithImprovedDesksKeyboardShortcutsAcceleratorDataLength));
+        ash::kEnabledWithImprovedDesksKeyboardShortcutsAcceleratorData);
   } else {
-    AppendAcceleratorData(
-        accelerators,
-        base::make_span(ash::kDisableWithNewMappingAcceleratorData,
-                        ash::kDisableWithNewMappingAcceleratorDataLength));
+    AppendAcceleratorData(accelerators,
+                          ash::kDisableWithNewMappingAcceleratorData);
   }
   if (ash::features::IsSameAppWindowCycleEnabled()) {
-    AppendAcceleratorData(
-        accelerators,
-        base::make_span(
-            ash::kEnableWithSameAppWindowCycleAcceleratorData,
-            ash::kEnableWithSameAppWindowCycleAcceleratorDataLength));
+    AppendAcceleratorData(accelerators,
+                          ash::kEnableWithSameAppWindowCycleAcceleratorData);
   }
 
-  if (ash::features::IsGameDashboardEnabled()) {
-    AppendAcceleratorData(
-        accelerators,
-        base::make_span(ash::kToggleGameDashboardAcceleratorData,
-                        ash::kToggleGameDashboardAcceleratorDataLength));
+  if (ash::features::IsTilingWindowResizeEnabled()) {
+    AppendAcceleratorData(accelerators,
+                          ash::kTilingWindowResizeAcceleratorData);
   }
 
-  if (ash::features::IsPickerUpdateEnabled()) {
-    if (ash::features::IsPickerFlipEnabled()) {
-      AppendAcceleratorData(
-          accelerators,
-          base::make_span(ash::kTogglePickerFlipAcceleratorData,
-                          ash::kTogglePickerFlipAcceleratorDataLength));
-    } else {
-      AppendAcceleratorData(
-          accelerators,
-          base::make_span(ash::kTogglePickerAcceleratorData,
-                          ash::kTogglePickerAcceleratorDataLength));
-    }
+  if (ash::features::IsDoNotDisturbShortcutEnabled()) {
+    AppendAcceleratorData(accelerators,
+                          ash::kToggleDoNotDisturbAcceleratorData);
   }
 
   // Debug accelerators.
   if (ash::debug::DebugAcceleratorsEnabled()) {
-    AppendAcceleratorData(accelerators,
-                          base::make_span(ash::kDebugAcceleratorData,
-                                          ash::kDebugAcceleratorDataLength));
+    AppendAcceleratorData(accelerators, ash::kDebugAcceleratorData);
   }
 
   // Developer accelerators.
   if (ash::debug::DeveloperAcceleratorsEnabled()) {
-    AppendAcceleratorData(
-        accelerators, base::make_span(ash::kDeveloperAcceleratorData,
-                                      ash::kDeveloperAcceleratorDataLength));
+    AppendAcceleratorData(accelerators, ash::kDeveloperAcceleratorData);
   }
+
+  if (ash::features::IsAppLaunchShortcutEnabled()) {
+    AppendAcceleratorData(accelerators, ash::kGeminiAcceleratorData);
+  }
+
+  if (ash::features::IsToggleCameraShortcutEnabled()) {
+    AppendAcceleratorData(accelerators,
+                          ash::kToggleCameraAllowedAcceleratorData);
+  }
+
+  if (!ash::assistant::features::IsNewEntryPointEnabled()) {
+    AppendAcceleratorData(accelerators,
+                          ash::kAssistantSearchPlusAAcceleratorData);
+  }
+
   return accelerators;
 }
 
@@ -254,6 +247,11 @@ bool AshAcceleratorConfiguration::IsMutable() const {
 bool AshAcceleratorConfiguration::IsDeprecated(
     const ui::Accelerator& accelerator) const {
   return deprecated_accelerators_to_id_.Find(accelerator);
+}
+
+bool AshAcceleratorConfiguration::IsAcceleratorLocked(
+    const ui::Accelerator& accelerator) const {
+  return locked_accelerator_set_.contains(accelerator);
 }
 
 const AcceleratorAction* AshAcceleratorConfiguration::FindAcceleratorAction(
@@ -416,7 +414,7 @@ void AshAcceleratorConfiguration::Initialize(
 
   // Cache these accelerators as the default.
   SetLookupMaps(accelerators, default_id_to_accelerators_cache_,
-                default_accelerators_to_id_cache_);
+                default_accelerators_to_id_cache_, locked_accelerator_set_);
 
   // TODO(jimmyxgong): Before adding the accelerators to the mappings, apply
   // pref remaps.
@@ -424,13 +422,8 @@ void AshAcceleratorConfiguration::Initialize(
 }
 
 void AshAcceleratorConfiguration::InitializeDeprecatedAccelerators() {
-  base::span<const DeprecatedAcceleratorData> deprecated_accelerator_data(
-      kDeprecatedAcceleratorsData, kDeprecatedAcceleratorsDataLength);
-  base::span<const AcceleratorData> deprecated_accelerators(
-      kDeprecatedAccelerators, kDeprecatedAcceleratorsLength);
-
-  InitializeDeprecatedAccelerators(std::move(deprecated_accelerator_data),
-                                   std::move(deprecated_accelerators));
+  InitializeDeprecatedAccelerators(kDeprecatedAcceleratorsData,
+                                   kDeprecatedAccelerators);
 }
 
 void AshAcceleratorConfiguration::AddObserver(Observer* observer) {
@@ -467,7 +460,8 @@ void AshAcceleratorConfiguration::InitializeDeprecatedAccelerators(
 
 void AshAcceleratorConfiguration::AddAccelerators(
     base::span<const AcceleratorData> accelerators) {
-  SetLookupMaps(accelerators, id_to_accelerators_, accelerator_to_id_);
+  SetLookupMaps(accelerators, id_to_accelerators_, accelerator_to_id_,
+                locked_accelerator_set_);
   UpdateAndNotifyAccelerators();
 }
 
@@ -663,6 +657,10 @@ AshAcceleratorConfiguration::GetDefaultAcceleratorsForId(
 bool AshAcceleratorConfiguration::IsValid(uint32_t id) const {
   return id_to_accelerators_.contains(id) &&
          default_id_to_accelerators_cache_.contains(id);
+}
+
+bool AshAcceleratorConfiguration::HasCustomAccelerators() {
+  return GetTotalNumberOfModifications() > 0;
 }
 
 void AshAcceleratorConfiguration::UpdateAndNotifyAccelerators() {
@@ -880,7 +878,7 @@ bool AshAcceleratorConfiguration::AreAcceleratorsValid() {
       RestoreAllDefaults();
       return false;
     }
-    if (base::ranges::find(id_to_accelerator_iter->second, accelerator) ==
+    if (std::ranges::find(id_to_accelerator_iter->second, accelerator) ==
         id_to_accelerator_iter->second.end()) {
       LOG(ERROR) << "Shortcut overide prefs are out of sync, reverse lookup "
                  << "has an extra accelerator: "

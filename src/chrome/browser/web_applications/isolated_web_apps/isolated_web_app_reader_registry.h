@@ -12,12 +12,14 @@
 #include "base/functional/callback_forward.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/weak_ptr.h"
+#include "base/scoped_observation.h"
 #include "base/sequence_checker.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "base/types/expected.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_response_reader.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_response_reader_factory.h"
+#include "chrome/browser/web_applications/isolated_web_apps/key_distribution/iwa_key_distribution_info_provider.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "services/network/public/cpp/resource_request.h"
 
@@ -34,9 +36,12 @@ namespace web_app {
 // will also check the integrity of the Signed Web Bundle. On ChromeOS, it is
 // assumed that the Signed Web Bundle has not been corrupted due to its location
 // inside cryptohome, and signatures are not checked.
-class IsolatedWebAppReaderRegistry : public KeyedService {
+class IsolatedWebAppReaderRegistry
+    : public KeyedService,
+      public IwaKeyDistributionInfoProvider::Observer {
  public:
-  explicit IsolatedWebAppReaderRegistry(
+  IsolatedWebAppReaderRegistry(
+      Profile& profile,
       std::unique_ptr<IsolatedWebAppResponseReaderFactory> reader_factory);
   ~IsolatedWebAppReaderRegistry() override;
 
@@ -109,13 +114,12 @@ class IsolatedWebAppReaderRegistry : public KeyedService {
   FRIEND_TEST_ALL_PREFIXES(IsolatedWebAppReaderRegistryTest,
                            TestSignedWebBundleReaderLifetime);
 
-  void ClearCacheForPath(const base::FilePath& web_bundle_path,
-                         bool dev_mode,
-                         base::OnceClosure callback);
+  // IwaKeyDistributionInfoProvider::Observer:
+  void OnComponentUpdateSuccess(const base::Version& version,
+                                bool is_preloaded) override;
 
   void OnResponseReaderCreated(
       const base::FilePath& web_bundle_path,
-      bool dev_mode,
       const web_package::SignedWebBundleId& web_bundle_id,
       base::expected<std::unique_ptr<IsolatedWebAppResponseReader>,
                      UnusableSwbnFileError> reader);
@@ -138,7 +142,8 @@ class IsolatedWebAppReaderRegistry : public KeyedService {
   // memory.
   class Cache {
    public:
-    struct Key;
+    using Key = base::FilePath;
+
     class Entry;
 
     Cache();
@@ -156,13 +161,6 @@ class IsolatedWebAppReaderRegistry : public KeyedService {
         Args&&... args);
 
     void Erase(base::flat_map<Key, Entry>::iterator iterator);
-
-    struct Key {
-      base::FilePath path;
-      bool dev_mode;
-
-      bool operator<(const Key& other) const;
-    };
 
     // A cache `Entry` has two states: In its initial `kPending` state, it
     // caches requests made to a Signed Web Bundle until an
@@ -248,10 +246,16 @@ class IsolatedWebAppReaderRegistry : public KeyedService {
 
   Cache reader_cache_;
 
+  base::ScopedObservation<IwaKeyDistributionInfoProvider,
+                          IwaKeyDistributionInfoProvider::Observer>
+      key_distribution_info_observation_{this};
+
   // A set of files whose signatures have been verified successfully during the
   // current browser session. Signatures of these files are not re-verified even
   // if their corresponding `CacheEntry` is cleaned up and later re-created.
   base::flat_set<base::FilePath> verified_files_;
+
+  const raw_ref<Profile> profile_;
 
   std::unique_ptr<IsolatedWebAppResponseReaderFactory> reader_factory_;
 

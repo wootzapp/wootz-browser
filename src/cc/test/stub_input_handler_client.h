@@ -26,9 +26,12 @@ class StubInputHandlerClient : public InputHandlerClient {
       float max_page_scale_factor) override {}
   void DeliverInputForBeginFrame(const viz::BeginFrameArgs& args) override {}
   void DeliverInputForHighLatencyMode() override {}
+  void DeliverInputForDeadline() override {}
   void DidFinishImplFrame() override {}
   bool HasQueuedInput() const override;
-  void SetWaitForLateScrollEvents(bool enabled) override {}
+  void SetScrollEventDispatchMode(
+      InputHandlerClient::ScrollEventDispatchMode mode,
+      double scroll_deadline_ratio) override {}
 };
 
 }  // namespace cc

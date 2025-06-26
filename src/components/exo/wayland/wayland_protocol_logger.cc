@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/exo/wayland/wayland_protocol_logger.h"
 
 // We need wl_object declared below.
@@ -115,7 +120,7 @@ WaylandProtocolLogger::WaylandProtocolLogger(struct wl_display* display) {
 }
 
 // Complex class/struct needs an explicit out-of-line destructor.
-WaylandProtocolLogger::~WaylandProtocolLogger() {}
+WaylandProtocolLogger::~WaylandProtocolLogger() = default;
 
 // static
 std::vector<std::string> WaylandProtocolLogger::FormatMessage(

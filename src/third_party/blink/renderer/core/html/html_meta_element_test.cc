@@ -10,7 +10,6 @@
 #include "third_party/blink/renderer/core/css/media_query_matcher.h"
 #include "third_party/blink/renderer/core/css/style_engine.h"
 #include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
@@ -50,7 +49,7 @@ class HTMLMetaElementTest : public PageTestBase,
   HTMLMetaElement* CreateColorSchemeMeta(const char* content) {
     auto* meta = MakeGarbageCollected<HTMLMetaElement>(GetDocument(),
                                                        CreateElementFlags());
-    meta->setAttribute(html_names::kNameAttr, AtomicString("color-scheme"));
+    meta->setAttribute(html_names::kNameAttr, keywords::kColorScheme);
     meta->setAttribute(html_names::kContentAttr, AtomicString(content));
     return meta;
   }

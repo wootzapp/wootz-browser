@@ -8,14 +8,14 @@
 
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
-#include "ash/focus_cycler.h"
+#include "ash/focus/focus_cycler.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/system/notification_center/ash_message_center_lock_screen_controller.h"
 #include "ash/system/notification_center/message_center_constants.h"
 #include "ash/system/notification_center/notification_center_test_api.h"
-#include "ash/system/notification_center/views/notification_list_view.h"
 #include "ash/system/notification_center/stacked_notification_bar.h"
+#include "ash/system/notification_center/views/notification_list_view.h"
 #include "ash/system/unified/unified_system_tray.h"
 #include "ash/system/unified/unified_system_tray_model.h"
 #include "ash/test/ash_test_base.h"
@@ -39,16 +39,14 @@ using message_center::Notification;
 
 namespace ash {
 
-class NotificationCenterViewTest
-    : public AshTestBase,
-      public views::ViewObserver,
-      public testing::WithParamInterface<
-          /*enable_notification_center_controller=*/bool> {
+class NotificationCenterViewTest : public AshTestBase,
+                                   public views::ViewObserver,
+                                   public testing::WithParamInterface<
+                                       /*enable_ongoing_processes=*/bool> {
  public:
   NotificationCenterViewTest() {
-    scoped_feature_list_.InitWithFeatureState(
-        features::kNotificationCenterController,
-        IsNotificationCenterControllerEnabled());
+    scoped_feature_list_.InitWithFeatureState(features::kOngoingProcesses,
+                                              AreOngoingProcessesEnabled());
   }
 
   // AshTestBase:
@@ -74,7 +72,7 @@ class NotificationCenterViewTest
     ++size_changed_count_;
   }
 
-  bool IsNotificationCenterControllerEnabled() const { return GetParam(); }
+  bool AreOngoingProcessesEnabled() const { return GetParam(); }
 
  protected:
   // Adds more than enough notifications to make the message center scrollable.
@@ -218,10 +216,9 @@ class NotificationCenterViewTest
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    All,
-    NotificationCenterViewTest,
-    /*enable_notification_center_controller=*/testing::Bool());
+INSTANTIATE_TEST_SUITE_P(All,
+                         NotificationCenterViewTest,
+                         /*enable_ongoing_processes=*/testing::Bool());
 
 TEST_P(NotificationCenterViewTest, ContentsRelayout) {
   std::vector<std::string> ids = AddManyNotifications();

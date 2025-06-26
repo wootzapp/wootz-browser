@@ -29,28 +29,32 @@ class OnDeviceModelMetadata final {
   static std::unique_ptr<OnDeviceModelMetadata> New(
       base::FilePath model_path,
       std::string version,
+      const OnDeviceBaseModelSpec& model_spec,
       std::unique_ptr<proto::OnDeviceModelExecutionConfig> config);
-
-  // Returns a "copy" of the current adapter for a particular feature.
-  scoped_refptr<const OnDeviceModelFeatureAdapter> GetAdapter(
-      proto::ModelExecutionFeature feature) const;
 
   const base::FilePath& model_path() const { return model_path_; }
   const std::string& version() const { return version_; }
+  const OnDeviceBaseModelSpec& model_spec() const { return model_spec_; }
+  const proto::OnDeviceModelValidationConfig& validation_config() const {
+    return validation_config_;
+  }
+
+  const on_device_model::Capabilities& capabilities() const {
+    return capabilities_;
+  }
 
  private:
   OnDeviceModelMetadata(
       const base::FilePath& model_path,
       const std::string& version,
+      const OnDeviceBaseModelSpec& model_spec,
       std::unique_ptr<proto::OnDeviceModelExecutionConfig> config);
 
   base::FilePath model_path_;
   std::string version_;
-
-  // Map from feature to associated state.
-  base::flat_map<proto::ModelExecutionFeature,
-                 scoped_refptr<OnDeviceModelFeatureAdapter>>
-      adapters_;
+  OnDeviceBaseModelSpec model_spec_;
+  proto::OnDeviceModelValidationConfig validation_config_;
+  on_device_model::Capabilities capabilities_;
 };
 
 // Provides a stream of updated ModelMetadatas from component states.
@@ -70,7 +74,9 @@ class OnDeviceModelMetadataLoader final
   void StateChanged(const OnDeviceModelComponentState* state) final;
 
   // Loads OnDeviceModelMetadata with the data from file_dir.
-  void Load(const base::FilePath& model_path, const std::string& version);
+  void Load(const base::FilePath& model_path,
+            const std::string& version,
+            const OnDeviceBaseModelSpec& model_spec);
 
  private:
   // Provides a null ModelMetadata in the stream.

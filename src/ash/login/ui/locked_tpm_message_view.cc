@@ -22,6 +22,7 @@
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/size.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
@@ -52,15 +53,15 @@ LockedTpmMessageView::LockedTpmMessageView() {
   SetPreferredSize(gfx::Size(kWidthDp, kHeightDp));
   SetFocusBehavior(FocusBehavior::ALWAYS);
 
-  SetBackground(views::CreateThemedRoundedRectBackground(
-      kColorAshShieldAndBaseOpaque, kRoundedCornerRadiusDp, 0));
+  SetBackground(views::CreateRoundedRectBackground(kColorAshShieldAndBaseOpaque,
+                                                   kRoundedCornerRadiusDp, 0));
 
   message_icon_ = AddChildView(std::make_unique<views::ImageView>());
   message_icon_->SetImage(ui::ImageModel::FromVectorIcon(
       kLockScreenAlertIcon, kColorAshIconColorPrimary, kIconSizeDp));
 
   message_warning_ = CreateLabel();
-  message_warning_->SetEnabledColorId(kColorAshTextColorPrimary);
+  message_warning_->SetEnabledColor(kColorAshTextColorPrimary);
 
   message_description_ = CreateLabel();
 
@@ -68,7 +69,7 @@ LockedTpmMessageView::LockedTpmMessageView() {
   std::u16string message_description =
       l10n_util::GetStringUTF16(IDS_ASH_LOGIN_POD_TPM_LOCKED_ISSUE_DESCRIPTION);
   message_description_->SetText(message_description);
-  message_description_->SetEnabledColorId(kColorAshTextColorPrimary);
+  message_description_->SetEnabledColor(kColorAshTextColorPrimary);
 }
 
 LockedTpmMessageView::~LockedTpmMessageView() = default;
@@ -83,7 +84,7 @@ void LockedTpmMessageView::SetRemainingTime(base::TimeDelta time_left) {
     message_warning_->SetText(message_warning);
 
     if (time_left.InMinutes() != prev_time_left_.InMinutes()) {
-      message_warning_->SetAccessibleName(message_warning);
+      message_warning_->GetViewAccessibility().SetName(message_warning);
     }
     prev_time_left_ = time_left;
   }

@@ -17,14 +17,12 @@
 #include "third_party/blink/renderer/core/css/style_sheet_contents.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/core/style/computed_style_constants.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
 #include "third_party/blink/renderer/core/testing/page_test_base.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/text/writing_mode.h"
 
 namespace blink {
@@ -302,12 +300,12 @@ TEST_F(ContainerQueryTest, ScrollStateContainerSelector) {
             stuck_and_style.Type(WritingMode::kHorizontalTb));
 
   ContainerSelector stuck_and_inline_size = ContainerSelectorFrom(
-      "scroll-state(stuck: inset-block-end) or (inline-size > 10px)");
+      "scroll-state(stuck: block-end) or (inline-size > 10px)");
   EXPECT_EQ((kContainerTypeScrollState | kContainerTypeInlineSize),
             stuck_and_inline_size.Type(WritingMode::kHorizontalTb));
 
-  ContainerSelector stuck_and_block_size = ContainerSelectorFrom(
-      "scroll-state(stuck: inset-block-end) and (height)");
+  ContainerSelector stuck_and_block_size =
+      ContainerSelectorFrom("scroll-state(stuck: block-end) and (height)");
   EXPECT_EQ((kContainerTypeScrollState | kContainerTypeBlockSize),
             stuck_and_block_size.Type(WritingMode::kHorizontalTb));
 }
@@ -354,8 +352,8 @@ TEST_F(ContainerQueryTest, RuleCopy) {
   EXPECT_NE(container, copy);
 
   // The rules should be copied.
-  auto rules = container->ChildRules();
-  auto rules_copy = copy->ChildRules();
+  auto& rules = container->ChildRules();
+  auto& rules_copy = copy->ChildRules();
   ASSERT_EQ(1u, rules.size());
   ASSERT_EQ(1u, rules_copy.size());
   EXPECT_NE(rules[0], rules_copy[0]);
@@ -411,7 +409,7 @@ TEST_F(ContainerQueryTest, ContainerQueryEvaluation) {
 }
 
 TEST_F(ContainerQueryTest, QueryZoom) {
-  GetFrame().SetPageZoomFactor(2.0f);
+  GetFrame().SetLayoutZoomFactor(2.0f);
 
   SetBodyInnerHTML(R"HTML(
     <style>
@@ -471,7 +469,7 @@ TEST_F(ContainerQueryTest, QueryZoom) {
 }
 
 TEST_F(ContainerQueryTest, QueryFontRelativeWithZoom) {
-  GetFrame().SetPageZoomFactor(2.0f);
+  GetFrame().SetLayoutZoomFactor(2.0f);
 
   SetBodyInnerHTML(R"HTML(
     <style>

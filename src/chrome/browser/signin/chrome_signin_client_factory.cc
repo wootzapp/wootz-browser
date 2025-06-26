@@ -20,6 +20,9 @@ ChromeSigninClientFactory::ChromeSigninClientFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
               .Build()) {
   DependsOn(ProfileNetworkContextServiceFactory::GetInstance());
   // Used to keep track of bookmark metrics on Signin/Sync.
@@ -44,7 +47,9 @@ ChromeSigninClientFactory* ChromeSigninClientFactory::GetInstance() {
   return instance.get();
 }
 
-KeyedService* ChromeSigninClientFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+ChromeSigninClientFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  return new ChromeSigninClient(Profile::FromBrowserContext(context));
+  return std::make_unique<ChromeSigninClient>(
+      Profile::FromBrowserContext(context));
 }

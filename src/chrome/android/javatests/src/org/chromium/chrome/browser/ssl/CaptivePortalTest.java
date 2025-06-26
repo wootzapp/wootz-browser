@@ -4,8 +4,6 @@
 
 package org.chromium.chrome.browser.ssl;
 
-import android.util.Base64;
-
 import androidx.annotation.IntDef;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.MediumTest;
@@ -20,7 +18,6 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.params.ParameterizedCommandLineFlags;
 import org.chromium.base.test.params.ParameterizedCommandLineFlags.Switches;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
@@ -29,10 +26,8 @@ import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.browser.TabTitleObserver;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.security_interstitials.CaptivePortalHelper;
-import org.chromium.net.X509Util;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.net.test.ServerCertificate;
-import org.chromium.net.test.util.CertTestUtil;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -43,7 +38,6 @@ import java.lang.annotation.RetentionPolicy;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @ParameterizedCommandLineFlags({
     @Switches(),
-    @Switches("enable-features=" + ChromeFeatureList.CAPTIVE_PORTAL_CERTIFICATE_LIST),
 })
 public class CaptivePortalTest {
     private static final String CAPTIVE_PORTAL_INTERSTITIAL_TITLE_PREFIX = "Connect to";
@@ -101,7 +95,6 @@ public class CaptivePortalTest {
                         ServerCertificate.CERT_MISMATCHED_NAME);
 
         CaptivePortalHelper.setOSReportsCaptivePortalForTesting(false);
-        CaptivePortalHelper.setCaptivePortalCertificateForTesting("sha256/test");
     }
 
     /**
@@ -126,38 +119,6 @@ public class CaptivePortalTest {
     }
 
     @Test
-    public void testCaptivePortalCertificateListFeature() throws Exception {
-        // Add the SPKI of the root cert to captive portal certificate list.
-        byte[] rootCertSPKI =
-                CertTestUtil.getPublicKeySha256(
-                        X509Util.createCertificateFromBytes(
-                                CertTestUtil.pemToDer(mServer.getRootCertPemPath())));
-        Assert.assertTrue(rootCertSPKI != null);
-        CaptivePortalHelper.setCaptivePortalCertificateForTesting(
-                "sha256/" + Base64.encodeToString(rootCertSPKI, Base64.NO_WRAP));
-
-        navigateAndCheckCaptivePortalInterstitial();
-
-        Assert.assertEquals(
-                1,
-                RecordHistogram.getHistogramValueCountForTesting(
-                        "interstitial.ssl_error_handler", UMAEvent.HANDLE_ALL));
-        Assert.assertEquals(
-                1,
-                RecordHistogram.getHistogramValueCountForTesting(
-                        "interstitial.ssl_error_handler",
-                        UMAEvent.SHOW_CAPTIVE_PORTAL_INTERSTITIAL_OVERRIDABLE));
-        Assert.assertEquals(
-                1,
-                RecordHistogram.getHistogramValueCountForTesting(
-                        "interstitial.ssl_error_handler", UMAEvent.CAPTIVE_PORTAL_CERT_FOUND));
-        Assert.assertEquals(
-                0,
-                RecordHistogram.getHistogramValueCountForTesting(
-                        "interstitial.ssl_error_handler", UMAEvent.OS_REPORTS_CAPTIVE_PORTAL));
-    }
-
-    @Test
     public void testOSReportsCaptivePortal() throws Exception {
         CaptivePortalHelper.setOSReportsCaptivePortalForTesting(true);
         navigateAndCheckCaptivePortalInterstitial();
@@ -177,41 +138,6 @@ public class CaptivePortalTest {
                         "interstitial.ssl_error_handler", UMAEvent.CAPTIVE_PORTAL_CERT_FOUND));
         Assert.assertEquals(
                 1,
-                RecordHistogram.getHistogramValueCountForTesting(
-                        "interstitial.ssl_error_handler", UMAEvent.OS_REPORTS_CAPTIVE_PORTAL));
-    }
-
-    /**
-     * When CaptivePortalInterstitial feature is disabled, the result of OS captive portal APIs
-     * should be ignored, and a generic SSL interstitial should be displayed.
-     */
-    @Test
-    @CommandLineFlags.Add({"disable-features=CaptivePortalInterstitial"})
-    public void testOSReportsCaptivePortal_FeatureDisabled() throws Exception {
-        CaptivePortalHelper.setOSReportsCaptivePortalForTesting(true);
-
-        Tab tab = mActivityTestRule.getActivity().getActivityTab();
-        ChromeTabUtils.loadUrlOnUiThread(
-                tab, mServer.getURL("/chrome/test/data/android/navigate/simple.html"));
-
-        new TabTitleObserver(tab, SSL_INTERSTITIAL_TITLE)
-                .waitForTitleUpdate(INTERSTITIAL_TITLE_UPDATE_TIMEOUT_SECONDS);
-
-        Assert.assertEquals(
-                1,
-                RecordHistogram.getHistogramValueCountForTesting(
-                        "interstitial.ssl_error_handler", UMAEvent.HANDLE_ALL));
-        Assert.assertEquals(
-                1,
-                RecordHistogram.getHistogramValueCountForTesting(
-                        "interstitial.ssl_error_handler",
-                        UMAEvent.SHOW_SSL_INTERSTITIAL_OVERRIDABLE));
-        Assert.assertEquals(
-                0,
-                RecordHistogram.getHistogramValueCountForTesting(
-                        "interstitial.ssl_error_handler", UMAEvent.CAPTIVE_PORTAL_CERT_FOUND));
-        Assert.assertEquals(
-                0,
                 RecordHistogram.getHistogramValueCountForTesting(
                         "interstitial.ssl_error_handler", UMAEvent.OS_REPORTS_CAPTIVE_PORTAL));
     }

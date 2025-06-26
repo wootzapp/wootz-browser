@@ -10,20 +10,20 @@
 #import "base/containers/contains.h"
 #import "base/strings/string_split.h"
 #import "base/strings/stringprintf.h"
-#import "base/test/task_environment.h"
 #import "components/breadcrumbs/core/breadcrumb_manager.h"
 #import "components/infobars/core/infobar_delegate.h"
 #import "ios/chrome/browser/infobars/model/infobar_ios.h"
 #import "ios/chrome/browser/infobars/model/infobar_manager_impl.h"
 #import "ios/chrome/browser/infobars/model/test/fake_infobar_delegate.h"
 #import "ios/chrome/browser/infobars/model/test/fake_infobar_ios.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/web/public/security/ssl_status.h"
 #import "ios/web/public/test/error_test_util.h"
 #import "ios/web/public/test/fakes/fake_navigation_context.h"
 #import "ios/web/public/test/fakes/fake_navigation_manager.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
+#import "ios/web/public/test/web_task_environment.h"
 #import "ios/web/public/ui/crw_web_view_proxy.h"
 #import "ios/web/public/ui/crw_web_view_scroll_view_proxy.h"
 #import "testing/gtest/include/gtest/gtest.h"
@@ -50,11 +50,11 @@ class BreadcrumbManagerTabHelperTest : public PlatformTest {
  protected:
   void SetUp() override {
     PlatformTest::SetUp();
-    TestChromeBrowserState::Builder test_cbs_builder;
-    chrome_browser_state_ = test_cbs_builder.Build();
+    TestProfileIOS::Builder test_profile_builder;
+    profile_ = std::move(test_profile_builder).Build();
 
-    first_web_state_.SetBrowserState(chrome_browser_state_.get());
-    second_web_state_.SetBrowserState(chrome_browser_state_.get());
+    first_web_state_.SetBrowserState(profile_.get());
+    second_web_state_.SetBrowserState(profile_.get());
 
     // Navigation manager is needed for InfobarManager.
     first_web_state_.SetNavigationManager(
@@ -75,8 +75,8 @@ class BreadcrumbManagerTabHelperTest : public PlatformTest {
     BreadcrumbManagerTabHelper::CreateForWebState(&first_web_state_);
   }
 
-  base::test::TaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> chrome_browser_state_;
+  web::WebTaskEnvironment task_environment_;
+  std::unique_ptr<TestProfileIOS> profile_;
   web::FakeWebState first_web_state_;
   web::FakeWebState second_web_state_;
   UIScrollView* scroll_view_ = nil;

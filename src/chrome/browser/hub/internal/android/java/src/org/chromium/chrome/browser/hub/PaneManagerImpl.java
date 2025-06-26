@@ -4,17 +4,20 @@
 
 package org.chromium.chrome.browser.hub;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import static org.chromium.build.NullUtil.assumeNonNull;
 
 import com.google.common.collect.ImmutableMap;
 
 import org.chromium.base.Callback;
+import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.LazyOneshotSupplier;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 /** Implementation of {@link PaneManager} for managing {@link Pane}s. */
+@NullMarked
 public class PaneManagerImpl implements PaneManager {
     private final ObservableSupplierImpl<Pane> mCurrentPaneSupplierImpl =
             new ObservableSupplierImpl<>();
@@ -54,12 +57,12 @@ public class PaneManagerImpl implements PaneManager {
     }
 
     @Override
-    public @NonNull PaneOrderController getPaneOrderController() {
+    public PaneOrderController getPaneOrderController() {
         return mPaneOrderController;
     }
 
     @Override
-    public @NonNull ObservableSupplier<Pane> getFocusedPaneSupplier() {
+    public ObservableSupplier<Pane> getFocusedPaneSupplier() {
         return mCurrentPaneSupplierImpl;
     }
 
@@ -72,6 +75,8 @@ public class PaneManagerImpl implements PaneManager {
 
         Pane previousPane = mCurrentPaneSupplierImpl.get();
         if (nextPane == previousPane) return true;
+
+        RecordHistogram.recordEnumeratedHistogram("Android.Hub.PaneFocused", paneId, PaneId.COUNT);
 
         mCurrentPaneSupplierImpl.set(nextPane);
         if (isHubVisible()) {
@@ -109,19 +114,22 @@ public class PaneManagerImpl implements PaneManager {
 
         Pane currentPane = mCurrentPaneSupplierImpl.get();
         boolean hasCurrentPane = currentPane != null;
-        if (hasCurrentPane && isVisible) {
-            mPaneTransitionHelper.processTransition(currentPane.getPaneId(), LoadHint.HOT);
+        if (hasCurrentPane) {
+            mPaneTransitionHelper.processTransition(
+                    assumeNonNull(currentPane).getPaneId(),
+                    isVisible ? LoadHint.HOT : LoadHint.WARM);
         }
 
         for (int paneId : mPanes.keySet()) {
-            if (hasCurrentPane && currentPane.getPaneId() == paneId) continue;
+            if (hasCurrentPane && assumeNonNull(currentPane).getPaneId() == paneId) continue;
 
             mPaneTransitionHelper.queueTransition(paneId, loadHint);
         }
 
         // Queue this as the last transition in case the user quickly returns.
         if (hasCurrentPane && !isVisible) {
-            mPaneTransitionHelper.queueTransition(currentPane.getPaneId(), LoadHint.COLD);
+            mPaneTransitionHelper.queueTransition(
+                    assumeNonNull(currentPane).getPaneId(), LoadHint.COLD);
         }
     }
 }

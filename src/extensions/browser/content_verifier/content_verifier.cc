@@ -17,7 +17,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
+#include "base/not_fatal_until.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/threading/thread_restrictions.h"
@@ -38,7 +38,9 @@
 #include "extensions/common/manifest_handlers/content_scripts_handler.h"
 #include "extensions/common/utils/base_string.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
+#include "net/base/mime_util.h"
 #include "services/network/public/mojom/network_context.mojom.h"
+#include "third_party/blink/public/common/mime_util/mime_util.h"
 
 namespace extensions {
 
@@ -50,39 +52,47 @@ using content_verifier_utils::CanonicalRelativePath;
 // This function converts paths like "//foo/bar", "./foo/bar", and
 // "/foo/bar" to "foo/bar". It also converts path separators to "/".
 base::FilePath NormalizeRelativePath(const base::FilePath& path) {
-  if (path.ReferencesParent())
-    return base::FilePath();
+  // Remove leading separator characters.
+  auto path_trimmed_separators = base::FilePath(base::TrimString(
+      path.value(), base::FilePath::kSeparators, base::TRIM_LEADING));
 
-  std::vector<base::FilePath::StringType> parts = path.GetComponents();
-  if (parts.empty())
+  // Ideally, we shouldn't end up here with an absolute path, but it can happen.
+  // For example, an extension's manifest may contain:
+  //
+  // "icons": { "48": "C:/icon.png" }
+  //
+  // In this case, such icon path is rejected on installation, but not when an
+  // installed extension is loaded.
+  //
+  // TODO(https://crbug.com/407932132): Make sure we only reach here with
+  // relative paths and replace this with a CHECK.
+  if (path_trimmed_separators.IsAbsolute()) {
     return base::FilePath();
+  }
 
-  // Remove the first component if it is '.' or '/' or '//'.
-  const base::FilePath::StringType separators(
-      base::FilePath::kSeparators, base::FilePath::kSeparatorsLength);
-  if (!parts[0].empty() &&
-      (parts[0] == base::FilePath::kCurrentDirectory ||
-       parts[0].find_first_not_of(separators) == std::string::npos))
+  base::FilePath path_normalized =
+      content_verifier_utils::NormalizePathComponents(path_trimmed_separators);
+
+  std::vector<base::FilePath::StringType> parts =
+      path_normalized.GetComponents();
+
+  // Remove all parent directory components from the beginning of the path,
+  // since they're ignored when using the path in the request url, e.g.
+  // chrome-extension://<extension_id>/../foo/bar.html is resolved as
+  // chrome-extension://<extension_id>/foo/bar.html.
+  while (!parts.empty() && parts[0] == base::FilePath::kParentDirectory) {
     parts.erase(parts.begin());
+  }
 
   // Note that elsewhere we always normalize path separators to '/' so this
   // should work for all platforms.
   base::FilePath::StringType normalized_relative_path =
       base::JoinString(parts, base::FilePath::StringType(1, '/'));
   // Preserve trailing separator, if present.
-  if (path.EndsWithSeparator())
-    normalized_relative_path.append(1, '/');
+  if (path.EndsWithSeparator() && !normalized_relative_path.empty()) {
+    normalized_relative_path.push_back('/');
+  }
   return base::FilePath(normalized_relative_path);
-}
-
-bool HasScriptFileExt(const base::FilePath& requested_path) {
-  return requested_path.MatchesExtension(FILE_PATH_LITERAL(".js"));
-}
-
-bool HasPageFileExt(const base::FilePath& requested_path) {
-  base::FilePath::StringType file_extension = requested_path.Extension();
-  return requested_path.MatchesExtension(FILE_PATH_LITERAL(".html")) ||
-         requested_path.MatchesExtension(FILE_PATH_LITERAL(".htm"));
 }
 
 std::unique_ptr<ContentVerifierIOData::ExtensionData> CreateIOData(
@@ -355,7 +365,7 @@ class ContentVerifier::HashHelper {
     }
 
     auto iter = callback_infos_.find(key);
-    DCHECK(iter != callback_infos_.end());
+    CHECK(iter != callback_infos_.end(), base::NotFatalUntil::M130);
     auto& callback_info = iter->second;
 
     // Force creation of computed_hashes.json if all of the following are true:
@@ -394,14 +404,12 @@ class ContentVerifier::HashHelper {
     }
 
     auto iter = callback_infos_.find(key);
-    DCHECK(iter != callback_infos_.end());
+    CHECK(iter != callback_infos_.end(), base::NotFatalUntil::M130);
     auto& callback_info = iter->second;
 
     for (auto& callback : callback_info.callbacks)
       std::move(callback).Run(content_hash);
     callback_infos_.erase(iter);
-
-    DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
 
     // OnFetchComplete will check content_hash->hash_mismatch_unix_paths():
     content_verifier_->OnFetchComplete(content_hash);
@@ -457,13 +465,18 @@ class ContentVerifier::VerifiedFileTypeHelper {
       return ContentVerifier::VerifiedFileType::kContentScript;
     }
 
-    // JavaScript and HTML files should always be verified.
-    if (HasScriptFileExt(relative_path)) {
-      return ContentVerifier::VerifiedFileType::kMiscJsFile;
-    }
+    const base::FilePath canonical_path(canonical_path_value.value());
 
-    if (HasPageFileExt(relative_path)) {
-      return ContentVerifier::VerifiedFileType::kMiscHtmlFile;
+    // JavaScript and HTML files should always be verified.
+    std::string mime_type;
+    if (net::GetWellKnownMimeTypeFromFile(canonical_path, &mime_type)) {
+      if (blink::IsSupportedJavascriptMimeType(mime_type)) {
+        return ContentVerifier::VerifiedFileType::kMiscJsFile;
+      }
+
+      if (mime_type == "text/html") {
+        return ContentVerifier::VerifiedFileType::kMiscHtmlFile;
+      }
     }
 
     // The browser re-writes image files during extension load, so they can't
@@ -479,7 +492,6 @@ class ContentVerifier::VerifiedFileTypeHelper {
       return ContentVerifier::VerifiedFileType::kNone;
     }
 
-    const base::FilePath canonical_path(canonical_path_value.value());
     if (locales_relative_dir_.IsParent(canonical_path)) {
       // TODO(asargent) - see if we can cache this list longer to avoid
       // having to fetch it more than once for a given run of the
@@ -535,6 +547,13 @@ ContentVerifier::~ContentVerifier() {
 void ContentVerifier::Start() {
   ExtensionRegistry* registry = ExtensionRegistry::Get(context_);
   observation_.Observe(registry);
+  content::GetIOThreadTaskRunner({})->PostTask(
+      FROM_HERE, base::BindOnce(&ContentVerifier::StartOnIO, this));
+}
+
+void ContentVerifier::StartOnIO() {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
+  verification_enabled_ = true;
 }
 
 void ContentVerifier::Shutdown() {
@@ -552,49 +571,44 @@ void ContentVerifier::ShutdownOnIO() {
   hash_helper_.reset();
 }
 
+// static
 scoped_refptr<ContentVerifyJob> ContentVerifier::CreateAndStartJobFor(
     const ExtensionId& extension_id,
     const base::FilePath& extension_root,
-    const base::FilePath& relative_path) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
-
-  const ContentVerifierIOData::ExtensionData* data =
-      io_data_.GetData(extension_id);
-  // The absence of |data| generally means that we don't have to verify the
-  // extension resource. However, it could also mean that
-  // OnExtensionLoadedOnIO didn't get a chance to fire yet.
-  // See https://crbug.com/826584 for an example of how this can happen from
-  // ExtensionUserScriptLoader. Currently, ExtensionUserScriptLoader performs a
-  // thread hopping to work around this problem.
-  // TODO(lazyboy): Prefer queueing up jobs in these case instead of the thread
-  // hopping solution, but that requires a substantial change in
-  // ContnetVerifier/ContentVerifyJob.
-  if (!data)
-    return nullptr;
-
+    const base::FilePath& relative_path,
+    scoped_refptr<ContentVerifier> verifier) {
   base::FilePath normalized_unix_path = NormalizeRelativePath(relative_path);
-
-  VerifiedFileType verified_file_type =
-      VerifiedFileTypeHelper(*data).GetVerifiedFileType(normalized_unix_path);
-  if (verified_file_type == VerifiedFileType::kNone) {
-    return nullptr;  // Not a file to be verified.
-  }
-
-  std::vector<VerifiedFileType> file_types({verified_file_type});
-  auto callback =
-      base::BindOnce(&ContentVerifier::VerifyFailed, this, extension_id,
-                     file_types, data->manifest_version);
 
   // TODO(asargent) - we can probably get some good performance wins by having
   // a cache of ContentHashReader's that we hold onto past the end of each job.
   scoped_refptr<ContentVerifyJob> job = base::MakeRefCounted<ContentVerifyJob>(
-      extension_id, data->version, extension_root, normalized_unix_path,
-      data->manifest_version, std::move(callback));
-  job->Start(this);
+      extension_id, extension_root, normalized_unix_path);
+
+  // Priority set explicitly to avoid unwanted task priority inheritance.
+  content::GetIOThreadTaskRunner({base::TaskPriority::USER_BLOCKING})
+      ->PostTask(FROM_HERE,
+                 base::BindOnce(&ContentVerifier::OnJobCreated, verifier, job));
+
   return job;
 }
 
-void ContentVerifier::GetContentHash(
+void ContentVerifier::OnJobCreated(scoped_refptr<ContentVerifyJob> job) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
+  if (shutdown_on_io_ || !verification_enabled_) {
+    return;
+  }
+
+  // If the extension data is not ready yet, add the job to the pending list.
+  // It will be started when the data is available.
+  if (!ready_extensions_.contains(job->extension_id())) {
+    pending_jobs_[job->extension_id()].push_back(std::move(job));
+    return;
+  }
+
+  StartJob(job);
+}
+
+void ContentVerifier::CreateContentHash(
     const ExtensionId& extension_id,
     const base::FilePath& extension_root,
     const base::Version& extension_version,
@@ -602,25 +616,6 @@ void ContentVerifier::GetContentHash(
     ContentHashCallback callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
   if (shutdown_on_io_) {
-    // NOTE: Release |callback| asynchronously, so that we don't release ref of
-    // ContentVerifyJob and possibly destroy it synchronously here while
-    // ContentVerifyJob is holding a lock. The lock destroyer would fail DCHECK
-    // in that case.
-    // TODO(lazyboy): Make CreateJobFor return a scoped_refptr instead of raw
-    // pointer to fix this. Also add unit test to exercise this code path
-    // explicitly.
-    content::GetIOThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::DoNothingWithBoundArgs(std::move(callback)));
-    return;
-  }
-
-  CacheKey cache_key(extension_id, extension_version,
-                     force_missing_computed_hashes_creation);
-  auto cache_iter = cache_.find(cache_key);
-  if (cache_iter != cache_.end()) {
-    // Currently, we expect |callback| to be called asynchronously.
-    content::GetIOThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::BindOnce(std::move(callback), cache_iter->second));
     return;
   }
 
@@ -629,6 +624,8 @@ void ContentVerifier::GetContentHash(
   DCHECK(data);
   ContentHash::FetchKey fetch_key =
       GetFetchKey(extension_id, extension_root, extension_version);
+  CacheKey cache_key(extension_id, extension_version,
+                     force_missing_computed_hashes_creation);
   // Since |shutdown_on_io_| = false, GetOrCreateHashHelper() must return
   // non-nullptr instance of HashHelper.
   GetOrCreateHashHelper()->GetContentHash(
@@ -636,6 +633,21 @@ void ContentVerifier::GetContentHash(
       force_missing_computed_hashes_creation,
       base::BindOnce(&ContentVerifier::DidGetContentHash, this, cache_key,
                      std::move(callback)));
+}
+
+scoped_refptr<const ContentHash> ContentVerifier::GetCachedContentHash(
+    const ExtensionId& extension_id,
+    const base::Version& extension_version,
+    bool force_missing_computed_hashes_creation) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
+  if (shutdown_on_io_) {
+    return nullptr;
+  }
+
+  CacheKey cache_key(extension_id, extension_version,
+                     force_missing_computed_hashes_creation);
+  auto cache_iter = cache_.find(cache_key);
+  return cache_iter != cache_.end() ? cache_iter->second : nullptr;
 }
 
 bool ContentVerifier::ShouldComputeHashesOnInstall(const Extension& extension) {
@@ -666,7 +678,7 @@ void ContentVerifier::VerifyFailed(
     switch (file_type) {
       case VerifiedFileType::kNone:
         // We should only consider a file type that should be verified.
-        NOTREACHED_NORETURN();
+        NOTREACHED();
       case VerifiedFileType::kBackgroundPage:
         histogram_suffix = "BackgroundPage";
         break;
@@ -689,6 +701,7 @@ void ContentVerifier::VerifyFailed(
         histogram_suffix = "MiscFile";
         break;
     }
+
     if (manifest_version == 2) {
       base::UmaHistogramEnumeration(
           base::StringPrintf(
@@ -708,6 +721,21 @@ void ContentVerifier::VerifyFailed(
           "Extensions.ContentVerification.VerifyFailedOnFileTypeMV3",
           file_type);
     }
+
+    // TODO(crbug.com/325613709): Remove docs offline specific logging after a
+    // few milestones.
+    if (extension_id == extension_misc::kDocsOfflineExtensionId &&
+        manifest_version == 3) {
+      base::UmaHistogramEnumeration(
+          base::StringPrintf("Extensions.ContentVerification."
+                             "VerifyFailedOnFileMV3.GoogleDocsOffline.%s",
+                             histogram_suffix),
+          reason, ContentVerifyJob::FAILURE_REASON_MAX);
+      base::UmaHistogramEnumeration(
+          "Extensions.ContentVerification.VerifyFailedOnFileTypeMV3."
+          "GoogleDocsOffline",
+          file_type);
+    }
   }
 
   delegate_->VerifyFailed(extension_id, reason);
@@ -721,12 +749,10 @@ void ContentVerifier::OnExtensionLoaded(
 
   std::unique_ptr<ContentVerifierIOData::ExtensionData> io_data =
       CreateIOData(extension, delegate_.get());
-  if (io_data) {
-    content::GetIOThreadTaskRunner({})->PostTask(
-        FROM_HERE, base::BindOnce(&ContentVerifier::OnExtensionLoadedOnIO, this,
-                                  extension->id(), extension->path(),
-                                  extension->version(), std::move(io_data)));
-  }
+  content::GetIOThreadTaskRunner({})->PostTask(
+      FROM_HERE, base::BindOnce(&ContentVerifier::OnExtensionLoadedOnIO, this,
+                                extension->id(), extension->path(),
+                                extension->version(), std::move(io_data)));
 }
 
 void ContentVerifier::OnExtensionLoadedOnIO(
@@ -737,11 +763,17 @@ void ContentVerifier::OnExtensionLoadedOnIO(
   if (shutdown_on_io_)
     return;
 
-  io_data_.AddData(extension_id, std::move(*data));
-  GetContentHash(extension_id, extension_root, extension_version,
-                 false /* force_missing_computed_hashes_creation */,
-                 // HashHelper will respond directly to OnFetchComplete().
-                 base::DoNothing());
+  // `data` may be null if no verification is needed for the extension. In that
+  // case, we just mark the extension as ready.
+  if (data) {
+    io_data_.AddData(extension_id, std::move(*data));
+    CreateContentHash(extension_id, extension_root, extension_version,
+                      /*force_missing_computed_hashes_creation=*/false,
+                      // HashHelper will respond directly to OnFetchComplete().
+                      base::DoNothing());
+  }
+
+  OnExtensionDataReady(extension_id);
 }
 
 void ContentVerifier::OnExtensionUnloaded(
@@ -791,6 +823,45 @@ void ContentVerifier::OnExtensionUnloadedOnIO(
   HashHelper* hash_helper = GetOrCreateHashHelper();
   if (hash_helper)
     hash_helper->Cancel(extension_id, extension_version);
+
+  ready_extensions_.erase(extension_id);
+  pending_jobs_.erase(extension_id);
+}
+
+void ContentVerifier::OnExtensionDataReady(const ExtensionId& extension_id) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
+  ready_extensions_.insert(extension_id);
+
+  if (auto it = pending_jobs_.find(extension_id); it != pending_jobs_.end()) {
+    for (const auto& job : it->second) {
+      StartJob(job);
+    }
+    pending_jobs_.erase(it);
+  }
+}
+
+bool ContentVerifier::StartJob(const scoped_refptr<ContentVerifyJob>& job) {
+  const ContentVerifierIOData::ExtensionData* data =
+      io_data_.GetData(job->extension_id());
+  // The absence of |data| means that we don't have to verify the extension
+  // resource.
+  if (!data) {
+    return false;
+  }
+
+  VerifiedFileType verified_file_type =
+      VerifiedFileTypeHelper(*data).GetVerifiedFileType(job->relative_path());
+  if (verified_file_type == VerifiedFileType::kNone) {
+    return false;  // Not a file to be verified.
+  }
+
+  std::vector<VerifiedFileType> file_types({verified_file_type});
+  auto callback =
+      base::BindOnce(&ContentVerifier::VerifyFailed, this, job->extension_id(),
+                     file_types, data->manifest_version);
+
+  job->Start(this, data->version, data->manifest_version, std::move(callback));
+  return true;
 }
 
 void ContentVerifier::OnFetchComplete(
@@ -821,14 +892,27 @@ void ContentVerifier::OnFetchComplete(
                                                       did_hash_mismatch);
   }
 
-  if (data->manifest_version == 2) {
-    base::UmaHistogramBoolean(
-        "Extensions.ContentVerification.DidHashMismatchOnFetchCompleteMV2",
-        did_hash_mismatch);
-  } else if (data->manifest_version == 3) {
-    base::UmaHistogramBoolean(
-        "Extensions.ContentVerification.DidHashMismatchOnFetchCompleteMV3",
-        did_hash_mismatch);
+  auto record_hash_mismatch = [&data, &did_hash_mismatch](
+                                  const char* mv2_histogram,
+                                  const char* mv3_histogram) {
+    if (mv2_histogram && data->manifest_version == 2) {
+      base::UmaHistogramBoolean(mv2_histogram, did_hash_mismatch);
+    } else if (data->manifest_version == 3) {
+      base::UmaHistogramBoolean(mv3_histogram, did_hash_mismatch);
+    }
+  };
+
+  record_hash_mismatch(
+      "Extensions.ContentVerification.DidHashMismatchOnFetchCompleteMV2",
+      "Extensions.ContentVerification.DidHashMismatchOnFetchCompleteMV3");
+
+  // TODO(crbug.com/325613709): Remove docs offline specific logging after a few
+  // milestones.
+  if (extension_id == extension_misc::kDocsOfflineExtensionId) {
+    record_hash_mismatch(
+        nullptr,  // No MV2 Google Docs Offline version.
+        "Extensions.ContentVerification.DidHashMismatchOnFetchCompleteMV3."
+        "GoogleDocsOffline");
   }
 
   if (!did_hash_mismatch)
@@ -932,7 +1016,7 @@ bool ContentVerifier::ShouldVerifyAnyPathsForTesting(
   }
   VerifiedFileTypeHelper helper(*data);
 
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       relative_unix_paths, [&helper](const base::FilePath& path) {
         return helper.GetVerifiedFileType(path) != VerifiedFileType::kNone;
       });

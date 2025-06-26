@@ -10,6 +10,7 @@
 #include "ash/public/cpp/session/session_observer.h"
 #include "ash/public/cpp/shelf_types.h"
 #include "ash/shelf/shelf_component.h"
+#include "ash/shell_observer.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "ui/message_center/message_center.h"
@@ -36,7 +37,8 @@ class OverviewButtonTray;
 class PaletteTray;
 class PhoneHubTray;
 class PodsOverflowTray;
-class ProjectorAnnotationTray;
+class AnnotationTray;
+class MouseKeysTray;
 class SelectToSpeakTray;
 class Shelf;
 class StatusAreaAnimationController;
@@ -56,6 +58,7 @@ class WmModeButtonTray;
 // on secondary monitors at the login screen).
 class ASH_EXPORT StatusAreaWidget : public SessionObserver,
                                     public ShelfComponent,
+                                    public ShellObserver,
                                     public views::ViewObserver,
                                     public views::Widget {
  public:
@@ -100,6 +103,9 @@ class ASH_EXPORT StatusAreaWidget : public SessionObserver,
   void UpdateLayout(bool animate) override;
   void UpdateTargetBoundsForGesture(int shelf_position) override;
 
+  // ShellObserver:
+  void OnPinnedStateChanged(aura::Window* pinned_window) override;
+
   // Called by shelf layout manager when a locale change has been detected.
   void HandleLocaleChange();
 
@@ -137,14 +143,13 @@ class ASH_EXPORT StatusAreaWidget : public SessionObserver,
     return stop_recording_button_tray_;
   }
   FocusModeTray* focus_mode_tray() { return focus_mode_tray_; }
-  ProjectorAnnotationTray* projector_annotation_tray() {
-    return projector_annotation_tray_;
-  }
+  AnnotationTray* annotation_tray() { return annotation_tray_; }
   ImeMenuTray* ime_menu_tray() { return ime_menu_tray_; }
   HoldingSpaceTray* holding_space_tray() { return holding_space_tray_; }
   PhoneHubTray* phone_hub_tray() { return phone_hub_tray_; }
   EcheTray* eche_tray() { return eche_tray_; }
 
+  MouseKeysTray* mouse_keys_tray() { return mouse_keys_tray_; }
   SelectToSpeakTray* select_to_speak_tray() { return select_to_speak_tray_; }
   WmModeButtonTray* wm_mode_button_tray() { return wm_mode_button_tray_; }
 
@@ -172,9 +177,15 @@ class ASH_EXPORT StatusAreaWidget : public SessionObserver,
   // Overridden from views::Widget:
   bool OnNativeWidgetActivationChanged(bool active) override;
 
+  // Updates Previous and Next focus accessibility attributes for the Tray
+  // Button views.
+  void InitializeTrayButtonsAccessibleNavFocus();
+
   // Sets the value for `open_shelf_pod_bubble_`. Note that we only keep track
   // of tray bubble of type `TrayBubbleType::kTrayBubble`.
   void SetOpenShelfPodBubble(TrayBubbleView* open_tray_bubble);
+
+  void InitializeAccessibleProperties();
 
   // TODO(jamescook): Introduce a test API instead of these methods.
   LogoutButtonTray* logout_button_tray_for_testing() {
@@ -299,11 +310,12 @@ class ASH_EXPORT StatusAreaWidget : public SessionObserver,
   raw_ptr<StopRecordingButtonTray, DanglingUntriaged>
       stop_recording_button_tray_ = nullptr;
   raw_ptr<FocusModeTray, DanglingUntriaged> focus_mode_tray_ = nullptr;
-  raw_ptr<ProjectorAnnotationTray, DanglingUntriaged>
-      projector_annotation_tray_ = nullptr;
+  raw_ptr<AnnotationTray, DanglingUntriaged> annotation_tray_ = nullptr;
   raw_ptr<VirtualKeyboardTray, DanglingUntriaged> virtual_keyboard_tray_ =
       nullptr;
   raw_ptr<ImeMenuTray, DanglingUntriaged> ime_menu_tray_ = nullptr;
+  raw_ptr<MouseKeysTray, DisableDanglingPtrDetection> mouse_keys_tray_ =
+      nullptr;
   raw_ptr<SelectToSpeakTray, DanglingUntriaged> select_to_speak_tray_ = nullptr;
   raw_ptr<HoldingSpaceTray, DanglingUntriaged> holding_space_tray_ = nullptr;
   raw_ptr<WmModeButtonTray, DanglingUntriaged> wm_mode_button_tray_ = nullptr;

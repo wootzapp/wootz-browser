@@ -26,27 +26,28 @@ import android.view.View.OnClickListener;
 import android.view.View.OnLongClickListener;
 import android.view.ViewGroup;
 
+import androidx.test.core.app.ApplicationProvider;
+
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.Callback;
-import org.chromium.base.FeatureList;
-import org.chromium.base.FeatureList.TestValues;
+import org.chromium.base.FeatureOverrides;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.chrome.browser.toolbar.ButtonData;
-import org.chromium.chrome.browser.toolbar.ButtonData.ButtonSpec;
-import org.chromium.chrome.browser.toolbar.ButtonDataImpl;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarFeatures;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonData.ButtonSpec;
 import org.chromium.chrome.browser.toolbar.optional_button.OptionalButtonCoordinator.TransitionType;
-import org.chromium.chrome.browser.user_education.IPHCommandBuilder;
+import org.chromium.chrome.browser.user_education.IphCommandBuilder;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.components.feature_engagement.Tracker;
@@ -57,6 +58,7 @@ import java.util.function.BooleanSupplier;
 /** Unit tests for OptionalButtonCoordinator. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class OptionalButtonCoordinatorTest {
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private ViewGroup mMockRootView;
     @Mock private BooleanSupplier mMockIsAnimationAllowedDelegate;
     @Mock private OptionalButtonView mMockOptionalButtonView;
@@ -71,12 +73,13 @@ public class OptionalButtonCoordinatorTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-
+        doReturn(ApplicationProvider.getApplicationContext())
+                .when(mMockOptionalButtonView)
+                .getContext();
         mOptionalButtonCoordinator =
                 new OptionalButtonCoordinator(
                         mMockOptionalButtonView,
-                        mMockUserEducationHelper,
+                        () -> mMockUserEducationHelper,
                         mMockRootView,
                         mMockIsAnimationAllowedDelegate,
                         () -> mMockTracker);
@@ -180,16 +183,49 @@ public class OptionalButtonCoordinatorTest {
         View mockView = mock(View.class);
         when(mMockOptionalButtonView.getButtonView()).thenReturn(mockView);
 
-        assertEquals(mockView, mOptionalButtonCoordinator.getButtonViewForTesting());
+        assertEquals(mockView, mOptionalButtonCoordinator.getButtonView());
 
         verify(mMockOptionalButtonView).getButtonView();
+    }
+
+    @Test
+    public void testUpdateButton_hasErrorBadge() {
+        Drawable iconDrawable = mock(Drawable.class);
+        OnClickListener clickListener = view -> {};
+        OnLongClickListener longClickListener =
+                view -> {
+                    return false;
+                };
+        IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
+        String contentDescription = "description";
+        boolean isEnabled = true;
+        ButtonSpec buttonSpec =
+                new ButtonSpec(
+                        iconDrawable,
+                        clickListener,
+                        longClickListener,
+                        contentDescription,
+                        true,
+                        mockIphCommandBuilder,
+                        AdaptiveToolbarButtonVariant.UNKNOWN,
+                        /* actionChipLabelResId= */ 0,
+                        /* tooltipTextResId= */ Resources.ID_NULL,
+                        /* showBackgroundHighlight= */ false,
+                        /* hasErrorBadge= */ true);
+        ButtonDataImpl buttonData = new ButtonDataImpl();
+        buttonData.setButtonSpec(buttonSpec);
+        buttonData.setEnabled(isEnabled);
+
+        mOptionalButtonCoordinator.updateButton(buttonData, /* isIncognito= */ false);
+
+        verify(mMockOptionalButtonView).updateButtonWithAnimation(buttonData);
     }
 
     @Test
     public void testUpdateButton_backgroundVisible() {
         Drawable iconDrawable = mock(Drawable.class);
         OnClickListener clickListener = view -> {};
-        IPHCommandBuilder mockIphCommandBuilder = mock(IPHCommandBuilder.class);
+        IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         boolean isEnabled = true;
         ButtonData buttonData =
@@ -203,13 +239,13 @@ public class OptionalButtonCoordinatorTest {
                         /* isEnabled= */ isEnabled,
                         AdaptiveToolbarButtonVariant.UNKNOWN,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false);
 
         View backgroundView = Mockito.mock(View.class);
         doReturn(View.VISIBLE).when(backgroundView).getVisibility();
         doReturn(backgroundView).when(mMockOptionalButtonView).getBackgroundView();
 
-        mOptionalButtonCoordinator.updateButton(buttonData);
+        mOptionalButtonCoordinator.updateButton(buttonData, /* isIncognito= */ false);
 
         // IPH command builder must be populated with view specific properties.
         verify(mockIphCommandBuilder).setAnchorView(eq(backgroundView));
@@ -227,7 +263,7 @@ public class OptionalButtonCoordinatorTest {
     public void testUpdateButton_backgroundGone() {
         Drawable iconDrawable = mock(Drawable.class);
         OnClickListener clickListener = view -> {};
-        IPHCommandBuilder mockIphCommandBuilder = mock(IPHCommandBuilder.class);
+        IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         boolean isEnabled = true;
         ButtonData buttonData =
@@ -241,13 +277,13 @@ public class OptionalButtonCoordinatorTest {
                         /* isEnabled= */ isEnabled,
                         AdaptiveToolbarButtonVariant.UNKNOWN,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false);
 
         View backgroundView = Mockito.mock(View.class);
         doReturn(View.GONE).when(backgroundView).getVisibility();
         doReturn(backgroundView).when(mMockOptionalButtonView).getBackgroundView();
 
-        mOptionalButtonCoordinator.updateButton(buttonData);
+        mOptionalButtonCoordinator.updateButton(buttonData, /* isIncognito= */ false);
 
         // IPH command builder must be populated with view specific properties.
         verify(mockIphCommandBuilder).setAnchorView(eq(mMockOptionalButtonView));
@@ -266,7 +302,7 @@ public class OptionalButtonCoordinatorTest {
     public void testUpdateButton_showingIphChangesBackgroundAlpha() {
         Drawable iconDrawable = mock(Drawable.class);
         OnClickListener clickListener = view -> {};
-        IPHCommandBuilder mockIphCommandBuilder = mock(IPHCommandBuilder.class);
+        IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         boolean isEnabled = true;
         ButtonData buttonData =
@@ -280,12 +316,12 @@ public class OptionalButtonCoordinatorTest {
                         /* isEnabled= */ isEnabled,
                         AdaptiveToolbarButtonVariant.UNKNOWN,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false);
 
         ArgumentCaptor<Runnable> onShowCallbackCaptor = ArgumentCaptor.forClass(Runnable.class);
         ArgumentCaptor<Runnable> onDismissCallbackCaptor = ArgumentCaptor.forClass(Runnable.class);
 
-        mOptionalButtonCoordinator.updateButton(buttonData);
+        mOptionalButtonCoordinator.updateButton(buttonData, /* isIncognito= */ false);
 
         verify(mockIphCommandBuilder).setOnShowCallback(onShowCallbackCaptor.capture());
         verify(mockIphCommandBuilder).setOnDismissCallback(onDismissCallbackCaptor.capture());
@@ -303,16 +339,14 @@ public class OptionalButtonCoordinatorTest {
     public void testUpdateButton_actionChipResourceIdGetsRemovedWhenNotInVariant() {
         AdaptiveToolbarFeatures.setIsDynamicActionForTesting(
                 AdaptiveToolbarButtonVariant.TEST_BUTTON, true);
-        TestValues testValues = new TestValues();
-        testValues.addFieldTrialParamOverride(
+        FeatureOverrides.overrideParam(
                 AdaptiveToolbarFeatures.CONTEXTUAL_PAGE_ACTION_TEST_FEATURE_NAME,
                 "action_chip",
-                "false");
-        FeatureList.setTestValues(testValues);
+                false);
 
         Drawable iconDrawable = mock(Drawable.class);
         OnClickListener clickListener = view -> {};
-        IPHCommandBuilder mockIphCommandBuilder = mock(IPHCommandBuilder.class);
+        IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         int actionChipResourceId = 987654;
         boolean isEnabled = true;
@@ -328,9 +362,9 @@ public class OptionalButtonCoordinatorTest {
                         /* isEnabled= */ isEnabled,
                         AdaptiveToolbarButtonVariant.TEST_BUTTON,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false);
 
-        mOptionalButtonCoordinator.updateButton(buttonData);
+        mOptionalButtonCoordinator.updateButton(buttonData, /* isIncognito= */ false);
 
         verify(mMockOptionalButtonView).updateButtonWithAnimation(buttonData);
         Assert.assertEquals(
@@ -341,21 +375,19 @@ public class OptionalButtonCoordinatorTest {
     public void testUpdateButton_actionChipResourceIdGetsRemovedByFeatureEngagement() {
         AdaptiveToolbarFeatures.setIsDynamicActionForTesting(
                 AdaptiveToolbarButtonVariant.TEST_BUTTON, true);
-        TestValues testValues = new TestValues();
-        testValues.addFieldTrialParamOverride(
+        FeatureOverrides.overrideParam(
                 AdaptiveToolbarFeatures.CONTEXTUAL_PAGE_ACTION_TEST_FEATURE_NAME,
                 "action_chip",
-                "true");
-        FeatureList.setTestValues(testValues);
+                true);
 
         doReturn(true).when(mMockTracker).isInitialized();
         doReturn(false)
                 .when(mMockTracker)
-                .shouldTriggerHelpUI(FeatureConstants.CONTEXTUAL_PAGE_ACTIONS_ACTION_CHIP);
+                .shouldTriggerHelpUi(FeatureConstants.CONTEXTUAL_PAGE_ACTIONS_ACTION_CHIP);
 
         Drawable iconDrawable = mock(Drawable.class);
         OnClickListener clickListener = view -> {};
-        IPHCommandBuilder mockIphCommandBuilder = mock(IPHCommandBuilder.class);
+        IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         int actionChipResourceId = 987654;
         boolean isEnabled = true;
@@ -371,9 +403,9 @@ public class OptionalButtonCoordinatorTest {
                         /* isEnabled= */ isEnabled,
                         AdaptiveToolbarButtonVariant.TEST_BUTTON,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false);
 
-        mOptionalButtonCoordinator.updateButton(buttonData);
+        mOptionalButtonCoordinator.updateButton(buttonData, /* isIncognito= */ false);
 
         verify(mMockOptionalButtonView).updateButtonWithAnimation(buttonData);
         Assert.assertEquals(
@@ -384,21 +416,19 @@ public class OptionalButtonCoordinatorTest {
     public void testUpdateButton_actionChipResourceIdGetsKeptByFeatureEngagement() {
         AdaptiveToolbarFeatures.setIsDynamicActionForTesting(
                 AdaptiveToolbarButtonVariant.TEST_BUTTON, true);
-        TestValues testValues = new TestValues();
-        testValues.addFieldTrialParamOverride(
+        FeatureOverrides.overrideParam(
                 AdaptiveToolbarFeatures.CONTEXTUAL_PAGE_ACTION_TEST_FEATURE_NAME,
                 "action_chip",
-                "true");
-        FeatureList.setTestValues(testValues);
+                true);
 
         doReturn(true).when(mMockTracker).isInitialized();
         doReturn(true)
                 .when(mMockTracker)
-                .shouldTriggerHelpUI(FeatureConstants.CONTEXTUAL_PAGE_ACTIONS_ACTION_CHIP);
+                .shouldTriggerHelpUi(FeatureConstants.CONTEXTUAL_PAGE_ACTIONS_ACTION_CHIP);
 
         Drawable iconDrawable = mock(Drawable.class);
         OnClickListener clickListener = view -> {};
-        IPHCommandBuilder mockIphCommandBuilder = mock(IPHCommandBuilder.class);
+        IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         int actionChipResourceId = 987654;
         boolean isEnabled = true;
@@ -414,9 +444,9 @@ public class OptionalButtonCoordinatorTest {
                         /* isEnabled= */ isEnabled,
                         AdaptiveToolbarButtonVariant.TEST_BUTTON,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false);
 
-        mOptionalButtonCoordinator.updateButton(buttonData);
+        mOptionalButtonCoordinator.updateButton(buttonData, /* isIncognito= */ false);
 
         verify(mMockOptionalButtonView).updateButtonWithAnimation(buttonData);
         Assert.assertEquals(
@@ -442,15 +472,15 @@ public class OptionalButtonCoordinatorTest {
                         /* isEnabled= */ true,
                         AdaptiveToolbarButtonVariant.UNKNOWN,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false);
 
         // Call update button with an enabled button.
-        mOptionalButtonCoordinator.updateButton(buttonData);
+        mOptionalButtonCoordinator.updateButton(buttonData, /* isIncognito= */ false);
 
         buttonData.setEnabled(false);
 
         // Call updateButton with the same data, but with enabled = false.
-        mOptionalButtonCoordinator.updateButton(buttonData);
+        mOptionalButtonCoordinator.updateButton(buttonData, /* isIncognito= */ false);
 
         // Button should be disabled.
         verify(mockButtonView).setEnabled(false);
@@ -469,7 +499,7 @@ public class OptionalButtonCoordinatorTest {
                 view -> {
                     return false;
                 };
-        IPHCommandBuilder mockIphCommandBuilder = mock(IPHCommandBuilder.class);
+        IphCommandBuilder mockIphCommandBuilder = mock(IphCommandBuilder.class);
         String contentDescription = "description";
         boolean isEnabled = true;
         ButtonSpec buttonSpec =
@@ -483,12 +513,13 @@ public class OptionalButtonCoordinatorTest {
                         AdaptiveToolbarButtonVariant.UNKNOWN,
                         /* actionChipLabelResId= */ 0,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false,
+                        /* hasErrorBadge= */ false);
         ButtonDataImpl buttonData = new ButtonDataImpl();
         buttonData.setButtonSpec(buttonSpec);
         buttonData.setEnabled(isEnabled);
 
-        mOptionalButtonCoordinator.updateButton(buttonData);
+        mOptionalButtonCoordinator.updateButton(buttonData, /* isIncognito= */ false);
 
         // Call the finished callback twice to ensure the IPH is only shown once.
         transitionFinishedCallback.onResult(TransitionType.SWAPPING);
@@ -496,6 +527,6 @@ public class OptionalButtonCoordinatorTest {
 
         // IPH should have been built and shown only once.
         verify(mockIphCommandBuilder).build();
-        verify(mMockUserEducationHelper).requestShowIPH(any());
+        verify(mMockUserEducationHelper).requestShowIph(any());
     }
 }

@@ -5,6 +5,7 @@
 #include "base/i18n/break_iterator.h"
 
 #include <stdint.h>
+
 #include <ostream>
 #include <string_view>
 
@@ -17,8 +18,7 @@
 #include "third_party/icu/source/common/unicode/uchar.h"
 #include "third_party/icu/source/common/unicode/ustring.h"
 
-namespace base {
-namespace i18n {
+namespace base::i18n {
 
 namespace {
 
@@ -37,8 +37,8 @@ class DefaultLocaleBreakIteratorCache {
     main_ = UBreakIteratorPtr(
         ubrk_open(break_type, nullptr, nullptr, 0, &main_status_));
     if (U_FAILURE(main_status_)) {
-      NOTREACHED_IN_MIGRATION() << "ubrk_open failed for type " << break_type
-                                << " with error " << main_status_;
+      NOTREACHED() << "ubrk_open failed for type " << break_type
+                   << " with error " << main_status_;
     }
   }
   UBreakIteratorPtr Lease(UErrorCode& status) {
@@ -61,8 +61,8 @@ class DefaultLocaleBreakIteratorCache {
     UBreakIteratorPtr result(
         ubrk_open(break_type, nullptr, nullptr, 0, &status));
     if (U_FAILURE(status)) {
-      NOTREACHED_IN_MIGRATION() << "ubrk_open failed for type " << break_type
-                                << " with error " << status;
+      NOTREACHED() << "ubrk_open failed for type " << break_type
+                   << " with error " << status;
     }
     return result;
   }
@@ -146,9 +146,8 @@ bool BreakIterator::Init() {
           ubrk_openRules(rules_.c_str(), static_cast<int32_t>(rules_.length()),
                          nullptr, 0, &parse_error, &status));
       if (U_FAILURE(status)) {
-        NOTREACHED_IN_MIGRATION()
-            << "ubrk_openRules failed to parse rule string at line "
-            << parse_error.line << ", offset " << parse_error.offset;
+        NOTREACHED() << "ubrk_openRules failed to parse rule string at line "
+                     << parse_error.line << ", offset " << parse_error.offset;
       }
       break;
   }
@@ -190,8 +189,9 @@ bool BreakIterator::Advance() {
     case BREAK_NEWLINE:
       do {
         pos = ubrk_next(iter_.get());
-        if (pos == UBRK_DONE)
+        if (pos == UBRK_DONE) {
           break;
+        }
         pos_ = static_cast<size_t>(pos);
         status = ubrk_getRuleStatus(iter_.get());
       } while (status >= UBRK_LINE_SOFT && status < UBRK_LINE_SOFT_LIMIT);
@@ -209,8 +209,7 @@ bool BreakIterator::SetText(std::u16string_view text) {
   pos_ = 0;  // implicit when ubrk_setText is done
   prev_ = npos;
   if (U_FAILURE(status)) {
-    NOTREACHED_IN_MIGRATION() << "ubrk_setText failed";
-    return false;
+    NOTREACHED() << "ubrk_setText failed";
   }
   string_ = text;
   return true;
@@ -222,8 +221,9 @@ bool BreakIterator::IsWord() const {
 
 BreakIterator::WordBreakStatus BreakIterator::GetWordBreakStatus() const {
   int32_t status = ubrk_getRuleStatus(iter_.get());
-  if (break_type_ != BREAK_WORD && break_type_ != RULE_BASED)
+  if (break_type_ != BREAK_WORD && break_type_ != RULE_BASED) {
     return IS_LINE_OR_CHAR_BREAK;
+  }
   // In ICU 60, trying to advance past the end of the text does not change
   // |status| so that |pos_| has to be checked as well as |status|.
   // See http://bugs.icu-project.org/trac/ticket/13447 .
@@ -232,8 +232,9 @@ BreakIterator::WordBreakStatus BreakIterator::GetWordBreakStatus() const {
 }
 
 bool BreakIterator::IsEndOfWord(size_t position) const {
-  if (break_type_ != BREAK_WORD && break_type_ != RULE_BASED)
+  if (break_type_ != BREAK_WORD && break_type_ != RULE_BASED) {
     return false;
+  }
 
   UBool boundary = ubrk_isBoundary(iter_.get(), static_cast<int32_t>(position));
   int32_t status = ubrk_getRuleStatus(iter_.get());
@@ -241,8 +242,9 @@ bool BreakIterator::IsEndOfWord(size_t position) const {
 }
 
 bool BreakIterator::IsStartOfWord(size_t position) const {
-  if (break_type_ != BREAK_WORD && break_type_ != RULE_BASED)
+  if (break_type_ != BREAK_WORD && break_type_ != RULE_BASED) {
     return false;
+  }
 
   UBool boundary = ubrk_isBoundary(iter_.get(), static_cast<int32_t>(position));
   ubrk_next(iter_.get());
@@ -251,27 +253,25 @@ bool BreakIterator::IsStartOfWord(size_t position) const {
 }
 
 bool BreakIterator::IsSentenceBoundary(size_t position) const {
-  if (break_type_ != BREAK_SENTENCE && break_type_ != RULE_BASED)
+  if (break_type_ != BREAK_SENTENCE && break_type_ != RULE_BASED) {
     return false;
+  }
 
   return !!ubrk_isBoundary(iter_.get(), static_cast<int32_t>(position));
 }
 
 bool BreakIterator::IsGraphemeBoundary(size_t position) const {
-  if (break_type_ != BREAK_CHARACTER)
+  if (break_type_ != BREAK_CHARACTER) {
     return false;
+  }
 
   return !!ubrk_isBoundary(iter_.get(), static_cast<int32_t>(position));
 }
 
-std::u16string BreakIterator::GetString() const {
-  return std::u16string(GetStringView());
-}
-
-std::u16string_view BreakIterator::GetStringView() const {
-  DCHECK(prev_ != npos && pos_ != npos);
+std::u16string_view BreakIterator::GetString() const {
+  DCHECK_NE(prev_, npos);
+  DCHECK_NE(pos_, npos);
   return string_.substr(prev_, pos_ - prev_);
 }
 
-}  // namespace i18n
-}  // namespace base
+}  // namespace base::i18n

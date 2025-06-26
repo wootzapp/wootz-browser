@@ -23,6 +23,7 @@
 #include "ash/public/cpp/capture_mode/capture_mode_test_api.h"
 #include "ash/public/cpp/window_properties.h"
 #include "ash/screen_util.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/pill_button.h"
@@ -63,8 +64,7 @@ class GameDashboardCaptureModeTest : public AshTestBase {
  public:
   GameDashboardCaptureModeTest() {
     scoped_feature_list_.InitWithFeatures(
-        /*enabled_features=*/{features::kGameDashboard,
-                              features::
+        /*enabled_features=*/{features::
                                   kFeatureManagementGameDashboardRecordGame},
         /*disabled_features=*/{});
   }
@@ -79,7 +79,6 @@ class GameDashboardCaptureModeTest : public AshTestBase {
   // AshTestBase:
   void SetUp() override {
     AshTestBase::SetUp();
-    EXPECT_TRUE(features::IsGameDashboardEnabled());
 
     // Disable the Game Dashboard welcome dialog for all game windows.
     PrefService* active_user_prefs =
@@ -146,9 +145,29 @@ TEST_F(GameDashboardCaptureModeTest, GameDashboardBehavior) {
   EXPECT_FALSE(active_behavior->ShouldGifBeSupported());
   EXPECT_TRUE(active_behavior->ShouldShowPreviewNotification());
   EXPECT_FALSE(active_behavior->ShouldSkipVideoRecordingCountDown());
-  EXPECT_FALSE(active_behavior->ShouldCreateRecordingOverlayController());
+  EXPECT_FALSE(active_behavior->ShouldCreateAnnotationsOverlayController());
   EXPECT_FALSE(active_behavior->ShouldShowUserNudge());
   EXPECT_TRUE(active_behavior->ShouldAutoSelectFirstCamera());
+}
+
+// Tests that a fullscreen screenshot can be taken via the keyboard shortcut
+// while a Game-Dashboard-initiated session is active without ending the
+// session.
+TEST_F(GameDashboardCaptureModeTest, FullscreenScreenshotKeyCombo) {
+  StartGameCaptureModeSession();
+  PressAndReleaseKey(ui::VKEY_MEDIA_LAUNCH_APP1, ui::EF_CONTROL_DOWN);
+  WaitForCaptureFileToBeSaved();
+  VerifyActiveBehavior(BehaviorType::kGameDashboard);
+}
+
+// Tests that if the user presses the shortcut to switch to default capture
+// mode, it is ignored.
+TEST_F(GameDashboardCaptureModeTest, SwitchToDefaultCaptureMode) {
+  StartGameCaptureModeSession();
+  VerifyActiveBehavior(BehaviorType::kGameDashboard);
+  PressAndReleaseKey(ui::VKEY_MEDIA_LAUNCH_APP1,
+                     ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN);
+  VerifyActiveBehavior(BehaviorType::kGameDashboard);
 }
 
 // Tests that when starting the capture mode session from game dashboard, the

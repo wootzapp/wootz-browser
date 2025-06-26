@@ -31,19 +31,23 @@ bool IsLoading(PageNode::LoadingState loading_state) {
 // static
 const char LoadingPageVoter::kPageIsLoadingReason[] = "Page is loading.";
 
-LoadingPageVoter::LoadingPageVoter(VotingChannel voting_channel)
-    : voting_channel_(std::move(voting_channel)) {}
+LoadingPageVoter::LoadingPageVoter() = default;
 
 LoadingPageVoter::~LoadingPageVoter() = default;
 
-void LoadingPageVoter::InitializeOnGraph(Graph* graph) {
+void LoadingPageVoter::InitializeOnGraph(Graph* graph,
+                                         VotingChannel voting_channel) {
+  voting_channel_ = std::move(voting_channel);
+
   graph->AddPageNodeObserver(this);
-  graph->AddInitializingFrameNodeObserver(this);
+  graph->AddFrameNodeObserver(this);
 }
 
 void LoadingPageVoter::TearDownOnGraph(Graph* graph) {
+  graph->RemoveFrameNodeObserver(this);
   graph->RemovePageNodeObserver(this);
-  graph->RemoveInitializingFrameNodeObserver(this);
+
+  voting_channel_.Reset();
 }
 
 void LoadingPageVoter::OnPageNodeAdded(const PageNode* page_node) {
@@ -76,8 +80,13 @@ void LoadingPageVoter::OnLoadingStateChanged(
   }
 }
 
-void LoadingPageVoter::OnFrameNodeInitializing(const FrameNode* frame_node) {
-  if (!IsLoading(frame_node->GetPageNode()->GetLoadingState())) {
+void LoadingPageVoter::OnBeforeFrameNodeAdded(
+    const FrameNode* frame_node,
+    const FrameNode* pending_parent_frame_node,
+    const PageNode* pending_page_node,
+    const ProcessNode* pending_process_node,
+    const FrameNode* pending_parent_or_outer_document_or_embedder) {
+  if (!IsLoading(pending_page_node->GetLoadingState())) {
     return;
   }
 
@@ -86,7 +95,7 @@ void LoadingPageVoter::OnFrameNodeInitializing(const FrameNode* frame_node) {
       Vote(base::TaskPriority::USER_VISIBLE, kPageIsLoadingReason));
 }
 
-void LoadingPageVoter::OnFrameNodeTearingDown(const FrameNode* frame_node) {
+void LoadingPageVoter::OnBeforeFrameNodeRemoved(const FrameNode* frame_node) {
   if (!IsLoading(frame_node->GetPageNode()->GetLoadingState())) {
     return;
   }
@@ -95,17 +104,15 @@ void LoadingPageVoter::OnFrameNodeTearingDown(const FrameNode* frame_node) {
 }
 
 void LoadingPageVoter::OnPageNodeStartedLoading(const PageNode* page_node) {
-  page_node->VisitMainFrameNodes([this](const FrameNode* main_frame_node) {
+  for (const FrameNode* main_frame_node : page_node->GetMainFrameNodes()) {
     SubmitVoteForSubtree(main_frame_node);
-    return true;
-  });
+  }
 }
 
 void LoadingPageVoter::OnPageNodeStoppedLoading(const PageNode* page_node) {
-  page_node->VisitMainFrameNodes([this](const FrameNode* main_frame_node) {
+  for (const FrameNode* main_frame_node : page_node->GetMainFrameNodes()) {
     InvalidateVoteForSubtree(main_frame_node);
-    return true;
-  });
+  }
 }
 
 void LoadingPageVoter::SubmitVoteForSubtree(const FrameNode* frame_node) {
@@ -114,20 +121,18 @@ void LoadingPageVoter::SubmitVoteForSubtree(const FrameNode* frame_node) {
       Vote(base::TaskPriority::USER_VISIBLE, kPageIsLoadingReason));
 
   // Recurse through subtree.
-  frame_node->VisitChildFrameNodes([this](const FrameNode* frame_node) {
-    SubmitVoteForSubtree(frame_node);
-    return true;
-  });
+  for (const FrameNode* child_frame_node : frame_node->GetChildFrameNodes()) {
+    SubmitVoteForSubtree(child_frame_node);
+  }
 }
 
 void LoadingPageVoter::InvalidateVoteForSubtree(const FrameNode* frame_node) {
   voting_channel_.InvalidateVote(GetExecutionContext(frame_node));
 
   // Recurse through subtree.
-  frame_node->VisitChildFrameNodes([this](const FrameNode* frame_node) {
-    InvalidateVoteForSubtree(frame_node);
-    return true;
-  });
+  for (const FrameNode* child_frame_node : frame_node->GetChildFrameNodes()) {
+    InvalidateVoteForSubtree(child_frame_node);
+  }
 }
 
 }  // namespace performance_manager::execution_context_priority

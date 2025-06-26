@@ -5,10 +5,11 @@
 #include "base/process/memory.h"
 
 #include <stdlib.h>
+
 #include <new>
 
 #include "build/build_config.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/shim/allocator_interception_apple.h"
 #include "partition_alloc/shim/allocator_shim.h"
 
@@ -39,7 +40,7 @@ bool UncheckedMalloc(size_t size, void** result) {
   // least) allocate in static constructors. Meaning that this code is
   // sufficient to cause a crash:
   //
-  // void* ptr = []() {
+  // void* ptr = [] {
   //  void* ptr;
   //  bool ok = base::UncheckedMalloc(1000, &ptr);
   //  CHECK(ok);

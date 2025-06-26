@@ -46,27 +46,26 @@ static bool IsCSSTokenizerIdentifier(const StringView& string) {
     return false;
   }
 
-  return WTF::VisitCharacters(string, [](const auto* chars, unsigned length) {
-    const auto* end = chars + length;
+  return WTF::VisitCharacters(string, [](auto chars) {
+    size_t index{0};
 
     // -?
-    if (chars != end && chars[0] == '-') {
-      ++chars;
+    if (chars[index] == '-') {
+      ++index;
     }
 
     // {nmstart}
-    if (chars == end || !IsNameStartCodePoint(chars[0])) {
+    if (index == chars.size() || !IsNameStartCodePoint(chars[index])) {
       return false;
     }
-    ++chars;
+    ++index;
 
     // {nmchar}*
-    for (; chars != end; ++chars) {
-      if (!IsNameCodePoint(chars[0])) {
+    for (; index < chars.size(); ++index) {
+      if (!IsNameCodePoint(chars[index])) {
         return false;
       }
     }
-
     return true;
   });
 }

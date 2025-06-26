@@ -143,8 +143,7 @@ std::string GetDownloadBlockingExtensionMetricName(
           kInsecureDownloadExtensionInitiatorInferredInsecure,
           kInsecureDownloadHistogramTargetInsecure);
     case InsecureDownloadSecurityStatus::kDownloadIgnored:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case InsecureDownloadSecurityStatus::kInitiatorInsecureNonUniqueFileSecure:
       return GetDLBlockingHistogramName(
           kInsecureDownloadExtensionInitiatorInsecureNonUnique,
@@ -155,8 +154,7 @@ std::string GetDownloadBlockingExtensionMetricName(
           kInsecureDownloadExtensionInitiatorInsecureNonUnique,
           kInsecureDownloadHistogramTargetInsecure);
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 // Get appropriate enum value for the initiator/download security state combo
@@ -227,6 +225,14 @@ struct InsecureDownloadData {
     // Extract extension.
 #if BUILDFLAG(IS_WIN)
     extension_ = base::WideToUTF8(path.FinalExtension());
+#elif BUILDFLAG(IS_ANDROID)
+    // If the file path is a content URI, extension should come from the file
+    // name.
+    if (path.IsContentUri()) {
+      extension_ = item->GetFileNameToReportUser().FinalExtension();
+    } else {
+      extension_ = path.FinalExtension();
+    }
 #else
     extension_ = path.FinalExtension();
 #endif
@@ -303,9 +309,10 @@ struct InsecureDownloadData {
       auto security_status =
           GetDownloadBlockingEnum(initiator_, download_delivered_securely,
                                   initiator_inferred, insecure_nonunique);
-      base::UmaHistogramEnumeration(
-          GetDownloadBlockingExtensionMetricName(security_status),
-          GetExtensionEnumFromString(extension_));
+      std::string metric_name =
+          GetDownloadBlockingExtensionMetricName(security_status);
+      base::UmaHistogramEnumeration(metric_name,
+                                    GetExtensionEnumFromString(extension_));
       base::UmaHistogramEnumeration(kInsecureDownloadHistogramName,
                                     security_status);
       download::RecordDownloadValidationMetrics(
@@ -376,14 +383,14 @@ bool ContainsExtension(const std::string& extension_list,
 // Just print a descriptive message to the console about the blocked download.
 // |is_blocked| indicates whether this download will be blocked now.
 void PrintConsoleMessage(const InsecureDownloadData& data) {
-  content::WebContents* web_contents =
-      content::DownloadItemUtils::GetWebContents(data.item_);
-  if (!web_contents) {
+  content::RenderFrameHost* rfh =
+      content::DownloadItemUtils::GetRenderFrameHost(data.item_);
+  if (!rfh) {
     return;
   }
 
   if (data.is_mixed_content_) {
-    web_contents->GetPrimaryMainFrame()->AddMessageToConsole(
+    rfh->AddMessageToConsole(
         blink::mojom::ConsoleMessageLevel::kError,
         base::StringPrintf(
             "Mixed Content: The site at '%s' was loaded over a secure "
@@ -398,7 +405,7 @@ void PrintConsoleMessage(const InsecureDownloadData& data) {
     return;
   }
 
-  web_contents->GetPrimaryMainFrame()->AddMessageToConsole(
+  rfh->AddMessageToConsole(
       blink::mojom::ConsoleMessageLevel::kError,
       base::StringPrintf(
           "The file at '%s' was %s an insecure connection. "
@@ -413,7 +420,9 @@ bool IsDownloadPermittedByContentSettings(
     const std::optional<url::Origin>& initiator) {
   // TODO(crbug.com/40117459): Checking content settings crashes unit tests on
   // Android. It shouldn't.
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
+  return false;
+#else
   HostContentSettingsMap* host_content_settings_map =
       HostContentSettingsMapFactory::GetForProfile(profile);
   ContentSettingsForOneType settings =
@@ -432,10 +441,8 @@ bool IsDownloadPermittedByContentSettings(
       return setting.GetContentSetting() == CONTENT_SETTING_ALLOW;
     }
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 #endif
-
-  return false;
 }
 
 bool IsHttpsFirstModeEnabled(Profile* profile) {

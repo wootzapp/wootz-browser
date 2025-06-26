@@ -16,9 +16,12 @@
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/path_service.h"
 #include "base/scoped_native_library.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/timer/elapsed_timer.h"
+#include "base/win/com_init_util.h"
 #include "base/win/scoped_bstr.h"
 #include "base/win/scoped_com_initializer.h"
 #include "base/win/scoped_variant.h"
@@ -28,6 +31,7 @@
 #include "chrome/installer/util/registry_util.h"
 #include "chrome/installer/util/taskbar_util.h"
 #include "chrome/services/util_win/av_products.h"
+#include "chrome/services/util_win/tpm_metrics.h"
 #include "third_party/metrics_proto/system_profile.pb.h"
 #include "ui/shell_dialogs/execute_select_file_win.h"
 
@@ -37,7 +41,9 @@ namespace {
 // keeps track of the errors that occurs that prevents it from getting a result.
 class IsPinnedToTaskbarHelper {
  public:
-  IsPinnedToTaskbarHelper() = default;
+  IsPinnedToTaskbarHelper() {
+    base::win::AssertComApartmentType(base::win::ComApartmentType::STA);
+  }
 
   IsPinnedToTaskbarHelper(const IsPinnedToTaskbarHelper&) = delete;
   IsPinnedToTaskbarHelper& operator=(const IsPinnedToTaskbarHelper&) = delete;
@@ -68,7 +74,6 @@ class IsPinnedToTaskbarHelper {
       const installer::ProgramCompare& program_compare);
 
   bool error_occured_ = false;
-  base::win::ScopedCOMInitializer scoped_com_initializer_;
 };
 
 std::wstring IsPinnedToTaskbarHelper::LoadShellResourceString(
@@ -243,7 +248,8 @@ void UtilWinImpl::IsPinnedToTaskbar(IsPinnedToTaskbarCallback callback) {
 void UtilWinImpl::UnpinShortcuts(
     const std::vector<base::FilePath>& shortcut_paths,
     UnpinShortcutsCallback callback) {
-  base::win::ScopedCOMInitializer scoped_com_initializer;
+  base::win::AssertComApartmentType(base::win::ComApartmentType::STA);
+
   for (const auto& shortcut_path : shortcut_paths)
     UnpinShortcutFromTaskbar(shortcut_path);
 
@@ -255,11 +261,8 @@ void UtilWinImpl::CreateOrUpdateShortcuts(
     const std::vector<base::win::ShortcutProperties>& properties,
     base::win::ShortcutOperation operation,
     CreateOrUpdateShortcutsCallback callback) {
-  base::win::ScopedCOMInitializer com_initializer;
-  if (!com_initializer.Succeeded()) {
-    std::move(callback).Run(false);
-    return;
-  }
+  base::win::AssertComApartmentType(base::win::ComApartmentType::STA);
+
   bool ret = true;
   for (size_t i = 0; i < shortcut_paths.size(); ++i) {
     ret &= base::win::CreateOrUpdateShortcutLink(shortcut_paths[i],
@@ -277,15 +280,20 @@ void UtilWinImpl::CallExecuteSelectFile(
     int32_t file_type_index,
     const std::u16string& default_extension,
     CallExecuteSelectFileCallback callback) {
-  base::win::ScopedCOMInitializer scoped_com_initializer;
+  base::win::AssertComApartmentType(base::win::ComApartmentType::STA);
 
   base::win::EnableHighDPISupport();
+
+  base::ElapsedTimer elapsed_time;
 
   ui::ExecuteSelectFile(
       type, title, default_path, filter, file_type_index,
       base::UTF16ToWide(default_extension),
       reinterpret_cast<HWND>(base::win::Uint32ToHandle(owner)),
       std::move(callback));
+
+  base::UmaHistogramMediumTimes("Windows.TimeInSelectFileDialog",
+                                elapsed_time.Elapsed());
 }
 
 void UtilWinImpl::InspectModule(const base::FilePath& module_path,
@@ -295,7 +303,10 @@ void UtilWinImpl::InspectModule(const base::FilePath& module_path,
 
 void UtilWinImpl::GetAntiVirusProducts(bool report_full_names,
                                        GetAntiVirusProductsCallback callback) {
-  base::win::ScopedCOMInitializer scoped_com_initializer;
+  base::win::AssertComApartmentType(base::win::ComApartmentType::STA);
   std::move(callback).Run(::GetAntiVirusProducts(report_full_names));
 }
 
+void UtilWinImpl::GetTpmIdentifier(GetTpmIdentifierCallback callback) {
+  std::move(callback).Run(::GetTpmIdentifier());
+}

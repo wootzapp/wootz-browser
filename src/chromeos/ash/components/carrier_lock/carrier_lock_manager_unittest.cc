@@ -14,7 +14,6 @@
 #include "base/base64.h"
 #include "base/strings/string_util.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
 #include "chromeos/ash/components/network/fake_network_3gpp_handler.h"
@@ -64,9 +63,6 @@ class CarrierLockManagerTest : public testing::Test {
  protected:
   // testing::Test:
   void SetUp() override {
-    // Enable Carrier Lock feature flag
-    scoped_feature_list_.InitAndEnableFeature(features::kCellularCarrierLock);
-
     pref_state_ = std::make_unique<TestingPrefServiceSimple>();
     ash::carrier_lock::CarrierLockManager::RegisterLocalPrefs(
         pref_state_->registry());
@@ -95,7 +91,6 @@ class CarrierLockManagerTest : public testing::Test {
   base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   std::unique_ptr<MockDelegate> mock_delegate_;
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 void CarrierLockManagerTest::RunManager() {

@@ -23,6 +23,10 @@
 #include "ui/display/types/display_constants.h"
 #endif
 
+#if BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_IOS_TVOS)
+#include <BrowserEngineKit/BrowserEngineKit.h>
+#endif
+
 @class CAContext;
 @class CALayer;
 
@@ -35,7 +39,9 @@ namespace gpu {
 
 class ImageTransportSurfaceOverlayMacEGL : public gl::Presenter {
  public:
-  ImageTransportSurfaceOverlayMacEGL();
+  ImageTransportSurfaceOverlayMacEGL(
+      scoped_refptr<SharedContextState> context_state,
+      SurfaceHandle surface_handle);
 
   // Presenter implementation
   bool Resize(const gfx::Size& size,
@@ -53,8 +59,6 @@ class ImageTransportSurfaceOverlayMacEGL : public gl::Presenter {
       const gfx::OverlayPlaneData& overlay_plane_data) override;
 
   bool ScheduleCALayer(const ui::CARendererLayerParams& params) override;
-
-  void SetCALayerErrorCode(gfx::CALayerResult ca_layer_error_code) override;
 
   void SetMaxPendingSwaps(int max_pending_swaps) override;
 
@@ -104,6 +108,10 @@ class ImageTransportSurfaceOverlayMacEGL : public gl::Presenter {
   base::TimeTicks current_display_time_;
   base::TimeTicks next_display_time_;
   base::TimeDelta frame_interval_;
+#endif
+
+#if BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_IOS_TVOS)
+  BELayerHierarchy* __strong layer_hierarchy_;
 #endif
 
   int cap_max_pending_swaps_ = 1;

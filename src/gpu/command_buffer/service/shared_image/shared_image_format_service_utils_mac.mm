@@ -12,6 +12,11 @@
 #include "base/notreached.h"
 #include "components/viz/common/resources/shared_image_format.h"
 
+#if BUILDFLAG(SKIA_USE_METAL)
+#include "third_party/skia/include/gpu/graphite/mtl/MtlGraphiteTypes.h"
+#include "third_party/skia/include/gpu/graphite/mtl/MtlGraphiteTypesUtils.h"
+#endif
+
 namespace gpu {
 
 uint32_t SharedImageFormatToIOSurfacePixelFormat(viz::SharedImageFormat format,
@@ -65,7 +70,7 @@ uint32_t SharedImageFormatToIOSurfacePixelFormat(viz::SharedImageFormat format,
       return 0;
     }
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 unsigned int ToMTLPixelFormat(viz::SharedImageFormat format, int plane_index) {
@@ -81,6 +86,8 @@ unsigned int ToMTLPixelFormat(viz::SharedImageFormat format, int plane_index) {
       mtl_pixel_format = MTLPixelFormatRGBA8Unorm;
     } else if (format == viz::SinglePlaneFormat::kBGRA_8888) {
       mtl_pixel_format = MTLPixelFormatBGRA8Unorm;
+    } else if (format == viz::SinglePlaneFormat::kRGBA_F16) {
+      mtl_pixel_format = MTLPixelFormatRGBA16Float;
     } else {
       DLOG(ERROR) << "Invalid Metal pixel format:" << format.ToString();
     }
@@ -121,7 +128,7 @@ unsigned int ToMTLPixelFormat(viz::SharedImageFormat format, int plane_index) {
 }
 
 #if BUILDFLAG(SKIA_USE_METAL)
-skgpu::graphite::MtlTextureInfo GraphiteMetalTextureInfo(
+skgpu::graphite::TextureInfo GraphiteMetalTextureInfo(
     viz::SharedImageFormat format,
     int plane_index,
     bool is_yuv_plane,
@@ -135,8 +142,7 @@ skgpu::graphite::MtlTextureInfo GraphiteMetalTextureInfo(
   mtl_texture_info.fSampleCount = 1;
   mtl_texture_info.fFormat = mtl_pixel_format;
   mtl_texture_info.fUsage = MTLTextureUsageShaderRead;
-  if (format.is_single_plane() && !format.IsLegacyMultiplanar() &&
-      !is_yuv_plane) {
+  if (format.is_single_plane() && !is_yuv_plane) {
     mtl_texture_info.fUsage |= MTLTextureUsageRenderTarget;
   }
 #if BUILDFLAG(IS_IOS)
@@ -146,7 +152,7 @@ skgpu::graphite::MtlTextureInfo GraphiteMetalTextureInfo(
 #endif
   mtl_texture_info.fMipmapped =
       mipmapped ? skgpu::Mipmapped::kYes : skgpu::Mipmapped::kNo;
-  return mtl_texture_info;
+  return skgpu::graphite::TextureInfos::MakeMetal(mtl_texture_info);
 }
 #endif
 

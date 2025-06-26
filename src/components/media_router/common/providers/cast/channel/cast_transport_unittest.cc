@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "components/media_router/common/providers/cast/channel/cast_transport.h"
 
 #include <stddef.h>
@@ -15,7 +20,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ptr_exclusion.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/run_loop.h"
 #include "base/test/simple_test_clock.h"
 #include "base/test/task_environment.h"
@@ -50,7 +55,7 @@ const int kChannelId = 0;
 // Mockable placeholder for write completion events.
 class CompleteHandler {
  public:
-  CompleteHandler() {}
+  CompleteHandler() = default;
 
   CompleteHandler(const CompleteHandler&) = delete;
   CompleteHandler& operator=(const CompleteHandler&) = delete;
@@ -75,7 +80,7 @@ CastMessage CreateCastMessage() {
 // Pop() in the same order as Push().
 class CompletionQueue {
  public:
-  CompletionQueue() {}
+  CompletionQueue() = default;
 
   CompletionQueue(const CompletionQueue&) = delete;
   CompletionQueue& operator=(const CompletionQueue&) = delete;
@@ -164,7 +169,7 @@ class CastTransportTest : public testing::Test {
         &mock_socket_, kChannelId, CreateIPEndPointForTest(), logger_);
     transport_->SetReadDelegate(base::WrapUnique(delegate_.get()));
   }
-  ~CastTransportTest() override {}
+  ~CastTransportTest() override = default;
 
  protected:
   // Runs all pending tasks in the message loop.
@@ -176,9 +181,7 @@ class CastTransportTest : public testing::Test {
   base::test::SingleThreadTaskEnvironment task_environment_;
   raw_ptr<MockCastTransportDelegate, DanglingUntriaged> delegate_;
   MockSocket mock_socket_;
-  // This field is not a raw_ptr<> because templates made it difficult for the
-  // rewriter to see that |.get()| needs to be appended.
-  RAW_PTR_EXCLUSION Logger* logger_;
+  scoped_refptr<Logger> logger_;
   std::unique_ptr<CastTransport> transport_;
 };
 

@@ -5,6 +5,7 @@
 #import "ios/chrome/app/spotlight/open_tabs_spotlight_manager.h"
 
 #import <CoreSpotlight/CoreSpotlight.h>
+
 #import <memory>
 #import <queue>
 
@@ -84,10 +85,10 @@ const int kBatchSize = 100;
 
 #pragma mark - public
 
-+ (OpenTabsSpotlightManager*)openTabsSpotlightManagerWithBrowserState:
-    (ChromeBrowserState*)browserState {
++ (OpenTabsSpotlightManager*)openTabsSpotlightManagerWithProfile:
+    (ProfileIOS*)profile {
   favicon::LargeIconService* largeIconService =
-      IOSChromeLargeIconServiceFactory::GetForBrowserState(browserState);
+      IOSChromeLargeIconServiceFactory::GetForProfile(profile);
   SearchableItemFactory* searchableItemFactory = [[SearchableItemFactory alloc]
       initWithLargeIconService:largeIconService
                         domain:spotlight::DOMAIN_OPEN_TABS
@@ -95,8 +96,7 @@ const int kBatchSize = 100;
 
   return [[OpenTabsSpotlightManager alloc]
       initWithLargeIconService:largeIconService
-                   browserList:BrowserListFactory::GetForBrowserState(
-                                   browserState)
+                   browserList:BrowserListFactory::GetForProfile(profile)
             spotlightInterface:[SpotlightInterface defaultInterface]
          searchableItemFactory:searchableItemFactory];
 }
@@ -192,6 +192,9 @@ const int kBatchSize = 100;
 
 - (void)browserList:(const BrowserList*)browserList
        browserAdded:(Browser*)browser {
+  if (browser->type() == Browser::Type::kIncognito) {
+    return;
+  }
   // If the initial indexing is still in progress, cancel it and restart.
   if (!_indexingQueue.empty()) {
     [self logReindexInterruption];
@@ -210,11 +213,13 @@ const int kBatchSize = 100;
   }
 
   [self addAllURLsFromWebStateList:webStateList];
-
 }
 
 - (void)browserList:(const BrowserList*)browserList
      browserRemoved:(Browser*)browser {
+  if (browser->type() == Browser::Type::kIncognito) {
+    return;
+  }
   WebStateList* webStateList = browser->GetWebStateList();
   webStateList->RemoveObserver(_webStateListObserverBridge.get());
 
@@ -228,7 +233,7 @@ const int kBatchSize = 100;
   [self removeAllURLsFromWebStateList:webStateList];
 }
 
-- (void)browserListWillShutdown:(const BrowserList*)browserList {
+- (void)browserListWillShutdown:(BrowserList*)browserList {
   [self shutdownAllObservation];
 }
 
@@ -450,7 +455,8 @@ const int kBatchSize = 100;
   // observed as they are batch-indexed.
   [self startObservingAllWebStateLists];
 
-  for (Browser* browser : self.browserList->AllRegularBrowsers()) {
+  for (Browser* browser : self.browserList->BrowsersOfType(
+           BrowserList::BrowserType::kRegularAndInactive)) {
     WebStateList* webStateList = browser->GetWebStateList();
     [self addAllURLsFromWebStateList:webStateList];
   }
@@ -547,7 +553,8 @@ const int kBatchSize = 100;
     return;
   }
 
-  for (Browser* browser : _browserList->AllRegularBrowsers()) {
+  for (Browser* browser : _browserList->BrowsersOfType(
+           BrowserList::BrowserType::kRegularAndInactive)) {
     WebStateList* webStateList = browser->GetWebStateList();
     if (!webStateList) {
       continue;
@@ -571,7 +578,8 @@ const int kBatchSize = 100;
 
   [self stopObservingAllWebStates];
 
-  for (Browser* browser : _browserList->AllRegularBrowsers()) {
+  for (Browser* browser : _browserList->BrowsersOfType(
+           BrowserList::BrowserType::kRegularAndInactive)) {
     WebStateList* webStateList = browser->GetWebStateList();
     webStateList->AddObserver(_webStateListObserverBridge.get());
   }
@@ -584,7 +592,8 @@ const int kBatchSize = 100;
 
   [self startObservingAllWebStateLists];
 
-  for (Browser* browser : _browserList->AllRegularBrowsers()) {
+  for (Browser* browser : _browserList->BrowsersOfType(
+           BrowserList::BrowserType::kRegularAndInactive)) {
     WebStateList* webStateList = browser->GetWebStateList();
     for (int i = 0; i < webStateList->count(); i++) {
       web::WebState* webState = webStateList->GetWebStateAt(i);

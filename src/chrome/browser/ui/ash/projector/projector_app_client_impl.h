@@ -6,14 +6,16 @@
 #define CHROME_BROWSER_UI_ASH_PROJECTOR_PROJECTOR_APP_CLIENT_IMPL_H_
 
 #include <memory>
+#include <string>
 
-#include "ash/public/cpp/projector/projector_annotator_controller.h"
 #include "ash/webui/projector_app/projector_app_client.h"
-#include "ash/webui/projector_app/untrusted_annotator_page_handler_impl.h"
-#include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "base/observer_list.h"
 #include "chrome/browser/ui/ash/projector/pending_screencast_manager.h"
 #include "chrome/browser/ui/ash/projector/screencast_manager.h"
+
+class ApplicationLocaleStorage;
+class PrefService;
 
 namespace network {
 namespace mojom {
@@ -30,7 +32,10 @@ class ProjectorAppClientImpl : public ash::ProjectorAppClient {
  public:
   static void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 
-  ProjectorAppClientImpl();
+  // `local_state` and `application_locale_storage` must not be null, and must
+  // outlive `this`.
+  ProjectorAppClientImpl(PrefService* local_state,
+                         ApplicationLocaleStorage* application_locale_storage);
   ProjectorAppClientImpl(const ProjectorAppClientImpl&) = delete;
   ProjectorAppClientImpl& operator=(const ProjectorAppClientImpl&) = delete;
   ~ProjectorAppClientImpl() override;
@@ -54,21 +59,12 @@ class ProjectorAppClientImpl : public ash::ProjectorAppClient {
       const std::string& video_file_id,
       const std::optional<std::string>& resource_key,
       ash::ProjectorAppClient::OnGetVideoCallback callback) const override;
-  void SetAnnotatorPageHandler(
-      ash::UntrustedAnnotatorPageHandlerImpl* handler) override;
-  void ResetAnnotatorPageHandler(
-      ash::UntrustedAnnotatorPageHandlerImpl* handler) override;
-  void SetTool(const ash::AnnotatorTool& tool) override;
-  void Clear() override;
   void NotifyAppUIActive(bool active) override;
   void ToggleFileSyncingNotificationForPaths(
       const std::vector<base::FilePath>& screencast_paths,
       bool suppress) override;
   void HandleAccountReauth(const std::string& email) override;
 
-  ash::UntrustedAnnotatorPageHandlerImpl* get_annotator_handler_for_test() {
-    return annotator_handler_;
-  }
   PendingScreencastManager* get_pending_screencast_manager_for_test() {
     return &pending_screencast_manager_;
   }
@@ -77,14 +73,15 @@ class ProjectorAppClientImpl : public ash::ProjectorAppClient {
   void NotifyScreencastsPendingStatusChanged(
       const ash::PendingScreencastContainerSet& pending_screencast_containers);
 
+  raw_ref<PrefService> local_state_;
+  raw_ref<ApplicationLocaleStorage> application_locale_storage_;
+
   base::ObserverList<Observer> observers_;
 
   // TODO(b/239098953): This should be owned by `screencast_manager_`;
   PendingScreencastManager pending_screencast_manager_;
 
   ash::ScreencastManager screencast_manager_;
-
-  raw_ptr<ash::UntrustedAnnotatorPageHandlerImpl> annotator_handler_ = nullptr;
 };
 
 #endif  // CHROME_BROWSER_UI_ASH_PROJECTOR_PROJECTOR_APP_CLIENT_IMPL_H_

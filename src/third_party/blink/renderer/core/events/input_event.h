@@ -18,10 +18,10 @@ class InputEvent final : public UIEvent {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  static InputEvent* Create(const AtomicString& type,
-                            const InputEventInit* initializer) {
-    return MakeGarbageCollected<InputEvent>(type, initializer);
-  }
+  static InputEvent* Create(v8::Isolate* isolate,
+                            const AtomicString& type,
+                            const InputEventInit* initializer,
+                            ExceptionState& exception_state);
 
   // https://w3c.github.io/input-events/#h-interface-inputevent-attributes
   enum class InputType {
@@ -82,17 +82,17 @@ class InputEvent final : public UIEvent {
   static InputEvent* CreateBeforeInput(InputType,
                                        const String& data,
                                        EventIsComposing,
-                                       const StaticRangeVector*);
+                                       const GCedStaticRangeVector*);
   static InputEvent* CreateBeforeInput(InputType,
                                        DataTransfer*,
                                        EventIsComposing,
-                                       const StaticRangeVector*);
+                                       const GCedStaticRangeVector*);
   static InputEvent* CreateInput(InputType,
                                  const String& data,
                                  EventIsComposing,
-                                 const StaticRangeVector*);
+                                 const GCedStaticRangeVector*);
 
-  InputEvent(const AtomicString&, const InputEventInit*);
+  InputEvent(const AtomicString&, const InputEventInit*, ExceptionState&);
   // This variant of the constructor is more efficient than the InputEventInit
   // variant.
   InputEvent(const AtomicString& type,
@@ -101,7 +101,7 @@ class InputEvent final : public UIEvent {
              const String& data,
              DataTransfer* data_transfer,
              EventIsComposing is_composing,
-             const StaticRangeVector* ranges);
+             const GCedStaticRangeVector* ranges);
 
   String inputType() const;
   const String& data() const { return data_; }

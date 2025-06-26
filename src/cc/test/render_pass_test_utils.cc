@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "cc/test/render_pass_test_utils.h"
 
 #include <stdint.h>
@@ -22,7 +27,6 @@
 #include "components/viz/common/quads/solid_color_draw_quad.h"
 #include "components/viz/common/quads/texture_draw_quad.h"
 #include "components/viz/common/quads/tile_draw_quad.h"
-#include "components/viz/common/quads/yuv_video_draw_quad.h"
 #include "components/viz/common/resources/returned_resource.h"
 #include "components/viz/common/resources/transferable_resource.h"
 #include "components/viz/service/display/display_resource_provider.h"
@@ -42,7 +46,7 @@ viz::ResourceId CreateAndImportResource(
     gfx::ColorSpace color_space = gfx::ColorSpace::CreateSRGB()) {
   constexpr gfx::Size size(64, 64);
   auto transfer_resource = viz::TransferableResource::MakeGpu(
-      gpu::Mailbox::GenerateForSharedImage(), GL_TEXTURE_2D, sync_token, size,
+      gpu::Mailbox::Generate(), GL_TEXTURE_2D, sync_token, size,
       viz::SinglePlaneFormat::kRGBA_8888, false /* is_overlay_candidate */);
   transfer_resource.color_space = std::move(color_space);
   return resource_provider->ImportResource(transfer_resource,
@@ -217,12 +221,6 @@ std::vector<viz::ResourceId> AddOneOfEveryQuadType(
   viz::ResourceId resource8 =
       CreateAndImportResource(resource_provider, kSyncToken);
 
-  viz::ResourceId plane_resources[4];
-  for (int i = 0; i < 4; ++i) {
-    plane_resources[i] = CreateAndImportResource(
-        resource_provider, kSyncToken, gfx::ColorSpace::CreateREC601());
-  }
-
   viz::SharedQuadState* shared_state =
       to_pass->CreateAndAppendSharedQuadState();
   shared_state->SetAll(gfx::Transform(), rect, rect, gfx::MaskFilterInfo(),
@@ -257,27 +255,27 @@ std::vector<viz::ResourceId> AddOneOfEveryQuadType(
   stream_video_quad->SetNew(
       shared_state, rect, visible_rect, needs_blending, resource6, false,
       gfx::PointF(0.f, 0.f), gfx::PointF(1.f, 1.f), SkColors::kTransparent,
-      false, false, false, gfx::ProtectedVideoType::kHardwareProtected);
+      false, false, gfx::ProtectedVideoType::kHardwareProtected);
   stream_video_quad->is_stream_video = true;
 
   auto* texture_quad = to_pass->CreateAndAppendDrawQuad<viz::TextureDrawQuad>();
   texture_quad->SetNew(shared_state, rect, visible_rect, needs_blending,
                        resource1, false, gfx::PointF(0.f, 0.f),
                        gfx::PointF(1.f, 1.f), SkColors::kTransparent, false,
-                       false, false, gfx::ProtectedVideoType::kClear);
+                       false, gfx::ProtectedVideoType::kClear);
 
   auto* external_resource_texture_quad =
       to_pass->CreateAndAppendDrawQuad<viz::TextureDrawQuad>();
   external_resource_texture_quad->SetNew(
       shared_state, rect, visible_rect, needs_blending, resource8, false,
       gfx::PointF(0.f, 0.f), gfx::PointF(1.f, 1.f), SkColors::kTransparent,
-      false, false, false, gfx::ProtectedVideoType::kClear);
+      false, false, gfx::ProtectedVideoType::kClear);
 
   auto* scaled_tile_quad =
       to_pass->CreateAndAppendDrawQuad<viz::TileDrawQuad>();
   scaled_tile_quad->SetNew(shared_state, rect, visible_rect, needs_blending,
                            resource2, gfx::RectF(0, 0, 50, 50),
-                           gfx::Size(50, 50), false, false, false);
+                           gfx::Size(50, 50), false, false);
 
   viz::SharedQuadState* transformed_state =
       to_pass->CreateAndAppendSharedQuadState();
@@ -290,7 +288,7 @@ std::vector<viz::ResourceId> AddOneOfEveryQuadType(
       to_pass->CreateAndAppendDrawQuad<viz::TileDrawQuad>();
   transformed_tile_quad->SetNew(
       transformed_state, rect, visible_rect, needs_blending, resource3,
-      gfx::RectF(0, 0, 100, 100), gfx::Size(100, 100), false, false, false);
+      gfx::RectF(0, 0, 100, 100), gfx::Size(100, 100), false, false);
 
   viz::SharedQuadState* shared_state2 =
       to_pass->CreateAndAppendSharedQuadState();
@@ -303,20 +301,10 @@ std::vector<viz::ResourceId> AddOneOfEveryQuadType(
   auto* tile_quad = to_pass->CreateAndAppendDrawQuad<viz::TileDrawQuad>();
   tile_quad->SetNew(shared_state2, rect, visible_rect, needs_blending,
                     resource4, gfx::RectF(0, 0, 100, 100), gfx::Size(100, 100),
-                    false, false, false);
+                    false, false);
 
-  auto* yuv_quad = to_pass->CreateAndAppendDrawQuad<viz::YUVVideoDrawQuad>();
-  yuv_quad->SetNew(shared_state2, rect, visible_rect, needs_blending,
-                   gfx::Size(100, 100), gfx::Rect(0, 0, 50, 50),
-                   gfx::Size(2, 2), plane_resources[0], plane_resources[1],
-                   plane_resources[2], plane_resources[3],
-                   gfx::ColorSpace::CreateREC601(), 8,
-                   gfx::ProtectedVideoType::kClear, std::nullopt);
-
-  return {resource1,          resource2,          resource3,
-          resource4,          resource5,          resource6,
-          resource8,          plane_resources[0], plane_resources[1],
-          plane_resources[2], plane_resources[3]};
+  return {resource1, resource2, resource3, resource4,
+          resource5, resource6, resource8};
 }
 
 static void CollectResources(std::vector<viz::ReturnedResource>* array,
@@ -368,14 +356,6 @@ void AddOneOfEveryQuadTypeInDisplayResourceProvider(
   resource_ids_to_transfer.push_back(resource7);
   resource_ids_to_transfer.push_back(resource8);
 
-  viz::ResourceId plane_resources[4];
-  for (int i = 0; i < 4; ++i) {
-    plane_resources[i] =
-        CreateAndImportResource(child_resource_provider, kDefaultSyncToken,
-                                gfx::ColorSpace::CreateREC601());
-    resource_ids_to_transfer.push_back(plane_resources[i]);
-  }
-
   std::vector<viz::ReturnedResource> returned_to_child;
   int child_id = resource_provider->CreateChild(
       base::BindRepeating(&CollectResources, &returned_to_child),
@@ -404,10 +384,6 @@ void AddOneOfEveryQuadTypeInDisplayResourceProvider(
   viz::ResourceId mapped_resource5 = resource_map[resource5];
   viz::ResourceId mapped_resource6 = resource_map[resource6];
   viz::ResourceId mapped_resource8 = resource_map[resource8];
-  viz::ResourceId mapped_plane_resources[4];
-  for (int i = 0; i < 4; ++i) {
-    mapped_plane_resources[i] = resource_map[plane_resources[i]];
-  }
 
   viz::SharedQuadState* shared_state =
       to_pass->CreateAndAppendSharedQuadState();
@@ -440,7 +416,7 @@ void AddOneOfEveryQuadTypeInDisplayResourceProvider(
   stream_video_quad->SetNew(
       shared_state, rect, visible_rect, needs_blending, mapped_resource6, false,
       gfx::PointF(0.f, 0.f), gfx::PointF(1.f, 1.f), SkColors::kTransparent,
-      false, false, false, gfx::ProtectedVideoType::kHardwareProtected);
+      false, false, gfx::ProtectedVideoType::kHardwareProtected);
   stream_video_quad->is_stream_video = true;
 
   viz::TextureDrawQuad* texture_quad =
@@ -448,20 +424,20 @@ void AddOneOfEveryQuadTypeInDisplayResourceProvider(
   texture_quad->SetNew(shared_state, rect, visible_rect, needs_blending,
                        mapped_resource1, false, gfx::PointF(0.f, 0.f),
                        gfx::PointF(1.f, 1.f), SkColors::kTransparent, false,
-                       false, false, gfx::ProtectedVideoType::kClear);
+                       false, gfx::ProtectedVideoType::kClear);
 
   viz::TextureDrawQuad* external_resource_texture_quad =
       to_pass->CreateAndAppendDrawQuad<viz::TextureDrawQuad>();
   external_resource_texture_quad->SetNew(
       shared_state, rect, visible_rect, needs_blending, mapped_resource8, false,
       gfx::PointF(0.f, 0.f), gfx::PointF(1.f, 1.f), SkColors::kTransparent,
-      false, false, false, gfx::ProtectedVideoType::kClear);
+      false, false, gfx::ProtectedVideoType::kClear);
 
   viz::TileDrawQuad* scaled_tile_quad =
       to_pass->CreateAndAppendDrawQuad<viz::TileDrawQuad>();
   scaled_tile_quad->SetNew(shared_state, rect, visible_rect, needs_blending,
                            mapped_resource2, gfx::RectF(0, 0, 50, 50),
-                           gfx::Size(50, 50), false, false, false);
+                           gfx::Size(50, 50), false, false);
 
   viz::SharedQuadState* transformed_state =
       to_pass->CreateAndAppendSharedQuadState();
@@ -474,7 +450,7 @@ void AddOneOfEveryQuadTypeInDisplayResourceProvider(
       to_pass->CreateAndAppendDrawQuad<viz::TileDrawQuad>();
   transformed_tile_quad->SetNew(
       transformed_state, rect, visible_rect, needs_blending, mapped_resource3,
-      gfx::RectF(0, 0, 100, 100), gfx::Size(100, 100), false, false, false);
+      gfx::RectF(0, 0, 100, 100), gfx::Size(100, 100), false, false);
 
   viz::SharedQuadState* shared_state2 =
       to_pass->CreateAndAppendSharedQuadState();
@@ -488,16 +464,7 @@ void AddOneOfEveryQuadTypeInDisplayResourceProvider(
       to_pass->CreateAndAppendDrawQuad<viz::TileDrawQuad>();
   tile_quad->SetNew(shared_state2, rect, visible_rect, needs_blending,
                     mapped_resource4, gfx::RectF(0, 0, 100, 100),
-                    gfx::Size(100, 100), false, false, false);
-
-  viz::YUVVideoDrawQuad* yuv_quad =
-      to_pass->CreateAndAppendDrawQuad<viz::YUVVideoDrawQuad>();
-  yuv_quad->SetNew(shared_state2, rect, visible_rect, needs_blending,
-                   gfx::Size(200, 200), gfx::Rect(0, 0, 100, 100),
-                   gfx::Size(2, 1), mapped_plane_resources[0],
-                   mapped_plane_resources[1], mapped_plane_resources[2],
-                   mapped_plane_resources[3], gfx::ColorSpace::CreateREC601(),
-                   8, gfx::ProtectedVideoType::kClear, std::nullopt);
+                    gfx::Size(100, 100), false, false);
 }
 
 std::unique_ptr<viz::AggregatedRenderPass> CopyToAggregatedRenderPass(

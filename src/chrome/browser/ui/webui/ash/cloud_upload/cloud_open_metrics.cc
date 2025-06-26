@@ -4,39 +4,36 @@
 
 #include "chrome/browser/ui/webui/ash/cloud_upload/cloud_open_metrics.h"
 
+#include <concepts>
 #include <string>
 
 #include "base/debug/crash_logging.h"
 #include "base/debug/dump_without_crashing.h"
+#include "base/types/cxx23_to_underlying.h"
 #include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_util.h"
 
 namespace ash::cloud_upload {
 
-// Stringify the `MetricState` enum.
-std::ostream& operator<<(std::ostream& os, MetricState metric_state) {
-  switch (metric_state) {
-    case MetricState::kCorrectlyNotLogged:
-      return os << "NL";
-    case MetricState::kCorrectlyLogged:
-      return os << "L";
-    case MetricState::kIncorrectlyNotLogged:
-      return os << "INL";
-    case MetricState::kIncorrectlyLogged:
-      return os << "IL";
-    case MetricState::kIncorrectlyLoggedMultipleTimes:
-      return os << "ILM";
-    case MetricState::kWrongValueLogged:
-      return os << "WVL";
+template <typename T>
+  requires(std::is_enum_v<T>)
+std::ostream& operator<<(std::ostream& os, T metric) {
+  if constexpr (std::same_as<T, MetricState>) {
+    switch (metric) {
+      case MetricState::kCorrectlyNotLogged:
+        return os << "NL";
+      case MetricState::kCorrectlyLogged:
+        return os << "L";
+      case MetricState::kIncorrectlyNotLogged:
+        return os << "INL";
+      case MetricState::kIncorrectlyLogged:
+        return os << "IL";
+      case MetricState::kIncorrectlyLoggedMultipleTimes:
+        return os << "ILM";
+      case MetricState::kWrongValueLogged:
+        return os << "WVL";
+    }
   }
-}
-
-// Stringify enums (`MetricType`) that are not the `MetricState`.
-template <
-    typename MetricType,
-    class = std::enable_if<std::is_enum<MetricType>::value &&
-                           !std::is_same<MetricType, MetricState>::value>::type>
-std::ostream& operator<<(std::ostream& os, const MetricType& value) {
-  return os << static_cast<std::underlying_type<MetricType>::type>(value);
+  return os << base::to_underlying(metric);
 }
 
 // Print debug information about this metric.
@@ -70,6 +67,7 @@ bool DidEndBeforeCallingOpenOrMoveFiles(OfficeTaskResult task_result) {
     case OfficeTaskResult::kCannotShowSetupDialog:
     case OfficeTaskResult::kNoFilesToOpen:
     case OfficeTaskResult::kOkAtFallback:
+    case OfficeTaskResult::kFileAlreadyBeingOpened:
       return true;
     case OfficeTaskResult::kOpened:
     case OfficeTaskResult::kMoved:
@@ -113,6 +111,7 @@ bool DidEndAtFallback(OfficeTaskResult task_result) {
     case OfficeTaskResult::kCannotShowSetupDialog:
     case OfficeTaskResult::kCannotShowMoveConfirmation:
     case OfficeTaskResult::kNoFilesToOpen:
+    case OfficeTaskResult::kFileAlreadyBeingOpened:
       return false;
   }
 }
@@ -143,6 +142,7 @@ bool DidEndAtMoveConfirmation(OfficeTaskResult task_result) {
     case OfficeTaskResult::kFallbackQuickOfficeAfterOpen:
     case OfficeTaskResult::kCancelledAtFallbackAfterOpen:
     case OfficeTaskResult::kCannotGetFallbackChoiceAfterOpen:
+    case OfficeTaskResult::kFileAlreadyBeingOpened:
       return false;
   }
 }
@@ -214,6 +214,7 @@ void CloudOpenMetrics::CheckForInconsistencies(
               case OfficeDriveOpenErrors::kMeteredConnection:
               case OfficeDriveOpenErrors::kDisableDrivePreferenceSet:
               case OfficeDriveOpenErrors::kDriveDisabledForAccountType:
+              case OfficeDriveOpenErrors::kDriveFsUnavailable:
                 break;
               case OfficeDriveOpenErrors::kTimeout:
               case OfficeDriveOpenErrors::kNoMetadata:
@@ -249,6 +250,8 @@ void CloudOpenMetrics::CheckForInconsistencies(
               case OfficeOneDriveOpenErrors::kEmailsDoNotMatch:
               case OfficeOneDriveOpenErrors::
                   kAndroidOneDriveUnsupportedLocation:
+              case OfficeOneDriveOpenErrors::kFailedToLaunch:
+              case OfficeOneDriveOpenErrors::kMS365NotInstalled:
                 SetWrongValueLogged(one_drive_open_error);
                 break;
             }
@@ -285,6 +288,8 @@ void CloudOpenMetrics::CheckForInconsistencies(
               case OfficeOneDriveOpenErrors::kConversionToODFSUrlError:
               case OfficeOneDriveOpenErrors::kAndroidOneDriveInvalidUrl:
               case OfficeOneDriveOpenErrors::kEmailsDoNotMatch:
+              case OfficeOneDriveOpenErrors::kFailedToLaunch:
+              case OfficeOneDriveOpenErrors::kMS365NotInstalled:
                 SetWrongValueLogged(one_drive_open_error);
                 break;
             }
@@ -365,6 +370,7 @@ void CloudOpenMetrics::CheckForInconsistencies(
               case OfficeDriveOpenErrors::kDisableDrivePreferenceSet:
               case OfficeDriveOpenErrors::kDriveDisabledForAccountType:
               case OfficeDriveOpenErrors::kCannotGetRelativePath:
+              case OfficeDriveOpenErrors::kDriveFsUnavailable:
                 break;
               case OfficeDriveOpenErrors::kSuccess:
                 SetWrongValueLogged(drive_open_error);
@@ -388,6 +394,8 @@ void CloudOpenMetrics::CheckForInconsistencies(
               case OfficeOneDriveOpenErrors::kConversionToODFSUrlError:
               case OfficeOneDriveOpenErrors::kAndroidOneDriveInvalidUrl:
               case OfficeOneDriveOpenErrors::kEmailsDoNotMatch:
+              case OfficeOneDriveOpenErrors::kFailedToLaunch:
+              case OfficeOneDriveOpenErrors::kMS365NotInstalled:
                 break;
               case OfficeOneDriveOpenErrors::kSuccess:
               case OfficeOneDriveOpenErrors::
@@ -424,6 +432,7 @@ void CloudOpenMetrics::CheckForInconsistencies(
               case OfficeDriveOpenErrors::kDisableDrivePreferenceSet:
               case OfficeDriveOpenErrors::kDriveDisabledForAccountType:
               case OfficeDriveOpenErrors::kCannotGetRelativePath:
+              case OfficeDriveOpenErrors::kDriveFsUnavailable:
                 SetWrongValueLogged(drive_open_error);
                 break;
             }
@@ -449,6 +458,8 @@ void CloudOpenMetrics::CheckForInconsistencies(
               case OfficeOneDriveOpenErrors::kEmailsDoNotMatch:
               case OfficeOneDriveOpenErrors::
                   kAndroidOneDriveUnsupportedLocation:
+              case OfficeOneDriveOpenErrors::kFailedToLaunch:
+              case OfficeOneDriveOpenErrors::kMS365NotInstalled:
                 SetWrongValueLogged(one_drive_open_error);
                 break;
             }
@@ -598,10 +609,8 @@ void CloudOpenMetrics::CheckForInconsistencies(
     } else {
       // TransferRequired was kCopy or kMove.
       if (task_result.logged() &&
-          (DidEndAtMoveConfirmation(task_result.value) ||
-           task_result.value == OfficeTaskResult::kFileAlreadyBeingUploaded)) {
-        // The cloud upload flow was exited at the Move Confirmation Dialog or
-        // the upload was abandoned.
+          (DidEndAtMoveConfirmation(task_result.value))) {
+        // The cloud upload flow was exited at the Move Confirmation Dialog.
         ExpectNotLogged(upload_result);
       } else {
         // The upload should have succeeded or failed.
@@ -697,6 +706,7 @@ void CloudOpenMetrics::CheckForInconsistencies(
           case OfficeTaskResult::kFallbackQuickOfficeAfterOpen:
           case OfficeTaskResult::kCancelledAtFallbackAfterOpen:
           case OfficeTaskResult::kCannotGetFallbackChoiceAfterOpen:
+          case OfficeTaskResult::kFileAlreadyBeingOpened:
             SetWrongValueLogged(task_result);
             break;
         }

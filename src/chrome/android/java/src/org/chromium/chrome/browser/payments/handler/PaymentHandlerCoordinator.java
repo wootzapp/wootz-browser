@@ -17,8 +17,8 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelectorSupplier;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
 import org.chromium.components.embedder_support.view.ContentView;
-import org.chromium.components.payments.InputProtector;
 import org.chromium.components.payments.PaymentHandlerNavigationThrottle;
+import org.chromium.components.payments.ui.InputProtector;
 import org.chromium.components.thinwebview.ThinWebView;
 import org.chromium.components.thinwebview.ThinWebViewConstraints;
 import org.chromium.components.thinwebview.ThinWebViewFactory;
@@ -83,8 +83,7 @@ public class PaymentHandlerCoordinator {
                 WebContentsFactory.createWebContents(profile, /* initiallyHidden= */ false, false);
         PaymentHandlerNavigationThrottle.markPaymentHandlerWebContents(mPaymentHandlerWebContents);
         ContentView webContentView =
-                ContentView.createContentView(
-                        activity, /* eventOffsetHandler= */ null, mPaymentHandlerWebContents);
+                ContentView.createContentView(activity, mPaymentHandlerWebContents);
         initializeWebContents(windowAndroid, webContentView, url);
 
         mToolbarCoordinator =
@@ -120,7 +119,7 @@ public class PaymentHandlerCoordinator {
         activity.getWindow().getDecorView().addOnLayoutChangeListener(mediator);
 
         bottomSheetController.addObserver(mediator);
-        mPaymentHandlerWebContents.addObserver(mediator);
+        mediator.observe(mPaymentHandlerWebContents);
 
         mToolbarCoordinator.setCloseButtonOnClickCallback(mediator::onToolbarCloseButtonClicked);
         IntentRequestTracker intentRequestTracker = windowAndroid.getIntentRequestTracker();
@@ -150,6 +149,7 @@ public class PaymentHandlerCoordinator {
                     assert activity.getWindow().getDecorView() != null;
                     activity.getWindow().getDecorView().removeOnLayoutChangeListener(mediator);
                     mediator.destroy();
+                    mToolbarCoordinator.destroy();
                     thinWebView.destroy();
                     mPaymentHandlerWebContents.destroy();
                 };

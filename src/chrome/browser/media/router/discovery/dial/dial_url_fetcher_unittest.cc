@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/media/router/discovery/dial/dial_url_fetcher.h"
+
 #include <memory>
 #include <string>
 
@@ -12,7 +14,6 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/test/task_environment.h"
-#include "chrome/browser/media/router/discovery/dial/dial_url_fetcher.h"
 #include "chrome/browser/media/router/test/provider_test_helpers.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/test/browser_task_environment.h"
@@ -70,9 +71,8 @@ TEST_F(DialURLFetcherTest, FetchSuccessful) {
   // Verify the request parameters.
   EXPECT_EQ(request_.url, url_);
   EXPECT_EQ(request_.method, "GET");
-  std::string origin_header;
-  EXPECT_TRUE(request_.headers.GetHeader("Origin", &origin_header));
-  EXPECT_TRUE(base::StartsWith(origin_header, "package:"));
+  EXPECT_THAT(request_.headers.GetHeader("Origin"),
+              testing::Optional(testing::StartsWith("package:")));
   EXPECT_TRUE(request_.load_flags & net::LOAD_BYPASS_PROXY);
   EXPECT_TRUE(request_.load_flags & net::LOAD_DISABLE_CACHE);
   EXPECT_EQ(request_.credentials_mode, network::mojom::CredentialsMode::kOmit);

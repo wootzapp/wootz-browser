@@ -1,8 +1,6 @@
 # Chromecast team members
-achaulk@chromium.org
-dnicoara@chromium.org
-halliwell@chromium.org
+file://chromecast/CHROMECAST_OWNERS
 
 # libassistant team members
-wutao@chromium.org
+yawano@google.com
 xiaohuic@chromium.org

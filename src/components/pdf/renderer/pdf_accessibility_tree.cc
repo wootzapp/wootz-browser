@@ -6,11 +6,13 @@
 
 #include <algorithm>
 #include <iterator>
+#include <ranges>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/check_is_test.h"
+#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/location.h"
@@ -19,7 +21,6 @@
 #include "base/memory/raw_ref.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "components/pdf/renderer/pdf_accessibility_tree_builder.h"
@@ -29,11 +30,12 @@
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_thread.h"
 #include "pdf/pdf_accessibility_action_handler.h"
+#include "pdf/pdf_features.h"
 #include "third_party/blink/public/web/web_element.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_plugin_container.h"
-#include "ui/accessibility/accessibility_features.h"
 #include "ui/accessibility/ax_action_data.h"
+#include "ui/accessibility/ax_enums.mojom-shared.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_mode.h"
 #include "ui/accessibility/ax_node_id_forward.h"
@@ -47,13 +49,12 @@
 
 #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 #include "base/containers/contains.h"
-#include "base/metrics/metrics_hashes.h"
-#include "components/language/core/common/language_util.h"  // nogncheck
+#include "ui/strings/grit/auto_image_annotation_strings.h"
 #endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 
 namespace pdf {
 
-namespace ranges = base::ranges;
+namespace ranges = std::ranges;
 
 namespace {
 
@@ -203,47 +204,50 @@ std::unique_ptr<ui::AXNodeData> CreateBannerNode(ui::AXNodeID id,
 
 #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 gfx::Transform MakeTransformForImage(const gfx::RectF image_screen_size,
-                                     const gfx::SizeF image_pixel_size) {
+                                     const gfx::SizeF image_pixel_size,
+                                     const int32_t orientation) {
   // Nodes created with OCR results from the image will be misaligned on screen
   // if `image_screen_size` is different from `image_pixel_size`. To address
   // this misalignment issue, an additional transform needs to be created.
   CHECK(!image_pixel_size.IsEmpty());
 
   gfx::Transform transform;
-  float width_scale_factor =
-      image_screen_size.width() / image_pixel_size.width();
-  float height_scale_factor =
-      image_screen_size.height() / image_pixel_size.height();
-  transform.Scale(width_scale_factor, height_scale_factor);
+  // Note that the `Translate`, `Scale`, and `Rotate` steps are combined into
+  // one transform matrix and applied together. The `Translate` step sets the
+  // 3rd row of the 3x3 transform matrix, and the other two set the first two
+  // rows. Applying these steps one by one separately does not result in the
+  // same transform as the combined one.
+  switch (orientation) {
+    case 0:
+      break;
+    case 1:
+      transform.Translate(image_screen_size.height(), 0);
+      break;
+    case 2:
+      transform.Translate(image_screen_size.width(),
+                          image_screen_size.height());
+      break;
+    case 3:
+      transform.Translate(0, image_screen_size.width());
+      break;
+    default:
+      NOTREACHED();
+  }
+  transform.Scale(image_screen_size.width() / image_pixel_size.width(),
+                  image_screen_size.height() / image_pixel_size.height());
+  transform.Rotate(orientation * 90);
 
   return transform;
 }
 
-void RecordMostDetectedLanguageInOcrData(
-    const std::map<std::string, size_t>& detected_language_count_map) {
-  if (detected_language_count_map.empty()) {
-    return;
-  }
-
-  // Get the most detected language and record it UMA.
-  std::string most_detected_language;
-  size_t most_detected_language_count = 0u;
-  for (const auto& elem : detected_language_count_map) {
-    if (elem.second > most_detected_language_count) {
-      most_detected_language = elem.first;
-      most_detected_language_count = elem.second;
-    }
-  }
-  CHECK_GT(most_detected_language_count, 0u);
-
-  // Convert to a Chrome language code synonym. Then pass it to
-  // `base::HashMetricName()` that maps this code to a `LocaleCodeISO639` enum
-  // value expected by this histogram.
-  language::ToChromeLanguageSynonym(&most_detected_language);
-  base::UmaHistogramSparse("Accessibility.PdfOcr.MostDetectedLanguageInOcrData",
-                           base::HashMetricName(most_detected_language));
-}
 #endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+
+// When PDF Searchify is enabled, inaccessible PDFs are made accessible in
+// PDFium by sending their images to the OCR service and adding the recognized
+// text to the PDF. Hence they don't need extra work here.
+bool PdfOcrInRenderer() {
+  return !base::FeatureList::IsEnabled(chrome_pdf::features::kPdfSearchify);
+}
 
 }  // namespace
 
@@ -251,12 +255,14 @@ PdfAccessibilityTree::PdfAccessibilityTree(
     content::RenderFrame* render_frame,
     chrome_pdf::PdfAccessibilityActionHandler* action_handler,
     chrome_pdf::PdfAccessibilityImageFetcher* image_fetcher,
-    blink::WebPluginContainer* plugin_container)
+    blink::WebPluginContainer* plugin_container,
+    bool print_preview)
     : content::RenderFrameObserver(render_frame),
       render_frame_(render_frame),
       action_handler_(action_handler),
       image_fetcher_(image_fetcher),
-      plugin_container_(plugin_container) {
+      plugin_container_(plugin_container),
+      print_preview_(print_preview) {
   DCHECK(render_frame);
   DCHECK(action_handler_);
   DCHECK(image_fetcher_);
@@ -429,11 +435,8 @@ void PdfAccessibilityTree::DoSetAccessibilityViewportInfo(
   CHECK_GT(scale_, 0);
   scroll_ = gfx::PointF(viewport_info.scroll).OffsetFromOrigin();
   offset_ = gfx::PointF(viewport_info.offset).OffsetFromOrigin();
-
-  selection_start_page_index_ = viewport_info.selection_start_page_index;
-  selection_start_char_index_ = viewport_info.selection_start_char_index;
-  selection_end_page_index_ = viewport_info.selection_end_page_index;
-  selection_end_char_index_ = viewport_info.selection_end_char_index;
+  orientation_ = viewport_info.orientation;
+  selection_ = viewport_info.selection;
 
   auto obj = GetPluginContainerAXObject();
   if (obj && tree_.size() > 1) {
@@ -447,7 +450,8 @@ void PdfAccessibilityTree::DoSetAccessibilityViewportInfo(
 }
 
 void PdfAccessibilityTree::SetAccessibilityDocInfo(
-    chrome_pdf::AccessibilityDocInfo doc_info) {
+    std::unique_ptr<chrome_pdf::AccessibilityDocInfo> doc_info) {
+  CHECK(doc_info);
   // This call may trigger layout, and ultimately self-deletion; see
   // crbug.com/1274376 for details.
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
@@ -457,14 +461,16 @@ void PdfAccessibilityTree::SetAccessibilityDocInfo(
 }
 
 void PdfAccessibilityTree::DoSetAccessibilityDocInfo(
-    const chrome_pdf::AccessibilityDocInfo& doc_info) {
+    std::unique_ptr<chrome_pdf::AccessibilityDocInfo> doc_info) {
+  CHECK(doc_info);
   auto obj = GetPluginContainerAXObject();
   if (!obj) {
     return;
   }
 
   ClearAccessibilityNodes();
-  page_count_ = doc_info.page_count;
+  page_count_ = doc_info->page_count;
+  is_tagged_ = doc_info->is_tagged;
 
   doc_node_ =
       CreateNode(ax::mojom::Role::kPdfRoot, ax::mojom::Restriction::kReadOnly,
@@ -531,6 +537,21 @@ void PdfAccessibilityTree::SetAccessibilityPageInfo(
                      std::move(chars), std::move(page_objects)));
 }
 
+void PdfAccessibilityTree::OnHasSearchifyText() {
+  // TODO(crbug.com/360803943): Look into if `render_frame()` can be null, why
+  // it is assumed to be not null in `SetOcrCompleteStatus()`, and create a
+  // better distinction between `render_frame()` and `render_frame_`.
+  // TODO(accessibility): remove this dependency.
+  content::RenderAccessibility* render_accessibility =
+      render_frame() ? render_frame()->GetRenderAccessibility() : nullptr;
+  bool screen_reader_mode =
+      (render_accessibility && render_accessibility->GetAXMode().has_mode(
+                                   ui::AXMode::kExtendedProperties));
+  base::UmaHistogramBoolean(
+      "Accessibility.ScreenAI.Searchify.ScreenReaderModeEnabled",
+      screen_reader_mode);
+}
+
 void PdfAccessibilityTree::DoSetAccessibilityPageInfo(
     const chrome_pdf::AccessibilityPageInfo& page_info,
     const std::vector<chrome_pdf::AccessibilityTextRunInfo>& text_runs,
@@ -546,6 +567,18 @@ void PdfAccessibilityTree::DoSetAccessibilityPageInfo(
     return;
   }
 
+#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+  did_searchify_run_ |= page_info.is_searchified;
+  if (!was_text_converted_from_image_) {
+    for (const auto& text_run : text_runs) {
+      if (text_run.is_searchified) {
+        was_text_converted_from_image_ = true;
+        break;
+      }
+    }
+  }
+#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+
   // If unsanitized data is found, don't trust it and stop creation of the
   // accessibility tree. Now that we already created the initial tree with the
   // root node and the status node, destroy the existing tree as well.
@@ -559,18 +592,20 @@ void PdfAccessibilityTree::DoSetAccessibilityPageInfo(
       banner_node_.reset();
       status_node_.reset();
       status_node_text_.reset();
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-      postamble_page_tree_update_.reset();
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
     }
     return;
   }
 
   CHECK_LT(page_index, page_count_);
   ++next_page_index_;
-  // Update `did_get_a_text_run_` before calling `AddPageContent()` as this
-  // variable will be used inside of `AddPageContent()`.
-  did_get_a_text_run_ |= !text_runs.empty();
+  // Update `had_accessible_text_` before calling `AddPageContent()` as this
+  // variable will be used inside of `AddPageContent()`. If the page is
+  // searchified, it indicates that the page was not originally accessible.
+#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+  had_accessible_text_ |= (!page_info.is_searchified && !text_runs.empty());
+#else
+  had_accessible_text_ |= !text_runs.empty();
+#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 
   AddPageContent(page_info, page_index, text_runs, chars, page_objects);
 
@@ -579,7 +614,7 @@ void PdfAccessibilityTree::DoSetAccessibilityPageInfo(
 #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
   // TODO(crbug.com/40267312): Use a more explicit flag indicating whether any
   // image was sent to the OCR model in `AddRemainingAnnotations()`.
-  if (features::IsPdfOcrEnabled() && !did_get_a_text_run_ && has_image) {
+  if (PdfOcrInRenderer() && !had_accessible_text_ && has_image) {
     if (ocr_helper_) {
       // Notify users via the status node that PDF OCR is about to run since
       // the AXMode was set for PDF OCR.
@@ -595,8 +630,23 @@ void PdfAccessibilityTree::DoSetAccessibilityPageInfo(
 #endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 
   if (page_index == page_count_ - 1) {
-    if (!features::IsPdfOcrEnabled() || did_get_a_text_run_ ||
-        !did_have_an_image_) {
+#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+    if (base::FeatureList::IsEnabled(chrome_pdf::features::kPdfSearchify)) {
+      if (did_searchify_run_) {
+        SetStatusMessage(was_text_converted_from_image_
+                             ? IDS_PDF_OCR_COMPLETED
+                             : IDS_PDF_OCR_NO_RESULT);
+        UnserializeNodes();
+        return;
+      }
+      if (!had_accessible_text_ && did_have_an_image_) {
+        SetStatusMessage(IDS_PDF_OCR_FEATURE_ALERT);
+        UnserializeNodes();
+        return;
+      }
+    }
+#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+    if (!PdfOcrInRenderer() || had_accessible_text_ || !did_have_an_image_) {
       // In this case, PDF OCR doesn't run. Thus, set the status node to notify
       // users that the PDF content has been loaded into an accessibility tree.
       SetStatusMessage(IDS_PDF_LOADED_TO_A11Y_TREE);
@@ -625,12 +675,12 @@ void PdfAccessibilityTree::AddPageContent(
   auto obj = GetPluginContainerAXObject();
   CHECK(obj);
   PdfAccessibilityTreeBuilder tree_builder(
-      GetWeakPtr(), text_runs, chars, page_objects, page_info, page_index,
-      doc_node_.get(), &(*obj), &nodes_, &node_id_to_page_char_index_,
-      &node_id_to_annotation_info_
+      /*mark_headings_using_heuristic=*/!is_tagged_, text_runs, chars,
+      page_objects, page_info, page_index, doc_node_.get(), &(*obj), &nodes_,
+      &node_id_to_page_char_index_, &node_id_to_annotation_info_
 #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
       ,
-      ocr_helper_.get(), did_get_a_text_run_
+      ocr_helper_.get(), had_accessible_text_
 #endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
   );
   tree_builder.BuildPageTree();
@@ -670,24 +720,23 @@ void PdfAccessibilityTree::UnserializeNodes() {
     // metrics need be recorded once.
     sent_metrics_once_ = true;
 
-    base::UmaHistogramBoolean("Accessibility.PDF.HasAccessibleText",
-                              did_get_a_text_run_);
+    base::UmaHistogramBoolean("Accessibility.PDF.HasAccessibleText2",
+                              had_accessible_text_);
 
     // TODO(accessibility): remove this dependency.
     content::RenderAccessibility* render_accessibility =
         render_frame() ? render_frame()->GetRenderAccessibility() : nullptr;
     CHECK(render_accessibility);
 
-    if (!did_get_a_text_run_) {
+    if (!had_accessible_text_) {
       base::UmaHistogramCounts1000(
           "Accessibility.PdfOcr.InaccessiblePdfPageCount", page_count_);
-      render_accessibility->RecordInaccessiblePdfUkm();
     }
 
 #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
     // TODO(crbug.com/40070182): Update this and other cases with a
     // `IsAccessiblePDF` function.
-    if (features::IsPdfOcrEnabled() && !did_get_a_text_run_) {
+    if (PdfOcrInRenderer() && !had_accessible_text_) {
       base::UmaHistogramBoolean(
           "Accessibility.PdfOcr.ActiveWhenInaccessiblePdfOpened",
           ocr_helper_ != nullptr);
@@ -697,114 +746,6 @@ void PdfAccessibilityTree::UnserializeNodes() {
 }
 
 #if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-void PdfAccessibilityTree::AddPostamblePageIfNeeded(
-    const ui::AXNodeID& last_page_node_id) {
-  CHECK_NE(last_page_node_id, ui::kInvalidAXNodeID);
-  CHECK(doc_node_);
-  if (!ocr_helper_) {
-    return;  // OCR helper not enabled.
-  }
-
-  if (postamble_page_tree_update_) {
-    // The first node in `postamble_page_tree_update_` is `doc_node_`.
-    CHECK_GT(postamble_page_tree_update_->nodes.size(), 1u);
-    const ui::AXNodeData& page = postamble_page_tree_update_->nodes[1];
-    const ui::AXNodeID& page_id = page.id;
-    CHECK_NE(ui::kInvalidAXNodeID, page_id);
-    int num_erased = std::erase_if(doc_node_->child_ids,
-                                   [&page_id](const ui::AXNodeID child_id) {
-                                     return child_id == page_id;
-                                   });
-    if (num_erased == 1) {
-      ui::AXTreeUpdate update;
-      update.root_id = doc_node_->id;
-      update.node_id_to_clear = page_id;
-      update.nodes = {*doc_node_};
-      if (!tree_.Unserialize(update)) {
-        LOG(FATAL) << tree_.error();
-      }
-    } else {
-      // TODO(b/329087996): Remove this debug and check why `num_erased != 1`
-      // here after collecting more data about this unexpected behavior.
-      std::vector<int32_t> child_ids = doc_node_->child_ids;
-      ui::AXNodeID page_id_to_remove = page.id;
-      base::debug::Alias(&child_ids);
-      base::debug::Alias(&page_id_to_remove);
-      base::debug::Alias(&num_erased);
-      base::debug::DumpWithoutCrashing();
-    }
-
-    if (ocr_helper_->AreAllPagesOcred()) {
-      postamble_page_tree_update_.reset();
-      SetOcrCompleteStatus();
-      return;
-    }
-
-    auto iter = ranges::find(doc_node_->child_ids, last_page_node_id);
-    CHECK(iter != std::end(doc_node_->child_ids));
-    doc_node_->child_ids.insert(++iter, page_id);
-    postamble_page_tree_update_->nodes[0] = *doc_node_;
-  } else {
-    if (ocr_helper_->AreAllPagesOcred()) {
-      SetOcrCompleteStatus();
-      return;
-    }
-
-    auto obj = GetPluginContainerAXObject();
-    if (!obj) {
-      return;
-    }
-
-    auto postamble_page = std::make_unique<ui::AXTreeUpdate>();
-
-    ui::AXNodeData page;
-    page.id = obj->GenerateAXID();
-    page.role = ax::mojom::Role::kRegion;
-    page.SetRestriction(ax::mojom::Restriction::kReadOnly);
-    page.AddBoolAttribute(ax::mojom::BoolAttribute::kIsPageBreakingObject,
-                          true);
-    CHECK(doc_node_);
-    page.relative_bounds.offset_container_id = doc_node_->id;
-
-    ui::AXNodeData paragraph;
-    paragraph.id = obj->GenerateAXID();
-    paragraph.role = ax::mojom::Role::kParagraph;
-    paragraph.AddBoolAttribute(ax::mojom::BoolAttribute::kIsLineBreakingObject,
-                               true);
-    page.child_ids = {paragraph.id};
-
-    const std::string postamble_message =
-        l10n_util::GetStringUTF8(IDS_PDF_OCR_POSTAMBLE_PAGE);
-
-    ui::AXNodeData static_text;
-    static_text.id = obj->GenerateAXID();
-    static_text.role = ax::mojom::Role::kInlineTextBox;
-    static_text.SetRestriction(ax::mojom::Restriction::kReadOnly);
-    static_text.SetNameChecked(postamble_message);
-    paragraph.child_ids = {static_text.id};
-
-    ui::AXNodeData inline_text_box;
-    inline_text_box.id = obj->GenerateAXID();
-    inline_text_box.role = ax::mojom::Role::kInlineTextBox;
-    inline_text_box.SetRestriction(ax::mojom::Restriction::kReadOnly);
-    inline_text_box.SetNameChecked(postamble_message);
-    static_text.child_ids = {inline_text_box.id};
-
-    postamble_page->root_id = doc_node_->id;
-    auto iter = ranges::find(doc_node_->child_ids, last_page_node_id);
-    CHECK(iter != std::end(doc_node_->child_ids));
-    doc_node_->child_ids.insert(iter, page.id);
-    postamble_page->nodes = {*doc_node_, std::move(page), std::move(paragraph),
-                             std::move(static_text),
-                             std::move(inline_text_box)};
-    postamble_page_tree_update_.swap(postamble_page);
-  }
-
-  if (!tree_.Unserialize(*postamble_page_tree_update_)) {
-    LOG(FATAL) << tree_.error();
-  }
-}
-
 void PdfAccessibilityTree::SetOcrCompleteStatus() {
   VLOG(2) << "Performing OCR on PDF is complete.";
 
@@ -832,6 +773,18 @@ void PdfAccessibilityTree::SetOcrCompleteStatus() {
     LOG(FATAL) << tree_.error();
   }
   MarkPluginContainerDirty();
+
+#if BUILDFLAG(IS_CHROMEOS)
+  // `FireLayoutComplete()` will be captured by Select-to-Speak on ChromeOS for
+  // the "Accessibility.PdfOcr.ActiveWhenInaccessiblePdfOpened" metric.
+  // TODO(crbug/289010799): Remove `FireLayoutComplete()` when the
+  // Accessibility.PdfOcr.ActiveWhenInaccessiblePdfOpened histogram expires.
+  CHECK(render_frame());
+  content::RenderAccessibility* render_accessibility =
+      render_frame()->GetRenderAccessibility();
+  CHECK(render_accessibility);
+  render_accessibility->FireLayoutComplete();
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 #endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 
@@ -886,17 +839,17 @@ void PdfAccessibilityTree::UpdateAXTreeDataFromSelection() {
   }
 
   tree_data_.sel_is_backward = false;
-  if (selection_start_page_index_ > selection_end_page_index_) {
+  if (selection_.start.page_index > selection_.end.page_index) {
     tree_data_.sel_is_backward = true;
-  } else if (selection_start_page_index_ == selection_end_page_index_ &&
-             selection_start_char_index_ > selection_end_char_index_) {
+  } else if (selection_.start.page_index == selection_.end.page_index &&
+             selection_.start.char_index > selection_.end.char_index) {
     tree_data_.sel_is_backward = true;
   }
 
-  FindNodeOffset(selection_start_page_index_, selection_start_char_index_,
+  FindNodeOffset(selection_.start.page_index, selection_.start.char_index,
                  &tree_data_.sel_anchor_object_id,
                  &tree_data_.sel_anchor_offset);
-  FindNodeOffset(selection_end_page_index_, selection_end_char_index_,
+  FindNodeOffset(selection_.end.page_index, selection_.end.char_index,
                  &tree_data_.sel_focus_object_id, &tree_data_.sel_focus_offset);
 }
 
@@ -960,9 +913,6 @@ void PdfAccessibilityTree::ClearAccessibilityNodes() {
   nodes_.clear();
   node_id_to_page_char_index_.clear();
   node_id_to_annotation_info_.clear();
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
-  postamble_page_tree_update_.reset();
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 }
 
 std::optional<blink::WebAXObject>
@@ -1153,7 +1103,44 @@ void PdfAccessibilityTree::OnOcrDataReceived(
       VLOG(1) << "Empty OCR data received.";
       // This can happen if OCR returns an empty result, or the image draws
       // nothing. Need to keep iterating the rest of `tree_updates` as there
-      // can be some updates after this empty update in `tree_updates`.
+      // can be some updates after this empty update in `tree_updates`. If the
+      // image doesn't have alt text, it needs to be labeled with the default
+      // label, `IDS_AX_UNLABELED_IMAGE_ROLE_DESCRIPTION`, which is set to an
+      // image without alt text on a PDF or webpage.
+      if (unserialized_node_exist) {
+        const auto image_node_iter = ranges::find_if(
+            nodes_,
+            [&ocr_request](const std::unique_ptr<ui::AXNodeData>& node) {
+              return node->id == ocr_request.image_node_id;
+            });
+        CHECK(image_node_iter != std::ranges::end(nodes_));
+        if (ocr_request.image.alt_text.empty()) {
+          // TODO(crbug.com/289010799): Add a CHECK to ensure that the image
+          // node was labeled with `IDS_PDF_OCR_IN_PROGRESS_AX_UNLABELED_IMAGE`
+          // when it's sent to OCR.
+          (*image_node_iter)
+              ->SetNameChecked(l10n_util::GetStringUTF8(
+                  IDS_AX_UNLABELED_IMAGE_ROLE_DESCRIPTION));
+        }
+      } else {
+        // No pending updates contained in `nodes_`, so we call `Unserialize()`
+        // directly.
+        ui::AXNode* image_node = tree_.GetFromId(ocr_request.image_node_id);
+        CHECK(image_node);
+        ui::AXNodeData image_node_data = image_node->data();
+        if (ocr_request.image.alt_text.empty()) {
+          // TODO(crbug.com/289010799): Add a CHECK to ensure that the image
+          // node was labeled with `IDS_PDF_OCR_IN_PROGRESS_AX_UNLABELED_IMAGE`
+          // when it's sent to OCR.
+          image_node_data.SetNameChecked(l10n_util::GetStringUTF8(
+              IDS_AX_UNLABELED_IMAGE_ROLE_DESCRIPTION));
+        }
+        tree_update.root_id = doc_node_->id;
+        tree_update.nodes.emplace_back(std::move(image_node_data));
+        if (!tree_.Unserialize(tree_update)) {
+          LOG(FATAL) << tree_.error();
+        }
+      }
       continue;
     }
 
@@ -1179,7 +1166,7 @@ void PdfAccessibilityTree::OnOcrDataReceived(
                  nodes_,
                  [&ocr_request](const std::unique_ptr<ui::AXNodeData>& node) {
                    return node->id == ocr_request.image_node_id;
-                 }) != ranges::end(nodes_));
+                 }) != std::ranges::end(nodes_));
     }
 #endif
 
@@ -1188,11 +1175,7 @@ void PdfAccessibilityTree::OnOcrDataReceived(
     // boxes. This transform will be applied to all nodes from OCR results
     // below.
     gfx::Transform transform = MakeTransformForImage(
-        ocr_request.image.bounds, ocr_request.image_pixel_size);
-
-    // Count each detected language and find out the most detected language in
-    // OCR result. Then record the most detected language in UMA.
-    std::map<std::string, size_t> detected_language_count_map;
+        ocr_request.image.bounds, ocr_request.image_pixel_size, orientation_);
 
     // Update the relative bounds of all nodes in the tree update. The PDF
     // accessibility tree assumes that all nodes have bounds relative to the
@@ -1203,22 +1186,38 @@ void PdfAccessibilityTree::OnOcrDataReceived(
         // image node's bounds.
         node_from_ocr.relative_bounds.bounds = image_bounds;
       } else {
+        int original_width = node_from_ocr.relative_bounds.bounds.width();
         node_from_ocr.relative_bounds.bounds =
             transform.MapRect(node_from_ocr.relative_bounds.bounds);
         // Make all the other nodes relative to the page node.
         node_from_ocr.relative_bounds.bounds.Offset(image_bounds.x(),
                                                     image_bounds.y());
+
+        // Character offsets are computed in pixel and based on the image size
+        // that is sent to OCR. They should be scaled if the view size is
+        // different.
+        int new_width = (orientation_ == 0 || orientation_ == 2)
+                            ? node_from_ocr.relative_bounds.bounds.width()
+                            : node_from_ocr.relative_bounds.bounds.height();
+        if (node_from_ocr.HasIntListAttribute(
+                ax::mojom::IntListAttribute::kCharacterOffsets) &&
+            new_width != original_width) {
+          std::vector<int32_t> character_offsets =
+              node_from_ocr.GetIntListAttribute(
+                  ax::mojom::IntListAttribute::kCharacterOffsets);
+
+          float ratio = static_cast<float>(new_width) / original_width;
+          std::ranges::for_each(character_offsets, [ratio](int32_t& offset) {
+            offset = static_cast<int32_t>(offset * ratio);
+          });
+          node_from_ocr.AddIntListAttribute(
+              ax::mojom::IntListAttribute::kCharacterOffsets,
+              character_offsets);
+        }
       }
       // Make all nodes relative to the root node.
       node_from_ocr.relative_bounds.offset_container_id = doc_node_->id;
-      // Count languages detected in OCR results. It will be used in UMA.
-      std::string detected_language;
-      if (node_from_ocr.GetStringAttribute(
-              ax::mojom::StringAttribute::kLanguage, &detected_language)) {
-        detected_language_count_map[detected_language]++;
-      }
     }
-    RecordMostDetectedLanguageInOcrData(detected_language_count_map);
 
     if (unserialized_node_exist) {
       // `nodes_` have not been unserialized yet, so update `nodes_` directly
@@ -1238,7 +1237,7 @@ void PdfAccessibilityTree::OnOcrDataReceived(
           nodes_, [&ocr_request](const std::unique_ptr<ui::AXNodeData>& node) {
             return node->id == ocr_request.parent_node_id;
           });
-      CHECK(parent_node_iter != ranges::end(nodes_));
+      CHECK(parent_node_iter != std::ranges::end(nodes_));
       num_erased =
           std::erase((*parent_node_iter)->child_ids, ocr_request.image_node_id);
       CHECK_EQ(num_erased, 1);
@@ -1274,20 +1273,11 @@ void PdfAccessibilityTree::OnOcrDataReceived(
   }
 
   if (!unserialized_node_exist) {
-    // PDF accessibility tree is available now, so it may be necessary to add a
-    // postamble page after the last OCRed page.
-    AddPostamblePageIfNeeded(ocr_requests.back().page_node_id);
     MarkPluginContainerDirty();
-  } else {
-    // PDF accessibility tree is not yet available. If all pages are OCRed
-    // before PDF content is being loaded into the accessibility tree, update
-    // the status node's message here.
-    if (ocr_helper_->AreAllPagesOcred()) {
-      // This message will be loaded to the status node in the tree along with
-      // the PDF content when `UnserializeNodes()` gets called.
-      SetStatusMessage(was_text_converted_from_image_ ? IDS_PDF_OCR_COMPLETED
-                                                      : IDS_PDF_OCR_NO_RESULT);
-    }
+  }
+
+  if (ocr_helper_->AreAllPagesOcred()) {
+    SetOcrCompleteStatus();
   }
 }
 
@@ -1371,12 +1361,16 @@ void PdfAccessibilityTree::MaybeHandleAccessibilityChange(
       // the browser process sent AXMode with `ui::AXMode::kPDFOcr` (i.e. after
       // `RenderAccessibilityManager` called `NotifyAccessibilityModeChange()`)
       // when its web contents were being created.
-      content::RenderAccessibility* render_accessibility =
-          render_frame() ? render_frame()->GetRenderAccessibility() : nullptr;
-      if (render_accessibility &&
-          render_accessibility->GetAXMode().has_mode(ui::AXMode::kPDFOcr) &&
-          !ocr_helper_) {
-        CreateOcrHelper();
+      // TODO(b/354068257): Enable OCR in print preview mode. OCR is disabled in
+      // print preview mode since PDFs are dynamically generated in preview mode
+      // and delayed image fetch for OCR is not possible.
+      if (!print_preview_ && !ocr_helper_) {
+        content::RenderAccessibility* render_accessibility =
+            render_frame() ? render_frame()->GetRenderAccessibility() : nullptr;
+        if (render_accessibility &&
+            render_accessibility->GetAXMode().has_mode(ui::AXMode::kPDFOcr)) {
+          CreateOcrHelper();
+        }
       }
 #endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
       action_handler_->EnableAccessibility();

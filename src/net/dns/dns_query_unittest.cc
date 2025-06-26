@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/dns/dns_query.h"
 
 #include <cstdint>
@@ -13,6 +18,7 @@
 #include <vector>
 
 #include "base/containers/span.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "net/base/io_buffer.h"
 #include "net/dns/dns_names_util.h"
@@ -124,8 +130,8 @@ TEST(DnsQueryTest, EDNS0) {
   };
 
   OptRecordRdata opt_rdata;
-  opt_rdata.AddOpt(
-      OptRecordRdata::UnknownOpt::CreateForTesting(255, "\xde\xad\xbe\xef"));
+  const auto data = std::to_array<uint8_t>({0xde, 0xad, 0xbe, 0xef});
+  opt_rdata.AddOpt(OptRecordRdata::UnknownOpt::CreateForTesting(255, data));
   DnsQuery q1(0xbeef, kQName, dns_protocol::kTypeA, &opt_rdata);
   EXPECT_EQ(dns_protocol::kTypeA, q1.qtype());
 
@@ -276,7 +282,7 @@ const uint8_t kQueryInvalidDNSDomainName2[] = {
 
 TEST(DnsQueryParseTest, FailsInvalidQueries) {
   const struct TestCase {
-    const uint8_t* data;
+    raw_ptr<const uint8_t> data;
     size_t size;
   } testcases[] = {
       {kQueryTruncatedQuestion, std::size(kQueryTruncatedQuestion)},

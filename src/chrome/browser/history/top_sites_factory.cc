@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include <array>
 #include <memory>
 
 #include "base/command_line.h"
@@ -56,14 +57,14 @@ struct RawPrepopulatedPage {
 
 #if !BUILDFLAG(IS_ANDROID)
 // Android does not use prepopulated pages.
-const RawPrepopulatedPage kRawPrepopulatedPages[] = {
+constexpr auto kRawPrepopulatedPages = std::to_array<RawPrepopulatedPage>({
     {
         IDS_WEBSTORE_URL,
         IDS_EXTENSION_WEB_STORE_TITLE_SHORT,
         IDR_WEBSTORE_ICON_32,
         SkColorSetRGB(63, 132, 197),
     },
-};
+});
 #endif
 
 void InitializePrepopulatedPageList(
@@ -130,6 +131,9 @@ TopSitesFactory::TopSitesFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
               .Build()) {
   DependsOn(HistoryServiceFactory::GetInstance());
   DependsOn(TemplateURLServiceFactory::GetInstance());

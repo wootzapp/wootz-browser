@@ -6,7 +6,6 @@
 
 #include <utility>
 
-#include "base/check.h"
 #include "base/check_op.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -27,14 +26,6 @@
 #include "components/update_client/utils.h"
 
 namespace update_client {
-
-CrxDownloader::DownloadMetrics::DownloadMetrics()
-    : downloader(kNone),
-      error(0),
-      extra_code1(0),
-      downloaded_bytes(-1),
-      total_bytes(-1),
-      download_time_ms(0) {}
 
 CrxDownloader::CrxDownloader(scoped_refptr<CrxDownloader> successor)
     : main_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()),
@@ -106,6 +97,11 @@ void CrxDownloader::OnDownloadComplete(
     const Result& result,
     const DownloadMetrics& download_metrics) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  // Release any references held by the progress callback, in case the
+  // CrxDownloader outlives the receiver of the progress_callback. (This is
+  // often the case in tests.)
+  progress_callback_.Reset();
 
   metrics::RecordCRXDownloadComplete(result.error);
   if (result.error) {
@@ -197,7 +193,6 @@ void CrxDownloader::HandleDownloadError(
 
   // Try downloading using the next downloader.
   if (successor_ && !urls_.empty()) {
-    metrics::RecordCRXDownloaderFallback();
     successor_->StartDownload(urls_, expected_hash_,
                               std::move(download_callback_));
     return;

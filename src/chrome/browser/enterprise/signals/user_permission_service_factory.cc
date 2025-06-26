@@ -7,9 +7,8 @@
 #include <memory>
 
 #include "base/no_destructor.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
-#include "chrome/browser/enterprise/connectors/device_trust/consent_policy_observer.h"
 #include "chrome/browser/enterprise/connectors/device_trust/device_trust_connector_service.h"
 #include "chrome/browser/enterprise/connectors/device_trust/device_trust_connector_service_factory.h"
 #include "chrome/browser/enterprise/signals/user_delegate_impl.h"
@@ -23,9 +22,9 @@
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "content/public/browser/browser_context.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "components/device_signals/core/browser/ash/user_permission_service_ash.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace enterprise_signals {
 
@@ -45,7 +44,12 @@ UserPermissionServiceFactory::GetForProfile(Profile* profile) {
 UserPermissionServiceFactory::UserPermissionServiceFactory()
     : ProfileKeyedServiceFactory(
           "UserPermissionService",
-          ProfileSelections::BuildForRegularAndIncognito()) {
+          ProfileSelections::Builder()
+              .WithRegular(ProfileSelection::kOwnInstance)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
+              .Build()) {
   DependsOn(IdentityManagerFactory::GetInstance());
   DependsOn(policy::ManagementServiceFactory::GetInstance());
   DependsOn(
@@ -54,7 +58,8 @@ UserPermissionServiceFactory::UserPermissionServiceFactory()
 
 UserPermissionServiceFactory::~UserPermissionServiceFactory() = default;
 
-KeyedService* UserPermissionServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+UserPermissionServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   auto* profile = Profile::FromBrowserContext(context);
 
@@ -76,17 +81,16 @@ KeyedService* UserPermissionServiceFactory::BuildServiceInstanceFor(
   auto user_delegate = std::make_unique<UserDelegateImpl>(
       profile, identity_manager, device_trust_connector_service);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  auto* user_permission_service = new device_signals::UserPermissionServiceAsh(
-      management_service, std::move(user_delegate), profile->GetPrefs());
+#if BUILDFLAG(IS_CHROMEOS)
+  auto user_permission_service =
+      std::make_unique<device_signals::UserPermissionServiceAsh>(
+          management_service, std::move(user_delegate), profile->GetPrefs());
 #else
-  auto* user_permission_service = new device_signals::UserPermissionServiceImpl(
-      management_service, std::move(user_delegate), profile->GetPrefs());
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+  auto user_permission_service =
+      std::make_unique<device_signals::UserPermissionServiceImpl>(
+          management_service, std::move(user_delegate), profile->GetPrefs());
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
-  device_trust_connector_service->AddObserver(
-      std::make_unique<enterprise_connectors::ConsentPolicyObserver>(
-          user_permission_service->GetWeakPtr()));
   return user_permission_service;
 }
 

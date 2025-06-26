@@ -13,15 +13,15 @@
 #include "base/containers/contains.h"
 #include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/sys_string_conversions.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/common/input/native_web_keyboard_event.h"
 #include "content/shell/app/resource.h"
 #include "content/shell/browser/shell.h"
+#include "ui/gfx/native_widget_types.h"
 #include "url/gurl.h"
 
 // Receives notification that the window is closing so that it can start the
@@ -212,7 +212,7 @@ gfx::NativeWindow ShellPlatformDelegate::GetNativeWindow(Shell* shell) {
   DCHECK(base::Contains(shell_data_map_, shell));
   ShellData& shell_data = shell_data_map_[shell];
 
-  return shell_data.delegate.window;
+  return gfx::NativeWindow(shell_data.delegate.window);
 }
 
 void ShellPlatformDelegate::CleanUp(Shell* shell) {
@@ -267,8 +267,7 @@ void ShellPlatformDelegate::EnableUIControl(Shell* shell,
       id = IDC_NAV_STOP;
       break;
     default:
-      NOTREACHED_IN_MIGRATION() << "Unknown UI control";
-      return;
+      NOTREACHED() << "Unknown UI control";
   }
   [[shell_data.delegate.window.contentView viewWithTag:id]
       setEnabled:is_enabled];
@@ -331,7 +330,7 @@ void ShellPlatformDelegate::DidNavigatePrimaryMainFramePostCommit(
 bool ShellPlatformDelegate::HandleKeyboardEvent(
     Shell* shell,
     WebContents* source,
-    const NativeWebKeyboardEvent& event) {
+    const input::NativeWebKeyboardEvent& event) {
   if (event.skip_if_unhandled || Shell::ShouldHideToolbar()) {
     return false;
   }

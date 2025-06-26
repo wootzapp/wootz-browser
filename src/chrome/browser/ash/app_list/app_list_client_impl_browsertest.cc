@@ -7,9 +7,13 @@
 #include <stddef.h>
 
 #include <memory>
+#include <optional>
+#include <vector>
 
+#include "ash/app_list/apps_collections_controller.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
+#include "ash/constants/web_app_id_constants.h"
 #include "ash/public/cpp/app_list/app_list_features.h"
 #include "ash/public/cpp/app_list/app_list_metrics.h"
 #include "ash/public/cpp/app_list/app_list_types.h"
@@ -27,10 +31,13 @@
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/strings/strcat.h"
+#include "base/strings/to_string.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/run_until.h"
+#include "base/test/scoped_feature_list.h"
+#include "base/test/test_future.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/browser/apps/app_service/app_launch_params.h"
@@ -43,26 +50,32 @@
 #include "chrome/browser/ash/app_list/app_list_controller_delegate.h"
 #include "chrome/browser/ash/app_list/app_list_model_updater.h"
 #include "chrome/browser/ash/app_list/app_list_model_updater_observer.h"
+#include "chrome/browser/ash/app_list/app_list_survey_handler.h"
 #include "chrome/browser/ash/app_list/app_list_syncable_service_factory.h"
+#include "chrome/browser/ash/app_list/app_list_test_util.h"
 #include "chrome/browser/ash/app_list/chrome_app_list_item.h"
+#include "chrome/browser/ash/app_list/chrome_app_list_model_updater.h"
 #include "chrome/browser/ash/app_list/search/search_controller.h"
 #include "chrome/browser/ash/app_list/search/test/app_list_search_test_helper.h"
 #include "chrome/browser/ash/app_list/search/test/search_results_changed_waiter.h"
 #include "chrome/browser/ash/app_list/test/chrome_app_list_test_support.h"
-#include "chrome/browser/ash/file_manager/app_id.h"
+#include "chrome/browser/ash/hats/hats_config.h"
+#include "chrome/browser/ash/hats/hats_notification_controller.h"
 #include "chrome/browser/ash/login/demo_mode/demo_mode_test_utils.h"
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
 #include "chrome/browser/ash/login/login_manager_test.h"
 #include "chrome/browser/ash/login/test/login_manager_mixin.h"
-#include "chrome/browser/ash/login/ui/user_adding_screen.h"
-#include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
+#include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/system_web_apps/system_web_app_manager.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
+#include "chrome/browser/notifications/notification_display_service_tester.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
+#include "chrome/browser/ui/ash/assistant/assistant_browser_delegate_impl.h"
+#include "chrome/browser/ui/ash/login/user_adding_screen.h"
 #include "chrome/browser/ui/ash/shelf/shelf_controller_helper.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "chrome/browser/ui/browser.h"
@@ -70,6 +83,8 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
+#include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
@@ -79,12 +94,15 @@
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
-#include "chromeos/ash/components/standalone_browser/feature_refs.h"
+#include "chromeos/ash/services/assistant/public/cpp/assistant_browser_delegate.h"
+#include "chromeos/ash/services/assistant/public/cpp/features.h"
 #include "components/account_id/account_id.h"
 #include "components/app_constants/constants.h"
 #include "components/browser_sync/browser_sync_switches.h"
 #include "components/prefs/pref_service.h"
 #include "components/services/app_service/public/cpp/package_id.h"
+#include "components/session_manager/core/session_manager.h"
+#include "components/user_manager/test_helper.h"
 #include "components/user_manager/user_manager.h"
 #include "components/user_manager/user_names.h"
 #include "components/user_manager/user_type.h"
@@ -94,13 +112,15 @@
 #include "content/public/test/test_utils.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/common/constants.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "ui/aura/window.h"
-#include "ui/base/models/simple_menu_model.h"
 #include "ui/display/display.h"
 #include "ui/display/scoped_display_for_new_windows.h"
 #include "ui/display/screen.h"
 #include "ui/display/test/display_manager_test_api.h"
+#include "ui/menus/simple_menu_model.h"
 #include "ui/wm/core/window_util.h"
+#include "url/gurl.h"
 
 // Browser Test for AppListClientImpl.
 using AppListClientImplBrowserTest = extensions::PlatformAppBrowserTest;
@@ -808,27 +828,6 @@ IN_PROC_BROWSER_TEST_F(AppListClientImplBrowserTest,
             client->GetAppListDisplayId());
 }
 
-class AppListClientImplLacrosOnlyBrowserTest
-    : public AppListClientImplBrowserTest {
- public:
-  AppListClientImplLacrosOnlyBrowserTest() {
-    feature_list_.InitWithFeatures(ash::standalone_browser::GetFeatureRefs(),
-                                   {});
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(AppListClientImplLacrosOnlyBrowserTest, ChromeApp) {
-  AppListControllerDelegate* delegate = AppListClientImpl::GetInstance();
-  ASSERT_TRUE(delegate);
-  ASSERT_TRUE(profile());
-  EXPECT_EQ(
-      extensions::LAUNCH_TYPE_INVALID,
-      delegate->GetExtensionLaunchType(profile(), app_constants::kChromeAppId));
-}
-
 IN_PROC_BROWSER_TEST_F(AppListClientImplBrowserTest, ChromeApp) {
   AppListControllerDelegate* delegate = AppListClientImpl::GetInstance();
   ASSERT_TRUE(delegate);
@@ -912,14 +911,11 @@ IN_PROC_BROWSER_TEST_F(AppListClientImplBrowserTest, AppsVisibility) {
   ChromeAppListItem* item = model_updater->FindItem(extensions::kWebStoreAppId);
   EXPECT_TRUE(item);
 
-  // Calculate the correct histogram name.
+  // Fetch the correct histogram name.
   base::HistogramTester histogram_tester;
-  const std::string experimental_arm =
-      app_list_features::IsAppsCollectionsEnabledCounterfactually()
-          ? ".Counterfactual"
-          : ".Enabled";
   const std::string apps_collections_state =
-      app_list_features::IsAppsCollectionsEnabled() ? experimental_arm : "";
+      ash::AppsCollectionsController::Get()
+          ->GetUserExperimentalArmAsHistogramSuffix();
   const std::string histogram_prefix =
       "Apps.AppListBubble.AppsPage.AppLaunchesByVisibility";
 
@@ -1279,6 +1275,12 @@ class AppListClientNewUserTest : public InProcessBrowserTest,
 
  private:
   // InProcessBrowserTest:
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    InProcessBrowserTest::SetUpCommandLine(command_line);
+    // Disable automatic login.
+    command_line->AppendSwitch(ash::switches::kLoginManager);
+  }
+
   void SetUpOnMainThread() override {
     SetUpEnvironment();
     // Inject the testing profile into the client, since once a user session was
@@ -1290,7 +1292,16 @@ class AppListClientNewUserTest : public InProcessBrowserTest,
 
   // Sets up profile and user manager. Should be called only once on test setup.
   void SetUpEnvironment() {
-    account_id_ = AccountId::FromUserEmailGaiaId("test@test-user", "gaia-id");
+    ash::ProfileHelper::SetProfileToUserForTestingEnabled(true);
+    account_id_ =
+        AccountId::FromUserEmailGaiaId("test@test-user", GaiaId("gaia-id"));
+    auto* user = user_manager::TestHelper(user_manager::UserManager::Get())
+                     .AddRegularUser(account_id_);
+    ASSERT_TRUE(user);
+    session_manager::SessionManager::Get()->CreateSession(
+        account_id_, user_manager::TestHelper::GetFakeUsernameHash(account_id_),
+        /*new_user=*/false,
+        /*has_active_session=*/false);
 
     TestingProfile::Builder profile_builder;
     profile_builder.AddTestingFactory(
@@ -1311,23 +1322,20 @@ class AppListClientNewUserTest : public InProcessBrowserTest,
     g_browser_process->profile_manager()->RegisterTestingProfile(
         std::move(testing_profile), true);
 
-    auto user_manager = std::make_unique<ash::FakeChromeUserManager>();
-    user_manager->AddUserWithAffiliationAndTypeAndProfile(
-        account_id_, true, user_manager::UserType::kRegular, profile_);
-    user_manager->LoginUser(account_id_);
-
-    user_manager_enabler_ = std::make_unique<user_manager::ScopedUserManager>(
-        std::move(user_manager));
+    user_manager::UserManager::Get()->OnUserProfileCreated(
+        account_id_, profile_->GetPrefs());
+    ash::ProfileHelper::Get()->SetUserToProfileMappingForTesting(user,
+                                                                 profile_);
   }
 
   void TearDownOnMainThread() override {
+    user_manager::UserManager::Get()->OnUserProfileWillBeDestroyed(account_id_);
     profile_ = nullptr;
     base::RunLoop().RunUntilIdle();
-    user_manager_enabler_.reset();
     InProcessBrowserTest::TearDownOnMainThread();
+    ash::ProfileHelper::SetProfileToUserForTestingEnabled(false);
   }
 
-  std::unique_ptr<user_manager::ScopedUserManager> user_manager_enabler_;
   // The event to signal when the first app list sync in the session has been
   // completed.
   base::OneShotEvent on_first_sync_;
@@ -1353,4 +1361,421 @@ IN_PROC_BROWSER_TEST_P(AppListClientNewUserTest, IsNewUser) {
     return AppListClientImpl::GetInstance()->IsNewUser(account_id()) ==
            was_first_sync_ever();
   }));
+}
+
+// An enum identifying the possible combinations for the Launcher HATS survey in
+// tests.
+enum class AppListSurveyConfiguration {
+  // No HATS configurations is selected for this test.
+  kNone,
+  // ash::kHatsLauncherAppsFindingSurvey
+  kAppsFinding,
+  // ash::kHatsLauncherAppsNeedingSurvey
+  kAppsNeeding,
+};
+
+class AppListSurveyTriggerTest
+    : public AppListClientImplBrowserTest,
+      public testing::WithParamInterface<
+          std::tuple<ash::AppsCollectionsController::ExperimentalArm,
+                     AppListSurveyConfiguration>> {
+ public:
+  AppListSurveyTriggerTest() {
+    std::vector<base::test::FeatureRefAndParams> enabled_features;
+    std::vector<base::test::FeatureRef> disabled_features;
+    ash::AppsCollectionsController::ExperimentalArm arm = GetExperimentalArm();
+
+    switch (arm) {
+      case ash::AppsCollectionsController::ExperimentalArm::kDefaultValue:
+      case ash::AppsCollectionsController::ExperimentalArm::kControl:
+        disabled_features.push_back(app_list_features::kAppsCollections);
+        break;
+      case ash::AppsCollectionsController::ExperimentalArm::kEnabled:
+        enabled_features.push_back(base::test::FeatureRefAndParams(
+            app_list_features::kAppsCollections,
+            {{"is-counterfactual", "false"}, {"is-modified-order", "false"}}));
+        break;
+      case ash::AppsCollectionsController::ExperimentalArm::kCounterfactual:
+        enabled_features.push_back(base::test::FeatureRefAndParams(
+            app_list_features::kAppsCollections,
+            {{"is-counterfactual", "true"}, {"is-modified-order", "false"}}));
+        break;
+      case ash::AppsCollectionsController::ExperimentalArm::kModifiedOrder:
+        enabled_features.push_back(base::test::FeatureRefAndParams(
+            app_list_features::kAppsCollections,
+            {{"is-counterfactual", "false"}, {"is-modified-order", "true"}}));
+        break;
+    }
+
+    switch (GetHatsConfig()) {
+      case AppListSurveyConfiguration::kNone:
+        disabled_features.push_back(
+            ash::kHatsLauncherAppsNeedingSurvey.feature);
+        disabled_features.push_back(
+            ash::kHatsLauncherAppsFindingSurvey.feature);
+        break;
+      case AppListSurveyConfiguration::kAppsFinding:
+        enabled_features.push_back(base::test::FeatureRefAndParams(
+            ash::kHatsLauncherAppsFindingSurvey.feature, {}));
+        disabled_features.push_back(
+            ash::kHatsLauncherAppsNeedingSurvey.feature);
+        break;
+      case AppListSurveyConfiguration::kAppsNeeding:
+        enabled_features.push_back(base::test::FeatureRefAndParams(
+            ash::kHatsLauncherAppsNeedingSurvey.feature, {}));
+        disabled_features.push_back(
+            ash::kHatsLauncherAppsFindingSurvey.feature);
+        break;
+    }
+
+    scoped_feature_list_.InitWithFeaturesAndParameters(enabled_features,
+                                                       disabled_features);
+  }
+  ~AppListSurveyTriggerTest() override = default;
+
+  // AppListClientImplBrowserTest:
+  void SetUpOnMainThread() override {
+    AppListClientImplBrowserTest::SetUpOnMainThread();
+
+    display_service_ = std::make_unique<NotificationDisplayServiceTester>(
+        browser()->profile());
+    user_manager::UserManager::Get()->SetIsCurrentUserNew(true);
+    AppListClientImpl::GetInstance()->InitializeAsIfNewUserLoginForTest();
+  }
+
+  void SetUpDefaultCommandLine(base::CommandLine* command_line) override {
+    AppListClientImplBrowserTest::SetUpDefaultCommandLine(command_line);
+
+    switch (GetHatsConfig()) {
+      case AppListSurveyConfiguration::kNone:
+        break;
+      case AppListSurveyConfiguration::kAppsFinding:
+        command_line->AppendSwitchASCII(
+            ash::switches::kForceHappinessTrackingSystem,
+            ash::kHatsLauncherAppsFindingSurvey.feature.name);
+        break;
+      case AppListSurveyConfiguration::kAppsNeeding:
+        command_line->AppendSwitchASCII(
+            ash::switches::kForceHappinessTrackingSystem,
+            ash::kHatsLauncherAppsNeedingSurvey.feature.name);
+        break;
+    }
+  }
+
+  bool IsHatsNotificationActive() const {
+    return display_service_
+        ->GetNotification(ash::HatsNotificationController::kNotificationId)
+        .has_value();
+  }
+
+  void MaybeWaitForHatsNotification() {
+    if (!ShouldShowHatsSurvey()) {
+      return;
+    }
+
+    base::RunLoop loop;
+    display_service_->SetNotificationAddedClosure(loop.QuitClosure());
+    loop.Run();
+  }
+
+  const ash::HatsNotificationController* GetHatsNotificationController() const {
+    return AppListClientImpl::GetInstance()
+        ->survey_handler_->GetHatsNotificationControllerForTesting();
+  }
+
+  // Returns the HATS Survey that is expected to trigger.
+  AppListSurveyConfiguration GetHatsConfig() const {
+    return std::get<1>(GetParam());
+  }
+
+  // Returns the experimental arm that this test was set up for AppsCollections.
+  ash::AppsCollectionsController::ExperimentalArm GetExperimentalArm() const {
+    return std::get<0>(GetParam());
+  }
+
+  // Returns whether the a HATS survey should trigger for this parameter
+  // configuration.
+  bool ShouldShowHatsSurvey() {
+    return GetExperimentalArm() !=
+               ash::AppsCollectionsController::ExperimentalArm::kControl &&
+           GetHatsConfig() != AppListSurveyConfiguration::kNone;
+  }
+
+  base::test::ScopedFeatureList scoped_feature_list_;
+
+  std::unique_ptr<NotificationDisplayServiceTester> display_service_;
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    AppListSurveyTriggerTest,
+    ::testing::Combine(
+        testing::Values(
+            ash::AppsCollectionsController::ExperimentalArm::kControl,
+            ash::AppsCollectionsController::ExperimentalArm::kCounterfactual,
+            ash::AppsCollectionsController::ExperimentalArm::kEnabled,
+            ash::AppsCollectionsController::ExperimentalArm::kModifiedOrder),
+        testing::Values(AppListSurveyConfiguration::kAppsFinding,
+                        AppListSurveyConfiguration::kAppsNeeding,
+                        AppListSurveyConfiguration::kNone)));
+
+IN_PROC_BROWSER_TEST_P(AppListSurveyTriggerTest, ShowSurveySuccess) {
+  EXPECT_FALSE(IsHatsNotificationActive());
+
+  AppListClientImpl* client = AppListClientImpl::GetInstance();
+
+  // Bring up the app list.
+  EXPECT_FALSE(client->GetAppListWindow());
+  client->ShowAppList(ash::AppListShowSource::kSearchKey);
+  ash::AppListTestApi().WaitForBubbleWindow(
+      /*wait_for_opening_animation=*/false);
+  EXPECT_TRUE(client->GetAppListWindow());
+
+  MaybeWaitForHatsNotification();
+
+  EXPECT_EQ(GetHatsNotificationController() != nullptr, ShouldShowHatsSurvey());
+  EXPECT_EQ(IsHatsNotificationActive(), ShouldShowHatsSurvey());
+}
+
+IN_PROC_BROWSER_TEST_P(AppListSurveyTriggerTest, ShowSurveyOnlyOnce) {
+  if (!ShouldShowHatsSurvey()) {
+    return;
+  }
+
+  EXPECT_FALSE(IsHatsNotificationActive());
+
+  AppListClientImpl* client = AppListClientImpl::GetInstance();
+
+  // Bring up the app list.
+  EXPECT_FALSE(client->GetAppListWindow());
+  client->ShowAppList(ash::AppListShowSource::kSearchKey);
+  ash::AppListTestApi().WaitForBubbleWindow(
+      /*wait_for_opening_animation=*/false);
+  EXPECT_TRUE(client->GetAppListWindow());
+
+  MaybeWaitForHatsNotification();
+
+  const ash::HatsNotificationController* hats_notification_controller =
+      GetHatsNotificationController();
+  EXPECT_NE(hats_notification_controller, nullptr);
+  EXPECT_TRUE(IsHatsNotificationActive());
+
+  // Bring up the app list again but the controller shouldn't be a new instance.
+  client->DismissView();
+
+  EXPECT_FALSE(client->GetAppListWindow());
+  client->ShowAppList(ash::AppListShowSource::kSearchKey);
+  ash::AppListTestApi().WaitForBubbleWindow(
+      /*wait_for_opening_animation=*/false);
+  EXPECT_TRUE(client->GetAppListWindow());
+
+  EXPECT_EQ(hats_notification_controller, GetHatsNotificationController());
+}
+
+// A suite for verifying the experimental arm for apps collections experiment
+// that modifies the order of apps.
+class AppListModifiedDefaultAppOrderTest
+    : public AppListClientImplBrowserTest,
+      public testing::WithParamInterface<bool> {
+ public:
+  AppListModifiedDefaultAppOrderTest() {
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        app_list_features::kAppsCollections,
+        {{"is-counterfactual", "false"},
+         {"is-modified-order",
+          base::ToString(IsModifiedOrderExperimentalArm())}});
+  }
+  ~AppListModifiedDefaultAppOrderTest() override = default;
+
+  // AppListClientImplBrowserTest:
+  void SetUpOnMainThread() override {
+    AppListClientImplBrowserTest::SetUpOnMainThread();
+    user_manager::UserManager::Get()->SetIsCurrentUserNew(true);
+    AppListClientImpl::GetInstance()->InitializeAsIfNewUserLoginForTest();
+  }
+
+  bool IsModifiedOrderExperimentalArm() { return GetParam(); }
+
+  void AddSyncedItem(std::string app_id, AppListModelUpdater* model_updater) {
+    app_list::AppListSyncableService* syncable_service =
+        app_list_syncable_service();
+    ASSERT_TRUE(syncable_service);
+
+    syncable_service->set_app_default_positioned_for_new_users_only_for_test(
+        app_id);
+    auto new_item = std::make_unique<ChromeAppListItem>(browser()->profile(),
+                                                        app_id, model_updater);
+    new_item->SetChromeName(app_id);
+    syncable_service->AddItem(std::move(new_item));
+  }
+
+  ChromeAppListModelUpdater* GetChromeAppListModelUpdater() {
+    return static_cast<ChromeAppListModelUpdater*>(
+        app_list_syncable_service()->GetModelUpdater());
+  }
+
+  app_list::AppListSyncableService* app_list_syncable_service() {
+    return app_list::AppListSyncableServiceFactory::GetForProfile(profile());
+  }
+
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         AppListModifiedDefaultAppOrderTest,
+                         ::testing::Bool());
+
+// Verify that the default order of apps is changed once the recalculation
+// happens for the first time in the modified order experimental arm of apps
+// collections.
+IN_PROC_BROWSER_TEST_P(AppListModifiedDefaultAppOrderTest,
+                       DefaultOrdinalsChangeAfterRecalculation) {
+  AppListClientImpl* client = AppListClientImpl::GetInstance();
+  ASSERT_TRUE(client);
+  client->UpdateProfile();
+  ChromeAppListModelUpdater* model_updater = GetChromeAppListModelUpdater();
+  ASSERT_TRUE(model_updater);
+  // Install some default apps by syncing.
+  // In the default app order, youtube appears before the camera app. For the
+  // apps collections experimental arm, camera appears first.
+  AddSyncedItem(ash::kCameraAppId, model_updater);
+  AddSyncedItem(extension_misc::kYoutubeAppId, model_updater);
+
+  ChromeAppListItem* camera_item = model_updater->FindItem(ash::kCameraAppId);
+  const syncer::StringOrdinal camera_ordinal = camera_item->position();
+
+  ChromeAppListItem* youtube_item =
+      model_updater->FindItem(extension_misc::kYoutubeAppId);
+  const syncer::StringOrdinal youtube_ordinal = youtube_item->position();
+
+  // Before calculating the experimental arm, the default apps should be ordered
+  // as default, with youtube having a lesser ordinal than camera.
+  EXPECT_TRUE(youtube_ordinal.LessThan(camera_ordinal));
+
+  // Trigger a recalculation of the experimental arm and apps position for
+  // testing simplicity. This is usually done on first sync.
+  client->MaybeRecalculateAppsGridDefaultOrder();
+  const syncer::StringOrdinal new_camera_ordinal = camera_item->position();
+  const syncer::StringOrdinal new_youtube_ordinal = youtube_item->position();
+
+  // After determining if the user belongs in the
+  // experimental arm or not, the default apps may change their ordinals if the
+  // user belongs in the experimental modified order. The order of youtube and
+  // camera is also changed so that now camera has a lesser ordinal than
+  // youtube.
+  EXPECT_EQ(camera_ordinal != new_camera_ordinal,
+            IsModifiedOrderExperimentalArm());
+  EXPECT_EQ(youtube_ordinal != new_youtube_ordinal,
+            IsModifiedOrderExperimentalArm());
+  EXPECT_EQ(new_camera_ordinal.LessThan(new_youtube_ordinal),
+            IsModifiedOrderExperimentalArm());
+}
+
+// Verify that the default order of apps is changed once the app list opens for
+// the first time in the modified order experimental arm of apps collections.
+IN_PROC_BROWSER_TEST_P(AppListModifiedDefaultAppOrderTest,
+                       DefaultOrdinalsNotChangeAfterReorder) {
+  AppListClientImpl* client = AppListClientImpl::GetInstance();
+  ASSERT_TRUE(client);
+  client->UpdateProfile();
+  ChromeAppListModelUpdater* model_updater = GetChromeAppListModelUpdater();
+  ASSERT_TRUE(model_updater);
+  // Install some default apps by syncing.
+  AddSyncedItem(ash::kCameraAppId, model_updater);
+  AddSyncedItem(extension_misc::kYoutubeAppId, model_updater);
+  AddSyncedItem(ash::kCalculatorAppId, model_updater);
+
+  ChromeAppListItem* camera_item = model_updater->FindItem(ash::kCameraAppId);
+  const syncer::StringOrdinal camera_ordinal = camera_item->position();
+
+  ChromeAppListItem* youtube_item =
+      model_updater->FindItem(extension_misc::kYoutubeAppId);
+  const syncer::StringOrdinal youtube_ordinal = youtube_item->position();
+
+  ChromeAppListItem* calculator_item =
+      model_updater->FindItem(ash::kCalculatorAppId);
+  syncer::StringOrdinal calculator_ordinal = calculator_item->position();
+
+  // Before calculating the experimental arm, the default apps should be ordered
+  // as default, with youtube having a lesser ordinal than camera, which have a
+  // lesser ordinal than calculator.
+  EXPECT_TRUE(youtube_ordinal.LessThan(camera_ordinal));
+  EXPECT_TRUE(camera_ordinal.LessThan(calculator_ordinal));
+
+  // Move the calculator before the camera
+  model_updater->RequestPositionUpdate(
+      ash::kCalculatorAppId, camera_ordinal.CreateBefore(),
+      ash::RequestPositionUpdateReason::kMoveItem);
+  calculator_ordinal = calculator_item->position();
+  EXPECT_TRUE(calculator_ordinal.LessThan(camera_ordinal));
+
+  // Trigger a recalculation of the experimental arm and apps position for
+  // testing simplicity. This is usually done on first sync.
+  client->MaybeRecalculateAppsGridDefaultOrder();
+  const syncer::StringOrdinal new_camera_ordinal = camera_item->position();
+  const syncer::StringOrdinal new_youtube_ordinal = youtube_item->position();
+  const syncer::StringOrdinal new_calculator_ordinal =
+      calculator_item->position();
+
+  // Because there was an app reorder, ordinals should not change.
+  EXPECT_EQ(camera_ordinal, new_camera_ordinal);
+  EXPECT_EQ(youtube_ordinal, new_youtube_ordinal);
+  EXPECT_EQ(calculator_ordinal, new_calculator_ordinal);
+}
+
+class AppListClientImplAssistantNewEntryPointTest
+    : public AppListClientImplBrowserPromiseAppTest {
+ protected:
+  static constexpr char kTestAppName[] = "test app";
+  const GURL kTestAppUrl = GURL("https://example.com/path");
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_{
+      ash::assistant::features::kEnableNewEntryPoint};
+};
+
+IN_PROC_BROWSER_TEST_F(AppListClientImplAssistantNewEntryPointTest, Eligible) {
+  webapps::AppId app_id =
+      web_app::test::InstallDummyWebApp(profile(), kTestAppName, kTestAppUrl);
+
+  AssistantBrowserDelegateImpl* delegate =
+      static_cast<AssistantBrowserDelegateImpl*>(
+          ash::assistant::AssistantBrowserDelegate::Get());
+  ASSERT_TRUE(delegate);
+  delegate->OverrideEntryPointIdForTesting(app_id);
+  delegate->SetGoogleChromeBuildForTesting();
+
+  AppListClientImpl* client = AppListClientImpl::GetInstance();
+  ASSERT_TRUE(client);
+
+  base::test::TestFuture<bool> eligibility_future;
+  client->GetAssistantNewEntryPointEligibility(
+      eligibility_future.GetCallback());
+  EXPECT_TRUE(eligibility_future.Get());
+}
+
+IN_PROC_BROWSER_TEST_F(AppListClientImplAssistantNewEntryPointTest, Name) {
+  AppListClientImpl* client = AppListClientImpl::GetInstance();
+  ASSERT_TRUE(client);
+
+  EXPECT_EQ(std::nullopt, client->GetAssistantNewEntryPointName())
+      << "Querying new entry point name before it's installed will return "
+         "std::nullopt";
+
+  webapps::AppId app_id =
+      web_app::test::InstallDummyWebApp(profile(), kTestAppName, kTestAppUrl);
+
+  AssistantBrowserDelegateImpl* delegate =
+      static_cast<AssistantBrowserDelegateImpl*>(
+          ash::assistant::AssistantBrowserDelegate::Get());
+  ASSERT_TRUE(delegate);
+  delegate->OverrideEntryPointIdForTesting(app_id);
+  delegate->SetGoogleChromeBuildForTesting();
+
+  base::test::TestFuture<bool> eligibility_future;
+  client->GetAssistantNewEntryPointEligibility(
+      eligibility_future.GetCallback());
+  EXPECT_TRUE(eligibility_future.Get());
+
+  EXPECT_EQ(kTestAppName, client->GetAssistantNewEntryPointName());
 }

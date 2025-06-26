@@ -4,7 +4,7 @@
 
 #include "chrome/browser/ash/extensions/extensions_permissions_tracker.h"
 
-#include "base/containers/contains.h"
+#include "base/containers/fixed_flat_set.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
@@ -22,7 +22,8 @@ namespace {
 
 // Apps/extensions explicitly allowlisted for skipping warnings for MGS (Managed
 // guest sessions) users.
-const char* const kManagedGuestSessionAllowlist[] = {
+constexpr auto kManagedGuestSessionAllowlist = base::MakeFixedFlatSet<
+    std::string_view>({
     // Managed guest sessions in general:
     "cbkkbcmdlboombapidmoeolnmdacpkch",  // Chrome RDP
     "inomeogfingihgjfjlpeplalcfajhgai",  // Chrome Remote Desktop
@@ -35,7 +36,7 @@ const char* const kManagedGuestSessionAllowlist[] = {
     "cjanmonomjogheabiocdamfpknlpdehm",  // HP printer driver
     "ioofdkhojeeimmagbjbknkejkgbphdfl",  // RICOH Print for Chrome
     "pmnllmkmjilbojkpgplbdmckghmaocjh",  // Scan app by François Beaufort
-    "haeblkpifdemlfnkogkipmghfcbonief",  // Charismathics Smart Card Middleware
+    "haeblkpifdemlfnkogkipmghfcbonief",  // DriveLock Smart Card Middleware
     "mpnkhdpphjiihmlmkcamhpogecnnfffa",  // Service NSW Kiosk Utility
     "npilppbicblkkgjfnbmibmhhgjhobpll",  // QwickACCESS
     // TODO(isandrk): Only on the allowlist for the purpose of getting the soft
@@ -166,12 +167,12 @@ const char* const kManagedGuestSessionAllowlist[] = {
     "fhndealchbngfhdoncgcokameljahhog",  // Certificate Enrollment for Chrome OS
     "npeicpdbkakmehahjeeohfdhnlpdklia",  // WebRTC Network Limiter
     "hdkoikmfpncabbdniojdddokkomafcci",  // SSRS Reporting Fix for Chrome
-};
+});
 
 }  // namespace
 
 bool IsAllowlistedForManagedGuestSession(const std::string& extension_id) {
-  return base::Contains(kManagedGuestSessionAllowlist, extension_id);
+  return kManagedGuestSessionAllowlist.contains(extension_id);
 }
 
 ExtensionsPermissionsTracker::ExtensionsPermissionsTracker(
@@ -264,7 +265,7 @@ void ExtensionsPermissionsTracker::OnExtensionLoaded(
 }
 
 void ExtensionsPermissionsTracker::UpdateLocalState() {
-  bool any_unsafe = base::ranges::any_of(
+  bool any_unsafe = std::ranges::any_of(
       extension_safety_ratings_,
       [](const auto& key_value) { return !key_value.second; });
 

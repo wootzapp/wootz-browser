@@ -233,7 +233,8 @@ SkFont FontPlatformData::CreateSkFont(
     }
   }
 
-  if (WebTestSupport::IsRunningWebTest()) {
+  if (WebTestSupport::IsRunningWebTest() ||
+      RuntimeEnabledFeatures::NoFontAntialiasingEnabled()) {
     should_smooth_fonts = false;
     should_antialias =
         should_antialias && WebTestSupport::IsFontAntialiasingEnabledForTest();
@@ -241,11 +242,7 @@ SkFont FontPlatformData::CreateSkFont(
         WebTestSupport::IsTextSubpixelPositioningAllowedForTest();
   }
 
-  if (RuntimeEnabledFeatures::DisableAhemAntialiasEnabled() && IsAhem()) {
-    should_antialias = false;
-  }
-
-  SkFont skfont;
+  SkFont skfont(typeface_);
   if (should_antialias && should_smooth_fonts) {
     skfont.setEdging(SkFont::Edging::kSubpixelAntiAlias);
   } else if (should_antialias) {
@@ -256,7 +253,6 @@ SkFont FontPlatformData::CreateSkFont(
   skfont.setEmbeddedBitmaps(false);
   const float ts = text_size_ >= 0 ? text_size_ : 12;
   skfont.setSize(SkFloatToScalar(ts));
-  skfont.setTypeface(typeface_);
   skfont.setEmbolden(synthetic_bold_);
   skfont.setSkewX(synthetic_italic_ ? -SK_Scalar1 / 4 : 0);
   skfont.setSubpixel(should_subpixel_position);

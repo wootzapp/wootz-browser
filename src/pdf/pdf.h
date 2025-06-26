@@ -11,6 +11,7 @@
 #include "base/containers/span.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "build/chromeos_buildflags.h"
 #include "pdf/document_metadata.h"
 #include "services/screen_ai/buildflags/buildflags.h"
 
@@ -22,11 +23,13 @@
 #include <windows.h>
 #endif
 
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+#if BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+#include <memory>
+
 #include "base/functional/callback_forward.h"
 #include "services/screen_ai/public/mojom/screen_ai_service.mojom.h"
 #include "third_party/skia/include/core/SkBitmap.h"
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+#endif  // BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 
 namespace gfx {
 class Rect;
@@ -35,6 +38,10 @@ class SizeF;
 }  // namespace gfx
 
 namespace chrome_pdf {
+
+#if BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+class PdfProgressiveSearchifier;
+#endif  // BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 
 void SetUseSkiaRendererPolicy(bool use_skia);
 
@@ -219,7 +226,7 @@ std::vector<uint8_t> ConvertPdfDocumentToNupPdf(
     const gfx::Size& page_size,
     const gfx::Rect& printable_area);
 
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+#if BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 // Converts an inaccessible PDF to a searchable PDF.
 // `pdf_buffer` is the buffer of the inaccessible PDF.
 // `perform_ocr_callback` is the callback that takes an image and outputs
@@ -234,7 +241,11 @@ std::vector<uint8_t> Searchify(
     base::span<const uint8_t> pdf_buffer,
     base::RepeatingCallback<screen_ai::mojom::VisualAnnotationPtr(
         const SkBitmap& bitmap)> perform_ocr_callback);
-#endif  // BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
+
+// Creates a PDF searchifier for future operations, such as adding and deleting
+// pages, and saving PDFs. Crashes if failed to create.
+std::unique_ptr<PdfProgressiveSearchifier> CreateProgressiveSearchifier();
+#endif  // BUILDFLAG(IS_CHROMEOS) && BUILDFLAG(ENABLE_SCREEN_AI_SERVICE)
 
 }  // namespace chrome_pdf
 

@@ -8,13 +8,12 @@ import static org.chromium.chrome.browser.customtabs.content.CustomTabActivityNa
 
 import androidx.annotation.Nullable;
 
-import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.base.Callback;
 import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
-import org.chromium.chrome.browser.customtabs.content.CustomTabActivityNavigationController.FinishHandler;
+import org.chromium.chrome.browser.customtabs.content.CustomTabActivityNavigationController.FinishReason;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabController;
 import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvider;
 import org.chromium.chrome.browser.customtabs.features.minimizedcustomtab.CustomTabMinimizationManagerHolder;
-import org.chromium.chrome.browser.dependency_injection.ActivityScope;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.content_public.browser.NavigationController;
 import org.chromium.content_public.browser.NavigationHistory;
@@ -22,26 +21,23 @@ import org.chromium.content_public.browser.WebContents;
 
 import java.util.function.Predicate;
 
-import javax.inject.Inject;
-
 /**
  * Closes the tab or navigates back when the Custom Tabs close button is pressed. The algorithm
  * depends on whether the tab is a child tab - {@link Tab#getParentId()} != Tab.INVALID_TAB_ID.
  *
- * If the tab is not a child tab:
+ * <p>If the tab is not a child tab: <br>
  * Navigates to the most recent page which matches a criteria. We call this page the landing page.
  * For instance, Trusted Web Activities show the close button when the user has left the verified
  * origin. If the user then presses the close button, we want to navigate back to the verified
  * origin instead of closing the Activity.
  *
- * If the tab is a child tab:
- * Webapps: Closes the current tab
+ * <p>If the tab is a child tab: <br>
+ * Webapps: Closes the current tab <br>
  * Other: Same algorithm as non-child tabs.
  *
- * Thread safety: Should only be called on UI thread.
+ * <p>Thread safety: Should only be called on UI thread. <br>
  * Native: Requires native.
  */
-@ActivityScope
 public class CloseButtonNavigator {
     @Nullable private Predicate<String> mLandingPagePredicate;
     private final CustomTabActivityTabController mTabController;
@@ -49,7 +45,6 @@ public class CloseButtonNavigator {
     private final CustomTabMinimizationManagerHolder mMinimizationManagerHolder;
     private final boolean mButtonClosesChildTab;
 
-    @Inject
     public CloseButtonNavigator(
             CustomTabActivityTabController tabController,
             CustomTabActivityTabProvider tabProvider,
@@ -77,7 +72,7 @@ public class CloseButtonNavigator {
     }
 
     /** Handles navigation and Tab closures that should occur when the close button is pressed. */
-    public void navigateOnClose(FinishHandler finishActivity) {
+    public void navigateOnClose(Callback<@FinishReason Integer> finishCallback) {
         // If the tab is a child tab and |mButtonClosesChildTab| == true, close the child tab.
         Tab currentTab = mTabProvider.getTab();
         boolean isFromChildTab =
@@ -89,7 +84,6 @@ public class CloseButtonNavigator {
 
         // Search for a landing page in the history of the current Tab and then close if if none
         // found. Continue until a landing page is found or all Tabs are closed.
-        int numTabsClosed = 0;
         while (mTabProvider.getTab() != null) {
             // See if there's a close button navigation in our current Tab.
             NavigationController navigationController = getNavigationController();
@@ -106,12 +100,10 @@ public class CloseButtonNavigator {
             if (mTabController.onlyOneTabRemaining() && !isMinimized) {
                 // If we call mTabController.closeTab() and wait for the Activity to close as a
                 // result, we have a blank screen flashing before closing. https://crbug.com/1518767
-                finishActivity.onFinish(USER_NAVIGATION);
-                ++numTabsClosed;
+                finishCallback.onResult(USER_NAVIGATION);
                 break;
             }
             mTabController.closeTab();
-            ++numTabsClosed;
 
             // Check whether the close button navigation would have stopped on the newly revealed
             // Tab. We don't check this at the start of the loop (or make navigateSingleTab
@@ -121,11 +113,6 @@ public class CloseButtonNavigator {
             if (nextTab != null && isLandingPage(nextTab.getUrl().getSpec())) {
                 return;
             }
-        }
-
-        if (numTabsClosed > 0) {
-            RecordHistogram.recordCount100Histogram(
-                    "CustomTabs.TabCounts.OnClosingAllTabs", numTabsClosed);
         }
     }
 

@@ -8,13 +8,28 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 
-using CrExtensionsShortcutInputTest = WebUIMochaFocusTest;
-IN_PROC_BROWSER_TEST_F(CrExtensionsShortcutInputTest, Basic) {
-  set_test_loader_host(chrome::kChromeUIExtensionsHost);
-  RunTest("extensions/shortcut_input_test.js",
-          "runMochaTest('ExtensionShortcutInputTest', 'Basic')");
+class CrExtensionsFocusTest : public WebUIMochaFocusTest {
+ protected:
+  CrExtensionsFocusTest() {
+    set_test_loader_host(chrome::kChromeUIExtensionsHost);
+  }
+};
+
+// TODO(crbug.com/392777363): Make the test pass on android.
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+IN_PROC_BROWSER_TEST_F(CrExtensionsFocusTest, UninstallFocus) {
+  RunTest("extensions/manager_unit_test.js",
+          "runMochaTest('ExtensionManagerUnitTest', 'UninstallFocus')");
+}
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+
+IN_PROC_BROWSER_TEST_F(CrExtensionsFocusTest, UpdateShortcut) {
+  RunTest("extensions/keyboard_shortcuts_test.js",
+          "runMochaTest('ExtensionShortcutTest', 'UpdateShortcut')");
 }
 
+// TODO(crbug.com/392777363): Compile the test on android.
+#if BUILDFLAG(ENABLE_EXTENSIONS)
 class CrExtensionsOptionsPageTest : public ExtensionSettingsTestBase {
  protected:
   void OnWebContentsAvailable(content::WebContents* web_contents) override {
@@ -28,3 +43,4 @@ IN_PROC_BROWSER_TEST_F(CrExtensionsOptionsPageTest, DISABLED_All) {
   InstallExtensionWithInPageOptions();
   RunTest("extensions/extension_options_dialog_test.js", "mocha.run()");
 }
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS)

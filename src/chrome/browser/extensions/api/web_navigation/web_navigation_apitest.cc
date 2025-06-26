@@ -40,6 +40,7 @@
 #include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_features.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/test/back_forward_cache_util.h"
 #include "content/public/test/browser_test.h"
@@ -95,7 +96,7 @@ class DelayLoadStartAndExecuteJavascript : public TabStripModelObserver,
   DelayLoadStartAndExecuteJavascript& operator=(
       const DelayLoadStartAndExecuteJavascript&) = delete;
 
-  ~DelayLoadStartAndExecuteJavascript() override {}
+  ~DelayLoadStartAndExecuteJavascript() override = default;
 
   // TabStripModelObserver:
   void OnTabStripModelChanged(
@@ -124,10 +125,12 @@ class DelayLoadStartAndExecuteJavascript : public TabStripModelObserver,
 
     if (has_user_gesture_) {
       render_frame_host_->ExecuteJavaScriptWithUserGestureForTests(
-          base::UTF8ToUTF16(script_), base::NullCallback());
+          base::UTF8ToUTF16(script_), base::NullCallback(),
+          content::ISOLATED_WORLD_ID_GLOBAL);
     } else {
-      render_frame_host_->ExecuteJavaScriptForTests(base::UTF8ToUTF16(script_),
-                                                    base::NullCallback());
+      render_frame_host_->ExecuteJavaScriptForTests(
+          base::UTF8ToUTF16(script_), base::NullCallback(),
+          content::ISOLATED_WORLD_ID_GLOBAL);
     }
     script_was_executed_ = true;
   }
@@ -158,7 +161,7 @@ class DelayLoadStartAndExecuteJavascript : public TabStripModelObserver,
    public:
     explicit WillStartRequestObserverThrottle(content::NavigationHandle* handle)
         : NavigationThrottle(handle) {}
-    ~WillStartRequestObserverThrottle() override {}
+    ~WillStartRequestObserverThrottle() override = default;
 
     const char* GetNameForLogging() override {
       return "WillStartRequestObserverThrottle";
@@ -257,7 +260,7 @@ class WebNavigationApiBackForwardCacheTest : public WebNavigationApiTest {
   base::test::ScopedFeatureList feature_list_;
 };
 
-using ContextType = extensions::ExtensionBrowserTest::ContextType;
+using ContextType = extensions::browser_test_util::ContextType;
 
 class WebNavigationApiTestWithContextType
     : public WebNavigationApiTest,
@@ -310,6 +313,9 @@ IN_PROC_BROWSER_TEST_P(WebNavigationApiPrerenderTestWithContextType, GetFrame) {
 }
 
 IN_PROC_BROWSER_TEST_F(WebNavigationApiTest, GetFrameIncognito) {
+  // TODO(crbug.com/40937027): Convert test to use HTTPS and then remove.
+  ScopedAllowHttpForHostnamesForTesting allow_http({"a.com"},
+                                                   profile()->GetPrefs());
   ASSERT_TRUE(StartEmbeddedTestServer());
 
   GURL url = embedded_test_server()->GetURL("a.com", "/empty.html");
@@ -611,6 +617,7 @@ IN_PROC_BROWSER_TEST_P(WebNavigationApiTestWithContextType,
 
   Browser* otr_browser = OpenURLOffTheRecord(browser()->profile(), url);
   WebContents* tab = otr_browser->tab_strip_model()->GetActiveWebContents();
+  content::SimulateEndOfPaintHoldingOnPrimaryMainFrame(tab);
 
   // There's a link with target=_blank on a.html. Click on it to open it in a
   // new tab.

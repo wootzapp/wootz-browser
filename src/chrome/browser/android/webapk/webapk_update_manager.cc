@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include <jni.h>
+
 #include <memory>
 #include <string>
 #include <utility>
@@ -18,9 +19,9 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
-#include "chrome/android/chrome_jni_headers/WebApkUpdateManager_jni.h"
 #include "chrome/browser/android/webapk/webapk_features.h"
 #include "chrome/browser/android/webapk/webapk_install_service.h"
+#include "chrome/browser/android/webapk/webapk_install_service_factory.h"
 #include "chrome/browser/android/webapk/webapk_installer.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -30,6 +31,9 @@
 #include "third_party/blink/public/mojom/manifest/manifest.mojom.h"
 #include "ui/android/color_utils_android.h"
 #include "url/gurl.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/WebApkUpdateManager_jni.h"
 
 using base::android::ConvertJavaStringToUTF16;
 using base::android::ConvertJavaStringToUTF8;
@@ -252,7 +256,7 @@ static void JNI_WebApkUpdateManager_StoreWebApkUpdateRequestToFile(
 // static JNI method.
 static void JNI_WebApkUpdateManager_UpdateWebApkFromFile(
     JNIEnv* env,
-    const JavaParamRef<jstring>& java_update_request_path,
+    std::string& update_request_path,
     const JavaParamRef<jobject>& java_callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
@@ -268,9 +272,7 @@ static void JNI_WebApkUpdateManager_UpdateWebApkFromFile(
     return;
   }
 
-  std::string update_request_path =
-      ConvertJavaStringToUTF8(env, java_update_request_path);
-  WebApkInstallService::Get(profile)->UpdateAsync(
+  WebApkInstallServiceFactory::GetForBrowserContext(profile)->UpdateAsync(
       base::FilePath(update_request_path),
       base::BindOnce(&OnUpdated, callback_ref));
 }

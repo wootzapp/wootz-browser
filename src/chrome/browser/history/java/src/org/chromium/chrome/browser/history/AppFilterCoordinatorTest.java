@@ -6,12 +6,11 @@ package org.chromium.chrome.browser.history;
 
 import static org.junit.Assert.assertEquals;
 
+import static org.chromium.base.ThreadUtils.runOnUiThreadBlocking;
 import static org.chromium.chrome.browser.history.AppFilterCoordinator.MAX_SHEET_HEIGHT_RATIO;
 import static org.chromium.chrome.browser.history.AppFilterCoordinator.MAX_VISIBLE_ITEM_COUNT;
-import static org.chromium.content_public.browser.test.util.TestThreadUtils.runOnUiThreadBlocking;
 
 import android.app.Activity;
-import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.view.ViewGroup;
 
@@ -24,6 +23,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.Batch;
@@ -34,8 +34,7 @@ import org.chromium.chrome.browser.history.AppFilterCoordinator.AppInfo;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerFactory;
-import org.chromium.components.browser_ui.widget.scrim.ScrimCoordinator;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.ui.KeyboardVisibilityDelegate;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 
@@ -96,25 +95,15 @@ public class AppFilterCoordinatorTest {
 
     private BottomSheetController createBottomSheetController() {
         ViewGroup activityContentView = getActivity().findViewById(android.R.id.content);
-        ScrimCoordinator scrimCoordinator =
-                new ScrimCoordinator(
-                        getActivity(),
-                        new ScrimCoordinator.SystemUiScrimDelegate() {
-                            @Override
-                            public void setStatusBarScrimFraction(float scrimFraction) {}
-
-                            @Override
-                            public void setNavigationBarScrimFraction(float scrimFraction) {}
-                        },
-                        activityContentView,
-                        Color.WHITE);
+        ScrimManager scrimManager = new ScrimManager(getActivity(), activityContentView);
         return BottomSheetControllerFactory.createBottomSheetController(
-                () -> scrimCoordinator,
+                () -> scrimManager,
                 (unused) -> {},
                 getActivity().getWindow(),
                 KeyboardVisibilityDelegate.getInstance(),
                 () -> activityContentView,
-                () -> 0);
+                () -> 0,
+                /* desktopWindowStateManager= */ null);
     }
 
     private void onAppUpdated(AppInfo appInfo) {
@@ -137,10 +126,12 @@ public class AppFilterCoordinatorTest {
         final int defaultMaxHeight = rowHeight * MAX_VISIBLE_ITEM_COUNT;
 
         int rowCount = MAX_VISIBLE_ITEM_COUNT - 1;
-        assertEquals(rowHeight * rowCount, calcSheetHeight(rowHeight, baseHeight, rowCount));
+        assertEquals(
+                rowHeight * ((long) rowCount), calcSheetHeight(rowHeight, baseHeight, rowCount));
 
         rowCount = MAX_VISIBLE_ITEM_COUNT;
-        assertEquals(rowHeight * rowCount, calcSheetHeight(rowHeight, baseHeight, rowCount));
+        assertEquals(
+                rowHeight * ((long) rowCount), calcSheetHeight(rowHeight, baseHeight, rowCount));
 
         rowCount = MAX_VISIBLE_ITEM_COUNT + 1;
         assertEquals(defaultMaxHeight, calcSheetHeight(rowHeight, baseHeight, rowCount));
@@ -152,7 +143,8 @@ public class AppFilterCoordinatorTest {
         final int maxHeight = (int) (smallBase * MAX_SHEET_HEIGHT_RATIO);
 
         rowCount = 2;
-        assertEquals(rowHeight * rowCount, calcSheetHeight(rowHeight, smallBase, rowCount));
+        assertEquals(
+                rowHeight * ((long) rowCount), calcSheetHeight(rowHeight, smallBase, rowCount));
 
         rowCount = MAX_VISIBLE_ITEM_COUNT;
         assertEquals(maxHeight, calcSheetHeight(rowHeight, smallBase, rowCount));
@@ -166,7 +158,7 @@ public class AppFilterCoordinatorTest {
     public void testFullHistoryToApp() {
         assertEquals("Selected app is not correct.", null, mCurrentApp);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAppFilterSheet.openSheet(mCurrentApp);
                     mAppFilterSheet.clickItemForTesting(APPID_MESSAGE);
@@ -182,7 +174,7 @@ public class AppFilterCoordinatorTest {
     public void testSelectNewApp() {
         setCurrentAppInfo(APPID_CALENDAR, APPLABEL_CALENDAR);
         assertEquals("Selected app is not correct.", APPID_CALENDAR, mCurrentApp.id);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAppFilterSheet.openSheet(mCurrentApp);
                     mAppFilterSheet.clickItemForTesting(APPID_CHROME);
@@ -199,7 +191,7 @@ public class AppFilterCoordinatorTest {
         setCurrentAppInfo(APPID_CALENDAR, APPLABEL_CALENDAR);
         assertEquals("Selected app is not correct.", APPID_CALENDAR, mCurrentApp.id);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAppFilterSheet.openSheet(mCurrentApp);
                     mAppFilterSheet.clickItemForTesting(APPID_CALENDAR);
@@ -209,7 +201,7 @@ public class AppFilterCoordinatorTest {
         assertEquals("Chosen app is not correct.", null, mCurrentApp);
 
         // Open the sheet once more and select the app that was unselected right before.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAppFilterSheet.openSheet(mCurrentApp);
                     mAppFilterSheet.clickItemForTesting(APPID_CALENDAR);
@@ -223,7 +215,7 @@ public class AppFilterCoordinatorTest {
     public void testResetSheetAtOpen() {
         assertEquals("Selected app is not correct.", null, mCurrentApp);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAppFilterSheet.openSheet(mCurrentApp);
                     mAppFilterSheet.clickItemForTesting(APPID_CALENDAR);
@@ -232,7 +224,7 @@ public class AppFilterCoordinatorTest {
 
         // Caller resets its state and opens the sheet again. The sheet should be reset in sync.
         setCurrentAppInfo(null, null);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAppFilterSheet.openSheet(mCurrentApp);
                 });
@@ -240,7 +232,7 @@ public class AppFilterCoordinatorTest {
                 "No app should be selected.", null, mAppFilterSheet.getCurrentAppIdForTesting());
 
         setCurrentAppInfo(APPID_YOUTUBE, APPLABEL_YOUTUBE);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAppFilterSheet.openSheet(mCurrentApp);
                 });
@@ -256,7 +248,7 @@ public class AppFilterCoordinatorTest {
         setCurrentAppInfo(APPID_CALENDAR, APPLABEL_CALENDAR);
         assertEquals("Selected app is not correct.", APPID_CALENDAR, mCurrentApp.id);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mAppFilterSheet.openSheet(mCurrentApp);
                     mAppFilterSheet.clickCloseButtonForTesting();

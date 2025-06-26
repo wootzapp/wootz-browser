@@ -6,10 +6,12 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/privacy_sandbox/mock_privacy_sandbox_service.h"
+#include "chrome/browser/privacy_sandbox/privacy_sandbox_countries.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_service_factory.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_settings_factory.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/privacy_sandbox/canonical_topic.h"
+#include "components/privacy_sandbox/privacy_sandbox_features.h"
 #include "components/privacy_sandbox/privacy_sandbox_settings.h"
 #include "components/privacy_sandbox/privacy_sandbox_test_util.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
@@ -22,6 +24,7 @@
 namespace {
 
 using Topic = browsing_topics::Topic;
+using ::testing::Return;
 
 constexpr char kCallbackId1[] = "test-callback-id";
 constexpr char kCallbackId2[] = "test-callback-id-2";
@@ -240,6 +243,158 @@ TEST_F(PrivacySandboxHandlerTestMockService, TopicsToggleChanged) {
     args.Append(state);
     handler()->HandleTopicsToggleChanged(args);
   }
+}
+
+// Base test class for the PrivacySandboxHandler, providing functionality to
+// send WebUI messages.
+class PrivacySandboxMessageHandlerTest : public testing::Test {
+ public:
+  PrivacySandboxMessageHandlerTest()
+      : browser_task_environment_(
+            base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
+
+  void SetUp() override {
+    auto handler = std::make_unique<PrivacySandboxHandler>();
+    handler_ = handler.get();
+    web_ui_.set_web_contents(web_contents_.get());
+    web_ui_.AddMessageHandler(std::move(handler));
+    static_cast<content::WebUIMessageHandler*>(handler_)
+        ->AllowJavascriptForTesting();
+    mock_privacy_sandbox_service_ = static_cast<MockPrivacySandboxService*>(
+        PrivacySandboxServiceFactory::GetInstance()->SetTestingFactoryAndUse(
+            profile(), base::BindRepeating(&BuildMockPrivacySandboxService)));
+  }
+
+  content::TestWebUI* web_ui() { return &web_ui_; }
+  PrivacySandboxHandler* handler() { return handler_.get(); }
+  MockPrivacySandboxService* mock_privacy_sandbox_service() {
+    return mock_privacy_sandbox_service_;
+  }
+  TestingProfile* profile() { return &profile_; }
+
+ private:
+  content::BrowserTaskEnvironment browser_task_environment_;
+  content::RenderViewHostTestEnabler render_view_host_test_enabler_;
+  base::test::ScopedFeatureList feature_list_;
+  TestingProfile profile_;
+  raw_ptr<MockPrivacySandboxService> mock_privacy_sandbox_service_;
+  std::unique_ptr<content::WebContents> web_contents_ =
+      content::WebContentsTester::CreateTestWebContents(profile(), nullptr);
+  content::TestWebUI web_ui_;
+  raw_ptr<PrivacySandboxHandler> handler_;
+};
+
+// Params correspond to (ShouldShowAdTopicsCard, ExpectedResult).
+class PrivacySandboxPrivacyGuideAdTopicsShownTest
+    : public PrivacySandboxMessageHandlerTest,
+      public testing::WithParamInterface<std::pair<bool, bool>> {
+ public:
+  void SetUp() override { PrivacySandboxMessageHandlerTest::SetUp(); }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+// Verifies that the WebUI correctly responds to show the Ad Topics card when it
+// is meant to be shown.
+TEST_P(PrivacySandboxPrivacyGuideAdTopicsShownTest,
+       ShownAccordingToShouldShowAdTopicsCard) {
+  bool should_show_ad_topics_card = static_cast<bool>(std::get<0>(GetParam()));
+  bool result = static_cast<bool>(std::get<1>(GetParam()));
+
+  ON_CALL(*mock_privacy_sandbox_service(),
+          PrivacySandboxPrivacyGuideShouldShowAdTopicsCard())
+      .WillByDefault(Return(should_show_ad_topics_card));
+
+  base::Value::List args;
+  args.Append(kCallbackId1);
+  web_ui()->ProcessWebUIMessage(
+      GURL(), "privacySandboxPrivacyGuideShouldShowAdTopicsCard",
+      std::move(args));
+
+  const content::TestWebUI::CallData& data = *web_ui()->call_data().back();
+  EXPECT_EQ(data.arg1()->GetString(), kCallbackId1);
+  EXPECT_EQ(data.function_name(), "cr.webUIResponse");
+  ASSERT_TRUE(data.arg2()->is_bool());
+  EXPECT_TRUE(data.arg2()->GetBool());
+  ASSERT_TRUE(data.arg3()->is_bool());
+  EXPECT_EQ(data.arg3()->GetBool(), result);
+}
+
+INSTANTIATE_TEST_SUITE_P(PrivacySandboxPrivacyGuideAdTopicsShownTest,
+                         PrivacySandboxPrivacyGuideAdTopicsShownTest,
+                         testing::Values(std::pair(true, true),
+                                         std::pair(false, false)));
+
+class PrivacySandboxAdTopicsContentParityEnabledTest
+    : public PrivacySandboxMessageHandlerTest {
+ public:
+  void SetUp() override {
+    PrivacySandboxMessageHandlerTest::SetUp();
+    feature_list_.InitAndEnableFeature(
+        privacy_sandbox::kPrivacySandboxAdTopicsContentParity);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+TEST_F(PrivacySandboxAdTopicsContentParityEnabledTest, TopicsToggleChanged) {
+  std::vector<bool> states = {true, false};
+  for (bool state : states) {
+    EXPECT_CALL(*mock_privacy_sandbox_service(), TopicsToggleChanged(state));
+
+    base::Value::List args;
+    args.Append(state);
+    web_ui()->ProcessWebUIMessage(GURL(), "topicsToggleChanged",
+                                  std::move(args));
+    testing::Mock::VerifyAndClearExpectations(mock_privacy_sandbox_service());
+  }
+}
+
+TEST_F(PrivacySandboxAdTopicsContentParityEnabledTest,
+       shouldShowAdTopicsContentParity) {
+  base::Value::List args;
+  args.Append(kCallbackId1);
+  web_ui()->ProcessWebUIMessage(
+      GURL(), "shouldShowPrivacySandboxAdTopicsContentParity", std::move(args));
+
+  const content::TestWebUI::CallData& data = *web_ui()->call_data().back();
+  EXPECT_EQ(data.arg1()->GetString(), kCallbackId1);
+  EXPECT_EQ(data.function_name(), "cr.webUIResponse");
+  ASSERT_TRUE(data.arg2()->is_bool());
+  EXPECT_TRUE(data.arg2()->GetBool());
+  ASSERT_TRUE(data.arg3()->is_bool());
+  EXPECT_TRUE(data.arg3()->GetBool());
+}
+
+class PrivacySandboxAdTopicsContentParityDisabledTest
+    : public PrivacySandboxMessageHandlerTest {
+ public:
+  void SetUp() override {
+    PrivacySandboxMessageHandlerTest::SetUp();
+    feature_list_.InitAndDisableFeature(
+        privacy_sandbox::kPrivacySandboxAdTopicsContentParity);
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+TEST_F(PrivacySandboxAdTopicsContentParityDisabledTest,
+       shouldNotShowAdTopicsContentParity) {
+  base::Value::List args;
+  args.Append(kCallbackId1);
+  web_ui()->ProcessWebUIMessage(
+      GURL(), "shouldShowPrivacySandboxAdTopicsContentParity", std::move(args));
+
+  const content::TestWebUI::CallData& data = *web_ui()->call_data().back();
+  EXPECT_EQ(data.arg1()->GetString(), kCallbackId1);
+  EXPECT_EQ(data.function_name(), "cr.webUIResponse");
+  ASSERT_TRUE(data.arg2()->is_bool());
+  EXPECT_TRUE(data.arg2()->GetBool());
+  ASSERT_TRUE(data.arg3()->is_bool());
+  EXPECT_FALSE(data.arg3()->GetBool());
 }
 
 }  // namespace settings

@@ -16,6 +16,7 @@
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "base/threading/thread_checker.h"
@@ -37,7 +38,7 @@ class SequencedTaskRunner;
 }
 
 namespace bookmarks {
-class CoreBookmarkModel;
+class BookmarkModel;
 }
 
 namespace history {
@@ -73,7 +74,7 @@ class InMemoryURLIndex : public KeyedService,
                          public base::trace_event::MemoryDumpProvider {
  public:
   // `history_service` may be null during unit testing.
-  InMemoryURLIndex(bookmarks::CoreBookmarkModel* bookmark_model,
+  InMemoryURLIndex(bookmarks::BookmarkModel* bookmark_model,
                    history::HistoryService* history_service,
                    TemplateURLService* template_url_service,
                    const base::FilePath& history_dir,
@@ -121,7 +122,7 @@ class InMemoryURLIndex : public KeyedService,
   class RebuildPrivateDataFromHistoryDBTask : public history::HistoryDBTask {
    public:
     explicit RebuildPrivateDataFromHistoryDBTask(
-        InMemoryURLIndex* index,
+        base::WeakPtr<InMemoryURLIndex> index,
         const SchemeSet& scheme_allowlist);
     RebuildPrivateDataFromHistoryDBTask(
         const RebuildPrivateDataFromHistoryDBTask&) = delete;
@@ -134,7 +135,7 @@ class InMemoryURLIndex : public KeyedService,
     void DoneRunOnMainThread() override;
 
    private:
-    raw_ptr<InMemoryURLIndex, AcrossTasksDanglingUntriaged>
+    base::WeakPtr<InMemoryURLIndex>
         index_;                   // Call back to this index at completion.
     SchemeSet scheme_allowlist_;  // Schemes to be indexed.
     bool succeeded_ = false;      // Indicates if the rebuild was successful.
@@ -187,7 +188,7 @@ class InMemoryURLIndex : public KeyedService,
   const SchemeSet& scheme_allowlist() { return scheme_allowlist_; }
 
   // The BookmarkModel; may be null when testing.
-  raw_ptr<bookmarks::CoreBookmarkModel> bookmark_model_;
+  raw_ptr<bookmarks::BookmarkModel> bookmark_model_;
 
   // The HistoryService; may be null when testing.
   raw_ptr<history::HistoryService> history_service_;
@@ -218,6 +219,7 @@ class InMemoryURLIndex : public KeyedService,
       history_service_observation_{this};
 
   base::ThreadChecker thread_checker_;
+  base::WeakPtrFactory<InMemoryURLIndex> weak_ptr_factory_{this};
 };
 
 #endif  // COMPONENTS_OMNIBOX_BROWSER_IN_MEMORY_URL_INDEX_H_

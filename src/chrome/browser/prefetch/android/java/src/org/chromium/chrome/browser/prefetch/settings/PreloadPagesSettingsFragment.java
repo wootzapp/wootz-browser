@@ -10,22 +10,21 @@ import android.os.Bundle;
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
-import org.chromium.components.browser_ui.settings.FragmentSettingsLauncher;
+import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.components.browser_ui.settings.ManagedPreferenceDelegate;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 
 /** Fragment containing Preload Pages settings. */
+@NullMarked
 public class PreloadPagesSettingsFragment extends PreloadPagesSettingsFragmentBase
-        implements FragmentSettingsLauncher,
-                RadioButtonGroupPreloadPagesSettings.OnPreloadPagesStateDetailsRequested,
+        implements RadioButtonGroupPreloadPagesSettings.OnPreloadPagesStateDetailsRequested,
                 Preference.OnPreferenceChangeListener {
     @VisibleForTesting static final String PREF_MANAGED_DISCLAIMER_TEXT = "managed_disclaimer_text";
     @VisibleForTesting static final String PREF_PRELOAD_PAGES = "preload_pages_radio_button_group";
 
-    // An instance of SettingsLauncher that is used to launch Preload Pages subsections.
-    private SettingsLauncher mSettingsLauncher;
     private RadioButtonGroupPreloadPagesSettings mPreloadPagesPreference;
 
     /**
@@ -47,19 +46,17 @@ public class PreloadPagesSettingsFragment extends PreloadPagesSettingsFragmentBa
     }
 
     @Override
-    protected void onCreatePreferencesInternal(Bundle bundle, String s) {
+    protected void onCreatePreferencesInternal(@Nullable Bundle bundle, @Nullable String s) {
         ManagedPreferenceDelegate managedPreferenceDelegate = createManagedPreferenceDelegate();
 
         mPreloadPagesPreference = findPreference(PREF_PRELOAD_PAGES);
-        mPreloadPagesPreference.init(PreloadPagesSettingsBridge.getState(getProfile()));
-        mPreloadPagesPreference.setPreloadPagesStateDetailsRequestedListener(this);
-        mPreloadPagesPreference.setManagedPreferenceDelegate(managedPreferenceDelegate);
+        mPreloadPagesPreference.init(
+                PreloadPagesSettingsBridge.getState(getProfile()), this, managedPreferenceDelegate);
         mPreloadPagesPreference.setOnPreferenceChangeListener(this);
 
-        findPreference(PREF_MANAGED_DISCLAIMER_TEXT)
-                .setVisible(
-                        managedPreferenceDelegate.isPreferenceClickDisabled(
-                                mPreloadPagesPreference));
+        Preference disclaimerPref = findPreference(PREF_MANAGED_DISCLAIMER_TEXT);
+        disclaimerPref.setVisible(
+                managedPreferenceDelegate.isPreferenceClickDisabled(mPreloadPagesPreference));
     }
 
     @Override
@@ -70,19 +67,14 @@ public class PreloadPagesSettingsFragment extends PreloadPagesSettingsFragmentBa
     @Override
     public void onPreloadPagesStateDetailsRequested(@PreloadPagesState int preloadPagesState) {
         if (preloadPagesState == PreloadPagesState.EXTENDED_PRELOADING) {
-            mSettingsLauncher.launchSettingsActivity(
-                    getActivity(), ExtendedPreloadingSettingsFragment.class);
+            SettingsNavigationFactory.createSettingsNavigation()
+                    .startSettings(getActivity(), ExtendedPreloadingSettingsFragment.class);
         } else if (preloadPagesState == PreloadPagesState.STANDARD_PRELOADING) {
-            mSettingsLauncher.launchSettingsActivity(
-                    getActivity(), StandardPreloadingSettingsFragment.class);
+            SettingsNavigationFactory.createSettingsNavigation()
+                    .startSettings(getActivity(), StandardPreloadingSettingsFragment.class);
         } else {
             assert false : "Should not be reached";
         }
-    }
-
-    @Override
-    public void setSettingsLauncher(SettingsLauncher settingsLauncher) {
-        mSettingsLauncher = settingsLauncher;
     }
 
     private ChromeManagedPreferenceDelegate createManagedPreferenceDelegate() {

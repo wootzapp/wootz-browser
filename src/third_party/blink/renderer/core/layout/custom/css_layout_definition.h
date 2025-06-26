@@ -10,6 +10,7 @@
 #include "third_party/blink/renderer/platform/bindings/name_client.h"
 #include "third_party/blink/renderer/platform/bindings/scoped_persistent.h"
 #include "third_party/blink/renderer/platform/bindings/trace_wrapper_v8_reference.h"
+#include "third_party/blink/renderer/platform/geometry/layout_unit.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "v8/include/v8.h"
 
@@ -20,7 +21,6 @@ class ConstraintSpace;
 class CustomLayoutScope;
 class FragmentResultOptions;
 class IntrinsicSizesResultOptions;
-class LayoutUnit;
 class ScriptState;
 class SerializedScriptValue;
 class V8IntrinsicSizesCallback;
@@ -79,8 +79,6 @@ class CSSLayoutDefinition final : public GarbageCollected<CSSLayoutDefinition>,
     void Trace(Visitor*) const;
 
    private:
-    void ReportException(ExceptionState*);
-
     Member<CSSLayoutDefinition> definition_;
     TraceWrapperV8Reference<v8::Value> instance_;
   };
@@ -104,7 +102,7 @@ class CSSLayoutDefinition final : public GarbageCollected<CSSLayoutDefinition>,
 
   ScriptState* GetScriptState() const { return script_state_.Get(); }
 
-  virtual void Trace(Visitor* visitor) const;
+  void Trace(Visitor* visitor) const;
 
   const char* NameInHeapSnapshot() const override {
     return "CSSLayoutDefinition";

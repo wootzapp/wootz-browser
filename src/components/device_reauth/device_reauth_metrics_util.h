@@ -17,7 +17,10 @@ enum class DeviceAuthSource {
   kAutofill = 1,
   kIncognito = 2,
   kDeviceLockPage = 3,
-  kMaxValue = kDeviceLockPage,
+  kSettingsBatchUpload = 4,
+  kBookmarkBatchUpload = 5,
+  kPasswordsCsvDownload = 6,
+  kMaxValue = kPasswordsCsvDownload
 };
 
 // The result of the device reauthentication attempt.

@@ -46,11 +46,6 @@ export class SettingsSiteDataElement extends SettingsSiteDataElementBase {
 
   static get properties() {
     return {
-      prefs: {
-        type: Object,
-        notify: true,
-      },
-
       /** Current search term. */
       searchTerm: {
         type: String,
@@ -83,10 +78,10 @@ export class SettingsSiteDataElement extends SettingsSiteDataElementBase {
         prefs.generated.cookie_default_content_setting)`];
   }
 
-  searchTerm: string;
-  private cookiesContentSettingType_: ContentSettingsTypes;
-  private exceptionListsReadOnly_: boolean;
-  private showDefaultBlockDialog_: boolean;
+  declare searchTerm: string;
+  declare private cookiesContentSettingType_: ContentSettingsTypes;
+  declare private exceptionListsReadOnly_: boolean;
+  declare private showDefaultBlockDialog_: boolean;
 
   private onGeneratedPrefsUpdated_() {
     const pref = this.getPref('generated.cookie_default_content_setting');

@@ -8,7 +8,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
-#include "chrome/browser/dips/dips_service.h"
+#include "chrome/browser/privacy_sandbox/tracking_protection_settings_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
@@ -25,6 +25,7 @@
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/content_settings/core/test/content_settings_mock_provider.h"
 #include "components/content_settings/core/test/content_settings_test_utils.h"
+#include "components/privacy_sandbox/privacy_sandbox_features.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -41,6 +42,7 @@ class CookieControlsBubbleViewPixelTest
 
   void TearDownOnMainThread() override {
     cookie_controls_coordinator_ = nullptr;
+    controller_ = nullptr;
     cookie_controls_icon_ = nullptr;
     DialogBrowserTest::TearDownOnMainThread();
   }
@@ -92,10 +94,11 @@ class CookieControlsBubbleViewPixelTest
         CookieSettingsFactory::GetForProfile(browser()->profile()),
         /*original_cookie_settings=*/nullptr,
         HostContentSettingsMapFactory::GetForProfile(browser()->profile()),
-        /*tracking_protection_settings=*/nullptr);
+        TrackingProtectionSettingsFactory::GetForProfile(browser()->profile()),
+        /*is_incognito_profile=*/false);
 
     cookie_controls_coordinator_ =
-        cookie_controls_icon_->GetCoordinatorForTesting();
+        &cookie_controls_icon_->GetCoordinatorForTesting();
     cookie_controls_coordinator_->SetDisplayNameForTesting(u"example.com");
   }
 
@@ -106,14 +109,21 @@ class CookieControlsBubbleViewPixelTest
                  int days_to_expiration) {
     // ShowBubble will initialize the view controller.
     cookie_controls_coordinator_->ShowBubble(
+        browser()->GetBrowserView().toolbar_button_provider(),
         browser()->tab_strip_model()->GetActiveWebContents(),
         controller_.get());
     auto expiration = days_to_expiration
                           ? base::Time::Now() + base::Days(days_to_expiration)
                           : base::Time();
+    // TODO: 344042974 - This should be updated to set directly on
+    // CookieControlsController. Currently if the page action icon is updated
+    // after OnStatusChanged() is called it will pull state from
+    // CookieControlsController, which has not been updated to reflect what is
+    // needed for this test.
     view_controller()->OnStatusChanged(controls_visible, protections_on,
                                        enforcement, blocking_status,
                                        expiration);
+    cookie_controls_icon()->DisableUpdatesForTesting();
   }
 
   static base::Time GetReferenceTime() {
@@ -176,7 +186,9 @@ class CookieControlsBubbleViewPixelTest
                                        "/third_party_partitioned_cookies.html");
   }
 
-  PageActionIconView* cookie_controls_icon() { return cookie_controls_icon_; }
+  CookieControlsIconView* cookie_controls_icon() {
+    return cookie_controls_icon_;
+  }
   net::EmbeddedTestServer* https_test_server() { return https_server_.get(); }
 
   CookieControlsBubbleViewController* view_controller() {
@@ -189,7 +201,6 @@ class CookieControlsBubbleViewPixelTest
   CookieControlsEnforcement enforcement_ =
       CookieControlsEnforcement::kNoEnforcement;
   int days_to_expiration_ = 0;
-
   // Overriding `base::Time::Now()` to obtain a consistent X days until
   // exception expiration calculation regardless of the time the test runs.
   base::subtle::ScopedTimeClockOverrides time_override_{
@@ -210,12 +221,14 @@ IN_PROC_BROWSER_TEST_P(CookieControlsBubbleViewPixelTest,
 
 IN_PROC_BROWSER_TEST_P(CookieControlsBubbleViewPixelTest,
                        InvokeUi_PermanentException) {
+  set_baseline("6229914");
   protections_on_ = false;
   ShowAndVerifyUi();
 }
 
 IN_PROC_BROWSER_TEST_P(CookieControlsBubbleViewPixelTest,
                        InvokeUi_TemporaryException) {
+  set_baseline("6229914");
   protections_on_ = false;
   days_to_expiration_ = 90;
   ShowAndVerifyUi();
@@ -268,3 +281,6 @@ INSTANTIATE_TEST_SUITE_P(
                        CookieBlocking3pcdStatus::kLimited,
                        CookieBlocking3pcdStatus::kAll}),
     &ParamToTestSuffix);
+
+// TODO(https://b/354946320): Add pixel tests for ACT feature states once we
+// have UX.

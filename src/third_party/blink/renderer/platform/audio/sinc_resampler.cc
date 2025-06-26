@@ -26,6 +26,11 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "third_party/blink/renderer/platform/audio/sinc_resampler.h"
 
 #include "base/memory/raw_ptr.h"
@@ -181,6 +186,8 @@ class BufferSourceProvider final : public AudioSourceProvider {
     source_frames_available_ -= frames_to_copy;
     source_ += frames_to_copy;
   }
+
+  void SetClient(AudioSourceProviderClient*) override {}
 
  private:
   raw_ptr<const float, AllowPtrArithmetic> source_;

@@ -7,9 +7,15 @@
 #include "base/feature_list.h"
 
 namespace speech {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 BASE_FEATURE(kCrosExpandSodaLanguages,
              "CrosExpandSodaLanguages",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE(kFeatureManagementCrosSodaConchLanguages,
+             "FeatureManagementCrosSodaConchLanguages",
              base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kCrosSodaConchLanguages,
+             "CrosSodaConchLanguages",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 #endif
 }  // namespace speech

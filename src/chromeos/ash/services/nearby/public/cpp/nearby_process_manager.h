@@ -37,7 +37,11 @@ class NearbyProcessManager : public KeyedService {
 
   // These values are used for metrics. Entries should not be renumbered and
   // numeric values should never be reused. If entries are added, kMaxValue
-  // should be updated.
+  // should be updated. Keep in sync with the
+  // `NearbyConnectionsUtilityProcessShutdownReason` enum found at
+  // //tools/metrics/histograms/metadata/nearby/enums.xml.
+  //
+  // LINT.IfChange(NearbyConnectionsUtilityProcessShutdownReason)
   enum class NearbyProcessShutdownReason {
     kNormal = 0,
     kCrash = 1,
@@ -46,6 +50,7 @@ class NearbyProcessManager : public KeyedService {
     kPresenceMojoPipeDisconnection = 5,
     kMaxValue = kPresenceMojoPipeDisconnection
   };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/nearby/enums.xml:NearbyConnectionsUtilityProcessShutdownReason)
 
   using NearbyProcessStoppedCallback =
       base::OnceCallback<void(NearbyProcessShutdownReason)>;

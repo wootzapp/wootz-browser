@@ -32,8 +32,9 @@
 #include "chrome/browser/ash/system_web_apps/test_support/system_web_app_browsertest_base.h"
 #include "chrome/browser/ash/wallpaper_handlers/mock_wallpaper_handlers.h"
 #include "chrome/browser/ash/wallpaper_handlers/test_wallpaper_fetcher_delegate.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/ash/wallpaper_controller_client_impl.h"
+#include "chrome/browser/ui/ash/wallpaper/wallpaper_controller_client_impl.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chromeos/constants/chromeos_features.h"
@@ -144,7 +145,6 @@ class PersonalizationAppWallpaperInfoBrowserTest
   }
 
  private:
-  base::test::ScopedFeatureList scoped_feature_list_;
   TestChromeWebUIControllerFactory test_chrome_webui_controller_factory_;
   TestPersonalizationAppWebUIProvider test_webui_provider_;
   content::ScopedWebUIControllerFactoryRegistration

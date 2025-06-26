@@ -77,8 +77,6 @@ std::string GetStringNameForOptimizationType(
       return "PriceInsights";
     case proto::OptimizationType::V8_COMPILE_HINTS:
       return "V8CompileHints";
-    case proto::OptimizationType::PAGE_INSIGHTS:
-      return "PageInsights";
     case proto::OptimizationType::SHOPPING_PAGE_TYPES:
       return "ShoppingPageTypes";
     case proto::OptimizationType::SHOPPING_DISCOUNTS:
@@ -115,6 +113,78 @@ std::string GetStringNameForOptimizationType(
       return "AmericanExpressCreditCardSubscriptionBenefits";
     case proto::OptimizationType::CAPITAL_ONE_CREDIT_CARD_BENEFITS_BLOCKED:
       return "CapitalOneCreditCardBenefitsBlocked";
+    case proto::OptimizationType::VCN_MERCHANT_OPT_OUT_DISCOVER:
+      return "VcnMerchantOptOutDiscover";
+    case proto::OptimizationType::VCN_MERCHANT_OPT_OUT_MASTERCARD:
+      return "VcnMerchantOptOutMastercard";
+    case proto::OptimizationType::PIX_MERCHANT_ORIGINS_ALLOWLIST:
+      return "PixMerchantOriginsAllowlist";
+    case proto::OptimizationType::HISTORY_EMBEDDINGS:
+      return "HistoryEmbeddings";
+    case proto::OptimizationType::AUTOFILL_ABLATION_SITES_LIST1:
+      return "AutofillAblationSitesList1";
+    case proto::OptimizationType::AUTOFILL_ABLATION_SITES_LIST2:
+      return "AutofillAblationSitesList2";
+    case proto::OptimizationType::AUTOFILL_ABLATION_SITES_LIST3:
+      return "AutofillAblationSitesList3";
+    case proto::OptimizationType::AUTOFILL_ABLATION_SITES_LIST4:
+      return "AutofillAblationSitesList4";
+    case proto::OptimizationType::AUTOFILL_ABLATION_SITES_LIST5:
+      return "AutofillAblationSitesList5";
+    case proto::OptimizationType::AUTOFILL_ABLATION_SITES_LIST6:
+      return "AutofillAblationSitesList6";
+    case proto::OptimizationType::AMOUNT_EXTRACTION_ALLOWLIST:
+      return "AmountExtractionAllowlist";
+    case proto::OptimizationType::AUTOFILL_PREDICTION_IMPROVEMENTS_ALLOWLIST:
+      return "AutofillPredictionImprovementsAllowlist";
+    case proto::OptimizationType::BUY_NOW_PAY_LATER_ALLOWLIST_AFFIRM:
+      return "BuyNowPayLaterAllowlistAffirm";
+    case proto::OptimizationType::BUY_NOW_PAY_LATER_ALLOWLIST_ZIP:
+      return "BuyNowPayLaterAllowlistZip";
+    case proto::OptimizationType::SAVED_TAB_GROUP:
+      return "SavedTabGroup";
+    case proto::OptimizationType::TEXT_CLASSIFIER_ENTITY_DETECTION:
+      return "TextClassifierEntityDetection";
+    case proto::OptimizationType::EWALLET_MERCHANT_ALLOWLIST:
+      return "EwalletMerchantAllowlist";
+    case proto::OptimizationType::OPTIMIZATION_GUIDE_ICON_VIEW:
+      return "OptimizationGuideIconView";
+    case proto::OptimizationType::PRIVACY_POLICY_ANNOTATION:
+      return "PrivacyPolicyAnnotation";
+    case proto::OptimizationType::BMO_CREDIT_CARD_AIR_MILES_PARTNER_BENEFITS:
+      return "BmoCreditCardAirMilesPartnerBenefits";
+    case proto::OptimizationType::BMO_CREDIT_CARD_ALCOHOL_STORE_BENEFITS:
+      return "BmoCreditCardAlcoholStoreBenefits";
+    case proto::OptimizationType::BMO_CREDIT_CARD_DINING_BENEFITS:
+      return "BmoCreditCardDiningBenefits";
+    case proto::OptimizationType::BMO_CREDIT_CARD_DRUGSTORE_BENEFITS:
+      return "BmoCreditCardDrugstoreBenefits";
+    case proto::OptimizationType::BMO_CREDIT_CARD_ENTERTAINMENT_BENEFITS:
+      return "BmoCreditCardEntertainmentBenefits";
+    case proto::OptimizationType::BMO_CREDIT_CARD_GROCERY_BENEFITS:
+      return "BmoCreditCardGroceryBenefits";
+    case proto::OptimizationType::BMO_CREDIT_CARD_OFFICE_SUPPLY_BENEFITS:
+      return "BmoCreditCardOfficeSupplyBenefits";
+    case proto::OptimizationType::BMO_CREDIT_CARD_RECURRING_BILL_BENEFITS:
+      return "BmoCreditCardRecurringBillBenefits";
+    case proto::OptimizationType::BMO_CREDIT_CARD_TRANSIT_BENEFITS:
+      return "BmoCreditCardTransitBenefits";
+    case proto::OptimizationType::BMO_CREDIT_CARD_TRAVEL_BENEFITS:
+      return "BmoCreditCardTravelBenefits";
+    case proto::OptimizationType::BMO_CREDIT_CARD_WHOLESALE_CLUB_BENEFITS:
+      return "BmoCreditCardWholesaleClubBenefits";
+    case proto::OptimizationType::GLIC_CONTEXTUAL_CUEING:
+      return "GlicContextualCueing";
+    case proto::OptimizationType::GLIC_ZERO_STATE_SUGGESTIONS:
+      return "GlicZeroStateSuggestions";
+    case proto::OptimizationType::GLIC_ACTION_PAGE_BLOCK:
+      return "GlicActionPageBlock";
+    case proto::OptimizationType::FEDCM_CLICKTHROUGH_RATE:
+      return "FedCmClickthroughRate";
+    case proto::OptimizationType::SOSS_HOSTING_SERVICE_PROVIDERS:
+      return "SossHostingServiceProviders";
+    case proto::OptimizationType::SOSS_TLDS:
+      return "SossTlds";
   }
 
   // The returned string is used to record histograms for the optimization type.
@@ -123,8 +193,7 @@ std::string GetStringNameForOptimizationType(
   // variant list in
   // //tools/metrics/histograms/metadata/optimization/histograms.xml. Also
   // update enums.xml when adding new value in OptimizationType.
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 const proto::PageHint* FindPageHintForURL(const GURL& gurl,

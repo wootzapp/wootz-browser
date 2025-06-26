@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chromeos/ash/components/emoji/emoji_search.h"
 #include "chromeos/ash/components/emoji/emoji_search.mojom.h"
 
@@ -36,12 +37,21 @@ EmojiSearchProxy::EmojiSearchProxy(
   search_ = std::make_unique<emoji::EmojiSearch>();
 }
 
-EmojiSearchProxy::~EmojiSearchProxy() {}
-
-void EmojiSearchProxy::SearchEmoji(const std::string& query,
-                                   SearchEmojiCallback callback) {
+void EmojiSearchProxy::LoadEmojiLanguages(
+    const std::vector<std::string>& language_codes) {
   CHECK(search_);
-  emoji::EmojiSearchResult result = search_->SearchEmoji(query);
+  search_->LoadEmojiLanguages(language_codes);
+}
+
+EmojiSearchProxy::~EmojiSearchProxy() = default;
+
+void EmojiSearchProxy::SearchEmoji(
+    const std::string& query,
+    const std::vector<std::string>& language_codes,
+    SearchEmojiCallback callback) {
+  CHECK(search_);
+  emoji::EmojiSearchResult result =
+      search_->SearchEmoji(base::UTF8ToUTF16(query), language_codes);
   std::move(callback).Run(
       SearchResultsFromEmojiSearchEntries(std::move(result.emojis)),
       SearchResultsFromEmojiSearchEntries(std::move(result.symbols)),

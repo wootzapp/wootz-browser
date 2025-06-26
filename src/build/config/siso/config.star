@@ -20,12 +20,12 @@ __KNOWN_CONFIG_OPTIONS = [
     # TODO: b/308405411 - Enable this config for all builders.
     "remote-devtools-frontend-typescript",
 
-    # TODO: b/316267242 - Enable remote links after confirming performance.
-    "remote-library-link",
-    "remote-exec-link",
-
-    # Clang ToT builds don't run compile actions remotely.
-    "clang-tot",
+    # TODO: b/370860664 - Enable remote link by default after supporting
+    # all platforms and target OSes.
+    # For developers, we can't simply enable remote link without bytes
+    # because developers need objects and tests locally for debugging
+    # and testing.
+    "remote-link",
 ]
 
 def __check(ctx):
@@ -35,6 +35,7 @@ def __check(ctx):
                 print("unknown config: %s" % cfg)
 
 def __get(ctx, key):
+    onCog = ctx.fs.exists("../.citc")
     disableRemoteOnCog = False
     if "config" in ctx.flags:
         for cfg in ctx.flags["config"].split(","):
@@ -42,7 +43,9 @@ def __get(ctx, key):
                 return True
             if cfg == "disable-remote-on-cog":
                 disableRemoteOnCog = True
-    if ctx.fs.exists("../.citc"):
+            if cfg == "cog":
+                onCog = True
+    if onCog:
         if disableRemoteOnCog:
             return False
 
@@ -50,7 +53,7 @@ def __get(ctx, key):
         # disable race strategy as "builder".
         # enable "remote-*" on cog
         # TODO: b/308405411 - enable "remote-devtools-frontend-typescript"
-        if key in ("builder", "cog", "remote-library-link", "remote-exec-link"):
+        if key in ("builder", "cog", "remote-link"):
             return True
     return False
 

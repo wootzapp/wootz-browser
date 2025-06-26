@@ -10,15 +10,19 @@
 #include <vector>
 
 #include "base/containers/contains.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/time/time.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/renderer/render_thread.h"
 #include "services/metrics/public/cpp/mojo_ukm_recorder.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "ui/accessibility/accessibility_features.h"
+#include "ui/accessibility/ax_computed_node_data.h"
 #include "ui/accessibility/ax_enums.mojom-shared.h"
 #include "ui/accessibility/ax_node.h"
+#include "ui/accessibility/ax_serializable_tree.h"
 #include "ui/accessibility/ax_tree.h"
 
 namespace {
@@ -31,26 +35,24 @@ static const ax::mojom::Role kContentRoles[]{
 
 // TODO: Consider moving this to AXNodeProperties.
 static const ax::mojom::Role kRolesToSkip[]{
-    ax::mojom::Role::kAudio,
-    ax::mojom::Role::kBanner,
-    ax::mojom::Role::kButton,
-    ax::mojom::Role::kComplementary,
-    ax::mojom::Role::kContentInfo,
-    ax::mojom::Role::kFooter,
-    ax::mojom::Role::kFooterAsNonLandmark,
-    ax::mojom::Role::kLabelText,
-    ax::mojom::Role::kNavigation,
+    ax::mojom::Role::kAudio,         ax::mojom::Role::kBanner,
+    ax::mojom::Role::kButton,        ax::mojom::Role::kComplementary,
+    ax::mojom::Role::kContentInfo,   ax::mojom::Role::kFooter,
+    ax::mojom::Role::kLabelText,     ax::mojom::Role::kNavigation,
+    ax::mojom::Role::kSectionFooter,
 };
 
 // Find all of the main and article nodes. Also, include unignored heading nodes
 // which lie outside of the main and article node.
 // TODO(crbug.com/40802192): Replace this with a call to
 // OneShotAccessibilityTreeSearch.
-void GetContentRootNodes(const ui::AXNode* root,
+void GetContentRootNodes(const ui::AXTree& tree,
                          std::vector<const ui::AXNode*>* content_root_nodes) {
+  const ui::AXNode* root = tree.root();
   if (!root) {
     return;
   }
+
   std::queue<const ui::AXNode*> queue;
   queue.push(root);
   bool has_main_or_heading = false;
@@ -67,11 +69,30 @@ void GetContentRootNodes(const ui::AXNode* root,
     }
     // If a heading node is found, add it to the list of content root nodes,
     // too. It may be removed later if the tree doesn't contain a main or
-    // article node.
+    // article node. Do not add it if it is offscreen.
     if (node->GetRole() == ax::mojom::Role::kHeading) {
+      bool offscreen = false;
+      tree.GetTreeBounds(node, &offscreen);
+      if (offscreen) {
+        continue;
+      }
       content_root_nodes->push_back(node);
       continue;
     }
+
+    // Add all nodes that can be expanded. Collapsed nodes will be removed
+    // later.
+    if (node->data().SupportsExpandCollapse()) {
+      content_root_nodes->push_back(node);
+      continue;
+    }
+
+    if (node->HasState(ax::mojom::State::kRichlyEditable)) {
+      content_root_nodes->push_back(node);
+      continue;
+    }
+
+    // Search through all children.
     for (auto iter = node->UnignoredChildrenBegin();
          iter != node->UnignoredChildrenEnd(); ++iter) {
       queue.push(iter.get());
@@ -100,8 +121,21 @@ void AddContentNodesToVector(const ui::AXNode* node,
     content_node_ids->emplace_back(node->id());
     return;
   }
-  if (base::Contains(kRolesToSkip, node->GetRole()))
+
+  if (node->HasState(ax::mojom::State::kRichlyEditable) &&
+      node->id() == node->tree()->data().focus_id) {
+    content_node_ids->push_back(node->id());
     return;
+  }
+
+  if (node->HasState(ax::mojom::State::kExpanded)) {
+    content_node_ids->push_back(node->id());
+    return;
+  }
+
+  if (base::Contains(kRolesToSkip, node->GetRole())) {
+    return;
+  }
   for (auto iter = node->UnignoredChildrenBegin();
        iter != node->UnignoredChildrenEnd(); ++iter) {
     AddContentNodesToVector(iter.get(), content_node_ids);
@@ -111,8 +145,10 @@ void AddContentNodesToVector(const ui::AXNode* node,
 }  // namespace
 
 AXTreeDistiller::AXTreeDistiller(
+    content::RenderFrame* render_frame,
     OnAXTreeDistilledCallback on_ax_tree_distilled_callback)
-    : on_ax_tree_distilled_callback_(on_ax_tree_distilled_callback) {
+    : content::RenderFrameObserver(render_frame),
+      on_ax_tree_distilled_callback_(on_ax_tree_distilled_callback) {
   // TODO(crbug.com/40915547): Use a global ukm recorder instance instead.
   mojo::Remote<ukm::mojom::UkmRecorderFactory> factory;
   content::RenderThread::Get()->BindHostReceiver(
@@ -128,16 +164,12 @@ void AXTreeDistiller::Distill(const ui::AXTree& tree,
   base::TimeTicks start_time = base::TimeTicks::Now();
 
   std::vector<ui::AXNodeID> content_node_ids;
-  if (features::IsReadAnythingWithAlgorithmEnabled()) {
-    // Try with the algorithm first.
-    DistillViaAlgorithm(tree, ukm_source_id, &content_node_ids);
-  }
+  // Try with the algorithm first.
+  DistillViaAlgorithm(tree, ukm_source_id, &content_node_ids);
 
-  // If Read Anything with Screen 2x is enabled and the main content extractor
-  // is bound, kick off Screen 2x run, which distills the AXTree in the
-  // utility process using ML.
-  if (features::IsReadAnythingWithScreen2xEnabled() &&
-      main_content_extractor_.is_bound()) {
+  // If Screen AI service is ready, kick off Screen 2x run, which distills the
+  // AXTree in the utility process using ML.
+  if (screen_ai_service_ready_) {
     DistillViaScreen2x(tree, snapshot, ukm_source_id, start_time,
                        &content_node_ids);
     return;
@@ -153,7 +185,7 @@ void AXTreeDistiller::DistillViaAlgorithm(
     std::vector<ui::AXNodeID>* content_node_ids) {
   base::TimeTicks start_time = base::TimeTicks::Now();
   std::vector<const ui::AXNode*> content_root_nodes;
-  GetContentRootNodes(tree.root(), &content_root_nodes);
+  GetContentRootNodes(tree, &content_root_nodes);
   for (const ui::AXNode* content_root_node : content_root_nodes) {
     AddContentNodesToVector(content_root_node, content_node_ids);
   }
@@ -185,30 +217,66 @@ void AXTreeDistiller::DistillViaScreen2x(
     const ui::AXTree& tree,
     const ui::AXTreeUpdate& snapshot,
     const ukm::SourceId ukm_source_id,
-    base::TimeTicks start_time,
+    base::TimeTicks merged_start_time,
     std::vector<ui::AXNodeID>* content_node_ids_algorithm) {
-  DCHECK(main_content_extractor_.is_bound());
+  CHECK(screen_ai_service_ready_);
+
+  // Establish connection to ScreenAI service if it's not already made.
+  if (!main_content_extractor_.is_bound()) {
+    render_frame()->GetBrowserInterfaceBroker().GetInterface(
+        main_content_extractor_.BindNewPipeAndPassReceiver());
+    main_content_extractor_.set_disconnect_handler(
+        base::BindOnce(&AXTreeDistiller::OnMainContentExtractorDisconnected,
+                       weak_ptr_factory_.GetWeakPtr()));
+    main_content_extractor_->SetClientType(
+        screen_ai::mojom::MceClientType::kReadingMode);
+  }
+
+  base::TimeTicks screen2x_start_time = base::TimeTicks::Now();
   // Make a copy of |content_node_ids_algorithm| rather than sending a pointer.
   main_content_extractor_->ExtractMainContent(
-      snapshot, ukm_source_id,
+      snapshot,
       base::BindOnce(&AXTreeDistiller::ProcessScreen2xResult,
                      weak_ptr_factory_.GetWeakPtr(), tree.GetAXTreeID(),
-                     ukm_source_id, start_time, *content_node_ids_algorithm));
+                     ukm_source_id, screen2x_start_time, merged_start_time,
+                     *content_node_ids_algorithm));
 }
 
 void AXTreeDistiller::ProcessScreen2xResult(
     const ui::AXTreeID& tree_id,
     const ukm::SourceId ukm_source_id,
-    base::TimeTicks start_time,
+    base::TimeTicks screen2x_start_time,
+    base::TimeTicks merged_start_time,
     std::vector<ui::AXNodeID> content_node_ids_algorithm,
     const std::vector<ui::AXNodeID>& content_node_ids_screen2x) {
+  RecordScreen2xMetrics(ukm_source_id,
+                        base::TimeTicks::Now() - screen2x_start_time,
+                        !content_node_ids_screen2x.empty());
   // Merge the results from the algorithm and from screen2x.
-  for (ui::AXNodeID content_node_id_screen2x : content_node_ids_screen2x) {
-    if (!base::Contains(content_node_ids_algorithm, content_node_id_screen2x)) {
-      content_node_ids_algorithm.push_back(content_node_id_screen2x);
+  for (ui::AXNodeID node_id : content_node_ids_screen2x) {
+    if (!base::Contains(content_node_ids_algorithm, node_id)) {
+      content_node_ids_algorithm.push_back(node_id);
     }
   }
-  RecordMergedMetrics(ukm_source_id, base::TimeTicks::Now() - start_time,
+
+  // Record metrics on how often screen2x merge was helpful.
+  if (content_node_ids_screen2x.empty()) {
+    base::UmaHistogramBoolean(
+        "Accessibility.ReadAnything.Algorithm.HadWhenScreen2xEmpty",
+        !content_node_ids_algorithm.empty());
+  } else {
+    bool added = false;
+    for (ui::AXNodeID node_id : content_node_ids_algorithm) {
+      if (!base::Contains(content_node_ids_screen2x, node_id)) {
+        added = true;
+        break;
+      }
+    }
+    base::UmaHistogramBoolean(
+        "Accessibility.ReadAnything.Algorithm.AddedToScreen2x", added);
+  }
+
+  RecordMergedMetrics(ukm_source_id, base::TimeTicks::Now() - merged_start_time,
                       !content_node_ids_algorithm.empty());
   on_ax_tree_distilled_callback_.Run(tree_id, content_node_ids_algorithm);
 
@@ -217,18 +285,32 @@ void AXTreeDistiller::ProcessScreen2xResult(
   // the selected nodes.
 }
 
-void AXTreeDistiller::ScreenAIServiceReady(content::RenderFrame* render_frame) {
-  if (main_content_extractor_.is_bound() || !render_frame) {
-    return;
+void AXTreeDistiller::RecordScreen2xMetrics(ukm::SourceId ukm_source_id,
+                                            base::TimeDelta elapsed_time,
+                                            bool success) {
+  if (success) {
+    base::UmaHistogramTimes(
+        "Accessibility.ScreenAI.Screen2xDistillationTime.Success",
+        elapsed_time);
+    ukm::builders::Accessibility_ScreenAI(ukm_source_id)
+        .SetScreen2xDistillationTime_Success(elapsed_time.InMilliseconds())
+        .Record(ukm_recorder_.get());
+  } else {
+    base::UmaHistogramTimes(
+        "Accessibility.ScreenAI.Screen2xDistillationTime.Failure",
+        elapsed_time);
+    ukm::builders::Accessibility_ScreenAI(ukm_source_id)
+        .SetScreen2xDistillationTime_Failure(elapsed_time.InMilliseconds())
+        .Record(ukm_recorder_.get());
   }
-  render_frame->GetBrowserInterfaceBroker()->GetInterface(
-      main_content_extractor_.BindNewPipeAndPassReceiver());
-  main_content_extractor_.set_disconnect_handler(
-      base::BindOnce(&AXTreeDistiller::OnMainContentExtractorDisconnected,
-                     weak_ptr_factory_.GetWeakPtr()));
+}
+
+void AXTreeDistiller::ScreenAIServiceReady() {
+  screen_ai_service_ready_ = true;
 }
 
 void AXTreeDistiller::OnMainContentExtractorDisconnected() {
+  main_content_extractor_.reset();
   on_ax_tree_distilled_callback_.Run(ui::AXTreeIDUnknown(),
                                      std::vector<ui::AXNodeID>());
 }

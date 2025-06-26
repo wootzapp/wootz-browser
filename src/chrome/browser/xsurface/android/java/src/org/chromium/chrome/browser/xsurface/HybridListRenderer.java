@@ -7,7 +7,10 @@ package org.chromium.chrome.browser.xsurface;
 import android.view.View;
 import android.view.ViewGroup;
 
-import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.RecyclerView;
+
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Implemented internally.
@@ -15,6 +18,7 @@ import androidx.annotation.Nullable;
  * A renderer that can handle mixing externally-provided views with native Android views
  * in a RecyclerView.
  */
+@NullMarked
 public interface HybridListRenderer {
     /**
      * Binds a contentmanager with this renderer.
@@ -29,13 +33,15 @@ public interface HybridListRenderer {
      * Binds a contentmanager with this renderer.
      *
      * @param manager the ListContentManager responsible for populating views
-     * @param viewport the ViewGroup containing the content. Views within the
-     *   bounds of this ViewGroup will be considered for view actions. If null,
-     *   the returned View will be used as the viewport.
+     * @param viewport the ViewGroup containing the content. Views within the bounds of this
+     *     ViewGroup will be considered for view actions. If null, the returned View will be used as
+     *     the viewport.
      * @param shouldUseStaggeredLayout whether to use Staggered layout for list. Column count should
-     *         be set via ListLayoutHelper#setSpanCount()
-     * @return
+     *     be set via ListLayoutHelper#setSpanCount()
+     * @return a View that the HybridListRenderer is managing, which can then be attached to other
+     *     view.
      */
+    @Deprecated
     default @Nullable View bind(
             ListContentManager manager,
             @Nullable ViewGroup viewport,
@@ -44,12 +50,32 @@ public interface HybridListRenderer {
     }
 
     /**
+     * Binds a contentmanager with this renderer.
+     *
+     * @param manager the ListContentManager responsible for populating views
+     * @param viewport the ViewGroup containing the content. Views within the bounds of this
+     *     ViewGroup will be considered for view actions. If null, the returned View will be used as
+     *     the viewport.
+     * @param gutterPaddingPerColumnPx the padding in the vertical gutter between the card columns,
+     *     per column in pixels when the staggered layout is used for list. Column count should be
+     *     set via ListLayoutHelper#setSpanCount(). If the staggered layout is not used, pass -1.
+     * @return a View that the HybridListRenderer is managing, which can then be attached to other
+     *     view.
+     */
+    default @Nullable View bind(
+            ListContentManager manager,
+            @Nullable ViewGroup viewport,
+            int gutterPaddingPerColumnPx) {
+        return bind(manager);
+    }
+
+    /**
      * Notify the HybridListRender when the externally provided view surface (embedded in
      * bind/update) is activated. This should include:
      *
-     *   - the user opening a new tab containing the (opened) surface.
-     *   - the user switching to a tab containing the (opened) surface.
-     *   - the user reactivating the previously deactivated surface.
+     * <p>- the user opening a new tab containing the (opened) surface. - the user switching to a
+     * tab containing the (opened) surface. - the user reactivating the previously deactivated
+     * surface.
      */
     default void onSurfaceOpened() {}
 
@@ -81,11 +107,17 @@ public interface HybridListRenderer {
     /** Called when a manual refresh is initiated by the user. */
     default void onManualRefreshStarted() {}
 
+    /** Returns helper to manager the list layout. @{@link ListLayoutHelper} instance. */
+    default @Nullable ListLayoutHelper getListLayoutHelper() {
+        return null;
+    }
+
     /**
-     * Returns helper to manager the list layout.
-     * @return @{@link ListLayoutHelper} instance.
+     * Returns the adapter that will be used with the RecyclerView. Unlike calling getAdapter() on
+     * RecyclerView, which may be null before attach and after detach, this is guaranteed to be
+     * valid between the call to bind() and unbind().
      */
-    default ListLayoutHelper getListLayoutHelper() {
+    default RecyclerView.@Nullable Adapter<?> getAdapter() {
         return null;
     }
 }

@@ -5,13 +5,14 @@
 #include "third_party/blink/renderer/modules/webshare/navigator_share.h"
 
 #include <stdint.h>
+
 #include <utility>
 
 #include "base/files/safe_base_name.h"
 #include "build/build_config.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom-blink.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/file_path_conversion.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
@@ -49,8 +50,7 @@ constexpr uint32_t kMaxUrlLength = 16U * 1024;
 String ErrorToString(mojom::blink::ShareError error) {
   switch (error) {
     case mojom::blink::ShareError::OK:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case mojom::blink::ShareError::INTERNAL_ERROR:
       return "Share failed";
     case mojom::blink::ShareError::PERMISSION_DENIED:
@@ -58,8 +58,7 @@ String ErrorToString(mojom::blink::ShareError error) {
     case mojom::blink::ShareError::CANCELED:
       return "Share canceled";
   }
-  NOTREACHED_IN_MIGRATION();
-  return String();
+  NOTREACHED();
 }
 
 bool HasFiles(const ShareData& data) {
@@ -202,7 +201,7 @@ bool NavigatorShare::canShare(ScriptState* script_state,
 
   if (!ExecutionContext::From(script_state)
            ->IsFeatureEnabled(
-               mojom::blink::PermissionsPolicyFeature::kWebShare)) {
+               network::mojom::PermissionsPolicyFeature::kWebShare)) {
     return false;
   }
 
@@ -226,7 +225,7 @@ ScriptPromise<IDLUndefined> NavigatorShare::share(
         DOMExceptionCode::kInvalidStateError,
         "Internal error: window frame is missing (the navigator may be "
         "detached).");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   LocalDOMWindow* const window = LocalDOMWindow::From(script_state);
@@ -234,11 +233,11 @@ ScriptPromise<IDLUndefined> NavigatorShare::share(
       ExecutionContext::From(script_state);
 
   if (!execution_context->IsFeatureEnabled(
-          mojom::blink::PermissionsPolicyFeature::kWebShare)) {
+          network::mojom::PermissionsPolicyFeature::kWebShare)) {
     window->CountUse(WebFeature::kWebSharePolicyDisallow);
     exception_state.ThrowDOMException(DOMExceptionCode::kNotAllowedError,
                                       "Permission denied");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
   window->CountUse(WebFeature::kWebSharePolicyAllow);
 
@@ -250,7 +249,7 @@ ScriptPromise<IDLUndefined> NavigatorShare::share(
   if (!clients_.empty()) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       "An earlier share has not yet completed.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 #endif
 
@@ -259,20 +258,20 @@ ScriptPromise<IDLUndefined> NavigatorShare::share(
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNotAllowedError,
         "Must be handling a user gesture to perform a share request.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   if (window->GetFrame()->IsInFencedFrameTree()) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNotAllowedError,
         "Web Share is not allowed in a fenced frame tree.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   KURL url;
   if (!CanShareInternal(*window, *data, url, &exception_state)) {
     DCHECK(exception_state.HadException());
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   if (!service_remote_.is_bound()) {
@@ -293,7 +292,7 @@ ScriptPromise<IDLUndefined> NavigatorShare::share(
         mojom::blink::ConsoleMessageLevel::kWarning, "Share too large");
     exception_state.ThrowDOMException(DOMExceptionCode::kNotAllowedError,
                                       "Permission denied");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   bool has_files = HasFiles(*data);
@@ -310,12 +309,12 @@ ScriptPromise<IDLUndefined> NavigatorShare::share(
             mojom::blink::ConsoleMessageLevel::kWarning, "Unsafe file name");
         exception_state.ThrowDOMException(DOMExceptionCode::kNotAllowedError,
                                           "Permission denied");
-        return ScriptPromise<IDLUndefined>();
+        return EmptyPromise();
       }
 
       total_bytes += file->size();
-      files.push_back(
-          mojom::blink::SharedFile::New(*name, file->GetBlobDataHandle()));
+      files.push_back(mojom::blink::SharedFile::New(
+          *name, file->GetBlobDataHandleWithKnownSize()));
     }
 
     if (files.size() > kMaxSharedFileCount ||
@@ -325,7 +324,7 @@ ScriptPromise<IDLUndefined> NavigatorShare::share(
           mojom::blink::ConsoleMessageLevel::kWarning, "Share too large");
       exception_state.ThrowDOMException(DOMExceptionCode::kNotAllowedError,
                                         "Permission denied");
-      return ScriptPromise<IDLUndefined>();
+      return EmptyPromise();
     }
   }
 

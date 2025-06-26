@@ -4,11 +4,14 @@
 
 import 'chrome://history/history.js';
 
-import type {HistoryAppElement, HistoryEntry} from 'chrome://history/history.js';
-import {BrowserServiceImpl, ensureLazyLoaded} from 'chrome://history/history.js';
+import type {HistoryAppElement} from 'chrome://history/history.js';
+import {BrowserServiceImpl, ensureLazyLoaded, HistoryEmbeddingsBrowserProxyImpl, HistoryEmbeddingsPageHandlerRemote} from 'chrome://history/history.js';
+import type {HistoryEntry, QueryResult} from 'chrome://resources/cr_components/history/history.mojom-webui.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
+import {PromiseResolver} from 'chrome://resources/js/promise_resolver.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
+import {TestMock} from 'chrome://webui-test/test_mock.js';
 
 import {TestBrowserService} from './test_browser_service.js';
 import {createHistoryEntry, createHistoryInfo} from './test_util.js';
@@ -16,30 +19,45 @@ import {createHistoryEntry, createHistoryInfo} from './test_util.js';
 suite('history-toolbar', function() {
   let app: HistoryAppElement;
   let testService: TestBrowserService;
+  let embeddingsHandler: TestMock<HistoryEmbeddingsPageHandlerRemote>&
+      HistoryEmbeddingsPageHandlerRemote;
   const TEST_HISTORY_RESULTS: [HistoryEntry] =
       [createHistoryEntry('2016-03-15', 'https://google.com')];
+
+  function createToolbar() {
+    const toolbar = document.createElement('history-toolbar');
+    document.body.appendChild(toolbar);
+    return toolbar;
+  }
 
   setup(function() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     testService = new TestBrowserService();
     BrowserServiceImpl.setInstance(testService);
+    embeddingsHandler = TestMock.fromClass(HistoryEmbeddingsPageHandlerRemote);
+    HistoryEmbeddingsBrowserProxyImpl.setInstance(
+        new HistoryEmbeddingsBrowserProxyImpl(embeddingsHandler));
+    embeddingsHandler.setResultFor(
+        'search', Promise.resolve({result: {items: []}}));
 
     app = document.createElement('history-app');
     document.body.appendChild(app);
     return Promise
         .all([
           ensureLazyLoaded(),
-          testService.whenCalled('queryHistory'),
+          testService.handler.whenCalled('queryHistory'),
         ])
         .then(flushTasks);
   });
 
   test('selecting checkbox causes toolbar to change', async function() {
-    testService.setQueryResult(
-        {info: createHistoryInfo(), value: TEST_HISTORY_RESULTS});
+    testService.handler.setResultFor(
+        'queryHistoryContinuation', Promise.resolve({
+          results: {info: createHistoryInfo(), value: TEST_HISTORY_RESULTS},
+        }));
     app.$.history.dispatchEvent(new CustomEvent(
         'query-history', {bubbles: true, composed: true, detail: true}));
-    await testService.whenCalled('queryHistoryContinuation');
+    await testService.handler.whenCalled('queryHistoryContinuation');
     await flushTasks();
     const item = app.$.history.shadowRoot!.querySelector('history-item')!;
     item.$.checkbox.click();
@@ -62,30 +80,36 @@ suite('history-toolbar', function() {
   });
 
   test('search term gathered correctly from toolbar', async function() {
-    testService.resetResolver('queryHistory');
+    testService.handler.resetResolver('queryHistory');
     const toolbar = app.$.toolbar;
-    testService.setQueryResult(
-        {info: createHistoryInfo('Test'), value: TEST_HISTORY_RESULTS});
+    testService.handler.setResultFor('queryHistory', Promise.resolve({
+      results: {info: createHistoryInfo('Test'), value: TEST_HISTORY_RESULTS},
+    }));
     toolbar.$.mainToolbar.dispatchEvent(new CustomEvent(
         'search-changed', {bubbles: true, composed: true, detail: 'Test'}));
-    const query = await testService.whenCalled('queryHistory');
-    assertEquals('Test', query);
+    const queryArgs = await testService.handler.whenCalled('queryHistory');
+    assertEquals('Test', queryArgs[0]);
   });
 
   test('spinner is active on search', async function() {
-    testService.resetResolver('queryHistory');
-    testService.delayQueryResult();
-    testService.setQueryResult({
-      info: createHistoryInfo('Test2'),
-      value: TEST_HISTORY_RESULTS,
-    });
+    testService.handler.resetResolver('queryHistory');
+
+    const delayedQuery = new PromiseResolver<{results: QueryResult}>();
+
+    testService.handler.setResultFor('queryHistory', delayedQuery.promise);
+
     const toolbar = app.$.toolbar;
     toolbar.$.mainToolbar.dispatchEvent(new CustomEvent(
         'search-changed', {bubbles: true, composed: true, detail: 'Test2'}));
-    await testService.whenCalled('queryHistory');
-    await flushTasks();
+    await testService.handler.whenCalled('queryHistory');
+
     assertTrue(toolbar.spinnerActive);
-    testService.finishQueryHistory();
+    delayedQuery.resolve({
+      results: {
+        info: createHistoryInfo('Test2'),
+        value: TEST_HISTORY_RESULTS,
+      },
+    });
     await flushTasks();
     assertFalse(toolbar.spinnerActive);
   });
@@ -110,13 +134,85 @@ suite('history-toolbar', function() {
     await flushTasks();
     toolbar.selectedPage = 'history';
     assertEquals(
-        'history:embeddings', toolbar.$.mainToolbar.searchIconOverride);
+        'history-embeddings:search', toolbar.$.mainToolbar.searchIconOverride);
     toolbar.selectedPage = 'grouped';
     assertEquals(
-        'history:embeddings', toolbar.$.mainToolbar.searchIconOverride);
+        'history-embeddings:search', toolbar.$.mainToolbar.searchIconOverride);
 
     // Synced tabs page should have the default icon.
     toolbar.selectedPage = 'syncedTabs';
     assertEquals(undefined, toolbar.$.mainToolbar.searchIconOverride);
+  });
+
+  test('updates search input aria-description', async () => {
+    // Without history embeddings enabled, description should be empty.
+    loadTimeData.overrideValues({enableHistoryEmbeddings: false});
+    let toolbar = createToolbar();
+    await flushTasks();
+    toolbar.selectedPage = 'history';
+    assertEquals('', toolbar.$.mainToolbar.searchInputAriaDescription);
+
+    // With history embeddings enabled, description should change.
+    loadTimeData.overrideValues({
+      enableHistoryEmbeddings: true,
+      historyEmbeddingsDisclaimer: 'some disclaimer',
+    });
+    toolbar = createToolbar();
+    await flushTasks();
+    toolbar.selectedPage = 'history';
+    assertEquals(
+        'some disclaimer', toolbar.$.mainToolbar.searchInputAriaDescription);
+    toolbar.selectedPage = 'grouped';
+    assertEquals(
+        'some disclaimer', toolbar.$.mainToolbar.searchInputAriaDescription);
+
+    // Synced tabs page should have no description.
+    toolbar.selectedPage = 'syncedTabs';
+    assertEquals(undefined, toolbar.$.mainToolbar.searchInputAriaDescription);
+  });
+
+  test('updates search input prompt', async () => {
+    // Without history embeddings enabled, prompt should be default.
+    loadTimeData.overrideValues({
+      enableHistoryEmbeddings: false,
+      searchPrompt: 'Search history',
+    });
+    let toolbar = createToolbar();
+    await flushTasks();
+    toolbar.selectedPage = 'history';
+    assertEquals('Search history', toolbar.$.mainToolbar.searchPrompt);
+
+    // With history embeddings enabled, prompt should change.
+    loadTimeData.overrideValues({
+      enableHistoryEmbeddings: true,
+      historyEmbeddingsSearchPrompt: 'Describe your search',
+    });
+    toolbar = createToolbar();
+    await flushTasks();
+    toolbar.selectedPage = 'history';
+    assertEquals('Describe your search', toolbar.$.mainToolbar.searchPrompt);
+
+    // Synced tabs page should have the default prompt.
+    toolbar.selectedPage = 'syncedTabs';
+    assertEquals('Search history', toolbar.$.mainToolbar.searchPrompt);
+
+    // With history embeddings' answerer enabled, prompt should change.
+    loadTimeData.overrideValues({
+      enableHistoryEmbeddings: true,
+      enableHistoryEmbeddingsAnswers: true,
+    });
+    const possiblePrompts = {
+      historyEmbeddingsSearchPrompt: 'prompt 0',
+      historyEmbeddingsAnswersSearchAlternativePrompt1: 'prompt 1',
+      historyEmbeddingsAnswersSearchAlternativePrompt2: 'prompt 2',
+      historyEmbeddingsAnswersSearchAlternativePrompt3: 'prompt 3',
+      historyEmbeddingsAnswersSearchAlternativePrompt4: 'prompt 4',
+    };
+    loadTimeData.overrideValues(possiblePrompts);
+    toolbar = createToolbar();
+    await flushTasks();
+    toolbar.selectedPage = 'history';
+    assertTrue(Object.values(possiblePrompts)
+                   .includes(toolbar.$.mainToolbar.searchPrompt));
   });
 });

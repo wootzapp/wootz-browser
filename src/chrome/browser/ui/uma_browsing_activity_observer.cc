@@ -30,7 +30,6 @@
 #include "content/public/browser/web_contents_user_data.h"
 #include "ui/gfx/range/range.h"
 
-namespace chrome {
 namespace {
 
 UMABrowsingActivityObserver* g_uma_browsing_activity_observer_instance =
@@ -60,19 +59,6 @@ void UMABrowsingActivityObserver::OnNavigationEntryCommitted(
   // the non-SRP navigations as well so there is a control.
   base::RecordAction(base::UserMetricsAction("NavEntryCommitted"));
 
-  // If the user is allowed to do searches in this profile (e.g., it's a
-  // regular profile, not something like a "system" profile), then record if
-  // this navigation appeared to go the default search engine.
-  auto* turl_service = TemplateURLServiceFactory::GetForProfile(
-      Profile::FromBrowserContext(web_contents->GetBrowserContext()));
-  if (turl_service) {
-    CHECK(load_details.entry);
-    if (turl_service->IsSearchResultsPageFromDefaultSearchProvider(
-            load_details.entry->GetURL())) {
-      base::RecordAction(base::UserMetricsAction("NavEntryCommitted.SRP"));
-    }
-  }
-
   if (!load_details.is_navigation_to_different_page()) {
     // Don't log for subframes or other trivial types.
     return;
@@ -92,8 +78,9 @@ void UMABrowsingActivityObserver::OnAppTerminating() const {
 void UMABrowsingActivityObserver::LogTimeBeforeUpdate() const {
   const base::Time upgrade_detected_time =
       UpgradeDetector::GetInstance()->upgrade_detected_time();
-  if (upgrade_detected_time.is_null())
+  if (upgrade_detected_time.is_null()) {
     return;
+  }
   const base::TimeDelta time_since_upgrade =
       base::Time::Now() - upgrade_detected_time;
   constexpr int kMaxDays = 30;
@@ -142,7 +129,7 @@ void UMABrowsingActivityObserver::LogBrowserTabCount() const {
       }
     }
 
-    if (browser->window()->IsActive()) {
+    if (browser->IsActive()) {
       // Record how many tabs the active window has open.
       UMA_HISTOGRAM_CUSTOM_COUNTS("Tabs.TabCountActiveWindow",
                                   browser->tab_strip_model()->count(), 1, 200,
@@ -208,5 +195,3 @@ void UMABrowsingActivityObserver::TabHelper::NavigationEntryCommitted(
 }
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(UMABrowsingActivityObserver::TabHelper);
-
-}  // namespace chrome

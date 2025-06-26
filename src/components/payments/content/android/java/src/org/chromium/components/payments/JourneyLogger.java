@@ -7,12 +7,14 @@ package org.chromium.components.payments;
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.content_public.browser.WebContents;
 
 import java.util.List;
 
 /** A class used to record journey metrics for the Payment Request feature. */
 @JNINamespace("payments")
+@NullMarked
 public class JourneyLogger {
     /** Pointer to the native implementation. */
     private long mJourneyLoggerAndroid;
@@ -21,17 +23,16 @@ public class JourneyLogger {
 
     /**
      * Creates the journey logger.
-     * @param isIncognito Whether the user profile is incognito.
+     *
      * @param webContents The web contents where PaymentRequest API is invoked. Should not be null.
      */
-    public JourneyLogger(boolean isIncognito, WebContents webContents) {
+    public JourneyLogger(WebContents webContents) {
         assert webContents != null;
         assert !webContents.isDestroyed();
         // Note that this pointer could leak the native object. The called must call destroy() to
         // ensure that the native object is destroyed.
         mJourneyLoggerAndroid =
-                JourneyLoggerJni.get()
-                        .initJourneyLoggerAndroid(JourneyLogger.this, isIncognito, webContents);
+                JourneyLoggerJni.get().initJourneyLoggerAndroid(JourneyLogger.this, webContents);
     }
 
     /** Will destroy the native object. This class shouldn't be used afterwards. */
@@ -62,26 +63,6 @@ public class JourneyLogger {
                         hasCompleteSuggestion);
     }
 
-    /**
-     * Records the fact that the merchant called CanMakePayment and records its return value.
-     *
-     * @param value The return value of the CanMakePayment call.
-     */
-    public void setCanMakePaymentValue(boolean value) {
-        JourneyLoggerJni.get()
-                .setCanMakePaymentValue(mJourneyLoggerAndroid, JourneyLogger.this, value);
-    }
-
-    /**
-     * Records the fact that the merchant called HasEnrolledInstrument and records its return value.
-     *
-     * @param value The return value of the HasEnrolledInstrument call.
-     */
-    public void setHasEnrolledInstrumentValue(boolean value) {
-        JourneyLoggerJni.get()
-                .setHasEnrolledInstrumentValue(mJourneyLoggerAndroid, JourneyLogger.this, value);
-    }
-
     /** Records that an Opt Out experience is being offered to the user in the current UI flow. */
     public void setOptOutOffered() {
         JourneyLoggerJni.get().setOptOutOffered(mJourneyLoggerAndroid, JourneyLogger.this);
@@ -102,12 +83,6 @@ public class JourneyLogger {
         JourneyLoggerJni.get().setShown(mJourneyLoggerAndroid, JourneyLogger.this);
     }
 
-    /** Records that the instrument details has been received. */
-    public void setReceivedInstrumentDetails() {
-        JourneyLoggerJni.get()
-                .setReceivedInstrumentDetails(mJourneyLoggerAndroid, JourneyLogger.this);
-    }
-
     /** Records that a payment app was invoked. */
     public void setPayClicked() {
         JourneyLoggerJni.get().setPayClicked(mJourneyLoggerAndroid, JourneyLogger.this);
@@ -121,16 +96,6 @@ public class JourneyLogger {
     public void setSelectedMethod(@PaymentMethodCategory int category) {
         JourneyLoggerJni.get()
                 .setSelectedMethod(mJourneyLoggerAndroid, JourneyLogger.this, category);
-    }
-
-    /**
-     * Records the method that is supported by the available payment apps.
-     *
-     * @param category The category of the method.
-     */
-    public void setAvailableMethod(@PaymentMethodCategory int category) {
-        JourneyLoggerJni.get()
-                .setAvailableMethod(mJourneyLoggerAndroid, JourneyLogger.this, category);
     }
 
     /*
@@ -236,8 +201,7 @@ public class JourneyLogger {
 
     @NativeMethods
     interface Natives {
-        long initJourneyLoggerAndroid(
-                JourneyLogger caller, boolean isIncognito, WebContents webContents);
+        long initJourneyLoggerAndroid(JourneyLogger caller, WebContents webContents);
 
         void destroy(long nativeJourneyLoggerAndroid, JourneyLogger caller);
 
@@ -248,12 +212,6 @@ public class JourneyLogger {
                 int number,
                 boolean hasCompleteSuggestion);
 
-        void setCanMakePaymentValue(
-                long nativeJourneyLoggerAndroid, JourneyLogger caller, boolean value);
-
-        void setHasEnrolledInstrumentValue(
-                long nativeJourneyLoggerAndroid, JourneyLogger caller, boolean value);
-
         void setOptOutOffered(long nativeJourneyLoggerAndroid, JourneyLogger caller);
 
         void setActivationlessShow(long nativeJourneyLoggerAndroid, JourneyLogger caller);
@@ -262,14 +220,9 @@ public class JourneyLogger {
 
         void setShown(long nativeJourneyLoggerAndroid, JourneyLogger caller);
 
-        void setReceivedInstrumentDetails(long nativeJourneyLoggerAndroid, JourneyLogger caller);
-
         void setPayClicked(long nativeJourneyLoggerAndroid, JourneyLogger caller);
 
         void setSelectedMethod(
-                long nativeJourneyLoggerAndroid, JourneyLogger caller, int paymentMethodCategory);
-
-        void setAvailableMethod(
                 long nativeJourneyLoggerAndroid, JourneyLogger caller, int paymentMethodCategory);
 
         void setRequestedInformation(

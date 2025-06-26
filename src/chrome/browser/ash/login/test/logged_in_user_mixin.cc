@@ -12,7 +12,6 @@
 #include "chrome/browser/ash/login/test/cryptohome_mixin.h"
 #include "chrome/browser/ash/login/test/login_manager_mixin.h"
 #include "chrome/browser/ash/login/test/user_auth_config.h"
-#include "chrome/browser/ash/net/delay_network_call.h"
 #include "chrome/test/base/fake_gaia_mixin.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
@@ -20,6 +19,7 @@
 #include "chromeos/ash/components/login/auth/stub_authenticator_builder.h"
 #include "components/account_id/account_id.h"
 #include "components/user_manager/user_type.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 
@@ -47,7 +47,7 @@ const AccountId AccountIdForType(LoggedInUserMixin::LogInType type) {
     case LoggedInUserMixin::LogInType::kManaged:
       return AccountId::FromUserEmailGaiaId(
           FakeGaiaMixin::kEnterpriseUser1,
-          FakeGaiaMixin::kEnterpriseUser1GaiaId);
+          GaiaId(FakeGaiaMixin::kEnterpriseUser1GaiaId));
   }
 }
 
@@ -126,13 +126,9 @@ void LoggedInUserMixin::LogInUser(
   UserContext user_context = LoginManagerMixin::CreateDefaultUserContext(user_);
   user_context.SetRefreshToken(FakeGaiaMixin::kFakeRefreshToken);
   if (user_.user_type == user_manager::UserType::kChild) {
-    // TODO(b/333450354): Determine why this is necessary and fix.
-    SetDelayNetworkCallsForTesting(true);
-
     fake_gaia_.SetupFakeGaiaForChildUser(
         user_.account_id.GetUserEmail(), user_.account_id.GetGaiaId(),
-        FakeGaiaMixin::kFakeRefreshToken,
-        login_details.contains(LoginDetails::kUseAnyScopeToken));
+        FakeGaiaMixin::kFakeRefreshToken, /*issue_any_scope_token=*/true);
   } else {
     fake_gaia_.SetupFakeGaiaForLogin(user_.account_id.GetUserEmail(),
                                      user_.account_id.GetGaiaId(),
@@ -150,8 +146,8 @@ void LoggedInUserMixin::LogInUser(
   }
   if (!include_initial_user_) {
     if (user_.user_type == user_manager::UserType::kChild) {
-      CHECK(user_.account_id.GetUserEmail() == FakeGaiaMixin::kFakeUserEmail);
-      CHECK(user_.account_id.GetGaiaId() == FakeGaiaMixin::kFakeUserGaiaId);
+      CHECK_EQ(user_.account_id.GetUserEmail(), FakeGaiaMixin::kFakeUserEmail);
+      CHECK_EQ(user_.account_id.GetGaiaId(), FakeGaiaMixin::kFakeUserGaiaId);
       login_manager_.LoginAsNewChildUser();
     } else {
       login_manager_.LoginAsNewRegularUser(user_context);

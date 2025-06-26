@@ -5,7 +5,6 @@
 #include "base/barrier_closure.h"
 #include "base/command_line.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ptr_exclusion.h"
 #include "base/run_loop.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/repeating_test_future.h"
@@ -24,13 +23,14 @@
 #include "services/device/public/cpp/test/fake_serial_port_manager.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/mojom/serial/serial.mojom-blink.h"
+#include "third_party/blink/public/mojom/serial/serial.mojom.h"
 #include "url/origin.h"
 
 namespace content {
 
 namespace {
 
+using ::base::test::InvokeFuture;
 using ::base::test::TestFuture;
 using ::testing::_;
 using ::testing::Invoke;
@@ -69,6 +69,10 @@ class SerialTest : public RenderViewHostImplTestHarness {
     ON_CALL(delegate(), GetPortManager).WillByDefault(Return(&port_manager_));
     ON_CALL(delegate(), AddObserver)
         .WillByDefault(testing::SaveArg<1>(&observer_));
+    ON_CALL(delegate(), RemoveObserver)
+        .WillByDefault([&](RenderFrameHost*, SerialDelegate::Observer*) {
+          observer_ = nullptr;
+        });
   }
 
   SerialTest(const SerialTest&) = delete;
@@ -97,9 +101,7 @@ class SerialTest : public RenderViewHostImplTestHarness {
   SerialTestContentBrowserClient test_client_;
   raw_ptr<ContentBrowserClient> original_client_ = nullptr;
   device::FakeSerialPortManager port_manager_;
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #addr-of
-  RAW_PTR_EXCLUSION SerialDelegate::Observer* observer_ = nullptr;
+  raw_ptr<SerialDelegate::Observer> observer_ = nullptr;
 };
 
 }  // namespace
@@ -193,7 +195,8 @@ TEST_F(SerialTest, OpenAndClosePort) {
   port_info->token = token;
   port_manager()->AddPort(port_info->Clone());
 
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, _)).WillOnce(Return(port_info.get()));
   EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(true));
@@ -204,11 +207,13 @@ TEST_F(SerialTest, OpenAndClosePort) {
                     future.GetCallback());
   auto port = future.Take();
   EXPECT_TRUE(port.is_valid());
-  EXPECT_TRUE(contents()->IsConnectedToSerialPort());
+  EXPECT_TRUE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   port.reset();
   base::RunLoop().RunUntilIdle();
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 }
 
 TEST_F(SerialTest, OpenWithoutPermission) {
@@ -223,7 +228,8 @@ TEST_F(SerialTest, OpenWithoutPermission) {
   port_info->token = token;
   port_manager()->AddPort(port_info->Clone());
 
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, _)).WillOnce(Return(port_info.get()));
   EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(false));
@@ -237,7 +243,8 @@ TEST_F(SerialTest, OpenWithoutPermission) {
 
   // Allow extra time for the watcher connection failure to propagate.
   base::RunLoop().RunUntilIdle();
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 }
 
 TEST_F(SerialTest, OpenFailure) {
@@ -253,7 +260,8 @@ TEST_F(SerialTest, OpenFailure) {
   port_manager()->AddPort(port_info->Clone());
   port_manager()->set_simulate_open_failure(true);
 
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, _)).WillOnce(Return(port_info.get()));
   EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(true));
@@ -267,7 +275,8 @@ TEST_F(SerialTest, OpenFailure) {
 
   // Allow extra time for the watcher connection failure to propagate.
   base::RunLoop().RunUntilIdle();
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 }
 
 TEST_F(SerialTest, OpenAndNavigateCrossOrigin) {
@@ -282,7 +291,8 @@ TEST_F(SerialTest, OpenAndNavigateCrossOrigin) {
   port_info->token = token;
   port_manager()->AddPort(port_info->Clone());
 
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, _)).WillOnce(Return(port_info.get()));
   EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(true));
@@ -293,13 +303,53 @@ TEST_F(SerialTest, OpenAndNavigateCrossOrigin) {
                     future.GetCallback());
   mojo::Remote<device::mojom::SerialPort> port(future.Take());
   EXPECT_TRUE(port.is_connected());
-  EXPECT_TRUE(contents()->IsConnectedToSerialPort());
+  EXPECT_TRUE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   NavigateAndCommit(GURL(kCrossOriginTestUrl));
   base::RunLoop().RunUntilIdle();
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
   port.FlushForTesting();
   EXPECT_FALSE(port.is_connected());
+}
+
+TEST_F(SerialTest, SameBluetoothSerialPortSameToken) {
+  NavigateAndCommit(GURL(kTestUrl));
+  mojo::Remote<blink::mojom::SerialService> service;
+  contents()->GetPrimaryMainFrame()->BindSerialService(
+      service.BindNewPipeAndPassReceiver());
+  MockSerialServiceClient client;
+  service->SetClient(client.BindNewPipeAndPassRemote());
+  service.FlushForTesting();
+  ASSERT_TRUE(observer());
+
+  const device::BluetoothUUID kServiceClassId(
+      "ac822b69-d7e9-4bab-8fa6-ce40c87e1ac4");
+  base::UnguessableToken bluetooth_token;
+  std::vector<device::mojom::SerialPortInfoPtr> ports;
+  for (size_t i = 0; i < 2; i++) {
+    auto port = device::mojom::SerialPortInfo::New();
+    port->token = base::UnguessableToken::Create();
+    port->bluetooth_service_class_id = kServiceClassId;
+    ports.push_back(std::move(port));
+    if (i == 0) {
+      // Both SerialPortInfos describe the same port (same device address and
+      // service UUID). When the ports are delivered to the renderer, the
+      // second port reuses the token from the first port even though they were
+      // created with different tokens.
+      bluetooth_token = ports[i]->token;
+    }
+  }
+
+  for (size_t i = 0; i < 2; i++) {
+    TestFuture<blink::mojom::SerialPortInfoPtr> future;
+    EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(true));
+    EXPECT_CALL(client, OnPortConnectedStateChanged)
+        .WillOnce(InvokeFuture(future));
+    observer()->OnPortAdded(*ports[i]);
+    EXPECT_EQ(future.Get()->token, bluetooth_token);
+  }
 }
 
 TEST_F(SerialTest, AddAndRemovePorts) {
@@ -385,9 +435,7 @@ TEST_F(SerialTest, PortConnectedState) {
   // Connect the port.
   TestFuture<blink::mojom::SerialPortInfoPtr> connect_future;
   EXPECT_CALL(client, OnPortConnectedStateChanged)
-      .WillOnce([&connect_future](blink::mojom::SerialPortInfoPtr port) {
-        connect_future.SetValue(std::move(port));
-      });
+      .WillOnce(InvokeFuture(connect_future));
   port->connected = true;
   observer()->OnPortConnectedStateChanged(*port);
   EXPECT_EQ(connect_future.Get()->token, port->token);
@@ -396,9 +444,7 @@ TEST_F(SerialTest, PortConnectedState) {
   // Disconnect the port.
   TestFuture<blink::mojom::SerialPortInfoPtr> disconnect_future;
   EXPECT_CALL(client, OnPortConnectedStateChanged)
-      .WillOnce([&disconnect_future](blink::mojom::SerialPortInfoPtr port) {
-        disconnect_future.SetValue(std::move(port));
-      });
+      .WillOnce(InvokeFuture(disconnect_future));
   port->connected = false;
   observer()->OnPortConnectedStateChanged(*port);
   EXPECT_EQ(disconnect_future.Get()->token, port->token);
@@ -417,7 +463,8 @@ TEST_F(SerialTest, OpenAndClosePortManagerConnection) {
   port_info->token = token;
   port_manager()->AddPort(port_info->Clone());
 
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, _)).WillOnce(Return(port_info.get()));
   EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(true));
@@ -428,11 +475,13 @@ TEST_F(SerialTest, OpenAndClosePortManagerConnection) {
                     future.GetCallback());
   mojo::Remote<device::mojom::SerialPort> port(future.Take());
   EXPECT_TRUE(port.is_connected());
-  EXPECT_TRUE(contents()->IsConnectedToSerialPort());
+  EXPECT_TRUE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   ASSERT_TRUE(observer());
   observer()->OnPortManagerConnectionError();
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
   port.FlushForTesting();
   EXPECT_FALSE(port.is_connected());
   service.FlushForTesting();
@@ -451,7 +500,8 @@ TEST_F(SerialTest, OpenAndRevokePermission) {
   port_info->token = token;
   port_manager()->AddPort(port_info->Clone());
 
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, _)).WillOnce(Return(port_info.get()));
   EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(true));
@@ -462,7 +512,8 @@ TEST_F(SerialTest, OpenAndRevokePermission) {
                     future.GetCallback());
   mojo::Remote<device::mojom::SerialPort> port(future.Take());
   EXPECT_TRUE(port.is_connected());
-  EXPECT_TRUE(contents()->IsConnectedToSerialPort());
+  EXPECT_TRUE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, _)).WillOnce(Return(port_info.get()));
   EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(false));
@@ -470,7 +521,8 @@ TEST_F(SerialTest, OpenAndRevokePermission) {
   ASSERT_TRUE(observer());
   url::Origin origin = url::Origin::Create(GURL(kTestUrl));
   observer()->OnPermissionRevoked(origin);
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
   port.FlushForTesting();
   EXPECT_FALSE(port.is_connected());
   service.FlushForTesting();
@@ -489,7 +541,8 @@ TEST_F(SerialTest, OpenAndRevokePermissionOnDifferentOrigin) {
   port_info->token = token;
   port_manager()->AddPort(port_info->Clone());
 
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, _)).WillOnce(Return(port_info.get()));
   EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(true));
@@ -500,13 +553,15 @@ TEST_F(SerialTest, OpenAndRevokePermissionOnDifferentOrigin) {
                     future.GetCallback());
   mojo::Remote<device::mojom::SerialPort> port(future.Take());
   EXPECT_TRUE(port.is_connected());
-  EXPECT_TRUE(contents()->IsConnectedToSerialPort());
+  EXPECT_TRUE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   ASSERT_TRUE(observer());
   url::Origin different_origin =
       url::Origin::Create(GURL("http://different-origin.com"));
   observer()->OnPermissionRevoked(different_origin);
-  EXPECT_TRUE(contents()->IsConnectedToSerialPort());
+  EXPECT_TRUE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
   port.FlushForTesting();
   EXPECT_TRUE(port.is_connected());
   service.FlushForTesting();
@@ -530,7 +585,8 @@ TEST_F(SerialTest, OpenTwoPortsAndRevokePermission) {
   port_info2->token = token2;
   port_manager()->AddPort(port_info2->Clone());
 
-  EXPECT_FALSE(contents()->IsConnectedToSerialPort());
+  EXPECT_FALSE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, _)).WillOnce(Return(port_info1.get()));
   EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(true));
@@ -541,7 +597,8 @@ TEST_F(SerialTest, OpenTwoPortsAndRevokePermission) {
                     future1.GetCallback());
   mojo::Remote<device::mojom::SerialPort> port1(future1.Take());
   EXPECT_TRUE(port1.is_connected());
-  EXPECT_TRUE(contents()->IsConnectedToSerialPort());
+  EXPECT_TRUE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, _)).WillOnce(Return(port_info2.get()));
   EXPECT_CALL(delegate(), HasPortPermission(_, _)).WillOnce(Return(true));
@@ -552,7 +609,8 @@ TEST_F(SerialTest, OpenTwoPortsAndRevokePermission) {
                     future2.GetCallback());
   mojo::Remote<device::mojom::SerialPort> port2(future2.Take());
   EXPECT_TRUE(port2.is_connected());
-  EXPECT_TRUE(contents()->IsConnectedToSerialPort());
+  EXPECT_TRUE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
 
   EXPECT_CALL(delegate(), GetPortInfo(_, token1))
       .WillOnce(Return(port_info1.get()));
@@ -571,7 +629,8 @@ TEST_F(SerialTest, OpenTwoPortsAndRevokePermission) {
   ASSERT_TRUE(observer());
   url::Origin origin = url::Origin::Create(GURL(kTestUrl));
   observer()->OnPermissionRevoked(origin);
-  EXPECT_TRUE(contents()->IsConnectedToSerialPort());
+  EXPECT_TRUE(
+      contents()->IsCapabilityActive(WebContentsCapabilityType::kSerial));
   port1.FlushForTesting();
   EXPECT_FALSE(port1.is_connected());
   port2.FlushForTesting();
@@ -622,7 +681,7 @@ TEST_F(SerialTest, RejectOpaqueOriginEmbeddedFrame) {
       RenderFrameHostTester::For(main_test_rfh())
           ->AppendChildWithPolicy(
               "embedded_frame",
-              {{blink::mojom::PermissionsPolicyFeature::kSerial,
+              {{network::mojom::PermissionsPolicyFeature::kSerial,
                 /*allowed_origins=*/{},
                 /*self_if_matches=*/url::Origin::Create(kEmbeddedUrl),
                 /*matches_all_origins=*/false, /*matches_opaque_src=*/true}});

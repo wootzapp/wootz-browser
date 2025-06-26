@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/enterprise/connectors/device_trust/key_management/core/mac/secure_enclave_client_impl.h"
 
 #include <CoreFoundation/CoreFoundation.h>
@@ -12,6 +17,7 @@
 #include <vector>
 
 #include "base/apple/bridging.h"
+#include "base/apple/foundation_util.h"
 #include "base/apple/scoped_cftyperef.h"
 #include "base/containers/span.h"
 #include "base/numerics/safe_conversions.h"
@@ -93,9 +99,7 @@ bool ConvertPublicKey(CFDataRef data_ref, std::vector<uint8_t>& output) {
     return false;
   }
 
-  auto data =
-      base::make_span(CFDataGetBytePtr(data_ref),
-                      base::checked_cast<size_t>(CFDataGetLength(data_ref)));
+  auto data = base::apple::CFDataToSpan(data_ref);
   bssl::UniquePtr<EC_GROUP> p256(
       EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1));
   bssl::UniquePtr<EC_POINT> point(EC_POINT_new(p256.get()));
@@ -266,9 +270,8 @@ bool SecureEnclaveClientImpl::SignDataWithKey(SecKeyRef key,
     return false;
   }
 
-  output.assign(
-      CFDataGetBytePtr(signature.get()),
-      CFDataGetBytePtr(signature.get()) + CFDataGetLength(signature.get()));
+  auto signature_span = base::apple::CFDataToSpan(signature.get());
+  output.assign(signature_span.begin(), signature_span.end());
   return true;
 }
 

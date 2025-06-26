@@ -26,6 +26,7 @@
 #include "components/safe_browsing/core/browser/verdict_cache_manager.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/utils.h"
+#include "components/signin/public/identity_manager/identity_manager.h"
 #include "google_apis/google_api_keys.h"
 #include "net/base/url_util.h"
 
@@ -55,8 +56,7 @@ bool IsSecuritySensitiveVerdict(
     case LoginReputationClientResponse::PHISHING:
       return true;
   }
-  NOTREACHED_IN_MIGRATION() << "Unexpected verdict_type: " << verdict_type;
-  return false;
+  NOTREACHED() << "Unexpected verdict_type: " << verdict_type;
 }
 
 // Log security sensitive event if required.
@@ -310,8 +310,7 @@ PasswordProtectionServiceBase::GetPasswordProtectionReusedPasswordType(
     case PasswordType::PASSWORD_TYPE_COUNT:
       break;
   }
-  NOTREACHED_IN_MIGRATION();
-  return PasswordReuseEvent::REUSED_PASSWORD_TYPE_UNKNOWN;
+  NOTREACHED();
 }
 
 ReusedPasswordAccountType
@@ -337,20 +336,21 @@ PasswordProtectionServiceBase::GetPasswordProtectionReusedPasswordAccountType(
         return reused_password_account_type;
       }
       reused_password_account_type.set_account_type(
-          IsAccountGmail(username) ? ReusedPasswordAccountType::GMAIL
-                                   : ReusedPasswordAccountType::GSUITE);
+          IsAccountConsumer(username) ? ReusedPasswordAccountType::GMAIL
+                                      : ReusedPasswordAccountType::GSUITE);
       return reused_password_account_type;
     }
     case PasswordType::OTHER_GAIA_PASSWORD: {
       AccountInfo account_info = GetAccountInfoForUsername(username);
-      if (account_info.account_id.empty()) {
+      if (account_info.account_id.empty() ||
+          account_info.hosted_domain.empty()) {
         reused_password_account_type.set_account_type(
             ReusedPasswordAccountType::UNKNOWN);
         return reused_password_account_type;
       }
       reused_password_account_type.set_account_type(
-          IsAccountGmail(username) ? ReusedPasswordAccountType::GMAIL
-                                   : ReusedPasswordAccountType::GSUITE);
+          IsAccountConsumer(username) ? ReusedPasswordAccountType::GMAIL
+                                      : ReusedPasswordAccountType::GSUITE);
       return reused_password_account_type;
     }
     case PasswordType::PASSWORD_TYPE_UNKNOWN:
@@ -359,8 +359,7 @@ PasswordProtectionServiceBase::GetPasswordProtectionReusedPasswordAccountType(
           ReusedPasswordAccountType::UNKNOWN);
       return reused_password_account_type;
   }
-  NOTREACHED_IN_MIGRATION();
-  return reused_password_account_type;
+  NOTREACHED();
 }
 
 // static
@@ -398,8 +397,7 @@ bool PasswordProtectionServiceBase::IsSupportedPasswordTypeForPinging(
     case PasswordType::PASSWORD_TYPE_COUNT:
       return false;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool PasswordProtectionServiceBase::IsSupportedPasswordTypeForModalWarning(

@@ -7,8 +7,10 @@
 
 #include "base/functional/callback_forward.h"
 #include "base/types/expected.h"
-#include "components/autofill/core/browser/data_model/credit_card.h"
-#include "components/autofill/core/browser/payments/payments_network_interface.h"
+#include "components/autofill/core/browser/data_model/payments/credit_card.h"
+#include "components/autofill/core/browser/payments/card_unmask_challenge_option.h"
+#include "components/autofill/core/browser/payments/payments_autofill_client.h"
+#include "components/autofill/core/browser/payments/payments_request_details.h"
 #include "components/autofill/core/browser/payments/payments_window_manager.h"
 
 namespace autofill {
@@ -17,32 +19,41 @@ class AutofillClient;
 
 namespace payments {
 
-// Parses the URL for VCN 3DS, which is set in `url`. If the parsed URL denotes
-// the authentication completed successfully, this function will return a
-// PaymentsWindowManager::RedirectCompletionProof as the expected response.
-// Otherwise this function will return the non-success result.
-base::expected<PaymentsWindowManager::RedirectCompletionProof,
-               PaymentsWindowManager::Vcn3dsAuthenticationPopupNonSuccessResult>
-ParseUrlForVcn3ds(const GURL& url);
+// Parses the URL for VCN 3DS, which is set in `url`. `metadata` contains the
+// required query parameter information to search for in `url`.  If the parsed
+// URL denotes the authentication completed successfully, this function will
+// return a PaymentsWindowManager::RedirectCompletionResult as the expected
+// response. Otherwise this function will return the non-success result.
+base::expected<PaymentsWindowManager::RedirectCompletionResult,
+               PaymentsWindowManager::Vcn3dsAuthenticationResult>
+ParseUrlForVcn3ds(const GURL& url,
+                  const Vcn3dsChallengeOptionMetadata& metadata);
+
+// Parses the URL for BNPL, which is set in `url`. `bnpl_context` contains the
+// expected URL's for a success or failure in the BNPL pop-up flow. If `url`
+// does not match any of them, it is assumed the flow has not yet completed.
+// This function will return the flow status for `url` inside of the pop-up.
+PaymentsWindowManager::BnplPopupStatus ParseUrlForBnpl(
+    const GURL& url,
+    const PaymentsWindowManager::BnplContext& bnpl_context);
 
 // Creates UnmaskRequestDetails specific to VCN 3DS. `client` is the
 // AutofillClient associated with the original browser window. `context` is the
 // context that was set when the flow was initialized, and
-// `redirect_completion_proof` is the token that was parsed from the query
+// `redirect_completion_result` is the token that was parsed from the query
 // parameters in the final redirect of the pop-up. Refer to
-// ParseFinalUrlForVcn3ds() for when `redirect_completion_proof` is set.
-PaymentsNetworkInterface::UnmaskRequestDetails
-CreateUnmaskRequestDetailsForVcn3ds(
+// ParseFinalUrlForVcn3ds() for when `redirect_completion_result` is set.
+UnmaskRequestDetails CreateUnmaskRequestDetailsForVcn3ds(
     AutofillClient& client,
     const PaymentsWindowManager::Vcn3dsContext& context,
-    PaymentsWindowManager::RedirectCompletionProof redirect_completion_proof);
+    PaymentsWindowManager::RedirectCompletionResult redirect_completion_result);
 
 // Creates the Vcn3dsAuthenticationResponse for the response from the
 // UnmaskCardRequest that was sent during the VCN 3DS authentication.
 PaymentsWindowManager::Vcn3dsAuthenticationResponse
-CreateVcn3dsAuthenticationResponse(
-    AutofillClient::PaymentsRpcResult result,
-    const PaymentsNetworkInterface::UnmaskResponseDetails& response_details,
+CreateVcn3dsAuthenticationResponseFromServerResult(
+    PaymentsAutofillClient::PaymentsRpcResult result,
+    const UnmaskResponseDetails& response_details,
     CreditCard card);
 
 }  // namespace payments

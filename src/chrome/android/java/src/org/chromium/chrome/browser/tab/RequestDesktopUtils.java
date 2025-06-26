@@ -22,6 +22,7 @@ import org.chromium.base.SysUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
+import org.chromium.build.BuildConfig;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.page_info.SiteSettingsHelper;
@@ -43,20 +44,11 @@ import org.chromium.components.messages.MessageDispatcher;
 import org.chromium.components.messages.MessageIdentifier;
 import org.chromium.components.messages.PrimaryActionClickBehavior;
 import org.chromium.components.prefs.PrefService;
-import org.chromium.components.profile_metrics.BrowserProfileType;
 import org.chromium.components.ukm.UkmRecorder;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.content_public.browser.ContentFeatureList;
-import org.chromium.content_public.browser.ContentFeatureMap;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.display.DisplayAndroidManager;
 import org.chromium.ui.display.DisplayUtil;
-import org.chromium.ui.modaldialog.DialogDismissalCause;
-import org.chromium.ui.modaldialog.ModalDialogManager;
-import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
-import org.chromium.ui.modaldialog.ModalDialogProperties;
-import org.chromium.ui.modaldialog.ModalDialogProperties.ButtonType;
-import org.chromium.ui.modaldialog.ModalDialogProperties.Controller;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.url.GURL;
 
@@ -102,45 +94,44 @@ public class RequestDesktopUtils {
         RecordHistogram.recordBooleanHistogram(
                 "Android.RequestDesktopSite.UserSwitchToDesktop", isDesktop);
 
-        if (tab == null || tab.isIncognito() || tab.getWebContents() == null) return;
+        if (tab == null || tab.isOffTheRecord() || tab.getWebContents() == null) return;
 
-        new UkmRecorder.Bridge()
-                .recordEventWithIntegerMetric(
-                        tab.getWebContents(),
-                        "Android.UserRequestedUserAgentChange",
+        new UkmRecorder(tab.getWebContents(), "Android.UserRequestedUserAgentChange")
+                .addMetric(
                         "UserAgentType",
                         isDesktop
                                 ? UserAgentRequestType.REQUEST_DESKTOP
-                                : UserAgentRequestType.REQUEST_MOBILE);
+                                : UserAgentRequestType.REQUEST_MOBILE)
+                .record();
     }
 
     /**
      * Records the ukms associated with changing screen orientation.
+     *
      * @param isLandscape True if the orientation is landscape.
      * @param tab The current activity {@link Tab}.
      */
     public static void recordScreenOrientationChangedUkm(boolean isLandscape, @Nullable Tab tab) {
-        if (tab == null || tab.isIncognito() || tab.getWebContents() == null) return;
+        if (tab == null || tab.isOffTheRecord() || tab.getWebContents() == null) return;
 
-        new UkmRecorder.Bridge()
-                .recordEventWithIntegerMetric(
-                        tab.getWebContents(),
-                        "Android.ScreenRotation",
+        new UkmRecorder(tab.getWebContents(), "Android.ScreenRotation")
+                .addMetric(
                         "TargetDeviceOrientation",
-                        isLandscape ? DeviceOrientation2.LANDSCAPE : DeviceOrientation2.PORTRAIT);
+                        isLandscape ? DeviceOrientation2.LANDSCAPE : DeviceOrientation2.PORTRAIT)
+                .record();
     }
 
     /**
      * Set or remove a domain level exception with URL for {@link
      * ContentSettingsType.REQUEST_DESKTOP_SITE}. Clear the subdomain level exception if any.
+     *
      * @param profile Target profile whose content settings needs to be updated.
-     * @param url  {@link GURL} for the site that changes in desktop user agent.
+     * @param url {@link GURL} for the site that changes in desktop user agent.
      * @param useDesktopUserAgent True if the input |url| needs to use desktop user agent.
      */
     public static void setRequestDesktopSiteContentSettingsForUrl(
             Profile profile, GURL url, boolean useDesktopUserAgent) {
-        boolean isIncognito =
-                Profile.getBrowserProfileTypeFromProfile(profile) == BrowserProfileType.INCOGNITO;
+        boolean isOffTheRecord = profile.isOffTheRecord();
         String domainWildcardPattern =
                 WebsitePreferenceBridge.toDomainWildcardPattern(url.getSpec());
         // Clear subdomain level exception if any.
@@ -164,16 +155,10 @@ public class RequestDesktopUtils {
         // For normal profile, remove domain level setting if it matches the global setting.
         // For incognito profile, keep the domain level setting to override the settings from normal
         // profile.
-        if (!isIncognito && useDesktopUserAgent == rdsGlobalSetting) {
-            if (ContentFeatureMap.isEnabled(
-                    ContentFeatureList.REQUEST_DESKTOP_SITE_WINDOW_SETTING)) {
-                // To support the window setting, keep the domain settings when the window setting
-                // is ON.
-                PrefService prefService = UserPrefs.get(profile);
-                if (!prefService.getBoolean(DESKTOP_SITE_WINDOW_SETTING_ENABLED)) {
-                    contentSettingValue = ContentSettingValues.DEFAULT;
-                }
-            } else {
+        if (!isOffTheRecord && useDesktopUserAgent == rdsGlobalSetting) {
+            // Keep the domain settings when the window setting preference is ON.
+            PrefService prefService = UserPrefs.get(profile);
+            if (!prefService.getBoolean(DESKTOP_SITE_WINDOW_SETTING_ENABLED)) {
                 contentSettingValue = ContentSettingValues.DEFAULT;
             }
         }
@@ -216,11 +201,17 @@ public class RequestDesktopUtils {
 
     /**
      * Determines whether the desktop site global setting should be enabled by default.
+     *
      * @param displaySizeInInches The device primary display size, in inches.
      * @param context The current context.
      * @return Whether the desktop site global setting should be default-enabled.
      */
     static boolean shouldDefaultEnableGlobalSetting(double displaySizeInInches, Context context) {
+        // Desktop Android always requests desktop sites.
+        if (BuildConfig.IS_DESKTOP_ANDROID) {
+            return true;
+        }
+
         // Do not default-enable if memory is below threshold.
         if (SysUtils.amountOfPhysicalMemoryKB()
                 < DEFAULT_GLOBAL_SETTING_DEFAULT_ON_MEMORY_LIMIT_THRESHOLD_MB
@@ -287,22 +278,21 @@ public class RequestDesktopUtils {
     /**
      * Default-enables the desktop site window setting if Chrome is opened on a tablet-sized
      * internal display.
+     *
      * @param activity The current {@link Activity}.
      * @param profile The current {@link Profile}.
      */
     public static void maybeDefaultEnableWindowSetting(Activity activity, Profile profile) {
-        if (!ContentFeatureMap.isEnabled(ContentFeatureList.REQUEST_DESKTOP_SITE_WINDOW_SETTING)) {
-            return;
-        }
         int smallestScreenWidthDp = DisplayUtil.getCurrentSmallestScreenWidth(activity);
         boolean isOnExternalDisplay = isOnExternalDisplay(activity);
         if (isOnExternalDisplay
-                || smallestScreenWidthDp < DeviceFormFactor.MINIMUM_TABLET_WIDTH_DP) {
+                || smallestScreenWidthDp < DeviceFormFactor.MINIMUM_TABLET_WIDTH_DP
+                || BuildConfig.IS_DESKTOP_ANDROID) {
             return;
         }
         PrefService prefService = UserPrefs.get(profile);
         if (prefService.isDefaultValuePreference(DESKTOP_SITE_WINDOW_SETTING_ENABLED)) {
-            prefService.setBoolean(DESKTOP_SITE_WINDOW_SETTING_ENABLED, /* newValue= */ true);
+            prefService.setBoolean(DESKTOP_SITE_WINDOW_SETTING_ENABLED, /* value= */ true);
         }
     }
 
@@ -317,6 +307,12 @@ public class RequestDesktopUtils {
     public static boolean maybeShowDefaultEnableGlobalSettingMessage(
             Profile profile, MessageDispatcher messageDispatcher, Context context) {
         if (messageDispatcher == null) return false;
+
+        // Desktop devices always request desktop sites so there's no need to show a message to
+        // the user.
+        if (BuildConfig.IS_DESKTOP_ANDROID) {
+            return false;
+        }
 
         // Present the message only if the global setting has been default-enabled.
         if (!ChromeSharedPreferences.getInstance()
@@ -333,7 +329,7 @@ public class RequestDesktopUtils {
         }
 
         Tracker tracker = TrackerFactory.getTrackerForProfile(profile);
-        if (!tracker.shouldTriggerHelpUI(
+        if (!tracker.shouldTriggerHelpUi(
                 FeatureConstants.REQUEST_DESKTOP_SITE_DEFAULT_ON_FEATURE)) {
             return false;
         }
@@ -380,62 +376,6 @@ public class RequestDesktopUtils {
         return true;
     }
 
-    /**
-     * Show a prompt to educate the user about the update in the behavior of the desktop site app
-     * menu setting from a tab-level setting to a site-level setting.
-     * @param profile The current {@link Profile}.
-     * @param context The current context.
-     * @param modalDialogManager The {@link ModalDialogManager} that will manage the dialog.
-     * @return Whether the prompt was shown.
-     */
-    public static boolean maybeShowUserEducationPromptForAppMenuSelection(
-            Profile profile, Context context, ModalDialogManager modalDialogManager) {
-        // Avoid presenting the prompt in case of an incognito profile.
-        if (Profile.getBrowserProfileTypeFromProfile(profile) == BrowserProfileType.INCOGNITO) {
-            return false;
-        }
-
-        Tracker tracker = TrackerFactory.getTrackerForProfile(profile);
-        if (!tracker.shouldTriggerHelpUI(FeatureConstants.REQUEST_DESKTOP_SITE_APP_MENU_FEATURE)) {
-            return false;
-        }
-
-        Resources resources = context.getResources();
-        Controller modalDialogController =
-                new ModalDialogProperties.Controller() {
-                    @Override
-                    public void onClick(PropertyModel model, int buttonType) {
-                        if (buttonType == ButtonType.POSITIVE) {
-                            modalDialogManager.dismissDialog(
-                                    model, DialogDismissalCause.POSITIVE_BUTTON_CLICKED);
-                        }
-                    }
-
-                    @Override
-                    public void onDismiss(PropertyModel model, int dismissalCause) {
-                        tracker.dismissed(FeatureConstants.REQUEST_DESKTOP_SITE_APP_MENU_FEATURE);
-                    }
-                };
-        PropertyModel dialog =
-                new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS)
-                        .with(ModalDialogProperties.CONTROLLER, modalDialogController)
-                        .with(
-                                ModalDialogProperties.TITLE,
-                                resources.getString(
-                                        R.string.rds_app_menu_user_education_dialog_title))
-                        .with(
-                                ModalDialogProperties.MESSAGE_PARAGRAPH_1,
-                                resources.getString(
-                                        R.string.rds_app_menu_user_education_dialog_message))
-                        .with(
-                                ModalDialogProperties.POSITIVE_BUTTON_TEXT,
-                                resources.getString(R.string.got_it))
-                        .with(ModalDialogProperties.CANCEL_ON_TOUCH_OUTSIDE, true)
-                        .build();
-        modalDialogManager.showDialog(dialog, ModalDialogType.APP, true);
-        return true;
-    }
-
     /** Record event for feature engagement on desktop site settings page open. */
     public static void notifyRequestDesktopSiteSettingsPageOpened(Profile profile) {
         TrackerFactory.getTrackerForProfile(profile)
@@ -443,13 +383,10 @@ public class RequestDesktopUtils {
     }
 
     /**
-     * Determine whether RDS window setting should be applied.
-     * When returning 'true' the mobile user agent should be used for the current window size.
+     * Determine whether RDS window setting should be applied. When returning 'true' the mobile user
+     * agent should be used for the current window size.
      */
     static boolean shouldApplyWindowSetting(Profile profile, GURL url, Context context) {
-        if (!ContentFeatureMap.isEnabled(ContentFeatureList.REQUEST_DESKTOP_SITE_WINDOW_SETTING)) {
-            return false;
-        }
         // Skip window setting on Automotive and revisit if / when they add split screen.
         if (BuildInfo.getInstance().isAutomotive) {
             return false;

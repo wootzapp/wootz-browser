@@ -25,6 +25,7 @@
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "url/origin.h"
 
 namespace ash::settings {
 
@@ -40,8 +41,8 @@ class MockWebUIDataSource : public content::WebUIDataSource {
               AddBoolean,
               (std::string_view name, bool value),
               (override));
-  void AddString(std::string_view name, const std::u16string& value) override {}
-  void AddString(std::string_view name, const std::string& value) override {}
+  void AddString(std::string_view name, std::u16string_view value) override {}
+  void AddString(std::string_view name, std::string_view value) override {}
   void AddLocalizedString(std::string_view name, int ids) override {}
   void AddLocalizedStrings(
       base::span<const webui::LocalizedString> strings) override {}
@@ -66,6 +67,7 @@ class MockWebUIDataSource : public content::WebUIDataSource {
   void DisableDenyXFrameOptions() override {}
   void EnableReplaceI18nInJS() override {}
   std::string GetSource() override { return ""; }
+  url::Origin GetOrigin() override { return url::Origin(); }
   void AddFrameAncestor(const GURL& frame_ancestor) override {}
   void SetSupportedScheme(std::string_view scheme) override {}
 };

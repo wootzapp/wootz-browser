@@ -22,113 +22,46 @@
 #include "components/policy/core/common/policy_types.h"
 #include "components/policy/policy_constants.h"
 #include "components/prefs/testing_pref_service.h"
-#include "components/search_engines/eea_countries_ids.h"
-#include "components/search_engines/prepopulated_engines.h"
+#include "components/regional_capabilities/regional_capabilities_prefs.h"
 #include "components/search_engines/search_engine_type.h"
 #include "components/search_engines/search_engines_pref_names.h"
-#include "components/search_engines/search_engines_switches.h"
 #include "components/search_engines/template_url_data_util.h"
 #include "components/search_engines/template_url_prepopulate_data.h"
-#include "components/search_engines/template_url_service.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "components/version_info/version_info.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/search_engines_data/resources/definitions/prepopulated_engines.h"
+
+using ::country_codes::CountryId;
 
 namespace search_engines {
 
-const int kFranceCountryId = country_codes::CountryStringToCountryID("FR");
+const CountryId kFranceCountryId = CountryId("FR");
 
 class SearchEngineChoiceUtilsTest : public ::testing::Test {
  public:
   SearchEngineChoiceUtilsTest() {
-    feature_list_.InitAndEnableFeatureWithParameters(
-        switches::kSearchEngineChoiceTrigger,
-        {{switches::kSearchEngineChoiceTriggerForTaggedProfilesOnly.name,
-          "false"}});
-
     TemplateURLPrepopulateData::RegisterProfilePrefs(pref_service_.registry());
+    regional_capabilities::prefs::RegisterProfilePrefs(
+        pref_service_.registry());
   }
 
   ~SearchEngineChoiceUtilsTest() override = default;
 
   PrefService* pref_service() { return &pref_service_; }
-  base::test::ScopedFeatureList* feature_list() { return &feature_list_; }
   base::HistogramTester histogram_tester_;
 
  private:
   sync_preferences::TestingPrefServiceSyncable pref_service_;
-  base::test::ScopedFeatureList feature_list_;
-  std::unique_ptr<TemplateURLService> template_url_service_;
 };
-
-// Sanity check the list.
-TEST_F(SearchEngineChoiceUtilsTest, IsEeaChoiceCountry) {
-  using country_codes::CountryCharsToCountryID;
-  using search_engines::IsEeaChoiceCountry;
-
-  EXPECT_TRUE(IsEeaChoiceCountry(CountryCharsToCountryID('D', 'E')));
-  EXPECT_TRUE(IsEeaChoiceCountry(CountryCharsToCountryID('F', 'R')));
-  EXPECT_TRUE(IsEeaChoiceCountry(CountryCharsToCountryID('V', 'A')));
-  EXPECT_TRUE(IsEeaChoiceCountry(CountryCharsToCountryID('A', 'X')));
-  EXPECT_TRUE(IsEeaChoiceCountry(CountryCharsToCountryID('Y', 'T')));
-  EXPECT_TRUE(IsEeaChoiceCountry(CountryCharsToCountryID('N', 'C')));
-
-  EXPECT_FALSE(IsEeaChoiceCountry(CountryCharsToCountryID('U', 'S')));
-
-  base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-      switches::kSearchEngineChoiceCountry,
-      switches::kDefaultListCountryOverride);
-  EXPECT_TRUE(IsEeaChoiceCountry(CountryCharsToCountryID('U', 'S')));
-
-  base::CommandLine::ForCurrentProcess()->RemoveSwitch(
-      switches::kSearchEngineChoiceCountry);
-
-  base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
-      switches::kSearchEngineChoiceCountry, switches::kEeaListCountryOverride);
-  EXPECT_TRUE(IsEeaChoiceCountry(CountryCharsToCountryID('U', 'S')));
-}
-
-TEST_F(SearchEngineChoiceUtilsTest, IsChoiceScreenFlagEnabled) {
-  feature_list()->Reset();
-  feature_list()->InitAndDisableFeature(switches::kSearchEngineChoiceTrigger);
-
-  EXPECT_FALSE(IsChoiceScreenFlagEnabled(ChoicePromo::kAny));
-  EXPECT_FALSE(IsChoiceScreenFlagEnabled(ChoicePromo::kFre));
-  EXPECT_FALSE(IsChoiceScreenFlagEnabled(ChoicePromo::kDialog));
-
-  feature_list()->Reset();
-  feature_list()->InitAndEnableFeatureWithParameters(
-      switches::kSearchEngineChoiceTrigger,
-      {{switches::kSearchEngineChoiceTriggerForTaggedProfilesOnly.name,
-        "false"}});
-
-  EXPECT_TRUE(IsChoiceScreenFlagEnabled(ChoicePromo::kAny));
-  EXPECT_TRUE(IsChoiceScreenFlagEnabled(ChoicePromo::kFre));
-  EXPECT_TRUE(IsChoiceScreenFlagEnabled(ChoicePromo::kDialog));
-
-  feature_list()->Reset();
-  feature_list()->InitAndEnableFeatureWithParameters(
-      switches::kSearchEngineChoiceTrigger,
-      {{switches::kSearchEngineChoiceTriggerForTaggedProfilesOnly.name,
-        "true"}});
-
-  EXPECT_TRUE(IsChoiceScreenFlagEnabled(ChoicePromo::kAny));
-  EXPECT_TRUE(IsChoiceScreenFlagEnabled(ChoicePromo::kFre));
-#if BUILDFLAG(IS_IOS)
-  EXPECT_FALSE(IsChoiceScreenFlagEnabled(ChoicePromo::kDialog));
-#else
-  EXPECT_TRUE(IsChoiceScreenFlagEnabled(ChoicePromo::kDialog));
-#endif
-}
 
 TEST_F(SearchEngineChoiceUtilsTest, ChoiceScreenDisplayState_ToDict) {
   ChoiceScreenDisplayState display_state(
       /*search_engines=*/{SEARCH_ENGINE_QWANT, SEARCH_ENGINE_DUCKDUCKGO,
                           SEARCH_ENGINE_GOOGLE},
       /*country_id=*/kFranceCountryId,
-      /*list_is_modified_by_current_default=*/false,
       /*selected_engine_index=*/1);
 
   base::Value::Dict dict = display_state.ToDict();
@@ -136,8 +69,8 @@ TEST_F(SearchEngineChoiceUtilsTest, ChoiceScreenDisplayState_ToDict) {
       *dict.FindList("search_engines"),
       testing::ElementsAre(SEARCH_ENGINE_QWANT, SEARCH_ENGINE_DUCKDUCKGO,
                            SEARCH_ENGINE_GOOGLE));
-  EXPECT_EQ(dict.FindInt("country_id"), kFranceCountryId);
-  EXPECT_EQ(dict.FindBool("list_is_modified_by_current_default"), false);
+  EXPECT_EQ(dict.FindInt("country_id"), kFranceCountryId.Serialize());
+  EXPECT_EQ(dict.FindBool("list_is_modified_by_current_default"), std::nullopt);
   EXPECT_EQ(dict.FindInt("selected_engine_index"), 1);
 }
 
@@ -146,23 +79,21 @@ TEST_F(SearchEngineChoiceUtilsTest,
   ChoiceScreenDisplayState display_state(
       /*search_engines=*/{SEARCH_ENGINE_QWANT, SEARCH_ENGINE_DUCKDUCKGO,
                           SEARCH_ENGINE_GOOGLE},
-      /*country_id=*/kFranceCountryId,
-      /*list_is_modified_by_current_default=*/true);
+      /*country_id=*/kFranceCountryId);
 
   base::Value::Dict dict = display_state.ToDict();
   EXPECT_THAT(
       *dict.FindList("search_engines"),
       testing::ElementsAre(SEARCH_ENGINE_QWANT, SEARCH_ENGINE_DUCKDUCKGO,
                            SEARCH_ENGINE_GOOGLE));
-  EXPECT_EQ(dict.FindInt("country_id"), kFranceCountryId);
-  EXPECT_EQ(dict.FindBool("list_is_modified_by_current_default"), true);
+  EXPECT_EQ(dict.FindInt("country_id"), kFranceCountryId.Serialize());
+  EXPECT_EQ(dict.FindBool("list_is_modified_by_current_default"), std::nullopt);
   EXPECT_FALSE(dict.contains("selected_engine_index"));
 }
 
 TEST_F(SearchEngineChoiceUtilsTest, ChoiceScreenDisplayState_FromDict) {
   base::Value::Dict dict;
-  dict.Set("country_id", kFranceCountryId);
-  dict.Set("list_is_modified_by_current_default", true);
+  dict.Set("country_id", kFranceCountryId.Serialize());
   dict.Set("selected_engine_index", 0);
   auto* search_engines = dict.EnsureList("search_engines");
   search_engines->Append(SEARCH_ENGINE_DUCKDUCKGO);
@@ -176,7 +107,6 @@ TEST_F(SearchEngineChoiceUtilsTest, ChoiceScreenDisplayState_FromDict) {
               testing::ElementsAre(SEARCH_ENGINE_DUCKDUCKGO,
                                    SEARCH_ENGINE_GOOGLE, SEARCH_ENGINE_BING));
   EXPECT_EQ(display_state->country_id, kFranceCountryId);
-  EXPECT_TRUE(display_state->list_is_modified_by_current_default);
   EXPECT_TRUE(display_state->selected_engine_index.has_value());
   EXPECT_EQ(display_state->selected_engine_index.value(), 0);
 }
@@ -185,20 +115,25 @@ TEST_F(SearchEngineChoiceUtilsTest, ChoiceScreenDisplayState_FromDict_Errors) {
   base::Value::Dict dict;
   EXPECT_FALSE(ChoiceScreenDisplayState::FromDict(dict).has_value());
 
-  dict.Set("country_id", kFranceCountryId);
+  dict.Set("country_id", kFranceCountryId.Serialize());
   EXPECT_FALSE(ChoiceScreenDisplayState::FromDict(dict).has_value());
 
   auto* search_engines = dict.EnsureList("search_engines");
   search_engines->Append(SEARCH_ENGINE_DUCKDUCKGO);
   search_engines->Append(SEARCH_ENGINE_GOOGLE);
   search_engines->Append(SEARCH_ENGINE_BING);
-  EXPECT_FALSE(ChoiceScreenDisplayState::FromDict(dict).has_value());
+  EXPECT_TRUE(ChoiceScreenDisplayState::FromDict(dict).has_value());
 
-  dict.Set("list_is_modified_by_current_default", true);
+  // Optional fields
+  dict.Set("list_is_modified_by_current_default", false);
   EXPECT_TRUE(ChoiceScreenDisplayState::FromDict(dict).has_value());
 
   dict.Set("selected_engine_index", 0);
   EXPECT_TRUE(ChoiceScreenDisplayState::FromDict(dict).has_value());
+
+  // Special case: makes the dictionary invalid.
+  dict.Set("list_is_modified_by_current_default", true);
+  EXPECT_FALSE(ChoiceScreenDisplayState::FromDict(dict).has_value());
 }
 
 }  // namespace search_engines

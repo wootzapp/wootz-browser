@@ -1,6 +1,10 @@
 Tests the data of Network request lifecycle trace events
 Recording started
 Tracing complete
+
+Trace events for index.html request
+
+======= ResourceWillSendRequest ======
 Object: {
 	args: {
 		data: {
@@ -15,6 +19,8 @@ Object: {
 	tid: number
 	ts: number
 }
+
+======= ResourceSendRequest ======
 Object: {
 	args: {
 		data: {
@@ -35,6 +41,8 @@ Object: {
 	tid: number
 	ts: number
 }
+
+======= ResourceReceiveResponse ======
 Object: {
 	args: {
 		data: {
@@ -44,44 +52,6 @@ Object: {
 			frame: string
 			fromCache: boolean
 			fromServiceWorker: boolean
-			headers: [
-				{
-					name: Date
-					value: string
-				}
-				{
-					name: Last-Modified
-					value: string
-				}
-				{
-					name: Server
-					value: string
-				}
-				{
-					name: ETag
-					value: string
-				}
-				{
-					name: Content-Type
-					value: string
-				}
-				{
-					name: Connection
-					value: string
-				}
-				{
-					name: Accept-Ranges
-					value: string
-				}
-				{
-					name: Keep-Alive
-					value: string
-				}
-				{
-					name: Content-Length
-					value: string
-				}
-			]
 			mimeType: string
 			protocol: http/1.1
 			requestId: string
@@ -116,6 +86,9 @@ Object: {
 	tid: number
 	ts: number
 }
+ResourceReceiveResponse has args.data.headers
+
+======= ResourceReceivedData ======
 Object: {
 	args: {
 		data: {
@@ -132,6 +105,8 @@ Object: {
 	tid: number
 	ts: number
 }
+
+======= ResourceFinish ======
 Object: {
 	args: {
 		data: {
@@ -139,367 +114,6 @@ Object: {
 			didFail: boolean
 			encodedDataLength: number
 			finishTime: number
-			requestId: string
-		}
-	}
-	cat: string
-	name: ResourceFinish
-	ph: string
-	pid: number
-	s: string
-	tid: number
-	ts: number
-}
-Object: {
-	args: {
-		data: {
-			fetchPriorityHint: auto
-			frame: string
-			initiator: {
-				columnNumber: number
-				fetchType: script
-				lineNumber: number
-				type: string
-				url: string
-			}
-			isLinkPreload: false
-			priority: string
-			renderBlocking: string
-			requestId: string
-			requestMethod: string
-			resourceType: Script
-			url: string
-		}
-	}
-	cat: string
-	name: ResourceSendRequest
-	ph: string
-	pid: number
-	s: string
-	tid: number
-	ts: number
-}
-Object: {
-	args: {
-		data: {
-			connectionId: number
-			connectionReused: boolean
-			encodedDataLength: number
-			frame: string
-			fromCache: boolean
-			fromServiceWorker: boolean
-			headers: [
-				{
-					name: Date
-					value: string
-				}
-				{
-					name: Server
-					value: string
-				}
-				{
-					name: Connection
-					value: string
-				}
-				{
-					name: Keep-Alive
-					value: string
-				}
-				{
-					name: Content-Length
-					value: string
-				}
-				{
-					name: Content-Type
-					value: string
-				}
-			]
-			mimeType: string
-			protocol: http/1.1
-			requestId: string
-			responseTime: number
-			statusCode: number
-			timing: {
-				connectEnd: number
-				connectStart: number
-				dnsEnd: number
-				dnsStart: number
-				proxyEnd: number
-				proxyStart: number
-				pushEnd: number
-				pushStart: number
-				receiveHeadersEnd: number
-				receiveHeadersStart: number
-				requestTime: number
-				sendEnd: number
-				sendStart: number
-				sslEnd: number
-				sslStart: number
-				workerReady: number
-				workerStart: number
-			}
-		}
-	}
-	cat: string
-	name: ResourceReceiveResponse
-	ph: string
-	pid: number
-	s: string
-	tid: number
-	ts: number
-}
-Object: {
-	args: {
-		data: {
-			decodedBodyLength: number
-			didFail: boolean
-			encodedDataLength: number
-			requestId: string
-		}
-	}
-	cat: string
-	name: ResourceFinish
-	ph: string
-	pid: number
-	s: string
-	tid: number
-	ts: number
-}
-Object: {
-	args: {
-		data: {
-			fetchPriorityHint: high
-			frame: string
-			initiator: {
-				columnNumber: number
-				fetchType: img
-				lineNumber: number
-				type: string
-				url: string
-			}
-			isLinkPreload: false
-			priority: string
-			requestId: string
-			requestMethod: string
-			resourceType: Image
-			url: string
-		}
-	}
-	cat: string
-	name: ResourceSendRequest
-	ph: string
-	pid: number
-	s: string
-	tid: number
-	ts: number
-}
-Object: {
-	args: {
-		data: {
-			connectionId: number
-			connectionReused: boolean
-			encodedDataLength: number
-			frame: string
-			fromCache: boolean
-			fromServiceWorker: boolean
-			headers: [
-				{
-					name: Date
-					value: string
-				}
-				{
-					name: Server
-					value: string
-				}
-				{
-					name: Connection
-					value: string
-				}
-				{
-					name: Keep-Alive
-					value: string
-				}
-				{
-					name: Content-Length
-					value: string
-				}
-				{
-					name: Content-Type
-					value: string
-				}
-			]
-			mimeType: string
-			protocol: http/1.1
-			requestId: string
-			responseTime: number
-			statusCode: number
-			timing: {
-				connectEnd: number
-				connectStart: number
-				dnsEnd: number
-				dnsStart: number
-				proxyEnd: number
-				proxyStart: number
-				pushEnd: number
-				pushStart: number
-				receiveHeadersEnd: number
-				receiveHeadersStart: number
-				requestTime: number
-				sendEnd: number
-				sendStart: number
-				sslEnd: number
-				sslStart: number
-				workerReady: number
-				workerStart: number
-			}
-		}
-	}
-	cat: string
-	name: ResourceReceiveResponse
-	ph: string
-	pid: number
-	s: string
-	tid: number
-	ts: number
-}
-Object: {
-	args: {
-		data: {
-			encodedDataLength: number
-			frame: string
-			requestId: string
-		}
-	}
-	cat: string
-	name: ResourceReceivedData
-	ph: string
-	pid: number
-	s: string
-	tid: number
-	ts: number
-}
-Object: {
-	args: {
-		data: {
-			decodedBodyLength: number
-			didFail: boolean
-			encodedDataLength: number
-			finishTime: number
-			requestId: string
-		}
-	}
-	cat: string
-	name: ResourceFinish
-	ph: string
-	pid: number
-	s: string
-	tid: number
-	ts: number
-}
-Object: {
-	args: {
-		data: {
-			fetchPriorityHint: auto
-			frame: string
-			initiator: {
-				columnNumber: number
-				fetchType: link
-				lineNumber: number
-				type: string
-				url: string
-			}
-			isLinkPreload: true
-			priority: string
-			renderBlocking: string
-			requestId: string
-			requestMethod: string
-			resourceType: Stylesheet
-			url: string
-		}
-	}
-	cat: string
-	name: ResourceSendRequest
-	ph: string
-	pid: number
-	s: string
-	tid: number
-	ts: number
-}
-Object: {
-	args: {
-		data: {
-			connectionId: number
-			connectionReused: boolean
-			encodedDataLength: number
-			frame: string
-			fromCache: boolean
-			fromServiceWorker: boolean
-			headers: [
-				{
-					name: Date
-					value: string
-				}
-				{
-					name: Server
-					value: string
-				}
-				{
-					name: Connection
-					value: string
-				}
-				{
-					name: Keep-Alive
-					value: string
-				}
-				{
-					name: Content-Length
-					value: string
-				}
-				{
-					name: Content-Type
-					value: string
-				}
-			]
-			mimeType: string
-			protocol: http/1.1
-			requestId: string
-			responseTime: number
-			statusCode: number
-			timing: {
-				connectEnd: number
-				connectStart: number
-				dnsEnd: number
-				dnsStart: number
-				proxyEnd: number
-				proxyStart: number
-				pushEnd: number
-				pushStart: number
-				receiveHeadersEnd: number
-				receiveHeadersStart: number
-				requestTime: number
-				sendEnd: number
-				sendStart: number
-				sslEnd: number
-				sslStart: number
-				workerReady: number
-				workerStart: number
-			}
-		}
-	}
-	cat: string
-	name: ResourceReceiveResponse
-	ph: string
-	pid: number
-	s: string
-	tid: number
-	ts: number
-}
-Object: {
-	args: {
-		data: {
-			decodedBodyLength: number
-			didFail: boolean
-			encodedDataLength: number
 			requestId: string
 		}
 	}

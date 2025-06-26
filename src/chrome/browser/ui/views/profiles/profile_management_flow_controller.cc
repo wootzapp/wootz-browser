@@ -76,8 +76,12 @@ bool ProfileManagementFlowController::IsStepInitialized(Step step) const {
   return initialized_steps_.contains(step) && initialized_steps_.at(step);
 }
 
+bool ProfileManagementFlowController::HasFlowExited() const {
+  return clear_host_callback_.value().is_null();
+}
+
 void ProfileManagementFlowController::ExitFlow() {
-  DCHECK(clear_host_callback_.value());
+  CHECK(!HasFlowExited());
   std::move(clear_host_callback_.value()).Run();
 }
 
@@ -147,4 +151,15 @@ void ProfileManagementFlowController::CreateSignedOutFlowWebContents(
 content::WebContents*
 ProfileManagementFlowController::GetSignedOutFlowWebContents() const {
   return signed_out_flow_web_contents_.get();
+}
+
+void ProfileManagementFlowController::Reset(
+    StepSwitchFinishedCallback callback) {
+  Step previous_step = current_step_;
+
+  // Activate the initial step.
+  SwitchToStep(Step::kProfilePicker, /*reset_state=*/true,
+               /*step_switch_finished_callback=*/std::move(callback));
+  // Unregister the previous active step.
+  UnregisterStep(previous_step);
 }

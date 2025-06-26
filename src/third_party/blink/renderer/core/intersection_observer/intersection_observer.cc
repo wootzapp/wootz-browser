@@ -15,7 +15,7 @@
 #include "third_party/blink/renderer/bindings/core/v8/v8_intersection_observer_init.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_document_element.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_double_doublesequence.h"
-#include "third_party/blink/renderer/core/css/parser/css_parser_token_range.h"
+#include "third_party/blink/renderer/core/css/parser/css_parser_token_stream.h"
 #include "third_party/blink/renderer/core/css/parser/css_tokenizer.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
@@ -41,7 +41,6 @@ namespace {
 // IntersectionObserver with an EventCallback.
 class IntersectionObserverDelegateImpl final
     : public IntersectionObserverDelegate {
-
  public:
   IntersectionObserverDelegateImpl(
       ExecutionContext* context,
@@ -101,11 +100,9 @@ void ParseMargin(const String& margin_parameter,
   // "1px 2px 3px" = top left/right bottom
   // "1px 2px 3px 4px" = top left right bottom
 
-  CSSTokenizer tokenizer(margin_parameter);
-  const auto tokens = tokenizer.TokenizeToEOF();
-  CSSParserTokenRange token_range(tokens);
-  token_range.ConsumeWhitespace();
-  while (token_range.Peek().GetType() != kEOFToken &&
+  CSSParserTokenStream stream(margin_parameter);
+  stream.ConsumeWhitespace();
+  while (stream.Peek().GetType() != kEOFToken &&
          !exception_state.HadException()) {
     if (margin.size() == 4) {
       exception_state.ThrowDOMException(
@@ -113,10 +110,11 @@ void ParseMargin(const String& margin_parameter,
           "Extra text found at the end of " + marginName + "Margin.");
       break;
     }
-    const CSSParserToken& token = token_range.ConsumeIncludingWhitespace();
+    const CSSParserToken token = stream.Peek();
     switch (token.GetType()) {
       case kPercentageToken:
         margin.push_back(Length::Percent(token.NumericValue()));
+        stream.ConsumeIncludingWhitespace();
         break;
       case kDimensionToken:
         switch (token.GetUnitType()) {
@@ -132,6 +130,7 @@ void ParseMargin(const String& margin_parameter,
                 DOMExceptionCode::kSyntaxError,
                 marginName + "Margin must be specified in pixels or percent.");
         }
+        stream.ConsumeIncludingWhitespace();
         break;
       default:
         exception_state.ThrowDOMException(
@@ -141,10 +140,9 @@ void ParseMargin(const String& margin_parameter,
   }
 }
 
-void ParseThresholds(
-    const V8UnionDoubleOrDoubleSequence* threshold_parameter,
-    Vector<float>& thresholds,
-    ExceptionState& exception_state) {
+void ParseThresholds(const V8UnionDoubleOrDoubleSequence* threshold_parameter,
+                     Vector<float>& thresholds,
+                     ExceptionState& exception_state) {
   switch (threshold_parameter->GetContentType()) {
     case V8UnionDoubleOrDoubleSequence::ContentType::kDouble:
       thresholds.push_back(
@@ -199,8 +197,7 @@ Vector<Length> NormalizeMargins(const Vector<Length>& margins) {
       normalized_margins[3] = margins[3];
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   return normalized_margins;
@@ -223,7 +220,7 @@ String StringifyMargin(const Vector<Length>& margin) {
     if (length.IsPercent()) {
       string_builder.Append('%');
     } else {
-      string_builder.Append("px", 2);
+      string_builder.Append(base::byte_span_from_cstring("px"));
     }
   };
 
@@ -270,10 +267,10 @@ IntersectionObserver* IntersectionObserver::Create(
 
   Params params = {
       .root = root,
-      .delay = observer_init->delay(),
+      .delay = base::Milliseconds(observer_init->delay()),
       .track_visibility = observer_init->trackVisibility(),
   };
-  if (params.track_visibility && params.delay < 100) {
+  if (params.track_visibility && params.delay < base::Milliseconds(100)) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNotSupportedError,
         "To enable the 'trackVisibility' option, you must also use a "
@@ -357,7 +354,8 @@ IntersectionObserver::IntersectionObserver(
       track_visibility_(params.track_visibility),
       track_fraction_of_root_(params.semantics == kFractionOfRoot),
       always_report_root_bounds_(params.always_report_root_bounds),
-      use_overflow_clip_edge_(params.use_overflow_clip_edge) {
+      use_overflow_clip_edge_(params.use_overflow_clip_edge),
+      expose_occluder_id_(params.expose_occluder_id) {
   if (params.root) {
     if (params.root->IsDocumentNode()) {
       To<Document>(params.root)
@@ -383,13 +381,6 @@ void IntersectionObserver::ProcessCustomWeakness(const LivenessBroker& info) {
 
 bool IntersectionObserver::RootIsValid() const {
   return RootIsImplicit() || root();
-}
-
-void IntersectionObserver::InvalidateCachedRects() {
-  DCHECK(!RuntimeEnabledFeatures::IntersectionOptimizationEnabled());
-  for (auto& observation : observations_) {
-    observation->InvalidateCachedRects();
-  }
 }
 
 void IntersectionObserver::observe(Element* target,
@@ -421,14 +412,8 @@ void IntersectionObserver::observe(Element* target,
       frame_view->ScheduleAnimation();
     }
   } else if (delegate_->NeedsInitialObservationWithDetachedTarget()) {
-    std::optional<base::TimeTicks> monotonic_time;
-    std::optional<IntersectionGeometry::RootGeometry> root_geometry;
-    observation->ComputeIntersection(
-        IntersectionObservation::kImplicitRootObserversNeedUpdate |
-            IntersectionObservation::kExplicitRootObserversNeedUpdate |
-            IntersectionObservation::kIgnoreDelay,
-        IntersectionGeometry::kInfiniteScrollDelta, monotonic_time,
-        root_geometry);
+    ComputeIntersectionsContext context;
+    observation->ComputeIntersectionImmediately(context);
   }
 }
 
@@ -483,55 +468,8 @@ String IntersectionObserver::scrollMargin() const {
   return StringifyMargin(ScrollMargin());
 }
 
-DOMHighResTimeStamp IntersectionObserver::GetEffectiveDelay() const {
-  return throttle_delay_enabled ? delay_ : 0;
-}
-
-DOMHighResTimeStamp IntersectionObserver::GetTimeStamp(
-    base::TimeTicks monotonic_time) const {
-  return DOMWindowPerformance::performance(
-             *To<LocalDOMWindow>(delegate_->GetExecutionContext()))
-      ->MonotonicTimeToDOMHighResTimeStamp(monotonic_time);
-}
-
-int64_t IntersectionObserver::ComputeIntersections(
-    unsigned flags,
-    std::optional<base::TimeTicks>& monotonic_time,
-    gfx::Vector2dF accumulated_scroll_delta_since_last_update) {
-  DCHECK(!RootIsImplicit());
-  if (!RootIsValid() || !GetExecutionContext() || observations_.empty())
-    return 0;
-
-  std::optional<IntersectionGeometry::RootGeometry> root_geometry;
-  int64_t result = 0;
-  if (RuntimeEnabledFeatures::IntersectionOptimizationEnabled()) {
-    for (auto& observation : observations_) {
-      result += observation->ComputeIntersection(
-          flags, accumulated_scroll_delta_since_last_update, monotonic_time,
-          root_geometry);
-    }
-  } else {
-    // If we're processing post-layout deliveries only and we're not a
-    // post-layout delivery observer, then return early. Likewise, return if we
-    // need to compute non-post-layout-delivery observations but the observer
-    // behavior is post-layout.
-    bool post_layout_delivery_only =
-        flags & IntersectionObservation::kPostLayoutDeliveryOnly;
-    bool is_post_layout_delivery_observer =
-        GetDeliveryBehavior() ==
-        IntersectionObserver::kDeliverDuringPostLayoutSteps;
-    if (post_layout_delivery_only != is_post_layout_delivery_observer) {
-      return 0;
-    }
-    // TODO(szager): Is this copy necessary?
-    HeapVector<Member<IntersectionObservation>> observations_to_process(
-        observations_);
-    for (auto& observation : observations_to_process) {
-      result += observation->ComputeIntersection(flags, gfx::Vector2dF(),
-                                                 monotonic_time, root_geometry);
-    }
-  }
-  return result;
+base::TimeDelta IntersectionObserver::GetEffectiveDelay() const {
+  return throttle_delay_enabled ? delay_ : base::TimeDelta();
 }
 
 bool IntersectionObserver::IsInternal() const {

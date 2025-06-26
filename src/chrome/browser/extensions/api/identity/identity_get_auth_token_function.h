@@ -23,15 +23,12 @@
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "extensions/browser/extension_function.h"
 #include "extensions/browser/extension_function_histogram_value.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/google_service_auth_error.h"
 #include "google_apis/gaia/oauth2_mint_token_flow.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/crosapi/device_oauth2_token_service_ash.h"
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chrome/browser/lacros/device_oauth2_token_service_lacros.h"
 #endif
 
 namespace signin {
@@ -106,7 +103,7 @@ class IdentityGetAuthTokenFunction : public ExtensionFunction,
   void OnGaiaRemoteConsentFlowFailed(
       GaiaRemoteConsentFlow::Failure failure) override;
   void OnGaiaRemoteConsentFlowApproved(const std::string& consent_result,
-                                       const std::string& gaia_id) override;
+                                       const GaiaId& gaia_id) override;
 
   // Starts a login access token request.
   virtual void StartTokenKeyAccountAccessTokenRequest();
@@ -139,16 +136,10 @@ class IdentityGetAuthTokenFunction : public ExtensionFunction,
   // this extension if the account is available on the device. Otherwise,
   // returns an empty string.
   // Exposed for testing.
-  std::string GetSelectedUserId() const;
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  using DeviceOAuth2TokenFetcher = crosapi::DeviceOAuth2TokenServiceAsh;
-#endif
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  using DeviceOAuth2TokenFetcher = DeviceOAuth2TokenServiceLacros;
-#endif
+  GaiaId GetSelectedUserId() const;
 
 #if BUILDFLAG(IS_CHROMEOS)
+  using DeviceOAuth2TokenFetcher = crosapi::DeviceOAuth2TokenServiceAsh;
   std::unique_ptr<DeviceOAuth2TokenFetcher> device_oauth2_token_fetcher_;
 #endif
 
@@ -169,26 +160,17 @@ class IdentityGetAuthTokenFunction : public ExtensionFunction,
   FRIEND_TEST_ALL_PREFIXES(GetAuthTokenFunctionTest, InteractiveQueueShutdown);
   FRIEND_TEST_ALL_PREFIXES(GetAuthTokenFunctionTest, NoninteractiveShutdown);
 
+  class RefreshTokensLoadedWaiter;
   enum class InteractionType { kSignin, kConsent };
 
-  // Request the primary account info.
-  // |extension_gaia_id|: The GAIA ID that was set in the parameters for this
-  // instance, or empty if this was not in the parameters.
-  void GetAuthTokenForPrimaryAccount(const std::string& extension_gaia_id);
-
-  // Wrapper to FindExtendedAccountInfoByGaiaId() to avoid a synchronous call to
-  // IdentityManager in RunAsync().
-  void FetchExtensionAccountInfo(const std::string& gaia_id);
-
-  // Called when the AccountInfo that this instance should use is available.
-  void OnReceivedExtensionAccountInfo(const CoreAccountInfo& account_info);
+  // If `gaia_id` is empty or the account is not present in Chrome, this will
+  // use the primary account if it exists. Otherwise, interactive sign in flow
+  // might be started.
+  void GetAuthTokenForAccount(const GaiaId& gaia_id);
 
   // signin::IdentityManager::Observer implementation:
   void OnRefreshTokenUpdatedForAccount(
       const CoreAccountInfo& account_info) override;
-  void OnAccountsInCookieUpdated(
-      const signin::AccountsInCookieJarInfo& accounts_in_cookie_jar_info,
-      const GoogleServiceAuthError& error) override;
   void OnPrimaryAccountChanged(
       const signin::PrimaryAccountChangeEvent& event_details) override;
 
@@ -219,9 +201,8 @@ class IdentityGetAuthTokenFunction : public ExtensionFunction,
   void StartMintToken(IdentityMintRequestQueue::MintType type) override;
 
   // OAuth2MintTokenFlow::Delegate implementation:
-  void OnMintTokenSuccess(const std::string& access_token,
-                          const std::set<std::string>& granted_scopes,
-                          int time_to_live) override;
+  void OnMintTokenSuccess(
+      const OAuth2MintTokenFlow::MintTokenResult& result) override;
   void OnMintTokenFailure(const GoogleServiceAuthError& error) override;
   void OnRemoteConsentSuccess(
       const RemoteConsentResolutionData& resolution_data) override;
@@ -234,13 +215,18 @@ class IdentityGetAuthTokenFunction : public ExtensionFunction,
   virtual void StartDeviceAccessTokenRequest();
 #endif
 
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+  // This dialog prompts the user to sign in with an account that is already
+  // present in the identity manager. This is different from the signin dialog
+  // shown when there are no accounts in the identity manager.
+  void MaybeShowChromeSigninDialog();
+  void OnChromeSigninDialogDestroyed();
+#endif
+
   // Methods for invoking UI. Overridable for testing.
   virtual void ShowExtensionLoginPrompt();
   virtual void ShowRemoteConsentDialog(
       const RemoteConsentResolutionData& resolution_data);
-
-  // Checks if there is a master login token to mint tokens for the extension.
-  bool HasRefreshTokenForTokenKeyAccount() const;
 
   std::string GetOAuth2ClientId() const;
 
@@ -272,10 +258,7 @@ class IdentityGetAuthTokenFunction : public ExtensionFunction,
 
   // The gaia id of the account requested by or previously selected for this
   // extension.
-  std::string selected_gaia_id_;
-
-  // Shown in the extension login prompt.
-  std::string email_for_default_web_account_;
+  GaiaId selected_gaia_id_;
 
   ExtensionTokenKey token_key_{/*extension_id=*/"",
                                /*account_info=*/CoreAccountInfo(),
@@ -284,6 +267,7 @@ class IdentityGetAuthTokenFunction : public ExtensionFunction,
   // When launched in interactive mode, and if there is no existing grant,
   // a permissions prompt will be popped up to the user.
   RemoteConsentResolutionData resolution_data_;
+  std::unique_ptr<RefreshTokensLoadedWaiter> refresh_tokens_loaded_waiter_;
   std::unique_ptr<GaiaRemoteConsentFlow> gaia_remote_consent_flow_;
   std::string consent_result_;
   // Added for debugging https://crbug.com/1091423.
@@ -296,16 +280,7 @@ class IdentityGetAuthTokenFunction : public ExtensionFunction,
                           signin::IdentityManager::Observer>
       scoped_identity_manager_observation_{this};
 
-  // This class can be listening to account changes, but only for one type of
-  // events at a time.
-  enum class AccountListeningMode {
-    kNotListening,            // Not listening account changes
-    kListeningCookies,        // Listening cookie changes
-    kListeningTokens,         // Listening token changes
-    kListeningPrimaryAccount  // Listening primary account changes
-  };
-  AccountListeningMode account_listening_mode_ =
-      AccountListeningMode::kNotListening;
+  bool waiting_on_account_ = false;
 
   base::WeakPtrFactory<IdentityGetAuthTokenFunction> weak_ptr_factory_{this};
 };

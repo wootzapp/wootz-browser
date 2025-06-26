@@ -12,8 +12,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
-import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -28,23 +28,20 @@ import org.chromium.components.messages.MessageDispatcherProvider;
 import org.chromium.components.messages.MessageIdentifier;
 import org.chromium.components.messages.MessageStateHandler;
 import org.chromium.components.messages.MessagesTestHelper;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 
 import java.util.List;
 
 /** Integration test for {@link ChromeSurveyController} using {@link SurveyClient}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@CommandLineFlags.Add({
-    "force-fieldtrials=Study/Group",
-    "force-fieldtrial-params=Study.Group:autodismiss_duration_ms/500/"
-            + TestSurveyUtils.TEST_SURVEY_TRIGGER_ID_OVERRIDE_TEMPLATE
-            + TestSurveyUtils.TEST_TRIGGER_ID_FOO
-})
-@Features.EnableFeatures({
-    ChromeFeatureList.ANDROID_HATS_REFACTOR + "<Study",
-    ChromeFeatureList.CHROME_SURVEY_NEXT_ANDROID + "<Study"
-})
+@Features.EnableFeatures(
+        ChromeFeatureList.CHROME_SURVEY_NEXT_ANDROID
+                + ":autodismiss_duration_ms/500"
+                + "/probability/1.0"
+                + "/"
+                + TestSurveyUtils.TRIGGER_ID_PARAM_NAME
+                + "/"
+                + TestSurveyUtils.TEST_TRIGGER_ID_FOO)
 @Batch(Batch.PER_CLASS)
 public class ChromeStartupSurveyIntegrationTest {
     @Rule
@@ -59,6 +56,7 @@ public class ChromeStartupSurveyIntegrationTest {
 
     @Before
     public void setup() {
+        ChromeSurveyController.setEnableForTesting();
         ChromeSurveyController.forceIsUMAEnabledForTesting(true);
         mActivityTestRule.startMainActivityOnBlankPage();
         waitForSurveyMessagePresented();
@@ -67,7 +65,7 @@ public class ChromeStartupSurveyIntegrationTest {
     @Test
     @MediumTest
     public void acceptSurvey() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mSurveyMessage.get(MessageBannerProperties.ON_PRIMARY_ACTION).get();
                 });
@@ -80,7 +78,7 @@ public class ChromeStartupSurveyIntegrationTest {
     @Test
     @MediumTest
     public void dismissSurvey() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mMessageDispatcher.dismissMessage(mSurveyMessage, DismissReason.GESTURE));
         Assert.assertTrue(
                 "Survey displayed not recorded.",
@@ -92,7 +90,7 @@ public class ChromeStartupSurveyIntegrationTest {
         Tab tab = mActivityTestRule.getActivity().getActivityTab();
         CriteriaHelper.pollUiThread(() -> !tab.isLoading() && tab.isUserInteractable());
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mMessageDispatcher =
                             MessageDispatcherProvider.from(

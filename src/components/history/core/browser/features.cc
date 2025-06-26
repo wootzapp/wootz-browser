@@ -4,7 +4,6 @@
 
 #include "components/history/core/browser/features.h"
 
-#include "build/build_config.h"
 #include "components/history/core/browser/top_sites_impl.h"
 #include "components/sync/base/features.h"
 
@@ -12,8 +11,7 @@ namespace history {
 namespace {
 constexpr auto is_android = !!BUILDFLAG(IS_ANDROID);
 constexpr auto kOrganicRepeatableQueriesDefaultValue =
-    is_android ? base::FEATURE_ENABLED_BY_DEFAULT
-               : base::FEATURE_DISABLED_BY_DEFAULT;
+    base::FEATURE_DISABLED_BY_DEFAULT;
 
 // Specifies the scaling behavior, i.e. whether the relevance scales of the
 // top sites and repeatable queries should be first aligned.
@@ -80,19 +78,10 @@ BASE_FEATURE(kPopulateVisitedLinkDatabase,
              "PopulateVisitedLinkDatabase",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-BASE_FEATURE(kSyncSegmentsData,
-             "SyncSegmentsData",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-// The maximum number of New Tab Page displays to show with synced segments
-// data.
-const base::FeatureParam<int> kMaxNumNewTabPageDisplays(
-    &kSyncSegmentsData,
-    "MaxNumNumNewTabPageDisplays",
-    5);
-
-bool IsSyncSegmentsDataEnabled() {
-  return base::FeatureList::IsEnabled(kSyncSegmentsData);
-}
+// If enabled, uses new scoring function for Most Visited Tiles computation.
+BASE_FEATURE(kMostVisitedTilesNewScoring,
+             "MostVisitedTilesNewScoring",
+             is_android ? base::FEATURE_ENABLED_BY_DEFAULT
+                        : base::FEATURE_DISABLED_BY_DEFAULT);
 
 }  // namespace history

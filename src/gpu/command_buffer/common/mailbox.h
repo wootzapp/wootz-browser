@@ -28,13 +28,11 @@ enum class TracingImportance : int {
   kClientOwner = 2,
 };
 
-// A mailbox is an unguessable name that references texture image data.
-// This name can be passed across processes permitting one context to share
-// texture image data with another. The mailbox name consists of a random
+// A mailbox is an unguessable name that references a SharedImage.
+// This name can be passed across processes permitting one process to share
+// a SharedImage with another. The mailbox name consists of a random
 // set of bytes, optionally with a checksum (in debug mode) to verify the
 // name is valid.
-// See src/gpu/GLES2/extensions/CHROMIUM/CHROMIUM_texture_mailbox.txt for more
-// details.
 struct COMPONENT_EXPORT(GPU_MAILBOX) Mailbox {
   using Name = int8_t[GL_MAILBOX_SIZE_CHROMIUM];
 
@@ -49,14 +47,16 @@ struct COMPONENT_EXPORT(GPU_MAILBOX) Mailbox {
   void SetZero();
   void SetName(const int8_t* name);
 
-  // Generate a unique unguessable mailbox name for use with the SharedImage
-  // system.
-  static Mailbox GenerateForSharedImage();
+  // Generate a unique unguessable mailbox name.
+  static Mailbox Generate();
 
   // Verify that the mailbox was created through Mailbox::Generate. This only
   // works in Debug (always returns true in Release). This is not a secure
   // check, only to catch bugs where clients forgot to call Mailbox::Generate.
   bool Verify() const;
+
+  // Returns the first four bytes of the mailbox name as an unsigned integer.
+  uint32_t ToU32() const;
 
   std::string ToDebugString() const;
 
@@ -73,10 +73,7 @@ struct std::hash<gpu::Mailbox> {
   std::size_t operator()(const gpu::Mailbox& m) const noexcept {
     // As the name is cryptographically random bytes, the first few bytes
     // should be more than sufficient as a hash.
-    return static_cast<size_t>(m.name[0]) |
-           (static_cast<size_t>(m.name[1]) << 8) |
-           (static_cast<size_t>(m.name[2]) << 16) |
-           (static_cast<size_t>(m.name[3]) << 24);
+    return m.ToU32();
   }
 };
 

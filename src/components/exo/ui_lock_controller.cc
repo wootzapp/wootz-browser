@@ -473,7 +473,7 @@ DEFINE_UI_CLASS_PROPERTY_TYPE(ExitNotifier*)
 
 namespace exo {
 namespace {
-DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(ExitNotifier, kExitNotifierKey, nullptr)
+DEFINE_OWNED_UI_CLASS_PROPERTY_KEY(ExitNotifier, kExitNotifierKey)
 
 ExitNotifier* GetExitNotifier(UILockController* controller,
                               aura::Window* window,
@@ -543,7 +543,7 @@ void UILockController::OnKeyEvent(ui::KeyEvent* event) {
 
   if (event->code() == ui::DomCode::ESCAPE &&
       (event->flags() & kExcludedFlags) == 0) {
-    OnEscapeKey(event->type() == ui::ET_KEY_PRESSED);
+    OnEscapeKey(event->type() == ui::EventType::kKeyPressed);
   }
 }
 

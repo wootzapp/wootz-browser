@@ -26,7 +26,6 @@
 #include "ui/views/test/slider_test_api.h"
 #include "ui/views/test/views_test_base.h"
 #include "ui/views/view.h"
-#include "ui/views/widget/unique_widget_ptr.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
 #include "ui/views/widget/widget_utils.h"
@@ -149,7 +148,7 @@ class SliderTest : public views::ViewsTestBase,
   // The maximum y value within the bounds of the slider.
   int max_y_ = 0;
   // The widget container for the slider being tested.
-  views::UniqueWidgetPtr widget_;
+  std::unique_ptr<Widget> widget_;
   // An event generator.
   std::unique_ptr<ui::test::EventGenerator> event_generator_;
 };
@@ -177,7 +176,7 @@ void SliderTest::SetUp() {
       slider->SetAllowedValues(&values_);
       break;
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
   gfx::Size size = slider->GetPreferredSize({});
   slider->SetSize(size);
@@ -186,7 +185,8 @@ void SliderTest::SetUp() {
   default_locale_ = base::i18n::GetConfiguredLocale();
 
   views::Widget::InitParams init_params(
-      CreateParams(views::Widget::InitParams::TYPE_WINDOW_FRAMELESS));
+      CreateParams(Widget::InitParams::CLIENT_OWNS_WIDGET,
+                   views::Widget::InitParams::TYPE_WINDOW_FRAMELESS));
   init_params.bounds = gfx::Rect(size);
 
   widget_ = std::make_unique<Widget>();
@@ -206,15 +206,17 @@ void SliderTest::TearDown() {
 }
 
 float SliderTest::GetMinValue() const {
-  if (GetParam() == TestSliderType::kContinuousTest)
+  if (GetParam() == TestSliderType::kContinuousTest) {
     return 0.0f;
+  }
 
   return *values().cbegin();
 }
 
 float SliderTest::GetMaxValue() const {
-  if (GetParam() == TestSliderType::kContinuousTest)
+  if (GetParam() == TestSliderType::kContinuousTest) {
     return 1.0f;
+  }
 
   return *values().crbegin();
 }
@@ -268,14 +270,67 @@ TEST_P(SliderTest, AccessibleRole) {
   ui::AXNodeData data;
   slider()->GetViewAccessibility().GetAccessibleNodeData(&data);
   EXPECT_EQ(data.role, ax::mojom::Role::kSlider);
-  EXPECT_EQ(slider()->GetAccessibleRole(), ax::mojom::Role::kSlider);
 
-  slider()->SetAccessibleRole(ax::mojom::Role::kMeter);
+  slider()->GetViewAccessibility().SetRole(ax::mojom::Role::kMeter);
 
   data = ui::AXNodeData();
   slider()->GetViewAccessibility().GetAccessibleNodeData(&data);
   EXPECT_EQ(data.role, ax::mojom::Role::kMeter);
-  EXPECT_EQ(slider()->GetAccessibleRole(), ax::mojom::Role::kMeter);
+}
+
+TEST_P(SliderTest, AccessibleValue) {
+  slider()->SetAllowedValues(nullptr);
+  // Initial test where slider is at 0 by default.
+  ui::AXNodeData data;
+  slider()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  if (GetParam() == TestSliderType::kContinuousTest) {
+    EXPECT_EQ(std::string(""),
+              data.GetStringAttribute(ax::mojom::StringAttribute::kValue));
+  } else if (GetParam() == TestSliderType::kDiscreteEnd2EndTest) {
+    EXPECT_EQ(std::string(""),
+              data.GetStringAttribute(ax::mojom::StringAttribute::kValue));
+  } else {
+    EXPECT_EQ(std::string("10%"),
+              data.GetStringAttribute(ax::mojom::StringAttribute::kValue));
+  }
+
+  slider()->SetValue(0.1);
+  data = ui::AXNodeData();
+  slider()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(std::string("10%"),
+            data.GetStringAttribute(ax::mojom::StringAttribute::kValue));
+
+  slider()->SetValue(0.5);
+  data = ui::AXNodeData();
+  slider()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(std::string("50%"),
+            data.GetStringAttribute(ax::mojom::StringAttribute::kValue));
+}
+
+// Checks the pending value update when the slider is invisible and becomes
+// visible again.
+TEST_P(SliderTest, SliderPendingValueUpdate) {
+  test::AXEventCounter ax_counter(views::AXUpdateNotifier::Get());
+  EXPECT_EQ(0, ax_counter.GetCount(ax::mojom::Event::kValueChanged));
+
+  // Initially, the slider should be visible.
+  EXPECT_TRUE(slider()->GetVisible());
+  slider()->SetValue(0.5);
+  EXPECT_EQ(1, ax_counter.GetCount(ax::mojom::Event::kValueChanged));
+
+  // Set the slider to invisible.
+  slider()->SetVisible(false);
+  EXPECT_FALSE(slider()->GetVisible());
+
+  // Set a pending value update while the slider is invisible.
+  slider()->SetValue(0.8);
+  EXPECT_EQ(1, ax_counter.GetCount(ax::mojom::Event::kValueChanged));
+
+  // Make the slider visible again.
+  slider()->SetVisible(true);
+
+  // Verify that the pending value update triggers the accessibility event.
+  EXPECT_EQ(2, ax_counter.GetCount(ax::mojom::Event::kValueChanged));
 }
 
 // No touch on desktop Mac. Tracked in http://crbug.com/445520.
@@ -431,7 +486,7 @@ TEST_P(SliderTest, SliderListenerEventsForMultiFingerScrollGesture) {
 // Verifies the correct SliderListener events are raised for an accessible
 // slider.
 TEST_P(SliderTest, SliderRaisesA11yEvents) {
-  test::AXEventCounter ax_counter(views::AXEventManager::Get());
+  test::AXEventCounter ax_counter(views::AXUpdateNotifier::Get());
   EXPECT_EQ(0, ax_counter.GetCount(ax::mojom::Event::kValueChanged));
 
   // First, detach/reattach the slider without setting value.

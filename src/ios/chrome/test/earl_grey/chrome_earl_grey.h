@@ -11,7 +11,7 @@
 
 #include "base/time/time.h"
 #import "components/content_settings/core/common/content_settings.h"
-#include "components/sync/base/model_type.h"
+#include "components/sync/base/data_type.h"
 #import "ios/testing/earl_grey/app_launch_configuration.h"
 #import "ios/testing/earl_grey/base_eg_test_helper_impl.h"
 #include "third_party/metrics_proto/user_demographics.pb.h"
@@ -22,12 +22,19 @@
 @class JavaScriptExecutionResult;
 @protocol GREYAction;
 @protocol GREYMatcher;
+enum class TipsNotificationType;
 
 namespace chrome_test_util {
 
 // Returns current keyWindow, from the list of all of the remote application
 // windows. Use only for single window tests.
 UIWindow* GetAnyKeyWindow();
+
+// Assert the error is nil. Use the error description as error message.
+void GREYAssertErrorNil(NSError* error);
+
+// Assert the error is nil. Postpone the error description to the error message.
+void GREYAssertErrorNil(NSError* error, NSString* description);
 
 }  // namespace chrome_test_util
 
@@ -87,6 +94,24 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 
 // Returns whether the bottom omnibox steady state feature is enabled.
 - (BOOL)isBottomOmniboxAvailable;
+
+// Returns whether the current layout is showing the bottom omnibox.
+- (BOOL)isCurrentLayoutBottomOmnibox;
+
+// Returns whether the Enhanced Safe Browsing Infobar Promo feature is enabled.
+- (BOOL)isEnhancedSafeBrowsingInfobarEnabled;
+
+#pragma mark - Profile Utilities (EG2)
+
+// Returns the name (as in `ProfileIOS::GetProfileName()`) of the current
+// profile, more precisely the profile associated with the foreground active
+// scene.
+- (NSString*)currentProfileName;
+
+// Returns the name (as in `ProfileIOS::GetProfileName()`) of the personal
+// profile (as opposed to managed profiles), as per
+// `ProfileAttributesStorageIOS::GetPersonalProfileName()`.
+- (NSString*)personalProfileName;
 
 #pragma mark - History Utilities (EG2)
 
@@ -217,9 +242,6 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 // Forces every request to fail in a way that simulates a network failure.
 - (void)disconnectFakeSyncServerNetwork;
 
-// Signs in with `identity` without sync consent.
-- (void)signInWithoutSyncWithIdentity:(FakeSystemIdentity*)identity;
-
 // Injects user demographics into the fake sync server. `rawBirthYear` is the
 // true birth year, pre-noise, and the gender corresponds to the proto enum
 // UserDemographicsProto::Gender.
@@ -259,10 +281,18 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 - (void)flushFakeSyncServerToDisk;
 
 // Gets the number of entities of the given `type`.
-- (int)numberOfSyncEntitiesWithType:(syncer::ModelType)type [[nodiscard]];
+- (int)numberOfSyncEntitiesWithType:(syncer::DataType)type [[nodiscard]];
 
 // Adds typed URL into HistoryService.
 - (void)addHistoryServiceTypedURL:(const GURL&)URL;
+
+// Adds typed URL into HistoryService at timestamp `visitTimestamp`.
+- (void)addHistoryServiceTypedURL:(const GURL&)URL
+                   visitTimestamp:(base::Time)visitTimestamp;
+
+// Sets the page `title` for `URL` in the History Service.
+- (void)setHistoryServiceTitle:(const std::string_view&)title
+                       forPage:(const GURL&)URL;
 
 // Deletes typed URL from HistoryService.
 - (void)deleteHistoryServiceTypedURL:(const GURL&)URL;
@@ -287,7 +317,7 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
                lastUpdatedTimestamp:(base::Time)lastUpdatedTimestamp;
 
 // Triggers a sync cycle for a `type`.
-- (void)triggerSyncCycleForType:(syncer::ModelType)type;
+- (void)triggerSyncCycleForType:(syncer::DataType)type;
 
 // Deletes an autofill profile from the fake sync server with `GUID`, if it
 // exists. If it doesn't exist, nothing is done.
@@ -303,7 +333,7 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 // Waits until sync server contains `count` entities of the given `type` and
 // `name`. Folders are not included in this count.
 // If the condition is not met within a timeout a GREYAssert is induced.
-- (void)waitForSyncServerEntitiesWithType:(syncer::ModelType)type
+- (void)waitForSyncServerEntitiesWithType:(syncer::DataType)type
                                      name:(const std::string&)UTF8Name
                                     count:(size_t)count
                                   timeout:(base::TimeDelta)timeout;
@@ -528,36 +558,9 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 // Signs the user out, clears the known accounts & browsing data, and wait for
 // the completion of those steps. Induces a GREYAssert if the operation fails or
 // timeouts.
-// TODO(crbug.com/40065405): When the browser data cleaning will always have an
-// acceptable delay, this method should be merged with
-// `signOutAndClearIdentities` and the whole sign-out operation completion
-// should always be ensured before executing next steps.
-- (void)signOutAndClearIdentitiesAndWaitForCompletion;
-
-// Signs the user out, clears the known accounts entirely and checks whether the
-// accounts were correctly removed from the keychain. Induces a GREYAssert if
-// the operation fails. This will block the UI with a spinner until all
-// identities are cleared. In order to interact with the UI again call
-// `WaitForActivityOverlayToDisappear()`.
-// TODO(crbug.com/40065405): When the browser data cleaning will always have an
-// acceptable delay, this method should be merged with
-// `signOutAndClearIdentitiesAndWaitForCompletion` and the whole sign-out
-// operation completion should always be ensured before executing next steps.
 - (void)signOutAndClearIdentities;
 
 #pragma mark - Sync Utilities (EG2)
-
-// Waits for sync engine to be initialized or not. It doesn't necessarily mean
-// that data types are configured and ready to use. See
-// SyncService::IsEngineInitialized() for details. If not succeeded a GREYAssert
-// is induced.
-- (void)waitForSyncEngineInitialized:(BOOL)isInitialized
-                         syncTimeout:(base::TimeDelta)timeout;
-
-// Waits for the sync feature to be enabled/disabled. See SyncService::
-// IsSyncFeatureEnabled() for details. If not succeeded a GREYAssert is induced.
-- (void)waitForSyncFeatureEnabled:(BOOL)isEnabled
-                      syncTimeout:(base::TimeDelta)timeout;
 
 // Waits for sync to become fully active; see
 // SyncService::TransportState::ACTIVE for details. If not succeeded a
@@ -569,8 +572,12 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 - (std::string)syncCacheGUID;
 
 // Adds a bookmark with a sync passphrase. The sync server will need the sync
-// passphrase to start.
+// passphrase to start. In order to work, this need to be called before the
+// primary user is signed-in.
 - (void)addBookmarkWithSyncPassphrase:(NSString*)syncPassphrase;
+
+// Add a sync passphrase requirement to start the sync server.
+- (void)addSyncPassphrase:(NSString*)syncPassphrase;
 
 #pragma mark - WebState Utilities (EG2)
 
@@ -722,6 +729,9 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 // Returns YES if UKM feature is enabled.
 - (BOOL)isUKMEnabled [[nodiscard]];
 
+// Returns YES if DWA feature is enabled.
+- (BOOL)isDWAEnabled [[nodiscard]];
+
 // Returns YES if kTestFeature is enabled.
 - (BOOL)isTestFeatureEnabled;
 
@@ -761,11 +771,11 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 #pragma mark - ContentSettings
 
 // Gets the current value of the popup content setting preference for the
-// original browser state.
+// original profile.
 - (ContentSetting)popupPrefValue;
 
 // Sets the popup content setting preference to the given value for the original
-// browser state.
+// profile.
 - (void)setPopupPrefValue:(ContentSetting)value;
 
 // Resets the desktop content setting to its default value.
@@ -788,6 +798,12 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 // UIKeyInputEscape constants as `input`.
 - (void)simulatePhysicalKeyboardEvent:(NSString*)input
                                 flags:(UIKeyModifierFlags)flags;
+
+// Waits for the keyboard to appear;
+- (void)waitForKeyboardToAppear;
+
+// Waits for the keyboard to disappear;
+- (void)waitForKeyboardToDisappear;
 
 #pragma mark - Default Utilities (EG2)
 
@@ -813,41 +829,45 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 
 // Sets the integer value for the local state pref with `prefName`. `value`
 // can be either a casted enum or any other numerical value. Local State
-// contains the preferences that are shared between all browser states.
+// contains the preferences that are shared between all profiles.
 - (void)setIntegerValue:(int)value
       forLocalStatePref:(const std::string&)prefName;
 
 // Sets the time value for the local state pref with `prefName`. `value` Local
-// State contains the preferences that are shared between all browser states.
+// State contains the preferences that are shared between all profiles.
 - (void)setTimeValue:(base::Time)value
     forLocalStatePref:(const std::string&)prefName;
 
+// Sets the time value for the user pref in the original profile.
+- (void)setTimeValue:(base::Time)value
+         forUserPref:(const std::string&)UTF8PrefName;
+
 // Sets the string value for the local state pref with `prefName`. `value` Local
-// State contains the preferences that are shared between all browser states.
+// State contains the preferences that are shared between all profiles.
 - (void)setStringValue:(const std::string&)value
      forLocalStatePref:(const std::string&)prefName;
 
 // Sets the bool value for the local state pref with `prefName`. Local
-// State contains the preferences that are shared between all browser states.
+// State contains the preferences that are shared between all profiles.
 - (void)setBoolValue:(BOOL)value forLocalStatePref:(const std::string&)prefName;
 
-// Gets the value of a user pref in the original browser state.
+// Gets the value of a user pref in the original profile.
 - (bool)userBooleanPref:(const std::string&)prefName;
 - (int)userIntegerPref:(const std::string&)prefName;
 - (std::string)userStringPref:(const std::string&)prefName;
 
-// Sets the value of a user pref in the original browser state.
+// Sets the value of a user pref in the original profile.
 - (void)setStringValue:(NSString*)value
            forUserPref:(const std::string&)UTF8PrefName;
 - (void)setBoolValue:(BOOL)value forUserPref:(const std::string&)UTF8PrefName;
 - (void)setIntegerValue:(int)value forUserPref:(const std::string&)UTF8PrefName;
 
-// Returns true if the Preference is currently using its default value,
-// and has not been set by any higher-priority source (even with the same
+// Returns true if the LocaState Preference is currently using its default
+// value, and has not been set by any higher-priority source (even with the same
 // value).
 - (bool)prefWithNameIsDefaultValue:(const std::string&)prefName;
 
-// Clears the user pref of `prefName` in the original browser state.
+// Clears the user pref of `prefName` in the original profile.
 - (void)clearUserPrefWithName:(const std::string&)prefName;
 
 // Resets the BrowsingDataPrefs, which defines if its selected or not when
@@ -874,6 +894,9 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 
 // Copies `text` into the clipboard from the app's perspective.
 - (void)copyTextToPasteboard:(NSString*)text;
+
+// Copies `link` as NSURL into the clipboard from the app's perspective.
+- (void)copyLinkAsURLToPasteBoard:(NSString*)link;
 
 #pragma mark - Context Menus Utilities (EG2)
 
@@ -963,6 +986,15 @@ id<GREYAction> grey_longPressWithDuration(base::TimeDelta duration);
 
 // Whether the first run sentinel exists.
 - (bool)hasFirstRunSentinel;
+
+#pragma mark - Notification Utilities
+
+- (void)requestTipsNotification:(TipsNotificationType)type;
+
+#pragma mark - Variations Utilities
+
+// Forces an override of the variations stored permanent country.
+- (void)overrideVariationsServiceStoredPermanentCountry:(NSString*)country;
 
 @end
 

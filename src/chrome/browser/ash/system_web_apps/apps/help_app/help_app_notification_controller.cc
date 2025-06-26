@@ -5,11 +5,9 @@
 #include "chrome/browser/ash/system_web_apps/apps/help_app/help_app_notification_controller.h"
 
 #include "ash/constants/ash_features.h"
-#include "ash/utility/forest_util.h"
 #include "base/logging.h"
 #include "base/version.h"
 #include "chrome/browser/ash/release_notes/release_notes_notification.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/chrome_version_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/chrome_pages.h"
@@ -67,7 +65,7 @@ void HelpAppNotificationController::MaybeShowReleaseNotesNotification() {
           features::kReleaseNotesNotificationAlwaysEligible)) {
     return;
   }
-  if (IsForestFeatureEnabled()) {
+  if (features::IsForestFeatureEnabled()) {
     return;
   }
   ReleaseNotesStorage release_notes_storage(profile_);
@@ -76,8 +74,7 @@ void HelpAppNotificationController::MaybeShowReleaseNotesNotification() {
   }
   if (base::FeatureList::IsEnabled(
           features::kHelpAppOpensInsteadOfReleaseNotesNotification)) {
-    chrome::LaunchReleaseNotes(
-        profile_, apps::LaunchSource::kFromReleaseNotesNotification);
+    chrome::LaunchReleaseNotes(profile_, apps::LaunchSource::kFromOsLogin);
     release_notes_storage.MarkNotificationShown();
     return;
   }

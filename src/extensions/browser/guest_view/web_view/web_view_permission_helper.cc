@@ -15,6 +15,8 @@
 #include "base/values.h"
 #include "components/guest_view/browser/guest_view_event.h"
 #include "content/public/browser/render_process_host.h"
+#include "content/public/browser/web_contents.h"
+#include "content/public/common/url_constants.h"
 #include "extensions/browser/api/extensions_api_client.h"
 #include "extensions/browser/guest_view/web_view/web_view_constants.h"
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
@@ -55,8 +57,7 @@ static std::string PermissionTypeToString(WebViewPermissionType type) {
     case WEB_VIEW_PERMISSION_TYPE_POINTER_LOCK:
       return webview::kPermissionTypePointerLock;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return std::string();
+      NOTREACHED();
   }
 }
 
@@ -161,10 +162,9 @@ void RecordUserInitiatedUMA(
 
 WebViewPermissionHelper::WebViewPermissionHelper(WebViewGuest* web_view_guest)
     : next_permission_request_id_(guest_view::kInstanceIDNone),
-      web_view_guest_(web_view_guest),
-      default_media_access_permission_(false) {
-  web_view_permission_helper_delegate_.reset(
-      ExtensionsAPIClient::Get()->CreateWebViewPermissionHelperDelegate(this));
+      web_view_guest_(web_view_guest) {
+  web_view_permission_helper_delegate_ =
+      ExtensionsAPIClient::Get()->CreateWebViewPermissionHelperDelegate(this);
 }
 
 WebViewPermissionHelper::~WebViewPermissionHelper() {
@@ -189,7 +189,6 @@ WebViewPermissionHelper* WebViewPermissionHelper::FromRenderFrameHostId(
 }
 
 void WebViewPermissionHelper::RequestMediaAccessPermission(
-    content::WebContents* source,
     const content::MediaStreamRequest& request,
     content::MediaResponseCallback callback) {
   base::Value::Dict request_info;
@@ -198,7 +197,16 @@ void WebViewPermissionHelper::RequestMediaAccessPermission(
       WEB_VIEW_PERMISSION_TYPE_MEDIA, std::move(request_info),
       base::BindOnce(&WebViewPermissionHelper::OnMediaPermissionResponse,
                      weak_factory_.GetWeakPtr(), request, std::move(callback)),
-      default_media_access_permission_);
+      /*allowed_by_default=*/false);
+}
+
+void WebViewPermissionHelper::RequestMediaAccessPermissionForControlledFrame(
+    content::WebContents* source,
+    const content::MediaStreamRequest& request,
+    content::MediaResponseCallback callback) {
+  web_view_permission_helper_delegate_
+      ->RequestMediaAccessPermissionForControlledFrame(source, request,
+                                                       std::move(callback));
 }
 
 bool WebViewPermissionHelper::CheckMediaAccessPermission(
@@ -216,6 +224,15 @@ bool WebViewPermissionHelper::CheckMediaAccessPermission(
                                        ->GetGuestMainFrame()
                                        ->GetParentOrOuterDocumentOrEmbedder(),
                                    security_origin, type);
+}
+
+bool WebViewPermissionHelper::CheckMediaAccessPermissionForControlledFrame(
+    content::RenderFrameHost* render_frame_host,
+    const url::Origin& security_origin,
+    blink::mojom::MediaStreamType type) {
+  return web_view_permission_helper_delegate_
+      ->CheckMediaAccessPermissionForControlledFrame(render_frame_host,
+                                                     security_origin, type);
 }
 
 void WebViewPermissionHelper::OnMediaPermissionResponse(
@@ -236,6 +253,27 @@ void WebViewPermissionHelper::OnMediaPermissionResponse(
         blink::mojom::StreamDevicesSet(),
         blink::mojom::MediaStreamRequestResult::INVALID_STATE,
         std::unique_ptr<content::MediaStreamUI>());
+    return;
+  }
+
+  content::RenderFrameHost* embedder_rfh = web_view_guest()->embedder_rfh();
+  const url::Origin& embedder_origin = embedder_rfh->GetLastCommittedOrigin();
+  if (web_view_permission_helper_delegate_
+          ->ForwardEmbeddedMediaPermissionChecksAsEmbedder(embedder_origin)) {
+    content::MediaStreamRequest embedder_request = request;
+    content::GlobalRenderFrameHostId embedder_rfh_id =
+        embedder_rfh->GetGlobalId();
+    embedder_request.render_process_id = embedder_rfh_id.child_id;
+    embedder_request.render_frame_id = embedder_rfh_id.frame_routing_id;
+    embedder_request.url_origin = embedder_origin;
+    embedder_request.security_origin = embedder_origin.GetURL();
+
+    web_view_guest()
+        ->embedder_web_contents()
+        ->GetDelegate()
+        ->RequestMediaAccessPermission(
+            web_view_guest()->embedder_web_contents(), embedder_request,
+            std::move(callback));
     return;
   }
 
@@ -289,6 +327,18 @@ void WebViewPermissionHelper::RequestFileSystemPermission(
     base::OnceCallback<void(bool)> callback) {
   web_view_permission_helper_delegate_->RequestFileSystemPermission(
       url, allowed_by_default, std::move(callback));
+}
+
+void WebViewPermissionHelper::RequestFullscreenPermission(
+    const url::Origin& requesting_origin,
+    PermissionResponseCallback callback) {
+  web_view_permission_helper_delegate_->RequestFullscreenPermission(
+      requesting_origin, std::move(callback));
+}
+
+std::optional<content::PermissionResult>
+WebViewPermissionHelper::OverridePermissionResult(ContentSettingsType type) {
+  return web_view_permission_helper_delegate_->OverridePermissionResult(type);
 }
 
 int WebViewPermissionHelper::RequestPermission(

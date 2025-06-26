@@ -5,10 +5,11 @@
 import {assert} from 'chrome://resources/js/assert.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 
-import {SeaPenImageId} from './constants.js';
-import {MantaStatusCode, RecentSeaPenThumbnailData, SeaPenQuery, SeaPenThumbnail} from './sea_pen.mojom-webui.js';
-import {SeaPenActionName, SeaPenActions} from './sea_pen_actions.js';
-import {SeaPenLoadingState, SeaPenState} from './sea_pen_state.js';
+import type {SeaPenImageId} from './constants.js';
+import type {MantaStatusCode, RecentSeaPenThumbnailData, SeaPenQuery, SeaPenThumbnail, TextQueryHistoryEntry} from './sea_pen.mojom-webui.js';
+import type {SeaPenActions} from './sea_pen_actions.js';
+import {SeaPenActionName} from './sea_pen_actions.js';
+import type {SeaPenLoadingState, SeaPenState} from './sea_pen_state.js';
 
 function loadingReducer(
     state: SeaPenLoadingState, action: SeaPenActions): SeaPenLoadingState {
@@ -205,7 +206,7 @@ function thumbnailsReducer(
   switch (action.name) {
     case SeaPenActionName.SET_SEA_PEN_THUMBNAILS:
       assert(!!action.query, 'input text is empty.');
-      return action.images;
+      return action.thumbnails;
     case SeaPenActionName.CLEAR_SEA_PEN_THUMBNAILS:
       return null;
     default:
@@ -218,6 +219,16 @@ function shouldShowSeaPenIntroductionDialogReducer(
   switch (action.name) {
     case SeaPenActionName.SET_SHOULD_SHOW_SEA_PEN_INTRODUCTION_DIALOG:
       return action.shouldShowDialog;
+    default:
+      return state;
+  }
+}
+
+function shouldShowSeaPenFreeformIntroductionDialogReducer(
+    state: boolean, action: SeaPenActions): boolean {
+  switch (action.name) {
+    case SeaPenActionName.SET_SHOULD_SHOW_SEA_PEN_FREEFORM_INTRODUCTION_DIALOG:
+      return action.shouldShowFreeformDialog;
     default:
       return state;
   }
@@ -244,6 +255,17 @@ function errorReducer(state: string|null, action: SeaPenActions): string|null {
   }
 }
 
+function textQueryHistoryReducer(
+    state: TextQueryHistoryEntry[]|null,
+    action: SeaPenActions): TextQueryHistoryEntry[]|null {
+  switch (action.name) {
+    case SeaPenActionName.SET_SEA_PEN_TEXT_QUERY_HISTORY:
+      return action.history;
+    default:
+      return state;
+  }
+}
+
 export function seaPenReducer(
     state: SeaPenState, action: SeaPenActions): SeaPenState {
   const newState = {
@@ -258,10 +280,14 @@ export function seaPenReducer(
     currentSelected: currentSelectedReducer(state.currentSelected, action),
     pendingSelected:
         pendingSelectedReducer(state.pendingSelected, action, state),
+    shouldShowSeaPenFreeformIntroductionDialog:
+        shouldShowSeaPenFreeformIntroductionDialogReducer(
+            state.shouldShowSeaPenFreeformIntroductionDialog, action),
     shouldShowSeaPenIntroductionDialog:
         shouldShowSeaPenIntroductionDialogReducer(
             state.shouldShowSeaPenIntroductionDialog, action),
     error: errorReducer(state.error, action),
+    textQueryHistory: textQueryHistoryReducer(state.textQueryHistory, action),
   };
   return newState;
 }

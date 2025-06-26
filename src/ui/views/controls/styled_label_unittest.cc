@@ -14,6 +14,7 @@
 #include "base/functional/callback.h"
 #include "base/i18n/base_i18n_switches.h"
 #include "base/memory/raw_ptr.h"
+#include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/icu_test_util.h"
 #include "build/build_config.h"
@@ -85,7 +86,7 @@ class StyledLabelInWidgetTest : public ViewsTestBase {
   void SetUp() override {
     ViewsTestBase::SetUp();
 
-    widget_ = CreateTestWidget();
+    widget_ = CreateTestWidget(Widget::InitParams::CLIENT_OWNS_WIDGET);
   }
 
   void TearDown() override {
@@ -240,7 +241,8 @@ TEST_F(StyledLabelTest, WrapLongWords) {
 
   EXPECT_FALSE(label_0->GetText().empty());
   EXPECT_FALSE(label_1->GetText().empty());
-  EXPECT_EQ(ASCIIToUTF16(text), label_0->GetText() + label_1->GetText());
+  EXPECT_EQ(ASCIIToUTF16(text),
+            base::StrCat({label_0->GetText(), label_1->GetText()}));
 }
 
 TEST_F(StyledLabelTest, CreateLinks) {
@@ -503,9 +505,9 @@ TEST_F(StyledLabelTest, StyledRangeWithTooltip) {
             styled->children()[3]->x());
 
   std::u16string tooltip =
-      styled->children()[1]->GetTooltipText(gfx::Point(1, 1));
+      styled->children()[1]->GetRenderedTooltipText(gfx::Point(1, 1));
   EXPECT_EQ(u"tooltip", tooltip);
-  tooltip = styled->children()[2]->GetTooltipText(gfx::Point(1, 1));
+  tooltip = styled->children()[2]->GetRenderedTooltipText(gfx::Point(1, 1));
   EXPECT_EQ(u"tooltip", tooltip);
 }
 
@@ -798,8 +800,9 @@ TEST_F(StyledLabelTest, ViewsCenteredForEvenAndOddSizes) {
   for (int height : {60, 61}) {
     StyledLabel* styled = InitStyledLabel("abc");
 
-    const int view_heights[] = {height, height / 2, height / 2 + 1};
-    for (uint32_t i = 0; i < 3; ++i) {
+    const auto view_heights =
+        std::to_array<int>({height, height / 2, height / 2 + 1});
+    for (uint32_t i = 0; i < view_heights.size(); ++i) {
       auto view = std::make_unique<StaticSizedView>(
           gfx::Size(kViewWidth, view_heights[i]));
       StyledLabel::RangeStyleInfo style_info;
@@ -884,8 +887,10 @@ TEST_F(StyledLabelTest, AccessibleNameAndRole) {
   IgnoreMissingWidgetForTestingScopedSetter a11y_ignore_missing_widget_(
       styled->GetViewAccessibility());
 
-  EXPECT_EQ(styled->GetAccessibleName(), base::UTF8ToUTF16(text));
-  EXPECT_EQ(styled->GetAccessibleRole(), ax::mojom::Role::kStaticText);
+  EXPECT_EQ(styled->GetViewAccessibility().GetCachedName(),
+            base::UTF8ToUTF16(text));
+  EXPECT_EQ(styled->GetViewAccessibility().GetCachedRole(),
+            ax::mojom::Role::kStaticText);
 
   ui::AXNodeData data;
   styled->GetViewAccessibility().GetAccessibleNodeData(&data);
@@ -893,8 +898,11 @@ TEST_F(StyledLabelTest, AccessibleNameAndRole) {
   EXPECT_EQ(data.role, ax::mojom::Role::kStaticText);
 
   styled->SetTextContext(style::CONTEXT_DIALOG_TITLE);
-  EXPECT_EQ(styled->GetAccessibleName(), base::UTF8ToUTF16(text));
-  EXPECT_EQ(styled->GetAccessibleRole(), ax::mojom::Role::kTitleBar);
+
+  EXPECT_EQ(styled->GetViewAccessibility().GetCachedName(),
+            base::UTF8ToUTF16(text));
+  EXPECT_EQ(styled->GetViewAccessibility().GetCachedRole(),
+            ax::mojom::Role::kTitleBar);
 
   data = ui::AXNodeData();
   styled->GetViewAccessibility().GetAccessibleNodeData(&data);
@@ -902,15 +910,47 @@ TEST_F(StyledLabelTest, AccessibleNameAndRole) {
   EXPECT_EQ(data.role, ax::mojom::Role::kTitleBar);
 
   styled->SetText(u"New Text");
-  styled->SetAccessibleRole(ax::mojom::Role::kLink);
-  EXPECT_EQ(styled->GetAccessibleName(), u"New Text");
-  EXPECT_EQ(styled->GetAccessibleRole(), ax::mojom::Role::kLink);
+  styled->GetViewAccessibility().SetRole(ax::mojom::Role::kLink);
+  EXPECT_EQ(styled->GetViewAccessibility().GetCachedName(), u"New Text");
+  EXPECT_EQ(styled->GetViewAccessibility().GetCachedRole(),
+            ax::mojom::Role::kLink);
 
   data = ui::AXNodeData();
   styled->GetViewAccessibility().GetAccessibleNodeData(&data);
   EXPECT_EQ(data.GetString16Attribute(ax::mojom::StringAttribute::kName),
             u"New Text");
   EXPECT_EQ(data.role, ax::mojom::Role::kLink);
+}
+
+// Regression test for crbug.com/361639416.
+// Tests that the child views (text fragments) are still alive after layout.
+TEST_F(StyledLabelTest, OldChildViewsAreAliveAfterLayout) {
+  class ViewDestroyObserser : public ViewObserver {
+   public:
+    MOCK_METHOD(void, OnViewIsDeleting, (View*), (override));
+  };
+
+  ViewDestroyObserser view_destroy_observer;
+
+  const std::string text("This is a test block of text.");
+  StyledLabel* styled = InitStyledLabel(text);
+
+  styled->AddStyleRange(
+      gfx::Range(0, 1),
+      StyledLabel::RangeStyleInfo::CreateForLink(base::RepeatingClosure()));
+
+  EXPECT_EQ(styled->GetFirstLinkForTesting(), nullptr);
+  styled->SetBounds(0, 0, 1000, 1000);
+  test::RunScheduledLayout(styled);
+
+  views::View* link = styled->GetFirstLinkForTesting();
+  EXPECT_NE(link, nullptr);
+  link->AddObserver(&view_destroy_observer);
+  EXPECT_CALL(view_destroy_observer, OnViewIsDeleting(testing::_)).Times(0);
+  styled->SetBounds(0, 0, 10, 1000);
+  test::RunScheduledLayout(styled);
+
+  link->RemoveObserver(&view_destroy_observer);
 }
 
 }  // namespace views

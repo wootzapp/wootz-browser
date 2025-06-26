@@ -9,6 +9,7 @@ import("//chrome/browser/buildflags.gni")
 source_set("shortcuts") {
   public = [ "shortcut_icon_generator.h" ]
   sources = [ "shortcut_icon_generator.cc" ]
+  public_deps = [ "//chrome/browser:browser_public_dependencies" ]
   deps = [
     "//chrome/app/resources:platform_locale_settings",
     "//components/url_formatter",
@@ -22,10 +23,8 @@ source_set("shortcuts") {
 
     sources += [
       "create_shortcut_for_current_web_contents_task.cc",
-      "document_icon_fetcher.cc",
-      "document_icon_fetcher.h",
-      "fetch_icons_from_document_task.cc",
-      "fetch_icons_from_document_task.h",
+      "document_icon_fetcher_task.cc",
+      "document_icon_fetcher_task.h",
       "icon_badging.cc",
       "icon_badging.h",
       "shortcut_creator.cc",
@@ -135,7 +134,7 @@ if (!is_chromeos) {
   #     "shortcut_launch_browsertest.cc",
   #   ]
 
-  #   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+  # defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
 
   #   deps = [
   #     ":shortcuts",

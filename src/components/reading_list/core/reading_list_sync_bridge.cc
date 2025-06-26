@@ -7,6 +7,7 @@
 #include <set>
 #include <utility>
 
+#include "base/auto_reset.h"
 #include "base/check_op.h"
 #include "base/functional/bind.h"
 #include "base/memory/scoped_refptr.h"
@@ -15,22 +16,22 @@
 #include "components/reading_list/core/reading_list_model_impl.h"
 #include "components/sync/base/data_type_histogram.h"
 #include "components/sync/base/deletion_origin.h"
+#include "components/sync/model/data_type_local_change_processor.h"
+#include "components/sync/model/data_type_store.h"
 #include "components/sync/model/entity_change.h"
 #include "components/sync/model/in_memory_metadata_change_list.h"
 #include "components/sync/model/metadata_batch.h"
-#include "components/sync/model/model_type_change_processor.h"
-#include "components/sync/model/model_type_store.h"
 #include "components/sync/model/mutable_data_batch.h"
-#include "components/sync/protocol/model_type_state.pb.h"
-#include "components/sync/protocol/model_type_state_helper.h"
+#include "components/sync/protocol/data_type_state.pb.h"
+#include "components/sync/protocol/data_type_state_helper.h"
 
 ReadingListSyncBridge::ReadingListSyncBridge(
     syncer::StorageType storage_type,
     syncer::WipeModelUponSyncDisabledBehavior
         wipe_model_upon_sync_disabled_behavior,
     base::Clock* clock,
-    std::unique_ptr<syncer::ModelTypeChangeProcessor> change_processor)
-    : ModelTypeSyncBridge(std::move(change_processor)),
+    std::unique_ptr<syncer::DataTypeLocalChangeProcessor> change_processor)
+    : DataTypeSyncBridge(std::move(change_processor)),
       storage_type_for_uma_(storage_type),
       clock_(clock),
       wipe_model_upon_sync_disabled_behavior_(
@@ -49,22 +50,6 @@ void ReadingListSyncBridge::ModelReadyToSync(
   DCHECK(!model_);
 
   model_ = model;
-
-  if (wipe_model_upon_sync_disabled_behavior_ ==
-          syncer::WipeModelUponSyncDisabledBehavior::kOnceIfTrackingMetadata &&
-      !syncer::IsInitialSyncDone(
-          sync_metadata_batch->GetModelTypeState().initial_sync_state())) {
-    // Since the model isn't initially tracking metadata, move away from
-    // kOnceIfTrackingMetadata so the behavior doesn't kick in, in case sync is
-    // turned on later and back to off.
-    //
-    // Note that implementing this using IsInitialSyncDone(), instead of
-    // invoking IsTrackingMetadata() later, is more reliable, because the
-    // function cannot be trusted in ApplyDisableSyncChanges(), as it can
-    // return false negatives.
-    wipe_model_upon_sync_disabled_behavior_ =
-        syncer::WipeModelUponSyncDisabledBehavior::kNever;
-  }
 
   change_processor()->ModelReadyToSync(std::move(sync_metadata_batch));
 }
@@ -136,7 +121,7 @@ ReadingListSyncBridge::CreateMetadataChangeList() {
 // key. Any local pieces of data that are not present in sync should immediately
 // be Put(...) to the processor before returning. The same MetadataChangeList
 // that was passed into this function can be passed to Put(...) calls.
-// Delete(...) can also be called but should not be needed for most model types.
+// Delete(...) can also be called but should not be needed for most data types.
 // Durable storage writes, if not able to combine all change atomically, should
 // save the metadata after the data changes, so that this merge will be re-
 // driven by sync if is not completely saved during the current run.
@@ -271,8 +256,8 @@ ReadingListSyncBridge::ApplyIncrementalSyncChanges(
   return {};
 }
 
-void ReadingListSyncBridge::GetData(StorageKeyList storage_keys,
-                                    DataCallback callback) {
+std::unique_ptr<syncer::DataBatch> ReadingListSyncBridge::GetDataForCommit(
+    StorageKeyList storage_keys) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto batch = std::make_unique<syncer::MutableDataBatch>();
   for (const std::string& url_string : storage_keys) {
@@ -283,10 +268,11 @@ void ReadingListSyncBridge::GetData(StorageKeyList storage_keys,
     }
   }
 
-  std::move(callback).Run(std::move(batch));
+  return batch;
 }
 
-void ReadingListSyncBridge::GetAllDataForDebugging(DataCallback callback) {
+std::unique_ptr<syncer::DataBatch>
+ReadingListSyncBridge::GetAllDataForDebugging() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto batch = std::make_unique<syncer::MutableDataBatch>();
 
@@ -296,7 +282,7 @@ void ReadingListSyncBridge::GetAllDataForDebugging(DataCallback callback) {
     AddEntryToBatch(batch.get(), *entry);
   }
 
-  std::move(callback).Run(std::move(batch));
+  return batch;
 }
 
 void ReadingListSyncBridge::AddEntryToBatch(syncer::MutableDataBatch* batch,
@@ -332,7 +318,7 @@ void ReadingListSyncBridge::ApplyDisableSyncChanges(
     case syncer::WipeModelUponSyncDisabledBehavior::kNever:
       CHECK_EQ(storage_type_for_uma_, syncer::StorageType::kUnspecified);
       // Fall back to the default behavior (delete metadata only).
-      ModelTypeSyncBridge::ApplyDisableSyncChanges(
+      DataTypeSyncBridge::ApplyDisableSyncChanges(
           std::move(delete_metadata_change_list));
       break;
     case syncer::WipeModelUponSyncDisabledBehavior::kAlways:
@@ -343,22 +329,12 @@ void ReadingListSyncBridge::ApplyDisableSyncChanges(
       // robust against orphan or unexpected data in storage.
       model_->SyncDeleteAllEntriesAndSyncMetadata();
       break;
-    case syncer::WipeModelUponSyncDisabledBehavior::kOnceIfTrackingMetadata:
-      CHECK_EQ(storage_type_for_uma_, syncer::StorageType::kUnspecified);
-      syncer::SyncRecordModelClearedOnceHistogram(syncer::READING_LIST);
-      wipe_model_upon_sync_disabled_behavior_ =
-          syncer::WipeModelUponSyncDisabledBehavior::kNever;
-      // `wipe_model_upon_sync_disabled_behavior_` being set to
-      // `kOnceIfTrackingMetadata` implies metadata was being tracked when it
-      // was loaded from storage, see logic in ModelReadyToSync().
-      model_->SyncDeleteAllEntriesAndSyncMetadata();
-      break;
   }
 }
 
 bool ReadingListSyncBridge::IsEntityDataValid(
     const syncer::EntityData& entity_data) const {
-  CHECK(entity_data.specifics.ByteSize() != 0);
+  CHECK(entity_data.specifics.ByteSizeLong() != 0);
 
   return ReadingListEntry::IsSpecificsValid(
       entity_data.specifics.reading_list());

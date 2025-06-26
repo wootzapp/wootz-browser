@@ -4,16 +4,18 @@
 
 #include "extensions/browser/api/declarative_net_request/ruleset_manager.h"
 
+#include <algorithm>
 #include <iterator>
 #include <optional>
 #include <tuple>
 
 #include "base/check_op.h"
+#include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/time/time.h"
 #include "base/timer/elapsed_timer.h"
 #include "components/web_cache/browser/web_cache_manager.h"
@@ -29,8 +31,10 @@
 #include "extensions/browser/api/web_request/web_request_permissions.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_util.h"
+#include "extensions/browser/install_prefs_helper.h"
 #include "extensions/common/api/declarative_net_request.h"
 #include "extensions/common/constants.h"
+#include "extensions/common/switches.h"
 #include "url/origin.h"
 
 namespace extensions::declarative_net_request {
@@ -83,12 +87,13 @@ void RulesetManager::AddRuleset(const ExtensionId& extension_id,
   DCHECK(!GetMatcherForExtension(extension_id))
       << "AddRuleset called twice in succession for " << extension_id;
 
-  base::Time update_time = prefs_->GetLastUpdateTime(extension_id);
+  base::Time update_time = GetLastUpdateTime(prefs_, extension_id);
   rulesets_.emplace(extension_id, update_time, std::move(matcher));
   extension_install_times_[extension_id] = update_time;
 
-  if (test_observer_)
+  if (test_observer_) {
     test_observer_->OnRulesetCountChanged(rulesets_.size());
+  }
 
   // Clear the renderers' cache so that they take the new rules into account.
   ClearRendererCacheOnNavigation();
@@ -108,8 +113,9 @@ void RulesetManager::RemoveRuleset(const ExtensionId& extension_id) {
       << "RemoveRuleset called without a corresponding AddRuleset for "
       << extension_id;
 
-  if (test_observer_)
+  if (test_observer_) {
     test_observer_->OnRulesetCountChanged(rulesets_.size());
+  }
 
   // Clear the renderers' cache so that they take the removed rules into
   // account.
@@ -118,8 +124,9 @@ void RulesetManager::RemoveRuleset(const ExtensionId& extension_id) {
 
 std::set<ExtensionId> RulesetManager::GetExtensionsWithRulesets() const {
   std::set<ExtensionId> extension_ids;
-  for (const ExtensionRulesetData& data : rulesets_)
+  for (const ExtensionRulesetData& data : rulesets_) {
     extension_ids.insert(data.extension_id);
+  }
   return extension_ids;
 }
 
@@ -137,12 +144,13 @@ const CompositeMatcher* RulesetManager::GetMatcherForExtension(
   // This is O(n) but it's ok since the number of extensions will be small and
   // we have to maintain the rulesets sorted in decreasing order of installation
   // time.
-  auto iter = base::ranges::find(rulesets_, extension_id,
-                                 &ExtensionRulesetData::extension_id);
+  auto iter = std::ranges::find(rulesets_, extension_id,
+                                &ExtensionRulesetData::extension_id);
 
   // There must be ExtensionRulesetData corresponding to this |extension_id|.
-  if (iter == rulesets_.end())
+  if (iter == rulesets_.end()) {
     return nullptr;
+  }
 
   DCHECK(iter->matcher);
   return iter->matcher.get();
@@ -182,7 +190,7 @@ std::vector<RequestAction> RulesetManager::EvaluateRequestWithHeaders(
 bool RulesetManager::HasAnyExtraHeadersMatcher() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       rulesets_, [](const ExtensionRulesetData& ruleset) {
         return ruleset.matcher->HasAnyExtraHeadersMatcher();
       });
@@ -208,26 +216,29 @@ bool RulesetManager::HasExtraHeadersMatcherForRequest(
 }
 
 void RulesetManager::OnRenderFrameCreated(content::RenderFrameHost* host) {
-  for (ExtensionRulesetData& ruleset : rulesets_)
+  for (ExtensionRulesetData& ruleset : rulesets_) {
     ruleset.matcher->OnRenderFrameCreated(host);
+  }
 }
 
 void RulesetManager::OnRenderFrameDeleted(content::RenderFrameHost* host) {
-  for (ExtensionRulesetData& ruleset : rulesets_)
+  for (ExtensionRulesetData& ruleset : rulesets_) {
     ruleset.matcher->OnRenderFrameDeleted(host);
+  }
 }
 
 void RulesetManager::OnDidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
-  for (ExtensionRulesetData& ruleset : rulesets_)
+  for (ExtensionRulesetData& ruleset : rulesets_) {
     ruleset.matcher->OnDidFinishNavigation(navigation_handle);
+  }
 }
 
 bool RulesetManager::HasRulesets(RulesetMatchingStage stage) const {
-  return base::ranges::any_of(rulesets_,
-                              [stage](const ExtensionRulesetData& ruleset) {
-                                return ruleset.matcher->HasRulesets(stage);
-                              });
+  return std::ranges::any_of(rulesets_,
+                             [stage](const ExtensionRulesetData& ruleset) {
+                               return ruleset.matcher->HasRulesets(stage);
+                             });
 }
 
 std::vector<RequestAction> RulesetManager::MergeModifyHeaderActions(
@@ -248,11 +259,13 @@ std::vector<RequestAction> RulesetManager::MergeModifyHeaderActions(
       [this](const RequestAction& lhs, const RequestAction& rhs) {
         auto lhs_install_time_it =
             extension_install_times_.find(lhs.extension_id);
-        DCHECK(lhs_install_time_it != extension_install_times_.end());
+        CHECK(lhs_install_time_it != extension_install_times_.end(),
+              base::NotFatalUntil::M130);
 
         auto rhs_install_time_it =
             extension_install_times_.find(rhs.extension_id);
-        DCHECK(rhs_install_time_it != extension_install_times_.end());
+        CHECK(rhs_install_time_it != extension_install_times_.end(),
+              base::NotFatalUntil::M130);
 
         // Same comparator as ExtensionRulesetData's for actions from different
         // extensions. Otherwise, default to RequestAction's comparator.
@@ -303,8 +316,9 @@ std::optional<RequestAction> RulesetManager::GetAction(
   // The priorities of actions between different extensions is different from
   // the priorities of actions within an extension.
   const auto action_priority = [](const std::optional<RequestAction>& action) {
-    if (!action.has_value())
+    if (!action.has_value()) {
       return 0;
+    }
     switch (action->type) {
       case RequestAction::Type::BLOCK:
       case RequestAction::Type::COLLAPSE:
@@ -316,8 +330,7 @@ std::optional<RequestAction> RulesetManager::GetAction(
       case RequestAction::Type::ALLOW_ALL_REQUESTS:
         return 1;
       case RequestAction::Type::MODIFY_HEADERS:
-        NOTREACHED_IN_MIGRATION();
-        return 0;
+        NOTREACHED();
     }
   };
 
@@ -340,8 +353,9 @@ std::optional<RequestAction> RulesetManager::GetAction(
 
     // If there is a tie here, `action` (from the more recently installed
     // extension) wins.
-    if (action_priority(action_info.action) > action_priority(action))
+    if (action_priority(action_info.action) > action_priority(action)) {
       action = std::move(action_info.action);
+    }
   }
 
   return action;
@@ -363,8 +377,9 @@ std::vector<RequestAction> RulesetManager::GetModifyHeadersActions(
     PageAccess page_access = ruleset_and_access.second;
     // Skip the evaluation of modifyHeaders rules for this extension if its
     // access to the request is denied.
-    if (page_access == PageAccess::kDenied)
+    if (page_access == PageAccess::kDenied) {
       continue;
+    }
 
     const ExtensionRulesetData* ruleset = ruleset_and_access.first;
     std::vector<RequestAction> actions_for_matcher =
@@ -410,16 +425,19 @@ std::vector<RequestAction> RulesetManager::EvaluateRequestInternal(
 
   std::vector<RequestAction> actions;
 
-  if (!ShouldEvaluateRequest(request))
+  if (!ShouldEvaluateRequest(request)) {
     return actions;
+  }
 
   // TODO(crbug.com/40727004): Add some context on which request stage this
   // event took place in the observer method if/when needed for tests.
-  if (test_observer_)
+  if (test_observer_) {
     test_observer_->OnEvaluateRequest(request, is_incognito_context);
+  }
 
-  if (rulesets_.empty())
+  if (rulesets_.empty()) {
     return actions;
+  }
 
   ScopedEvaluateRequestTimer timer;
 
@@ -439,7 +457,7 @@ std::vector<RequestAction> RulesetManager::EvaluateRequestInternal(
   // Check that the allow rule priority cache from `request` is empty if the
   // request has not been evaluated yet in the kOnBeforeRequest stage.
   CHECK(stage != RulesetMatchingStage::kOnBeforeRequest ||
-        request.allow_rule_max_priority.empty());
+        request.max_priority_allow_action.empty());
 
   const RequestParams params(request, response_headers);
   std::optional<RequestAction> action =
@@ -451,8 +469,9 @@ std::vector<RequestAction> RulesetManager::EvaluateRequestInternal(
 
     // If the request is blocked/redirected, no further modifications can
     // happen.
-    if (is_request_modifying_action)
+    if (is_request_modifying_action) {
       return actions;
+    }
   }
 
   // This returns any matching modifyHeaders rules with priority greater than
@@ -462,10 +481,12 @@ std::vector<RequestAction> RulesetManager::EvaluateRequestInternal(
 
   // Pass the allow rule priority cache to `request` so its current value can be
   // reused in later rule matching stages.
-  request.allow_rule_max_priority = params.allow_rule_max_priority;
+  request.max_priority_allow_action =
+      std::move(params.max_priority_allow_action);
 
-  if (!modify_headers_actions.empty())
+  if (!modify_headers_actions.empty()) {
     return modify_headers_actions;
+  }
 
   return actions;
 }
@@ -481,8 +502,9 @@ bool RulesetManager::ShouldEvaluateRequest(
   // scheme. Practically, this has the effect of not allowing an extension to
   // modify its own resources (The extension wouldn't have the permission to
   // other extension origins anyway).
-  if (request.url.SchemeIs(kExtensionScheme))
+  if (request.url.SchemeIs(kExtensionScheme)) {
     return false;
+  }
 
   return true;
 }
@@ -492,6 +514,26 @@ bool RulesetManager::ShouldEvaluateRulesetForRequest(
     const WebRequestInfo& request,
     bool is_incognito_context,
     PageAccess& host_permission_access) const {
+  // Extensions should not generally have access to non-main-frame requests
+  // initiated by other extensions, though the --extensions-on-chrome-urls
+  // switch overrides that restriction.
+  // Note: For discussions regarding handling of extension initiated navigations
+  //       see https://crbug.com/918137 and https://crbug.com/382670035.
+  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kExtensionsOnChromeURLs) &&
+      request.initiator &&
+      request.web_request_type != WebRequestResourceType::MAIN_FRAME) {
+    // Checking the precursor is necessary here since requests initiated by
+    // manifest sandbox pages have an opaque initiator origin, but still
+    // originate from an extension.
+    auto initiator_precursor =
+        request.initiator->GetTupleOrPrecursorTupleIfOpaque();
+    if (initiator_precursor.scheme() == kExtensionScheme &&
+        initiator_precursor.host() != ruleset.extension_id) {
+      return false;
+    }
+  }
+
   // Only extensions enabled in incognito should have access to requests in an
   // incognito context.
   if (is_incognito_context &&
@@ -514,8 +556,9 @@ bool RulesetManager::ShouldEvaluateRulesetForRequest(
           crosses_incognito,
           WebRequestPermissions::REQUIRE_HOST_PERMISSION_FOR_URL_AND_INITIATOR,
           request.initiator, request.web_request_type);
-      if (access == PageAccess::kDenied)
+      if (access == PageAccess::kDenied) {
         return false;
+      }
 
       host_permission_access = access;
       break;
@@ -533,8 +576,9 @@ bool RulesetManager::ShouldEvaluateRulesetForRequest(
               crosses_incognito, WebRequestPermissions::DO_NOT_CHECK_HOST,
               request.initiator, request.web_request_type);
       DCHECK_NE(PageAccess::kWithheld, do_not_check_host_access);
-      if (do_not_check_host_access == PageAccess::kDenied)
+      if (do_not_check_host_access == PageAccess::kDenied) {
         return false;
+      }
 
       host_permission_access = WebRequestPermissions::CanExtensionAccessURL(
           permission_helper_, ruleset.extension_id, request.url, tab_id,

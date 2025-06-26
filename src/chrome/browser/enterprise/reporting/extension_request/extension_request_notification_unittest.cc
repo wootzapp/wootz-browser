@@ -4,6 +4,8 @@
 
 #include "chrome/browser/enterprise/reporting/extension_request/extension_request_notification.h"
 
+#include <array>
+
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/notifications/notification_display_service_tester.h"
@@ -26,13 +28,21 @@ constexpr char kFakeExtensionId[] = "fake-extension-id";
 
 // The elements order of array below must match the order in enum
 // ExtensionRequestNotification::NotifyType.
-const char* const kNotificationIds[] = {"extension_approved_notificaiton",
-                                        "extension_rejected_notificaiton",
-                                        "extension_installed_notificaiton"};
-const char* const kNotificationTitleKeywords[] = {"approved", "rejected",
-                                                  "installed"};
-const char* const kNotificationBodyKeywords[] = {"to install", "to view",
-                                                 "to view"};
+constexpr auto kNotificationIds = std::to_array<const char*>({
+    "extension_approved_notificaiton",
+    "extension_rejected_notificaiton",
+    "extension_installed_notificaiton",
+});
+constexpr auto kNotificationTitleKeywords = std::to_array<const char*>({
+    "approved",
+    "rejected",
+    "installed",
+});
+constexpr auto kNotificationBodyKeywords = std::to_array<const char*>({
+    "to install",
+    "to view",
+    "to view",
+});
 
 void OnNotificationClosed(bool expected_by_user, bool by_user) {
   EXPECT_EQ(expected_by_user, by_user);
@@ -70,17 +80,6 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(ExtensionRequestNotification::kApproved,
                       ExtensionRequestNotification::kRejected,
                       ExtensionRequestNotification::kForceInstalled));
-
-#if !DCHECK_IS_ON()
-// EXPECT_DEATH doesn't work well with BrowserWithTestWindowTest. Hence only run
-// the test when DCHECK is off.
-TEST_P(ExtensionRequestNotificationTest, NoExtension) {
-  ExtensionRequestNotification request_notification(
-      profile(), GetNotifyType(), ExtensionRequestNotification::ExtensionIds());
-  request_notification.Show(base::BindOnce(&OnNotificationClosed, false));
-  EXPECT_FALSE(GetNotification().has_value());
-}
-#endif  //! DCHECK_IS_ON()
 
 TEST_P(ExtensionRequestNotificationTest, HasExtensionAndClickedByUser) {
   ExtensionRequestNotification request_notification(

@@ -5,6 +5,7 @@
 #include "ash/wm/window_cycle/window_cycle_controller.h"
 
 #include <algorithm>
+#include <array>
 #include <memory>
 
 #include "ash/accelerators/accelerator_controller_impl.h"
@@ -14,7 +15,7 @@
 #include "ash/app_list/test/app_list_test_helper.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
-#include "ash/focus_cycler.h"
+#include "ash/focus/focus_cycler.h"
 #include "ash/frame_throttler/frame_throttling_controller.h"
 #include "ash/frame_throttler/mock_frame_throttling_observer.h"
 #include "ash/multi_user/multi_user_window_manager_impl.h"
@@ -33,7 +34,6 @@
 #include "ash/style/tab_slider_button.h"
 #include "ash/system/unified/unified_system_tray.h"
 #include "ash/test/ash_test_base.h"
-#include "ash/test/raster_scale_change_tracker.h"
 #include "ash/test_shell_delegate.h"
 #include "ash/wm/desks/desk.h"
 #include "ash/wm/desks/desks_controller.h"
@@ -65,6 +65,7 @@
 #include "ui/aura/window.h"
 #include "ui/aura/window_event_dispatcher.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
@@ -79,6 +80,7 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/vector2d.h"
 #include "ui/views/accessibility/accessibility_paint_checks.h"
+#include "ui/views/accessibility/view_accessibility.h"
 
 namespace ash {
 
@@ -403,7 +405,8 @@ TEST_F(WindowCycleControllerTest, HandleCycleWindow) {
       Shell::GetPrimaryRootWindow(), kShellWindowId_SystemModalContainer);
   std::unique_ptr<Window> modal_window(
       CreateTestWindowWithId(-2, modal_container));
-  modal_window->SetProperty(aura::client::kModalKey, ui::MODAL_TYPE_SYSTEM);
+  modal_window->SetProperty(aura::client::kModalKey,
+                            ui::mojom::ModalType::kSystem);
   wm::ActivateWindow(modal_window.get());
   EXPECT_TRUE(wm::IsActiveWindow(modal_window.get()));
   controller->HandleCycleWindow(
@@ -911,10 +914,10 @@ TEST_F(WindowCycleControllerTest, CycleShowsAllDesksWindows) {
 TEST_F(WindowCycleControllerTest, FrameThrottling) {
   FrameThrottlingController* frame_throttling_controller =
       Shell::Get()->frame_throttling_controller();
-  const int window_count = 5;
+  constexpr int window_count = 5;
   std::vector<viz::FrameSinkId> ids{
       {1u, 1u}, {2u, 2u}, {3u, 3u}, {4u, 4u}, {5u, 5u}};
-  std::unique_ptr<aura::Window> windows[window_count];
+  std::array<std::unique_ptr<aura::Window>, window_count> windows;
   for (int i = 0; i < window_count; ++i) {
     windows[i] = CreateAppWindow(gfx::Rect(), chromeos::AppType::BROWSER);
     windows[i]->SetEmbedFrameSinkId(ids[i]);
@@ -1656,8 +1659,8 @@ TEST_F(WindowCycleControllerTest, VerticalTouchScroll) {
   ASSERT_EQ(window2.get(), GetTargetWindow());
 
   // Vertical touch scroll from the second item. This will cause a
-  // ui::ET_SCROLL_FLING_START event to be generated. This should not crash and
-  // do nothing to the window cycle list.
+  // ui::EventType::kScrollFlingStart event to be generated. This should not
+  // crash and do nothing to the window cycle list.
   auto preview_items = GetWindowCycleItemViews();
   auto drag_origin = preview_items[0]->GetBoundsInScreen().CenterPoint();
   auto drag_dest = drag_origin + gfx::Vector2d(0, 200);
@@ -1689,10 +1692,12 @@ TEST_F(WindowCycleControllerTest, TapSelect) {
                                  ui::test::EventGenerator* generator,
                                  const gfx::Point& location) {
     // Generates the following events at |location| in the given order:
-    // ET_GESTURE_BEGIN, ET_GESTURE_TAP_DOWN, ET_GESTURE_SHOW_PRESS
-    generate_gesture_event(generator, location, ui::ET_GESTURE_BEGIN);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_TAP_DOWN);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_SHOW_PRESS);
+    // EventType::kGestureBegin, EventType::kGestureTapDown,
+    // EventType::kGestureShowPress
+    generate_gesture_event(generator, location, ui::EventType::kGestureBegin);
+    generate_gesture_event(generator, location, ui::EventType::kGestureTapDown);
+    generate_gesture_event(generator, location,
+                           ui::EventType::kGestureShowPress);
   };
 
   // Start cycle and tap third item without releasing finger. On tap down, the
@@ -1789,31 +1794,6 @@ TEST_F(WindowCycleControllerTest, ArrowKeyBeforeCycleViewUI) {
   CompleteCycling(controller);
 }
 
-// Tests that raster scale is not set for alt-tab on visible windows.
-TEST_F(WindowCycleControllerTest, RasterScaleNotSetForVisibleWindows) {
-  WindowCycleController* controller = Shell::Get()->window_cycle_controller();
-
-  std::unique_ptr<Window> window0(CreateAppWindow(gfx::Rect(600, 600)));
-  std::unique_ptr<Window> window1(CreateAppWindow(gfx::Rect(600, 600)));
-  wm::ActivateWindow(window0.get());
-
-  auto tracker0 = RasterScaleChangeTracker(window0.get());
-  auto tracker1 = RasterScaleChangeTracker(window1.get());
-
-  // Simulate pressing and releasing Alt-tab.
-  EXPECT_TRUE(wm::IsActiveWindow(window0.get()));
-  controller->HandleCycleWindow(
-      WindowCycleController::WindowCyclingDirection::kForward);
-
-  EXPECT_EQ(std::vector<float>{}, tracker0.TakeRasterScaleChanges());
-  EXPECT_EQ(std::vector<float>{}, tracker1.TakeRasterScaleChanges());
-
-  CompleteCycling(controller);
-
-  EXPECT_EQ(std::vector<float>{}, tracker0.TakeRasterScaleChanges());
-  EXPECT_EQ(std::vector<float>{}, tracker1.TakeRasterScaleChanges());
-}
-
 // Tests the UAF issue reported in https://crbug.com/1350558. `OnFlingStep()`
 // triggers layout, which may trigger an `OnFlingEnd()` where the
 // `WmFlingHandler` is destroyed while still in the middle of its
@@ -1846,6 +1826,42 @@ TEST_F(WindowCycleControllerTest, SimulateFlingInAltTab) {
   cycle_controller->HandleCycleWindow(
       WindowCycleController::WindowCyclingDirection::kForward);
   EXPECT_TRUE(cycle_controller->IsCycling());
+}
+
+TEST_F(WindowCycleControllerTest, WindowCycleItemViewAccessibleProperties) {
+  std::unique_ptr<Window> window = CreateTestWindow();
+  std::unique_ptr<WindowCycleItemView> item_view =
+      std::make_unique<WindowCycleItemView>(window.get());
+
+  ui::AXNodeData data;
+  item_view->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.role, ax::mojom::Role::kWindow);
+  // Default title for test window.
+  ASSERT_EQ(window->GetTitle(), u"Window -1");
+  EXPECT_EQ(data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+            u"Window -1");
+  EXPECT_FALSE(data.HasState(ax::mojom::State::kIgnored));
+
+  // Test when source window title is empty.
+  data = ui::AXNodeData();
+  item_view->source_window()->SetTitle(std::u16string());
+  item_view->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetStringAttribute(ax::mojom::StringAttribute::kName),
+            l10n_util::GetStringUTF8(IDS_WM_WINDOW_CYCLER_UNTITLED_WINDOW));
+
+  // Test that accessible name is updated when source window title changes.
+  data = ui::AXNodeData();
+  item_view->source_window()->SetTitle(u"Some title");
+  item_view->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+            u"Some title");
+
+  // Test that view is hidden to a11y when source window is destroyed.
+  item_view->OnWindowDestroying(window.get());
+  ASSERT_TRUE(item_view);
+  data = ui::AXNodeData();
+  item_view->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_TRUE(data.HasState(ax::mojom::State::kIgnored));
 }
 
 class ReverseGestureWindowCycleControllerTest
@@ -2051,13 +2067,14 @@ TEST_F(ModeSelectionWindowCycleControllerTest, ModeChangesOnTap) {
   auto tap = [generate_gesture_event](ui::test::EventGenerator* generator,
                                       const gfx::Point& location) {
     // Generates the following events at |location| in the given order:
-    // ET_GESTURE_BEGIN, ET_GESTURE_TAP_DOWN, ui::ET_GESTURE_SHOW_PRESS,
-    // ET_GESTURE_END
-    generate_gesture_event(generator, location, ui::ET_GESTURE_BEGIN);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_TAP_DOWN);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_SHOW_PRESS);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_TAP);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_END);
+    // EventType::kGestureBegin, EventType::kGestureTapDown,
+    // ui::EventType::kGestureShowPress, EventType::kGestureEnd
+    generate_gesture_event(generator, location, ui::EventType::kGestureBegin);
+    generate_gesture_event(generator, location, ui::EventType::kGestureTapDown);
+    generate_gesture_event(generator, location,
+                           ui::EventType::kGestureShowPress);
+    generate_gesture_event(generator, location, ui::EventType::kGestureTap);
+    generate_gesture_event(generator, location, ui::EventType::kGestureEnd);
   };
 
   // Start cycle. Alt-tab should contain windows from all desks with tab slider.
@@ -2123,22 +2140,27 @@ TEST_F(ModeSelectionWindowCycleControllerTest,
                              ui::test::EventGenerator* generator,
                              const gfx::Point& location) {
     // Generates the following events at |location| in the given order:
-    // ET_GESTURE_BEGIN, ET_GESTURE_TAP_DOWN, T_GESTURE_SCROLL_BEGIN,
-    // ui::ET_GESTURE_SCROLL_UPDATE
-    generate_gesture_event(generator, location, ui::ET_GESTURE_BEGIN);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_TAP_DOWN);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_SCROLL_BEGIN);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_SCROLL_UPDATE);
+    // EventType::kGestureBegin, EventType::kGestureTapDown,
+    // T_GESTURE_SCROLL_BEGIN, ui::EventType::kGestureScrollUpdate
+    generate_gesture_event(generator, location, ui::EventType::kGestureBegin);
+    generate_gesture_event(generator, location, ui::EventType::kGestureTapDown);
+    generate_gesture_event(generator, location,
+                           ui::EventType::kGestureScrollBegin);
+    generate_gesture_event(generator, location,
+                           ui::EventType::kGestureScrollUpdate);
   };
 
   auto scroll_update = [generate_gesture_event](
                            ui::test::EventGenerator* generator,
                            const gfx::Point& location) {
     // Generates the following events at |location| in the given order:
-    // ET_GESTURE_SCROLL_UPDATE, ET_GESTURE_SCROLL_END, ET_GESTURE_END
-    generate_gesture_event(generator, location, ui::ET_GESTURE_SCROLL_UPDATE);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_SCROLL_END);
-    generate_gesture_event(generator, location, ui::ET_GESTURE_END);
+    // EventType::kGestureScrollUpdate, EventType::kGestureScrollEnd,
+    // EventType::kGestureEnd
+    generate_gesture_event(generator, location,
+                           ui::EventType::kGestureScrollUpdate);
+    generate_gesture_event(generator, location,
+                           ui::EventType::kGestureScrollEnd);
+    generate_gesture_event(generator, location, ui::EventType::kGestureEnd);
   };
 
   // Start cycle. Alt-tab should contain windows from all desks with tab slider.
@@ -3164,8 +3186,6 @@ class MultiUserWindowCycleControllerTest
   MultiUserWindowManager* multi_user_window_manager() {
     return multi_user_window_manager_.get();
   }
-  TestingPrefServiceSimple* user_1_prefs() { return user_1_prefs_; }
-  TestingPrefServiceSimple* user_2_prefs() { return user_2_prefs_; }
 
   void SetUp() override {
     NoSessionAshTestBase::SetUp();
@@ -3176,31 +3196,6 @@ class MultiUserWindowCycleControllerTest
     shelf_view_test_->SetAnimationDuration(base::Milliseconds(1));
 
     generator_ = GetEventGenerator();
-
-    TestSessionControllerClient* session_controller =
-        GetSessionControllerClient();
-    session_controller->Reset();
-
-    // Inject our own PrefServices for each user which enables us to setup the
-    // desks restore data before the user signs in.
-    auto user_1_prefs = std::make_unique<TestingPrefServiceSimple>();
-    user_1_prefs_ = user_1_prefs.get();
-    RegisterUserProfilePrefs(user_1_prefs_->registry(), /*country=*/"",
-                             /*for_test=*/true);
-    auto user_2_prefs = std::make_unique<TestingPrefServiceSimple>();
-    user_2_prefs_ = user_2_prefs.get();
-    RegisterUserProfilePrefs(user_2_prefs_->registry(), /*country=*/"",
-                             /*for_test=*/true);
-    session_controller->AddUserSession(kUser1Email,
-                                       user_manager::UserType::kRegular,
-                                       /*provide_pref_service=*/false);
-    session_controller->SetUserPrefService(GetUser1AccountId(),
-                                           std::move(user_1_prefs));
-    session_controller->AddUserSession(kUser2Email,
-                                       user_manager::UserType::kRegular,
-                                       /*provide_pref_service=*/false);
-    session_controller->SetUserPrefService(GetUser2AccountId(),
-                                           std::move(user_2_prefs));
   }
 
   void TearDown() override {
@@ -3262,13 +3257,14 @@ class MultiUserWindowCycleControllerTest
   }
 
   void SimulateUserLogin(const AccountId& account_id) {
-    SwitchActiveUser(account_id);
-    multi_user_window_manager_ =
-        MultiUserWindowManager::Create(this, account_id);
-    MultiUserWindowManagerImpl::Get()->SetAnimationSpeedForTest(
-        MultiUserWindowManagerImpl::ANIMATION_SPEED_DISABLED);
-    GetSessionControllerClient()->SetSessionState(
-        session_manager::SessionState::ACTIVE);
+    if (!multi_user_window_manager_) {
+      multi_user_window_manager_ =
+          MultiUserWindowManager::Create(this, account_id);
+      CHECK(MultiUserWindowManagerImpl::Get());
+      MultiUserWindowManagerImpl::Get()->SetAnimationSpeedForTest(
+          MultiUserWindowManagerImpl::ANIMATION_SPEED_DISABLED);
+    }
+    AshTestBase::SimulateUserLogin(account_id);
   }
 
   const aura::Window::Windows GetWindows(WindowCycleController* controller) {
@@ -3303,9 +3299,6 @@ class MultiUserWindowCycleControllerTest
   std::unique_ptr<ShelfViewTestAPI> shelf_view_test_;
 
   std::unique_ptr<MultiUserWindowManager> multi_user_window_manager_;
-
-  raw_ptr<TestingPrefServiceSimple, DanglingUntriaged> user_1_prefs_ = nullptr;
-  raw_ptr<TestingPrefServiceSimple, DanglingUntriaged> user_2_prefs_ = nullptr;
 };
 
 // Tests that when the active user prefs' |prefs::kAltTabPerDesk| is updated,
@@ -3358,7 +3351,7 @@ TEST_F(MultiUserWindowCycleControllerTest, AltTabModePrefsUpdateUI) {
   CompleteCycling(cycle_controller);
 
   // Switch to the secondary user_2 and setup the profile with four windows.
-  SwitchActiveUser(GetUser2AccountId());
+  SimulateUserLogin(GetUser2AccountId());
   const Desk* desk_1 = desks_controller->GetDeskAtIndex(0);
   EXPECT_TRUE(desk_1->is_active());
   auto win3 = CreateAppWindow(gfx::Rect(0, 0, 250, 200));
@@ -3438,7 +3431,7 @@ TEST_F(MultiUserWindowCycleControllerTest,
   CompleteCycling(cycle_controller);
 
   // Switch to user_2 and open up two windows out of four in the current desk.
-  SwitchActiveUser(GetUser2AccountId());
+  SimulateUserLogin(GetUser2AccountId());
   const Desk* desk_1 = desks_controller->GetDeskAtIndex(0);
   EXPECT_TRUE(desk_1->is_active());
   auto win3 = CreateAppWindow(gfx::Rect(0, 0, 250, 200));

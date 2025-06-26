@@ -20,6 +20,7 @@ import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarStatePredictor;
+import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarStatePredictor.UiState;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarStats;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescription;
 import org.chromium.components.browser_ui.widget.RadioButtonWithDescriptionLayout;
@@ -35,12 +36,15 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends Preference
     private @NonNull RadioButtonWithDescription mTranslateButton;
     private @NonNull RadioButtonWithDescription mAddToBookmarksButton;
     private @NonNull RadioButtonWithDescription mReadAloudButton;
+    private @NonNull RadioButtonWithDescription mPageSummaryButton;
     private @AdaptiveToolbarButtonVariant int mSelected;
+    private @AdaptiveToolbarButtonVariant int mAutoButtonCaption;
     private @Nullable AdaptiveToolbarStatePredictor mStatePredictor;
     private boolean mCanUseVoiceSearch = true;
-    private boolean mCanUseTranslate;
-    private boolean mCanUseAddToBookmarks;
     private boolean mCanUseReadAloud;
+    private boolean mCanUsePageSummary;
+    private boolean mButtonsInitialized;
+    private Runnable mInitRadioButtonRunnable = this::initializeRadioButtonSelection;
 
     public RadioButtonGroupAdaptiveToolbarPreference(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -69,7 +73,10 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends Preference
                         holder.findViewById(R.id.adaptive_option_add_to_bookmarks);
         mReadAloudButton =
                 (RadioButtonWithDescription) holder.findViewById(R.id.adaptive_option_read_aloud);
-        initializeRadioButtonSelection();
+        mPageSummaryButton =
+                (RadioButtonWithDescription) holder.findViewById(R.id.adaptive_option_page_summary);
+
+        mInitRadioButtonRunnable.run();
         RecordUserAction.record("Mobile.AdaptiveToolbarButton.SettingsPage.Opened");
     }
 
@@ -81,30 +88,65 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends Preference
     public void setStatePredictor(AdaptiveToolbarStatePredictor statePredictor) {
         assert mStatePredictor == null;
         mStatePredictor = statePredictor;
-        initializeRadioButtonSelection();
+        mInitRadioButtonRunnable.run();
     }
 
     private void initializeRadioButtonSelection() {
-        if (mStatePredictor == null || mGroup == null) return;
+        if (mStatePredictor == null || mGroup == null || mButtonsInitialized) return;
+
         mStatePredictor.recomputeUiState(
                 uiState -> {
-                    mSelected = uiState.preferenceSelection;
-                    assert mSelected != AdaptiveToolbarButtonVariant.VOICE || mCanUseVoiceSearch
-                            : "voice search selected when not available";
-                    RadioButtonWithDescription selectedButton = getButton(mSelected);
-                    if (selectedButton != null) selectedButton.setChecked(true);
-                    mAutoButton.setDescriptionText(
-                            getContext()
-                                    .getString(
-                                            R.string
-                                                    .adaptive_toolbar_button_preference_based_on_your_usage_description,
-                                            getButtonString(uiState.autoButtonCaption)));
-                    updateVoiceButtonVisibility();
-                    updateTranslateButtonVisibility();
-                    updateAddToBookmarksButtonVisibility();
-                    updateReadAloudButtonVisibility();
+                    initButtonsFromUiState(uiState);
+                    AdaptiveToolbarStats.recordRadioButtonStateAsync(
+                            buildUiStateForStats(), /* onStartup= */ true);
                 });
-        AdaptiveToolbarStats.recordRadioButtonStateAsync(mStatePredictor, /* onStartup= */ true);
+    }
+
+    private UiState buildUiStateForStats() {
+        // Only the last 2 fields |preferenceSelection| |autoButtonCaption| are used.
+        return new UiState(
+                /* canShowUi= */ true,
+                AdaptiveToolbarButtonVariant.UNKNOWN,
+                mSelected,
+                mAutoButtonCaption);
+    }
+
+    /**
+     * Initialize toolbar buttons from a given {@link UiState} object. This method may be called by
+     * {@link AdaptiveToolbarSettingsFragment} if the settings UI is invoked via a long press on a
+     * toolbar button(for BrApp/CCT), by {@code mStatePredictor#recomputeUiState()} running inside
+     * this class if invoked from main settings UI (for BrApp only).
+     *
+     * @param uiState {@link UiState} to initialize buttons with.
+     */
+    public void initButtonsFromUiState(UiState uiState) {
+        if (mGroup == null) {
+            // View bindings are not ready yet. Try this again after the completion.
+            mInitRadioButtonRunnable = () -> initButtonsFromUiState(uiState);
+            return;
+        }
+        mAutoButtonCaption = uiState.autoButtonCaption;
+        mSelected = uiState.preferenceSelection;
+        assert mSelected != AdaptiveToolbarButtonVariant.VOICE || mCanUseVoiceSearch
+                : "voice search selected when not available";
+        RadioButtonWithDescription selectedButton = getButton(mSelected);
+        if (selectedButton != null) selectedButton.setChecked(true);
+
+        int resId = R.string.adaptive_toolbar_button_preference_based_on_your_usage_description;
+        mAutoButton.setDescriptionText(
+                getContext().getString(resId, getButtonString(uiState.autoButtonCaption)));
+
+        // Description to indicate these buttons only appear on small windows,
+        // as large windows (tablets) show them elsewhere on UI (strip, omnibox).
+        resId = R.string.adaptive_toolbar_button_preference_based_on_window_width_description;
+        String basedOnWindowDesc = getContext().getString(resId);
+        mNewTabButton.setDescriptionText(basedOnWindowDesc);
+        mAddToBookmarksButton.setDescriptionText(basedOnWindowDesc);
+
+        updateVoiceButtonVisibility();
+        updateReadAloudButtonVisibility();
+        updatePageSummaryButtonVisibility();
+        mButtonsInitialized = true;
     }
 
     @Override
@@ -124,13 +166,15 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends Preference
             mSelected = AdaptiveToolbarButtonVariant.ADD_TO_BOOKMARKS;
         } else if (mReadAloudButton.isChecked()) {
             mSelected = AdaptiveToolbarButtonVariant.READ_ALOUD;
+        } else if (mPageSummaryButton.isChecked()) {
+            mSelected = AdaptiveToolbarButtonVariant.PAGE_SUMMARY;
         } else {
             assert false : "No matching setting found.";
         }
         callChangeListener(mSelected);
         if (previousSelection != mSelected && mStatePredictor != null) {
             AdaptiveToolbarStats.recordRadioButtonStateAsync(
-                    mStatePredictor, /* onStartup= */ false);
+                    buildUiStateForStats(), /* onStartup= */ false);
         }
     }
 
@@ -162,6 +206,8 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends Preference
                 return mAddToBookmarksButton;
             case AdaptiveToolbarButtonVariant.READ_ALOUD:
                 return mReadAloudButton;
+            case AdaptiveToolbarButtonVariant.PAGE_SUMMARY:
+                return mPageSummaryButton;
         }
         return null;
     }
@@ -187,6 +233,12 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends Preference
             case AdaptiveToolbarButtonVariant.READ_ALOUD:
                 stringRes = R.string.adaptive_toolbar_button_preference_read_aloud;
                 break;
+            case AdaptiveToolbarButtonVariant.PAGE_SUMMARY:
+                stringRes = R.string.adaptive_toolbar_button_preference_page_summary;
+                break;
+            case AdaptiveToolbarButtonVariant.OPEN_IN_BROWSER:
+                stringRes = R.string.menu_open_in_product_default;
+                break;
             default:
                 assert false : "Unknown variant " + variant;
         }
@@ -198,40 +250,32 @@ public class RadioButtonGroupAdaptiveToolbarPreference extends Preference
         updateVoiceButtonVisibility();
     }
 
-    void setCanUseTranslate(boolean canUseTranslate) {
-        mCanUseTranslate = canUseTranslate;
-        updateTranslateButtonVisibility();
-    }
-
-    void setCanUseAddToBookmarks(boolean canUseAddToBookmarks) {
-        mCanUseAddToBookmarks = canUseAddToBookmarks;
-        updateAddToBookmarksButtonVisibility();
-    }
-
     void setCanUseReadAloud(boolean canUseReadAloud) {
         mCanUseReadAloud = canUseReadAloud;
         updateReadAloudButtonVisibility();
+    }
+
+    void setCanUsePageSummary(boolean canUsePageSummary) {
+        mCanUsePageSummary = canUsePageSummary;
+        updatePageSummaryButtonVisibility();
     }
 
     private void updateVoiceButtonVisibility() {
         updateButtonVisibility(mVoiceSearchButton, mCanUseVoiceSearch);
     }
 
-    private void updateTranslateButtonVisibility() {
-        updateButtonVisibility(mTranslateButton, mCanUseTranslate);
-    }
-
-    private void updateAddToBookmarksButtonVisibility() {
-        updateButtonVisibility(mAddToBookmarksButton, mCanUseAddToBookmarks);
-    }
-
     private void updateReadAloudButtonVisibility() {
         updateButtonVisibility(mReadAloudButton, mCanUseReadAloud);
+    }
+
+    private void updatePageSummaryButtonVisibility() {
+        updateButtonVisibility(mPageSummaryButton, mCanUsePageSummary);
     }
 
     /**
      * Updates a button's visibility based on a boolean value. If the button is currently checked
      * and it needs to be hidden then we check the default "Auto" button.
+     *
      * @param button A radio button to show or hide.
      * @param shouldBeVisible Whether the button should be hidden or not.
      */

@@ -34,7 +34,6 @@
 #include "third_party/blink/renderer/core/editing/testing/editing_test_base.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 namespace blink {
 
@@ -184,7 +183,7 @@ TEST_F(CharacterIteratorTest, GetPositionWithBR) {
   CharacterIterator it(EphemeralRange::RangeOfContents(body));
 
   const Node& text_a = *body.firstChild();
-  const Node& br = *GetDocument().QuerySelector(AtomicString("br"));
+  const Node& br = *QuerySelector("br");
   const Node& text_b = *body.lastChild();
 
   EXPECT_EQ(Position(text_a, 0), it.GetPositionBefore());

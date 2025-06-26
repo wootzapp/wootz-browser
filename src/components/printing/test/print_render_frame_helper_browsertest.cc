@@ -20,7 +20,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/printing/common/print.mojom-test-utils.h"
 #include "components/printing/common/print.mojom.h"
 #include "components/printing/common/print_params.h"
@@ -86,7 +85,7 @@ const char kMultipageHTML[] =
     "<div>page3</div>"
     "</body></html>";
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 // A simple webpage with a button to print itself with.
 const char kPrintOnUserAction[] =
     "<body>"
@@ -149,7 +148,7 @@ const char kHTMLWithManyLinesOfText[] =
     "<p>The quick brown fox jumped over the lazy dog.</p>"
     "</body></html>";
 #endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 class FakePrintPreviewUI : public mojom::PrintPreviewUI {
@@ -648,12 +647,10 @@ class PrintRenderFrameHelperTestBase : public content::RenderViewTest {
   };
   PixelCount CheckPixels(const Image& image,
                          uint32_t target_color,
-                         int width,
-                         int top,
-                         int bottom) {
+                         const gfx::Rect& rect) {
     PixelCount count;
-    for (int y = top; y < bottom; y++) {
-      for (int x = 0; x < width; x++) {
+    for (int y = rect.y(); y < rect.bottom(); y++) {
+      for (int x = rect.x(); x < rect.right(); x++) {
         uint32_t pixel = image.pixel_at(x, y);
         if (pixel == target_color) {
           count.with_target_color++;
@@ -1071,13 +1068,14 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, HeaderAndFooter) {
   ASSERT_EQ(image->size(), gfx::Size(kPageWidth, kPageHeight));
 
   // Look for the blue square in the header area.
-  PixelCount pixel_count = CheckPixels(*image, 0x0000ffU, kPageWidth, 0, 24);
+  PixelCount pixel_count =
+      CheckPixels(*image, 0x0000ffU, gfx::Rect(0, 0, kPageWidth, 24));
   EXPECT_EQ(pixel_count.with_target_color, 81u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 
   // Look for the yellow square in the footer area.
-  pixel_count =
-      CheckPixels(*image, 0xffff00U, kPageWidth, kPageHeight - 24, kPageHeight);
+  pixel_count = CheckPixels(*image, 0xffff00U,
+                            gfx::Rect(0, kPageHeight - 24, kPageWidth, 24));
   EXPECT_EQ(pixel_count.with_target_color, 81u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 
@@ -1088,14 +1086,14 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, HeaderAndFooter) {
   ASSERT_EQ(image->size(), gfx::Size(kPageWidth, kPageHeight));
 
   // Look for the blue square in the header area.
-  pixel_count = CheckPixels(*image, 0x0000ffU, kPageWidth, 0, 24);
+  pixel_count = CheckPixels(*image, 0x0000ffU, gfx::Rect(0, 0, kPageWidth, 24));
   EXPECT_EQ(pixel_count.with_target_color, 81u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 
   // Look for the yellow square in the footer area. It will be missing, because
   // the margin isn't large enough.
-  pixel_count =
-      CheckPixels(*image, 0xffff00U, kPageWidth, kPageHeight - 21, kPageHeight);
+  pixel_count = CheckPixels(*image, 0xffff00U,
+                            gfx::Rect(0, kPageHeight - 21, kPageWidth, 21));
   EXPECT_EQ(pixel_count.with_target_color, 0u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 
@@ -1107,13 +1105,13 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, HeaderAndFooter) {
 
   // Look for the blue square in the header area. It will be missing, because
   // the margin isn't large enough.
-  pixel_count = CheckPixels(*image, 0x0000ffU, kPageWidth, 0, 21);
+  pixel_count = CheckPixels(*image, 0x0000ffU, gfx::Rect(0, 0, kPageWidth, 21));
   EXPECT_EQ(pixel_count.with_target_color, 0u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 
   // Look for the yellow square in the footer area.
-  pixel_count =
-      CheckPixels(*image, 0xffff00U, kPageWidth, kPageHeight - 24, kPageHeight);
+  pixel_count = CheckPixels(*image, 0xffff00U,
+                            gfx::Rect(0, kPageHeight - 24, kPageWidth, 24));
   EXPECT_EQ(pixel_count.with_target_color, 81u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 }
@@ -1181,13 +1179,14 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, HeaderAndFooterFitToPrinter) {
   ASSERT_EQ(image->size(), gfx::Size(kPageWidth, kPageHeight));
 
   // Look for the blue square in the header area.
-  PixelCount pixel_count = CheckPixels(*image, 0x0000ffU, kPageWidth, 0, 24);
+  PixelCount pixel_count =
+      CheckPixels(*image, 0x0000ffU, gfx::Rect(0, 0, kPageWidth, 24));
   EXPECT_EQ(pixel_count.with_target_color, 81u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 
   // Look for the yellow square in the footer area.
-  pixel_count =
-      CheckPixels(*image, 0xffff00U, kPageWidth, kPageHeight - 24, kPageHeight);
+  pixel_count = CheckPixels(*image, 0xffff00U,
+                            gfx::Rect(0, kPageHeight - 24, kPageWidth, 24));
   EXPECT_EQ(pixel_count.with_target_color, 81u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 
@@ -1201,14 +1200,14 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, HeaderAndFooterFitToPrinter) {
   // particular page is extral large, so there should be room for the header,
   // even if the margins have been scaled down along with the rest of the page
   // box.
-  pixel_count = CheckPixels(*image, 0x0000ffU, kPageWidth, 0, 24);
+  pixel_count = CheckPixels(*image, 0x0000ffU, gfx::Rect(0, 0, kPageWidth, 24));
   EXPECT_EQ(pixel_count.with_target_color, 81u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 
   // Look for the yellow square in the footer area. It shouldn't be there, since
   // there isn't enough room for it.
-  pixel_count =
-      CheckPixels(*image, 0xffff00U, kPageWidth, kPageHeight - 24, kPageHeight);
+  pixel_count = CheckPixels(*image, 0xffff00U,
+                            gfx::Rect(0, kPageHeight - 24, kPageWidth, 24));
   EXPECT_EQ(pixel_count.with_target_color, 0u);
   // Due to the margin downscaling, the red body background will intersect with
   // this area.
@@ -1223,15 +1222,182 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, HeaderAndFooterFitToPrinter) {
   // Look for the blue square in the header area. Even if the specified margins
   // on this particular page are 0, the page is small and centered on the page,
   // leaving plenty of space for headers and footers.
-  pixel_count = CheckPixels(*image, 0x0000ffU, kPageWidth, 0, 24);
+  pixel_count = CheckPixels(*image, 0x0000ffU, gfx::Rect(0, 0, kPageWidth, 24));
   EXPECT_EQ(pixel_count.with_target_color, 81u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 
   // Look for the yellow square in the footer area. Even if the specified
   // margins on this particular page are 0, the page is small and centered on
   // the page, leaving plenty of space for headers and footers.
-  pixel_count =
-      CheckPixels(*image, 0xffff00U, kPageWidth, kPageHeight - 24, kPageHeight);
+  pixel_count = CheckPixels(*image, 0xffff00U,
+                            gfx::Rect(0, kPageHeight - 24, kPageWidth, 24));
+  EXPECT_EQ(pixel_count.with_target_color, 81u);
+  EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
+}
+
+TEST_F(MAYBE_PrintRenderFrameHelperTest, FooterPartiallyOutsidePage) {
+  const float kPageWidth = 150;
+  const float kPageHeight = 150;
+  LoadHTML(R"HTML(
+    <style>
+      @page {
+        size: 150pt;
+        margin: 24pt 0;
+      }
+    </style>
+    <!-- Add something wide, to trigger document downscaling. This should have
+         no effect on headers and footers. -->
+    <div style="width:300pt; height:10pt;"></div>
+  )HTML");
+
+  mojom::PrintParams& params = printer()->Params();
+  printer()->set_should_generate_page_images(true);
+  params.display_header_footer = true;
+  params.footer_template =
+      uR"HTML(
+    <style>
+      /* Lose default footer padding. */
+      #footer {
+        padding: 0 !important;
+      }
+    </style>
+    <div>
+      <!-- The bottom 3pt of the rectangle should be pushed off the page edge
+          (and not be seen anywhere), due to the negative bottom margin, so that
+          it should end up as a 9x9 square. -->
+      <div style="break-inside:avoid; margin-bottom:-3pt;
+                  border-left:9pt solid #ff0; height:12pt;"></div>
+    </div>
+    <div style="break-before:page; border-left:9pt solid #00f;
+                height:9pt;"></div>
+  )HTML";
+
+  OnPrintPages();
+
+  const MockPrinterPage* page = printer()->GetPrinterPage(0);
+  ASSERT_TRUE(page);
+  const Image& image = page->image();
+  ASSERT_EQ(image.size(), gfx::Size(kPageWidth, kPageHeight));
+
+  // Look for the yellow square in the footer area.
+  PixelCount pixel_count =
+      CheckPixels(image, 0xffff00U, gfx::Rect(0, kPageHeight - 24, 9, 24));
+  EXPECT_EQ(pixel_count.with_target_color, 81u);
+  EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
+
+  // Look for the blue square in the footer area.
+  pixel_count = CheckPixels(image, 0x0000ffU,
+                            gfx::Rect(9, kPageHeight - 24, kPageWidth - 9, 24));
+  EXPECT_EQ(pixel_count.with_target_color, 81u);
+  EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
+}
+
+TEST_F(MAYBE_PrintRenderFrameHelperTest, HeaderObscuredByPageMarginBox) {
+  const float kPageWidth = 150;
+  const float kPageHeight = 150;
+  LoadHTML(R"HTML(
+    <style>
+      @page {
+        size: 150pt;
+        margin: 24pt 0;
+
+        @top-right {
+          width: 9pt;
+          height: 9pt;
+          background: #0f0;
+          content: "";
+        }
+      }
+    </style>
+  )HTML");
+
+  mojom::PrintParams& params = printer()->Params();
+  printer()->set_should_generate_page_images(true);
+  params.display_header_footer = true;
+  params.should_print_backgrounds = true;
+
+  // Use a border to draw the squares, since backgrounds are omitted for headers
+  // and footers.
+  params.header_template =
+      u"<div class='text' "
+      "style='width:7in; height:9pt; border-left:9pt solid #f00;'></div>";
+  params.footer_template =
+      u"<div class='text' "
+      "style='width:7in; height:9pt; border-left:9pt solid #ff0;'></div>";
+
+  OnPrintPages();
+
+  const MockPrinterPage* page = printer()->GetPrinterPage(0);
+  ASSERT_TRUE(page);
+  const Image& image = page->image();
+  ASSERT_EQ(image.size(), gfx::Size(kPageWidth, kPageHeight));
+
+  // Look for the green square in the header area, from the @page margin
+  // box. The UA-inserted header will not be painted, since there's a @page
+  // margin box in the header area.
+  PixelCount pixel_count =
+      CheckPixels(image, 0x00ff00U, gfx::Rect(0, 0, kPageWidth, 24));
+  EXPECT_EQ(pixel_count.with_target_color, 81u);
+  EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
+
+  // Look for the yellow square in the footer area.
+  pixel_count = CheckPixels(image, 0xffff00U,
+                            gfx::Rect(0, kPageHeight - 24, kPageWidth, 24));
+  EXPECT_EQ(pixel_count.with_target_color, 81u);
+  EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
+}
+
+TEST_F(MAYBE_PrintRenderFrameHelperTest, FooterObscuredByPageMarginBox) {
+  const float kPageWidth = 150;
+  const float kPageHeight = 150;
+  LoadHTML(R"HTML(
+    <style>
+      @page {
+        size: 150pt;
+        margin: 24pt 0;
+
+        @bottom-right {
+          width: 9pt;
+          height: 9pt;
+          background: #0f0;
+          content: "";
+        }
+      }
+    </style>
+  )HTML");
+
+  mojom::PrintParams& params = printer()->Params();
+  printer()->set_should_generate_page_images(true);
+  params.display_header_footer = true;
+  params.should_print_backgrounds = true;
+
+  // Use a border to draw the squares, since backgrounds are omitted for headers
+  // and footers.
+  params.header_template =
+      u"<div class='text' "
+      "style='width:7in; height:9pt; border-left:9pt solid #ff0;'></div>";
+  params.footer_template =
+      u"<div class='text' "
+      "style='width:7in; height:9pt; border-left:9pt solid #f00;'></div>";
+
+  OnPrintPages();
+
+  const MockPrinterPage* page = printer()->GetPrinterPage(0);
+  ASSERT_TRUE(page);
+  const Image& image = page->image();
+  ASSERT_EQ(image.size(), gfx::Size(kPageWidth, kPageHeight));
+
+  // Look for the yellow square in the header area.
+  PixelCount pixel_count =
+      CheckPixels(image, 0xffff00U, gfx::Rect(0, 0, kPageWidth, 24));
+  EXPECT_EQ(pixel_count.with_target_color, 81u);
+  EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
+
+  // Look for the green square in the footer area, from the @page margin
+  // box. The UA-inserted header will not be painted, since there's a @page
+  // margin box in the header area.
+  pixel_count = CheckPixels(image, 0x00ff00U,
+                            gfx::Rect(0, kPageHeight - 24, kPageWidth, 24));
   EXPECT_EQ(pixel_count.with_target_color, 81u);
   EXPECT_EQ(pixel_count.unknown_nonwhite, 0u);
 }
@@ -1544,7 +1710,7 @@ TEST_F(MAYBE_PrintRenderFrameHelperTest, PrintWithIframe) {
 #endif  // MOCK_PRINTER_SUPPORTS_PAGE_IMAGES
 
 // These print preview tests do not work on Chrome OS yet.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 class PrintRenderFrameHelperPreviewTest
@@ -1573,7 +1739,7 @@ class PrintRenderFrameHelperPreviewTest
     PrintRenderFrameHelper* print_render_frame_helper =
         GetPrintRenderFrameHelper();
     print_render_frame_helper->InitiatePrintPreview(
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
         mojo::NullAssociatedRemote(),
 #endif
         /*has_selection=*/false);
@@ -1608,7 +1774,7 @@ class PrintRenderFrameHelperPreviewTest
         GetPrintRenderFrameHelperForFrame(render_frame);
     print_render_frame_helper->SetPrintPreviewUI(preview_ui->BindReceiver());
     print_render_frame_helper->InitiatePrintPreview(
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
         mojo::NullAssociatedRemote(),
 #endif
         has_selection);
@@ -1734,7 +1900,9 @@ class PrintRenderFrameHelperPreviewTest
                  static_cast<int>(mojom::MarginType::kDefaultMargins))
             .Set(kSettingPagesPerSheet, 1)
             .Set(kSettingPreviewModifiable, true)
+#if BUILDFLAG(IS_CHROMEOS)
             .Set(kSettingPreviewIsFromArc, false)
+#endif
             .Set(kSettingHeaderFooterEnabled, false)
             .Set(kSettingShouldPrintBackgrounds, false)
             .Set(kSettingShouldPrintSelectionOnly, false);
@@ -3052,6 +3220,66 @@ TEST_F(PrintRenderFrameHelperPreviewTest, TextSelectionPageRules) {
   OnClosePrintPreviewDialog();
 }
 
+TEST_F(PrintRenderFrameHelperPreviewTest, TextSelectionPageMediaStyles) {
+  LoadHTML(R"HTML(
+    <style>
+      .showForPrint { display: none; }
+      .hideForPrint { display: block; }
+      @media print {
+        .hideForPrint { display: none; }
+        .showForPrint { display: block; }
+      }
+    </style>
+    <div id="startSelect">x</div>
+    <div style="width:100px; background: #ff0000;">
+      <div class="showForPrint" style="height:100px; background:#00ff00;"></div>
+      <div class="hideForPrint" style="height:200px; background:#ff0000;"></div>
+    </div>
+    <div id="endSelect">x</div>
+    <div style="height:100px; background:#ff0000;"></div>
+    <script>
+      var range = document.createRange();
+      range.setStart(document.getElementById("startSelect"), 0);
+      range.setEnd(document.getElementById("endSelect"), 0)
+      window.getSelection().addRange(range);
+    </script>
+  )HTML");
+  print_settings().Set(kSettingShouldPrintSelectionOnly, true);
+  print_settings().Set(kSettingShouldPrintBackgrounds, true);
+  printer()->set_should_generate_page_images(true);
+
+  OnPrintPreview();
+
+  VerifyPreviewPageCount(1);
+
+  const MockPrinterPage* page = printer()->GetPrinterPage(0);
+  ASSERT_TRUE(page);
+  const Image& image = page->image();
+  EXPECT_EQ(image.size(), gfx::Size(612, 792));
+
+  // PrintRenderFrameHelperPreviewTest has some default margins. In addition,
+  // the default BODY margin of 8px is inserted when printing a selection.
+  // Although the page margins could be removed in this test, the BODY margins
+  // cannot be overridden. 8px doesn't even translate cleanly to points. So just
+  // look for some green at all, and verify that there's no red at all.
+
+  bool found_green = false;
+  for (int y = 0; y < 792; y++) {
+    for (int x = 0; x < 612; x++) {
+      auto pixel = image.pixel_at(x, y);
+      if (pixel == 0x00ff00) {
+        found_green = true;
+      } else {
+        // No red should be seen.
+        ASSERT_TRUE(pixel != 0xff0000);
+      }
+    }
+  }
+  EXPECT_TRUE(found_green);
+
+  OnClosePrintPreviewDialog();
+}
+
 #endif  // MOCK_PRINTER_SUPPORTS_PAGE_IMAGES
 
 // Tests that cancelling print preview works.
@@ -3485,6 +3713,6 @@ INSTANTIATE_TEST_SUITE_P(All,
 
 #endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace printing

@@ -12,23 +12,21 @@ namespace autofill::payments {
 
 namespace {
 const char kGetIbanUploadDetailsRequestPath[] =
-    "payments/apis/chromepaymentsservice/getdetailsforiban";
+    "payments/apis/chromepaymentsservice/getdetailsforcreatepaymentinstrument";
 }  // namespace
 
 GetIbanUploadDetailsRequest::GetIbanUploadDetailsRequest(
     const bool full_sync_enabled,
     const std::string& app_locale,
     int64_t billing_customer_number,
-    int billable_service_number,
     const std::string& country_code,
-    base::OnceCallback<void(AutofillClient::PaymentsRpcResult,
+    base::OnceCallback<void(PaymentsAutofillClient::PaymentsRpcResult,
                             const std::u16string& validation_regex,
                             const std::u16string& context_token,
                             std::unique_ptr<base::Value::Dict>)> callback)
     : full_sync_enabled_(full_sync_enabled),
       app_locale_(app_locale),
       billing_customer_number_(billing_customer_number),
-      billable_service_number_(billable_service_number),
       country_code_(country_code),
       callback_(std::move(callback)) {}
 
@@ -46,7 +44,8 @@ std::string GetIbanUploadDetailsRequest::GetRequestContent() {
   base::Value::Dict request_dict;
   base::Value::Dict context;
   context.Set("language_code", app_locale_);
-  context.Set("billable_service", billable_service_number_);
+  context.Set("billable_service",
+              payments::kUploadPaymentMethodBillableServiceNumber);
   if (billing_customer_number_ != 0) {
     context.Set("customer_context",
                 BuildCustomerContextDictionary(billing_customer_number_));
@@ -89,7 +88,7 @@ bool GetIbanUploadDetailsRequest::IsResponseComplete() {
 }
 
 void GetIbanUploadDetailsRequest::RespondToDelegate(
-    AutofillClient::PaymentsRpcResult result) {
+    PaymentsAutofillClient::PaymentsRpcResult result) {
   std::move(callback_).Run(result, validation_regex_, context_token_,
                            std::move(legal_message_));
 }

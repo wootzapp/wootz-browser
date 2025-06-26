@@ -32,11 +32,11 @@
 
 #include "base/containers/contains.h"
 #include "base/feature_list.h"
-#include "base/features.h"
 #include "base/metrics/field_trial_params.h"
 #include "build/build_config.h"
 #include "build/chromecast_buildflags.h"
 #include "services/network/public/cpp/features.h"
+#include "services/network/public/cpp/ip_address_space_util.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/security_context/insecure_request_policy.h"
@@ -72,6 +72,7 @@
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
+#include "third_party/blink/renderer/platform/wtf/text/strcat.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -167,8 +168,7 @@ const char* RequestContextName(mojom::blink::RequestContextType context) {
     case mojom::blink::RequestContextType::XSLT:
       return "XSLT";
   }
-  NOTREACHED_IN_MIGRATION();
-  return "resource";
+  NOTREACHED();
 }
 
 // Currently we have two slightly different versions, because
@@ -229,8 +229,7 @@ bool IsUrlPotentiallyTrustworthy(const KURL& url) {
   // This saves a copy of the url, which can be expensive for large data URLs.
   // TODO(crbug.com/1322100): Remove this logic once
   // network::IsUrlPotentiallyTrustworthy() doesn't copy the URL.
-  if (base::FeatureList::IsEnabled(base::features::kOptimizeDataUrls) &&
-      url.ProtocolIsData()) {
+  if (url.ProtocolIsData()) {
     DCHECK(network::IsUrlPotentiallyTrustworthy(GURL(url)));
     return true;
   }
@@ -243,6 +242,21 @@ static bool IsInsecureUrl(const KURL& url) {
   // |url| is mixed content if it is not a potentially trustworthy URL.
   // See https://w3c.github.io/webappsec-mixed-content/#should-block-response
   return !IsUrlPotentiallyTrustworthy(url);
+}
+
+// Records an UMA metric for mixed content on localhost, if `parent_origin` is
+// localhost.
+static void MaybeMeasureMixedContentOnLocalhost(
+    const SecurityOrigin* parent_origin,
+    const KURL& url,
+    const LocalFrame* source) {
+  if (!parent_origin->IsLocalhost()) {
+    return;
+  }
+  if (IsInsecureUrl(url)) {
+    UseCounter::Count(source->GetDocument(),
+                      WebFeature::kMixedContentOnLocalhost);
+  }
 }
 
 static void MeasureStricterVersionOfIsMixedContent(Frame& frame,
@@ -313,12 +327,18 @@ Frame* MixedContentChecker::InWhichFrameIsContentMixed(LocalFrame* frame,
   // Check the top frame first.
   Frame& top = frame->Tree().Top();
   MeasureStricterVersionOfIsMixedContent(top, url, frame);
-  if (IsMixedContent(top.GetSecurityContext()->GetSecurityOrigin(), url))
+  MaybeMeasureMixedContentOnLocalhost(
+      top.GetSecurityContext()->GetSecurityOrigin(), url, frame);
+  if (IsMixedContent(top.GetSecurityContext()->GetSecurityOrigin(), url)) {
     return &top;
+  }
 
   MeasureStricterVersionOfIsMixedContent(*frame, url, frame);
-  if (IsMixedContent(frame->GetSecurityContext()->GetSecurityOrigin(), url))
+  MaybeMeasureMixedContentOnLocalhost(
+      frame->GetSecurityContext()->GetSecurityOrigin(), url, frame);
+  if (IsMixedContent(frame->GetSecurityContext()->GetSecurityOrigin(), url)) {
     return frame;
+  }
 
   // No mixed content, no problem.
   return nullptr;
@@ -331,14 +351,13 @@ ConsoleMessage* MixedContentChecker::CreateConsoleMessageAboutFetch(
     mojom::blink::RequestContextType request_context,
     bool allowed,
     std::unique_ptr<SourceLocation> source_location) {
-  String message = String::Format(
-      "Mixed Content: The page at '%s' was loaded over HTTPS, but requested an "
-      "insecure %s '%s'. %s",
-      main_resource_url.ElidedString().Utf8().c_str(),
-      RequestContextName(request_context), url.ElidedString().Utf8().c_str(),
-      allowed ? "This content should also be served over HTTPS."
-              : "This request has been blocked; the content must be served "
-                "over HTTPS.");
+  String message = WTF::StrCat(
+      {"Mixed Content: The page at '", main_resource_url.ElidedString(),
+       "' was loaded over HTTPS, but requested an insecure ",
+       RequestContextName(request_context), " '", url.ElidedString(), "'. ",
+       allowed ? "This content should also be served over HTTPS."
+               : "This request has been blocked; the content must be served "
+                 "over HTTPS."});
   mojom::ConsoleMessageLevel message_level =
       allowed ? mojom::ConsoleMessageLevel::kWarning
               : mojom::ConsoleMessageLevel::kError;
@@ -398,8 +417,7 @@ void MixedContentChecker::Count(
       break;
 
     default:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
   UseCounter::Count(source->GetDocument(), feature);
 }
@@ -467,7 +485,8 @@ bool MixedContentChecker::ShouldBlockFetch(
   switch (context_type) {
     case mojom::blink::MixedContentContextType::kOptionallyBlockable:
 
-#if BUILDFLAG(IS_FUCHSIA) && BUILDFLAG(ENABLE_CAST_RECEIVER)
+#if (BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_LINUX)) && \
+    BUILDFLAG(ENABLE_CAST_RECEIVER)
       // Fuchsia WebEngine can be configured to allow loading Mixed Content from
       // an insecure IP address. This is a workaround to revert Fuchsia Cast
       // Receivers to the behavior before crrev.com/c/4032146.
@@ -476,7 +495,8 @@ bool MixedContentChecker::ShouldBlockFetch(
       allowed = !strict_mode;
 #else
       allowed = !strict_mode && !GURL(url).HostIsIPAddress();
-#endif  // BUILDFLAG(IS_FUCHSIA) && BUILDFLAG(ENABLE_CAST_RECEIVER)
+#endif  // (BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_LINUX)) &&
+        // BUILDFLAG(ENABLE_CAST_RECEIVER)
 
       if (allowed) {
         if (content_settings_client)
@@ -536,9 +556,50 @@ bool MixedContentChecker::ShouldBlockFetch(
         local_frame_host.DidDisplayInsecureContent();
       break;
     case mojom::blink::MixedContentContextType::kNotMixedContent:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   };
+
+  // Skip mixed content check for local and loopback targets if the request is a
+  // Local Network Access (LNA) request. LNA checks later on will ensure that
+  // (a) the request is actually an LNA request, and (b) the user has given
+  // permission for the LNA request to go through.
+  //
+  // Because we're still using PNA 1.0 terminology,
+  //
+  //   * local = IPAddressSpace.kPrivate
+  //   * loopback = IPAddressSpace.kLocal
+  //
+  // This will hopefully be renamed when we can remove PNA 1.0 code.
+  //
+  // Reference:
+  // https://github.com/explainers-by-googlers/local-network-access
+  //
+  // This only checks for mixed content subresources; subframe navigation mixed
+  // content is checked in
+  // content/browser/renderer_host/mixed_content_checker.cc.
+  if (base::FeatureList::IsEnabled(
+          network::features::kLocalNetworkAccessChecks)) {
+    // This request is a possible LNA request if one of the following is true:
+    //
+    // (1) The `targetAddressSpace` fetch option was set.
+    //     `target_address_space` here is private/local only when resource
+    //     request has explicitly set `targetAddressSpace` fetch option.
+    // (2) The host is a private IP address literal
+    // (3) The hostname is a .local domain (per RFC 6762).
+    //
+    // There is no check for loopback addresses because loopback addresses are
+    // considered secure and not mixed content.
+    //
+    // TODO(crbug.com/395895368): check the IP address space for initiator, only
+    // skip when the initiator is more public.
+    if (target_address_space ==
+            network::mojom::blink::IPAddressSpace::kPrivate ||
+        target_address_space == network::mojom::blink::IPAddressSpace::kLocal ||
+        network::ParsePrivateIpFromUrl(GURL(url)) ||
+        network::IsRFC6762LocalDomain(GURL(url))) {
+      allowed = true;
+    }
+  }
 
   // Skip mixed content check for private and local targets.
   // `target_address_space` here is private/local only when resource request
@@ -653,15 +714,16 @@ ConsoleMessage* MixedContentChecker::CreateConsoleMessageAboutWebSocket(
     const KURL& main_resource_url,
     const KURL& url,
     bool allowed) {
-  String message = String::Format(
-      "Mixed Content: The page at '%s' was loaded over HTTPS, but attempted to "
-      "connect to the insecure WebSocket endpoint '%s'. %s",
-      main_resource_url.ElidedString().Utf8().c_str(),
-      url.ElidedString().Utf8().c_str(),
-      allowed ? "This endpoint should be available via WSS. Insecure access is "
-                "deprecated."
-              : "This request has been blocked; this endpoint must be "
-                "available over WSS.");
+  String message = WTF::StrCat(
+      {"Mixed Content: The page at '", main_resource_url.ElidedString(),
+       "' was loaded over HTTPS, but attempted to connect to the insecure "
+       "WebSocket endpoint '",
+       url.ElidedString(), "'. ",
+       allowed
+           ? "This endpoint should be available via WSS. Insecure access is "
+             "deprecated."
+           : "This request has been blocked; this endpoint must be "
+             "available over WSS."});
   mojom::ConsoleMessageLevel message_level =
       allowed ? mojom::ConsoleMessageLevel::kWarning
               : mojom::ConsoleMessageLevel::kError;
@@ -1008,7 +1070,7 @@ void MixedContentChecker::UpgradeInsecureRequest(
           mojom::blink::RequestContextType::FORM ||
       (!url.Host().IsNull() &&
        fetch_client_settings_object->GetUpgradeInsecureNavigationsSet()
-           .Contains(url.Host().Impl()->GetHash()))) {
+           .Contains(url.Host().ToString().Impl()->GetHash()))) {
     if (!resource_request.IsAutomaticUpgrade()) {
       // These UseCounters are specific for UpgradeInsecureRequests, don't log
       // for autoupgrades.
@@ -1036,7 +1098,7 @@ void MixedContentChecker::UpgradeInsecureRequest(
                 WebFeature::kUpgradeInsecureRequestsUpgradedRequestBlockable);
             break;
           case mojom::blink::MixedContentContextType::kNotMixedContent:
-            NOTREACHED_IN_MIGRATION();
+            NOTREACHED();
         }
       }
     }

@@ -19,6 +19,7 @@
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/size.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/style/platform_style.h"
@@ -37,7 +38,7 @@ class IndicatorDividerBackground : public views::Background {
   // Background will have right rounded side with |arc_radius|.
   IndicatorDividerBackground(SkColor color, SkScalar arc_radius)
       : arc_radius_(arc_radius) {
-    SetNativeControlColor(color);
+    SetColor(color);
   }
 
   IndicatorDividerBackground(const IndicatorDividerBackground&) = delete;
@@ -76,7 +77,7 @@ class IndicatorDividerBackground : public views::Background {
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
     flags.setStyle(cc::PaintFlags::kFill_Style);
-    flags.setColor(get_color());
+    flags.setColor(color().ResolveToSkColor(view->GetColorProvider()));
     canvas->DrawPath(path, flags);
   }
 
@@ -113,6 +114,15 @@ PermissionDashboardView::PermissionDashboardView() {
   // It is unclear which chip will be shown first, hence hide both of them.
   secondary_chip_->SetVisible(false);
   anchored_chip_->SetVisible(false);
+
+  // This is needed to make sure that the permission dashboard view is
+  // recognized as a single button. Individual elements inside this view should
+  // not be accessible and/or focusable.
+  anchored_chip_->GetViewAccessibility().SetIsIgnored(true);
+  secondary_chip_->GetViewAccessibility().SetIsIgnored(true);
+  chip_divider_view_->GetViewAccessibility().SetIsIgnored(true);
+
+  GetViewAccessibility().SetRole(ax::mojom::Role::kButton);
 }
 
 PermissionDashboardView::~PermissionDashboardView() = default;

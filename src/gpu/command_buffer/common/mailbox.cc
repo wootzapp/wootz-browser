@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "gpu/command_buffer/common/mailbox.h"
 
 #include <stddef.h>
@@ -9,6 +14,7 @@
 #include <string.h>
 
 #include "base/check.h"
+#include "base/numerics/byte_conversions.h"
 #include "base/rand_util.h"
 #include "base/strings/stringprintf.h"
 
@@ -23,23 +29,6 @@ constexpr size_t kLiveMailboxIndex = GL_MAILBOX_SIZE_CHROMIUM - 1;
 // Use the lowest bit for the flag marking the mailbox as live (any bit would
 // work).
 constexpr int8_t kLiveMailboxFlag = 0x1;
-
-Mailbox GenerateMailbox() {
-  Mailbox result;
-  // Generates cryptographically-secure bytes.
-  base::RandBytes(base::as_writable_byte_span(result.name));
-
-  // Ensure that the mailbox is non-zero.
-  result.name[kLiveMailboxIndex] |= kLiveMailboxFlag;
-
-#if !defined(NDEBUG)
-  int8_t value = 1;
-  for (size_t i = 1; i < sizeof(result.name); ++i)
-    value ^= result.name[i];
-  result.name[0] = value;
-#endif
-  return result;
-}
 
 }  // namespace
 
@@ -64,8 +53,22 @@ void Mailbox::SetName(const int8_t* n) {
   memcpy(name, n, sizeof(name));
 }
 
-Mailbox Mailbox::GenerateForSharedImage() {
-  return GenerateMailbox();
+Mailbox Mailbox::Generate() {
+  Mailbox result;
+  // Generates cryptographically-secure bytes.
+  base::RandBytes(base::as_writable_byte_span(result.name));
+
+  // Ensure that the mailbox is non-zero.
+  result.name[kLiveMailboxIndex] |= kLiveMailboxFlag;
+
+#if !defined(NDEBUG)
+  int8_t value = 1;
+  for (size_t i = 1; i < sizeof(result.name); ++i) {
+    value ^= result.name[i];
+  }
+  result.name[0] = value;
+#endif
+  return result;
 }
 
 bool Mailbox::Verify() const {
@@ -77,6 +80,10 @@ bool Mailbox::Verify() const {
 #else
   return true;
 #endif
+}
+
+uint32_t Mailbox::ToU32() const {
+  return base::U32FromBigEndian(base::as_byte_span(name).first<4>());
 }
 
 std::string Mailbox::ToDebugString() const {

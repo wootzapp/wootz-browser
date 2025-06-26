@@ -2,15 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "v8_platform_page_allocator.h"
 
-#include "base/allocator/partition_allocator/src/partition_alloc/address_space_randomization.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/page_allocator_constants.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/random.h"
 #include "base/check_op.h"
 #include "base/cpu.h"
 #include "base/memory/page_size.h"
 #include "build/build_config.h"
+#include "partition_alloc/address_space_randomization.h"
+#include "partition_alloc/page_allocator_constants.h"
+#include "partition_alloc/random.h"
 
 namespace {
 
@@ -154,7 +159,12 @@ bool PageAllocator::DiscardSystemPages(void* address, size_t size) {
 bool PageAllocator::DecommitPages(void* address, size_t size) {
   // V8 expects the pages to be inaccessible and zero-initialized upon next
   // access.
-  return partition_alloc::DecommitAndZeroSystemPages(address, size);
+  return partition_alloc::DecommitAndZeroSystemPages(
+      address, size, partition_alloc::PageTag::kV8);
+}
+
+bool PageAllocator::SealPages(void* address, size_t size) {
+  return partition_alloc::SealSystemPages(address, size);
 }
 
 partition_alloc::PageAccessibilityConfiguration::Permissions

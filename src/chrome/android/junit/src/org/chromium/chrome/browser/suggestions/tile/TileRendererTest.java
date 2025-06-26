@@ -15,25 +15,29 @@ import android.app.Activity;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
-import android.widget.LinearLayout;
 
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowDrawable;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.base.task.test.ShadowPostTask;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.suggestions.ImageFetcher;
@@ -43,7 +47,6 @@ import org.chromium.components.browser_ui.widget.RoundedIconGenerator;
 import org.chromium.components.favicon.IconType;
 import org.chromium.components.favicon.LargeIconBridge.LargeIconCallback;
 import org.chromium.components.search_engines.TemplateUrlService;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.base.TestActivity;
 import org.chromium.url.GURL;
 import org.chromium.url.JUnitTestGURLs;
@@ -56,6 +59,7 @@ import java.util.List;
 @Config(
         manifest = Config.NONE,
         shadows = {ShadowPostTask.class})
+@Features.EnableFeatures(ChromeFeatureList.TILE_CONTEXT_MENU_REFACTOR)
 public class TileRendererTest {
     /**
      * Backend that substitutes normal PostTask operations. Allow us to coordinate task execution
@@ -80,6 +84,7 @@ public class TileRendererTest {
     private static final int TITLE_LINES = 1;
     private static final GURL TEST_URL = JUnitTestGURLs.EXAMPLE_URL;
 
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private ImageFetcher mMockImageFetcher;
 
     @Mock private TileGroup.TileSetupDelegate mTileSetupDelegate;
@@ -100,7 +105,7 @@ public class TileRendererTest {
 
     private ShadowPostTaskImpl mPostTaskRunner;
     private Activity mActivity;
-    private LinearLayout mSharedParent;
+    private TilesLinearLayout mSharedParent;
     private final ArgumentCaptor<LargeIconCallback> mImageFetcherCallbackCaptor =
             ArgumentCaptor.forClass(LargeIconCallback.class);
 
@@ -108,7 +113,6 @@ public class TileRendererTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         mActivity = Robolectric.buildActivity(TestActivity.class).setup().get();
 
         mPostTaskRunner = new ShadowPostTaskImpl();
@@ -116,7 +120,7 @@ public class TileRendererTest {
 
         TemplateUrlServiceFactory.setInstanceForTesting(mMockTemplateUrlService);
 
-        mSharedParent = new LinearLayout(mActivity);
+        mSharedParent = new TilesLinearLayout(mActivity, /* attrs= */ null);
         SiteSuggestion siteSuggestion =
                 new SiteSuggestion("Example", TEST_URL, 0, TileSource.TOP_SITES, 0);
         mTile = new Tile(siteSuggestion, 0);
@@ -131,7 +135,7 @@ public class TileRendererTest {
     }
 
     private SuggestionsTileView buildTileView(@TileStyle int style, int titleLines) {
-        return TestThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     TileRenderer tileRenderer =
                             new TileRenderer(mActivity, style, titleLines, mMockImageFetcher);

@@ -4,11 +4,15 @@
 
 package org.chromium.base.test.transit;
 
+import android.util.Pair;
+
 import org.chromium.base.test.transit.ConditionalState.Phase;
+import org.chromium.build.annotations.NullMarked;
 
 import java.util.List;
 
 /** Assertions specific to Public Transit. */
+@NullMarked
 public class TransitAsserts {
     private static final String TAG = "Transit";
 
@@ -60,7 +64,7 @@ public class TransitAsserts {
      * @param allowNull whether no active station is considered an expected state
      */
     public static void assertCurrentStationType(
-            Class<? extends Station> stationType, String situation, boolean allowNull) {
+            Class<? extends Station<?>> stationType, String situation, boolean allowNull) {
         Station activeStation = TrafficControl.getActiveStation();
         if ((activeStation == null && !allowNull)
                 || (activeStation != null && !stationType.isInstance(activeStation))) {
@@ -75,18 +79,17 @@ public class TransitAsserts {
     }
 
     private static void raiseAssertion(String message) {
-        List<Station> allStations = TrafficControl.getAllStations();
-        assert false : message + "\n" + stationListToString(allStations);
+        List<Pair<String, String>> allStationsNames = TrafficControl.getAllStationsNames();
+        assert false : message + "\n" + stationListToString(allStationsNames);
     }
 
-    private static String stationListToString(List<Station> allStations) {
+    private static String stationListToString(List<Pair<String, String>> allStations) {
         StringBuilder builder = new StringBuilder();
         int i = 1;
-        for (Station station : allStations) {
-            builder.append(
-                    String.format(
-                            "  [%d] (%s) %s\n",
-                            i, ConditionalState.phaseToShortString(station.getPhase()), station));
+        for (Pair<String, String> pair : allStations) {
+            String stationName = pair.second;
+            String testName = pair.first != null ? pair.first : "__outside_test__";
+            builder.append(String.format("  (%s) %s (#%s)\n", i, stationName, testName));
             i++;
         }
         return builder.toString();

@@ -51,14 +51,15 @@ void LayoutManager::ViewVisibilitySet(View* host,
   // for most legacy layouts (none of which override this method).
   // TODO(dfried): Remove this if/when LayoutManager and LayoutManagerBase can
   // be merged.
-  if (old_visibility != new_visibility)
+  if (old_visibility != new_visibility) {
     host->InvalidateLayout();
+  }
 }
 
 void LayoutManager::SetViewVisibility(View* view, bool visible) {
   DCHECK(!view->parent() || view->parent()->GetLayoutManager() == this ||
          view->parent()->GetLayoutManager() == nullptr);
-  base::AutoReset<View*> setter(&view_setting_visibility_on_, view);
+  base::AutoReset<raw_ptr<View>> setter(&view_setting_visibility_on_, view);
   view->SetVisible(visible);
 }
 

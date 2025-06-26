@@ -89,59 +89,47 @@ std::optional<V8SmartCardConnectionState::Enum> ToV8ConnectionState(
   }
 }
 
-class TransactionFulfilledFunction : public ScriptFunction::Callable {
+class TransactionFulfilledFunction
+    : public ThenCallable<IDLNullable<V8SmartCardDisposition>,
+                          TransactionFulfilledFunction> {
  public:
   explicit TransactionFulfilledFunction(SmartCardConnection* connection)
-      : connection_(connection) {}
+      : connection_(connection) {
+    SetExceptionContext(ExceptionContext(v8::ExceptionContext::kOperation,
+                                         "SmartCardConnection",
+                                         "startTransaction"));
+  }
 
-  ScriptValue Call(ScriptState* script_state, ScriptValue value) override {
-    ExceptionState exception_state(script_state->GetIsolate(),
-                                   ExceptionContextType::kOperationInvoke,
-                                   "SmartCardConnection", "startTransaction");
-
-    if (value.IsUndefined()) {
-      connection_->OnTransactionCallbackDone(SmartCardDisposition::kReset);
-      return ScriptValue();
-    }
-
-    V8SmartCardDisposition v8_disposition =
-        NativeValueTraits<V8SmartCardDisposition>::NativeValue(
-            script_state->GetIsolate(), value.V8Value(), exception_state);
-
-    if (exception_state.HadException()) {
-      ScriptValue exception_value(script_state->GetIsolate(),
-                                  exception_state.GetException());
-      connection_->OnTransactionCallbackFailed(exception_value);
-      return ScriptValue();
-    }
-
-    connection_->OnTransactionCallbackDone(ToMojomDisposition(v8_disposition));
-
-    return ScriptValue();
+  void React(ScriptState*,
+             const std::optional<V8SmartCardDisposition>& disposition) {
+    connection_->OnTransactionCallbackDone(
+        disposition ? ToMojomDisposition(*disposition)
+                    : SmartCardDisposition::kReset);
   }
 
   void Trace(Visitor* visitor) const override {
     visitor->Trace(connection_);
-    ScriptFunction::Callable::Trace(visitor);
+    ThenCallable<IDLNullable<V8SmartCardDisposition>,
+                 TransactionFulfilledFunction>::Trace(visitor);
   }
 
  private:
   Member<SmartCardConnection> connection_;
 };
 
-class TransactionRejectedFunction : public ScriptFunction::Callable {
+class TransactionRejectedFunction
+    : public ThenCallable<IDLAny, TransactionRejectedFunction> {
  public:
   explicit TransactionRejectedFunction(SmartCardConnection* connection)
       : connection_(connection) {}
 
-  ScriptValue Call(ScriptState*, ScriptValue value) override {
+  void React(ScriptState*, ScriptValue value) {
     connection_->OnTransactionCallbackFailed(value);
-    return ScriptValue();
   }
 
   void Trace(Visitor* visitor) const override {
     visitor->Trace(connection_);
-    ScriptFunction::Callable::Trace(visitor);
+    ThenCallable<IDLAny, TransactionRejectedFunction>::Trace(visitor);
   }
 
  private:
@@ -303,7 +291,7 @@ ScriptPromise<IDLUndefined> SmartCardConnection::disconnect(
     ExceptionState& exception_state) {
   if (!smart_card_context_->EnsureNoOperationInProgress(exception_state) ||
       !EnsureConnection(exception_state)) {
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(
@@ -325,12 +313,12 @@ ScriptPromise<DOMArrayBuffer> SmartCardConnection::transmit(
     ExceptionState& exception_state) {
   if (!smart_card_context_->EnsureNoOperationInProgress(exception_state) ||
       !EnsureConnection(exception_state)) {
-    return ScriptPromise<DOMArrayBuffer>();
+    return EmptyPromise();
   }
 
   if (send_buffer.IsDetached() || send_buffer.IsNull()) {
     exception_state.ThrowTypeError("Invalid send buffer.");
-    return ScriptPromise<DOMArrayBuffer>();
+    return EmptyPromise();
   }
 
   device::mojom::blink::SmartCardProtocol protocol = active_protocol_;
@@ -341,7 +329,7 @@ ScriptPromise<DOMArrayBuffer> SmartCardConnection::transmit(
   if (protocol == device::mojom::blink::SmartCardProtocol::kUndefined) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       "No active protocol.");
-    return ScriptPromise<DOMArrayBuffer>();
+    return EmptyPromise();
   }
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<DOMArrayBuffer>>(
@@ -349,8 +337,7 @@ ScriptPromise<DOMArrayBuffer> SmartCardConnection::transmit(
   SetOperationInProgress(resolver);
 
   Vector<uint8_t> send_vector;
-  send_vector.Append(send_buffer.Bytes(),
-                     static_cast<wtf_size_t>(send_buffer.ByteLength()));
+  send_vector.AppendSpan(send_buffer.ByteSpan());
 
   connection_->Transmit(
       protocol, send_vector,
@@ -365,7 +352,7 @@ ScriptPromise<SmartCardConnectionStatus> SmartCardConnection::status(
     ExceptionState& exception_state) {
   if (!smart_card_context_->EnsureNoOperationInProgress(exception_state) ||
       !EnsureConnection(exception_state)) {
-    return ScriptPromise<SmartCardConnectionStatus>();
+    return EmptyPromise();
   }
 
   auto* resolver =
@@ -387,7 +374,7 @@ ScriptPromise<DOMArrayBuffer> SmartCardConnection::control(
     ExceptionState& exception_state) {
   if (!smart_card_context_->EnsureNoOperationInProgress(exception_state) ||
       !EnsureConnection(exception_state)) {
-    return ScriptPromise<DOMArrayBuffer>();
+    return EmptyPromise();
   }
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<DOMArrayBuffer>>(
@@ -399,8 +386,7 @@ ScriptPromise<DOMArrayBuffer> SmartCardConnection::control(
   // Note that there are control codes which require no input data.
   // Thus sending an empty data vector is fine.
   if (!data.IsDetached() && !data.IsNull() && data.ByteLength() > 0u) {
-    data_vector.Append(data.Bytes(),
-                       static_cast<wtf_size_t>(data.ByteLength()));
+    data_vector.AppendSpan(data.ByteSpan());
   }
 
   connection_->Control(
@@ -417,7 +403,7 @@ ScriptPromise<DOMArrayBuffer> SmartCardConnection::getAttribute(
     ExceptionState& exception_state) {
   if (!smart_card_context_->EnsureNoOperationInProgress(exception_state) ||
       !EnsureConnection(exception_state)) {
-    return ScriptPromise<DOMArrayBuffer>();
+    return EmptyPromise();
   }
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<DOMArrayBuffer>>(
@@ -438,12 +424,12 @@ ScriptPromise<IDLUndefined> SmartCardConnection::setAttribute(
     ExceptionState& exception_state) {
   if (!smart_card_context_->EnsureNoOperationInProgress(exception_state) ||
       !EnsureConnection(exception_state)) {
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   if (data.IsDetached() || data.IsNull()) {
     exception_state.ThrowTypeError("Invalid data.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(
@@ -451,7 +437,7 @@ ScriptPromise<IDLUndefined> SmartCardConnection::setAttribute(
   SetOperationInProgress(resolver);
 
   Vector<uint8_t> data_vector;
-  data_vector.Append(data.Bytes(), static_cast<wtf_size_t>(data.ByteLength()));
+  data_vector.AppendSpan(data.ByteSpan());
 
   connection_->SetAttrib(
       tag, data_vector,
@@ -468,13 +454,13 @@ ScriptPromise<IDLUndefined> SmartCardConnection::startTransaction(
     ExceptionState& exception_state) {
   if (!smart_card_context_->EnsureNoOperationInProgress(exception_state) ||
       !EnsureConnection(exception_state)) {
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   if (transaction_state_) {
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       kTransactionAlreadyExists);
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   AbortSignal* signal = options->getSignalOr(nullptr);
@@ -613,9 +599,7 @@ void SmartCardConnection::OnDataResult(
     return;
   }
 
-  const Vector<uint8_t>& data = result->get_data();
-
-  resolver->Resolve(DOMArrayBuffer::Create(data.data(), data.size()));
+  resolver->Resolve(DOMArrayBuffer::Create(result->get_data()));
 }
 
 void SmartCardConnection::OnStatusDone(
@@ -644,8 +628,7 @@ void SmartCardConnection::OnStatusDone(
   status->setState(connection_state.value());
   if (!mojo_status->answer_to_reset.empty()) {
     status->setAnswerToReset(
-        DOMArrayBuffer::Create(mojo_status->answer_to_reset.data(),
-                               mojo_status->answer_to_reset.size()));
+        DOMArrayBuffer::Create(mojo_status->answer_to_reset));
   }
   resolver->Resolve(status);
 }
@@ -687,8 +670,7 @@ void SmartCardConnection::OnBeginTransactionDone(
 
   ScriptState::Scope scope(script_state);
   v8::TryCatch try_catch(script_state->GetIsolate());
-  v8::Maybe<ScriptPromiseUntyped> transaction_result =
-      transaction_callback->Invoke(nullptr);
+  auto transaction_result = transaction_callback->Invoke(nullptr);
 
   if (transaction_result.IsNothing()) {
     if (try_catch.HasCaught()) {
@@ -704,13 +686,10 @@ void SmartCardConnection::OnBeginTransactionDone(
     return;
   }
 
-  ScriptPromiseUntyped promise = transaction_result.FromJust();
-  promise.Then(MakeGarbageCollected<ScriptFunction>(
-                   script_state,
-                   MakeGarbageCollected<TransactionFulfilledFunction>(this)),
-               MakeGarbageCollected<ScriptFunction>(
-                   script_state,
-                   MakeGarbageCollected<TransactionRejectedFunction>(this)));
+  auto promise = transaction_result.FromJust();
+  promise.Then(script_state,
+               MakeGarbageCollected<TransactionFulfilledFunction>(this),
+               MakeGarbageCollected<TransactionRejectedFunction>(this));
 }
 
 void SmartCardConnection::OnEndTransactionDone(

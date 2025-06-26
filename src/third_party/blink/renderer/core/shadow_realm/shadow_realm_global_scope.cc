@@ -6,6 +6,7 @@
 
 #include "base/task/single_thread_task_runner.h"
 #include "third_party/blink/public/mojom/devtools/inspector_issue.mojom-blink.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/core/event_target_names.h"
 #include "third_party/blink/renderer/core/inspector/inspector_audits_issue.h"
 
@@ -17,9 +18,18 @@ ShadowRealmGlobalScope::ShadowRealmGlobalScope(
                        initiator_execution_context->GetAgent()),
       initiator_execution_context_(initiator_execution_context) {}
 
+ExecutionContext* ShadowRealmGlobalScope::GetRootInitiatorExecutionContext()
+    const {
+  return initiator_execution_context_->IsShadowRealmGlobalScope()
+             ? To<ShadowRealmGlobalScope>(initiator_execution_context_.Get())
+                   ->GetRootInitiatorExecutionContext()
+             : initiator_execution_context_.Get();
+}
+
 void ShadowRealmGlobalScope::Trace(Visitor* visitor) const {
   visitor->Trace(initiator_execution_context_);
   EventTarget::Trace(visitor);
+  UniversalGlobalScope::Trace(visitor);
   ExecutionContext::Trace(visitor);
 }
 
@@ -54,32 +64,28 @@ bool ShadowRealmGlobalScope::IsShadowRealmGlobalScope() const {
 }
 
 const KURL& ShadowRealmGlobalScope::Url() const {
-  NOTREACHED_IN_MIGRATION();
-  return url_;
+  return GetRootInitiatorExecutionContext()->Url();
 }
 
 const KURL& ShadowRealmGlobalScope::BaseURL() const {
-  NOTREACHED_IN_MIGRATION();
-  return url_;
+  NOTREACHED();
 }
 
 KURL ShadowRealmGlobalScope::CompleteURL(const String& url) const {
-  NOTREACHED_IN_MIGRATION();
-  return url_;
+  NOTREACHED();
 }
 
 void ShadowRealmGlobalScope::DisableEval(const String& error_message) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void ShadowRealmGlobalScope::SetWasmEvalErrorMessage(
     const String& error_message) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 String ShadowRealmGlobalScope::UserAgent() const {
-  NOTREACHED_IN_MIGRATION();
-  return g_empty_string;
+  NOTREACHED();
 }
 
 HttpsState ShadowRealmGlobalScope::GetHttpsState() const {
@@ -87,20 +93,18 @@ HttpsState ShadowRealmGlobalScope::GetHttpsState() const {
 }
 
 ResourceFetcher* ShadowRealmGlobalScope::Fetcher() {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 void ShadowRealmGlobalScope::ExceptionThrown(ErrorEvent* error_event) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void ShadowRealmGlobalScope::AddInspectorIssue(AuditsIssue issue) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 EventTarget* ShadowRealmGlobalScope::ErrorEventTarget() {
-  NOTREACHED_IN_MIGRATION();
   return nullptr;
 }
 
@@ -117,13 +121,11 @@ bool ShadowRealmGlobalScope::IsIsolatedContext() const {
 }
 
 ukm::UkmRecorder* ShadowRealmGlobalScope::UkmRecorder() {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 ukm::SourceId ShadowRealmGlobalScope::UkmSourceID() const {
-  NOTREACHED_IN_MIGRATION();
-  return ukm::kInvalidSourceId;
+  NOTREACHED();
 }
 
 ExecutionContextToken ShadowRealmGlobalScope::GetExecutionContextToken() const {
@@ -132,7 +134,11 @@ ExecutionContextToken ShadowRealmGlobalScope::GetExecutionContextToken() const {
 
 void ShadowRealmGlobalScope::AddConsoleMessageImpl(ConsoleMessage* message,
                                                    bool discard_duplicates) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
+}
+
+bool ShadowRealmGlobalScope::IsSecureContext() const {
+  return GetRootInitiatorExecutionContext()->IsSecureContext();
 }
 
 }  // namespace blink

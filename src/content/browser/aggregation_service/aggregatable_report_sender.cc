@@ -4,23 +4,27 @@
 
 #include "content/browser/aggregation_service/aggregatable_report_sender.h"
 
+#include <stdint.h>
+
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "base/check.h"
 #include "base/functional/bind.h"
-#include "base/functional/callback.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/not_fatal_until.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "components/metrics/dwa/dwa_builders.h"
+#include "components/metrics/dwa/dwa_recorder.h"
 #include "content/public/browser/storage_partition.h"
 #include "net/base/isolation_info.h"
 #include "net/base/load_flags.h"
@@ -32,14 +36,61 @@
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
+#include "services/network/public/mojom/fetch_api.mojom.h"
 #include "url/gurl.h"
 
 namespace content {
 
+namespace {
+
+using DelayType = AggregatableReportRequest::DelayType;
+
+void RecordHistograms(std::optional<DelayType> delay_type,
+                      int net_error,
+                      std::optional<int> http_response_code,
+                      AggregatableReportSender::RequestStatus status,
+                      std::string_view serialized_url) {
+  // Since net errors are always negative and HTTP errors are always positive,
+  // it is fine to combine these in a single histogram.
+  const int http_response_or_net_error =
+      net_error != net::OK ? net_error : http_response_code.value_or(1);
+
+  base::UmaHistogramEnumeration(
+      "PrivacySandbox.AggregationService.ReportSender.Status", status);
+
+  dwa::builders::PrivacySandbox_AggregationService_ReportSenderAttempt()
+      .SetContent(serialized_url)
+      .SetStatus(static_cast<int64_t>(status))
+      .Record(metrics::dwa::DwaRecorder::Get());
+
+  base::UmaHistogramSparse(
+      "PrivacySandbox.AggregationService.ReportSender."
+      "HttpResponseOrNetErrorCode",
+      http_response_or_net_error);
+
+  if (delay_type.has_value()) {
+    const std::string_view delay_type_string =
+        AggregatableReportRequest::DelayTypeToString(*delay_type);
+
+    base::UmaHistogramEnumeration(
+        base::JoinString({"PrivacySandbox.AggregationService.ReportSender",
+                          delay_type_string, "Status"},
+                         "."),
+        status);
+    base::UmaHistogramSparse(
+        base::JoinString({"PrivacySandbox.AggregationService.ReportSender",
+                          delay_type_string, "HttpResponseOrNetErrorCode"},
+                         "."),
+        http_response_or_net_error);
+  }
+}
+
+}  // namespace
+
 AggregatableReportSender::AggregatableReportSender(
     StoragePartition* storage_partition)
     : storage_partition_(storage_partition) {
-  CHECK(storage_partition_, base::NotFatalUntil::M128);
+  CHECK(storage_partition_);
 }
 
 AggregatableReportSender::AggregatableReportSender(
@@ -47,7 +98,7 @@ AggregatableReportSender::AggregatableReportSender(
     bool enable_debug_logging)
     : url_loader_factory_(std::move(url_loader_factory)),
       enable_debug_logging_(enable_debug_logging) {
-  CHECK(url_loader_factory_, base::NotFatalUntil::M128);
+  CHECK(url_loader_factory_);
 }
 
 AggregatableReportSender::~AggregatableReportSender() = default;
@@ -61,10 +112,11 @@ AggregatableReportSender::CreateForTesting(
       std::move(url_loader_factory), enable_debug_logging));
 }
 
-void AggregatableReportSender::SendReport(const GURL& url,
+void AggregatableReportSender::SendReport(GURL url,
                                           const base::Value& contents,
+                                          std::optional<DelayType> delay_type,
                                           ReportSentCallback callback) {
-  CHECK(storage_partition_ || url_loader_factory_, base::NotFatalUntil::M128);
+  CHECK(storage_partition_ || url_loader_factory_);
 
   // The browser process URLLoaderFactory is not created by default, so don't
   // create it until it is directly needed.
@@ -73,15 +125,17 @@ void AggregatableReportSender::SendReport(const GURL& url,
         storage_partition_->GetURLLoaderFactoryForBrowserProcess();
   }
 
+  std::string serialized_url = url.spec();
+
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  resource_request->url = url;
+  resource_request->url = std::move(url);
   resource_request->method = net::HttpRequestHeaders::kPostMethod;
   resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
   resource_request->load_flags =
       net::LOAD_DISABLE_CACHE | net::LOAD_BYPASS_CACHE;
   resource_request->trusted_params = network::ResourceRequest::TrustedParams();
   resource_request->trusted_params->isolation_info =
-      net::IsolationInfo::CreateTransient();
+      net::IsolationInfo::CreateTransient(/*nonce=*/std::nullopt);
 
   net::NetworkTrafficAnnotationTag traffic_annotation =
       net::DefineNetworkTrafficAnnotation("aggregation_service_report", R"(
@@ -122,7 +176,7 @@ void AggregatableReportSender::SendReport(const GURL& url,
 
   // TODO(crbug.com/40195940): Check for required fields of contents.
   bool succeeded = base::JSONWriter::Write(contents, &contents_json);
-  CHECK(succeeded, base::NotFatalUntil::M128);
+  CHECK(succeeded);
   simple_url_loader_ptr->AttachStringForUpload(contents_json,
                                                "application/json");
 
@@ -143,22 +197,25 @@ void AggregatableReportSender::SendReport(const GURL& url,
   simple_url_loader_ptr->DownloadHeadersOnly(
       url_loader_factory_.get(),
       base::BindOnce(&AggregatableReportSender::OnReportSent,
-                     base::Unretained(this), std::move(it),
-                     std::move(callback)));
+                     base::Unretained(this), std::move(it), std::move(callback),
+                     delay_type, std::move(serialized_url)));
 }
 
 void AggregatableReportSender::OnReportSent(
     UrlLoaderList::iterator it,
     ReportSentCallback callback,
+    std::optional<DelayType> delay_type,
+    std::string serialized_url,
     scoped_refptr<net::HttpResponseHeaders> headers) {
-  RequestStatus status;
-
   std::optional<int> http_response_code;
-  if (headers)
+  if (headers) {
     http_response_code = headers->response_code();
+  }
 
-  network::SimpleURLLoader* loader = it->get();
-  if (loader->NetError() != net::OK) {
+  const int net_error = it->get()->NetError();
+
+  RequestStatus status;
+  if (net_error != net::OK) {
     status = RequestStatus::kNetworkError;
   } else if (http_response_code == net::HTTP_OK) {
     status = RequestStatus::kOk;
@@ -168,23 +225,14 @@ void AggregatableReportSender::OnReportSent(
 
   if (enable_debug_logging_ && status != RequestStatus::kOk) {
     LOG(ERROR) << "Report sending failed, net error: "
-               << net::ErrorToShortString(loader->NetError())
-               << ", HTTP response code: "
+               << net::ErrorToShortString(net_error) << ", HTTP response code: "
                << (http_response_code
                        ? base::NumberToString(*http_response_code)
                        : "N/A");
   }
 
-  base::UmaHistogramEnumeration(
-      "PrivacySandbox.AggregationService.ReportSender.Status", status);
-
-  // Since net errors are always negative and HTTP errors are always positive,
-  // it is fine to combine these in a single histogram.
-  base::UmaHistogramSparse(
-      "PrivacySandbox.AggregationService.ReportSender."
-      "HttpResponseOrNetErrorCode",
-      loader->NetError() != net::OK ? loader->NetError()
-                                    : http_response_code.value_or(1));
+  RecordHistograms(delay_type, net_error, http_response_code, status,
+                   serialized_url);
 
   loaders_in_progress_.erase(it);
   std::move(callback).Run(status);

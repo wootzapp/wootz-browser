@@ -12,19 +12,26 @@ enum class GlanceablesViewId {
   kDefaultIdZero,
 
   // `GlanceablesListFooterView`.
-  kListFooterItemsCountLabel,
+  kListFooterTitleLabel,
   kListFooterSeeAllButton,
 
   // `GlanceablesProgressBarView`.
   kProgressBar,
 
-  // `ClassroomBubbleBaseView`.
-  kClassroomBubbleHeaderIcon,
-  kClassroomBubbleComboBox,
-  kClassroomBubbleExpandButton,
-  kClassroomBubbleListContainer,
+  // `GlanceablesTimeManagementBubbleView`.
+  kTimeManagementBubbleHeaderView,
+  kTimeManagementBubbleHeaderIcon,
+  kTimeManagementBubbleComboBox,
+  kTimeManagementBubbleExpandButton,
+  kTimeManagementBubbleListContainer,
+  kTimeManagementBubbleListFooter,
+  kTimeManagementErrorMessageToast,
+
+  // `GlanceablesClassroomStudentView`.
   kClassroomBubbleEmptyListLabel,
-  kClassroomBubbleListFooter,
+
+  // `GlanceablesTasksView`.
+  kTasksBubbleAddNewButton,
 
   // `GlanceablesClassroomItemView`.
   kClassroomItemIcon,
@@ -33,26 +40,16 @@ enum class GlanceablesViewId {
   kClassroomItemDueDateLabel,
   kClassroomItemDueTimeLabel,
 
-  // `GlanceablesTasksView` or `TasksBubbleView`.
-  kTasksBubbleComboBox,
-  kTasksBubbleListScrollView,
-  kTasksBubbleExpandButton,
-  kTasksBubbleListContainer,
-  kTasksBubbleAddNewButton,
-  kTasksBubbleListFooter,
-  kTasksBubbleHeaderView,
-  kTasksBubbleHeaderIcon,
-
   // `GlanceablesTaskView`.
   kTaskItemTitleLabel,
   kTaskItemTitleTextField,
   kTaskItemDueLabel,
   kTaskItemEditInBrowserLabel,
+  kOriginSurfaceTypeIcon,
+  kAssignedTaskNotice,
 
-  // `GlanceablesErrorMessageView`
-  kGlanceablesErrorMessageLabel,
-  kGlanceablesErrorMessageButton,
-  kGlanceablesErrorMessageView,
+  // `GlanceablesContentsScrollView`.
+  kContentsScrollView,
 };
 
 }  // namespace ash

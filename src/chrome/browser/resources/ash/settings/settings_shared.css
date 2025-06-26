@@ -199,8 +199,8 @@ cr-radio-group {
   padding: 0 var(--cr-section-padding);
 }
 
-:host-context(body.revamp-wayfinding-enabled) cr-link-row,
-:host-context(body.revamp-wayfinding-enabled) settings-toggle-button {
+cr-link-row,
+settings-toggle-button {
   min-height: var(--settings-row-min-height);
 }
 
@@ -362,9 +362,7 @@ iron-list,
 
 /* Error message that appears in a toast to indicate the success or
  * failure of an operation. An example is when adding a printer. */
-.error-message {
-  color: white;
-  font: 13px;
+cr-toast .error-message {
   padding-bottom: 15px;
   padding-top: 15px;
   text-align: center;
@@ -381,6 +379,6 @@ cr-button {
   font: var(--cros-button-2-font);
 }
 
-:host-context(body.revamp-wayfinding-enabled) cr-link-row {
+cr-link-row {
   --cr-link-row-start-icon-color: var(--cros-sys-primary);
 }

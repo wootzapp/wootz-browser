@@ -15,6 +15,7 @@ try_.defaults.set(
     builderless = True,
     cores = 8,
     execution_timeout = try_.DEFAULT_EXECUTION_TIMEOUT,
+    reclient_enabled = False,
     service_account = try_.DEFAULT_SERVICE_ACCOUNT,
     siso_enabled = True,
     siso_project = siso.project.DEFAULT_UNTRUSTED,
@@ -33,10 +34,12 @@ try_.builder(
     gn_args = gn_args.config(
         configs = [
             "release_try_builder",
-            "reclient",
+            "remoteexec",
             "no_symbols",
             "devtools_do_typecheck",
             "chrome_for_testing",
+            "linux",
+            "x64",
         ],
     ),
     os = os.LINUX_DEFAULT,
@@ -50,9 +53,10 @@ try_.builder(
     gn_args = gn_args.config(
         configs = [
             "release_try_builder",
-            "reclient",
+            "remoteexec",
             "no_symbols",
             "chrome_for_testing",
+            "mac",
             "x64",
         ],
     ),
@@ -69,12 +73,14 @@ try_.builder(
     gn_args = gn_args.config(
         configs = [
             "release_try_builder",
-            "reclient",
+            "remoteexec",
             # TODO(crbug.com/40099061) Delete this once coverage mode is enabled
             # on the standard Windows trybot and the dedicated coverage trybot
             # is no longer needed.
             "no_resource_allowlisting",
             "chrome_for_testing",
+            "win",
+            "x64",
         ],
     ),
     os = os.WINDOWS_DEFAULT,

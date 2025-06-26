@@ -197,16 +197,15 @@ class blinkLayoutUnitPrinter:
         return "%.14gpx" % (self.val['value_'] / 64.0)
 
 
-class blinkLayoutSizePrinter:
-    "Print a blink::DeprecatedLayoutSize"
+class blinkFixedPointPrinter:
+    "Print a blink::FixedPoint (LayoutUnit, etc.)"
 
     def __init__(self, val):
         self.val = val
 
     def to_string(self):
-        return 'DeprecatedLayoutSize(%s, %s)' % (
-            blinkLayoutUnitPrinter(self.val['width_']).to_string(),
-            blinkLayoutUnitPrinter(self.val['height_']).to_string())
+        return "%.14gpx" % (float(self.val['value_']) /
+                            float(self.val['kFixedPointDenominator']))
 
 
 class blinkLayoutPointPrinter:
@@ -293,18 +292,20 @@ class BlinkLengthPrinter:
         if ltype == 6:
             return 'Length(FillAvailable)'
         if ltype == 7:
-            return 'Length(FitContent)'
+            return 'Length(Stretch)'
         if ltype == 8:
+            return 'Length(FitContent)'
+        if ltype == 9:
             # Would like to print pixelsAndPercent() but can't call member
             # functions - https://sourceware.org/bugzilla/show_bug.cgi?id=13326
             return 'Length(Calculated)'
-        if ltype == 9:
-            return 'Length(ExtendToZoom)'
         if ltype == 10:
-            return 'Length(DeviceWidth)'
+            return 'Length(ExtendToZoom)'
         if ltype == 11:
-            return 'Length(DeviceHeight)'
+            return 'Length(DeviceWidth)'
         if ltype == 12:
+            return 'Length(DeviceHeight)'
+        if ltype == 13:
             return 'Length(MaxSizeNone)'
         return 'Length(unknown type %i)' % ltype
 
@@ -494,10 +495,10 @@ def add_pretty_printers():
         (re.compile("^WTF::AtomicString$"), WTFAtomicStringPrinter),
         (re.compile("^WTF::String$"), WTFStringPrinter),
         (re.compile("^WTF::StringImpl$"), WTFStringImplPrinter),
+        (re.compile("^blink::FixedPoint<.*>$"), blinkFixedPointPrinter),
         (re.compile("^blink::KURL$"), blinkKURLPrinter),
         (re.compile("^blink::LayoutUnit$"), blinkLayoutUnitPrinter),
         (re.compile("^blink::LayoutPoint$"), blinkLayoutPointPrinter),
-        (re.compile("^blink::DeprecatedLayoutSize$"), blinkLayoutSizePrinter),
         (re.compile("^blink::QualifiedName$"), blinkQualifiedNamePrinter),
         (re.compile("^blink::PixelsAndPercent$"),
          BlinkPixelsAndPercentPrinter),

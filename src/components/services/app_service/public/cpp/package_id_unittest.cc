@@ -4,7 +4,6 @@
 
 #include "components/services/app_service/public/cpp/package_id.h"
 
-#include "base/strings/string_piece.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace apps {
@@ -36,6 +35,15 @@ TEST_F(PackageIdTest, FromStringValidChromeApp) {
   ASSERT_TRUE(id.has_value());
   ASSERT_EQ(id->package_type(), PackageType::kChromeApp);
   ASSERT_EQ(id->identifier(), "mmfbcljfglbokpmkimbfghdkjmjhdgbg");
+}
+
+TEST_F(PackageIdTest, FromStringValidWebsite) {
+  std::optional<PackageId> id =
+      PackageId::FromString("website:https://www.example.com/");
+
+  ASSERT_TRUE(id.has_value());
+  ASSERT_EQ(id->package_type(), PackageType::kWebsite);
+  ASSERT_EQ(id->identifier(), "https://www.example.com/");
 }
 
 TEST_F(PackageIdTest, FromStringInvalidFormat) {
@@ -73,6 +81,12 @@ TEST_F(PackageIdTest, ToStringChromeApp) {
   PackageId id(PackageType::kChromeApp, "mmfbcljfglbokpmkimbfghdkjmjhdgbg");
 
   ASSERT_EQ(id.ToString(), "chromeapp:mmfbcljfglbokpmkimbfghdkjmjhdgbg");
+}
+
+TEST_F(PackageIdTest, ToStringWebsite) {
+  PackageId id(PackageType::kWebsite, "https://www.example.com/");
+
+  ASSERT_EQ(id.ToString(), "website:https://www.example.com/");
 }
 
 TEST_F(PackageIdTest, ToStringUnknown) {

@@ -2,28 +2,36 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// IWYU pragma: private, include "base/memory/raw_ptr.h"
+
 #ifndef PARTITION_ALLOC_POINTERS_RAW_PTR_H_
 #define PARTITION_ALLOC_POINTERS_RAW_PTR_H_
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iterator>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
 #include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/flags.h"
+#include "partition_alloc/partition_alloc_base/augmentations/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/component_export.h"
 #include "partition_alloc/partition_alloc_base/cxx20_is_constant_evaluated.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/partition_alloc_base/types/same_as_any.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_forward.h"
 #include "partition_alloc/pointers/instance_tracer.h"
-#include "partition_alloc/raw_ptr_buildflags.h"
 
-#if BUILDFLAG(IS_WIN)
+#if PA_HAVE_SPACESHIP_OPERATOR
+#include <compare>
+#endif
+
+#if PA_BUILDFLAG(IS_WIN)
 #include "partition_alloc/partition_alloc_base/win/win_handle_types.h"
 #endif
 
@@ -57,12 +65,14 @@
 #endif
 
 namespace cc {
+class ImageDecodeCache;
 class Scheduler;
-}
+class TextureLayerImpl;
+}  // namespace cc
 namespace base::internal {
 class DelayTimerBase;
 class JobTaskSource;
-}
+}  // namespace base::internal
 namespace base::test {
 struct RawPtrCountingImplForTest;
 }
@@ -168,75 +178,30 @@ namespace raw_ptr_traits {
 // that raw_ptr is not used with unsupported types. As an example, see how
 // base::internal::Unretained(Ref)Wrapper uses IsSupportedType to decide whether
 // it should use `raw_ptr<T>` or `T*`.
-template <typename T, typename SFINAE = void>
-struct IsSupportedType {
-  static constexpr bool value = true;
-};
-
-// raw_ptr<T> is not compatible with function pointer types. Also, they don't
-// even need the raw_ptr protection, because they don't point on heap.
 template <typename T>
-struct IsSupportedType<T, std::enable_if_t<std::is_function_v<T>>> {
-  static constexpr bool value = false;
-};
-
-// This section excludes some types from raw_ptr<T> to avoid them from being
-// used inside base::Unretained in performance sensitive places.
-// The ones below were identified from sampling profiler data. See
-// crbug.com/1287151 for more info.
-template <>
-struct IsSupportedType<cc::Scheduler> {
-  static constexpr bool value = false;
-};
-template <>
-struct IsSupportedType<base::internal::DelayTimerBase> {
-  static constexpr bool value = false;
-};
-template <>
-struct IsSupportedType<content::responsiveness::Calculator> {
-  static constexpr bool value = false;
-};
-// The ones below were identified from speedometer3. See crbug.com/335556942 for
-// more info.
-template <>
-struct IsSupportedType<v8::JobTask> {
-  static constexpr bool value = false;
-};
-template <>
-struct IsSupportedType<blink::scheduler::MainThreadTaskQueue> {
-  static constexpr bool value = false;
-};
-template <>
-struct IsSupportedType<base::sequence_manager::internal::TaskQueueImpl> {
-  static constexpr bool value = false;
-};
-template <>
-struct IsSupportedType<base::internal::JobTaskSource> {
-  static constexpr bool value = false;
-};
-template <>
-struct IsSupportedType<mojo::Connector> {
-  static constexpr bool value = false;
-};
-template <>
-struct IsSupportedType<blink::scheduler::NonMainThreadTaskQueue> {
-  static constexpr bool value = false;
-};
+struct IsSupportedType {
+  static constexpr bool value =
+      // raw_ptr<T> is not compatible with function pointer types. Also, they
+      // don't even need the raw_ptr protection, because they don't point on
+      // heap.
+      !std::is_function_v<T> &&
 
 #if __OBJC__
-// raw_ptr<T> is not compatible with pointers to Objective-C classes for a
-// multitude of reasons. They may fail to compile in many cases, and wouldn't
-// work well with tagged pointers. Anyway, Objective-C objects have their own
-// way of tracking lifespan, hence don't need the raw_ptr protection as much.
-//
-// Such pointers are detected by checking if they're convertible to |id| type.
-template <typename T>
-struct IsSupportedType<T, std::enable_if_t<std::is_convertible_v<T*, id>>> {
-  static constexpr bool value = false;
-};
+      // raw_ptr<T> is not compatible with pointers to Objective-C classes for a
+      // multitude of reasons. They may fail to compile in many cases, and
+      // wouldn't work well with tagged pointers. Anyway, Objective-C objects
+      // have their own way of tracking lifespan, hence don't need the raw_ptr
+      // protection as much.
+      //
+      // Such pointers are detected by checking if they're convertible to |id|
+      // type.
+      !std::is_convertible_v<T*, id> &&
 #endif  // __OBJC__
 
-#if BUILDFLAG(IS_WIN)
+      // Specific disallowed types.
+      !partition_alloc::internal::base::kSameAsAny<
+          T,
+#if PA_BUILDFLAG(IS_WIN)
 // raw_ptr<HWND__> is unsafe at runtime - if the handle happens to also
 // represent a valid pointer into a PartitionAlloc-managed region then it can
 // lead to manipulating random memory when treating it as BackupRefPtr
@@ -251,14 +216,30 @@ struct IsSupportedType<T, std::enable_if_t<std::is_convertible_v<T*, id>>> {
 // upside of this approach is that it will safely handle base::Bind closing over
 // HANDLE.  The downside of this approach is that base::Bind closing over a
 // void* pointer will not get UaF protection.
-#define PA_WINDOWS_HANDLE_TYPE(name)       \
-  template <>                              \
-  struct IsSupportedType<name##__, void> { \
-    static constexpr bool value = false;   \
-  };
+#define PA_WINDOWS_HANDLE_TYPE(name) name##__,
 #include "partition_alloc/partition_alloc_base/win/win_handle_types_list.inc"
 #undef PA_WINDOWS_HANDLE_TYPE
 #endif
+          // Performance-sensitive types identified via sampling profiler data;
+          // see crbug.com/1287151
+          base::internal::DelayTimerBase,
+          cc::Scheduler,
+          content::responsiveness::Calculator,
+
+          // Performance-sensitive types identified via speedometer3; see
+          // crbug.com/335556942
+          base::internal::JobTaskSource,
+          base::sequence_manager::internal::TaskQueueImpl,
+          blink::scheduler::MainThreadTaskQueue,
+          blink::scheduler::NonMainThreadTaskQueue,
+          mojo::Connector,
+          v8::JobTask,
+
+          // Performance-sensitive types identified via MotionMark; see
+          // crbug.com/335556942
+          cc::ImageDecodeCache,
+          cc::TextureLayerImpl>;
+};
 
 #if PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL)
 template <RawPtrTraits Traits>
@@ -396,7 +377,10 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   }
 
   PA_ALWAYS_INLINE constexpr raw_ptr& operator=(const raw_ptr& p) noexcept {
-    // Duplicate before releasing, in case the pointer is assigned to itself.
+    // Increment the ref-count first before releasing, in case the pointer is
+    // assigned to itself. (This is different from the concern in the assign-T*
+    // version of this operator, where a different pointer to the same allocator
+    // slot could cause trouble, which isn't a concern here at all.)
     //
     // Unlike the move version of this operator, don't add |this != &p| branch,
     // for performance reasons. Self-assignment is rare, so unconditionally
@@ -434,7 +418,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   PA_ALWAYS_INLINE constexpr raw_ptr& operator=(raw_ptr&& p) noexcept {
     // Unlike the the copy version of this operator, this branch is necessary
     // for correctness.
-    if (PA_LIKELY(this != &p)) {
+    if (this != &p) [[likely]] {
       Impl::ReleaseWrappedPtr(wrapped_ptr_);
       Impl::Untrace(tracer_.owner_id());
       wrapped_ptr_ = p.wrapped_ptr_;
@@ -511,7 +495,12 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     // `raw_ptr<T> -> T* -> raw_ptr<>` route will be taken.
     static_assert(Traits == (raw_ptr<T, PassedTraits>::Traits |
                              RawPtrTraits::kMayDangle));
+    // If it was the same type, another overload would've been used.
+    static_assert(!std::is_same_v<raw_ptr, std::decay_t<decltype(p)>>);
 
+    // Unlike the regular varsion of operator=, we don't have an issue of
+    // `*this` and `ptr` being the same object (because it isn't even the same
+    // type, as asserted above), so no need to increment the ref-count first.
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     Impl::Untrace(tracer_.owner_id());
     wrapped_ptr_ = Impl::WrapRawPtrForDuplication(
@@ -568,9 +557,15 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     return *this;
   }
   PA_ALWAYS_INLINE constexpr raw_ptr& operator=(T* p) noexcept {
+    // Duplicate before releasing, in case the pointers point to the same
+    // allocator slot. Releasing the pointer first could lead to dropping the
+    // ref-count to 0 for the slot, immediately unqurantining and releasing it,
+    // just to immediately reacquire the the ref-count on that slot, leading to
+    // correctness issues.
+    T* new_ptr = Impl::WrapRawPtr(p);
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     Impl::Untrace(tracer_.owner_id());
-    wrapped_ptr_ = Impl::WrapRawPtr(p);
+    wrapped_ptr_ = new_ptr;
     Impl::Trace(tracer_.owner_id(), wrapped_ptr_);
     return *this;
   }
@@ -582,15 +577,12 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
                 !std::is_void_v<typename std::remove_cv<T>::type>>>
   PA_ALWAYS_INLINE constexpr raw_ptr& operator=(
       const raw_ptr<U, Traits>& ptr) noexcept {
-    // Make sure that pointer isn't assigned to itself (look at raw_ptr address,
-    // not its contained pointer value). The comparison is only needed when they
-    // are the same type, otherwise they can't be the same raw_ptr object.
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON) || \
-    PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-    if constexpr (std::is_same_v<raw_ptr, std::decay_t<decltype(ptr)>>) {
-      PA_RAW_PTR_CHECK(this != &ptr);
-    }
-#endif
+    // If it was the same type, another overload would've been used.
+    static_assert(!std::is_same_v<raw_ptr, std::decay_t<decltype(ptr)>>);
+
+    // Unlike the regular varsion of operator=, we don't have an issue of
+    // `*this` and `ptr` being the same object (because it isn't even the same
+    // type, as asserted above), so no need to increment the ref-count first.
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     Impl::Untrace(tracer_.owner_id());
     wrapped_ptr_ =
@@ -604,15 +596,12 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
                 !std::is_void_v<typename std::remove_cv<T>::type>>>
   PA_ALWAYS_INLINE constexpr raw_ptr& operator=(
       raw_ptr<U, Traits>&& ptr) noexcept {
-    // Make sure that pointer isn't assigned to itself (look at raw_ptr address,
-    // not its contained pointer value). The comparison is only needed when they
-    // are the same type, otherwise they can't be the same raw_ptr object.
-#if PA_BUILDFLAG(PA_DCHECK_IS_ON) || \
-    PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-    if constexpr (std::is_same_v<raw_ptr, std::decay_t<decltype(ptr)>>) {
-      PA_RAW_PTR_CHECK(this != &ptr);
-    }
-#endif
+    // If it was the same type, another overload would've been used.
+    static_assert(!std::is_same_v<raw_ptr, std::decay_t<decltype(ptr)>>);
+
+    // Unlike the regular varsion of operator=, we don't have an issue of
+    // `*this` and `ptr` being the same object (because it isn't even the same
+    // type, as asserted above), so no need to increment the ref-count first.
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     Impl::Untrace(tracer_.owner_id());
     wrapped_ptr_ = Impl::template Upcast<T, U>(ptr.wrapped_ptr_);
@@ -861,18 +850,27 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   // perform safety checks with a higher runtime cost, so to avoid this, provide
   // explicit comparison operators for all combinations of parameters.
 
-  // Comparisons between `raw_ptr`s. This unusual declaration and separate
-  // definition below is because `GetForComparison()` is a private method. The
-  // more conventional approach of defining a comparison operator between
-  // `raw_ptr` and `raw_ptr<U>` in the friend declaration itself does not work,
-  // because a comparison operator defined inline would not be allowed to call
-  // `raw_ptr<U>`'s private `GetForComparison()` method.
+  // Comparisons between `raw_ptr`s. Typically, these would be defined inline as
+  // comparisons between `raw_ptr` and `raw_ptr<U>`. Unfortunately, the friend
+  // declaration grants access to `raw_ptr::GetForComparison()`, but not
+  // `raw_ptr<U>::GetForComparison()`, since that's an unrelated type; both
+  // instantiations must declare the same signature as a friend for it to access
+  // both private methods. Switching to `raw_ptr<U>, raw_ptr<V>` achieves this,
+  // but then if the implementation is inline, the compile will generate it for
+  // both instantiations, and not know which (identical) instance to resolve to,
+  // causing a compile error. Thus the definitions must also be out-of-lined
+  // below, so they are only instantiated once.
   template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
   friend constexpr bool operator==(const raw_ptr<U, R1>& lhs,
                                    const raw_ptr<V, R2>& rhs);
   template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
   friend constexpr bool operator!=(const raw_ptr<U, R1>& lhs,
                                    const raw_ptr<V, R2>& rhs);
+#if PA_HAVE_SPACESHIP_OPERATOR
+  template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
+  friend constexpr auto operator<=>(const raw_ptr<U, R1>& lhs,
+                                    const raw_ptr<V, R2>& rhs);
+#else
   template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
   friend constexpr bool operator<(const raw_ptr<U, R1>& lhs,
                                   const raw_ptr<V, R2>& rhs);
@@ -885,9 +883,11 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   template <typename U, typename V, RawPtrTraits R1, RawPtrTraits R2>
   friend constexpr bool operator>=(const raw_ptr<U, R1>& lhs,
                                    const raw_ptr<V, R2>& rhs);
+#endif
 
   // Comparisons with U*. These operators also handle the case where the RHS is
-  // T*.
+  // T*. Because these only call `raw_ptr::GetForComparison()`, they can be
+  // written inline in the typical way.
   template <typename U>
   PA_ALWAYS_INLINE friend constexpr bool operator==(const raw_ptr& lhs,
                                                     U* rhs) {
@@ -908,6 +908,18 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
                                                     const raw_ptr& rhs) {
     return rhs != lhs;  // Reverse order to call the operator above.
   }
+#if PA_HAVE_SPACESHIP_OPERATOR
+  template <typename U>
+  PA_ALWAYS_INLINE friend constexpr auto operator<=>(const raw_ptr& lhs,
+                                                     U* rhs) {
+    return lhs.GetForComparison() <=> rhs;
+  }
+  template <typename U>
+  PA_ALWAYS_INLINE friend constexpr auto operator<=>(U* lhs,
+                                                     const raw_ptr& rhs) {
+    return lhs <=> rhs.GetForComparison();
+  }
+#else
   template <typename U>
   PA_ALWAYS_INLINE friend constexpr bool operator<(const raw_ptr& lhs, U* rhs) {
     return lhs.GetForComparison() < rhs;
@@ -944,6 +956,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
                                                     const raw_ptr& rhs) {
     return lhs >= rhs.GetForComparison();
   }
+#endif
 
   // Comparisons with `std::nullptr_t`.
   PA_ALWAYS_INLINE friend constexpr bool operator==(const raw_ptr& lhs,
@@ -1020,6 +1033,13 @@ PA_ALWAYS_INLINE constexpr bool operator!=(const raw_ptr<U, Traits1>& lhs,
   return !(lhs == rhs);
 }
 
+#if PA_HAVE_SPACESHIP_OPERATOR
+template <typename U, typename V, RawPtrTraits Traits1, RawPtrTraits Traits2>
+PA_ALWAYS_INLINE constexpr auto operator<=>(const raw_ptr<U, Traits1>& lhs,
+                                            const raw_ptr<V, Traits2>& rhs) {
+  return lhs.GetForComparison() <=> rhs.GetForComparison();
+}
+#else
 template <typename U, typename V, RawPtrTraits Traits1, RawPtrTraits Traits2>
 PA_ALWAYS_INLINE constexpr bool operator<(const raw_ptr<U, Traits1>& lhs,
                                           const raw_ptr<V, Traits2>& rhs) {
@@ -1043,53 +1063,35 @@ PA_ALWAYS_INLINE constexpr bool operator>=(const raw_ptr<U, Traits1>& lhs,
                                            const raw_ptr<V, Traits2>& rhs) {
   return lhs.GetForComparison() >= rhs.GetForComparison();
 }
+#endif
 
 template <typename T>
-struct IsRawPtr : std::false_type {};
-
+inline constexpr bool IsRawPtr = false;
 template <typename T, RawPtrTraits Traits>
-struct IsRawPtr<raw_ptr<T, Traits>> : std::true_type {};
+inline constexpr bool IsRawPtr<raw_ptr<T, Traits>> = true;
 
 template <typename T>
-inline constexpr bool IsRawPtrV = IsRawPtr<T>::value;
-
-template <typename T>
-inline constexpr bool IsRawPtrMayDangleV = false;
-
+inline constexpr bool IsRawPtrMayDangle = false;
 template <typename T, RawPtrTraits Traits>
-inline constexpr bool IsRawPtrMayDangleV<raw_ptr<T, Traits>> =
+inline constexpr bool IsRawPtrMayDangle<raw_ptr<T, Traits>> =
     partition_alloc::internal::ContainsFlags(Traits, RawPtrTraits::kMayDangle);
 
-// Template helpers for working with T* or raw_ptr<T>.
 template <typename T>
-struct IsRawPointerHelper : std::false_type {};
-
-template <typename T>
-struct IsRawPointerHelper<T*> : std::true_type {};
-
+inline constexpr bool IsPointerOrRawPtr = std::is_pointer_v<T>;
 template <typename T, RawPtrTraits Traits>
-struct IsRawPointerHelper<raw_ptr<T, Traits>> : std::true_type {};
+inline constexpr bool IsPointerOrRawPtr<raw_ptr<T, Traits>> = true;
 
+// Like `std::remove_pointer_t<>`, but also converts `raw_ptr<T>` => `T`.
 template <typename T>
-inline constexpr bool IsRawPointer = IsRawPointerHelper<T>::value;
-
-template <typename T>
-struct RemoveRawPointer {
-  using type = T;
+struct RemovePointer {
+  using type = std::remove_pointer_t<T>;
 };
-
-template <typename T>
-struct RemoveRawPointer<T*> {
-  using type = T;
-};
-
 template <typename T, RawPtrTraits Traits>
-struct RemoveRawPointer<raw_ptr<T, Traits>> {
+struct RemovePointer<raw_ptr<T, Traits>> {
   using type = T;
 };
-
 template <typename T>
-using RemoveRawPointerT = typename RemoveRawPointer<T>::type;
+using RemovePointerT = typename RemovePointer<T>::type;
 
 }  // namespace base
 
@@ -1235,7 +1237,6 @@ struct iterator_traits<raw_ptr<T, Traits>> {
 // `std::to_address(pointer)` in C++20 [3].
 //
 // [1] https://wg21.link/pointer.traits.optmem
-
 template <typename T, ::base::RawPtrTraits Traits>
 struct pointer_traits<::raw_ptr<T, Traits>> {
   using pointer = ::raw_ptr<T, Traits>;
@@ -1253,6 +1254,34 @@ struct pointer_traits<::raw_ptr<T, Traits>> {
     return p.get();
   }
 };
+
+#if PA_BUILDFLAG(ASSERT_CPP_20)
+// Mark `raw_ptr<T>` and `T*` as having a common reference type (the type to
+// which both can be converted or bound) of `T*`. This makes them satisfy
+// `std::equality_comparable`, which allows usage like:
+// ```
+//   std::vector<raw_ptr<T>> v;
+//   T* e;
+//   auto it = std::ranges::find(v, e);
+// ```
+// Without this, the `find()` call above would fail to compile with a cryptic
+// error about being unable to invoke `std::ranges::equal_to()`.
+template <typename T,
+          base::RawPtrTraits Traits,
+          template <typename> typename TQ,
+          template <typename> typename UQ>
+struct basic_common_reference<raw_ptr<T, Traits>, T*, TQ, UQ> {
+  using type = T*;
+};
+
+template <typename T,
+          base::RawPtrTraits Traits,
+          template <typename> typename TQ,
+          template <typename> typename UQ>
+struct basic_common_reference<T*, raw_ptr<T, Traits>, TQ, UQ> {
+  using type = T*;
+};
+#endif  // PA_BUILDFLAG(ASSERT_CPP_20)
 
 }  // namespace std
 

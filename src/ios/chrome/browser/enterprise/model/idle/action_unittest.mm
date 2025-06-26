@@ -10,7 +10,6 @@
 #import "base/test/mock_callback.h"
 #import "base/test/scoped_feature_list.h"
 #import "base/time/time.h"
-#import "components/enterprise/idle/idle_features.h"
 #import "components/enterprise/idle/idle_pref_names.h"
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/browsing_data/model/fake_browsing_data_remover.h"
@@ -19,7 +18,8 @@
 #import "ios/chrome/browser/shared/model/browser/browser_list.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list_factory.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_manager_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_opener.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
@@ -43,15 +43,12 @@ class IdleActionTest : public PlatformTest {
  protected:
   using ActionQueue = ActionFactory::ActionQueue;
   void SetUp() override {
-    scoped_feature_list_ = std::make_unique<base::test::ScopedFeatureList>();
-    scoped_feature_list_->InitWithFeatures({enterprise_idle::kIdleTimeout}, {});
-    TestChromeBrowserState::Builder test_cbs_builder;
-    test_cbs_builder.AddTestingFactory(
+    TestProfileIOS::Builder builder;
+    builder.AddTestingFactory(
         AuthenticationServiceFactory::GetInstance(),
-        AuthenticationServiceFactory::GetDefaultFactory());
-    browser_state_ = test_cbs_builder.Build();
-    AuthenticationServiceFactory::CreateAndInitializeForBrowserState(
-        browser_state(), std::make_unique<FakeAuthenticationServiceDelegate>());
+        AuthenticationServiceFactory::GetFactoryWithDelegate(
+            std::make_unique<FakeAuthenticationServiceDelegate>()));
+    profile_ = profile_manager_.AddProfileWithBuilder(std::move(builder));
     main_browsing_data_remover_ = std::make_unique<FakeBrowsingDataRemover>();
     incognito_browsing_data_remover_ =
         std::make_unique<FakeBrowsingDataRemover>();
@@ -63,7 +60,6 @@ class IdleActionTest : public PlatformTest {
     task_environment_.RunUntilIdle();
     main_browsing_data_remover_.reset();
     incognito_browsing_data_remover_.reset();
-    browser_state_.reset();
   }
 
   ActionFactory::ActionQueue GetActions(std::vector<ActionType> action_types) {
@@ -73,27 +69,26 @@ class IdleActionTest : public PlatformTest {
 
   void SignIn() {
     authentication_service_ = static_cast<AuthenticationService*>(
-        AuthenticationServiceFactory::GetForBrowserState(browser_state()));
+        AuthenticationServiceFactory::GetForProfile(profile()));
     FakeSystemIdentity* identity = [FakeSystemIdentity fakeIdentity1];
     FakeSystemIdentityManager* system_identity_manager =
         FakeSystemIdentityManager::FromSystemIdentityManager(
             GetApplicationContext()->GetSystemIdentityManager());
     system_identity_manager->AddIdentity(identity);
-    authentication_service_->SignIn(
-        identity, signin_metrics::AccessPoint::ACCESS_POINT_UNKNOWN);
+    authentication_service_->SignIn(identity,
+                                    signin_metrics::AccessPoint::kUnknown);
   }
 
   // Inserts WebStates into `browser` each one loading a new URL from `urls`
   // and wait until all the WebStates are done with the navigation.
   void InsertTabs() {
-    browser_ = std::make_unique<TestBrowser>(browser_state_.get());
-    incognito_browser_ = std::make_unique<TestBrowser>(
-        browser_state_->GetOffTheRecordChromeBrowserState());
+    browser_ = std::make_unique<TestBrowser>(profile_.get());
+    incognito_browser_ =
+        std::make_unique<TestBrowser>(profile_->GetOffTheRecordProfile());
 
-    BrowserList* browser_list =
-        BrowserListFactory::GetForBrowserState(browser_state());
+    BrowserList* browser_list = BrowserListFactory::GetForProfile(profile());
     browser_list->AddBrowser(browser_.get());
-    browser_list->AddIncognitoBrowser(incognito_browser_.get());
+    browser_list->AddBrowser(incognito_browser_.get());
 
     // Insert some web states in each browser.
     std::vector<std::string> urls{"https://foo/bar", "https://car/tar",
@@ -118,7 +113,7 @@ class IdleActionTest : public PlatformTest {
     navigation_manager->SetLastCommittedItem(
         navigation_manager->GetItemAtIndex(0));
     web_state->SetNavigationManager(std::move(navigation_manager));
-    web_state->SetBrowserState(browser_state());
+    web_state->SetBrowserState(profile());
     web_state->SetNavigationItemCount(1);
     web_state->SetCurrentURL(url);
     return web_state;
@@ -128,7 +123,7 @@ class IdleActionTest : public PlatformTest {
     return browser->GetWebStateList()->count();
   }
 
-  TestChromeBrowserState* browser_state() { return browser_state_.get(); }
+  TestProfileIOS* profile() { return profile_.get(); }
 
   FakeBrowsingDataRemover* main_remover() {
     return main_browsing_data_remover_.get();
@@ -143,11 +138,11 @@ class IdleActionTest : public PlatformTest {
   raw_ptr<AuthenticationService> authentication_service_;
   // ScopedTestingLocalState needed for the authentication service.
   IOSChromeScopedTestingLocalState scoped_testing_local_state_;
+  TestProfileManagerIOS profile_manager_;
   std::unique_ptr<ActionFactory> action_factory_;
   std::unique_ptr<FakeBrowsingDataRemover> main_browsing_data_remover_;
   std::unique_ptr<FakeBrowsingDataRemover> incognito_browsing_data_remover_;
-  std::unique_ptr<base::test::ScopedFeatureList> scoped_feature_list_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
+  raw_ptr<TestProfileIOS> profile_;
   std::unique_ptr<TestBrowser> browser_;
   std::unique_ptr<TestBrowser> incognito_browser_;
   std::unique_ptr<base::HistogramTester> histogram_tester_;
@@ -156,7 +151,7 @@ class IdleActionTest : public PlatformTest {
 TEST_F(IdleActionTest, ClearBrowsingHistory) {
   ActionQueue actions = GetActions({ActionType::kClearBrowsingHistory});
   base::MockCallback<Action::Continuation> continuation;
-  actions.top()->Run(browser_state(), continuation.Get());
+  actions.top()->Run(profile(), continuation.Get());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_HISTORY,
             main_remover()->GetLastUsedRemovalMask());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_HISTORY,
@@ -169,7 +164,7 @@ TEST_F(IdleActionTest, ClearBrowsingHistory) {
 TEST_F(IdleActionTest, ClearCookies) {
   ActionQueue actions = GetActions({ActionType::kClearCookiesAndOtherSiteData});
   base::MockCallback<Action::Continuation> continuation;
-  actions.top()->Run(browser_state(), continuation.Get());
+  actions.top()->Run(profile(), continuation.Get());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_SITE_DATA,
             main_remover()->GetLastUsedRemovalMask());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_SITE_DATA,
@@ -182,7 +177,7 @@ TEST_F(IdleActionTest, ClearCookies) {
 TEST_F(IdleActionTest, ClearCache) {
   ActionQueue actions = GetActions({ActionType::kClearCachedImagesAndFiles});
   base::MockCallback<Action::Continuation> continuation;
-  actions.top()->Run(browser_state(), continuation.Get());
+  actions.top()->Run(profile(), continuation.Get());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_CACHE,
             main_remover()->GetLastUsedRemovalMask());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_CACHE,
@@ -195,7 +190,7 @@ TEST_F(IdleActionTest, ClearCache) {
 TEST_F(IdleActionTest, ClearPasswordSignin) {
   ActionQueue actions = GetActions({ActionType::kClearPasswordSignin});
   base::MockCallback<Action::Continuation> continuation;
-  actions.top()->Run(browser_state(), continuation.Get());
+  actions.top()->Run(profile(), continuation.Get());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_PASSWORDS,
             main_remover()->GetLastUsedRemovalMask());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_PASSWORDS,
@@ -208,10 +203,10 @@ TEST_F(IdleActionTest, ClearPasswordSignin) {
 TEST_F(IdleActionTest, ClearAutofill) {
   ActionQueue actions = GetActions({ActionType::kClearAutofill});
   base::MockCallback<Action::Continuation> continuation;
-  actions.top()->Run(browser_state(), continuation.Get());
+  actions.top()->Run(profile(), continuation.Get());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_FORM_DATA,
             main_remover()->GetLastUsedRemovalMask());
-  actions.top()->Run(browser_state(), continuation.Get());
+  actions.top()->Run(profile(), continuation.Get());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_FORM_DATA,
             incognito_remover()->GetLastUsedRemovalMask());
   actions.pop();
@@ -223,7 +218,7 @@ TEST_F(IdleActionTest, MultipleTypesAndSuccess) {
   ActionQueue actions = GetActions(
       {ActionType::kClearBrowsingHistory, ActionType::kClearAutofill});
   base::MockCallback<Action::Continuation> continuation;
-  actions.top()->Run(browser_state(), continuation.Get());
+  actions.top()->Run(profile(), continuation.Get());
   EXPECT_EQ(BrowsingDataRemoveMask::REMOVE_HISTORY |
                 BrowsingDataRemoveMask::REMOVE_FORM_DATA,
             main_remover()->GetLastUsedRemovalMask());
@@ -248,7 +243,7 @@ TEST_F(IdleActionTest, MultipleTypesAndFailure) {
   base::RunLoop run_loop;
   EXPECT_CALL(continuation, Run(/*success=*/false))
       .WillOnce(base::test::RunClosure(run_loop.QuitClosure()));
-  actions.top()->Run(browser_state(), continuation.Get());
+  actions.top()->Run(profile(), continuation.Get());
   run_loop.Run();
   actions.pop();
   histogram_tester_->ExpectUniqueSample(
@@ -268,7 +263,7 @@ TEST_F(IdleActionTest, SignOut) {
   // before sign out completes.
   EXPECT_CALL(continuation, Run(/*success=*/true))
       .WillOnce(base::test::RunClosure(run_loop.QuitClosure()));
-  actions.top()->Run(browser_state(), continuation.Get());
+  actions.top()->Run(profile(), continuation.Get());
   run_loop.Run();
   ASSERT_FALSE(authentication_service_->HasPrimaryIdentity(
       signin::ConsentLevel::kSignin));
@@ -288,7 +283,7 @@ TEST_F(IdleActionTest, CloseTabs) {
   EXPECT_EQ(GetTabsCount(browser_.get()), 3);
   EXPECT_EQ(GetTabsCount(incognito_browser_.get()), 3);
   base::MockCallback<Action::Continuation> continuation;
-  actions.top()->Run(browser_state(), continuation.Get());
+  actions.top()->Run(profile(), continuation.Get());
   // Tabs in both regular and incognito browser should all be closed after
   // CloseTabsAction runs.
   EXPECT_EQ(GetTabsCount(browser_.get()), 0);

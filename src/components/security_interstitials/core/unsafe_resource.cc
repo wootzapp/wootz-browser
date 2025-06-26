@@ -24,24 +24,18 @@ UnsafeResource::UrlCheckResult::UrlCheckResult(
 }
 
 UnsafeResource::UnsafeResource()
-    : is_subresource(false),
-      is_subframe(false),
-      threat_type(safe_browsing::SBThreatType::SB_THREAT_TYPE_SAFE),
-      request_destination(network::mojom::RequestDestination::kDocument),
+    : threat_type(safe_browsing::SBThreatType::SB_THREAT_TYPE_SAFE),
       is_delayed_warning(false),
-      should_send_reports(true),
       is_async_check(false) {}
 
 UnsafeResource::UnsafeResource(const UnsafeResource& other) = default;
 
 UnsafeResource::~UnsafeResource() = default;
 
-bool UnsafeResource::IsMainPageLoadPendingWithSyncCheck() const {
+// static
+bool UnsafeResource::IsMainPageLoadPendingWithSyncCheck(
+    safe_browsing::SBThreatType threat_type) {
   using enum safe_browsing::SBThreatType;
-  // Subresource hits cannot happen until after main page load is committed.
-  if (is_subresource)
-    return false;
-
   switch (threat_type) {
     // Client-side phishing detection interstitials never block the main
     // frame load, since they happen after the page is finished loading.
@@ -85,7 +79,11 @@ void UnsafeResource::DispatchCallback(
   DCHECK(callback_sequence);
   UrlCheckResult result(proceed, showed_interstitial,
                         has_post_commit_interstitial_skipped);
-  callback_sequence->PostTask(from_here, base::BindOnce(callback, result));
+  if (callback_sequence->RunsTasksInCurrentSequence()) {
+    callback.Run(result);
+  } else {
+    callback_sequence->PostTask(from_here, base::BindOnce(callback, result));
+  }
 }
 
 }  // namespace security_interstitials

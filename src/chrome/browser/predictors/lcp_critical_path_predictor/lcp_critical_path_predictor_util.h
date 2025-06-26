@@ -7,14 +7,18 @@
 
 #include <optional>
 
+#include "chrome/browser/predictors/lcp_critical_path_predictor/lcp_critical_path_predictor.pb.h"
 #include "chrome/browser/predictors/loading_predictor_config.h"
-#include "chrome/browser/predictors/resource_prefetch_predictor.pb.h"
 #include "components/sqlite_proto/key_value_data.h"
+#include "components/sqlite_proto/key_value_table.h"
+#include "services/network/public/mojom/fetch_api.mojom.h"
 #include "third_party/blink/public/mojom/lcp_critical_path_predictor/lcp_critical_path_predictor.mojom.h"
 
-namespace predictors {
-class ResourcePrefetchPredictorTables;
+namespace url {
+class Origin;
+}  // namespace url
 
+namespace predictors {
 namespace lcpp {
 struct LastVisitTimeCompare {
   template <typename T>
@@ -24,12 +28,42 @@ struct LastVisitTimeCompare {
 };
 
 }  // namespace lcpp
+struct PreconnectPrediction;
+
+bool RecordLcpElementLocatorHistogramForTesting(
+    int sliding_window_size,
+    int max_histogram_buckets,
+    const std::string& lcp_element_locator,
+    LcppStat& stat);
 
 // Converts LcppStat to LCPCriticalPathPredictorNavigationTimeHint
 // so that it can be passed to the renderer via the navigation handle.
 std::optional<blink::mojom::LCPCriticalPathPredictorNavigationTimeHint>
 ConvertLcppStatToLCPCriticalPathPredictorNavigationTimeHint(
     const LcppStat& data);
+
+// Converts LcpElementLocatorStat to a list of (confidence, ElementLocator)
+// pairs. The result is ordered by confidence (the most confident one comes
+// first). If there is no data, it returns an empty vector.
+std::vector<std::pair<double, std::string>>
+ConvertLcpElementLocatorStatToConfidenceStringPairs(
+    const predictors::LcpElementLocatorStat& stat);
+
+// Converts LcppStringFrequencyStatData to a list of (confidence, element)
+// pairs. The result is ordered by confidence (the most confident one comes
+// first). If there is no data, it returns an empty vector.
+std::vector<std::pair<double, std::string>>
+ConvertLcppStringFrequencyStatDataToConfidenceStringPairs(
+    const LcppStringFrequencyStatData& data);
+
+// Returns LCP element locators in the past loads for a given `stat` that have
+// above `confidence_threshold`.  The returned LCP element locators are ordered
+// by descending confidence (the most confident one comes first). If there is no
+// data, it returns an empty vector.
+std::vector<std::string> PredictLcpElementLocators(
+    const predictors::LcpElementLocatorStat& stat,
+    const double confidence_threshold,
+    const double total_frequency_threshold);
 
 // Returns possible fonts from past loads for a given `stat`.
 // The returned urls are ordered by descending frequency (the most
@@ -48,6 +82,11 @@ std::vector<GURL> PredictPreconnectableOrigins(const LcppStat& stat);
 // frequent one comes first). If there is no data, it returns an empty
 // vector.
 std::vector<GURL> PredictFetchedSubresourceUrls(const LcppStat& stat);
+
+std::vector<GURL> PredictFetchedSubresourceUrlsForTesting(
+    const LcppStat& stat,
+    const double confidence_threshold,
+    const double total_frequency_threshold);
 
 // Returns possible unused preload URLs from past loads for a given `stat`.
 // The returned URLs are ordered by descending frequency (the most
@@ -69,7 +108,9 @@ struct LcppDataInputs {
   // data of the LCP candidate that won.
   //
   // a locator of the LCP element.
-  std::string lcp_element_locator;
+  std::optional<std::string> lcp_element_locator;
+  std::optional<std::string> lcp_element_locator_image;
+
   // async script urls of the latest LCP candidate element.
   std::vector<GURL> lcp_influencer_scripts;
   std::vector<GURL> preconnect_origins;
@@ -85,17 +126,25 @@ struct LcppDataInputs {
   // This field keeps the number of preloaded font hit. i.e. it is incremented
   // if the fetched font URL is listed in the list of predicted fonts.
   size_t font_url_hit_count = 0;
+  // This field keeps the number of same-site font URLs.
+  size_t same_site_font_url_count = 0;
+  // This field keeps the number of cross-site font URLs.
+  size_t cross_site_font_url_count = 0;
   // This field keeps the number of preloaded font that is going to be recorded
   // to the database again.
   size_t font_url_reenter_count = 0;
-  // This field keeps the subresource URLs as a key, and the TimeDelta as a
-  // value. TimeDelta stores the duration from navigation start to resource
-  // loading start time.
-  std::map<GURL, base::TimeDelta> subresource_urls;
+  // This field keeps the subresource URLs as a key, and the TimeDelta and
+  // destination as a value. TimeDelta stores the duration from navigation
+  // start to resource loading start time.
+  std::map<GURL, std::pair<base::TimeDelta, network::mojom::RequestDestination>>
+      subresource_urls;
 
   // URLs of preloaded but not actually used resources.
   std::vector<GURL> unused_preload_resources;
 };
+
+const std::optional<std::string>& GetLcpElementLocatorForCriticalPathPredictor(
+    const LcppDataInputs& inputs);
 
 bool UpdateLcppStatWithLcppDataInputs(const LoadingPredictorConfig& config,
                                       const LcppDataInputs& inputs,
@@ -112,6 +161,77 @@ void UpdateLcppStringFrequencyStatData(
     LcppStringFrequencyStatData& lcpp_stat_data,
     std::optional<std::string>& dropped_entry);
 
+// Update `lcpp_stat_data` adding `new_entry` with `sliding_window_size` and
+// `max_histogram_buckets` parameters by the top-k algorithm while
+// keeping `map` have same keys in `lcpp_stat_data`.
+// See lcp_critical_path_predictor_util.cc for detail.
+template <typename T>
+T* UpdateFrequencyStatAndTryGetEntry(
+    size_t sliding_window_size,
+    size_t max_histogram_buckets,
+    const std::string& new_entry,
+    LcppStringFrequencyStatData& frequency_stat,
+    google::protobuf::Map<std::string, T>& map) {
+  std::optional<std::string> dropped_entry;
+  UpdateLcppStringFrequencyStatData(sliding_window_size, max_histogram_buckets,
+                                    new_entry, frequency_stat, dropped_entry);
+  // Since UpdateLcppStringFrequencyStatData modifies a part of `data`,
+  // caller should update the stored data if the function is called.
+  if (dropped_entry) {
+    if (*dropped_entry == new_entry) {
+      // This means `frequency_stat` is already full of well-used other
+      // first-level-path entries.
+      // However since the frequency map is updated, we need to update
+      // root `data` too via `data_updated` flag.
+      return nullptr;
+    } else {
+      map.erase(*dropped_entry);
+    }
+  }
+  return &(map[new_entry]);
+}
+
+// Aligns `frequency_stat` elements and `map` elements.
+// Clears both if `frequency_stat` has invalid parameters too.
+template <typename T>
+bool CanonicalizeFrequencyData(size_t max_histogram_buckets,
+                               LcppStringFrequencyStatData& frequency_stat,
+                               google::protobuf::Map<std::string, T>& map) {
+  bool is_canonicalized = false;
+  auto* frequency_main_buckets = frequency_stat.mutable_main_buckets();
+  std::vector<std::string> remove_from_map;
+  for (const auto& it : map) {
+    if (auto pos = frequency_main_buckets->find(it.first);
+        pos == frequency_main_buckets->end()) {
+      remove_from_map.push_back(it.first);
+    }
+  }
+  for (std::string& str : remove_from_map) {
+    map.erase(str);
+  }
+  is_canonicalized |= !remove_from_map.empty();
+
+  std::vector<std::string> remove_from_frequency_stat;
+  for (const auto& it : *frequency_main_buckets) {
+    if (auto pos = map.find(it.first); pos == map.end()) {
+      remove_from_frequency_stat.push_back(it.first);
+    }
+  }
+  for (std::string& str : remove_from_frequency_stat) {
+    frequency_main_buckets->erase(str);
+  }
+  is_canonicalized |= !remove_from_frequency_stat.empty();
+  CHECK_EQ(frequency_main_buckets->size(), map.size());
+
+  if (frequency_stat.other_bucket_frequency() < 0 ||
+      frequency_stat.main_buckets().size() > max_histogram_buckets) {
+    frequency_stat.Clear();
+    map.clear();
+    is_canonicalized = true;
+  }
+  return is_canonicalized;
+}
+
 // Returns true if the LcppData is valid. i.e. looks not corrupted.
 // Otherwise, data might be corrupted.
 bool IsValidLcppStat(const LcppStat& lcpp_stat);
@@ -125,36 +245,79 @@ bool IsURLValidForLcpp(const GURL& url);
 // the first level path or it length exceeds kLCPPMultipleKeyMaxPathLength.
 std::string GetFirstLevelPath(const GURL& url);
 
+// Returns true if `url1` and `url2` are the same site.
+bool IsSameSite(const GURL& url1, const GURL& url2);
+
 class LcppDataMap {
  public:
+  using DataTable = sqlite_proto::KeyValueTable<LcppData>;
   using DataMap =
       sqlite_proto::KeyValueData<LcppData, lcpp::LastVisitTimeCompare>;
+  using OriginTable = sqlite_proto::KeyValueTable<LcppOrigin>;
+  using OriginMap =
+      sqlite_proto::KeyValueData<LcppOrigin, lcpp::LastVisitTimeCompare>;
 
-  LcppDataMap(ResourcePrefetchPredictorTables& tables,
+  LcppDataMap(scoped_refptr<sqlite_proto::TableManager> manager,
               const LoadingPredictorConfig& config);
   ~LcppDataMap();
   LcppDataMap(const LcppDataMap&) = delete;
 
+  static bool CreateOrClearTablesIfNecessary(sql::Database* db);
+
   void InitializeOnDBSequence();
+  void InitializeAfterDBInitialization();
 
   // Record LCP element locators after a page has finished loading and LCP has
   // been determined.
   // Returns true if it was updated.
-  bool LearnLcpp(const GURL& url, const LcppDataInputs& inputs);
+  bool LearnLcpp(const std::optional<url::Origin>& initiator_origin,
+                 const GURL& url,
+                 const LcppDataInputs& inputs);
 
   // Returns LcppStat for the `url`, or std::nullopt on failure.
-  std::optional<LcppStat> GetLcppStat(const GURL& url) const;
+  std::optional<LcppStat> GetLcppStat(
+      const std::optional<url::Origin>& initiator_origin,
+      const GURL& url) const;
 
   void DeleteUrls(const std::vector<GURL>& urls);
 
   void DeleteAllData();
 
- private:
-  friend class ResourcePrefetchPredictorTest;
-  const std::map<std::string, LcppData>& GetAllCachedForTesting();
+  void GetPreconnectAndPrefetchRequest(
+      const std::optional<url::Origin>& initiator_origin,
+      const GURL& url,
+      PreconnectPrediction& prediction);
 
+  static std::unique_ptr<LcppDataMap> CreateWithMockTableForTesting(
+
+      scoped_refptr<sqlite_proto::TableManager> manager,
+      const LoadingPredictorConfig& config);
+
+ private:
+  friend class LcppDataMapTest;
+  friend class LcppInitiatorOriginTest;
+
+  LcppDataMap(scoped_refptr<sqlite_proto::TableManager> manager,
+              const LoadingPredictorConfig& config,
+              std::unique_ptr<DataTable> data_table,
+              std::unique_ptr<OriginTable> origin_table);
+
+  const std::map<std::string, LcppData>& GetAllCachedForTesting();
+  const std::map<std::string, LcppOrigin>& GetAllCachedOriginForTesting();
+
+  scoped_refptr<sqlite_proto::TableManager> manager_;
   const LoadingPredictorConfig config_;
-  DataMap data_map_;
+  std::unique_ptr<DataTable> data_table_;
+  std::unique_ptr<DataMap> data_map_;
+  std::unique_ptr<OriginTable> origin_table_;
+  std::unique_ptr<OriginMap> origin_map_;
+  // This member is accessed from both the db thread (InitializeOnDBSequence)
+  // and the UI thread (ResourcePrefetchPredictor::CreateCaches ->
+  // InitializeAfterDBInitialize).
+  // This is accessed from each thread only once and the order is guaranteed.
+  // TODO(crbug.com/353548219): Consider more better structure.
+  std::map<std::string, LcppOrigin> needs_update_on_initialize_;
+  bool initialized_ = false;
 };
 
 }  // namespace predictors

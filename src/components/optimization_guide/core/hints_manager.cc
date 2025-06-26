@@ -292,8 +292,7 @@ bool ShouldContextResponsePopulateHintCache(
   switch (request_context) {
     case proto::RequestContext::CONTEXT_UNSPECIFIED:
     case proto::RequestContext::CONTEXT_BATCH_UPDATE_MODELS:
-      NOTREACHED_IN_MIGRATION();
-      return false;
+      NOTREACHED();
     case proto::RequestContext::CONTEXT_PAGE_NAVIGATION:
       return true;
     case proto::RequestContext::CONTEXT_BATCH_UPDATE_GOOGLE_SRP:
@@ -312,9 +311,12 @@ bool ShouldContextResponsePopulateHintCache(
       return false;
     case proto::RequestContext::CONTEXT_SHOPPING:
       return false;
+    case proto::RequestContext::CONTEXT_SHOP_CARD:
+      return false;
+    case proto::RequestContext::CONTEXT_GLIC_ZERO_STATE_SUGGESTIONS:
+      return false;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 }  // namespace
@@ -440,20 +442,6 @@ void HintsManager::OnHintsComponentAvailable(const HintsComponentInfo& info) {
     return;
   }
 
-  if (features::ShouldCheckFailedComponentVersionPref() &&
-      failed_component_version_ &&
-      failed_component_version_->CompareTo(info.version) >= 0) {
-    OPTIMIZATION_GUIDE_LOGGER(
-        optimization_guide_common::mojom::LogSource::HINTS,
-        optimization_guide_logger_)
-        << "Skipping processing OptimizationHints component version: "
-        << info.version.GetString()
-        << " as it had failed in a previous session";
-    RecordProcessHintsComponentResult(
-        ProcessHintsComponentResult::kFailedFinishProcessing);
-    MaybeRunUpdateClosure(std::move(next_update_closure_));
-    return;
-  }
   // Write version that we are currently processing to prefs.
   pref_service_->SetString(prefs::kPendingHintsProcessingVersion,
                            info.version.GetString());
@@ -1230,11 +1218,9 @@ void HintsManager::ProcessAndInvokeOnDemandHintsCallbacks(
         break;
       case proto::HASHED_HOST:
         // The server should not send hints with hashed host key.
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
       case proto::REPRESENTATION_UNSPECIFIED:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
 
@@ -1850,7 +1836,7 @@ void HintsManager::AddHintForTesting(
   } else if (metadata->any_metadata()) {
     *optimization->mutable_any_metadata() = *metadata->any_metadata();
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   hint_cache_->AddHintForTesting(url, std::move(hint));  // IN-TEST
   PrepareToInvokeRegisteredCallbacks(url);
@@ -1868,8 +1854,7 @@ void HintsManager::RemoveFetchedEntriesByHintKeys(
     case proto::KeyRepresentation::FULL_URL:
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
 
   if (key_representation == proto::FULL_URL) {

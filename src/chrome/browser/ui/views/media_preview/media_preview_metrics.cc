@@ -7,9 +7,11 @@
 #include <string>
 
 #include "base/check_op.h"
+#include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
+#include "components/permissions/permission_request.h"
 
 using base::StrCat;
 
@@ -26,6 +28,19 @@ base::HistogramBase* GetMediaPreviewDurationHistogram(const std::string& name) {
   const std::vector<int> custom_ranges{1, 2, 4, 8, 16, 32, 64, 128, 256, 512};
   return base::CustomHistogram::FactoryGet(
       name, custom_ranges, base::HistogramBase::kUmaTargetedHistogramFlag);
+}
+
+base::HistogramBase* GetTotalVisiblePreviewDurationHistogram(
+    const std::string& name) {
+  // Duration buckets in milliseconds.
+  const std::vector<int> custom_ranges{50,   125,  250,  500,  750,  1000,
+                                       1333, 1666, 2000, 2500, 3000, 4000};
+  return base::CustomHistogram::FactoryGet(
+      name, custom_ranges, base::HistogramBase::kUmaTargetedHistogramFlag);
+}
+
+base::HistogramBase* GetPreviewDelayTimeHistogram(const std::string& name) {
+  return GetTotalVisiblePreviewDurationHistogram(name);
 }
 
 const char* GetUiLocationString(UiLocation location) {
@@ -77,9 +92,19 @@ void UmaHistogramLinearCounts(const std::string& name,
 
 }  // anonymous namespace
 
-Context::Context(UiLocation ui_location, PreviewType preview_type)
-    : ui_location(ui_location), preview_type(preview_type) {}
+Context::Context(UiLocation ui_location,
+                 PreviewType preview_type,
+                 std::optional<PromptType> prompt_type,
+                 base::WeakPtr<permissions::PermissionRequest> request)
+    : ui_location(ui_location),
+      preview_type(preview_type),
+      prompt_type(prompt_type),
+      request(request) {}
+
 Context::~Context() = default;
+
+Context::Context(const Context& other) = default;
+Context::Context(Context&& other) = default;
 
 void RecordPageInfoNumInUseDevices(const Context& context, int devices) {
   CHECK_EQ(context.ui_location, UiLocation::kPageInfo);
@@ -154,10 +179,47 @@ void RecordPreviewVideoFramesRenderedPercent(const Context& context,
   base::UmaHistogramPercentage(metric_name, integer_percent);
 }
 
+void RecordTotalVisiblePreviewDuration(const Context& context,
+                                       const base::TimeDelta& delta) {
+  CHECK_EQ(context.preview_type, PreviewType::kCamera);
+  std::string metric_name =
+      StrCat({kUiPrefix, kPreview, GetUiLocationString(context.ui_location),
+              ".Video.TotalVisibleDuration"});
+  GetTotalVisiblePreviewDurationHistogram(metric_name)
+      ->Add(delta.InMilliseconds());
+}
+
+void RecordTimeToActionWithoutPreview(const Context& context,
+                                      const base::TimeDelta& delta) {
+  CHECK_EQ(context.preview_type, PreviewType::kCamera);
+  std::string metric_name =
+      StrCat({kUiPrefix, kPreview, GetUiLocationString(context.ui_location),
+              ".Video.TimeToActionWithoutPreview"});
+  GetPreviewDelayTimeHistogram(metric_name)->Add(delta.InMilliseconds());
+}
+
+void RecordPreviewDelayTime(const Context& context,
+                            const base::TimeDelta& delta) {
+  CHECK_EQ(context.preview_type, PreviewType::kCamera);
+  std::string metric_name =
+      StrCat({kUiPrefix, kPreview, GetUiLocationString(context.ui_location),
+              ".Video.Delay"});
+  GetPreviewDelayTimeHistogram(metric_name)->Add(delta.InMilliseconds());
+}
+
 void RecordOriginTrialAllowed(UiLocation location, bool allowed) {
   base::UmaHistogramBoolean(
       StrCat({kUiPrefix, GetUiLocationString(location), ".OriginTrialAllowed"}),
       allowed);
+}
+
+void RecordVideoCaptureError(const Context& context,
+                             media::VideoCaptureError received_error) {
+  CHECK_EQ(context.preview_type, PreviewType::kCamera);
+  std::string metric_name =
+      StrCat({kUiPrefix, kPreview, GetUiLocationString(context.ui_location),
+              ".VideoCaptureError"});
+  base::UmaHistogramEnumeration(metric_name, received_error);
 }
 
 }  // namespace media_preview_metrics

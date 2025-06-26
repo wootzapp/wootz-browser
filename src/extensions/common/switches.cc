@@ -22,13 +22,12 @@ const char kDisableExtensionsHttpThrottling[] =
     "disable-extensions-http-throttling";
 const char kExtensionProcess[] = "extension-process";
 const char kExtensionsOnChromeURLs[] = "extensions-on-chrome-urls";
-const char kForceDevModeHighlighting[] = "force-dev-mode-highlighting";
 const char kDisableAppContentVerification[] =
     "disable-app-content-verification";
 const char kLoadApps[] = "load-apps";
 const char kLoadExtension[] = "load-extension";
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 const char kLoadSigninProfileTestExtension[] =
     "load-signin-profile-test-extension";
 const char kLoadGuestModeTestExtension[] = "load-guest-mode-test-extension";
@@ -42,5 +41,6 @@ const char kShowComponentExtensionOptions[] =
 const char kTraceAppSource[] = "enable-trace-app-source";
 const char kEnableCrxHashCheck[] = "enable-crx-hash-check";
 const char kAllowFutureManifestVersion[] = "allow-future-manifest-version";
+const char kExtensionTestApiOnWebPages[] = "extension-test-api-on-web-pages";
 
 }  // namespace extensions::switches

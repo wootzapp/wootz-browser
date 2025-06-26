@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <utility>
+#include <variant>
 
 #include "base/json/json_writer.h"
 #include "base/logging.h"
@@ -69,7 +70,7 @@ bool PopDictionaryEntries(MessageReader* reader,
 // Gets the D-Bus type signature for the value.
 std::string GetTypeSignature(base::ValueView value) {
   struct Visitor {
-    std::string operator()(absl::monostate) {
+    std::string operator()(std::monostate) {
       DLOG(ERROR) << "Unexpected type " << base::Value::Type::NONE;
       return std::string();
     }
@@ -174,8 +175,7 @@ base::Value PopDataAsValue(MessageReader* reader) {
     }
     case Message::UNIX_FD: {
       // Cannot distinguish a file descriptor from an int
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     }
     case Message::ARRAY: {
       MessageReader sub_reader(nullptr);
@@ -206,8 +206,7 @@ base::Value PopDataAsValue(MessageReader* reader) {
     }
     case Message::DICT_ENTRY:
       // DICT_ENTRY must be popped as an element of an array.
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case Message::VARIANT: {
       MessageReader sub_reader(nullptr);
       if (reader->PopVariant(&sub_reader))
@@ -222,7 +221,7 @@ void AppendBasicTypeValueData(MessageWriter* writer, base::ValueView value) {
   struct Visitor {
     raw_ptr<MessageWriter> writer;
 
-    void operator()(absl::monostate) {
+    void operator()(std::monostate) {
       DLOG(ERROR) << "Unexpected type: " << base::Value::Type::NONE;
     }
 
@@ -232,7 +231,9 @@ void AppendBasicTypeValueData(MessageWriter* writer, base::ValueView value) {
 
     void operator()(double value) { writer->AppendDouble(value); }
 
-    void operator()(std::string_view value) { writer->AppendString(value); }
+    void operator()(std::string_view value) {
+      writer->AppendString(std::string(value));
+    }
 
     void operator()(const base::Value::BlobStorage&) {
       DLOG(ERROR) << "Unexpected type: " << base::Value::Type::BINARY;
@@ -262,7 +263,7 @@ void AppendValueData(MessageWriter* writer, base::ValueView value) {
   struct Visitor {
     raw_ptr<MessageWriter> writer;
 
-    void operator()(absl::monostate) {
+    void operator()(std::monostate) {
       DLOG(ERROR) << "Unexpected type: " << base::Value::Type::NONE;
     }
 

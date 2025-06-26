@@ -6,18 +6,26 @@ package org.chromium.chrome.browser.compositor;
 
 import static androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE;
 
+import static org.chromium.chrome.browser.util.KeyNavigationUtil.isButtonActivate;
+import static org.chromium.chrome.browser.util.KeyNavigationUtil.isMoveFocusBackward;
+import static org.chromium.chrome.browser.util.KeyNavigationUtil.isMoveFocusForward;
+import static org.chromium.ui.accessibility.KeyboardFocusUtil.setFocus;
+import static org.chromium.ui.accessibility.KeyboardFocusUtil.setFocusOnFirstFocusableDescendant;
+
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.SystemClock;
 import android.util.AttributeSet;
+import android.view.DragAndDropPermissions;
 import android.view.DragEvent;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.PointerIcon;
 import android.view.View;
@@ -26,25 +34,24 @@ import android.view.Window;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.FrameLayout;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.core.view.accessibility.AccessibilityEventCompat;
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.customview.widget.ExploreByTouchHelper;
 
 import org.chromium.base.BuildInfo;
 import org.chromium.base.Callback;
+import org.chromium.base.InputHintChecker;
 import org.chromium.base.ObserverList;
 import org.chromium.base.SysUtils;
 import org.chromium.base.TraceEvent;
-import org.chromium.base.compat.ApiHelperForN;
-import org.chromium.base.compat.ApiHelperForO;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.build.annotations.EnsuresNonNullIf;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsUtils;
@@ -55,6 +62,7 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.layouts.EventFilter.EventType;
+import org.chromium.chrome.browser.layouts.SceneOverlay;
 import org.chromium.chrome.browser.layouts.components.VirtualView;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
@@ -68,12 +76,9 @@ import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
-import org.chromium.chrome.browser.tasks.tab_management.TabManagementFieldTrial;
-import org.chromium.chrome.browser.tasks.tab_management.TabUiFeatureUtilities;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
 import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
-import org.chromium.chrome.features.start_surface.StartSurfaceUserData;
 import org.chromium.components.browser_ui.widget.TouchEventObserver;
 import org.chromium.components.browser_ui.widget.TouchEventProvider;
 import org.chromium.components.content_capture.OnscreenContentProvider;
@@ -86,12 +91,15 @@ import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.ApplicationViewportInsetSupplier;
 import org.chromium.ui.base.EventForwarder;
 import org.chromium.ui.base.EventOffsetHandler;
+import org.chromium.ui.base.SPenSupport;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.ViewportInsets;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.mojom.VirtualKeyboardMode;
+import org.chromium.ui.resources.AndroidResourceType;
 import org.chromium.ui.resources.ResourceManager;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
+import org.chromium.url.GURL;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 import java.util.ArrayList;
@@ -123,20 +131,16 @@ public class CompositorViewHolder extends FrameLayout
         /**
          * Initializes the {@link CompositorViewHolder} with the relevant content it needs to
          * properly show content on the screen.
-         * @param layoutManager             A {@link LayoutManagerImpl} instance.  This class is
-         *                                  responsible for driving all high level screen content
-         * and determines which {@link Layout} is shown when.
-         * @param urlBar                    The {@link View} representing the URL bar (must be
-         *                                  focusable) or {@code null} if none exists.
-         * @param contentContainer          A {@link ViewGroup} that can have content attached by
-         *                                  {@link Layout}s.
-         * @param controlContainer          A {@link ControlContainer} instance to draw.
+         *
+         * @param layoutManager A {@link LayoutManagerImpl} instance. This class is responsible for
+         *     driving all high level screen content and determines which {@link Layout} is shown
+         *     when.
+         * @param urlBar The {@link View} representing the URL bar (must be focusable) or {@code
+         *     null} if none exists.
+         * @param controlContainer A {@link ControlContainer} instance to draw.
          */
         void initializeCompositorContent(
-                LayoutManagerImpl layoutManager,
-                View urlBar,
-                ViewGroup contentContainer,
-                ControlContainer controlContainer);
+                LayoutManagerImpl layoutManager, View urlBar, ControlContainer controlContainer);
     }
 
     private final ObserverList<TouchEventObserver> mTouchEventObservers = new ObserverList<>();
@@ -162,7 +166,7 @@ public class CompositorViewHolder extends FrameLayout
     private View mAccessibilityView;
     private CompositorAccessibilityProvider mNodeProvider;
 
-    /** The toolbar control container. **/
+    /** The toolbar control container. */
     private @Nullable ControlContainer mControlContainer;
 
     private boolean mShowingFullscreen;
@@ -174,9 +178,15 @@ public class CompositorViewHolder extends FrameLayout
     /** The currently attached View. */
     private View mView;
 
+    /** The index of the {@link VirtualView} that has keyboard focus. */
+    private int mKeyboardFocusIndex;
+
+    /** Which {@link SceneOverlay} currently holds the keyboard focus, or null. */
+    private @Nullable SceneOverlay mSceneOverlay;
+
     /**
-     * Current ContentView. Updates when active tab is switched or WebContents is swapped
-     * in the current Tab.
+     * Current ContentView. Updates when active tab is switched or WebContents is swapped in the
+     * current Tab.
      */
     private ContentView mContentView;
 
@@ -187,6 +197,12 @@ public class CompositorViewHolder extends FrameLayout
     private boolean mControlsResizeView;
     private boolean mInGesture;
     private boolean mContentViewScrolling;
+    // The number of active touch pointers. We are sending a gesture begin
+    // event for every added touch point, and a gesnture end event for every
+    // removed touch point.
+    // TODO(crbug.com/265479149): We will remove |mInGesture| if we enable the
+    // SUPPRESS_TOOLBAR_CAPTURES_AT_GESTURE_END feature.
+    private int mNumGestureActiveTouches;
     private ApplicationViewportInsetSupplier mApplicationBottomInsetSupplier;
 
     // Handler for changes to viewport insets.
@@ -215,22 +231,16 @@ public class CompositorViewHolder extends FrameLayout
     /** Used to remove the temporary tab strip on startup, once ready (or timed out). */
     private Runnable mSetBackgroundRunnable;
 
-    private boolean mDelayTempStripRemoval;
-    private boolean mSetBackgroundTimedOut;
-    private boolean mCanSetBackground;
-    private boolean mFirstTabCreated;
     private boolean mHasDrawnOnce;
-    private int mDelayTempStripRemovalTimeoutMs;
-    private long mBuffersSwappedTimestamp;
-    private long mTabStateInitializedTimestamp;
-
-    /**
-     * Last MotionEvent dispatched to this object for a currently active gesture. If there is no
-     * active gesture, this is null.
-     */
-    private @Nullable MotionEvent mLastActiveTouchEvent;
 
     private TopUiThemeColorProvider mTopUiThemeColorProvider;
+
+    // Permissions are requested on a drop event, and are released when another drag starts
+    // (drag-started event) or when the current page navigates to a new URL or the tab changes.
+    private DragAndDropPermissions mDragAndDropPermissions;
+    // The URI when a drop contains a single URI. If the tab changes and is loading this URI, we do
+    // not clear the permissions.
+    private Uri mDropUri;
 
     private final EventOffsetHandler mEventOffsetHandler =
             new EventOffsetHandler(
@@ -253,7 +263,7 @@ public class CompositorViewHolder extends FrameLayout
                             // no need to adjust the touch offsets, since the content view is never moved
                             top = 0;
 
-                            if (forwarder != null) forwarder.setCurrentTouchEventOffsets(0, top);
+                            if (forwarder != null) forwarder.setCurrentTouchOffsetY(top);
                         }
 
                         @Override
@@ -270,39 +280,16 @@ public class CompositorViewHolder extends FrameLayout
                         }
                     });
 
-    private final OnLayoutChangeListener mLayoutChangeListender =
-            new OnLayoutChangeListener() {
-                @Override
-                public void onLayoutChange(
-                        View v,
-                        int left,
-                        int top,
-                        int right,
-                        int bottom,
-                        int oldLeft,
-                        int oldTop,
-                        int oldRight,
-                        int oldBottom) {
-                    v.removeOnLayoutChangeListener(this);
-                    if (mLastActiveTouchEvent == null) return;
-                    MotionEvent touchEvent = MotionEvent.obtain(mLastActiveTouchEvent);
-                    touchEvent.setAction(MotionEvent.ACTION_DOWN);
-                    CompositorViewHolder.this.dispatchTouchEvent(touchEvent);
-                    for (int i = 1; i < mLastActiveTouchEvent.getPointerCount(); i++) {
-                        MotionEvent pointerDownEvent = MotionEvent.obtain(mLastActiveTouchEvent);
-                        pointerDownEvent.setAction(
-                                MotionEvent.ACTION_POINTER_DOWN
-                                        | (i << MotionEvent.ACTION_POINTER_INDEX_SHIFT));
-                        CompositorViewHolder.this.dispatchTouchEvent(pointerDownEvent);
-                    }
-                }
-            };
-
     private final TabObserver mTabObserver =
             new EmptyTabObserver() {
                 @Override
                 public void onContentChanged(Tab tab) {
                     CompositorViewHolder.this.onContentChanged();
+                }
+
+                @Override
+                public void onPageLoadStarted(Tab tab, GURL url) {
+                    CompositorViewHolder.this.releaseDragAndDropPermissions();
                 }
 
                 @Override
@@ -315,21 +302,6 @@ public class CompositorViewHolder extends FrameLayout
                 @Override
                 public void onWillShowBrowserControls(Tab tab, boolean viewTransitionOptIn) {
                     CompositorViewHolder.this.onWillShowBrowserControls(viewTransitionOptIn);
-                }
-
-                @Override
-                public void onWebContentsSwapped(
-                        Tab tab, boolean didStartLoad, boolean didFinishLoad) {
-                    // After swapping web contents, any gesture active in the old ContentView is
-                    // cancelled. We still want to continue a previously running gesture in the new
-                    // ContentView, so we synthetically dispatch a new ACTION_DOWN MotionEvent with
-                    // the coordinates of where we estimate the pointer currently is (the
-                    // coordinates of the last ACTION_MOVE MotionEvent received before the swap).
-                    //
-                    // We wait for layout to happen as the newly created ContentView currently
-                    // has a width and height of zero, which would result in the event not being
-                    // dispatched.
-                    mView.addOnLayoutChangeListener(mLayoutChangeListender);
                 }
 
                 @Override
@@ -347,6 +319,20 @@ public class CompositorViewHolder extends FrameLayout
                         updateVirtualKeyboardMode(getWebContents().getVirtualKeyboardMode());
                     }
                 }
+
+                // TODO(crbug.com/265479149): Split out a specific delegate for
+                // gesture listening below and remove from TabObserver.
+                @Override
+                public void onGestureBegin() {
+                    mNumGestureActiveTouches++;
+                    updateInMotion();
+                }
+
+                @Override
+                public void onGestureEnd() {
+                    mNumGestureActiveTouches--;
+                    updateInMotion();
+                }
             };
 
     private View mUrlBar;
@@ -357,12 +343,13 @@ public class CompositorViewHolder extends FrameLayout
     public PointerIcon onResolvePointerIcon(MotionEvent event, int pointerIndex) {
         View activeView = getContentView();
         if (activeView == null || !ViewCompat.isAttachedToWindow(activeView)) return null;
-        return ApiHelperForN.onResolvePointerIcon(activeView, event, pointerIndex);
+        return activeView.onResolvePointerIcon(event, pointerIndex);
     }
 
     /**
      * Creates a {@link CompositorView}.
-     * @param c     The Context to create this {@link CompositorView} in.
+     *
+     * @param c The Context to create this {@link CompositorView} in.
      * @param attrs The AttributeSet used to create this {@link CompositorView}.
      */
     public CompositorViewHolder(Context c, AttributeSet attrs) {
@@ -420,12 +407,8 @@ public class CompositorViewHolder extends FrameLayout
         }
         handleSystemUiVisibilityChange();
 
-        mDelayTempStripRemoval = TabUiFeatureUtilities.isDelayTempStripRemovalEnabled(getContext());
-        mDelayTempStripRemovalTimeoutMs =
-                TabManagementFieldTrial.DELAY_TEMP_STRIP_TIMEOUT_MS.getValue();
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            ApiHelperForO.setDefaultFocusHighlightEnabled(this, false);
+            setDefaultFocusHighlightEnabled(false);
         }
     }
 
@@ -610,7 +593,7 @@ public class CompositorViewHolder extends FrameLayout
     // state changes while fullscreened and is used to simulate a view resize. This is only needed
     // if the page has opted in to keyboard resizes.
     private void handleWindowInsetChanged() {
-         if (mApplicationBottomInsetSupplier != null
+        if (mApplicationBottomInsetSupplier != null
                 && mApplicationBottomInsetSupplier.insetsAffectWebContentsSize()) {
             tryUpdateControlsAndWebContentsSizing();
         }
@@ -699,7 +682,10 @@ public class CompositorViewHolder extends FrameLayout
 
         if (mLayoutManager == null) return false;
 
-        mEventOffsetHandler.onInterceptTouchEvent(e);
+        int actionMasked = SPenSupport.convertSPenEventAction(e.getActionMasked());
+        if (actionMasked == MotionEvent.ACTION_DOWN) {
+            mEventOffsetHandler.onInterceptTouchDownEvent(e);
+        }
         return mLayoutManager.onInterceptMotionEvent(e, mIsKeyboardShowing, EventType.TOUCH);
     }
 
@@ -713,6 +699,14 @@ public class CompositorViewHolder extends FrameLayout
         boolean consumed = mLayoutManager != null && mLayoutManager.onTouchEvent(e);
         mEventOffsetHandler.onTouchEvent(e);
         return consumed;
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent e) {
+        if (mLayoutManager != null && mLayoutManager.dispatchGenericMotionEvent(e)) {
+            return true;
+        }
+        return super.dispatchGenericMotionEvent(e);
     }
 
     private void updateIsInGesture(MotionEvent e) {
@@ -729,7 +723,12 @@ public class CompositorViewHolder extends FrameLayout
 
     private void updateInMotion() {
         // TODO(crbug.com/40244051): Track fling as well.
-        boolean inMotion = mInGesture || mContentViewScrolling;
+        boolean inMotion = mContentViewScrolling;
+        if (ChromeFeatureList.sSuppressToolbarCapturesAtGestureEnd.isEnabled()) {
+            inMotion |= mNumGestureActiveTouches > 0;
+        } else {
+            inMotion |= mInGesture;
+        }
         mInMotionSupplier.set(inMotion);
         if (mContentView != null) {
             mContentView.setDeferKeepScreenOnChanges(inMotion);
@@ -774,6 +773,14 @@ public class CompositorViewHolder extends FrameLayout
     @Override
     public boolean dispatchDragEvent(DragEvent e) {
         mEventOffsetHandler.onPreDispatchDragEvent(e.getAction(), 0.f, 0.f);
+        if (e.getAction() == DragEvent.ACTION_DRAG_STARTED) {
+            releaseDragAndDropPermissions();
+        } else if (e.getAction() == DragEvent.ACTION_DROP) {
+            mDragAndDropPermissions = mActivity.requestDragAndDropPermissions(e);
+            if (e.getClipData() != null && e.getClipData().getItemCount() == 1) {
+                mDropUri = e.getClipData().getItemAt(0).getUri();
+            }
+        }
         boolean ret = super.dispatchDragEvent(e);
         mEventOffsetHandler.onPostDispatchDragEvent(e.getAction());
         return ret;
@@ -782,7 +789,9 @@ public class CompositorViewHolder extends FrameLayout
     @Override
     public boolean dispatchTouchEvent(MotionEvent e) {
         assert e != null : "The motion event dispatched shouldn't be null!";
-        updateLastActiveTouchEvent(e);
+        if (mNativeInitialized) {
+            InputHintChecker.onCompositorViewHolderTouchEvent();
+        }
         updateIsInGesture(e);
         for (TouchEventObserver o : mTouchEventObservers) {
             if (o.dispatchTouchEvent(e)) return true;
@@ -795,19 +804,6 @@ public class CompositorViewHolder extends FrameLayout
 
         updateInMotion();
         return handled;
-    }
-
-    private void updateLastActiveTouchEvent(MotionEvent e) {
-        if (e.getActionMasked() == MotionEvent.ACTION_MOVE
-                || e.getActionMasked() == MotionEvent.ACTION_DOWN
-                || e.getActionMasked() == MotionEvent.ACTION_POINTER_DOWN
-                || e.getActionMasked() == MotionEvent.ACTION_POINTER_UP) {
-            mLastActiveTouchEvent = e;
-        }
-        if (e.getActionMasked() == MotionEvent.ACTION_CANCEL
-                || e.getActionMasked() == MotionEvent.ACTION_UP) {
-            mLastActiveTouchEvent = null;
-        }
     }
 
     /**
@@ -895,7 +891,7 @@ public class CompositorViewHolder extends FrameLayout
         // TODO(crbug.com/40767446): Centralize the logic for calculating bottom insets by
         // merging them into ApplicationBottomInsetSupplier.
         int controlsInsets = 0;
-         if (mBrowserControlsManager != null) {
+        if (mBrowserControlsManager != null) {
             int controlsMinHeight =
                     mBrowserControlsManager.getTopControlsMinHeight()
                             + mBrowserControlsManager.getBottomControlsMinHeight();
@@ -921,7 +917,7 @@ public class CompositorViewHolder extends FrameLayout
             if (mVirtualKeyboardMode == VirtualKeyboardMode.OVERLAYS_CONTENT) {
                 int keyboardHeight =
                         KeyboardVisibilityDelegate.getInstance()
-                                .calculateKeyboardHeight(this.getRootView());
+                                .calculateTotalKeyboardHeight(this.getRootView());
                 notifyVirtualKeyboardOverlayGeometryChangeEvent(width, keyboardHeight, webContents);
             }
         } else {
@@ -1031,11 +1027,31 @@ public class CompositorViewHolder extends FrameLayout
     public void onControlsOffsetChanged(
             int topOffset,
             int topControlsMinHeightOffset,
+            boolean topControlsMinHeightChanged,
             int bottomOffset,
             int bottomControlsMinHeightOffset,
-            boolean needsAnimate) {
+            boolean bottomControlsMinHeightChanged,
+            boolean requestNewFrame,
+            boolean isVisibilityForced) {
+        if (ChromeFeatureList.sAndroidDumpOnScrollWithoutResource.isEnabled()
+                && !isVisibilityForced
+                && getResourceManager() != null) {
+            getResourceManager()
+                    .dumpIfNoResource(AndroidResourceType.DYNAMIC, R.id.control_container);
+        }
+
         onViewportChanged();
-        if (needsAnimate) requestRender();
+
+        // When scrolling browser controls in viz, don't produce new browser frames unless it's
+        // forced with |needs_animate|
+        boolean scrollingWithBciv =
+                ChromeFeatureList.sBrowserControlsInViz.isEnabled()
+                        && (mInGesture || mContentViewScrolling);
+        if ((requestNewFrame || topControlsMinHeightChanged || bottomControlsMinHeightChanged)
+                && !scrollingWithBciv) {
+            requestRender();
+        }
+
         updateContentViewChildrenDimension();
     }
 
@@ -1114,7 +1130,7 @@ public class CompositorViewHolder extends FrameLayout
         TraceEvent.begin("CompositorViewHolder:updateContentViewChildrenDimension");
         ViewGroup view = getContentView();
         if (view != null) {
-             assert mBrowserControlsManager != null;
+            assert mBrowserControlsManager != null;
             float topViewsTranslation = mBrowserControlsManager.getTopVisibleContentOffset();
             float bottomMargin =
                     BrowserControlsUtils.getBottomContentOffset(mBrowserControlsManager);
@@ -1234,29 +1250,9 @@ public class CompositorViewHolder extends FrameLayout
 
     @Override
     public void didSwapBuffers(boolean swappedCurrentSize, int framesUntilHideBackground) {
-        if (mSetBackgroundRunnable != null
-                && mHasDrawnOnce
-                && framesUntilHideBackground == 0
-                && !mCanSetBackground) {
-            // Remove temporary background if tab state is ready. Otherwise, mark that the
-            // background can be removed and handle in TabModelSelectorObserver.
-            if (!mDelayTempStripRemoval
-                    || mTabModelSelector.isTabStateInitialized()
-                    || mSetBackgroundTimedOut) {
-                runSetBackgroundRunnable();
-            } else {
-                mCanSetBackground = true;
-            }
-
-            // If tab state is already initialized, record how long it took for the real tab strip
-            // to be ready to be drawn.
-            if (mTabStateInitializedTimestamp != 0) {
-                RecordHistogram.recordTimesHistogram(
-                        "Android.TabStrip.TimeToBufferSwapAfterInitializeTabState",
-                        SystemClock.elapsedRealtime() - mTabStateInitializedTimestamp);
-            } else {
-                mBuffersSwappedTimestamp = SystemClock.elapsedRealtime();
-            }
+        if (mSetBackgroundRunnable != null && mHasDrawnOnce && framesUntilHideBackground == 0) {
+            // Remove temporary background if tab state is ready.
+            runSetBackgroundRunnable();
         }
 
         for (Runnable runnable : mDidSwapBuffersCallbacks) {
@@ -1272,39 +1268,6 @@ public class CompositorViewHolder extends FrameLayout
 
         new Handler().post(mSetBackgroundRunnable);
         mSetBackgroundRunnable = null;
-
-        // Mark that we timed out if we remove the background before the tab state is initialized.
-        // Called when the background is actually being removed, since if the timeout is reached,
-        // but the second buffer swap happens after the tab state is initialized, we shouldn't
-        // actually see any jank.
-        RecordHistogram.recordBooleanHistogram(
-                "Android.TabStrip.DelayTempStripRemovalTimedOut",
-                !mTabModelSelector.isTabStateInitialized());
-    }
-
-    @VisibleForTesting
-    void maybeInitializeSetBackgroundRunnableTimeout() {
-        if (mDelayTempStripRemoval && !mFirstTabCreated) {
-            mFirstTabCreated = true;
-            new Handler()
-                    .postDelayed(
-                            () -> {
-                                // If null, the background has already been removed before the
-                                // timeout.
-                                if (mSetBackgroundRunnable == null) return;
-
-                                if (mCanSetBackground) {
-                                    // If the background can be removed, remove it now.
-                                    runSetBackgroundRunnable();
-                                } else {
-                                    // If the background cannot be removed, mark that we have timed
-                                    // out, so that we can remove the background when the buffer
-                                    // swaps.
-                                    mSetBackgroundTimedOut = true;
-                                }
-                            },
-                            mDelayTempStripRemovalTimeoutMs);
-        }
     }
 
     @Override
@@ -1427,19 +1390,24 @@ public class CompositorViewHolder extends FrameLayout
 
     /**
      * Sets the appropriate objects this class should represent.
-     * @param tabModelSelector        The {@link TabModelSelector} this View should hold and
-     *                                represent.
-     * @param tabCreatorManager       The {@link TabCreatorManager} for this view.
+     *
+     * @param tabModelSelector The {@link TabModelSelector} this View should hold and represent.
+     * @param tabCreatorManager The {@link TabCreatorManager} for this view.
+     * @param bottomControlsOffsetSupplier Supplier of the offset, relative to the bottom of the
+     *     viewport, of the bottom-anchored toolbar.
      */
     public void onFinishNativeInitialization(
-            TabModelSelector tabModelSelector, TabCreatorManager tabCreatorManager) {
+            TabModelSelector tabModelSelector,
+            TabCreatorManager tabCreatorManager,
+            ObservableSupplier<Integer> bottomControlsOffsetSupplier) {
         assert mLayoutManager != null;
         mLayoutManager.init(
                 tabModelSelector,
                 tabCreatorManager,
                 mControlContainer,
                 mCompositorView.getResourceManager().getDynamicResourceLoader(),
-                mTopUiThemeColorProvider);
+                mTopUiThemeColorProvider,
+                bottomControlsOffsetSupplier);
 
         mTabModelSelector = tabModelSelector;
         tabModelSelector.addObserver(
@@ -1450,30 +1418,8 @@ public class CompositorViewHolder extends FrameLayout
                     }
 
                     @Override
-                    public void onTabStateInitialized() {
-                        // Tab state is initialized, so remove background if we've not yet done so
-                        // and a frame is ready.
-                        if (mDelayTempStripRemoval
-                                && mSetBackgroundRunnable != null
-                                && mCanSetBackground) {
-                            runSetBackgroundRunnable();
-                        }
-
-                        // If real tab strip is ready to be drawn, record how long it took for the
-                        // tab state to be initialized.
-                        if (mBuffersSwappedTimestamp != 0) {
-                            RecordHistogram.recordTimesHistogram(
-                                    "Android.TabStrip.TimeToInitializeTabStateAfterBufferSwap",
-                                    SystemClock.elapsedRealtime() - mBuffersSwappedTimestamp);
-                        } else {
-                            mTabStateInitializedTimestamp = SystemClock.elapsedRealtime();
-                        }
-                    }
-
-                    @Override
                     public void onNewTabCreated(Tab tab, @TabCreationState int creationState) {
                         initializeTab(tab);
-                        maybeInitializeSetBackgroundRunnableTimeout();
                     }
                 });
 
@@ -1549,11 +1495,7 @@ public class CompositorViewHolder extends FrameLayout
     }
 
     private void setTab(Tab tab) {
-        // The StartSurfaceUserData.getInstance().getUnusedTabRestoredAtStartup() is only true when
-        // the Start surface is showing in the startup and there isn't any Tab opened. Thus, no
-        // Tab needs to be loaded. Once a new Tab is opening and Start surface is hiding, this flag
-        // will be reset.
-        if (tab != null && !StartSurfaceUserData.getInstance().getUnusedTabRestoredAtStartup()) {
+        if (tab != null) {
             tab.loadIfNeeded(TabLoadIfNeededCaller.SET_TAB);
         }
 
@@ -1587,6 +1529,13 @@ public class CompositorViewHolder extends FrameLayout
                     new OnscreenContentProvider(getContext(), this, getWebContents());
         } else {
             mOnscreenContentProvider.onWebContentsChanged(getWebContents());
+        }
+
+        // Clear drop permissions when tab changes unless this is a new tab loading from the drop.
+        if (mDropUri == null
+                || tab == null
+                || !tab.getUrl().getSpec().equals(mDropUri.toString())) {
+            releaseDragAndDropPermissions();
         }
     }
 
@@ -1651,12 +1600,7 @@ public class CompositorViewHolder extends FrameLayout
 
     @Override
     public void invalidateAccessibilityProvider() {
-        if (mNodeProvider != null) {
-            mNodeProvider.sendEventForVirtualView(
-                    mNodeProvider.getAccessibilityFocusedVirtualViewId(),
-                    AccessibilityEventCompat.TYPE_VIEW_ACCESSIBILITY_FOCUS_CLEARED);
-            mNodeProvider.invalidateRoot();
-        }
+        if (mNodeProvider != null) mNodeProvider.invalidateRoot();
     }
 
     // ChromeAccessibilityUtil.Observer
@@ -1674,10 +1618,10 @@ public class CompositorViewHolder extends FrameLayout
                         final List<VirtualView> mVirtualViews = new ArrayList<>();
 
                         /**
-                         * Checks if there are any a11y focusable VirtualViews. If there are, set the view
-                         * to be View.IMPORTANT_FOR_ACCESSIBILITY_AUTO (and therefore return true). If there
-                         * are not, set the view to be View.IMPORTANT_FOR_ACCESSIBILITY_NO (and therefore
-                         * return false).
+                         * Checks if there are any a11y focusable VirtualViews. If there are, set
+                         * the view to be View.IMPORTANT_FOR_ACCESSIBILITY_AUTO (and therefore
+                         * return true). If there are not, set the view to be
+                         * View.IMPORTANT_FOR_ACCESSIBILITY_NO (and therefore return false).
                          *
                          * @return Whether or not the view should be a11y focusable.
                          */
@@ -1701,6 +1645,11 @@ public class CompositorViewHolder extends FrameLayout
 
                             return super.isImportantForAccessibility();
                         }
+
+                        @Override
+                        public boolean dispatchKeyEvent(KeyEvent event) {
+                            return CompositorViewHolder.this.dispatchKeyEvent(event);
+                        }
                     };
             addView(mAccessibilityView);
             mNodeProvider = new CompositorAccessibilityProvider(mAccessibilityView);
@@ -1715,14 +1664,137 @@ public class CompositorViewHolder extends FrameLayout
         setFocusable(!obscureTabContent);
     }
 
+    // KeyListener and VirtualView management.
+
+    @Override
+    public void onFocusChanged(boolean gainFocus, int direction, Rect previouslyFocusedRect) {
+        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
+        // Clear focus ring indicators.
+        if (!gainFocus) resetKeyboardFocus();
+    }
+
+    @Override
+    public void resetKeyboardFocus() {
+        mKeyboardFocusIndex = Integer.MIN_VALUE;
+        updateKeyboardFocus(getVirtualViewsForCurrentSceneOverlay());
+        mSceneOverlay = null;
+    }
+
+    @Override
+    public void requestKeyboardFocus(@NonNull SceneOverlay sceneOverlay) {
+        mSceneOverlay = sceneOverlay;
+        mKeyboardFocusIndex = 0;
+        updateKeyboardFocus(getVirtualViewsForCurrentSceneOverlay());
+    }
+
+    @Override
+    public boolean containsKeyboardFocus(@NonNull SceneOverlay sceneOverlay) {
+        return sceneOverlay.equals(mSceneOverlay)
+                && (isA11ySetUp() ? mAccessibilityView.hasFocus() : hasFocus());
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        // TODO(crbug.com/6341205): Handle scrolling.
+        // If mSceneOverlay == null, i.e. we're not handling keyboard focus, return early.
+        // If the event is not one of the ones we need to process, return early.
+        // Returning early allows us to avoid getting the list of virtual views.
+        if ((mSceneOverlay == null)
+                || (!isMoveFocusForward(event)
+                        && !isMoveFocusBackward(event)
+                        && !isButtonActivate(event))) {
+            return super.dispatchKeyEvent(event);
+        }
+        List<VirtualView> keyboardFocusableViews = getVirtualViewsForCurrentSceneOverlay();
+        int keyboardFocusableViewCount = keyboardFocusableViews.size();
+        if (isMoveFocusForward(event)) {
+            mKeyboardFocusIndex++;
+            if (mKeyboardFocusIndex >= keyboardFocusableViewCount) {
+                mKeyboardFocusIndex = 0;
+            }
+            updateKeyboardFocus(keyboardFocusableViews);
+            return true;
+        }
+        if (isMoveFocusBackward(event)) {
+            mKeyboardFocusIndex--;
+            if (mKeyboardFocusIndex < 0) {
+                mKeyboardFocusIndex = keyboardFocusableViewCount - 1;
+            }
+            updateKeyboardFocus(keyboardFocusableViews);
+            return true;
+        }
+        if (isButtonActivate(event)
+                && 0 < mKeyboardFocusIndex
+                && mKeyboardFocusIndex < keyboardFocusableViews.size()) {
+            keyboardFocusableViews.get(mKeyboardFocusIndex).handleClick(LayoutManagerImpl.time());
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    /** Requests keyboard focus for the {@link VirtualView} at mKeyboardFocusIndex. */
+    private void updateKeyboardFocus(List<VirtualView> virtualViews) {
+        // Always update the rendering of the virtual views.
+        for (int i = 0; i < virtualViews.size(); i++) {
+            virtualViews.get(i).setKeyboardFocused(i == mKeyboardFocusIndex);
+        }
+        requestRender();
+        // If index is invalid, return early.
+        if (mKeyboardFocusIndex < 0 || virtualViews.size() <= mKeyboardFocusIndex) return;
+        if (isA11ySetUp()) {
+            // If a11y is set up, mAccessibilityView needs to hold keyboard focus.
+            // mNodeProvider.requestKeyboardFocusForVirtualView will fail otherwise.
+            if (mAccessibilityView.hasFocus()) mAccessibilityView.requestFocus();
+            mNodeProvider.requestKeyboardFocusForVirtualView(mKeyboardFocusIndex);
+        } else {
+            // If a11y is not set up, CompositorViewHolder needs to hold the keyboard focus so that
+            // it can respond to key events.
+            if (!hasFocus()) {
+                // Manually make this focusable, even if it usually wouldn't be.
+                setFocusable(true);
+                setFocus(this);
+                // Then reset focusability (focus stays on the element).
+                setFocusable(mCanBeFocusable);
+            }
+        }
+    }
+
     /**
-     * Class used to provide a virtual view hierarchy to the Accessibility
-     * framework for this view and its contained items.
-     * <p>
-     * <strong>NOTE:</strong> This class is fully backwards compatible for
-     * compilation, but will only provide touch exploration on devices running
-     * Ice Cream Sandwich and above.
-     * </p>
+     * @return Whether a11y is set up.
+     */
+    @EnsuresNonNullIf({"mNodeProvider", "mAccessibilityView"})
+    private boolean isA11ySetUp() {
+        return mNodeProvider != null && mAccessibilityView != null;
+    }
+
+    /**
+     * @return The visible virtual views belonging to the currently-focused {@link SceneOverlay}.
+     */
+    private List<VirtualView> getVirtualViewsForCurrentSceneOverlay() {
+        if (mSceneOverlay == null) return List.of();
+        List<VirtualView> virtualViews = new ArrayList<>();
+        mSceneOverlay.getVirtualViews(virtualViews);
+        return virtualViews;
+    }
+
+    /** Sets keyboard focus on the first content view item. */
+    public void setFocusOnFirstContentViewItem() {
+        // We are no longer focusing on a scene overlay b/c we are focus on main content
+        mSceneOverlay = null;
+        View view = getCurrentTab().getView();
+        if (view instanceof ViewGroup viewGroup) {
+            setFocusOnFirstFocusableDescendant(viewGroup);
+        } else {
+            setFocus(view);
+        }
+    }
+
+    /**
+     * Class used to provide a virtual view hierarchy to the Accessibility framework for this view
+     * and its contained items.
+     *
+     * <p><strong>NOTE:</strong> This class is fully backwards compatible for compilation, but will
+     * only provide touch exploration on devices running Ice Cream Sandwich and above.
      */
     private class CompositorAccessibilityProvider extends ExploreByTouchHelper {
         private final float mDpToPx;
@@ -1844,5 +1916,14 @@ public class CompositorViewHolder extends FrameLayout
     @VirtualKeyboardMode.EnumType
     public int getVirtualKeyboardModeForTesting() {
         return mVirtualKeyboardMode;
+    }
+
+    /** Release any DragAndDropPermissions currently held. */
+    private void releaseDragAndDropPermissions() {
+        if (mDragAndDropPermissions != null) {
+            mDragAndDropPermissions.release();
+            mDragAndDropPermissions = null;
+        }
+        mDropUri = null;
     }
 }

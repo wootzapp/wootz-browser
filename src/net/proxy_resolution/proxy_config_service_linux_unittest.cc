@@ -4,6 +4,7 @@
 
 #include "net/proxy_resolution/proxy_config_service_linux.h"
 
+#include <array>
 #include <map>
 #include <string>
 #include <string_view>
@@ -138,14 +139,14 @@ class MockEnvironment : public base::Environment {
   }
 
   // Begin base::Environment implementation.
-  bool GetVar(std::string_view variable_name, std::string* result) override {
+  std::optional<std::string> GetVar(std::string_view variable_name) override {
     auto it = table_.find(variable_name);
-    if (it == table_.end() || !*it->second)
-      return false;
+    if (it == table_.end() || !*it->second) {
+      return std::nullopt;
+    }
 
     // Note that the variable may be defined but empty.
-    *result = *(it->second);
-    return true;
+    return *(it->second);
   }
 
   bool SetVar(std::string_view variable_name,
@@ -475,7 +476,7 @@ TEST_F(ProxyConfigServiceLinuxTest, BasicGSettingsTest) {
 
   // Inspired from proxy_config_service_win_unittest.cc.
   // Very neat, but harder to track down failures though.
-  const struct {
+  struct Tests {
     // Short description to identify the test
     std::string description;
 
@@ -487,7 +488,8 @@ TEST_F(ProxyConfigServiceLinuxTest, BasicGSettingsTest) {
     bool auto_detect;
     GURL pac_url;
     ProxyRulesExpectation proxy_rules;
-  } tests[] = {
+  };
+  const auto tests = std::to_array<Tests>({
       {
           TEST_DESC("No proxying"),
           {
@@ -764,7 +766,7 @@ TEST_F(ProxyConfigServiceLinuxTest, BasicGSettingsTest) {
           ProxyRulesExpectation::Single("www.google.com:80",  // single proxy
                                         "*.google.com"),      // bypass rules
       },
-  };
+  });
 
   for (size_t i = 0; i < std::size(tests); ++i) {
     SCOPED_TRACE(base::StringPrintf("Test[%" PRIuS "] %s", i,
@@ -793,7 +795,7 @@ TEST_F(ProxyConfigServiceLinuxTest, BasicGSettingsTest) {
 
 TEST_F(ProxyConfigServiceLinuxTest, BasicEnvTest) {
   // Inspired from proxy_config_service_win_unittest.cc.
-  const struct {
+  struct Tests {
     // Short description to identify the test
     std::string description;
 
@@ -805,7 +807,8 @@ TEST_F(ProxyConfigServiceLinuxTest, BasicEnvTest) {
     bool auto_detect;
     GURL pac_url;
     ProxyRulesExpectation proxy_rules;
-  } tests[] = {
+  };
+  const auto tests = std::to_array<Tests>({
       {
           TEST_DESC("No proxying"),
           {
@@ -1096,7 +1099,7 @@ TEST_F(ProxyConfigServiceLinuxTest, BasicEnvTest) {
               "www.google.com:80",
               "*.google.com,*foo.com:99,1.2.3.4:22,127.0.0.1/8"),
       },
-  };
+  });
 
   for (size_t i = 0; i < std::size(tests); ++i) {
     SCOPED_TRACE(base::StringPrintf("Test[%" PRIuS "] %s", i,
@@ -1171,7 +1174,7 @@ TEST_F(ProxyConfigServiceLinuxTest, KDEConfigParser) {
     long_line += "-";
 
   // Inspired from proxy_config_service_win_unittest.cc.
-  const struct {
+  struct Tests {
     // Short description to identify the test
     std::string description;
 
@@ -1184,7 +1187,8 @@ TEST_F(ProxyConfigServiceLinuxTest, KDEConfigParser) {
     bool auto_detect;
     GURL pac_url;
     ProxyRulesExpectation proxy_rules;
-  } tests[] = {
+  };
+  const auto tests = std::to_array<Tests>({
       {
           TEST_DESC("No proxying"),
 
@@ -1711,7 +1715,7 @@ TEST_F(ProxyConfigServiceLinuxTest, KDEConfigParser) {
               "socks5://socks.comfy.com:1234",  // socks
               "*.google.com,*.kde.org"),        // bypass rules
       },
-  };
+  });
 
   for (size_t i = 0; i < std::size(tests); ++i) {
     SCOPED_TRACE(base::StringPrintf("Test[%" PRIuS "] %s", i,
@@ -1964,7 +1968,7 @@ TEST_F(ProxyConfigServiceLinuxTest, KDEMultipleKioslaverc) {
   xdg_config_dirs += ':';
   xdg_config_dirs += config_xdg_home_.value();
 
-  const struct {
+  struct Tests {
     // Short description to identify the test
     std::string description;
 
@@ -1974,7 +1978,8 @@ TEST_F(ProxyConfigServiceLinuxTest, KDEMultipleKioslaverc) {
     bool auto_detect;
     GURL pac_url;
     ProxyRulesExpectation proxy_rules;
-  } tests[] = {
+  };
+  const auto tests = std::to_array<Tests>({
       {
           TEST_DESC("Use xdg/kioslaverc"),
 
@@ -2013,7 +2018,7 @@ TEST_F(ProxyConfigServiceLinuxTest, KDEMultipleKioslaverc) {
               "",                         // ftp
               "*.google.com,*.kde.org"),  // bypass rules,
       },
-  };
+  });
 
   // Create directories for all configs
   base::CreateDirectory(config_home_);

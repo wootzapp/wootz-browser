@@ -20,7 +20,6 @@
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/webui/constrained_web_dialog_ui.h"
 #include "chrome/services/printing/public/mojom/pdf_nup_converter.mojom.h"
 #include "components/printing/common/print.mojom.h"
@@ -52,18 +51,17 @@ class BrowserContext;
 namespace printing {
 
 class PrintPreviewHandler;
+class PrintPreviewUI;
 
-class PrintPreviewUIConfig : public content::WebUIConfig {
+class PrintPreviewUIConfig
+    : public content::DefaultWebUIConfig<PrintPreviewUI> {
  public:
   PrintPreviewUIConfig();
   ~PrintPreviewUIConfig() override;
 
-  // content::WebUIConfig:
+  // content::DefaultWebUIConfig:
   bool IsWebUIEnabled(content::BrowserContext* browser_context) override;
   bool ShouldHandleURL(const GURL& url) override;
-  std::unique_ptr<content::WebUIController> CreateWebUIController(
-      content::WebUI* web_ui,
-      const GURL& url) override;
 };
 
 // PrintPreviewUI lives on the UI thread.

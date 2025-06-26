@@ -27,7 +27,7 @@ MediaCoordinator::ViewType ComputePreviewType(
 
   // We always expect that `content_settings_type` is either MEDIASTREAM_CAMERA,
   // CAMERA_PAN_TILT_ZOOM or MEDIASTREAM_MIC.
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 }  // namespace
@@ -37,10 +37,12 @@ PageInfoPreviewsCoordinator::PageInfoPreviewsCoordinator(
     ContentSettingsType content_settings_type,
     views::View* parent_view)
     : view_type_(ComputePreviewType(content_settings_type)),
-      metrics_context_(media_preview_metrics::Context(
+      metrics_context_(
           media_preview_metrics::UiLocation::kPageInfo,
           media_coordinator::GetPreviewTypeFromMediaCoordinatorViewType(
-              view_type_))) {
+              view_type_),
+          /*prompt_type=*/std::nullopt,
+          /*request=*/nullptr) {
   CHECK(web_contents);
 
   CHECK(parent_view);

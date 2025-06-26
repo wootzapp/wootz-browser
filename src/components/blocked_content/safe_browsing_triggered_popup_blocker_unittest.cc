@@ -24,7 +24,7 @@
 #include "components/subresource_filter/content/browser/safe_browsing_page_activation_throttle.h"
 #include "components/subresource_filter/content/browser/subresource_filter_observer_manager.h"
 #include "components/subresource_filter/content/browser/subresource_filter_safe_browsing_client.h"
-#include "components/subresource_filter/content/shared/common/subresource_filter_utils.h"
+#include "components/subresource_filter/content/shared/browser/utils.h"
 #include "components/subresource_filter/core/browser/subresource_filter_constants.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "components/user_prefs/user_prefs.h"
@@ -147,8 +147,7 @@ class SafeBrowsingTriggeredPopupBlockerTestBase
     if (subresource_filter::IsInSubresourceFilterRoot(handle)) {
       return std::make_unique<
           subresource_filter::SafeBrowsingPageActivationThrottle>(
-          handle, /*delegate=*/nullptr, content::GetIOThreadTaskRunner({}),
-          fake_safe_browsing_database_);
+          handle, /*delegate=*/nullptr, fake_safe_browsing_database_);
     }
 
     return nullptr;
@@ -235,7 +234,7 @@ TEST_F(SafeBrowsingTriggeredPopupBlockerTest,
   params.triggering_event_info =
       blink::mojom::TriggeringEventInfo::kFromUntrustedEvent;
   params.source_render_frame_id = main_rfh()->GetRoutingID();
-  params.source_render_process_id = main_rfh()->GetProcess()->GetID();
+  params.source_render_process_id = main_rfh()->GetProcess()->GetDeprecatedID();
 
   MaybeBlockPopup(web_contents(), nullptr,
                   std::make_unique<TestPopupNavigationDelegate>(

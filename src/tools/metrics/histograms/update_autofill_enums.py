@@ -87,23 +87,6 @@ def GenerateAutofilledFieldUserEditingStatusByFieldType(server_field_types):
   return result
 
 
-def GenerateAutofillPredictionsComparisonResult(server_field_types):
-  result = {}
-  result[0] = 'None'
-  for id, name in server_field_types.items():
-    result[6 * id + 1] = f'{name} - Predictions equal - Value agrees'
-    result[6 * id + 2] = f'{name} - Predictions equal - Value disagrees'
-    result[6 * id + 3] = \
-        f'{name} - Predictions different - Value agrees with old prediction'
-    result[6 * id + 4] = \
-        f'{name} - Predictions different - Value agrees with new prediction'
-    result[6 * id + 5] = \
-        f'{name} - Predictions different - Value agrees with neither prediction'
-    result[6 * id + 6] = \
-        f'{name} - Predictions different - Value agrees with both predictions'
-  return result
-
-
 def GenerateAutofillFieldPredictionQualityByFieldType():
   groups = ReadFieldPredictionGroups(FIELD_PREDICTION_GROUPS_PATH)
   result = {}
@@ -121,11 +104,20 @@ def GenerateAutofillFieldPredictionQualityByFieldType():
   return result
 
 
-def GenerateAutofillPreFilledFieldStatusByFieldType(field_types):
+def GenerateAutofillDataUtilizationByFieldType(field_types):
   result = {}
   for enum_id, enum_name in field_types.items():
-    result[16 * enum_id + 0] = f'{enum_name}: Pre-filled on page load'
-    result[16 * enum_id + 1] = f'{enum_name}: Empty on page load'
+    result[64 * enum_id +
+           0] = f'{enum_name}: Not autofilled or autofilled value edited'
+    result[64 * enum_id + 1] = f'{enum_name}: Autofilled value accepted'
+  return result
+
+
+def GenerateFillingAcceptanceByFieldType(server_field_types):
+  result = {}
+  for enum_id, enum_name in server_field_types.items():
+    result[4 * enum_id + 0] = f'{enum_name}: Ignored'
+    result[4 * enum_id + 1] = f'{enum_name}: Accepted'
   return result
 
 
@@ -133,8 +125,9 @@ if __name__ == '__main__':
   server_field_types = ReadFieldTypes(FIELD_TYPES_PATH)
 
   update_histogram_enum.UpdateHistogramFromDict(
-      'tools/metrics/histograms/enums.xml', 'AutofillFieldType',
-      server_field_types, FIELD_TYPES_PATH, os.path.basename(__file__))
+      'tools/metrics/histograms/metadata/autofill/enums.xml',
+      'AutofillFieldType', server_field_types, FIELD_TYPES_PATH,
+      os.path.basename(__file__))
 
   update_histogram_enum.UpdateHistogramFromDict(
       'tools/metrics/histograms/metadata/autofill/enums.xml',
@@ -144,18 +137,26 @@ if __name__ == '__main__':
 
   update_histogram_enum.UpdateHistogramFromDict(
       'tools/metrics/histograms/metadata/autofill/enums.xml',
-      'AutofillPredictionsComparisonResult',
-      GenerateAutofillPredictionsComparisonResult(server_field_types),
-      FIELD_TYPES_PATH, os.path.basename(__file__))
-
-  update_histogram_enum.UpdateHistogramFromDict(
-      'tools/metrics/histograms/metadata/autofill/enums.xml',
       'AutofillFieldPredictionQualityByFieldType',
       GenerateAutofillFieldPredictionQualityByFieldType(),
       FIELD_PREDICTION_GROUPS_PATH, os.path.basename(__file__))
 
   update_histogram_enum.UpdateHistogramFromDict(
-      'tools/metrics/histograms/enums.xml',
-      'AutofillPreFilledFieldStatusByFieldType',
-      GenerateAutofillPreFilledFieldStatusByFieldType(server_field_types),
+      'tools/metrics/histograms/metadata/autofill/enums.xml',
+      'AutofillDataUtilizationByFieldType',
+      GenerateAutofillDataUtilizationByFieldType(server_field_types),
       FIELD_TYPES_PATH, os.path.basename(__file__))
+
+  update_histogram_enum.UpdateHistogramFromDict(
+      'tools/metrics/histograms/metadata/autofill/enums.xml',
+      'FillingAcceptanceByFieldType',
+      GenerateFillingAcceptanceByFieldType(server_field_types),
+      FIELD_TYPES_PATH, os.path.basename(__file__))
+
+  update_histogram_enum.UpdateHistogramFromDict(
+      'tools/metrics/histograms/metadata/autofill/histograms.xml',
+      'AutofillFieldType',
+      server_field_types,
+      FIELD_TYPES_PATH,
+      os.path.basename(__file__),
+      update_comment=False)

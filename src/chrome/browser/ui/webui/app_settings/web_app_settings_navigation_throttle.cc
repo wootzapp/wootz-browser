@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/webui/app_settings/web_app_settings_navigation_throttle.h"
 
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
@@ -24,11 +25,13 @@ std::unique_ptr<content::NavigationThrottle>
 WebAppSettingsNavigationThrottle::MaybeCreateThrottleFor(
     content::NavigationHandle* handle) {
   // Check the current url scheme is chrome://
-  if (!handle->GetURL().SchemeIs(content::kChromeUIScheme))
+  if (!handle->GetURL().SchemeIs(content::kChromeUIScheme)) {
     return nullptr;
+  }
   // Check the current url is chrome://app-settings
-  if (handle->GetURL().host_piece() != chrome::kChromeUIWebAppSettingsHost)
+  if (handle->GetURL().host_piece() != chrome::kChromeUIWebAppSettingsHost) {
     return nullptr;
+  }
 
   return std::make_unique<WebAppSettingsNavigationThrottle>(handle);
 }
@@ -72,7 +75,9 @@ WebAppSettingsNavigationThrottle::WillStartRequest() {
     return content::NavigationThrottle::DEFER;
   }
 
-  if (!provider->registrar_unsafe().IsLocallyInstalled(app_id)) {
+  if (!provider->registrar_unsafe().IsInstallState(
+          app_id, {web_app::proto::INSTALLED_WITHOUT_OS_INTEGRATION,
+                   web_app::proto::INSTALLED_WITH_OS_INTEGRATION})) {
     return content::NavigationThrottle::BLOCK_REQUEST;
   }
 
@@ -90,7 +95,9 @@ void WebAppSettingsNavigationThrottle::ContinueCheckForApp(
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
   auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
   CHECK(provider);
-  if (provider->registrar_unsafe().IsLocallyInstalled(app_id)) {
+  if (provider->registrar_unsafe().IsInstallState(
+          app_id, {web_app::proto::INSTALLED_WITHOUT_OS_INTEGRATION,
+                   web_app::proto::INSTALLED_WITH_OS_INTEGRATION})) {
     Resume();
   } else {
     CancelDeferredNavigation(content::NavigationThrottle::BLOCK_REQUEST);

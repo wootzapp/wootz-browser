@@ -31,11 +31,13 @@ class VIZ_SERVICE_EXPORT DCLayerOverlayProcessor final
       public base::PowerStateObserver {
  public:
   using FilterOperationsMap =
-      base::flat_map<AggregatedRenderPassId, cc::FilterOperations*>;
+      base::flat_map<AggregatedRenderPassId,
+                     raw_ptr<cc::FilterOperations, CtnExperimental>>;
   // When |skip_initialization_for_testing| is true, object will be isolated
   // for unit tests.
   explicit DCLayerOverlayProcessor(
       int allowed_yuv_overlay_count,
+      bool disable_video_overlay_if_moving,
       bool skip_initialization_for_testing = false);
 
   DCLayerOverlayProcessor(const DCLayerOverlayProcessor&) = delete;
@@ -84,7 +86,8 @@ class VIZ_SERVICE_EXPORT DCLayerOverlayProcessor final
   // DirectCompositionOverlayCapsObserver implementation.
   void OnOverlayCapsChanged() override;
   // base::PowerStateObserver implementation.
-  void OnPowerStateChange(bool on_battery_power) override;
+  void OnBatteryPowerStatusChange(
+      PowerStateObserver::BatteryPowerStatus battery_power_status) override;
 
   void UpdateHasHwOverlaySupport();
   void UpdateSystemHDRStatus();
@@ -108,6 +111,9 @@ class VIZ_SERVICE_EXPORT DCLayerOverlayProcessor final
   }
   void set_is_on_battery_power_for_testing(bool value) {
     is_on_battery_power_ = value;
+  }
+  void set_disable_video_overlay_if_moving_for_testing(bool value) {
+    disable_video_overlay_if_moving_ = value;
   }
   bool force_overlay_for_auto_hdr() {
     return system_hdr_enabled_on_any_display_ &&
@@ -134,14 +140,16 @@ class VIZ_SERVICE_EXPORT DCLayerOverlayProcessor final
     friend bool operator==(const OverlayRect&, const OverlayRect&) = default;
   };
 
-  // Promote a single quad in isolation, like how |Process| would internally.
-  // This ignores per-frame limitations such as max number of YUV quads, etc.
-  // This also adds other properties needed for delegated compositing.
-  std::optional<OverlayCandidate> FromTextureOrYuvQuad(
-      const DisplayResourceProvider* resource_provider,
-      const AggregatedRenderPass* render_pass,
-      const QuadList::ConstIterator& it,
-      bool is_page_fullscreen_mode) const;
+  // Returns true if the `quad_below` meets the criteria to allow the quad above
+  // it to utilize the fullscreen letterboxing optimization in `DCLayerTree`.
+  // - `quad_below` must be the quad directly below the quad we are marking as
+  //   "possible fullscreen letterboxing". If null, indicates there is nothing
+  //   below the quad we're checking.
+  // - `display_rect` is ideally the monitor rect, but is approximated with the
+  //   root render pass output rect.
+  // See implementation for details.
+  static bool IsPossibleFullScreenLetterboxing(const DrawQuad* quad_below,
+                                               const gfx::Rect& display_rect);
 
  private:
   // Information about a render pass's overlays from the previous frame. The
@@ -313,8 +321,7 @@ class VIZ_SERVICE_EXPORT DCLayerOverlayProcessor final
       const RenderPassPreviousFrameState& previous_frame_state,
       const GlobalOverlayState& global_overlay_state,
       RenderPassOverlayData& overlay_data,
-      RenderPassCurrentFrameState& current_frame_state,
-      OverlayCandidate& dc_layer);
+      RenderPassCurrentFrameState& current_frame_state);
 
   void UpdateDamageRect(
       AggregatedRenderPass* render_pass,
@@ -323,7 +330,7 @@ class VIZ_SERVICE_EXPORT DCLayerOverlayProcessor final
       RenderPassCurrentFrameState& current_frame_state) const;
 
   void RemoveOverlayDamageRect(
-      const QuadList::Iterator& it,
+      const DrawQuad* quad,
       RenderPassCurrentFrameState& render_pass_state) const;
 
   // Remove all video overlay candidates if any overlays in any render passes
@@ -368,6 +375,7 @@ class VIZ_SERVICE_EXPORT DCLayerOverlayProcessor final
   std::vector<gfx::Rect> previous_frame_overlay_candidate_rects_;
   int frames_since_last_overlay_candidate_rects_change_ = 0;
   bool no_undamaged_overlay_promotion_;
+  bool disable_video_overlay_if_moving_;
 
   THREAD_CHECKER(thread_checker_);
 };

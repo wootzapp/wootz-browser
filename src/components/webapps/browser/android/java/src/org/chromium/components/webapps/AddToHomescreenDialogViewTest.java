@@ -6,6 +6,7 @@ package org.chromium.components.webapps;
 
 import android.app.Activity;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
 import android.widget.EditText;
 import android.widget.TextView;
 
@@ -36,7 +37,7 @@ public class AddToHomescreenDialogViewTest {
     private static final String TEST_URL = "youtube.com";
     private static final String TEST_NATIVE_ADD_TEXT = "Install";
 
-    private class MockModalDialogManager extends ModalDialogManager {
+    private static class MockModalDialogManager extends ModalDialogManager {
         private PropertyModel mShownDialogModel;
         private PropertyModel mDismissedDialogModel;
         private int mDismissalCause;
@@ -70,20 +71,13 @@ public class AddToHomescreenDialogViewTest {
         }
     }
 
-    public void setUpDialog(boolean showAddToHomeScreen) {
+    public void setUpDialog() {
         // Create and show the view.
         Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
-        AppBannerManager.InstallStringPair installPair =
-                showAddToHomeScreen
-                        ? new AppBannerManager.InstallStringPair(
-                                R.string.menu_add_to_homescreen, R.string.add)
-                        : new AppBannerManager.InstallStringPair(
-                                R.string.menu_install_webapp, R.string.menu_install_webapp);
         mAddToHomescreenDialogView =
                 new AddToHomescreenDialogView(
                         activity,
                         mModalDialogManager,
-                        installPair,
                         new AddToHomescreenViewDelegate() {
                             @Override
                             public void onAddToHomescreen(String title, @AppType int type) {
@@ -106,7 +100,7 @@ public class AddToHomescreenDialogViewTest {
     @Test
     @Feature({"Webapp"})
     public void testLoadingState() {
-        setUpDialog(/* showAddToHomeScreen= */ true);
+        setUpDialog();
         // Assert dialog is showing.
         PropertyModel shownDialogModel = mModalDialogManager.getShownDialogModel();
         Assert.assertNotNull(shownDialogModel);
@@ -143,7 +137,7 @@ public class AddToHomescreenDialogViewTest {
     @Test
     @Feature({"Webapp"})
     public void testLoadingStatePwa() {
-        setUpDialog(/* showAddToHomeScreen= */ false);
+        setUpDialog();
         // Assert dialog is showing.
         PropertyModel shownDialogModel = mModalDialogManager.getShownDialogModel();
         Assert.assertNotNull(shownDialogModel);
@@ -168,7 +162,7 @@ public class AddToHomescreenDialogViewTest {
 
         // Assert dialog buttons text.
         Assert.assertEquals(
-                "Install app", shownDialogModel.get(ModalDialogProperties.POSITIVE_BUTTON_TEXT));
+                "Add", shownDialogModel.get(ModalDialogProperties.POSITIVE_BUTTON_TEXT));
         Assert.assertEquals(
                 "Cancel", shownDialogModel.get(ModalDialogProperties.NEGATIVE_BUTTON_TEXT));
 
@@ -181,7 +175,7 @@ public class AddToHomescreenDialogViewTest {
     @Test
     @Feature({"Webapp"})
     public void testWebAPK() {
-        setUpDialog(/* showAddToHomeScreen= */ true);
+        setUpDialog();
         initDialogView(AppType.WEBAPK);
         mAddToHomescreenDialogView.setUrl(TEST_URL);
 
@@ -203,7 +197,7 @@ public class AddToHomescreenDialogViewTest {
     @Test
     @Feature({"Webapp"})
     public void testDiyWebAPK() {
-        setUpDialog(/* showAddToHomeScreen= */ true);
+        setUpDialog();
         initDialogView(AppType.WEBAPK_DIY);
         mAddToHomescreenDialogView.setUrl(TEST_URL);
 
@@ -225,7 +219,7 @@ public class AddToHomescreenDialogViewTest {
     @Test
     @Feature({"Webapp"})
     public void testShortcut() {
-        setUpDialog(/* showAddToHomeScreen= */ true);
+        setUpDialog();
         initDialogView(AppType.SHORTCUT);
 
         assertVisibility(R.id.spinny, false);
@@ -245,7 +239,7 @@ public class AddToHomescreenDialogViewTest {
     @Test
     @Feature({"Webapp"})
     public void testNativeApp() {
-        setUpDialog(/* showAddToHomeScreen= */ true);
+        setUpDialog();
         initDialogView(AppType.NATIVE);
         mAddToHomescreenDialogView.setNativeAppRating(2.3f);
         mAddToHomescreenDialogView.setNativeInstallButtonText(TEST_NATIVE_ADD_TEXT);
@@ -271,7 +265,7 @@ public class AddToHomescreenDialogViewTest {
     @Test
     @Feature({"Webapp"})
     public void testAddButtonState() {
-        setUpDialog(/* showAddToHomeScreen= */ true);
+        setUpDialog();
         PropertyModel shownDialogModel = mModalDialogManager.getShownDialogModel();
 
         for (int i = 0; i <= AppType.MAX_VALUE; i++) {
@@ -295,7 +289,7 @@ public class AddToHomescreenDialogViewTest {
     @Test
     @Feature({"Webapp"})
     public void testAddButtonStateEditTitle() {
-        setUpDialog(/* showAddToHomeScreen= */ true);
+        setUpDialog();
         PropertyModel shownDialogModel = mModalDialogManager.getShownDialogModel();
         mAddToHomescreenDialogView.setTitle(TEST_TITLE);
 
@@ -327,7 +321,7 @@ public class AddToHomescreenDialogViewTest {
     @Test
     @Feature({"Webapp"})
     public void testTitleClickCallback() {
-        setUpDialog(/* showAddToHomeScreen= */ true);
+        setUpDialog();
         initDialogView(AppType.NATIVE);
 
         Assert.assertEquals(0, mTitleClickCallback.getCallCount());
@@ -340,14 +334,14 @@ public class AddToHomescreenDialogViewTest {
         Assert.assertEquals(2, mDismissCallback.getCallCount());
         Assert.assertNotNull(mModalDialogManager.getDismissedDialogModel());
         Assert.assertEquals(
-                mModalDialogManager.getDismissalCause(), DialogDismissalCause.ACTION_ON_CONTENT);
+                DialogDismissalCause.ACTION_ON_CONTENT, mModalDialogManager.getDismissalCause());
     }
 
     /** Tests whether the callback for dismissal functions correctly. */
     @Test
     @Feature({"Webapp"})
     public void testDismissCallback() {
-        setUpDialog(/* showAddToHomeScreen= */ true);
+        setUpDialog();
         initDialogView(AppType.NATIVE);
 
         PropertyModel shownDialogModel = mModalDialogManager.getShownDialogModel();
@@ -362,7 +356,7 @@ public class AddToHomescreenDialogViewTest {
     @Test
     @Feature({"Webapp"})
     public void testInstallCallback() {
-        setUpDialog(/* showAddToHomeScreen= */ true);
+        setUpDialog();
         initDialogView(AppType.WEBAPK);
         PropertyModel shownDialogModel = mModalDialogManager.getShownDialogModel();
         Assert.assertEquals(0, mAddCallback.getCallCount());
@@ -370,6 +364,32 @@ public class AddToHomescreenDialogViewTest {
                 .get(ModalDialogProperties.CONTROLLER)
                 .onClick(shownDialogModel, ModalDialogProperties.ButtonType.POSITIVE);
         Assert.assertEquals(1, mAddCallback.getCallCount());
+    }
+
+    /** Tests whether the done editor action for shortcut name dismisses the dialog correctly. */
+    @Test
+    @Feature({"Webapp"})
+    public void testShortcutNameEditorAction() {
+        setUpDialog();
+        initDialogView(AppType.SHORTCUT);
+
+        EditText shortcutNameInput =
+                mAddToHomescreenDialogView.getParentViewForTest().findViewById(R.id.shortcut_name);
+
+        Assert.assertEquals(0, mModalDialogManager.getDismissalCause());
+
+        // Without any text, the done action shouldn't cause the dialog to dismiss.
+        shortcutNameInput.setText("");
+        shortcutNameInput.onEditorAction(EditorInfo.IME_ACTION_DONE);
+        Assert.assertEquals(0, mModalDialogManager.getDismissalCause());
+
+        // With text, the done action should cause the dialog to dismiss as if the positive button
+        // is clicked.
+        shortcutNameInput.setText("Hello world");
+        shortcutNameInput.onEditorAction(EditorInfo.IME_ACTION_DONE);
+        Assert.assertEquals(
+                DialogDismissalCause.POSITIVE_BUTTON_CLICKED,
+                mModalDialogManager.getDismissalCause());
     }
 
     private void initDialogView(@AppType int appType) {

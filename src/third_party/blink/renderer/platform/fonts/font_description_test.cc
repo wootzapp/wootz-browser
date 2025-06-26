@@ -23,7 +23,14 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "third_party/blink/renderer/platform/fonts/font_description.h"
+
+#include <array>
 
 #include "third_party/blink/renderer/platform/testing/font_test_base.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
@@ -34,20 +41,31 @@ namespace blink {
 class FontDescriptionTest : public FontTestBase {};
 
 TEST_F(FontDescriptionTest, TestHashCollision) {
-  FontSelectionValue weights[] = {
-      FontSelectionValue(100), FontSelectionValue(200),
-      FontSelectionValue(300), FontSelectionValue(400),
-      FontSelectionValue(500), FontSelectionValue(600),
-      FontSelectionValue(700), FontSelectionValue(800),
-      FontSelectionValue(900)};
-  FontSelectionValue stretches[]{
-      kUltraCondensedWidthValue, kExtraCondensedWidthValue,
-      kCondensedWidthValue,      kSemiCondensedWidthValue,
-      kNormalWidthValue,         kSemiExpandedWidthValue,
-      kExpandedWidthValue,       kExtraExpandedWidthValue,
-      kUltraExpandedWidthValue};
+  auto weights = std::to_array<FontSelectionValue>({
+      FontSelectionValue(100),
+      FontSelectionValue(200),
+      FontSelectionValue(300),
+      FontSelectionValue(400),
+      FontSelectionValue(500),
+      FontSelectionValue(600),
+      FontSelectionValue(700),
+      FontSelectionValue(800),
+      FontSelectionValue(900),
+  });
+  auto stretches = std::to_array<FontSelectionValue>({
+      kUltraCondensedWidthValue,
+      kExtraCondensedWidthValue,
+      kCondensedWidthValue,
+      kSemiCondensedWidthValue,
+      kNormalWidthValue,
+      kSemiExpandedWidthValue,
+      kExpandedWidthValue,
+      kExtraExpandedWidthValue,
+      kUltraExpandedWidthValue,
+  });
 
-  FontSelectionValue slopes[] = {kNormalSlopeValue, kItalicSlopeValue};
+  auto slopes =
+      std::to_array<FontSelectionValue>({kNormalSlopeValue, kItalicSlopeValue});
 
   FontDescription source;
   WTF::Vector<unsigned> hashes;
@@ -178,6 +196,25 @@ TEST_F(FontDescriptionTest, VariantAlternatesDifferentCacheKey) {
   ASSERT_EQ(*variants_a, *variants_a);
   a.SetFontVariantAlternates(variants_a);
   b.SetFontVariantAlternates(variants_b);
+
+  ASSERT_NE(a, b);
+
+  FontFaceCreationParams test_creation_params;
+  FontCacheKey key_a = a.CacheKey(test_creation_params, false);
+  FontCacheKey key_b = b.CacheKey(test_creation_params, false);
+
+  ASSERT_NE(key_a, key_b);
+}
+
+TEST_F(FontDescriptionTest, VariantEmojiDifferentCacheKey) {
+  FontDescription a;
+  FontDescription b(a);
+
+  FontVariantEmoji variant_emoji_a = kEmojiVariantEmoji;
+  FontVariantEmoji variant_emoji_b = kUnicodeVariantEmoji;
+
+  a.SetVariantEmoji(variant_emoji_a);
+  b.SetVariantEmoji(variant_emoji_b);
 
   ASSERT_NE(a, b);
 

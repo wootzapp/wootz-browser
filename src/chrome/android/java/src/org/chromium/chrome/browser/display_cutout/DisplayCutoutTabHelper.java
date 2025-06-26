@@ -14,22 +14,21 @@ import org.chromium.base.UserData;
 import org.chromium.base.UserDataHost;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.chrome.browser.customtabs.BaseCustomTabActivity;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabObserver;
 import org.chromium.chrome.browser.tab.TabSelectionType;
+import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeUtils;
 import org.chromium.components.browser_ui.display_cutout.DisplayCutoutController;
-import org.chromium.components.browser_ui.widget.InsetObserver;
-import org.chromium.components.browser_ui.widget.InsetObserverSupplier;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
+import org.chromium.ui.InsetObserver;
 import org.chromium.ui.base.WindowAndroid;
 
 /**
  * Wraps a {@link DisplayCutoutController} for a Chrome {@link Tab}.
  *
- * This will only be created once the tab sets a non-default viewport fit.
+ * <p>This will only be created once the tab sets a non-default viewport fit.
  */
 public class DisplayCutoutTabHelper implements UserData {
     private static final Class<DisplayCutoutTabHelper> USER_DATA_KEY = DisplayCutoutTabHelper.class;
@@ -62,6 +61,11 @@ public class DisplayCutoutTabHelper implements UserData {
 
                     mCutoutController.onActivityAttachmentChanged(window);
                 }
+
+                @Override
+                public void onContentChanged(Tab tab) {
+                    mCutoutController.onContentChanged();
+                }
             };
 
     public static DisplayCutoutTabHelper from(Tab tab) {
@@ -91,8 +95,8 @@ public class DisplayCutoutTabHelper implements UserData {
         }
 
         @Override
-        public InsetObserver getInsetObserverView() {
-            return InsetObserverSupplier.getValueOrNullFrom(mTab.getWindowAndroid());
+        public @Nullable InsetObserver getInsetObserver() {
+            return mTab.getWindowAndroid().getInsetObserver();
         }
 
         @Override
@@ -119,7 +123,7 @@ public class DisplayCutoutTabHelper implements UserData {
 
         @Override
         public boolean isDrawEdgeToEdgeEnabled() {
-            return ChromeFeatureList.sDrawEdgeToEdge.isEnabled();
+            return EdgeToEdgeUtils.isEnabled();
         }
     }
 
@@ -141,6 +145,15 @@ public class DisplayCutoutTabHelper implements UserData {
      */
     public void setViewportFit(@WebContentsObserver.ViewportFitType int value) {
         mCutoutController.setViewportFit(value);
+    }
+
+    /**
+     * Set whether there are safe area constraint on the current web page.
+     *
+     * @param hasConstraint Whether there are safe area constraint for the page.
+     */
+    public void setSafeAreaConstraint(boolean hasConstraint) {
+        mCutoutController.setSafeAreaConstraint(hasConstraint);
     }
 
     @Override

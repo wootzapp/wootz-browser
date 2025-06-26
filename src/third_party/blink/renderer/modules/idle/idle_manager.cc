@@ -5,8 +5,8 @@
 #include "third_party/blink/renderer/modules/idle/idle_manager.h"
 
 #include "base/task/single_thread_task_runner.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
-#include "third_party/blink/renderer/bindings/modules/v8/v8_permission_state.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_permission_state.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/modules/permissions/permission_utils.h"
@@ -54,7 +54,7 @@ ScriptPromise<V8PermissionState> IdleManager::RequestPermission(
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNotAllowedError,
         "Must be handling a user gesture to show a permission request.");
-    return ScriptPromise<V8PermissionState>();
+    return EmptyPromise();
   }
 
   // This interface is annotated with [SecureContext].
@@ -115,7 +115,7 @@ void IdleManager::InitForTesting(
 void IdleManager::OnPermissionRequestComplete(
     ScriptPromiseResolver<V8PermissionState>* resolver,
     mojom::blink::PermissionStatus status) {
-  resolver->Resolve(PermissionStatusToString(status));
+  resolver->Resolve(ToV8PermissionState(status));
 }
 
 }  // namespace blink

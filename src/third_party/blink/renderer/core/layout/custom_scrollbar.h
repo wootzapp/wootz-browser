@@ -29,6 +29,7 @@
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/scroll/scrollbar.h"
 #include "third_party/blink/renderer/core/style/computed_style_constants.h"
+#include "third_party/blink/renderer/platform/geometry/physical_offset.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
@@ -36,6 +37,7 @@
 namespace blink {
 
 class ComputedStyle;
+class GraphicsContext;
 class LayoutObject;
 class LayoutCustomScrollbarPart;
 
@@ -95,6 +97,8 @@ class CORE_EXPORT CustomScrollbar final : public Scrollbar {
 
   void InvalidateDisplayItemClientsOfScrollbarParts();
   void ClearPaintFlags();
+
+  void Paint(GraphicsContext&, const PhysicalOffset& paint_offset) const;
 
   void Trace(Visitor*) const override;
 

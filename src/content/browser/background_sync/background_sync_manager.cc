@@ -27,6 +27,7 @@
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/permission_controller.h"
+#include "content/public/browser/permission_descriptor_util.h"
 #include "content/public/browser/render_process_host.h"
 #include "third_party/blink/public/common/permissions/permission_utils.h"
 #include "third_party/blink/public/common/service_worker/embedded_worker_status.h"
@@ -135,13 +136,18 @@ SyncAndNotificationPermissions GetBackgroundSyncPermission(
 
   // The requesting origin always matches the embedding origin.
   auto sync_permission = permission_controller->GetPermissionStatusForWorker(
-      sync_type == BackgroundSyncType::ONE_SHOT
-          ? blink::PermissionType::BACKGROUND_SYNC
-          : blink::PermissionType::PERIODIC_BACKGROUND_SYNC,
+      content::PermissionDescriptorUtil::
+          CreatePermissionDescriptorForPermissionType(
+              sync_type == BackgroundSyncType::ONE_SHOT
+                  ? blink::PermissionType::BACKGROUND_SYNC
+                  : blink::PermissionType::PERIODIC_BACKGROUND_SYNC),
       render_process_host, origin);
   auto notification_permission =
       permission_controller->GetPermissionStatusForWorker(
-          blink::PermissionType::NOTIFICATIONS, render_process_host, origin);
+          content::PermissionDescriptorUtil::
+              CreatePermissionDescriptorForPermissionType(
+                  blink::PermissionType::NOTIFICATIONS),
+          render_process_host, origin);
   return {sync_permission, notification_permission};
 }
 
@@ -316,7 +322,10 @@ std::string GetEventStatusString(blink::ServiceWorkerStatusCode status_code) {
     case blink::ServiceWorkerStatusCode::kErrorTimeout:
       return "timeout";
     default:
-      DUMP_WILL_BE_NOTREACHED_NORETURN();
+      SCOPED_CRASH_KEY_NUMBER("BGSM", "status_code",
+                              static_cast<int>(status_code));
+      DUMP_WILL_BE_NOTREACHED()
+          << "status_code " << static_cast<int>(status_code);
       return "unknown error";
   }
 }

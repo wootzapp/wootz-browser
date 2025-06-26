@@ -6,17 +6,13 @@
 
 namespace blink::v8_compile_hints {
 
-void V8CrowdsourcedCompileHintsConsumer::SetData(const int64_t* memory,
-                                                 size_t int64_count) {
-  // The shared memory size might not match what we expect, since it's
-  // transmitted via IPC and the other end might be compromised.
-  if (int64_count != kBloomFilterInt32Count / 2) {
+void V8CrowdsourcedCompileHintsConsumer::SetData(
+    base::span<const int64_t> memory) {
+  if (memory.size() != kBloomFilterInt32Count / 2) {
     return;
   }
-
   data_ = base::MakeRefCounted<Data>();
-  unsigned* bloom_data = data_->bloom_.GetRawData();
-
+  auto bloom_data = data_->bloom_.GetRawData();
   static_assert(sizeof(unsigned) == sizeof(int32_t));
   for (int i = 0; i < kBloomFilterInt32Count / 2; ++i) {
     bloom_data[2 * i] = static_cast<unsigned>(memory[i] & ((1LL << 32) - 1));

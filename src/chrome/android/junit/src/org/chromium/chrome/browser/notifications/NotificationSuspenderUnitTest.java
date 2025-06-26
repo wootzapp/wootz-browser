@@ -25,14 +25,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
 import org.mockito.hamcrest.MockitoHamcrest;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.Shadows;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.browser_ui.notifications.MockNotificationManagerProxy;
 import org.chromium.components.browser_ui.notifications.NotificationMetadata;
@@ -65,8 +65,7 @@ public class NotificationSuspenderUnitTest {
     private static final String TEST_NOTIFICATION_ID_OTHER_DOMAIN = "p#https://not-example.com#10";
     private static final String TEST_NOTIFICATION_ID_INVALID = "p##10";
 
-    @Rule public JniMocker mJniMocker = new JniMocker();
-
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private NotificationSuspender.Natives mNotificationSuspenderJniMock;
     @Mock private Profile mProfile;
 
@@ -75,8 +74,7 @@ public class NotificationSuspenderUnitTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-        mJniMocker.mock(NotificationSuspenderJni.TEST_HOOKS, mNotificationSuspenderJniMock);
+        NotificationSuspenderJni.setInstanceForTesting(mNotificationSuspenderJniMock);
 
         mFakeNotificationManager = new MockNotificationManagerProxy();
         mNotificationSuspender =
@@ -304,7 +302,8 @@ public class NotificationSuspenderUnitTest {
                                         TEST_ORIGIN,
                                         TEST_ORIGIN_HTTP,
                                         TEST_OTHER_ORIGIN,
-                                        TEST_OTHER_ORIGIN_HTTP)));
+                                        TEST_OTHER_ORIGIN_HTTP),
+                                String[].class));
     }
 
     /**
@@ -329,7 +328,8 @@ public class NotificationSuspenderUnitTest {
                                         TEST_ORIGIN_HTTP,
                                         TEST_ORIGIN_SUBDOMAIN,
                                         TEST_ORIGIN_OTHER_PORT,
-                                        TEST_OTHER_ORIGIN)));
+                                        TEST_OTHER_ORIGIN),
+                                String[].class));
     }
 
     /**

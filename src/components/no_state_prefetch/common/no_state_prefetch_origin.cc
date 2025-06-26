@@ -4,13 +4,15 @@
 
 #include "components/no_state_prefetch/common/no_state_prefetch_origin.h"
 
+#include <array>
+
 #include "base/metrics/histogram_macros.h"
 
 namespace prerender {
 
 namespace {
 
-const char* kOriginNames[] = {
+auto kOriginNames = std::to_array<const char*>({
     "[Deprecated] Link Rel Prerender (original)",
     "[Deprecated] Omnibox (original)",
     "GWS Prerender",
@@ -30,7 +32,7 @@ const char* kOriginNames[] = {
     "[Deprecated] Isolated Prerender",
     "Speculation Rules Same Origin Prerender",
     "Max",
-};
+});
 static_assert(std::size(kOriginNames) == ORIGIN_MAX + 1,
               "NoStatePrefetch origin name count mismatch");
 

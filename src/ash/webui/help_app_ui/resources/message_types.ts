@@ -10,6 +10,7 @@
 /** Enum for message types. */
 export enum Message {
   OPEN_FEEDBACK_DIALOG = 'open-feedback-dialog',
+  SHOW_ON_DEVICE_APP_CONTROLS = 'show-on-device-app-controls',
   SHOW_PARENTAL_CONTROLS = 'show-parental-controls',
   TRIGGER_WELCOME_TIP_CALL_TO_ACTION = 'trigger-welcome-tip-call-to-action',
   ADD_OR_UPDATE_SEARCH_INDEX = 'add-or-update-search-index',
@@ -21,6 +22,11 @@ export enum Message {
   MAYBE_SHOW_RELEASE_NOTES_NOTIFICATION =
       'maybe-show-release-notes-notification',
   GET_DEVICE_INFO = 'get-device-info',
+  OPEN_SETTINGS = 'open-settings',
   OPEN_URL_IN_BROWSER_AND_TRIGGER_INSTALL_DIALOG =
       'open-url-in-browser-and-trigger-install-dialog',
+  SET_HAS_COMPLETED_NEW_DEVICE_CHECKLIST =
+      'set-has-completed-new-device-checklist',
+  SET_HAS_VISITED_HOW_TO_PAGE = 'set-has-visited-how-to-page',
+  OPEN_APP_MALL_PATH = 'open-app-mall-path',
 }

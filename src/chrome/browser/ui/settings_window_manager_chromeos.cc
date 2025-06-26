@@ -4,16 +4,15 @@
 
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
 
-#include "ash/constants/ash_features.h"
 #include "ash/public/cpp/resources/grit/ash_public_unscaled_resources.h"
 #include "ash/webui/system_apps/public/system_web_app_type.h"
+#include "ash/wm/window_properties.h"
 #include "base/strings/strcat.h"
 #include "base/types/cxx23_to_underlying.h"
 #include "chrome/browser/app_mode/app_mode_utils.h"
 #include "chrome/browser/apps/app_service/launch_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
-#include "chrome/browser/ui/ash/window_properties.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_navigator.h"
@@ -29,6 +28,7 @@
 #include "chromeos/ui/base/window_properties.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/aura/window.h"
 #include "url/gurl.h"
 
 namespace chrome {
@@ -65,8 +65,7 @@ bool SettingsWindowManager::UseDeprecatedSettingsWindow(Profile* profile) {
   }
 
   // Use deprecated settings window in Kiosk session only if SWA is disabled.
-  if (chrome::IsRunningInForcedAppMode() &&
-      !base::FeatureList::IsEnabled(ash::features::kKioskEnableSystemWebApps)) {
+  if (IsRunningInForcedAppMode()) {
     return true;
   }
 
@@ -162,7 +161,8 @@ void SettingsWindowManager::ShowChromePageForProfile(
 
   auto* window = browser->window()->GetNativeWindow();
   window->SetProperty(chromeos::kAppTypeKey, chromeos::AppType::CHROME_APP);
-  window->SetProperty(kOverrideWindowIconResourceIdKey, IDR_SETTINGS_LOGO_192);
+  window->SetProperty(ash::kOverrideWindowIconResourceIdKey,
+                      IDR_SETTINGS_LOGO_192);
 
   for (SettingsWindowManagerObserver& observer : observers_) {
     observer.OnNewSettingsWindow(browser);
@@ -179,7 +179,7 @@ void SettingsWindowManager::ShowOSSettings(Profile* profile,
 }
 
 void SettingsWindowManager::ShowOSSettings(Profile* profile,
-                                           const std::string& sub_page,
+                                           std::string_view sub_page,
                                            int64_t display_id) {
   ShowChromePageForProfile(profile, chrome::GetOSSettingsUrl(sub_page),
                            display_id, /*callback=*/{});
@@ -187,7 +187,7 @@ void SettingsWindowManager::ShowOSSettings(Profile* profile,
 
 void SettingsWindowManager::ShowOSSettings(
     Profile* profile,
-    const std::string& sub_page,
+    std::string_view sub_page,
     const chromeos::settings::mojom::Setting setting_id,
     int64_t display_id) {
   std::string path_with_setting_id =
@@ -204,8 +204,9 @@ Browser* SettingsWindowManager::FindBrowserForProfile(Profile* profile) {
   }
 
   auto iter = settings_session_map_.find(profile);
-  if (iter != settings_session_map_.end())
+  if (iter != settings_session_map_.end()) {
     return chrome::FindBrowserWithID(iter->second);
+  }
 
   return nullptr;
 }
@@ -215,8 +216,9 @@ bool SettingsWindowManager::IsSettingsBrowser(Browser* browser) const {
 
   Profile* profile = browser->profile();
   if (!UseDeprecatedSettingsWindow(profile)) {
-    if (!browser->app_controller())
+    if (!browser->app_controller()) {
       return false;
+    }
 
     // TODO(calamity): Determine whether, during startup, we need to wait for
     // app install and then provide a valid answer here.
@@ -231,8 +233,8 @@ bool SettingsWindowManager::IsSettingsBrowser(Browser* browser) const {
   }
 }
 
-SettingsWindowManager::SettingsWindowManager() {}
+SettingsWindowManager::SettingsWindowManager() = default;
 
-SettingsWindowManager::~SettingsWindowManager() {}
+SettingsWindowManager::~SettingsWindowManager() = default;
 
 }  // namespace chrome

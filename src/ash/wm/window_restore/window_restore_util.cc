@@ -4,6 +4,8 @@
 
 #include "ash/wm/window_restore/window_restore_util.h"
 
+#include <algorithm>
+
 #include "ash/public/cpp/app_types_util.h"
 #include "ash/public/cpp/saved_desk_delegate.h"
 #include "ash/public/cpp/window_properties.h"
@@ -12,7 +14,7 @@
 #include "ash/wm/window_state.h"
 #include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
-#include "base/ranges/algorithm.h"
+#include "base/strings/utf_string_conversions.h"
 #include "components/app_constants/constants.h"
 #include "components/app_restore/window_properties.h"
 #include "ui/aura/client/aura_constants.h"
@@ -27,7 +29,7 @@ namespace ash {
 
 namespace {
 
-base::FilePath pine_image_path_for_test_;
+base::FilePath informed_restore_image_path_for_test_;
 
 // If `use_screen` is true we convert to screen coordinates, otherwise we
 // convert to root window coordinates.
@@ -58,7 +60,7 @@ std::unique_ptr<app_restore::WindowInfo> BuildWindowInfo(
   if (activation_index) {
     window_activation_index = *activation_index;
   } else {
-    auto it = base::ranges::find(mru_windows, window);
+    auto it = std::ranges::find(mru_windows, window);
     if (it != mru_windows.end())
       window_activation_index = it - mru_windows.begin();
   }
@@ -161,20 +163,20 @@ std::unique_ptr<app_restore::WindowInfo> BuildWindowInfo(
 }
 
 bool IsBrowserAppId(const std::string& id) {
-  return id == app_constants::kChromeAppId || id == app_constants::kLacrosAppId;
+  return id == app_constants::kChromeAppId;
 }
 
-base::FilePath GetShutdownPineImagePath() {
-  if (!pine_image_path_for_test_.empty()) {
-    return pine_image_path_for_test_;
+base::FilePath GetInformedRestoreImagePath() {
+  if (!informed_restore_image_path_for_test_.empty()) {
+    return informed_restore_image_path_for_test_;
   }
   base::FilePath home_dir;
   CHECK(base::PathService::Get(base::DIR_HOME, &home_dir));
-  return home_dir.AppendASCII("pine_image.png");
+  return home_dir.AppendASCII("informed_restore_image.png");
 }
 
-void SetPineImagePathForTest(const base::FilePath& path) {
-  pine_image_path_for_test_ = path;
+void SetInformedRestoreImagePathForTest(const base::FilePath& path) {
+  informed_restore_image_path_for_test_ = path;
 }
 
 }  // namespace ash

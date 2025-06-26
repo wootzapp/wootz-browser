@@ -53,8 +53,9 @@ class CrossOriginReadBlockingChecker::BlobIOState {
   void DidCalculateSize(int result) {
     DCHECK_CURRENTLY_ON(BrowserThread::IO);
     size_t buf_size = net::kMaxBytesToSniff;
-    if (buf_size > blob_reader_->total_size())
+    if (buf_size > blob_reader_->total_size()) {
       buf_size = blob_reader_->total_size();
+    }
     buffer_ = base::MakeRefCounted<net::IOBufferWithSize>(buf_size);
     int bytes_read;
     const storage::BlobReader::Status status = blob_reader_->Read(
@@ -99,7 +100,7 @@ CrossOriginReadBlockingChecker::CrossOriginReadBlockingChecker(
     const network::ResourceRequest& request,
     const network::mojom::URLResponseHead& response,
     const storage::BlobDataHandle& blob_data_handle,
-    network::orb::PerFactoryState& orb_state,
+    network::orb::PerFactoryState* orb_state,
     base::OnceCallback<void(Result)> callback)
     : callback_(std::move(callback)) {
   DCHECK(!callback_.is_null());
@@ -128,7 +129,7 @@ CrossOriginReadBlockingChecker::CrossOriginReadBlockingChecker(
                                     base::Unretained(blob_io_state_.get())));
       return;
   }
-  NOTREACHED_IN_MIGRATION();  // Unrecognized `decision` value?
+  NOTREACHED();  // Unrecognized `decision` value?
 }
 
 CrossOriginReadBlockingChecker::~CrossOriginReadBlockingChecker() {
@@ -188,13 +189,9 @@ void CrossOriginReadBlockingChecker::OnReadComplete(
     case network::orb::ResponseAnalyzer::Decision::kSniffMore:
       // This should be impossible after going through
       // HandleEndOfSniffableResponseBody above.
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
-  // Fall back to blocking after encountering an unexpected or unrecognized
-  // `orb_decision` in the `switch` statement above.
-  NOTREACHED_IN_MIGRATION();
-  OnBlocked();
+  NOTREACHED();
 }
 
 }  // namespace content

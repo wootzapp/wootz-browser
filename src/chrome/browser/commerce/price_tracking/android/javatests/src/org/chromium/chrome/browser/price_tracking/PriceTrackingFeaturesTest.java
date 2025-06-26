@@ -16,15 +16,14 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
-import org.chromium.base.CollectionUtil;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
-import org.chromium.base.test.util.Features;
-import org.chromium.chrome.browser.profiles.OTRProfileID;
+import org.chromium.chrome.browser.profiles.OtrProfileId;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
@@ -34,9 +33,10 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.components.signin.identitymanager.IdentityManager;
-import org.chromium.components.sync.ModelType;
+import org.chromium.components.sync.DataType;
 import org.chromium.components.sync.SyncService;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+
+import java.util.Set;
 
 /** Tests for {@link PriceTrackingFeatures}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -46,11 +46,11 @@ public class PriceTrackingFeaturesTest {
     public static ChromeTabbedActivityTestRule sActivityTestRule =
             new ChromeTabbedActivityTestRule();
 
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+
     @Rule
     public BlankCTATabInitialStateRule mInitialStateRule =
             new BlankCTATabInitialStateRule(sActivityTestRule, false);
-
-    @Rule public TestRule mProcessor = new Features.InstrumentationProcessor();
 
     @Mock private IdentityManager mIdentityManagerMock;
 
@@ -60,7 +60,6 @@ public class PriceTrackingFeaturesTest {
 
     @Before
     public void setUp() throws Exception {
-        MockitoAnnotations.initMocks(this);
         IdentityServicesProvider.setInstanceForTests(mIdentityServicesProviderMock);
         when(mIdentityServicesProviderMock.getIdentityManager(any(Profile.class)))
                 .thenReturn(mIdentityManagerMock);
@@ -69,7 +68,7 @@ public class PriceTrackingFeaturesTest {
         setMbbStatus(true);
         setSignedInStatus(true);
         setTabSyncStatus(true, true);
-        PriceTrackingFeatures.setPriceTrackingEnabledForTesting(true);
+        PriceTrackingFeatures.setPriceAnnotationsEnabledForTesting(true);
     }
 
     @UiThreadTest
@@ -77,7 +76,7 @@ public class PriceTrackingFeaturesTest {
     @SmallTest
     public void testIsPriceTrackingEligible() {
         Assert.assertTrue(
-                PriceTrackingFeatures.isPriceTrackingEligible(
+                PriceTrackingFeatures.isPriceAnnotationsEligible(
                         ProfileManager.getLastUsedRegularProfile()));
     }
 
@@ -85,9 +84,9 @@ public class PriceTrackingFeaturesTest {
     @Test
     @SmallTest
     public void testIsPriceTrackingEligibleFlagIsDisabled() {
-        PriceTrackingFeatures.setPriceTrackingEnabledForTesting(false);
+        PriceTrackingFeatures.setPriceAnnotationsEnabledForTesting(false);
         Assert.assertFalse(
-                PriceTrackingFeatures.isPriceTrackingEligible(
+                PriceTrackingFeatures.isPriceAnnotationsEligible(
                         ProfileManager.getLastUsedRegularProfile()));
     }
 
@@ -97,7 +96,7 @@ public class PriceTrackingFeaturesTest {
     public void testIsPriceTrackingEligibleNoMbb() {
         setMbbStatus(false);
         Assert.assertFalse(
-                PriceTrackingFeatures.isPriceTrackingEligible(
+                PriceTrackingFeatures.isPriceAnnotationsEligible(
                         ProfileManager.getLastUsedRegularProfile()));
     }
 
@@ -107,7 +106,7 @@ public class PriceTrackingFeaturesTest {
     public void testIsPriceTrackingEligibleNotSignedIn() {
         setSignedInStatus(false);
         Assert.assertFalse(
-                PriceTrackingFeatures.isPriceTrackingEligible(
+                PriceTrackingFeatures.isPriceAnnotationsEligible(
                         ProfileManager.getLastUsedRegularProfile()));
     }
 
@@ -115,11 +114,11 @@ public class PriceTrackingFeaturesTest {
     @Test
     @SmallTest
     public void testIsPriceTrackingEligibleIncognitoProfile() {
-        OTRProfileID otrProfileID = OTRProfileID.createUnique("test:Incognito");
+        OtrProfileId otrProfileId = OtrProfileId.createUnique("test:Incognito");
         Profile incognitoProfile =
                 ProfileManager.getLastUsedRegularProfile()
-                        .getOffTheRecordProfile(otrProfileID, /* createIfNeeded= */ true);
-        Assert.assertFalse(PriceTrackingFeatures.isPriceTrackingEligible(incognitoProfile));
+                        .getOffTheRecordProfile(otrProfileId, /* createIfNeeded= */ true);
+        Assert.assertFalse(PriceTrackingFeatures.isPriceAnnotationsEligible(incognitoProfile));
     }
 
     @UiThreadTest
@@ -132,12 +131,12 @@ public class PriceTrackingFeaturesTest {
         PriceTrackingFeatures.setIsSignedInAndSyncEnabledForTesting(true);
 
         Assert.assertTrue(
-                PriceTrackingFeatures.isPriceTrackingEligible(
+                PriceTrackingFeatures.isPriceAnnotationsEligible(
                         ProfileManager.getLastUsedRegularProfile()));
     }
 
     private void setMbbStatus(boolean isEnabled) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         UnifiedConsentServiceBridge.setUrlKeyedAnonymizedDataCollectionEnabled(
                                 ProfileManager.getLastUsedRegularProfile(), isEnabled));
@@ -150,9 +149,6 @@ public class PriceTrackingFeaturesTest {
     private void setTabSyncStatus(boolean isSyncFeatureEnabled, boolean hasSessions) {
         when(mSyncServiceMock.isSyncFeatureEnabled()).thenReturn(isSyncFeatureEnabled);
         when(mSyncServiceMock.getActiveDataTypes())
-                .thenReturn(
-                        hasSessions
-                                ? CollectionUtil.newHashSet(ModelType.SESSIONS)
-                                : CollectionUtil.newHashSet(ModelType.AUTOFILL));
+                .thenReturn(hasSessions ? Set.of(DataType.SESSIONS) : Set.of(DataType.AUTOFILL));
     }
 }

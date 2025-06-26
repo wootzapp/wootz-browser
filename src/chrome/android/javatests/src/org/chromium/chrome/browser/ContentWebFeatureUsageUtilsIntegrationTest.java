@@ -11,16 +11,16 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.blink.mojom.WebFeature;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.content_public.browser.ContentWebFeatureUsageUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.net.test.EmbeddedTestServer;
 
 /** Integration tests for {@link ContentWebFeatureUsageUtils}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -28,13 +28,12 @@ import org.chromium.net.test.EmbeddedTestServer;
 @Batch(Batch.PER_CLASS)
 public class ContentWebFeatureUsageUtilsIntegrationTest {
     @Rule
-    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     @Before
     public void setUp() {
-        EmbeddedTestServer testServer = mActivityTestRule.getTestServer();
-        mActivityTestRule.startMainActivityWithURL(
-                testServer.getURL("/chrome/test/data/android/simple.html"));
+        mActivityTestRule.startOnTestServerUrl("/chrome/test/data/android/simple.html");
     }
 
     @Test
@@ -43,7 +42,7 @@ public class ContentWebFeatureUsageUtilsIntegrationTest {
         HistogramWatcher histogramWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         "Blink.UseCounter.Features", WebFeature.IDENTITY_DIGITAL_CREDENTIALS);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ContentWebFeatureUsageUtils.logWebFeatureForCurrentPage(
                             mActivityTestRule.getWebContents(),

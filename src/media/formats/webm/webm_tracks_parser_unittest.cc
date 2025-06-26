@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <memory>
 
 #include "base/logging.h"
@@ -182,7 +183,7 @@ TEST_F(WebMTracksParserTest, PrecisionCapping) {
     base::TimeDelta expected_result;
   };
 
-  const CappingCases kCappingCases[] = {
+  const auto kCappingCases = std::to_array<CappingCases>({
       {kOneMsInNs, -1, kNoTimestamp},
       {kOneMsInNs, 0, kNoTimestamp},
       {kOneMsInNs, 1, kNoTimestamp},
@@ -203,7 +204,7 @@ TEST_F(WebMTracksParserTest, PrecisionCapping) {
       {1, 2000, base::Microseconds(2)},
 
       {64, 1792, base::Microseconds(1)},
-  };
+  });
 
   auto parser = std::make_unique<WebMTracksParser>(&media_log_);
   ;

@@ -5,7 +5,9 @@
 #ifndef COMPONENTS_WEBAPPS_BROWSER_ANDROID_WEBAPP_ICON_H_
 #define COMPONENTS_WEBAPPS_BROWSER_ANDROID_WEBAPP_ICON_H_
 
+#include <set>
 #include <string>
+
 #include "components/webapk/webapk.pb.h"
 #include "url/gurl.h"
 
@@ -37,7 +39,7 @@ class WebappIcon {
   void SetData(std::string&& data);
   std::string&& ExtractData();
 
-  const std::string hash() const { return hash_; }
+  const std::string& hash() const { return hash_; }
   void set_hash(const std::string& hash) { hash_ = hash; }
 
  private:

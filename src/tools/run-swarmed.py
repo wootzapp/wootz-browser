@@ -76,6 +76,9 @@ def _DoSpawn(args):
       '-dump-json',
       json_file,
       '-tag=purpose:user-debug-run-swarmed',
+      # 30 is try level. So use the same here.
+      '-priority',
+      '30',
   ]
   if args.target_os == 'fuchsia':
     trigger_args += [
@@ -93,10 +96,11 @@ def _DoSpawn(args):
       # run on emulators when building for x86 on Android.
       args.swarming_os = 'Linux'
       args.pool = 'chromium.tests.avd'
-      # generic_android28 == Android P emulator. See //tools/android/avd/proto/
-      # for other options.
+      # android_28_google_apis_x86 == Android P emulator.
+      # See //tools/android/avd/proto/ for other options.
       runner_args.append(
-          '--avd-config=../../tools/android/avd/proto/generic_android28.textpb')
+          '--avd-config=../../tools/android/avd/proto/android_28_google_apis_x86.textpb'
+      )
     elif args.device_type is None and args.device_os is None:
       # The aliases for device type are stored here:
       # luci/appengine/swarming/ui2/modules/alias.js
@@ -298,8 +302,22 @@ def main():
       type=str,
       help='Arguments to pass to the test runner, e.g. gtest_filter and '
       'gtest_repeat.')
+  parser.add_argument('--force',
+                      action='store_true',
+                      help='Bypasses deprecation notice.')
 
   args = parser.parse_intermixed_args()
+
+  # TODO(crbug.com/386167803): Remove this script after this deprecation notice
+  # has been live for a few months.
+  if not args.force:
+    print(
+        'This script is deprecated in favor of the UTR. For more info, see '
+        'https://chromium.googlesource.com/chromium/src/+/main/tools/utr/README.md. '
+        'To skip this warning, re-run this script with "--force". Note that '
+        'this script will be deleted sometime in 2025.',
+        file=sys.stderr)
+    return 1
 
   with open(os.path.join(args.out_dir, 'args.gn')) as f:
     gn_args = gn_helpers.FromGNArgs(f.read())

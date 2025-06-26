@@ -2,19 +2,27 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/embedder_support/android/util/input_stream.h"
 
 #include "base/android/jni_android.h"
 #include "base/feature_list.h"
 #include "base/metrics/field_trial_params.h"
+#include "base/metrics/histogram_functions.h"
 // Disable "Warnings treated as errors" for input_stream_jni as it's a Java
 // system class and we have to generate C++ hooks for all methods in the class
 // even if they're unused.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
-#include "components/embedder_support/android/util_jni_headers/InputStreamUtil_jni.h"
 #pragma GCC diagnostic pop
 #include "net/base/io_buffer.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/embedder_support/android/util_jni_headers/InputStreamUtil_jni.h"
 
 using base::android::AttachCurrentThread;
 using base::android::ClearException;
@@ -47,13 +55,16 @@ int InputStream::GetIntermediateBufferSize() {
 // TODO: Use unsafe version for all Java_InputStream methods in this file
 // once BUG 157880 is fixed and implement graceful exception handling.
 
-InputStream::InputStream() {}
+InputStream::InputStream() = default;
 
 InputStream::InputStream(const JavaRef<jobject>& stream) : jobject_(stream) {
   DCHECK(stream);
 }
 
 InputStream::~InputStream() {
+  base::UmaHistogramCounts10000("Android.InputStream.TotalRead.SizeKB",
+                                total_bytes_read_ / 1024);
+
   JNIEnv* env = AttachCurrentThread();
   if (jobject_.obj())
     Java_InputStreamUtil_close(env, jobject_);
@@ -133,6 +144,7 @@ bool InputStream::Read(net::IOBuffer* dest, int length, int* bytes_read) {
   DCHECK_GE(remaining_length, 0);
   DCHECK_LE(remaining_length, length);
   *bytes_read = length - remaining_length;
+  total_bytes_read_ += *bytes_read;
   return true;
 }
 

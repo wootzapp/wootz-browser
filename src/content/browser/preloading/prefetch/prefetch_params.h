@@ -33,14 +33,6 @@ bool PrefetchAllowAllDomains();
 // proxy, so long as the user opted-in to extended preloading.
 bool PrefetchAllowAllDomainsForExtendedPreloading();
 
-// The maximum number of mainframes allowed to be prefetched at the same time.
-size_t PrefetchServiceMaximumNumberOfConcurrentPrefetches();
-
-// The maximum number of prefetch requests to start from a page. A return value
-// of nullopt means unlimited. Negative values given by the field trial return
-// nullopt.
-std::optional<int> PrefetchServiceMaximumNumberOfPrefetchesPerPage();
-
 // Returns true if an ineligible prefetch request should be put on the network,
 // but not cached, to disguise the presence of cookies (or other criteria). The
 // return value is randomly decided based on variation params since always
@@ -62,10 +54,10 @@ bool PrefetchCloseIdleSockets();
 // Whether a spare renderer should be started after prefetching.
 bool PrefetchStartsSpareRenderer();
 
-// The amount of time |PrefetchService| will keep an owned |PrefetchContainer|
-// alive. If this value is zero or less, the service will keep the prefetch
-// forever.
-base::TimeDelta PrefetchContainerLifetimeInPrefetchService();
+// The default amount of time `PrefetchService` will keep an owned
+// `PrefetchContainer` alive. If this value is zero or less, the service will
+// keep the prefetch forever. This can be overridden in the `PrefetchContainer`.
+base::TimeDelta PrefetchContainerDefaultTtlInPrefetchService();
 
 // Returns if the specified host should have the prefetch proxy bypassed for
 // testing purposes. Currently this is only used for WPT test servers.
@@ -105,27 +97,20 @@ base::TimeDelta PrefetchCanaryCheckTimeout();
 // The number of retries to allow for canary checks.
 int PrefetchCanaryCheckRetries();
 
-// Whether or not |PrefetchService| should block until the head of a prefetch
-// request is received when considering to serve a prefetch for a navigation.
-bool PrefetchShouldBlockUntilHead(const PrefetchType& prefetch_type);
-
 // The maximum amount of time to block until the head of a prefetch is received.
 // If the value is zero or less, then a navigation can be blocked indefinitely.
 CONTENT_EXPORT base::TimeDelta PrefetchBlockUntilHeadTimeout(
-    const PrefetchType& prefetch_type);
+    const PrefetchType& prefetch_type,
+    bool is_nav_prerender);
 
 // Gets the histogram suffix to use for the given eagerness parameter.
 CONTENT_EXPORT std::string GetPrefetchEagernessHistogramSuffix(
     blink::mojom::SpeculationEagerness eagerness);
 
-// Returns true if |kPrefetchNewLimits| is enabled.
-bool PrefetchNewLimitsEnabled();
-// Returns the max number of eager prefetches allowed (only used when
-// PrefetchNewLimits is enabled).
-size_t MaxNumberOfEagerPrefetchesPerPageForPrefetchNewLimits();
-// Returns the max number of non-eager prefetches allowed (only used when
-// PrefetchNewLimits is enabled).
-size_t MaxNumberOfNonEagerPrefetchesPerPageForPrefetchNewLimits();
+// Returns the max number of eager prefetches allowed.
+size_t MaxNumberOfEagerPrefetchesPerPage();
+// Returns the max number of non-eager prefetches allowed.
+size_t MaxNumberOfNonEagerPrefetchesPerPage();
 
 // Returns true if NIK prefetch scope is enabled. See crbug.com/1502326
 bool PrefetchNIKScopeEnabled();
@@ -133,6 +118,11 @@ bool PrefetchNIKScopeEnabled();
 // Returns true if browser-initiated prefetch is enabled.
 // Please see crbug.com/40946257 for more details.
 bool PrefetchBrowserInitiatedTriggersEnabled();
+
+size_t GetPrefetchDataPipeTeeBodySizeLimit();
+
+// Returns true iff we should use `PrefetchScheduler`.
+CONTENT_EXPORT bool UsePrefetchScheduler();
 
 }  // namespace content
 

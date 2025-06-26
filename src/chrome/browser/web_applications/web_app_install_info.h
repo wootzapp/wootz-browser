@@ -5,18 +5,20 @@
 #ifndef CHROME_BROWSER_WEB_APPLICATIONS_WEB_APP_INSTALL_INFO_H_
 #define CHROME_BROWSER_WEB_APPLICATIONS_WEB_APP_INSTALL_INFO_H_
 
+#include <array>
 #include <functional>
-#include <iosfwd>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
-#include "base/time/time.h"
+#include "base/types/expected.h"
 #include "base/values.h"
 #include "base/version.h"
+#include "build/build_config.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/proto/web_app.pb.h"
 #include "chrome/browser/web_applications/scope_extension_info.h"
@@ -24,9 +26,10 @@
 #include "components/services/app_service/public/cpp/icon_info.h"
 #include "components/services/app_service/public/cpp/protocol_handler_info.h"
 #include "components/services/app_service/public/cpp/share_target.h"
-#include "components/services/app_service/public/cpp/url_handler_info.h"
 #include "components/webapps/common/web_app_id.h"
-#include "third_party/blink/public/common/permissions_policy/permissions_policy.h"
+#include "services/network/public/cpp/permissions_policy/permissions_policy_declaration.h"
+#include "third_party/blink/public/common/manifest/manifest.h"
+#include "third_party/blink/public/mojom/manifest/capture_links.mojom-shared.h"
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -223,31 +226,36 @@ struct WebAppInstallInfo {
     MOBILE_CAPABLE_APPLE
   };
 
-  // Returns a copy of `other` retaining only the fields that are needed for
-  // a shortcut (e.g icons), and using the document title and URL instead of
-  // manifest properties. This will strip out app-like fields (e.g. file
-  // handlers).
-  static WebAppInstallInfo CreateInstallInfoForCreateShortcut(
-      const GURL& document_url,
-      const std::u16string& document_title,
-      const WebAppInstallInfo& other);
+  // This creates WebAppInstallInfo in the same way as the default constructor
+  // does, but it will return an error on invalid arguments instead of failing
+  // with a CHECK().
+  static base::expected<WebAppInstallInfo, std::string> Create(
+      const GURL& manifest_url,
+      const webapps::ManifestId& manifest_id,
+      const GURL& start_url);
 
   // This creates a WebAppInstallInfo where the `manifest_id` is derived from
-  // the `start_url` using `GenerateManifestIdFromStartUrlOnly`.
+  // the `start_url` using `GenerateManifestIdFromStartUrlOnly`, and the `scope`
+  // is generated from the `start_url` without the filename.
   static std::unique_ptr<WebAppInstallInfo> CreateWithStartUrlForTesting(
       const GURL& start_url);
 
-  // TODO(b/280862254): Remove this constructor to force users to use specify
-  // the manifest_id and start_url (or call `CreateWithStartUrlForTesting`).
-  WebAppInstallInfo();
+  // Creates a WebAppInstallInfo from a `start_url`, where the `manifest_id` is
+  // derived from the `start_url` using `GenerateManifestIdFromStartUrlOnly`,
+  // and the `scope` is generated from the `start_url` without the filename.
+  // This also populates some common required fields like the title, as well as
+  // allows easy specification of often-modified fields like `display` and
+  // `user_display_mode`.
+  static std::unique_ptr<WebAppInstallInfo> CreateForTesting(
+      const GURL& start_url,
+      blink::mojom::DisplayMode display = blink::mojom::DisplayMode::kMinimalUi,
+      mojom::UserDisplayMode user_display_mode =
+          mojom::UserDisplayMode::kStandalone,
+      std::optional<blink::mojom::ManifestLaunchHandler_ClientMode>
+          client_mode = std::nullopt);
 
-  // TODO(b/280862254): Remove this constructor to force users to use specify
-  // both the manifest_id and start_url (or call
-  // `CreateWithStartUrlForTesting`).
-  explicit WebAppInstallInfo(const webapps::ManifestId& manifest_id);
-
-  // The `manifest_id` and the `start_url` MUST be valid. The `manifest_id` MUST
-  // be created properly, and cannot contain refs (e.g. '#refs').
+  // The `manifest_id` and the `start_url` MUST be valid and same-origin. The
+  // `manifest_id` MUST NOT contain refs (e.g. '#refs').
   WebAppInstallInfo(const webapps::ManifestId& manifest_id,
                     const GURL& start_url);
 
@@ -261,21 +269,28 @@ struct WebAppInstallInfo {
   // Creates a deep copy of this struct.
   WebAppInstallInfo Clone() const;
 
-  // Id specified in the manifest.
-  // TODO(b/280862254): After the manifest id constructor is required, this can
-  // be guaranteed to be valid & non-empty.
+  // ID specified in the manifest.
+  // Guaranteed to be valid & non-empty & same-origin with `start_url()` & have
+  // no "#ref" part in the URL.
   // https://www.w3.org/TR/appmanifest/#id-member
-  webapps::ManifestId manifest_id;
+  const webapps::ManifestId& manifest_id() const { return manifest_id_; }
+
+  // URL the site would prefer the user agent load when launching the app.
+  // Guaranteed to be valid & non-empty & same-origin with `manifest_id()`.
+  // https://www.w3.org/TR/appmanifest/#start_url-member
+  const GURL& start_url() const { return start_url_; }
+
+  // Set the `manifest_id` and `start_url` fields. Both are set at once to allow
+  // origin changes if necessary. The `manifest_id` and the `start_url` have the
+  // same requirements as in the WebAppInstallInfo constructor.
+  void SetManifestIdAndStartUrl(const webapps::ManifestId& manifest_id,
+                                const GURL& start_url);
 
   // Title of the application.
   std::u16string title;
 
   // Description of the application.
   std::u16string description;
-
-  // The URL the site would prefer the user agent load when launching the app.
-  // https://www.w3.org/TR/appmanifest/#start_url-member
-  GURL start_url;
 
   // The URL of the manifest.
   // https://www.w3.org/TR/appmanifest/#web-application-manifest
@@ -363,12 +378,11 @@ struct WebAppInstallInfo {
   // The URL protocols/schemes that the app can handle.
   std::vector<apps::ProtocolHandlerInfo> protocol_handlers;
 
-  // The app intends to act as a URL handler for URLs described by this
-  // information.
-  apps::UrlHandlers url_handlers;
-
   // The app intends to have an extended scope containing URLs described by this
   // information.
+  // Note: All specified 'scope' members of these extensions will have queries
+  // and fragments stripped, per specification.
+  // https://w3c.github.io/manifest/#scope-member
   base::flat_set<web_app::ScopeExtensionInfo> scope_extensions;
 
   // `scope_extensions` after going through validation with associated origins.
@@ -376,6 +390,9 @@ struct WebAppInstallInfo {
   // See
   // https://github.com/WICG/manifest-incubations/blob/gh-pages/scope_extensions-explainer.md
   // for association requirements.
+  // Note: All specified 'scope' members of these extensions will have queries
+  // and fragments stripped, per specification.
+  // https://w3c.github.io/manifest/#scope-member
   std::optional<base::flat_set<web_app::ScopeExtensionInfo>>
       validated_scope_extensions;
 
@@ -400,7 +417,7 @@ struct WebAppInstallInfo {
 
   // The declared permissions policy to apply as the baseline policy for all
   // documents belonging to the application.
-  blink::ParsedPermissionsPolicy permissions_policy;
+  network::ParsedPermissionsPolicy permissions_policy;
 
   // See ExternallyManagedAppManager for placeholder app documentation.
   // Intended to be a temporary app while we wait for the install_url to
@@ -438,7 +455,7 @@ struct WebAppInstallInfo {
 
   // Bookkeeping details about attempts to fix broken icons from sync installed
   // web apps.
-  std::optional<GeneratedIconFix> generated_icon_fix;
+  std::optional<proto::GeneratedIconFix> generated_icon_fix;
 
   IconsWithSizeAny icons_with_size_any;
 
@@ -446,9 +463,18 @@ struct WebAppInstallInfo {
   // customize the title, etc.
   bool is_diy_app = false;
 
+  // Apps that are listed as related applications in the manifest.
+  std::vector<blink::Manifest::RelatedApplication> related_applications;
+
  private:
   // Used this method in Clone() method. Use Clone() to deep copy explicitly.
   WebAppInstallInfo(const WebAppInstallInfo& other);
+
+  // See `manifest_id()`.
+  webapps::ManifestId manifest_id_;
+
+  // See `start_url()`.
+  GURL start_url_;
 };
 
 bool operator==(const IconSizes& icon_sizes1, const IconSizes& icon_sizes2);

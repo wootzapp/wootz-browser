@@ -6,8 +6,9 @@
 #define CHROME_BROWSER_ANDROID_COMPOSITOR_LAYER_TOOLBAR_LAYER_H_
 
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "chrome/browser/android/compositor/layer/layer.h"
+#include "components/viz/common/quads/offset_tag.h"
 #include "ui/android/resources/resource_manager.h"
 
 namespace cc::slim {
@@ -38,7 +39,8 @@ class ToolbarLayer : public Layer {
                     float x_offset,
                     float content_offset,
                     bool show_debug,
-                    bool clip_shadow);
+                    bool clip_shadow,
+                    const viz::OffsetTag& offset_tag);
 
   void UpdateProgressBar(int progress_bar_x,
                          int progress_bar_y,

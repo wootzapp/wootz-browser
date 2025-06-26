@@ -9,7 +9,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "content/public/browser/render_process_host.h"
-#include "content/public/browser/web_contents.h"
 #include "extensions/browser/api/web_request/extension_web_request_event_router.h"
 #include "extensions/browser/api/web_request/web_request_api.h"
 #include "extensions/browser/api/web_request/web_request_info.h"
@@ -83,8 +82,9 @@ class WebTransportHandshakeProxy : public WebRequestAPI::Proxy,
     // be associated with a DOM element.
     CHECK(!should_collapse_initiator);
 
-    if (result == net::ERR_IO_PENDING)
+    if (result == net::ERR_IO_PENDING) {
       return;
+    }
 
     DCHECK(result == net::OK || result == net::ERR_BLOCKED_BY_CLIENT) << result;
     OnBeforeRequestCompleted(result);
@@ -106,8 +106,9 @@ class WebTransportHandshakeProxy : public WebRequestAPI::Proxy,
                     &WebTransportHandshakeProxy::OnBeforeSendHeadersCompleted,
                     base::Unretained(this)),
                 &request_headers_);
-    if (result == net::ERR_IO_PENDING)
+    if (result == net::ERR_IO_PENDING) {
       return;
+    }
 
     DCHECK(result == net::OK || result == net::ERR_BLOCKED_BY_CLIENT) << result;
     // See the comments in the OnBeforeSendHeadersCompleted to see why
@@ -175,8 +176,9 @@ class WebTransportHandshakeProxy : public WebRequestAPI::Proxy,
     // be associated with a DOM element.
     CHECK(!should_collapse_initiator);
 
-    if (result == net::ERR_IO_PENDING)
+    if (result == net::ERR_IO_PENDING) {
       return;
+    }
 
     DCHECK(result == net::OK || result == net::ERR_BLOCKED_BY_CLIENT) << result;
     OnHeadersReceivedCompleted(result);
@@ -290,7 +292,7 @@ void StartWebRequestProxyingWebTransport(
   request.url = url;
   request.request_initiator = initiator_origin;
 
-  const int process_id = render_process_host.GetID();
+  const int process_id = render_process_host.GetDeprecatedID();
 
   WebRequestInfoInitParams params =
       WebRequestInfoInitParams(request_id, process_id, frame_routing_id,

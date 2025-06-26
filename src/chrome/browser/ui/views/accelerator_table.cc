@@ -14,8 +14,8 @@
 #include "base/notreached.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/ui/tabs/features.h"
 #include "components/lens/buildflags.h"
 #include "components/lens/lens_features.h"
 #include "printing/buildflags/buildflags.h"
@@ -23,10 +23,7 @@
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/events/event_constants.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/crosapi/browser_util.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#include "ui/events/keycodes/keyboard_codes.h"
 
 namespace {
 
@@ -63,6 +60,9 @@ const AcceleratorMapping kAcceleratorMap[] = {
     {ui::VKEY_G, ui::EF_PLATFORM_ACCELERATOR, IDC_FIND_NEXT},
     {ui::VKEY_G, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
      IDC_FIND_PREVIOUS},
+#if !BUILDFLAG(IS_CHROMEOS)
+    {ui::VKEY_G, ui::EF_ALT_DOWN | ui::EF_SHIFT_DOWN, IDC_GLIC_TOGGLE_FOCUS},
+#endif
     {ui::VKEY_L, ui::EF_PLATFORM_ACCELERATOR, IDC_FOCUS_LOCATION},
     {ui::VKEY_O, ui::EF_PLATFORM_ACCELERATOR, IDC_OPEN_FILE},
     {ui::VKEY_P, ui::EF_PLATFORM_ACCELERATOR, IDC_PRINT},
@@ -143,11 +143,13 @@ const AcceleratorMapping kAcceleratorMap[] = {
     {ui::VKEY_F6, ui::EF_NONE, IDC_FOCUS_NEXT_PANE},
     {ui::VKEY_F6, ui::EF_SHIFT_DOWN, IDC_FOCUS_PREVIOUS_PANE},
     {ui::VKEY_F6, ui::EF_CONTROL_DOWN, IDC_FOCUS_WEB_CONTENTS_PANE},
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    // On Chrome OS, Control + Search + 7 toggles caret browsing.
-    // Note that VKEY_F7 is not a typo; Search + 7 maps to F7 for accelerators.
+#if BUILDFLAG(IS_CHROMEOS)
+    // On Chrome OS, Control + Search + the seventh key from escape (most
+    // commonly Brightness Up) toggles caret browsing.
+    // Note that VKEY_F7 is not a typo; Search + the seventh function key maps
+    // to F7 for accelerators.
     {ui::VKEY_F7, ui::EF_CONTROL_DOWN, IDC_CARET_BROWSING_TOGGLE},
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
     {ui::VKEY_F10, ui::EF_NONE, IDC_FOCUS_MENU_BAR},
     {ui::VKEY_F11, ui::EF_NONE, IDC_FULLSCREEN},
     {ui::VKEY_M, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
@@ -194,10 +196,10 @@ const AcceleratorMapping kAcceleratorMap[] = {
     {ui::VKEY_BROWSER_FAVORITES, ui::EF_NONE, IDC_SHOW_BOOKMARK_MANAGER},
     {ui::VKEY_BROWSER_STOP, ui::EF_NONE, IDC_STOP},
     // On Chrome OS, Search + Esc is used to call out task manager.
-    {ui::VKEY_ESCAPE, ui::EF_COMMAND_DOWN, IDC_TASK_MANAGER},
+    {ui::VKEY_ESCAPE, ui::EF_COMMAND_DOWN, IDC_TASK_MANAGER_SHORTCUT},
     {ui::VKEY_Z, ui::EF_COMMAND_DOWN, IDC_TOGGLE_MULTITASK_MENU},
 #else   // BUILDFLAG(IS_CHROMEOS)
-    {ui::VKEY_ESCAPE, ui::EF_SHIFT_DOWN, IDC_TASK_MANAGER},
+    {ui::VKEY_ESCAPE, ui::EF_SHIFT_DOWN, IDC_TASK_MANAGER_SHORTCUT},
     {ui::VKEY_LMENU, ui::EF_NONE, IDC_FOCUS_MENU_BAR},
     {ui::VKEY_MENU, ui::EF_NONE, IDC_FOCUS_MENU_BAR},
     {ui::VKEY_RMENU, ui::EF_NONE, IDC_FOCUS_MENU_BAR},
@@ -248,11 +250,15 @@ const AcceleratorMapping kAcceleratorMap[] = {
     {ui::VKEY_OEM_PLUS, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN, IDC_ZOOM_PLUS},
 #endif  // !BUILDFLAG(IS_CHROMEOS)
 #endif  // !BUILDFLAG(IS_MAC)
-#if BUILDFLAG(ENABLE_SCREEN_AI_SERVICE) && \
-    (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS))
-    {ui::VKEY_S, ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN,
-     IDC_CONTENT_CONTEXT_RUN_LAYOUT_EXTRACTION},
-#endif
+};
+
+const AcceleratorMapping kTabGroupAcceleratorMap[] = {
+    // Tab group commands.
+    {ui::VKEY_C, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, IDC_ADD_NEW_TAB_TO_GROUP},
+    {ui::VKEY_D, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, IDC_CREATE_NEW_TAB_GROUP},
+    {ui::VKEY_X, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, IDC_FOCUS_NEXT_TAB_GROUP},
+    {ui::VKEY_Z, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, IDC_FOCUS_PREV_TAB_GROUP},
+    {ui::VKEY_W, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, IDC_CLOSE_TAB_GROUP},
 };
 
 const AcceleratorMapping kDevToolsAcceleratorMap[] = {
@@ -266,16 +272,6 @@ const AcceleratorMapping kDevToolsAcceleratorMap[] = {
     {ui::VKEY_U, ui::EF_CONTROL_DOWN, IDC_VIEW_SOURCE},
 #endif  // !BUILDFLAG(IS_MAC)
 };
-
-#if BUILDFLAG(ENABLE_LENS_DESKTOP_GOOGLE_BRANDED_FEATURES)
-// Accelerators to enable if lens::features::kEnableRegionSearchKeyboardShortcut
-// is true.
-constexpr AcceleratorMapping kRegionSearchAcceleratorMap[] = {
-    // TODO(nguyenbryan): This is a temporary hotkey; update when finalized.
-    {ui::VKEY_E, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
-     IDC_CONTENT_CONTEXT_LENS_REGION_SEARCH},
-};
-#endif  // BUILDFLAG(ENABLE_LENS_DESKTOP_GOOGLE_BRANDED_FEATURES)
 
 constexpr int kDebugModifier =
     ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN | ui::EF_SHIFT_DOWN;
@@ -307,41 +303,31 @@ std::vector<AcceleratorMapping> GetAcceleratorList() {
     accelerators->insert(accelerators->begin(), std::begin(kAcceleratorMap),
                          std::end(kAcceleratorMap));
 
-    bool enable_devtools = true;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    // In Ash, DevTools is disabled by default if lacros is the only browser, in
-    // order not to confuse users by opening Ash browser windows.
-    enable_devtools = crosapi::browser_util::IsAshDevToolEnabled();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-    if (enable_devtools) {
-      accelerators->insert(accelerators->begin(),
-                           std::begin(kDevToolsAcceleratorMap),
-                           std::end(kDevToolsAcceleratorMap));
-    }
+    accelerators->insert(accelerators->begin(),
+                         std::begin(kDevToolsAcceleratorMap),
+                         std::end(kDevToolsAcceleratorMap));
 
     // See https://devblogs.microsoft.com/oldnewthing/20040329-00/?p=40003
     // Doing this check here and not at the bottom since kUIDebugAcceleratorMap
     // contains Ctrl+Alt keys but we don't enable those for the public.
 #if DCHECK_IS_ON()
     constexpr int kCtrlAlt = ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN;
-    for (auto& mapping : *accelerators)
+    for (auto& mapping : *accelerators) {
       DCHECK((mapping.modifiers & kCtrlAlt) != kCtrlAlt)
           << "Accelerators with Ctrl+Alt are reserved by Windows.";
-#endif
-
-#if BUILDFLAG(ENABLE_LENS_DESKTOP_GOOGLE_BRANDED_FEATURES)
-    if (base::FeatureList::IsEnabled(
-            lens::features::kEnableRegionSearchKeyboardShortcut)) {
-      accelerators->insert(accelerators->begin(),
-                           std::begin(kRegionSearchAcceleratorMap),
-                           std::end(kRegionSearchAcceleratorMap));
     }
-#endif  // BUILDFLAG(ENABLE_LENS_DESKTOP_GOOGLE_BRANDED_FEATURES)
+#endif
 
     if (base::FeatureList::IsEnabled(features::kUIDebugTools)) {
       accelerators->insert(accelerators->begin(),
                            std::begin(kUIDebugAcceleratorMap),
                            std::end(kUIDebugAcceleratorMap));
+    }
+
+    if (tabs::AreTabGroupShortcutsEnabled()) {
+      accelerators->insert(accelerators->end(),
+                           std::begin(kTabGroupAcceleratorMap),
+                           std::end(kTabGroupAcceleratorMap));
     }
   }
 
@@ -359,7 +345,7 @@ bool GetStandardAcceleratorForCommandId(int command_id,
   // On macOS, the cut/copy/paste accelerators are defined in the main menu
   // built in main_menu_builder.mm and the accelerator is user configurable. All
   // of this is handled by CommandDispatcher.
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 #else
   // The standard Ctrl-X, Ctrl-V and Ctrl-C are not defined as accelerators
   // anywhere else.

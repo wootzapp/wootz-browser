@@ -77,8 +77,9 @@ bool IsGooglePhotosUrl(const GURL& url) {
   };
 
   for (const char* const suffix : kGooglePhotosHostSuffixes) {
-    if (base::EndsWith(url.host_piece(), suffix))
+    if (base::EndsWith(url.host_piece(), suffix)) {
       return true;
+    }
   }
   return false;
 }
@@ -88,8 +89,7 @@ bool IsGooglePhotosUrl(const GURL& url) {
 void SanitizedImageSource::DataDecoderDelegate::DecodeImage(
     const std::string& data,
     DecodeImageCallback callback) {
-  base::span<const uint8_t> bytes = base::make_span(
-      reinterpret_cast<const uint8_t*>(data.data()), data.size());
+  base::span<const uint8_t> bytes = base::as_byte_span(data);
 
   data_decoder::DecodeImage(
       &data_decoder_, bytes, data_decoder::mojom::ImageCodec::kDefault,
@@ -100,8 +100,7 @@ void SanitizedImageSource::DataDecoderDelegate::DecodeImage(
 void SanitizedImageSource::DataDecoderDelegate::DecodeAnimation(
     const std::string& data,
     DecodeAnimationCallback callback) {
-  base::span<const uint8_t> bytes = base::make_span(
-      reinterpret_cast<const uint8_t*>(data.data()), data.size());
+  base::span<const uint8_t> bytes = base::as_byte_span(data);
 
   data_decoder::DecodeAnimation(&data_decoder_, bytes, /*shrink_to_fit=*/true,
                                 kMaxImageSizeInBytes, std::move(callback));
@@ -343,16 +342,16 @@ void SanitizedImageSource::EncodeAndReplyStaticImage(
       base::BindOnce(
           [](const SkBitmap& bitmap,
              RequestAttributes::EncodeType encode_type) {
-            auto encoded = base::MakeRefCounted<base::RefCountedBytes>();
-            const bool success =
+            std::optional<std::vector<uint8_t>> result =
                 encode_type == RequestAttributes::EncodeType::kWebP
-                    ? gfx::WebpCodec::Encode(bitmap, /*quality=*/90,
-                                             &encoded->as_vector())
+                    ? gfx::WebpCodec::Encode(bitmap, /*quality=*/90)
                     : gfx::PNGCodec::EncodeBGRASkBitmap(
-                          bitmap, /*discard_transparency=*/false,
-                          &encoded->as_vector());
-            return success ? encoded
-                           : base::MakeRefCounted<base::RefCountedBytes>();
+                          bitmap, /*discard_transparency=*/false);
+            if (!result) {
+              return base::MakeRefCounted<base::RefCountedBytes>();
+            }
+            return base::MakeRefCounted<base::RefCountedBytes>(
+                std::move(result.value()));
           },
           bitmap, request_attributes.encode_type),
       std::move(callback));

@@ -8,15 +8,18 @@
 
 #include "ash/login/ui/arrow_button_view.h"
 #include "ash/login/ui/hover_notifier.h"
+#include "ash/login/ui/login_constants.h"
 #include "ash/login/ui/login_display_style.h"
 #include "ash/login/ui/views_utils.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/strings/utf_string_conversions.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/layout/box_layout.h"
 
 namespace ash {
@@ -83,7 +86,7 @@ LoginPublicAccountUserView::LoginPublicAccountUserView(
   if (display_name.empty()) {
     display_name = user.basic_user_info.display_email;
   }
-  arrow_button->SetAccessibleName(l10n_util::GetStringFUTF16(
+  arrow_button->GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
       IDS_ASH_LOGIN_PUBLIC_ACCOUNT_DIALOG_BUTTON_ACCESSIBLE_NAME,
       base::UTF8ToUTF16(display_name)));
   arrow_button->SetFocusPainter(nullptr);
@@ -165,6 +168,7 @@ gfx::Size LoginPublicAccountUserView::CalculatePreferredSize(
   // Make sure we are at least as big as the user view. If we do not do this the
   // view will be below minimum size when no auth methods are displayed.
   size.SetToMax(user_view_->GetPreferredSize());
+  size.set_height(std::max(login::kMinimiumBigUserViewHeightDp, size.height()));
   return size;
 }
 

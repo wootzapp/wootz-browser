@@ -29,6 +29,7 @@
 #include "components/safe_browsing/core/common/fbs/client_model_generated.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/proto/client_model.pb.h"
+#include "components/safe_browsing/core/common/safebrowsing_switches.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -36,10 +37,6 @@
 namespace safe_browsing {
 
 namespace {
-
-// Command-line flag that can be used to override the current CSD model. Must be
-// provided with an absolute path.
-const char kOverrideCsdModelFlag[] = "csd-model-override-path";
 
 void ReturnModelOverrideFailure(
     base::OnceCallback<void(std::pair<std::string, base::File>)> callback) {
@@ -85,13 +82,7 @@ base::File LoadImageEmbeddingModelFile(const base::FilePath& model_file_path) {
   base::File image_embedding_model_file(
       model_file_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
 
-  bool image_embedding_model_valid = image_embedding_model_file.IsValid();
-
-  base::UmaHistogramBoolean(
-      "SBClientPhishing.ModelDynamicUpdateSuccess.ImageEmbedding",
-      image_embedding_model_valid);
-
-  if (!image_embedding_model_valid) {
+  if (!image_embedding_model_file.IsValid()) {
     VLOG(2)
         << "Failed to receive image embedding model file. File is not valid";
     return base::File();
@@ -153,15 +144,20 @@ void CloseModelFile(base::File model_file) {
   model_file.Close();
 }
 
+void RecordImageEmbeddingModelUpdateSuccess(bool success) {
+  base::UmaHistogramBoolean(
+      "SBClientPhishing.ModelDynamicUpdateSuccess.ImageEmbedding", success);
+}
+
 }  // namespace
 
 // --- ClientSidePhishingModel methods ---
 
 ClientSidePhishingModel::ClientSidePhishingModel(
-    optimization_guide::OptimizationGuideModelProvider* opt_guide,
-    const scoped_refptr<base::SequencedTaskRunner>& background_task_runner)
+    optimization_guide::OptimizationGuideModelProvider* opt_guide)
     : opt_guide_(opt_guide),
-      background_task_runner_(background_task_runner),
+      background_task_runner_(base::ThreadPool::CreateSequencedTaskRunner(
+          {base::MayBlock(), base::TaskPriority::BEST_EFFORT})),
       beginning_time_(base::TimeTicks::Now()) {
   opt_guide_->AddObserverForOptimizationTargetModel(
       optimization_guide::proto::OPTIMIZATION_TARGET_CLIENT_SIDE_PHISHING,
@@ -188,6 +184,7 @@ void ClientSidePhishingModel::OnModelUpdated(
     // bad model on disk and it should be removed. Therefore, we will clear the
     // current model in the class.
     if (!model_info.has_value()) {
+      trigger_model_opt_guide_metadata_image_embedding_version_.reset();
       mapped_region_ = base::MappedReadOnlyRegion();
       if (visual_tflite_model_) {
         background_task_runner_->PostTask(
@@ -219,6 +216,7 @@ void ClientSidePhishingModel::OnModelUpdated(
     // embedding model, and if the trigger models are still valid, then the
     // scorer will be created with the trigger models only.
     if (!model_info.has_value()) {
+      embedding_model_opt_guide_metadata_image_embedding_version_.reset();
       if (image_embedding_model_) {
         background_task_runner_->PostTask(
             FROM_HERE, base::BindOnce(&CloseModelFile,
@@ -251,6 +249,31 @@ void ClientSidePhishingModel::SubscribeToImageEmbedderOptimizationGuide() {
   }
 }
 
+void ClientSidePhishingModel::UnsubscribeToImageEmbedderOptimizationGuide() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  if (subscribed_to_image_embedder_ && opt_guide_) {
+    subscribed_to_image_embedder_ = false;
+    opt_guide_->RemoveObserverForOptimizationTargetModel(
+        optimization_guide::proto::
+            OPTIMIZATION_TARGET_CLIENT_SIDE_PHISHING_IMAGE_EMBEDDER,
+        this);
+    embedding_model_opt_guide_metadata_image_embedding_version_.reset();
+    if (image_embedding_model_) {
+      background_task_runner_->PostTask(
+          FROM_HERE,
+          base::BindOnce(&CloseModelFile, std::move(*image_embedding_model_)));
+
+      // We will only notify if there was an image embedding model available, so
+      // the renderer can remove it.
+      content::GetUIThreadTaskRunner({})->PostTask(
+          FROM_HERE,
+          base::BindOnce(&ClientSidePhishingModel::NotifyCallbacksOnUI,
+                         weak_ptr_factory_.GetWeakPtr()));
+    }
+  }
+}
+
 bool ClientSidePhishingModel::IsSubscribedToImageEmbeddingModelUpdates() {
   return subscribed_to_image_embedder_;
 }
@@ -274,7 +297,7 @@ void ClientSidePhishingModel::OnModelAndVisualTfLiteFileLoaded(
   bool model_valid = false;
   bool tflite_valid = visual_tflite_model.IsValid();
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
-          kOverrideCsdModelFlag) &&
+          switches::kOverrideCsdModelFlag) &&
       !model_str.empty()) {
     model_type_ = CSDModelType::kNone;
     flatbuffers::Verifier verifier(
@@ -285,8 +308,8 @@ void ClientSidePhishingModel::OnModelAndVisualTfLiteFileLoaded(
           base::ReadOnlySharedMemoryRegion::Create(model_str.length());
       if (mapped_region_.IsValid()) {
         model_type_ = CSDModelType::kFlatbuffer;
-        memcpy(mapped_region_.mapping.memory(), model_str.data(),
-               model_str.length());
+        mapped_region_.mapping.GetMemoryAsSpan<char>().copy_prefix_from(
+            model_str);
 
         const flat::ClientSideModel* flatbuffer_model =
             flat::GetClientSideModel(mapped_region_.mapping.memory());
@@ -360,6 +383,14 @@ void ClientSidePhishingModel::OnImageEmbeddingModelLoaded(
     std::optional<optimization_guide::proto::Any> model_metadata,
     base::File image_embedding_model) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  bool image_embedding_model_valid = image_embedding_model.IsValid();
+  RecordImageEmbeddingModelUpdateSuccess(image_embedding_model_valid);
+
+  // Any failure to loading the image embedding model will send an empty file.
+  if (!image_embedding_model_valid) {
+    return;
+  }
 
   if (image_embedding_model_) {
     // If the image embedding model file is already loaded, it should be closed
@@ -532,7 +563,7 @@ const base::File& ClientSidePhishingModel::GetImageEmbeddingModel() const {
 
 bool ClientSidePhishingModel::HasImageEmbeddingModel() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return !!image_embedding_model_;
+  return image_embedding_model_ && image_embedding_model_->IsValid();
 }
 
 CSDModelType ClientSidePhishingModel::GetModelType() const {
@@ -557,7 +588,7 @@ void ClientSidePhishingModel::SetModelStringForTesting(
   // TODO (andysjlim): Move to a helper function once protobuf feature is
   // removed
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
-          kOverrideCsdModelFlag) &&
+          switches::kOverrideCsdModelFlag) &&
       !model_str.empty()) {
     model_type_ = CSDModelType::kNone;
     flatbuffers::Verifier verifier(
@@ -568,8 +599,8 @@ void ClientSidePhishingModel::SetModelStringForTesting(
           base::ReadOnlySharedMemoryRegion::Create(model_str.length());
       if (mapped_region_.IsValid()) {
         model_type_ = CSDModelType::kFlatbuffer;
-        memcpy(mapped_region_.mapping.memory(), model_str.data(),
-               model_str.length());
+        mapped_region_.mapping.GetMemoryAsSpan<char>().copy_prefix_from(
+            model_str);
       } else {
         model_valid = false;
       }
@@ -619,19 +650,13 @@ void* ClientSidePhishingModel::GetFlatBufferMemoryAddressForTesting() {
   return mapped_region_.mapping.memory();
 }
 
-void ClientSidePhishingModel::NotifyCallbacksOfUpdateForTesting() {
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE, base::BindOnce(&ClientSidePhishingModel::NotifyCallbacksOnUI,
-                                base::Unretained(this)));
-}
-
 // This function is used for testing in client_side_phishing_model_unittest
 void ClientSidePhishingModel::MaybeOverrideModel() {
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          kOverrideCsdModelFlag)) {
+          switches::kOverrideCsdModelFlag)) {
     base::FilePath overriden_model_directory =
         base::CommandLine::ForCurrentProcess()->GetSwitchValuePath(
-            kOverrideCsdModelFlag);
+            switches::kOverrideCsdModelFlag);
     base::ThreadPool::PostTask(
         FROM_HERE, {base::MayBlock()},
         base::BindOnce(
@@ -669,14 +694,13 @@ void ClientSidePhishingModel::OnGetOverridenModelData(
         VLOG(2) << "Could not create shared memory region for flatbuffer";
         return;
       }
-      memcpy(mapped_region_.mapping.memory(), model_data.data(),
-             model_data.length());
+      mapped_region_.mapping.GetMemoryAsSpan<char>().copy_prefix_from(
+          model_data);
       model_type_ = model_type;
       break;
     }
     case CSDModelType::kNone:
-      VLOG(2) << "Model type should have been a flatbuffer";
-      return;
+      NOTREACHED();
   }
 
   if (tflite_model.IsValid()) {

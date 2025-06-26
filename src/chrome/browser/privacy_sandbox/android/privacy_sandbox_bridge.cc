@@ -12,10 +12,12 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
-#include "chrome/browser/privacy_sandbox/android/jni_headers/PrivacySandboxBridge_jni.h"
+#include "chrome/browser/privacy_sandbox/privacy_sandbox_activity_types_factory.h"
+#include "chrome/browser/privacy_sandbox/privacy_sandbox_activity_types_service.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_service.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_service_factory.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_settings_factory.h"
+#include "chrome/browser/privacy_sandbox/privacy_sandbox_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/privacy_sandbox/canonical_topic.h"
 #include "components/privacy_sandbox/privacy_sandbox_settings.h"
@@ -23,6 +25,9 @@
 #include "content/public/browser/browser_thread.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/browser/privacy_sandbox/android/jni_headers/PrivacySandboxBridge_jni.h"
 
 using base::android::ConvertUTF16ToJavaString;
 using base::android::ConvertUTF8ToJavaString;
@@ -127,13 +132,12 @@ static void JNI_PrivacySandboxBridge_GetFledgeJoiningEtldPlusOneForDisplay(
           base::android::ScopedJavaGlobalRef<jobject>(j_callback)));
 }
 
-static base::android::ScopedJavaLocalRef<jobjectArray>
+static std::vector<std::string>
 JNI_PrivacySandboxBridge_GetBlockedFledgeJoiningTopFramesForDisplay(
     JNIEnv* env,
     const JavaParamRef<jobject>& j_profile) {
-  return base::android::ToJavaArrayOfStrings(
-      env, GetPrivacySandboxService(j_profile)
-               ->GetBlockedFledgeJoiningTopFramesForDisplay());
+  return GetPrivacySandboxService(j_profile)
+      ->GetBlockedFledgeJoiningTopFramesForDisplay();
 }
 
 static void JNI_PrivacySandboxBridge_SetFledgeJoiningAllowed(
@@ -147,7 +151,8 @@ static void JNI_PrivacySandboxBridge_SetFledgeJoiningAllowed(
 
 static jint JNI_PrivacySandboxBridge_GetRequiredPromptType(
     JNIEnv* env,
-    const JavaParamRef<jobject>& j_profile) {
+    const JavaParamRef<jobject>& j_profile,
+    jint surface_type) {
   // If the FRE is disabled, as it is in tests which must not be interrupted
   // with dialogs, do not attempt to show a dialog.
   const auto& command_line = *base::CommandLine::ForCurrentProcess();
@@ -155,62 +160,66 @@ static jint JNI_PrivacySandboxBridge_GetRequiredPromptType(
     return static_cast<int>(PrivacySandboxService::PromptType::kNone);
 
   return static_cast<int>(
-      GetPrivacySandboxService(j_profile)->GetRequiredPromptType());
+      GetPrivacySandboxService(j_profile)->GetRequiredPromptType(
+          static_cast<PrivacySandboxService::SurfaceType>(surface_type)));
 }
 
 static void JNI_PrivacySandboxBridge_PromptActionOccurred(
     JNIEnv* env,
     const JavaParamRef<jobject>& j_profile,
-    jint action) {
+    jint action,
+    jint surface_type) {
   GetPrivacySandboxService(j_profile)->PromptActionOccurred(
-      static_cast<PrivacySandboxService::PromptAction>(action));
+      static_cast<PrivacySandboxService::PromptAction>(action),
+      static_cast<PrivacySandboxService::SurfaceType>(surface_type));
 }
 
-static jboolean JNI_PrivacySandboxBridge_IsFirstPartySetsDataAccessEnabled(
+static jboolean JNI_PrivacySandboxBridge_IsRelatedWebsiteSetsDataAccessEnabled(
     JNIEnv* env,
     const JavaParamRef<jobject>& j_profile) {
   return GetPrivacySandboxService(j_profile)
-      ->IsFirstPartySetsDataAccessEnabled();
+      ->IsRelatedWebsiteSetsDataAccessEnabled();
 }
 
-static jboolean JNI_PrivacySandboxBridge_IsFirstPartySetsDataAccessManaged(
+static jboolean JNI_PrivacySandboxBridge_IsRelatedWebsiteSetsDataAccessManaged(
     JNIEnv* env,
     const JavaParamRef<jobject>& j_profile) {
   return GetPrivacySandboxService(j_profile)
-      ->IsFirstPartySetsDataAccessManaged();
+      ->IsRelatedWebsiteSetsDataAccessManaged();
 }
 
-static void JNI_PrivacySandboxBridge_SetFirstPartySetsDataAccessEnabled(
+static void JNI_PrivacySandboxBridge_SetRelatedWebsiteSetsDataAccessEnabled(
     JNIEnv* env,
     const JavaParamRef<jobject>& j_profile,
     jboolean enabled) {
-  GetPrivacySandboxService(j_profile)->SetFirstPartySetsDataAccessEnabled(
+  GetPrivacySandboxService(j_profile)->SetRelatedWebsiteSetsDataAccessEnabled(
       enabled);
 }
 
 static ScopedJavaLocalRef<jstring>
-JNI_PrivacySandboxBridge_GetFirstPartySetOwner(
+JNI_PrivacySandboxBridge_GetRelatedWebsiteSetOwner(
     JNIEnv* env,
     const JavaParamRef<jobject>& j_profile,
     const JavaParamRef<jstring>& memberOrigin) {
-  auto fpsOwner = GetPrivacySandboxService(j_profile)->GetFirstPartySetOwner(
-      GURL(base::android::ConvertJavaStringToUTF8(env, memberOrigin)));
+  auto rwsOwner =
+      GetPrivacySandboxService(j_profile)->GetRelatedWebsiteSetOwner(
+          GURL(base::android::ConvertJavaStringToUTF8(env, memberOrigin)));
 
-  if (!fpsOwner.has_value()) {
+  if (!rwsOwner.has_value()) {
     return nullptr;
   }
 
-  return ConvertUTF8ToJavaString(env, fpsOwner->GetURL().host());
+  return ConvertUTF8ToJavaString(env, rwsOwner->GetURL().host());
 }
 
-static jboolean JNI_PrivacySandboxBridge_IsPartOfManagedFirstPartySet(
+static jboolean JNI_PrivacySandboxBridge_IsPartOfManagedRelatedWebsiteSet(
     JNIEnv* env,
     const JavaParamRef<jobject>& j_profile,
     const JavaParamRef<jstring>& origin) {
   auto schemefulSite = net::SchemefulSite(
       GURL(base::android::ConvertJavaStringToUTF8(env, origin)));
 
-  return GetPrivacySandboxService(j_profile)->IsPartOfManagedFirstPartySet(
+  return GetPrivacySandboxService(j_profile)->IsPartOfManagedRelatedWebsiteSet(
       schemefulSite);
 }
 
@@ -228,4 +237,49 @@ JNI_PrivacySandboxBridge_SetAllPrivacySandboxAllowedForTesting(  // IN-TEST
   PrivacySandboxSettingsFactory::GetForProfile(
       Profile::FromJavaObject(j_profile))
       ->SetAllPrivacySandboxAllowedForTesting();  // IN-TEST
+}
+
+static void JNI_PrivacySandboxBridge_RecordActivityType(
+    JNIEnv* env,
+    const JavaParamRef<jobject>& j_profile,
+    jint activity_type) {
+  privacy_sandbox::PrivacySandboxActivityTypesService*
+      privacy_sandbox_activity_types_service =
+          PrivacySandboxActivityTypesFactory::GetForProfile(
+              Profile::FromJavaObject(j_profile));
+  if (!privacy_sandbox_activity_types_service) {
+    return;
+  }
+  privacy_sandbox_activity_types_service->RecordActivityType(
+      static_cast<privacy_sandbox::PrivacySandboxActivityTypesService::
+                      PrivacySandboxStorageActivityType>(activity_type));
+}
+
+static jboolean
+JNI_PrivacySandboxBridge_PrivacySandboxPrivacyGuideShouldShowAdTopicsCard(
+    JNIEnv* env,
+    const JavaParamRef<jobject>& j_profile) {
+  return GetPrivacySandboxService(j_profile)
+      ->PrivacySandboxPrivacyGuideShouldShowAdTopicsCard();
+}
+
+static jboolean JNI_PrivacySandboxBridge_ShouldUsePrivacyPolicyChinaDomain(
+    JNIEnv* env,
+    const JavaParamRef<jobject>& j_profile) {
+  return GetPrivacySandboxService(j_profile)
+      ->ShouldUsePrivacyPolicyChinaDomain();
+}
+
+static ScopedJavaLocalRef<jstring>
+JNI_PrivacySandboxBridge_GetEmbeddedPrivacyPolicyURL(
+    JNIEnv* env,
+    jint domain_type,
+    jint color_scheme,
+    const JavaParamRef<jstring>& locale) {
+  return ConvertUTF8ToJavaString(
+      env,
+      privacy_sandbox::GetEmbeddedPrivacyPolicyURL(
+          static_cast<privacy_sandbox::PrivacyPolicyDomainType>(domain_type),
+          static_cast<privacy_sandbox::PrivacyPolicyColorScheme>(color_scheme),
+          base::android::ConvertJavaStringToUTF8(env, locale)));
 }

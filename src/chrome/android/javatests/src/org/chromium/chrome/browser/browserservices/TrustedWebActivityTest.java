@@ -31,28 +31,31 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.CommandLine;
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
+import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.app.metrics.LaunchCauseMetrics;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.customtabs.CustomTabActivityTestRule;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabBrowserControlsConstraintsHelper;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.browser.ThemeTestUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.common.ContentSwitches;
 import org.chromium.net.test.EmbeddedTestServerRule;
-import org.chromium.ui.test.util.UiRestriction;
+import org.chromium.ui.base.DeviceFormFactor;
 
 import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
@@ -64,6 +67,7 @@ import java.util.concurrent.TimeoutException;
  */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@Features.DisableFeatures({ChromeFeatureList.EDGE_TO_EDGE_EVERYWHERE})
 @DoNotBatch(reason = "https://crbug.com/1454648")
 public class TrustedWebActivityTest {
     // TODO(peconn): Add test for navigating away from the trusted origin.
@@ -151,7 +155,7 @@ public class TrustedWebActivityTest {
     @Test
     @MediumTest
     @Feature({"StatusBar"})
-    @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE})
+    @Restriction({DeviceFormFactor.PHONE})
     // Customizing status bar color is disallowed for tablets.
     public void testStatusBarColorHasPageThemeColor() throws ExecutionException, TimeoutException {
         final String pageWithThemeColor =
@@ -174,7 +178,7 @@ public class TrustedWebActivityTest {
     @Test
     @MediumTest
     @Feature({"StatusBar"})
-    @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE})
+    @Restriction({DeviceFormFactor.PHONE})
     public void testStatusBarColorNoPageThemeColor() throws ExecutionException, TimeoutException {
         final String pageWithThemeColor =
                 mEmbeddedTestServerRule
@@ -206,7 +210,8 @@ public class TrustedWebActivityTest {
     @Test
     @MediumTest
     @Feature({"StatusBar"})
-    @Restriction({UiRestriction.RESTRICTION_TYPE_PHONE})
+    @Restriction({DeviceFormFactor.PHONE})
+    @DisabledTest(message = "b/352624584")
     public void testStatusBarColorCertificateError() throws ExecutionException, TimeoutException {
         final String pageWithThemeColor =
                 mEmbeddedTestServerRule
@@ -229,7 +234,7 @@ public class TrustedWebActivityTest {
         ChromeTabUtils.loadUrlOnUiThread(activity.getActivityTab(), pageWithThemeColorCertError);
 
         int defaultColor =
-                TestThreadUtils.runOnUiThreadBlocking(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> ThemeTestUtils.getDefaultThemeColor(activity.getActivityTab()));
         int expectedColor = defaultColor;
         // Use longer-than-default timeout to give page time to finish loading.
@@ -285,7 +290,7 @@ public class TrustedWebActivityTest {
     }
 
     private @BrowserControlsState int getBrowserControlConstraints(Tab tab) {
-        return TestThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> TabBrowserControlsConstraintsHelper.getConstraints(tab));
     }
 }

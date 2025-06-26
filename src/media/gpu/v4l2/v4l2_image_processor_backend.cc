@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/v4l2/v4l2_image_processor_backend.h"
 
 #include <errno.h>
@@ -520,8 +525,10 @@ void V4L2ImageProcessorBackend::ProcessJobs() {
     if (!input_queue_->IsStreaming()) {
       const FrameResource& input_frame =
           *(input_job_queue_.front()->input_frame.get());
-      const gfx::Size input_buffer_size(input_frame.stride(0),
-                                        input_frame.coded_size().height());
+      const gfx::Size input_buffer_size(
+          input_frame.stride(0) /
+              VideoFrame::BytesPerElement(input_frame.format(), 0),
+          input_frame.coded_size().height());
       if (!ReconfigureV4L2Format(input_buffer_size,
                                  V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)) {
         NotifyError();
@@ -534,8 +541,10 @@ void V4L2ImageProcessorBackend::ProcessJobs() {
         !output_queue_->IsStreaming()) {
       const FrameResource& output_frame =
           *(input_job_queue_.front()->output_frame.get());
-      const gfx::Size output_buffer_size(output_frame.stride(0),
-                                         output_frame.coded_size().height());
+      const gfx::Size output_buffer_size(
+          output_frame.stride(0) /
+              VideoFrame::BytesPerElement(output_frame.format(), 0),
+          output_frame.coded_size().height());
       if (!ReconfigureV4L2Format(output_buffer_size,
                                  V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)) {
         NotifyError();
@@ -547,10 +556,11 @@ void V4L2ImageProcessorBackend::ProcessJobs() {
     std::optional<V4L2WritableBufferRef> input_buffer;
     // If we are using DMABUF frames, try to always obtain the same V4L2 buffer.
     if (input_memory_type_ == V4L2_MEMORY_DMABUF) {
-      const FrameResource& input_frame =
-          *(input_job_queue_.front()->input_frame.get());
-      input_buffer =
-          input_queue_->GetFreeBufferForFrame(input_frame.GetSharedMemoryId());
+      const std::optional<base::UnguessableToken> tracking_token =
+          input_job_queue_.front()->input_frame->metadata().tracking_token;
+      if (tracking_token.has_value()) {
+        input_buffer = input_queue_->GetFreeBufferForFrame(*tracking_token);
+      }
     }
     if (!input_buffer)
       input_buffer = input_queue_->GetFreeBuffer();
@@ -558,10 +568,11 @@ void V4L2ImageProcessorBackend::ProcessJobs() {
     std::optional<V4L2WritableBufferRef> output_buffer;
     // If we are using DMABUF frames, try to always obtain the same V4L2 buffer.
     if (output_memory_type_ == V4L2_MEMORY_DMABUF) {
-      const FrameResource& output_frame =
-          *(input_job_queue_.front()->output_frame.get());
-      output_buffer = output_queue_->GetFreeBufferForFrame(
-          output_frame.GetSharedMemoryId());
+      const std::optional<base::UnguessableToken> tracking_token =
+          input_job_queue_.front()->output_frame->metadata().tracking_token;
+      if (tracking_token.has_value()) {
+        output_buffer = output_queue_->GetFreeBufferForFrame(*tracking_token);
+      }
     }
     if (!output_buffer)
       output_buffer = output_queue_->GetFreeBuffer();
@@ -835,7 +846,7 @@ void V4L2ImageProcessorBackend::Dequeue() {
         break;
 
       default:
-        NOTREACHED_NORETURN();
+        NOTREACHED();
     }
 
     const auto timestamp = job_record->input_frame->timestamp();
@@ -906,7 +917,7 @@ bool V4L2ImageProcessorBackend::EnqueueInputRecord(
       break;
     }
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
   DVLOGF(4) << "enqueued frame ts="
             << job_record->input_frame->timestamp().InMilliseconds()
@@ -940,7 +951,7 @@ bool V4L2ImageProcessorBackend::EnqueueOutputRecord(
           output_handle->native_pixmap_handle.planes);
     }
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 

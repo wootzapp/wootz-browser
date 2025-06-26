@@ -8,9 +8,8 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
-import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.LayerDrawable;
+import android.graphics.drawable.Drawable.ConstantState;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
@@ -18,19 +17,19 @@ import android.view.View.AccessibilityDelegate;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.view.ViewGroup.MarginLayoutParams;
+import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction;
 import android.widget.ImageView;
 
-import androidx.annotation.ColorInt;
 import androidx.annotation.ColorRes;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.view.ViewCompat;
 import androidx.core.widget.ImageViewCompat;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxDrawableState;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
@@ -54,6 +53,7 @@ import java.util.List;
  *
  * @param <T> The inner content view type being updated.
  */
+@NullMarked
 public final class BaseSuggestionViewBinder<T extends View>
         implements ViewBinder<PropertyModel, BaseSuggestionView<T>, PropertyKey> {
     /**
@@ -61,11 +61,11 @@ public final class BaseSuggestionViewBinder<T extends View>
      * allows us to avoid calling setters when the current state of the view is already correct.
      */
     private static class BaseSuggestionViewMetadata {
-        @Nullable public Drawable.ConstantState backgroundConstantState;
+        public @Nullable ConstantState backgroundConstantState;
     }
 
     /** Drawable ConstantState used to expedite creation of Focus ripples. */
-    private static Drawable.ConstantState sFocusableDrawableState;
+    @VisibleForTesting static @Nullable ConstantState sFocusableDrawableState;
 
     private static @BrandedColorScheme int sFocusableDrawableStateTheme;
     private static boolean sFocusableDrawableStateInNightMode;
@@ -93,7 +93,10 @@ public final class BaseSuggestionViewBinder<T extends View>
         mContentBinder.bind(model, view.contentView, propertyKey);
         ActionChipsBinder.bind(model, view.actionChipsView, propertyKey);
 
-        if (BaseSuggestionViewProperties.ICON == propertyKey) {
+        if (BaseSuggestionViewProperties.ACTION_CHIP_LEAD_IN_SPACING == propertyKey) {
+            view.setActionChipLeadInSpacing(
+                    model.get(BaseSuggestionViewProperties.ACTION_CHIP_LEAD_IN_SPACING));
+        } else if (BaseSuggestionViewProperties.ICON == propertyKey) {
             updateSuggestionIcon(model, view);
         } else if (SuggestionCommonProperties.LAYOUT_DIRECTION == propertyKey) {
             ViewCompat.setLayoutDirection(
@@ -143,6 +146,13 @@ public final class BaseSuggestionViewBinder<T extends View>
                             return false;
                         });
             }
+        } else if (BaseSuggestionViewProperties.SHOW_DECORATION == propertyKey) {
+            view.setShowDecorationIcon(model.get(BaseSuggestionViewProperties.SHOW_DECORATION));
+        } else if (BaseSuggestionViewProperties.TOP_PADDING == propertyKey) {
+            view.setPadding(0, model.get(BaseSuggestionViewProperties.TOP_PADDING), 0, 0);
+        } else if (BaseSuggestionViewProperties.USE_LARGE_DECORATION == propertyKey) {
+            view.setUseLargeDecorationIcon(
+                    model.get(BaseSuggestionViewProperties.USE_LARGE_DECORATION));
         }
     }
 
@@ -176,10 +186,12 @@ public final class BaseSuggestionViewBinder<T extends View>
 
                         @Override
                         public boolean performAccessibilityAction(
-                                View host, int accessibilityAction, Bundle arguments) {
+                                View host, int accessibilityAction, @Nullable Bundle arguments) {
                             if (accessibilityAction == AccessibilityNodeInfo.ACTION_CLICK
                                     && action.onClickAnnouncement != null) {
-                                actionView.announceForAccessibility(action.onClickAnnouncement);
+                                actionView.setContentDescription(action.onClickAnnouncement);
+                                actionView.sendAccessibilityEvent(
+                                        AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
                             }
                             return super.performAccessibilityAction(
                                     host, accessibilityAction, arguments);
@@ -251,7 +263,7 @@ public final class BaseSuggestionViewBinder<T extends View>
      * Access the BaseSuggestionViewMetadata for the given view, creating and attaching a new one if
      * none is currently associated.
      */
-    private static @NonNull BaseSuggestionViewMetadata ensureViewMetadata(View view) {
+    private static BaseSuggestionViewMetadata ensureViewMetadata(View view) {
         BaseSuggestionViewMetadata metadata =
                 (BaseSuggestionViewMetadata) view.getTag(R.id.base_suggestion_view_metadata_key);
         if (metadata == null) {
@@ -274,44 +286,25 @@ public final class BaseSuggestionViewBinder<T extends View>
         // Use a throwaway metadata object if caching is off to simplify branching; the performance
         // difference will still manifest because it's not persisted.
         BaseSuggestionViewMetadata metadata = ensureViewMetadata(view);
+        Drawable background;
 
-        if (sFocusableDrawableState != null) {
+        if (sFocusableDrawableState == null) {
+            var context = view.getContext();
+            @BrandedColorScheme int scheme = model.get(SuggestionCommonProperties.COLOR_SCHEME);
+            background =
+                    OmniboxResourceProvider.getStatefulSuggestionBackground(
+                            context,
+                            OmniboxResourceProvider.getStandardSuggestionBackgroundColor(
+                                    context, scheme),
+                            scheme);
+            sFocusableDrawableState = background.getConstantState();
+        } else {
             if (sFocusableDrawableState == metadata.backgroundConstantState) return;
-            view.setBackground(sFocusableDrawableState.newDrawable());
-            metadata.backgroundConstantState = sFocusableDrawableState;
-            return;
+            background = sFocusableDrawableState.newDrawable();
         }
 
-        // Background color to be used for suggestions
-        var ctx = view.getContext();
-        var background = new ColorDrawable(getSuggestionBackgroundColor(model, view.getContext()));
-        // Ripple effect to use when the user interacts with the suggestion.
-        var ripple =
-                OmniboxResourceProvider.resolveAttributeToDrawable(
-                        ctx,
-                        model.get(SuggestionCommonProperties.COLOR_SCHEME),
-                        R.attr.selectableItemBackground);
-
-        var layer = new LayerDrawable(new Drawable[] {background, ripple});
-
-        // Cache the drawable state for faster retrieval.
-        // See go/omnibox:drawables for more details.
-        sFocusableDrawableState = layer.getConstantState();
+        view.setBackground(background);
         metadata.backgroundConstantState = sFocusableDrawableState;
-        view.setBackground(layer);
-    }
-
-    /**
-     * Retrieve the background color to be applied to suggestion.
-     *
-     * @param model A property model to look up relevant properties.
-     * @param ctx Context used to retrieve appropriate color value.
-     * @return @ColorInt value representing the color to be applied.
-     */
-    public static @ColorInt int getSuggestionBackgroundColor(PropertyModel model, Context ctx) {
-        return isIncognito(model)
-                ? ctx.getColor(R.color.omnibox_suggestion_bg_incognito)
-                : OmniboxResourceProvider.getStandardSuggestionBackgroundColor(ctx);
     }
 
     /**
@@ -399,7 +392,7 @@ public final class BaseSuggestionViewBinder<T extends View>
     /**
      * @return Cached ConstantState for testing.
      */
-    public static Drawable.ConstantState getFocusableDrawableStateForTesting() {
+    public static @Nullable ConstantState getFocusableDrawableStateForTesting() {
         return sFocusableDrawableState;
     }
 }

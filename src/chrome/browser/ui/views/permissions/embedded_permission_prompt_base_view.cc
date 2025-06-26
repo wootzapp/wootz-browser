@@ -13,15 +13,21 @@
 #include "chrome/browser/ui/views/chrome_widget_sublevel.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "components/permissions/features.h"
+#include "components/permissions/permission_util.h"
 #include "components/vector_icons/vector_icons.h"
+#include "content/public/browser/render_widget_host.h"
+#include "content/public/browser/render_widget_host_view.h"
 #include "third_party/blink/public/common/features_generated.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/ui_base_features.h"
+#include "ui/display/screen.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/gfx/vector_icon_types.h"
 #include "ui/views/bubble/bubble_frame_view.h"
 #include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/label.h"
@@ -37,6 +43,10 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(EmbeddedPermissionPromptBaseView,
                                       kLabelViewId1);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(EmbeddedPermissionPromptBaseView,
                                       kLabelViewId2);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(EmbeddedPermissionPromptBaseView,
+                                      kTitleViewId);
+
+using permissions::feature_params::PermissionElementPromptPosition;
 
 namespace {
 
@@ -74,6 +84,20 @@ int GetPermissionIconSize() {
   return 20;
 }
 
+float GetScreenScaleFactor(Browser* browser) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  return browser_view ? display::Screen::GetScreen()
+                            ->GetPreferredScaleFactorForWindow(
+                                browser_view->GetNativeWindow())
+                            .value_or(1.0f)
+                      : 1.0f;
+}
+
+views::View* GetContentsWebView(Browser* browser) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  return browser_view ? browser_view->contents_web_view() : nullptr;
+}
+
 }  // namespace
 
 EmbeddedPermissionPromptBaseView::EmbeddedPermissionPromptBaseView(
@@ -81,24 +105,48 @@ EmbeddedPermissionPromptBaseView::EmbeddedPermissionPromptBaseView(
     base::WeakPtr<EmbeddedPermissionPromptViewDelegate> delegate)
     : PermissionPromptBaseView(browser,
                                delegate->GetPermissionPromptDelegate()),
-      browser_(browser),
       delegate_(delegate) {
   SetProperty(views::kElementIdentifierKey, kMainViewId);
 
   CHECK_GT(delegate_->Requests().size(), 0u);
   element_rect_ = delegate_->Requests()[0]->GetAnchorElementPosition().value_or(
       gfx::Rect());
+
+  // Convert the element position to root coordinate space (in case the element
+  // was inside cross-origin frame).
+  content::RenderFrameHost* rfh = content::RenderFrameHost::FromID(
+      delegate_->Requests()[0]->get_requesting_frame_id());
+  if (rfh && rfh->GetView()) {
+    element_rect_ = gfx::Rect(
+        rfh->GetView()->TransformPointToRootCoordSpace(element_rect_.origin()),
+        element_rect_.size());
+  }
+
+  // Scale the element position according to the device scale factor.
+  element_rect_ = gfx::ScaleToEnclosedRect(element_rect_,
+                                           1.f / GetScreenScaleFactor(browser));
+
+  // Convert the position into screen coordinates.
+  auto* content_view = GetContentsWebView(browser);
+  views::View::ConvertRectToScreen(content_view, &element_rect_);
 }
 
-EmbeddedPermissionPromptBaseView::~EmbeddedPermissionPromptBaseView() = default;
+EmbeddedPermissionPromptBaseView::~EmbeddedPermissionPromptBaseView() {
+  permissions::PermissionUmaUtil::RecordBrowserAlwaysActiveWhilePrompting(
+      request_type(), /*embedded_permission_element_initiated*/ true,
+      record_browser_always_active_value());
+}
 
 void EmbeddedPermissionPromptBaseView::Show() {
+  permissions::PermissionUmaUtil::RecordPromptShownInActiveBrowser(
+      request_type(), /*embedded_permission_element_initiated*/ true,
+      record_browser_always_active_value());
   CreateWidget();
   ShowWidget();
 }
 
 const gfx::VectorIcon& EmbeddedPermissionPromptBaseView::GetIcon() const {
-  return gfx::kNoneIcon;
+  return gfx::VectorIcon::EmptyIcon();
 }
 
 bool EmbeddedPermissionPromptBaseView::ShowLoadingIcon() const {
@@ -106,7 +154,7 @@ bool EmbeddedPermissionPromptBaseView::ShowLoadingIcon() const {
 }
 
 void EmbeddedPermissionPromptBaseView::CreateWidget() {
-  DCHECK(browser_->window());
+  DCHECK(browser()->window());
   views::Widget* widget = views::BubbleDialogDelegateView::CreateBubble(this);
 
   widget->SetZOrderSublevel(ChromeWidgetSublevel::kSublevelSecurity);
@@ -131,9 +179,7 @@ EmbeddedPermissionPromptBaseView::CreateLoadingIcon() {
 }
 
 void EmbeddedPermissionPromptBaseView::AddedToWidget() {
-  if (!GetRequestLinesConfiguration().empty()) {
-    return;
-  }
+  StartTrackingPictureInPictureOcclusion();
 
   auto title_container = std::make_unique<views::FlexLayoutView>();
   title_container->SetOrientation(views::LayoutOrientation::kHorizontal);
@@ -156,12 +202,14 @@ void EmbeddedPermissionPromptBaseView::AddedToWidget() {
   label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   label->SetCollapseWhenHidden(true);
   label->SetMultiLine(true);
+  label->SetAllowCharacterBreak(true);
   label->SetProperty(
       views::kFlexBehaviorKey,
       views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
                                views::MaximumFlexSizeRule::kScaleToMaximum,
                                /*adjust_height_for_width=*/true));
-  AddElementIdentifierToLabel(*label, /*index*/ 0);
+  label->SetProperty(views::kElementIdentifierKey,
+                     EmbeddedPermissionPromptBaseView::kTitleViewId);
 
   if (ShowLoadingIcon()) {
     title_container->AddChildView(CreateLoadingIcon());
@@ -185,20 +233,38 @@ void EmbeddedPermissionPromptBaseView::PrepareToClose() {
   DialogDelegate::SetCloseCallback(base::DoNothing());
 }
 
+PermissionElementPromptPosition
+EmbeddedPermissionPromptBaseView::GetPromptPosition() const {
+  CHECK(base::FeatureList::IsEnabled(blink::features::kPermissionElement));
+  if (!base::FeatureList::IsEnabled(
+          permissions::features::kPermissionElementPromptPositioning)) {
+    return PermissionElementPromptPosition::kWindowMiddle;
+  }
+
+  if (permissions::feature_params::kPermissionElementPromptPositioningParam
+              .Get() == PermissionElementPromptPosition::kNearElement &&
+      element_rect_.IsEmpty()) {
+    return PermissionElementPromptPosition::kWindowMiddle;
+  }
+
+  return permissions::feature_params::kPermissionElementPromptPositioningParam
+      .Get();
+}
+
 void EmbeddedPermissionPromptBaseView::ShowWidget() {
   GetWidget()->Show();
 }
 
 void EmbeddedPermissionPromptBaseView::UpdateAnchor(views::Widget* widget) {
+  if (GetPromptPosition() == PermissionElementPromptPosition::kLegacyPrompt) {
+    AnchorToPageInfoOrChip();
+    return;
+  }
   SetAnchorView(widget->GetContentsView());
   set_parent_window(
-      platform_util::GetViewForWindow(browser_->window()->GetNativeWindow()));
+      platform_util::GetViewForWindow(browser()->window()->GetNativeWindow()));
 
-  if (ShouldOverrideBubbleBounds()) {
-    SetArrow(views::BubbleBorder::Arrow::BOTTOM_LEFT);
-  } else {
-    SetArrow(views::BubbleBorder::Arrow::FLOAT);
-  }
+  SetArrow(views::BubbleBorder::Arrow::BOTTOM_LEFT);
 }
 
 bool EmbeddedPermissionPromptBaseView::ShouldShowCloseButton() const {
@@ -224,7 +290,7 @@ void EmbeddedPermissionPromptBaseView::Init() {
     AddRequestLine(request, index++);
   }
 
-  SetButtons(ui::DIALOG_BUTTON_NONE);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
 
   auto buttons_container = std::make_unique<views::View>();
   buttons_container->SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -275,7 +341,7 @@ void EmbeddedPermissionPromptBaseView::AddRequestLine(
   AddElementIdentifierToLabel(*label, index);
 
   label->SetTextStyle(views::style::STYLE_BODY_3);
-  label->SetEnabledColorId(kColorPermissionPromptRequestText);
+  label->SetEnabledColor(kColorPermissionPromptRequestText);
 
   line_container->SetProperty(views::kMarginsKey,
                               gfx::Insets().set_top(BODY_TOP_MARGIN));
@@ -299,7 +365,8 @@ void EmbeddedPermissionPromptBaseView::AddButton(
 }
 
 gfx::Rect EmbeddedPermissionPromptBaseView::GetBubbleBounds() {
-  if (!ShouldOverrideBubbleBounds()) {
+  if (GetPromptPosition() == PermissionElementPromptPosition::kLegacyPrompt ||
+      !delegate_) {
     return views::BubbleDialogDelegateView::GetBubbleBounds();
   }
 
@@ -309,44 +376,63 @@ gfx::Rect EmbeddedPermissionPromptBaseView::GetBubbleBounds() {
       delegate_->GetPermissionPromptDelegate()->GetAssociatedWebContents();
 
   gfx::Rect container_bounds = web_contents->GetContainerBounds();
+  gfx::Rect prompt_bounds;
 
-  // First, attempt to position the prompt below the PEPC, if it would not
-  // overflow the container bounds.
-  gfx::Rect prompt_bounds(
-      default_bounds.x() + element_rect_.bottom_center().x() -
-          default_bounds.width() / 2,
-      default_bounds.y() + element_rect_.bottom_center().y() +
-          default_bounds.height(),
-      default_bounds.width(), default_bounds.height());
+  if (GetPromptPosition() == PermissionElementPromptPosition::kNearElement) {
+    // First, attempt to position the prompt below the PEPC, if it would not
+    // overflow the container bounds.
+    prompt_bounds = gfx::Rect(
+        element_rect_.bottom_center().x() - default_bounds.width() / 2,
+        element_rect_.bottom_center().y(), default_bounds.width(),
+        default_bounds.height());
 
-  if (container_bounds.Contains(prompt_bounds)) {
-    return prompt_bounds;
+    if (prompt_bounds.x() < container_bounds.x()) {
+      // Align the prompt on the left side of the element.
+      prompt_bounds.set_x(element_rect_.x());
+    } else if (prompt_bounds.right() > container_bounds.right()) {
+      // Align the prompt on the right side of the element.
+      prompt_bounds.set_x(element_rect_.right() - default_bounds.width());
+    }
+
+    if (container_bounds.Contains(prompt_bounds)) {
+      return prompt_bounds;
+    }
+
+    // Second, attempt to position the prompt above the PEPC, if it would not
+    // overflow the container bounds.
+    prompt_bounds =
+        gfx::Rect(element_rect_.top_center().x() - default_bounds.width() / 2,
+                  element_rect_.top_center().y() - default_bounds.height(),
+                  default_bounds.width(), default_bounds.height());
+
+    if (prompt_bounds.x() < container_bounds.x()) {
+      // Align the prompt on the left side of the element.
+      prompt_bounds.set_x(element_rect_.x());
+    } else if (prompt_bounds.right() > container_bounds.right()) {
+      // Align the prompt on the right side of the element.
+      prompt_bounds.set_x(element_rect_.right() - default_bounds.width());
+    }
+
+    if (container_bounds.Contains(prompt_bounds)) {
+      return prompt_bounds;
+    }
+    // Otherwise, default to kWindowMiddle placement logic.
   }
 
-  // Second, attempt to position the prompt above the PEPC, if it would not
-  // overflow the container bounds.
-  prompt_bounds =
-      gfx::Rect(default_bounds.x() + element_rect_.top_center().x() -
-                    default_bounds.width() / 2,
-                default_bounds.y() + element_rect_.top_center().y(),
-                default_bounds.width(), default_bounds.height());
-
-  if (container_bounds.Contains(prompt_bounds)) {
-    return prompt_bounds;
-  }
-
-  // Otherwise, place it in the middle of the container bounds.
-  return gfx::Rect(
+  // At this point we're either in the kWindowMiddle case or the kNearElement
+  // case after failing to place the prompt near the element.
+  prompt_bounds = gfx::Rect(
       container_bounds.CenterPoint().x() - default_bounds.width() / 2,
       container_bounds.CenterPoint().y() - default_bounds.height() / 2,
       default_bounds.width(), default_bounds.height());
-}
 
-bool EmbeddedPermissionPromptBaseView::ShouldOverrideBubbleBounds() const {
-  return base::FeatureList::IsEnabled(blink::features::kPermissionElement) &&
-         base::FeatureList::IsEnabled(
-             permissions::features::kPermissionElementDialogPositioning) &&
-         !element_rect_.IsEmpty();
+  // Do not allow the prompt to be positioned above the container bounds as it
+  // can overlap and potentially obfuscate browser UI.
+  if (prompt_bounds.y() < container_bounds.y()) {
+    prompt_bounds.set_y(container_bounds.y());
+  }
+
+  return prompt_bounds;
 }
 
 BEGIN_METADATA(EmbeddedPermissionPromptBaseView)

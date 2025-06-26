@@ -98,7 +98,7 @@ class CastDeviceProvider::DeviceListerDelegate final
                        scoped_refptr<base::SingleThreadTaskRunner> runner)
       : provider_(provider), runner_(runner) {}
 
-  virtual ~DeviceListerDelegate() {}
+  ~DeviceListerDelegate() = default;
 
   void StartDiscovery() {
     // This must be called on the UI thread; ServiceDiscoverySharedClient and
@@ -136,6 +136,12 @@ class CastDeviceProvider::DeviceListerDelegate final
                                      provider_, service_type));
   }
 
+  void OnPermissionRejected() override {
+    runner_->PostTask(
+        FROM_HERE,
+        base::BindOnce(&CastDeviceProvider::OnPermissionRejected, provider_));
+  }
+
   base::WeakPtr<DeviceListerDelegate> AsWeakPtr() {
     return weak_ptr_factory_.GetWeakPtr();
   }
@@ -151,9 +157,9 @@ class CastDeviceProvider::DeviceListerDelegate final
   base::WeakPtrFactory<DeviceListerDelegate> weak_ptr_factory_{this};
 };
 
-CastDeviceProvider::CastDeviceProvider() {}
+CastDeviceProvider::CastDeviceProvider() = default;
 
-CastDeviceProvider::~CastDeviceProvider() {}
+CastDeviceProvider::~CastDeviceProvider() = default;
 
 void CastDeviceProvider::QueryDevices(SerialsCallback callback) {
   if (!lister_delegate_) {
@@ -217,6 +223,12 @@ void CastDeviceProvider::OnDeviceRemoved(const std::string& service_type,
 
 void CastDeviceProvider::OnDeviceCacheFlushed(const std::string& service_type) {
   VLOG(1) << "Device cache flushed";
+  service_hostname_map_.clear();
+  device_info_map_.clear();
+}
+
+void CastDeviceProvider::OnPermissionRejected() {
+  VLOG(1) << "Permission for local discovery is rejected.";
   service_hostname_map_.clear();
   device_info_map_.clear();
 }

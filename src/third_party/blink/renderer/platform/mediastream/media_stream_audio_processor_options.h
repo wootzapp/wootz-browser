@@ -69,24 +69,11 @@ struct PLATFORM_EXPORT AudioProcessingProperties {
   // referred to does not correspond to something that can replace the browser
   // counterpart. I.e., the browser counterpart should be on, even if
   // `disable_hw_noise_suppression` is false.
+  // TODO(crbug.com/405165917): can this member now be removed?
   bool disable_hw_noise_suppression = false;
 
-  bool goog_audio_mirroring = false;
-  bool goog_auto_gain_control = true;
-  // TODO(https://crbug.com/1269723): Deprecate this constraint. The flag no
-  // longer toggles meaningful processing effects, but it still forces the audio
-  // processing module to be created and used.
-  bool goog_experimental_echo_cancellation =
-#if BUILDFLAG(IS_ANDROID)
-      false;
-#else
-      true;
-#endif
-  bool goog_noise_suppression = true;
-  // Experimental noise suppression maps to transient suppression (keytap
-  // removal).
-  bool goog_experimental_noise_suppression = true;
-  bool goog_highpass_filter = true;
+  bool auto_gain_control = true;
+  bool noise_suppression = true;
   VoiceIsolationType voice_isolation =
       VoiceIsolationType::kVoiceIsolationDefault;
 };

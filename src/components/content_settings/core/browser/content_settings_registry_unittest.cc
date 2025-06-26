@@ -9,7 +9,6 @@
 #include "base/values.h"
 #include "build/blink_buildflags.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/content_settings/core/browser/content_settings_info.h"
 #include "components/content_settings/core/browser/content_settings_uma_util.h"
 #include "components/content_settings/core/browser/website_settings_info.h"
@@ -48,8 +47,8 @@ TEST_F(ContentSettingsRegistryTest, GetPlatformDependent) {
   EXPECT_FALSE(registry()->Get(ContentSettingsType::JAVASCRIPT));
 #endif
 
-#if (BUILDFLAG(IS_IOS) && !BUILDFLAG(USE_BLINK)) || BUILDFLAG(IS_ANDROID)
-  // Images shouldn't be registered on mobile.
+#if (BUILDFLAG(IS_IOS) && !BUILDFLAG(USE_BLINK))
+  // Images shouldn't be registered on iOS.
   EXPECT_FALSE(registry()->Get(ContentSettingsType::IMAGES));
 #endif
 
@@ -151,6 +150,7 @@ TEST_F(ContentSettingsRegistryTest, Inheritance) {
       ContentSettingsType::REQUEST_DESKTOP_SITE,
       ContentSettingsType::KEYBOARD_LOCK,
       ContentSettingsType::POINTER_LOCK,
+      ContentSettingsType::LEGACY_COOKIE_SCOPE,
   };
 
   for (const ContentSettingsInfo* info : *registry()) {

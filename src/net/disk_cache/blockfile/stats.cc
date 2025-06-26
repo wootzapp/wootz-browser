@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/disk_cache/blockfile/stats.h"
 
+#include <array>
 #include <bit>
 #include <cstdint>
 
@@ -25,30 +31,16 @@ struct OnDiskStats {
 static_assert(sizeof(OnDiskStats) < 512, "needs more than 2 blocks");
 
 // WARNING: Add new stats only at the end, or change LoadStats().
-const char* const kCounterNames[] = {
-  "Open miss",
-  "Open hit",
-  "Create miss",
-  "Create hit",
-  "Resurrect hit",
-  "Create error",
-  "Trim entry",
-  "Doom entry",
-  "Doom cache",
-  "Invalid entry",
-  "Open entries",
-  "Max entries",
-  "Timer",
-  "Read data",
-  "Write data",
-  "Open rankings",
-  "Get rankings",
-  "Fatal error",
-  "Last report",
-  "Last report timer",
-  "Doom recent entries",
-  "unused"
-};
+constexpr auto kCounterNames = std::to_array<const char*>({
+    "Open miss",     "Open hit",          "Create miss",
+    "Create hit",    "Resurrect hit",     "Create error",
+    "Trim entry",    "Doom entry",        "Doom cache",
+    "Invalid entry", "Open entries",      "Max entries",
+    "Timer",         "Read data",         "Write data",
+    "Open rankings", "Get rankings",      "Fatal error",
+    "Last report",   "Last report timer", "Doom recent entries",
+    "unused",
+});
 static_assert(std::size(kCounterNames) == disk_cache::Stats::MAX_COUNTER,
               "update the names");
 

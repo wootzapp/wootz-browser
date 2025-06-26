@@ -10,7 +10,7 @@
 
 #include "base/functional/callback.h"
 #include "components/keyed_service/core/keyed_service.h"
-#include "components/sync/base/model_type.h"
+#include "components/sync/base/data_type.h"
 
 namespace syncer {
 class FCMRegistrationTokenObserver;
@@ -27,7 +27,7 @@ class SyncInvalidationsService : public KeyedService {
   // Data types which are newly marked as interesting will be passed to the
   // callback.
   using InterestedDataTypesAppliedCallback =
-      base::RepeatingCallback<void(const ModelTypeSet&)>;
+      base::RepeatingCallback<void(const DataTypeSet&)>;
 
   // Starts handling incoming invalidations and obtains an FCM token if it
   // doesn't have one.
@@ -39,20 +39,20 @@ class SyncInvalidationsService : public KeyedService {
   // Stop listening to invalidations and removes FCM registration token.
   virtual void StopListeningPermanently() = 0;
 
-  // Add a new |listener| which will be notified on each new incoming
-  // invalidation. |listener| must not be nullptr. Does nothing if the
-  // |listener| has already been added before. When a new |listener| is added,
+  // Add a new `listener` which will be notified on each new incoming
+  // invalidation. `listener` must not be nullptr. Does nothing if the
+  // `listener` has already been added before. When a new `listener` is added,
   // previously received messages will be immediately replayed.
   virtual void AddListener(InvalidationsListener* listener) = 0;
 
   // Returns whether `listener` was added.
   virtual bool HasListener(InvalidationsListener* listener) = 0;
 
-  // Removes |listener|, does nothing if it wasn't added before. |listener| must
+  // Removes `listener`, does nothing if it wasn't added before. `listener` must
   // not be nullptr.
   virtual void RemoveListener(InvalidationsListener* listener) = 0;
 
-  // Add or remove an FCM token change observer. |observer| must not be nullptr.
+  // Add or remove an FCM token change observer. `observer` must not be nullptr.
   virtual void AddTokenObserver(FCMRegistrationTokenObserver* observer) = 0;
   virtual void RemoveTokenObserver(FCMRegistrationTokenObserver* observer) = 0;
 
@@ -61,7 +61,7 @@ class SyncInvalidationsService : public KeyedService {
   // the device is not listening to invalidations.
   virtual std::optional<std::string> GetFCMRegistrationToken() const = 0;
 
-  // Set the interested data types change handler. |handler| can be nullptr to
+  // Set the interested data types change handler. `handler` can be nullptr to
   // unregister any existing handler. There can be at most one handler.
   virtual void SetInterestedDataTypesHandler(
       InterestedDataTypesHandler* handler) = 0;
@@ -69,8 +69,8 @@ class SyncInvalidationsService : public KeyedService {
   // Get or set for which data types should the device receive invalidations.
   // GetInterestedDataTypes() will return base::nullptr until
   // SetInterestedDataTypes() has been called at least once.
-  virtual std::optional<ModelTypeSet> GetInterestedDataTypes() const = 0;
-  virtual void SetInterestedDataTypes(const ModelTypeSet& data_types) = 0;
+  virtual std::optional<DataTypeSet> GetInterestedDataTypes() const = 0;
+  virtual void SetInterestedDataTypes(const DataTypeSet& data_types) = 0;
   virtual void SetCommittedAdditionalInterestedDataTypesCallback(
       InterestedDataTypesAppliedCallback callback) = 0;
 };

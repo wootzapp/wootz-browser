@@ -11,7 +11,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
-#include "chrome/browser/ui/chrome_pages.h"
+#include "chrome/browser/feedback/show_feedback_page.h"
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -61,13 +61,15 @@ void ShowProfileErrorDialog(ProfileErrorType type,
 
   g_is_showing_profile_error_dialog = true;
   chrome::ShowWarningMessageBoxWithCheckbox(
-      nullptr, l10n_util::GetStringUTF16(IDS_PROFILE_ERROR_DIALOG_TITLE),
+      gfx::NativeWindow(),
+      l10n_util::GetStringUTF16(IDS_PROFILE_ERROR_DIALOG_TITLE),
       l10n_util::GetStringUTF16(message_id),
       l10n_util::GetStringUTF16(IDS_PROFILE_ERROR_DIALOG_CHECKBOX),
       base::BindOnce(&OnProfileErrorDialogDismissed, diagnostics));
 #else   // BUILDFLAG(GOOGLE_CHROME_BRANDING)
   chrome::ShowWarningMessageBox(
-      nullptr, l10n_util::GetStringUTF16(IDS_PROFILE_ERROR_DIALOG_TITLE),
+      gfx::NativeWindow(),
+      l10n_util::GetStringUTF16(IDS_PROFILE_ERROR_DIALOG_TITLE),
       l10n_util::GetStringUTF16(message_id));
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 

@@ -86,9 +86,8 @@ InterpolationValue CSSTransformInterpolationType::MaybeConvertInherit(
 
 InterpolationValue CSSTransformInterpolationType::MaybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState* state,
+    const StyleResolverState& state,
     ConversionCheckers& conversion_checkers) const {
-  CHECK(state);
   if (auto* list_value = DynamicTo<CSSValueList>(value)) {
     CSSPrimitiveValue::LengthTypeFlags types;
     for (const CSSValue* item : *list_value) {
@@ -107,9 +106,8 @@ InterpolationValue CSSTransformInterpolationType::MaybeConvertValue(
         DCHECK(primitive_value ||
                (transform_function.FunctionType() == CSSValueID::kPerspective &&
                 argument->IsIdentifierValue()));
-        if (!primitive_value ||
-            (!primitive_value->IsLength() &&
-             !primitive_value->IsCalculatedPercentageWithLength())) {
+        if (!primitive_value || (!primitive_value->IsLength() &&
+                                 primitive_value->IsResolvableBeforeLayout())) {
           continue;
         }
         primitive_value->AccumulateLengthUnitTypes(types);
@@ -117,13 +115,13 @@ InterpolationValue CSSTransformInterpolationType::MaybeConvertValue(
     }
 
     if (InterpolationType::ConversionChecker* length_units_checker =
-            LengthUnitsChecker::MaybeCreate(types, *state)) {
+            LengthUnitsChecker::MaybeCreate(types, state)) {
       conversion_checkers.push_back(length_units_checker);
     }
   }
 
   return InterpolationValue(InterpolableTransformList::ConvertCSSValue(
-      value, state->CssToLengthConversionData(),
+      value, state.CssToLengthConversionData(),
       TransformOperations::BoxSizeDependentMatrixBlending::kAllow));
 }
 

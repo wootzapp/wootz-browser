@@ -12,7 +12,9 @@
 #include <vector>
 
 #include "base/functional/callback.h"
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/test/chromedriver/basic_types.h"
@@ -22,6 +24,7 @@
 #include "chrome/test/chromedriver/chrome/scoped_temp_dir_with_retry.h"
 #include "chrome/test/chromedriver/chrome/ui_events.h"
 #include "chrome/test/chromedriver/command_listener.h"
+#include "chrome/test/chromedriver/prompt_behavior.h"
 
 // Controls whether ChromeDriver operates in W3C mode (when true) by default
 // or legacy mode (when false).
@@ -31,14 +34,6 @@ class Chrome;
 class Status;
 class WebDriverLog;
 class WebView;
-
-namespace prompt_behavior {
-static const char kAccept[] = "accept";
-static const char kAcceptAndNotify[] = "accept and notify";
-static const char kDismiss[] = "dismiss";
-static const char kDismissAndNotify[] = "dismiss and notify";
-static const char kIgnore[] = "ignore";
-}  // namespace prompt_behavior
 
 struct FrameInfo {
   FrameInfo(const std::string& parent_frame_id,
@@ -88,8 +83,6 @@ struct Session {
   static const base::TimeDelta kDefaultBrowserStartupTimeout;
   // BiDi channels
   static const char kChannelSuffix[];
-  static const char kNoChannelSuffix[];
-  static const char kBlockingChannelSuffix[];
 
   explicit Session(const std::string& id);
   Session(const std::string& id, std::unique_ptr<Chrome> chrome);
@@ -111,13 +104,15 @@ struct Session {
                          CloseFunc close_connection);
   void RemoveBidiConnection(int connection_id);
   void CloseAllConnections();
+  static void Terminate();
+  Status SendBidiSessionEnd();
+  static void HandleMessagesAndTerminateIfNecessary();
 
   const std::string id;
   bool w3c_compliant;
   bool web_socket_url = false;
   bool quit;
   bool detach;
-  bool awaiting_bidi_response = false;
   std::unique_ptr<Chrome> chrome;
   std::string window;
   std::string bidi_mapper_web_view_id;
@@ -142,7 +137,7 @@ struct Session {
   base::TimeDelta implicit_wait;
   base::TimeDelta page_load_timeout;
   base::TimeDelta script_timeout;
-  std::unique_ptr<std::string> prompt_text;
+  std::optional<std::string> prompt_text;
   std::unique_ptr<Geoposition> overridden_geoposition;
   std::unique_ptr<DeviceMetrics> overridden_device_metrics;
   std::unique_ptr<NetworkConditions> overridden_network_conditions;
@@ -159,25 +154,17 @@ struct Session {
   std::vector<std::unique_ptr<CommandListener>> command_listeners;
   bool strict_file_interactability;
 
-  std::string unhandled_prompt_behavior;
+  PromptBehavior unhandled_prompt_behavior = PromptBehavior(kW3CDefault);
   int click_count;
   base::TimeTicks mouse_click_timestamp;
   std::string host;
+  scoped_refptr<base::SingleThreadTaskRunner> cmd_task_runner;
+  base::OnceClosure terminate_on_cmd;
 
  private:
   void SwitchFrameInternal(bool for_top_frame);
 
-  // TODO: for the moment being we support single connection per client
-  // In the future (2022Q4) we will probably support multiple bidi connections.
-  // In order to do that we can try either of the following approaches:
-  // * Create a separate CDP session per connection
-  // * Give some connection identifying context to the BiDiMapper.
-  //   The context will travel between the BiDiMapper and ChromeDriver.
-  // * Store an internal map between CDP command id and connection.
   std::vector<BidiConnection> bidi_connections_;
-  // If there is no active connections the messages from Chrome are accumulated
-  // in this queue until a connection is created or the queue overflows.
-  std::queue<base::Value::Dict> bidi_response_queue_;
 };
 
 Session* GetThreadLocalSession();

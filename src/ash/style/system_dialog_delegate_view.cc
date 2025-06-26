@@ -20,6 +20,7 @@
 #include "ui/events/event.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/strings/grit/ui_strings.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/image_view.h"
@@ -218,8 +219,8 @@ SystemDialogDelegateView::SystemDialogDelegateView() {
           kRoundedCornerRadius,
           views::HighlightBorder::Type::kHighlightBorderOnShadow),
       kBorderInsets));
-  SetBackground(views::CreateThemedRoundedRectBackground(kBackgroundColorId,
-                                                         kRoundedCornerRadius));
+  SetBackground(views::CreateRoundedRectBackground(kBackgroundColorId,
+                                                   kRoundedCornerRadius));
 
   // Set shadow.
   shadow_ = SystemShadow::CreateShadowOnNinePatchLayerForView(
@@ -247,8 +248,9 @@ SystemDialogDelegateView::SystemDialogDelegateView() {
   typography_provider->StyleLabel(kTitleFont, *title_);
   title_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   title_->SetAutoColorReadabilityEnabled(false);
-  title_->SetEnabledColorId(kTitleColorId);
+  title_->SetEnabledColor(kTitleColorId);
   title_->SetVisible(false);
+  title_->GetViewAccessibility().SetRole(ax::mojom::Role::kHeading);
   title_->SetProperty(views::kElementIdentifierKey, kTitleTextIdForTesting);
 
   description_ = AddChildView(std::make_unique<views::Label>());
@@ -263,7 +265,7 @@ SystemDialogDelegateView::SystemDialogDelegateView() {
   description_->SetMultiLine(true);
   description_->SetAllowCharacterBreak(true);
   description_->SetAutoColorReadabilityEnabled(false);
-  description_->SetEnabledColorId(kBodyColorId);
+  description_->SetEnabledColor(kBodyColorId);
   description_->SetVisible(false);
   description_->SetProperty(views::kElementIdentifierKey,
                             kDescriptionTextIdForTesting);
@@ -306,7 +308,7 @@ void SystemDialogDelegateView::SetDescription(
 
 void SystemDialogDelegateView::SetDescriptionAccessibleName(
     const std::u16string& accessible_name) {
-  description_->SetAccessibleName(accessible_name);
+  description_->GetViewAccessibility().SetName(accessible_name);
 }
 
 void SystemDialogDelegateView::SetAcceptButtonVisible(bool visible) {

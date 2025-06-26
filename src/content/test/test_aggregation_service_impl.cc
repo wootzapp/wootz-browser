@@ -4,6 +4,8 @@
 
 #include "content/test/test_aggregation_service_impl.h"
 
+#include <stddef.h>
+
 #include <optional>
 #include <string>
 #include <utility>
@@ -123,6 +125,8 @@ void TestAggregationServiceImpl::SetPublicKeys(
 void TestAggregationServiceImpl::AssembleReport(
     AssembleRequest request,
     base::OnceCallback<void(base::Value::Dict)> callback) {
+  constexpr size_t kDefaultFilteringIdMaxBytes = 1;
+
   AggregationServicePayloadContents payload_contents(
       ConvertToOperation(request.operation),
       {blink::mojom::AggregatableReportHistogramContribution(
@@ -130,9 +134,9 @@ void TestAggregationServiceImpl::AssembleReport(
           /*filtering_id=*/std::nullopt)},
       ConvertToAggregationMode(request.aggregation_mode),
       /*aggregation_coordinator_origin=*/std::nullopt,
-      /*max_contributions_allowed=*/20,
+      /*max_contributions_allowed=*/20u,
       // TODO(crbug.com/330744610): Allow setting.
-      /*filtering_id_max_bytes=*/std::nullopt);
+      /*filtering_id_max_bytes=*/kDefaultFilteringIdMaxBytes);
 
   AggregatableReportSharedInfo shared_info(
       /*scheduled_report_time=*/base::Time::Now() + base::Seconds(30),
@@ -163,7 +167,7 @@ void TestAggregationServiceImpl::SendReport(
     const base::Value& contents,
     base::OnceCallback<void(bool)> callback) {
   sender_->SendReport(
-      url, contents,
+      url, contents, AggregatableReportRequest::DelayType::Unscheduled,
       base::BindOnce(
           [&](base::OnceCallback<void(bool)> callback,
               AggregatableReportSender::RequestStatus status) {

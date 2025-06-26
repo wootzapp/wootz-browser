@@ -4,6 +4,7 @@
 
 import './manager.js';
 
+export {CrIconElement} from 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
 export {CrToastManagerElement} from 'chrome://resources/cr_elements/cr_toast/cr_toast_manager.js';
 export {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 export {BrowserProxy} from './browser_proxy.js';

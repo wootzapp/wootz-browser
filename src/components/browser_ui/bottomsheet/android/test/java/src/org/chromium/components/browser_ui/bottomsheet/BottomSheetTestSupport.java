@@ -5,12 +5,13 @@
 package org.chromium.components.browser_ui.bottomsheet;
 
 import android.view.MotionEvent;
+import android.view.ViewGroup;
 
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.StateChangeReason;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.concurrent.TimeoutException;
 
@@ -54,7 +55,13 @@ public class BottomSheetTestSupport {
         getBottomSheet().setSheetOffsetFromBottom(offset, reason);
     }
 
-    /** @see {@link BottomSheet#getFullRatio()} */
+    public void setBottomMargin(int offset) {
+        getBottomSheet().setBottomMargin(offset);
+    }
+
+    /**
+     * @see {@link BottomSheet#getFullRatio()}
+     */
     public float getFullRatio() {
         return getBottomSheet().getFullRatio();
     }
@@ -114,15 +121,27 @@ public class BottomSheetTestSupport {
         return (BottomSheet) mController.getBottomSheetViewForTesting();
     }
 
-    /** @return Whether has any token to suppress the bottom sheet. */
+    /** Returns the container for the bottom sheet. */
+    public ViewGroup getSheetContainer() {
+        return mController.getBottomSheetContainerForTesting();
+    }
+
+    /**
+     * @return Whether has any token to suppress the bottom sheet.
+     */
     public boolean hasSuppressionTokens() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> mController.hasSuppressionTokensForTesting());
+    }
+
+    public void setEdgeToEdgeBottomInsetSupplier(Supplier<Integer> edgeToEdgeBottomInsetSupplier) {
+        getBottomSheet().setEdgeToEdgeBottomInsetSupplierForTesting(edgeToEdgeBottomInsetSupplier);
     }
 
     /**
      * Wait for the bottom sheet to enter the specified state. If the sheet is already in the
      * specified state, this method returns immediately.
+     *
      * @param controller The controller for the bottom sheet.
      * @param state The state to wait for.
      */
@@ -136,7 +155,7 @@ public class BottomSheetTestSupport {
                     }
                 };
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     if (controller.getSheetState() == state) {
                         stateChangeHelper.notifyCalled();
@@ -146,17 +165,18 @@ public class BottomSheetTestSupport {
                 });
 
         try {
-            stateChangeHelper.waitForFirst();
+            stateChangeHelper.waitForOnly();
         } catch (TimeoutException ex) {
             assert false : "Bottom sheet state never changed to " + sheetStateToString(state);
         }
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> controller.removeObserver(observer));
+        ThreadUtils.runOnUiThreadBlocking(() -> controller.removeObserver(observer));
     }
 
     /**
      * Wait for the bottom sheet to enter the half or full state. If the sheet is already in either
      * state, this method returns immediately.
+     *
      * @param controller The controller for the bottom sheet.
      */
     public static void waitForOpen(BottomSheetController controller) {
@@ -173,7 +193,7 @@ public class BottomSheetTestSupport {
                     }
                 };
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     if (controller.getSheetState() == BottomSheetController.SheetState.HALF
                             || controller.getSheetState()
@@ -185,20 +205,21 @@ public class BottomSheetTestSupport {
                 });
 
         try {
-            stateChangeHelper.waitForFirst();
+            stateChangeHelper.waitForOnly();
         } catch (TimeoutException ex) {
             assert false
                     : "Bottom sheet state never half or full. Current State: "
                             + sheetStateToString(controller.getSheetState());
         }
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> controller.removeObserver(observer));
+        ThreadUtils.runOnUiThreadBlocking(() -> controller.removeObserver(observer));
     }
 
     /**
      * Wait for the specified content to be shown. If the content is already showing this method
      * returns immediately. If the sheet is suppressed when this method is called, the expected
      * content change is to null.
+     *
      * @param controller The controller for the bottom sheet.
      * @param content The content to wait for.
      */
@@ -224,7 +245,7 @@ public class BottomSheetTestSupport {
                 };
         controller.addObserver(observer);
         try {
-            contentChangeHelper.waitForFirst();
+            contentChangeHelper.waitForOnly();
         } catch (TimeoutException ex) {
             assert false : "Bottom sheet content never changed!";
         }

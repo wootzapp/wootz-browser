@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/functional/callback.h"
+#include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "chrome/browser/ui/tabs/organization/tab_data.h"
 
@@ -93,18 +94,17 @@ void TabOrganizationRequest::StartRequest() {
   std::move(backend_start_request_lambda_)
       .Run(this,
            base::BindOnce(&TabOrganizationRequest::CompleteRequest,
-                          base::Unretained(this)),
+                          weak_ptr_factory_.GetWeakPtr()),
            base::BindOnce(&TabOrganizationRequest::FailRequest,
-                          base::Unretained(this)));
+                          weak_ptr_factory_.GetWeakPtr()));
 }
 
 void TabOrganizationRequest::CompleteRequest(
     std::unique_ptr<TabOrganizationResponse> response) {
-  // Ignore cancelled state.
-  if (state_ == State::CANCELED) {
+  // Ignore non-started states.
+  if (state_ != State::STARTED) {
     return;
   }
-  CHECK(state_ == State::STARTED);
 
   request_end_time_ = base::Time::Now();
   state_ = State::COMPLETED;
@@ -134,9 +134,12 @@ void TabOrganizationRequest::CancelRequest() {
 }
 
 void TabOrganizationRequest::LogResults(const TabOrganizationSession* session) {
-  // Log metrics about the response.
-  UMA_HISTOGRAM_BOOLEAN("Tab.Organization.Response.Succeeded",
-                        state_ == State::COMPLETED);
+  // Only log success metrics about the response if the response was started.
+  if (state_ != State::NOT_STARTED) {
+    UMA_HISTOGRAM_BOOLEAN("Tab.Organization.Response.Succeeded",
+                          state_ == State::COMPLETED);
+  }
+
   if (!response_ || state_ != State::COMPLETED) {
     return;
   }

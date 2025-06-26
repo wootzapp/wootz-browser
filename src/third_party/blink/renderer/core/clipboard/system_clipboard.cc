@@ -4,6 +4,8 @@
 
 #include "third_party/blink/renderer/core/clipboard/system_clipboard.h"
 
+#include <variant>
+
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
@@ -11,15 +13,13 @@
 #include "mojo/public/cpp/base/big_buffer.h"
 #include "mojo/public/cpp/system/platform_handle.h"
 #include "skia/ext/skia_utils_base.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/public/platform/web_drag_data.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/blink/public/web/web_local_frame_client.h"
-#include "third_party/blink/renderer/core/clipboard/clipboard_mime_types.h"
 #include "third_party/blink/renderer/core/clipboard/clipboard_utilities.h"
 #include "third_party/blink/renderer/core/clipboard/data_object.h"
 #include "third_party/blink/renderer/core/dom/document_fragment.h"
@@ -33,6 +33,7 @@
 #include "third_party/blink/renderer/platform/weborigin/kurl.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
 #include "third_party/skia/include/core/SkBitmap.h"
+#include "ui/base/clipboard/clipboard_constants.h"
 
 namespace blink {
 
@@ -342,7 +343,7 @@ mojom::blink::ClipboardFilesPtr SystemClipboard::ReadFiles() {
   return files;
 }
 
-String SystemClipboard::ReadCustomData(const String& type) {
+String SystemClipboard::ReadDataTransferCustomData(const String& type) {
   if (!IsValidBufferType(buffer_) || !clipboard_.is_bound())
     return String();
 
@@ -351,7 +352,7 @@ String SystemClipboard::ReadCustomData(const String& type) {
   }
 
   String data;
-  clipboard_->ReadCustomData(buffer_, NonNullString(type), &data);
+  clipboard_->ReadDataTransferCustomData(buffer_, NonNullString(type), &data);
   if (snapshot_) {
     snapshot_->SetCustomData(buffer_, type, data);
   }
@@ -377,19 +378,18 @@ void SystemClipboard::WriteDataObject(DataObject* data_object) {
   HashMap<String, String> custom_data;
   WebDragData data = data_object->ToWebDragData();
   for (const WebDragData::Item& item : data.Items()) {
-    if (const auto* string_item =
-            absl::get_if<WebDragData::StringItem>(&item)) {
-      if (string_item->type == kMimeTypeTextPlain) {
+    if (const auto* string_item = std::get_if<WebDragData::StringItem>(&item)) {
+      if (string_item->type == ui::kMimeTypePlainText) {
         clipboard_->WriteText(NonNullString(string_item->data));
-      } else if (string_item->type == kMimeTypeTextHTML) {
+      } else if (string_item->type == ui::kMimeTypeHtml) {
         clipboard_->WriteHtml(NonNullString(string_item->data), KURL());
-      } else if (string_item->type != kMimeTypeDownloadURL) {
+      } else if (string_item->type != ui::kMimeTypeDownloadUrl) {
         custom_data.insert(string_item->type, NonNullString(string_item->data));
       }
     }
   }
   if (!custom_data.empty()) {
-    clipboard_->WriteCustomData(std::move(custom_data));
+    clipboard_->WriteDataTransferCustomData(std::move(custom_data));
   }
 }
 
@@ -561,7 +561,7 @@ mojo_base::BigBuffer SystemClipboard::Snapshot::Png(
     mojom::blink::ClipboardBuffer buffer) const {
   DCHECK(HasPng(buffer));
   // Make an owning copy of the png to return to user.
-  base::span<const uint8_t> span = base::make_span(png_.value());
+  base::span<const uint8_t> span = base::span(png_.value());
   return mojo_base::BigBuffer(span);
 }
 
@@ -570,7 +570,7 @@ void SystemClipboard::Snapshot::SetPng(mojom::blink::ClipboardBuffer buffer,
                                        const mojo_base::BigBuffer& png) {
   BindToBuffer(buffer);
   // Make an owning copy of the png to save locally.
-  base::span<const uint8_t> span = base::make_span(png);
+  base::span<const uint8_t> span = base::span(png);
   png_ = mojo_base::BigBuffer(span);
 }
 

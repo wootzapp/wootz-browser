@@ -16,6 +16,7 @@
 #include "base/location.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/themes/theme_service.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/views/autofill/popup/custom_cursor_suppressor.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_view_utils.h"
@@ -75,8 +76,8 @@ constexpr int kMaxPopupWebContentsTopYOverflow = 8;
 // Creates a border for a popup.
 std::unique_ptr<views::Border> CreateBorder() {
   auto border = std::make_unique<views::BubbleBorder>(
-      views::BubbleBorder::NONE, views::BubbleBorder::STANDARD_SHADOW,
-      ui::kColorDropdownBackground);
+      views::BubbleBorder::NONE, views::BubbleBorder::STANDARD_SHADOW);
+  border->SetColor(ui::kColorDropdownBackground);
   border->SetCornerRadius(PopupBaseView::GetCornerRadius());
   border->set_md_shadow_elevation(
       ChromeLayoutProvider::Get()->GetShadowElevationMetric(
@@ -110,7 +111,9 @@ class PopupBaseView::Widget : public views::Widget {
   explicit Widget(PopupBaseView* autofill_popup_base_view,
                   gfx::NativeView parent_native_view,
                   views::Widget::InitParams::Activatable activatable) {
-    views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
+    views::Widget::InitParams params(
+        views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+        views::Widget::InitParams::TYPE_POPUP);
     params.delegate = autofill_popup_base_view;
     params.parent = parent_native_view;
     // Ensure the popup border is not painted on an opaque background.
@@ -179,7 +182,7 @@ class PopupBaseView::Widget : public views::Widget {
     // another window, which is not a problem because the popup closes on focus
     // loss anyway. The exit event will be synthesized by the sub-popup later
     // (find the trick that does this below).
-    if (event->type() == ui::EventType::ET_MOUSE_EXITED &&
+    if (event->type() == ui::EventType::kMouseExited &&
         GetContentsView()->IsMouseHovered()) {
       return;
     }
@@ -188,7 +191,7 @@ class PopupBaseView::Widget : public views::Widget {
     // properly and thus provide more intuitive UX when the child's transparent
     // parts (e.g. shadow) overlap the parent (assuming that the child contents
     // view is not overlapped).
-    if (event->type() == ui::EventType::ET_MOUSE_MOVED &&
+    if (event->type() == ui::EventType::kMouseMoved &&
         !GetContentsView()->IsMouseHovered() &&
         parent_content_view->IsMouseHovered()) {
       parent()->SynthesizeMouseMoveEvent();
@@ -205,8 +208,9 @@ class PopupBaseView::Widget : public views::Widget {
       const gfx::Point location = View::ConvertPointFromScreen(
           parent()->GetRootView(),
           last_synthesized_parent_mouse_move_position_.value());
-      ui::MouseEvent mouse_event(ui::ET_MOUSE_EXITED, location, location,
-                                 ui::EventTimeForNow(), ui::EF_IS_SYNTHESIZED,
+      ui::MouseEvent mouse_event(ui::EventType::kMouseExited, location,
+                                 location, ui::EventTimeForNow(),
+                                 ui::EF_IS_SYNTHESIZED,
                                  /*changed_button_flags=*/0);
       parent()->OnMouseEvent(&mouse_event);
       last_synthesized_parent_mouse_move_position_.reset();
@@ -223,14 +227,20 @@ PopupBaseView::PopupBaseView(
     base::WeakPtr<AutofillPopupViewDelegate> delegate,
     views::Widget* parent_widget,
     views::Widget::InitParams::Activatable new_widget_activatable,
-    base::span<const views::BubbleArrowSide> preferred_popup_sides,
     bool show_arrow_pointer)
     : delegate_(delegate),
       parent_widget_(parent_widget),
       new_widget_activatable_(new_widget_activatable),
-      preferred_popup_sides_(
-          {preferred_popup_sides.begin(), preferred_popup_sides.end()}),
-      show_arrow_pointer_(show_arrow_pointer) {}
+      show_arrow_pointer_(show_arrow_pointer) {
+  // TODO(aleventhal) The correct role spec-wise to use here is kMenu, however
+  // as of NVDA 2018.2.1, firing a menu event with kMenu breaks left/right
+  // arrow editing feedback in text field. If NVDA addresses this we should
+  // consider returning to using kMenu, so that users are notified that a
+  // menu popup has been shown.
+  GetViewAccessibility().SetRole(ax::mojom::Role::kPane);
+  GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_AUTOFILL_POPUP_ACCESSIBLE_NODE_DATA));
+}
 
 PopupBaseView::~PopupBaseView() {
   if (delegate_) {
@@ -286,12 +296,7 @@ bool PopupBaseView::DoShow() {
 
   // Showing the widget can change native focus (which would result in an
   // immediate hiding of the popup). Only start observing after shown.
-  // TODO(b/325246516): Hiding by widget focus change seems redundant as it is
-  // already done by the field focus loss. After successful password manual
-  // fallback testing confirms safety, remove the focus observation.
-  if (initialize_widget &&
-      !base::FeatureList::IsEnabled(
-          password_manager::features::kPasswordManualFallbackAvailable)) {
+  if (initialize_widget) {
     CHECK(!focus_observation_.IsObserving());
     focus_observation_.Observe(views::WidgetFocusManager::GetInstance());
   }
@@ -306,8 +311,8 @@ void PopupBaseView::DoHide() {
     // navigates into the menu, otherwise some screen readers will ignore
     // any focus events outside of the menu, including a focus event on
     // the form control itself.
-    NotifyAccessibilityEvent(ax::mojom::Event::kMenuPopupEnd, true);
-    NotifyAccessibilityEvent(ax::mojom::Event::kMenuEnd, true);
+    NotifyAccessibilityEventDeprecated(ax::mojom::Event::kMenuPopupEnd, true);
+    NotifyAccessibilityEventDeprecated(ax::mojom::Event::kMenuEnd, true);
     GetViewAccessibility().EndPopupFocusOverride();
 
     // Also fire an accessible focus event on what currently has focus,
@@ -345,8 +350,8 @@ void PopupBaseView::NotifyAXSelection(views::View& selected_view) {
     // readers that the focus is only changing temporarily, and the screen
     // reader will restore the focus back to the appropriate textfield when the
     // menu closes.
-    NotifyAccessibilityEvent(ax::mojom::Event::kMenuStart, true);
-    NotifyAccessibilityEvent(ax::mojom::Event::kMenuPopupStart, true);
+    NotifyAccessibilityEventDeprecated(ax::mojom::Event::kMenuStart, true);
+    NotifyAccessibilityEventDeprecated(ax::mojom::Event::kMenuPopupStart, true);
 
     is_ax_menu_start_event_fired_ = true;
   }
@@ -356,16 +361,16 @@ void PopupBaseView::NotifyAXSelection(views::View& selected_view) {
       {"PopupSuggestionView", "PopupPasswordSuggestionView", "PopupFooterView",
        "PopupSeparatorView", "PopupWarningView", "PopupBaseView",
        "PasswordGenerationPopupViewViews::GeneratedPasswordBox", "PopupRowView",
-       "PopupRowContentView", "EditPasswordRow", "MdTextButton"});
+       "PopupRowWithButtonView", "PopupRowContentView", "MdTextButton"});
   DCHECK(kDerivedClasses.contains(selected_view.GetClassName()))
       << "If you add a new derived class from AutofillPopupRowView, add it "
          "here and to onSelection(evt) in "
-         "chrome/browser/resources/chromeos/accessibility/chromevox/background/"
+         "chrome/browser/resources/chromeos/accessibility/chromevox/mv2/"
+         "background/"
          "event/desktop_automation_handler.js to ensure that ChromeVox "
          "announces the item when selected. Missing class: "
       << selected_view.GetClassName();
 #endif
-  selected_view.NotifyAccessibilityEvent(ax::mojom::Event::kSelection, true);
 }
 
 void PopupBaseView::OnWidgetBoundsChanged(views::Widget* widget,
@@ -445,10 +450,11 @@ gfx::Rect PopupBaseView::GetTopWindowBounds() const {
   return gfx::Rect();
 }
 
-gfx::Rect PopupBaseView::GetOptionalPositionAndPlaceArrowOnPopup(
+gfx::Rect PopupBaseView::GetOptimalPositionAndPlaceArrowOnPopup(
     const gfx::Rect& element_bounds,
     const gfx::Rect& max_bounds_for_popup,
-    const gfx::Size& preferred_size) {
+    const gfx::Size& preferred_size,
+    base::span<const views::BubbleArrowSide> preferred_popup_sides) {
   views::BubbleBorder* border = static_cast<views::BubbleBorder*>(
       GetWidget()->GetRootView()->GetBorder());
   DCHECK(border);
@@ -472,7 +478,8 @@ gfx::Rect PopupBaseView::GetOptionalPositionAndPlaceArrowOnPopup(
       maximum_pixel_offset_to_center,
       /*maximum_width_percentage_to_center=*/
       kMaximumWidthPercentageToMoveTheSuggestionToCenter,
-      /*popup_bounds=*/popup_bounds, preferred_popup_sides_);
+      /*popup_bounds=*/popup_bounds, preferred_popup_sides,
+      /*anchor_type=*/delegate_->anchor_type());
 
   // Those values are not supported for adding an arrow.
   // Currently, they can not be returned by GetOptimalPopupPlacement().
@@ -502,14 +509,19 @@ bool PopupBaseView::DoUpdateBoundsAndRedrawPopup() {
 
   gfx::Rect element_bounds = gfx::ToEnclosingRect(delegate_->element_bounds());
 
-  // If the element exceeds the content area, ensure that the popup is still
-  // visually attached to the input element.
-  element_bounds.Intersect(content_area_bounds);
-  if (element_bounds.IsEmpty()) {
-    HideController(SuggestionHidingReason::kElementOutsideOfContentArea);
-    return false;
+  // An element that is contained by the `content_area_bounds` (even if empty,
+  // which means either the height or the width is 0) is never outside the
+  // content area. An empty element case can happen with caret bounds, which
+  // sometimes has 0 width.
+  if (!content_area_bounds.Contains(element_bounds)) {
+    // If the element exceeds the content area, ensure that the popup is still
+    // visually attached to the input element.
+    element_bounds.Intersect(content_area_bounds);
+    if (element_bounds.IsEmpty()) {
+      HideController(SuggestionHidingReason::kElementOutsideOfContentArea);
+      return false;
+    }
   }
-
   // Consider the element is |kElementBorderPadding| pixels larger at the top
   // and at the bottom in order to reposition the dropdown, so that it doesn't
   // look too close to the element.
@@ -525,8 +537,9 @@ bool PopupBaseView::DoUpdateBoundsAndRedrawPopup() {
     return false;
   }
 
-  gfx::Rect popup_bounds = GetOptionalPositionAndPlaceArrowOnPopup(
-      element_bounds, max_bounds_for_popup, preferred_size);
+  gfx::Rect popup_bounds = GetOptimalPositionAndPlaceArrowOnPopup(
+      element_bounds, max_bounds_for_popup, preferred_size,
+      kDefaultPreferredPopupSides);
 
   if (BoundsOverlapWithPictureInPictureWindow(popup_bounds)) {
     HideController(
@@ -545,20 +558,18 @@ bool PopupBaseView::DoUpdateBoundsAndRedrawPopup() {
 }
 
 void PopupBaseView::OnNativeFocusChanged(gfx::NativeView focused_now) {
-  if (GetWidget() && GetWidget()->GetNativeView() != focused_now) {
+  // TODO(crbug.com/330303918): The focus change is triggered sometimes
+  // (reproduced on a Linux release build, on a debug one - no) with
+  // `focused_now` == `nullptr` during activatable popup opening, no other
+  // widget gets focus then and this widget remains active.
+  // The `!GetWidget()->IsActive()` piece handles this case and prevents
+  // immediate popup closing.
+  // Investigate the reason and either fix it on the appropriate side or make
+  // this TODO a regular comment if it works as intended.
+  if (GetWidget() && GetWidget()->GetNativeView() != focused_now &&
+      !GetWidget()->IsActive()) {
     HideController(SuggestionHidingReason::kFocusChanged);
   }
-}
-
-void PopupBaseView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  // TODO(aleventhal) The correct role spec-wise to use here is kMenu, however
-  // as of NVDA 2018.2.1, firing a menu event with kMenu breaks left/right
-  // arrow editing feedback in text field. If NVDA addresses this we should
-  // consider returning to using kMenu, so that users are notified that a
-  // menu popup has been shown.
-  node_data->role = ax::mojom::Role::kPane;
-  node_data->SetNameChecked(
-      l10n_util::GetStringUTF16(IDS_AUTOFILL_POPUP_ACCESSIBLE_NODE_DATA));
 }
 
 void PopupBaseView::HideController(SuggestionHidingReason reason) {

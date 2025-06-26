@@ -9,6 +9,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ViewFlipper;
 
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.recent_tabs.ForeignSessionHelper.ForeignSession;
 import org.chromium.chrome.browser.recent_tabs.RestoreTabsProperties.ScreenType;
@@ -21,6 +22,7 @@ import org.chromium.ui.modelutil.PropertyModel;
 import java.util.List;
 
 /** Coordinator to manage the Restore Tabs on FRE feature. */
+@NullMarked
 public class RestoreTabsCoordinator {
     private RestoreTabsMediator mMediator;
     private PropertyModel mModel = RestoreTabsProperties.createDefaultModel();
@@ -52,8 +54,7 @@ public class RestoreTabsCoordinator {
 
         View restoreTabsPromoScreenView =
                 rootView.findViewById(R.id.restore_tabs_promo_screen_sheet);
-        RestoreTabsPromoScreenCoordinator restoreTabsPromoScreenCoordinator =
-                new RestoreTabsPromoScreenCoordinator(restoreTabsPromoScreenView, mModel);
+        new RestoreTabsPromoScreenCoordinator(restoreTabsPromoScreenView, mModel);
 
         View detailScreenView = rootView.findViewById(R.id.restore_tabs_detail_screen_sheet);
         mRestoreTabsDetailScreenCoordinator =
@@ -94,6 +95,7 @@ public class RestoreTabsCoordinator {
         return 0;
     }
 
+    @SuppressWarnings("NullAway")
     public void destroy() {
         mMediator.destroy();
         mMediator = null;

@@ -6,6 +6,7 @@
 
 #include "base/memory/scoped_refptr.h"
 #include "third_party/blink/renderer/core/animation/interpolable_font_palette.h"
+#include "third_party/blink/renderer/core/css/css_to_length_conversion_data.h"
 #include "third_party/blink/renderer/core/css/resolver/style_builder_converter.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/platform/fonts/font_description.h"
@@ -66,10 +67,12 @@ InterpolationValue CSSFontPaletteInterpolationType::MaybeConvertInherit(
 
 InterpolationValue CSSFontPaletteInterpolationType::MaybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState* state,
+    const StyleResolverState& state,
     ConversionCheckers& conversion_checkers) const {
-  return ConvertFontPalette(
-      StyleBuilderConverterBase::ConvertFontPalette(value));
+  // TODO(40946458): Don't resolve anything here, rewrite to
+  // interpolate unresolved palettes.
+  return ConvertFontPalette(StyleBuilderConverterBase::ConvertFontPalette(
+      state.CssToLengthConversionData(), value));
 }
 
 InterpolationValue

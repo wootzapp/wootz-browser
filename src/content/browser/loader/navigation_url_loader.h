@@ -12,6 +12,7 @@
 #include "content/browser/loader/navigation_loader_interceptor.h"
 #include "content/common/content_export.h"
 #include "services/network/public/mojom/cookie_access_observer.mojom.h"
+#include "services/network/public/mojom/device_bound_sessions.mojom-forward.h"
 #include "services/network/public/mojom/devtools_observer.mojom-forward.h"
 #include "services/network/public/mojom/shared_dictionary_access_observer.mojom.h"
 #include "services/network/public/mojom/trust_token_access_observer.mojom-forward.h"
@@ -80,6 +81,8 @@ class CONTENT_EXPORT NavigationURLLoader {
       mojo::PendingRemote<network::mojom::URLLoaderNetworkServiceObserver>
           url_loader_network_observer,
       mojo::PendingRemote<network::mojom::DevToolsObserver> devtools_observer,
+      mojo::PendingRemote<network::mojom::DeviceBoundSessionAccessObserver>
+          device_bound_session_observer,
       network::mojom::URLResponseHeadPtr cached_response_head = nullptr,
       std::vector<std::unique_ptr<NavigationLoaderInterceptor>>
           initial_interceptors = {});
@@ -113,6 +116,10 @@ class CONTENT_EXPORT NavigationURLLoader {
   // started successfully. Repeated calls will be ignored (they won't reset the
   // timeout) and will return `false`.
   virtual bool SetNavigationTimeout(base::TimeDelta timeout) = 0;
+  // Cancels the request timeout for this navigation. If the navigation is still
+  // happening, it will continue as if the timer wasn't set. Otherwise, this is
+  // a no-op.
+  virtual void CancelNavigationTimeout() = 0;
 
   static uint32_t GetURLLoaderOptions(bool is_outermost_main_frame);
 

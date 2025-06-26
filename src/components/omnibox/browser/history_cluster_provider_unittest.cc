@@ -24,6 +24,7 @@
 #include "components/omnibox/browser/search_provider.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/testing_pref_service.h"
+#include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
@@ -44,23 +45,28 @@ class HistoryClustersProviderTest : public testing::Test,
                                     public AutocompleteProviderListener {
  public:
   void SetUp() override {
+    autocomplete_provider_client_ =
+        std::make_unique<FakeAutocompleteProviderClient>();
+    static_cast<sync_preferences::TestingPrefServiceSyncable*>(
+        autocomplete_provider_client_->GetPrefs())
+        ->registry()
+        ->RegisterBooleanPref(history_clusters::prefs::kVisible, true);
+    static_cast<sync_preferences::TestingPrefServiceSyncable*>(
+        autocomplete_provider_client_->GetPrefs())
+        ->registry()
+        ->RegisterDictionaryPref(history_clusters::prefs::kShortCache);
+    static_cast<sync_preferences::TestingPrefServiceSyncable*>(
+        autocomplete_provider_client_->GetPrefs())
+        ->registry()
+        ->RegisterDictionaryPref(history_clusters::prefs::kAllCache);
+
     config_.is_journeys_enabled_no_locale_check = true;
     config_.omnibox_history_cluster_provider = true;
-    // Setting this to false even though users see true behavior so that we do
-    // not need to register history clusters specific prefs in this test.
-    config_.persist_caches_to_prefs = false;
     history_clusters::SetConfigForTesting(config_);
 
     CHECK(history_dir_.CreateUniqueTempDir());
     history_service_ =
         history::CreateHistoryService(history_dir_.GetPath(), true);
-
-    autocomplete_provider_client_ =
-        std::make_unique<FakeAutocompleteProviderClient>();
-    static_cast<TestingPrefServiceSimple*>(
-        autocomplete_provider_client_->GetPrefs())
-        ->registry()
-        ->RegisterBooleanPref(history_clusters::prefs::kVisible, true);
 
     history_clusters_service_ =
         std::make_unique<history_clusters::HistoryClustersService>(

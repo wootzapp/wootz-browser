@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/base/amplitude_peak_detector.h"
 
 #include "base/compiler_specific.h"
@@ -38,7 +43,7 @@ void AmplitudePeakDetector::SetIsTracingEnabledForTests(
 void AmplitudePeakDetector::FindPeak(const void* data,
                                      int frames,
                                      int bytes_per_sample) {
-  if (LIKELY(!is_tracing_enabled_)) {
+  if (!is_tracing_enabled_) [[likely]] {
     return;
   }
 
@@ -46,7 +51,7 @@ void AmplitudePeakDetector::FindPeak(const void* data,
 }
 
 void AmplitudePeakDetector::FindPeak(const AudioBus* audio_bus) {
-  if (LIKELY(!is_tracing_enabled_)) {
+  if (!is_tracing_enabled_) [[likely]] {
     return;
   }
 
@@ -54,36 +59,42 @@ void AmplitudePeakDetector::FindPeak(const AudioBus* audio_bus) {
 }
 
 template <class T>
-bool IsDataLoud(const T* audio_data,
-                int frames,
+bool IsDataLoud(base::span<const T> audio_data,
                 const T min_loudness,
                 const T max_loudness) {
-  int n = 0;
-  do {
-    if (audio_data[n] < min_loudness || audio_data[n] > max_loudness) {
-      return true;
-    }
-  } while (++n < frames);
+  return std::ranges::any_of(
+      audio_data, [min_loudness, max_loudness](float sample) {
+        return sample < min_loudness || sample > max_loudness;
+      });
+}
 
-  return false;
+template <class T>
+bool LoudDetector(base::span<const T> data) {
+  constexpr T min_loudness =
+      FixedSampleTypeTraits<T>::FromFloat(-kLoudnessThreshold);
+  constexpr T max_loudness =
+      FixedSampleTypeTraits<T>::FromFloat(kLoudnessThreshold);
+
+  return IsDataLoud<T>(data, min_loudness, max_loudness);
 }
 
 template <class T>
 bool LoudDetector(const void* data, int frames) {
   const T* audio_data = reinterpret_cast<const T*>(data);
 
-  constexpr T min_loudness =
-      FixedSampleTypeTraits<T>::FromFloat(-kLoudnessThreshold);
-  constexpr T max_loudness =
-      FixedSampleTypeTraits<T>::FromFloat(kLoudnessThreshold);
+  return LoudDetector<T>(
+      base::span(audio_data, base::checked_cast<size_t>(frames)));
+}
 
-  return IsDataLoud<T>(audio_data, frames, min_loudness, max_loudness);
+template <>
+bool LoudDetector<float>(base::span<const float> data) {
+  return IsDataLoud<float>(data, -kLoudnessThreshold, kLoudnessThreshold);
 }
 
 template <>
 bool LoudDetector<float>(const void* data, int frames) {
-  return IsDataLoud<float>(reinterpret_cast<const float*>(data), frames,
-                           -kLoudnessThreshold, kLoudnessThreshold);
+  return LoudDetector<float>(base::span(reinterpret_cast<const float*>(data),
+                                        base::checked_cast<size_t>(frames)));
 }
 
 // Returns whether if any of the samples in `audio_bus` surpass
@@ -91,8 +102,8 @@ bool LoudDetector<float>(const void* data, int frames) {
 bool AmplitudePeakDetector::AreFramesLoud(const AudioBus* audio_bus) {
   DCHECK(!audio_bus->is_bitstream_format());
 
-  for (int ch = 0; ch < audio_bus->channels(); ++ch) {
-    if (LoudDetector<float>(audio_bus->channel(ch), audio_bus->frames())) {
+  for (auto channel : audio_bus->AllChannels()) {
+    if (LoudDetector<float>(channel)) {
       return true;
     }
   }
@@ -100,6 +111,8 @@ bool AmplitudePeakDetector::AreFramesLoud(const AudioBus* audio_bus) {
 }
 
 // Returns whether if any of the samples in `data` surpass `kLoudnessThreshold`.
+// TODO(crbug.com/365076676): remove this version, in favor of only using the
+// span version.
 bool AmplitudePeakDetector::AreFramesLoud(const void* data,
                                           int frames,
                                           int bytes_per_sample) {
@@ -113,8 +126,7 @@ bool AmplitudePeakDetector::AreFramesLoud(const void* data,
     case 4:
       return LoudDetector<int32_t>(data, frames);
     default:
-      NOTREACHED_IN_MIGRATION();
-      return false;
+      NOTREACHED();
   };
 }
 

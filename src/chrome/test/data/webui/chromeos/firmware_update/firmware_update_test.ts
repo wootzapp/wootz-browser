@@ -31,8 +31,7 @@ suite('FirmwareUpdateAppTest', () => {
   let controller: FakeUpdateController|null = null;
 
   setup(() => {
-    // @ts-ignore
-    document.body.innerHTML = window.trustedTypes.emptyHTML;
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
     controller = new FakeUpdateController();
     controller.setUpdateIntervalInMs(0);
     setUpdateControllerForTesting(controller);
@@ -51,8 +50,7 @@ suite('FirmwareUpdateAppTest', () => {
   });
 
   function initializePage(): void {
-    page = document.createElement('firmware-update-app') as
-        FirmwareUpdateAppElement;
+    page = document.createElement('firmware-update-app');
     assert(!!page);
     document.body.appendChild(page);
   }
@@ -60,10 +58,10 @@ suite('FirmwareUpdateAppTest', () => {
   function getConfirmationDialog(): CrDialogElement {
     assert(page);
     const fwConfirmDialog = strictQuery(
-        'firmware-confirmation-dialog', page.shadowRoot, HTMLElement)!;
+        'firmware-confirmation-dialog', page.shadowRoot, HTMLElement);
     assert(fwConfirmDialog);
     const confirmDialog = strictQuery(
-        '#confirmationDialog', fwConfirmDialog.shadowRoot, CrDialogElement)!;
+        '#confirmationDialog', fwConfirmDialog.shadowRoot, CrDialogElement);
     assert(confirmDialog);
     return confirmDialog;
   }
@@ -91,14 +89,12 @@ suite('FirmwareUpdateAppTest', () => {
   function getFirmwareUpdateDialog(): FirmwareUpdateDialogElement {
     assert(page);
     return strictQuery(
-        'firmware-update-dialog', page.shadowRoot, FirmwareUpdateDialogElement)!
-        ;
+        'firmware-update-dialog', page.shadowRoot, FirmwareUpdateDialogElement);
   }
 
   function getUpdateDialog(): CrDialogElement {
     return strictQuery(
-        '#updateDialog', getFirmwareUpdateDialog().shadowRoot, CrDialogElement)!
-        ;
+        '#updateDialog', getFirmwareUpdateDialog().shadowRoot, CrDialogElement);
   }
 
   function getUpdateCards(): UpdateCardElement[] {
@@ -110,14 +106,14 @@ suite('FirmwareUpdateAppTest', () => {
   }
 
   function getUpdateState(): UpdateState {
-    return getFirmwareUpdateDialog()!.installationProgress!.state;
+    return getFirmwareUpdateDialog().installationProgress.state;
   }
 
   function getFirmwareUpdateFromDialog(): FirmwareUpdate|null {
     return getFirmwareUpdateDialog().update;
   }
 
-  function getUpdateDialogTitle(): HTMLDivElement {
+  function getUpdateDialogTitle(): HTMLElement {
     return strictQuery(
         '#updateDialogTitle', getFirmwareUpdateDialog().shadowRoot,
         HTMLDivElement);
@@ -131,6 +127,38 @@ suite('FirmwareUpdateAppTest', () => {
     assert(update);
     return update;
   }
+
+  test('HeaderDependsOnFlexFlag', async () => {
+    loadTimeData.overrideValues({
+      IsFlexFirmwareUpdateEnabled: true,
+    });
+
+    // Setup the app.
+    initializePage();
+    await flushTasks();
+    assert(page);
+
+    let header = strictQuery(`#header`, page.shadowRoot, HTMLElement);
+    assertEquals(header.innerText.trim(), 'Firmware updates');
+
+
+    // Clear app element to reset the test.
+    page.remove();
+    await flushTasks();
+
+    loadTimeData.overrideValues({
+      IsFlexFirmwareUpdateEnabled: false,
+    });
+
+    initializePage();
+    await flushTasks();
+    assert(page);
+
+
+    header = strictQuery(`#header`, page.shadowRoot, HTMLElement);
+    assertEquals(
+        header.innerText.trim(), 'Firmware updates for external devices');
+  });
 
   test('SettingGettingTestProvider', () => {
     initializePage();
@@ -160,55 +188,76 @@ suite('FirmwareUpdateAppTest', () => {
   });
 
   test('ConfirmationDialogShowsDisclaimerWhenFlagEnabled', async () => {
-    // Enable the upstream trusted reports flag
-    loadTimeData.overrideValues({
-      isUpstreamTrustedReportsFirmwareEnabled: true,
-    });
-
     // Setup the app.
     initializePage();
     await flushTasks();
     assert(page);
 
     // Open dialog for first firmware update card.
-    let whenFired = eventToPromise('cr-dialog-open', page);
-    let button = strictQuery(
+    const whenFired = eventToPromise('cr-dialog-open', page);
+    const button = strictQuery(
         `#updateButton`, getUpdateCards()[0]!.shadowRoot, CrButtonElement);
     button.click();
     await flushTasks();
     await whenFired;
-    let fwConfirmDialog = strictQuery(
+    const fwConfirmDialog = strictQuery(
         'firmware-confirmation-dialog', page.shadowRoot, HTMLElement);
 
     // The disclaimer should be displayed.
     assertTrue(!!fwConfirmDialog.shadowRoot!.querySelector('#disclaimer'));
+  });
 
-    // Clear app element to reset the test.
-    page?.remove();
-    await flushTasks();
-
-    // Disable the upstream trusted reports flag
-    loadTimeData.overrideValues({
-      isUpstreamTrustedReportsFirmwareEnabled: false,
-    });
-
+  test('DisclaimerTextForUpdatesWithoutReboot', async () => {
     // Setup the app.
     initializePage();
     await flushTasks();
     assert(page);
 
-    // Open dialog for first firmware update card.
-    whenFired = eventToPromise('cr-dialog-open', page);
-    button = strictQuery(
+    const whenFired = eventToPromise('cr-dialog-open', page);
+    const button = strictQuery(
         `#updateButton`, getUpdateCards()[0]!.shadowRoot, CrButtonElement);
     button.click();
     await flushTasks();
     await whenFired;
-    fwConfirmDialog = strictQuery(
+    const fwConfirmDialog = strictQuery(
         'firmware-confirmation-dialog', page.shadowRoot, HTMLElement);
+    const disclaimerText = strictQuery(
+        '#disclaimer-text', fwConfirmDialog.shadowRoot, HTMLElement);
+    const dialogBody = strictQuery(
+        '#updateDialogBody', fwConfirmDialog.shadowRoot, HTMLElement);
 
-    // The disclaimer should not be displayed.
-    assertFalse(!!fwConfirmDialog.shadowRoot!.querySelector('#disclaimer'));
+    assertEquals(
+        disclaimerText.innerText.trim(),
+        loadTimeData.getString('confirmationDisclaimer'));
+    assertEquals(
+        dialogBody.innerText.trim(), loadTimeData.getString('updatingInfo'));
+  });
+
+  test('DisclaimerModifiedIfUpdateNeedsReboot', async () => {
+    // Setup the app.
+    initializePage();
+    await flushTasks();
+    assert(page);
+
+    const whenFired = eventToPromise('cr-dialog-open', page);
+    const button = strictQuery(
+        `#updateButton`, getUpdateCards()[5]!.shadowRoot, CrButtonElement);
+    button.click();
+    await flushTasks();
+    await whenFired;
+    const fwConfirmDialog = strictQuery(
+        'firmware-confirmation-dialog', page.shadowRoot, HTMLElement);
+    const disclaimerText = strictQuery(
+        '#disclaimer-text', fwConfirmDialog.shadowRoot, HTMLElement);
+    const dialogBody = strictQuery(
+        '#updateDialogBody', fwConfirmDialog.shadowRoot, HTMLElement);
+
+    assertEquals(
+        disclaimerText.innerText.trim(),
+        loadTimeData.getString('confirmationDisclaimerForUEFI'));
+    assertEquals(
+        dialogBody.innerText.trim(),
+        loadTimeData.getString('updatingInfoForUEFI'));
   });
 
   test('OpenUpdateDialog', async () => {
@@ -258,6 +307,43 @@ suite('FirmwareUpdateAppTest', () => {
           assertEquals(
               loadTimeData.getStringF(
                   'deviceUpToDate',
+                  mojoString16ToString(fakeFirmwareUpdate.deviceName)),
+              getUpdateDialogTitle().innerText.trim());
+        });
+  });
+
+  test('SuccessfulUpdateButNeedsReboot', async () => {
+    initializePage();
+    await flushTasks();
+    // Open dialog for firmware update.
+    const button = strictQuery(
+        `#updateButton`, getUpdateCards()[5]!.shadowRoot, CrButtonElement);
+    button.click();
+    await flushTasks();
+    const whenFired = eventToPromise('cr-dialog-open', page!);
+    await confirmUpdate();
+    // Process |OnProgressChanged| call.
+    await flushTasks();
+    return whenFired
+        .then(() => {
+          assertEquals(UpdateState.kUpdating, getUpdateState());
+          const fakeFirmwareUpdate = getFirmwareUpdateFromDialog()!;
+          assertEquals(
+              loadTimeData.getStringF(
+                  'updating',
+                  mojoString16ToString(fakeFirmwareUpdate.deviceName)),
+              getUpdateDialogTitle().innerText.trim());
+          // Allow firmware update to complete.
+          return controller?.getUpdateCompletedPromiseForTesting();
+        })
+        .then(() => flushTasks())
+        .then(() => {
+          const fakeFirmwareUpdate = getFirmwareUpdateFromDialog()!;
+          assertEquals(UpdateState.kSuccess, getUpdateState());
+          assertTrue(getUpdateDialog().open);
+          assertEquals(
+              loadTimeData.getStringF(
+                  'deviceReadyToInstallUpdate',
                   mojoString16ToString(fakeFirmwareUpdate.deviceName)),
               getUpdateDialogTitle().innerText.trim());
         });

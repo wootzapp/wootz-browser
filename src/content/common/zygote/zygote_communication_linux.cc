@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/341324165): Fix and remove.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/common/zygote/zygote_communication_linux.h"
 
 #include <string.h>
@@ -156,8 +161,7 @@ pid_t ZygoteCommunication::ForkRequest(
                       sizeof(kZygoteChildPingMessage))) {
         // Zygote children should still be trustworthy when they're supposed to
         // ping us, so something's broken if we don't receive a valid ping.
-        LOG(ERROR) << "Did not receive ping from zygote child";
-        NOTREACHED_IN_MIGRATION();
+        DUMP_WILL_BE_NOTREACHED() << "Did not receive ping from zygote child";
         real_pid = -1;
       }
       my_sock.reset();

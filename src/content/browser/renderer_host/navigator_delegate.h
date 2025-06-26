@@ -24,11 +24,13 @@ struct UserAgentOverride;
 
 namespace network::mojom {
 class SharedDictionaryAccessDetails;
+class DeviceBoundSession;
 }  // namespace network::mojom
 
 namespace content {
 
 class CommitDeferringCondition;
+class FrameTree;
 class NavigationHandle;
 class NavigationRequest;
 class RenderFrameHostImpl;
@@ -84,6 +86,12 @@ class NavigatorDelegate {
       RenderFrameHostImpl* render_frame_host,
       const LoadCommittedDetails& details) = 0;
 
+  // Called when the NavigationHandleTiming associated with `navigation_handle`
+  // has been updated. See the comment at
+  // `WebContentsObserver::DidUpdateNavigationHandleTiming()` for more details.
+  virtual void DidUpdateNavigationHandleTiming(
+      NavigationHandle* navigation_handle) = 0;
+
   // Notification to the Navigator embedder that navigation state has
   // changed. This method corresponds to
   // WebContents::NotifyNavigationStateChanged.
@@ -101,7 +109,8 @@ class NavigatorDelegate {
       bool is_outermost_main_frame_navigation) = 0;
 
   // Returns the overridden user agent string if it's set.
-  virtual const blink::UserAgentOverride& GetUserAgentOverride() = 0;
+  virtual const blink::UserAgentOverride& GetUserAgentOverride(
+      FrameTree& frame_tree) = 0;
 
   // Returns the value to use for NavigationEntry::IsOverridingUserAgent() for
   // a renderer initiated navigation.
@@ -149,6 +158,12 @@ class NavigatorDelegate {
       NavigationHandle* navigation,
       const network::mojom::SharedDictionaryAccessDetails& details) = 0;
 
+  // Called when a network request issued by this navigation accesses a
+  // device bound session.
+  virtual void OnDeviceBoundSessionAccessed(
+      NavigationHandle* navigation,
+      const net::device_bound_sessions::SessionAccess& access) = 0;
+
   // Does a global walk of the session history and all committed/pending-commit
   // origins, and registers origins that match |origin| to their respective
   // BrowsingInstances. |navigation_request_to_exclude| allows the
@@ -165,6 +180,9 @@ class NavigatorDelegate {
   // e.g. not enough memory) if this returns true.
   virtual bool MaybeCopyContentAreaAsBitmap(
       base::OnceCallback<void(const SkBitmap&)> callback) = 0;
+
+  // Whether animations when performing forward transitions are supported.
+  virtual bool SupportsForwardTransitionAnimation() = 0;
 };
 
 }  // namespace content

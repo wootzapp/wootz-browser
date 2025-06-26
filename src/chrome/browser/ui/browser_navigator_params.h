@@ -11,11 +11,11 @@
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ptr_exclusion.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
+#include "components/captive_portal/core/captive_portal_types.h"
 #include "content/public/browser/child_process_host.h"
 #include "content/public/browser/global_request_id.h"
 #include "content/public/browser/reload_type.h"
@@ -35,7 +35,6 @@
 #include "url/gurl.h"
 
 #if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/tab_groups/tab_group_id.h"
 #endif
 
@@ -123,9 +122,9 @@ struct NavigateParams {
   // The frame name to be used for the main frame.
   std::string frame_name;
 
-  // The browser-global ID of the frame to navigate, or
-  // content::RenderFrameHost::kNoFrameTreeNodeId for the main frame.
-  int frame_tree_node_id = content::RenderFrameHost::kNoFrameTreeNodeId;
+  // The browser-global ID of the frame to navigate, or the default invalid
+  // value for the main frame.
+  content::FrameTreeNodeId frame_tree_node_id;
 
   // Any redirect URLs that occurred for this navigation before |url|.
   // Usually empty.
@@ -159,11 +158,8 @@ struct NavigateParams {
   // new WebContents, this field will remain NULL and the WebContents deleted if
   // the WebContents it created is not added to a TabStripModel before
   // Navigate() returns.
-  //
-  // This field is not a raw_ptr<> because of missing |.get()| in not-rewritten
-  // platform specific code.
-  RAW_PTR_EXCLUSION content::WebContents* navigated_or_inserted_contents =
-      nullptr;
+  raw_ptr<content::WebContents, DanglingUntriaged>
+      navigated_or_inserted_contents = nullptr;
 
   // [in]  The WebContents that initiated the Navigate() request if such
   //       context is necessary. Default is NULL, i.e. no context.
@@ -234,16 +230,26 @@ struct NavigateParams {
   // NO_ACTION, |window_action| will be set to SHOW_WINDOW.
   WindowAction window_action = NO_ACTION;
 
-  // Whether the browser is being created for captive portal resolution. If
-  // true, |disposition| should be NEW_POPUP.
-  bool is_captive_portal_popup = false;
+  // Captive portal type for this browser window.
+  captive_portal::CaptivePortalWindowType captive_portal_window_type =
+      captive_portal::CaptivePortalWindowType::kNone;
 
   // Whether the browser popup is being created as a tab modal. If true,
-  // `disposition` should be NEW_POPUP.
+  // `disposition` should be NEW_POPUP. Additionally, it prevents card saving
+  // and other prompts for payments autofill enrollment.
   bool is_tab_modal_popup = false;
 
-  // If false then the navigation was not initiated by a user gesture.
+  // If false then the navigation was not initiated by a user gesture. This
+  // variable will be set to true for popups to get windows focus even if
+  // the navigation was not triggered by user gesture.
   bool user_gesture = true;
+
+  // Whether the navigation was initiated by a user gesture. Unlike
+  // `user_gesture`, this value will not change during the course of the
+  // navigation.
+  // TODO(https://crbug.com/394614633): remove this once the user gesture hack
+  // is fixed.
+  bool original_user_gesture = true;
 
   // What to do with the path component of the URL for singleton navigations.
   enum PathBehavior {
@@ -271,6 +277,13 @@ struct NavigateParams {
 
   // The group the caller would like the tab to be added to.
   std::optional<tab_groups::TabGroupId> group;
+
+  // True if the navigation was initiated in response to a sync message. This is
+  // used in tab group sync to identify the sync initiated navigations and
+  // blocking them from sending back to sync which would otherwise cause
+  // ping-pong issue. They will still be allowed to load locally like a normal
+  // navigation.
+  bool navigation_initiated_from_sync = false;
 
   // A bitmask of values defined in TabStripModel::AddTabTypes. Helps
   // determine where to insert a new tab and whether or not it should be
@@ -354,6 +367,14 @@ struct NavigateParams {
   // overridden by other factors.
   blink::mojom::SystemEntropy suggested_system_entropy =
       blink::mojom::SystemEntropy::kNormal;
+
+  // This option forces PWA navigation capturing (which captures some
+  // navigations into PWA windows or tabs) off. This is only recommended to be
+  // used if the navigation MUST not be captured. See
+  // https://bit.ly/pwa-navigation-capturing for a description about what PWA
+  // navigation capturing does. Setting this field to `true` will disable all of
+  // the behaviors listed in that document.
+  bool pwa_navigation_capturing_force_off = false;
 
  private:
   NavigateParams();

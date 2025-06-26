@@ -33,6 +33,18 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="kNetworkDowngrade"/>
 </enum>
 
+<enum name="AdvancedFeatureTagType">
+  <int value="0" label="kContentSteering"/>
+  <int value="1" label="kDiscontinuity"/>
+  <int value="2" label="kDiscontinuitySequence"/>
+  <int value="3" label="kGap"/>
+  <int value="4" label="kKey"/>
+  <int value="5" label="kPart"/>
+  <int value="6" label="kSessionKey"/>
+  <int value="7" label="kSkip"/>
+  <int value="8" label="kXNonStandard"/>
+</enum>
+
 <enum name="ApplySubCaptureTargetResult">
   <int value="0" label="Ok"/>
   <int value="1" label="TimedOut"/>
@@ -246,6 +258,14 @@ chromium-metrics-reviews@google.com.
   <int value="2" label="Destructed Before Timeout"/>
 </enum>
 
+<enum name="CameraCaptureCapability">
+  <int value="0" label="Incapable of HD (1280x720) and FullHD (1980x1080)"/>
+  <int value="1" label="HD or FullHD, without 640x360 and 640x480"/>
+  <int value="2" label="HD or FullHD, with 640x360"/>
+  <int value="3" label="HD or FullHD, with 640x480"/>
+  <int value="4" label="HD or FullHD, with 640x360 and 640x480"/>
+</enum>
+
 <enum name="CastStreamingFrameDropReason">
   <int value="0" label="Frame was not dropped"/>
   <int value="1" label="Too many frames in flight"/>
@@ -254,6 +274,32 @@ chromium-metrics-reviews@google.com.
   <int value="4" label="Payload too large"/>
   <int value="5" label="Reached Frame ID span limit"/>
   <int value="6" label="In flight duration too high (after encoding)"/>
+</enum>
+
+<enum name="CastStreamingVideoEncoderType">
+  <int value="0" label="Unknown"/>
+  <int value="1" label="Software H264 encoder"/>
+  <int value="2" label="Hardware H264 encoder"/>
+  <int value="3" label="Software VP8 encoder"/>
+  <int value="4" label="Hardware VP8 encoder"/>
+  <int value="5" label="Software VP9 encoder"/>
+  <int value="6" label="Hardware VP9 encoder"/>
+  <int value="7" label="Software AV1 encoder"/>
+  <int value="8" label="Hardware AV1 encoder"/>
+</enum>
+
+<enum name="CdmCapabilityQueryStatus">
+  <int value="0" label="Success"/>
+  <int value="1" label="Unknown"/>
+  <int value="2" label="HardwareSecureCodecNotSupported"/>
+  <int value="3" label="NoSupportedVideoCodec"/>
+  <int value="4" label="NoSupportedEncryptionScheme"/>
+  <int value="5" label="UnsupportedKeySystem"/>
+  <int value="6" label="MediaFoundationCdmNotSupported"/>
+  <int value="7" label="DisconnectionError"/>
+  <int value="8" label="MediaFoundationGetCdmFactoryFailed"/>
+  <int value="9" label="CreateDummyMediaFoundationCdmFailed"/>
+  <int value="10" label="UnexpectedEmptyCapability"/>
 </enum>
 
 <enum name="CdmHostVerificationStatus">
@@ -316,6 +362,7 @@ chromium-metrics-reviews@google.com.
   <int value="2" label="kDatabaseOpenError"/>
   <int value="3" label="kDatabaseRazeError"/>
   <int value="4" label="kSQLExecutionError"/>
+  <int value="5" label="kAlterTableError"/>
 </enum>
 
 <enum name="CdmStorageStatus">
@@ -329,36 +376,6 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="kExplicitNoFocusChange"/>
   <int value="2" label="kMicrotaskClosedWindow"/>
   <int value="3" label="kBrowserSideTimerClosedWindow"/>
-</enum>
-
-<enum name="ContextResult">
-  <int value="0" label="Success"/>
-  <int value="1" label="TransientFailure"/>
-  <int value="2" label="FatalFailure"/>
-  <int value="3" label="SurfaceFailure"/>
-</enum>
-
-<enum name="CoreAudioDispatchOverrideInitResult">
-  <summary>
-    The result of trying to initialize the CoreAudio dispatch override hotfix.
-    See media/audio/mac/coreaudio_dispatch_override.cc.
-  </summary>
-  <int value="0" label="Not supported"/>
-  <int value="1" label="Initialized successfully"/>
-  <int value="2" label="dyld_dynamic_interpose not found"/>
-  <int value="3" label="dlopen of CoreAudio failed"/>
-  <int value="4" label="Symbol lookup in CoreAudio failed"/>
-  <int value="5" label="dladdr call failed"/>
-</enum>
-
-<enum name="CoreAudioDispatchOverrideLookupEvent">
-  <summary>
-    The types of lookup events that the CoreAudio dispatch override hotfix can
-    emit. See media/audio/mac/coreaudio_dispatch_override.cc.
-  </summary>
-  <int value="0" label="Lookup performed but didn't find ResumeIO/PauseIO"/>
-  <int value="1" label="ResumeIO callsite found"/>
-  <int value="2" label="PauseIO callsite found"/>
 </enum>
 
 <enum name="CrasInputStreamOpenSuccess">
@@ -397,11 +414,41 @@ chromium-metrics-reviews@google.com.
   <int value="4" label="Error: Adding stream failed."/>
 </enum>
 
-<enum name="CrosBeamformingDeviceState">
-  <int value="0" label="Default enabled"/>
-  <int value="1" label="User enabled"/>
-  <int value="2" label="Default disabled"/>
-  <int value="3" label="User disabled"/>
+<enum name="CreateCdmStatus">
+  <int value="0" label="Succeeded."/>
+  <int value="1" label="Unknown error."/>
+  <int value="2" label="CDM creation aborted."/>
+  <int value="3" label="(Obsolete) Failed to load the CDM."/>
+  <int value="4" label="CreateCdmFunc not available."/>
+  <int value="5" label="CDM helper creation failed."/>
+  <int value="6" label="Failed to get the CDM preference data."/>
+  <int value="7" label="Failed to get the CDM origin ID."/>
+  <int value="8" label="Failed to initialize CDM."/>
+  <int value="9" label="CDM Factory creation failed."/>
+  <int value="10" label="CDM not supported."/>
+  <int value="11"
+      label="Invalid CdmConfig. e.g. MediaFoundationService requires both
+             distinctive identifier and persistent state."/>
+  <int value="12" label="Unsupported key system."/>
+  <int value="13"
+      label="Disconnection error. The remote process dropped the callback.
+             e.g. in case of crash."/>
+  <int value="14" label="EME use is not allowed on unique origins."/>
+  <int value="15" label="Android: MediaDrmBridge creation failed."/>
+  <int value="16" label="Android: MediaCrypto not available."/>
+  <int value="17" label="CrOs: Only one instance allowed."/>
+  <int value="18" label="CrOs: Insufficient GPU memory available."/>
+  <int value="19" label="CrOs: Verified Access is disabled."/>
+  <int value="20" label="CrOs: Remote factory creation failed."/>
+  <int value="21" label="Android: Illegal argument passed to MediaDrm."/>
+  <int value="22" label="Android: MediaDrm not initialized properly."/>
+  <int value="23" label="Android: Unable to set L1 security level."/>
+  <int value="24" label="Android: Unable to set L3 security level."/>
+  <int value="25" label="Android: Unable to set origin."/>
+  <int value="26" label="Android: Unable to create MediaCrypto session."/>
+  <int value="27" label="Android: Unable to start provisioning."/>
+  <int value="28" label="Android: Unable to create MediaCrypto object."/>
+  <int value="29" label="Android: Crypto scheme not supported."/>
 </enum>
 
 <enum name="CrosCdmType">
@@ -937,6 +984,13 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="FailureAfterRetry"/>
 </enum>
 
+<enum name="GetDisplayMediaAudioToggleStatus">
+  <int value="0" label="AudioNotRequested"/>
+  <int value="1" label="AudioRequestedButNotSupported"/>
+  <int value="2" label="AudioRequestedButUserDidNotApprove"/>
+  <int value="3" label="AudioRequestedAndUserApproved"/>
+</enum>
+
 <enum name="GetDisplayMediaBooleanConstraint">
   <int value="0" label="Not specified"/>
   <int value="1" label="True"/>
@@ -1003,18 +1057,18 @@ chromium-metrics-reviews@google.com.
   <int value="2" label="DiscardedTabHighlightedAtLeastOnce"/>
 </enum>
 
-<enum name="ImageCaptureOutcome">
-  <int value="0" label="Succeeded using video stream"/>
-  <int value="1" label="Succeeded using photo stream"/>
-  <int value="2" label="Failed using video stream"/>
-  <int value="3" label="Failed using photo stream"/>
+<enum name="HLSEncryptionMode">
+  <int value="0" label="None"/>
+  <int value="1" label="AES128"/>
+  <int value="2" label="SampleAES"/>
+  <int value="3" label="SampleAESCTR"/>
 </enum>
 
-<enum name="MakeAudioInputStreamStatus">
+<enum name="MakeAudioStreamStatus">
   <int value="0" label="Success"/>
   <int value="1" label="Error: Had switch fail-audio-stream-creation"/>
   <int value="2" label="Error: Invalid params"/>
-  <int value="3" label="Error: Excessive input streams"/>
+  <int value="3" label="Error: Excessive input/output streams"/>
   <int value="4" label="Error: Failed to create a stream object"/>
 </enum>
 
@@ -1023,6 +1077,60 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="Block"/>
   <int value="2" label="Allow on every visit"/>
   <int value="3" label="Allow this time"/>
+  <int value="4" label="Not shown because allowed on every visit"/>
+  <int value="5" label="Not shown because allowed once"/>
+  <int value="6" label="Not shown because blocked"/>
+  <int value="7" label="Not shown because incognito"/>
+</enum>
+
+<enum name="MediaCodecError">
+  <int value="0" label="MEDIA_CODEC_OK"/>
+  <int value="1" label="MEDIA_CODEC_TRY_AGAIN_LATER"/>
+  <int value="2" label="MEDIA_CODEC_OUTPUT_BUFFERS_CHANGED"/>
+  <int value="3" label="MEDIA_CODEC_OUTPUT_FORMAT_CHANGED"/>
+  <int value="4" label="MEDIA_CODEC_NO_KEY"/>
+  <int value="5" label="MEDIA_CODEC_ERROR"/>
+  <int value="6" label="MEDIA_CODEC_KEY_EXPIRED"/>
+  <int value="7" label="MEDIA_CODEC_RESOURCE_BUSY"/>
+  <int value="8" label="MEDIA_CODEC_INSUFFICIENT_OUTPUT_PROTECTION"/>
+  <int value="9" label="MEDIA_CODEC_SESSION_NOT_OPENED"/>
+  <int value="10" label="MEDIA_CODEC_UNSUPPORTED_OPERATION"/>
+  <int value="11" label="MEDIA_CODEC_INSUFFICIENT_SECURITY"/>
+  <int value="12" label="MEDIA_CODEC_FRAME_TOO_LARGE"/>
+  <int value="13" label="MEDIA_CODEC_LOST_STATE"/>
+  <int value="14" label="MEDIA_CODEC_GENERIC_OEM"/>
+  <int value="15" label="MEDIA_CODEC_GENERIC_PLUGIN"/>
+  <int value="16" label="MEDIA_CODEC_LICENSE_PARSE"/>
+  <int value="17" label="MEDIA_CODEC_MEDIA_FRAMEWORK"/>
+  <int value="18" label="MEDIA_CODEC_ZERO_SUBSAMPLES"/>
+  <int value="19" label="MEDIA_CODEC_UNKNOWN_CIPHER_MODE"/>
+  <int value="20" label="MEDIA_CODEC_PATTERN_ENCRYPTION_NOT_SUPPORTED"/>
+  <int value="21" label="MEDIA_CODEC_INSUFFICIENT_RESOURCE"/>
+  <int value="22" label="MEDIA_CODEC_RECLAIMED"/>
+  <int value="23" label="MEDIA_CODEC_INPUT_SLOT_UNAVAILABLE"/>
+  <int value="24" label="MEDIA_CODEC_ILLEGAL_STATE"/>
+  <int value="25" label="MEDIA_CODEC_UNKNOWN_CRYPTO_EXCEPTION"/>
+  <int value="26" label="MEDIA_CODEC_UNKNOWN_MEDIADRM_EXCEPTION"/>
+  <int value="27" label="MEDIA_CODEC_UNKNOWN_CODEC_EXCEPTION"/>
+  <int value="28" label="MEDIA_CODEC_LINEAR_BLOCK_EXCEPTION"/>
+  <int value="29" label="MEDIA_CODEC_CERTIFICATE_MALFORMED"/>
+  <int value="30" label="MEDIA_CODEC_CERTIFICATE_MISSING"/>
+  <int value="31" label="MEDIA_CODEC_CRYPTO_LIBRARY"/>
+  <int value="32" label="MEDIA_CODEC_INIT_DATA"/>
+  <int value="33" label="MEDIA_CODEC_KEY_NOT_LOADED"/>
+  <int value="34" label="MEDIA_CODEC_LICENSE_POLICY"/>
+  <int value="35" label="MEDIA_CODEC_LICENSE_RELEASE"/>
+  <int value="36" label="MEDIA_CODEC_LICENSE_REQUEST_REJECTED"/>
+  <int value="37" label="MEDIA_CODEC_LICENSE_RESTORE"/>
+  <int value="38" label="MEDIA_CODEC_LICENSE_STATE"/>
+  <int value="39" label="MEDIA_CODEC_PROVISIONING_CERTIFICATE"/>
+  <int value="40" label="MEDIA_CODEC_PROVISIONING_CONFIG"/>
+  <int value="41" label="MEDIA_CODEC_PROVISIONING_PARSE"/>
+  <int value="42" label="MEDIA_CODEC_PROVISIONING_REQUEST_REJECTED"/>
+  <int value="43" label="MEDIA_CODEC_PROVISIONING_RETRY"/>
+  <int value="44" label="MEDIA_CODEC_SECURE_STOP_RELEASE"/>
+  <int value="45" label="MEDIA_CODEC_STORAGE_READ"/>
+  <int value="46" label="MEDIA_CODEC_STORAGE_WRITE"/>
 </enum>
 
 <enum name="MediaContainers">
@@ -1131,15 +1239,20 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="MEDIA_REQUEST_IOC_REINIT"/>
 </enum>
 
-<enum name="MediaLicenseStorageHostOpenError">
-  <int value="0" label="InvalidBucket"/>
-  <int value="1" label="kNoFileSpecified"/>
-  <int value="2" label="kInvalidFileName"/>
-  <int value="3" label="kDatabaseOpenError"/>
-  <int value="4" label="kBucketNotFound"/>
-  <int value="5" label="kDatabaseRazeError"/>
-  <int value="6" label="kSQLExecutionError"/>
-  <int value="7" label="kBucketLocatorError"/>
+<enum name="MediaItemUIUpdatedViewAction">
+  <int value="0" label="Play"/>
+  <int value="1" label="Pause"/>
+  <int value="2" label="Previous track"/>
+  <int value="3" label="Next track"/>
+  <int value="4" label="Replay 10 seconds"/>
+  <int value="5" label="Forward 10 seconds"/>
+  <int value="6" label="Progress view seek backward"/>
+  <int value="7" label="Progress view seek forward"/>
+  <int value="8" label="Show device list for casting"/>
+  <int value="9" label="Hide device list for casting"/>
+  <int value="10" label="Close device list for casting"/>
+  <int value="11" label="Enter picture in picture"/>
+  <int value="12" label="Exit picture in picture"/>
 </enum>
 
 <enum name="MediaLoadType">
@@ -1169,6 +1282,13 @@ chromium-metrics-reviews@google.com.
   <int value="0" label="Queried"/>
   <int value="1" label="No external link"/>
   <int value="2" label="All external links protected"/>
+</enum>
+
+<enum name="MediaPlaybackInterruptionType">
+  <int value="0"
+      label="HTMLMediaElement tried to play audio in a hidden frame"/>
+  <int value="1"
+      label="Frame got hidden while the HTMLMediaElement was playing"/>
 </enum>
 
 <enum name="MediaPlayerExitStatus">
@@ -1235,14 +1355,6 @@ chromium-metrics-reviews@google.com.
   <int value="5" label="Network"/>
   <int value="6" label="Connect Timeout"/>
   <int value="7" label="Ping Timeout"/>
-</enum>
-
-<enum name="MediaRouterCastFeedbackEvent">
-  <int value="0" label="Dialog opened"/>
-  <int value="1" label="Sending"/>
-  <int value="2" label="Resending"/>
-  <int value="3" label="Feedback sent"/>
-  <int value="4" label="Too many retries"/>
 </enum>
 
 <enum name="MediaRouterCastSinkSource">
@@ -1347,6 +1459,14 @@ chromium-metrics-reviews@google.com.
   <int value="8" label="Local Media"/>
 </enum>
 
+<enum name="MediaRouterUiPermissionRejectedViewEvents">
+  <int value="0" label="kCastDialogErrorShown"/>
+  <int value="1" label="kCastDialogLinkClicked"/>
+  <int value="2" label="kGmcDialogErrorShown"/>
+  <int value="3" label="kGmcDialogLinkClicked"/>
+  <int value="4" label="kGmcDialogErrorDismissed"/>
+</enum>
+
 <enum name="MediaRouterUserPromptWhenLaunchingCast">
   <int value="0" label="Total prompts"/>
   <int value="1" label="User rejects cast request"/>
@@ -1362,14 +1482,6 @@ chromium-metrics-reviews@google.com.
   <int value="0" label="Default Handler"/>
   <int value="1" label="Registered Manual"/>
   <int value="2" label="Registered Automatic"/>
-</enum>
-
-<enum name="MediaSessionSuspendedSource">
-  <int value="0" label="System Transient"/>
-  <int value="1" label="System Permanent"/>
-  <int value="2" label="UI"/>
-  <int value="3" label="CONTENT"/>
-  <int value="4" label="System Transient Duck"/>
 </enum>
 
 <enum name="MediaSinkType">
@@ -1406,6 +1518,12 @@ chromium-metrics-reviews@google.com.
   <int value="5" label="kUserSelectedThisTab"/>
 </enum>
 
+<enum name="MediaUiGetDisplayMediaPermissionInteraction">
+  <int value="0" label="PermissionButtonNotShown"/>
+  <int value="1" label="PermissionButtonShown"/>
+  <int value="2" label="PermissionButtonClicked"/>
+</enum>
+
 <enum name="MediaUiGetDisplayMediaPreferCurrentTabFlowUserInteraction">
   <int value="0" label="kDialogDismissed"/>
   <int value="1" label="kUserCancelled"/>
@@ -1414,15 +1532,6 @@ chromium-metrics-reviews@google.com.
   <int value="4" label="kUserSelectedOtherTab"/>
   <int value="5" label="kUserSelectedThisTabAsGenericTab"/>
   <int value="6" label="kUserSelectedThisTab"/>
-</enum>
-
-<enum name="MediaVideoHeight">
-  <int value="0" label="~360 or lower"/>
-  <int value="1" label="~480"/>
-  <int value="2" label="~720"/>
-  <int value="3" label="~1080"/>
-  <int value="4" label="~1440"/>
-  <int value="5" label="~2160 or higher"/>
 </enum>
 
 <enum name="MicrophoneMuteResult">
@@ -1592,6 +1701,22 @@ chromium-metrics-reviews@google.com.
   <int value="5" label="kSoftwareDecoderOnly"/>
 </enum>
 
+<!-- LINT.IfChange(PictureInPictureDisallowedTypeEnum) -->
+
+<enum name="PictureInPictureDisallowedType">
+  <int value="0" label="Existing picture-in-picture window was closed"/>
+  <int value="1" label="New picture-in-picture window was closed"/>
+</enum>
+
+<!-- LINT.ThenChange(//chrome/browser/picture_in_picture/picture_in_picture_window_manager.h:PictureInPictureDisallowedType) -->
+
+<enum name="PlaylistSegmentType">
+  <int value="0" label="kTS"/>
+  <int value="1" label="kMP4"/>
+  <int value="2" label="kAAC"/>
+  <int value="3" label="kUnexpected"/>
+</enum>
+
 <enum name="PresentationUrlBySink">
   <int value="0" label="Unknown"/>
   <int value="1" label="https:-like URL to Chromecast"/>
@@ -1627,21 +1752,17 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="PromiseRejected"/>
 </enum>
 
-<enum name="QuotaError">
-  <int value="0" label="None"/>
-  <int value="1" label="Unknown Error"/>
-  <int value="2" label="Database Error"/>
-  <int value="3" label="Not Found Error"/>
-  <int value="4" label="Entry Exists Error"/>
-  <int value="5" label="File Operation Error"/>
-  <int value="6" label="Invalid Expiration Error"/>
-  <int value="7" label="Quota Exceeded Error"/>
-  <int value="8" label="Database Disabled">
-    The database failed to bootstrap.
-  </int>
-  <int value="9" label="Storage key error">
-    Deserialization failed on a storage key.
-  </int>
+<enum name="ReactionEffectsGesturesState">
+  <int value="0" label="The platform does not support reaction effects"/>
+  <int value="1" label="Reaction effects supported, but disabled"/>
+  <int value="2"
+      label="Reaction effects enabled, but not triggered by gestures"/>
+  <int value="3" label="Gestures trigger reaction effects"/>
+</enum>
+
+<enum name="ReasonToClearRenderBuffer">
+  <int value="0" label="Video frame with out-of-order timestamp."/>
+  <int value="1" label="Call to UpdateCurrentFrame() is overdue."/>
 </enum>
 
 <enum name="RemotingCompatibility">
@@ -1759,6 +1880,17 @@ chromium-metrics-reviews@google.com.
   <int value="2" label="OpenOffice Impress"/>
   <int value="3" label="Keynote"/>
   <int value="4" label="LibreOffice"/>
+</enum>
+
+<enum name="ScreenCaptureKitSCContentSharingPicker">
+  <int value="0" label="PresentScreen_Start"/>
+  <int value="1" label="PresentScreen_Update"/>
+  <int value="2" label="PresentScreen_Cancel"/>
+  <int value="3" label="PresentScreen_Error"/>
+  <int value="4" label="PresentWindow_Start"/>
+  <int value="5" label="PresentWindow_Update"/>
+  <int value="6" label="PresentWindow_Cancel"/>
+  <int value="7" label="PresentWindow_Error"/>
 </enum>
 
 <enum name="SelectedTabDiscardStatus">
@@ -1880,6 +2012,9 @@ chromium-metrics-reviews@google.com.
   <int value="10" label="ANDROID_API2_LIMITED">ANDROID_API2_LIMITED</int>
   <int value="11" label="FUCHSIA_CAMERA3">FUCHSIA_CAMERA3</int>
   <int value="12" label="VIRTUAL_DEVICE">VIRTUAL_DEVICE</int>
+  <int value="13" label="LINUX_WEBRTC_SINGLE_PLANE">
+    LINUX_WEBRTC_SINGLE_PLANE
+  </int>
 </enum>
 
 <enum name="VideoCaptureError">
@@ -2053,6 +2188,7 @@ chromium-metrics-reviews@google.com.
   <int value="147" label="kVideoCaptureDeviceFactorySecondCreateDenied"/>
   <int value="148" label="kScreenCaptureKitResetStreamError"/>
   <int value="149" label="kWinMediaFoundationCameraBusy"/>
+  <int value="150" label="kWebRtcStartCaptureFailed"/>
 </enum>
 
 <enum name="VideoCaptureFrameDropReason">
@@ -2091,35 +2227,16 @@ chromium-metrics-reviews@google.com.
   <int value="29" label="kSubCaptureTargetVersionNotCurrent"/>
 </enum>
 
-<enum name="VideoCaptureServiceEvent">
-  <int value="0" label="Browser is using legacy video capture stack"/>
-  <int value="1" label="Browser connecting to video capture service"/>
-  <int value="2" label="Video capture service started"/>
-  <int value="3"
-      label="Video capture service shutting down because last client
-             disconnected"/>
-  <int value="4" label="Video capture service lost connection to Browser"/>
-  <int value="5" label="Browser lost connection to video capture service"/>
-  <int value="6" label="Browser closing connection to video capture service"/>
-  <int value="7"
-      label="Browser closing connection to video capture service after
-             enumerating devices only"/>
-  <int value="8"
-      label="Browser closing connection to video capture service after video
-             capture session"/>
-  <int value="9" label="Video capture service timeout canceled"/>
-</enum>
-
 <enum name="VideoCaptureStartOutcome">
   <int value="0" label="kStarted"/>
   <int value="1" label="kTimedout"/>
   <int value="2" label="kFailed"/>
 </enum>
 
-<enum name="VideoCaptureWinBackendUsed">
-  <int value="0" label="Using DirectShow as default"/>
-  <int value="1" label="Using MediaFoundation as default"/>
-  <int value="2" label="Using DirectShow as fallback"/>
+<enum name="VideoEffectStatus">
+  <int value="0" label="Unsupported"/>
+  <int value="1" label="Supported"/>
+  <int value="2" label="Enabled"/>
 </enum>
 
 <enum name="VideoFrameStorageType">
@@ -2137,8 +2254,8 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="I420"/>
   <int value="2" label="YV12"/>
   <int value="3" label="I422"/>
-  <int value="4" label="YV12A"/>
-  <int value="5" label="YV24"/>
+  <int value="4" label="I420A"/>
+  <int value="5" label="I444"/>
   <int value="6" label="NV12"/>
   <int value="7" label="NV21"/>
   <int value="8" label="UYVY"/>
@@ -2162,7 +2279,7 @@ chromium-metrics-reviews@google.com.
   <int value="26" label="Y16"/>
   <int value="27" label="ABGR"/>
   <int value="28" label="XBGR"/>
-  <int value="29" label="P016LE"/>
+  <int value="29" label="P010LE"/>
   <int value="30" label="XR30"/>
   <int value="31" label="XB30"/>
   <int value="32" label="BGRA"/>
@@ -2175,8 +2292,8 @@ chromium-metrics-reviews@google.com.
   <int value="39" label="NV12A"/>
   <int value="40" label="NV16"/>
   <int value="41" label="NV24"/>
-  <int value="42" label="P216LE"/>
-  <int value="43" label="P416LE"/>
+  <int value="42" label="P210LE"/>
+  <int value="43" label="P410LE"/>
 </enum>
 
 <enum name="VideoResolutionDesignation">
@@ -2237,15 +2354,6 @@ chromium-metrics-reviews@google.com.
   <int value="8" label="VIDIOC_STREAMON"/>
   <int value="9" label="VIDIOC_STREAMOFF"/>
   <int value="10" label="VIDIOC_S_EXT_CTRLS"/>
-</enum>
-
-<enum name="VTVDASessionFailureType">
-  <int value="0" label="Successfully Initialized"/>
-  <int value="1" label="Platform Error"/>
-  <int value="2" label="Invalid Stream"/>
-  <int value="3" label="Unsupported Stream Parameters"/>
-  <int value="4" label="Decode Error"/>
-  <int value="5" label="Unsupported Stream"/>
 </enum>
 
 </enums>

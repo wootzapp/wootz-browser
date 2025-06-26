@@ -99,11 +99,11 @@ class ReadingListModelTest : public FakeReadingListModelStorage::Observer,
     base::WeakPtr<FakeReadingListModelStorage> storage = ResetStorage();
 
     auto metadata_batch = std::make_unique<syncer::MetadataBatch>();
-    sync_pb::ModelTypeState state;
+    sync_pb::DataTypeState state;
     state.set_initial_sync_state(
-        sync_pb::ModelTypeState_InitialSyncState_INITIAL_SYNC_DONE);
-    state.set_authenticated_account_id(kTestAccountId);
-    metadata_batch->SetModelTypeState(state);
+        sync_pb::DataTypeState_InitialSyncState_INITIAL_SYNC_DONE);
+    state.set_authenticated_obfuscated_gaia_id(kTestGaiaId.ToString());
+    metadata_batch->SetDataTypeState(state);
 
     return storage->TriggerLoadCompletion(std::move(initial_syncable_entries),
                                           std::move(metadata_batch));
@@ -155,7 +155,7 @@ class ReadingListModelTest : public FakeReadingListModelStorage::Observer,
   }
 
  protected:
-  const std::string kTestAccountId = "TestAccountId";
+  const GaiaId kTestGaiaId = GaiaId("TestGaiaId");
 
   int storage_saved_ = 0;
   int storage_removed_ = 0;
@@ -351,8 +351,8 @@ TEST_F(ReadingListModelTest, GetAccountWhereEntryIsSavedToWhenSyncEnabled) {
       /*initial_syncable_entries=*/{base::MakeRefCounted<ReadingListEntry>(
           example, "example_title", clock_.Now())}));
 
-  EXPECT_EQ(model_->GetAccountWhereEntryIsSavedTo(example).ToString(),
-            kTestAccountId);
+  EXPECT_EQ(model_->GetAccountWhereEntryIsSavedTo(example),
+            kTestGaiaId);
   EXPECT_TRUE(
       model_
           ->GetAccountWhereEntryIsSavedTo(GURL("http://non_existing_url.com/"))

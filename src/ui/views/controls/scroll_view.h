@@ -12,7 +12,7 @@
 #include "base/callback_list.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
-#include "ui/color/color_id.h"
+#include "ui/color/color_variant.h"
 #include "ui/compositor/layer_type.h"
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/scrollbar/scroll_bar.h"
@@ -25,7 +25,7 @@ struct ElementId;
 namespace gfx {
 class PointF;
 class RoundedCornersF;
-}
+}  // namespace gfx
 
 namespace views {
 namespace test {
@@ -53,10 +53,10 @@ class VIEWS_EXPORT ScrollView : public View, public ScrollBarController {
 
  public:
   // Indicates whether or not scroll view is initialized with layer-scrolling.
-  enum class ScrollWithLayers { kDisabled, kEnabled };
+  enum class ScrollWithLayers : bool { kDisabled, kEnabled };
 
   // Controls how a scroll bar appears and functions.
-  enum class ScrollBarMode {
+  enum class ScrollBarMode : uint8_t {
     // The scrollbar is hidden, and the pane will not respond to e.g. mousewheel
     // events even if the contents are larger than the viewport.
     kDisabled,
@@ -127,18 +127,14 @@ class VIEWS_EXPORT ScrollView : public View, public ScrollBarController {
   // rounded corners to the `contents_viewport_` layer. See `ScrollWithLayers`.
   void SetViewportRoundedCornerRadius(const gfx::RoundedCornersF& radii);
 
-  // The background color can be configured in two distinct ways:
-  // . By way of SetBackgroundThemeColorId(). This is the default and when
-  //   called the background color comes from the theme (and changes if the
-  //   theme changes).
-  // . By way of setting an explicit color, i.e. SetBackgroundColor(). Use
-  //   std::nullopt if you don't want any color, but be warned this
+  // Specify the background color:
+  // . Set a ColorId. This is the default and when called the background color
+  //   comes from the theme (and changes if the theme changes).
+  // . Set an explicit color.
+  // . Use std::nullopt if you don't want any color, but be warned this
   //   produces awful results when layers are used with subpixel rendering.
-  std::optional<SkColor> GetBackgroundColor() const;
-  void SetBackgroundColor(const std::optional<SkColor>& color);
-
-  std::optional<ui::ColorId> GetBackgroundThemeColorId() const;
-  void SetBackgroundThemeColorId(const std::optional<ui::ColorId>& color_id);
+  std::optional<ui::ColorVariant> GetBackgroundColor() const;
+  void SetBackgroundColor(const std::optional<ui::ColorVariant>& color);
 
   // Returns the visible region of the content View.
   gfx::Rect GetVisibleRect() const;
@@ -149,7 +145,9 @@ class VIEWS_EXPORT ScrollView : public View, public ScrollBarController {
   // Scrolls the `contents_` to an offset.
   void ScrollToOffset(const gfx::PointF& offset);
 
-  bool GetUseColorId() const { return !!background_color_id_; }
+  // Get the current scroll offset either from the ui::Layer or from the
+  // |contents_| origin offset.
+  gfx::PointF CurrentOffset() const;
 
   ScrollBarMode GetHorizontalScrollBarMode() const {
     return horizontal_scroll_bar_mode_;
@@ -205,38 +203,36 @@ class VIEWS_EXPORT ScrollView : public View, public ScrollBarController {
 
   // Called when |contents_| scrolled. This can be triggered by each single
   // event that is able to scroll the contents. KeyEvents like ui::VKEY_LEFT,
-  // ui::VKEY_RIGHT, or only ui::ET_MOUSEWHEEL will only trigger this function
-  // but not OnContentsScrollEnded below, since they do not belong to any
-  // events sequence. This function will also be triggered by each
-  // ui::ET_GESTURE_SCROLL_UPDATE event in the gesture scroll sequence or
-  // each ui::ET_MOUSEWHEEL event that associated with the ScrollEvent in the
-  // scroll events sequence while the OnContentsScrollEnded below will only be
-  // triggered once at the end of the events sequence.
+  // ui::VKEY_RIGHT, or only ui::EventType::kMousewheel will only trigger this
+  // function but not OnContentsScrollEnded below, since they do not belong to
+  // any events sequence. This function will also be triggered by each
+  // ui::EventType::kGestureScrollUpdate event in the gesture scroll sequence or
+  // each ui::EventType::kMousewheel event that associated with the ScrollEvent
+  // in the scroll events sequence while the OnContentsScrollEnded below will
+  // only be triggered once at the end of the events sequence.
   base::CallbackListSubscription AddContentsScrolledCallback(
       ScrollViewCallback callback);
 
   // Called at the end of a sequence of events that are generated to scroll
-  // the contents. The gesture scroll sequence {ui::ET_GESTURE_SCROLL_BEGIN,
-  // ui::ET_GESTURE_SCROLL_UPDATE, ..., ui::ET_GESTURE_SCROLL_UPDATE,
-  // ui::ET_GESTURE_SCROLL_END or ui::ET_SCROLL_FLING_START} or the scroll
-  // events sequence {ui::ET_SCROLL_FLING_CANCEL, ui::ET_SCROLL, ...,
-  // ui::ET_SCROLL, ui::ET_SCROLL_FLING_START} both will trigger this function
-  // on the events sequence end.
+  // the contents. The gesture scroll sequence
+  // {ui::EventType::kGestureScrollBegin, ui::EventType::kGestureScrollUpdate,
+  // ..., ui::EventType::kGestureScrollUpdate, ui::EventType::kGestureScrollEnd
+  // or ui::EventType::kScrollFlingStart} or the scroll events sequence
+  // {ui::EventType::kScrollFlingCancel, ui::EventType::kScroll, ...,
+  // ui::EventType::kScroll, ui::EventType::kScrollFlingStart} both will trigger
+  // this function on the events sequence end.
   base::CallbackListSubscription AddContentsScrollEndedCallback(
       ScrollViewCallback callback);
 
-  // View overrides:
+  // View:
   gfx::Size CalculatePreferredSize(
       const SizeBounds& available_size) const override;
-
-  int GetHeightForWidth(int width) const override;
   void Layout(PassKey) override;
   bool OnKeyPressed(const ui::KeyEvent& event) override;
   bool OnMouseWheel(const ui::MouseWheelEvent& e) override;
   void OnScrollEvent(ui::ScrollEvent* event) override;
   void OnGestureEvent(ui::GestureEvent* event) override;
   void OnThemeChanged() override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   bool HandleAccessibleAction(const ui::AXActionData& action_data) override;
 
   // ScrollBarController overrides:
@@ -298,10 +294,6 @@ class VIEWS_EXPORT ScrollView : public View, public ScrollBarController {
 
   // Update the scrollbars positions given viewport and content sizes.
   void UpdateScrollBarPositions();
-
-  // Get the current scroll offset either from the ui::Layer or from the
-  // |contents_| origin offset.
-  gfx::PointF CurrentOffset() const;
 
   // Whether the ScrollView scrolls using ui::Layer APIs.
   bool ScrollsWithLayers() const;
@@ -370,8 +362,8 @@ class VIEWS_EXPORT ScrollView : public View, public ScrollBarController {
   int max_height_ = -1;
 
   // See description of SetBackgroundColor() for details.
-  std::optional<SkColor> background_color_;
-  std::optional<ui::ColorId> background_color_id_ = ui::kColorDialogBackground;
+  std::optional<ui::ColorVariant> background_color_ =
+      ui::kColorDialogBackground;
 
   // How to handle the case when the contents overflow the viewport.
   ScrollBarMode horizontal_scroll_bar_mode_ = ScrollBarMode::kEnabled;
@@ -418,13 +410,12 @@ VIEW_BUILDER_VIEW_TYPE_PROPERTY(View, Contents)
 VIEW_BUILDER_PROPERTY(ui::LayerType, ContentsLayerType)
 VIEW_BUILDER_VIEW_TYPE_PROPERTY(View, Header)
 VIEW_BUILDER_PROPERTY(bool, AllowKeyboardScrolling)
-VIEW_BUILDER_PROPERTY(std::optional<ui::ColorId>, BackgroundThemeColorId)
+VIEW_BUILDER_PROPERTY(std::optional<ui::ColorVariant>, BackgroundColor)
 VIEW_BUILDER_METHOD(ClipHeightTo, int, int)
 VIEW_BUILDER_PROPERTY(ScrollView::ScrollBarMode, HorizontalScrollBarMode)
 VIEW_BUILDER_PROPERTY(ScrollView::ScrollBarMode, VerticalScrollBarMode)
 VIEW_BUILDER_PROPERTY(bool, TreatAllScrollEventsAsHorizontal)
 VIEW_BUILDER_PROPERTY(bool, DrawOverflowIndicator)
-VIEW_BUILDER_PROPERTY(std::optional<SkColor>, BackgroundColor)
 VIEW_BUILDER_VIEW_PROPERTY(ScrollBar, HorizontalScrollBar)
 VIEW_BUILDER_VIEW_PROPERTY(ScrollBar, VerticalScrollBar)
 VIEW_BUILDER_PROPERTY(bool, HasFocusIndicator)

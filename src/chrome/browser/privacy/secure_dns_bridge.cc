@@ -4,6 +4,7 @@
 
 #include <jni.h>
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string>
@@ -15,7 +16,6 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/check.h"
 #include "base/functional/bind.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/waitable_event.h"
 #include "chrome/browser/browser_process.h"
@@ -24,7 +24,6 @@
 #include "chrome/browser/net/secure_dns_util.h"
 #include "chrome/browser/net/stub_resolver_config_reader.h"
 #include "chrome/browser/net/system_network_context_manager.h"
-#include "chrome/browser/privacy/jni_headers/SecureDnsBridge_jni.h"
 #include "chrome/common/pref_names.h"
 #include "components/country_codes/country_codes.h"
 #include "components/prefs/pref_service.h"
@@ -33,6 +32,9 @@
 #include "net/dns/public/dns_over_https_config.h"
 #include "net/dns/public/doh_provider_entry.h"
 #include "net/dns/public/secure_dns_mode.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/browser/privacy/jni_headers/SecureDnsBridge_jni.h"
 
 using base::android::JavaParamRef;
 using base::android::ScopedJavaLocalRef;
@@ -103,7 +105,7 @@ static ScopedJavaLocalRef<jobjectArray> JNI_SecureDnsBridge_GetProviders(
   net::DohProviderEntry::List providers = GetFilteredProviders();
   std::vector<std::vector<std::u16string>> ret;
   ret.reserve(providers.size());
-  base::ranges::transform(
+  std::ranges::transform(
       providers, std::back_inserter(ret),
       [](const net::DohProviderEntry* entry) -> std::vector<std::u16string> {
         net::DnsOverHttpsConfig config({entry->doh_server_config});

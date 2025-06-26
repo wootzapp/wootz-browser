@@ -5,7 +5,7 @@
 #include "chrome/browser/ash/file_system_provider/service_factory.h"
 
 #include "chrome/browser/ash/file_system_provider/service.h"
-#include "chrome/browser/extensions/extension_system_factory.h"
+#include "chrome/browser/extensions/chrome_extension_system_factory.h"
 #include "chrome/browser/notifications/notification_display_service_factory.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "extensions/browser/extension_registry.h"
@@ -38,9 +38,12 @@ ServiceFactory::ServiceFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kRedirectedToOriginal)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kRedirectedToOriginal)
               .Build()) {
   DependsOn(extensions::ExtensionRegistryFactory::GetInstance());
-  DependsOn(extensions::ExtensionSystemFactory::GetInstance());
+  DependsOn(extensions::ChromeExtensionSystemFactory::GetInstance());
   DependsOn(NotificationDisplayServiceFactory::GetInstance());
 }
 

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/chromeos/libyuv_image_processor_backend.h"
 
 #include <sys/mman.h>
@@ -141,13 +146,9 @@ LibYUVImageProcessorBackend::CreateWithTaskRunner(
   std::unique_ptr<VideoFrameMapper> input_frame_mapper;
   if (input_config.storage_type == VideoFrame::STORAGE_DMABUFS ||
       input_config.storage_type == VideoFrame::STORAGE_GPU_MEMORY_BUFFER) {
-    // The LibYUVImageProcessorBackend is not currently used to read from
-    // Intel media compressed buffers, so we don't need the VideoFrameMapper
-    // to support those.
     input_frame_mapper = VideoFrameMapperFactory::CreateMapper(
         input_config.fourcc.ToVideoPixelFormat(), input_config.storage_type,
-        /*force_linear_buffer_mapper=*/true,
-        /*must_support_intel_media_compressed_buffers=*/false);
+        /*force_linear_buffer_mapper=*/true);
   }
 
   if (!input_frame_mapper &&
@@ -159,13 +160,9 @@ LibYUVImageProcessorBackend::CreateWithTaskRunner(
   std::unique_ptr<VideoFrameMapper> output_frame_mapper;
   if (output_config.storage_type == VideoFrame::STORAGE_DMABUFS ||
       output_config.storage_type == VideoFrame::STORAGE_GPU_MEMORY_BUFFER) {
-    // The LibYUVImageProcessorBackend is not currently used to write onto
-    // Intel media compressed buffers, so we don't need the VideoFrameMapper
-    // to support those.
     output_frame_mapper = VideoFrameMapperFactory::CreateMapper(
         output_config.fourcc.ToVideoPixelFormat(), output_config.storage_type,
-        /*force_linear_buffer_mapper=*/true,
-        /*must_support_intel_media_compressed_buffers=*/false);
+        /*force_linear_buffer_mapper=*/true);
   }
 
   if (!output_frame_mapper &&
@@ -552,7 +549,7 @@ int LibYUVImageProcessorBackend::DoConversion(const FrameResource* const input,
     }
   }
 
-  if (output->format() == PIXEL_FORMAT_P016LE) {
+  if (output->format() == PIXEL_FORMAT_P010LE) {
     if (input_config_.fourcc == Fourcc(Fourcc::MT2T)) {
       // stride is 5/4 because MT2T is a packed 10bit format
       const uint32_t src_stride_mt2t =

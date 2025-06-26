@@ -60,9 +60,11 @@ class CORE_EXPORT SVGGraphicsElement : public SVGTransformableElement,
                      Document&,
                      ConstructionType = kCreateSVGElement);
 
-  bool SupportsFocus(UpdateBehavior update_behavior =
-                         UpdateBehavior::kStyleAndLayout) const override {
-    return Element::SupportsFocus(update_behavior) || HasFocusEventListeners();
+  FocusableState SupportsFocus(UpdateBehavior update_behavior) const override {
+    if (HasFocusEventListeners()) {
+      return FocusableState::kFocusable;
+    }
+    return Element::SupportsFocus(update_behavior);
   }
 
   void SvgAttributeChanged(const SvgAttributeChangedParams&) override;
@@ -75,10 +77,6 @@ class CORE_EXPORT SVGGraphicsElement : public SVGTransformableElement,
   bool IsSVGGraphicsElement() const final { return true; }
 };
 
-template <>
-inline bool IsElementOfType<const SVGGraphicsElement>(const Node& node) {
-  return IsA<SVGGraphicsElement>(node);
-}
 template <>
 struct DowncastTraits<SVGGraphicsElement> {
   static bool AllowFrom(const Node& node) {

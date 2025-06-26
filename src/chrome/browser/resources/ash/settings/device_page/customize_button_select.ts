@@ -15,20 +15,22 @@ import '../settings_shared.css.js';
 import {I18nMixin} from 'chrome://resources/ash/common/cr_elements/i18n_mixin.js';
 import {LWIN_KEY, META_KEY, ShortcutInputKeyElement} from 'chrome://resources/ash/common/shortcut_input_ui/shortcut_input_key.js';
 import {KeyToIconNameMap} from 'chrome://resources/ash/common/shortcut_input_ui/shortcut_utils.js';
+
 import {assert} from 'chrome://resources/js/assert.js';
-import {PolymerElementProperties} from 'chrome://resources/polymer/v3_0/polymer/interfaces.js';
+import type {PolymerElementProperties} from 'chrome://resources/polymer/v3_0/polymer/interfaces.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
+import type {DropdownMenuOptionList} from '../controls/settings_dropdown_menu.js';
 
-import {CustomizeButtonDropdownItemElement, DropdownItemSelectEvent, DropdownMenuOption} from './customize_button_dropdown_item.js';
+import type {CustomizeButtonDropdownItemElement, DropdownItemSelectEvent, DropdownMenuOption} from './customize_button_dropdown_item.js';
 import {getTemplate} from './customize_button_select.html.js';
-import {ActionChoice, ButtonRemapping, KeyEvent, RemappingAction, StaticShortcutAction} from './input_device_settings_types.js';
+import type {ActionChoice, ButtonRemapping, KeyEvent, RemappingAction} from './input_device_settings_types.js';
+import {MetaKey, StaticShortcutAction} from './input_device_settings_types.js';
 
 export interface CustomizeButtonSelectElement {
   $: {
     selectDropdown: HTMLButtonElement,
-    menuContainer: HTMLDivElement,
+    menuContainer: HTMLElement,
   };
 }
 
@@ -173,9 +175,7 @@ export class CustomizeButtonSelectElement extends
         value: undefined,
       },
 
-      hasLauncherButton: {
-        type: Boolean,
-      },
+      metaKey: Object,
     };
   }
 
@@ -192,7 +192,7 @@ export class CustomizeButtonSelectElement extends
   remappingIndex: number;
   actionList: ActionChoice[];
   selectedValue: string;
-  hasLauncherButton: boolean;
+  metaKey: MetaKey = MetaKey.kSearch;
   private isInitialized_: boolean;
   private shouldShowDropdownMenu_: boolean;
   private label_: string;
@@ -460,15 +460,27 @@ export class CustomizeButtonSelectElement extends
 
   private getIconIdForKey_(key: string): string|null {
     if (key === META_KEY || key === LWIN_KEY) {
-      return 'shortcut-input-keys:launcher';
+      switch (this.metaKey) {
+        case MetaKey.kSearch:
+          return 'shortcut-input-keys:search';
+        case MetaKey.kLauncherRefresh:
+          return 'shortcut-input-keys:launcher-refresh';
+        default:
+          return 'shortcut-input-keys:launcher';
+      }
     }
+
     const iconName = KeyToIconNameMap[key];
-    return iconName ? `shortcut-input-keys:${iconName}` : null;
+    if (iconName) {
+      return `shortcut-input-keys:${iconName}`;
+    }
+
+    return null;
   }
 
   private getAriaLabelForIcon(key: string): string {
-    const ariaLabelStringId = ShortcutInputKeyElement.getAriaLabelStringId(
-        key, this.hasLauncherButton);
+    const ariaLabelStringId =
+        ShortcutInputKeyElement.getAriaLabelStringId(key, this.metaKey);
 
     return this.i18n(ariaLabelStringId);
   }
@@ -534,7 +546,7 @@ export class CustomizeButtonSelectElement extends
     dropdownMenuOptions[indexOfNewRow]?.scrollIntoViewIfNeeded();
 
     // Update the highlighted value.
-    this.highlightedValue_ = this.menu[indexOfNewRow]!.value as string;
+    this.highlightedValue_ = this.menu[indexOfNewRow].value as string;
   }
 
   private updateDropdownSelection_(): void {

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/gtk/printing/print_dialog_gtk.h"
 
 #include <algorithm>
@@ -14,6 +19,7 @@
 
 #include "base/check_op.h"
 #include "base/dcheck_is_on.h"
+#include "base/debug/crash_logging.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
@@ -146,6 +152,16 @@ class GtkPrinterList {
     }
 
     return nullptr;
+  }
+
+  // TODO(crbug.com/411336538): Delete when done diagnosing.
+  std::string GetAllPrinterNames() {
+    std::string result;
+    for (ScopedGObject<GtkPrinter>& printer : printers_) {
+      result += gtk_printer_get_name(printer.get());
+      result += ',';
+    }
+    return result;
   }
 
  private:
@@ -313,8 +329,7 @@ void PrintDialogGtk::UpdateSettings(
         cups_duplex_mode = kDuplexNone;
         break;
       default:  // kUnknownDuplexMode
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
     gtk_print_settings_set(gtk_settings_, kCUPSDuplex, cups_duplex_mode);
   }
@@ -373,7 +388,14 @@ void PrintDialogGtk::LoadPrintSettings(const PrintSettings& settings) {
 
   auto printer_list = std::make_unique<GtkPrinterList>();
   printer_ = printer_list->GetPrinterWithName(*printer_name);
-  CHECK(printer_);
+  if (!printer_) {
+    // TODO(crbug.com/411336538): Delete the crash keys when done diagnosing.
+    // Then either put CHECK(printer_); back, or properly handle the failure.
+    SCOPED_CRASH_KEY_STRING64("PrintDialogGtk", "printer_name", *printer_name);
+    SCOPED_CRASH_KEY_STRING1024("PrintDialogGtk", "all_printer_names",
+                                printer_list->GetAllPrinterNames());
+    CHECK(false);
+  }
 
   if (!gtk_settings_) {
     gtk_settings_ = gtk_print_settings_copy(GetLastUsedSettings().settings());
@@ -411,7 +433,7 @@ void PrintDialogGtk::ShowDialog(
   if (parent_view)
     parent_view->AddObserver(this);
   if (gtk::GtkCheckVersion(4)) {
-    gtk_window_set_hide_on_close(GTK_WINDOW(dialog_), true);
+    gtk_window_set_hide_on_close(GTK_WINDOW(dialog_.get()), true);
   } else {
     g_signal_connect(dialog_, "delete-event",
                      G_CALLBACK(gtk_widget_hide_on_delete), nullptr);
@@ -435,15 +457,15 @@ void PrintDialogGtk::ShowDialog(
       GTK_PRINT_CAPABILITY_GENERATE_PDF | GTK_PRINT_CAPABILITY_PAGE_SET |
       GTK_PRINT_CAPABILITY_COPIES | GTK_PRINT_CAPABILITY_COLLATE |
       GTK_PRINT_CAPABILITY_REVERSE);
-  gtk_print_unix_dialog_set_manual_capabilities(GTK_PRINT_UNIX_DIALOG(dialog_),
-                                                cap);
-  gtk_print_unix_dialog_set_embed_page_setup(GTK_PRINT_UNIX_DIALOG(dialog_),
-                                             TRUE);
-  gtk_print_unix_dialog_set_support_selection(GTK_PRINT_UNIX_DIALOG(dialog_),
-                                              TRUE);
-  gtk_print_unix_dialog_set_has_selection(GTK_PRINT_UNIX_DIALOG(dialog_),
+  gtk_print_unix_dialog_set_manual_capabilities(
+      GTK_PRINT_UNIX_DIALOG(dialog_.get()), cap);
+  gtk_print_unix_dialog_set_embed_page_setup(
+      GTK_PRINT_UNIX_DIALOG(dialog_.get()), TRUE);
+  gtk_print_unix_dialog_set_support_selection(
+      GTK_PRINT_UNIX_DIALOG(dialog_.get()), TRUE);
+  gtk_print_unix_dialog_set_has_selection(GTK_PRINT_UNIX_DIALOG(dialog_.get()),
                                           has_selection);
-  gtk_print_unix_dialog_set_settings(GTK_PRINT_UNIX_DIALOG(dialog_),
+  gtk_print_unix_dialog_set_settings(GTK_PRINT_UNIX_DIALOG(dialog_.get()),
                                      gtk_settings_);
   // Unretained is safe since we own `signal_`.
   signal_ = ScopedGSignal(
@@ -451,14 +473,15 @@ void PrintDialogGtk::ShowDialog(
       base::BindRepeating(&PrintDialogGtk::OnResponse, base::Unretained(this)));
   gtk_widget_show(dialog_);
 
-  gtk::GtkUi::GetPlatform()->ShowGtkWindow(GTK_WINDOW(dialog_));
+  gtk::GtkUi::GetPlatform()->ShowGtkWindow(GTK_WINDOW(dialog_.get()));
 }
 
 void PrintDialogGtk::PrintDocument(const printing::MetafilePlayer& metafile,
                                    const std::u16string& document_name) {
 #if DCHECK_IS_ON()
-  bool oop_printing = context_->process_behavior() !=
-                      printing::PrintingContext::ProcessBehavior::kOopDisabled;
+  bool oop_printing =
+      context_->out_of_process_behavior() !=
+      printing::PrintingContext::OutOfProcessBehavior::kDisabled;
 
   // For in-browser printing, this runs on the print worker thread, so it does
   // not block the UI thread.  For OOP it runs on the service document task
@@ -518,17 +541,17 @@ void PrintDialogGtk::OnResponse(GtkWidget* dialog, int response_id) {
       if (gtk_settings_) {
         g_object_unref(gtk_settings_.ExtractAsDangling());
       }
-      gtk_settings_ =
-          gtk_print_unix_dialog_get_settings(GTK_PRINT_UNIX_DIALOG(dialog_));
+      gtk_settings_ = gtk_print_unix_dialog_get_settings(
+          GTK_PRINT_UNIX_DIALOG(dialog_.get()));
 
       printer_ = WrapGObject(gtk_print_unix_dialog_get_selected_printer(
-          GTK_PRINT_UNIX_DIALOG(dialog_)));
+          GTK_PRINT_UNIX_DIALOG(dialog_.get())));
 
       if (page_setup_) {
         g_object_unref(page_setup_.ExtractAsDangling());
       }
-      page_setup_ =
-          gtk_print_unix_dialog_get_page_setup(GTK_PRINT_UNIX_DIALOG(dialog_));
+      page_setup_ = gtk_print_unix_dialog_get_page_setup(
+          GTK_PRINT_UNIX_DIALOG(dialog_.get()));
       g_object_ref(page_setup_);
 
       // Handle page ranges.
@@ -558,8 +581,7 @@ void PrintDialogGtk::OnResponse(GtkWidget* dialog, int response_id) {
           break;
         case GTK_PRINT_PAGES_CURRENT:
         default:
-          NOTREACHED_IN_MIGRATION();
-          break;
+          NOTREACHED();
       }
 
       auto settings = std::make_unique<PrintSettings>();
@@ -578,7 +600,7 @@ void PrintDialogGtk::OnResponse(GtkWidget* dialog, int response_id) {
     }
     case GTK_RESPONSE_APPLY:
     default: {
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
     }
   }
 }

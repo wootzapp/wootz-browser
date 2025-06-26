@@ -13,6 +13,7 @@ android_library("net_java") {
     "java/src/org/chromium/net/AndroidNetworkLibrary.java",
     "java/src/org/chromium/net/AndroidTrafficStats.java",
     "java/src/org/chromium/net/ChromiumNetworkAdapter.java",
+    "java/src/org/chromium/net/ConnectivityManagerShim.java",
     "java/src/org/chromium/net/DnsStatus.java",
     "java/src/org/chromium/net/GURLUtils.java",
     "java/src/org/chromium/net/HttpNegotiateAuthenticator.java",
@@ -21,6 +22,7 @@ android_library("net_java") {
     "java/src/org/chromium/net/MimeTypeFilter.java",
     "java/src/org/chromium/net/NetStringUtil.java",
     "java/src/org/chromium/net/NetworkActiveNotifier.java",
+    "java/src/org/chromium/net/NetworkCapabilitiesWrapper.java",
     "java/src/org/chromium/net/NetworkChangeNotifier.java",
     "java/src/org/chromium/net/NetworkChangeNotifierAutoDetect.java",
     "java/src/org/chromium/net/NetworkTrafficAnnotationTag.java",
@@ -38,6 +40,7 @@ android_library("net_java") {
     "//third_party/androidx:androidx_annotation_annotation_java",
     "//third_party/jni_zero:jni_zero_java",
   ]
+
   srcjar_deps = [
     ":net_android_java_enums_srcjar",
     ":net_errors_java",

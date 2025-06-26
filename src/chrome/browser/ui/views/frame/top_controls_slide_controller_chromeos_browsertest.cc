@@ -20,7 +20,6 @@
 #include "base/strings/safe_sprintf.h"
 #include "base/test/test_future.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "cc/base/math_util.h"
 #include "chrome/browser/ash/accessibility/accessibility_manager.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -49,6 +48,7 @@
 #include "ui/aura/window_tree_host.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/compositor/layer.h"
 #include "ui/display/display.h"
 #include "ui/display/display_switches.h"
@@ -102,7 +102,7 @@ class LayoutTestView : public views::View {
  public:
   explicit LayoutTestView(BrowserView* parent) {
     DCHECK(parent);
-    parent->AddChildView(this);
+    parent->AddChildViewRaw(this);
     parent->GetWidget()->LayoutRootViewIfNecessary();
     layout_count_ = 0;
   }
@@ -172,8 +172,7 @@ class TestController : public TopControlsSlideController {
 
   void SetShownRatio(content::WebContents* contents, float ratio) override {
     real_controller_->SetShownRatio(contents, ratio);
-    for (auto& observer : observers_)
-      observer.OnShownRatioChanged(ratio);
+    observers_.Notify(&TestControllerObserver::OnShownRatioChanged, ratio);
   }
 
   void OnBrowserFullscreenStateWillChange(bool new_fullscreen_state) override {
@@ -187,8 +186,8 @@ class TestController : public TopControlsSlideController {
 
   void SetTopControlsGestureScrollInProgress(bool in_progress) override {
     real_controller_->SetTopControlsGestureScrollInProgress(in_progress);
-    for (auto& observer : observers_)
-      observer.OnGestureScrollInProgressChanged(in_progress);
+    observers_.Notify(&TestControllerObserver::OnGestureScrollInProgressChanged,
+                      in_progress);
   }
 
   bool IsTopControlsGestureScrollInProgress() const override {
@@ -233,8 +232,9 @@ class TopControlsShownRatioWaiter : public TestControllerObserver {
                                             "ratio.";
 
     waiting_for_shown_ratio_ = ratio;
-    if (CheckRatio())
+    if (CheckRatio()) {
       return;
+    }
 
     // Use kNestableTasksAllowed to make it possible to wait inside a posted
     // task.
@@ -251,8 +251,9 @@ class TopControlsShownRatioWaiter : public TestControllerObserver {
     if (!controller_->IsTopControlsGestureScrollInProgress() &&
         cc::MathUtil::IsWithinEpsilon(controller_->GetShownRatio(),
                                       waiting_for_shown_ratio_)) {
-      if (run_loop_)
+      if (run_loop_) {
         run_loop_->Quit();
+      }
 
       return true;
     }
@@ -288,14 +289,16 @@ class GestureScrollInProgressChangeWaiter : public TestControllerObserver {
   void OnShownRatioChanged(float shown_ratio) override {}
 
   void OnGestureScrollInProgressChanged(bool in_progress) override {
-    if (in_progress == waited_for_in_progress_state_ && run_loop_)
+    if (in_progress == waited_for_in_progress_state_ && run_loop_) {
       std::move(run_loop_)->Quit();
+    }
   }
 
   void WaitForInProgressState(bool in_progress_state) {
     if (controller_->IsTopControlsGestureScrollInProgress() ==
-        in_progress_state)
+        in_progress_state) {
       return;
+    }
 
     waited_for_in_progress_state_ = in_progress_state;
     // Use kNestableTasksAllowed to make it possible to wait inside a posted
@@ -579,7 +582,7 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, DisabledForHostedApps) {
   Browser::CreateParams params = Browser::CreateParams::CreateForApp(
       "test_browser_app", true /* trusted_source */, gfx::Rect(),
       browser()->profile(), true);
-  params.initial_show_state = ui::SHOW_STATE_DEFAULT;
+  params.initial_show_state = ui::mojom::WindowShowState::kDefault;
   Browser* browser = Browser::Create(params);
   AddBlankTabAndShow(browser);
 
@@ -695,15 +698,8 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, TestCtrlL) {
 }
 
 // Fails on Linux ChromiumOS MSan Tests (https://crbug.com/1194575).
-#if BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_TestScrollingPageAndSwitchingToNTP \
-  DISABLED_TestScrollingPageAndSwitchingToNTP
-#else
-#define MAYBE_TestScrollingPageAndSwitchingToNTP \
-  TestScrollingPageAndSwitchingToNTP
-#endif
 IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
-                       MAYBE_TestScrollingPageAndSwitchingToNTP) {
+                       DISABLED_TestScrollingPageAndSwitchingToNTP) {
   ToggleTabletMode();
   ASSERT_TRUE(GetTabletModeEnabled());
   EXPECT_TRUE(top_controls_slide_controller()->IsEnabled());
@@ -762,12 +758,8 @@ IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
 }
 
 // Fails on Linux Chromium OS Tests (https://crbug.com/1191327).
-#if BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_TestClosingATab DISABLED_TestClosingATab
-#else
-#define MAYBE_TestClosingATab TestClosingATab
-#endif
-IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest, MAYBE_TestClosingATab) {
+IN_PROC_BROWSER_TEST_F(TopControlsSlideControllerTest,
+                       DISABLED_TestClosingATab) {
   ToggleTabletMode();
   ASSERT_TRUE(GetTabletModeEnabled());
   EXPECT_TRUE(top_controls_slide_controller()->IsEnabled());
@@ -909,8 +901,9 @@ class BrowserViewLayoutWaiter : public views::ViewObserver {
   // views::ViewObserver:
   void OnViewBoundsChanged(views::View* observed_view) override {
     view_bounds_changed_ = true;
-    if (run_loop_)
+    if (run_loop_) {
       run_loop_->Quit();
+    }
   }
 
  private:
@@ -1183,21 +1176,25 @@ class IntermediateShownRatioWaiter : public TestControllerObserver {
   // TestControllerObserver:
   void OnShownRatioChanged(float shown_ratio) override {
     seen_intermediate_ratios_ |= shown_ratio > 0.0 && shown_ratio < 1.f;
-    if (!seen_intermediate_ratios_)
+    if (!seen_intermediate_ratios_) {
       return;
+    }
 
-    if (on_intermediate_ratio_callback_)
+    if (on_intermediate_ratio_callback_) {
       std::move(on_intermediate_ratio_callback_).Run();
+    }
 
-    if (run_loop_)
+    if (run_loop_) {
       run_loop_->Quit();
+    }
   }
 
   void OnGestureScrollInProgressChanged(bool in_progress) override {}
 
   void Wait() {
-    if (seen_intermediate_ratios_)
+    if (seen_intermediate_ratios_) {
       return;
+    }
 
     run_loop_ = std::make_unique<base::RunLoop>(
         base::RunLoop::Type::kNestableTasksAllowed);

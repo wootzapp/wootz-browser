@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "components/page_info/android/page_info_controller_android.h"
+
 #include <string>
 
 #include "base/android/jni_android.h"
@@ -14,7 +15,6 @@
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
-#include "components/page_info/android/jni_headers/PageInfoController_jni.h"
 #include "components/page_info/android/page_info_client.h"
 #include "components/page_info/core/features.h"
 #include "components/page_info/page_info.h"
@@ -27,7 +27,15 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
+#include "device/vr/buildflags/buildflags.h"
 #include "url/origin.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/page_info/android/jni_headers/PageInfoController_jni.h"
+
+#if BUILDFLAG(ENABLE_VR)
+#include "device/vr/public/cpp/features.h"
+#endif
 
 using base::android::ConvertUTF16ToJavaString;
 using base::android::ConvertUTF8ToJavaString;
@@ -136,13 +144,19 @@ void PageInfoControllerAndroid::SetPermissionInfo(
   permissions_to_display.push_back(
       ContentSettingsType::PROTECTED_MEDIA_IDENTIFIER);
   permissions_to_display.push_back(ContentSettingsType::SOUND);
-  if (base::FeatureList::IsEnabled(features::kWebNfc))
-    permissions_to_display.push_back(ContentSettingsType::NFC);
+  permissions_to_display.push_back(ContentSettingsType::NFC);
   base::CommandLine* cmd = base::CommandLine::ForCurrentProcess();
+  permissions_to_display.push_back(
+      ContentSettingsType::FILE_SYSTEM_WRITE_GUARD);
   if (cmd->HasSwitch(switches::kEnableExperimentalWebPlatformFeatures))
     permissions_to_display.push_back(ContentSettingsType::BLUETOOTH_SCANNING);
   permissions_to_display.push_back(ContentSettingsType::VR);
   permissions_to_display.push_back(ContentSettingsType::AR);
+#if BUILDFLAG(ENABLE_VR)
+  if (device::features::IsHandTrackingEnabled()) {
+    permissions_to_display.push_back(ContentSettingsType::HAND_TRACKING);
+  }
+#endif
   if (base::FeatureList::IsEnabled(features::kFedCm)) {
     permissions_to_display.push_back(
         ContentSettingsType::FEDERATED_IDENTITY_API);
@@ -219,6 +233,9 @@ std::optional<ContentSetting> PageInfoControllerAndroid::GetSettingToDisplay(
     // audio since last navigation.
     if (web_contents_->WasEverAudible())
       return permission.default_setting;
+  } else if (permission.type == ContentSettingsType::FILE_SYSTEM_WRITE_GUARD) {
+    // The file editing permission should show up if there are any open files.
+    return permission.default_setting;
   }
 
   // TODO(crbug.com/40129299): Also return permissions that are non

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/nacl/renderer/json_manifest.h"
 
 #include <stddef.h>
@@ -377,7 +382,7 @@ JsonManifest::JsonManifest(const std::string& manifest_base_url,
       sandbox_isa_(sandbox_isa),
       pnacl_debug_(pnacl_debug) {}
 
-JsonManifest::~JsonManifest() {}
+JsonManifest::~JsonManifest() = default;
 
 bool JsonManifest::Init(const std::string& manifest_json_data,
                         ErrorInfo* error_info) {
@@ -598,8 +603,7 @@ bool JsonManifest::GetURLFromISADictionary(
     } else {
       // Should not reach here, because the earlier IsValidISADictionary()
       // call checked that the manifest covers the current architecture.
-      NOTREACHED_IN_MIGRATION();
-      return false;
+      NOTREACHED();
     }
   }
 

@@ -9,7 +9,7 @@
 
 #include "base/strings/string_util.h"
 #include "base/values.h"
-#include "chrome/browser/extensions/api/context_menus/context_menus_api_helpers.h"
+#include "chrome/browser/extensions/context_menu_helpers.h"
 #include "chrome/browser/extensions/menu_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/extensions/api/context_menus.h"
@@ -47,16 +47,16 @@ ExtensionFunction::ResponseAction ContextMenusCreateFunction::Run() {
     EXTENSION_FUNCTION_VALIDATE(args()[0].is_dict());
 
     const base::Value& properties = args()[0];
-    std::optional<int> result = properties.GetDict().FindInt(
-        extensions::context_menus_api_helpers::kGeneratedIdKey);
+    std::optional<int> result =
+        properties.GetDict().FindInt(context_menu_helpers::kGeneratedIdKey);
     EXTENSION_FUNCTION_VALIDATE(result);
     id.uid = *result;
   }
 
   std::string error;
-  if (!extensions::context_menus_api_helpers::CreateMenuItem(
-          params->create_properties, browser_context(), extension(), id,
-          &error)) {
+  if (!context_menu_helpers::CreateMenuItem(params->create_properties,
+                                            browser_context(), extension(), id,
+                                            &error)) {
     return RespondNow(Error(std::move(error)));
   }
   return RespondNow(NoArguments());
@@ -69,17 +69,18 @@ ExtensionFunction::ResponseAction ContextMenusUpdateFunction::Run() {
       api::context_menus::Update::Params::Create(args());
 
   EXTENSION_FUNCTION_VALIDATE(params);
-  if (params->id.as_string)
+  if (params->id.as_string) {
     item_id.string_uid = *params->id.as_string;
-  else if (params->id.as_integer)
+  } else if (params->id.as_integer) {
     item_id.uid = *params->id.as_integer;
-  else
-    NOTREACHED_IN_MIGRATION();
+  } else {
+    NOTREACHED();
+  }
 
   std::string error;
-  if (!extensions::context_menus_api_helpers::UpdateMenuItem(
-          params->update_properties, browser_context(), extension(), item_id,
-          &error)) {
+  if (!context_menu_helpers::UpdateMenuItem(params->update_properties,
+                                            browser_context(), extension(),
+                                            item_id, &error)) {
     return RespondNow(Error(std::move(error)));
   }
   return RespondNow(NoArguments());
@@ -94,19 +95,19 @@ ExtensionFunction::ResponseAction ContextMenusRemoveFunction::Run() {
 
   MenuItem::Id id(browser_context()->IsOffTheRecord(),
                   MenuItem::ExtensionKey(extension_id()));
-  if (params->menu_item_id.as_string)
+  if (params->menu_item_id.as_string) {
     id.string_uid = *params->menu_item_id.as_string;
-  else if (params->menu_item_id.as_integer)
+  } else if (params->menu_item_id.as_integer) {
     id.uid = *params->menu_item_id.as_integer;
-  else
-    NOTREACHED_IN_MIGRATION();
+  } else {
+    NOTREACHED();
+  }
 
   MenuItem* item = manager->GetItemById(id);
   // Ensure one extension can't remove another's menu items.
   if (!item || item->extension_id() != extension_id()) {
-    return RespondNow(
-        Error(extensions::context_menus_api_helpers::kCannotFindItemError,
-              extensions::context_menus_api_helpers::GetIDString(id)));
+    return RespondNow(Error(context_menu_helpers::kCannotFindItemError,
+                            context_menu_helpers::GetIDString(id)));
   }
 
   if (!manager->RemoveContextMenuItem(id))

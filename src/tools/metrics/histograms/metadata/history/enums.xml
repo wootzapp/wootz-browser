@@ -26,16 +26,24 @@ chromium-metrics-reviews@google.com.
 
 <enums>
 
+<!-- NOTE: Please also keep in line with components/visitedlink/browser/visitedlink_writer.cc:AddFingerprint. -->
+
+<!-- LINT.IfChange(AddFingerprint) -->
+
 <enum name="AddFingerprint">
   <int value="0" label="NewVisit"/>
   <int value="1" label="AlreadyVisited"/>
   <int value="2" label="TableError"/>
 </enum>
 
+<!-- LINT.ThenChange(//components/visitedlink/browser/partitioned_visitedlink_writer.cc:AddFingerprint) -->
+
 <enum name="BooleanQueried">
   <int value="0" label="Not Queried"/>
   <int value="1" label="Queried"/>
 </enum>
+
+<!-- LINT.IfChange(BrowsingDataRemoverTasks) -->
 
 <enum name="BrowsingDataRemoverTasks">
   <int value="1" label="kSynchronous"/>
@@ -56,6 +64,10 @@ chromium-metrics-reviews@google.com.
   <int value="16" label="kPreflightCache"/>
   <int value="17" label="kSharedDictionary"/>
 </enum>
+
+<!-- LINT.ThenChange(//tools/metrics/histograms/metadata/history/histograms.xml:History.ClearBrowsingData.Duration.Task.Task) -->
+
+<!-- LINT.IfChange(ChromeBrowsingDataRemoverTasks) -->
 
 <enum name="ChromeBrowsingDataRemoverTasks">
   <int value="1" label="kSynchronous"/>
@@ -108,10 +120,7 @@ chromium-metrics-reviews@google.com.
   <int value="46" label="kDisableAutoSigninForAccountPasswords"/>
 </enum>
 
-<enum name="ClearBrowsingDataTab">
-  <int value="0" label="Basic"/>
-  <int value="1" label="Advanced"/>
-</enum>
+<!-- LINT.ThenChange(//tools/metrics/histograms/metadata/history/histograms.xml:History.ClearBrowsingData.Duration.ChromeTask.Task) -->
 
 <enum name="ClusterFilterReason">
   <int value="0" label="Not filtered"/>
@@ -126,6 +135,24 @@ chromium-metrics-reviews@google.com.
   <int value="9" label="Not enough non-hidden visits"/>
 </enum>
 
+<enum name="ComputeAnswerStatus">
+  <int value="0" label="Unspecified"/>
+  <int value="1" label="Loading"/>
+  <int value="2" label="Success"/>
+  <int value="3" label="Unanswerable"/>
+  <int value="4" label="ModelUnavailable"/>
+  <int value="5" label="ExecutionFailure"/>
+  <int value="6" label="ExecutionCancelled"/>
+  <int value="7" label="Filtered"/>
+</enum>
+
+<enum name="ComputeEmbeddingsStatus">
+  <int value="0" label="Success"/>
+  <int value="1" label="Model Unavailable"/>
+  <int value="2" label="Execution Failure"/>
+  <int value="3" label="Execution Canceled"/>
+</enum>
+
 <enum name="CookieOrCacheDeletion">
   <int value="0" label="Neither"/>
   <int value="1" label="Only cookies"/>
@@ -133,11 +160,73 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="Both"/>
 </enum>
 
+<enum name="EmbeddingsExtractionCancelled">
+  <int value="0" label="Unknown"/>
+  <int value="1" label="TabHelper.DidFinishLoad"/>
+  <int value="2" label="TabHelper.ExtractPassages.Url"/>
+  <int value="3" label="TabHelper.ExtractPassages.Reschedule"/>
+  <int value="4" label="TabHelper.ExtractPassagesWithHistoryData.Results"/>
+  <int value="5" label="TabHelper.ExtractPassagesWithHistoryData.Time"/>
+  <int value="6" label="TabHelper.ExtractPassagesWithHistoryData.Guid"/>
+  <int value="7" label="Service.RetrievePassages"/>
+  <int value="8" label="Service.RetrievePassagesWithUrlData"/>
+</enum>
+
+<enum name="EmbeddingsModelInfoStatus">
+  <int value="0" label="Unknown"/>
+  <int value="1" label="Model info is valid"/>
+  <int value="2" label="Model info is empty"/>
+  <int value="3" label="Model info does not contain model metadata"/>
+  <int value="4" label="Model info has invalid model metadata"/>
+  <int value="5" label="Model info has invalid data for additional files"/>
+</enum>
+
+<enum name="EmbeddingsQueryFiltered">
+  <int value="0" label="Not filtered"/>
+  <int value="1" label="Filtered non-ASCII"/>
+  <int value="2" label="Filtered phrase match"/>
+  <int value="3" label="Filtered term match"/>
+  <int value="4" label="Filtered one-word hash match"/>
+  <int value="5" label="Filtered two-word hash match"/>
+</enum>
+
 <enum name="EmbeddingsUserActions">
   <int value="0" label="Non-empty query History search"/>
   <int value="1" label="Embeddings search"/>
   <int value="2" label="Embeddings non-empty results shown"/>
   <int value="3" label="Embeddings result clicked"/>
+  <int value="4" label="Answer shown"/>
+  <int value="5" label="Answer citation clicked"/>
+  <int value="6" label="Other history result clicked"/>
+</enum>
+
+<enum name="HistoryClustersInitialState">
+  <summary>
+    The initial state that describes how an interaction with the
+    HistoryClusters, or Journeys, UI was started.
+  </summary>
+  <int value="0" label="Unknown"/>
+  <int value="1" label="kDirectNavigation">
+    The UI was reached via direct navigation, like the user typing the WebUI URL
+    in the omnibox.
+  </int>
+  <int value="2" label="kIndirectNavigation">
+    The UI was reached via indirect navigation, e.g. clicking on the omnibox
+    action chip.
+  </int>
+  <int value="3" label="kSameDocument">
+    The UI was reached via same-document navigation, like the user visiting
+    History first, and then clicking the Journeys Tab. This also includes other
+    edge cases, like if the user clicked over from 'Tabs on other devices'.
+  </int>
+  <int value="4" label="kSidePanelFromOmnibox">
+    The Side Panel HistoryClusters UI was opened from the omnibox. Technically
+    this COULD be logged as kIndirectNavigation, but we want to be able to
+    distinguish between Side Panel and History WebUI initializations.
+  </int>
+  <int value="5" label="kSidePanelFromToolbarButton">
+    The Side Panel HistoryClusters UI was opened from side panel toolbar button.
+  </int>
 </enum>
 
 <enum name="HistoryInitStep">
@@ -190,6 +279,8 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="ManualSubframe"/>
 </enum>
 
+<!-- LINT.IfChange(StoragePartitionRemoverTasks) -->
+
 <enum name="StoragePartitionRemoverTasks">
   <int value="1" label="kSynchronous"/>
   <int value="2" label="kCookies"/>
@@ -205,7 +296,10 @@ chromium-metrics-reviews@google.com.
   <int value="12" label="kPrivateAggregation"/>
   <int value="13" label="kInterestGroups"/>
   <int value="14" label="kCdmStorage"/>
+  <int value="15" label="kDeviceBoundSessions"/>
 </enum>
+
+<!-- LINT.ThenChange(//content/browser/storage_partition_impl.cc:TracingDataType) -->
 
 </enums>
 

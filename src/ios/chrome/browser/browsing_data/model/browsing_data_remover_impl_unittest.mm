@@ -16,7 +16,7 @@
 #import "components/open_from_clipboard/clipboard_recent_content.h"
 #import "components/open_from_clipboard/fake_clipboard_recent_content.h"
 #import "ios/chrome/browser/browsing_data/model/browsing_data_remover_observer.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "testing/gtest/include/gtest/gtest.h"
 #import "testing/platform_test.h"
@@ -27,7 +27,7 @@ using base::test::ios::WaitUntilConditionOrTimeout;
 namespace {
 
 // Flags passed when calling Remove(). Clear as much data as possible, avoiding
-// using services that are not created for TestChromeBrowserState.
+// using services that are not created for TestProfileIOS.
 constexpr BrowsingDataRemoveMask kRemoveMask =
     BrowsingDataRemoveMask::REMOVE_APPCACHE |
     BrowsingDataRemoveMask::REMOVE_CACHE |
@@ -85,8 +85,8 @@ void TestBrowsingDataRemoverObserver::OnBrowsingDataRemoved(
 class BrowsingDataRemoverImplTest : public PlatformTest {
  public:
   BrowsingDataRemoverImplTest()
-      : browser_state_(TestChromeBrowserState::Builder().Build()),
-        browsing_data_remover_(browser_state_.get()) {
+      : profile_(TestProfileIOS::Builder().Build()),
+        browsing_data_remover_(profile_.get()) {
     DCHECK_EQ(ClipboardRecentContent::GetInstance(), nullptr);
     ClipboardRecentContent::SetInstance(
         std::make_unique<FakeClipboardRecentContent>());
@@ -104,7 +104,7 @@ class BrowsingDataRemoverImplTest : public PlatformTest {
 
  protected:
   web::WebTaskEnvironment task_environment_;
-  std::unique_ptr<ChromeBrowserState> browser_state_;
+  std::unique_ptr<ProfileIOS> profile_;
   BrowsingDataRemoverImpl browsing_data_remover_;
 };
 

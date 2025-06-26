@@ -57,6 +57,8 @@ constexpr char kAccountEmailFormat[] = "%s@foo.com";
 constexpr char kAccountName[] = "The Liliputian";
 constexpr char kAccountGivenName[] = "Julius";
 constexpr char kAccountPicture[] = "https://image.com/yolo";
+constexpr char kAccountPhone[] = "(650) 243-3243";
+constexpr char kAccountUsername[] = "@julius";
 
 struct AccountConfig {
   std::string id;
@@ -163,19 +165,22 @@ class TestIdpNetworkRequestManager : public MockIdpNetworkRequestManager {
                        endpoints, idp_metadata));
   }
 
-  void SendAccountsRequest(const GURL& accounts_url,
+  void SendAccountsRequest(const url::Origin& idp_origin,
+                           const GURL& accounts_url,
                            const std::string& client_id,
                            AccountsRequestCallback callback) override {
     has_fetched_accounts_endpoint_ = true;
 
-    std::vector<IdentityRequestAccount> accounts;
+    std::vector<IdentityRequestAccountPtr> accounts;
     for (const AccountConfig& account_config : config_.accounts) {
-      accounts.emplace_back(
+      accounts.emplace_back(base::MakeRefCounted<IdentityRequestAccount>(
           account_config.id, GenerateEmailForUserId(account_config.id),
-          kAccountName, kAccountGivenName, GURL(kAccountPicture),
+          kAccountName, GenerateEmailForUserId(account_config.id), kAccountName,
+          kAccountGivenName, GURL(kAccountPicture), kAccountPhone,
+          kAccountUsername,
           /*login_hints=*/std::vector<std::string>(),
           /*domain_hints=*/std::vector<std::string>(),
-          /*labels=*/std::vector<std::string>(), account_config.login_state);
+          /*labels=*/std::vector<std::string>(), account_config.login_state));
     }
 
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -213,11 +218,9 @@ class TestApiPermissionDelegate : public MockApiPermissionDelegate {
 
 class TestPermissionDelegate : public MockPermissionDelegate {
  public:
-  bool HasSharingPermission(
-      const url::Origin& relying_party_requester,
-      const url::Origin& relying_party_embedder,
-      const url::Origin& identity_provider,
-      const std::optional<std::string>& account_id) override {
+  bool HasSharingPermission(const url::Origin& relying_party_requester,
+                            const url::Origin& relying_party_embedder,
+                            const url::Origin& identity_provider) override {
     url::Origin rp_origin_with_data = url::Origin::Create(GURL(kRpUrl));
     url::Origin idp_origin_with_data =
         url::Origin::Create(GURL(kPersonalizedButtonFrameUrl));
@@ -226,9 +229,25 @@ class TestPermissionDelegate : public MockPermissionDelegate {
         relying_party_embedder == rp_origin_with_data &&
         identity_provider == idp_origin_with_data;
     return has_granted_permission_per_profile &&
-           (account_id
-                ? accounts_with_sharing_permission_.count(account_id.value())
-                : !accounts_with_sharing_permission_.empty());
+           !accounts_with_sharing_permission_.empty();
+  }
+
+  std::optional<base::Time> GetLastUsedTimestamp(
+      const url::Origin& relying_party_requester,
+      const url::Origin& relying_party_embedder,
+      const url::Origin& identity_provider,
+      const std::string& account_id) override {
+    url::Origin rp_origin_with_data = url::Origin::Create(GURL(kRpUrl));
+    url::Origin idp_origin_with_data =
+        url::Origin::Create(GURL(kPersonalizedButtonFrameUrl));
+    bool has_granted_permission_per_profile =
+        relying_party_requester == rp_origin_with_data &&
+        relying_party_embedder == rp_origin_with_data &&
+        identity_provider == idp_origin_with_data;
+    return has_granted_permission_per_profile &&
+                   accounts_with_sharing_permission_.count(account_id)
+               ? std::make_optional<base::Time>()
+               : std::nullopt;
   }
 
   std::optional<bool> GetIdpSigninStatus(
@@ -507,7 +526,7 @@ TEST_F(FederatedAuthUserInfoRequestTest,
   std::vector<std::optional<bool>> kTestCases = {std::nullopt, true};
 
   for (const std::optional<bool>& test_case : kTestCases) {
-    EXPECT_CALL(*permission_delegate_, SetIdpSigninStatus(_, false));
+    EXPECT_CALL(*permission_delegate_, SetIdpSigninStatus(_, false, _));
 
     Config config = kValidConfig;
     config.idp_signin_status = test_case;

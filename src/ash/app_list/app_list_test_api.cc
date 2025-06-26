@@ -111,8 +111,7 @@ size_t GetMenuIndexOfSortingOrder(ash::AppListSortOrder order) {
     case ash::AppListSortOrder::kNameReverseAlphabetical:
     case ash::AppListSortOrder::kCustom:
     case ash::AppListSortOrder::kAlphabeticalEphemeralAppFirst:
-      NOTREACHED_IN_MIGRATION();
-      return 0;
+      NOTREACHED();
   }
 }
 
@@ -132,8 +131,7 @@ views::MenuItemView* GetReorderOptionForAppListOrFolderItemMenu(
     case ash::AppListSortOrder::kNameReverseAlphabetical:
     case ash::AppListSortOrder::kCustom:
     case ash::AppListSortOrder::kAlphabeticalEphemeralAppFirst:
-      NOTREACHED_IN_MIGRATION();
-      return nullptr;
+      NOTREACHED();
   }
   return reorder_option;
 }
@@ -409,13 +407,10 @@ bool AppListTestApi::HasApp(const std::string& app_id) {
   return GetAppListModel()->FindItem(app_id);
 }
 
-std::u16string AppListTestApi::GetAppListItemViewName(
+std::u16string_view AppListTestApi::GetAppListItemViewName(
     const std::string& item_id) {
   AppListItemView* item_view = GetTopLevelItemViewFromId(item_id);
-  if (!item_view)
-    return u"";
-
-  return item_view->title()->GetText();
+  return item_view ? item_view->title()->GetText() : std::u16string_view();
 }
 
 AppListItemView* AppListTestApi::GetTopLevelItemViewFromId(

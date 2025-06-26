@@ -5,11 +5,13 @@
 #include "chrome/browser/ui/android/fast_checkout/ui_view_android_utils.h"
 
 #include "base/android/jni_android.h"
-#include "components/autofill/core/browser/autofill_data_util.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
+#include "components/autofill/core/browser/data_quality/autofill_data_util.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+namespace {
 
 TEST(FastCheckoutUIViewAndroidUtils, CreateFastCheckoutAutofillProfile) {
   JNIEnv* env = base::android::AttachCurrentThread();
@@ -54,8 +56,7 @@ TEST(FastCheckoutUIViewAndroidUtils, CreateFastCheckoutAutofillProfile) {
 TEST(FastCheckoutUIViewAndroidUtils, CreateFastCheckoutCreditCard) {
   JNIEnv* env = base::android::AttachCurrentThread();
   const autofill::CreditCard credit_cards[] = {
-      autofill::test::GetCreditCard(), autofill::test::GetFullServerCard(),
-      autofill::test::GetMaskedServerCard()};
+      autofill::test::GetCreditCard(), autofill::test::GetMaskedServerCard()};
 
   for (const autofill::CreditCard& credit_card : credit_cards) {
     base::android::ScopedJavaLocalRef<jobject> scoped_credit_card =
@@ -69,3 +70,5 @@ TEST(FastCheckoutUIViewAndroidUtils, CreateFastCheckoutCreditCard) {
     EXPECT_EQ(credit_card, *parsed_credit_card.get());
   }
 }
+
+}  // namespace

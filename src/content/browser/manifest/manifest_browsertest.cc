@@ -18,9 +18,10 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
+#include "base/test/test_future.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
+#include "content/public/browser/manifest_icon_downloader.h"
 #include "content/public/browser/page.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
@@ -68,7 +69,8 @@ class MockWebContentsDelegate : public WebContentsDelegate {
                               int32_t line_no,
                               const std::u16string& source_id) override;
   PreloadingEligibility IsPrerender2Supported(
-      WebContents& web_contents) override {
+      WebContents& web_contents,
+      PreloadingTriggerType trigger_type) override {
     return PreloadingEligibility::kEligible;
   }
 
@@ -112,7 +114,8 @@ class ManifestBrowserTest : public ContentBrowserTest,
     message_loop_runner_->Run();
   }
 
-  void OnGetManifest(const GURL& manifest_url,
+  void OnGetManifest(blink::mojom::ManifestRequestResult result,
+                     const GURL& manifest_url,
                      blink::mojom::ManifestPtr manifest) {
     manifest_url_ = manifest_url;
     manifest_ = std::move(manifest);
@@ -233,7 +236,8 @@ IN_PROC_BROWSER_TEST_F(ManifestBrowserTest, 404Manifest) {
   ASSERT_TRUE(NavigateToURL(shell(), test_url));
 
   GetManifestAndWait();
-  EXPECT_TRUE(blink::IsEmptyManifest(manifest()));
+  EXPECT_FALSE(blink::IsEmptyManifest(manifest()));
+  EXPECT_TRUE(blink::IsDefaultManifest(manifest(), test_url));
   EXPECT_FALSE(manifest_url().is_empty());
   // 1 error for syntax errors in manifest/thereisnomanifestthere.json.
   EXPECT_EQ(1, GetConsoleErrorCount());
@@ -270,7 +274,8 @@ IN_PROC_BROWSER_TEST_F(ManifestBrowserTest, ParseErrorManifest) {
   ASSERT_TRUE(NavigateToURL(shell(), test_url));
 
   GetManifestAndWait();
-  EXPECT_TRUE(blink::IsEmptyManifest(manifest()));
+  EXPECT_FALSE(blink::IsEmptyManifest(manifest()));
+  EXPECT_TRUE(blink::IsDefaultManifest(manifest(), test_url));
   EXPECT_FALSE(manifest_url().is_empty());
   EXPECT_EQ(1, GetConsoleErrorCount());
   ASSERT_EQ(1u, reported_manifest_urls().size());
@@ -601,6 +606,68 @@ IN_PROC_BROWSER_TEST_F(ManifestBrowserTest, AnchorNavigation) {
   EXPECT_EQ(1u, manifests_reported_when_favicon_url_updated()[1]);
 }
 
+using ManifestIconDownloaderBrowserTest = ManifestBrowserTest;
+
+// Bad icon measures the `kNoImageFound` histogram, and the chrome-url histogram
+// isn't measured.
+IN_PROC_BROWSER_TEST_F(ManifestIconDownloaderBrowserTest, BadIcon) {
+  base::HistogramTester tester;
+  GURL icon_url = embedded_test_server()->GetURL("/manifest/bad_icon.png");
+
+  base::test::TestFuture<const SkBitmap&> test_future;
+  content::ManifestIconDownloader::Download(
+      shell()->web_contents(), icon_url, /*ideal_icon_size_in_px=*/192,
+      /*minimum_icon_size_in_px=*/192, /*maximum_icon_size_in_px=*/192,
+      test_future.GetCallback(), /*square_only=*/false);
+  EXPECT_TRUE(test_future.Wait());
+
+  EXPECT_TRUE(test_future.Get().drawsNothing());
+
+  tester.ExpectBucketCount("WebApp.ManifestIconDownloader.Result",
+                           ManifestIconDownloader::Result::kNoImageFound, 1);
+  tester.ExpectTotalCount("WebApp.ManifestIconDownloader.ChromeUrl.Result", 0);
+}
+
+IN_PROC_BROWSER_TEST_F(ManifestIconDownloaderBrowserTest, HungIcon) {
+  base::HistogramTester tester;
+  GURL icon_url = embedded_test_server()->GetURL("/manifest/hung");
+
+  base::test::TestFuture<const SkBitmap&> test_future;
+  content::ManifestIconDownloader::Download(
+      shell()->web_contents(), icon_url, /*ideal_icon_size_in_px=*/64,
+      /*minimum_icon_size_in_px=*/64, /*maximum_icon_size_in_px=*/64,
+      test_future.GetCallback(), /*square_only=*/false);
+  EXPECT_TRUE(test_future.Wait());
+
+  EXPECT_TRUE(test_future.Get().drawsNothing());
+
+  tester.ExpectBucketCount("WebApp.ManifestIconDownloader.Result",
+                           ManifestIconDownloader::Result::kNoImageFound, 1);
+  tester.ExpectTotalCount("WebApp.ManifestIconDownloader.ChromeUrl.Result", 0);
+}
+
+// Valid icon measures the `kSuccess` histogram.
+IN_PROC_BROWSER_TEST_F(ManifestIconDownloaderBrowserTest, CorrectIcon) {
+  base::HistogramTester tester;
+  GURL test_url =
+      embedded_test_server()->GetURL("/manifest/icon-manifest.html");
+  GURL icon_url = embedded_test_server()->GetURL("/manifest/128x128-red.png");
+
+  base::test::TestFuture<const SkBitmap&> test_future;
+  ASSERT_TRUE(NavigateToURL(shell(), test_url));
+  content::ManifestIconDownloader::Download(
+      shell()->web_contents(), icon_url, /*ideal_icon_size_in_px=*/128,
+      /*minimum_icon_size_in_px=*/128, /*maximum_icon_size_in_px=*/128,
+      test_future.GetCallback(), /*square_only=*/false);
+  EXPECT_TRUE(test_future.Wait());
+
+  // A valid image is drawn.
+  EXPECT_FALSE(test_future.Get().drawsNothing());
+
+  tester.ExpectBucketCount("WebApp.ManifestIconDownloader.Result",
+                           ManifestIconDownloader::Result::kSuccess, 1);
+}
+
 namespace {
 
 std::unique_ptr<net::test_server::HttpResponse> CustomHandleRequestForCookies(
@@ -738,10 +805,10 @@ IN_PROC_BROWSER_TEST_F(ManifestBrowserTest, UniqueOrigin) {
   ASSERT_TRUE(ExecJs(shell(), "setManifestTo('" + manifest_link + "')"));
 
   // Same-origin manifest will not be fetched from a unique origin, regardless
-  // of CORS headers.
+  // of CORS headers. Manifest URL is still returned though.
   GetManifestAndWait();
   EXPECT_TRUE(blink::IsEmptyManifest(manifest()));
-  EXPECT_TRUE(manifest_url().is_empty());
+  EXPECT_FALSE(manifest_url().is_empty());
   EXPECT_EQ(0, GetConsoleErrorCount());
   EXPECT_EQ(0u, reported_manifest_urls().size());
 
@@ -751,7 +818,7 @@ IN_PROC_BROWSER_TEST_F(ManifestBrowserTest, UniqueOrigin) {
 
   GetManifestAndWait();
   EXPECT_TRUE(blink::IsEmptyManifest(manifest()));
-  EXPECT_TRUE(manifest_url().is_empty());
+  EXPECT_FALSE(manifest_url().is_empty());
   EXPECT_EQ(0, GetConsoleErrorCount());
   EXPECT_EQ(0u, reported_manifest_urls().size());
 }
@@ -778,7 +845,8 @@ IN_PROC_BROWSER_TEST_F(ManifestBrowserTest,
   base::RunLoop run_loop;
   WebContents* web_contents = shell()->web_contents();
   web_contents->GetPrimaryPage().GetManifest(base::BindLambdaForTesting(
-      [&](const GURL& url, blink::mojom::ManifestPtr manifest) {
+      [&](blink::mojom::ManifestRequestResult, const GURL& url,
+          blink::mojom::ManifestPtr manifest) {
         EXPECT_TRUE(url.is_empty());
         EXPECT_TRUE(blink::IsEmptyManifest(manifest));
 
@@ -838,7 +906,8 @@ IN_PROC_BROWSER_TEST_F(ManifestBrowserPrerenderingTest,
   {
     base::RunLoop run_loop;
     web_contents()->GetPrimaryPage().GetManifest(base::BindLambdaForTesting(
-        [&](const GURL& manifest_url, blink::mojom::ManifestPtr manifest) {
+        [&](blink::mojom::ManifestRequestResult, const GURL& manifest_url,
+            blink::mojom::ManifestPtr manifest) {
           // Get the manifest on a primary page.
           EXPECT_FALSE(manifest_url.is_empty());
           EXPECT_FALSE(blink::IsEmptyManifest(*manifest));
@@ -850,13 +919,14 @@ IN_PROC_BROWSER_TEST_F(ManifestBrowserPrerenderingTest,
   GURL prerender_url =
       embedded_test_server()->GetURL("/manifest/sample-manifest.html");
   // Loads a page in the prerender.
-  int host_id = prerender_helper().AddPrerender(prerender_url);
+  FrameTreeNodeId host_id = prerender_helper().AddPrerender(prerender_url);
   content::RenderFrameHost* prerender_rfh =
       prerender_helper().GetPrerenderedMainFrameHost(host_id);
   {
     base::RunLoop run_loop;
     prerender_rfh->GetPage().GetManifest(base::BindLambdaForTesting(
-        [&](const GURL& manifest_url, blink::mojom::ManifestPtr manifest) {
+        [&](blink::mojom::ManifestRequestResult, const GURL& manifest_url,
+            blink::mojom::ManifestPtr manifest) {
           // Ensure that the manifest is empty in prerendering.
           EXPECT_TRUE(manifest_url.is_empty());
           EXPECT_TRUE(blink::IsEmptyManifest(*manifest));
@@ -869,7 +939,8 @@ IN_PROC_BROWSER_TEST_F(ManifestBrowserPrerenderingTest,
   {
     base::RunLoop run_loop;
     prerender_rfh->GetPage().GetManifest(base::BindLambdaForTesting(
-        [&](const GURL& manifest_url, blink::mojom::ManifestPtr manifest) {
+        [&](blink::mojom::ManifestRequestResult, const GURL& manifest_url,
+            blink::mojom::ManifestPtr manifest) {
           // Ensure that getting the manifest works after prerendering
           // activation.
           EXPECT_FALSE(manifest_url.is_empty());
@@ -918,7 +989,8 @@ IN_PROC_BROWSER_TEST_F(ManifestFencedFrameBrowserTest,
 
   base::RunLoop run_loop;
   fenced_frame_rfh->GetPage().GetManifest(base::BindLambdaForTesting(
-      [&](const GURL& manifest_url, blink::mojom::ManifestPtr manifest) {
+      [&](blink::mojom::ManifestRequestResult, const GURL& manifest_url,
+          blink::mojom::ManifestPtr manifest) {
         // Even though `fenced_frame_rfh` has a manifest updated above,
         // this should get an empty manifest since it's not a primary main
         // frame.

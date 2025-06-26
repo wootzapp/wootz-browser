@@ -30,6 +30,7 @@
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/image_view.h"
@@ -72,7 +73,7 @@ OverviewButtonTray::OverviewButtonTray(Shelf* shelf)
   const int horizontal_padding = (kTrayItemSize - image.width()) / 2;
   icon_->SetBorder(views::CreateEmptyBorder(
       gfx::Insets::VH(vertical_padding, horizontal_padding)));
-  tray_container()->AddChildView(icon_.get());
+  tray_container()->AddChildViewRaw(icon_.get());
 
   // Since OverviewButtonTray is located on the rightmost position of a
   // horizontal shelf, no separator is required.
@@ -83,6 +84,9 @@ OverviewButtonTray::OverviewButtonTray(Shelf* shelf)
   Shell::Get()->overview_controller()->AddObserver(this);
   Shell::Get()->tablet_mode_controller()->AddObserver(this);
   Shell::Get()->shelf_config()->AddObserver(this);
+
+  GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_ASH_OVERVIEW_BUTTON_ACCESSIBLE_NAME));
 }
 
 OverviewButtonTray::~OverviewButtonTray() {
@@ -105,7 +109,7 @@ void OverviewButtonTray::OnGestureEvent(ui::GestureEvent* event) {
   Button::OnGestureEvent(event);
   // TODO(crbug.com/40242435): React to long press via `OnButtonPressed()` once
   // this is enabled.
-  if (event->type() == ui::ET_GESTURE_LONG_PRESS) {
+  if (event->type() == ui::EventType::kGestureLongPress) {
     // TODO(crbug.com/40630467): Properly implement the multi-display behavior
     // (in tablet position with an external pointing device).
     SplitViewController::Get(Shell::GetPrimaryRootWindow())
@@ -137,12 +141,7 @@ void OverviewButtonTray::OnOverviewModeEnded() {
 void OverviewButtonTray::ClickedOutsideBubble(const ui::LocatedEvent& event) {}
 
 void OverviewButtonTray::UpdateTrayItemColor(bool is_active) {
-  DCHECK(chromeos::features::IsJellyEnabled());
-  icon_->SetImage(GetIconImage());
-}
-
-std::u16string OverviewButtonTray::GetAccessibleNameForTray() {
-  return l10n_util::GetStringUTF16(IDS_ASH_OVERVIEW_BUTTON_ACCESSIBLE_NAME);
+  icon_->SetImage(ui::ImageModel::FromImageSkia(GetIconImage()));
 }
 
 void OverviewButtonTray::HandleLocaleChange() {}
@@ -153,7 +152,7 @@ void OverviewButtonTray::HideBubbleWithView(const TrayBubbleView* bubble_view) {
 
 void OverviewButtonTray::OnThemeChanged() {
   TrayBackgroundView::OnThemeChanged();
-  icon_->SetImage(GetIconImage());
+  icon_->SetImage(ui::ImageModel::FromImageSkia(GetIconImage()));
 }
 
 void OverviewButtonTray::HideBubble(const TrayBubbleView* bubble_view) {
@@ -229,7 +228,7 @@ void OverviewButtonTray::UpdateIconVisibility() {
 
 gfx::ImageSkia OverviewButtonTray::GetIconImage() {
   SkColor color;
-  if (GetColorProvider() && chromeos::features::IsJellyEnabled()) {
+  if (GetColorProvider()) {
     color = GetColorProvider()->GetColor(
         is_active() ? cros_tokens::kCrosSysSystemOnPrimaryContainer
                     : cros_tokens::kCrosSysOnSurface);

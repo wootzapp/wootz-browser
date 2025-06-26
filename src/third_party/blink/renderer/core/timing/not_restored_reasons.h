@@ -41,7 +41,7 @@ class CORE_EXPORT NotRestoredReasons : public ScriptWrappable {
 
   const std::optional<HeapVector<Member<NotRestoredReasons>>> children() const;
 
-  ScriptValue toJSON(ScriptState* script_state) const;
+  ScriptObject toJSON(ScriptState* script_state) const;
 
   void Trace(Visitor* visitor) const override;
 
@@ -56,5 +56,4 @@ class CORE_EXPORT NotRestoredReasons : public ScriptWrappable {
 
 }  // namespace blink
 
-#endif  // #define
-        // THIRD_PARTY_BLINK_RENDERER_CORE_TIMING_NOT_RESTORED_REASONS_H_
+#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_TIMING_NOT_RESTORED_REASONS_H_

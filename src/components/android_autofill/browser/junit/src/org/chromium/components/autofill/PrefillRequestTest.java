@@ -11,28 +11,19 @@ import android.view.autofill.VirtualViewFillInfo;
 import androidx.annotation.RequiresApi;
 
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Features;
 
 import java.util.Arrays;
 
 @RunWith(BaseRobolectricTestRunner.class)
-@Batch(Batch.PER_CLASS)
-@Config(manifest = Config.NONE, minSdk = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-@Features.EnableFeatures({
-    AndroidAutofillFeatures.ANDROID_AUTOFILL_PREFILL_REQUESTS_FOR_LOGIN_FORMS_NAME,
-    AndroidAutofillFeatures.ANDROID_AUTOFILL_BOTTOM_SHEET_WORKAROUND_NAME
-})
+@Config(manifest = Config.NONE, sdk = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+@Features.EnableFeatures({AndroidAutofillFeatures.ANDROID_AUTOFILL_BOTTOM_SHEET_WORKAROUND_NAME})
 public class PrefillRequestTest {
-
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
 
     @Test
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
@@ -54,8 +45,8 @@ public class PrefillRequestTest {
         String expectedFirstPredictions = "name_first,name_last";
         String expectedSecondPredictions =
                 FormFieldData.getEmptyServerPredictionsString().toLowerCase();
-        Assert.assertEquals(hintResults.valueAt(0).getAutofillHints()[0], expectedFirstPredictions);
+        Assert.assertEquals(expectedFirstPredictions, hintResults.valueAt(0).getAutofillHints()[0]);
         Assert.assertEquals(
-                hintResults.valueAt(1).getAutofillHints()[0], expectedSecondPredictions);
+                expectedSecondPredictions, hintResults.valueAt(1).getAutofillHints()[0]);
     }
 }

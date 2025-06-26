@@ -14,6 +14,8 @@
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
+#include "ui/gfx/native_widget_types.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/layout_provider.h"
 
@@ -31,12 +33,12 @@ ProtocolHandlerLaunchDialogView::ProtocolHandlerLaunchDialogView(
       views::DialogContentType::kText, views::DialogContentType::kControl));
   set_fixed_width(layout_provider->GetDistanceMetric(
       views::DISTANCE_BUBBLE_PREFERRED_WIDTH));
-  SetButtonLabel(ui::DIALOG_BUTTON_OK,
+  SetButtonLabel(ui::mojom::DialogButton::kOk,
                  l10n_util::GetStringUTF16(IDS_PERMISSION_ALLOW));
   SetButtonLabel(
-      ui::DIALOG_BUTTON_CANCEL,
+      ui::mojom::DialogButton::kCancel,
       l10n_util::GetStringUTF16(IDS_WEB_APP_PERMISSION_NEGATIVE_BUTTON));
-  SetDefaultButton(ui::DIALOG_BUTTON_CANCEL);
+  SetDefaultButton(static_cast<int>(ui::mojom::DialogButton::kCancel));
 }
 
 ProtocolHandlerLaunchDialogView::~ProtocolHandlerLaunchDialogView() = default;
@@ -78,8 +80,8 @@ void ShowWebAppProtocolLaunchDialog(
       url, profile, app_id, std::move(close_callback));
   view->Init();
   views::DialogDelegate::CreateDialogWidget(std::move(view),
-                                            /*context=*/nullptr,
-                                            /*parent=*/nullptr)
+                                            /*context=*/gfx::NativeWindow(),
+                                            /*parent=*/gfx::NativeView())
       ->Show();
 }
 

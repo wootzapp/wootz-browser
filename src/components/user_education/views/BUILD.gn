@@ -7,11 +7,16 @@ import("//build/config/ui.gni")
 
 source_set("views") {
   sources = [
+    "custom_help_bubble_view.h",
     "help_bubble_delegate.h",
+    "help_bubble_event_relay.cc",
+    "help_bubble_event_relay.h",
     "help_bubble_factory_views.cc",
     "help_bubble_factory_views.h",
     "help_bubble_view.cc",
     "help_bubble_view.h",
+    "help_bubble_views.cc",
+    "help_bubble_views.h",
     "new_badge_label.cc",
     "new_badge_label.h",
     "toggle_tracked_element_attention_utils.cc",
@@ -25,7 +30,10 @@ source_set("views") {
     ]
   }
 
-  public_deps = [ "//components/user_education/common" ]
+  public_deps = [
+    "//components/user_education/common",
+    "//ui/base/mojom:ui_base_types",
+  ]
 
   deps = [
     "//base",
@@ -39,9 +47,18 @@ source_set("views") {
     "//ui/base",
     "//ui/color",
     "//ui/gfx",
+    "//ui/menus",
     "//ui/strings:ui_strings",
     "//ui/views",
   ]
+
+  if (use_aura) {
+    deps += [ "//ui/aura" ]
+  }
+
+  if (is_mac) {
+    deps += [ "//components/remote_cocoa/app_shim" ]
+  }
 }
 
 source_set("test_support") {
@@ -69,6 +86,7 @@ source_set("unit_tests") {
   sources = [
     "help_bubble_factory_views_unittest.cc",
     "help_bubble_view_unittest.cc",
+    "help_bubble_views_unittest.cc",
     "new_badge_label_unittest.cc",
   ]
 

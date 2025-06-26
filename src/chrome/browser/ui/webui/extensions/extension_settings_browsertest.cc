@@ -26,14 +26,29 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/guest_view/browser/guest_view_base.h"
+#include "components/guest_view/browser/guest_view_manager_delegate.h"
+#include "components/guest_view/browser/test_guest_view_manager.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_utils.h"
+#include "extensions/browser/api/extensions_api_client.h"
+#include "extensions/browser/extension_prefs.h"
 #include "extensions/test/extension_test_message_listener.h"
 
-using ExtensionSettingsUIBrowserTest = ExtensionSettingsTestBase;
+class ExtensionSettingsUIBrowserTest : public ExtensionSettingsTestBase {
+ public:
+  guest_view::TestGuestViewManager* GetGuestViewManager() {
+    return factory_.GetOrCreateTestGuestViewManager(
+        browser()->profile(), extensions::ExtensionsAPIClient::Get()
+                                  ->CreateGuestViewManagerDelegate());
+  }
+
+ private:
+  guest_view::TestGuestViewManagerFactory factory_;
+};
 
 // Tests that viewing a source of the options page works fine.
 // This is a regression test for https://crbug.com/796080.
@@ -44,9 +59,10 @@ IN_PROC_BROWSER_TEST_F(ExtensionSettingsUIBrowserTest, ViewSource) {
   GURL options_url("chrome://extensions/?options=" + extension->id());
   content::WebContents* options_contents = nullptr;
   {
-    content::WebContentsAddedObserver options_contents_added_observer;
     ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), options_url));
-    options_contents = options_contents_added_observer.GetWebContents();
+    auto* guest = GetGuestViewManager()->WaitForSingleGuestViewCreated();
+    GetGuestViewManager()->WaitUntilAttached(guest);
+    options_contents = guest->web_contents();
   }
   ASSERT_TRUE(options_contents);
   EXPECT_TRUE(content::WaitForLoadStop(options_contents));
@@ -218,21 +234,12 @@ IN_PROC_BROWSER_TEST_F(ExtensionsActivityLogTest, TestActivityLogVisible) {
       )"));
 }
 
-class SafetyHubExtensionSettingsUIBrowserTest
-    : public ExtensionSettingsTestBase {
- public:
-  SafetyHubExtensionSettingsUIBrowserTest() {
-    feature_list_.InitAndEnableFeature(features::kSafetyHub);
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(SafetyHubExtensionSettingsUIBrowserTest,
+IN_PROC_BROWSER_TEST_F(ExtensionSettingsUIBrowserTest,
                        TestSafetyHubMenuNotificationDismissed) {
   Profile* profile = browser()->profile();
-  InstallGoodExtension();
+  extensions::ExtensionPrefs* extension_prefs =
+      extensions::ExtensionPrefs::Get(profile);
+  const extensions::Extension* extension = InstallExtensionWithInPageOptions();
   SafetyHubMenuNotificationService* notification_service =
       SafetyHubMenuNotificationServiceFactory::GetForProfile(profile);
   // Safety Hub services will be initialized when
@@ -243,26 +250,23 @@ IN_PROC_BROWSER_TEST_F(SafetyHubExtensionSettingsUIBrowserTest,
   std::optional<MenuNotificationEntry> notification =
       notification_service->GetNotificationToShow();
   ASSERT_FALSE(notification.has_value());
-
-  // Make all extensions unpublished.
-  const extensions::CWSInfoService::CWSInfo cws_info_unpublished{
-      /*is_present=*/true,
-      /*is_live=*/false,
-      /*last_update_time=*/base::Time::Now(),
-      /*violation_type=*/extensions::CWSInfoService::CWSViolationType::kNone,
-      /*unpublished_long_ago=*/true,
-      /*no_privacy_practice=*/false};
-  testing::NiceMock<safety_hub_test_util::MockCWSInfoService>
-      mock_cws_info_service(profile);
-  ON_CALL(mock_cws_info_service, GetCWSInfo)
-      .WillByDefault(testing::Return(cws_info_unpublished));
-  // Use the mock CWS info service for the menu notification service.
+  // Update the extension pref to flag the extension as unpublished.
+  base::Value::Dict dict;
+  dict.Set("is-present", true);
+  dict.Set("is-live", true);
+  dict.Set("last-updated-time-millis", 100000000);
+  dict.Set("violation-type", 0);
+  dict.Set("no-privacy-practice", false);
+  dict.Set("unpublished-long-ago", true);
+  extension_prefs->SetDictionaryPref(
+      extension->id(),
+      {"cws-info", extensions::kDictionary,
+       extensions::PrefScope::kExtensionSpecific},
+      std::move(dict));
   notification_service->UpdateResultGetterForTesting(
       safety_hub::SafetyHubModuleType::EXTENSIONS,
-      base::BindRepeating(&SafetyHubExtensionsResult::GetResult,
-                          base::Unretained(&mock_cws_info_service), profile,
+      base::BindRepeating(&SafetyHubExtensionsResult::GetResult, profile,
                           /*only_unpublished_extensions=*/true));
-
   // An extension was unpublished, so we now should get an associated menu
   // notification.
   notification = notification_service->GetNotificationToShow();

@@ -5,6 +5,8 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_FIND_BAR_HOST_H_
 #define CHROME_BROWSER_UI_VIEWS_FIND_BAR_HOST_H_
 
+#include <memory>
+
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/views/find_bar_view.h"
@@ -13,7 +15,6 @@
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/focus/external_focus_tracker.h"
 #include "ui/views/focus/focus_manager.h"
-#include "ui/views/widget/unique_widget_ptr.h"
 #include "ui/views/widget/widget_delegate.h"
 
 class BrowserView;
@@ -24,15 +25,18 @@ namespace find_in_page {
 class FindNotificationDetails;
 }
 
+namespace views {
+class Widget;
+}
 ////////////////////////////////////////////////////////////////////////////////
 //
 // The FindBarHost implements the container widget for the find-in-page
-// functionality. It is responsible for showing,hiding, closing, and moving the
-// widget if needed, for example if the widgetis obscuring the selection
-// results. It also receives notifications about thesearch results and
-// communicates that to the viewThere is one FindBarHost per BrowserView, and
-// its state is updatedwhenever the selected Tab is changed. The FindBarHost is
-// created whenthe BrowserView is attached to the frame's Widget for the first
+// functionality. It is responsible for showing, hiding, closing, and moving the
+// widget if needed, for example if the widget is obscuring the selection
+// results. It also receives notifications about the search results and
+// communicates that to the view. There is one FindBarHost per BrowserView, and
+// its state is updated whenever the selected Tab is changed. The FindBarHost is
+// created when the BrowserView is attached to the frame's Widget for the first
 // time.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,7 +84,7 @@ class FindBarHost : public FindBar,
   void MoveWindowIfNecessary() override;
   void SetFindTextAndSelectedRange(const std::u16string& find_text,
                                    const gfx::Range& selected_range) override;
-  std::u16string GetFindText() const override;
+  std::u16string_view GetFindText() const override;
   gfx::Range GetSelectedRange() const override;
   void UpdateUIForFindResult(
       const find_in_page::FindNotificationDetails& result,
@@ -91,6 +95,7 @@ class FindBarHost : public FindBar,
   bool HasGlobalFindPasteboard() const override;
   void UpdateFindBarForChangedWebContents() override;
   const FindBarTesting* GetFindBarTesting() const override;
+  bool HasFocus() const override;
 
   // Overridden from ui::AcceleratorTarget
   bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
@@ -99,8 +104,8 @@ class FindBarHost : public FindBar,
   // FindBarTesting implementation:
   bool GetFindBarWindowInfo(gfx::Point* position,
                             bool* fully_visible) const override;
-  std::u16string GetFindSelectedText() const override;
-  std::u16string GetMatchCountText() const override;
+  std::u16string_view GetFindSelectedText() const override;
+  std::u16string_view GetMatchCountText() const override;
   int GetContentsWidth() const override;
   size_t GetAudibleAlertCount() const override;
 
@@ -165,8 +170,6 @@ class FindBarHost : public FindBar,
   // views::FocusChangeListener:
   void OnWillChangeFocus(views::View* focused_before,
                          views::View* focused_now) override;
-  void OnDidChangeFocus(views::View* focused_before,
-                        views::View* focused_now) override;
 
   // views::AnimationDelegateViews:
   void AnimationProgressed(const gfx::Animation* animation) override;
@@ -180,7 +183,7 @@ class FindBarHost : public FindBar,
 
   // Host is the Widget implementation that is created and maintained by the
   // find bar. It contains the find bar view.
-  views::UniqueWidgetPtr host_;
+  std::unique_ptr<views::Widget> host_;
 
   // A pointer back to the owning controller.
   raw_ptr<FindBarController> find_bar_controller_ = nullptr;

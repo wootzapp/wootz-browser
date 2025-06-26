@@ -5,15 +5,18 @@
 import("//build/config/android/config.gni")
 import("//build/config/features.gni")
 import("//components/safe_browsing/buildflags.gni")
+import("//components/site_isolation/site_isolation.gni")
 import("//components/supervised_user/buildflags.gni")
 import("//pdf/features.gni")
 import("//printing/buildflags/buildflags.gni")
 import("//tools/grit/grit_rule.gni")
-import("//chrome/resources/wootz_grit.gni")
-import("//build/config/locales.gni")
-import("//extensions/buildflags/buildflags.gni")
-import("//tools/grit/repack.gni")
+import("//ui/webui/webui_features.gni")
 
+declare_args() {
+  # Generating the credits page requires a filesystem traversal for licenses
+  # that is slow in some environments.
+  generate_about_credits = is_official_build
+}
 
 if (is_android) {
   import("//build/config/android/rules.gni")
@@ -30,9 +33,19 @@ group("resources") {
     ":components_resources",
     ":components_scaled_resources",
     ":dev_ui_components_resources",
-    "../flags_ui/resources:resources",
-    "../version_ui/resources:resources",
+    "../autofill/core/browser/autofill_and_password_manager_internals:resources",
+    "../crash/core/browser/resources:resources",
+    "../gcm_driver/resources:resources",
+    "../net_log/resources",
+    "../safe_browsing/content/browser/web_ui/resources",
+    "../signin/core/browser/resources",
+    "../translate/translate_internals:resources",
+    "../webui:resources",
   ]
+
+  if (is_ios) {
+    public_deps += [ "../management/resources:resources" ]
+  }
 }
 
 grit("components_resources") {
@@ -60,7 +73,9 @@ grit("components_resources") {
     "enable_supervised_users=$enable_supervised_users",
     "safe_browsing_mode=$safe_browsing_mode",
     "is_fuchsia=$is_fuchsia",
+    "optimize_webui=$optimize_webui",
     "use_blink=$use_blink",
+    "use_internal_isolated_origins=$use_internal_isolated_origins",
   ]
 
   deps = [
@@ -69,6 +84,10 @@ grit("components_resources") {
     "//components/security_interstitials/content/resources:build_ts",
     "//components/security_interstitials/core/browser/resources:bundle_js",
   ]
+
+  if (enable_supervised_users) {
+    deps += [ "//components/supervised_user/core/browser/resources:bundle_js" ]
+  }
 
   if (use_blink) {
     deps += [ "//components/resources/ssl/ssl_error_assistant:make_ssl_error_assistant_protobuf" ]
@@ -93,10 +112,7 @@ grit("dev_ui_components_resources") {
     "dev_ui_components_resources.pak",
   ]
 
-  deps = [
-    "//components/crash/core/browser/resources:build_ts",
-    "//components/local_state:build",
-  ]
+  deps = [ "//components/local_state:build" ]
   output_dir = "$root_gen_dir/components"
 }
 
@@ -114,34 +130,36 @@ grit("components_scaled_resources") {
   output_dir = "$root_gen_dir/components"
 }
 
-action("about_credits") {
-  script = "//tools/licenses/licenses.py" 
-  # script = "//chrome/script/check_npm_licenses.py"
-  depfile = "$target_gen_dir/$target_name.d"
+if (generate_about_credits) {
+  action("about_credits") {
+    script = "//tools/licenses/licenses.py"
+    depfile = "$target_gen_dir/$target_name.d"
 
-  inputs = [
-    "../about_ui/resources/about_credits.tmpl",
-    "../about_ui/resources/about_credits_entry.tmpl",
-    "../about_ui/resources/about_credits_reciprocal.tmpl",
-    "//package.json"
-  ]
+    inputs = [
+      "../webui/about/resources/about_credits.tmpl",
+      "../webui/about/resources/about_credits_entry.tmpl",
+      "../webui/about/resources/about_credits_reciprocal.tmpl",
+    ]
 
-  outputs = [ about_credits_file, 
-  # "$root_gen_dir/npm_licenses.checked"
-   ]
+    outputs = [ about_credits_file ]
 
-  args = [
-    "--target-os=$target_os",
-    "--depfile",
-    rebase_path(depfile, root_build_dir),
-    "credits",
-    rebase_path(about_credits_file, root_build_dir),
-    # rebase_path("$root_gen_dir/npm_licenses.checked"),
-  ]
+    args = [
+      "--target-os=$target_os",
+      "--depfile",
+      rebase_path(depfile, root_build_dir),
+      "credits",
+      rebase_path(about_credits_file, root_build_dir),
+    ]
 
-  # Defined by downstream projects.
-  if (defined(extra_third_party_notice_dirs)) {
-    args += [ "--extra-third-party-dirs=$extra_third_party_notice_dirs" ]
+    # Defined by downstream projects.
+    if (defined(extra_third_party_notice_dirs)) {
+      args += [ "--extra-third-party-dirs=$extra_third_party_notice_dirs" ]
+    }
+  }
+} else {
+  copy("about_credits") {
+    sources = [ "sample_credits.html" ]
+    outputs = [ about_credits_file ]
   }
 }
 
@@ -169,48 +187,4 @@ if (is_ios) {
     filelist_name = "terms_resources.filelist"
     outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
   }
-}
-
-wootz_grit("static_resources") {
-  source = "wootz_components_resources.grd"
-
-  output_name = "wootz_components_resources_new"
-
-  outputs = [
-    "grit/wootz_components_resources.h",
-    "wootz_components_static.pak",
-  ]
-  deps = [
-    ":strings",
-  ]
-
-  output_dir = "$root_gen_dir/components"
-}
-
-repack("resources_repack") {
-  deps = [
-    ":static_resources",
-    # "//components/wootz_wallet_ui:resources",
-  ]
-  sources = [
-    "$root_gen_dir/components/wootz_components_static.pak",
-    # "$root_gen_dir/components/wootz_wallet/resources/wootz_wallet.pak",
-  ]
-
-  deps += [ "//components/wootz_wallet/resources:ethereum_provider_generated_resources" ]
-  sources += [ "$root_gen_dir/components/wootz_wallet/resources/wootz_wallet_script_generated.pak" ]
-
-  output = "$root_gen_dir/components/wootz_components_resources.pak"
-}
-
-wootz_grit("strings") {
-  source = "wootz_components_strings.grd"
-
-  outputs = [ "grit/wootz_components_strings.h" ]
-
-  foreach(locale, all_chrome_locales) {
-    outputs += [ "wootz_components_strings_$locale.pak" ]
-  }
-
-  output_dir = "$root_gen_dir/components"
 }

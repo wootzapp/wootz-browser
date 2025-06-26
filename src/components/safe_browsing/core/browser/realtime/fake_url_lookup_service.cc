@@ -4,6 +4,7 @@
 
 #include "components/safe_browsing/core/browser/realtime/fake_url_lookup_service.h"
 
+#include "components/enterprise/common/proto/connectors.pb.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
 namespace safe_browsing::testing {
@@ -41,6 +42,23 @@ bool FakeRealTimeUrlLookupService::CanSendRTSampleRequest() const {
   return false;
 }
 
+std::string FakeRealTimeUrlLookupService::GetUserEmail() const {
+  return "test@user.com";
+}
+
+std::string FakeRealTimeUrlLookupService::GetBrowserDMTokenString() const {
+  return "browser_dm_token";
+}
+
+std::string FakeRealTimeUrlLookupService::GetProfileDMTokenString() const {
+  return "profile_dm_token";
+}
+
+std::unique_ptr<enterprise_connectors::ClientMetadata>
+FakeRealTimeUrlLookupService::GetClientMetadata() const {
+  return nullptr;
+}
+
 std::string FakeRealTimeUrlLookupService::GetMetricSuffix() const {
   return ".Mock";
 }
@@ -48,7 +66,12 @@ std::string FakeRealTimeUrlLookupService::GetMetricSuffix() const {
 void FakeRealTimeUrlLookupService::SendSampledRequest(
     const GURL& url,
     scoped_refptr<base::SequencedTaskRunner> callback_task_runner,
-    SessionID session_id) {}
+    SessionID session_id,
+    std::optional<internal::ReferringAppInfo> referring_app_info) {}
+
+bool FakeRealTimeUrlLookupService::CanCheckUrl(const GURL& url) {
+  return true;
+}
 
 GURL FakeRealTimeUrlLookupService::GetRealTimeLookupUrl() const {
   return GURL();
@@ -74,7 +97,8 @@ void FakeRealTimeUrlLookupService::GetAccessToken(
     const GURL& url,
     safe_browsing::RTLookupResponseCallback response_callback,
     scoped_refptr<base::SequencedTaskRunner> callback_task_runner,
-    SessionID session_id) {}
+    SessionID session_id,
+    std::optional<internal::ReferringAppInfo> referring_app_info) {}
 
 std::optional<std::string> FakeRealTimeUrlLookupService::GetDMTokenString()
     const {

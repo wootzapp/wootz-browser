@@ -7,6 +7,7 @@
 
 #include <list>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include "base/functional/callback.h"
@@ -24,7 +25,6 @@
 #include "components/viz/common/surfaces/surface_id.h"
 #include "third_party/skia/include/core/SkBlendMode.h"
 #include "ui/aura/window.h"
-#include "ui/gfx/geometry/mask_filter_info.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rrect_f.h"
 #include "ui/gfx/geometry/size_f.h"
@@ -58,6 +58,9 @@ namespace exo {
 // Occluded surfaces can be detected and not emitted as a quad in the
 // corresponding compositor frame.
 BASE_DECLARE_FEATURE(kExoPerSurfaceOcclusion);
+// TODO(crbug.com/369003507): Remove this feature flag once we found the root
+// cause of crash on specific hatch platform.
+BASE_DECLARE_FEATURE(kDisableNonYUVOverlaysFromExo);
 
 class Buffer;
 class SecurityDelegate;
@@ -461,7 +464,7 @@ class Surface final : public ui::PropertyHandler {
   void ThrottleFrameRate(bool on);
 
   // Informs tooltip is shown.
-  void OnTooltipShown(const std::u16string& text, const gfx::Rect& bounds);
+  void OnTooltipShown(std::u16string_view text, const gfx::Rect& bounds);
 
   // Informs tooltip is hidden.
   void OnTooltipHidden();
@@ -641,7 +644,8 @@ class Surface final : public ui::PropertyHandler {
   void UpdateOverlayPriorityHint(OverlayPriority overlay_priority_hint);
 
   // Puts the current surface into a draw quad, and appends the draw quads into
-  // the |frame|.
+  // the `frame`. `device_scale_factor` is supplied if the client does not
+  // submit surfaces in pixel coordinates.
   void AppendContentsToFrame(const gfx::PointF& parent_to_root_px,
                              const gfx::PointF& to_parent_dp,
                              bool needs_full_damage,

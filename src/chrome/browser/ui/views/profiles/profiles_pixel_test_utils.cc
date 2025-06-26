@@ -17,13 +17,15 @@
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
+#include "components/signin/public/identity_manager/signin_constants.h"
 #include "components/signin/public/identity_manager/tribool.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_unittest_util.h"
 
-namespace {
+using signin::constants::kNoHostedDomainFound;
+
 AccountInfo FillAccountInfo(
     const CoreAccountInfo& core_info,
     AccountManagementStatus management_status,
@@ -56,7 +58,6 @@ AccountInfo FillAccountInfo(
 
   return account_info;
 }
-}  // namespace
 
 AccountInfo SignInWithAccount(
     signin::IdentityTestEnvironment& identity_test_env,
@@ -103,7 +104,7 @@ void SetUpPixelTestCommandLine(
     const std::string language = "ar-XB";
     command_line->AppendSwitchASCII(switches::kLang, language);
 
-    // On Linux & Lacros the command line switch has no effect, we need to use
+    // On Linux the command line switch has no effect, we need to use
     // environment variables to change the language.
     env_variables = std::make_unique<base::ScopedEnvironmentVariableOverride>(
         "LANGUAGE", language);
@@ -114,10 +115,6 @@ void InitPixelTestFeatures(const PixelTestParam& params,
                            base::test::ScopedFeatureList& feature_list) {
   std::vector<base::test::FeatureRef> enabled_features;
   std::vector<base::test::FeatureRef> disabled_features;
-
-  if (params.use_chrome_refresh_2023_style) {
-    enabled_features.push_back(features::kChromeRefresh2023);
-  }
 
   feature_list.InitWithFeatures(enabled_features, disabled_features);
 }

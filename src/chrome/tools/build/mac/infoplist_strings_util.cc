@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // Helper tool that is built and run during a build to pull strings from
 // the GRD files and generate the InfoPlist.strings files needed for
 // macOS app bundles.
@@ -44,7 +49,7 @@ std::string LoadStringFromDataPack(ui::DataPack* data_pack,
                                    const std::string& data_pack_lang,
                                    uint32_t resource_id,
                                    const char* resource_id_str) {
-  std::optional<std::string_view> data = data_pack->GetStringPiece(resource_id);
+  std::optional<std::string_view> data = data_pack->GetStringView(resource_id);
   CHECK(data.has_value()) << "failed to load string " << resource_id_str
                           << " for lang " << data_pack_lang;
 
@@ -163,6 +168,11 @@ int main(int argc, char* const argv[]) {
                                IDS_RUNTIME_PERMISSION_OS_REASON_TEXT,
                                "IDS_RUNTIME_PERMISSION_OS_REASON_TEXT");
 
+    std::string local_network_access_permission_description =
+        LoadStringFromDataPack(branded_data_pack.get(), cur_lang,
+                               IDS_LOCAL_NETWORK_ACCESS_PERMISSION_DESC,
+                               "IDS_LOCAL_NETWORK_ACCESS_PERMISSION_DESC");
+
     std::string chromium_shortcut_description = LoadStringFromDataPack(
         branded_data_pack.get(), cur_lang, IDS_CHROMIUM_SHORCUT_DESCRIPTION,
         "IDS_CHROMIUM_SHORCUT_DESCRIPTION");
@@ -180,9 +190,12 @@ int main(int argc, char* const argv[]) {
         {"NSBluetoothAlwaysUsageDescription", permission_reason},
         {"NSBluetoothPeripheralUsageDescription", permission_reason},
         {"NSCameraUsageDescription", permission_reason},
+        {"NSLocalNetworkUsageDescription",
+         local_network_access_permission_description},
         {"NSLocationUsageDescription", permission_reason},
         {"NSMicrophoneUsageDescription", permission_reason},
         {"NSWebBrowserPublicKeyCredentialUsageDescription", permission_reason},
+
         {"\"Chromium Shortcut\"", chromium_shortcut_description},
     };
     std::string strings_file_contents_string;

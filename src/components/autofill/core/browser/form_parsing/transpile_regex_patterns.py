@@ -7,81 +7,9 @@
 import argparse
 from collections import defaultdict
 import io
-import os
 import re
 import sys
-
-_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
-
-_JSON5_PATH = os.path.join(
-    _FILE_PATH,
-    os.pardir,
-    os.pardir,
-    os.pardir,
-    os.pardir,
-    os.pardir,
-    "third_party",
-    "pyjson5",
-    "src",
-)
-sys.path.insert(1, _JSON5_PATH)
-
-import json5 as json
-
-# Generates a function AreMatchingPatternsEqualImpl(a, b, lang_code), which
-# tests whether the patterns for PatternSources a and b in language lang_code
-# match. This can be used to avoid unnecessarily recomputing heuristics.
-# All return values are precomputed, making this a constant time operation at
-# runtime.
-# - `name_to_lang_to_id_to_patternrefs`: See `generate_cpp_constants()` for a
-#   description.
-# - `lang_array`: A sorted list language codes for which lookups should be
-#   precomputed.
-# - [`min_pattern_id`, `max_pattern_id`] all valid PatternSources IDs for which
-#   lookups should be precomputed.
-def generate_matching_pattern_equals(name_to_lang_to_id_to_patternrefs,
-    lang_array, min_pattern_id, max_pattern_id):
-  # Tests if all patterns of `lang` match between to pattern source ids.
-  # "PATTERN_SOURCE_DUMMY" is ignored, since it is only just to identify the
-  # patterns for debugging purposes.
-  def patterns_match(a_id, b_id, lang):
-    return all(lang_to_id_to_patternrefs[lang][a_id] ==
-      lang_to_id_to_patternrefs[lang][b_id]
-      for name, lang_to_id_to_patternrefs in
-      name_to_lang_to_id_to_patternrefs.items()
-      if name != "PATTERN_SOURCE_DUMMY")
-
-  yield '// Checks if all the matching patterns for the given PatternSources'
-  yield '// and language are the same - meaning that computing predictions for'
-  yield '// both is unnecessary, since it will yield the same result.'
-  yield 'constexpr bool AreMatchingPatternsEqualImpl(PatternSource a,'
-  yield '                                            PatternSource b,'
-  yield '                                            LanguageCode lang_code) {'
-  yield '  if (a == b) {'
-  yield '    return true;'
-  yield '  }'
-  yield '  auto a_id = base::to_underlying(a);'
-  yield '  auto b_id = base::to_underlying(b);'
-  yield '  if (a_id > b_id) {'
-  yield '    std::swap(a_id, b_id);'
-  yield '  }'
-
-  # Precompute the result for all provided pattern ids and languages.
-  for a_id in range(min_pattern_id, max_pattern_id + 1):
-    for b_id in range(a_id + 1, max_pattern_id + 1):
-      langs = [lang for lang in lang_array if patterns_match(a_id, b_id, lang)]
-      if langs == []:
-        continue
-      yield f'  if (a_id == {a_id} && b_id == {b_id}) {{'
-      if langs == lang_array:
-        yield '    return true;'
-      else:
-        disjunction = " || ".join(f"*lang_code == \"{lang}\"" for lang in langs)
-        yield f'    return {disjunction};'
-      yield '  }'
-
-  yield '  return false;'
-  yield '}'
+import json
 
 # Generates a set of C++ constexpr constants to facilitate lookup of a set of
 # MatchingPatterns by a given tuple (pattern name, language code).
@@ -89,10 +17,16 @@ def generate_matching_pattern_equals(name_to_lang_to_id_to_patternrefs,
 # id_to_name_to_lang_to_patterns is a
 # map from pattern source IDs to a
 #   map from pattern names to a
-#     map from language codes to a
-#       list of patterns,
+#     map from language codes to
+#       either a
+#         list of patterns
+#       or a
+#         map of feature names to a
+#           list of patterns
 # where the pattern source IDs are consecutive natural numbers identifying the
 # input JSON files.
+# As a first step, any innermost maps of feature names to list of patterns are
+# flattened to a list of patterns.
 #
 # The constants are:
 #
@@ -159,22 +93,35 @@ def generate_cpp_constants(id_to_name_to_lang_to_patterns):
   def json_to_cpp_form_control_types(enum_values):
     return json_to_cpp_dense_set(enum_values, 'FormControlType')
 
+  # Feature annotations are a tuple of (feature name, state). This function
+  # maps them to the corresponding C++ OptionalRegexFeatureWithState.
+  def feature_annotation_to_cpp_state(feature_annotation):
+    if len(feature_annotation) == 0:
+      return 'OptionalRegexFeatureWithState()'
+    assert len(feature_annotation) == 2
+    feature = "RegexFeature::k" + feature_annotation[0]
+    enabled = python_bool_to_cpp(feature_annotation[1])
+    return f'OptionalRegexFeatureWithState{{{feature}, {enabled}}}'
+
   # Maps a JSON object representing a pattern to a C++ MatchingPattern
   # expression.
   def json_to_cpp_pattern(json):
     positive_pattern = json_to_cpp_u16string_literal(json['positive_pattern'])
     negative_pattern = json_to_cpp_u16string_literal(json['negative_pattern'])
-    positive_score = json['positive_score']
+    # In the JSON files, every pattern is annotated with a 'positive_score'.
+    # Since this is currently not used by the C++ logic, it is omitted to save
+    # some binary size.
     match_field_attributes = json_to_cpp_match_field_attributes(
         json['match_field_attributes'])
     form_control_types = json_to_cpp_form_control_types(
         json['form_control_types'])
+    feature = feature_annotation_to_cpp_state(json.get('feature', ()))
     return f'MatchingPattern{{\n' \
            f'  .positive_pattern = {positive_pattern},\n' \
            f'  .negative_pattern = {negative_pattern},\n' \
-           f'  .positive_score = {positive_score},\n' \
            f'  .match_field_attributes = {match_field_attributes},\n' \
            f'  .form_control_types = {form_control_types},\n' \
+           f'  .feature = {feature},\n' \
            f'}}'
 
   # Name of the auxiliary C++ constant.
@@ -191,6 +138,24 @@ def generate_cpp_constants(id_to_name_to_lang_to_patterns):
     for name, lang_to_patterns in name_to_lang_to_patterns.items():
       if '' in lang_to_patterns:
         raise Exception('JSON format error: language is ""')
+
+    # Flatten the feature flag layer by annotating patterns with a tuple of
+    # their associated feature name and the desired feature state.
+    for lang_to_patterns in name_to_lang_to_patterns.values():
+      # Copy lang_to_patterns to modify the original map while iterating.
+      for lang, patterns_or_map in lang_to_patterns.copy().items():
+        if isinstance(patterns_or_map, list):
+          continue
+        assert isinstance(patterns_or_map, dict)
+        feature_name = list(filter(len, patterns_or_map.keys()))
+        # If feature annotations are used, there needs to be exactly one feature
+        # name and at most one default arm.
+        assert len(feature_name) == 1 and len(patterns_or_map) <= 2
+        for feature, patterns in patterns_or_map.items():
+          for pattern in patterns:
+            pattern['feature'] = (feature_name[0], feature == feature_name[0])
+        lang_to_patterns[lang] = [pattern for patterns in
+          patterns_or_map.values() for pattern in patterns]
 
     # Remember each pattern's language.
     #
@@ -251,15 +216,11 @@ def generate_cpp_constants(id_to_name_to_lang_to_patterns):
 
   # Generate the C++ constants.
   yield '// The patterns. Referred to by their index in MatchPatternRef.'
-  yield '//'
-  yield '// We use C-style arrays rather than std::array because the template'
-  yield '// parameter inference may exceed the default bracket depth limit'
-  yield '// on some (?) clang versions. See crbug.com/1319987.'
-  yield 'constexpr MatchingPattern kPatterns[] {'
+  yield 'constexpr auto kPatterns = std::to_array<MatchingPattern>({'
   for cpp_expr, index in sorted(
       pattern_to_index.items(), key=lambda item: item[1]):
     yield f'/*[{index}]=*/{cpp_expr},'
-  yield '};'
+  yield '});'
   yield ''
 
   min_pattern_id = min(id_to_name_to_lang_to_patterns.keys())
@@ -281,7 +242,7 @@ def generate_cpp_constants(id_to_name_to_lang_to_patterns):
         if ids_with_the_same_patternrefs != []:
           other_id = ids_with_the_same_patternrefs[0]
           yield (f'constexpr auto {kPatterns(id, name, lang)} = '
-                 f'base::make_span({kPatterns(other_id, name, lang)});')
+                 f'base::span({kPatterns(other_id, name, lang)});')
         else:
           yield (f'constexpr MatchPatternRef {kPatterns(id, name, lang)}[] {{' +
                  f', '.join(
@@ -323,19 +284,14 @@ def generate_cpp_constants(id_to_name_to_lang_to_patterns):
   yield ''
 
   language_array = sorted(
-      set(lang for lang_to_id_to_patternrefs in
+      set(f'"{lang}"' for lang_to_id_to_patternrefs in
           name_to_lang_to_id_to_patternrefs.values()
           for lang in lang_to_id_to_patternrefs.keys() if lang != ''))
   yield '// The set of language codes across all language source ids and'
   yield '// pattern names.'
   yield 'constexpr auto kLanguages = base::MakeFixedFlatSet<const char*>({'
-  quoted_languages = [f'"{lang}"' for lang in language_array]
-  yield f'  {", ".join(quoted_languages)}'
+  yield f'  {", ".join(language_array)}'
   yield '}, LanguageComparator());'
-
-  yield ''
-  yield from generate_matching_pattern_equals(name_to_lang_to_id_to_patternrefs,
-    language_array, min_pattern_id, max_pattern_id)
 
 def generate_cpp_lines(id_to_name_to_lang_to_patterns):
   yield """// Copyright 2022 The Chromium Authors
@@ -345,14 +301,12 @@ def generate_cpp_lines(id_to_name_to_lang_to_patterns):
 #ifndef COMPONENTS_AUTOFILL_CORE_BROWSER_FORM_PARSING_REGEX_PATTERNS_INL_H_
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_FORM_PARSING_REGEX_PATTERNS_INL_H_
 
-#include <algorithm>
 #include <array>
 #include <string_view>
 
 #include "base/containers/fixed_flat_map.h"
 #include "base/containers/fixed_flat_set.h"
 #include "base/containers/span.h"
-#include "base/types/cxx23_to_underlying.h"
 
 #include "components/autofill/core/browser/form_parsing/regex_patterns.h"
 #include "components/autofill/core/common/dense_set.h"

@@ -82,8 +82,7 @@ void RecordSessionStorageCachePurgedHistogram(
           purged_size_kib);
       break;
     case SessionStorageCachePurgeReason::kNotNeeded:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 
@@ -254,7 +253,7 @@ void SessionStorageImpl::CloneNamespace(
       // namespace.
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
   namespaces_.emplace(
       std::piecewise_construct, std::forward_as_tuple(clone_to_namespace_id),
@@ -295,21 +294,15 @@ void SessionStorageImpl::DeleteNamespace(const std::string& namespace_id,
   }
 }
 
-void SessionStorageImpl::Flush(FlushCallback callback) {
+void SessionStorageImpl::Flush() {
   if (connection_state_ != CONNECTION_FINISHED) {
     RunWhenConnected(base::BindOnce(&SessionStorageImpl::Flush,
-                                    weak_ptr_factory_.GetWeakPtr(),
-                                    std::move(callback)));
+                                    weak_ptr_factory_.GetWeakPtr()));
     return;
   }
 
-  base::RepeatingClosure commit_callback = base::BarrierClosure(
-      base::saturated_cast<int>(data_maps_.size()), std::move(callback));
-
   for (const auto& it : data_maps_)
-    it.second->storage_area()->ScheduleImmediateCommit(
-        mojo::WrapCallbackWithDefaultInvokeIfNotRun(
-            base::OnceClosure(commit_callback)));
+    it.second->storage_area()->ScheduleImmediateCommit();
 }
 
 void SessionStorageImpl::GetUsage(GetUsageCallback callback) {
@@ -727,13 +720,12 @@ void SessionStorageImpl::RunWhenConnected(base::OnceClosure callback) {
       on_database_opened_callbacks_.push_back(std::move(callback));
       return;
     case CONNECTION_SHUTDOWN:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     case CONNECTION_FINISHED:
       std::move(callback).Run();
       return;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void SessionStorageImpl::InitiateConnection(bool in_memory_only) {
@@ -810,18 +802,18 @@ void SessionStorageImpl::OnDatabaseOpened(leveldb::Status status) {
   database_->RunDatabaseTask(
       base::BindOnce([](const DomStorageDatabase& db) {
         ValueAndStatus version;
-        version.status = db.Get(
-            base::make_span(SessionStorageMetadata::kDatabaseVersionBytes),
-            &version.value);
+        version.status =
+            db.Get(base::span(SessionStorageMetadata::kDatabaseVersionBytes),
+                   &version.value);
 
         KeyValuePairsAndStatus namespaces;
         namespaces.status = db.GetPrefixed(
-            base::make_span(SessionStorageMetadata::kNamespacePrefixBytes),
+            base::span(SessionStorageMetadata::kNamespacePrefixBytes),
             &namespaces.key_value_pairs);
 
         ValueAndStatus next_map_id;
         next_map_id.status =
-            db.Get(base::make_span(SessionStorageMetadata::kNextMapIdKeyBytes),
+            db.Get(base::span(SessionStorageMetadata::kNextMapIdKeyBytes),
                    &next_map_id.value);
 
         return std::make_tuple(std::move(version), std::move(namespaces),

@@ -4,9 +4,11 @@
 
 #include "chrome/browser/apps/link_capturing/chromeos_link_capturing_delegate.h"
 
+#include <algorithm>
 #include <optional>
 #include <string_view>
 
+#include "ash/constants/web_app_id_constants.h"
 #include "ash/webui/projector_app/public/cpp/projector_app_constants.h"
 #include "base/auto_reset.h"
 #include "base/feature_list.h"
@@ -14,20 +16,17 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/values_equivalent.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/tick_clock.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/launch_utils.h"
-#include "chrome/browser/apps/link_capturing/link_capturing_features.h"
 #include "chrome/browser/apps/link_capturing/link_capturing_tab_data.h"
 #include "chrome/browser/apps/link_capturing/metrics/intent_handling_metrics.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/web_applications/web_app_id_constants.h"
-#include "chrome/browser/web_applications/web_app_provider.h"
+#include "chrome/browser/web_applications/chromeos_web_app_experiments.h"
+#include "chrome/browser/web_applications/link_capturing_features.h"
 #include "chrome/browser/web_applications/web_app_tab_helper.h"
-#include "chrome/browser/web_applications/web_app_ui_manager.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/browser/navigation_handle.h"
@@ -99,58 +98,15 @@ IntentHandlingMetrics::Platform GetMetricsPlatform(AppType app_type) {
     case AppType::kSystemWeb:
       return IntentHandlingMetrics::Platform::PWA;
     case AppType::kUnknown:
-    case AppType::kBuiltIn:
     case AppType::kCrostini:
     case AppType::kChromeApp:
     case AppType::kPluginVm:
-    case AppType::kStandaloneBrowser:
     case AppType::kRemote:
     case AppType::kBorealis:
-    case AppType::kStandaloneBrowserChromeApp:
     case AppType::kExtension:
-    case AppType::kStandaloneBrowserExtension:
     case AppType::kBruschetta:
-      NOTREACHED_IN_MIGRATION();
-      return IntentHandlingMetrics::Platform::ARC;
+      NOTREACHED();
   }
-}
-
-base::flat_set<std::string>* GetWorkspaceAppAllowlist() {
-  static base::NoDestructor<base::flat_set<std::string>> g_workspace_allowlist(
-      {web_app::kGoogleDriveAppId, web_app::kGoogleDocsAppId,
-       web_app::kGoogleSheetsAppId, web_app::kGoogleSlidesAppId});
-  return g_workspace_allowlist.get();
-}  // namespace
-
-bool IsWorkspaceApp(const std::string& app_id) {
-  return base::Contains(*GetWorkspaceAppAllowlist(), app_id);
-}
-
-// Returns the ID of the app window where the link click originated. Returns
-// nullopt if the link was not clicked in an app window.
-std::optional<webapps::AppId> GetSourceAppId(
-    Profile* profile,
-    content::WebContents* web_contents) {
-  const webapps::AppId* app_id = web_app::WebAppProvider::GetForWebApps(profile)
-                                     ->ui_manager()
-                                     .GetAppIdForWindow(web_contents);
-  if (app_id) {
-    return *app_id;
-  }
-
-  // LinkCapturingTabHelper contains the App ID of the app which caused this
-  // navigation, in cases where the navigation is happening in a different
-  // browser to where it was initiated. We should only use this ID if it's the
-  // first navigation in this WebContents -- i.e., there is no committed URL.
-  const webapps::AppId* source_app_id =
-      GetLinkCapturingSourceAppId(web_contents);
-  const GURL& last_committed_url = web_contents->GetLastCommittedURL();
-  if (source_app_id &&
-      (!last_committed_url.is_valid() || last_committed_url.IsAboutBlank())) {
-    return *source_app_id;
-  }
-
-  return std::nullopt;
 }
 
 void LaunchApp(base::WeakPtr<AppServiceProxy> proxy,
@@ -187,45 +143,30 @@ static const base::TickClock*& GetTickClock() {
 std::optional<std::string> ChromeOsLinkCapturingDelegate::GetLaunchAppId(
     const AppIdsToLaunchForUrl& app_ids_to_launch,
     bool is_navigation_from_link,
-    std::optional<webapps::AppId> source_app_id) {
+    int redirection_chain_size) {
   if (app_ids_to_launch.candidates.empty()) {
     return std::nullopt;
   }
 
-  if (ShouldOnlyCaptureLinks(app_ids_to_launch.candidates) &&
-      !is_navigation_from_link) {
-    return std::nullopt;
-  }
-
   if (app_ids_to_launch.preferred) {
-    return app_ids_to_launch.preferred;
-  }
-
-  // If there's no user preference, but the link was clicked from within an app
-  // window, we may still launch the app.
-  if (!source_app_id.has_value()) {
-    return std::nullopt;
-  }
-
-  // When AppToAppLinkCapturing is enabled, always capture links from within
-  // app windows, if there is only one candidate app.
-  if (app_ids_to_launch.candidates.size() == 1 &&
-      base::FeatureList::IsEnabled(apps::features::kAppToAppLinkCapturing)) {
-    return app_ids_to_launch.candidates[0];
-  }
-
-  // When AppToAppLinkCapturingWorkspaceApps is enabled, launch the app if
-  // both source and destination are Workspace apps.
-  if (base::FeatureList::IsEnabled(
-          apps::features::kAppToAppLinkCapturingWorkspaceApps)) {
-    if (!IsWorkspaceApp(source_app_id.value())) {
-      return std::nullopt;
+    if (is_navigation_from_link) {
+      // A link click is always captured.
+      return app_ids_to_launch.preferred;
+    }
+    if (!ShouldOnlyCaptureLinks(app_ids_to_launch.candidates)) {
+      // For specific applications, we want to launch them even when there's no
+      // link click.
+      return app_ids_to_launch.preferred;
     }
 
-    auto dest_app =
-        base::ranges::find_if(app_ids_to_launch.candidates, &IsWorkspaceApp);
-    if (dest_app != app_ids_to_launch.candidates.end()) {
-      return *dest_app;
+    if (redirection_chain_size > 1 &&
+        web_app::ChromeOsWebAppExperiments::ShouldLaunchForRedirectedNavigation(
+            *app_ids_to_launch.preferred)) {
+      // For specific applications, we want to launch them after a redirect led
+      // to an app-controlled URL. Note: this behavior isn't covered by the web
+      // specs for Navigation Capturing, still it shouldn't be removed without
+      // prior alignment (e.g., the Enterprise Clippy project).
+      return app_ids_to_launch.preferred;
     }
   }
 
@@ -237,14 +178,6 @@ base::AutoReset<const base::TickClock*>
 ChromeOsLinkCapturingDelegate::SetClockForTesting(
     const base::TickClock* tick_clock) {
   return base::AutoReset<const base::TickClock*>(&GetTickClock(), tick_clock);
-}
-
-// static
-base::AutoReset<base::flat_set<std::string>>
-ChromeOsLinkCapturingDelegate::SetWorkspaceAppAllowlistForTesting(
-    base::flat_set<std::string> allowlist) {
-  return base::AutoReset<base::flat_set<std::string>>(
-      GetWorkspaceAppAllowlist(), allowlist);
 }
 
 ChromeOsLinkCapturingDelegate::ChromeOsLinkCapturingDelegate() = default;
@@ -263,14 +196,15 @@ ChromeOsLinkCapturingDelegate::CreateLinkCaptureLaunchClosure(
     Profile* profile,
     content::WebContents* web_contents,
     const GURL& url,
-    bool is_navigation_from_link) {
+    bool is_navigation_from_link,
+    int redirection_chain_size) {
+  CHECK(web_contents);
   AppServiceProxy* proxy = apps::AppServiceProxyFactory::GetForProfile(profile);
 
   AppIdsToLaunchForUrl app_ids_to_launch = FindAppIdsToLaunchForUrl(proxy, url);
 
-  std::optional<std::string> launch_app_id =
-      GetLaunchAppId(app_ids_to_launch, is_navigation_from_link,
-                     GetSourceAppId(profile, web_contents));
+  std::optional<std::string> launch_app_id = GetLaunchAppId(
+      app_ids_to_launch, is_navigation_from_link, redirection_chain_size);
   if (!launch_app_id) {
     return std::nullopt;
   }
@@ -291,14 +225,13 @@ ChromeOsLinkCapturingDelegate::CreateLinkCaptureLaunchClosure(
     return std::nullopt;
   }
 
-  // Don't capture if already inside a window for the target app. If the
+  // Don't capture if already inside a Web App window for the target app. If the
   // previous early return didn't trigger, this means we are in an app window
   // but out of scope of the original app, and navigating will put us back in
   // scope.
-  if (base::ValuesEquivalent(web_app::WebAppProvider::GetForWebApps(profile)
-                                 ->ui_manager()
-                                 .GetAppIdForWindow(web_contents),
-                             &launch_app_id.value())) {
+  web_app::WebAppTabHelper* tab_helper =
+      web_app::WebAppTabHelper::FromWebContents(web_contents);
+  if (tab_helper && tab_helper->window_app_id() == launch_app_id) {
     return std::nullopt;
   }
 

@@ -11,6 +11,7 @@
 #include "ash/root_window_controller.h"
 #include "ash/shelf/shelf.h"
 #include "ash/style/icon_button.h"
+#include "ash/style/option_button_group.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "chrome/browser/ash/arc/input_overlay/actions/action.h"
 #include "chrome/browser/ash/arc/input_overlay/arc_input_overlay_metrics.h"
@@ -19,6 +20,7 @@
 #include "chrome/browser/ash/arc/input_overlay/test/test_utils.h"
 #include "chrome/browser/ash/arc/input_overlay/touch_injector.h"
 #include "chrome/browser/ash/arc/input_overlay/ui/action_edit_view.h"
+#include "chrome/browser/ash/arc/input_overlay/ui/action_type_button.h"
 #include "chrome/browser/ash/arc/input_overlay/ui/action_type_button_group.h"
 #include "chrome/browser/ash/arc/input_overlay/ui/action_view.h"
 #include "chrome/browser/ash/arc/input_overlay/ui/action_view_list_item.h"
@@ -29,6 +31,7 @@
 #include "chrome/browser/ash/arc/input_overlay/ui/touch_point.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "ui/base/resource/resource_bundle.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/view.h"
 #include "ui/views/view_utils.h"
 
@@ -65,17 +68,20 @@ class ButtonOptionsMenuTest : public OverlayViewTestBase {
     return menu->action()->GetType();
   }
 
-  void PressActionMoveButton(ButtonOptionsMenu* menu) {
+  ActionTypeButtonGroup* GetActionTypeButtonGroup(ButtonOptionsMenu* menu) {
     DCHECK(menu);
-    ActionTypeButtonGroup* button_group = menu->button_group_;
+    auto button_group = menu->button_group_;
     DCHECK(button_group);
+    return button_group;
+  }
+
+  void PressActionMoveButton(ButtonOptionsMenu* menu) {
+    auto* button_group = GetActionTypeButtonGroup(menu);
     button_group->OnActionMoveButtonPressed();
   }
 
   void PressTapButton(ButtonOptionsMenu* menu) {
-    DCHECK(menu);
-    ActionTypeButtonGroup* button_group = menu->button_group_;
-    DCHECK(button_group);
+    auto* button_group = GetActionTypeButtonGroup(menu);
     button_group->OnActionTapButtonPressed();
   }
 
@@ -125,6 +131,22 @@ class ButtonOptionsMenuTest : public OverlayViewTestBase {
     EditLabels* edit_labels = action_edit->labels_view_;
     DCHECK(edit_labels);
     return edit_labels->labels_[index]->HasFocus();
+  }
+
+  bool IsSelectedActionTypeFocused(ButtonOptionsMenu* menu) {
+    auto selected_buttons =
+        GetActionTypeButtonGroup(menu)->GetSelectedButtons();
+    EXPECT_GT(selected_buttons.size(), 0u);
+    return selected_buttons[0]->HasFocus();
+  }
+
+  ActionTypeButton* GetActionButton(
+      ActionTypeButtonGroup* action_button_group) {
+    auto callback =
+        base::BindRepeating(&ActionTypeButtonGroup::OnActionTapButtonPressed,
+                            base::Unretained(action_button_group));
+    const std::u16string label = u"label";
+    return action_button_group->AddButton(callback, label);
   }
 };
 
@@ -211,6 +233,52 @@ TEST_F(ButtonOptionsMenuTest, TestChangeActionType) {
   EXPECT_TRUE(IsActionInTouchInjector(menu->action()));
   EXPECT_TRUE(IsActionInEditingList(menu->action()));
   EXPECT_EQ(list_index, GetIndexInEditingList(menu->action()));
+}
+
+TEST_F(ButtonOptionsMenuTest, TestActionTypeChangeByArrowKey) {
+  // Open up the button options menu and focus the selected action type.
+  auto* menu = ShowButtonOptionsMenu(tap_action_);
+  int list_index = GetIndexInEditingList(tap_action_);
+  EXPECT_EQ(GetActionType(menu), ActionType::TAP);
+
+  auto selected_buttons = GetActionTypeButtonGroup(menu)->GetSelectedButtons();
+  EXPECT_GT(selected_buttons.size(), 0u);
+  selected_buttons[0]->RequestFocus();
+  auto* event_generator = GetEventGenerator();
+
+  //  Press the right arrow key and verify action type is changed and focus on
+  //  the new type.
+  event_generator->PressKey(ui::VKEY_RIGHT, ui::EF_NONE);
+  EXPECT_EQ(GetActionType(menu), ActionType::MOVE);
+  EXPECT_TRUE(IsSelectedActionTypeFocused(menu));
+  EXPECT_TRUE(IsActionInTouchInjector(menu->action()));
+  EXPECT_TRUE(IsActionInEditingList(menu->action()));
+  EXPECT_EQ(list_index, GetIndexInEditingList(menu->action()));
+
+  //  Press the left arrow key and verify action type is changed and focus on
+  //  the new type.
+  event_generator->PressKey(ui::VKEY_LEFT, ui::EF_NONE);
+  EXPECT_EQ(GetActionType(menu), ActionType::TAP);
+  EXPECT_TRUE(IsSelectedActionTypeFocused(menu));
+  EXPECT_TRUE(IsActionInTouchInjector(menu->action()));
+  EXPECT_TRUE(IsActionInEditingList(menu->action()));
+  EXPECT_EQ(list_index, GetIndexInEditingList(menu->action()));
+}
+
+TEST_F(ButtonOptionsMenuTest, AccessibleCheckedStateChange) {
+  auto* menu = ShowButtonOptionsMenu(tap_action_);
+  ActionTypeButtonGroup* view = GetActionTypeButtonGroup(menu);
+  ActionTypeButton* button_view = GetActionButton(view);
+
+  ui::AXNodeData data;
+  button_view->SetSelected(true);
+  button_view->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetCheckedState(), ax::mojom::CheckedState::kTrue);
+
+  data = ui::AXNodeData();
+  button_view->SetSelected(false);
+  button_view->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetCheckedState(), ax::mojom::CheckedState::kFalse);
 }
 
 TEST_F(ButtonOptionsMenuTest, TestActionMoveDefaultInputBinding) {

@@ -4,6 +4,7 @@
 
 package org.chromium.components.browser_ui.site_settings;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.components.content_settings.PrefNames.COOKIE_CONTROLS_MODE;
 
 import android.content.Context;
@@ -20,12 +21,14 @@ import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
 
 import androidx.annotation.IntDef;
-import androidx.annotation.Nullable;
 import androidx.preference.Preference;
 
 import org.chromium.base.ApiCompatibilityUtils;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.content_settings.ContentSettingsType;
+import org.chromium.components.permissions.PermissionUtil;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.subresource_filter.SubresourceFilterFeatureMap;
 import org.chromium.components.user_prefs.UserPrefs;
@@ -37,6 +40,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /** A base class for dealing with website settings categories. */
+@NullMarked
 public class SiteSettingsCategory {
     @IntDef({
         Type.ALL_SITES,
@@ -48,6 +52,7 @@ public class SiteSettingsCategory {
         Type.BLUETOOTH_SCANNING,
         Type.CAMERA,
         Type.CLIPBOARD,
+        Type.HAND_TRACKING,
         Type.IDLE_DETECTION,
         Type.DEVICE_LOCATION,
         Type.JAVASCRIPT,
@@ -70,6 +75,9 @@ public class SiteSettingsCategory {
         Type.ZOOM,
         Type.STORAGE_ACCESS,
         Type.TRACKING_PROTECTION,
+        Type.FILE_EDITING,
+        Type.JAVASCRIPT_OPTIMIZER,
+        Type.SERIAL_PORT,
         Type.NUM_ENTRIES
     })
     @Retention(RetentionPolicy.SOURCE)
@@ -107,9 +115,13 @@ public class SiteSettingsCategory {
         int ZOOM = 28;
         int STORAGE_ACCESS = 29;
         int TRACKING_PROTECTION = 30;
+        int HAND_TRACKING = 31;
+        int FILE_EDITING = 32;
+        int JAVASCRIPT_OPTIMIZER = 33;
+        int SERIAL_PORT = 34;
 
         /** Number of handled categories used for calculating array sizes. */
-        int NUM_ENTRIES = 31;
+        int NUM_ENTRIES = 35;
     }
 
     private final BrowserContextHandle mBrowserContextHandle;
@@ -143,6 +155,9 @@ public class SiteSettingsCategory {
         if (type == Type.DEVICE_LOCATION) return new LocationCategory(browserContextHandle);
         if (type == Type.NFC) return new NfcCategory(browserContextHandle);
         if (type == Type.NOTIFICATIONS) return new NotificationCategory(browserContextHandle);
+        if (type == Type.JAVASCRIPT_OPTIMIZER) {
+            return new JavascriptOptimizerCategory(browserContextHandle);
+        }
 
         final String permission;
         if (type == Type.CAMERA) {
@@ -151,13 +166,16 @@ public class SiteSettingsCategory {
             permission = android.Manifest.permission.RECORD_AUDIO;
         } else if (type == Type.AUGMENTED_REALITY) {
             permission = android.Manifest.permission.CAMERA;
+        } else if (type == Type.HAND_TRACKING
+                && PermissionUtil.handTrackingNeedsAdditionalPermissions()) {
+            permission = PermissionUtil.ANDROID_PERMISSION_HAND_TRACKING;
         } else {
             permission = "";
         }
         return new SiteSettingsCategory(browserContextHandle, type, permission);
     }
 
-    public static SiteSettingsCategory createFromContentSettingsType(
+    public static @Nullable SiteSettingsCategory createFromContentSettingsType(
             BrowserContextHandle browserContextHandle,
             @ContentSettingsType.EnumType int contentSettingsType) {
         assert contentSettingsType != -1;
@@ -170,7 +188,7 @@ public class SiteSettingsCategory {
         return null;
     }
 
-    public static SiteSettingsCategory createFromPreferenceKey(
+    public static @Nullable SiteSettingsCategory createFromPreferenceKey(
             BrowserContextHandle browserContextHandle, String preferenceKey) {
         assert Type.ALL_SITES == 0;
         for (@Type int i = Type.ALL_SITES; i < Type.NUM_ENTRIES; i++) {
@@ -212,12 +230,18 @@ public class SiteSettingsCategory {
                 return ContentSettingsType.REQUEST_DESKTOP_SITE;
             case Type.DEVICE_LOCATION:
                 return ContentSettingsType.GEOLOCATION;
+            case Type.FILE_EDITING:
+                return ContentSettingsType.FILE_SYSTEM_WRITE_GUARD;
             case Type.FEDERATED_IDENTITY_API:
                 return ContentSettingsType.FEDERATED_IDENTITY_API;
+            case Type.HAND_TRACKING:
+                return ContentSettingsType.HAND_TRACKING;
             case Type.IDLE_DETECTION:
                 return ContentSettingsType.IDLE_DETECTION;
             case Type.JAVASCRIPT:
                 return ContentSettingsType.JAVASCRIPT;
+            case Type.JAVASCRIPT_OPTIMIZER:
+                return ContentSettingsType.JAVASCRIPT_OPTIMIZER;
             case Type.MICROPHONE:
                 return ContentSettingsType.MEDIASTREAM_MIC;
             case Type.NFC:
@@ -230,6 +254,8 @@ public class SiteSettingsCategory {
                 return ContentSettingsType.PROTECTED_MEDIA_IDENTIFIER;
             case Type.SENSORS:
                 return ContentSettingsType.SENSORS;
+            case Type.SERIAL_PORT:
+                return ContentSettingsType.SERIAL_GUARD;
             case Type.STORAGE_ACCESS:
                 return ContentSettingsType.STORAGE_ACCESS;
             case Type.SOUND:
@@ -258,6 +284,8 @@ public class SiteSettingsCategory {
                 return ContentSettingsType.USB_CHOOSER_DATA;
             case ContentSettingsType.BLUETOOTH_GUARD:
                 return ContentSettingsType.BLUETOOTH_CHOOSER_DATA;
+            case ContentSettingsType.SERIAL_GUARD:
+                return ContentSettingsType.SERIAL_CHOOSER_DATA;
             default:
                 return -1; // Conversion unavailable.
         }
@@ -295,10 +323,16 @@ public class SiteSettingsCategory {
                 return "device_location";
             case Type.FEDERATED_IDENTITY_API:
                 return "federated_identity_api";
+            case Type.FILE_EDITING:
+                return "file_editing";
+            case Type.HAND_TRACKING:
+                return "hand_tracking";
             case Type.IDLE_DETECTION:
                 return "idle_detection";
             case Type.JAVASCRIPT:
                 return "javascript";
+            case Type.JAVASCRIPT_OPTIMIZER:
+                return "javascript_optimizer";
             case Type.MICROPHONE:
                 return "microphone";
             case Type.NFC:
@@ -311,6 +345,8 @@ public class SiteSettingsCategory {
                 return "protected_content";
             case Type.SENSORS:
                 return "sensors";
+            case Type.SERIAL_PORT:
+                return "serial_port";
             case Type.STORAGE_ACCESS:
                 return "storage_access";
             case Type.SOUND:
@@ -368,7 +404,8 @@ public class SiteSettingsCategory {
         if (mCategory == Type.AUTOMATIC_DOWNLOADS
                 || mCategory == Type.BACKGROUND_SYNC
                 || mCategory == Type.JAVASCRIPT
-                || mCategory == Type.POPUPS) {
+                || mCategory == Type.POPUPS
+                || mCategory == Type.JAVASCRIPT_OPTIMIZER) {
             return WebsitePreferenceBridge.isContentSettingManaged(
                     getBrowserContextHandle(), getContentSettingsType());
         } else if (mCategory == Type.DEVICE_LOCATION
@@ -414,12 +451,14 @@ public class SiteSettingsCategory {
      *     for many permissions.
      * @param appName The name of the app to use in warning strings.
      */
-    public void configurePermissionIsOffPreferences(
+    public void configureWarningPreferences(
             Preference osWarning,
             Preference osWarningExtra,
             Context context,
             boolean specificCategory,
             String appName) {
+        assert showPermissionBlockedMessage(context);
+
         Intent perAppIntent = getIntentToEnableOsPerAppPermission(context);
         Intent globalIntent = getIntentToEnableOsGlobalPermission(context);
         String perAppMessage =
@@ -446,6 +485,7 @@ public class SiteSettingsCategory {
             osWarningExtra.setTitle(unsupportedMessage);
             osWarningExtra.setIcon(getDisabledInAndroidIcon(context));
         } else if (globalIntent != null) {
+            assumeNonNull(globalMessage);
             SpannableString messageWithLink =
                     SpanApplier.applySpans(
                             globalMessage, new SpanInfo("<link>", "</link>", linkSpan));
@@ -488,8 +528,7 @@ public class SiteSettingsCategory {
     }
 
     /** Returns the message to display when permission is not supported. */
-    @Nullable
-    protected String getMessageIfNotSupported(Context context) {
+    protected @Nullable String getMessageIfNotSupported(Context context) {
         return null;
     }
 
@@ -516,6 +555,11 @@ public class SiteSettingsCategory {
         return permissionOnInAndroid(mAndroidPermission, context);
     }
 
+    /** Returns whether to disable the category toggle. */
+    protected boolean shouldDisableToggle() {
+        return false;
+    }
+
     /**
      * Returns whether to show the 'permission blocked' message. Majority of the time, that is
      * warranted when the permission is either blocked per app or globally. But there are exceptions
@@ -530,7 +574,7 @@ public class SiteSettingsCategory {
      * already enabled. Android M and above provides two ways of doing this for some permissions,
      * most notably Location, one that is per-app and another that is global.
      */
-    private Intent getIntentToEnableOsPerAppPermission(Context context) {
+    private @Nullable Intent getIntentToEnableOsPerAppPermission(Context context) {
         if (enabledForChrome(context)) return null;
         return getAppInfoIntent(context);
     }
@@ -540,7 +584,7 @@ public class SiteSettingsCategory {
      * permission. Android M and above provides two ways of doing this for some permissions, most
      * notably Location, one that is per-app and another that is global.
      */
-    protected Intent getIntentToEnableOsGlobalPermission(Context context) {
+    protected @Nullable Intent getIntentToEnableOsGlobalPermission(Context context) {
         return null;
     }
 
@@ -561,17 +605,25 @@ public class SiteSettingsCategory {
             permission_string = R.string.android_camera_permission_off;
         } else if (type == ContentSettingsType.AR) {
             permission_string = R.string.android_ar_camera_permission_off;
+        } else if (type == ContentSettingsType.HAND_TRACKING) {
+            permission_string = R.string.android_hand_tracking_permission_off;
         } else if (type == ContentSettingsType.NOTIFICATIONS) {
             permission_string = R.string.android_notifications_permission_off;
         }
-        return context.getResources()
-                .getString(
-                        plural ? R.string.android_permission_off_plural : permission_string,
-                        appName);
+        return context.getString(
+                plural ? R.string.android_permission_off_plural : permission_string, appName);
     }
 
     /** Returns the message to display when per-app permission is blocked. */
-    protected String getMessageForEnablingOsGlobalPermission(Context context) {
+    protected @Nullable String getMessageForEnablingOsGlobalPermission(Context context) {
+        return null;
+    }
+
+    /**
+     * Returns the message to display to explain why the settings toggle is disabled. Returns null
+     * if no message should be displayed.
+     */
+    protected @Nullable String getMessageWhyToggleIsDisabled(Context context) {
         return null;
     }
 

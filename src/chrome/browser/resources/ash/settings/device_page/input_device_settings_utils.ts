@@ -2,7 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {Button, DeviceSettings, InputDeviceSettingsPolicy, InputDeviceType, KeyEvent, PolicyStatus} from './input_device_settings_types.js';
+import {stringToMojoString16} from 'chrome://resources/js/mojo_type_util.js';
+import type {BluetoothDeviceProperties} from 'chrome://resources/mojo/chromeos/ash/services/bluetooth_config/public/mojom/cros_bluetooth_config.mojom-webui.js';
+import {AudioOutputCapability, DeviceConnectionState, DeviceType} from 'chrome://resources/mojo/chromeos/ash/services/bluetooth_config/public/mojom/cros_bluetooth_config.mojom-webui.js';
+
+import type {Button, DeviceSettings, InputDeviceSettingsPolicy, InputDeviceType, KeyEvent} from './input_device_settings_types.js';
+import {PolicyStatus} from './input_device_settings_types.js';
 
 function objectsAreEqual(
     obj1: {[key: string]: any}, obj2: {[key: string]: any}): boolean {
@@ -98,4 +103,27 @@ export function getDeviceStateChangesToAnnounce(
   }
 
   return {msgId, deviceNames: devices.map(device => device.name)};
+}
+
+export function createBluetoothDeviceProperties(
+    id: string,
+    publicName: string,
+    batteryPercentage: number,
+    ): BluetoothDeviceProperties {
+  return {
+    id: id,
+    address: id,
+    publicName: stringToMojoString16(publicName),
+    deviceType: DeviceType.kMouse,
+    audioCapability: AudioOutputCapability.kNotCapableOfAudioOutput,
+    connectionState: DeviceConnectionState.kConnected,
+    isBlockedByPolicy: false,
+    batteryInfo: {
+      defaultProperties: {batteryPercentage},
+      leftBudInfo: null,
+      rightBudInfo: null,
+      caseInfo: null,
+    },
+    imageInfo: null,
+  };
 }

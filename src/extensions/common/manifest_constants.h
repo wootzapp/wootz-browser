@@ -13,11 +13,22 @@ namespace extensions {
 // Keys used in JSON representation of extensions.
 namespace manifest_keys {
 
+// A list of keys that do not generate warnings when specified in the manifest,
+// despite the fact that they are not recognized by Chrome. Keys should be
+// added here if they are widely adopted but a developer is unlikely to expect
+// that it would do anything in Chrome, and so wouldn't benefit from a warning.
+inline constexpr const char* const kIgnoredUnrecognizedKeys[] = {
+    // This is used by non-Chromium browsers:
+    // https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/manifest.json/browser_specific_settings
+    "browser_specific_settings",
+    // This is part of the JSON schema definition:
+    // https://json-schema.org/understanding-json-schema/reference/schema#schema
+    "$schema"};
+
 inline constexpr char kAboutPage[] = "about_page";
 inline constexpr char kAction[] = "action";
 inline constexpr char kActionDefaultIcon[] = "default_icon";
 inline constexpr char kActionDefaultPopup[] = "default_popup";
-inline constexpr char kActionDefaultWidget[] = "default_widget";
 inline constexpr char kActionDefaultState[] = "default_state";
 inline constexpr char kActionDefaultTitle[] = "default_title";
 inline constexpr char kApp[] = "app";
@@ -67,6 +78,7 @@ inline constexpr char kHideBookmarkButton[] = "hide_bookmark_button";
 inline constexpr char kHomepageURL[] = "homepage_url";
 inline constexpr char kHostPermissions[] = "host_permissions";
 inline constexpr char kIcons[] = "icons";
+inline constexpr char kIconVariants[] = "icon_variants";
 inline constexpr char kId[] = "id";
 inline constexpr char kImeOptionsPage[] = "options_page";
 inline constexpr char kIndicator[] = "indicator";
@@ -134,7 +146,6 @@ inline constexpr char kShortName[] = "short_name";
 inline constexpr char kSockets[] = "sockets";
 inline constexpr char kStorageManagedSchema[] = "storage.managed_schema";
 inline constexpr char kSuggestedKey[] = "suggested_key";
-inline constexpr char kSystemIndicator[] = "system_indicator";
 inline constexpr char kTheme[] = "theme";
 inline constexpr char kThemeColors[] = "colors";
 inline constexpr char kThemeDisplayProperties[] = "properties";
@@ -171,8 +182,6 @@ inline constexpr char kFileSystemProviderCapabilities[] =
     "file_system_provider_capabilities";
 inline constexpr char kActionHandlers[] = "action_handlers";
 inline constexpr char kActionHandlerActionKey[] = "action";
-inline constexpr char kActionHandlerEnabledOnLockScreenKey[] =
-    "enabled_on_lock_screen";
 #endif
 
 }  // namespace manifest_keys
@@ -186,36 +195,6 @@ inline constexpr char kBrowserActionCommandEvent[] = "_execute_browser_action";
 inline constexpr char kIncognitoNotAllowed[] = "not_allowed";
 inline constexpr char kIncognitoSplit[] = "split";
 inline constexpr char kIncognitoSpanning[] = "spanning";
-inline constexpr char kKeybindingPlatformChromeOs[] = "chromeos";
-inline constexpr char kKeybindingPlatformDefault[] = "default";
-inline constexpr char kKeybindingPlatformLinux[] = "linux";
-inline constexpr char kKeybindingPlatformMac[] = "mac";
-inline constexpr char kKeybindingPlatformWin[] = "windows";
-inline constexpr char kKeyAlt[] = "Alt";
-inline constexpr char kKeyComma[] = "Comma";
-inline constexpr char kKeyCommand[] = "Command";
-inline constexpr char kKeyCtrl[] = "Ctrl";
-inline constexpr char kKeyDel[] = "Delete";
-inline constexpr char kKeyDown[] = "Down";
-inline constexpr char kKeyEnd[] = "End";
-inline constexpr char kKeyHome[] = "Home";
-inline constexpr char kKeyIns[] = "Insert";
-inline constexpr char kKeyLeft[] = "Left";
-inline constexpr char kKeyMacCtrl[] = "MacCtrl";
-inline constexpr char kKeyMediaNextTrack[] = "MediaNextTrack";
-inline constexpr char kKeyMediaPlayPause[] = "MediaPlayPause";
-inline constexpr char kKeyMediaPrevTrack[] = "MediaPrevTrack";
-inline constexpr char kKeyMediaStop[] = "MediaStop";
-inline constexpr char kKeyPgDwn[] = "PageDown";
-inline constexpr char kKeyPgUp[] = "PageUp";
-inline constexpr char kKeyPeriod[] = "Period";
-inline constexpr char kKeyRight[] = "Right";
-inline constexpr char kKeySearch[] = "Search";
-inline constexpr char kKeySeparator[] = "+";
-inline constexpr char kKeyShift[] = "Shift";
-inline constexpr char kKeySpace[] = "Space";
-inline constexpr char kKeyTab[] = "Tab";
-inline constexpr char kKeyUp[] = "Up";
 inline constexpr char kLaunchContainerPanelDeprecated[] = "panel";
 inline constexpr char kLaunchContainerTab[] = "tab";
 inline constexpr char kLaunchContainerWindow[] = "window";
@@ -268,8 +247,6 @@ inline constexpr char kCannotScriptGallery[] =
     "The extensions gallery cannot be scripted.";
 inline constexpr char kCannotScriptNtp[] =
     "The New Tab Page cannot be scripted.";
-inline constexpr char kCannotScriptSigninPage[] =
-    "The sign-in page cannot be scripted.";
 inline constexpr char16_t kChromeStyleInvalidForManifestV3[] =
     u"The chrome_style option cannot be used with manifest version 3.";
 inline constexpr char kChromeVersionTooLow[] =
@@ -307,10 +284,10 @@ inline constexpr char16_t kInvalidAboutPageExpectRelativePath[] =
 inline constexpr char kInvalidAction[] = "Invalid value for 'action'.";
 inline constexpr char16_t kInvalidActionDefaultIcon[] =
     u"Invalid value for 'default_icon'.";
+inline constexpr char kInvalidActionDefaultIconMimeType[] =
+    "Invalid mime type for 'default_icon'.";
 inline constexpr char16_t kInvalidActionDefaultPopup[] =
     u"Invalid type for 'default_popup'.";
-inline constexpr char16_t kInvalidActionDefaultWidget[] =
-    u"Invalid type for 'default_widget'.";
 inline constexpr char16_t kInvalidActionDefaultState[] =
     u"Invalid value for 'default_state'.";
 inline constexpr char16_t kInvalidActionDefaultTitle[] =
@@ -326,6 +303,10 @@ inline constexpr char kInvalidBackgroundScript[] =
     "Invalid value for 'background.scripts[*]'.";
 inline constexpr char16_t kInvalidBackgroundScripts[] =
     u"Invalid value for 'background.scripts'.";
+inline constexpr char kInvalidBackgroundScriptMimeType[] =
+    "Invalid background script mime type for 'background.scripts[*]', a "
+    "background script can only be loaded from supported JavaScript files such "
+    "as .js files.";
 inline constexpr char16_t kInvalidBackgroundServiceWorkerScript[] =
     u"Invalid value for 'background.service_worker'.";
 inline constexpr char16_t kInvalidBackgroundServiceWorkerType[] =
@@ -436,6 +417,8 @@ inline constexpr char kInvalidHostPermission[] = "Invalid value for '*[*]'.";
 inline constexpr char kInvalidHostPermissions[] = "Invalid value for '*'.";
 inline constexpr char kInvalidIconKey[] = "Invalid key in icons: \"*\".";
 inline constexpr char kInvalidIconPath[] = "Invalid value for 'icons[\"*\"]'.";
+inline constexpr char kInvalidIconMimeType[] =
+    "Invalid mime type for 'icons[\"*\"]'.";
 inline constexpr char16_t kInvalidIcons[] = u"Invalid value for 'icons'.";
 inline constexpr char16_t kInvalidImportAndExport[] =
     u"Simultaneous 'import' and 'export' are not allowed.";
@@ -521,6 +504,8 @@ inline constexpr char kInvalidMatchCount[] =
     "one match specified.";
 inline constexpr char kInvalidMatches[] =
     "Required value 'content_scripts[*].matches' is missing or invalid.";
+inline constexpr char kInvalidUserScriptMimeType[] =
+    "Invalid script mime type: '%s'";
 inline constexpr char16_t kInvalidMIMETypes[] =
     u"Invalid value for 'mime_types'";
 inline constexpr char16_t kInvalidMimeTypesHandler[] =
@@ -583,8 +568,6 @@ inline constexpr char16_t kInvalidShortName[] =
     u"Invalid value for 'short_name'.";
 inline constexpr char kInvalidStartupOverrideURL[] =
     "Invalid value for overriding startup URL: '[*]'.";
-inline constexpr char16_t kInvalidSystemIndicator[] =
-    u"Invalid value for 'system_indicator'.";
 inline constexpr char16_t kInvalidTheme[] = u"Invalid value for 'theme'.";
 inline constexpr char16_t kInvalidThemeColors[] =
     u"Invalid value for theme colors - colors must be integers";
@@ -647,11 +630,8 @@ inline constexpr char16_t kInvalidVersion[] =
     "dot-separated integers each between 0 and 65536.";
 inline constexpr char16_t kInvalidVersionName[] =
     u"Invalid value for 'version_name'.";
-inline constexpr char kInvalidWebAccessibleResourcesList[] =
-    "Invalid value for 'web_accessible_resources'.";
 inline constexpr char kInvalidWebAccessibleResource[] =
     "Invalid value for 'web_accessible_resources[*]'. *";
-inline constexpr char kInvalidSidePanel[] = "Invalid value for 'side_panel'. *";
 inline constexpr char16_t kInvalidWebview[] = u"Invalid value for 'webview'.";
 inline constexpr char16_t kInvalidWebviewAccessibleResourcesList[] =
     u"Invalid value for'webview.accessible_resources'.";
@@ -665,10 +645,6 @@ inline constexpr char16_t kInvalidWebviewPartitionsList[] =
     u"Invalid value for 'webview.partitions'.";
 inline constexpr char kInvalidWebURL[] = "Invalid value for 'app.urls[*]': *";
 inline constexpr char kInvalidWebURLs[] = "Invalid value for 'app.urls'.";
-inline constexpr char kInvalidZipHash[] =
-    "Required key 'zip_hash' is missing or invalid.";
-inline constexpr char kKeyIsDeprecatedWithReplacement[] =
-    "Key \"*\" is deprecated.  Key \"*\" should be used instead.";
 inline constexpr char16_t kLaunchPathAndExtentAreExclusive[] =
     u"The 'app.launch.local_path' and 'app.urls' keys cannot both be set.";
 inline constexpr char16_t kLaunchPathAndURLAreExclusive[] =
@@ -689,8 +665,10 @@ inline constexpr char kManifestParseError[] = "Manifest is not valid JSON.";
 inline constexpr char kManifestUnreadable[] =
     "Manifest file is missing or unreadable";
 inline constexpr char kManifestV2IsDeprecatedWarning[] =
-    "Manifest version 2 is deprecated, and support will be removed in 2024. "
-    "See https://developer.chrome.com/docs/extensions/develop/migrate/mv2-deprecation-timeline"
+    "Manifest version 2 is deprecated, and support will be removed in 2025. "
+    "See "
+    "https://developer.chrome.com/docs/extensions/develop/migrate/"
+    "mv2-deprecation-timeline"
     " for details.";
 inline constexpr char kManifestVersionTooHighWarning[] =
     "The maximum currently-supported manifest version is *, but this is *.  "
@@ -698,9 +676,6 @@ inline constexpr char kManifestVersionTooHighWarning[] =
 inline constexpr char16_t kMatchOriginAsFallbackCantHavePaths[] =
     u"The path component for scripts with 'match_origin_as_fallback' must be "
     "'*'.";
-inline constexpr char kMatchOriginAsFallbackRestrictedToMV3[] =
-    "The 'match_origin_as_fallback' property is restricted to extensions with "
-    "'manifest_version' set to 3 or higher.";
 inline constexpr char kMissingFile[] =
     "At least one js or css file is required for 'content_scripts[*]'.";
 inline constexpr char16_t kMultipleOverrides[] =
@@ -716,6 +691,7 @@ inline constexpr char16_t kOneUISurfaceOnly[] =
     u"Only one of 'browser_action', 'page_action', and 'app' can be specified.";
 inline constexpr char kPageCaptureNeeded[] =
     "'pageCapture' permission is required.";
+inline constexpr char kPatternMalformed[] = "URL pattern '*' is malformed.";
 inline constexpr char kPermissionCannotBeOptional[] =
     "Permission '*' cannot be listed as optional. This permission will be "
     "omitted.";
@@ -724,6 +700,7 @@ inline constexpr char kPermissionMarkedOptionalAndRequired[] =
     "this permission will be omitted.";
 inline constexpr char kPermissionNotAllowed[] =
     "Access to permission '*' denied.";
+inline constexpr char kPermissionUnknown[] = "Permission '*' is unknown.";
 inline constexpr char kPermissionUnknownOrMalformed[] =
     "Permission '*' is unknown or URL pattern is malformed.";
 inline constexpr char kPluginsRequirementDeprecated[] =
@@ -746,8 +723,6 @@ inline constexpr char16_t
         "persistent background page.";
 inline constexpr char kUnrecognizedManifestKey[] =
     "Unrecognized manifest key '*'.";
-inline constexpr char kUnrecognizedManifestProperty[] =
-    "Unrecognized property '*' of manifest key '*'.";
 inline constexpr char16_t kWebRequestConflictsWithLazyBackground[] =
     u"The 'webRequest' API cannot be used with event pages.";
 #if BUILDFLAG(IS_CHROMEOS)

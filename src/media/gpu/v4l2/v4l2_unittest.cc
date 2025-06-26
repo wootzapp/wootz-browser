@@ -2,33 +2,35 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// gtest.h has to be included first.
-// See http://code.google.com/p/googletest/issues/detail?id=371
-#include "testing/gtest/include/gtest/gtest.h"
-
-#include "base/bits.h"
-#include "base/containers/contains.h"
-#include "base/files/file.h"
-#include "base/files/file_enumerator.h"
-#include "base/files/memory_mapped_file.h"
-#include "base/test/launcher/unit_test_launcher.h"
-#include "base/test/task_environment.h"
-#include "base/test/test_suite.h"
-#include "media/base/mock_media_log.h"
-#include "media/base/test_helpers.h"
-#include "media/base/video_codecs.h"
-#include "media/gpu/v4l2/stateless/v4l2_stateless_video_decoder.h"
-#include "media/gpu/v4l2/v4l2_device.h"
-#include "media/gpu/v4l2/v4l2_stateful_video_decoder.h"
-#include "media/gpu/v4l2/v4l2_utils.h"
-#include "third_party/libdrm/src/include/drm/drm_fourcc.h"
-#include "ui/gfx/linux/gbm_defines.h"
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
 
 #include <drm.h>
 #include <fcntl.h>
 #include <gbm.h>
 #include <string.h>
 #include <xf86drm.h>
+
+#include "base/bits.h"
+#include "base/containers/contains.h"
+#include "base/files/file.h"
+#include "base/files/file_enumerator.h"
+#include "base/files/memory_mapped_file.h"
+#include "base/memory/scoped_refptr.h"
+#include "base/test/launcher/unit_test_launcher.h"
+#include "base/test/task_environment.h"
+#include "base/test/test_suite.h"
+#include "media/base/mock_media_log.h"
+#include "media/base/test_helpers.h"
+#include "media/base/video_codecs.h"
+#include "media/gpu/v4l2/v4l2_device.h"
+#include "media/gpu/v4l2/v4l2_stateful_video_decoder.h"
+#include "media/gpu/v4l2/v4l2_utils.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/libdrm/src/include/drm/drm_fourcc.h"
+#include "ui/gfx/linux/gbm_defines.h"
 
 namespace media {
 
@@ -165,10 +167,10 @@ void TestStatefulDecoderAllocations(uint32_t codec_fourcc,
   // of 32. Round device value to nearest multiple of 64 and compare
   // stride values.
   const int bo_num_planes = gbm_bo_get_plane_count(bo);
-  std::vector<int32_t> strides =
+  std::vector<size_t> strides =
       VideoFrame::ComputeStrides(PIXEL_FORMAT_NV12, coded_size);
   for (int i = 0; i < bo_num_planes; ++i) {
-    uint32_t s = base::bits::AlignUpDeprecatedDoNotUse(strides[i], 64);
+    size_t s = base::bits::AlignUp(strides[i], static_cast<size_t>(64));
     EXPECT_EQ(s, gbm_bo_get_stride_for_plane(bo, i));
   }
 
@@ -189,7 +191,7 @@ TEST_P(V4L2MinigbmTest, AllocateAndCompareWithMinigbm) {
   const auto video_codec_profile = std::get<0>(GetParam());
   const gfx::Size resolution = std::get<1>(GetParam());
 
-  scoped_refptr<V4L2Device> device(new V4L2Device());
+  auto device = base::MakeRefCounted<V4L2Device>();
 
   const auto fourcc_stateful =
       VideoCodecProfileToV4L2PixFmt(video_codec_profile, /*slice_based=*/false);
@@ -260,59 +262,35 @@ class MockVideoDecoderMixinClient : public VideoDecoderMixin::Client {
   base::WeakPtrFactory<MockVideoDecoderMixinClient> weak_ptr_factory_;
 };
 
-// Templatized test fixture to use with V4L2StatefulVideoDecoder and
-// V4L2StatelessVideoDecoder.
-template <class FlatVideoDecoder>
+// Test fixture to use with V4L2StatefulVideoDecoder
 class V4L2FlatVideoDecoderTest : public ::testing::Test {
  public:
   V4L2FlatVideoDecoderTest() = default;
-  static int GetMaxNumDecoderInstances() {
-    return FlatVideoDecoder::GetMaxNumDecoderInstancesForTesting();
-  }
   void SetUp() override {
     // Only run tests using V4L2StatefulVideoDecoder on platforms supporting the
-    // V4L2 stateful decoder API; correspondingly for V4L2StatelessVideoDecoder
-    // and platforms with the V4L2 stateless API implementations.
-    if (std::is_same<FlatVideoDecoder, V4L2StatefulVideoDecoder>::value !=
-        IsV4L2DecoderStateful()) {
+    // V4L2 stateful decoder API.
+    if (!IsV4L2DecoderStateful()) {
       GTEST_SKIP();
     }
   }
 };
-class V4L2FlatVideoDecoderNames {
- public:
-  template <typename T>
-  static std::string GetName(int) {
-    if (std::is_same<T, V4L2StatefulVideoDecoder>()) {
-      return "Stateful";
-    }
-    if (std::is_same<T, V4L2StatelessVideoDecoder>()) {
-      return "Stateless";
-    }
-  }
-};
-using V4L2FlatVideoDecoderTypes =
-    ::testing::Types<V4L2StatefulVideoDecoder, V4L2StatelessVideoDecoder>;
-TYPED_TEST_SUITE(V4L2FlatVideoDecoderTest,
-                 V4L2FlatVideoDecoderTypes,
-                 V4L2FlatVideoDecoderNames);
 
-// Verifies that V4L2Stateful/StatelessVideoDecoder::Initialize() fails when
-// called with an unsupported codec profile.
-TYPED_TEST(V4L2FlatVideoDecoderTest, UnsupportedVideoCodec) {
+// Verifies that V4L2StatefulVideoDecoder::Initialize() fails when called with
+// an unsupported codec profile.
+TEST_F(V4L2FlatVideoDecoderTest, UnsupportedVideoCodec) {
   base::test::TaskEnvironment task_environment;
   MockVideoDecoderMixinClient mock_client;
 
-  auto decoder =
-      TypeParam::Create(std::make_unique<MockMediaLog>(),
-                        base::SequencedTaskRunner::GetCurrentDefault(),
-                        mock_client.weak_ptr_factory_.GetWeakPtr());
+  auto decoder = V4L2StatefulVideoDecoder::Create(
+      std::make_unique<MockMediaLog>(),
+      base::SequencedTaskRunner::GetCurrentDefault(),
+      mock_client.weak_ptr_factory_.GetWeakPtr());
 
   const auto unsupported_config = TestVideoConfig::Normal(VideoCodec::kMPEG2);
   EXPECT_CALL(
       mock_client,
       InitCallback(DecoderStatus(DecoderStatus::Codes::kUnsupportedConfig)));
-  static_cast<TypeParam*>(decoder.get())
+  static_cast<V4L2StatefulVideoDecoder*>(decoder.get())
       ->Initialize(unsupported_config, /*low_delay=*/false,
                    /*cdm_context=*/nullptr,
                    base::BindOnce(&MockVideoDecoderMixinClient::InitCallback,
@@ -321,14 +299,15 @@ TYPED_TEST(V4L2FlatVideoDecoderTest, UnsupportedVideoCodec) {
                    /*waiting_cb*/ base::DoNothing());
 }
 
-// Verifies that V4L2Stateful/StatelessVideoDecoder::Initialize() fails after
-// the limit of created instances exceeds the threshold.
-TYPED_TEST(V4L2FlatVideoDecoderTest, TooManyDecoderInstances) {
+// Verifies that V4L2StatefulVideoDecoder::Initialize() fails after the limit of
+// created instances exceeds the threshold.
+TEST_F(V4L2FlatVideoDecoderTest, TooManyDecoderInstances) {
   base::test::TaskEnvironment task_environment;
   ::testing::NiceMock<MockVideoDecoderMixinClient> mock_client;
   const auto supported_config = TestVideoConfig::Normal(VideoCodec::kH264);
 
-  const int kMaxNumOfInstances = TestFixture::GetMaxNumDecoderInstances();
+  const int kMaxNumOfInstances =
+      V4L2StatefulVideoDecoder::GetMaxNumDecoderInstancesForTesting();
 
   ::testing::InSequence s;
   EXPECT_CALL(mock_client,
@@ -337,11 +316,12 @@ TYPED_TEST(V4L2FlatVideoDecoderTest, TooManyDecoderInstances) {
 
   std::vector<std::unique_ptr<VideoDecoderMixin>> decoders(kMaxNumOfInstances);
   for (auto& decoder : decoders) {
-    decoder = TypeParam::Create(std::make_unique<MockMediaLog>(),
-                                base::SequencedTaskRunner::GetCurrentDefault(),
-                                mock_client.weak_ptr_factory_.GetWeakPtr());
+    decoder = V4L2StatefulVideoDecoder::Create(
+        std::make_unique<MockMediaLog>(),
+        base::SequencedTaskRunner::GetCurrentDefault(),
+        mock_client.weak_ptr_factory_.GetWeakPtr());
 
-    static_cast<TypeParam*>(decoder.get())
+    static_cast<V4L2StatefulVideoDecoder*>(decoder.get())
         ->Initialize(supported_config,
                      /*low_delay=*/false, /*cdm_context=*/nullptr,
                      base::BindOnce(&MockVideoDecoderMixinClient::InitCallback,
@@ -355,11 +335,11 @@ TYPED_TEST(V4L2FlatVideoDecoderTest, TooManyDecoderInstances) {
   EXPECT_CALL(
       mock_client,
       InitCallback(DecoderStatus(DecoderStatus::Codes::kTooManyDecoders)));
-  auto decoder =
-      TypeParam::Create(std::make_unique<MockMediaLog>(),
-                        base::SequencedTaskRunner::GetCurrentDefault(),
-                        mock_client.weak_ptr_factory_.GetWeakPtr());
-  static_cast<TypeParam*>(decoder.get())
+  auto decoder = V4L2StatefulVideoDecoder::Create(
+      std::make_unique<MockMediaLog>(),
+      base::SequencedTaskRunner::GetCurrentDefault(),
+      mock_client.weak_ptr_factory_.GetWeakPtr());
+  static_cast<V4L2StatefulVideoDecoder*>(decoder.get())
       ->Initialize(supported_config,
                    /*low_delay=*/false, /*cdm_context=*/nullptr,
                    base::BindOnce(&MockVideoDecoderMixinClient::InitCallback,

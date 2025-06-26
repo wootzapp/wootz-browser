@@ -7,8 +7,6 @@
 #include <memory>
 
 #include "ash/api/tasks/fake_tasks_client.h"
-#include "ash/constants/ash_features.h"
-#include "ash/glanceables/common/glanceables_error_message_view.h"
 #include "ash/glanceables/common/glanceables_list_footer_view.h"
 #include "ash/glanceables/common/glanceables_util.h"
 #include "ash/glanceables/common/glanceables_view_id.h"
@@ -26,17 +24,19 @@
 #include "base/test/gtest_tags.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/metrics/user_action_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/types/cxx23_to_underlying.h"
 #include "components/account_id/account_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/keycodes/keyboard_codes_posix.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/progress_bar.h"
+#include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/textfield/textfield.h"
+#include "ui/views/mouse_constants.h"
 #include "ui/views/view.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
@@ -45,11 +45,10 @@ namespace ash {
 
 class GlanceablesTasksViewTest : public AshTestBase {
  public:
-  GlanceablesTasksViewTest() {
-    feature_list_.InitWithFeatures(
-        /*enabled_features=*/{features::kGlanceablesTimeManagementTasksView},
-        /*disabled_features=*/{});
-  }
+  GlanceablesTasksViewTest()
+      : AshTestBase(std::make_unique<base::test::TaskEnvironment>(
+            base::test::TaskEnvironment::MainThreadType::UI,
+            base::test::TaskEnvironment::TimeSource::MOCK_TIME)) {}
 
   void SetUp() override {
     AshTestBase::SetUp();
@@ -57,6 +56,8 @@ class GlanceablesTasksViewTest : public AshTestBase {
     fake_glanceables_tasks_client_ =
         glanceables_tasks_test_util::InitializeFakeTasksClient(
             base::Time::Now());
+    fake_glanceables_tasks_client_->set_http_error(
+        google_apis::ApiErrorCode::HTTP_SUCCESS);
     Shell::Get()->glanceables_controller()->UpdateClientsRegistration(
         account_id_, GlanceablesController::ClientsRegistration{
                          .tasks_client = fake_glanceables_tasks_client_.get()});
@@ -79,11 +80,11 @@ class GlanceablesTasksViewTest : public AshTestBase {
   }
 
   // Populates `num` of tasks to the default task list.
-  void PopulateTasks(size_t num) {
+  void PopulateTasks(size_t num, std::string task_list_id = "TaskListID1") {
     for (size_t i = 0; i < num; ++i) {
       auto num_string = base::NumberToString(i);
       fake_glanceables_tasks_client_->AddTask(
-          "TaskListID1", base::StrCat({"title_", num_string}),
+          task_list_id, base::StrCat({"title_", num_string}),
           base::DoNothing());
     }
 
@@ -103,26 +104,30 @@ class GlanceablesTasksViewTest : public AshTestBase {
 
   Combobox* GetComboBoxView() const {
     return views::AsViewClass<Combobox>(view_->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kTasksBubbleComboBox)));
+        base::to_underlying(GlanceablesViewId::kTimeManagementBubbleComboBox)));
   }
 
   const IconButton* GetHeaderIconView() const {
     return views::AsViewClass<IconButton>(
-        view_
-            ->GetViewByID(
-                base::to_underlying(GlanceablesViewId::kTasksBubbleHeaderView))
-            ->GetViewByID(base::to_underlying(
-                GlanceablesViewId::kTasksBubbleHeaderIcon)));
+        view_->GetViewByID(base::to_underlying(
+            GlanceablesViewId::kTimeManagementBubbleHeaderIcon)));
   }
 
   const CounterExpandButton* GetCounterExpandButton() const {
-    return views::AsViewClass<CounterExpandButton>(view_->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kTasksBubbleExpandButton)));
+    return views::AsViewClass<CounterExpandButton>(
+        view_->GetViewByID(base::to_underlying(
+            GlanceablesViewId::kTimeManagementBubbleExpandButton)));
+  }
+
+  views::ScrollView* GetScrollView() const {
+    return views::AsViewClass<views::ScrollView>(view_->GetViewByID(
+        base::to_underlying(GlanceablesViewId::kContentsScrollView)));
   }
 
   const views::View* GetTaskItemsContainerView() const {
-    return views::AsViewClass<views::View>(view_->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kTasksBubbleListContainer)));
+    return views::AsViewClass<views::View>(
+        view_->GetViewByID(base::to_underlying(
+            GlanceablesViewId::kTimeManagementBubbleListContainer)));
   }
 
   const views::View* GetEditInBrowserButton() const {
@@ -136,8 +141,9 @@ class GlanceablesTasksViewTest : public AshTestBase {
   }
 
   const GlanceablesListFooterView* GetListFooterView() const {
-    return views::AsViewClass<GlanceablesListFooterView>(view_->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kTasksBubbleListFooter)));
+    return views::AsViewClass<GlanceablesListFooterView>(
+        view_->GetViewByID(base::to_underlying(
+            GlanceablesViewId::kTimeManagementBubbleListFooter)));
   }
 
   const views::ProgressBar* GetProgressBar() const {
@@ -145,9 +151,10 @@ class GlanceablesTasksViewTest : public AshTestBase {
         base::to_underlying(GlanceablesViewId::kProgressBar)));
   }
 
-  const GlanceablesErrorMessageView* GetErrorMessage() const {
-    return views::AsViewClass<GlanceablesErrorMessageView>(view_->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kGlanceablesErrorMessageView)));
+  const ErrorMessageToast* GetErrorMessage() const {
+    return views::AsViewClass<ErrorMessageToast>(
+        view_->GetViewByID(base::to_underlying(
+            GlanceablesViewId::kTimeManagementErrorMessageToast)));
   }
 
   api::FakeTasksClient* tasks_client() const {
@@ -165,7 +172,6 @@ class GlanceablesTasksViewTest : public AshTestBase {
   }
 
  private:
-  base::test::ScopedFeatureList feature_list_;
   AccountId account_id_ = AccountId::FromUserEmail("test_user@gmail.com");
   std::unique_ptr<api::FakeTasksClient> fake_glanceables_tasks_client_;
   raw_ptr<GlanceablesTasksView, DanglingUntriaged> view_;
@@ -180,8 +186,8 @@ TEST_F(GlanceablesTasksViewTest, Basics) {
 
   // Check that the expand button does not exist when `GlanceablesTasksView` is
   // created alone.
-  auto* expand_button = view()->GetViewByID(
-      base::to_underlying(GlanceablesViewId::kTasksBubbleExpandButton));
+  auto* expand_button = view()->GetViewByID(base::to_underlying(
+      GlanceablesViewId::kTimeManagementBubbleExpandButton));
   EXPECT_TRUE(expand_button);
   EXPECT_FALSE(expand_button->GetVisible());
 }
@@ -266,6 +272,20 @@ TEST_F(GlanceablesTasksViewTest, ShowsProgressBarWhileEditingTask) {
 
   histogram_tester.ExpectUniqueSample(
       "Ash.Glanceables.TimeManagement.Tasks.UserAction", 4, 1);
+}
+
+TEST_F(GlanceablesTasksViewTest, ScrollViewResetPositionAfterSwitchingLists) {
+  PopulateTasks(20, "TaskListID1");
+  PopulateTasks(20, "TaskListID2");
+
+  auto* scroll_bar = GetScrollView()->vertical_scroll_bar();
+  EXPECT_EQ(scroll_bar->GetPosition(), scroll_bar->GetMinPosition());
+  ASSERT_TRUE(scroll_bar->GetVisible());
+  scroll_bar->ScrollByAmount(views::ScrollBar::ScrollAmount::kEnd);
+  EXPECT_GT(scroll_bar->GetPosition(), scroll_bar->GetMinPosition());
+
+  GetComboBoxView()->SelectMenuItemForTest(1);
+  EXPECT_EQ(scroll_bar->GetPosition(), scroll_bar->GetMinPosition());
 }
 
 TEST_F(GlanceablesTasksViewTest, OnlyShowsFooterIfAtLeast100Tasks) {
@@ -537,6 +557,29 @@ TEST_F(GlanceablesTasksViewTest, DoesNotAddTaskWithBlankTitle) {
   EXPECT_EQ(tasks_client()->RunPendingAddTaskCallbacks(), 0u);
 }
 
+TEST_F(GlanceablesTasksViewTest, ComboboxExpandedCollapsedAccessibleState) {
+  auto* combobox = GetComboBoxView();
+
+  ui::AXNodeData node_data;
+  combobox->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  EXPECT_FALSE(node_data.HasState(ax::mojom::State::kExpanded));
+  EXPECT_TRUE(node_data.HasState(ax::mojom::State::kCollapsed));
+
+  // Check accessibility of combobox while it's open.
+  LeftClickOn(combobox);
+  node_data = ui::AXNodeData();
+  combobox->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  EXPECT_TRUE(node_data.HasState(ax::mojom::State::kExpanded));
+  EXPECT_FALSE(node_data.HasState(ax::mojom::State::kCollapsed));
+
+  // Check accessibility of combobox while it's closed.
+  GetEventGenerator()->PressAndReleaseKey(ui::VKEY_ESCAPE);
+  node_data = ui::AXNodeData();
+  combobox->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  EXPECT_FALSE(node_data.HasState(ax::mojom::State::kExpanded));
+  EXPECT_TRUE(node_data.HasState(ax::mojom::State::kCollapsed));
+}
+
 TEST_F(GlanceablesTasksViewTest, OpenBrowserWithEmptyNewTaskDoesntCrash) {
   base::UserActionTester user_actions;
 
@@ -554,7 +597,8 @@ TEST_F(GlanceablesTasksViewTest, OpenBrowserWithEmptyNewTaskDoesntCrash) {
 
 TEST_F(GlanceablesTasksViewTest, HandlesErrorAfterAdding) {
   tasks_client()->set_paused(true);
-  tasks_client()->set_update_errors(true);
+  tasks_client()->set_http_error(
+      google_apis::ApiErrorCode::HTTP_INTERNAL_SERVER_ERROR);
 
   const auto* const task_items_container_view = GetTaskItemsContainerView();
   ASSERT_TRUE(task_items_container_view);
@@ -581,7 +625,8 @@ TEST_F(GlanceablesTasksViewTest, HandlesErrorAfterAdding) {
 
 TEST_F(GlanceablesTasksViewTest, HandlesErrorAfterEditing) {
   tasks_client()->set_paused(true);
-  tasks_client()->set_update_errors(true);
+  tasks_client()->set_http_error(
+      google_apis::ApiErrorCode::HTTP_INTERNAL_SERVER_ERROR);
 
   const auto* const task_items_container_view = GetTaskItemsContainerView();
   ASSERT_TRUE(task_items_container_view);
@@ -724,6 +769,73 @@ TEST_F(GlanceablesTasksViewTest, ShowTasksWebUIFromEditInBrowserView) {
   // Simulate that the widget is hidden safely after opening a browser window.
   view()->GetWidget()->Hide();
   EXPECT_FALSE(view()->GetWidget()->GetNativeWindow()->IsVisible());
+}
+
+TEST_F(GlanceablesTasksViewTest, ComboboxAccessibleActiveDescendantId) {
+  auto* combobox = GetComboBoxView();
+  ui::AXNodeData node_data;
+  base::test::TaskEnvironment* task_environment_ = task_environment();
+
+  // Combobox is closed initially.
+  ASSERT_FALSE(
+      node_data.HasIntAttribute(ax::mojom::IntAttribute::kActivedescendantId));
+
+  // Check accessibility of combobox when it is open.
+  LeftClickOn(combobox);
+  combobox->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  ASSERT_TRUE(combobox->MenuItemAtIndex(0));
+  ASSERT_TRUE(
+      node_data.HasIntAttribute(ax::mojom::IntAttribute::kActivedescendantId));
+  ASSERT_EQ(
+      node_data.GetIntAttribute(ax::mojom::IntAttribute::kActivedescendantId),
+      combobox->MenuItemAtIndex(0)->GetViewAccessibility().GetUniqueId());
+
+  // Select second item in combobox menu items.
+  MenuSelectionAt(1);
+  // Advance time so that subsequent mouse click is considered valid.
+  task_environment_->AdvanceClock(views::kMinimumTimeBetweenButtonClicks +
+                                  base::Milliseconds(10));
+
+  LeftClickOn(combobox);  // Open combobox.
+  node_data = ui::AXNodeData();
+  combobox->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  ASSERT_TRUE(combobox->MenuItemAtIndex(1));
+  ASSERT_TRUE(
+      node_data.HasIntAttribute(ax::mojom::IntAttribute::kActivedescendantId));
+  ASSERT_EQ(
+      node_data.GetIntAttribute(ax::mojom::IntAttribute::kActivedescendantId),
+      combobox->MenuItemAtIndex(1)->GetViewAccessibility().GetUniqueId());
+
+  // Check accessibility of combobox when it is closed.
+  GetEventGenerator()->PressAndReleaseKey(ui::VKEY_ESCAPE);
+  node_data = ui::AXNodeData();
+  combobox->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  ASSERT_FALSE(
+      node_data.HasIntAttribute(ax::mojom::IntAttribute::kActivedescendantId));
+}
+
+TEST_F(GlanceablesTasksViewTest, ComboboxAccessibleValue) {
+  auto* combobox = GetComboBoxView();
+
+  // default selection is first item in combobox
+  ui::AXNodeData node_data;
+  combobox->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  EXPECT_EQ("Task List 1 Title",
+            node_data.GetStringAttribute(ax::mojom::StringAttribute::kValue));
+
+  // Select second item in combobox menu items.
+  MenuSelectionAt(1);
+  node_data = ui::AXNodeData();
+  combobox->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  EXPECT_EQ("Task List 2 Title",
+            node_data.GetStringAttribute(ax::mojom::StringAttribute::kValue));
+
+  // Select third item in combobox menu items.
+  MenuSelectionAt(2);
+  node_data = ui::AXNodeData();
+  combobox->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  EXPECT_EQ("Task List 3 Title (empty)",
+            node_data.GetStringAttribute(ax::mojom::StringAttribute::kValue));
 }
 
 }  // namespace ash

@@ -77,8 +77,7 @@ SelectToSpeakPanelAction PanelActionForButtonID(int button_id, bool is_paused) {
       return SelectToSpeakPanelAction::kChangeSpeed;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return SelectToSpeakPanelAction::kNone;
+  NOTREACHED();
 }
 
 }  // namespace
@@ -207,7 +206,8 @@ void SelectToSpeakMenuView::SetInitialSpeechRate(double initial_speech_rate) {
 }
 
 void SelectToSpeakMenuView::OnKeyEvent(ui::KeyEvent* key_event) {
-  if (key_event->type() != ui::ET_KEY_PRESSED || key_event->is_repeat()) {
+  if (key_event->type() != ui::EventType::kKeyPressed ||
+      key_event->is_repeat()) {
     // Only process key when first pressed.
     return;
   }

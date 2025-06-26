@@ -2,7 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "components/privacy_sandbox/tracking_protection_settings.h"
+
 #include "base/test/metrics/histogram_tester.h"
+#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/privacy_sandbox/tracking_protection_settings_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -14,7 +17,6 @@
 #include "components/prefs/pref_service.h"
 #include "components/privacy_sandbox/privacy_sandbox_features.h"
 #include "components/privacy_sandbox/tracking_protection_prefs.h"
-#include "components/privacy_sandbox/tracking_protection_settings.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 
@@ -31,7 +33,7 @@ IN_PROC_BROWSER_TEST_F(TrackingProtectionSettingsMetricsBrowserTest,
   histogram_tester_.ExpectUniqueSample("Settings.IpProtection.Enabled", false,
                                        1);
   histogram_tester_.ExpectUniqueSample(
-      "Settings.FingerprintingProtection.Enabled", false, 1);
+      "Settings.FingerprintingProtection.Enabled", true, 1);
 }
 
 class TrackingProtectionSettingsForEnterpriseBrowserTest

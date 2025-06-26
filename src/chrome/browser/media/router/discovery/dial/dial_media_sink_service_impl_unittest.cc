@@ -28,7 +28,7 @@ class MockDeviceDescriptionService : public DeviceDescriptionService {
   MockDeviceDescriptionService(DeviceDescriptionParseSuccessCallback success_cb,
                                DeviceDescriptionParseErrorCallback error_cb)
       : DeviceDescriptionService(success_cb, error_cb) {}
-  ~MockDeviceDescriptionService() override {}
+  ~MockDeviceDescriptionService() override = default;
 
   MOCK_METHOD1(GetDeviceDescriptions,
                void(const std::vector<DialDeviceData>& devices));
@@ -82,6 +82,10 @@ class DialMediaSinkServiceImplTest : public ::testing::Test {
     return DialAppInfoResult(
         CreateParsedDialAppInfoPtr(app_name, DialAppState::kRunning),
         DialAppInfoResultCode::kOk);
+  }
+
+  bool dial_discovery_started() {
+    return media_sink_service_->dial_registry_ != nullptr;
   }
 
  protected:
@@ -371,4 +375,25 @@ TEST_F(DialMediaSinkServiceImplTest, FetchDialAppInfoWithDiscoveryOnlySink) {
       StartMonitoringAvailableSinksForApp("YouTube");
 }
 
+class DialMediaSinkServiceImplStartDiscoveryTest
+    : public DialMediaSinkServiceImplTest {
+  // Override this function so that `media_sink_service_` isn't initialized for
+  // tests yet.
+  void SetUp() override {}
+};
+
+TEST_F(DialMediaSinkServiceImplStartDiscoveryTest, DiscoveryOnUserGesture) {
+  media_sink_service_->Initialize();
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(dial_discovery_started());
+
+  // Calling `DiscoverSinksNow()` won't start a new cycle of discovery.
+  media_sink_service_->DiscoverSinksNow();
+  base::RunLoop().RunUntilIdle();
+  EXPECT_FALSE(dial_discovery_started());
+
+  media_sink_service_->StartDiscovery();
+  base::RunLoop().RunUntilIdle();
+  EXPECT_TRUE(dial_discovery_started());
+}
 }  // namespace media_router

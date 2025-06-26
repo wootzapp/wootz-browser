@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/audio/mac/audio_loopback_input_mac.h"
 #include "media/audio/mac/audio_loopback_input_mac_impl.h"
 
@@ -114,10 +119,7 @@ class SCKAudioInputStreamTest : public PlatformTest {
           .andDo(^(NSInvocation* invocation) {
             __unsafe_unretained id<SCStreamOutput> stream_output;
             [invocation getArgument:&stream_output atIndex:2];
-            stream_outputs_.erase(
-                std::remove(stream_outputs_.begin(), stream_outputs_.end(),
-                            stream_output),
-                stream_outputs_.end());
+            std::erase(stream_outputs_, stream_output);
           })
           .andReturn(TRUE);
 

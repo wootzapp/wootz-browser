@@ -6,6 +6,7 @@
 
 #include <gtest/gtest.h>
 
+#include "base/containers/span.h"
 #include "base/feature_list.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -125,11 +126,12 @@ class TextFragmentHandlerTest : public SimTest {
   }
 
   void LoadAhem() {
-    scoped_refptr<SharedBuffer> shared_buffer =
+    std::optional<Vector<char>> data =
         test::ReadFromFile(test::CoreTestDataPath("Ahem.ttf"));
+    ASSERT_TRUE(data);
     auto* buffer =
         MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferViewOrString>(
-            DOMArrayBuffer::Create(shared_buffer));
+            DOMArrayBuffer::Create(base::as_byte_span(*data)));
     FontFace* ahem = FontFace::Create(GetDocument().GetExecutionContext(),
                                       AtomicString("Ahem"), buffer,
                                       FontFaceDescriptors::Create());
@@ -423,7 +425,7 @@ TEST_F(TextFragmentHandlerTest, ExtractFirstTextFragmentRectScroll) {
       GetDocument().GetFrame()->View()->FrameToViewport(rect);
   // ExtractFirstTextFragmentsRect should return the first matched scaled
   // viewport relative location since the page is loaded zoomed in 4X
-  ASSERT_EQ(gfx::Rect(432, 300, 360, 40), expected_rect);
+  ASSERT_EQ(gfx::Rect(432, 296, 360, 40), expected_rect);
 
   gfx::Rect text_fragment_rect = ExtractFirstTextFragmentsRect();
 

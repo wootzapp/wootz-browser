@@ -6,6 +6,8 @@
 
 #include "base/android/build_info.h"
 #include "base/android/jni_android.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "ui/base/ui_base_jni_headers/DeviceFormFactor_jni.h"
 
 namespace ui {
@@ -22,6 +24,10 @@ DeviceFormFactor GetDeviceFormFactor() {
 
   if (base::android::BuildInfo::GetInstance()->is_automotive()) {
     return DEVICE_FORM_FACTOR_AUTOMOTIVE;
+  }
+
+  if (base::android::BuildInfo::GetInstance()->is_desktop()) {
+    return DEVICE_FORM_FACTOR_DESKTOP;
   }
 
   if (Java_DeviceFormFactor_isTablet(base::android::AttachCurrentThread())) {

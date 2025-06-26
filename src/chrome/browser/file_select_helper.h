@@ -27,6 +27,7 @@
 #endif
 
 class Profile;
+class ScopedDisallowPictureInPicture;
 
 namespace content {
 class FileSelectListener;
@@ -34,6 +35,7 @@ class WebContents;
 }
 
 namespace ui {
+class DialogModel;
 struct SelectedFileInfo;
 }
 
@@ -74,6 +76,7 @@ class FileSelectHelper : public base::RefCountedThreadSafe<
   friend class base::RefCountedThreadSafe<FileSelectHelper>;
   friend class base::DeleteHelper<FileSelectHelper>;
   friend class FileSelectHelperContactsAndroid;
+  friend class FileSelectHelperTest;
   friend struct content::BrowserThread::DeleteOnThread<
       content::BrowserThread::UI>;
 
@@ -108,6 +111,7 @@ class FileSelectHelper : public base::RefCountedThreadSafe<
       ContentAnalysisCompletionCallback_FolderUpload_OKBad);
   FRIEND_TEST_ALL_PREFIXES(FileSelectHelperTest, GetFileTypesFromAcceptType);
   FRIEND_TEST_ALL_PREFIXES(FileSelectHelperTest, MultipleFileExtensionsForMime);
+  FRIEND_TEST_ALL_PREFIXES(FileSelectHelperTest, ConfirmationDialog);
   FRIEND_TEST_ALL_PREFIXES(policy::DlpFilesControllerAshBrowserTest,
                            FilesUploadCallerPassed);
 
@@ -120,7 +124,7 @@ class FileSelectHelper : public base::RefCountedThreadSafe<
   void GetFileTypesInThreadPool(blink::mojom::FileChooserParamsPtr params);
   void GetSanitizedFilenameOnUIThread(
       blink::mojom::FileChooserParamsPtr params);
-#if BUILDFLAG(FULL_SAFE_BROWSING)
+#if BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION)
   // Safe Browsing checks are only applied when `params->mode` is
   // `kSave`, which is only for PPAPI requests.
   void CheckDownloadRequestWithSafeBrowsing(
@@ -138,12 +142,10 @@ class FileSelectHelper : public base::RefCountedThreadSafe<
   void RunFileChooserEnd();
 
   // SelectFileDialog::Listener overrides.
-  void FileSelected(const ui::SelectedFileInfo& file,
-                    int index,
-                    void* params) override;
-  void MultiFilesSelected(const std::vector<ui::SelectedFileInfo>& files,
-                          void* params) override;
-  void FileSelectionCanceled(void* params) override;
+  void FileSelected(const ui::SelectedFileInfo& file, int index) override;
+  void MultiFilesSelected(
+      const std::vector<ui::SelectedFileInfo>& files) override;
+  void FileSelectionCanceled() override;
 
   // content::WebContentsObserver overrides.
   void RenderFrameHostChanged(content::RenderFrameHost* old_host,
@@ -157,16 +159,19 @@ class FileSelectHelper : public base::RefCountedThreadSafe<
       const base::FilePath& path);
 
   // Kicks off a new directory enumeration.
-  void StartNewEnumeration(const base::FilePath& path);
+  void StartNewEnumeration(const base::FilePath& path,
+                           const std::u16string& display_name);
 
   // net::DirectoryLister::DirectoryListerDelegate overrides.
   void OnListFile(
       const net::DirectoryLister::DirectoryListerData& data) override;
   void OnListDone(int error) override;
 
-  void LaunchConfirmationDialog(
-      const base::FilePath& path,
-      std::vector<ui::SelectedFileInfo> selected_files);
+  std::unique_ptr<ui::DialogModel> CreateConfirmationDialog(
+      const std::u16string& display_name,
+      std::vector<blink::mojom::FileChooserFileInfoPtr> selected_files,
+      base::OnceCallback<
+          void(std::vector<blink::mojom::FileChooserFileInfoPtr>)> callback);
 
   // Cleans up and releases this instance. This must be called after the last
   // callback is received from the enumeration code.
@@ -325,9 +330,15 @@ class FileSelectHelper : public base::RefCountedThreadSafe<
   // Set to false in unit tests since there is no WebContents.
   bool abort_on_missing_web_contents_in_tests_ = true;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_ANDROID)
+  // When not null, this prevents picture-in-picture windows from opening.
+  std::unique_ptr<ScopedDisallowPictureInPicture>
+      scoped_disallow_picture_in_picture_;
+#endif  // !BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(IS_CHROMEOS)
   base::WeakPtrFactory<FileSelectHelper> weak_ptr_factory_{this};
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 };
 
 #endif  // CHROME_BROWSER_FILE_SELECT_HELPER_H_

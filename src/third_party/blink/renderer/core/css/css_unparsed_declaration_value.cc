@@ -10,11 +10,16 @@ void CSSUnparsedDeclarationValue::TraceAfterDispatch(
     blink::Visitor* visitor) const {
   CSSValue::TraceAfterDispatch(visitor);
   visitor->Trace(parser_context_);
+  visitor->Trace(data_);
 }
 
 String CSSUnparsedDeclarationValue::CustomCSSText() const {
   // We may want to consider caching this value.
   return data_->Serialize();
+}
+
+unsigned CSSUnparsedDeclarationValue::CustomHash() const {
+  return StringHasher::HashMemory(data_->OriginalText().RawByteSpan());
 }
 
 }  // namespace blink

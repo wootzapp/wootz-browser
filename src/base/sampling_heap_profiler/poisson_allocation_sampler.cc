@@ -4,8 +4,10 @@
 
 #include "base/sampling_heap_profiler/poisson_allocation_sampler.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <utility>
 
@@ -13,12 +15,9 @@
 #include "base/allocator/dispatcher/tls.h"
 #include "base/check.h"
 #include "base/compiler_specific.h"
-#include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/base/attributes.h"
 
 namespace base {
 
@@ -34,12 +33,10 @@ const intptr_t kAccumulatedBytesOffset = 1 << 29;
 bool g_deterministic = false;
 
 // Pointer to the current |LockFreeAddressHashSet|.
-ABSL_CONST_INIT std::atomic<LockFreeAddressHashSet*> g_sampled_addresses_set{
-    nullptr};
+constinit std::atomic<LockFreeAddressHashSet*> g_sampled_addresses_set{nullptr};
 
 // Sampling interval parameter, the mean value for intervals between samples.
-ABSL_CONST_INIT std::atomic_size_t g_sampling_interval{
-    kDefaultSamplingIntervalBytes};
+constinit std::atomic_size_t g_sampling_interval{kDefaultSamplingIntervalBytes};
 
 struct ThreadLocalData {
   // Accumulated bytes towards sample.
@@ -60,6 +57,9 @@ struct ThreadLocalData {
   bool sampling_interval_initialized = false;
 };
 
+// Returns an object storing thread-local state. This does NOT use
+// base::ThreadLocalStorage, so it's safe to call from hooks in the
+// base::ThreadLocalStorage implementation.
 ThreadLocalData* GetThreadLocalData() {
 #if USE_LOCAL_TLS_EMULATION()
   // If available, use ThreadLocalStorage to bypass dependencies introduced by
@@ -96,11 +96,30 @@ ThreadLocalData* GetThreadLocalData() {
 
 }  // namespace
 
+PoissonAllocationSamplerStats::PoissonAllocationSamplerStats(
+    size_t address_cache_hits,
+    size_t address_cache_misses,
+    size_t address_cache_max_size,
+    float address_cache_max_load_factor,
+    std::vector<size_t> address_cache_bucket_lengths)
+    : address_cache_hits(address_cache_hits),
+      address_cache_misses(address_cache_misses),
+      address_cache_max_size(address_cache_max_size),
+      address_cache_max_load_factor(address_cache_max_load_factor),
+      address_cache_bucket_lengths(std::move(address_cache_bucket_lengths)) {}
+
+PoissonAllocationSamplerStats::~PoissonAllocationSamplerStats() = default;
+
+PoissonAllocationSamplerStats::PoissonAllocationSamplerStats(
+    const PoissonAllocationSamplerStats&) = default;
+
+PoissonAllocationSamplerStats& PoissonAllocationSamplerStats::operator=(
+    const PoissonAllocationSamplerStats&) = default;
+
 PoissonAllocationSampler::ScopedMuteThreadSamples::ScopedMuteThreadSamples() {
   ThreadLocalData* const thread_local_data = GetThreadLocalData();
 
-  DCHECK(!thread_local_data->internal_reentry_guard);
-  thread_local_data->internal_reentry_guard = true;
+  was_muted_ = std::exchange(thread_local_data->internal_reentry_guard, true);
 
   // We mute thread samples immediately after taking a sample, which is when we
   // reset g_tls_accumulated_bytes. This breaks the random sampling requirement
@@ -112,17 +131,21 @@ PoissonAllocationSampler::ScopedMuteThreadSamples::ScopedMuteThreadSamples() {
   // To counteract this, we drop g_tls_accumulated_bytes by a large, fixed
   // amount to lower the probability that a sample is taken to close to 0. Then
   // we reset it after we're done muting thread samples.
-  thread_local_data->accumulated_bytes_snapshot =
-      thread_local_data->accumulated_bytes;
-  thread_local_data->accumulated_bytes -= kAccumulatedBytesOffset;
+  if (!was_muted_) {
+    thread_local_data->accumulated_bytes_snapshot =
+        thread_local_data->accumulated_bytes;
+    thread_local_data->accumulated_bytes -= kAccumulatedBytesOffset;
+  }
 }
 
 PoissonAllocationSampler::ScopedMuteThreadSamples::~ScopedMuteThreadSamples() {
   ThreadLocalData* const thread_local_data = GetThreadLocalData();
   DCHECK(thread_local_data->internal_reentry_guard);
-  thread_local_data->internal_reentry_guard = false;
-  thread_local_data->accumulated_bytes =
-      thread_local_data->accumulated_bytes_snapshot;
+  thread_local_data->internal_reentry_guard = was_muted_;
+  if (!was_muted_) {
+    thread_local_data->accumulated_bytes =
+        thread_local_data->accumulated_bytes_snapshot;
+  }
 }
 
 // static
@@ -181,18 +204,18 @@ PoissonAllocationSampler::ScopedMuteHookedSamplesForTesting::operator=(
     ScopedMuteHookedSamplesForTesting&&) = default;
 
 // static
-ABSL_CONST_INIT std::atomic<PoissonAllocationSampler::ProfilingStateFlagMask>
+constinit std::atomic<PoissonAllocationSampler::ProfilingStateFlagMask>
     PoissonAllocationSampler::profiling_state_{0};
 
 PoissonAllocationSampler::PoissonAllocationSampler() {
   Init();
-  auto* sampled_addresses = new LockFreeAddressHashSet(64);
+  auto* sampled_addresses = new LockFreeAddressHashSet(64, mutex_);
   g_sampled_addresses_set.store(sampled_addresses, std::memory_order_release);
 }
 
 // static
 void PoissonAllocationSampler::Init() {
-  [[maybe_unused]] static bool init_once = []() {
+  [[maybe_unused]] static bool init_once = [] {
     // Touch thread local data on initialization to enforce proper setup of
     // underlying storage system.
     GetThreadLocalData();
@@ -211,9 +234,26 @@ size_t PoissonAllocationSampler::SamplingInterval() const {
   return g_sampling_interval.load(std::memory_order_relaxed);
 }
 
+void PoissonAllocationSampler::SetTargetHashSetLoadFactor(
+    std::optional<float> load_factor) {
+  AutoLock lock(mutex_);
+  address_cache_target_load_factor_ = load_factor.value_or(1.0);
+}
+
+PoissonAllocationSamplerStats PoissonAllocationSampler::GetAndResetStats() {
+  ScopedMuteThreadSamples no_reentrancy_scope;
+  AutoLock lock(mutex_);
+  return PoissonAllocationSamplerStats(
+      address_cache_hits_.exchange(0, std::memory_order_relaxed),
+      address_cache_misses_.exchange(0, std::memory_order_relaxed),
+      std::exchange(address_cache_max_size_, 0),
+      std::exchange(address_cache_max_load_factor_, 0.0),
+      sampled_addresses_set().GetBucketLengths());
+}
+
 // static
 size_t PoissonAllocationSampler::GetNextSampleInterval(size_t interval) {
-  if (UNLIKELY(g_deterministic)) {
+  if (g_deterministic) [[unlikely]] {
     return interval;
   }
 
@@ -234,10 +274,10 @@ size_t PoissonAllocationSampler::GetNextSampleInterval(size_t interval) {
   // huge gaps in the sampling stream. Probability of the upper bound gets hit
   // is exp(-20) ~ 2e-9, so it should not skew the distribution.
   size_t max_value = interval * 20;
-  if (UNLIKELY(value < min_value)) {
+  if (value < min_value) [[unlikely]] {
     return min_value;
   }
-  if (UNLIKELY(value > max_value)) {
+  if (value > max_value) [[unlikely]] {
     return max_value;
   }
   return static_cast<size_t>(value);
@@ -253,11 +293,11 @@ void PoissonAllocationSampler::DoRecordAllocation(
 
   thread_local_data->accumulated_bytes += size;
   intptr_t accumulated_bytes = thread_local_data->accumulated_bytes;
-  if (LIKELY(accumulated_bytes < 0)) {
+  if (accumulated_bytes < 0) [[likely]] {
     return;
   }
 
-  if (UNLIKELY(!(state & ProfilingStateFlag::kIsRunning))) {
+  if (!(state & ProfilingStateFlag::kIsRunning)) [[unlikely]] {
     // Sampling was in fact disabled when the hook was called. Reset the state
     // of the sampler. We do this check off the fast-path, because it's quite a
     // rare state when the sampler is stopped after it's started. (The most
@@ -269,12 +309,12 @@ void PoissonAllocationSampler::DoRecordAllocation(
   }
 
   // Failed allocation? Skip the sample.
-  if (UNLIKELY(!address)) {
+  if (!address) [[unlikely]] {
     return;
   }
 
   size_t mean_interval = g_sampling_interval.load(std::memory_order_relaxed);
-  if (UNLIKELY(!thread_local_data->sampling_interval_initialized)) {
+  if (!thread_local_data->sampling_interval_initialized) [[unlikely]] {
     thread_local_data->sampling_interval_initialized = true;
     // This is the very first allocation on the thread. It always makes it
     // passing the condition at |RecordAlloc|, because accumulated_bytes
@@ -300,12 +340,12 @@ void PoissonAllocationSampler::DoRecordAllocation(
 
   thread_local_data->accumulated_bytes = accumulated_bytes;
 
-  if (UNLIKELY(ScopedMuteThreadSamples::IsMuted())) {
+  if (ScopedMuteThreadSamples::IsMuted()) [[unlikely]] {
     return;
   }
 
   ScopedMuteThreadSamples no_reentrancy_scope;
-  std::vector<raw_ptr<SamplesObserver, VectorExperimental>> observers_copy;
+  std::vector<SamplesObserver*> observers_copy;
   {
     AutoLock lock(mutex_);
 
@@ -316,6 +356,12 @@ void PoissonAllocationSampler::DoRecordAllocation(
     }
     sampled_addresses_set().Insert(address);
     BalanceAddressesHashSet();
+    // Record the load factor after balancing gets a chance to reduce it.
+    // Balancing won't change the size.
+    address_cache_max_size_ =
+        std::max(address_cache_max_size_, sampled_addresses_set().size());
+    address_cache_max_load_factor_ = std::max(
+        address_cache_max_load_factor_, sampled_addresses_set().load_factor());
     observers_copy = observers_;
   }
 
@@ -332,7 +378,7 @@ void PoissonAllocationSampler::DoRecordFree(void* address) {
   // thus reenter DoRecordAlloc. However the call chain won't build up further
   // as RecordAlloc accesses are guarded with pthread TLS-based ReentryGuard.
   ScopedMuteThreadSamples no_reentrancy_scope;
-  std::vector<raw_ptr<SamplesObserver, VectorExperimental>> observers_copy;
+  std::vector<SamplesObserver*> observers_copy;
   {
     AutoLock lock(mutex_);
     observers_copy = observers_;
@@ -353,11 +399,11 @@ void PoissonAllocationSampler::BalanceAddressesHashSet() {
   // All the readers continue to use the old one until the atomic switch
   // process takes place.
   LockFreeAddressHashSet& current_set = sampled_addresses_set();
-  if (current_set.load_factor() < 1) {
+  if (current_set.load_factor() < address_cache_target_load_factor_) {
     return;
   }
-  auto new_set =
-      std::make_unique<LockFreeAddressHashSet>(current_set.buckets_count() * 2);
+  auto new_set = std::make_unique<LockFreeAddressHashSet>(
+      current_set.buckets_count() * 2, mutex_);
   new_set->Copy(current_set);
   // Atomically switch all the new readers to the new set.
   g_sampled_addresses_set.store(new_set.release(), std::memory_order_release);
@@ -375,6 +421,11 @@ LockFreeAddressHashSet& PoissonAllocationSampler::sampled_addresses_set() {
 PoissonAllocationSampler* PoissonAllocationSampler::Get() {
   static NoDestructor<PoissonAllocationSampler> instance;
   return instance.get();
+}
+
+// static
+intptr_t PoissonAllocationSampler::GetAccumulatedBytesForTesting() {
+  return GetThreadLocalData()->accumulated_bytes;
 }
 
 // static
@@ -405,7 +456,7 @@ void PoissonAllocationSampler::AddSamplesObserver(SamplesObserver* observer) {
 
   ScopedMuteThreadSamples no_reentrancy_scope;
   AutoLock lock(mutex_);
-  DCHECK(ranges::find(observers_, observer) == observers_.end());
+  DCHECK(std::ranges::find(observers_, observer) == observers_.end());
   bool profiler_was_stopped = observers_.empty();
   observers_.push_back(observer);
 
@@ -432,7 +483,7 @@ void PoissonAllocationSampler::RemoveSamplesObserver(
 
   ScopedMuteThreadSamples no_reentrancy_scope;
   AutoLock lock(mutex_);
-  auto it = ranges::find(observers_, observer);
+  auto it = std::ranges::find(observers_, observer);
   CHECK(it != observers_.end(), base::NotFatalUntil::M125);
   observers_.erase(it);
 

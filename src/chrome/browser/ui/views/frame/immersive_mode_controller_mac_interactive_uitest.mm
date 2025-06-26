@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/views/frame/immersive_mode_controller_mac.h"
-
 #import <Cocoa/Cocoa.h>
 
 #include <tuple>
@@ -15,6 +13,7 @@
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/find_bar/find_bar_host_unittest_util.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/frame/immersive_mode_controller_mac.h"
 #include "chrome/browser/ui/views/frame/top_container_view.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
@@ -71,15 +70,17 @@ class ImmersiveModeControllerMacInteractiveTest : public InProcessBrowserTest {
     NSUInteger starting_child_window_count =
         browser_window().childWindows.count;
 
-    views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
+    views::Widget::InitParams params(
+        views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+        views::Widget::InitParams::TYPE_POPUP);
     params.bounds = gfx::Rect(100, 100, 200, 200);
     BrowserView* browser_view =
         BrowserView::GetBrowserViewForBrowser(browser());
     params.parent = browser_view->GetWidget()->GetNativeView();
-    params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
     params.z_order = ui::ZOrderLevel::kNormal;
 
-    params.delegate = new views::WidgetDelegateView();
+    params.delegate = new views::WidgetDelegateView(
+        views::WidgetDelegateView::CreatePassKey());
 
     widget_ = std::make_unique<views::Widget>();
     widget_->Init(std::move(params));
@@ -178,7 +179,7 @@ IN_PROC_BROWSER_TEST_F(ImmersiveModeControllerMacInteractiveTest,
 // "Always Show Toolbar in Full Screen" is off.
 IN_PROC_BROWSER_TEST_F(ImmersiveModeControllerMacInteractiveTest,
                        MinimumContentOffset) {
-  chrome::DisableFindBarAnimationsDuringTesting(true);
+  DisableFindBarAnimationsDuringTesting(true);
 
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser());
   ImmersiveModeController* controller =
@@ -212,7 +213,7 @@ IN_PROC_BROWSER_TEST_F(ImmersiveModeControllerMacInteractiveTest,
     chrome::CloseFind(browser());
     EXPECT_EQ(controller->GetMinimumContentOffset(), 0);
   }
-  chrome::DisableFindBarAnimationsDuringTesting(false);
+  DisableFindBarAnimationsDuringTesting(false);
 }
 
 IN_PROC_BROWSER_TEST_F(ImmersiveModeControllerMacInteractiveTest,
@@ -323,7 +324,7 @@ IN_PROC_BROWSER_TEST_F(ImmersiveModeControllerMacInteractiveTest,
 
   // This is the window under test. We want to make sure
   // `-_rebuildOrderingGroup:` is called  during a child's `-orderOut:` or
-  // `-close`.
+  // `-close` or during the parent's `-removeChildWindow:`.
   RebuildOrderingGroupTestWindow* testWindow =
       [[RebuildOrderingGroupTestWindow alloc]
           initWithContentRect:NSMakeRect(0, 0, 300, 200)
@@ -362,13 +363,22 @@ IN_PROC_BROWSER_TEST_F(ImmersiveModeControllerMacInteractiveTest,
   [popupWindow close];
   EXPECT_TRUE(testWindow->_orderingGroupRebuilt);
 
+  // Re-add the popup window as child of the test window, then ensure that the
+  // ordering group is rebuilt when the test window removes the popup window.
+  [testWindow addChildWindow:popupWindow ordered:NSWindowAbove];
+  EXPECT_TRUE(popupWindow.isVisible);
+  testWindow->_orderingGroupRebuilt = NO;
+  [testWindow removeChildWindow:popupWindow];
+  EXPECT_TRUE(testWindow->_orderingGroupRebuilt);
+
   // Cleanup
+  [popupWindow close];
   [testWindow close];
 }
 
 IN_PROC_BROWSER_TEST_F(ImmersiveModeControllerMacInteractiveTest,
                        ContentFullscreenChildren) {
-  chrome::DisableFindBarAnimationsDuringTesting(true);
+  DisableFindBarAnimationsDuringTesting(true);
 
   // Enter browser fullscreen.
   ui_test_utils::ToggleFullscreenModeAndWait(browser());
@@ -396,5 +406,5 @@ IN_PROC_BROWSER_TEST_F(ImmersiveModeControllerMacInteractiveTest,
   EXPECT_EQ(browser_view->overlay_widget(), find_bar->parent());
 
   chrome::CloseFind(browser());
-  chrome::DisableFindBarAnimationsDuringTesting(false);
+  DisableFindBarAnimationsDuringTesting(false);
 }

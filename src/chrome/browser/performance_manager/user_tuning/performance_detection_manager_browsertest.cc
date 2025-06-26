@@ -4,12 +4,11 @@
 
 #include "chrome/browser/performance_manager/public/user_tuning/performance_detection_manager.h"
 
+#include <memory>
 #include <optional>
 #include <vector>
 
 #include "base/check.h"
-#include "base/functional/bind.h"
-#include "base/functional/callback_forward.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/browser.h"
@@ -27,16 +26,27 @@
 
 namespace performance_manager::user_tuning {
 
+class ActionableTabWaiter
+    : public PerformanceDetectionManager::ActionableTabsObserver {
+ public:
+  void OnActionableTabListChanged(
+      PerformanceDetectionManager::ResourceType resource_type,
+      std::vector<resource_attribution::PageContext> tabs) override {
+    if (run_loop_.running()) {
+      run_loop_.Quit();
+    }
+  }
+
+  void Wait() { run_loop_.Run(); }
+
+ private:
+  base::RunLoop run_loop_;
+};
+
 class PerformanceDetectionManagerBrowserTest : public InProcessBrowserTest {
  public:
   PerformanceDetectionManagerBrowserTest() = default;
   ~PerformanceDetectionManagerBrowserTest() override = default;
-
-  void SetUp() override {
-    feature_list_.InitAndEnableFeature(
-        performance_manager::features::kPerformanceIntervention);
-    InProcessBrowserTest::SetUp();
-  }
 
   void SetUpOnMainThread() override {
     host_resolver()->AddRule("*", "127.0.0.1");
@@ -76,16 +86,7 @@ IN_PROC_BROWSER_TEST_F(PerformanceDetectionManagerBrowserTest,
   std::vector<resource_attribution::PageContext> page_contexts = {
       GetPageContext(1), GetPageContext(2)};
 
-  base::RunLoop run_loop;
-  manager()->DiscardTabs(
-      page_contexts,
-      base::BindOnce(
-          [](base::RepeatingClosure quit_closure, bool did_discard) {
-            quit_closure.Run();
-            EXPECT_TRUE(did_discard);
-          },
-          run_loop.QuitClosure()));
-  run_loop.Run();
+  EXPECT_TRUE(manager()->DiscardTabs(page_contexts));
 
   EXPECT_FALSE(GetWebContentsAt(0)->WasDiscarded());
   EXPECT_TRUE(GetWebContentsAt(1)->WasDiscarded());
@@ -107,16 +108,7 @@ IN_PROC_BROWSER_TEST_F(PerformanceDetectionManagerBrowserTest,
   tab_strip_model->CloseWebContentsAt(2, TabCloseTypes::CLOSE_NONE);
   EXPECT_EQ(last_page_context.GetWebContents(), nullptr);
 
-  base::RunLoop run_loop;
-  manager()->DiscardTabs(
-      page_contexts,
-      base::BindOnce(
-          [](base::RepeatingClosure quit_closure, bool did_discard) {
-            quit_closure.Run();
-            EXPECT_TRUE(did_discard);
-          },
-          run_loop.QuitClosure()));
-  run_loop.Run();
+  EXPECT_TRUE(manager()->DiscardTabs(page_contexts));
 
   // The detection manager should discard the contents at index 1 even though
   // the contents at index 2 was closed.
@@ -136,16 +128,7 @@ IN_PROC_BROWSER_TEST_F(PerformanceDetectionManagerBrowserTest,
   tab_strip_model->CloseWebContentsAt(2, TabCloseTypes::CLOSE_NONE);
   tab_strip_model->CloseWebContentsAt(1, TabCloseTypes::CLOSE_NONE);
 
-  base::RunLoop run_loop;
-  manager()->DiscardTabs(
-      page_contexts,
-      base::BindOnce(
-          [](base::RepeatingClosure quit_closure, bool did_discard) {
-            quit_closure.Run();
-            EXPECT_FALSE(did_discard);
-          },
-          run_loop.QuitClosure()));
-  run_loop.Run();
+  EXPECT_FALSE(manager()->DiscardTabs(page_contexts));
 }
 
 IN_PROC_BROWSER_TEST_F(PerformanceDetectionManagerBrowserTest,
@@ -158,21 +141,48 @@ IN_PROC_BROWSER_TEST_F(PerformanceDetectionManagerBrowserTest,
 
   browser()->tab_strip_model()->ActivateTabAt(2);
 
-  base::RunLoop run_loop;
-  manager()->DiscardTabs(
-      page_contexts,
-      base::BindOnce(
-          [](base::RepeatingClosure quit_closure, bool did_discard) {
-            quit_closure.Run();
-            EXPECT_TRUE(did_discard);
-          },
-          run_loop.QuitClosure()));
-  run_loop.Run();
+  EXPECT_TRUE(manager()->DiscardTabs(page_contexts));
 
   // The detection manager should discard the contents at index 1 even though
   // the contents at index 2 is active.
   EXPECT_TRUE(GetWebContentsAt(1)->WasDiscarded());
   EXPECT_FALSE(GetWebContentsAt(2)->WasDiscarded());
+}
+
+class PerformanceInterventionDemoModeTest
+    : public PerformanceDetectionManagerBrowserTest {
+ public:
+  void SetUp() override {
+    set_open_about_blank_on_browser_launch(true);
+
+    feature_list_.InitWithFeatures(
+        {performance_manager::features::kPerformanceInterventionDemoMode}, {});
+    InProcessBrowserTest::SetUp();
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(PerformanceInterventionDemoModeTest,
+                       ForceCpuRefreshNotifyObservers) {
+  std::unique_ptr<ActionableTabWaiter> waiter =
+      std::make_unique<ActionableTabWaiter>();
+  manager()->AddActionableTabsObserver(
+      {PerformanceDetectionManager::ResourceType::kCpu}, waiter.get());
+
+  ASSERT_TRUE(AddTabAtIndex(1, GetTestingURL(), ui::PAGE_TRANSITION_TYPED));
+  ASSERT_TRUE(AddTabAtIndex(2, GetTestingURL(), ui::PAGE_TRANSITION_TYPED));
+  browser()->tab_strip_model()->ActivateTabAt(0);
+  // Force the detection manager to refresh tab CPU data twice because the
+  // first time the data refreshes is to establish a baseline that
+  // subsequent refreshes will use to determine CPU usage.
+  manager()->ForceTabCpuDataRefresh();
+  manager()->ForceTabCpuDataRefresh();
+
+  // The waiter's run loop should stop after it is notified by the performance
+  // detection manager with the updated actionable tab list.
+  waiter->Wait();
 }
 
 }  // namespace performance_manager::user_tuning

@@ -53,7 +53,7 @@ class MenuModel;
 //       content::AssociateURLFetcherWithRenderView(
 //           fetcher_.get(),
 //           proxy_->GetRenderFrameHost()->GetSiteInstance()->GetSite(),
-//           proxy_->GetRenderFrameHost()->GetProcess()->GetID(),
+//           proxy_->GetRenderFrameHost()->GetProcess()->GetDeprecatedID(),
 //           proxy_->GetRenderFrameHost()->GetRoutingID());
 //       fetcher_->Start();
 //     }
@@ -116,9 +116,6 @@ class RenderViewContextMenuProxy {
 
   // Add accessibility labels service item to the context menu.
   virtual void AddAccessibilityLabelsServiceItem(bool is_checked) = 0;
-
-  // Add PDF OCR item to the context menu.
-  virtual void AddPdfOcrMenuItem() = 0;
 
   // Retrieve the given associated objects with a context menu.
   virtual content::RenderFrameHost* GetRenderFrameHost() const = 0;

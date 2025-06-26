@@ -5,6 +5,7 @@
 package org.chromium.ui.base;
 
 import android.content.ClipData;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.util.SparseArray;
@@ -19,7 +20,6 @@ import android.view.autofill.AutofillValue;
 import android.view.inputmethod.InputConnection;
 
 import androidx.annotation.CallSuper;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.MarginLayoutParamsCompat;
 
@@ -29,6 +29,8 @@ import org.jni_zero.JNINamespace;
 import org.chromium.base.Callback;
 import org.chromium.base.ObserverList;
 import org.chromium.base.ResettersForTesting;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.ui.dragdrop.DragAndDropDelegate;
 import org.chromium.ui.dragdrop.DragAndDropDelegateImpl;
 import org.chromium.ui.dragdrop.DragStateTracker;
@@ -37,8 +39,9 @@ import org.chromium.ui.mojom.CursorType;
 
 /** Class to acquire, position, and remove anchor views from the implementing View. */
 @JNINamespace("ui")
+@NullMarked
 public class ViewAndroidDelegate {
-    private static DragAndDropDelegate sDragAndDropDelegateForTesting;
+    private static @Nullable DragAndDropDelegate sDragAndDropDelegateForTesting;
     private final DragAndDropDelegateImpl mDragAndDropDelegateImpl;
 
     /**
@@ -70,7 +73,7 @@ public class ViewAndroidDelegate {
     private final ObserverList<VerticalScrollDirectionChangeListener>
             mVerticalScrollDirectionChangeListeners = new ObserverList<>();
 
-    private Callback<Boolean> mUpdateShouldShowStylusHoverIcon;
+    private @Nullable Callback<Boolean> mUpdateShouldShowStylusHoverIcon;
 
     /**
      * Sets a callback which should be called with the latest value of whether the element being
@@ -96,14 +99,23 @@ public class ViewAndroidDelegate {
     }
 
     /**
-     * Adds observer that needs notification when container view is updated. Note that
-     * there is no {@code removObserver} since the added observers are all supposed to
-     * go away with this object together.
-     * @param observer {@link ContainerViewObserver} object. The object should have
-     *        the lifetime same as this {@link ViewAndroidDelegate} to avoid gc issues.
+     * Adds observer that needs notification when container view is updated.
+     *
+     * @param observer {@link ContainerViewObserver} object. If {@code removObserver} is not used,
+     *     then the object should have the lifetime same as this {@link ViewAndroidDelegate} to
+     *     avoid gc issues.
      */
     public final void addObserver(ContainerViewObserver observer) {
         mContainerViewObservers.addObserver(observer);
+    }
+
+    /**
+     * Removes observer that does not need notification when container view is updated anymore.
+     *
+     * @param observer {@link ContainerViewObserver} object.
+     */
+    public final void removeObserver(ContainerViewObserver observer) {
+        mContainerViewObservers.removeObserver(observer);
     }
 
     /** Adds the provided {@link VerticalScrollDirectionChangeListener}. */
@@ -165,8 +177,9 @@ public class ViewAndroidDelegate {
     }
 
     /**
-     * Transfer existing anchor views from the old to the new container view. Called by
-     * {@link setContainerView} only.
+     * Transfer existing anchor views from the old to the new container view. Called by {@link
+     * setContainerView} only.
+     *
      * @param oldContainerView Old container view just replaced by a new one.
      */
     public void updateAnchorViews(ViewGroup oldContainerView) {}
@@ -175,7 +188,7 @@ public class ViewAndroidDelegate {
      * @return An anchor view that can be used to anchor decoration views like Autofill popup.
      */
     @CalledByNative
-    public View acquireView() {
+    public @Nullable View acquireView() {
         ViewGroup containerView = getContainerViewGroup();
         if (containerView == null || containerView.getParent() == null) return null;
         View anchorView = new View(containerView.getContext());
@@ -243,6 +256,7 @@ public class ViewAndroidDelegate {
      *
      * @param shadowImage The shadow image for the dragged object.
      * @param dropData The drop data presenting the drag target.
+     * @param windowAndroid The WindowAndroid used to retrieve a relevant Context.
      * @param cursorOffsetX The x offset of the cursor w.r.t. to top-left corner of the drag-image.
      * @param cursorOffsetY The y offset of the cursor w.r.t. to top-left corner of the drag-image.
      * @param dragObjRectWidth The width of the drag object.
@@ -252,18 +266,24 @@ public class ViewAndroidDelegate {
     private boolean startDragAndDrop(
             Bitmap shadowImage,
             DropDataAndroid dropData,
+            WindowAndroid windowAndroid,
             int cursorOffsetX,
             int cursorOffsetY,
             int dragObjRectWidth,
             int dragObjRectHeight) {
         ViewGroup containerView = getContainerViewGroup();
-        if (containerView == null) return false;
+        if (containerView == null || windowAndroid == null) return false;
+        Context context = windowAndroid.getContext().get();
+        if (context == null) {
+            return false;
+        }
 
         return getDragAndDropDelegate()
                 .startDragAndDrop(
                         containerView,
                         shadowImage,
                         dropData,
+                        context,
                         cursorOffsetX,
                         cursorOffsetY,
                         dragObjRectWidth,
@@ -450,10 +470,11 @@ public class ViewAndroidDelegate {
 
     /**
      * Called when root scroll direction changes.
+     *
      * @param directionUp whether the new scroll direction is up (true) or down (false).
-     * @param current_scroll_ratio the ratio of vertical scroll in [0, 1] range.
-     * Scroll at top of page is 0, and bottom of page is 1. It is defined as 0
-     * if page is not scrollable, though this should not be called in that case.
+     * @param currentScrollRatio the ratio of vertical scroll in [0, 1] range. Scroll at top of page
+     *     is 0, and bottom of page is 1. It is defined as 0 if page is not scrollable, though this
+     *     should not be called in that case.
      */
     @CalledByNative
     @CallSuper
@@ -579,7 +600,7 @@ public class ViewAndroidDelegate {
     public void autofill(final SparseArray<AutofillValue> values) {}
 
     /**
-     * Check whether the Android can request a ViewStructure for Autofill.
+     * Check whether the Android Autofill Framework can request a ViewStructure for Autofill.
      *
      * @return true iff an AutofillProvider provides a ViewStructure when prompted.
      */

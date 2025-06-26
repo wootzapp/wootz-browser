@@ -22,8 +22,10 @@
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_storage_location.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_trust_checker.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
+#include "chrome/browser/web_applications/isolated_web_apps/isolation_data.h"
 #include "chrome/browser/web_applications/isolated_web_apps/pending_install_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
+#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/test/fake_web_app_database_factory.h"
 #include "chrome/browser/web_applications/test/fake_web_app_provider.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
@@ -31,6 +33,7 @@
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
+#include "chrome/browser/web_applications/web_app_management_type.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/url_constants.h"
@@ -118,14 +121,12 @@ std::unique_ptr<WebApp> CreateWebApp(const GURL& start_url) {
   web_app->SetScope(start_url.DeprecatedGetOriginAsURL());
   web_app->SetManifestId(start_url.DeprecatedGetOriginAsURL());
   web_app->AddSource(WebAppManagement::Type::kIwaUserInstalled);
-  web_app->SetIsLocallyInstalled(true);
   web_app->SetUserDisplayMode(mojom::UserDisplayMode::kStandalone);
   return web_app;
 }
 
-std::unique_ptr<WebApp> CreateIsolatedWebApp(
-    const GURL& start_url,
-    WebApp::IsolationData isolation_data) {
+std::unique_ptr<WebApp> CreateIsolatedWebApp(const GURL& start_url,
+                                             IsolationData isolation_data) {
   auto web_app = CreateWebApp(start_url);
   web_app->SetIsolationData(isolation_data);
   return web_app;
@@ -214,7 +215,7 @@ class IsolatedWebAppURLLoaderFactoryTestBase : public WebAppTest {
   const GURL kDevAppOriginUrl = GURL("isolated-app://" + kDevWebBundleId);
   const GURL kDevAppStartUrl = kDevAppOriginUrl.Resolve("/ix.html");
   const url::Origin kProxyOrigin =
-      url::Origin::Create(GURL("https://proxy.example.com"));
+      url::Origin::Create(GURL("http://proxy.example.com"));
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
@@ -296,9 +297,8 @@ class IsolatedWebAppURLLoaderFactoryTest
   std::string ResponseBody() { return response_body_; }
 
   std::string GetResponseHeader(std::string_view name) {
-    std::string value;
-    ResponseInfo()->headers->GetNormalizedHeader(name, &value);
-    return value;
+    return ResponseInfo()->headers->GetNormalizedHeader(name).value_or(
+        std::string());
   }
 
   network::mojom::ParsedHeadersPtr ParseHeaders(const GURL& request_url) {
@@ -330,8 +330,8 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
 
   // Verify that a PWA is installed at kAppStartUrl's origin.
   std::optional<webapps::AppId> installed_app =
-      fake_provider().registrar_unsafe().FindInstalledAppWithUrlInScope(
-          kDevAppStartUrl);
+      fake_provider().registrar_unsafe().FindBestAppWithUrlInScope(
+          kDevAppStartUrl, web_app::WebAppFilter::InstalledInChrome());
   EXPECT_THAT(installed_app.has_value(), IsTrue());
 
   CreateFactoryForFrame();
@@ -346,14 +346,17 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
 TEST_F(IsolatedWebAppURLLoaderFactoryTest,
        RequestFailsWithErrFailedIfAppNotLocallyInstalled) {
   std::unique_ptr<WebApp> iwa = CreateIsolatedWebApp(
-      kDevAppStartUrl, WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                             base::Version("1.0.0")});
-  iwa->SetIsLocallyInstalled(false);
+      kDevAppStartUrl, IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                              base::Version("1.0.0"))
+                           .Build());
+  iwa->SetInstallState(proto::InstallState::SUGGESTED_FROM_ANOTHER_DEVICE);
   RegisterWebApp(std::move(iwa));
 
-  // Verify that a PWA is installed at kAppStartUrl's origin.
+  // Verify that a PWA is installed at kAppStartUrl's origin, but only
+  // suggested.
   std::optional<webapps::AppId> installed_app =
-      fake_provider().registrar_unsafe().FindAppWithUrlInScope(kDevAppStartUrl);
+      fake_provider().registrar_unsafe().FindBestAppWithUrlInScope(
+          kDevAppStartUrl, web_app::WebAppFilter::IsSuggestedApp());
   EXPECT_THAT(installed_app.has_value(), IsTrue());
 
   CreateFactoryForFrame();
@@ -367,8 +370,9 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
 
 TEST_F(IsolatedWebAppURLLoaderFactoryTest, GetRequestsSucceed) {
   RegisterWebApp(CreateIsolatedWebApp(
-      kDevAppStartUrl, WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                             base::Version("1.0.0")}));
+      kDevAppStartUrl, IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                              base::Version("1.0.0"))
+                           .Build()));
 
   CreateFactoryForFrame();
 
@@ -382,8 +386,9 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest, GetRequestsSucceed) {
 
 TEST_F(IsolatedWebAppURLLoaderFactoryTest, HeadRequestsSucceed) {
   RegisterWebApp(CreateIsolatedWebApp(
-      kDevAppStartUrl, WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                             base::Version("1.0.0")}));
+      kDevAppStartUrl, IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                              base::Version("1.0.0"))
+                           .Build()));
 
   CreateFactoryForFrame();
 
@@ -398,8 +403,9 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest, HeadRequestsSucceed) {
 TEST_F(IsolatedWebAppURLLoaderFactoryTest,
        PostRequestsReturnMethodNotSupportedWhenAppIsInstalled) {
   RegisterWebApp(CreateIsolatedWebApp(
-      kDevAppStartUrl, WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                             base::Version("1.0.0")}));
+      kDevAppStartUrl, IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                              base::Version("1.0.0"))
+                           .Build()));
 
   CreateFactoryForFrame();
 
@@ -419,9 +425,10 @@ TEST_F(
     PostRequestsReturnMethodNotSupportedWhenAppIsInstalledAndThereIsPendingInstall) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{IwaStorageProxy{url::Origin::Create(
-                                GURL("http://installed-app-proxy-url.com"))},
-                            base::Version("1.0.0")}));
+      IsolationData::Builder(IwaStorageProxy{url::Origin::Create(
+                                 GURL("http://installed-app-proxy-url.com"))},
+                             base::Version("1.0.0"))
+          .Build()));
 
   IsolatedWebAppPendingInstallInfo::FromWebContents(*web_contents())
       .set_source(IwaSourceProxy{
@@ -460,8 +467,9 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
        RequestFailsWithErrFailedIfStoragePartitionDoesNotExist) {
   RegisterWebApp(
       CreateIsolatedWebApp(kDevAppStartUrl,
-                           WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                                 base::Version("1.0.0")}),
+                           IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                                  base::Version("1.0.0"))
+                               .Build()),
       /*create_storage_partition=*/false);
 
   CreateFactoryForFrame();
@@ -476,8 +484,9 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
 TEST_F(IsolatedWebAppURLLoaderFactoryTest,
        RequestUsesNonDefaultStoragePartition) {
   RegisterWebApp(CreateIsolatedWebApp(
-      kDevAppStartUrl, WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                             base::Version("1.0.0")}));
+      kDevAppStartUrl, IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                              base::Version("1.0.0"))
+                           .Build()));
 
   CreateFactoryForFrame();
 
@@ -492,9 +501,10 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
        RequestSucceedsIfProxyUrlHasTrailingSlash) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com/"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -509,9 +519,10 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
        RequestSucceedsIfProxyUrlDoesNotHaveTrailingSlash) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -525,9 +536,10 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
 TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyUrlInheritsQuery) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -543,9 +555,10 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyUrlInheritsQuery) {
 TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyUrlDoesNotHaveUrlFragment) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -560,9 +573,10 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyUrlDoesNotHaveUrlFragment) {
 TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyUrlKeepsOriginUrlPath) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -577,9 +591,10 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyUrlKeepsOriginUrlPath) {
 TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyUrlRemovesOriginalRequestData) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -597,9 +612,10 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyUrlRemovesOriginalRequestData) {
 TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyRequestCopiesAcceptHeader) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -608,19 +624,18 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyRequestCopiesAcceptHeader) {
   request->headers.SetHeader(net::HttpRequestHeaders::kAccept, "text/html");
   CreateLoaderAndRun(std::move(request));
 
-  std::string accept_header_value;
-  ASSERT_THAT(url_handler().request()->headers.GetHeader(
-                  net::HttpRequestHeaders::kAccept, &accept_header_value),
-              IsTrue());
-  EXPECT_THAT(accept_header_value, Eq("text/html"));
+  EXPECT_THAT(url_handler().request()->headers.GetHeader(
+                  net::HttpRequestHeaders::kAccept),
+              testing::Optional(std::string("text/html")));
 }
 
 TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyRequestDisablesCaching) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -628,20 +643,18 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyRequestDisablesCaching) {
   request->url = GURL("isolated-app://" + kDevWebBundleId + "/foo/bar.html");
   CreateLoaderAndRun(std::move(request));
 
-  std::string cache_control_header_value;
-  ASSERT_THAT(
-      url_handler().request()->headers.GetHeader(
-          net::HttpRequestHeaders::kCacheControl, &cache_control_header_value),
-      IsTrue());
-  EXPECT_THAT(cache_control_header_value, Eq("no-cache"));
+  EXPECT_THAT(url_handler().request()->headers.GetHeader(
+                  net::HttpRequestHeaders::kCacheControl),
+              testing::Optional(std::string("no-cache")));
 }
 
 TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyRequestDefaultsToAcceptingAll) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -649,20 +662,19 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest, ProxyRequestDefaultsToAcceptingAll) {
   request->url = GURL("isolated-app://" + kDevWebBundleId + "/foo/bar.html");
   CreateLoaderAndRun(std::move(request));
 
-  std::string accept_header_value;
-  ASSERT_THAT(url_handler().request()->headers.GetHeader(
-                  net::HttpRequestHeaders::kAccept, &accept_header_value),
-              IsTrue());
-  EXPECT_THAT(accept_header_value, Eq("*/*"));
+  EXPECT_THAT(url_handler().request()->headers.GetHeader(
+                  net::HttpRequestHeaders::kAccept),
+              testing::Optional(std::string("*/*")));
 }
 
 TEST_F(IsolatedWebAppURLLoaderFactoryTest,
        DoNotReturnGeneratedPageWhenNotInstallingApplication) {
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -685,9 +697,10 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
           url::Origin::Create(GURL("http://some-proxy-url.com"))});
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -712,9 +725,10 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
 
   RegisterWebApp(CreateIsolatedWebApp(
       kDevAppStartUrl,
-      WebApp::IsolationData{
+      IsolationData::Builder(
           IwaStorageProxy{url::Origin::Create(GURL("http://example.com"))},
-          base::Version("1.0.0")}));
+          base::Version("1.0.0"))
+          .Build()));
 
   CreateFactoryForFrame();
 
@@ -774,12 +788,14 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
       "isolated-app://"
       "abcdeqztij5biqquuk3mfwpsaibuegaqcitgfchwuosuofdjabzqaaac"};
   RegisterWebApp(CreateIsolatedWebApp(
-      other_iwa_origin, WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                              base::Version("1.0.0")}));
+      other_iwa_origin, IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                               base::Version("1.0.0"))
+                            .Build()));
 
   RegisterWebApp(CreateIsolatedWebApp(
-      kDevAppStartUrl, WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                             base::Version("1.0.0")}));
+      kDevAppStartUrl, IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                              base::Version("1.0.0"))
+                           .Build()));
   NavigateAndCommit(kDevAppStartUrl);
 
   CreateFactoryForFrame(url::Origin::Create(kDevAppStartUrl));
@@ -799,8 +815,9 @@ TEST_F(IsolatedWebAppURLLoaderFactoryTest,
   NavigateAndCommit(GURL("https://example.com"));
 
   RegisterWebApp(CreateIsolatedWebApp(
-      kDevAppStartUrl, WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                             base::Version("1.0.0")}));
+      kDevAppStartUrl, IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                              base::Version("1.0.0"))
+                           .Build()));
 
   CreateFactoryForBrowser();
 
@@ -815,8 +832,10 @@ using IsolatedWebAppURLLoaderFactoryWebAppProviderReadyTest =
     IsolatedWebAppURLLoaderFactoryTestBase;
 
 TEST_F(IsolatedWebAppURLLoaderFactoryWebAppProviderReadyTest, Waits) {
-  WebApp::IsolationData isolation_data = WebApp::IsolationData{
-      IwaStorageProxy{kProxyOrigin}, base::Version("1.0.0")};
+  IsolationData isolation_data =
+      IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                             base::Version("1.0.0"))
+          .Build();
   ASSERT_OK_AND_ASSIGN(auto url_info,
                        IsolatedWebAppUrlInfo::Create(kDevAppStartUrl));
 
@@ -866,8 +885,9 @@ using IsolatedWebAppURLLoaderFactoryForServiceWorkerTest =
 
 TEST_F(IsolatedWebAppURLLoaderFactoryForServiceWorkerTest, GetRequestsSucceed) {
   RegisterWebApp(CreateIsolatedWebApp(
-      kDevAppStartUrl, WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                             base::Version("1.0.0")}));
+      kDevAppStartUrl, IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                              base::Version("1.0.0"))
+                           .Build()));
 
   CreateFactoryForWorker();
 
@@ -911,7 +931,7 @@ class IsolatedWebAppURLLoaderFactorySignedWebBundleTestBase
 
     std::unique_ptr<WebApp> iwa = CreateIsolatedWebApp(
         kEd25519AppOriginUrl,
-        WebApp::IsolationData{*location, base::Version("1.0.0")});
+        IsolationData::Builder(*location, base::Version("1.0.0")).Build());
     RegisterWebApp(std::move(iwa));
   }
 
@@ -923,8 +943,7 @@ class IsolatedWebAppURLLoaderFactorySignedWebBundleTestBase
   void CreateSignedBundleAndWriteToDisk(base::FilePath web_bundle_path) {
     std::string base_url = relative_urls_ ? "/" : kEd25519AppOriginUrl.spec();
 
-    web_package::WebBundleSigner::Ed25519KeyPair key_pair(kTestPublicKey,
-                                                          kTestPrivateKey);
+    web_package::test::Ed25519KeyPair key_pair(kTestPublicKey, kTestPrivateKey);
 
     bundle_ =
         IsolatedWebAppBuilder(ManifestBuilder().SetStartUrl(base_url))
@@ -1211,12 +1230,15 @@ class IsolatedWebAppURLLoaderFactoryHeaderTest
     IsolatedWebAppURLLoaderFactorySignedWebBundleTestBase::SetUp();
 
     RegisterWebApp(CreateIsolatedWebApp(
-        kDevAppStartUrl, WebApp::IsolationData{IwaStorageProxy{kProxyOrigin},
-                                               base::Version("1.0.0")}));
+        kDevAppStartUrl, IsolationData::Builder(IwaStorageProxy{kProxyOrigin},
+                                                base::Version("1.0.0"))
+                             .Build()));
   }
 
+  bool is_bundle() { return is_bundle_; }
+
   GURL GetAppOriginUrl() {
-    return is_bundle_ ? kEd25519AppOriginUrl : kDevAppStartUrl;
+    return is_bundle() ? kEd25519AppOriginUrl : kDevAppStartUrl;
   }
 
  private:
@@ -1268,8 +1290,6 @@ TEST_P(IsolatedWebAppURLLoaderFactoryHeaderTest, CspInjected) {
   EXPECT_THAT(csp->raw_directives[Directive::ObjectSrc], Eq("'none'"));
   EXPECT_THAT(csp->raw_directives[Directive::FrameSrc],
               Eq("'self' https: blob: data:"));
-  EXPECT_THAT(csp->raw_directives[Directive::ConnectSrc],
-              Eq("'self' https: wss: blob: data:"));
   EXPECT_THAT(csp->raw_directives[Directive::ScriptSrc],
               Eq("'self' 'wasm-unsafe-eval'"));
   EXPECT_THAT(csp->raw_directives[Directive::ImgSrc],
@@ -1283,6 +1303,13 @@ TEST_P(IsolatedWebAppURLLoaderFactoryHeaderTest, CspInjected) {
   EXPECT_THAT(csp->raw_directives[Directive::RequireTrustedTypesFor],
               Eq("'script'"));
   EXPECT_THAT(csp->raw_directives[Directive::FrameAncestors], Eq("'self'"));
+  if (is_bundle()) {
+    EXPECT_THAT(csp->raw_directives[Directive::ConnectSrc],
+                Eq("'self' https: wss: blob: data:"));
+  } else {
+    EXPECT_THAT(csp->raw_directives[Directive::ConnectSrc],
+                Eq("'self' https: wss: blob: data: ws://proxy.example.com:80"));
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(All,

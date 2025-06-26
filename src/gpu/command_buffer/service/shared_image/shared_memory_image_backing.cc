@@ -12,6 +12,7 @@
 #include "components/viz/common/resources/shared_image_format_utils.h"
 #include "gpu/command_buffer/common/mailbox.h"
 #include "gpu/command_buffer/common/shared_image_trace_utils.h"
+#include "gpu/command_buffer/common/shared_image_usage.h"
 #include "gpu/command_buffer/service/memory_tracking.h"
 #include "gpu/command_buffer/service/shared_context_state.h"
 #include "gpu/command_buffer/service/shared_image/shared_image_format_service_utils.h"
@@ -73,7 +74,7 @@ class OverlayImageRepresentationImpl : public OverlayImageRepresentation {
     const auto& shm_wrapper = static_cast<SharedMemoryImageBacking*>(backing())
                                   ->shared_memory_wrapper();
     return std::make_optional<gl::DCLayerOverlayImage>(
-        size(), shm_wrapper.GetMemory(0), shm_wrapper.GetStride(0));
+        size(), shm_wrapper.GetMemoryPlanes(), shm_wrapper.GetStride(0));
   }
 #endif
 };
@@ -91,12 +92,11 @@ SharedImageBackingType SharedMemoryImageBacking::GetType() const {
 }
 
 gfx::Rect SharedMemoryImageBacking::ClearedRect() const {
-  NOTREACHED_IN_MIGRATION();
-  return gfx::Rect();
+  NOTREACHED();
 }
 
 void SharedMemoryImageBacking::SetClearedRect(const gfx::Rect& cleared_rect) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 gfx::GpuMemoryBufferHandle
@@ -157,15 +157,6 @@ SharedMemoryImageBacking::ProduceOverlay(SharedImageManager* manager,
                                                           tracker);
 }
 
-std::unique_ptr<VaapiImageRepresentation>
-SharedMemoryImageBacking::ProduceVASurface(
-    SharedImageManager* manager,
-    MemoryTypeTracker* tracker,
-    VaapiDependenciesFactory* dep_factory) {
-  NOTIMPLEMENTED_LOG_ONCE();
-  return nullptr;
-}
-
 std::unique_ptr<MemoryImageRepresentation>
 SharedMemoryImageBacking::ProduceMemory(SharedImageManager* manager,
                                         MemoryTypeTracker* tracker) {
@@ -202,7 +193,7 @@ SharedMemoryImageBacking::SharedMemoryImageBacking(
     const gfx::ColorSpace& color_space,
     GrSurfaceOrigin surface_origin,
     SkAlphaType alpha_type,
-    uint32_t usage,
+    SharedImageUsageSet usage,
     std::string debug_label,
     SharedMemoryRegionWrapper wrapper,
     gfx::GpuMemoryBufferHandle handle,
@@ -225,8 +216,7 @@ SharedMemoryImageBacking::SharedMemoryImageBacking(
   for (int plane = 0; plane < format.NumberOfPlanes(); ++plane) {
     gfx::Size plane_size = format.GetPlaneSize(plane, size);
     auto info = SkImageInfo::Make(gfx::SizeToSkISize(plane_size),
-                                  viz::ToClosestSkColorType(
-                                      /*gpu_compositing=*/true, format, plane),
+                                  viz::ToClosestSkColorType(format, plane),
                                   alpha_type, color_space.ToSkColorSpace());
     pixmaps_.push_back(shared_memory_wrapper_.MakePixmapForPlane(info, plane));
   }

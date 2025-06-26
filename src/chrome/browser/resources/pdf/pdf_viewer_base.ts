@@ -5,8 +5,9 @@
 import {assert} from 'chrome://resources/js/assert.js';
 import {EventTracker} from 'chrome://resources/js/event_tracker.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
+import type {LoadTimeDataRaw} from 'chrome://resources/js/load_time_data.js';
 import {PromiseResolver} from 'chrome://resources/js/promise_resolver.js';
-import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
 
 import type {BrowserApi} from './browser_api.js';
 import {ZoomBehavior} from './browser_api.js';
@@ -39,15 +40,11 @@ function getScrollbarWidth(): number {
 
 export type KeyEventData = MessageData&{keyEvent: SerializedKeyEvent};
 
-export abstract class PdfViewerBaseElement extends PolymerElement {
-  static get properties(): any {
+export abstract class PdfViewerBaseElement extends CrLitElement {
+  static override get properties() {
     return {
-      showErrorDialog: {
-        type: Boolean,
-        value: false,
-      },
-
-      strings: Object,
+      showErrorDialog: {type: Boolean},
+      strings: {type: Object},
     };
   }
 
@@ -59,8 +56,8 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
   protected originalUrl: string = '';
   protected paramsParser: OpenPdfParamsParser|null = null;
   protected pdfOopifEnabled: boolean = false;
-  showErrorDialog: boolean;
-  protected strings?: {[key: string]: string};
+  accessor showErrorDialog: boolean = false;
+  protected accessor strings: LoadTimeDataRaw|undefined;
   protected tracker: EventTracker = new EventTracker();
   private delayedScriptingMessages_: MessageEvent[] = [];
   private initialLoadComplete_: boolean = false;
@@ -154,7 +151,7 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
       browserApi: BrowserApi, scroller: HTMLElement, sizer: HTMLElement,
       content: HTMLElement) {
     this.browserApi = browserApi;
-    this.originalUrl = this.browserApi!.getStreamInfo().originalUrl;
+    this.originalUrl = this.browserApi.getStreamInfo().originalUrl;
     this.pdfOopifEnabled =
         document.documentElement.hasAttribute('pdfOopifEnabled');
 
@@ -162,24 +159,22 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
 
     // Create the viewport.
     const defaultZoom =
-        this.browserApi!.getZoomBehavior() === ZoomBehavior.MANAGE ?
-        this.browserApi!.getDefaultZoom() :
+        this.browserApi.getZoomBehavior() === ZoomBehavior.MANAGE ?
+        this.browserApi.getDefaultZoom() :
         1.0;
 
+    assert(!this.viewport_);
     this.viewport_ = new Viewport(
         scroller, sizer, content, getScrollbarWidth(), defaultZoom);
-    this.viewport_!.setViewportChangedCallback(() => this.viewportChanged_());
-    this.viewport_!.setBeforeZoomCallback(
+    this.viewport_.setViewportChangedCallback(() => this.viewportChanged_());
+    this.viewport_.setBeforeZoomCallback(
         () => this.currentController!.beforeZoom());
-    this.viewport_!.setAfterZoomCallback(() => {
+    this.viewport_.setAfterZoomCallback(() => {
       this.currentController!.afterZoom();
       this.afterZoom(this.viewport_!.getZoom());
     });
-    this.viewport_!.setUserInitiatedCallback(
+    this.viewport_.setUserInitiatedCallback(
         userInitiated => this.setUserInitiated_(userInitiated));
-    window.addEventListener('beforeunload', (event: BeforeUnloadEvent) =>
-        this.onBeforeUnload(event),
-    );
 
     // Handle scripting messages from outside the extension that wish to
     // interact with it. We also send a message indicating that extension has
@@ -224,11 +219,11 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
 
     // Set up the ZoomManager.
     this.zoomManager_ = ZoomManager.create(
-        this.browserApi!.getZoomBehavior(), () => this.viewport_!.getZoom(),
+        this.browserApi.getZoomBehavior(), () => this.viewport_!.getZoom(),
         zoom => this.browserApi!.setZoom(zoom),
-        this.browserApi!.getInitialZoom());
-    this.viewport_!.setZoomManager(this.zoomManager_);
-    this.browserApi!.addZoomEventListener(
+        this.browserApi.getInitialZoom());
+    this.viewport_.setZoomManager(this.zoomManager_);
+    this.browserApi.addZoomEventListener(
         (zoom: number) => this.zoomManager_!.onBrowserZoomChange(zoom));
 
     // Request translated strings.
@@ -255,7 +250,7 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
         this.viewport_!.setPosition(this.lastViewportPosition);
       }
       this.paramsParser!.getViewportFromUrlParams(this.originalUrl)
-          .then(params => this.handleUrlParams_(params));
+          .then(params => this.handleUrlParams(params));
       this.setLoadState(LoadState.SUCCESS);
       this.sendDocumentLoadedMessage();
       while (this.delayedScriptingMessages_.length > 0) {
@@ -323,7 +318,8 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
     if (message.data.type === 'connect') {
       const token: string = message.data.token;
       if (token === this.browserApi!.getStreamInfo().streamUrl) {
-        PluginController.getInstance().bindMessageHandler(message.ports![0]);
+        assert(message.ports[0] !== undefined);
+        PluginController.getInstance().bindMessageHandler(message.ports[0]);
       } else {
         this.dispatchEvent(new CustomEvent('connection-denied-for-testing'));
       }
@@ -386,7 +382,7 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
    *     initial load of the PDF.
    */
   get loaded(): Promise<void>|null {
-    return this.loaded_ ? this.loaded_!.promise : null;
+    return this.loaded_ ? this.loaded_.promise : null;
   }
 
   get viewport(): Viewport {
@@ -419,12 +415,16 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
     }
   }
 
+  getLoadSucceededForTesting(): boolean {
+    return this.loadState_ === LoadState.SUCCESS;
+  }
+
   /**
    * Load a dictionary of translated strings into the UI. Used as a callback for
    * chrome.resourcesPrivate.
    * @param strings Dictionary of translated strings
    */
-  protected handleStrings(strings?: {[key: string]: string}) {
+  protected handleStrings(strings?: LoadTimeDataRaw) {
     if (!strings) {
       return;
     }
@@ -445,7 +445,7 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
    * later actions can override the effects of previous actions.
    * @param params The open params passed in the URL.
    */
-  private handleUrlParams_(params: OpenPdfParams) {
+  handleUrlParams(params: OpenPdfParams) {
     assert(this.viewport_);
 
     if (params.zoom) {
@@ -468,7 +468,7 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
       this.viewport_.setFittingType(params.view, fittingTypeParams);
       this.forceFit(params.view);
       this.isUserInitiatedEvent = true;
-    } else if (!params.position && params.page) {
+    } else if (!params.position && params.page !== undefined) {
       // No fitting type provided, so just go to page.
       this.viewport_.goToPage(params.page);
     }
@@ -508,7 +508,7 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
         targetOrigin = this.originalUrl;
       }
       try {
-        this.parentWindow_!.postMessage(message, targetOrigin);
+        this.parentWindow_.postMessage(message, targetOrigin);
       } catch (ok) {
         // TODO(crbug.com/40647731): targetOrigin probably was rejected, such as
         // a "data:" URL. This shouldn't cause this method to throw, though.
@@ -559,20 +559,5 @@ export abstract class PdfViewerBaseElement extends PolymerElement {
   protected rotateCounterclockwise() {
     record(UserAction.ROTATE);
     this.currentController!.rotateCounterclockwise();
-  }
-
-  /**
-   * Handles the `BeforeUnloadEvent` event.
-   * @param event The `BeforeUnloadEvent` object representing the event.
-   */
-  protected onBeforeUnload(_: BeforeUnloadEvent) {
-    this.resetTrackers_();
-  }
-
-  private resetTrackers_() {
-    this.viewport_!.resetTracker();
-    if (this.tracker) {
-      this.tracker.removeAll();
-    }
   }
 }

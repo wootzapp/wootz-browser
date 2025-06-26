@@ -35,7 +35,6 @@ TEST(ProtoUtilTest, CreateClientInfo) {
   RequestMetadata request_metadata;
   request_metadata.chrome_info.version = base::Version({1, 2, 3, 4});
   request_metadata.chrome_info.channel = version_info::Channel::STABLE;
-  request_metadata.chrome_info.start_surface = false;
   request_metadata.display_metrics.density = 1;
   request_metadata.display_metrics.width_pixels = 2;
   request_metadata.display_metrics.height_pixels = 3;
@@ -48,7 +47,6 @@ TEST(ProtoUtilTest, CreateClientInfo) {
   EXPECT_EQ(2, result.app_version().minor());
   EXPECT_EQ(3, result.app_version().build());
   EXPECT_EQ(4, result.app_version().revision());
-  EXPECT_FALSE(result.chrome_client_info().start_surface());
 
   EXPECT_EQ(R"({
   screen_density: 1
@@ -58,13 +56,6 @@ TEST(ProtoUtilTest, CreateClientInfo) {
 )",
             ToTextProto(result.display_info(0)));
   EXPECT_EQ("en-US", result.locale());
-}
-
-TEST(ProtoUtilTest, ClientInfoStartSurface) {
-  RequestMetadata request_metadata;
-  request_metadata.chrome_info.start_surface = true;
-  feedwire::ClientInfo result = CreateClientInfo(request_metadata);
-  EXPECT_TRUE(result.chrome_client_info().start_surface());
 }
 
 TEST(ProtoUtilTest, DefaultCapabilities) {
@@ -92,29 +83,13 @@ TEST(ProtoUtilTest, DefaultCapabilities) {
            feedwire::Capability::UNDO_FOR_DISMISS_COMMAND,
            feedwire::Capability::PREFETCH_METADATA, feedwire::Capability::SHARE,
            feedwire::Capability::CONTENT_LIFETIME,
-           feedwire::Capability::INFO_CARD_ACKNOWLEDGEMENT_TRACKING}));
+           feedwire::Capability::INFO_CARD_ACKNOWLEDGEMENT_TRACKING,
+           feedwire::Capability::SPORTS_IN_GAME_UPDATE}));
 }
 
-TEST(ProtoUtilTest, HeartsEnabled) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({kInterestFeedV2Hearts}, {});
-  feedwire::FeedRequest request =
-      CreateFeedQueryRefreshRequest(
-          StreamType(StreamKind::kForYou), feedwire::FeedQuery::MANUAL_REFRESH,
-          /*request_metadata=*/{},
-          /*consistency_token=*/std::string(), SingleWebFeedEntryPoint::kOther,
-          /*doc_view_counts=*/{})
-          .feed_request();
-
-  ASSERT_THAT(request.client_capability(),
-              Contains(feedwire::Capability::HEART));
-}
-
-// kFeedBottomSyncStringRemoval is mobile-only.
+// SYNC_STRING_REMOVAL is mobile-only.
 #if BUILDFLAG(IS_ANDROID)
 TEST(ProtoUtilTest, SyncRestringEnabled) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({kFeedBottomSyncStringRemoval}, {});
   feedwire::FeedRequest request =
       CreateFeedQueryRefreshRequest(
           StreamType(StreamKind::kForYou), feedwire::FeedQuery::MANUAL_REFRESH,
@@ -231,21 +206,6 @@ TEST(ProtoUtilTest, StampEnabled) {
               Contains(feedwire::Capability::AMP_GROUP_DATASTORE));
 }
 
-TEST(ProtoUtilTest, SportsCardEnabled) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({kFeedSportsCard}, {});
-  feedwire::FeedRequest request =
-      CreateFeedQueryRefreshRequest(
-          StreamType(StreamKind::kForYou), feedwire::FeedQuery::MANUAL_REFRESH,
-          /*request_metadata=*/{},
-          /*consistency_token=*/std::string(), SingleWebFeedEntryPoint::kOther,
-          /*doc_view_counts=*/{})
-          .feed_request();
-
-  ASSERT_THAT(request.client_capability(),
-              Contains(feedwire::Capability::SPORTS_IN_GAME_UPDATE));
-}
-
 TEST(ProtoUtilTest, DynamicColorEnabled) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatures({kFeedDynamicColors}, {});
@@ -302,22 +262,6 @@ TEST(ProtoUtilTest, CormorantEnabled) {
             feedwire::FeedEntryPointSource::CHROME_SINGLE_WEB_FEED_MENU);
 }
 
-TEST(ProtoUtilTest, InfoCardAcknowledgementTrackingDisabled) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures({}, {kInfoCardAcknowledgementTracking});
-  feedwire::FeedRequest request =
-      CreateFeedQueryRefreshRequest(
-          StreamType(StreamKind::kForYou), feedwire::FeedQuery::MANUAL_REFRESH,
-          /*request_metadata=*/{},
-          /*consistency_token=*/std::string(), SingleWebFeedEntryPoint::kOther,
-          /*doc_view_counts=*/{})
-          .feed_request();
-
-  ASSERT_THAT(
-      request.client_capability(),
-      Not(Contains(feedwire::Capability::INFO_CARD_ACKNOWLEDGEMENT_TRACKING)));
-}
-
 TEST(ProtoUtilTest, FeedSignedOutViewDemotionEnablesCapability) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatures({kFeedSignedOutViewDemotion}, {});
@@ -331,6 +275,21 @@ TEST(ProtoUtilTest, FeedSignedOutViewDemotionEnablesCapability) {
 
   ASSERT_THAT(request.client_capability(),
               Contains(feedwire::Capability::ON_DEVICE_VIEW_HISTORY));
+}
+
+TEST(ProtoUtilTest, FeedStreamingEnablesCapability) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitWithFeatures({kFeedStreaming}, {});
+  feedwire::FeedRequest request =
+      CreateFeedQueryRefreshRequest(
+          StreamType(StreamKind::kForYou), feedwire::FeedQuery::MANUAL_REFRESH,
+          /*request_metadata=*/{},
+          /*consistency_token=*/std::string(), SingleWebFeedEntryPoint::kOther,
+          /*doc_view_counts=*/{})
+          .feed_request();
+
+  ASSERT_THAT(request.client_capability(),
+              Contains(feedwire::Capability::STREAMING_FULL));
 }
 
 TEST(ProtoUtilTest, TabGroupsEnabledForReplaced) {

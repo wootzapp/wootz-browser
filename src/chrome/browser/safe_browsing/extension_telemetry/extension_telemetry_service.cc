@@ -9,6 +9,7 @@
 
 #include "base/command_line.h"
 #include "base/containers/contains.h"
+#include "base/containers/flat_set.h"
 #include "base/i18n/time_formatting.h"
 #include "base/json/values_util.h"
 #include "base/logging.h"
@@ -22,13 +23,16 @@
 #include "base/threading/sequence_bound.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/enterprise/browser_management/management_service_factory.h"
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/extensions/extension_service.h"
+#include "chrome/browser/extensions/managed_installation_mode.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/cookies_get_all_signal_processor.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/cookies_get_signal_processor.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/declarative_net_request_action_signal_processor.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/declarative_net_request_signal_processor.h"
+#include "chrome/browser/safe_browsing/extension_telemetry/extension_js_callstacks.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/extension_signal.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/extension_telemetry_config_manager.h"
 #include "chrome/browser/safe_browsing/extension_telemetry/extension_telemetry_file_processor.h"
@@ -41,6 +45,7 @@
 #include "chrome/browser/safe_browsing/extension_telemetry/tabs_execute_script_signal_processor.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/common/pref_names.h"
+#include "components/enterprise/buildflags/buildflags.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/safe_browsing/core/browser/sync/safe_browsing_primary_account_token_fetcher.h"
@@ -51,19 +56,28 @@
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/blocklist_extension_prefs.h"
 #include "extensions/browser/blocklist_state.h"
+#include "extensions/browser/disable_reason.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
+#include "extensions/browser/install_prefs_helper.h"
 #include "extensions/browser/path_util.h"
 #include "extensions/common/file_util.h"
 #include "extensions/common/mojom/manifest.mojom-shared.h"
 #include "extensions/common/switches.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+#include "chrome/browser/enterprise/connectors/connectors_service.h"
+#include "chrome/browser/enterprise/connectors/reporting/extension_telemetry_event_router.h"
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+
 namespace safe_browsing {
 
 namespace {
 
+using ::extensions::ExtensionManagement;
+using ::extensions::ManagedInstallationMode;
 using ::extensions::mojom::ManifestLocation;
 using ::google::protobuf::RepeatedPtrField;
 using ExtensionInfo =
@@ -110,7 +124,7 @@ constexpr char kManifestFile[] = "manifest.json";
 // fails.
 constexpr int kNumChecksPerUploadInterval = 1;
 
-// Specifies the upload interval for extension telemetry reports.
+// Specifies the upload interval for ESB telemetry reports.
 base::TimeDelta kUploadIntervalSeconds = base::Seconds(3600);
 
 // Delay before the Telemetry Service checks its last upload time.
@@ -136,6 +150,53 @@ void RecordWhenFileWasPersisted(bool persisted_at_write_interval) {
       persisted_at_write_interval);
 }
 
+void RecordSignalUploadSize(size_t size, ExtensionSignalType signal_type) {
+  switch (signal_type) {
+    case ExtensionSignalType::kTabsExecuteScript:
+      base::UmaHistogramCounts1M(
+          "SafeBrowsing.ExtensionTelemetry.UploadSize.TabsExecuteScript", size);
+      break;
+    case ExtensionSignalType::kRemoteHostContacted:
+      base::UmaHistogramCounts1M(
+          "SafeBrowsing.ExtensionTelemetry.UploadSize.RemoteHostContacted",
+          size);
+      break;
+    case ExtensionSignalType::kCookiesGetAll:
+      base::UmaHistogramCounts1M(
+          "SafeBrowsing.ExtensionTelemetry.UploadSize.CookiesGetAll", size);
+      break;
+    case ExtensionSignalType::kPotentialPasswordTheft:
+      base::UmaHistogramCounts1M(
+          "SafeBrowsing.ExtensionTelemetry.UploadSize.PotentialPasswordTheft",
+          size);
+      break;
+    case ExtensionSignalType::kCookiesGet:
+      base::UmaHistogramCounts1M(
+          "SafeBrowsing.ExtensionTelemetry.UploadSize.CookiesGet", size);
+      break;
+    case ExtensionSignalType::kDeclarativeNetRequest:
+      base::UmaHistogramCounts1M(
+          "SafeBrowsing.ExtensionTelemetry.UploadSize.DeclarativeNetRequest",
+          size);
+      break;
+    case ExtensionSignalType::kTabsApi:
+      base::UmaHistogramCounts1M(
+          "SafeBrowsing.ExtensionTelemetry.UploadSize.TabsApi", size);
+      break;
+    case ExtensionSignalType::kDeclarativeNetRequestAction:
+      base::UmaHistogramCounts1M(
+          "SafeBrowsing.ExtensionTelemetry.UploadSize."
+          "DeclarativeNetRequestAction",
+          size);
+      break;
+    case ExtensionSignalType::kPasswordReuse:
+    // This signal is used to construct the potential password theft signal and
+    // is not itself included in a telemetry report.
+    default:
+      break;
+  }
+}
+
 void RecordNumOffstoreExtensions(int num_extensions) {
   base::UmaHistogramCounts100(
       "SafeBrowsing.ExtensionTelemetry.FileData.NumOffstoreExtensions",
@@ -145,6 +206,17 @@ void RecordNumOffstoreExtensions(int num_extensions) {
 void RecordCollectionDuration(base::TimeDelta duration) {
   base::UmaHistogramMediumTimes(
       "SafeBrowsing.ExtensionTelemetry.FileData.CollectionDuration", duration);
+}
+
+void RecordSignalTypeForEnterprise(ExtensionSignalType signal_type) {
+  base::UmaHistogramEnumeration(
+      "SafeBrowsing.ExtensionTelemetry.Enterprise.Signals.SignalType",
+      signal_type);
+}
+
+void RecordEnterpriseReportSize(size_t size) {
+  base::UmaHistogramCounts1M(
+      "SafeBrowsing.ExtensionTelemetry.Enterprise.ReportSize", size);
 }
 
 static_assert(extensions::Manifest::NUM_LOAD_TYPES == 10,
@@ -210,12 +282,47 @@ ExtensionInfo::InstallLocation GetInstallLocation(ManifestLocation location) {
   return ExtensionInfo::UNKNOWN_LOCATION;
 }
 
-ExtensionInfo::BlocklistState GetBlocklistState(
-    const extensions::ExtensionId extension_id,
-    extensions::ExtensionPrefs* extension_prefs) {
-  extensions::BitMapBlocklistState state =
-      extensions::blocklist_prefs::GetExtensionBlocklistState(extension_id,
-                                                              extension_prefs);
+// Converts a policy::ManagementAuthorityTrustworthiness to
+// ExtensionTelemetryReportRequest::ManagementAuthority.
+ExtensionTelemetryReportRequest::ManagementAuthority GetManagementAuthority(
+    policy::ManagementAuthorityTrustworthiness
+        management_authority_trustworthiness) {
+  switch (management_authority_trustworthiness) {
+    case policy::ManagementAuthorityTrustworthiness::NONE:
+      return ExtensionTelemetryReportRequest::MANAGEMENT_AUTHORITY_NONE;
+    case policy::ManagementAuthorityTrustworthiness::LOW:
+      return ExtensionTelemetryReportRequest::MANAGEMENT_AUTHORITY_LOW;
+    case policy::ManagementAuthorityTrustworthiness::TRUSTED:
+      return ExtensionTelemetryReportRequest::MANAGEMENT_AUTHORITY_TRUSTED;
+    case policy::ManagementAuthorityTrustworthiness::FULLY_TRUSTED:
+      return ExtensionTelemetryReportRequest::
+          MANAGEMENT_AUTHORITY_FULLY_TRUSTED;
+    default:
+      return ExtensionTelemetryReportRequest::MANAGEMENT_AUTHORITY_UNSPECIFIED;
+  }
+}
+
+ExtensionInfo::InstallationPolicy
+ExtensionManagementInstallationModeToExtensionInfoInstallationPolicy(
+    const ManagedInstallationMode& installation_mode) {
+  switch (installation_mode) {
+    case ManagedInstallationMode::kAllowed:
+      return ExtensionInfo::INSTALLATION_ALLOWED;
+    case ManagedInstallationMode::kBlocked:
+      return ExtensionInfo::INSTALLATION_BLOCKED;
+    case ManagedInstallationMode::kForced:
+      return ExtensionInfo::INSTALLATION_FORCED;
+    case ManagedInstallationMode::kRecommended:
+      return ExtensionInfo::INSTALLATION_RECOMMENDED;
+    case ManagedInstallationMode::kRemoved:
+      return ExtensionInfo::INSTALLATION_REMOVED;
+    default:
+      return ExtensionInfo::NO_POLICY;
+  }
+}
+
+ExtensionInfo::BlocklistState BitMapBlocklistStateToExtensionInfoBlocklistState(
+    const extensions::BitMapBlocklistState& state) {
   switch (state) {
     case extensions::BitMapBlocklistState::NOT_BLOCKLISTED:
       return ExtensionInfo::NOT_BLOCKLISTED;
@@ -230,6 +337,24 @@ ExtensionInfo::BlocklistState GetBlocklistState(
     default:
       return ExtensionInfo::BLOCKLISTED_UNKNOWN;
   }
+}
+
+ExtensionInfo::BlocklistState GetBlocklistState(
+    const extensions::ExtensionId extension_id,
+    extensions::ExtensionPrefs* extension_prefs) {
+  extensions::BitMapBlocklistState state =
+      extensions::blocklist_prefs::GetExtensionBlocklistState(extension_id,
+                                                              extension_prefs);
+  return BitMapBlocklistStateToExtensionInfoBlocklistState(state);
+}
+
+ExtensionInfo::BlocklistState GetExtensionTelemetryServiceBlocklistState(
+    const extensions::ExtensionId extension_id,
+    extensions::ExtensionPrefs* extension_prefs) {
+  extensions::BitMapBlocklistState state =
+      extensions::blocklist_prefs::GetExtensionTelemetryServiceBlocklistState(
+          extension_id, extension_prefs);
+  return BitMapBlocklistStateToExtensionInfoBlocklistState(state);
 }
 
 extensions::BlocklistState ConvertTelemetryResponseVerdictToBlocklistState(
@@ -288,7 +413,29 @@ extensions::ExtensionSet CollectCommandLineExtensionInfo() {
   return commandline_extensions;
 }
 
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+// Retrieves the ExtensionTelemetryEventRouter associated with the profile.
+enterprise_connectors::ExtensionTelemetryEventRouter*
+GetExtensionTelemetryEventRouter(Profile* profile) {
+  return enterprise_connectors::ExtensionTelemetryEventRouter::Get(profile);
+}
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+
+// Returns true if the signal type should be collected for enterprise telemetry.
+bool CollectForEnterprise(ExtensionSignalType type) {
+  return type == ExtensionSignalType::kCookiesGet ||
+         type == ExtensionSignalType::kCookiesGetAll ||
+         type == ExtensionSignalType::kRemoteHostContacted ||
+         type == ExtensionSignalType::kTabsApi;
+}
+
 }  // namespace
+
+// Adds extension installation mode and managed status to extension telemetry
+// reports.
+BASE_FEATURE(kExtensionTelemetryIncludePolicyData,
+             "SafeBrowsingExtensionTelemetryIncludePolicyData",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 ExtensionTelemetryService::~ExtensionTelemetryService() = default;
 
@@ -302,24 +449,39 @@ ExtensionTelemetryService::ExtensionTelemetryService(
     Profile* profile,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
     : profile_(profile),
-      url_loader_factory_(url_loader_factory),
       extension_registry_(extensions::ExtensionRegistry::Get(profile)),
       extension_prefs_(extensions::ExtensionPrefs::Get(profile)),
-      enabled_(false),
-      current_reporting_interval_(kUploadIntervalSeconds),
-      num_checks_per_upload_interval_(kNumChecksPerUploadInterval),
       offstore_file_data_collection_duration_limit_(
-          kOffstoreFileDataCollectionDurationLimitSeconds) {
+          kOffstoreFileDataCollectionDurationLimitSeconds),
+      current_reporting_interval_(kUploadIntervalSeconds),
+      url_loader_factory_(url_loader_factory),
+      num_checks_per_upload_interval_(kNumChecksPerUploadInterval) {
   // Register for SB preference change notifications.
   pref_service_ = profile_->GetPrefs();
   pref_change_registrar_.Init(pref_service_);
   pref_change_registrar_.Add(
       prefs::kSafeBrowsingEnhanced,
-      base::BindRepeating(&ExtensionTelemetryService::OnPrefChanged,
+      base::BindRepeating(&ExtensionTelemetryService::OnESBPrefChanged,
                           base::Unretained(this)));
 
-  // Set initial enable/disable state.
-  SetEnabled(IsEnhancedProtectionEnabled(*pref_service_));
+  // Set initial enable/disable state for ESB.
+  SetEnabledForESB(IsEnhancedProtectionEnabled(*pref_service_));
+
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+  if (base::FeatureList::IsEnabled(kExtensionTelemetryForEnterprise)) {
+    // Register for enterprise policy changes.
+    auto* connector_service =
+        enterprise_connectors::ConnectorsServiceFactory::GetForBrowserContext(
+            profile);
+    connector_service->ObserveTelemetryReporting(base::BindRepeating(
+        &ExtensionTelemetryService::OnEnterprisePolicyChanged,
+        base::Unretained(this)));
+
+    // Set initial enable/disable state for enterprise.
+    SetEnabledForEnterprise(
+        GetExtensionTelemetryEventRouter(profile_)->IsPolicyEnabled());
+  }
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 }
 
 void ExtensionTelemetryService::RecordSignalType(
@@ -334,117 +496,57 @@ void ExtensionTelemetryService::RecordSignalDiscarded(
       "SafeBrowsing.ExtensionTelemetry.Signals.Discarded", signal_type);
 }
 
-void ExtensionTelemetryService::OnPrefChanged() {
-  SetEnabled(IsEnhancedProtectionEnabled(*pref_service_));
+void ExtensionTelemetryService::OnESBPrefChanged() {
+  SetEnabledForESB(IsEnhancedProtectionEnabled(*pref_service_));
 }
 
-void ExtensionTelemetryService::SetEnabled(bool enable) {
-  // Make call idempotent.
-  if (enabled_ == enable) {
+void ExtensionTelemetryService::OnEnterprisePolicyChanged() {
+  if (is_shutdown_) {
     return;
   }
 
-  enabled_ = enable;
-  if (enabled_) {
-    // Create signal processors.
-    // Map the processors to the signals they output reports for.
-    signal_processors_.emplace(ExtensionSignalType::kCookiesGet,
-                               std::make_unique<CookiesGetSignalProcessor>());
-    signal_processors_.emplace(
-        ExtensionSignalType::kCookiesGetAll,
-        std::make_unique<CookiesGetAllSignalProcessor>());
-    signal_processors_.emplace(
-        ExtensionSignalType::kDeclarativeNetRequestAction,
-        std::make_unique<DeclarativeNetRequestActionSignalProcessor>());
-    signal_processors_.emplace(
-        ExtensionSignalType::kDeclarativeNetRequest,
-        std::make_unique<DeclarativeNetRequestSignalProcessor>());
-    signal_processors_.emplace(ExtensionSignalType::kTabsApi,
-                               std::make_unique<TabsApiSignalProcessor>());
-    signal_processors_.emplace(
-        ExtensionSignalType::kTabsExecuteScript,
-        std::make_unique<TabsExecuteScriptSignalProcessor>());
-    signal_processors_.emplace(
-        ExtensionSignalType::kRemoteHostContacted,
-        std::make_unique<RemoteHostContactedSignalProcessor>());
-    signal_processors_.emplace(
-        ExtensionSignalType::kPotentialPasswordTheft,
-        std::make_unique<PotentialPasswordTheftSignalProcessor>());
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+  SetEnabledForEnterprise(
+      GetExtensionTelemetryEventRouter(profile_)->IsPolicyEnabled());
+#else
+  SetEnabledForEnterprise(false);
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+}
 
-    // Create subscriber lists for each telemetry signal type.
-    // Map the signal processors to the signals that they consume.
-    std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
-        subscribers_for_cookies_get = {
-            signal_processors_[ExtensionSignalType::kCookiesGet].get()};
-    std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
-        subscribers_for_cookies_get_all = {
-            signal_processors_[ExtensionSignalType::kCookiesGetAll].get()};
-    std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
-        subscribers_for_declarative_net_request_action = {
-            signal_processors_
-                [ExtensionSignalType::kDeclarativeNetRequestAction]
-                    .get()};
-    std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
-        subscribers_for_declarative_net_request = {
-            signal_processors_[ExtensionSignalType::kDeclarativeNetRequest]
-                .get()};
-    std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
-        subscribers_for_tabs_api = {
-            signal_processors_[ExtensionSignalType::kTabsApi].get()};
-    std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
-        subscribers_for_tabs_execute_script = {
-            signal_processors_[ExtensionSignalType::kTabsExecuteScript].get()};
-    std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
-        subscribers_for_remote_host_contacted = {
-            signal_processors_[ExtensionSignalType::kRemoteHostContacted].get(),
-            signal_processors_[ExtensionSignalType::kPotentialPasswordTheft]
-                .get()};
-    std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
-        subscribers_for_password_reuse = {
-            signal_processors_[ExtensionSignalType::kPotentialPasswordTheft]
-                .get()};
+// Telemetry features for ESB include:
+// - ESB signals
+// - Off-store data collection
+// - Command line extensions file data
+// - Telemetry Configuration
+// - Persister
+void ExtensionTelemetryService::SetEnabledForESB(bool enable) {
+  // Make call idempotent.
+  if (esb_enabled_ == enable) {
+    return;
+  }
 
-    signal_subscribers_.emplace(ExtensionSignalType::kCookiesGet,
-                                std::move(subscribers_for_cookies_get));
-    signal_subscribers_.emplace(ExtensionSignalType::kCookiesGetAll,
-                                std::move(subscribers_for_cookies_get_all));
-    signal_subscribers_.emplace(
-        ExtensionSignalType::kDeclarativeNetRequestAction,
-        std::move(subscribers_for_declarative_net_request_action));
-    signal_subscribers_.emplace(
-        ExtensionSignalType::kDeclarativeNetRequest,
-        std::move(subscribers_for_declarative_net_request));
-    signal_subscribers_.emplace(ExtensionSignalType::kTabsApi,
-                                std::move(subscribers_for_tabs_api));
-    signal_subscribers_.emplace(ExtensionSignalType::kTabsExecuteScript,
-                                std::move(subscribers_for_tabs_execute_script));
-    signal_subscribers_.emplace(
-        ExtensionSignalType::kRemoteHostContacted,
-        std::move(subscribers_for_remote_host_contacted));
-    signal_subscribers_.emplace(ExtensionSignalType::kPasswordReuse,
-                                std::move(subscribers_for_password_reuse));
+  esb_enabled_ = enable;
+  if (esb_enabled_) {
+    SetUpSignalProcessorsAndSubscribersForESB();
+    SetUpOffstoreFileDataCollection();
+
+    // File data for Command Line extensions.
+    if (base::FeatureList::IsEnabled(
+            kExtensionTelemetryFileDataForCommandLineExtensions)) {
+      base::ThreadPool::PostTaskAndReplyWithResult(
+          FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
+          base::BindOnce(CollectCommandLineExtensionInfo),
+          base::BindOnce(
+              &ExtensionTelemetryService::OnCommandLineExtensionsInfoCollected,
+              weak_factory_.GetWeakPtr()));
+    }
+
+    // Telemetry Configuration
     if (base::FeatureList::IsEnabled(kExtensionTelemetryConfiguration)) {
       config_manager_ =
           std::make_unique<ExtensionTelemetryConfigManager>(pref_service_);
       config_manager_->LoadConfig();
     }
-
-      file_processor_ = base::SequenceBound<ExtensionTelemetryFileProcessor>(
-          base::ThreadPool::CreateSequencedTaskRunner(
-              {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
-               base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN}));
-      offstore_file_data_collection_timer_.Start(
-          FROM_HERE, kOffstoreFileDataCollectionStartupDelaySeconds, this,
-          &ExtensionTelemetryService::StartOffstoreFileDataCollection);
-      if (base::FeatureList::IsEnabled(
-              kExtensionTelemetryFileDataForCommandLineExtensions)) {
-        base::ThreadPool::PostTaskAndReplyWithResult(
-            FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
-            base::BindOnce(CollectCommandLineExtensionInfo),
-            base::BindOnce(&ExtensionTelemetryService::
-                               OnCommandLineExtensionsInfoCollected,
-                           weak_factory_.GetWeakPtr()));
-      }
 
     if (current_reporting_interval_.is_positive()) {
       int max_files_supported =
@@ -488,14 +590,49 @@ void ExtensionTelemetryService::SetEnabled(bool enable) {
     if (!persister_.is_null()) {
       persister_.AsyncCall(&ExtensionTelemetryPersister::ClearPersistedFiles);
     }
-    if (!file_processor_.is_null()) {
-      StopOffstoreFileDataCollection();
-    }
+    StopOffstoreFileDataCollection();
   }
 }
 
+// Telemetry features for enterprise include:
+// - Enterprise signals
+// - Off-store data collection
+void ExtensionTelemetryService::SetEnabledForEnterprise(bool enable) {
+  // Make call idempotent.
+  if (enterprise_enabled_ == enable) {
+    return;
+  }
+
+  enterprise_enabled_ = enable;
+  if (enterprise_enabled_) {
+    SetUpSignalProcessorsAndSubscribersForEnterprise();
+    SetUpOffstoreFileDataCollection();
+
+    enterprise_timer_.Start(
+        FROM_HERE,
+        base::Seconds(
+            kExtensionTelemetryEnterpriseReportingIntervalSeconds.Get()),
+        this, &ExtensionTelemetryService::CreateAndSendEnterpriseReport);
+  } else {
+    // Stop enterprise timer for periodic telemetry reports.
+    enterprise_timer_.Stop();
+    // Clear all enterprise data stored by the service.
+    enterprise_extension_store_.clear();
+    // Destruct signal subscribers.
+    enterprise_signal_subscribers_.clear();
+    // Destruct signal processors.
+    enterprise_signal_processors_.clear();
+    StopOffstoreFileDataCollection();
+  }
+}
+
+bool ExtensionTelemetryService::enabled() const {
+  return esb_enabled_ || enterprise_enabled_;
+}
+
 void ExtensionTelemetryService::Shutdown() {
-  if (enabled_ && SignalDataPresent() && !persister_.is_null()) {
+  is_shutdown_ = true;
+  if (esb_enabled_ && SignalDataPresent() && !persister_.is_null()) {
     // Saving data to disk.
     active_report_ = CreateReport();
     std::string write_string;
@@ -506,11 +643,10 @@ void ExtensionTelemetryService::Shutdown() {
 
     RecordWhenFileWasPersisted(/*persisted_at_write_interval=*/false);
   }
-  if (!file_processor_.is_null()) {
-    StopOffstoreFileDataCollection();
-  }
   timer_.Stop();
+  enterprise_timer_.Stop();
   pref_change_registrar_.RemoveAll();
+  StopOffstoreFileDataCollection();
 }
 
 bool ExtensionTelemetryService::SignalDataPresent() const {
@@ -526,11 +662,27 @@ bool ExtensionTelemetryService::IsSignalEnabled(
 void ExtensionTelemetryService::AddSignal(
     std::unique_ptr<ExtensionSignal> signal) {
   ExtensionSignalType signal_type = signal->GetType();
-  RecordSignalType(signal_type);
 
-  DCHECK(base::Contains(signal_subscribers_, signal_type));
+  if (esb_enabled_) {
+    RecordSignalType(signal_type);
+    AddSignalHelper(*signal, extension_store_, signal_subscribers_);
+  }
 
-  if (extension_store_.find(signal->extension_id()) == extension_store_.end()) {
+  if (enterprise_enabled_ && CollectForEnterprise(signal_type)) {
+    RecordSignalTypeForEnterprise(signal_type);
+    AddSignalHelper(*signal, enterprise_extension_store_,
+                    enterprise_signal_subscribers_);
+  }
+}
+
+void ExtensionTelemetryService::AddSignalHelper(
+    const ExtensionSignal& signal,
+    ExtensionStore& store,
+    SignalSubscribers& subscribers) {
+  ExtensionSignalType signal_type = signal.GetType();
+  DCHECK(base::Contains(subscribers, signal_type));
+
+  if (!store.contains(signal.extension_id())) {
     // This is the first signal triggered by this extension since the last
     // time a report was generated for it. Store its information.
     // Note: The extension information is cached at signal addition time
@@ -539,27 +691,60 @@ void ExtensionTelemetryService::AddSignal(
     // but before a report is generated. The extension information is also
     // cleared after each telemetry report is sent to keep the data fresh.
     const extensions::Extension* extension =
-        extension_registry_->GetInstalledExtension(signal->extension_id());
+        extension_registry_->GetInstalledExtension(signal.extension_id());
     // Do a sanity check on the returned extension object and abort if it is
     // invalid.
     if (!extension) {
       RecordSignalDiscarded(signal_type);
       return;
     }
-    extension_store_.emplace(signal->extension_id(),
-                             GetExtensionInfoForReport(*extension));
+
+    store.emplace(signal.extension_id(), GetExtensionInfoForReport(*extension));
   }
 
   for (safe_browsing::ExtensionSignalProcessor* processor :
-       signal_subscribers_[signal_type]) {
-    // Pass the signal as reference instead of relinquishing ownership to the
-    // signal processor.
-    processor->ProcessSignal(*signal);
+       subscribers[signal_type]) {
+    processor->ProcessSignal(signal);
   }
 }
 
+std::unique_ptr<ExtensionTelemetryReportRequest>
+ExtensionTelemetryService::CreateReportWithCommonFieldsPopulated() {
+  auto telemetry_report_pb =
+      std::make_unique<ExtensionTelemetryReportRequest>();
+  telemetry_report_pb->set_developer_mode_enabled(
+      profile_->GetPrefs()->GetBoolean(prefs::kExtensionsUIDeveloperMode));
+  telemetry_report_pb->set_creation_timestamp_msec(
+      base::Time::Now().InMillisecondsSinceUnixEpoch());
+
+  // Only collect if `is_shutdown_` is false, since BrowserContextHelper can be
+  // destroyed already and cause a crash on ChromeOS.
+  // TODO(crbug.com/367327319): Investigate keyed service dependency order to
+  // guarantee BrowserContextHelper lifetime during shutdown.
+  if (base::FeatureList::IsEnabled(kExtensionTelemetryIncludePolicyData) &&
+      !is_shutdown_) {
+    // The highest level of ManagementAuthorityTrustworthiness of either
+    // platform or browser are taken into account.
+    policy::ManagementAuthorityTrustworthiness platform_trustworthiness =
+        policy::ManagementServiceFactory::GetForPlatform()
+            ->GetManagementAuthorityTrustworthiness();
+    policy::ManagementAuthorityTrustworthiness browser_trustworthiness =
+        policy::ManagementServiceFactory::GetForProfile(profile_)
+            ->GetManagementAuthorityTrustworthiness();
+    policy::ManagementAuthorityTrustworthiness highest_trustworthiness =
+        std::max(platform_trustworthiness, browser_trustworthiness);
+    telemetry_report_pb->set_management_authority(
+        GetManagementAuthority(highest_trustworthiness));
+  }
+
+  return telemetry_report_pb;
+}
+
 void ExtensionTelemetryService::CreateAndUploadReport() {
-  DCHECK(enabled_);
+  if (!esb_enabled_) {
+    return;
+  }
+
   active_report_ = CreateReport();
   if (!active_report_) {
     return;
@@ -573,6 +758,24 @@ void ExtensionTelemetryService::CreateAndUploadReport() {
   UploadReport(std::move(upload_data));
 }
 
+void ExtensionTelemetryService::CreateAndSendEnterpriseReport() {
+  if (!enterprise_enabled_) {
+    return;
+  }
+
+  std::unique_ptr<ExtensionTelemetryReportRequest> enterprise_report =
+      CreateReportForEnterprise();
+  if (enterprise_report) {
+    RecordEnterpriseReportSize(enterprise_report->ByteSizeLong());
+#if BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+    GetExtensionTelemetryEventRouter(profile_)->UploadTelemetryReport(
+        std::move(enterprise_report));
+#endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
+  } else {
+    DLOG(WARNING) << "Upload skipped due to empty enterprise report.";
+  }
+}
+
 void ExtensionTelemetryService::OnUploadComplete(
     bool success,
     const std::string& response_data) {
@@ -582,13 +785,11 @@ void ExtensionTelemetryService::OnUploadComplete(
     SetLastUploadTimeForExtensionTelemetry(*pref_service_, base::Time::Now());
 
     ExtensionTelemetryReportResponse response;
-    if (base::FeatureList::IsEnabled(
-            kExtensionTelemetryDisableOffstoreExtensions) &&
-        response.ParseFromString(response_data)) {
+    if (response.ParseFromString(response_data)) {
       ProcessOffstoreExtensionVerdicts(response);
     }
   }
-  if (enabled_ && !persister_.is_null()) {
+  if (esb_enabled_ && !persister_.is_null()) {
     // Upload saved report(s) if there are any.
     if (success) {
       // Bind the callback to our current thread.
@@ -646,7 +847,7 @@ void ExtensionTelemetryService::StartUploadCheck() {
   // This check is performed as a delayed task after enabling the service. The
   // service may become disabled between the time this task is scheduled and it
   // actually runs. So make sure service is enabled before performing the check.
-  if (!enabled_) {
+  if (!esb_enabled_) {
     return;
   }
 
@@ -682,6 +883,10 @@ void ExtensionTelemetryService::PersistOrUploadData() {
 
 std::unique_ptr<ExtensionTelemetryReportRequest>
 ExtensionTelemetryService::CreateReport() {
+  if (!esb_enabled_) {
+    return nullptr;
+  }
+
   // Don't create a telemetry report if there were no signals generated (i.e.,
   // extension store is empty) AND there are no installed or command-line
   // extensions present.
@@ -692,8 +897,8 @@ ExtensionTelemetryService::CreateReport() {
     return nullptr;
   }
 
-  auto telemetry_report_pb =
-      std::make_unique<ExtensionTelemetryReportRequest>();
+  std::unique_ptr<ExtensionTelemetryReportRequest> telemetry_report_pb =
+      CreateReportWithCommonFieldsPopulated();
   RepeatedPtrField<ExtensionTelemetryReportRequest_Report>* reports_pb =
       telemetry_report_pb->mutable_reports();
 
@@ -712,6 +917,8 @@ ExtensionTelemetryService::CreateReport() {
           signal_info_pb = processor_it.second->GetSignalInfoForReport(
               extension_store_it.first);
       if (signal_info_pb) {
+        RecordSignalUploadSize(signal_info_pb->ByteSizeLong(),
+                               processor_it.first);
         signals_pb->AddAllocated(signal_info_pb.release());
       }
     }
@@ -746,10 +953,52 @@ ExtensionTelemetryService::CreateReport() {
   // - no stale extension entry is left over in the extension store.
   extension_store_.clear();
 
-  telemetry_report_pb->set_developer_mode_enabled(
-      profile_->GetPrefs()->GetBoolean(prefs::kExtensionsUIDeveloperMode));
-  telemetry_report_pb->set_creation_timestamp_msec(
-      base::Time::Now().InMillisecondsSinceUnixEpoch());
+  return telemetry_report_pb;
+}
+
+std::unique_ptr<ExtensionTelemetryReportRequest>
+ExtensionTelemetryService::CreateReportForEnterprise() {
+  // Don't create a telemetry report if there were no signals generated (i.e.,
+  // enterprise extension store is empty).
+  if (!enterprise_enabled_ || enterprise_extension_store_.empty()) {
+    return nullptr;
+  }
+
+  std::unique_ptr<ExtensionTelemetryReportRequest> telemetry_report_pb =
+      CreateReportWithCommonFieldsPopulated();
+  RepeatedPtrField<ExtensionTelemetryReportRequest_Report>* reports_pb =
+      telemetry_report_pb->mutable_reports();
+
+  // Create per-extension reports for all the extensions in the enterprise
+  // extension store. These represent extensions that have signal information to
+  // report.
+  for (auto& extension_store_it : enterprise_extension_store_) {
+    auto report_entry_pb =
+        std::make_unique<ExtensionTelemetryReportRequest_Report>();
+
+    // Populate all signal info for the extension by querying the signal
+    // processors.
+    RepeatedPtrField<ExtensionTelemetryReportRequest_SignalInfo>* signals_pb =
+        report_entry_pb->mutable_signals();
+    for (auto& processor_it : enterprise_signal_processors_) {
+      std::unique_ptr<ExtensionTelemetryReportRequest_SignalInfo>
+          signal_info_pb = processor_it.second->GetSignalInfoForReport(
+              extension_store_it.first);
+      if (signal_info_pb) {
+        signals_pb->AddAllocated(signal_info_pb.release());
+      }
+    }
+
+    report_entry_pb->set_allocated_extension(
+        extension_store_it.second.release());
+    reports_pb->AddAllocated(report_entry_pb.release());
+  }
+
+  DCHECK(!reports_pb->empty());
+
+  // Clear out the enterprise extension store data.
+  enterprise_extension_store_.clear();
+
   return telemetry_report_pb;
 }
 
@@ -767,7 +1016,7 @@ ExtensionTelemetryService::GetTokenFetcher() {
   return nullptr;
 }
 
-void ExtensionTelemetryService::DumpReportForTest(
+void ExtensionTelemetryService::DumpReportForTesting(
     const ExtensionTelemetryReportRequest& report) {
   base::Time creation_time = base::Time::FromMillisecondsSinceUnixEpoch(
       report.creation_timestamp_msec());
@@ -776,6 +1025,7 @@ void ExtensionTelemetryService::DumpReportForTest(
      << base::UTF16ToUTF8(TimeFormatShortDateAndTimeWithTimeZone(creation_time))
      << "\n";
   ss << "Developer mode enabled: " << report.developer_mode_enabled() << "\n";
+  ss << "Management authority: " << report.management_authority() << "\n";
 
   const RepeatedPtrField<ExtensionTelemetryReportRequest_Report>& reports =
       report.reports();
@@ -804,6 +1054,8 @@ void ExtensionTelemetryService::DumpReportForTest(
        << "  InstallLocation: " << extension_pb.install_location()
        << "  BlocklistState: " << extension_pb.blocklist_state() << "\n"
        << "  DisableReasons: 0x" << std::hex << extension_pb.disable_reasons()
+       << "\n"
+       << "  InstallationPolicy: " << extension_pb.installation_policy()
        << "\n";
 
     if (extension_pb.has_manifest_json()) {
@@ -839,6 +1091,12 @@ void ExtensionTelemetryService::DumpReportForTest(
                << "      current URL: " << entry.current_url() << "\n"
                << "      new URL: " << entry.new_url() << "\n"
                << "      count: " << entry.count() << "\n";
+            const auto& js_callstacks = entry.js_callstacks();
+            int stack_idx = 0;
+            for (const auto& stack : js_callstacks) {
+              ss << "      JS callstack " << stack_idx++ << " :";
+              ss << ExtensionJSCallStacks::SignalInfoJSCallStackAsString(stack);
+            }
           }
         }
         continue;
@@ -904,6 +1162,12 @@ void ExtensionTelemetryService::DumpReportForTest(
                << "      IsSession: "
                << (get_all_args_pb.is_session() ? "Y" : "N") << "\n"
                << "      count: " << get_all_args_pb.count() << "\n";
+            const auto& js_callstacks = get_all_args_pb.js_callstacks();
+            int stack_idx = 0;
+            for (const auto& stack : js_callstacks) {
+              ss << "      JS callstack " << stack_idx++ << " :";
+              ss << ExtensionJSCallStacks::SignalInfoJSCallStackAsString(stack);
+            }
           }
         }
         continue;
@@ -923,6 +1187,12 @@ void ExtensionTelemetryService::DumpReportForTest(
                << "      URL: " << get_args_pb.url() << "\n"
                << "      StoreId: " << get_args_pb.store_id() << "\n"
                << "      count: " << get_args_pb.count() << "\n";
+            const auto& js_callstacks = get_args_pb.js_callstacks();
+            int stack_idx = 0;
+            for (const auto& stack : js_callstacks) {
+              ss << "      JS callstack " << stack_idx++ << " :";
+              ss << ExtensionJSCallStacks::SignalInfoJSCallStackAsString(stack);
+            }
           }
         }
         continue;
@@ -1062,6 +1332,8 @@ ExtensionTelemetryService::RetrieveOffstoreFileDataForReport(
 std::unique_ptr<ExtensionInfo>
 ExtensionTelemetryService::GetExtensionInfoForReport(
     const extensions::Extension& extension) {
+  ExtensionManagement* extension_management =
+      extensions::ExtensionManagementFactory::GetForBrowserContext(profile_);
   auto extension_info = std::make_unique<ExtensionInfo>();
   extension_info->set_id(extension.id());
   extension_info->set_name(extension.name());
@@ -1074,7 +1346,7 @@ ExtensionTelemetryService::GetExtensionInfoForReport(
     extension_info->set_install_timestamp_msec(0);
   } else {
     extension_info->set_install_timestamp_msec(
-        extension_prefs_->GetLastUpdateTime(extension.id())
+        GetLastUpdateTime(extension_prefs_, extension.id())
             .InMillisecondsSinceUnixEpoch());
   }
   extension_info->set_is_default_installed(
@@ -1082,8 +1354,7 @@ ExtensionTelemetryService::GetExtensionInfoForReport(
   extension_info->set_is_oem_installed(extension.was_installed_by_oem());
   extension_info->set_is_from_store(extension.from_webstore());
   extension_info->set_updates_from_store(
-      extensions::ExtensionManagementFactory::GetForBrowserContext(profile_)
-          ->UpdatesFromWebstore(extension));
+      extension_management->UpdatesFromWebstore(extension));
   extension_info->set_is_converted_from_user_script(
       extension.converted_from_user_script());
   extension_info->set_type(GetType(extension.GetType()));
@@ -1091,8 +1362,38 @@ ExtensionTelemetryService::GetExtensionInfoForReport(
       GetInstallLocation(extension.location()));
   extension_info->set_blocklist_state(
       GetBlocklistState(extension.id(), extension_prefs_));
-  extension_info->set_disable_reasons(
-      extension_prefs_->GetDisableReasons(extension.id()));
+  extension_info->set_telemetry_blocklist_state(
+      GetExtensionTelemetryServiceBlocklistState(extension.id(),
+                                                 extension_prefs_));
+
+  // Use the GetRawDisableReasons() getter here as we want all the disable
+  // reasons (known and unknown).
+  extensions::ExtensionPrefs::DisableReasonRawManipulationPasskey passkey;
+  base::flat_set<int> disable_reasons =
+      extension_prefs_->GetRawDisableReasons(passkey, extension.id());
+
+  for (int reason : disable_reasons) {
+    extension_info->add_disable_reasons_list(reason);
+  }
+
+  // TODO(crbug.com/372186532): Remove this code and deprecate the
+  // disable_reasons field in the proto after the Safe Browsing service is
+  // migrated to use disable_reasons_list.
+  const int disable_reasons_bitflag =
+      extensions::IntegerSetToBitflag(disable_reasons);
+  extension_info->set_disable_reasons(disable_reasons_bitflag);
+
+  if (base::FeatureList::IsEnabled(kExtensionTelemetryIncludePolicyData)) {
+    bool installation_managed =
+        extension_management->IsInstallationExplicitlyAllowed(extension.id()) ||
+        extension_management->IsInstallationExplicitlyBlocked(extension.id());
+    ExtensionInfo::InstallationPolicy installation_policy =
+        installation_managed
+            ? ExtensionManagementInstallationModeToExtensionInfoInstallationPolicy(
+                  extension_management->GetInstallationMode(&extension))
+            : ExtensionInfo::NO_POLICY;
+    extension_info->set_installation_policy(installation_policy);
+  }
 
   std::optional<OffstoreExtensionFileData> offstore_file_data =
       RetrieveOffstoreFileDataForReport(extension.id());
@@ -1106,6 +1407,134 @@ ExtensionTelemetryService::GetExtensionInfoForReport(
   }
 
   return extension_info;
+}
+
+void ExtensionTelemetryService::SetUpSignalProcessorsAndSubscribersForESB() {
+  // Create signal processors.
+  // Map the processors to the signals they output reports for.
+  signal_processors_.emplace(ExtensionSignalType::kCookiesGet,
+                             std::make_unique<CookiesGetSignalProcessor>());
+  signal_processors_.emplace(ExtensionSignalType::kCookiesGetAll,
+                             std::make_unique<CookiesGetAllSignalProcessor>());
+  signal_processors_.emplace(
+      ExtensionSignalType::kDeclarativeNetRequestAction,
+      std::make_unique<DeclarativeNetRequestActionSignalProcessor>());
+  signal_processors_.emplace(
+      ExtensionSignalType::kDeclarativeNetRequest,
+      std::make_unique<DeclarativeNetRequestSignalProcessor>());
+  signal_processors_.emplace(
+      ExtensionSignalType::kPotentialPasswordTheft,
+      std::make_unique<PotentialPasswordTheftSignalProcessor>());
+  signal_processors_.emplace(
+      ExtensionSignalType::kRemoteHostContacted,
+      std::make_unique<RemoteHostContactedSignalProcessor>());
+  signal_processors_.emplace(ExtensionSignalType::kTabsApi,
+                             std::make_unique<TabsApiSignalProcessor>());
+  signal_processors_.emplace(
+      ExtensionSignalType::kTabsExecuteScript,
+      std::make_unique<TabsExecuteScriptSignalProcessor>());
+
+  // Create subscriber lists for each telemetry signal type.
+  // Map the signal processors to the signals that they consume.
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      subscribers_for_cookies_get = {
+          signal_processors_[ExtensionSignalType::kCookiesGet].get()};
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      subscribers_for_cookies_get_all = {
+          signal_processors_[ExtensionSignalType::kCookiesGetAll].get()};
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      subscribers_for_declarative_net_request_action = {
+          signal_processors_[ExtensionSignalType::kDeclarativeNetRequestAction]
+              .get()};
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      subscribers_for_declarative_net_request = {
+          signal_processors_[ExtensionSignalType::kDeclarativeNetRequest]
+              .get()};
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      subscribers_for_password_reuse = {
+          signal_processors_[ExtensionSignalType::kPotentialPasswordTheft]
+              .get()};
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      subscribers_for_remote_host_contacted = {
+          signal_processors_[ExtensionSignalType::kRemoteHostContacted].get(),
+          signal_processors_[ExtensionSignalType::kPotentialPasswordTheft]
+              .get()};
+
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      subscribers_for_tabs_api = {
+          signal_processors_[ExtensionSignalType::kTabsApi].get()};
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      subscribers_for_tabs_execute_script = {
+          signal_processors_[ExtensionSignalType::kTabsExecuteScript].get()};
+
+  signal_subscribers_.emplace(ExtensionSignalType::kCookiesGet,
+                              std::move(subscribers_for_cookies_get));
+  signal_subscribers_.emplace(ExtensionSignalType::kCookiesGetAll,
+                              std::move(subscribers_for_cookies_get_all));
+  signal_subscribers_.emplace(
+      ExtensionSignalType::kDeclarativeNetRequestAction,
+      std::move(subscribers_for_declarative_net_request_action));
+  signal_subscribers_.emplace(
+      ExtensionSignalType::kDeclarativeNetRequest,
+      std::move(subscribers_for_declarative_net_request));
+  signal_subscribers_.emplace(ExtensionSignalType::kPasswordReuse,
+                              std::move(subscribers_for_password_reuse));
+  signal_subscribers_.emplace(ExtensionSignalType::kRemoteHostContacted,
+                              std::move(subscribers_for_remote_host_contacted));
+  signal_subscribers_.emplace(ExtensionSignalType::kTabsApi,
+                              std::move(subscribers_for_tabs_api));
+  signal_subscribers_.emplace(ExtensionSignalType::kTabsExecuteScript,
+                              std::move(subscribers_for_tabs_execute_script));
+}
+
+void ExtensionTelemetryService::
+    SetUpSignalProcessorsAndSubscribersForEnterprise() {
+  // Create signal processors.
+  // Map the processors to the signals they output reports for.
+  enterprise_signal_processors_.emplace(
+      ExtensionSignalType::kCookiesGet,
+      std::make_unique<CookiesGetSignalProcessor>());
+  enterprise_signal_processors_.emplace(
+      ExtensionSignalType::kCookiesGetAll,
+      std::make_unique<CookiesGetAllSignalProcessor>());
+  enterprise_signal_processors_.emplace(
+      ExtensionSignalType::kRemoteHostContacted,
+      std::make_unique<RemoteHostContactedSignalProcessor>());
+  enterprise_signal_processors_.emplace(
+      ExtensionSignalType::kTabsApi,
+      std::make_unique<TabsApiSignalProcessor>());
+
+  // Create subscriber lists for each telemetry signal type.
+  // Map the signal processors to the signals that they consume.
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      enterprise_subscribers_for_cookies_get = {
+          enterprise_signal_processors_[ExtensionSignalType::kCookiesGet]
+              .get()};
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      enterprise_subscribers_for_cookies_get_all = {
+          enterprise_signal_processors_[ExtensionSignalType::kCookiesGetAll]
+              .get()};
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      enterprise_subscribers_for_remote_host_contacted = {
+          enterprise_signal_processors_
+              [ExtensionSignalType::kRemoteHostContacted]
+                  .get()};
+  std::vector<raw_ptr<ExtensionSignalProcessor, VectorExperimental>>
+      enterprise_subscribers_for_tabs_api = {
+          enterprise_signal_processors_[ExtensionSignalType::kTabsApi].get()};
+
+  enterprise_signal_subscribers_.emplace(
+      ExtensionSignalType::kCookiesGet,
+      std::move(enterprise_subscribers_for_cookies_get));
+  enterprise_signal_subscribers_.emplace(
+      ExtensionSignalType::kCookiesGetAll,
+      std::move(enterprise_subscribers_for_cookies_get_all));
+  enterprise_signal_subscribers_.emplace(
+      ExtensionSignalType::kRemoteHostContacted,
+      std::move(enterprise_subscribers_for_remote_host_contacted));
+  enterprise_signal_subscribers_.emplace(
+      ExtensionSignalType::kTabsApi,
+      std::move(enterprise_subscribers_for_tabs_api));
 }
 
 ExtensionTelemetryService::OffstoreExtensionFileDataContext::
@@ -1130,8 +1559,24 @@ bool ExtensionTelemetryService::OffstoreExtensionFileDataContext::operator<(
          std::tie(other.last_processed_time, other.extension_id);
 }
 
+void ExtensionTelemetryService::SetUpOffstoreFileDataCollection() {
+  // If both is enabled, set up has already been done.
+  if (esb_enabled_ && enterprise_enabled_) {
+    return;
+  }
+
+  // File data collection.
+  file_processor_ = base::SequenceBound<ExtensionTelemetryFileProcessor>(
+      base::ThreadPool::CreateSequencedTaskRunner(
+          {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
+           base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN}));
+  offstore_file_data_collection_timer_.Start(
+      FROM_HERE, kOffstoreFileDataCollectionStartupDelaySeconds, this,
+      &ExtensionTelemetryService::StartOffstoreFileDataCollection);
+}
+
 void ExtensionTelemetryService::StartOffstoreFileDataCollection() {
-  if (!enabled_) {
+  if (!enabled()) {
     return;
   }
 
@@ -1171,7 +1616,7 @@ void ExtensionTelemetryService::StartOffstoreFileDataCollection() {
 
 void ExtensionTelemetryService::OnCommandLineExtensionsInfoCollected(
     extensions::ExtensionSet commandline_extensions) {
-  if (enabled_) {
+  if (esb_enabled_) {
     // Only store this information if the telemetry service is enabled.
     commandline_extensions_ = std::move(commandline_extensions);
   }
@@ -1218,7 +1663,7 @@ void ExtensionTelemetryService::RemoveStaleExtensionsFileDataFromPref() {
 }
 
 void ExtensionTelemetryService::CollectOffstoreFileData() {
-  if (!enabled_) {
+  if (!enabled()) {
     return;
   }
 
@@ -1269,6 +1714,11 @@ void ExtensionTelemetryService::OnOffstoreFileDataCollected(
 }
 
 void ExtensionTelemetryService::StopOffstoreFileDataCollection() {
+  if (file_processor_.is_null() || timer_.IsRunning() ||
+      enterprise_timer_.IsRunning()) {
+    return;
+  }
+
   offstore_file_data_collection_timer_.Stop();
   offstore_extension_dirs_.clear();
   offstore_extension_file_data_contexts_.clear();

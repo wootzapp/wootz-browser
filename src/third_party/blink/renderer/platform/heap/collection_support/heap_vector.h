@@ -38,26 +38,38 @@ class HeapVector final : public GarbageCollected<HeapVector<T, inlineCapacity>>,
   HeapVector(const HeapVector& other)
       : BaseVector(static_cast<const BaseVector&>(other)) {}
 
+  template <typename Collection,
+            typename =
+                typename std::enable_if<std::is_class<Collection>::value>::type>
+  explicit HeapVector(const Collection& other) : BaseVector(other) {}
+
+  // Projection-based initialization. This way of initialization can avoid write
+  // barriers even in the presence of GC due to allocations in `Proj`.
+  //
+  // This works because of the  following:
+  // 1) During initialization the vector is reachable from the stack and will
+  //    thus always be found and fully processed at the end of marking.
+  // 2) The backing store is created via initializing store and thus does not
+  //    escape to the object graph via write barrier.
+  // 3) GCs triggered through allocations in `Proj` will never find the backing
+  //    store as it's only reachable from stack or an in-construction HeapVector
+  //    which is always delayed till the end of GC.
   template <
       typename Proj,
       typename = std::enable_if_t<
           std::is_invocable_v<Proj, typename BaseVector::const_reference>>>
   HeapVector(const HeapVector& other, Proj proj)
       : BaseVector(static_cast<const BaseVector&>(other), std::move(proj)) {}
-
-  template <
-      typename U,
-      wtf_size_t otherSize,
-      typename Proj,
-      typename = std::enable_if_t<
-          std::is_invocable_v<Proj, typename BaseVector::const_reference>>>
+  template <typename U,
+            wtf_size_t otherSize,
+            typename Proj,
+            typename = std::enable_if_t<std::is_invocable_v<
+                Proj,
+                typename HeapVector<U, otherSize>::const_reference>>>
   HeapVector(const HeapVector<U, otherSize>& other, Proj proj)
-      : BaseVector(static_cast<const BaseVector&>(other), std::move(proj)) {}
-
-  template <typename Collection,
-            typename =
-                typename std::enable_if<std::is_class<Collection>::value>::type>
-  explicit HeapVector(const Collection& other) : BaseVector(other) {}
+      : BaseVector(
+            static_cast<const Vector<U, otherSize, HeapAllocator>&>(other),
+            std::move(proj)) {}
 
   HeapVector& operator=(const HeapVector& other) {
     BaseVector::operator=(other);
@@ -91,13 +103,19 @@ class HeapVector final : public GarbageCollected<HeapVector<T, inlineCapacity>>,
  private:
   struct TypeConstraints {
     constexpr TypeConstraints();
+
+   private:
+    template <typename U>
+    class IsHeapVector : public std::false_type {};
+    template <typename U>
+    class IsHeapVector<HeapVector<U>> : public std::true_type {};
+    template <typename U, wtf_size_t InlineCapacity>
+    class IsHeapVector<HeapVector<U, InlineCapacity>> : public std::true_type {
+    };
   };
   static_assert(std::is_empty_v<TypeConstraints>);
   NO_UNIQUE_ADDRESS TypeConstraints type_constraints_;
 };
-
-template <typename T>
-concept IsHeapVector = requires { typename HeapVector<T>; };
 
 template <typename T, wtf_size_t inlineCapacity>
 constexpr HeapVector<T, inlineCapacity>::TypeConstraints::TypeConstraints() {
@@ -105,9 +123,10 @@ constexpr HeapVector<T, inlineCapacity>::TypeConstraints::TypeConstraints() {
                 "HeapVector must be trivially destructible.");
   static_assert(!WTF::IsWeak<T>::value,
                 "Weak types are not allowed in HeapVector.");
-  static_assert(!WTF::IsGarbageCollectedType<T>::value || IsHeapVector<T>,
-                "GCed types should not be inlined in a HeapVector.");
-  static_assert(!WTF::IsPointerToGced<T>::value,
+  static_assert(
+      !WTF::IsGarbageCollectedType<T>::value || IsHeapVector<T>::value,
+      "GCed types should not be inlined in a HeapVector.");
+  static_assert(!WTF::IsPointerToGarbageCollectedType<T>,
                 "Don't use raw pointers or reference to garbage collected "
                 "types in HeapVector. Use Member<> instead.");
 
@@ -118,6 +137,13 @@ constexpr HeapVector<T, inlineCapacity>::TypeConstraints::TypeConstraints() {
 }
 
 ASSERT_SIZE(Vector<int>, HeapVector<int>);
+
+// TODO(392817527): This alias is temporary. It will be replaced with actually
+// GCed type that is not DISALLOW_NEW, similar to e.g. HeapHashMap and
+// GCedHeapHashMap. The alias only exists to allow incrementally converting
+// areas of the codebase.
+template <typename T, wtf_size_t inlineCapacity = 0>
+using GCedHeapVector = HeapVector<T, inlineCapacity>;
 
 }  // namespace blink
 

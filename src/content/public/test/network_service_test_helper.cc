@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "content/public/test/network_service_test_helper.h"
 
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -425,14 +431,13 @@ class NetworkServiceTestHelper::NetworkServiceTestImpl
     : public network::mojom::NetworkServiceTest,
       public base::CurrentThread::DestructionObserver {
  public:
-  NetworkServiceTestImpl()
-      : test_host_resolver_(new TestHostResolver()),
-        memory_pressure_listener_(
-            FROM_HERE,
-            base::DoNothing(),
-            base::BindRepeating(&NetworkServiceTestHelper::
-                                    NetworkServiceTestImpl::OnMemoryPressure,
-                                base::Unretained(this))) {
+  NetworkServiceTestImpl() : test_host_resolver_(new TestHostResolver()) {
+    memory_pressure_listener_.emplace(
+        FROM_HERE, base::DoNothing(),
+        base::BindRepeating(
+            &NetworkServiceTestHelper::NetworkServiceTestImpl::OnMemoryPressure,
+            weak_factory_.GetWeakPtr()));
+
     if (base::CommandLine::ForCurrentProcess()->HasSwitch(
             switches::kUseMockCertVerifierForTesting)) {
       mock_cert_verifier_ = std::make_unique<net::MockCertVerifier>();
@@ -630,9 +635,8 @@ class NetworkServiceTestHelper::NetworkServiceTestImpl
   void GetEnvironmentVariableValue(
       const std::string& name,
       GetEnvironmentVariableValueCallback callback) override {
-    std::string value;
-    base::Environment::Create()->GetVar(name, &value);
-    std::move(callback).Run(value);
+    std::move(callback).Run(
+        base::Environment::Create()->GetVar(name).value_or(std::string()));
   }
 
   void Log(const std::string& message, LogCallback callback) override {
@@ -722,13 +726,14 @@ class NetworkServiceTestHelper::NetworkServiceTestImpl
   void MakeRequestToServer(network::TransferableSocket transferred,
                            const net::IPEndPoint& endpoint,
                            MakeRequestToServerCallback callback) override {
-    net::TCPSocket socket(nullptr, nullptr, net::NetLogSource());
-    socket.AdoptConnectedSocket(transferred.TakeSocket(), endpoint);
+    std::unique_ptr<net::TCPSocket> socket =
+        net::TCPSocket::Create(nullptr, nullptr, net::NetLogSource());
+    socket->AdoptConnectedSocket(transferred.TakeSocket(), endpoint);
     const std::string kRequest("GET / HTTP/1.0\r\n\r\n");
     auto io_buffer = base::MakeRefCounted<net::StringIOBuffer>(kRequest);
 
-    int rv = socket.Write(io_buffer.get(), io_buffer->size(), base::DoNothing(),
-                          TRAFFIC_ANNOTATION_FOR_TESTS);
+    int rv = socket->Write(io_buffer.get(), io_buffer->size(),
+                           base::DoNothing(), TRAFFIC_ANNOTATION_FOR_TESTS);
     // For purposes of tests, this IPC only supports sync Write calls.
     DCHECK_NE(net::ERR_IO_PENDING, rv);
     std::move(callback).Run(rv == static_cast<int>(kRequest.size()));
@@ -786,6 +791,24 @@ class NetworkServiceTestHelper::NetworkServiceTestImpl
     std::move(callback).Run(allow_gssapi_library_load);
   }
 
+#if BUILDFLAG(IS_WIN)
+  void DisableExclusiveCookieDatabaseLockingForTesting(
+      DisableExclusiveCookieDatabaseLockingForTestingCallback callback)
+      override {
+    network::NetworkService::GetNetworkServiceForTesting()
+        ->disable_exclusive_cookie_database_locking_for_testing();
+    std::move(callback).Run();
+  }
+#endif  // BUILDFLAG(IS_WIN)
+
+  void IsHappyEyeballsV3Enabled(
+      IsHappyEyeballsV3EnabledCallback callback) override {
+    const bool enabled = network::NetworkService::GetNetworkServiceForTesting()
+                             ->host_resolver_manager()
+                             ->IsHappyEyeballsV3Enabled();
+    std::move(callback).Run(enabled);
+  }
+
  private:
   void OnMemoryPressure(
       base::MemoryPressureListener::MemoryPressureLevel memory_pressure_level) {
@@ -817,7 +840,7 @@ class NetworkServiceTestHelper::NetworkServiceTestImpl
   std::unique_ptr<net::MockCertVerifier> mock_cert_verifier_;
   std::unique_ptr<net::ScopedTransportSecurityStateSource>
       transport_security_state_source_;
-  base::MemoryPressureListener memory_pressure_listener_;
+  std::optional<base::MemoryPressureListener> memory_pressure_listener_;
   base::MemoryPressureListener::MemoryPressureLevel
       latest_memory_pressure_level_ =
           base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_NONE;

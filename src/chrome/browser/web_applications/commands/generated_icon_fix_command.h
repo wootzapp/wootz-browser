@@ -40,7 +40,7 @@ class GeneratedIconFixCommand
  public:
   explicit GeneratedIconFixCommand(
       webapps::AppId app_id,
-      GeneratedIconFixSource source,
+      proto::GeneratedIconFixSource source,
       base::OnceCallback<void(GeneratedIconFixResult)> callback);
   ~GeneratedIconFixCommand() override;
 
@@ -57,11 +57,11 @@ class GeneratedIconFixCommand
   void Stop(GeneratedIconFixResult result, base::Location location);
 
   webapps::AppId app_id_;
-  GeneratedIconFixSource source_;
+  proto::GeneratedIconFixSource source_;
   std::unique_ptr<SharedWebContentsWithAppLock> lock_;
 
   std::unique_ptr<WebAppIconDownloader> icon_downloader_;
-  WebAppInstallInfo install_info_;
+  std::unique_ptr<WebAppInstallInfo> install_info_;
 
   base::Location stop_location_;
 

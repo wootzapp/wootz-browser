@@ -4,10 +4,11 @@
 
 #include "chrome/browser/ui/android/passwords/all_passwords_bottom_sheet_view_impl.h"
 
+#include <vector>
+
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/android/features/keyboard_accessory/internal/jni/AllPasswordsBottomSheetBridge_jni.h"
 #include "chrome/browser/password_manager/android/all_passwords_bottom_sheet_controller.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/passwords/ui_utils.h"
@@ -18,13 +19,16 @@
 #include "ui/android/window_android.h"
 #include "ui/base/l10n/l10n_util.h"
 
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/features/keyboard_accessory/internal/jni/AllPasswordsBottomSheetBridge_jni.h"
+#include "chrome/android/features/keyboard_accessory/internal/jni/Credential_jni.h"
+
 using autofill::mojom::FocusedFieldType;
 using base::android::AttachCurrentThread;
 using base::android::ConvertJavaStringToUTF16;
 using base::android::ConvertUTF16ToJavaString;
 using base::android::ConvertUTF8ToJavaString;
 using base::android::JavaParamRef;
-
 
 AllPasswordsBottomSheetViewImpl::AllPasswordsBottomSheetViewImpl(
     AllPasswordsBottomSheetController* controller)
@@ -43,15 +47,14 @@ void AllPasswordsBottomSheetViewImpl::Show(
         credentials,
     FocusedFieldType focused_field_type) {
   auto java_object = GetOrCreateJavaObject();
-  if (!java_object)
+  if (!java_object) {
     return;
+  }
 
   JNIEnv* env = AttachCurrentThread();
 
-  Java_AllPasswordsBottomSheetBridge_createCredentialArray(env, java_object,
-                                                           credentials.size());
-
-  int index = 0;
+  std::vector<base::android::ScopedJavaLocalRef<jobject>> java_credentials;
+  java_credentials.reserve(credentials.size());
   for (const auto& credential : credentials) {
     auto facet = affiliations::FacetURI::FromPotentiallyInvalidSpec(
         credential->signon_realm);
@@ -62,17 +65,18 @@ void AllPasswordsBottomSheetViewImpl::Show(
           base::UTF8ToUTF16(facet.android_package_name()));
     }
 
-    Java_AllPasswordsBottomSheetBridge_insertCredential(
-        env, java_object, index++, credential->username_value,
-        credential->password_value, GetDisplayUsername(*credential),
-        credential->url.spec(), facet.IsValidAndroidFacetURI(),
-        app_display_name);
+    java_credentials.emplace_back(Java_Credential_Constructor(
+        env, credential->username_value, credential->password_value,
+        GetDisplayUsername(*credential), credential->url.spec(),
+        facet.IsValidAndroidFacetURI(), app_display_name,
+        controller_->IsPlusAddress(
+            base::UTF16ToUTF8(credential->username_value))));
   }
 
   const bool is_password_field =
       focused_field_type == FocusedFieldType::kFillablePasswordField;
-  Java_AllPasswordsBottomSheetBridge_showCredentials(env, java_object,
-                                                     is_password_field);
+  Java_AllPasswordsBottomSheetBridge_showCredentials(
+      env, java_object, java_credentials, is_password_field);
 }
 
 void AllPasswordsBottomSheetViewImpl::OnCredentialSelected(

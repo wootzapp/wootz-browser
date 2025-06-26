@@ -18,6 +18,7 @@
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/cros_system_api/dbus/audio/dbus-constants.h"
 
 namespace ash::audio_config {
 
@@ -41,6 +42,7 @@ constexpr uint64_t kInternalMicFrontId = 10040;
 constexpr uint64_t kInternalMicRearId = 10050;
 constexpr uint64_t kInternalMicId = 10060;
 constexpr uint64_t kBluetoothNbMicId = 10070;
+constexpr uint64_t kInternalMicStyleTransferId = 10080;
 
 constexpr base::TimeDelta kMetricsDelayTimerInterval = base::Seconds(2);
 
@@ -99,6 +101,10 @@ constexpr AudioNodeInfo kInternalMic[] = {
     {true, kInternalMicId, "Internal Mic", "INTERNAL_MIC", "InternalMic",
      cras::AudioEffectType::EFFECT_TYPE_NOISE_CANCELLATION}};
 
+constexpr AudioNodeInfo kInternalMicStyleTransfer[] = {
+    {true, kInternalMicStyleTransferId, "Internal Mic", "INTERNAL_MIC",
+     "InternalMic", cras::AudioEffectType::EFFECT_TYPE_STYLE_TRANSFER}};
+
 constexpr AudioNodeInfo kBluetoothNbMic[] = {
     {true, kBluetoothNbMicId, "Bluetooth Nb Mic", "BLUETOOTH_NB_MIC",
      "BluetoothNbMic", cras::AudioEffectType::EFFECT_TYPE_HFP_MIC_SR}};
@@ -151,12 +157,18 @@ class CrosAudioConfigImplTest : public testing::Test {
     CrasAudioHandler::InitializeForTesting();
     cras_audio_handler_ = CrasAudioHandler::Get();
     audio_pref_handler_ = base::MakeRefCounted<AudioDevicesPrefHandlerStub>();
+    audio_pref_handler_->SetVoiceIsolationState(
+        /*voice_isolation_state=*/false);
     audio_pref_handler_->SetNoiseCancellationState(
+        /*noise_cancellation_state=*/false);
+    audio_pref_handler_->SetStyleTransferState(
         /*noise_cancellation_state=*/false);
     audio_pref_handler_->SetForceRespectUiGainsState(
         /*force_respect_ui_gains=*/false);
     audio_pref_handler_->SetHfpMicSrState(
         /*hfp_mic_sr_state=*/false);
+    audio_pref_handler_->SetSpatialAudioState(
+        /*spatial_audio=*/false);
     cras_audio_handler_->SetPrefHandlerForTesting(audio_pref_handler_);
     cros_audio_config_ = std::make_unique<CrosAudioConfigImpl>();
     ui::MicrophoneMuteSwitchMonitor::Get()->SetMicrophoneMuteSwitchValue(
@@ -210,26 +222,55 @@ class CrosAudioConfigImplTest : public testing::Test {
   }
 
   void SetInputGainPercentFromFrontEnd(int gain_percent) {
-    // TODO(ashleydp): Replace RunUntilIdle with Run and QuitClosure.
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
     remote_->SetInputGainPercent(gain_percent);
     base::RunLoop().RunUntilIdle();
   }
 
+  void SimulateRefreshVoiceIsolationState() {
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
+    cras_audio_handler_->RefreshVoiceIsolationState();
+    remote_->RecordVoiceIsolationEnabledChange();
+    base::RunLoop().RunUntilIdle();
+  }
+
+  void SimulateRefreshVoiceIsolationPreferredEffect() {
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
+    cras_audio_handler_->RefreshVoiceIsolationPreferredEffect();
+    uint32_t preferred_effect =
+        cras_audio_handler_->GetVoiceIsolationPreferredEffect();
+    remote_->RecordVoiceIsolationPreferredEffectChange(
+        static_cast<mojom::AudioEffectType>(preferred_effect));
+    base::RunLoop().RunUntilIdle();
+  }
+
   void SimulateSetNoiseCancellationEnabled(bool enabled) {
-    // TODO(ashleydp): Replace RunUntilIdle with Run and QuitClosure.
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
     remote_->SetNoiseCancellationEnabled(enabled);
     base::RunLoop().RunUntilIdle();
   }
 
+  void SimulateSetStyleTransferEnabled(bool enabled) {
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
+    remote_->SetStyleTransferEnabled(enabled);
+    base::RunLoop().RunUntilIdle();
+  }
+
   void SimulateSetForceRespectUiGainsEnabled(bool enabled) {
-    // TODO(eddyhsu): Replace RunUntilIdle with Run and QuitClosure.
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
     remote_->SetForceRespectUiGainsEnabled(enabled);
     base::RunLoop().RunUntilIdle();
   }
 
   void SimulateSetHfpMicSrEnabled(bool enabled) {
-    // TODO(ashleydp): Replace RunUntilIdle with Run and QuitClosure.
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
     remote_->SetHfpMicSrEnabled(enabled);
+    base::RunLoop().RunUntilIdle();
+  }
+
+  void SimulateSetSpatialAudioEnabled(bool enabled) {
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
+    remote_->SetSpatialAudioEnabled(enabled);
     base::RunLoop().RunUntilIdle();
   }
 
@@ -248,9 +289,7 @@ class CrosAudioConfigImplTest : public testing::Test {
         audio_pref_handler_->SetAudioOutputAllowedValue(false);
         break;
       case mojom::MuteState::kMutedExternally:
-        NOTREACHED_IN_MIGRATION()
-            << "Output audio does not support kMutedExternally.";
-        break;
+        NOTREACHED() << "Output audio does not support kMutedExternally.";
     }
     base::RunLoop().RunUntilIdle();
   }
@@ -268,9 +307,7 @@ class CrosAudioConfigImplTest : public testing::Test {
             /*mute_on=*/false);
         break;
       case mojom::MuteState::kMutedByPolicy:
-        NOTREACHED_IN_MIGRATION()
-            << "Input audio does not support kMutedByPolicy.";
-        break;
+        NOTREACHED() << "Input audio does not support kMutedByPolicy.";
       case mojom::MuteState::kMutedExternally:
         ui::MicrophoneMuteSwitchMonitor::Get()->SetMicrophoneMuteSwitchValue(
             switch_on);
@@ -306,6 +343,34 @@ class CrosAudioConfigImplTest : public testing::Test {
     base::RunLoop().RunUntilIdle();
   }
 
+  bool GetVoiceIsolationStatePref() {
+    return audio_pref_handler_->GetVoiceIsolationState();
+  }
+
+  void SetVoiceIsolationStatePref(bool enabled) {
+    audio_pref_handler_->SetVoiceIsolationState(
+        /*voice_isolation_state=*/enabled);
+    base::RunLoop().RunUntilIdle();
+  }
+
+  bool GetVoiceIsolationState() {
+    return cras_audio_handler_->GetVoiceIsolationState();
+  }
+
+  uint32_t GetVoiceIsolationPreferredEffectPref() {
+    return audio_pref_handler_->GetVoiceIsolationPreferredEffect();
+  }
+
+  void SetVoiceIsolationPreferredEffectPref(uint32_t effect) {
+    audio_pref_handler_->SetVoiceIsolationPreferredEffect(
+        /*effect=*/effect);
+    base::RunLoop().RunUntilIdle();
+  }
+
+  uint32_t GetVoiceIsolationPreferredEffect() {
+    return cras_audio_handler_->GetVoiceIsolationPreferredEffect();
+  }
+
   bool GetNoiseCancellationState() {
     return fake_cras_audio_client_->noise_cancellation_enabled();
   }
@@ -335,6 +400,33 @@ class CrosAudioConfigImplTest : public testing::Test {
     base::RunLoop().RunUntilIdle();
   }
 
+  bool GetStyleTransferState() {
+    return fake_cras_audio_client_->style_transfer_enabled();
+  }
+
+  bool GetStyleTransferStatePref() {
+    return audio_pref_handler_->GetStyleTransferState();
+  }
+
+  bool GetStyleTransferSupported() {
+    return cras_audio_handler_->style_transfer_supported();
+  }
+
+  void SetStyleTransferStatePref(bool enabled) {
+    audio_pref_handler_->SetStyleTransferState(
+        /*style_transfer_state=*/enabled);
+    base::RunLoop().RunUntilIdle();
+  }
+
+  void SetStyleTransferSupported(bool supported) {
+    cras_audio_handler_->SetStyleTransferSupportedForTesting(supported);
+  }
+
+  void SetStyleTransferState(bool style_transfer_on) {
+    cras_audio_handler_->SetStyleTransferState(style_transfer_on);
+    base::RunLoop().RunUntilIdle();
+  }
+
   bool GetForceRespectUiGainsState() {
     return fake_cras_audio_client_->force_respect_ui_gains_enabled();
   }
@@ -344,14 +436,14 @@ class CrosAudioConfigImplTest : public testing::Test {
   }
 
   void SetForceRespectUiGainsStatePref(bool enabled) {
-    // TODO(eddyhsu): Replace RunUntilIdle with Run and QuitClosure.
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
     audio_pref_handler_->SetForceRespectUiGainsState(
         /*force_respect_ui_gains=*/enabled);
     base::RunLoop().RunUntilIdle();
   }
 
   void SetForceRespectUiGainsState(bool force_respect_ui_gains_on) {
-    // TODO(eddyhsu): Replace RunUntilIdle with Run and QuitClosure.
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
     cras_audio_handler_->SetForceRespectUiGainsState(force_respect_ui_gains_on);
     base::RunLoop().RunUntilIdle();
   }
@@ -383,6 +475,31 @@ class CrosAudioConfigImplTest : public testing::Test {
         hfp_mic_sr_on,
         CrasAudioHandler::AudioSettingsChangeSource::kOsSettings);
     base::RunLoop().RunUntilIdle();
+  }
+
+  bool GetSpatialAudioState() {
+    return fake_cras_audio_client_->spatial_audio_enabled();
+  }
+
+  bool GetSpatialAudioStatePref() {
+    return audio_pref_handler_->GetSpatialAudioState();
+  }
+
+  void SetSpatialAudioStatePref(bool enabled) {
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
+    audio_pref_handler_->SetSpatialAudioState(
+        /*force_respect_ui_gains=*/enabled);
+    base::RunLoop().RunUntilIdle();
+  }
+
+  void SetSpatialAudioState(bool spatial_audio_on) {
+    // TODO(crbug.com/376009846): Replace RunUntilIdle with Run and QuitClosure.
+    cras_audio_handler_->SetSpatialAudioState(spatial_audio_on);
+    base::RunLoop().RunUntilIdle();
+  }
+
+  void SetSpatialAudioSupported(bool supported) {
+    cras_audio_handler_->SetSpatialAudioSupportedForTesting(supported);
   }
 
   base::test::TaskEnvironment* task_environment() { return &task_environment_; }
@@ -658,6 +775,65 @@ TEST_F(CrosAudioConfigImplTest, HandleOutputMuteStateMutedByPolicy) {
       fake_observer->last_audio_system_properties_.value()->output_mute_state);
 }
 
+TEST_F(CrosAudioConfigImplTest, SetVoiceIsolationState) {
+  std::unique_ptr<FakeAudioSystemPropertiesObserver> fake_observer = Observe();
+
+  // By default voice isolation is disabled and not supported in this test.
+  ASSERT_FALSE(GetVoiceIsolationStatePref());
+  ASSERT_FALSE(GetVoiceIsolationState());
+  histogram_tester_.ExpectBucketCount(
+      CrasAudioHandler::kVoiceIsolationEnabledChangeSourceHistogramName,
+      CrasAudioHandler::AudioSettingsChangeSource::kOsSettings, 0);
+
+  // Simulate trying to set voice isolation.
+  SetVoiceIsolationStatePref(/*enabled=*/true);
+  SimulateRefreshVoiceIsolationState();
+  ASSERT_TRUE(GetVoiceIsolationStatePref());
+  ASSERT_TRUE(GetVoiceIsolationState());
+  histogram_tester_.ExpectBucketCount(
+      CrasAudioHandler::kVoiceIsolationEnabledChangeSourceHistogramName,
+      CrasAudioHandler::AudioSettingsChangeSource::kOsSettings, 1);
+
+  // Change active node does not change voice isolation state.
+  SetActiveInputNodes({kUsbMicId});
+  ASSERT_TRUE(GetVoiceIsolationState());
+
+  // Simulate trying to reset voice isolation.
+  SetVoiceIsolationStatePref(/*enabled=*/false);
+  SimulateRefreshVoiceIsolationState();
+  ASSERT_FALSE(GetVoiceIsolationStatePref());
+  ASSERT_FALSE(GetVoiceIsolationState());
+  histogram_tester_.ExpectBucketCount(
+      CrasAudioHandler::kVoiceIsolationEnabledChangeSourceHistogramName,
+      CrasAudioHandler::AudioSettingsChangeSource::kOsSettings, 2);
+}
+
+TEST_F(CrosAudioConfigImplTest, RefreshVoiceIsolationPreferredEffect) {
+  std::unique_ptr<FakeAudioSystemPropertiesObserver> fake_observer = Observe();
+
+  // By default voice isolation preferred effect is 0.
+  ASSERT_EQ(GetVoiceIsolationPreferredEffectPref(), 0u);
+  ASSERT_EQ(GetVoiceIsolationPreferredEffect(), 0u);
+
+  // Simulate trying to set voice isolation preferred effect.
+  const uint32_t kExpectedEffects[] = {
+      static_cast<uint32_t>(cras::AudioEffectType::EFFECT_TYPE_STYLE_TRANSFER),
+      static_cast<uint32_t>(cras::AudioEffectType::EFFECT_TYPE_BEAMFORMING),
+  };
+  for (auto expected_effect : kExpectedEffects) {
+    histogram_tester_.ExpectBucketCount(
+        CrasAudioHandler::kVoiceIsolationPreferredEffectChangeHistogramName,
+        expected_effect, 0);
+    SetVoiceIsolationPreferredEffectPref(/*effect=*/expected_effect);
+    SimulateRefreshVoiceIsolationPreferredEffect();
+    ASSERT_EQ(GetVoiceIsolationPreferredEffectPref(), expected_effect);
+    ASSERT_EQ(GetVoiceIsolationPreferredEffect(), expected_effect);
+    histogram_tester_.ExpectBucketCount(
+        CrasAudioHandler::kVoiceIsolationPreferredEffectChangeHistogramName,
+        expected_effect, 1);
+  }
+}
+
 TEST_F(CrosAudioConfigImplTest, SetNoiseCancellationState) {
   std::unique_ptr<FakeAudioSystemPropertiesObserver> fake_observer = Observe();
 
@@ -732,6 +908,65 @@ TEST_F(CrosAudioConfigImplTest, SetNoiseCancellationState) {
   histogram_tester_.ExpectBucketCount(
       CrasAudioHandler::kNoiseCancellationEnabledSourceHistogramName,
       CrasAudioHandler::AudioSettingsChangeSource::kOsSettings, 2);
+}
+
+TEST_F(CrosAudioConfigImplTest, SetStyleTransferState) {
+  std::unique_ptr<FakeAudioSystemPropertiesObserver> fake_observer = Observe();
+
+  // Add input audio nodes.
+  SetAudioNodes({kInternalMicStyleTransfer});
+  SetActiveInputNodes({kInternalMicStyleTransferId});
+
+  // By default style transfer is disabled and not supported in this test.
+  ASSERT_FALSE(GetStyleTransferSupported());
+  ASSERT_FALSE(GetStyleTransferState());
+  ASSERT_FALSE(GetStyleTransferStatePref());
+
+  // Simulate trying to set style transfer.
+  SimulateSetStyleTransferEnabled(/*enabled=*/true);
+
+  // Since style transfer is not supported, nothing is set.
+  ASSERT_FALSE(GetStyleTransferState());
+
+  // Turn on style transfer support.
+  SetStyleTransferSupported(/*supported=*/true);
+  ASSERT_TRUE(GetStyleTransferSupported());
+
+  // Now turning on style transfer should work.
+  SimulateSetStyleTransferEnabled(/*enabled=*/true);
+  ASSERT_TRUE(GetStyleTransferState());
+
+  // Add input audio nodes.
+  SetAudioNodes({kInternalMicStyleTransfer, kUsbMic});
+  SetActiveInputNodes({kInternalMicStyleTransferId});
+
+  ASSERT_TRUE(GetStyleTransferState());
+  ASSERT_TRUE(GetStyleTransferStatePref());
+  ASSERT_EQ(mojom::AudioEffectState::kEnabled,
+            fake_observer->GetInputAudioDevice(1)->style_transfer_state);
+
+  // Change active node does not change style transfer state.
+  SetActiveInputNodes({kUsbMicId});
+
+  ASSERT_EQ(mojom::AudioEffectState::kEnabled,
+            fake_observer->GetInputAudioDevice(1)->style_transfer_state);
+
+  // Frontend call to turn off style transfer ignored when active input node
+  // does not support style transfer.
+  SimulateSetStyleTransferEnabled(/*enabled=*/false);
+
+  ASSERT_TRUE(GetStyleTransferState());
+  ASSERT_TRUE(GetStyleTransferStatePref());
+
+  // Turn style transfer off with active input device that supports style
+  // transfer.
+  SetActiveInputNodes({kInternalMicStyleTransferId});
+  SimulateSetStyleTransferEnabled(/*enabled=*/false);
+
+  ASSERT_FALSE(GetStyleTransferState());
+  ASSERT_FALSE(GetStyleTransferStatePref());
+  ASSERT_EQ(mojom::AudioEffectState::kNotEnabled,
+            fake_observer->GetInputAudioDevice(1)->style_transfer_state);
 }
 
 TEST_F(CrosAudioConfigImplTest, SetForceRespectUiGainsState) {
@@ -833,9 +1068,9 @@ TEST_F(CrosAudioConfigImplTest, GetOutputAudioDevices) {
   // Test default audio node list, which includes one input and one output node.
   SetAudioNodes({kInternalSpeaker, kMicJack});
   // Multiple calls to observer triggered by setting active nodes triggered by
-  // AudioObserver events volume, gain, active output, active input, and nodes
-  // changed
-  expected_observer_calls += 5u;
+  // AudioObserver events volume, gain, active output, active input, nodes
+  // changed, and UI appearance changed.
+  expected_observer_calls += 6u;
 
   ASSERT_EQ(expected_observer_calls,
             fake_observer->num_properties_updated_calls_);
@@ -850,8 +1085,9 @@ TEST_F(CrosAudioConfigImplTest, GetOutputAudioDevices) {
   // Test removing output device.
   RemoveAudioNode(kInternalSpeakerId);
   // Multiple calls to observer triggered by setting active nodes triggered by
-  // AudioObserver events volume, active output, and nodes changed.
-  expected_observer_calls += 2u;
+  // AudioObserver events volume, active output, nodes changed, and UI
+  // appearance changed.
+  expected_observer_calls += 3u;
   ASSERT_EQ(expected_observer_calls,
             fake_observer->num_properties_updated_calls_);
   EXPECT_EQ(0u, fake_observer->last_audio_system_properties_.value()
@@ -860,8 +1096,9 @@ TEST_F(CrosAudioConfigImplTest, GetOutputAudioDevices) {
   // Test inserting inactive output device.
   InsertAudioNode(kInternalSpeaker);
   // Multiple calls to observer triggered by setting active nodes triggered by
-  // AudioObserver events volume, active output, and nodes changed.
-  expected_observer_calls += 3u;
+  // AudioObserver events volume, active output, nodes changed, and UI
+  // appearance changed.
+  expected_observer_calls += 4u;
   ASSERT_EQ(expected_observer_calls,
             fake_observer->num_properties_updated_calls_);
   EXPECT_EQ(1u, fake_observer->last_audio_system_properties_.value()
@@ -882,8 +1119,9 @@ TEST_F(CrosAudioConfigImplTest, GetInputAudioDevices) {
   SetAudioNodes({kInternalSpeaker});
   // Multiple calls to observer triggered by setting active nodes triggered by
   // AudioObserver events volume, active input(observer is still called if
-  // there's no input device), active output, and nodes changed.
-  expected_observer_calls += 4u;
+  // there's no input device), active output, nodes changed, and UI appearance
+  // changed.
+  expected_observer_calls += 5u;
 
   ASSERT_EQ(expected_observer_calls,
             fake_observer->num_properties_updated_calls_);
@@ -893,8 +1131,9 @@ TEST_F(CrosAudioConfigImplTest, GetInputAudioDevices) {
 
   InsertAudioNode(kMicJack);
   // Multiple calls to observer triggered by setting active nodes triggered by
-  // AudioObserver events gain, active input and nodes changed.
-  expected_observer_calls += 3u;
+  // AudioObserver events gain, active input, nodes changed, and UI appearance
+  // changed.
+  expected_observer_calls += 4u;
 
   ASSERT_EQ(expected_observer_calls,
             fake_observer->num_properties_updated_calls_);
@@ -907,8 +1146,9 @@ TEST_F(CrosAudioConfigImplTest, GetInputAudioDevices) {
 
   RemoveAudioNode(kMicJackId);
   // Multiple calls to observer triggered by setting active nodes triggered by
-  // AudioObserver events active input and nodes changed.
-  expected_observer_calls += 2u;
+  // AudioObserver events active input, nodes changed, and UI appearance
+  // changed.
+  expected_observer_calls += 3u;
 
   ASSERT_EQ(expected_observer_calls,
             fake_observer->num_properties_updated_calls_);
@@ -1255,6 +1495,55 @@ TEST_F(CrosAudioConfigImplTest, NoiseCancellationAudioStateConfigured) {
                 ->noise_cancellation_state);
 }
 
+TEST_F(CrosAudioConfigImplTest, StyleTransferAudioStateConfigured) {
+  SetStyleTransferSupported(true);
+  SetStyleTransferStatePref(false);
+  SetAudioNodes({kInternalSpeaker, kInternalMicStyleTransfer, kUsbMic});
+  std::unique_ptr<FakeAudioSystemPropertiesObserver> fake_observer = Observe();
+
+  // Style transfer supported by laptop and disabled in device wide
+  // preference.
+  EXPECT_EQ(
+      mojom::AudioEffectState::kNotSupported,
+      fake_observer->GetOutputAudioDevice(/*index=*/0)->style_transfer_state);
+  EXPECT_EQ(
+      mojom::AudioEffectState::kNotEnabled,
+      fake_observer->GetInputAudioDevice(/*index=*/1)->style_transfer_state);
+  EXPECT_EQ(
+      mojom::AudioEffectState::kNotSupported,
+      fake_observer->GetInputAudioDevice(/*index=*/0)->style_transfer_state);
+
+  // Set style transfer preference to enabled and force observer update
+  // using `SetAudioNodes`.
+  SetStyleTransferStatePref(true);
+  SetAudioNodes({kInternalSpeaker, kInternalMicStyleTransfer, kUsbMic});
+
+  EXPECT_EQ(
+      mojom::AudioEffectState::kNotSupported,
+      fake_observer->GetOutputAudioDevice(/*index=*/0)->style_transfer_state);
+  EXPECT_EQ(
+      mojom::AudioEffectState::kEnabled,
+      fake_observer->GetInputAudioDevice(/*index=*/1)->style_transfer_state);
+  EXPECT_EQ(
+      mojom::AudioEffectState::kNotSupported,
+      fake_observer->GetInputAudioDevice(/*index=*/0)->style_transfer_state);
+
+  // Change overall device to not support style transfer and force observer
+  // update using `SetAudioNodes`.
+  SetStyleTransferSupported(false);
+  SetAudioNodes({kInternalSpeaker, kInternalMicStyleTransfer, kUsbMic});
+
+  EXPECT_EQ(
+      mojom::AudioEffectState::kNotSupported,
+      fake_observer->GetOutputAudioDevice(/*index=*/0)->style_transfer_state);
+  EXPECT_EQ(
+      mojom::AudioEffectState::kNotSupported,
+      fake_observer->GetInputAudioDevice(/*index=*/0)->style_transfer_state);
+  EXPECT_EQ(
+      mojom::AudioEffectState::kNotSupported,
+      fake_observer->GetInputAudioDevice(/*index=*/1)->style_transfer_state);
+}
+
 TEST_F(CrosAudioConfigImplTest,
        ExternalUpdatesToNoiseCancellationStateObserved) {
   SetAudioNodes({kInternalMic, kUsbMic});
@@ -1341,6 +1630,41 @@ TEST_F(CrosAudioConfigImplTest, SetInputGainHistogram) {
   histogram_tester_.ExpectBucketCount(
       CrasAudioHandler::kInputGainChangedSourceHistogramName,
       CrasAudioHandler::AudioSettingsChangeSource::kOsSettings, 2);
+}
+
+TEST_F(CrosAudioConfigImplTest, SetSpatialAudioState) {
+  std::unique_ptr<FakeAudioSystemPropertiesObserver> fake_observer = Observe();
+  SetSpatialAudioSupported(/*supported=*/true);
+
+  // By default spatial audio is disabled in this test.
+  ASSERT_FALSE(GetSpatialAudioState());
+  ASSERT_FALSE(GetSpatialAudioStatePref());
+
+  // Simulate trying to set force respect ui gains.
+  SimulateSetSpatialAudioEnabled(/*enabled=*/true);
+
+  // Add output audio nodes.
+  SetAudioNodes({kInternalSpeaker, kMicJack});
+  SetActiveOutputNodes({kInternalSpeakerId});
+
+  ASSERT_TRUE(GetSpatialAudioState());
+  ASSERT_TRUE(GetSpatialAudioStatePref());
+  ASSERT_EQ(mojom::AudioEffectState::kEnabled,
+            fake_observer->GetOutputAudioDevice(0)->spatial_audio_state);
+
+  // Change active node does not change force respect ui gains state.
+  SetActiveOutputNodes({kMicJackId});
+  ASSERT_EQ(mojom::AudioEffectState::kEnabled,
+            fake_observer->GetOutputAudioDevice(0)->spatial_audio_state);
+
+  // Turn spatial audio off.
+  SetActiveOutputNodes({kInternalSpeakerId});
+  SimulateSetSpatialAudioEnabled(/*enabled=*/false);
+
+  ASSERT_FALSE(GetSpatialAudioState());
+  ASSERT_FALSE(GetSpatialAudioStatePref());
+  ASSERT_EQ(mojom::AudioEffectState::kNotEnabled,
+            fake_observer->GetOutputAudioDevice(0)->spatial_audio_state);
 }
 
 }  // namespace ash::audio_config

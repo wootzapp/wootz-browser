@@ -33,9 +33,10 @@
 #include "content/public/test/test_devtools_protocol_client.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/extras/shared_dictionary/shared_dictionary_usage_info.h"
+#include "net/shared_dictionary/shared_dictionary_constants.h"
 #include "net/test/embedded_test_server/controllable_http_response.h"
 #include "services/network/public/cpp/features.h"
-#include "services/network/public/cpp/shared_dictionary_encoding_names.h"
+#include "services/network/public/cpp/network_switches.h"
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/shared_dictionary_access_observer.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -46,22 +47,25 @@
 namespace {
 
 constexpr std::string_view kTestDictionaryString = "A dictionary";
-constexpr std::string_view kTestDictionaryHashBase64 =
-    ":CqNpAU9/qzcL6UB0aYVFx7uTLsRhJSePN780qwKjWuw=:";
 
 constexpr std::string_view kCompressedDataOriginalString =
     "This is compressed test data using a test dictionary";
 
 // kBrotliCompressedData is generated using the following commands:
-//  $ echo -n "A dictionary" > /tmp/dict
-//  $ echo -n "This is compressed test data using a test dictionary" > /tmp/data
-//  $ ./brotli -o /tmp/out.sbr -D /tmp/dict /tmp/data
-//  $ xxd -i  /tmp/out.sbr
+// $ echo -n "A dictionary" > /tmp/dict
+// $ echo -n "This is compressed test data using a test dictionary" > /tmp/data
+// $ echo -en '\xffDCB' > /tmp/out.dcb
+// $ openssl dgst -sha256 -binary /tmp/dict >> /tmp/out.dcb
+// $ brotli --stdout -D /tmp/dict /tmp/data >> /tmp/out.dcb
+// $ xxd -i  /tmp/out.dcb
 constexpr uint8_t kBrotliCompressedData[] = {
-    0xa1, 0x98, 0x01, 0x80, 0x22, 0xe0, 0x26, 0x4b, 0x95, 0x5c, 0x19,
-    0x18, 0x9d, 0xc1, 0xc3, 0x44, 0x0e, 0x5c, 0x6a, 0x09, 0x9d, 0xf0,
-    0xb0, 0x01, 0x47, 0x14, 0x87, 0x14, 0x6d, 0xfb, 0x60, 0x96, 0xdb,
-    0xae, 0x9e, 0x79, 0x54, 0xe3, 0x69, 0x03, 0x29};
+    0xff, 0x44, 0x43, 0x42, 0x0a, 0xa3, 0x69, 0x01, 0x4f, 0x7f, 0xab,
+    0x37, 0x0b, 0xe9, 0x40, 0x74, 0x69, 0x85, 0x45, 0xc7, 0xbb, 0x93,
+    0x2e, 0xc4, 0x61, 0x25, 0x27, 0x8f, 0x37, 0xbf, 0x34, 0xab, 0x02,
+    0xa3, 0x5a, 0xec, 0xa1, 0x98, 0x01, 0x80, 0x22, 0xe0, 0x26, 0x4b,
+    0x95, 0x5c, 0x19, 0x18, 0x9d, 0xc1, 0xc3, 0x44, 0x0e, 0x5c, 0x6a,
+    0x09, 0x9d, 0xf0, 0xb0, 0x01, 0x47, 0x14, 0x87, 0x14, 0x6d, 0xfb,
+    0x60, 0x96, 0xdb, 0xae, 0x9e, 0x79, 0x54, 0xe3, 0x69, 0x03, 0x29};
 
 // NOLINTNEXTLINE(runtime/string)
 const std::string kBrotliCompressedDataString =
@@ -69,17 +73,23 @@ const std::string kBrotliCompressedDataString =
                 sizeof(kBrotliCompressedData));
 
 // kZstdCompressedData is generated using the following commands:
-//  $ echo -n "A dictionary" > /tmp/dict
-//  $ echo -n "This is compressed test data using a test dictionary" > /tmp/data
-//  $ zstd -o /tmp/out.szstd -D /tmp/dict /tmp/data
-//  $ xxd -i  /tmp/out.szstd
+// $ echo -n "A dictionary" > /tmp/dict
+// $ echo -n "This is compressed test data using a test dictionary" > /tmp/data
+// $ echo -en '\x5e\x2a\x4d\x18\x20\x00\x00\x00' > /tmp/out.dcz
+// $ openssl dgst -sha256 -binary /tmp/dict >> /tmp/out.dcz
+// $ zstd -D /tmp/dict -f -o /tmp/tmp.zstd /tmp/data
+// $ cat /tmp/tmp.zstd >> /tmp/out.dcz
+// $ xxd -i /tmp/out.dcz
 constexpr uint8_t kZstdCompressedData[] = {
-    0x28, 0xb5, 0x2f, 0xfd, 0x24, 0x34, 0xa1, 0x01, 0x00, 0x54, 0x68,
-    0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x63, 0x6f, 0x6d, 0x70, 0x72,
-    0x65, 0x73, 0x73, 0x65, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74, 0x20,
-    0x64, 0x61, 0x74, 0x61, 0x20, 0x75, 0x73, 0x69, 0x6e, 0x67, 0x20,
-    0x61, 0x20, 0x74, 0x65, 0x73, 0x74, 0x20, 0x64, 0x69, 0x63, 0x74,
-    0x69, 0x6f, 0x6e, 0x61, 0x72, 0x79, 0x9e, 0x99, 0xf2, 0xbc};
+    0x5e, 0x2a, 0x4d, 0x18, 0x20, 0x00, 0x00, 0x00, 0x0a, 0xa3, 0x69, 0x01,
+    0x4f, 0x7f, 0xab, 0x37, 0x0b, 0xe9, 0x40, 0x74, 0x69, 0x85, 0x45, 0xc7,
+    0xbb, 0x93, 0x2e, 0xc4, 0x61, 0x25, 0x27, 0x8f, 0x37, 0xbf, 0x34, 0xab,
+    0x02, 0xa3, 0x5a, 0xec, 0x28, 0xb5, 0x2f, 0xfd, 0x24, 0x34, 0xa1, 0x01,
+    0x00, 0x54, 0x68, 0x69, 0x73, 0x20, 0x69, 0x73, 0x20, 0x63, 0x6f, 0x6d,
+    0x70, 0x72, 0x65, 0x73, 0x73, 0x65, 0x64, 0x20, 0x74, 0x65, 0x73, 0x74,
+    0x20, 0x64, 0x61, 0x74, 0x61, 0x20, 0x75, 0x73, 0x69, 0x6e, 0x67, 0x20,
+    0x61, 0x20, 0x74, 0x65, 0x73, 0x74, 0x20, 0x64, 0x69, 0x63, 0x74, 0x69,
+    0x6f, 0x6e, 0x61, 0x72, 0x79, 0x9e, 0x99, 0xf2, 0xbc};
 
 // NOLINTNEXTLINE(runtime/string)
 const std::string kZstdCompressedDataString =
@@ -370,19 +380,17 @@ class ChromeSharedDictionaryBrowserTest : public InProcessBrowserTest {
     } else if (request.relative_url == "/path/brotli_compressed") {
       CHECK(GetAvailableDictionary(request.headers));
       response->set_content_type("text/html");
-      response->AddCustomHeader("content-encoding",
-                                network::GetSharedBrotliContentEncodingName());
-      response->AddCustomHeader("content-dictionary",
-                                kTestDictionaryHashBase64);
+      response->AddCustomHeader(
+          "content-encoding",
+          net::shared_dictionary::kSharedBrotliContentEncodingName);
       response->set_content(kBrotliCompressedDataString);
       return response;
     } else if (request.relative_url == "/path/zstd_compressed") {
       CHECK(GetAvailableDictionary(request.headers));
       response->set_content_type("text/html");
-      response->AddCustomHeader("content-encoding",
-                                network::GetSharedZstdContentEncodingName());
-      response->AddCustomHeader("content-dictionary",
-                                kTestDictionaryHashBase64);
+      response->AddCustomHeader(
+          "content-encoding",
+          net::shared_dictionary::kSharedZstdContentEncodingName);
       response->set_content(kZstdCompressedDataString);
       return response;
     }
@@ -497,6 +505,39 @@ IN_PROC_BROWSER_TEST_F(ChromeSharedDictionaryBrowserTest,
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(), embedded_test_server()->GetURL("/title1.html")));
   EXPECT_TRUE(TryRegisterDictionary(*embedded_test_server()));
+  WaitForDictionaryReady(*embedded_test_server());
+
+  // Navigate away in order to flush use counters.
+  EXPECT_TRUE(
+      ui_test_utils::NavigateToURL(browser(), GURL(url::kAboutBlankURL)));
+
+  base::HistogramTester histograms;
+
+  EXPECT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), embedded_test_server()->GetURL("/path/brotli_compressed")));
+  EXPECT_EQ(kCompressedDataOriginalString,
+            EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
+                   "document.body.innerText")
+                .ExtractString());
+
+  // Navigate away in order to flush use counters.
+  EXPECT_TRUE(
+      ui_test_utils::NavigateToURL(browser(), GURL(url::kAboutBlankURL)));
+
+  CheckSharedDictionaryUseCounter(
+      histograms,
+      /*expected_used_count_with_sbr=*/1,
+      /*expected_used_count_with_zstd_d=*/0,
+      /*expected_used_for_navigation_count=*/1,
+      /*expected_used_for_main_frame_navigation_count=*/1,
+      /*expected_used_for_sub_frame_navigation_count=*/0,
+      /*expected_used_for_subresource_count=*/0);
+}
+
+IN_PROC_BROWSER_TEST_F(ChromeSharedDictionaryBrowserTest,
+                       UseCounterMainFrameNavigationAsDictionary) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), embedded_test_server()->GetURL("/dictionary")));
   WaitForDictionaryReady(*embedded_test_server());
 
   // Navigate away in order to flush use counters.
@@ -718,18 +759,31 @@ class SharedDictionaryDevToolsBrowserTest
     : public InProcessBrowserTest,
       public content::TestDevToolsProtocolClient {
  public:
-  explicit SharedDictionaryDevToolsBrowserTest(bool enable_feature = true) {
+  explicit SharedDictionaryDevToolsBrowserTest(
+      bool enable_feature = true,
+      bool enable_navigation_feature = true) {
     if (enable_feature) {
-      scoped_feature_list_.InitWithFeatures(
-          /*enabled_features=*/
-          {network::features::kCompressionDictionaryTransportBackend,
-           network::features::kCompressionDictionaryTransport},
-          /*disabled_features=*/
-          {});
+      if (enable_navigation_feature) {
+        scoped_feature_list_.InitWithFeatures(
+            /*enabled_features=*/
+            {network::features::kCompressionDictionaryTransportBackend,
+             network::features::kCompressionDictionaryTransport,
+             network::features::kSharedDictionaryRegisterNavigationRequests},
+            /*disabled_features=*/
+            {});
+      } else {
+        scoped_feature_list_.InitWithFeatures(
+            /*enabled_features=*/
+            {network::features::kCompressionDictionaryTransportBackend,
+             network::features::kCompressionDictionaryTransport},
+            /*disabled_features=*/
+            {network::features::kSharedDictionaryRegisterNavigationRequests});
+      }
     } else {
       scoped_feature_list_.InitWithFeatures(
           /*enabled_features=*/
-          {network::features::kCompressionDictionaryTransportBackend},
+          {network::features::kCompressionDictionaryTransportBackend,
+           network::features::kSharedDictionaryRegisterNavigationRequests},
           /*disabled_features=*/
           {network::features::kCompressionDictionaryTransport});
     }
@@ -741,6 +795,12 @@ class SharedDictionaryDevToolsBrowserTest
     embedded_test_server()->ServeFilesFromSourceDirectory("content/test/data");
     embedded_https_test_server().ServeFilesFromSourceDirectory(
         "content/test/data");
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    InProcessBrowserTest::SetUpCommandLine(command_line);
+    command_line->AppendSwitch(
+        network::switches::kDisableSharedDictionaryStorageCleanupForTesting);
   }
   void TearDownOnMainThread() override {
     DetachProtocolClient();
@@ -837,6 +897,17 @@ class DevToolsSharedDictionaryFeatureDisabledBrowserTest
   ~DevToolsSharedDictionaryFeatureDisabledBrowserTest() override = default;
 };
 
+class SharedDictionaryNavigationFeatureDisabledDevToolsBrowserTest
+    : public SharedDictionaryDevToolsBrowserTest {
+ public:
+  SharedDictionaryNavigationFeatureDisabledDevToolsBrowserTest()
+      : SharedDictionaryDevToolsBrowserTest(
+            /*enable_feature=*/true,
+            /*enable_navigation_feature=*/false) {}
+  ~SharedDictionaryNavigationFeatureDisabledDevToolsBrowserTest() override =
+      default;
+};
+
 IN_PROC_BROWSER_TEST_F(SharedDictionaryDevToolsBrowserTest,
                        UseErrorCrossOriginNoCorsRequest) {
   const std::string kHostName = "www.example.com";
@@ -914,9 +985,13 @@ IN_PROC_BROWSER_TEST_F(SharedDictionaryDevToolsBrowserTest,
         if (request.relative_url == "/shared_dictionary/path/target") {
           auto response =
               std::make_unique<net::test_server::BasicHttpResponse>();
-          response->AddCustomHeader("Content-Encoding", "br-d");
-          response->AddCustomHeader("Content-Dictionary",
-                                    "Invalid Content-Dictionary");
+          response->AddCustomHeader("Content-Encoding", "dcb");
+          std::string data =
+              std::string(base::as_string_view(kBrotliCompressedData));
+          // Change the first byte of the compressed data to trigger
+          // UNEXPECTED_CONTENT_DICTIONARY_HEADER error.
+          ++data[0];
+          response->set_content(data);
           return response;
         }
         return nullptr;
@@ -1001,8 +1076,9 @@ IN_PROC_BROWSER_TEST_F(SharedDictionaryDevToolsBrowserTest,
   RunCustomHeaderTest("WriteErrorInvalidStructuredHeader", "match=\"");
 }
 
-IN_PROC_BROWSER_TEST_F(SharedDictionaryDevToolsBrowserTest,
-                       WriteErrorNavigationRequest) {
+IN_PROC_BROWSER_TEST_F(
+    SharedDictionaryNavigationFeatureDisabledDevToolsBrowserTest,
+    WriteErrorNavigationRequest) {
   ASSERT_TRUE(embedded_test_server()->Start());
   NavigateAndEnableAudits(
       embedded_test_server()->GetURL("/shared_dictionary/blank.html"));

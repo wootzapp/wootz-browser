@@ -70,7 +70,7 @@ class GeolocationProviderImpl
       public mojom::GeolocationControl,
       public mojom::GeolocationInternals,
       public base::Thread
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+#if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
     ,
       public GeolocationSystemPermissionManager::PermissionObserver
 #endif
@@ -80,7 +80,6 @@ class GeolocationProviderImpl
   base::CallbackListSubscription AddLocationUpdateCallback(
       const LocationUpdateCallback& callback,
       bool enable_high_accuracy) override;
-  bool HighAccuracyLocationInUse() override;
   void OverrideLocationForTesting(mojom::GeopositionResultPtr result) override;
 
   // Callback from the LocationProviderManager. Public for testing.
@@ -148,14 +147,16 @@ class GeolocationProviderImpl
   // diagnostics in tests.
   void SimulateInternalsUpdatedForTesting();
 
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+#if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
   // GeolocationSystemPermissionManager::PermissionObserver implementation.
   void OnSystemPermissionUpdated(
       LocationSystemPermissionStatus new_status) override;
 #endif
 
   static constexpr char kSystemPermissionDeniedErrorMessage[] =
-      "User has not allowed access to system location.";
+      "User denied Geolocation";
+  static constexpr char kSystemPermissionDeniedErrorTechnical[] =
+      "User has not allowed access to system location";
 
  private:
   friend struct base::DefaultSingletonTraits<GeolocationProviderImpl>;
@@ -229,7 +230,7 @@ class GeolocationProviderImpl
   // thread.
   void DoStartProvidersOnGeolocationThread();
 
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+#if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
   // Called on main thread to notify clients when system permission is denied.
   void NotifyClientsSystemPermissionDenied();
 #endif
@@ -260,7 +261,7 @@ class GeolocationProviderImpl
   // sends it to `internals_observers_`.
   bool diagnostics_enabled_ = false;
 
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+#if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
   LocationSystemPermissionStatus system_permission_status_ =
       LocationSystemPermissionStatus::kNotDetermined;
 

@@ -14,7 +14,7 @@
 #include "base/timer/timer.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/ui/webui/settings/settings_page_ui_handler.h"
 #include "chrome/browser/ui/webui/signin/login_ui_service.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -25,6 +25,7 @@
 #include "content/public/browser/web_contents_observer.h"
 
 class LoginUIService;
+enum class ChromeSigninUserChoice;
 
 namespace content {
 class WebUI;
@@ -40,21 +41,12 @@ class SyncSetupInProgressHandle;
 
 namespace settings {
 
-// Enum used to share the sign in state with the WebUI.
-// TODO(b/336510160): Look into integrating SYNC_PAUSED value.
-enum class SignedInState {
-  SignedOut = 0,
-  SignedIn = 1,
-  Syncing = 2,
-  SignedInPaused = 3,
-  WebOnlySignedIn = 4,
-};
-
 class PeopleHandler : public SettingsPageUIHandler,
                       public signin::IdentityManager::Observer,
                       public LoginUIService::LoginUI,
                       public syncer::SyncServiceObserver,
-                      public content::WebContentsObserver {
+                      public content::WebContentsObserver,
+                      public ProfileAttributesStorage::Observer {
  public:
   // TODO(tommycli): Remove these strings and instead use WebUIListener events.
   // These string constants are used from JavaScript (sync_browser_proxy.js).
@@ -68,6 +60,11 @@ class PeopleHandler : public SettingsPageUIHandler,
   PeopleHandler& operator=(const PeopleHandler&) = delete;
 
   ~PeopleHandler() override;
+
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+  void HandleSetChromeSigninUserChoiceForTesting(const std::string& email,
+                                                 ChromeSigninUserChoice choice);
+#endif
 
  protected:
   // Terminates the sync setup flow.
@@ -131,6 +128,7 @@ class PeopleHandler : public SettingsPageUIHandler,
                            DashboardClearWhileSettingsOpen_ConfirmLater);
   FRIEND_TEST_ALL_PREFIXES(PeopleHandlerDiceTest, StoredAccountsList);
   FRIEND_TEST_ALL_PREFIXES(PeopleHandlerGuestModeTest, GetStoredAccountsList);
+  FRIEND_TEST_ALL_PREFIXES(PeopleHandlerTest, SyncCookiesDisabled);
   FRIEND_TEST_ALL_PREFIXES(PeopleHandlerTest, TurnOffSync);
   FRIEND_TEST_ALL_PREFIXES(PeopleHandlerTest, GetStoredAccountsList);
   FRIEND_TEST_ALL_PREFIXES(PeopleHandlerMainProfile, Signout);
@@ -140,6 +138,8 @@ class PeopleHandler : public SettingsPageUIHandler,
                            GetStoredAccountsList);
   FRIEND_TEST_ALL_PREFIXES(PeopleHandlerWebOnlySigninTest,
                            ChromeSigninUserAvailableOnWebSignin);
+  FRIEND_TEST_ALL_PREFIXES(PeopleHandlerWithCookiesSyncTest,
+                           SyncCookiesSupported);
 #if DCHECK_IS_ON()
   FRIEND_TEST_ALL_PREFIXES(PeopleHandlerMainProfile, DeleteProfileCrashes);
 #endif
@@ -167,6 +167,9 @@ class PeopleHandler : public SettingsPageUIHandler,
       const GoogleServiceAuthError& error,
       signin_metrics::SourceForRefreshTokenOperation token_operation_source)
       override;
+
+  // ProfileAttributesStorage::Observer:
+  void OnProfileAvatarChanged(const base::FilePath& profile_path) override;
 
   // syncer::SyncServiceObserver implementation.
   void OnStateChanged(syncer::SyncService* sync_service) override;
@@ -199,37 +202,38 @@ class PeopleHandler : public SettingsPageUIHandler,
   void HandleSetChromeSigninUserChoice(const base::Value::List& args);
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   void HandleAttemptUserExit(const base::Value::List& args);
   void HandleTurnOnSync(const base::Value::List& args);
   void HandleTurnOffSync(const base::Value::List& args);
 #else
   void HandleStartSignin(const base::Value::List& args);
 #endif
-#if BUILDFLAG(ENABLE_DICE_SUPPORT) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(ENABLE_DICE_SUPPORT)
   void HandleSignout(const base::Value::List& args);
   void HandleTurnOffSync(bool delete_profile,
                          bool is_clear_primary_account_allowed);
-#endif
-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
   void HandlePauseSync(const base::Value::List& args);
 #endif
   void HandleStartKeyRetrieval(const base::Value::List& args);
   void HandleGetSyncStatus(const base::Value::List& args);
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
+  void HandleShowSyncPassphraseDialog(const base::Value::List& args);
+
   // Displays the GAIA login form.
   void DisplayGaiaLogin(signin_metrics::AccessPoint access_point);
 
   // When web-flow is enabled, displays the Gaia login form in a new tab.
-  // This function is virtual so that tests can override.
-  virtual void DisplayGaiaLoginInNewTabOrWindow(
+  void DisplayGaiaLoginInNewTabOrWindow(
       signin_metrics::AccessPoint access_point);
 #endif
 
   void HandleGetStoredAccounts(const base::Value::List& args);
   void HandleStartSyncingWithEmail(const base::Value::List& args);
+  void HandleGetProfileAvatar(const base::Value::List& args);
   base::Value::List GetStoredAccountsList();
+  base::Value GetProfileAvatar();
 
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
   // Sends the updated chrome signin user choice info to UI.
@@ -248,6 +252,9 @@ class PeopleHandler : public SettingsPageUIHandler,
 
   // Sends the computed stored accounts to the JavaScript WebUI code.
   void UpdateStoredAccounts();
+
+  // Sends the computed profile avatar to the JavaScript WebUI code.
+  void UpdateProfileAvatar();
 
   // Suppresses any further signin promos, since the user has signed in once.
   void MarkFirstSetupComplete();
@@ -298,6 +305,9 @@ class PeopleHandler : public SettingsPageUIHandler,
       identity_manager_observation_{this};
   base::ScopedObservation<syncer::SyncService, syncer::SyncServiceObserver>
       sync_service_observation_{this};
+  base::ScopedObservation<ProfileAttributesStorage,
+                          ProfileAttributesStorage::Observer>
+      profile_attributes_observation_{this};
 
   base::WeakPtrFactory<PeopleHandler> weak_factory_{this};
 };

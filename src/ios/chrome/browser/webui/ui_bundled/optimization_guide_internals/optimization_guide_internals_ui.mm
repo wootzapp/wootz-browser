@@ -11,7 +11,7 @@
 #import "components/optimization_guide/optimization_guide_internals/webui/url_constants.h"
 #import "ios/chrome/browser/optimization_guide/model/optimization_guide_service.h"
 #import "ios/chrome/browser/optimization_guide/model/optimization_guide_service_factory.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/web/public/web_state.h"
 #import "ios/web/public/webui/web_ui_ios.h"
 #import "ios/web/public/webui/web_ui_ios_data_source.h"
@@ -28,11 +28,11 @@ web::WebUIIOSDataSource* CreateOptimizationGuideInternalsHTMLSource() {
   source->SetDefaultResource(
       IDR_OPTIMIZATION_GUIDE_INTERNALS_OPTIMIZATION_GUIDE_INTERNALS_HTML);
   source->UseStringsJs();
-  const base::span<const webui::ResourcePath> resources =
-      base::make_span(kOptimizationGuideInternalsResources,
-                      kOptimizationGuideInternalsResourcesSize);
-  for (const auto& resource : resources)
+  const base::span<const webui::ResourcePath> resources(
+      kOptimizationGuideInternalsResources);
+  for (const auto& resource : resources) {
     source->AddResourcePath(resource.path, resource.id);
+  }
 
   return source;
 }
@@ -42,13 +42,13 @@ OptimizationGuideInternalsUI::OptimizationGuideInternalsUI(
     web::WebUIIOS* web_ui,
     const std::string& host)
     : web::WebUIIOSController(web_ui, host) {
-  ChromeBrowserState* browser_state = ChromeBrowserState::FromWebUIIOS(web_ui);
-  auto* service =
-      OptimizationGuideServiceFactory::GetForBrowserState(browser_state);
-  if (!service)
+  ProfileIOS* profile = ProfileIOS::FromWebUIIOS(web_ui);
+  auto* service = OptimizationGuideServiceFactory::GetForProfile(profile);
+  if (!service) {
     return;
+  }
   optimization_guide_logger_ = service->GetOptimizationGuideLogger();
-  web::WebUIIOSDataSource::Add(browser_state,
+  web::WebUIIOSDataSource::Add(profile,
                                CreateOptimizationGuideInternalsHTMLSource());
   web_ui->GetWebState()->GetInterfaceBinderForMainFrame()->AddInterface(
       base::BindRepeating(&OptimizationGuideInternalsUI::BindInterface,
@@ -78,10 +78,8 @@ void OptimizationGuideInternalsUI::CreatePageHandler(
 
 void OptimizationGuideInternalsUI::RequestDownloadedModelsInfo(
     RequestDownloadedModelsInfoCallback callback) {
-  ChromeBrowserState* browser_state =
-      ChromeBrowserState::FromWebUIIOS(web_ui());
-  auto* service =
-      OptimizationGuideServiceFactory::GetForBrowserState(browser_state);
+  ProfileIOS* profile = ProfileIOS::FromWebUIIOS(web_ui());
+  auto* service = OptimizationGuideServiceFactory::GetForProfile(profile);
   if (!service) {
     std::move(callback).Run({});
     return;

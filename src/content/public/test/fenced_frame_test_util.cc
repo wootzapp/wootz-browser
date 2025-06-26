@@ -4,17 +4,27 @@
 
 #include "content/public/test/fenced_frame_test_util.h"
 
+#include <algorithm>
+#include <string_view>
+#include <vector>
+
+#include "base/test/run_until.h"
 #include "base/trace_event/typed_macros.h"
 #include "content/browser/fenced_frame/fenced_frame.h"
+#include "content/browser/fenced_frame/fenced_frame_config.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
 #include "content/public/common/content_features.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_frame_navigation_observer.h"
 #include "content/test/fenced_frame_test_utils.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
+#include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/features.h"
+#include "third_party/blink/public/common/input/web_mouse_event.h"
+#include "third_party/blink/public/common/input/web_pointer_properties.h"
+#include "ui/gfx/geometry/point_f.h"
 #include "url/gurl.h"
 
 namespace content {
@@ -45,18 +55,18 @@ FencedFrameTestHelper::FencedFrameTestHelper() {
   scoped_feature_list_.InitWithFeaturesAndParameters(
       {{blink::features::kFencedFrames, {}},
        {features::kPrivacySandboxAdsAPIsOverride, {}},
-       {blink::features::kInterestGroupStorage, {}},
+       {network::features::kInterestGroupStorage, {}},
        {blink::features::kAdInterestGroupAPI, {}},
        {blink::features::kFledge, {}},
        {blink::features::kFencedFramesAPIChanges, {}},
        {blink::features::kFencedFramesDefaultMode, {}},
        {features::kFencedFramesEnforceFocus, {}},
-       {blink::features::kFencedFramesM120FeaturesPart1, {}},
        {blink::features::kFencedFramesAutomaticBeaconCredentials, {}},
-       {blink::features::kFencedFramesM120FeaturesPart2, {}},
        {blink::features::kFencedFramesLocalUnpartitionedDataAccess, {}},
-       {blink::features::kFencedFramesCrossOriginEventReportingUnlabeledTraffic,
-        {}}},
+       {blink::features::kFencedFramesCrossOriginEventReporting, {}},
+       {blink::features::kFencedFramesReportEventHeaderChanges, {}},
+       {blink::features::kExemptUrlFromNetworkRevocationForTesting, {}},
+       {blink::features::kFencedFramesCrossOriginAutomaticBeaconData, {}}},
       {/* disabled_features */});
 }
 
@@ -231,7 +241,7 @@ void FencedFrameTestHelper::SendBasicRequest(
   request->method = net::HttpRequestHeaders::kPostMethod;
   request->trusted_params = network::ResourceRequest::TrustedParams();
   request->trusted_params->isolation_info =
-      net::IsolationInfo::CreateTransient();
+      net::IsolationInfo::CreateTransient(/*nonce=*/std::nullopt);
 
   std::unique_ptr<network::SimpleURLLoader> simple_url_loader =
       network::SimpleURLLoader::Create(std::move(request),
@@ -291,6 +301,71 @@ GURL AddAndVerifyFencedFrameURL(
   EXPECT_TRUE(urn_uuid->is_valid());
   return urn_uuid.value();
 }
+
+bool RevokeFencedFrameUntrustedNetwork(RenderFrameHost* rfh) {
+  static_cast<RenderFrameHostImpl*>(rfh)->DisableUntrustedNetworkInFencedFrame(
+      base::DoNothing());
+  return base::test::RunUntil(
+      [rfh]() { return rfh->IsUntrustedNetworkDisabled(); });
+}
+
+void ExemptUrlsFromFencedFrameNetworkRevocation(RenderFrameHost* rfh,
+                                                const std::vector<GURL>& urls) {
+  std::ranges::for_each(urls, [rfh](GURL url) {
+    static_cast<RenderFrameHostImpl*>(rfh)
+        ->ExemptUrlFromNetworkRevocationForTesting(url, base::DoNothing());
+  });
+}
+
+void SetFencedFrameConfig(RenderFrameHost* rfh, const GURL& url) {
+  FencedFrameConfig config(url);
+  FencedFrameProperties properties = FencedFrameProperties(config);
+
+  static_cast<RenderFrameHostImpl*>(rfh)
+      ->frame_tree_node()
+      ->set_fenced_frame_properties(properties);
+}
+
+void SimulateClickInFencedFrameTree(const ToRenderFrameHost& adapter,
+                                    blink::WebMouseEvent::Button button,
+                                    const gfx::PointF& point) {
+  blink::WebMouseEvent mouse_event(
+      blink::WebInputEvent::Type::kMouseDown,
+      blink::WebInputEvent::kNoModifiers,
+      blink::WebInputEvent::GetStaticTimeStampForTests());
+  mouse_event.button = button;
+  mouse_event.SetPositionInWidget(point);
+  mouse_event.click_count = 1;
+  adapter.render_frame_host()->GetRenderWidgetHost()->ForwardMouseEvent(
+      mouse_event);
+  mouse_event.SetType(blink::WebInputEvent::Type::kMouseUp);
+  adapter.render_frame_host()->GetRenderWidgetHost()->ForwardMouseEvent(
+      mouse_event);
+}
+
+gfx::PointF GetTopLeftCoordinatesOfElementWithId(
+    const ToRenderFrameHost& adapter,
+    std::string_view id) {
+  double x = EvalJs(adapter, content::JsReplace(R"(
+                                  const bounds =
+                                    document.getElementById($1).
+                                    getBoundingClientRect();
+                                  Math.floor(bounds.left)
+                                )",
+                                                id))
+                 .ExtractDouble();
+  double y = EvalJs(adapter, content::JsReplace(R"(
+                                  const bounds =
+                                    document.getElementById($1).
+                                    getBoundingClientRect();
+                                  Math.floor(bounds.top)
+                                )",
+                                                id))
+                 .ExtractDouble();
+
+  return gfx::PointF(x, y);
+}
+
 }  // namespace test
 
 }  // namespace content

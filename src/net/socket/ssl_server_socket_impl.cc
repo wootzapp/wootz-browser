@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/socket/ssl_server_socket_impl.h"
 
 #include <memory>
@@ -14,6 +19,7 @@
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/notimplemented.h"
 #include "base/strings/string_util.h"
 #include "crypto/openssl_util.h"
 #include "crypto/rsa_private_key.h"
@@ -45,6 +51,17 @@ namespace {
 // overlap with any value of the net::Error range, including net::OK).
 const int kSSLServerSocketNoPendingResult = 1;
 
+std::vector<bssl::UniquePtr<CRYPTO_BUFFER>> ChainFromX509Certificate(
+    X509Certificate* cert) {
+  std::vector<bssl::UniquePtr<CRYPTO_BUFFER>> cert_chain;
+  cert_chain.reserve(1 + cert->intermediate_buffers().size());
+  cert_chain.push_back(bssl::UpRef(cert->cert_buffer()));
+  for (const auto& handle : cert->intermediate_buffers()) {
+    cert_chain.push_back(bssl::UpRef(handle.get()));
+  }
+  return cert_chain;
+}
+
 }  // namespace
 
 class SSLServerContextImpl::SocketImpl : public SSLServerSocket,
@@ -63,10 +80,8 @@ class SSLServerContextImpl::SocketImpl : public SSLServerSocket,
 
   // SSLSocket interface.
   int ExportKeyingMaterial(std::string_view label,
-                           bool has_context,
-                           std::string_view context,
-                           unsigned char* out,
-                           unsigned int outlen) override;
+                           std::optional<base::span<const uint8_t>> context,
+                           base::span<uint8_t> out) override;
 
   // Socket interface (via StreamSocket).
   int Read(IOBuffer* buf,
@@ -167,7 +182,7 @@ class SSLServerContextImpl::SocketImpl : public SSLServerSocket,
   [[nodiscard]] int Init();
   void ExtractClientCert();
 
-  raw_ptr<SSLServerContextImpl, DanglingUntriaged> context_;
+  raw_ptr<SSLServerContextImpl> context_;
 
   NetLogWithSource net_log_;
 
@@ -203,7 +218,7 @@ class SSLServerContextImpl::SocketImpl : public SSLServerSocket,
   State next_handshake_state_ = STATE_NONE;
   bool completed_handshake_ = false;
 
-  NextProto negotiated_protocol_ = kProtoUnknown;
+  NextProto negotiated_protocol_ = NextProto::kProtoUnknown;
 
   base::WeakPtrFactory<SocketImpl> weak_factory_{this};
 };
@@ -277,7 +292,7 @@ SSLServerContextImpl::SocketImpl::PrivateKeySignCallback(uint8_t* out,
   DCHECK(context_->private_key_);
   signature_result_ = ERR_IO_PENDING;
   context_->private_key_->Sign(
-      algorithm, base::make_span(in, in_len),
+      algorithm, base::span(in, in_len),
       base::BindOnce(&SSLServerContextImpl::SocketImpl::OnPrivateKeyComplete,
                      weak_factory_.GetWeakPtr()));
   return ssl_private_key_retry;
@@ -401,19 +416,18 @@ int SSLServerContextImpl::SocketImpl::Handshake(
 
 int SSLServerContextImpl::SocketImpl::ExportKeyingMaterial(
     std::string_view label,
-    bool has_context,
-    std::string_view context,
-    unsigned char* out,
-    unsigned int outlen) {
+    std::optional<base::span<const uint8_t>> context,
+    base::span<uint8_t> out) {
+  DCHECK(base::IsStringASCII(label));
   if (!IsConnected())
     return ERR_SOCKET_NOT_CONNECTED;
 
   crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
 
   int rv = SSL_export_keying_material(
-      ssl_.get(), out, outlen, label.data(), label.size(),
-      reinterpret_cast<const unsigned char*>(context.data()), context.length(),
-      context.length() > 0);
+      ssl_.get(), out.data(), out.size(), label.data(), label.size(),
+      context.has_value() ? context->data() : nullptr,
+      context.has_value() ? context->size() : 0, context.has_value());
 
   if (rv != 1) {
     int ssl_error = SSL_get_error(ssl_.get(), rv);
@@ -559,7 +573,7 @@ SSLServerContextImpl::SocketImpl::GetPeerApplicationSettings() const {
 }
 
 bool SSLServerContextImpl::SocketImpl::GetSSLInfo(SSLInfo* ssl_info) {
-  ssl_info->Reset();
+  *ssl_info = SSLInfo();
   if (!completed_handshake_)
     return false;
 
@@ -578,6 +592,8 @@ bool SSLServerContextImpl::SocketImpl::GetSSLInfo(SSLInfo* ssl_info) {
   ssl_info->handshake_type = SSL_session_reused(ssl_.get())
                                  ? SSLInfo::HANDSHAKE_RESUME
                                  : SSLInfo::HANDSHAKE_FULL;
+  ssl_info->peer_signature_algorithm =
+      SSL_get_peer_signature_algorithm(ssl_.get());
 
   return true;
 }
@@ -807,14 +823,13 @@ int SSLServerContextImpl::SocketImpl::Init() {
 
   // Set certificate and private key.
   if (context_->pkey_) {
-    DCHECK(context_->cert_->cert_buffer());
-    if (!SetSSLChainAndKey(ssl_.get(), context_->cert_.get(),
+    if (!SetSSLChainAndKey(ssl_.get(), context_->cert_chain_,
                            context_->pkey_.get(), nullptr)) {
       return ERR_UNEXPECTED;
     }
   } else {
     DCHECK(context_->private_key_);
-    if (!SetSSLChainAndKey(ssl_.get(), context_->cert_.get(), nullptr,
+    if (!SetSSLChainAndKey(ssl_.get(), context_->cert_chain_, nullptr,
                            &kPrivateKeyMethod)) {
       return ERR_UNEXPECTED;
     }
@@ -902,6 +917,19 @@ std::unique_ptr<SSLServerContext> CreateSSLServerContext(
 }
 
 std::unique_ptr<SSLServerContext> CreateSSLServerContext(
+    base::span<const bssl::UniquePtr<CRYPTO_BUFFER>> cert_chain,
+    EVP_PKEY* pkey,
+    const SSLServerConfig& ssl_server_config) {
+  std::vector<bssl::UniquePtr<CRYPTO_BUFFER>> copied_cert_chain;
+  copied_cert_chain.reserve(cert_chain.size());
+  for (const auto& handle : cert_chain) {
+    copied_cert_chain.push_back(bssl::UpRef(handle.get()));
+  }
+  return std::make_unique<SSLServerContextImpl>(std::move(copied_cert_chain),
+                                                pkey, ssl_server_config);
+}
+
+std::unique_ptr<SSLServerContext> CreateSSLServerContext(
     X509Certificate* certificate,
     const crypto::RSAPrivateKey& key,
     const SSLServerConfig& ssl_server_config) {
@@ -921,7 +949,7 @@ SSLServerContextImpl::SSLServerContextImpl(
     scoped_refptr<net::SSLPrivateKey> key,
     const SSLServerConfig& ssl_server_config)
     : ssl_server_config_(ssl_server_config),
-      cert_(certificate),
+      cert_chain_(ChainFromX509Certificate(certificate)),
       private_key_(key) {
   CHECK(private_key_);
   Init();
@@ -931,14 +959,22 @@ SSLServerContextImpl::SSLServerContextImpl(
     X509Certificate* certificate,
     EVP_PKEY* pkey,
     const SSLServerConfig& ssl_server_config)
-    : ssl_server_config_(ssl_server_config), cert_(certificate) {
+    : SSLServerContextImpl(ChainFromX509Certificate(certificate),
+                           pkey,
+                           ssl_server_config) {}
+
+SSLServerContextImpl::SSLServerContextImpl(
+    std::vector<bssl::UniquePtr<CRYPTO_BUFFER>> cert_chain,
+    EVP_PKEY* pkey,
+    const SSLServerConfig& ssl_server_config)
+    : ssl_server_config_(ssl_server_config),
+      cert_chain_(std::move(cert_chain)) {
   CHECK(pkey);
   pkey_ = bssl::UpRef(pkey);
   Init();
 }
 
 void SSLServerContextImpl::Init() {
-  crypto::EnsureOpenSSLInit();
   ssl_ctx_.reset(SSL_CTX_new(TLS_with_buffers_method()));
   SSL_CTX_set_session_cache_mode(ssl_ctx_.get(), SSL_SESS_CACHE_SERVER);
   uint8_t session_ctx_id = 0;
@@ -1015,14 +1051,23 @@ void SSLServerContextImpl::Init() {
   }
 
   if (ssl_server_config_.client_cert_type !=
-          SSLServerConfig::ClientCertType::NO_CLIENT_CERT &&
-      !ssl_server_config_.cert_authorities.empty()) {
-    bssl::UniquePtr<STACK_OF(CRYPTO_BUFFER)> stack(sk_CRYPTO_BUFFER_new_null());
-    for (const auto& authority : ssl_server_config_.cert_authorities) {
-      sk_CRYPTO_BUFFER_push(stack.get(),
-                            x509_util::CreateCryptoBuffer(authority).release());
+      SSLServerConfig::ClientCertType::NO_CLIENT_CERT) {
+    if (!ssl_server_config_.cert_authorities.empty()) {
+      bssl::UniquePtr<STACK_OF(CRYPTO_BUFFER)> stack(
+          sk_CRYPTO_BUFFER_new_null());
+      for (const auto& authority : ssl_server_config_.cert_authorities) {
+        sk_CRYPTO_BUFFER_push(
+            stack.get(), x509_util::CreateCryptoBuffer(authority).release());
+      }
+      SSL_CTX_set0_client_CAs(ssl_ctx_.get(), stack.release());
     }
-    SSL_CTX_set0_client_CAs(ssl_ctx_.get(), stack.release());
+
+    if (!ssl_server_config_.client_cert_signature_algorithms.empty()) {
+      CHECK(SSL_CTX_set_verify_algorithm_prefs(
+          ssl_ctx_.get(),
+          ssl_server_config_.client_cert_signature_algorithms.data(),
+          ssl_server_config_.client_cert_signature_algorithms.size()));
+    }
   }
 
   SSL_CTX_set_alpn_select_cb(ssl_ctx_.get(), &SocketImpl::ALPNSelectCallback,

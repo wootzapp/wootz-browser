@@ -9,34 +9,57 @@
 #include <string>
 #include <vector>
 
+#include "base/json/json_reader.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "components/omnibox/browser/actions/omnibox_answer_action.h"
 #include "components/omnibox/browser/autocomplete_controller.h"
 #include "components/omnibox/browser/autocomplete_match.h"
+#include "components/omnibox/browser/autocomplete_match_test_util.h"
 #include "components/omnibox/browser/autocomplete_match_type.h"
 #include "components/omnibox/browser/autocomplete_provider.h"
 #include "components/omnibox/browser/fake_autocomplete_controller.h"
+#include "components/omnibox/browser/fake_autocomplete_provider.h"
 #include "components/omnibox/browser/fake_autocomplete_provider_client.h"
-#include "components/omnibox/browser/omnibox_feature_configs.h"
+#include "components/omnibox/browser/fake_tab_matcher.h"
+#include "components/omnibox/browser/keyword_provider.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
 #include "components/omnibox/browser/test_scheme_classifier.h"
+#include "components/omnibox/common/omnibox_feature_configs.h"
 #include "components/omnibox/common/omnibox_features.h"
+#include "components/search_engines/enterprise/enterprise_search_manager.h"
 #include "components/search_engines/template_url_data.h"
 #include "components/search_engines/template_url_starter_pack_data.h"
+#include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/omnibox_proto/answer_type.pb.h"
+#include "third_party/omnibox_proto/rich_answer_template.pb.h"
 
 class AutocompleteControllerTest : public testing::Test {
  public:
   AutocompleteControllerTest() : controller_(&task_environment_) {}
 
+  void SetUp() override {
+    EnterpriseSearchManager::RegisterProfilePrefs(pref_service()->registry());
+  }
+
   void SetAutocompleteMatches(const std::vector<AutocompleteMatch>& matches) {
     controller_.internal_result_.ClearMatches();
     controller_.internal_result_.AppendMatches(matches);
+  }
+
+  void UpdateSearchboxStats() {
+    controller_.UpdateSearchboxStats(&controller_.internal_result_);
+  }
+
+  void UpdateShownInSession() {
+    controller_.UpdateShownInSession(&controller_.internal_result_);
   }
 
   void MaybeRemoveCompanyEntityImages() {
@@ -49,147 +72,14 @@ class AutocompleteControllerTest : public testing::Test {
                ->image_dominant_color.empty();
   }
 
-  AutocompleteMatch CreateHistoryURLMatch(std::string destination_url) {
-    AutocompleteMatch match;
-    match.type = AutocompleteMatchType::Type::HISTORY_URL;
-    match.destination_url = GURL(destination_url);
-    return match;
-  }
-
-  AutocompleteMatch CreateCompanyEntityMatch(std::string website_uri) {
-    AutocompleteMatch match;
-    match.type = AutocompleteMatchType::Type::SEARCH_SUGGEST_ENTITY;
-    match.website_uri = website_uri;
-    match.image_url = GURL("https://url");
-    match.image_dominant_color = "#000000";
-    return match;
-  }
-
-  AutocompleteMatch CreateSearchMatch(std::u16string contents = u"text") {
-    AutocompleteMatch match;
-    match.type = AutocompleteMatchType::Type::SEARCH_SUGGEST;
-    match.contents = contents;
-    return match;
-  }
-
-  AutocompleteMatch CreateStarterPackMatch(std::u16string keyword) {
-    AutocompleteMatch match;
-    match.type = AutocompleteMatchType::Type::STARTER_PACK;
-    match.contents = keyword;
-    match.keyword = keyword;
-    match.associated_keyword = std::make_unique<AutocompleteMatch>(
-        nullptr, 1000, false, AutocompleteMatchType::SEARCH_WHAT_YOU_TYPED);
-    match.associated_keyword->keyword = keyword;
-    return match;
-  }
-
-  AutocompleteMatch CreateFeaturedEnterpriseSearch(std::u16string keyword) {
-    AutocompleteMatch match;
-    match.type = AutocompleteMatchType::Type::FEATURED_ENTERPRISE_SEARCH;
-    match.contents = keyword;
-    match.keyword = keyword;
-    match.associated_keyword = std::make_unique<AutocompleteMatch>(
-        nullptr, 1000, false, AutocompleteMatchType::SEARCH_WHAT_YOU_TYPED);
-    match.associated_keyword->keyword = keyword;
-    return match;
-  }
-
-  AutocompleteMatch CreateSearchMatch(std::string name,
-                                      bool allowed_to_be_default_match,
-                                      int traditional_relevance) {
-    auto match =
-        CreateAutocompleteMatch(name, AutocompleteMatchType::SEARCH_SUGGEST,
-                                allowed_to_be_default_match, false,
-                                traditional_relevance, std::nullopt);
-    match.keyword = u"keyword";
-    match.search_terms_args = std::make_unique<TemplateURLRef::SearchTermsArgs>(
-        base::UTF8ToUTF16(name));
-    return match;
-  }
-
-  AutocompleteMatch CreatePersonalizedZeroPrefixMatch(
-      std::string name,
-      int traditional_relevance) {
-    auto match = CreateAutocompleteMatch(
-        name, AutocompleteMatchType::SEARCH_SUGGEST_PERSONALIZED, false, false,
-        traditional_relevance, std::nullopt);
-    match.keyword = u"keyword";
-    match.search_terms_args =
-        std::make_unique<TemplateURLRef::SearchTermsArgs>(std::u16string());
-    match.suggestion_group_id = omnibox::GROUP_PERSONALIZED_ZERO_SUGGEST;
-    match.subtypes.emplace(omnibox::SUBTYPE_PERSONAL);
-    match.subtypes.emplace(omnibox::SUBTYPE_ZERO_PREFIX);
-    return match;
-  }
-
-  AutocompleteMatch CreateHistoryUrlMlScoredMatch(
-      std::string name,
-      bool allowed_to_be_default_match,
-      int traditional_relevance,
-      float ml_output) {
-    return CreateMlScoredMatch(name, AutocompleteMatchType::HISTORY_URL,
-                               allowed_to_be_default_match,
-                               traditional_relevance, ml_output);
-  }
-
-  AutocompleteMatch CreateMlScoredMatch(std::string name,
-                                        AutocompleteMatchType::Type type,
-                                        bool allowed_to_be_default_match,
-                                        int traditional_relevance,
-                                        float ml_output) {
-    return CreateAutocompleteMatch(name, type, allowed_to_be_default_match,
-                                   false, traditional_relevance, ml_output);
-  }
-
-  AutocompleteMatch CreateBoostedShortcutMatch(std::string name,
-                                               int traditional_relevance,
-                                               float ml_output) {
-    return CreateAutocompleteMatch(name, AutocompleteMatchType::HISTORY_URL,
-                                   true, true, traditional_relevance,
-                                   ml_output);
-  }
-
-  AutocompleteMatch CreateKeywordHintMatch(std::string name,
-                                           int traditional_relevance) {
-    auto match = CreateAutocompleteMatch(
-        name, AutocompleteMatchType::SEARCH_SUGGEST, false, false,
-        traditional_relevance, std::nullopt);
-    match.keyword = u"keyword";
-    match.associated_keyword = std::make_unique<AutocompleteMatch>(
-        nullptr, 1000, false, AutocompleteMatchType::SEARCH_WHAT_YOU_TYPED);
-    return match;
-  }
-
-  AutocompleteMatch CreateHistoryClusterMatch(std::string name,
-                                              int traditional_relevance) {
-    return CreateAutocompleteMatch(name, AutocompleteMatchType::HISTORY_CLUSTER,
-                                   false, false, traditional_relevance,
-                                   std::nullopt);
-  }
-
-  AutocompleteMatch CreateAutocompleteMatch(std::string name,
-                                            AutocompleteMatchType::Type type,
-                                            bool allowed_to_be_default_match,
-                                            bool shortcut_boosted,
-                                            int traditional_relevance,
-                                            std::optional<float> ml_output) {
-    AutocompleteMatch match{nullptr, traditional_relevance, false, type};
-    match.shortcut_boosted = shortcut_boosted;
-    match.allowed_to_be_default_match = allowed_to_be_default_match;
-    match.destination_url = GURL{"https://google.com/" + name};
-    match.stripped_destination_url = GURL{"https://google.com/" + name};
-    match.contents = base::UTF8ToUTF16(name);
-    match.contents_class = {{0, 1}};
-    if (ml_output.has_value()) {
-      match.scoring_signals = {{}};
-      match.scoring_signals->set_site_engagement(ml_output.value());
-    }
-    return match;
-  }
-
   FakeAutocompleteProviderClient* provider_client() {
     return static_cast<FakeAutocompleteProviderClient*>(
         controller_.autocomplete_provider_client());
+  }
+
+  sync_preferences::TestingPrefServiceSyncable* pref_service() {
+    return static_cast<sync_preferences::TestingPrefServiceSyncable*>(
+        provider_client()->GetPrefs());
   }
 
  protected:
@@ -198,74 +88,183 @@ class AutocompleteControllerTest : public testing::Test {
   FakeAutocompleteController controller_;
 };
 
-TEST_F(AutocompleteControllerTest, RemoveCompanyEntityImage_LeastAggressive) {
-  // Set feature flag and param.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeatureWithParameters(
-      omnibox::kCompanyEntityIconAdjustment,
-      {{OmniboxFieldTrial::kCompanyEntityIconAdjustmentGroup.name,
-        "least-aggressive"}});
+TEST_F(AutocompleteControllerTest, UpdateShownInSessionTypedThenZeroPrefix) {
   std::vector<AutocompleteMatch> matches;
-  // In the least aggressive experiment group the historical match must be the
-  // first match and the company entity must be the second match to replace the
-  // entity's image.
-  matches.push_back(
-      CreateHistoryURLMatch(/*destination_url=*/"https://www.wellsfargo.com/"));
-  matches.push_back(
-      CreateCompanyEntityMatch(/*website_uri=*/"https://www.wellsfargo.com/"));
-  matches.push_back(CreateSearchMatch());
 
+  AutocompleteInput typed_input(u"abc", 3u, metrics::OmniboxEventProto::OTHER,
+                                TestSchemeClassifier());
+  controller_.input_ = typed_input;
+
+  matches.push_back(CreateSearchMatch(u"abc"));
   SetAutocompleteMatches(matches);
-  ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/1));
 
-  MaybeRemoveCompanyEntityImages();
-  ASSERT_TRUE(ImageURLAndImageDominantColorIsEmpty(/*index=*/1));
-  EXPECT_TRUE(
-      provider_client()
-          ->GetOmniboxTriggeredFeatureService()
-          ->GetFeatureTriggeredInSession(
-              metrics::OmniboxEventProto_Feature_COMPANY_ENTITY_ADJUSTMENT));
+  UpdateSearchboxStats();
+  UpdateShownInSession();
+
+  for (size_t i = 0; i < controller_.internal_result_.size(); i++) {
+    const auto* match = controller_.internal_result_.match_at(i);
+
+    ASSERT_FALSE(match->zero_prefix_suggestions_shown_in_session);
+    ASSERT_FALSE(match->zero_prefix_search_suggestions_shown_in_session);
+    ASSERT_FALSE(match->zero_prefix_url_suggestions_shown_in_session);
+
+    ASSERT_TRUE(match->typed_search_suggestions_shown_in_session);
+    ASSERT_FALSE(match->typed_url_suggestions_shown_in_session);
+  }
+
+  matches.push_back(
+      CreateHistoryURLMatch(/*destination_url=*/"https://www.abc.com/"));
+  SetAutocompleteMatches(matches);
+
+  UpdateSearchboxStats();
+  UpdateShownInSession();
+
+  for (size_t i = 0; i < controller_.internal_result_.size(); i++) {
+    const auto* match = controller_.internal_result_.match_at(i);
+
+    ASSERT_FALSE(match->zero_prefix_suggestions_shown_in_session);
+    ASSERT_FALSE(match->zero_prefix_search_suggestions_shown_in_session);
+    ASSERT_FALSE(match->zero_prefix_url_suggestions_shown_in_session);
+
+    ASSERT_TRUE(match->typed_search_suggestions_shown_in_session);
+    ASSERT_TRUE(match->typed_url_suggestions_shown_in_session);
+  }
+
+  matches.clear();
+
+  AutocompleteInput zero_prefix_input(
+      u"", 0u, metrics::OmniboxEventProto::OTHER, TestSchemeClassifier());
+  zero_prefix_input.set_focus_type(
+      metrics::OmniboxFocusType::INTERACTION_FOCUS);
+  controller_.input_ = zero_prefix_input;
+
+  matches.push_back(CreateZeroPrefixSearchMatch(u"abc"));
+  SetAutocompleteMatches(matches);
+
+  UpdateSearchboxStats();
+  UpdateShownInSession();
+
+  for (size_t i = 0; i < controller_.internal_result_.size(); i++) {
+    const auto* match = controller_.internal_result_.match_at(i);
+
+    ASSERT_TRUE(match->zero_prefix_suggestions_shown_in_session);
+    ASSERT_TRUE(match->zero_prefix_search_suggestions_shown_in_session);
+    ASSERT_FALSE(match->zero_prefix_url_suggestions_shown_in_session);
+
+    ASSERT_TRUE(match->typed_search_suggestions_shown_in_session);
+    ASSERT_TRUE(match->typed_url_suggestions_shown_in_session);
+  }
+
+  matches.push_back(CreateHistoryURLMatch(
+      /*destination_url=*/"https://www.abc.com/", /*is_zero_prefix=*/true));
+  SetAutocompleteMatches(matches);
+
+  UpdateSearchboxStats();
+  UpdateShownInSession();
+
+  for (size_t i = 0; i < controller_.internal_result_.size(); i++) {
+    const auto* match = controller_.internal_result_.match_at(i);
+
+    ASSERT_TRUE(match->zero_prefix_suggestions_shown_in_session);
+    ASSERT_TRUE(match->zero_prefix_search_suggestions_shown_in_session);
+    ASSERT_TRUE(match->zero_prefix_url_suggestions_shown_in_session);
+
+    ASSERT_TRUE(match->typed_search_suggestions_shown_in_session);
+    ASSERT_TRUE(match->typed_url_suggestions_shown_in_session);
+  }
 }
 
-TEST_F(AutocompleteControllerTest,
-       CompanyEntityImageNotRemoved_LeastAggressive) {
-  // Set feature flag and param.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeatureWithParameters(
-      omnibox::kCompanyEntityIconAdjustment,
-      {{OmniboxFieldTrial::kCompanyEntityIconAdjustmentGroup.name,
-        "least-aggressive"}});
+TEST_F(AutocompleteControllerTest, UpdateShownInSessionZeroPrefixThenTyped) {
   std::vector<AutocompleteMatch> matches;
-  // Entity is not the second suggestion. Entity's image should not be removed.
-  matches.push_back(
-      CreateHistoryURLMatch(/*destination_url=*/"https://www.wellsfargo.com/"));
-  matches.push_back(CreateSearchMatch());
-  matches.push_back(
-      CreateCompanyEntityMatch(/*website_uri=*/"https://www.wellsfargo.com/"));
 
+  AutocompleteInput zero_prefix_input(
+      u"", 0u, metrics::OmniboxEventProto::OTHER, TestSchemeClassifier());
+  zero_prefix_input.set_focus_type(
+      metrics::OmniboxFocusType::INTERACTION_FOCUS);
+  controller_.input_ = zero_prefix_input;
+
+  matches.push_back(CreateZeroPrefixSearchMatch(u"abc"));
   SetAutocompleteMatches(matches);
-  ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/2));
 
-  MaybeRemoveCompanyEntityImages();
-  // The entity's image_url should remain as is.
-  ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/2));
-  EXPECT_FALSE(
-      provider_client()
-          ->GetOmniboxTriggeredFeatureService()
-          ->GetFeatureTriggeredInSession(
-              metrics::OmniboxEventProto_Feature_COMPANY_ENTITY_ADJUSTMENT));
+  UpdateSearchboxStats();
+  UpdateShownInSession();
+
+  for (size_t i = 0; i < controller_.internal_result_.size(); i++) {
+    const auto* match = controller_.internal_result_.match_at(i);
+
+    ASSERT_TRUE(match->zero_prefix_suggestions_shown_in_session);
+    ASSERT_TRUE(match->zero_prefix_search_suggestions_shown_in_session);
+    ASSERT_FALSE(match->zero_prefix_url_suggestions_shown_in_session);
+
+    ASSERT_FALSE(match->typed_search_suggestions_shown_in_session);
+    ASSERT_FALSE(match->typed_url_suggestions_shown_in_session);
+  }
+
+  matches.push_back(CreateHistoryURLMatch(
+      /*destination_url=*/"https://www.abc.com/", /*is_zero_prefix=*/true));
+  SetAutocompleteMatches(matches);
+
+  UpdateSearchboxStats();
+  UpdateShownInSession();
+
+  for (size_t i = 0; i < controller_.internal_result_.size(); i++) {
+    const auto* match = controller_.internal_result_.match_at(i);
+
+    ASSERT_TRUE(match->zero_prefix_suggestions_shown_in_session);
+    ASSERT_TRUE(match->zero_prefix_search_suggestions_shown_in_session);
+    ASSERT_TRUE(match->zero_prefix_url_suggestions_shown_in_session);
+
+    ASSERT_FALSE(match->typed_search_suggestions_shown_in_session);
+    ASSERT_FALSE(match->typed_url_suggestions_shown_in_session);
+  }
+
+  matches.clear();
+
+  AutocompleteInput typed_input(u"abc", 3u, metrics::OmniboxEventProto::OTHER,
+                                TestSchemeClassifier());
+  controller_.input_ = typed_input;
+
+  matches.push_back(CreateSearchMatch(u"abc"));
+  SetAutocompleteMatches(matches);
+
+  UpdateSearchboxStats();
+  UpdateShownInSession();
+
+  for (size_t i = 0; i < controller_.internal_result_.size(); i++) {
+    const auto* match = controller_.internal_result_.match_at(i);
+
+    ASSERT_TRUE(match->zero_prefix_suggestions_shown_in_session);
+    ASSERT_TRUE(match->zero_prefix_search_suggestions_shown_in_session);
+    ASSERT_TRUE(match->zero_prefix_url_suggestions_shown_in_session);
+
+    ASSERT_TRUE(match->typed_search_suggestions_shown_in_session);
+    ASSERT_FALSE(match->typed_url_suggestions_shown_in_session);
+  }
+
+  matches.push_back(
+      CreateHistoryURLMatch(/*destination_url=*/"https://www.abc.com/"));
+  SetAutocompleteMatches(matches);
+
+  UpdateSearchboxStats();
+  UpdateShownInSession();
+
+  for (size_t i = 0; i < controller_.internal_result_.size(); i++) {
+    const auto* match = controller_.internal_result_.match_at(i);
+
+    ASSERT_TRUE(match->zero_prefix_suggestions_shown_in_session);
+    ASSERT_TRUE(match->zero_prefix_search_suggestions_shown_in_session);
+    ASSERT_TRUE(match->zero_prefix_url_suggestions_shown_in_session);
+
+    ASSERT_TRUE(match->typed_search_suggestions_shown_in_session);
+    ASSERT_TRUE(match->typed_url_suggestions_shown_in_session);
+  }
 }
 
-TEST_F(AutocompleteControllerTest, RemoveCompanyEntityImage_Moderate) {
-  // Set feature flag and param.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeatureWithParameters(
-      omnibox::kCompanyEntityIconAdjustment,
-      {{OmniboxFieldTrial::kCompanyEntityIconAdjustmentGroup.name,
-        "moderate"}});
+TEST_F(AutocompleteControllerTest, RemoveCompanyEntityImage) {
+  base::HistogramTester histogram_tester;
   std::vector<AutocompleteMatch> matches;
-  // In the moderate experiment group the historical match must be the first
-  // match and the company entity can be in any slot.
+  // To ablate entity image the historical match must be the first and the
+  // company entity can be in any other slot.
   matches.push_back(
       CreateHistoryURLMatch(/*destination_url=*/"https://www.wellsfargo.com/"));
   matches.push_back(CreateSearchMatch());
@@ -277,68 +276,68 @@ TEST_F(AutocompleteControllerTest, RemoveCompanyEntityImage_Moderate) {
 
   MaybeRemoveCompanyEntityImages();
   ASSERT_TRUE(ImageURLAndImageDominantColorIsEmpty(/*index=*/2));
-  EXPECT_TRUE(
-      provider_client()
-          ->GetOmniboxTriggeredFeatureService()
-          ->GetFeatureTriggeredInSession(
-              metrics::OmniboxEventProto_Feature_COMPANY_ENTITY_ADJUSTMENT));
+  histogram_tester.ExpectBucketCount("Omnibox.CompanyEntityImageAblated", true,
+                                     1);
 }
 
-TEST_F(AutocompleteControllerTest, CompanyEntityImageNotRemoved_Moderate) {
-  // Set feature flag and param.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeatureWithParameters(
-      omnibox::kCompanyEntityIconAdjustment,
-      {{OmniboxFieldTrial::kCompanyEntityIconAdjustmentGroup.name,
-        "moderate"}});
-  std::vector<AutocompleteMatch> matches;
+TEST_F(AutocompleteControllerTest, CompanyEntityImageNotRemoved) {
   // History match is not the first suggestion. Entity's image should not be
   // removed.
-  matches.push_back(
-      CreateCompanyEntityMatch(/*website_uri=*/"https://www.wellsfargo.com/"));
-  matches.push_back(
-      CreateHistoryURLMatch(/*destination_url=*/"https://www.wellsfargo.com/"));
-  matches.push_back(CreateSearchMatch());
+  {
+    base::HistogramTester histogram_tester;
+    std::vector<AutocompleteMatch> matches;
+    matches.push_back(CreateCompanyEntityMatch(
+        /*website_uri=*/"https://www.wellsfargo.com/"));
+    matches.push_back(CreateHistoryURLMatch(
+        /*destination_url=*/"https://www.wellsfargo.com/"));
+    matches.push_back(CreateSearchMatch());
 
-  SetAutocompleteMatches(matches);
-  ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/0));
+    SetAutocompleteMatches(matches);
+    ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/0));
 
-  MaybeRemoveCompanyEntityImages();
-  // The entity's image_url should remain as is.
-  ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/0));
-  EXPECT_FALSE(
-      provider_client()
-          ->GetOmniboxTriggeredFeatureService()
-          ->GetFeatureTriggeredInSession(
-              metrics::OmniboxEventProto_Feature_COMPANY_ENTITY_ADJUSTMENT));
-}
+    MaybeRemoveCompanyEntityImages();
+    // The entity's image_url should remain as is.
+    ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/0));
+    histogram_tester.ExpectBucketCount("Omnibox.CompanyEntityImageAblated",
+                                       false, 1);
+  }
 
-TEST_F(AutocompleteControllerTest, RemoveCompanyEntityImage_MostAggressive) {
-  // Set feature flag and param.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeatureWithParameters(
-      omnibox::kCompanyEntityIconAdjustment,
-      {{OmniboxFieldTrial::kCompanyEntityIconAdjustmentGroup.name,
-        "most-aggressive"}});
-  std::vector<AutocompleteMatch> matches;
-  // In the most aggressive experiment group both the historical match and
-  // company entity can be in any slot.
-  matches.push_back(
-      CreateCompanyEntityMatch(/*website_uri=*/"https://www.wellsfargo.com/"));
-  matches.push_back(CreateSearchMatch());
-  matches.push_back(
-      CreateHistoryURLMatch(/*destination_url=*/"https://www.wellsfargo.com/"));
+  // History match is the first suggestion, but there isn't a matching company
+  // entity.
+  {
+    base::HistogramTester histogram_tester;
+    std::vector<AutocompleteMatch> matches;
+    matches.push_back(CreateHistoryURLMatch(
+        /*destination_url=*/"https://www.wellsfargo.com/"));
+    matches.push_back(
+        CreateCompanyEntityMatch(/*website_uri=*/"https://www.weather.com/"));
 
-  SetAutocompleteMatches(matches);
-  ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/0));
+    SetAutocompleteMatches(matches);
+    ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/1));
 
-  MaybeRemoveCompanyEntityImages();
-  ASSERT_TRUE(ImageURLAndImageDominantColorIsEmpty(/*index=*/0));
-  EXPECT_TRUE(
-      provider_client()
-          ->GetOmniboxTriggeredFeatureService()
-          ->GetFeatureTriggeredInSession(
-              metrics::OmniboxEventProto_Feature_COMPANY_ENTITY_ADJUSTMENT));
+    MaybeRemoveCompanyEntityImages();
+    // The entity's image_url should remain as is.
+    ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/1));
+    histogram_tester.ExpectBucketCount("Omnibox.CompanyEntityImageAblated",
+                                       false, 1);
+  }
+  // There is a company entity, but no history match.
+  {
+    base::HistogramTester histogram_tester;
+    std::vector<AutocompleteMatch> matches;
+    matches.push_back(CreateSearchMatch());
+    matches.push_back(
+        CreateCompanyEntityMatch(/*website_uri=*/"https://www.weather.com/"));
+
+    SetAutocompleteMatches(matches);
+    ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/1));
+
+    MaybeRemoveCompanyEntityImages();
+    // The entity's image_url should remain as is.
+    ASSERT_FALSE(ImageURLAndImageDominantColorIsEmpty(/*index=*/1));
+    histogram_tester.ExpectBucketCount("Omnibox.CompanyEntityImageAblated",
+                                       false, 1);
+  }
 }
 
 // Desktop has some special handling for bare '@' inputs.
@@ -667,7 +666,7 @@ TEST_F(AutocompleteControllerTest, UpdateResult_ZPSEnabledAndShownInSession) {
 
   // Create a zero-suggest input.
   auto zps_input = FakeAutocompleteController::CreateInput(u"");
-  zps_input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_CLOBBER);
+  zps_input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_FOCUS);
 
   {
     SCOPED_TRACE("Zero-prefix suggestions are offered synchronously");
@@ -828,7 +827,6 @@ TEST_F(AutocompleteControllerTest, MlRanking) {
   OmniboxFieldTrial::ScopedMLConfigForTesting scoped_ml_config;
   scoped_ml_config.GetMLConfig().ml_url_scoring = true;
   scoped_ml_config.GetMLConfig().url_scoring_model = true;
-  scoped_ml_config.GetMLConfig().stable_search_blending = false;
 
   EXPECT_THAT(controller_.SimulateCleanAutocompletePass({}),
               testing::ElementsAre());
@@ -1065,180 +1063,291 @@ TEST_F(AutocompleteControllerTest, MlRanking) {
       }));
 }
 
-TEST_F(AutocompleteControllerTest, MlRanking_StableSearchRanking) {
+TEST_F(AutocompleteControllerTest, MlRanking_ApplyPiecewiseScoringTransform) {
+  const std::vector<std::pair<double, int>> break_points = {
+      {0, 500}, {0.25, 1000}, {0.75, 1300}, {1, 1500}};
+
+  float ml_score = 0;
+  EXPECT_EQ(AutocompleteController::ApplyPiecewiseScoringTransform(
+                ml_score, break_points),
+            500);
+
+  ml_score = 0.186;
+  EXPECT_EQ(AutocompleteController::ApplyPiecewiseScoringTransform(
+                ml_score, break_points),
+            872);
+
+  ml_score = 0.25;
+  EXPECT_EQ(AutocompleteController::ApplyPiecewiseScoringTransform(
+                ml_score, break_points),
+            1000);
+
+  ml_score = 0.473;
+  EXPECT_EQ(AutocompleteController::ApplyPiecewiseScoringTransform(
+                ml_score, break_points),
+            1133);
+
+  ml_score = 0.75;
+  EXPECT_EQ(AutocompleteController::ApplyPiecewiseScoringTransform(
+                ml_score, break_points),
+            1300);
+
+  ml_score = 0.914;
+  EXPECT_EQ(AutocompleteController::ApplyPiecewiseScoringTransform(
+                ml_score, break_points),
+            1431);
+
+  ml_score = 1;
+  EXPECT_EQ(AutocompleteController::ApplyPiecewiseScoringTransform(
+                ml_score, break_points),
+            1500);
+}
+
+TEST_F(AutocompleteControllerTest, MlRanking_PiecewiseMappedSearchBlending) {
   OmniboxFieldTrial::ScopedMLConfigForTesting scoped_ml_config;
   scoped_ml_config.GetMLConfig().ml_url_scoring = true;
   scoped_ml_config.GetMLConfig().url_scoring_model = true;
-  scoped_ml_config.GetMLConfig().stable_search_blending = true;
+  scoped_ml_config.GetMLConfig().piecewise_mapped_search_blending = true;
+
+  scoped_ml_config.GetMLConfig().piecewise_mapped_search_blending_break_points =
+      "0,500;0.25,1000;0.75,1300;1,1500";
+  scoped_ml_config.GetMLConfig()
+      .piecewise_mapped_search_blending_grouping_threshold = 1100;
+  scoped_ml_config.GetMLConfig()
+      .piecewise_mapped_search_blending_relevance_bias = 0;
 
   EXPECT_THAT(controller_.SimulateCleanAutocompletePass({}),
               testing::ElementsAre());
 
-  // Even if ML ranks a URL 0, it should still use traditional scores.
-  EXPECT_THAT(controller_.SimulateCleanAutocompletePass({
-                  CreateHistoryUrlMlScoredMatch("history", true, 1400, 0),
-                  CreateSearchMatch("search", true, 1300),
-              }),
-              testing::ElementsAreArray({
-                  "history",
-                  "search",
-              }));
-
-  // Simple case of redistributing ranking among only URLs.
+  // If a (remote) document suggestion has a traditional score of zero, then the
+  // final relevance score should remain zero (instead of using the piecewise ML
+  // score mapping function to overwrite the relevance score). This will result
+  // in the document suggestion getting culled from the final list of
+  // suggestions.
+  const auto type = AutocompleteMatchType::DOCUMENT_SUGGESTION;
   EXPECT_THAT(
       controller_.SimulateCleanAutocompletePass({
-          CreateHistoryUrlMlScoredMatch("history 1350 .5", true, 1350, .5),
-          CreateSearchMatch("search 1400", false, 1400),
-          CreateSearchMatch("search 800", true, 800),
-          CreateSearchMatch("search 600", false, 600),
-          CreateHistoryUrlMlScoredMatch("history 1200 .9", true, 1200, .9),
-          CreateHistoryUrlMlScoredMatch("history 1100 .1", false, 1100, .1),
-          CreateHistoryUrlMlScoredMatch("history 500 .2", true, 500, .2),
+          // Final score: 1000
+          CreateMlScoredMatch("document 1400 0.25", type, false, 1400, 0.25),
+          // Final score: 0 (!= 1500)
+          CreateMlScoredMatch("document 0 0.95", type, false, 0, 1),
+          // Final score: 1300
+          CreateMlScoredMatch("document 1200 0.75", type, false, 1200, 0.75),
       }),
       testing::ElementsAreArray({
-          "history 1200 .9",
-          "search 1400",
-          "search 800",
-          "search 600",
-          "history 1350 .5",
-          "history 500 .2",
-          "history 1100 .1",
+          "document 1200 0.75",
+          "document 1400 0.25",
+      }));
+
+  scoped_ml_config.GetMLConfig().enable_ml_scoring_for_searches = true;
+  // Calculator and Answer suggestions should not be ML scored at this time,
+  // since the ML model doesn't assign accurate scores to such suggestions
+  // (due to the fact that they have a low click-through rate).
+  std::string answer_json =
+      "{ \"l\": ["
+      "  { \"il\": { \"t\": [{ \"t\": \"text\", \"tt\": 8 }] } }, "
+      "  { \"il\": { \"t\": [{ \"t\": \"sunny with a chance of hail\", "
+      "\"tt\": "
+      "5 }] } }] }";
+  EXPECT_THAT(
+      controller_.SimulateCleanAutocompletePass({
+          // Final score: 1100 (!= 1300)
+          CreateAnswerMlScoredMatch("answer 1100 0.75",
+                                    omnibox::ANSWER_TYPE_WEATHER, answer_json,
+                                    false, 1100, 0.75),
+          // Final score: 1000 (!= 1500)
+          CreateMlScoredMatch("calculator 1000 0.95",
+                              AutocompleteMatchType::CALCULATOR, false, 1000,
+                              1),
+          // Final score: 1431
+          CreateHistoryUrlMlScoredMatch("history 500 0.914", true, 500, 0.914),
+      }),
+      testing::ElementsAreArray({
+          "history 500 0.914",
+          "answer 1100 0.75",
+          "calculator 1000 0.95",
+      }));
+  scoped_ml_config.GetMLConfig().enable_ml_scoring_for_searches = false;
+
+  // Simple case of ranking with piecewise score mapping. The ML
+  // scores used here are the same as those specified in the
+  // `MlRanking_ApplyPiecewiseScoringTransform` test for the sake of simplicity.
+  EXPECT_THAT(
+      controller_.SimulateCleanAutocompletePass({
+          // Final score: 1133
+          CreateHistoryUrlMlScoredMatch("history 1350 .473", true, 1350, .473),
+          // Final score: 1431
+          CreateHistoryUrlMlScoredMatch("history 1200 .914", true, 1200, .914),
+          // Final score: 872
+          CreateHistoryUrlMlScoredMatch("history 1100 .186", false, 1100, .186),
+          // Final score: 1000
+          CreateHistoryUrlMlScoredMatch("history 500 .25", true, 500, .25),
+      }),
+      testing::ElementsAreArray({
+          "history 1200 .914",
+          "history 1350 .473",
+          "history 500 .25",
+          "history 1100 .186",
+      }));
+
+  scoped_refptr<FakeAutocompleteProvider> shortcut_provider =
+      new FakeAutocompleteProvider(AutocompleteProvider::Type::TYPE_SHORTCUTS);
+
+  auto shortcut_match = CreateMlScoredMatch(
+      "shortcut 600 0.75", AutocompleteMatchType::HISTORY_URL, true, 600, 0.75);
+  shortcut_match.provider = shortcut_provider.get();
+
+  // Non-boosted shortcut suggestions should be ranked BELOW searches.
+  shortcut_match.scoring_signals->set_visit_count(0);
+  EXPECT_THAT(
+      controller_.SimulateCleanAutocompletePass({
+          // Final score: 1431
+          CreateHistoryUrlMlScoredMatch("history 1200 .914", true, 1200, .914),
+          // Final score: 700
+          CreateSearchMatch("search 700", true, 700),
+          // Final score: 1300
+          shortcut_match,
+      }),
+      testing::ElementsAreArray({
+          "history 1200 .914",
+          "search 700",
+          "shortcut 600 0.75",
+      }));
+
+  // Boosted shortcut suggestions should be ranked ABOVE searches.
+  shortcut_match.scoring_signals->set_visit_count(5);
+  EXPECT_THAT(
+      controller_.SimulateCleanAutocompletePass({
+          // Final score: 1431
+          CreateHistoryUrlMlScoredMatch("history 1200 .914", true, 1200, .914),
+          // Final score: 700
+          CreateSearchMatch("search 700", true, 700),
+          // Final score: 1300
+          shortcut_match,
+      }),
+      testing::ElementsAreArray({
+          "history 1200 .914",
+          "shortcut 600 0.75",
+          "search 700",
+      }));
+
+  // ...unless their final relevance score (obtained via piecewise ML scoring)
+  // is below the "grouping threshold".
+  shortcut_match = CreateMlScoredMatch(
+      "shortcut 600 0.25", AutocompleteMatchType::HISTORY_URL, true, 600, 0.25);
+  shortcut_match.provider = shortcut_provider.get();
+  shortcut_match.scoring_signals->set_visit_count(5);
+  EXPECT_THAT(
+      controller_.SimulateCleanAutocompletePass({
+          // Final score: 1431
+          CreateHistoryUrlMlScoredMatch("history 1200 .914", true, 1200, .914),
+          // Final score: 700
+          CreateSearchMatch("search 700", true, 700),
+          // Final score: 1000
+          shortcut_match,
+      }),
+      testing::ElementsAreArray({
+          "history 1200 .914",
+          "search 700",
+          "shortcut 600 0.25",
+      }));
+
+  // In general, URL suggestions are NOT "shortcut boosted" above searches even
+  // when they're scored higher via ML scoring.
+  EXPECT_THAT(
+      controller_.SimulateCleanAutocompletePass({
+          // Final score: 1431
+          CreateHistoryUrlMlScoredMatch("history 1200 .914", true, 1200, .914),
+          // Final score: 700
+          CreateSearchMatch("search 700", true, 700),
+          // Final score: 1300
+          CreateHistoryUrlMlScoredMatch("history 1100 .75", true, 1100, .75),
+      }),
+      testing::ElementsAreArray({
+          "history 1200 .914",
+          "search 700",
+          "history 1100 .75",
       }));
 
   // When multiple URL suggestions have been assigned the same score by the ML
   // model, those suggestions which were top-ranked according to legacy scoring
   // should continue to be top-ranked once ML scoring has run.
   EXPECT_THAT(
+      // Each of the below URL suggestions are assigned an initial relevance
+      // score of 1300. After initial assignment,
+      // score adjustment logic is applied in order to generate the final
+      // relevance scores (which are guaranteed to be distinct).
       controller_.SimulateCleanAutocompletePass({
-          CreateHistoryUrlMlScoredMatch("history B 1200 .2", true, 1200, .2),
-          CreateHistoryUrlMlScoredMatch("history E 200 .2", true, 200, .2),
-          CreateHistoryUrlMlScoredMatch("history A 1350 .2", true, 1350, .2),
-          CreateHistoryUrlMlScoredMatch("history D 300 .2", true, 300, .2),
-          CreateHistoryUrlMlScoredMatch("history C 1100 .2", false, 1100, .2),
-          CreateHistoryUrlMlScoredMatch("history F 100 .2", true, 100, .2),
+          // Final score: 1299
+          CreateHistoryUrlMlScoredMatch("history B 1200 .75", true, 1200, .75),
+          // Final score: 1296
+          CreateHistoryUrlMlScoredMatch("history E 200 .75", true, 200, .75),
+          // Final score: 1300
+          CreateHistoryUrlMlScoredMatch("history A 1350 .75", true, 1350, .75),
+          // Final score: 1297
+          CreateHistoryUrlMlScoredMatch("history D 300 .75", true, 300, .75),
+          // Final score: 1298
+          CreateHistoryUrlMlScoredMatch("history C 1100 .75", false, 1100, .75),
+          // Final score: 1295
+          CreateHistoryUrlMlScoredMatch("history F 100 .75", true, 100, .75),
       }),
       testing::ElementsAreArray({
-          "history A 1350 .2",
-          "history B 1200 .2",
-          "history C 1100 .2",
-          "history D 300 .2",
-          "history E 200 .2",
-          "history F 100 .2",
+          "history A 1350 .75",
+          "history B 1200 .75",
+          "history C 1100 .75",
+          "history D 300 .75",
+          "history E 200 .75",
+          "history F 100 .75",
       }));
 
   // Can change the default suggestion from 1 history to another.
   EXPECT_THAT(
       controller_.SimulateCleanAutocompletePass({
-          CreateHistoryUrlMlScoredMatch("history 1400 .5", true, 1400, .5),
-          CreateSearchMatch("search", true, 1300),
-          CreateHistoryUrlMlScoredMatch("history 1200 .9", true, 1200, .9),
+          // Final score: 1000
+          CreateHistoryUrlMlScoredMatch("history 1400 .25", true, 1400, .25),
+          CreateSearchMatch("search", true, 1100),
+          // Final score: 1300
+          CreateHistoryUrlMlScoredMatch("history 1200 .75", true, 1200, .75),
       }),
       testing::ElementsAreArray({
-          "history 1200 .9",
+          "history 1200 .75",
           "search",
-          "history 1400 .5",
+          "history 1400 .25",
       }));
 
-  // Can not change the default from search to history.
+  // Can change the default from search to history.
   EXPECT_THAT(
       controller_.SimulateCleanAutocompletePass({
-          CreateSearchMatch("search 1300", true, 1300),
-          CreateHistoryUrlMlScoredMatch("history 1400 .5", false, 1400, .5),
-          CreateHistoryUrlMlScoredMatch("history 1200 .9", true, 1200, .9),
-      }),
-      testing::ElementsAreArray({
-          "search 1300",
-          "history 1200 .9",
-          "history 1400 .5",
-      }));
-
-  // Can not change the default from history to search.
-  EXPECT_THAT(
-      controller_.SimulateCleanAutocompletePass({
-          CreateHistoryUrlMlScoredMatch("history 1400 .5", true, 1400, .5),
-          CreateSearchMatch("search 1300", true, 1300),
-          CreateHistoryUrlMlScoredMatch("history 1200 .9", false, 1200, .9),
-      }),
-      testing::ElementsAreArray({
-          "history 1400 .5",
-          "search 1300",
-          "history 1200 .9",
-      }));
-
-  // Can redistribute shortcut boosting to non-shortcuts.
-  EXPECT_THAT(
-      controller_.SimulateCleanAutocompletePass({
-          CreateSearchMatch("search 1300", true, 1300),
-          CreateBoostedShortcutMatch("shortcut 1000 .1", 1000, .1),
           CreateSearchMatch("search 1200", true, 1200),
-          CreateHistoryUrlMlScoredMatch("history 1400 .9", false, 1400, .9),
-          CreateHistoryUrlMlScoredMatch("history 1100 .5", true, 1100, .5),
+          // Final score: 1000
+          CreateHistoryUrlMlScoredMatch("history 1400 .25", false, 1400, .25),
+          // Final score: 1300
+          CreateHistoryUrlMlScoredMatch("history 1100 .75", true, 1100, .75),
       }),
       testing::ElementsAreArray({
-          "search 1300",
-          "history 1400 .9",
+          "history 1100 .75",
           "search 1200",
-          "history 1100 .5",
-          "shortcut 1000 .1",
+          "history 1400 .25",
       }));
 
-  // Can not 'consume' shortcut boosting by assigning it to a match that's
-  // becoming default.
+  // Can change the default from history to search.
   EXPECT_THAT(
       controller_.SimulateCleanAutocompletePass({
-          CreateHistoryUrlMlScoredMatch("history 1400 .5", true, 1400, .5),
-          CreateBoostedShortcutMatch("shortcut 1000 .1", 1000, .1),
+          // Final score: 1000
+          CreateHistoryUrlMlScoredMatch("history 1400 .25", true, 1400, .25),
           CreateSearchMatch("search 1300", true, 1300),
-          CreateSearchMatch("search 1200", true, 1200),
-          CreateHistoryUrlMlScoredMatch("history 1100 .9", true, 1100, .9),
+          // Final score: 872
+          CreateHistoryUrlMlScoredMatch("history 1200 .186", false, 1200, .186),
       }),
       testing::ElementsAreArray({
-          "history 1100 .9",
-          "history 1400 .5",
           "search 1300",
-          "search 1200",
-          "shortcut 1000 .1",
-      }));
-
-  // Can not 'consume' shortcut boosting by leaving it to a shortcut that's
-  // becoming default.
-  EXPECT_THAT(
-      controller_.SimulateCleanAutocompletePass({
-          CreateHistoryUrlMlScoredMatch("history 1400 .5", true, 1400, .5),
-          CreateBoostedShortcutMatch("shortcut 1000 .9", 1000, .9),
-          CreateSearchMatch("search 1300", true, 1300),
-          CreateSearchMatch("search 1200", true, 1200),
-          CreateHistoryUrlMlScoredMatch("history 1100 .1", true, 1100, .1),
-      }),
-      testing::ElementsAreArray({
-          "shortcut 1000 .9",
-          "history 1400 .5",
-          "search 1300",
-          "search 1200",
-          "history 1100 .1",
-      }));
-
-  // Can not redistribute a no-op boosted shortcut (i.e. a boosted shortcut that
-  // was default).
-  EXPECT_THAT(
-      controller_.SimulateCleanAutocompletePass({
-          CreateBoostedShortcutMatch("shortcut 1400 .1", 1400, .1),
-          CreateSearchMatch("search 1300", true, 1300),
-          CreateSearchMatch("search 1200", true, 1200),
-          CreateHistoryUrlMlScoredMatch("history 1100 .9", true, 1100, .9),
-          CreateHistoryUrlMlScoredMatch("history 1000 .5", true, 1000, .5),
-      }),
-      testing::ElementsAreArray({
-          "history 1100 .9",
-          "search 1300",
-          "search 1200",
-          "history 1000 .5",
-          "shortcut 1400 .1",
+          "history 1400 .25",
+          "history 1200 .186",
       }));
 
   // When transferring matches, culls the lowest ML ranked matches, rather than
   // the lowest traditional ranked matches.
-  controller_.internal_result_.ClearMatches();
+  controller_.internal_result_.Reset();
   EXPECT_THAT(
       controller_.SimulateAutocompletePass(
           true, false,
@@ -1250,8 +1359,8 @@ TEST_F(AutocompleteControllerTest, MlRanking_StableSearchRanking) {
               CreateSearchMatch("search 1230", true, 1230),
               CreateSearchMatch("search 1220", true, 1220),
               CreateSearchMatch("search 1210", true, 1210),
-              CreateHistoryUrlMlScoredMatch("history 1100 .5", true, 1100, .5),
-              CreateHistoryUrlMlScoredMatch("history 1000 .9", true, 1000, .9),
+              CreateHistoryUrlMlScoredMatch("history 1100 .1", true, 1100, .1),
+              CreateHistoryUrlMlScoredMatch("history 1000 .2", true, 1000, .2),
           }),
       testing::ElementsAreArray({
           "search 1270",
@@ -1261,7 +1370,7 @@ TEST_F(AutocompleteControllerTest, MlRanking_StableSearchRanking) {
           "search 1230",
           "search 1220",
           "search 1210",
-          "history 1000 .9",
+          "history 1000 .2",
       }));
 
   // When not transferring matches, like above, culls the lowest ML ranked
@@ -1275,8 +1384,8 @@ TEST_F(AutocompleteControllerTest, MlRanking_StableSearchRanking) {
           CreateSearchMatch("search 1230", true, 1230),
           CreateSearchMatch("search 1220", true, 1220),
           CreateSearchMatch("search 1210", true, 1210),
-          CreateHistoryUrlMlScoredMatch("history 1100 .5", true, 1100, .5),
-          CreateHistoryUrlMlScoredMatch("history 1000 .9", true, 1000, .9),
+          CreateHistoryUrlMlScoredMatch("history 1100 .1", true, 1100, .1),
+          CreateHistoryUrlMlScoredMatch("history 1000 .2", true, 1000, .2),
       }),
       testing::ElementsAreArray({
           "search 1270",
@@ -1286,7 +1395,7 @@ TEST_F(AutocompleteControllerTest, MlRanking_StableSearchRanking) {
           "search 1230",
           "search 1220",
           "search 1210",
-          "history 1000 .9",
+          "history 1000 .2",
       }));
 }
 
@@ -1427,8 +1536,7 @@ TEST_F(AutocompleteControllerTest, MlRanking_MappedSearchBlending) {
           "history 1400 .2",
       }));
 
-  // Can change the default from search to history (unlike StableSearchRanking
-  // variant).
+  // Can change the default from search to history.
   EXPECT_THAT(
       controller_.SimulateCleanAutocompletePass({
           CreateSearchMatch("search 1200", true, 1200),
@@ -1443,8 +1551,7 @@ TEST_F(AutocompleteControllerTest, MlRanking_MappedSearchBlending) {
           "history 1400 .2",
       }));
 
-  // Can change the default from history to search (unlike StableSearchRanking
-  // variant).
+  // Can change the default from history to search.
   EXPECT_THAT(
       controller_.SimulateCleanAutocompletePass({
           // Final score: 1040 (== 600 + 0.2 * (2800 - 600))
@@ -1517,9 +1624,18 @@ TEST_F(AutocompleteControllerTest, UpdateResult_MLRanking_PreserveDefault) {
   OmniboxFieldTrial::ScopedMLConfigForTesting scoped_ml_config;
   scoped_ml_config.GetMLConfig().ml_url_scoring = true;
   scoped_ml_config.GetMLConfig().url_scoring_model = true;
-  scoped_ml_config.GetMLConfig().stable_search_blending = true;
+  scoped_ml_config.GetMLConfig().mapped_search_blending = true;
+
+  scoped_ml_config.GetMLConfig().mapped_search_blending_min = 600;
+  scoped_ml_config.GetMLConfig().mapped_search_blending_max = 2800;
+  scoped_ml_config.GetMLConfig().mapped_search_blending_grouping_threshold =
+      1400;
 
   // ML ranking should preserve search defaults.
+  // In other words, if the autocomplete controller starts off by listing
+  // "search 1300" as the (top-ranked) default suggestion, then "search 1300"
+  // should remain the default suggestion (even though "history 1400" has been
+  // added to the list of suggestions).
   EXPECT_THAT(controller_.SimulateAutocompletePass(
                   true, true,
                   {
@@ -1541,6 +1657,10 @@ TEST_F(AutocompleteControllerTest, UpdateResult_MLRanking_PreserveDefault) {
       }));
 
   // ML ranking should preserve non-search defaults.
+  // In other words, if the autocomplete controller starts off by listing
+  // "history 1300" as the (top-ranked) default suggestion, then "history 1300"
+  // should remain the default suggestion (even though "history 1500" and
+  // "search 1400" have been added to the list of suggestions).
   EXPECT_THAT(
       controller_.SimulateAutocompletePass(
           true, true,
@@ -1560,8 +1680,8 @@ TEST_F(AutocompleteControllerTest, UpdateResult_MLRanking_PreserveDefault) {
           }),
       testing::ElementsAreArray({
           "history 1300",
-          "search 1400",
           "history 1500",
+          "search 1400",
       }));
 }
 
@@ -1569,7 +1689,12 @@ TEST_F(AutocompleteControllerTest, UpdateResult_MLRanking_AllMatches) {
   OmniboxFieldTrial::ScopedMLConfigForTesting scoped_ml_config;
   scoped_ml_config.GetMLConfig().ml_url_scoring = true;
   scoped_ml_config.GetMLConfig().url_scoring_model = true;
-  scoped_ml_config.GetMLConfig().stable_search_blending = true;
+  scoped_ml_config.GetMLConfig().mapped_search_blending = true;
+
+  scoped_ml_config.GetMLConfig().mapped_search_blending_min = 600;
+  scoped_ml_config.GetMLConfig().mapped_search_blending_max = 2800;
+  scoped_ml_config.GetMLConfig().mapped_search_blending_grouping_threshold =
+      1400;
 
   EXPECT_THAT(
       controller_.SimulateAutocompletePass(
@@ -1754,7 +1879,7 @@ TEST_F(AutocompleteControllerTest, ExplicitStop) {
         "`OnResultChanged()` - there's no change to notify of.");
     controller_.SimulateAutocompletePass(true, false, matches);
     controller_.Stop(false);
-    controller_.ExpectStopAfter(0);
+    controller_.ExpectStopAfter(0, true);
     EXPECT_FALSE(controller_.published_result_.empty());
     controller_.ExpectNoNotificationOrStop();
   }
@@ -1767,7 +1892,7 @@ TEST_F(AutocompleteControllerTest, ExplicitStop) {
     controller_.SimulateAutocompletePass(false, false, matches);
     controller_.Stop(false);
     EXPECT_FALSE(controller_.published_result_.empty());
-    controller_.ExpectStopAfter(0);
+    controller_.ExpectStopAfter(0, true);
     controller_.ExpectNoNotificationOrStop();
   }
   {
@@ -1907,6 +2032,10 @@ TEST_F(AutocompleteControllerTest, ExtraHeaders) {
         std::make_unique<TemplateURL>(std::move(*turl_data)));
   }
 
+  const std::string expected_gemini_url =
+      "https://gemini.google.com/prompt?"
+      "utm_source=chrome_omnibox&utm_medium=owned&utm_campaign=gemini_shortcut";
+
   {
     SCOPED_TRACE("@gemini starter pack match gets an extra header.");
     auto match = CreateStarterPackMatch(u"@gemini");
@@ -1916,7 +2045,7 @@ TEST_F(AutocompleteControllerTest, ExtraHeaders) {
 
     controller_.SetMatchDestinationURL(&match);
     EXPECT_EQ(match.extra_headers, "X-Omnibox-Gemini:search%20term");
-    EXPECT_EQ(match.destination_url, "https://gemini.google.com/prompt");
+    EXPECT_EQ(match.destination_url, expected_gemini_url);
   }
   {
     SCOPED_TRACE("@gemini starter pack match with url override");
@@ -1944,7 +2073,7 @@ TEST_F(AutocompleteControllerTest, ExtraHeaders) {
 
     controller_.SetMatchDestinationURL(&match);
     EXPECT_EQ(match.extra_headers, "X-Omnibox-Gemini:search%20term%0A");
-    EXPECT_EQ(match.destination_url, "https://gemini.google.com/prompt");
+    EXPECT_EQ(match.destination_url, expected_gemini_url);
   }
   {
     SCOPED_TRACE("@gemini starter pack with url in the input");
@@ -1956,7 +2085,7 @@ TEST_F(AutocompleteControllerTest, ExtraHeaders) {
     controller_.SetMatchDestinationURL(&match);
     EXPECT_EQ(match.extra_headers,
               "X-Omnibox-Gemini:what%20is%20http%3A%2F%2Fexample.com%20for%3F");
-    EXPECT_EQ(match.destination_url, "https://gemini.google.com/prompt");
+    EXPECT_EQ(match.destination_url, expected_gemini_url);
   }
   {
     SCOPED_TRACE("@gemini starter pack with non-ascii input");
@@ -1969,7 +2098,7 @@ TEST_F(AutocompleteControllerTest, ExtraHeaders) {
     EXPECT_EQ(
         match.extra_headers,
         "X-Omnibox-Gemini:%E3%81%93%E3%82%93%E3%81%AB%E3%81%A1%E3%81%AF%0A");
-    EXPECT_EQ(match.destination_url, "https://gemini.google.com/prompt");
+    EXPECT_EQ(match.destination_url, expected_gemini_url);
   }
   {
     SCOPED_TRACE("@bookmarks starter pack match does not get an extra header.");
@@ -1992,17 +2121,7 @@ TEST_F(AutocompleteControllerTest, ExtraHeaders) {
   }
 }
 
-TEST_F(AutocompleteControllerTest, ShouldRunProvider) {
-  // Disable LimitKeywordModeSuggestions flag.
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatureState(
-      omnibox_feature_configs::LimitKeywordModeSuggestions::
-          kLimitKeywordModeSuggestions,
-      false);
-  omnibox_feature_configs::ScopedConfigForTesting<
-      omnibox_feature_configs::LimitKeywordModeSuggestions>
-      scoped_config;
-
+TEST_F(AutocompleteControllerTest, ShouldRunProvider_StarterPack) {
   std::set<AutocompleteProvider::Type> expected_provider_types;
   AutocompleteInput input(u"a", 1u, metrics::OmniboxEventProto::OTHER,
                           TestSchemeClassifier());
@@ -2024,16 +2143,9 @@ TEST_F(AutocompleteControllerTest, ShouldRunProvider) {
         << AutocompleteProvider::TypeToString(provider->type());
   }
 
-  // In keyword mode but not starter pack, LimitkeywordModeSuggestions disabled,
-  // run all providers except open tab provider.
+  // Enter keyword mode.
   controller_.input_.set_keyword_mode_entry_method(
       metrics::OmniboxEventProto_KeywordModeEntryMethod_TAB);
-  for (auto& provider : controller_.providers()) {
-    EXPECT_EQ(controller_.ShouldRunProvider(provider.get()),
-              provider->type() != AutocompleteProvider::TYPE_OPEN_TAB)
-        << "Provider Type: "
-        << AutocompleteProvider::TypeToString(provider->type());
-  }
 
   // In @tabs, run search, keyword, and open tab provider only.
   controller_.input_.UpdateText(u"@tabs", 0, {});
@@ -2075,16 +2187,6 @@ TEST_F(AutocompleteControllerTest, ShouldRunProvider) {
 
 TEST_F(AutocompleteControllerTest,
        ShouldRunProvider_LimitKeywordModeSuggestions) {
-  // Enable LimitKeywordModeSuggestions flag.
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatureState(
-      omnibox_feature_configs::LimitKeywordModeSuggestions::
-          kLimitKeywordModeSuggestions,
-      true);
-  omnibox_feature_configs::ScopedConfigForTesting<
-      omnibox_feature_configs::LimitKeywordModeSuggestions>
-      scoped_config;
-
   std::set<AutocompleteProvider::Type> excluded_provider_types;
   AutocompleteInput input(u"a", 1u, metrics::OmniboxEventProto::OTHER,
                           TestSchemeClassifier());
@@ -2115,7 +2217,7 @@ TEST_F(AutocompleteControllerTest,
   }
 
   // In keyword mode, all limit provider params on by default, limit document
-  //  and history cluster suggestions as well.
+  // and history cluster suggestions as well.
   controller_.input_.UpdateText(u"keyword", 0, {});
   controller_.input_.set_keyword_mode_entry_method(
       metrics::OmniboxEventProto_KeywordModeEntryMethod_TAB);
@@ -2137,24 +2239,6 @@ TEST_F(AutocompleteControllerTest,
       AutocompleteProvider::TYPE_OPEN_TAB,
       AutocompleteProvider::TYPE_HISTORY_CLUSTER_PROVIDER,
       AutocompleteProvider::TYPE_ON_DEVICE_HEAD};
-  for (auto& provider : controller_.providers()) {
-    EXPECT_NE(controller_.ShouldRunProvider(provider.get()),
-              excluded_provider_types.contains(provider->type()))
-        << "Provider Type: "
-        << AutocompleteProvider::TypeToString(provider->type());
-  }
-
-  // Turn off param to limit history cluster and document suggestions, ensure
-  // they're run.
-  scoped_feature_list.Reset();
-  scoped_feature_list.InitAndEnableFeatureWithParameters(
-      omnibox_feature_configs::LimitKeywordModeSuggestions::
-          kLimitKeywordModeSuggestions,
-      {{"LimitHistoryClusterSuggestions", "false"}});
-  scoped_config.Reset();
-  controller_.input_.UpdateText(u"keyword", 0, {});
-  excluded_provider_types = {AutocompleteProvider::TYPE_OPEN_TAB,
-                             AutocompleteProvider::TYPE_DOCUMENT};
   for (auto& provider : controller_.providers()) {
     EXPECT_NE(controller_.ShouldRunProvider(provider.get()),
               excluded_provider_types.contains(provider->type()))
@@ -2208,5 +2292,624 @@ TEST_F(AutocompleteControllerTest, ShouldRunProvider_LensSearchbox) {
               expected_provider_types.contains(provider->type()))
         << "Provider Type: "
         << AutocompleteProvider::TypeToString(provider->type());
+  }
+}
+
+// The EnterpriseSearchAggregatorProvider is only run on desktop.
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
+    BUILDFLAG(IS_CHROMEOS)
+TEST_F(AutocompleteControllerTest,
+       ShouldRunProvider_EnterpriseSearchAggregator) {
+  // Populate template URL service.
+  auto add_template_url = [&](const std::string& name,
+                              TemplateURLData::PolicyOrigin policy_origin,
+                              bool featured) {
+    TemplateURLData data;
+    data.SetShortName(base::UTF8ToUTF16(name));
+    data.SetKeyword(base::UTF8ToUTF16(name));
+    data.SetURL("https://" + name + ".com/q={searchTerms}");
+    data.policy_origin = policy_origin;
+    data.featured_by_policy = featured;
+    controller_.template_url_service_->Add(std::make_unique<TemplateURL>(data));
+  };
+
+  add_template_url("site_search_not_featured",
+                   TemplateURLData::PolicyOrigin::kSiteSearch, false);
+  add_template_url("site_search_featured",
+                   TemplateURLData::PolicyOrigin::kSiteSearch, true);
+  add_template_url("aggregator_not_featured",
+                   TemplateURLData::PolicyOrigin::kSearchAggregator, false);
+  add_template_url("aggregator_featured",
+                   TemplateURLData::PolicyOrigin::kSearchAggregator, true);
+
+  // Setup the providers.
+  auto aggregator_provider = base::MakeRefCounted<FakeAutocompleteProvider>(
+      AutocompleteProvider::Type::TYPE_ENTERPRISE_SEARCH_AGGREGATOR);
+  controller_.providers_.push_back(aggregator_provider);
+  auto document_provider = base::MakeRefCounted<FakeAutocompleteProvider>(
+      AutocompleteProvider::Type::TYPE_DOCUMENT);
+  controller_.providers_.push_back(document_provider);
+
+  // In unscoped mode (not keyword mode), aggregator is run when
+  // `require_shortcut` policy field is false, and is not run when
+  // `require_shortcut` policy field is true. When it is run, the document
+  // provider should not be run and vice versa.
+  controller_.input_ = AutocompleteInput(
+      u"query", 1u, metrics::OmniboxEventProto::OTHER, TestSchemeClassifier());
+  EXPECT_TRUE(controller_.ShouldRunProvider(aggregator_provider.get()));
+  EXPECT_FALSE(controller_.ShouldRunProvider(document_provider.get()));
+
+  pref_service()->SetManagedPref(
+      EnterpriseSearchManager::
+          kEnterpriseSearchAggregatorSettingsRequireShortcutPrefName,
+      base::Value(true));
+  EXPECT_FALSE(controller_.ShouldRunProvider(aggregator_provider.get()));
+  EXPECT_TRUE(controller_.ShouldRunProvider(document_provider.get()));
+
+  // If the feature param `disable_drive` is false, then the document provider
+  // should run regardless of whether the aggregator provider is ran.
+  omnibox_feature_configs::ScopedConfigForTesting<
+      omnibox_feature_configs::SearchAggregatorProvider>
+      scoped_config;
+  scoped_config.Get().disable_drive = false;
+  pref_service()->SetManagedPref(
+      EnterpriseSearchManager::
+          kEnterpriseSearchAggregatorSettingsRequireShortcutPrefName,
+      base::Value(false));
+  EXPECT_TRUE(controller_.ShouldRunProvider(aggregator_provider.get()));
+  EXPECT_TRUE(controller_.ShouldRunProvider(document_provider.get()));
+
+  pref_service()->SetManagedPref(
+      EnterpriseSearchManager::
+          kEnterpriseSearchAggregatorSettingsRequireShortcutPrefName,
+      base::Value(true));
+  EXPECT_FALSE(controller_.ShouldRunProvider(aggregator_provider.get()));
+  EXPECT_TRUE(controller_.ShouldRunProvider(document_provider.get()));
+
+  // Enter keyword mode.
+  controller_.input_.set_keyword_mode_entry_method(
+      metrics::OmniboxEventProto_KeywordModeEntryMethod_TAB);
+
+  // Aggregator not ran when in site search mode, regardless of
+  // `enterprise_search_aggregator_settings.require_shortcut` pref value.
+  controller_.input_.UpdateText(u"site_search_not_featured", 0, {});
+  EXPECT_FALSE(controller_.ShouldRunProvider(aggregator_provider.get()));
+  controller_.input_.UpdateText(u"site_search_featured", 0, {});
+  EXPECT_FALSE(controller_.ShouldRunProvider(aggregator_provider.get()));
+
+  pref_service()->SetManagedPref(
+      EnterpriseSearchManager::
+          kEnterpriseSearchAggregatorSettingsRequireShortcutPrefName,
+      base::Value(false));
+  controller_.input_.UpdateText(u"site_search_not_featured", 0, {});
+  EXPECT_FALSE(controller_.ShouldRunProvider(aggregator_provider.get()));
+  controller_.input_.UpdateText(u"site_search_featured", 0, {});
+  EXPECT_FALSE(controller_.ShouldRunProvider(aggregator_provider.get()));
+
+  // Only search, keyword, and aggregator providers ran when in aggregator mode.
+  std::set<AutocompleteProvider::Type> expected_provider_types = {
+      AutocompleteProvider::TYPE_SEARCH, AutocompleteProvider::TYPE_KEYWORD,
+      AutocompleteProvider::Type::TYPE_ENTERPRISE_SEARCH_AGGREGATOR};
+  controller_.input_.UpdateText(u"aggregator_not_featured", 0, {});
+  for (auto& provider : controller_.providers()) {
+    EXPECT_EQ(controller_.ShouldRunProvider(provider.get()),
+              expected_provider_types.contains(provider->type()))
+        << "Provider Type: "
+        << AutocompleteProvider::TypeToString(provider->type());
+  }
+  controller_.input_.UpdateText(u"aggregator_featured", 0, {});
+  for (auto& provider : controller_.providers()) {
+    EXPECT_EQ(controller_.ShouldRunProvider(provider.get()),
+              expected_provider_types.contains(provider->type()))
+        << "Provider Type: "
+        << AutocompleteProvider::TypeToString(provider->type());
+  }
+}
+#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
+       // BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(IS_ANDROID)
+TEST_F(AutocompleteControllerTest, ShouldRunProvider_AndroidHubSearch) {
+  // Include bookmarks and history as default providers for hub search.
+  std::set<AutocompleteProvider::Type> expected_provider_types = {
+      AutocompleteProvider::TYPE_SEARCH, AutocompleteProvider::TYPE_OPEN_TAB,
+      AutocompleteProvider::TYPE_BOOKMARK,
+      AutocompleteProvider::TYPE_HISTORY_QUICK};
+
+  controller_.input_ =
+      AutocompleteInput(u"a", 1u, metrics::OmniboxEventProto::ANDROID_HUB,
+                        TestSchemeClassifier());
+  for (auto& provider : controller_.providers()) {
+    EXPECT_EQ(controller_.ShouldRunProvider(provider.get()),
+              expected_provider_types.contains(provider->type()))
+        << "Provider Type: "
+        << AutocompleteProvider::TypeToString(provider->type());
+  }
+}
+#endif
+
+TEST_F(AutocompleteControllerTest, UpdateSearchboxStatsForAnswerAction) {
+  // Populate TemplateURLService with a keyword.
+  TemplateURLData turl_data;
+  turl_data.SetShortName(u"Keyword");
+  turl_data.SetKeyword(u"keyword");
+  turl_data.SetURL("https://google.com/search?q={searchTerms}");
+  controller_.template_url_service_->Add(
+      std::make_unique<TemplateURL>(turl_data));
+
+  omnibox::SuggestionEnhancement enhancement;
+  enhancement.set_display_text("Similar and opposite words");
+  auto answer_action = base::MakeRefCounted<OmniboxAnswerAction>(
+      std::move(enhancement), TemplateURLRef::SearchTermsArgs(),
+      omnibox::ANSWER_TYPE_DICTIONARY);
+  AutocompleteMatch match1 = CreateSearchMatch("match1", true, 1300);
+  match1.actions.push_back(answer_action);
+
+  controller_.Stop(true);
+  EXPECT_THAT(controller_.SimulateAutocompletePass(
+                  /*sync=*/true, /*done=*/true,
+                  {match1, CreateSearchMatch("match2", true, 1200),
+                   CreateSearchMatch("match3", true, 1100)}),
+              testing::ElementsAreArray({
+                  "match1",
+                  "match2",
+                  "match3",
+              }));
+
+  EXPECT_EQ(
+      answer_action->search_terms_args.searchbox_stats.SerializeAsString(),
+      controller_.published_result_.match_at(0)
+          ->search_terms_args->searchbox_stats.SerializeAsString());
+}
+
+// Anroid and iOS have different handling for pedals.
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+TEST_F(AutocompleteControllerTest, NoActionsAttachedToLensSearchboxMatches) {
+  std::unordered_map<OmniboxPedalId, scoped_refptr<OmniboxPedal>> pedals;
+  const auto add = [&](OmniboxPedal* pedal) {
+    pedals.insert(
+        std::make_pair(pedal->PedalId(), base::WrapRefCounted(pedal)));
+  };
+  add(new TestOmniboxPedalClearBrowsingData());
+  provider_client()->set_pedal_provider(std::make_unique<OmniboxPedalProvider>(
+      *provider_client(), std::move(pedals)));
+  EXPECT_NE(nullptr, provider_client()->GetPedalProvider());
+
+  // Create input with lens searchbox page classification.
+  controller_.input_ = AutocompleteInput(
+      u"Clear History", metrics::OmniboxEventProto::LENS_SIDE_PANEL_SEARCHBOX,
+      TestSchemeClassifier());
+
+  SetAutocompleteMatches(
+      {CreateSearchMatch(u"Clear History"), CreateSearchMatch(u"search 1"),
+       CreateSearchMatch(u"search 2"),
+       CreateHistoryURLMatch(
+           /*destination_url=*/"http://this-site-matches.com")});
+
+  static_cast<FakeTabMatcher&>(
+      const_cast<TabMatcher&>(provider_client()->GetTabMatcher()))
+      .set_url_substring_match("matches");
+
+  controller_.AttachActions();
+
+  // For a Lens Searchbox, AttachActions should not attach a pedal to the
+  // first match, and therefore it won't get split out into a separate pedal
+  // match. It also shouldn't attach a switch to this tab action to the last
+  // match.
+  EXPECT_EQ(nullptr, controller_.internal_result_.match_at(1)->takeover_action);
+  EXPECT_FALSE(
+      controller_.internal_result_.match_at(3)->has_tab_match.value_or(false));
+
+  controller_.input_ =
+      AutocompleteInput(u"Clear History", metrics::OmniboxEventProto::OTHER,
+                        TestSchemeClassifier());
+
+  SetAutocompleteMatches(
+      {CreateSearchMatch(u"Clear History"),
+       CreateHistoryURLMatch(
+           /*destination_url=*/"http://this-site-matches.com"),
+       CreateSearchMatch(u"search 1"), CreateSearchMatch(u"search 2")});
+
+  controller_.AttachActions();
+
+  // For any other page classification, AttachActions should attach a pedal
+  // and a switch to this tab action to the relevant matches.
+  EXPECT_EQ(
+      OmniboxActionId::PEDAL,
+      controller_.internal_result_.match_at(1)->takeover_action->ActionId());
+  EXPECT_TRUE(
+      controller_.internal_result_.match_at(2)->has_tab_match.value_or(false));
+}
+#endif
+
+// Feature not enabled on Android and iOS.
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+TEST_F(AutocompleteControllerTest,
+       ContextualSearchActionAttachedPageKeywordMode) {
+  // Create a pedal provider to ensure that the contextual search action takes
+  // precedence over the pedal.
+  std::unordered_map<OmniboxPedalId, scoped_refptr<OmniboxPedal>> pedals;
+  const auto add = [&](OmniboxPedal* pedal) {
+    pedals.insert(
+        std::make_pair(pedal->PedalId(), base::WrapRefCounted(pedal)));
+  };
+  add(new TestOmniboxPedalClearBrowsingData());
+  provider_client()->set_pedal_provider(std::make_unique<OmniboxPedalProvider>(
+      *provider_client(), std::move(pedals)));
+  EXPECT_NE(nullptr, provider_client()->GetPedalProvider());
+
+  // Populate template URL service with starter pack entries.
+  for (auto& turl_data : TemplateURLStarterPackData::GetStarterPackEngines()) {
+    controller_.template_url_service_->Add(
+        std::make_unique<TemplateURL>(std::move(*turl_data)));
+  }
+
+  // Create input with lens searchbox page classification.
+  controller_.input_ =
+      AutocompleteInput(u"@page Summar", metrics::OmniboxEventProto::OTHER,
+                        TestSchemeClassifier());
+  controller_.input_.set_keyword_mode_entry_method(
+      metrics::OmniboxEventProto::SPACE_AT_END);
+
+  SetAutocompleteMatches({CreateContextualSearchMatch(u"Summary"),
+                          CreateContextualSearchMatch(u"Summarize this page")});
+
+  static_cast<FakeTabMatcher&>(
+      const_cast<TabMatcher&>(provider_client()->GetTabMatcher()))
+      .set_url_substring_match("matches");
+
+  controller_.AttachActions();
+
+  // The takeover action should be for the contextual search action, not pedals.
+  EXPECT_TRUE(controller_.internal_result_.match_at(0)->takeover_action);
+  EXPECT_EQ(
+      OmniboxActionId::CONTEXTUAL_SEARCH_FULFILLMENT,
+      controller_.internal_result_.match_at(0)->takeover_action->ActionId());
+  EXPECT_TRUE(controller_.internal_result_.match_at(1)->takeover_action);
+  EXPECT_EQ(
+      OmniboxActionId::CONTEXTUAL_SEARCH_FULFILLMENT,
+      controller_.internal_result_.match_at(1)->takeover_action->ActionId());
+}
+
+TEST_F(AutocompleteControllerTest,
+       ContextualSearchActionAttachedInZeroSuggest) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeature(omnibox_feature_configs::ContextualSearch::
+                                        kContextualZeroSuggestLensFulfillment);
+
+  // Create a pedal provider to ensure that the contextual search action takes
+  // precedence over the pedal.
+  std::unordered_map<OmniboxPedalId, scoped_refptr<OmniboxPedal>> pedals;
+  const auto add = [&](OmniboxPedal* pedal) {
+    pedals.insert(
+        std::make_pair(pedal->PedalId(), base::WrapRefCounted(pedal)));
+  };
+  add(new TestOmniboxPedalClearBrowsingData());
+  provider_client()->set_pedal_provider(std::make_unique<OmniboxPedalProvider>(
+      *provider_client(), std::move(pedals)));
+  EXPECT_NE(nullptr, provider_client()->GetPedalProvider());
+
+  // Create input for zero suggest.
+  controller_.input_ = AutocompleteInput(u"", metrics::OmniboxEventProto::OTHER,
+                                         TestSchemeClassifier());
+  controller_.input_.set_focus_type(
+      metrics::OmniboxFocusType::INTERACTION_FOCUS);
+
+  // Create ZPS matches.
+  auto contextual_search_match_1 =
+      CreatePersonalizedZeroPrefixMatch("contextual search match 1", 1450);
+  contextual_search_match_1.subtypes.insert(omnibox::SUBTYPE_CONTEXTUAL_SEARCH);
+  auto contextual_search_match_2 =
+      CreatePersonalizedZeroPrefixMatch("contextual search match 2", 1450);
+  contextual_search_match_2.subtypes.insert(omnibox::SUBTYPE_CONTEXTUAL_SEARCH);
+
+  SetAutocompleteMatches(
+      {CreatePersonalizedZeroPrefixMatch("normal zps match 1", 1200),
+       contextual_search_match_1, contextual_search_match_2,
+       CreatePersonalizedZeroPrefixMatch("noormal zps match 1", 1550)});
+
+  static_cast<FakeTabMatcher&>(
+      const_cast<TabMatcher&>(provider_client()->GetTabMatcher()))
+      .set_url_substring_match("matches");
+
+  controller_.AttachActions();
+
+  // The takeover action should be for the contextual suggestions, but not
+  // others.
+  EXPECT_FALSE(controller_.internal_result_.match_at(0)->takeover_action);
+  EXPECT_FALSE(controller_.internal_result_.match_at(3)->takeover_action);
+
+  EXPECT_TRUE(controller_.internal_result_.match_at(1)->takeover_action);
+  EXPECT_EQ(
+      OmniboxActionId::CONTEXTUAL_SEARCH_FULFILLMENT,
+      controller_.internal_result_.match_at(1)->takeover_action->ActionId());
+  EXPECT_TRUE(controller_.internal_result_.match_at(2)->takeover_action);
+  EXPECT_EQ(
+      OmniboxActionId::CONTEXTUAL_SEARCH_FULFILLMENT,
+      controller_.internal_result_.match_at(2)->takeover_action->ActionId());
+}
+#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
+
+TEST_F(AutocompleteControllerTest, UpdateAssociatedKeywords) {
+  controller_.keyword_provider_ =
+      new KeywordProvider(provider_client(), nullptr);
+  controller_.providers_.push_back(controller_.keyword_provider_.get());
+
+  auto add_keyword = [&](std::u16string keyword, bool is_starter_pack = false,
+                         bool is_featured_enterprise_search = false) {
+    TemplateURLData turl_data;
+    turl_data.SetShortName(u"name");
+    turl_data.SetURL("https://google.com/search?q={searchTerms}");
+    turl_data.is_active = TemplateURLData::ActiveStatus::kTrue;
+    turl_data.SetKeyword(keyword);
+    if (is_starter_pack) {
+      turl_data.starter_pack_id = 1;
+    } else if (is_featured_enterprise_search) {
+      turl_data.featured_by_policy = true;
+    }
+    controller_.template_url_service_->Add(
+        std::make_unique<TemplateURL>(turl_data));
+  };
+
+  struct MatchData {
+    std::u16string fill_into_edit;
+    AutocompleteMatchType::Type type;
+  };
+
+  auto test = [&](const std::u16string input_text,
+                  const std::u16string input_keyword,
+                  std::vector<MatchData> match_datas,
+                  bool is_zero_suggest = false) {
+    controller_.input_ = FakeAutocompleteController::CreateInput(input_text);
+    if (is_zero_suggest) {
+      controller_.input_.set_focus_type(
+          metrics::OmniboxFocusType::INTERACTION_FOCUS);
+    }
+    AutocompleteResult result;
+    for (const auto& match_data : match_datas) {
+      AutocompleteMatch match;
+      match.fill_into_edit = match_data.fill_into_edit;
+      match.type = match_data.type;
+      result.AppendMatches({match});
+    }
+    if (!input_keyword.empty()) {
+      result.match_at(0)->keyword = input_keyword;
+      result.match_at(0)->transition = ui::PAGE_TRANSITION_KEYWORD;
+    }
+    controller_.UpdateAssociatedKeywords(&result);
+
+    std::vector<std::u16string> attached_keywords;
+    for (const auto& match : result) {
+      attached_keywords.push_back(
+          match.associated_keyword ? match.associated_keyword->keyword : u"");
+    }
+    return attached_keywords;
+  };
+
+  add_keyword(u"keyword_0");
+  add_keyword(u"keyword_1");
+  add_keyword(u"keyword_starter_pack", true);
+  add_keyword(u"keyword_featured_enterprise_search", false, true);
+
+  // When the input text's 1st word matches a keyword, the keyword hint is added
+  // to the 1st match regardless of which match is similar to the keyword. Only
+  // 1 keyword is added even if there's another match matching the keyword.
+  EXPECT_THAT(test(u"keyword_0", u"", {{u"bing.com"}, {u"keyword_0"}}),
+              testing::ElementsAreArray({u"keyword_0", u""}));
+  EXPECT_THAT(
+      test(u"keyword_0 more words", u"", {{u"bing.com"}, {u"keyword_0"}}),
+      testing::ElementsAreArray({u"keyword_0", u""}));
+
+  // Only 1 keyword is added even if there're 2 non-exact matches matching the
+  // keyword.
+  EXPECT_THAT(
+      test(u"input", u"", {{u"bing.com"}, {u"keyword_0"}, {u"keyword_0"}}),
+      testing::ElementsAreArray({u"", u"keyword_0", u""}));
+
+  // When the user is in a keyword mode, don't show keyword hints for that
+  // keyword, but do still show other keywords.
+  EXPECT_THAT(test(u"keyword_0", u"keyword_0",
+                   {{u"keyword_0"}, {u"keyword_0"}, {u"keyword_1"}}),
+              testing::ElementsAreArray({u"", u"", u"keyword_1"}));
+
+  // Starter pack and featured enterprise matches should always have keywords,
+  // regardless of the input or the match position.
+  EXPECT_THAT(test(u"input", u"",
+                   {{u"keyword_starter_pack",
+                     AutocompleteMatchType::Type::STARTER_PACK},
+                    {u"keyword_featured_enterprise_search",
+                     AutocompleteMatchType::Type::FEATURED_ENTERPRISE_SEARCH},
+                    {u"keyword_0"},
+                    {u"keywo"}}),
+              testing::ElementsAreArray({u"keyword_starter_pack",
+                                         u"keyword_featured_enterprise_search",
+                                         u"keyword_0", u""}));
+
+  // Normal matches should not have keyword hints for starter pack or featured
+  // enterprise keywords.
+  EXPECT_THAT(test(u"input", u"",
+                   {{u"keyword_starter_pack"},
+                    {u"keyword_featured_enterprise_search"}}),
+              testing::ElementsAreArray({u"", u""}));
+
+  // Normal matches should not have keyword hints for starter pack or featured
+  // enterprise keywords, even if the input is an exact keyword match.
+  EXPECT_THAT(test(u"keyword_starter_pack", u"", {{u"keyword_starter_pack"}}),
+              testing::ElementsAreArray({u""}));
+  EXPECT_THAT(test(u"keyword_featured_enterprise_search", u"",
+                   {{u"keyword_featured_enterprise_search"}}),
+              testing::ElementsAreArray({u""}));
+
+  // Keywords are added if the 1st word of the match text matches, even if the
+  // match text has more non-matching words after. Keywords are not added if the
+  // 1st word of the match text is a prefix of or prefixed by the keyword.
+  EXPECT_THAT(
+      test(u"input", u"",
+           {{u"keywo"}, {u"keyword_0_underscore"}, {u"keyword_0 space"}}),
+      testing::ElementsAreArray({u"", u"", u"keyword_0"}));
+
+  EXPECT_THAT(test(u"", u"",
+                   {{u"keywo", AutocompleteMatchType::Type::NAVSUGGEST},
+                    {u"keyword_0_underscore"},
+                    {u"keyword_0 space"}},
+                   /*is_zero_suggest=*/true),
+              testing::ElementsAreArray({u"", u"", u""}));
+}
+
+// Helper function to create a basic AutocompleteMatch for testing default match
+// changes.
+AutocompleteMatch CreateDefaultMatch(std::u16string fill_into_edit,
+                                     GURL icon_url,
+                                     std::u16string associated_keyword,
+                                     std::u16string keyword) {
+  AutocompleteMatch match;
+  match.fill_into_edit = fill_into_edit;
+  match.icon_url = icon_url;
+  if (!associated_keyword.empty()) {
+    match.associated_keyword = std::make_unique<AutocompleteMatch>();
+    match.associated_keyword->keyword = associated_keyword;
+  }
+  match.keyword = keyword;
+
+  // Set other fields to make it a plausible default match
+  match.relevance = 1000;
+  match.allowed_to_be_default_match = true;
+  match.destination_url =
+      GURL("https://foo.com/" + base::UTF16ToUTF8(match.fill_into_edit));
+
+  return match;
+}
+
+TEST_F(AutocompleteControllerTest, CheckWhetherDefaultMatchChanged) {
+  // Helper lambda to set the internal default match
+  auto set_current_default = [&](std::optional<AutocompleteMatch> match) {
+    controller_.internal_result_.ClearMatches();  // Clear previous matches
+    if (match) {
+      controller_.internal_result_.AppendMatches({*match});
+    }
+  };
+
+  // Helper lambda to call the private method under test
+  auto check_change =
+      [&](std::optional<AutocompleteMatch> last_default_match,
+          const std::u16string& last_default_associated_keyword) {
+        // Reset timestamp before check
+        controller_.last_time_default_match_changed_ = base::TimeTicks();
+        bool changed = controller_.CheckWhetherDefaultMatchChanged(
+            last_default_match, last_default_associated_keyword);
+        // Check if timestamp was updated only if a change was detected
+        if (changed) {
+          EXPECT_NE(controller_.last_time_default_match_changed_,
+                    base::TimeTicks());
+        } else {
+          EXPECT_EQ(controller_.last_time_default_match_changed_,
+                    base::TimeTicks());
+        }
+        return changed;
+      };
+
+  {
+    // No change: Both null
+    set_current_default(std::nullopt);
+    EXPECT_FALSE(check_change(std::nullopt, u""));
+  }
+  {
+    // No change: Both exist and are identical
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    set_current_default(match);
+    EXPECT_FALSE(check_change(match, u"assoc1"));
+  }
+  {
+    // No change: Irrelevant fields differ (e.g., relevance)
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    auto match_different_relevance = match;
+    match_different_relevance.relevance = 900;
+    set_current_default(match);
+    EXPECT_FALSE(check_change(match_different_relevance, u"assoc1"));
+  }
+  {
+    // Change: Existence (last had value, current doesn't)
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    set_current_default(std::nullopt);
+    EXPECT_TRUE(check_change(match, u"assoc1"));
+  }
+  {
+    // Change: Existence (last didn't have value, current does)
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    set_current_default(match);
+    EXPECT_TRUE(check_change(std::nullopt, u""));
+  }
+  {
+    // Change: fill_into_edit differs
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    auto match_different_fill_into_edit = CreateDefaultMatch(
+        u"test2", GURL("https://www.foo.com/icon1"), u"assoc1", u"key1");
+    set_current_default(match_different_fill_into_edit);
+    EXPECT_TRUE(check_change(match, u"assoc1"));
+  }
+  {
+    // Change: icon_url differs
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    auto match_different_icon_url = CreateDefaultMatch(
+        u"test1", GURL("https://www.foo.com/icon2"), u"assoc1", u"key1");
+    set_current_default(match_different_icon_url);
+    EXPECT_TRUE(check_change(match, u"assoc1"));
+  }
+  {
+    // Change: associated_keyword existence differs (last had, current doesn't)
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    auto match_no_associated_keyword = CreateDefaultMatch(
+        u"test1", GURL("https://www.foo.com/icon1"), u"", u"key1");
+    set_current_default(match_no_associated_keyword);
+    EXPECT_TRUE(check_change(match, u"assoc1"));
+  }
+  {
+    // Change: associated_keyword existence differs (last didn't, current does)
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    auto match_no_associated_keyword = CreateDefaultMatch(
+        u"test1", GURL("https://www.foo.com/icon1"), u"", u"key1");
+    set_current_default(match);
+    EXPECT_TRUE(
+        check_change(match_no_associated_keyword, u""));  // double check this
+  }
+  {
+    // Change: associated_keyword differs
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    auto match_different_associated_keyword = CreateDefaultMatch(
+        u"test1", GURL("https://www.foo.com/icon1"), u"assoc2", u"key1");
+    set_current_default(match_different_associated_keyword);
+    EXPECT_TRUE(check_change(match, u"assoc1"));
+  }
+  {
+    // No change: associated_keyword same
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    set_current_default(match);
+    EXPECT_FALSE(check_change(match, u"assoc1"));
+  }
+  {
+    // Change: keyword differs
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    auto match_different_keyword = CreateDefaultMatch(
+        u"test1", GURL("https://www.foo.com/icon1"), u"assoc1", u"key2");
+    set_current_default(match_different_keyword);
+    EXPECT_TRUE(check_change(match, u"assoc1"));
+  }
+  {
+    // No change: keyword same
+    auto match = CreateDefaultMatch(u"test1", GURL("https://www.foo.com/icon1"),
+                                    u"assoc1", u"key1");
+    set_current_default(match);
+    EXPECT_FALSE(check_change(match, u"assoc1"));
   }
 }

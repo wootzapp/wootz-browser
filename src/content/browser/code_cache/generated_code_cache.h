@@ -136,6 +136,10 @@ class CONTENT_EXPORT GeneratedCodeCache {
   // Clears the in-memory cache.
   void ClearInMemoryCache();
 
+  void CollectStatisticsForTest(const GURL& resource_url,
+                                const GURL& origin_lock,
+                                GeneratedCodeCache::CacheEntryStatus status);
+
   const base::FilePath& path() const { return path_; }
 
  private:
@@ -206,7 +210,9 @@ class CONTENT_EXPORT GeneratedCodeCache {
                                          base::OnceClosure callback,
                                          disk_cache::EntryResult result);
 
-  void CollectStatistics(GeneratedCodeCache::CacheEntryStatus status);
+  void CollectStatistics(const GURL& resource_url,
+                         const GURL& origin_lock,
+                         GeneratedCodeCache::CacheEntryStatus status);
 
   // Whether very large cache entries are deduplicated in this cache.
   // Deduplication is disabled in the WebUI code cache, as an additional defense
@@ -221,8 +227,6 @@ class CONTENT_EXPORT GeneratedCodeCache {
   // obsolete formats. These reads should fail and be doomed as soon as
   // possible.
   bool IsValidHeader(scoped_refptr<net::IOBufferWithSize> small_buffer) const;
-
-  void ReportPeriodicalHistograms();
 
   std::unique_ptr<disk_cache::Backend> backend_;
   BackendState backend_state_;
@@ -240,7 +244,6 @@ class CONTENT_EXPORT GeneratedCodeCache {
 
   // A hypothetical memory-backed code cache. Used to collect UMAs.
   SimpleLruCache lru_cache_;
-  base::RepeatingTimer histograms_timer_;
   static constexpr int64_t kLruCacheCapacity = 50 * 1024 * 1024;
 
   base::WeakPtrFactory<GeneratedCodeCache> weak_ptr_factory_{this};

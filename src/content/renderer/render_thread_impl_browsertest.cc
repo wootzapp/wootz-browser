@@ -19,6 +19,8 @@
 #include "base/location.h"
 #include "base/memory/discardable_memory.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/read_only_shared_memory_region.h"
+#include "base/memory/structured_shared_memory.h"
 #include "base/metrics/field_trial.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
@@ -26,6 +28,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/test/test_switches.h"
+#include "base/time/time.h"
 #include "cc/base/switches.h"
 #include "content/app/mojo/mojo_init.h"
 #include "content/common/in_process_child_thread_params.h"
@@ -47,8 +50,6 @@
 #include "content/public/test/test_content_client_initializer.h"
 #include "content/public/test/test_launcher.h"
 #include "content/renderer/render_process_impl.h"
-#include "gpu/GLES2/gl2extchromium.h"
-#include "gpu/command_buffer/client/gpu_memory_buffer_manager.h"
 #include "gpu/config/gpu_switches.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -57,8 +58,6 @@
 #include "third_party/blink/public/platform/scheduler/test/web_mock_thread_scheduler.h"
 #include "third_party/blink/public/platform/scheduler/web_thread_scheduler.h"
 #include "ui/base/ui_base_switches.h"
-#include "ui/gfx/buffer_format_util.h"
-#include "ui/gfx/switches.h"
 
 // IPC messages for testing ----------------------------------------------------
 
@@ -167,8 +166,6 @@ class RenderThreadImplBrowserTest : public testing::Test,
     content_renderer_client_ = std::make_unique<ContentRendererClient>();
     SetRendererClientForTesting(content_renderer_client_.get());
 
-    browser_threads_ = std::make_unique<BrowserTaskEnvironment>(
-        BrowserTaskEnvironment::REAL_IO_THREAD);
     scoped_refptr<base::SingleThreadTaskRunner> io_task_runner =
         GetIOThreadTaskRunner({});
 
@@ -187,7 +184,7 @@ class RenderThreadImplBrowserTest : public testing::Test,
 
     cmd->AppendSwitchASCII(switches::kLang, "en-US");
 
-    cmd->AppendSwitchASCII(cc::switches::kNumRasterThreads, "1");
+    cmd->AppendSwitchASCII(switches::kNumRasterThreads, "1");
 
     // To avoid creating a GPU channel to query if
     // accelerated_video_decode is blocklisted on older Android system
@@ -258,32 +255,36 @@ class RenderThreadImplBrowserTest : public testing::Test,
  protected:
   IPC::Sender* sender() { return process_host_.get(); }
 
-  void SetBackgroundState(
-      mojom::RenderProcessBackgroundState background_state) {
+  void SetBackgroundState(base::Process::Priority process_priority) {
     mojom::Renderer* renderer_interface = thread_;
     const mojom::RenderProcessVisibleState visible_state =
         RendererIsHidden() ? mojom::RenderProcessVisibleState::kHidden
                            : mojom::RenderProcessVisibleState::kVisible;
-    renderer_interface->SetProcessState(background_state, visible_state);
+    renderer_interface->SetProcessState(process_priority, visible_state);
   }
 
   void SetVisibleState(mojom::RenderProcessVisibleState visible_state) {
     mojom::Renderer* renderer_interface = thread_;
-    const mojom::RenderProcessBackgroundState background_state =
-        RendererIsBackgrounded()
-            ? mojom::RenderProcessBackgroundState::kBackgrounded
-            : mojom::RenderProcessBackgroundState::kForegrounded;
-    renderer_interface->SetProcessState(background_state, visible_state);
+    const base::Process::Priority process_priority =
+        RendererIsBackgrounded() ? base::Process::Priority::kBestEffort
+                                 : base::Process::Priority::kUserBlocking;
+    renderer_interface->SetProcessState(process_priority, visible_state);
   }
 
   bool RendererIsBackgrounded() { return thread_->RendererIsBackgrounded(); }
   bool RendererIsHidden() { return thread_->RendererIsHidden(); }
 
   scoped_refptr<TestTaskCounter> test_task_counter_;
+
+  // Must be created before TestContentClientInitializer, since with
+  // --force-renderer-accessibility that creates a BrowserAccessibilityStateImpl
+  // that uses a browser thread.
+  BrowserTaskEnvironment browser_threads_{
+      BrowserTaskEnvironment::REAL_IO_THREAD};
+
   TestContentClientInitializer content_client_initializer_;
   std::unique_ptr<ContentRendererClient> content_renderer_client_;
 
-  std::unique_ptr<BrowserTaskEnvironment> browser_threads_;
   const base::Process null_process_;
   std::unique_ptr<ChildProcessHost> process_host_;
 
@@ -307,7 +308,7 @@ class RenderThreadImplBrowserTest : public testing::Test,
 TEST_F(RenderThreadImplBrowserTest,
        WILL_LEAK(NonResourceDispatchIPCTasksDontGoThroughScheduler)) {
   // This seems to deflake the test on Android.
-  browser_threads_->RunIOThreadUntilIdle();
+  browser_threads_.RunIOThreadUntilIdle();
 
   // NOTE other than not being a resource message, the actual message is
   // unimportant.
@@ -326,10 +327,10 @@ TEST_F(RenderThreadImplBrowserTest,
 #endif
 
 TEST_F(RenderThreadImplBrowserTest, RendererIsBackgrounded) {
-  SetBackgroundState(mojom::RenderProcessBackgroundState::kBackgrounded);
+  SetBackgroundState(base::Process::Priority::kBestEffort);
   EXPECT_TRUE(RendererIsBackgrounded());
 
-  SetBackgroundState(mojom::RenderProcessBackgroundState::kForegrounded);
+  SetBackgroundState(base::Process::Priority::kUserBlocking);
   EXPECT_FALSE(RendererIsBackgrounded());
 }
 
@@ -391,7 +392,7 @@ TEST_F(RenderThreadImplBrowserTest, RendererStateTransitionBackgrounded) {
   EXPECT_CALL(*main_thread_scheduler_, SetRendererBackgrounded(true));
   EXPECT_CALL(*main_thread_scheduler_, SetRendererHidden(false));
   EXPECT_CALL(*main_thread_scheduler_, SetRendererBackgrounded(false)).Times(0);
-  SetBackgroundState(mojom::RenderProcessBackgroundState::kBackgrounded);
+  SetBackgroundState(base::Process::Priority::kBestEffort);
   testing::Mock::VerifyAndClear(main_thread_scheduler_);
 
   // Going from a backgrounded to a foregrounded state should mark the renderer
@@ -400,7 +401,16 @@ TEST_F(RenderThreadImplBrowserTest, RendererStateTransitionBackgrounded) {
   EXPECT_CALL(*main_thread_scheduler_, SetRendererHidden(true)).Times(0);
   EXPECT_CALL(*main_thread_scheduler_, SetRendererHidden(false)).Times(0);
   EXPECT_CALL(*main_thread_scheduler_, SetRendererBackgrounded(false));
-  SetBackgroundState(mojom::RenderProcessBackgroundState::kForegrounded);
+  SetBackgroundState(base::Process::Priority::kUserBlocking);
+  testing::Mock::VerifyAndClear(main_thread_scheduler_);
+
+  // Going from a foregrounded state to another foregrounded state should not
+  // remark the renderer as foregrounded.
+  EXPECT_CALL(*main_thread_scheduler_, SetRendererBackgrounded(true)).Times(0);
+  EXPECT_CALL(*main_thread_scheduler_, SetRendererHidden(true)).Times(0);
+  EXPECT_CALL(*main_thread_scheduler_, SetRendererHidden(false)).Times(0);
+  EXPECT_CALL(*main_thread_scheduler_, SetRendererBackgrounded(false)).Times(0);
+  SetBackgroundState(base::Process::Priority::kUserVisible);
   testing::Mock::VerifyAndClear(main_thread_scheduler_);
 
   // Going from a foregrounded to a backgrounded state should mark the renderer
@@ -409,7 +419,7 @@ TEST_F(RenderThreadImplBrowserTest, RendererStateTransitionBackgrounded) {
   EXPECT_CALL(*main_thread_scheduler_, SetRendererBackgrounded(true));
   EXPECT_CALL(*main_thread_scheduler_, SetRendererHidden(false)).Times(0);
   EXPECT_CALL(*main_thread_scheduler_, SetRendererBackgrounded(false)).Times(0);
-  SetBackgroundState(mojom::RenderProcessBackgroundState::kBackgrounded);
+  SetBackgroundState(base::Process::Priority::kBestEffort);
   testing::Mock::VerifyAndClear(main_thread_scheduler_);
 
   testing::Mock::AllowLeak(main_thread_scheduler_);
@@ -422,111 +432,32 @@ TEST_F(RenderThreadImplBrowserTest, RendererStateTransitionForegrounded) {
   EXPECT_CALL(*main_thread_scheduler_, SetRendererHidden(true)).Times(0);
   EXPECT_CALL(*main_thread_scheduler_, SetRendererBackgrounded(true)).Times(0);
   EXPECT_CALL(*main_thread_scheduler_, SetRendererHidden(false));
-  SetBackgroundState(mojom::RenderProcessBackgroundState::kForegrounded);
+  SetBackgroundState(base::Process::Priority::kUserBlocking);
   testing::Mock::VerifyAndClear(main_thread_scheduler_);
 
   testing::Mock::AllowLeak(main_thread_scheduler_);
 }
 
-enum NativeBufferFlag { kDisableNativeBuffers, kEnableNativeBuffers };
+TEST_F(RenderThreadImplBrowserTest, TransferSharedLastForegroundTime) {
+  auto time_memory = base::AtomicSharedMemory<base::TimeTicks>::Create();
+  ASSERT_TRUE(time_memory.has_value());
 
-class RenderThreadImplGpuMemoryBufferBrowserTest
-    : public ContentBrowserTest,
-      public testing::WithParamInterface<
-          ::testing::tuple<NativeBufferFlag, gfx::BufferFormat>> {
- public:
-  RenderThreadImplGpuMemoryBufferBrowserTest() {}
+  // No shared memory region mapped by default.
+  EXPECT_EQ(base::internal::GetSharedLastForegroundTimeForMetricsForTesting(),
+            nullptr);
 
-  RenderThreadImplGpuMemoryBufferBrowserTest(
-      const RenderThreadImplGpuMemoryBufferBrowserTest&) = delete;
-  RenderThreadImplGpuMemoryBufferBrowserTest& operator=(
-      const RenderThreadImplGpuMemoryBufferBrowserTest&) = delete;
+  // SharedLastForegroundTimeForMetrics should never be overwritten after it's
+  // set, in case a thread is accessing the memory as it's unmapped.
+  thread_->TransferSharedLastForegroundTime(
+      time_memory->DuplicateReadOnlyRegion());
+  const auto* last_foreground_time_ptr =
+      base::internal::GetSharedLastForegroundTimeForMetricsForTesting();
+  EXPECT_NE(last_foreground_time_ptr, nullptr);
 
-  ~RenderThreadImplGpuMemoryBufferBrowserTest() override {}
-
-  gpu::GpuMemoryBufferManager* memory_buffer_manager() {
-    return memory_buffer_manager_;
-  }
-
- private:
-  void SetUpOnRenderThread() {
-    memory_buffer_manager_ =
-        RenderThreadImpl::current()->GetGpuMemoryBufferManager();
-  }
-
-  // Overridden from BrowserTestBase:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    command_line->AppendSwitch(switches::kSingleProcess);
-    NativeBufferFlag native_buffer_flag = ::testing::get<0>(GetParam());
-    if (native_buffer_flag == kEnableNativeBuffers) {
-      command_line->AppendSwitch(switches::kEnableNativeGpuMemoryBuffers);
-    }
-  }
-
-  void SetUpOnMainThread() override {
-    EXPECT_TRUE(NavigateToURL(shell(), GURL(url::kAboutBlankURL)));
-    PostTaskToInProcessRendererAndWait(base::BindOnce(
-        &RenderThreadImplGpuMemoryBufferBrowserTest::SetUpOnRenderThread,
-        base::Unretained(this)));
-  }
-
-  raw_ptr<gpu::GpuMemoryBufferManager> memory_buffer_manager_ = nullptr;
-};
-
-// https://crbug.com/652531
-IN_PROC_BROWSER_TEST_P(RenderThreadImplGpuMemoryBufferBrowserTest,
-                       DISABLED_Map) {
-  gfx::BufferFormat format = ::testing::get<1>(GetParam());
-  gfx::Size buffer_size(4, 4);
-
-  std::unique_ptr<gfx::GpuMemoryBuffer> buffer =
-      memory_buffer_manager()->CreateGpuMemoryBuffer(
-          buffer_size, format, gfx::BufferUsage::GPU_READ_CPU_READ_WRITE,
-          gpu::kNullSurfaceHandle, nullptr);
-  ASSERT_TRUE(buffer);
-  EXPECT_EQ(format, buffer->GetFormat());
-
-  // Map buffer planes.
-  ASSERT_TRUE(buffer->Map());
-
-  // Write to buffer and check result.
-  size_t num_planes = gfx::NumberOfPlanesForLinearBufferFormat(format);
-  for (size_t plane = 0; plane < num_planes; ++plane) {
-    ASSERT_TRUE(buffer->memory(plane));
-    ASSERT_TRUE(buffer->stride(plane));
-    size_t row_size_in_bytes =
-        gfx::RowSizeForBufferFormat(buffer_size.width(), format, plane);
-    EXPECT_GT(row_size_in_bytes, 0u);
-
-    auto data = base::HeapArray<char>::Uninit(row_size_in_bytes);
-    std::ranges::fill(data, 0x2a + plane);
-    size_t height = buffer_size.height() /
-                    gfx::SubsamplingFactorForBufferFormat(format, plane);
-    for (size_t y = 0; y < height; ++y) {
-      // Copy |data| to row |y| of |plane| and verify result.
-      memcpy(
-          static_cast<char*>(buffer->memory(plane)) + y * buffer->stride(plane),
-          data.data(), row_size_in_bytes);
-      EXPECT_EQ(0, memcmp(static_cast<char*>(buffer->memory(plane)) +
-                              y * buffer->stride(plane),
-                          data.data(), row_size_in_bytes));
-    }
-  }
-
-  buffer->Unmap();
+  thread_->TransferSharedLastForegroundTime(
+      time_memory->DuplicateReadOnlyRegion());
+  EXPECT_EQ(base::internal::GetSharedLastForegroundTimeForMetricsForTesting(),
+            last_foreground_time_ptr);
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    RenderThreadImplGpuMemoryBufferBrowserTests,
-    RenderThreadImplGpuMemoryBufferBrowserTest,
-    ::testing::Combine(::testing::Values(kDisableNativeBuffers,
-                                         kEnableNativeBuffers),
-                       // These formats are guaranteed to work on all platforms.
-                       ::testing::Values(gfx::BufferFormat::R_8,
-                                         gfx::BufferFormat::BGR_565,
-                                         gfx::BufferFormat::RGBA_4444,
-                                         gfx::BufferFormat::RGBA_8888,
-                                         gfx::BufferFormat::BGRA_8888,
-                                         gfx::BufferFormat::YVU_420)));
 
 }  // namespace content

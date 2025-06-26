@@ -2,13 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "device/fido/ctap_get_assertion_request.h"
 
+#include <algorithm>
 #include <limits>
 #include <utility>
 
 #include "base/feature_list.h"
-#include "base/ranges/algorithm.h"
 #include "device/fido/device_response_converter.h"
 #include "device/fido/features.h"
 #include "device/fido/fido_constants.h"
@@ -20,7 +25,7 @@ namespace device {
 namespace {
 bool IsGetAssertionOptionMapFormatCorrect(
     const cbor::Value::MapValue& option_map) {
-  return base::ranges::all_of(
+  return std::ranges::all_of(
       option_map, [](const auto& param) {
         return param.first.is_string() &&
                (param.first.GetString() == kUserPresenceMapKey ||
@@ -31,7 +36,7 @@ bool IsGetAssertionOptionMapFormatCorrect(
 
 bool AreGetAssertionRequestMapKeysCorrect(
     const cbor::Value::MapValue& request_map) {
-  return base::ranges::all_of(request_map, [](const auto& param) {
+  return std::ranges::all_of(request_map, [](const auto& param) {
     return (param.first.is_integer() && 1u <= param.first.GetInteger() &&
             param.first.GetInteger() <= 7u);
   });
@@ -88,9 +93,9 @@ std::optional<CtapGetAssertionRequest> CtapGetAssertionRequest::Parse(
           kClientDataHashLength) {
     return std::nullopt;
   }
-  base::span<const uint8_t, kClientDataHashLength> client_data_hash(
-      client_data_hash_it->second.GetBytestring().data(),
-      kClientDataHashLength);
+  auto client_data_hash =
+      base::span(client_data_hash_it->second.GetBytestring())
+          .first<kClientDataHashLength>();
 
   CtapGetAssertionRequest request(rp_id_it->second.GetString(),
                                   /*client_data_json=*/std::string());
@@ -339,6 +344,12 @@ CtapGetAssertionRequest& CtapGetAssertionRequest::operator=(
     CtapGetAssertionRequest&& other) = default;
 
 CtapGetAssertionRequest::~CtapGetAssertionRequest() = default;
+
+void CtapGetAssertionRequest::SetClientDataJson(
+    std::string in_client_data_json) {
+  client_data_hash = fido_parsing_utils::CreateSHA256Hash(in_client_data_json);
+  client_data_json = std::move(in_client_data_json);
+}
 
 std::pair<CtapRequestCommand, std::optional<cbor::Value>>
 AsCTAPRequestValuePair(const CtapGetAssertionRequest& request) {

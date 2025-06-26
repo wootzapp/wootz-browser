@@ -4,25 +4,91 @@
 
 #include "third_party/blink/renderer/modules/file_system_access/file_system_observer.h"
 
-#include "base/feature_list.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/mojom/file_system_access/file_system_access_error.mojom-blink.h"
+#include "third_party/blink/public/mojom/file_system_access/file_system_access_observer.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_file_system_change_record.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_file_system_observer_callback.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_file_system_observer_observe_options.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/modules/file_system_access/file_system_access_error.h"
 #include "third_party/blink/renderer/modules/file_system_access/file_system_access_manager.h"
-#include "third_party/blink/renderer/modules/file_system_access/file_system_change_record.h"
 #include "third_party/blink/renderer/modules/file_system_access/file_system_handle.h"
+#include "third_party/blink/renderer/modules/file_system_access/file_system_observation_collection.h"
+#include "third_party/blink/renderer/modules/file_system_access/storage_manager_file_system_access.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
+
+namespace {
+
+constexpr V8FileSystemChangeType::Enum ToChangeTypeEnum(
+    mojom::blink::FileSystemAccessChangeType::Tag tag) {
+  // This assertion protects against the IDL enum changing without updating the
+  // corresponding mojom interface, while the lack of a default case in the
+  // switch statement below ensures the opposite.
+  static_assert(
+      V8FileSystemChangeType::kEnumSize == 6u,
+      "the number of fields in the FileSystemAccessChangeType mojom union "
+      "must match the number of fields in the FileSystemChangeType blink enum");
+
+  switch (tag) {
+    case mojom::blink::FileSystemAccessChangeType::Data_::
+        FileSystemAccessChangeType_Tag::kAppeared:
+      return V8FileSystemChangeType::Enum::kAppeared;
+    case mojom::blink::FileSystemAccessChangeType::Data_::
+        FileSystemAccessChangeType_Tag::kDisappeared:
+      return V8FileSystemChangeType::Enum::kDisappeared;
+    case mojom::blink::FileSystemAccessChangeType::Data_::
+        FileSystemAccessChangeType_Tag::kErrored:
+      return V8FileSystemChangeType::Enum::kErrored;
+    case mojom::blink::FileSystemAccessChangeType::Data_::
+        FileSystemAccessChangeType_Tag::kModified:
+      return V8FileSystemChangeType::Enum::kModified;
+    case mojom::blink::FileSystemAccessChangeType::Data_::
+        FileSystemAccessChangeType_Tag::kMoved:
+      return V8FileSystemChangeType::Enum::kMoved;
+    case mojom::blink::FileSystemAccessChangeType::Data_::
+        FileSystemAccessChangeType_Tag::kUnknown:
+      return V8FileSystemChangeType::Enum::kUnknown;
+  }
+}
+
+FileSystemChangeRecord* ToChangeRecord(
+    mojom::blink::FileSystemAccessChangePtr& mojo_change,
+    Member<ExecutionContext>& execution_context) {
+  mojom::blink::FileSystemAccessChangeMetadata& metadata =
+      *mojo_change->metadata.get();
+  mojom::blink::FileSystemAccessChangeType& type = *mojo_change->type.get();
+
+  auto* record = FileSystemChangeRecord::Create();
+
+  record->setRoot(FileSystemHandle::CreateFromMojoEntry(
+      std::move(metadata.root), execution_context));
+  record->setRelativePathComponents(std::move(metadata.relative_path));
+  record->setType(ToChangeTypeEnum(type.which()));
+  record->setRelativePathMovedFrom(
+      type.is_moved() ? std::move(type.get_moved()->former_relative_path)
+                      : std::nullopt);
+
+  bool omit_changed_handle =
+      type.is_disappeared() || type.is_errored() || type.is_unknown();
+  record->setChangedHandle(
+      omit_changed_handle
+          ? nullptr
+          : FileSystemHandle::CreateFromMojoEntry(
+                std::move(metadata.changed_entry), execution_context));
+
+  return record;
+}
+
+}  // namespace
 
 // static
 FileSystemObserver* FileSystemObserver::Create(
@@ -63,10 +129,7 @@ FileSystemObserver::FileSystemObserver(
     ExecutionContext* context,
     V8FileSystemObserverCallback* callback,
     mojo::PendingRemote<mojom::blink::FileSystemAccessObserverHost> host_remote)
-    : execution_context_(context),
-      callback_(callback),
-      observer_receivers_(this, context),
-      host_remote_(context) {
+    : execution_context_(context), callback_(callback), host_remote_(context) {
   host_remote_.Bind(std::move(host_remote),
                     execution_context_->GetTaskRunner(TaskType::kStorage));
 }
@@ -78,17 +141,66 @@ ScriptPromise<IDLUndefined> FileSystemObserver::observe(
     ExceptionState& exception_state) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  // TODO(https://crbug.com/1489033): Add AllowStorageAccess checks.
-
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(
       script_state, exception_state.GetContext());
   auto result = resolver->Promise();
+
+  auto on_got_storage_access_status_cb =
+      WTF::BindOnce(&FileSystemObserver::OnGotStorageAccessStatus,
+                    WrapWeakPersistent(this), WrapPersistent(resolver),
+                    WrapPersistent(handle), WrapPersistent(options));
+
+  if (storage_access_status_.has_value()) {
+    std::move(on_got_storage_access_status_cb)
+        .Run(mojom::blink::FileSystemAccessError::New(
+            /*status=*/get<0>(storage_access_status_.value()),
+            /*file_error=*/get<1>(storage_access_status_.value()),
+            /*message=*/get<2>(storage_access_status_.value())));
+  } else {
+    StorageManagerFileSystemAccess::CheckStorageAccessIsAllowed(
+        ExecutionContext::From(script_state),
+        std::move(on_got_storage_access_status_cb));
+  }
+
+  return result;
+}
+
+void FileSystemObserver::OnGotStorageAccessStatus(
+    ScriptPromiseResolver<IDLUndefined>* resolver,
+    FileSystemHandle* handle,
+    FileSystemObserverObserveOptions* options,
+    mojom::blink::FileSystemAccessErrorPtr result) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  if (!resolver->GetExecutionContext() ||
+      !resolver->GetScriptState()->ContextIsValid()) {
+    return;
+  }
+
+  CHECK(result);
+  if (storage_access_status_.has_value()) {
+    CHECK_EQ(/*status=*/get<0>(storage_access_status_.value()), result->status);
+    CHECK_EQ(/*file_error=*/get<1>(storage_access_status_.value()),
+             result->file_error);
+    CHECK_EQ(/*message=*/get<2>(storage_access_status_.value()),
+             result->message);
+  } else {
+    storage_access_status_ =
+        std::make_tuple(result->status, result->file_error, result->message);
+  }
+
+  if (result->status != mojom::blink::FileSystemAccessStatus::kOk) {
+    auto* const isolate = resolver->GetScriptState()->GetIsolate();
+    ScriptState::Scope scope(resolver->GetScriptState());
+    resolver->Reject(V8ThrowDOMException::CreateOrEmpty(
+        isolate, DOMExceptionCode::kSecurityError, result->message));
+    return;
+  }
 
   host_remote_->Observe(
       handle->Transfer(), options->recursive(),
       WTF::BindOnce(&FileSystemObserver::DidObserve, WrapPersistent(this),
                     WrapPersistent(resolver)));
-  return result;
 }
 
 void FileSystemObserver::DidObserve(
@@ -103,9 +215,8 @@ void FileSystemObserver::DidObserve(
     return;
   }
 
-  observer_receivers_.Add(
-      std::move(observer_receiver),
-      execution_context_->GetTaskRunner(TaskType::kStorage));
+  FileSystemObservationCollection::From(execution_context_)
+      ->AddObservation(this, std::move(observer_receiver));
 
   resolver->Resolve();
 }
@@ -116,7 +227,7 @@ void FileSystemObserver::unobserve(FileSystemHandle* handle) {
     return;
   }
 
-  // TODO(https://crbug.com/1489029): Unqueue and pause records for this
+  // TODO(https://crbug.com/321980469): Unqueue and pause records for this
   // observation, or consider making observe() return a token which can be
   // passed to this method.
 
@@ -130,7 +241,8 @@ void FileSystemObserver::unobserve(FileSystemHandle* handle) {
 
 void FileSystemObserver::disconnect() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  observer_receivers_.Clear();
+  FileSystemObservationCollection::From(execution_context_)
+      ->RemoveObserver(this);
 }
 
 void FileSystemObserver::OnFileChanges(
@@ -139,18 +251,7 @@ void FileSystemObserver::OnFileChanges(
 
   HeapVector<Member<FileSystemChangeRecord>> records;
   for (auto& mojo_change : mojo_changes) {
-    FileSystemHandle* root_handle = FileSystemHandle::CreateFromMojoEntry(
-        std::move(mojo_change->metadata->root), execution_context_);
-    FileSystemHandle* changed_file_handle =
-        FileSystemHandle::CreateFromMojoEntry(
-            std::move(mojo_change->metadata->changed_entry),
-            execution_context_);
-
-    auto* record = MakeGarbageCollected<FileSystemChangeRecord>(
-        root_handle, changed_file_handle,
-        std::move(mojo_change->metadata->relative_path),
-        std::move(mojo_change->type));
-    records.push_back(record);
+    records.push_back(ToChangeRecord(mojo_change, execution_context_));
   }
 
   callback_->InvokeAndReportException(this, std::move(records), this);
@@ -159,7 +260,6 @@ void FileSystemObserver::OnFileChanges(
 void FileSystemObserver::Trace(Visitor* visitor) const {
   visitor->Trace(execution_context_);
   visitor->Trace(callback_);
-  visitor->Trace(observer_receivers_);
   visitor->Trace(host_remote_);
   ScriptWrappable::Trace(visitor);
 }

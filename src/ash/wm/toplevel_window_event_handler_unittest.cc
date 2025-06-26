@@ -44,6 +44,7 @@
 #include "ui/aura/window_event_dispatcher.h"
 #include "ui/aura/window_observer.h"
 #include "ui/base/hit_test.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/display/display_layout_builder.h"
 #include "ui/display/manager/display_manager.h"
 #include "ui/display/screen.h"
@@ -67,22 +68,23 @@ aura::test::TestWindowDelegate* CreateTestWindowDelegate(int hittest_code) {
   return delegate;
 }
 
-class ResizeLoopWindowObserver : public aura::WindowObserver {
+class UserBoundsChangeObserver : public aura::WindowObserver {
  public:
-  explicit ResizeLoopWindowObserver(aura::Window* w) : window_(w) {
+  explicit UserBoundsChangeObserver(aura::Window* w) : window_(w) {
     window_->AddObserver(this);
   }
 
-  ResizeLoopWindowObserver(const ResizeLoopWindowObserver&) = delete;
-  ResizeLoopWindowObserver& operator=(const ResizeLoopWindowObserver&) = delete;
+  UserBoundsChangeObserver(const UserBoundsChangeObserver&) = delete;
+  UserBoundsChangeObserver& operator=(const UserBoundsChangeObserver&) = delete;
 
-  ~ResizeLoopWindowObserver() override {
+  ~UserBoundsChangeObserver() override {
     if (window_) {
       window_->RemoveObserver(this);
     }
   }
 
   bool in_resize_loop() const { return in_resize_loop_; }
+  bool in_move_loop() const { return in_move_loop_; }
 
   // aura::WindowObserver:
   void OnResizeLoopStarted(aura::Window* window) override {
@@ -93,6 +95,14 @@ class ResizeLoopWindowObserver : public aura::WindowObserver {
     EXPECT_TRUE(in_resize_loop_);
     in_resize_loop_ = false;
   }
+  void OnMoveLoopStarted(aura::Window* window) override {
+    EXPECT_FALSE(in_move_loop_);
+    in_move_loop_ = true;
+  }
+  void OnMoveLoopEnded(aura::Window* window) override {
+    EXPECT_TRUE(in_move_loop_);
+    in_move_loop_ = false;
+  }
   void OnWindowDestroying(aura::Window* window) override {
     window_->RemoveObserver(this);
     window_ = nullptr;
@@ -101,6 +111,7 @@ class ResizeLoopWindowObserver : public aura::WindowObserver {
  private:
   raw_ptr<aura::Window> window_;
   bool in_resize_loop_ = false;
+  bool in_move_loop_ = false;
 };
 
 class ToplevelWindowEventHandlerTest : public AshTestBase {
@@ -467,7 +478,7 @@ TEST_F(ToplevelWindowEventHandlerTest, DontDragIfModalChild) {
   std::unique_ptr<aura::Window> w1(CreateWindow(HTCAPTION));
   std::unique_ptr<aura::Window> w2(CreateWindow(HTCAPTION));
   w2->SetBounds(gfx::Rect(100, 0, 100, 100));
-  w2->SetProperty(aura::client::kModalKey, ui::MODAL_TYPE_WINDOW);
+  w2->SetProperty(aura::client::kModalKey, ui::mojom::ModalType::kWindow);
   ::wm::AddTransientChild(w1.get(), w2.get());
   gfx::Size size = w1->bounds().size();
 
@@ -1024,8 +1035,8 @@ void SendMouseReleaseAndReleaseCapture(ui::test::EventGenerator* generator,
 
 }  // namespace
 
-// Test that a drag is successful even if ET_MOUSE_CAPTURE_CHANGED is sent
-// immediately after the mouse release. views::Widget has this behavior.
+// Test that a drag is successful even if EventType::kMouseCaptureChanged is
+// sent immediately after the mouse release. views::Widget has this behavior.
 TEST_F(ToplevelWindowEventHandlerTest, CaptureLossAfterMouseRelease) {
   std::unique_ptr<aura::Window> window(CreateWindow(HTNOWHERE));
   ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow(),
@@ -1111,33 +1122,53 @@ TEST_F(ToplevelWindowEventHandlerTest, DragSnappedWindowToExternalDisplay) {
 
 TEST_F(ToplevelWindowEventHandlerTest, MoveDoesntEnterResizeLoop) {
   std::unique_ptr<aura::Window> w1(CreateWindow(HTCAPTION));
-  ResizeLoopWindowObserver window_observer(w1.get());
+  UserBoundsChangeObserver window_observer(w1.get());
   ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow(), w1.get());
   // A click on the caption does not trigger the resize loop.
   generator.PressLeftButton();
   EXPECT_FALSE(window_observer.in_resize_loop());
 
-  // A move in the caption does not trigger the resize loop either.
+  // It would start a user drag move.
+  EXPECT_TRUE(window_observer.in_move_loop());
+
+  // A move in the caption does not trigger the resize loop.
   generator.MoveMouseBy(100, 100);
   EXPECT_FALSE(window_observer.in_resize_loop());
+
+  // The user drag is still going on.
+  EXPECT_TRUE(window_observer.in_move_loop());
+
+  // Release button finishes the user drag move.
+  generator.ReleaseLeftButton();
+  EXPECT_FALSE(window_observer.in_move_loop());
+
   w1->RemoveObserver(&window_observer);
 }
 
 TEST_F(ToplevelWindowEventHandlerTest, EnterResizeLoopOnResize) {
   std::unique_ptr<aura::Window> w1(CreateWindow(HTGROWBOX));
-  ResizeLoopWindowObserver window_observer(w1.get());
+  UserBoundsChangeObserver window_observer(w1.get());
   ui::test::EventGenerator generator(Shell::GetPrimaryRootWindow(), w1.get());
   // The resize loop is entered once a possible resize is detected.
   generator.PressLeftButton();
   EXPECT_TRUE(window_observer.in_resize_loop());
 
+  // Resize does not start user drag move.
+  EXPECT_FALSE(window_observer.in_move_loop());
+
   // Should remain in the resize loop while dragging.
   generator.MoveMouseBy(100, 100);
   EXPECT_TRUE(window_observer.in_resize_loop());
 
+  // User drag move stays off during resizing.
+  EXPECT_FALSE(window_observer.in_move_loop());
+
   // Releasing the button should end the loop.
   generator.ReleaseLeftButton();
   EXPECT_FALSE(window_observer.in_resize_loop());
+
+  // User drag move stays off after resizing.
+  EXPECT_FALSE(window_observer.in_move_loop());
 }
 
 // Explicitly start a window drag using a child window as a target of drag
@@ -1279,9 +1310,9 @@ TEST_F(ToplevelWindowEventHandlerDragTest,
   dragged_window_->SetProperty(aura::client::kResizeBehaviorKey,
                                aura::client::kResizeBehaviorNone);
 
-  SendGestureEvent(gfx::Point(0, 0), 0, 5, ui::ET_GESTURE_SCROLL_BEGIN);
+  SendGestureEvent(gfx::Point(0, 0), 0, 5, ui::EventType::kGestureScrollBegin);
   SendGestureEvent(gfx::Point(700, 500), 700, 500,
-                   ui::ET_GESTURE_SCROLL_UPDATE);
+                   ui::EventType::kGestureScrollUpdate);
   EXPECT_FALSE(WindowState::Get(dragged_window_.get())->is_dragged());
 
   EXPECT_FALSE(OverviewController::Get()->InOverviewSession());
@@ -1289,9 +1320,9 @@ TEST_F(ToplevelWindowEventHandlerDragTest,
 
 // Test that if window destroyed during resize/dragging, no crash should happen.
 TEST_F(ToplevelWindowEventHandlerDragTest, WindowDestroyedDuringDragging) {
-  SendGestureEvent(gfx::Point(0, 0), 0, 5, ui::ET_GESTURE_SCROLL_BEGIN);
+  SendGestureEvent(gfx::Point(0, 0), 0, 5, ui::EventType::kGestureScrollBegin);
   SendGestureEvent(gfx::Point(700, 500), 700, 500,
-                   ui::ET_GESTURE_SCROLL_UPDATE);
+                   ui::EventType::kGestureScrollUpdate);
   EXPECT_TRUE(WindowState::Get(dragged_window_.get())->is_dragged());
   ToplevelWindowEventHandler* event_handler =
       Shell::Get()->toplevel_window_event_handler();
@@ -1302,12 +1333,12 @@ TEST_F(ToplevelWindowEventHandlerDragTest, WindowDestroyedDuringDragging) {
 }
 
 // Test that `gesture_target_` is set immediately with
-// `ET_GESTURE_BEGIN`. The client may call `AttemptToStartDrag()` after
-// `ET_GESTURE_BEGIN` but before `ET_GESTURE_SCROLL_BEGIN` or
-// `ET_GESTURE_PINCH_BEGIN`.
+// `EventType::kGestureBegin`. The client may call `AttemptToStartDrag()` after
+// `EventType::kGestureBegin` but before `EventType::kGestureScrollBegin` or
+// `EventType::kGesturePinchBegin`.
 TEST_F(ToplevelWindowEventHandlerDragTest,
        GestureTargetIsSetAsSoonAsGestureStarts) {
-  SendGestureEvent(gfx::Point(0, 0), ui::ET_GESTURE_BEGIN);
+  SendGestureEvent(gfx::Point(0, 0), ui::EventType::kGestureBegin);
   ToplevelWindowEventHandler* event_handler =
       Shell::Get()->toplevel_window_event_handler();
 

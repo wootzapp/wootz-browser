@@ -6,20 +6,23 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/views/webauthn/authenticator_common_views.h"
 #include "chrome/browser/ui/views/webauthn/authenticator_request_sheet_view.h"
 #include "chrome/browser/ui/views/webauthn/mac_authentication_view.h"
-#include "chrome/browser/ui/views/webauthn/passkey_detail_view.h"
 #include "chrome/browser/ui/webauthn/sheet_models.h"
+#include "chrome/browser/webauthn/local_authentication_token.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/vector_icons/vector_icons.h"
-#include "crypto/scoped_lacontext.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/mac/util.h"
+#include "device/fido/strings/grit/fido_strings.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/models/image_model.h"
 #include "ui/color/color_id.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
@@ -41,6 +44,11 @@ AuthenticatorTouchIdView::AuthenticatorTouchIdView(
 
 AuthenticatorTouchIdView::~AuthenticatorTouchIdView() = default;
 
+std::unique_ptr<views::View>
+AuthenticatorTouchIdView::BuildStepSpecificHeader() {
+  return CreateGpmIconWithLabel();
+}
+
 std::pair<std::unique_ptr<views::View>, AuthenticatorTouchIdView::AutoFocus>
 AuthenticatorTouchIdView::BuildStepSpecificContent() {
   auto container = std::make_unique<views::BoxLayoutView>();
@@ -57,7 +65,10 @@ AuthenticatorTouchIdView::BuildStepSpecificContent() {
   if (device::fido::mac::DeviceHasBiometricsAvailable()) {
     container->AddChildView(std::make_unique<MacAuthenticationView>(
         base::BindOnce(&AuthenticatorTouchIdView::OnTouchIDComplete,
-                       base::Unretained(this))));
+                       base::Unretained(this)),
+        l10n_util::GetStringFUTF16(
+            IDS_WEBAUTHN_TOUCH_ID_PROMPT_REASON,
+            base::UTF8ToUTF16(dialog_model->relying_party_id))));
     container->AddChildView(std::make_unique<views::Label>(
         l10n_util::GetStringUTF16(IDS_WEBAUTHN_TOUCH_ID_CONTINUE)));
   } else {
@@ -71,7 +82,10 @@ AuthenticatorTouchIdView::BuildStepSpecificContent() {
 }
 
 void AuthenticatorTouchIdView::OnTouchIDComplete(
-    std::optional<crypto::ScopedLAContext> lacontext) {
+    std::optional<webauthn::LocalAuthenticationToken> local_auth_token) {
   static_cast<AuthenticatorTouchIdSheetModel*>(model())->OnTouchIDSensorTapped(
-      std::move(lacontext));
+      std::move(local_auth_token));
 }
+
+BEGIN_METADATA(AuthenticatorTouchIdView)
+END_METADATA

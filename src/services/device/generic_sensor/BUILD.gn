@@ -2,7 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
 import("//build/config/features.gni")
 
 if (is_android) {
@@ -56,7 +55,6 @@ source_set("generic_sensor") {
 
   deps = [
     "//base",
-    "//build:chromeos_buildflags",
     "//device/base/synchronization",
     "//services/device/public/cpp:device_features",
     "//ui/gfx/geometry:geometry",
@@ -76,17 +74,8 @@ source_set("generic_sensor") {
 
   if (is_mac) {
     sources += [
-      "platform_sensor_accelerometer_mac.cc",
-      "platform_sensor_accelerometer_mac.h",
-      "platform_sensor_ambient_light_mac.cc",
-      "platform_sensor_ambient_light_mac.h",
       "platform_sensor_provider_mac.cc",
       "platform_sensor_provider_mac.h",
-    ]
-    deps += [ "//third_party/sudden_motion_sensor" ]
-    frameworks = [
-      "CoreFoundation.framework",
-      "IOKit.framework",
     ]
   }
 

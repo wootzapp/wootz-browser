@@ -6,8 +6,11 @@ package org.chromium.chrome.browser.contextmenu;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doReturn;
 
+import static org.chromium.chrome.browser.contextmenu.ContextMenuItemProperties.ENABLED;
 import static org.chromium.chrome.browser.contextmenu.ContextMenuItemProperties.MENU_ID;
 import static org.chromium.chrome.browser.contextmenu.ContextMenuItemProperties.TEXT;
 
@@ -23,11 +26,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
@@ -37,21 +40,24 @@ import org.robolectric.shadows.ShadowDialog;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisabledTest;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.blink_public.common.ContextMenuDataMediaType;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.contextmenu.ChromeContextMenuItem.Item;
 import org.chromium.chrome.browser.contextmenu.ChromeContextMenuPopulator.ContextMenuGroup;
 import org.chromium.chrome.browser.contextmenu.ContextMenuCoordinator.ListItemType;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
-import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.browser_ui.widget.ContextMenuDialog;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuNativeDelegate;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuParams;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuSwitches;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuUtils;
+import org.chromium.content.browser.webcontents.WebContentsImpl;
+import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.content_public.browser.WebContentsObserver;
 import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.ui.base.TestActivity;
 import org.chromium.ui.base.ViewAndroidDelegate;
@@ -80,6 +86,7 @@ public class ContextMenuCoordinatorTest {
     @Implements(ContextMenuDialog.class)
     public static class ShadowContextMenuDialog extends ShadowDialog {
         boolean mShouldRemoveScrim;
+        boolean mDismissInvoked;
         @Nullable View mTouchEventDelegateView;
         Rect mRect;
 
@@ -110,7 +117,9 @@ public class ContextMenuCoordinatorTest {
 
         @Override
         @Implementation
-        public void dismiss() {}
+        public void dismiss() {
+            mDismissInvoked = true;
+        }
     }
 
     /** No-op constructor for test cases that does not care of creation of real object. */
@@ -137,15 +146,14 @@ public class ContextMenuCoordinatorTest {
         }
     }
 
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
-    @Rule public JniMocker mocker = new JniMocker();
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
     public ActivityScenarioRule<TestActivity> mActivityScenarioRule =
             new ActivityScenarioRule<>(TestActivity.class);
 
     @Mock ContextMenuNativeDelegate mNativeDelegate;
-    @Mock WebContents mWebContentsMock;
+    @Mock WebContentsImpl mWebContentsMock;
 
     private ContextMenuCoordinator mCoordinator;
     private Activity mActivity;
@@ -155,7 +163,6 @@ public class ContextMenuCoordinatorTest {
     public void setUpTest() {
         mActivityScenarioRule.getScenario().onActivity((activity) -> mActivity = activity);
         mCoordinator = new ContextMenuCoordinator(TOP_CONTENT_OFFSET_PX, mNativeDelegate);
-        MockitoAnnotations.initMocks(this);
         ShadowProfile.sProfileFromWebContents = mProfile;
     }
 
@@ -177,6 +184,7 @@ public class ContextMenuCoordinatorTest {
                         0,
                         0,
                         false,
+                        /* openedFromInterestTarget= */ false,
                         /* additionalNavigationParams= */ null);
         List<Pair<Integer, ModelList>> rawItems = new ArrayList<>();
         // Link items
@@ -207,6 +215,63 @@ public class ContextMenuCoordinatorTest {
         assertThat(itemList.get(7).type, equalTo(ListItemType.CONTEXT_MENU_ITEM));
         assertThat(itemList.get(8).type, equalTo(ListItemType.CONTEXT_MENU_ITEM));
         assertThat(itemList.get(9).type, equalTo(ListItemType.CONTEXT_MENU_ITEM_WITH_ICON_BUTTON));
+        // "Save link as"  and "save image" should be enabled.
+        assertTrue(itemList.get(4).model.get(ENABLED));
+        assertTrue(itemList.get(8).model.get(ENABLED));
+    }
+
+    @Test
+    public void testGetItemListWithDownloadBlockedByPolicy() {
+        final ContextMenuParams params =
+                new ContextMenuParams(
+                        0,
+                        ContextMenuDataMediaType.IMAGE,
+                        GURL.emptyGURL(),
+                        GURL.emptyGURL(),
+                        "",
+                        GURL.emptyGURL(),
+                        GURL.emptyGURL(),
+                        "",
+                        null,
+                        false,
+                        0,
+                        0,
+                        0,
+                        false,
+                        /* openedFromInterestTarget= */ false,
+                        /* additionalNavigationParams= */ null);
+        List<Pair<Integer, ModelList>> rawItems = new ArrayList<>();
+        // Link items
+        ModelList groupOne = new ModelList();
+        groupOne.add(createListItem(Item.OPEN_IN_NEW_TAB));
+        groupOne.add(createListItem(Item.OPEN_IN_INCOGNITO_TAB));
+        groupOne.add(createListItem(Item.SAVE_LINK_AS, false));
+        groupOne.add(createShareListItem(Item.SHARE_LINK));
+        rawItems.add(new Pair<>(ContextMenuGroup.LINK, groupOne));
+        // Image Items
+        ModelList groupTwo = new ModelList();
+        groupTwo.add(createListItem(Item.OPEN_IMAGE_IN_NEW_TAB));
+        groupTwo.add(createListItem(Item.SAVE_IMAGE, false));
+        groupTwo.add(createShareListItem(Item.SHARE_IMAGE));
+        rawItems.add(new Pair<>(ContextMenuGroup.IMAGE, groupTwo));
+
+        mCoordinator.initializeHeaderCoordinatorForTesting(
+                mActivity, params, mProfile, mNativeDelegate);
+        ModelList itemList = mCoordinator.getItemList(mActivity, rawItems, (i) -> {}, true);
+
+        assertThat(itemList.get(0).type, equalTo(ListItemType.HEADER));
+        assertThat(itemList.get(1).type, equalTo(ListItemType.DIVIDER));
+        assertThat(itemList.get(2).type, equalTo(ListItemType.CONTEXT_MENU_ITEM));
+        assertThat(itemList.get(3).type, equalTo(ListItemType.CONTEXT_MENU_ITEM));
+        assertThat(itemList.get(4).type, equalTo(ListItemType.CONTEXT_MENU_ITEM));
+        assertThat(itemList.get(5).type, equalTo(ListItemType.CONTEXT_MENU_ITEM_WITH_ICON_BUTTON));
+        assertThat(itemList.get(6).type, equalTo(ListItemType.DIVIDER));
+        assertThat(itemList.get(7).type, equalTo(ListItemType.CONTEXT_MENU_ITEM));
+        assertThat(itemList.get(8).type, equalTo(ListItemType.CONTEXT_MENU_ITEM));
+        assertThat(itemList.get(9).type, equalTo(ListItemType.CONTEXT_MENU_ITEM_WITH_ICON_BUTTON));
+        // "Save link as"  and "save image" should be disabled.
+        assertFalse(itemList.get(4).model.get(ENABLED));
+        assertFalse(itemList.get(8).model.get(ENABLED));
     }
 
     @Test
@@ -232,6 +297,7 @@ public class ContextMenuCoordinatorTest {
                         0,
                         0,
                         false,
+                        /* openedFromInterestTarget= */ false,
                         /* additionalNavigationParams= */ null);
         List<Pair<Integer, ModelList>> rawItems = new ArrayList<>();
         // Link items
@@ -272,6 +338,7 @@ public class ContextMenuCoordinatorTest {
                         0,
                         0,
                         false,
+                        /* openedFromInterestTarget= */ false,
                         /* additionalNavigationParams= */ null);
         List<Pair<Integer, ModelList>> rawItems = new ArrayList<>();
         // Video items
@@ -305,7 +372,7 @@ public class ContextMenuCoordinatorTest {
     @Config(
             shadows = {ShadowContextMenuDialog.class},
             qualifiers = "mdpi")
-    @CommandLineFlags.Add(ChromeSwitches.FORCE_CONTEXT_MENU_POPUP)
+    @CommandLineFlags.Add(ContextMenuSwitches.FORCE_CONTEXT_MENU_POPUP)
     public void testCreateContextMenuDialog_PopupStyle() {
         ContextMenuDialog dialog = createContextMenuDialogForTest(/* isPopup= */ true);
         ShadowContextMenuDialog shadowDialog = (ShadowContextMenuDialog) Shadow.extract(dialog);
@@ -317,6 +384,44 @@ public class ContextMenuCoordinatorTest {
     }
 
     @Test
+    @Config(
+            shadows = {ShadowContextMenuDialog.class, ShadowProfile.class},
+            qualifiers = "mdpi")
+    public void testDismissDialogCalledOnVisibilityChanged_Hidden() {
+        final int triggeringTouchXDp = 100;
+        final int triggeringTouchYDp = 200;
+        ContextMenuDialog dialog =
+                displayContextMenuDialogAtLocation(triggeringTouchXDp, triggeringTouchYDp);
+        ShadowContextMenuDialog shadowDialog = (ShadowContextMenuDialog) Shadow.extract(dialog);
+        shadowDialog.show();
+
+        WebContentsObserver mWebContentsObserver = mCoordinator.getWebContentsObserverForTesting();
+
+        mWebContentsObserver.onVisibilityChanged(Visibility.HIDDEN);
+
+        Assert.assertTrue(shadowDialog.mDismissInvoked);
+    }
+
+    @Test
+    @Config(
+            shadows = {ShadowContextMenuDialog.class, ShadowProfile.class},
+            qualifiers = "mdpi")
+    public void testDismissDialogCalledOnVisibilityChanged_Visible() {
+        final int triggeringTouchXDp = 100;
+        final int triggeringTouchYDp = 200;
+        ContextMenuDialog dialog =
+                displayContextMenuDialogAtLocation(triggeringTouchXDp, triggeringTouchYDp);
+        ShadowContextMenuDialog shadowDialog = (ShadowContextMenuDialog) Shadow.extract(dialog);
+        shadowDialog.show();
+
+        WebContentsObserver mWebContentsObserver = mCoordinator.getWebContentsObserverForTesting();
+
+        mWebContentsObserver.onVisibilityChanged(Visibility.VISIBLE);
+
+        Assert.assertFalse(shadowDialog.mDismissInvoked);
+    }
+
+    @Test
     public void testGetContextMenuTriggerRectFromWeb() {
         final int shadowImgWidth = 50;
         final int shadowImgHeight = 40;
@@ -324,9 +429,7 @@ public class ContextMenuCoordinatorTest {
 
         final int centerX = 100;
         final int centerY = 200;
-        Rect rect =
-                ContextMenuCoordinator.getContextMenuTriggerRectFromWeb(
-                        mWebContentsMock, centerX, centerY);
+        Rect rect = ContextMenuUtils.computeDragShadowRect(mWebContentsMock, centerX, centerY);
 
         Assert.assertEquals("rect.left does not match.", /*100 - 50 / 2 =*/ 75, rect.left);
         Assert.assertEquals("rect.right does not match.", /*100 + 50 / 2 =*/ 125, rect.right);
@@ -340,9 +443,7 @@ public class ContextMenuCoordinatorTest {
 
         final int centerX = 100;
         final int centerY = 200;
-        Rect rect =
-                ContextMenuCoordinator.getContextMenuTriggerRectFromWeb(
-                        mWebContentsMock, centerX, centerY);
+        Rect rect = ContextMenuUtils.computeDragShadowRect(mWebContentsMock, centerX, centerY);
 
         // Rect should be a point when drag not started.
         Assert.assertEquals("rect.left does not match.", centerX, rect.left);
@@ -355,9 +456,7 @@ public class ContextMenuCoordinatorTest {
     public void testGetContextMenuTriggerRectFromWeb_NoViewAndroidDelegate() {
         final int centerX = 100;
         final int centerY = 200;
-        Rect rect =
-                ContextMenuCoordinator.getContextMenuTriggerRectFromWeb(
-                        mWebContentsMock, centerX, centerY);
+        Rect rect = ContextMenuUtils.computeDragShadowRect(mWebContentsMock, centerX, centerY);
 
         // Rect should be a point when no ViewAndroidDelegate attached to web content.
         Assert.assertEquals("rect.left does not match.", centerX, rect.left);
@@ -396,8 +495,8 @@ public class ContextMenuCoordinatorTest {
         Assert.assertEquals(
                 "rect.top for ContextMenuDialog does not match.", /*200 + 17 =*/ 217, rect.top);
         Assert.assertEquals(
-                "rect.bottom for ContextMenuDialog does not match.",
-                /*200 + 17 =*/ 217,
+                "rect.bottom for ContextMenuDialog does not match.", /*200 + 17 =*/
+                217,
                 rect.bottom);
     }
 
@@ -411,7 +510,7 @@ public class ContextMenuCoordinatorTest {
                 ShadowProfile.class
             },
             qualifiers = "mdpi")
-    @CommandLineFlags.Add(ChromeSwitches.FORCE_CONTEXT_MENU_POPUP)
+    @CommandLineFlags.Add(ContextMenuSwitches.FORCE_CONTEXT_MENU_POPUP)
     public void testDisplayMenu_DragEnabled() {
         final int shadowImgWidth = 50;
         final int shadowImgHeight = 40;
@@ -440,12 +539,12 @@ public class ContextMenuCoordinatorTest {
                 75,
                 rect.left);
         Assert.assertEquals(
-                "rect.right for ContextMenuDialog does not match.",
-                /*100 + 50 / 2 =*/ 125,
+                "rect.right for ContextMenuDialog does not match.", /*100 + 50 / 2 =*/
+                125,
                 rect.right);
         Assert.assertEquals(
-                "rect.top for ContextMenuDialog does not match.",
-                /*200 + 17 - 40 / 2 =*/ 197,
+                "rect.top for ContextMenuDialog does not match.", /*200 + 17 - 40 / 2 =*/
+                197,
                 rect.top);
         Assert.assertEquals(
                 "rect.bottom for ContextMenuDialog does not match.",
@@ -454,9 +553,14 @@ public class ContextMenuCoordinatorTest {
     }
 
     private ListItem createListItem(@Item int item) {
+        return createListItem(item, /* enabled= */ true);
+    }
+
+    private ListItem createListItem(@Item int item, boolean enabled) {
         final PropertyModel model =
                 new PropertyModel.Builder(ContextMenuItemProperties.ALL_KEYS)
                         .with(MENU_ID, ChromeContextMenuItem.getMenuId(item))
+                        .with(ENABLED, enabled)
                         .with(
                                 TEXT,
                                 ChromeContextMenuItem.getTitle(mActivity, mProfile, item, false))
@@ -468,6 +572,7 @@ public class ContextMenuCoordinatorTest {
         final PropertyModel model =
                 new PropertyModel.Builder(ContextMenuItemWithIconButtonProperties.ALL_KEYS)
                         .with(MENU_ID, ChromeContextMenuItem.getMenuId(item))
+                        .with(ENABLED, true)
                         .with(
                                 TEXT,
                                 ChromeContextMenuItem.getTitle(mActivity, mProfile, item, false))
@@ -485,6 +590,7 @@ public class ContextMenuCoordinatorTest {
                 rootView,
                 contentView,
                 isPopup,
+                ContextMenuUtils.isPopupSupported(mActivity),
                 0,
                 0,
                 0,
@@ -511,6 +617,7 @@ public class ContextMenuCoordinatorTest {
                         triggeringTouchYDp,
                         0,
                         false,
+                        /* openedFromInterestTarget= */ false,
                         /* additionalNavigationParams= */ null);
 
         final WindowAndroid windowAndroid = Mockito.mock(WindowAndroid.class);

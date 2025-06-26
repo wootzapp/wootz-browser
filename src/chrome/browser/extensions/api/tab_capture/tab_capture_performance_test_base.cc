@@ -79,11 +79,14 @@ void TabCapturePerformanceTestBase::SetUpCommandLine(
     base::CommandLine* command_line) {
   is_full_performance_run_ = command_line->HasSwitch(kFullPerformanceRunSwitch);
 
+  // MSan and GL do not get along so avoid using the GPU with MSan.
+#if !defined(MEMORY_SANITIZER)
   // Note: The naming "kUseGpuInTests" is very misleading. It actually means
   // "don't use a software OpenGL implementation." Subclasses will either call
   // UseSoftwareCompositing() to use Chrome's software compositor, or else they
   // won't (which means use the default hardware-accelerated compositor).
   command_line->AppendSwitch(switches::kUseGpuInTests);
+#endif
 
   command_line->AppendSwitchASCII(extensions::switches::kAllowlistedExtensionID,
                                   kExtensionId);
@@ -98,10 +101,8 @@ void TabCapturePerformanceTestBase::LoadExtension(
       extensions::ExtensionRegistry::Get(browser()->profile());
   extensions::TestExtensionRegistryObserver registry_observer(
       extension_registry);
-  auto* const extension_service =
-      extensions::ExtensionSystem::Get(browser()->profile())
-          ->extension_service();
-  extensions::UnpackedInstaller::Create(extension_service)->Load(unpacked_dir);
+  extensions::UnpackedInstaller::Create(browser()->profile())
+      ->Load(unpacked_dir);
   extension_ = registry_observer.WaitForExtensionReady().get();
   CHECK(extension_);
   CHECK_EQ(kExtensionId, extension_->id());
@@ -146,8 +147,7 @@ base::Value TabCapturePerformanceTestBase::SendMessageToExtension(
                  "'sendMessage' retry...";
     ContinueBrowserFor(kSendMessageRetryPeriod);
   }
-  NOTREACHED_IN_MIGRATION();
-  return base::Value();
+  NOTREACHED();
 }
 
 TabCapturePerformanceTestBase::TraceAnalyzerUniquePtr

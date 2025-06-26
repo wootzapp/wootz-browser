@@ -7,10 +7,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <concepts>
 #include <optional>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "base/base64.h"
@@ -20,22 +23,25 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/json/json_reader.h"
-#include "base/not_fatal_until.h"
 #include "base/strings/strcat.h"
+#include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/sequence_bound.h"
 #include "base/time/clock.h"
 #include "base/time/time.h"
+#include "base/types/expected.h"
 #include "base/types/expected_macros.h"
 #include "base/uuid.h"
 #include "base/values.h"
 #include "content/browser/aggregation_service/aggregatable_report.h"
+#include "content/browser/aggregation_service/aggregation_service_observer.h"
 #include "content/browser/aggregation_service/aggregation_service_storage.h"
 #include "content/browser/aggregation_service/aggregation_service_storage_sql.h"
 #include "content/browser/aggregation_service/public_key.h"
 #include "content/browser/aggregation_service/public_key_parsing_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/aggregation_service/aggregatable_report.mojom.h"
+#include "third_party/boringssl/src/include/openssl/curve25519.h"
 #include "third_party/boringssl/src/include/openssl/hpke.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -127,8 +133,9 @@ testing::AssertionResult ReportRequestsEqual(
 
   testing::AssertionResult payload_contents_equal = PayloadContentsEqual(
       expected.payload_contents(), actual.payload_contents());
-  if (!payload_contents_equal)
+  if (!payload_contents_equal) {
     return payload_contents_equal;
+  }
 
   if (expected.reporting_path() != actual.reporting_path()) {
     return testing::AssertionFailure()
@@ -138,6 +145,27 @@ testing::AssertionResult ReportRequestsEqual(
 
   if (expected.additional_fields() != actual.additional_fields()) {
     return testing::AssertionFailure() << "Expected additional fields to match";
+  }
+
+  if (expected.failed_send_attempts() != actual.failed_send_attempts()) {
+    return testing::AssertionFailure()
+           << "Expected failed_send_attempts "
+           << expected.failed_send_attempts()
+           << ", actual: " << actual.failed_send_attempts();
+  }
+
+  if (expected.delay_type() != actual.delay_type()) {
+    return testing::AssertionFailure()
+           << "Expected delay_type: "
+           << (expected.delay_type()
+                   ? AggregatableReportRequest::DelayTypeToString(
+                         *expected.delay_type())
+                   : "nothing")
+           << ", actual: "
+           << (actual.delay_type()
+                   ? AggregatableReportRequest::DelayTypeToString(
+                         *actual.delay_type())
+                   : "nothing");
   }
 
   return SharedInfoEqual(expected.shared_info(), actual.shared_info());
@@ -235,20 +263,62 @@ testing::AssertionResult SharedInfoEqual(
   return testing::AssertionSuccess();
 }
 
+namespace {
+class ReportRequestMatcher {
+ public:
+  using is_gtest_matcher = void;
+
+  explicit ReportRequestMatcher(const AggregatableReportRequest& expected)
+      : expected_(CloneReportRequest(expected)) {}
+
+  bool MatchAndExplain(const AggregatableReportRequest& actual,
+                       std::ostream* os) const {
+    const testing::AssertionResult result =
+        ReportRequestsEqual(expected_, actual);
+    if (os != nullptr) {
+      *os << result;
+    }
+    return result;
+  }
+
+  void DescribeTo(std::ostream* os) const {
+    *os << "AggregatableReportRequest is equal to the expected request";
+  }
+
+  void DescribeNegationTo(std::ostream* os) const {
+    *os << "AggregatableReportRequest is not equal to the expected request";
+  }
+
+ private:
+  AggregatableReportRequest expected_;
+
+  // If `AggregatableReportRequest` ever becomes copyable, consider replacing
+  // this class with a call to `MATCHER_P`.
+  static_assert(!std::copy_constructible<AggregatableReportRequest>);
+};
+}  // namespace
+
+testing::Matcher<AggregatableReportRequest> ReportRequestIs(
+    const AggregatableReportRequest& expected) {
+  return ReportRequestMatcher(expected);
+}
+
 AggregatableReportRequest CreateExampleRequest(
     blink::mojom::AggregationServiceMode aggregation_mode,
     int failed_send_attempts,
-    std::optional<url::Origin> aggregation_coordinator_origin) {
+    std::optional<url::Origin> aggregation_coordinator_origin,
+    std::optional<AggregatableReportRequest::DelayType> delay_type) {
   return CreateExampleRequestWithReportTime(
       /*report_time=*/base::Time::Now(), aggregation_mode, failed_send_attempts,
-      std::move(aggregation_coordinator_origin));
+      std::move(aggregation_coordinator_origin), std::move(delay_type));
 }
 
 AggregatableReportRequest CreateExampleRequestWithReportTime(
     base::Time report_time,
     blink::mojom::AggregationServiceMode aggregation_mode,
     int failed_send_attempts,
-    std::optional<url::Origin> aggregation_coordinator_origin) {
+    std::optional<url::Origin> aggregation_coordinator_origin,
+    std::optional<AggregatableReportRequest::DelayType> delay_type) {
   return AggregatableReportRequest::Create(
              AggregationServicePayloadContents(
                  AggregationServicePayloadContents::Operation::kHistogram,
@@ -256,8 +326,8 @@ AggregatableReportRequest CreateExampleRequestWithReportTime(
                      /*bucket=*/123, /*value=*/456,
                      /*filtering_id=*/std::nullopt)},
                  aggregation_mode, std::move(aggregation_coordinator_origin),
-                 /*max_contributions_allowed=*/20,
-                 /*filtering_id_max_bytes=*/std::nullopt),
+                 /*max_contributions_allowed=*/20u,
+                 /*filtering_id_max_bytes=*/1u),
              AggregatableReportSharedInfo(
                  /*scheduled_report_time=*/report_time,
                  /*report_id=*/
@@ -267,6 +337,7 @@ AggregatableReportRequest CreateExampleRequestWithReportTime(
                  /*additional_fields=*/base::Value::Dict(),
                  /*api_version=*/"",
                  /*api_identifier=*/"example-api"),
+             delay_type,
              /*reporting_path=*/"example-path",
              /*debug_key=*/std::nullopt, /*additional_fields=*/{},
              failed_send_attempts)
@@ -277,9 +348,9 @@ AggregatableReportRequest CloneReportRequest(
     const AggregatableReportRequest& request) {
   return AggregatableReportRequest::CreateForTesting(
              request.processing_urls(), request.payload_contents(),
-             request.shared_info().Clone(), request.reporting_path(),
-             request.debug_key(), request.additional_fields(),
-             request.failed_send_attempts())
+             request.shared_info().Clone(), request.delay_type(),
+             std::string(request.reporting_path()), request.debug_key(),
+             request.additional_fields(), request.failed_send_attempts())
       .value();
 }
 
@@ -290,7 +361,8 @@ AggregatableReport CloneAggregatableReport(const AggregatableReport& report) {
                           payload.debug_cleartext_payload);
   }
 
-  return AggregatableReport(std::move(payloads), report.shared_info(),
+  return AggregatableReport(std::move(payloads),
+                            std::string(report.shared_info()),
                             report.debug_key(), report.additional_fields(),
                             report.aggregation_coordinator_origin());
 }
@@ -351,14 +423,14 @@ base::expected<PublicKeyset, std::string> ReadAndParsePublicKeys(
 std::vector<uint8_t> DecryptPayloadWithHpke(
     base::span<const uint8_t> payload,
     const EVP_HPKE_KEY& key,
-    const std::string& expected_serialized_shared_info) {
+    std::string_view expected_serialized_shared_info) {
   base::span<const uint8_t> enc = payload.first<X25519_PUBLIC_VALUE_LEN>();
 
   std::string authenticated_info_str =
       base::StrCat({AggregatableReport::kDomainSeparationPrefix,
                     expected_serialized_shared_info});
   base::span<const uint8_t> authenticated_info =
-      base::as_bytes(base::make_span(authenticated_info_str));
+      base::as_byte_span(authenticated_info_str);
 
   // No null terminators should have been copied when concatenating the strings.
   CHECK(!base::Contains(authenticated_info_str, '\0'));
@@ -374,8 +446,7 @@ std::vector<uint8_t> DecryptPayloadWithHpke(
     return {};
   }
 
-  base::span<const uint8_t> ciphertext =
-      payload.subspan(X25519_PUBLIC_VALUE_LEN);
+  auto ciphertext = payload.subspan<X25519_PUBLIC_VALUE_LEN>();
   std::vector<uint8_t> plaintext(ciphertext.size());
   size_t plaintext_len;
 
@@ -435,8 +506,9 @@ void MockAggregationService::NotifyReportHandled(
     std::optional<AggregatableReport> report,
     base::Time report_handled_time,
     AggregationServiceObserver::ReportStatus status) {
-  for (auto& observer : observers_)
+  for (auto& observer : observers_) {
     observer.OnReportHandled(request, id, report, report_handled_time, status);
+  }
 }
 
 AggregatableReportRequestsAndIdsBuilder::

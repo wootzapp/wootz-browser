@@ -22,9 +22,9 @@ import '../icons.html.js';
 
 // </if>
 
+import {I18nMixin} from '//resources/cr_elements/i18n_mixin.js';
 import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import type {CrLinkRowElement} from 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
-import {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {BaseMixin} from '../base_mixin.js';
@@ -35,7 +35,8 @@ import {Router} from '../router.js';
 import {getTemplate} from './autofill_page.html.js';
 import {PasswordManagerImpl, PasswordManagerPage} from './password_manager_proxy.js';
 
-const SettingsAutofillPageElementBase = PrefsMixin(BaseMixin(PolymerElement));
+const SettingsAutofillPageElementBase =
+    PrefsMixin(I18nMixin(BaseMixin(PolymerElement)));
 
 export interface SettingsAutofillPageElement {
   $: {
@@ -71,15 +72,27 @@ export class SettingsAutofillPageElement extends
           return map;
         },
       },
-      isPlusAddressSettingEnabled_: {
+
+      userEligibleForAutofillAi_: {
         type: Boolean,
-        value: () => !!loadTimeData.getString('plusAddressManagementUrl'),
+        value() {
+          return loadTimeData.getBoolean('userEligibleForAutofillAi');
+        },
+      },
+
+      autofillAiAvailable_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('showAutofillAiControl');
+        },
       },
     };
   }
 
-  private passkeyFilter_: string;
-  private focusConfig_: Map<string, string>;
+  declare private passkeyFilter_: string;
+  declare private userEligibleForAutofillAi_: boolean;
+  declare private autofillAiAvailable_: boolean;
+  declare private focusConfig_: Map<string, string>;
 
   /**
    * Shows the manage addresses sub page.
@@ -104,9 +117,20 @@ export class SettingsAutofillPageElement extends
         PasswordManagerPage.PASSWORDS);
   }
 
-  private onPlusAddressClick_() {
-    OpenWindowProxyImpl.getInstance().openUrl(
-        loadTimeData.getString('plusAddressManagementUrl'));
+  /**
+   * Shows the Autofill AI settings sub page.
+   */
+  private onAutofillAiClick_() {
+    Router.getInstance().navigateTo(routes.AUTOFILL_AI);
+  }
+
+  /**
+   * @returns the sublabel of the address entry.
+   */
+  private addressesSublabel_() {
+    return loadTimeData.getBoolean('plusAddressEnabled') ?
+        this.i18n('addressesSublabel') :
+        '';
   }
 }
 

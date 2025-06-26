@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stddef.h>
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -17,7 +18,6 @@
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/power_monitor/power_monitor.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/bind_post_task.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/default_tick_clock.h"
@@ -44,14 +44,14 @@ namespace media {
 
 AudioRendererImpl::AudioRendererImpl(
     const scoped_refptr<base::SequencedTaskRunner>& task_runner,
-    AudioRendererSink* sink,
+    scoped_refptr<AudioRendererSink> sink,
     const CreateAudioDecodersCB& create_audio_decoders_cb,
     MediaLog* media_log,
     MediaPlayerLoggingID media_player_id,
     SpeechRecognitionClient* speech_recognition_client)
     : task_runner_(task_runner),
       expecting_config_changes_(false),
-      sink_(sink),
+      sink_(std::move(sink)),
       media_log_(media_log),
       player_id_(media_player_id),
       client_(nullptr),
@@ -83,14 +83,16 @@ AudioRendererImpl::AudioRendererImpl(
   // won't remove the observer until we're destructed on |task_runner_| so we
   // must post it here if we're on the wrong thread.
   if (task_runner_->RunsTasksInCurrentSequence()) {
-    base::PowerMonitor::AddPowerSuspendObserver(this);
+    base::PowerMonitor::GetInstance()->GetInstance()->AddPowerSuspendObserver(
+        this);
   } else {
     // Safe to post this without a WeakPtr because this class must be destructed
     // on the same thread and construction has not completed yet.
     task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(
-            IgnoreResult(&base::PowerMonitor::AddPowerSuspendObserver), this));
+            base::IgnoreResult(&base::PowerMonitor::AddPowerSuspendObserver),
+            base::Unretained(base::PowerMonitor::GetInstance()), this));
   }
 
   // Do not add anything below this line since the above actions are only safe
@@ -100,7 +102,8 @@ AudioRendererImpl::AudioRendererImpl(
 AudioRendererImpl::~AudioRendererImpl() {
   DVLOG(1) << __func__;
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
-  base::PowerMonitor::RemovePowerSuspendObserver(this);
+  base::PowerMonitor::GetInstance()->GetInstance()->RemovePowerSuspendObserver(
+      this);
 
   // If Render() is in progress, this call will wait for Render() to finish.
   // After this call, the |sink_| will not call back into |this| anymore.
@@ -141,10 +144,11 @@ void AudioRendererImpl::StartRendering_Locked() {
   sink_playing_ = true;
   was_unmuted_ = was_unmuted_ || volume_ != 0;
   base::AutoUnlock auto_unlock(lock_);
-  if (volume_ || !null_sink_)
-    sink_->Play();
-  else
+  if (volume_ || !null_sink_ || render_muted_audio_) {
+    MaybeStartRealSink();
+  } else {
     null_sink_->Play();
+  }
 }
 
 void AudioRendererImpl::StopTicking() {
@@ -174,10 +178,11 @@ void AudioRendererImpl::StopRendering_Locked() {
   sink_playing_ = false;
 
   base::AutoUnlock auto_unlock(lock_);
-  if (volume_ || !null_sink_)
+  if (volume_ || !null_sink_ || render_muted_audio_) {
     sink_->Pause();
-  else
+  } else {
     null_sink_->Pause();
+  }
 
   stop_rendering_time_ = last_render_time_;
 }
@@ -286,10 +291,11 @@ void AudioRendererImpl::Flush(base::OnceClosure callback) {
   // Flush |sink_| now.  |sink_| must only be accessed on |task_runner_| and not
   // be called under |lock_|.
   DCHECK(!sink_playing_);
-  if (volume_ || !null_sink_)
+  if (volume_ || !null_sink_ || render_muted_audio_) {
     sink_->Flush();
-  else
+  } else {
     null_sink_->Flush();
+  }
 
   base::AutoLock auto_lock(lock_);
   DCHECK_EQ(state_, kPlaying);
@@ -424,11 +430,11 @@ void AudioRendererImpl::OnDeviceInfoReceived(
     MEDIA_LOG(ERROR, media_log_)
         << "Output device error, falling back to null sink. device_status="
         << output_device_info.device_status();
-    sink_ = new NullAudioSink(task_runner_);
+    sink_ = base::MakeRefCounted<NullAudioSink>(task_runner_);
     output_device_info = sink_->GetOutputDeviceInfo();
   } else if (base::FeatureList::IsEnabled(kSuspendMutedAudio)) {
     // If playback is muted, we use a fake sink for output until it unmutes.
-    null_sink_ = new NullAudioSink(task_runner_);
+    null_sink_ = base::MakeRefCounted<NullAudioSink>(task_runner_);
   }
 
   current_decoder_config_ = stream->audio_decoder_config();
@@ -509,7 +515,7 @@ void AudioRendererImpl::OnDeviceInfoReceived(
         channels = 1;
       }
     } else {
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
     }
 
     // If we want the precise PCM frame count here, we have to somehow peek the
@@ -604,6 +610,11 @@ void AudioRendererImpl::OnDeviceInfoReceived(
                                 AudioParameters::MULTIZONE);
 
   audio_parameters_.set_latency_tag(AudioLatency::Type::kPlayback);
+  if (!audio_parameters_.IsBitstreamFormat()) {
+    // Requesting audio offload if it is supported on output.
+    media::AudioParameters::HardwareCapabilities hardware_caps(0, 0, 0, true);
+    audio_parameters_.set_hardware_capabilities(hardware_caps);
+  }
 
   audio_decoder_stream_ = std::make_unique<AudioDecoderStream>(
       std::make_unique<AudioDecoderStream::StreamTraits>(
@@ -806,28 +817,11 @@ void AudioRendererImpl::SetVolume(float volume) {
   // Two cases to handle:
   //   1. Changing from muted to unmuted state.
   //   2. Unmuted startup case.
-  if ((!volume_ && volume) || (volume && real_sink_needs_start_)) {
-    // Suspend null audio sink (does nothing if unused).
-    null_sink_->Pause();
-
-    // Complete startup for the real sink if needed.
-    if (real_sink_needs_start_) {
-      sink_->Start();
-      if (!sink_playing_)
-        sink_->Pause();  // Sinks play on start.
-      real_sink_needs_start_ = false;
-    }
-
-    // Start sink playback if needed.
-    if (sink_playing_)
-      sink_->Play();
-  } else if (volume_ && !volume) {
-    // Suspend the real sink (does nothing if unused).
-    sink_->Pause();
-
-    // Start fake sink playback if needed.
-    if (sink_playing_)
-      null_sink_->Play();
+  if ((!render_muted_audio_ && !volume_ && volume) ||
+      (volume && real_sink_needs_start_)) {
+    MaybeStartRealSink();
+  } else if (volume_ && !volume && !render_muted_audio_) {
+    SuspendRealSink();
   }
 
   volume_ = volume;
@@ -857,10 +851,27 @@ void AudioRendererImpl::SetPreservesPitch(bool preserves_pitch) {
     algorithm_->SetPreservesPitch(preserves_pitch);
 }
 
-void AudioRendererImpl::SetWasPlayedWithUserActivation(
-    bool was_played_with_user_activation) {
+void AudioRendererImpl::SetRenderMutedAudio(bool render_muted_audio) {
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
+  if (render_muted_audio_ == render_muted_audio) {
+    return;
+  }
+
+  render_muted_audio_ = render_muted_audio;
+  if (!volume_ && state_ != kUninitialized && state_ != kInitializing) {
+    if (render_muted_audio_) {
+      MaybeStartRealSink();
+    } else {
+      SuspendRealSink();
+    }
+  }
+}
+
+void AudioRendererImpl::SetWasPlayedWithUserActivationAndHighMediaEngagement(
+    bool was_played_with_user_activation_and_high_media_engagement) {
   base::AutoLock auto_lock(lock_);
-  was_played_with_user_activation_ = was_played_with_user_activation;
+  was_played_with_user_activation_and_high_media_engagement_ =
+      was_played_with_user_activation_and_high_media_engagement;
 }
 
 void AudioRendererImpl::OnSuspend() {
@@ -1059,7 +1070,8 @@ bool AudioRendererImpl::HandleDecodedBuffer_Locked(
     // Do not transcribe muted streams initiated by autoplay if the stream was
     // never unmuted.
     if (transcribe_audio_callback_ &&
-        (was_played_with_user_activation_ || was_unmuted_)) {
+        (was_played_with_user_activation_and_high_media_engagement_ ||
+         was_unmuted_)) {
       transcribe_audio_callback_.Run(buffer);
     }
 #endif
@@ -1080,7 +1092,7 @@ bool AudioRendererImpl::HandleDecodedBuffer_Locked(
     case kUninitialized:
     case kInitializing:
     case kFlushing:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
 
     case kFlushed:
       DCHECK(!pending_read_);
@@ -1189,7 +1201,11 @@ int AudioRendererImpl::Render(base::TimeDelta delay,
                               base::TimeTicks delay_timestamp,
                               const AudioGlitchInfo& glitch_info,
                               AudioBus* audio_bus) {
-  TRACE_EVENT1("media", "AudioRendererImpl::Render", "id", player_id_);
+  TRACE_EVENT("media", "AudioRendererImpl::Render", "id", player_id_,
+              "playout_delay (ms)", delay.InMillisecondsF(),
+              "delay_timestamp (ms)",
+              (delay_timestamp - base::TimeTicks()).InMillisecondsF());
+
   int frames_requested = audio_bus->frames();
   DVLOG(4) << __func__ << " delay:" << delay << " glitch_info:["
            << glitch_info.ToString() << "]"
@@ -1222,6 +1238,11 @@ int AudioRendererImpl::Render(base::TimeDelta delay,
       stop_rendering_time_ = base::TimeTicks();
     }
 
+    // When WSOLA is used for playback rate changes, its effect is non-linear,
+    // so we need to adjust the playback rate given to AudioClock to avoid a/v
+    // sync issues over time.
+    double effective_playback_rate = playback_rate_;
+
     // Ensure Stop() hasn't destroyed our |algorithm_| on the pipeline thread.
     if (!algorithm_) {
       audio_clock_->WroteAudio(0, frames_requested, frames_delayed,
@@ -1243,6 +1264,8 @@ int AudioRendererImpl::Render(base::TimeDelta delay,
     }
 
     if (is_passthrough_ && algorithm_->BufferedFrames() > 0) {
+      DCHECK_EQ(playback_rate_, 1.0);
+
       // TODO(tsunghung): For compressed bitstream formats, play zeroed buffer
       // won't generate delay. It could be discarded immediately. Need another
       // way to generate audio delay.
@@ -1291,9 +1314,18 @@ int AudioRendererImpl::Render(base::TimeDelta delay,
       // If there's any space left, actually render the audio; this is where the
       // aural magic happens.
       if (frames_written < frames_requested) {
-        frames_written += algorithm_->FillBuffer(
+        DVLOG(4) << __func__ << ": drift="
+                 << CalculateClockAndAlgorithmDrift().InMicroseconds() << "us";
+
+        const auto frames_filled = algorithm_->FillBuffer(
             audio_bus, frames_written, frames_requested - frames_written,
             playback_rate_);
+        frames_written += frames_filled;
+        effective_playback_rate = algorithm_->effective_playback_rate();
+
+        DVLOG(4) << __func__ << ": frames_filled=" << frames_filled
+                 << ", playback_rate_=" << playback_rate_
+                 << ", effective_playback_rate=" << effective_playback_rate;
       }
     }
 
@@ -1349,8 +1381,18 @@ int AudioRendererImpl::Render(base::TimeDelta delay,
       SetBufferingState_Locked(BUFFERING_HAVE_NOTHING);
     }
 
+    // Note: effective_playback_rate() is used here because WSOLA is a
+    // non-linear operation. E.g., for a `playback_rate_` of 2.0 WSOLA may end
+    // up with effective rates between 1 and 3 and a/v sync drift of +/- 20ms.
+    // This effect is normally cyclical, so it doesn't build over time... except
+    // during repeated playback changes. https://crbug.com/40190553
+    //
+    // Teaching AudioClock about non-linear time would be difficult, but luckily
+    // we can approximate it well enough by just calculating an effective rate
+    // as frames consumed / frames produced for each FillBuffer() call.
     audio_clock_->WroteAudio(frames_written + frames_after_end_of_stream,
-                             frames_requested, frames_delayed, playback_rate_);
+                             frames_requested, frames_delayed,
+                             effective_playback_rate);
 
     if (CanRead_Locked()) {
       task_runner_->PostTask(FROM_HERE,
@@ -1388,7 +1430,7 @@ void AudioRendererImpl::HandleAbortedReadOrDecodeError(PipelineStatus status) {
   switch (state_) {
     case kUninitialized:
     case kInitializing:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
     case kFlushing:
       ChangeState_Locked(kFlushed);
       if (status == PIPELINE_OK) {
@@ -1477,7 +1519,7 @@ void AudioRendererImpl::ConfigureChannelMask() {
   std::vector<bool> channel_mask(audio_parameters_.channels(), false);
   for (size_t ch = 0; ch < matrix.size(); ++ch) {
     channel_mask[ch] =
-        base::ranges::any_of(matrix[ch], [](float mix) { return !!mix; });
+        std::ranges::any_of(matrix[ch], [](float mix) { return !!mix; });
   }
   algorithm_->SetChannelMask(std::move(channel_mask));
 }
@@ -1497,6 +1539,44 @@ void AudioRendererImpl::TranscribeAudio(
   if (speech_recognition_client_)
     speech_recognition_client_->AddAudio(std::move(buffer));
 #endif
+}
+
+void AudioRendererImpl::MaybeStartRealSink() {
+  if (!null_sink_) {
+    return;
+  }
+
+  // Suspend null audio sink (does nothing if unused).
+  null_sink_->Pause();
+
+  // Complete startup for the real sink if needed.
+  if (real_sink_needs_start_) {
+    sink_->Start();
+    if (!sink_playing_) {
+      sink_->Pause();  // Sinks play on start.
+    }
+    real_sink_needs_start_ = false;
+  }
+
+  // Start sink playback if needed.
+  if (sink_playing_) {
+    sink_->Play();
+  }
+}
+
+void AudioRendererImpl::SuspendRealSink() {
+  // Suspend the real sink (does nothing if unused).
+  sink_->Pause();
+
+  // Start fake sink playback if needed.
+  if (sink_playing_ && null_sink_) {
+    null_sink_->Play();
+  }
+}
+
+base::TimeDelta AudioRendererImpl::CalculateClockAndAlgorithmDrift() const {
+  return algorithm_->FrontTimestamp().value_or(audio_clock_->back_timestamp()) -
+         audio_clock_->back_timestamp();
 }
 
 }  // namespace media

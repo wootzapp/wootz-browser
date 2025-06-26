@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/file_system_provider/fileapi/provider_async_file_util.h"
 
 #include <stdint.h>
@@ -363,7 +368,7 @@ TEST_F(FileSystemProviderProviderAsyncFileUtilTest,
   EXPECT_EQ(base::File::FILE_OK, *logger.result());
   EXPECT_EQ(1U, logger.read_directory_list().size());
   EXPECT_EQ(base::FilePath(kFakeFilePath + /*No leading slash.=*/1),
-            logger.read_directory_list()[0].name);
+            logger.read_directory_list()[0].name.path());
 }
 
 TEST_F(FileSystemProviderProviderAsyncFileUtilTest, Touch) {

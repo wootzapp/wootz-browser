@@ -4,20 +4,15 @@
 
 #import "ios/chrome/browser/autofill/model/strike_database_factory.h"
 
-#import <utility>
-
-#import "base/no_destructor.h"
 #import "components/autofill/core/browser/strike_databases/strike_database.h"
-#import "components/keyed_service/ios/browser_state_dependency_manager.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 
 namespace autofill {
 
 // static
-StrikeDatabase* StrikeDatabaseFactory::GetForBrowserState(
-    ChromeBrowserState* browser_state) {
-  return static_cast<StrikeDatabase*>(
-      GetInstance()->GetServiceForBrowserState(browser_state, true));
+StrikeDatabase* StrikeDatabaseFactory::GetForProfile(ProfileIOS* profile) {
+  return GetInstance()->GetServiceForProfileAs<StrikeDatabase>(profile,
+                                                               /*create=*/true);
 }
 
 // static
@@ -27,22 +22,19 @@ StrikeDatabaseFactory* StrikeDatabaseFactory::GetInstance() {
 }
 
 StrikeDatabaseFactory::StrikeDatabaseFactory()
-    : BrowserStateKeyedServiceFactory(
-          "AutofillStrikeDatabase",
-          BrowserStateDependencyManager::GetInstance()) {}
+    : ProfileKeyedServiceFactoryIOS("AutofillStrikeDatabase") {}
 
-StrikeDatabaseFactory::~StrikeDatabaseFactory() {}
+StrikeDatabaseFactory::~StrikeDatabaseFactory() = default;
 
 std::unique_ptr<KeyedService> StrikeDatabaseFactory::BuildServiceInstanceFor(
     web::BrowserState* context) const {
-  ChromeBrowserState* chrome_browser_state =
-      ChromeBrowserState::FromBrowserState(context);
+  ProfileIOS* profile = ProfileIOS::FromBrowserState(context);
 
   leveldb_proto::ProtoDatabaseProvider* db_provider =
-      chrome_browser_state->GetProtoDatabaseProvider();
+      profile->GetProtoDatabaseProvider();
 
-  return std::make_unique<autofill::StrikeDatabase>(
-      db_provider, chrome_browser_state->GetStatePath());
+  return std::make_unique<autofill::StrikeDatabase>(db_provider,
+                                                    profile->GetStatePath());
 }
 
 }  // namespace autofill

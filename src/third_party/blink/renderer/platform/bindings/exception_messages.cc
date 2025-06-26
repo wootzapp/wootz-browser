@@ -30,6 +30,9 @@
 
 #include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 
+#include "base/notreached.h"
+#include "third_party/blink/renderer/platform/bindings/exception_context.h"
+#include "third_party/blink/renderer/platform/bindings/v8_binding.h"
 #include "third_party/blink/renderer/platform/wtf/decimal.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
@@ -39,7 +42,7 @@ namespace blink {
 namespace {
 
 String optionalNameProperty(const String& property) {
-  if (!property) {
+  if (property.empty()) {
     return String();
   }
   return " '" + property + "'";
@@ -54,13 +57,63 @@ String optionalIndexProperty(const String& property) {
 
 }  //  namespace
 
+String ExceptionMessages::AddContextToMessage(v8::ExceptionContext type,
+                                              const char* class_name,
+                                              const String& property_name,
+                                              const String& message) {
+  switch (type) {
+    case v8::ExceptionContext::kConstructor:
+      return ExceptionMessages::FailedToConstruct(class_name, message);
+    case v8::ExceptionContext::kOperation:
+      return ExceptionMessages::FailedToExecute(property_name, class_name,
+                                                message);
+    case v8::ExceptionContext::kAttributeGet:
+      return ExceptionMessages::FailedToGet(property_name, class_name, message);
+    case v8::ExceptionContext::kAttributeSet:
+      return ExceptionMessages::FailedToSet(property_name, class_name, message);
+    case v8::ExceptionContext::kNamedEnumerator:
+      return ExceptionMessages::FailedToEnumerate(class_name, message);
+    case v8::ExceptionContext::kIndexedGetter:
+    case v8::ExceptionContext::kIndexedDescriptor:
+    case v8::ExceptionContext::kIndexedQuery:
+      return ExceptionMessages::FailedToGetIndexed(property_name, class_name,
+                                                   message);
+    case v8::ExceptionContext::kIndexedSetter:
+    case v8::ExceptionContext::kIndexedDefiner:
+      return ExceptionMessages::FailedToSetIndexed(property_name, class_name,
+                                                   message);
+    case v8::ExceptionContext::kIndexedDeleter:
+      return ExceptionMessages::FailedToDeleteIndexed(property_name, class_name,
+                                                      message);
+    case v8::ExceptionContext::kNamedGetter:
+    case v8::ExceptionContext::kNamedDescriptor:
+    case v8::ExceptionContext::kNamedQuery:
+      return ExceptionMessages::FailedToGetNamed(property_name, class_name,
+                                                 message);
+    case v8::ExceptionContext::kNamedSetter:
+    case v8::ExceptionContext::kNamedDefiner:
+      return ExceptionMessages::FailedToSetNamed(property_name, class_name,
+                                                 message);
+    case v8::ExceptionContext::kNamedDeleter:
+      return ExceptionMessages::FailedToDeleteNamed(property_name, class_name,
+                                                    message);
+    case v8::ExceptionContext::kUnknown:
+      return message;
+  }
+  NOTREACHED();
+}
+
 String ExceptionMessages::FailedToConvertJSValue(const char* type) {
   return String::Format("Failed to convert value to '%s'.", type);
 }
 
 String ExceptionMessages::FailedToConstruct(const char* type,
                                             const String& detail) {
-  return "Failed to construct '" + String(type) +
+  String type_string = String(type);
+  if (type_string.empty()) {
+    return detail;
+  }
+  return "Failed to construct '" + type_string +
          (!detail.empty() ? String("': " + detail) : String("'"));
 }
 

@@ -22,6 +22,7 @@
 #include "chrome/browser/segmentation_platform/ukm_data_manager_test_utils.h"
 #include "chrome/browser/segmentation_platform/ukm_database_client.h"
 #include "chrome/test/base/chrome_test_utils.h"
+#include "chrome/test/base/platform_browser_test.h"
 #include "components/optimization_guide/core/model_info.h"
 #include "components/optimization_guide/core/test_model_info_builder.h"
 #include "components/optimization_guide/proto/models.pb.h"
@@ -274,7 +275,7 @@ class SegmentationPlatformTest : public PlatformBrowserTest {
     return search_user_metadata;
   }
 
-  void WaitForHistogram(const std::string& histogram_name,
+  void WaitForHistogram(std::string_view histogram_name,
                         const base::HistogramTester& histogram_tester) {
     // Continue if histogram was already recorded.
     if (histogram_tester.GetAllSamples(histogram_name).size() > 0) {
@@ -287,8 +288,8 @@ class SegmentationPlatformTest : public PlatformBrowserTest {
         base::StatisticsRecorder::ScopedHistogramSampleObserver>(
         histogram_name,
         base::BindLambdaForTesting(
-            [&](const char* histogram_name, uint64_t name_hash,
-                base::HistogramBase::Sample sample) { run_loop.Quit(); }));
+            [&](std::string_view histogram_name, uint64_t name_hash,
+                base::HistogramBase::Sample32 sample) { run_loop.Quit(); }));
     run_loop.Run();
   }
 
@@ -681,18 +682,12 @@ class SegmentationPlatformUkmDisabledTest : public SegmentationPlatformTest {
              kSegmentationPlatformOptimizationTargetSegmentationDummy, {})},
         /*disabled_features=*/{
             features::kSegmentationPlatformUkmEngine,
+            features::kSegmentationPlatformUmaFromSqlDb,
         });
   }
 };
 
-// On Android tests are failing because of unrelated browser tests failures.
-// TODO(ssid): Once the issue is resolved, enable the test on Android.
-#if BUILDFLAG(IS_ANDROID)
-#define MAYBE_DatabaseApi DISABLED_DatabaseApi
-#else
-#define MAYBE_DatabaseApi DatabaseApi
-#endif
-IN_PROC_BROWSER_TEST_F(SegmentationPlatformUkmDisabledTest, MAYBE_DatabaseApi) {
+IN_PROC_BROWSER_TEST_F(SegmentationPlatformUkmDisabledTest, DatabaseApi) {
   WaitForPlatformInit();
 
   SegmentationPlatformService* service = GetService();

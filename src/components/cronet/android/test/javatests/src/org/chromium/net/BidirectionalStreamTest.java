@@ -23,11 +23,16 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.Log;
-import org.chromium.base.test.util.Batch;
+import org.chromium.base.test.util.DoNotBatch;
+import org.chromium.base.test.util.RequiresRestart;
+import org.chromium.build.BuildConfig;
+import org.chromium.net.CronetTestRule.BoolFlag;
 import org.chromium.net.CronetTestRule.CronetImplementation;
+import org.chromium.net.CronetTestRule.Flags;
 import org.chromium.net.CronetTestRule.IgnoreFor;
 import org.chromium.net.CronetTestRule.RequiresMinAndroidApi;
 import org.chromium.net.CronetTestRule.RequiresMinApi;
@@ -37,7 +42,10 @@ import org.chromium.net.TestBidirectionalStreamCallback.ResponseStep;
 import org.chromium.net.impl.BidirectionalStreamNetworkException;
 import org.chromium.net.impl.CronetBidirectionalStream;
 import org.chromium.net.impl.CronetExceptionImpl;
+import org.chromium.net.impl.CronetLogger.CronetSource;
+import org.chromium.net.impl.JavaCronetProvider;
 import org.chromium.net.impl.NetworkExceptionImpl;
+import org.chromium.net.impl.TestLogger;
 import org.chromium.net.impl.UrlResponseInfoImpl;
 
 import java.nio.ByteBuffer;
@@ -52,7 +60,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Test functionality of BidirectionalStream interface. */
-@Batch(Batch.UNIT_TESTS)
+@DoNotBatch(reason = "crbug/1459563")
 @RunWith(AndroidJUnit4.class)
 @IgnoreFor(
         implementations = {CronetImplementation.FALLBACK},
@@ -60,12 +68,19 @@ import java.util.regex.Pattern;
 public class BidirectionalStreamTest {
     private static final String TAG = BidirectionalStreamTest.class.getSimpleName();
 
-    @Rule public final CronetTestRule mTestRule = CronetTestRule.withManualEngineStartup();
+    public final CronetTestRule mTestRule = CronetTestRule.withManualEngineStartup();
 
     private ExperimentalCronetEngine mCronetEngine;
+    private final CronetLoggerTestRule<TestLogger> mLoggerTestRule =
+            new CronetLoggerTestRule<>(TestLogger.class);
+
+    @Rule public final RuleChain chain = RuleChain.outerRule(mLoggerTestRule).around(mTestRule);
+
+    private TestLogger mTestLogger;
 
     @Before
     public void setUp() throws Exception {
+        mTestLogger = mLoggerTestRule.mTestLogger;
         // TODO(crbug.com/40284777): Fallback to MockCertVerifier when custom CAs are not supported.
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
             mTestRule
@@ -241,6 +256,19 @@ public class BidirectionalStreamTest {
 
     @Test
     @SmallTest
+    @IgnoreFor(
+            implementations = {CronetImplementation.FALLBACK, CronetImplementation.AOSP_PLATFORM},
+            reason = "The output differs depending on the type of Cronet Impl.")
+    @RequiresMinAndroidApi(Build.VERSION_CODES.O)
+    public void testTrafficInfoAtomSourceStaticallyLinked() throws Exception {
+        testSimpleGet();
+        mTestLogger.waitForLogCronetTrafficInfo();
+        assertThat(mTestLogger.getLastCronetTrafficInfo().getCronetSource())
+                .isEqualTo(CronetSource.CRONET_SOURCE_STATICALLY_LINKED);
+    }
+
+    @Test
+    @SmallTest
     public void testSimpleGet() throws Exception {
         // Since this is the first request on the connection, the expected received bytes count
         // must account for an HPACK dynamic table size update.
@@ -266,6 +294,64 @@ public class BidirectionalStreamTest {
         mTestRule.assertResponseEquals(urlResponseInfo, callback.getResponseInfoWithChecks());
         checkResponseInfo(
                 callback.getResponseInfoWithChecks(), Http2TestServer.getEchoMethodUrl(), 200, "");
+    }
+
+    @Test
+    @SmallTest
+    // HttpEngine is supported from Android U+
+    @RequiresMinAndroidApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @Flags(boolFlags = {@BoolFlag(name = JavaCronetProvider.FORCE_HTTPENGINE_FLAG, value = true)})
+    public void testSimpleGetWithFallbackForcingHttpEngine() throws Exception {
+        // Since this is the first request on the connection, the expected received bytes count
+        // must account for an HPACK dynamic table size update.
+        int expectedReceivedBytes = 31;
+
+        String url = Http2TestServer.getEchoMethodUrl();
+        TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
+        // Create stream.
+        BidirectionalStream stream =
+                new JavaCronetProvider(mTestRule.getTestFramework().getContext())
+                        .createBuilder()
+                        .build()
+                        .newBidirectionalStreamBuilder(url, callback, callback.getExecutor())
+                        .setHttpMethod("GET")
+                        .build();
+        stream.start();
+        callback.blockForDone();
+        assertThat(stream.isDone()).isTrue();
+        assertThat(callback.getResponseInfoWithChecks()).hasHttpStatusCodeThat().isEqualTo(200);
+        // Default method is 'GET'.
+        assertThat(callback.mResponseAsString).isEqualTo("GET");
+        UrlResponseInfo urlResponseInfo =
+                createUrlResponseInfo(
+                        new String[] {url}, "", 200, expectedReceivedBytes, ":status", "200");
+        mTestRule.assertResponseEquals(urlResponseInfo, callback.getResponseInfoWithChecks());
+        checkResponseInfo(
+                callback.getResponseInfoWithChecks(), Http2TestServer.getEchoMethodUrl(), 200, "");
+    }
+
+    @Test
+    @SmallTest
+    @Flags(boolFlags = {@BoolFlag(name = JavaCronetProvider.FORCE_HTTPENGINE_FLAG, value = false)})
+    public void testSimpleGetWithFallbackForcingHttpEngineDisabled() throws Exception {
+        String url = Http2TestServer.getEchoMethodUrl();
+        TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
+        // Create stream.
+        UnsupportedOperationException e =
+                assertThrows(
+                        UnsupportedOperationException.class,
+                        () ->
+                                new JavaCronetProvider(mTestRule.getTestFramework().getContext())
+                                        .createBuilder()
+                                        .build()
+                                        .newBidirectionalStreamBuilder(
+                                                url, callback, callback.getExecutor())
+                                        .setHttpMethod("GET")
+                                        .build());
+        assertThat(e)
+                .hasMessageThat()
+                .contains(
+                        "The bidirectional stream API is not supported by the Java implementation");
     }
 
     @Test
@@ -327,10 +413,8 @@ public class BidirectionalStreamTest {
 
     @Test
     @SmallTest
-    @IgnoreFor(
-            implementations = {CronetImplementation.AOSP_PLATFORM},
-            reason = "RequedFinishedListener is not available in AOSP")
     public void testPostWithFinishedListener() throws Exception {
+        CronetImplementation implementationUnderTest = mTestRule.implementationUnderTest();
         String url = Http2TestServer.getEchoStreamUrl();
         TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
         callback.addWriteData("Test String".getBytes());
@@ -355,9 +439,11 @@ public class BidirectionalStreamTest {
         requestFinishedListener.blockUntilDone();
         Date endTime = new Date();
         RequestFinishedInfo finishedInfo = requestFinishedListener.getRequestInfo();
-        MetricsTestUtil.checkRequestFinishedInfo(finishedInfo, url, startTime, endTime);
+        MetricsTestUtil.checkRequestFinishedInfo(
+                implementationUnderTest, finishedInfo, url, startTime, endTime);
         assertThat(finishedInfo.getFinishedReason()).isEqualTo(RequestFinishedInfo.SUCCEEDED);
-        MetricsTestUtil.checkHasConnectTiming(finishedInfo.getMetrics(), startTime, endTime, true);
+        MetricsTestUtil.checkHasConnectTiming(
+                implementationUnderTest, finishedInfo.getMetrics(), startTime, endTime, true);
         assertThat(finishedInfo.getAnnotations()).containsExactly("request annotation", this);
         assertThat(callback.getResponseInfoWithChecks()).hasHttpStatusCodeThat().isEqualTo(200);
         assertThat(callback.mResponseAsString).isEqualTo("Test String1234567890woot!");
@@ -921,10 +1007,13 @@ public class BidirectionalStreamTest {
         builder.addHeader("goodheader2", "headervalue");
         IllegalArgumentException e =
                 assertThrows(IllegalArgumentException.class, () -> builder.build().start());
+        var oldMessage = "Invalid header header:name=headervalue";
+        var newMessage = "Invalid header with headername: header:name";
         if (mTestRule.implementationUnderTest() == CronetImplementation.AOSP_PLATFORM
-                && !mTestRule.isRunningInAOSP()) {
-            // TODO(b/307234565): Remove check once chromium Android 14 emulator has latest changes.
-            assertThat(e).hasMessageThat().isEqualTo("Invalid header header:name=headervalue");
+                && !BuildConfig.CRONET_FOR_AOSP_BUILD) {
+            // We may be running against an HttpEngine backed by an old version of Cronet, so accept
+            // both the old and new variants of the message.
+            assertThat(e).hasMessageThat().isAnyOf(oldMessage, newMessage);
         } else {
             assertThat(e).hasMessageThat().isEqualTo("Invalid header with headername: header:name");
         }
@@ -940,14 +1029,15 @@ public class BidirectionalStreamTest {
         builder.addHeader("headername", "bad header\r\nvalue");
         IllegalArgumentException e =
                 assertThrows(IllegalArgumentException.class, () -> builder.build().start());
+        var oldMessage = "Invalid header headername=bad header\r\nvalue";
+        var newMessage = "Invalid header with headername: headername";
         if (mTestRule.implementationUnderTest() == CronetImplementation.AOSP_PLATFORM
-                && !mTestRule.isRunningInAOSP()) {
-            // TODO(b/307234565): Remove check once chromium Android 14 emulator has latest changes.
-            assertThat(e)
-                    .hasMessageThat()
-                    .isEqualTo("Invalid header headername=bad header\r\nvalue");
+                && !BuildConfig.CRONET_FOR_AOSP_BUILD) {
+            // We may be running against an HttpEngine backed by an old version of Cronet, so accept
+            // both the old and new variants of the message.
+            assertThat(e).hasMessageThat().isAnyOf(oldMessage, newMessage);
         } else {
-            assertThat(e).hasMessageThat().isEqualTo("Invalid header with headername: headername");
+            assertThat(e).hasMessageThat().isEqualTo(newMessage);
         }
     }
 
@@ -1316,11 +1406,6 @@ public class BidirectionalStreamTest {
     /** Checks that the buffer is updated correctly, when starting at an offset. */
     @Test
     @SmallTest
-    @IgnoreFor(
-            implementations = {CronetImplementation.AOSP_PLATFORM},
-            reason =
-                    "crbug.com/1494845: Relies on finished listener synchronization which isn't"
-                            + " available in AOSP")
     public void testSimpleGetBufferUpdates() throws Exception {
         TestRequestFinishedListener requestFinishedListener = new TestRequestFinishedListener();
         mCronetEngine.addRequestFinishedListener(requestFinishedListener);
@@ -1494,22 +1579,29 @@ public class BidirectionalStreamTest {
         if (failureStep != ResponseStep.ON_STREAM_READY) {
             assertThat(callback.getResponseInfo()).isNotNull();
         }
-        // Check metrics information.
-        if (failureStep == ResponseStep.ON_RESPONSE_STARTED
-                || failureStep == ResponseStep.ON_READ_COMPLETED
-                || failureStep == ResponseStep.ON_TRAILERS) {
-            // For steps after response headers are received, there will be
-            // connect timing metrics.
-            MetricsTestUtil.checkTimingMetrics(metrics, startTime, endTime);
-            MetricsTestUtil.checkHasConnectTiming(metrics, startTime, endTime, true);
-            assertThat(metrics.getSentByteCount()).isGreaterThan(0L);
-            assertThat(metrics.getReceivedByteCount()).isGreaterThan(0L);
-        } else if (failureStep == ResponseStep.ON_STREAM_READY) {
-            assertThat(metrics.getRequestStart()).isNotNull();
-            MetricsTestUtil.assertAfter(metrics.getRequestStart(), startTime);
-            assertThat(metrics.getRequestEnd()).isNotNull();
-            MetricsTestUtil.assertAfter(endTime, metrics.getRequestEnd());
-            MetricsTestUtil.assertAfter(metrics.getRequestEnd(), metrics.getRequestStart());
+        CronetImplementation implementationUnderTest = mTestRule.implementationUnderTest();
+        // RequestFinishedInfoListener HttpEngineWrapper implementation has placeholder ie null
+        // metrics. Don't bother checking timing metrics for AOSP whether it passes or not.
+        if (implementationUnderTest != CronetImplementation.AOSP_PLATFORM) {
+            // Check metrics information.
+            if (failureStep == ResponseStep.ON_RESPONSE_STARTED
+                    || failureStep == ResponseStep.ON_READ_COMPLETED
+                    || failureStep == ResponseStep.ON_TRAILERS) {
+                // For steps after response headers are received, there will be
+                // connect timing metrics.
+                MetricsTestUtil.checkTimingMetrics(
+                        implementationUnderTest, metrics, startTime, endTime);
+                MetricsTestUtil.checkHasConnectTiming(
+                        implementationUnderTest, metrics, startTime, endTime, true);
+                assertThat(metrics.getSentByteCount()).isGreaterThan(0L);
+                assertThat(metrics.getReceivedByteCount()).isGreaterThan(0L);
+            } else if (failureStep == ResponseStep.ON_STREAM_READY) {
+                assertThat(metrics.getRequestStart()).isNotNull();
+                MetricsTestUtil.assertAfter(metrics.getRequestStart(), startTime);
+                assertThat(metrics.getRequestEnd()).isNotNull();
+                MetricsTestUtil.assertAfter(endTime, metrics.getRequestEnd());
+                MetricsTestUtil.assertAfter(metrics.getRequestEnd(), metrics.getRequestStart());
+            }
         }
         assertThat(callback.mError != null).isEqualTo(expectError);
         assertThat(callback.mOnErrorCalled).isEqualTo(expectError);
@@ -1547,6 +1639,29 @@ public class BidirectionalStreamTest {
         throwOrCancel(
                 FailureType.CANCEL_ASYNC_WITHOUT_PAUSE, ResponseStep.ON_READ_COMPLETED, false);
         throwOrCancel(FailureType.THROW_SYNC, ResponseStep.ON_READ_COMPLETED, true);
+    }
+
+    @Test
+    @SmallTest
+    public void testCancelBeforeResponse() {
+        // Use a hanging endpoint to prevent race between getting a response and cancel().
+        // Cronet only records the responseInfo once onResponseHeadersReceived is called.
+        TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
+        BidirectionalStream.Builder builder =
+                mTestRule
+                        .getTestFramework()
+                        .getEngine()
+                        .newBidirectionalStreamBuilder(
+                                Http2TestServer.getHangingRequestUrl(),
+                                callback,
+                                callback.getExecutor());
+        BidirectionalStream stream = builder.build();
+        stream.start();
+        stream.cancel();
+        callback.blockForDone();
+
+        assertThat(callback.mResponseStep).isEqualTo(ResponseStep.ON_CANCELED);
+        assertThat(callback.getResponseInfo()).isNull();
     }
 
     @Test
@@ -1652,6 +1767,7 @@ public class BidirectionalStreamTest {
     @IgnoreFor(
             implementations = {CronetImplementation.AOSP_PLATFORM},
             reason = "ActiveRequestCount is not available in AOSP")
+    @RequiresRestart("crbug.com/344665939")
     public void testCronetEngineShutdownAfterStreamFailure() throws Exception {
         // Test that CronetEngine can be shut down after stream reports a failure.
         TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
@@ -1757,7 +1873,6 @@ public class BidirectionalStreamTest {
     @Test
     @SmallTest
     @RequiresMinApi(10) // Tagging support added in API level 10: crrev.com/c/chromium/src/+/937583
-    @RequiresMinAndroidApi(Build.VERSION_CODES.M) // crbug/1301957
     public void testTagging() throws Exception {
         if (!CronetTestUtil.nativeCanGetTaggedBytes()) {
             Log.i(TAG, "Skipping test - GetTaggedBytes unsupported.");
@@ -1815,7 +1930,6 @@ public class BidirectionalStreamTest {
     }
 
     @Test
-    @RequiresMinAndroidApi(Build.VERSION_CODES.M)
     @IgnoreFor(
             implementations = {CronetImplementation.AOSP_PLATFORM},
             reason = "b/309112420 BidiStream bindToNetwork API not exposed in AOSP")

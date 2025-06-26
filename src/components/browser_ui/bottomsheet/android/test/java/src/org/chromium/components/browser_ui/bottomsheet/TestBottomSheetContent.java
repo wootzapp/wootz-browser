@@ -10,11 +10,13 @@ import android.graphics.drawable.ColorDrawable;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.test.util.CallbackHelper;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 /** A simple sheet content to test with. This only displays two empty white views. */
 public class TestBottomSheetContent implements BottomSheetContent {
@@ -79,7 +81,7 @@ public class TestBottomSheetContent implements BottomSheetContent {
         mPriority = priority;
         mHasCustomLifecycle = hasCustomLifecycle;
         mCanSuppressInAnyState = false;
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mToolbarView = new View(context);
                     ViewGroup.LayoutParams params =
@@ -223,22 +225,22 @@ public class TestBottomSheetContent implements BottomSheetContent {
     }
 
     @Override
-    public int getSheetContentDescriptionStringId() {
+    public @NonNull String getSheetContentDescription(Context context) {
+        return context.getString(android.R.string.copy);
+    }
+
+    @Override
+    public @StringRes int getSheetHalfHeightAccessibilityStringId() {
         return android.R.string.copy;
     }
 
     @Override
-    public int getSheetHalfHeightAccessibilityStringId() {
+    public @StringRes int getSheetFullHeightAccessibilityStringId() {
         return android.R.string.copy;
     }
 
     @Override
-    public int getSheetFullHeightAccessibilityStringId() {
-        return android.R.string.copy;
-    }
-
-    @Override
-    public int getSheetClosedAccessibilityStringId() {
+    public @StringRes int getSheetClosedAccessibilityStringId() {
         return android.R.string.copy;
     }
 

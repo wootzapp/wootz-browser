@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "dbus/message.h"
 
 #include <string>
@@ -80,8 +85,7 @@ std::string Message::GetMessageTypeAsString() {
     case MESSAGE_ERROR:
       return "MESSAGE_ERROR";
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 std::string Message::ToStringInternal(const std::string& indent,
@@ -513,10 +517,10 @@ void MessageWriter::AppendDouble(double value) {
   AppendBasic(DBUS_TYPE_DOUBLE, &value);
 }
 
-void MessageWriter::AppendString(std::string_view value) {
+void MessageWriter::AppendString(const std::string& value) {
   // D-Bus Specification (0.19) says a string "must be valid UTF-8".
   CHECK(base::IsStringUTF8(value));
-  const char* pointer = value.data() ? value.data() : "";
+  const char* pointer = value.c_str();
   AppendBasic(DBUS_TYPE_STRING, &pointer);
   // TODO(satorux): It may make sense to return an error here, as the
   // input string can be large. If needed, we could add something like

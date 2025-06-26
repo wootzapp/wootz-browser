@@ -65,8 +65,9 @@ InterpolationValue CSSLengthInterpolationType::MaybeConvertInitial(
           CssProperty(), state.GetDocument().GetStyleResolver().InitialStyle(),
           initial_length))
     return nullptr;
-  return InterpolationValue(
-      InterpolableLength::MaybeConvertLength(initial_length, 1));
+  return InterpolationValue(InterpolableLength::MaybeConvertLength(
+      initial_length, CssProperty(), 1,
+      state.StyleBuilder().InterpolateSize()));
 }
 
 InterpolationValue CSSLengthInterpolationType::MaybeConvertInherit(
@@ -85,19 +86,22 @@ InterpolationValue CSSLengthInterpolationType::MaybeConvertInherit(
     return nullptr;
   }
   return InterpolationValue(InterpolableLength::MaybeConvertLength(
-      inherited_length, EffectiveZoom(state.ParentStyle()->EffectiveZoom())));
+      inherited_length, CssProperty(),
+      EffectiveZoom(state.ParentStyle()->EffectiveZoom()),
+      state.StyleBuilder().InterpolateSize()));
 }
 
 InterpolationValue CSSLengthInterpolationType::MaybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState*,
+    const StyleResolverState& state,
     ConversionCheckers& conversion_checkers) const {
   if (auto* identifier_value = DynamicTo<CSSIdentifierValue>(value)) {
     CSSValueID value_id = identifier_value->GetValueID();
 
     if (LengthPropertyFunctions::CanAnimateKeyword(CssProperty(), value_id)) {
-      return InterpolationValue(
-          MakeGarbageCollected<InterpolableLength>(value_id));
+      return InterpolationValue(MakeGarbageCollected<InterpolableLength>(
+          value_id,
+          std::make_optional(state.StyleBuilder().InterpolateSize())));
     }
 
     double pixels;
@@ -110,21 +114,93 @@ InterpolationValue CSSLengthInterpolationType::MaybeConvertValue(
   return InterpolationValue(InterpolableLength::MaybeConvertCSSValue(value));
 }
 
+InterpolationValue CSSLengthInterpolationType::MaybeConvertUnderlyingValue(
+    const CSSInterpolationEnvironment& environment) const {
+  InterpolationValue result =
+      CSSInterpolationType::MaybeConvertUnderlyingValue(environment);
+
+  // At this point, MaybeConvertUnderlyingValue might or might not have set an
+  // interpolate-size, depending on which codepath it took.  However, it used
+  // the style from the base style, but we want the style from the animation
+  // controls style.
+  if (auto* length = To<InterpolableLength>(result.interpolable_value.Get())) {
+    length->SetInterpolateSize(
+        environment.AnimationControlsStyle().InterpolateSize());
+  }
+
+  return result;
+}
+
+namespace {
+class AlwaysInvalidateChecker
+    : public CSSInterpolationType::CSSConversionChecker {
+ public:
+  bool IsValid(const StyleResolverState& state,
+               const InterpolationValue& underlying) const final {
+    return false;
+  }
+};
+}  // namespace
+
+InterpolationValue
+CSSLengthInterpolationType::PreInterpolationCompositeIfNeeded(
+    InterpolationValue value,
+    const InterpolationValue& underlying,
+    EffectModel::CompositeOperation composite,
+    ConversionCheckers& conversion_checkers) const {
+  // For lengths we need to use pre-interpolation composite because the result
+  // of compositing a neutral value endpoint on top of the underlying value
+  // can affect whether the endpoints can interpolate with each other, since
+  // the underlying value may be a length or may be a keyword (particularly
+  // auto).
+
+  // Due to the post-interpolation composite optimization, the interpolation
+  // stack aggressively caches interpolated values. When we are doing
+  // pre-interpolation compositing, this can cause us to bake-in the
+  // composited result even when the underlying value is changing. This
+  // checker is a hack to disable that caching in this case.
+  // TODO(crbug.com/1009230): Remove this once our interpolation code isn't
+  // caching composited values.
+  conversion_checkers.push_back(
+      MakeGarbageCollected<AlwaysInvalidateChecker>());
+
+  InterpolableLength& length =
+      To<InterpolableLength>(*value.interpolable_value);
+  const InterpolableLength* underlying_length =
+      DynamicTo<InterpolableLength>(underlying.interpolable_value.Get());
+
+  if (!underlying_length) {
+    // REVIEW: The underlying interpolable_value might have been null, or it
+    // might have been an InterpolableList created in
+    // CSSDefaultInterpolationType::MaybeConvertSingle via the
+    // ConvertSingleKeyframe call that
+    // InvalidatableInterpolation::EnsureValidConversion uses to create a
+    // FlipPrimitiveInterpolation.
+    return value;
+  }
+
+  if (length.IsNeutralValue()) {
+    length = *underlying_length;
+    return value;
+  }
+
+  if (!InterpolableLength::CanMergeValues(underlying_length, &length)) {
+    return value;
+  }
+
+  length.Add(*underlying_length);
+
+  return value;
+}
+
 void CSSLengthInterpolationType::Composite(
     UnderlyingValueOwner& underlying_value_owner,
     double underlying_fraction,
     const InterpolationValue& value,
     double interpolation_fraction) const {
-  if (!InterpolableLength::CanMergeValues(
-          underlying_value_owner.Value().interpolable_value,
-          value.interpolable_value)) {
-    underlying_value_owner.Set(*this, value);
-    return;
-  }
-
-  return CSSInterpolationType::Composite(underlying_value_owner,
-                                         underlying_fraction, value,
-                                         interpolation_fraction);
+  // We do our compositing behavior in |PreInterpolationCompositeIfNeeded|; see
+  // the documentation on that method.
+  underlying_value_owner.Set(*this, value);
 }
 
 PairwiseInterpolationValue CSSLengthInterpolationType::MaybeMergeSingles(
@@ -142,7 +218,14 @@ CSSLengthInterpolationType::MaybeConvertStandardPropertyUnderlyingValue(
                                           underlying_length))
     return nullptr;
   return InterpolationValue(InterpolableLength::MaybeConvertLength(
-      underlying_length, EffectiveZoom(style.EffectiveZoom())));
+      underlying_length, CssProperty(), EffectiveZoom(style.EffectiveZoom()),
+      style.InterpolateSize()));
+}
+
+InterpolationValue
+CSSLengthInterpolationType::MaybeConvertCustomPropertyUnderlyingValue(
+    const CSSValue& value) const {
+  return InterpolationValue(InterpolableLength::MaybeConvertCSSValue(value));
 }
 
 const CSSValue* CSSLengthInterpolationType::CreateCSSValue(
@@ -178,7 +261,7 @@ void CSSLengthInterpolationType::ApplyStandardPropertyValue(
     const ComputedStyle* after_style = builder.CloneStyle();
     DCHECK(
         LengthPropertyFunctions::GetLength(CssProperty(), *after_style, after));
-    if (before.IsSpecified() && after.IsSpecified()) {
+    if (before.HasOnlyFixedAndPercent() && after.HasOnlyFixedAndPercent()) {
       // A relative error of 1/100th of a percent is likely not noticeable.
       // This check can be triggered with a tight tolerance such as 1e-6 for
       // suitably ill-conditioned animations (crbug.com/1204099).
@@ -191,7 +274,7 @@ void CSSLengthInterpolationType::ApplyStandardPropertyValue(
       /// value greater than max_int64 / 64 cannot be precisely expressed
       // (crbug.com/1349686).
       if (std::isfinite(before_length) && std::isfinite(after_length) &&
-          std::abs(before_length) < kIntMaxForLayoutUnit) {
+          std::abs(before_length) < LayoutUnit::kIntMax) {
         // Test relative difference for large values to avoid floating point
         // inaccuracies tripping the check.
         const float delta =

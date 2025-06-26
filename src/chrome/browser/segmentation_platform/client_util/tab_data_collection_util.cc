@@ -24,8 +24,7 @@ class TabDataCollectionUtil::LocalTabModelObserver : public TabModelObserver {
       : collection_util_(collection_util) {}
   ~LocalTabModelObserver() override = default;
 
-  void DidSelectTab(TabAndroid* tab, TabModel::TabSelectionType type, int last_id) override {
-    collection_util_->OnTabAction(tab, TabAction::kTabSelected);
+void DidSelectTab(TabAndroid* tab, TabModel::TabSelectionType type, int last_id) override {    collection_util_->OnTabAction(tab, TabAction::kTabSelected);
   }
   void TabPendingClosure(TabAndroid* tab) override {
     collection_util_->OnTabAction(tab, TabAction::kTabClose);
@@ -52,8 +51,8 @@ class TabDataCollectionUtil::LocalTabModelListObserver
   }
   ~LocalTabModelListObserver() override = default;
 
-  void OnTabModelAdded() override { ResetObservers(); }
-  void OnTabModelRemoved() override { ResetObservers(); }
+  void OnTabModelAdded(TabModel* tab_model) override { ResetObservers(); }
+  void OnTabModelRemoved(TabModel* tab_model) override { ResetObservers(); }
 
   void ResetObservers() {
     observing_models_.clear();

@@ -6,6 +6,9 @@
 
 #include <memory>
 
+#include "base/containers/to_vector.h"
+#include "base/debug/crash_logging.h"
+#include "base/debug/dump_without_crashing.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/utf_string_conversions.h"
@@ -13,6 +16,7 @@
 #include "base/trace_event/trace_event.h"
 #include "content/child/child_thread_impl.h"
 #include "content/child/scoped_child_process_reference.h"
+#include "content/common/features.h"
 #include "content/public/common/content_client.h"
 #include "content/renderer/policy_container_util.h"
 #include "content/renderer/service_worker/service_worker_context_client.h"
@@ -62,6 +66,14 @@ void EmbeddedWorkerInstanceClientImpl::StartWorker(
   auto start_timing = blink::mojom::EmbeddedWorkerStartTiming::New();
   start_timing->start_worker_received_time = base::TimeTicks::Now();
 
+  if (base::FeatureList::IsEnabled(
+          features::kServiceWorkerAvoidMainThreadForInitialization)) {
+    // If ServiceWorkerAvoidMainThreadForInitialization feature is enabled, the
+    // fake empty list is set to `cors_exempt_header_list_` here, so override it
+    // with the actual list which is from mojom::EmbeddedWorkerStartParams.
+    cors_exempt_header_list_ = std::move(params->cors_exempt_header_list);
+  }
+
   std::unique_ptr<blink::WebEmbeddedWorkerStartData> start_data =
       BuildStartData(*params);
   if (params->main_script_load_params) {
@@ -108,7 +120,7 @@ void EmbeddedWorkerInstanceClientImpl::StartWorker(
       std::move(params->subresource_loader_updater),
       params->script_url_to_skip_throttling, initiator_thread_task_runner_,
       params->service_worker_route_id, cors_exempt_header_list_,
-      params->storage_key);
+      params->storage_key, params->service_worker_token);
 
   std::unique_ptr<blink::WebServiceWorkerInstalledScriptsManagerParams>
       installed_scripts_manager_params;
@@ -118,7 +130,9 @@ void EmbeddedWorkerInstanceClientImpl::StartWorker(
   if (params->installed_scripts_info) {
     installed_scripts_manager_params =
         std::make_unique<blink::WebServiceWorkerInstalledScriptsManagerParams>(
-            std::move(params->installed_scripts_info->installed_urls),
+            base::ToVector(
+                std::move(params->installed_scripts_info->installed_urls),
+                blink::ToWebURL),
             std::move(params->installed_scripts_info->manager_receiver),
             std::move(params->installed_scripts_info->manager_host_remote));
   }
@@ -129,7 +143,9 @@ void EmbeddedWorkerInstanceClientImpl::StartWorker(
       std::move(worker), std::move(start_data),
       std::move(installed_scripts_manager_params),
       std::move(params->content_settings_proxy), std::move(cache_storage),
-      std::move(browser_interface_broker));
+      std::move(browser_interface_broker),
+      std::move(params->coep_reporting_observer),
+      std::move(params->dip_reporting_observer));
 }
 
 void EmbeddedWorkerInstanceClientImpl::StopWorker() {

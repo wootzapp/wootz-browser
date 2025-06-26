@@ -50,7 +50,6 @@ class MemorySaverBubbleViewTest
       public testing::WithParamInterface<std::tuple<int, int>> {
  public:
   void SetUp() override {
-
     MemorySaverUnitTestMixin::SetUp();
 
     AddNewTab(kMemorySavingsKilobytes,
@@ -71,7 +70,7 @@ class MemorySaverBubbleViewTest
   void ClickPageActionChip() {
     PageActionIconView* view = GetPageActionIconView();
 
-    ui::MouseEvent e(ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
+    ui::MouseEvent e(ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
                      ui::EventTimeForNow(), 0, 0);
     views::test::ButtonTestApi test_api(view);
     test_api.NotifyClick(e);

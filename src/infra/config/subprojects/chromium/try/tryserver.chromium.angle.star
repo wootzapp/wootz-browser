@@ -17,6 +17,7 @@ try_.defaults.set(
     cores = 8,
     os = os.LINUX_DEFAULT,
     execution_timeout = try_.DEFAULT_EXECUTION_TIMEOUT,
+    reclient_enabled = False,
     service_account = try_.gpu.SERVICE_ACCOUNT,
     siso_enabled = True,
     siso_project = siso.project.DEFAULT_UNTRUSTED,
@@ -32,7 +33,7 @@ try_.builder(
     executable = "recipe:angle_chromium_trybot",
     mirrors = [
         "ci/android-angle-chromium-arm64-builder",
-        "ci/android-angle-chromium-arm64-nexus5x",
+        "ci/android-angle-chromium-arm64-pixel2",
     ],
     builder_config_settings = builder_config.try_settings(
         retry_failed_shards = False,
@@ -43,6 +44,7 @@ try_.builder(
             "no_symbols",
         ],
     ),
+    contact_team_email = "angle-team@google.com",
 )
 
 try_.builder(

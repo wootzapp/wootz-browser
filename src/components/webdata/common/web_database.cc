@@ -6,43 +6,34 @@
 
 #include <algorithm>
 
+#include "base/check_is_test.h"
+#include "base/feature_list.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/stringprintf.h"
 #include "sql/transaction.h"
 
-// Current version number.  Note: when changing the current version number,
-// corresponding changes must happen in the unit tests, and new migration test
-// added.  See `WebDatabaseMigrationTest::kCurrentTestedVersionNumber`.
-// static
-const int WebDatabase::kCurrentVersionNumber = 128;
-
-// To support users who are upgrading from older versions of Chrome, we enable
-// migrating from any database version newer than `kDeprecatedVersionNumber`.
-// If an upgrading user has a database version of `kDeprecatedVersionNumber` or
-// lower, their database will be fully deleted and recreated instead (losing all
-// data previously in it).
-//
-// To determine this migration window, we support the same Chrome versions that
-// Chrome Sync does. Any database version that was added before the oldest
-// Chrome version that sync supports can be dropped from the Chromium codebase
-// (i.e., increment `kDeprecatedVersionNumber` and remove related tests +
-// support files).
-//
-// Note the difference between database version and Chrome version! To determine
-// the database version for a given Chrome version, check out the git branch for
-// the Chrome version, and look at `kCurrentVersionNumber` in that branch.
-//
-// To determine the versions of Chrome that Chrome Sync supports, see
-// `max_client_version_to_reject` in server_chrome_sync_config.proto (internal
-// only).
-const int WebDatabase::kDeprecatedVersionNumber = 82;
-
 const base::FilePath::CharType WebDatabase::kInMemoryPath[] =
     FILE_PATH_LITERAL(":memory");
 
 namespace {
+
+// Limits the duration of transaction to the scope of their modifications. Avoid
+// keeping pending transactions and pending modifications outside of their
+// scope.
+//
+// TODO(6175955): When this is launched, replace
+// `WebDatabase::AcquireTransaction()` with the typical pattern:
+//     sql::Transaction transaction(db());
+//     if (!transaction.Begin()) {...}
+BASE_FEATURE(kSqlScopedTransactionWebDatabase,
+             "SqlScopedTransactionWebDatabase",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kSqlWALModeOnWebDatabase,
+             "SqlWALModeOnWebDatabase",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // These values are logged as histogram buckets and most not be changed nor
 // reused.
@@ -64,9 +55,9 @@ void LogInitResult(WebDatabaseInitResult result) {
   base::UmaHistogramEnumeration("WebDatabase.InitResult", result);
 }
 
-// Version 128 changes the primary key of 'plus_addresses', and thus is no
-// longer compatible with version 127.
-const int kCompatibleVersionNumber = 128;
+// Version 139 migrates valuables tables to a new format, changing the column
+// names. It is thus is no longer compatible with version 138.
+constexpr int kCompatibleVersionNumber = 139;
 
 // Change the version number and possibly the compatibility version of
 // |meta_table_|.
@@ -94,30 +85,59 @@ sql::InitStatus FailedMigrationTo(int version_num) {
 }  // namespace
 
 WebDatabase::WebDatabase()
-    : db_({// We don't store that much data in the tables so use a small page
-           // size. This provides a large benefit for empty tables (which is
-           // very likely with the tables we create).
-           .page_size = 2048,
-           // We shouldn't have much data and what access we currently have is
-           // quite infrequent. So we go with a small cache size.
-           .cache_size = 32}) {}
+    : db_(sql::DatabaseOptions()
+              .set_wal_mode(
+                  base::FeatureList::IsEnabled(kSqlWALModeOnWebDatabase))
+              // We don't store that much data in the tables so use a small page
+              // size. This provides a large benefit for empty tables (which is
+              // very likely with the tables we create).
+              .set_page_size(2048)
+              // We shouldn't have much data and what access we currently have
+              // is quite infrequent. So we go with a small cache size.
+              .set_cache_size(32),
+          /*tag=*/"Web"),
+      use_scoped_transaction_(
+          base::FeatureList::IsEnabled(kSqlScopedTransactionWebDatabase)) {}
 
-WebDatabase::~WebDatabase() = default;
+WebDatabase::~WebDatabase() {
+  for (auto& [key, table] : tables_) {
+    table->Shutdown();
+  }
+}
 
 void WebDatabase::AddTable(WebDatabaseTable* table) {
   tables_[table->GetTypeKey()] = table;
 }
 
 WebDatabaseTable* WebDatabase::GetTable(WebDatabaseTable::TypeKey key) {
-  return tables_[key];
+  WebDatabaseTable* table = tables_[key];
+  CHECK(table);
+  return table;
 }
 
 void WebDatabase::BeginTransaction() {
-  db_.BeginTransaction();
+  if (!use_scoped_transaction_) {
+    db_.BeginTransactionDeprecated();
+  }
 }
 
 void WebDatabase::CommitTransaction() {
-  db_.CommitTransaction();
+  if (!use_scoped_transaction_) {
+    db_.CommitTransactionDeprecated();
+  }
+}
+
+std::unique_ptr<sql::Transaction> WebDatabase::AcquireTransaction() {
+  if (use_scoped_transaction_) {
+    // Only one active transaction at the time is allowed.
+    DCHECK(!db_.HasActiveTransactions());
+    auto transaction = std::make_unique<sql::Transaction>(&db_);
+    if (transaction->Begin()) {
+      return transaction;
+    }
+  }
+
+  return nullptr;
 }
 
 std::string WebDatabase::GetDiagnosticInfo(int extended_error,
@@ -129,8 +149,13 @@ sql::Database* WebDatabase::GetSQLConnection() {
   return &db_;
 }
 
-sql::InitStatus WebDatabase::Init(const base::FilePath& db_name) {
-  db_.set_histogram_tag("Web");
+sql::InitStatus WebDatabase::Init(const base::FilePath& db_name,
+                                  const os_crypt_async::Encryptor* encryptor) {
+  // Only unit tests whose tables don't use any crypto for their tables pass in
+  // a null encryptor.
+  if (!encryptor) {
+    CHECK_IS_TEST();
+  }
 
   if ((db_name.value() == kInMemoryPath) ? !db_.OpenInMemory()
                                          : !db_.Open(db_name)) {
@@ -148,9 +173,9 @@ sql::InitStatus WebDatabase::Init(const base::FilePath& db_name) {
   // Clobber really old databases.
   static_assert(kDeprecatedVersionNumber < kCurrentVersionNumber,
                 "Deprecation version must be less than current");
-  if (!sql::MetaTable::RazeIfIncompatible(
+  if (sql::MetaTable::RazeIfIncompatible(
           &db_, /*lowest_supported_version=*/kDeprecatedVersionNumber + 1,
-          kCurrentVersionNumber)) {
+          kCurrentVersionNumber) == sql::RazeIfIncompatibleResult::kFailed) {
     LogInitResult(WebDatabaseInitResult::kCouldNotRazeIncompatibleVersion);
     return sql::INIT_FAILURE;
   }
@@ -177,7 +202,7 @@ sql::InitStatus WebDatabase::Init(const base::FilePath& db_name) {
 
   // Initialize the tables.
   for (const auto& table : tables_) {
-    table.second->Init(&db_, &meta_table_);
+    table.second->Init(&db_, &meta_table_, encryptor);
   }
 
   // If the file on disk is an older database version, bring it up to date.

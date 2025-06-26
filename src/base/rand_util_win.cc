@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "base/rand_util.h"
 
 #include <windows.h>
@@ -20,7 +15,6 @@
 
 #include "base/check.h"
 #include "base/feature_list.h"
-#include "third_party/boringssl/src/include/openssl/crypto.h"
 #include "third_party/boringssl/src/include/openssl/rand.h"
 
 // Prototype for ProcessPrng.
@@ -72,8 +66,6 @@ decltype(&ProcessPrng) GetProcessPrng() {
 
 void RandBytesInternal(span<uint8_t> output, bool avoid_allocation) {
   if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
-    // Ensure BoringSSL is initialized so it can use things like RDRAND.
-    CRYPTO_library_init();
     // BoringSSL's RAND_bytes always returns 1. Any error aborts the program.
     (void)RAND_bytes(output.data(), output.size());
     return;

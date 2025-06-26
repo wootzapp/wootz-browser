@@ -4,6 +4,7 @@
 
 #include "components/safe_browsing/core/browser/db/v4_protocol_manager_util.h"
 
+#include <algorithm>
 #include <string_view>
 
 #include "base/base64.h"
@@ -11,7 +12,6 @@
 #include "base/hash/sha1.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/escape.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -102,7 +102,8 @@ std::string GetReportUrl(const V4ProtocolConfig& config,
                         base::EscapeQueryParamValue(api_key, true).c_str());
   }
   if (reporting_level)
-    url.append(base::StringPrintf("&ext=%d", *reporting_level));
+    url.append(
+        base::StringPrintf("&ext=%d", static_cast<int>(*reporting_level)));
   if (is_enhanced_protection)
     url.append(base::StringPrintf("&enh=%d", is_enhanced_protection));
   return url;
@@ -135,10 +136,6 @@ ListIdentifier GetChromeExtMalwareId() {
 
 ListIdentifier GetChromeUrlApiId() {
   return ListIdentifier(GetCurrentPlatformType(), URL, API_ABUSE);
-}
-
-ListIdentifier GetChromeUrlClientIncidentId() {
-  return ListIdentifier(CHROME_PLATFORM, URL, CLIENT_INCIDENT);
 }
 
 ListIdentifier GetUrlBillingId() {
@@ -192,7 +189,7 @@ StoreAndHashPrefix::StoreAndHashPrefix(ListIdentifier list_id,
                                        const HashPrefixStr& hash_prefix)
     : list_id(list_id), hash_prefix(hash_prefix) {}
 
-StoreAndHashPrefix::~StoreAndHashPrefix() {}
+StoreAndHashPrefix::~StoreAndHashPrefix() = default;
 
 bool StoreAndHashPrefix::operator==(const StoreAndHashPrefix& other) const {
   return list_id == other.list_id && hash_prefix == other.hash_prefix;
@@ -272,7 +269,7 @@ V4ProtocolConfig::V4ProtocolConfig(const std::string& client_name,
 
 V4ProtocolConfig::V4ProtocolConfig(const V4ProtocolConfig& other) = default;
 
-V4ProtocolConfig::~V4ProtocolConfig() {}
+V4ProtocolConfig::~V4ProtocolConfig() = default;
 
 // static
 base::TimeDelta V4ProtocolManagerUtil::GetNextBackOffInterval(
@@ -457,13 +454,13 @@ void V4ProtocolManagerUtil::CanonicalizeUrl(const GURL& url,
 
   // 2. Do URL unescaping until no more hex encoded characters exist.
   std::string url_unescaped_str(Unescape(url_without_fragment.spec()));
+  std::string_view url_unescaped_str_view(url_unescaped_str);
   url::Parsed parsed = url::ParseStandardURL(url_unescaped_str);
 
   // 3. In hostname, remove all leading and trailing dots.
   std::string_view host;
   if (parsed.host.is_nonempty())
-    host = std::string_view(url_unescaped_str.data() + parsed.host.begin,
-                            parsed.host.len);
+    host = url_unescaped_str_view.substr(parsed.host.begin, parsed.host.len);
 
   std::string_view host_without_end_dots =
       base::TrimString(host, ".", base::TrimPositions::TRIM_ALL);
@@ -475,8 +472,7 @@ void V4ProtocolManagerUtil::CanonicalizeUrl(const GURL& url,
   // 5. In path, replace runs of consecutive slashes with a single slash.
   std::string_view path;
   if (parsed.path.is_nonempty())
-    path = std::string_view(url_unescaped_str.data() + parsed.path.begin,
-                            parsed.path.len);
+    path = url_unescaped_str_view.substr(parsed.path.begin, parsed.path.len);
   std::string path_without_consecutive_slash(RemoveConsecutiveChars(path, '/'));
 
   url::Replacements<char> hp_replacements;
@@ -615,9 +611,9 @@ void V4ProtocolManagerUtil::SetClientInfoFromConfig(
 void V4ProtocolManagerUtil::GetListClientStatesFromStoreStateMap(
     const std::unique_ptr<StoreStateMap>& store_state_map,
     std::vector<std::string>* list_client_states) {
-  base::ranges::transform(*store_state_map,
-                          std::back_inserter(*list_client_states),
-                          &StoreStateMap::value_type::second);
+  std::ranges::transform(*store_state_map,
+                         std::back_inserter(*list_client_states),
+                         &StoreStateMap::value_type::second);
 }
 
 }  // namespace safe_browsing

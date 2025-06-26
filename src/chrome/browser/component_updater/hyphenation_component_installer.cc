@@ -127,9 +127,8 @@ base::FilePath HyphenationComponentInstallerPolicy::GetRelativeInstallDir()
 
 void HyphenationComponentInstallerPolicy::GetHash(
     std::vector<uint8_t>* hash) const {
-  hash->assign(
-      kHyphenationPublicKeySHA256,
-      kHyphenationPublicKeySHA256 + std::size(kHyphenationPublicKeySHA256));
+  hash->assign(std::begin(kHyphenationPublicKeySHA256),
+               std::end(kHyphenationPublicKeySHA256));
 }
 
 std::string HyphenationComponentInstallerPolicy::GetName() const {

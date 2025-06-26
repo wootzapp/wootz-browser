@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <array>
 #include <memory>
 #include <tuple>
 
@@ -33,6 +34,7 @@
 #include "third_party/blink/renderer/core/workers/worker_thread.h"
 #include "third_party/blink/renderer/core/workers/worklet_module_responses_map.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_worklet_messaging_proxy.h"
+#include "third_party/blink/renderer/modules/webaudio/cross_thread_audio_worklet_processor_info.h"
 #include "third_party/blink/renderer/modules/webaudio/offline_audio_worklet_thread.h"
 #include "third_party/blink/renderer/modules/webaudio/realtime_audio_worklet_thread.h"
 #include "third_party/blink/renderer/modules/webaudio/semi_realtime_audio_worklet_thread.h"
@@ -304,8 +306,8 @@ TEST_P(AudioWorkletThreadInteractionTest,
   // SemiRealtimeAudioWorkletThread, or OfflineAudioWorkletThread with
   // different backing threads.
   constexpr int number_of_threads = 5;
-  std::unique_ptr<WorkerThread> worklet_threads[number_of_threads];
-  Thread* worklet_backing_threads[number_of_threads];
+  std::array<std::unique_ptr<WorkerThread>, number_of_threads> worklet_threads;
+  std::array<Thread*, number_of_threads> worklet_backing_threads;
   for (int i = 0; i < number_of_threads; i++) {
     worklet_threads[i] =
         CreateAudioWorkletThread(has_realtime_constraint_, is_top_level_frame_);

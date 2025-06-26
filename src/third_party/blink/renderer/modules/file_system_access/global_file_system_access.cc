@@ -13,6 +13,8 @@
 #include "third_party/blink/public/mojom/file_system_access/file_system_access_manager.mojom-blink.h"
 #include "third_party/blink/public/mojom/file_system_access/file_system_access_manager.mojom-shared.h"
 #include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom-shared.h"
+#include "third_party/blink/public/platform/platform.h"
+#include "third_party/blink/public/platform/web_security_origin.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_usvstring_usvstringsequence.h"
@@ -184,7 +186,9 @@ void VerifyIsAllowedToShowFilePicker(const LocalDOMWindow& window,
   }
 
   LocalFrame* local_frame = window.GetFrame();
-  if (!local_frame || local_frame->IsCrossOriginToOutermostMainFrame()) {
+  if ((!local_frame || local_frame->IsCrossOriginToOutermostMainFrame()) &&
+      !Platform::Current()->IsFilePickerAllowedForCrossOriginSubframe(
+          WebSecurityOrigin(window.GetSecurityOrigin()))) {
     exception_state.ThrowSecurityError(
         "Cross origin sub frames aren't allowed to show a file picker.");
     return;
@@ -251,10 +255,11 @@ void ShowFilePickerImpl(ScriptPromiseResolverBase* resolver,
       options->type_specific_options->is_open_file_picker_options() &&
       options->type_specific_options->get_open_file_picker_options()
           ->can_select_multiple_files;
-  bool intercepted = false;
+  bool suppressed = false;
+  bool canceled = false;
   probe::FileChooserOpened(window.GetFrame(), /*element=*/nullptr, multiple,
-                           &intercepted);
-  if (intercepted) {
+                           &suppressed, &canceled);
+  if (suppressed || canceled) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kAbortError,
         "Intercepted by Page.setInterceptFileChooserDialog().");
@@ -386,18 +391,18 @@ ScriptPromise<FileSystemFileHandle> GlobalFileSystemAccess::showSaveFilePicker(
   if (options->hasTypes())
     accepts = ConvertAccepts(options->types(), exception_state);
   if (exception_state.HadException())
-    return ScriptPromise<FileSystemFileHandle>();
+    return EmptyPromise();
 
   if (accepts.empty() && options->excludeAcceptAllOption()) {
     exception_state.ThrowTypeError("Need at least one accepted type");
-    return ScriptPromise<FileSystemFileHandle>();
+    return EmptyPromise();
   }
 
   String starting_directory_id = kDefaultStartingDirectoryId;
   if (options->hasId()) {
     starting_directory_id = VerifyIsValidId(options->id(), exception_state);
     if (exception_state.HadException())
-      return ScriptPromise<FileSystemFileHandle>();
+      return EmptyPromise();
   }
 
   mojom::blink::FilePickerStartInOptionsUnionPtr start_in_options;
@@ -407,7 +412,7 @@ ScriptPromise<FileSystemFileHandle> GlobalFileSystemAccess::showSaveFilePicker(
 
   VerifyIsAllowedToShowFilePicker(window, exception_state);
   if (exception_state.HadException())
-    return ScriptPromise<FileSystemFileHandle>();
+    return EmptyPromise();
 
   auto save_file_picker_options = mojom::blink::SaveFilePickerOptions::New(
       mojom::blink::AcceptsTypesInfo::New(std::move(accepts),
@@ -442,7 +447,7 @@ GlobalFileSystemAccess::showDirectoryPicker(
   if (options->hasId()) {
     starting_directory_id = VerifyIsValidId(options->id(), exception_state);
     if (exception_state.HadException())
-      return ScriptPromise<FileSystemDirectoryHandle>();
+      return EmptyPromise();
   }
 
   mojom::blink::FilePickerStartInOptionsUnionPtr start_in_options;
@@ -452,7 +457,7 @@ GlobalFileSystemAccess::showDirectoryPicker(
 
   VerifyIsAllowedToShowFilePicker(window, exception_state);
   if (exception_state.HadException())
-    return ScriptPromise<FileSystemDirectoryHandle>();
+    return EmptyPromise();
 
   bool request_writable =
       options->mode() == V8FileSystemPermissionMode::Enum::kReadwrite;

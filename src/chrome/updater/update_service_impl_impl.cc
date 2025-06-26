@@ -4,6 +4,7 @@
 
 #include "chrome/updater/update_service_impl_impl.h"
 
+#include <algorithm>
 #include <map>
 #include <optional>
 #include <string>
@@ -13,7 +14,7 @@
 
 #include "base/barrier_callback.h"
 #include "base/barrier_closure.h"
-#include "base/check.h"
+#include "base/check_op.h"
 #include "base/containers/contains.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/queue.h"
@@ -24,8 +25,8 @@
 #include "base/functional/callback_helpers.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/logging.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -35,13 +36,17 @@
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "base/version.h"
+#include "build/build_config.h"
+#include "chrome/enterprise_companion/global_constants.h"
+#include "chrome/updater/app/app_utils.h"
 #include "chrome/updater/auto_run_on_os_upgrade_task.h"
+#include "chrome/updater/branded_constants.h"
 #include "chrome/updater/change_owners_task.h"
 #include "chrome/updater/check_for_updates_task.h"
 #include "chrome/updater/cleanup_task.h"
 #include "chrome/updater/configurator.h"
 #include "chrome/updater/constants.h"
-#include "chrome/updater/find_unregistered_apps_task.h"
+#include "chrome/updater/handle_inconsistent_apps_task.h"
 #include "chrome/updater/installer.h"
 #include "chrome/updater/persisted_data.h"
 #include "chrome/updater/policy/service.h"
@@ -54,11 +59,16 @@
 #include "chrome/updater/updater_scope.h"
 #include "chrome/updater/updater_version.h"
 #include "chrome/updater/util/util.h"
+#include "components/policy/core/common/policy_types.h"
 #include "components/prefs/pref_service.h"
 #include "components/update_client/crx_update_item.h"
 #include "components/update_client/protocol_definition.h"
 #include "components/update_client/update_client.h"
 #include "components/update_client/update_client_errors.h"
+
+#if BUILDFLAG(IS_MAC)
+#include <sys/mount.h>
+#endif  // BUILDFLAG(IS_MAC)
 
 #if BUILDFLAG(IS_WIN)
 #include <winhttp.h>
@@ -97,8 +107,7 @@ UpdateService::Result ToResult(update_client::Error error) {
     case update_client::Error::BAD_CRX_DATA_CALLBACK:
       return UpdateService::Result::kInvalidArgument;
     case update_client::Error::MAX_VALUE:
-      NOTREACHED_IN_MIGRATION();
-      return UpdateService::Result::kInvalidArgument;
+      NOTREACHED();
   }
 }
 
@@ -106,8 +115,9 @@ void GetComponents(
     scoped_refptr<PolicyService> policy_service,
     crx_file::VerifierFormat verifier_format,
     scoped_refptr<PersistedData> persisted_data,
-    const AppClientInstallData& app_client_install_data,
-    const AppInstallDataIndex& app_install_data_index,
+    const base::flat_map<std::string, std::string>& app_client_install_data,
+    const base::flat_map<std::string, std::string>& app_install_data_index,
+    const std::string& install_source,
     UpdateService::Priority priority,
     bool update_blocked,
     UpdateService::PolicySameVersionUpdate policy_same_version_update,
@@ -150,6 +160,7 @@ void GetComponents(
           auto it = app_install_data_index.find(id);
           return it != app_install_data_index.end() ? it->second : "";
         }(),
+        install_source,
         policy_service->GetTargetChannel(id).policy_or(std::string()),
         policy_service->GetTargetVersionPrefix(id).policy_or(std::string()),
         policy_service->IsRollbackToTargetVersionAllowed(id).policy_or(false),
@@ -177,48 +188,12 @@ void GetComponents(
 #if BUILDFLAG(IS_WIN)
 namespace {
 
-std::wstring GetTextForInstallerError(int error_code) {
-#define POLICY_ERROR_SWITCH_ENTRY(error_code)                                 \
-  case error_code:                                                            \
-    return GetLocalizedStringF(IDS_APP_INSTALL_DISABLED_BY_GROUP_POLICY_BASE, \
-                               L#error_code)
-
-  switch (error_code) {
-    POLICY_ERROR_SWITCH_ENTRY(GOOPDATE_E_APP_INSTALL_DISABLED_BY_POLICY);
-    POLICY_ERROR_SWITCH_ENTRY(GOOPDATE_E_APP_UPDATE_DISABLED_BY_POLICY);
-    POLICY_ERROR_SWITCH_ENTRY(GOOPDATE_E_APP_UPDATE_DISABLED_BY_POLICY_MANUAL);
-
-    case GOOPDATEINSTALL_E_FILENAME_INVALID:
-      return GetLocalizedString(IDS_INVALID_INSTALLER_FILENAME_BASE);
-
-    case GOOPDATEINSTALL_E_INSTALLER_FAILED_START:
-      return GetLocalizedString(IDS_INSTALLER_FAILED_TO_START_BASE);
-
-    case GOOPDATEINSTALL_E_INSTALLER_TIMED_OUT:
-      return GetLocalizedString(IDS_INSTALLER_TIMED_OUT_BASE);
-
-    case GOOPDATEINSTALL_E_INSTALL_ALREADY_RUNNING:
-      return GetLocalizedStringF(
-          IDS_GENERIC_INSTALL_ERROR_BASE,
-          GetTextForSystemError(ERROR_INSTALL_ALREADY_RUNNING));
-
-    case ERROR_SUCCESS_REBOOT_INITIATED:
-    case ERROR_SUCCESS_REBOOT_REQUIRED:
-    case ERROR_SUCCESS_RESTART_REQUIRED:
-      return GetLocalizedStringF(IDS_INSTALL_REBOOT_BASE,
-                                 GetTextForSystemError(error_code));
-
-    default:
-      return GetLocalizedStringF(IDS_GENERIC_INSTALL_ERROR_BASE,
-                                 GetTextForSystemError(error_code));
-  }
-#undef POLICY_ERROR_SWITCH_ENTRY
-}
-
-std::wstring GetTextForUpdateClientInstallError(int error_code) {
-#define INSTALL_SWITCH_ENTRY(error_code) \
-  case static_cast<int>(error_code):     \
-    return GetLocalizedStringF(IDS_GENERIC_INSTALL_ERROR_BASE, L#error_code)
+std::wstring GetTextForUpdateClientInstallError(int error_code,
+                                                const std::wstring& language) {
+#define INSTALL_SWITCH_ENTRY(error_code)                                     \
+  case static_cast<int>(error_code):                                         \
+    return GetLocalizedStringF(IDS_GENERIC_INSTALL_ERROR_BASE, L#error_code, \
+                               language)
 
   switch (error_code) {
     INSTALL_SWITCH_ENTRY(update_client::InstallError::NONE);
@@ -238,15 +213,16 @@ std::wstring GetTextForUpdateClientInstallError(int error_code) {
     INSTALL_SWITCH_ENTRY(update_client::InstallError::CUSTOM_ERROR_BASE);
     default:
       return GetLocalizedStringF(IDS_GENERIC_INSTALL_ERROR_BASE,
-                                 GetTextForSystemError(error_code));
+                                 GetTextForSystemError(error_code), language);
   }
 #undef INSTALL_SWITCH_ENTRY
 }
 
-std::wstring GetTextForDownloadError(int error) {
-#define DOWNLOAD_SWITCH_ENTRY(error_code) \
-  case static_cast<int>(error_code):      \
-    return GetLocalizedStringF(IDS_GENERIC_DOWNLOAD_ERROR_BASE, L#error_code)
+std::wstring GetTextForDownloadError(int error, const std::wstring& language) {
+#define DOWNLOAD_SWITCH_ENTRY(error_code)                                     \
+  case static_cast<int>(error_code):                                          \
+    return GetLocalizedStringF(IDS_GENERIC_DOWNLOAD_ERROR_BASE, L#error_code, \
+                               language)
 
   switch (error) {
     DOWNLOAD_SWITCH_ENTRY(update_client::CrxDownloaderError::NO_URL);
@@ -260,18 +236,20 @@ std::wstring GetTextForDownloadError(int error) {
 
     default:
       return GetLocalizedStringF(IDS_GENERIC_DOWNLOAD_ERROR_BASE,
-                                 GetTextForSystemError(error));
+                                 GetTextForSystemError(error), language);
   }
 #undef DOWNLOAD_SWITCH_ENTRY
 }
 
-std::wstring GetTextForUnpackError(int error) {
-#define UNPACK_SWITCH_ENTRY(error_code) \
-  case static_cast<int>(error_code):    \
-    return GetLocalizedStringF(IDS_GENERIC_UNPACK_ERROR_BASE, L#error_code)
-#define UNPACK_CACHING_SWITCH_ENTRY(error_code) \
-  case static_cast<int>(error_code):            \
-    return GetLocalizedStringF(IDS_UNPACK_CACHING_ERROR_BASE, L#error_code)
+std::wstring GetTextForUnpackError(int error, const std::wstring& language) {
+#define UNPACK_SWITCH_ENTRY(error_code)                                     \
+  case static_cast<int>(error_code):                                        \
+    return GetLocalizedStringF(IDS_GENERIC_UNPACK_ERROR_BASE, L#error_code, \
+                               language)
+#define UNPACK_CACHING_SWITCH_ENTRY(error_code)                             \
+  case static_cast<int>(error_code):                                        \
+    return GetLocalizedStringF(IDS_UNPACK_CACHING_ERROR_BASE, L#error_code, \
+                               language)
 
   switch (error) {
     UNPACK_SWITCH_ENTRY(update_client::UnpackerError::kInvalidParams);
@@ -301,39 +279,43 @@ std::wstring GetTextForUnpackError(int error) {
 
     default:
       return GetLocalizedStringF(IDS_GENERIC_UNPACK_ERROR_BASE,
-                                 GetTextForSystemError(error));
+                                 GetTextForSystemError(error), language);
   }
 #undef UNPACK_SWITCH_ENTRY
 #undef UNPACK_CACHING_SWITCH_ENTRY
 }
 
-std::wstring GetTextForServiceError(int error) {
-#define SERVICE_SWITCH_ENTRY(error_code) \
-  case static_cast<int>(error_code):     \
-    return GetLocalizedStringF(IDS_GENERIC_SERVICE_ERROR_BASE, L#error_code)
+std::wstring GetTextForServiceError(int error, const std::wstring& language) {
+#define SERVICE_SWITCH_ENTRY(error_code)                                     \
+  case static_cast<int>(error_code):                                         \
+    return GetLocalizedStringF(IDS_GENERIC_SERVICE_ERROR_BASE, L#error_code, \
+                               language)
 
   switch (error) {
     SERVICE_SWITCH_ENTRY(update_client::ServiceError::SERVICE_WAIT_FAILED);
     SERVICE_SWITCH_ENTRY(update_client::ServiceError::UPDATE_DISABLED);
-    SERVICE_SWITCH_ENTRY(update_client::ServiceError::CANCELLED);
     SERVICE_SWITCH_ENTRY(update_client::ServiceError::CHECK_FOR_UPDATE_ONLY);
+
+    case static_cast<int>(update_client::ServiceError::CANCELLED):
+      return GetLocalizedString(IDS_SERVICE_ERROR_CANCELLED_BASE, language);
+
     default:
       return GetLocalizedStringF(IDS_GENERIC_SERVICE_ERROR_BASE,
-                                 GetTextForSystemError(error));
+                                 GetTextForSystemError(error), language);
   }
 #undef SERVICE_SWITCH_ENTRY
 }
 
-std::wstring GetTextForUpdateCheckError(int error) {
+std::wstring GetTextForUpdateCheckError(int error,
+                                        const std::wstring& language) {
 #define UPDATE_CHECK_SWITCH_ENTRY(error_code)                       \
   case static_cast<int>(error_code):                                \
     return GetLocalizedStringF(IDS_GENERIC_UPDATE_CHECK_ERROR_BASE, \
-                               L#error_code)
+                               L#error_code, language)
 
   switch (error) {
     UPDATE_CHECK_SWITCH_ENTRY(
         update_client::ProtocolError::RESPONSE_NOT_TRUSTED);
-    UPDATE_CHECK_SWITCH_ENTRY(update_client::ProtocolError::MISSING_PUBLIC_KEY);
     UPDATE_CHECK_SWITCH_ENTRY(update_client::ProtocolError::MISSING_URLS);
     UPDATE_CHECK_SWITCH_ENTRY(update_client::ProtocolError::PARSE_FAILED);
     UPDATE_CHECK_SWITCH_ENTRY(
@@ -342,49 +324,92 @@ std::wstring GetTextForUpdateCheckError(int error) {
     UPDATE_CHECK_SWITCH_ENTRY(update_client::ProtocolError::INVALID_APPID);
 
     case static_cast<int>(update_client::ProtocolError::UNKNOWN_APPLICATION):
-      return GetLocalizedString(IDS_UNKNOWN_APPLICATION_BASE);
+      return GetLocalizedString(IDS_UNKNOWN_APPLICATION_BASE, language);
 
     case static_cast<int>(update_client::ProtocolError::RESTRICTED_APPLICATION):
-      return GetLocalizedString(IDS_RESTRICTED_RESPONSE_FROM_SERVER_BASE);
+      return GetLocalizedString(IDS_RESTRICTED_RESPONSE_FROM_SERVER_BASE,
+                                language);
 
     case static_cast<int>(update_client::ProtocolError::OS_NOT_SUPPORTED):
-      return GetLocalizedString(IDS_OS_NOT_SUPPORTED_BASE);
+      return GetLocalizedString(IDS_OS_NOT_SUPPORTED_BASE, language);
 
     case static_cast<int>(update_client::ProtocolError::HW_NOT_SUPPORTED):
-      return GetLocalizedString(IDS_HW_NOT_SUPPORTED_BASE);
+      return GetLocalizedString(IDS_HW_NOT_SUPPORTED_BASE, language);
 
     case static_cast<int>(update_client::ProtocolError::NO_HASH):
-      return GetLocalizedString(IDS_NO_HASH_BASE);
+      return GetLocalizedString(IDS_NO_HASH_BASE, language);
 
     case static_cast<int>(update_client::ProtocolError::UNSUPPORTED_PROTOCOL):
-      return GetLocalizedString(IDS_UNSUPPORTED_PROTOCOL_BASE);
+      return GetLocalizedString(IDS_UNSUPPORTED_PROTOCOL_BASE, language);
 
     case static_cast<int>(update_client::ProtocolError::INTERNAL):
-      return GetLocalizedString(IDS_INTERNAL_BASE);
+      return GetLocalizedString(IDS_INTERNAL_BASE, language);
 
     // Http Status Code `401` Unauthorized.
     case 401:
-      return GetLocalizedString(IDS_ERROR_HTTPSTATUS_UNAUTHORIZED_BASE);
+      return GetLocalizedString(IDS_ERROR_HTTPSTATUS_UNAUTHORIZED_BASE,
+                                language);
 
     // Http Status Code `403` Forbidden.
     case 403:
-      return GetLocalizedString(IDS_ERROR_HTTPSTATUS_FORBIDDEN_BASE);
+      return GetLocalizedString(IDS_ERROR_HTTPSTATUS_FORBIDDEN_BASE, language);
 
     // Http Status Code `407` Proxy Authentication Required.
     case 407:
-      return GetLocalizedString(IDS_ERROR_HTTPSTATUS_PROXY_AUTH_REQUIRED_BASE);
+      return GetLocalizedString(IDS_ERROR_HTTPSTATUS_PROXY_AUTH_REQUIRED_BASE,
+                                language);
 
     case HRESULT_FROM_WIN32(ERROR_WINHTTP_NAME_NOT_RESOLVED):
       return GetLocalizedStringF(IDS_NO_NETWORK_PRESENT_ERROR_BASE,
-                                 GetExecutableRelativePath().value());
+                                 GetExecutableRelativePath().value(), language);
     default:
       return GetLocalizedStringF(
           IDS_GENERIC_UPDATE_CHECK_ERROR_BASE,
           error >= 400 && error < 600
               ? base::UTF8ToWide(base::StringPrintf("HTTP %d", error))
-              : GetTextForSystemError(error));
+              : GetTextForSystemError(error),
+          language);
   }
 #undef UPDATE_CHECK_SWITCH_ENTRY
+}
+
+std::wstring GetTextForInstallerError(int error_code,
+                                      const std::wstring& language) {
+#define POLICY_ERROR_SWITCH_ENTRY(error_code)                                 \
+  case error_code:                                                            \
+    return GetLocalizedStringF(IDS_APP_INSTALL_DISABLED_BY_GROUP_POLICY_BASE, \
+                               L#error_code, language)
+
+  switch (error_code) {
+    POLICY_ERROR_SWITCH_ENTRY(GOOPDATE_E_APP_INSTALL_DISABLED_BY_POLICY);
+    POLICY_ERROR_SWITCH_ENTRY(GOOPDATE_E_APP_UPDATE_DISABLED_BY_POLICY);
+    POLICY_ERROR_SWITCH_ENTRY(GOOPDATE_E_APP_UPDATE_DISABLED_BY_POLICY_MANUAL);
+
+    case GOOPDATEINSTALL_E_FILENAME_INVALID:
+      return GetLocalizedString(IDS_INVALID_INSTALLER_FILENAME_BASE, language);
+
+    case GOOPDATEINSTALL_E_INSTALLER_FAILED_START:
+      return GetLocalizedString(IDS_INSTALLER_FAILED_TO_START_BASE, language);
+
+    case GOOPDATEINSTALL_E_INSTALLER_TIMED_OUT:
+      return GetLocalizedString(IDS_INSTALLER_TIMED_OUT_BASE, language);
+
+    case GOOPDATEINSTALL_E_INSTALL_ALREADY_RUNNING:
+      return GetLocalizedStringF(
+          IDS_GENERIC_INSTALLER_ERROR_BASE,
+          GetTextForSystemError(ERROR_INSTALL_ALREADY_RUNNING), language);
+
+    case ERROR_SUCCESS_REBOOT_INITIATED:
+    case ERROR_SUCCESS_REBOOT_REQUIRED:
+    case ERROR_SUCCESS_RESTART_REQUIRED:
+      return GetLocalizedStringF(IDS_INSTALL_REBOOT_BASE,
+                                 GetTextForSystemError(error_code), language);
+
+    default:
+      return GetLocalizedStringF(IDS_GENERIC_INSTALLER_ERROR_BASE,
+                                 GetTextForSystemError(error_code), language);
+  }
+#undef POLICY_ERROR_SWITCH_ENTRY
 }
 
 }  // namespace
@@ -392,38 +417,41 @@ std::wstring GetTextForUpdateCheckError(int error) {
 std::string GetInstallerText(UpdateService::ErrorCategory error_category,
                              int error_code,
                              int extra_code,
-                             bool is_installer_error) {
+                             const std::string& language) {
   if (!error_code) {
     return {};
   }
+
+  const std::wstring language_w = base::UTF8ToWide(language);
   return base::WideToUTF8(base::StrCat(
-      {[&]() -> std::wstring {
+      {[&] {
          switch (error_category) {
            case UpdateService::ErrorCategory::kInstall:
-             return is_installer_error
-                        ? GetTextForInstallerError(error_code)
-                        : GetTextForUpdateClientInstallError(error_code);
+             return GetTextForUpdateClientInstallError(error_code, language_w);
            case UpdateService::ErrorCategory::kDownload:
-             return GetTextForDownloadError(error_code);
+             return GetTextForDownloadError(error_code, language_w);
            case UpdateService::ErrorCategory::kUnpack:
-             return GetTextForUnpackError(error_code);
+             return GetTextForUnpackError(error_code, language_w);
            case UpdateService::ErrorCategory::kService:
-             return GetTextForServiceError(error_code);
+             return GetTextForServiceError(error_code, language_w);
            case UpdateService::ErrorCategory::kUpdateCheck:
-             return GetTextForUpdateCheckError(error_code);
+             return GetTextForUpdateCheckError(error_code, language_w);
+           case UpdateService::ErrorCategory::kInstaller:
+             return GetTextForInstallerError(error_code, language_w);
            default:
              LOG(ERROR) << "Unknown error category: " << error_category;
-             return {};
+             return std::wstring();
          }
        }(),
-       [&]() -> std::wstring {
+       [&] {
          if (!extra_code) {
-           return {};
+           return std::wstring();
          }
          return base::StrCat(
              {L"\n", GetLocalizedStringF(IDS_EXTRA_CODE_BASE,
-                                         base::ASCIIToWide(base::StringPrintf(
-                                             "%#x", extra_code)))});
+                                         base::UTF8ToWide(base::StringPrintf(
+                                             "%#x", extra_code)),
+                                         language_w)});
        }()}));
 }
 #endif  // BUILDFLAG(IS_WIN)
@@ -445,10 +473,13 @@ base::Version GetRegisteredInstallerVersion(const std::string& app_id) {
 
 namespace {
 
+constexpr base::flat_map<std::string, std::string> kEmptyFlatMap;
+
 update_client::Callback MakeUpdateClientCallback(
-    UpdateService::Callback callback) {
+    base::OnceCallback<void(UpdateService::Result)> callback) {
   return base::BindOnce(
-      [](UpdateService::Callback callback, update_client::Error error) {
+      [](base::OnceCallback<void(UpdateService::Result)> callback,
+         update_client::Error error) {
         std::move(callback).Run(internal::ToResult(error));
       },
       std::move(callback));
@@ -465,7 +496,6 @@ UpdateService::UpdateState::State ToUpdateState(
 
     case update_client::ComponentState::kDownloading:
     case update_client::ComponentState::kDownloadingDiff:
-    case update_client::ComponentState::kDownloaded:
       return UpdateService::UpdateState::State::kDownloading;
 
     case update_client::ComponentState::kCanUpdate:
@@ -484,11 +514,9 @@ UpdateService::UpdateState::State ToUpdateState(
     case update_client::ComponentState::kUpdateError:
       return UpdateService::UpdateState::State::kUpdateError;
 
-    case update_client::ComponentState::kPingOnly:
     case update_client::ComponentState::kRun:
     case update_client::ComponentState::kLastStatus:
-      NOTREACHED_IN_MIGRATION();
-      return UpdateService::UpdateState::State::kUnknown;
+      NOTREACHED();
   }
 }
 
@@ -507,6 +535,8 @@ UpdateService::ErrorCategory ToErrorCategory(
       return UpdateService::ErrorCategory::kService;
     case update_client::ErrorCategory::kUpdateCheck:
       return UpdateService::ErrorCategory::kUpdateCheck;
+    case update_client::ErrorCategory::kInstaller:
+      return UpdateService::ErrorCategory::kInstaller;
   }
 }
 
@@ -515,12 +545,15 @@ MakeUpdateClientCrxStateChangeCallback(
     scoped_refptr<update_client::Configurator> config,
     scoped_refptr<PersistedData> persisted_data,
     const bool new_install,
-    UpdateService::StateChangeCallback callback) {
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateService::UpdateState&)> callback) {
   return base::BindRepeating(
       [](scoped_refptr<update_client::Configurator> config,
          scoped_refptr<PersistedData> persisted_data, const bool new_install,
-         UpdateService::StateChangeCallback callback,
-         update_client::CrxUpdateItem crx_update_item) {
+         const std::string& language,
+         base::RepeatingCallback<void(const UpdateService::UpdateState&)>
+             callback,
+         const update_client::CrxUpdateItem& crx_update_item) {
         UpdateService::UpdateState update_state;
         update_state.app_id = crx_update_item.id;
         update_state.state = ToUpdateState(crx_update_item.state);
@@ -533,10 +566,6 @@ MakeUpdateClientCrxStateChangeCallback(
         update_state.error_code = crx_update_item.error_code;
         update_state.extra_code1 = crx_update_item.extra_code1;
         if (crx_update_item.installer_result) {
-          if (crx_update_item.installer_result->original_error) {
-            update_state.error_code =
-                crx_update_item.installer_result->original_error;
-          }
           update_state.installer_cmd_line =
               crx_update_item.installer_result->installer_cmd_line;
           update_state.installer_text =
@@ -544,9 +573,8 @@ MakeUpdateClientCrxStateChangeCallback(
 #if BUILDFLAG(IS_WIN)
           if (update_state.installer_text.empty())
             update_state.installer_text = internal::GetInstallerText(
-                UpdateService::ErrorCategory::kInstall, update_state.error_code,
-                update_state.extra_code1,
-                /*is_installer_error=*/true);
+                UpdateService::ErrorCategory::kInstaller,
+                update_state.error_code, update_state.extra_code1, language);
 #endif  // BUILDFLAG(IS_WIN)
         }
 
@@ -559,7 +587,7 @@ MakeUpdateClientCrxStateChangeCallback(
           if (update_state.installer_text.empty())
             update_state.installer_text = internal::GetInstallerText(
                 update_state.error_category, update_state.error_code,
-                update_state.extra_code1);
+                update_state.extra_code1, language);
 #endif  // BUILDFLAG(IS_WIN)
 
           // If a new install encounters an error, the AppId registered in
@@ -580,9 +608,41 @@ MakeUpdateClientCrxStateChangeCallback(
           config->GetPrefService()->CommitPendingWrite();
         }
 
+        CHECK(!update_state.app_id.empty());
+        CHECK_NE(update_state.state,
+                 UpdateService::UpdateState::State::kUnknown);
         callback.Run(update_state);
       },
-      config, persisted_data, new_install, callback);
+      config, persisted_data, new_install, language, callback);
+}
+
+bool IsPathOnReadOnlyMount(const base::FilePath& path) {
+  if (path.empty()) {
+    return false;
+  }
+#if BUILDFLAG(IS_MAC)
+  struct statfs fsinfo = {};
+  if (statfs(path.value().c_str(), &fsinfo) == -1) {
+    LOG(ERROR) << "Failed to stat: " << path;
+    return false;
+  }
+  return fsinfo.f_flags & MNT_RDONLY;
+#else
+  return false;
+#endif  // BUILDFLAG(IS_MAC)
+}
+
+void FetchPoliciesDone(
+    base::OnceCallback<void(base::OnceCallback<void(UpdateService::Result)>)>
+        fetch_policies_done,
+    base::OnceCallback<void(UpdateService::Result)> callback,
+    int result) {
+  if (result != kErrorOk) {
+    LOG(ERROR) << "FetchPolicies failed: " << result;
+    // Ignore policy fetch failures and fall through.
+  }
+
+  std::move(fetch_policies_done).Run(std::move(callback));
 }
 
 }  // namespace
@@ -601,7 +661,54 @@ void UpdateServiceImplImpl::GetVersion(
       base::BindOnce(std::move(callback), base::Version(kUpdaterVersion)));
 }
 
+void UpdateServiceImplImpl::MaybeInstallEnterpriseCompanionAppOTA(
+    base::OnceClosure callback,
+    bool is_cloud_managed) {
+  VLOG(1) << __func__;
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  if (!is_cloud_managed) {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, std::move(callback));
+    return;
+  }
+
+  VLOG(1) << "Starting an OTA installation of the enterprise companion app.";
+  RegistrationRequest registration;
+  registration.app_id = enterprise_companion::kCompanionAppId;
+  registration.version = base::Version("0.0.0.0");
+  RegisterApp(
+      registration,
+      base::BindOnce([](int registration_result) {})
+          .Then(base::BindPostTask(
+              main_task_runner_,
+              base::BindOnce(
+                  base::IgnoreResult(&update_client::UpdateClient::Install),
+                  update_client_, enterprise_companion::kCompanionAppId,
+                  base::BindOnce(&internal::GetComponents,
+                                 config_->GetPolicyService(),
+                                 config_->GetCrxVerifierFormat(),
+                                 config_->GetUpdaterPersistedData(),
+                                 kEmptyFlatMap, kEmptyFlatMap,
+                                 kInstallSourcePolicy, Priority::kForeground,
+                                 /*update_blocked=*/false,
+                                 PolicySameVersionUpdate::kNotAllowed),
+                  MakeUpdateClientCrxStateChangeCallback(
+                      config_, config_->GetUpdaterPersistedData(),
+                      /*new_install=*/false,
+                      /*language=*/{},
+                      /*callback=*/base::DoNothing()),
+                  MakeUpdateClientCallback(base::BindOnce([](Result result) {
+                                             VLOG(1)
+                                                 << "OTA installation of the "
+                                                    "enterprise companion app "
+                                                    "completed with result: "
+                                                 << result;
+                                           }).Then(std::move(callback)))))));
+}
+
 void UpdateServiceImplImpl::FetchPolicies(
+    policy::PolicyFetchReason reason,
     base::OnceCallback<void(int)> callback) {
   VLOG(1) << __func__;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -610,7 +717,19 @@ void UpdateServiceImplImpl::FetchPolicies(
     VLOG(2) << "Policy fetch skipped for user updater.";
     std::move(callback).Run(0);
   } else {
-    config_->GetPolicyService()->FetchPolicies(std::move(callback));
+    if (config_->GetPolicyService()->IsCecaExperimentEnabled() &&
+        !config_->GetUpdaterPersistedData()
+             ->GetProductVersion(enterprise_companion::kCompanionAppId)
+             .IsValid()) {
+      config_->GetPolicyService()->IsCloudManaged(base::BindOnce(
+          &UpdateServiceImplImpl::MaybeInstallEnterpriseCompanionAppOTA,
+          base::WrapRefCounted(this),
+          base::BindOnce(&PolicyService::FetchPolicies,
+                         config_->GetPolicyService(), reason,
+                         std::move(callback))));
+    } else {
+      config_->GetPolicyService()->FetchPolicies(reason, std::move(callback));
+    }
   }
 }
 
@@ -619,14 +738,57 @@ void UpdateServiceImplImpl::RegisterApp(
     base::OnceCallback<void(int)> callback) {
   VLOG(1) << __func__;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!base::EqualsCaseInsensitiveASCII(request.app_id, kUpdaterAppId)) {
+  if (IsPathOnReadOnlyMount(request.existence_checker_path)) {
+    VLOG(1) << "Existence check path " << request.existence_checker_path
+            << " is on read-only file system. Registration of "
+            << request.app_id << " is skipped.";
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(std::move(callback), kRegistrationError));
+    return;
+  }
+
+  if (!IsUpdaterOrCompanionApp(request.app_id)) {
     config_->GetUpdaterPersistedData()->SetHadApps();
   }
+  bool send_event = !config_->GetUpdaterPersistedData()
+                         ->GetProductVersion(request.app_id)
+                         .IsValid() &&
+                    request.version.IsValid() &&
+                    request.version > base::Version("0") &&
+                    !config_->GetUpdaterPersistedData()->GetEulaRequired();
   config_->GetUpdaterPersistedData()->RegisterApp(request);
-  std::move(callback).Run(kRegistrationSuccess);
+  if (send_event) {
+    update_client::CrxComponent install_data;
+    install_data.ap = request.ap;
+    install_data.app_id = request.app_id;
+    install_data.brand = request.brand_code;
+    install_data.lang = request.lang;
+    install_data.requires_network_encryption = false;
+    install_data.version = request.version;
+    update_client_->SendPing(
+        install_data,
+        {.event_type = update_client::protocol_request::kEventInstall,
+         .result = update_client::protocol_request::kEventResultSuccess},
+        base::BindOnce([](update_client::Error error) {
+          // Ignore event ping errors; registration has been successful.
+        }).Then(base::BindOnce(std::move(callback), kRegistrationSuccess)));
+    return;
+  }
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(std::move(callback), kRegistrationSuccess));
 }
 
 void UpdateServiceImplImpl::GetAppStates(
+    base::OnceCallback<void(const std::vector<AppState>&)> callback) {
+  VLOG(1) << __func__;
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  base::MakeRefCounted<HandleInconsistentAppsTask>(config_, GetUpdaterScope())
+      ->Run(base::BindOnce(&UpdateServiceImplImpl::GetAppStatesImpl, this,
+                           std::move(callback)));
+}
+
+void UpdateServiceImplImpl::GetAppStatesImpl(
     base::OnceCallback<void(const std::vector<AppState>&)> callback) {
   VLOG(1) << __func__;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -647,6 +809,7 @@ void UpdateServiceImplImpl::GetAppStates(
     app_state.brand_code = persisted_data->GetBrandCode(app_id);
     app_state.brand_path = persisted_data->GetBrandPath(app_id);
     app_state.ecp = persisted_data->GetExistenceCheckerPath(app_id);
+    app_state.cohort = persisted_data->GetCohort(app_id);
     apps.push_back(app_state);
   }
   main_task_runner_->PostTask(
@@ -675,8 +838,8 @@ void UpdateServiceImplImpl::RunPeriodicTasks(base::OnceClosure callback) {
 
   std::vector<base::OnceCallback<void(base::OnceClosure)>> new_tasks;
   new_tasks.push_back(
-      base::BindOnce(&FindUnregisteredAppsTask::Run,
-                     base::MakeRefCounted<FindUnregisteredAppsTask>(
+      base::BindOnce(&HandleInconsistentAppsTask::Run,
+                     base::MakeRefCounted<HandleInconsistentAppsTask>(
                          config_, GetUpdaterScope())));
   new_tasks.push_back(
       base::BindOnce(&RemoveUninstalledAppsTask::Run,
@@ -692,32 +855,44 @@ void UpdateServiceImplImpl::RunPeriodicTasks(base::OnceClosure callback) {
   new_tasks.push_back(base::BindOnce(
       [](scoped_refptr<UpdateServiceImplImpl> update_service_impl,
          base::OnceClosure callback) {
-        update_service_impl->FetchPolicies(base::BindOnce(
-            [](base::OnceClosure callback, int /* ignore_result */) {
-              std::move(callback).Run();
-            },
-            std::move(callback)));
+        update_service_impl->FetchPolicies(
+            policy::PolicyFetchReason::kScheduled,
+            base::BindOnce(
+                [](base::OnceClosure callback, int /* ignore_result */) {
+                  std::move(callback).Run();
+                },
+                std::move(callback)));
       },
       base::WrapRefCounted(this)));
   new_tasks.push_back(
       base::BindOnce(&CheckForUpdatesTask::Run,
                      base::MakeRefCounted<CheckForUpdatesTask>(
                          config_, GetUpdaterScope(),
-                         base::BindOnce(&UpdateServiceImplImpl::ForceInstall,
-                                        this, base::DoNothing()))));
-  new_tasks.push_back(
-      base::BindOnce(&CheckForUpdatesTask::Run,
-                     base::MakeRefCounted<CheckForUpdatesTask>(
-                         config_, GetUpdaterScope(),
+                         /*task_name=*/"UpdateAll",
                          base::BindOnce(&UpdateServiceImplImpl::UpdateAll, this,
                                         base::DoNothing()))));
+  new_tasks.push_back(base::BindOnce(
+      [](scoped_refptr<UpdateServiceImplImpl> self,
+         base::OnceClosure callback) {
+        base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+            FROM_HERE,
+            base::BindOnce(
+                &UpdateServiceImplImpl::ForceInstall, self, base::DoNothing(),
+                base::BindOnce(
+                    [](base::OnceClosure closure,
+                       UpdateService::Result result) {
+                      VLOG(0) << "ForceInstall task complete: " << result;
+                      std::move(closure).Run();
+                    },
+                    std::move(callback))));
+      },
+      base::WrapRefCounted(this)));
   new_tasks.push_back(base::BindOnce(
       &AutoRunOnOsUpgradeTask::Run,
       base::MakeRefCounted<AutoRunOnOsUpgradeTask>(
           GetUpdaterScope(), config_->GetUpdaterPersistedData())));
   new_tasks.push_back(base::BindOnce(
-      &CleanupTask::Run,
-      base::MakeRefCounted<CleanupTask>(GetUpdaterScope(), config_)));
+      &CleanupTask::Run, base::MakeRefCounted<CleanupTask>(GetUpdaterScope())));
 
   const auto barrier_closure =
       base::BarrierClosure(new_tasks.size(), std::move(callback));
@@ -735,7 +910,8 @@ void UpdateServiceImplImpl::RunPeriodicTasks(base::OnceClosure callback) {
 void UpdateServiceImplImpl::TaskStart() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (!tasks_.empty()) {
-    main_task_runner_->PostTask(FROM_HERE, std::move(tasks_.front()));
+    main_task_runner_->PostDelayedTask(FROM_HERE, std::move(tasks_.front()),
+                                       config_->InitialDelay());
   }
 }
 
@@ -745,8 +921,9 @@ void UpdateServiceImplImpl::TaskDone() {
   TaskStart();
 }
 
-void UpdateServiceImplImpl::ForceInstall(StateChangeCallback state_update,
-                                         Callback callback) {
+void UpdateServiceImplImpl::ForceInstall(
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
   VLOG(1) << __func__;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
@@ -763,12 +940,12 @@ void UpdateServiceImplImpl::ForceInstall(StateChangeCallback state_update,
 
   std::vector<std::string> installed_app_ids =
       config_->GetUpdaterPersistedData()->GetAppIds();
-  base::ranges::sort(force_install_apps);
-  base::ranges::sort(installed_app_ids);
+  std::ranges::sort(force_install_apps);
+  std::ranges::sort(installed_app_ids);
 
   std::vector<std::string> app_ids_to_install;
-  base::ranges::set_difference(force_install_apps, installed_app_ids,
-                               std::back_inserter(app_ids_to_install));
+  std::ranges::set_difference(force_install_apps, installed_app_ids,
+                              std::back_inserter(app_ids_to_install));
   if (app_ids_to_install.empty()) {
     base::BindPostTask(main_task_runner_, std::move(callback))
         .Run(UpdateService::Result::kSuccess);
@@ -782,8 +959,7 @@ void UpdateServiceImplImpl::ForceInstall(StateChangeCallback state_update,
       Priority::kBackground,
       base::BindOnce(
           &UpdateServiceImplImpl::OnShouldBlockForceInstallForMeteredNetwork,
-          this, app_ids_to_install, AppClientInstallData(),
-          AppInstallDataIndex(),
+          this, app_ids_to_install, kEmptyFlatMap, kEmptyFlatMap,
           UpdateService::PolicySameVersionUpdate::kNotAllowed, state_update,
           std::move(callback)));
 }
@@ -792,8 +968,31 @@ void UpdateServiceImplImpl::CheckForUpdate(
     const std::string& app_id,
     Priority priority,
     PolicySameVersionUpdate policy_same_version_update,
-    StateChangeCallback state_update,
-    Callback callback) {
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
+  VLOG(1) << __func__ << ": " << app_id;
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  base::MakeRefCounted<HandleInconsistentAppsTask>(config_, GetUpdaterScope())
+      ->Run(base::BindOnce(
+          &UpdateServiceImplImpl::FetchPolicies, this,
+          policy::PolicyFetchReason::kUserRequest,
+          base::BindOnce(
+              &FetchPoliciesDone,
+              base::BindOnce(&UpdateServiceImplImpl::CheckForUpdateImpl, this,
+                             app_id, priority, policy_same_version_update,
+                             language, state_update),
+              std::move(callback))));
+}
+
+void UpdateServiceImplImpl::CheckForUpdateImpl(
+    const std::string& app_id,
+    Priority priority,
+    PolicySameVersionUpdate policy_same_version_update,
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
   VLOG(1) << __func__ << ": " << app_id;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
@@ -807,7 +1006,7 @@ void UpdateServiceImplImpl::CheckForUpdate(
 
   int policy = kPolicyEnabled;
   if (IsUpdateDisabledByPolicy(app_id, priority, false, policy)) {
-    HandleUpdateDisabledByPolicy(app_id, policy, false, state_update,
+    HandleUpdateDisabledByPolicy(app_id, policy, false, language, state_update,
                                  std::move(callback));
     return;
   }
@@ -815,8 +1014,8 @@ void UpdateServiceImplImpl::CheckForUpdate(
       priority,
       base::BindOnce(
           &UpdateServiceImplImpl::OnShouldBlockCheckForUpdateForMeteredNetwork,
-          this, app_id, priority, policy_same_version_update, state_update,
-          std::move(callback)));
+          this, app_id, priority, policy_same_version_update, language,
+          state_update, std::move(callback)));
 }
 
 void UpdateServiceImplImpl::Update(
@@ -824,8 +1023,32 @@ void UpdateServiceImplImpl::Update(
     const std::string& install_data_index,
     Priority priority,
     PolicySameVersionUpdate policy_same_version_update,
-    StateChangeCallback state_update,
-    Callback callback) {
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
+  VLOG(1) << __func__;
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  base::MakeRefCounted<HandleInconsistentAppsTask>(config_, GetUpdaterScope())
+      ->Run(base::BindOnce(
+          &UpdateServiceImplImpl::FetchPolicies, this,
+          policy::PolicyFetchReason::kScheduled,
+          base::BindOnce(&FetchPoliciesDone,
+                         base::BindOnce(&UpdateServiceImplImpl::UpdateImpl,
+                                        this, app_id, install_data_index,
+                                        priority, policy_same_version_update,
+                                        language, state_update),
+                         std::move(callback))));
+}
+
+void UpdateServiceImplImpl::UpdateImpl(
+    const std::string& app_id,
+    const std::string& install_data_index,
+    Priority priority,
+    PolicySameVersionUpdate policy_same_version_update,
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
   VLOG(1) << __func__;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
@@ -838,7 +1061,7 @@ void UpdateServiceImplImpl::Update(
 
   int policy = kPolicyEnabled;
   if (IsUpdateDisabledByPolicy(app_id, priority, false, policy)) {
-    HandleUpdateDisabledByPolicy(app_id, policy, false, state_update,
+    HandleUpdateDisabledByPolicy(app_id, policy, false, language, state_update,
                                  std::move(callback));
     return;
   }
@@ -846,18 +1069,21 @@ void UpdateServiceImplImpl::Update(
       priority,
       base::BindOnce(
           &UpdateServiceImplImpl::OnShouldBlockUpdateForMeteredNetwork, this,
-          std::vector<std::string>{app_id}, AppClientInstallData(),
-          AppInstallDataIndex({std::make_pair(app_id, install_data_index)}),
-          priority, policy_same_version_update, state_update,
+          std::vector<std::string>{app_id}, kEmptyFlatMap,
+          base::flat_map<std::string, std::string>(
+              {std::make_pair(app_id, install_data_index)}),
+          priority, policy_same_version_update, language, state_update,
           std::move(callback)));
 }
 
-void UpdateServiceImplImpl::UpdateAll(StateChangeCallback state_update,
-                                      Callback callback) {
+void UpdateServiceImplImpl::UpdateAll(
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
   VLOG(1) << __func__;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  const auto app_ids = config_->GetUpdaterPersistedData()->GetAppIds();
+  auto app_ids = config_->GetUpdaterPersistedData()->GetAppIds();
+
   CHECK(base::Contains(
       app_ids, base::ToLowerASCII(kUpdaterAppId),
       static_cast<std::string (*)(std::string_view)>(&base::ToLowerASCII)));
@@ -867,11 +1093,12 @@ void UpdateServiceImplImpl::UpdateAll(StateChangeCallback state_update,
       priority,
       base::BindOnce(
           &UpdateServiceImplImpl::OnShouldBlockUpdateForMeteredNetwork, this,
-          app_ids, AppClientInstallData(), AppInstallDataIndex(), priority,
-          UpdateService::PolicySameVersionUpdate::kNotAllowed, state_update,
+          app_ids, kEmptyFlatMap, kEmptyFlatMap, priority,
+          UpdateService::PolicySameVersionUpdate::kNotAllowed,
+          /*language=*/"", state_update,
           base::BindOnce(
-              [](Callback callback, scoped_refptr<PersistedData> persisted_data,
-                 Result result) {
+              [](base::OnceCallback<void(Result)> callback,
+                 scoped_refptr<PersistedData> persisted_data, Result result) {
                 if (result == Result::kSuccess) {
                   persisted_data->SetLastChecked(
                       base::Time::NowFromSystemTime());
@@ -882,22 +1109,47 @@ void UpdateServiceImplImpl::UpdateAll(StateChangeCallback state_update,
               std::move(callback), config_->GetUpdaterPersistedData())));
 }
 
-void UpdateServiceImplImpl::Install(const RegistrationRequest& registration,
-                                    const std::string& client_install_data,
-                                    const std::string& install_data_index,
-                                    Priority priority,
-                                    StateChangeCallback state_update,
-                                    Callback callback) {
+void UpdateServiceImplImpl::Install(
+    const RegistrationRequest& registration,
+    const std::string& client_install_data,
+    const std::string& install_data_index,
+    Priority priority,
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
+  VLOG(1) << __func__;
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  base::MakeRefCounted<HandleInconsistentAppsTask>(config_, GetUpdaterScope())
+      ->Run(base::BindOnce(
+          &UpdateServiceImplImpl::FetchPolicies, this,
+          policy::PolicyFetchReason::kUserRequest,
+          base::BindOnce(&FetchPoliciesDone,
+                         base::BindOnce(&UpdateServiceImplImpl::InstallImpl,
+                                        this, registration, client_install_data,
+                                        install_data_index, priority, language,
+                                        state_update),
+                         std::move(callback))));
+}
+
+void UpdateServiceImplImpl::InstallImpl(
+    const RegistrationRequest& registration,
+    const std::string& client_install_data,
+    const std::string& install_data_index,
+    Priority priority,
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
   VLOG(1) << __func__;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   int policy = kPolicyEnabled;
   if (IsUpdateDisabledByPolicy(registration.app_id, priority, true, policy)) {
-    HandleUpdateDisabledByPolicy(registration.app_id, policy, true,
+    HandleUpdateDisabledByPolicy(registration.app_id, policy, true, language,
                                  state_update, std::move(callback));
     return;
   }
-  if (!base::EqualsCaseInsensitiveASCII(registration.app_id, kUpdaterAppId)) {
+  if (!IsUpdaterOrCompanionApp(registration.app_id)) {
     config_->GetUpdaterPersistedData()->SetHadApps();
   }
 
@@ -907,12 +1159,16 @@ void UpdateServiceImplImpl::Install(const RegistrationRequest& registration,
   if (new_install) {
     // Pre-register the app if there is no registration for it. This app
     // registration is removed later if the app install encounters an error.
-    config_->GetUpdaterPersistedData()->RegisterApp(registration);
+    RegistrationRequest request = registration;
+    request.lang = language;
+    config_->GetUpdaterPersistedData()->RegisterApp(request);
   } else {
-    // Update ap.
+    // Update lang/ap/iid.
     RegistrationRequest request;
     request.app_id = registration.app_id;
+    request.lang = language;
     request.ap = registration.ap;
+    request.install_id = registration.install_id;
     config_->GetUpdaterPersistedData()->RegisterApp(request);
   }
 
@@ -923,15 +1179,15 @@ void UpdateServiceImplImpl::Install(const RegistrationRequest& registration,
       base::BindOnce(
           &internal::GetComponents, config_->GetPolicyService(),
           config_->GetCrxVerifierFormat(), config_->GetUpdaterPersistedData(),
-          AppClientInstallData(
+          base::flat_map<std::string, std::string>(
               {std::make_pair(registration.app_id, client_install_data)}),
-          AppInstallDataIndex(
+          base::flat_map<std::string, std::string>(
               {std::make_pair(registration.app_id, install_data_index)}),
-          priority,
+          kInstallSourceTaggedMetainstaller, priority,
           /*update_blocked=*/false, PolicySameVersionUpdate::kAllowed),
-      MakeUpdateClientCrxStateChangeCallback(config_,
-                                             config_->GetUpdaterPersistedData(),
-                                             new_install, state_update),
+      MakeUpdateClientCrxStateChangeCallback(
+          config_, config_->GetUpdaterPersistedData(), new_install, language,
+          state_update),
       MakeUpdateClientCallback(std::move(callback))
           .Then(base::BindOnce(
               [](scoped_refptr<UpdateServiceImplImpl> self,
@@ -945,40 +1201,77 @@ void UpdateServiceImplImpl::Install(const RegistrationRequest& registration,
 void UpdateServiceImplImpl::CancelInstalls(const std::string& app_id) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   VLOG(1) << __func__;
-  auto range = cancellation_callbacks_.equal_range(app_id);
-  base::ranges::for_each(range.first, range.second,
-                         [](const auto& i) { i.second.Run(); });
+  auto [first, last] = cancellation_callbacks_.equal_range(app_id);
+  std::ranges::for_each(first, last, [](const auto& i) { i.second.Run(); });
 }
 
-void UpdateServiceImplImpl::RunInstaller(const std::string& app_id,
-                                         const base::FilePath& installer_path,
-                                         const std::string& install_args,
-                                         const std::string& install_data,
-                                         const std::string& install_settings,
-                                         StateChangeCallback state_update,
-                                         Callback callback) {
+void UpdateServiceImplImpl::RunInstaller(
+    const std::string& app_id,
+    const base::FilePath& installer_path,
+    const std::string& install_args,
+    const std::string& install_data,
+    const std::string& install_settings,
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
+  VLOG(1) << __func__ << ": " << app_id << ": " << installer_path << ": "
+          << install_args << ": " << install_data << ": " << install_settings;
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  base::MakeRefCounted<HandleInconsistentAppsTask>(config_, GetUpdaterScope())
+      ->Run(base::BindOnce(
+          &UpdateServiceImplImpl::FetchPolicies, this,
+          policy::PolicyFetchReason::kUserRequest,
+          base::BindOnce(
+              &FetchPoliciesDone,
+              base::BindOnce(&UpdateServiceImplImpl::RunInstallerImpl, this,
+                             app_id, installer_path, install_args, install_data,
+                             install_settings, language, state_update),
+              std::move(callback))));
+}
+
+void UpdateServiceImplImpl::RunInstallerImpl(
+    const std::string& app_id,
+    const base::FilePath& installer_path,
+    const std::string& install_args,
+    const std::string& install_data,
+    const std::string& install_settings,
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
   VLOG(1) << __func__ << ": " << app_id << ": " << installer_path << ": "
           << install_args << ": " << install_data << ": " << install_settings;
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   int policy = kPolicyEnabled;
   if (IsUpdateDisabledByPolicy(app_id, Priority::kForeground, true, policy)) {
-    HandleUpdateDisabledByPolicy(app_id, policy, true, state_update,
+    HandleUpdateDisabledByPolicy(app_id, policy, true, language, state_update,
                                  std::move(callback));
     return;
   }
 
+  if (!IsUpdaterOrCompanionApp(app_id)) {
+    config_->GetUpdaterPersistedData()->SetHadApps();
+  }
+
   const base::Version pv =
       config_->GetUpdaterPersistedData()->GetProductVersion(app_id);
+  const bool new_install = !pv.IsValid();
   AppInfo app_info(
       GetUpdaterScope(), app_id,
-      pv.IsValid() ? config_->GetUpdaterPersistedData()->GetAP(app_id) : "",
-      pv.IsValid() ? config_->GetUpdaterPersistedData()->GetBrandCode(app_id)
-                   : "",
-      pv,
-      pv.IsValid()
-          ? config_->GetUpdaterPersistedData()->GetExistenceCheckerPath(app_id)
-          : base::FilePath());
+      config_->GetUpdaterPersistedData()->GetAP(app_id),
+      !language.empty() ? language
+                        : config_->GetUpdaterPersistedData()->GetLang(app_id),
+      config_->GetUpdaterPersistedData()->GetBrandCode(app_id), pv,
+      config_->GetUpdaterPersistedData()->GetExistenceCheckerPath(app_id));
+
+  // Pre-register the app in case there is no registration for it. This app
+  // registration is removed later if `new_install` is `true and if the app
+  // install encounters an error.
+  RegistrationRequest request;
+  request.app_id = app_id;
+  request.lang = language;
+  config_->GetUpdaterPersistedData()->RegisterApp(request);
 
   const base::Version installer_version([&install_settings]() -> std::string {
     std::unique_ptr<base::Value> install_settings_deserialized =
@@ -1014,16 +1307,19 @@ void UpdateServiceImplImpl::RunInstaller(const std::string& app_id,
       base::BindOnce(
           [](const AppInfo& app_info, const base::FilePath& installer_path,
              const std::string& install_args, const std::string& install_data,
-             StateChangeCallback state_update, bool usage_stats_enabled) {
+             base::RepeatingCallback<void(const UpdateState&)> state_update,
+             bool usage_stats_enabled) {
             base::ScopedTempDir temp_dir;
             if (!temp_dir.CreateUniqueTempDir()) {
+              return InstallerResult(
+                  {.category = update_client::ErrorCategory::kInstall,
+                   .code = kErrorCreatingTempDir,
 #if BUILDFLAG(IS_WIN)
-              InstallerResult result(kErrorApplicationInstallerFailed);
-              result.original_error = HRESULTFromLastError();
-              return result;
-#else   // BUILDFLAG(IS_WIN)
-              return InstallerResult(kErrorApplicationInstallerFailed);
+                   .extra = HRESULTFromLastError()
+#else
+                   .extra = logging::GetLastSystemErrorCode()
 #endif  // BUILDFLAG(IS_WIN)
+                  });
             }
 
             return RunApplicationInstaller(
@@ -1031,7 +1327,8 @@ void UpdateServiceImplImpl::RunInstaller(const std::string& app_id,
                 WriteInstallerDataToTempFile(temp_dir.GetPath(), install_data),
                 usage_stats_enabled, kWaitForAppInstaller,
                 base::BindRepeating(
-                    [](StateChangeCallback state_update,
+                    [](base::RepeatingCallback<void(const UpdateState&)>
+                           state_update,
                        const std::string& app_id, int progress) {
                       VLOG(4) << "Install progress: " << progress;
                       UpdateState state;
@@ -1043,21 +1340,25 @@ void UpdateServiceImplImpl::RunInstaller(const std::string& app_id,
                     state_update, app_info.app_id));
           },
           app_info, installer_path, install_args, install_data, state_update,
-          config_->GetUpdaterPersistedData()->GetUsageStatsEnabled() ||
-              AreRawUsageStatsEnabled(GetUpdaterScope())),
+          IsUpdaterOrCompanionApp(app_info.app_id) &&
+              config_->GetUpdaterPersistedData()->GetUsageStatsEnabled()),
       base::BindOnce(
           [](scoped_refptr<Configurator> config,
              scoped_refptr<PersistedData> persisted_data,
              scoped_refptr<update_client::UpdateClient> update_client,
-             base::Version installer_version, StateChangeCallback state_update,
+             base::Version installer_version,
+             base::RepeatingCallback<void(const UpdateState&)> state_update,
              const std::string& app_id, const std::string& ap,
-             const std::string& brand, Callback callback,
+             const std::string& brand, const std::string& language,
+             bool new_install, base::OnceCallback<void(Result)> callback,
              const InstallerResult& result) {
             // Final state update after installation completes.
             UpdateState state;
             state.app_id = app_id;
-            state.state = result.error == 0 ? UpdateState::State::kUpdated
-                                            : UpdateState::State::kUpdateError;
+            state.state =
+                result.result.category == update_client::ErrorCategory::kNone
+                    ? UpdateState::State::kUpdated
+                    : UpdateState::State::kUpdateError;
 
             const base::Version registered_version =
                 internal::GetRegisteredInstallerVersion(app_id);
@@ -1068,24 +1369,23 @@ void UpdateServiceImplImpl::RunInstaller(const std::string& app_id,
               installer_version = registered_version;
             }
 
-            if (result.error == 0 && installer_version.IsValid()) {
+            if (result.result.category == update_client::ErrorCategory::kNone &&
+                installer_version.IsValid()) {
               persisted_data->SetProductVersion(app_id, installer_version);
               config->GetPrefService()->CommitPendingWrite();
-            } else {
-              state.error_category = UpdateService::ErrorCategory::kInstall;
+            } else if (new_install) {
+              persisted_data->RemoveApp(app_id);
             }
 
-            // Handle the offline installer cases similar to the online cases,
-            // and get the `error_code` from `original_error`.
-            state.error_code =
-                result.original_error ? result.original_error : result.error;
-            state.extra_code1 = result.extended_error;
+            state.error_category = ToErrorCategory(result.result.category);
+            state.error_code = result.result.code;
+            state.extra_code1 = result.result.extra;
             state.installer_text = result.installer_text;
 #if BUILDFLAG(IS_WIN)
             if (state.installer_text.empty())
               state.installer_text = internal::GetInstallerText(
                   state.error_category, state.error_code, state.extra_code1,
-                  /*is_installer_error=*/true);
+                  language);
 #endif  // BUILDFLAG(IS_WIN)
             state.installer_cmd_line = result.installer_cmd_line;
             state_update.Run(state);
@@ -1099,24 +1399,34 @@ void UpdateServiceImplImpl::RunInstaller(const std::string& app_id,
               update_client::CrxComponent install_data;
               install_data.ap = ap;
               install_data.app_id = app_id;
+              install_data.lang = language;
               install_data.brand = brand;
               install_data.requires_network_encryption = false;
+              install_data.install_source = kInstallSourceOffline;
               install_data.version = installer_version;
               update_client->SendPing(
                   install_data,
                   {.event_type = update_client::protocol_request::kEventInstall,
-                   .result = result.error == 0,
-                   .error_code = result.error,
-                   .extra_code1 = result.extended_error},
+                   .result =
+                       result.result.category ==
+                               update_client::ErrorCategory::kNone
+                           ? update_client::protocol_request::
+                                 kEventResultSuccess
+                           : update_client::protocol_request::kEventResultError,
+                   .error_category = result.result.category,
+                   .error_code = result.result.code,
+                   .extra_code1 = result.result.extra},
                   base::DoNothing());
             }
 
-            std::move(callback).Run(result.error == 0 ? Result::kSuccess
-                                                      : Result::kInstallFailed);
+            std::move(callback).Run(result.result.category ==
+                                            update_client::ErrorCategory::kNone
+                                        ? Result::kSuccess
+                                        : Result::kInstallFailed);
           },
           config_, config_->GetUpdaterPersistedData(), update_client_,
           installer_version, state_update, app_info.app_id, app_info.ap,
-          app_info.brand, std::move(callback)));
+          app_info.brand, language, new_install, std::move(callback)));
 }
 
 bool UpdateServiceImplImpl::IsUpdateDisabledByPolicy(const std::string& app_id,
@@ -1155,14 +1465,15 @@ void UpdateServiceImplImpl::HandleUpdateDisabledByPolicy(
     const std::string& app_id,
     int policy,
     bool is_install,
-    StateChangeCallback state_update,
-    Callback callback) {
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   UpdateState update_state;
   update_state.app_id = app_id;
   update_state.state = UpdateService::UpdateState::State::kUpdateError;
-  update_state.error_category = UpdateService::ErrorCategory::kInstall;
+  update_state.error_category = UpdateService::ErrorCategory::kInstaller;
   update_state.error_code =
       is_install ? GOOPDATE_E_APP_INSTALL_DISABLED_BY_POLICY
       : policy != kPolicyAutomaticUpdatesOnly
@@ -1172,8 +1483,7 @@ void UpdateServiceImplImpl::HandleUpdateDisabledByPolicy(
 #if BUILDFLAG(IS_WIN)
   update_state.installer_text = internal::GetInstallerText(
       update_state.error_category, update_state.error_code,
-      update_state.extra_code1,
-      /*is_installer_error=*/true);
+      update_state.extra_code1, language);
 #endif  // BUILDFLAG(IS_WIN)
 
   base::BindPostTask(main_task_runner_, state_update).Run(update_state);
@@ -1185,8 +1495,9 @@ void UpdateServiceImplImpl::OnShouldBlockCheckForUpdateForMeteredNetwork(
     const std::string& app_id,
     Priority priority,
     PolicySameVersionUpdate policy_same_version_update,
-    StateChangeCallback state_update,
-    Callback callback,
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback,
     bool update_blocked) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   main_task_runner_->PostTask(
@@ -1195,24 +1506,28 @@ void UpdateServiceImplImpl::OnShouldBlockCheckForUpdateForMeteredNetwork(
           &update_client::UpdateClient::CheckForUpdate, update_client_, app_id,
           base::BindOnce(&internal::GetComponents, config_->GetPolicyService(),
                          config_->GetCrxVerifierFormat(),
-                         config_->GetUpdaterPersistedData(),
-                         AppClientInstallData(), AppInstallDataIndex(),
+                         config_->GetUpdaterPersistedData(), kEmptyFlatMap,
+                         kEmptyFlatMap,
+                         priority == UpdateService::Priority::kForeground
+                             ? kInstallSourceOnDemand
+                             : "",
                          priority, update_blocked, policy_same_version_update),
           MakeUpdateClientCrxStateChangeCallback(
               config_, config_->GetUpdaterPersistedData(),
-              /*new_install=*/false, state_update),
+              /*new_install=*/false, language, state_update),
           priority == Priority::kForeground,
           MakeUpdateClientCallback(std::move(callback))));
 }
 
 void UpdateServiceImplImpl::OnShouldBlockUpdateForMeteredNetwork(
     const std::vector<std::string>& app_ids,
-    const AppClientInstallData& app_client_install_data,
-    const AppInstallDataIndex& app_install_data_index,
+    const base::flat_map<std::string, std::string>& app_client_install_data,
+    const base::flat_map<std::string, std::string>& app_install_data_index,
     Priority priority,
     PolicySameVersionUpdate policy_same_version_update,
-    StateChangeCallback state_update,
-    Callback callback,
+    const std::string& language,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback,
     bool update_blocked) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   main_task_runner_->PostTask(
@@ -1223,21 +1538,24 @@ void UpdateServiceImplImpl::OnShouldBlockUpdateForMeteredNetwork(
                          config_->GetCrxVerifierFormat(),
                          config_->GetUpdaterPersistedData(),
                          app_client_install_data, app_install_data_index,
+                         priority == UpdateService::Priority::kForeground
+                             ? kInstallSourceOnDemand
+                             : "",
                          priority, update_blocked, policy_same_version_update),
           MakeUpdateClientCrxStateChangeCallback(
               config_, config_->GetUpdaterPersistedData(),
-              /*new_install=*/false, state_update),
+              /*new_install=*/false, language, state_update),
           priority == Priority::kForeground,
           MakeUpdateClientCallback(std::move(callback))));
 }
 
 void UpdateServiceImplImpl::OnShouldBlockForceInstallForMeteredNetwork(
     const std::vector<std::string>& app_ids,
-    const AppClientInstallData& app_client_install_data,
-    const AppInstallDataIndex& app_install_data_index,
+    const base::flat_map<std::string, std::string>& app_client_install_data,
+    const base::flat_map<std::string, std::string>& app_install_data_index,
     PolicySameVersionUpdate policy_same_version_update,
-    StateChangeCallback state_update,
-    Callback callback,
+    base::RepeatingCallback<void(const UpdateState&)> state_update,
+    base::OnceCallback<void(Result)> callback,
     bool update_blocked) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
@@ -1246,7 +1564,7 @@ void UpdateServiceImplImpl::OnShouldBlockForceInstallForMeteredNetwork(
   auto barrier_callback = base::BarrierCallback<Result>(
       app_ids.size(),
       base::BindOnce([](const std::vector<Result>& results) {
-        auto error_it = base::ranges::find_if(
+        auto error_it = std::ranges::find_if(
             results, [](Result result) { return result != Result::kSuccess; });
         return error_it == std::end(results) ? Result::kSuccess : *error_it;
       }).Then(std::move(callback)));
@@ -1257,15 +1575,17 @@ void UpdateServiceImplImpl::OnShouldBlockForceInstallForMeteredNetwork(
         base::BindOnce(
             base::IgnoreResult(&update_client::UpdateClient::Install),
             update_client_, id,
-            base::BindOnce(
-                &internal::GetComponents, config_->GetPolicyService(),
-                config_->GetCrxVerifierFormat(),
-                config_->GetUpdaterPersistedData(), app_client_install_data,
-                app_install_data_index, Priority::kBackground, update_blocked,
-                policy_same_version_update),
+            base::BindOnce(&internal::GetComponents,
+                           config_->GetPolicyService(),
+                           config_->GetCrxVerifierFormat(),
+                           config_->GetUpdaterPersistedData(),
+                           app_client_install_data, app_install_data_index,
+                           kInstallSourcePolicy, Priority::kBackground,
+                           update_blocked, policy_same_version_update),
             MakeUpdateClientCrxStateChangeCallback(
                 config_, config_->GetUpdaterPersistedData(),
-                /*new_install=*/false, state_update),
+                /*new_install=*/false,
+                /*language=*/{}, state_update),
             MakeUpdateClientCallback(barrier_callback)));
   }
 }

@@ -15,7 +15,7 @@
 #include "base/containers/flat_map.h"
 #include "base/files/file_path.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/task/cancelable_task_tracker.h"
@@ -91,6 +91,8 @@ class JumpList : public sessions::TabRestoreServiceObserver,
   JumpList(const JumpList&) = delete;
   JumpList& operator=(const JumpList&) = delete;
 
+  ~JumpList() override;
+
   // Returns true if the custom JumpList is enabled.
   static bool Enabled();
 
@@ -132,8 +134,6 @@ class JumpList : public sessions::TabRestoreServiceObserver,
 
   friend JumpListFactory;
   explicit JumpList(Profile* profile);  // Use JumpListFactory instead
-
-  ~JumpList() override;
 
   // history::TopSitesObserver:
   void TopSitesLoaded(history::TopSites* top_sites) override;

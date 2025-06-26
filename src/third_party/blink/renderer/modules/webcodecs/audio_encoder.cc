@@ -576,7 +576,7 @@ void AudioEncoder::ProcessReconfigure(Request* request) {
   // Audio decoders don't currently support any meaningful reconfiguring
 }
 
-AudioEncoder::ParsedConfig* AudioEncoder::ParseConfig(
+AudioEncoder::ParsedConfig* AudioEncoder::OnNewConfigure(
     const AudioEncoderConfig* opts,
     ExceptionState& exception_state) {
   return ParseConfigStatic(opts, exception_state);
@@ -595,6 +595,9 @@ bool AudioEncoder::VerifyCodecSupport(ParsedConfig* config,
   return VerifyCodecSupportStatic(config, js_error_message);
 }
 
+void AudioEncoder::OnNewEncode(InputType* input,
+                               ExceptionState& exception_state) {}
+
 void AudioEncoder::CallOutputCallback(
     ParsedConfig* active_config,
     uint32_t reset_count,
@@ -611,8 +614,8 @@ void AudioEncoder::CallOutputCallback(
 
   MarkCodecActive();
 
-  auto buffer = media::DecoderBuffer::FromArray(
-      std::move(encoded_buffer.encoded_data), encoded_buffer.encoded_data_size);
+  auto buffer =
+      media::DecoderBuffer::FromArray(std::move(encoded_buffer.encoded_data));
   buffer->set_timestamp(encoded_buffer.timestamp - base::TimeTicks());
   buffer->set_is_key_frame(true);
   buffer->set_duration(encoded_buffer.duration);
@@ -626,8 +629,7 @@ void AudioEncoder::CallOutputCallback(
     decoder_config->setSampleRate(encoded_buffer.params.sample_rate());
     decoder_config->setNumberOfChannels(active_config->options.channels);
     if (codec_desc.has_value()) {
-      auto* desc_array_buf = DOMArrayBuffer::Create(codec_desc.value().data(),
-                                                    codec_desc.value().size());
+      auto* desc_array_buf = DOMArrayBuffer::Create(codec_desc.value());
       decoder_config->setDescription(
           MakeGarbageCollected<AllowSharedBufferSource>(desc_array_buf));
     }
@@ -651,7 +653,7 @@ ScriptPromise<AudioEncoderSupport> AudioEncoder::isConfigSupported(
   auto* parsed_config = ParseConfigStatic(config, exception_state);
   if (!parsed_config) {
     DCHECK(exception_state.HadException());
-    return ScriptPromise<AudioEncoderSupport>();
+    return EmptyPromise();
   }
 
   String unused_js_error_message;

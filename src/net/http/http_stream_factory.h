@@ -85,6 +85,7 @@ class NET_EXPORT HttpStreamFactory {
 
     std::string method;
     NetworkAnonymizationKey network_anonymization_key;
+    MutableNetworkTrafficAnnotationTag traffic_annotation;
 
     // Whether HTTP/1.x can be used. Extracted from
     // UploadDataStream::AllowHTTP1().
@@ -119,7 +120,7 @@ class NET_EXPORT HttpStreamFactory {
 
   void ProcessAlternativeServices(
       HttpNetworkSession* session,
-      const net::NetworkAnonymizationKey& network_anonymization_key,
+      const NetworkAnonymizationKey& network_anonymization_key,
       const HttpResponseHeaders* headers,
       const url::SchemeHostPort& http_server);
 

@@ -15,6 +15,7 @@
 #include "extensions/common/file_util.h"
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_handler.h"
+#include "extensions/common/manifest_handler_registry.h"
 #include "extensions/common/mojom/context_type.mojom.h"
 #include "extensions/test/test_context_data.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -33,9 +34,9 @@ class ChromeExtensionsClientTest : public testing::Test {
 };
 
 base::span<const char* const> GetFeatureList() {
-  constexpr const char* feature_list[] = {"AllowedFeature",
-                                          "DisallowedFeature"};
-  return base::make_span(feature_list);
+  static constexpr const char* feature_list[] = {"AllowedFeature",
+                                                 "DisallowedFeature"};
+  return base::span(feature_list);
 }
 
 bool FeatureDelegatedCheck(const std::string& api_full_name,

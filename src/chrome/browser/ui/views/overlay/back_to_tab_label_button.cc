@@ -11,6 +11,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/vector_icons.h"
@@ -56,7 +57,7 @@ BackToTabLabelButton::BackToTabLabelButton(PressedCallback callback)
   SetText(back_to_tab_button_label);
 
   // Accessibility.
-  SetAccessibleName(back_to_tab_button_label);
+  GetViewAccessibility().SetName(back_to_tab_button_label);
   SetInstallFocusRingOnFocus(true);
 }
 
@@ -73,24 +74,26 @@ void BackToTabLabelButton::OnThemeChanged() {
   SetBackground(views::CreateRoundedRectBackground(
       color_provider->GetColor(kColorPipWindowBackToTabButtonBackground),
       kBackToTabBorderRadius));
-  SetEnabledTextColorIds(kColorPipWindowForeground);
-  SetTextColorId(views::Button::STATE_DISABLED, kColorPipWindowForeground);
+  SetEnabledTextColors(kColorPipWindowForeground);
+  SetTextColor(views::Button::STATE_DISABLED, kColorPipWindowForeground);
 }
 
 void BackToTabLabelButton::SetWindowSize(const gfx::Size& window_size) {
-  if (window_size_.has_value() && window_size_.value() == window_size)
+  if (window_size_.has_value() && window_size_.value() == window_size) {
     return;
+  }
 
   window_size_ = window_size;
   UpdateSizingAndPosition();
 }
 
 void BackToTabLabelButton::UpdateSizingAndPosition() {
-  if (!window_size_.has_value())
+  if (!window_size_.has_value()) {
     return;
+  }
 
   SetMaxSize(gfx::Size(window_size_->width() - kBackToTabButtonMargin,
-      kBackToTabButtonSize));
+                       kBackToTabButtonSize));
   SetSize(CalculatePreferredSize({}));
   LabelButton::SetPosition(
       gfx::Point((window_size_->width() / 2) - (size().width() / 2),

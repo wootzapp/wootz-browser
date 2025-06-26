@@ -39,6 +39,15 @@ extern const char kOptimizationGuideServiceModelQualtiyDefaultURL[];
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 extern const char kLoadedHintLocalHistogramString[];
 
+// The local histogram used to record that the on-device model validation
+// completed with an error.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+extern const char kModelValidationErrorHistogramString[];
+
+// The name of the language override request header.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+extern const char kOptimizationGuideLanguageOverrideHeaderKey[];
+
 // The folder where the hint data will be stored on disk.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 extern const base::FilePath::CharType kOptimizationGuideHintStore[];
@@ -59,6 +68,10 @@ extern const base::FilePath::CharType
 // model store.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
 extern const base::FilePath::CharType kOptimizationGuideModelStoreDirPrefix[];
+
+// The name of the model execution debug logs header.
+COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)
+extern const char kOptimizationGuideModelExecutionDebugLogsHeaderKey[];
 
 // Files expected to be in the on device model bundle.
 COMPONENT_EXPORT(OPTIMIZATION_GUIDE_FEATURES)

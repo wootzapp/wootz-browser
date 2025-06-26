@@ -4,6 +4,7 @@
 
 #include "third_party/blink/renderer/core/html/custom/custom_element.h"
 
+#include <array>
 #include <ios>
 #include <memory>
 
@@ -37,8 +38,8 @@ static void TestIsPotentialCustomElementName(const AtomicString& str,
 }
 
 static void TestIsPotentialCustomElementNameChar(UChar32 c, bool expected) {
-  LChar str8[] = "a-X";
-  UChar str16[] = {'a', '-', 'X', '\0', '\0'};
+  std::array<LChar, 3> str8 = {'a', '-', 'X'};
+  std::array<UChar, 5> str16 = {'a', '-', 'X', '\0', '\0'};
   AtomicString str;
   if (c <= 0xFF) {
     str8[2] = c;
@@ -46,8 +47,7 @@ static void TestIsPotentialCustomElementNameChar(UChar32 c, bool expected) {
   } else {
     size_t i = 2;
     U16_APPEND_UNSAFE(str16, i, c);
-    str16[i] = 0;
-    str = AtomicString(str16);
+    str = AtomicString(base::span(str16).first(i));
   }
   TestIsPotentialCustomElementName(str, expected);
 }
@@ -231,7 +231,7 @@ TEST(CustomElementTest,
       scope.GetFrame().DomWindow()->customElements();
   NonThrowableExceptionState should_not_throw;
   {
-    CEReactionsScope reactions;
+    CEReactionsScope reactions(scope.GetIsolate());
     TestCustomElementDefinitionBuilder builder;
     registry->DefineInternal(script_state, AtomicString("a-a"), builder,
                              ElementDefinitionOptions::Create(),

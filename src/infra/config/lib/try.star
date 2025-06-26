@@ -46,11 +46,15 @@ def default_location_filters(builder_name = None):
         )
 
     filters = [
-        # Contains documentation that doesn't affect the outputs
-        location_filter(path_regexp = "docs/.+", exclude = True),
         # Contains configuration files that aren't active until after committed
         location_filter(path_regexp = "infra/config/.+", exclude = True),
     ]
+    if settings.project.startswith("chromium"):
+        filters.append(
+            # Contains documentation that doesn't affect the outputs
+            location_filter(path_regexp = "docs/.+", exclude = True),
+        )
+
     if builder_name:
         pieces = builder_name.split("/")
         if len(pieces) == 2:
@@ -67,6 +71,15 @@ def default_location_filters(builder_name = None):
 
     return filters
 
+_DEFAULT_DISABLE_REUSE_FOOTERS = [
+    "Include-Ci-Only-Tests",
+]
+
+def default_owner_whitelist_group_for_cq_bots(project):
+    if project.startswith("chrome"):
+        return ["googlers", "project-chromium-robot-committers"]
+    return []
+
 def location_filters_without_defaults(tryjob_builder_proto):
     default_filters = default_location_filters(tryjob_builder_proto.name)
     return [f for f in tryjob_builder_proto.location_filters if cq.location_filter(
@@ -76,6 +89,15 @@ def location_filters_without_defaults(tryjob_builder_proto):
         exclude = f.exclude,
     ) not in default_filters]
 
+def owner_whitelist_group_without_defaults(tryjob_builder_proto):
+    project = tryjob_builder_proto.name.split("/")[0]
+    default_group = default_owner_whitelist_group_for_cq_bots(project)
+    return [
+        g
+        for g in tryjob_builder_proto.owner_whitelist_group
+        if g not in default_group
+    ]
+
 # Intended to be used for the `caches` builder arg when no source checkout is
 # required.
 #
@@ -83,13 +105,11 @@ def location_filters_without_defaults(tryjob_builder_proto):
 # creating a regular builder cache with a 4 minute wait_for_warm_cache.
 # `wait_for_warm_cache = None` ensures that swarming will not look for a bot
 # with a builder cache.
-SOURCELESS_BUILDER_CACHES = [
-    swarming.cache(
-        name = SOURCELESS_BUILDER_CACHE_NAME,
-        path = "builder",
-        wait_for_warm_cache = None,
-    ),
-]
+SOURCELESS_BUILDER_CACHE = swarming.cache(
+    name = SOURCELESS_BUILDER_CACHE_NAME,
+    path = "builder",
+    wait_for_warm_cache = None,
+)
 
 defaults = args.defaults(
     extends = builders.defaults,
@@ -115,9 +135,12 @@ def tryjob(
         *,
         disable_reuse = None,
         experiment_percentage = None,
+        includable_only = False,
         location_filters = None,
+        disable_reuse_footers = None,
         cancel_stale = None,
         add_default_filters = True,
+        add_default_disable_reuse_footers = True,
         equivalent_builder = None,
         equivalent_builder_percentage = None,
         equivalent_builder_whitelist = None,
@@ -131,15 +154,23 @@ def tryjob(
     Args:
       disable_reuse: See cq.tryjob_verifier.
       experiment_percentage: See cq.tryjob_verifier.
+      includable_only: See cq.tryjob_verifier.
       location_filters: A list of cq.location_filter objects and/or strings.
         This is the same as the location_filters value of cq.tryjob_verifier
         except that strings can be provided, which will be converted to a
         cq.location_filter with path_regexp set to the provided string.
+      disable_reuse_footers: A list of footer names to disable reuse for the
+        builder for. This ensures that changes to those footer values will cause
+        the builder to rerun with the footer change applied.
       cancel_stale: See cq.tryjob_verifier.
       add_default_filters: A bool indicating whether to add default filters that
         exclude certain directories that would have no impact when building
         chromium with the patch applied (docs, config files that don't take
-        effect until landing, etc., see default_location_filters).
+        effect until landing, etc., see default_location_filters). This arg has
+        no effect when includable_only=True, and will instead be set to False.
+      add_default_disable_reuse_footers: A bool indicating whether to add
+        default footers that should disable reuse for the builder
+        (Include-Ci-Only-Tests, etc., see _DEFAULT_DISABLE_REUSE_FOOTERS).
       equivalent_builder: See cq.tryjob_verifier.
       equivalent_builder_percentage: See cq.tryjob_verifier.
       equivalent_builder_whitelist: See cq.tryjob_verifier.
@@ -159,12 +190,20 @@ def tryjob(
             return cq.location_filter(path_regexp = f)
         return f
 
+    if includable_only:
+        add_default_filters = False
+
     if location_filters:
+        if includable_only:
+            fail("Tryjobs with location_filters cannot be includable_only")
         location_filters = [normalize_location_filter(f) for f in location_filters]
 
     return struct(
         disable_reuse = disable_reuse,
+        add_default_disable_reuse_footers = add_default_disable_reuse_footers,
+        disable_reuse_footers = disable_reuse_footers,
         experiment_percentage = experiment_percentage,
+        includable_only = includable_only,
         add_default_filters = add_default_filters,
         location_filters = location_filters,
         cancel_stale = cancel_stale,
@@ -186,7 +225,6 @@ def try_builder(
         main_list_view = args.DEFAULT,
         subproject_list_view = args.DEFAULT,
         tryjob = None,
-        experiments = None,
         resultdb_bigquery_exports = args.DEFAULT,
         **kwargs):
     """Define a try builder.
@@ -219,8 +257,6 @@ def try_builder(
         default that defaults to None.
       tryjob - A struct containing the details of the tryjob verifier for the
         builder, obtained by calling the `tryjob` function.
-      experiments - a dict of experiment name to the percentage chance (0-100)
-        that it will apply to builds generated from this builder.
       resultdb_bigquery_exports - a list of resultdb.export_test_results(...)
         specifying additional parameters for exporting test results to BigQuery.
         Will always upload to the following tables in addition to any tables
@@ -231,20 +267,15 @@ def try_builder(
     if not branches.matches(branch_selector):
         return None
 
-    experiments = experiments or {}
-
-    # TODO(crbug.com/40232671): Remove when the experiment is the default.
-    experiments.setdefault("chromium_swarming.expose_merge_script_failures", 100)
-
-    # TODO(crbug.com/40276579): Remove when the experiment is the default.
-    experiments.setdefault("swarming.prpc.cli", 100)
-
+    bq_dataset_name = "chrome"
+    if settings.project.startswith("chromium"):
+        bq_dataset_name = "chromium"
     merged_resultdb_bigquery_exports = [
         resultdb.export_test_results(
-            bq_table = "chrome-luci-data.chromium.try_test_results",
+            bq_table = "chrome-luci-data.{}.try_test_results".format(bq_dataset_name),
         ),
         resultdb.export_test_results(
-            bq_table = "chrome-luci-data.chromium.gpu_try_test_results",
+            bq_table = "chrome-luci-data.{}.gpu_try_test_results".format(bq_dataset_name),
             predicate = resultdb.test_result_predicate(
                 # Only match the telemetry_gpu_integration_test target and its
                 # Fuchsia and Android variants that have a suffix added to the
@@ -254,11 +285,11 @@ def try_builder(
             ),
         ),
         resultdb.export_test_results(
-            bq_table = "chrome-luci-data.chromium.blink_web_tests_try_test_results",
+            bq_table = "chrome-luci-data.{}.blink_web_tests_try_test_results".format(bq_dataset_name),
             predicate = resultdb.test_result_predicate(
                 # Match the "blink_web_tests" target and all of its
                 # flag-specific versions, e.g. "vulkan_swiftshader_blink_web_tests".
-                test_id_regexp = "(ninja://[^/]*blink_web_tests/.+)|(ninja://[^/]*_wpt_tests/.+)",
+                test_id_regexp = "(ninja://[^/]*blink_web_tests/.+)|(ninja://[^/]*_wpt_tests/.+)|(ninja://[^/]*headless_shell_wpt/.+)",
             ),
         ),
     ]
@@ -294,25 +325,26 @@ def try_builder(
         cq_reason = "required" if not tryjob.location_filters else "path-based"
         properties["cq"] = cq_reason
 
-        # TODO(crbug.com/40273153) - Once we've migrated to the ResultDB-based solution
-        # check_for_flakiness_with_resultdb should be deprecated in favor for the
-        # original check_for_flakiness argument.
-        check_for_flakiness = defaults.get_value(
-            "check_for_flakiness",
-            check_for_flakiness,
-        )
-        check_for_flakiness_with_resultdb = defaults.get_value(
-            "check_for_flakiness_with_resultdb",
-            check_for_flakiness_with_resultdb,
-        )
+        if settings.project.startswith("chromium"):
+            # TODO(crbug.com/40273153) - Once we've migrated to the ResultDB-based solution
+            # check_for_flakiness_with_resultdb should be deprecated in favor for the
+            # original check_for_flakiness argument.
+            check_for_flakiness = defaults.get_value(
+                "check_for_flakiness",
+                check_for_flakiness,
+            )
+            check_for_flakiness_with_resultdb = defaults.get_value(
+                "check_for_flakiness_with_resultdb",
+                check_for_flakiness_with_resultdb,
+            )
 
-        flakiness = {}
-        if defaults.get_value("check_for_flakiness", check_for_flakiness):
-            flakiness["check_for_flakiness"] = True
-        if defaults.get_value("check_for_flakiness_with_resultdb", check_for_flakiness_with_resultdb):
-            flakiness["check_for_flakiness_with_resultdb"] = True
-        if flakiness:
-            properties["$build/flakiness"] = flakiness
+            flakiness = {}
+            if defaults.get_value("check_for_flakiness", check_for_flakiness):
+                flakiness["check_for_flakiness"] = True
+            if defaults.get_value("check_for_flakiness_with_resultdb", check_for_flakiness_with_resultdb):
+                flakiness["check_for_flakiness_with_resultdb"] = True
+            if flakiness:
+                properties["$build/flakiness"] = flakiness
 
     # Define the builder first so that any validation of luci.builder arguments
     # (e.g. bucket) occurs before we try to use it
@@ -321,43 +353,79 @@ def try_builder(
         branch_selector = branch_selector,
         list_view = list_view,
         resultdb_bigquery_exports = merged_resultdb_bigquery_exports,
-        experiments = experiments,
-        resultdb_index_by_timestamp = True,
+        resultdb_index_by_timestamp = settings.project.startswith("chromium"),
         properties = properties,
         **kwargs
     )
 
     bucket = defaults.get_value_from_kwargs("bucket", kwargs)
     builder = "{}/{}".format(bucket, name)
-    cq_group = defaults.get_value("cq_group", cq_group)
-    if tryjob != None:
-        location_filters = tryjob.location_filters
-        if tryjob.add_default_filters:
-            location_filters = (location_filters or []) + default_location_filters(builder)
-        if not tryjob.omit_from_luci_cv:
-            luci.cq_tryjob_verifier(
-                builder = builder,
-                cq_group = cq_group,
-                disable_reuse = tryjob.disable_reuse,
-                experiment_percentage = tryjob.experiment_percentage,
-                location_filters = location_filters,
-                cancel_stale = tryjob.cancel_stale,
-                # These are the default if includable_only is False, but we list
-                # them here so we can add additional modes in a later generator.
-                mode_allowlist = tryjob.custom_cq_run_modes or [cq.MODE_DRY_RUN, cq.MODE_FULL_RUN],
-                equivalent_builder = tryjob.equivalent_builder,
-                equivalent_builder_percentage = tryjob.equivalent_builder_percentage,
-                equivalent_builder_whitelist = tryjob.equivalent_builder_whitelist,
-            )
-    else:
-        # Allow CQ to trigger this builder if user opts in via CQ-Include-Trybots.
-        luci.cq_tryjob_verifier(
-            builder = builder,
-            cq_group = cq_group,
-            includable_only = True,
-        )
+    cq_groups = defaults.get_value("cq_group", cq_group)
+    if cq_groups != None:
+        if type(cq_groups) != type([]):
+            cq_groups = [cq_groups]
+        if tryjob != None:
+            location_filters = tryjob.location_filters
+            if tryjob.add_default_filters:
+                location_filters = (location_filters or []) + default_location_filters(builder)
+            disable_reuse_footers = tryjob.disable_reuse_footers
+            if tryjob.disable_reuse:
+                # disable_reuse and disable_reuse_footers canot be used
+                # together, so set disable_reuse_footers to None
+                disable_reuse_footers = None
+            elif tryjob.add_default_disable_reuse_footers:
+                disable_reuse_footers = args.listify(disable_reuse_footers, _DEFAULT_DISABLE_REUSE_FOOTERS)
+            if not tryjob.omit_from_luci_cv:
+                kwargs = {}
+                if settings.project.startswith("chromium"):
+                    # These are the default if includable_only is False, but we list
+                    # them here so we can add additional modes in a later generator.
+                    kwargs["mode_allowlist"] = tryjob.custom_cq_run_modes or [cq.MODE_DRY_RUN, cq.MODE_FULL_RUN]
+                for cq_group in cq_groups:
+                    luci.cq_tryjob_verifier(
+                        builder = builder,
+                        cq_group = cq_group,
+                        disable_reuse = tryjob.disable_reuse,
+                        disable_reuse_footers = disable_reuse_footers,
+                        experiment_percentage = tryjob.experiment_percentage,
+                        includable_only = tryjob.includable_only,
+                        location_filters = location_filters,
+                        cancel_stale = tryjob.cancel_stale,
+                        equivalent_builder = tryjob.equivalent_builder,
+                        equivalent_builder_percentage = tryjob.equivalent_builder_percentage,
+                        equivalent_builder_whitelist = tryjob.equivalent_builder_whitelist,
+                        **kwargs
+                    )
+        else:
+            for cq_group in cq_groups:
+                # Allow CQ to trigger this builder if user opts in via CQ-Include-Trybots.
+                luci.cq_tryjob_verifier(
+                    builder = builder,
+                    cq_group = cq_group,
+                    includable_only = True,
+                    # If someone adds a builder using CQ-Include-Trybots and it
+                    # has ci_only tests configured, then we would want it to get
+                    # rerun if the Include-Ci-Only-Tests footer gets changed
+                    disable_reuse_footers = _DEFAULT_DISABLE_REUSE_FOOTERS,
+                )
 
     return ret
+
+def presubmit_builder(*, name, tryjob, **kwargs):
+    """Define a presubmit builder.
+
+    Presubmit builders are builders that run fast checks that don't require
+    building. Their results aren't re-used because they tend to provide guards
+    against generated files being out of date, so they MUST run quickly so that
+    the submit after a CQ dry run doesn't take long.
+    """
+    if tryjob:
+        tryjob_args = {a: getattr(tryjob, a) for a in dir(tryjob)}
+        if tryjob_args.get("disable_reuse") == None:
+            tryjob_args["disable_reuse"] = True
+        tryjob_args["add_default_filters"] = False
+        tryjob = try_.job(**tryjob_args)
+    return try_builder(name = name, tryjob = tryjob, **kwargs)
 
 def _orchestrator_builder(
         *,
@@ -405,12 +473,12 @@ def _orchestrator_builder(
     if use_orchestrator_pool:
         kwargs.setdefault("pool", "luci.chromium.try.orchestrator")
         kwargs.setdefault("builderless", None)
-
-        # Orchestrator builders that don't use a src checkout don't need a
-        # builder cache.
-        kwargs.setdefault("caches", SOURCELESS_BUILDER_CACHES)
     else:
         kwargs.setdefault("builderless", not settings.is_main)
+
+    # Orchestrator builders that don't use a src checkout don't need a
+    # builder cache.
+    kwargs.setdefault("caches", [SOURCELESS_BUILDER_CACHE])
 
     kwargs.setdefault("cores", defaults.orchestrator_cores.get())
     kwargs.setdefault("executable", "recipe:chromium/orchestrator")
@@ -489,6 +557,7 @@ try_ = struct(
 
     # Functions for declaring try builders
     builder = try_builder,
+    presubmit_builder = presubmit_builder,
     job = tryjob,
     orchestrator_builder = _orchestrator_builder,
     compilator_builder = _compilator_builder,

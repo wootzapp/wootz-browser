@@ -4,20 +4,22 @@
 
 package org.chromium.chrome.browser.incognito.reauth;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 
 import androidx.annotation.DrawableRes;
 import androidx.annotation.IdRes;
 import androidx.annotation.IntDef;
-import androidx.annotation.NonNull;
 import androidx.annotation.StringRes;
 
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.incognito.R;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils;
 import org.chromium.ui.listmenu.BasicListMenu;
 import org.chromium.ui.listmenu.ListMenu;
-import org.chromium.ui.listmenu.ListMenuButtonDelegate;
+import org.chromium.ui.listmenu.ListMenuDelegate;
 import org.chromium.ui.listmenu.ListMenuItemProperties;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -26,10 +28,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /** A delegate for the menu button present inside the Incognito re-auth view full page. */
+@NullMarked
 class IncognitoReauthMenuDelegate implements ListMenu.Delegate {
     /**
-     * An enum interface denoting the various options (in-order) present in the
-     * three dots menu in the incognito re-auth full page view.
+     * An enum interface denoting the various options (in-order) present in the three dots menu in
+     * the incognito re-auth full page view.
      */
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({MenuItemType.CLOSE_INCOGNITO_TABS, MenuItemType.SETTINGS})
@@ -40,24 +43,16 @@ class IncognitoReauthMenuDelegate implements ListMenu.Delegate {
 
     private final Context mContext;
     private final Runnable mCloseAllIncognitoTabsRunnable;
-    private final SettingsLauncher mSettingsLauncher;
     private final BasicListMenu mIncognitoReauthMenu;
 
     /**
      * @param context The {@link Context} from where the android resources would be fetched.
      * @param closeAllIncognitoTabRunnable The {@link Runnable} which would be used to close the
-     *         Incognito tabs when the user clicks on "Close Incognito tabs" option.
-     * @param settingsLauncher The {@link SettingsLauncher} which is
-     *         responsible to opening the {@link SettingsActivity} when the user clicks on
-     *         "Settings" option.
+     *     Incognito tabs when the user clicks on "Close Incognito tabs" option.
      */
-    IncognitoReauthMenuDelegate(
-            @NonNull Context context,
-            @NonNull Runnable closeAllIncognitoTabRunnable,
-            @NonNull SettingsLauncher settingsLauncher) {
+    IncognitoReauthMenuDelegate(Context context, Runnable closeAllIncognitoTabRunnable) {
         mContext = context;
         mCloseAllIncognitoTabsRunnable = closeAllIncognitoTabRunnable;
-        mSettingsLauncher = settingsLauncher;
         mIncognitoReauthMenu = buildIncognitoReauthMenu();
     }
 
@@ -85,9 +80,9 @@ class IncognitoReauthMenuDelegate implements ListMenu.Delegate {
     }
 
     /**
-     * @return {@link ListMenuButtonDelegate} which returns the underlying menu delegate.
+     * @return {@link ListMenuDelegate} which returns the underlying menu delegate.
      */
-    ListMenuButtonDelegate getListMenuButtonDelegate() {
+    ListMenuDelegate getListMenuDelegate() {
         return () -> mIncognitoReauthMenu;
     }
 
@@ -128,7 +123,7 @@ class IncognitoReauthMenuDelegate implements ListMenu.Delegate {
                         /* textEllipsizedAtEnd= */ true);
             default:
                 assert false : "Not implemented yet.";
-                return null;
+                return assumeNonNull(null);
         }
     }
 
@@ -137,12 +132,12 @@ class IncognitoReauthMenuDelegate implements ListMenu.Delegate {
     }
 
     private void onSettingsMenuItemClicked() {
-        mSettingsLauncher.launchSettingsActivity(mContext);
+        SettingsNavigationFactory.createSettingsNavigation().startSettings(mContext);
     }
 
     /**
-     * Helper function to build a list menu item. Pass 0 for attributes that aren't
-     * applicable to the menu item (e.g. if there is no icon or text).
+     * Helper function to build a list menu item. Pass 0 for attributes that aren't applicable to
+     * the menu item (e.g. if there is no icon or text).
      *
      * @param titleId The text on the menu item.
      * @param menuId Id of the menu item.
@@ -151,7 +146,7 @@ class IncognitoReauthMenuDelegate implements ListMenu.Delegate {
      * @param colorTint The color tinr to apply on the menu item icons.
      * @param textAppearanceStyle The style to apply on the text.
      * @param textEllipsizedAtEnd Whether to ellipsize the text at the end when it doesn't fit the
-     *         view width.
+     *     view width.
      * @return ListItem Representing an item with text or icon.
      */
     private static MVCListAdapter.ListItem buildMenuListItemWithCustomApperance(

@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <variant>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -18,7 +19,6 @@
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "third_party/blink/public/common/loader/background_resource_fetch_histograms.h"
 #include "third_party/blink/public/common/loader/mime_sniffing_throttle.h"
 #include "third_party/blink/public/common/loader/referrer_utils.h"
@@ -307,7 +307,7 @@ class BackgroundURLLoader::Context
     // ResourceRequestClient overrides:
     void OnUploadProgress(uint64_t position, uint64_t size) override {
       // We don't support sending body.
-      NOTREACHED_NORETURN();
+      NOTREACHED();
     }
     void OnReceivedRedirect(
         const net::RedirectInfo& redirect_info,
@@ -373,14 +373,9 @@ class BackgroundURLLoader::Context
       CHECK(background_task_runner_->RunsTasksInCurrentSequence());
       background_response_processor_.reset();
       waiting_for_background_response_processor_ = false;
-      if (absl::holds_alternative<Deque<Vector<char>>>(body)) {
-        size_t raw_data_size = 0u;
-        for (const auto& data : absl::get<Deque<Vector<char>>>(body)) {
-          raw_data_size =
-              base::CheckAdd(raw_data_size, data.size()).ValueOrDie();
-        }
+      if (std::holds_alternative<SegmentedBuffer>(body)) {
         context_->DidReadDataByBackgroundResponseProcessorOnBackground(
-            raw_data_size);
+            std::get<SegmentedBuffer>(body).size());
       }
       context_->PostTaskToMainThread(CrossThreadBindOnce(
           &Context::DidFinishBackgroundResponseProcessor, context_,
@@ -424,7 +419,7 @@ class BackgroundURLLoader::Context
     URLLoaderThrottleProvider* throttle_provider =
         background_resource_fetch_context->GetThrottleProvider();
     if (throttle_provider) {
-      WebVector<std::unique_ptr<blink::URLLoaderThrottle>> web_throttles =
+      std::vector<std::unique_ptr<blink::URLLoaderThrottle>> web_throttles =
           throttle_provider->CreateThrottles(
               background_resource_fetch_context->GetLocalFrameToken(),
               *request);
@@ -562,7 +557,7 @@ class BackgroundURLLoader::Context
     }
   }
   void OnReceivedResponse(network::mojom::URLResponseHeadPtr head,
-                          mojo::ScopedDataPipeConsumerHandle body,
+                          BodyVariant body,
                           std::optional<mojo_base::BigBuffer> cached_metadata,
                           int request_id) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
@@ -580,22 +575,8 @@ class BackgroundURLLoader::Context
       int request_id) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(main_thread_sequence_checker_);
 
-    OnReceivedResponse(
-        std::move(head),
-        absl::holds_alternative<mojo::ScopedDataPipeConsumerHandle>(body)
-            ? std::move(absl::get<mojo::ScopedDataPipeConsumerHandle>(body))
-            : mojo::ScopedDataPipeConsumerHandle(),
-        std::move(cached_metadata), request_id);
-    if (absl::holds_alternative<Deque<Vector<char>>>(body)) {
-      Deque<Vector<char>> raw_data =
-          std::move(absl::get<Deque<Vector<char>>>(body));
-      while (!raw_data.empty()) {
-        Vector<char> data = raw_data.TakeFirst();
-        if (client_) {
-          client_->DidReceiveData(data.data(), data.size());
-        }
-      }
-    }
+    OnReceivedResponse(std::move(head), std::move(body),
+                       std::move(cached_metadata), request_id);
     if (client_ && deferred_transfer_size_diff > 0) {
       OnTransferSizeUpdated(deferred_transfer_size_diff);
     }
@@ -786,7 +767,7 @@ void BackgroundURLLoader::LoadSynchronously(
     std::unique_ptr<ResourceLoadInfoNotifierWrapper>
         resource_load_info_notifier_wrapper) {
   // BackgroundURLLoader doesn't support sync requests.
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 void BackgroundURLLoader::LoadAsynchronously(

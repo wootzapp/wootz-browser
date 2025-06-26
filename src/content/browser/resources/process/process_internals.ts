@@ -175,6 +175,12 @@ function frameToTreeItem(frame: FrameInfo, parentProcessId: number = -1):
   if (frame.siteInstance.isPdf) {
     itemLabel += ', pdf';
   }
+  // TODO(crbug.com/398265332): only show the non-default case.
+  if (frame.siteInstance.areJavascriptOptimizersEnabled) {
+    itemLabel += ', js-opt-on';
+  } else {
+    itemLabel += ', js-opt-off';
+  }
   if (frame.siteInstance.storagePartition) {
     itemLabel += `, partition:${frame.siteInstance.storagePartition}`;
   }
@@ -410,6 +416,14 @@ document.addEventListener('DOMContentLoaded', function() {
       document.querySelector<HTMLElement>('#refresh-process-info');
   assert(refreshProcessInfoButton);
   refreshProcessInfoButton.addEventListener('click', loadProcessCountInfo);
+
+  // Get the ProcessPerSite mode and populate it.
+  pageHandler.getProcessPerSiteMode().then((response) => {
+    const sharingMode =
+        document.querySelector<HTMLElement>('#process-per-site-mode');
+    assert(sharingMode);
+    sharingMode.innerText = response.mode;
+  });
 
   // Get the Site Isolation mode and populate it.
   pageHandler.getIsolationMode().then((response) => {

@@ -29,16 +29,15 @@ namespace {
 // Returns a ui::InputDeviceType given a Switch Access string device type.
 ui::InputDeviceType GetInputDeviceType(
     const std::string& switch_access_device_type) {
-  if (switch_access_device_type == kSwitchAccessInternalDevice)
+  if (switch_access_device_type == kSwitchAccessInternalDevice) {
     return ui::INPUT_DEVICE_INTERNAL;
-  if (switch_access_device_type == kSwitchAccessUsbDevice)
+  } else if (switch_access_device_type == kSwitchAccessUsbDevice) {
     return ui::INPUT_DEVICE_USB;
-  if (switch_access_device_type == kSwitchAccessBluetoothDevice)
+  } else if (switch_access_device_type == kSwitchAccessBluetoothDevice) {
     return ui::INPUT_DEVICE_BLUETOOTH;
-  // On Chrome OS emulated on Linux, the keyboard is always "UNKNOWN".
-  if (base::SysInfo::IsRunningOnChromeOS())
-    DUMP_WILL_BE_NOTREACHED_NORETURN();
-  return ui::INPUT_DEVICE_UNKNOWN;
+  } else {
+    return ui::INPUT_DEVICE_UNKNOWN;
+  }
 }
 }  // namespace
 
@@ -222,7 +221,7 @@ bool AccessibilityEventRewriter::RewriteEventForSwitchAccess(
     return false;
   }
 
-  if (key_event->type() == ui::ET_KEY_PRESSED) {
+  if (key_event->type() == ui::EventType::kKeyPressed) {
     AccessibilityController* accessibility_controller =
         Shell::Get()->accessibility_controller();
 
@@ -255,7 +254,7 @@ bool AccessibilityEventRewriter::RewriteEventForMagnifier(
     return false;
   }
 
-  if (key_event->type() == ui::ET_KEY_PRESSED) {
+  if (key_event->type() == ui::EventType::kKeyPressed) {
     // If first time key is pressed (e.g. not repeat), start scrolling.
     if (!(key_event->flags() & ui::EF_IS_REPEAT))
       OnMagnifierKeyPressed(key_event);
@@ -264,7 +263,7 @@ bool AccessibilityEventRewriter::RewriteEventForMagnifier(
     return true;
   }
 
-  if (key_event->type() == ui::ET_KEY_RELEASED) {
+  if (key_event->type() == ui::EventType::kKeyReleased) {
     OnMagnifierKeyReleased(key_event);
     return true;
   }
@@ -297,8 +296,7 @@ void AccessibilityEventRewriter::OnMagnifierKeyPressed(
       delegate_->SendMagnifierCommand(MagnifierCommand::kMoveRight);
       break;
     default:
-      NOTREACHED_IN_MIGRATION()
-          << "Unexpected keyboard_code:" << event->key_code();
+      NOTREACHED() << "Unexpected keyboard_code:" << event->key_code();
   }
 }
 
@@ -316,8 +314,8 @@ void AccessibilityEventRewriter::MaybeSendMouseEvent(const ui::Event& event) {
   AccessibilityController* accessibility_controller =
       Shell::Get()->accessibility_controller();
   if (send_mouse_events_ &&
-      (event.type() == ui::ET_MOUSE_MOVED ||
-       event.type() == ui::ET_MOUSE_DRAGGED) &&
+      (event.type() == ui::EventType::kMouseMoved ||
+       event.type() == ui::EventType::kMouseDragged) &&
       (accessibility_controller->fullscreen_magnifier().enabled() ||
        accessibility_controller->docked_magnifier().enabled() ||
        accessibility_controller->spoken_feedback().enabled() ||

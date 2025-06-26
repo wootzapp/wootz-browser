@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/core/fileapi/file_reader_data.h"
+
 #include "third_party/blink/renderer/core/html/parser/text_resource_decoder.h"
 #include "third_party/blink/renderer/platform/wtf/text/base64.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
@@ -34,11 +35,8 @@ String ToDataURL(ArrayBufferContents raw_data, const String& data_type) {
 
   if (raw_data.DataLength()) {
     Vector<char> out;
-    Base64Encode(
-        base::make_span(static_cast<const uint8_t*>(raw_data.Data()),
-                        base::checked_cast<unsigned>(raw_data.DataLength())),
-        out);
-    builder.Append(out.data(), out.size());
+    Base64Encode(raw_data.ByteSpan(), out);
+    builder.Append(base::as_byte_span(out));
   }
 
   return builder.ToString();
@@ -46,8 +44,7 @@ String ToDataURL(ArrayBufferContents raw_data, const String& data_type) {
 
 String ToBinaryString(ArrayBufferContents raw_data) {
   CHECK(raw_data.IsValid());
-  return String(static_cast<const char*>(raw_data.Data()),
-                static_cast<size_t>(raw_data.DataLength()));
+  return String(raw_data.ByteSpan());
 }
 
 String ToTextString(ArrayBufferContents raw_data,
@@ -65,8 +62,7 @@ String ToTextString(ArrayBufferContents raw_data,
   auto decoder = TextResourceDecoder(TextResourceDecoderOptions(
       TextResourceDecoderOptions::kPlainTextContent,
       encoding.IsValid() ? encoding : UTF8Encoding()));
-  builder.Append(decoder.Decode(static_cast<const char*>(raw_data.Data()),
-                                static_cast<size_t>(raw_data.DataLength())));
+  builder.Append(decoder.Decode(raw_data.ByteSpan()));
 
   builder.Append(decoder.Flush());
 
@@ -85,9 +81,8 @@ String ToString(ArrayBufferContents raw_data,
     case FileReadType::kReadAsDataURL:
       return ToDataURL(std::move(raw_data), std::move(data_type));
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
-  return "";
 }
 
 }  // namespace

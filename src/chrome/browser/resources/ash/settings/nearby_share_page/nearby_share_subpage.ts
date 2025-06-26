@@ -8,7 +8,6 @@
  * Nearby Share feature.
  */
 
-import '/shared/settings/prefs/prefs.js';
 import 'chrome://resources/ash/common/cr_elements/cr_shared_style.css.js';
 import 'chrome://resources/ash/common/cr_elements/cr_link_row/cr_link_row.js';
 import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
@@ -20,8 +19,8 @@ import './nearby_share_data_usage_dialog.js';
 import './nearby_share_receive_dialog.js';
 
 import {getContactManager} from '/shared/nearby_contact_manager.js';
-import {ReceiveObserverReceiver, ShareTarget, TransferMetadata} from '/shared/nearby_share.mojom-webui.js';
-import {NearbySettings} from '/shared/nearby_share_settings_mixin.js';
+import type {ReceiveObserverReceiver, ShareTarget, TransferMetadata} from '/shared/nearby_share.mojom-webui.js';
+import type {NearbySettings} from '/shared/nearby_share_settings_mixin.js';
 import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import {I18nMixin} from 'chrome://resources/ash/common/cr_elements/i18n_mixin.js';
 import {assertNotReached} from 'chrome://resources/js/assert.js';
@@ -32,15 +31,17 @@ import {flush, PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/pol
 import {DeepLinkingMixin} from '../common/deep_linking_mixin.js';
 import {RouteObserverMixin} from '../common/route_observer_mixin.js';
 import {Setting} from '../mojom-webui/setting.mojom-webui.js';
-import {Route, Router, routes} from '../router.js';
+import type {Route} from '../router.js';
+import {Router, routes} from '../router.js';
 
 import {NearbyAccountManagerBrowserProxyImpl} from './nearby_account_manager_browser_proxy.js';
-import {NearbyShareReceiveDialogElement} from './nearby_share_receive_dialog.js';
+import type {NearbyShareReceiveDialogElement} from './nearby_share_receive_dialog.js';
 import {observeReceiveManager} from './nearby_share_receive_manager.js';
 import {getTemplate} from './nearby_share_subpage.html.js';
 import {dataUsageStringToEnum} from './types.js';
 
-const DEFAULT_HIGH_VISIBILITY_TIMEOUT_S = 300;
+const DEFAULT_HIGH_VISIBILITY_TIMEOUT_LEGACY_S = 300;
+const DEFAULT_HIGH_VISIBILITY_TIMEOUT_S = 600;
 
 const SettingsNearbyShareSubpageElementBase =
     DeepLinkingMixin(PrefsMixin(RouteObserverMixin(I18nMixin(PolymerElement))));
@@ -109,18 +110,11 @@ export class SettingsNearbyShareSubpageElement extends
       },
 
       /**
-       * Used by DeepLinkingMixin to focus this page's deep links.
+       * Determines whether the QuickShareV2 flag is enabled.
        */
-      supportedSettingIds: {
-        type: Object,
-        value: () => new Set<Setting>([
-          Setting.kNearbyShareOnOff,
-          Setting.kNearbyShareDeviceName,
-          Setting.kNearbyShareDeviceVisibility,
-          Setting.kNearbyShareContacts,
-          Setting.kNearbyShareDataUsage,
-          Setting.kDevicesNearbyAreSharingNotificationOnOff,
-        ]),
+      isQuickShareV2Enabled_: {
+        type: Boolean,
+        value: () => loadTimeData.getBoolean('isQuickShareV2Enabled'),
       },
 
       shouldShowFastInititationNotificationToggle_: {
@@ -128,25 +122,51 @@ export class SettingsNearbyShareSubpageElement extends
         computed: `computeShouldShowFastInititationNotificationToggle_(
                 settings.isFastInitiationHardwareSupported)`,
       },
+
+      yourDevicesLabel_: {
+        type: String,
+        value: 'Your devices',
+      },
+
+      contactsLabel_: {
+        type: String,
+        value: 'Contacts',
+      },
     };
   }
 
   static get observers() {
-    return ['enabledChange_(settings.enabled)'];
+    return [
+      'enabledChange_(settings.enabled)',
+    ];
   }
 
   isSettingsRetreived: boolean;
+  settings: NearbySettings;
+
+  // DeepLinkingMixin override
+  override supportedSettingIds = new Set<Setting>([
+    Setting.kNearbyShareOnOff,
+    Setting.kNearbyShareDeviceName,
+    Setting.kNearbyShareDeviceVisibility,
+    Setting.kNearbyShareContacts,
+    Setting.kNearbyShareDataUsage,
+    Setting.kDevicesNearbyAreSharingNotificationOnOff,
+  ]);
+
   private inHighVisibility_: boolean;
+  private isQuickShareV2Enabled_: boolean;
   private manageContactsUrl_: string;
   private profileLabel_: string;
   private profileName_: string;
   private receiveObserver_: ReceiveObserverReceiver|null;
-  private settings: NearbySettings;
   private shouldShowFastInititationNotificationToggle_: boolean;
   private showDataUsageDialog_: boolean;
   private showDeviceNameDialog_: boolean;
   private showReceiveDialog_: boolean;
   private showVisibilityDialog_: boolean;
+  private yourDevicesLabel_: string;
+  private contactsLabel_: string;
 
   constructor() {
     super();
@@ -283,6 +303,22 @@ export class SettingsNearbyShareSubpageElement extends
     if (visibility === undefined) {
       return '';
     }
+
+    if (this.isQuickShareV2Enabled_) {
+      switch (visibility) {
+        case Visibility.kAllContacts:
+          return this.i18n('nearbyShareContactVisiblityContactsButton');
+        case Visibility.kNoOne:
+          return this.i18n('nearbyShareContactVisibilityNone');
+        case Visibility.kUnknown:
+          return this.i18n('nearbyShareContactVisibilityUnknown');
+        case Visibility.kYourDevices:
+          return this.i18n('nearbyShareContactVisibilityYourDevices');
+        default:
+          assertNotReached();
+      }
+    }
+
     switch (visibility) {
       case Visibility.kAllContacts:
         return this.i18n('nearbyShareContactVisibilityAll');
@@ -324,9 +360,12 @@ export class SettingsNearbyShareSubpageElement extends
     // TODO(crbug.com/40159645): Add logic to show how much time the user
     // actually has left.
     return inHighVisibility ?
-        this.i18n('nearbyShareHighVisibilityOn', 5) :
+        this.i18n(
+            'nearbyShareHighVisibilityOn',
+            this.isQuickShareV2Enabled_ ? 10 : 5) :
         this.i18nAdvanced(
-            'nearbyShareHighVisibilityOff', {substitutions: ['5']});
+            'nearbyShareHighVisibilityOff',
+            {substitutions: [this.isQuickShareV2Enabled_ ? '10' : '5']});
   }
 
   private getDataUsageLabel_(dataUsageValue: string): string {
@@ -397,8 +436,11 @@ export class SettingsNearbyShareSubpageElement extends
   }
 
   private showHighVisibilityPage_(timeoutInSeconds?: number): void {
-    const shutoffTimeoutInSeconds =
-        timeoutInSeconds || DEFAULT_HIGH_VISIBILITY_TIMEOUT_S;
+    const defaultTimeout = this.isQuickShareV2Enabled_ ?
+        DEFAULT_HIGH_VISIBILITY_TIMEOUT_S :
+        DEFAULT_HIGH_VISIBILITY_TIMEOUT_LEGACY_S;
+    const shutoffTimeoutInSeconds = timeoutInSeconds || defaultTimeout;
+
     this.showReceiveDialog_ = true;
     flush();
     this.shadowRoot!
@@ -452,6 +494,21 @@ export class SettingsNearbyShareSubpageElement extends
   private computeShouldShowFastInititationNotificationToggle_(
       isHardwareSupported: boolean): boolean {
     return isHardwareSupported;
+  }
+
+  private setVisibility_(visibility: Visibility): void {
+    this.set('settings.visibility', visibility);
+  }
+
+  private getVisibilityByLabel_(visibilityString: string): Visibility {
+    switch (visibilityString) {
+      case this.yourDevicesLabel_:
+        return Visibility.kYourDevices;
+      case this.contactsLabel_:
+        return Visibility.kAllContacts;
+      default:
+        return Visibility.kUnknown;
+    }
   }
 }
 

@@ -30,20 +30,30 @@ namespace page_load_metrics {
 namespace {
 const int kInitialTimerDelayMillis = 50;
 
-mojom::UserInteractionType UserInteractionTypeForMojom(
-    blink::UserInteractionType interaction_type) {
-  switch (interaction_type) {
-    case blink::UserInteractionType::kKeyboard:
-      return mojom::UserInteractionType::kKeyboard;
-    case blink::UserInteractionType::kTapOrClick:
-      return mojom::UserInteractionType::kTapOrClick;
-    case blink::UserInteractionType::kDrag:
-      return mojom::UserInteractionType::kDrag;
-  }
-  // mojom::UserInteractionType should have the same interaction types as
-  // blink::UserInteractionType does.
-  NOTREACHED_IN_MIGRATION();
-  return mojom::UserInteractionType::kMinValue;
+bool IsFirstFCP(const mojom::PageLoadTimingPtr& last_timing,
+                const mojom::PageLoadTimingPtr& new_timing) {
+  return (!last_timing->paint_timing ||
+          !last_timing->paint_timing->first_contentful_paint.has_value()) &&
+         new_timing->paint_timing &&
+         new_timing->paint_timing->first_contentful_paint.has_value();
+}
+
+bool IsFirstParseStart(const mojom::PageLoadTimingPtr& last_timing,
+                       const mojom::PageLoadTimingPtr& new_timing) {
+  return (!last_timing->parse_timing ||
+          !last_timing->parse_timing->parse_start.has_value()) &&
+         new_timing->parse_timing &&
+         new_timing->parse_timing->parse_start.has_value();
+}
+
+bool IsFirstDCL(const mojom::PageLoadTimingPtr& last_timing,
+                const mojom::PageLoadTimingPtr& new_timing) {
+  return (!last_timing->document_timing ||
+          !last_timing->document_timing->dom_content_loaded_event_start
+               .has_value()) &&
+         new_timing->document_timing &&
+         new_timing->document_timing->dom_content_loaded_event_start
+             .has_value();
 }
 
 }  // namespace
@@ -240,9 +250,11 @@ void PageTimingMetricsSender::UpdateResourceMetadata(
   it->second->SetIsMainFrameResource(is_main_frame_resource);
 }
 
-void PageTimingMetricsSender::SetUpSmoothnessReporting(
-    base::ReadOnlySharedMemoryRegion shared_memory) {
-  sender_->SetUpSmoothnessReporting(std::move(shared_memory));
+void PageTimingMetricsSender::SetUpUkmReporting(
+    base::ReadOnlySharedMemoryRegion shared_memory_smoothness,
+    base::ReadOnlySharedMemoryRegion shared_memory_dropped_frames) {
+  sender_->SetUpUkmReporting(std::move(shared_memory_smoothness),
+                             std::move(shared_memory_dropped_frames));
 }
 
 void PageTimingMetricsSender::Update(
@@ -260,12 +272,13 @@ void PageTimingMetricsSender::Update(
     return;
   }
 
-  // We want to force sending the metrics quickly when FCP is reached.
-  bool send_urgently =
-      (!last_timing_->paint_timing ||
-       !last_timing_->paint_timing->first_contentful_paint.has_value()) &&
-      timing->paint_timing &&
-      timing->paint_timing->first_contentful_paint.has_value();
+  // We want to force sending the metrics quickly when some loading milestones
+  // are reached (currently parse start, DCL, and FCP) so that the browser can
+  // receive the accurate number of events. This accuracy is important to
+  // measure the abandoned navigation.
+  const bool send_urgently = IsFirstFCP(last_timing_, timing) ||
+                             IsFirstParseStart(last_timing_, timing) ||
+                             IsFirstDCL(last_timing_, timing);
 
   last_timing_ = std::move(timing);
   metadata_recorder_.UpdateMetadata(monotonic_timing);
@@ -281,6 +294,15 @@ void PageTimingMetricsSender::UpdateSoftNavigationMetrics(
   soft_navigation_metrics_ = std::move(soft_navigation_metrics);
 
   EnsureSendTimer(true);
+}
+
+void PageTimingMetricsSender::SendCustomUserTimingMark(
+    mojom::CustomUserTimingMarkPtr custom_timing) {
+  // `custom_timing` is sent to the browser to clarify when the abandoned
+  // navigation happens. When the navigation is abandoned, the renderer may be
+  // busy, so it's important to start IPC and report UMA immediately.
+  CHECK(custom_timing);
+  sender_->SendCustomUserTiming(std::move(custom_timing));
 }
 
 void PageTimingMetricsSender::SendLatest() {
@@ -371,7 +393,6 @@ void PageTimingMetricsSender::DidObserveUserInteraction(
     base::TimeTicks max_event_queued_main_thread,
     base::TimeTicks max_event_commit_finish,
     base::TimeTicks max_event_end,
-    blink::UserInteractionType interaction_type,
     uint64_t interaction_offset) {
   input_timing_delta_->num_interactions++;
   metadata_recorder_.AddInteractionDurationMetadata(max_event_start,
@@ -382,8 +403,7 @@ void PageTimingMetricsSender::DidObserveUserInteraction(
   base::TimeDelta max_event_duration = max_event_end - max_event_start;
   input_timing_delta_->max_event_durations->get_user_interaction_latencies()
       .emplace_back(mojom::UserInteractionLatency::New(
-          max_event_duration, UserInteractionTypeForMojom(interaction_type),
-          interaction_offset, max_event_start));
+          max_event_duration, interaction_offset, max_event_start));
   EnsureSendTimer();
 }
 }  // namespace page_load_metrics

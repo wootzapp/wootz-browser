@@ -6,6 +6,7 @@
 
 #include "third_party/blink/renderer/core/layout/block_node.h"
 #include "third_party/blink/renderer/core/layout/constraint_space_builder.h"
+#include "third_party/blink/renderer/core/layout/length_utils.h"
 #include "third_party/blink/renderer/core/layout/table/layout_table_caption.h"
 #include "third_party/blink/renderer/core/layout/table/layout_table_cell.h"
 #include "third_party/blink/renderer/core/layout/table/layout_table_column.h"
@@ -35,21 +36,21 @@ inline void InlineSizesFromStyle(const ComputedStyle& style,
       is_parallel ? style.LogicalMaxWidth() : style.LogicalMaxHeight();
   bool is_content_box = style.BoxSizing() == EBoxSizing::kContentBox;
   if (length.IsFixed()) {
-    *inline_size = LayoutUnit(length.Value());
+    *inline_size = LayoutUnit(length.Pixels());
     if (is_content_box)
       *inline_size = **inline_size + inline_border_padding;
     else
       *inline_size = std::max(**inline_size, inline_border_padding);
   }
   if (min_length.IsFixed()) {
-    *min_inline_size = LayoutUnit(min_length.Value());
+    *min_inline_size = LayoutUnit(min_length.Pixels());
     if (is_content_box)
       *min_inline_size = **min_inline_size + inline_border_padding;
     else
       *min_inline_size = std::max(**min_inline_size, inline_border_padding);
   }
   if (max_length.IsFixed()) {
-    *max_inline_size = LayoutUnit(max_length.Value());
+    *max_inline_size = LayoutUnit(max_length.Pixels());
     if (is_content_box)
       *max_inline_size = **max_inline_size + inline_border_padding;
     else
@@ -156,8 +157,8 @@ TableTypes::CellInlineConstraint TableTypes::CreateCellInlineConstraint(
       const auto space = builder.ToConstraintSpace();
 
       cached_min_max_sizes =
-          node.ComputeMinMaxSizes(table_writing_mode,
-                                  MinMaxSizesType::kIntrinsic, space)
+          node.ComputeMinMaxSizes(table_writing_mode, SizeType::kIntrinsic,
+                                  space)
               .sizes;
     }
 
@@ -322,7 +323,7 @@ TableGroupedChildren::TableGroupedChildren(const BlockNode& table)
             bodies.push_back(block_child);
           break;
         default:
-          NOTREACHED_IN_MIGRATION() << "unexpected table child";
+          NOTREACHED() << "unexpected table child";
       }
     }
   }
@@ -364,14 +365,14 @@ TableGroupedChildrenIterator& TableGroupedChildrenIterator::operator++() {
       break;
     case kBody:
       ++position_;
-      if (body_vector_->begin() + position_ == grouped_children_.bodies.end())
+      if (position_ == grouped_children_.bodies.size()) {
         AdvanceForwardToNonEmptySection();
+      }
       break;
     case kEnd:
       break;
     case kNone:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
   return *this;
 }
@@ -392,8 +393,7 @@ TableGroupedChildrenIterator& TableGroupedChildrenIterator::operator--() {
       AdvanceBackwardToNonEmptySection();
       break;
     case kNone:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
   return *this;
 }
@@ -408,8 +408,7 @@ BlockNode TableGroupedChildrenIterator::operator*() const {
       return body_vector_->at(position_);
     case kEnd:
     case kNone:
-      NOTREACHED_IN_MIGRATION();
-      return BlockNode(nullptr);
+      NOTREACHED();
   }
 }
 
@@ -450,16 +449,14 @@ void TableGroupedChildrenIterator::AdvanceForwardToNonEmptySection() {
       current_section_ = kEnd;
       break;
     case kEnd:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 
 void TableGroupedChildrenIterator::AdvanceBackwardToNonEmptySection() {
   switch (current_section_) {
     case kNone:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case kHead:
       current_section_ = kNone;
       break;

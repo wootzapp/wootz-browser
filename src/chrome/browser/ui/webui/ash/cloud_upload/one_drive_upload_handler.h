@@ -11,7 +11,7 @@
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/types/expected.h"
 #include "chrome/browser/ash/file_manager/file_tasks.h"
@@ -51,9 +51,6 @@ class OneDriveUploadHandler
   OneDriveUploadHandler& operator=(const OneDriveUploadHandler&) = delete;
 
  private:
-  // Checks if there already exists an upload task for this file.
-  bool FileAlreadyBeingUploaded();
-
   void GetODFSMetadataAndStartIOTask();
 
   // If reauth is required, request a new mount without a notification. If that

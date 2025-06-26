@@ -19,6 +19,7 @@
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/cookies/canonical_cookie.h"
 #include "net/cookies/cookie_constants.h"
+#include "net/cookies/cookie_inclusion_status.h"
 #include "net/cookies/cookie_monster.h"
 #include "net/cookies/cookie_options.h"
 #include "net/cookies/cookie_partition_key.h"
@@ -147,10 +148,11 @@ void CookieManager::SetCanonicalCookie(const net::CanonicalCookie& cookie,
         cookie.SameSite(), cookie.Priority(), cookie_partition_key,
         cookie.SourceScheme(), cookie.SourcePort(), cookie.SourceType());
     if (!cookie_ptr) {
-      std::move(callback).Run(
-          net::CookieAccessResult(net::CookieInclusionStatus(
-              net::CookieInclusionStatus::ExclusionReason::
-                  EXCLUDE_FAILURE_TO_STORE)));
+      net::CookieInclusionStatus cookie_inclusion_status;
+      cookie_inclusion_status.AddExclusionReason(
+          net::CookieInclusionStatus::ExclusionReason::
+              EXCLUDE_FAILURE_TO_STORE);
+      std::move(callback).Run(net::CookieAccessResult(cookie_inclusion_status));
       return;
     }
   }
@@ -201,6 +203,33 @@ void CookieManager::DeleteSessionOnlyCookies(
             return predicate.Run(cookie.Domain(), cookie.SourceScheme());
           },
           std::move(delete_cookie_predicate)),
+      std::move(callback));
+}
+
+void CookieManager::DeleteStaleSessionOnlyCookies(
+    DeleteStaleSessionOnlyCookiesCallback callback) {
+  cookie_store_->DeleteMatchingCookiesAsync(
+      base::BindRepeating([](const net::CanonicalCookie& cookie) {
+        // We do not delete persistent cookies.
+        if (cookie.IsPersistent()) {
+          return false;
+        }
+
+        // We only examine the newer date between the last read/write time.
+        const base::Time last_accessed_or_updated =
+            cookie.LastAccessDate() > cookie.LastUpdateDate()
+                ? cookie.LastAccessDate()
+                : cookie.LastUpdateDate();
+
+        // Without timing data we cannot delete the cookie.
+        if (last_accessed_or_updated.is_null()) {
+          return false;
+        }
+
+        // Delete cookies that haven't been accessed or updated in 7 days.
+        // See crbug.com/40285083 for more info.
+        return (base::Time::Now() - last_accessed_or_updated) > base::Days(7);
+      }),
       std::move(callback));
 }
 
@@ -289,7 +318,7 @@ void CookieManager::RemoveChangeListener(ListenerRegistration* registration) {
     }
   }
   // A broken connection error should never be raised for an unknown pipe.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void CookieManager::CloneInterface(
@@ -313,14 +342,13 @@ void CookieManager::AllowFileSchemeCookies(
     AllowFileSchemeCookiesCallback callback) {
   OnSettingsWillChange();
 
-  std::vector<std::string> cookieable_schemes(
-      net::CookieMonster::kDefaultCookieableSchemes,
-      net::CookieMonster::kDefaultCookieableSchemes +
-          net::CookieMonster::kDefaultCookieableSchemesCount);
+  std::vector<std::string> cookieable_schemes =
+      net::CookieMonster::GetDefaultCookieableSchemes();
   if (allow) {
-    cookieable_schemes.push_back(url::kFileScheme);
+    cookieable_schemes.emplace_back(url::kFileScheme);
   }
-  cookie_store_->SetCookieableSchemes(cookieable_schemes, std::move(callback));
+  cookie_store_->SetCookieableSchemes(std::move(cookieable_schemes),
+                                      std::move(callback));
 }
 
 void CookieManager::SetForceKeepSessionState() {

@@ -183,6 +183,27 @@ void DeletePaintCachePathsINTERNAL(GLsizei n,
   }
 }
 
+void DeletePaintCacheEffectsINTERNALImmediate(GLsizei n, const GLuint* ids) {
+  const uint32_t size =
+      raster::cmds::DeletePaintCacheEffectsINTERNALImmediate::ComputeSize(n);
+  raster::cmds::DeletePaintCacheEffectsINTERNALImmediate* c =
+      GetImmediateCmdSpaceTotalSize<
+          raster::cmds::DeletePaintCacheEffectsINTERNALImmediate>(size);
+  if (c) {
+    c->Init(n, ids);
+  }
+}
+
+void DeletePaintCacheEffectsINTERNAL(GLsizei n,
+                                     uint32_t ids_shm_id,
+                                     uint32_t ids_shm_offset) {
+  raster::cmds::DeletePaintCacheEffectsINTERNAL* c =
+      GetCmdSpace<raster::cmds::DeletePaintCacheEffectsINTERNAL>();
+  if (c) {
+    c->Init(n, ids_shm_id, ids_shm_offset);
+  }
+}
+
 void ClearPaintCacheINTERNAL() {
   raster::cmds::ClearPaintCacheINTERNAL* c =
       GetCmdSpace<raster::cmds::ClearPaintCacheINTERNAL>();
@@ -197,7 +218,6 @@ void CopySharedImageINTERNALImmediate(GLint xoffset,
                                       GLint y,
                                       GLsizei width,
                                       GLsizei height,
-                                      GLboolean unpack_flip_y,
                                       const GLbyte* mailboxes) {
   const uint32_t size =
       raster::cmds::CopySharedImageINTERNALImmediate::ComputeSize();
@@ -205,7 +225,7 @@ void CopySharedImageINTERNALImmediate(GLint xoffset,
       GetImmediateCmdSpaceTotalSize<
           raster::cmds::CopySharedImageINTERNALImmediate>(size);
   if (c) {
-    c->Init(xoffset, yoffset, x, y, width, height, unpack_flip_y, mailboxes);
+    c->Init(xoffset, yoffset, x, y, width, height, mailboxes);
   }
 }
 
@@ -304,39 +324,6 @@ void ReadbackYUVImagePixelsINTERNALImmediate(GLuint dst_width,
   if (c) {
     c->Init(dst_width, dst_height, shm_id, shm_offset, y_offset, y_stride,
             u_offset, u_stride, v_offset, v_stride, mailbox);
-  }
-}
-
-void ConvertYUVAMailboxesToRGBINTERNALImmediate(GLint src_x,
-                                                GLint src_y,
-                                                GLsizei width,
-                                                GLsizei height,
-                                                GLenum planes_yuv_color_space,
-                                                GLenum plane_config,
-                                                GLenum subsampling,
-                                                const GLbyte* mailboxes) {
-  const uint32_t size =
-      raster::cmds::ConvertYUVAMailboxesToRGBINTERNALImmediate::ComputeSize();
-  raster::cmds::ConvertYUVAMailboxesToRGBINTERNALImmediate* c =
-      GetImmediateCmdSpaceTotalSize<
-          raster::cmds::ConvertYUVAMailboxesToRGBINTERNALImmediate>(size);
-  if (c) {
-    c->Init(src_x, src_y, width, height, planes_yuv_color_space, plane_config,
-            subsampling, mailboxes);
-  }
-}
-
-void ConvertRGBAToYUVAMailboxesINTERNALImmediate(GLenum planes_yuv_color_space,
-                                                 GLenum plane_config,
-                                                 GLenum subsampling,
-                                                 const GLbyte* mailboxes) {
-  const uint32_t size =
-      raster::cmds::ConvertRGBAToYUVAMailboxesINTERNALImmediate::ComputeSize();
-  raster::cmds::ConvertRGBAToYUVAMailboxesINTERNALImmediate* c =
-      GetImmediateCmdSpaceTotalSize<
-          raster::cmds::ConvertRGBAToYUVAMailboxesINTERNALImmediate>(size);
-  if (c) {
-    c->Init(planes_yuv_color_space, plane_config, subsampling, mailboxes);
   }
 }
 

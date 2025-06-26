@@ -429,8 +429,7 @@ void FastPositionIteratorAlgorithm<Strategy>::Initialize(
 
   switch (container_type_) {
     case kNullNode:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     case kNoChildren:
       switch (position.AnchorType()) {
         case PositionAnchorType::kAfterChildren:
@@ -445,16 +444,14 @@ void FastPositionIteratorAlgorithm<Strategy>::Initialize(
           offset_in_container_ = 0;
           return;
       }
-      NOTREACHED_IN_MIGRATION() << "Invalid PositionAnchorType";
-      return;
+      NOTREACHED() << "Invalid PositionAnchorType";
     case kCharacterData:
     case kTextNode:
       // Note: `Position::ComputeOffsetInContainer()` for `kAfterAnchor`
       // returns `container_node_->Index() + 1` instead of `Text::length()`.
       switch (position.AnchorType()) {
         case PositionAnchorType::kAfterChildren:
-          NOTREACHED_IN_MIGRATION();
-          break;
+          NOTREACHED();
         case PositionAnchorType::kAfterAnchor:
           offset_in_container_ = To<CharacterData>(container_node_)->length();
           return;
@@ -465,8 +462,7 @@ void FastPositionIteratorAlgorithm<Strategy>::Initialize(
           offset_in_container_ = position.OffsetInContainerNode();
           return;
       }
-      NOTREACHED_IN_MIGRATION() << "Invalid PositionAnchorType";
-      return;
+      NOTREACHED() << "Invalid PositionAnchorType";
     case kContainerNode:
     case kUserSelectContainNode:
       container_type_ = kContainerNode;
@@ -489,10 +485,9 @@ void FastPositionIteratorAlgorithm<Strategy>::Initialize(
           container_type_ = kContainerNode;
           return;
       }
-      NOTREACHED_IN_MIGRATION()
-          << " Invalid PositionAnchorType=" << position.AnchorType();
+      NOTREACHED() << " Invalid PositionAnchorType=" << position.AnchorType();
   }
-  NOTREACHED_IN_MIGRATION() << " Invalid container_type_=" << container_type_;
+  NOTREACHED() << " Invalid container_type_=" << container_type_;
 }
 
 template <typename Strategy>
@@ -530,17 +525,18 @@ void FastPositionIteratorAlgorithm<Strategy>::AssertOffsetInContainerIsValid()
                 Strategy::Index(*child_before_position_) + 1);
       return;
   }
-  NOTREACHED_IN_MIGRATION() << " Invalid container_type_=" << container_type_;
+  NOTREACHED() << " Invalid container_type_=" << container_type_;
 #endif
 }
 
 template <typename Strategy>
 void FastPositionIteratorAlgorithm<Strategy>::AssertOffsetStackIsValid() const {
 #if DCHECK_IS_ON()
-  const auto* it = offset_stack_.begin();
+  auto it = offset_stack_.CheckedBegin();
   for (const Node& ancestor : Strategy::AncestorsOf(*container_node_)) {
-    if (it == offset_stack_.end())
+    if (it == offset_stack_.CheckedEnd()) {
       break;
+    }
     DCHECK_EQ(*it, Strategy::Index(ancestor)) << " " << ancestor;
     ++it;
   }
@@ -645,13 +641,9 @@ void FastPositionIteratorAlgorithm<Strategy>::DecrementInternal() {
           PushThenSetOffset(child_before_position_ ? 1 : 0);
           return;
         case kNullNode:
-          NOTREACHED_IN_MIGRATION()
-              << " Unexpected container_type_=" << container_type_;
-          return;
+          NOTREACHED() << " Unexpected container_type_=" << container_type_;
       }
-      NOTREACHED_IN_MIGRATION()
-          << " Invalid container_type_=" << container_type_;
-      return;
+      NOTREACHED() << " Invalid container_type_=" << container_type_;
 
     case kTextNode:
       if (!offset_in_container_)
@@ -666,7 +658,7 @@ void FastPositionIteratorAlgorithm<Strategy>::DecrementInternal() {
         return MoveToPreviousContainer();
       return MoveToPreviousSkippingChildren();
   }
-  NOTREACHED_IN_MIGRATION() << " Invalid container_type_=" << container_type_;
+  NOTREACHED() << " Invalid container_type_=" << container_type_;
 }
 
 template <typename Strategy>
@@ -708,7 +700,7 @@ void FastPositionIteratorAlgorithm<Strategy>::IncrementInternal() {
         return MoveToNextContainer();
       return MoveToNextSkippingChildren();
   }
-  NOTREACHED_IN_MIGRATION() << " Invalid container_type_=" << container_type_;
+  NOTREACHED() << " Invalid container_type_=" << container_type_;
 }
 
 template <typename Strategy>
@@ -784,9 +776,7 @@ bool FastPositionIteratorAlgorithm<Strategy>::IsBeforePosition() const {
   switch (container_type_) {
     case kNullNode:
     case kTextNode:
-      NOTREACHED_IN_MIGRATION()
-          << " Unexpected container_type_=" << container_type_;
-      return false;
+      NOTREACHED() << " Unexpected container_type_=" << container_type_;
     case kNoChildren:
     case kCharacterData:
     case kUserSelectContainNode:
@@ -794,8 +784,7 @@ bool FastPositionIteratorAlgorithm<Strategy>::IsBeforePosition() const {
     case kContainerNode:
       return !child_before_position_;
   }
-  NOTREACHED_IN_MIGRATION() << " Invalid container_type_=" << container_type_;
-  return false;
+  NOTREACHED() << " Invalid container_type_=" << container_type_;
 }
 
 template <typename Strategy>
@@ -827,7 +816,7 @@ FastPositionIteratorAlgorithm<Strategy>::DeprecatedComputePosition() const {
     case kUserSelectContainNode:
       return PositionType::LastPositionInOrAfterNode(*container_node_);
   }
-  NOTREACHED_IN_MIGRATION() << " Invalid container_type_=" << container_type_;
+  NOTREACHED() << " Invalid container_type_=" << container_type_;
 }
 
 template <typename Strategy>
@@ -856,7 +845,7 @@ FastPositionIteratorAlgorithm<Strategy>::ComputePosition() const {
     case kUserSelectContainNode:
       return BeforeOrAfterPosition();
   }
-  NOTREACHED_IN_MIGRATION() << " Invalid container_type_=" << container_type_;
+  NOTREACHED() << " Invalid container_type_=" << container_type_;
 }
 
 template <typename Strategy>
@@ -901,7 +890,7 @@ bool FastPositionIteratorAlgorithm<Strategy>::AtStartOfNode() const {
     case kUserSelectContainNode:
       return !child_before_position_;
   }
-  NOTREACHED_IN_MIGRATION() << " Invalid container_type_=" << container_type_;
+  NOTREACHED() << " Invalid container_type_=" << container_type_;
 }
 
 template <typename Strategy>
@@ -921,7 +910,7 @@ bool FastPositionIteratorAlgorithm<Strategy>::AtEndOfNode() const {
     case kUserSelectContainNode:
       return HasChildren() || !ChildAfterPosition();
   }
-  NOTREACHED_IN_MIGRATION() << " Invalid container_type_=" << container_type_;
+  NOTREACHED() << " Invalid container_type_=" << container_type_;
 }
 
 template <typename Strategy>

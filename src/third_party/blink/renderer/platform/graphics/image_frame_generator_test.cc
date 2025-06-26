@@ -64,8 +64,8 @@ class ImageFrameGeneratorTest : public testing::Test,
  public:
   void SetUp() override {
     ImageDecodingStore::Instance().SetCacheLimitInBytes(1024 * 1024);
-    generator_ = ImageFrameGenerator::Create(FullSize(), false,
-                                             ColorBehavior::kIgnore, {});
+    generator_ = ImageFrameGenerator::Create(
+        FullSize(), false, ColorBehavior::kIgnore, cc::AuxImage::kDefault, {});
     data_ = SharedBuffer::Create();
     segment_reader_ = SegmentReader::CreateFromSharedBuffer(data_);
     UseMockImageDecoderFactory();
@@ -107,7 +107,7 @@ class ImageFrameGeneratorTest : public testing::Test,
         MockImageDecoderFactory::Create(this, FullSize()));
   }
 
-  void AddNewData() { data_->Append("g", 1u); }
+  void AddNewData() { data_->Append(base::span_from_cstring("g")); }
 
   void SetFrameStatus(ImageFrame::Status status) {
     status_ = next_frame_status_ = status;
@@ -119,15 +119,16 @@ class ImageFrameGeneratorTest : public testing::Test,
     frame_count_ = count;
     if (count > 1) {
       generator_ = nullptr;
-      generator_ = ImageFrameGenerator::Create(FullSize(), true,
-                                               ColorBehavior::kIgnore, {});
+      generator_ = ImageFrameGenerator::Create(
+          FullSize(), true, ColorBehavior::kIgnore, cc::AuxImage::kDefault, {});
       UseMockImageDecoderFactory();
     }
   }
   void SetSupportedSizes(Vector<SkISize> sizes) {
     generator_ = nullptr;
-    generator_ = ImageFrameGenerator::Create(
-        FullSize(), true, ColorBehavior::kIgnore, std::move(sizes));
+    generator_ =
+        ImageFrameGenerator::Create(FullSize(), true, ColorBehavior::kIgnore,
+                                    cc::AuxImage::kDefault, std::move(sizes));
     UseMockImageDecoderFactory();
   }
 

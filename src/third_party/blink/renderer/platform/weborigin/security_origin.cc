@@ -37,6 +37,7 @@
 #include "base/containers/contains.h"
 #include "net/base/url_util.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/renderer/platform/blob/blob_url.h"
 #include "third_party/blink/renderer/platform/blob/blob_url_null_origin_map.h"
 #include "third_party/blink/renderer/platform/weborigin/known_ports.h"
@@ -52,6 +53,7 @@
 #include "url/scheme_host_port.h"
 #include "url/url_canon.h"
 #include "url/url_canon_ip.h"
+#include "url/url_constants.h"
 #include "url/url_util.h"
 
 namespace blink {
@@ -85,7 +87,7 @@ KURL SecurityOrigin::ExtractInnerURL(const KURL& url) {
     return *url.InnerURL();
   // FIXME: Update this callsite to use the innerURL member function when
   // we finish implementing it.
-  return KURL(url.GetPath());
+  return KURL(url.GetPath().ToString());
 }
 
 // Note: When changing ShouldTreatAsOpaqueOrigin, consider also updating
@@ -151,7 +153,8 @@ scoped_refptr<SecurityOrigin> SecurityOrigin::CreateInternal(const KURL& url) {
                       ? url.Port()
                       : DefaultPortForProtocol(url.Protocol());
   return base::AdoptRef(new SecurityOrigin(EnsureNonNull(url.Protocol()),
-                                           EnsureNonNull(url.Host()), port));
+                                           EnsureNonNull(url.Host().ToString()),
+                                           port));
 }
 
 SecurityOrigin::SecurityOrigin(const String& protocol,
@@ -409,6 +412,11 @@ bool SecurityOrigin::CanDisplay(const KURL& url) const {
   if (universal_access_)
     return true;
 
+  // Data URLs can always be displayed.
+  if (url.ProtocolIsData()) {
+    return true;
+  }
+
   String protocol = url.Protocol();
   if (SchemeRegistry::CanDisplayOnlyIfCanRequest(protocol))
     return CanRequest(url);
@@ -642,9 +650,11 @@ bool SecurityOrigin::IsSameSiteWith(const SecurityOrigin* other) const {
   // https://html.spec.whatwg.org/#schemelessly-same-site
   if (IsOpaque())
     return IsSameOriginWith(other);
-  if (RegistrableDomain().IsNull())
+  String registrable_domain = RegistrableDomain();
+  if (registrable_domain.IsNull()) {
     return Host() == other->Host();
-  return RegistrableDomain() == other->RegistrableDomain();
+  }
+  return registrable_domain == other->RegistrableDomain();
 }
 
 const KURL& SecurityOrigin::UrlWithUniqueOpaqueOrigin() {
@@ -694,19 +704,41 @@ const SecurityOrigin* SecurityOrigin::GetOriginOrPrecursorOriginIfOpaque()
   return precursor_origin_.get();
 }
 
-String SecurityOrigin::CanonicalizeHost(const String& host, bool* success) {
+String SecurityOrigin::CanonicalizeSpecialHost(const String& host,
+                                               bool* success) {
   url::Component out_host;
   url::RawCanonOutputT<char> canon_output;
   if (host.Is8Bit()) {
     StringUTF8Adaptor utf8(host);
-    *success = url::CanonicalizeHost(
-        utf8.data(), url::Component(0, utf8.size()), &canon_output, &out_host);
+    *success = url::CanonicalizeSpecialHost(
+        utf8.data(), url::Component(0, utf8.size()), canon_output, out_host);
   } else {
-    *success = url::CanonicalizeHost(host.Characters16(),
-                                     url::Component(0, host.length()),
-                                     &canon_output, &out_host);
+    *success = url::CanonicalizeSpecialHost(UNSAFE_TODO(host.Characters16()),
+                                            url::Component(0, host.length()),
+                                            canon_output, out_host);
   }
-  return String::FromUTF8(canon_output.data(), canon_output.length());
+  return String::FromUTF8(canon_output.view());
+}
+
+String SecurityOrigin::CanonicalizeHost(const String& host,
+                                        const String& scheme,
+                                        bool* success) {
+  if (scheme != url::kFileScheme) {
+    return CanonicalizeSpecialHost(host, success);
+  }
+
+  url::Component out_host;
+  url::RawCanonOutputT<char> canon_output;
+  if (host.Is8Bit()) {
+    StringUTF8Adaptor utf8(host);
+    *success = url::CanonicalizeFileHost(
+        utf8.data(), url::Component(0, utf8.size()), canon_output, out_host);
+  } else {
+    *success = url::CanonicalizeFileHost(UNSAFE_TODO(host.Characters16()),
+                                         url::Component(0, host.length()),
+                                         canon_output, out_host);
+  }
+  return String::FromUTF8(canon_output.view());
 }
 
 scoped_refptr<SecurityOrigin> SecurityOrigin::GetOriginForAgentCluster(

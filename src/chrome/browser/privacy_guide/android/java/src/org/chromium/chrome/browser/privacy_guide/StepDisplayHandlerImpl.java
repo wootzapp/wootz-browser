@@ -4,28 +4,31 @@
 
 package org.chromium.chrome.browser.privacy_guide;
 
-import org.chromium.chrome.browser.prefetch.settings.PreloadPagesSettingsBridge;
-import org.chromium.chrome.browser.prefetch.settings.PreloadPagesState;
+import static org.chromium.chrome.browser.privacy_guide.PrivacyGuideUtils.canUpdateHistorySyncValue;
+
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxBridge;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.safe_browsing.SafeBrowsingState;
-import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.components.browser_ui.site_settings.WebsitePreferenceBridge;
 import org.chromium.components.content_settings.ContentSettingsType;
 import org.chromium.components.content_settings.CookieControlsMode;
-import org.chromium.components.sync.SyncService;
 
 /** Computes for each privacy guide step whether it should be displayed or not. */
+@NullMarked
 class StepDisplayHandlerImpl implements StepDisplayHandler {
     private final Profile mProfile;
+    private PrivacySandboxBridge mPrivacySandboxBridge;
 
     StepDisplayHandlerImpl(Profile profile) {
         mProfile = profile;
+        mPrivacySandboxBridge = new PrivacySandboxBridge(mProfile);
     }
 
     @Override
     public boolean shouldDisplayHistorySync() {
-        SyncService syncService = SyncServiceFactory.getForProfile(mProfile);
-        return syncService != null && syncService.isSyncFeatureEnabled();
+        return canUpdateHistorySyncValue(mProfile);
     }
 
     @Override
@@ -40,13 +43,15 @@ class StepDisplayHandlerImpl implements StepDisplayHandler {
                 WebsitePreferenceBridge.isCategoryEnabled(mProfile, ContentSettingsType.COOKIES);
         @CookieControlsMode
         int cookieControlsMode = PrivacyGuideUtils.getCookieControlsMode(mProfile);
-        return allowCookies && cookieControlsMode != CookieControlsMode.OFF;
+        return !PrivacyGuideUtils.trackingProtectionUiEnabled(mProfile)
+                && allowCookies
+                && (cookieControlsMode != CookieControlsMode.OFF
+                        || ChromeFeatureList.isEnabled(
+                                ChromeFeatureList.ALWAYS_BLOCK_3PCS_INCOGNITO));
     }
 
     @Override
-    public boolean shouldDisplayPreload() {
-        return PreloadPagesSettingsBridge.getState(mProfile)
-                        == PreloadPagesState.STANDARD_PRELOADING
-                || PreloadPagesSettingsBridge.getState(mProfile) == PreloadPagesState.NO_PRELOADING;
+    public boolean shouldDisplayAdTopics() {
+        return mPrivacySandboxBridge.privacySandboxPrivacyGuideShouldShowAdTopicsCard();
     }
 }

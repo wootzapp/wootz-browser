@@ -1,3 +1,7 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 #ifndef THIRD_PARTY_BLINK_RENDERER_CORE_CSS_SEEKER_H_
 #define THIRD_PARTY_BLINK_RENDERER_CORE_CSS_SEEKER_H_
 
@@ -24,11 +28,10 @@ class Seeker {
     DCHECK_GE(rule_position, last_rule_position_);
     last_rule_position_ = rule_position;
 #endif
-
-    while (iter_ != intervals_.end() &&
-           iter_->start_position <= rule_position) {
-      ++iter_;
-    }
+    iter_ = std::find_if(iter_, intervals_.end(),
+                         [rule_position](const RuleSet::Interval<T>& interval) {
+                           return interval.start_position > rule_position;
+                         });
     if (iter_ == intervals_.begin()) {
       return nullptr;
     }
@@ -37,7 +40,7 @@ class Seeker {
 
  private:
   const HeapVector<RuleSet::Interval<T>>& intervals_;
-  const RuleSet::Interval<T>* iter_;
+  HeapVector<RuleSet::Interval<T>>::const_iterator iter_;
 #if DCHECK_IS_ON()
   unsigned last_rule_position_ = 0;
 #endif

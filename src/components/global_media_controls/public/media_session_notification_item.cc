@@ -4,18 +4,20 @@
 
 #include "components/global_media_controls/public/media_session_notification_item.h"
 
+#include <algorithm>
+
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/i18n/rtl.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "components/global_media_controls/public/constants.h"
 #include "components/media_message_center/media_notification_util.h"
 #include "components/media_message_center/media_notification_view.h"
 #include "components/vector_icons/vector_icons.h"
 #include "media/base/media_switches.h"
-#include "media/remoting/remoting_constants.h"
+#include "media/base/remoting_constants.h"
 #include "services/media_session/public/cpp/util.h"
 #include "services/media_session/public/mojom/media_controller.mojom.h"
 #include "services/media_session/public/mojom/media_session.mojom.h"
@@ -377,7 +379,14 @@ media_session::MediaMetadata MediaSessionNotificationItem::GetSessionMetadata()
         optional_presentation_request_origin_.value());
   }
 
-  if (device_name_) {
+  bool add_device_name_to_source_title = !!device_name_;
+#if !BUILDFLAG(IS_CHROMEOS)
+  // Never include the device name for updated media UI on non-CrOS.
+  add_device_name_to_source_title &=
+      !base::FeatureList::IsEnabled(media::kGlobalMediaControlsUpdatedUI);
+#endif
+
+  if (add_device_name_to_source_title) {
     std::string source_title = base::UTF16ToUTF8(data.source_title);
     const char kSeparator[] = " \xC2\xB7 ";  // "Middle dot" character.
     if (base::i18n::IsRTL()) {
@@ -565,8 +574,8 @@ void MediaSessionNotificationItem::UpdateViewCommon() {
 
 bool MediaSessionNotificationItem::FrozenWithChapterArtwork() {
   auto it =
-      base::ranges::find_if(frozen_with_chapter_artwork_,
-                            [](const auto& it) { return it.second == true; });
+      std::ranges::find_if(frozen_with_chapter_artwork_,
+                           [](const auto& it) { return it.second == true; });
   return it != frozen_with_chapter_artwork_.end();
 }
 }  // namespace global_media_controls

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/android_sms/android_sms_app_manager_impl.h"
 
 #include <utility>
@@ -55,7 +60,6 @@ bool AndroidSmsAppManagerImpl::PwaDelegate::TransferItemAttributes(
 
 bool AndroidSmsAppManagerImpl::PwaDelegate::IsAppRegistryReady(
     Profile* profile) {
-  // |provider| will be nullptr if Lacros web apps are enabled.
   auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
   if (!provider)
     return false;
@@ -66,7 +70,6 @@ bool AndroidSmsAppManagerImpl::PwaDelegate::IsAppRegistryReady(
 void AndroidSmsAppManagerImpl::PwaDelegate::ExecuteOnAppRegistryReady(
     Profile* profile,
     base::OnceClosure task) {
-  // |provider| will be nullptr if Lacros web apps are enabled.
   auto* provider = web_app::WebAppProvider::GetForWebApps(profile);
   if (!provider)
     return;

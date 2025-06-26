@@ -50,14 +50,11 @@ class TestModuleRecordResolver final : public ModuleRecordResolver {
   // Implements ModuleRecordResolver:
 
   void RegisterModuleScript(const ModuleScript*) override {}
-  void UnregisterModuleScript(const ModuleScript*) override {
-    NOTREACHED_IN_MIGRATION();
-  }
+  void UnregisterModuleScript(const ModuleScript*) override { NOTREACHED(); }
 
   const ModuleScript* GetModuleScriptFromModuleRecord(
       v8::Local<v8::Module>) const override {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
 
   v8::Local<v8::Module> Resolve(const ModuleRequest& module_request,
@@ -127,11 +124,12 @@ TEST_F(ModuleRecordTest, compileSuccess) {
 
 TEST_F(ModuleRecordTest, compileFail) {
   V8TestingScope scope;
+  v8::TryCatch try_catch(scope.GetIsolate());
   const KURL js_url("https://example.com/foo.js");
   v8::Local<v8::Module> module = ModuleTestBase::CompileModule(
-      scope.GetScriptState(), "123 = 456", js_url, scope.GetExceptionState());
+      scope.GetScriptState(), "123 = 456", js_url);
   ASSERT_TRUE(module.IsEmpty());
-  EXPECT_TRUE(scope.GetExceptionState().HadException());
+  EXPECT_TRUE(try_catch.HasCaught());
 }
 
 TEST_F(ModuleRecordTest, moduleRequests) {
@@ -150,16 +148,16 @@ TEST_F(ModuleRecordTest, moduleRequests) {
   EXPECT_EQ(0u, requests[1].import_attributes.size());
 }
 
-TEST_F(ModuleRecordTest, moduleRequestsWithImportAssertions) {
+TEST_F(ModuleRecordTest, moduleRequestsWithImportAttributes) {
   V8TestingScope scope;
-  v8::V8::SetFlagsFromString("--harmony-import-assertions");
+  v8::V8::SetFlagsFromString("--harmony-import-attributes");
   const KURL js_url("https://example.com/foo.js");
-  v8::Local<v8::Module> module = ModuleTestBase::CompileModule(
-      scope.GetScriptState(),
-      "import 'a' assert { };"
-      "import 'b' assert { type: 'x'};"
-      "import 'c' assert { foo: 'y', type: 'z' };",
-      js_url);
+  v8::Local<v8::Module> module =
+      ModuleTestBase::CompileModule(scope.GetScriptState(),
+                                    "import 'a' with { };"
+                                    "import 'b' with { type: 'x'};"
+                                    "import 'c' with { foo: 'y', type: 'z' };",
+                                    js_url);
   ASSERT_FALSE(module.IsEmpty());
 
   auto requests = ModuleRecord::ModuleRequests(scope.GetScriptState(), module);
@@ -249,7 +247,7 @@ TEST_F(ModuleRecordTest, EvaluationErrorIsRemembered) {
   const KURL js_url_c("https://example.com/c.js");
   v8::Local<v8::Module> module = ModuleTestBase::CompileModule(
       scope.GetScriptState(), "import 'failure'; export const c = 123;",
-      js_url_c, scope.GetExceptionState());
+      js_url_c);
   ASSERT_FALSE(module.IsEmpty());
   ASSERT_TRUE(ModuleRecord::Instantiate(state, module, js_url_c).IsEmpty());
   ScriptEvaluationResult evaluation_result2 =

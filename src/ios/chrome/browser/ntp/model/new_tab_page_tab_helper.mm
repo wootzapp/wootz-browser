@@ -15,8 +15,8 @@
 #import "ios/chrome/browser/discover_feed/model/feed_constants.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_state.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_tab_helper_delegate.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/url/url_util.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -37,8 +37,7 @@ NewTabPageTabHelper::NewTabPageTabHelper(web::WebState* web_state)
 
   // Assign sort type to NTP state from prefs.
   PrefService* pref_service =
-      ChromeBrowserState::FromBrowserState(web_state_->GetBrowserState())
-          ->GetPrefs();
+      ProfileIOS::FromBrowserState(web_state_->GetBrowserState())->GetPrefs();
   ntp_state_.followingFeedSortType =
       (FollowingFeedSortType)pref_service->GetInteger(
           prefs::kNTPFollowingFeedSortType);
@@ -136,5 +135,3 @@ void NewTabPageTabHelper::SetActive(bool active) {
 
   [delegate_ newTabPageHelperDidChangeVisibility:this forWebState:web_state_];
 }
-
-WEB_STATE_USER_DATA_KEY_IMPL(NewTabPageTabHelper)

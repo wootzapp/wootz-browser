@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 #include "base/check_op.h"
 #include "base/containers/contains.h"
@@ -17,12 +18,12 @@
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/services/printing/public/mojom/print_backend_service.mojom.h"
@@ -76,8 +77,7 @@ uint32_t NativeViewToUint(gfx::NativeView view) {
 #if BUILDFLAG(IS_WIN)
   return base::win::HandleToUint32(views::HWNDForNativeView(view));
 #else
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 #endif
 }
 #endif
@@ -171,12 +171,19 @@ PrintBackendServiceManager::RegisterPrintDocumentClient(
   return *RegisterClient(ClientType::kPrintDocument, printer_name);
 }
 
-PrintBackendServiceManager::ClientId
+std::optional<PrintBackendServiceManager::ClientId>
 PrintBackendServiceManager::RegisterPrintDocumentClientReusingClientRemote(
     ClientId id) {
-  DCHECK(query_with_ui_clients_.contains(id));
-  return *RegisterClient(ClientType::kPrintDocument,
-                         query_with_ui_clients_[id]);
+  const auto iter = query_with_ui_clients_.find(id);
+  if (iter == query_with_ui_clients_.end()) {
+    // If the client is gone then that suggests that the renderer process
+    // terminated while the system print dialog was displayed.  Proceeding
+    // with printing will not be possible in such a case.
+    VLOG(1) << "Registering a print document client reusing client " << id
+            << " failed because that client is no longer registered";
+    return std::nullopt;
+  }
+  return RegisterClient(ClientType::kPrintDocument, iter->second);
 }
 
 void PrintBackendServiceManager::UnregisterClient(ClientId id) {
@@ -280,7 +287,7 @@ void PrintBackendServiceManager::GetDefaultPrinterName(
                      base::Unretained(this), std::move(result.context)));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 void PrintBackendServiceManager::GetPrinterSemanticCapsAndDefaults(
     const std::string& printer_name,
     mojom::PrintBackendService::GetPrinterSemanticCapsAndDefaultsCallback
@@ -303,7 +310,7 @@ void PrintBackendServiceManager::GetPrinterSemanticCapsAndDefaults(
           &PrintBackendServiceManager::OnDidGetPrinterSemanticCapsAndDefaults,
           base::Unretained(this), std::move(result.context)));
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_WIN)
 void PrintBackendServiceManager::GetPaperPrintableArea(
@@ -606,6 +613,10 @@ void PrintBackendServiceManager::
 void PrintBackendServiceManager::SetServiceForTesting(
     mojo::Remote<mojom::PrintBackendService>* remote) {
   sandboxed_service_remote_for_test_ = remote;
+  if (!sandboxed_service_remote_for_test_) {
+    return;
+  }
+
   // Safe to use base::Unretained(this) since `this` is a global singleton
   // which never goes away.
   sandboxed_service_remote_for_test_->set_disconnect_handler(base::BindOnce(
@@ -617,6 +628,10 @@ void PrintBackendServiceManager::SetServiceForTesting(
 void PrintBackendServiceManager::SetServiceForFallbackTesting(
     mojo::Remote<mojom::PrintBackendService>* remote) {
   unsandboxed_service_remote_for_test_ = remote;
+  if (!unsandboxed_service_remote_for_test_) {
+    return;
+  }
+
   // Safe to use base::Unretained(this) since `this` is a global singleton
   // which never goes away.
   unsandboxed_service_remote_for_test_->set_disconnect_handler(base::BindOnce(
@@ -684,19 +699,19 @@ PrintBackendServiceManager::GetRemoteIdForPrintDocumentClientId(
       return item.first;
     }
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 std::optional<PrintBackendServiceManager::ClientId>
 PrintBackendServiceManager::RegisterClient(
     ClientType client_type,
-    absl::variant<std::string, RemoteId> destination) {
+    std::variant<std::string, RemoteId> destination) {
   ClientId client_id = ClientId(++last_client_id_);
   RemoteId remote_id =
-      absl::holds_alternative<std::string>(destination)
+      std::holds_alternative<std::string>(destination)
           ? GetRemoteIdForPrinterName(
-                /*printer_name=*/absl::get<std::string>(destination))
-          : absl::get<RemoteId>(destination);
+                /*printer_name=*/std::get<std::string>(destination))
+          : std::get<RemoteId>(destination);
 
   VLOG(1) << "Registering a client with ID " << client_id << " (client type "
           << ClientTypeToString(client_type) << ") for print backend service.";
@@ -741,9 +756,15 @@ PrintBackendServiceManager::RegisterClient(
   } else {
     // Service not already available, so launch it now so that it will be
     // ready by the time the client gets to point of invoking a Mojo call.
-    DCHECK(absl::holds_alternative<std::string>(destination));
+    if (std::holds_alternative<RemoteId>(destination)) {
+      // When the destination is to reuse an existing remote, and that remote
+      // is gone, then any expected context in that remote is also gone.  Such
+      // a loss of context should be treated as a failure for the user's request
+      // to print the document, so return nullopt for the client ID.
+      return std::nullopt;
+    }
     bool should_sandbox = ShouldServiceBeSandboxed(
-        /*printer_name=*/absl::get<std::string>(destination), client_type);
+        /*printer_name=*/std::get<std::string>(destination), client_type);
     GetService(remote_id, client_type, should_sandbox);
   }
 
@@ -1338,12 +1359,12 @@ void PrintBackendServiceManager::ServiceCallbackDone(
     const base::UnguessableToken& saved_callback_id,
     X... data) {
   auto found_callback_map = saved_callbacks.find(remote_id);
-  DCHECK(found_callback_map != saved_callbacks.end());
+  CHECK(found_callback_map != saved_callbacks.end(), base::NotFatalUntil::M130);
 
   SavedCallbacks<T...>& callback_map = found_callback_map->second;
 
   auto callback_entry = callback_map.find(saved_callback_id);
-  DCHECK(callback_entry != callback_map.end());
+  CHECK(callback_entry != callback_map.end(), base::NotFatalUntil::M130);
   auto callback = std::move(callback_entry->second);
   callback_map.erase(callback_entry);
 

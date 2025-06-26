@@ -13,7 +13,6 @@ import org.jni_zero.NativeMethods;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.content_public.browser.WebContents;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,7 +24,7 @@ import java.util.Optional;
 @JNINamespace("send_tab_to_self")
 public class SendTabToSelfAndroidBridge {
     // TODO(crbug.com/40618597): Add logic back in to track whether model is loaded.
-    private boolean mIsNativeSendTabToSelfModelLoaded;
+    // private boolean mIsNativeSendTabToSelfModelLoaded;
 
     /**
      * Creates a new entry to be persisted to the sync backend.
@@ -71,16 +70,11 @@ public class SendTabToSelfAndroidBridge {
         // TODO(crbug.com/40618597): Add this assertion back in once the
         // code to load is in place.
         // assert mIsNativeSendTabToSelfModelLoaded;
-        return (List<TargetDeviceInfo>)
-                (List<?>)
-                        Arrays.asList(
-                                SendTabToSelfAndroidBridgeJni.get()
-                                        .getAllTargetDeviceInfos(profile));
+        return SendTabToSelfAndroidBridgeJni.get().getAllTargetDeviceInfos(profile);
     }
 
     /**
      * @param webContents WebContents where a navigation was just completed.
-     * @param profile Profile to which |webContents| belongs.
      */
     public static void updateActiveWebContents(WebContents webContents) {
         SendTabToSelfAndroidBridgeJni.get().updateActiveWebContents(webContents);
@@ -107,7 +101,7 @@ public class SendTabToSelfAndroidBridge {
         void dismissEntry(@JniType("Profile*") Profile profile, String guid);
 
         @JniType("std::vector")
-        Object[] getAllTargetDeviceInfos(@JniType("Profile*") Profile profile);
+        List<TargetDeviceInfo> getAllTargetDeviceInfos(@JniType("Profile*") Profile profile);
 
         void updateActiveWebContents(WebContents webContents);
 

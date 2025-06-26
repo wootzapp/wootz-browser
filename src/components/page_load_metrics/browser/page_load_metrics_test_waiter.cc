@@ -31,7 +31,6 @@ bool IsSubset(const Set& set1, const Set& set2) {
 // metrics updates.
 class WaiterMetricsObserver final : public PageLoadMetricsObserver {
  public:
-  using FrameTreeNodeId = PageLoadMetricsObserver::FrameTreeNodeId;
   // We use a WeakPtr to the PageLoadMetricsTestWaiter because |waiter| can be
   // destroyed before this WaiterMetricsObserver.
   explicit WaiterMetricsObserver(
@@ -847,9 +846,8 @@ page_load_metrics::PageLoadMetricsObserver::ObservePolicy
 WaiterMetricsObserver::OnPrerenderStart(
     content::NavigationHandle* navigation_handle,
     const GURL& currently_committed_url) {
-  NOTREACHED_IN_MIGRATION()
+  NOTREACHED()
       << "Waiters are not currently used directly on Prerendered pages.";
-  return STOP_OBSERVING;
 }
 
 void WaiterMetricsObserver::OnTimingUpdate(

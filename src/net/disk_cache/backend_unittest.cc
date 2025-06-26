@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <stdint.h>
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -17,7 +23,6 @@
 #include "base/memory/memory_pressure_listener.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/field_trial.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
@@ -95,32 +100,6 @@ using base::Time;
 
 namespace {
 
-const char kExistingEntryKey[] = "existing entry key";
-
-std::unique_ptr<disk_cache::BackendImpl> CreateExistingEntryCache(
-    const base::FilePath& cache_path) {
-  net::TestCompletionCallback cb;
-
-  std::unique_ptr<disk_cache::BackendImpl> cache(
-      std::make_unique<disk_cache::BackendImpl>(cache_path,
-                                                /* cleanup_tracker = */ nullptr,
-                                                /* cache_thread = */ nullptr,
-                                                net::DISK_CACHE,
-                                                /* net_log = */ nullptr));
-  cache->Init(cb.callback());
-  if (cb.WaitForResult() != net::OK)
-    return nullptr;
-
-  TestEntryResultCompletionCallback cb2;
-  EntryResult result =
-      cache->CreateEntry(kExistingEntryKey, net::HIGHEST, cb2.callback());
-  result = cb2.GetResult(std::move(result));
-  if (result.net_error() != net::OK)
-    return nullptr;
-
-  return cache;
-}
-
 #if BUILDFLAG(IS_FUCHSIA)
 // Load tests with large numbers of file descriptors perform poorly on
 // virtualized test execution environments.
@@ -129,6 +108,14 @@ std::unique_ptr<disk_cache::BackendImpl> CreateExistingEntryCache(
 const int kLargeNumEntries = 100;
 #else
 const int kLargeNumEntries = 512;
+#endif
+
+// The size of the HTTP cache is multiplied by 4 by default on non-Windows.
+constexpr bool kHTTPCacheSizeIsIncreased =
+#if BUILDFLAG(IS_WIN)
+    false;
+#else
+    true;
 #endif
 
 }  // namespace
@@ -223,13 +210,17 @@ class DiskCacheBackendTest : public DiskCacheTestWithCache {
   void BackendDeadOpenNextEntry();
   void BackendIteratorConcurrentDoom();
   void BackendValidateMigrated();
+
+  void Test2GiBLimit(net::CacheType type,
+                     net::BackendType backend_type,
+                     bool expect_limit);
 };
 
 void DiskCacheBackendTest::CreateKeyAndCheck(disk_cache::Backend* cache,
                                              std::string key) {
   const int kBufSize = 4 * 1024;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kBufSize);
-  CacheTestFillBuffer(buffer->data(), kBufSize, true);
+  CacheTestFillBuffer(buffer->span(), true);
   TestEntryResultCompletionCallback cb_entry;
   disk_cache::EntryResult result =
       cache->CreateEntry(key, net::HIGHEST, cb_entry.callback());
@@ -274,7 +265,7 @@ int DiskCacheBackendTest::GeneratePendingIO(net::TestCompletionCallback* cb) {
 
   const int kSize = 25000;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
-  CacheTestFillBuffer(buffer->data(), kSize, false);
+  CacheTestFillBuffer(buffer->span(), false);
 
   int rv = net::OK;
   for (int i = 0; i < 10 * 1024 * 1024; i += 64 * 1024) {
@@ -317,7 +308,7 @@ void DiskCacheBackendTest::InitSparseCache(base::Time* doomed_start,
   disk_cache::Entry* entry2 = nullptr;
 
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
-  CacheTestFillBuffer(buffer->data(), kSize, false);
+  CacheTestFillBuffer(buffer->span(), false);
 
   ASSERT_THAT(CreateEntry("zeroth", &entry0), IsOk());
   ASSERT_EQ(kSize, WriteSparseData(entry0, 0, buffer.get(), kSize));
@@ -731,7 +722,7 @@ TEST_F(DiskCacheBackendTest, CreateBackendPostCleanup) {
   // Extravagant size payload to make reproducing races easier.
   const int kBufSize = 256 * 1024;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kBufSize);
-  CacheTestFillBuffer(buffer->data(), kBufSize, true);
+  CacheTestFillBuffer(buffer->span(), true);
 
   SetSimpleCacheMode();
   CleanupCacheDir();
@@ -765,9 +756,9 @@ TEST_F(DiskCacheBackendTest, CreateBackendPostCleanup) {
   // back in the async Close()
   base::FilePath entry_path = cache_path_.AppendASCII(
       disk_cache::simple_util::GetFilenameFromKeyAndFileIndex("key", 0));
-  int64_t size = 0;
-  EXPECT_TRUE(base::GetFileSize(entry_path, &size));
-  EXPECT_GT(size, kBufSize);
+  std::optional<int64_t> size = base::GetFileSize(entry_path);
+  ASSERT_TRUE(size.has_value());
+  EXPECT_GT(size.value(), kBufSize);
 }
 
 TEST_F(DiskCacheBackendTest, SimpleCreateBackendRecoveryAppCache) {
@@ -775,7 +766,7 @@ TEST_F(DiskCacheBackendTest, SimpleCreateBackendRecoveryAppCache) {
   // DISK_CACHE since post-cleanup callbacks aren't permitted there).
   const int kBufSize = 4 * 1024;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kBufSize);
-  CacheTestFillBuffer(buffer->data(), kBufSize, true);
+  CacheTestFillBuffer(buffer->span(), true);
 
   SetSimpleCacheMode();
   SetCacheType(net::APP_CACHE);
@@ -853,7 +844,7 @@ TEST_F(DiskCacheBackendTest, MemoryListensToMemoryPressure) {
 
   // Fill in to about 80-90% full.
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kEntrySize);
-  CacheTestFillBuffer(buffer->data(), kEntrySize, false);
+  CacheTestFillBuffer(buffer->span(), false);
 
   for (int i = 0; i < 0.9 * (kLimit / kEntrySize); ++i) {
     disk_cache::Entry* entry = nullptr;
@@ -884,7 +875,7 @@ TEST_F(DiskCacheBackendTest, ExternalFiles) {
 
   const int kSize = 50;
   auto buffer1 = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
-  CacheTestFillBuffer(buffer1->data(), kSize, false);
+  CacheTestFillBuffer(buffer1->span(), false);
   ASSERT_TRUE(base::WriteFile(
       filename, std::string_view(buffer1->data(), static_cast<size_t>(kSize))));
 
@@ -1139,22 +1130,29 @@ void DiskCacheBackendTest::BackendSetSize() {
   EXPECT_EQ(net::ERR_FAILED,
             WriteData(entry, 1, 0, buffer.get(), cache_size / 5, false))
       << "file size above the limit";
+  entry->Close();
 
   // By doubling the total size, we make this file cacheable.
+  ResetCaches();
   SetMaxSize(cache_size * 2);
+  InitCache();
+  ASSERT_THAT(CreateEntry(first, &entry), IsOk());
   EXPECT_EQ(cache_size / 5,
             WriteData(entry, 1, 0, buffer.get(), cache_size / 5, false));
-
-  // Let's fill up the cache!.
-  SetMaxSize(cache_size * 10);
-  EXPECT_EQ(cache_size * 3 / 4,
-            WriteData(entry, 0, 0, buffer.get(), cache_size * 3 / 4, false));
   entry->Close();
-  FlushQueueForTest();
 
+  // Let's fill up the cache to about 95%, in 5% chunks.
+  ResetCaches();
   SetMaxSize(cache_size);
+  InitCache();
 
-  // The cache is 95% full.
+  for (int i = 0; i < (95 / 5); ++i) {
+    ASSERT_THAT(CreateEntry(base::NumberToString(i), &entry), IsOk());
+
+    EXPECT_EQ(cache_size / 20,
+              WriteData(entry, 0, 0, buffer.get(), cache_size / 20, false));
+    entry->Close();
+  }
 
   ASSERT_THAT(CreateEntry(second, &entry), IsOk());
   EXPECT_EQ(cache_size / 10,
@@ -1166,11 +1164,13 @@ void DiskCacheBackendTest::BackendSetSize() {
             WriteData(entry2, 0, 0, buffer.get(), cache_size / 10, false));
   entry2->Close();  // This will trigger the cache trim.
 
-  EXPECT_NE(net::OK, OpenEntry(first, &entry2));
+  // Entry "0" is old and should have been evicted.
+  EXPECT_NE(net::OK, OpenEntry("0", &entry2));
 
   FlushQueueForTest();  // Make sure that we are done trimming the cache.
   FlushQueueForTest();  // We may have posted two tasks to evict stuff.
 
+  // "second" is fairly new so should still be around.
   entry->Close();
   ASSERT_THAT(OpenEntry(second, &entry), IsOk());
   EXPECT_EQ(cache_size / 10, entry->GetDataSize(0));
@@ -1549,7 +1549,7 @@ void DiskCacheBackendTest::BackendTrimInvalidEntry() {
   EXPECT_EQ(kSize, WriteData(entry, 0, 0, buffer.get(), kSize, false));
 
   EXPECT_EQ(2, cache_->GetEntryCount());
-  SetMaxSize(kSize);
+  cache_impl_->SetMaxSize(kSize);
   entry->Close();  // Trim the cache.
   FlushQueueForTest();
 
@@ -1609,7 +1609,7 @@ void DiskCacheBackendTest::BackendTrimInvalidEntry2() {
 
   FlushQueueForTest();
   EXPECT_EQ(33, cache_->GetEntryCount());
-  SetMaxSize(kSize);
+  cache_impl_->SetMaxSize(kSize);
 
   // For the new eviction code, all corrupt entries are on the second list so
   // they are not going away that easy.
@@ -1650,7 +1650,6 @@ TEST_F(DiskCacheBackendTest, NewEvictionTrimInvalidEntry2) {
 
 void DiskCacheBackendTest::BackendEnumerations() {
   InitCache();
-  Time initial = Time::Now();
 
   const int kNumEntries = 100;
   for (int i = 0; i < kNumEntries; i++) {
@@ -1660,20 +1659,15 @@ void DiskCacheBackendTest::BackendEnumerations() {
     entry->Close();
   }
   EXPECT_EQ(kNumEntries, cache_->GetEntryCount());
-  Time final = Time::Now();
 
   disk_cache::Entry* entry;
   std::unique_ptr<TestIterator> iter = CreateIterator();
   int count = 0;
-  Time last_modified[kNumEntries];
   Time last_used[kNumEntries];
   while (iter->OpenNextEntry(&entry) == net::OK) {
     ASSERT_TRUE(nullptr != entry);
     if (count < kNumEntries) {
-      last_modified[count] = entry->GetLastModified();
       last_used[count] = entry->GetLastUsed();
-      EXPECT_TRUE(initial <= last_modified[count]);
-      EXPECT_TRUE(final >= last_modified[count]);
     }
 
     entry->Close();
@@ -1687,7 +1681,6 @@ void DiskCacheBackendTest::BackendEnumerations() {
   while (iter->OpenNextEntry(&entry) == net::OK) {
     ASSERT_TRUE(nullptr != entry);
     if (count < kNumEntries) {
-      EXPECT_TRUE(last_modified[count] == entry->GetLastModified());
       EXPECT_TRUE(last_used[count] == entry->GetLastUsed());
     }
     entry->Close();
@@ -2080,7 +2073,7 @@ TEST_F(DiskCacheBackendTest, InMemorySparseEvict) {
   InitCache();
 
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(64);
-  CacheTestFillBuffer(buffer->data(), 64, false /* no_nulls */);
+  CacheTestFillBuffer(buffer->span(), false /* no_nulls */);
 
   std::vector<disk_cache::ScopedEntryPtr> entries;
 
@@ -2511,100 +2504,6 @@ TEST_F(DiskCacheTest, WrongVersion) {
                                                 net::DISK_CACHE, nullptr));
   cache->Init(cb.callback());
   ASSERT_THAT(cb.WaitForResult(), IsError(net::ERR_FAILED));
-}
-
-// Tests that the disk cache successfully joins the control group, dropping the
-// existing cache in favour of a new empty cache.
-// Disabled on android since this test requires cache creator to create
-// blockfile caches.
-#if !BUILDFLAG(IS_ANDROID)
-TEST_F(DiskCacheTest, SimpleCacheControlJoin) {
-  std::unique_ptr<disk_cache::BackendImpl> cache =
-      CreateExistingEntryCache(cache_path_);
-  ASSERT_TRUE(cache.get());
-  cache.reset();
-
-  // Instantiate the SimpleCacheTrial, forcing this run into the
-  // ExperimentControl group.
-  base::FieldTrialList::CreateFieldTrial("SimpleCacheTrial",
-                                         "ExperimentControl");
-  TestBackendResultCompletionCallback cb;
-  disk_cache::BackendResult rv = disk_cache::CreateCacheBackend(
-      net::DISK_CACHE, net::CACHE_BACKEND_BLOCKFILE,
-      /*file_operations=*/nullptr, cache_path_, 0,
-      disk_cache::ResetHandling::kResetOnError, /*net_log=*/nullptr,
-      cb.callback());
-  rv = cb.GetResult(std::move(rv));
-  ASSERT_THAT(rv.net_error, IsOk());
-  EXPECT_EQ(0, rv.backend->GetEntryCount());
-}
-#endif
-
-// Tests that the disk cache can restart in the control group preserving
-// existing entries.
-TEST_F(DiskCacheTest, SimpleCacheControlRestart) {
-  // Instantiate the SimpleCacheTrial, forcing this run into the
-  // ExperimentControl group.
-  base::FieldTrialList::CreateFieldTrial("SimpleCacheTrial",
-                                         "ExperimentControl");
-
-  std::unique_ptr<disk_cache::BackendImpl> cache =
-      CreateExistingEntryCache(cache_path_);
-  ASSERT_TRUE(cache.get());
-
-  net::TestCompletionCallback cb;
-
-  const int kRestartCount = 5;
-  for (int i = 0; i < kRestartCount; ++i) {
-    cache = std::make_unique<disk_cache::BackendImpl>(
-        cache_path_, nullptr, nullptr, net::DISK_CACHE, nullptr);
-    cache->Init(cb.callback());
-    ASSERT_THAT(cb.WaitForResult(), IsOk());
-    EXPECT_EQ(1, cache->GetEntryCount());
-
-    TestEntryResultCompletionCallback cb2;
-    EntryResult result =
-        cache->OpenEntry(kExistingEntryKey, net::HIGHEST, cb2.callback());
-    result = cb2.GetResult(std::move(result));
-    result.ReleaseEntry()->Close();
-  }
-}
-
-// Tests that the disk cache can leave the control group preserving existing
-// entries.
-TEST_F(DiskCacheTest, SimpleCacheControlLeave) {
-  {
-    // Instantiate the SimpleCacheTrial, forcing this run into the
-    // ExperimentControl group.
-    base::FieldTrialList::CreateFieldTrial("SimpleCacheTrial",
-                                           "ExperimentControl");
-
-    std::unique_ptr<disk_cache::BackendImpl> cache =
-        CreateExistingEntryCache(cache_path_);
-    ASSERT_TRUE(cache.get());
-  }
-
-  // Instantiate the SimpleCacheTrial, forcing this run into the
-  // ExperimentNo group.
-  base::FieldTrialList::CreateFieldTrial("SimpleCacheTrial", "ExperimentNo");
-  net::TestCompletionCallback cb;
-
-  const int kRestartCount = 5;
-  for (int i = 0; i < kRestartCount; ++i) {
-    std::unique_ptr<disk_cache::BackendImpl> cache(
-        std::make_unique<disk_cache::BackendImpl>(cache_path_, nullptr, nullptr,
-                                                  net::DISK_CACHE, nullptr));
-    cache->Init(cb.callback());
-    ASSERT_THAT(cb.WaitForResult(), IsOk());
-    EXPECT_EQ(1, cache->GetEntryCount());
-
-    TestEntryResultCompletionCallback cb2;
-    EntryResult result =
-        cache->OpenEntry(kExistingEntryKey, net::HIGHEST, cb2.callback());
-    result = cb2.GetResult(std::move(result));
-    ASSERT_THAT(result.net_error(), IsOk());
-    result.ReleaseEntry()->Close();
-  }
 }
 
 // Tests that the cache is properly restarted on recovery error.
@@ -3319,8 +3218,8 @@ void DiskCacheBackendTest::BackendDisable4() {
 
   char key2[2000];
   char key3[20000];
-  CacheTestFillBuffer(key2, sizeof(key2), true);
-  CacheTestFillBuffer(key3, sizeof(key3), true);
+  CacheTestFillBuffer(base::as_writable_byte_span(key2), true);
+  CacheTestFillBuffer(base::as_writable_byte_span(key3), true);
   key2[sizeof(key2) - 1] = '\0';
   key3[sizeof(key3) - 1] = '\0';
   ASSERT_THAT(CreateEntry(key2, &entry2), IsOk());
@@ -3435,7 +3334,7 @@ void DiskCacheBackendTest::BackendEviction() {
   InitSparseCache(nullptr, nullptr);
 
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kWriteSize);
-  CacheTestFillBuffer(buffer->data(), kWriteSize, false);
+  CacheTestFillBuffer(buffer->span(), false);
 
   std::string key_prefix("prefix");
   for (int i = 0; i < kWriteEntryCount; ++i) {
@@ -3478,7 +3377,7 @@ TEST_F(DiskCacheBackendTest, MemoryOnlyUseAfterFree) {
   InitCache();
 
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kWriteSize);
-  CacheTestFillBuffer(buffer->data(), kWriteSize, false);
+  CacheTestFillBuffer(buffer->span(), false);
 
   // Create an entry to be our sparse entry that gets written later.
   disk_cache::Entry* entry;
@@ -3519,7 +3418,7 @@ TEST_F(DiskCacheBackendTest, MemoryCapsWritesToMaxSize) {
   InitCache();
 
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kWriteSize);
-  CacheTestFillBuffer(buffer->data(), kWriteSize, false);
+  CacheTestFillBuffer(buffer->span(), false);
 
   // Create an entry to be the final entry that gets written later.
   disk_cache::Entry* entry;
@@ -3593,7 +3492,7 @@ TEST_F(DiskCacheBackendTest, Backend_UsageStats) {
   EXPECT_FALSE(stats.empty());
 
   disk_cache::StatsItems::value_type hits("Create hit", "0x1");
-  EXPECT_EQ(1, base::ranges::count(stats, hits));
+  EXPECT_EQ(1, std::ranges::count(stats, hits));
 
   ResetCaches();
 
@@ -3606,7 +3505,7 @@ TEST_F(DiskCacheBackendTest, Backend_UsageStats) {
   cache_->GetStats(&stats);
   EXPECT_FALSE(stats.empty());
 
-  EXPECT_EQ(1, base::ranges::count(stats, hits));
+  EXPECT_EQ(1, std::ranges::count(stats, hits));
 }
 
 void DiskCacheBackendTest::BackendDoomAll() {
@@ -3751,7 +3650,7 @@ TEST_F(DiskCacheTest, MultipleInstances) {
 // Test the six regions of the curve that determines the max cache size.
 TEST_F(DiskCacheTest, AutomaticMaxSize) {
   using disk_cache::kDefaultCacheSize;
-  int64_t large_size = kDefaultCacheSize;
+  const int64_t large_size = kDefaultCacheSize;
 
   // Region 1: expected = available * 0.8
   EXPECT_EQ((kDefaultCacheSize - 1) * 8 / 10,
@@ -3764,34 +3663,115 @@ TEST_F(DiskCacheTest, AutomaticMaxSize) {
   // Region 2: expected = default_size
   EXPECT_EQ(kDefaultCacheSize,
             disk_cache::PreferredCacheSize(large_size * 10 / 8));
-  EXPECT_EQ(kDefaultCacheSize,
-            disk_cache::PreferredCacheSize(large_size * 10 - 1));
+
+  {
+    // The "internal size" from PreferredCacheSizeInternal() is less than 20% of
+    // the available space. As a result, when `kHTTPCacheSizeIsIncreased` is
+    // true, the value obtained here is scaled with:
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // 0.2 * available space.
+    const int64_t available_space = large_size * 10 - 1;
+    EXPECT_EQ(
+        kHTTPCacheSizeIsIncreased ? available_space / 5 : kDefaultCacheSize,
+        disk_cache::PreferredCacheSize(available_space));
+  }
 
   // Region 3: expected = available * 0.1
-  EXPECT_EQ(kDefaultCacheSize, disk_cache::PreferredCacheSize(large_size * 10));
-  EXPECT_EQ((kDefaultCacheSize * 25 - 1) / 10,
-            disk_cache::PreferredCacheSize(large_size * 25 - 1));
+  {
+    // With `kHTTPCacheSizeIsIncreased`, the value is adjusted with
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // 0.2 * available space.
+    const int64_t available_space = large_size * 10;
+    EXPECT_EQ(
+        kHTTPCacheSizeIsIncreased ? available_space / 5 : kDefaultCacheSize,
+        disk_cache::PreferredCacheSize(available_space));
+  }
+  {
+    // With `kHTTPCacheSizeIsIncreased`, the value is adjusted with
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // 0.2 * available space.
+    const int64_t available_space = large_size * 25 - 1;
+    EXPECT_EQ(
+        kHTTPCacheSizeIsIncreased ? available_space / 5 : available_space / 10,
+        disk_cache::PreferredCacheSize(available_space));
+  }
 
   // Region 4: expected = default_size * 2.5
-  EXPECT_EQ(kDefaultCacheSize * 25 / 10,
-            disk_cache::PreferredCacheSize(large_size * 25));
-  EXPECT_EQ(kDefaultCacheSize * 25 / 10,
-            disk_cache::PreferredCacheSize(large_size * 100 - 1));
-  EXPECT_EQ(kDefaultCacheSize * 25 / 10,
-            disk_cache::PreferredCacheSize(large_size * 100));
-  EXPECT_EQ(kDefaultCacheSize * 25 / 10,
-            disk_cache::PreferredCacheSize(large_size * 250 - 1));
+  {
+    // With `kHTTPCacheSizeIsIncreased`, the value is adjusted with
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // 0.2 * available space.
+    const int64_t available_space = large_size * 25;
+    EXPECT_EQ(kHTTPCacheSizeIsIncreased ? available_space / 5
+                                        : kDefaultCacheSize * 25 / 10,
+              disk_cache::PreferredCacheSize(available_space));
+  }
+  {
+    // With `kHTTPCacheSizeIsIncreased`, the value is adjusted with
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // internal size * 4 (internal size is kDefaultCacheSize * 2.5).
+    const int64_t available_space = large_size * 100 - 1;
+    EXPECT_EQ(kHTTPCacheSizeIsIncreased ? kDefaultCacheSize * 10
+                                        : kDefaultCacheSize * 25 / 10,
+              disk_cache::PreferredCacheSize(available_space));
+  }
+  {
+    // With `kHTTPCacheSizeIsIncreased`, the value is adjusted with
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // internal size * 4 (internal size is kDefaultCacheSize * 2.5).
+    const int64_t available_space = large_size * 100;
+    EXPECT_EQ(kHTTPCacheSizeIsIncreased ? kDefaultCacheSize * 10
+                                        : kDefaultCacheSize * 25 / 10,
+              disk_cache::PreferredCacheSize(available_space));
+  }
+  {
+    // With `kHTTPCacheSizeIsIncreased`, the value is adjusted with
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // internal size * 4 (internal size is kDefaultCacheSize * 2.5).
+    const int64_t available_space = large_size * 250 - 1;
+    EXPECT_EQ(kHTTPCacheSizeIsIncreased ? kDefaultCacheSize * 10
+                                        : kDefaultCacheSize * 25 / 10,
+              disk_cache::PreferredCacheSize(available_space));
+  }
+  {
+    // With `kHTTPCacheSizeIsIncreased`, the value is adjusted with
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // internal size * 4 (internal size is kDefaultCacheSize * 2.5).
+    const int64_t available_space = large_size * 250;
+    EXPECT_EQ(kHTTPCacheSizeIsIncreased ? kDefaultCacheSize * 10
+                                        : kDefaultCacheSize * 25 / 10,
+              disk_cache::PreferredCacheSize(available_space));
+  }
 
   // Region 5: expected = available * 0.1
   int64_t largest_size = kDefaultCacheSize * 4;
-  EXPECT_EQ(kDefaultCacheSize * 25 / 10,
-            disk_cache::PreferredCacheSize(large_size * 250));
-  EXPECT_EQ(largest_size - 1,
-            disk_cache::PreferredCacheSize(largest_size * 100 - 1));
+  {
+    // With `kHTTPCacheSizeIsIncreased`, the value is adjusted with
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // internal size * 4 (internal size is available_space - 1).
+    const int64_t available_space = largest_size * 100 - 1;
+    EXPECT_EQ(
+        kHTTPCacheSizeIsIncreased ? 4 * (largest_size - 1) : largest_size - 1,
+        disk_cache::PreferredCacheSize(available_space));
+  }
 
   // Region 6: expected = largest possible size
-  EXPECT_EQ(largest_size, disk_cache::PreferredCacheSize(largest_size * 100));
-  EXPECT_EQ(largest_size, disk_cache::PreferredCacheSize(largest_size * 10000));
+  {
+    // With `kHTTPCacheSizeIsIncreased`, the value is adjusted with
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // internal size * 4 (internal size is available_space).
+    const int64_t available_space = largest_size * 100;
+    EXPECT_EQ(kHTTPCacheSizeIsIncreased ? largest_size * 4 : largest_size,
+              disk_cache::PreferredCacheSize(available_space));
+  }
+  {
+    // With `kHTTPCacheSizeIsIncreased`, the value is adjusted with
+    // min(0.2 * available space, internal size * 4), which evaluates to
+    // internal size * 4 (internal size is available_space).
+    const int64_t available_space = largest_size * 10000;
+    EXPECT_EQ(kHTTPCacheSizeIsIncreased ? largest_size * 4 : largest_size,
+              disk_cache::PreferredCacheSize(available_space));
+  }
 }
 
 // Make sure that we keep the total memory used by the internal buffers under
@@ -3804,7 +3784,7 @@ TEST_F(DiskCacheBackendTest, TotalBuffersSize1) {
 
   const int kSize = 200;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
-  CacheTestFillBuffer(buffer->data(), kSize, true);
+  CacheTestFillBuffer(buffer->span(), true);
 
   for (int i = 0; i < 10; i++) {
     SCOPED_TRACE(i);
@@ -4088,8 +4068,8 @@ TEST_F(DiskCacheBackendTest, SimpleCacheOpenBadFile) {
 
   disk_cache::SimpleFileHeader header;
   header.initial_magic_number = UINT64_C(0xbadf00d);
-  EXPECT_TRUE(base::WriteFile(entry_file1_path,
-                              base::as_bytes(base::make_span(&header, 1u))));
+  EXPECT_TRUE(
+      base::WriteFile(entry_file1_path, base::byte_span_from_ref(header)));
   ASSERT_THAT(OpenEntry(key, &entry), IsError(net::ERR_FAILED));
 }
 
@@ -4101,7 +4081,7 @@ TEST_F(DiskCacheBackendTest, SimpleCacheOverBlockfileCache) {
   disk_cache::Entry* entry;
   const int kSize = 50;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
-  CacheTestFillBuffer(buffer->data(), kSize, false);
+  CacheTestFillBuffer(buffer->span(), false);
   ASSERT_THAT(CreateEntry("key", &entry), IsOk());
   ASSERT_EQ(0, WriteData(entry, 0, 0, buffer.get(), 0, false));
   entry->Close();
@@ -4127,7 +4107,7 @@ TEST_F(DiskCacheBackendTest, BlockfileCacheOverSimpleCache) {
   disk_cache::Entry* entry;
   const int kSize = 50;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
-  CacheTestFillBuffer(buffer->data(), kSize, false);
+  CacheTestFillBuffer(buffer->span(), false);
   ASSERT_THAT(CreateEntry("key", &entry), IsOk());
   ASSERT_EQ(0, WriteData(entry, 0, 0, buffer.get(), 0, false));
   entry->Close();
@@ -4224,7 +4204,7 @@ TEST_F(DiskCacheBackendTest, SimpleCacheEnumerationCorruption) {
   ASSERT_TRUE(corrupted_entry);
   const int kSize = 50;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
-  CacheTestFillBuffer(buffer->data(), kSize, false);
+  CacheTestFillBuffer(buffer->span(), false);
   ASSERT_EQ(kSize,
             WriteData(corrupted_entry, 0, 0, buffer.get(), kSize, false));
   ASSERT_EQ(kSize, ReadData(corrupted_entry, 0, 0, buffer.get(), kSize));
@@ -4297,9 +4277,9 @@ TEST_F(DiskCacheBackendTest, DISABLED_SimpleCachePrioritizedEntryOrder) {
   auto buf1 = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
   auto buf2 = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
   auto buf3 = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
-  CacheTestFillBuffer(buf1->data(), kSize, false);
-  CacheTestFillBuffer(buf2->data(), kSize, false);
-  CacheTestFillBuffer(buf3->data(), kSize, false);
+  CacheTestFillBuffer(buf1->span(), false);
+  CacheTestFillBuffer(buf2->span(), false);
+  CacheTestFillBuffer(buf3->span(), false);
 
   // Write to stream 2 because it's the only stream that can't be read from
   // synchronously.
@@ -4426,7 +4406,7 @@ TEST_F(DiskCacheBackendTest, SimpleCacheNegMaxSize) {
             std::numeric_limits<uint64_t>::max());
 
   int max_default_size =
-      2 * disk_cache::PreferredCacheSize(std::numeric_limits<int32_t>::max());
+      4 * disk_cache::PreferredCacheSize(std::numeric_limits<int32_t>::max());
 
   ASSERT_GE(max_default_size, 0);
   EXPECT_LT(simple_cache_impl_->index()->max_size(),
@@ -4434,9 +4414,8 @@ TEST_F(DiskCacheBackendTest, SimpleCacheNegMaxSize) {
 
   uint64_t max_size_without_scaling = simple_cache_impl_->index()->max_size();
 
-  // Scale to 200%. The size should be twice of |max_size_without_scaling| but
-  // since that's capped on 20% of available size, checking for the size to be
-  // between max_size_without_scaling and max_size_without_scaling*2.
+  // Scale to 200%. Depending on whether the default is scaled to 400%, this
+  // should increase or reduce the size.
   {
     base::test::ScopedFeatureList scoped_feature_list;
     std::map<std::string, std::string> field_trial_params;
@@ -4448,63 +4427,14 @@ TEST_F(DiskCacheBackendTest, SimpleCacheNegMaxSize) {
 
     uint64_t max_size_scaled = simple_cache_impl_->index()->max_size();
 
-    EXPECT_GE(max_size_scaled, max_size_without_scaling);
-    EXPECT_LE(max_size_scaled, 2 * max_size_without_scaling);
+    if (kHTTPCacheSizeIsIncreased) {
+      EXPECT_GE(max_size_without_scaling, max_size_scaled);
+      EXPECT_LE(max_size_without_scaling, 2 * max_size_scaled);
+    } else {
+      EXPECT_GE(max_size_scaled, max_size_without_scaling);
+      EXPECT_LE(max_size_scaled, 2 * max_size_without_scaling);
+    }
   }
-}
-
-TEST_F(DiskCacheBackendTest, SimpleLastModified) {
-  // Simple cache used to incorrectly set LastModified on entries based on
-  // timestamp of the cache directory, and not the entries' file
-  // (https://crbug.com/714143). So this test arranges for a situation
-  // where this would occur by doing:
-  // 1) Write entry 1
-  // 2) Delay
-  // 3) Write entry 2. This sets directory time stamp to be different from
-  //    timestamp of entry 1 (due to the delay)
-  // It then checks whether the entry 1 got the proper timestamp or not.
-
-  SetSimpleCacheMode();
-  InitCache();
-  std::string key1 = GenerateKey(true);
-  std::string key2 = GenerateKey(true);
-
-  disk_cache::Entry* entry1;
-  ASSERT_THAT(CreateEntry(key1, &entry1), IsOk());
-
-  // Make the Create complete --- SimpleCache can handle it optimistically,
-  // and if we let it go fully async then trying to flush the Close might just
-  // flush the Create.
-  disk_cache::FlushCacheThreadForTesting();
-  base::RunLoop().RunUntilIdle();
-
-  entry1->Close();
-
-  // Make the ::Close actually complete, since it is asynchronous.
-  disk_cache::FlushCacheThreadForTesting();
-  base::RunLoop().RunUntilIdle();
-
-  Time entry1_timestamp = Time::NowFromSystemTime();
-
-  // Don't want AddDelay since it sleep 1s(!) for SimpleCache, and we don't
-  // care about reduced precision in index here.
-  while (base::Time::NowFromSystemTime() <=
-         (entry1_timestamp + base::Milliseconds(10))) {
-    base::PlatformThread::Sleep(base::Milliseconds(1));
-  }
-
-  disk_cache::Entry* entry2;
-  ASSERT_THAT(CreateEntry(key2, &entry2), IsOk());
-  entry2->Close();
-  disk_cache::FlushCacheThreadForTesting();
-  base::RunLoop().RunUntilIdle();
-
-  disk_cache::Entry* reopen_entry1;
-  ASSERT_THAT(OpenEntry(key1, &reopen_entry1), IsOk());
-
-  // This shouldn't pick up entry2's write time incorrectly.
-  EXPECT_LE(reopen_entry1->GetLastModified(), entry1_timestamp);
-  reopen_entry1->Close();
 }
 
 TEST_F(DiskCacheBackendTest, SimpleFdLimit) {
@@ -4533,10 +4463,10 @@ TEST_F(DiskCacheBackendTest, SimpleFdLimit) {
 
   const int kSize = 25000;
   auto buf1 = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
-  CacheTestFillBuffer(buf1->data(), kSize, false);
+  CacheTestFillBuffer(buf1->span(), false);
 
   auto buf2 = base::MakeRefCounted<net::IOBufferWithSize>(kSize);
-  CacheTestFillBuffer(buf2->data(), kSize, false);
+  CacheTestFillBuffer(buf2->span(), false);
 
   // Doom an entry and create a new one with same name, to test that both
   // re-open properly.
@@ -4622,7 +4552,7 @@ TEST_F(DiskCacheBackendTest, SparseEvict) {
   InitCache();
 
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(64);
-  CacheTestFillBuffer(buffer->data(), 64, false);
+  CacheTestFillBuffer(buffer->span(), false);
 
   disk_cache::Entry* entry0 = nullptr;
   ASSERT_THAT(CreateEntry("http://www.0.com/", &entry0), IsOk());
@@ -4656,7 +4586,7 @@ TEST_F(DiskCacheBackendTest, InMemorySparseDoom) {
   InitCache();
 
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(64);
-  CacheTestFillBuffer(buffer->data(), 64, false);
+  CacheTestFillBuffer(buffer->span(), false);
 
   disk_cache::Entry* entry = nullptr;
   ASSERT_THAT(CreateEntry("http://www.0.com/", &entry), IsOk());
@@ -4669,36 +4599,60 @@ TEST_F(DiskCacheBackendTest, InMemorySparseDoom) {
   DoomAllEntries();
 }
 
-TEST_F(DiskCacheBackendTest, BlockFileMaxSizeLimit) {
-  InitCache();
+void DiskCacheBackendTest::Test2GiBLimit(net::CacheType type,
+                                         net::BackendType backend_type,
+                                         bool expect_limit) {
+  TestBackendResultCompletionCallback cb;
+  ASSERT_TRUE(CleanupCacheDir());
+  // We'll either create something of a different backend or have failed
+  // creation.
+  DisableIntegrityCheck();
 
   int64_t size = std::numeric_limits<int32_t>::max();
-  SetMaxSize(size, true /* should_succeed */);
+
+  disk_cache::BackendResult rv = disk_cache::CreateCacheBackend(
+      type, backend_type,
+      /*file_operations=*/nullptr, cache_path_, size,
+      disk_cache::ResetHandling::kNeverReset, nullptr, cb.callback());
+  rv = cb.GetResult(std::move(rv));
+  ASSERT_THAT(rv.net_error, IsOk());
+  EXPECT_TRUE(rv.backend);
+  rv.backend.reset();
 
   size += 1;
-  SetMaxSize(size, false /* should_succeed */);
+  rv = disk_cache::CreateCacheBackend(
+      type, backend_type,
+      /*file_operations=*/nullptr, cache_path_, size,
+      disk_cache::ResetHandling::kNeverReset, nullptr, cb.callback());
+  rv = cb.GetResult(std::move(rv));
+  if (expect_limit) {
+    EXPECT_NE(rv.net_error, net::OK);
+    EXPECT_FALSE(rv.backend);
+  } else {
+    ASSERT_THAT(rv.net_error, IsOk());
+    EXPECT_TRUE(rv.backend);
+    rv.backend.reset();
+  }
 }
 
+// Disabled on android since this test requires cache creator to create
+// blockfile caches.
+#if !BUILDFLAG(IS_ANDROID)
+TEST_F(DiskCacheBackendTest, BlockFileMaxSizeLimit) {
+  // Note: blockfile actually has trouble before 2GiB as well.
+  Test2GiBLimit(net::DISK_CACHE, net::CACHE_BACKEND_BLOCKFILE,
+                /*expect_limit=*/true);
+}
+#endif
+
 TEST_F(DiskCacheBackendTest, InMemoryMaxSizeLimit) {
-  SetMemoryOnlyMode();
-  InitCache();
-
-  int64_t size = std::numeric_limits<int32_t>::max();
-  SetMaxSize(size, true /* should_succeed */);
-
-  size += 1;
-  SetMaxSize(size, false /* should_succeed */);
+  Test2GiBLimit(net::MEMORY_CACHE, net::CACHE_BACKEND_DEFAULT,
+                /*expect_limit=*/true);
 }
 
 TEST_F(DiskCacheBackendTest, SimpleMaxSizeLimit) {
-  SetSimpleCacheMode();
-  InitCache();
-
-  int64_t size = std::numeric_limits<int32_t>::max();
-  SetMaxSize(size, true /* should_succeed */);
-
-  size += 1;
-  SetMaxSize(size, true /* should_succeed */);
+  Test2GiBLimit(net::DISK_CACHE, net::CACHE_BACKEND_SIMPLE,
+                /*expect_limit=*/false);
 }
 
 void DiskCacheBackendTest::BackendOpenOrCreateEntry() {
@@ -5117,7 +5071,7 @@ TEST_F(DiskCacheBackendTest, SimpleDontLeakPostDoomCreate) {
   const char kKey[] = "for_lock";
   const int kBufSize = 2 * 1024;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kBufSize);
-  CacheTestFillBuffer(buffer->data(), kBufSize, true);
+  CacheTestFillBuffer(buffer->span(), true);
 
   SetSimpleCacheMode();
   InitCache();
@@ -5163,13 +5117,13 @@ TEST_F(DiskCacheBackendTest, BlockFileDelayedWriteFailureRecovery) {
 
   const int kBufSize = 24320;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kBufSize);
-  CacheTestFillBuffer(buffer->data(), kBufSize, true);
+  CacheTestFillBuffer(buffer->span(), true);
 
   ASSERT_EQ(kBufSize, WriteSparseData(entry, 0, buffer.get(), kBufSize));
 
   // Setting the size limit artificially low injects a failure on writing back
   // data buffered above.
-  SetMaxSize(4096);
+  cache_impl_->SetMaxSize(4096);
 
   // This causes SparseControl to close the child entry corresponding to
   // low portion of offset space, triggering the writeback --- which fails
@@ -5201,7 +5155,7 @@ TEST_F(DiskCacheBackendTest, BlockFileInsertAliasing) {
 
   const int kBufSize = 61188;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kBufSize);
-  CacheTestFillBuffer(buffer->data(), kBufSize, true);
+  CacheTestFillBuffer(buffer->span(), true);
 
   net::TestCompletionCallback cb_write64;
   EXPECT_EQ(net::ERR_IO_PENDING,
@@ -5268,7 +5222,7 @@ TEST_F(DiskCacheBackendTest, MemCacheBackwardsClock) {
 
   const int kBufSize = 4 * 1024;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kBufSize);
-  CacheTestFillBuffer(buffer->data(), kBufSize, true);
+  CacheTestFillBuffer(buffer->span(), true);
 
   disk_cache::Entry* entry = nullptr;
   ASSERT_THAT(CreateEntry("key1", &entry), IsOk());
@@ -5298,7 +5252,7 @@ TEST_F(DiskCacheBackendTest, SimpleOpenOrCreateIndexError) {
 
   const int kBufSize = 256;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kBufSize);
-  CacheTestFillBuffer(buffer->data(), kBufSize, /*no_nulls=*/false);
+  CacheTestFillBuffer(buffer->span(), /*no_nulls=*/false);
 
   SetSimpleCacheMode();
   InitCache();
@@ -5335,7 +5289,7 @@ TEST_F(DiskCacheBackendTest, SimpleOpenOrCreateIndexErrorOptimistic) {
 
   const int kBufSize = 256;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kBufSize);
-  CacheTestFillBuffer(buffer->data(), kBufSize, /*no_nulls=*/false);
+  CacheTestFillBuffer(buffer->span(), /*no_nulls=*/false);
 
   // Create an entry.
   disk_cache::Entry* entry = nullptr;
@@ -5374,7 +5328,7 @@ TEST_F(DiskCacheBackendTest, SimpleDoomAfterBackendDestruction) {
 
   const int kBufSize = 256;
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kBufSize);
-  CacheTestFillBuffer(buffer->data(), kBufSize, /*no_nulls=*/false);
+  CacheTestFillBuffer(buffer->span(), /*no_nulls=*/false);
 
   SetCacheType(net::SHADER_CACHE);
   SetSimpleCacheMode();
@@ -5757,7 +5711,7 @@ TEST_F(DiskCacheBackendTest, SimpleNoCloseFromWithinCreate) {
   constexpr int kDataSize = 4097;
 
   auto buffer = base::MakeRefCounted<net::IOBufferWithSize>(kDataSize);
-  CacheTestFillBuffer(buffer->data(), kDataSize, false);
+  CacheTestFillBuffer(buffer->span(), false);
 
   for (int i = 0; i < 100; ++i) {
     std::string key = base::NumberToString(i);

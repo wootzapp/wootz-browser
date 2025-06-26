@@ -23,7 +23,7 @@
 #include "chrome/browser/web_applications/web_app_provider.h"
 // #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "components/webapps/common/web_app_id.h"
-#include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_registry.h"  // nogncheck
 #include "extensions/common/constants.h"
 #include "extensions/common/extension.h"
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
@@ -83,7 +83,6 @@ UrlIdentity CreateChromeExtensionIdentityFromUrl(Profile* profile,
                      .name = base::CollapseWhitespace(
                          base::UTF8ToUTF16(extension->name()), false)};
 }
-
 #if 0
 std::optional<webapps::AppId> GetIsolatedWebAppIdFromUrl(const GURL& url) {
   base::expected<web_app::IsolatedWebAppUrlInfo, std::string> url_info =
@@ -92,7 +91,6 @@ std::optional<webapps::AppId> GetIsolatedWebAppIdFromUrl(const GURL& url) {
                               : std::nullopt;
 }
 #endif
-
 UrlIdentity CreateIsolatedWebAppIdentityFromUrl(Profile* profile,
                                                 const GURL& url,
                                                 const FormatOptions& options) {
@@ -103,11 +101,7 @@ UrlIdentity CreateIsolatedWebAppIdentityFromUrl(Profile* profile,
 
   web_app::WebAppProvider* provider =
       web_app::WebAppProvider::GetForWebApps(profile);
-  if (!provider) {  // fallback to default
-    // WebAppProvider can be null in ChromeOS depending on whether Lacros is
-    // enabled or not.
-    return CreateDefaultUrlIdentityFromUrl(url, options);
-  }
+  DCHECK(provider);
 
   std::optional<webapps::AppId> app_id = GetIsolatedWebAppIdFromUrl(url);
   if (!app_id.has_value()) {  // fallback to default

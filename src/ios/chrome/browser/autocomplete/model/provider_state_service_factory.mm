@@ -4,21 +4,17 @@
 
 #import "ios/chrome/browser/autocomplete/model/provider_state_service_factory.h"
 
-#import <memory>
-
-#import "base/no_destructor.h"
-#import "components/keyed_service/ios/browser_state_dependency_manager.h"
 #import "components/omnibox/browser/provider_state_service.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/web/public/browser_state.h"
 
 namespace ios {
 
 // static
-ProviderStateService* ProviderStateServiceFactory::GetForBrowserState(
-    ChromeBrowserState* browser_state) {
-  return static_cast<ProviderStateService*>(
-      GetInstance()->GetServiceForBrowserState(browser_state, true));
+ProviderStateService* ProviderStateServiceFactory::GetForProfile(
+    ProfileIOS* profile) {
+  return GetInstance()->GetServiceForProfileAs<ProviderStateService>(
+      profile, /*create=*/true);
 }
 
 // static
@@ -28,9 +24,7 @@ ProviderStateServiceFactory* ProviderStateServiceFactory::GetInstance() {
 }
 
 ProviderStateServiceFactory::ProviderStateServiceFactory()
-    : BrowserStateKeyedServiceFactory(
-          "ProviderStateService",
-          BrowserStateDependencyManager::GetInstance()) {}
+    : ProfileKeyedServiceFactoryIOS("ProviderStateService") {}
 
 ProviderStateServiceFactory::~ProviderStateServiceFactory() = default;
 

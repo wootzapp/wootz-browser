@@ -13,6 +13,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "extensions/common/api/messaging/port_id.h"
+#include "extensions/common/mojom/message_port.mojom.h"
 #include "extensions/renderer/bindings/api_binding_util.h"
 #include "gin/wrappable.h"
 #include "v8/include/v8-forward.h"
@@ -49,6 +50,7 @@ class GinPort final : public gin::Wrappable<GinPort> {
   GinPort(v8::Local<v8::Context> context,
           const PortId& port_id,
           const std::string& name,
+          const mojom::ChannelType channel_type,
           APIEventHandler* event_handler,
           Delegate* delegate);
 
@@ -80,10 +82,10 @@ class GinPort final : public gin::Wrappable<GinPort> {
   const PortId& port_id() const { return port_id_; }
   const std::string& name() const { return name_; }
 
-  bool is_closed_for_testing() const { return state_ == kDisconnected; }
+  bool is_closed_for_testing() const { return state_ == State::kDisconnected; }
 
  private:
-  enum State {
+  enum class State {
     kActive,        // The port is currently active.
     kDisconnected,  // The port was disconnected by calling port.disconnect().
     kInvalidated,   // The associated v8::Context has been invalidated.
@@ -126,13 +128,16 @@ class GinPort final : public gin::Wrappable<GinPort> {
   void ThrowError(v8::Isolate* isolate, std::string_view error);
 
   // The current state of the port.
-  State state_ = kActive;
+  State state_ = State::kActive;
 
   // The associated port id.
   const PortId port_id_;
 
   // The port's name.
   const std::string name_;
+
+  // The type of the associated channel.
+  const mojom::ChannelType channel_type_;
 
   // The associated APIEventHandler. Guaranteed to outlive this object.
   const raw_ptr<APIEventHandler> event_handler_;

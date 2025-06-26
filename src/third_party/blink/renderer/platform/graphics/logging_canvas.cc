@@ -32,6 +32,7 @@
 
 #include <unicode/unistr.h>
 
+#include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "build/build_config.h"
 #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
@@ -80,8 +81,7 @@ String PointModeName(SkCanvas::PointMode mode) {
     case SkCanvas::kPolygon_PointMode:
       return "Polygon";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "?";
+      NOTREACHED();
   };
 }
 
@@ -96,7 +96,7 @@ std::unique_ptr<JSONArray> ArrayForSkPoints(size_t count,
                                             const SkPoint points[]) {
   auto points_array_item = std::make_unique<JSONArray>();
   for (size_t i = 0; i < count; ++i)
-    points_array_item->PushObject(ObjectForSkPoint(points[i]));
+    points_array_item->PushObject(ObjectForSkPoint(UNSAFE_TODO(points[i])));
   return points_array_item;
 }
 
@@ -124,8 +124,7 @@ String RrectTypeName(SkRRect::Type type) {
     case SkRRect::kComplex_Type:
       return "Complex";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "?";
+      NOTREACHED();
   };
 }
 
@@ -140,8 +139,7 @@ String RadiusName(SkRRect::Corner corner) {
     case SkRRect::kLowerLeft_Corner:
       return "lowerLeftRadius";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "?";
+      NOTREACHED();
   }
 }
 
@@ -169,8 +167,7 @@ String FillTypeName(SkPathFillType type) {
     case SkPathFillType::kInverseEvenOdd:
       return "InverseEvenOdd";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "?";
+      NOTREACHED();
   };
 }
 
@@ -191,8 +188,7 @@ VerbParams SegmentParams(SkPath::Verb verb) {
     case SkPath::kDone_Verb:
       return VerbParams("Done", 0, 0);
     default:
-      NOTREACHED_IN_MIGRATION();
-      return VerbParams("?", 0, 0);
+      NOTREACHED();
   };
 }
 
@@ -212,8 +208,9 @@ std::unique_ptr<JSONObject> ObjectForSkPath(const SkPath& path) {
     DCHECK_LE(verb_params.point_count + verb_params.point_offset,
               std::size(points));
     path_point_item->SetArray(
-        "points", ArrayForSkPoints(verb_params.point_count,
-                                   points + verb_params.point_offset));
+        "points",
+        ArrayForSkPoints(verb_params.point_count,
+                         UNSAFE_TODO(points + verb_params.point_offset)));
     if (SkPath::kConic_Verb == verb)
       path_point_item->SetDouble("conicWeight", iter.conicWeight());
     path_points_array->PushObject(std::move(path_point_item));
@@ -236,7 +233,7 @@ std::unique_ptr<JSONArray> ArrayForSkScalars(size_t count,
                                              const SkScalar array[]) {
   auto points_array_item = std::make_unique<JSONArray>();
   for (size_t i = 0; i < count; ++i)
-    points_array_item->PushDouble(array[i]);
+    points_array_item->PushDouble(UNSAFE_TODO(array[i]));
   return points_array_item;
 }
 
@@ -277,8 +274,7 @@ String StrokeCapName(SkPaint::Cap cap) {
     case SkPaint::kSquare_Cap:
       return "Square";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "?";
+      NOTREACHED();
   };
 }
 
@@ -291,8 +287,7 @@ String StrokeJoinName(SkPaint::Join join) {
     case SkPaint::kBevel_Join:
       return "Bevel";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "?";
+      NOTREACHED();
   };
 }
 
@@ -303,8 +298,7 @@ String StyleName(SkPaint::Style style) {
     case SkPaint::kStroke_Style:
       return "Stroke";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "?";
+      NOTREACHED();
   };
 }
 

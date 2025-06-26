@@ -34,6 +34,7 @@ import("//testing/test.gni")
 # - exclude_main - if you're going to provide your own 'main' function
 # - high_end_job_required - whether the fuzzer requires bigger machines to run.
 #   Optional argument.
+# - is_fuzzilli_compatible - whether the fuzzer is compatible with fuzzilli.
 #
 # If use_libfuzzer gn flag is defined, then proper fuzzer would be build.
 # Without use_libfuzzer or use_afl a unit-test style binary would be built on
@@ -45,8 +46,12 @@ import("//testing/test.gni")
 # dir (next to test).
 template("fuzzer_test") {
   _high_end_job_required = false
-  if (defined(invoker.high_end_job_required)) {
-    _high_end_job_required = invoker.high_end_job_required
+  if (defined(invoker.high_end_job_required) && invoker.high_end_job_required) {
+    _high_end_job_required = !is_debug
+  }
+  if (defined(invoker.high_end_debug_job_required) &&
+      invoker.high_end_debug_job_required) {
+    _high_end_job_required = _high_end_job_required || is_debug
   }
 
   # If the job is a high_end job and that we are currently building a high_end
@@ -55,7 +60,9 @@ template("fuzzer_test") {
   # TODO(crbug.com/333831251): Once CF supports high end jobs, do not compile
   # high end targets except for high end jobs.
   _should_build = (_high_end_job_required || !high_end_fuzzer_targets) &&
-                  !disable_libfuzzer && use_fuzzing_engine
+                  !disable_libfuzzer && use_fuzzing_engine &&
+                  ((defined(invoker.is_fuzzilli_compatible) &&
+                    invoker.is_fuzzilli_compatible) || !use_fuzzilli)
   if (_should_build) {
     assert(defined(invoker.sources), "Need sources in $target_name.")
 
@@ -66,12 +73,16 @@ template("fuzzer_test") {
       test_deps += [ "//testing/libfuzzer:fuzzing_engine_main" ]
     }
     test_data_deps = []
+    test_data = []
 
     if (defined(invoker.deps)) {
       test_deps += invoker.deps
     }
     if (defined(invoker.data_deps)) {
       test_data_deps += invoker.data_deps
+    }
+    if (defined(invoker.data)) {
+      test_data += invoker.data
     }
 
     supporting_file_test_deps = []
@@ -115,6 +126,7 @@ template("fuzzer_test") {
       }
 
       if (archive_seed_corpus) {
+        test_data_deps += [ ":" + target_name + "_seed_corpus" ]
         supporting_file_test_deps += [ ":" + target_name + "_seed_corpus" ]
       }
     }
@@ -130,6 +142,7 @@ template("fuzzer_test") {
           sources = [ invoker.dict ]
           outputs = [ "$root_build_dir/" + target_name + ".dict" ]
         }
+        test_data_deps += [ ":" + target_name + "_dict_copy" ]
         supporting_file_test_deps += [ ":" + target_name + "_dict_copy" ]
       }
 
@@ -254,7 +267,7 @@ template("fuzzer_test") {
               target_name + "_codesign_supporting_files_" + _deps_type_label
           action_foreach(_codesign_action_name) {
             testonly = true
-            script = "//build/config/ios/codesign.py"
+            script = "//build/config/apple/codesign.py"
             sources = _files_to_sign
             _codesign_output_path =
                 "${root_build_dir}/codesign/{{source_file_part}}"
@@ -301,6 +314,7 @@ template("fuzzer_test") {
                              ])
       deps = test_deps
       data_deps = test_data_deps
+      data = test_data
 
       if (defined(invoker.additional_configs)) {
         configs += invoker.additional_configs

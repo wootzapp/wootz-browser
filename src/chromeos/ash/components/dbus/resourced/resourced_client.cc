@@ -49,13 +49,6 @@ class ResourcedClientImpl : public ResourcedClient {
                        weak_factory_.GetWeakPtr()));
     proxy_->ConnectToSignal(
         resource_manager::kResourceManagerInterface,
-        resource_manager::kMemoryPressureArcvm,
-        base::BindRepeating(&ResourcedClientImpl::MemoryPressureArcVmReceived,
-                            weak_factory_.GetWeakPtr()),
-        base::BindOnce(&ResourcedClientImpl::MemoryPressureConnected,
-                       weak_factory_.GetWeakPtr()));
-    proxy_->ConnectToSignal(
-        resource_manager::kResourceManagerInterface,
         resource_manager::kMemoryPressureArcContainer,
         base::BindRepeating(
             &ResourcedClientImpl::MemoryPressureArcContainerReceived,
@@ -70,12 +63,9 @@ class ResourcedClientImpl : public ResourcedClient {
       uint32_t refresh_seconds,
       chromeos::DBusMethodCallback<GameMode> callback) override;
 
-  void SetMemoryMarginsBps(uint32_t critical_margin,
-                           uint32_t moderate_margin,
-                           SetMemoryMarginsBpsCallback callback) override;
+  void SetMemoryMargins(MemoryMargins margins) override;
 
-  void ReportBrowserProcesses(Component component,
-                              const std::vector<Process>& processes) override;
+  void ReportBrowserProcesses(const std::vector<Process>& processes) override;
 
   void SetProcessState(base::ProcessId process_id,
                        resource_manager::ProcessState state,
@@ -90,10 +80,6 @@ class ResourcedClientImpl : public ResourcedClient {
 
   void RemoveObserver(Observer* observer) override;
 
-  void AddArcVmObserver(ArcVmObserver* observer) override;
-
-  void RemoveArcVmObserver(ArcVmObserver* observer) override;
-
   void AddArcContainerObserver(ArcContainerObserver* observer) override;
 
   void RemoveArcContainerObserver(ArcContainerObserver* observer) override;
@@ -107,18 +93,11 @@ class ResourcedClientImpl : public ResourcedClient {
       chromeos::DBusMethodCallback<GameMode> callback,
       dbus::Response* response);
 
-  void HandleSetMemoryMarginBps(uint32_t critical_margin,
-                                uint32_t moderate_margin,
-                                SetMemoryMarginsBpsCallback callback,
-                                dbus::Response* response);
-
   // D-Bus signal handlers.
   void MemoryPressureReceived(dbus::Signal* signal);
   void MemoryPressureConnected(const std::string& interface_name,
                                const std::string& signal_name,
                                bool success);
-
-  void MemoryPressureArcVmReceived(dbus::Signal* signal);
 
   void MemoryPressureArcContainerReceived(dbus::Signal* signal);
 
@@ -142,9 +121,6 @@ class ResourcedClientImpl : public ResourcedClient {
 
   // A list of observers that are listening on state changes, etc.
   base::ObserverList<Observer> observers_;
-
-  // A list of observers listening for ARCVM memory pressure signals.
-  base::ObserverList<ArcVmObserver> arcvm_observers_;
 
   // A list of observers listening for ARC container memory pressure signals.
   base::ObserverList<ArcContainerObserver> arc_container_observers_;
@@ -184,6 +160,17 @@ void ResourcedClientImpl::MemoryPressureReceived(dbus::Signal* signal) {
         base::TimeTicks::FromUptimeMillis(signal_origin_timestamp_ms);
   }
 
+  uint8_t discard_type;
+  if (signal_reader.PopByte(&discard_type)) {
+    if (discard_type == resource_manager::DiscardType::UNPROTECTED) {
+      reclaim_target.discard_protected = false;
+    } else if (discard_type == resource_manager::DiscardType::PROTECTED) {
+      reclaim_target.discard_protected = true;
+    } else {
+      LOG(ERROR) << "Unknown discard type: " << discard_type;
+    }
+  }
+
   if (pressure_level_byte == resource_manager::PressureLevelChrome::NONE) {
     pressure_level = PressureLevel::NONE;
   } else if (pressure_level_byte ==
@@ -205,51 +192,6 @@ void ResourcedClientImpl::MemoryPressureReceived(dbus::Signal* signal) {
 
   for (auto& observer : observers_) {
     observer.OnMemoryPressure(pressure_level, reclaim_target);
-  }
-}
-
-void ResourcedClientImpl::MemoryPressureArcVmReceived(dbus::Signal* signal) {
-  dbus::MessageReader signal_reader(signal);
-
-  uint8_t pressure_level_byte;
-  PressureLevelArcVm pressure_level;
-  uint64_t reclaim_target_kb;
-
-  if (!signal_reader.PopByte(&pressure_level_byte) ||
-      !signal_reader.PopUint64(&reclaim_target_kb)) {
-    LOG(ERROR) << "Error reading signal from resourced: " << signal->ToString();
-    return;
-  }
-  switch (
-      static_cast<resource_manager::PressureLevelArcvm>(pressure_level_byte)) {
-    case resource_manager::PressureLevelArcvm::NONE:
-      pressure_level = PressureLevelArcVm::NONE;
-      break;
-
-    case resource_manager::PressureLevelArcvm::CACHED:
-      pressure_level = PressureLevelArcVm::CACHED;
-      break;
-
-    case resource_manager::PressureLevelArcvm::PERCEPTIBLE:
-      pressure_level = PressureLevelArcVm::PERCEPTIBLE;
-      break;
-
-    case resource_manager::PressureLevelArcvm::FOREGROUND:
-      pressure_level = PressureLevelArcVm::FOREGROUND;
-      break;
-
-    default:
-      LOG(ERROR) << "Unknown memory pressure level: " << pressure_level_byte;
-      return;
-  }
-
-  if (reclaim_target_kb > total_memory_kb_) {
-    LOG(ERROR) << "reclaim_target_kb is too large: " << reclaim_target_kb;
-    return;
-  }
-
-  for (auto& observer : arcvm_observers_) {
-    observer.OnMemoryPressure(pressure_level, reclaim_target_kb);
   }
 }
 
@@ -359,71 +301,29 @@ void ResourcedClientImpl::SetGameModeWithTimeout(
                      weak_factory_.GetWeakPtr(), std::move(callback)));
 }
 
-void ResourcedClientImpl::HandleSetMemoryMarginBps(
-    uint32_t critical_margin,
-    uint32_t moderate_margin,
-    SetMemoryMarginsBpsCallback callback,
-    dbus::Response* response) {
-  if (callback.is_null()) {
-    return;
-  }
+void ResourcedClientImpl::SetMemoryMargins(MemoryMargins margins) {
+  resource_manager::MemoryMargins request;
+  request.set_moderate_bps(margins.moderate_bps);
+  request.set_critical_bps(margins.critical_bps);
+  request.set_critical_protected_bps(margins.critical_protected_bps);
 
-  if (!response) {
-    LOG(ERROR) << "Null response object received: try again in 30 seconds.";
-
-    // If Chrome startup was racing with resourced startup it's possible
-    // that the message was not delivered because resourced was not up yet.
-    // Let's redispatch the message in 30 seconds.
-    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE,
-        base::BindOnce(&ResourcedClientImpl::SetMemoryMarginsBps,
-                       weak_factory_.GetWeakPtr(), critical_margin,
-                       moderate_margin, std::move(callback)),
-        base::Seconds(30));
-    return;
-  }
-
-  uint64_t critical = 0;
-  uint64_t moderate = 0;
-  dbus::MessageReader reader(response);
-  if (!reader.PopUint64(&critical) || !reader.PopUint64(&moderate)) {
-    LOG(ERROR) << "Unable to read back uint64s from resourced";
-    std::move(callback).Run(false, 0, 0);
-    return;
-  }
-
-  std::move(callback).Run(true, critical, moderate);
-}
-
-void ResourcedClientImpl::SetMemoryMarginsBps(
-    uint32_t critical_margin,
-    uint32_t moderate_margin,
-    SetMemoryMarginsBpsCallback callback) {
   dbus::MethodCall method_call(resource_manager::kResourceManagerInterface,
-                               resource_manager::kSetMemoryMarginsBps);
-  dbus::MessageWriter writer(&method_call);
-  writer.AppendUint32(critical_margin);
-  writer.AppendUint32(moderate_margin);
+                               resource_manager::kSetMemoryMarginsMethod);
+  if (!dbus::MessageWriter(&method_call).AppendProtoAsArrayOfBytes(request)) {
+    LOG(ERROR) << "Error serializing "
+               << resource_manager::kSetMemoryMarginsMethod << " request";
+    return;
+  }
 
-  proxy_->CallMethod(
-      &method_call, kResourcedDBusTimeoutMilliseconds,
-      base::BindOnce(&ResourcedClientImpl::HandleSetMemoryMarginBps,
-                     weak_factory_.GetWeakPtr(), critical_margin,
-                     moderate_margin, std::move(callback)));
+  proxy_->CallMethod(&method_call, kResourcedDBusTimeoutMilliseconds,
+                     base::DoNothing());
 }
 
 void ResourcedClientImpl::ReportBrowserProcesses(
-    Component component,
     const std::vector<Process>& processes) {
   resource_manager::ReportBrowserProcesses request;
 
-  if (component == ResourcedClient::Component::kAsh) {
-    request.set_browser_type(resource_manager::BrowserType::ASH);
-  } else if (component == ResourcedClient::Component::kLacros) {
-    request.set_browser_type(resource_manager::BrowserType::LACROS);
-  } else {
-    NOTREACHED_IN_MIGRATION();
-  }
+  request.set_browser_type(resource_manager::BrowserType::ASH);
 
   for (auto it = processes.begin(); it != processes.end(); ++it) {
     auto* process = request.add_processes();
@@ -473,7 +373,7 @@ void ResourcedClientImpl::SetThreadState(base::ProcessId process_id,
   dbus::MessageWriter writer(&method_call);
 
   writer.AppendUint32(process_id);
-  writer.AppendUint32(thread_id);
+  writer.AppendUint32(thread_id.raw());
   writer.AppendByte(static_cast<uint8_t>(state));
 
   proxy_->CallMethodWithErrorResponse(
@@ -489,14 +389,6 @@ void ResourcedClientImpl::AddObserver(Observer* observer) {
 
 void ResourcedClientImpl::RemoveObserver(Observer* observer) {
   observers_.RemoveObserver(observer);
-}
-
-void ResourcedClientImpl::AddArcVmObserver(ArcVmObserver* observer) {
-  arcvm_observers_.AddObserver(observer);
-}
-
-void ResourcedClientImpl::RemoveArcVmObserver(ArcVmObserver* observer) {
-  arcvm_observers_.RemoveObserver(observer);
 }
 
 void ResourcedClientImpl::AddArcContainerObserver(

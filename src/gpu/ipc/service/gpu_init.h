@@ -5,6 +5,7 @@
 #ifndef GPU_IPC_SERVICE_GPU_INIT_H_
 #define GPU_IPC_SERVICE_GPU_INIT_H_
 
+#include <memory>
 #include <optional>
 
 #include "base/memory/raw_ptr.h"
@@ -101,6 +102,8 @@ class GPU_IPC_SERVICE_EXPORT GpuInit {
  private:
   bool InitializeDawn();
   bool InitializeVulkan();
+  void SetSkiaBackendType();
+  void RecordUMA();
 
   raw_ptr<GpuSandboxHelper> sandbox_helper_ = nullptr;
   bool gl_use_swiftshader_ = false;

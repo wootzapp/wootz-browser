@@ -4,6 +4,8 @@
 
 package org.chromium.android_webview;
 
+import static org.chromium.components.embedder_support.application.ClassLoaderContextWrapperFactory.getOriginalApplicationContext;
+
 import android.content.Context;
 import android.content.res.AssetManager;
 import android.net.Uri;
@@ -12,6 +14,7 @@ import android.util.TypedValue;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.android_webview.common.Lifetime;
@@ -103,7 +106,10 @@ public class AndroidProtocolHandler {
             throws ClassNotFoundException, NoSuchFieldException, IllegalAccessException {
         Context appContext = ContextUtils.getApplicationContext();
         String packageName = appContext.getPackageName();
-        int id = appContext.getResources().getIdentifier(assetName, assetType, packageName);
+        int id =
+                getOriginalApplicationContext(appContext)
+                        .getResources()
+                        .getIdentifier(assetName, assetType, packageName);
         if (id != 0) {
             return id;
         }
@@ -133,7 +139,9 @@ public class AndroidProtocolHandler {
 
     private static int getValueType(int fieldId) {
         TypedValue value = new TypedValue();
-        ContextUtils.getApplicationContext().getResources().getValue(fieldId, value, true);
+        getOriginalApplicationContext(ContextUtils.getApplicationContext())
+                .getResources()
+                .getValue(fieldId, value, true);
         return value.type;
     }
 
@@ -166,7 +174,9 @@ public class AndroidProtocolHandler {
             int fieldId = getFieldId(assetType, assetName);
             int valueType = getValueType(fieldId);
             if (valueType == TypedValue.TYPE_STRING) {
-                return ContextUtils.getApplicationContext().getResources().openRawResource(fieldId);
+                return getOriginalApplicationContext(ContextUtils.getApplicationContext())
+                        .getResources()
+                        .openRawResource(fieldId);
             } else {
                 Log.e(TAG, "Asset not of type string: " + uri);
                 return null;
@@ -191,7 +201,8 @@ public class AndroidProtocolHandler {
                 uri.getPath()
                         .replaceFirst(AndroidProtocolHandlerJni.get().getAndroidAssetPath(), "");
         try {
-            AssetManager assets = ContextUtils.getApplicationContext().getAssets();
+            AssetManager assets =
+                    getOriginalApplicationContext(ContextUtils.getApplicationContext()).getAssets();
             return assets.open(path, AssetManager.ACCESS_STREAMING);
         } catch (IOException e) {
             Log.e(TAG, "Unable to open asset URL: " + uri);
@@ -212,12 +223,12 @@ public class AndroidProtocolHandler {
     /**
      * Determine the mime type for an Android resource.
      *
-     * @param stream  The opened input stream which to examine.
-     * @param url     The url from which the stream was opened.
+     * @param stream The opened input stream which to examine.
+     * @param url The url from which the stream was opened.
      * @return The mime type or null if the type is unknown.
      */
     @CalledByNative
-    public static String getMimeType(InputStream stream, GURL url) {
+    public static @JniType("std::string") String getMimeType(InputStream stream, GURL url) {
         Uri uri = verifyUrl(url);
         if (uri == null) {
             return null;
@@ -239,7 +250,8 @@ public class AndroidProtocolHandler {
                     mimeType = AndroidProtocolHandlerJni.get().getWellKnownMimeType(path);
                 }
 
-                if (mimeType != null) {
+                assert mimeType != null;
+                if (!mimeType.isEmpty()) {
                     return mimeType;
                 }
             }
@@ -275,10 +287,13 @@ public class AndroidProtocolHandler {
 
     @NativeMethods
     interface Natives {
+        @JniType("std::string")
         String getAndroidAssetPath();
 
+        @JniType("std::string")
         String getAndroidResourcePath();
 
-        String getWellKnownMimeType(String path);
+        @JniType("std::string")
+        String getWellKnownMimeType(@JniType("std::string") String path);
     }
 }

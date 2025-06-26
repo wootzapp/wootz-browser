@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/containers/fixed_flat_map.h"
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/notreached.h"
@@ -42,7 +43,7 @@ std::string GetColorModeString(ProtoColorMode color_mode) {
     case lorgnette::MODE_UNSPECIFIED:
     case ProtoColorMode::ColorMode_INT_MIN_SENTINEL_DO_NOT_USE_:
     case ProtoColorMode::ColorMode_INT_MAX_SENTINEL_DO_NOT_USE_:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -67,7 +68,7 @@ std::string GetPageSizeString(const ProtoScanRegion& scan_region) {
     }
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 std::string GetImageFormatString(ProtoImageFormat img_format) {
@@ -78,7 +79,7 @@ std::string GetImageFormatString(ProtoImageFormat img_format) {
       return "jpeg";
     case lorgnette::ImageFormat_INT_MIN_SENTINEL_DO_NOT_USE_:
     case lorgnette::ImageFormat_INT_MAX_SENTINEL_DO_NOT_USE_:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -111,9 +112,9 @@ std::string CreateJpeg(const int alpha = 255) {
   SkBitmap bitmap;
   bitmap.allocN32Pixels(100, 100);
   bitmap.eraseARGB(alpha, 0, 0, 255);
-  std::vector<unsigned char> bytes;
-  CHECK(gfx::JPEGCodec::Encode(bitmap, 90, &bytes));
-  return std::string(bytes.begin(), bytes.end());
+  std::optional<std::vector<uint8_t>> bytes =
+      gfx::JPEGCodec::Encode(bitmap, /*quality=*/90);
+  return std::string(base::as_string_view(bytes.value()));
 }
 
 // A list of Epson models that do not rotate alternating ADF scanned pages

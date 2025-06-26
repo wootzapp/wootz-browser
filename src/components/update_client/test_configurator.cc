@@ -4,6 +4,7 @@
 
 #include "components/update_client/test_configurator.h"
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -15,6 +16,7 @@
 #include "base/functional/bind.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/path_service.h"
+#include "base/test/bind.h"
 #include "base/time/time.h"
 #include "base/version.h"
 #include "components/prefs/pref_service.h"
@@ -49,9 +51,6 @@ std::vector<GURL> MakeDefaultUrls() {
 TestConfigurator::TestConfigurator(PrefService* pref_service)
     : enabled_cup_signing_(false),
       pref_service_(pref_service),
-      persisted_data_(
-          CreatePersistedData(pref_service,
-                              std::make_unique<TestActivityDataService>())),
       unzip_factory_(base::MakeRefCounted<update_client::UnzipChromiumFactory>(
           base::BindRepeating(&unzip::LaunchInProcessUnzipper))),
       patch_factory_(base::MakeRefCounted<update_client::PatchChromiumFactory>(
@@ -67,6 +66,11 @@ TestConfigurator::TestConfigurator(PrefService* pref_service)
           [](bool /*is_machine*/) { return UpdaterStateAttributes(); })),
       is_network_connection_metered_(false) {
   std::ignore = crx_cache_root_temp_dir_.CreateUniqueTempDir();
+  auto activity = std::make_unique<TestActivityDataService>();
+  activity_data_service_ = activity.get();
+  persisted_data_ = CreatePersistedData(
+      base::BindRepeating([](PrefService* pref) { return pref; }, pref_service),
+      std::move(activity));
 }
 
 TestConfigurator::~TestConfigurator() = default;
@@ -167,11 +171,6 @@ scoped_refptr<PatcherFactory> TestConfigurator::GetPatcherFactory() {
   return patch_factory_;
 }
 
-bool TestConfigurator::EnabledDeltas() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  return true;
-}
-
 bool TestConfigurator::EnabledBackgroundDownloader() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return false;
@@ -185,6 +184,11 @@ bool TestConfigurator::EnabledCupSigning() const {
 PrefService* TestConfigurator::GetPrefService() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   return pref_service_;
+}
+
+TestActivityDataService* TestConfigurator::GetActivityDataService() const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  return activity_data_service_;
 }
 
 PersistedData* TestConfigurator::GetPersistedData() const {
@@ -219,7 +223,8 @@ std::optional<base::FilePath> TestConfigurator::GetCrxCachePath() const {
     return std::nullopt;
   }
   return std::optional<base::FilePath>(
-      crx_cache_root_temp_dir_.GetPath().AppendASCII("crx_cache"));
+      crx_cache_root_temp_dir_.GetPath().Append(
+          FILE_PATH_LITERAL("crx_cache")));
 }
 
 bool TestConfigurator::IsConnectionMetered() const {

@@ -82,9 +82,9 @@ PerformanceEntryType PerformanceObserver::supportedEntryTypeMask(
           execution_context)) {
     mask |= PerformanceEntry::kSoftNavigation;
   }
-  if (RuntimeEnabledFeatures::LongAnimationFrameTimingEnabled(
-          execution_context)) {
-    mask |= PerformanceEntry::kLongAnimationFrame;
+  mask |= PerformanceEntry::kLongAnimationFrame;
+  if (RuntimeEnabledFeatures::ContainerTimingEnabled(execution_context)) {
+    mask |= PerformanceEntry::kContainer;
   }
   return mask;
 }
@@ -102,6 +102,9 @@ Vector<AtomicString> PerformanceObserver::supportedEntryTypes(
   if (mask & PerformanceEntry::kBackForwardCacheRestoration) {
     supportedEntryTypes.push_back(
         performance_entry_names::kBackForwardCacheRestoration);
+  }
+  if (mask & PerformanceEntry::kContainer) {
+    supportedEntryTypes.push_back(performance_entry_names::kContainer);
   }
   if (mask & PerformanceEntry::kElement) {
     supportedEntryTypes.push_back(performance_entry_names::kElement);

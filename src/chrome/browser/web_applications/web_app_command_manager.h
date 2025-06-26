@@ -13,11 +13,13 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
+#include "base/scoped_observation.h"
 #include "base/sequence_checker.h"
 #include "base/types/pass_key.h"
 #include "base/values.h"
 #include "chrome/browser/web_applications/commands/internal/command_internal.h"
 #include "chrome/browser/web_applications/locks/web_app_lock_manager.h"
+#include "chrome/browser/web_applications/web_app_profile_deletion_manager.h"
 #include "components/webapps/common/web_app_id.h"
 
 class Profile;
@@ -31,7 +33,6 @@ class WebAppUrlLoader;
 }
 
 namespace web_app {
-
 class WebAppProvider;
 
 // The command manager is used to schedule commands or callbacks to write & read
@@ -88,6 +89,8 @@ class WebAppCommandManager {
   content::WebContents* web_contents_for_testing() const {
     return shared_web_contents_.get();
   }
+  void SetOnWebContentsCreatedCallbackForTesting(
+      base::OnceClosure on_web_contents_created);
 
   WebAppLockManager& lock_manager() { return lock_manager_; }
 
@@ -128,8 +131,9 @@ class WebAppCommandManager {
   WebAppLockManager lock_manager_;
 
   std::map<internal::CommandBase::Id, std::unique_ptr<internal::CommandBase>>
-      commands_{};
+      commands_;
 
+  base::OnceClosure on_web_contents_created_for_testing_;
   std::unique_ptr<base::RunLoop> run_loop_for_testing_;
 
   base::WeakPtrFactory<WebAppCommandManager>

@@ -20,6 +20,8 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.components.download.DownloadCollectionBridge;
 import org.chromium.content_public.browser.LoadUrlParams;
+import org.chromium.content_public.browser.WebContents;
+import org.chromium.content_public.browser.navigation_controller.LoadURLType;
 import org.chromium.ui.base.MimeTypeUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.permissions.AndroidPermissionDelegate;
@@ -35,7 +37,7 @@ public class DownloadController {
      */
     public static void downloadUrl(String url, Tab tab) {
         assert hasFileAccess(tab.getWindowAndroid());
-        DownloadControllerJni.get().downloadUrl(url, tab.getProfile());
+        DownloadControllerJni.get().downloadUrl(url, tab.getWebContents());
     }
 
     /**
@@ -43,22 +45,28 @@ public class DownloadController {
      * download. This can be either a POST download or a GET download with authentication.
      */
     @CalledByNative
-    private static void onDownloadCompleted(@Nullable Tab tab, DownloadInfo downloadInfo) {
+    private static void onDownloadCompleted(
+            @Nullable Tab tab, DownloadInfo downloadInfo, boolean isDownloadSafe) {
         MediaStoreHelper.addImageToGalleryOnSDCard(
                 downloadInfo.getFilePath(), downloadInfo.getMimeType());
-        if (!PdfUtils.shouldOpenPdfInline()
-                || tab == null
-                || !downloadInfo.getMimeType().equals(MimeTypeUtils.PDF_MIME_TYPE)) {
+        if (tab == null
+                || !PdfUtils.shouldOpenPdfInline(tab.isIncognito())
+                || !downloadInfo.getMimeType().equals(MimeTypeUtils.PDF_MIME_TYPE)
+                || !downloadInfo.getIsTransient()) {
             return;
         }
         NativePage nativePage = tab.getNativePage();
         if (nativePage == null || !nativePage.isPdf()) {
             return;
         }
-        assert nativePage instanceof PdfPage;
-        ((PdfPage) nativePage)
-                .onDownloadComplete(downloadInfo.getFileName(), downloadInfo.getFilePath());
-        tab.updateTitle();
+        // The PdfPage may become a FrozenNativePage while downloading.
+        // Need to check before cast to PdfPage.
+        if (nativePage instanceof PdfPage) {
+            ((PdfPage) nativePage)
+                    .onDownloadComplete(
+                            downloadInfo.getFileName(), downloadInfo.getFilePath(), isDownloadSafe);
+            tab.updateTitle();
+        }
     }
 
     /**
@@ -99,9 +107,9 @@ public class DownloadController {
 
     /**
      * Enqueue a request to download a file using Android DownloadManager.
+     *
      * @param url Url to download.
      * @param userAgent User agent to use.
-     * @param contentDisposition Content disposition of the request.
      * @param mimeType MIME type.
      * @param cookie Cookie to use.
      * @param referrer Referrer to use.
@@ -109,10 +117,10 @@ public class DownloadController {
     @CalledByNative
     private static void enqueueAndroidDownloadManagerRequest(
             GURL url,
-            String userAgent,
-            String fileName,
-            String mimeType,
-            String cookie,
+            @JniType("std::string") String userAgent,
+            @JniType("std::u16string") String fileName,
+            @JniType("std::string") String mimeType,
+            @JniType("std::string") String cookie,
             GURL referrer) {
         DownloadInfo downloadInfo =
                 new DownloadInfo.Builder()
@@ -139,17 +147,21 @@ public class DownloadController {
 
     @CalledByNative
     private static void onPdfDownloadStarted(Tab tab, DownloadInfo downloadInfo) {
-        if (!PdfUtils.shouldOpenPdfInline()) {
+        if (!PdfUtils.shouldOpenPdfInline(tab.isIncognito())) {
             return;
         }
-        // TODO(b/338138743): Cancel download and skip loadUrl if there is another navigation before
-        //  pdf download started.
-        LoadUrlParams param = new LoadUrlParams(downloadInfo.getUrl());
+        String downloadUrl = downloadInfo.getUrl().getSpec();
+        String pdfPageUrl = PdfUtils.encodePdfPageUrl(downloadUrl);
+        assert pdfPageUrl != null;
+        LoadUrlParams param = new LoadUrlParams(pdfPageUrl);
+        // Set isPdf param so that other parts of the code can load the pdf native page instead of
+        // starting a download.
         param.setIsPdf(true);
+        param.setLoadType(LoadURLType.PDF_ANDROID);
+        param.setVirtualUrlForSpecialCases(downloadUrl);
         // If the download url matches the tab’s url, avoid duplicate navigation entries by
         // replacing the current entry.
-        param.setShouldReplaceCurrentEntry(
-                downloadInfo.getUrl().getSpec().equals(tab.getUrl().getSpec()));
+        param.setShouldReplaceCurrentEntry(downloadUrl.equals(tab.getUrl().getSpec()));
         tab.loadUrl(param);
         tab.addObserver(
                 new EmptyTabObserver() {
@@ -168,7 +180,7 @@ public class DownloadController {
                 boolean granted,
                 @JniType("std::string") String permissionToUpdate);
 
-        void downloadUrl(@JniType("std::string") String url, @JniType("Profile*") Profile profile);
+        void downloadUrl(@JniType("std::string") String url, WebContents webContents);
 
         void cancelDownload(
                 @JniType("Profile*") Profile profile, @JniType("std::string") String downloadGuid);

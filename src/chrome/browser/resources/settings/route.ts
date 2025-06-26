@@ -18,10 +18,10 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
   r.CLEAR_BROWSER_DATA = r.PRIVACY.createChild('/clearBrowserData');
   r.CLEAR_BROWSER_DATA.isNavigableDialog = true;
 
-  if (loadTimeData.getBoolean('enableSafetyHub')) {
+  const visibility = pageVisibility || {};
+
+  if (visibility.safetyHub !== false) {
     r.SAFETY_HUB = r.PRIVACY.createChild('/safetyCheck');
-  } else {
-    r.SAFETY_CHECK = r.PRIVACY.createSection('/safetyCheck', 'safetyCheck');
   }
 
   if (loadTimeData.getBoolean('showPrivacyGuide')) {
@@ -30,21 +30,17 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
   r.SITE_SETTINGS = r.PRIVACY.createChild('/content');
   r.SECURITY = r.PRIVACY.createChild('/security');
 
-  r.TRACKING_PROTECTION = r.PRIVACY.createChild('/trackingProtection');
   r.COOKIES = r.PRIVACY.createChild('/cookies');
+  if (loadTimeData.getBoolean('enableIncognitoTrackingProtections') ) {
+    r.INCOGNITO_TRACKING_PROTECTIONS = r.PRIVACY.createChild('/incognito');
+  }
 
   if (!loadTimeData.getBoolean('isPrivacySandboxRestricted')) {
     r.PRIVACY_SANDBOX = r.PRIVACY.createChild('/adPrivacy');
     r.PRIVACY_SANDBOX_TOPICS =
         r.PRIVACY_SANDBOX.createChild('/adPrivacy/interests');
-    // Manage Topics Route should only be created if PTB is enabled. If user is
-    // in Mode B, only create it if include-mode-b param is true.
-    if (loadTimeData.getBoolean('isProactiveTopicsBlockingEnabled') &&
-        (loadTimeData.getBoolean('proactiveTopicsBlockingIncludesModeB') ||
-         !loadTimeData.getBoolean('isInCookieDeprecationFacilitatedTesting'))) {
-      r.PRIVACY_SANDBOX_MANAGE_TOPICS =
-          r.PRIVACY_SANDBOX_TOPICS.createChild('/adPrivacy/interests/manage');
-    }
+    r.PRIVACY_SANDBOX_MANAGE_TOPICS =
+        r.PRIVACY_SANDBOX_TOPICS.createChild('/adPrivacy/interests/manage');
     r.PRIVACY_SANDBOX_FLEDGE =
         r.PRIVACY_SANDBOX.createChild('/adPrivacy/sites');
     r.PRIVACY_SANDBOX_AD_MEASUREMENT =
@@ -58,14 +54,18 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
         r.PRIVACY_SANDBOX.createChild('/adPrivacy/measurement');
   }
 
+  // <if expr="use_nss_certs">
   r.CERTIFICATES = r.SECURITY.createChild('/certificates');
+  // </if>
 
   if (loadTimeData.getBoolean('enableSecurityKeysSubpage')) {
     r.SECURITY_KEYS = r.SECURITY.createChild('/securityKeys');
-    r.SECURITY_KEYS_PHONES =
-        r.SECURITY_KEYS.createChild('/securityKeys/phones');
+    if (loadTimeData.getBoolean('enableSecurityKeysManagePhones')) {
+      r.SECURITY_KEYS_PHONES =
+          r.SECURITY_KEYS.createChild('/securityKeys/phones');
+    }
     // <if expr="is_win">
-  } else {
+  } else if (loadTimeData.getBoolean('enableSecurityKeysManagePhones')) {
     r.SECURITY_KEYS_PHONES = r.SECURITY.createChild('/securityKeys/phones');
     // </if>
   }
@@ -90,25 +90,31 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
     r.SITE_SETTINGS_CAPTURED_SURFACE_CONTROL =
         r.SITE_SETTINGS.createChild('capturedSurfaceControl');
   }
-  if (loadTimeData.getBoolean('privateStateTokensEnabled')) {
-    r.SITE_SETTINGS_AUTO_VERIFY = r.SITE_SETTINGS.createChild('autoVerify');
+  // <if expr="is_chromeos">
+  if (loadTimeData.getBoolean('enableSmartCardReadersContentSetting')) {
+    r.SITE_SETTINGS_SMART_CARD_READERS =
+        r.SITE_SETTINGS.createChild('smartCardReaders');
   }
-  if (loadTimeData.getBoolean('enableComposeProactiveNudge')) {
-    r.SITE_SETTINGS_OFFER_WRITING_HELP =
-        r.SITE_SETTINGS.createChild('offerWritingHelp');
+  // </if>
+  r.SITE_SETTINGS_AUTO_VERIFY = r.SITE_SETTINGS.createChild('autoVerify');
+  if (!loadTimeData.getBoolean('enableAiSettingsPageRefresh') &&
+      loadTimeData.getBoolean('enableComposeProactiveNudge')) {
+    r.OFFER_WRITING_HELP = r.SITE_SETTINGS.createChild('offerWritingHelp');
   }
   r.SITE_SETTINGS_BACKGROUND_SYNC =
       r.SITE_SETTINGS.createChild('backgroundSync');
   r.SITE_SETTINGS_CAMERA = r.SITE_SETTINGS.createChild('camera');
   r.SITE_SETTINGS_CLIPBOARD = r.SITE_SETTINGS.createChild('clipboard');
+  if (loadTimeData.getBoolean('enableHandTrackingContentSetting')) {
+    r.SITE_SETTINGS_HAND_TRACKING = r.SITE_SETTINGS.createChild('handTracking');
+  }
   r.SITE_SETTINGS_IDLE_DETECTION = r.SITE_SETTINGS.createChild('idleDetection');
   r.SITE_SETTINGS_IMAGES = r.SITE_SETTINGS.createChild('images');
   r.SITE_SETTINGS_MIXEDSCRIPT = r.SITE_SETTINGS.createChild('insecureContent');
   r.SITE_SETTINGS_JAVASCRIPT = r.SITE_SETTINGS.createChild('javascript');
-  r.SITE_SETTINGS_JAVASCRIPT_JIT = r.SITE_SETTINGS.createChild('v8');
-  if (loadTimeData.getBoolean('enableKeyboardAndPointerLockPrompt')) {
+  r.SITE_SETTINGS_JAVASCRIPT_OPTIMIZER = r.SITE_SETTINGS.createChild('v8');
+  if (loadTimeData.getBoolean('enableKeyboardLockPrompt')) {
     r.SITE_SETTINGS_KEYBOARD_LOCK = r.SITE_SETTINGS.createChild('keyboardLock');
-    r.SITE_SETTINGS_POINTER_LOCK = r.SITE_SETTINGS.createChild('pointerLock');
   }
   r.SITE_SETTINGS_SOUND = r.SITE_SETTINGS.createChild('sound');
   r.SITE_SETTINGS_SENSORS = r.SITE_SETTINGS.createChild('sensors');
@@ -158,6 +164,14 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
     r.SITE_SETTINGS_AUTOMATIC_FULLSCREEN =
         r.SITE_SETTINGS.createChild('automaticFullScreen');
   }
+  if (loadTimeData.getBoolean('enableWebAppInstallation')) {
+    r.SITE_SETTINGS_WEB_APP_INSTALLATION =
+        r.SITE_SETTINGS.createChild('webApplications');
+  }
+  if (loadTimeData.getBoolean('enableLocalNetworkAccessSetting')) {
+    r.SITE_SETTINGS_LOCAL_NETWORK_ACCESS =
+        r.SITE_SETTINGS.createChild('localNetworkAccess');
+  }
 }
 
 /**
@@ -185,8 +199,9 @@ function createRoutes(): SettingsRoutes {
 
     r.SYNC = r.PEOPLE.createChild('/syncSetup');
     r.SYNC_ADVANCED = r.SYNC.createChild('/syncSetup/advanced');
-    if (loadTimeData.getBoolean('enablePageContentSetting')) {
-      r.PAGE_CONTENT = r.SYNC.createChild('/syncSetup/pageContent');
+    if (!loadTimeData.getBoolean('enableAiSettingsPageRefresh') &&
+        loadTimeData.getBoolean('showHistorySearchControl')) {
+      r.HISTORY_SEARCH = r.SYNC.createChild('/historySearch');
     }
   }
 
@@ -196,6 +211,28 @@ function createRoutes(): SettingsRoutes {
       loadTimeData.getBoolean('showAdvancedFeaturesMainControl')) {
     r.AI = r.BASIC.createSection(
         '/ai', 'ai', loadTimeData.getString('aiPageTitle'));
+    if (loadTimeData.getBoolean('enableAiSettingsPageRefresh')) {
+      if (loadTimeData.getBoolean('showTabOrganizationControl')) {
+        r.AI_TAB_ORGANIZATION = r.AI.createChild('/ai/tabOrganizer');
+      }
+      if (loadTimeData.getBoolean('showHistorySearchControl')) {
+        r.HISTORY_SEARCH = r.AI.createChild('/ai/historySearch');
+      }
+      if (loadTimeData.getBoolean('showComposeControl')) {
+        r.OFFER_WRITING_HELP = r.AI.createChild('/ai/helpMeWrite');
+      }
+      if (loadTimeData.getBoolean('showCompareControl')) {
+        r.COMPARE = r.AI.createChild('/ai/compareProducts');
+      }
+      // <if expr="enable_glic">
+      if (loadTimeData.getBoolean('showGlicSettings')) {
+        r.GLIC_SECTION = r.AI.createSection(
+            '/ai/glicSection', 'glicSection',
+            loadTimeData.getString('glicPageTitle'));
+        r.GEMINI = r.GLIC_SECTION.createChild('/ai/gemini');
+      }
+      // </if>
+    }
   }
 
   // <if expr="not chromeos_ash">
@@ -217,6 +254,10 @@ function createRoutes(): SettingsRoutes {
         '/autofill', 'autofill', loadTimeData.getString('autofillPageTitle'));
     r.PAYMENTS = r.AUTOFILL.createChild('/payments');
     r.ADDRESSES = r.AUTOFILL.createChild('/addresses');
+
+    if (loadTimeData.getBoolean('showAutofillAiControl')) {
+      r.AUTOFILL_AI = r.AUTOFILL.createChild('/autofillAi');
+    }
 
     // <if expr="is_win or is_macosx">
     r.PASSKEYS = r.AUTOFILL.createChild('/passkeys');
@@ -296,15 +337,6 @@ function createRoutes(): SettingsRoutes {
           '/performance', 'performance',
           loadTimeData.getString('performancePageTitle'));
     }
-
-    // <if expr="_google_chrome">
-    if (visibility.getMostChrome !== false &&
-        loadTimeData.getBoolean('showGetTheMostOutOfChromeSection')) {
-      r.GET_MOST_CHROME = r.ADVANCED.createSection(
-          '/getMostChrome', 'getMostChrome',
-          loadTimeData.getString('getTheMostOutOfChrome'));
-    }
-    // </if>
   }
   return r as unknown as SettingsRoutes;
 }

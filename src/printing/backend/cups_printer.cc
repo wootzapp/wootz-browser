@@ -11,14 +11,17 @@
 #include <string_view>
 #include <utility>
 
+#include "base/compiler_specific.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
 #include "printing/backend/cups_connection.h"
 #include "printing/backend/cups_ipp_constants.h"
 #include "printing/backend/cups_ipp_helper.h"
+#include "printing/backend/cups_weak_functions.h"
 #include "printing/backend/print_backend.h"
 #include "printing/backend/print_backend_consts.h"
+#include "printing/backend/print_backend_utils.h"
 #include "printing/print_job_constants.h"
 #include "url/gurl.h"
 
@@ -104,13 +107,15 @@ class CupsPrinterImpl : public CupsPrinter {
 
 #if BUILDFLAG(IS_CHROMEOS)
     // OAuth token passed to CUPS as IPP attribute, see b/200086039.
-    if (name && strcmp(name, kSettingChromeOSAccessOAuthToken) == 0)
+    if (name &&
+        UNSAFE_TODO(strcmp(name, kSettingChromeOSAccessOAuthToken)) == 0) {
       return true;
+    }
 
     // Special case for the IPP 'client-info' collection because
     // cupsCheckDestSupported will not report it as supported even when it is.
     // See http://b/238761330.
-    if (name && strcmp(name, kIppClientInfo) == 0) {
+    if (name && UNSAFE_TODO(strcmp(name, kIppClientInfo)) == 0) {
       return true;
     }
 #endif
@@ -145,40 +150,24 @@ class CupsPrinterImpl : public CupsPrinter {
     const cups_dest_t* printer = destination_.get();
 
     printer_info->printer_name = printer->name;
-    printer_info->is_default = printer->is_default;
 
     const std::string info = GetInfo();
     const std::string make_and_model = GetMakeAndModel();
 
-#if BUILDFLAG(IS_MAC)
-    // On Mac, "printer-info" option specifies the human-readable printer name,
-    // while "printer-make-and-model" specifies the printer description.
-    printer_info->display_name = info;
-
-    // It is possible to create a printer with a blank display name, so just
-    // use the printer name in such a case.
-    if (printer_info->display_name.empty()) {
-      printer_info->display_name = printer->name;
-    }
-
-    printer_info->printer_description = make_and_model;
-#else
-    // On other platforms, "printer-info" specifies the printer description.
-    printer_info->display_name = printer->name;
-    printer_info->printer_description = info;
-#endif  // BUILDFLAG(IS_MAC)
-
-    const char* state = cupsGetOption(kCUPSOptPrinterState,
-                                      printer->num_options, printer->options);
-    if (state)
-      base::StringToInt(state, &printer_info->printer_status);
+    printer_info->display_name = GetDisplayName(printer->name, info);
+    printer_info->printer_description =
+        GetPrinterDescription(make_and_model, info);
 
     printer_info->options[kDriverInfoTagName] = make_and_model;
 
     // Store printer options.
-    for (int opt_index = 0; opt_index < printer->num_options; ++opt_index) {
-      printer_info->options[printer->options[opt_index].name] =
-          printer->options[opt_index].value;
+    if (printer->num_options > 0) {
+      // SAFETY: Required from CUPS.
+      auto options = UNSAFE_BUFFERS(base::span<const cups_option_t>(
+          printer->options, static_cast<size_t>(printer->num_options)));
+      for (const auto& option : options) {
+        printer_info->options[option.name] = option.value;
+      }
     }
 
     return true;

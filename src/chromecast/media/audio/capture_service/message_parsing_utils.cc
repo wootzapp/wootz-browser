@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chromecast/media/audio/capture_service/message_parsing_utils.h"
 
 #include <algorithm>
@@ -159,7 +164,7 @@ bool ConvertData(int channels,
 base::span<uint8_t> FillBuffer(base::span<uint8_t> buf,
                                base::span<const uint8_t> data) {
   auto [write_size, rem] = buf.split_at(sizeof(uint16_t));
-  write_size.copy_from(base::numerics::U16ToBigEndian(
+  write_size.copy_from(base::U16ToBigEndian(
       base::checked_cast<uint16_t>(buf.size()) - uint16_t{sizeof(uint16_t)}));
   auto [write_data, uninit] = rem.split_at(data.size());
   write_data.copy_from(data);
@@ -178,7 +183,7 @@ char* PopulatePcmAudioHeader(char* data_ptr,
   auto data = base::as_writable_bytes(
       // TODO(crbug.com/328018028): PopulatePcmAudioHeader() should
       // get a span, not a pointer and length.
-      UNSAFE_BUFFERS(base::span(data_ptr, size)));
+      UNSAFE_TODO(base::span(data_ptr, size)));
   auto header_as_bytes =
       base::byte_span_from_ref(header).subspan(sizeof(header.size));
   auto after = FillBuffer(data, header_as_bytes);
@@ -201,7 +206,7 @@ void PopulateHandshakeMessage(char* data_ptr,
   auto data = base::as_writable_bytes(
       // TODO(crbug.com/328018028): PopulateHandshakeMessage() should
       // get a span, not a pointer and length.
-      UNSAFE_BUFFERS(base::span(data_ptr, size)));
+      UNSAFE_TODO(base::span(data_ptr, size)));
   auto packet_as_bytes =
       base::byte_span_from_ref(packet).subspan(sizeof(packet.size));
   FillBuffer(data, packet_as_bytes);

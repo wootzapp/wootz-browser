@@ -5,7 +5,7 @@
 #ifndef BASE_MEMORY_RAW_PTR_ASAN_SERVICE_H_
 #define BASE_MEMORY_RAW_PTR_ASAN_SERVICE_H_
 
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 
 #if PA_BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 #include <cstddef>
@@ -46,22 +46,22 @@ class BASE_EXPORT RawPtrAsanService {
 
   bool IsEnabled() const { return mode_ == Mode::kEnabled; }
 
-  ALWAYS_INLINE NO_SANITIZE(
-      "address") bool is_dereference_check_enabled() const {
+  NO_SANITIZE("address")
+  ALWAYS_INLINE bool is_dereference_check_enabled() const {
     return is_dereference_check_enabled_;
   }
 
-  ALWAYS_INLINE NO_SANITIZE(
-      "address") bool is_extraction_check_enabled() const {
+  NO_SANITIZE("address")
+  ALWAYS_INLINE bool is_extraction_check_enabled() const {
     return is_extraction_check_enabled_;
   }
 
-  ALWAYS_INLINE NO_SANITIZE(
-      "address") bool is_instantiation_check_enabled() const {
+  NO_SANITIZE("address")
+  ALWAYS_INLINE bool is_instantiation_check_enabled() const {
     return is_instantiation_check_enabled_;
   }
 
-  ALWAYS_INLINE NO_SANITIZE("address") static RawPtrAsanService& GetInstance() {
+  NO_SANITIZE("address") ALWAYS_INLINE static RawPtrAsanService& GetInstance() {
     return instance_;
   }
 

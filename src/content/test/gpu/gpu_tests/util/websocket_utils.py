@@ -28,7 +28,22 @@ def HandleWebsocketReceiveTimeoutError(tab: ct.Tab, start_time: float) -> None:
 
 def HandlePrematureSocketClose(original_error: wss.ClientClosedConnectionError,
                                start_time: float) -> None:
+  elapsed = time.time() - start_time
   raise RuntimeError(
-      'Detected closed websocket (%.3f seconds since test start) - likely '
-      'caused by a renderer crash' %
-      (time.time() - start_time)) from original_error
+      f'Detected closed websocket ({elapsed:.3f} seconds since test start) - '
+      f'likely caused by a renderer crash') from original_error
+
+
+def GetScaledConnectionTimeout(num_jobs: int) -> float:
+  """Gets a scaled Websocket setup timeout based on number of test jobs.
+
+  Args:
+    num_jobs: How many parallel test jobs are being run.
+
+  Returns:
+    The scaled timeout to pass to WaitForConnection that accounts for slowness
+    caused by multiple test jobs.
+  """
+  # Target a 2x multiplier when running 4 jobs.
+  multiplier = 1 + (num_jobs - 1) / 3.0
+  return multiplier * wss.WEBSOCKET_SETUP_TIMEOUT_SECONDS

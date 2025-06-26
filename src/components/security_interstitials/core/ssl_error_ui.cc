@@ -79,11 +79,6 @@ void SSLErrorUI::PopulateStringsForHTML(base::Value::Dict& load_time_data) {
       l10n_util::GetStringFUTF16(
           IDS_SSL_V2_PRIMARY_PARAGRAPH,
           common_string_util::GetFormattedHostName(request_url_)));
-  load_time_data.Set(
-      "recurrentErrorParagraph",
-      l10n_util::GetStringUTF16(IDS_SSL_V2_RECURRENT_ERROR_PARAGRAPH));
-  load_time_data.Set("show_recurrent_error_paragraph",
-                     controller_->HasSeenRecurrentError());
 
   if (soft_override_enabled_)
     PopulateOverridableStrings(load_time_data);
@@ -254,7 +249,7 @@ void SSLErrorUI::HandleCommand(SecurityInterstitialCommand command) {
     case CMD_CLOSE_INTERSTITIAL_WITHOUT_UI:
     case CMD_REQUEST_SITE_ACCESS_PERMISSION: {
       // Not supported by the SSL error page.
-      DUMP_WILL_BE_NOTREACHED_NORETURN() << "Unsupported command: " << command;
+      DUMP_WILL_BE_NOTREACHED() << "Unsupported command: " << command;
       break;
     }
     case CMD_ERROR:

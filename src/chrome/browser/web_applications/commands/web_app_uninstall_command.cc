@@ -19,6 +19,7 @@
 #include "chrome/browser/web_applications/jobs/uninstall/uninstall_job.h"
 #include "chrome/browser/web_applications/locks/all_apps_lock.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
+#include "chrome/browser/web_applications/web_app_management_type.h"
 #include "components/webapps/browser/installable/installable_metrics.h"
 #include "components/webapps/browser/uninstall_result_code.h"
 
@@ -140,14 +141,16 @@ void WebAppUninstallCommand::OnCompletion(webapps::UninstallResultCode code) {
   CompleteAndSelfDestruct(
       [code]() {
         switch (code) {
-          case webapps::UninstallResultCode::kSuccess:
+          case webapps::UninstallResultCode::kAppRemoved:
+          case webapps::UninstallResultCode::kInstallSourceRemoved:
+          case webapps::UninstallResultCode::kInstallUrlRemoved:
           case webapps::UninstallResultCode::kNoAppToUninstall:
             return CommandResult::kSuccess;
           case webapps::UninstallResultCode::kCancelled:
           case webapps::UninstallResultCode::kError:
             return CommandResult::kFailure;
           case webapps::UninstallResultCode::kShutdown:
-            NOTREACHED_NORETURN();
+            NOTREACHED();
         }
       }(),
       code);

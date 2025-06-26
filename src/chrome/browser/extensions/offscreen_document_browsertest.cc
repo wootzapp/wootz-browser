@@ -49,7 +49,7 @@ class OffscreenDocumentBrowserTest : public ExtensionApiTest {
     content::TestNavigationObserver navigation_observer(url);
     navigation_observer.StartWatchingNewWebContents();
     auto offscreen_document = std::make_unique<OffscreenDocumentHost>(
-        extension, site_instance.get(), url);
+        extension, site_instance.get(), profile(), url);
     offscreen_document->CreateRendererSoon();
     navigation_observer.Wait();
     EXPECT_TRUE(navigation_observer.last_navigation_succeeded());
@@ -137,7 +137,8 @@ IN_PROC_BROWSER_TEST_F(OffscreenDocumentBrowserTest,
   {
     mojom::ContextType context_type =
         ProcessMap::Get(profile())->GetMostLikelyContextType(
-            extension, contents->GetPrimaryMainFrame()->GetProcess()->GetID(),
+            extension,
+            contents->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(),
             &offscreen_url);
     // TODO(crbug.com/40849649): The following check should be:
     //   EXPECT_EQ(mojom::ContextType::kOffscreenExtension, context_type);
@@ -225,8 +226,9 @@ IN_PROC_BROWSER_TEST_F(OffscreenDocumentBrowserTest, APIAccessIsLimited) {
         R"("PlatformArch","PlatformNaclArch","PlatformOs",)"
         R"("RequestUpdateCheckStatus",)"
         // Methods and events.
-        R"("connect","getURL","id","onConnect","onConnectExternal",)"
-        R"("onMessage","onMessageExternal","sendMessage"])";
+        R"("connect","dynamicId","getURL","id","onConnect",)"
+        R"("onConnectExternal","onMessage","onMessageExternal",)"
+        R"("sendMessage"])";
     EXPECT_EQ(kExpectedProperties, EvalJs(contents, kScript));
   }
 }

@@ -4,6 +4,7 @@
 
 #include "third_party/blink/renderer/platform/scheduler/main_thread/page_scheduler_impl.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 
@@ -16,13 +17,11 @@
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/switches.h"
 #include "third_party/blink/public/platform/platform.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/scheduler/common/features.h"
 #include "third_party/blink/renderer/platform/scheduler/common/throttling/budget_pool.h"
 #include "third_party/blink/renderer/platform/scheduler/common/throttling/cpu_time_budget_pool.h"
@@ -247,8 +246,10 @@ void PageSchedulerImpl::SetPageFrozen(bool frozen) {
   SetPageFrozenImpl(frozen, policy_updater);
 }
 
-void PageSchedulerImpl::SetPageFrozenImpl(bool frozen,
-                                          PolicyUpdater& policy_updater) {
+void PageSchedulerImpl::SetPageFrozenImpl(
+    bool frozen,
+    PolicyUpdater& policy_updater,
+    base::MemoryReductionTaskContext called_from) {
   // Only pages owned by web views can be frozen.
   DCHECK(!frozen || IsOrdinary());
 
@@ -262,7 +263,7 @@ void PageSchedulerImpl::SetPageFrozenImpl(bool frozen,
   }
   policy_updater.UpdatePagePolicy(this);
   if (frozen) {
-    main_thread_scheduler_->OnPageFrozen();
+    main_thread_scheduler_->OnPageFrozen(called_from);
     if (audio_state_ == AudioState::kRecentlyAudible) {
       // A recently audible page is being frozen before the audio silent timer
       // fired, which can happen if freezing from outside the scheduler (e.g.
@@ -423,13 +424,15 @@ bool PageSchedulerImpl::OptedOutFromAggressiveThrottling() const {
 }
 
 bool PageSchedulerImpl::RequestBeginMainFrameNotExpected(bool new_state) {
+  CHECK(!base::FeatureList::IsEnabled(kUseWidgetSchedulerForIdlePeriodSignals));
   if (!delegate_)
     return false;
   return delegate_->RequestBeginMainFrameNotExpected(new_state);
 }
 
-scoped_refptr<WidgetScheduler> PageSchedulerImpl::CreateWidgetScheduler() {
-  return main_thread_scheduler_->CreateWidgetScheduler();
+scoped_refptr<WidgetScheduler> PageSchedulerImpl::CreateWidgetScheduler(
+    WidgetScheduler::Delegate* delegate) {
+  return main_thread_scheduler_->CreateWidgetScheduler(delegate);
 }
 
 bool PageSchedulerImpl::IsAudioPlaying() const {
@@ -479,7 +482,7 @@ void PageSchedulerImpl::OnTraceLogEnabled() {
 }
 
 bool PageSchedulerImpl::IsWaitingForMainFrameContentfulPaint() const {
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       frame_schedulers_, [](const FrameSchedulerImpl* fs) {
         return fs->IsWaitingForContentfulPaint() &&
                !fs->IsInEmbeddedFrameTree() &&
@@ -488,7 +491,7 @@ bool PageSchedulerImpl::IsWaitingForMainFrameContentfulPaint() const {
 }
 
 bool PageSchedulerImpl::IsWaitingForMainFrameMeaningfulPaint() const {
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       frame_schedulers_, [](const FrameSchedulerImpl* fs) {
         return fs->IsWaitingForMeaningfulPaint() &&
                !fs->IsInEmbeddedFrameTree() &&
@@ -497,7 +500,7 @@ bool PageSchedulerImpl::IsWaitingForMainFrameMeaningfulPaint() const {
 }
 
 bool PageSchedulerImpl::IsMainFrameLoading() const {
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       frame_schedulers_, [](const FrameSchedulerImpl* fs) {
         return fs->IsLoading() && !fs->IsInEmbeddedFrameTree() &&
                fs->GetFrameType() == FrameScheduler::FrameType::kMainFrame;
@@ -802,14 +805,6 @@ bool PageSchedulerImpl::IsBackgrounded() const {
          !main_thread_scheduler_->IsVirtualTimeEnabled();
 }
 
-FrameSchedulerImpl* PageSchedulerImpl::SelectFrameForUkmAttribution() {
-  for (FrameSchedulerImpl* frame_scheduler : frame_schedulers_) {
-    if (frame_scheduler->GetUkmRecorder())
-      return frame_scheduler;
-  }
-  return nullptr;
-}
-
 bool PageSchedulerImpl::HasWakeUpBudgetPools() const {
   // All WakeUpBudgetPools should be initialized together.
   DCHECK_EQ(!!unimportant_wake_up_budget_pool_, !!hidden_wake_up_budget_pool_);
@@ -859,7 +854,7 @@ void PageSchedulerImpl::UpdateFrozenState(
   }
 
   if (freeze_time > now) {
-    SetPageFrozenImpl(/* frozen=*/false, policy_updater);
+    SetPageFrozenImpl(/* frozen=*/false, policy_updater, called_from);
     if (!freeze_time.is_max()) {
       update_frozen_state_timer_.SetTaskRunner(
           main_thread_scheduler_->ControlTaskRunner());
@@ -874,7 +869,7 @@ void PageSchedulerImpl::UpdateFrozenState(
               base::Unretained(this)));
     }
   } else {
-    SetPageFrozenImpl(/* frozen=*/true, policy_updater);
+    SetPageFrozenImpl(/* frozen=*/true, policy_updater, called_from);
   }
 }
 

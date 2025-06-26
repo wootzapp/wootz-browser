@@ -31,6 +31,7 @@ namespace {
 
 const base::Version kVersion("1.2.3");
 const SchemefulSite kPrimary(GURL("https://primary.test"));
+const SchemefulSite kPrimaryCctld(GURL("https://primary.ccltd"));
 const SchemefulSite kPrimary2(GURL("https://primary2.test"));
 const SchemefulSite kPrimary3(GURL("https://primary3.test"));
 const SchemefulSite kAssociated1(GURL("https://associated1.test"));
@@ -101,11 +102,34 @@ TEST_F(GlobalFirstPartySetsTest, Clone) {
                             /*entries=*/
                             {{example, entry}, {member1, member1_entry}},
                             /*aliases=*/{{example_cctld, example}});
-  sets.ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/{{foo, foo_entry}, {member2, member2_entry}},
-      /*aliases=*/{}));
+  sets.ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/{{foo, foo_entry}, {member2, member2_entry}},
+          /*aliases=*/{})
+          .value());
 
   EXPECT_EQ(sets, sets.Clone());
+}
+
+TEST_F(GlobalFirstPartySetsTest, Ctor_PrimaryWithAlias_Valid) {
+  GlobalFirstPartySets global_sets(
+      kVersion, /*entries=*/
+      {
+          {kPrimary,
+           FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
+      },
+      /*aliases=*/
+      {
+          {kPrimaryCctld, kPrimary},
+      });
+
+  EXPECT_THAT(
+      CollectEffectiveSetEntries(global_sets, FirstPartySetsContextConfig()),
+      UnorderedElementsAre(
+          Pair(kPrimaryCctld,
+               FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)),
+          Pair(kPrimary, FirstPartySetEntry(kPrimary, SiteType::kPrimary,
+                                            std::nullopt))));
 }
 
 TEST_F(GlobalFirstPartySetsTest, FindEntry_Nonexistent) {
@@ -156,8 +180,10 @@ TEST_F(GlobalFirstPartySetsTest, FindEntry_ExistsViaOverride) {
   FirstPartySetEntry assoc_entry(example, SiteType::kAssociated, 0);
   FirstPartySetEntry override_entry(example, SiteType::kAssociated, 1);
 
-  FirstPartySetsContextConfig config(
-      {{example, net::FirstPartySetEntryOverride(override_entry)}});
+  FirstPartySetsContextConfig config =
+      FirstPartySetsContextConfig::Create(
+          {{example, net::FirstPartySetEntryOverride(override_entry)}})
+          .value();
 
   EXPECT_THAT(GlobalFirstPartySets(kVersion,
                                    {
@@ -175,8 +201,10 @@ TEST_F(GlobalFirstPartySetsTest, FindEntry_RemovedViaOverride) {
   FirstPartySetEntry public_entry(example, SiteType::kPrimary, std::nullopt);
   FirstPartySetEntry assoc_entry(example, SiteType::kAssociated, 0);
 
-  FirstPartySetsContextConfig config(
-      {{example, net::FirstPartySetEntryOverride()}});
+  FirstPartySetsContextConfig config =
+      FirstPartySetsContextConfig::Create(
+          {{example, net::FirstPartySetEntryOverride()}})
+          .value();
 
   EXPECT_THAT(GlobalFirstPartySets(kVersion,
                                    {
@@ -208,8 +236,10 @@ TEST_F(GlobalFirstPartySetsTest, FindEntry_ExistsViaOverrideWithDecoyAlias) {
   FirstPartySetEntry public_entry(example, SiteType::kPrimary, std::nullopt);
   FirstPartySetEntry override_entry(example, SiteType::kAssociated, 1);
 
-  FirstPartySetsContextConfig config(
-      {{example_cctld, net::FirstPartySetEntryOverride(override_entry)}});
+  FirstPartySetsContextConfig config =
+      FirstPartySetsContextConfig::Create(
+          {{example_cctld, net::FirstPartySetEntryOverride(override_entry)}})
+          .value();
 
   EXPECT_THAT(GlobalFirstPartySets(kVersion,
                                    {
@@ -225,8 +255,10 @@ TEST_F(GlobalFirstPartySetsTest, FindEntry_RemovedViaOverrideWithDecoyAlias) {
   SchemefulSite example_cctld(GURL("https://example.cctld"));
   FirstPartySetEntry public_entry(example, SiteType::kPrimary, std::nullopt);
 
-  FirstPartySetsContextConfig config(
-      {{example_cctld, net::FirstPartySetEntryOverride()}});
+  FirstPartySetsContextConfig config =
+      FirstPartySetsContextConfig::Create(
+          {{example_cctld, net::FirstPartySetEntryOverride()}})
+          .value();
 
   EXPECT_THAT(GlobalFirstPartySets(kVersion,
                                    {
@@ -243,8 +275,10 @@ TEST_F(GlobalFirstPartySetsTest, FindEntry_AliasesIgnoredForConfig) {
   FirstPartySetEntry public_entry(example, SiteType::kPrimary, std::nullopt);
   FirstPartySetEntry override_entry(example, SiteType::kAssociated, 1);
 
-  FirstPartySetsContextConfig config(
-      {{example, net::FirstPartySetEntryOverride(override_entry)}});
+  FirstPartySetsContextConfig config =
+      FirstPartySetsContextConfig::Create(
+          {{example, net::FirstPartySetEntryOverride(override_entry)}})
+          .value();
 
   // FindEntry should ignore aliases when using the customizations. Public
   // aliases only apply to sites in the public sets.
@@ -277,15 +311,17 @@ TEST_F(GlobalFirstPartySetsTest, Empty_NonemptyEntries) {
 
 TEST_F(GlobalFirstPartySetsTest, Empty_NonemptyManualSet) {
   GlobalFirstPartySets sets;
-  sets.ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary,
-           FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
-          {kAssociated4,
-           FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
-      },
-      /*aliases=*/{}));
+  sets.ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary,
+               FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
+              {kAssociated4,
+               FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
+          },
+          /*aliases=*/{})
+          .value());
   EXPECT_FALSE(sets.empty());
 }
 
@@ -300,15 +336,17 @@ TEST_F(GlobalFirstPartySetsTest, InvalidPublicSetsVersion_NonemptyManualSet) {
       },
       /*aliases=*/{});
   ASSERT_TRUE(sets.empty());
-  sets.ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary,
-           FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
-          {kAssociated4,
-           FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
-      },
-      /*aliases=*/{}));
+  sets.ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary,
+               FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
+              {kAssociated4,
+               FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
+          },
+          /*aliases=*/{})
+          .value());
 
   // The manual set should still be available, even though the component was
   // invalid.
@@ -326,17 +364,19 @@ TEST_F(GlobalFirstPartySetsTest, InvalidPublicSetsVersion_NonemptyManualSet) {
 TEST_F(GlobalFirstPartySetsTest,
        ForEachEffectiveSetEntry_ManualSetAndConfig_FullIteration) {
   GlobalFirstPartySets global_sets;
-  global_sets.ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary,
-           FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
-          {kAssociated4,
-           FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
-          {kAssociated5,
-           FirstPartySetEntry(kPrimary, SiteType::kAssociated, 1)},
-      },
-      /*aliases=*/{}));
+  global_sets.ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary,
+               FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
+              {kAssociated4,
+               FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
+              {kAssociated5,
+               FirstPartySetEntry(kPrimary, SiteType::kAssociated, 1)},
+          },
+          /*aliases=*/{})
+          .value());
 
   // Modify kPrimary's set by removing kAssociated5 and modifying kAssociated4,
   // via policy.
@@ -357,7 +397,10 @@ TEST_F(GlobalFirstPartySetsTest,
                FirstPartySetEntry(kPrimary, SiteType::kService, std::nullopt)},
           },
       },
-      /*addition_sets=*/{}));
+      /*addition_sets=*/{}, /*aliases=*/
+      {
+          {kAssociated1Cctld, kAssociated1Cctld},
+      }));
 
   // Note that since the policy sets take precedence over the manual set,
   // kAssociated5 is no longer in an FPS.
@@ -413,15 +456,17 @@ TEST_F(PopulatedGlobalFirstPartySetsTest,
        ApplyManuallySpecifiedSet_DeduplicatesPrimaryPrimary) {
   // kPrimary overlaps as primary of both sets, so the existing set should be
   // wiped out.
-  global_sets().ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary,
-           FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
-          {kAssociated4,
-           FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
-      },
-      /*aliases=*/{}));
+  global_sets().ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary,
+               FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
+              {kAssociated4,
+               FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
+          },
+          /*aliases=*/{})
+          .value());
 
   EXPECT_THAT(
       global_sets().FindEntries(
@@ -445,14 +490,17 @@ TEST_F(PopulatedGlobalFirstPartySetsTest,
        ApplyManuallySpecifiedSet_DeduplicatesPrimaryNonprimary) {
   // kPrimary overlaps as a primary of the public set and non-primary of the CLI
   // set, so the existing set should be wiped out.
-  global_sets().ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary3,
-           FirstPartySetEntry(kPrimary3, SiteType::kPrimary, std::nullopt)},
-          {kPrimary, FirstPartySetEntry(kPrimary3, SiteType::kAssociated, 0)},
-      },
-      /*aliases=*/{}));
+  global_sets().ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary3,
+               FirstPartySetEntry(kPrimary3, SiteType::kPrimary, std::nullopt)},
+              {kPrimary,
+               FirstPartySetEntry(kPrimary3, SiteType::kAssociated, 0)},
+          },
+          /*aliases=*/{})
+          .value());
 
   EXPECT_THAT(
       global_sets().FindEntries(
@@ -478,15 +526,18 @@ TEST_F(PopulatedGlobalFirstPartySetsTest,
   // kAssociated1 overlaps as a non-primary of the public set and primary of the
   // CLI set, so the CLI set should steal it and wipe out its alias, but
   // otherwise leave the set intact.
-  global_sets().ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kAssociated1,
-           FirstPartySetEntry(kAssociated1, SiteType::kPrimary, std::nullopt)},
-          {kAssociated4,
-           FirstPartySetEntry(kAssociated1, SiteType::kAssociated, 0)},
-      },
-      /*aliases=*/{}));
+  global_sets().ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kAssociated1,
+               FirstPartySetEntry(kAssociated1, SiteType::kPrimary,
+                                  std::nullopt)},
+              {kAssociated4,
+               FirstPartySetEntry(kAssociated1, SiteType::kAssociated, 0)},
+          },
+          /*aliases=*/{})
+          .value());
 
   EXPECT_THAT(
       global_sets().FindEntries(
@@ -518,15 +569,17 @@ TEST_F(PopulatedGlobalFirstPartySetsTest,
        ApplyManuallySpecifiedSet_DeduplicatesNonprimaryNonprimary) {
   // kAssociated1 overlaps as a non-primary of the public set and non-primary of
   // the CLI set, so the CLI set should steal it and wipe out its alias.
-  global_sets().ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary3,
-           FirstPartySetEntry(kPrimary3, SiteType::kPrimary, std::nullopt)},
-          {kAssociated1,
-           FirstPartySetEntry(kPrimary3, SiteType::kAssociated, 0)},
-      },
-      /*aliases=*/{}));
+  global_sets().ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary3,
+               FirstPartySetEntry(kPrimary3, SiteType::kPrimary, std::nullopt)},
+              {kAssociated1,
+               FirstPartySetEntry(kPrimary3, SiteType::kAssociated, 0)},
+          },
+          /*aliases=*/{})
+          .value());
 
   EXPECT_THAT(
       global_sets().FindEntries(
@@ -557,15 +610,17 @@ TEST_F(PopulatedGlobalFirstPartySetsTest,
        ApplyManuallySpecifiedSet_PrunesInducedSingletons) {
   // Steal kAssociated3, so that kPrimary2 becomes a singleton, and verify that
   // kPrimary2 is no longer considered in a set.
-  global_sets().ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary3,
-           FirstPartySetEntry(kPrimary3, SiteType::kPrimary, std::nullopt)},
-          {kAssociated3,
-           FirstPartySetEntry(kPrimary3, SiteType::kAssociated, 0)},
-      },
-      /*aliases=*/{}));
+  global_sets().ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary3,
+               FirstPartySetEntry(kPrimary3, SiteType::kPrimary, std::nullopt)},
+              {kAssociated3,
+               FirstPartySetEntry(kPrimary3, SiteType::kAssociated, 0)},
+          },
+          /*aliases=*/{})
+          .value());
 
   EXPECT_THAT(
       global_sets().FindEntries({kPrimary2}, FirstPartySetsContextConfig()),
@@ -577,17 +632,20 @@ TEST_F(PopulatedGlobalFirstPartySetsTest,
   // Both the public sets and the locally-defined set define an alias for
   // kAssociated1, but both define a different set for that site too.  Only the
   // locally-defined alias should be observable.
-  global_sets().ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary3,
-           FirstPartySetEntry(kPrimary3, SiteType::kPrimary, std::nullopt)},
-          {kAssociated1,
-           FirstPartySetEntry(kPrimary3, SiteType::kAssociated, 0)},
-      },
-      /*aliases=*/{
-          {kAssociated1Cctld2, kAssociated1},
-      }));
+  global_sets().ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary3,
+               FirstPartySetEntry(kPrimary3, SiteType::kPrimary, std::nullopt)},
+              {kAssociated1,
+               FirstPartySetEntry(kPrimary3, SiteType::kAssociated, 0)},
+          },
+          /*aliases=*/
+          {
+              {kAssociated1Cctld2, kAssociated1},
+          })
+          .value());
 
   EXPECT_THAT(
       global_sets().FindEntries(
@@ -649,15 +707,17 @@ TEST_F(PopulatedGlobalFirstPartySetsTest,
        ForEachEffectiveSetEntry_PublicSetsWithManualSet_FullIteration) {
   // Replace kPrimary's set (including the alias and service site) with just
   // {kPrimary, kAssociated4}.
-  global_sets().ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary,
-           FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
-          {kAssociated4,
-           FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
-      },
-      /*aliases=*/{}));
+  global_sets().ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary,
+               FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
+              {kAssociated4,
+               FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
+          },
+          /*aliases=*/{})
+          .value());
 
   EXPECT_THAT(
       CollectEffectiveSetEntries(global_sets(), FirstPartySetsContextConfig()),
@@ -693,7 +753,11 @@ TEST_F(PopulatedGlobalFirstPartySetsTest,
                FirstPartySetEntry(kPrimary, SiteType::kService, std::nullopt)},
           },
       },
-      /*addition_sets=*/{}));
+      /*addition_sets=*/{},
+      /*aliases=*/
+      {
+          {kAssociated1Cctld, kAssociated1Cctld},
+      }));
 
   EXPECT_THAT(
       CollectEffectiveSetEntries(global_sets(), config),
@@ -720,17 +784,19 @@ TEST_F(
     ForEachEffectiveSetEntry_PublicSetsWithManualSetAndConfig_FullIteration) {
   // Replace kPrimary's set (including the alias and service site) with just
   // {kPrimary, kAssociated4, kAssociated5}.
-  global_sets().ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary,
-           FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
-          {kAssociated4,
-           FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
-          {kAssociated5,
-           FirstPartySetEntry(kPrimary, SiteType::kAssociated, 1)},
-      },
-      /*aliases=*/{}));
+  global_sets().ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary,
+               FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
+              {kAssociated4,
+               FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
+              {kAssociated5,
+               FirstPartySetEntry(kPrimary, SiteType::kAssociated, 1)},
+          },
+          /*aliases=*/{})
+          .value());
 
   // Modify kPrimary's set by removing kAssociated2 and adding kAssociated4, via
   // policy.
@@ -751,7 +817,10 @@ TEST_F(
                FirstPartySetEntry(kPrimary, SiteType::kService, std::nullopt)},
           },
       },
-      /*addition_sets=*/{}));
+      /*addition_sets=*/{}, /*aliases=*/
+      {
+          {kAssociated1Cctld, kAssociated1Cctld},
+      }));
 
   // Note that since the policy sets take precedence over the manual set,
   // kAssociated5 is no longer in an FPS.
@@ -778,17 +847,20 @@ TEST_F(
 TEST_F(
     PopulatedGlobalFirstPartySetsTest,
     ForEachEffectiveSetEntry_PublicSetsWithManualSetAndConfig_ManualAliasOverlap) {
-  global_sets().ApplyManuallySpecifiedSet(LocalSetDeclaration(
-      /*set_entries=*/
-      {
-          {kPrimary,
-           FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
-          {kAssociated1,
-           FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
-      },
-      /*aliases=*/{
-          {kAssociated1Cctld2, kAssociated1},
-      }));
+  global_sets().ApplyManuallySpecifiedSet(
+      LocalSetDeclaration::Create(
+          /*set_entries=*/
+          {
+              {kPrimary,
+               FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
+              {kAssociated1,
+               FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
+          },
+          /*aliases=*/
+          {
+              {kAssociated1Cctld2, kAssociated1},
+          })
+          .value());
 
   FirstPartySetsContextConfig config = global_sets().ComputeConfig(SetsMutation(
       /*replacement_sets=*/
@@ -801,7 +873,7 @@ TEST_F(
                                   std::nullopt)},
           },
       },
-      /*addition_sets=*/{}));
+      /*addition_sets=*/{}, /*aliases=*/{}));
 
   EXPECT_THAT(
       CollectEffectiveSetEntries(global_sets(), config),
@@ -809,39 +881,36 @@ TEST_F(
           Pair(kAssociated1,
                FirstPartySetEntry(kPrimary2, SiteType::kAssociated,
                                   std::nullopt)),
-          Pair(kPrimary,
-               FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)),
           Pair(kPrimary2, FirstPartySetEntry(kPrimary2, SiteType::kPrimary,
                                              std::nullopt))));
 }
 
 TEST_F(PopulatedGlobalFirstPartySetsTest, ComputeMetadata) {
   SchemefulSite nonmember(GURL("https://nonmember.test"));
-  SchemefulSite nonmember1(GURL("https://nonmember1.test"));
   FirstPartySetEntry primary_entry(kPrimary, SiteType::kPrimary, std::nullopt);
   FirstPartySetEntry associated_entry(kPrimary, SiteType::kAssociated, 0);
 
   // Works as usual for sites that are in First-Party sets.
   EXPECT_EQ(global_sets().ComputeMetadata(kAssociated1, &kAssociated1,
                                           FirstPartySetsContextConfig()),
-            FirstPartySetMetadata(&associated_entry, &associated_entry));
+            FirstPartySetMetadata(associated_entry, associated_entry));
   EXPECT_EQ(global_sets().ComputeMetadata(kPrimary, &kAssociated1,
                                           FirstPartySetsContextConfig()),
-            FirstPartySetMetadata(&primary_entry, &associated_entry));
+            FirstPartySetMetadata(primary_entry, associated_entry));
   EXPECT_EQ(global_sets().ComputeMetadata(kAssociated1, &kPrimary,
                                           FirstPartySetsContextConfig()),
-            FirstPartySetMetadata(&associated_entry, &primary_entry));
+            FirstPartySetMetadata(associated_entry, primary_entry));
 
   EXPECT_EQ(global_sets().ComputeMetadata(nonmember, &kAssociated1,
                                           FirstPartySetsContextConfig()),
-            FirstPartySetMetadata(nullptr, &associated_entry));
+            FirstPartySetMetadata(std::nullopt, associated_entry));
   EXPECT_EQ(global_sets().ComputeMetadata(kAssociated1, &nonmember,
                                           FirstPartySetsContextConfig()),
-            FirstPartySetMetadata(&associated_entry, nullptr));
+            FirstPartySetMetadata(associated_entry, std::nullopt));
 
   EXPECT_EQ(global_sets().ComputeMetadata(nonmember, &nonmember,
                                           FirstPartySetsContextConfig()),
-            FirstPartySetMetadata(nullptr, nullptr));
+            FirstPartySetMetadata(std::nullopt, std::nullopt));
 }
 
 TEST_F(GlobalFirstPartySetsTest, ComputeConfig_Empty) {
@@ -855,7 +924,7 @@ TEST_F(GlobalFirstPartySetsTest, ComputeConfig_Empty) {
                      FirstPartySetEntry(kPrimary, SiteType::kAssociated, 0)},
                 },
                 /*aliases=*/{})
-                .ComputeConfig(SetsMutation({}, {})),
+                .ComputeConfig(SetsMutation({}, {}, {})),
             FirstPartySetsContextConfig());
 }
 
@@ -882,7 +951,7 @@ TEST_F(GlobalFirstPartySetsTest,
                                   std::nullopt)},
           },
       },
-      /*addition_sets=*/{}));
+      /*addition_sets=*/{}, /*aliases=*/{}));
   EXPECT_THAT(
       sets.FindEntries({kAssociated2, kPrimary2}, config),
       UnorderedElementsAre(
@@ -921,7 +990,7 @@ TEST_F(
                                   std::nullopt)},
           },
       },
-      /*addition_sets=*/{}));
+      /*addition_sets=*/{}, /*aliases=*/{}));
   EXPECT_THAT(
       sets.FindEntries({kPrimary2, kAssociated2}, config),
       UnorderedElementsAre(
@@ -959,7 +1028,7 @@ TEST_F(
                                                 std::nullopt)},
           },
       },
-      /*addition_sets=*/{}));
+      /*addition_sets=*/{}, /*aliases=*/{}));
   EXPECT_THAT(
       sets.FindEntries({kAssociated3, kPrimary, kAssociated1, kAssociated2},
                        config),
@@ -996,7 +1065,7 @@ TEST_F(
                                   std::nullopt)},
           },
       },
-      /*addition_sets=*/{}));
+      /*addition_sets=*/{}, /*aliases=*/{}));
   EXPECT_THAT(
       sets.FindEntries({kAssociated1, kPrimary3, kPrimary}, config),
       UnorderedElementsAre(
@@ -1023,7 +1092,8 @@ TEST_F(GlobalFirstPartySetsTest,
       /*aliases=*/{});
   FirstPartySetsContextConfig config = sets.ComputeConfig(SetsMutation(
       /*replacement_sets=*/{},
-      /*addition_sets=*/{
+      /*addition_sets=*/
+      {
           {
               {kPrimary2,
                FirstPartySetEntry(kPrimary2, SiteType::kPrimary, std::nullopt)},
@@ -1031,7 +1101,8 @@ TEST_F(GlobalFirstPartySetsTest,
                FirstPartySetEntry(kPrimary2, SiteType::kAssociated,
                                   std::nullopt)},
           },
-      }));
+      },
+      /*aliases=*/{}));
   EXPECT_THAT(
       sets.FindEntries({kAssociated2, kPrimary2}, config),
       UnorderedElementsAre(
@@ -1060,7 +1131,8 @@ TEST_F(
       /*aliases=*/{});
   FirstPartySetsContextConfig config = sets.ComputeConfig(SetsMutation(
       /*replacement_sets=*/{},
-      /*addition_sets=*/{
+      /*addition_sets=*/
+      {
           {
               {kAssociated1,
                FirstPartySetEntry(kAssociated1, SiteType::kPrimary,
@@ -1072,7 +1144,8 @@ TEST_F(
                FirstPartySetEntry(kAssociated1, SiteType::kAssociated,
                                   std::nullopt)},
           },
-      }));
+      },
+      /*aliases=*/{}));
   EXPECT_THAT(
       sets.FindEntries({kPrimary, kAssociated2, kAssociated3, kAssociated1},
                        config),
@@ -1110,12 +1183,14 @@ TEST_F(
       /*aliases=*/{});
   FirstPartySetsContextConfig config = sets.ComputeConfig(SetsMutation(
       /*replacement_sets=*/{},
-      /*addition_sets=*/{{
+      /*addition_sets=*/
+      {{
           {kPrimary,
            FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
           {kAssociated2,
            FirstPartySetEntry(kPrimary, SiteType::kAssociated, std::nullopt)},
-      }}));
+      }},
+      /*aliases=*/{}));
   EXPECT_THAT(
       sets.FindEntries({kAssociated1, kAssociated2, kAssociated3, kPrimary},
                        config),
@@ -1157,14 +1232,16 @@ TEST_F(
                                   std::nullopt)},
           },
       },
-      /*addition_sets=*/{
+      /*addition_sets=*/
+      {
           {
               {kPrimary,
                FirstPartySetEntry(kPrimary, SiteType::kPrimary, std::nullopt)},
               {kAssociated3, FirstPartySetEntry(kPrimary, SiteType::kAssociated,
                                                 std::nullopt)},
           },
-      }));
+      },
+      /*aliases=*/{}));
   EXPECT_THAT(
       sets.FindEntries(
           {kAssociated1, kAssociated2, kAssociated3, kPrimary, kPrimary2},
@@ -1207,7 +1284,8 @@ TEST_F(GlobalFirstPartySetsTest, TransitiveOverlap_TwoCommonPrimaries) {
       /*aliases=*/{});
   FirstPartySetsContextConfig config = sets.ComputeConfig(SetsMutation(
       /*replacement_sets=*/{},
-      /*addition_sets=*/{
+      /*addition_sets=*/
+      {
           {{primary0,
             FirstPartySetEntry(primary0, SiteType::kPrimary, std::nullopt)},
            {associated_site0,
@@ -1225,7 +1303,8 @@ TEST_F(GlobalFirstPartySetsTest, TransitiveOverlap_TwoCommonPrimaries) {
            {associated_site42,
             FirstPartySetEntry(primary42, SiteType::kAssociated,
                                std::nullopt)}},
-      }));
+      },
+      /*aliases=*/{}));
   EXPECT_THAT(
       sets.FindEntries(
           {
@@ -1286,7 +1365,8 @@ TEST_F(GlobalFirstPartySetsTest, TransitiveOverlap_TwoCommonAssociatedSites) {
       /*aliases=*/{});
   FirstPartySetsContextConfig config = sets.ComputeConfig(SetsMutation(
       /*replacement_sets=*/{},
-      /*addition_sets=*/{
+      /*addition_sets=*/
+      {
           {{primary0,
             FirstPartySetEntry(primary0, SiteType::kPrimary, std::nullopt)},
            {associated_site0,
@@ -1304,7 +1384,8 @@ TEST_F(GlobalFirstPartySetsTest, TransitiveOverlap_TwoCommonAssociatedSites) {
            {associated_site42,
             FirstPartySetEntry(primary42, SiteType::kAssociated,
                                std::nullopt)}},
-      }));
+      },
+      /*aliases=*/{}));
   EXPECT_THAT(
       sets.FindEntries(
           {
@@ -1364,7 +1445,7 @@ TEST_F(GlobalFirstPartySetsTest, InvalidPublicSetsVersion_ComputeConfig) {
                                   std::nullopt)},
           },
       },
-      /*addition_sets=*/{}));
+      /*addition_sets=*/{}, /*aliases=*/{}));
 
   // The config should still be nonempty, even though the component was invalid.
   EXPECT_FALSE(config.empty());
@@ -1390,21 +1471,25 @@ class GlobalFirstPartySetsWithConfigTest
     : public PopulatedGlobalFirstPartySetsTest {
  public:
   GlobalFirstPartySetsWithConfigTest()
-      : config_({
-            // New entry:
-            {kPrimary3, net::FirstPartySetEntryOverride(
-                            FirstPartySetEntry(kPrimary3,
-                                               SiteType::kPrimary,
-                                               std::nullopt))},
-            // Removed entry:
-            {kAssociated1, net::FirstPartySetEntryOverride()},
-            // Remapped entry:
-            {kAssociated3,
-             net::FirstPartySetEntryOverride(
-                 FirstPartySetEntry(kPrimary3, SiteType::kAssociated, 0))},
-            // Removed alias:
-            {kAssociated1Cctld, net::FirstPartySetEntryOverride()},
-        }) {}
+      : config_(
+            FirstPartySetsContextConfig::Create(
+                {
+                    // New entry:
+                    {kPrimary3, net::FirstPartySetEntryOverride(
+                                    FirstPartySetEntry(kPrimary3,
+                                                       SiteType::kPrimary,
+                                                       std::nullopt))},
+                    // Removed entry:
+                    {kAssociated1, net::FirstPartySetEntryOverride()},
+                    // Remapped entry:
+                    {kAssociated3, net::FirstPartySetEntryOverride(
+                                       FirstPartySetEntry(kPrimary3,
+                                                          SiteType::kAssociated,
+                                                          0))},
+                    // Removed alias:
+                    {kAssociated1Cctld, net::FirstPartySetEntryOverride()},
+                })
+                .value()) {}
 
   FirstPartySetsContextConfig& config() { return config_; }
 
@@ -1413,21 +1498,18 @@ class GlobalFirstPartySetsWithConfigTest
 };
 
 TEST_F(GlobalFirstPartySetsWithConfigTest, ComputeMetadata) {
-  FirstPartySetEntry example_primary_entry(kPrimary, SiteType::kPrimary,
-                                           std::nullopt);
-  FirstPartySetEntry foo_primary_entry(kPrimary3, SiteType::kPrimary,
-                                       std::nullopt);
-  FirstPartySetEntry foo_associated_entry(kPrimary3, SiteType::kAssociated, 0);
-
   // kAssociated1 has been removed from its set.
   EXPECT_EQ(global_sets().ComputeMetadata(kAssociated1, &kPrimary, config()),
-            FirstPartySetMetadata(nullptr, &example_primary_entry));
+            FirstPartySetMetadata(
+                std::nullopt, FirstPartySetEntry(kPrimary, SiteType::kPrimary,
+                                                 std::nullopt)));
 
   // kAssociated3 and kPrimary3 are sites in a new set.
-  EXPECT_EQ(global_sets().ComputeMetadata(kAssociated3, &kPrimary3, config()),
-            FirstPartySetMetadata(
-
-                &foo_associated_entry, &foo_primary_entry));
+  EXPECT_EQ(
+      global_sets().ComputeMetadata(kAssociated3, &kPrimary3, config()),
+      FirstPartySetMetadata(
+          FirstPartySetEntry(kPrimary3, SiteType::kAssociated, 0),
+          FirstPartySetEntry(kPrimary3, SiteType::kPrimary, std::nullopt)));
 }
 
 }  // namespace net

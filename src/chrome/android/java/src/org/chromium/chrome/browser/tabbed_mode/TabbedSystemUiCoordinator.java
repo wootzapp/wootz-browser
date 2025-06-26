@@ -12,16 +12,20 @@ import androidx.annotation.Nullable;
 
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.chrome.browser.browser_controls.BottomControlsStacker;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
+import org.chromium.chrome.browser.keyboard_accessory.ManualFillingComponent;
+import org.chromium.chrome.browser.keyboard_accessory.ManualFillingComponentSupplier;
 import org.chromium.chrome.browser.layouts.LayoutManager;
 import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsVisualState;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
-import org.chromium.components.browser_ui.widget.InsetObserver;
+import org.chromium.components.browser_ui.edge_to_edge.EdgeToEdgeSystemBarColorHelper;
+import org.chromium.ui.InsetObserver;
 
 import java.util.Optional;
 
@@ -44,6 +48,8 @@ public class TabbedSystemUiCoordinator {
      * @param fullscreenManager The {@link FullscreenManager} used for containing activity
      * @param edgeToEdgeControllerSupplier Supplies an {@link EdgeToEdgeController} to detect when
      *     the UI is being drawn edge to edge.
+     * @param bottomControlsStacker The {@link BottomControlsStacker} for interacting with and
+     *     checking the state of the bottom browser controls.
      * @param browserControlsStateProvider Supplies a {@link BrowserControlsStateProvider} for the
      *     browser controls.
      * @param snackbarManagerSupplier Supplies a {@link SnackbarManager} for snackbar management.
@@ -53,7 +59,11 @@ public class TabbedSystemUiCoordinator {
      *     changes to the bottom sheet.
      * @param omniboxSuggestionsVisualState An optional {@link OmniboxSuggestionsVisualState} for
      *     access to the visual state of the omnibox suggestions.
+     * @param manualFillingComponentSupplier Supplies the {@link ManualFillingComponent} for
+     *     observing the visual state of keyboard accessories.
+     * @param overviewColorSupplier Notifies when the overview color changes.
      * @param insetObserver An {@link InsetObserver} to listen for changes to the window insets.
+     * @param edgeToEdgeManager Manages core edge-to-edge state and logic.
      */
     public TabbedSystemUiCoordinator(
             Window window,
@@ -61,27 +71,35 @@ public class TabbedSystemUiCoordinator {
             @Nullable ObservableSupplier<LayoutManager> layoutManagerSupplier,
             FullscreenManager fullscreenManager,
             ObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
+            @NonNull BottomControlsStacker bottomControlsStacker,
             @NonNull BrowserControlsStateProvider browserControlsStateProvider,
             @NonNull Supplier<SnackbarManager> snackbarManagerSupplier,
             @NonNull ObservableSupplier<ContextualSearchManager> contextualSearchManagerSupplier,
             @NonNull BottomSheetController bottomSheetController,
             @NonNull Optional<OmniboxSuggestionsVisualState> omniboxSuggestionsVisualState,
-            InsetObserver insetObserver) {
+            @NonNull ManualFillingComponentSupplier manualFillingComponentSupplier,
+            @NonNull ObservableSupplier<Integer> overviewColorSupplier,
+            InsetObserver insetObserver,
+            @NonNull EdgeToEdgeSystemBarColorHelper edgeToEdgeSystemBarColorHelper) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             assert layoutManagerSupplier != null;
             mNavigationBarColorController =
                     new TabbedNavigationBarColorController(
-                            window,
+                            window.getContext(),
                             tabModelSelector,
                             layoutManagerSupplier,
                             fullscreenManager,
                             edgeToEdgeControllerSupplier,
+                            bottomControlsStacker,
                             browserControlsStateProvider,
                             snackbarManagerSupplier,
                             contextualSearchManagerSupplier,
                             bottomSheetController,
                             omniboxSuggestionsVisualState,
-                            insetObserver);
+                            manualFillingComponentSupplier,
+                            overviewColorSupplier,
+                            insetObserver,
+                            edgeToEdgeSystemBarColorHelper);
         }
     }
 

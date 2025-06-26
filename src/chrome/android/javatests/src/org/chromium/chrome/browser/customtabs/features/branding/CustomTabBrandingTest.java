@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.customtabs.features.branding;
 
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.net.Uri;
 
 import androidx.test.core.app.ApplicationProvider;
@@ -21,6 +20,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
@@ -34,7 +34,6 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.R;
 import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServerRule;
 import org.chromium.ui.test.util.RenderTestRule;
 
@@ -53,7 +52,7 @@ public class CustomTabBrandingTest {
     @Rule
     public final RenderTestRule mRenderTestRule =
             RenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(4)
+                    .setRevision(5)
                     .setBugComponent(RenderTestRule.Component.UI_BROWSER_MOBILE_CUSTOM_TABS)
                     .build();
 
@@ -64,14 +63,13 @@ public class CustomTabBrandingTest {
     @ClassRule
     public static EmbeddedTestServerRule sEmbeddedTestServerRule = new EmbeddedTestServerRule();
 
-    private SharedPreferences mBrandingSharedPref;
+    private SharedPreferencesBrandingTimeStorage mBrandingSharedPref;
     private Intent mIntent;
 
     @Before
     public void setup() {
         Context appContext = ContextUtils.getApplicationContext();
-        mBrandingSharedPref =
-                appContext.getSharedPreferences(BRANDING_SHARED_PREF_KEY, Context.MODE_PRIVATE);
+        mBrandingSharedPref = SharedPreferencesBrandingTimeStorage.getInstance();
         String url = sEmbeddedTestServerRule.getServer().getURL(TEST_PAGE);
         mIntent =
                 CustomTabsIntentTestUtils.createMinimalCustomTabIntent(
@@ -88,7 +86,7 @@ public class CustomTabBrandingTest {
 
     @After
     public void tearDown() {
-        mBrandingSharedPref.edit().clear().apply();
+        mBrandingSharedPref.resetSharedPrefForTesting();
     }
 
     @Test
@@ -97,9 +95,7 @@ public class CustomTabBrandingTest {
         // TODO(wenyufu): Verify the toast is shown on screen.
         mCctActivityTestRule.startCustomTabActivityWithIntent(mIntent);
         Assert.assertEquals(
-                "Branding launch time should get recorded.",
-                1,
-                mBrandingSharedPref.getAll().size());
+                "Branding launch time should get recorded.", 1, mBrandingSharedPref.getSize());
     }
 
     @Test
@@ -110,7 +106,7 @@ public class CustomTabBrandingTest {
         mCctActivityTestRule.startCustomTabActivityWithIntent(mIntent);
 
         CustomTabToolbar toolbar = mCctActivityTestRule.getActivity().findViewById(R.id.toolbar);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> toolbar.getBrandingDelegate().showBrandingLocationBar());
         mRenderTestRule.render(toolbar, TOOLBAR_BRANDING_RENDER_IMAGE_ID);
     }
@@ -124,7 +120,7 @@ public class CustomTabBrandingTest {
         Assert.assertEquals(
                 "Branding info should not be stored in Incognito mode.",
                 0,
-                mBrandingSharedPref.getAll().size());
+                mBrandingSharedPref.getSize());
     }
 
     /**
@@ -132,6 +128,6 @@ public class CustomTabBrandingTest {
      * before for the given client app.
      */
     private void markBrandingLaunchedForPackage(String packageName) {
-        SharedPreferencesBrandingTimeStorage.getInstance().put(packageName, 1L);
+        mBrandingSharedPref.put(packageName, 1L);
     }
 }

@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.webapps;
 
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build.VERSION_CODES;
 import android.view.View;
 import android.widget.TextView;
 
@@ -33,8 +34,7 @@ import org.chromium.chrome.test.util.browser.webapps.WebappTestPage;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.util.JavaScriptUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
-import org.chromium.ui.test.util.UiDisableIf;
-import org.chromium.ui.test.util.UiRestriction;
+import org.chromium.ui.base.DeviceFormFactor;
 
 import java.util.concurrent.TimeoutException;
 
@@ -61,7 +61,7 @@ public class WebappDisplayModeTest {
 
     @Test
     @SmallTest
-    @DisableIf.Device(type = {UiDisableIf.TABLET}) // https://crbug.com/339000434
+    @DisableIf.Build(sdk_is_greater_than = VERSION_CODES.Q) // https://crbug.com/1231227
     @Feature({"Webapps"})
     public void testFullScreen() {
         WebappActivity activity = startActivity(DisplayMode.FULLSCREEN, "");
@@ -72,7 +72,7 @@ public class WebappDisplayModeTest {
 
     @Test
     @MediumTest
-    @DisableIf.Device(type = {UiDisableIf.TABLET}) // https://crbug.com/339000434
+    @DisableIf.Build(sdk_is_greater_than = VERSION_CODES.Q) // https://crbug.com/1231227
     @Feature({"Webapps"})
     public void testFullScreenInFullscreen() {
         WebappActivity activity = startActivity(DisplayMode.FULLSCREEN, "fullscreen_on_click");
@@ -97,7 +97,7 @@ public class WebappDisplayModeTest {
     @Test
     @SmallTest
     @Feature({"Webapps"})
-    @Restriction(UiRestriction.RESTRICTION_TYPE_PHONE)
+    @Restriction(DeviceFormFactor.PHONE)
     public void testMinimalUi() {
         WebappActivity activity = startActivity(DisplayMode.MINIMAL_UI, "");
 
@@ -133,9 +133,7 @@ public class WebappDisplayModeTest {
     }
 
     private WebappActivity startActivity(@DisplayMode.EnumType int displayMode, String action) {
-        String url =
-                WebappTestPage.getServiceWorkerUrlWithAction(
-                        mActivityTestRule.getTestServer(), action);
+        String url = WebappTestPage.getTestUrlWithAction(mActivityTestRule.getTestServer(), action);
         mActivityTestRule.startWebappActivity(
                 mActivityTestRule
                         .createIntent()

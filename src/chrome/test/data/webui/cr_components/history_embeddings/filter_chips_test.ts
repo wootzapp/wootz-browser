@@ -9,7 +9,7 @@ import type {HistoryEmbeddingsFilterChips, Suggestion} from 'chrome://resources/
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
-import {eventToPromise} from 'chrome://webui-test/test_util.js';
+import {eventToPromise, isVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 suite('cr-history-embeddings-filter-chips', () => {
   let element: HistoryEmbeddingsFilterChips;
@@ -24,13 +24,24 @@ suite('cr-history-embeddings-filter-chips', () => {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
 
     element = document.createElement('cr-history-embeddings-filter-chips');
+    element.enableShowResultsByGroupOption = true;
     document.body.appendChild(element);
     return flushTasks();
   });
 
-  test('UpdatesShowByMenuByBinding', () => {
+  test('TogglesVisbilityOfShowResultsByGroupOption', async () => {
+    element.enableShowResultsByGroupOption = false;
+    await microtasksFinished();
+    assertFalse(isVisible(element.$.showByGroupSelectMenu));
+    element.enableShowResultsByGroupOption = true;
+    await microtasksFinished();
+    assertTrue(isVisible(element.$.showByGroupSelectMenu));
+  });
+
+  test('UpdatesShowByMenuByBinding', async () => {
     assertEquals('false', element.$.showByGroupSelectMenu.value);
     element.showResultsByGroup = true;
+    await microtasksFinished();
     assertEquals('true', element.$.showByGroupSelectMenu.value);
   });
 
@@ -71,7 +82,7 @@ suite('cr-history-embeddings-filter-chips', () => {
       assertEquals(days, Math.round(dateDiff / 1000 / 60 / 60 / 24));
     }
 
-    const suggestions = element.shadowRoot!.querySelectorAll<HTMLElement>(
+    const suggestions = element.shadowRoot.querySelectorAll<HTMLElement>(
         '#suggestions cr-chip');
     const yesterday = await clickChipAndGetSelectedSuggestion(suggestions[0]!);
     assertEquals('yesterday', yesterday.label);
@@ -86,7 +97,7 @@ suite('cr-history-embeddings-filter-chips', () => {
 
   test('UnselectingSuggestionsDispatchesEvent', async () => {
     const firstChip =
-        element.shadowRoot!.querySelector<HTMLElement>('#suggestions cr-chip')!;
+        element.shadowRoot.querySelector<HTMLElement>('#suggestions cr-chip')!;
     const selectPromise =
         eventToPromise('selected-suggestion-changed', element);
     firstChip.click();

@@ -4,7 +4,6 @@
 
 #include "base/android/jni_string.h"
 #include "base/strings/string_util.h"
-#include "chrome/android/chrome_jni_headers/IntentHandler_jni.h"
 #include "services/network/public/cpp/cors/cors.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -17,6 +16,9 @@
 #include "chrome/browser/ui/webui/startup_crx_install/startup_crx_install_prefs.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/IntentHandler_jni.h"
+
 using base::android::JavaParamRef;
 
 namespace chrome {
@@ -26,15 +28,9 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterStringPref("utm_source", "");
   LOG(INFO) << "Registered utm_source preference in intent_handler";
 }
-jboolean JNI_IntentHandler_IsCorsSafelistedHeader(
-    JNIEnv* env,
-    const JavaParamRef<jstring>& j_header_name,
-    const JavaParamRef<jstring>& j_header_value) {
-  std::string header_name(
-      base::android::ConvertJavaStringToUTF8(env, j_header_name));
-  std::string header_value(
-      base::android::ConvertJavaStringToUTF8(env, j_header_value));
-
+jboolean JNI_IntentHandler_IsCorsSafelistedHeader(JNIEnv* env,
+                                                  std::string& header_name,
+                                                  std::string& header_value) {
   return network::cors::IsCorsSafelistedHeader(header_name, header_value);
 }
 

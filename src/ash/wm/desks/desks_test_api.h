@@ -5,7 +5,9 @@
 #ifndef ASH_WM_DESKS_DESKS_TEST_API_H_
 #define ASH_WM_DESKS_DESKS_TEST_API_H_
 
+#include "ash/wm/desks/desk_action_context_menu.h"
 #include "ash/wm/desks/desk_bar_view_base.h"
+#include "base/auto_reset.h"
 
 namespace aura {
 class Window;
@@ -26,12 +28,11 @@ class SimpleMenuModel;
 namespace ash {
 
 class Desk;
-class DeskActionContextMenu;
 class DeskMiniView;
 class ScrollArrowButton;
 
 // Helper class used by tests to access desks' internal elements. Including
-// elements of multiple different objects of desks. E.g, LegacyDeskBarView,
+// elements of multiple different objects of desks. E.g, OverviewDeskBarView,
 // Desk.
 class DesksTestApi {
  public:
@@ -45,13 +46,7 @@ class DesksTestApi {
       DeskBarViewBase::Type type);
   static views::ScrollView* GetDeskBarScrollView(DeskBarViewBase::Type type);
   static const DeskMiniView* GetDeskBarDragView(DeskBarViewBase::Type type);
-  static DeskActionContextMenu* GetContextMenuForDesk(
-      DeskBarViewBase::Type type,
-      int index);
   static views::LabelButton* GetCloseAllUndoToastDismissButton();
-  static const ui::SimpleMenuModel& GetContextMenuModelForDesk(
-      DeskBarViewBase::Type type,
-      int index);
   static views::View* GetHighlightOverlayForDeskPreview(
       DeskBarViewBase::Type type,
       int index);
@@ -61,14 +56,9 @@ class DesksTestApi {
   static views::Label* GetDeskShortcutLabel(DeskMiniView* mini_view);
   static bool IsDeskShortcutViewVisible(DeskMiniView* mini_view);
   static DeskProfilesButton* GetDeskProfileButton(DeskMiniView* mini_view);
-  static views::MenuItemView* GetDeskActionContextMenuItem(
-      DeskActionContextMenu* menu,
-      int command_id);
   static bool HasVerticalDotsButton();
   static bool DesksControllerHasDesk(Desk* desk);
   static bool DesksControllerCanUndoDeskRemoval();
-  static bool IsContextMenuRunningForDesk(DeskBarViewBase::Type type,
-                                          int index);
 
   static bool IsDeskBarLeftGradientVisible(DeskBarViewBase::Type type);
   static bool IsDeskBarRightGradientVisible(DeskBarViewBase::Type type);
@@ -80,9 +70,36 @@ class DesksTestApi {
   // Waits for `desk_bar_view` to finish its UI update.
   static void WaitForDeskBarUiUpdate(DeskBarViewBase* desk_bar_view);
 
-  // Invoke `done` when `desk_bar_view` finishes its UI updates.
-  static void SetDeskBarUiUpdateCallback(DeskBarViewBase* desk_bar_view,
-                                         base::OnceClosure done);
+  // Desk context menu related. `GetContextMenuForDesk()` and
+  // `GetContextMenuModelForDesk()` open a context menu.
+  static DeskActionContextMenu* GetContextMenuForDesk(
+      DeskBarViewBase::Type type,
+      int index);
+  static const ui::SimpleMenuModel& GetContextMenuModelForDesk(
+      DeskBarViewBase::Type type,
+      int index);
+  static bool IsContextMenuRunningForDesk(DeskBarViewBase::Type type,
+                                          int index);
+  static views::MenuItemView* GetDeskActionContextMenuItem(
+      DeskActionContextMenu* menu,
+      int command_id);
+  // Opens the context menu associated with the overview desk bar on `root`
+  // window and the mini view with `index`. Then return the
+  // `views::MenuItemView` associated with `command_id`. Expands the desk bar
+  // from zero state if necessary.
+  static views::MenuItemView* OpenDeskContextMenuAndGetMenuItem(
+      aura::Window* root,
+      DeskBarViewBase::Type bar_type,
+      size_t index,
+      DeskActionContextMenu::CommandId command_id);
+
+  static void MaybeCloseContextMenuForGrid(OverviewGrid* overview_grid);
+
+  static base::TimeDelta GetCloseAllWindowCloseTimeout();
+  static base::AutoReset<base::TimeDelta> SetCloseAllWindowCloseTimeout(
+      base::TimeDelta interval);
+  static base::AutoReset<base::TimeDelta> SetScrollTimeInterval(
+      base::TimeDelta interval);
 };
 
 }  // namespace ash

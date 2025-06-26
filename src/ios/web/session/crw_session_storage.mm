@@ -46,7 +46,7 @@ NSString* const kLastCommittedItemIndexDeprecatedKey =
 // external tab helper.
 // TODO(crbug.com/40208116): Remove this key.
 NSString* const kTabIdKey = @"TabId";
-}
+}  // namespace
 
 @implementation CRWSessionStorage
 
@@ -152,11 +152,32 @@ NSString* const kTabIdKey = @"TabId";
           [decoder decodeIntForKey:kLastCommittedItemIndexDeprecatedKey];
     }
 
-    _itemStorages = [[NSMutableArray alloc]
-        initWithArray:[decoder decodeObjectForKey:kItemStoragesKey]];
+    // A few users are crashing because they have a corrupted session (where
+    // _itemStorages contains objects that are not CRWNavigationItemStorage).
+    // If this happens, consider that the session has no navigations instead.
+    // It will result in a tab with no navigation, which will be dropped. It
+    // is better than crashing when trying to convert the session to proto.
+    // See https://crbug.com/358616893 for details.
+    NSObject* itemStoragesObj = [decoder decodeObjectForKey:kItemStoragesKey];
+    if ([itemStoragesObj isKindOfClass:[NSArray class]]) {
+      NSArray* itemStorages =
+          base::apple::ObjCCastStrict<NSArray>(itemStoragesObj);
+      for (NSObject* item in itemStorages) {
+        if (![item isKindOfClass:[CRWNavigationItemStorage class]]) {
+          itemStorages = nil;
+          break;
+        }
+      }
+      _itemStorages =
+          [[NSMutableArray alloc] initWithArray:(itemStorages ?: @[])];
+    } else {
+      _itemStorages = [[NSMutableArray alloc] init];
+    }
+
     // Prior to M34, 0 was used as "no index" instead of -1; adjust for that.
-    if (!_itemStorages.count)
+    if (!_itemStorages.count) {
       _lastCommittedItemIndex = -1;
+    }
 
     // In a respin of M-117, a data corruption was introduced that may cause
     // last_committed_item_index to be out-of-bound. Force the value back in

@@ -31,16 +31,16 @@ class CheckTraceVisitor : public clang::RecursiveASTVisitor<CheckTraceVisitor> {
   bool IsTraceCallName(const std::string& name);
 
   clang::CXXRecordDecl* GetDependentTemplatedDecl(
-      clang::CXXDependentScopeMemberExpr* expr);
+      clang::DependentScopeDeclRefExpr* expr);
 
-  void CheckCXXDependentScopeMemberExpr(
-      clang::CallExpr* call,
-      clang::CXXDependentScopeMemberExpr* expr);
+  void CheckDependentScopeDeclRefExpr(clang::CallExpr* call,
+                                      clang::DependentScopeDeclRefExpr* expr);
   bool CheckTraceBaseCall(clang::CallExpr* call);
   bool CheckTraceFieldMemberCall(clang::CXXMemberCallExpr* call);
   bool CheckTraceFieldCall(const std::string& name,
                            clang::CXXRecordDecl* callee,
-                           clang::Expr* arg);
+                           clang::Expr* arg1,
+                           clang::Expr* arg2);
   bool CheckRegisterWeakMembers(clang::CXXMemberCallExpr* call);
   bool CheckImplicitCastExpr(clang::CallExpr* call,
                              clang::ImplicitCastExpr* expr);
@@ -48,7 +48,8 @@ class CheckTraceVisitor : public clang::RecursiveASTVisitor<CheckTraceVisitor> {
   bool IsWeakCallback() const;
 
   void MarkTraced(RecordInfo::Fields::iterator it);
-  void FoundField(clang::FieldDecl* field);
+  void MarkTracedIfNeeded(RecordInfo::Fields::iterator it);
+  void FoundField(clang::FieldDecl* field, bool is_trace_if_needed);
   void MarkAllWeakMembersTraced();
 
   clang::CXXMethodDecl* trace_;

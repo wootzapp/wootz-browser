@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './strings.m.js';
+import '/strings.m.js';
 
 import {I18nMixin} from '//resources/cr_elements/i18n_mixin.js';
 import {loadTimeData} from '//resources/js/load_time_data.js';
@@ -16,10 +16,11 @@ export interface CursorTooltipData {
 }
 
 export enum CursorTooltipType {
-  REGION_SEARCH = 0,
-  TEXT_HIGHLIGHT = 1,
-  CLICK_SEARCH = 2,
-  LIVE_PAGE = 3,
+  NONE = 0,
+  REGION_SEARCH = 1,
+  TEXT_HIGHLIGHT = 2,
+  CLICK_SEARCH = 3,
+  LIVE_PAGE = 4,
 }
 
 export interface CursorTooltipElement {
@@ -47,42 +48,47 @@ export class CursorTooltipElement extends CursorTooltipElementBase {
       canShowTooltipFromPrefs: {
         type: Boolean,
         value: () => loadTimeData.getBoolean('canShowTooltipFromPrefs'),
-        reflectToAttribute: true,
       },
-
-      tooltipMessage: {
-        type: String,
-        value: '',
-        reflectToAttribute: true,
+      currentTooltip: {
+        type: Number,
+        value: CursorTooltipType.NONE,
       },
-
-      disableRendering: {
+      forceTooltipHidden: {
         type: Boolean,
         value: false,
-        reflectToAttribute: true,
       },
-
-      isPointerInside: Boolean,
+      isPointerInsideViewport: Boolean,
+      tooltipMessage: String,
     };
   }
 
+  // Whether the users has used the feature enough to not need the helping
+  // tooltip anymore.
+  declare private canShowTooltipFromPrefs: boolean;
+
+  // The current tooltip showing to the user.
+  declare private currentTooltip: CursorTooltipType;
+
+  // Whether or not to force the tooltip as hidden.
+  declare private forceTooltipHidden: boolean;
+
+  // Whether or not the pointer is inside the web contents.
+  declare private isPointerInsideViewport: boolean;
+
   // The tooltip message string.
-  private tooltipMessage: string;
+  declare private tooltipMessage: string;
+
+  // The queued tooltip type.
+  private queuedTooltipType?: CursorTooltipType;
 
   // The queued tooltip message string.
   private queuedTooltipMessage: string;
-
-  // Whether or not the pointer is inside the web contents.
-  private isPointerInside: boolean;
 
   // The queued tooltip offset pixels.
   private queuedOffsetLeftPx = 0;
 
   // The queued tooltip offset pixels.
   private queuedOffsetTopPx = 0;
-
-  // Whether or not to disable rendering the tooltip.
-  private disableRendering: boolean;
 
   // Whether or not to pause tooltip changes. If true, the tooltip changes
   // will be queued and applied when this becomes unset. This allows the
@@ -92,75 +98,97 @@ export class CursorTooltipElement extends CursorTooltipElementBase {
   private shouldPauseTooltipChanges = false;
 
   markPointerEnteredContentArea() {
-    this.isPointerInside = true;
+    this.isPointerInsideViewport = true;
   }
 
   markPointerLeftContentArea() {
-    this.isPointerInside = false;
+    this.isPointerInsideViewport = false;
   }
 
   hideTooltip() {
-    this.disableRendering = true;
+    this.forceTooltipHidden = true;
   }
 
-  showTooltip() {
-    this.disableRendering = false;
+  unhideTooltip() {
+    this.forceTooltipHidden = false;
   }
 
   setPauseTooltipChanges(shouldPauseTooltipChanges: boolean) {
     this.shouldPauseTooltipChanges = shouldPauseTooltipChanges;
-    if (!shouldPauseTooltipChanges) {
-      this.setTooltipFromQueued();
+    if (!shouldPauseTooltipChanges && this.queuedTooltipType) {
+      this.setTooltipImmediately(this.queuedTooltipType);
     }
   }
 
   setTooltip(type: CursorTooltipType) {
+    if (this.shouldPauseTooltipChanges) {
+      this.queuedTooltipType = type;
+    } else {
+      this.setTooltipImmediately(type);
+    }
+  }
+
+  isTooltipVisible(): boolean {
+    // Force hidden hides the cursor no matter what, so exit early.
+    if (this.forceTooltipHidden) {
+      return false;
+    }
+
+    // If the user is hovering over the live page, we want to show the tooltip
+    // despite what the user prefs are set to.
+    if (this.currentTooltip === CursorTooltipType.LIVE_PAGE &&
+        this.isPointerInsideViewport) {
+      return true;
+    }
+
+    // In all other cases, show the tooltip if the users prefs allows it, the
+    // cursor is in the viewport, and the tooltip is set to a valid tooltip.
+    return this.isPointerInsideViewport && this.canShowTooltipFromPrefs &&
+        this.currentTooltip !== CursorTooltipType.NONE;
+  }
+
+  private setTooltipImmediately(tooltipType: CursorTooltipType) {
+    this.currentTooltip = tooltipType;
+
+    if (tooltipType === CursorTooltipType.NONE) {
+      return;
+    }
+    this.queuedTooltipType = undefined;
     let offsetLeftPx = 0;
     let offsetTopPx = 0;
-    if (type === CursorTooltipType.LIVE_PAGE) {
+    let tooltipMessage = '';
+    if (tooltipType === CursorTooltipType.LIVE_PAGE) {
       offsetTopPx = 24;
-      this.queuedTooltipMessage = this.i18n('cursorTooltipLivePageMessage');
+      tooltipMessage = this.i18n('cursorTooltipLivePageMessage');
     } else {
       // Add half the width of the cursor tooltip icon.
       offsetLeftPx += 16;
       // Add the height of the cursor tooltip icon, plus 8px.
       offsetTopPx += 40;
       // LINT.IfChange(CursorOffsetValues)
-      if (type === CursorTooltipType.REGION_SEARCH) {
+      if (tooltipType === CursorTooltipType.REGION_SEARCH) {
         offsetTopPx += 6;
         offsetLeftPx += 3;
-        this.queuedTooltipMessage = this.i18n('cursorTooltipDragMessage');
-      } else if (type === CursorTooltipType.TEXT_HIGHLIGHT) {
+        tooltipMessage = this.i18n('cursorTooltipDragMessage');
+      } else if (tooltipType === CursorTooltipType.TEXT_HIGHLIGHT) {
         offsetTopPx += 8;
         offsetLeftPx += 3;
-        this.queuedTooltipMessage =
-            this.i18n('cursorTooltipTextHighlightMessage');
-      } else if (type === CursorTooltipType.CLICK_SEARCH) {
-        offsetTopPx += 8;
-        offsetLeftPx += 4;
-        this.queuedTooltipMessage = this.i18n('cursorTooltipClickMessage');
+        tooltipMessage = this.i18n('cursorTooltipTextHighlightMessage');
+      } else if (tooltipType === CursorTooltipType.CLICK_SEARCH) {
+        offsetTopPx += 17;
+        offsetLeftPx += 11;
+        tooltipMessage = this.i18n('cursorTooltipClickMessage');
       }
       // LINT.ThenChange(//chrome/browser/resources/lens/overlay/selection_overlay.ts:CursorOffsetValues)
     }
-    this.queuedOffsetLeftPx = offsetLeftPx;
-    this.queuedOffsetTopPx = offsetTopPx;
-    if (!this.shouldPauseTooltipChanges) {
-      this.setTooltipFromQueued();
-    }
+
+    this.style.setProperty('--offset-top', toPixels(offsetTopPx));
+    this.style.setProperty('--offset-left', toPixels(offsetLeftPx));
+    this.tooltipMessage = tooltipMessage;
   }
 
-  private setTooltipFromQueued() {
-    this.style.setProperty('--offset-top', toPixels(this.queuedOffsetTopPx));
-    this.style.setProperty('--offset-left', toPixels(this.queuedOffsetLeftPx));
-    this.tooltipMessage = this.queuedTooltipMessage;
-  }
-
-  private getHiddenCursorClass(
-      isPointerInside: boolean, canShowTooltipFromPrefs: boolean,
-      disableRendering: boolean): string {
-    return (isPointerInside && canShowTooltipFromPrefs && !disableRendering) ?
-        '' :
-        'hidden';
+  private getHiddenCursorClass(): string {
+    return this.isTooltipVisible() ? '' : 'hidden';
   }
 }
 

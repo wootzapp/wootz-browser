@@ -28,6 +28,7 @@ import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.params.ParameterAnnotations.UseMethodParameter;
 import org.chromium.base.test.params.ParameterAnnotations.UseRunnerDelegate;
 import org.chromium.base.test.params.ParameterProvider;
@@ -66,7 +67,6 @@ import org.chromium.components.content_settings.ContentSettingsType;
 import org.chromium.components.content_settings.ProviderType;
 import org.chromium.components.content_settings.SessionModel;
 import org.chromium.content_public.browser.BrowserContextHandle;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.url.GURL;
 import org.chromium.url.Origin;
 
@@ -85,7 +85,8 @@ import java.util.concurrent.TimeoutException;
 @CommandLineFlags.Add({
     ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
     WebsitePermissionsFetcherTest.ENABLE_EXPERIMENTAL_WEB_PLATFORM_FEATURES,
-    WebsitePermissionsFetcherTest.ENABLE_WEB_BLUETOOTH_NEW_PERMISSIONS_BACKEND
+    WebsitePermissionsFetcherTest.ENABLE_WEB_BLUETOOTH_NEW_PERMISSIONS_BACKEND,
+    WebsitePermissionsFetcherTest.ENABLE_BLUETOOTH_RFCOMM_ANDROID
 })
 @Batch(Batch.PER_CLASS)
 public class WebsitePermissionsFetcherTest {
@@ -102,6 +103,12 @@ public class WebsitePermissionsFetcherTest {
     /** Command line flag to enable the new Web Bluetooth permissions backend in tests. */
     public static final String ENABLE_WEB_BLUETOOTH_NEW_PERMISSIONS_BACKEND =
             "enable-features=WebBluetoothNewPermissionsBackend";
+
+    /**
+     * Command line flag to enable Bluetooth RFCOMM support for serial ports on Android in tests.
+     */
+    public static final String ENABLE_BLUETOOTH_RFCOMM_ANDROID =
+            "enable-features=BluetoothRfcommAndroid";
 
     private static final BrowserContextHandle UNUSED_BROWSER_CONTEXT_HANDLE = null;
 
@@ -300,7 +307,7 @@ public class WebsitePermissionsFetcherTest {
         "http://www.archive.org/",
     };
 
-    private static final Map<String, String> FPS_MEMBER_TO_OWNER_MAP =
+    private static final Map<String, String> RWS_MEMBER_TO_OWNER_MAP =
             Map.ofEntries(
                     entry("https://google.de", "google.com"),
                     entry("https://youtube.com", "google.com"),
@@ -375,7 +382,7 @@ public class WebsitePermissionsFetcherTest {
     public void tearDown() throws TimeoutException {
         // Clean up permissions.
         CallbackHelper helper = new CallbackHelper();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     BrowsingDataBridge.getForProfile(ProfileManager.getLastUsedRegularProfile())
                             .clearBrowsingData(
@@ -422,7 +429,7 @@ public class WebsitePermissionsFetcherTest {
     public void testFetcherDoesNotTimeOutWithManyUrls() throws Exception {
         final WebsitePermissionsWaiter waiter = new WebsitePermissionsWaiter();
         // Set lots of permissions values.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Profile profile = ProfileManager.getLastUsedRegularProfile();
                     for (String url : PERMISSION_URLS) {
@@ -478,7 +485,7 @@ public class WebsitePermissionsFetcherTest {
         waiter.waitForCallback(0, 1, 1000L, TimeUnit.MILLISECONDS);
     }
 
-    class FakeWebsitePreferenceBridge extends WebsitePreferenceBridge {
+    static class FakeWebsitePreferenceBridge extends WebsitePreferenceBridge {
         public List<PermissionInfo> mPermissionInfos;
         public List<ContentSettingException> mContentSettingExceptions;
         public List<ChosenObjectInfo> mChosenObjectInfos;
@@ -601,8 +608,8 @@ public class WebsitePermissionsFetcherTest {
     @Test
     @SmallTest
     @UseMethodParameter(BrowsingDataModelEnabled.class)
-    public void testFetchAllPreferencesForSingleOrigin(boolean isBDMEnabled) {
-        Mockito.doReturn(isBDMEnabled)
+    public void testFetchAllPreferencesForSingleOrigin(boolean isBdmEnabled) {
+        Mockito.doReturn(isBdmEnabled)
                 .when(mSiteSettingsDelegate)
                 .isBrowsingDataModelFeatureEnabled();
         WebsitePermissionsFetcher fetcher = new WebsitePermissionsFetcher(mSiteSettingsDelegate);
@@ -612,6 +619,13 @@ public class WebsitePermissionsFetcherTest {
         websitePreferenceBridge.addPermissionInfo(
                 new PermissionInfo(
                         ContentSettingsType.AR,
+                        ORIGIN,
+                        SITE_WILDCARD,
+                        /* isEmbargoed= */ false,
+                        SessionModel.DURABLE));
+        websitePreferenceBridge.addPermissionInfo(
+                new PermissionInfo(
+                        ContentSettingsType.HAND_TRACKING,
                         ORIGIN,
                         SITE_WILDCARD,
                         /* isEmbargoed= */ false,
@@ -693,6 +707,13 @@ public class WebsitePermissionsFetcherTest {
                         SITE_WILDCARD,
                         /* isEmbargoed= */ false,
                         SessionModel.DURABLE));
+        websitePreferenceBridge.addPermissionInfo(
+                new PermissionInfo(
+                        ContentSettingsType.LOCAL_NETWORK_ACCESS,
+                        ORIGIN,
+                        SITE_WILDCARD,
+                        /* isEmbargoed= */ false,
+                        SessionModel.DURABLE));
 
         // Add content setting exception types.
         // If the ContentSettingsType.MAX_VALUE value changes *and* a new value has been exposed on
@@ -700,7 +721,7 @@ public class WebsitePermissionsFetcherTest {
         // Otherwise, just update count in the assert.
         // TODO(https://b/332704817): Add test for Tracking Protection content setting after Android
         // integration.
-        assertEquals(108, ContentSettingsType.MAX_VALUE);
+        assertEquals(119, ContentSettingsType.MAX_VALUE);
         websitePreferenceBridge.addContentSettingException(
                 new ContentSettingException(
                         ContentSettingsType.COOKIES,
@@ -766,6 +787,13 @@ public class WebsitePermissionsFetcherTest {
                         /* isEmbargoed= */ false));
         websitePreferenceBridge.addContentSettingException(
                 new ContentSettingException(
+                        ContentSettingsType.JAVASCRIPT_OPTIMIZER,
+                        ORIGIN,
+                        ContentSettingValues.DEFAULT,
+                        ProviderType.PREF_PROVIDER,
+                        /* isEmbargoed= */ false));
+        websitePreferenceBridge.addContentSettingException(
+                new ContentSettingException(
                         ContentSettingsType.AUTO_DARK_WEB_CONTENT,
                         ORIGIN,
                         ContentSettingValues.DEFAULT,
@@ -799,22 +827,34 @@ public class WebsitePermissionsFetcherTest {
                         ContentSettingValues.DEFAULT,
                         ProviderType.PREF_PROVIDER,
                         /* isEmbargoed= */ false));
+        websitePreferenceBridge.addContentSettingException(
+                new ContentSettingException(
+                        ContentSettingsType.LOCAL_NETWORK_ACCESS,
+                        ORIGIN,
+                        ContentSettingValues.DEFAULT,
+                        ProviderType.PREF_PROVIDER,
+                        /* isEmbargoed= */ false));
 
         int storageSize = 256;
         int sharedDictionarySize = 12345;
-        if (isBDMEnabled) {
+        if (isBdmEnabled) {
             var map = new HashMap<Origin, BrowsingDataInfo>();
             var origin = Origin.create(new GURL(ORIGIN));
-            map.put(origin, new BrowsingDataInfo(origin, 0, storageSize + sharedDictionarySize));
+            map.put(
+                    origin,
+                    new BrowsingDataInfo(origin, 0, storageSize + sharedDictionarySize, false));
 
-            Mockito.doReturn(map).when(mBrowsingDataModel).getBrowsingDataInfo();
+            Mockito.when(
+                            mBrowsingDataModel.getBrowsingDataInfo(
+                                    mSiteSettingsDelegate.getBrowserContextHandle(), false))
+                    .thenReturn(map);
 
-            doAnswer(this::mockBDMCallback)
+            doAnswer(this::mockBdmCallback)
                     .when(mSiteSettingsDelegate)
                     .getBrowsingDataModel(any(Callback.class));
         } else {
             // Add storage info.
-            websitePreferenceBridge.addStorageInfo(new StorageInfo(ORIGIN, 0, storageSize));
+            websitePreferenceBridge.addStorageInfo(new StorageInfo(ORIGIN, storageSize));
 
             // Add local storage info.
             websitePreferenceBridge.addLocalStorageInfoMapEntry(
@@ -834,6 +874,13 @@ public class WebsitePermissionsFetcherTest {
                         ContentSettingsType.BLUETOOTH_CHOOSER_DATA,
                         ORIGIN,
                         "Wireless",
+                        "Object",
+                        false));
+        websitePreferenceBridge.addChosenObjectInfo(
+                new ChosenObjectInfo(
+                        ContentSettingsType.SERIAL_CHOOSER_DATA,
+                        ORIGIN,
+                        "Serial",
                         "Object",
                         false));
 
@@ -860,7 +907,10 @@ public class WebsitePermissionsFetcherTest {
                             site.getPermissionInfo(ContentSettingsType.CLIPBOARD_READ_WRITE));
                     Assert.assertNotNull(site.getPermissionInfo(ContentSettingsType.SENSORS));
                     Assert.assertNotNull(site.getPermissionInfo(ContentSettingsType.VR));
+                    Assert.assertNotNull(site.getPermissionInfo(ContentSettingsType.HAND_TRACKING));
                     Assert.assertNotNull(site.getPermissionInfo(ContentSettingsType.AR));
+                    Assert.assertNotNull(
+                            site.getPermissionInfo(ContentSettingsType.LOCAL_NETWORK_ACCESS));
 
                     // Check content setting exception types.
                     assertEquals(
@@ -902,6 +952,11 @@ public class WebsitePermissionsFetcherTest {
                             Integer.valueOf(ContentSettingValues.DEFAULT),
                             site.getContentSetting(
                                     UNUSED_BROWSER_CONTEXT_HANDLE,
+                                    ContentSettingsType.JAVASCRIPT_OPTIMIZER));
+                    assertEquals(
+                            Integer.valueOf(ContentSettingValues.DEFAULT),
+                            site.getContentSetting(
+                                    UNUSED_BROWSER_CONTEXT_HANDLE,
                                     ContentSettingsType.AUTO_DARK_WEB_CONTENT));
                     assertEquals(
                             Integer.valueOf(ContentSettingValues.DEFAULT),
@@ -918,7 +973,7 @@ public class WebsitePermissionsFetcherTest {
                             site.getContentSetting(
                                     UNUSED_BROWSER_CONTEXT_HANDLE, ContentSettingsType.ANTI_ABUSE));
 
-                    if (isBDMEnabled) {
+                    if (isBdmEnabled) {
                         assertEquals(storageSize + sharedDictionarySize, site.getTotalUsage());
                     } else {
                         // Check storage info.
@@ -947,17 +1002,20 @@ public class WebsitePermissionsFetcherTest {
                     // Check chooser info types.
                     ArrayList<ChosenObjectInfo> chosenObjectInfos =
                             new ArrayList<>(site.getChosenObjectInfo());
-                    assertEquals(2, chosenObjectInfos.size());
+                    assertEquals(3, chosenObjectInfos.size());
                     assertEquals(
                             ContentSettingsType.BLUETOOTH_CHOOSER_DATA,
                             chosenObjectInfos.get(0).getContentSettingsType());
                     assertEquals(
                             ContentSettingsType.USB_CHOOSER_DATA,
                             chosenObjectInfos.get(1).getContentSettingsType());
+                    assertEquals(
+                            ContentSettingsType.SERIAL_CHOOSER_DATA,
+                            chosenObjectInfos.get(2).getContentSettingsType());
                 });
     }
 
-    private Object mockBDMCallback(InvocationOnMock invocation) {
+    private Object mockBdmCallback(InvocationOnMock invocation) {
         var callback = (Callback<BrowsingDataModel>) invocation.getArguments()[0];
         callback.onResult(mBrowsingDataModel);
         return null;
@@ -1083,6 +1141,7 @@ public class WebsitePermissionsFetcherTest {
                                 ContentSettingsType.MEDIASTREAM_CAMERA,
                                 ContentSettingsType.CLIPBOARD_READ_WRITE,
                                 ContentSettingsType.GEOLOCATION,
+                                ContentSettingsType.HAND_TRACKING,
                                 ContentSettingsType.IDLE_DETECTION,
                                 ContentSettingsType.MEDIASTREAM_MIC,
                                 ContentSettingsType.NFC,
@@ -1271,7 +1330,7 @@ public class WebsitePermissionsFetcherTest {
         String chromiumOrigin = "https://chromium.org";
         int storageSize = 256;
         int sharedDictionarySize = 512;
-        StorageInfo fakeStorageInfo = new StorageInfo(ORIGIN, 0, storageSize);
+        StorageInfo fakeStorageInfo = new StorageInfo(ORIGIN, storageSize);
         LocalStorageInfo fakeLocalStorageInfo = new LocalStorageInfo(ORIGIN, storageSize, false);
         LocalStorageInfo fakeImportantLocalStorageInfo =
                 new LocalStorageInfo(chromiumOrigin, storageSize, true);
@@ -1377,7 +1436,8 @@ public class WebsitePermissionsFetcherTest {
                 new ArrayList<>(
                         Arrays.asList(
                                 SiteSettingsCategory.Type.USB,
-                                SiteSettingsCategory.Type.BLUETOOTH));
+                                SiteSettingsCategory.Type.BLUETOOTH,
+                                SiteSettingsCategory.Type.SERIAL_PORT));
 
         for (@SiteSettingsCategory.Type int type : chooserDataTypes) {
             WebsitePermissionsFetcher fetcher =
@@ -1414,17 +1474,14 @@ public class WebsitePermissionsFetcherTest {
 
     @Test
     @SmallTest
-    public void testGetFirstPartySetsOwnersAndMergeInfoIntoWebsites() {
-        for (var entry : FPS_MEMBER_TO_OWNER_MAP.entrySet()) {
+    public void testGetRelatedWebsiteSetsOwnersAndMergeInfoIntoWebsites() {
+        for (var entry : RWS_MEMBER_TO_OWNER_MAP.entrySet()) {
             Mockito.doReturn(entry.getValue())
                     .when(mSiteSettingsDelegate)
-                    .getFirstPartySetOwner(entry.getKey());
+                    .getRelatedWebsiteSetOwner(entry.getKey());
         }
 
-        Mockito.doReturn(true).when(mSiteSettingsDelegate).isFirstPartySetsDataAccessEnabled();
-        Mockito.doReturn(true)
-                .when(mSiteSettingsDelegate)
-                .isPrivacySandboxFirstPartySetsUIFeatureEnabled();
+        Mockito.doReturn(true).when(mSiteSettingsDelegate).isRelatedWebsiteSetsDataAccessEnabled();
 
         var fetcher =
                 new WebsitePermissionsFetcher(
@@ -1432,33 +1489,33 @@ public class WebsitePermissionsFetcherTest {
         FakeWebsitePreferenceBridge websitePreferenceBridge = new FakeWebsitePreferenceBridge();
         fetcher.setWebsitePreferenceBridgeForTesting(websitePreferenceBridge);
 
-        String googleDEOrigin = "https://google.de";
-        String googleITOrigin = "https://google.it";
-        String googleCHOrigin = "https://google.ch";
+        String googleDeOrigin = "https://google.de";
+        String googleItOrigin = "https://google.it";
+        String googleChOrigin = "https://google.ch";
         String youtubeOrigin = "https://youtube.com";
         String verizonConnectOrigin = "https://verizonconnect.com";
 
         String aolOrigin = "https://aol.com";
-        String noInFPSOrigin = "https://unknow.ch";
+        String noInRwsOrigin = "https://unknow.ch";
 
         Website expectedYoutubeWebsite =
                 new Website(WebsiteAddress.create(youtubeOrigin), WebsiteAddress.create(null));
         Website expectedVerizonConnectWebsite =
                 new Website(
                         WebsiteAddress.create(verizonConnectOrigin), WebsiteAddress.create(null));
-        Website expectedNoInFPSWebsite =
-                new Website(WebsiteAddress.create(noInFPSOrigin), WebsiteAddress.create(null));
+        Website expectedNoInRwsWebsite =
+                new Website(WebsiteAddress.create(noInRwsOrigin), WebsiteAddress.create(null));
 
         // Use a list of origins and create content settings exceptions.
         List<String> origins =
                 Arrays.asList(
-                        googleDEOrigin,
-                        googleITOrigin,
-                        googleCHOrigin,
+                        googleDeOrigin,
+                        googleItOrigin,
+                        googleChOrigin,
                         youtubeOrigin,
                         verizonConnectOrigin,
                         aolOrigin,
-                        noInFPSOrigin);
+                        noInRwsOrigin);
         // Adding content exceptions will generate websites data.
         for (String origin : origins) {
             websitePreferenceBridge.addContentSettingException(
@@ -1470,9 +1527,9 @@ public class WebsitePermissionsFetcherTest {
                             /* isEmbargoed= */ false));
         }
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    fetcher.fetchPreferencesForCategoryAndPopulateFpsInfo(
+                    fetcher.fetchPreferencesForCategoryAndPopulateRwsInfo(
                             SiteSettingsCategory.createFromType(
                                     UNUSED_BROWSER_CONTEXT_HANDLE,
                                     SiteSettingsCategory.Type.ALL_SITES),
@@ -1483,28 +1540,28 @@ public class WebsitePermissionsFetcherTest {
 
                                 ArrayList<Website> siteArray = new ArrayList<>(sites);
                                 for (Website site : siteArray) {
-                                    // Verify youtube.com has google.com as FPS owner which has 4
+                                    // Verify youtube.com has google.com as RWS owner which has 4
                                     // members within the group of sites with data.
                                     if (site.compareByAddressTo(expectedYoutubeWebsite) == 0) {
-                                        Assert.assertNotNull(site.getFPSCookieInfo());
+                                        Assert.assertNotNull(site.getRwsCookieInfo());
                                         assertEquals(
-                                                "google.com", site.getFPSCookieInfo().getOwner());
-                                        assertEquals(4, site.getFPSCookieInfo().getMembersCount());
+                                                "google.com", site.getRwsCookieInfo().getOwner());
+                                        assertEquals(4, site.getRwsCookieInfo().getMembersCount());
                                     }
-                                    // Verify verizonconnect.com has verizon.com as FPS owner which
+                                    // Verify verizonconnect.com has verizon.com as RWS owner which
                                     // has 2 members within the group of sites with data.
                                     if (site.compareByAddressTo(expectedVerizonConnectWebsite)
                                             == 0) {
-                                        Assert.assertNotNull(site.getFPSCookieInfo());
+                                        Assert.assertNotNull(site.getRwsCookieInfo());
                                         assertEquals(
-                                                "verizon.com", site.getFPSCookieInfo().getOwner());
-                                        assertEquals(2, site.getFPSCookieInfo().getMembersCount());
+                                                "verizon.com", site.getRwsCookieInfo().getOwner());
+                                        assertEquals(2, site.getRwsCookieInfo().getMembersCount());
                                     }
 
-                                    // Verify a website with data which is not in a FPS has no FPS
+                                    // Verify a website with data which is not in a RWS has no RWS
                                     // data set.
-                                    if (site.compareByAddressTo(expectedNoInFPSWebsite) == 0) {
-                                        assertEquals(null, site.getFPSCookieInfo());
+                                    if (site.compareByAddressTo(expectedNoInRwsWebsite) == 0) {
+                                        assertEquals(null, site.getRwsCookieInfo());
                                     }
                                 }
                             });
@@ -1541,7 +1598,7 @@ public class WebsitePermissionsFetcherTest {
                         null,
                         false));
         fetcher.fetchAllPreferences(waiter);
-        waiter.waitForFirst();
+        waiter.waitForOnly();
 
         // Check that only the ALLOW exception is fetched.
         assertEquals(1, waiter.getSites().size());

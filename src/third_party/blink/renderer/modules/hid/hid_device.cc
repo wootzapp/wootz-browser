@@ -257,7 +257,7 @@ ScriptPromise<IDLUndefined> HIDDevice::open(ScriptState* script_state,
   if (!GetExecutionContext()) {
     exception_state.ThrowDOMException(DOMExceptionCode::kNotSupportedError,
                                       kContextGone);
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* resolver =
@@ -307,7 +307,7 @@ ScriptPromise<IDLUndefined> HIDDevice::forget(ScriptState* script_state,
   if (!GetExecutionContext()) {
     exception_state.ThrowDOMException(DOMExceptionCode::kNotSupportedError,
                                       kContextGone);
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* resolver =
@@ -323,9 +323,10 @@ ScriptPromise<IDLUndefined> HIDDevice::forget(ScriptState* script_state,
   return promise;
 }
 
-ScriptPromise<IDLUndefined> HIDDevice::sendReport(ScriptState* script_state,
-                                                  uint8_t report_id,
-                                                  const DOMArrayPiece& data) {
+ScriptPromise<IDLUndefined> HIDDevice::sendReport(
+    ScriptState* script_state,
+    uint8_t report_id,
+    base::span<const uint8_t> data) {
   auto* resolver =
       MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(script_state);
   auto promise = resolver->Promise();
@@ -340,14 +341,14 @@ ScriptPromise<IDLUndefined> HIDDevice::sendReport(ScriptState* script_state,
     return promise;
   }
 
-  if (!base::CheckedNumeric<wtf_size_t>(data.ByteLength()).IsValid()) {
+  if (!base::CheckedNumeric<wtf_size_t>(data.size()).IsValid()) {
     resolver->RejectWithDOMException(DOMExceptionCode::kNotSupportedError,
                                      kArrayBufferTooBig);
     return promise;
   }
 
   Vector<uint8_t> vector;
-  vector.Append(data.Bytes(), static_cast<wtf_size_t>(data.ByteLength()));
+  vector.AppendSpan(data);
 
   device_requests_.insert(resolver);
   connection_->Write(
@@ -360,7 +361,7 @@ ScriptPromise<IDLUndefined> HIDDevice::sendReport(ScriptState* script_state,
 ScriptPromise<IDLUndefined> HIDDevice::sendFeatureReport(
     ScriptState* script_state,
     uint8_t report_id,
-    const DOMArrayPiece& data) {
+    base::span<const uint8_t> data) {
   auto* resolver =
       MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(script_state);
   auto promise = resolver->Promise();
@@ -375,14 +376,14 @@ ScriptPromise<IDLUndefined> HIDDevice::sendFeatureReport(
     return promise;
   }
 
-  if (!base::CheckedNumeric<wtf_size_t>(data.ByteLength()).IsValid()) {
+  if (!base::CheckedNumeric<wtf_size_t>(data.size()).IsValid()) {
     resolver->RejectWithDOMException(DOMExceptionCode::kNotSupportedError,
                                      kArrayBufferTooBig);
     return promise;
   }
 
   Vector<uint8_t> vector;
-  vector.Append(data.Bytes(), static_cast<wtf_size_t>(data.ByteLength()));
+  vector.AppendSpan(data);
 
   device_requests_.insert(resolver);
   connection_->SendFeatureReport(
@@ -547,8 +548,7 @@ void HIDDevice::FinishReceiveFeatureReport(
     const std::optional<Vector<uint8_t>>& data) {
   MarkRequestComplete(resolver);
   if (success && data) {
-    DOMArrayBuffer* dom_buffer =
-        DOMArrayBuffer::Create(data->data(), data->size());
+    DOMArrayBuffer* dom_buffer = DOMArrayBuffer::Create(data.value());
     DOMDataView* data_view = DOMDataView::Create(dom_buffer, 0, data->size());
     resolver->Resolve(NotShared(data_view));
   } else {

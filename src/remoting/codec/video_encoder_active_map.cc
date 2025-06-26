@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "remoting/codec/video_encoder_active_map.h"
 
 #include <algorithm>
@@ -30,14 +35,14 @@ VideoEncoderActiveMap::~VideoEncoderActiveMap() = default;
 void VideoEncoderActiveMap::Initialize(const webrtc::DesktopSize& size) {
   active_map_size_.set((size.width() + kMacroBlockSize - 1) / kMacroBlockSize,
                        (size.height() + kMacroBlockSize - 1) / kMacroBlockSize);
-  active_map_ = std::make_unique<uint8_t[]>(active_map_size_.width() *
-                                            active_map_size_.height());
+  active_map_ = base::HeapArray<uint8_t>::Uninit(active_map_size_.width() *
+                                                 active_map_size_.height());
   Clear();
 }
 
 void VideoEncoderActiveMap::Clear() {
-  DCHECK(active_map_);
-  memset(active_map_.get(), 0,
+  DCHECK(active_map_.data() != nullptr);
+  memset(active_map_.data(), 0,
          active_map_size_.width() * active_map_size_.height());
 }
 
@@ -52,7 +57,7 @@ void VideoEncoderActiveMap::Update(
     DCHECK_LT(right, active_map_size_.width());
     DCHECK_LT(bottom, active_map_size_.height());
 
-    uint8_t* map = active_map_.get() + top * active_map_size_.width();
+    uint8_t* map = active_map_.data() + top * active_map_size_.width();
     for (int y = top; y <= bottom; ++y) {
       for (int x = left; x <= right; ++x) {
         map[x] = 1;

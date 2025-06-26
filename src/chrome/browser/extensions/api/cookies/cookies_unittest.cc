@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <array>
+
 // Tests common functionality used by the Chrome Extensions Cookies API
 // implementation.
 
@@ -16,7 +18,6 @@
 
 #include "base/test/gtest_util.h"
 #include "base/values.h"
-#include "chrome/browser/extensions/api/cookies/cookies_api_constants.h"
 #include "chrome/browser/extensions/api/cookies/cookies_helpers.h"
 #include "chrome/test/base/testing_profile.h"
 #include "content/public/test/browser_task_environment.h"
@@ -32,7 +33,7 @@ namespace GetAll = extensions::api::cookies::GetAll;
 
 namespace extensions {
 
-namespace keys = cookies_api_constants;
+constexpr char kDomainKey[] = "domain";
 
 namespace {
 
@@ -165,17 +166,21 @@ TEST_F(ExtensionCookiesTest, EmptyDictionary) {
 }
 
 TEST_F(ExtensionCookiesTest, DomainMatching) {
-  static constexpr DomainMatchCase tests[] = {
-      {"bar.com", "bar.com", true},       {".bar.com", "bar.com", true},
-      {"bar.com", "food.bar.com", true},  {"bar.com", "bar.foo.com", false},
-      {".bar.com", ".foo.bar.com", true}, {".bar.com", "baz.foo.bar.com", true},
-      {"foo.bar.com", ".bar.com", false}};
+  constexpr static const auto tests = std::to_array<DomainMatchCase>({
+      {"bar.com", "bar.com", true},
+      {".bar.com", "bar.com", true},
+      {"bar.com", "food.bar.com", true},
+      {"bar.com", "bar.foo.com", false},
+      {".bar.com", ".foo.bar.com", true},
+      {".bar.com", "baz.foo.bar.com", true},
+      {"foo.bar.com", ".bar.com", false},
+  });
 
   for (size_t i = 0; i < std::size(tests); ++i) {
     // Build up the Params struct.
     base::Value::List args;
     base::Value::Dict dict;
-    dict.Set(keys::kDomainKey, tests[i].filter);
+    dict.Set(kDomainKey, tests[i].filter);
     args.Append(std::move(dict));
     std::optional<GetAll::Params> params = GetAll::Params::Create(args);
 

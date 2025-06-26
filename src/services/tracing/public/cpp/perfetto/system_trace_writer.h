@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef SERVICES_TRACING_PUBLIC_CPP_PERFETTO_SYSTEM_TRACE_WRITER_H_
 #define SERVICES_TRACING_PUBLIC_CPP_PERFETTO_SYSTEM_TRACE_WRITER_H_
 
@@ -15,7 +20,6 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "base/tracing/trace_time.h"
-#include "services/tracing/public/cpp/perfetto/perfetto_producer.h"
 #include "third_party/perfetto/include/perfetto/ext/tracing/core/trace_writer.h"
 #include "third_party/perfetto/protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "third_party/perfetto/protos/perfetto/trace/trace_packet.pbzero.h"

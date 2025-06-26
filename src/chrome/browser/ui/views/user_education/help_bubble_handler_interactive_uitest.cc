@@ -2,21 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/feature_list.h"
+#include "build/build_config.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/side_search/side_search_config.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/toolbar/bookmark_sub_menu_model.h"
 #include "chrome/browser/ui/toolbar/reading_list_sub_menu_model.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_coordinator.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_util.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
+#include "components/prefs/pref_service.h"
+#include "components/webui/chrome_urls/pref_names.h"
 #include "content/public/test/browser_test.h"
 #include "ui/base/interaction/element_identifier.h"
 
@@ -24,36 +26,40 @@ namespace {
 DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kBrowserTabId);
 DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kBrowserTabId2);
 DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kReadLaterWebContentsElementId);
-constexpr char kUserEducationInternalsUrl[] =
-    "chrome://internals/user-education";
 }  // namespace
 
 class HelpBubbleHandlerInteractiveUiTest : public InteractiveBrowserTest {
  public:
-  HelpBubbleHandlerInteractiveUiTest() {
-    feature_list_.InitWithFeatures({features::kSidePanelPinning}, {});
-  }
+  HelpBubbleHandlerInteractiveUiTest() = default;
   ~HelpBubbleHandlerInteractiveUiTest() override = default;
+
+  void SetUpOnMainThread() override {
+    InteractiveBrowserTest::SetUpOnMainThread();
+    g_browser_process->local_state()->SetBoolean(
+        chrome_urls::kInternalOnlyUisEnabled, true);
+  }
 
   // Opens the side panel and instruments the Read Later WebContents as
   // kReadLaterWebContentsElementId.
   auto OpenReadingListSidePanel() {
-      return Steps(
-          // Remove delays in switching side panels to prevent possible race
-          // conditions when selecting items from the side panel dropdown.
-          Do([this]() {
-            SidePanelUtil::GetSidePanelCoordinatorForBrowser(browser())
-                ->SetNoDelaysForTesting(true);
-          }),
-          PressButton(kToolbarAppMenuButtonElementId),
-          SelectMenuItem(AppMenuModel::kBookmarksMenuItem),
-          SelectMenuItem(BookmarkSubMenuModel::kReadingListMenuItem),
-          SelectMenuItem(ReadingListSubMenuModel::kReadingListMenuShowUI),
-          WaitForShow(kSidePanelElementId),
-          WaitForShow(kReadLaterSidePanelWebViewElementId), FlushEvents(),
-          // Ensure that the Reading List side panel loads properly.
-          InstrumentNonTabWebView(kReadLaterWebContentsElementId,
-                                  kReadLaterSidePanelWebViewElementId));
+    return Steps(
+        // Remove delays in switching side panels to prevent possible race
+        // conditions when selecting items from the side panel dropdown.
+        Do([this]() {
+          browser()
+              ->GetFeatures()
+              .side_panel_coordinator()
+              ->SetNoDelaysForTesting(true);
+        }),
+        PressButton(kToolbarAppMenuButtonElementId),
+        SelectMenuItem(AppMenuModel::kBookmarksMenuItem),
+        SelectMenuItem(BookmarkSubMenuModel::kReadingListMenuItem),
+        SelectMenuItem(ReadingListSubMenuModel::kReadingListMenuShowUI),
+        WaitForShow(kSidePanelElementId),
+        WaitForShow(kReadLaterSidePanelWebViewElementId),
+        // Ensure that the Reading List side panel loads properly.
+        InstrumentNonTabWebView(kReadLaterWebContentsElementId,
+                                kReadLaterSidePanelWebViewElementId));
   }
 
   auto OpenBookmarksSidePanel() {
@@ -61,7 +67,7 @@ class HelpBubbleHandlerInteractiveUiTest : public InteractiveBrowserTest {
         PressButton(kToolbarAppMenuButtonElementId),
         SelectMenuItem(AppMenuModel::kBookmarksMenuItem),
         SelectMenuItem(BookmarkSubMenuModel::kShowBookmarkSidePanelItem),
-        WaitForShow(kSidePanelElementId), FlushEvents());
+        WaitForShow(kSidePanelElementId));
   }
 
   auto CloseSidePanel() {
@@ -69,16 +75,14 @@ class HelpBubbleHandlerInteractiveUiTest : public InteractiveBrowserTest {
                  PressButton(kSidePanelCloseButtonElementId),
                  WaitForHide(kSidePanelElementId));
   }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(HelpBubbleHandlerInteractiveUiTest,
                        ElementBecomesVisibleOnPageLoad) {
   RunTestSequence(
       InstrumentTab(kBrowserTabId),
-      NavigateWebContents(kBrowserTabId, GURL(kUserEducationInternalsUrl)),
+      NavigateWebContents(kBrowserTabId,
+                          GURL(chrome::kChromeUIUserEducationInternalsURL)),
       InAnyContext(WaitForShow(kWebUIIPHDemoElementIdentifier)));
 }
 
@@ -86,7 +90,8 @@ IN_PROC_BROWSER_TEST_F(HelpBubbleHandlerInteractiveUiTest,
                        ElementBecomesHiddenOnTabBackgrounded) {
   RunTestSequence(
       InstrumentTab(kBrowserTabId),
-      NavigateWebContents(kBrowserTabId, GURL(kUserEducationInternalsUrl)),
+      NavigateWebContents(kBrowserTabId,
+                          GURL(chrome::kChromeUIUserEducationInternalsURL)),
       InAnyContext(WaitForShow(kWebUIIPHDemoElementIdentifier)),
       // This will add the new tab in the foreground.
       AddInstrumentedTab(kBrowserTabId2, GURL(chrome::kChromeUIBookmarksURL)),
@@ -109,8 +114,18 @@ IN_PROC_BROWSER_TEST_F(HelpBubbleHandlerInteractiveUiTest,
       InAnyContext(WaitForHide(kAddCurrentTabToReadingListElementId)));
 }
 
+// This test is flaky on Mac; see: https://crbug.com/348242589
+// Suspect that something in the async way the combo box works is causing this
+// particular issue. Might be solved by programmatically switching panels.
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_ElementBecomesHiddenOnSecondaryUISwap \
+  DISABLED_ElementBecomesHiddenOnSecondaryUISwap
+#else
+#define MAYBE_ElementBecomesHiddenOnSecondaryUISwap \
+  ElementBecomesHiddenOnSecondaryUISwap
+#endif
 IN_PROC_BROWSER_TEST_F(HelpBubbleHandlerInteractiveUiTest,
-                       ElementBecomesHiddenOnSecondaryUISwap) {
+                       MAYBE_ElementBecomesHiddenOnSecondaryUISwap) {
   RunTestSequence(
       OpenReadingListSidePanel(),
       InAnyContext(WaitForShow(kAddCurrentTabToReadingListElementId)),

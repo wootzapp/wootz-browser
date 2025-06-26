@@ -14,16 +14,75 @@ export function getHtml(this: ToolbarElement) {
       back-button-title="$i18n{backButton}">
     <h2 slot="heading">$i18n{toolbarHeader}</h2>
   </sp-heading>
+  <div id="miniToolbarBackground">
+    <svg id="miniToolbar" src="icons/mini_toolbar.svg">
+      <use href="icons/mini_toolbar.svg#miniToolbar"></use>
+    </svg>
+  </div>
+  <div class="intro-text">$i18n{chooseToolbarIconsLabel}</div>
+  <cr-button id="resetToDefaultButton" class="floating-button"
+      @click="${this.onResetToDefaultClicked_}"
+      ?disabled="${this.resetToDefaultDisabled_}">
+    <div id="resetToDefaultIcon" class="cr-icon" slot="prefix-icon"></div>
+    $i18n{resetToDefaultButtonLabel}
+  </cr-button>
 </div>
 <hr class="sp-cards-separator">
-<div class="sp-card">
-  ${this.actions_.map((action) => html`
-    <div class="toggle-container choose-icons-row">
-      <h4 class="toggle-title">${action.displayName}</h4>
-      <cr-toggle @change="${this.getActionToggleHandler_(action.id)}"
-          ?checked="${action.pinned}"></cr-toggle>
-    </div>
+<div class="sp-card" id="pinningSelectionCard">
+  ${
+      this.categories_.map(
+          (category, categoryIndex) => html`
+    <h3 class="choose-icons-row category-title">${category.displayName}</h3>
+    ${
+              this.actions_.map(
+                  (action) => action.category === category.id ?
+                      html`
+      ${
+                          !action.hasEnterpriseControlledPinnedState ?
+                              html`
+        <div
+          class="toggle-container choose-icons-row-container choose-icons-row"
+          @click="${this.getActionToggleHandler_(action.id, !action.pinned)}"
+        >
+          <img class="toggle-icon" src="${action.iconUrl.url}"
+              aria-hidden="true"></img>
+          <div class="toggle-title">${action.displayName}</div>
+          <cr-toggle @change="${
+                                  this.getActionToggleHandler_(
+                                      action.id, !action.pinned)}"
+              ?checked="${action.pinned}" aria-label="${
+                                  action.displayName}"></cr-toggle>
+        </div>
+      ` :
+                              html`
+        <div class="choose-icons-row-container choose-icons-row">
+          <img class="toggle-icon" src="${action.iconUrl.url}"
+              aria-hidden="true"></img>
+          <div class="toggle-title">${action.displayName}</div>
+          <div class="enterprise-enabled-text"
+              aria-label="$i18n{managedA11yLabel}">
+            $i18n{enterpriseEnabledLabel}
+          </div>
+          <img class="toggle-icon" src="icons/domain.svg"
+              aria-label="$i18n{managedA11yLabel}"
+              title="$i18n{managedA11yLabel}">
+          </img>
+        </div>
+      `}
+    ` :
+                      '')}
+    ${
+              categoryIndex !== this.categories_.length - 1 ?
+                  html`<hr class="sp-hr">` :
+                  ''}
   `)}
+</div>
+<hr class="sp-cards-separator">
+<div class="sp-card" id="tipCard">
+  <svg id="tipIcon" src="icons/lightbulb_outline.svg">
+    <use href="icons/lightbulb_outline.svg#lightbulbOutline"></use>
+  </svg>
+  $i18n{reorderTipLabel}
 </div>
 <!--_html_template_end_-->`;
 }

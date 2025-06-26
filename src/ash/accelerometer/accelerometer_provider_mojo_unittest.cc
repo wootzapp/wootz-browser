@@ -2,6 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "base/memory/raw_ptr.h"
+
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ash/accelerometer/accelerometer_provider_mojo.h"
 
 #include <memory>
@@ -137,7 +144,9 @@ class AccelerometerProviderMojoTest : public ::testing::Test {
 
   FakeObserver observer_;
   std::unique_ptr<chromeos::sensors::FakeSensorHalServer> sensor_hal_server_;
-  std::map<int32_t, chromeos::sensors::FakeSensorDevice*> sensor_devices_;
+  std::map<int32_t,
+           raw_ptr<chromeos::sensors::FakeSensorDevice, CtnExperimental>>
+      sensor_devices_;
 
   scoped_refptr<AccelerometerProviderMojo> provider_;
 

@@ -18,8 +18,7 @@ namespace utils = extensions::api_test_utils;
 
 namespace extensions {
 
-ExtensionApiUnittest::~ExtensionApiUnittest() {
-}
+ExtensionApiUnittest::~ExtensionApiUnittest() = default;
 
 void ExtensionApiUnittest::SetUp() {
   BrowserWithTestWindowTest::SetUp();
@@ -44,8 +43,9 @@ ExtensionApiUnittest::RunFunctionAndReturnDictionary(
   // value or the value to have been nullopt.
   EXPECT_TRUE(!value || value->is_dict());
 
-  if (!value || !value->is_dict())
+  if (!value || !value->is_dict()) {
     return std::nullopt;
+  }
 
   return std::move(*value).TakeDict();
 }

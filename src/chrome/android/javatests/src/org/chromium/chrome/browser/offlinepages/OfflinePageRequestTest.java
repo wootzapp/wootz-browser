@@ -13,15 +13,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge.SavePageCallback;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
+import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.components.offlinepages.SavePageResult;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.NetworkChangeNotifier;
 import org.chromium.net.test.EmbeddedTestServer;
 
@@ -33,7 +35,8 @@ import java.util.concurrent.TimeUnit;
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class OfflinePageRequestTest {
     @Rule
-    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     private static final String TEST_PAGE = "/chrome/test/data/android/test.html";
     private static final String ABOUT_PAGE = "/chrome/test/data/android/about.html";
@@ -42,11 +45,12 @@ public class OfflinePageRequestTest {
             new ClientId(OfflinePageBridge.BOOKMARK_NAMESPACE, "1234");
 
     private OfflinePageBridge mOfflinePageBridge;
+    private WebPageStation mStartingPage;
 
     @Before
     public void setUp() throws Exception {
-        mActivityTestRule.startMainActivityOnBlankPage();
-        TestThreadUtils.runOnUiThreadBlocking(
+        mStartingPage = mActivityTestRule.startOnBlankPage();
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     if (!NetworkChangeNotifier.isInitialized()) {
                         NetworkChangeNotifier.init();
@@ -79,7 +83,7 @@ public class OfflinePageRequestTest {
 
         // Stop the server and also disconnect the network.
         testServer.stopAndDestroyServer();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     NetworkChangeNotifier.forceConnectivityState(false);
                 });
@@ -108,7 +112,7 @@ public class OfflinePageRequestTest {
 
         // Stop the server and also disconnect the network.
         testServer.stopAndDestroyServer();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     NetworkChangeNotifier.forceConnectivityState(false);
                 });
@@ -145,7 +149,7 @@ public class OfflinePageRequestTest {
 
         // Stop the server and also disconnect the network.
         testServer.stopAndDestroyServer();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     NetworkChangeNotifier.forceConnectivityState(false);
                 });
@@ -160,7 +164,7 @@ public class OfflinePageRequestTest {
         mActivityTestRule.loadUrl(url);
 
         final Semaphore semaphore = new Semaphore(0);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mOfflinePageBridge.savePage(
                             mActivityTestRule.getWebContents(),
@@ -180,7 +184,7 @@ public class OfflinePageRequestTest {
 
     private boolean isOfflinePage(final Tab tab) {
         final boolean[] isOffline = new boolean[1];
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     isOffline[0] = OfflinePageUtils.isOfflinePage(tab);
                 });
@@ -189,7 +193,7 @@ public class OfflinePageRequestTest {
 
     private boolean isErrorPage(final Tab tab) {
         final boolean[] isShowingError = new boolean[1];
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     isShowingError[0] = tab.isShowingErrorPage();
                 });

@@ -89,7 +89,7 @@ ExtensionsToolbarButton::ExtensionsToolbarButton(
 
   if (base::FeatureList::IsEnabled(
           extensions_features::kExtensionsMenuAccessControl)) {
-    SetAccessibleName(GetAccessibleText(state_));
+    GetViewAccessibility().SetName(GetAccessibleText(state_));
     // By default, the button's accessible description is set to the button's
     // tooltip text. This is the accepted workaround to ensure only accessible
     // name is announced by a screenreader rather than tooltip text and
@@ -102,6 +102,8 @@ ExtensionsToolbarButton::ExtensionsToolbarButton(
     // accessibility mode.
     SetTooltipText(l10n_util::GetStringUTF16(IDS_TOOLTIP_EXTENSIONS_BUTTON));
   }
+
+  UpdateCachedTooltipText();
 }
 
 ExtensionsToolbarButton::~ExtensionsToolbarButton() {
@@ -128,8 +130,9 @@ void ExtensionsToolbarButton::OnBoundsChanged(
   // size and the preferred button size.
 
   const gfx::Size current_size = size();
-  if (current_size.IsEmpty())
+  if (current_size.IsEmpty()) {
     return;
+  }
   const int icon_size = GetIconSize();
   gfx::Insets new_insets;
   if (icon_size < current_size.width()) {
@@ -154,7 +157,8 @@ void ExtensionsToolbarButton::UpdateState(State state) {
 
   state_ = state;
   SetVectorIcon(GetIcon(state_));
-  SetAccessibleName(GetAccessibleText(state_));
+  GetViewAccessibility().SetName(GetAccessibleText(state_));
+  UpdateCachedTooltipText();
 }
 
 void ExtensionsToolbarButton::OnWidgetDestroying(views::Widget* widget) {
@@ -209,8 +213,7 @@ int ExtensionsToolbarButton::GetIconSize() const {
   return kDefaultIconSizeChromeRefresh;
 }
 
-std::u16string ExtensionsToolbarButton::GetTooltipText(
-    const gfx::Point& p) const {
+void ExtensionsToolbarButton::UpdateCachedTooltipText() {
   int message_id;
   switch (state_) {
     case ExtensionsToolbarButton::State::kDefault:
@@ -223,7 +226,7 @@ std::u16string ExtensionsToolbarButton::GetTooltipText(
       message_id = IDS_TOOLTIP_EXTENSIONS_BUTTON_ANY_EXTENSION_HAS_ACCESS;
       break;
   }
-  return l10n_util::GetStringUTF16(message_id);
+  SetTooltipText(l10n_util::GetStringUTF16(message_id));
 }
 
 BEGIN_METADATA(ExtensionsToolbarButton)

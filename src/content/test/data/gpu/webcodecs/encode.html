@@ -95,7 +95,6 @@ Take frames coming from various sources and check that:
         decoder_configs.length >= 2,
         'There should be 2 configs, for each configure()');
 
-
       if (arg.codec.startsWith('avc1.')) {
         // Check that h.264 in the config matches the codec string
         for (const configs of decoder_configs) {

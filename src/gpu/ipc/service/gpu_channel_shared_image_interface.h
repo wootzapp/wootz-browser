@@ -11,11 +11,20 @@
 #include "gpu/command_buffer/client/shared_image_interface.h"
 #include "gpu/command_buffer/common/command_buffer_id.h"
 #include "gpu/command_buffer/common/shared_image_capabilities.h"
+#include "gpu/command_buffer/common/shared_image_usage.h"
 #include "gpu/command_buffer/service/sequence_id.h"
 #include "gpu/gpu_gles2_export.h"
 #include "gpu/ipc/common/gpu_memory_buffer_handle_info.h"
 #include "gpu/ipc/service/shared_image_stub.h"
 #include "ui/gfx/gpu_memory_buffer.h"
+
+#if BUILDFLAG(IS_WIN)
+#include <d3d11.h>
+#include <wrl/client.h>
+
+#include "gpu/command_buffer/service/dxgi_shared_handle_manager.h"
+#include "gpu/command_buffer/service/shared_image/d3d_image_backing.h"
+#endif
 
 namespace base {
 class WaitableEvent;
@@ -23,13 +32,16 @@ class WaitableEvent;
 
 namespace gpu {
 class Scheduler;
+#if BUILDFLAG(IS_ANDROID)
+class StreamTextureSharedImageInterface;
+class RefCountedLock;
+#endif
 
 class GPU_IPC_SERVICE_EXPORT GpuChannelSharedImageInterface
     : public SharedImageInterface {
  public:
   explicit GpuChannelSharedImageInterface(
-      base::WeakPtr<SharedImageStub> shared_image_stub,
-      const CommandBufferId command_buffer_id);
+      base::WeakPtr<SharedImageStub> shared_image_stub);
 
   GpuChannelSharedImageInterface(const GpuChannelSharedImageInterface&) =
       delete;
@@ -39,14 +51,16 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelSharedImageInterface
   // SharedImageInterface:
   scoped_refptr<ClientSharedImage> CreateSharedImage(
       const SharedImageInfo& si_info,
-      gpu::SurfaceHandle surface_handle) override;
+      gpu::SurfaceHandle surface_handle,
+      std::optional<SharedImagePoolId> pool_id = std::nullopt) override;
   scoped_refptr<ClientSharedImage> CreateSharedImage(
       const SharedImageInfo& si_info,
       base::span<const uint8_t> pixel_data) override;
   scoped_refptr<ClientSharedImage> CreateSharedImage(
       const SharedImageInfo& si_info,
       SurfaceHandle surface_handle,
-      gfx::BufferUsage buffer_usage) override;
+      gfx::BufferUsage buffer_usage,
+      std::optional<SharedImagePoolId> pool_id = std::nullopt) override;
   scoped_refptr<ClientSharedImage> CreateSharedImage(
       const SharedImageInfo& si_info,
       gpu::SurfaceHandle surface_handle,
@@ -55,12 +69,7 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelSharedImageInterface
   scoped_refptr<ClientSharedImage> CreateSharedImage(
       const SharedImageInfo& si_info,
       gfx::GpuMemoryBufferHandle buffer_handle) override;
-  SharedImageInterface::SharedImageMapping CreateSharedImage(
-      const SharedImageInfo& si_info) override;
-  scoped_refptr<ClientSharedImage> CreateSharedImage(
-      gfx::GpuMemoryBuffer* gpu_memory_buffer,
-      GpuMemoryBufferManager* gpu_memory_buffer_manager,
-      gfx::BufferPlane plane,
+  scoped_refptr<ClientSharedImage> CreateSharedImageForSoftwareCompositor(
       const SharedImageInfo& si_info) override;
   void UpdateSharedImage(const SyncToken& sync_token,
                          const Mailbox& mailbox) override;
@@ -73,19 +82,19 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelSharedImageInterface
       const SyncToken& sync_token,
       scoped_refptr<ClientSharedImage> client_shared_image) override;
   scoped_refptr<ClientSharedImage> ImportSharedImage(
-      const ExportedSharedImage& exported_shared_image) override;
+      ExportedSharedImage exported_shared_image) override;
   SwapChainSharedImages CreateSwapChain(viz::SharedImageFormat format,
                                         const gfx::Size& size,
                                         const gfx::ColorSpace& color_space,
                                         GrSurfaceOrigin surface_origin,
                                         SkAlphaType alpha_type,
-                                        uint32_t usage) override;
+                                        SharedImageUsageSet usage) override;
   void PresentSwapChain(const SyncToken& sync_token,
                         const Mailbox& mailbox) override;
 #if BUILDFLAG(IS_FUCHSIA)
   void RegisterSysmemBufferCollection(zx::eventpair service_handle,
                                       zx::channel sysmem_token,
-                                      gfx::BufferFormat format,
+                                      const viz::SharedImageFormat& format,
                                       gfx::BufferUsage usage,
                                       bool register_with_image_pipe) override;
 #endif  // BUILDFLAG(IS_FUCHSIA)
@@ -93,33 +102,44 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelSharedImageInterface
   SyncToken GenVerifiedSyncToken() override;
   void VerifySyncToken(SyncToken& sync_token) override;
   void WaitSyncToken(const SyncToken& sync_token) override;
-  void Flush() override;
-  scoped_refptr<gfx::NativePixmap> GetNativePixmap(
-      const gpu::Mailbox& mailbox) override;
 
   const SharedImageCapabilities& GetCapabilities() override;
 
   // Public functions specific to GpuChannelSharedImageInterface:
+#if BUILDFLAG(IS_ANDROID)
+  scoped_refptr<ClientSharedImage> CreateSharedImageForAndroidVideo(
+      const gfx::Size& size,
+      const gfx::ColorSpace& color_space,
+      scoped_refptr<StreamTextureSharedImageInterface> image,
+      scoped_refptr<RefCountedLock> drdc_lock);
+#endif
+
+#if BUILDFLAG(IS_WIN)
+  scoped_refptr<ClientSharedImage> CreateSharedImageForD3D11Video(
+      const SharedImageInfo& si_info,
+      Microsoft::WRL::ComPtr<ID3D11Texture2D> texture,
+      scoped_refptr<gpu::DXGISharedHandleState> dxgi_shared_handle_state,
+      size_t array_slice,
+      const bool is_thread_safe);
+#endif
+
   SequenceId sequence() { return sequence_; }
-  scoped_refptr<gpu::SyncPointClientState> sync_point_client_state() {
-    return sync_point_client_state_;
-  }
 
  protected:
   ~GpuChannelSharedImageInterface() override;
 
  private:
   SyncToken MakeSyncToken(uint64_t release_id) {
-    return SyncToken(CommandBufferNamespace::GPU_IO, command_buffer_id_,
-                     release_id);
+    return SyncToken(CommandBufferNamespace::GPU_CHANNEL_SHARED_IMAGE_INTERFACE,
+                     command_buffer_id_, release_id);
   }
 
   void ScheduleGpuTask(base::OnceClosure task,
-                       std::vector<SyncToken> sync_token_fences);
+                       std::vector<SyncToken> sync_token_fences,
+                       const SyncToken& release);
 
   // Only called on the gpu thread.
   bool MakeContextCurrent(bool needs_gl = false);
-  void ReleaseFenceSync(uint64_t release);
   void GetGpuMemoryBufferHandleInfoOnGpuThread(
       const Mailbox& mailbox,
       gfx::GpuMemoryBufferHandle* handle,
@@ -130,31 +150,20 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelSharedImageInterface
 
   void CreateSharedImageOnGpuThread(const Mailbox& mailbox,
                                     SharedImageInfo si_info,
-                                    gpu::SurfaceHandle surface_handle,
-                                    uint64_t release);
+                                    gpu::SurfaceHandle surface_handle);
   void CreateSharedImageWithDataOnGpuThread(const Mailbox& mailbox,
                                             SharedImageInfo si_info,
-                                            std::vector<uint8_t> pixel_data,
-                                            uint64_t release);
+                                            std::vector<uint8_t> pixel_data);
   void CreateSharedImageWithBufferUsageOnGpuThread(
       const Mailbox& mailbox,
       SharedImageInfo si_info,
       SurfaceHandle surface_handle,
-      gfx::BufferUsage buffer_usage,
-      uint64_t release);
+      gfx::BufferUsage buffer_usage);
   void CreateSharedImageWithBufferOnGpuThread(
       const Mailbox& mailbox,
       SharedImageInfo si_info,
-      gfx::GpuMemoryBufferHandle buffer_handle,
-      uint64_t release);
-  void CreateGMBSharedImageOnGpuThread(const Mailbox& mailbox,
-                                       gfx::GpuMemoryBufferHandle handle,
-                                       gfx::BufferFormat format,
-                                       gfx::BufferPlane plane,
-                                       const gfx::Size& size,
-                                       SharedImageInfo si_info,
-                                       uint64_t release);
-  void UpdateSharedImageOnGpuThread(const Mailbox& mailbox, uint64_t release);
+      gfx::GpuMemoryBufferHandle buffer_handle);
+  void UpdateSharedImageOnGpuThread(const Mailbox& mailbox);
   void DestroySharedImageOnGpuThread(const Mailbox& mailbox);
   void DestroyClientSharedImageOnGpuThread(
       scoped_refptr<ClientSharedImage> client_shared_image);
@@ -175,7 +184,6 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelSharedImageInterface
   const CommandBufferId command_buffer_id_;
   raw_ptr<Scheduler> scheduler_;
   const SequenceId sequence_;
-  scoped_refptr<gpu::SyncPointClientState> sync_point_client_state_;
   SharedImageCapabilities shared_image_capabilities_;
 };
 

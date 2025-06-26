@@ -7,8 +7,7 @@ package org.chromium.chrome.test.transit;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 
-import static org.chromium.base.test.transit.ViewElement.sharedViewElement;
-import static org.chromium.base.test.transit.ViewElement.unscopedViewElement;
+import static org.chromium.base.test.transit.ViewSpec.viewSpec;
 
 import android.os.Build;
 import android.view.View;
@@ -20,15 +19,14 @@ import androidx.test.espresso.action.Press;
 import androidx.test.espresso.action.Swipe;
 import androidx.test.espresso.action.ViewActions;
 
-import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matcher;
-
-import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.transit.Elements;
 import org.chromium.base.test.transit.Facility;
-import org.chromium.base.test.transit.Transition.Trigger;
+import org.chromium.base.test.transit.Station;
+import org.chromium.base.test.transit.Transition;
 import org.chromium.base.test.transit.ViewElement;
+import org.chromium.base.test.transit.ViewSpec;
 import org.chromium.chrome.test.R;
+import org.chromium.chrome.test.transit.page.PageStation;
 import org.chromium.components.messages.DismissReason;
 import org.chromium.components.messages.MessageDispatcher;
 import org.chromium.components.messages.MessageDispatcherProvider;
@@ -43,78 +41,66 @@ import java.util.List;
  * Represents a message banner shown over a PageStation.
  *
  * <p>Subclass for specific messages types to specify expected title, button text and behavior.
+ *
+ * @param <HostStationT> the type of host {@link Station} this is scoped to.
  */
-public class MessageFacility extends Facility<PageStation> {
-    public static final Matcher<View> MESSAGE_TITLE_MATCHER = withId(R.id.message_title);
-    public static final Matcher<View> MESSAGE_PRIMARY_BUTTON_MATCHER =
-            withId(R.id.message_primary_button);
-
-    // Unscoped because other messages can appear and fail the exit condition.
-    public static final ViewElement MESSAGE_BANNER =
-            unscopedViewElement(withId(R.id.message_banner));
-    public static final ViewElement MESSAGE_ICON = unscopedViewElement(withId(R.id.message_icon));
-
-    public MessageFacility(PageStation station) {
-        super(station);
-    }
+public class MessageFacility<HostStationT extends PageStation> extends Facility<HostStationT> {
+    public ViewElement<View> bannerElement;
+    public ViewElement<View> iconElement;
 
     @CallSuper
     @Override
     public void declareElements(Elements.Builder elements) {
-        elements.declareView(MESSAGE_BANNER);
-        elements.declareView(MESSAGE_ICON);
+        // Unscoped because other messages can appear and fail the exit condition.
+        bannerElement =
+                elements.declareView(
+                        viewSpec(withId(R.id.message_banner)), ViewElement.unscopedOption());
+        iconElement =
+                elements.declareView(
+                        viewSpec(withId(R.id.message_icon)), ViewElement.unscopedOption());
     }
 
     /** Dismiss the message banner. */
     public void dismiss() {
-        Trigger dismissTrigger;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // b/329707221: For S+, GeneralSwipeAction is not working in the current version of
             // Espresso (3.2). Workaround by using the test helpers to dismiss the popup
             // programmatically.
-            dismissTrigger =
-                    () ->
-                            ThreadUtils.runOnUiThreadBlocking(
-                                    () -> {
-                                        MessageDispatcher messageDispatcher =
-                                                MessageDispatcherProvider.from(
-                                                        mHostStation
-                                                                .mChromeTabbedActivityTestRule
-                                                                .getActivity()
-                                                                .getWindowAndroid());
-                                        assert messageDispatcher != null;
-                                        List<MessageStateHandler> messages =
-                                                MessagesTestHelper.getEnqueuedMessages(
-                                                        messageDispatcher,
-                                                        MessageIdentifier.POPUP_BLOCKED);
-                                        assert !messages.isEmpty();
-                                        PropertyModel m =
-                                                MessagesTestHelper.getCurrentMessage(
-                                                        messages.get(0));
-                                        messageDispatcher.dismissMessage(m, DismissReason.GESTURE);
-                                    });
+            mHostStation.exitFacilitySync(
+                    this,
+                    Transition.runTriggerOnUiThreadOption(),
+                    () -> {
+                        MessageDispatcher messageDispatcher =
+                                MessageDispatcherProvider.from(
+                                        mHostStation.getActivity().getWindowAndroid());
+                        assert messageDispatcher != null;
+                        List<MessageStateHandler> messages =
+                                MessagesTestHelper.getEnqueuedMessages(
+                                        messageDispatcher, MessageIdentifier.POPUP_BLOCKED);
+                        assert !messages.isEmpty();
+                        PropertyModel m = MessagesTestHelper.getCurrentMessage(messages.get(0));
+                        messageDispatcher.dismissMessage(m, DismissReason.GESTURE);
+                    });
         } else {
-            dismissTrigger =
-                    () ->
-                            MESSAGE_BANNER.perform(
-                                    ViewActions.actionWithAssertions(
-                                            new GeneralSwipeAction(
-                                                    Swipe.FAST,
-                                                    GeneralLocation.CENTER,
-                                                    GeneralLocation.TOP_CENTER,
-                                                    Press.FINGER)));
+            mHostStation.exitFacilitySync(
+                    this,
+                    bannerElement.performTrigger(
+                            ViewActions.actionWithAssertions(
+                                    new GeneralSwipeAction(
+                                            Swipe.FAST,
+                                            GeneralLocation.CENTER,
+                                            GeneralLocation.TOP_CENTER,
+                                            Press.FINGER))));
         }
-        mHostStation.exitFacilitySync(this, dismissTrigger);
     }
 
-    /** Create a ViewElement expecting the message's |title|. */
-    protected static ViewElement titleViewElement(String title) {
-        return sharedViewElement(CoreMatchers.allOf(MESSAGE_TITLE_MATCHER, withText(title)));
+    /** Create a {@link ViewSpec} expecting the message's |title|. */
+    protected static ViewSpec<View> titleViewSpec(String title) {
+        return viewSpec(withId(R.id.message_title), withText(title));
     }
 
-    /** Create a ViewElement expecting the message's primary button with |text|. */
-    protected static ViewElement primaryButtonViewElement(String text) {
-        return sharedViewElement(
-                CoreMatchers.allOf(MESSAGE_PRIMARY_BUTTON_MATCHER, withText(text)));
+    /** Create a {@link ViewSpec} expecting the message's primary button with |text|. */
+    protected static ViewSpec<View> primaryButtonViewSpec(String text) {
+        return viewSpec(withId(R.id.message_primary_button), withText(text));
     }
 }

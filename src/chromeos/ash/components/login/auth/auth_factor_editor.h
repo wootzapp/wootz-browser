@@ -37,6 +37,13 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_LOGIN_AUTH) AuthFactorEditor {
 
   base::WeakPtr<AuthFactorEditor> AsWeakPtr();
 
+  // Locks account recovery until the device reboots. On success, no user on the
+  // device will be able to access the local account without using their old
+  // password. After the device reboots, users can use their updated password to
+  // gain access to their local account. This can be used to temporary block
+  // account recovery for a remote access session to the device.
+  void LockCryptohomeRecoveryUntilReboot(NoContextOperationCallback callback);
+
   // Retrieves information about all configured and possible AuthFactors,
   // and stores it in `context`.
   // Should only be used with AuthFactors feature enabled.
@@ -136,15 +143,15 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_LOGIN_AUTH) AuthFactorEditor {
                          const cryptohome::KeyLabel& label,
                          AuthOperationCallback callback);
 
-  // Replaces the user's password with a new value. A password must
+  // Updates the user's password with a new value. A password must
   // already be configured prior to calling this. On success, as this will
   // modify the auth factor configurations of the user, the context auth factor
   // configurations will be cleared.
   // Session should be authenticated.
-  void ReplacePasswordFactor(std::unique_ptr<UserContext> context,
-                             cryptohome::RawPassword new_password,
-                             const cryptohome::KeyLabel& label,
-                             AuthOperationCallback callback);
+  void UpdatePasswordFactor(std::unique_ptr<UserContext> context,
+                            cryptohome::RawPassword new_password,
+                            const cryptohome::KeyLabel& label,
+                            AuthOperationCallback callback);
 
   // Updates the user's password factor's metadata. The password must already
   // be configured prior to calling this. On success, as this will modify the
@@ -155,6 +162,25 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_LOGIN_AUTH) AuthFactorEditor {
                                     const cryptohome::KeyLabel& label,
                                     const cryptohome::SystemSalt& system_salt,
                                     AuthOperationCallback callback);
+
+  // Replaces the user's password factor with a new password factor (E.g.
+  // Changing to local password from Gaia password). A password must already be
+  // configured prior to calling this. The new password factor label must be
+  // different from the old password factor label. On success, as this will
+  // modify the auth factor configurations of the user, the context auth factor
+  // configurations will be cleared. Session should be authenticated.
+  void ReplacePasswordFactor(std::unique_ptr<UserContext> context,
+                             const cryptohome::KeyLabel& old_label,
+                             cryptohome::RawPassword new_password,
+                             const cryptohome::KeyLabel& new_label,
+                             AuthOperationCallback callback);
+
+  // Removes the user's password factor . A password must already be
+  // configured prior to calling this. The caller needs to be careful in calling
+  // this since this may delete the last knowledge factor.
+  void RemovePasswordFactor(std::unique_ptr<UserContext> context,
+                            const cryptohome::KeyLabel& label,
+                            AuthOperationCallback callback);
 
   // Updates the user's PIN factor's metadata. The PIN must already
   // be configured prior to calling this. On success, as this will modify the
@@ -188,6 +214,11 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_LOGIN_AUTH) AuthFactorEditor {
       AuthOperationCallback callback,
       std::optional<user_data_auth::UpdateAuthFactorReply> reply);
 
+  void OnReplaceAuthFactor(
+      std::unique_ptr<UserContext> context,
+      AuthOperationCallback callback,
+      std::optional<user_data_auth::ReplaceAuthFactorReply> reply);
+
   void OnRemoveAuthFactor(
       std::unique_ptr<UserContext> context,
       AuthOperationCallback callback,
@@ -204,11 +235,22 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_LOGIN_AUTH) AuthFactorEditor {
                              AuthOperationCallback calllback,
                              const std::string& system_salt);
 
+  void UpdatePasswordFactorImpl(std::unique_ptr<UserContext> context,
+                                cryptohome::RawPassword new_password,
+                                const cryptohome::KeyLabel& label,
+                                AuthOperationCallback callback,
+                                const std::string& system_salt);
+
   void ReplacePasswordFactorImpl(std::unique_ptr<UserContext> context,
+                                 const cryptohome::KeyLabel& old_label,
                                  cryptohome::RawPassword new_password,
-                                 const cryptohome::KeyLabel& label,
+                                 const cryptohome::KeyLabel& new_label,
                                  AuthOperationCallback callback,
                                  const std::string& system_salt);
+
+  void OnCryptohomeRecoveryLockedUntilReboot(
+      NoContextOperationCallback callback,
+      std::optional<user_data_auth::LockFactorUntilRebootReply> reply);
 
   const raw_ptr<UserDataAuthClient, DanglingUntriaged> client_;
   base::WeakPtrFactory<AuthFactorEditor> weak_factory_{this};

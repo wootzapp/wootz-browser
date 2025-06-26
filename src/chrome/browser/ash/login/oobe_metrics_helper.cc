@@ -7,13 +7,14 @@
 #include <map>
 
 #include "base/check.h"
+#include "base/debug/dump_without_crashing.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "chrome/browser/ash/login/login_pref_names.h"
 #include "chrome/browser/ash/login/oobe_screen.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/webui/ash/login/auto_enrollment_check_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/consumer_update_screen_handler.h"
 #include "chrome/browser/ui/webui/ash/login/demo_preferences_screen_handler.h"
@@ -63,8 +64,21 @@ constexpr char kUmaFirstOnboardingSuffix[] = "FirstOnboarding";
 constexpr char kUmaSubsequentOnboardingSuffix[] = "SubsequentOnboarding";
 
 constexpr char kUmaOobeMetricsClientIdReset[] = "OOBE.MetricsClientIdReset";
+constexpr char kUmaOobeMetricsClientIdReset2[] = "OOBE.MetricsClientIdReset2";
 constexpr char kUmaOobeStatsReportingControllerReportedReset[] =
     "OOBE.StatsReportingControllerReportedReset";
+
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused. This should be kept in sync with
+// OobeMetricsClientIdResetState in enums.xml.
+enum class OobeMetricsClientIdResetState {
+  kNoMetricsClientIDReset = 0,
+  kMetricsClientIDReset = 1,
+  kInitialIDMissing = 2,
+  kCurrentIDMissing = 3,
+
+  kMaxValue = kCurrentIDMissing
+};
 
 struct LegacyScreenNameEntry {
   StaticOobeScreenId screen;
@@ -244,6 +258,14 @@ void OobeMetricsHelper::RecordPreLoginOobeFirstStart() {
   // client ID at the end of OOBE.
   g_browser_process->local_state()->SetString(
       prefs::kOobeMetricsClientIdAtOobeStart, GetMetricsClientID());
+
+  // With pre-consent metrics feature, the consent status before first user sign
+  // in is set to true. OobeMetricsHelper needs to record the consent status
+  // when OOBE first starts.
+  if (StatsReportingController::Get()->IsEnabled()) {
+    g_browser_process->local_state()->SetBoolean(
+        prefs::kOobeMetricsReportedAsEnabled, true);
+  }
 }
 
 void OobeMetricsHelper::RecordPreLoginOobeComplete(
@@ -307,24 +329,46 @@ void OobeMetricsHelper::RecordOnboadingComplete(
     base::UmaHistogramLongTimes(kUmaOobeFlowDuration,
                                 base::Time::Now() - oobe_start_time);
 
-    // Record whether the metrics client ID was reset during OOBE.
+    // Record `Metrics Client ID Reset` histograms.
     std::string initial_id = g_browser_process->local_state()->GetString(
         prefs::kOobeMetricsClientIdAtOobeStart);
 
-    if (!initial_id.empty()) {
+    if (initial_id.empty()) {
+      base::UmaHistogramEnumeration(
+          kUmaOobeMetricsClientIdReset2,
+          OobeMetricsClientIdResetState::kInitialIDMissing);
+    } else {
       std::string current_id = GetMetricsClientID();
-      if (!current_id.empty()) {
-        base::UmaHistogramBoolean(kUmaOobeMetricsClientIdReset,
-                                  initial_id != current_id);
+      if (current_id.empty()) {
+        base::UmaHistogramEnumeration(
+            kUmaOobeMetricsClientIdReset2,
+            OobeMetricsClientIdResetState::kCurrentIDMissing);
 
-        // Record whether `StatsReportingController` reported a reset during
-        // OOBE.
-        base::UmaHistogramBoolean(
-            kUmaOobeStatsReportingControllerReportedReset,
-            g_browser_process->local_state()->GetBoolean(
-                prefs::kOobeStatsReportingControllerReportedReset));
+      } else {
+        if (initial_id == current_id) {
+          base::UmaHistogramBoolean(kUmaOobeMetricsClientIdReset, false);
+          base::UmaHistogramEnumeration(
+              kUmaOobeMetricsClientIdReset2,
+              OobeMetricsClientIdResetState::kNoMetricsClientIDReset);
+        } else {
+          base::UmaHistogramBoolean(kUmaOobeMetricsClientIdReset, true);
+          base::UmaHistogramEnumeration(
+              kUmaOobeMetricsClientIdReset2,
+              OobeMetricsClientIdResetState::kMetricsClientIDReset);
+        }
       }
     }
+
+    // Record whether `StatsReportingController` reported a reset during OOBE.
+    base::UmaHistogramBoolean(
+        kUmaOobeStatsReportingControllerReportedReset,
+        g_browser_process->local_state()->GetBoolean(
+            prefs::kOobeStatsReportingControllerReportedReset));
+
+    g_browser_process->local_state()->ClearPref(
+        prefs::kOobeMetricsReportedAsEnabled);
+    g_browser_process->local_state()->ClearPref(
+        prefs::kOobeStatsReportingControllerReportedReset);
   }
 
   if (!onboarding_start_time.is_null()) {

@@ -10,6 +10,7 @@
 #include "base/functional/bind.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/time/time.h"
+#include "components/enterprise/common/proto/connectors.pb.h"
 #include "components/safe_browsing/core/browser/realtime/url_lookup_service_base.h"
 #include "components/safe_browsing/core/common/proto/csd.pb.h"
 #include "components/safe_browsing/core/common/proto/realtimeapi.pb.h"
@@ -33,11 +34,18 @@ class FakeRealTimeUrlLookupService
   bool CanCheckSafeBrowsingDb() const override;
   bool CanCheckSafeBrowsingHighConfidenceAllowlist() const override;
   bool CanSendRTSampleRequest() const override;
+  std::string GetUserEmail() const override;
+  std::string GetBrowserDMTokenString() const override;
+  std::string GetProfileDMTokenString() const override;
+  std::unique_ptr<enterprise_connectors::ClientMetadata> GetClientMetadata()
+      const override;
   std::string GetMetricSuffix() const override;
   void SendSampledRequest(
       const GURL& url,
       scoped_refptr<base::SequencedTaskRunner> callback_task_runner,
-      SessionID session_id) override;
+      SessionID session_id,
+      std::optional<internal::ReferringAppInfo> referring_app_info) override;
+  bool CanCheckUrl(const GURL& url) override;
 
   GURL GetRealTimeLookupUrl() const override;
   net::NetworkTrafficAnnotationTag GetTrafficAnnotationTag() const override;
@@ -48,7 +56,8 @@ class FakeRealTimeUrlLookupService
       const GURL& url,
       safe_browsing::RTLookupResponseCallback response_callback,
       scoped_refptr<base::SequencedTaskRunner> callback_task_runner,
-      SessionID session_id) override;
+      SessionID session_id,
+      std::optional<internal::ReferringAppInfo> referring_app_info) override;
   std::optional<std::string> GetDMTokenString() const override;
   bool ShouldIncludeCredentials() const override;
   std::optional<base::Time> GetMinAllowedTimestampForReferrerChains()

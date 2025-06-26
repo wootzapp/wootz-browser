@@ -6,6 +6,7 @@
 
 #include <linux/input-event-codes.h>
 
+#include <algorithm>
 #include <memory>
 
 #include "ash/constants/ash_features.h"
@@ -15,18 +16,16 @@
 #include "base/containers/contains.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_file.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/test/scoped_feature_list.h"
-#include "components/account_id/account_id.h"
-#include "components/user_manager/fake_user_manager.h"
-#include "components/user_manager/user.h"
-#include "components/user_manager/user_manager.h"
 #include "device/udev_linux/fake_udev_loader.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/events/ash/mojom/meta_key.mojom-shared.h"
 #include "ui/events/ash/mojom/modifier_key.mojom-shared.h"
 #include "ui/events/ash/mojom/modifier_key.mojom.h"
+#include "ui/events/ash/top_row_action_keys.h"
+#include "ui/events/devices/device_data_manager.h"
 #include "ui/events/devices/device_data_manager_test_api.h"
 #include "ui/events/devices/input_device.h"
 #include "ui/events/keycodes/keyboard_codes_posix.h"
@@ -169,7 +168,7 @@ class FakeDeviceManager {
   FakeDeviceManager() = default;
   FakeDeviceManager(const FakeDeviceManager&) = delete;
   FakeDeviceManager& operator=(const FakeDeviceManager&) = delete;
-  ~FakeDeviceManager() = default;
+  ~FakeDeviceManager() { RemoveAllDevices(); }
 
   // Add a fake keyboard to DeviceDataManagerTestApi and provide layout info to
   // fake udev.
@@ -178,7 +177,6 @@ class FakeDeviceManager {
                        bool has_custom_top_row = false) {
     fake_keyboard_devices_.push_back(fake_keyboard);
 
-    DeviceDataManagerTestApi().SetKeyboardDevices({});
     DeviceDataManagerTestApi().SetKeyboardDevices(fake_keyboard_devices_);
     DeviceDataManagerTestApi().OnDeviceListsComplete();
 
@@ -199,6 +197,7 @@ class FakeDeviceManager {
   void RemoveAllDevices() {
     fake_udev_.Reset();
     fake_keyboard_devices_.clear();
+    DeviceDataManagerTestApi().SetKeyboardDevices({});
   }
 
  private:
@@ -214,8 +213,6 @@ class KeyboardCapabilityTestBase : public testing::Test {
   ~KeyboardCapabilityTestBase() override = default;
 
   void SetUp() override {
-    user_manager_ = std::make_unique<user_manager::FakeUserManager>();
-    user_manager_->Initialize();
     keyboard_capability_ = std::make_unique<KeyboardCapability>(
         base::BindRepeating(&GetEvdevKeyCodeForScanCode));
     fake_keyboard_manager_ = std::make_unique<FakeDeviceManager>();
@@ -224,8 +221,6 @@ class KeyboardCapabilityTestBase : public testing::Test {
   void TearDown() override {
     fake_keyboard_devices_.clear();
     keyboard_capability_.reset();
-    user_manager_->Destroy();
-    user_manager_.reset();
   }
 
   KeyboardDevice AddFakeKeyboardInfoToKeyboardCapability(
@@ -251,10 +246,7 @@ class KeyboardCapabilityTestBase : public testing::Test {
  protected:
   std::unique_ptr<KeyboardCapability> keyboard_capability_;
   std::unique_ptr<FakeDeviceManager> fake_keyboard_manager_;
-  std::unique_ptr<user_manager::FakeUserManager> user_manager_;
   std::vector<KeyboardDevice> fake_keyboard_devices_;
-  base::AutoReset<bool> modifier_split_reset_ =
-      ash::switches::SetIgnoreModifierSplitSecretKeyForTest();
 };
 
 class KeyboardCapabilityTest : public KeyboardCapabilityTestBase,
@@ -390,6 +382,110 @@ TEST_P(KeyboardCapabilityTest, TestHasLauncherButton) {
   fake_keyboard3.sys_path = base::FilePath("path3");
   fake_keyboard_manager_->AddFakeKeyboard(fake_keyboard3, kKbdTopRowLayout1Tag);
   EXPECT_TRUE(keyboard_capability_->HasLauncherButtonOnAnyKeyboard());
+}
+
+TEST_P(KeyboardCapabilityTest, TestGetMetaKey) {
+  // Add a non-layout2 keyboard.
+  KeyboardDevice fake_keyboard1(
+      /*id=*/kDeviceId1, /*type=*/InputDeviceType::INPUT_DEVICE_INTERNAL,
+      /*name=*/"Keyboard1");
+  fake_keyboard1.sys_path = base::FilePath("path1");
+  fake_keyboard_manager_->AddFakeKeyboard(fake_keyboard1, kKbdTopRowLayout1Tag);
+
+  // Provide specific keyboard. Launcher button depends on if the keyboard is
+  // layout2 type.
+  EXPECT_EQ(mojom::MetaKey::kSearch,
+            keyboard_capability_->GetMetaKey(fake_keyboard1));
+  // Do not provide specific keyboard. Launcher button depends on if any one
+  // of the keyboards is layout2 type.
+  EXPECT_EQ(mojom::MetaKey::kSearch,
+            keyboard_capability_->GetMetaKeyToDisplay());
+
+  // Add a layout2 keyboard.
+  KeyboardDevice fake_keyboard2(
+      /*id=*/kDeviceId2, /*type=*/InputDeviceType::INPUT_DEVICE_INTERNAL,
+      /*name=*/"Keyboard2");
+  fake_keyboard1.sys_path = base::FilePath("path2");
+  fake_keyboard_manager_->AddFakeKeyboard(fake_keyboard2, kKbdTopRowLayout2Tag);
+
+  EXPECT_EQ(mojom::MetaKey::kSearch,
+            keyboard_capability_->GetMetaKey(fake_keyboard1));
+  EXPECT_EQ(mojom::MetaKey::kLauncher,
+            keyboard_capability_->GetMetaKey(fake_keyboard2));
+  EXPECT_EQ(mojom::MetaKey::kLauncher,
+            keyboard_capability_->GetMetaKeyToDisplay());
+}
+
+TEST_P(KeyboardCapabilityTest, TestGetMetaKey_ExternalChromeOS) {
+  KeyboardDevice fake_keyboard1(
+      /*id=*/kDeviceId1, /*type=*/InputDeviceType::INPUT_DEVICE_USB,
+      /*name=*/"Keyboard1");
+  fake_keyboard1.sys_path = base::FilePath("path1");
+  fake_keyboard_manager_->AddFakeKeyboard(fake_keyboard1, kKbdTopRowLayout1Tag);
+  EXPECT_EQ(mojom::MetaKey::kLauncher,
+            keyboard_capability_->GetMetaKey(fake_keyboard1));
+  EXPECT_EQ(mojom::MetaKey::kLauncher,
+            keyboard_capability_->GetMetaKeyToDisplay());
+
+  fake_keyboard_manager_->RemoveAllDevices();
+  fake_keyboard_manager_->AddFakeKeyboard(fake_keyboard1, kKbdTopRowLayout2Tag);
+  EXPECT_EQ(mojom::MetaKey::kLauncher,
+            keyboard_capability_->GetMetaKey(fake_keyboard1));
+  EXPECT_EQ(mojom::MetaKey::kLauncher,
+            keyboard_capability_->GetMetaKeyToDisplay());
+}
+
+TEST_P(KeyboardCapabilityTest, TestGetMetaKey_ExternalNonChromeOS) {
+  KeyboardDevice fake_keyboard1(
+      /*id=*/kDeviceId1, /*type=*/InputDeviceType::INPUT_DEVICE_USB,
+      /*name=*/"Keyboard1");
+  fake_keyboard1.sys_path = base::FilePath("path1");
+  fake_keyboard_manager_->AddFakeKeyboard(fake_keyboard1,
+                                          kKbdTopRowLayoutUnspecified);
+  EXPECT_EQ(mojom::MetaKey::kExternalMeta,
+            keyboard_capability_->GetMetaKey(fake_keyboard1));
+  EXPECT_EQ(ash::features::IsModifierSplitEnabled()
+                ? mojom::MetaKey::kLauncherRefresh
+                : mojom::MetaKey::kLauncher,
+            keyboard_capability_->GetMetaKeyToDisplay());
+
+  // When an internal keyboard is added, it overrides the meta key from the
+  // external keyboard.
+  KeyboardDevice internal_keyboard(
+      /*id=*/kDeviceId2, /*type=*/InputDeviceType::INPUT_DEVICE_INTERNAL,
+      /*name=*/"Keyboard2");
+  fake_keyboard1.sys_path = base::FilePath("path2");
+  fake_keyboard_manager_->AddFakeKeyboard(internal_keyboard,
+                                          kKbdTopRowLayout2Tag);
+  EXPECT_EQ(mojom::MetaKey::kLauncher,
+            keyboard_capability_->GetMetaKey(internal_keyboard));
+  EXPECT_EQ(mojom::MetaKey::kLauncher,
+            keyboard_capability_->GetMetaKeyToDisplay());
+}
+
+TEST_P(KeyboardCapabilityTest, TestGetMetaKey_SplitModifierKeyboard) {
+  if (!ash::features::IsModifierSplitEnabled()) {
+    GTEST_SKIP()
+        << "This test is only applicable with split modifier feature enabled.";
+  }
+
+  const KeyboardDevice split_modifier_keyboard =
+      AddFakeKeyboardInfoToKeyboardCapability(
+          kDeviceId1, kSplitModifierKeyboard,
+          KeyboardCapability::DeviceType::kDeviceInternalKeyboard,
+          KeyboardCapability::KeyboardTopRowLayout::kKbdTopRowLayoutCustom);
+  EXPECT_EQ(mojom::MetaKey::kLauncherRefresh,
+            keyboard_capability_->GetMetaKey(split_modifier_keyboard));
+  EXPECT_EQ(mojom::MetaKey::kLauncherRefresh,
+            keyboard_capability_->GetMetaKeyToDisplay());
+}
+
+TEST_P(KeyboardCapabilityTest, TestGetMetaKey_NoKeyboardsConnected) {
+  ASSERT_TRUE(DeviceDataManager::GetInstance()->GetKeyboardDevices().empty());
+  EXPECT_EQ(ash::features::IsModifierSplitEnabled()
+                ? mojom::MetaKey::kLauncherRefresh
+                : mojom::MetaKey::kLauncher,
+            keyboard_capability_->GetMetaKeyToDisplay());
 }
 
 TEST_P(KeyboardCapabilityTest, TestHasSixPackKey) {
@@ -618,6 +714,24 @@ TEST_P(KeyboardCapabilityTest, TestHasSettingsKey) {
   EXPECT_TRUE(keyboard_capability_->HasSettingsKey(external_keyboard));
 }
 
+TEST_P(KeyboardCapabilityTest, TestHasCameraAccessKey) {
+  KeyboardDevice internal_keyboard(
+      /*id=*/1, /*type=*/InputDeviceType::INPUT_DEVICE_INTERNAL,
+      /*name=*/"Keyboard1");
+  internal_keyboard.sys_path = base::FilePath("path1");
+  fake_keyboard_manager_->AddFakeKeyboard(internal_keyboard,
+                                          kKbdTopRowLayout1Tag);
+  EXPECT_FALSE(keyboard_capability_->HasCameraAccessKey(internal_keyboard));
+
+  KeyboardDevice external_keyboard(
+      /*id=*/2, /*type=*/InputDeviceType::INPUT_DEVICE_BLUETOOTH,
+      /*name=*/"Keyboard2");
+  external_keyboard.sys_path = base::FilePath("path2");
+  fake_keyboard_manager_->AddFakeKeyboard(external_keyboard,
+                                          kKbdTopRowLayoutUnspecified);
+  EXPECT_TRUE(keyboard_capability_->HasCameraAccessKey(external_keyboard));
+}
+
 class ModifierKeyTest : public KeyboardCapabilityTestBase,
                         public testing::WithParamInterface<
                             std::tuple<DeviceCapabilities,
@@ -670,8 +784,8 @@ TEST_P(ModifierKeyTest, TestGetModifierKeys) {
       kDeviceId1, capabilities, device_type, top_row_layout);
   auto modifier_keys = keyboard_capability_->GetModifierKeys(test_keyboard);
 
-  base::ranges::sort(expected_modifier_keys);
-  base::ranges::sort(modifier_keys);
+  std::ranges::sort(expected_modifier_keys);
+  std::ranges::sort(modifier_keys);
   EXPECT_EQ(expected_modifier_keys, modifier_keys);
 }
 
@@ -687,75 +801,13 @@ TEST_P(KeyboardCapabilityTest, TestGetModifierKeysForSplitModifierKeyboard) {
   auto modifier_keys = keyboard_capability_->GetModifierKeys(test_keyboard);
 
   std::vector<mojom::ModifierKey> expected_modifier_keys = {
-      mojom::ModifierKey::kBackspace, mojom::ModifierKey::kControl,
-      mojom::ModifierKey::kMeta,      mojom::ModifierKey::kEscape,
-      mojom::ModifierKey::kAlt,       mojom::ModifierKey::kFunction,
-      mojom::ModifierKey::kRightAlt};
-  base::ranges::sort(expected_modifier_keys);
-  base::ranges::sort(modifier_keys);
+      mojom::ModifierKey::kBackspace,  mojom::ModifierKey::kControl,
+      mojom::ModifierKey::kMeta,       mojom::ModifierKey::kEscape,
+      mojom::ModifierKey::kAlt,        mojom::ModifierKey::kFunction,
+      mojom::ModifierKey::kQuickInsert};
+  std::ranges::sort(expected_modifier_keys);
+  std::ranges::sort(modifier_keys);
   EXPECT_EQ(expected_modifier_keys, modifier_keys);
-}
-
-// With the dogfood flag enabled AND no Google account logged in, the feature
-// should act as though its disabled.
-TEST_P(KeyboardCapabilityTest,
-       TestGetModifierKeysForSplitModifierKeyboardDogfood) {
-  if (!ash::features::IsModifierSplitEnabled()) {
-    GTEST_SKIP() << "Test is only valid with Modifier Split flag enabled.";
-  }
-
-  AccountId non_google_account_id =
-      AccountId::FromUserEmail("testaccount@gmail.com");
-  AccountId google_account_id =
-      AccountId::FromUserEmail("testaccount@google.com");
-  user_manager_->AddUser(non_google_account_id);
-  user_manager_->AddUser(google_account_id);
-
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(ash::features::kModifierSplitDogfood);
-
-  keyboard_capability_->ResetModifierSplitDogfoodControllerForTesting();
-
-  // When a non-google account is signed in, keyboard capability should not
-  // consider it a split modifier keyboard.
-  user_manager_->UserLoggedIn(
-      non_google_account_id,
-      user_manager::FakeUserManager::GetFakeUsernameHash(non_google_account_id),
-      /*browser_restart=*/false, /*is_child=*/false);
-  const KeyboardDevice test_keyboard = AddFakeKeyboardInfoToKeyboardCapability(
-      kDeviceId1, kSplitModifierKeyboard,
-      KeyboardCapability::DeviceType::kDeviceInternalKeyboard,
-      KeyboardCapability::KeyboardTopRowLayout::kKbdTopRowLayoutCustom);
-  {
-    auto modifier_keys = keyboard_capability_->GetModifierKeys(test_keyboard);
-
-    std::vector<mojom::ModifierKey> expected_modifier_keys = {
-        mojom::ModifierKey::kBackspace, mojom::ModifierKey::kControl,
-        mojom::ModifierKey::kMeta,      mojom::ModifierKey::kEscape,
-        mojom::ModifierKey::kAlt,       mojom::ModifierKey::kAssistant};
-    base::ranges::sort(expected_modifier_keys);
-    base::ranges::sort(modifier_keys);
-    EXPECT_EQ(expected_modifier_keys, modifier_keys);
-  }
-  user_manager_->LogoutAllUsers();
-
-  // Once a google account signs in, it should now be considered a split
-  // modifier keyboard.
-  user_manager_->UserLoggedIn(
-      google_account_id,
-      user_manager::FakeUserManager::GetFakeUsernameHash(google_account_id),
-      /*browser_restart=*/false, /*is_child=*/false);
-  {
-    auto modifier_keys = keyboard_capability_->GetModifierKeys(test_keyboard);
-    std::vector<mojom::ModifierKey> expected_modifier_keys = {
-        mojom::ModifierKey::kBackspace, mojom::ModifierKey::kControl,
-        mojom::ModifierKey::kMeta,      mojom::ModifierKey::kEscape,
-        mojom::ModifierKey::kAlt,       mojom::ModifierKey::kFunction,
-        mojom::ModifierKey::kRightAlt};
-    base::ranges::sort(expected_modifier_keys);
-    base::ranges::sort(modifier_keys);
-    EXPECT_EQ(expected_modifier_keys, modifier_keys);
-  }
 }
 
 TEST_P(KeyboardCapabilityTest, TestGetModifierKeysForEveKeyboard) {
@@ -771,8 +823,8 @@ TEST_P(KeyboardCapabilityTest, TestGetModifierKeysForEveKeyboard) {
       mojom::ModifierKey::kBackspace, mojom::ModifierKey::kControl,
       mojom::ModifierKey::kMeta,      mojom::ModifierKey::kEscape,
       mojom::ModifierKey::kAlt,       mojom::ModifierKey::kAssistant};
-  base::ranges::sort(expected_modifier_keys);
-  base::ranges::sort(modifier_keys);
+  std::ranges::sort(expected_modifier_keys);
+  std::ranges::sort(modifier_keys);
   EXPECT_EQ(expected_modifier_keys, modifier_keys);
 }
 
@@ -794,8 +846,6 @@ class KeyEventTest
   }
 
  protected:
-  base::AutoReset<bool> modifier_split_reset_ =
-      ash::switches::SetIgnoreModifierSplitSecretKeyForTest();
   std::unique_ptr<base::test::ScopedFeatureList> modifier_split_feature_list_;
 };
 
@@ -1070,7 +1120,7 @@ TEST_P(KeyboardCapabilityTest, TopRowLayout1) {
   fake_keyboard_manager_->AddFakeKeyboard(input_device, kKbdTopRowLayout1Tag,
                                           /*has_custom_top_row=*/false);
 
-  for (TopRowActionKey action_key = TopRowActionKey::kMinValue;
+  for (TopRowActionKey action_key = TopRowActionKey::kNone;
        action_key <= TopRowActionKey::kMaxValue;
        action_key =
            static_cast<TopRowActionKey>(static_cast<int>(action_key) + 1)) {
@@ -1098,7 +1148,7 @@ TEST_P(KeyboardCapabilityTest, TopRowLayout2) {
   fake_keyboard_manager_->AddFakeKeyboard(input_device, kKbdTopRowLayout2Tag,
                                           /*has_custom_top_row=*/false);
 
-  for (TopRowActionKey action_key = TopRowActionKey::kMinValue;
+  for (TopRowActionKey action_key = TopRowActionKey::kNone;
        action_key <= TopRowActionKey::kMaxValue;
        action_key =
            static_cast<TopRowActionKey>(static_cast<int>(action_key) + 1)) {
@@ -1132,7 +1182,7 @@ TEST_P(KeyboardCapabilityTest, TopRowLayoutWilco) {
                                           kKbdTopRowLayoutDrallionTag,
                                           /*has_custom_top_row=*/false);
 
-  for (TopRowActionKey action_key = TopRowActionKey::kMinValue;
+  for (TopRowActionKey action_key = TopRowActionKey::kNone;
        action_key <= TopRowActionKey::kMaxValue;
        action_key =
            static_cast<TopRowActionKey>(static_cast<int>(action_key) + 1)) {
@@ -1164,6 +1214,24 @@ TEST_P(KeyboardCapabilityTest, TopRowLayoutWilco) {
 }
 
 TEST_P(KeyboardCapabilityTest, NullTopRowDescriptor) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndDisableFeature(ash::features::kNullTopRowFix);
+
+  KeyboardDevice input_device(kDeviceId1, INPUT_DEVICE_BLUETOOTH,
+                              "External Keyboard");
+  fake_keyboard_manager_->AddFakeKeyboard(input_device,
+                                          "C0000 C0000 C0000 C0000",
+                                          /*has_custom_top_row=*/true);
+  EXPECT_EQ(
+      KeyboardCapability::DeviceType::kDeviceExternalNullTopRowChromeOsKeyboard,
+      keyboard_capability_->GetDeviceType(input_device));
+  EXPECT_TRUE(keyboard_capability_->HasCapsLockKey(input_device));
+}
+
+TEST_P(KeyboardCapabilityTest, NullTopRowDescriptorWithFix) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(ash::features::kNullTopRowFix);
+
   KeyboardDevice input_device(kDeviceId1, INPUT_DEVICE_BLUETOOTH,
                               "External Keyboard");
   fake_keyboard_manager_->AddFakeKeyboard(input_device,
@@ -1239,6 +1307,7 @@ class TopRowLayoutCustomTest
       case TopRowActionKey::kAllApplications:
       case TopRowActionKey::kEmojiPicker:
       case TopRowActionKey::kDictation:
+      case TopRowActionKey::kDoNotDisturb:
       case TopRowActionKey::kUnknown:
       case TopRowActionKey::kNone:
         return 0;
@@ -1309,7 +1378,7 @@ TEST_P(TopRowLayoutCustomTest, TopRowLayout) {
                           "Internal Keyboard");
   fake_keyboard_manager_->AddFakeKeyboard(keyboard, custom_layout_string_,
                                           /*has_custom_top_row=*/true);
-  for (TopRowActionKey action_key = TopRowActionKey::kMinValue;
+  for (TopRowActionKey action_key = TopRowActionKey::kNone;
        action_key <= TopRowActionKey::kMaxValue;
        action_key =
            static_cast<TopRowActionKey>(static_cast<int>(action_key) + 1)) {

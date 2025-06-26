@@ -4,8 +4,9 @@
 
 import 'chrome://os-settings/lazy_load.js';
 
-import {SettingsCustomizeMouseButtonsSubpageElement} from 'chrome://os-settings/lazy_load.js';
-import {CrToggleElement, FakeInputDeviceSettingsProvider, fakeMice, fakeMouseButtonActions, getInputDeviceSettingsProvider, Mouse, PolicyStatus, Router, routes, setupFakeInputDeviceSettingsProvider} from 'chrome://os-settings/os_settings.js';
+import type {SettingsCustomizeMouseButtonsSubpageElement} from 'chrome://os-settings/lazy_load.js';
+import type {CrToggleElement, FakeInputDeviceSettingsProvider, Mouse} from 'chrome://os-settings/os_settings.js';
+import {fakeMice, fakeMouseButtonActions, getInputDeviceSettingsProvider, PolicyStatus, Router, routes, setupFakeInputDeviceSettingsProvider} from 'chrome://os-settings/os_settings.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 import {isVisible} from 'chrome://webui-test/test_util.js';
@@ -65,7 +66,7 @@ suite('<settings-customize-mouse-buttons-subpage>', () => {
     assertEquals(Router.getInstance().currentRoute, routes.DEVICE);
   });
 
-  test('button action list fetched from provider', async () => {
+  test('button action list fetched from provider', () => {
     const mouse: Mouse = page.selectedMouse;
     assertTrue(!!mouse);
     assertEquals(mouse.id, fakeMice[0]!.id);
@@ -75,17 +76,16 @@ suite('<settings-customize-mouse-buttons-subpage>', () => {
     assertDeepEquals(buttonActionList, expectedActionList);
   });
 
-  test('hasLauncherButton fetched from provider', async () => {
-    const expectedHasLauncherButton =
-        (await provider.hasLauncherButton())?.hasLauncherButton;
-    assertEquals(page.get('hasLauncherButton_'), expectedHasLauncherButton);
+  test('getMetaKeyToDisplay fetched from provider', async () => {
+    const expectedMetaKey = (await provider.getMetaKeyToDisplay())?.metaKey;
+    assertEquals(page.get('metaKey_'), expectedMetaKey);
   });
 
   test('button name change triggers settings update', async () => {
     const provider = page.get('inputDeviceSettingsProvider_');
     assertTrue(!!provider);
     assertEquals(provider.getSetMouseSettingsCallCount(), 0);
-    const buttonName = page!.selectedMouse!.settings!.buttonRemappings[0]!.name;
+    const buttonName = page!.selectedMouse.settings.buttonRemappings[0]!.name;
     assertEquals(buttonName, 'Back Button');
     page.set(
         `selectedMouse.settings.buttonRemappings.0.name`, 'new button name');
@@ -147,4 +147,30 @@ suite('<settings-customize-mouse-buttons-subpage>', () => {
         'cr-policy-pref-indicator');
     assertFalse(isVisible(policyIndicator));
   });
+
+  test(
+      'verify mouse button nudge header with metadata or no metadata',
+      async () => {
+        // On the first mouse subpage without metadata.
+        assertEquals(
+            Router.getInstance().currentRoute, routes.CUSTOMIZE_MOUSE_BUTTONS);
+        assertEquals(
+            'Add or locate buttons on your mouse',
+            page.shadowRoot!.querySelector<HTMLElement>(
+                                '.help-title')!.textContent!.trim());
+        // Go to the second mouse subpage with metadata.
+        const url = new URLSearchParams({
+          'mouseId': encodeURIComponent(fakeMice[1]!.id),
+        });
+        await Router.getInstance().setCurrentRoute(
+            routes.CUSTOMIZE_MOUSE_BUTTONS,
+            /* dynamicParams= */ url, /* removeSearch= */ true);
+        await flushTasks();
+        assertEquals(
+            Router.getInstance().currentRoute, routes.CUSTOMIZE_MOUSE_BUTTONS);
+        assertEquals(
+            'Locate buttons on your mouse',
+            page.shadowRoot!.querySelector<HTMLElement>(
+                                '.help-title')!.textContent!.trim());
+      });
 });

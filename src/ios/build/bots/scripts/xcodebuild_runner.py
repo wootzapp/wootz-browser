@@ -21,7 +21,7 @@ import shard_util
 import test_runner_errors
 from test_result_util import ResultCollection, TestResult, TestStatus
 import test_runner
-from xcode_log_parser import XcodeLogParser
+from xcode_log_parser import XcodeLogParser, Xcode16LogParser
 import xcode_util
 
 # if the current directory is in scripts, then we need to add plugin
@@ -31,6 +31,12 @@ if os.path.split(os.path.dirname(__file__))[1] != 'plugin':
       os.path.join(os.path.abspath(os.path.dirname(__file__)), 'plugin'))
 from plugin_utils import init_plugins_from_args
 from test_plugin_service import TestPluginServicerWrapper, TestPluginServicer
+
+THIS_DIR = os.path.abspath(os.path.dirname(__file__))
+CHROMIUM_SRC_DIR = os.path.abspath(os.path.join(THIS_DIR, '../../../..'))
+sys.path.append(
+    os.path.abspath(os.path.join(CHROMIUM_SRC_DIR, 'build/util/lib/proto')))
+import measures
 
 LOGGER = logging.getLogger(__name__)
 MAXIMUM_TESTS_PER_SHARD_FOR_RERUN = 20
@@ -177,8 +183,10 @@ class LaunchCommand(object):
     overall_launch_command_result = ResultCollection()
     clones = self.clones
     running_tests = set(self.egtests_app.get_all_tests())
+    attempt_count = measures.count('test_attempts', 'eg')
     # total number of attempts is self.retries+1
     for attempt in range(self.retries + 1):
+      attempt_count.record()
       # Cleanup any running plugin process before each attempt
       if self.test_plugin_service:
         self.test_plugin_service.reset()
@@ -213,7 +221,11 @@ class LaunchCommand(object):
                   (attempt, ' '.join(cmd_list)))
       output = self.launch_attempt(cmd_list)
 
-      result = XcodeLogParser.collect_test_results(outdir_attempt, output)
+      if xcode_util.using_xcode_16_or_higher():
+        result = Xcode16LogParser.collect_test_results(outdir_attempt, output)
+      else:
+        result = XcodeLogParser.collect_test_results(outdir_attempt, output,
+                                                     clones > 1)
 
       tests_selected_at_runtime = _tests_decided_at_runtime(
           self.egtests_app.test_app_path)
@@ -238,6 +250,11 @@ class LaunchCommand(object):
       tests_to_include = (
           tests_to_include
           | overall_launch_command_result.never_expected_tests())
+      # Do not retry ASan failures
+      asan_failures = overall_launch_command_result.asan_failed_tests()
+      if asan_failures:
+        LOGGER.info('Skipping retrying ASan failures.')
+        tests_to_include = tests_to_include - asan_failures
       self.egtests_app.included_tests = list(tests_to_include)
 
       # Nothing to run in retry.
@@ -302,11 +319,6 @@ class SimulatorParallelTestRunner(test_runner.SimulatorTestRunner):
     self.release = kwargs.get('release') or False
     self.test_results['path_delimiter'] = '/'
 
-    # TODO(crbug.com/40933880): For simulators, the record_video_option
-    # is always None right now, because we are still using our own video
-    # plugin. Currently native Xcode15+ video recording is only supported
-    # on iOS17+, but we should aim to migrate to the native solution so
-    # that we don't need to maintain our own.
     self.record_video_option = kwargs.get('record_video_option')
 
     self.all_eg_test_names = []
@@ -314,6 +326,8 @@ class SimulatorParallelTestRunner(test_runner.SimulatorTestRunner):
     self.resolve_eg_test_cases()
 
     # initializing test plugin service
+    # TODO(crbug.com/40933880): remove the legacy code of video recording
+    # support as we have migrated to native xcode video recording.
     self.test_plugin_service = None
     enabled_plugins = init_plugins_from_args(
         os.path.join(self.out_dir, self.udid), **kwargs)
@@ -403,7 +417,7 @@ class SimulatorParallelTestRunner(test_runner.SimulatorTestRunner):
     all_test_names = []
     for test_class in all_test_classes:
       test_class_name = test_class['name']
-      test_methods = test_class['children']
+      test_methods = test_class.get('children', [])
 
       for test_method in test_methods:
         all_test_names.append((test_class_name, test_method['name']))

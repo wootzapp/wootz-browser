@@ -18,6 +18,7 @@
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/sms_fetcher.h"
 #include "content/public/common/content_switches.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/content_browser_test.h"
@@ -42,6 +43,7 @@ using ::testing::Return;
 
 namespace content {
 
+using OriginList = SmsFetcher::OriginList;
 using UserConsent = SmsFetcher::UserConsent;
 
 namespace {
@@ -55,7 +57,6 @@ class SmsBrowserTest : public ContentBrowserTest {
   ~SmsBrowserTest() override = default;
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
-    ContentBrowserTest::SetUpCommandLine(command_line);
     command_line->AppendSwitch(
         switches::kEnableExperimentalWebPlatformFeatures);
     command_line->AppendSwitchASCII(switches::kWebOtpBackend,
@@ -1224,7 +1225,8 @@ class MockSmsPrerenderingWebContentsDelegate : public WebContentsDelegate {
                     base::OnceCallback<void()> on_confirm,
                     base::OnceCallback<void()> on_cancel));
   PreloadingEligibility IsPrerender2Supported(
-      WebContents& web_contents) override {
+      WebContents& web_contents,
+      PreloadingTriggerType trigger_type) override {
     return PreloadingEligibility::kEligible;
   }
 };
@@ -1265,7 +1267,8 @@ IN_PROC_BROWSER_TEST_F(SmsPrerenderingBrowserTest,
 
   // Load a page in the prerendering.
   GURL prerender_url = https_server_.GetURL("/simple_page.html?prerendering");
-  const int host_id = prerender_helper()->AddPrerender(prerender_url);
+  const FrameTreeNodeId host_id =
+      prerender_helper()->AddPrerender(prerender_url);
   content::RenderFrameHost* prerender_rfh =
       prerender_helper()->GetPrerenderedMainFrameHost(host_id);
 
@@ -1289,7 +1292,7 @@ IN_PROC_BROWSER_TEST_F(SmsPrerenderingBrowserTest,
       u"(async () => {"
       u" await navigator.credentials.get({otp: {transport: ['sms']}});"
       u"}) ();",
-      base::NullCallback());
+      base::NullCallback(), ISOLATED_WORLD_ID_GLOBAL);
 
   // Activate the prerendered page.
   prerender_helper()->NavigatePrimaryPage(prerender_url);

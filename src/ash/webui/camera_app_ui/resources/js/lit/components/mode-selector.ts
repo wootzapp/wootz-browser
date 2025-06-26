@@ -174,8 +174,7 @@ export class ModeSelector extends LitElement {
   }
 
   private scrollToMode(mode: Mode): void {
-    this.getModeItem(mode)?.scrollIntoView(
-        {inline: 'center', behavior: 'smooth'});
+    this.getModeItem(mode)?.scrollIntoView({behavior: 'smooth'});
   }
 
   private handleClick(e: Event) {
@@ -261,7 +260,6 @@ window.customElements.define('mode-selector', ModeSelector);
 
 declare global {
   interface HTMLElementTagNameMap {
-    /* eslint-disable-next-line @typescript-eslint/naming-convention */
     'mode-selector': ModeSelector;
   }
 }

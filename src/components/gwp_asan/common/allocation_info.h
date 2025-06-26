@@ -5,18 +5,18 @@
 #ifndef COMPONENTS_GWP_ASAN_COMMON_ALLOCATION_INFO_H_
 #define COMPONENTS_GWP_ASAN_COMMON_ALLOCATION_INFO_H_
 
+#include "base/containers/span.h"
 #include "base/threading/platform_thread.h"
 
 namespace gwp_asan::internal {
 
 // Information saved for allocations and deallocations.
 struct AllocationInfo {
-  static size_t GetStackTrace(const void** trace, size_t count);
-  static uint64_t GetCurrentTid();
+  static size_t GetStackTrace(base::span<const void*> trace);
 
   // (De)allocation thread id or base::kInvalidThreadId if no (de)allocation
   // occurred.
-  uint64_t tid = base::kInvalidThreadId;
+  base::PlatformThreadId tid = base::kInvalidThreadId;
   // Length used to encode the packed stack trace.
   uint16_t trace_len = 0;
   // Whether a stack trace has been collected for this (de)allocation.

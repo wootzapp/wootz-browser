@@ -10,10 +10,7 @@
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/screen_util.h"
 #include "ash/shell.h"
-#include "ash/style/ash_color_id.h"
-#include "ash/style/ash_color_provider.h"
 #include "ash/style/system_shadow.h"
-#include "base/debug/dump_without_crashing.h"
 #include "base/memory/raw_ptr.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "ui/accessibility/ax_enums.mojom.h"
@@ -67,20 +64,20 @@ class LoginBubbleHandler : public ui::EventHandler {
 
   // ui::EventHandler:
   void OnMouseEvent(ui::MouseEvent* event) override {
-    if (event->type() == ui::ET_MOUSE_PRESSED) {
+    if (event->type() == ui::EventType::kMousePressed) {
       ProcessPressedEvent(event->AsLocatedEvent());
     }
   }
 
   void OnGestureEvent(ui::GestureEvent* event) override {
-    if (event->type() == ui::ET_GESTURE_TAP ||
-        event->type() == ui::ET_GESTURE_TAP_DOWN) {
+    if (event->type() == ui::EventType::kGestureTap ||
+        event->type() == ui::EventType::kGestureTapDown) {
       ProcessPressedEvent(event->AsLocatedEvent());
     }
   }
 
   void OnKeyEvent(ui::KeyEvent* event) override {
-    if (event->type() != ui::ET_KEY_PRESSED ||
+    if (event->type() != ui::EventType::kKeyPressed ||
         event->key_code() == ui::VKEY_PROCESSKEY) {
       return;
     }
@@ -154,22 +151,22 @@ LoginBaseBubbleView::LoginBaseBubbleView(base::WeakPtr<views::View> anchor_view,
   layout_manager->set_cross_axis_alignment(
       views::BoxLayout::CrossAxisAlignment::kStart);
 
-  ui::ColorId background_color_id =
-      chromeos::features::IsJellyrollEnabled()
-          ? static_cast<ui::ColorId>(cros_tokens::kCrosSysSystemBaseElevated)
-          : kColorAshShieldAndBase80;
+  const ui::ColorId background_color_id = static_cast<ui::ColorId>(
+      chromeos::features::IsSystemBlurEnabled()
+          ? cros_tokens::kCrosSysSystemBaseElevated
+          : cros_tokens::kCrosSysSystemBaseElevatedOpaque);
 
-  SetBackground(views::CreateThemedRoundedRectBackground(background_color_id,
-                                                         kBubbleBorderRadius));
+  SetBackground(views::CreateRoundedRectBackground(background_color_id,
+                                                   kBubbleBorderRadius));
   SetBorder(std::make_unique<views::HighlightBorder>(
       kBubbleBorderRadius,
       views::HighlightBorder::Type::kHighlightBorderOnShadow));
+
   // Set shadow
-  if (chromeos::features::IsJellyrollEnabled()) {
-    shadow_ = SystemShadow::CreateShadowOnNinePatchLayerForView(
-        this, SystemShadow::Type::kElevation12);
-    shadow_->SetRoundedCornerRadius(kBubbleBorderRadius);
-  }
+  shadow_ = SystemShadow::CreateShadowOnNinePatchLayerForView(
+      this, SystemShadow::Type::kElevation12);
+  shadow_->SetRoundedCornerRadius(kBubbleBorderRadius);
+
   SetVisible(false);
 }
 
@@ -179,9 +176,11 @@ void LoginBaseBubbleView::EnsureLayer() {
   }
   // Layer rendering is needed for animation.
   SetPaintToLayer();
-  layer()->SetFillsBoundsOpaquely(false);
-  layer()->SetBackgroundBlur(ColorProvider::kBackgroundBlurSigma);
-  layer()->SetBackdropFilterQuality(ColorProvider::kBackgroundBlurQuality);
+  if (chromeos::features::IsSystemBlurEnabled()) {
+    layer()->SetFillsBoundsOpaquely(false);
+    layer()->SetBackgroundBlur(ColorProvider::kBackgroundBlurSigma);
+    layer()->SetBackdropFilterQuality(ColorProvider::kBackgroundBlurQuality);
+  }
 }
 
 LoginBaseBubbleView::~LoginBaseBubbleView() = default;
@@ -198,8 +197,8 @@ void LoginBaseBubbleView::Show() {
 
   // Tell ChromeVox to read bubble contents.
   if (notify_a11y_alert_on_show_) {
-    NotifyAccessibilityEvent(ax::mojom::Event::kAlert,
-                             true /*send_native_event*/);
+    NotifyAccessibilityEventDeprecated(ax::mojom::Event::kAlert,
+                                       true /*send_native_event*/);
   }
 }
 
@@ -291,7 +290,7 @@ void LoginBaseBubbleView::OnLayerAnimationEnded(
 void LoginBaseBubbleView::OnLayerAnimationAborted(
     ui::LayerAnimationSequence* sequence) {
   // The animation for this view should never be aborted.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 gfx::Size LoginBaseBubbleView::CalculatePreferredSize(
@@ -336,10 +335,8 @@ gfx::Rect LoginBaseBubbleView::GetBoundsAvailableToShowBubble() const {
 views::View* LoginBaseBubbleView::GetAnchorView() const {
   if (anchor_view_.WasInvalidated()) {
     // TODO(crbug.com/1171827): This is to detect dangling anchor_view_
-    // pointers. This should not cause a crash, but is still indicative of UI
-    // bugs.
-    base::debug::DumpWithoutCrashing();
-    NOTREACHED_IN_MIGRATION();
+    // pointers.
+    DUMP_WILL_BE_NOTREACHED();
   }
   return anchor_view_.get();
 }

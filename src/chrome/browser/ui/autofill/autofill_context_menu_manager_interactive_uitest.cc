@@ -2,15 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/browser/ui/autofill/autofill_context_menu_manager.h"
-
 #include "base/json/json_reader.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
+#include "chrome/browser/ui/autofill/autofill_context_menu_manager.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/webui/feedback/feedback_dialog.h"
@@ -19,9 +17,9 @@
 #include "components/autofill/content/browser/content_autofill_driver.h"
 #include "components/autofill/content/browser/test_autofill_manager_injector.h"
 #include "components/autofill/core/browser/autofill_feedback_data.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
-#include "components/autofill/core/browser/browser_autofill_manager.h"
-#include "components/autofill/core/browser/test_autofill_manager_waiter.h"
+#include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
+#include "components/autofill/core/browser/foundations/test_autofill_manager_waiter.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/unique_ids.h"
 #include "components/feature_engagement/public/feature_constants.h"
@@ -29,9 +27,9 @@
 #include "content/public/test/browser_test.h"
 
 namespace autofill {
-#if !BUILDFLAG(IS_CHROMEOS)
 namespace {
 
+#if !BUILDFLAG(IS_CHROMEOS)
 // Generates a ContextMenuParams for the Autofill context menu options.
 content::ContextMenuParams CreateContextMenuParams(
     std::optional<autofill::FormRendererId> form_renderer_id = std::nullopt,
@@ -50,7 +48,7 @@ content::ContextMenuParams CreateContextMenuParams(
 class TestAutofillManager : public BrowserAutofillManager {
  public:
   explicit TestAutofillManager(ContentAutofillDriver* driver)
-      : BrowserAutofillManager(driver, "en-US") {}
+      : BrowserAutofillManager(driver) {}
 
   testing::AssertionResult WaitForFormsSeen(int min_num_awaited_calls) {
     return forms_seen_waiter_.Wait(min_num_awaited_calls);
@@ -61,7 +59,6 @@ class TestAutofillManager : public BrowserAutofillManager {
       *this,
       {AutofillManagerEvent::kFormsSeen}};
 };
-}  // namespace
 
 class AutofillContextMenuManagerFeedbackUIBrowserTest
     : public InProcessBrowserTest {
@@ -74,7 +71,7 @@ class AutofillContextMenuManagerFeedbackUIBrowserTest
     render_view_context_menu_->Init();
     autofill_context_menu_manager_ =
         std::make_unique<AutofillContextMenuManager>(
-            nullptr, render_view_context_menu_.get(), nullptr);
+            render_view_context_menu_.get(), nullptr);
 
     browser()->profile()->GetPrefs()->SetBoolean(prefs::kUserFeedbackAllowed,
                                                  true);
@@ -219,7 +216,7 @@ IN_PROC_BROWSER_TEST_F(AutofillContextMenuManagerFeedbackUIBrowserTest,
   GetAutofillManager()->OnFormsSeen(
       /*updated_forms=*/{form},
       /*removed_forms=*/{});
-  GetAutofillManager()->WaitForFormsSeen(1);
+  ASSERT_TRUE(GetAutofillManager()->WaitForFormsSeen(1));
   ASSERT_TRUE(GetAutofillManager()->FindCachedFormById(form.global_id()));
 
   // Set up expected trigger form and field signatures.
@@ -236,7 +233,7 @@ IN_PROC_BROWSER_TEST_F(AutofillContextMenuManagerFeedbackUIBrowserTest,
   // Set up context menu params with the correct trigger form and field.
   autofill_context_menu_manager_->set_params_for_testing(
       CreateContextMenuParams(form.global_id().renderer_id,
-                              form.fields[0].global_id().renderer_id));
+                              form.fields()[0].global_id().renderer_id));
   // Display feedback dialog.
   autofill_context_menu_manager_->ExecuteCommand(
       IDC_CONTENT_CONTEXT_AUTOFILL_FEEDBACK);
@@ -256,4 +253,5 @@ IN_PROC_BROWSER_TEST_F(AutofillContextMenuManagerFeedbackUIBrowserTest,
 }
 #endif  // !BUILDFLAG(IS_CHROMEOS)
 
+}  // namespace
 }  // namespace autofill

@@ -109,7 +109,7 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost
 #endif
 
    protected:
-    virtual ~Delegate() {}
+    virtual ~Delegate() = default;
   };
 
   struct VIZ_HOST_EXPORT InitParams {
@@ -135,6 +135,9 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost
 
     // Whether this GPU process is used for GPU info collection only.
     bool info_collection_gpu_process = false;
+
+    // Whether the GPU service is running in the host process.
+    bool gpu_service_running_in_process = false;
   };
 
   enum class EstablishChannelStatus {
@@ -277,6 +280,7 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost
   void RecordLogMessage(int32_t severity,
                         const std::string& header,
                         const std::string& message) override;
+  void ClearGrShaderDiskCache() override;
 
   // Implements mojom::VizDebugOutput and is called by VizDebugger.
 #if BUILDFLAG(USE_VIZ_DEBUGGER)
@@ -315,8 +319,6 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost
 
   std::multimap<int32_t, scoped_refptr<gpu::GpuDiskCache>> client_id_to_caches_;
   std::string shader_prefix_key_;
-
-  const bool shared_bitmap_to_shared_image_flag_;
 
   // These are the channel requests that we have already sent to the GPU
   // service, but haven't heard back about yet.

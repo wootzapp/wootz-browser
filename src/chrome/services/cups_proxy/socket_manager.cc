@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/services/cups_proxy/socket_manager.h"
 
 #include <errno.h>
@@ -18,7 +23,6 @@
 
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/sequence_checker.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/threading/sequence_bound.h"
@@ -40,15 +44,13 @@ const char kCupsSocketPath[] = "/run/cups/cups.sock";
 
 // Returns true if |response_buffer| represents a full HTTP response.
 bool FinishedReadingResponse(const std::vector<uint8_t>& response_buffer) {
-  std::string response = ipp_converter::ConvertToString(response_buffer);
-  size_t end_of_headers =
-      net::HttpUtil::LocateEndOfHeaders(response.data(), response.size());
+  size_t end_of_headers = net::HttpUtil::LocateEndOfHeaders(response_buffer);
   if (end_of_headers < 0) {
     return false;
   }
 
   std::string raw_headers = net::HttpUtil::AssembleRawHeaders(
-      std::string_view(response.data(), end_of_headers));
+      base::as_string_view(base::span(response_buffer).first(end_of_headers)));
   auto parsed_headers =
       base::MakeRefCounted<net::HttpResponseHeaders>(raw_headers);
 
@@ -58,7 +60,7 @@ bool FinishedReadingResponse(const std::vector<uint8_t>& response_buffer) {
     return false;
   }
 
-  if (response.size() < end_of_headers + content_length) {
+  if (response_buffer.size() < end_of_headers + content_length) {
     return false;
   }
 
@@ -148,7 +150,7 @@ ThreadSafeHelper::ThreadSafeHelper(
     CupsProxyServiceDelegate* const delegate,
     scoped_refptr<base::SequencedTaskRunner> runner)
     : main_runner_(runner), socket_(std::move(socket)) {}
-ThreadSafeHelper::~ThreadSafeHelper() {}
+ThreadSafeHelper::~ThreadSafeHelper() = default;
 
 void ThreadSafeHelper::ProxyToCups(std::vector<uint8_t> request,
                                    SocketManagerCallback cb) {
@@ -162,7 +164,7 @@ void ThreadSafeHelper::ProxyToCups(std::vector<uint8_t> request,
   in_flight_->io_buffer = base::MakeRefCounted<net::DrainableIOBuffer>(
       base::MakeRefCounted<net::IOBufferWithSize>(request.size()),
       request.size());
-  base::ranges::copy(request, in_flight_->io_buffer->data());
+  std::ranges::copy(request, in_flight_->io_buffer->data());
 
   ConnectIfNeeded();
 }

@@ -15,10 +15,12 @@
 
 #include "base/containers/span.h"
 #include "base/memory/aligned_memory.h"
+#include "base/memory/raw_span.h"
 #include "base/memory/ref_counted.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
 #include "base/time/time.h"
+#include "base/types/pass_key.h"
 #include "media/base/audio_bus.h"
 #include "media/base/channel_layout.h"
 #include "media/base/media_export.h"
@@ -44,15 +46,20 @@ class AudioBuffer;
 class MEDIA_EXPORT AudioBuffer
     : public base::RefCountedThreadSafe<AudioBuffer> {
  public:
+  REQUIRE_ADOPTION_FOR_REFCOUNTED_TYPE();
+
   struct MEDIA_EXPORT ExternalMemory {
    public:
-    explicit ExternalMemory(base::span<uint8_t> span) : span_(span) {}
-    virtual ~ExternalMemory() = default;
-    base::span<uint8_t>& span() { return span_; }
+    explicit ExternalMemory(base::span<uint8_t> span);
+    virtual ~ExternalMemory();
+    ExternalMemory(const ExternalMemory&);
+    ExternalMemory(ExternalMemory&&);
+
+    base::span<uint8_t> span() { return span_; }
 
    protected:
-    ExternalMemory() = default;
-    base::span<uint8_t> span_;
+    ExternalMemory();
+    base::raw_span<uint8_t, DanglingUntriaged> span_;
   };
 
   // Create an AudioBuffer whose channel data is copied from |data|. For
@@ -162,6 +169,32 @@ class MEDIA_EXPORT AudioBuffer
   // is disallowed.
   static scoped_refptr<AudioBuffer> CreateEOSBuffer();
 
+  // Allocates aligned contiguous buffer to hold all channel data (1 block for
+  // interleaved data, |channel_count| blocks for planar data), copies
+  // [data,data+data_size) to the allocated buffer(s). If |data| is null, no
+  // data is copied. If |create_buffer| is false, no data buffer is created (or
+  // copied to).
+  AudioBuffer(base::PassKey<AudioBuffer>,
+              SampleFormat sample_format,
+              ChannelLayout channel_layout,
+              int channel_count,
+              int sample_rate,
+              int frame_count,
+              bool create_buffer,
+              const uint8_t* const* data,
+              const size_t data_size,
+              const base::TimeDelta timestamp,
+              scoped_refptr<AudioBufferMemoryPool> pool);
+  // Takes ownership over a contiguous buffer to hold all channel data
+  // (1 block for interleaved data, |channel_count| blocks for planar data).
+  AudioBuffer(base::PassKey<AudioBuffer>,
+              SampleFormat sample_format,
+              ChannelLayout channel_layout,
+              int channel_count,
+              int sample_rate,
+              int frame_count,
+              const base::TimeDelta timestamp,
+              std::unique_ptr<ExternalMemory> external_memory);
   AudioBuffer() = delete;
   AudioBuffer(const AudioBuffer&) = delete;
   AudioBuffer& operator=(const AudioBuffer&) = delete;
@@ -240,34 +273,7 @@ class MEDIA_EXPORT AudioBuffer
   friend struct mojo::TypeConverter<mojo::StructPtr<mojom::AudioBuffer>,
                                     AudioBuffer>;
 
-  // Allocates aligned contiguous buffer to hold all channel data (1 block for
-  // interleaved data, |channel_count| blocks for planar data), copies
-  // [data,data+data_size) to the allocated buffer(s). If |data| is null, no
-  // data is copied. If |create_buffer| is false, no data buffer is created (or
-  // copied to).
-  AudioBuffer(SampleFormat sample_format,
-              ChannelLayout channel_layout,
-              int channel_count,
-              int sample_rate,
-              int frame_count,
-              bool create_buffer,
-              const uint8_t* const* data,
-              const size_t data_size,
-              const base::TimeDelta timestamp,
-              scoped_refptr<AudioBufferMemoryPool> pool);
-
-  // Takes ownership over a contiguous buffer to hold all channel data
-  // (1 block for interleaved data, |channel_count| blocks for planar data).
-  AudioBuffer(SampleFormat sample_format,
-              ChannelLayout channel_layout,
-              int channel_count,
-              int sample_rate,
-              int frame_count,
-              const base::TimeDelta timestamp,
-              std::unique_ptr<ExternalMemory> external_memory);
-
   virtual ~AudioBuffer();
-  std::unique_ptr<ExternalMemory> AllocateMemory(size_t size);
 
   const SampleFormat sample_format_;
   const ChannelLayout channel_layout_;
@@ -303,6 +309,8 @@ class MEDIA_EXPORT AudioBuffer
 class MEDIA_EXPORT AudioBufferMemoryPool
     : public base::RefCountedThreadSafe<AudioBufferMemoryPool> {
  public:
+  REQUIRE_ADOPTION_FOR_REFCOUNTED_TYPE();
+
   explicit AudioBufferMemoryPool(int alignment = AudioBus::kChannelAlignment);
   AudioBufferMemoryPool(const AudioBufferMemoryPool&) = delete;
   AudioBufferMemoryPool& operator=(const AudioBufferMemoryPool&) = delete;

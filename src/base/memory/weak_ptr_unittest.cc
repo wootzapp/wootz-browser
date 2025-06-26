@@ -52,10 +52,9 @@ class OffThreadObjectCreator {
     DCHECK(result);  // We synchronized on thread destruction above.
     return result;
   }
+
  private:
-  static void CreateObject(T** result) {
-    *result = new T;
-  }
+  static void CreateObject(T** result) { *result = new T; }
 };
 
 struct Base {
@@ -64,8 +63,13 @@ struct Base {
 struct Derived : public Base {};
 
 struct TargetBase {};
-struct Target : public TargetBase, public SupportsWeakPtr<Target> {
+
+struct Target : public TargetBase {
   virtual ~Target() = default;
+  WeakPtr<Target> AsWeakPtr() { return weak_ptr_factory_.GetWeakPtr(); }
+
+ private:
+  WeakPtrFactory<Target> weak_ptr_factory_{this};
 };
 
 struct DerivedTarget : public Target {};
@@ -92,7 +96,7 @@ struct Arrow {
   WeakPtr<Target> target;
 };
 struct TargetWithFactory : public Target {
-  TargetWithFactory() {}
+  TargetWithFactory() = default;
   WeakPtrFactory<Target> factory{this};
 };
 
@@ -215,9 +219,8 @@ class BackgroundThread : public Thread {
     completion->Signal();
   }
 
-  static void DoCopyAndAssignArrowBase(
-      Arrow* object,
-      WaitableEvent* completion) {
+  static void DoCopyAndAssignArrowBase(Arrow* object,
+                                       WaitableEvent* completion) {
     // Copy constructor.
     WeakPtr<TargetBase> b = object->target;
     // Assignment operator.
@@ -262,7 +265,7 @@ TEST(WeakPtrFactoryTest, Move) {
   WeakPtr<int> ptr = factory.GetWeakPtr();
   WeakPtr<int> ptr2 = factory.GetWeakPtr();
   WeakPtr<int> ptr3 = std::move(ptr2);
-  EXPECT_NE(ptr.get(), ptr2.get());
+  EXPECT_NE(ptr.get(), ptr2.get());  // NOLINT(bugprone-use-after-move)
   EXPECT_EQ(ptr.get(), ptr3.get());
 }
 
@@ -297,9 +300,7 @@ TEST(WeakPtrFactoryTest, MultipleStaged) {
     int data;
     WeakPtrFactory<int> factory(&data);
     a = factory.GetWeakPtr();
-    {
-      WeakPtr<int> b = factory.GetWeakPtr();
-    }
+    { WeakPtr<int> b = factory.GetWeakPtr(); }
     EXPECT_NE(nullptr, a.get());
   }
   EXPECT_EQ(nullptr, a.get());
@@ -326,43 +327,6 @@ TEST(WeakPtrFactoryTest, UpCast) {
 TEST(WeakPtrTest, ConstructFromNullptr) {
   WeakPtr<int> ptr = PassThru(nullptr);
   EXPECT_EQ(nullptr, ptr.get());
-}
-
-TEST(WeakPtrTest, SupportsWeakPtr) {
-  Target target;
-  WeakPtr<Target> ptr = target.AsWeakPtr();
-  EXPECT_EQ(&target, ptr.get());
-}
-
-TEST(WeakPtrTest, DerivedTarget) {
-  DerivedTarget target;
-  WeakPtr<DerivedTarget> ptr = AsWeakPtr(&target);
-  EXPECT_EQ(&target, ptr.get());
-}
-
-TEST(WeakPtrTest, DerivedTargetWithNestedBase) {
-  DerivedTargetWithNestedBase target;
-  WeakPtr<DerivedTargetWithNestedBase> ptr = AsWeakPtr(&target);
-  EXPECT_EQ(&target, ptr.get());
-}
-
-TEST(WeakPtrTest, DerivedTargetMultipleInheritance) {
-  DerivedTargetMultipleInheritance derived_target;
-  Target& target = derived_target;
-  EXPECT_NE(static_cast<void*>(&derived_target), static_cast<void*>(&target));
-
-  WeakPtr<Target> target_weak_ptr = AsWeakPtr(&target);
-  EXPECT_EQ(target_weak_ptr.get(), &target);
-
-  WeakPtr<DerivedTargetMultipleInheritance> derived_target_weak_ptr =
-      AsWeakPtr(&derived_target);
-  EXPECT_EQ(derived_target_weak_ptr.get(), &derived_target);
-
-  target_weak_ptr = derived_target_weak_ptr;
-  EXPECT_EQ(target_weak_ptr.get(), &target);
-
-  target_weak_ptr = std::move(derived_target_weak_ptr);
-  EXPECT_EQ(target_weak_ptr.get(), &target);
 }
 
 TEST(WeakPtrFactoryTest, BooleanTesting) {
@@ -534,8 +498,9 @@ TEST(WeakPtrTest, MaybeValidOnOtherSequence) {
             // Check that MaybeValid() _eventually_ returns false.
             const TimeDelta timeout = TestTimeouts::tiny_timeout();
             const TimeTicks begin = TimeTicks::Now();
-            while (ptr.MaybeValid() && (TimeTicks::Now() - begin) < timeout)
+            while (ptr.MaybeValid() && (TimeTicks::Now() - begin) < timeout) {
               PlatformThread::YieldCurrentThread();
+            }
             EXPECT_FALSE(ptr.MaybeValid());
           },
           ptr));
@@ -718,7 +683,7 @@ TEST(WeakPtrTest, NonOwnerThreadCanCopyAndAssignWeakPtr) {
   // Main thread creates a Target object.
   Target target;
   // Main thread creates an arrow referencing the Target.
-  Arrow *arrow = new Arrow();
+  Arrow* arrow = new Arrow();
   arrow->target = target.AsWeakPtr();
 
   // Background can copy and assign arrow (as well as the WeakPtr inside).
@@ -732,7 +697,7 @@ TEST(WeakPtrTest, NonOwnerThreadCanCopyAndAssignWeakPtrBase) {
   // Main thread creates a Target object.
   Target target;
   // Main thread creates an arrow referencing the Target.
-  Arrow *arrow = new Arrow();
+  Arrow* arrow = new Arrow();
   arrow->target = target.AsWeakPtr();
 
   // Background can copy and assign arrow's WeakPtr to a base class WeakPtr.

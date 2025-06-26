@@ -12,12 +12,15 @@ include_rules = [
     "+base/threading/thread_task_runner_handle.h",
 
     # web_media_player_ms{_compositor}.cc includes.
+    "+base/containers/circular_deque.h",
     "+base/values.h",
     "+cc/layers/surface_layer.h",
     "+cc/layers/video_frame_provider_client_impl.h",
     "+cc/layers/video_frame_provider.h",
     "+cc/layers/video_layer.h",
     "+cc/paint/skia_paint_canvas.h",
+    "+gpu/command_buffer/client/client_shared_image.h",
+    "+gpu/command_buffer/client/test_shared_image_interface.h",
     "+media/media_buildflags.h",
     "+media/filters/video_renderer_algorithm.h",
     "+media/renderers/paint_canvas_video_renderer.h",
@@ -56,7 +59,6 @@ include_rules = [
 
 specific_include_rules = {
     ".*test\.cc" : [
-        "+base/containers/circular_deque.h",
         "+base/numerics/ranges.h",
         "+base/run_loop.h",
         "+cc/layers/layer.h",

@@ -11,6 +11,7 @@
 #include "base/barrier_closure.h"
 #include "base/check.h"
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
@@ -65,7 +66,8 @@ constexpr char kDownloadSessionIdSwitchName[] = "download-session-id";
 int ParseRangeHeader(const std::string& header) {
   int lower_range = 0;
   // TODO(crbug.com/40285933): Don't use sscanf.
-  EXPECT_EQ(std::sscanf(header.c_str(), "bytes=%d-", &lower_range), 1);
+  EXPECT_EQ(UNSAFE_TODO(std::sscanf(header.c_str(), "bytes=%d-", &lower_range)),
+            1);
   return lower_range;
 }
 
@@ -214,7 +216,7 @@ TEST_F(BackgroundDownloaderTest, DISABLED_DownloadDiscoveredInCache) {
   // Place a download in the cache.
   ASSERT_TRUE(base::CreateDirectory(download_cache_));
   uint32_t url_hash = base::PersistentHash(GetURL().spec());
-  base::FilePath cached_download_path = download_cache_.AppendASCII(
+  base::FilePath cached_download_path = download_cache_.Append(
       base::HexEncode(reinterpret_cast<uint8_t*>(&url_hash), sizeof(url_hash)));
   ASSERT_TRUE(base::WriteFile(cached_download_path, kSmallDownloadData));
 
@@ -278,8 +280,7 @@ TEST_F(BackgroundDownloaderTest, DISABLED_ServerHangup) {
               "Content-Range",
               base::StringPrintf("bytes %d-%zu/%zu", lower_range, data.size(),
                                  data.size()));
-          response->set_content(
-              std::string(data.begin() + lower_range, data.end()));
+          response->set_content(data.substr(lower_range));
           return base::WrapUnique<HttpResponse>(response.release());
         } else {
           return base::WrapUnique<HttpResponse>(
@@ -310,7 +311,7 @@ TEST_F(BackgroundDownloaderTest, DISABLED_DuplicateDownload) {
   base::RunLoop second_download_run_loop;
   request_handler_ = base::BindLambdaForTesting([&](const HttpRequest&) {
     current_task_runner->PostTask(
-        FROM_HERE, base::BindLambdaForTesting([&]() {
+        FROM_HERE, base::BindLambdaForTesting([&] {
           DoStartDownload(
               GetURL(),
               base::BindLambdaForTesting(
@@ -413,7 +414,7 @@ TEST_F(BackgroundDownloaderTest, DISABLED_MaxDownloads) {
   // is an alternative to adding intrusive instrumentation to the
   // implementation.
   base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-      FROM_HERE, base::BindLambdaForTesting([&]() {
+      FROM_HERE, base::BindLambdaForTesting([&] {
         DoStartDownload(
             GetURL(),
             base::BindLambdaForTesting(
@@ -465,10 +466,10 @@ TEST_F(BackgroundDownloaderPeriodicTasksTest, DISABLED_CleansStaleDownloads) {
     return base::WrapUnique<HttpResponse>(response.release());
   });
 
-  ASSERT_TRUE(base::WriteFile(download_cache_.AppendASCII("file1"),
-                              kSmallDownloadData));
-  ASSERT_TRUE(base::WriteFile(download_cache_.AppendASCII("file2"),
-                              kSmallDownloadData));
+  ASSERT_TRUE(
+      base::WriteFile(download_cache_.Append("file1"), kSmallDownloadData));
+  ASSERT_TRUE(
+      base::WriteFile(download_cache_.Append("file2"), kSmallDownloadData));
   environment_->FastForwardBy(base::Days(3));
 
   base::RunLoop run_loop;
@@ -482,8 +483,8 @@ TEST_F(BackgroundDownloaderPeriodicTasksTest, DISABLED_CleansStaleDownloads) {
   environment_->FastForwardBy(base::Minutes(30));
   environment_->RunUntilIdle();
 
-  EXPECT_FALSE(base::PathExists(download_cache_.AppendASCII("file1")));
-  EXPECT_FALSE(base::PathExists(download_cache_.AppendASCII("file2")));
+  EXPECT_FALSE(base::PathExists(download_cache_.Append("file1")));
+  EXPECT_FALSE(base::PathExists(download_cache_.Append("file2")));
 }
 
 // TODO(crbug.com/40939899): Disabled due to excessive flakiness.
@@ -574,8 +575,7 @@ TEST_F(BackgroundDownloaderCrashingClientTest, DISABLED_ClientCrash) {
               "Content-Range",
               base::StringPrintf("bytes %d-%zu/%zu", lower_range, data.size(),
                                  data.size()));
-          response->set_content(
-              std::string(data.begin() + lower_range, data.end()));
+          response->set_content(data.substr(lower_range));
           return base::WrapUnique<HttpResponse>(response.release());
         } else {
           return base::WrapUnique<HttpResponse>(

@@ -20,15 +20,13 @@ import static org.chromium.chrome.browser.keyboard_accessory.all_passwords_botto
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.keyboard_accessory.all_passwords_bottom_sheet.AllPasswordsBottomSheetProperties.ItemType;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
@@ -38,22 +36,45 @@ import org.chromium.ui.modelutil.ListModel;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.PropertyModel;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** Controller tests for the all passwords bottom sheet. */
 @RunWith(BaseRobolectricTestRunner.class)
 @EnableFeatures(ChromeFeatureList.FILLING_PASSWORDS_FROM_ANY_ORIGIN)
 public class AllPasswordsBottomSheetControllerTest {
     private static final Credential ANA =
-            new Credential("Ana", "S3cr3t", "Ana", "https://m.domain.xyz/", false, "");
+            new Credential(
+                    /* username= */ "ana@gmail.com",
+                    /* password= */ "S3cr3t",
+                    /* formattedUsername= */ "ana@gmail.com",
+                    /* originUrl= */ "https://m.domain.xyz/",
+                    /* isAndroidCredential= */ false,
+                    /* appDisplayName= */ "",
+                    /* isPlusAddressUsername= */ true);
     private static final Credential BOB =
-            new Credential("Bob", "*****", "Bob", "https://subdomain.example.xyz", false, "");
+            new Credential(
+                    /* username= */ "Bob",
+                    /* password= */ "*****",
+                    /* formattedUsername= */ "Bob",
+                    /* originUrl= */ "https://subdomain.example.xyz",
+                    /* isAndroidCredential= */ false,
+                    /* appDisplayName= */ "",
+                    /* isPlusAddressUsername= */ false);
     private static final Credential CARL =
-            new Credential("Carl", "G3h3!m", "Carl", "https://www.origin.xyz", false, "");
-    private static final Credential[] TEST_CREDENTIALS = new Credential[] {BOB, CARL, ANA};
+            new Credential(
+                    /* username= */ "Carl",
+                    /* password= */ "G3h3!m",
+                    /* formattedUsername= */ "Carl",
+                    /* originUrl= */ "https://www.origin.xyz",
+                    /* isAndroidCredential= */ false,
+                    /* appDisplayName= */ "",
+                    /* isPlusAddressUsername= */ false);
+    private static final List<Credential> TEST_CREDENTIALS = List.of(BOB, CARL, ANA);
     private static final boolean IS_PASSWORD_FIELD = true;
     private static final String EXAMPLE_ORIGIN = "https://m.example.com/";
 
-    @Rule public JniMocker mJniMocker = new JniMocker();
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private UrlUtilities.Natives mUrlUtilitiesJniMock;
     @Mock private AllPasswordsBottomSheetCoordinator.Delegate mMockDelegate;
 
@@ -64,8 +85,7 @@ public class AllPasswordsBottomSheetControllerTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-        mJniMocker.mock(UrlUtilitiesJni.TEST_HOOKS, mUrlUtilitiesJniMock);
+        UrlUtilitiesJni.setInstanceForTesting(mUrlUtilitiesJniMock);
         mMediator = new AllPasswordsBottomSheetMediator();
         mModel =
                 AllPasswordsBottomSheetProperties.createDefaultModel(
@@ -86,7 +106,7 @@ public class AllPasswordsBottomSheetControllerTest {
 
     @Test
     public void testShowCredentialSetsCredentialListModel() {
-        mMediator.showCredentials(TEST_CREDENTIALS, IS_PASSWORD_FIELD);
+        mMediator.showCredentials(new ArrayList<>(TEST_CREDENTIALS), IS_PASSWORD_FIELD);
 
         ListModel<ListItem> itemList = mListModel;
         assertThat(itemList.size(), is(3));
@@ -101,8 +121,8 @@ public class AllPasswordsBottomSheetControllerTest {
 
     @Test
     public void testOnCredentialSelected() {
-        mMediator.showCredentials(TEST_CREDENTIALS, IS_PASSWORD_FIELD);
-        CredentialFillRequest request = new CredentialFillRequest(TEST_CREDENTIALS[1], true);
+        mMediator.showCredentials(new ArrayList<>(TEST_CREDENTIALS), IS_PASSWORD_FIELD);
+        CredentialFillRequest request = new CredentialFillRequest(TEST_CREDENTIALS.get(1), true);
         mMediator.onCredentialSelected(request);
         assertThat(mModel.get(VISIBLE), is(false));
         verify(mMockDelegate).onCredentialSelected(request);
@@ -110,7 +130,7 @@ public class AllPasswordsBottomSheetControllerTest {
 
     @Test
     public void testOnDismiss() {
-        mMediator.showCredentials(TEST_CREDENTIALS, IS_PASSWORD_FIELD);
+        mMediator.showCredentials(new ArrayList<>(TEST_CREDENTIALS), IS_PASSWORD_FIELD);
         mMediator.onDismissed(BottomSheetController.StateChangeReason.BACK_PRESS);
         assertThat(mModel.get(VISIBLE), is(false));
         verify(mMockDelegate).onDismissed();
@@ -118,21 +138,21 @@ public class AllPasswordsBottomSheetControllerTest {
 
     @Test
     public void testSearchFilterByUsername() {
-        mMediator.showCredentials(TEST_CREDENTIALS, IS_PASSWORD_FIELD);
+        mMediator.showCredentials(new ArrayList<>(TEST_CREDENTIALS), IS_PASSWORD_FIELD);
         mMediator.onQueryTextChange("Bob");
         assertThat(mListModel.size(), is(1));
     }
 
     @Test
     public void testSearchFilterByURL() {
-        mMediator.showCredentials(TEST_CREDENTIALS, IS_PASSWORD_FIELD);
+        mMediator.showCredentials(new ArrayList<>(TEST_CREDENTIALS), IS_PASSWORD_FIELD);
         mMediator.onQueryTextChange("subdomain");
         assertThat(mListModel.size(), is(1));
     }
 
     @Test
     public void testCredentialSortedByOrigin() {
-        mMediator.showCredentials(TEST_CREDENTIALS, IS_PASSWORD_FIELD);
+        mMediator.showCredentials(new ArrayList<>(TEST_CREDENTIALS), IS_PASSWORD_FIELD);
 
         ListModel<ListItem> itemList = mListModel;
 

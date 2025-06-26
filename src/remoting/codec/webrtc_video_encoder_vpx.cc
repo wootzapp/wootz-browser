@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "remoting/codec/webrtc_video_encoder_vpx.h"
 
 #include <algorithm>
@@ -13,7 +18,6 @@
 #include "base/memory/ptr_util.h"
 #include "base/system/sys_info.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "remoting/base/cpu_utils.h"
 #include "remoting/base/util.h"
 #include "remoting/codec/utils.h"
@@ -88,7 +92,7 @@ void SetVp8CodecParameters(vpx_codec_enc_cfg_t* config,
                            const webrtc::DesktopSize& size) {
   SetCommonCodecParameters(config, size);
 
-#if BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX)
   // On Linux, using too many threads for VP8 encoding has been linked to high
   // CPU usage on machines that are under stress. See http://crbug.com/1151148.
   // 5/3/2022 update: Perf testing has shown that doubling the number of threads
@@ -99,7 +103,7 @@ void SetVp8CodecParameters(vpx_codec_enc_cfg_t* config,
   // and leave plenty of cores for the non-remoting workload.
   uint threshold = config->g_threads >= 16 ? 4U : 2U;
   config->g_threads = std::min(config->g_threads, threshold);
-#endif  // BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  // BUILDFLAG(IS_LINUX)
 
   // Value of 2 means using the real time profile. This is basically a
   // redundant option since we explicitly select real time mode when doing
@@ -437,7 +441,7 @@ void WebrtcVideoEncoderVpx::UpdateConfig(const FrameParams& params) {
 
   // Update encoder context.
   if (vpx_codec_enc_config_set(codec_.get(), &config_)) {
-    NOTREACHED_IN_MIGRATION() << "Unable to set encoder config";
+    NOTREACHED() << "Unable to set encoder config";
   }
 }
 
@@ -521,8 +525,7 @@ void WebrtcVideoEncoderVpx::PrepareImage(
       }
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 

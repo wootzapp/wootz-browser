@@ -28,6 +28,7 @@ class PLATFORM_EXPORT CrabbyAVIFImageDecoder final : public ImageDecoder {
   CrabbyAVIFImageDecoder(AlphaOption,
                          HighBitDepthDecodingOption,
                          ColorBehavior,
+                         cc::AuxImage,
                          wtf_size_t max_decoded_bytes,
                          AnimationOption);
   CrabbyAVIFImageDecoder(const CrabbyAVIFImageDecoder&) = delete;
@@ -129,6 +130,11 @@ class PLATFORM_EXPORT CrabbyAVIFImageDecoder final : public ImageDecoder {
   // |buffer|, if desired.
   void ColorCorrectImage(int from_row, int to_row, ImageFrame* buffer);
 
+  // Returns decoder_->image or decoder_->image->gainMap->image depending on
+  // aux_image_. May be nullptr if requesting the gain map image
+  // (cc::AuxImage::kGainmap) but no gain map is present.
+  crabbyavif::avifImage* GetDecoderImage() const;
+
   bool have_parsed_current_data_ = false;
   // The image width and height (before cropping, if any) from the container.
   //
@@ -172,11 +178,14 @@ class PLATFORM_EXPORT CrabbyAVIFImageDecoder final : public ImageDecoder {
   // aperture) property.
   raw_ptr<const crabbyavif::avifImage, DanglingUntriaged> decoded_image_ =
       nullptr;
+  // The declaration order of the next three fields is important. decoder_
+  // points to avif_io_, and avif_io_ points to avif_io_data_. The destructor
+  // must destroy them in that order.
+  AvifIOData avif_io_data_;
+  crabbyavif::avifIO avif_io_ = {};
   std::unique_ptr<crabbyavif::avifDecoder,
                   decltype(&crabbyavif::crabby_avifDecoderDestroy)>
       decoder_{nullptr, crabbyavif::crabby_avifDecoderDestroy};
-  crabbyavif::avifIO avif_io_ = {};
-  AvifIOData avif_io_data_;
 
   const AnimationOption animation_option_;
 

@@ -6,6 +6,7 @@
 #define EXTENSIONS_BROWSER_RENDERER_STARTUP_HELPER_H_
 
 #include <map>
+#include <optional>
 #include <set>
 
 #include "base/compiler_specific.h"
@@ -64,11 +65,11 @@ class RendererStartupHelper : public KeyedService,
   void RenderProcessHostDestroyed(content::RenderProcessHost* host) override;
 
   // mojom::RendererHost:
-  void AddAPIActionToActivityLog(const ExtensionId& extension_id,
+  void AddAPIActionToActivityLog(const std::optional<ExtensionId>& extension_id,
                                  const std::string& call_name,
                                  base::Value::List args,
                                  const std::string& extra) override;
-  void AddEventToActivityLog(const ExtensionId& extension_id,
+  void AddEventToActivityLog(const std::optional<ExtensionId>& extension_id,
                              const std::string& call_name,
                              base::Value::List args,
                              const std::string& extra) override;
@@ -78,8 +79,6 @@ class RendererStartupHelper : public KeyedService,
                                  const GURL& url,
                                  const std::u16string& url_title,
                                  int32_t call_type) override;
-  void WakeEventPage(const ExtensionId& extension_id,
-                     WakeEventPageCallback callback) override;
   void GetMessageBundle(const ExtensionId& extension_id,
                         GetMessageBundleCallback callback) override;
 
@@ -99,12 +98,15 @@ class RendererStartupHelper : public KeyedService,
   // Sends a message to all renderers to update the developer mode.
   void OnDeveloperModeChanged(bool in_developer_mode);
 
+  // Sends a message to all renderers to update user scripts API allowed state
+  // for an extension.
+  void OnUserScriptsAllowedChanged(const ExtensionId& extension_id,
+                                   bool allowed);
+
   // Sets properties for the user script world of the given `world_id` for
   // the given `extension` in all applicable renderers.
   void SetUserScriptWorldProperties(const Extension& extension,
-                                    std::optional<std::string> world_id,
-                                    std::optional<std::string> csp,
-                                    bool enable_messaging);
+                                    mojom::UserScriptWorldInfoPtr world_info);
 
   // Notifies renderers to clear any properties for the user script world
   // associated with the given `extension` and `world_id`.
@@ -121,6 +123,9 @@ class RendererStartupHelper : public KeyedService,
   static void BindForRenderer(
       int process_id,
       mojo::PendingAssociatedReceiver<mojom::RendererHost> receiver);
+
+  // Flushes any pending Mojo calls for all tracked render processes.
+  void FlushAllForTesting();
 
  protected:
   // Provide ability for tests to override.

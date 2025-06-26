@@ -4,13 +4,13 @@
 
 #include "chrome/browser/ui/views/global_media_controls/media_item_ui_device_selector_view.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/callback_list.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -45,7 +45,7 @@ namespace {
 constexpr char kItemId[] = "item_id";
 constexpr char kSinkFriendlyName[] = "Nest Hub";
 
-ui::MouseEvent pressed_event(ui::ET_MOUSE_PRESSED,
+ui::MouseEvent pressed_event(ui::EventType::kMousePressed,
                              gfx::Point(),
                              gfx::Point(),
                              ui::EventTimeForNow(),
@@ -390,8 +390,8 @@ TEST_F(MediaItemUIDeviceSelectorViewTest, AudioDeviceHighlightedOnChange) {
   // There should be only one highlighted button. It should be the first button.
   // It's text should be "Speaker"
   auto highlight_pred = [this](views::View* v) { return IsHighlighted(v); };
-  EXPECT_EQ(base::ranges::count_if(container_children, highlight_pred), 1);
-  EXPECT_EQ(base::ranges::find_if(container_children, highlight_pred),
+  EXPECT_EQ(std::ranges::count_if(container_children, highlight_pred), 1);
+  EXPECT_EQ(std::ranges::find_if(container_children, highlight_pred),
             container_children.begin());
   EXPECT_EQ(EntryLabelText(container_children.front()), "Speaker");
 
@@ -399,8 +399,8 @@ TEST_F(MediaItemUIDeviceSelectorViewTest, AudioDeviceHighlightedOnChange) {
   view_->UpdateCurrentAudioDevice("3");
 
   // The button for "Earbuds" should come before all others & be highlighted.
-  EXPECT_EQ(base::ranges::count_if(container_children, highlight_pred), 1);
-  EXPECT_EQ(base::ranges::find_if(container_children, highlight_pred),
+  EXPECT_EQ(std::ranges::count_if(container_children, highlight_pred), 1);
+  EXPECT_EQ(std::ranges::find_if(container_children, highlight_pred),
             container_children.begin());
   EXPECT_EQ(EntryLabelText(container_children.front()), "Earbuds");
 }

@@ -10,13 +10,8 @@
 
 namespace autofill {
 
-TestCreditCardSaveManager::TestCreditCardSaveManager(
-    AutofillDriver* driver,
-    AutofillClient* client,
-    PersonalDataManager* personal_data_manager)
-    : CreditCardSaveManager(client,
-                            "en-US",
-                            personal_data_manager) {}
+TestCreditCardSaveManager::TestCreditCardSaveManager(AutofillClient* client)
+    : CreditCardSaveManager(client) {}
 
 TestCreditCardSaveManager::~TestCreditCardSaveManager() = default;
 
@@ -77,24 +72,30 @@ void TestCreditCardSaveManager::set_upload_request_card(
   upload_request_.card = std::move(card);
 }
 
-payments::PaymentsNetworkInterface::UploadCardRequestDetails*
+payments::UploadCardRequestDetails*
 TestCreditCardSaveManager::upload_request() {
   return &upload_request_;
 }
 
+bool TestCreditCardSaveManager::should_request_expiration_date_from_user() {
+  return should_request_expiration_date_from_user_;
+}
+
+bool TestCreditCardSaveManager::should_request_name_from_user() {
+  return should_request_name_from_user_;
+}
+
 void TestCreditCardSaveManager::InitVirtualCardEnroll(
     const CreditCard& credit_card,
-    std::optional<payments::PaymentsNetworkInterface::
-                      GetDetailsForEnrollmentResponseDetails>
+    std::optional<payments::GetDetailsForEnrollmentResponseDetails>
         get_details_for_enrollment_response_details) {
   CreditCardSaveManager::InitVirtualCardEnroll(
       credit_card, std::move(get_details_for_enrollment_response_details));
 }
 
 void TestCreditCardSaveManager::OnDidUploadCard(
-    AutofillClient::PaymentsRpcResult result,
-    const payments::PaymentsNetworkInterface::UploadCardResponseDetails&
-        upload_card_response_details) {
+    payments::PaymentsAutofillClient::PaymentsRpcResult result,
+    const payments::UploadCardResponseDetails& upload_card_response_details) {
   credit_card_was_uploaded_ = true;
   CreditCardSaveManager::OnDidUploadCard(result, upload_card_response_details);
 }

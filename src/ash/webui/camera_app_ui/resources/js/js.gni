@@ -4,10 +4,10 @@
 
 compile_js_files = [
   "animation.ts",
+  "aspect_ratio_order.ts",
   "app_window.ts",
   "assert.ts",
   "async_job_queue.ts",
-  "barcode_chip.ts",
   "cover_photo.ts",
   "custom_effect.ts",
   "deployed_version.ts",
@@ -16,6 +16,7 @@ compile_js_files = [
   "device/camera_operation.ts",
   "device/capture_candidate_preferrer.ts",
   "device/capture_candidate.ts",
+  "device/device_monitor.ts",
   "device/index.ts",
   "device/mode/index.ts",
   "device/mode/mode_base.ts",
@@ -27,7 +28,6 @@ compile_js_files = [
   "device/preview.ts",
   "device/ptz_controller.ts",
   "device/stream_constraints.ts",
-  "device/stream_manager.ts",
   "device/stream_manager_chrome.ts",
   "device/type.ts",
   "dom.ts",
@@ -85,6 +85,7 @@ compile_js_files = [
   "ocr.ts",
   "perf.ts",
   "photo_mode_auto_scanner.ts",
+  "scanner_chip.ts",
   "snackbar.ts",
   "sound.ts",
   "spoken_msg.ts",
@@ -135,7 +136,5 @@ compile_js_files = [
 
 local_dev_js_files = [ "local_dev_overrides.ts" ]
 compile_js_files += local_dev_js_files
-
-no_compile_js_files = [ "lib/analytics.js" ]
 
 wasm_files = [ "lib/ffmpeg.wasm" ]

@@ -7,10 +7,8 @@ import {MeasurementSystemUnitType, NativeLayerImpl, PluginProxyImpl, State, when
 import {assert} from 'chrome://resources/js/assert.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {waitBeforeNextRender} from 'chrome://webui-test/polymer_test_util.js';
+import {microtasksFinished} from 'chrome://webui-test/test_util.js';
 
-// <if expr="is_chromeos">
-import {setNativeLayerCrosInstance} from './native_layer_cros_stub.js';
-// </if>
 import {NativeLayerStub} from './native_layer_stub.js';
 import {getCddTemplate, getDefaultMediaSize, getDefaultOrientation} from './print_preview_test_utils.js';
 import {TestPluginProxy} from './test_plugin_proxy.js';
@@ -28,7 +26,6 @@ suite('InvalidSettingsTest', function() {
     unitType: MeasurementSystemUnitType.IMPERIAL,
     previewModifiable: true,
     destinationsManaged: false,
-    previewIsFromArc: false,
     documentTitle: 'title',
     documentHasSelection: true,
     shouldPrintSelectionOnly: false,
@@ -42,9 +39,6 @@ suite('InvalidSettingsTest', function() {
   setup(function() {
     nativeLayer = new NativeLayerStub();
     NativeLayerImpl.setInstance(nativeLayer);
-    // <if expr="is_chromeos">
-    setNativeLayerCrosInstance();
-    // </if>
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
   });
 
@@ -64,14 +58,14 @@ suite('InvalidSettingsTest', function() {
 
     page = document.createElement('print-preview-app');
     document.body.appendChild(page);
-    page.$.documentInfo.init(true, false, 'title', false);
+    page.$.documentInfo.init(true, 'title', false);
   }
 
   // Tests that when a printer cannot be communicated with correctly the
   // preview area displays an invalid printer error message and printing
   // is disabled. Verifies that the user can recover from this error by
   // selecting a different, valid printer.
-  test('invalid settings error', function() {
+  test('invalid settings error', async function() {
     createPage();
     const barDevice = getCddTemplate('BarDevice');
     nativeLayer.setLocalDestinationCapabilities(barDevice);
@@ -100,9 +94,8 @@ suite('InvalidSettingsTest', function() {
         .then(() => {
           const parentElement =
               sidebar.shadowRoot!.querySelector('print-preview-button-strip')!;
-          printButton =
-              parentElement.shadowRoot!.querySelector<CrButtonElement>(
-                  '.action-button')!;
+          printButton = parentElement.shadowRoot.querySelector<CrButtonElement>(
+              '.action-button')!;
 
           return Promise.all([
             whenReady(),
@@ -147,8 +140,9 @@ suite('InvalidSettingsTest', function() {
           // Wait for the preview to be updated.
           return nativeLayer.whenCalled('getPreview');
         })
-        .then(function() {
+        .then(async function() {
           // Message should be gone.
+          await microtasksFinished();
           assertTrue(overlay.classList.contains('invisible'));
           assertFalse(messageEl.textContent!.includes(expectedMessage));
 

@@ -21,7 +21,6 @@ import static org.chromium.ui.test.util.ViewUtils.onViewWaiting;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Before;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -31,16 +30,17 @@ import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
-import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -60,21 +60,20 @@ public class PasswordManagerDialogTest {
 
     @Mock private Callback<Integer> mOnClick;
 
-    @ClassRule
-    public static ChromeTabbedActivityTestRule sActivityTestRule =
-            new ChromeTabbedActivityTestRule();
-
     @Rule
-    public BlankCTATabInitialStateRule mBlankCTATabInitialStateRule =
-            new BlankCTATabInitialStateRule(sActivityTestRule, false);
+    public AutoResetCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.fastAutoResetCtaActivityRule();
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule().strictness(Strictness.STRICT_STUBS);
 
+    private WebPageStation mStartingPage;
+
     @Before
     public void setUp() throws InterruptedException {
-        TestThreadUtils.runOnUiThreadBlocking(
+        mStartingPage = mActivityTestRule.startOnBlankPage();
+        ChromeActivity activity = mStartingPage.getActivity();
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    ChromeActivity activity = (ChromeActivity) sActivityTestRule.getActivity();
                     ModalDialogManager dialogManager = activity.getModalDialogManager();
                     mCoordinator =
                             new PasswordManagerDialogCoordinator(
@@ -133,13 +132,13 @@ public class PasswordManagerDialogTest {
     @Test
     @SmallTest
     public void testSettingImageVisibility() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.set(ILLUSTRATION_VISIBLE, false);
                 });
         onView(withId(R.id.password_manager_dialog_illustration))
                 .check(matches(not(isDisplayed())));
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.set(ILLUSTRATION_VISIBLE, true);
                 });
@@ -150,12 +149,12 @@ public class PasswordManagerDialogTest {
     @SmallTest
     public void testWatchingLayoutChanges() {
         float dipScale =
-                sActivityTestRule.getActivity().getWindowAndroid().getDisplay().getDipScale();
+                mActivityTestRule.getActivity().getWindowAndroid().getDisplay().getDipScale();
 
         // Dimensions resembling landscape orientation.
         final int testHeightDipLandscape = 300; // Height of the android content view.
         final int testWidthDipLandscape = 500; // Width of the android content view.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mMediator.onLayoutChange(
                             null,
@@ -173,7 +172,7 @@ public class PasswordManagerDialogTest {
         // Dimensions resembling portrait orientation.
         final int testHeightDipPortrait = 500;
         final int testWidthDipPortrait = 320;
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mMediator.onLayoutChange(
                             null,
@@ -191,7 +190,7 @@ public class PasswordManagerDialogTest {
         // Dimensions resembling multi-window mode.
         final int testHeightDipMultiWindow = 250;
         final int testWidthDipMultiWindow = 320;
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mMediator.onLayoutChange(
                             null,

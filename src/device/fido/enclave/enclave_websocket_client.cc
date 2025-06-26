@@ -5,12 +5,14 @@
 #include "device/fido/enclave/enclave_websocket_client.h"
 
 #include <limits>
+#include <utility>
 
 #include "components/device_event_log/device_event_log.h"
 #include "device/fido/fido_constants.h"
 #include "device/fido/fido_parsing_utils.h"
 #include "device/fido/network_context_factory.h"
 #include "net/http/http_request_headers.h"
+#include "net/storage_access_api/status.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 
 namespace device::enclave {
@@ -96,6 +98,7 @@ void EnclaveWebSocketClient::Write(base::span<const uint8_t> data) {
       data.size() > std::numeric_limits<uint32_t>::max()) {
     FIDO_LOG(ERROR) << "Invalid WebSocket write.";
     ClosePipe(SocketStatus::kError);
+    // `this` may have been deleted at this point.
     return;
   }
 
@@ -109,6 +112,7 @@ void EnclaveWebSocketClient::Write(base::span<const uint8_t> data) {
   }
 
   InternalWrite(data);
+  // `this` may have been deleted at this point.
 }
 
 void EnclaveWebSocketClient::Connect() {
@@ -130,7 +134,7 @@ void EnclaveWebSocketClient::Connect() {
 
   network_context_factory_.Run()->CreateWebSocket(
       service_url_, {kEnclaveWebSocketProtocol}, net::SiteForCookies(),
-      /*has_storage_access=*/false,
+      net::StorageAccessApiStatus::kNone,
       net::IsolationInfo::CreateForInternalRequest(
           url::Origin::Create(service_url_)),
       std::move(additional_headers), network::mojom::kBrowserProcessId,
@@ -149,13 +153,11 @@ void EnclaveWebSocketClient::InternalWrite(base::span<const uint8_t> data) {
 
   websocket_->SendMessage(network::mojom::WebSocketMessageType::BINARY,
                           data.size());
-  size_t num_bytes = data.size();
-  MojoResult result = writable_->WriteData(data.data(), &num_bytes,
-                                           MOJO_WRITE_DATA_FLAG_ALL_OR_NONE);
-  CHECK(result != MOJO_RESULT_OK || data.size() == num_bytes);
+  MojoResult result = writable_->WriteAllData(data);
   if (result != MOJO_RESULT_OK) {
     FIDO_LOG(ERROR) << "Failed to write to WebSocket.";
     ClosePipe(SocketStatus::kError);
+    // `this` may have been deleted at this point.
   }
 }
 
@@ -172,6 +174,7 @@ void EnclaveWebSocketClient::OnFailure(const std::string& message,
                   << net_error << ", " << response_code;
 
   ClosePipe(SocketStatus::kError);
+  // `this` may have been deleted at this point.
 }
 
 void EnclaveWebSocketClient::OnConnectionEstablished(
@@ -206,8 +209,9 @@ void EnclaveWebSocketClient::OnConnectionEstablished(
   state_ = State::kOpen;
 
   if (pending_write_data_) {
-    InternalWrite(*pending_write_data_);
-    pending_write_data_ = std::nullopt;
+    auto write_data = std::exchange(pending_write_data_, std::nullopt).value();
+    InternalWrite(write_data);
+    // `this` may have been deleted at this point.
   }
 }
 
@@ -223,6 +227,7 @@ void EnclaveWebSocketClient::OnDataFrame(
   if (data_len == 0) {
     if (finish) {
       ProcessCompletedResponse();
+      // `this` may have been deleted at this point.
     }
     return;
   }
@@ -236,6 +241,7 @@ void EnclaveWebSocketClient::OnDataFrame(
     FIDO_LOG(ERROR) << "Invalid WebSocket frame (type: "
                     << static_cast<int>(type) << ", len: " << data_len << ")";
     ClosePipe(SocketStatus::kError);
+    // `this` may have been deleted at this point.
     return;
   }
 
@@ -243,6 +249,7 @@ void EnclaveWebSocketClient::OnDataFrame(
   pending_read_finished_ = finish;
   client_receiver_.Pause();
   ReadFromDataPipe(MOJO_RESULT_OK, mojo::HandleSignalsState());
+  // `this` may have been deleted at this point.
 }
 
 void EnclaveWebSocketClient::OnDropChannel(bool was_clean,
@@ -252,35 +259,40 @@ void EnclaveWebSocketClient::OnDropChannel(bool was_clean,
   CHECK(state_ == State::kOpen || state_ == State::kConnecting);
 
   ClosePipe(SocketStatus::kSocketClosed);
+  // `this` may have been deleted at this point.
 }
 
 void EnclaveWebSocketClient::OnClosingHandshake() {}
 
 void EnclaveWebSocketClient::ReadFromDataPipe(MojoResult,
                                               const mojo::HandleSignalsState&) {
-  size_t todo = pending_read_data_.size() - pending_read_data_index_;
-  CHECK_GT(todo, 0u);
-  const MojoResult result =
-      readable_->ReadData(&pending_read_data_.data()[pending_read_data_index_],
-                          &todo, MOJO_READ_DATA_FLAG_NONE);
+  CHECK_LT(pending_read_data_index_, pending_read_data_.size());
+
+  size_t actually_read_bytes = 0;
+  const MojoResult result = readable_->ReadData(
+      MOJO_READ_DATA_FLAG_NONE,
+      base::span(pending_read_data_).subspan(pending_read_data_index_),
+      actually_read_bytes);
   if (result == MOJO_RESULT_OK) {
-    pending_read_data_index_ += todo;
+    pending_read_data_index_ += actually_read_bytes;
     DCHECK_LE(pending_read_data_index_, pending_read_data_.size());
 
     if (pending_read_data_index_ < pending_read_data_.size()) {
-      readable_watcher_.Arm();
+      readable_watcher_.ArmOrNotify();
     } else {
       client_receiver_.Resume();
       if (pending_read_finished_) {
         ProcessCompletedResponse();
+        // `this` may have been deleted at this point.
       }
     }
   } else if (result == MOJO_RESULT_SHOULD_WAIT) {
-    readable_watcher_.Arm();
+    readable_watcher_.ArmOrNotify();
   } else {
     FIDO_LOG(ERROR) << "Reading WebSocket frame failed: "
                     << static_cast<int>(result);
     ClosePipe(SocketStatus::kError);
+    // `this` may have been deleted at this point.
   }
 }
 
@@ -310,6 +322,7 @@ void EnclaveWebSocketClient::ClosePipe(SocketStatus status) {
 
 void EnclaveWebSocketClient::OnMojoPipeDisconnect() {
   ClosePipe(SocketStatus::kSocketClosed);
+  // `this` may have been deleted at this point.
 }
 
 }  // namespace device::enclave

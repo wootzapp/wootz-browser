@@ -10,12 +10,13 @@ import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
 import 'chrome://resources/cr_elements/icons.html.js';
 import '/shared/settings/controls/cr_policy_pref_indicator.js';
 import 'chrome://resources/cr_elements/policy/cr_tooltip_icon.js';
-import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
+import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
 import '../icons.html.js';
 import '../settings_shared.css.js';
 import '../site_favicon.js';
 
 import {FocusRowMixin} from 'chrome://resources/cr_elements/focus_row_mixin.js';
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
 import {assert, assertNotReached} from 'chrome://resources/js/assert.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
@@ -37,7 +38,7 @@ export interface SiteListEntryElement {
 }
 
 const SiteListEntryElementBase =
-    FocusRowMixin(BaseMixin(SiteSettingsMixin(PolymerElement)));
+    FocusRowMixin(BaseMixin(SiteSettingsMixin(I18nMixin(PolymerElement))));
 
 export class SiteListEntryElement extends SiteListEntryElementBase {
   static get is() {
@@ -103,13 +104,13 @@ export class SiteListEntryElement extends SiteListEntryElementBase {
     };
   }
 
-  private readOnlyList: boolean;
-  model: SiteException;
-  private chooserType: ChooserType;
-  private chooserObject: object;
-  private showPolicyPrefIndicator_: boolean;
-  private allowNavigateToSiteDetail_: boolean;
-  cookiesExceptionType: CookiesExceptionType;
+  declare private readOnlyList: boolean;
+  declare model: SiteException;
+  declare private chooserType: ChooserType;
+  declare private chooserObject: object;
+  declare private showPolicyPrefIndicator_: boolean;
+  declare private allowNavigateToSiteDetail_: boolean;
+  declare cookiesExceptionType: CookiesExceptionType;
 
   private onShowTooltip_() {
     const indicator =
@@ -238,8 +239,6 @@ export class SiteListEntryElement extends SiteListEntryElementBase {
         description = loadTimeData.getStringF(
             'embeddedOnHost', this.sanitizePort(this.model.embeddingOrigin));
       }
-    } else if (this.model.category === ContentSettingsTypes.GEOLOCATION) {
-      description = loadTimeData.getString('embeddedOnAnyHost');
     }
 
     try {
@@ -260,6 +259,8 @@ export class SiteListEntryElement extends SiteListEntryElementBase {
   }
 
   private onResetButtonClick_() {
+    this.fire('site-list-entry-reset-click');
+
     // Use the appropriate method to reset a chooser exception.
     if (this.chooserType !== ChooserType.NONE && this.chooserObject !== null) {
       this.browserProxy.resetChooserExceptionForSite(
@@ -291,6 +292,11 @@ export class SiteListEntryElement extends SiteListEntryElementBase {
     this.browserProxy.isOriginValid(this.model.origin).then((valid) => {
       this.allowNavigateToSiteDetail_ = valid;
     });
+  }
+
+  private getActionMenuButtonLabel_() {
+    return this.i18n(
+        'siteDataPageAddSiteContextMenuLabel', this.computeDisplayName_());
   }
 }
 

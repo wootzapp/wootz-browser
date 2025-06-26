@@ -4,16 +4,26 @@
 
 #include "components/policy/core/common/features.h"
 
-#include "google_apis/gaia/gaia_constants.h"
+namespace policy::features {
 
-namespace policy {
+BASE_FEATURE(kPolicyBlocklistProceedUntilResponse,
+             "PolicyBlocklistProceedUntilResponse",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
-namespace features {
+BASE_FEATURE(kProfileSeparationDomainExceptionListRetroactive,
+             "ProfileSeparationDomainExceptionListRetroactive",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
-BASE_FEATURE(kEnablePolicyTestPage,
-             "EnablePolicyTestPage",
+BASE_FEATURE(kEnhancedSecurityEventFields,
+             "EnhancedSecurityEventFields",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-}  // namespace features
+// Enables Kiosk session for the Helium android app.
+BASE_FEATURE(kHeliumArcvmKiosk,
+             "HeliumArcvmKiosk",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+bool IsHeliumArcvmKioskEnabled() {
+  return base::FeatureList::IsEnabled(kHeliumArcvmKiosk);
+}
 
-}  // namespace policy
+}  // namespace policy::features

@@ -20,6 +20,22 @@
 
 namespace gl {
 
+// Wrapper for DCompositionWaitForCompositorClock Win32 dcomp.h function
+HRESULT DCompositionWaitForCompositorClock(UINT count,
+                                           const HANDLE* handles,
+                                           DWORD timeoutInMs);
+
+// Wrapper for DcompositionGetFrameId Win32 dcomp.h function
+HRESULT DCompositionGetFrameId(COMPOSITION_FRAME_ID_TYPE frameIdType,
+                               COMPOSITION_FRAME_ID* frameId);
+
+// Wrapper for DCompositionGetStatistics Win32 dcomp.h function
+HRESULT DCompositionGetStatistics(COMPOSITION_FRAME_ID frameId,
+                                  COMPOSITION_FRAME_STATS* frameStats,
+                                  UINT targetIdCount,
+                                  COMPOSITION_TARGET_ID* targetIds,
+                                  UINT* actualTargetIdCount);
+
 // Initialize direct composition with the given d3d11 device.
 GL_EXPORT void InitializeDirectComposition(
     Microsoft::WRL::ComPtr<ID3D11Device> d3d11_device);
@@ -40,12 +56,12 @@ GL_EXPORT ID3D11Device* GetDirectCompositionD3D11Device();
 // Returns true if direct composition is supported.  We prefer to use direct
 // composition even without hardware overlays, because it allows us to bypass
 // blitting by DWM to the window redirection surface by using a flip mode swap
-// chain.  Overridden with --disable_direct_composition=1.
+// chain. Overridden with --disable-direct-composition.
 GL_EXPORT bool DirectCompositionSupported();
 
 // Returns true if video overlays are supported and should be used. Overridden
 // with --enable-direct-composition-video-overlays and
-// --disable_direct_composition_video_overlays=1. This function is thread safe.
+// --disable-direct-composition-video-overlays. This function is thread safe.
 GL_EXPORT bool DirectCompositionOverlaysSupported();
 
 // Returns true if hardware overlays are supported. This function is thread
@@ -77,6 +93,13 @@ GL_EXPORT bool CheckVideoProcessorFormatSupport(DXGI_FORMAT format);
 // This function is thread safe.
 GL_EXPORT UINT GetDirectCompositionOverlaySupportFlags(DXGI_FORMAT format);
 
+// Returns HDR HW capabilities information.
+GL_EXPORT void GetDirectCompositionMaxAMDHDRHwOffloadResolution(
+    bool* amd_hdr_hw_offload_supported,
+    bool* amd_platform_detected,
+    int* amd_hdr_hw_offload_max_width,
+    int* amd_hdr_hw_offload_max_height);
+
 // Returns true if swap chain tearing flag is supported.
 GL_EXPORT bool DXGISwapChainTearingSupported();
 
@@ -98,9 +121,8 @@ GL_EXPORT bool DirectCompositionMonitorHDREnabled(HWND window);
 // Returns the collected DXGI information.
 GL_EXPORT gfx::mojom::DXGIInfoPtr GetDirectCompositionHDRMonitorDXGIInfo();
 
-// Set direct composition swap chain failure so that direct composition is
-// marked as unsupported from now on.
-GL_EXPORT void SetDirectCompositionSwapChainFailed();
+// Returns true if there is support for |IDCompositionTexture|.
+GL_EXPORT bool DirectCompositionTextureSupported();
 
 struct DirectCompositionOverlayWorkarounds {
   // Whether software video overlays i.e. swap chains used without hardware
@@ -145,6 +167,13 @@ GL_EXPORT void SetDirectCompositionOverlayFormatUsedForTesting(
 GL_EXPORT void SetDirectCompositionMonitorInfoForTesting(
     int num_monitors,
     const gfx::Size& primary_monitor_size);
+GL_EXPORT void SetSupportsAMDHwOffloadHDRCapsForTesting(
+    bool amd_hdr_hw_offload_supported,
+    bool amd_platform_detected,
+    INT32 amd_hdr_hw_offload_max_width,
+    INT32 amd_hdr_hw_offload_max_height);
+GL_EXPORT UINT
+GetDirectCompositionOverlaySupportFlagsForTesting(DXGI_FORMAT format);
 
 class GL_EXPORT DirectCompositionOverlayCapsObserver
     : public base::CheckedObserver {

@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stddef.h>
 
+#include <algorithm>
 #include <queue>
 
 #include "base/containers/contains.h"
@@ -14,7 +15,6 @@
 #include "base/i18n/case_conversion.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/uuid.h"
@@ -52,8 +52,7 @@ void SetIsNavigationInDomainCallback(content::PreloadingData* preloading_data) {
                    ui::PageTransitionCoreTypeIs(
                        transition_type,
                        ui::PageTransition::PAGE_TRANSITION_TYPED) &&
-                   ui::PageTransitionIsNewNavigation(
-                       navigation_handle->GetPageTransition());
+                   ui::PageTransitionIsNewNavigation(transition_type);
           }));
 }
 }  // namespace
@@ -168,7 +167,9 @@ void AutocompleteActionPredictor::RegisterTransitionalMatches(
   const std::u16string lower_user_text(base::i18n::ToLower(user_text));
 
   // Merge this in to an existing match if we already saw |user_text|
-  auto match_it = base::ranges::find(transitional_matches_, lower_user_text);
+  auto match_it = std::ranges::find(
+      transitional_matches_, lower_user_text,
+      &AutocompleteActionPredictor::TransitionalMatch::user_text);
 
   if (match_it == transitional_matches_.end()) {
     if (transitional_matches_size_ + lower_user_text.length() >
@@ -198,8 +199,7 @@ void AutocompleteActionPredictor::ClearTransitionalMatches() {
 
 void AutocompleteActionPredictor::StartPrerendering(
     const GURL& url,
-    content::WebContents& web_contents,
-    const gfx::Size& size) {
+    content::WebContents& web_contents) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   // Helpers to create content::PreloadingAttempt.
@@ -209,10 +209,6 @@ void AutocompleteActionPredictor::StartPrerendering(
       content::PreloadingData::GetSameURLMatcher(url);
 
   SetIsNavigationInDomainCallback(preloading_data);
-
-  if (!prerender_utils::IsDirectUrlInputPrerenderEnabled()) {
-    return;
-  }
 
   // Create new PreloadingAttempt and pass all the values corresponding to this
   // prerendering attempt for Prerender.
@@ -400,8 +396,8 @@ void AutocompleteActionPredictor::DeleteRowsFromCaches(
   DCHECK(id_list);
 
   for (auto it = db_cache_.begin(); it != db_cache_.end();) {
-    if (base::ranges::any_of(rows,
-                             history::URLRow::URLRowHasURL(it->first.url))) {
+    if (std::ranges::any_of(rows,
+                            history::URLRow::URLRowHasURL(it->first.url))) {
       const DBIdCacheMap::iterator id_it = db_id_cache_.find(it->first);
       DCHECK(id_it != db_id_cache_.end());
       id_list->push_back(id_it->second);
@@ -693,7 +689,6 @@ AutocompleteActionPredictor::TransitionalMatch::TransitionalMatch(
 AutocompleteActionPredictor::TransitionalMatch::TransitionalMatch(
     const TransitionalMatch& other) = default;
 
-AutocompleteActionPredictor::TransitionalMatch::~TransitionalMatch() {
-}
+AutocompleteActionPredictor::TransitionalMatch::~TransitionalMatch() = default;
 
 }  // namespace predictors

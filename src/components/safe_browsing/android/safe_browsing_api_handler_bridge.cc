@@ -10,23 +10,29 @@
 
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
+#include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/containers/flat_set.h"
+#include "base/containers/heap_array.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/strings/string_tokenizer.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
-#include "components/safe_browsing/android/jni_headers/SafeBrowsingApiBridge_jni.h"
+#include "base/types/fixed_array.h"
 #include "components/safe_browsing/android/safe_browsing_api_handler_util.h"
 #include "components/safe_browsing/core/browser/db/v4_protocol_manager_util.h"
 #include "components/safe_browsing/core/common/features.h"
+#include "components/safe_browsing/core/common/safebrowsing_switches.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/safe_browsing/android/jni_headers/SafeBrowsingApiBridge_jni.h"
+
 using base::android::AttachCurrentThread;
-using base::android::ConvertJavaStringToUTF8;
 using base::android::ConvertUTF8ToJavaString;
 using base::android::JavaIntArrayToIntVector;
 using base::android::JavaParamRef;
@@ -37,11 +43,6 @@ using content::BrowserThread;
 namespace safe_browsing {
 
 namespace {
-
-void ReportUmaResult(UmaRemoteCallResult result) {
-  UMA_HISTOGRAM_ENUMERATION("SB2.RemoteCall.Result", result,
-                            UmaRemoteCallResult::MAX_VALUE);
-}
 
 std::string GetSafeBrowsingJavaProtocolUmaSuffix(
     SafeBrowsingJavaProtocol protocol) {
@@ -273,42 +274,12 @@ bool IsSafeBrowsingNonRecoverable(SafeBrowsingApiLookupResult lookup_result) {
 }
 
 // Convert a SBThreatType to a Java SafetyNet API threat type.  We only support
-// a few.
+// CSD_ALLOWLIST.
 SafetyNetJavaThreatType SBThreatTypeToSafetyNetJavaThreatType(
     const SBThreatType& sb_threat_type) {
   using enum SBThreatType;
-  switch (sb_threat_type) {
-    case SB_THREAT_TYPE_BILLING:
-      return SafetyNetJavaThreatType::BILLING;
-    case SB_THREAT_TYPE_SUBRESOURCE_FILTER:
-      return SafetyNetJavaThreatType::SUBRESOURCE_FILTER;
-    case SB_THREAT_TYPE_URL_PHISHING:
-      return SafetyNetJavaThreatType::SOCIAL_ENGINEERING;
-    case SB_THREAT_TYPE_URL_MALWARE:
-      return SafetyNetJavaThreatType::POTENTIALLY_HARMFUL_APPLICATION;
-    case SB_THREAT_TYPE_URL_UNWANTED:
-      return SafetyNetJavaThreatType::UNWANTED_SOFTWARE;
-    case SB_THREAT_TYPE_CSD_ALLOWLIST:
-      return SafetyNetJavaThreatType::CSD_ALLOWLIST;
-    default:
-      NOTREACHED_IN_MIGRATION();
-      return SafetyNetJavaThreatType::MAX_VALUE;
-  }
-}
-
-// Convert a vector of SBThreatTypes to JavaIntArray of Java SafetyNet API
-// threat types.
-ScopedJavaLocalRef<jintArray> SBThreatTypeSetToSafetyNetJavaArray(
-    JNIEnv* env,
-    const SBThreatTypeSet& threat_types) {
-  DCHECK_LT(0u, threat_types.size());
-  int int_threat_types[threat_types.size()];
-  int* itr = &int_threat_types[0];
-  for (auto threat_type : threat_types) {
-    *itr++ =
-        static_cast<int>(SBThreatTypeToSafetyNetJavaThreatType(threat_type));
-  }
-  return ToJavaIntArray(env, int_threat_types, threat_types.size());
+  CHECK(sb_threat_type == SB_THREAT_TYPE_CSD_ALLOWLIST);
+  return SafetyNetJavaThreatType::CSD_ALLOWLIST;
 }
 
 // Convert a Java threat type for SafeBrowsing to a SBThreatType.
@@ -346,9 +317,29 @@ SafeBrowsingJavaThreatType SBThreatTypeToSafeBrowsingApiJavaThreatType(
       return SafeBrowsingJavaThreatType::POTENTIALLY_HARMFUL_APPLICATION;
     case SB_THREAT_TYPE_BILLING:
       return SafeBrowsingJavaThreatType::BILLING;
-    default:
-      NOTREACHED_IN_MIGRATION();
-      return SafeBrowsingJavaThreatType::NO_THREAT;
+    case SB_THREAT_TYPE_UNUSED:
+    case SB_THREAT_TYPE_SAFE:
+    case SB_THREAT_TYPE_URL_BINARY_MALWARE:
+    case SB_THREAT_TYPE_URL_CLIENT_SIDE_PHISHING:
+    case SB_THREAT_TYPE_EXTENSION:
+    case DEPRECATED_SB_THREAT_TYPE_URL_CLIENT_SIDE_MALWARE:
+    case SB_THREAT_TYPE_API_ABUSE:
+    case SB_THREAT_TYPE_SUBRESOURCE_FILTER:
+    case SB_THREAT_TYPE_CSD_ALLOWLIST:
+    case DEPRECATED_SB_THREAT_TYPE_URL_PASSWORD_PROTECTION_PHISHING:
+    case SB_THREAT_TYPE_SAVED_PASSWORD_REUSE:
+    case SB_THREAT_TYPE_SIGNED_IN_SYNC_PASSWORD_REUSE:
+    case SB_THREAT_TYPE_SIGNED_IN_NON_SYNC_PASSWORD_REUSE:
+    case SB_THREAT_TYPE_BLOCKED_AD_REDIRECT:
+    case SB_THREAT_TYPE_AD_SAMPLE:
+    case SB_THREAT_TYPE_BLOCKED_AD_POPUP:
+    case SB_THREAT_TYPE_SUSPICIOUS_SITE:
+    case SB_THREAT_TYPE_ENTERPRISE_PASSWORD_REUSE:
+    case SB_THREAT_TYPE_APK_DOWNLOAD:
+    case SB_THREAT_TYPE_HIGH_CONFIDENCE_ALLOWLIST:
+    case SB_THREAT_TYPE_MANAGED_POLICY_WARN:
+    case SB_THREAT_TYPE_MANAGED_POLICY_BLOCK:
+      NOTREACHED();
   }
 }
 
@@ -363,8 +354,8 @@ ScopedJavaLocalRef<jintArray> SBThreatTypeSetToSafeBrowsingJavaArray(
                      SBThreatType::SB_THREAT_TYPE_SUBRESOURCE_FILTER)
           ? threat_types.size() + 1
           : threat_types.size();
-  int int_threat_types[threat_type_size];
-  int* itr = &int_threat_types[0];
+  auto int_threat_types = base::HeapArray<int>::WithSize(threat_type_size);
+  auto itr = int_threat_types.begin();
   for (auto threat_type : threat_types) {
     if (threat_type == SBThreatType::SB_THREAT_TYPE_SUBRESOURCE_FILTER) {
       *itr++ = static_cast<int>(
@@ -376,40 +367,21 @@ ScopedJavaLocalRef<jintArray> SBThreatTypeSetToSafeBrowsingJavaArray(
           SBThreatTypeToSafeBrowsingApiJavaThreatType(threat_type));
     }
   }
-  return ToJavaIntArray(env, int_threat_types, threat_type_size);
-}
-
-// The map that holds the callback_id used to reference each pending SafetyNet
-// request sent to Java, and the corresponding callback to call on receiving the
-// response.
-using PendingSafetyNetCallbacksMap = std::unordered_map<
-    jlong,
-    std::unique_ptr<SafeBrowsingApiHandlerBridge::ResponseCallback>>;
-
-PendingSafetyNetCallbacksMap& GetPendingSafetyNetCallbacksMap() {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-
-  // Holds the list of callback objects that we are currently waiting to hear
-  // the result of from GmsCore.
-  // The key is a unique count-up integer.
-  static base::NoDestructor<PendingSafetyNetCallbacksMap>
-      pending_safety_net_callbacks;
-  return *pending_safety_net_callbacks;
+  return ToJavaIntArray(env, int_threat_types);
 }
 
 // Customized struct to hold a callback to the SafeBrowsing API and the protocol
 // used to make that call. The protocol is stored for histogram logging.
 struct SafeBrowsingResponseCallback {
   SafeBrowsingJavaProtocol protocol;
-  std::unique_ptr<SafeBrowsingApiHandlerBridge::ResponseCallback>
-      response_callback;
+  SafeBrowsingApiHandlerBridge::ResponseCallback response_callback;
 };
 
 // The map that holds the callback_id used to reference each pending
 // SafeBrowsing request sent to Java, and the corresponding callback to call on
 // receiving the response.
 using PendingSafeBrowsingCallbacksMap =
-    std::unordered_map<jlong, std::unique_ptr<SafeBrowsingResponseCallback>>;
+    std::unordered_map<jlong, SafeBrowsingResponseCallback>;
 
 PendingSafeBrowsingCallbacksMap& GetPendingSafeBrowsingCallbacksMap() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -420,6 +392,19 @@ PendingSafeBrowsingCallbacksMap& GetPendingSafeBrowsingCallbacksMap() {
   static base::NoDestructor<PendingSafeBrowsingCallbacksMap>
       pending_safe_browsing_callbacks;
   return *pending_safe_browsing_callbacks;
+}
+
+using PendingVerifyAppsCallbacksMap = std::unordered_map<
+    jlong,
+    SafeBrowsingApiHandlerBridge::VerifyAppsResponseCallback>;
+PendingVerifyAppsCallbacksMap& GetPendingVerifyAppsCallbacks() {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+
+  // Holds the list of callback objects that we are currently waiting to hear
+  // the result of from GmsCore.
+  // The key is a unique count-up integer.
+  static base::NoDestructor<PendingVerifyAppsCallbacksMap> pending_callbacks;
+  return *pending_callbacks;
 }
 
 bool StartAllowlistCheck(const GURL& url, const SBThreatType& sb_threat_type) {
@@ -445,89 +430,6 @@ SafeBrowsingApiHandlerBridge& SafeBrowsingApiHandlerBridge::GetInstance() {
 }
 
 // Respond to the URL reputation request by looking up the callback information
-// stored in |pending_safety_net_callbacks|.
-//   |callback_id| is an int form of pointer to a ::ResponseCallback
-//                 that will be called and then deleted here.
-//   |j_result_status| is one of those from SafeBrowsingApiHandlerBridge.java
-//   |metadata| is a JSON string classifying the threat if there is one.
-void OnUrlCheckDoneBySafetyNetApi(jlong callback_id,
-                                  jint j_result_status,
-                                  const std::string metadata) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-
-  PendingSafetyNetCallbacksMap& pending_callbacks =
-      GetPendingSafetyNetCallbacksMap();
-  bool found = base::Contains(pending_callbacks, callback_id);
-  DCHECK(found) << "Not found in pending_safety_net_callbacks: " << callback_id;
-  if (!found)
-    return;
-
-  std::unique_ptr<SafeBrowsingApiHandlerBridge::ResponseCallback> callback =
-      std::move((pending_callbacks)[callback_id]);
-  pending_callbacks.erase(callback_id);
-
-  SafetyNetRemoteCallResultStatus result_status =
-      static_cast<SafetyNetRemoteCallResultStatus>(j_result_status);
-  if (result_status != SafetyNetRemoteCallResultStatus::SUCCESS) {
-    if (result_status == SafetyNetRemoteCallResultStatus::TIMEOUT) {
-      ReportUmaResult(UmaRemoteCallResult::TIMEOUT);
-    } else {
-      DCHECK_EQ(result_status, SafetyNetRemoteCallResultStatus::INTERNAL_ERROR);
-      ReportUmaResult(UmaRemoteCallResult::INTERNAL_ERROR);
-    }
-    std::move(*callback).Run(SBThreatType::SB_THREAT_TYPE_SAFE,
-                             ThreatMetadata());
-    return;
-  }
-
-  // Shortcut for safe, so we don't have to parse JSON.
-  if (metadata == "{}") {
-    ReportUmaResult(UmaRemoteCallResult::SAFE);
-    std::move(*callback).Run(SBThreatType::SB_THREAT_TYPE_SAFE,
-                             ThreatMetadata());
-  } else {
-    // Unsafe, assuming we can parse the JSON.
-    SBThreatType worst_threat;
-    ThreatMetadata threat_metadata;
-    ReportUmaResult(
-        ParseJsonFromGMSCore(metadata, &worst_threat, &threat_metadata));
-
-    std::move(*callback).Run(worst_threat, threat_metadata);
-  }
-}
-
-// Java->Native call, invoked when a SafetyNet check is done.
-//   |callback_id| is a key into the |pending_safety_net_callbacks| map, whose
-//   value is a ::ResponseCallback that will be called and then deleted on
-//   the IO thread.
-//   |result_status| is a @SafeBrowsingResult from SafetyNetApiHandler.java
-//   |metadata| is a JSON string classifying the threat if there is one.
-//   |check_delta| is the number of microseconds it took to look up the URL
-//                 reputation from GmsCore.
-//
-//   Careful note: this can be called on multiple threads, so make sure there is
-//   nothing thread unsafe happening here.
-void JNI_SafeBrowsingApiBridge_OnUrlCheckDoneBySafetyNetApi(
-    JNIEnv* env,
-    jlong callback_id,
-    jint result_status,
-    const JavaParamRef<jstring>& metadata,
-    jlong check_delta) {
-  UMA_HISTOGRAM_COUNTS_10M("SB2.RemoteCall.CheckDelta", check_delta);
-
-  const std::string metadata_str =
-      (metadata ? ConvertJavaStringToUTF8(env, metadata) : "");
-
-  TRACE_EVENT1("safe_browsing",
-               "SafeBrowsingApiHandlerBridge::nUrlCheckDoneBySafetyNetApi",
-               "metadata", metadata_str);
-
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE, base::BindOnce(&OnUrlCheckDoneBySafetyNetApi, callback_id,
-                                result_status, metadata_str));
-}
-
-// Respond to the URL reputation request by looking up the callback information
 // stored in |pending_safe_browsing_callbacks|. Must be called on the original
 // thread that starts the lookup.
 void OnUrlCheckDoneBySafeBrowsingApi(
@@ -548,17 +450,17 @@ void OnUrlCheckDoneBySafeBrowsingApi(
     return;
   }
 
-  std::unique_ptr<SafeBrowsingResponseCallback> callback =
-      std::move((pending_callbacks)[callback_id]);
+  SafeBrowsingResponseCallback callback =
+      std::move(pending_callbacks[callback_id]);
   pending_callbacks.erase(callback_id);
 
-  ReportSafeBrowsingJavaResponse(callback->protocol, lookup_result, threat_type,
+  ReportSafeBrowsingJavaResponse(callback.protocol, lookup_result, threat_type,
                                  threat_attributes, response_status,
                                  check_delta_microseconds);
 
-  if (!IsResponseFromJavaValid(callback->protocol, lookup_result, threat_type,
+  if (!IsResponseFromJavaValid(callback.protocol, lookup_result, threat_type,
                                threat_attributes, response_status)) {
-    std::move(*(callback->response_callback))
+    std::move(callback.response_callback)
         .Run(SBThreatType::SB_THREAT_TYPE_SAFE, ThreatMetadata());
     return;
   }
@@ -568,12 +470,12 @@ void OnUrlCheckDoneBySafeBrowsingApi(
       SafeBrowsingApiHandlerBridge::GetInstance()
           .OnSafeBrowsingApiNonRecoverableFailure();
     }
-    std::move(*(callback->response_callback))
+    std::move(callback.response_callback)
         .Run(SBThreatType::SB_THREAT_TYPE_SAFE, ThreatMetadata());
     return;
   }
 
-  std::move(*(callback->response_callback))
+  std::move(callback.response_callback)
       .Run(
           SafeBrowsingJavaToSBThreatType(threat_type),
           GetThreatMetadataFromSafeBrowsingApi(threat_type, threat_attributes));
@@ -614,77 +516,81 @@ void JNI_SafeBrowsingApiBridge_OnUrlCheckDoneBySafeBrowsingApi(
                      response_status, check_delta_microseconds));
 }
 
+void OnVerifyAppsEnabledDone(jlong callback_id, jint j_result) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  PendingVerifyAppsCallbacksMap& pending_callbacks =
+      GetPendingVerifyAppsCallbacks();
+  bool found = base::Contains(pending_callbacks, callback_id);
+  DCHECK(found) << "Not found in pending_verify_apps_callbacks: "
+                << callback_id;
+  if (!found) {
+    return;
+  }
+
+  SafeBrowsingApiHandlerBridge::VerifyAppsResponseCallback callback =
+      std::move(pending_callbacks[callback_id]);
+  std::move(callback).Run(static_cast<VerifyAppsEnabledResult>(j_result));
+}
+
+void JNI_SafeBrowsingApiBridge_OnVerifyAppsEnabledDone(JNIEnv* env,
+                                                       jlong callback_id,
+                                                       jint j_result) {
+  content::GetUIThreadTaskRunner({})->PostTask(
+      FROM_HERE,
+      base::BindOnce(&OnVerifyAppsEnabledDone, callback_id, j_result));
+}
+
 //
 // SafeBrowsingApiHandlerBridge
 //
-SafeBrowsingApiHandlerBridge::~SafeBrowsingApiHandlerBridge() {}
+SafeBrowsingApiHandlerBridge::SafeBrowsingApiHandlerBridge() = default;
+SafeBrowsingApiHandlerBridge::~SafeBrowsingApiHandlerBridge() = default;
+
+void SafeBrowsingApiHandlerBridge::ClearArtificialDatabase() {
+  artificially_marked_phishing_urls_.clear();
+}
+
+void SafeBrowsingApiHandlerBridge::PopulateArtificialDatabase() {
+  const std::string raw_artificial_urls =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+          switches::kMarkAsPhishing);
+  base::StringTokenizer tokenizer(raw_artificial_urls, ",");
+  while (tokenizer.GetNext()) {
+    auto candidate_url = GURL(tokenizer.token_piece());
+    if (candidate_url.is_valid()) {
+      artificially_marked_phishing_urls_.insert(candidate_url);
+    }
+  }
+}
 
 void SafeBrowsingApiHandlerBridge::StartHashDatabaseUrlCheck(
-    std::unique_ptr<ResponseCallback> callback,
+    ResponseCallback callback,
     const GURL& url,
     const SBThreatTypeSet& threat_types) {
   bool for_browse_url = SBThreatTypeSetIsValidForCheckBrowseUrl(threat_types);
-  if (for_browse_url && base::FeatureList::IsEnabled(
-                            kSafeBrowsingNewGmsApiForBrowseUrlDatabaseCheck)) {
-    StartUrlCheckBySafeBrowsing(std::move(callback), url, threat_types,
-                                SafeBrowsingJavaProtocol::LOCAL_BLOCK_LIST);
+  if (for_browse_url &&
+      base::Contains(threat_types, SBThreatType::SB_THREAT_TYPE_URL_PHISHING) &&
+      base::Contains(artificially_marked_phishing_urls_, url)) {
+    content::GetUIThreadTaskRunner({})->PostTask(
+        FROM_HERE, base::BindOnce(std::move(callback),
+                                  SBThreatType::SB_THREAT_TYPE_URL_PHISHING,
+                                  ThreatMetadata()));
     return;
   }
-  if (!for_browse_url && base::FeatureList::IsEnabled(
-                             kSafeBrowsingNewGmsApiForSubresourceFilterCheck)) {
-    StartUrlCheckBySafeBrowsing(std::move(callback), url, threat_types,
-                                SafeBrowsingJavaProtocol::LOCAL_BLOCK_LIST);
-    return;
-  }
-
-  StartUrlCheckBySafetyNet(std::move(callback), url, threat_types);
+  StartUrlCheckBySafeBrowsing(std::move(callback), url, threat_types,
+                              SafeBrowsingJavaProtocol::LOCAL_BLOCK_LIST);
 }
 
 void SafeBrowsingApiHandlerBridge::StartHashRealTimeUrlCheck(
-    std::unique_ptr<ResponseCallback> callback,
+    ResponseCallback callback,
     const GURL& url,
     const SBThreatTypeSet& threat_types) {
   StartUrlCheckBySafeBrowsing(std::move(callback), url, threat_types,
                               SafeBrowsingJavaProtocol::REAL_TIME);
 }
 
-void SafeBrowsingApiHandlerBridge::StartUrlCheckBySafetyNet(
-    std::unique_ptr<ResponseCallback> callback,
-    const GURL& url,
-    const SBThreatTypeSet& threat_types) {
-  if (interceptor_for_testing_) {
-    // For testing, only check the interceptor.
-    interceptor_for_testing_->CheckBySafetyNet(std::move(callback), url);
-    return;
-  }
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  JNIEnv* env = AttachCurrentThread();
-  if (!Java_SafeBrowsingApiBridge_ensureSafetyNetApiInitialized(env)) {
-    // Mark all requests as safe. Only users who have an old, broken GMSCore or
-    // have sideloaded Chrome w/o PlayStore should land here.
-    content::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE,
-        base::BindOnce(std::move(*callback), SBThreatType::SB_THREAT_TYPE_SAFE,
-                       ThreatMetadata()));
-    ReportUmaResult(UmaRemoteCallResult::UNSUPPORTED);
-    return;
-  }
-
-  jlong callback_id = next_safety_net_callback_id_++;
-  GetPendingSafetyNetCallbacksMap().insert({callback_id, std::move(callback)});
-
-  DCHECK(!threat_types.empty());
-
-  ScopedJavaLocalRef<jstring> j_url = ConvertUTF8ToJavaString(env, url.spec());
-  ScopedJavaLocalRef<jintArray> j_threat_types =
-      SBThreatTypeSetToSafetyNetJavaArray(env, threat_types);
-
-  Java_SafeBrowsingApiBridge_startUriLookupBySafetyNetApi(
-      env, callback_id, j_url, j_threat_types);
-}
-
 void SafeBrowsingApiHandlerBridge::StartUrlCheckBySafeBrowsing(
-    std::unique_ptr<ResponseCallback> callback,
+    ResponseCallback callback,
     const GURL& url,
     const SBThreatTypeSet& threat_types,
     const SafeBrowsingJavaProtocol& protocol) {
@@ -700,16 +606,21 @@ void SafeBrowsingApiHandlerBridge::StartUrlCheckBySafeBrowsing(
   base::UmaHistogramBoolean("SafeBrowsing.GmsSafeBrowsingApi.IsAvailable" +
                                 GetSafeBrowsingJavaProtocolUmaSuffix(protocol),
                             is_safe_browsing_api_available_);
+
   if (!is_safe_browsing_api_available_) {
-    // Fall back to SafetyNet if SafeBrowsing API is not available.
-    StartUrlCheckBySafetyNet(std::move(callback), url, threat_types);
+    // Mark all requests as safe. Only users who have an old, broken GMSCore or
+    // have sideloaded Chrome w/o PlayStore should land here.
+    content::GetUIThreadTaskRunner({})->PostTask(
+        FROM_HERE,
+        base::BindOnce(std::move(callback), SBThreatType::SB_THREAT_TYPE_SAFE,
+                       ThreatMetadata()));
     return;
   }
 
   JNIEnv* env = AttachCurrentThread();
   jlong callback_id = next_safe_browsing_callback_id_++;
-  auto safe_browsing_callback = std::make_unique<SafeBrowsingResponseCallback>(
-      protocol, std::move(callback));
+  auto safe_browsing_callback =
+      SafeBrowsingResponseCallback(protocol, std::move(callback));
   GetPendingSafeBrowsingCallbacksMap().insert(
       {callback_id, std::move(safe_browsing_callback)});
 
@@ -729,6 +640,39 @@ bool SafeBrowsingApiHandlerBridge::StartCSDAllowlistCheck(const GURL& url) {
     return false;
   return StartAllowlistCheck(
       url, safe_browsing::SBThreatType::SB_THREAT_TYPE_CSD_ALLOWLIST);
+}
+
+void SafeBrowsingApiHandlerBridge::StartIsVerifyAppsEnabled(
+    VerifyAppsResponseCallback callback) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+
+  if (verify_apps_enabled_for_testing_.has_value()) {
+    std::move(callback).Run(verify_apps_enabled_for_testing_.value());
+    return;
+  }
+
+  JNIEnv* env = AttachCurrentThread();
+  if (!Java_SafeBrowsingApiBridge_ensureSafetyNetApiInitialized(env)) {
+    std::move(callback).Run(VerifyAppsEnabledResult::FAILED);
+    return;
+  }
+
+  jlong callback_id = next_verify_apps_callback_id_++;
+  GetPendingVerifyAppsCallbacks().insert({callback_id, std::move(callback)});
+  Java_SafeBrowsingApiBridge_isVerifyAppsEnabled(env, callback_id);
+}
+void SafeBrowsingApiHandlerBridge::StartEnableVerifyApps(
+    VerifyAppsResponseCallback callback) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  JNIEnv* env = AttachCurrentThread();
+  if (!Java_SafeBrowsingApiBridge_ensureSafetyNetApiInitialized(env)) {
+    std::move(callback).Run(VerifyAppsEnabledResult::FAILED);
+    return;
+  }
+
+  jlong callback_id = next_verify_apps_callback_id_++;
+  GetPendingVerifyAppsCallbacks().insert({callback_id, std::move(callback)});
+  Java_SafeBrowsingApiBridge_enableVerifyApps(env, callback_id);
 }
 
 void SafeBrowsingApiHandlerBridge::OnSafeBrowsingApiNonRecoverableFailure() {

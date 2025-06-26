@@ -50,7 +50,9 @@ TestInterestGroupManagerImpl::TestInterestGroupManagerImpl(
   set_k_anonymity_manager_for_testing(
       std::make_unique<InterestGroupKAnonymityManager>(
           /*interest_group_manager=*/this,
-          /*k_anonymity_service_callback=*/base::BindLambdaForTesting(
+          /*caching_storage=*/GetCachingStorageForTesting(),
+          /*k_anonymity_service_callback=*/
+          base::BindLambdaForTesting(
               [&]() -> KAnonymityServiceDelegate* { return this; })));
 }
 
@@ -61,7 +63,9 @@ TestInterestGroupManagerImpl::~TestInterestGroupManagerImpl() {
   set_k_anonymity_manager_for_testing(
       std::make_unique<InterestGroupKAnonymityManager>(
           /*interest_group_manager=*/this,
-          /*k_anonymity_service_callback=*/base::BindLambdaForTesting(
+          /*caching_storage=*/nullptr,
+          /*k_anonymity_service_callback=*/
+          base::BindLambdaForTesting(
               []() -> KAnonymityServiceDelegate* { return nullptr; })));
   RemoveInterestGroupObserver(this);
 }
@@ -69,7 +73,7 @@ TestInterestGroupManagerImpl::~TestInterestGroupManagerImpl() {
 void TestInterestGroupManagerImpl::EnqueueReports(
     ReportType report_type,
     std::vector<GURL> report_urls,
-    int frame_tree_node_id,
+    FrameTreeNodeId frame_tree_node_id,
     const url::Origin& frame_origin,
     const network::mojom::ClientSecurityState& client_security_state,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
@@ -90,7 +94,8 @@ void TestInterestGroupManagerImpl::EnqueueReports(
 
 void TestInterestGroupManagerImpl::EnqueueRealTimeReports(
     std::map<url::Origin, RealTimeReportingContributions> contributions,
-    int frame_tree_node_id,
+    AdAuctionPageDataCallback ad_auction_page_data_callback,
+    FrameTreeNodeId frame_tree_node_id,
     const url::Origin& frame_origin,
     const network::mojom::ClientSecurityState& client_security_state,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
@@ -99,8 +104,9 @@ void TestInterestGroupManagerImpl::EnqueueRealTimeReports(
   EXPECT_EQ(expected_url_loader_factory_.get(), url_loader_factory.get());
   if (use_real_enqueue_reports_) {
     InterestGroupManagerImpl::EnqueueRealTimeReports(
-        std::move(contributions), frame_tree_node_id, frame_origin,
-        client_security_state, url_loader_factory);
+        std::move(contributions), std::move(ad_auction_page_data_callback),
+        frame_tree_node_id, frame_origin, client_security_state,
+        url_loader_factory);
   } else {
     real_time_contributions_ = std::move(contributions);
   }

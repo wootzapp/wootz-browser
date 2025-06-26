@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "sandbox/linux/seccomp-bpf/syscall.h"
 
 #include <asm/unistd.h>
@@ -14,11 +19,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <array>
 #include <vector>
 
 #include "base/memory/page_size.h"
 #include "base/memory/raw_ptr.h"
 #include "base/posix/eintr_wrapper.h"
+#include "base/types/fixed_array.h"
 #include "build/build_config.h"
 #include "sandbox/linux/bpf_dsl/bpf_dsl.h"
 #include "sandbox/linux/bpf_dsl/policy.h"
@@ -142,7 +149,7 @@ BPF_TEST(Syscall,
   // additional tests to try other types. What we will see depends on
   // implementation details of kernel BPF filters and we will need to document
   // the expected behavior very clearly.
-  int syscall_args[6];
+  std::array<int, 6> syscall_args;
   for (size_t i = 0; i < std::size(syscall_args); ++i) {
     syscall_args[i] = kExpectedValue + i;
   }
@@ -241,13 +248,10 @@ TEST(Syscall, ComplexSyscallSixArgs) {
 
   // Just to be absolutely on the safe side, also verify that the file
   // contents matches what we are getting from a read() operation.
-  char buf[2 * kPageSize];
-  EXPECT_EQ(2 * kPageSize, static_cast<size_t>(Syscall::Call(__NR_read,
-                                                             fd,
-                                                             buf,
-                                                             2 * kPageSize
-                                                             )));
-  EXPECT_EQ(0, memcmp(addr2, buf, 2 * kPageSize));
+  base::FixedArray<char> buf(2 * kPageSize);
+  EXPECT_EQ(2 * kPageSize, static_cast<size_t>(Syscall::Call(
+                               __NR_read, fd, buf.data(), 2 * kPageSize)));
+  EXPECT_EQ(0, memcmp(addr2, buf.data(), 2 * kPageSize));
 #endif
 
   // Clean up

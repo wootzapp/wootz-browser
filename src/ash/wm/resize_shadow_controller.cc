@@ -10,27 +10,14 @@
 #include "ash/shell.h"
 #include "ash/wm/overview/overview_controller.h"
 #include "ash/wm/resize_shadow.h"
+#include "ash/wm/window_properties.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "chromeos/ui/base/window_state_type.h"
 #include "chromeos/ui/frame/frame_utils.h"
 #include "ui/aura/client/aura_constants.h"
+#include "ui/base/mojom/window_show_state.mojom.h"
 
 namespace ash {
-
-namespace {
-
-// Lock shadow params
-constexpr ResizeShadow::InitParams kLockParams{
-    .thickness = 6,
-    .shadow_corner_radius = 6,
-    .window_corner_radius = 2,
-    .opacity = 0.3f,
-    .color = gfx::kGoogleGrey900,
-    .hit_test_enabled = false,
-    .hide_duration_ms = 0,
-};
-
-}  // namespace
 
 ResizeShadowController::ResizeShadowController() = default;
 
@@ -177,7 +164,14 @@ void ResizeShadowController::RecreateShadowIfNeeded(aura::Window* window) {
 
   ResizeShadow::InitParams params;
   if (type == ResizeShadowType::kLock) {
-    params = kLockParams;
+    params.thickness = 6;
+    params.shadow_corner_radius = 6;
+    params.window_corner_radius = 2;
+    params.opacity = 0.3f;
+    params.color = gfx::kGoogleGrey900;
+    params.hit_test_enabled = false;
+    params.hide_duration_ms = 0;
+    params.is_for_rounded_window = false;
   }
 
   // Configure window and shadow corner radius when `window` has rounded
@@ -223,12 +217,15 @@ void ResizeShadowController::UpdateShadowVisibility(aura::Window* window,
 bool ResizeShadowController::ShouldShowShadowForWindow(
     aura::Window* window) const {
   // Hide the shadow if it's a maximized/fullscreen/minimized window or the
-  // overview mode is active.
-  ui::WindowShowState show_state =
+  // overview mode is active or if the shadow is disabled.
+  if (window->GetProperty(kDisableResizeShadow)) {
+    return false;
+  }
+  ui::mojom::WindowShowState show_state =
       window->GetProperty(aura::client::kShowStateKey);
-  return show_state != ui::SHOW_STATE_FULLSCREEN &&
-         show_state != ui::SHOW_STATE_MAXIMIZED &&
-         show_state != ui::SHOW_STATE_MINIMIZED &&
+  return show_state != ui::mojom::WindowShowState::kFullscreen &&
+         show_state != ui::mojom::WindowShowState::kMaximized &&
+         show_state != ui::mojom::WindowShowState::kMinimized &&
          !Shell::Get()->overview_controller()->InOverviewSession();
 }
 

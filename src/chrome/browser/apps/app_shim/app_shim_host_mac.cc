@@ -14,7 +14,7 @@
 #include "base/metrics/histogram_shared_memory.h"
 #include "base/metrics/persistent_histogram_allocator.h"
 #include "chrome/browser/apps/app_shim/app_shim_host_bootstrap_mac.h"
-#include "chrome/browser/web_applications/os_integration/web_app_shortcut_mac.h"
+#include "chrome/browser/web_applications/os_integration/mac/web_app_shortcut_mac.h"
 #include "chrome/common/chrome_features.h"
 #include "components/metrics/content/subprocess_metrics_provider.h"
 #include "components/metrics/histogram_controller.h"
@@ -265,14 +265,15 @@ void AppShimHost::EnableAccessibilitySupport(
       content::BrowserAccessibilityState::GetInstance();
   switch (mode) {
     case chrome::mojom::AppShimScreenReaderSupportMode::kComplete: {
-      accessibility_state->OnScreenReaderDetected();
+      process_accessibility_mode_ =
+          accessibility_state->CreateScopedModeForProcess(
+              ui::kAXModeComplete | ui::AXMode::kFromPlatform);
       break;
     }
     case chrome::mojom::AppShimScreenReaderSupportMode::kPartial: {
-      if (!accessibility_state->GetAccessibilityMode().has_mode(
-              ui::kAXModeBasic.flags())) {
-        accessibility_state->AddAccessibilityModeFlags(ui::kAXModeBasic);
-      }
+      process_accessibility_mode_ =
+          accessibility_state->CreateScopedModeForProcess(
+              ui::kAXModeBasic | ui::AXMode::kFromPlatform);
       break;
     }
   }

@@ -17,9 +17,11 @@ async_test(t => {
     const spMeta = document.createElement('meta');
     spMeta.httpEquiv = 'origin-trial';
     // The token below was generated via the following command:
-    // tools/origin_trials/generate_token.py https://web-platform.test:8444 DisableThirdPartyStoragePartitioning --expire-timestamp=2000000000
-    spMeta.content = 'A/ZoX2C4Y7GqRBvcNYxeXkxquUdlGfuEF0r03N4M7+RsJA1fINcuOjrLCTJ0QNK1nmzogxeZ3okd9c0kpdW0fAQAAAB1eyJvcmlnaW4iOiAiaHR0cHM6Ly93ZWItcGxhdGZvcm0udGVzdDo4NDQ0IiwgImZlYXR1cmUiOiAiRGlzYWJsZVRoaXJkUGFydHlTdG9yYWdlUGFydGl0aW9uaW5nIiwgImV4cGlyeSI6IDIwMDAwMDAwMDB9';
+    // tools/origin_trials/generate_token.py https://web-platform.test:8444 DisableThirdPartyStoragePartitioning3 --expire-timestamp=2000000000
+    spMeta.content = 'A8Kgrgshi3gcxgc7GuTO8U6nTltb9zaaNVymhE6MAfo7EEoJWBfhvD5NNCjiu+nIHNRTSL97Mq7xg+VKkOPbQAkAAAB2eyJvcmlnaW4iOiAiaHR0cHM6Ly93ZWItcGxhdGZvcm0udGVzdDo4NDQ0IiwgImZlYXR1cmUiOiAiRGlzYWJsZVRoaXJkUGFydHlTdG9yYWdlUGFydGl0aW9uaW5nMyIsICJleHBpcnkiOiAyMDAwMDAwMDAwfQ==';
     document.head.append(spMeta);
+    // The token in the header was generated via the following command:
+    // tools/origin_trials/generate_token.py https://web-platform.test:8444 TopLevelTpcd --expire-timestamp=2000000000
 
     // Step 1
     window.addEventListener("message", t.step_func(e => {

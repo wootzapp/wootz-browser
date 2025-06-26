@@ -93,7 +93,7 @@ struct HUPScoringParams {
     bool use_decay_factor_;
   };
 
-  HUPScoringParams() {}
+  HUPScoringParams() = default;
 
   // Estimates dynamic memory usage.
   // See base/trace_event/memory_usage_estimator.h for more info.
@@ -295,45 +295,11 @@ bool IsOnDeviceHeadSuggestEnabledForIncognito();
 bool IsOnDeviceHeadSuggestEnabledForNonIncognito();
 bool IsOnDeviceHeadSuggestEnabledForAnyMode();
 bool IsOnDeviceHeadSuggestEnabledForLocale(const std::string& locale);
-bool IsOnDeviceTailSuggestEnabled();
+bool IsOnDeviceTailSuggestEnabled(const std::string& locale);
 bool ShouldEncodeLeadingSpaceForOnDeviceTailSuggest();
 bool ShouldApplyOnDeviceHeadModelSelectionFix();
 // Functions can be used in both non-incognito and incognito.
 std::string OnDeviceHeadModelLocaleConstraint(bool is_incognito);
-
-// Omnibox UI Simplification - Square icon backgrounds.
-// Blue rounded rect background icons for answers e.g. '1+1' and 'define x'.
-// Does not apply to weather answers. Also updates the shade of blue and the
-// stroke color.
-extern const base::FeatureParam<bool> kSquareSuggestIconAnswers;
-// Gray rounded rect background for search loop and nav fav icons.
-extern const base::FeatureParam<bool> kSquareSuggestIconIcons;
-// Gray rounded rect background for entities.
-extern const base::FeatureParam<bool> kSquareSuggestIconEntities;
-// The entity size relative to the background. 0.5 means the entity
-// takes up half of the space. Should be (0, 1). No effect if
-// `kSquareSuggestIconEntities` is false or this is 1.
-extern const base::FeatureParam<double> kSquareSuggestIconEntitiesScale;
-// Gray rounded rect background for weather icons.
-extern const base::FeatureParam<bool> kSquareSuggestIconWeather;
-
-// Omnibox UI simplification - uniform row heights.
-// Returns true if the feature to enable uniform row height is enabled.
-bool IsUniformRowHeightEnabled();
-
-// Specifies the row height in pixels for omnibox suggestions.
-extern const base::FeatureParam<int> kSuggestionRowHeight;
-// Specifies the vertical margin to use in one-line rich entity and answer
-// suggestions.
-extern const base::FeatureParam<int> kRichSuggestionVerticalMargin;
-
-// Omnibox GM3 - text style.
-// Returns true if the feature to enable GM3 text styling is enabled.
-bool IsGM3TextStyleEnabled();
-// Specifies the omnibox font size (Touch UI).
-extern const base::FeatureParam<int> kFontSizeTouchUI;
-// Specifies the omnibox font size (non-Touch UI).
-extern const base::FeatureParam<int> kFontSizeNonTouchUI;
 
 // ---------------------------------------------------------
 // Clipboard URL suggestions:
@@ -420,6 +386,22 @@ extern const char kOmniboxUIUnelideURLOnHoverThresholdMsParam[];
 
 // Local history zero-prefix (aka zero-suggest) and prefix suggestions.
 
+// Whether to ignore all ZPS prefetch responses received from the Suggest
+// service when the user is on a Google SRP. This can be used, for example,
+// during experimentation to measure the performance impact of only the
+// request/response portion of ZPS prefetching (i.e. without updating the
+// user-visible list of suggestions in the Omnibox).
+extern const base::FeatureParam<bool>
+    kZeroSuggestPrefetchingOnSRPCounterfactual;
+
+// Determines the debouncing delay (in milliseconds) to use when throttling ZPS
+// prefetch requests.
+extern const base::FeatureParam<int> kZeroSuggestPrefetchDebounceDelay;
+
+// Determines whether to calculate debouncing delay relative to the latest
+// successful run (instead of the latest run request).
+extern const base::FeatureParam<bool> kZeroSuggestPrefetchDebounceFromLastRun;
+
 // Determines the maximum number of entries stored by the in-memory ZPS cache.
 extern const base::FeatureParam<int> kZeroSuggestCacheMaxSize;
 
@@ -433,30 +415,21 @@ bool IsZeroSuggestPrefetchingEnabled();
 bool IsZeroSuggestPrefetchingEnabledInContext(
     metrics::OmniboxEventProto::PageClassification page_classification);
 
+// Returns whether on-focus zero-suggest is enabled in the given context.
+bool IsOnFocusZeroSuggestEnabledInContext(
+    metrics::OmniboxEventProto::PageClassification page_classification);
+
+// Returns whether suggestion group headers should be hidden in the Omnibox
+// popup in the given context.
+bool IsHideSuggestionGroupHeadersEnabledInContext(
+    metrics::OmniboxEventProto::PageClassification page_classification);
+
 // Rich autocompletion.
 bool IsRichAutocompletionEnabled();
-bool RichAutocompletionShowAdditionalText();
-extern const base::FeatureParam<bool> kRichAutocompletionAutocompleteTitles;
-extern const base::FeatureParam<bool>
-    kRichAutocompletionAutocompleteTitlesShortcutProvider;
-extern const base::FeatureParam<int>
+extern const base::FeatureParam<size_t>
     kRichAutocompletionAutocompleteTitlesMinChar;
-extern const base::FeatureParam<bool>
-    kRichAutocompletionAutocompleteNonPrefixAll;
-extern const base::FeatureParam<bool>
-    kRichAutocompletionAutocompleteNonPrefixShortcutProvider;
-extern const base::FeatureParam<int>
-    kRichAutocompletionAutocompleteNonPrefixMinChar;
-extern const base::FeatureParam<bool> kRichAutocompletionShowAdditionalText;
-extern const base::FeatureParam<bool>
-    kRichAutocompletionAdditionalTextWithParenthesis;
-extern const base::FeatureParam<bool>
-    kRichAutocompletionAutocompleteShortcutText;
-extern const base::FeatureParam<int>
+extern const base::FeatureParam<size_t>
     kRichAutocompletionAutocompleteShortcutTextMinChar;
-extern const base::FeatureParam<bool> kRichAutocompletionCounterfactual;
-extern const base::FeatureParam<bool>
-    kRichAutocompletionAutocompletePreferUrlsOverPrefixes;
 
 // Specifies the relevance scores for the Site Search Starter Pack ACMatches
 // (e.g. @bookmarks, @history) provided by the Builtin Provider.
@@ -498,12 +471,6 @@ extern const base::FeatureParam<double> kDomainSuggestionsScoreFactor;
 // traditional and the alternate scoring algorithms.
 extern const base::FeatureParam<bool> kDomainSuggestionsAlternativeScoring;
 
-extern const base::FeatureParam<omnibox::CompanyEntityIconAdjustmentGroup>
-    kCompanyEntityIconAdjustmentGroup;
-
-extern const base::FeatureParam<bool>
-    kCompanyEntityIconAdjustmentCounterfactual;
-
 // ---------------------------------------------------------
 // ML Relevance Scoring ->
 
@@ -515,12 +482,18 @@ extern const base::FeatureParam<bool>
 // on the main thread. After that, it can be called from any thread.
 struct MLConfig {
   MLConfig();
+  ~MLConfig();
   MLConfig(const MLConfig&);
   MLConfig& operator=(const MLConfig& other);
 
   // If true, logs Omnibox URL scoring signals to OmniboxEventProto.
   // Equivalent to omnibox::kLogUrlScoringSignals.
   bool log_url_scoring_signals{false};
+
+  // If true, enables history scoring signal annotator for populating history
+  // scoring signals associated with Search suggestions. These signals will be
+  // empty for Search suggestions otherwise.
+  bool enable_history_scoring_signals_annotator_for_searches{false};
 
   // If true, enables scoring signal annotators for populating additional
   // Omnibox URL scoring signals for logging or ML scoring.
@@ -568,12 +541,7 @@ struct MLConfig {
   //    number of URLs above searches by +/- 1; because it doesn't consider
   //    `allowed_to_be_default`. We've experimented with this for multiple
   //    milestone, so this has the advantage in potentially launching first.
-  // 2) The `stable_search_blending` implementation in
-  //    `RunBatchUrlScoringModelWithStableSearches()`. This is similar to (1)
-  //    but accounts for `allowed_to_be_default` and avoids changing the default
-  //    suggestion from a URL to a search; or vice versa; or the number of URLs
-  //    above searches. This is least likely to affect search metrics.
-  // 3) The `mapped_search_blending` implementation in
+  // 2) The `mapped_search_blending` implementation in
   //    `RunBatchUrlScoringModelMappedSearchBlending()`. It maps ML scores
   //    linearly to a relevance score. Unlike the above 2, instead of trying to
   //    maintain search v URL balance for each individual input, it tries to
@@ -581,23 +549,69 @@ struct MLConfig {
   //    Not keeping the search v URL balance fixed for each individual input is
   //    the long term goal, though we may end up with a more complicated or ML
   //    approach.
+  // 3) The `piecewise_mapped_search_blending` implementation in
+  //    `RunBatchUrlScoringModelPiecewiseMappedSearchBlending()`. It maps ML
+  //    scores to relevance scores using a piecewise function (which must be
+  //    continuous with respect to ML scores) composed of individual line
+  //    segments whose break points are specified by
+  //    `piecewise_mapped_search_blending_break_points`. The Search vs Url
+  //    behavior of this implementation is similar to that noted above in (2).
 
   // Enables approach (2) above.
-  bool stable_search_blending{false};
-
-  // Enables approach (3) above. No effect if `stable_search_blending` is true.
   // Map ML scores [0, 1] to [`min`, `max`]. Groups URLs above searches if their
-  // mapped relevance is greater than `grouping_threshold`
+  // mapped relevance is greater than
+  // `mapped_search_blending_grouping_threshold`.
   bool mapped_search_blending{false};
   int mapped_search_blending_min{600};
   int mapped_search_blending_max{2800};
   int mapped_search_blending_grouping_threshold{1400};
+
+  // Enables approach (3) above.
+  // Map ML scores [0, 1] to relevance scores by using a piecewise score mapping
+  // function. Groups URLs above searches if their mapped relevance is greater
+  // than `piecewise_mapped_search_blending_grouping_threshold`.
+  bool piecewise_mapped_search_blending{false};
+  int piecewise_mapped_search_blending_grouping_threshold{1400};
+  // Specifies a list of N break points (x, y) which collectively define the N-1
+  // line segments that comprise the piecewise score mapping function. The list
+  // of break points must be sorted in ascending order with respect to their
+  // x-coordinates. This list of break points will be applied to score any
+  // suggestion which doesn't satisfy the criteria for applying one of the more
+  // specific break points params listed below.
+  // As an example, if we use "0,550;0.018,1300;0.14,1398;1,1422" as the value
+  // for this param, then the resulting list of break points would be [(0, 550),
+  // (0.018, 1300), (0.14, 1398), (1, 1422)].
+  std::string piecewise_mapped_search_blending_break_points;
+  // Similar to `piecewise_mapped_search_blending_break_points`, this param
+  // specifies a list of break points that will only be used when scoring
+  // verbatim URL suggestions.
+  // A "verbatim URL" suggestion is any suggestion that is UWYT itself or has
+  // been deduped with a UWYT suggestion.
+  std::string piecewise_mapped_search_blending_break_points_verbatim_url;
+  // Similar to `piecewise_mapped_search_blending_break_points`, this param
+  // specifies a list of break points that will only be used when scoring
+  // Search suggestions.
+  std::string piecewise_mapped_search_blending_break_points_search;
+  // Specifies a bias term that will be added to the relevance score which was
+  // computed by the piecewise score mapping function. By varying this term,
+  // it's possible to make the piecewise mapping function more or less
+  // aggressive at a global scale.
+  // The same bias param value will be used regardless of which one of the above
+  // "break points" variants is currently in use.
+  int piecewise_mapped_search_blending_relevance_bias{0};
 
   // If true, ML scoring service will utilize in-memory ML score cache.
   // Equivalent to omnibox::kMlUrlScoreCaching.
   bool ml_url_score_caching{false};
   // Maximum number of cached entries to store in the ML score cache.
   int max_ml_score_cache_size{30};
+
+  // If true, Search suggestions will be eligible for re-ranking via ML scoring.
+  bool enable_ml_scoring_for_searches{false};
+
+  // If true, verbatim URL suggestions will be eligible for re-ranking via ML
+  // scoring.
+  bool enable_ml_scoring_for_verbatim_urls{false};
 };
 
 // A testing utility class for overriding the current configuration returned
@@ -649,53 +663,49 @@ bool IsUrlScoringModelEnabled();
 // Whether ML URL score caching is enabled.
 bool IsMlUrlScoreCachingEnabled();
 
+enum class PiecewiseMappingVariant {
+  // Regular piecewise score mapping for most suggestion types.
+  kRegular,
+  // Piecewise score mapping specific to verbatim URL suggestions.
+  kVerbatimUrl,
+  // Piecewise score mapping specific to Search suggestions.
+  kSearch,
+
+  kPiecewiseMappingVariantSize,
+};
+
+// Converts the `piecewise_break_points` feature param into a vector of (x, y)
+// coordinates specifying the "break points" of the piecewise ML score mapping
+// function.
+// The `mapping_variant` parameter allows callers to fetch an alternative list
+// of break points which might be more relevant for suggestions of a certain
+// type.
+std::vector<std::pair<double, int>> GetPiecewiseMappingBreakPoints(
+    PiecewiseMappingVariant mapping_variant =
+        PiecewiseMappingVariant::kRegular);
+
+// Ipad suggestions limit ->
+
+constexpr base::FeatureParam<int> kIpadAdditionalTrendingQueries(
+    &omnibox::kIpadZeroSuggestMatches,
+    "IpadAdditionalTrendingQueries",
+    5);
+
+constexpr base::FeatureParam<int> kIpadZPSLimit(
+    &omnibox::kIpadZeroSuggestMatches,
+    "IpadZPSSuggestionsLimit",
+    20);
+
+// <- Ipad suggestions limit
+// ---------------------------------------------------------
 // <- ML Relevance Scoring
 // ---------------------------------------------------------
-// Inspire Me ->
-
-// Specify number of additional Related and Trending queries appended to the
-// suggestion list, when the Inspire Me feature is enabled.
-
-constexpr base::FeatureParam<int> kQueryTilesCacheMaxAge(
-    &omnibox::kQueryTilesInZPSOnNTP,
-    "QueryTilesMaxCacheAgeHours",
-    8);
-
-constexpr base::FeatureParam<bool> kQueryTilesShowAboveTrends(
-    &omnibox::kQueryTilesInZPSOnNTP,
-    "QueryTilesShowAboveTrends",
-    true);
-
-constexpr base::FeatureParam<bool> kQueryTilesShowAsCarousel(
-    &omnibox::kQueryTilesInZPSOnNTP,
-    "QueryTilesShowAsCarousel",
-    false);
-// <- Inspire Me
-// ---------------------------------------------------------
 // Actions In Suggest ->
-//
-// When set to true, permits Entity suggestion with associated Actions to be
-// promoted over the Escape Hatch.
-constexpr base::FeatureParam<bool> kActionsInSuggestPromoteEntitySuggestion(
-    &omnibox::kActionsInSuggest,
-    "PromoteEntitySuggestion",
-    (!!BUILDFLAG(IS_ANDROID) || !!BUILDFLAG(IS_IOS)));
 
-// Specifies which actions in suggest will be offered to users.
-constexpr base::FeatureParam<omnibox::ActionInfo::ActionType>::Option
-    kActionsInSuggestRemoveActionTypesVariants[] = {
-        {{}, ""},
-        {omnibox::ActionInfo_ActionType_CALL, "call"},
-        {omnibox::ActionInfo_ActionType_DIRECTIONS, "directions"},
-        {omnibox::ActionInfo_ActionType_REVIEWS, "reviews"},
-};
-constexpr base::FeatureParam<omnibox::ActionInfo::ActionType>
-    kActionsInSuggestRemoveActionTypes(
-        &omnibox::kActionsInSuggest,
-        "RemoveActionTypes",
-        {},
-        &kActionsInSuggestRemoveActionTypesVariants);
-
+constexpr base::FeatureParam<bool> kAnswerActionsCounterfactual(
+    &omnibox::kOmniboxAnswerActions,
+    "AnswerActionsCounterfactual",
+    false);
 constexpr base::FeatureParam<bool> kAnswerActionsShowAboveKeyboard(
     &omnibox::kOmniboxAnswerActions,
     "ShowAboveKeyboard",
@@ -711,19 +721,7 @@ constexpr base::FeatureParam<bool> kAnswerActionsShowRichCard(
     "ShowRichCard",
     false);
 
-// Controls the placement of Reviews and Call actions position.
-// false => Call, Directions, Reviews.
-// true  => Reviews, Directions, Call.
-constexpr base::FeatureParam<bool> kActionsInSuggestPromoteReviewsAction(
-    &omnibox::kActionsInSuggest,
-    "PromoteReviewsAction",
-    false);
 // <- Actions In Suggest
-// ---------------------------------------------------------
-// Android UI Revamp ->
-extern const base::FeatureParam<bool>
-    kOmniboxModernizeVisualUpdateMergeClipboardOnNTP;
-// <- Android UI Revamp
 // ---------------------------------------------------------
 // Touch Down Trigger For Prefetch ->
 extern const base::FeatureParam<int>
@@ -736,12 +734,9 @@ extern const base::FeatureParam<int>
 // DB or TemplateURLService's copy of the URL.
 extern const base::FeatureParam<std::string> kGeminiUrlOverride;
 
-// Whether the expansion pack for the site search starter pack is enabled.
+// Whether the expansion pack (the StarterPackID::kGemini keyword/engine) for
+// the site search starter pack is enabled.
 bool IsStarterPackExpansionEnabled();
-
-// The max number of times, per session, the IPH row can be shown. Set to
-// INT_MAX for unlimited.
-extern const base::FeatureParam<int> kStarterPackIPHPerSessionLimit;
 
 // When true, enables an informational IPH message at the bottom of the Omnibox
 // directing users to certain starter pack engines.
@@ -749,6 +744,51 @@ bool IsStarterPackIPHEnabled();
 
 // <- Site Search Starter Pack
 // ---------------------------------------------------------
+// Android Hub Search -->
+//
+// Controls different variations of android hub search including what
+// primitives are included.
+#if BUILDFLAG(IS_ANDROID)
+constexpr base::FeatureParam<bool> kAndroidHubSearchEnableBookmarkProvider{
+    &omnibox::kAndroidHubSearch, "enable_bookmark_provider", true};
+
+constexpr base::FeatureParam<bool> kAndroidHubSearchEnableHistoryProvider{
+    &omnibox::kAndroidHubSearch, "enable_history_provider", true};
+#endif
+
+// <- Android Hub Search
+// ---------------------------------------------------------
+// Power Tools -->
+constexpr base::FeatureParam<size_t> kOmniboxNumNtpZpsRecentSearches{
+    &omnibox::kNumNtpZpsRecentSearches, "omnibox_num_ntp_zps_recent_searches",
+    15};
+constexpr base::FeatureParam<size_t> kOmniboxNumNtpZpsTrendingSearches{
+    &omnibox::kNumNtpZpsTrendingSearches,
+    "omnibox_num_ntp_zps_trending_searches", 5};
+constexpr base::FeatureParam<size_t> kOmniboxNumWebZpsRecentSearches{
+    &omnibox::kNumWebZpsRecentSearches, "omnibox_num_web_zps_recent_searches",
+    15};
+constexpr base::FeatureParam<size_t> kOmniboxNumWebZpsRelatedSearches{
+    &omnibox::kNumWebZpsRelatedSearches, "omnibox_num_web_zps_related_searches",
+    8};
+constexpr base::FeatureParam<size_t> kOmniboxNumWebZpsMostVisitedUrls{
+    &omnibox::kNumWebZpsMostVisitedUrls,
+    "omnibox_num_web_zps_most_visited_urls", 10};
+constexpr base::FeatureParam<size_t> kOmniboxNumSrpZpsRecentSearches{
+    &omnibox::kNumSrpZpsRecentSearches, "omnibox_num_srp_zps_recent_searches",
+    15};
+constexpr base::FeatureParam<size_t> kOmniboxNumSrpZpsRelatedSearches{
+    &omnibox::kNumSrpZpsRelatedSearches, "omnibox_num_srp_zps_related_searches",
+    15};
+// <- Power Tools
+// ---------------------------------------------------------
+// Diagnostics -->
+#if BUILDFLAG(IS_ANDROID)
+inline constexpr base::FeatureParam<bool> kAndroidDiagInputConnection{
+    &omnibox::kDiagnostics, "omnibox_diag_input_connection", false};
+#endif
+
+// <- Diagnostics
 
 // New params should be inserted above this comment. They should be ordered
 // consistently with `omnibox_features.h`. They should be formatted as:

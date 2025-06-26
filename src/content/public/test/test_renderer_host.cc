@@ -11,14 +11,13 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
-#include "content/browser/compositor/test/test_image_transport_factory.h"
+#include "components/input/render_widget_host_input_event_router.h"
 #include "content/browser/gpu/gpu_data_manager_impl.h"
 #include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/browser/renderer_host/navigation_entry_impl.h"
 #include "content/browser/renderer_host/navigation_request.h"
 #include "content/browser/renderer_host/render_view_host_factory.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
-#include "content/browser/renderer_host/render_widget_host_input_event_router.h"
 #include "content/browser/site_instance_impl.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -28,6 +27,7 @@
 #include "content/public/test/mock_render_process_host.h"
 #include "content/public/test/navigation_simulator.h"
 #include "content/public/test/test_browser_context.h"
+#include "content/public/test/test_image_transport_factory.h"
 #include "content/public/test/test_utils.h"
 #include "content/test/content_browser_consistency_checker.h"
 #include "content/test/test_navigation_url_loader_factory.h"
@@ -42,7 +42,7 @@
 #include "third_party/blink/public/common/input/synthetic_web_input_event_builders.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_ANDROID)
 #include "ui/display/screen.h"
 #endif
 
@@ -215,7 +215,7 @@ RenderViewHostTestHarness::CreateTestWebContents() {
 
   scoped_refptr<SiteInstance> instance =
       SiteInstance::Create(GetBrowserContext());
-  instance->GetProcess()->Init();
+  instance->GetOrCreateProcess()->Init();
 
   return TestWebContents::Create(GetBrowserContext(), std::move(instance));
 }
@@ -243,7 +243,7 @@ void RenderViewHostTestHarness::SetUp() {
 #if BUILDFLAG(IS_WIN)
   ole_initializer_ = std::make_unique<ui::ScopedOleInitializer>();
 #endif
-#if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_APPLE)
   screen_ = std::make_unique<display::ScopedNativeScreen>();
 #endif
 

@@ -7,8 +7,10 @@
 #import <AuthenticationServices/AuthenticationServices.h>
 #import <Foundation/Foundation.h>
 
+#include <algorithm>
 #include <optional>
 
+#include "base/apple/foundation_util.h"
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -16,7 +18,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
@@ -30,24 +31,22 @@
 #include "device/fido/ctap_get_assertion_request.h"
 #include "device/fido/ctap_make_credential_request.h"
 #include "device/fido/discoverable_credential_metadata.h"
+#include "device/fido/features.h"
 #include "device/fido/fido_authenticator.h"
 #include "device/fido/fido_discovery_base.h"
 #include "device/fido/fido_parsing_utils.h"
 #include "device/fido/fido_transport_protocol.h"
 #include "device/fido/mac/icloud_keychain_sys.h"
 
+using base::apple::NSDataToSpan;
+
 namespace device::fido::icloud_keychain {
 
 namespace {
 
-base::span<const uint8_t> ToSpan(NSData* data) {
-  return base::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.bytes),
-                                   data.length);
-}
-
 std::vector<uint8_t> ToVector(NSData* data) {
-  const auto* p = reinterpret_cast<const uint8_t*>(data.bytes);
-  return std::vector<uint8_t>(p, p + data.length);
+  auto span = NSDataToSpan(data);
+  return {span.begin(), span.end()};
 }
 
 AuthenticatorSupportedOptions AuthenticatorOptions() {
@@ -58,6 +57,9 @@ AuthenticatorSupportedOptions AuthenticatorOptions() {
   options.user_verification_availability = AuthenticatorSupportedOptions::
       UserVerificationAvailability::kSupportedAndConfigured;
   options.supports_user_presence = true;
+  if (@available(macOS 15.0, *)) {
+    options.supports_prf = true;
+  }
   return options;
 }
 
@@ -74,6 +76,26 @@ enum class PasskeyPermissionMetric {
 
   kMaxValue = 5,
 };
+
+template <typename T>
+API_AVAILABLE(macos(15.0))
+std::optional<std::vector<uint8_t>> PrfOutputToBytes(T* output) {
+  if (!output.first) {
+    return std::nullopt;
+  }
+
+  base::span<const uint8_t> first = NSDataToSpan(output.first);
+  CHECK_EQ(first.size(), 32u);
+  std::vector<uint8_t> result(first.begin(), first.end());
+
+  if (output.second) {
+    base::span<const uint8_t> second = NSDataToSpan(output.second);
+    CHECK_EQ(second.size(), 32u);
+    result.insert(result.end(), second.begin(), second.end());
+  }
+
+  return result;
+}
 
 constexpr char kMetricName[] = "WebAuthentication.MacOS.PasskeyPermission";
 
@@ -220,11 +242,17 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
         const auto& cred = credentials[i];
         std::vector<uint8_t> cred_id = ToVector(cred.credentialID);
         if (!allow_list.empty() &&
-            base::ranges::none_of(
+            std::ranges::none_of(
                 allow_list,
                 [&cred_id](const PublicKeyCredentialDescriptor& allow_list_cred)
                     -> bool { return allow_list_cred.id == cred_id; })) {
           continue;
+        }
+        std::optional<std::string> provider_name;
+        if (@available(macOS 14.0, *)) {
+          // `providerName` is documented available in 13.3+, but appears broken
+          // in 13.* (see https://crbug.com/407900955)
+          provider_name = cred.providerName.UTF8String;
         }
         ret.emplace_back(AuthenticatorType::kICloudKeychain, rp_id,
                          std::move(cred_id),
@@ -232,7 +260,8 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
                              ToVector(cred.userHandle), cred.name.UTF8String,
                              /* iCloud Keychain does not store
                                 a displayName for passkeys */
-                             std::nullopt));
+                             std::nullopt),
+                         std::move(provider_name));
       }
       const auto has_credentials =
           ret.empty() ? FidoRequestHandlerBase::RecognizedCredential::
@@ -269,7 +298,7 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
     return FidoTransportProtocol::kInternal;
   }
 
-  void GetTouch(base::OnceClosure callback) override { NOTREACHED_NORETURN(); }
+  void GetTouch(base::OnceClosure callback) override { NOTREACHED(); }
 
   base::WeakPtr<FidoAuthenticator> GetWeakPtr() override {
     return weak_factory_.GetWeakPtr();
@@ -281,8 +310,8 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
                                 NSError* error) {
     if (cancelled_) {
       cancelled_ = false;
-      std::move(callback).Run(CtapDeviceResponseCode::kCtap2ErrKeepAliveCancel,
-                              {});
+      std::move(callback).Run(
+          MakeCredentialStatus::kAuthenticatorResponseInvalid, {});
       return;
     }
 
@@ -291,16 +320,24 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
       FIDO_LOG(ERROR) << "iCKC: makeCredential failed, domain: " << domain
                       << " code: " << error.code
                       << " msg: " << error.localizedDescription.UTF8String;
-      if (domain == "WKErrorDomain" && error.code == 8) {
+      if ((domain == "WKErrorDomain" && error.code == 8) ||
+          // As of macOS 15, this error is expressed differently. The value
+          // 1006 is ASAuthorizationErrorMatchedExcludedCredential but this
+          // change is being made before the macOS 15 SDK is available in
+          // Chromium.
+          (error.domain != nil &&
+           [error.domain isEqualToString:ASAuthorizationErrorDomain] &&
+           error.code == 1006)) {
         std::move(callback).Run(
-            CtapDeviceResponseCode::kCtap2ErrCredentialExcluded, std::nullopt);
+            MakeCredentialStatus::kUserConsentButCredentialExcluded,
+            std::nullopt);
       } else {
-        // All other errors are currently mapped to `kCtap2ErrOperationDenied`
+        // All other errors are currently mapped to `kUserConsentDenied`
         // because it's not obvious that we want to differentiate them:
         // https://developer.apple.com/documentation/authenticationservices/asauthorizationerror?language=objc
         //
-        std::move(callback).Run(
-            CtapDeviceResponseCode::kCtap2ErrOperationDenied, std::nullopt);
+        std::move(callback).Run(MakeCredentialStatus::kUserConsentDenied,
+                                std::nullopt);
       }
       return;
     }
@@ -314,11 +351,11 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
             authorization.credential;
 
     std::optional<cbor::Value> attestation_object_value =
-        cbor::Reader::Read(ToSpan(result.rawAttestationObject));
+        cbor::Reader::Read(NSDataToSpan(result.rawAttestationObject));
     if (!attestation_object_value || !attestation_object_value->is_map()) {
       FIDO_LOG(ERROR) << "iCKC: failed to parse attestation CBOR";
-      std::move(callback).Run(CtapDeviceResponseCode::kCtap2ErrOther,
-                              std::nullopt);
+      std::move(callback).Run(
+          MakeCredentialStatus::kAuthenticatorResponseInvalid, std::nullopt);
       return;
     }
 
@@ -326,8 +363,8 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
         AttestationObject::Parse(*attestation_object_value);
     if (!attestation_object) {
       FIDO_LOG(ERROR) << "iCKC: failed to parse attestation object";
-      std::move(callback).Run(CtapDeviceResponseCode::kCtap2ErrOther,
-                              std::nullopt);
+      std::move(callback).Run(
+          MakeCredentialStatus::kAuthenticatorResponseInvalid, std::nullopt);
       return;
     }
 
@@ -336,13 +373,13 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
 
     std::vector<uint8_t> credential_id_from_auth_data =
         response.attestation_object.authenticator_data().GetCredentialId();
-    base::span<const uint8_t> credential_id = ToSpan(result.credentialID);
-    if (!base::ranges::equal(credential_id_from_auth_data, credential_id)) {
+    base::span<const uint8_t> credential_id = NSDataToSpan(result.credentialID);
+    if (!std::ranges::equal(credential_id_from_auth_data, credential_id)) {
       FIDO_LOG(ERROR) << "iCKC: credential ID mismatch: "
                       << base::HexEncode(credential_id_from_auth_data) << " vs "
                       << base::HexEncode(credential_id);
-      std::move(callback).Run(CtapDeviceResponseCode::kCtap2ErrOther,
-                              std::nullopt);
+      std::move(callback).Run(
+          MakeCredentialStatus::kAuthenticatorResponseInvalid, std::nullopt);
       return;
     }
 
@@ -352,7 +389,21 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
     response.transports->insert(FidoTransportProtocol::kInternal);
     response.transport_used = FidoTransportProtocol::kInternal;
 
-    std::move(callback).Run(CtapDeviceResponseCode::kSuccess,
+    if (@available(macOS 15.0, *)) {
+      if ([result isKindOfClass:
+                      [ASAuthorizationPlatformPublicKeyCredentialRegistration
+                          class]]) {
+        ASAuthorizationPlatformPublicKeyCredentialRegistration*
+            platform_result =
+                (ASAuthorizationPlatformPublicKeyCredentialRegistration*)result;
+        if (platform_result.prf != nil) {
+          response.prf_enabled = platform_result.prf.isSupported;
+          response.prf_results = PrfOutputToBytes(platform_result.prf);
+        }
+      }
+    }
+
+    std::move(callback).Run(MakeCredentialStatus::kSuccess,
                             std::move(response));
   }
 
@@ -361,7 +412,7 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
                               NSError* error) {
     if (cancelled_) {
       cancelled_ = false;
-      std::move(callback).Run(CtapDeviceResponseCode::kCtap2ErrKeepAliveCancel,
+      std::move(callback).Run(GetAssertionStatus::kAuthenticatorResponseInvalid,
                               {});
       return;
     }
@@ -376,15 +427,16 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
       // will cause this error to be returned if there are no credentials. We
       // have asked Apple that, if they change this error string, they should
       // please have macOS show its own error dialog.
-      CtapDeviceResponseCode response;
+      GetAssertionStatus response;
       if (error.code == 1001 &&
           base::Contains(description, "No credentials available for login")) {
-        response = CtapDeviceResponseCode::kCtap2ErrNoCredentials;
+        response = GetAssertionStatus::kICloudKeychainNoCredentials;
       } else {
-        // All other errors are currently mapped to `kCtap2ErrOperationDenied`
-        // because it's not obvious that we want to differentiate them:
+        // All other errors are currently mapped to
+        // `kUserConsentDenied` because it's not obvious that we
+        // want to differentiate them:
         // https://developer.apple.com/documentation/authenticationservices/asauthorizationerror?language=objc
-        response = CtapDeviceResponseCode::kCtap2ErrOperationDenied;
+        response = GetAssertionStatus::kUserConsentDenied;
       }
       std::move(callback).Run(response, {});
       return;
@@ -400,10 +452,11 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
 
     std::optional<AuthenticatorData> authenticator_data =
         AuthenticatorData::DecodeAuthenticatorData(
-            ToSpan(result.rawAuthenticatorData));
+            NSDataToSpan(result.rawAuthenticatorData));
     if (!authenticator_data) {
       FIDO_LOG(ERROR) << "iCKC: invalid authData";
-      std::move(callback).Run(CtapDeviceResponseCode::kCtap2ErrOther, {});
+      std::move(callback).Run(GetAssertionStatus::kAuthenticatorResponseInvalid,
+                              {});
       return;
     }
 
@@ -415,19 +468,30 @@ class API_AVAILABLE(macos(13.3)) Authenticator : public FidoAuthenticator {
 
     AuthenticatorGetAssertionResponse response(
         std::move(*authenticator_data),
-        fido_parsing_utils::Materialize(ToSpan(result.signature)),
+        fido_parsing_utils::Materialize(NSDataToSpan(result.signature)),
         transport_used);
     response.user_entity = PublicKeyCredentialUserEntity(
-        fido_parsing_utils::Materialize(ToSpan(result.userID)));
+        fido_parsing_utils::Materialize(NSDataToSpan(result.userID)));
     response.credential = PublicKeyCredentialDescriptor(
         CredentialType::kPublicKey,
-        fido_parsing_utils::Materialize(ToSpan(result.credentialID)));
+        fido_parsing_utils::Materialize(NSDataToSpan(result.credentialID)));
     response.user_selected = true;
+
+    if (@available(macOS 15.0, *)) {
+      if ([result
+              isKindOfClass:[ASAuthorizationPlatformPublicKeyCredentialAssertion
+                                class]]) {
+        ASAuthorizationPlatformPublicKeyCredentialAssertion* platform_result =
+            (ASAuthorizationPlatformPublicKeyCredentialAssertion*)result;
+        if (platform_result.prf != nil) {
+          response.hmac_secret = PrfOutputToBytes(platform_result.prf);
+        }
+      }
+    }
 
     std::vector<AuthenticatorGetAssertionResponse> responses;
     responses.emplace_back(std::move(response));
-    std::move(callback).Run(CtapDeviceResponseCode::kSuccess,
-                            std::move(responses));
+    std::move(callback).Run(GetAssertionStatus::kSuccess, std::move(responses));
   }
 
   NSWindow* __strong window_;
@@ -477,18 +541,27 @@ bool IsSupported() {
   return false;
 }
 
-std::unique_ptr<FidoDiscoveryBase> NewDiscovery(uintptr_t ns_window) {
+std::unique_ptr<FidoDiscoveryBase> NewDiscovery(
+    base::apple::WeakNSWindow ns_window) {
   if (@available(macOS 13.5, *)) {
-    NSWindow* window = nullptr;
-    if (ns_window != kFakeNSWindowForTesting) {
-      window = (__bridge NSWindow*)(void*)ns_window;
-      static_assert(sizeof(window) == sizeof(ns_window));
-    }
-
-    return std::make_unique<Discovery>(window);
+    return std::make_unique<Discovery>(ns_window.Get());
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();
+}
+
+std::optional<bool> HasPermission() {
+  if (@available(macOS 13.5, *)) {
+    switch (GetSystemInterface()->GetAuthState()) {
+      case SystemInterface::kAuthNotAuthorized:
+        return std::nullopt;
+      case SystemInterface::kAuthDenied:
+        return false;
+      case SystemInterface::kAuthAuthorized:
+        return true;
+    }
+  }
+  return std::nullopt;
 }
 
 }  // namespace device::fido::icloud_keychain

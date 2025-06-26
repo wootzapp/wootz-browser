@@ -18,6 +18,7 @@ import org.chromium.base.test.BaseRobolectricTestRunner;
 /** Unit tests for the DisableIf annotation and its SkipCheck implementation. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE, sdk = 29)
+@SuppressWarnings("UnusedMethod")
 public class DisableIfTest {
     private static void expectShouldSkip(boolean shouldSkip, Class<?> testClass) {
         try {
@@ -82,6 +83,33 @@ public class DisableIfTest {
             public void target() {}
         }
         expectShouldSkip(true, SdkIsGreaterThan.class);
+    }
+
+    @Test
+    public void testSdkIsEqualAndIsEqual() {
+        class SdkIsEqual {
+            @DisableIf.Build(sdk_equals = 29)
+            public void target() {}
+        }
+        expectShouldSkip(true, SdkIsEqual.class);
+    }
+
+    @Test
+    public void testSdkIsEqualButIsLessThan() {
+        class SdkIsLessThan {
+            @DisableIf.Build(sdk_equals = 30)
+            public void target() {}
+        }
+        expectShouldSkip(false, SdkIsLessThan.class);
+    }
+
+    @Test
+    public void testSdkIsEqualButIsGreaterThan() {
+        class SdkIsGreaterThan {
+            @DisableIf.Build(sdk_equals = 28)
+            public void target() {}
+        }
+        expectShouldSkip(false, SdkIsGreaterThan.class);
     }
 
     @Test

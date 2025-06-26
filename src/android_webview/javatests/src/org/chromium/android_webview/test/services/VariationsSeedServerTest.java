@@ -4,7 +4,7 @@
 
 package org.chromium.android_webview.test.services;
 
-import static org.chromium.android_webview.test.OnlyRunIn.ProcessMode.SINGLE_PROCESS;
+import static org.chromium.android_webview.test.OnlyRunIn.ProcessMode.EITHER_PROCESS;
 
 import android.content.Context;
 import android.content.Intent;
@@ -41,11 +41,11 @@ import java.util.concurrent.TimeoutException;
  * properly killed between tests.
  */
 @RunWith(AwJUnit4ClassRunner.class)
-@OnlyRunIn(SINGLE_PROCESS)
+@OnlyRunIn(EITHER_PROCESS) // These tests don't use the renderer process
 public class VariationsSeedServerTest {
     private File mTempFile;
 
-    private class StubSeedServerCallback extends IVariationsSeedServerCallback.Stub {
+    private static class StubSeedServerCallback extends IVariationsSeedServerCallback.Stub {
         public CallbackHelper helper = new CallbackHelper();
         public Bundle metrics;
 

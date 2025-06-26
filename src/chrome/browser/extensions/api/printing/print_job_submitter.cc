@@ -26,14 +26,23 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
+#include "extensions/browser/blob_reader.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/image_loader.h"
 #include "extensions/common/extension.h"
 #include "printing/metafile_skia.h"
 #include "printing/print_settings.h"
 #include "printing/printing_utils.h"
+#include "third_party/skia/include/codec/SkCodec.h"
+#include "third_party/skia/include/codec/SkPngDecoder.h"
+#include "third_party/skia/include/core/SkCanvas.h"
+#include "third_party/skia/include/core/SkImage.h"
+#include "third_party/skia/include/core/SkRefCnt.h"
+#include "third_party/skia/include/core/SkStream.h"
+#include "third_party/skia/include/docs/SkPDFDocument.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_skia.h"
+#include "ui/gfx/skia_span_util.h"
 #include "ui/views/native_window_tracker.h"
 
 namespace extensions {
@@ -41,6 +50,7 @@ namespace extensions {
 namespace {
 
 constexpr char kPdfMimeType[] = "application/pdf";
+constexpr char kPngMimeType[] = "image/png";
 
 constexpr char kUnsupportedContentType[] = "Unsupported content type";
 constexpr char kInvalidTicket[] = "Invalid ticket";
@@ -119,7 +129,8 @@ void PrintJobSubmitter::Start() {
 }
 
 bool PrintJobSubmitter::CheckContentType() const {
-  return request_.job.content_type == kPdfMimeType;
+  return request_.job.content_type == kPdfMimeType ||
+         request_.job.content_type == kPngMimeType;
 }
 
 bool PrintJobSubmitter::CheckPrintTicket() {
@@ -160,10 +171,17 @@ void PrintJobSubmitter::CheckCapabilitiesCompatibility(
 
 void PrintJobSubmitter::ReadDocumentData() {
   CHECK(request_.document_blob_uuid);
-  pdf_blob_data_flattener_->ReadAndFlattenPdf(
-      browser_context_->GetBlobRemote(*request_.document_blob_uuid),
-      base::BindOnce(&PrintJobSubmitter::OnPdfReadAndFlattened,
-                     weak_ptr_factory_.GetWeakPtr()));
+  if (request_.job.content_type == kPdfMimeType) {
+    pdf_blob_data_flattener_->ReadAndFlattenPdf(
+        browser_context_->GetBlobRemote(*request_.document_blob_uuid),
+        base::BindOnce(&PrintJobSubmitter::OnPdfReadAndFlattened,
+                       weak_ptr_factory_.GetWeakPtr()));
+  } else {
+    BlobReader::Read(
+        browser_context_->GetBlobRemote(*request_.document_blob_uuid),
+        base::BindOnce(&PrintJobSubmitter::OnImageDataRead,
+                       weak_ptr_factory_.GetWeakPtr()));
+  }
 }
 
 void PrintJobSubmitter::OnPdfReadAndFlattened(
@@ -185,6 +203,42 @@ void PrintJobSubmitter::OnPdfReadAndFlattened(
           extension_.get(), gfx::Size(kIconSize, kIconSize),
           base::BindOnce(&PrintJobSubmitter::ShowPrintJobConfirmationDialog,
                          weak_ptr_factory_.GetWeakPtr()));
+}
+
+// Handle PNG input by converting it to PDF, and then sending the resulting
+// PDF to the printer like we would if it had been submitted directly.
+void PrintJobSubmitter::OnImageDataRead(std::string data,
+                                        int64_t /*blob_total_size*/) {
+  // Note: `data` must outlive `image_data` and `codec`.
+  sk_sp<SkData> image_data =
+      gfx::MakeSkDataFromSpanWithoutCopy(base::as_byte_span(data));
+  std::unique_ptr<SkCodec> codec = SkPngDecoder::Decode(image_data, nullptr);
+  if (!codec) {
+    LOG(WARNING) << "Failed to decode PNG";
+    FireErrorCallback(kInvalidData);
+    return;
+  }
+
+  auto img_tuple = codec->getImage();
+  CHECK_EQ(std::get<1>(img_tuple), SkCodec::Result::kSuccess);
+  sk_sp<SkImage> image = std::get<0>(img_tuple);
+
+  SkDynamicMemoryWStream buffer;
+  SkPDF::Metadata metadata;
+  auto pdf_document = SkPDF::MakeDocument(&buffer, metadata);
+  CHECK(pdf_document);
+  SkCanvas* canvas = pdf_document->beginPage(image->width(), image->height());
+  canvas->drawImage(image, 0, 0);
+  pdf_document->endPage();
+  pdf_document->close();
+
+  // The generated PDF consists of a single image and does not contain forms,
+  // JavaScript, etc. So it is already flattened, and can be treated as such.
+  sk_sp<SkData> pdf_data = buffer.detachAsData();
+  auto metafile = std::make_unique<printing::MetafileSkia>();
+  CHECK(metafile->InitFromData(gfx::SkDataToSpan(pdf_data)));
+  OnPdfReadAndFlattened(
+      std::make_unique<printing::FlattenPdfResult>(std::move(metafile), 1));
 }
 
 void PrintJobSubmitter::ShowPrintJobConfirmationDialog(

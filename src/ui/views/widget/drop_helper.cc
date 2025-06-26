@@ -46,10 +46,12 @@ void DropHelper::SetDragEnteredCallbackForTesting(
 }
 
 void DropHelper::ResetTargetViewIfEquals(View* view) {
-  if (target_view_ == view)
+  if (target_view_ == view) {
     target_view_ = nullptr;
-  if (deepest_view_ == view)
+  }
+  if (deepest_view_ == view) {
     deepest_view_ = nullptr;
+  }
 }
 
 int DropHelper::OnDragOver(const OSExchangeData& data,
@@ -71,8 +73,9 @@ int DropHelper::OnDragOver(const OSExchangeData& data,
       g_drag_entered_callback_view->Contains(deepest_view_) &&
       !g_drag_entered_callback_view->Contains(old_deepest_view)) {
     auto* callback = GetDragEnteredCallback();
-    if (!callback->is_null())
+    if (!callback->is_null()) {
       callback->Run();
+    }
   }
 
   return NotifyDragOver(data, root_view_location, drag_operation);
@@ -88,8 +91,9 @@ DragOperation DropHelper::OnDrop(const OSExchangeData& data,
                                  int drag_operation) {
   View* drop_view = target_view_;
   deepest_view_ = target_view_ = nullptr;
-  if (!drop_view)
+  if (!drop_view) {
     return DragOperation::kNone;
+  }
 
   if (drag_operation == ui::DragDropTypes::DRAG_NONE) {
     drop_view->OnDragExited();
@@ -100,7 +104,8 @@ DragOperation DropHelper::OnDrop(const OSExchangeData& data,
   View* root_view = drop_view->GetWidget()->GetRootView();
   View::ConvertPointToTarget(root_view, drop_view, &view_location);
   ui::DropTargetEvent drop_event(data, gfx::PointF(view_location),
-                                 gfx::PointF(view_location), drag_operation);
+                                 gfx::PointF(root_view_location),
+                                 drag_operation);
   auto output_drag_op = ui::mojom::DragOperation::kNone;
   auto drop_cb = drop_view->GetDropCallback(drop_event);
   std::move(drop_cb).Run(drop_event, output_drag_op,
@@ -114,8 +119,9 @@ DropHelper::DropCallback DropHelper::GetDropCallback(
     int drag_operation) {
   View* drop_view = target_view_;
   deepest_view_ = target_view_ = nullptr;
-  if (!drop_view)
+  if (!drop_view) {
     return base::NullCallback();
+  }
 
   if (drag_operation == ui::DragDropTypes::DRAG_NONE) {
     drop_view->OnDragExited();
@@ -126,11 +132,13 @@ DropHelper::DropCallback DropHelper::GetDropCallback(
   View* root_view = drop_view->GetWidget()->GetRootView();
   View::ConvertPointToTarget(root_view, drop_view, &view_location);
   ui::DropTargetEvent drop_event(data, gfx::PointF(view_location),
-                                 gfx::PointF(view_location), drag_operation);
+                                 gfx::PointF(root_view_location),
+                                 drag_operation);
 
   auto drop_view_cb = drop_view->GetDropCallback(drop_event);
-  if (!drop_view_cb)
+  if (!drop_view_cb) {
     return base::NullCallback();
+  }
 
   return base::BindOnce(
       [](const ui::DropTargetEvent& drop_event, View::DropCallback drop_cb,
@@ -162,11 +170,12 @@ View* DropHelper::CalculateTargetViewImpl(const gfx::Point& root_view_location,
     // The view the mouse is over hasn't changed; reuse the target.
     return target_view_;
   }
-  if (deepest_view)
+  if (deepest_view) {
     *deepest_view = view;
-    // TODO(sky): for the time being these are separate. Once I port chrome menu
-    // I can switch to the #else implementation and nuke the OS_WIN
-    // implementation.
+  }
+  // TODO(sky): for the time being these are separate. Once I port chrome menu
+  // I can switch to the #else implementation and nuke the OS_WIN
+  // implementation.
 #if BUILDFLAG(IS_WIN)
   // View under mouse changed, which means a new view may want the drop.
   // Walk the tree, stopping at target_view_ as we know it'll accept the
@@ -196,13 +205,14 @@ View* DropHelper::CalculateTargetViewImpl(const gfx::Point& root_view_location,
 void DropHelper::NotifyDragEntered(const OSExchangeData& data,
                                    const gfx::Point& root_view_location,
                                    int drag_operation) {
-  if (!target_view_)
+  if (!target_view_) {
     return;
+  }
 
   gfx::Point target_view_location(root_view_location);
   View::ConvertPointToTarget(root_view_, target_view_, &target_view_location);
   ui::DropTargetEvent enter_event(data, gfx::PointF(target_view_location),
-                                  gfx::PointF(target_view_location),
+                                  gfx::PointF(root_view_location),
                                   drag_operation);
   target_view_->OnDragEntered(enter_event);
 }
@@ -210,20 +220,22 @@ void DropHelper::NotifyDragEntered(const OSExchangeData& data,
 int DropHelper::NotifyDragOver(const OSExchangeData& data,
                                const gfx::Point& root_view_location,
                                int drag_operation) {
-  if (!target_view_)
+  if (!target_view_) {
     return ui::DragDropTypes::DRAG_NONE;
+  }
 
   gfx::Point target_view_location(root_view_location);
   View::ConvertPointToTarget(root_view_, target_view_, &target_view_location);
   ui::DropTargetEvent enter_event(data, gfx::PointF(target_view_location),
-                                  gfx::PointF(target_view_location),
+                                  gfx::PointF(root_view_location),
                                   drag_operation);
   return target_view_->OnDragUpdated(enter_event);
 }
 
 void DropHelper::NotifyDragExit() {
-  if (target_view_)
+  if (target_view_) {
     target_view_->OnDragExited();
+  }
 }
 
 }  // namespace views

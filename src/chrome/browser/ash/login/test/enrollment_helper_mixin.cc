@@ -55,25 +55,24 @@ void EnrollmentHelperMixin::ResetMock() {
 }
 
 void EnrollmentHelperMixin::ExpectNoEnrollment() {
-  EXPECT_CALL(mock_enrollment_launcher_, Setup(_, _, _)).Times(0);
+  EXPECT_CALL(mock_enrollment_launcher_, Setup(_, _)).Times(0);
 }
 
 void EnrollmentHelperMixin::ExpectEnrollmentMode(
     policy::EnrollmentConfig::Mode mode) {
-  EXPECT_CALL(mock_enrollment_launcher_, Setup(ConfigModeMatches(mode), _, _));
+  EXPECT_CALL(mock_enrollment_launcher_, Setup(ConfigModeMatches(mode), _));
 }
 
 void EnrollmentHelperMixin::ExpectEnrollmentTokenConfig(
     const std::string& enrollment_token) {
   EXPECT_CALL(
       mock_enrollment_launcher_,
-      Setup(ConfigModeIsTokenEnrollmentAndTokenMatches(enrollment_token), _,
-            _));
+      Setup(ConfigModeIsTokenEnrollmentAndTokenMatches(enrollment_token), _));
 }
 
 void EnrollmentHelperMixin::ExpectEnrollmentModeRepeated(
     policy::EnrollmentConfig::Mode mode) {
-  EXPECT_CALL(mock_enrollment_launcher_, Setup(ConfigModeMatches(mode), _, _))
+  EXPECT_CALL(mock_enrollment_launcher_, Setup(ConfigModeMatches(mode), _))
       .Times(AtLeast(1));
 }
 
@@ -132,9 +131,11 @@ void EnrollmentHelperMixin::ExpectTokenBasedEnrollmentError(
 }
 
 void EnrollmentHelperMixin::SetupClearAuth() {
-  ON_CALL(mock_enrollment_launcher_, ClearAuth(_))
-      .WillByDefault(Invoke(
-          [](base::OnceClosure callback) { std::move(callback).Run(); }));
+  ON_CALL(mock_enrollment_launcher_, ClearAuth(_, _))
+      .WillByDefault(
+          Invoke([](base::OnceClosure callback, bool revoke_oauth2_tokens) {
+            std::move(callback).Run();
+          }));
 }
 
 void EnrollmentHelperMixin::ExpectEnrollmentCredentials() {

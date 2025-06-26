@@ -33,7 +33,9 @@ class BackForwardCacheWebContentsDelegate : public WebContentsDelegate {
  public:
   BackForwardCacheWebContentsDelegate() = default;
 
-  bool IsBackForwardCacheSupported() override { return true; }
+  bool IsBackForwardCacheSupported(WebContents& web_contents) override {
+    return true;
+  }
 };
 
 }  // namespace
@@ -258,6 +260,7 @@ TEST_F(BackForwardCacheMetricsTest, AllFeaturesCovered) {
       /* WebSchedulerTrackedFeature::kWakeLock =*/35,
       /* WebSchedulerTrackedFeature::kWebFileSystem =*/39,
       /* WebSchedulerTrackedFeature::kAppBanner =*/42,
+      /* WebSchedulerTrackedFeature::kWebDatabase =*/44,
       /* WebSchedulerTrackedFeature::kPortal =*/46,
       /* WebSchedulerTrackedFeature::kSpeechSynthesis =*/50,
       /* WebSchedulerTrackedFeature::kMediaSessionImplOnServiceCreated =*/56};

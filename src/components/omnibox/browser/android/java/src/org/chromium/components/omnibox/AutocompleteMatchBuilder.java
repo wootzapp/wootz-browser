@@ -8,6 +8,7 @@ import androidx.annotation.NonNull;
 import androidx.collection.ArraySet;
 
 import org.chromium.chrome.browser.omnibox.MatchClassificationStyle;
+import org.chromium.components.omnibox.AnswerTypeProto.AnswerType;
 import org.chromium.components.omnibox.action.OmniboxAction;
 import org.chromium.url.GURL;
 import org.chromium.url.JUnitTestGURLs;
@@ -29,13 +30,12 @@ public class AutocompleteMatchBuilder {
     private List<AutocompleteMatch.MatchClassification> mDisplayTextClassifications;
     private String mDescription;
     private List<AutocompleteMatch.MatchClassification> mDescriptionClassifications;
-    private SuggestionAnswer mAnswer;
     private byte[] mSerializedAnswerTemplate;
+    private AnswerType mAnswerType;
     private String mFillIntoEdit;
     private GURL mUrl;
     private GURL mImageUrl;
     private String mImageDominantColor;
-    private int mRelevance;
     private int mTransition;
     private boolean mIsDeletable;
     private String mPostContentType;
@@ -58,6 +58,7 @@ public class AutocompleteMatchBuilder {
                 .setIsSearch(true)
                 .setDisplayText("Placeholder Suggestion")
                 .setDescription("Placeholder Description")
+                .setAnswerType(AnswerType.ANSWER_TYPE_UNSPECIFIED)
                 .setUrl(JUnitTestGURLs.SEARCH_URL);
     }
 
@@ -79,13 +80,12 @@ public class AutocompleteMatchBuilder {
         mDisplayTextClassifications = new ArrayList<>();
         mDescription = null;
         mDescriptionClassifications = new ArrayList<>();
-        mAnswer = null;
         mSerializedAnswerTemplate = null;
+        mAnswerType = AnswerType.ANSWER_TYPE_UNSPECIFIED;
         mFillIntoEdit = null;
         mUrl = GURL.emptyGURL();
         mImageUrl = GURL.emptyGURL();
         mImageDominantColor = null;
-        mRelevance = 0;
         mTransition = 0;
         mIsDeletable = false;
         mPostContentType = null;
@@ -115,14 +115,13 @@ public class AutocompleteMatchBuilder {
                 mType,
                 mSubtypes,
                 mIsSearchType,
-                mRelevance,
                 mTransition,
                 mDisplayText,
                 mDisplayTextClassifications,
                 mDescription,
                 mDescriptionClassifications,
-                mAnswer,
                 mSerializedAnswerTemplate,
+                mAnswerType.getNumber(),
                 mFillIntoEdit,
                 mUrl,
                 mImageUrl,
@@ -230,11 +229,11 @@ public class AutocompleteMatchBuilder {
     }
 
     /**
-     * @param answer The answer in the Omnibox suggestion.
+     * @param answer The type of answer in the Omnibox suggestion.
      * @return Omnibox suggestion builder.
      */
-    public AutocompleteMatchBuilder setAnswer(SuggestionAnswer answer) {
-        mAnswer = answer;
+    public AutocompleteMatchBuilder setAnswerType(AnswerType answerType) {
+        mAnswerType = answerType;
         return this;
     }
 
@@ -253,15 +252,6 @@ public class AutocompleteMatchBuilder {
      */
     public AutocompleteMatchBuilder setHasTabMatch(boolean hasTabMatch) {
         mHasTabMatch = hasTabMatch;
-        return this;
-    }
-
-    /**
-     * @param relevance Relevance score for newly constructed suggestion.
-     * @return Omnibox suggestion builder.
-     */
-    public AutocompleteMatchBuilder setRelevance(int relevance) {
-        mRelevance = relevance;
         return this;
     }
 
@@ -327,6 +317,15 @@ public class AutocompleteMatchBuilder {
      */
     public AutocompleteMatchBuilder setAdditionalText(String additionalText) {
         mAdditionalText = additionalText;
+        return this;
+    }
+
+    /**
+     * @param serializedAnswerTemplate Serialized RichAnswerTemplate proto.
+     * @return Omnibox suggestion builder.
+     */
+    public AutocompleteMatchBuilder setSerializedAnswerTemplate(byte[] serializedAnswerTemplate) {
+        mSerializedAnswerTemplate = serializedAnswerTemplate;
         return this;
     }
 }

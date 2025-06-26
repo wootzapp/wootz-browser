@@ -18,9 +18,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.Batch;
+import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisabledTest;
+import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
 import org.chromium.base.test.util.Restriction;
+import org.chromium.base.test.util.TestAnimations;
+import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.test.ContentJUnit4ClassRunner;
 import org.chromium.ui.test.util.DeviceRestriction;
 
@@ -29,6 +34,7 @@ import org.chromium.ui.test.util.DeviceRestriction;
 @SuppressLint("VisibleForTests")
 @Batch(Batch.PER_CLASS)
 @Restriction(DeviceRestriction.RESTRICTION_TYPE_NON_AUTO)
+@TestAnimations.EnableAnimations
 public class WebContentsAccessibilityEventsTest {
     // File path that holds all the relevant tests.
     private static final String BASE_FILE_PATH = "content/test/data/accessibility/event/";
@@ -155,8 +161,16 @@ public class WebContentsAccessibilityEventsTest {
 
     @Test
     @SmallTest
+    @DisableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
     public void test_addAlertContent() {
         performTest("add-alert-content.html", "add-alert-content-expected-android.txt");
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
+    public void test_addAlertContent_exp() {
+        performTest("add-alert-content.html", EMPTY_EXPECTATIONS_FILE);
     }
 
     @Test
@@ -201,13 +215,15 @@ public class WebContentsAccessibilityEventsTest {
     @Test
     @SmallTest
     public void test_addHiddenAttributeSubtree() {
-        performTest("add-hidden-attribute-subtree.html", EMPTY_EXPECTATIONS_FILE);
+        performTest(
+                "add-hidden-attribute-subtree.html",
+                "add-hidden-attribute-subtree-expected-android.txt");
     }
 
     @Test
     @SmallTest
     public void test_addSubtree() {
-        performTest("add-subtree.html", EMPTY_EXPECTATIONS_FILE);
+        performTest("add-subtree.html", "add-subtree-expected-android.txt");
     }
 
     @Test
@@ -249,19 +265,23 @@ public class WebContentsAccessibilityEventsTest {
     @Test
     @SmallTest
     public void test_ariaComboboxCollapse() {
-        performTest("aria-combo-box-collapse.html", EMPTY_EXPECTATIONS_FILE);
+        performTest("aria-combo-box-collapse.html", "aria-combo-box-collapse-expected-android.txt");
     }
 
     @Test
     @SmallTest
     public void test_ariaComboboxDelayAddList() {
-        performTest("aria-combo-box-delay-add-list.html", EMPTY_EXPECTATIONS_FILE);
+        performTest(
+                "aria-combo-box-delay-add-list.html",
+                "aria-combo-box-delay-add-list-expected-android.txt");
     }
 
     @Test
     @SmallTest
     public void test_ariaComboboxDelayShowList() {
-        performTest("aria-combo-box-delay-show-list.html", EMPTY_EXPECTATIONS_FILE);
+        performTest(
+                "aria-combo-box-delay-show-list.html",
+                "aria-combo-box-delay-show-list-expected-android.txt");
     }
 
     @Test
@@ -280,7 +300,7 @@ public class WebContentsAccessibilityEventsTest {
     @Test
     @SmallTest
     public void test_ariaComboboxNext() {
-        performTest("aria-combo-box-next.html", EMPTY_EXPECTATIONS_FILE);
+        performTest("aria-combo-box-next.html", "aria-combo-box-next-expected-android.txt");
     }
 
     @Test
@@ -580,6 +600,13 @@ public class WebContentsAccessibilityEventsTest {
 
     @Test
     @SmallTest
+    @CommandLineFlags.Add({"enable-experimental-web-platform-features"})
+    public void test_carouselWithTabs() {
+        performTest("carousel-with-tabs.html", "carousel-with-tabs-expected-android.txt");
+    }
+
+    @Test
+    @SmallTest
     public void test_checkboxValidity() {
         performTest("checkbox-validity.html", EMPTY_EXPECTATIONS_FILE);
     }
@@ -641,13 +668,29 @@ public class WebContentsAccessibilityEventsTest {
     @Test
     @SmallTest
     public void test_deleteSubtree() {
-        performTest("delete-subtree.html", EMPTY_EXPECTATIONS_FILE);
+        performTest("delete-subtree.html", "delete-subtree-expected-android.txt");
     }
 
     @Test
     @SmallTest
     public void test_descriptionChanged() {
         performTest("description-change.html", EMPTY_EXPECTATIONS_FILE);
+    }
+
+    @Test
+    @SmallTest
+    public void test_descriptionChangedPaneTitle() {
+        performTest(
+                "description-changed-pane-title.html",
+                "description-changed-pane-title-expected-android.txt");
+    }
+
+    @Test
+    @SmallTest
+    public void test_descriptionChangedSubtree() {
+        performTest(
+                "description-changed-subtree.html",
+                "description-changed-subtree-expected-android.txt");
     }
 
     @Test
@@ -771,8 +814,16 @@ public class WebContentsAccessibilityEventsTest {
 
     @Test
     @SmallTest
+    @DisableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
     public void test_liveRegionAdd() {
         performTest("live-region-add.html", "live-region-add-expected-android.txt");
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
+    public void test_liveRegionAdd_exp() {
+        performTest("live-region-add.html", EMPTY_EXPECTATIONS_FILE);
     }
 
     @Test
@@ -783,12 +834,21 @@ public class WebContentsAccessibilityEventsTest {
 
     @Test
     @SmallTest
+    @DisableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
     public void test_liveRegionChanged() {
         performTest("live-region-change.html", "live-region-change-expected-android.txt");
     }
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
+    public void test_liveRegionChanged_exp() {
+        performTest("live-region-change.html", EMPTY_EXPECTATIONS_FILE);
+    }
+
+    @Test
+    @SmallTest
+    @DisableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
     public void test_liveRegionChangedInnerHtml() {
         performTest(
                 "live-region-change-innerhtml.html",
@@ -797,10 +857,25 @@ public class WebContentsAccessibilityEventsTest {
 
     @Test
     @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
+    public void test_liveRegionChangedInnerHtml_exp() {
+        performTest("live-region-change-innerhtml.html", EMPTY_EXPECTATIONS_FILE);
+    }
+
+    @Test
+    @SmallTest
+    @DisableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
     public void test_liveRegionChangedInnerText() {
         performTest(
                 "live-region-change-innertext.html",
                 "live-region-change-innertext-expected-android.txt");
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
+    public void test_liveRegionChangedInnerText_exp() {
+        performTest("live-region-change-innertext.html", EMPTY_EXPECTATIONS_FILE);
     }
 
     @Test
@@ -811,9 +886,19 @@ public class WebContentsAccessibilityEventsTest {
 
     @Test
     @SmallTest
+    @DisableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
     public void test_liveRegionElemReparent() {
         performTest(
                 "live-region-elem-reparent.html", "live-region-elem-reparent-expected-android.txt");
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures(ContentFeatureList.ACCESSIBILITY_DEPRECATE_TYPE_ANNOUNCE)
+    public void test_liveRegionElemReparent_exp() {
+        performTest(
+                "live-region-elem-reparent.html",
+                "live-region-elem-reparent-expected-android-exp.txt");
     }
 
     @Test
@@ -898,6 +983,7 @@ public class WebContentsAccessibilityEventsTest {
 
     @Test
     @SmallTest
+    @DisabledTest(message = "crbug.com/382549182")
     public void test_navigationApi() {
         performTest("navigation-api.html", EMPTY_EXPECTATIONS_FILE);
     }
@@ -954,19 +1040,23 @@ public class WebContentsAccessibilityEventsTest {
     @Test
     @SmallTest
     public void test_removeHiddenAttributeSubtree() {
-        performTest("remove-hidden-attribute-subtree.html", EMPTY_EXPECTATIONS_FILE);
+        performTest(
+                "remove-hidden-attribute-subtree.html",
+                "remove-hidden-attribute-subtree-expected-android.txt");
     }
 
     @Test
     @SmallTest
     public void test_removeSubtree() {
-        performTest("remove-subtree.html", EMPTY_EXPECTATIONS_FILE);
+        performTest("remove-subtree.html", "remove-subtree-expected-android.txt");
     }
 
     @Test
     @SmallTest
     public void test_reparentElementWithActiveDescendant() {
-        performTest("reparent-element-with-active-descendant.html", EMPTY_EXPECTATIONS_FILE);
+        performTest(
+                "reparent-element-with-active-descendant.html",
+                "reparent-element-with-active-descendant-expected-android.txt");
     }
 
     @Test
@@ -1010,12 +1100,6 @@ public class WebContentsAccessibilityEventsTest {
 
     @Test
     @SmallTest
-    public void test_selectMenu() {
-        performTest("selectlist.html", "selectlist-expected-android.txt");
-    }
-
-    @Test
-    @SmallTest
     public void test_styleChanged() {
         performTest("style-changed.html", EMPTY_EXPECTATIONS_FILE);
     }
@@ -1023,19 +1107,25 @@ public class WebContentsAccessibilityEventsTest {
     @Test
     @SmallTest
     public void test_subtreeReparentedIgnoredChanged() {
-        performTest("subtree-reparented-ignored-changed.html", EMPTY_EXPECTATIONS_FILE);
+        performTest(
+                "subtree-reparented-ignored-changed.html",
+                "subtree-reparented-ignored-changed-expected-android.txt");
     }
 
     @Test
     @SmallTest
     public void test_subtreeReparentedViaAppendChild() {
-        performTest("subtree-reparented-via-append-child.html", EMPTY_EXPECTATIONS_FILE);
+        performTest(
+                "subtree-reparented-via-append-child.html",
+                "subtree-reparented-via-append-child-expected-android.txt");
     }
 
     @Test
     @SmallTest
     public void test_subtreeReparentedViaAriaOwns() {
-        performTest("subtree-reparented-via-aria-owns.html", EMPTY_EXPECTATIONS_FILE);
+        performTest(
+                "subtree-reparented-via-aria-owns.html",
+                "subtree-reparented-via-aria-owns-expected-android.txt");
     }
 
     @Test

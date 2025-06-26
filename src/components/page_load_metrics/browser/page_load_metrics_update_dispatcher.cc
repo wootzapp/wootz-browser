@@ -334,8 +334,6 @@ class PageLoadTimingMerger {
           new_paint_timing.experimental_largest_contentful_paint.Clone();
       target_paint_timing->first_input_or_scroll_notified_timestamp =
           new_paint_timing.first_input_or_scroll_notified_timestamp;
-      target_paint_timing->portal_activated_paint =
-          new_paint_timing.portal_activated_paint;
     }
   }
 
@@ -461,9 +459,11 @@ void PageLoadMetricsUpdateDispatcher::UpdateMetrics(
     UpdateSoftNavigation(std::move(*soft_navigation_metrics));
   } else {
     if (!render_frame_host->GetParentOrOuterDocument()) {
-      // TODO(crbug.com/40065854): `client_->IsPageMainFrame()` didn't return
-      // the correct status.
-      base::debug::DumpWithoutCrashing();
+      // TODO(crbug.com/40065854): This can be removed once
+      // PageLoadMetricsUpdateDispatcher::IsPageMainFrame() is made consistent
+      // with the main-frame status reported by the RenderFrameHost.
+      LOG(ERROR) << "IsPageMainFrame() did not correctly identify the "
+                    "RenderFrameHost as a main frame.";
       return;
     }
 
@@ -508,15 +508,14 @@ void PageLoadMetricsUpdateDispatcher::UpdateFeatures(
   client_->UpdateFeaturesUsage(render_frame_host, new_features);
 }
 
-void PageLoadMetricsUpdateDispatcher::SetUpSharedMemoryForSmoothness(
+void PageLoadMetricsUpdateDispatcher::SetUpSharedMemoryForUkms(
     content::RenderFrameHost* render_frame_host,
-    base::ReadOnlySharedMemoryRegion shared_memory) {
+    base::ReadOnlySharedMemoryRegion smoothness_memory,
+    base::ReadOnlySharedMemoryRegion dropped_frames_memory) {
   const bool is_main_frame = client_->IsPageMainFrame(render_frame_host);
   if (is_main_frame) {
-    client_->SetUpSharedMemoryForSmoothness(std::move(shared_memory));
-  } else {
-    // TODO(crbug.com/40144214): Merge smoothness metrics from OOPIFs with the
-    // main-frame.
+    client_->SetUpSharedMemoryForUkms(std::move(smoothness_memory),
+                                      std::move(dropped_frames_memory));
   }
 }
 
@@ -541,7 +540,7 @@ void PageLoadMetricsUpdateDispatcher::DidFinishSubFrameNavigation(
 }
 
 void PageLoadMetricsUpdateDispatcher::OnSubFrameDeleted(
-    int frame_tree_node_id) {
+    content::FrameTreeNodeId frame_tree_node_id) {
   subframe_navigation_start_offset_.erase(frame_tree_node_id);
 }
 
@@ -646,7 +645,8 @@ void PageLoadMetricsUpdateDispatcher::MaybeUpdateMainFrameIntersectionRect(
   // subframe_navigation_start_offset_ excludes untracked loads.
   // TODO(crbug.com/40679417): Document definition of untracked loads in page
   // load metrics.
-  const int frame_tree_node_id = render_frame_host->GetFrameTreeNodeId();
+  const content::FrameTreeNodeId frame_tree_node_id =
+      render_frame_host->GetFrameTreeNodeId();
   bool is_main_frame = client_->IsPageMainFrame(render_frame_host);
   if (!is_main_frame &&
       subframe_navigation_start_offset_.find(frame_tree_node_id) ==

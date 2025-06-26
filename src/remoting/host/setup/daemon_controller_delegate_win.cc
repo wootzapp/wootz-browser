@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "remoting/host/setup/daemon_controller_delegate_win.h"
 
 #include <stddef.h>
@@ -231,8 +236,7 @@ DaemonController::State ConvertToDaemonState(DWORD service_state) {
       return DaemonController::STATE_STOPPED;
 
     default:
-      NOTREACHED_IN_MIGRATION();
-      return DaemonController::STATE_UNKNOWN;
+      NOTREACHED();
   }
 }
 

@@ -18,6 +18,7 @@ import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.components.messages.MessageContainer;
 import org.chromium.ui.base.ViewUtils;
 import android.view.Gravity;
+
 /**
  * Coordinator of {@link MessageContainer}, which can adjust margins of the message container
  * and control the visibility of browser control when message is being shown.
@@ -59,10 +60,8 @@ public class MessageContainerCoordinator implements BrowserControlsStateProvider
         }
         CoordinatorLayout.LayoutParams params =
                 (CoordinatorLayout.LayoutParams) mContainer.getLayoutParams();
-
-            params.gravity = Gravity.START | Gravity.BOTTOM;
-            params.bottomMargin = getContainerTopOffset();
-
+        params.gravity = Gravity.START | Gravity.BOTTOM;
+        params.bottomMargin = getContainerTopOffset();
         mContainer.setLayoutParams(params);
     }
 
@@ -81,34 +80,34 @@ public class MessageContainerCoordinator implements BrowserControlsStateProvider
      * The {@link MessageContainer} view should be laid out for this method to return a meaningful
      * value.
      *
-     * @return The maximum translation Y value the message banner can have as a result of
-     *         the gestures. Positive values mean the message banner can be translated
-     *         upward from the top of the MessagesContainer.
+     * @return The maximum translation Y value the message banner can have as a result of the
+     *     gestures. Positive values mean the message banner can be translated upward from the top
+     *     of the MessagesContainer.
      */
     public int getMessageMaxTranslation() {
-        // The max translation is message height + message shadow + controls height (adjusted for
+        // The max translation is message height + controls height (adjusted for
         // Message container offsets)
-        final int messageHeightWithShadow =
-                mContainer.getMessageBannerHeight() + mContainer.getMessageShadowTopMargin();
-        return messageHeightWithShadow + getContainerTopOffset();
+        return mContainer.getMessageBannerHeight() + getContainerTopOffset();
     }
 
     /**
      * @return The available offset between message's top side and app's top edge.
      */
     public int getMessageTopOffset() {
-        // The top offset is message shadow + controls height (adjusted for
-        // Message container offsets)
-        return getContainerTopOffset() + mContainer.getMessageShadowTopMargin();
+        // The top offset is controls height (adjusted for Message container offsets)
+        return getContainerTopOffset();
     }
 
     @Override
     public void onControlsOffsetChanged(
             int topOffset,
             int topControlsMinHeightOffset,
+            boolean topControlsMinHeightChanged,
             int bottomOffset,
             int bottomControlsMinHeightOffset,
-            boolean needsAnimate) {
+            boolean bottomControlsMinHeightChanged,
+            boolean requestNewFrame,
+            boolean isVisibilityForced) {
         updateMargins();
     }
 
@@ -135,7 +134,6 @@ public class MessageContainerCoordinator implements BrowserControlsStateProvider
 
     /** @return Offset of the message container from the top of the screen. */
     private int getContainerTopOffset() {
-        
         if(true){
             return mControlsManager.getContentOffset()
                      + (mControlsManager.getBottomControlsHeight() - mControlsManager.getBottomControlOffset())
@@ -144,7 +142,6 @@ public class MessageContainerCoordinator implements BrowserControlsStateProvider
         if (mControlsManager.getContentOffset() == 0) return 0;
         final Resources res = mContainer.getResources();
         return mControlsManager.getContentOffset()
-                - res.getDimensionPixelOffset(R.dimen.message_bubble_inset)
-                - mContainer.getMessageShadowTopMargin();
+                - res.getDimensionPixelOffset(R.dimen.message_bubble_inset);
     }
 }

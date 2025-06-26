@@ -20,8 +20,10 @@
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/location.h"
+#include "base/metrics/field_trial_params.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "net/base/features.h"
 #include "net/base/network_anonymization_key.h"
@@ -30,7 +32,33 @@
 
 namespace net {
 
+BASE_FEATURE(kTransportSecurityFileWriterSchedule,
+             "TransportSecurityFileWriterSchedule",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
 namespace {
+
+// From kDefaultCommitInterval in base/files/important_file_writer.cc.
+// kTransportSecurityFileWriterScheduleCommitInterval won't set the commit
+// interval to less than this, for performance.
+constexpr base::TimeDelta kMinCommitInterval = base::Seconds(10);
+
+// Max safe commit interval for the ImportantFileWriter.
+constexpr base::TimeDelta kMaxCommitInterval = base::Minutes(10);
+
+// Overrides the default commit interval for the ImportantFileWriter.
+//
+// go/transport-security-file-writer-schedule-impact explains why the value
+// varies by platform.
+const base::FeatureParam<base::TimeDelta> kCommitIntervalParam(
+    &kTransportSecurityFileWriterSchedule,
+    "commit_interval",
+#if BUILDFLAG(IS_ANDROID)
+    kMinCommitInterval
+#else
+    kMaxCommitInterval
+#endif
+);
 
 constexpr const char* kHistogramSuffix = "TransportSecurityPersister";
 
@@ -188,7 +216,10 @@ TransportSecurityPersister::TransportSecurityPersister(
     const scoped_refptr<base::SequencedTaskRunner>& background_runner,
     const base::FilePath& data_path)
     : transport_security_state_(state),
-      writer_(data_path, background_runner, kHistogramSuffix),
+      writer_(data_path,
+              background_runner,
+              GetCommitInterval(),
+              kHistogramSuffix),
       foreground_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()),
       background_runner_(background_runner) {
   transport_security_state_->SetDelegate(this);
@@ -265,29 +296,36 @@ void TransportSecurityPersister::LoadEntries(const std::string& serialized) {
   }
 }
 
+// static
+base::TimeDelta TransportSecurityPersister::GetCommitInterval() {
+  return std::clamp(kCommitIntervalParam.Get(), kMinCommitInterval,
+                    kMaxCommitInterval);
+}
+
 void TransportSecurityPersister::Deserialize(
     const std::string& serialized,
     TransportSecurityState* state,
     bool& contains_legacy_expect_ct_data) {
-  std::optional<base::Value> value = base::JSONReader::Read(serialized);
-  if (!value || !value->is_dict())
+  std::optional<base::Value::Dict> value =
+      base::JSONReader::ReadDict(serialized);
+  if (!value) {
     return;
+  }
 
-  base::Value::Dict& dict = value->GetDict();
-  std::optional<int> version = dict.FindInt(kVersionKey);
+  std::optional<int> version = value->FindInt(kVersionKey);
 
   // Stop if the data is out of date (or in the previous format that didn't have
   // a version number).
   if (!version || *version != kCurrentVersionValue)
     return;
 
-  base::Value* sts_value = dict.Find(kSTSKey);
+  base::Value* sts_value = value->Find(kSTSKey);
   if (sts_value)
     DeserializeSTSData(*sts_value, state);
 
   // If an Expect-CT key is found on deserialization, record this so that a
   // write can be scheduled to clear it from disk.
-  contains_legacy_expect_ct_data = !!dict.Find(kExpectCTKey);
+  contains_legacy_expect_ct_data = !!value->Find(kExpectCTKey);
 }
 
 void TransportSecurityPersister::CompleteLoad(const std::string& state) {

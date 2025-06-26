@@ -87,7 +87,6 @@ list(APPEND ABSL_LLVM_FLAGS
     "-Wc++98-compat-extra-semi"
     "-Wcast-qual"
     "-Wconversion"
-    "-Wdead-code-aggressive"
     "-Wdeprecated-pragma"
     "-Wfloat-overflow-conversion"
     "-Wfloat-zero-conversion"
@@ -98,6 +97,7 @@ list(APPEND ABSL_LLVM_FLAGS
     "-Winvalid-constexpr"
     "-Wliteral-conversion"
     "-Wmissing-declarations"
+    "-Wnullability-completeness"
     "-Woverlength-strings"
     "-Wpointer-arith"
     "-Wself-assign"
@@ -107,6 +107,7 @@ list(APPEND ABSL_LLVM_FLAGS
     "-Wstring-conversion"
     "-Wtautological-overlap-compare"
     "-Wtautological-unsigned-zero-compare"
+    "-Wthread-safety"
     "-Wundef"
     "-Wuninitialized"
     "-Wunreachable-code"
@@ -128,7 +129,6 @@ list(APPEND ABSL_LLVM_TEST_FLAGS
     "-Wc++98-compat-extra-semi"
     "-Wcast-qual"
     "-Wconversion"
-    "-Wdead-code-aggressive"
     "-Wdeprecated-pragma"
     "-Wfloat-overflow-conversion"
     "-Wfloat-zero-conversion"
@@ -139,6 +139,7 @@ list(APPEND ABSL_LLVM_TEST_FLAGS
     "-Winvalid-constexpr"
     "-Wliteral-conversion"
     "-Wmissing-declarations"
+    "-Wnullability-completeness"
     "-Woverlength-strings"
     "-Wpointer-arith"
     "-Wself-assign"
@@ -146,6 +147,7 @@ list(APPEND ABSL_LLVM_TEST_FLAGS
     "-Wstring-conversion"
     "-Wtautological-overlap-compare"
     "-Wtautological-unsigned-zero-compare"
+    "-Wthread-safety"
     "-Wundef"
     "-Wuninitialized"
     "-Wunreachable-code"
@@ -183,8 +185,6 @@ list(APPEND ABSL_MSVC_FLAGS
     "/wd4005"
     "/wd4068"
     "/wd4180"
-    "/wd4244"
-    "/wd4267"
     "/wd4503"
     "/wd4800"
     "/DNOMINMAX"
@@ -204,8 +204,6 @@ list(APPEND ABSL_MSVC_TEST_FLAGS
     "/wd4005"
     "/wd4068"
     "/wd4180"
-    "/wd4244"
-    "/wd4267"
     "/wd4503"
     "/wd4800"
     "/DNOMINMAX"
@@ -215,23 +213,9 @@ list(APPEND ABSL_MSVC_TEST_FLAGS
     "/D_ENABLE_EXTENDED_ALIGNED_STORAGE"
     "/wd4018"
     "/wd4101"
+    "/wd4244"
+    "/wd4267"
     "/wd4503"
     "/wd4996"
     "/DNOMINMAX"
-)
-
-list(APPEND ABSL_RANDOM_HWAES_ARM32_FLAGS
-    "-mfpu=neon"
-)
-
-list(APPEND ABSL_RANDOM_HWAES_ARM64_FLAGS
-    "-march=armv8-a+crypto"
-)
-
-list(APPEND ABSL_RANDOM_HWAES_MSVC_X64_FLAGS
-)
-
-list(APPEND ABSL_RANDOM_HWAES_X64_FLAGS
-    "-maes"
-    "-msse4.1"
 )

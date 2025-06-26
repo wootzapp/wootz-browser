@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <memory>
 #include <utility>
+#include <variant>
 
 #include "base/command_line.h"
 #include "base/debug/crash_logging.h"
@@ -42,8 +43,8 @@
 #include "gpu/ipc/service/gpu_memory_buffer_factory.h"
 #include "gpu/ipc/service/gpu_watchdog_thread.h"
 #include "third_party/skia/include/core/SkGraphics.h"
-#include "third_party/skia/include/gpu/GrDirectContext.h"
-#include "third_party/skia/include/gpu/GrTypes.h"
+#include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
+#include "third_party/skia/include/gpu/ganesh/GrTypes.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_enums.h"
 #include "ui/gl/gl_features.h"
@@ -69,11 +70,6 @@
 #if BUILDFLAG(ENABLE_VULKAN)
 #include "gpu/vulkan/vulkan_device_queue.h"
 #include "gpu/vulkan/vulkan_fence_helper.h"
-#endif
-
-#if BUILDFLAG(IS_MAC)
-#include "gpu/ipc/service/built_in_shader_cache_loader.h"
-#include "gpu/ipc/service/built_in_shader_cache_writer.h"
 #endif
 
 namespace gpu {
@@ -342,7 +338,9 @@ GpuChannelManager::GpuChannelManager(
     viz::VulkanContextProvider* vulkan_context_provider,
     viz::MetalContextProvider* metal_context_provider,
     DawnContextProvider* dawn_context_provider,
-    webgpu::DawnCachingInterfaceFactory* dawn_caching_interface_factory)
+    webgpu::DawnCachingInterfaceFactory* dawn_caching_interface_factory,
+    const SharedContextState::GrContextOptionsProvider*
+        gr_context_options_provider)
     : task_runner_(task_runner),
       io_task_runner_(io_task_runner),
       gpu_preferences_(gpu_preferences),
@@ -370,7 +368,8 @@ GpuChannelManager::GpuChannelManager(
       vulkan_context_provider_(vulkan_context_provider),
       metal_context_provider_(metal_context_provider),
       dawn_context_provider_(dawn_context_provider),
-      peak_memory_monitor_(this, task_runner) {
+      peak_memory_monitor_(this, task_runner),
+      gr_context_options_provider_(gr_context_options_provider) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   DCHECK(task_runner->BelongsToCurrentThread());
   DCHECK(io_task_runner);
@@ -379,11 +378,17 @@ GpuChannelManager::GpuChannelManager(
   const bool enable_gr_shader_cache =
       (gpu_feature_info_
            .status_values[GPU_FEATURE_TYPE_GPU_TILE_RASTERIZATION] ==
-       gpu::kGpuFeatureStatusEnabled);
-  const bool disable_disk_cache =
-      gpu_preferences_.disable_gpu_shader_disk_cache;
-  if (enable_gr_shader_cache && !disable_disk_cache) {
-    gr_shader_cache_.emplace(gpu_preferences.gpu_program_cache_size, this);
+       gpu::kGpuFeatureStatusEnabled) &&
+      !gpu_preferences_.disable_gpu_shader_disk_cache;
+  UMA_HISTOGRAM_BOOLEAN("Gpu.GrShaderCacheEnabled", enable_gr_shader_cache);
+  if (enable_gr_shader_cache) {
+    size_t gr_shader_cache_size = gpu_preferences.gpu_program_cache_size;
+    if (base::FeatureList::IsEnabled(features::kANGLEPerContextBlobCache)) {
+      // When ANGLE shares the shader cache with Skia, double the size of the
+      // cache so that there is room for both APIs to cache together.
+      gr_shader_cache_size *= 2;
+    }
+    gr_shader_cache_.emplace(gr_shader_cache_size, this);
     gr_shader_cache_->CacheClientIdOnDisk(gpu::kDisplayCompositorClientId);
   }
 }
@@ -432,25 +437,8 @@ gles2::ProgramCache* GpuChannelManager::program_cache() {
 
     // Use the EGL blob cache extension for the passthrough decoder.
     if (use_passthrough_cmd_decoder()) {
-      gles2::PassthroughProgramCache::ValueAddedHook* value_add_hook = nullptr;
-#if BUILDFLAG(IS_MAC)
-      if (base::FeatureList::IsEnabled(
-              features::kWriteMetalShaderCacheToDisk)) {
-        shader_cache_writer_ = std::make_unique<BuiltInShaderCacheWriter>();
-        value_add_hook = shader_cache_writer_.get();
-      }
-#endif
-      std::unique_ptr<gles2::PassthroughProgramCache> cache =
-          std::make_unique<gles2::PassthroughProgramCache>(
-              gpu_preferences_.gpu_program_cache_size, disable_disk_cache,
-              value_add_hook);
-#if BUILDFLAG(IS_MAC)
-      auto entries = BuiltInShaderCacheLoader::TakeEntries();
-      for (auto& entry : *entries) {
-        cache->Set(std::move(entry.key), std::move(entry.value));
-      }
-#endif
-      program_cache_ = std::move(cache);
+      program_cache_ = std::make_unique<gles2::PassthroughProgramCache>(
+          gpu_preferences_.gpu_program_cache_size, disable_disk_cache);
     } else {
       program_cache_ = std::make_unique<gles2::MemoryProgramCache>(
           gpu_preferences_.gpu_program_cache_size, disable_disk_cache,
@@ -601,8 +589,7 @@ void GpuChannelManager::PopulateCache(const gpu::GpuDiskCacheHandle& handle,
 
   switch (gpu::GetHandleType(handle)) {
     case gpu::GpuDiskCacheType::kGlShaders: {
-      auto gl_shader_handle =
-          absl::get<gpu::GpuDiskCacheGlShaderHandle>(handle);
+      auto gl_shader_handle = std::get<gpu::GpuDiskCacheGlShaderHandle>(handle);
       if (gl_shader_handle == kGrShaderGpuDiskCacheHandle) {
         if (gr_shader_cache_)
           gr_shader_cache_->PopulateCache(key, data);
@@ -812,7 +799,7 @@ void GpuChannelManager::OnBackgroundCleanup() {
 
   SkGraphics::PurgeAllCaches();
 }
-#endif
+#endif  // BUILDFLAG(IS_ANDROID)
 
 void GpuChannelManager::OnApplicationBackgrounded() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
@@ -825,11 +812,10 @@ void GpuChannelManager::OnApplicationBackgrounded() {
 
   // Release all skia caching when the application is backgrounded.
   SkGraphics::PurgeAllCaches();
-  if (base::FeatureList::IsEnabled(features::kGpuCleanupInBackground)) {
-    // At that point, no frames are going to be produced. Make sure that
-    // e.g. pending SharedImage deletions happens promptly.
-    PerformImmediateCleanup();
-  }
+  // At that point, no frames are going to be produced. Make sure that
+  // e.g. pending SharedImage deletions happens promptly.
+  PerformImmediateCleanup();
+
   application_backgrounded_ = true;
 }
 
@@ -880,11 +866,18 @@ void GpuChannelManager::HandleMemoryPressure(
     shared_context_state_->PurgeMemory(memory_pressure_level);
   }
 
-  if (gr_shader_cache_)
+  if (gr_shader_cache_) {
     gr_shader_cache_->PurgeMemory(memory_pressure_level);
+  }
+#if BUILDFLAG(USE_DAWN) || BUILDFLAG(SKIA_USE_DAWN)
+  if (dawn_caching_interface_factory()) {
+    dawn_caching_interface_factory()->PurgeMemory(memory_pressure_level);
+  }
+#endif  // BUILDFLAG(USE_DAWN) || BUILDFLAG(SKIA_USE_DAWN)
+
 #if BUILDFLAG(IS_WIN)
   TrimD3DResources(shared_context_state_);
-#endif
+#endif  // BUILDFLAG(IS_WIN)
 }
 
 scoped_refptr<SharedContextState> GpuChannelManager::GetSharedContextState(
@@ -997,7 +990,8 @@ scoped_refptr<SharedContextState> GpuChannelManager::GetSharedContextState(
                      context_lost_count_ + 1),
       gpu_preferences_.gr_context_type, vulkan_context_provider_,
       metal_context_provider_, dawn_context_provider_,
-      peak_memory_monitor_.GetWeakPtr());
+      peak_memory_monitor_.GetWeakPtr(),
+      /*created_on_compositor_gpu_thread=*/false, gr_context_options_provider_);
 
   // Initialize GL context, so Vulkan and GL interop can work properly.
   auto feature_info = base::MakeRefCounted<gles2::FeatureInfo>(
@@ -1081,8 +1075,6 @@ void GpuChannelManager::OnContextLost(
     force_restart |= (interval <= base::Seconds(5));
   }
 
-  force_restart &=
-      base::FeatureList::IsEnabled(features::kForceRestartGpuKillSwitch);
   context_lost_time_ = lost_time;
   bool is_gl = gpu_preferences_.gr_context_type == GrContextType::kGL;
   if (!force_restart && synthetic_loss && is_gl)
@@ -1098,7 +1090,7 @@ void GpuChannelManager::OnContextLost(
   // Work around issues with recovery by allowing a new GPU process to launch.
   if (force_restart || gpu_driver_bug_workarounds_.exit_on_context_lost ||
       (shared_context_state_ && !shared_context_state_->GrContextIsGL())) {
-    delegate_->MaybeExitOnContextLost(synthetic_loss, context_lost_reason);
+    delegate_->MaybeExitOnContextLost(context_lost_reason);
   }
 }
 

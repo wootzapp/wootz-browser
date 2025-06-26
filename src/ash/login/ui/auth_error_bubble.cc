@@ -13,6 +13,7 @@
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
+#include "ash/style/ash_color_provider.h"
 #include "ash/style/pill_button.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
@@ -22,6 +23,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/display/screen.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/styled_label.h"
 #include "ui/views/view.h"
@@ -98,13 +100,13 @@ AuthErrorBubble::~AuthErrorBubble() {}
 
 void AuthErrorBubble::ShowAuthError(base::WeakPtr<views::View> anchor_view,
                                     int unlock_attempt,
-                                    bool show_pin,
+                                    bool authenticated_by_pin,
                                     bool is_login_screen) {
   std::u16string error_text;
-  if (show_pin) {
+  if (authenticated_by_pin) {
     error_text += l10n_util::GetStringUTF16(
-        unlock_attempt > 1 ? IDS_ASH_LOGIN_ERROR_AUTHENTICATING_2ND_TIME_NEW
-                           : IDS_ASH_LOGIN_ERROR_AUTHENTICATING);
+        unlock_attempt > 1 ? IDS_ASH_LOGIN_ERROR_AUTHENTICATING_PIN_2ND_TIME
+                           : IDS_ASH_LOGIN_ERROR_AUTHENTICATING_PIN);
   } else {
     error_text += l10n_util::GetStringUTF16(
         unlock_attempt > 1 ? IDS_ASH_LOGIN_ERROR_AUTHENTICATING_PWD_2ND_TIME
@@ -138,11 +140,11 @@ void AuthErrorBubble::ShowAuthError(base::WeakPtr<views::View> anchor_view,
   }
 
   if (unlock_attempt > 1) {
-    base::StrAppend(
-        &error_text,
-        {u"\n\n", l10n_util::GetStringUTF16(
-                      show_pin ? IDS_ASH_LOGIN_ERROR_RECOVER_USER
-                               : IDS_ASH_LOGIN_ERROR_RECOVER_USER_PWD)});
+    base::StrAppend(&error_text,
+                    {u"\n\n", l10n_util::GetStringUTF16(
+                                  authenticated_by_pin
+                                      ? IDS_ASH_LOGIN_ERROR_RECOVER_USER
+                                      : IDS_ASH_LOGIN_ERROR_RECOVER_USER_PWD)});
   }
 
   auto label = std::make_unique<views::StyledLabel>();
@@ -185,7 +187,7 @@ void AuthErrorBubble::ShowAuthError(base::WeakPtr<views::View> anchor_view,
   // content is a container (e.g. a text and a "learn more" button). In such a
   // case, it will have multiple subviews but only one which needs to be read
   // on bubble show – when the alert event occurs.
-  SetAccessibleName(error_text);
+  GetViewAccessibility().SetName(error_text);
   Show();
 }
 

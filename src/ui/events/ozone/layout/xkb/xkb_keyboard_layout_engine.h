@@ -22,7 +22,6 @@
 #include "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/task_runner.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/events/keycodes/scoped_xkb.h"
 #include "ui/events/ozone/layout/keyboard_layout_engine.h"
 #include "ui/events/ozone/layout/xkb/xkb_key_code_converter.h"
@@ -39,6 +38,7 @@ class COMPONENT_EXPORT(EVENTS_OZONE_LAYOUT) XkbKeyboardLayoutEngine
   ~XkbKeyboardLayoutEngine() override;
 
   // KeyboardLayoutEngine:
+  std::string_view GetLayoutName() const override;
   bool CanSetCurrentLayout() const override;
   void SetCurrentLayoutByName(const std::string& layout_name,
                               base::OnceCallback<void(bool)> callback) override;

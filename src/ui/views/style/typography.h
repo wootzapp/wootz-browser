@@ -47,6 +47,9 @@ enum TextContext {
   // Placeholder text in a text field.
   CONTEXT_TEXTFIELD_PLACEHOLDER,
 
+  // Supporting text for a text field, usually below it.
+  CONTEXT_TEXTFIELD_SUPPORTING_TEXT,
+
   // Text in a menu.
   CONTEXT_MENU,
 
@@ -109,6 +112,18 @@ enum TextStyle {
   // Active tab in a tabbed pane.
   STYLE_TAB_ACTIVE,
 
+  // Similar to STYLE_PRIMARY but with a monospaced typeface.
+  // It is currently expected to be overridden by `ChromeTypographyProvider`,
+  // and the default implementation is not actually monospaced.
+  // TODO(crbug.com/367623931): Add proper default implementation.
+  STYLE_PRIMARY_MONOSPACED,
+
+  // Similar to views::style::STYLE_SECONDARY but with a monospaced typeface.
+  // It is currently expected to be overridden by `ChromeTypographyProvider`,
+  // and the default implementation is not actually monospaced.
+  // TODO(crbug.com/367623931): Add proper default implementation.
+  STYLE_SECONDARY_MONOSPACED,
+
   // CR2023 typography tokens.
   // These styles override the style specified by TextContext.
   STYLE_OVERRIDE_TYPOGRAPHY_START,
@@ -116,6 +131,7 @@ enum TextStyle {
   STYLE_HEADLINE_2,
   STYLE_HEADLINE_3,
   STYLE_HEADLINE_4,
+  STYLE_HEADLINE_4_BOLD,
   STYLE_HEADLINE_5,
   STYLE_BODY_1,
   STYLE_BODY_1_EMPHASIS,
@@ -141,6 +157,12 @@ enum TextStyle {
   STYLE_CAPTION_EMPHASIS,
   STYLE_CAPTION_MEDIUM = STYLE_CAPTION_EMPHASIS,
   STYLE_CAPTION_BOLD,
+  // The style used for links within blocks of STYLE_BODY_2 text.
+  STYLE_LINK_2,
+  // The style used for links within blocks of STYLE_BODY_3 text.
+  STYLE_LINK_3,
+  // The style used for links within blocks of STYLE_BODY_4 text.
+  STYLE_LINK_4,
   // The style used for links within blocks of STYLE_BODY_5 text.
   STYLE_LINK_5,
   STYLE_OVERRIDE_TYPOGRAPHY_END,

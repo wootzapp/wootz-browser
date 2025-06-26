@@ -24,11 +24,11 @@ import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.HistogramWatcher;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.supervised_user.android.AndroidLocalWebApprovalFlowOutcome;
@@ -39,7 +39,6 @@ import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetTestSupport;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.test.util.ViewUtils;
@@ -72,8 +71,6 @@ public class WebsiteParentApprovalTest {
     public final RuleChain mRuleChain =
             RuleChain.outerRule(mSigninTestRule).around(mTabbedActivityTestRule);
 
-    @Rule public final JniMocker mocker = new JniMocker();
-
     @Rule
     public final MockitoRule mMockitoRule = MockitoJUnit.rule().strictness(Strictness.STRICT_STUBS);
 
@@ -93,7 +90,7 @@ public class WebsiteParentApprovalTest {
         mTestServer = mTabbedActivityTestRule.getEmbeddedTestServerRule().getServer();
         mBlockedUrl = mTestServer.getURL(TEST_PAGE);
         mTabbedActivityTestRule.startMainActivityOnBlankPage();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ChromeTabbedActivity activity = mTabbedActivityTestRule.getActivity();
                     mBottomSheetController =
@@ -102,7 +99,7 @@ public class WebsiteParentApprovalTest {
                 });
 
         mSigninTestRule.addChildTestAccountThenWaitForSignin();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     SupervisedUserSettingsTestBridge.setFilteringBehavior(
                             mTabbedActivityTestRule.getProfile(/* incognito= */ false),
@@ -110,7 +107,7 @@ public class WebsiteParentApprovalTest {
                 });
         mWebContents = mTabbedActivityTestRule.getWebContents();
 
-        mocker.mock(WebsiteParentApprovalJni.TEST_HOOKS, mWebsiteParentApprovalNativesMock);
+        WebsiteParentApprovalJni.setInstanceForTesting(mWebsiteParentApprovalNativesMock);
 
         // @TODO b:243916194 : Once we start consuming mParentAuthDelegateMock
         // .isLocalAuthSupported we should add a mocked behaviour in this test.
@@ -130,7 +127,7 @@ public class WebsiteParentApprovalTest {
 
     private void checkParentApprovalScreenClosedAfterClick() {
         // Ensure all animations have ended. Otherwise the following check may fail.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mBottomSheetTestSupport.endAllAnimations();
                 });
@@ -172,7 +169,7 @@ public class WebsiteParentApprovalTest {
         // Verify only histograms recorded in Java.
         var histogram =
                 HistogramWatcher.newSingleRecordWatcher(
-                        "FamilyLinkUser.LocalWebApprovalOutcome", /* APPROVED_BY_PARENT= */ 0);
+                        "FamilyLinkUser.LocalWebApprovalOutcome", /* value= */ 0);
 
         WebsiteParentApprovalTestUtils.clickAskInPerson(mWebContents);
         WebsiteParentApprovalTestUtils.clickApprove(mBottomSheetTestSupport);
@@ -193,7 +190,7 @@ public class WebsiteParentApprovalTest {
         // Verify only histograms recorded in Java.
         var histogram =
                 HistogramWatcher.newSingleRecordWatcher(
-                        "FamilyLinkUser.LocalWebApprovalOutcome", /* DENIED_BY_PARENT= */ 1);
+                        "FamilyLinkUser.LocalWebApprovalOutcome", /* value= */ 1);
 
         WebsiteParentApprovalTestUtils.clickAskInPerson(mWebContents);
         WebsiteParentApprovalTestUtils.clickDoNotApprove(mBottomSheetTestSupport);

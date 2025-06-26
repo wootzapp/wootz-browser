@@ -13,7 +13,7 @@
 #include "ash/wm/window_util.h"
 #include "chrome/browser/ash/input_method/assistive_window_controller_delegate.h"
 #include "chrome/browser/ash/input_method/assistive_window_properties.h"
-#include "chrome/browser/ash/input_method/ui/suggestion_details.h"
+#include "chrome/browser/ui/ash/input_method/suggestion_details.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/ime/ash/ime_bridge.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -268,10 +268,9 @@ AssistiveWindowController::WindowOrientationFor(
     case ash::ime::AssistiveWindowType::kGrammarSuggestion:
       return ui::ime::SuggestionWindowView::Orientation::kVertical;
     case ash::ime::AssistiveWindowType::kNone:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
-  NOTREACHED_IN_MIGRATION();
-  return ui::ime::SuggestionWindowView::Orientation::kVertical;
+  NOTREACHED();
 }
 
 void AssistiveWindowController::SetAssistiveWindowProperties(

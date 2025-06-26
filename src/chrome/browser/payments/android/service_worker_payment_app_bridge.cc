@@ -12,9 +12,7 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/functional/bind.h"
 #include "base/numerics/safe_conversions.h"
-#include "chrome/android/chrome_jni_headers/ServiceWorkerPaymentAppBridge_jni.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/webdata_services/web_data_service_factory.h"
 #include "components/payments/content/android/payment_handler_host.h"
 #include "components/payments/content/payment_event_response_util.h"
@@ -33,6 +31,9 @@
 #include "url/android/gurl_android.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/ServiceWorkerPaymentAppBridge_jni.h"
 
 namespace {
 
@@ -96,24 +97,22 @@ void OnGetServiceWorkerPaymentAppsInfo(
 
 static void JNI_ServiceWorkerPaymentAppBridge_HasServiceWorkerPaymentApps(
     JNIEnv* env,
+    Profile* profile,
     const JavaParamRef<jobject>& jcallback) {
   // Checks whether there is a installed service worker payment app through
   // GetAllPaymentApps.
-  content::InstalledPaymentAppsFinder::GetInstance(
-      ProfileManager::GetActiveUserProfile())
-      ->GetAllPaymentApps(
-          base::BindOnce(&OnHasServiceWorkerPaymentAppsResponse,
-                         ScopedJavaGlobalRef<jobject>(env, jcallback)));
+  content::InstalledPaymentAppsFinder::GetInstance(profile)->GetAllPaymentApps(
+      base::BindOnce(&OnHasServiceWorkerPaymentAppsResponse,
+                     ScopedJavaGlobalRef<jobject>(env, jcallback)));
 }
 
 static void JNI_ServiceWorkerPaymentAppBridge_GetServiceWorkerPaymentAppsInfo(
     JNIEnv* env,
+    Profile* profile,
     const JavaParamRef<jobject>& jcallback) {
-  content::InstalledPaymentAppsFinder::GetInstance(
-      ProfileManager::GetActiveUserProfile())
-      ->GetAllPaymentApps(
-          base::BindOnce(&OnGetServiceWorkerPaymentAppsInfo,
-                         ScopedJavaGlobalRef<jobject>(env, jcallback)));
+  content::InstalledPaymentAppsFinder::GetInstance(profile)->GetAllPaymentApps(
+      base::BindOnce(&OnGetServiceWorkerPaymentAppsInfo,
+                     ScopedJavaGlobalRef<jobject>(env, jcallback)));
 }
 
 static void JNI_ServiceWorkerPaymentAppBridge_OnClosingPaymentAppWindow(

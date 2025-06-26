@@ -5,6 +5,7 @@
 #include "content/browser/devtools/devtools_frontend_host_impl.h"
 
 #include <stddef.h>
+
 #include <memory>
 #include <string>
 
@@ -14,6 +15,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "content/browser/bad_message.h"
+#include "content/browser/devtools/grit/devtools_resources_map.h"
 #include "content/common/features.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
@@ -26,9 +28,6 @@
 #include "components/crash/content/browser/error_reporting/javascript_error_report.h"  // nogncheck
 #include "components/crash/content/browser/error_reporting/js_error_report_processor.h"  // nogncheck
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-
-extern const webui::ResourcePath kDevtoolsResources[];
-extern const size_t kDevtoolsResourcesSize;
 
 namespace content {
 namespace {
@@ -86,9 +85,9 @@ void DevToolsFrontendHost::SetupExtensionsAPI(
 // static
 scoped_refptr<base::RefCountedMemory>
 DevToolsFrontendHost::GetFrontendResourceBytes(const std::string& path) {
-  for (size_t i = 0; i < kDevtoolsResourcesSize; ++i) {
-    if (path == kDevtoolsResources[i].path) {
-      return GetContentClient()->GetDataResourceBytes(kDevtoolsResources[i].id);
+  for (const auto& [resource_path, id, filepath] : kDevtoolsResources) {
+    if (path == resource_path) {
+      return GetContentClient()->GetDataResourceBytes(id);
     }
   }
   return nullptr;

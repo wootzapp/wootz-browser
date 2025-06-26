@@ -59,8 +59,7 @@
 #include "base/trace_event/trace_log.h"  // nogncheck
 #endif                                   // BUILDFLAG(ENABLE_BASE_TRACING)
 
-namespace base {
-namespace test {
+namespace base::test {
 
 namespace {
 
@@ -84,8 +83,7 @@ base::MessagePumpType GetMessagePumpTypeForMainThreadType(
     case TaskEnvironment::MainThreadType::IO:
       return MessagePumpType::IO;
   }
-  NOTREACHED_IN_MIGRATION();
-  return MessagePumpType::DEFAULT;
+  NOTREACHED();
 }
 
 std::unique_ptr<sequence_manager::SequenceManager>
@@ -1090,5 +1088,4 @@ void TaskEnvironment::TestTaskTracker::AssertFlushForTestingAllowed() {
          "under it should thus never FlushForTesting().";
 }
 
-}  // namespace test
-}  // namespace base
+}  // namespace base::test

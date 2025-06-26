@@ -5,6 +5,7 @@
 #include "ash/style/rounded_label_widget.h"
 
 #include <memory>
+#include <variant>
 
 #include "ash/public/cpp/window_properties.h"
 #include "ash/style/rounded_label.h"
@@ -28,10 +29,9 @@ RoundedLabelWidget::~RoundedLabelWidget() = default;
 
 void RoundedLabelWidget::Init(InitParams params) {
   views::Widget::InitParams widget_params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
       views::Widget::InitParams::TYPE_POPUP);
   widget_params.name = params.name;
-  widget_params.ownership =
-      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   widget_params.opacity =
       views::Widget::InitParams::WindowOpacity::kTranslucent;
   widget_params.layer_type = ui::LAYER_NOT_DRAWN;
@@ -50,9 +50,9 @@ void RoundedLabelWidget::Init(InitParams params) {
   SetContentsView(std::make_unique<RoundedLabel>(
       params.horizontal_padding, params.vertical_padding, params.rounding_dp,
       params.preferred_height,
-      absl::holds_alternative<std::u16string>(params.message)
-          ? absl::get<std::u16string>(params.message)
-          : l10n_util::GetStringUTF16(absl::get<int>(params.message))));
+      std::holds_alternative<std::u16string>(params.message)
+          ? std::get<std::u16string>(params.message)
+          : l10n_util::GetStringUTF16(std::get<int>(params.message))));
   Show();
 }
 

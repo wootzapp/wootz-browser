@@ -10,7 +10,6 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/values.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/device_log_resources.h"
 #include "chrome/grit/device_log_resources_map.h"
@@ -21,6 +20,7 @@
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "ui/base/webui/web_ui_util.h"
+#include "ui/webui/webui_util.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "base/strings/utf_string_conversions.h"
@@ -28,22 +28,22 @@
 #include "ui/base/l10n/l10n_util.h"
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/crosapi/browser_manager.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
 namespace chromeos {
+
+DeviceLogUIConfig::DeviceLogUIConfig()
+    : DefaultWebUIConfig(content::kChromeUIScheme,
+                         chrome::kChromeUIDeviceLogHost) {}
 
 namespace {
 
 class DeviceLogMessageHandler : public content::WebUIMessageHandler {
  public:
-  DeviceLogMessageHandler() {}
+  DeviceLogMessageHandler() = default;
 
   DeviceLogMessageHandler(const DeviceLogMessageHandler&) = delete;
   DeviceLogMessageHandler& operator=(const DeviceLogMessageHandler&) = delete;
 
-  ~DeviceLogMessageHandler() override {}
+  ~DeviceLogMessageHandler() override = default;
 
   // WebUIMessageHandler implementation.
   void RegisterMessages() override {
@@ -53,16 +53,6 @@ class DeviceLogMessageHandler : public content::WebUIMessageHandler {
     web_ui()->RegisterMessageCallback(
         "clearLog", base::BindRepeating(&DeviceLogMessageHandler::ClearLog,
                                         base::Unretained(this)));
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-    web_ui()->RegisterMessageCallback(
-        "isLacrosEnabled",
-        base::BindRepeating(&DeviceLogMessageHandler::IsLacrosEnabled,
-                            base::Unretained(this)));
-    web_ui()->RegisterMessageCallback(
-        "openBrowserDeviceLog",
-        base::BindRepeating(&DeviceLogMessageHandler::OpenBrowserDevieLog,
-                            base::Unretained(this)));
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
   }
 
  private:
@@ -78,24 +68,6 @@ class DeviceLogMessageHandler : public content::WebUIMessageHandler {
   void ClearLog(const base::Value::List& value) const {
     device_event_log::ClearAll();
   }
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  void IsLacrosEnabled(const base::Value::List& value) {
-    AllowJavascript();
-    const bool is_lacros_enabled = crosapi::browser_util::IsLacrosEnabled();
-    std::string callback_id = value[0].GetString();
-    ResolveJavascriptCallback(base::Value(callback_id),
-                              base::Value(is_lacros_enabled));
-  }
-
-  void OpenBrowserDevieLog(const base::Value::List& args) const {
-    // Note: This will only be called by the UI when Lacros is available.
-    DCHECK(crosapi::BrowserManager::Get());
-    crosapi::BrowserManager::Get()->SwitchToTab(
-        GURL(chrome::kChromeUIDeviceLogUrl),
-        /*path_behavior=*/NavigateParams::RESPECT);
-  }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 };
 
 }  // namespace
@@ -111,6 +83,7 @@ DeviceLogUI::DeviceLogUI(content::WebUI* web_ui)
   static constexpr webui::LocalizedString kStrings[] = {
       {"titleText", IDS_DEVICE_LOG_TITLE},
       {"autoRefreshText", IDS_DEVICE_AUTO_REFRESH},
+      {"autoSelectTypes", IDS_DEVICE_SELECT_TYPES},
       {"logRefreshText", IDS_DEVICE_LOG_REFRESH},
       {"logClearText", IDS_DEVICE_LOG_CLEAR},
       {"logClearTypesText", IDS_DEVICE_LOG_CLEAR_TYPES},
@@ -140,24 +113,11 @@ DeviceLogUI::DeviceLogUI(content::WebUI* web_ui)
   };
   html->AddLocalizedStrings(kStrings);
 
-#if BUILDFLAG(IS_CHROMEOS)
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  auto device_log_url = base::UTF8ToUTF16(chrome::kChromeUIDeviceLogUrl);
-#elif BUILDFLAG(IS_CHROMEOS_LACROS)
-  auto device_log_url = base::UTF8ToUTF16(chrome::kOsUIDeviceLogURL);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-  auto os_link_container = l10n_util::GetStringFUTF16(
-      IDS_DEVICE_LOG_OS_LINK_CONTAINER, device_log_url);
-  html->AddString("osLinkContainer", os_link_container);
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
   html->UseStringsJs();
-  html->AddResourcePaths(base::make_span(kDeviceLogResources,
-                                         kDeviceLogResourcesSize));
+  html->AddResourcePaths(kDeviceLogResources);
   html->SetDefaultResource(IDR_DEVICE_LOG_DEVICE_LOG_UI_HTML);
 }
 
-DeviceLogUI::~DeviceLogUI() {
-}
+DeviceLogUI::~DeviceLogUI() = default;
 
 }  // namespace chromeos

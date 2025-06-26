@@ -10,6 +10,7 @@
 #include "base/containers/lru_cache.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/profiles/profile.h"
+#include "net/base/isolation_info.h"
 #include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/cpp/simple_url_loader_stream_consumer.h"
 #include "url/gurl.h"
@@ -39,13 +40,35 @@ class PrewarmHttpDiskCacheManager
       delete;
 
   void MaybePrewarmResources(
+      const std::optional<url::Origin>& initiator_origin,
       const GURL& top_frame_main_resource_url,
       const std::vector<GURL>& top_frame_subresource_urls);
+
+  struct PrewarmJob {
+    PrewarmJob();
+    PrewarmJob(std::optional<url::Origin> initiator_origin,
+               url::Origin top_frame_origin,
+               GURL url,
+               net::IsolationInfo::RequestType request_type);
+    PrewarmJob(PrewarmJob&&);
+    PrewarmJob& operator=(PrewarmJob&&);
+    PrewarmJob(const PrewarmJob&);
+    PrewarmJob& operator=(const PrewarmJob&);
+    ~PrewarmJob();
+
+    bool operator==(const PrewarmJob& other) const;
+    auto operator<=>(const PrewarmJob& other) const;
+
+    std::optional<url::Origin> initiator_origin;
+    url::Origin top_frame_origin;
+    GURL url;
+    net::IsolationInfo::RequestType request_type;
+  };
 
  private:
   friend class PrewarmHttpDiskCacheManagerTest;
 
-  void MaybeAddPrewarmJob(const url::Origin& top_frame_origin, const GURL& url);
+  void MaybeAddPrewarmJob(const PrewarmJob& prewarm_job);
   void MaybeProcessNextQueuedJob();
   void PrewarmHttpDiskCache(GURL url);
 
@@ -62,12 +85,11 @@ class PrewarmHttpDiskCacheManager
   void DoComplete();
 
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
-  std::queue<std::pair<url::Origin, GURL>> queued_jobs_;
+  std::queue<PrewarmJob> queued_jobs_;
   // Keeps recent warm-up history to prevent excessive duplicate
   // warm-up. The maximum size of prewarm_history_ must be large enough
   // to avoid excessive duplicated warm-up requests.
-  base::LRUCache<std::pair<url::Origin, GURL>, base::TimeTicks>
-      prewarm_history_;
+  base::LRUCache<PrewarmJob, base::TimeTicks> prewarm_history_;
   const base::TimeDelta reprewarm_period_;
   const bool use_read_and_discard_body_option_;
   scoped_refptr<base::SequencedTaskRunner> task_runner_;

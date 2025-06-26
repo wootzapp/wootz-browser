@@ -20,11 +20,11 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.password_manager.PasswordManagerUtilBridge;
 import org.chromium.chrome.browser.password_manager.PasswordManagerUtilBridgeJni;
@@ -40,7 +40,6 @@ import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.metrics.SignoutReason;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.components.user_prefs.UserPrefsJni;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 
 /** Render tests for {@link SignOutDialogCoordinator} */
@@ -59,8 +58,6 @@ public class SignOutDialogRenderTest {
     @Rule
     public final BaseActivityTestRule<BlankUiTestActivity> mActivityTestRule =
             new BaseActivityTestRule<>(BlankUiTestActivity.class);
-
-    @Rule public final JniMocker mocker = new JniMocker();
 
     @Rule
     public final MockitoRule mMockitoRule = MockitoJUnit.rule().strictness(Strictness.STRICT_STUBS);
@@ -83,8 +80,8 @@ public class SignOutDialogRenderTest {
 
     @Before
     public void setUp() {
-        mocker.mock(PasswordManagerUtilBridgeJni.TEST_HOOKS, mPasswordManagerUtilBridgeNativeMock);
-        mocker.mock(UserPrefsJni.TEST_HOOKS, mUserPrefsMock);
+        PasswordManagerUtilBridgeJni.setInstanceForTesting(mPasswordManagerUtilBridgeNativeMock);
+        UserPrefsJni.setInstanceForTesting(mUserPrefsMock);
         IdentityServicesProvider.setInstanceForTests(mIdentityServicesProvider);
         when(mIdentityServicesProvider.getSigninManager(any())).thenReturn(mSigninManagerMock);
         when(mIdentityServicesProvider.getIdentityManager(any())).thenReturn(mIdentityManagerMock);
@@ -178,7 +175,7 @@ public class SignOutDialogRenderTest {
 
     private View showTurnOffSyncDialog() throws Exception {
         when(mProfile.isChild()).thenReturn(true);
-        return TestThreadUtils.runOnUiThreadBlocking(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mSignOutDialogCoordinator =
                             new SignOutDialogCoordinator(
@@ -193,7 +190,7 @@ public class SignOutDialogRenderTest {
     }
 
     private View showSignOutDialog() throws Exception {
-        return TestThreadUtils.runOnUiThreadBlocking(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mSignOutDialogCoordinator =
                             new SignOutDialogCoordinator(

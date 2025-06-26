@@ -6,6 +6,8 @@
 
 #include <stddef.h>
 
+#include <array>
+
 #include "base/files/scoped_temp_dir.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/stringprintf.h"
@@ -16,7 +18,6 @@
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/services/storage/public/cpp/quota_error_or.h"
 #include "storage/browser/file_system/external_mount_points.h"
 #include "storage/browser/file_system/file_system_backend.h"
@@ -128,7 +129,7 @@ class FileSystemContextTest : public testing::Test {
 
 // It is not valid to pass nullptr ExternalMountPoints to FileSystemContext on
 // ChromeOS.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 TEST_F(FileSystemContextTest, NullExternalMountPoints) {
   scoped_refptr<FileSystemContext> file_system_context =
       CreateFileSystemContextForTest(/*external_mount_points=*/nullptr);
@@ -217,7 +218,7 @@ TEST_F(FileSystemContextTest, ResolveURLOnOpenFileSystem_CustomBucket) {
   base::test::TestFuture<storage::QuotaErrorOr<storage::BucketInfo>>
       bucket_future;
   proxy()->CreateBucketForTesting(
-      storage_key, "custom_bucket", blink::mojom::StorageType::kTemporary,
+      storage_key, "custom_bucket",
       base::SequencedTaskRunner::GetCurrentDefault(),
       bucket_future.GetCallback());
   ASSERT_OK_AND_ASSIGN(auto bucket, bucket_future.Take());
@@ -278,7 +279,7 @@ TEST_F(FileSystemContextTest, CrackFileSystemURL) {
     std::string expect_filesystem_id;
   };
 
-  const TestCase kTestCases[] = {
+  const auto kTestCases = std::to_array<TestCase>({
       // Following should not be handled by the url crackers:
       {
           "pers_mount", "persistent", true /* is_valid */,
@@ -312,7 +313,7 @@ TEST_F(FileSystemContextTest, CrackFileSystemURL) {
       {"invalid", "external", false /* is_valid */,
        // The rest of values will be ignored.
        kFileSystemTypeUnknown, kFileSystemTypeUnknown, FPL(""), std::string()},
-  };
+  });
 
   for (size_t i = 0; i < std::size(kTestCases); ++i) {
     const base::FilePath virtual_path =

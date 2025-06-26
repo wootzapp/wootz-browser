@@ -11,7 +11,6 @@
 #import "components/prefs/pref_service.h"
 #import "components/security_interstitials/core/https_only_mode_metrics.h"
 #import "ios/chrome/browser/prerender/model/prerender_service.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/components/security_interstitials/https_only_mode/feature.h"
 #import "ios/components/security_interstitials/https_only_mode/https_only_mode_blocking_page.h"
@@ -345,5 +344,3 @@ void HttpsOnlyModeUpgradeTabHelper::ShouldAllowResponse(
   // Otherwise, this is a failed HTTPS-Upgrade. Allow the response.
   std::move(callback).Run(web::WebStatePolicyDecider::PolicyDecision::Allow());
 }
-
-WEB_STATE_USER_DATA_KEY_IMPL(HttpsOnlyModeUpgradeTabHelper)

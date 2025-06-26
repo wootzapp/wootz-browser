@@ -19,7 +19,6 @@ namespace security_interstitials {
 
 SafeBrowsingQuietErrorUI::SafeBrowsingQuietErrorUI(
     const GURL& request_url,
-    const GURL& main_frame_url,
     BaseSafeBrowsingErrorUI::SBInterstitialReason reason,
     const BaseSafeBrowsingErrorUI::SBErrorDisplayOptions& display_options,
     const std::string& app_locale,
@@ -27,7 +26,6 @@ SafeBrowsingQuietErrorUI::SafeBrowsingQuietErrorUI(
     ControllerClient* controller,
     const bool is_giant_webview)
     : BaseSafeBrowsingErrorUI(request_url,
-                              main_frame_url,
                               reason,
                               display_options,
                               app_locale,
@@ -73,10 +71,6 @@ void SafeBrowsingQuietErrorUI::PopulateStringsForHtml(
       PopulateBillingLoadTimeData(load_time_data);
       break;
   }
-
-  // Not used by this interstitial.
-  load_time_data.Set("recurrentErrorParagraph", "");
-  load_time_data.Set("show_recurrent_error_paragraph", false);
 }
 
 void SafeBrowsingQuietErrorUI::SetGiantWebViewForTesting(
@@ -115,8 +109,7 @@ void SafeBrowsingQuietErrorUI::HandleCommand(
     case CMD_OPEN_ENHANCED_PROTECTION_SETTINGS:
     case CMD_CLOSE_INTERSTITIAL_WITHOUT_UI:
     case CMD_REQUEST_SITE_ACCESS_PERMISSION:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 

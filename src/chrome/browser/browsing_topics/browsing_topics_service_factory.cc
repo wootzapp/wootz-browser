@@ -24,6 +24,7 @@
 #include "components/privacy_sandbox/privacy_sandbox_settings.h"
 #include "content/public/browser/browsing_topics_site_data_manager.h"
 #include "content/public/browser/storage_partition.h"
+#include "services/network/public/cpp/features.h"
 #include "third_party/blink/public/common/features.h"
 
 #if BUILDFLAG(BUILD_WITH_TFLITE_LIB)
@@ -55,6 +56,9 @@ BrowsingTopicsServiceFactory::BrowsingTopicsServiceFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
               .Build()) {
   DependsOn(PrivacySandboxSettingsFactory::GetInstance());
   DependsOn(HistoryServiceFactory::GetInstance());
@@ -63,10 +67,12 @@ BrowsingTopicsServiceFactory::BrowsingTopicsServiceFactory()
 
 BrowsingTopicsServiceFactory::~BrowsingTopicsServiceFactory() = default;
 
-KeyedService* BrowsingTopicsServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+BrowsingTopicsServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  if (!base::FeatureList::IsEnabled(blink::features::kBrowsingTopics))
+  if (!base::FeatureList::IsEnabled(network::features::kBrowsingTopics)) {
     return nullptr;
+  }
 
   Profile* profile = Profile::FromBrowserContext(context);
 
@@ -115,7 +121,7 @@ KeyedService* BrowsingTopicsServiceFactory::BuildServiceInstanceFor(
   std::unique_ptr<Annotator> annotator = std::make_unique<AnnotatorNoOp>();
 #endif
 
-  return new BrowsingTopicsServiceImpl(
+  return std::make_unique<BrowsingTopicsServiceImpl>(
       profile->GetPath(), privacy_sandbox_settings, history_service,
       site_data_manager, std::move(annotator),
       base::BindRepeating(

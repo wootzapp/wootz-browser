@@ -2,10 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/search/search.h"
 
 #include <stddef.h>
 
+#include <array>
 #include <map>
 #include <string>
 #include <utility>
@@ -96,7 +102,7 @@ class SearchTest : public BrowserWithTestWindowTest {
     InstantService* instant_service =
         InstantServiceFactory::GetForProfile(profile());
     return instant_service->IsInstantProcess(
-        contents->GetPrimaryMainFrame()->GetProcess()->GetID());
+        contents->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID());
   }
 
   // Each test case represents a navigation to |start_url| followed by a
@@ -106,7 +112,7 @@ class SearchTest : public BrowserWithTestWindowTest {
   // Note that we need to define this here because the flags needed to check
   // content::CanSameSiteMainFrameNavigationsChangeSiteInstances() etc might not
   // be set yet if we define this immediately (e.g. outside of the test class).
-  const struct ProcessIsolationTestCase {
+  struct ProcessIsolationTestCase {
     const char* description;
     const char* start_url;
     bool start_in_instant_process;
@@ -115,7 +121,8 @@ class SearchTest : public BrowserWithTestWindowTest {
     bool same_site_instance;
     bool same_rvh;
     bool same_process;
-  } kProcessIsolationTestCases[5] = {
+  };
+  const std::array<ProcessIsolationTestCase, 5> kProcessIsolationTestCases = {{
       {"Remote NTP -> SRP", "https://foo.com/newtab", true,
        "https://foo.com/url", false, false, false, false},
       {"Remote NTP -> Regular", "https://foo.com/newtab", true,
@@ -131,13 +138,14 @@ class SearchTest : public BrowserWithTestWindowTest {
       {"Regular -> SRP", "https://foo.com/other", false, "https://foo.com/url",
        false, !content::CanSameSiteMainFrameNavigationsChangeSiteInstances(),
        !content::CanSameSiteMainFrameNavigationsChangeSiteInstances(), true},
-  };
+  }};
 
   // BrowserWithTestWindowTest:
   TestingProfile::TestingFactories GetTestingFactories() override {
-    return {{ChromeSigninClientFactory::GetInstance(),
-             base::BindRepeating(&BuildChromeSigninClientWithURLLoader,
-                                 test_url_loader_factory())}};
+    return {TestingProfile::TestingFactory{
+        ChromeSigninClientFactory::GetInstance(),
+        base::BindRepeating(&BuildChromeSigninClientWithURLLoader,
+                            test_url_loader_factory())}};
   }
 };
 
@@ -150,7 +158,7 @@ struct SearchTestCase {
 TEST_F(SearchTest, ShouldAssignURLToInstantRenderer) {
   // Only remote NTPs and most-visited tiles embedded in remote NTPs should be
   // assigned to Instant renderers.
-  const SearchTestCase kTestCases[] = {
+  const auto kTestCases = std::to_array<SearchTestCase>({
       {"chrome-search://most-visited/title.html?bar=abc", true,
        "Most-visited tile"},
       {"https://foo.com/newtab", true, "Remote NTP"},
@@ -160,7 +168,7 @@ TEST_F(SearchTest, ShouldAssignURLToInstantRenderer) {
       {"http://foo.com/instant", false, "Instant support was removed"},
       {"https://foo.com/instant", false, "Instant support was removed"},
       {"https://foo.com/", false, "Instant support was removed"},
-  };
+  });
 
   for (size_t i = 0; i < std::size(kTestCases); ++i) {
     const SearchTestCase& test = kTestCases[i];
@@ -171,7 +179,7 @@ TEST_F(SearchTest, ShouldAssignURLToInstantRenderer) {
 }
 
 TEST_F(SearchTest, ShouldUseProcessPerSiteForInstantSiteURL) {
-  const SearchTestCase kTestCases[] = {
+  const auto kTestCases = std::to_array<SearchTestCase>({
       {"chrome-search://remote-ntp", true, "Remote NTP"},
       {"invalid-scheme://online-ntp", false, "Invalid Online NTP URL"},
       {"chrome-search://foo.com", false, "Search result page"},
@@ -183,7 +191,7 @@ TEST_F(SearchTest, ShouldUseProcessPerSiteForInstantSiteURL) {
       {"http://foo.com:443/instant", false, "Non-HTTPS"},
       {"https://foo.com/instant", false, "No search terms replacement"},
       {"https://foo.com/", false, "Non-exact path"},
-  };
+  });
 
   for (size_t i = 0; i < std::size(kTestCases); ++i) {
     const SearchTestCase& test = kTestCases[i];
@@ -402,7 +410,7 @@ TEST_F(SearchTest, IsNTPOrRelatedURL) {
 // Tests whether a |url| corresponds to a New Tab page.
 // See search::IsNTPURL(const GURL& url);
 TEST_F(SearchTest, IsNTPURL) {
-  const SearchTestCase kTestCases[] = {
+  const auto kTestCases = std::to_array<SearchTestCase>({
       {"chrome-search://remote-ntp", true, "Remote NTP URL"},
       {"wootzapp://new-tab-page", true, "WebUI NTP"},
       {"wootzapp://new-tab-page/path?params", true,
@@ -410,7 +418,7 @@ TEST_F(SearchTest, IsNTPURL) {
       {"invalid-scheme://remote-ntp", false, "Invalid Remote NTP URL"},
       {"chrome-search://most-visited/", false, "Most visited URL"},
       {"", false, "Invalid URL"},
-  };
+  });
 
   for (size_t i = 0; i < std::size(kTestCases); ++i) {
     const SearchTestCase& test = kTestCases[i];

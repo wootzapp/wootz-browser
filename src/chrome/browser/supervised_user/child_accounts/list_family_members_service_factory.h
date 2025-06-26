@@ -6,6 +6,8 @@
 #ifndef CHROME_BROWSER_SUPERVISED_USER_CHILD_ACCOUNTS_LIST_FAMILY_MEMBERS_SERVICE_FACTORY_H_
 #define CHROME_BROWSER_SUPERVISED_USER_CHILD_ACCOUNTS_LIST_FAMILY_MEMBERS_SERVICE_FACTORY_H_
 
+#include <memory>
+
 #include "base/no_destructor.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_keyed_service_factory.h"
@@ -13,10 +15,10 @@
 #include "components/supervised_user/core/browser/list_family_members_service.h"
 #include "content/public/browser/browser_context.h"
 
-namespace supervised_user {
 class ListFamilyMembersServiceFactory : public ProfileKeyedServiceFactory {
  public:
-  static ListFamilyMembersService* GetForProfile(Profile* profile);
+  static supervised_user::ListFamilyMembersService* GetForProfile(
+      Profile* profile);
 
   static ListFamilyMembersServiceFactory* GetInstance();
 
@@ -32,10 +34,8 @@ class ListFamilyMembersServiceFactory : public ProfileKeyedServiceFactory {
   ~ListFamilyMembersServiceFactory() override;
 
   // BrowserContextKeyedServiceFactory:
-  KeyedService* BuildServiceInstanceFor(
+  std::unique_ptr<KeyedService> BuildServiceInstanceForBrowserContext(
       content::BrowserContext* context) const override;
 };
-
-}  // namespace supervised_user
 
 #endif  // CHROME_BROWSER_SUPERVISED_USER_CHILD_ACCOUNTS_LIST_FAMILY_MEMBERS_SERVICE_FACTORY_H_

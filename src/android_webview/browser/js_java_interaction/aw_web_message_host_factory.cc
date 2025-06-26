@@ -7,8 +7,6 @@
 #include <string>
 
 #include "android_webview/browser/js_java_interaction/js_reply_proxy.h"
-#include "android_webview/browser_jni_headers/WebMessageListenerHolder_jni.h"
-#include "android_webview/browser_jni_headers/WebMessageListenerInfo_jni.h"
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
@@ -18,6 +16,10 @@
 #include "components/js_injection/common/origin_matcher.h"
 #include "content/public/browser/android/message_payload.h"
 #include "content/public/browser/android/message_port_helper.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "android_webview/browser_jni_headers/WebMessageListenerHolder_jni.h"
+#include "android_webview/browser_jni_headers/WebMessageListenerInfo_jni.h"
 
 namespace android_webview {
 namespace {
@@ -47,9 +49,8 @@ class AwWebMessageHost : public js_injection::WebMessageHost {
     Java_WebMessageListenerHolder_onPostMessage(
         env, listener_,
         content::android::ConvertWebMessagePayloadToJava(message->message),
-        base::android::ConvertUTF8ToJavaString(env, top_level_origin_string_),
-        base::android::ConvertUTF8ToJavaString(env, origin_string_),
-        is_main_frame_, jports, reply_proxy_.GetJavaPeer());
+        top_level_origin_string_, origin_string_, is_main_frame_, jports,
+        reply_proxy_.GetJavaPeer());
   }
 
  private:

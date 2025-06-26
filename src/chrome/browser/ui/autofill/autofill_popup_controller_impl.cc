@@ -13,6 +13,7 @@
 #include "base/check_deref.h"
 #include "base/check_op.h"
 #include "base/command_line.h"
+#include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/i18n/case_conversion.h"
 #include "base/i18n/rtl.h"
@@ -22,32 +23,35 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "chrome/browser/accessibility/accessibility_state_utils.h"
 #include "chrome/browser/ui/autofill/autofill_popup_view.h"
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller_utils.h"
-#include "chrome/browser/ui/autofill/next_idle_time_ticks.h"
+#include "chrome/browser/ui/autofill/next_idle_barrier.h"
 #include "chrome/browser/ui/autofill/popup_controller_common.h"
-#include "chrome/browser/user_education/user_education_service.h"
-#include "components/autofill/core/browser/autofill_manager.h"
-#include "components/autofill/core/browser/filling_product.h"
+#include "components/autofill/core/browser/filling/filling_product.h"
+#include "components/autofill/core/browser/foundations/autofill_manager.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
+#include "components/autofill/core/browser/metrics/autofill_metrics_utils.h"
+#include "components/autofill/core/browser/suggestions/suggestion.h"
+#include "components/autofill/core/browser/suggestions/suggestion_hiding_reason.h"
+#include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/autofill/core/browser/ui/autofill_suggestion_delegate.h"
-#include "components/autofill/core/browser/ui/suggestion.h"
-#include "components/autofill/core/browser/ui/suggestion_hiding_reason.h"
-#include "components/autofill/core/browser/ui/suggestion_type.h"
+#include "components/autofill/core/browser/ui/popup_interaction.h"
+#include "components/autofill/core/common/aliases.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/compose/core/browser/compose_features.h"
 #include "components/compose/core/browser/config.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "components/strings/grit/components_strings.h"
+#include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/common/input/native_web_keyboard_event.h"
 #include "ui/accessibility/ax_active_popup.h"
 #include "ui/accessibility/ax_tree_id.h"
 #include "ui/accessibility/ax_tree_manager_map.h"
 #include "ui/accessibility/platform/ax_platform_node.h"
+#include "ui/accessibility/platform/ax_platform_node_delegate.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/events/event.h"
 #include "ui/gfx/canvas.h"
@@ -58,6 +62,18 @@ namespace autofill {
 
 namespace {
 
+// Trigger sources for which no paint checks are enforced on the popup row
+// level.
+constexpr DenseSet<AutofillSuggestionTriggerSource>
+    kTriggerSourcesExemptFromPaintChecks = {
+        AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess};
+
+// Trigger sources for which the `NextIdleBarrier` is not reset. Note that this
+// requires that the trigger sources is only used to update the popup.
+constexpr DenseSet<AutofillSuggestionTriggerSource>
+    kTriggerSourcesExemptFromTimeReset = {
+        AutofillSuggestionTriggerSource::kPlusAddressUpdatedInBrowserProcess};
+
 using SuggestionFiltrationResult =
     std::pair<std::vector<Suggestion>,
               std::vector<AutofillPopupController::SuggestionFilterMatch>>;
@@ -67,10 +83,12 @@ SuggestionFiltrationResult FilterSuggestions(
   SuggestionFiltrationResult result;
 
   std::u16string filter_lowercased = base::i18n::ToLower(*filter);
-  for (size_t i = 0; i < suggestions.size(); ++i) {
-    const Suggestion& suggestion = suggestions[i];
-    // Footer suggestions cannot be filtered out.
-    if (IsFooterItem(suggestions, i)) {
+  for (const Suggestion& suggestion : suggestions) {
+    if (suggestion.filtration_policy ==
+        Suggestion::FiltrationPolicy::kPresentOnlyWithoutFilter) {
+      continue;
+    } else if (suggestion.filtration_policy ==
+               Suggestion::FiltrationPolicy::kStatic) {
       result.first.push_back(suggestion);
       result.second.emplace_back();
     } else if (size_t pos = base::i18n::ToLower(suggestion.main_text.value)
@@ -136,9 +154,19 @@ AutofillPopupControllerImpl::AutofillPopupControllerImpl(
 AutofillPopupControllerImpl::~AutofillPopupControllerImpl() = default;
 
 void AutofillPopupControllerImpl::Show(
+    UiSessionId ui_session_id,
     std::vector<Suggestion> suggestions,
     AutofillSuggestionTriggerSource trigger_source,
     AutoselectFirstSuggestion autoselect_first_suggestion) {
+  ui_session_id_ = ui_session_id;
+  suggestions_filling_product_ =
+      !suggestions.empty() && IsStandaloneSuggestionType(suggestions[0].type)
+          ? GetFillingProductFromSuggestionType(suggestions[0].type)
+          : FillingProduct::kNone;
+  if (!suggestions.empty() &&
+      suggestions[0].type == SuggestionType::kDatalistEntry) {
+    AutofillMetrics::LogDataListSuggestionsShown();
+  }
   // Autofill popups should only be shown in focused windows because on Windows
   // the popup may overlap the focused window (see crbug.com/1239760).
   if (auto* rwhv = web_contents_->GetRenderWidgetHostView();
@@ -169,12 +197,6 @@ void AutofillPopupControllerImpl::Show(
   }
 
   AutofillPopupHideHelper::HidingParams hiding_params = {
-      // It suffices if the root popup observes changes in form elements.
-      // Currently, this is only relevant for Compose.
-      .hide_on_text_field_change =
-          IsRootPopup() && suggestions.size() == 1 &&
-          GetFillingProductFromSuggestionType(suggestions[0].type) ==
-              FillingProduct::kCompose,
       .hide_on_web_contents_lost_focus = true};
 
   AutofillPopupHideHelper::HidingCallback hiding_callback = base::BindRepeating(
@@ -194,16 +216,28 @@ void AutofillPopupControllerImpl::Show(
 
   trigger_source_ = trigger_source;
   should_ignore_mouse_observed_outside_item_bounds_check_ =
-      trigger_source_ ==
-      AutofillSuggestionTriggerSource::kManualFallbackAddress;
+      kTriggerSourcesExemptFromPaintChecks.contains(trigger_source_);
+  if (!kTriggerSourcesExemptFromTimeReset.contains(trigger_source_)) {
+    barrier_for_accepting_.reset();
+  }
 
   if (view_) {
     OnSuggestionsChanged();
   } else {
     bool has_parent = parent_controller_ && parent_controller_->get();
+    auto search_bar_config =
+        trigger_source_ ==
+                AutofillSuggestionTriggerSource::kManualFallbackPasswords
+            ? std::optional<AutofillPopupView::SearchBarConfig>(
+                  {.placeholder = l10n_util::GetStringUTF16(
+                       IDS_AUTOFILL_POPUP_SEARCH_BAR_PASSWORDS_INPUT_PLACEHOLDER),
+                   .no_results_message = l10n_util::GetStringUTF16(
+                       IDS_AUTOFILL_POPUP_SEARCH_BAR_PASSWORDS_NOT_FOUND)})
+            : std::nullopt;
     view_ = has_parent
                 ? parent_controller_->get()->CreateSubPopupView(GetWeakPtr())
-                : AutofillPopupView::Create(GetWeakPtr());
+                : AutofillPopupView::Create(GetWeakPtr(),
+                                            std::move(search_bar_config));
 
     // It is possible to fail to create the popup, in this case
     // treat the popup as hiding right away.
@@ -220,10 +254,9 @@ void AutofillPopupControllerImpl::Show(
     FireControlsChangedEvent(true);
   }
 
-  time_view_shown_ = NextIdleTimeTicks::CaptureNextIdleTimeTicksWithDelay(
-      kIgnoreEarlyClicksOnSuggestionsDuration);
-
   if (IsRootPopup()) {
+    shown_time_ = base::TimeTicks::Now();
+
     // We may already be observing from a previous `Show` call.
     // TODO(crbug.com/41486228): Consider not to recycle views or controllers
     // and only permit a single call to `Show`.
@@ -235,19 +268,24 @@ void AutofillPopupControllerImpl::Show(
             SuggestionType::kComposeSavedStateNotification) {
       const compose::Config& config = compose::GetComposeConfig();
       fading_popup_timer_.Start(
-          FROM_HERE,
-          base::Milliseconds(config.saved_state_timeout_milliseconds),
+          FROM_HERE, config.saved_state_timeout,
           base::BindOnce(&AutofillSuggestionController::Hide, GetWeakPtr(),
                          SuggestionHidingReason::kFadeTimerExpired));
     }
 
-    delegate_->OnSuggestionsShown();
+    delegate_->OnSuggestionsShown(non_filtered_suggestions_);
+  }
+
+  if (autofill_metrics::ShouldLogAutofillSuggestionShown(trigger_source_)) {
+    AutofillMetrics::LogPopupInteraction(suggestions_filling_product_,
+                                         GetPopupLevel(),
+                                         PopupInteraction::kPopupShown);
   }
 }
 
-void AutofillPopupControllerImpl::DisableThresholdForTesting(
-    bool disable_threshold) {
-  disable_threshold_for_testing_ = disable_threshold;
+std::optional<AutofillSuggestionController::UiSessionId>
+AutofillPopupControllerImpl::GetUiSessionId() const {
+  return view_ ? std::make_optional(ui_session_id_) : std::nullopt;
 }
 
 void AutofillPopupControllerImpl::SetKeepPopupOpenForTesting(
@@ -259,7 +297,7 @@ void AutofillPopupControllerImpl::UpdateDataListValues(
     base::span<const SelectOption> options) {
   non_filtered_suggestions_ = UpdateSuggestionsFromDataList(
       options, std::move(non_filtered_suggestions_));
-  UpdateFilteredSuggestions(/*notify_suggestions_changed=*/false);
+  UpdateFilteredSuggestions();
   if (HasSuggestions()) {
     OnSuggestionsChanged();
   } else {
@@ -267,19 +305,12 @@ void AutofillPopupControllerImpl::UpdateDataListValues(
   }
 }
 
-void AutofillPopupControllerImpl::PinView() {
-  is_view_pinned_ = true;
+bool AutofillPopupControllerImpl::IsViewVisibilityAcceptingThresholdEnabled()
+    const {
+  return !disable_threshold_for_testing_;
 }
 
 void AutofillPopupControllerImpl::Hide(SuggestionHidingReason reason) {
-  // If the reason for hiding is only stale data or a user interacting with
-  // native Chrome UI (kFocusChanged/kEndEditing), the popup might be kept open.
-  if (is_view_pinned_ && (reason == SuggestionHidingReason::kStaleData ||
-                          reason == SuggestionHidingReason::kFocusChanged ||
-                          reason == SuggestionHidingReason::kEndEditing)) {
-    return;  // Don't close the popup while waiting for an update.
-  }
-
   if ((reason == SuggestionHidingReason::kFocusChanged ||
        reason == SuggestionHidingReason::kEndEditing) &&
       view_ && view_->HasFocus()) {
@@ -302,7 +333,18 @@ void AutofillPopupControllerImpl::Hide(SuggestionHidingReason reason) {
   }
   key_press_observer_.Reset();
   popup_hide_helper_.reset();
-  AutofillMetrics::LogAutofillSuggestionHidingReason(reason);
+  // TODO(crbug.com/341916065): Consider only emitting this metric if the popup
+  // has been opened before. Today the show method can call `Hide()` before
+  // properly opening the popup.
+  AutofillMetrics::LogAutofillSuggestionHidingReason(
+      suggestions_filling_product_, reason);
+
+  if (IsRootPopup() && shown_time_) {
+    AutofillMetrics::LogAutofillPopupVisibleDuration(
+        suggestions_filling_product_, base::TimeTicks::Now() - *shown_time_);
+    shown_time_.reset();
+  }
+
   HideViewAndDie();
 }
 
@@ -313,46 +355,17 @@ void AutofillPopupControllerImpl::ViewDestroyed() {
 }
 
 void AutofillPopupControllerImpl::OnSuggestionsChanged() {
-  if (view_) {
-    view_->OnSuggestionsChanged();
-  }
+  OnSuggestionsChanged(/*prefer_prev_arrow_side=*/false);
 }
 
 void AutofillPopupControllerImpl::AcceptSuggestion(int index) {
+  CHECK_LT(base::checked_cast<size_t>(index), GetSuggestions().size());
+  CHECK(IsAcceptableSuggestionType(GetSuggestions()[index].type));
+
   // Ignore clicks immediately after the popup was shown. This is to prevent
   // users accidentally accepting suggestions (crbug.com/1279268).
-  if (time_view_shown_.value().is_null() && !disable_threshold_for_testing_) {
-    return;
-  }
-  const base::TimeDelta time_elapsed =
-      base::TimeTicks::Now() - time_view_shown_.value();
-  // If `kAutofillPopupImprovedTimingChecksV2` is enabled, then
-  // `time_view_shown_` will remain null for at least
-  // `kIgnoreEarlyClicksOnSuggestionsDuration`. Therefore we do not have to
-  // check any times here.
-  // TODO(crbug.com/40279821): Once `kAutofillPopupImprovedTimingChecksV2` is
-  // launched, clean up most of the timing checks. That is:
-  // - Remove paint checks inside views.
-  // - Remove `event_time` parameters.
-  // - Rename `NextIdleTimeTicks` to `IdleDelayBarrier` or something similar
-  //   that indicates that just contains a boolean signaling whether a certain
-  //   delay has (safely) passed.
-  if (time_elapsed < kIgnoreEarlyClicksOnSuggestionsDuration &&
-      !disable_threshold_for_testing_ &&
-      !base::FeatureList::IsEnabled(
-          features::kAutofillPopupImprovedTimingChecksV2)) {
-    base::UmaHistogramCustomTimes(
-        "Autofill.Popup.AcceptanceDelayThresholdNotMet", time_elapsed,
-        base::Milliseconds(0), kIgnoreEarlyClicksOnSuggestionsDuration,
-        /*buckets=*/50);
-    return;
-  }
-
-  if (static_cast<size_t>(index) >= GetSuggestions().size()) {
-    // Prevents crashes from crbug.com/521133. It seems that in rare cases or
-    // races the suggestions_ and the user-selected index may be out of sync.
-    // If the index points out of bounds, Chrome will crash. Prevent this by
-    // ignoring the selection and wait for another signal from the user.
+  if ((!barrier_for_accepting_ || !barrier_for_accepting_->value()) &&
+      !disable_threshold_for_testing_) {
     return;
   }
 
@@ -361,23 +374,26 @@ void AutofillPopupControllerImpl::AcceptSuggestion(int index) {
     return;
   }
 
-  UserEducationService::MaybeNotifyPromoFeatureUsed(
-      web_contents_->GetBrowserContext(),
-      compose::features::kEnableComposeSavedStateNudge);
-
   // Use a copy instead of a reference here. Under certain circumstances,
   // `DidAcceptSuggestion()` can call `SetSuggestions()` and invalidate the
   // reference.
   Suggestion suggestion = GetSuggestions()[index];
-  NotifyIphAboutAcceptedSuggestion(web_contents_->GetBrowserContext(),
-                                   suggestion);
+  if (!suggestion.IsAcceptable()) {
+    return;
+  }
+  NotifyUserEducationAboutAcceptedSuggestion(web_contents_.get(), suggestion);
   if (suggestion.acceptance_a11y_announcement && view_) {
     view_->AxAnnounce(*suggestion.acceptance_a11y_announcement);
   }
 
-  delegate_->DidAcceptSuggestion(
-      suggestion, AutofillSuggestionDelegate::SuggestionPosition{
-                      .row = index, .sub_popup_level = GetPopupLevel()});
+  AutofillMetrics::LogPopupInteraction(suggestions_filling_product_,
+                                       GetPopupLevel(),
+                                       PopupInteraction::kSuggestionAccepted);
+  delegate_->DidAcceptSuggestion(suggestion,
+                                 AutofillSuggestionDelegate::SuggestionMetadata{
+                                     .row = index,
+                                     .sub_popup_level = GetPopupLevel(),
+                                     .from_search_result = !!filter_});
 }
 
 gfx::NativeView AutofillPopupControllerImpl::container_view() const {
@@ -390,6 +406,10 @@ content::WebContents* AutofillPopupControllerImpl::GetWebContents() const {
 
 const gfx::RectF& AutofillPopupControllerImpl::element_bounds() const {
   return controller_common_.element_bounds;
+}
+
+PopupAnchorType AutofillPopupControllerImpl::anchor_type() const {
+  return controller_common_.anchor_type;
 }
 
 base::i18n::TextDirection AutofillPopupControllerImpl::GetElementTextDirection()
@@ -406,8 +426,14 @@ const std::vector<Suggestion>& AutofillPopupControllerImpl::GetSuggestions()
   return filter_ ? filtered_suggestions_ : non_filtered_suggestions_;
 }
 
-void AutofillPopupControllerImpl::UpdateFilteredSuggestions(
-    bool notify_suggestions_changed) {
+void AutofillPopupControllerImpl::OnSuggestionsChanged(
+    bool prefer_prev_arrow_side) {
+  if (view_) {
+    view_->OnSuggestionsChanged(prefer_prev_arrow_side);
+  }
+}
+
+void AutofillPopupControllerImpl::UpdateFilteredSuggestions() {
   if (filter_) {
     SuggestionFiltrationResult filtration_result =
         FilterSuggestions(non_filtered_suggestions_, *filter_);
@@ -416,9 +442,6 @@ void AutofillPopupControllerImpl::UpdateFilteredSuggestions(
   } else {
     filtered_suggestions_.clear();
     suggestion_filter_matches_.clear();
-  }
-  if (notify_suggestions_changed) {
-    OnSuggestionsChanged();
   }
 }
 
@@ -466,7 +489,7 @@ bool AutofillPopupControllerImpl::RemoveSuggestion(
           AutofillMetrics::LogDeleteAddressProfileFromKeyboardAccessory();
           break;
         case AutofillMetrics::SingleEntryRemovalMethod::kDeleteButtonClicked:
-          NOTREACHED_NORETURN();
+          NOTREACHED();
       }
       break;
     case FillingProduct::kAutocomplete:
@@ -483,9 +506,12 @@ bool AutofillPopupControllerImpl::RemoveSuggestion(
     case FillingProduct::kNone:
     case FillingProduct::kMerchantPromoCode:
     case FillingProduct::kIban:
+    case FillingProduct::kLoyaltyCard:
     case FillingProduct::kPassword:
     case FillingProduct::kCompose:
     case FillingProduct::kPlusAddresses:
+    case FillingProduct::kAutofillAi:
+    case FillingProduct::kIdentityCredential:
       break;
   }
 
@@ -496,7 +522,7 @@ bool AutofillPopupControllerImpl::RemoveSuggestion(
                                      GetSuggestions()[list_index]);
     CHECK(suggestion_iter != non_filtered_suggestions_.end());
     non_filtered_suggestions_.erase(suggestion_iter);
-    UpdateFilteredSuggestions(/*notify_suggestions_changed=*/false);
+    UpdateFilteredSuggestions();
   } else {
     non_filtered_suggestions_.erase(non_filtered_suggestions_.begin() +
                                     list_index);
@@ -532,7 +558,7 @@ bool AutofillPopupControllerImpl::HasSuggestions() const {
 void AutofillPopupControllerImpl::SetSuggestions(
     std::vector<Suggestion> suggestions) {
   non_filtered_suggestions_ = std::move(suggestions);
-  UpdateFilteredSuggestions(/*notify_suggestions_changed=*/false);
+  UpdateFilteredSuggestions();
 }
 
 base::WeakPtr<AutofillPopupController>
@@ -545,6 +571,7 @@ void AutofillPopupControllerImpl::ClearState() {
   // regenerated and this will cause flickering.
   filtered_suggestions_.clear();
   non_filtered_suggestions_.clear();
+  any_suggestion_selected_ = false;
 }
 
 void AutofillPopupControllerImpl::HideViewAndDie() {
@@ -564,14 +591,16 @@ void AutofillPopupControllerImpl::HideViewAndDie() {
     view_ = nullptr;
   }
 
-  if (self_deletion_weak_ptr_factory_.HasWeakPtrs())
+  if (self_deletion_weak_ptr_factory_.HasWeakPtrs()) {
     return;
+  }
 
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(
                      [](base::WeakPtr<AutofillPopupControllerImpl> weak_this) {
-                       if (weak_this)
+                       if (weak_this) {
                          delete weak_this.get();
+                       }
                      },
                      self_deletion_weak_ptr_factory_.GetWeakPtr()));
 }
@@ -587,8 +616,13 @@ int AutofillPopupControllerImpl::GetPopupLevel() const {
 }
 
 void AutofillPopupControllerImpl::FireControlsChangedEvent(bool is_show) {
-  if (!accessibility_state_utils::IsScreenReaderEnabled())
+  if (!content::BrowserAccessibilityState::GetInstance()
+           ->GetAccessibilityMode()
+           .has_mode(ui::AXMode::kExtendedProperties)) {
+    // Skip this additional tree processing unless the overall AXMode for the
+    // browser process contains the flag for extended properties.
     return;
+  }
 
   // Retrieve the ax tree id associated with the current web contents.
   ui::AXTreeID tree_id;
@@ -600,13 +634,12 @@ void AutofillPopupControllerImpl::FireControlsChangedEvent(bool is_show) {
   // the AXPlatformNode for the web contents.
   ui::AXPlatformNode* root_platform_node =
       GetRootAXPlatformNodeForWebContents();
-  if (!root_platform_node)
+  if (!root_platform_node) {
     return;
+  }
 
   ui::AXPlatformNodeDelegate* root_platform_node_delegate =
       root_platform_node->GetDelegate();
-  if (!root_platform_node_delegate)
-    return;
 
   // Now get the target node from its tree ID and node ID.
   ui::AXPlatformNode* target_node =
@@ -639,14 +672,16 @@ AutofillPopupControllerImpl::GetRootAXPlatformNodeForWebContents() {
   }
 
   auto* rwhv = web_contents_->GetRenderWidgetHostView();
-  if (!rwhv)
+  if (!rwhv) {
     return nullptr;
+  }
 
   // RWHV gives us a NativeViewAccessible.
   gfx::NativeViewAccessible native_view_accessible =
       rwhv->GetNativeViewAccessible();
-  if (!native_view_accessible)
+  if (!native_view_accessible) {
     return nullptr;
+  }
 
   // NativeViewAccessible corresponds to an AXPlatformNode.
   return ui::AXPlatformNode::FromNativeViewAccessible(native_view_accessible);
@@ -667,7 +702,7 @@ void AutofillPopupControllerImpl::KeyPressObserver::Observe(
       // Cannot bind HandleKeyPressEvent() directly because of its
       // return value.
       [](base::WeakPtr<AutofillPopupControllerImpl> weak_this,
-         const content::NativeWebKeyboardEvent& event) {
+         const input::NativeWebKeyboardEvent& event) {
         return weak_this && weak_this->HandleKeyPressEvent(event);
       },
       observer_->weak_ptr_factory_.GetWeakPtr());
@@ -686,17 +721,31 @@ void AutofillPopupControllerImpl::KeyPressObserver::Reset() {
 
 void AutofillPopupControllerImpl::SelectSuggestion(int index) {
   CHECK_LT(base::checked_cast<size_t>(index), GetSuggestions().size());
+  CHECK(IsAcceptableSuggestionType(GetSuggestions()[index].type));
 
   if (IsPointerLocked(web_contents_.get())) {
     Hide(SuggestionHidingReason::kMouseLocked);
     return;
   }
 
-  if (!IsAcceptableSuggestionType(GetSuggestionAt(index).type)) {
+  const autofill::Suggestion& suggestion = GetSuggestionAt(index);
+  if (!suggestion.IsAcceptable()) {
     UnselectSuggestion();
     return;
   }
 
+  if (!any_suggestion_selected_) {
+    // Suggestion selection can happen multiple times for the same popup.
+    // However we only emit it once to keep this metrics close to having a
+    // funnel behaviour. Meaning the number of popups being shown is larger than
+    // the number of popups being selected, which is larger than the number of
+    // popups being accepted.
+    AutofillMetrics::LogPopupInteraction(suggestions_filling_product_,
+                                         GetPopupLevel(),
+                                         PopupInteraction::kSuggestionSelected);
+  }
+
+  any_suggestion_selected_ = true;
   delegate_->DidSelectSuggestion(GetSuggestionAt(index));
 }
 
@@ -719,7 +768,7 @@ AutofillPopupControllerImpl::OpenSubPopup(
   // Show() can fail and cause controller deletion. Therefore store the weak
   // pointer before, so that this method returns null when that happens.
   sub_popup_controller_ = controller->weak_ptr_factory_.GetWeakPtr();
-  controller->Show(std::move(suggestions), trigger_source_,
+  controller->Show(ui_session_id_, std::move(suggestions), trigger_source_,
                    autoselect_first_suggestion);
   return sub_popup_controller_;
 }
@@ -735,14 +784,15 @@ void AutofillPopupControllerImpl::HideSubPopup() {
 bool AutofillPopupControllerImpl::
     ShouldIgnoreMouseObservedOutsideItemBoundsCheck() const {
   return should_ignore_mouse_observed_outside_item_bounds_check_ ||
-         !IsRootPopup() ||
-         base::FeatureList::IsEnabled(
-             features::kAutofillPopupDisablePaintChecks);
+         !IsRootPopup();
 }
 
-void AutofillPopupControllerImpl::PerformButtonActionForSuggestion(int index) {
+void AutofillPopupControllerImpl::PerformButtonActionForSuggestion(
+    int index,
+    const SuggestionButtonAction& button_action) {
   CHECK_LE(base::checked_cast<size_t>(index), GetSuggestions().size());
-  delegate_->DidPerformButtonActionForSuggestion(GetSuggestions()[index]);
+  delegate_->DidPerformButtonActionForSuggestion(GetSuggestions()[index],
+                                                 button_action);
 }
 
 const std::vector<AutofillPopupController::SuggestionFilterMatch>&
@@ -753,11 +803,12 @@ AutofillPopupControllerImpl::GetSuggestionFilterMatches() const {
 void AutofillPopupControllerImpl::SetFilter(
     std::optional<SuggestionFilter> filter) {
   filter_ = std::move(filter);
-  UpdateFilteredSuggestions(/*notify_suggestions_changed=*/true);
+  UpdateFilteredSuggestions();
+  OnSuggestionsChanged(/*prefer_prev_arrow_side=*/true);
 }
 
 bool AutofillPopupControllerImpl::HandleKeyPressEvent(
-    const content::NativeWebKeyboardEvent& event) {
+    const input::NativeWebKeyboardEvent& event) {
   if (sub_popup_controller_ &&
       sub_popup_controller_->HandleKeyPressEvent(event)) {
     return true;
@@ -766,11 +817,16 @@ bool AutofillPopupControllerImpl::HandleKeyPressEvent(
   return view_ && view_->HandleKeyPressEvent(event);
 }
 
-void AutofillPopupControllerImpl::SetViewForTesting(
-    base::WeakPtr<AutofillPopupView> view) {
-  view_ = std::move(view);
-  time_view_shown_ = NextIdleTimeTicks::CaptureNextIdleTimeTicksWithDelay(
-      kIgnoreEarlyClicksOnSuggestionsDuration);
+void AutofillPopupControllerImpl::OnPopupPainted() {
+  if (!barrier_for_accepting_) {
+    barrier_for_accepting_ = NextIdleBarrier::CreateNextIdleBarrierWithDelay(
+        kIgnoreEarlyClicksOnSuggestionsDuration);
+  }
+}
+
+bool AutofillPopupControllerImpl::HasFilteredOutSuggestions() const {
+  return filter_.has_value() &&
+         filtered_suggestions_.size() != non_filtered_suggestions_.size();
 }
 
 }  // namespace autofill

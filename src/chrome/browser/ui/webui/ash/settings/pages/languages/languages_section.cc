@@ -4,32 +4,34 @@
 
 #include "chrome/browser/ui/webui/ash/settings/pages/languages/languages_section.h"
 
+#include <array>
+
 #include "ash/constants/ash_features.h"
 #include "ash/webui/settings/public/constants/routes.mojom-forward.h"
-#include "base/no_destructor.h"
+#include "base/containers/span.h"
 #include "base/strings/utf_string_conversions.h"
+#include "chrome/browser/ash/input_method/editor_mediator_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/keyboard/chrome_keyboard_controller_client.h"
 #include "chrome/browser/ui/webui/ash/settings/os_settings_features_util.h"
-#include "chrome/browser/ui/webui/ash/settings/pages/device/inputs_section.h"
 #include "chrome/browser/ui/webui/ash/settings/search/search_tag_registry.h"
 #include "chrome/browser/ui/webui/settings/languages_handler.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "chromeos/components/quick_answers/public/cpp/quick_answers_state.h"
+#include "chromeos/constants/chromeos_features.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "net/base/url_util.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/webui/web_ui_util.h"
+#include "ui/webui/webui_util.h"
 #include "url/gurl.h"
 
 namespace ash::settings {
 
 namespace mojom {
 using ::chromeos::settings::mojom::kAppLanguagesSubpagePath;
-using ::chromeos::settings::mojom::kLanguagesAndInputSectionPath;
 using ::chromeos::settings::mojom::kLanguagesSubpagePath;
 using ::chromeos::settings::mojom::kSystemPreferencesSectionPath;
 using ::chromeos::settings::mojom::Section;
@@ -39,8 +41,8 @@ using ::chromeos::settings::mojom::Subpage;
 
 namespace {
 
-const std::vector<SearchConcept>& GetLanguagesPageSearchConceptsV2() {
-  static const base::NoDestructor<std::vector<SearchConcept>> tags({
+base::span<const SearchConcept> GetLanguagesPageSearchConceptsV2() {
+  static constexpr auto tags = std::to_array<SearchConcept>({
       {IDS_OS_SETTINGS_TAG_LANGUAGES,
        mojom::kLanguagesSubpagePath,
        mojom::SearchResultIcon::kLanguage,
@@ -66,11 +68,11 @@ const std::vector<SearchConcept>& GetLanguagesPageSearchConceptsV2() {
        mojom::SearchResultType::kSetting,
        {.setting = mojom::Setting::kOfferTranslation}},
   });
-  return *tags;
+  return tags;
 }
 
-const std::vector<SearchConcept>& GetAppLanguagesPageSearchConcepts() {
-  static const base::NoDestructor<std::vector<SearchConcept>> tags({
+base::span<const SearchConcept> GetAppLanguagesPageSearchConcepts() {
+  static constexpr auto tags = std::to_array<SearchConcept>({
       {IDS_OS_SETTINGS_TAG_LANGUAGES_APP_LANGUAGES,
        mojom::kAppLanguagesSubpagePath,
        mojom::SearchResultIcon::kLanguage,
@@ -78,7 +80,7 @@ const std::vector<SearchConcept>& GetAppLanguagesPageSearchConcepts() {
        mojom::SearchResultType::kSubpage,
        {.subpage = mojom::Subpage::kAppLanguages}},
   });
-  return *tags;
+  return tags;
 }
 
 void AddLanguagesPageStringsV2(content::WebUIDataSource* html_source) {
@@ -143,7 +145,8 @@ void AddLanguagesPageStringsV2(content::WebUIDataSource* html_source) {
   html_source->AddString(
       "translateTargetLabel",
       l10n_util::GetStringUTF16(
-          QuickAnswersState::Get() && QuickAnswersState::Get()->is_eligible()
+          QuickAnswersState::IsEligibleAs(
+              QuickAnswersState::FeatureType::kQuickAnswers)
               ? IDS_OS_SETTINGS_LANGUAGES_TRANSLATE_TARGET_LABEL_WITH_QUICK_ANSWERS
               : IDS_OS_SETTINGS_LANGUAGES_TRANSLATE_TARGET_LABEL));
   html_source->AddString(
@@ -164,13 +167,7 @@ void AddLanguagesPageStringsV2(content::WebUIDataSource* html_source) {
 LanguagesSection::LanguagesSection(Profile* profile,
                                    SearchTagRegistry* search_tag_registry,
                                    PrefService* pref_service)
-    : OsSettingsSection(profile, search_tag_registry),
-      inputs_subsection_(
-          !ash::features::IsOsSettingsRevampWayfindingEnabled()
-              ? std::make_optional<InputsSection>(profile,
-                                                  search_tag_registry,
-                                                  pref_service)
-              : std::nullopt) {
+    : OsSettingsSection(profile, search_tag_registry) {
   SearchTagRegistry::ScopedTagUpdater updater = registry()->StartUpdate();
   updater.AddSearchTags(GetLanguagesPageSearchConceptsV2());
   if (IsPerAppLanguageEnabled(profile)) {
@@ -199,13 +196,6 @@ void LanguagesSection::AddLoadTimeData(content::WebUIDataSource* html_source) {
                           IsPerAppLanguageEnabled(profile()));
 
   AddLanguagesPageStringsV2(html_source);
-
-  // Inputs subsection exists only when the OsSettingsRevampWayfinding feature
-  // is disabled. It is part of the Device section when the feature is enabled.
-  if (!ash::features::IsOsSettingsRevampWayfindingEnabled()) {
-    CHECK(inputs_subsection_);
-    inputs_subsection_->AddLoadTimeData(html_source);
-  }
 }
 
 void LanguagesSection::AddHandlers(content::WebUI* web_ui) {
@@ -218,9 +208,7 @@ int LanguagesSection::GetSectionNameMessageId() const {
 }
 
 mojom::Section LanguagesSection::GetSection() const {
-  return ash::features::IsOsSettingsRevampWayfindingEnabled()
-             ? mojom::Section::kSystemPreferences
-             : mojom::Section::kLanguagesAndInput;
+  return mojom::Section::kSystemPreferences;
 }
 
 mojom::SearchResultIcon LanguagesSection::GetSectionIcon() const {
@@ -228,9 +216,7 @@ mojom::SearchResultIcon LanguagesSection::GetSectionIcon() const {
 }
 
 const char* LanguagesSection::GetSectionPath() const {
-  return ash::features::IsOsSettingsRevampWayfindingEnabled()
-             ? mojom::kSystemPreferencesSectionPath
-             : mojom::kLanguagesAndInputSectionPath;
+  return mojom::kSystemPreferencesSectionPath;
 }
 
 bool LanguagesSection::LogMetric(mojom::Setting setting,
@@ -267,13 +253,6 @@ void LanguagesSection::RegisterHierarchy(HierarchyGenerator* generator) const {
         mojom::SearchResultIcon::kLanguage,
         mojom::SearchResultDefaultRank::kMedium,
         mojom::kAppLanguagesSubpagePath);
-  }
-
-  // Inputs subsection exists only when the OsSettingsRevampWayfinding feature
-  // is disabled. It is part of the Device section when the feature is enabled.
-  if (!ash::features::IsOsSettingsRevampWayfindingEnabled()) {
-    CHECK(inputs_subsection_);
-    inputs_subsection_->RegisterHierarchy(generator);
   }
 }
 

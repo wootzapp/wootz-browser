@@ -2,11 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/events/devices/x11/device_data_manager_x11.h"
 
 #include <stddef.h>
 
 #include <algorithm>
+#include <array>
 #include <utility>
 
 #include "base/at_exit.h"
@@ -80,7 +86,7 @@
 // When you add new data types, please make sure the order here is aligned
 // with the order in the DataType enum in the header file because we assume
 // they are in sync when updating the device list (see UpdateDeviceList).
-constexpr const char* kCachedAtoms[] = {
+constexpr auto kCachedAtoms = std::to_array<const char*>({
     AXIS_LABEL_PROP_REL_HWHEEL,
     AXIS_LABEL_PROP_REL_WHEEL,
     AXIS_LABEL_PROP_ABS_DBL_ORDINAL_X,
@@ -107,7 +113,7 @@ constexpr const char* kCachedAtoms[] = {
     AXIS_LABEL_PROP_ABS_PRESSURE,
     AXIS_LABEL_PROP_ABS_TILT_X,
     AXIS_LABEL_PROP_ABS_TILT_Y,
-};
+});
 
 // Make sure the sizes of enum and |kCachedAtoms| are aligned.
 static_assert(std::size(kCachedAtoms) ==

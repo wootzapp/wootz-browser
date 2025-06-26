@@ -24,7 +24,6 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
-#include "base/observer_list.h"
 #include "base/strings/string_split.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
@@ -33,14 +32,21 @@
 #include "base/timer/elapsed_timer.h"
 #include "base/trace_event/memory_usage_estimator.h"
 #include "base/types/expected.h"
+#include "build/buildflag.h"
 #include "components/privacy_sandbox/privacy_sandbox_attestations/privacy_sandbox_attestations_histograms.h"
 #include "components/privacy_sandbox/privacy_sandbox_attestations/privacy_sandbox_attestations_parser.h"
 #include "components/privacy_sandbox/privacy_sandbox_features.h"
 #include "components/startup_metric_utils/browser/startup_metric_utils.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/privacy_sandbox_attestations_observer.h"
 #include "net/base/schemeful_site.h"
 #include "url/gurl.h"
+
+#if BUILDFLAG(IS_ANDROID)
+#include "base/android/apk_assets.h"
+#include "base/containers/span.h"
+#include "base/files/memory_mapped_file.h"
+#include "components/privacy_sandbox/privacy_sandbox_attestations/preload/android_apk_assets.h"
+#endif  // BUILDFLAG(IS_ANDROID)
 
 namespace privacy_sandbox {
 
@@ -76,7 +82,7 @@ bool IsOverriddenByFlags(const net::SchemefulSite& site) {
       continue;
     }
 
-    if (net::SchemefulSite(override_url) == site) {
+    if (site.IsSameSiteWith(override_url)) {
       return true;
     }
   }
@@ -84,141 +90,13 @@ bool IsOverriddenByFlags(const net::SchemefulSite& site) {
   return false;
 }
 
-// The sentinel file is used to prevent crash-looping if the attestations file
-// crashes during parsing, which takes place right after startup.
-// The sentinel file is placed in the attestations component installation
-// directory just before parsing. Upon successful parsing, it is removed. If a
-// sentinel file is found on next start-up, this implies the previous parsing
-// has crashed. In this case no further parsing will be attempted.
-// The content of the sentinel file is the version number of the attestation
-// list that is attempted to parse.
-// Once there is a new version downloaded by the component updater, the old
-// version, along with any sentinel file, will be removed.
-class SentinelFile {
- public:
-  explicit SentinelFile(const base::FilePath& install_dir)
-      : path_(install_dir.Append(kSentinelFileName)) {}
-
-  SentinelFile(const SentinelFile&) = delete;
-  SentinelFile& operator=(const SentinelFile&) = delete;
-
-  bool IsPresent() { return base::PathExists(path_); }
-
-  bool Create(std::string_view version) {
-    return base::WriteFile(path_, version);
-  }
-
-  bool Remove() { return base::DeleteFile(path_); }
-  std::string GetVersion() {
-    std::string version;
-    if (!base::ReadFileToString(path_, &version)) {
-      return std::string();
-    }
-    return version;
-  }
-
- private:
-  base::FilePath path_;
-};
-
 void RecordParsingStatusHistogram(ParsingStatus status) {
   base::UmaHistogramEnumeration(kAttestationsFileParsingStatusUMA, status);
 }
 
-// Convert the attestations file version to an integer in order to record it
-// in a histogram. Return -1 if the version does not match the YYYY.MM.DD.VV
-// format.
-int ConvertVersionToInt(const base::Version version) {
-  if (!version.IsValid()) {
-    return -1;
-  }
-
-  const std::vector<uint32_t>& full_version = version.components();
-  if (full_version.size() != 4) {
-    return -1;
-  }
-
-  int year = base::checked_cast<int>(full_version.at(0));
-  if (year < 2023 || year > 2147) {
-    // 2023 is the year Privacy Sandbox Attestations starts to be enforced.
-    // The year is capped at 2147 to prevent overflow. INT_MAX is 2,147,483,647.
-    return -1;
-  }
-
-  int month = base::checked_cast<int>(full_version.at(1));
-  if (month < 1 || month > 12) {
-    return -1;
-  }
-
-  int day = base::checked_cast<int>(full_version.at(2));
-  if (day < 1 || day > 31) {
-    return -1;
-  }
-
-  int intraday_version = base::checked_cast<int>(full_version.at(3));
-  if (intraday_version < 0 || intraday_version > 99) {
-    return -1;
-  }
-
-  int result = year;
-
-  result *= 100;
-  result += month;
-  result *= 100;
-  result += day;
-  result *= 100;
-  result += intraday_version;
-
-  return result;
-}
-
-// Trigger the opening and parsing of the attestations file. Returns the
-// parsed `attestations_map_` or the failure status. This function should only
-// be invoked with `kEnforcePrivacySandboxAttestations` enabled.
-// `installed_file_path` is the path to the attestations list file.
+// Parse the attestations map from the proto string.
 base::expected<PrivacySandboxAttestationsMap, ParsingStatus>
-LoadAttestationsInternal(base::FilePath installed_file_path,
-                         base::Version version) {
-  // This function should only be called when the feature is enabled.
-  CHECK(base::FeatureList::IsEnabled(
-      privacy_sandbox::kEnforcePrivacySandboxAttestations));
-
-  std::string proto_str;
-  // When reading the file, the `base::FilePath` directory should be used to
-  // make sure it works across platforms. If using the converted directory
-  // returned by `base::FilePath::AsUTF8Unsafe()`, it fails on Windows when the
-  // directory contains combining characters.
-  if (!base::ReadFileToString(installed_file_path, &proto_str)) {
-    return base::unexpected(ParsingStatus::kFileNotExist);
-  }
-
-  std::optional<SentinelFile> sentinel_file =
-      base::FeatureList::IsEnabled(
-          privacy_sandbox::kPrivacySandboxAttestationSentinel)
-          ? std::optional<SentinelFile>(installed_file_path.DirName())
-          : std::nullopt;
-  if (sentinel_file.has_value() && sentinel_file->IsPresent()) {
-    // An existing sentinel file implies previous parsing has crashed.
-    std::string sentinel_version_str = sentinel_file->GetVersion();
-    // The sentinel file may not have version number in its content. When it was
-    // first added to the codebase, the sentinel file was set to have an empty
-    // content. Please see crbug.com/1512626.
-    base::Version sentinel_version(sentinel_version_str);
-    base::UmaHistogramSparse(kSentinelVersionUMA,
-                             ConvertVersionToInt(sentinel_version));
-
-    return base::unexpected(ParsingStatus::kSentinelFilePresent);
-  }
-
-  if (sentinel_file.has_value() &&
-      !sentinel_file->Create(version.GetString())) {
-    // Failed to create the sentinel file.
-    return base::unexpected(ParsingStatus::kCannotCreateSentinel);
-  }
-
-  // If there is any error or crash during parsing, the sentinel file will
-  // persist in the installation directory. It will prevent this version of
-  // the attestations file from being parsed again.
+ParseAttestationsMap(const std::string& proto_str) {
   base::ElapsedTimer parsing_timer;
   std::optional<PrivacySandboxAttestationsMap> attestations_map =
       ParseAttestationsFromString(proto_str);
@@ -238,13 +116,83 @@ LoadAttestationsInternal(base::FilePath installed_file_path,
       kAttestationsMapMemoryUsageUMA,
       base::trace_event::EstimateMemoryUsage(attestations_map.value()) / 1024);
 
-  if (sentinel_file.has_value() && !sentinel_file->Remove()) {
-    // Failed to remove the sentinel file.
-    return base::unexpected(ParsingStatus::kCannotRemoveSentinel);
-  }
-
   return base::ok(std::move(attestations_map.value()));
 }
+
+// Trigger the opening and parsing of the attestations file. Returns the
+// parsed `attestations_map_` or the failure status. This function should only
+// be invoked with `kEnforcePrivacySandboxAttestations` enabled.
+// `installed_file_path` is the path to the attestations list file.
+base::expected<PrivacySandboxAttestationsMap, ParsingStatus>
+LoadAttestationsInternal(base::FilePath installed_file_path) {
+  // This function should only be called when the feature is enabled.
+  CHECK(base::FeatureList::IsEnabled(
+      privacy_sandbox::kEnforcePrivacySandboxAttestations));
+
+  std::string proto_str;
+  // When reading the file, the `base::FilePath` directory should be used to
+  // make sure it works across platforms. If using the converted directory
+  // returned by `base::FilePath::AsUTF8Unsafe()`, it fails on Windows when the
+  // directory contains combining characters.
+  if (!base::ReadFileToString(installed_file_path, &proto_str)) {
+    return base::unexpected(ParsingStatus::kFileNotExist);
+  }
+
+  return ParseAttestationsMap(proto_str);
+}
+
+#if BUILDFLAG(IS_ANDROID)
+
+void RecordLoadAPKAssetStatusHistogram(LoadAPKAssetStatus status) {
+  base::UmaHistogramEnumeration(kAttestationsLoadAPKAssetStatusUMA, status);
+}
+
+// Read the attestations list from APK assets and parse the content to the
+// attestations map.
+base::expected<PrivacySandboxAttestationsMap, ParsingStatus>
+LoadAttestationsFromAPKAsset() {
+  base::MemoryMappedFile::Region region =
+      base::MemoryMappedFile::Region::kWholeFile;
+
+  // Open the attestation list from APK assets.
+  int open_list_status = base::android::OpenApkAsset(
+      std::string(kAttestationsListAssetPath), &region);
+
+  // The attestations APK assets are unconditionally packaged. It is safe to
+  // assume that assets exist since they live in the same .apk file as the
+  // program itself. In case of unexpected failure, the error is recorded to the
+  // histogram.
+  if (open_list_status == -1) {
+    // TODO(crbug.com/408992354): Replace this histogram recording to a CHECK if
+    // there is few failures observed.
+    RecordLoadAPKAssetStatusHistogram(LoadAPKAssetStatus::kCannotOpenList);
+    return base::unexpected(ParsingStatus::kFileNotExist);
+  }
+
+  // Create a memory mapped file of privacy-sandbox-attestations.dat.
+  base::File list_file(open_list_status);
+  base::MemoryMappedFile list_memory_mapped_file;
+  bool mapped =
+      list_memory_mapped_file.Initialize(std::move(list_file), region);
+  if (!mapped) {
+    // TODO(crbug.com/408992354): Replace this histogram recording to a CHECK if
+    // there is few failures observed.
+    RecordLoadAPKAssetStatusHistogram(LoadAPKAssetStatus::kCannotMemoryMapList);
+    return base::unexpected(ParsingStatus::kFileNotExist);
+  }
+
+  const std::string proto_str(
+      base::as_string_view(base::as_chars(list_memory_mapped_file.bytes())));
+  base::expected<PrivacySandboxAttestationsMap, ParsingStatus>
+      attestations_map = ParseAttestationsMap(proto_str);
+  RecordLoadAPKAssetStatusHistogram(attestations_map.has_value()
+                                        ? LoadAPKAssetStatus::kSuccess
+                                        : LoadAPKAssetStatus::kCannotParseList);
+
+  return attestations_map;
+}
+
+#endif  // BUILDFLAG(IS_ANDROID)
 
 }  // namespace
 
@@ -276,7 +224,9 @@ PrivacySandboxAttestations::~PrivacySandboxAttestations() = default;
 
 PrivacySandboxSettingsImpl::Status PrivacySandboxAttestations::IsSiteAttested(
     const net::SchemefulSite& site,
-    PrivacySandboxAttestationsGatedAPI invoking_api) const {
+    PrivacySandboxAttestationsGatedAPI invoking_api,
+    std::optional<AttestationsDefaultBehavior> attestations_default_behavior)
+    const {
   PrivacySandboxSettingsImpl::Status status =
       IsSiteAttestedInternal(site, invoking_api);
   base::UmaHistogramEnumeration(kAttestationStatusUMA, status);
@@ -294,12 +244,28 @@ PrivacySandboxSettingsImpl::Status PrivacySandboxAttestations::IsSiteAttested(
         kAttestationsDownloadedNotYetLoaded:
     case PrivacySandboxSettingsImpl::Status::kAttestationsFileCorrupt:
     case PrivacySandboxSettingsImpl::Status::kAttestationsFileNotYetChecked:
-      return base::FeatureList::IsEnabled(
-                 kDefaultAllowPrivacySandboxAttestations)
-                 ? PrivacySandboxSettingsImpl::Status::kAllowed
-                 : status;
-    default:
+      if (attestations_default_behavior.has_value()) {
+        switch (*attestations_default_behavior) {
+          case AttestationsDefaultBehavior::kAllow:
+            return PrivacySandboxSettingsImpl::Status::kAllowed;
+          case AttestationsDefaultBehavior::kDeny:
+            return status;
+        }
+      } else {
+        return base::FeatureList::IsEnabled(
+                   kDefaultAllowPrivacySandboxAttestations)
+                   ? PrivacySandboxSettingsImpl::Status::kAllowed
+                   : status;
+      }
+    default: {
+      // Record whether the attestation map is parsed from the pre-installed or
+      // downloaded file.
+      base::UmaHistogramEnumeration(kAttestationsFileSource,
+                                    is_pre_installed()
+                                        ? FileSource::kPreInstalled
+                                        : FileSource::kDownloaded);
       return status;
+    }
   }
 }
 
@@ -371,7 +337,8 @@ PrivacySandboxAttestations::IsSiteAttestedInternal(
 
 void PrivacySandboxAttestations::LoadAttestations(
     base::Version version,
-    base::FilePath installed_file_path) {
+    base::FilePath installed_file_path,
+    bool is_pre_installed) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   // `LoadAttestations` is invoked by `ComponentReady`, which is always run on
   // the UI thread.
@@ -411,10 +378,9 @@ void PrivacySandboxAttestations::LoadAttestations(
   // destroyed.
   task_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,
-      base::BindOnce(&LoadAttestationsInternal, std::move(installed_file_path),
-                     version),
+      base::BindOnce(&LoadAttestationsInternal, std::move(installed_file_path)),
       base::BindOnce(&PrivacySandboxAttestations::OnAttestationsParsed,
-                     base::Unretained(this), version));
+                     base::Unretained(this), version, is_pre_installed));
 }
 
 void PrivacySandboxAttestations::AddOverride(const net::SchemefulSite& site) {
@@ -429,14 +395,12 @@ bool PrivacySandboxAttestations::IsOverridden(
 void PrivacySandboxAttestations::SetAllPrivacySandboxAttestedForTesting(
     bool all_attested) {
   is_all_apis_attested_for_testing_ = all_attested;
-  NotifyObserversOnAttestationsLoaded();
 }
 
 void PrivacySandboxAttestations::SetAttestationsForTesting(
     std::optional<PrivacySandboxAttestationsMap> attestations_map) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   attestations_map_ = std::move(attestations_map);
-  NotifyObserversOnAttestationsLoaded();
 }
 
 base::Version PrivacySandboxAttestations::GetVersionForTesting() const {
@@ -487,6 +451,7 @@ void PrivacySandboxAttestations::RunComponentRegistrationCallbackForTesting() {
 
 void PrivacySandboxAttestations::OnAttestationsParsed(
     base::Version version,
+    bool is_pre_installed,
     base::expected<PrivacySandboxAttestationsMap, ParsingStatus>
         attestations_map) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -506,6 +471,7 @@ void PrivacySandboxAttestations::OnAttestationsParsed(
     attestations_map_ = std::move(attestations_map.value());
   }
 
+  SetIsPreInstalled(is_pre_installed);
   attestations_parse_progress_ = Progress::kFinished;
 
   // Do not remove. There is an internal test that depends on the loggings.
@@ -514,53 +480,33 @@ void PrivacySandboxAttestations::OnAttestationsParsed(
   VLOG(1) << "Number of attestation entries: "
           << (attestations_map_ ? attestations_map_->size() : 0);
 
-  NotifyObserversOnAttestationsLoaded();
-
   RunLoadAttestationsDoneCallbackForTesting();  // IN-TEST
 }
 
-void PrivacySandboxAttestations::NotifyObserversOnAttestationsLoaded() {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  for (auto& observer : observers_) {
-    observer.OnAttestationsLoaded();
-  }
-}
-
-bool PrivacySandboxAttestations::AddObserver(
-    content::PrivacySandboxAttestationsObserver* observer) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-
-  // When the feature is disabled, the attestations are not enforced and the
-  // attestations are not loaded. Returning true so that the observers don't
-  // have to wait indefinitely.
-  if (!base::FeatureList::IsEnabled(
-          privacy_sandbox::kEnforcePrivacySandboxAttestations)) {
-    return true;
-  }
-
-  observers_.AddObserver(observer);
-
-  return IsEverLoaded();
-}
-
-void PrivacySandboxAttestations::RemoveObserver(
-    content::PrivacySandboxAttestationsObserver* observer) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-
-  observers_.RemoveObserver(observer);
-}
-
-bool PrivacySandboxAttestations::IsEverLoaded() const {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  // TODO(crbug.com/40287460): Add lock to `attestations_parse_progress_`.
-  return attestations_map_.has_value() ||
-         attestations_parse_progress_ == Progress::kFinished ||
-         is_all_apis_attested_for_testing_;
-}
-
 void PrivacySandboxAttestations::OnAttestationsFileCheckComplete() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   attestations_file_checked_ = true;
   RunComponentRegistrationCallbackForTesting();  // IN-TEST
+
+// On Android, if the parsing has not yet started at the end of component
+// registration, this implies there is no attestations list available. The
+// pre-installed attestations component in APK assets will be read to populate
+// the in-memory attestations map.
+// TODO(crbug.com/406020732): Consider also loading the attestations component
+// from APK assets if the parsing has finished with error.
+#if BUILDFLAG(IS_ANDROID)
+  if (attestations_parse_progress_ == Progress::kNotStarted &&
+      base::FeatureList::IsEnabled(
+          privacy_sandbox::kPrivacySandboxAttestationsLoadFromAPKAsset)) {
+    attestations_parse_progress_ = Progress::kStarted;
+    task_runner_->PostTaskAndReplyWithResult(
+        FROM_HERE, base::BindOnce(&LoadAttestationsFromAPKAsset),
+        base::BindOnce(&PrivacySandboxAttestations::OnAttestationsParsed,
+                       base::Unretained(this),
+                       base::Version(kAttestationsListAssetVersion),
+                       /*is_pre_installed=*/true));
+  }
+#endif  // BUILDFLAG(IS_ANDROID)
 }
 
 }  // namespace privacy_sandbox

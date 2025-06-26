@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.touch_to_fill;
 
-import static org.chromium.chrome.browser.flags.ChromeFeatureList.SHARED_PASSWORD_NOTIFICATION_UI;
 import static org.chromium.chrome.browser.touch_to_fill.TouchToFillProperties.CredentialProperties.CREDENTIAL;
 import static org.chromium.chrome.browser.touch_to_fill.TouchToFillProperties.CredentialProperties.FAVICON_OR_FALLBACK;
 import static org.chromium.chrome.browser.touch_to_fill.TouchToFillProperties.CredentialProperties.FORMATTED_ORIGIN;
@@ -39,7 +38,6 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.password_manager.PasswordManagerResourceProviderFactory;
 import org.chromium.chrome.browser.touch_to_fill.TouchToFillProperties.CredentialProperties;
 import org.chromium.chrome.browser.touch_to_fill.TouchToFillProperties.FaviconOrFallback;
@@ -67,9 +65,9 @@ import org.chromium.url.GURL;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Contains the logic for the TouchToFill component. It sets the state of the model and reacts to
@@ -141,11 +139,13 @@ class TouchToFillMediator {
                         .build();
         sheetItems.add(new ListItem(TouchToFillProperties.ItemType.HEADER, headerModel));
 
-        Set<GURL> avatarUrls =
-                getSharedPasswordsThatRequireNotification(credentials).stream()
-                        .map(Credential::getSenderProfileImageUrl)
-                        .collect(Collectors.toSet());
-        if (!avatarUrls.isEmpty()) {
+        List<Credential> passwordsThatRequireNotification =
+                getSharedPasswordsThatRequireNotification(credentials);
+        if (!passwordsThatRequireNotification.isEmpty()) {
+            Set<GURL> avatarUrls = new HashSet<>();
+            for (Credential credential : passwordsThatRequireNotification) {
+                avatarUrls.add(credential.getSenderProfileImageUrl());
+            }
             // Set a placeholder until the avatar images are loaded.
             headerModel.set(
                     AVATAR,
@@ -353,7 +353,7 @@ class TouchToFillMediator {
         return o != null && !o.uri().isOpaque() ? credentialOrigin : siteUrl.getSpec();
     }
 
-    private void reportCredentialSelection(int userAction, int index) {
+    private void reportCredentialSelection(int index) {
         if (mCredentials.size() + mWebAuthnCredentials.size() > 1) {
             // We only record this histogram in case multiple credentials were shown to the user.
             // Otherwise the single credential case where position should always be 0 will dominate
@@ -364,16 +364,14 @@ class TouchToFillMediator {
 
     private void onSelectedCredential(Credential credential) {
         mModel.set(VISIBLE, false);
-        reportCredentialSelection(UserAction.SELECTED_CREDENTIAL, mCredentials.indexOf(credential));
+        reportCredentialSelection(mCredentials.indexOf(credential));
         mDelegate.onCredentialSelected(credential);
     }
 
     private void onSelectedWebAuthnCredential(WebauthnCredential credential) {
         mModel.set(VISIBLE, false);
         // The index assumes WebAuthn credentials are listed after password credentials.
-        reportCredentialSelection(
-                UserAction.SELECTED_PASSKEY_CREDENTIAL,
-                mCredentials.size() + mWebAuthnCredentials.indexOf(credential));
+        reportCredentialSelection(mCredentials.size() + mWebAuthnCredentials.indexOf(credential));
         mDelegate.onWebAuthnCredentialSelected(credential);
     }
 
@@ -389,7 +387,7 @@ class TouchToFillMediator {
         RecordHistogram.recordEnumeratedHistogram(
                 UMA_TOUCH_TO_FILL_DISMISSAL_REASON,
                 reason,
-                BottomSheetController.StateChangeReason.MAX_VALUE + 1);
+                BottomSheetController.StateChangeReason.MAX_VALUE);
         mDelegate.onDismissed();
     }
 
@@ -447,9 +445,7 @@ class TouchToFillMediator {
         // after the UI is complete.
         List<Credential> sharedCredentials = new ArrayList<Credential>();
         for (Credential credential : credentials) {
-            if (credential.isShared()
-                    && !credential.isSharingNotificationDisplayed()
-                    && ChromeFeatureList.isEnabled(SHARED_PASSWORD_NOTIFICATION_UI)) {
+            if (credential.isShared() && !credential.isSharingNotificationDisplayed()) {
                 sharedCredentials.add(credential);
             }
         }

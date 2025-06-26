@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {LifetimeBrowserProxy} from 'chrome://os-settings/os_settings.js';
+import type {LifetimeBrowserProxy} from 'chrome://os-settings/os_settings.js';
 import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 
 export class TestLifetimeBrowserProxy extends TestBrowserProxy implements
@@ -54,10 +54,10 @@ export class TestLifetimeBrowserProxy extends TestBrowserProxy implements
     return Promise.resolve(this.showRelaunchConfirmationDialog);
   }
 
-  getRelaunchConfirmationDialogDescription(alwaysShowDialog: boolean):
+  getRelaunchConfirmationDialogDescription(isVersionUpdate: boolean):
       Promise<string|null> {
     this.methodCalled(
-        'getRelaunchConfirmationDialogDescription', alwaysShowDialog);
+        'getRelaunchConfirmationDialogDescription', isVersionUpdate);
     return Promise.resolve(this.confirmationDialogDescription);
   }
 }

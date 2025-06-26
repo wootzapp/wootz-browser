@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -19,11 +20,9 @@
 #include "base/metrics/field_trial_params.h"
 #include "base/not_fatal_until.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/google/core/common/google_util.h"
-#include "components/search_engines/android/jni_headers/TemplateUrlService_jni.h"
 #include "components/search_engines/android/template_url_android.h"
 #include "components/search_engines/search_engine_choice/search_engine_choice_utils.h"
 #include "components/search_engines/search_engines_switches.h"
@@ -36,6 +35,9 @@
 #include "net/base/url_util.h"
 #include "url/android/gurl_android.h"
 #include "url/gurl.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/search_engines/android/jni_headers/TemplateUrlService_jni.h"
 
 using base::android::JavaParamRef;
 using base::android::ScopedJavaLocalRef;
@@ -401,34 +403,26 @@ jboolean TemplateUrlServiceAndroid::SetPlayAPISearchEngine(
     const base::android::JavaParamRef<jstring>&
         jimage_translate_source_language_param_key,
     const base::android::JavaParamRef<jstring>&
-        jimage_translate_target_language_param_key,
-    jboolean set_as_default) {
+        jimage_translate_target_language_param_key) {
   // The function is scheduled to run only when the service is loaded, see
   // `TemplateUrlService#runWhenLoaded()`.
   CHECK(template_url_service_->loaded(), base::NotFatalUntil::M128);
 
-  // Check if there is already a search engine created from Play API.
+  // Check if there is already a search engine created by a regulatory program.
   TemplateURLService::TemplateURLVector template_urls =
       template_url_service_->GetTemplateURLs();
-  TemplateURL* existing_play_api_turl = nullptr;
-  auto found =
-      base::ranges::find_if(template_urls, &TemplateURL::created_from_play_api);
+  TemplateURL* regulatory_api_turl = nullptr;
+  auto found = std::ranges::find_if(template_urls,
+                                    &TemplateURL::CreatedByRegulatoryProgram);
+
   if (found != template_urls.cend()) {
     // Migrate old Play API database entries that were incorrectly marked as
     // safe_for_autoreplace() before M89.
-    existing_play_api_turl = *found;
-    if (existing_play_api_turl->safe_for_autoreplace()) {
+    regulatory_api_turl = *found;
+    if (regulatory_api_turl->safe_for_autoreplace()) {
       template_url_service_->ResetTemplateURL(
-          existing_play_api_turl, existing_play_api_turl->short_name(),
-          existing_play_api_turl->keyword(), existing_play_api_turl->url());
-    }
-
-    // Only one search engine can be marked as coming from Play at a time.
-    // When the feature is off, we don't re-import, so this has to be the same
-    // as the original, that might have had an issue being persisted.
-    if (!base::FeatureList::IsEnabled(
-            switches::kPersistentSearchEngineChoiceImport)) {
-      return false;
+          regulatory_api_turl, regulatory_api_turl->short_name(),
+          regulatory_api_turl->keyword(), regulatory_api_turl->url());
     }
   }
 
@@ -438,36 +432,8 @@ jboolean TemplateUrlServiceAndroid::SetPlayAPISearchEngine(
       jimage_translate_source_language_param_key,
       jimage_translate_target_language_param_key);
 
-  if (base::FeatureList::IsEnabled(
-          switches::kPersistentSearchEngineChoiceImport)) {
-    // The "re-apply" flow that calls this without setting the engine as default
-    // is not supported when the re-import feature is enabled. So we can always
-    // force the default to be the incoming data without having to figure out
-    // another fallback default using some other logic when removing the old
-    // play api engine.
-    // TODO(b/339012617): Remove when cleaning up the feature.
-    CHECK(set_as_default);
-
-    return template_url_service_->ResetPlayAPISearchEngine(
-        new_play_api_turl_data);
-  }
-
-  CHECK(!existing_play_api_turl);
-
-  // Add the new one and set it as default
-  TemplateURL* t_url = template_url_service_->Add(
-      std::make_unique<TemplateURL>(new_play_api_turl_data));
-
-  // CanMakeDefault() will prevent us from taking over a policy or extension
-  // defined default search engine.
-  if (set_as_default && template_url_service_->CanMakeDefault(t_url)) {
-    template_url_service_->SetUserSelectedDefaultSearchProvider(
-        t_url,
-        // This method gets eventually called when the user interacts with the
-        // OS-level choice screen, so we use it as the location of the choice.
-        search_engines::ChoiceMadeLocation::kChoiceScreen);
-  }
-  return true;
+  return template_url_service_->ResetPlayAPISearchEngine(
+      new_play_api_turl_data);
 }
 
 base::android::ScopedJavaLocalRef<jstring>
@@ -507,15 +473,16 @@ void TemplateUrlServiceAndroid::GetTemplateUrls(
 
   // Clean up duplication between a Play API template URL and a corresponding
   // prepopulated template URL.
-  auto play_api_it =
-      base::ranges::find_if(template_urls, &TemplateURL::created_from_play_api);
-  TemplateURL* play_api_turl =
-      play_api_it != template_urls.end() ? *play_api_it : nullptr;
+  auto regulatory_api_it = std::ranges::find_if(
+      template_urls, &TemplateURL::CreatedByRegulatoryProgram);
+  TemplateURL* regulatory_api_turl =
+      regulatory_api_it != template_urls.end() ? *regulatory_api_it : nullptr;
 
   for (TemplateURL* template_url : template_urls) {
     // When Play API template URL supercedes the current template URL, skip it.
-    if (play_api_turl && play_api_turl->keyword() == template_url->keyword() &&
-        play_api_turl->IsBetterThanConflictingEngine(template_url)) {
+    if (regulatory_api_turl &&
+        regulatory_api_turl->keyword() == template_url->keyword() &&
+        regulatory_api_turl->IsBetterThanConflictingEngine(template_url)) {
       continue;
     }
 
@@ -554,12 +521,4 @@ TemplateUrlServiceAndroid::GetImageUrlAndPostContent(
   output.push_back(result.spec());
   output.push_back(post_content.first);
   return base::android::ToJavaArrayOfStrings(env, output);
-}
-
-jboolean TemplateUrlServiceAndroid::IsEeaChoiceCountry(JNIEnv* env) {
-  return template_url_service_->IsEeaChoiceCountry();
-}
-
-jboolean TemplateUrlServiceAndroid::ShouldShowUpdatedSettings(JNIEnv* env) {
-  return template_url_service_->ShouldShowUpdatedSettings();
 }

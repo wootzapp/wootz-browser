@@ -27,6 +27,9 @@ class URLLoaderFactoryParams;
 // origins of |request.url_chain()| and |pending_redirect_url| against
 // |request.initiator()|.
 //
+// `request->storage_access_status()` must be set if `credentials_mode` is not
+// `mojom::CredentialsMode::kInclude`.
+//
 // Note that |pending_redirect_url| is optional - it should be set only when
 // calling this method from net::URLRequest::Delegate::OnReceivedRedirect (in
 // this case |request.url_chain()| won't yet contain the URL being redirected
@@ -41,7 +44,8 @@ void SetFetchMetadataHeaders(
     network::mojom::RequestDestination dest,
     const GURL* pending_redirect_url,
     const mojom::URLLoaderFactoryParams& factory_params,
-    const cors::OriginAccessList& origin_access_list);
+    const cors::OriginAccessList& origin_access_list,
+    mojom::CredentialsMode credentials_mode);
 
 // Removes any sec-ch- or sec-fetch- prefixed request headers on the |request|
 // if the |pending_redirect_url| is not trustworthy and the current url is.

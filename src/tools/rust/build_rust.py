@@ -55,8 +55,8 @@ sys.path.append(
                  'scripts'))
 
 from build import (AddCMakeToPath, AddZlibToPath, CheckoutGitRepo, CopyFile,
-                   DownloadDebianSysroot, GetLibXml2Dirs, LLVM_BUILD_TOOLS_DIR,
-                   RunCommand)
+                   DownloadDebianSysroot, GetLibXml2Dirs, GitCherryPick,
+                   LLVM_BUILD_TOOLS_DIR, RunCommand)
 from update import (CHROMIUM_DIR, DownloadAndUnpack, EnsureDirExists,
                     GetDefaultHostOs, RmTree, UpdatePackage)
 
@@ -65,38 +65,19 @@ from update_rust import (RUST_REVISION, RUST_TOOLCHAIN_OUT_DIR,
                          GetRustClangRevision)
 
 EXCLUDED_TESTS = [
-    # https://github.com/rust-lang/rust/issues/45222 which appears to have
-    # regressed as of a recent LLVM update. This test is purely performance
-    # related, not correctness.
-    os.path.join('tests', 'codegen', 'issue-45222.rs'),
-    # https://github.com/rust-lang/rust/issues/96497
-    os.path.join('tests', 'codegen', 'issue-96497-slice-size-nowrap.rs'),
-    # TODO(crbug.com/41487664): remove after rolling rust with fix
-    os.path.join('tests', 'codegen', 'abi-main-signature-32bit-c-int.rs'),
-    # TODO(crbug.com/41486049): remove after rolling rust with fix
-    os.path.join('tests', 'ui', 'asm', 'inline-syntax.rs'),
-    # TODO(https://crbug.com/324853415): benign failure; remove when fixed.
-    os.path.join('tests', 'codegen', 'iter-repeat-n-trivial-drop.rs'),
+    # Temporarily disabled due to https://crbug.com/396424971
+    os.path.join('tests', 'codegen', 'common_prim_int_ptr.rs'),
 ]
 EXCLUDED_TESTS_WINDOWS = [
-    # https://github.com/rust-lang/rust/issues/96464
-    os.path.join('tests', 'codegen', 'vec-shrink-panik.rs'),
+    # Temporarily disabled due to https://crbug.com/379308086
+    os.path.join('tests', 'ui', 'sanitizer', 'asan_odr_windows.rs'),
+
+    # Temporarily disabled due to https://crbug.com/400524229
+    os.path.join('tests', 'ui', 'process', 'win-command-child-path.rs'),
 ]
 EXCLUDED_TESTS_MAC = [
-    # https://crbug.com/1479875 This fails on Mac. It relates to the large code
-    # model which we don't use, so suppress it for now.
-    os.path.join('tests', 'ui', 'thread-local', 'thread-local-issue-37508.rs'),
-    # https://crbug.com/1521497 These fail on Mac.
-    os.path.join('tests', 'ui', 'abi', 'stack-probes-lto.rs#x64'),
-    os.path.join('tests', 'ui', 'abi', 'stack-probes.rs#x64'),
 ]
 EXCLUDED_TESTS_MAC_ARM64 = [
-    # https://crbug.com/1519640 This fails on Mac/ARM64. We didn't even run it
-    # until recently, so ignore it for now.
-    os.path.join('tests', 'ui', 'extern',
-                 'issue-64655-extern-rust-must-allow-unwind.rs#fat0'),
-    os.path.join('tests', 'ui', 'extern',
-                 'issue-64655-extern-rust-must-allow-unwind.rs#thin0'),
 ]
 
 CLANG_SCRIPTS_DIR = os.path.join(CHROMIUM_DIR, 'tools', 'clang', 'scripts')
@@ -105,9 +86,10 @@ RUST_GIT_URL = ('https://chromium.googlesource.com/external/' +
                 'github.com/rust-lang/rust')
 
 RUST_SRC_DIR = os.path.join(THIRD_PARTY_DIR, 'rust-src')
+RUST_BUILD_DIR = os.path.join(RUST_SRC_DIR, 'build')
 RUST_BOOTSTRAP_DIST_RS = os.path.join(RUST_SRC_DIR, 'src', 'bootstrap',
                                       'dist.rs')
-STAGE0_JSON_PATH = os.path.join(RUST_SRC_DIR, 'src', 'stage0.json')
+STAGE0_JSON_PATH = os.path.join(RUST_SRC_DIR, 'src', 'stage0')
 # Download crates.io dependencies to rust-src subdir (rather than $HOME/.cargo)
 CARGO_HOME_DIR = os.path.join(RUST_SRC_DIR, 'cargo-home')
 RUST_SRC_VERSION_FILE_PATH = os.path.join(RUST_SRC_DIR, 'src', 'version')
@@ -116,13 +98,10 @@ RUST_SRC_GIT_COMMIT_INFO_FILE_PATH = os.path.join(RUST_SRC_DIR,
 RUST_TOOLCHAIN_LIB_DIR = os.path.join(RUST_TOOLCHAIN_OUT_DIR, 'lib')
 RUST_TOOLCHAIN_SRC_DIST_DIR = os.path.join(RUST_TOOLCHAIN_LIB_DIR, 'rustlib',
                                            'src', 'rust')
-RUST_TOOLCHAIN_SRC_DIST_VENDOR_DIR = os.path.join(RUST_TOOLCHAIN_SRC_DIST_DIR,
-                                                  'vendor')
 RUST_CONFIG_TEMPLATE_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'config.toml.template')
 RUST_CARGO_CONFIG_TEMPLATE_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'cargo-config.toml.template')
-RUST_SRC_VENDOR_DIR = os.path.join(RUST_SRC_DIR, 'vendor')
 
 RUST_HOST_LLVM_BUILD_DIR = os.path.join(CHROMIUM_DIR, 'third_party',
                                         'rust-toolchain-intermediate',
@@ -159,12 +138,6 @@ BUILD_TARGETS = [
     'src/tools/rustfmt'
 ]
 
-# Desired tools and libraries in our Rust toolchain.
-DISTRIBUTION_ARTIFACTS = [
-    'cargo', 'clippy', 'compiler/rustc', 'library/std', 'rust-analyzer',
-    'rustfmt', 'src'
-]
-
 # Which test suites to run. Any failure will fail the build.
 TEST_SUITES = [
     'library/std',
@@ -198,16 +171,23 @@ def AddOpenSSLToEnv():
     return ssl_dir
 
 
-def VerifyStage0JsonHash():
+def VerifyStage0JsonHash(stage0_json_url=None):
     hasher = hashlib.sha256()
-    with open(STAGE0_JSON_PATH, 'rb') as input:
-        hasher.update(input.read())
-    actual_hash = hasher.hexdigest()
+    if stage0_json_url:
+        print(stage0_json_url)
+        base64_text = urllib.request.urlopen(stage0_json_url).read().decode(
+            "utf-8")
+        stage0 = base64.b64decode(base64_text)
+        hasher.update(stage0)
+    else:
+        with open(STAGE0_JSON_PATH, 'rb') as input:
+            hasher.update(input.read())
 
+    actual_hash = hasher.hexdigest()
     if actual_hash == STAGE0_JSON_SHA256:
         return
 
-    print('src/stage0.json hash is different than expected!')
+    print('src/stage0 hash is different than expected!')
     print('Expected hash: ' + STAGE0_JSON_SHA256)
     print('Actual hash:   ' + actual_hash)
     sys.exit(1)
@@ -224,21 +204,23 @@ def FetchBetaPackage(name, rust_git_hash, triple=None):
     triple = triple if triple else RustTargetTriple()
     filename = f'{name}-beta-{triple}'
 
-    # Pull the stage0 JSON to find the package intended to be used to
-    # build this version of the Rust compiler.
+    # Pull the stage0 to find the package intended to be used to build this
+    # version of the Rust compiler.
     STAGE0_JSON_URL = (
         'https://chromium.googlesource.com/external/github.com/'
-        'rust-lang/rust/+/{GIT_HASH}/src/stage0.json?format=TEXT')
+        'rust-lang/rust/+/{GIT_HASH}/src/stage0?format=TEXT')
     base64_text = urllib.request.urlopen(
         STAGE0_JSON_URL.format(GIT_HASH=rust_git_hash)).read().decode("utf-8")
-    stage0 = json.loads(base64.b64decode(base64_text))
+    stage0 = base64.b64decode(base64_text).decode("utf-8")
+    lines = stage0.splitlines()
 
-    # The stage0 JSON contains the path to all tarballs it uses binaries from.
-    for k in stage0['checksums_sha256'].keys():
-        if k.endswith(filename + '.tar.gz'):
-            package_tgz = k
+    # The stage0 file contains the path to all tarballs it uses binaries from.
+    for l in lines:
+        if l.startswith('dist_server='):
+            server = l.split('=')[1]
+        if (filename + '.tar.gz') in l:
+            package_tgz = l.split('=')[0]
 
-    server = stage0['config']['dist_server']
     DownloadAndUnpack(f'{server}/{package_tgz}', LLVM_BUILD_TOOLS_DIR)
     return os.path.join(LLVM_BUILD_TOOLS_DIR, filename)
 
@@ -254,8 +236,8 @@ def InstallBetaPackage(package_dir, install_dir):
     RunCommand([os.path.join(package_dir, 'install.sh')] + args)
 
 
-def CargoVendor(cargo_bin):
-    '''Runs `cargo vendor` to pull down dependencies.'''
+def VendorForStdlib(cargo_bin):
+    '''Runs `cargo vendor` to pull down standard library dependencies.'''
     os.chdir(RUST_SRC_DIR)
 
     vendor_env = os.environ
@@ -266,10 +248,8 @@ def CargoVendor(cargo_bin):
     vendor_env['RUSTC_BOOTSTRAP'] = '1'
 
     vendor_cmd = [
-        cargo_bin,
-        'vendor',
-        '--locked',
-        '--versioned-dirs',
+        cargo_bin, 'vendor', '--manifest-path', 'library/Cargo.toml',
+        '--locked', '--versioned-dirs', 'library/vendor'
     ]
     RunWithRetry(vendor_cmd, 'cargo vendor')
 
@@ -373,6 +353,12 @@ class XPy:
             self._env['CFLAGS'] += f' {sysroot_cflag}'
             self._env['CXXFLAGS'] += f' {sysroot_cflag}'
             self._env['LDFLAGS'] += f' {sysroot_cflag}'
+            # TODO(https://crbug.com/395891130): remove
+            # C/CXXFLAGS_x86_64_unknown_linux_gnu workaround after upstream
+            # issue is properly fixed.
+            self._env['CFLAGS_x86_64_unknown_linux_gnu'] += f' {sysroot_cflag}'
+            self._env[
+                'CXXFLAGS_x86_64_unknown_linux_gnu'] += f' {sysroot_cflag}'
 
             self._env['RUSTFLAGS_BOOTSTRAP'] += f' -Clink-arg={sysroot_cflag}'
             self._env[
@@ -381,6 +367,8 @@ class XPy:
             # pkg-config will by default look for system-wide libs. This tells
             # it to look exclusively in the sysroot instead.
             self._env['PKG_CONFIG_SYSROOT_DIR'] = debian_sysroot
+            self._env[
+                'PKG_CONFIG_LIBDIR'] = debian_sysroot + '/usr/lib/pkgconfig'
 
             # Due to an interaction with the above flags, we must tell lzma-sys
             # explicitly to build it from source.
@@ -539,6 +527,7 @@ def BuildLLVMLibraries(skip_build):
             os.path.join(CLANG_SCRIPTS_DIR, 'build.py'),
             '--disable-asserts',
             '--no-tools',
+            '--no-runtimes',
             # PIC needed for Rust build (links LLVM into shared object)
             '--pic',
             '--with-ml-inliner-model=',
@@ -552,25 +541,6 @@ def BuildLLVMLibraries(skip_build):
             '--build-dir', RUST_HOST_LLVM_BUILD_DIR, '--install-dir',
             RUST_HOST_LLVM_INSTALL_DIR
         ])
-
-
-def GitCherryPick(git_repository, git_remote, commit):
-    print(f'Cherry-picking {commit} in {git_repository} from {git_remote}')
-    git_cmd = ['git', '-C', git_repository]
-    RunCommand(git_cmd + ['remote', 'add', 'github', git_remote],
-               fail_hard=False)
-    RunCommand(git_cmd +
-               ['fetch', '--recurse-submodules=no', 'github', commit])
-    is_ancestor = RunCommand(git_cmd +
-                             ['merge-base', '--is-ancestor', commit, 'HEAD'],
-                             fail_hard=False)
-    if is_ancestor:
-        print('Commit already an ancestor; skipping.')
-        return
-    RunCommand([
-        'git', '-C', git_repository, 'cherry-pick', '--keep-redundant-commits',
-        commit
-    ])
 
 
 # Move a git submodule to point to a different branch.
@@ -623,11 +593,6 @@ def GitApplyCherryPicks():
     # cherry-pick fixes into it, then point RUST_SRC_DIR at that fork
     # with `GitMoveSubmoduleBranch()`.
     #############################
-
-    # TODO: Remove once
-    # https://github.com/rust-lang/rust/pull/119185 has been merged.
-    GitCherryPick(RUST_SRC_DIR, 'https://github.com/rust-lang/rust.git',
-                  '14947b410ad23a09251180af50486e247f70b465')
 
     print('Finished applying cherry-picks.')
 
@@ -686,7 +651,27 @@ def main():
         'running specified command, skipping all normal build steps. For '
         'debugging. Running x.py directly will not set the appropriate env '
         'variables nor update config.toml')
+    if sys.platform == 'win32':
+        parser.add_argument('--sh', help='path to the sh.exe to use')
     args, rest = parser.parse_known_args()
+
+    if sys.platform == 'win32':
+        if args.sh:
+            assert args.sh.endswith('sh.exe')
+            p = os.environ['PATH']
+            shdir = os.path.dirname(args.sh)
+            os.environ['PATH'] = f'{shdir};{p}'
+        where = subprocess.check_output(['where.exe', 'sh'], text=True)
+        if '\\gnubby\\' in where.splitlines()[0]:
+            print("WARNING: It looks like you have gnubby sh.exe in your ")
+            print(" PATH, but it does not support normalized paths of the ")
+            print(" form `/c/foo` and will fail at the install step. Put the ")
+            print(" sh.exe from the Git installation into your PATH first ")
+            print(" when running this script or use --sh to specify the path ")
+            print(" to sh.exe.")
+            print("where sh.exe:")
+            print(where)
+            return 1
 
     debian_sysroot = None
     if sys.platform.startswith('linux') and not args.sync_for_gnrt:
@@ -697,7 +682,7 @@ def main():
 
     # Require zlib compression.
     if sys.platform == 'win32':
-        zlib_path = AddZlibToPath()
+        zlib_path = AddZlibToPath(dry_run=args.skip_checkout)
     else:
         zlib_path = None
 
@@ -707,9 +692,9 @@ def main():
     else:
         libxml2_dirs = None
 
-    # TODO(crbug.com/40205621): OpenSSL is somehow already present on the Windows
-    # builder, but we should change to using a package from 3pp when it is
-    # available.
+    # TODO(crbug.com/40205621): OpenSSL is somehow already present on the
+    # Windows builder, but we should change to using a package from 3pp when it
+    # is available.
     if (sys.platform != 'win32' and not args.sync_for_gnrt):
         # Building cargo depends on OpenSSL.
         AddOpenSSLToEnv()
@@ -747,6 +732,15 @@ def main():
         checkout_revision = RUST_REVISION
 
     if not args.skip_checkout:
+        if args.verify_stage0_hash:
+            VerifyStage0JsonHash(
+                'https://chromium.googlesource.com/external/github.com/'
+                'rust-lang/rust/+/{}/src/stage0?format=TEXT'.format(
+                    checkout_revision))
+            # The above function exits and prints the actual hash if
+            # verification failed so we just quit here; if we reach this point,
+            # the hash is valid.
+            return 0
         CheckoutGitRepo('Rust', RUST_GIT_URL, checkout_revision, RUST_SRC_DIR)
         path = FetchBetaPackage('cargo', checkout_revision)
         if sys.platform == 'win32':
@@ -766,7 +760,17 @@ def main():
         # changes that move submodules.
         GitApplyCherryPicks()
 
-        CargoVendor(cargo_bin)
+        # TODO(crbug.com/356618943): Workaround for https://github.com/rust-lang/cargo/issues/14253
+        bootstrap_cargo = os.path.join(RUST_SRC_DIR, 'src', 'bootstrap',
+                                       'Cargo.toml')
+        with open(bootstrap_cargo, 'r') as f:
+            lines = f.readlines()
+        with open(bootstrap_cargo, 'w') as f:
+            for l in lines:
+                if l.strip('\n') != 'debug = 0':
+                    f.write(l)
+
+        VendorForStdlib(cargo_bin)
 
     # Gnrt needs the checkout to be up-to-date, workspace submodules to be
     # synced for cargo to work, and the cargo binary itself. All this is done,
@@ -793,12 +797,14 @@ def main():
     if args.prepare_run_xpy:
         return 0
 
-    building_on_host_triple = RustTargetTriple()
-    xpy_args = ['--build', building_on_host_triple]
+    target_triple = RustTargetTriple()
+    xpy_args = ['--build', target_triple]
 
+    # Delete the build directory.
     if not args.skip_clean:
-        print('Cleaning build artifacts...')
-        xpy.run('clean', xpy_args)
+        print('Clearing build directory...')
+        if os.path.exists(RUST_BUILD_DIR):
+            RmTree(RUST_BUILD_DIR)
 
     if not args.skip_test:
         print(f'Building stage 2 artifacts and running tests...')
@@ -819,12 +825,12 @@ def main():
     if os.path.exists(RUST_TOOLCHAIN_OUT_DIR):
         RmTree(RUST_TOOLCHAIN_OUT_DIR)
 
-    artifacts = DISTRIBUTION_ARTIFACTS
-    xpy.run('install', xpy_args + artifacts)
+    xpy.run('install', xpy_args + [])
 
-    # Copy additional vendored crates required for building stdlib.
-    print(f'Copying vendored dependencies to {RUST_TOOLCHAIN_OUT_DIR} ...')
-    shutil.copytree(RUST_SRC_VENDOR_DIR, RUST_TOOLCHAIN_SRC_DIST_VENDOR_DIR)
+    # The Rust stdlib deps are vendored to rust-src/library/vendor, and later
+    # the x.py install process copies all subdirs of rust-src/library to the
+    # toolchain package, so we do not need to explicitly copy the vendor dir.
+    # This is left as a note in case that behavior changes.
 
     with open(VERSION_SRC_PATH, 'w') as stamp:
         stamp.write(MakeVersionStamp(checkout_revision))

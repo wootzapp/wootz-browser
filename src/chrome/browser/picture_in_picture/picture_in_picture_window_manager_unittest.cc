@@ -18,12 +18,21 @@
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/simple_test_tick_clock.h"
 #include "chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h"
+#include "chrome/browser/picture_in_picture/picture_in_picture_window_manager_uma_helper.h"
+#include "chrome/browser/picture_in_picture/scoped_disallow_picture_in_picture.h"
+#include "media/base/media_switches.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/view.h"
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 namespace {
+
+#if !BUILDFLAG(IS_ANDROID)
+const char kPictureInPictureTotalTimeHistogram[] =
+    "Media.PictureInPicture.Window.TotalTime";
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 typedef base::ScopedObservation<PictureInPictureWindowManager,
                                 PictureInPictureWindowManager::Observer>
@@ -90,10 +99,35 @@ class PictureInPictureWindowManagerTest
     return mock_video_picture_in_picture_controller_.get();
   }
 
+#if !BUILDFLAG(IS_ANDROID)
+  void SetupPiPWindowManagerWithUmaHelper(
+      base::SimpleTestTickClock* test_clock) {
+    test_clock->SetNowTicks(base::TimeTicks::Now());
+
+    std::unique_ptr<PictureInPictureWindowManagerUmaHelper> test_uma_helper =
+        std::make_unique<PictureInPictureWindowManagerUmaHelper>();
+    test_uma_helper->SetClockForTest(test_clock);
+
+    PictureInPictureWindowManager* picture_in_picture_window_manager =
+        PictureInPictureWindowManager::GetInstance();
+    picture_in_picture_window_manager->set_uma_helper_for_testing(
+        std::move(test_uma_helper));
+  }
+
+  std::unique_ptr<base::HistogramSamples> GetHistogramSamplesSinceTestStart(
+      const std::string& name) {
+    return histogram_tester_.GetHistogramSamplesSinceCreation(name);
+  }
+#endif  // !BUILDFLAG(IS_ANDROID)
+
  private:
   std::unique_ptr<content::WebContents> child_web_contents_;
   raw_ptr<content::MockVideoPictureInPictureWindowControllerImpl>
       mock_video_picture_in_picture_controller_;
+
+#if !BUILDFLAG(IS_ANDROID)
+  base::HistogramTester histogram_tester_;
+#endif  // !BUILDFLAG(IS_ANDROID)
 };
 
 }  // namespace
@@ -119,26 +153,6 @@ TEST_F(PictureInPictureWindowManagerTest, RespectsMinAndMaxSize) {
   pip_options.height = 500;
   EXPECT_EQ(
       gfx::Size(240, 500),
-      PictureInPictureWindowManager::GetInstance()
-          ->CalculateInitialPictureInPictureWindowBounds(pip_options, display)
-          .size());
-
-  // An extremely small aspect ratio should still respect minimum width and
-  // maximum height.
-  pip_options.width = 0;
-  pip_options.height = 0;
-  pip_options.initial_aspect_ratio = 0.00000001;
-  EXPECT_EQ(
-      gfx::Size(240, 800),
-      PictureInPictureWindowManager::GetInstance()
-          ->CalculateInitialPictureInPictureWindowBounds(pip_options, display)
-          .size());
-
-  // An extremely large aspect ratio should still respect maximum width and
-  // minimum height.
-  pip_options.initial_aspect_ratio = 100000;
-  EXPECT_EQ(
-      gfx::Size(800, 52),
       PictureInPictureWindowManager::GetInstance()
           ->CalculateInitialPictureInPictureWindowBounds(pip_options, display)
           .size());
@@ -187,8 +201,7 @@ TEST_F(PictureInPictureWindowManagerTest, DontShowAutoPipSettingUiWithoutPip) {
       PictureInPictureWindowManager::GetInstance();
   // There's no pip open, so expect no setting UI.
   EXPECT_FALSE(picture_in_picture_window_manager->GetOverlayView(
-      gfx::Rect(), /* anchor_view = */ nullptr,
-      views::BubbleBorder::TOP_CENTER));
+      /* anchor_view = */ nullptr, views::BubbleBorder::TOP_CENTER));
 }
 
 TEST_F(PictureInPictureWindowManagerTest,
@@ -199,8 +212,7 @@ TEST_F(PictureInPictureWindowManagerTest,
       web_contents(), child_web_contents());
   // This isn't auto-pip, so expect no overlay view.
   EXPECT_FALSE(picture_in_picture_window_manager->GetOverlayView(
-      gfx::Rect(), /* anchor_view = */ nullptr,
-      views::BubbleBorder::TOP_CENTER));
+      /* anchor_view = */ nullptr, views::BubbleBorder::TOP_CENTER));
 }
 
 TEST_F(PictureInPictureWindowManagerTest, CorrectTypesAreSupported) {
@@ -323,6 +335,178 @@ TEST_F(PictureInPictureWindowManagerTest, RecordsInitialSizeHistograms) {
     histogram_tester.ExpectUniqueSample(
         "Media.DocumentPictureInPicture.RequestedSizeToScreenRatio", 100, 1);
   }
+}
+
+TEST_F(PictureInPictureWindowManagerTest, CanDisallowPictureInPicture) {
+  {
+    // Disallowing before opening a picture-in-picture window should close it.
+    ScopedDisallowPictureInPicture disallow;
+
+    PictureInPictureWindowManager::GetInstance()->EnterDocumentPictureInPicture(
+        web_contents(), child_web_contents());
+
+    // The close does not happen synchronously, so we run posted tasks.
+    EXPECT_TRUE(web_contents()->HasPictureInPictureDocument());
+    task_environment()->RunUntilIdle();
+    EXPECT_FALSE(web_contents()->HasPictureInPictureDocument());
+  }
+
+  {
+    // Disallowing after opening a picture-in-picture window should close it.
+    PictureInPictureWindowManager::GetInstance()->EnterDocumentPictureInPicture(
+        web_contents(), child_web_contents());
+
+    EXPECT_TRUE(web_contents()->HasPictureInPictureDocument());
+    ScopedDisallowPictureInPicture disallow;
+    EXPECT_FALSE(web_contents()->HasPictureInPictureDocument());
+  }
+
+  {
+    {
+      ScopedDisallowPictureInPicture disallow1;
+
+      {
+        // Multiple ScopedDisallowPictureInPicture should still block
+        // picture-in-picture windows.
+        ScopedDisallowPictureInPicture disallow2;
+
+        PictureInPictureWindowManager::GetInstance()
+            ->EnterDocumentPictureInPicture(web_contents(),
+                                            child_web_contents());
+
+        EXPECT_TRUE(web_contents()->HasPictureInPictureDocument());
+        task_environment()->RunUntilIdle();
+        EXPECT_FALSE(web_contents()->HasPictureInPictureDocument());
+      }
+
+      // When one of them is destroyed but the other remains, it should still
+      // block picture-in-picture windows.
+      PictureInPictureWindowManager::GetInstance()
+          ->EnterDocumentPictureInPicture(web_contents(), child_web_contents());
+
+      EXPECT_TRUE(web_contents()->HasPictureInPictureDocument());
+      task_environment()->RunUntilIdle();
+      EXPECT_FALSE(web_contents()->HasPictureInPictureDocument());
+    }
+
+    // Once both have been destroyed, picture-in-picture windows should be
+    // unblocked.
+    PictureInPictureWindowManager::GetInstance()->EnterDocumentPictureInPicture(
+        web_contents(), child_web_contents());
+
+    EXPECT_TRUE(web_contents()->HasPictureInPictureDocument());
+    task_environment()->RunUntilIdle();
+    EXPECT_TRUE(web_contents()->HasPictureInPictureDocument());
+  }
+}
+
+TEST_F(PictureInPictureWindowManagerTest,
+       ShouldFileDialogBlockPictureInPicture) {
+  PictureInPictureWindowManager::GetInstance()->EnterDocumentPictureInPicture(
+      web_contents(), child_web_contents());
+
+  {
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndEnableFeature(media::kFileDialogsBlockPictureInPicture);
+
+    // With the feature enabled, file dialogs that aren't on a document
+    // picture-in-picture window should block picture-in-picture windows.
+    EXPECT_TRUE(PictureInPictureWindowManager::GetInstance()
+                    ->ShouldFileDialogBlockPictureInPicture(web_contents()));
+    EXPECT_FALSE(
+        PictureInPictureWindowManager::GetInstance()
+            ->ShouldFileDialogBlockPictureInPicture(child_web_contents()));
+  }
+
+  {
+    base::test::ScopedFeatureList feature_list;
+    feature_list.InitAndDisableFeature(
+        media::kFileDialogsBlockPictureInPicture);
+
+    // With the feature disabled, no file dialogs should block
+    // picture-in-picture windows.
+    EXPECT_FALSE(PictureInPictureWindowManager::GetInstance()
+                     ->ShouldFileDialogBlockPictureInPicture(web_contents()));
+    EXPECT_FALSE(
+        PictureInPictureWindowManager::GetInstance()
+            ->ShouldFileDialogBlockPictureInPicture(child_web_contents()));
+  }
+}
+
+TEST_F(PictureInPictureWindowManagerTest,
+       EnterAndCloseDocumentPip_NormalCloseDoesCommit) {
+  base::SimpleTestTickClock test_clock;
+  SetupPiPWindowManagerWithUmaHelper(&test_clock);
+  PictureInPictureWindowManager* picture_in_picture_window_manager =
+      PictureInPictureWindowManager::GetInstance();
+
+  picture_in_picture_window_manager->EnterDocumentPictureInPicture(
+      web_contents(), child_web_contents());
+
+  test_clock.Advance(base::Milliseconds(3000));
+  picture_in_picture_window_manager->ExitPictureInPicture();
+
+  std::unique_ptr<base::HistogramSamples> samples(
+      GetHistogramSamplesSinceTestStart(kPictureInPictureTotalTimeHistogram));
+  EXPECT_EQ(1, samples->TotalCount());
+  EXPECT_EQ(1, samples->GetCount(3000));
+}
+
+TEST_F(PictureInPictureWindowManagerTest,
+       EnterAndCloseVideoPip_NormalCloseDoesCommit) {
+  base::SimpleTestTickClock test_clock;
+  SetupPiPWindowManagerWithUmaHelper(&test_clock);
+  PictureInPictureWindowManager* picture_in_picture_window_manager =
+      PictureInPictureWindowManager::GetInstance();
+
+  picture_in_picture_window_manager->EnterVideoPictureInPicture(web_contents());
+
+  test_clock.Advance(base::Milliseconds(3000));
+  picture_in_picture_window_manager->ExitPictureInPicture();
+
+  std::unique_ptr<base::HistogramSamples> samples(
+      GetHistogramSamplesSinceTestStart(kPictureInPictureTotalTimeHistogram));
+  EXPECT_EQ(1, samples->TotalCount());
+  EXPECT_EQ(1, samples->GetCount(3000));
+}
+
+TEST_F(PictureInPictureWindowManagerTest,
+       EnterAndCloseDocumentPip_UICloseDoesCommit) {
+  base::SimpleTestTickClock test_clock;
+  SetupPiPWindowManagerWithUmaHelper(&test_clock);
+  PictureInPictureWindowManager* picture_in_picture_window_manager =
+      PictureInPictureWindowManager::GetInstance();
+
+  picture_in_picture_window_manager->EnterDocumentPictureInPicture(
+      web_contents(), child_web_contents());
+
+  test_clock.Advance(base::Milliseconds(3000));
+  picture_in_picture_window_manager->ExitPictureInPictureViaWindowUi(
+      PictureInPictureWindowManager::UiBehavior::kCloseWindowOnly);
+
+  std::unique_ptr<base::HistogramSamples> samples(
+      GetHistogramSamplesSinceTestStart(kPictureInPictureTotalTimeHistogram));
+  EXPECT_EQ(1, samples->TotalCount());
+  EXPECT_EQ(1, samples->GetCount(3000));
+}
+
+TEST_F(PictureInPictureWindowManagerTest,
+       EnterAndCloseVideoPip_UICloseDoesCommit) {
+  base::SimpleTestTickClock test_clock;
+  SetupPiPWindowManagerWithUmaHelper(&test_clock);
+  PictureInPictureWindowManager* picture_in_picture_window_manager =
+      PictureInPictureWindowManager::GetInstance();
+
+  picture_in_picture_window_manager->EnterVideoPictureInPicture(web_contents());
+
+  test_clock.Advance(base::Milliseconds(3000));
+  picture_in_picture_window_manager->ExitPictureInPictureViaWindowUi(
+      PictureInPictureWindowManager::UiBehavior::kCloseWindowOnly);
+
+  std::unique_ptr<base::HistogramSamples> samples(
+      GetHistogramSamplesSinceTestStart(kPictureInPictureTotalTimeHistogram));
+  EXPECT_EQ(1, samples->TotalCount());
+  EXPECT_EQ(1, samples->GetCount(3000));
 }
 
 #endif  // !BUILDFLAG(IS_ANDROID)

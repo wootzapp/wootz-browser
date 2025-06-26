@@ -11,6 +11,7 @@
 #include "cc/test/fake_output_surface_client.h"
 #include "cc/test/fake_picture_layer_tiling_client.h"
 #include "cc/test/fake_raster_source.h"
+#include "cc/tiles/prioritized_tile.h"
 #include "cc/trees/layer_tree_settings.h"
 #include "components/viz/client/client_resource_provider.h"
 #include "components/viz/test/fake_output_surface.h"
@@ -241,9 +242,9 @@ class PictureLayerTilingSetTestWithResources : public testing::Test {
     gfx::Rect content_rect(content_bounds);
 
     Region remaining(content_rect);
-    PictureLayerTilingSet::CoverageIterator iter(
-        set.get(), max_contents_scale, content_rect, ideal_contents_scale);
-    for (; iter; ++iter) {
+    for (auto iter =
+             set->Cover(content_rect, max_contents_scale, ideal_contents_scale);
+         iter; ++iter) {
       gfx::Rect geometry_rect = iter.geometry_rect();
       EXPECT_TRUE(content_rect.Contains(geometry_rect));
       ASSERT_TRUE(remaining.Contains(geometry_rect));

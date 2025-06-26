@@ -8,12 +8,14 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
-#include "base/base_jni/JankMetricUMARecorder_jni.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
 #include "base/time/time.h"
 #include "base/trace_event/base_tracing.h"
 #include "jank_metric_uma_recorder.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "base/jank_tracker_jni/JankMetricUMARecorder_jni.h"
 
 namespace base::android {
 
@@ -224,8 +226,7 @@ const char* GetAndroidFrameTimelineJankHistogramName(JankScenario scenario) {
       // per frame metrics for |WEBVIEW_SCROLLING| scenario.
       return HISTOGRAM_NAME(WebviewScrolling);
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
   }
 #undef HISTOGRAM_NAME
 }
@@ -260,8 +261,7 @@ const char* GetAndroidFrameTimelineDurationHistogramName(
       // per frame metrics for |WEBVIEW_SCROLLING| scenario.
       return HISTOGRAM_NAME(WebviewScrolling);
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
   }
 #undef HISTOGRAM_NAME
 }

@@ -21,6 +21,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/safe_ref.h"
+#include "base/memory/structured_shared_memory.h"
 #include "base/memory/unsafe_shared_memory_region.h"
 #include "base/observer_list.h"
 #include "base/scoped_observation_traits.h"
@@ -28,7 +29,6 @@
 #include "base/threading/sequence_bound.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/metrics/histogram_child_process.h"
 #include "components/services/storage/public/cpp/buckets/bucket_id.h"
 #include "components/services/storage/public/cpp/buckets/bucket_info.h"
@@ -47,6 +47,7 @@
 #include "content/common/renderer_host.mojom.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/process_allocation_context.h"
 #include "content/public/browser/render_process_host.h"
 #include "media/mojo/mojom/interface_factory.mojom-forward.h"
 #include "media/mojo/mojom/video_decode_perf_history.mojom-forward.h"
@@ -83,7 +84,6 @@
 #include "third_party/blink/public/mojom/loader/code_cache.mojom-forward.h"
 #include "third_party/blink/public/mojom/plugins/plugin_registry.mojom-forward.h"
 #include "third_party/blink/public/mojom/push_messaging/push_messaging.mojom-forward.h"
-#include "third_party/blink/public/mojom/webdatabase/web_database.mojom-forward.h"
 #include "third_party/perfetto/include/perfetto/tracing/traced_proto.h"
 #include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
 #include "ui/gfx/gpu_memory_buffer.h"
@@ -94,11 +94,16 @@
 #endif
 
 #if BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
-#include "media/mojo/mojom/stable/stable_video_decoder.mojom.h"
+#include "media/mojo/mojom/interface_factory.mojom.h"
 #endif  // BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
 
 #if BUILDFLAG(IS_FUCHSIA)
 #include "media/fuchsia_media_codec_provider_impl.h"
+#endif
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#include "content/browser/child_thread_type_switcher_linux.h"
+#include "media/mojo/mojom/video_encode_accelerator.mojom.h"
 #endif
 
 namespace base {
@@ -159,6 +164,7 @@ class RenderWidgetHelper;
 class SiteInfo;
 class SiteInstance;
 class SiteInstanceImpl;
+enum class ProcessReusePolicy;
 struct ChildProcessTerminationInfo;
 struct GlobalRenderFrameHostId;
 
@@ -194,7 +200,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
       public metrics::HistogramChildProcess
 #if BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
     ,
-      public media::stable::mojom::StableVideoDecoderTracker
+      public media::mojom::VideoDecoderTracker
 #endif  // BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
 {
  public:
@@ -203,8 +209,8 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   // Exposed as a public constant to share with other entities that need to
   // accommodate frame/process shutdown delays.
-  static constexpr int kKeepAliveHandleFactoryTimeoutInMSec = 30 * 1000;
-  static const base::TimeDelta kKeepAliveHandleFactoryTimeout;
+  static constexpr base::TimeDelta kKeepAliveHandleFactoryTimeout =
+      base::Seconds(30);
 
   // Create a new RenderProcessHost. The storage partition for the process
   // is retrieved from |browser_context| based on information in
@@ -234,17 +240,24 @@ class CONTENT_EXPORT RenderProcessHostImpl
   bool GetIntersectsViewport() override;
   bool IsForGuestsOnly() override;
   bool IsJitDisabled() override;
+  bool AreV8OptimizationsDisabled() override;
+  bool DisallowV8FeatureFlagOverrides() override;
   bool IsPdf() override;
   StoragePartitionImpl* GetStoragePartition() override;
   bool Shutdown(int exit_code) override;
   bool ShutdownRequested() override;
   bool FastShutdownIfPossible(size_t page_count = 0,
-                              bool skip_unload_handlers = false) override;
+                              bool skip_unload_handlers = false,
+                              bool ignore_workers = false,
+                              bool ignore_keep_alive = false) override;
   const base::Process& GetProcess() override;
   bool IsReady() override;
   BrowserContext* GetBrowserContext() override;
   bool InSameStoragePartition(StoragePartition* partition) override;
-  int GetID() const override;
+  ChildProcessId GetID() const override;
+  // TODO(crbug.com/379869738): Deprecated, please use the ChildProcessId
+  // version above.
+  int GetDeprecatedID() const override;
   base::SafeRef<RenderProcessHost> GetSafeRef() const override;
   bool IsInitializedAndNotDead() override;
   bool IsDeletingSoon() override;
@@ -259,9 +272,12 @@ class CONTENT_EXPORT RenderProcessHostImpl
       RenderProcessHostPriorityClient* priority_client) override;
   void RemovePriorityClient(
       RenderProcessHostPriorityClient* priority_client) override;
-  void SetPriorityOverride(bool foreground) override;
+#if !BUILDFLAG(IS_ANDROID)
+  void SetPriorityOverride(base::Process::Priority priority) override;
   bool HasPriorityOverride() override;
   void ClearPriorityOverride() override;
+#endif
+  void SetHasSpareRendererPriority(bool has_spare_renderer_priority) override;
 #if BUILDFLAG(IS_ANDROID)
   ChildProcessImportance GetEffectiveImportance() override;
   base::android::ChildBindingState GetEffectiveChildBindingState() override;
@@ -287,20 +303,23 @@ class CONTENT_EXPORT RenderProcessHostImpl
   std::unique_ptr<base::PersistentMemoryAllocator> TakeMetricsAllocator()
       override;
   const base::TimeTicks& GetLastInitTime() override;
-  bool IsProcessBackgrounded() override;
+  base::Process::Priority GetPriority() const override;
   std::string GetKeepAliveDurations() const override;
   size_t GetShutdownDelayRefCount() const override;
   int GetRenderFrameHostCount() const override;
   void RegisterRenderFrameHost(
-      const GlobalRenderFrameHostId& render_frame_host_id) override;
+      const GlobalRenderFrameHostId& render_frame_host_id,
+      bool is_outermost_main_frame) override;
   void UnregisterRenderFrameHost(
-      const GlobalRenderFrameHostId& render_frame_host_id) override;
+      const GlobalRenderFrameHostId& render_frame_host_id,
+      bool is_outermost_main_frame) override;
   void ForEachRenderFrameHost(
       base::FunctionRef<void(RenderFrameHost*)> on_render_frame_host) override;
   void IncrementWorkerRefCount() override;
   void DecrementWorkerRefCount() override;
   void IncrementPendingReuseRefCount() override;
   void DecrementPendingReuseRefCount() override;
+  int GetPendingReuseRefCountForTesting() const override;
   void DisableRefCounts() override;
   bool AreRefCountsDisabled() override;
   mojom::Renderer* GetRendererInterface() override;
@@ -321,11 +340,14 @@ class CONTENT_EXPORT RenderProcessHostImpl
       const network::CrossOriginEmbedderPolicy& cross_origin_embedder_policy,
       mojo::PendingRemote<network::mojom::CrossOriginEmbedderPolicyReporter>
           coep_reporter,
+      const network::DocumentIsolationPolicy& document_isolation_policy,
+      mojo::PendingRemote<network::mojom::DocumentIsolationPolicyReporter>
+          dip_reporter,
       const storage::BucketLocator& bucket_locator,
       mojo::PendingReceiver<blink::mojom::CacheStorage> receiver) override;
   void BindIndexedDB(
       const blink::StorageKey& storage_key,
-      const GlobalRenderFrameHostId& rfh_id,
+      BucketContext& bucket_context,
       mojo::PendingReceiver<blink::mojom::IDBFactory> receiver) override;
   void BindBucketManagerHost(
       base::WeakPtr<BucketContext> bucket_context,
@@ -336,6 +358,12 @@ class CONTENT_EXPORT RenderProcessHostImpl
 #if BUILDFLAG(CLANG_PROFILING_INSIDE_SANDBOX)
   void DumpProfilingData(base::OnceClosure callback) override;
 #endif
+#if BUILDFLAG(IS_CHROMEOS)
+  void ReinitializeLogging(uint32_t logging_dest,
+                           base::ScopedFD log_file_descriptor) override;
+#endif
+  void SetBatterySaverMode(bool battery_saver_mode_enabled) override;
+  uint64_t GetPrivateMemoryFootprint() override;
 
   void PauseSocketManagerForRenderFrameHost(
       const GlobalRenderFrameHostId& render_frame_host_id) override;
@@ -392,6 +420,11 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   // Register/unregister the host identified by the host id in the global host
   // list.
+  static void RegisterHost(ChildProcessId host_id, RenderProcessHost* host);
+  static void UnregisterHost(ChildProcessId host_id);
+
+  // TODO(crbug.com/379869738): Deprecated, please use the ChildProcessId
+  // version above.
   static void RegisterHost(int host_id, RenderProcessHost* host);
   static void UnregisterHost(int host_id);
 
@@ -507,7 +540,8 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // - process creation when an existing process couldn't be found: see
   //   CreateRenderProcessHost.
   static RenderProcessHost* GetProcessHostForSiteInstance(
-      SiteInstanceImpl* site_instance);
+      SiteInstanceImpl* site_instance,
+      const ProcessAllocationContext& allocation_context);
 
   // Should be called when `site_instance` is used in a navigation.
   //
@@ -515,17 +549,13 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // by shutting down the spare process to conserve resources, or alternatively
   // by making sure that the spare process belongs to the same BrowserContext as
   // the most recent navigation).
-  //
-  // If `ignore_delay` is false, delays new spare renderer creation as per
-  // embedder's setting. Otherwise, the spare renderer creation might have been
-  // deferred previously, and this is a signal that it should now be started
-  // immediately.
   static void NotifySpareManagerAboutRecentlyUsedSiteInstance(
-      SiteInstance* site_instance,
-      bool ignore_delay = false);
+      SiteInstance* site_instance);
 
-  // This enum backs a histogram, so do not change the order of entries or
-  // remove entries and update enums.xml if adding new entries.
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  //
+  // LINT.IfChange(SpareProcessMaybeTakeAction)
   enum class SpareProcessMaybeTakeAction {
     kNoSparePresent = 0,
     kMismatchedBrowserContext = 1,
@@ -536,6 +566,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
     kRefusedForPdfContent = 6,
     kMaxValue = kRefusedForPdfContent
   };
+  // LINT.ThenChange(tools/metrics/histograms/metadata/browser/histograms.xml:SpareProcessMaybeTakeAction)
 
   // Please keep in sync with "RenderProcessHostDelayShutdownReason" in
   // tools/metrics/histograms/metadata/browser/enums.xml. These values should
@@ -591,18 +622,13 @@ class CONTENT_EXPORT RenderProcessHostImpl
   static bool HasDomStorageBinderForTesting();
 
   using BadMojoMessageCallbackForTesting =
-      base::RepeatingCallback<void(int render_process_host_id,
+      base::RepeatingCallback<void(ChildProcessId render_process_host_id,
                                    const std::string& error)>;
   static void SetBadMojoMessageCallbackForTesting(
       BadMojoMessageCallbackForTesting callback);
 
   // Sets this RenderProcessHost to be guest only. For Testing only.
   void SetForGuestsOnlyForTesting();
-
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_MAC)
-  // Launch the zygote early in the browser startup.
-  static void EarlyZygoteLaunch();
-#endif  // BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_MAC)
 
   // Called when a video capture stream or an audio stream is added or removed
   // and used to determine if the process should be backgrounded or not.
@@ -612,6 +638,12 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   void OnForegroundServiceWorkerAdded() override;
   void OnForegroundServiceWorkerRemoved() override;
+
+  void OnBoostForLoadingAdded() override;
+  void OnBoostForLoadingRemoved() override;
+
+  void OnImmersiveXrSessionStarted() override;
+  void OnImmersiveXrSessionStopped() override;
 
   // Sets the global factory used to create new RenderProcessHosts in unit
   // tests.  It may be nullptr, in which case the default RenderProcessHost will
@@ -644,10 +676,6 @@ class CONTENT_EXPORT RenderProcessHostImpl
       BrowserContext* browser_context,
       RenderProcessHost* render_process_host,
       const SiteInfo& site_info);
-
-  // Discards the spare RenderProcessHost.  After this call,
-  // GetSpareRenderProcessHostForTesting will return nullptr.
-  static void DiscardSpareRenderProcessHostForTesting();
 
   // Returns true if a spare RenderProcessHost should be kept at all times.
   static bool IsSpareProcessKeptAtAllTimes();
@@ -700,6 +728,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // `bucket_locator`.
   void GetSandboxedFileSystemForBucket(
       const storage::BucketLocator& bucket_locator,
+      const std::vector<std::string>& directory_path_components,
       blink::mojom::FileSystemAccessManager::GetSandboxedFileSystemCallback
           callback) override;
 
@@ -727,7 +756,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void BindWebrtcVideoPerfHistory(
       mojo::PendingReceiver<media::mojom::WebrtcVideoPerfHistory> receiver);
 
-  // Binds `receiever` to the `PushMessagingManager` instance owned by the
+  // Binds `receiver` to the `PushMessagingManager` instance owned by the
   // render process host, and is used by workers via `BrowserInterfaceBroker`.
   void BindPushMessaging(
       mojo::PendingReceiver<blink::mojom::PushMessaging> receiver);
@@ -809,9 +838,8 @@ class CONTENT_EXPORT RenderProcessHostImpl
       override;
 
 #if BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
-  void CreateStableVideoDecoder(
-      mojo::PendingReceiver<media::stable::mojom::StableVideoDecoder> receiver)
-      override;
+  void CreateOOPVideoDecoder(
+      mojo::PendingReceiver<media::mojom::VideoDecoder> receiver) override;
 #endif  // BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
 
   void BindP2PSocketManager(
@@ -830,38 +858,36 @@ class CONTENT_EXPORT RenderProcessHostImpl
   }
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  void ReinitializeLogging(uint32_t logging_dest,
-                           base::ScopedFD log_file_descriptor) override;
-#endif
-
-  void SetBatterySaverMode(bool battery_saver_mode_enabled) override;
-
 #if BUILDFLAG(IS_ANDROID)
   // Notifies the renderer process of memory pressure level.
   void NotifyMemoryPressureToRenderer(
       base::MemoryPressureListener::MemoryPressureLevel level);
-
-  uint64_t GetPrivateMemoryFootprint() const {
-    return private_memory_footprint_bytes_;
-  }
 #endif
 
 #if BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
-  using StableVideoDecoderFactoryCreationCB = base::RepeatingCallback<void(
-      mojo::PendingReceiver<media::stable::mojom::StableVideoDecoderFactory>)>;
-  static void SetStableVideoDecoderFactoryCreationCBForTesting(
-      StableVideoDecoderFactoryCreationCB cb);
+  using VideoDecoderFactoryCreationCB = base::RepeatingCallback<void(
+      mojo::PendingReceiver<media::mojom::InterfaceFactory>)>;
+  static void SetVideoDecoderFactoryCreationCBForTesting(
+      VideoDecoderFactoryCreationCB cb);
 
-  enum class StableVideoDecoderEvent {
+  enum class VideoDecoderEvent {
     kFactoryResetTimerStopped,
     kAllDecodersDisconnected,
   };
-  using StableVideoDecoderEventCB =
-      base::RepeatingCallback<void(StableVideoDecoderEvent)>;
-  static void SetStableVideoDecoderEventCBForTesting(
-      StableVideoDecoderEventCB cb);
+  using VideoDecoderEventCB = base::RepeatingCallback<void(VideoDecoderEvent)>;
+  static void SetVideoDecoderEventCBForTesting(VideoDecoderEventCB cb);
 #endif  // BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
+
+  void GetBoundInterfacesForTesting(std::vector<std::string>& out);
+
+  void SetPrivateMemoryFootprintForTesting(
+      uint64_t private_memory_footprint_bytes);
+
+  mojo::AssociatedReceiver<mojom::RendererHost>&
+  renderer_host_receiver_for_testing() {
+    return renderer_host_receiver_;
+  }
+
  protected:
   // A proxy for our IPC::Channel that lives on the IO thread.
   std::unique_ptr<IPC::ChannelProxy> channel_;
@@ -913,6 +939,57 @@ class CONTENT_EXPORT RenderProcessHostImpl
     // Indicates whether this RenderProcessHost is exclusively hosting PDF
     // contents.
     kPdf = 1 << 2,
+
+    // Indicates whether v8 optimizations are disabled in this renderer process.
+    kV8OptimizationsDisabled = 1 << 3,
+
+    // Indicates whether v8 feature flag overrides are disallowed in this
+    // renderer process.
+    kDisallowV8FeatureFlagOverrides = 1 << 4,
+  };
+
+  // A RenderProcessHostImpl's IO thread implementation of the
+  // |mojom::ChildProcessHost| interface. This exists to allow the process host
+  // to bind incoming receivers on the IO-thread without a main-thread hop if
+  // necessary. Also owns the RPHI's |mojom::ChildProcess| remote.
+  class IOThreadHostImpl : public mojom::ChildProcessHost {
+   public:
+    IOThreadHostImpl(
+        ChildProcessId render_process_id,
+        base::WeakPtr<RenderProcessHostImpl> weak_host,
+        std::unique_ptr<service_manager::BinderRegistry> binders,
+        mojo::PendingReceiver<mojom::ChildProcessHost> host_receiver);
+
+    ~IOThreadHostImpl() override;
+
+    IOThreadHostImpl(const IOThreadHostImpl& other) = delete;
+    IOThreadHostImpl& operator=(const IOThreadHostImpl& other) = delete;
+
+    void SetPid(base::ProcessId child_pid);
+
+    void GetInterfacesForTesting(std::vector<std::string>& out);
+
+   private:
+    // mojom::ChildProcessHost implementation:
+    void Ping(PingCallback callback) override;
+
+    // To enforce security review for IPC, these 2 methods are defined in
+    // render_process_host_impl_receiver_bindings.cc.
+    void BindHostReceiver(mojo::GenericPendingReceiver receiver) override;
+    static void BindHostReceiverOnUIThread(
+        base::WeakPtr<RenderProcessHostImpl> weak_host,
+        mojo::GenericPendingReceiver receiver);
+
+    const ChildProcessId render_process_id_;
+    const base::WeakPtr<RenderProcessHostImpl> weak_host_;
+    std::unique_ptr<service_manager::BinderRegistry> binders_;
+    mojo::Receiver<mojom::ChildProcessHost> receiver_{this};
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+    mojo::Remote<media::mojom::VideoEncodeAcceleratorProviderFactory>
+        video_encode_accelerator_factory_remote_;
+    ChildThreadTypeSwitcher child_thread_type_switcher_;
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   };
 
   // Use CreateRenderProcessHost() instead of calling this constructor
@@ -921,9 +998,16 @@ class CONTENT_EXPORT RenderProcessHostImpl
                         StoragePartitionImpl* storage_partition_impl,
                         int flags);
 
+  void MaybeNotifyVizOfRendererBlockStateChanged(bool blocked);
+
   // Initializes a new IPC::ChannelProxy in |channel_|, which will be
   // connected to the next child process launched for this host, if any.
   void InitializeChannelProxy();
+
+  // Initializes shared memory regions between this host and its renderer.
+  // Called at the end of each call to InitializeChannelProxy() so the shared
+  // memory regions can be sent to the (new) renderer.
+  void InitializeSharedMemoryRegionsOnceChannelIsUp();
 
   // Resets |channel_|, removing it from the attachment broker if necessary.
   // Always call this in lieu of directly resetting |channel_|.
@@ -933,6 +1017,8 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void CreateMessageFilters();
 
   // Registers Mojo interfaces to be exposed to the renderer.
+  // To enforce security review for IPC, this method is defined in
+  // render_process_host_impl_receiver_bindings.cc.
   void RegisterMojoInterfaces();
 
   // mojom::RendererHost
@@ -961,8 +1047,6 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void BindVideoEncoderMetricsProvider(
       mojo::PendingReceiver<media::mojom::VideoEncoderMetricsProvider>
           receiver);
-  void BindWebDatabaseHostImpl(
-      mojo::PendingReceiver<blink::mojom::WebDatabaseHost> receiver);
   void BindAecDumpManager(
       mojo::PendingReceiver<blink::mojom::AecDumpManager> receiver);
   void CreateMediaLogRecordHost(
@@ -1082,11 +1166,11 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   // Returns a RenderProcessHost that is rendering a URL corresponding to
   // |site_instance| in one of its frames, or that is expecting a navigation to
-  // that SiteInstance. `main_frame_threshold` is an optional parameter to
-  // limit the maximum number of main frames a RenderProcessHost can host.
+  // that SiteInstance. `process_reuse_policy` indicates the context so that
+  // appropriate thresholds can be applied.
   static RenderProcessHost* FindReusableProcessHostForSiteInstance(
       SiteInstanceImpl* site_instance,
-      std::optional<size_t> main_frame_threshold = std::nullopt);
+      ProcessReusePolicy process_reuse_policy);
 
   void NotifyRendererOfLockedStateUpdate();
 
@@ -1096,7 +1180,8 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void PopulateTerminationInfoRendererFields(ChildProcessTerminationInfo* info);
 #endif  // BUILDFLAG(IS_ANDROID)
 
-  static void OnMojoError(int render_process_id, const std::string& error);
+  static void OnMojoError(ChildProcessId render_process_id,
+                          const std::string& error);
 
   template <typename InterfaceType>
   using AddReceiverCallback =
@@ -1163,9 +1248,9 @@ class CONTENT_EXPORT RenderProcessHostImpl
   bool AreAllRefCountsZero();
 
 #if BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
-  void OnStableVideoDecoderDisconnected();
+  void OnVideoDecoderDisconnected();
 
-  void ResetStableVideoDecoderFactory();
+  void ResetVideoDecoderFactory();
 #endif  // BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
 
   mojo::OutgoingInvitation mojo_invitation_;
@@ -1230,11 +1315,13 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   RenderProcessPriority priority_;
 
+#if !BUILDFLAG(IS_ANDROID)
   // If this is set then the built-in process priority calculation system is
-  // ignored, and an externally computed process priority is used. Set to true
-  // and the process will stay foreground priority; set to false and it will
-  // stay background priority.
-  std::optional<bool> priority_override_;
+  // ignored, and an externally computed process priority is used.
+  // TODO(pmonette): After experimentation, either remove this or rip out the
+  // existing logic entirely.
+  std::optional<base::Process::Priority> priority_override_;
+#endif
 
   // Used to allow a RenderWidgetHost to intercept various messages on the
   // IO thread.
@@ -1256,7 +1343,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   std::unique_ptr<ChildProcessLauncher> child_process_launcher_;
 
   // The globally-unique identifier for this RenderProcessHost.
-  const int id_;
+  const ChildProcessId id_;
 
   // This field is not a raw_ptr<> because problems related to passing to a
   // templated && parameter, which is later forwarded to something that doesn't
@@ -1338,24 +1425,22 @@ class CONTENT_EXPORT RenderProcessHostImpl
   std::unique_ptr<PermissionServiceContext> permission_service_context_;
 
 #if BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
-  // Connection to the StableVideoDecoderFactory that lives in a utility
+  // Connection to the InterfaceFactory that lives in a utility
   // process. This is only used for out-of-process video decoding.
-  mojo::Remote<media::stable::mojom::StableVideoDecoderFactory>
-      stable_video_decoder_factory_remote_;
+  mojo::Remote<media::mojom::InterfaceFactory> video_decoder_factory_remote_;
 
-  // Using |stable_video_decoder_trackers_|, we track the StableVideoDecoders
-  // that have been created using |stable_video_decoder_factory_remote_|. That
-  // way, we know when the remote StableVideoDecoder dies.
-  mojo::ReceiverSet<media::stable::mojom::StableVideoDecoderTracker>
-      stable_video_decoder_trackers_;
+  // Using |video_decoder_trackers_|, we track the VideoDecoders
+  // that have been created using |video_decoder_factory_remote_|. That way, we
+  // know when the remote VideoDecoder dies.
+  mojo::ReceiverSet<media::mojom::VideoDecoderTracker> video_decoder_trackers_;
 
-  // |stable_video_decoder_factory_reset_timer_| allows us to delay the reset()
-  // of |stable_video_decoder_factory_remote_|: after all StableVideoDecoders
-  // have disconnected, we wait for the timer to trigger, and if no request
-  // comes in to create a StableVideoDecoder before that, we reset the
-  // |stable_video_decoder_factory_remote_| which should cause the destruction
-  // of the remote video decoder utility process.
-  base::OneShotTimer stable_video_decoder_factory_reset_timer_;
+  // |video_decoder_factory_reset_timer_| allows us to delay the reset() of
+  // |video_decoder_factory_remote_|: after all VideoDecoders have disconnected,
+  // we wait for the timer to trigger, and if no request comes in to create a
+  // VideoDecoder before that, we reset the |video_decoder_factory_remote_|
+  // which should cause the destruction of the remote video decoder utility
+  // process.
+  base::OneShotTimer video_decoder_factory_reset_timer_;
 #endif  // BUILDFLAG(ALLOW_OOP_VIDEO_DECODER)
 
 #if BUILDFLAG(IS_FUCHSIA)
@@ -1364,10 +1449,32 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   // The memory allocator, if any, in which the renderer will write its metrics.
   std::unique_ptr<base::PersistentMemoryAllocator> metrics_allocator_;
-  base::UnsafeSharedMemoryRegion metrics_memory_region_;
+
+  // The histogram shared memory region used to transmit metrics. The memory
+  // region is allocated by the process host (this object) but ownership is
+  // shared with the child process launcher/helper which runs, and is destroyed,
+  // asynchronously. Depending on the feature configuration, either the host or
+  // the launcher is responsible for passing the memory region to the child.
+  // The destruction order of the host, launcher and child are indeterminate.
+  scoped_refptr<base::RefCountedData<base::UnsafeSharedMemoryRegion>>
+      metrics_memory_region_;
+
+  // The tracing config memory region. The memory region is allocated by the
+  // process host (this object) but ownership is shared with the child process
+  // launcher/helper which runs, and is destroyed, asynchronously.
+  scoped_refptr<base::RefCountedData<base::ReadOnlySharedMemoryRegion>>
+      tracing_config_memory_region_;
+
+  // The tracing output memory region.  Ownership of the memory region is
+  // allocated by the process host (this object) but ownership is shared with
+  // the child process launcher/helper which runs, and is destroyed,
+  // asynchronously.
+  scoped_refptr<base::RefCountedData<base::UnsafeSharedMemoryRegion>>
+      tracing_output_memory_region_;
 
   bool channel_connected_ = false;
   bool sent_render_process_ready_ = false;
+  bool sent_process_created_ = false;
 
   std::unique_ptr<FileSystemManagerImpl, BrowserThread::DeleteOnIOThread>
       file_system_manager_impl_;
@@ -1389,6 +1496,14 @@ class CONTENT_EXPORT RenderProcessHostImpl
   mojo::Receiver<memory_instrumentation::mojom::CoordinatorConnector>
       coordinator_connector_receiver_{this};
 
+  // A shared memory mapping of a std::atomic<TimeTicks> used to atomically
+  // communicate the last time the hosted renderer was foregrounded. This is
+  // preferable to IPC as it ensures the timing is visible immediately after
+  // recovering from a jank (e.g. important for metrics).
+  // TODO(pmonette): Update this to support all process priority levels.
+  std::optional<base::AtomicSharedMemory<base::TimeTicks>>
+      last_foreground_time_region_;
+
   // Tracks active audio and video streams within the render process; used to
   // determine if if a process should be backgrounded.
   int media_stream_count_ = 0;
@@ -1397,6 +1512,14 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // processes in a timely manner.  Used to determine if a process should
   // not be backgrounded.
   int foreground_service_worker_count_ = 0;
+
+  // Tracks the count of render frame host that requested prioritize the
+  // processing commit navigation and initial loading (crbug/351953350).
+  int boost_for_loading_count_ = 0;
+
+  // Tracks whether or not the current process is in an immersive webxr session.
+  // Used to determine if a process should not be backgrounded.
+  bool has_immersive_xr_session_ = false;
 
   std::unique_ptr<mojo::Receiver<viz::mojom::CompositingModeReporter>>
       compositing_mode_reporter_;
@@ -1425,9 +1548,15 @@ class CONTENT_EXPORT RenderProcessHostImpl
   scoped_refptr<PepperRendererConnection> pepper_renderer_connection_;
 #endif
 
-#if BUILDFLAG(IS_ANDROID)
-  // The private memory footprint of the render process.
+  // The memory size that the renderer has allocated. On Android
+  // this value is pushed from the renderer periodically. On other platforms
+  // this value is a cached value calculated from the last call to
+  // `GetPrivateMemoryFootprint`. Because of this caching this value should
+  // not be used directly but `GetPrivateMemoryFootprint` should be called
+  // each time.
   uint64_t private_memory_footprint_bytes_ = 0u;
+#if !BUILDFLAG(IS_ANDROID)
+  base::TimeTicks private_memory_footprint_valid_until_;
 #endif
 
   // IOThreadHostImpl owns some IO-thread state associated with this
@@ -1439,11 +1568,24 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // bound to a mojo receiver callback using a base::Unretained.  This is
   // necessary to ensure those objects stop receiving mojo messages before their
   // destruction.
-  class IOThreadHostImpl;
-  friend class IOThreadHostImpl;
   std::optional<base::SequenceBound<IOThreadHostImpl>> io_thread_host_impl_;
 
   std::unique_ptr<FileBackedBlobFactoryWorkerImpl> file_backed_blob_factory_;
+
+  // Number of current outermost frames in this process.
+  size_t outermost_main_frame_count_ = 0;
+  // Maximum number of outermost main frames this process hosted concurrently.
+  size_t max_outermost_main_frames_ = 0;
+
+  // Whether to consider the process as a spare renderer when
+  // calculating the priority.
+  // The attribute starts out as false and is set to true if this renderer
+  // process is launched as a spare process.  When the process is taken for
+  // navigation, the value will stay true until the priority is set in
+  // RenderWidgetHostImpl. For other renderer process allocations, the value
+  // will be set to false when the process is taken from the
+  // SpareRenderProcessHostManager.
+  bool has_spare_renderer_priority_ = false;
 
   // A WeakPtrFactory which is reset every time ResetIPC() or Cleanup() is run.
   // Used to vend WeakPtrs which are invalidated any time the RenderProcessHost

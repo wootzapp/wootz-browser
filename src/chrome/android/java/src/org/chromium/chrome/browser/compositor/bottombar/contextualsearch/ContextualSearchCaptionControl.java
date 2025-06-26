@@ -30,20 +30,11 @@ public class ContextualSearchCaptionControl extends OverlayPanelTextViewInflater
     /** The caption View. */
     private TextView mCaption;
 
-    /** The text for the caption when the Bar is peeking. */
-    private String mPeekingCaptionText;
-
     /** Whether there is a caption when the Bar is peeking. */
     private boolean mHasPeekingCaption;
 
     /** Whether the caption for the expanded Bar is showing. */
     private boolean mShowingExpandedCaption;
-
-    /** Whether the expanded caption should be shown. */
-    private final boolean mShouldShowExpandedCaption;
-
-    /** The {@link ContextualSearchPanel} that this class belongs to. */
-    private final ContextualSearchPanel mPanel;
 
     /** The caption visibility. */
     private boolean mIsVisible;
@@ -64,27 +55,17 @@ public class ContextualSearchCaptionControl extends OverlayPanelTextViewInflater
      */
     private boolean mDidCapture;
 
-    private int mBaseBottomPadding;
-    private float mEdgeToEdgeBottomPadding;
-
     /**
      * @param panel The panel.
      * @param context The Android Context used to inflate the View.
      * @param container The container View used to inflate the View.
      * @param resourceLoader The resource loader that will handle the snapshot capturing.
-     * @param shouldShowExpandedCaption Whether the "Open in new tab" caption should be shown when
-     *     the panel is expanded.
-     * @param edgeToEdgeBottomPadding Extra bottom padding in pixels used when the current page is
-     *     in edge-to-edge mode in order to keep the search bar contents above the bottom nav bar
-     *     area. 0 if edge-to-edge is not enabled, or if the current page is not edge-to-edge.
      */
     public ContextualSearchCaptionControl(
             ContextualSearchPanel panel,
             Context context,
             ViewGroup container,
-            DynamicResourceLoader resourceLoader,
-            boolean shouldShowExpandedCaption,
-            float edgeToEdgeBottomPadding) {
+            DynamicResourceLoader resourceLoader) {
         super(
                 panel,
                 R.layout.contextual_search_caption_view,
@@ -94,9 +75,6 @@ public class ContextualSearchCaptionControl extends OverlayPanelTextViewInflater
                 resourceLoader,
                 R.dimen.contextual_search_end_padding,
                 R.dimen.contextual_search_padded_button_width);
-        mShouldShowExpandedCaption = shouldShowExpandedCaption;
-        mPanel = panel;
-        mEdgeToEdgeBottomPadding = edgeToEdgeBottomPadding;
     }
 
     /**
@@ -106,7 +84,6 @@ public class ContextualSearchCaptionControl extends OverlayPanelTextViewInflater
      *     Answer.
      */
     public void setCaption(String caption) {
-        mPeekingCaptionText = sanitizeText(caption);
         mHasPeekingCaption = true;
 
         if (mShowingExpandedCaption) return;
@@ -116,7 +93,6 @@ public class ContextualSearchCaptionControl extends OverlayPanelTextViewInflater
         inflate();
 
         mCaption.setText(sanitizeText(caption));
-        padBottomForEdgeToEdge();
 
         invalidate();
         show();
@@ -208,34 +184,7 @@ public class ContextualSearchCaptionControl extends OverlayPanelTextViewInflater
         super.onFinishInflate();
 
         View view = getView();
-        mCaption = (TextView) view.findViewById(R.id.contextual_search_caption);
-        mBaseBottomPadding = mCaption.getPaddingBottom();
-        padBottomForEdgeToEdge();
-    }
-
-    /**
-     * Override the extra bottom padding used when the current page is drawing edge-to-edge.
-     *
-     * @param edgeToEdgeBottomPadding The extra bottom padding in pixels.
-     */
-    public void overrideEdgeToEdgePadding(float edgeToEdgeBottomPadding) {
-        if (mEdgeToEdgeBottomPadding != edgeToEdgeBottomPadding) {
-            mEdgeToEdgeBottomPadding = edgeToEdgeBottomPadding;
-
-            // Pad the bottom with the new edge-to-edge bottom inset. If mCaption is null, the
-            // bottom padding will be applied later when #onFinishInflate() gets called.
-            if (mCaption != null) {
-                padBottomForEdgeToEdge();
-            }
-        }
-    }
-
-    private void padBottomForEdgeToEdge() {
-        mCaption.setPadding(
-                mCaption.getPaddingLeft(),
-                mCaption.getPaddingTop(),
-                mCaption.getPaddingRight(),
-                mBaseBottomPadding + (int) mEdgeToEdgeBottomPadding);
+        mCaption = view.findViewById(R.id.contextual_search_caption);
     }
 
     @Override

@@ -13,7 +13,7 @@
 #include "ash/shelf/shelf.h"
 #include "ash/style/typography.h"
 #include "base/check.h"
-#include "chromeos/constants/chromeos_features.h"
+#include "base/types/cxx23_to_underlying.h"
 #include "ui/aura/window.h"
 #include "ui/events/event.h"
 #include "ui/events/types/event_type.h"
@@ -23,13 +23,13 @@ namespace ash::bubble_utils {
 
 bool ShouldCloseBubbleForEvent(const ui::LocatedEvent& event) {
   // Should only be called for "press" or scroll begin type events.
-  DCHECK(event.type() == ui::ET_MOUSE_PRESSED ||
-         event.type() == ui::ET_TOUCH_PRESSED ||
-         event.type() == ui::ET_GESTURE_LONG_PRESS ||
-         event.type() == ui::ET_GESTURE_TAP ||
-         event.type() == ui::ET_GESTURE_TWO_FINGER_TAP ||
-         event.type() == ui::ET_GESTURE_SCROLL_BEGIN)
-      << event.type();
+  DCHECK(event.type() == ui::EventType::kMousePressed ||
+         event.type() == ui::EventType::kTouchPressed ||
+         event.type() == ui::EventType::kGestureLongPress ||
+         event.type() == ui::EventType::kGestureTap ||
+         event.type() == ui::EventType::kGestureTwoFingerTap ||
+         event.type() == ui::EventType::kGestureScrollBegin)
+      << base::to_underlying(event.type());
 
   // Users in a capture session may be trying to capture the bubble.
   if (capture_mode_util::IsCaptureModeActive())
@@ -85,58 +85,9 @@ void ApplyStyle(views::Label* label,
                 TypographyToken style,
                 ui::ColorId text_color_id) {
   label->SetAutoColorReadabilityEnabled(false);
-  label->SetEnabledColorId(text_color_id);
+  label->SetEnabledColor(text_color_id);
 
-  if (chromeos::features::IsJellyEnabled()) {
-    TypographyProvider::Get()->StyleLabel(style, *label);
-    return;
-  }
-
-  switch (style) {
-    case TypographyToken::kCrosAnnotation1:
-      label->SetFontList(gfx::FontList({"Roboto"}, gfx::Font::NORMAL, 12,
-                                       gfx::Font::Weight::NORMAL));
-      break;
-    case TypographyToken::kCrosAnnotation2:
-      label->SetFontList(gfx::FontList({"Roboto"}, gfx::Font::NORMAL, 11,
-                                       gfx::Font::Weight::NORMAL));
-      break;
-    case TypographyToken::kCrosBody1:
-      label->SetFontList(gfx::FontList({"Roboto"}, gfx::Font::NORMAL, 14,
-                                       gfx::Font::Weight::NORMAL));
-      break;
-    case TypographyToken::kCrosBody2:
-      label->SetFontList(gfx::FontList({"Roboto"}, gfx::Font::NORMAL, 13,
-                                       gfx::Font::Weight::NORMAL));
-      break;
-    case TypographyToken::kCrosButton1:
-      label->SetFontList(gfx::FontList({"Roboto"}, gfx::Font::NORMAL, 14,
-                                       gfx::Font::Weight::MEDIUM));
-      break;
-    case TypographyToken::kCrosButton2:
-      label->SetFontList(gfx::FontList({"Roboto"}, gfx::Font::NORMAL, 13,
-                                       gfx::Font::Weight::MEDIUM));
-      break;
-    case TypographyToken::kCrosDisplay7:
-      label->SetFontList(gfx::FontList({"Roboto"}, gfx::Font::NORMAL, 18,
-                                       gfx::Font::Weight::MEDIUM));
-      break;
-    case TypographyToken::kCrosHeadline1:
-      label->SetFontList(gfx::FontList({"Roboto"}, gfx::Font::NORMAL, 15,
-                                       gfx::Font::Weight::MEDIUM));
-      break;
-    case TypographyToken::kCrosLabel1:
-      label->SetFontList(gfx::FontList({"Roboto"}, gfx::Font::NORMAL, 10,
-                                       gfx::Font::Weight::MEDIUM));
-      break;
-    case TypographyToken::kCrosTitle1:
-      label->SetFontList(gfx::FontList({"Roboto"}, gfx::Font::NORMAL, 16,
-                                       gfx::Font::Weight::MEDIUM));
-      break;
-    default:
-      NOTREACHED_IN_MIGRATION();
-      break;
-  }
+  TypographyProvider::Get()->StyleLabel(style, *label);
 }
 
 std::unique_ptr<views::Label> CreateLabel(TypographyToken style,

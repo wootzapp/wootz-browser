@@ -10,22 +10,30 @@ namespace blink {
 
 GPUAdapterInfo::GPUAdapterInfo(const String& vendor,
                                const String& architecture,
+                               uint32_t subgroup_min_size,
+                               uint32_t subgroup_max_size,
+                               bool is_fallback_adapter,
                                const String& device,
                                const String& description,
                                const String& driver,
                                const String& backend,
                                const String& type,
                                const std::optional<uint32_t> d3d_shader_model,
-                               const std::optional<uint32_t> vk_driver_version)
+                               const std::optional<uint32_t> vk_driver_version,
+                               const String& power_preference)
     : vendor_(vendor),
       architecture_(architecture),
+      subgroup_min_size_(subgroup_min_size),
+      subgroup_max_size_(subgroup_max_size),
+      is_fallback_adapter_(is_fallback_adapter),
       device_(device),
       description_(description),
       driver_(driver),
       backend_(backend),
       type_(type),
       d3d_shader_model_(d3d_shader_model),
-      vk_driver_version_(vk_driver_version) {}
+      vk_driver_version_(vk_driver_version),
+      power_preference_(power_preference) {}
 
 void GPUAdapterInfo::AppendMemoryHeapInfo(GPUMemoryHeapInfo* info) {
   memory_heaps_.push_back(info);
@@ -45,6 +53,18 @@ const String& GPUAdapterInfo::device() const {
 
 const String& GPUAdapterInfo::description() const {
   return description_;
+}
+
+uint32_t GPUAdapterInfo::subgroupMinSize() const {
+  return subgroup_min_size_;
+}
+
+uint32_t GPUAdapterInfo::subgroupMaxSize() const {
+  return subgroup_max_size_;
+}
+
+bool GPUAdapterInfo::isFallbackAdapter() const {
+  return is_fallback_adapter_;
 }
 
 const String& GPUAdapterInfo::driver() const {
@@ -70,6 +90,10 @@ const std::optional<uint32_t>& GPUAdapterInfo::d3dShaderModel() const {
 
 const std::optional<uint32_t>& GPUAdapterInfo::vkDriverVersion() const {
   return vk_driver_version_;
+}
+
+const String& GPUAdapterInfo::powerPreference() const {
+  return power_preference_;
 }
 
 void GPUAdapterInfo::Trace(Visitor* visitor) const {

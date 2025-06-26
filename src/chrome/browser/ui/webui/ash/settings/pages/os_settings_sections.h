@@ -8,8 +8,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "ash/webui/eche_app_ui/eche_app_manager.h"
 #include "ash/webui/settings/public/constants/routes.mojom.h"
+#include "base/memory/raw_ptr.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_forward.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/os_settings_section.h"
 
@@ -25,6 +25,9 @@ namespace ash {
 class CupsPrintersManager;
 class KerberosCredentialsManager;
 
+namespace eche_app {
+class EcheAppManager;
+}  // namespace eche_app
 
 namespace multidevice_setup {
 class MultiDeviceSetupClient;
@@ -65,7 +68,8 @@ class OsSettingsSections {
   // Used by tests.
   OsSettingsSections();
 
-  std::unordered_map<chromeos::settings::mojom::Section, OsSettingsSection*>
+  std::unordered_map<chromeos::settings::mojom::Section,
+                     raw_ptr<OsSettingsSection, CtnExperimental>>
       sections_map_;
   std::vector<std::unique_ptr<OsSettingsSection>> sections_;
 

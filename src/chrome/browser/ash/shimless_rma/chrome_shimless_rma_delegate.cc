@@ -22,7 +22,7 @@
 #include "chrome/browser/ash/shimless_rma/diagnostics_app_profile_helper.h"
 #include "chrome/browser/ash/system/device_disabling_manager.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
-#include "chrome/browser/ui/webui/ash/diagnostics_dialog.h"
+#include "chrome/browser/ui/webui/ash/diagnostics_dialog/diagnostics_dialog.h"
 #include "chrome/common/chromeos/extensions/chromeos_system_extension_info.h"
 #include "components/qr_code_generator/bitmap_generator.h"
 #include "content/public/browser/web_ui.h"
@@ -82,9 +82,13 @@ void ChromeShimlessRmaDelegate::GenerateQrCode(
   // this situation gracefully by returning empty data/string/image.
   DCHECK(response.has_value()) << "url: " << url;
   if (response.has_value()) {
-    std::vector<unsigned char> bytes;
-    gfx::PNGCodec::EncodeBGRASkBitmap(response.value(), false, &bytes);
-    std::move(callback).Run(std::string(bytes.begin(), bytes.end()));
+    std::optional<std::vector<uint8_t>> bytes =
+        gfx::PNGCodec::EncodeBGRASkBitmap(response.value(),
+                                          /*discard_transparency=*/false);
+    if (!bytes) {
+      std::move(callback).Run(std::string());
+    }
+    std::move(callback).Run(std::string(base::as_string_view(bytes.value())));
   } else {
     SCOPED_CRASH_KEY_STRING1024("RMA", "QRCodeGeneration", url);
     base::debug::DumpWithoutCrashing();

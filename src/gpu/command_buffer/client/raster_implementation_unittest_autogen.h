@@ -8,6 +8,11 @@
 //    clang-format -i -style=chromium filename
 // DO NOT EDIT!
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // This file is included by raster_implementation.h to declare the
 // GL api functions.
 #ifndef GPU_COMMAND_BUFFER_CLIENT_RASTER_IMPLEMENTATION_UNITTEST_AUTOGEN_H_
@@ -25,9 +30,7 @@ TEST_F(RasterImplementationTest, Flush) {
 }
 
 TEST_F(RasterImplementationTest, GenQueriesEXT) {
-  GLuint ids[2] = {
-      0,
-  };
+  GLuint ids[2] = {};
   struct Cmds {
     cmds::GenQueriesEXTImmediate gen;
     GLuint data[2];

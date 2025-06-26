@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <array>
 #include <string_view>
 
 #include "base/base_paths.h"
@@ -17,8 +18,6 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "third_party/blink/public/common/switches.h"
-
-namespace chrome {
 
 class WasmExtensionCachingBrowserTest
     : public extensions::ExtensionBrowserTest {
@@ -39,7 +38,7 @@ class WasmExtensionCachingBrowserTest
     kMaxValue = kNoCacheHandler
   };
 
-  static constexpr std::string_view kWasmCodeCachingBucketNames[] = {
+  static constexpr std::array kWasmCodeCachingBucketNames = {
       "kMiss", "kHit", "kInvalidCacheEntry", "kNoCacheHandler"};
 
   const base::FilePath& GetExtensionDir() {
@@ -178,7 +177,7 @@ IN_PROC_BROWSER_TEST_F(WasmExtensionCachingBrowserTest, CacheWasmExtensions) {
   // few more loads.
   for (int num_tabs = 1; num_tabs <= 10; ++num_tabs) {
     LOG(INFO) << "Opening new tab #" << num_tabs;
-    NewTab(browser());
+    chrome::NewTab(browser());
     // Wait until we got a total of `num_tabs` many samples.
     WaitForHistogramSamples(kHistogram, num_tabs);
     // If there was a hit, we are happy (and done).
@@ -194,5 +193,3 @@ IN_PROC_BROWSER_TEST_F(WasmExtensionCachingBrowserTest, CacheWasmExtensions) {
 
   FAIL() << "Failure: No cache hits";
 }
-
-}  // namespace chrome

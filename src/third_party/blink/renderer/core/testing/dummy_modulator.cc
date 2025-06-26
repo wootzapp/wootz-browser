@@ -25,15 +25,13 @@ class EmptyModuleRecordResolver final : public ModuleRecordResolver {
 
   const ModuleScript* GetModuleScriptFromModuleRecord(
       v8::Local<v8::Module>) const override {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
 
   v8::Local<v8::Module> Resolve(const ModuleRequest& module_request,
                                 v8::Local<v8::Module> referrer,
                                 ExceptionState&) override {
-    NOTREACHED_IN_MIGRATION();
-    return v8::Local<v8::Module>();
+    NOTREACHED();
   }
 };
 
@@ -50,8 +48,7 @@ void DummyModulator::Trace(Visitor* visitor) const {
 }
 
 ScriptState* DummyModulator::GetScriptState() {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 mojom::blink::V8CacheOptions DummyModulator::GetV8CacheOptions() const {
@@ -67,8 +64,7 @@ ModuleRecordResolver* DummyModulator::GetModuleRecordResolver() {
 }
 
 base::SingleThreadTaskRunner* DummyModulator::TaskRunner() {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 void DummyModulator::FetchTree(const KURL&,
@@ -80,7 +76,7 @@ void DummyModulator::FetchTree(const KURL&,
                                ModuleScriptCustomFetchType,
                                ModuleTreeClient*,
                                String referrer) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void DummyModulator::FetchSingle(const ModuleScriptFetchRequest&,
@@ -88,7 +84,7 @@ void DummyModulator::FetchSingle(const ModuleScriptFetchRequest&,
                                  ModuleGraphLevel,
                                  ModuleScriptCustomFetchType,
                                  SingleModuleClient*) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void DummyModulator::FetchDescendantsForInlineScript(
@@ -97,19 +93,17 @@ void DummyModulator::FetchDescendantsForInlineScript(
     mojom::blink::RequestContextType,
     network::mojom::RequestDestination,
     ModuleTreeClient*) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 ModuleScript* DummyModulator::GetFetchedModuleScript(const KURL&, ModuleType) {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 KURL DummyModulator::ResolveModuleSpecifier(const String&,
                                             const KURL&,
                                             String*) {
-  NOTREACHED_IN_MIGRATION();
-  return KURL();
+  NOTREACHED();
 }
 
 String DummyModulator::GetIntegrityMetadataString(const KURL&) const {
@@ -127,13 +121,12 @@ bool DummyModulator::HasValidContext() {
 void DummyModulator::ResolveDynamically(const ModuleRequest& module_request,
                                         const ReferrerScriptInfo&,
                                         ScriptPromiseResolver<IDLAny>*) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 ModuleImportMeta DummyModulator::HostGetImportMetaProperties(
     v8::Local<v8::Module>) const {
-  NOTREACHED_IN_MIGRATION();
-  return ModuleImportMeta(String());
+  NOTREACHED();
 }
 
 ModuleType DummyModulator::ModuleTypeFromRequest(
@@ -141,8 +134,9 @@ ModuleType DummyModulator::ModuleTypeFromRequest(
   String module_type_string = module_request.GetModuleTypeString();
   if (module_type_string.IsNull()) {
     // Per https://github.com/whatwg/html/pull/5883, if no type assertion is
-    // provided then the import should be treated as a JavaScript module.
-    return ModuleType::kJavaScript;
+    // provided then the import should be treated as a JavaScript-or-Wasm
+    // module.
+    return ModuleType::kJavaScriptOrWasm;
   } else if (module_type_string == "json") {
     // Per https://github.com/whatwg/html/pull/5658, a "json" type assertion
     // indicates that the import should be treated as a JSON module script.
@@ -162,8 +156,7 @@ ModuleType DummyModulator::ModuleTypeFromRequest(
 ModuleScriptFetcher* DummyModulator::CreateModuleScriptFetcher(
     ModuleScriptCustomFetchType,
     base::PassKey<ModuleScriptLoader> pass_key) {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 void DummyModulator::ProduceCacheModuleTreeTopLevel(ModuleScript*) {}

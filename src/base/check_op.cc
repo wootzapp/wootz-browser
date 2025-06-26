@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 #ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
 #endif
 
 #include "base/check_op.h"
@@ -15,7 +15,9 @@
 #include <cstdio>
 #include <sstream>
 
+#include "base/containers/span.h"
 #include "base/logging.h"
+#include "base/strings/cstring_view.h"
 
 namespace logging {
 
@@ -70,13 +72,21 @@ char* CheckOpValueStr(const std::string& v) {
 }
 
 char* CheckOpValueStr(std::string_view v) {
-  // Ideally this would be `strndup`, but `strndup` is not portable.
-  char* ret = static_cast<char*>(malloc(v.size() + 1));
-  if (ret) {
-    std::copy(v.begin(), v.end(), ret);
-    ret[v.size()] = 0;
-  }
+  // Ideally this would be `strndup`, but `strndup` is not portable. We have to
+  // use malloc() instead of HeapArray in order to match strdup() in the other
+  // overloads. The API contract is that the caller uses free() to release the
+  // pointer returned here.
+  char* ret = static_cast<char*>(malloc(v.size() + 1u));
+  auto [val, nul] =
+      // SAFETY: We allocated `ret` as `v.size() + 1` bytes above.
+      UNSAFE_BUFFERS(base::span<char>(ret, v.size() + 1u)).split_at(v.size());
+  val.copy_from(v);
+  nul.copy_from(base::span_from_ref('\0'));
   return ret;
+}
+
+char* CheckOpValueStr(base::cstring_view v) {
+  return strdup(v.c_str());
 }
 
 char* CheckOpValueStr(double v) {
@@ -96,8 +106,7 @@ char* CreateCheckOpLogMessageString(const char* expr_str,
                                     char* v1_str,
                                     char* v2_str) {
   std::stringstream ss;
-  ss << "Check failed: " << expr_str << " (" << v1_str << " vs. " << v2_str
-     << ")";
+  ss << expr_str << " (" << v1_str << " vs. " << v2_str << ")";
   free(v1_str);
   free(v2_str);
   return strdup(ss.str().c_str());

@@ -7,10 +7,12 @@
 
 #include <stdint.h>
 
+#include <array>
 #include <map>
 #include <string>
 #include <vector>
 
+#include "base/auto_reset.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
@@ -23,6 +25,7 @@
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/custom_handlers/protocol_handler.h"
 #include "net/base/schemeful_site.h"
+#include "services/device/public/cpp/geolocation/buildflags.h"
 #include "third_party/blink/public/common/mediastream/media_stream_request.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/image/image.h"
@@ -38,7 +41,7 @@ class ProtocolHandlerRegistry;
 namespace content {
 class Page;
 class WebContents;
-}
+}  // namespace content
 
 namespace ui {
 class Event;
@@ -321,6 +324,9 @@ class ContentSettingSimpleBubbleModel : public ContentSettingBubbleModel {
   // ContentSettingBubbleModel implementation.
   ContentSettingSimpleBubbleModel* AsSimpleBubbleModel() override;
 
+ protected:
+  bool IsContentAllowed();
+
  private:
   FRIEND_TEST_ALL_PREFIXES(FramebustBlockBrowserTest, ManageButtonClicked);
 
@@ -429,7 +435,7 @@ class ContentSettingMediaStreamBubbleModel : public ContentSettingBubbleModel {
 
   // The content settings that are associated with the individual radio
   // buttons.
-  ContentSetting radio_item_setting_[2];
+  std::array<ContentSetting, 2> radio_item_setting_;
   // The state of the microphone and camera access.
   content_settings::PageSpecificContentSettings::MicrophoneCameraState state_;
 };
@@ -597,6 +603,7 @@ class ContentSettingGeolocationBubbleModel
   // Initialize the bubble with the elements specific to the scenario when
   // geolocation is disabled on the system (OS) level.
   void InitializeSystemGeolocationPermissionBubble();
+
   void SetCustomLink();
 
   // Whether or not we are showing the bubble UI specific to when geolocation

@@ -44,9 +44,7 @@ class MessageCardViewProperties {
             new PropertyModel.WritableObjectPropertyKey<>();
     public static final PropertyModel.WritableObjectPropertyKey<String> SECONDARY_ACTION_TEXT =
             new PropertyModel.WritableObjectPropertyKey<>();
-    public static final PropertyModel.WritableObjectPropertyKey<String> DESCRIPTION_TEXT =
-            new PropertyModel.WritableObjectPropertyKey<>();
-    public static final PropertyModel.WritableObjectPropertyKey<String> DESCRIPTION_TEXT_TEMPLATE =
+    public static final PropertyModel.WritableObjectPropertyKey<CharSequence> DESCRIPTION_TEXT =
             new PropertyModel.WritableObjectPropertyKey<>();
     public static final PropertyModel.WritableObjectPropertyKey<MessageCardView.IconProvider>
             ICON_PROVIDER = new PropertyModel.WritableObjectPropertyKey<>();
@@ -81,6 +79,10 @@ class MessageCardViewProperties {
             new PropertyModel.WritableBooleanPropertyKey();
     public static final PropertyModel.WritableObjectPropertyKey<String> TITLE_TEXT =
             new PropertyModel.WritableObjectPropertyKey<>();
+    public static final PropertyModel.WritableBooleanPropertyKey VIEW_AS_ACTION_BUTTON =
+            new PropertyModel.WritableBooleanPropertyKey();
+    public static final PropertyModel.WritableBooleanPropertyKey ACTION_BUTTON_VISIBLE =
+            new PropertyModel.WritableBooleanPropertyKey();
 
     /** By default, if nothing is specified, regular is assumed. */
     public static final PropertyModel.ReadableIntPropertyKey
@@ -91,12 +93,25 @@ class MessageCardViewProperties {
     public static final PropertyModel.WritableObjectPropertyKey<ShoppingPersistedTabData.PriceDrop>
             PRICE_DROP = new PropertyModel.WritableObjectPropertyKey<>();
 
+    /**
+     * By default, {@code @dimen/tab_list_selected_margin} margin is applied on all sides. Following
+     * properties can be used to override the specific side margins.
+     */
+    public static final PropertyModel.WritableIntPropertyKey TOP_MARGIN_OVERRIDE_PX =
+            new PropertyModel.WritableIntPropertyKey();
+
+    public static final PropertyModel.WritableIntPropertyKey BOTTOM_MARGIN_OVERRIDE_PX =
+            new PropertyModel.WritableIntPropertyKey();
+    public static final PropertyModel.WritableIntPropertyKey LEFT_MARGIN_OVERRIDE_PX =
+            new PropertyModel.WritableIntPropertyKey();
+    public static final PropertyModel.WritableIntPropertyKey RIGHT_MARGIN_OVERRIDE_PX =
+            new PropertyModel.WritableIntPropertyKey();
+
     public static final PropertyKey[] ALL_KEYS =
             new PropertyKey[] {
                 ACTION_TEXT,
                 SECONDARY_ACTION_TEXT,
                 DESCRIPTION_TEXT,
-                DESCRIPTION_TEXT_TEMPLATE,
                 MESSAGE_TYPE,
                 MESSAGE_IDENTIFIER,
                 ICON_PROVIDER,
@@ -116,6 +131,12 @@ class MessageCardViewProperties {
                 IS_INCOGNITO,
                 TITLE_TEXT,
                 MESSAGE_CARD_VISIBILITY_CONTROL_IN_REGULAR_AND_INCOGNITO_MODE,
-                PRICE_DROP
+                PRICE_DROP,
+                VIEW_AS_ACTION_BUTTON,
+                ACTION_BUTTON_VISIBLE,
+                TOP_MARGIN_OVERRIDE_PX,
+                BOTTOM_MARGIN_OVERRIDE_PX,
+                LEFT_MARGIN_OVERRIDE_PX,
+                RIGHT_MARGIN_OVERRIDE_PX
             };
 }

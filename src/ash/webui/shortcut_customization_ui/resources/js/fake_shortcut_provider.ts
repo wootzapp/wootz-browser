@@ -6,9 +6,10 @@ import {FakeMethodResolver} from 'chrome://resources/ash/common/fake_method_reso
 import {FakeObservables} from 'chrome://resources/ash/common/fake_observables.js';
 import {assert} from 'chrome://resources/js/assert.js';
 
-import {AcceleratorResultData, AcceleratorsUpdatedObserverRemote, EditDialogCompletedActions, PolicyUpdatedObserverRemote, Subactions, UserAction} from '../mojom-webui/shortcut_customization.mojom-webui.js';
+import type {AcceleratorResultData, AcceleratorsUpdatedObserverRemote, EditDialogCompletedActions, PolicyUpdatedObserverRemote, Subactions, UserAction} from '../mojom-webui/shortcut_customization.mojom-webui.js';
 
-import {Accelerator, AcceleratorCategory, AcceleratorConfigResult, AcceleratorSource, MojoAcceleratorConfig, MojoLayoutInfo, ShortcutProviderInterface} from './shortcut_types.js';
+import type {Accelerator, AcceleratorCategory, MetaKey, MojoAcceleratorConfig, MojoLayoutInfo, ShortcutProviderInterface} from './shortcut_types.js';
+import {AcceleratorConfigResult, AcceleratorSource} from './shortcut_types.js';
 
 
 /**
@@ -46,8 +47,9 @@ export class FakeShortcutProvider implements ShortcutProviderInterface {
     this.methods.register('getAccelerators');
     this.methods.register('getAcceleratorLayoutInfos');
     this.methods.register('isMutable');
+    this.methods.register('hasCustomAccelerators');
     this.methods.register('isCustomizationAllowedByPolicy');
-    this.methods.register('hasLauncherButton');
+    this.methods.register('getMetaKeyToDisplay');
     this.methods.register('addAccelerator');
     this.methods.register('replaceAccelerator');
     this.methods.register('removeAccelerator');
@@ -92,6 +94,10 @@ export class FakeShortcutProvider implements ShortcutProviderInterface {
     return this.methods.resolveMethod('getAccelerators');
   }
 
+  hasCustomAccelerators(): Promise<{hasCustomAccelerators: boolean}> {
+    return this.methods.resolveMethod('hasCustomAccelerators');
+  }
+
   isMutable(source: AcceleratorSource): Promise<{isMutable: boolean}> {
     this.methods.setResult(
         'isMutable', {isMutable: source !== AcceleratorSource.kBrowser});
@@ -103,8 +109,8 @@ export class FakeShortcutProvider implements ShortcutProviderInterface {
     return this.methods.resolveMethod('isCustomizationAllowedByPolicy');
   }
 
-  hasLauncherButton(): Promise<{hasLauncherButton: boolean}> {
-    return this.methods.resolveMethod('hasLauncherButton');
+  getMetaKeyToDisplay(): Promise<{metaKey: MetaKey}> {
+    return this.methods.resolveMethod('getMetaKeyToDisplay');
   }
 
   addObserver(observer: AcceleratorsUpdatedObserverRemote): void {
@@ -268,6 +274,11 @@ export class FakeShortcutProvider implements ShortcutProviderInterface {
     this.methods.setResult('getAcceleratorLayoutInfos', {layoutInfos});
   }
 
+  setHasCustomAccelerators(enabled: boolean): void {
+    this.methods.setResult(
+        'hasCustomAccelerators', {hasCustomAccelerators: enabled});
+  }
+
   getRestoreDefaultCallCount(): number {
     return this.restoreDefaultCallCount;
   }
@@ -284,8 +295,8 @@ export class FakeShortcutProvider implements ShortcutProviderInterface {
     return this.removeAcceleratorCallCount;
   }
 
-  setFakeHasLauncherButton(hasLauncherButton: boolean): void {
-    this.methods.setResult('hasLauncherButton', {hasLauncherButton});
+  setFakeMetaKeyToDisplay(metaKey: MetaKey): void {
+    this.methods.setResult('getMetaKeyToDisplay', {metaKey});
   }
 
   setFakeAddAcceleratorResult(result: AcceleratorResultData): void {

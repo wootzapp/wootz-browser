@@ -21,14 +21,11 @@ import android.view.ViewGroup.MarginLayoutParams;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.SuggestionCommonProperties;
 import org.chromium.chrome.browser.omnibox.suggestions.base.SpacingRecyclerViewItemDecoration;
@@ -46,7 +43,6 @@ import java.util.List;
 /** Tests for {@link BaseCarouselSuggestionViewBinder}. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class BaseCarouselSuggestionViewBinderUnitTest {
-    public @Rule TestRule mFeatures = new Features.JUnitProcessor();
 
     private BaseCarouselSuggestionView mView;
     private Context mContext;
@@ -70,9 +66,10 @@ public class BaseCarouselSuggestionViewBinderUnitTest {
     @Test
     public void modelList_setItems() {
         final List<ListItem> tiles = new ArrayList<>();
-        tiles.add(new ListItem(0, null));
-        tiles.add(new ListItem(0, null));
-        tiles.add(new ListItem(0, null));
+        PropertyModel tileModel = mock(PropertyModel.class);
+        tiles.add(new ListItem(0, tileModel));
+        tiles.add(new ListItem(0, tileModel));
+        tiles.add(new ListItem(0, tileModel));
 
         Assert.assertEquals(0, mTiles.size());
         mModel.set(BaseCarouselSuggestionViewProperties.TILES, tiles);
@@ -85,9 +82,10 @@ public class BaseCarouselSuggestionViewBinderUnitTest {
     @Test
     public void modelList_clearItems() {
         final List<ListItem> tiles = new ArrayList<>();
-        tiles.add(new ListItem(0, null));
-        tiles.add(new ListItem(0, null));
-        tiles.add(new ListItem(0, null));
+        PropertyModel tileModel = mock(PropertyModel.class);
+        tiles.add(new ListItem(0, tileModel));
+        tiles.add(new ListItem(0, tileModel));
+        tiles.add(new ListItem(0, tileModel));
 
         Assert.assertEquals(0, mTiles.size());
         mModel.set(BaseCarouselSuggestionViewProperties.TILES, tiles);
@@ -162,7 +160,8 @@ public class BaseCarouselSuggestionViewBinderUnitTest {
 
         verify(view)
                 .setBackgroundColor(
-                        OmniboxResourceProvider.getStandardSuggestionBackgroundColor(mContext));
+                        OmniboxResourceProvider.getStandardSuggestionBackgroundColor(
+                                mContext, BrandedColorScheme.APP_DEFAULT));
         verify(view).setOutlineProvider(notNull());
         verify(view).setClipToOutline(true);
         verify(view).setLayoutParams(layoutParams);

@@ -17,6 +17,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/timer/timer.h"
+#include "base/types/expected.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/signin/core/browser/account_reconcilor.h"
 #include "components/signin/core/browser/signin_header_helper.h"
@@ -24,6 +25,7 @@
 #include "components/signin/public/base/signin_buildflags.h"
 #include "google_apis/gaia/core_account_id.h"
 #include "google_apis/gaia/gaia_auth_consumer.h"
+#include "google_apis/gaia/gaia_id.h"
 
 #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
 #include <optional>
@@ -37,7 +39,6 @@ class AboutSigninInternals;
 class GaiaAuthFetcher;
 class GoogleServiceAuthError;
 class SigninClient;
-class Profile;
 
 namespace signin {
 class IdentityManager;
@@ -85,19 +86,26 @@ class DiceResponseHandler : public KeyedService {
 #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
   using RegistrationTokenHelperFactory =
       base::RepeatingCallback<std::unique_ptr<RegistrationTokenHelper>(
-          std::string_view client_id,
-          std::string_view auth_code,
-          const GURL& registration_url,
-          base::OnceCallback<void(
-              std::optional<RegistrationTokenHelper::Result>)> callback)>;
+          RegistrationTokenHelper::KeyInitParam key_init_param)>;
+
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  // Public for testing.
+  // LINT.IfChange(TokenBindingOutcome)
+  enum class TokenBindingOutcome{
+      kBound = 0,
+      kNotBoundUnknown = 1,
+      kNotBoundNotSupported = 2,
+      kNotBoundNotEligible = 3,
+      kNotBoundRegistrationTokenGenerationFailed = 4,
+      kNotBoundServerRejectedKey = 5,
+      kMaxValue = kNotBoundServerRejectedKey,
+  };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/signin/enums.xml:DiceTokenBindingOutcome)
 #else
   // A fake factory type that is always used to pass a null callback.
   using RegistrationTokenHelperFactory = base::RepeatingClosure;
 #endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
-
-  // Returns the DiceResponseHandler associated with this profile.
-  // May return nullptr if there is none (e.g. in incognito).
-  static DiceResponseHandler* GetForProfile(Profile* profile);
 
   // `registration_token_helper_factory` might be null. If that's the case,
   // Chrome won't make an attempt to bind a refresh token.
@@ -129,20 +137,21 @@ class DiceResponseHandler : public KeyedService {
       RegistrationTokenHelperFactory factory);
 #endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
 
-  static void EnsureFactoryBuilt();
-
  private:
   // Helper class to fetch a refresh token from an authorization code.
   class DiceTokenFetcher : public GaiaAuthConsumer {
    public:
     DiceTokenFetcher(
-        const std::string& gaia_id,
+        const GaiaId& gaia_id,
         const std::string& email,
         const std::string& authorization_code,
         SigninClient* signin_client,
         AccountReconcilor* account_reconcilor,
         std::unique_ptr<ProcessDiceHeaderDelegate> delegate,
-        const RegistrationTokenHelperFactory& registration_token_helper_factory,
+#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+        base::expected<raw_ref<RegistrationTokenHelper>, TokenBindingOutcome>
+            registration_token_helper_or_error,
+#endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
         DiceResponseHandler* dice_response_handler);
 
     DiceTokenFetcher(const DiceTokenFetcher&) = delete;
@@ -150,7 +159,7 @@ class DiceResponseHandler : public KeyedService {
 
     ~DiceTokenFetcher() override;
 
-    const std::string& gaia_id() const { return gaia_id_; }
+    const GaiaId& gaia_id() const { return gaia_id_; }
     const std::string& email() const { return email_; }
     const std::string& authorization_code() const {
       return authorization_code_;
@@ -173,8 +182,8 @@ class DiceResponseHandler : public KeyedService {
     void StartTokenFetch();
 
 #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
-    void StartBindingKeyGeneration(const RegistrationTokenHelperFactory&
-                                       registration_token_helper_factory);
+    void StartBindingKeyGeneration(
+        RegistrationTokenHelper& registration_token_helper);
     void OnRegistrationTokenGenerated(
         std::optional<RegistrationTokenHelper::Result> result);
 #endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
@@ -182,7 +191,7 @@ class DiceResponseHandler : public KeyedService {
     // Lock the account reconcilor while tokens are being fetched.
     std::unique_ptr<AccountReconcilor::Lock> account_reconcilor_lock_;
 
-    const std::string gaia_id_;
+    const GaiaId gaia_id_;
     const std::string email_;
     const std::string authorization_code_;
     const std::unique_ptr<ProcessDiceHeaderDelegate> delegate_;
@@ -192,7 +201,8 @@ class DiceResponseHandler : public KeyedService {
     bool should_enable_sync_;
     std::unique_ptr<GaiaAuthFetcher> gaia_auth_fetcher_;
 #if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
-    std::unique_ptr<RegistrationTokenHelper> registration_token_helper_;
+    TokenBindingOutcome token_binding_outcome_ =
+        TokenBindingOutcome::kNotBoundUnknown;
     // The following fields are empty if the binding key wasn't generated.
     std::string binding_registration_token_;
     std::vector<uint8_t> wrapped_binding_key_;
@@ -204,15 +214,16 @@ class DiceResponseHandler : public KeyedService {
 
   // Process the Dice signin action.
   void ProcessDiceSigninHeader(
-      const std::string& gaia_id,
+      const GaiaId& gaia_id,
       const std::string& email,
       const std::string& authorization_code,
       bool no_authorization_code,
+      const std::string& supported_algorithms_for_token_binding,
       std::unique_ptr<ProcessDiceHeaderDelegate> delegate);
 
   // Process the Dice enable sync action.
   void ProcessEnableSyncHeader(
-      const std::string& gaia_id,
+      const GaiaId& gaia_id,
       const std::string& email,
       std::unique_ptr<ProcessDiceHeaderDelegate> delegate);
 
@@ -236,10 +247,26 @@ class DiceResponseHandler : public KeyedService {
   // Called to unlock the reconcilor after a SLO outage.
   void OnTimeoutUnlockReconcilor();
 
+#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+  // Returns a `RegistrationTokenHelper` if `this` should attempt to bind a
+  // refresh token given the configuration parameters and a list of
+  // `supported_algorithms` provided by the server. Otherwise, returns the
+  // reason for why the refresh token wasn't bound.
+  // Returned `RegistrationTokenHelper` is owned by `this`. See
+  // `registration_token_helper_` for the description of its lifetime.
+  base::expected<raw_ref<RegistrationTokenHelper>, TokenBindingOutcome>
+  MaybeGetBindingRegistrationTokenHelper(std::string_view supported_algorithms);
+#endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+
   const raw_ptr<SigninClient> signin_client_;
   const raw_ptr<signin::IdentityManager> identity_manager_;
   const raw_ptr<AccountReconcilor> account_reconcilor_;
   const raw_ptr<AboutSigninInternals> about_signin_internals_;
+#if BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
+  // Shared between all fetches in `token_fetchers_` and must outlive them.
+  // Must be cleaned up as soon as `token_fetchers_` becomes empty.
+  std::unique_ptr<RegistrationTokenHelper> registration_token_helper_;
+#endif  // BUILDFLAG(ENABLE_BOUND_SESSION_CREDENTIALS)
   std::vector<std::unique_ptr<DiceTokenFetcher>> token_fetchers_;
   // Lock the account reconcilor for kLockAccountReconcilorTimeoutHours
   // when there was OAuth outage in Dice.

@@ -16,13 +16,15 @@
 #include "base/containers/flat_map.h"
 #include "base/memory/raw_ref.h"
 #include "base/types/expected.h"
-#include "base/values.h"
 #include "components/attribution_reporting/event_report_windows.h"
+#include "components/attribution_reporting/max_event_level_reports.h"
 #include "components/attribution_reporting/source_registration_error.mojom-forward.h"
 #include "components/attribution_reporting/source_type.mojom-forward.h"
 #include "components/attribution_reporting/trigger_data_matching.mojom-forward.h"
 
 namespace base {
+class DictValue;
+class ListValue;
 class TimeDelta;
 }  // namespace base
 
@@ -46,7 +48,7 @@ class COMPONENT_EXPORT(ATTRIBUTION_REPORTING) TriggerSpec {
     return event_report_windows_;
   }
 
-  base::Value::Dict ToJson() const;
+  base::DictValue ToJson() const;
 
   friend bool operator==(const TriggerSpec&, const TriggerSpec&) = default;
 
@@ -63,7 +65,7 @@ class COMPONENT_EXPORT(ATTRIBUTION_REPORTING) TriggerSpecs {
   // TODO: Merge `ParseTopLevelTriggerData()` into this function and rename it
   // to `Parse()`.
   static base::expected<TriggerSpecs, mojom::SourceRegistrationError>
-  ParseFullFlexForTesting(const base::Value::Dict&,
+  ParseFullFlexForTesting(const base::DictValue&,
                           mojom::SourceType,
                           base::TimeDelta expiry,
                           EventReportWindows default_report_windows,
@@ -72,20 +74,21 @@ class COMPONENT_EXPORT(ATTRIBUTION_REPORTING) TriggerSpecs {
   // Parses the top-level `trigger_data` field. The resulting value is either
   // `empty()` or `SingleSharedSpec()`.
   static base::expected<TriggerSpecs, mojom::SourceRegistrationError>
-  ParseTopLevelTriggerData(const base::Value::Dict&,
+  ParseTopLevelTriggerData(const base::DictValue&,
                            mojom::SourceType,
                            EventReportWindows default_report_windows,
                            mojom::TriggerDataMatching);
 
   static std::optional<TriggerSpecs> Create(TriggerDataIndices,
-                                            std::vector<TriggerSpec>);
+                                            std::vector<TriggerSpec>,
+                                            MaxEventLevelReports);
 
   // Creates specs matching no trigger data.
   TriggerSpecs();
 
   // Creates specs with the default trigger data cardinality for the given
   // source type.
-  TriggerSpecs(mojom::SourceType, EventReportWindows);
+  TriggerSpecs(mojom::SourceType, EventReportWindows, MaxEventLevelReports);
 
   ~TriggerSpecs();
 
@@ -102,9 +105,9 @@ class COMPONENT_EXPORT(ATTRIBUTION_REPORTING) TriggerSpecs {
   // Will return nullptr if there is not a single shared spec.
   const TriggerSpec* SingleSharedSpec() const;
 
-  base::Value::List ToJson() const;
+  base::ListValue ToJson() const;
 
-  void Serialize(base::Value::Dict&) const;
+  void Serialize(base::DictValue&) const;
 
   class COMPONENT_EXPORT(ATTRIBUTION_REPORTING) Iterator {
    public:
@@ -187,10 +190,21 @@ class COMPONENT_EXPORT(ATTRIBUTION_REPORTING) TriggerSpecs {
 
   const std::vector<TriggerSpec>& specs() const { return specs_; }
 
+  MaxEventLevelReports max_event_level_reports() const {
+    return max_event_level_reports_;
+  }
+
+  void SetMaxEventLevelReportsForTesting(
+      MaxEventLevelReports max_event_level_reports) {
+    max_event_level_reports_ = max_event_level_reports;
+  }
+
   friend bool operator==(const TriggerSpecs&, const TriggerSpecs&) = default;
 
  private:
-  TriggerSpecs(TriggerDataIndices, std::vector<TriggerSpec>);
+  TriggerSpecs(TriggerDataIndices,
+               std::vector<TriggerSpec>,
+               MaxEventLevelReports);
 
   // These two fields effectively act as a compressed `base::flat_map<uint32_t,
   // scoped_refptr<TriggerSpec>>`, optimized for the fact that there are at most
@@ -203,14 +217,16 @@ class COMPONENT_EXPORT(ATTRIBUTION_REPORTING) TriggerSpecs {
   // using `scoped_refptr` address.
   TriggerDataIndices trigger_data_indices_;
   std::vector<TriggerSpec> specs_;
+
+  MaxEventLevelReports max_event_level_reports_;
 };
 
 COMPONENT_EXPORT(ATTRIBUTION_REPORTING)
 base::expected<mojom::TriggerDataMatching, mojom::SourceRegistrationError>
-ParseTriggerDataMatching(const base::Value::Dict&);
+ParseTriggerDataMatching(const base::DictValue&);
 
 COMPONENT_EXPORT(ATTRIBUTION_REPORTING)
-void Serialize(base::Value::Dict&, mojom::TriggerDataMatching);
+void Serialize(base::DictValue&, mojom::TriggerDataMatching);
 
 }  // namespace attribution_reporting
 

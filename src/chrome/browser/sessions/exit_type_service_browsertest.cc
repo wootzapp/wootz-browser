@@ -45,7 +45,7 @@ void ClickButton(views::BubbleDialogDelegate* crash_bubble_delegate,
                  views::Button* button) {
   crash_bubble_delegate->ResetViewShownTimeStampForTesting();
   gfx::Point center(button->width() / 2, button->height() / 2);
-  const ui::MouseEvent event(ui::ET_MOUSE_PRESSED, center, center,
+  const ui::MouseEvent event(ui::EventType::kMousePressed, center, center,
                              ui::EventTimeForNow(), ui::EF_LEFT_MOUSE_BUTTON,
                              ui::EF_LEFT_MOUSE_BUTTON);
   button->OnMousePressed(event);
@@ -167,7 +167,7 @@ IN_PROC_BROWSER_TEST_F(ExitTypeServiceTest, RestoreFromCrashBubble) {
   GetExitTypeService()->AddCrashAckCallback(run_loop.QuitClosure());
   run_loop.Run();
   EXPECT_TRUE(IsSessionServiceSavingEnabled());
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   const bool restores_to_initial_browser = false;
 #else
   const bool restores_to_initial_browser = true;

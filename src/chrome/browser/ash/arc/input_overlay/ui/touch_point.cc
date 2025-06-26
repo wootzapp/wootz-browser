@@ -26,6 +26,7 @@
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/geometry/point.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/view_utils.h"
@@ -52,23 +53,6 @@ constexpr int kCrossCornerRadius = 6;
 constexpr float kHaloInset = -6;
 // Thickness of focus ring.
 constexpr float kHaloThickness = 3;
-
-constexpr SkColor kOutsideStrokeColor =
-    SkColorSetA(SK_ColorWHITE, 0xCC /*80%*/);
-constexpr SkColor kOutsideStrokeColorHover =
-    SkColorSetA(SK_ColorWHITE, 0xCC /*80%*/);
-constexpr SkColor kOutsideStrokeColorDrag = gfx::kGoogleBlue200;
-
-constexpr SkColor kInsideStrokeColor = SkColorSetA(SK_ColorBLACK, 0x33 /*20%*/);
-constexpr SkColor kInsideStrokeColorHover =
-    SkColorSetA(SK_ColorBLACK, 0x33 /*20%*/);
-constexpr SkColor kInsideStrokeColorDrag =
-    SkColorSetA(SK_ColorBLACK, 0x66 /*40%*/);
-constexpr SkColor kCenterColor = SkColorSetRGB(0x12, 0x6D, 0xFF);
-constexpr SkColor kCenterColorHover20White =
-    SkColorSetA(SK_ColorWHITE, 0x33 /*20%*/);
-constexpr SkColor kCenterColorDrag30White =
-    SkColorSetA(SK_ColorWHITE, 0x4D /*30%*/);
 
 // Draw the cross shape path with round corner. It starts from bottom to up on
 // line #0 and draws clock-wisely.
@@ -156,17 +140,13 @@ SkColor GetOutsideStrokeColor(const ui::ColorProvider* color_provider,
                               UIState ui_state) {
   switch (ui_state) {
     case UIState::kDefault:
-      return IsBeta() ? SkColorSetA(SK_ColorWHITE, GetAlpha(/*percent=*/0.8f))
-                      : kOutsideStrokeColor;
     case UIState::kHover:
-      return IsBeta() ? SkColorSetA(SK_ColorWHITE, GetAlpha(/*percent=*/0.8f))
-                      : kOutsideStrokeColorHover;
+      return SkColorSetA(SK_ColorWHITE, GetAlpha(/*percent=*/0.8f));
     case UIState::kDrag:
-      return IsBeta() ? color_provider->GetColor(
-                            cros_tokens::kCrosSysGamingControlButtonBorderHover)
-                      : kOutsideStrokeColorDrag;
+      return color_provider->GetColor(
+          cros_tokens::kCrosSysGamingControlButtonBorderHover);
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -174,16 +154,13 @@ SkColor GetInsideStrokeColor(const ui::ColorProvider* color_provider,
                              UIState ui_state) {
   switch (ui_state) {
     case UIState::kDefault:
-      return IsBeta() ? SkColorSetA(SK_ColorBLACK, GetAlpha(/*percent=*/0.2f))
-                      : kInsideStrokeColor;
+      return SkColorSetA(SK_ColorBLACK, GetAlpha(/*percent=*/0.2f));
     case UIState::kHover:
-      return IsBeta() ? SkColorSetA(SK_ColorBLACK, GetAlpha(/*percent=*/0.2f))
-                      : kInsideStrokeColorHover;
+      return SkColorSetA(SK_ColorBLACK, GetAlpha(/*percent=*/0.2f));
     case UIState::kDrag:
-      return IsBeta() ? SkColorSetA(SK_ColorBLACK, GetAlpha(/*percent=*/0.4f))
-                      : kInsideStrokeColorDrag;
+      return SkColorSetA(SK_ColorBLACK, GetAlpha(/*percent=*/0.4f));
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -191,21 +168,14 @@ SkColor GetCenterColor(const ui::ColorProvider* color_provider,
                        UIState ui_state) {
   switch (ui_state) {
     case UIState::kDefault:
-      return IsBeta() ? color_provider->GetColor(
-                            cros_tokens::kCrosSysGamingControlButtonDefault)
-                      : kCenterColor;
+      return color_provider->GetColor(
+          cros_tokens::kCrosSysGamingControlButtonDefault);
     case UIState::kHover:
-      return IsBeta() ? color_provider->GetColor(
-                            cros_tokens::kCrosSysGamingControlButtonHover)
-                      : color_utils::GetResultingPaintColor(
-                            kCenterColorHover20White, kCenterColor);
     case UIState::kDrag:
-      return IsBeta() ? color_provider->GetColor(
-                            cros_tokens::kCrosSysGamingControlButtonHover)
-                      : color_utils::GetResultingPaintColor(
-                            kCenterColorDrag30White, kCenterColor);
+      return color_provider->GetColor(
+          cros_tokens::kCrosSysGamingControlButtonHover);
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -225,10 +195,9 @@ class CrossTouchPoint : public TouchPoint {
 
   // TouchPoint:
   void Init() override {
-    SetAccessibilityProperties(
-        ax::mojom::Role::kGroup,
-        l10n_util::GetStringUTF16(
-            IDS_INPUT_OVERLAY_KEYMAPPING_TOUCH_POINT_CROSS));
+    GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
+    GetViewAccessibility().SetName(l10n_util::GetStringUTF16(
+        IDS_INPUT_OVERLAY_KEYMAPPING_TOUCH_POINT_CROSS));
 
     TouchPoint::Init();
   }
@@ -252,10 +221,9 @@ class DotTouchPoint : public TouchPoint {
 
   // TouchPoint:
   void Init() override {
-    SetAccessibilityProperties(
-        ax::mojom::Role::kGroup,
-        l10n_util::GetStringUTF16(
-            IDS_INPUT_OVERLAY_KEYMAPPING_TOUCH_POINT_DOT));
+    GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
+    GetViewAccessibility().SetName(l10n_util::GetStringUTF16(
+        IDS_INPUT_OVERLAY_KEYMAPPING_TOUCH_POINT_DOT));
 
     TouchPoint::Init();
   }
@@ -286,7 +254,7 @@ TouchPoint* TouchPoint::Show(views::View* parent,
       touch_point = std::make_unique<CrossTouchPoint>(center_pos);
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   auto* touch_point_ptr =
@@ -308,7 +276,7 @@ int TouchPoint::GetEdgeLength(ActionType action_type) {
                kCrossOutsideStrokeThickness * 2;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
   return length;
 }
@@ -375,7 +343,7 @@ void TouchPoint::DrawTouchPoint(gfx::Canvas* canvas,
       break;
 
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -445,12 +413,12 @@ void TouchPoint::OnMouseReleased(const ui::MouseEvent& event) {
 
 void TouchPoint::OnGestureEvent(ui::GestureEvent* event) {
   switch (event->type()) {
-    case ui::ET_GESTURE_SCROLL_BEGIN:
+    case ui::EventType::kGestureScrollBegin:
       SetToDrag();
       event->SetHandled();
       break;
-    case ui::ET_GESTURE_SCROLL_END:
-    case ui::ET_SCROLL_FLING_START:
+    case ui::EventType::kGestureScrollEnd:
+    case ui::EventType::kScrollFlingStart:
       SetToDefault();
       event->SetHandled();
       break;
@@ -483,12 +451,6 @@ void TouchPoint::OnFocus() {
         l10n_util::GetStringUTF8(
             IDS_INPUT_OVERLAY_EDIT_INSTRUCTIONS_TOUCH_POINT_FOCUS),
         this);
-  }
-}
-
-void TouchPoint::OnBlur() {
-  if (auto* parent_view = views::AsViewClass<ActionView>(parent())) {
-    parent_view->RemoveMessage();
   }
 }
 

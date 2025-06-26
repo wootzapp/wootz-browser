@@ -9,7 +9,10 @@ import android.graphics.Canvas;
 import android.view.View;
 import android.widget.EdgeEffect;
 
+import org.chromium.build.annotations.NullMarked;
+
 /** This class manages the edge glow effect when a WebView is flung or pulled beyond the edges. */
+@NullMarked
 class OverScrollGlow {
     private View mHostView;
 
@@ -136,12 +139,7 @@ class OverScrollGlow {
         }
     }
 
-    /**
-     * Set touch delta values indicating the current amount of overscroll.
-     *
-     * @param deltaX
-     * @param deltaY
-     */
+    /** Set touch delta values indicating the current amount of overscroll. */
     public void setOverScrollDeltas(int deltaX, int deltaY) {
         mOverScrollDeltaX += deltaX;
         mOverScrollDeltaY += deltaY;

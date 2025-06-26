@@ -27,6 +27,7 @@
 #include "base/json/json_string_value_serializer.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/metrics/user_metrics.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/syslog_logging.h"
@@ -37,6 +38,7 @@
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/browser_app_launcher.h"
+#include "chrome/browser/apps/app_service/policy_util.h"
 #include "chrome/browser/apps/platform_apps/app_load_service.h"
 #include "chrome/browser/ash/file_manager/path_util.h"
 #include "chrome/browser/ash/login/demo_mode/demo_components.h"
@@ -49,10 +51,11 @@
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/ui/ash/system_tray_client_impl.h"
+#include "chrome/browser/ui/ash/system/system_tray_client_impl.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/grit/generated_resources.h"
+#include "chromeos/ash/components/demo_mode/utils/demo_session_utils.h"
 #include "chromeos/ash/components/growth/campaigns_manager.h"
 #include "chromeos/ash/components/growth/campaigns_model.h"
 #include "chromeos/ash/components/growth/growth_metrics.h"
@@ -84,7 +87,7 @@ namespace {
 
 // The splash screen should be removed either when this timeout passes or the
 // demo mode launches and enters the full screen, whichever comes first.
-inline constexpr base::TimeDelta kRemoveSplashScreenTimeout = base::Seconds(10);
+inline constexpr base::TimeDelta kRemoveSplashScreenTimeout = base::Seconds(20);
 
 // Global DemoSession instance.
 DemoSession* g_demo_session = nullptr;
@@ -122,8 +125,6 @@ std::vector<std::string> GetIgnorePinPolicyApps() {
 }
 
 // Copies photos into the Downloads directory.
-// TODO(michaelpg): Test this behavior (requires overriding the Downloads
-// directory).
 void InstallDemoMedia(const base::FilePath& offline_resources_path,
                       const base::FilePath& dest_path) {
   if (offline_resources_path.empty()) {
@@ -132,8 +133,10 @@ void InstallDemoMedia(const base::FilePath& offline_resources_path,
   }
 
   base::FilePath src_path = offline_resources_path.Append(kPhotosPath);
-  if (!base::CopyDirectory(src_path, dest_path, false /* recursive */))
+
+  if (!base::CopyDirectory(src_path, dest_path, false /* recursive */)) {
     LOG(ERROR) << "Failed to install demo mode media.";
+  }
 }
 
 std::string GetSwitchOrDefault(std::string_view switch_string,
@@ -283,9 +286,6 @@ void TriggerLaunchDemoModeApp() {
 
 }  // namespace
 
-// static
-constexpr char DemoSession::kSupportedCountries[][3];
-
 constexpr char DemoSession::kCountryNotSelectedId[];
 
 // static
@@ -299,8 +299,7 @@ std::string DemoSession::DemoConfigToString(
     case DemoSession::DemoModeConfig::kOfflineDeprecated:
       return "offlineDeprecated";
   }
-  NOTREACHED_IN_MIGRATION() << "Unknown demo mode configuration";
-  return std::string();
+  NOTREACHED() << "Unknown demo mode configuration";
 }
 
 // static
@@ -318,6 +317,14 @@ DemoSession::DemoModeConfig DemoSession::GetDemoConfig() {
 
   if (g_force_demo_config.has_value())
     return *g_force_demo_config;
+
+  // In test env we may not download components and go through ZTE. Fake online
+  // status.
+  const auto* command_line = base::CommandLine::ForCurrentProcess();
+  if (command_line->HasSwitch(ash::switches::kDemoModeResourceDirectory) ||
+      command_line->HasSwitch(ash::switches::kDemoModeSwaContentDirectory)) {
+    return DemoModeConfig::kOnline;
+  }
 
   const PrefService* prefs = g_browser_process->local_state();
 
@@ -419,10 +426,42 @@ bool DemoSession::ShouldShowWebApp(const std::string& app_id) {
   if (IsDeviceInDemoMode() &&
       content::GetNetworkConnectionTracker()->IsOffline()) {
     GURL app_id_as_url(app_id);
+    // When offline, return false for web apps that are HTTP(S), return true
+    // otherwise (such as SWA, Android apps since they can work offline)
     return !app_id_as_url.SchemeIsHTTPOrHTTPS();
   }
-
   return true;
+}
+
+bool DemoSession::ShouldShowAppInShelf(const std::string& app_id_or_package) {
+  if (!g_demo_session->started()) {
+    return false;
+  }
+  Profile* profile = ProfileManager::GetActiveUserProfile();
+  CHECK(profile);
+
+  // Check if the app has been installed by checking `app_registry_cache_`.
+  std::vector<std::string> app_ids = apps_util::GetAppIdsFromPolicyId(
+      profile, apps_util::TransformRawPolicyId(app_id_or_package));
+  // If the app has not been installed, we should not pin app to the shelf at
+  // this moment.
+  if (app_ids.empty()) {
+    return false;
+  } else if (!installed_app_.count(app_id_or_package)) {
+    installed_app_.insert(app_id_or_package);
+    LOG(WARNING) << "The app " << app_id_or_package
+                 << " has been installed in demo mode";
+  }
+
+  // Ignore for specified chrome/android apps.
+  if (content::GetNetworkConnectionTracker()->IsOffline() &&
+      base::Contains(ignore_pin_policy_offline_apps_, app_id_or_package)) {
+    return false;
+  }
+
+  // TODO(b/356904504): Update shelf when network status changes.
+  // TODO(b/356910516): Also check for captive portal.
+  return ShouldShowWebApp(app_id_or_package);
 }
 
 // static
@@ -461,16 +500,6 @@ base::Value::List DemoSession::GetCountryList() {
   return country_list;
 }
 
-// static
-void DemoSession::RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
-  registry->RegisterStringPref(prefs::kDemoModeDefaultLocale, std::string());
-  registry->RegisterStringPref(prefs::kDemoModeCountry, kSupportedCountries[0]);
-  registry->RegisterStringPref(prefs::kDemoModeRetailerId, std::string());
-  registry->RegisterStringPref(prefs::kDemoModeStoreId, std::string());
-  registry->RegisterStringPref(prefs::kDemoModeAppVersion, std::string());
-  registry->RegisterStringPref(prefs::kDemoModeResourcesVersion, std::string());
-}
-
 void DemoSession::EnsureResourcesLoaded(base::OnceClosure load_callback) {
   if (!components_)
     components_ = std::make_unique<DemoComponents>(GetDemoConfig());
@@ -478,28 +507,8 @@ void DemoSession::EnsureResourcesLoaded(base::OnceClosure load_callback) {
 }
 
 // static
-void DemoSession::RecordAppLaunchSourceIfInDemoMode(AppLaunchSource source) {
-  if (IsDeviceInDemoMode())
-    UMA_HISTOGRAM_ENUMERATION("DemoMode.AppLaunchSource", source);
-}
-
-bool DemoSession::ShouldShowAndroidOrChromeAppInShelf(
-    const std::string& app_id_or_package) {
-  if (!g_demo_session || !g_demo_session->started())
-    return true;
-
-  // TODO(michaelpg): Update shelf when network status changes.
-  // TODO(michaelpg): Also check for captive portal.
-  if (!content::GetNetworkConnectionTracker()->IsOffline())
-    return true;
-
-  // Ignore for specified chrome/android apps.
-  return !base::Contains(ignore_pin_policy_offline_apps_, app_id_or_package);
-}
-
-void DemoSession::SetExtensionsExternalLoader(
-    scoped_refptr<DemoExtensionsExternalLoader> extensions_external_loader) {
-  extensions_external_loader_ = extensions_external_loader;
+void DemoSession::RecordAppLaunchSource(AppLaunchSource source) {
+  UMA_HISTOGRAM_ENUMERATION("DemoMode.AppLaunchSource", source);
 }
 
 void DemoSession::OverrideIgnorePinPolicyAppsForTesting(
@@ -527,7 +536,10 @@ void DemoSession::ActiveUserChanged(user_manager::User* active_user) {
 DemoSession::DemoSession()
     : ignore_pin_policy_offline_apps_(GetIgnorePinPolicyApps()),
       remove_splash_screen_fallback_timer_(
-          std::make_unique<base::OneShotTimer>()) {
+          std::make_unique<base::OneShotTimer>()),
+      blocking_task_runner_(base::ThreadPool::CreateSequencedTaskRunner(
+          {base::MayBlock(), base::TaskPriority::USER_BLOCKING,
+           base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN})) {
   // SessionManager may be unset in unit tests.
   if (session_manager::SessionManager::Get()) {
     session_manager_observation_.Observe(
@@ -538,6 +550,9 @@ DemoSession::DemoSession()
 }
 
 DemoSession::~DemoSession() {
+  // Reset observation before destroying `idle_handler_`.
+  idle_handler_observation_.Reset();
+
   user_manager::UserManager::Get()->RemoveSessionStateObserver(this);
 }
 
@@ -545,7 +560,7 @@ std::vector<CountryCodeAndFullNamePair>
 DemoSession::GetSortedCountryCodeAndNamePairList() {
   const std::string current_locale = g_browser_process->GetApplicationLocale();
   std::vector<CountryCodeAndFullNamePair> result;
-  for (const std::string country : kSupportedCountries) {
+  for (const std::string country : demo_mode::kSupportedCountries) {
     result.push_back({country, l10n_util::GetDisplayNameForCountry(
                                    country, current_locale)});
   }
@@ -555,8 +570,8 @@ DemoSession::GetSortedCountryCodeAndNamePairList() {
   DCHECK(U_SUCCESS(error_code));
 
   std::sort(result.begin(), result.end(),
-            [&collator](CountryCodeAndFullNamePair pair1,
-                        CountryCodeAndFullNamePair pair2) {
+            [&collator](const CountryCodeAndFullNamePair& pair1,
+                        const CountryCodeAndFullNamePair& pair2) {
               return base::i18n::CompareString16WithCollator(
                          *collator, pair1.country_name, pair2.country_name) < 0;
             });
@@ -570,10 +585,10 @@ void DemoSession::InstallDemoResources() {
   DCHECK(profile);
   const base::FilePath downloads =
       file_manager::util::GetDownloadsFolderForProfile(profile);
-  base::ThreadPool::PostTask(
-      FROM_HERE, {base::TaskPriority::USER_VISIBLE, base::MayBlock()},
-      base::BindOnce(&InstallDemoMedia, components_->resources_component_path(),
-                     downloads));
+  auto install_media = base::BindOnce(
+      &InstallDemoMedia, components_->resources_component_path(), downloads);
+
+  blocking_task_runner_->PostTask(FROM_HERE, std::move(install_media));
 }
 
 void DemoSession::SetKeyboardBrightnessToOneHundredPercentFromCurrentLevel(
@@ -660,6 +675,11 @@ void DemoSession::OnSessionStateChanged() {
       if (!components_) {
         components_ = std::make_unique<DemoComponents>(GetDemoConfig());
       }
+
+      // Create the window closer.
+      window_closer_ = std::make_unique<DemoModeWindowCloser>(
+          base::BindRepeating(&TriggerLaunchDemoModeApp));
+
       if (features::IsGrowthCampaignsInDemoModeEnabled()) {
         auto* campaigns_manager = growth::CampaignsManager::Get();
         CHECK(campaigns_manager);
@@ -687,19 +707,9 @@ void DemoSession::OnSessionStateChanged() {
       // Register the device with in the A/A experiment
       RegisterDemoModeAAExperiment();
 
-      // Create the window closer.
-      // TODO(b/302583338) Remove this when the issue with GMSCore gets fixed.
-      if (ash::features::IsDemoModeGMSCoreWindowCloserEnabled()) {
-        window_closer_ = std::make_unique<DemoModeWindowCloser>();
-      }
-
-      // TODO(b/292454543): Remove this after issue is resolved.
-      if (InstallAttributes::IsInitialized()) {
-        LOG(WARNING) << "Demo Mode DeviceMode: "
-                     << InstallAttributes::Get()->GetMode();
-        LOG(WARNING) << "Demo Mode domain: "
-                     << InstallAttributes::Get()->GetDomain();
-      }
+      // When the session successfully starts, we record the action
+      // DemoMode.DemoSessionStarts.
+      base::RecordAction(base::UserMetricsAction("DemoMode.DemoSessionStarts"));
 
       break;
     default:
@@ -715,6 +725,19 @@ base::FilePath DemoSession::GetDemoAppComponentPath() {
   return base::FilePath(
       GetSwitchOrDefault(switches::kDemoModeSwaContentDirectory,
                          components_->default_app_component_path().value()));
+}
+
+DemoModeIdleHandler* DemoSession::GetIdleHandlerForTest() const {
+  return idle_handler_.get();
+}
+
+scoped_refptr<base::SequencedTaskRunner>
+DemoSession::GetBlockingTaskRunnerForTest() {
+  return blocking_task_runner_;
+}
+
+void DemoSession::OnLocalFilesCleanupCompleted() {
+  InstallDemoResources();
 }
 
 void DemoSession::OnDemoAppComponentLoaded() {
@@ -733,6 +756,13 @@ void DemoSession::OnDemoAppComponentLoaded() {
   }
 
   TriggerLaunchDemoModeApp();
+
+  if (demo_mode::IsDemoAccountSignInEnabled()) {
+    CHECK(window_closer_);
+    idle_handler_ = std::make_unique<DemoModeIdleHandler>(
+        window_closer_.get(), blocking_task_runner_);
+    idle_handler_observation_.Observe(idle_handler_.get());
+  }
 }
 
 base::FilePath GetSplashScreenImagePath(base::FilePath localized_image_path,

@@ -4,11 +4,14 @@
 
 #include "chrome/browser/ui/webui/settings/privacy_sandbox_handler.h"
 
+#include "base/feature_list.h"
 #include "base/functional/bind.h"
+#include "chrome/browser/privacy_sandbox/privacy_sandbox_countries.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_service.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/privacy_sandbox/canonical_topic.h"
+#include "components/privacy_sandbox/privacy_sandbox_features.h"
 
 namespace settings {
 
@@ -76,6 +79,18 @@ void PrivacySandboxHandler::RegisterMessages() {
       base::BindRepeating(
           &PrivacySandboxHandler::HandleGetChildTopicsCurrentlyAssigned,
           base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "privacySandboxPrivacyGuideShouldShowAdTopicsCard",
+      base::BindRepeating(
+          &PrivacySandboxHandler::
+              HandlePrivacySandboxPrivacyGuideShouldShowAdTopicsCard,
+          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "shouldShowPrivacySandboxAdTopicsContentParity",
+      base::BindRepeating(
+          &PrivacySandboxHandler::
+              HandleShouldShowPrivacySandboxAdTopicsContentParity,
+          base::Unretained(this)));
 }
 
 void PrivacySandboxHandler::HandleSetFledgeJoiningAllowed(
@@ -109,12 +124,14 @@ void PrivacySandboxHandler::HandleGetTopicsState(
     const base::Value::List& args) {
   AllowJavascript();
   base::Value::List top_topics_list;
-  for (const auto& topic : GetPrivacySandboxService()->GetCurrentTopTopics())
+  for (const auto& topic : GetPrivacySandboxService()->GetCurrentTopTopics()) {
     top_topics_list.Append(ConvertTopicToValue(topic));
+  }
 
   base::Value::List blocked_topics_list;
-  for (const auto& topic : GetPrivacySandboxService()->GetBlockedTopics())
+  for (const auto& topic : GetPrivacySandboxService()->GetBlockedTopics()) {
     blocked_topics_list.Append(ConvertTopicToValue(topic));
+  }
 
   base::Value::Dict topics_state;
   topics_state.Set(kTopTopics, std::move(top_topics_list));
@@ -136,14 +153,16 @@ void PrivacySandboxHandler::OnFledgeJoiningSitesRecieved(
   // Combine |joining_sites| with the blocked FLEDGE sites information. The
   // latter is available synchronously.
   base::Value::List joining_sites_list;
-  for (const auto& site : joining_sites)
+  for (const auto& site : joining_sites) {
     joining_sites_list.Append(site);
+  }
 
   const auto blocked_sites =
       GetPrivacySandboxService()->GetBlockedFledgeJoiningTopFramesForDisplay();
   base::Value::List blocked_sites_list;
-  for (const auto& site : blocked_sites)
+  for (const auto& site : blocked_sites) {
     blocked_sites_list.Append(site);
+  }
 
   base::Value::Dict fledge_state;
   fledge_state.Set(kJoiningSites, std::move(joining_sites_list));
@@ -186,6 +205,28 @@ void PrivacySandboxHandler::HandleGetChildTopicsCurrentlyAssigned(
   }
   ResolveJavascriptCallback(args[0],
                             std::move(child_topics_currently_assigned_list));
+}
+
+void PrivacySandboxHandler::
+    HandlePrivacySandboxPrivacyGuideShouldShowAdTopicsCard(
+        const base::Value::List& args) {
+  AllowJavascript();
+  bool should_show_ad_topics_card =
+      GetPrivacySandboxService()
+          ->PrivacySandboxPrivacyGuideShouldShowAdTopicsCard();
+  ResolveJavascriptCallback(args[0], should_show_ad_topics_card);
+}
+
+void PrivacySandboxHandler::HandleShouldShowPrivacySandboxAdTopicsContentParity(
+    const base::Value::List& args) {
+  AllowJavascript();
+  ResolveJavascriptCallback(
+      args[0], base::FeatureList::IsEnabled(
+                   privacy_sandbox::kPrivacySandboxAdTopicsContentParity));
+}
+
+PrivacySandboxCountries* PrivacySandboxHandler::GetPrivacySandboxCountries() {
+  return GetSingletonPrivacySandboxCountries();
 }
 
 PrivacySandboxService* PrivacySandboxHandler::GetPrivacySandboxService() {

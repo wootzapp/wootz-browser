@@ -44,7 +44,8 @@ enum class CredentialMediationRequirement {
   kOptional,
   kSilent,
   kRequired,
-  kMaxValue = kRequired
+  kConditional,
+  kMaxValue = kConditional
 };
 
 std::string CredentialTypeToString(CredentialType value);
@@ -57,7 +58,7 @@ struct CredentialInfo {
                  std::optional<std::u16string> name,
                  GURL icon,
                  std::optional<std::u16string> password,
-                 url::Origin federation);
+                 url::SchemeHostPort federation);
 
   CredentialInfo(const CredentialInfo& other);
   ~CredentialInfo();
@@ -82,7 +83,7 @@ struct CredentialInfo {
   std::optional<std::u16string> password;
 
   // Corresponds to WebFederatedCredential's provider property.
-  url::Origin federation;
+  url::SchemeHostPort federation;
 };
 
 }  // namespace password_manager

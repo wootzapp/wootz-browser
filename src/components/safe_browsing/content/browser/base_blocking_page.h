@@ -44,11 +44,8 @@ class BaseBlockingPage
 
   // Returns true if the passed |unsafe_resources| is blocking the load of
   // the main page.
-  static bool IsMainPageLoadPending(const UnsafeResourceList& unsafe_resources);
-
-  // Returns true if one of the resources in |unsafe_resources| is from
-  // subresource.
-  static bool IsSubresource(const UnsafeResourceList& unsafe_resources);
+  static bool IsMainPageResourceLoadPending(
+      const UnsafeResourceList& unsafe_resources);
 
   // SecurityInterstitialPage method:
   void CommandReceived(const std::string& command) override;

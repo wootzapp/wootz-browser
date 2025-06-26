@@ -19,6 +19,7 @@
 #include "ui/base/interaction/interaction_test_util.h"
 #include "ui/base/test/ui_controls.h"
 #include "ui/gfx/native_widget_types.h"
+#include "ui/views/interaction/interaction_test_util_mouse.h"
 #include "ui/views/interaction/interaction_test_util_views.h"
 #include "ui/views/view_tracker.h"
 
@@ -29,6 +30,7 @@
 namespace views::test {
 
 using ui::test::internal::SpecifyElement;
+using GestureParams = InteractionTestUtilMouse::GestureParams;
 
 namespace {
 
@@ -108,6 +110,7 @@ InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::ScrollIntoView(
 InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::MoveMouseTo(
     ElementSpecifier reference,
     RelativePositionSpecifier position) {
+  RequireInteractiveTest();
   StepBuilder step;
   step.SetDescription("MoveMouseTo()");
   SpecifyElement(step, reference);
@@ -117,7 +120,7 @@ InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::MoveMouseTo(
         test->test_impl().mouse_error_message_.clear();
         const auto weak_seq = seq->AsWeakPtr();
         if (!test->mouse_util().PerformGestures(
-                test->test_impl().GetWindowHintFor(el),
+                test->test_impl().GetGestureParamsForStep(el, seq),
                 InteractionTestUtilMouse::MoveTo(
                     std::move(pos_callback).Run(el)))) {
           if (weak_seq) {
@@ -138,6 +141,7 @@ InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::MoveMouseTo(
 InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::ClickMouse(
     ui_controls::MouseButton button,
     bool release) {
+  RequireInteractiveTest();
   StepBuilder step;
   step.SetDescription("ClickMouse()");
   step.SetElementID(kInteractiveTestPivotElementId);
@@ -147,7 +151,7 @@ InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::ClickMouse(
         test->test_impl().mouse_error_message_.clear();
         const auto weak_seq = seq->AsWeakPtr();
         if (!test->mouse_util().PerformGestures(
-                test->test_impl().GetWindowHintFor(el),
+                test->test_impl().GetGestureParamsForStep(el, seq),
                 release ? InteractionTestUtilMouse::Click(button)
                         : InteractionTestUtilMouse::MouseGestures{
                               InteractionTestUtilMouse::MouseDown(button)})) {
@@ -165,6 +169,7 @@ InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::DragMouseTo(
     ElementSpecifier reference,
     RelativePositionSpecifier position,
     bool release) {
+  RequireInteractiveTest();
   StepBuilder step;
   step.SetDescription("DragMouseTo()");
   SpecifyElement(step, reference);
@@ -175,7 +180,7 @@ InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::DragMouseTo(
         const gfx::Point target = std::move(pos_callback).Run(el);
         const auto weak_seq = seq->AsWeakPtr();
         if (!test->mouse_util().PerformGestures(
-                test->test_impl().GetWindowHintFor(el),
+                test->test_impl().GetGestureParamsForStep(el, seq),
                 release ? InteractionTestUtilMouse::DragAndRelease(target)
                         : InteractionTestUtilMouse::DragAndHold(target))) {
           if (weak_seq) {
@@ -197,6 +202,7 @@ InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::DragMouseTo(
 
 InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::ReleaseMouse(
     ui_controls::MouseButton button) {
+  RequireInteractiveTest();
   StepBuilder step;
   step.SetDescription("ReleaseMouse()");
   step.SetElementID(kInteractiveTestPivotElementId);
@@ -206,7 +212,7 @@ InteractiveViewsTestApi::StepBuilder InteractiveViewsTestApi::ReleaseMouse(
         test->test_impl().mouse_error_message_.clear();
         const auto weak_seq = seq->AsWeakPtr();
         if (!test->mouse_util().PerformGestures(
-                test->test_impl().GetWindowHintFor(el),
+                test->test_impl().GetGestureParamsForStep(el, seq),
                 InteractionTestUtilMouse::MouseUp(button))) {
           if (weak_seq) {
             weak_seq->FailForTesting();
@@ -288,12 +294,14 @@ View* InteractiveViewsTestApi::FindMatchingView(const View* from,
                                                 ViewMatcher& matcher,
                                                 bool recursive) {
   for (views::View* const child : from->children()) {
-    if (matcher.Run(child))
+    if (matcher.Run(child)) {
       return child;
+    }
     if (recursive) {
       auto* const result = FindMatchingView(child, matcher, true);
-      if (result)
+      if (result) {
         return result;
+      }
     }
   }
   return nullptr;

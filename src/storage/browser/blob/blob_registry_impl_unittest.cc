@@ -76,15 +76,7 @@ class BlobRegistryImplTest : public testing::Test {
         data_dir_.GetPath(), data_dir_.GetPath(),
         base::ThreadPool::CreateTaskRunner({base::MayBlock()}));
     auto storage_policy = base::MakeRefCounted<MockSpecialStoragePolicy>();
-    if (base::FeatureList::IsEnabled(
-            net::features::kSupportPartitionedBlobUrl)) {
-      registry_impl_ =
-          std::make_unique<BlobRegistryImpl>(context_->AsWeakPtr());
-    } else {
-      registry_impl_ = std::make_unique<BlobRegistryImpl>(
-          context_->AsWeakPtr(), url_registry_.AsWeakPtr(),
-          base::SequencedTaskRunner::GetCurrentDefault());
-    }
+    registry_impl_ = std::make_unique<BlobRegistryImpl>(context_->AsWeakPtr());
     auto delegate = std::make_unique<MockBlobRegistryDelegate>();
     delegate_ptr_ = delegate->AsWeakPtr();
     registry_impl_->Bind(registry_.BindNewPipeAndPassReceiver(),
@@ -196,7 +188,6 @@ class BlobRegistryImplTest : public testing::Test {
   base::test::TaskEnvironment task_environment_;
   std::optional<base::ScopedDisallowBlocking> disallow_blocking_;
   std::unique_ptr<BlobStorageContext> context_;
-  BlobUrlRegistry url_registry_;
   std::unique_ptr<BlobRegistryImpl> registry_impl_;
   mojo::Remote<blink::mojom::BlobRegistry> registry_;
   base::WeakPtr<MockBlobRegistryDelegate> delegate_ptr_;
@@ -208,34 +199,6 @@ class BlobRegistryImplTest : public testing::Test {
 
   std::vector<std::string> bad_messages_;
 };
-
-TEST_F(BlobRegistryImplTest, GetBlobFromUUID) {
-  const std::string kId = "id";
-  std::unique_ptr<BlobDataHandle> handle =
-      CreateBlobFromString(kId, "hello world");
-
-  {
-    mojo::Remote<blink::mojom::Blob> blob;
-    registry_->GetBlobFromUUID(blob.BindNewPipeAndPassReceiver(), kId);
-    EXPECT_EQ(kId, UUIDFromBlob(blob.get()));
-    EXPECT_TRUE(blob.is_connected());
-  }
-
-  {
-    mojo::Remote<blink::mojom::Blob> blob;
-    registry_->GetBlobFromUUID(blob.BindNewPipeAndPassReceiver(), "invalid id");
-    blob.FlushForTesting();
-    EXPECT_FALSE(blob.is_connected());
-  }
-}
-
-TEST_F(BlobRegistryImplTest, GetBlobFromEmptyUUID) {
-  mojo::Remote<blink::mojom::Blob> blob;
-  registry_->GetBlobFromUUID(blob.BindNewPipeAndPassReceiver(), "");
-  blob.FlushForTesting();
-  EXPECT_EQ(1u, bad_messages_.size());
-  EXPECT_FALSE(blob.is_connected());
-}
 
 TEST_F(BlobRegistryImplTest, Register_EmptyUUID) {
   mojo::Remote<blink::mojom::Blob> blob;
@@ -561,7 +524,7 @@ TEST_F(BlobRegistryImplTest, Register_BlobReferencingPendingBlob) {
   base::RunLoop().RunUntilIdle();
 
   // Populate the data for the first blob.
-  future_data.Populate(base::as_bytes(base::make_span(kBlob1Data)));
+  future_data.Populate(base::as_byte_span(kBlob1Data));
   context_->NotifyTransportComplete(kId1);
 
   // Wait for kId2 to also complete.

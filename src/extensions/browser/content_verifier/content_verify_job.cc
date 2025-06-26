@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/lazy_instance.h"
 #include "base/memory/raw_ptr.h"
@@ -19,6 +20,7 @@
 #include "extensions/browser/content_hash_reader.h"
 #include "extensions/browser/content_verifier/content_hash.h"
 #include "extensions/browser/content_verifier/content_verifier.h"
+#include "extensions/common/constants.h"
 
 namespace extensions {
 
@@ -62,58 +64,106 @@ bool IsIgnorableReadError(MojoResult read_result) {
 }  // namespace
 
 ContentVerifyJob::ContentVerifyJob(const ExtensionId& extension_id,
-                                   const base::Version& extension_version,
                                    const base::FilePath& extension_root,
-                                   const base::FilePath& relative_path,
-                                   int manifest_version,
-                                   FailureCallback failure_callback)
-    : done_reading_(false),
-      hashes_ready_(false),
-      total_bytes_read_(0),
-      current_block_(0),
-      current_hash_byte_count_(0),
-      extension_id_(extension_id),
-      extension_version_(extension_version),
+                                   const base::FilePath& relative_path)
+    : extension_id_(extension_id),
       extension_root_(extension_root),
-      relative_path_(relative_path),
-      manifest_version_(manifest_version),
-      failure_callback_(std::move(failure_callback)),
-      failed_(false) {}
+      relative_path_(relative_path) {}
 
 ContentVerifyJob::~ContentVerifyJob() = default;
 
-void ContentVerifyJob::Start(ContentVerifier* verifier) {
+void ContentVerifyJob::Start(ContentVerifier* verifier,
+                             const base::Version& extension_version,
+                             int manifest_version,
+                             FailureCallback failure_callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
   base::AutoLock auto_lock(lock_);
-  verifier->GetContentHash(
-      extension_id_, extension_root_, extension_version_,
-      true /* force_missing_computed_hashes_creation */,
-      base::BindOnce(&ContentVerifyJob::DidGetContentHashOnIO, this));
+  manifest_version_ = manifest_version;
+  failure_callback_ = std::move(failure_callback);
+
+  // The content verification hashes are most likely already cached.
+  auto content_hash = verifier->GetCachedContentHash(
+      extension_id_, extension_version,
+      /*force_missing_computed_hashes_creation=*/true);
+  if (content_hash) {
+    StartWithContentHash(std::move(content_hash));
+    return;
+  }
+
+  verifier->CreateContentHash(
+      extension_id_, extension_root_, extension_version,
+      /*force_missing_computed_hashes_creation=*/true,
+      base::BindOnce(&ContentVerifyJob::DidCreateContentHashOnIO, this));
 }
 
-void ContentVerifyJob::DidGetContentHashOnIO(
+void ContentVerifyJob::DidCreateContentHashOnIO(
     scoped_refptr<const ContentHash> content_hash) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
   base::AutoLock auto_lock(lock_);
+  StartWithContentHash(std::move(content_hash));
+}
+
+void ContentVerifyJob::StartWithContentHash(
+    scoped_refptr<const ContentHash> content_hash) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
   scoped_refptr<TestObserver> test_observer = GetTestObserver();
   if (test_observer)
     test_observer->JobStarted(extension_id_, relative_path_);
   // Build |hash_reader_|.
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
-      base::BindOnce(&ContentHashReader::Create, relative_path_, content_hash),
-      base::BindOnce(&ContentVerifyJob::OnHashesReady, this));
+  hash_reader_ = ContentHashReader::Create(relative_path_, content_hash);
+
+  if (g_ignore_verification_for_tests) {
+    return;
+  }
+  if (test_observer) {
+    test_observer->OnHashesReady(extension_id_, relative_path_, *hash_reader_);
+  }
+
+  switch (hash_reader_->status()) {
+    case ContentHashReader::InitStatus::HASHES_MISSING: {
+      DispatchFailureCallback(MISSING_ALL_HASHES);
+      return;
+    }
+    case ContentHashReader::InitStatus::HASHES_DAMAGED: {
+      DispatchFailureCallback(CORRUPTED_HASHES);
+      return;
+    }
+    case ContentHashReader::InitStatus::NO_HASHES_FOR_RESOURCE: {
+      // Proceed and dispatch failure only if the file exists.
+      break;
+    }
+    case ContentHashReader::InitStatus::SUCCESS: {
+      // Just proceed with hashes in case of success.
+      break;
+    }
+  }
+
+  DCHECK(!failed_);
+
+  hashes_ready_ = true;
+  if (!queue_.empty()) {
+    DCHECK_EQ(read_error_, MOJO_RESULT_OK);
+    std::string tmp;
+    queue_.swap(tmp);
+    BytesReadImpl(tmp, MOJO_RESULT_OK);
+    if (failed_) {
+      return;
+    }
+  }
+  if (done_reading_) {
+    ScopedElapsedTimer timer(&time_spent_);
+    OnDoneReadingAndHashesReady();
+  }
 }
 
-void ContentVerifyJob::Read(const char* data,
-                            int count,
-                            MojoResult read_result) {
+void ContentVerifyJob::BytesRead(base::span<const char> data,
+                                 MojoResult read_result) {
   base::AutoLock auto_lock(lock_);
   DCHECK(!done_reading_);
-  ReadImpl(data, count, read_result);
+  BytesReadImpl(data, read_result);
 }
 
-void ContentVerifyJob::Done() {
+void ContentVerifyJob::DoneReading() {
   base::AutoLock auto_lock(lock_);
   ScopedElapsedTimer timer(&time_spent_);
   if (failed_)
@@ -122,40 +172,90 @@ void ContentVerifyJob::Done() {
     return;
   DCHECK(!done_reading_);
   done_reading_ = true;
-  if (!hashes_ready_)
-    return;  // Wait for OnHashesReady.
+  if (hashes_ready_) {
+    OnDoneReadingAndHashesReady();
+  }
+}
 
-  const bool can_proceed = has_ignorable_read_error_ || FinishBlock();
-  if (can_proceed) {
+void ContentVerifyJob::OnDoneReadingAndHashesReady() {
+  // Some errors, such as the read being aborted, shouldn't cause a verification
+  // failure.
+  if (read_error_ != MOJO_RESULT_OK && IsIgnorableReadError(read_error_)) {
     ReportJobFinished(NONE);
+    return;
+  }
+
+  if (hash_reader_->status() ==
+      ContentHashReader::InitStatus::NO_HASHES_FOR_RESOURCE) {
+    // Making a request to a non-existent file or to a directory should not
+    // result in content verification failure.
+    if (read_error_ == MOJO_RESULT_NOT_FOUND) {
+      ReportJobFinished(NONE);
+    } else {
+      DispatchFailureCallback(NO_HASHES_FOR_FILE);
+    }
+    return;
+  }
+
+  // Other statuses are handled in `DidGetContentHashOnIO`.
+  DCHECK_EQ(hash_reader_->status(), ContentHashReader::InitStatus::SUCCESS);
+
+  // Any error that wasn't handled above should result in a verification
+  // failure.
+  if (read_error_ != MOJO_RESULT_OK) {
+    DispatchFailureCallback(HASH_MISMATCH);
+    return;
+  }
+
+  // Finish computing the hash and make sure the expected hash matches.
+  if (!FinishBlock()) {
+    DispatchFailureCallback(HASH_MISMATCH);
+    return;
+  }
+
+  ReportJobFinished(NONE);
+}
+
+void ContentVerifyJob::OnHashMismatch() {
+  if (hash_reader_->status() ==
+      ContentHashReader::InitStatus::NO_HASHES_FOR_RESOURCE) {
+    DispatchFailureCallback(NO_HASHES_FOR_FILE);
   } else {
+    DCHECK_EQ(hash_reader_->status(), ContentHashReader::InitStatus::SUCCESS);
     DispatchFailureCallback(HASH_MISMATCH);
   }
 }
 
-void ContentVerifyJob::ReadImpl(const char* data,
-                                int count,
-                                MojoResult read_result) {
+void ContentVerifyJob::BytesReadImpl(base::span<const char> data,
+                                     MojoResult read_result) {
   ScopedElapsedTimer timer(&time_spent_);
   if (failed_)
     return;
   if (g_ignore_verification_for_tests)
     return;
-  if (IsIgnorableReadError(read_result))
-    has_ignorable_read_error_ = true;
-  if (has_ignorable_read_error_)
-    return;
-
-  if (!hashes_ready_) {
-    queue_.append(data, count);
+  if (read_error_ != MOJO_RESULT_OK) {
+    // If we have already seen an error, we should not continue verifying.
     return;
   }
-  DCHECK_GE(count, 0);
+  if (read_result != MOJO_RESULT_OK) {
+    read_error_ = read_result;
+    queue_.clear();
+    return;
+  }
+
+  if (!hashes_ready_) {
+    queue_.append(data.begin(), data.end());
+    return;
+  }
+  if (hash_reader_->status() != ContentHashReader::InitStatus::SUCCESS) {
+    return;
+  }
+  const int count = data.size();
   int bytes_added = 0;
 
   while (bytes_added < count) {
     if (current_block_ >= hash_reader_->block_count())
-      return DispatchFailureCallback(HASH_MISMATCH);
+      return OnHashMismatch();
 
     if (!current_hash_) {
       current_hash_byte_count_ = 0;
@@ -166,7 +266,7 @@ void ContentVerifyJob::ReadImpl(const char* data,
         std::min(hash_reader_->block_size() - current_hash_byte_count_,
                  count - bytes_added);
     DCHECK_GT(bytes_to_hash, 0);
-    current_hash_->Update(data + bytes_added, bytes_to_hash);
+    current_hash_->Update(&data[bytes_added], bytes_to_hash);
     bytes_added += bytes_to_hash;
     current_hash_byte_count_ += bytes_to_hash;
     total_bytes_read_ += bytes_to_hash;
@@ -175,7 +275,7 @@ void ContentVerifyJob::ReadImpl(const char* data,
     // for it and make sure the expected hash matches.
     if (current_hash_byte_count_ == hash_reader_->block_size() &&
         !FinishBlock()) {
-      DispatchFailureCallback(HASH_MISMATCH);
+      OnHashMismatch();
       return;
     }
   }
@@ -211,61 +311,6 @@ bool ContentVerifyJob::FinishBlock() {
   return true;
 }
 
-void ContentVerifyJob::OnHashesReady(
-    std::unique_ptr<const ContentHashReader> hash_reader) {
-  base::AutoLock auto_lock(lock_);
-  hash_reader_ = std::move(hash_reader);
-
-  if (g_ignore_verification_for_tests)
-    return;
-  scoped_refptr<TestObserver> test_observer = GetTestObserver();
-  if (test_observer)
-    test_observer->OnHashesReady(extension_id_, relative_path_, *hash_reader_);
-
-  switch (hash_reader_->status()) {
-    case ContentHashReader::InitStatus::HASHES_MISSING: {
-      DispatchFailureCallback(MISSING_ALL_HASHES);
-      return;
-    }
-    case ContentHashReader::InitStatus::HASHES_DAMAGED: {
-      DispatchFailureCallback(CORRUPTED_HASHES);
-      return;
-    }
-    case ContentHashReader::InitStatus::NO_HASHES_FOR_NON_EXISTING_RESOURCE: {
-      // Ignore verification of non-existent resources.
-      ReportJobFinished(NONE);
-      return;
-    }
-    case ContentHashReader::InitStatus::NO_HASHES_FOR_RESOURCE: {
-      DispatchFailureCallback(NO_HASHES_FOR_FILE);
-      return;
-    }
-    case ContentHashReader::InitStatus::SUCCESS: {
-      // Just proceed with hashes in case of success.
-    }
-  }
-  DCHECK_EQ(ContentHashReader::InitStatus::SUCCESS, hash_reader_->status());
-
-  DCHECK(!failed_);
-
-  hashes_ready_ = true;
-  if (!queue_.empty()) {
-    std::string tmp;
-    queue_.swap(tmp);
-    ReadImpl(std::data(tmp), tmp.size(), MOJO_RESULT_OK);
-    if (failed_)
-      return;
-  }
-  if (done_reading_) {
-    ScopedElapsedTimer timer(&time_spent_);
-    if (!has_ignorable_read_error_ && !FinishBlock()) {
-      DispatchFailureCallback(HASH_MISMATCH);
-    } else {
-      ReportJobFinished(NONE);
-    }
-  }
-}
-
 // static
 void ContentVerifyJob::SetIgnoreVerificationForTests(bool value) {
   DCHECK_NE(g_ignore_verification_for_tests, value);
@@ -295,14 +340,24 @@ void ContentVerifyJob::DispatchFailureCallback(FailureReason reason) {
 }
 
 void ContentVerifyJob::ReportJobFinished(FailureReason reason) {
-  if (manifest_version_ == 2) {
-    base::UmaHistogramEnumeration(
-        "Extensions.ContentVerification.VerifyJobResultMV2", reason,
-        FAILURE_REASON_MAX);
-  } else if (manifest_version_ == 3) {
-    base::UmaHistogramEnumeration(
-        "Extensions.ContentVerification.VerifyJobResultMV3", reason,
-        FAILURE_REASON_MAX);
+  auto record_job_finished = [this, &reason](const char* mv2_histogram,
+                                             const char* mv3_histogram) {
+    if (mv2_histogram && manifest_version_ == 2) {
+      base::UmaHistogramEnumeration(mv2_histogram, reason, FAILURE_REASON_MAX);
+    } else if (manifest_version_ == 3) {
+      base::UmaHistogramEnumeration(mv3_histogram, reason, FAILURE_REASON_MAX);
+    }
+  };
+
+  record_job_finished("Extensions.ContentVerification.VerifyJobResultMV2",
+                      "Extensions.ContentVerification.VerifyJobResultMV3");
+
+  // TODO(crbug.com/325613709): Remove docs offline specific logging after a few
+  // milestones.
+  if (extension_id_ == extension_misc::kDocsOfflineExtensionId) {
+    record_job_finished(
+        nullptr,  // No MV2 Google Docs Offline version.
+        "Extensions.ContentVerification.VerifyJobResultMV3.GoogleDocsOffline");
   }
 
   scoped_refptr<TestObserver> test_observer = GetTestObserver();

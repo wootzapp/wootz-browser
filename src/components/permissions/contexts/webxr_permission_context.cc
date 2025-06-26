@@ -7,7 +7,7 @@
 #include "base/check.h"
 #include "build/build_config.h"
 #include "device/vr/buildflags/buildflags.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 
 #if BUILDFLAG(IS_ANDROID)
 #include "components/permissions/android/android_permission_util.h"
@@ -27,10 +27,11 @@ WebXrPermissionContext::WebXrPermissionContext(
     ContentSettingsType content_settings_type)
     : PermissionContextBase(browser_context,
                             content_settings_type,
-                            blink::mojom::PermissionsPolicyFeature::kWebXr),
+                            network::mojom::PermissionsPolicyFeature::kWebXr),
       content_settings_type_(content_settings_type) {
   DCHECK(content_settings_type_ == ContentSettingsType::VR ||
-         content_settings_type_ == ContentSettingsType::AR);
+         content_settings_type_ == ContentSettingsType::AR ||
+         content_settings_type_ == ContentSettingsType::HAND_TRACKING);
 }
 
 WebXrPermissionContext::~WebXrPermissionContext() = default;
@@ -50,7 +51,6 @@ void WebXrPermissionContext::NotifyPermissionSet(
     ContentSetting content_setting,
     bool is_one_time,
     bool is_final_decision) {
-  DCHECK(!is_one_time);
   DCHECK(is_final_decision);
 
   // Note that this method calls into base class implementation version of
@@ -66,14 +66,16 @@ void WebXrPermissionContext::NotifyPermissionSet(
   // non-OpenXR VR.
   const bool permission_granted =
       content_setting == ContentSetting::CONTENT_SETTING_ALLOW;
-  const bool is_ar = content_settings_type_ == ContentSettingsType::AR;
   bool is_openxr = false;
-#if BUILDFLAG(ENABLE_VR)
+#if BUILDFLAG(ENABLE_OPENXR)
   is_openxr = content_settings_type_ == ContentSettingsType::VR &&
               device::features::IsOpenXrEnabled();
 #endif
+  const bool is_hands =
+      content_settings_type_ == ContentSettingsType::HAND_TRACKING;
+  const bool is_ar = content_settings_type_ == ContentSettingsType::AR;
   const bool additional_permissions_needed =
-      permission_granted && (is_ar || is_openxr);
+      permission_granted && (is_ar || is_openxr || is_hands);
   if (!additional_permissions_needed) {
     PermissionContextBase::NotifyPermissionSet(
         id, requesting_origin, embedding_origin, std::move(callback), persist,

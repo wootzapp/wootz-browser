@@ -20,7 +20,6 @@
 #include "components/policy/core/common/cloud/cloud_policy_validator.h"
 #include "components/policy/proto/chrome_device_policy.pb.h"
 #include "components/policy/proto/device_management_backend.pb.h"
-#include "crypto/scoped_nss_types.h"
 
 namespace ownership {
 class OwnerKeyUtil;
@@ -326,20 +325,6 @@ class DeviceSettingsService : public SessionManagerClient::Observer {
 };
 
 std::ostream& operator<<(std::ostream&, DeviceSettingsService::OwnershipStatus);
-
-// Helper class for tests. Initializes the DeviceSettingsService singleton on
-// construction and tears it down again on destruction.
-class ScopedTestDeviceSettingsService {
- public:
-  ScopedTestDeviceSettingsService();
-
-  ScopedTestDeviceSettingsService(const ScopedTestDeviceSettingsService&) =
-      delete;
-  ScopedTestDeviceSettingsService& operator=(
-      const ScopedTestDeviceSettingsService&) = delete;
-
-  ~ScopedTestDeviceSettingsService();
-};
 
 }  // namespace ash
 

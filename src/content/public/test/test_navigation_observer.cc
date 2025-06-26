@@ -115,18 +115,11 @@ TestNavigationObserver::~TestNavigationObserver() = default;
 
 void TestNavigationObserver::Wait() {
   was_event_consumed_ = false;
-  TRACE_EVENT1("test", "TestNavigationObserver::Wait", "params",
-               [&](perfetto::TracedValue ctx) {
-                 // TODO(crbug.com/40751990): Replace this with passing more
-                 // parameters to TRACE_EVENT directly when available.
-                 auto dict = std::move(ctx).WriteDictionary();
-                 dict.Add("wait_event", wait_event_);
-                 dict.Add("ignore_uncommitted_navigations",
-                          ignore_uncommitted_navigations_);
-                 dict.Add("expected_target_url", expected_target_url_);
-                 dict.Add("expected_initial_url", expected_initial_url_);
-                 dict.Add("expected_target_error", expected_target_error_);
-               });
+  TRACE_EVENT("test", "TestNavigationObserver::Wait", "wait_event", wait_event_,
+              "ignore_uncommitted_navigations", ignore_uncommitted_navigations_,
+              "expected_target_url", expected_target_url_,
+              "expected_initial_url", expected_initial_url_,
+              "expected_target_error", expected_target_error_);
   message_loop_runner_->Run();
 }
 
@@ -148,6 +141,12 @@ void TestNavigationObserver::StopWatchingNewWebContents() {
 void TestNavigationObserver::WatchExistingWebContents() {
   for (auto* web_contents : WebContentsImpl::GetAllWebContents())
     RegisterAsObserver(web_contents);
+}
+
+void TestNavigationObserver::WatchWebContents(
+    content::WebContents* web_contents) {
+  CHECK(web_contents);
+  RegisterAsObserver(web_contents);
 }
 
 void TestNavigationObserver::RegisterAsObserver(WebContents* web_contents) {
@@ -184,7 +183,7 @@ void TestNavigationObserver::OnWebContentsDestroyed(
     TestWebContentsObserver* observer,
     WebContents* web_contents) {
   auto web_contents_state_iter = web_contents_state_.find(web_contents);
-  DCHECK(web_contents_state_iter != web_contents_state_.end());
+  CHECK(web_contents_state_iter != web_contents_state_.end());
   DCHECK_EQ(web_contents_state_iter->second.observer.get(), observer);
 
   web_contents_state_.erase(web_contents_state_iter);
@@ -276,6 +275,12 @@ void TestNavigationObserver::OnDidFinishNavigation(
   last_navigation_initiator_activation_and_ad_status_ =
       navigation_handle->GetNavigationInitiatorActivationAndAdStatus();
   last_net_error_code_ = navigation_handle->GetNetErrorCode();
+  if (auto* headers = navigation_handle->GetResponseHeaders(); !!headers) {
+    last_http_response_code_ =
+        static_cast<net::HttpStatusCode>(headers->response_code());
+  } else {
+    last_http_response_code_ = std::nullopt;
+  }
   last_nav_entry_id_ =
       NavigationRequest::From(navigation_handle)->nav_entry_id();
   last_source_site_instance_ = navigation_handle->GetSourceSiteInstance();
@@ -340,7 +345,7 @@ bool TestNavigationObserver::HasFilter() {
 TestNavigationObserver::WebContentsState*
 TestNavigationObserver::GetWebContentsState(WebContents* web_contents) {
   auto web_contents_state_iter = web_contents_state_.find(web_contents);
-  DCHECK(web_contents_state_iter != web_contents_state_.end());
+  CHECK(web_contents_state_iter != web_contents_state_.end());
   return &(web_contents_state_iter->second);
 }
 

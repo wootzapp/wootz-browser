@@ -5,22 +5,49 @@
 #ifndef CHROME_BROWSER_OS_CRYPT_APP_BOUND_ENCRYPTION_PROVIDER_WIN_H_
 #define CHROME_BROWSER_OS_CRYPT_APP_BOUND_ENCRYPTION_PROVIDER_WIN_H_
 
-#include "components/os_crypt/async/browser/key_provider.h"
-
 #include <optional>
 #include <string>
+#include <tuple>
 
+#include "base/containers/span.h"
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/threading/sequence_bound.h"
 #include "base/types/expected.h"
 #include "base/win/windows_types.h"
+#include "chrome/browser/os_crypt/app_bound_encryption_win.h"
+#include "components/os_crypt/async/browser/key_provider.h"
 
 class PrefService;
 class PrefRegistrySimple;
 
+namespace os_crypt {
+FORWARD_DECLARE_TEST(AppBoundEncryptionWinReencryptTest, KeyProviderTest);
+FORWARD_DECLARE_TEST(AppBoundEncryptionProvider, Basic);
+}  // namespace os_crypt
+
 namespace os_crypt_async {
+
+namespace features {
+// If enabled, App-Bound encryption will signal a temporary key failure if the
+// user data dir is not a standard user data dir. This causes both Encryption
+// and Decryption to be disabled. If this feature is disabled, then Decrypts on
+// previously encrypted data will function correctly but Encrypts do not use
+// app-bound.
+BASE_DECLARE_FEATURE(kAppBoundUserDataDirProtection);
+
+// If enabled, App-Bound encryption will request that the version 3 key be used
+// for data encryption by the elevated service.
+BASE_DECLARE_FEATURE(kAppBoundEncryptionKeyV3);
+
+// An emergency kill switch feature to prevent key regeneration for catastrophic
+// failures, in case the numbers in https://crbug.com/382059244#comment2 prove
+// incorrect for some reason.
+BASE_DECLARE_FEATURE(kRegenerateKeyForCatastrophicFailures);
+
+}  // namespace features
 
 class AppBoundEncryptionProviderWin : public os_crypt_async::KeyProvider {
  public:
@@ -34,11 +61,16 @@ class AppBoundEncryptionProviderWin : public os_crypt_async::KeyProvider {
 
   static void RegisterLocalPrefs(PrefRegistrySimple* registry);
 
-  // Set encryption enabled for testing. Should be called before creating any
-  // instances of the class.
-  static void SetEnableEncryptionForTesting(bool use_for_encryption);
-
  private:
+  FRIEND_TEST_ALL_PREFIXES(os_crypt::AppBoundEncryptionWinReencryptTest,
+                           KeyProviderTest);
+  FRIEND_TEST_ALL_PREFIXES(os_crypt::AppBoundEncryptionProvider, Basic);
+
+  using ReadOnlyKeyData = const std::vector<uint8_t>;
+  using ReadWriteKeyData = std::vector<uint8_t>;
+  using OptionalReadWriteKeyData = std::optional<ReadWriteKeyData>;
+  using OptionalReadOnlyKeyData = std::optional<ReadOnlyKeyData>;
+
   // These values are persisted to logs. Entries should not be renumbered and
   // numeric values should never be reused.
   enum class KeyRetrievalStatus {
@@ -54,19 +86,25 @@ class AppBoundEncryptionProviderWin : public os_crypt_async::KeyProvider {
   bool UseForEncryption() override;
   bool IsCompatibleWithOsCryptSync() override;
 
-  base::expected<std::vector<const uint8_t>, KeyRetrievalStatus>
+  void GenerateAndPersistNewKeyInternal(KeyCallback callback);
+  base::expected<std::vector<uint8_t>, KeyRetrievalStatus>
   RetrieveEncryptedKey();
-  void StoreEncryptedKeyAndReply(
-      const std::vector<uint8_t>& decrypted_key,
+  void HandleEncryptedKey(ReadWriteKeyData decrypted_key,
+                          KeyCallback callback,
+                          const OptionalReadOnlyKeyData& encrypted_key);
+  void StoreAndReplyWithKey(
       KeyCallback callback,
-      const std::optional<std::vector<const uint8_t>>& encrypted_key);
-  static void ReplyWithKey(KeyCallback callback,
-                           std::optional<std::vector<uint8_t>> decrypted_key);
+      base::expected<
+          std::tuple<ReadWriteKeyData, const OptionalReadOnlyKeyData&>,
+          KeyProvider::KeyError> key_pair);
+  void StoreKey(base::span<const uint8_t> encrypted_key);
 
   raw_ptr<PrefService> local_state_ GUARDED_BY_CONTEXT(sequence_checker_);
 
   class COMWorker;
   base::SequenceBound<COMWorker> com_worker_;
+
+  const os_crypt::SupportLevel support_level_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

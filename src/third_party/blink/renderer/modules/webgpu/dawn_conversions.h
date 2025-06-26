@@ -8,20 +8,23 @@
 #include <memory>
 
 #include "base/check.h"
+#include "base/containers/heap_array.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_typedefs.h"
 #include "third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.h"
 #include "third_party/blink/renderer/modules/webgpu/dawn_object.h"
 #include "third_party/blink/renderer/platform/graphics/gpu/webgpu_cpp.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/member.h"
+#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 
 // This file provides helpers for converting WebGPU objects, descriptors,
 // and enums from Blink to Dawn types.
 
 namespace blink {
 
-class GPUImageCopyTexture;
-class GPUImageDataLayout;
+class ExceptionState;
+class GPUTexelCopyBufferLayout;
+class GPUTexelCopyTextureInfo;
 class V8UnionGPUAutoLayoutModeOrGPUPipelineLayout;
 
 // These conversions are used multiple times and are declared here. Conversions
@@ -45,12 +48,13 @@ bool ConvertToDawn(const V8GPUOrigin3D* in,
 bool ConvertToDawn(const V8GPUOrigin2D* in,
                    wgpu::Origin2D* out,
                    ExceptionState&);
-bool ConvertToDawn(const GPUImageCopyTexture* in,
-                   wgpu::ImageCopyTexture* out,
+bool ConvertToDawn(const GPUTexelCopyTextureInfo* in,
+                   wgpu::TexelCopyTextureInfo* out,
                    ExceptionState&);
 
-const char* ValidateTextureDataLayout(const GPUImageDataLayout* webgpu_layout,
-                                      wgpu::TextureDataLayout* layout);
+const char* ValidateTexelCopyBufferLayout(
+    const GPUTexelCopyBufferLayout* webgpu_layout,
+    wgpu::TexelCopyBufferLayout* layout);
 
 // WebGPU objects are converted to Dawn objects by getting the opaque handle
 // which can be passed to Dawn.
@@ -106,11 +110,12 @@ bool ConvertToDawn(const HeapVector<Member<WebGPUType>>& in,
 }
 
 template <typename DawnEnum, typename WebGPUEnum>
-std::unique_ptr<DawnEnum[]> AsDawnEnum(const Vector<WebGPUEnum>& webgpu_enums) {
+base::HeapArray<DawnEnum> AsDawnEnum(const Vector<WebGPUEnum>& webgpu_enums) {
   wtf_size_t count = webgpu_enums.size();
   // TODO(enga): Pass in temporary memory or an allocator so we don't make a
   // separate memory allocation here.
-  std::unique_ptr<DawnEnum[]> dawn_enums(new DawnEnum[count]);
+  base::HeapArray<DawnEnum> dawn_enums =
+      base::HeapArray<DawnEnum>::Uninit(count);
   for (wtf_size_t i = 0; i < count; ++i) {
     dawn_enums[i] = AsDawnEnum(webgpu_enums[i]);
   }
@@ -120,12 +125,13 @@ std::unique_ptr<DawnEnum[]> AsDawnEnum(const Vector<WebGPUEnum>& webgpu_enums) {
 // For sequence of nullable enums, convert null value to undefined
 // dawn_enums should be a pre-allocated array with a size of count
 template <typename DawnEnum, typename WebGPUEnum>
-std::unique_ptr<DawnEnum[]> AsDawnEnum(
+base::HeapArray<DawnEnum> AsDawnEnum(
     const Vector<std::optional<WebGPUEnum>>& webgpu_enums) {
   wtf_size_t count = webgpu_enums.size();
   // TODO(enga): Pass in temporary memory or an allocator so we don't make a
   // separate memory allocation here.
-  std::unique_ptr<DawnEnum[]> dawn_enums = std::make_unique<DawnEnum[]>(count);
+  base::HeapArray<DawnEnum> dawn_enums =
+      base::HeapArray<DawnEnum>::Uninit(count);
   for (wtf_size_t i = 0; i < count; ++i) {
     if (webgpu_enums[i].has_value()) {
       dawn_enums[i] = AsDawnEnum(webgpu_enums[i].value());

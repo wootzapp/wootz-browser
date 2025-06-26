@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/test/local_gpu_memory_buffer_manager.h"
 
 #include <drm_fourcc.h>
@@ -280,10 +285,8 @@ void LocalGpuMemoryBufferManager::CopyGpuMemoryBufferAsync(
   std::move(callback).Run(false);
 }
 
-bool LocalGpuMemoryBufferManager::CopyGpuMemoryBufferSync(
-    gfx::GpuMemoryBufferHandle buffer_handle,
-    base::UnsafeSharedMemoryRegion memory_region) {
-  return false;
+bool LocalGpuMemoryBufferManager::IsConnected() {
+  return true;
 }
 
 std::unique_ptr<gfx::GpuMemoryBuffer> LocalGpuMemoryBufferManager::ImportDmaBuf(

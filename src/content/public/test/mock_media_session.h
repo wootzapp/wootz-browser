@@ -28,6 +28,7 @@ class MockMediaSession : public MediaSession {
               SetAudioFocusGroupId,
               (const base::UnguessableToken& group_id),
               (override));
+  MOCK_METHOD(content::RenderFrameHost*, GetRoutedFrame, (), (override));
   MOCK_METHOD(void, Suspend, (SuspendType suspend_type), (override));
   MOCK_METHOD(void, Resume, (SuspendType suspend_type), (override));
   MOCK_METHOD(void, StartDucking, (), (override));
@@ -54,10 +55,15 @@ class MockMediaSession : public MediaSession {
                int desired_size_px,
                GetMediaImageBitmapCallback callback),
               (override));
+  MOCK_METHOD(void, ReportAutoPictureInPictureInfoChanged, (), (override));
   MOCK_METHOD(void, SeekTo, (base::TimeDelta seek_time), (override));
   MOCK_METHOD(void, ScrubTo, (base::TimeDelta seek_time), (override));
   MOCK_METHOD(void, EnterPictureInPicture, (), (override));
   MOCK_METHOD(void, ExitPictureInPicture, (), (override));
+  MOCK_METHOD(void,
+              GetVisibility,
+              (GetVisibilityCallback callback),
+              (override));
   MOCK_METHOD(void,
               SetAudioSinkId,
               (const std::optional<std::string>& id),

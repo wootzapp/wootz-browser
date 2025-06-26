@@ -20,9 +20,7 @@ import androidx.test.filters.MediumTest;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.robolectric.RuntimeEnvironment;
@@ -31,7 +29,6 @@ import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
 
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.ChromeRobolectricTestRunner;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
@@ -42,7 +39,7 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.MockTab;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.chrome.browser.toolbar.ButtonDataProvider;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonDataProvider;
 import org.chromium.chrome.browser.toolbar.top.OptionalBrowsingModeButtonController;
 import org.chromium.chrome.browser.toolbar.top.TopToolbarCoordinator;
 import org.chromium.chrome.test.util.browser.tabmodel.MockTabCreatorManager;
@@ -59,18 +56,14 @@ import java.util.NoSuchElementException;
  */
 @Config(shadows = {OptionalNewTabButtonControllerActivityTest.ShadowDelegate.class})
 @RunWith(ChromeRobolectricTestRunner.class)
-@EnableFeatures({ChromeFeatureList.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2})
+@EnableFeatures(
+        ChromeFeatureList.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2
+                + ":min_version_adaptive/0")
 @CommandLineFlags.Add({
     ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
-    ChromeSwitches.DISABLE_NATIVE_INITIALIZATION,
-    "enable-features="
-            + ChromeFeatureList.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2
-            + "<FakeStudyName",
-    "force-fieldtrials=FakeStudyName/Enabled",
-    "force-fieldtrial-params=FakeStudyName.Enabled:min_version_adaptive/0"
+    ChromeSwitches.DISABLE_NATIVE_INITIALIZATION
 })
 public class OptionalNewTabButtonControllerActivityTest {
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
 
     /**
      * Shadow of {@link OptionalNewTabButtonController.Delegate}. Injects testing values into every
@@ -108,7 +101,7 @@ public class OptionalNewTabButtonControllerActivityTest {
         when(originalProfile.getOriginalProfile()).thenReturn(originalProfile);
         when(incognitoProfile.isOffTheRecord()).thenReturn(true);
 
-        PriceTrackingFeatures.setPriceTrackingEnabledForTesting(false);
+        PriceTrackingFeatures.setPriceAnnotationsEnabledForTesting(false);
 
         // Avoid leaking state from the previous test.
         AdaptiveToolbarStatePredictor.setToolbarStateForTesting(
@@ -116,7 +109,7 @@ public class OptionalNewTabButtonControllerActivityTest {
         // To bypass a direct call to AdaptiveToolbarStatePredictor#readFromSegmentationPlatform for
         // UMA.
         AdaptiveToolbarStatePredictor.setSegmentationResultsForTesting(
-                new Pair<>(true, AdaptiveToolbarButtonVariant.NEW_TAB));
+                new Pair<>(true, List.of(AdaptiveToolbarButtonVariant.NEW_TAB)));
         MockTabModelSelector tabModelSelector =
                 new MockTabModelSelector(
                         originalProfile,

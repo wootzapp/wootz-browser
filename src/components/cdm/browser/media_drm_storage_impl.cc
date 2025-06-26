@@ -16,6 +16,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
+#include "base/not_fatal_until.h"
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
 #include "components/prefs/pref_registry_simple.h"
@@ -400,13 +401,12 @@ void ClearMediaDrmLicensesBlocking(
   for (const auto& origin_id : origin_ids) {
     // MediaDrm will unprovision |origin_id| for all security level. Passing
     // DEFAULT here is OK.
-    scoped_refptr<media::MediaDrmBridge> media_drm_bridge =
-        media::MediaDrmBridge::CreateWithoutSessionSupport(
-            kWidevineKeySystem, origin_id.ToString(),
-            media::MediaDrmBridge::SECURITY_LEVEL_DEFAULT,
-            base::NullCallback());
+    auto media_drm_bridge = media::MediaDrmBridge::CreateWithoutSessionSupport(
+        kWidevineKeySystem, origin_id.ToString(),
+        media::MediaDrmBridge::SECURITY_LEVEL_DEFAULT, "ClearMediaLicenses",
+        base::NullCallback());
 
-    if (media_drm_bridge) {
+    if (media_drm_bridge.has_value()) {
       media_drm_bridge->Unprovision();
     }
   }
@@ -557,7 +557,7 @@ class InitializationSerializer {
 
     // Now call any callbacks waiting for this origin ID to be allocated.
     auto entry = pending_requests_.find({pref_service, origin});
-    DCHECK(entry != pending_requests_.end());
+    CHECK(entry != pending_requests_.end(), base::NotFatalUntil::M130);
 
     std::vector<MediaDrmStorageImpl::OriginIdObtainedCB> callbacks;
     callbacks.swap(entry->second);

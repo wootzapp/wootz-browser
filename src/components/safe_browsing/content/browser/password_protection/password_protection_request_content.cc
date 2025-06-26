@@ -187,58 +187,55 @@ bool PasswordProtectionRequestContent::IsVisualFeaturesEnabled() {
 }
 
 void PasswordProtectionRequestContent::GetDomFeatures() {
-  if (base::FeatureList::IsEnabled(kClientSideDetectionImagesCache)) {
-    ClientSideDetectionFeatureCache* feature_cache_map =
-        ClientSideDetectionFeatureCache::FromWebContents(web_contents_);
-    if (feature_cache_map) {
-      if (password_protection_service()->IsExtendedReporting() &&
-          base::FeatureList::IsEnabled(
-              kClientSideDetectionDebuggingMetadataCache) &&
-          trigger_type() ==
-              LoginReputationClientRequest::PASSWORD_REUSE_EVENT) {
-        LoginReputationClientRequest::DebuggingMetadata* debugging_metadata =
-            feature_cache_map->GetDebuggingMetadataForURL(main_frame_url());
+  ClientSideDetectionFeatureCache* feature_cache_map =
+      ClientSideDetectionFeatureCache::FromWebContents(web_contents_);
+  if (feature_cache_map) {
+    if (password_protection_service()->IsExtendedReporting() &&
+        base::FeatureList::IsEnabled(
+            kClientSideDetectionDebuggingMetadataCache) &&
+        trigger_type() == LoginReputationClientRequest::PASSWORD_REUSE_EVENT) {
+      LoginReputationClientRequest::DebuggingMetadata* debugging_metadata =
+          feature_cache_map->GetDebuggingMetadataForURL(main_frame_url());
 
-        LogCSDCacheContainsDebuggingMetadata(debugging_metadata);
-        if (debugging_metadata) {
-          request_proto_->mutable_csd_debugging_metadata()->Swap(
-              debugging_metadata);
-          feature_cache_map->RemoveDebuggingMetadataForURL(main_frame_url());
+      LogCSDCacheContainsDebuggingMetadata(debugging_metadata);
+      if (debugging_metadata) {
+        request_proto_->mutable_csd_debugging_metadata()->Swap(
+            debugging_metadata);
+        feature_cache_map->RemoveDebuggingMetadataForURL(main_frame_url());
 
-          // We expect the debugging metadata size to be non-zero in most cases
-          // because we'd expect that at least the Preclassification checks
-          // would have ran if the tab has loaded the page.
-
-          base::UmaHistogramCounts100(
-              "PasswordProtection.CSDCacheDebuggingMetadataSizeAtHit",
-              feature_cache_map->GetTotalDebuggingMetadataMapEntriesSize());
-        }
-      }
-
-      ClientPhishingRequest* verdict =
-          feature_cache_map->GetVerdictForURL(main_frame_url());
-      if (verdict) {
-        dom_features_collection_complete_ = true;
-
-        LogCSDCacheContainsImages(
-            verdict->mutable_visual_features()->has_image());
+        // We expect the debugging metadata size to be non-zero in most cases
+        // because we'd expect that at least the Preclassification checks
+        // would have ran if the tab has loaded the page.
 
         base::UmaHistogramCounts100(
-            "PasswordProtection.CSDCacheSizeAtHit",
-            feature_cache_map->GetTotalVerdictEntriesSize());
-
-        ExtractClientPhishingRequestFeatures(*verdict);
-
-        if (!request_proto_->mutable_visual_features()->has_image() &&
-            IsVisualFeaturesEnabled()) {
-          MaybeCollectVisualFeatures();
-        } else {
-          SendRequest();
-        }
-        return;
-      } else {
-        LogCSDCacheContainsImages(false);
+            "PasswordProtection.CSDCacheDebuggingMetadataSizeAtHit",
+            feature_cache_map->GetTotalDebuggingMetadataMapEntriesSize());
       }
+    }
+
+    ClientPhishingRequest* verdict =
+        feature_cache_map->GetVerdictForURL(main_frame_url());
+    if (verdict) {
+      dom_features_collection_complete_ = true;
+
+      LogCSDCacheContainsImages(
+          verdict->mutable_visual_features()->has_image());
+
+      base::UmaHistogramCounts100(
+          "PasswordProtection.CSDCacheSizeAtHit",
+          feature_cache_map->GetTotalVerdictEntriesSize());
+
+      ExtractClientPhishingRequestFeatures(*verdict);
+
+      if (!request_proto_->mutable_visual_features()->has_image() &&
+          IsVisualFeaturesEnabled()) {
+        MaybeCollectVisualFeatures();
+      } else {
+        SendRequest();
+      }
+      return;
+    } else {
+      LogCSDCacheContainsImages(false);
     }
   }
 
@@ -441,13 +438,11 @@ void PasswordProtectionRequestContent::OnVisualFeatureCollectionDone(
 void PasswordProtectionRequestContent::SetReferringAppInfo() {
   PasswordProtectionService* service =
       static_cast<PasswordProtectionService*>(password_protection_service());
-  LoginReputationClientRequest::ReferringAppInfo referring_app_info =
+  ReferringAppInfo referring_app_info =
       service->GetReferringAppInfo(web_contents_);
-  UMA_HISTOGRAM_ENUMERATION(
-      "PasswordProtection.RequestReferringAppSource",
-      referring_app_info.referring_app_source(),
-      LoginReputationClientRequest::ReferringAppInfo::ReferringAppSource_MAX +
-          1);
+  UMA_HISTOGRAM_ENUMERATION("PasswordProtection.RequestReferringAppSource",
+                            referring_app_info.referring_app_source(),
+                            ReferringAppInfo::ReferringAppSource_MAX + 1);
   *request_proto_->mutable_referring_app_info() = std::move(referring_app_info);
 }
 #endif  // BUILDFLAG(IS_ANDROID)

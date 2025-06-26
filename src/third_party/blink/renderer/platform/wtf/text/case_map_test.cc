@@ -20,8 +20,7 @@ String To8BitOrNull(const String& source) {
     return source;
   if (!source.ContainsOnlyLatin1OrEmpty())
     return String();
-  return String::Make8BitFrom16BitSource(source.Characters16(),
-                                         source.length());
+  return String::Make8BitFrom16BitSource(source.Span16());
 }
 
 }  // namespace
@@ -147,8 +146,7 @@ TEST_P(CaseMapTest, ToUpper8Bit) {
 struct CaseFoldingTestData {
   const char* source_description;
   const char* source;
-  const char** locale_list;
-  size_t locale_list_length;
+  base::span<const char*> locale_list;
   const char* expected;
 };
 
@@ -190,26 +188,23 @@ const char* g_non_lithuanian_locales[] = {
 };
 
 TEST(CaseMapTest, ToUpperLocale) {
-  CaseFoldingTestData test_data_list[] = {
+  const auto test_data_list = std::to_array<CaseFoldingTestData>({
       {
           "Turkic input",
           g_turkic_input,
           g_turkic_locales,
-          sizeof(g_turkic_locales) / sizeof(const char*),
           "IS\xC4\xB0\xC4\xB0 \xC4\xB0SII",
       },
       {
           "Turkic input",
           g_turkic_input,
           g_non_turkic_locales,
-          sizeof(g_non_turkic_locales) / sizeof(const char*),
           "ISI\xC4\xB0 \xC4\xB0SII",
       },
       {
           "Greek input",
           g_greek_input,
           g_greek_locales,
-          sizeof(g_greek_locales) / sizeof(const char*),
           "\xCE\x9F\xCE\x94\xCE\x9F\xCE\xA3 \xCE\x9F\xCE\x94\xCE\x9F\xCE\xA3 "
           "\xCE\xA3\xCE\x9F \xCE\xA3\xCE\x9F \x4F\xCE\xA3 \xCE\x9F\xCE\xA3 "
           "\xCE\xA3 \xCE\x95\xCE\x9E",
@@ -218,7 +213,6 @@ TEST(CaseMapTest, ToUpperLocale) {
           "Greek input",
           g_greek_input,
           g_non_greek_locales,
-          sizeof(g_non_greek_locales) / sizeof(const char*),
           "\xCE\x9F\xCE\x94\xCE\x8C\xCE\xA3 \xCE\x9F\xCE\x94\xCE\x8C\xCE\xA3 "
           "\xCE\xA3\xCE\x9F \xCE\xA3\xCE\x9F \x4F\xCE\xA3 \xCE\x9F\xCE\xA3 "
           "\xCE\xA3 \xE1\xBC\x9D\xCE\x9E",
@@ -227,7 +221,6 @@ TEST(CaseMapTest, ToUpperLocale) {
           "Lithuanian input",
           g_lithuanian_input,
           g_lithuanian_locales,
-          sizeof(g_lithuanian_locales) / sizeof(const char*),
           "I \xC3\x8F J J\xCC\x88 \xC4\xAE \xC4\xAE\xCC\x88 \xC3\x8C \xC3\x8D "
           "\xC4\xA8 XI\xCC\x88 XJ\xCC\x88 X\xC4\xAE\xCC\x88 XI\xCC\x80 "
           "XI\xCC\x81 XI\xCC\x83 XI X\xC3\x8F XJ XJ\xCC\x88 X\xC4\xAE "
@@ -237,42 +230,37 @@ TEST(CaseMapTest, ToUpperLocale) {
           "Lithuanian input",
           g_lithuanian_input,
           g_non_lithuanian_locales,
-          sizeof(g_non_lithuanian_locales) / sizeof(const char*),
           "I \xC3\x8F J J\xCC\x88 \xC4\xAE \xC4\xAE\xCC\x88 \xC3\x8C \xC3\x8D "
           "\xC4\xA8 XI\xCC\x87\xCC\x88 XJ\xCC\x87\xCC\x88 "
           "X\xC4\xAE\xCC\x87\xCC\x88 XI\xCC\x87\xCC\x80 XI\xCC\x87\xCC\x81 "
           "XI\xCC\x87\xCC\x83 XI X\xC3\x8F XJ XJ\xCC\x88 X\xC4\xAE "
           "X\xC4\xAE\xCC\x88",
       },
-  };
+  });
 
-  for (size_t i = 0; i < sizeof(test_data_list) / sizeof(test_data_list[0]);
-       ++i) {
-    const char* expected = test_data_list[i].expected;
-    String source = String::FromUTF8(test_data_list[i].source);
-    for (size_t j = 0; j < test_data_list[i].locale_list_length; ++j) {
-      const char* locale = test_data_list[i].locale_list[j];
+  for (const auto& test_data : test_data_list) {
+    const char* expected = test_data.expected;
+    String source = String::FromUTF8(test_data.source);
+    for (const auto& locale : test_data.locale_list) {
       CaseMap case_map{AtomicString(locale)};
       EXPECT_EQ(expected, case_map.ToUpper(source).Utf8())
-          << test_data_list[i].source_description << "; locale=" << locale;
+          << test_data.source_description << "; locale=" << locale;
     }
   }
 }
 
 TEST(CaseMapTest, ToLowerLocale) {
-  CaseFoldingTestData test_data_list[] = {
+  const auto test_data_list = std::to_array<CaseFoldingTestData>({
       {
           "Turkic input",
           g_turkic_input,
           g_turkic_locales,
-          sizeof(g_turkic_locales) / sizeof(const char*),
           "\xC4\xB1sii is\xC4\xB1\xC4\xB1",
       },
       {
           "Turkic input",
           g_turkic_input,
           g_non_turkic_locales,
-          sizeof(g_non_turkic_locales) / sizeof(const char*),
           // U+0130 is lowercased to U+0069 followed by U+0307
           "isii\xCC\x87 i\xCC\x87s\xC4\xB1i",
       },
@@ -280,7 +268,6 @@ TEST(CaseMapTest, ToLowerLocale) {
           "Greek input",
           g_greek_input,
           g_greek_locales,
-          sizeof(g_greek_locales) / sizeof(const char*),
           "\xCE\xBF\xCE\xB4\xCF\x8C\xCF\x82 \xCE\xBF\xCE\xB4\xCF\x8C\xCF\x82 "
           "\xCF\x83\xCE\xBF \xCF\x83\xCE\xBF \x6F\xCF\x82 \xCE\xBF\xCF\x82 "
           "\xCF\x83 \xE1\xBC\x95\xCE\xBE",
@@ -289,7 +276,6 @@ TEST(CaseMapTest, ToLowerLocale) {
           "Greek input",
           g_greek_input,
           g_non_greek_locales,
-          sizeof(g_greek_locales) / sizeof(const char*),
           "\xCE\xBF\xCE\xB4\xCF\x8C\xCF\x82 \xCE\xBF\xCE\xB4\xCF\x8C\xCF\x82 "
           "\xCF\x83\xCE\xBF \xCF\x83\xCE\xBF \x6F\xCF\x82 \xCE\xBF\xCF\x82 "
           "\xCF\x83 \xE1\xBC\x95\xCE\xBE",
@@ -298,7 +284,6 @@ TEST(CaseMapTest, ToLowerLocale) {
           "Lithuanian input",
           g_lithuanian_input,
           g_lithuanian_locales,
-          sizeof(g_lithuanian_locales) / sizeof(const char*),
           "i \xC3\xAF j j\xCC\x87\xCC\x88 \xC4\xAF \xC4\xAF\xCC\x87\xCC\x88 "
           "i\xCC\x87\xCC\x80 i\xCC\x87\xCC\x81 i\xCC\x87\xCC\x83 "
           "xi\xCC\x87\xCC\x88 xj\xCC\x87\xCC\x88 x\xC4\xAF\xCC\x87\xCC\x88 "
@@ -309,7 +294,6 @@ TEST(CaseMapTest, ToLowerLocale) {
           "Lithuanian input",
           g_lithuanian_input,
           g_non_lithuanian_locales,
-          sizeof(g_non_lithuanian_locales) / sizeof(const char*),
           "\x69 \xC3\xAF \x6A \x6A\xCC\x88 \xC4\xAF \xC4\xAF\xCC\x88 \xC3\xAC "
           "\xC3\xAD \xC4\xA9 \x78\x69\xCC\x87\xCC\x88 \x78\x6A\xCC\x87\xCC\x88 "
           "\x78\xC4\xAF\xCC\x87\xCC\x88 \x78\x69\xCC\x87\xCC\x80 "
@@ -317,17 +301,15 @@ TEST(CaseMapTest, ToLowerLocale) {
           "\x78\xC3\xAF \x78\x6A \x78\x6A\xCC\x88 \x78\xC4\xAF "
           "\x78\xC4\xAF\xCC\x88",
       },
-  };
+  });
 
-  for (size_t i = 0; i < sizeof(test_data_list) / sizeof(test_data_list[0]);
-       ++i) {
-    const char* expected = test_data_list[i].expected;
-    String source = String::FromUTF8(test_data_list[i].source);
-    for (size_t j = 0; j < test_data_list[i].locale_list_length; ++j) {
-      const char* locale = test_data_list[i].locale_list[j];
+  for (const auto& test_data : test_data_list) {
+    const char* expected = test_data.expected;
+    String source = String::FromUTF8(test_data.source);
+    for (const auto& locale : test_data.locale_list) {
       CaseMap case_map{AtomicString(locale)};
       EXPECT_EQ(expected, case_map.ToLower(source).Utf8())
-          << test_data_list[i].source_description << "; locale=" << locale;
+          << test_data.source_description << "; locale=" << locale;
     }
   }
 }

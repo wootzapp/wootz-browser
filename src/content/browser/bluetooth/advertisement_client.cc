@@ -72,10 +72,11 @@ void WebBluetoothServiceImpl::WatchAdvertisementsClient::SendEvent(
         return !service_->IsAllowedToAccessService(device_id_, entry.first);
       });
   base::EraseIf(filtered_event->manufacturer_data,
-                [this](const std::pair<uint16_t, std::vector<uint8_t>>& entry) {
+                [this](const std::pair<blink::mojom::WebBluetoothCompanyPtr,
+                                       std::vector<uint8_t>>& entry) {
                   return !service_->IsAllowedToAccessManufacturerData(
-                             device_id_, entry.first) ||
-                         BluetoothBlocklist::Get().IsExcluded(entry.first,
+                             device_id_, entry.first->id) ||
+                         BluetoothBlocklist::Get().IsExcluded(entry.first->id,
                                                               entry.second);
                 });
   client_remote_->AdvertisingEvent(std::move(filtered_event));
@@ -144,7 +145,7 @@ void WebBluetoothServiceImpl::ScanningClient::SendEvent(
 
     // Check to see if there is a service uuid match
     if (filter->services.has_value()) {
-      if (base::ranges::none_of(
+      if (std::ranges::none_of(
               filter->services.value(),
               [&filtered_event](const BluetoothUUID& filter_uuid) {
                 return base::Contains(filtered_event->uuids, filter_uuid);

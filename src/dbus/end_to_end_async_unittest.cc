@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -304,7 +305,7 @@ TEST_F(EndToEndAsyncTest, EchoWithErrorCallback) {
 
 // Call Echo method three times.
 TEST_F(EndToEndAsyncTest, EchoThreeTimes) {
-  const char* kMessages[] = { "foo", "bar", "baz" };
+  auto kMessages = std::to_array<const char*>({"foo", "bar", "baz"});
 
   for (size_t i = 0; i < std::size(kMessages); ++i) {
     // Create the method call.

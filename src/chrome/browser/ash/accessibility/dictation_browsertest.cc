@@ -859,12 +859,30 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(TestConfig(speech::SpeechRecognitionType::kNetwork,
                                  EditableType::kContentEditable)));
 
-IN_PROC_BROWSER_TEST_P(DictationJaTest, NoSmartSpacingOrCapitalization) {
+IN_PROC_BROWSER_TEST_P(DictationJaTest, NoSmartCapitalization) {
   ToggleDictationWithKeystroke();
   WaitForRecognitionStarted();
   SendFinalResultAndWaitForEditableValue("this", "this");
-  SendFinalResultAndWaitForEditableValue(" Is", "this Is");
-  SendFinalResultAndWaitForEditableValue("a test.", "this Isa test.");
+  // Note that spaces get removed when the Dictation language is Japanese
+  // (see the RemoveSpacesWithinUtterance) test case below.
+  SendFinalResultAndWaitForEditableValue(" Is", "thisIs");
+  SendFinalResultAndWaitForEditableValue("a test.", "thisIsatest.");
+  ToggleDictationWithKeystroke();
+  WaitForRecognitionStopped();
+}
+
+IN_PROC_BROWSER_TEST_P(DictationJaTest, RemoveSpacesWithinUtterance) {
+  ToggleDictationWithKeystroke();
+  WaitForRecognitionStarted();
+  // Dictate "I like tennis". Include spaces within this utterance, since we can
+  // receive results like this from the speech recognizer. Ensure that the
+  // spaces within the utterance are stripped out.
+  SendFinalResultAndWaitForEditableValue("私は テニス が好き です。",
+                                         "私はテニスが好きです。");
+  // Dictate "congratulations". Ensure that no spaces are added in between
+  // utterances.
+  SendFinalResultAndWaitForEditableValue("おめでとう",
+                                         "私はテニスが好きです。おめでとう");
   ToggleDictationWithKeystroke();
   WaitForRecognitionStopped();
 }
@@ -1025,7 +1043,9 @@ IN_PROC_BROWSER_TEST_P(DictationRegexCommandsTest, DeleteCharacter) {
   SendFinalResultAndWaitForEditableValue(" Delete", "Veg");
   SendFinalResultAndWaitForEditableValue("delete", "Ve");
   SendFinalResultAndWaitForEditableValue("  delete ", "V");
-  SendFinalResultAndWaitForEditableValue("DELETE", "");
+  SendFinalResultAndWaitForEditableValue(
+      "DELETE",
+      (editable_type() == EditableType::kContentEditable) ? "\n" : "");
 }
 
 IN_PROC_BROWSER_TEST_P(DictationRegexCommandsTest, MoveByCharacter) {
@@ -1066,7 +1086,9 @@ IN_PROC_BROWSER_TEST_P(DictationRegexCommandsTest, SelectAllAndUnselect) {
   std::string first_text = "Vega is the brightest star in Lyra";
   SendFinalResultAndWaitForEditableValue(first_text, first_text);
   SendFinalResultAndWaitForSelection("Select all", 0, first_text.size());
-  SendFinalResultAndWaitForEditableValue("delete", "");
+  SendFinalResultAndWaitForEditableValue(
+      "delete",
+      (editable_type() == EditableType::kContentEditable) ? "\n" : "");
   std::string second_text = "Vega is the fifth brightest star in the sky";
   SendFinalResultAndWaitForEditableValue(second_text, second_text);
   SendFinalResultAndWaitForSelection("Select all", 0, second_text.size());
@@ -1086,7 +1108,8 @@ IN_PROC_BROWSER_TEST_P(DictationRegexCommandsTest, CutCopyPaste) {
   SendFinalResultAndWaitForSelection("select ALL ", 0, 8);
   SendFinalResultAndWaitForClipboardChanged("cut");
   EXPECT_EQ("StarStar", GetClipboardText());
-  WaitForEditableValue("");
+  WaitForEditableValue(
+      (editable_type() == EditableType::kContentEditable) ? "\n" : "");
   SendFinalResultAndWaitForEditableValue("  PaStE ", "StarStar");
 }
 
@@ -1148,7 +1171,9 @@ IN_PROC_BROWSER_TEST_P(DictationRegexCommandsTest, DeletePrevWordMiddleOfWord) {
 
 IN_PROC_BROWSER_TEST_P(DictationRegexCommandsTest, DeletePrevSentSimple) {
   SendFinalResultAndWaitForEditableValue("Hello, world.", "Hello, world.");
-  SendFinalResultAndWaitForEditableValue("delete the previous sentence", "");
+  SendFinalResultAndWaitForEditableValue(
+      "delete the previous sentence",
+      (editable_type() == EditableType::kContentEditable) ? "\n" : "");
 }
 
 IN_PROC_BROWSER_TEST_P(DictationRegexCommandsTest, DeletePrevSentWhiteSpace) {
@@ -1686,7 +1711,8 @@ IN_PROC_BROWSER_TEST_P(DictationPumpkinTest, CutCopyPasteSelectAll) {
   SendFinalResultAndWaitForSelection("highlight everything", 0, 8);
   SendFinalResultAndWaitForClipboardChanged("cut highlighted text");
   EXPECT_EQ("StarStar", GetClipboardText());
-  WaitForEditableValue("");
+  WaitForEditableValue(
+      (editable_type() == EditableType::kContentEditable) ? "\n" : "");
   SendFinalResultAndWaitForEditableValue("paste the copied text", "StarStar");
 }
 
@@ -1707,7 +1733,9 @@ IN_PROC_BROWSER_TEST_P(DictationPumpkinTest, DeletePrevWord) {
 
 IN_PROC_BROWSER_TEST_P(DictationPumpkinTest, DeletePrevSent) {
   SendFinalResultAndWaitForEditableValue("Hello, world.", "Hello, world.");
-  SendFinalResultAndWaitForEditableValue("erase sentence", "");
+  SendFinalResultAndWaitForEditableValue(
+      "erase sentence",
+      (editable_type() == EditableType::kContentEditable) ? "\n" : "");
 }
 
 IN_PROC_BROWSER_TEST_P(DictationPumpkinTest, MoveByWord) {
@@ -1760,7 +1788,8 @@ IN_PROC_BROWSER_TEST_P(DictationPumpkinTest, MoveBySentence) {
 
 IN_PROC_BROWSER_TEST_P(DictationPumpkinTest, DeleteAllText) {
   SendFinalResultAndWaitForEditableValue("Hello, world.", "Hello, world.");
-  SendFinalResultAndWaitForEditableValue("clear", "");
+  SendFinalResultAndWaitForEditableValue(
+      "clear", (editable_type() == EditableType::kContentEditable) ? "\n" : "");
 }
 
 IN_PROC_BROWSER_TEST_P(DictationPumpkinTest, NavStartText) {
@@ -1912,7 +1941,9 @@ class DictationContextCheckingTest : public DictationTest {
         /*icon=*/DictationBubbleIconType::kMacroFail,
         /*text=*/message,
         /*hints=*/std::optional<std::vector<std::u16string>>());
-    SendFinalResultAndWaitForEditableValue("delete all", "");
+    SendFinalResultAndWaitForEditableValue(
+        "delete all",
+        (editable_type() == EditableType::kContentEditable) ? "\n" : "");
   }
 
  private:
@@ -2047,10 +2078,6 @@ class NotificationCenterDictationTest : public DictationTest {
   ~NotificationCenterDictationTest() override = default;
 
  protected:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    DictationTest::SetUpCommandLine(command_line);
-  }
-
   void SetUpOnMainThread() override {
     DictationTest::SetUpOnMainThread();
     ToggleDictationWithKeystroke();

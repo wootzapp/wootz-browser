@@ -20,6 +20,7 @@
 #include "ash/system/mahi/mahi_constants.h"
 #include "ash/system/mahi/mahi_ui_controller.h"
 #include "ash/system/mahi/mahi_ui_update.h"
+#include "ash/system/mahi/mahi_utils.h"
 #include "ash/system/mahi/resources/grit/mahi_resources.h"
 #include "base/check.h"
 #include "base/functional/bind.h"
@@ -27,6 +28,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/time/time.h"
 #include "chromeos/components/mahi/public/cpp/mahi_manager.h"
+#include "chromeos/constants/chromeos_features.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -35,6 +37,7 @@
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/animated_image_view.h"
@@ -46,6 +49,7 @@
 #include "ui/views/layout/flex_layout_types.h"
 #include "ui/views/layout/flex_layout_view.h"
 #include "ui/views/layout/layout_types.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/view.h"
 
 namespace ash {
@@ -71,19 +75,17 @@ constexpr auto kTextBubbleInteriorMargin =
 constexpr int kBetweenChildSpacing = 8;
 constexpr int kTextBubbleCornerRadius = 12;
 
-// TODO(b/319731776): Use panel bounds here instead of `kPanelDefaultWidth` when
-// the panel is resizable.
 constexpr int kTextBubbleLabelDefaultMaximumWidth =
-    mahi_constants::kScrollViewWidth - kQuestionAnswerInteriorMargin.width() -
-    kTextBubbleInteriorMargin.width();
+    mahi_constants::kScrollViewDefaultWidth -
+    kQuestionAnswerInteriorMargin.width() - kTextBubbleInteriorMargin.width();
 
 // ErrorBubble -----------------------------------------------------------------
 
-// A bubble presenting the error introduced by the most recent question.
+// A bubble presenting the error introduced by answering a question.
 class ErrorBubble : public views::FlexLayoutView {
   METADATA_HEADER(ErrorBubble, views::FlexLayoutView)
  public:
-  ErrorBubble() {
+  explicit ErrorBubble(int error_text_id) {
     views::Builder<views::FlexLayoutView>(this)
         .SetBorder(views::CreateEmptyBorder(kErrorBubbleInteriorMargin))
         .SetOrientation(views::LayoutOrientation::kHorizontal)
@@ -100,8 +102,7 @@ class ErrorBubble : public views::FlexLayoutView {
                 .SetID(mahi_constants::ViewId::kQuestionAnswerErrorLabel)
                 .SetMultiLine(true)
                 .SetMaximumWidth(kErrorLabelMaximumWidth)
-                .SetText(l10n_util::GetStringUTF16(
-                    IDS_ASH_MAHI_RESPONSE_STATUS_INAPPROPRIATE_LABEL_TEXT)))
+                .SetText(l10n_util::GetStringUTF16(error_text_id)))
         .BuildChildren();
   }
 };
@@ -119,7 +120,7 @@ views::Builder<views::FlexLayoutView> CreateTextBubbleBuilder(
     bool is_question) {
   return views::Builder<views::FlexLayoutView>()
       .SetInteriorMargin(kTextBubbleInteriorMargin)
-      .SetBackground(views::CreateThemedRoundedRectBackground(
+      .SetBackground(views::CreateRoundedRectBackground(
           is_question ? cros_tokens::kCrosSysSystemPrimaryContainer
                       : cros_tokens::kCrosSysSystemOnBase,
           gfx::RoundedCornersF(kTextBubbleCornerRadius)))
@@ -157,7 +158,7 @@ views::Builder<views::FlexLayoutView> CreateTextBubbleBuilder(
               .SetTooltipText(text)
               .SetHorizontalAlignment(is_question ? gfx::ALIGN_RIGHT
                                                   : gfx::ALIGN_LEFT)
-              .SetEnabledColorId(
+              .SetEnabledColor(
                   is_question ? cros_tokens::kCrosSysSystemOnPrimaryContainer
                               : cros_tokens::kCrosSysOnSurface)
               .SetAutoColorReadabilityEnabled(false)
@@ -171,14 +172,25 @@ views::Builder<views::FlexLayoutView> CreateTextBubbleBuilder(
 std::unique_ptr<views::View> CreateQuestionAnswerRow(const std::u16string& text,
                                                      bool is_question) {
   views::Builder<views::FlexLayoutView> row_builder =
-      views::Builder<views::FlexLayoutView>().SetOrientation(
-          views::LayoutOrientation::kHorizontal);
+      views::Builder<views::FlexLayoutView>()
+          .SetOrientation(views::LayoutOrientation::kHorizontal)
+          .CustomConfigure(base::BindOnce([](views::FlexLayoutView* layout) {
+            // TODO(crbug.com/377582486): When respecting size constraints, the
+            // layout manager has no layout cache, so multiple levels of
+            // FlexLayoutView nesting have performance issues here (see
+            // crbug.com/40232718). Only needs to be disabled if resizing is
+            // enabled.
+            layout->SetLayoutManagerUseConstrainedSpace(
+                !base::FeatureList::IsEnabled(
+                    chromeos::features::kMahiPanelResizable));
+          }));
 
   views::Builder<views::FlexLayoutView> spacer =
       views::Builder<views::FlexLayoutView>().CustomConfigure(
           base::BindOnce([](views::FlexLayoutView* layout) {
             layout->SetProperty(views::kFlexBehaviorKey,
                                 views::FlexSpecification(
+                                    views::LayoutOrientation::kHorizontal,
                                     views::MinimumFlexSizeRule::kScaleToZero,
                                     views::MaximumFlexSizeRule::kUnbounded,
                                     /*adjust_height_for_width=*/true));
@@ -232,14 +244,19 @@ MahiQuestionAnswerView::MahiQuestionAnswerView(MahiUiController* ui_controller)
     : MahiUiController::Delegate(ui_controller), ui_controller_(ui_controller) {
   CHECK(ui_controller);
 
+  // TODO(crbug.com/377576663) add performance metrics for resizing.
   SetOrientation(views::LayoutOrientation::kVertical);
   SetInteriorMargin(kQuestionAnswerInteriorMargin);
   SetIgnoreDefaultMainAxisMargins(true);
   SetCollapseMargins(true);
   SetDefault(views::kMarginsKey, gfx::Insets::VH(kBetweenChildSpacing, 0));
-  SetProperty(views::kFlexBehaviorKey,
-              views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
-                                       views::MaximumFlexSizeRule::kUnbounded));
+  // TODO(crbug.com/377582486): When respecting size constraints, the
+  // layout manager has no layout cache, so multiple levels of
+  // FlexLayoutView nesting have performance issues here (see
+  // crbug.com/40232718).
+  // Only needs to be disabled if resizing is enabled.
+  SetLayoutManagerUseConstrainedSpace(
+      !base::FeatureList::IsEnabled(chromeos::features::kMahiPanelResizable));
 }
 
 MahiQuestionAnswerView::~MahiQuestionAnswerView() {
@@ -255,23 +272,26 @@ bool MahiQuestionAnswerView::GetViewVisibility(VisibilityState state) const {
     case VisibilityState::kQuestionAndAnswer:
       return true;
     case VisibilityState::kError:
-    case VisibilityState::kSummaryAndOutlines:
+    case VisibilityState::kSummaryAndOutlinesAndElucidation:
       return false;
   }
 }
 
 void MahiQuestionAnswerView::OnUpdated(const MahiUiUpdate& update) {
   switch (update.type()) {
-    case MahiUiUpdateType::kAnswerLoaded:
+    case MahiUiUpdateType::kAnswerLoaded: {
       RemoveLoadingAnimatedImage();
 
       base::UmaHistogramTimes(
           mahi_constants::kAnswerLoadingTimeHistogramName,
           base::TimeTicks::Now() - answer_start_loading_time_);
 
-      AddChildView(
-          CreateQuestionAnswerRow(update.GetAnswer(), /*is_question=*/false));
+      auto& answer = update.GetAnswer();
+
+      AddChildView(CreateQuestionAnswerRow(answer, /*is_question=*/false));
+      GetViewAccessibility().AnnounceText(answer);
       return;
+    }
     case MahiUiUpdateType::kContentsRefreshInitiated:
       question_count_reporter_.ReportDataAndReset();
       RemoveAllChildViews();
@@ -279,24 +299,13 @@ void MahiQuestionAnswerView::OnUpdated(const MahiUiUpdate& update) {
     case MahiUiUpdateType::kErrorReceived: {
       RemoveLoadingAnimatedImage();
 
-      // Creates `error_bubble_` if having an inappropriate question error.
+      // Creates `error_bubble_` if having an error.
       const MahiUiError& error = update.GetError();
-      if (error.origin_state == VisibilityState::kQuestionAndAnswer &&
-          error.status == chromeos::MahiResponseStatus::kInappropriate) {
-        if (error_bubble_) {
-          LOG(ERROR) << "Tried to add a new error bubble when there is an "
-                        "existing one.";
-          return;
-        }
-        // Building `ErrorBubble` is synchronous. Therefore, it is safe to pass
-        // the reference to `error_bubble` to the callback.
+      if (error.origin_state == VisibilityState::kQuestionAndAnswer) {
         AddChildView(
-            views::Builder<ErrorBubble>()
-                .AfterBuild(base::BindOnce(
-                    [](views::ViewTracker& error_bubble, ErrorBubble* self) {
-                      error_bubble.SetView(self);
-                    },
-                    std::ref(error_bubble_)))
+            views::Builder<ErrorBubble>(
+                std::make_unique<ErrorBubble>(
+                    mahi_utils::GetErrorStatusViewTextId(error.status)))
                 .Build());
       }
       return;
@@ -305,11 +314,6 @@ void MahiQuestionAnswerView::OnUpdated(const MahiUiUpdate& update) {
       question_count_reporter_.IncreaseQuestionCount();
       AddChildView(CreateQuestionAnswerRow(update.GetQuestion(),
                                            /*is_question=*/true));
-      // Destroys `error_bubble_` if any when the user posts a new question.
-      if (error_bubble_) {
-        RemoveChildViewT(error_bubble_.view());
-      }
-
       if (answer_loading_animated_image_) {
         LOG(ERROR) << "Loading animated image shouldn't be running when a "
                       "question can be asked";
@@ -319,8 +323,11 @@ void MahiQuestionAnswerView::OnUpdated(const MahiUiUpdate& update) {
       auto* answer_loading_animated_image = AddChildView(
           views::Builder<views::AnimatedImageView>()
               .SetID(mahi_constants::ViewId::kAnswerLoadingAnimatedImage)
+              .SetAccessibleName(l10n_util::GetStringUTF16(
+                  IDS_ASH_MAHI_LOADING_ACCESSIBLE_NAME))
               .SetAnimatedImage(mahi_animation_utils::GetLottieAnimationData(
                   IDR_MAHI_LOADING_SUMMARY_ANIMATION))
+              .SetHorizontalAlignment(views::ImageViewBase::Alignment::kLeading)
               .AfterBuild(base::BindOnce([](views::AnimatedImageView* self) {
                 self->Play(mahi_animation_utils::GetLottiePlaybackConfig(
                     *self->animated_image()->skottie(),
@@ -343,11 +350,14 @@ void MahiQuestionAnswerView::OnUpdated(const MahiUiUpdate& update) {
       return;
     }
     case MahiUiUpdateType::kOutlinesLoaded:
+    case MahiUiUpdateType::kPanelBoundsChanged:
     case MahiUiUpdateType::kQuestionAndAnswerViewNavigated:
     case MahiUiUpdateType::kRefreshAvailabilityUpdated:
     case MahiUiUpdateType::kSummaryLoaded:
     case MahiUiUpdateType::kSummaryAndOutlinesSectionNavigated:
     case MahiUiUpdateType::kSummaryAndOutlinesReloaded:
+    case MahiUiUpdateType::kElucidationRequested:
+    case MahiUiUpdateType::kElucidationLoaded:
       return;
   }
 }

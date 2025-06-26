@@ -2,9 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "sandbox/policy/mac/sandbox_mac.h"
+
 #import <Cocoa/Cocoa.h>
 #import <Foundation/Foundation.h>
-
 #include <fcntl.h>
 
 #include "base/apple/foundation_util.h"
@@ -21,19 +22,15 @@
 #include "base/posix/eintr_wrapper.h"
 #include "base/process/kill.h"
 #include "base/strings/strcat.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/multiprocess_test.h"
 #include "base/test/test_timeouts.h"
 #include "content/browser/sandbox_parameters_mac.h"
-#include "crypto/openssl_util.h"
-#include "ppapi/buildflags/buildflags.h"
-#include "sandbox/mac/sandbox_compiler.h"
+#include "sandbox/mac/sandbox_serializer.h"
 #include "sandbox/mac/seatbelt.h"
 #include "sandbox/mac/seatbelt_exec.h"
-#include "sandbox/policy/mac/sandbox_mac.h"
 #include "sandbox/policy/mojom/sandbox.mojom.h"
 #include "sandbox/policy/switches.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -66,17 +63,14 @@ class SandboxMacTest : public base::MultiProcessTest {
                          sandbox::mojom::Sandbox sandbox_type) {
     std::string profile =
         sandbox::policy::GetSandboxProfile(sandbox_type) + kTempDirSuffix;
-    sandbox::SandboxCompiler compiler;
-    compiler.SetProfile(profile);
-    SetupSandboxParameters(sandbox_type,
-                           *base::CommandLine::ForCurrentProcess(),
-#if BUILDFLAG(ENABLE_PPAPI)
-                           /*plugins=*/{},
-#endif
-                           &compiler);
-    sandbox::mac::SandboxPolicy policy;
-    std::string error;
-    ASSERT_TRUE(compiler.CompilePolicyToProto(policy, error)) << error;
+    sandbox::SandboxSerializer serializer(
+        sandbox::SandboxSerializer::Target::kSource);
+
+    serializer.SetProfile(profile);
+    SetupSandboxParameters(
+        sandbox_type, *base::CommandLine::ForCurrentProcess(), &serializer);
+    std::string error, serialized;
+    CHECK(serializer.SerializePolicy(serialized, error)) << error;
 
     sandbox::SeatbeltExecClient client;
     pipe_ = client.GetReadFD();
@@ -87,7 +81,7 @@ class SandboxMacTest : public base::MultiProcessTest {
 
     base::Process process = SpawnChildWithOptions(procname, options);
     ASSERT_TRUE(process.IsValid());
-    ASSERT_TRUE(client.SendPolicy(policy));
+    ASSERT_TRUE(client.SendPolicy(serialized));
 
     int rv = -1;
     ASSERT_TRUE(base::WaitForMultiprocessTestChildExit(
@@ -101,10 +95,6 @@ class SandboxMacTest : public base::MultiProcessTest {
         sandbox::mojom::Sandbox::kAudio,
         sandbox::mojom::Sandbox::kCdm,
         sandbox::mojom::Sandbox::kGpu,
-        sandbox::mojom::Sandbox::kNaClLoader,
-#if BUILDFLAG(ENABLE_PPAPI)
-        sandbox::mojom::Sandbox::kPpapi,
-#endif
         sandbox::mojom::Sandbox::kPrintBackend,
         sandbox::mojom::Sandbox::kPrintCompositor,
         sandbox::mojom::Sandbox::kRenderer,
@@ -195,7 +185,6 @@ TEST_F(SandboxMacTest, ClipboardAccess) {
 MULTIPROCESS_TEST_MAIN(SSLProcess) {
   CheckCreateSeatbeltServer();
 
-  crypto::EnsureOpenSSLInit();
   // Ensure that RAND_bytes is functional within the sandbox.
   uint8_t byte;
   CHECK(RAND_bytes(&byte, 1) == 1);
@@ -213,7 +202,7 @@ TEST_F(SandboxMacTest, SSLInitTest) {
 MULTIPROCESS_TEST_MAIN(BuiltinAvailable) {
   CheckCreateSeatbeltServer();
 
-  if (__builtin_available(macOS 10.15, *)) {
+  if (__builtin_available(macOS 11, *)) {
     // Can't negate a __builtin_available condition. But success!
   } else {
     return 15;

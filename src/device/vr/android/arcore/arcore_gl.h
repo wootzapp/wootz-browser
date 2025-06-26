@@ -110,6 +110,8 @@ class ArCoreGl : public mojom::XRFrameDataProvider,
   ~ArCoreGl() override;
 
   void Initialize(
+      const scoped_refptr<base::SingleThreadTaskRunner>&
+          main_thread_task_runner,
       XrJavaCoordinator* session_utils,
       ArCoreFactory* arcore_factory,
       XrFrameSinkClient* xr_frame_sink_client,
@@ -215,8 +217,10 @@ class ArCoreGl : public mojom::XRFrameDataProvider,
                     mojom::XRFrameDataPtr frame_data,
                     mojom::XRFrameDataProvider::GetFrameDataCallback callback);
 
-  bool InitializeGl(gfx::AcceleratedWidget drawing_widget);
-  void InitializeArCompositor(gpu::SurfaceHandle surface_handle,
+  bool InitializeGl();
+  void InitializeArCompositor(const scoped_refptr<base::SingleThreadTaskRunner>&
+                                  main_thread_task_runner,
+                              gpu::SurfaceHandle surface_handle,
                               ui::WindowAndroid* root_window,
                               XrFrameSinkClient* xr_frame_sink_client,
                               device::DomOverlaySetup dom_setup);
@@ -245,8 +249,9 @@ class ArCoreGl : public mojom::XRFrameDataProvider,
   void DidNotProduceVizFrame(int16_t frame_index);
   void OnBeginFrame(const viz::BeginFrameArgs& args,
                     const viz::FrameTimingDetailsMap&);
-  void OnReclaimedGpuFenceAvailable(WebXrFrame* frame,
-                                    std::unique_ptr<gfx::GpuFence> gpu_fence);
+  void OnReclaimedGpuFenceAvailable(
+      WebXrFrame* frame,
+      std::vector<std::unique_ptr<gfx::GpuFence>> gpu_fences);
   void ClearRenderingFrame(WebXrFrame* frame);
   void RecalculateUvsAndProjection();
 
@@ -274,7 +279,6 @@ class ArCoreGl : public mojom::XRFrameDataProvider,
   // Where possible, we should use the ArCompositor to integrate with viz,
   // rather than our own custom compositing logic.
   std::unique_ptr<ArCompositorFrameSink> ar_compositor_;
-  const bool use_ar_compositor_;
 
   // This class uses the same overall presentation state logic
   // as GvrGraphicsDelegate, with some difference due to drawing
@@ -375,12 +379,6 @@ class ArCoreGl : public mojom::XRFrameDataProvider,
   // by the task runner would lead to inconsistent state on session shutdown.
   // See https://crbug.com/1065572.
   base::OnceClosure pending_getframedata_;
-
-  mojom::VRStageParametersPtr stage_parameters_;
-  uint32_t stage_parameters_id_;
-
-  // Currently estimated floor height.
-  std::optional<float> floor_height_estimate_;
 
   // Touch-related data.
   // Android will report touch events via MotionEvent - see XrImmersiveOverlay

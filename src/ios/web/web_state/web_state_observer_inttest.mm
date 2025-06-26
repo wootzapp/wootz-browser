@@ -724,9 +724,7 @@ class WebStateObserverMock : public WebStateObserver {
   MOCK_METHOD1(DidStopLoading, void(WebState*));
   MOCK_METHOD2(PageLoaded, void(WebState*, PageLoadCompletionStatus));
   MOCK_METHOD1(DidChangeBackForwardState, void(WebState*));
-  void WebStateDestroyed(WebState* web_state) override {
-    NOTREACHED_IN_MIGRATION();
-  }
+  void WebStateDestroyed(WebState* web_state) override { NOTREACHED(); }
 };
 
 // Mocks WebStateObserver navigation callbacks, including TitleWasSet.
@@ -746,9 +744,7 @@ class WebStateObserverWithTitleMock : public WebStateObserver {
   MOCK_METHOD2(PageLoaded, void(WebState*, PageLoadCompletionStatus));
   MOCK_METHOD1(DidChangeBackForwardState, void(WebState*));
   MOCK_METHOD1(TitleWasSet, void(WebState*));
-  void WebStateDestroyed(WebState* web_state) override {
-    NOTREACHED_IN_MIGRATION();
-  }
+  void WebStateDestroyed(WebState* web_state) override { NOTREACHED(); }
 };
 
 // Mocks WebStatePolicyDecider decision callbacks.
@@ -774,14 +770,14 @@ class PolicyDeciderMock : public WebStatePolicyDecider {
 
 }  // namespace
 
-using net::test_server::EmbeddedTestServer;
-using ::testing::Return;
-using ::testing::StrictMock;
-using ::testing::_;
 using base::test::ios::kWaitForJSCompletionTimeout;
 using base::test::ios::kWaitForPageLoadTimeout;
 using base::test::ios::WaitUntilConditionOrTimeout;
+using net::test_server::EmbeddedTestServer;
 using test::WaitForWebViewContainingText;
+using ::testing::_;
+using ::testing::Return;
+using ::testing::StrictMock;
 
 // Test fixture to test navigation and load callbacks from WebStateObserver and
 // WebStatePolicyDecider.
@@ -968,12 +964,24 @@ TEST_F(WebStateObserverTest, AboutNewTabNavigation) {
       /*is_user_initiated=*/false, /*user_tapped_recently=*/false);
   const WebStatePolicyDecider::ResponseInfo expected_response_info(
       /*for_main_frame=*/true);
+  if (@available(iOS 18, *)) {
+    // The timing of the navigation policy decision has changed in iOS 18, with
+    // additional asynchrony in WebKit, so the `DidStopLoading` call arrives
+    // before the navigation policy callback.
+    EXPECT_CALL(observer_, DidStopLoading(web_state()));
+  }
+
   EXPECT_CALL(*decider_, MockShouldAllowRequest(
                              _, RequestInfoMatch(expected_request_info), _))
       .WillOnce(
           RunOnceCallback<2>(WebStatePolicyDecider::PolicyDecision::Allow()));
 
-  EXPECT_CALL(observer_, DidStopLoading(web_state()));
+  if (@available(iOS 18, *)) {
+    // On iOS 18, the `DidStopLoading` call already happened above.
+  } else {
+    EXPECT_CALL(observer_, DidStopLoading(web_state()));
+  }
+
   EXPECT_CALL(observer_, DidStartLoading(web_state()));
 
   EXPECT_CALL(observer_, DidStartNavigation(web_state(), _))
@@ -983,8 +991,8 @@ TEST_F(WebStateObserverTest, AboutNewTabNavigation) {
 
   EXPECT_CALL(observer_, DidFinishNavigation(web_state(), _))
       .WillOnce(VerifyNewPageFinishedContext(
-          web_state(), first_url, /*mime_type=*/std::string(),
-          /*content_is_html=*/false, &context, &nav_id));
+          web_state(), first_url, kExpectedMimeType,
+          /*content_is_html=*/true, &context, &nav_id));
   EXPECT_CALL(observer_, DidStopLoading(web_state()));
   EXPECT_CALL(observer_,
               PageLoaded(web_state(), PageLoadCompletionStatus::SUCCESS));
@@ -2260,6 +2268,13 @@ TEST_F(WebStateObserverTest, DisallowRequestAndShowError) {
       .WillOnce(RunOnceCallback<2>(
           WebStatePolicyDecider::PolicyDecision::CancelAndDisplayError(error)));
 
+  if (@available(iOS 18, *)) {
+    // On iOS 18, loading stops when the navigation is canceled and then
+    // starts again for the error page navigation, rather than appearing as
+    // one continuous load.
+    EXPECT_CALL(observer_, DidStopLoading(web_state()));
+    EXPECT_CALL(observer_, DidStartLoading(web_state()));
+  }
   EXPECT_CALL(observer_, DidStartNavigation(web_state(), _));
   EXPECT_CALL(observer_, DidStopLoading(web_state()));
   EXPECT_CALL(observer_, DidFinishNavigation(web_state(), _));

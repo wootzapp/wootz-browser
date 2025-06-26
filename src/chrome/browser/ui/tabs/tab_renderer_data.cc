@@ -6,36 +6,65 @@
 
 #include "base/process/kill.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
-#include "chrome/browser/browser_process.h"
+#include "chrome/browser/collaboration/messaging/messaging_backend_service_factory.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom-shared.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/performance_controls/memory_saver_utils.h"
+#include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
+#include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/tabs/saved_tab_groups/collaboration_messaging_tab_data.h"
+#include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+#include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_web_contents_listener.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
+#include "chrome/browser/ui/thumbnails/thumbnail_image.h"
 #include "chrome/browser/ui/thumbnails/thumbnail_tab_helper.h"
 #include "chrome/browser/ui/web_applications/web_app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
+#include "components/collaboration/public/messaging/messaging_backend_service.h"
 #include "components/performance_manager/public/features.h"
-#include "components/performance_manager/public/user_tuning/prefs.h"
+#include "components/saved_tab_groups/public/features.h"
+#include "components/saved_tab_groups/public/tab_group_sync_service.h"
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/url_constants.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "base/feature_list.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+namespace {
+
+using collaboration::messaging::MessagingBackendService;
+using collaboration::messaging::MessagingBackendServiceFactory;
+using collaboration::messaging::PersistentMessage;
+
+base::WeakPtr<tab_groups::CollaborationMessagingTabData>
+GetCollaborationMessage(tabs::TabInterface* tab) {
+  if (!tab_groups::SavedTabGroupUtils::SupportsSharedTabGroups()) {
+    return nullptr;
+  }
+
+  auto* data = tab->GetTabFeatures()->collaboration_messaging_tab_data();
+  if (!data) {
+    return nullptr;
+  }
+
+  return data->GetWeakPtr();
+}
+
+}  // namespace
 
 // static
 TabRendererData TabRendererData::FromTabInModel(const TabStripModel* model,
                                                 int index) {
-  content::WebContents* const contents = model->GetWebContentsAt(index);
+  tabs::TabInterface* const tab = model->GetTabAtIndex(index);
+  CHECK(tab);
+  content::WebContents* const contents = tab->GetContents();
+  CHECK(contents);
+
   // If the tab is showing a lookalike interstitial ("Did you mean example.com"
   // on éxample.com), don't show the URL in the hover card because it's
   // misleading.
@@ -48,15 +77,31 @@ TabRendererData TabRendererData::FromTabInModel(const TabStripModel* model,
       security_interstitial_tab_helper->ShouldDisplayURL();
   TabRendererData data;
   TabUIHelper* const tab_ui_helper = TabUIHelper::FromWebContents(contents);
+
   data.favicon = tab_ui_helper->GetFavicon();
+  data.title = tab_ui_helper->GetTitle();
+
+  // If the tab is in a deferred state, override favicon and title data.
+  const tabs::TabFeatures* features = tab->GetTabFeatures();
+  if (features) {
+    const tab_groups::SavedTabGroupWebContentsListener* wc_listener =
+        features->saved_tab_group_web_contents_listener();
+    if (wc_listener) {
+      if (const std::optional<tab_groups::DeferredTabState>&
+              deferred_tab_state = wc_listener->deferred_tab_state()) {
+        data.favicon = deferred_tab_state.value().favicon();
+        data.title = deferred_tab_state.value().title();
+      }
+    }
+  }
 
   // Tabbed web apps should use the app icon on the home tab.
-  Browser* app_browser = chrome::FindBrowserWithTab(contents);
+  BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
 
-  if (app_browser && app_browser->app_controller() &&
-      app_browser->app_controller()->ShouldShowAppIconOnTab(index)) {
+  if (browser && browser->GetAppBrowserController() &&
+      browser->GetAppBrowserController()->ShouldShowAppIconOnTab(index)) {
     web_app::WebAppBrowserController* app_controller =
-        app_browser->app_controller()->AsWebAppBrowserController();
+        browser->GetAppBrowserController()->AsWebAppBrowserController();
     if (app_controller) {
       gfx::ImageSkia home_tab_icon = app_controller->GetHomeTabIcon();
       if (!home_tab_icon.isNull()) {
@@ -77,8 +122,9 @@ TabRendererData TabRendererData::FromTabInModel(const TabStripModel* model,
     data.thumbnail = thumbnail_tab_helper->thumbnail();
   }
   data.is_tab_discarded = contents->WasDiscarded();
+
+  data.collaboration_messaging = GetCollaborationMessage(tab);
   data.network_state = TabNetworkStateForWebContents(contents);
-  data.title = tab_ui_helper->GetTitle();
   data.visible_url = contents->GetVisibleURL();
   // Allow empty title for chrome-untrusted:// URLs.
   if (data.title.empty() &&
@@ -89,12 +135,12 @@ TabRendererData TabRendererData::FromTabInModel(const TabStripModel* model,
   data.should_display_url = should_display_url;
   data.crashed_status = contents->GetCrashedStatus();
   data.incognito = contents->GetBrowserContext()->IsOffTheRecord();
-  data.pinned = model->IsTabPinned(index);
+  data.pinned = tab->IsPinned();
   data.show_icon =
       data.pinned || model->delegate()->ShouldDisplayFavicon(contents);
   data.blocked = model->IsTabBlocked(index);
   data.should_hide_throbber = tab_ui_helper->ShouldHideThrobber();
-  data.alert_state = chrome::GetTabAlertStatesForContents(contents);
+  data.alert_state = GetTabAlertStatesForContents(contents);
 
   content::NavigationEntry* entry =
       contents->GetController().GetLastCommittedEntry();
@@ -112,10 +158,7 @@ TabRendererData TabRendererData::FromTabInModel(const TabStripModel* model,
       memory_saver::IsURLSupported(contents->GetURL()) &&
       contents->WasDiscarded() && discard_reason.has_value() &&
       (discard_reason.value() == mojom::LifecycleUnitDiscardReason::PROACTIVE ||
-       discard_reason.value() ==
-           mojom::LifecycleUnitDiscardReason::SUGGESTED) &&
-      performance_manager::user_tuning::prefs::ShouldShowDiscardRingTreatment(
-          g_browser_process->local_state());
+       discard_reason.value() == mojom::LifecycleUnitDiscardReason::SUGGESTED);
 
   if (contents->WasDiscarded()) {
     data.discarded_memory_savings_in_bytes =

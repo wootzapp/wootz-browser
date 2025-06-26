@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/377326291): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/base/cdm_key_information.h"
 
 #include <ostream>
@@ -56,9 +61,11 @@ std::string CdmKeyInformation::KeyStatusToString(KeyStatus key_status) {
       return "KEY_STATUS_PENDING";
     case RELEASED:
       return "RELEASED";
+    case USABLE_IN_FUTURE:
+      return "USABLE_IN_FUTURE";
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 std::ostream& operator<<(std::ostream& os,

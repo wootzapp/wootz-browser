@@ -4,9 +4,11 @@
 
 #include "ash/system/input_device_settings/input_device_settings_metadata.h"
 
+#include "ash/public/mojom/input_device_settings.mojom-shared.h"
 #include "ash/public/mojom/input_device_settings.mojom.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/input_device_settings/input_device_settings_utils.h"
+#include "base/containers/fixed_flat_set.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -20,6 +22,12 @@
 namespace ash {
 
 namespace {
+
+// Set of Device IDs (Vendor ID:Product ID) for devices with companion apps.
+constexpr auto kDevicesWithCompanionApps =
+    base::MakeFixedFlatSet<std::string_view>(
+        {"1038:1824", "1038:1830", "1038:1836", "1038:1838", "1038:1850",
+         "1038:1852", "1038:1858", "0111:185a", "1b1c:1b79"});
 
 std::vector<mojom::ButtonRemappingPtr> GetDefaultButtonRemappingList() {
   return {};
@@ -157,6 +165,19 @@ GetWacomStandardPenButtonRemappingList() {
 }
 
 std::vector<mojom::ButtonRemappingPtr>
+GetWacomStandardPenOneButtonRemappingList() {
+  std::vector<mojom::ButtonRemappingPtr> array;
+  array.push_back(mojom::ButtonRemapping::New(
+      /*name=*/l10n_util::GetStringUTF8(
+          IDS_SETTINGS_CUSTOMIZATION_PEN_FRONT_BUTTON_NAME),
+      /*button=*/
+      mojom::Button::NewCustomizableButton(mojom::CustomizableButton::kRight),
+      mojom::RemappingAction::NewStaticShortcutAction(
+          mojom::StaticShortcutAction::kRightClick)));
+  return array;
+}
+
+std::vector<mojom::ButtonRemappingPtr>
 GetWacomStandardFourButtonRemappingList() {
   std::vector<mojom::ButtonRemappingPtr> array;
   array.push_back(mojom::ButtonRemapping::New(
@@ -198,6 +219,29 @@ GetWacomStandardFourButtonRemappingList() {
 
 }  // namespace
 
+MouseMetadata::MouseMetadata() = default;
+MouseMetadata::~MouseMetadata() = default;
+MouseMetadata::MouseMetadata(
+    mojom::CustomizationRestriction customization_restriction,
+    mojom::MouseButtonConfig config,
+    std::optional<std::string> name)
+    : customization_restriction(customization_restriction),
+      mouse_button_config(config),
+      name(name) {}
+MouseMetadata::MouseMetadata(const MouseMetadata& other) = default;
+
+GraphicsTabletMetadata::GraphicsTabletMetadata() = default;
+GraphicsTabletMetadata::~GraphicsTabletMetadata() = default;
+GraphicsTabletMetadata::GraphicsTabletMetadata(
+    const GraphicsTabletMetadata& other) = default;
+GraphicsTabletMetadata::GraphicsTabletMetadata(
+    mojom::CustomizationRestriction restriction,
+    mojom::GraphicsTabletButtonConfig config,
+    std::optional<std::string> name)
+    : customization_restriction(restriction),
+      graphics_tablet_button_config(config),
+      name(name) {}
+
 const base::flat_map<VendorProductId, MouseMetadata>& GetMouseMetadataList() {
   const static base::NoDestructor<
       base::flat_map<VendorProductId, MouseMetadata>>
@@ -213,36 +257,46 @@ const base::flat_map<VendorProductId, MouseMetadata>& GetMouseMetadataList() {
           // Logitech M720 Triathlon (USB Dongle)
           {{0x046d, 0x405e},
            {mojom::CustomizationRestriction::kAllowTabEventRewrites,
+            mojom::MouseButtonConfig::kNoConfig, "M720 Triathlon"}},
+          // Logitech MX Anywhere 2
+          {{0x046d, 0x4063},
+           {mojom::CustomizationRestriction::
+                kAllowHorizontalScrollWheelRewrites,
             mojom::MouseButtonConfig::kNoConfig}},
+          // Logitech MX Anywhere 2S (USB Dongle)
+          {{0x046d, 0x406a},
+           {mojom::CustomizationRestriction::
+                kAllowHorizontalScrollWheelRewrites,
+            mojom::MouseButtonConfig::kNoConfig, "MX Anywhere 2S"}},
           // Logitech MX Ergo Trackball (USB Dongle)
           {{0x046d, 0x406f},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFiveKey}},
+            mojom::MouseButtonConfig::kFiveKey, "Logitech MX Ergo Trackball"}},
           // Logitech MX Master 2S (USB Dongle)
           {{0x046d, 0x4069},
            {mojom::CustomizationRestriction::kAllowTabEventRewrites,
-            mojom::MouseButtonConfig::kLogitechSixKeyWithTab}},
+            mojom::MouseButtonConfig::kLogitechSixKeyWithTab, "MX Master 2S"}},
           // Logitech Pebble M350 (USB Dongle)
           {{0x046d, 0x4080},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kThreeKey}},
+            mojom::MouseButtonConfig::kThreeKey, "Pebble M350"}},
           // Logitech MX Master 3 (USB Dongle)
           {{0x046d, 0x4082},
            {mojom::CustomizationRestriction::kAllowTabEventRewrites,
-            mojom::MouseButtonConfig::kLogitechSixKeyWithTab}},
+            mojom::MouseButtonConfig::kLogitechSixKeyWithTab, "MX Master 3"}},
           // Logitech MX Anywhere 3 (USB Dongle)
           {{0x046d, 0x4090},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFiveKey}},
+            mojom::MouseButtonConfig::kFiveKey, "MX Anywhere 3"}},
           // Logitech ERGO M575 (USB Dongle)
           {{0x046d, 0x4096},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFiveKey}},
+            mojom::MouseButtonConfig::kFiveKey, "ERGO M575"}},
           // Logitech M510 (USB Dongle)
           {{0x046d, 0x4051},
            {mojom::CustomizationRestriction::
                 kAllowHorizontalScrollWheelRewrites,
-            mojom::MouseButtonConfig::kNoConfig}},
+            mojom::MouseButtonConfig::kNoConfig, "M510"}},
           // HP 690/695 Mouse
           {{0x03f0, 0x804a},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
@@ -250,90 +304,126 @@ const base::flat_map<VendorProductId, MouseMetadata>& GetMouseMetadataList() {
           // Logitech M650 L
           {{0x046d, 0xb02a},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFiveKey}},
+            mojom::MouseButtonConfig::kFiveKey, "M650 L"}},
           // Logitech M550
           {{0x046d, 0xb02b},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kThreeKey}},
+            mojom::MouseButtonConfig::kThreeKey, "M550"}},
           // Logitech Pop Mouse
           {{0x046d, 0xb030},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFourKeyWithTopButton}},
+            mojom::MouseButtonConfig::kFourKeyWithTopButton, "Pop Mouse"}},
           // Logitech Lift
           {{0x046d, 0xb031},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFiveKey}},
+            mojom::MouseButtonConfig::kFiveKey, "Lift"}},
           // Logitech M650 For Business
           {{0x046d, 0xb032},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFiveKey}},
+            mojom::MouseButtonConfig::kFiveKey, "M650 For Business"}},
           // Logitech MX Master 3S (Bluetooth)
           {{0x046d, 0xb034},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kLogitechSixKey}},
+            mojom::MouseButtonConfig::kLogitechSixKey, "MX Master 3S"}},
           // Logitech MX Master 3S For Business (Bluetooth)
           {{0x046d, 0xb035},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kLogitechSixKey}},
+            mojom::MouseButtonConfig::kLogitechSixKey,
+            "MX Master 3S For Business"}},
           // Logitech Pebble 2 M350S
           {{0x046d, 0xb036},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kThreeKey}},
+            mojom::MouseButtonConfig::kThreeKey, "Pebble 2 M350S"}},
           // Logitech MX Anywhere 3S (Bluetooth)
           {{0x046d, 0xb037},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFiveKey}},
+            mojom::MouseButtonConfig::kFiveKey, "MX Anywhere 3S"}},
           // Logitech M240 Silent
           {{0x046d, 0xb03a},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kThreeKey}},
+            mojom::MouseButtonConfig::kThreeKey, "M240 Silent"}},
           // Logitech MX Ergo S Trackball
           {{0x046d, 0xb03e},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFiveKey}},
+            mojom::MouseButtonConfig::kFiveKey, "MX Ergo S Trackball"}},
           // Logitech Signature AI Edition M750
           {{0x046d, 0xb040},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFiveKey}},
+            mojom::MouseButtonConfig::kFiveKey, "Signature AI Edition M750"}},
           // Logitech M650 For Business
           {{0x046d, 0xb032},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kFiveKey}},
+            mojom::MouseButtonConfig::kFiveKey, "M650 For Business"}},
           // Logitech M500 (USB)
           {{0x046d, 0xc069},
            {mojom::CustomizationRestriction::
                 kAllowHorizontalScrollWheelRewrites,
-            mojom::MouseButtonConfig::kNoConfig}},
+            mojom::MouseButtonConfig::kNoConfig, "M500"}},
           // Redragon M811 Aatrox MMO
           {{0x04d9, 0xfc6d},
            {mojom::CustomizationRestriction::kAllowAlphabetKeyEventRewrites,
             mojom::MouseButtonConfig::kNoConfig}},
+          // Rival 3
+          {{0x1038, 0x1824},
+           {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
+            mojom::MouseButtonConfig::kNoConfig, "Rival 3"}},
+          // Rival 3 WL
+          {{0x1038, 0x1830},
+           {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
+            mojom::MouseButtonConfig::kNoConfig, "Rival 3 WL"}},
+          // SteelSeries Aerox 3
+          {{0x1038, 0x1836},
+           {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
+            mojom::MouseButtonConfig::kNoConfig, "Aerox 3"}},
+          // SteelSeries Aerox 3 WL
+          {{0x1038, 0x1838},
+           {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
+            mojom::MouseButtonConfig::kNoConfig, "Aerox 3 WL"}},
+          // SteelSeries Aerox 5
+          {{0x1038, 0x1850},
+           {mojom::CustomizationRestriction::kAllowFKeyRewrites,
+            mojom::MouseButtonConfig::kNoConfig, "Aerox 5"}},
+          // SteelSeries Aerox 5 WL (USB)
+          {{0x1038, 0x1852},
+           {mojom::CustomizationRestriction::kAllowFKeyRewrites,
+            mojom::MouseButtonConfig::kNoConfig, "Aerox 5 WL"}},
           // SteelSeries Aerox 9 WL (USB)
           {{0x1038, 0x185a},
            {mojom::CustomizationRestriction::
                 kAllowAlphabetOrNumberKeyEventRewrites,
-            mojom::MouseButtonConfig::kNoConfig}},
+            mojom::MouseButtonConfig::kNoConfig, "Aerox 9 WL"}},
           // Razer Naga Pro (USB Dongle)
           {{0x1532, 0x0090},
            {mojom::CustomizationRestriction::
                 kAllowAlphabetOrNumberKeyEventRewrites,
             mojom::MouseButtonConfig::kNoConfig}},
+          // HyperX Pulsefire Haste Gaming Mouse
+          {{0x03f0, 0x0f8f},
+           {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
+            mojom::MouseButtonConfig::kFiveKey,
+            "HyperX Pulsefire Haste Gaming Mouse"}},
+          // HyperX Pulsefire Surge Gaming Mouse
+          {{0x03f0, 0x0490},
+           {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
+            mojom::MouseButtonConfig::kFiveKey,
+            "HyperX Pulsefire Surge Gaming Mouse"}},
+          // HyperX Pulsefire Haste 2 Gaming Mouse
+          {{0x03f0, 0x0b97},
+           {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
+            mojom::MouseButtonConfig::kFiveKey,
+            "HyperX Pulsefire Haste 2 Gaming Mouse"}},
           /////////////////////////////////
           // Below is data for imposter devices, and is not official metadata.
           /////////////////////////////////
-          // HP HyperX Pulsefire Haste Wireless
+          // HyperX Pulsefire Haste Wireless
           {{0x03f0, 0x028e},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
             mojom::MouseButtonConfig::kNoConfig}},
-          // HP HyperX Pulsefire Core
+          // HyperX Pulsefire Core
           {{0x03f0, 0x0d8f},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
             mojom::MouseButtonConfig::kNoConfig}},
-          // HP HyperX Pulsefire Haste
-          {{0x03f0, 0x0f8f},
-           {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kNoConfig}},
-          // HP HyperX Pulsefire Haste 2 Wireless
+          // HyperX Pulsefire Haste 2 Wireless
           {{0x03f0, 0x0f98},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
             mojom::MouseButtonConfig::kNoConfig}},
@@ -377,10 +467,6 @@ const base::flat_map<VendorProductId, MouseMetadata>& GetMouseMetadataList() {
           {{0x046d, 0x4041},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
             mojom::MouseButtonConfig::kNoConfig}},
-          // Logitech MX Anywhere 2S
-          {{0x046d, 0x406a},
-           {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kNoConfig}},
           // Logitech G603
           {{0x046d, 0x406c},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
@@ -415,10 +501,6 @@ const base::flat_map<VendorProductId, MouseMetadata>& GetMouseMetadataList() {
             mojom::MouseButtonConfig::kNoConfig}},
           // Logitech M557
           {{0x046d, 0xb010},
-           {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
-            mojom::MouseButtonConfig::kNoConfig}},
-          // Logitech MX Anywhere 2
-          {{0x046d, 0xb018},
            {mojom::CustomizationRestriction::kDisableKeyEventRewrites,
             mojom::MouseButtonConfig::kNoConfig}},
           // Logitech G9 Laser Mouse
@@ -969,35 +1051,43 @@ GetGraphicsTabletMetadataList() {
           // Wacom One Pen Tablet S
           {{0x0531, 0x0100},
            {mojom::CustomizationRestriction::kAllowCustomizations,
-            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly}},
+            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnlyOneButton,
+            "Wacom One Pen Tablet S"}},
           // Wacom One Pen tablet M
           {{0x0531, 0x0102},
            {mojom::CustomizationRestriction::kAllowCustomizations,
-            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly}},
+            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnlyOneButton,
+            "Wacom One Pen tablet M"}},
           // One by Wacom S
           {{0x056a, 0x037a},
            {mojom::CustomizationRestriction::kAllowCustomizations,
-            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly}},
+            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly,
+            "One by Wacom S"}},
           // One by Wacom M
-          {{0x056a, 0x0301},
+          {{0x056a, 0x037b},
            {mojom::CustomizationRestriction::kAllowCustomizations,
-            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly}},
+            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly,
+            "One by Wacom M"}},
           // Wacom One Pen Display 11
           {{0x056a, 0x03Ce},
            {mojom::CustomizationRestriction::kAllowCustomizations,
-            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly}},
+            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly,
+            "Wacom One Pen Display 11"}},
           // Wacom One Pen Display 13 Touch
           {{0x056a, 0x03Cb},
            {mojom::CustomizationRestriction::kAllowCustomizations,
-            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly}},
+            mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly,
+            "Wacom One Pen Display 13 Touch"}},
           // Wacom Intuos S
           {{0x056a, 0x0374},
            {mojom::CustomizationRestriction::kAllowCustomizations,
-            mojom::GraphicsTabletButtonConfig::kWacomStandardFourButtons}},
+            mojom::GraphicsTabletButtonConfig::kWacomStandardFourButtons,
+            "Wacom Intuos S"}},
           // Wacom Intuos M
           {{0x056a, 0x0375},
            {mojom::CustomizationRestriction::kAllowCustomizations,
-            mojom::GraphicsTabletButtonConfig::kWacomStandardFourButtons}},
+            mojom::GraphicsTabletButtonConfig::kWacomStandardFourButtons,
+            "Wacom Intuos M"}},
           /////////////////////////////////
           // Below is data for imposter devices, and is not official metadata.
           /////////////////////////////////
@@ -1267,6 +1357,8 @@ GetKeyboardMetadataList() {
           {{0x3434, 0x0271}, {}},
           // Keychron K10 Pro Keyboard
           {{0x3434, 0x02a0}, {}},
+          // Keychron K14 Pro Keyboard
+          {{0x3434, 0x02e0}, {}},
           // Keychron V3 Keyboard
           {{0x3434, 0x0330}, {}},
           // Keychron C3 Pro Keyboard
@@ -1406,8 +1498,12 @@ const base::flat_map<VendorProductId, VendorProductId>& GetVidPidAliasList() {
       vid_pid_alias_list({
           // Logitech ERGO M575 (Bluetooth -> USB Dongle)
           {{0x46d, 0xb027}, {0x46d, 0x4096}},
+          // Logitech Mx Anywhere 2 (Bluetooth -> USB Dongle)
+          {{0x046d, 0xb018}, {0x046d, 0x4063}},
           // Logitech MX Master 2S (Bluetooth -> USB Dongle)
           {{0x046d, 0xb019}, {0x046d, 0x4069}},
+          // Logitech MX Anywhere 2S (Bluetooth -> USB Dongle)
+          {{0x046d, 0xb01a}, {0x046d, 0x406a}},
           // Logitech MX Ergo Trackball (Bluetooth -> USB Dongle)
           {{0x046d, 0xb01d}, {0x046d, 0x406f}},
           // Logitech MX Vertical (Bluetooth -> USB Dongle)
@@ -1431,17 +1527,33 @@ const base::flat_map<VendorProductId, VendorProductId>& GetVidPidAliasList() {
           // Wacom Intuos S (Bluetooth -> USB)
           {{0x056a, 0x0376}, {0x056a, 0x0374}},
           // Wacom Intuos S (Bluetooth -> USB)
+          {{0x056a, 0x0377}, {0x056a, 0x0374}},
+          // Wacom Intuos S (Bluetooth -> USB)
           {{0x056a, 0x03c5}, {0x056a, 0x0374}},
+          // Wacom Intuos S (Bluetooth -> USB)
+          {{0x056a, 0x03c6}, {0x056a, 0x0374}},
           // Wacom Intuos M (Bluetooth -> USB)
           {{0x056a, 0x0378}, {0x056a, 0x0375}},
           // Wacom Intuos M (Bluetooth -> USB)
+          {{0x056a, 0x0379}, {0x056a, 0x0375}},
+          // Wacom Intuos M (Bluetooth -> USB)
           {{0x056a, 0x03c7}, {0x056a, 0x0375}},
+          // Wacom Intuos M (Bluetooth -> USB)
+          {{0x056a, 0x03c8}, {0x056a, 0x0375}},
+          // Wacom One Pen tablet M (Bluetooth -> USB)
+          {{0x0531, 0x0103}, {0x0531, 0x0102}},
+          // Wacom One Pen tablet S (Bluetooth -> USB)
+          {{0x0531, 0x0101}, {0x0531, 0x0100}},
           // SteelSeries Aerox 9 WL (USB Dongle -> USB)
           {{0x1038, 0x1858}, {0x1038, 0x185a}},
           // SteelSeries Aerox 9 WL (Bluetooth -> USB)
           {{0x0111, 0x185a}, {0x1038, 0x185a}},
           // Razer Naga Pro (Bluetooth -> USB Dongle)
           {{0x1532, 0x0092}, {0x1532, 0x0090}},
+          // HyperX Pulsefire Haste Wireless (Bluetooth -> USB Dongle)
+          {{0x03f0, 0x028e}, {0x03f0, 0x0f8f}},
+          // HyperX Pulsefire Haste 2 Wireless (Bluetooth -> USB Dongle)
+          {{0x03f0, 0x0f98}, {0x03f0, 0x0b97}},
           /////////////////////////////////
           // Below is data for imposter devices, and is not official metadata.
           /////////////////////////////////
@@ -1565,6 +1677,10 @@ const GraphicsTabletMetadata* GetGraphicsTabletMetadata(
   return nullptr;
 }
 
+bool DeviceHasCompanionAppAvailable(const std::string& device_key) {
+  return kDevicesWithCompanionApps.contains(device_key);
+}
+
 const KeyboardMetadata* GetKeyboardMetadata(const ui::InputDevice& device) {
   VendorProductId vid_pid = {device.vendor_id, device.product_id};
 
@@ -1665,6 +1781,8 @@ std::vector<mojom::ButtonRemappingPtr> GetPenButtonRemappingListForConfig(
     case mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly:
     case mojom::GraphicsTabletButtonConfig::kWacomStandardFourButtons:
       return GetWacomStandardPenButtonRemappingList();
+    case mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnlyOneButton:
+      return GetWacomStandardPenOneButtonRemappingList();
   }
 }
 
@@ -1673,6 +1791,7 @@ std::vector<mojom::ButtonRemappingPtr> GetTabletButtonRemappingListForConfig(
   switch (graphics_tablet_button_config) {
     case mojom::GraphicsTabletButtonConfig::kNoConfig:
     case mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnly:
+    case mojom::GraphicsTabletButtonConfig::kWacomStandardPenOnlyOneButton:
       return GetDefaultButtonRemappingList();
     case mojom::GraphicsTabletButtonConfig::kWacomStandardFourButtons:
       return GetWacomStandardFourButtonRemappingList();

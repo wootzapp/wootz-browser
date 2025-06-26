@@ -4,6 +4,7 @@
 
 #include "ash/wm/workspace/backdrop_controller.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "ash/accessibility/accessibility_controller.h"
@@ -25,7 +26,6 @@
 #include "base/auto_reset.h"
 #include "base/containers/adapters.h"
 #include "base/functional/bind.h"
-#include "base/ranges/algorithm.h"
 #include "chromeos/ash/components/audio/sounds.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/compositor/layer.h"
@@ -61,12 +61,12 @@ class BackdropEventHandler : public ui::EventHandler {
     // behind-windows from receiving it) and play an earcon to notify the user.
     if (event->IsLocatedEvent()) {
       switch (event->type()) {
-        case ui::ET_MOUSE_PRESSED:
-        case ui::ET_MOUSEWHEEL:
-        case ui::ET_TOUCH_PRESSED:
-        case ui::ET_GESTURE_BEGIN:
-        case ui::ET_SCROLL:
-        case ui::ET_SCROLL_FLING_START:
+        case ui::EventType::kMousePressed:
+        case ui::EventType::kMousewheel:
+        case ui::EventType::kTouchPressed:
+        case ui::EventType::kGestureBegin:
+        case ui::EventType::kScroll:
+        case ui::EventType::kScrollFlingStart:
           Shell::Get()->accessibility_controller()->PlayEarcon(
               Sound::kVolumeAdjust);
           break;
@@ -335,7 +335,7 @@ aura::Window* BackdropController::GetTopmostWindowWithBackdrop() {
   return nullptr;
 }
 
-void BackdropController::HideOnTakingPineScreenshot() {
+void BackdropController::HideOnTakingInformedRestoreScreenshot() {
   Hide(/*destroy=*/false, /*animate=*/false);
 }
 
@@ -440,8 +440,8 @@ void BackdropController::EnsureBackdropWidget() {
 
   backdrop_ = std::make_unique<views::Widget>();
   views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.bounds = container_->GetBoundsInScreen();
   params.layer_type = ui::LAYER_SOLID_COLOR;
   params.name = "Backdrop";
@@ -568,7 +568,7 @@ void BackdropController::Hide(bool destroy, bool animate) {
   base::AutoReset<bool> lock(&is_hiding_backdrop_, true);
 
   const aura::Window::Windows windows = container_->children();
-  auto window_iter = base::ranges::find(windows, backdrop_window_);
+  auto window_iter = std::ranges::find(windows, backdrop_window_);
   ++window_iter;
   if (window_iter != windows.end()) {
     aura::Window* window_above_backdrop = *window_iter;

@@ -31,6 +31,8 @@ std::string_view GetVideoFile(AmbientVideo video) {
       return kTimeOfDayNewMexicoVideo;
     case AmbientVideo::kClouds:
       return kTimeOfDayCloudsVideo;
+    case AmbientVideo::kJupiter:
+      return kTimeOfDayJupiterVideo;
   }
 }
 
@@ -52,6 +54,8 @@ void AmbientVideoUiLauncher::Initialize(InitializationCallback on_done) {
   CHECK(ui_settings.video())
       << "AmbientVideoUiLauncher should not be active for "
       << ambient::util::AmbientThemeToString(ui_settings.theme());
+  ambient::RecordAmbientModeTopicSource(
+      personalization_app::mojom::TopicSource::kVideo);
   current_video_ = *ui_settings.video();
   weather_refresher_ = Shell::Get()
                            ->ambient_controller()

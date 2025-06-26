@@ -24,8 +24,9 @@ WebauthnDialogModel::~WebauthnDialogModel() = default;
 void WebauthnDialogModel::SetDialogState(WebauthnDialogState state) {
   state_ = state;
   SetIllustrationsFromState();
-  for (WebauthnDialogModelObserver& observer : observers_)
+  for (WebauthnDialogModelObserver& observer : observers_) {
     observer.OnDialogStateChanged();
+  }
 }
 
 void WebauthnDialogModel::AddObserver(WebauthnDialogModelObserver* observer) {
@@ -95,8 +96,7 @@ std::u16string WebauthnDialogModel::GetStepTitle() const {
     case WebauthnDialogState::kUnknown:
       break;
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::u16string();
+  NOTREACHED();
 }
 
 std::u16string WebauthnDialogModel::GetStepDescription() const {
@@ -114,8 +114,7 @@ std::u16string WebauthnDialogModel::GetStepDescription() const {
     case WebauthnDialogState::kUnknown:
       break;
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::u16string();
+  NOTREACHED();
 }
 
 void WebauthnDialogModel::SetIllustrationsFromState() {

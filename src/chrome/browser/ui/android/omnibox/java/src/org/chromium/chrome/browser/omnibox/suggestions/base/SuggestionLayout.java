@@ -10,10 +10,10 @@ import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.IntDef;
-import androidx.annotation.NonNull;
 import androidx.annotation.Px;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.base.SuggestionLayout.LayoutParams.SuggestionViewType;
@@ -28,15 +28,18 @@ import java.lang.annotation.RetentionPolicy;
  * item is known ahead of time. This layout is highly optimized around view types, and bypasses
  * certain measurement calls, where the size of the view is known ahead of time.
  */
+@NullMarked
 class SuggestionLayout extends ViewGroup {
     @VisibleForTesting public final @Px int mDecorationIconWidthPx;
     @VisibleForTesting public final @Px int mLargeDecorationIconWidthPx;
     @VisibleForTesting public final @Px int mContentHeightPx;
     @VisibleForTesting public final @Px int mCompactContentHeightPx;
-    @VisibleForTesting public final @NonNull RoundedCornerOutlineProvider mOutlineProvider;
+    @VisibleForTesting public final RoundedCornerOutlineProvider mOutlineProvider;
     private final @Px int mActionButtonWidthPx;
     private final @Px int mContentPaddingPx;
+    private final @Px int mMinimumContentPadding;
     private boolean mUseLargeDecoration;
+    private boolean mShowDecoration;
 
     /**
      * SuggestionLayout's LayoutParams.
@@ -90,7 +93,7 @@ class SuggestionLayout extends ViewGroup {
 
         /// The role of the associated view in the SuggestionView.
         private final @SuggestionViewType int mSuggestionViewType;
-        private final @NonNull Rect mPlacement;
+        private final Rect mPlacement;
         private final boolean mIsLargeDecoration;
 
         private LayoutParams(
@@ -122,7 +125,7 @@ class SuggestionLayout extends ViewGroup {
         /**
          * @return The placement of the view, relative to Suggestion area start.
          */
-        private @NonNull Rect getPlacement() {
+        private Rect getPlacement() {
             return mPlacement;
         }
 
@@ -150,7 +153,7 @@ class SuggestionLayout extends ViewGroup {
 
         var res = context.getResources();
 
-        int endSpace = res.getDimensionPixelSize(R.dimen.omnibox_suggestion_end_padding_modern);
+        int endSpace = res.getDimensionPixelSize(R.dimen.omnibox_suggestion_end_padding);
         setPaddingRelative(0, 0, endSpace, 8);
 
         mDecorationIconWidthPx =
@@ -166,6 +169,7 @@ class SuggestionLayout extends ViewGroup {
         mContentHeightPx = res.getDimensionPixelSize(R.dimen.omnibox_suggestion_content_height);
 
         mContentPaddingPx = res.getDimensionPixelSize(R.dimen.omnibox_suggestion_content_padding);
+        mMinimumContentPadding = res.getDimensionPixelSize(R.dimen.omnibox_simple_card_leadin);
 
         mOutlineProvider =
                 new RoundedCornerOutlineProvider(
@@ -181,7 +185,7 @@ class SuggestionLayout extends ViewGroup {
                         || mOutlineProvider.isBottomEdgeRounded() != roundBottomEdge;
 
         if (!needUpdate) return;
-        
+
         //Abhinandan: interchanged bottom and top edged
         mOutlineProvider.setRoundingEdges(true, roundBottomEdge, true, roundTopEdge);
         setClipToOutline(roundTopEdge || roundBottomEdge);
@@ -197,8 +201,9 @@ class SuggestionLayout extends ViewGroup {
         var suggestionWidthPx =
                 MeasureSpec.getSize(widthSpec) - getPaddingLeft() - getPaddingRight();
 
-        // Check to see how large of a decoration icon we're going to render.
+        // Check to see if and how large of a decoration icon we're going to render
         mUseLargeDecoration = getUseLargeDecoration();
+        mShowDecoration = isDecorationShown();
         // First, compute the width of the content area.
         // We know the size of every DECORATION and ACTION_BUTTON, which surround the CONTENT.
         var measuredContentWidthPx = measureContentViewsWidthPx(suggestionWidthPx);
@@ -249,8 +254,33 @@ class SuggestionLayout extends ViewGroup {
         return false;
     }
 
+    /**
+     * Returns whether the decoration view is visible or not. Also returns true if there is no
+     * decoration view present.
+     */
+    private boolean isDecorationShown() {
+        // Default to true so that we reserve space for alignment purposes even when there is no
+        // decoration icon.
+        var decorationShown = true;
+        for (int index = 0; index < getChildCount(); ++index) {
+            var view = getChildAt(index);
+
+            var params = (LayoutParams) view.getLayoutParams();
+            if (params.getViewType() == SuggestionViewType.DECORATION) {
+                decorationShown = view.getVisibility() == VISIBLE;
+                break;
+            }
+        }
+
+        return decorationShown;
+    }
+
     private int getDecorationIconWidthPx() {
         return mUseLargeDecoration ? mLargeDecorationIconWidthPx : mDecorationIconWidthPx;
+    }
+
+    private int getContentStart() {
+        return mShowDecoration ? getDecorationIconWidthPx() : mMinimumContentPadding;
     }
 
     @Override
@@ -299,10 +329,9 @@ class SuggestionLayout extends ViewGroup {
      * @return The computed width of the CONTENT views.
      */
     private @Px int measureContentViewsWidthPx(@Px int suggestionWidthPx) {
-        // Always reserve space for the decoration view.
-        // Even if we don't have one, it's better to leave a gap, than render misaligned
-        // suggestions.
-        var contentWidthPx = suggestionWidthPx - getDecorationIconWidthPx();
+        // Reserve space for the decoration view if it's present. Otherwise, ensure a minimal
+        // padding.
+        var contentWidthPx = suggestionWidthPx - getContentStart();
 
         // Measure all other views surrounding the CONTENT area. Currently these are only
         // ACTION_BUTTONs.
@@ -421,11 +450,10 @@ class SuggestionLayout extends ViewGroup {
             var view = getChildAt(index);
             if (view.getVisibility() == GONE) continue;
 
-            var params = (LayoutParams) view.getLayoutParams();
-
             // Capture the measure spec of the area available to DECORATION and ACTION_BUTTONs.
             // Note that at this stage everything else has already been measured.
             var viewWidthSpec = 0;
+            var params = (LayoutParams) view.getLayoutParams();
             if (params.getViewType() == LayoutParams.SuggestionViewType.DECORATION) {
                 viewWidthSpec =
                         getChildMeasureSpec(
@@ -457,13 +485,13 @@ class SuggestionLayout extends ViewGroup {
      * </ul>
      *
      * @param suggestionWidthPx The width of the Suggestion area.
-     * @param contentWidthPx The width of the CONTENT area.
-     * @param contentHeightPx The height of the CONTENT area.
+     * @param contentViewsWidth The width of the CONTENT area.
+     * @param contentViewHeight The height of the CONTENT area.
      */
     private void applySuggestionViewPlacements(
             @Px int suggestionWidthPx, @Px int contentViewsWidth, @Px int contentViewHeight) {
-        int decorationIconWidthPx = getDecorationIconWidthPx();
-        var nextActionButtonStartPx = decorationIconWidthPx + contentViewsWidth;
+        int contentStart = getContentStart();
+        var nextActionButtonStartPx = contentStart + contentViewsWidth;
         var nextFooterViewTopPx = contentViewHeight;
 
         for (int index = 0; index < getChildCount(); ++index) {
@@ -478,15 +506,14 @@ class SuggestionLayout extends ViewGroup {
                     // CONTENT.
                     var decorationWidth = view.getMeasuredWidth();
                     var decorationHeight = view.getMeasuredHeight();
-                    var decorationLeft = (decorationIconWidthPx - decorationWidth) / 2;
+                    var decorationLeft = (getDecorationIconWidthPx() - decorationWidth) / 2;
                     var decorationTop = (contentViewHeight - decorationHeight) / 2;
                     params.setPlacement(
                             decorationLeft, decorationTop, decorationWidth, decorationHeight);
                     break;
 
                 case LayoutParams.SuggestionViewType.CONTENT:
-                    params.setPlacement(
-                            decorationIconWidthPx, 0, contentViewsWidth, contentViewHeight);
+                    params.setPlacement(contentStart, 0, contentViewsWidth, contentViewHeight);
                     break;
 
                 case LayoutParams.SuggestionViewType.ACTION_BUTTON:

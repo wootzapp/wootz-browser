@@ -8,13 +8,13 @@
 #include <utility>
 
 #include "base/compiler_specific.h"
+#include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "content/browser/renderer_host/pepper/browser_ppapi_host_impl.h"
 #include "content/browser/renderer_host/pepper/pepper_socket_utils.h"
 #include "content/public/browser/browser_context.h"
@@ -98,7 +98,7 @@ PepperUDPSocketMessageFilter::PepperUDPSocketMessageFilter(
 
   if (!host->GetRenderFrameIDsForInstance(instance, &render_process_id_,
                                           &render_frame_id_)) {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -305,8 +305,7 @@ int32_t PepperUDPSocketMessageFilter::OnMsgSetOption(
       return PP_OK;
     }
     default: {
-      NOTREACHED_IN_MIGRATION();
-      return PP_ERROR_BADARGUMENT;
+      NOTREACHED();
     }
   }
 }
@@ -447,8 +446,7 @@ int32_t PepperUDPSocketMessageFilter::OnMsgSendTo(
       num_bytes >
           static_cast<size_t>(UDPSocketResourceConstants::kMaxWriteSize)) {
     // Size of |data| is checked on the plugin side.
-    NOTREACHED_IN_MIGRATION();
-    return PP_ERROR_BADARGUMENT;
+    NOTREACHED();
   }
 
   net::IPAddressBytes address;
@@ -457,9 +455,7 @@ int32_t PepperUDPSocketMessageFilter::OnMsgSendTo(
     return PP_ERROR_ADDRESS_INVALID;
   }
 
-  const uint8_t* data_ptr = reinterpret_cast<const uint8_t*>(data.data());
-  std::vector<uint8_t> data_vector(data_ptr, data_ptr + num_bytes);
-
+  std::vector<uint8_t> data_vector = base::ToVector(base::as_byte_span(data));
   pending_sends_.push(PendingSend(net::IPAddress(address), port,
                                   std::move(data_vector),
                                   context->MakeReplyMessageContext()));

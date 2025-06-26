@@ -11,6 +11,8 @@
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "components/sync/nigori/cross_user_sharing_keys.h"
+#include "components/sync/protocol/nigori_local_data.pb.h"
+#include "components/sync/protocol/nigori_specifics.pb.h"
 
 namespace syncer {
 
@@ -123,6 +125,10 @@ bool CryptographerImpl::HasKeyPair(uint32_t key_pair_version) const {
   return cross_user_sharing_keys_.HasKeyPair(key_pair_version);
 }
 
+size_t CryptographerImpl::KeyPairSizeForMetrics() const {
+  return cross_user_sharing_keys_.size();
+}
+
 const CrossUserSharingPublicPrivateKeyPair&
 CryptographerImpl::GetCrossUserSharingKeyPair(uint32_t version) const {
   return cross_user_sharing_keys_.GetKeyPair(version);
@@ -165,8 +171,8 @@ bool CryptographerImpl::EncryptString(const std::string& decrypted,
     return false;
   }
 
-  return key_bag_.EncryptWithKey(default_encryption_key_name_, decrypted,
-                                 encrypted);
+  *encrypted = key_bag_.EncryptWithKey(default_encryption_key_name_, decrypted);
+  return true;
 }
 
 bool CryptographerImpl::DecryptToString(const sync_pb::EncryptedData& encrypted,

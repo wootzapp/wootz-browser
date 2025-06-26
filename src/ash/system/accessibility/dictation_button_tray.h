@@ -60,7 +60,6 @@ class ASH_EXPORT DictationButtonTray : public TrayBackgroundView,
   void Initialize() override;
   void ClickedOutsideBubble(const ui::LocatedEvent& event) override;
   void UpdateTrayItemColor(bool is_active) override;
-  std::u16string GetAccessibleNameForTray() override;
   void HandleLocaleChange() override;
   void HideBubbleWithView(const TrayBubbleView* bubble_view) override;
   void OnThemeChanged() override;
@@ -87,9 +86,9 @@ class ASH_EXPORT DictationButtonTray : public TrayBackgroundView,
   // Callback called when this is pressed.
   void OnDictationButtonPressed(const ui::Event& event);
 
-  // Sets the icon when Dictation is activated / deactivated.
-  // Also updates visibility when Dictation is enabled / disabled.
-  void UpdateIcon(bool dictation_active);
+  // Updates the state of tray based on if dictation is enabled and currently
+  // active. Also updates the icon of tray to reflect the new state.
+  void UpdateStateAndIcon(bool is_dictation_active, bool is_dictation_enabled);
 
   // Updates bounds for `progress_indicator_`.
   void UpdateProgressIndicatorBounds();

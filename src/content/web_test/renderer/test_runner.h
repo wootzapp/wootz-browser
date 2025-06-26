@@ -101,10 +101,6 @@ class TestRunner {
   // Notification that another renderer has explicitly asked the test to end.
   void TestFinishedFromSecondaryRenderer(WebFrameTestProxy& source);
 
-  // Performs a reset at the end of a test, in order to prepare for the next
-  // test.
-  void ResetRendererAfterWebTest();
-
   // Track the set of all main frames in the process, which is also the set of
   // windows rooted in this process.
   void AddMainFrame(WebFrameTestProxy& frame);
@@ -128,6 +124,8 @@ class TestRunner {
   // Returns false if the browser should capture the pixel output, true if it
   // can be done locally in the renderer via DumpPixelsInRenderer().
   bool CanDumpPixelsFromRenderer() const;
+
+  bool IsPrinting() const;
 
 #if BUILDFLAG(ENABLE_PRINTING)
   // Returns the default page size to be used for printing. This is either the
@@ -465,7 +463,6 @@ class TestRunner {
   void DumpResourceResponseMIMETypes();
 
   // WebContentSettingsClient related.
-  void SetImagesAllowed(bool allowed, WebFrameTestProxy& source);
   void SetStorageAllowed(bool allowed, WebFrameTestProxy& source);
   void SetAllowRunningOfInsecureContent(bool allowed,
                                         WebFrameTestProxy& source);

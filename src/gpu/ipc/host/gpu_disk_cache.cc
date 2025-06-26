@@ -8,6 +8,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
+#include "base/not_fatal_until.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -485,7 +486,7 @@ GpuDiskCacheHandle GpuDiskCacheFactory::GetCacheHandle(
 void GpuDiskCacheFactory::ReleaseCacheHandle(GpuDiskCache* cache) {
   // Get the handle related to the cache via the path.
   auto it = path_to_handle_map_.find(cache->cache_path_);
-  DCHECK(it != path_to_handle_map_.end());
+  CHECK(it != path_to_handle_map_.end(), base::NotFatalUntil::M130);
   const base::FilePath& path = it->first;
   const GpuDiskCacheHandle& handle = it->second;
 
@@ -511,7 +512,7 @@ scoped_refptr<GpuDiskCache> GpuDiskCacheFactory::Get(
   if (handle_it != handle_to_path_map_.end()) {
     auto path_it = gpu_cache_map_.find(handle_it->second);
     if (path_it != gpu_cache_map_.end()) {
-      return path_it->second;
+      return path_it->second.get();
     }
   }
   return nullptr;
@@ -540,7 +541,7 @@ scoped_refptr<GpuDiskCache> GpuDiskCacheFactory::GetOrCreateByPath(
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   auto iter = gpu_cache_map_.find(path);
   if (iter != gpu_cache_map_.end())
-    return iter->second;
+    return iter->second.get();
 
   auto cache = base::WrapRefCounted(new GpuDiskCache(
       this, path, blob_loaded_cb, std::move(cache_destroyed_cb)));
@@ -607,7 +608,8 @@ void GpuDiskCacheFactory::ClearByPath(const base::FilePath& path,
     return;
   }
 
-  ClearByCache(iter->second, delete_begin, delete_end, std::move(callback));
+  ClearByCache(iter->second.get(), delete_begin, delete_end,
+               std::move(callback));
 }
 
 void GpuDiskCacheFactory::CacheCleared(GpuDiskCache* cache) {
@@ -652,8 +654,7 @@ GpuDiskCache::~GpuDiskCache() {
 
 void GpuDiskCache::Init() {
   if (is_initialized_) {
-    NOTREACHED_IN_MIGRATION();  // can't initialize disk cache twice.
-    return;
+    NOTREACHED();  // can't initialize disk cache twice.
   }
   is_initialized_ = true;
 
@@ -665,9 +666,7 @@ void GpuDiskCache::Init() {
       base::BindOnce(&GpuDiskCache::CacheCreatedCallback, this));
 
   if (rv.net_error == net::OK) {
-    NOTREACHED_IN_MIGRATION();  // This shouldn't actually happen with a
-                                // non-memory backend.
-    backend_ = std::move(rv.backend);
+    NOTREACHED();  // This shouldn't actually happen with a non-memory backend.
   }
 }
 

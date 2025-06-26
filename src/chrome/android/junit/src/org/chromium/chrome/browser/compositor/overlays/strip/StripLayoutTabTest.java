@@ -5,28 +5,29 @@
 package org.chromium.chrome.browser.compositor.overlays.strip;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+import static org.chromium.chrome.browser.tasks.tab_management.TabUiThemeUtil.FOLIO_FOOT_LENGTH_DP;
 
 import android.content.Context;
+import android.graphics.Rect;
 import android.view.ContextThemeWrapper;
 
 import androidx.annotation.ColorInt;
 import androidx.core.content.res.ResourcesCompat;
 import androidx.test.core.app.ApplicationProvider;
+import androidx.test.filters.SmallTest;
 
 import com.google.android.material.color.MaterialColors;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.ui.theme.ChromeSemanticColorUtils;
 import org.chromium.components.browser_ui.styles.ChromeColors;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
@@ -36,9 +37,9 @@ import org.chromium.ui.util.ColorUtils;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE, qualifiers = "sw600dp")
 public class StripLayoutTabTest {
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
 
     private static final String TAG = "StripLayoutTabTest";
+    private static final float DIVIDER_FOLIO_LIGHT_OPACITY = 0.3f;
 
     private Context mContext;
     private StripLayoutTab mNormalTab;
@@ -66,7 +67,7 @@ public class StripLayoutTabTest {
                 mNormalTab.getTint(true, false));
 
         // Normal inactive tab color.
-        expectedColor = ChromeColors.getSurfaceColor(mContext, R.dimen.default_elevation_0);
+        expectedColor = SemanticColorUtils.getDefaultBgColor(mContext);
         assertEquals(
                 "Folio inactive tab containers should be Surface-0.",
                 expectedColor,
@@ -111,7 +112,6 @@ public class StripLayoutTabTest {
     }
 
     @Test
-    @EnableFeatures({ChromeFeatureList.TAB_STRIP_STARTUP_REFACTORING})
     public void testGetTint_Startup() {
         @ColorInt int expectedColor;
 
@@ -155,17 +155,87 @@ public class StripLayoutTabTest {
         expectedColor =
                 ColorUtils.setAlphaComponentWithFloat(
                         SemanticColorUtils.getDefaultIconColorAccent1(mContext),
-                        StripLayoutTab.DIVIDER_FOLIO_LIGHT_OPACITY);
+                        DIVIDER_FOLIO_LIGHT_OPACITY);
         assertEquals(
                 "Light mode divider uses 20% icon color",
                 expectedColor, mNormalTab.getDividerTint());
 
         // Incognito.
-        expectedColor = mContext.getColor(R.color.divider_line_bg_color_light);
+        expectedColor = mContext.getColor(R.color.tab_strip_tablet_divider_bg_incognito);
         assertEquals(
                 "Incognito dividers use the baseline color.",
                 expectedColor,
                 mIncognitoTab.getDividerTint());
+    }
+
+    @Test
+    public void testNeedsA11yUpdate_TitleChanged() {
+        final int resId = 1;
+        mNormalTab.setAccessibilityDescription("", "Foo", resId);
+        assertTrue(
+                "New titles should result in a description update",
+                mNormalTab.needsAccessibilityDescriptionUpdate("Bar", resId));
+    }
+
+    @Test
+    public void testNeedsA11yUpdate_ResourceIdChanged() {
+        final String title = "Tab 1";
+        mNormalTab.setAccessibilityDescription("", title, 1);
+        assertTrue(
+                "New resource IDs should result in a description update",
+                mNormalTab.needsAccessibilityDescriptionUpdate(title, 2));
+    }
+
+    @Test
+    public void testNeedsA11yUpdate_TitleAndResourceIdChanged() {
+        mNormalTab.setAccessibilityDescription("", "Tab 1", 1);
+        assertTrue(
+                "A new title and resource ID should result in a description update",
+                mNormalTab.needsAccessibilityDescriptionUpdate("Foo", 2));
+    }
+
+    @Test
+    public void testNeedsA11yUpdate_TitleAndResourceIdUnchanged() {
+        final String title = "Tab 1";
+        final int resId = 1;
+        mNormalTab.setAccessibilityDescription("", title, resId);
+        assertFalse(
+                "An identical title and resource ID should not result in a description update",
+                mNormalTab.needsAccessibilityDescriptionUpdate(title, resId));
+    }
+
+    @Test
+    public void testNeedsA11yUpdate_NullInitialTitle() {
+        final int resId = 1;
+        mNormalTab.setAccessibilityDescription("", null, resId);
+        assertTrue(
+                "Going from a null to non-null title should result in a description update",
+                mNormalTab.needsAccessibilityDescriptionUpdate("Bar", resId));
+    }
+
+    @Test
+    public void testNeedsA11yUpdate_NullNewTitle() {
+        final int resId = 1;
+        mNormalTab.setAccessibilityDescription("", "Foo", resId);
+        assertTrue(
+                "Going from a non-null to null title should result in a description update",
+                mNormalTab.needsAccessibilityDescriptionUpdate(null, resId));
+    }
+
+    @Test
+    @SmallTest
+    public void testAnchorRect() {
+        int folioFootLengthPx =
+                Math.round(
+                        mContext.getResources().getDisplayMetrics().density * FOLIO_FOOT_LENGTH_DP);
+        int width = folioFootLengthPx + 20; // Should be larger than folioFootLengthPx
+        int height = 10; // Arbitrary
+        mNormalTab.setWidth(width);
+        mNormalTab.setHeight(10);
+
+        Rect rect = new Rect();
+        mNormalTab.getAnchorRect(rect);
+        assertEquals(new Rect(folioFootLengthPx, 0, width, height), rect);
     }
 
     private StripLayoutTab createStripLayoutTab(boolean incognito) {

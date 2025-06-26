@@ -11,7 +11,6 @@
 #include "base/functional/bind.h"
 #include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "cc/base/switches.h"
 #include "components/viz/common/features.h"
 #include "components/viz/common/switches.h"
@@ -29,10 +28,7 @@
 #include "media/media_buildflags.h"
 #include "third_party/blink/public/common/features.h"
 #include "ui/gfx/switches.h"
-
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/startup/browser_params_proxy.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
+#include "ui/gl/gl_features.h"
 
 namespace {
 
@@ -82,7 +78,8 @@ const gpu::GpuPreferences GetGpuPreferencesFromCommandLine() {
       !command_line->HasSwitch(switches::kDisableNv12DxgiVideo);
 #endif
   gpu_preferences.disable_software_rasterizer =
-      command_line->HasSwitch(switches::kDisableSoftwareRasterizer);
+      command_line->HasSwitch(switches::kDisableSoftwareRasterizer) ||
+      !features::IsSwiftShaderAllowed(command_line);
   gpu_preferences.log_gpu_control_list_decisions =
       command_line->HasSwitch(switches::kLogGpuControlListDecisions);
   gpu_preferences.gpu_startup_dialog =
@@ -94,28 +91,6 @@ const gpu::GpuPreferences GetGpuPreferencesFromCommandLine() {
 
   gpu_preferences.gpu_sandbox_start_early =
       command_line->HasSwitch(switches::kGpuSandboxStartEarly);
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  if (!gpu_preferences.gpu_sandbox_start_early) {
-    const chromeos::BrowserParamsProxy* init_params =
-        chromeos::BrowserParamsProxy::Get();
-    CHECK(init_params);
-    switch (init_params->GpuSandboxStartMode()) {
-      case crosapi::mojom::BrowserInitParams::GpuSandboxStartMode::kUnspecified:
-        // In practice, this is expected to be reached due to version skewing:
-        // when ash-chrome is too old to provide a useful value for
-        // BrowserInitParams.gpu_sandbox_start_early. In that case, it's better
-        // to start the sandbox early than to crash the GPU process (since that
-        // process is started with --gpu-sandbox-failures-fatal=yes).
-        // This can also be reached on tests when
-        // |init_params|->DisableCrosapiForTesting() is true.
-      case crosapi::mojom::BrowserInitParams::GpuSandboxStartMode::kEarly:
-        gpu_preferences.gpu_sandbox_start_early = true;
-        break;
-      case crosapi::mojom::BrowserInitParams::GpuSandboxStartMode::kNormal:
-        break;
-    }
-  }
-#endif
 
   gpu_preferences.enable_vulkan_protected_memory =
       command_line->HasSwitch(switches::kEnableVulkanProtectedMemory);
@@ -123,43 +98,13 @@ const gpu::GpuPreferences GetGpuPreferencesFromCommandLine() {
       command_line->HasSwitch(switches::kDisableVulkanFallbackToGLForTesting);
 
   gpu_preferences.enable_gpu_benchmarking_extension =
-      command_line->HasSwitch(cc::switches::kEnableGpuBenchmarking);
+      command_line->HasSwitch(switches::kEnableGpuBenchmarking);
 
   gpu_preferences.enable_android_surface_control =
       ShouldEnableAndroidSurfaceControl(*command_line);
 
   gpu_preferences.enable_native_gpu_memory_buffers =
       command_line->HasSwitch(switches::kEnableNativeGpuMemoryBuffers);
-
-#if BUILDFLAG(IS_CHROMEOS)
-#if BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
-  // The direct VideoDecoder is disallowed on some particular SoC/platforms.
-  const bool should_use_direct_video_decoder =
-#if BUILDFLAG(USE_VAAPI)
-      true;
-#else
-      base::FeatureList::IsEnabled(media::kUseChromeOSDirectVideoDecoder);
-#endif  // BUILDFLAG(USE_VAAPI)
-
-  gpu_preferences.enable_chromeos_direct_video_decoder =
-#if BUILDFLAG(USE_VAAPI)
-      should_use_direct_video_decoder;
-#else
-      // For testing purposes, the following flag allows using the "other" video
-      // decoder implementation.
-      base::FeatureList::IsEnabled(
-          media::kUseAlternateVideoDecoderImplementation)
-          ? !should_use_direct_video_decoder
-          : should_use_direct_video_decoder;
-#endif  // BUILDFLAG(USE_VAAPI)
-
-#if BUILDFLAG(USE_VAAPI)
-  CHECK(gpu_preferences.enable_chromeos_direct_video_decoder);
-#endif  // BUILDFLAG(USE_VAAPI)
-#else   // !BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
-  gpu_preferences.enable_chromeos_direct_video_decoder = false;
-#endif  // BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
-#endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_ANDROID)
   gpu_preferences.disable_oopr_debug_crash_dump =

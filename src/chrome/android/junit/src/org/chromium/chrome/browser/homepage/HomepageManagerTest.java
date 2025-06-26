@@ -15,14 +15,13 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.common.ChromeUrlConstants;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.new_tab_url.DseNewTabUrlManager;
@@ -76,13 +75,11 @@ public class HomepageManagerTest {
         }
     }
 
-    @Rule public Features.JUnitProcessor mFeaturesProcessor = new Features.JUnitProcessor();
-
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private PartnerBrowserCustomizations mPartnerBrowserCustomizations;
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         ShadowPartnerBrowserCustomizations.setPartnerBrowserCustomizations(
                 mPartnerBrowserCustomizations);
         DseNewTabUrlManager.resetIsEeaChoiceCountryForTesting();
@@ -222,14 +219,13 @@ public class HomepageManagerTest {
     }
 
     @Test
-    @EnableFeatures({ChromeFeatureList.NEW_TAB_SEARCH_ENGINE_URL_ANDROID})
     public void testOverrideNtpHomepage() {
         HomepageManager homepageManager = HomepageManager.getInstance();
 
         DseNewTabUrlManager.setIsEeaChoiceCountryForTesting(true);
         ShadowHomepagePolicyManager.sHomepageUrl = GURL.emptyGURL();
-        DseNewTabUrlManager.SWAP_OUT_NTP.setForTesting(true);
-        Assert.assertTrue(DseNewTabUrlManager.SWAP_OUT_NTP.getValue());
+        ChromeFeatureList.sNewTabSearchEngineUrlAndroidSwapOutNtp.setForTesting(true);
+        Assert.assertTrue(ChromeFeatureList.sNewTabSearchEngineUrlAndroidSwapOutNtp.getValue());
 
         Assert.assertNull(DseNewTabUrlManager.getDSENewTabUrl(null));
         Assert.assertEquals(ChromeUrlConstants.nativeNtpGurl(), homepageManager.getHomepageGurl());

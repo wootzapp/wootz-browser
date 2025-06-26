@@ -8,18 +8,19 @@
 
 #include <sys/mman.h>
 #include <sys/utsname.h>
+
 #include <cstddef>
 
-#include "base/allocator/partition_allocator/src/partition_alloc/thread_isolation/alignment.h"
 #include "base/check.h"
 #include "base/check_op.h"
+#include "base/compiler_specific.h"
 #include "base/memory/page_size.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
-#include "third_party/abseil-cpp/absl/base/attributes.h"
+#include "partition_alloc/thread_isolation/alignment.h"
 
-extern int pkey_alloc(unsigned int flags,
-                      unsigned int access_rights) ABSL_ATTRIBUTE_WEAK;
+WEAK_SYMBOL extern int pkey_alloc(unsigned int flags,
+                                  unsigned int access_rights);
 
 namespace {
 
@@ -34,7 +35,9 @@ bool KernelHasPkruFix() {
   CHECK_EQ(0, uname(&uname_buffer));
   int kernel, major, minor;
   // Conservatively return if the release does not match the format we expect.
-  if (sscanf(uname_buffer.release, "%d.%d.%d", &kernel, &major, &minor) != 3) {
+  // SAFETY: required from system when uname() returns successfully.
+  if (UNSAFE_BUFFERS(sscanf(uname_buffer.release, "%d.%d.%d", &kernel, &major,
+                            &minor)) != 3) {
     return -1;
   }
   return kernel > 5 || (kernel == 5 && major >= 13) ||   // anything >= 5.13

@@ -5,14 +5,9 @@
 import 'chrome://resources/cr_elements/cr_hidden_style.css.js';
 import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
 import 'chrome://resources/polymer/v3_0/iron-list/iron-list.js';
-// <if expr="not is_chromeos">
 import './destination_list_item.js';
-// </if>
-// <if expr="is_chromeos">
-import './destination_list_item_cros.js';
-// </if>
 import './print_preview_vars.css.js';
-import '../strings.m.js';
+import '/strings.m.js';
 import './throbber.css.js';
 
 import {ListPropertyUpdateMixin} from 'chrome://resources/cr_elements/list_property_update_mixin.js';
@@ -77,13 +72,13 @@ export class PrintPreviewDestinationListElement extends
     };
   }
 
-  destinations: Destination[];
-  searchQuery: RegExp|null;
-  loadingDestinations: boolean;
-  private matchingDestinations_: Destination[];
-  private hasDestinations_: boolean;
-  private throbberHidden_: boolean;
-  private hideList_: boolean;
+  declare destinations: Destination[];
+  declare searchQuery: RegExp|null;
+  declare loadingDestinations: boolean;
+  declare private matchingDestinations_: Destination[];
+  declare private hasDestinations_: boolean;
+  declare private throbberHidden_: boolean;
+  declare private hideList_: boolean;
 
   private boundUpdateHeight_: ((e: Event) => void)|null = null;
 
@@ -189,18 +184,6 @@ export class PrintPreviewDestinationListElement extends
   private getAriaRowindex_(index: number): number {
     return index + 1;
   }
-
-  // <if expr="is_chromeos">
-  updatePrinterStatusIcon(destinationKey: string) {
-    const index = this.matchingDestinations_.findIndex(
-        destination => destination.key === destinationKey);
-    if (index === -1) {
-      return;
-    }
-
-    this.notifyPath(`matchingDestinations_.${index}.printerStatusReason`);
-  }
-  // </if>
 }
 
 declare global {

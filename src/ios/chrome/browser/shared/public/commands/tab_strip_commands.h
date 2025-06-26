@@ -5,12 +5,18 @@
 #ifndef IOS_CHROME_BROWSER_SHARED_PUBLIC_COMMANDS_TAB_STRIP_COMMANDS_H_
 #define IOS_CHROME_BROWSER_SHARED_PUBLIC_COMMANDS_TAB_STRIP_COMMANDS_H_
 
-#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 #import <set>
 
+#import "base/memory/weak_ptr.h"
+
 class TabGroup;
+enum class TabGroupActionType;
+@class TabGroupItem;
+@class TabStripLastTabDraggedAlertCommand;
 @class TabSwitcherItem;
+
 namespace web {
 class WebStateID;
 }  // namespace web
@@ -18,15 +24,13 @@ class WebStateID;
 // Commands for tab strip changes.
 @protocol TabStripCommands
 
-// Set the `iphHighlighted` state for the new tab button on the tab strip.
-- (void)setNewTabButtonOnTabStripIPHHighlighted:(BOOL)IPHHighlighted;
-
 // Shows the tab group creation view.
 - (void)showTabStripGroupCreationForTabs:
     (const std::set<web::WebStateID>&)identifiers;
 
 // Shows tab group editing view.
-- (void)showTabStripGroupEditionForGroup:(const TabGroup*)tabGroup;
+- (void)showTabStripGroupEditionForGroup:
+    (base::WeakPtr<const TabGroup>)tabGroup;
 
 // Hides the tab group creation view.
 - (void)hideTabStripGroupCreation;
@@ -34,6 +38,33 @@ class WebStateID;
 // Shares `tabSwitcherItem`.
 - (void)shareItem:(TabSwitcherItem*)tabSwitcherItem
        originView:(UIView*)originView;
+
+// Shows an alert for moving the last tab of a group in this tab strip.
+- (void)showAlertForLastTabDragged:(TabStripLastTabDraggedAlertCommand*)command;
+
+// Displays a confirmation dialog anchoring to `sourceView` to confirm that
+// selected `groupItem` is going to take an `actionType`.
+- (void)showTabGroupConfirmationForAction:(TabGroupActionType)actionType
+                                groupItem:(TabGroupItem*)tabGroupItem
+                               sourceView:(UIView*)sourceView;
+
+// Displays a snackbar after closing tab groups locally.
+- (void)showTabStripTabGroupSnackbarAfterClosingGroups:
+    (int)numberOfClosedGroups;
+
+// Presents the manage shared tab group screen.
+- (void)manageTabGroup:(base::WeakPtr<const TabGroup>)group;
+
+// Starts sharing the local tab group.
+- (void)shareTabGroup:(base::WeakPtr<const TabGroup>)group;
+
+// Shows the recent activity for the shared group.
+- (void)showRecentActivityForTabGroup:(base::WeakPtr<const TabGroup>)tabGroup;
+
+// Starts the leave or delete shared group flow.
+- (void)startLeaveOrDeleteSharedGroupItem:(TabGroupItem*)tabGroupItem
+                                forAction:(TabGroupActionType)actionType
+                               sourceView:(UIView*)sourceView;
 
 @end
 

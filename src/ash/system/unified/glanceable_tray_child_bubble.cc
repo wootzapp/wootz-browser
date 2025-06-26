@@ -13,6 +13,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/compositor/layer.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/highlight_border.h"
 #include "ui/views/view_class_properties.h"
@@ -27,25 +28,28 @@ constexpr int kBubbleCornerRadius = 24;
 GlanceableTrayChildBubble::GlanceableTrayChildBubble(
     bool use_glanceables_container_style) {
   if (use_glanceables_container_style) {
-    SetAccessibleRole(ax::mojom::Role::kGroup);
+    GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
 
     SetPaintToLayer();
-    layer()->SetFillsBoundsOpaquely(false);
     layer()->SetIsFastRoundedCorner(true);
     layer()->SetRoundedCornerRadius(
         gfx::RoundedCornersF{static_cast<float>(kBubbleCornerRadius)});
-    // TODO(b:286941809): Setting blur here, can break the rounded corners
-    // applied to the parent scroll view.
-    layer()->SetBackgroundBlur(ColorProvider::kBackgroundBlurSigma);
-    layer()->SetBackdropFilterQuality(ColorProvider::kBackgroundBlurQuality);
+    if (chromeos::features::IsSystemBlurEnabled()) {
+      // TODO(b:286941809): Setting blur here, can break the rounded corners
+      // applied to the parent scroll view.
+      layer()->SetFillsBoundsOpaquely(false);
+      layer()->SetBackgroundBlur(ColorProvider::kBackgroundBlurSigma);
+      layer()->SetBackdropFilterQuality(ColorProvider::kBackgroundBlurQuality);
+    }
 
-    SetBackground(views::CreateThemedSolidBackground(
-        static_cast<ui::ColorId>(cros_tokens::kCrosSysSystemBaseElevated)));
+    const ui::ColorId background_color_id =
+        chromeos::features::IsSystemBlurEnabled()
+            ? cros_tokens::kCrosSysSystemBaseElevated
+            : cros_tokens::kCrosSysSystemBaseElevatedOpaque;
+    SetBackground(views::CreateSolidBackground(background_color_id));
     SetBorder(std::make_unique<views::HighlightBorder>(
         kBubbleCornerRadius,
-        chromeos::features::IsJellyrollEnabled()
-            ? views::HighlightBorder::Type::kHighlightBorderOnShadow
-            : views::HighlightBorder::Type::kHighlightBorder1));
+        views::HighlightBorder::Type::kHighlightBorderOnShadow));
   }
 }
 

@@ -1,5 +1,16 @@
 [
   {
-    "reason_for_missing_test": "TODO(b/319802849): Feature not yet implemented"
+    "os": [
+      "chromeos"
+    ],
+    "simple_policy_pref_mapping_test": {
+      "pref_name": "floating_sso_domain_blocklist",
+      "default_value": [],
+      "values_to_test": [
+        [
+          "google.com"
+        ]
+      ]
+    }
   }
 ]

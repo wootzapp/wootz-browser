@@ -6,8 +6,8 @@
 
 #include "base/notimplemented.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
-#include "chrome/browser/ui/webui/top_chrome/webui_contents_preload_manager.h"
 #include "chrome/browser/ui/webui/top_chrome/webui_contents_warmup_level_recorder.h"
 #include "chrome/browser/ui/webui/top_chrome/webui_url_utils.h"
 #include "content/public/browser/render_frame_host.h"
@@ -44,8 +44,9 @@ WebUIBubbleManager::~WebUIBubbleManager() {
 bool WebUIBubbleManager::ShowBubble(const std::optional<gfx::Rect>& anchor,
                                     views::BubbleBorder::Arrow arrow,
                                     ui::ElementIdentifier identifier) {
-  if (bubble_view_)
+  if (bubble_view_) {
     return false;
+  }
 
   cache_timer_->Stop();
 
@@ -60,9 +61,8 @@ bool WebUIBubbleManager::ShowBubble(const std::optional<gfx::Rect>& anchor,
 
   bubble_widget_observation_.Observe(bubble_view_->GetWidget());
 
-  for (WebUIBubbleManagerObserver& observer : observers_) {
-    observer.BeforeBubbleWidgetShowed(bubble_view_->GetWidget());
-  }
+  observers_.Notify(&WebUIBubbleManagerObserver::BeforeBubbleWidgetShowed,
+                    bubble_view_->GetWidget());
 
   // Some bubbles can be triggered when there is no active browser (e.g. emoji
   // picker in Chrome OS launcher). In that case, the close bubble helper isn't
@@ -70,11 +70,13 @@ bool WebUIBubbleManager::ShowBubble(const std::optional<gfx::Rect>& anchor,
   if ((!disable_close_bubble_helper_) &&
       BrowserList::GetInstance()->GetLastActive()) {
     close_bubble_helper_ = std::make_unique<CloseBubbleOnTabActivationHelper>(
-        bubble_view_.get(), BrowserList::GetInstance()->GetLastActive());
+        bubble_view_.get(),
+        BrowserList::GetInstance()->GetLastActive()->tab_strip_model());
   }
 
-  if (identifier)
+  if (identifier) {
     bubble_view_->SetProperty(views::kElementIdentifierKey, identifier);
+  }
 
   if (GetContentsWrapper()->is_ready_to_show()) {
     GetContentsWrapper()->ShowUI();
@@ -84,8 +86,9 @@ bool WebUIBubbleManager::ShowBubble(const std::optional<gfx::Rect>& anchor,
 }
 
 void WebUIBubbleManager::CloseBubble() {
-  if (!bubble_view_)
+  if (!bubble_view_) {
     return;
+  }
   DCHECK(bubble_view_->GetWidget());
   bubble_view_->GetWidget()->CloseWithReason(
       views::Widget::ClosedReason::kUnspecified);
@@ -117,16 +120,22 @@ void WebUIBubbleManager::ResetContentsWrapperForTesting() {
   ResetContentsWrapper();
 }
 
-void WebUIBubbleManager::ResetContentsWrapper() {
-  if (!cached_contents_wrapper_)
-    return;
-
-  if (bubble_view_)
-    CloseBubble();
-  DCHECK(!cached_contents_wrapper_->GetHost());
-  cached_contents_wrapper_.reset();
-}
-
 void WebUIBubbleManager::DisableCloseBubbleHelperForTesting() {
   disable_close_bubble_helper_ = true;
+}
+
+WebUIContentsWrapper* WebUIBubbleManager::GetContentsWrapperForTesting() {
+  return GetContentsWrapper();
+}
+
+void WebUIBubbleManager::ResetContentsWrapper() {
+  if (!cached_contents_wrapper_) {
+    return;
+  }
+
+  if (bubble_view_) {
+    CloseBubble();
+  }
+  DCHECK(!cached_contents_wrapper_->GetHost());
+  cached_contents_wrapper_.reset();
 }

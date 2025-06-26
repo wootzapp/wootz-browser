@@ -15,7 +15,6 @@
 #include "base/scoped_observation.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/autofill/autofill_popup_view_delegate.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/autofill/popup/custom_cursor_suppressor.h"
 #include "chrome/browser/ui/views/autofill/popup/popup_row_view.h"
 #include "content/public/browser/web_contents.h"
@@ -25,6 +24,8 @@
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
 #include "ui/views/widget/widget_observer.h"
+
+class Browser;
 
 namespace autofill {
 
@@ -43,7 +44,6 @@ class PopupBaseView : public PopupRowView::AccessibilitySelectionDelegate,
   static constexpr int kElementBorderPadding = 1;
 
   // Default list of the preferred popup sides adjacent to the target element.
-  // The sides are tried one-by-one until a side with enough space is found.
   static constexpr std::array<views::BubbleArrowSide, 4>
       kDefaultPreferredPopupSides = {
           views::BubbleArrowSide::kTop, views::BubbleArrowSide::kBottom,
@@ -68,8 +68,6 @@ class PopupBaseView : public PopupRowView::AccessibilitySelectionDelegate,
                 views::Widget* parent_widget,
                 views::Widget::InitParams::Activatable new_widget_activatable =
                     views::Widget::InitParams::Activatable::kDefault,
-                base::span<const views::BubbleArrowSide> preferred_popup_sides =
-                    kDefaultPreferredPopupSides,
                 bool show_arrow_pointer = true);
   ~PopupBaseView() override;
 
@@ -93,23 +91,22 @@ class PopupBaseView : public PopupRowView::AccessibilitySelectionDelegate,
   // Update size of popup and paint. If there is insufficient height to draw the
   // popup, it hides and thus deletes |this| and returns false. (virtual for
   // testing).
-  virtual bool DoUpdateBoundsAndRedrawPopup();
+  [[nodiscard]] virtual bool DoUpdateBoundsAndRedrawPopup();
 
-  // Returns the optimal bounds to place the popup with |preferred_size| and
-  // places an arrow on the popup border to point towards |element_bounds|
-  // within |max_bounds_for_popup|.
-  gfx::Rect GetOptionalPositionAndPlaceArrowOnPopup(
+  // Returns the optimal bounds to place the popup with `preferred_size` and
+  // places an arrow on the popup border to point towards `element_bounds`
+  // within `max_bounds_for_popup`. The `preferred_popup_sides` are tried
+  // one-by-one until a side with enough space is found.
+  virtual gfx::Rect GetOptimalPositionAndPlaceArrowOnPopup(
       const gfx::Rect& element_bounds,
       const gfx::Rect& max_bounds_for_popup,
-      const gfx::Size& preferred_size);
+      const gfx::Size& preferred_size,
+      base::span<const views::BubbleArrowSide> preferred_popup_sides);
 
  private:
   friend class PopupBaseViewBrowsertest;
 
   class Widget;
-
-  // views::Views implementation.
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
 
   // views::WidgetFocusChangeListener implementation.
   void OnNativeFocusChanged(gfx::NativeView focused_now) override;
@@ -142,8 +139,6 @@ class PopupBaseView : public PopupRowView::AccessibilitySelectionDelegate,
 
   // The corresponding parameter for newly created widget (in `DoShow()`).
   const views::Widget::InitParams::Activatable new_widget_activatable_;
-
-  const std::vector<views::BubbleArrowSide> preferred_popup_sides_;
 
   const bool show_arrow_pointer_;
 

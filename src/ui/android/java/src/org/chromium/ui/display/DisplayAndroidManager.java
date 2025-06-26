@@ -9,6 +9,8 @@ import android.content.Context;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.DisplayManager.DisplayListener;
 import android.os.Build;
+import android.os.Build.VERSION;
+import android.os.Build.VERSION_CODES;
 import android.util.SparseArray;
 import android.view.Display;
 import android.view.WindowManager;
@@ -19,10 +21,12 @@ import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.compat.ApiHelperForR;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 /** DisplayAndroidManager is a class that informs its observers Display changes. */
 @JNINamespace("ui")
+@NullMarked
 public class DisplayAndroidManager {
     /**
      * DisplayListenerBackend is used to handle the actual listening of display changes. It handles
@@ -71,13 +75,9 @@ public class DisplayAndroidManager {
         }
     }
 
-    private static DisplayAndroidManager sDisplayAndroidManager;
+    private static @Nullable DisplayAndroidManager sDisplayAndroidManager;
 
-    // Real displays (as in, displays backed by an Android Display and recognized by the OS, though
-    // not necessarily physical displays) on Android start at ID 0, and increment indefinitely as
-    // displays are added. Display IDs are never reused until reboot. To avoid any overlap, start
-    // virtual display ids at a much higher number, and increment them in the same way.
-    private static final int VIRTUAL_DISPLAY_ID_BEGIN = Integer.MAX_VALUE / 2;
+    private static boolean sDisableHdrSdkRatioCallback;
 
     private long mNativePointer;
     private int mMainSdkDisplayId;
@@ -95,11 +95,16 @@ public class DisplayAndroidManager {
         return sDisplayAndroidManager;
     }
 
+    // Disable hdr/sdr ratio callback. Ratio will always be reported as 1.
+    public static void disableHdrSdrRatioCallback() {
+        sDisableHdrSdkRatioCallback = true;
+    }
+
     public static Display getDefaultDisplayForContext(Context context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Display display = null;
             try {
-                display = ApiHelperForR.getDisplay(context);
+                display = context.getDisplay();
             } catch (UnsupportedOperationException e) {
                 // Context is not associated with a display.
             }
@@ -178,7 +183,8 @@ public class DisplayAndroidManager {
 
     private DisplayAndroid addDisplay(Display display) {
         int sdkDisplayId = display.getDisplayId();
-        PhysicalDisplayAndroid displayAndroid = new PhysicalDisplayAndroid(display);
+        PhysicalDisplayAndroid displayAndroid =
+                new PhysicalDisplayAndroid(display, sDisableHdrSdkRatioCallback);
         assert mIdMap.get(sdkDisplayId) == null;
         mIdMap.put(sdkDisplayId, displayAndroid);
         displayAndroid.updateFromDisplay(display);
@@ -187,20 +193,28 @@ public class DisplayAndroidManager {
 
     /* package */ void updateDisplayOnNativeSide(DisplayAndroid displayAndroid) {
         if (mNativePointer == 0) return;
+
+        int[] insetsArray = new int[] {0, 0, 0, 0};
+        if (VERSION.SDK_INT >= VERSION_CODES.R) {
+            insetsArray = displayAndroid.getInsetsAsArray();
+        }
+
         DisplayAndroidManagerJni.get()
                 .updateDisplay(
                         mNativePointer,
                         DisplayAndroidManager.this,
                         displayAndroid.getDisplayId(),
-                        displayAndroid.getDisplayWidth(),
-                        displayAndroid.getDisplayHeight(),
+                        displayAndroid.getDisplayName(),
+                        displayAndroid.getBoundsAsArray(),
+                        insetsArray,
                         displayAndroid.getDipScale(),
                         displayAndroid.getRotationDegrees(),
                         displayAndroid.getBitsPerPixel(),
                         displayAndroid.getBitsPerComponent(),
                         displayAndroid.getIsWideColorGamut(),
                         displayAndroid.getIsHdr(),
-                        displayAndroid.getHdrMaxLuminanceRatio());
+                        displayAndroid.getHdrMaxLuminanceRatio(),
+                        displayAndroid.isInternal());
     }
 
     @NativeMethods
@@ -209,15 +223,17 @@ public class DisplayAndroidManager {
                 long nativeDisplayAndroidManager,
                 DisplayAndroidManager caller,
                 int sdkDisplayId,
-                int width,
-                int height,
+                @Nullable String label,
+                int[] bounds, // the order is: left, top, right, bottom
+                int[] insets, // the order is: left, top, right, bottom
                 float dipScale,
                 int rotationDegrees,
                 int bitsPerPixel,
                 int bitsPerComponent,
                 boolean isWideColorGamut,
                 boolean isHdr,
-                float hdrMaxLuminanceRatio);
+                float hdrMaxLuminanceRatio,
+                boolean isInternal);
 
         void removeDisplay(
                 long nativeDisplayAndroidManager, DisplayAndroidManager caller, int sdkDisplayId);

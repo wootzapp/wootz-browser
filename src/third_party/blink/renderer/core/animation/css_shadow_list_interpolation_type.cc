@@ -30,8 +30,7 @@ const ShadowList* GetShadowList(const CSSProperty& property,
     case CSSPropertyID::kTextShadow:
       return style.TextShadow();
     default:
-      NOTREACHED_IN_MIGRATION();
-      return nullptr;
+      NOTREACHED();
   }
 }
 }  // namespace
@@ -126,7 +125,7 @@ class AlwaysInvalidateChecker
 
 InterpolationValue CSSShadowListInterpolationType::MaybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState* state,
+    const StyleResolverState& state,
     ConversionCheckers&) const {
   auto* identifier_value = DynamicTo<CSSIdentifierValue>(value);
   if (identifier_value && identifier_value->GetValueID() == CSSValueID::kNone)
@@ -137,16 +136,9 @@ InterpolationValue CSSShadowListInterpolationType::MaybeConvertValue(
 
   const auto& value_list = To<CSSValueList>(value);
   return ListInterpolationFunctions::CreateList(
-      value_list.length(), [&value_list, state](wtf_size_t index) {
-        mojom::blink::ColorScheme color_scheme =
-            state ? state->StyleBuilder().UsedColorScheme()
-                  : mojom::blink::ColorScheme::kLight;
-        const ui::ColorProvider* color_provider =
-            state
-                ? state->GetDocument().GetColorProviderForPainting(color_scheme)
-                : nullptr;
+      value_list.length(), [&value_list, &state](wtf_size_t index) {
         return InterpolationValue(InterpolableShadow::MaybeConvertCSSValue(
-            value_list.Item(index), color_scheme, color_provider));
+            value_list.Item(index), state));
       });
 }
 
@@ -213,7 +205,7 @@ void CSSShadowListInterpolationType::ApplyStandardPropertyValue(
       state.StyleBuilder().SetTextShadow(shadow_list);
       return;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 

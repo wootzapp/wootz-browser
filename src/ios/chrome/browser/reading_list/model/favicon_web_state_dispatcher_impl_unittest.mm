@@ -7,7 +7,7 @@
 #import "base/memory/ptr_util.h"
 #import "base/test/ios/wait_util.h"
 #import "components/favicon/ios/web_favicon_driver.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/web/public/test/web_task_environment.h"
 #import "ios/web/public/web_state_observer.h"
 #import "testing/gtest/include/gtest/gtest.h"
@@ -20,11 +20,11 @@ class FaviconWebStateDispatcherTest : public PlatformTest,
                                       public web::WebStateObserver {
  public:
   FaviconWebStateDispatcherTest() : web_state_destroyed_(false) {
-    TestChromeBrowserState::Builder builder;
-    browser_state_ = builder.Build();
+    TestProfileIOS::Builder builder;
+    profile_ = std::move(builder).Build();
   }
 
-  web::BrowserState* GetBrowserState() { return browser_state_.get(); }
+  web::BrowserState* GetBrowserState() { return profile_.get(); }
 
   bool IsWebStateDestroyed() { return web_state_destroyed_; }
 
@@ -36,7 +36,7 @@ class FaviconWebStateDispatcherTest : public PlatformTest,
 
  private:
   web::WebTaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> browser_state_;
+  std::unique_ptr<TestProfileIOS> profile_;
   bool web_state_destroyed_;
 };
 

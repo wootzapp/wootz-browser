@@ -17,7 +17,7 @@ import re
 import shlex
 import subprocess
 import sys
-from typing import Any, List
+from typing import Any
 
 from gpu_tests import constants
 
@@ -45,8 +45,13 @@ _MAC_VENDOR_NAME_REGEX = re.compile(r'sppci_vendor_([a-z]+)$')
 
 # The format of Qualcomm device IDs retrieved via WMI is different from what
 # Chrome extracts. This table translates to what Chrome produces.
+# 043a = older Adreno 680/685/690 GPUs (such as Surface Pro X, Dell trybots)
+# 0636 = Adreno 690 GPU (such as Surface Pro 9 5G)
+# 0c36 = Adreno 741 GPU (such as Surface Pro 11th Edition)
 _QUALCOMM_DEVICE_MAP = {
     '043a': '41333430',
+    '0636': '36333630',
+    '0c36': '36334330',
 }
 
 _Gpu = collections.namedtuple('Gpu', ['vendor_id', 'device_id'])
@@ -114,7 +119,7 @@ def _IsGpuVendorPresent(gpu_vendor: constants.GpuVendor) -> bool:
 
 
 @functools.lru_cache(maxsize=1)
-def _GetAvailableGpus() -> List[_Gpu]:
+def _GetAvailableGpus() -> list[_Gpu]:
   if IsWindows():
     return _GetAvailableGpusWindows()
   if IsLinux():
@@ -126,12 +131,14 @@ def _GetAvailableGpus() -> List[_Gpu]:
 
 @functools.lru_cache(maxsize=1)
 def _GetWmiWbem() -> Any:
+  # pytype: disable=name-error
   wmi_service = win32com.client.Dispatch('WbemScripting.SWbemLocator')
+  # pytype: enable=name-error
   return wmi_service.ConnectServer('.', _WMI_DEFAULT_NAMESPACE)
 
 
 @functools.lru_cache(maxsize=1)
-def _GetAvailableGpusWindows() -> List[_Gpu]:
+def _GetAvailableGpusWindows() -> list[_Gpu]:
   # Effectively copied from Swarming's get_gpu() in api/platforms/win.py.
   wbem = _GetWmiWbem()
   gpus = []
@@ -164,7 +171,7 @@ def _GetAvailableGpusWindows() -> List[_Gpu]:
   return gpus
 
 
-def _lspci() -> List[List[str]]:
+def _lspci() -> list[list[str]]:
   """Returns list of PCI devices found.
 
   list(Bus, Type, Vendor [ID], Device [ID], extra...)
@@ -191,7 +198,7 @@ def _lspci() -> List[List[str]]:
 
 
 @functools.lru_cache(maxsize=1)
-def _GetAvailableGpusLinux() -> List[_Gpu]:
+def _GetAvailableGpusLinux() -> list[_Gpu]:
   # Effectively copied from Swarming's get_gpu() in api/platforms/linux.py.
   pci_devices = _lspci()
   gpus = []
@@ -219,12 +226,12 @@ def _get_system_profiler(data_type: str) -> dict:
   process = subprocess.run(['system_profiler', data_type, '-xml'],
                            stdout=subprocess.PIPE,
                            check=True)
-  plist = plistlib.loads(process.stdout)
+  plist = plistlib.loads(process.stdout)  # pytype: disable=name-error
   return plist[0].get('_items', [])
 
 
 @functools.lru_cache(maxsize=1)
-def _GetAvailableGpusMac() -> List[_Gpu]:
+def _GetAvailableGpusMac() -> list[_Gpu]:
   gpu_list = []
   # Effectively copied from Swarming's get_gpu() in api/platforms/osx.py.
   # This applies to all helper functions called from here as well.
@@ -289,8 +296,8 @@ def _HandleNonAppleGpu(gpu: dict) -> _Gpu:
         vendor_id = constants.GpuVendor[vendor_name]
 
   if vendor_id is None:
-    raise RuntimeError('Unable to determine GPU vendor ID. Raw GPU info: %s' %
-                       gpu)
+    raise RuntimeError(
+        f'Unable to determine GPU vendor ID. Raw GPU info: {gpu}')
 
   return _Gpu(vendor_id, device_id)
 

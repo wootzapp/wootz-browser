@@ -4,6 +4,7 @@
 
 #include "chrome/browser/first_run/first_run.h"
 
+#include <algorithm>
 #include <memory>
 #include <tuple>
 #include <utility>
@@ -18,7 +19,6 @@
 #include "base/no_destructor.h"
 #include "base/one_shot_event.h"
 #include "base/path_service.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
@@ -82,12 +82,10 @@ base::Time g_cached_sentinel_creation_time;
 // ImportEnded() is called asynchronously. Thus we have to handle both cases.
 class ImportEndedObserver : public importer::ImporterProgressObserver {
  public:
-  ImportEndedObserver() : ended_(false) {}
+  ImportEndedObserver() = default;
 
   ImportEndedObserver(const ImportEndedObserver&) = delete;
   ImportEndedObserver& operator=(const ImportEndedObserver&) = delete;
-
-  ~ImportEndedObserver() override {}
 
   // importer::ImporterProgressObserver:
   void ImportStarted() override {}
@@ -109,7 +107,7 @@ class ImportEndedObserver : public importer::ImporterProgressObserver {
 
  private:
   // Set if the import has ended.
-  bool ended_;
+  bool ended_ = false;
 
   base::OnceClosure callback_for_import_end_;
 };
@@ -164,7 +162,6 @@ void ImportFromFile(Profile* profile,
 void ImportSettings(Profile* profile,
                     std::unique_ptr<ImporterList> importer_list,
                     uint16_t items_to_import) {
-    
   DCHECK(items_to_import);
   const importer::SourceProfile& source_profile =
       importer_list->GetSourceProfileAt(0);
@@ -186,7 +183,7 @@ void ConvertStringVectorToGURLVector(
     const std::vector<std::string>& src,
     std::vector<GURL>* ret) {
   ret->resize(src.size());
-  base::ranges::transform(src, ret->begin(), &UrlFromString);
+  std::ranges::transform(src, ret->begin(), &UrlFromString);
 }
 
 base::FilePath& GetInitialPrefsPathForTesting() {
@@ -347,13 +344,6 @@ bool IsFirstRunSuppressed(const base::CommandLine& command_line) {
 }
 #endif
 
-bool IsMetricsReportingOptIn() {
-  // Metrics reporting is opt-out by default for all platforms and channels.
-  // However, user will have chance to modify metrics reporting state during
-  // first run.
-  return false;
-}
-
 void CreateSentinelIfNeeded() {
   if (IsChromeFirstRun()) {
     auto sentinel_creation_result = CreateSentinel();
@@ -385,13 +375,6 @@ std::unique_ptr<installer::InitialPreferences> LoadInitialPrefs() {
   base::FilePath initial_prefs_path;
   if (!GetInitialPrefsPathForTesting().empty()) {
     initial_prefs_path = GetInitialPrefsPathForTesting();
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  } else if (const base::CommandLine* command_line =
-                 base::CommandLine::ForCurrentProcess();
-             command_line->HasSwitch(switches::kInitialPreferencesFile)) {
-    initial_prefs_path =
-        command_line->GetSwitchValuePath(switches::kInitialPreferencesFile);
-#endif
   } else {
     initial_prefs_path =
         base::FilePath(first_run::internal::InitialPrefsPath());

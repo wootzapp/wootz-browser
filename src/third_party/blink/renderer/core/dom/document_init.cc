@@ -97,7 +97,7 @@ bool DocumentInit::IsAboutBlankDocument() const {
 const KURL& DocumentInit::FallbackBaseURL() const {
   DCHECK(IsSrcdocDocument() || IsAboutBlankDocument() ||
          IsInitialEmptyDocument() || is_for_javascript_url_ ||
-         fallback_base_url_.IsEmpty())
+         is_for_discard_ || fallback_base_url_.IsEmpty())
       << " url = " << url_ << ", fallback_base_url = " << fallback_base_url_;
   return fallback_base_url_;
 }
@@ -286,6 +286,15 @@ DocumentInit& DocumentInit::WithJavascriptURL(bool is_for_javascript_url) {
   return *this;
 }
 
+DocumentInit& DocumentInit::ForDiscard(bool is_for_discard) {
+  is_for_discard_ = is_for_discard;
+  return *this;
+}
+
+bool DocumentInit::IsForDiscard() const {
+  return is_for_discard_;
+}
+
 DocumentInit& DocumentInit::WithUkmSourceId(ukm::SourceId ukm_source_id) {
   ukm_source_id_ = ukm_source_id;
   return *this;
@@ -326,19 +335,16 @@ Document* DocumentInit::CreateDocument() const {
     case Type::kViewSource:
       return MakeGarbageCollected<HTMLViewSourceDocument>(*this);
     case Type::kText: {
-      if (MIMETypeRegistry::IsJSONMimeType(mime_type_) &&
-          RuntimeEnabledFeatures::PrettyPrintJSONDocumentEnabled()) {
+      if (MIMETypeRegistry::IsJSONMimeType(mime_type_)) {
         return MakeGarbageCollected<JSONDocument>(*this);
       }
       return MakeGarbageCollected<TextDocument>(*this);
     }
     case Type::kUnspecified:
-      [[fallthrough]];
     default:
       break;
   }
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 }  // namespace blink

@@ -8,6 +8,7 @@ import static org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils.b
 
 import android.content.Context;
 import android.view.View;
+import android.view.View.OnClickListener;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -20,7 +21,7 @@ import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils;
 import org.chromium.ui.listmenu.BasicListMenu;
 import org.chromium.ui.listmenu.ListMenu;
-import org.chromium.ui.listmenu.ListMenuButtonDelegate;
+import org.chromium.ui.listmenu.ListMenuDelegate;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.widget.RectProvider;
 
@@ -38,17 +39,19 @@ public class HomeButtonCoordinator {
 
     private final Callback<Context> mOnMenuClickCallback;
     private MVCListAdapter.ModelList mMenuList;
-    private @Nullable ListMenuButtonDelegate mListMenuButtonDelegate;
+    private @Nullable ListMenuDelegate mListMenuDelegate;
 
     /**
      * @param context The Android context used for various view operations.
      * @param homeButton The concrete {@link View} class for this MVC component.
+     * @param onClickListener Listener invoked when button is clicked.
      * @param onMenuClickCallback Callback when home button menu item is clicked.
      * @param isHomepageMenuDisabledSupplier Supplier for whether the home button menu is enabled.
      */
     public HomeButtonCoordinator(
             @NonNull Context context,
             @NonNull View homeButton,
+            OnClickListener onClickListener,
             @NonNull Callback<Context> onMenuClickCallback,
             @NonNull Supplier<Boolean> isHomepageMenuDisabledSupplier) {
         mContext = context;
@@ -56,13 +59,14 @@ public class HomeButtonCoordinator {
         mOnMenuClickCallback = onMenuClickCallback;
         mIsHomeButtonMenuDisabled = isHomepageMenuDisabledSupplier;
         mHomeButton.setOnLongClickListener(this::onLongClickHomeButton);
+        mHomeButton.setOnClickListener(onClickListener);
     }
 
     @VisibleForTesting
     boolean onLongClickHomeButton(View view) {
         if (view != mHomeButton || mIsHomeButtonMenuDisabled.get()) return false;
 
-        if (mListMenuButtonDelegate == null) {
+        if (mListMenuDelegate == null) {
             RectProvider rectProvider = MenuBuilderHelper.getRectProvider(mHomeButton);
             mMenuList = new MVCListAdapter.ModelList();
             mMenuList.add(
@@ -75,8 +79,8 @@ public class HomeButtonCoordinator {
                             mContext,
                             mMenuList,
                             (model) -> mOnMenuClickCallback.onResult(mContext));
-            mListMenuButtonDelegate =
-                    new ListMenuButtonDelegate() {
+            mListMenuDelegate =
+                    new ListMenuDelegate() {
                         @Override
                         public ListMenu getListMenu() {
                             return listMenu;
@@ -87,7 +91,7 @@ public class HomeButtonCoordinator {
                             return rectProvider;
                         }
                     };
-            mHomeButton.setDelegate(mListMenuButtonDelegate, false);
+            mHomeButton.setDelegate(mListMenuDelegate, false);
         }
         mHomeButton.showMenu();
         return true;

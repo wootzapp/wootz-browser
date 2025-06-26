@@ -14,7 +14,9 @@
 #define __XML_XINCLUDE_H__
 
 #include <libxml/xmlversion.h>
+#include <libxml/xmlerror.h>
 #include <libxml/tree.h>
+#include <libxml/parser.h>
 
 #ifdef LIBXML_XINCLUDE_ENABLED
 
@@ -118,6 +120,10 @@ XMLPUBFUN int
 XMLPUBFUN void
 		xmlXIncludeSetErrorHandler(xmlXIncludeCtxtPtr ctxt,
 					 xmlStructuredErrorFunc handler,
+					 void *data);
+XMLPUBFUN void
+		xmlXIncludeSetResourceLoader(xmlXIncludeCtxtPtr ctxt,
+					 xmlResourceLoader loader,
 					 void *data);
 XMLPUBFUN int
 		xmlXIncludeGetLastError	(xmlXIncludeCtxtPtr ctxt);

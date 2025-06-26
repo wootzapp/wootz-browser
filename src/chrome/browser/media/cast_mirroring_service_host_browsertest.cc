@@ -73,7 +73,7 @@ content::DesktopMediaID BuildMediaIdForTabMirroring(
   content::DesktopMediaID media_id;
   content::RenderFrameHost* const main_frame =
       target_web_contents->GetPrimaryMainFrame();
-  const int process_id = main_frame->GetProcess()->GetID();
+  const int process_id = main_frame->GetProcess()->GetDeprecatedID();
   const int frame_id = main_frame->GetRoutingID();
   media_id.type = content::DesktopMediaID::TYPE_WEB_CONTENTS;
   media_id.web_contents_id = content::WebContentsMediaCaptureId(
@@ -272,7 +272,7 @@ class CastMirroringServiceHostBrowserTest
     content::WebContents* web_contents =
         browser()->tab_strip_model()->GetActiveWebContents();
     ASSERT_TRUE(web_contents);
-    int web_contents_source_tab_id =
+    content::FrameTreeNodeId web_contents_source_tab_id =
         web_contents->GetPrimaryMainFrame()->GetFrameTreeNodeId();
 
     ASSERT_NE(host_->GetTabSourceId(), web_contents_source_tab_id);
@@ -370,7 +370,7 @@ class CastMirroringServiceHostBrowserTest
       mojo::PendingRemote<media::mojom::AudioInputStream> stream,
       mojo::PendingReceiver<media::mojom::AudioInputStreamClient>
           client_receiver,
-      media::mojom::ReadOnlyAudioDataPipePtr data_pipe) override {
+      media::mojom::ReadWriteAudioDataPipePtr data_pipe) override {
     EXPECT_TRUE(stream);
     EXPECT_TRUE(client_receiver);
     EXPECT_TRUE(data_pipe);
@@ -403,8 +403,7 @@ IN_PROC_BROWSER_TEST_F(CastMirroringServiceHostBrowserTest, CaptureTabAudio) {
 IN_PROC_BROWSER_TEST_F(CastMirroringServiceHostBrowserTest, TabIndicator) {
   content::WebContents* const contents =
       browser()->tab_strip_model()->GetActiveWebContents();
-  ASSERT_THAT(chrome::GetTabAlertStatesForContents(contents),
-              ::testing::IsEmpty());
+  ASSERT_THAT(GetTabAlertStatesForContents(contents), ::testing::IsEmpty());
 
   // A TabStripModelObserver that quits the MessageLoop whenever the
   // UI's model is sent an event that might change the indicator status.
@@ -432,17 +431,16 @@ IN_PROC_BROWSER_TEST_F(CastMirroringServiceHostBrowserTest, TabIndicator) {
   };
 
   IndicatorChangeObserver observer(browser());
-  ASSERT_THAT(chrome::GetTabAlertStatesForContents(contents),
-              ::testing::IsEmpty());
+  ASSERT_THAT(GetTabAlertStatesForContents(contents), ::testing::IsEmpty());
   StartTabMirroring();
 
   // Run the browser until the indicator turns on.
   const base::TimeTicks start_time = base::TimeTicks::Now();
-  while (!base::Contains(chrome::GetTabAlertStatesForContents(contents),
+  while (!base::Contains(GetTabAlertStatesForContents(contents),
                          TabAlertState::TAB_CAPTURING)) {
     if (base::TimeTicks::Now() - start_time >
         TestTimeouts::action_max_timeout()) {
-      EXPECT_THAT(chrome::GetTabAlertStatesForContents(contents),
+      EXPECT_THAT(GetTabAlertStatesForContents(contents),
                   ::testing::Contains(TabAlertState::TAB_CAPTURING));
       return;
     }
@@ -473,30 +471,17 @@ IN_PROC_BROWSER_TEST_F(CastMirroringServiceHostBrowserTest,
 class CastMirroringServiceHostBrowserTestTabSwitcher
     : public CastMirroringServiceHostBrowserTest {
  public:
-  CastMirroringServiceHostBrowserTestTabSwitcher() {
-    feature_list_.InitWithFeatures({features::kAccessCodeCastTabSwitchingUI},
-                                   {});
-  }
-
+  CastMirroringServiceHostBrowserTestTabSwitcher() = default;
   CastMirroringServiceHostBrowserTestTabSwitcher(
       const CastMirroringServiceHostBrowserTestTabSwitcher&) = delete;
   CastMirroringServiceHostBrowserTestTabSwitcher& operator=(
       const CastMirroringServiceHostBrowserTestTabSwitcher&) = delete;
 
   ~CastMirroringServiceHostBrowserTestTabSwitcher() override = default;
-
-  void VerifyEnabledFeatures() {
-    ASSERT_TRUE(
-        base::FeatureList::IsEnabled(features::kAccessCodeCastTabSwitchingUI));
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(CastMirroringServiceHostBrowserTestTabSwitcher,
                        SwitchTabSource) {
-  VerifyEnabledFeatures();
   EnableAccessCodeCast();
   StartTabMirroring();
   GetVideoCaptureHost();

@@ -2,11 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type {FullscreenPreviewState} from 'chrome://resources/ash/common/personalization/wallpaper_state.js';
 import {assert} from 'chrome://resources/js/assert.js';
-import {Action} from 'chrome://resources/js/store.js';
+import type {Action} from 'chrome://resources/js/store.js';
 
-import {SeaPenImageId} from './constants.js';
-import {MantaStatusCode, RecentSeaPenThumbnailData, SeaPenQuery, SeaPenThumbnail} from './sea_pen.mojom-webui.js';
+import type {SeaPenImageId} from './constants.js';
+import type {MantaStatusCode, RecentSeaPenThumbnailData, SeaPenQuery, SeaPenThumbnail, TextQueryHistoryEntry} from './sea_pen.mojom-webui.js';
 
 /**
  * @fileoverview defines the actions to change SeaPen state.
@@ -33,7 +34,11 @@ export enum SeaPenActionName {
   SET_SELECTED_RECENT_SEA_PEN_IMAGE = 'set_selected_recent_sea_pen_image',
   SET_SHOULD_SHOW_SEA_PEN_INTRODUCTION_DIALOG =
       'set_should_show_sea_pen_introduction_dialog',
+  SET_SHOULD_SHOW_SEA_PEN_FREEFORM_INTRODUCTION_DIALOG =
+      'set_should_show_sea_pen_freeform_introduction_dialog',
   DISMISS_SEA_PEN_ERROR_ACTION = 'dismiss_sea_pen_error',
+  SET_SEA_PEN_FULLSCREEN_STATE = 'set_sea_pen_fullscreen_state',
+  SET_SEA_PEN_TEXT_QUERY_HISTORY = 'set_sea_pen_text_query_history',
 }
 
 export type SeaPenActions = BeginSearchSeaPenThumbnailsAction|
@@ -45,7 +50,9 @@ export type SeaPenActions = BeginSearchSeaPenThumbnailsAction|
     SetSeaPenThumbnailsAction|SetRecentSeaPenImagesAction|
     SetRecentSeaPenImageDataAction|SetSelectedRecentSeaPenImageAction|
     BeginSelectSeaPenThumbnailAction|EndSelectSeaPenThumbnailAction|
-    SetShouldShowSeaPenIntroductionDialogAction|DismissSeaPenErrorAction;
+    SetShouldShowSeaPenFreeformIntroductionDialogAction|
+    SetShouldShowSeaPenIntroductionDialogAction|DismissSeaPenErrorAction|
+    SetSeaPenFullscreenStateAction|SetSeaPenTextQueryHistory;
 
 export interface BeginSearchSeaPenThumbnailsAction extends Action {
   name: SeaPenActionName.BEGIN_SEARCH_SEA_PEN_THUMBNAILS;
@@ -76,7 +83,7 @@ export function setCurrentSeaPenQueryAction(query: SeaPenQuery):
 export interface SetSeaPenThumbnailsAction extends Action {
   name: SeaPenActionName.SET_SEA_PEN_THUMBNAILS;
   query: SeaPenQuery;
-  images: SeaPenThumbnail[]|null;
+  thumbnails: SeaPenThumbnail[]|null;
 }
 
 /**
@@ -84,8 +91,8 @@ export interface SetSeaPenThumbnailsAction extends Action {
  */
 export function setSeaPenThumbnailsAction(
     query: SeaPenQuery,
-    images: SeaPenThumbnail[]|null): SetSeaPenThumbnailsAction {
-  return {name: SeaPenActionName.SET_SEA_PEN_THUMBNAILS, query, images};
+    thumbnails: SeaPenThumbnail[]|null): SetSeaPenThumbnailsAction {
+  return {name: SeaPenActionName.SET_SEA_PEN_THUMBNAILS, query, thumbnails};
 }
 
 export interface BeginLoadRecentSeaPenImagesAction extends Action {
@@ -216,6 +223,19 @@ export function setSelectedRecentSeaPenImageAction(key: SeaPenImageId|null):
   };
 }
 
+export interface SetSeaPenTextQueryHistory extends Action {
+  name: SeaPenActionName.SET_SEA_PEN_TEXT_QUERY_HISTORY;
+  history: TextQueryHistoryEntry[]|null;
+}
+
+export function setSeaPenTextQueryHistory(history: TextQueryHistoryEntry[]|
+                                          null): SetSeaPenTextQueryHistory {
+  return {
+    name: SeaPenActionName.SET_SEA_PEN_TEXT_QUERY_HISTORY,
+    history,
+  };
+}
+
 /** Sets the Sea Pen thumbnail response status code. */
 export interface SetThumbnailResponseStatusCodeAction extends Action {
   name: SeaPenActionName.SET_THUMBNAIL_RESPONSE_STATUS_CODE;
@@ -303,10 +323,43 @@ export function setShouldShowSeaPenIntroductionDialogAction(
   };
 }
 
+export interface SetShouldShowSeaPenFreeformIntroductionDialogAction extends
+    Action {
+  name: SeaPenActionName.SET_SHOULD_SHOW_SEA_PEN_FREEFORM_INTRODUCTION_DIALOG;
+  shouldShowFreeformDialog: boolean;
+}
+
+/**
+ * Sets the boolean that determines whether to show the Sea Pen freeform
+ * introduction dialog.
+ */
+export function setShouldShowSeaPenFreeformIntroductionDialogAction(
+    shouldShowFreeformDialog: boolean):
+    SetShouldShowSeaPenFreeformIntroductionDialogAction {
+  assert(typeof shouldShowFreeformDialog === 'boolean');
+  return {
+    name: SeaPenActionName.SET_SHOULD_SHOW_SEA_PEN_FREEFORM_INTRODUCTION_DIALOG,
+    shouldShowFreeformDialog,
+  };
+}
+
 export interface DismissSeaPenErrorAction extends Action {
   name: SeaPenActionName.DISMISS_SEA_PEN_ERROR_ACTION;
 }
 
 export function dismissSeaPenErrorAction(): DismissSeaPenErrorAction {
   return {name: SeaPenActionName.DISMISS_SEA_PEN_ERROR_ACTION};
+}
+
+export interface SetSeaPenFullscreenStateAction extends Action {
+  name: SeaPenActionName.SET_SEA_PEN_FULLSCREEN_STATE;
+  state: FullscreenPreviewState;
+}
+
+/**
+ * Enables/disables the fullscreen preview mode for wallpaper.
+ */
+export function setSeaPenFullscreenStateAction(state: FullscreenPreviewState):
+    SetSeaPenFullscreenStateAction {
+  return {name: SeaPenActionName.SET_SEA_PEN_FULLSCREEN_STATE, state};
 }

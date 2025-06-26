@@ -43,9 +43,8 @@ class PrivateNetworkDevicePermissionContextFactory
   ~PrivateNetworkDevicePermissionContextFactory() override;
 
   // BrowserContextKeyedServiceFactory methods:
-  KeyedService* BuildServiceInstanceFor(
+  std::unique_ptr<KeyedService> BuildServiceInstanceForBrowserContext(
       content::BrowserContext* profile) const override;
-  void BrowserContextShutdown(content::BrowserContext* context) override;
 };
 
 #endif  // CHROME_BROWSER_PRIVATE_NETWORK_ACCESS_PRIVATE_NETWORK_DEVICE_PERMISSION_CONTEXT_FACTORY_H_

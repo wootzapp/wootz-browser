@@ -65,6 +65,10 @@ dictionary AuctionAdInterestGroup {
   sequence<USVString> trustedBiddingSignalsKeys;
   DOMString trustedBiddingSignalsSlotSizeMode;
   long maxTrustedBiddingSignalsURLLength;
+  [RuntimeEnabled=FledgeTrustedSignalsKVv2Support]
+  USVString trustedBiddingSignalsCoordinator;
+  [RuntimeEnabled=FledgeClickiness]
+  sequence<USVString> viewAndClickCountsProviders;
   any userBiddingSignals;
   sequence<AuctionAd> ads;
   sequence<AuctionAd> adComponents;

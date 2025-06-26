@@ -15,17 +15,16 @@ import android.view.MotionEvent;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.LooperMode;
 import org.robolectric.annotation.LooperMode.Mode;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.customtabs.features.partialcustomtab.ContentGestureListener.GestureState;
 import org.chromium.chrome.browser.customtabs.features.partialcustomtab.PartialCustomTabHandleStrategy.DragEventCallback;
 import org.chromium.chrome.browser.tab.Tab;
@@ -41,8 +40,7 @@ import java.util.function.BooleanSupplier;
 public class ContentGestureListenerTest {
     private static final float DISTX = 0.f;
 
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
-
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Tab mTab;
     @Mock private BooleanSupplier mIsFullyExpanded;
     @Mock private DragEventCallback mCallback;
@@ -55,7 +53,6 @@ public class ContentGestureListenerTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         mListener = new ContentGestureListener(() -> mTab, mCallback, mIsFullyExpanded);
         RenderCoordinatesImpl.setInstanceForTesting(mRenderCoordinates);
         when(mTab.getContentView()).thenReturn(mTabContentView);

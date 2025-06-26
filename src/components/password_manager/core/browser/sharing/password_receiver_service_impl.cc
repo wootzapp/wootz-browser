@@ -18,7 +18,7 @@
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
 #include "components/password_manager/core/browser/sharing/incoming_password_sharing_invitation_sync_bridge.h"
 #include "components/prefs/pref_service.h"
-#include "components/sync/model/model_type_controller_delegate.h"
+#include "components/sync/model/data_type_controller_delegate.h"
 #include "components/sync/service/sync_service.h"
 
 namespace password_manager {
@@ -180,7 +180,7 @@ void ProcessIncomingSharingInvitationTask::OnGetPasswordStoreResults(
   // TODO(crbug.com/40269204): process PSL and affilated credentials if needed.
   // TODO(crbug.com/40269204): process conflicting passwords differently if
   // necessary.
-  auto credential_with_same_username_it = base::ranges::find_if(
+  auto credential_with_same_username_it = std::ranges::find_if(
       results, [this](const std::unique_ptr<PasswordForm>& result) {
         return result->username_value == incoming_credentials_.username_value;
       });
@@ -241,7 +241,7 @@ void PasswordReceiverServiceImpl::ProcessIncomingSharingInvitation(
   // server. In case, `sync_service_` is null (e.g. due to a weird corner case
   // of destruction of sync service after delivering the invitation), both
   // checks below evaluate to false and hence the invitation will be ignored.
-  if (features_util::IsOptedInForAccountStorage(pref_service_, sync_service_)) {
+  if (features_util::IsAccountStorageEnabled(pref_service_, sync_service_)) {
     password_store = account_password_store_;
   } else if (sync_service_ && sync_service_->IsSyncFeatureEnabled()) {
     password_store = profile_password_store_;
@@ -283,7 +283,7 @@ void PasswordReceiverServiceImpl::RemoveTaskFromTasksList(
                   cached_task) { return cached_task.get() == task; });
 }
 
-base::WeakPtr<syncer::ModelTypeControllerDelegate>
+base::WeakPtr<syncer::DataTypeControllerDelegate>
 PasswordReceiverServiceImpl::GetControllerDelegate() {
   CHECK(sync_bridge_);
   return sync_bridge_->change_processor()->GetControllerDelegate();

@@ -16,19 +16,6 @@
 namespace extensions {
 
 // static
-// Must match ScopedTestNativeMessagingHost::kHostName.
-const char* const NativeMessageEchoHost::kHostName =
-    "com.google.chrome.test.echo";
-
-// static
-// Must match ScopedTestNativeMessagingHost::kExtensionId.
-const char* const NativeMessageEchoHost::kOrigins[] = {
-    "chrome-extension://knldjmfmopnpolahpmmgbagdohdnhkik/"};
-
-// static
-const size_t NativeMessageEchoHost::kOriginCount = std::size(kOrigins);
-
-// static
 std::unique_ptr<NativeMessageHost> NativeMessageEchoHost::Create(
     content::BrowserContext* browser_context) {
   return std::make_unique<NativeMessageEchoHost>();
@@ -50,6 +37,8 @@ void NativeMessageEchoHost::OnMessage(const std::string& request_string) {
     client_->CloseChannel(kNativeHostExited);
   } else if (request_string.find("bigMessageTest") != std::string::npos) {
     client_->CloseChannel(kHostInputOutputError);
+  } else if (request_string.find("sendInvalidResponse") != std::string::npos) {
+    SendInvalidResponse();
   } else {
     ProcessEcho(request_value->GetDict());
   }
@@ -68,6 +57,11 @@ void NativeMessageEchoHost::ProcessEcho(const base::Value::Dict& request) {
   std::string response_string;
   base::JSONWriter::Write(response, &response_string);
   client_->PostMessageFromNativeHost(response_string);
+}
+
+void NativeMessageEchoHost::SendInvalidResponse() {
+  // Send a malformed JSON string.
+  client_->PostMessageFromNativeHost("{");
 }
 
 }  // namespace extensions

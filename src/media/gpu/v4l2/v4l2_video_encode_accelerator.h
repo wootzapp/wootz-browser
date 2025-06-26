@@ -21,6 +21,7 @@
 #include "base/sequence_checker.h"
 #include "base/threading/thread.h"
 #include "base/time/time.h"
+#include "media/base/encoder_status.h"
 #include "media/gpu/chromeos/image_processor.h"
 #include "media/gpu/media_gpu_export.h"
 #include "media/gpu/v4l2/v4l2_device.h"
@@ -54,13 +55,17 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
 
   // VideoEncodeAccelerator implementation.
   VideoEncodeAccelerator::SupportedProfiles GetSupportedProfiles() override;
-  bool Initialize(const Config& config,
-                  Client* client,
-                  std::unique_ptr<MediaLog> media_log) override;
+  EncoderStatus Initialize(const Config& config,
+                           Client* client,
+                           std::unique_ptr<MediaLog> media_log) override;
   void Encode(scoped_refptr<VideoFrame> frame, bool force_keyframe) override;
   void UseOutputBitstreamBuffer(BitstreamBuffer buffer) override;
   void RequestEncodingParametersChange(
       const Bitrate& bitrate,
+      uint32_t framerate,
+      const std::optional<gfx::Size>& size) override;
+  void RequestEncodingParametersChange(
+      const VideoBitrateAllocation& bitrate_allocation,
       uint32_t framerate,
       const std::optional<gfx::Size>& size) override;
   void Destroy() override;
@@ -200,7 +205,7 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
 
   // Change encoding parameters.
   void RequestEncodingParametersChangeTask(
-      const Bitrate& bitrate,
+      const VideoBitrateAllocation& bitrate_allocation,
       uint32_t framerate,
       const std::optional<gfx::Size>& size);
 
@@ -254,6 +259,12 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
   // Recycle output buffer of image processor with |output_buffer_index|.
   void ReuseImageProcessorOutputBuffer(size_t output_buffer_index);
 
+  // Chrome specific metadata about the encoded frame.
+  BitstreamBufferMetadata GetMetadata(const uint8_t* data,
+                                      size_t data_size_bytes,
+                                      bool key_frame,
+                                      base::TimeDelta timestamp);
+
   // Copy encoded stream data from an output V4L2 buffer at |bitstream_data|
   // of size |bitstream_size| into a BitstreamBuffer referenced by |buffer_ref|,
   // injecting stream headers if required. Return the size in bytes of the
@@ -301,7 +312,7 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
   size_t output_buffer_byte_size_;
   uint32_t output_format_fourcc_;
 
-  Bitrate current_bitrate_;
+  VideoBitrateAllocation current_bitrate_allocation_;
   size_t current_framerate_;
 
   // Encoder state, owned and operated by |encoder_task_runner_|.
@@ -361,6 +372,9 @@ class MEDIA_GPU_EXPORT V4L2VideoEncodeAccelerator
   base::queue<InputFrameInfo> image_processor_input_queue_;
   // The number of frames that are being processed by |image_processor_|.
   size_t num_frames_in_image_processor_ = 0;
+
+  // Indicates whether V4L2VideoEncodeAccelerator runs in L1T2 or not.
+  bool h264_l1t2_enabled_ = false;
 
   const scoped_refptr<base::SequencedTaskRunner> encoder_task_runner_;
   SEQUENCE_CHECKER(encoder_sequence_checker_);

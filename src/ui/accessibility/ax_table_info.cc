@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <string>
+#include <unordered_set>
 
 #include "base/check.h"
 #include "base/logging.h"
@@ -59,7 +60,8 @@ bool isRowlessTable(AXNode* node) {
       return isRowlessTable(child);
     } else if (IsTableRow(child->GetRole())) {
       return false;
-    } else if (child->GetRole() == ax::mojom::Role::kCell) {
+    } else if (child->GetRole() == ax::mojom::Role::kCell ||
+               child->GetRole() == ax::mojom::Role::kGridCell) {
       // A row will always be reached before a cell if the table is not rowless.
       return true;
     }
@@ -98,7 +100,7 @@ void FindRows(AXNode* node,
 // 2-dimensional array.
 void FindCells(std::vector<raw_ptr<AXNode, VectorExperimental>>* row_node_list,
                std::vector<std::vector<AXNode*>>* cell_nodes_per_row) {
-  for (ui::AXNode* row : *row_node_list) {
+  for (AXNode* row : *row_node_list) {
     cell_nodes_per_row->emplace_back();
     FindCellsInRow(row, &cell_nodes_per_row->back());
   }
@@ -645,7 +647,7 @@ AXNode* AXTableInfo::CreateExtraMacTableHeaderNode() {
 }
 
 void AXTableInfo::UpdateExtraMacColumnNodeAttributes(size_t col_index) {
-  ui::AXNodeData data = extra_mac_nodes[col_index]->data();
+  AXNodeData data = extra_mac_nodes[col_index]->data();
   data.int_attributes.clear();
 
   // Update the column index.
@@ -679,19 +681,22 @@ void AXTableInfo::ClearExtraMacNodes() {
     return;
   }
 
+  std::set<AXNodeID> deleting_node_ids;
   for (AXNode* extra_mac_node : extra_mac_nodes) {
+    deleting_node_ids.insert(extra_mac_node->id());
     for (AXTreeObserver& observer : tree_->observers()) {
       observer.OnNodeWillBeDeleted(tree_, extra_mac_node);
     }
   }
 
-  std::vector<AXNodeID> deleted_ids;
+  for (AXTreeObserver& observer : tree_->observers()) {
+    observer.OnAtomicUpdateStarting(tree_, deleting_node_ids, {});
+  }
+
   {
     ScopedTreeUpdateInProgressStateSetter tree_update_in_progress(*tree_);
 
     for (AXNode* extra_mac_node : extra_mac_nodes) {
-      AXNodeID deleted_id = extra_mac_node->id();
-      deleted_ids.push_back(deleted_id);
       delete extra_mac_node;
     }
 
@@ -699,7 +704,7 @@ void AXTableInfo::ClearExtraMacNodes() {
 
   }  // tree_update_in_progress.
 
-  for (AXNodeID deleted_id : deleted_ids) {
+  for (AXNodeID deleted_id : deleting_node_ids) {
     for (AXTreeObserver& observer : tree_->observers()) {
       observer.OnNodeDeleted(tree_, deleted_id);
     }

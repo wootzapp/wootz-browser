@@ -4,6 +4,8 @@
 
 #include "services/network/ssl_config_service_mojo.h"
 
+#include <array>
+
 #include "base/feature_list.h"
 #include "base/files/file_util.h"
 #include "base/memory/raw_ptr.h"
@@ -319,27 +321,15 @@ TEST_F(NetworkServiceSSLConfigServiceTest, Sha1LocalAnchorsEnabled) {
   RunCertConversionTests(*mojo_config, expected_net_config);
 }
 
-TEST_F(NetworkServiceSSLConfigServiceTest, SymantecEnforcementDisabled) {
-  net::CertVerifier::Config expected_net_config;
-  // Use the opposite of the default value.
-  expected_net_config.disable_symantec_enforcement =
-      !expected_net_config.disable_symantec_enforcement;
-
-  mojom::SSLConfigPtr mojo_config = mojom::SSLConfig::New();
-  mojo_config->symantec_enforcement_disabled =
-      expected_net_config.disable_symantec_enforcement;
-
-  RunCertConversionTests(*mojo_config, expected_net_config);
-}
-
 TEST_F(NetworkServiceSSLConfigServiceTest, SSLVersion) {
-  const struct {
+  struct VersionTable {
     mojom::SSLVersion mojo_ssl_version;
     int net_ssl_version;
-  } kVersionTable[] = {
+  };
+  const auto kVersionTable = std::to_array<VersionTable>({
       {mojom::SSLVersion::kTLS12, net::SSL_PROTOCOL_VERSION_TLS1_2},
       {mojom::SSLVersion::kTLS13, net::SSL_PROTOCOL_VERSION_TLS1_3},
-  };
+  });
 
   for (size_t min_index = 0; min_index < std::size(kVersionTable);
        ++min_index) {

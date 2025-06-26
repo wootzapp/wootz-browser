@@ -11,20 +11,18 @@
 
 namespace blink {
 
-class XRSession;
-class XRProjectionLayerInit;
 class XRRigidTransform;
 
-class XRProjectionLayer final : public XRCompositionLayer {
+class XRProjectionLayer : public XRCompositionLayer {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  XRProjectionLayer(XRSession* session, const XRProjectionLayerInit* init);
+  explicit XRProjectionLayer(XRGraphicsBinding* binding);
   ~XRProjectionLayer() override = default;
 
-  uint16_t textureWidth() const;
-  uint16_t textureHeight() const;
-  uint16_t textureArrayLength() const;
+  virtual uint16_t textureWidth() const = 0;
+  virtual uint16_t textureHeight() const = 0;
+  virtual uint16_t textureArrayLength() const = 0;
 
   bool ignoreDepthValues() const;
   std::optional<float> fixedFoveation() const;
@@ -35,9 +33,6 @@ class XRProjectionLayer final : public XRCompositionLayer {
   void Trace(Visitor*) const override;
 
  private:
-  uint16_t texture_width_{0L};
-  uint16_t texture_height_{0L};
-  uint16_t texture_array_length_{1L};
   bool ignore_depth_values_{true};
   std::optional<float> fixed_foveation_{std::nullopt};
   Member<XRRigidTransform> delta_pose_{nullptr};

@@ -12,8 +12,7 @@
 #include "components/manta/proto/manta.pb.h"
 #include "ui/gfx/geometry/size.h"
 
-inline constexpr std::string_view kTemplateIdTag =
-    "chromeos_wallpaper_template_id";
+inline constexpr std::string_view kTemplateIdTag = "template_id";
 
 namespace wallpaper_handlers {
 
@@ -24,7 +23,7 @@ gfx::Size GetLargestDisplaySizeLandscape();
 
 // Helper function to validate the Manta API output data.
 bool IsValidOutput(const manta::proto::OutputData& output,
-                   const std::string_view source);
+                   std::string_view source);
 
 // Common helper function between `FetchThumbnails` and `FetchWallpaper`.
 manta::proto::Request CreateMantaRequest(
@@ -35,7 +34,7 @@ manta::proto::Request CreateMantaRequest(
     manta::proto::FeatureName feature_name);
 
 std::string GetFeedbackText(
-    const ash::personalization_app::mojom::SeaPenTemplateQueryPtr& query,
+    const ash::personalization_app::mojom::SeaPenQueryPtr& query,
     const ash::personalization_app::mojom::SeaPenFeedbackMetadataPtr& metadata);
 
 }  // namespace wallpaper_handlers

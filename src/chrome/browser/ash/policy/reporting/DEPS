@@ -16,6 +16,7 @@ include_rules = [
   # directory basis. See //tools/chromeos/gen_deps.sh for details.
   "+chrome/browser/apps/app_service",
   "+chrome/browser/ash/app_list/arc",
+  "+chrome/browser/ash/app_mode",
   "+chrome/browser/ash/arc",
   "+chrome/browser/ash/login/app_mode",
   "+chrome/browser/ash/login/lock",
@@ -28,6 +29,8 @@ include_rules = [
   "+chrome/browser/ash/policy/core",
   "+chrome/browser/ash/policy/status_collector",
   "+chrome/browser/ash/policy/test_support",
+  "+chrome/browser/ash/policy/remote_commands",
+  "+chrome/browser/ash/power/ml/idle_event_notifier.h",
   "+chrome/browser/ash/profiles",
   "+chrome/browser/ash/settings",
   "+chrome/browser/browser_process.h",

@@ -35,6 +35,7 @@
 #include "media/filters/ffmpeg_audio_decoder.h"
 #include "media/filters/in_memory_url_protocol.h"
 #include "media/media_buildflags.h"
+#include "media/mojo/services/gpu_mojo_media_client_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -48,6 +49,7 @@
 #endif
 
 #if BUILDFLAG(IS_WIN)
+#include "base/win/scoped_com_initializer.h"
 #include "media/filters/win/media_foundation_audio_decoder.h"
 #endif
 
@@ -131,6 +133,7 @@ class AudioDecoderTest
         pending_decode_(false),
         pending_reset_(false),
         last_decode_status_(DecoderStatus::Codes::kFailed) {
+    AddSupplementalCodecsForTesting();
     switch (decoder_type_) {
       case AudioDecoderType::kFFmpeg:
         decoder_ = std::make_unique<FFmpegAudioDecoder>(
@@ -173,7 +176,7 @@ class AudioDecoderTest
  protected:
   bool IsSupported() const {
     if (params_.profile == AudioCodecProfile::kXHE_AAC) {
-      return IsSupportedAudioType(
+      return IsDecoderSupportedAudioType(
           {AudioCodec::kAAC, AudioCodecProfile::kXHE_AAC, false});
     }
     return true;
@@ -204,8 +207,7 @@ class AudioDecoderTest
   void Initialize() {
     // Load the test data file.
     data_ = ReadTestDataFile(params_.filename);
-    protocol_ = std::make_unique<InMemoryUrlProtocol>(data_->data(),
-                                                      data_->size(), false);
+    protocol_ = std::make_unique<InMemoryUrlProtocol>(*data_, false);
     reader_ = std::make_unique<AudioFileReader>(protocol_.get());
     ASSERT_TRUE(reader_->OpenDemuxerForTesting());
 
@@ -402,6 +404,11 @@ class AudioDecoderTest
   TestParams params_;
 
   base::test::SingleThreadTaskEnvironment task_environment_;
+
+#if BUILDFLAG(IS_WIN)
+  // MediaFoundationAudioDecoder calls CoInitialize() when creating the decoder.
+  base::win::ScopedCOMInitializer com_initializer_;
+#endif  // BUILDFLAG(IS_WIN)
 
   NullMediaLog media_log_;
   scoped_refptr<DecoderBuffer> data_;

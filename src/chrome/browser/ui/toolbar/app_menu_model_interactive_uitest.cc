@@ -6,6 +6,7 @@
 #include <string>
 
 #include "base/feature_list.h"
+#include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
@@ -13,8 +14,10 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
 #include "chrome/app/vector_icons/vector_icons.h"
+#include "chrome/browser/extensions/unpacked_installer.h"
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/signin/identity_test_environment_profile_adaptor.h"
 #include "chrome/browser/ui/accelerator_utils.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
@@ -23,10 +26,13 @@
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/test/web_app_icon_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_test_utils.h"
+#include "chrome/browser/web_applications/web_app_command_scheduler.h"
+#include "chrome/browser/web_applications/web_app_provider.h"
+#include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/common/chrome_features.h"
-#include "chrome/common/extensions/api/dashboard_private.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/interactive_test_utils.h"
@@ -34,15 +40,22 @@
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "chrome/test/interaction/tracked_element_webcontents.h"
 #include "chrome/test/interaction/webcontents_interaction_test_util.h"
+#include "components/crx_file/id_util.h"
 #include "components/password_manager/core/common/password_manager_features.h"
 #include "components/performance_manager/public/features.h"
+#include "components/signin/public/identity_manager/identity_test_environment.h"
+#include "components/supervised_user/core/common/features.h"
+#include "components/supervised_user/test_support/supervised_user_signin_test_utils.h"
 #include "components/webapps/browser/banners/app_banner_manager.h"
 #include "components/webapps/browser/banners/installable_web_app_check_result.h"
 #include "components/webapps/browser/banners/web_app_banner_data.h"
 #include "components/webapps/browser/installable/installable_metrics.h"
 #include "content/public/test/browser_test.h"
-#include "extensions/common/extension_features.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_system.h"
+#include "extensions/browser/test_extension_registry_observer.h"
 #include "extensions/common/extension_urls.h"
+#include "extensions/test/test_extension_dir.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/accelerators/menu_label_accelerator_util.h"
@@ -52,10 +65,10 @@
 #include "ui/base/interaction/interaction_sequence.h"
 #include "ui/base/interaction/state_observer.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/models/simple_menu_model.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_operations.h"
+#include "ui/menus/simple_menu_model.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "url/gurl.h"
 
@@ -106,7 +119,24 @@ class AppMenuModelInteractiveTest : public InteractiveBrowserTest {
     }));
   }
 
-  base::test::ScopedFeatureList scoped_feature_list_;
+  auto CheckGuestWindowOpened(const Browser* default_browser) {
+    return Check(base::BindLambdaForTesting([default_browser]() {
+      Browser* new_browser = nullptr;
+      if (BrowserList::GetGuestBrowserCount() == 1) {
+        EXPECT_EQ(2u, BrowserList::GetInstance()->size());
+        for (Browser* browser : *BrowserList::GetInstance()) {
+          if (browser != default_browser) {
+            new_browser = browser;
+            break;
+          }
+        }
+        CHECK(new_browser);
+      } else {
+        new_browser = ui_test_utils::WaitForBrowserToOpen();
+      }
+      return new_browser->profile()->IsGuestSession();
+    }));
+  }
 };
 
 IN_PROC_BROWSER_TEST_F(AppMenuModelInteractiveTest, PerformanceNavigation) {
@@ -136,83 +166,110 @@ IN_PROC_BROWSER_TEST_F(AppMenuModelInteractiveTest, IncognitoAccelerator) {
       CheckIncognitoWindowOpened(browser()));
 }
 
-class ExtensionsMenuModelInteractiveTest : public AppMenuModelInteractiveTest {
- public:
-  explicit ExtensionsMenuModelInteractiveTest(bool enable_feature = true) {
-    std::vector<base::test::FeatureRef> enabled_features;
-    std::vector<base::test::FeatureRef> disabled_features;
-    if (enable_feature) {
-      enabled_features = {features::kExtensionsMenuInAppMenu};
-      disabled_features = {features::kChromeRefresh2023};
-    } else {
-      enabled_features = {};
-      disabled_features = {features::kExtensionsMenuInAppMenu,
-                           features::kChromeRefresh2023};
-    }
-    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
+IN_PROC_BROWSER_TEST_F(AppMenuModelInteractiveTest,
+                       CastSaveShareSubMenuItemText) {
+  if (!media_router::MediaRouterEnabled(browser()->profile())) {
+    GTEST_SKIP() << "The cast item only exists if cast is enabled.";
   }
-  ~ExtensionsMenuModelInteractiveTest() override = default;
-  ExtensionsMenuModelInteractiveTest(
-      const ExtensionsMenuModelInteractiveTest&) = delete;
-  void operator=(const ExtensionsMenuModelInteractiveTest&) = delete;
+  RunTestSequence(
+      InstrumentTab(kPrimaryTabPageElementId),
+      PressButton(kToolbarAppMenuButtonElementId),
+      EnsurePresent(AppMenuModel::kSaveAndShareMenuItem),
+      CheckViewProperty(
+          AppMenuModel::kSaveAndShareMenuItem, &views::MenuItemView::title,
+          l10n_util::GetStringUTF16(IDS_CAST_SAVE_AND_SHARE_MENU)),
+      ScrollIntoView(AppMenuModel::kSaveAndShareMenuItem),
+      SelectMenuItem(AppMenuModel::kSaveAndShareMenuItem),
+      EnsurePresent(AppMenuModel::kCastTitleItem));
+}
+
+namespace {
+
+enum ExtensionsTestMode {
+  kDoNotCollapse,
+  kCollapseNoExtensions,
+  kCollapseWithExtensions
+};
+
+}  // namespace
+
+class AppMenuModelExtensionsInteractiveTest
+    : public AppMenuModelInteractiveTest,
+      public testing::WithParamInterface<ExtensionsTestMode> {
+ public:
+  AppMenuModelExtensionsInteractiveTest() = default;
+  ~AppMenuModelExtensionsInteractiveTest() override = default;
+
+  bool MenuShouldCollapse() const {
+    return GetParam() == ExtensionsTestMode::kCollapseNoExtensions;
+  }
 
   void SetUp() override {
+    scoped_feature_list_.InitWithFeatureState(
+        features::kExtensionsCollapseMainMenu,
+        GetParam() != ExtensionsTestMode::kDoNotCollapse);
     set_open_about_blank_on_browser_launch(true);
     ASSERT_TRUE(embedded_test_server()->InitializeAndListen());
     InteractiveBrowserTest::SetUp();
   }
 
- protected:
-  base::HistogramTester histograms;
-};
+  void SetUpOnMainThread() override {
+    if (GetParam() == ExtensionsTestMode::kCollapseWithExtensions) {
+      // Create and load a dummy extension.
+      constexpr char kExtensionManifest[] = R"(
+        {
+          "name": "an extension",
+          "version": "1.0",
+          "manifest_version": 3,
+          "action": {}
+        }
+      )";
+      extensions::TestExtensionDir dir;
+      dir.WriteManifest(kExtensionManifest);
+      const auto id = crx_file::id_util::GenerateIdForPath(
+          base::MakeAbsoluteFilePath(dir.UnpackedPath()));
+      auto* const registry =
+          extensions::ExtensionRegistry::Get(browser()->profile());
+      CHECK(registry);
+      extensions::TestExtensionRegistryObserver observer(registry, id);
+      extensions::UnpackedInstaller::Create(browser()->profile())
+          ->Load(dir.UnpackedPath());
+      observer.WaitForExtensionLoaded();
+    }
+    AppMenuModelInteractiveTest::SetUpOnMainThread();
+  }
 
-class ExtensionsMenuModelPresenceTest
-    : public ExtensionsMenuModelInteractiveTest,
-      public testing::WithParamInterface<bool> {
- public:
-  ExtensionsMenuModelPresenceTest()
-      : ExtensionsMenuModelInteractiveTest(/*enable_feature=*/GetParam()) {}
-  ~ExtensionsMenuModelPresenceTest() override = default;
-  ExtensionsMenuModelPresenceTest(const ExtensionsMenuModelPresenceTest&) =
-      delete;
-  void operator=(const ExtensionsMenuModelPresenceTest&) = delete;
+ protected:
+  base::HistogramTester histograms_;
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 INSTANTIATE_TEST_SUITE_P(
-    All,
-    ExtensionsMenuModelPresenceTest,
-    testing::Bool(),
-    [](const testing::TestParamInfo<ExtensionsMenuModelPresenceTest::ParamType>&
-           info) { return info.param ? "InRootAppMenu" : "NotInRootAppMenu"; });
-
-// Test to confirm that the structure of the Extensions menu is present but that
-// no histograms are logged since it isn't interacted with.
-IN_PROC_BROWSER_TEST_P(ExtensionsMenuModelPresenceTest, MenuPresence) {
-  if (features::IsExtensionMenuInRootAppMenu()) {  // Menu enabled
-    RunTestSequence(
-        InstrumentTab(kPrimaryTabPageElementId),
-        PressButton(kToolbarAppMenuButtonElementId),
-        EnsurePresent(AppMenuModel::kExtensionsMenuItem),
-        SelectMenuItem(AppMenuModel::kExtensionsMenuItem),
-        EnsurePresent(ExtensionsMenuModel::kManageExtensionsMenuItem),
-        EnsurePresent(ExtensionsMenuModel::kVisitChromeWebStoreMenuItem));
-  } else {
-    RunTestSequence(InstrumentTab(kPrimaryTabPageElementId),
-                    PressButton(kToolbarAppMenuButtonElementId),
-                    EnsureNotPresent(AppMenuModel::kExtensionsMenuItem));
-  }
-
-  histograms.ExpectTotalCount("WrenchMenu.TimeToAction.VisitChromeWebStore", 0);
-  histograms.ExpectTotalCount("WrenchMenu.TimeToAction.ManageExtensions", 0);
-  histograms.ExpectBucketCount("WrenchMenu.MenuAction",
-                               MENU_ACTION_MANAGE_EXTENSIONS, 0);
-  histograms.ExpectBucketCount("WrenchMenu.MenuAction",
-                               MENU_ACTION_VISIT_CHROME_WEB_STORE, 0);
-}
+    ,
+    AppMenuModelExtensionsInteractiveTest,
+    testing::Values(ExtensionsTestMode::kDoNotCollapse,
+                    ExtensionsTestMode::kCollapseNoExtensions,
+                    ExtensionsTestMode::kCollapseWithExtensions),
+    [](const testing::TestParamInfo<ExtensionsTestMode>& param) {
+      switch (param.param) {
+        case ExtensionsTestMode::kDoNotCollapse:
+          return "DoNotCollapse";
+        case ExtensionsTestMode::kCollapseNoExtensions:
+          return "CollapseNoExtensions";
+        case ExtensionsTestMode::kCollapseWithExtensions:
+          return "CollapseWithExtensions";
+      }
+    });
 
 // Test to confirm that the manage extensions menu item navigates when selected
-// and emite histograms that it did so.
-IN_PROC_BROWSER_TEST_F(ExtensionsMenuModelInteractiveTest, ManageExtensions) {
+// and emit histograms that it did so.
+IN_PROC_BROWSER_TEST_P(AppMenuModelExtensionsInteractiveTest,
+                       ManageExtensions) {
+  if (MenuShouldCollapse()) {
+    GTEST_SKIP()
+        << "Manage extensions cannot be accessed through collapsed menu.";
+  }
+
   RunTestSequence(
       InstrumentTab(kPrimaryTabPageElementId),
       PressButton(kToolbarAppMenuButtonElementId),
@@ -221,78 +278,50 @@ IN_PROC_BROWSER_TEST_F(ExtensionsMenuModelInteractiveTest, ManageExtensions) {
       WaitForWebContentsNavigation(kPrimaryTabPageElementId,
                                    GURL(chrome::kChromeUIExtensionsURL)));
 
-  histograms.ExpectTotalCount("WrenchMenu.TimeToAction.ManageExtensions", 1);
-  histograms.ExpectTotalCount("WrenchMenu.TimeToAction.VisitChromeWebStore", 0);
-  histograms.ExpectBucketCount("WrenchMenu.MenuAction",
-                               MENU_ACTION_MANAGE_EXTENSIONS, 1);
-  histograms.ExpectBucketCount("WrenchMenu.MenuAction",
-                               MENU_ACTION_VISIT_CHROME_WEB_STORE, 0);
+  histograms_.ExpectTotalCount("WrenchMenu.TimeToAction.ManageExtensions", 1);
+  histograms_.ExpectTotalCount("WrenchMenu.TimeToAction.VisitChromeWebStore",
+                               0);
+  histograms_.ExpectTotalCount("WrenchMenu.TimeToAction.FindExtensions", 0);
+  histograms_.ExpectBucketCount("WrenchMenu.MenuAction",
+                                MENU_ACTION_MANAGE_EXTENSIONS, 1);
+  histograms_.ExpectBucketCount("WrenchMenu.MenuAction",
+                                MENU_ACTION_VISIT_CHROME_WEB_STORE, 0);
+  histograms_.ExpectBucketCount("WrenchMenu.MenuAction",
+                                MENU_ACTION_FIND_EXTENSIONS, 0);
 }
-
-// TODO(crbug.com/40073814): Remove this test in favor of a unit test
-// extension_urls::GetWebstoreLaunchURL().
-class ExtensionsMenuVisitChromeWebstoreModelInteractiveTest
-    : public AppMenuModelInteractiveTest,
-      public testing::WithParamInterface<bool> {
- public:
-  ExtensionsMenuVisitChromeWebstoreModelInteractiveTest() {
-    std::vector<base::test::FeatureRef> enabled_features = {
-        features::kExtensionsMenuInAppMenu};
-    std::vector<base::test::FeatureRef> disabled_features{};
-    if (GetParam()) {
-      enabled_features.push_back(extensions_features::kNewWebstoreURL);
-    } else {
-      LOG(ERROR) << "disabling new webstore URL";
-      disabled_features.push_back(extensions_features::kNewWebstoreURL);
-    }
-    scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
-  }
-
-  void SetUp() override {
-    set_open_about_blank_on_browser_launch(true);
-    ASSERT_TRUE(embedded_test_server()->InitializeAndListen());
-    InteractiveBrowserTest::SetUp();
-  }
-
- protected:
-  base::HistogramTester histograms;
-};
-
-INSTANTIATE_TEST_SUITE_P(
-    All,
-    ExtensionsMenuVisitChromeWebstoreModelInteractiveTest,
-    // extensions_features::kNewWebstoreURL enabled status.
-    testing::Bool(),
-    [](const testing::TestParamInfo<ExtensionsMenuModelPresenceTest::ParamType>&
-           info) {
-      return info.param ? "NewVisitChromeWebstoreUrl"
-                        : "OldVisitChromeWebstoreUrl";
-    });
 
 // Test to confirm that the visit Chrome Web Store menu item navigates to the
 // correct chrome webstore URL when selected and emits histograms that it did
 // so.
-IN_PROC_BROWSER_TEST_P(ExtensionsMenuVisitChromeWebstoreModelInteractiveTest,
+IN_PROC_BROWSER_TEST_P(AppMenuModelExtensionsInteractiveTest,
                        VisitChromeWebStore) {
-  GURL expected_webstore_launch_url =
-      GetParam() ? extension_urls::GetNewWebstoreLaunchURL()
-                 : extension_urls::GetWebstoreLaunchURL();
+  const bool collapse = MenuShouldCollapse();
+  const GURL expected_webstore_launch_url =
+      extension_urls::GetNewWebstoreLaunchURL();
   RunTestSequence(
       InstrumentTab(kPrimaryTabPageElementId),
       PressButton(kToolbarAppMenuButtonElementId),
-      SelectMenuItem(AppMenuModel::kExtensionsMenuItem),
+      // If not collapsed, then the web store item is in the extensions submenu.
+      If([collapse]() { return !collapse; },
+         Then(SelectMenuItem(AppMenuModel::kExtensionsMenuItem))),
       SelectMenuItem(ExtensionsMenuModel::kVisitChromeWebStoreMenuItem),
       WaitForWebContentsNavigation(
           kPrimaryTabPageElementId,
           extension_urls::AppendUtmSource(expected_webstore_launch_url,
                                           extension_urls::kAppMenuUtmSource)));
 
-  histograms.ExpectTotalCount("WrenchMenu.TimeToAction.VisitChromeWebStore", 1);
-  histograms.ExpectTotalCount("WrenchMenu.TimeToAction.ManageExtensions", 0);
-  histograms.ExpectBucketCount("WrenchMenu.MenuAction",
-                               MENU_ACTION_VISIT_CHROME_WEB_STORE, 1);
-  histograms.ExpectBucketCount("WrenchMenu.MenuAction",
-                               MENU_ACTION_MANAGE_EXTENSIONS, 0);
+  histograms_.ExpectTotalCount("WrenchMenu.TimeToAction.VisitChromeWebStore",
+                               collapse ? 0 : 1);
+  histograms_.ExpectTotalCount("WrenchMenu.TimeToAction.FindExtensions",
+                               collapse ? 1 : 0);
+  histograms_.ExpectTotalCount("WrenchMenu.TimeToAction.ManageExtensions", 0);
+  histograms_.ExpectBucketCount("WrenchMenu.MenuAction",
+                                MENU_ACTION_VISIT_CHROME_WEB_STORE,
+                                collapse ? 0 : 1);
+  histograms_.ExpectBucketCount("WrenchMenu.MenuAction",
+                                MENU_ACTION_FIND_EXTENSIONS, collapse ? 1 : 0);
+  histograms_.ExpectBucketCount("WrenchMenu.MenuAction",
+                                MENU_ACTION_MANAGE_EXTENSIONS, 0);
 }
 
 class PasswordManagerMenuItemInteractiveTest
@@ -335,75 +364,6 @@ IN_PROC_BROWSER_TEST_F(PasswordManagerMenuItemInteractiveTest,
       EnsureNotPresent(AppMenuModel::kPasswordManagerMenuItem));
 }
 
-class CastExperimentAppMenuModelInteractiveTest
-    : public AppMenuModelInteractiveTest {
- public:
-  CastExperimentAppMenuModelInteractiveTest() {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        /*enabled_features=*/
-        {{features::kCastAppMenuExperiment,
-          {{features::kCastListedFirst.name, "false"}}},
-         {features::kChromeRefresh2023, {}}},
-        /*disabled_features=*/{});
-  }
-  CastExperimentAppMenuModelInteractiveTest(
-      const CastExperimentAppMenuModelInteractiveTest&) = delete;
-  void operator=(const CastExperimentAppMenuModelInteractiveTest&) = delete;
-
-  ~CastExperimentAppMenuModelInteractiveTest() override = default;
-};
-
-IN_PROC_BROWSER_TEST_F(CastExperimentAppMenuModelInteractiveTest,
-                       SaveShareCastSubMenuItemText) {
-  if (!media_router::MediaRouterEnabled(browser()->profile())) {
-    GTEST_SKIP()
-        << "The cast experiment tested here only exists if cast is enabled.";
-  }
-  RunTestSequence(
-      InstrumentTab(kPrimaryTabPageElementId),
-      PressButton(kToolbarAppMenuButtonElementId),
-      EnsurePresent(AppMenuModel::kSaveAndShareMenuItem),
-      CheckViewProperty(
-          AppMenuModel::kSaveAndShareMenuItem, &views::MenuItemView::title,
-          l10n_util::GetStringUTF16(IDS_SAVE_SHARE_AND_CAST_MENU)));
-}
-
-class CastListedFirstExperimentAppMenuModelInteractiveTest
-    : public AppMenuModelInteractiveTest {
- public:
-  CastListedFirstExperimentAppMenuModelInteractiveTest() {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        /*enabled_features=*/
-        {{features::kCastAppMenuExperiment,
-          {{features::kCastListedFirst.name, "true"}}},
-         {features::kChromeRefresh2023, {}}},
-        /*disabled_features=*/{});
-  }
-  CastListedFirstExperimentAppMenuModelInteractiveTest(
-      const CastListedFirstExperimentAppMenuModelInteractiveTest&) = delete;
-  void operator=(const CastListedFirstExperimentAppMenuModelInteractiveTest&) =
-      delete;
-
-  ~CastListedFirstExperimentAppMenuModelInteractiveTest() override = default;
-};
-
-IN_PROC_BROWSER_TEST_F(CastListedFirstExperimentAppMenuModelInteractiveTest,
-                       CastSaveShareSubMenuItemText) {
-  if (!media_router::MediaRouterEnabled(browser()->profile())) {
-    GTEST_SKIP()
-        << "The cast experiment tested here only exists if cast is enabled.";
-  }
-  RunTestSequence(
-      InstrumentTab(kPrimaryTabPageElementId),
-      PressButton(kToolbarAppMenuButtonElementId),
-      EnsurePresent(AppMenuModel::kSaveAndShareMenuItem),
-      CheckViewProperty(
-          AppMenuModel::kSaveAndShareMenuItem, &views::MenuItemView::title,
-          l10n_util::GetStringUTF16(IDS_CAST_SAVE_AND_SHARE_MENU)),
-      SelectMenuItem(AppMenuModel::kSaveAndShareMenuItem),
-      EnsurePresent(AppMenuModel::kCastTitleItem));
-}
-
 using ui::test::ObservationStateObserver;
 using webapps::AppBannerManager;
 using webapps::InstallableWebAppCheckResult;
@@ -438,18 +398,9 @@ DEFINE_LOCAL_STATE_IDENTIFIER_VALUE(AppBannerManagerInstallStateObserver,
 }  // namespace
 
 class UniversalInstallAppMenuModelInteractiveTest
-    : public AppMenuModelInteractiveTest,
-      public testing::WithParamInterface<bool> {
+    : public AppMenuModelInteractiveTest {
  public:
-  UniversalInstallAppMenuModelInteractiveTest() {
-    if (GetParam()) {
-      scoped_feature_list_.InitAndEnableFeature(
-          features::kWebAppUniversalInstall);
-    } else {
-      scoped_feature_list_.InitAndDisableFeature(
-          features::kWebAppUniversalInstall);
-    }
-  }
+  UniversalInstallAppMenuModelInteractiveTest() = default;
   UniversalInstallAppMenuModelInteractiveTest(
       const UniversalInstallAppMenuModelInteractiveTest&) = delete;
   void operator=(const UniversalInstallAppMenuModelInteractiveTest&) = delete;
@@ -465,24 +416,25 @@ class UniversalInstallAppMenuModelInteractiveTest
     return embedded_test_server()->GetURL("/banners/manifest_test_page.html");
   }
 
+  GURL GetInvalidManifestParsingAppUrl() {
+    return embedded_test_server()->GetURL(
+        "/banners/invalid_manifest_test_page.html");
+  }
+
   // If universal install is enabled, non installable sites (DIY apps) will have
   // a corresponding menu item entry for installation, as well as the default
   // install icon next to them.
   auto VerifyDiyAppMenuItemViews() {
-    if (ShouldShowDiyAppInstallOption()) {
-      const ui::ImageModel icon_image = ui::ImageModel::FromVectorIcon(
-          kInstallDesktopChromeRefreshIcon, ui::kColorMenuIcon,
-          ui::SimpleMenuModel::kDefaultIconSize);
-      return Steps(
-          EnsurePresent(AppMenuModel::kInstallAppItem),
-          CheckViewProperty(
-              AppMenuModel::kInstallAppItem, &views::MenuItemView::title,
-              l10n_util::GetStringUTF16(IDS_INSTALL_DIY_TO_OS_LAUNCH_SURFACE)),
-          CheckViewProperty(AppMenuModel::kInstallAppItem,
-                            &views::MenuItemView::GetIcon, icon_image));
-    } else {
-      return Steps(EnsureNotPresent(AppMenuModel::kInstallAppItem));
-    }
+    const ui::ImageModel icon_image = ui::ImageModel::FromVectorIcon(
+        kInstallDesktopChromeRefreshIcon, ui::kColorMenuIcon,
+        ui::SimpleMenuModel::kDefaultIconSize);
+    return Steps(
+        EnsurePresent(AppMenuModel::kInstallAppItem),
+        CheckViewProperty(
+            AppMenuModel::kInstallAppItem, &views::MenuItemView::title,
+            l10n_util::GetStringUTF16(IDS_INSTALL_DIY_TO_OS_LAUNCH_SURFACE)),
+        CheckViewProperty(AppMenuModel::kInstallAppItem,
+                          &views::MenuItemView::GetIcon, icon_image));
   }
 
   AppBannerManager* GetManager() {
@@ -497,17 +449,10 @@ class UniversalInstallAppMenuModelInteractiveTest
   // so we do a 1:1 comparison.
   auto CompareIcons() {
     return base::BindLambdaForTesting([&](views::MenuItemView* item_view) {
-      if (GetParam()) {
-        EXPECT_TRUE(item_view->GetIcon().IsImage());
-        EXPECT_EQ(
-            GetMidColorFromBitmap(item_view->GetIcon().GetImage().AsBitmap()),
-            GetAppIconColorBasedOnBannerData());
-      } else {
-        EXPECT_EQ(item_view->GetIcon(),
-                  ui::ImageModel::FromVectorIcon(
-                      kInstallDesktopChromeRefreshIcon, ui::kColorMenuIcon,
-                      ui::SimpleMenuModel::kDefaultIconSize));
-      }
+      EXPECT_TRUE(item_view->GetIcon().IsImage());
+      EXPECT_EQ(
+          GetMidColorFromBitmap(item_view->GetIcon().GetImage().AsBitmap()),
+          GetAppIconColorBasedOnBannerData());
     });
   }
 
@@ -518,7 +463,8 @@ class UniversalInstallAppMenuModelInteractiveTest
     install_info->user_display_mode =
         web_app::mojom::UserDisplayMode::kStandalone;
     web_app::WebAppInstallParams params;
-    params.locally_installed = false;
+    params.install_state =
+        web_app::proto::InstallState::SUGGESTED_FROM_ANOTHER_DEVICE;
     params.add_to_applications_menu = false;
     params.add_to_desktop = false;
     params.add_to_quick_launch_bar = false;
@@ -531,19 +477,12 @@ class UniversalInstallAppMenuModelInteractiveTest
         webapps::WebappInstallSource::SYNC, result.GetCallback(), params);
     bool success = result.Wait();
     const webapps::AppId& app_id = result.Get<webapps::AppId>();
-    EXPECT_FALSE(provider->registrar_unsafe().IsLocallyInstalled(app_id));
+    EXPECT_EQ(provider->registrar_unsafe().GetInstallState(app_id),
+              web_app::proto::SUGGESTED_FROM_ANOTHER_DEVICE);
     return success;
   }
 
  private:
-  bool ShouldShowDiyAppInstallOption() {
-#if BUILDFLAG(IS_CHROMEOS)
-    return false;
-#else
-    return GetParam();
-#endif  // BUILDFLAG(IS_CHROMEOS)
-  }
-
   SkColor GetAppIconColorBasedOnBannerData() {
     std::optional<WebAppBannerData> banner_data =
         GetManager()->GetCurrentWebAppBannerData();
@@ -568,7 +507,7 @@ class UniversalInstallAppMenuModelInteractiveTest
   }
 };
 
-IN_PROC_BROWSER_TEST_P(UniversalInstallAppMenuModelInteractiveTest,
+IN_PROC_BROWSER_TEST_F(UniversalInstallAppMenuModelInteractiveTest,
                        DIYAppMenuWorksCorrectly) {
   RunTestSequence(
       InstrumentTab(kPrimaryTabPageElementId),
@@ -578,11 +517,32 @@ IN_PROC_BROWSER_TEST_P(UniversalInstallAppMenuModelInteractiveTest,
       WaitForState(kAppBannerManagerState, InstallableWebAppCheckResult::kNo),
       PressButton(kToolbarAppMenuButtonElementId),
       EnsurePresent(AppMenuModel::kSaveAndShareMenuItem),
+      ScrollIntoView(AppMenuModel::kSaveAndShareMenuItem),
       SelectMenuItem(AppMenuModel::kSaveAndShareMenuItem),
       VerifyDiyAppMenuItemViews());
 }
 
-IN_PROC_BROWSER_TEST_P(UniversalInstallAppMenuModelInteractiveTest,
+IN_PROC_BROWSER_TEST_F(UniversalInstallAppMenuModelInteractiveTest,
+                       DIYAppMenuWorksCorrectlyInvalidManifestParsingSites) {
+  RunTestSequence(InstrumentTab(kPrimaryTabPageElementId),
+                  ObserveState(kAppBannerManagerState, GetManager()),
+                  NavigateWebContents(kPrimaryTabPageElementId,
+                                      GetInvalidManifestParsingAppUrl()),
+                  WaitForWebContentsReady(kPrimaryTabPageElementId),
+                  // Invalid parsing currently leads the AppBannerManager to
+                  // early exit the pipeline without modifying the default value
+                  // of `InstallableWebAppCheckResult`, which is `kUnknown`.
+                  // This should almost never trigger a wait, but it's better to
+                  // be safe than introduce flakiness.
+                  WaitForState(kAppBannerManagerState,
+                               InstallableWebAppCheckResult::kUnknown),
+                  PressButton(kToolbarAppMenuButtonElementId),
+                  EnsurePresent(AppMenuModel::kSaveAndShareMenuItem),
+                  SelectMenuItem(AppMenuModel::kSaveAndShareMenuItem),
+                  VerifyDiyAppMenuItemViews());
+}
+
+IN_PROC_BROWSER_TEST_F(UniversalInstallAppMenuModelInteractiveTest,
                        InstallAppMenuWorksCorrectly) {
   RunTestSequence(
       InstrumentTab(kPrimaryTabPageElementId),
@@ -593,6 +553,7 @@ IN_PROC_BROWSER_TEST_P(UniversalInstallAppMenuModelInteractiveTest,
                    InstallableWebAppCheckResult::kYes_Promotable),
       PressButton(kToolbarAppMenuButtonElementId),
       EnsurePresent(AppMenuModel::kSaveAndShareMenuItem),
+      ScrollIntoView(AppMenuModel::kSaveAndShareMenuItem),
       SelectMenuItem(AppMenuModel::kSaveAndShareMenuItem),
       EnsurePresent(AppMenuModel::kInstallAppItem),
       CheckViewProperty(
@@ -603,7 +564,7 @@ IN_PROC_BROWSER_TEST_P(UniversalInstallAppMenuModelInteractiveTest,
       WithView(AppMenuModel::kInstallAppItem, CompareIcons()));
 }
 
-IN_PROC_BROWSER_TEST_P(UniversalInstallAppMenuModelInteractiveTest,
+IN_PROC_BROWSER_TEST_F(UniversalInstallAppMenuModelInteractiveTest,
                        InstallAppMenuShowsForNonLocallyInstalledApps) {
   EXPECT_TRUE(InstallNonLocallyInstalledApp(GetInstallableAppUrl()));
   RunTestSequence(
@@ -615,14 +576,82 @@ IN_PROC_BROWSER_TEST_P(UniversalInstallAppMenuModelInteractiveTest,
                    InstallableWebAppCheckResult::kYes_Promotable),
       PressButton(kToolbarAppMenuButtonElementId),
       EnsurePresent(AppMenuModel::kSaveAndShareMenuItem),
+      ScrollIntoView(AppMenuModel::kSaveAndShareMenuItem),
       SelectMenuItem(AppMenuModel::kSaveAndShareMenuItem),
       EnsurePresent(AppMenuModel::kInstallAppItem));
 }
 
-INSTANTIATE_TEST_SUITE_P(All,
-                         UniversalInstallAppMenuModelInteractiveTest,
-                         ::testing::Bool(),
-                         [](const testing::TestParamInfo<bool>& info) {
-                           return info.param ? "UniversalInstallEnabled"
-                                             : "UniversalInstallDisabled";
-                         });
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+class SupervisedUserAppMenuModelInteractiveTest
+    : public AppMenuModelInteractiveTest {
+ public:
+  void SetUpInProcessBrowserTestFixture() override {
+    unused_subscription_ =
+        BrowserContextDependencyManager::GetInstance()
+            ->RegisterCreateServicesCallbackForTesting(
+                base::BindRepeating([](content::BrowserContext* context) {
+                  // Required to use IdentityTestEnvironmentAdaptor.
+                  IdentityTestEnvironmentProfileAdaptor::
+                      SetIdentityTestEnvironmentFactoriesOnBrowserContext(
+                          context);
+                }));
+  }
+
+ protected:
+  void OnWillCreateBrowserContextServices(content::BrowserContext* context) {
+    IdentityTestEnvironmentProfileAdaptor::
+        SetIdentityTestEnvironmentFactoriesOnBrowserContext(context);
+  }
+
+  void SetUpOnMainThread() override {
+    InteractiveBrowserTest::SetUpOnMainThread();
+    identity_test_environment_adaptor_ =
+        std::make_unique<IdentityTestEnvironmentProfileAdaptor>(
+            browser()->profile());
+  }
+
+  void SignIn(bool is_supervised_user) {
+    AccountInfo account_info =
+        identity_test_environment_adaptor_->identity_test_env()
+            ->MakePrimaryAccountAvailable("name@gmail.com",
+                                          signin::ConsentLevel::kSignin);
+    supervised_user::UpdateSupervisionStatusForAccount(
+        account_info,
+        identity_test_environment_adaptor_->identity_test_env()
+            ->identity_manager(),
+        is_supervised_user);
+  }
+
+ private:
+  base::CallbackListSubscription unused_subscription_;
+  std::unique_ptr<IdentityTestEnvironmentProfileAdaptor>
+      identity_test_environment_adaptor_;
+};
+
+IN_PROC_BROWSER_TEST_F(SupervisedUserAppMenuModelInteractiveTest,
+                       OpenGuestSessionForSignedOutUser) {
+  RunTestSequence(PressButton(kToolbarAppMenuButtonElementId),
+                  SelectMenuItem(AppMenuModel::kProfileMenuItem),
+                  SelectMenuItem(AppMenuModel::kProfileOpenGuestItem),
+                  CheckGuestWindowOpened(browser()));
+}
+
+IN_PROC_BROWSER_TEST_F(SupervisedUserAppMenuModelInteractiveTest,
+                       OpenGuestSessionForSignedInRegularUser) {
+  SignIn(/*is_supervised_user=*/false);
+  RunTestSequence(PressButton(kToolbarAppMenuButtonElementId),
+                  SelectMenuItem(AppMenuModel::kProfileMenuItem),
+                  SelectMenuItem(AppMenuModel::kProfileOpenGuestItem),
+                  CheckGuestWindowOpened(browser()));
+}
+
+IN_PROC_BROWSER_TEST_F(SupervisedUserAppMenuModelInteractiveTest,
+                       OpenGuestSessionForSignedInSupervisedUser) {
+  SignIn(/*is_supervised_user=*/true);
+
+  RunTestSequence(PressButton(kToolbarAppMenuButtonElementId),
+                  SelectMenuItem(AppMenuModel::kProfileMenuItem),
+                  EnsureNotPresent(AppMenuModel::kProfileOpenGuestItem));
+}
+
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)

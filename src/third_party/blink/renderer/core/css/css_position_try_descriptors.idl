@@ -4,7 +4,7 @@
 
 // https://drafts.csswg.org/css-anchor-position-1/#om-position-try
 
-[Exposed=Window, RuntimeEnabled=CSSAnchorPositioning]
+[Exposed=Window]
 interface CSSPositionTryDescriptors : CSSStyleDeclaration {
   [SetterCallWith=ExecutionContext, RaisesException=Setter] attribute CSSOMString margin;
   [SetterCallWith=ExecutionContext, RaisesException=Setter] attribute CSSOMString marginTop;
@@ -74,6 +74,6 @@ interface CSSPositionTryDescriptors : CSSStyleDeclaration {
   [SetterCallWith=ExecutionContext, RaisesException=Setter, ImplementedAs=justifySelf] attribute CSSOMString justify-self;
   [SetterCallWith=ExecutionContext, RaisesException=Setter] attribute CSSOMString positionAnchor;
   [SetterCallWith=ExecutionContext, RaisesException=Setter, ImplementedAs=positionAnchor] attribute CSSOMString position-anchor;
-  [SetterCallWith=ExecutionContext, RaisesException=Setter] attribute CSSOMString insetArea;
-  [SetterCallWith=ExecutionContext, RaisesException=Setter, ImplementedAs=insetArea] attribute CSSOMString inset-area;
+  [SetterCallWith=ExecutionContext, RaisesException=Setter] attribute CSSOMString positionArea;
+  [SetterCallWith=ExecutionContext, RaisesException=Setter, ImplementedAs=positionArea] attribute CSSOMString position-area;
 };

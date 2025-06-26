@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/audio/pulse/audio_manager_pulse.h"
 
 #include <algorithm>
@@ -11,7 +16,7 @@
 #include "base/environment.h"
 #include "base/logging.h"
 #include "base/nix/xdg_util.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "media/audio/audio_device_description.h"
 #include "media/audio/pulse/pulse_input.h"
 #include "media/audio/pulse/pulse_loopback_manager.h"
@@ -191,7 +196,7 @@ std::string AudioManagerPulse::GetDefaultOutputDeviceID() {
 
 std::string AudioManagerPulse::GetAssociatedOutputDeviceID(
     const std::string& input_device_id) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   return AudioManagerBase::GetAssociatedOutputDeviceID(input_device_id);
 #else
   DCHECK(AudioManager::Get()->GetTaskRunner()->BelongsToCurrentThread());
@@ -268,10 +273,11 @@ AudioInputStream* AudioManagerPulse::MakeInputStream(
                               base::Unretained(this)),
           input_context_, input_mainloop_);
     }
-
+    bool should_mute_system_audio =
+        (device_id == AudioDeviceDescription::kLoopbackWithMuteDeviceId);
     if (loopback_manager_) {
-      return loopback_manager_->MakeLoopbackStream(params,
-                                                   std::move(log_callback));
+      return loopback_manager_->MakeLoopbackStream(
+          params, std::move(log_callback), should_mute_system_audio);
     }
 
     return nullptr;

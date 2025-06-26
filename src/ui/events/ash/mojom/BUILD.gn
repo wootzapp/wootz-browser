@@ -4,13 +4,14 @@
 
 import("//mojo/public/tools/bindings/mojom.gni")
 
-assert(is_chromeos_ash)
+assert(is_chromeos)
 
 mojom("mojom") {
   webui_module_path = "/"
   generate_legacy_js_bindings = true
   sources = [
     "extended_fkeys_modifier.mojom",
+    "meta_key.mojom",
     "modifier_key.mojom",
     "simulate_right_click_modifier.mojom",
     "six_pack_shortcut_modifier.mojom",

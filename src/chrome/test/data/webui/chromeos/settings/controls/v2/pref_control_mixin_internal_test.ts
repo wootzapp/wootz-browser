@@ -104,10 +104,10 @@ suite('PrefControlMixinInternal', () => {
 
   suite('validatePref()', () => {
     test('pref is not a string', () => {
-      // Simulate a string value instead of a PrefObject. Suppress typechecking
-      // here since there is no typechecking in Polymer HTML data-binding.
-      // @ts-ignore:next-line
-      testElement.pref = 'foobar';
+      // Simulate a string value instead of a PrefObject. Use Object.assign() to
+      // bypass typechecking here since there is no typechecking in Polymer HTML
+      // data-binding.
+      Object.assign(testElement, {pref: 'foobar'});
 
       assertThrows(() => {
         testElement.validatePref();
@@ -143,7 +143,7 @@ suite('PrefControlMixinInternal', () => {
   });
 
   suite('updatePrefValueFromUserAction()', () => {
-    test('Raises an error if called when pref is not defined', async () => {
+    test('Raises an error if called when pref is not defined', () => {
       assertThrows(() => {
         testElement.updatePrefValueFromUserAction('newValue9001');
       }, 'updatePrefValueFromUserAction() requires pref to be defined.');

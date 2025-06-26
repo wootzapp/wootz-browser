@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/nacl/browser/nacl_browser.h"
 
 #include <stddef.h>
@@ -76,9 +81,7 @@ void ReadCache(const base::FilePath& filename, std::string* data) {
 }
 
 void WriteCache(const base::FilePath& filename, const base::Pickle* pickle) {
-  base::WriteFile(filename,
-                  base::make_span(static_cast<const uint8_t*>(pickle->data()),
-                                  pickle->size()));
+  base::WriteFile(filename, base::span(*pickle));
 }
 
 void RemoveCache(const base::FilePath& filename, base::OnceClosure callback) {
@@ -169,7 +172,7 @@ void NaClBrowser::EarlyStartup() {
 }
 
 NaClBrowser::~NaClBrowser() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void NaClBrowser::InitIrtFilePath() {

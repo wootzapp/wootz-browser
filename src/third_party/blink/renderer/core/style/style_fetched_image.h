@@ -67,7 +67,7 @@ class CORE_EXPORT StyleFetchedImage final : public StyleImage,
   bool ErrorOccurred() const override;
   bool IsAccessAllowed(String&) const override;
 
-  IntrinsicSizingInfo GetNaturalSizingInfo(
+  NaturalSizingInfo GetNaturalSizingInfo(
       float multiplier,
       RespectImageOrientationEnum) const override;
   gfx::SizeF ImageSize(float multiplier,
@@ -91,9 +91,7 @@ class CORE_EXPORT StyleFetchedImage final : public StyleImage,
 
   void Trace(Visitor*) const override;
 
-  bool IsOriginClean() const { return origin_clean_; }
-
-  bool IsLoadedAfterMouseover() const { return is_loaded_after_mouseover_; }
+  bool IsOriginClean() const override { return origin_clean_; }
 
  private:
   bool IsEqual(const StyleImage&) const override;
@@ -106,6 +104,7 @@ class CORE_EXPORT StyleFetchedImage final : public StyleImage,
   // ImageResourceObserver overrides
   void ImageNotifyFinished(ImageResourceContent*) override;
   bool GetImageAnimationPolicy(mojom::blink::ImageAnimationPolicy&) override;
+  bool CanBeSpeculativelyDecoded() const override;
 
   Member<ImageResourceContent> image_;
   Member<const Document> document_;
@@ -120,12 +119,6 @@ class CORE_EXPORT StyleFetchedImage final : public StyleImage,
 
   // Whether this was created by an ad-related CSSParserContext.
   const bool is_ad_related_;
-
-  // This indicates that the style image was loaded after a recent mouseover
-  // event. This is used for LCP heuristics to ignore zoom widgets as LCP
-  // candidates. StyleFetchedImage is the best place to save this state, as it
-  // relates to the reason the image was fetched.
-  bool is_loaded_after_mouseover_ = false;
 };
 
 template <>

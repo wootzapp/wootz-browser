@@ -162,33 +162,6 @@ bool CanSetSystemTimezoneFromManagedGuestSession() {
           enterprise_management::SystemTimezoneProto::USERS_DECIDE);
 }
 
-// Returns true if the given user is allowed to set the system timezone - that
-// is, the single timezone at TimezoneSettings::GetInstance()->GetTimezone(),
-// which is also stored in a file at /var/lib/timezone/localtime.
-bool CanSetSystemTimezone(const user_manager::User* user) {
-  if (!user->is_logged_in())
-    return false;
-
-  switch (user->GetType()) {
-    case user_manager::UserType::kRegular:
-    case user_manager::UserType::kKioskApp:
-    case user_manager::UserType::kArcKioskApp:
-    case user_manager::UserType::kWebKioskApp:
-    case user_manager::UserType::kChild:
-      return true;
-
-    case user_manager::UserType::kGuest:
-      return false;
-
-    case user_manager::UserType::kPublicAccount:
-      return CanSetSystemTimezoneFromManagedGuestSession();
-
-      // No default case means the compiler makes sure we handle new types.
-  }
-  NOTREACHED_IN_MIGRATION();
-  return false;
-}
-
 }  // namespace
 
 namespace ash {
@@ -279,9 +252,7 @@ bool IsTimezonePrefsManaged(const std::string& pref_name) {
       return true;
   }
   // Default for unknown policy value.
-  NOTREACHED_IN_MIGRATION()
-      << "Unrecognized policy value: " << resolve_policy_value;
-  return true;
+  NOTREACHED() << "Unrecognized policy value: " << resolve_policy_value;
 }
 
 void ApplyTimeZone(const TimeZoneResponseData* timezone) {
@@ -355,6 +326,31 @@ void UpdateSystemTimezone(Profile* profile) {
     SetSystemTimezone(user, value);
 }
 
+// TODO(b/353580799): Add unit tests for this function.
+bool CanSetSystemTimezone(const user_manager::User* user) {
+  if (!user->is_logged_in()) {
+    return false;
+  }
+
+  switch (user->GetType()) {
+    case user_manager::UserType::kRegular:
+    case user_manager::UserType::kKioskApp:
+    case user_manager::UserType::kWebKioskApp:
+    case user_manager::UserType::kKioskIWA:
+    case user_manager::UserType::kChild:
+      return true;
+
+    case user_manager::UserType::kGuest:
+      return false;
+
+    case user_manager::UserType::kPublicAccount:
+      return CanSetSystemTimezoneFromManagedGuestSession();
+
+      // No default case means the compiler makes sure we handle new types.
+  }
+  NOTREACHED();
+}
+
 bool SetSystemTimezone(const user_manager::User* user,
                        const std::string& timezone) {
   DCHECK(user);
@@ -411,7 +407,7 @@ void SetTimezoneFromUI(Profile* profile, const std::string& timezone_id) {
   }
 
   // Time zone UI should be blocked for non-primary users.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 bool FineGrainedTimeZoneDetectionEnabled() {

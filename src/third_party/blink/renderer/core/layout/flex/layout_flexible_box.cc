@@ -5,8 +5,10 @@
 #include "third_party/blink/renderer/core/layout/flex/layout_flexible_box.h"
 
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
+#include "third_party/blink/renderer/core/html/forms/html_opt_group_element.h"
 #include "third_party/blink/renderer/core/html/forms/html_option_element.h"
 #include "third_party/blink/renderer/core/html/forms/html_select_element.h"
+#include "third_party/blink/renderer/core/html/html_hr_element.h"
 #include "third_party/blink/renderer/core/html/html_slot_element.h"
 #include "third_party/blink/renderer/core/inspector/inspector_trace_events.h"
 #include "third_party/blink/renderer/core/layout/block_node.h"
@@ -21,29 +23,45 @@ namespace blink {
 
 LayoutFlexibleBox::LayoutFlexibleBox(Element* element) : LayoutBlock(element) {}
 
-bool LayoutFlexibleBox::HasTopOverflow() const {
-  const auto& style = StyleRef();
-  bool is_wrap_reverse = StyleRef().FlexWrap() == EFlexWrap::kWrapReverse;
-  if (style.IsHorizontalWritingMode()) {
-    return style.ResolvedIsColumnReverseFlexDirection() ||
-           (style.ResolvedIsRowFlexDirection() && is_wrap_reverse);
+namespace {
+
+LogicalToPhysical<bool> GetOverflowConverter(const ComputedStyle& style) {
+  const bool is_wrap_reverse = style.FlexWrap() == EFlexWrap::kWrapReverse;
+  const bool is_direction_reverse = style.ResolvedIsReverseFlexDirection();
+
+  bool inline_start = false;
+  bool inline_end = true;
+  bool block_start = false;
+  bool block_end = true;
+
+  if (style.ResolvedIsColumnFlexDirection()) {
+    if (is_direction_reverse) {
+      std::swap(block_start, block_end);
+    }
+    if (is_wrap_reverse) {
+      std::swap(inline_start, inline_end);
+    }
+  } else {
+    if (is_direction_reverse) {
+      std::swap(inline_start, inline_end);
+    }
+    if (is_wrap_reverse) {
+      std::swap(block_start, block_end);
+    }
   }
-  return style.IsLeftToRightDirection() ==
-         (style.ResolvedIsRowReverseFlexDirection() ||
-          (style.ResolvedIsColumnFlexDirection() && is_wrap_reverse));
+
+  return LogicalToPhysical(style.GetWritingDirection(), inline_start,
+                           inline_end, block_start, block_end);
+}
+
+}  // namespace
+
+bool LayoutFlexibleBox::HasTopOverflow() const {
+  return GetOverflowConverter(StyleRef()).Top();
 }
 
 bool LayoutFlexibleBox::HasLeftOverflow() const {
-  const auto& style = StyleRef();
-  bool is_wrap_reverse = StyleRef().FlexWrap() == EFlexWrap::kWrapReverse;
-  if (style.IsHorizontalWritingMode()) {
-    return style.IsLeftToRightDirection() ==
-           (style.ResolvedIsRowReverseFlexDirection() ||
-            (style.ResolvedIsColumnFlexDirection() && is_wrap_reverse));
-  }
-  return (style.GetWritingMode() == WritingMode::kVerticalLr) ==
-         (style.ResolvedIsColumnReverseFlexDirection() ||
-          (style.ResolvedIsRowFlexDirection() && is_wrap_reverse));
+  return GetOverflowConverter(StyleRef()).Left();
 }
 
 namespace {
@@ -68,10 +86,12 @@ void MergeAnonymousFlexItems(LayoutObject* remove_child) {
 bool LayoutFlexibleBox::IsChildAllowed(LayoutObject* object,
                                        const ComputedStyle& style) const {
   const auto* select = DynamicTo<HTMLSelectElement>(GetNode());
-  if (UNLIKELY(select && select->UsesMenuList())) {
-    if (select->IsAppearanceBaseSelect()) {
-      CHECK(RuntimeEnabledFeatures::StylableSelectEnabled());
-      if (IsA<HTMLOptionElement>(object->GetNode())) {
+  if (select && select->UsesMenuList()) [[unlikely]] {
+    if (select->IsAppearanceBaseButton()) {
+      CHECK(HTMLSelectElement::CustomizableSelectEnabled(select));
+      if (IsA<HTMLOptionElement>(object->GetNode()) ||
+          IsA<HTMLOptGroupElement>(object->GetNode()) ||
+          IsA<HTMLHRElement>(object->GetNode())) {
         // TODO(crbug.com/1511354): Remove this when <option>s are slotted into
         // the UA <datalist>, which will be hidden by default as a popover.
         return false;
@@ -79,12 +99,18 @@ bool LayoutFlexibleBox::IsChildAllowed(LayoutObject* object,
       // For appearance:base-select <select>, we want to render all children.
       // However, the InnerElement is only used for rendering in
       // appearance:auto, so don't include that one.
-      return object->GetNode() != &select->InnerElementForAppearanceAuto();
+      Node* child = object->GetNode();
+      if (child == &select->InnerElement() && select->SlottedButton()) {
+        // If the author doesn't provide a button, then we still want to display
+        // the InnerElement.
+        return false;
+      }
+      return true;
     } else {
       // For a size=1 appearance:auto <select>, we only render the active option
       // label through the InnerElement. We do not allow adding layout objects
       // for options and optgroups.
-      return object->GetNode() == &select->InnerElementForAppearanceAuto();
+      return object->GetNode() == &select->InnerElement();
     }
   }
   return LayoutBlock::IsChildAllowed(object, style);
@@ -104,8 +130,10 @@ const DevtoolsFlexInfo* LayoutFlexibleBox::FlexLayoutData() const {
 
 void LayoutFlexibleBox::RemoveChild(LayoutObject* child) {
   if (!DocumentBeingDestroyed() &&
-      !StyleRef().IsDeprecatedFlexboxUsingFlexLayout())
+      (RuntimeEnabledFeatures::LayoutWebkitBoxTreeFixEnabled() ||
+       !StyleRef().IsDeprecatedFlexbox())) {
     MergeAnonymousFlexItems(child);
+  }
 
   LayoutBlock::RemoveChild(child);
 }

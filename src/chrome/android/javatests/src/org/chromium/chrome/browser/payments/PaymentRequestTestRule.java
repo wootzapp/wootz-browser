@@ -16,8 +16,6 @@ import androidx.annotation.IntDef;
 
 import org.hamcrest.Matchers;
 import org.junit.Assert;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.PostTask;
@@ -35,10 +33,9 @@ import org.chromium.chrome.browser.payments.ChromePaymentRequestFactory.ChromePa
 import org.chromium.chrome.browser.payments.ChromePaymentRequestFactory.ChromePaymentRequestDelegateImplObserverForTest;
 import org.chromium.chrome.browser.payments.ui.PaymentRequestSection.OptionSection;
 import org.chromium.chrome.browser.payments.ui.PaymentRequestSection.OptionSection.OptionRow;
-import org.chromium.chrome.browser.payments.ui.PaymentRequestUI;
-import org.chromium.chrome.browser.payments.ui.PaymentRequestUI.PaymentRequestObserverForTest;
+import org.chromium.chrome.browser.payments.ui.PaymentRequestUi;
+import org.chromium.chrome.browser.payments.ui.PaymentRequestUi.PaymentRequestObserverForTest;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.components.payments.InputProtector;
 import org.chromium.components.payments.PayerData;
 import org.chromium.components.payments.PaymentApp;
 import org.chromium.components.payments.PaymentAppFactoryDelegate;
@@ -46,7 +43,8 @@ import org.chromium.components.payments.PaymentAppFactoryInterface;
 import org.chromium.components.payments.PaymentAppService;
 import org.chromium.components.payments.PaymentRequestService;
 import org.chromium.components.payments.PaymentRequestService.PaymentRequestServiceObserverForTest;
-import org.chromium.components.payments.test_support.FakeClock;
+import org.chromium.components.payments.ui.InputProtector;
+import org.chromium.components.payments.ui.test_support.FakeClock;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.util.DOMUtils;
 import org.chromium.content_public.browser.test.util.JavaScriptUtils;
@@ -124,11 +122,11 @@ import java.util.concurrent.atomic.AtomicReference;
     /* package */ static final String ENABLE_EXPERIMENTAL_WEB_PLATFORM_FEATURES =
             "enable-experimental-web-platform-features";
 
-    private final PaymentsCallbackHelper<PaymentRequestUI> mShowCalled;
-    private final PaymentsCallbackHelper<PaymentRequestUI> mReadyForInput;
-    private final PaymentsCallbackHelper<PaymentRequestUI> mReadyToPay;
-    private final PaymentsCallbackHelper<PaymentRequestUI> mSelectionChecked;
-    private final PaymentsCallbackHelper<PaymentRequestUI> mResultReady;
+    private final PaymentsCallbackHelper<PaymentRequestUi> mShowCalled;
+    private final PaymentsCallbackHelper<PaymentRequestUi> mReadyForInput;
+    private final PaymentsCallbackHelper<PaymentRequestUi> mReadyToPay;
+    private final PaymentsCallbackHelper<PaymentRequestUi> mSelectionChecked;
+    private final PaymentsCallbackHelper<PaymentRequestUi> mResultReady;
     private final PaymentsCallbackHelper<CardUnmaskPrompt> mReadyForUnmaskInput;
     private final PaymentsCallbackHelper<CardUnmaskPrompt> mReadyToUnmask;
     private final PaymentsCallbackHelper<CardUnmaskPrompt> mUnmaskValidationDone;
@@ -147,7 +145,7 @@ import java.util.concurrent.atomic.AtomicReference;
     private final CallbackHelper mCompleteHandled;
     private final CallbackHelper mRendererClosedMojoConnection;
     private ChromePaymentRequestDelegateImpl mChromePaymentRequestDelegateImpl;
-    private PaymentRequestUI mUI;
+    private PaymentRequestUi mUi;
     private FakeClock mClock;
     private InputProtector mInputProtector;
 
@@ -240,8 +238,8 @@ import java.util.concurrent.atomic.AtomicReference;
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mWebContentsRef.set(getActivity().getCurrentWebContents());
-                    PaymentRequestUI.setEditorObserverForTest(PaymentRequestTestRule.this);
-                    PaymentRequestUI.setPaymentRequestObserverForTest(PaymentRequestTestRule.this);
+                    PaymentRequestUi.setEditorObserverForTest(PaymentRequestTestRule.this);
+                    PaymentRequestUi.setPaymentRequestObserverForTest(PaymentRequestTestRule.this);
                     PaymentRequestService.setObserverForTest(PaymentRequestTestRule.this);
                     ChromePaymentRequestFactory.setChromePaymentRequestDelegateImplObserverForTest(
                             PaymentRequestTestRule.this);
@@ -250,23 +248,23 @@ import java.util.concurrent.atomic.AtomicReference;
         assertWaitForPageScaleFactorMatch(0.5f);
     }
 
-    /* package */ PaymentsCallbackHelper<PaymentRequestUI> getShowCalled() {
+    /* package */ PaymentsCallbackHelper<PaymentRequestUi> getShowCalled() {
         return mShowCalled;
     }
 
-    /* package */ PaymentsCallbackHelper<PaymentRequestUI> getReadyForInput() {
+    /* package */ PaymentsCallbackHelper<PaymentRequestUi> getReadyForInput() {
         return mReadyForInput;
     }
 
-    /* package */ PaymentsCallbackHelper<PaymentRequestUI> getReadyToPay() {
+    /* package */ PaymentsCallbackHelper<PaymentRequestUi> getReadyToPay() {
         return mReadyToPay;
     }
 
-    /* package */ PaymentsCallbackHelper<PaymentRequestUI> getSelectionChecked() {
+    /* package */ PaymentsCallbackHelper<PaymentRequestUi> getSelectionChecked() {
         return mSelectionChecked;
     }
 
-    /* package */ PaymentsCallbackHelper<PaymentRequestUI> getResultReady() {
+    /* package */ PaymentsCallbackHelper<PaymentRequestUi> getResultReady() {
         return mResultReady;
     }
 
@@ -338,12 +336,12 @@ import java.util.concurrent.atomic.AtomicReference;
         return mRendererClosedMojoConnection;
     }
 
-    /* package */ PaymentRequestUI getPaymentRequestUI() {
-        return mUI;
+    /* package */ PaymentRequestUi getPaymentRequestUi() {
+        return mUi;
     }
 
-    /* package */ void triggerUIAndWait(
-            String nodeId, PaymentsCallbackHelper<PaymentRequestUI> helper)
+    /* package */ void triggerUiAndWait(
+            String nodeId, PaymentsCallbackHelper<PaymentRequestUi> helper)
             throws TimeoutException {
         clickNodeAndWait(nodeId, helper);
     }
@@ -370,7 +368,7 @@ import java.util.concurrent.atomic.AtomicReference;
      * occur. The JavaScript code is run with a user gesture present, and any async result (i.e.,
      * Promise) is not waited for.
      */
-    /* package */ void runJavaScriptAndWaitForUIEvent(String code, CallbackHelper helper)
+    /* package */ void runJavaScriptAndWaitForUiEvent(String code, CallbackHelper helper)
             throws TimeoutException {
         int callCount = helper.getCallCount();
         runJavaScriptCodeWithUserGestureInCurrentTab(code);
@@ -412,8 +410,8 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         CriteriaHelper.pollUiThread(
                 () -> {
-                    boolean canClick = mUI.isAcceptingUserInput();
-                    if (canClick) mUI.getDialogForTest().findViewById(resourceId).performClick();
+                    boolean canClick = mUi.isAcceptingUserInput();
+                    if (canClick) mUi.getDialogForTest().findViewById(resourceId).performClick();
                     Criteria.checkThat(canClick, Matchers.is(true));
                 });
         helper.waitForCallback(callCount);
@@ -424,7 +422,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mUI.getOrderSummarySectionForTest()
+                    mUi.getOrderSummarySectionForTest()
                             .findViewById(R.id.payments_section)
                             .performClick();
                 });
@@ -437,7 +435,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mUI.getShippingAddressSectionForTest().findViewById(resourceId).performClick();
+                    mUi.getShippingAddressSectionForTest().findViewById(resourceId).performClick();
                 });
         helper.waitForCallback(callCount);
     }
@@ -448,7 +446,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mUI.getPaymentMethodSectionForTest().findViewById(resourceId).performClick();
+                    mUi.getPaymentMethodSectionForTest().findViewById(resourceId).performClick();
                 });
         helper.waitForCallback(callCount);
     }
@@ -459,7 +457,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mUI.getContactDetailsSectionForTest().findViewById(resourceId).performClick();
+                    mUi.getContactDetailsSectionForTest().findViewById(resourceId).performClick();
                 });
         helper.waitForCallback(callCount);
     }
@@ -470,7 +468,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    mUI.getEditorDialog().findViewById(resourceId).performClick();
+                    mUi.getEditorDialog().findViewById(resourceId).performClick();
                 });
         helper.waitForCallback(callCount);
     }
@@ -481,10 +479,10 @@ import java.util.concurrent.atomic.AtomicReference;
         PostTask.runOrPostTask(
                 TaskTraits.UI_DEFAULT,
                 () -> {
-                    mUI.getEditorDialog()
+                    mUi.getEditorDialog()
                             .dispatchKeyEvent(
                                     new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK));
-                    mUI.getEditorDialog()
+                    mUi.getEditorDialog()
                             .dispatchKeyEvent(
                                     new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK));
                 });
@@ -505,30 +503,30 @@ import java.util.concurrent.atomic.AtomicReference;
 
     /** Gets the retry error message. */
     /* package */ String getRetryErrorMessage() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        ((TextView) mUI.getDialogForTest().findViewById(R.id.retry_error))
+                        ((TextView) mUi.getDialogForTest().findViewById(R.id.retry_error))
                                 .getText()
                                 .toString());
     }
 
     /** Gets the button state for the shipping summary section. */
     /* package */ int getShippingAddressSectionButtonState() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
-                () -> mUI.getShippingAddressSectionForTest().getEditButtonState());
+        return ThreadUtils.runOnUiThreadBlocking(
+                () -> mUi.getShippingAddressSectionForTest().getEditButtonState());
     }
 
     /** Gets the button state for the contact details section. */
     /* package */ int getContactDetailsButtonState() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
-                () -> mUI.getContactDetailsSectionForTest().getEditButtonState());
+        return ThreadUtils.runOnUiThreadBlocking(
+                () -> mUi.getContactDetailsSectionForTest().getEditButtonState());
     }
 
     /** Returns the label of the payment app at the specified |index|. */
     /* package */ String getPaymentAppLabel(final int index) {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        ((OptionSection) mUI.getPaymentMethodSectionForTest())
+                        ((OptionSection) mUi.getPaymentMethodSectionForTest())
                                 .getOptionLabelsForTest(index)
                                 .getText()
                                 .toString());
@@ -536,9 +534,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
     /** Returns the label of the selected payment app. */
     /* package */ String getSelectedPaymentAppLabel() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    OptionSection section = ((OptionSection) mUI.getPaymentMethodSectionForTest());
+                    OptionSection section = ((OptionSection) mUi.getPaymentMethodSectionForTest());
                     int size = section.getNumberOfOptionLabelsForTest();
                     for (int i = 0; i < size; i++) {
                         if (section.getOptionRowAtIndex(i).isChecked()) {
@@ -551,15 +549,15 @@ import java.util.concurrent.atomic.AtomicReference;
 
     /** Returns the total amount in order summary section. */
     /* package */ String getOrderSummaryTotal() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
-                () -> mUI.getOrderSummaryTotalTextViewForTest().getText().toString());
+        return ThreadUtils.runOnUiThreadBlocking(
+                () -> mUi.getOrderSummaryTotalTextViewForTest().getText().toString());
     }
 
     /** Returns the amount text corresponding to the line item at the specified |index|. */
     /* package */ String getLineItemAmount(int index) {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        mUI.getOrderSummarySectionForTest()
+                        mUi.getOrderSummarySectionForTest()
                                 .getLineItemAmountForTest(index)
                                 .getText()
                                 .toString()
@@ -568,8 +566,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
     /** Returns the amount text corresponding to the line item at the specified |index|. */
     /* package */ int getNumberOfLineItems() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
-                () -> mUI.getOrderSummarySectionForTest().getNumberOfLineItemsForTest());
+        return ThreadUtils.runOnUiThreadBlocking(
+                () -> mUi.getOrderSummarySectionForTest().getNumberOfLineItemsForTest());
     }
 
     /**
@@ -577,9 +575,9 @@ import java.util.concurrent.atomic.AtomicReference;
      * |suggestionIndex|.
      */
     /* package */ String getContactDetailsSuggestionLabel(final int suggestionIndex) {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        ((OptionSection) mUI.getContactDetailsSectionForTest())
+                        ((OptionSection) mUi.getContactDetailsSectionForTest())
                                 .getOptionLabelsForTest(suggestionIndex)
                                 .getText()
                                 .toString());
@@ -587,9 +585,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
     /** Returns the number of payment apps. */
     /* package */ int getNumberOfPaymentApps() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        ((OptionSection) mUI.getPaymentMethodSectionForTest())
+                        ((OptionSection) mUi.getPaymentMethodSectionForTest())
                                 .getNumberOfOptionLabelsForTest());
     }
 
@@ -600,9 +598,9 @@ import java.util.concurrent.atomic.AtomicReference;
     /* package */ String getPaymentMethodSuggestionLabel(final int suggestionIndex) {
         Assert.assertTrue(suggestionIndex < getNumberOfPaymentApps());
 
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        ((OptionSection) mUI.getPaymentMethodSectionForTest())
+                        ((OptionSection) mUi.getPaymentMethodSectionForTest())
                                 .getOptionLabelsForTest(suggestionIndex)
                                 .getText()
                                 .toString());
@@ -610,9 +608,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
     /** Returns the number of contact detail suggestions. */
     /* package */ int getNumberOfContactDetailSuggestions() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        ((OptionSection) mUI.getContactDetailsSectionForTest())
+                        ((OptionSection) mUi.getContactDetailsSectionForTest())
                                 .getNumberOfOptionLabelsForTest());
     }
 
@@ -623,46 +621,46 @@ import java.util.concurrent.atomic.AtomicReference;
     /* package */ String getShippingAddressSuggestionLabel(final int suggestionIndex) {
         Assert.assertTrue(suggestionIndex < getNumberOfShippingAddressSuggestions());
 
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        mUI.getShippingAddressSectionForTest()
+                        mUi.getShippingAddressSectionForTest()
                                 .getOptionLabelsForTest(suggestionIndex)
                                 .getText()
                                 .toString());
     }
 
     /* package */ String getShippingAddressSummary() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        mUI.getShippingAddressSectionForTest()
+                        mUi.getShippingAddressSectionForTest()
                                 .getLeftSummaryLabelForTest()
                                 .getText()
                                 .toString());
     }
 
     /* package */ String getShippingOptionSummary() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        mUI.getShippingOptionSectionForTest()
+                        mUi.getShippingOptionSectionForTest()
                                 .getLeftSummaryLabelForTest()
                                 .getText()
                                 .toString());
     }
 
     /* package */ String getShippingOptionCostSummaryOnBottomSheet() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        mUI.getShippingOptionSectionForTest()
+                        mUi.getShippingOptionSectionForTest()
                                 .getRightSummaryLabelForTest()
                                 .getText()
                                 .toString());
     }
 
     /* package */ String getShippingAddressWarningLabel() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     View view =
-                            mUI.getShippingAddressSectionForTest()
+                            mUi.getShippingAddressSectionForTest()
                                     .findViewById(R.id.payments_warning_label);
                     return view != null && view instanceof TextView
                             ? ((TextView) view).getText().toString()
@@ -671,10 +669,10 @@ import java.util.concurrent.atomic.AtomicReference;
     }
 
     /* package */ String getShippingAddressDescriptionLabel() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     View view =
-                            mUI.getShippingAddressSectionForTest()
+                            mUi.getShippingAddressSectionForTest()
                                     .findViewById(R.id.payments_description_label);
                     return view != null && view instanceof TextView
                             ? ((TextView) view).getText().toString()
@@ -693,7 +691,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    ((OptionSection) mUI.getShippingAddressSectionForTest())
+                    ((OptionSection) mUi.getShippingAddressSectionForTest())
                             .getOptionLabelsForTest(suggestionIndex)
                             .performClick();
                 });
@@ -711,7 +709,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    ((OptionSection) mUI.getPaymentMethodSectionForTest())
+                    ((OptionSection) mUi.getPaymentMethodSectionForTest())
                             .getOptionLabelsForTest(suggestionIndex)
                             .performClick();
                 });
@@ -729,7 +727,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    ((OptionSection) mUI.getContactDetailsSectionForTest())
+                    ((OptionSection) mUi.getContactDetailsSectionForTest())
                             .getOptionLabelsForTest(suggestionIndex)
                             .performClick();
                 });
@@ -747,7 +745,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    ((OptionSection) mUI.getPaymentMethodSectionForTest())
+                    ((OptionSection) mUi.getPaymentMethodSectionForTest())
                             .getOptionRowAtIndex(suggestionIndex)
                             .getEditIconForTest()
                             .performClick();
@@ -772,17 +770,17 @@ import java.util.concurrent.atomic.AtomicReference;
 
     /** Returns the number of shipping address suggestions. */
     /* package */ int getNumberOfShippingAddressSuggestions() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        ((OptionSection) mUI.getShippingAddressSectionForTest())
+                        ((OptionSection) mUi.getShippingAddressSectionForTest())
                                 .getNumberOfOptionLabelsForTest());
     }
 
     /** Returns the {@link OptionRow} at the given index for the shipping address section. */
     /* package */ OptionRow getShippingAddressOptionRowAtIndex(final int index) {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        ((OptionSection) mUI.getShippingAddressSectionForTest())
+                        ((OptionSection) mUi.getShippingAddressSectionForTest())
                                 .getOptionRowAtIndex(index));
     }
 
@@ -797,7 +795,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        ((Spinner) mUI.getEditorDialog().findViewById(R.id.spinner))
+                        ((Spinner) mUi.getEditorDialog().findViewById(R.id.spinner))
                                 .setSelection(selection));
         helper.waitForCallback(callCount);
     }
@@ -808,7 +806,7 @@ import java.util.concurrent.atomic.AtomicReference;
         int callCount = helper.getCallCount();
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    List<EditText> fields = mUI.getEditorDialog().getEditableTextFieldsForTest();
+                    List<EditText> fields = mUi.getEditorDialog().getEditableTextFieldsForTest();
                     for (int i = 0; i < values.length; i++) {
                         fields.get(i).requestFocus();
                         fields.get(i).setText(values[i]);
@@ -900,7 +898,7 @@ import java.util.concurrent.atomic.AtomicReference;
         CriteriaHelper.pollInstrumentationThread(
                 () -> {
                     boolean isSelected =
-                            ((OptionSection) mUI.getContactDetailsSectionForTest())
+                            ((OptionSection) mUi.getContactDetailsSectionForTest())
                                     .getOptionRowAtIndex(index)
                                     .isChecked();
                     Criteria.checkThat(
@@ -915,7 +913,7 @@ import java.util.concurrent.atomic.AtomicReference;
         CriteriaHelper.pollInstrumentationThread(
                 () -> {
                     boolean isSelected =
-                            ((OptionSection) mUI.getShippingAddressSectionForTest())
+                            ((OptionSection) mUi.getShippingAddressSectionForTest())
                                     .getOptionRowAtIndex(index)
                                     .isChecked();
                     Criteria.checkThat(
@@ -930,7 +928,7 @@ import java.util.concurrent.atomic.AtomicReference;
         CriteriaHelper.pollInstrumentationThread(
                 () -> {
                     boolean isSelected =
-                            ((OptionSection) mUI.getPaymentMethodSectionForTest())
+                            ((OptionSection) mUi.getPaymentMethodSectionForTest())
                                     .getOptionRowAtIndex(index)
                                     .isChecked();
                     Criteria.checkThat(
@@ -941,8 +939,8 @@ import java.util.concurrent.atomic.AtomicReference;
     }
 
     /* package */ View getPaymentRequestView() {
-        return ThreadUtils.runOnUiThreadBlockingNoException(
-                () -> mUI.getDialogForTest().findViewById(R.id.payment_request));
+        return ThreadUtils.runOnUiThreadBlocking(
+                () -> mUi.getDialogForTest().findViewById(R.id.payment_request));
     }
 
     /* package */ View getCardUnmaskView() throws Throwable {
@@ -956,7 +954,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
     /* package */ View getEditorDialogView() throws Throwable {
         return ThreadUtils.runOnUiThreadBlocking(
-                () -> mUI.getEditorDialog().findViewById(R.id.editor_container));
+                () -> mUi.getEditorDialog().findViewById(R.id.editor_container));
     }
 
     /* package */ void setAutoAdvanceInputProtectorClock(boolean autoAdvanceInputProtectorClock) {
@@ -968,11 +966,11 @@ import java.util.concurrent.atomic.AtomicReference;
     }
 
     @Override
-    public void onPaymentRequestUIShow(PaymentRequestUI ui) {
+    public void onPaymentRequestUiShow(PaymentRequestUi ui) {
         ThreadUtils.assertOnUiThread();
-        mUI = ui;
+        mUi = ui;
         mInputProtector.markShowTime();
-        mUI.setInputProtectorForTest(mInputProtector);
+        mUi.setInputProtectorForTest(mInputProtector);
         // By default, we advance the clock immediately as most tests just wait for ReadyForInput.
         if (mAutoAdvanceInputProtectorClock) {
             advanceInputProtectorClock();
@@ -981,7 +979,7 @@ import java.util.concurrent.atomic.AtomicReference;
     }
 
     @Override
-    public void onPaymentRequestReadyForInput(PaymentRequestUI ui) {
+    public void onPaymentRequestReadyForInput(PaymentRequestUi ui) {
         ThreadUtils.assertOnUiThread();
         mReadyForInput.notifyCalled(ui);
     }
@@ -1010,19 +1008,19 @@ import java.util.concurrent.atomic.AtomicReference;
     }
 
     @Override
-    public void onPaymentRequestReadyToPay(PaymentRequestUI ui) {
+    public void onPaymentRequestReadyToPay(PaymentRequestUi ui) {
         ThreadUtils.assertOnUiThread();
         mReadyToPay.notifyCalled(ui);
     }
 
     @Override
-    public void onPaymentRequestSelectionChecked(PaymentRequestUI ui) {
+    public void onPaymentRequestSelectionChecked(PaymentRequestUi ui) {
         ThreadUtils.assertOnUiThread();
         mSelectionChecked.notifyCalled(ui);
     }
 
     @Override
-    public void onPaymentRequestResultReady(PaymentRequestUI ui) {
+    public void onPaymentRequestResultReady(PaymentRequestUi ui) {
         ThreadUtils.assertOnUiThread();
         mResultReady.notifyCalled(ui);
     }
@@ -1295,18 +1293,11 @@ import java.util.concurrent.atomic.AtomicReference;
     }
 
     @Override
-    public Statement apply(final Statement base, Description description) {
-        return super.apply(
-                new Statement() {
-                    @Override
-                    public void evaluate() throws Throwable {
-                        if (!mDelayStartActivity) {
-                            startMainActivityWithURL(mTestFilePath);
-                            setObserversAndWaitForInitialPageLoad();
-                        }
-                        base.evaluate();
-                    }
-                },
-                description);
+    protected void before() throws Throwable {
+        super.before();
+        if (!mDelayStartActivity) {
+            startMainActivityWithURL(mTestFilePath);
+            setObserversAndWaitForInitialPageLoad();
+        }
     }
 }

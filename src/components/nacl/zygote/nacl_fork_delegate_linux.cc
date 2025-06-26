@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/nacl/zygote/nacl_fork_delegate_linux.h"
 
 #include <signal.h>
@@ -11,7 +16,9 @@
 #include <sys/socket.h>
 
 #include <memory>
+#include <optional>
 #include <set>
+#include <string>
 
 #include "base/command_line.h"
 #include "base/cpu.h"
@@ -295,7 +302,7 @@ void NaClForkDelegate::Init(const int sandboxdesc,
   if (IGNORE_EINTR(close(fds[1])) != 0)
     LOG(ERROR) << "close(fds[1]) failed";
   if (status_ == kNaClHelperUnused) {
-    const ssize_t kExpectedLength = strlen(kNaClHelperStartupAck);
+    constexpr ssize_t kExpectedLength = sizeof(kNaClHelperStartupAck) - 1;
     char buf[kExpectedLength];
 
     // Wait for ack from nacl_helper, indicating it is ready to help
@@ -447,21 +454,27 @@ bool NaClForkDelegate::GetTerminationStatus(pid_t pid, bool known_dead,
 void NaClForkDelegate::AddPassthroughEnvToOptions(
     base::LaunchOptions* options) {
   std::unique_ptr<base::Environment> env(base::Environment::Create());
-  std::string pass_through_string;
   std::vector<std::string> pass_through_vars;
-  if (env->GetVar(kNaClEnvPassthrough, &pass_through_string)) {
-    pass_through_vars = base::SplitString(
-        pass_through_string, std::string(1, kNaClEnvPassthroughDelimiter),
-        base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
+
+  std::optional<std::string> pass_through_string =
+      env->GetVar(kNaClEnvPassthrough);
+  if (pass_through_string.has_value()) {
+    pass_through_vars =
+        base::SplitString(pass_through_string.value(),
+                          std::string(1, kNaClEnvPassthroughDelimiter),
+                          base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
   }
+
   pass_through_vars.push_back(kNaClExeStderr);
   pass_through_vars.push_back(kNaClExeStdout);
   pass_through_vars.push_back(kNaClVerbosity);
   pass_through_vars.push_back(sandbox::kSandboxEnvironmentApiRequest);
-  for (size_t i = 0; i < pass_through_vars.size(); ++i) {
-    std::string temp;
-    if (env->GetVar(pass_through_vars[i], &temp))
-      options->environment[pass_through_vars[i]] = temp;
+
+  for (const std::string& var : pass_through_vars) {
+    std::optional<std::string> value = env->GetVar(var);
+    if (value.has_value()) {
+      options->environment[var] = value.value();
+    }
   }
 }
 

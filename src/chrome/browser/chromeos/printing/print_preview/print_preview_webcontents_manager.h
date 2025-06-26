@@ -5,7 +5,14 @@
 #ifndef CHROME_BROWSER_CHROMEOS_PRINTING_PRINT_PREVIEW_PRINT_PREVIEW_WEBCONTENTS_MANAGER_H_
 #define CHROME_BROWSER_CHROMEOS_PRINTING_PRINT_PREVIEW_PRINT_PREVIEW_WEBCONTENTS_MANAGER_H_
 
+#include <map>
+
+#include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/unguessable_token.h"
+#include "chromeos/crosapi/mojom/print_preview_cros.mojom.h"
+#include "components/printing/common/print.mojom-forward.h"
+#include "content/public/browser/web_contents.h"
 
 namespace chromeos {
 
@@ -13,16 +20,62 @@ namespace chromeos {
 // base::UnguessableToken. Each token represent a webcontent and is used as a
 // proxy for determining which print preview is relevant.
 // Communicates to ash via crosapi.
-class PrintPreviewWebcontentsManager {
+class PrintPreviewWebcontentsManager
+    : public crosapi::mojom::PrintPreviewCrosClient {
  public:
-  PrintPreviewWebcontentsManager() = default;
+  PrintPreviewWebcontentsManager();
   PrintPreviewWebcontentsManager(const PrintPreviewWebcontentsManager&) =
       delete;
   PrintPreviewWebcontentsManager& operator=(
       const PrintPreviewWebcontentsManager&) = delete;
-  ~PrintPreviewWebcontentsManager() = default;
+  ~PrintPreviewWebcontentsManager() override;
 
-  void GetPreview(base::UnguessableToken token);
+  static PrintPreviewWebcontentsManager* Get();
+  static void SetInstanceForTesting(PrintPreviewWebcontentsManager* manager);
+  static void ResetInstanceForTesting();
+
+  void Initialize();
+
+  // Establishes new mappings of webcontents and token, then requests a new
+  // print preview dialog to appear.
+  void RequestPrintPreview(
+      const base::UnguessableToken& token,
+      content::WebContents* webcontents,
+      ::printing::mojom::RequestPrintPreviewParamsPtr params);
+
+  // Handles removing the webcontents mapping and informing the ash client
+  // of the removed webcontent. This can happen if the initiating source
+  // (e.g. tab) closes/crashes.
+  void PrintPreviewDone(const base::UnguessableToken& token);
+
+  // crosapi::mojom::PrintPreviewCrosClient:
+  void GeneratePrintPreview(const base::UnguessableToken& token,
+                            crosapi::mojom::PrintSettingsPtr settings,
+                            GeneratePrintPreviewCallback callback) override;
+  // Handles ash -> chrome requests when the print dialog is closed.
+  void HandleDialogClosed(const base::UnguessableToken& token,
+                          HandleDialogClosedCallback callback) override;
+
+  static void SetPrintPreviewCrosDelegateForTesting(
+      crosapi::mojom::PrintPreviewCrosDelegate* delegate);
+
+ private:
+  friend class MockPrintPreviewWebcontentsManager;
+  friend class PrintPreviewWebContentsManagerBrowserTest;
+
+  void OnRequestPrintPreviewCallback(bool success);
+  void OnPrintPreviewDoneCallback(bool success);
+
+  // Remove the entry from lookup maps keyed by `token`.
+  // Returns the webcontents tied to `token` if removal was successful.
+  content::WebContents* RemoveTokenMapping(const base::UnguessableToken& token);
+
+  // Mapping a unique ID to its webcontents.
+  std::map<base::UnguessableToken,
+           raw_ptr<content::WebContents, CtnExperimental>>
+      token_to_webcontents_;
+
+  base::WeakPtrFactory<PrintPreviewWebcontentsManager> weak_ptr_factory_{this};
 };
 
 }  // namespace chromeos

@@ -13,9 +13,12 @@ import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.Observer;
 
 import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.password_manager.PasswordManagerHelper;
-import org.chromium.chrome.browser.ui.signin.SyncConsentActivityLauncher;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.browser.password_manager.PasswordStoreBridge;
+import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.ui.signin.SigninAndHistorySyncActivityLauncher;
+import org.chromium.components.browser_ui.settings.SettingsCustomTabLauncher;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.sync.SyncService;
@@ -27,10 +30,10 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 public class SafetyCheckCoordinator implements DefaultLifecycleObserver, SafetyCheckComponentUi {
     private SafetyCheckSettingsFragment mSettingsFragment;
     private SafetyCheckUpdatesDelegate mUpdatesClient;
-    private SyncConsentActivityLauncher mSigninLauncher;
     private SafetyCheckMediator mMediator;
     private SyncService mSyncService;
     private PrefService mPrefService;
+    private PasswordStoreBridge mPasswordStoreBridge;
     private PropertyModel mPasswordCheckLocalModel;
     private PropertyModel mPasswordCheckAccountModel;
 
@@ -40,51 +43,61 @@ public class SafetyCheckCoordinator implements DefaultLifecycleObserver, SafetyC
      * observed and a reference is retained there.
      *
      * @param settingsFragment An instance of {@link SafetyCheckSettingsFragment} to observe.
+     * @param profile Profile to launch SigninActivity.
      * @param updatesClient An instance implementing the {@link SafetyCheckUpdatesDelegate}
      *     interface.
      * @param bridge An instances of {@link SafetyCheckBridge} to access C++ APIs.
-     * @param settingsLauncher An instance implementing the {@link SettingsLauncher} interface.
-     * @param signinLauncher An instance implementing {@link SyncConsentActivityLauncher}.
+     * @param signinLauncher An instance implementing {@link SigninAndHistorySyncActivityLauncher}.
      * @param modalDialogManagerSupplier An supplier for the {@link ModalDialogManager}.
+     * @param passwordStoreBridge Provides access to stored passwords.
      * @param passwordManagerHelper An instance of {@link PasswordManagerHelper} that provides
      *     access to password management capabilities.
+     * @param settingsCustomTabLauncher Used by password manager to open a help center article in a
+     *     custom tab.
      */
     public static void create(
             SafetyCheckSettingsFragment settingsFragment,
+            Profile profile,
             SafetyCheckUpdatesDelegate updatesClient,
             SafetyCheckBridge bridge,
-            SettingsLauncher settingsLauncher,
-            SyncConsentActivityLauncher signinLauncher,
+            SigninAndHistorySyncActivityLauncher signinLauncher,
             ObservableSupplier<ModalDialogManager> modalDialogManagerSupplier,
             @Nullable SyncService syncService,
             PrefService prefService,
-            PasswordManagerHelper passwordManagerHelper) {
+            PasswordStoreBridge passwordStoreBridge,
+            PasswordManagerHelper passwordManagerHelper,
+            SettingsCustomTabLauncher settingsCustomTabLauncher) {
         new SafetyCheckCoordinator(
                 settingsFragment,
+                profile,
                 updatesClient,
                 bridge,
-                settingsLauncher,
                 signinLauncher,
                 modalDialogManagerSupplier,
                 syncService,
                 prefService,
-                passwordManagerHelper);
+                passwordStoreBridge,
+                passwordManagerHelper,
+                settingsCustomTabLauncher);
     }
 
     private SafetyCheckCoordinator(
             SafetyCheckSettingsFragment settingsFragment,
+            Profile profile,
             SafetyCheckUpdatesDelegate updatesClient,
             SafetyCheckBridge bridge,
-            SettingsLauncher settingsLauncher,
-            SyncConsentActivityLauncher signinLauncher,
+            SigninAndHistorySyncActivityLauncher signinLauncher,
             ObservableSupplier<ModalDialogManager> modalDialogManagerSupplier,
             @Nullable SyncService syncService,
             PrefService prefService,
-            PasswordManagerHelper passwordManagerHelper) {
+            PasswordStoreBridge passwordStoreBridge,
+            PasswordManagerHelper passwordManagerHelper,
+            SettingsCustomTabLauncher settingsCustomTabLauncher) {
         mSettingsFragment = settingsFragment;
         mUpdatesClient = updatesClient;
         mSyncService = syncService;
         mPrefService = prefService;
+        mPasswordStoreBridge = passwordStoreBridge;
         mSettingsFragment.setComponentDelegate(this);
         // Create the model and the mediator once the view is created.
         // The view's lifecycle is not available at this point, so observe the {@link LiveData} for
@@ -115,17 +128,19 @@ public class SafetyCheckCoordinator implements DefaultLifecycleObserver, SafetyC
                                     createPasswordCheckModels(mSettingsFragment, safetyCheckModel);
                                     mMediator =
                                             new SafetyCheckMediator(
+                                                    profile,
                                                     safetyCheckModel,
                                                     mPasswordCheckAccountModel,
                                                     mPasswordCheckLocalModel,
                                                     mUpdatesClient,
                                                     bridge,
-                                                    settingsLauncher,
                                                     signinLauncher,
                                                     syncService,
                                                     prefService,
+                                                    passwordStoreBridge,
                                                     passwordManagerHelper,
-                                                    modalDialogManagerSupplier);
+                                                    modalDialogManagerSupplier,
+                                                    settingsCustomTabLauncher);
                                 }
                             }
                         });
@@ -144,6 +159,19 @@ public class SafetyCheckCoordinator implements DefaultLifecycleObserver, SafetyC
                                 mMediator.setInitialState();
                             }
                         });
+        // Clean up any objects we are holding on to when the fragment is destroyed.
+        mSettingsFragment
+                .getLifecycle()
+                .addObserver(
+                        new DefaultLifecycleObserver() {
+                            @Override
+                            public void onDestroy(LifecycleOwner lifecycleOwner) {
+                                mSettingsFragment = null;
+                                mUpdatesClient = null;
+                                mPasswordStoreBridge.destroy();
+                                mPasswordStoreBridge = null;
+                            }
+                        });
     }
 
     @VisibleForTesting
@@ -158,7 +186,7 @@ public class SafetyCheckCoordinator implements DefaultLifecycleObserver, SafetyC
             SafetyCheckSettingsFragment settingsFragment, PropertyModel safetyCheckModel) {
         if (isAccountPasswordStorageUsed()) {
             String title =
-                    usesSplitStoresAndUPMForLocal(mPrefService)
+                    usesFullUpm()
                             ? mSettingsFragment.getString(
                                     R.string.safety_check_passwords_account_title,
                                     CoreAccountInfo.getEmailFrom(mSyncService.getAccountInfo()))
@@ -172,7 +200,7 @@ public class SafetyCheckCoordinator implements DefaultLifecycleObserver, SafetyC
         }
         if (isLocalPasswordStorageUsed()) {
             String title =
-                    usesSplitStoresAndUPMForLocal(mPrefService)
+                    usesFullUpm()
                             ? mSettingsFragment.getString(
                                     R.string.safety_check_passwords_local_title)
                             : mSettingsFragment.getString(R.string.safety_check_passwords_title);
@@ -201,23 +229,26 @@ public class SafetyCheckCoordinator implements DefaultLifecycleObserver, SafetyC
         return passwordSafetyCheckModel;
     }
 
-    /** Gets invoked when the Fragment detaches (the View is destroyed ). */
+    /**
+     * Gets invoked when the Fragment's view is destroyed.
+     *
+     * <p>This method can be called back for several different views as a fragment may create
+     * multiple views (e.g. when the user navigation pushes the fragment into the back stack and
+     * then pops it).
+     */
     @Override
     public void onDestroy(LifecycleOwner owner) {
         // Stop observing the Lifecycle of the View as it is about to be destroyed.
         owner.getLifecycle().removeObserver(this);
         // Cancel any pending tasks.
         mMediator.destroy();
-        // Clean up any objects we are holding on to.
-        mSettingsFragment = null;
-        mUpdatesClient = null;
         mMediator = null;
     }
 
     @Override
     public boolean isLocalPasswordStorageUsed() {
         if (!PasswordManagerHelper.hasChosenToSyncPasswords(mSyncService)) return true;
-        if (usesSplitStoresAndUPMForLocal(mPrefService)) return true;
+        if (usesFullUpm()) return true;
         return false;
     }
 
@@ -225,5 +256,15 @@ public class SafetyCheckCoordinator implements DefaultLifecycleObserver, SafetyC
     public boolean isAccountPasswordStorageUsed() {
         if (PasswordManagerHelper.hasChosenToSyncPasswords(mSyncService)) return true;
         return false;
+    }
+
+    private boolean usesFullUpm() {
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.LOGIN_DB_DEPRECATION_ANDROID)) {
+            // In this case, Safety Check is only used from the PhishGuard dialog if
+            // a phished credential is in both local and account stores, so UPM is definitely
+            // available.
+            return true;
+        }
+        return usesSplitStoresAndUPMForLocal(mPrefService);
     }
 }

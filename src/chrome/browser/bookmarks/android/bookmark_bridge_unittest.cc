@@ -13,9 +13,9 @@
 #include "base/test/bind.h"
 #include "base/test/mock_callback.h"
 #include "base/test/simple_test_clock.h"
-#include "chrome/browser/android/bookmarks/partner_bookmarks_reader.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/bookmarks/managed_bookmark_service_factory.h"
+#include "chrome/browser/partnerbookmarks/partner_bookmarks_reader.h"
 #include "chrome/browser/reading_list/android/reading_list_manager.h"
 #include "chrome/browser/reading_list/android/reading_list_manager_impl.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -28,18 +28,15 @@
 #include "components/bookmarks/managed/managed_bookmark_service.h"
 #include "components/bookmarks/test/bookmark_test_helpers.h"
 #include "components/bookmarks/test/test_bookmark_client.h"
-#include "components/page_image_service/image_service.h"
-#include "components/page_image_service/mojom/page_image_service.mojom.h"
 #include "components/reading_list/core/dual_reading_list_model.h"
 #include "components/reading_list/core/fake_reading_list_model_storage.h"
 #include "components/reading_list/core/reading_list_model_impl.h"
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/identity_manager/identity_test_environment.h"
-#include "components/sync/base/features.h"
 #include "components/sync/base/storage_type.h"
 #include "components/sync/base/user_selectable_type.h"
 #include "components/sync/engine/data_type_activation_response.h"
-#include "components/sync/model/client_tag_based_model_type_processor.h"
+#include "components/sync/model/client_tag_based_data_type_processor.h"
 #include "components/sync/model/data_type_activation_request.h"
 #include "components/sync/test/mock_commit_queue.h"
 #include "components/sync/test/test_sync_user_settings.h"
@@ -54,22 +51,8 @@ using bookmarks::BookmarkModel;
 using bookmarks::BookmarkNode;
 using bookmarks::ManagedBookmarkService;
 using bookmarks::android::JavaBookmarkIdGetId;
-using page_image_service::ImageService;
 using testing::IsNull;
 using testing::NotNull;
-
-class MockImageService : public page_image_service::ImageService {
- public:
-  MOCK_METHOD(void,
-              FetchImageFor,
-              (page_image_service::mojom::ClientId,
-               const GURL&,
-               const page_image_service::mojom::Options&,
-               ResultCallback),
-              (override));
-
-  MOCK_METHOD(base::WeakPtr<ImageService>, GetWeakPtr, (), (override));
-};
 
 // Unit tests for `BookmarkBridge`.
 class BookmarkBridgeTest : public testing::Test {
@@ -85,10 +68,12 @@ class BookmarkBridgeTest : public testing::Test {
     ASSERT_TRUE(profile_manager_->SetUp());
     profile_ = profile_manager_->CreateTestingProfile(
         "BookmarkBridgeTest", /*testing_factories=*/{
-            {BookmarkModelFactory::GetInstance(),
-             BookmarkModelFactory::GetDefaultFactory()},
-            {ManagedBookmarkServiceFactory::GetInstance(),
-             ManagedBookmarkServiceFactory::GetDefaultFactory()}});
+            TestingProfile::TestingFactory{
+                BookmarkModelFactory::GetInstance(),
+                BookmarkModelFactory::GetDefaultFactory()},
+            TestingProfile::TestingFactory{
+                ManagedBookmarkServiceFactory::GetInstance(),
+                ManagedBookmarkServiceFactory::GetDefaultFactory()}});
 
     // Setup bookmark sources from their factories.
     managed_bookmark_service_ =
@@ -123,8 +108,6 @@ class BookmarkBridgeTest : public testing::Test {
     return identity_test_environment_.get();
   }
 
-  MockImageService& mock_image_service() { return mock_image_service_; }
-
   const BookmarkNode* AddURL(const BookmarkNode* parent,
                              size_t index,
                              const std::u16string& title,
@@ -152,9 +135,9 @@ class BookmarkBridgeTest : public testing::Test {
         std::make_unique<testing::NiceMock<syncer::MockCommitQueue>>());
 
     // After this update initial sync is for sure done.
-    sync_pb::ModelTypeState state;
+    sync_pb::DataTypeState state;
     state.set_initial_sync_state(
-        sync_pb::ModelTypeState_InitialSyncState_INITIAL_SYNC_DONE);
+        sync_pb::DataTypeState_InitialSyncState_INITIAL_SYNC_DONE);
 
     activation_response->type_processor->OnUpdateReceived(
         state, {}, /*gc_directive=*/std::nullopt);
@@ -197,11 +180,6 @@ class BookmarkBridgeTest : public testing::Test {
     bookmarks::test::WaitForBookmarkModelToLoad(bookmark_model_.get());
 
     if (enable_account_bookmarks) {
-      features_.InitWithFeatures(
-          /*enabled_features=*/
-          {syncer::kEnableBookmarkFoldersForAccountStorage,
-           syncer::kReadingListEnableSyncTransportModeUponSignIn},
-          /*disabled_features=*/{});
       bookmark_model_->CreateAccountPermanentFolders();
       if (load_reading_list_model) {
         // If the `account_reading_list_model` is not loaded, StartSyncing()
@@ -212,8 +190,7 @@ class BookmarkBridgeTest : public testing::Test {
 
     bookmark_bridge_ = std::make_unique<BookmarkBridge>(
         profile_, bookmark_model_.get(), managed_bookmark_service_,
-        &mock_image_service_, dual_reading_list_model_.get(),
-        partner_bookmarks_shim_,
+        dual_reading_list_model_.get(), partner_bookmarks_shim_,
         identity_test_environment_->identity_manager());
 
     bookmark_bridge_->LoadEmptyPartnerBookmarkShimForTesting(
@@ -236,8 +213,6 @@ class BookmarkBridgeTest : public testing::Test {
         &clock_);
     return reading_list_model;
   }
-
-  base::test::ScopedFeatureList features_;
   base::SimpleTestClock clock_;
   content::BrowserTaskEnvironment task_environment_;
 
@@ -250,7 +225,6 @@ class BookmarkBridgeTest : public testing::Test {
   std::unique_ptr<reading_list::DualReadingListModel> dual_reading_list_model_;
   std::unique_ptr<BookmarkBridge> bookmark_bridge_;
   std::unique_ptr<signin::IdentityTestEnvironment> identity_test_environment_;
-  MockImageService mock_image_service_;
 };
 
 TEST_F(BookmarkBridgeTest,
@@ -336,18 +310,19 @@ TEST_F(BookmarkBridgeTest, TestIsBookmarked) {
 TEST_F(BookmarkBridgeTest, TestGetTopLevelFolderIds) {
   std::vector<const BookmarkNode*> folders =
       bookmark_bridge()->GetTopLevelFolderIdsImpl(
-          /*ignore_visibility=*/false);
+          /*force_visible_mask=*/BookmarkNodeMaskBit::NONE);
 
   // The 2 folders should be: mobile bookmarks, reading list.
   EXPECT_EQ(2u, folders.size());
   EXPECT_EQ(u"Mobile bookmarks", folders[0]->GetTitle());
   EXPECT_EQ(u"Reading list", folders[1]->GetTitle());
 
-  // When ignoring visibility, all top-level folders should be visible.
+  // When forcing visibility, all top-level folders should be visible.
   folders = bookmark_bridge()->GetTopLevelFolderIdsImpl(
-      /*ignore_visibility=*/true);
+      /*force_visible_mask=*/BookmarkNodeMaskBit::ALL);
 
-  // The 2 folders should be: mobile bookmarks, reading list.
+  // The 4 folders should be: mobile bookmarks, bookmarks bar, other bookmarks,
+  // and reading list.
   EXPECT_EQ(4u, folders.size());
   EXPECT_EQ(u"Mobile bookmarks", folders[0]->GetTitle());
   EXPECT_EQ(u"Bookmarks bar", folders[1]->GetTitle());
@@ -359,7 +334,7 @@ TEST_F(BookmarkBridgeTest, TestGetTopLevelFolderIds) {
   AddURL(bookmark_model()->bookmark_bar_node(), 0, u"first",
          GURL("http://foo.com"));
   folders = bookmark_bridge()->GetTopLevelFolderIdsImpl(
-      /*ignore_visibility=*/false);
+      /*force_visible_mask=*/BookmarkNodeMaskBit::NONE);
   EXPECT_EQ(3u, folders.size());
   EXPECT_EQ(u"Mobile bookmarks", folders[0]->GetTitle());
   EXPECT_EQ(u"Bookmarks bar", folders[1]->GetTitle());
@@ -382,7 +357,7 @@ TEST_F(BookmarkBridgeTest, TestGetTopLevelFolderIdsAccountActive) {
   // mobile bookmarks folder (which contains partner bookmarks).
   std::vector<const BookmarkNode*> folders =
       bookmark_bridge()->GetTopLevelFolderIdsImpl(
-          /*ignore_visibility=*/false);
+          /*force_visible_mask=*/BookmarkNodeMaskBit::NONE);
   EXPECT_EQ(3u, folders.size());
   EXPECT_EQ(u"Mobile bookmarks", folders[0]->GetTitle());
   EXPECT_TRUE(bookmark_bridge()->IsAccountBookmarkImpl(folders[0]));
@@ -394,17 +369,17 @@ TEST_F(BookmarkBridgeTest, TestGetTopLevelFolderIdsAccountActive) {
   // When there are no partner bookmarks, the local mobile node will be hidden.
   partner_bookmarks_shim_->SetPartnerBookmarksRoot(nullptr);
   folders = bookmark_bridge()->GetTopLevelFolderIdsImpl(
-      /*ignore_visibility=*/false);
+      /*force_visible_mask=*/BookmarkNodeMaskBit::NONE);
   EXPECT_EQ(2u, folders.size());
   EXPECT_EQ(u"Mobile bookmarks", folders[0]->GetTitle());
   EXPECT_TRUE(bookmark_bridge()->IsAccountBookmarkImpl(folders[0]));
   EXPECT_EQ(u"Reading list", folders[1]->GetTitle());
   EXPECT_TRUE(bookmark_bridge()->IsAccountBookmarkImpl(folders[1]));
 
-  // All account and some local folders should be included when ignore
-  // visibility is true.
+  // All account and some local folders should be included when forcing
+  // visibility.
   folders = bookmark_bridge()->GetTopLevelFolderIdsImpl(
-      /*ignore_visibility=*/true);
+      /*force_visible_mask=*/BookmarkNodeMaskBit::ALL);
   EXPECT_EQ(6u, folders.size());
   EXPECT_EQ(u"Mobile bookmarks", folders[0]->GetTitle());
   EXPECT_TRUE(bookmark_bridge()->IsAccountBookmarkImpl(folders[0]));
@@ -424,14 +399,14 @@ TEST_F(BookmarkBridgeTest, TestGetTopLevelFolderIdsAccountActive) {
   AddURL(bookmark_model()->bookmark_bar_node(), 0, u"first",
          GURL("http://foo.com"));
   folders = bookmark_bridge()->GetTopLevelFolderIdsImpl(
-      /*ignore_visibility=*/false);
+      /*force_visible_mask=*/BookmarkNodeMaskBit::NONE);
   // Adding a bookmark node to mobile bookmarks will include it in the list.
   AddURL(bookmark_model()->mobile_node(), 0, u"second", GURL("http://foo.com"));
   // Adding to the local reading list will include it in the list.
   local_or_syncable_reading_list_manager()->Add(GURL("http://foo.com"),
                                                 "third");
   folders = bookmark_bridge()->GetTopLevelFolderIdsImpl(
-      /*ignore_visibility=*/false);
+      /*force_visible_mask=*/BookmarkNodeMaskBit::NONE);
   EXPECT_EQ(5u, folders.size());
   EXPECT_EQ(u"Mobile bookmarks", folders[0]->GetTitle());
   EXPECT_TRUE(bookmark_bridge()->IsAccountBookmarkImpl(folders[0]));
@@ -671,43 +646,4 @@ TEST_F(BookmarkBridgeTest, TestMoveReadingListToBookmark) {
   children = bookmark_bridge()->GetChildIdsImpl(
       local_or_syncable_reading_list_manager()->GetRoot());
   ASSERT_EQ(0u, children.size());
-}
-
-TEST_F(BookmarkBridgeTest, TestGetImageUrlForBookmark) {
-  identity_test_environment()->SetPrimaryAccount("test@gmail.com",
-                                                 signin::ConsentLevel::kSync);
-
-  GURL url = GURL("http://foo.com");
-  // This callback will only be invoked for edge cases. Nothing will happen
-  // when the mock_image_service() is called.
-  base::MockOnceCallback<void(const GURL&)> mock_callback;
-
-  EXPECT_CALL(mock_callback, Run(testing::_)).Times(0);
-  EXPECT_CALL(mock_image_service(), FetchImageFor(testing::_, testing::Eq(url),
-                                                  testing::_, testing::_));
-  bookmark_bridge()->GetImageUrlForBookmarkImpl(url,
-                                                /*is_account_bookmark=*/false,
-                                                mock_callback.Get());
-
-  // Without sync consent, no call will be made for a local bookmark
-  // (is_account_bookmark is false).
-  identity_test_environment()->ClearPrimaryAccount();
-  identity_test_environment()->SetPrimaryAccount("test@gmail.com",
-                                                 signin::ConsentLevel::kSignin);
-  EXPECT_CALL(mock_callback, Run(testing::Eq(GURL())));
-  EXPECT_CALL(mock_image_service(),
-              FetchImageFor(testing::_, testing::_, testing::_, testing::_))
-      .Times(0);
-  bookmark_bridge()->GetImageUrlForBookmarkImpl(url,
-                                                /*is_account_bookmark=*/false,
-                                                mock_callback.Get());
-
-  // When the bookmark being fetched is an account bookmark, the sync consent
-  // won't matter.
-  EXPECT_CALL(mock_callback, Run(testing::_)).Times(0);
-  EXPECT_CALL(mock_image_service(), FetchImageFor(testing::_, testing::Eq(url),
-                                                  testing::_, testing::_));
-  bookmark_bridge()->GetImageUrlForBookmarkImpl(url,
-                                                /*is_account_bookmark=*/true,
-                                                mock_callback.Get());
 }

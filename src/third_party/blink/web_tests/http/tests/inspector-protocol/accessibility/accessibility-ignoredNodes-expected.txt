@@ -217,10 +217,6 @@ RootWebArea
                 attribute : aria-label
                 type : attribute
             }
-            [2] : {
-                attribute : title
-                type : attribute
-            }
         ]
         type : computedString
         value : 
@@ -606,15 +602,10 @@ RootWebArea
     ignored : true
     ignoredReasons : [
         [0] : {
-            name : inertSubtree
+            name : inertElement
             value : {
-                relatedNodes : [
-                    [0] : {
-                        idref : inert-root
-                        nodeResult : div#inert-root
-                    }
-                ]
-                type : idref
+                type : boolean
+                value : true
             }
         }
     ]
@@ -656,11 +647,6 @@ RootWebArea
                     type : computedString
                     value : span with ARIA label
                 }
-            }
-            [2] : {
-                attribute : title
-                superseded : true
-                type : attribute
             }
         ]
         type : computedString
@@ -730,10 +716,6 @@ RootWebArea
             }
             [1] : {
                 attribute : aria-label
-                type : attribute
-            }
-            [2] : {
-                attribute : title
                 type : attribute
             }
         ]

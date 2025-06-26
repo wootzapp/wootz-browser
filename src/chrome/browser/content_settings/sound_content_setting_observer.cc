@@ -125,7 +125,7 @@ void SoundContentSettingObserver::MuteOrUnmuteIfNecessary() {
   if (mute == web_contents()->IsAudioMuted())
     return;
 
-  TabMutedReason reason = chrome::GetTabAudioMutedReason(web_contents());
+  TabMutedReason reason = GetTabAudioMutedReason(web_contents());
 
   // Do not override the decisions of an extension.
   if (reason == TabMutedReason::EXTENSION)
@@ -143,8 +143,8 @@ void SoundContentSettingObserver::MuteOrUnmuteIfNecessary() {
   if (!mute && reason == TabMutedReason::AUDIO_INDICATOR)
     return;
 
-  chrome::SetTabAudioMuted(web_contents(), mute,
-                           TabMutedReason::CONTENT_SETTING, std::string());
+  SetTabAudioMuted(web_contents(), mute, TabMutedReason::CONTENT_SETTING,
+                   std::string());
 #endif  // BUILDFLAG(IS_ANDROID)
 }
 
@@ -159,8 +159,8 @@ void SoundContentSettingObserver::CheckSoundBlocked(bool is_audible) {
     // Since this is a page-level event and only primary pages can play audio
     // in prerendering, we get `settings` from the main frame of the primary
     // page.
-    // TODO(crbug.com/40139135): For other types of FrameTrees(fenced
-    // frames, portals) than prerendering, we should figure a way of not having
+    // TODO(crbug.com/40139135): For other types of FrameTrees (fenced
+    // frames) than prerendering, we should figure a way of not having
     // to use GetPrimaryMainFrame here. (pass the source frame somehow)
     content_settings::PageSpecificContentSettings* settings =
         content_settings::PageSpecificContentSettings::GetForFrame(

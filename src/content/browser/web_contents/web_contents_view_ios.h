@@ -50,7 +50,6 @@ class WebContentsViewIOS : public WebContentsView,
   void RestoreFocus() override;
   void FocusThroughTabTraversal(bool reverse) override;
   DropData* GetDropData() const override;
-  void TransferDragSecurityInfo(WebContentsView* view) override;
   gfx::Rect GetViewBounds() const override;
   void CreateView(gfx::NativeView context) override;
   RenderWidgetHostViewBase* CreateViewForWidget(
@@ -74,6 +73,7 @@ class WebContentsViewIOS : public WebContentsView,
   bool OnlyExpandTopControlsAtPageTop() const override;
   BackForwardTransitionAnimationManager*
   GetBackForwardTransitionAnimationManager() override;
+  void DestroyBackForwardTransitionAnimationManager() override;
 
   // RenderViewHostDelegateView:
   void GotFocus(RenderWidgetHostImpl* render_widget_host) override;
@@ -85,7 +85,6 @@ class WebContentsViewIOS : public WebContentsView,
       RenderFrameHost* render_frame_host,
       mojo::PendingRemote<blink::mojom::PopupMenuClient> popup_client,
       const gfx::Rect& bounds,
-      int item_height,
       double item_font_size,
       int selected_item,
       std::vector<blink::mojom::MenuItemPtr> menu_items,

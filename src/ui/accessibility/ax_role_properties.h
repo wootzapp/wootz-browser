@@ -79,6 +79,10 @@ AX_BASE_EXPORT bool IsControl(const ax::mojom::Role role);
 AX_BASE_EXPORT bool IsControlOnAndroid(const ax::mojom::Role role,
                                        bool isFocusable);
 
+// Returns true if the provided role is a container on the Android platform,
+// which include aria landmark roles, and iframe roles.
+AX_BASE_EXPORT bool IsContainerOnAndroid(const ax::mojom::Role role);
+
 // Returns true for an <input> used for a date or time.
 AX_BASE_EXPORT bool IsDateOrTimeInput(const ax::mojom::Role role);
 
@@ -161,9 +165,9 @@ AX_BASE_EXPORT bool IsRangeValueSupported(const ax::mojom::Role role);
 
 // Returns true if this object supports readonly.
 //
-// Note: This returns false for table cells and headers, it is up to the
-//       caller to make sure that they are included IFF they are within an
-//       ARIA-1.1+ role='grid' or 'treegrid', and not role='table'.
+// Note: This returns false for table headers, it is up to the caller to make
+//       sure that they are included IFF they are within an ARIA-1.1+
+//       role='grid' or 'treegrid', and not role='table'.
 AX_BASE_EXPORT bool IsReadOnlySupported(const ax::mojom::Role role);
 
 // Returns true if the provided role is at the root of a window-like container,
@@ -225,6 +229,9 @@ AX_BASE_EXPORT bool IsTableLike(const ax::mojom::Role role);
 // table is not used for layout purposes.
 AX_BASE_EXPORT bool IsTableRow(ax::mojom::Role role);
 
+// Returns true if the provided role belongs to a table, a grid, or a treegrid.
+AX_BASE_EXPORT bool IsTableWithColumns(ax::mojom::Role role);
+
 // Returns true if the provided role is text-related, e.g., static text, line
 // break, or inline text box.
 AX_BASE_EXPORT bool IsText(ax::mojom::Role role);
@@ -276,6 +283,10 @@ AX_BASE_EXPORT bool IsPlainContentElement(const ax::mojom::Role role);
 // https://www.w3.org/WAI/ARIA/apg/patterns/treeview/examples/treeview-1b/
 AX_BASE_EXPORT bool SupportsArrowKeysForExpandCollapse(
     const ax::mojom::Role role);
+
+// Returns true if the provided role supports naming from child content.
+// https://www.w3.org/WAI/ARIA/apg/practices/names-and-descriptions/#naming_with_child_content.
+AX_BASE_EXPORT bool SupportsNamingWithChildContent(const ax::mojom::Role role);
 
 }  // namespace ui
 

@@ -34,23 +34,29 @@ _DEFAULT_RBE_PROJECT = 'rbe-chrome-untrusted'
 RerunOption = namedtuple('RerunOption', ['prompt', 'properties'])
 
 
-def check_rdb_auth():
-  """Checks that the user is logged in with resultdb."""
-  rdb_path = shutil.which('rdb')
-  if not rdb_path:
-    logging.error("'rdb' binary not found. Is depot_tools not on PATH?")
+def check_luci_context_auth():
+  """Checks that the user is logged in with luci-auth context."""
+  luci_auth_path = shutil.which('luci-auth')
+  if not luci_auth_path:
+    logging.error("'luci-auth' binary not found. Is depot_tools not on PATH?")
     return False
-  cmd = [rdb_path, 'auth-info']
+  cmd = [
+      luci_auth_path, 'info', '-scopes',
+      'https://www.googleapis.com/auth/userinfo.email'
+  ]
   try:
-    p = subprocess.run(cmd,
-                       stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT,
-                       text=True,
-                       check=True)
-  except subprocess.CalledProcessError:
-    logging.error('No rdb auth available:')
-    logging.error(p.stdout.strip())
-    logging.error("Please run 'rdb auth-login' to authenticate")
+    subprocess.run(cmd,
+                   stdout=subprocess.PIPE,
+                   stderr=subprocess.STDOUT,
+                   text=True,
+                   check=True)
+  except subprocess.CalledProcessError as e:
+    logging.error('luci-auth context auth unavailable:')
+    logging.error(e.output.strip())
+    logging.error(
+        "Please run 'luci-auth login -scopes "
+        "https://www.googleapis.com/auth/userinfo.email' to authenticate, "
+        'preferring your @google.com account if you have one.')
     return False
   return True
 
@@ -95,8 +101,13 @@ class LegacyRunner:
                skip_compile,
                skip_test,
                skip_prompts,
-               build_dir=None,
-               additional_test_args=None):
+               build_dir,
+               additional_test_args=None,
+               swarming_dimensions=None,
+               reuse_task=None,
+               skip_coverage=False,
+               no_rbe=False,
+               no_siso=False):
     """Constructor for LegacyRunner
 
     Args:
@@ -109,11 +120,16 @@ class LegacyRunner:
       skip_compile: If True, the UTR will only run the tests.
       skip_test: If True, the UTR will only compile.
       skip_prompts: If True, skip Y/N prompts for warnings.
-      build_dir: pathlib.Path to the build dir to build in. Will use the UTR's
-          default otherwise if needed.
+      build_dir: pathlib.Path to the build dir to build in.
       additional_test_args: List of additional args to pass to the tests.
+      dimensions: List of dimensions to overwrite in the tests.
+      reuse_task: String of a swarming task to reuse.
+      skip_coverage: If True, skip code coverage instrumentation.
+      no_rbe: If True, disables RBE during compile.
+      no_siso: If True, disabled Siso during compile and isolate.
     """
     self._recipes_py = recipes_py
+    self._skip_coverage = skip_coverage
     self._skip_prompts = skip_prompts
     self._console_printer = console.Console()
     assert self._recipes_py.exists()
@@ -136,13 +152,13 @@ class LegacyRunner:
     # https://chromium.googlesource.com/chromium/tools/build/+/HEAD/recipes/recipes/chromium/universal_test_runner.proto
     input_props = builder_props.copy()
     input_props['checkout_path'] = str(_SRC_DIR)
-    input_props['$recipe_engine/path'] = {'cache_dir': str(_SRC_DIR.parent)}
     input_props['test_names'] = tests
     input_props['$build/chromium_swarming'] = {'task_realm': self._luci_realm}
+    input_props['build_dir'] = str(build_dir.absolute())
     if additional_test_args:
       input_props['additional_test_args'] = additional_test_args
-    if build_dir:
-      input_props['build_dir'] = str(build_dir.absolute())
+    if swarming_dimensions:
+      input_props['swarming_dimensions'] = swarming_dimensions
     # The recipe will overwrite this property so we have to put it preserve it
     # elsewhere
     if 'recipe' in input_props:
@@ -155,6 +171,9 @@ class LegacyRunner:
     elif skip_test:
       mode = 'RUN_TYPE_COMPILE'
     input_props['run_type'] = mode
+
+    if reuse_task:
+      input_props['reuse_swarming_task'] = reuse_task
 
     # Need to pretend we're an actual build for various builder look-ups in
     # the recipe.
@@ -169,6 +188,14 @@ class LegacyRunner:
             },
         },
     }
+    # Some merge scripts need these two props. eg: The android result merge
+    # incorporates buildnumber in the GS URL it uploads to. We don't want the
+    # URL in UTR runs colliding with real builds' URLs, so we go with a dummy
+    # hardcoded 0. This might lead to URLs for UTR runs colliding with other
+    # UTR runs, but at least they'll be isolated from real builds.
+    # TODO(crbug.com/395081730): Remove these two props when safe.
+    input_props['buildername'] = builder
+    input_props['buildnumber'] = 0
     # TODO(crbug.com/41492688): Ensure the chrome version for internal builders
     # when they are added.
     # Set reclient and siso to use untrusted even for imitating ci builders
@@ -178,7 +205,23 @@ class LegacyRunner:
     if not '$build/siso' in input_props:
       input_props['$build/siso'] = {}
     input_props['$build/siso']['project'] = self._get_siso_project()
+    if no_rbe:
+      input_props['no_rbe'] = True
+    if no_siso:
+      input_props['no_siso'] = True
     self._input_props = input_props
+
+  def _merge_rerun_props(self, rerun_props_from_recipe):
+    """Merges user's preferred rerun props with the recipe's.
+
+    The user may explicitly opt-out of some behavior controlled via rerun props.
+    Use this method to make sure the recipe doesn't overwrite their preference.
+    """
+    merged_rerun_props = rerun_props_from_recipe.copy()
+    if self._skip_coverage:
+      merged_rerun_props['bypass_branch_check'] = True
+      merged_rerun_props['skip_instrumentation'] = True
+    return merged_rerun_props
 
   def _get_cmd_output(self, cmd):
     p = subprocess.run(cmd,
@@ -219,7 +262,7 @@ class LegacyRunner:
         a dict of rerun_props the recipe should be re-invoked with
     """
     input_props = self._input_props.copy()
-    input_props['rerun_options'] = rerun_props or {}
+    input_props['rerun_options'] = self._merge_rerun_props(rerun_props or {})
     with tempfile.TemporaryDirectory() as tmp_dir:
 
       output_path = pathlib.Path(tmp_dir).joinpath('out.json')
@@ -318,6 +361,7 @@ class LegacyRunner:
       # seems the least weird-looking.
       pretty_md = markdown.Markdown(failure_md, inline_code_lexer='python')
       if not rerun_prop_options:
+        logging.warning('')
         if exit_code:
           # Use the markdown printer from "rich" to better format the text in
           # a terminal.
@@ -325,13 +369,7 @@ class LegacyRunner:
           self._console_printer.print(md, style='red')
         else:
           logging.info('[green]Success![/]')
-
-        results_link = adapter.GetTestResultsLink()
-        if results_link:
-          logging.info('')
-          logging.info('For futher information, see the full test results at:')
-          logging.info(results_link)
-        return exit_code, 'Build/test failure' if exit_code else None
+        return exit_code, None  # Assume the recipe's failure_md is sufficient
       logging.warning('')
       self._console_printer.print(pretty_md)
       logging.warning('')

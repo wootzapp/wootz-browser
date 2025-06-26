@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "apps/launcher.h"
+#include "ash/constants/ash_features.h"
 #include "ash/constants/notifier_catalogs.h"
 #include "ash/login/ui/lock_screen.h"
 #include "ash/public/cpp/app_list/app_list_controller.h"
@@ -28,6 +29,7 @@
 #include "ash/system/notification_center/message_view_factory.h"
 #include "ash/webui/grit/ash_print_management_resources.h"
 #include "ash/webui/settings/public/constants/routes.mojom.h"
+#include "base/containers/fixed_flat_map.h"
 #include "base/notreached.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/buildflag.h"
@@ -37,15 +39,12 @@
 #include "chrome/browser/apps/app_service/launch_utils.h"
 #include "chrome/browser/ash/app_list/arc/arc_app_utils.h"
 #include "chrome/browser/ash/arc/arc_util.h"
-#include "chrome/browser/ash/crosapi/crosapi_util.h"
 #include "chrome/browser/ash/phonehub/phone_hub_manager_factory.h"
 #include "chrome/browser/ash/printing/synced_printers_manager.h"
 #include "chrome/browser/ash/printing/synced_printers_manager_factory.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
-#include "chrome/browser/ui/browser_navigator.h"
-#include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
 #include "chrome/grit/chrome_unscaled_resources.h"
 #include "chromeos/ash/components/phonehub/feature_status_provider.h"
@@ -61,7 +60,7 @@
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_operations.h"
-#include "ui/gfx/paint_vector_icon.h"
+#include "ui/gfx/vector_icon_types.h"
 #include "ui/message_center/public/cpp/notification.h"
 #include "ui/message_center/public/cpp/notification_delegate.h"
 #include "url/gurl.h"
@@ -124,24 +123,21 @@ GURL GetPerksMinecraftRealmsUrl(std::string_view country_code) {
                                    kChromebookPerksUrlQueryNameId, it->second);
 }
 
-const base::flat_map<ActionType, std::string>& GetActionTypeURLs() {
-  static const base::NoDestructor<base::flat_map<ActionType, std::string>>
-      action_type_urls(
-          {{ActionType::kOpenChrome, "chrome://new-tab-page/"},
-           {ActionType::kOpenPlayStore,
-            "https://play.google.com/store/games?device=chromebook"},
-           {ActionType::kOpenGoogleDocs,
-            "https://docs.google.com/document/?usp=installed_webapp/"},
-           {ActionType::kOpenGooglePhotos, "https://photos.google.com/"},
-           {ActionType::kOpenYouTube, "https://www.youtube.com/"},
-           {ActionType::kOpenChromebookPerksWeb,
-            "https://www.google.com/chromebook/perks/"},
-           {ActionType::kOpenChromebookPerksGfnPriority2022,
-            "https://www.google.com/chromebook/perks/?id=gfn.priority.2022"},
-           {ActionType::kOpenChromebookPerksMinecraft2023,
-            "https://www.google.com/chromebook/perks/?id=minecraft.2023"}});
-  return *action_type_urls;
-}
+constexpr auto kActionTypeUrls =
+    base::MakeFixedFlatMap<ActionType, std::string_view>(
+        {{ActionType::kOpenChrome, "chrome://new-tab-page/"},
+         {ActionType::kOpenPlayStore,
+          "https://play.google.com/store/games?device=chromebook"},
+         {ActionType::kOpenGoogleDocs,
+          "https://docs.google.com/document/?usp=installed_webapp/"},
+         {ActionType::kOpenGooglePhotos, "https://photos.google.com/"},
+         {ActionType::kOpenYouTube, "https://www.youtube.com/"},
+         {ActionType::kOpenChromebookPerksWeb,
+          "https://www.google.com/chromebook/perks/"},
+         {ActionType::kOpenChromebookPerksGfnPriority2022,
+          "https://www.google.com/chromebook/perks/?id=gfn.priority.2022"},
+         {ActionType::kOpenChromebookPerksMinecraft2023,
+          "https://www.google.com/chromebook/perks/?id=minecraft.2023"}});
 
 std::string ToString(ConnectionStateType connection_state_type) {
   switch (connection_state_type) {
@@ -232,7 +228,7 @@ int GetResourceId(BubbleIcon icon) {
     case BubbleIcon::kGooglePhotosIcon:
       return IDR_SCALABLE_IPH_GOOGLE_PHOTOS_ICON_120_PNG;
     case BubbleIcon::kNoIcon:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 #else
   return IDR_PRODUCT_LOGO_128;
@@ -357,22 +353,26 @@ ScalableIphDelegateImpl::ScalableIphDelegateImpl(Profile* profile,
   synced_printers_manager_observer_.Observe(synced_printers_manager_);
   MaybeNotifyHasSavedPrinters();
 
-  DCHECK(ash::Shell::Get()->system_tray_model()->phone_hub_manager())
-      << "PhoneHubManager is expected to be initialized at a specific timing. "
-         "See a comment in "
-         "PhoneHubManagerFactory::ServiceIsCreatedWithBrowserContext. Below "
-         "PhoneHubManagerFactory::GetForProfile will lazy create a "
-         "PhoneHubManager. It should be fine as ScalableIph is also "
-         "initialized at the same timing. But it's ideal if PhoneHubManager is "
-         "created at the intended initialization timing instead of our call, "
-         "i.e. PhoneHubManager should be already created at this point.";
-  phonehub::PhoneHubManager* phone_hub_manager =
-      phonehub::PhoneHubManagerFactory::GetForProfile(profile);
-  CHECK(phone_hub_manager);
-  feature_status_provider_ = phone_hub_manager->GetFeatureStatusProvider();
-  CHECK(feature_status_provider_);
-  feature_status_provider_observer_.Observe(feature_status_provider_);
-  MaybeNotifyPhoneHubOnboardingEligibility();
+  if (features::IsCrossDeviceFeatureSuiteAllowed()) {
+    DCHECK(ash::Shell::Get()->system_tray_model()->phone_hub_manager())
+        << "PhoneHubManager is expected to be initialized at a specific "
+           "timing. "
+           "See a comment in "
+           "PhoneHubManagerFactory::ServiceIsCreatedWithBrowserContext. Below "
+           "PhoneHubManagerFactory::GetForProfile will lazy create a "
+           "PhoneHubManager. It should be fine as ScalableIph is also "
+           "initialized at the same timing. But it's ideal if PhoneHubManager "
+           "is "
+           "created at the intended initialization timing instead of our call, "
+           "i.e. PhoneHubManager should be already created at this point.";
+    phonehub::PhoneHubManager* phone_hub_manager =
+        phonehub::PhoneHubManagerFactory::GetForProfile(profile);
+    CHECK(phone_hub_manager);
+    feature_status_provider_ = phone_hub_manager->GetFeatureStatusProvider();
+    CHECK(feature_status_provider_);
+    feature_status_provider_observer_.Observe(feature_status_provider_);
+    MaybeNotifyPhoneHubOnboardingEligibility();
+  }
 }
 
 // Remember NOT to interact with `iph_session` from the destructor. See the
@@ -498,7 +498,7 @@ bool ScalableIphDelegateImpl::ShowNotification(
             notification_image_id.value());
   }
 
-  const gfx::VectorIcon* icon = &gfx::kNoneIcon;
+  const gfx::VectorIcon* icon = &gfx::VectorIcon::EmptyIcon();
   if (params.icon == ScalableIphDelegate::NotificationIcon::kRedeem) {
     icon = &chromeos::kRedeemIcon;
   }
@@ -529,6 +529,11 @@ bool ScalableIphDelegateImpl::ShowNotification(
 
 void ScalableIphDelegateImpl::AddObserver(DelegateObserver* observer) {
   observers_.AddObserver(observer);
+
+  auto* session_controller = Shell::Get()->session_controller();
+  CHECK(session_controller);
+  NotifySessionStateChanged(
+      GetDelegateSessionState(session_controller->GetSessionState()));
 }
 
 void ScalableIphDelegateImpl::RemoveObserver(DelegateObserver* observer) {
@@ -553,7 +558,7 @@ void ScalableIphDelegateImpl::PerformActionForScalableIph(
   switch (action_type) {
     case ActionType::kOpenChrome: {
       OpenUrlForProfile(profile_,
-                        GURL(GetActionTypeURLs().at(ActionType::kOpenChrome)),
+                        GURL(kActionTypeUrls.at(ActionType::kOpenChrome)),
                         GetLogger());
       break;
     }
@@ -575,16 +580,16 @@ void ScalableIphDelegateImpl::PerformActionForScalableIph(
             << "Opening Play Store Android app. App launched: " << app_launched;
       }
       if (!app_launched) {
-        OpenUrlForProfile(
-            profile_, GURL(GetActionTypeURLs().at(ActionType::kOpenPlayStore)),
-            GetLogger());
+        OpenUrlForProfile(profile_,
+                          GURL(kActionTypeUrls.at(ActionType::kOpenPlayStore)),
+                          GetLogger());
       }
       break;
     }
     case ActionType::kOpenGoogleDocs: {
-      OpenUrlForProfile(
-          profile_, GURL(GetActionTypeURLs().at(ActionType::kOpenGoogleDocs)),
-          GetLogger());
+      OpenUrlForProfile(profile_,
+                        GURL(kActionTypeUrls.at(ActionType::kOpenGoogleDocs)),
+                        GetLogger());
       break;
     }
     case ActionType::kOpenGooglePhotos: {
@@ -599,8 +604,7 @@ void ScalableIphDelegateImpl::PerformActionForScalableIph(
       }
       if (!app_launched) {
         OpenUrlForProfile(
-            profile_,
-            GURL(GetActionTypeURLs().at(ActionType::kOpenGooglePhotos)),
+            profile_, GURL(kActionTypeUrls.at(ActionType::kOpenGooglePhotos)),
             GetLogger());
       }
       break;
@@ -628,14 +632,14 @@ void ScalableIphDelegateImpl::PerformActionForScalableIph(
             extension_misc::kYoutubePwaAppId,
             apps::GetEventFlags(WindowOpenDisposition::NEW_WINDOW,
                                 /*prefer_container=*/true),
-            GURL(GetActionTypeURLs().at(ActionType::kOpenYouTube)),
+            GURL(kActionTypeUrls.at(ActionType::kOpenYouTube)),
             apps::LaunchSource::kFromOtherApp,
             std::make_unique<apps::WindowInfo>(display::kDefaultDisplayId));
         SCALABLE_IPH_LOG(GetLogger()) << "Opening YouTube app via AppService.";
       } else {
-        OpenUrlForProfile(
-            profile_, GURL(GetActionTypeURLs().at(ActionType::kOpenYouTube)),
-            GetLogger());
+        OpenUrlForProfile(profile_,
+                          GURL(kActionTypeUrls.at(ActionType::kOpenYouTube)),
+                          GetLogger());
       }
       break;
     }
@@ -659,20 +663,20 @@ void ScalableIphDelegateImpl::PerformActionForScalableIph(
     case ActionType::kOpenChromebookPerksWeb: {
       OpenUrlForProfile(
           profile_,
-          GURL(GetActionTypeURLs().at(ActionType::kOpenChromebookPerksWeb)),
+          GURL(kActionTypeUrls.at(ActionType::kOpenChromebookPerksWeb)),
           GetLogger());
       break;
     }
     case ActionType::kOpenChromebookPerksGfnPriority2022: {
       OpenUrlForProfile(profile_,
-                        GURL(GetActionTypeURLs().at(
+                        GURL(kActionTypeUrls.at(
                             ActionType::kOpenChromebookPerksGfnPriority2022)),
                         GetLogger());
       break;
     }
     case ActionType::kOpenChromebookPerksMinecraft2023: {
       OpenUrlForProfile(profile_,
-                        GURL(GetActionTypeURLs().at(
+                        GURL(kActionTypeUrls.at(
                             ActionType::kOpenChromebookPerksMinecraft2023)),
                         GetLogger());
       break;

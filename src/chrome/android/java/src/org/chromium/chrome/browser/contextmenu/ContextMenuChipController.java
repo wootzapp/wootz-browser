@@ -15,6 +15,7 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.chrome.R;
 import org.chromium.components.browser_ui.widget.chips.ChipView;
+import org.chromium.components.embedder_support.contextmenu.ChipRenderParams;
 import org.chromium.ui.text.SpanApplier;
 import org.chromium.ui.text.SpanApplier.SpanInfo;
 import org.chromium.ui.widget.AnchoredPopupWindow;
@@ -22,7 +23,6 @@ import org.chromium.ui.widget.ViewRectProvider;
 
 /** A controller to handle chip construction and cross-app communication. */
 class ContextMenuChipController implements View.OnClickListener {
-    private boolean mFakeLensQueryResultForTesting;
     private View mAnchorView;
     private ChipView mChipView;
     private AnchoredPopupWindow mPopupWindow;
@@ -83,13 +83,6 @@ class ContextMenuChipController implements View.OnClickListener {
         }
 
         return maxWidthPx;
-    }
-
-    // This method should only be used in test files.  It is not marked
-    // @VisibleForTesting to allow the Coordinator to reference it in its
-    // own testing methods.
-    void setFakeLensQueryResultForTesting() {
-        mFakeLensQueryResultForTesting = true;
     }
 
     @Override

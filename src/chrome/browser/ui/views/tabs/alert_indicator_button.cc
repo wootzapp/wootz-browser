@@ -15,6 +15,7 @@
 #include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/views/tabs/tab.h"
 #include "chrome/browser/ui/views/tabs/tab_slot_controller.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/content_settings/core/common/features.h"
 #include "components/vector_icons/vector_icons.h"
@@ -26,9 +27,14 @@
 #include "ui/gfx/animation/multi_animation.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/animation_delegate_views.h"
 #include "ui/views/metrics.h"
 #include "ui/views/view_class_properties.h"
+
+#if BUILDFLAG(ENABLE_GLIC)
+#include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
+#endif
 
 namespace {
 
@@ -55,15 +61,13 @@ std::unique_ptr<gfx::MultiAnimation> CreateTabRecordingIndicatorAnimation() {
   gfx::MultiAnimation::Parts parts;
   for (size_t i = 0; i < kFadeInFadeOutCycles; ++i) {
     // Fade-in:
-    parts.push_back(gfx::MultiAnimation::Part(kIndicatorFadeInDuration,
-                                              gfx::Tween::EASE_IN));
+    parts.emplace_back(kIndicatorFadeInDuration, gfx::Tween::EASE_IN);
     // Fade-out (from 1 to 0):
-    parts.push_back(gfx::MultiAnimation::Part(kIndicatorFadeOutDuration,
-                                              gfx::Tween::EASE_IN, 1.0, 0.0));
+    parts.emplace_back(kIndicatorFadeOutDuration, gfx::Tween::EASE_IN, 1.0,
+                       0.0);
   }
   // Finish by fading in to show the indicator.
-  parts.push_back(
-      gfx::MultiAnimation::Part(kIndicatorFadeInDuration, gfx::Tween::EASE_IN));
+  parts.emplace_back(kIndicatorFadeInDuration, gfx::Tween::EASE_IN);
 
   auto animation =
       std::make_unique<gfx::MultiAnimation>(parts, kIndicatorFrameInterval);
@@ -107,10 +111,11 @@ ui::ImageModel GetTabAlertIndicatorImageForPressedState(
     case TabAlertState::HID_CONNECTED:
     case TabAlertState::SERIAL_CONNECTED:
     case TabAlertState::VR_PRESENTING_IN_HEADSET:
+    case TabAlertState::GLIC_ACCESSING:
       return AlertIndicatorButton::GetTabAlertIndicatorImage(alert_state,
                                                              button_color);
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 }  // namespace
@@ -148,7 +153,8 @@ AlertIndicatorButton::AlertIndicatorButton(Tab* parent_tab)
   DCHECK(parent_tab_);
   SetEventTargeter(std::make_unique<views::ViewTargeter>(this));
 
-  SetAccessibleName(l10n_util::GetStringUTF16(IDS_ACCNAME_MUTE_TAB));
+  GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_ACCNAME_MUTE_TAB));
 
   SetProperty(views::kElementIdentifierKey, kTabAlertIndicatorButtonElementId);
 }
@@ -325,9 +331,7 @@ AlertIndicatorButton::CreateTabAlertIndicatorFadeAnimation(
       alert_state == TabAlertState::VIDEO_RECORDING ||
       alert_state == TabAlertState::TAB_CAPTURING ||
       alert_state == TabAlertState::DESKTOP_CAPTURING) {
-    if (base::FeatureList::IsEnabled(
-            content_settings::features::kImprovedSemanticsActivityIndicators) &&
-        (alert_state == TabAlertState::MEDIA_RECORDING ||
+    if ((alert_state == TabAlertState::MEDIA_RECORDING ||
          alert_state == TabAlertState::AUDIO_RECORDING ||
          alert_state == TabAlertState::VIDEO_RECORDING) &&
         camera_mic_indicator_start_time_ == base::Time()) {
@@ -345,9 +349,7 @@ AlertIndicatorButton::CreateTabAlertIndicatorFadeAnimation(
   gfx::MultiAnimation::Parts parts;
   const bool is_for_fade_in = alert_state.has_value();
 
-  if (base::FeatureList::IsEnabled(
-          content_settings::features::kImprovedSemanticsActivityIndicators) &&
-      !is_for_fade_in && camera_mic_indicator_start_time_ != base::Time()) {
+  if (!is_for_fade_in && camera_mic_indicator_start_time_ != base::Time()) {
     base::TimeDelta delay =
         base::Time::Now() - camera_mic_indicator_start_time_;
     camera_mic_indicator_start_time_ = base::Time();
@@ -357,11 +359,11 @@ AlertIndicatorButton::CreateTabAlertIndicatorFadeAnimation(
                      kIndicatorFadeOutDuration);
 
     fadeout_animation_duration_for_testing_ = delay;
-    parts.push_back(gfx::MultiAnimation::Part(delay, gfx::Tween::EASE_IN));
+    parts.emplace_back(delay, gfx::Tween::EASE_IN);
   } else {
-    parts.push_back(gfx::MultiAnimation::Part(
+    parts.emplace_back(
         is_for_fade_in ? kIndicatorFadeInDuration : kIndicatorFadeOutDuration,
-        gfx::Tween::EASE_IN));
+        gfx::Tween::EASE_IN);
   }
 
   auto animation =
@@ -376,101 +378,61 @@ Tab* AlertIndicatorButton::GetTab() {
 }
 
 // Returns a cached image, to be shown by the alert indicator for the given
-// |alert_state|.  Uses the global ui::ResourceBundle shared instance.
+// `alert_state`.  Uses the global ui::ResourceBundle shared instance.
 ui::ImageModel AlertIndicatorButton::GetTabAlertIndicatorImage(
     TabAlertState alert_state,
     ui::ColorId button_color) {
   const gfx::VectorIcon* icon = nullptr;
   int image_width = GetLayoutConstant(TAB_ALERT_INDICATOR_ICON_WIDTH);
-  const bool touch_ui = ui::TouchUiController::Get()->touch_ui();
   switch (alert_state) {
     case TabAlertState::AUDIO_PLAYING:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kVolumeUpChromeRefreshIcon;
-      } else {
-        icon = touch_ui ? &kTabAudioRoundedIcon : &kTabAudioIcon;
-      }
+      icon = &vector_icons::kVolumeUpChromeRefreshIcon;
       break;
     case TabAlertState::AUDIO_MUTING:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kVolumeOffChromeRefreshIcon;
-      } else {
-        icon = touch_ui ? &kTabAudioMutingRoundedIcon : &kTabAudioMutingIcon;
-      }
+      icon = &vector_icons::kVolumeOffChromeRefreshIcon;
       break;
     case TabAlertState::MEDIA_RECORDING:
     case TabAlertState::AUDIO_RECORDING:
     case TabAlertState::VIDEO_RECORDING:
     case TabAlertState::DESKTOP_CAPTURING:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kRadioButtonCheckedIcon;
-      } else {
-        icon = &kTabMediaRecordingIcon;
-      }
+      icon = &vector_icons::kRadioButtonCheckedIcon;
       break;
     case TabAlertState::TAB_CAPTURING:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kCaptureIcon;
-      } else {
-        icon = touch_ui ? &kTabMediaCapturingWithArrowIcon
-                        : &kTabMediaCapturingIcon;
-      }
+      icon = &vector_icons::kCaptureIcon;
 
       // Tab capturing and presenting icon uses a different width compared to
       // the other tab alert indicator icons.
       image_width = GetLayoutConstant(TAB_ALERT_INDICATOR_CAPTURE_ICON_WIDTH);
       break;
     case TabAlertState::BLUETOOTH_CONNECTED:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kBluetoothConnectedIcon;
-      } else {
-        icon = &kTabBluetoothConnectedIcon;
-      }
+      icon = &vector_icons::kBluetoothConnectedIcon;
       break;
     case TabAlertState::BLUETOOTH_SCAN_ACTIVE:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kBluetoothScanningChromeRefreshIcon;
-      } else {
-        icon = &kTabBluetoothScanActiveIcon;
-      }
+      icon = &vector_icons::kBluetoothScanningChromeRefreshIcon;
       break;
     case TabAlertState::USB_CONNECTED:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kUsbChromeRefreshIcon;
-      } else {
-        icon = &kTabUsbConnectedIcon;
-      }
+      icon = &vector_icons::kUsbChromeRefreshIcon;
       icon = &kTabUsbConnectedIcon;
       break;
     case TabAlertState::HID_CONNECTED:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kVideogameAssetChromeRefreshIcon;
-      } else {
-        icon = &vector_icons::kVideogameAssetIcon;
-      }
+      icon = &vector_icons::kVideogameAssetChromeRefreshIcon;
       break;
     case TabAlertState::SERIAL_CONNECTED:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kSerialPortChromeRefreshIcon;
-      } else {
-        // TODO(crbug.com/40607459): This icon is too large to fit
-        // properly as a tab indicator and should be replaced.
-        icon = &vector_icons::kSerialPortIcon;
-      }
+      icon = &vector_icons::kSerialPortChromeRefreshIcon;
       break;
     case TabAlertState::PIP_PLAYING:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kPictureInPictureAltIcon;
-      } else {
-        icon = &kPictureInPictureAltIcon;
-      }
+      icon = &vector_icons::kPictureInPictureAltIcon;
       break;
     case TabAlertState::VR_PRESENTING_IN_HEADSET:
-      if (features::IsChromeRefresh2023()) {
-        icon = &vector_icons::kCardboardIcon;
-      } else {
-        icon = &vector_icons::kVrHeadsetIcon;
-      }
+      icon = &vector_icons::kCardboardIcon;
+      break;
+    case TabAlertState::GLIC_ACCESSING:
+#if BUILDFLAG(ENABLE_GLIC)
+      icon =
+          &glic::GlicVectorIconManager::GetVectorIcon(IDR_GLIC_ACCESSING_ICON);
+#else
+      icon = &kTvIcon;
+#endif
       break;
   }
   DCHECK(icon);
@@ -488,6 +450,7 @@ ui::ImageModel AlertIndicatorButton::GetTabAlertIndicatorImageForHoverCard(
           alert_state, kColorHoverCardTabAlertMediaRecordingIcon);
     case TabAlertState::TAB_CAPTURING:
     case TabAlertState::PIP_PLAYING:
+    case TabAlertState::GLIC_ACCESSING:
       return AlertIndicatorButton::GetTabAlertIndicatorImage(
           alert_state, kColorHoverCardTabAlertPipPlayingIcon);
     case TabAlertState::AUDIO_PLAYING:
@@ -501,7 +464,7 @@ ui::ImageModel AlertIndicatorButton::GetTabAlertIndicatorImageForHoverCard(
       return AlertIndicatorButton::GetTabAlertIndicatorImage(
           alert_state, kColorHoverCardTabAlertAudioPlayingIcon);
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 void AlertIndicatorButton::UpdateIconForAlertState(TabAlertState state) {

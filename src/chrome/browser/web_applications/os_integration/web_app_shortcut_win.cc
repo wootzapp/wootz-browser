@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/web_applications/os_integration/web_app_shortcut_win.h"
 
 #include <shlobj.h>
@@ -35,6 +40,7 @@
 #include "chrome/browser/web_applications/os_integration/web_app_shortcuts_menu_win.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
 #include "chrome/common/chrome_switches.h"
+#include "chrome/install_static/install_util.h"
 #include "chrome/installer/util/shell_util.h"
 #include "chrome/installer/util/taskbar_util.h"
 #include "chrome/installer/util/util_constants.h"
@@ -88,8 +94,7 @@ bool SaveIconWithCheckSum(const base::FilePath& icon_file,
   base::FilePath cheksum_file(icon_file.ReplaceExtension(kIconChecksumFileExt));
   // Passing digest as one element in a span of digest fields, therefore the 1u,
   // and then having as_bytes converting it to a new span of uint8_t's.
-  return base::WriteFile(cheksum_file,
-                         base::as_bytes(base::make_span(&digest, 1u)));
+  return base::WriteFile(cheksum_file, base::byte_span_from_ref(digest));
 }
 
 // Returns true if |icon_file| is missing or different from |image|.
@@ -210,6 +215,16 @@ bool CreateShortcutsInPaths(const base::FilePath& web_app_path,
     shortcut_properties.set_icon(icon_file, 0);
     shortcut_properties.set_app_id(win_app_id);
     shortcut_properties.set_dual_mode(false);
+
+    // We only need to do this for shortcuts in the start menu but we don't know
+    // which path is in the start menu. It shouldn't hurt to always set the
+    // property.
+    const CLSID toast_activator_clsid =
+        install_static::GetToastActivatorClsid();
+    if (toast_activator_clsid != CLSID_NULL) {
+      shortcut_properties.set_toast_activator_clsid(toast_activator_clsid);
+    }
+
     if (!base::PathExists(shortcut_file.DirName()) &&
         !base::CreateDirectory(shortcut_file.DirName())) {
       success = false;
@@ -278,6 +293,51 @@ void UpdateIconFileForShortcut(const base::FilePath& web_app_path,
           base::win::ShortcutOperation::kUpdateExisting)) {
     DVLOG(1) << "Error updating icon for shortcut " << new_app_title;
   }
+}
+
+void UpdateToastActivationForShortcut(const base::FilePath& shortcut) {
+  base::win::ShortcutProperties shortcut_properties;
+  const CLSID toast_activator_clsid = install_static::GetToastActivatorClsid();
+  if (toast_activator_clsid != CLSID_NULL) {
+    shortcut_properties.set_toast_activator_clsid(toast_activator_clsid);
+  }
+  if (!base::win::CreateOrUpdateShortcutLink(
+          shortcut, shortcut_properties,
+          base::win::ShortcutOperation::kUpdateExisting)) {
+    DVLOG(1) << "Error updating toast activator clsid for shortcut "
+             << shortcut;
+  }
+}
+
+Result UpdateAppMenuShortcuts(const base::FilePath& profile_path,
+                              const std::u16string& app_title) {
+  // Empty titles match all shortcuts, which we don't want, so if we somehow
+  // get an empty app title, ignore the update.
+  if (app_title.empty()) {
+    return Result::kOk;
+  }
+
+  std::vector<base::FilePath> app_menu_shortcuts;
+  // Find matching shortcuts in app menu directories.
+  base::FilePath chrome_apps_dir;
+  if (ShellUtil::GetShortcutPath(
+          ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR,
+          ShellUtil::CURRENT_USER, &chrome_apps_dir)) {
+    const std::vector<base::FilePath> shortcut_files =
+        FindAppShortcutsByProfileAndTitle(chrome_apps_dir, profile_path,
+                                          app_title);
+    app_menu_shortcuts.insert(app_menu_shortcuts.end(), shortcut_files.begin(),
+                              shortcut_files.end());
+  }
+  if (app_menu_shortcuts.empty()) {
+    return Result::kOk;
+  }
+
+  // Update the toast activation property for app menu shortcuts.
+  for (const auto& shortcut : app_menu_shortcuts) {
+    UpdateToastActivationForShortcut(shortcut);
+  }
+  return Result::kOk;
 }
 
 Result UpdateShortcuts(const base::FilePath& web_app_path,
@@ -476,6 +536,80 @@ void AppendShortcutsMatchingName(
   }
 }
 
+bool CreatePlatformShortcuts(const base::FilePath& web_app_path,
+                             const ShortcutLocations& creation_locations,
+                             ShortcutCreationReason creation_reason,
+                             const ShortcutInfo& shortcut_info) {
+  // Nothing to do on Windows for hidden apps.
+  if (creation_locations.applications_menu_location ==
+      APP_MENU_LOCATION_HIDDEN) {
+    return true;
+  }
+
+  // If this is set, then keeping this as a local variable ensures it is not
+  // destroyed while we use state from it (retrieved in `GetShortcutPaths()`).
+  scoped_refptr<OsIntegrationTestOverride> test_override =
+      OsIntegrationTestOverride::Get();
+
+  bool pin_to_taskbar = false;
+  // PinShortcutToTaskbar in unit-tests are not preferred as unpinning causes
+  // crashes, so use the shortcut override for testing to not pin to taskbar.
+  // TODO(crbug.com/40250252): Figure out how to make this call not crash &
+  // incorporate unpin / pin methods in unit-tests.
+  if (!test_override) {
+    pin_to_taskbar =
+        creation_locations.in_quick_launch_bar && CanPinShortcutToTaskbar();
+  }
+
+  // We don't want to actually create shortcuts in the quick launch directory.
+  // Those are created by Windows as a side effect of pinning a shortcut to
+  // the taskbar, e.g., a desktop shortcut. So, create a copy of
+  // shortcut_locations with in_quick_launch_bar turned off and pass that
+  // to GetShortcutPaths.
+  ShortcutLocations shortcut_locations_wo_quick_launch(creation_locations);
+  shortcut_locations_wo_quick_launch.in_quick_launch_bar = false;
+
+  // Shortcut paths under which to create shortcuts.
+  std::vector<base::FilePath> shortcut_paths =
+      GetShortcutPaths(shortcut_locations_wo_quick_launch);
+
+  // Create/update the shortcut in the web app path for the "Pin To Taskbar"
+  // option in Win7 and Win10 versions that support pinning. We use the web app
+  // path shortcut because we will overwrite it rather than appending unique
+  // numbers if the shortcut already exists. This prevents pinned apps from
+  // having unique numbers in their names.
+  if (pin_to_taskbar) {
+    shortcut_paths.push_back(web_app_path);
+  }
+
+  if (shortcut_paths.empty()) {
+    return false;
+  }
+
+  if (!CreateShortcutsInPaths(
+          web_app_path, shortcut_info, shortcut_paths, creation_reason,
+          creation_locations.in_startup ? kRunOnOsLoginModeWindowed : "")) {
+    return false;
+  }
+
+  if (pin_to_taskbar) {
+    base::FilePath file_name = GetSanitizedFileName(shortcut_info.title);
+    // Use the web app path shortcut for pinning to avoid having unique numbers
+    // in the application name.
+    base::FilePath shortcut_to_pin =
+        web_app_path.Append(file_name).AddExtension(installer::kLnkExt);
+    if (!PinShortcutToTaskbar(shortcut_to_pin)) {
+      return false;
+    }
+
+    // This invalidates the Windows icon cache and causes the icon changes to
+    // register with the taskbar and desktop.
+    ::SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+  }
+
+  return true;
+}
+
 }  // namespace
 
 base::FilePath GetSanitizedFileName(const std::u16string& name) {
@@ -549,79 +683,21 @@ bool CheckAndSaveIcon(const base::FilePath& icon_file,
   return true;
 }
 
-bool CreatePlatformShortcuts(const base::FilePath& web_app_path,
+void CreatePlatformShortcuts(const base::FilePath& web_app_path,
                              const ShortcutLocations& creation_locations,
                              ShortcutCreationReason creation_reason,
-                             const ShortcutInfo& shortcut_info) {
-  // Nothing to do on Windows for hidden apps.
-  if (creation_locations.applications_menu_location == APP_MENU_LOCATION_HIDDEN)
-    return true;
-
-  // If this is set, then keeping this as a local variable ensures it is not
-  // destroyed while we use state from it (retrieved in `GetShortcutPaths()`).
-  scoped_refptr<OsIntegrationTestOverride> test_override =
-      OsIntegrationTestOverride::Get();
-
-  bool pin_to_taskbar = false;
-  // PinShortcutToTaskbar in unit-tests are not preferred as unpinning causes
-  // crashes, so use the shortcut override for testing to not pin to taskbar.
-  // TODO(crbug.com/40250252): Figure out how to make this call not crash &
-  // incorporate unpin / pin methods in unit-tests.
-  if (!test_override) {
-    pin_to_taskbar =
-        creation_locations.in_quick_launch_bar && CanPinShortcutToTaskbar();
-  }
-
-  // We don't want to actually create shortcuts in the quick launch directory.
-  // Those are created by Windows as a side effect of pinning a shortcut to
-  // the taskbar, e.g., a desktop shortcut. So, create a copy of
-  // shortcut_locations with in_quick_launch_bar turned off and pass that
-  // to GetShortcutPaths.
-  ShortcutLocations shortcut_locations_wo_quick_launch(creation_locations);
-  shortcut_locations_wo_quick_launch.in_quick_launch_bar = false;
-
-  // Shortcut paths under which to create shortcuts.
-  std::vector<base::FilePath> shortcut_paths =
-      GetShortcutPaths(shortcut_locations_wo_quick_launch);
-
-  // Create/update the shortcut in the web app path for the "Pin To Taskbar"
-  // option in Win7 and Win10 versions that support pinning. We use the web app
-  // path shortcut because we will overwrite it rather than appending unique
-  // numbers if the shortcut already exists. This prevents pinned apps from
-  // having unique numbers in their names.
-  if (pin_to_taskbar)
-    shortcut_paths.push_back(web_app_path);
-
-  if (shortcut_paths.empty())
-    return false;
-
-  if (!CreateShortcutsInPaths(
-          web_app_path, shortcut_info, shortcut_paths, creation_reason,
-          creation_locations.in_startup ? kRunOnOsLoginModeWindowed : "")) {
-    return false;
-  }
-
-  if (pin_to_taskbar) {
-    base::FilePath file_name = GetSanitizedFileName(shortcut_info.title);
-    // Use the web app path shortcut for pinning to avoid having unique numbers
-    // in the application name.
-    base::FilePath shortcut_to_pin =
-        web_app_path.Append(file_name).AddExtension(installer::kLnkExt);
-    if (!PinShortcutToTaskbar(shortcut_to_pin))
-      return false;
-
-    // This invalidates the Windows icon cache and causes the icon changes to
-    // register with the taskbar and desktop.
-    ::SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
-  }
-
-  return true;
+                             const ShortcutInfo& shortcut_info,
+                             CreateShortcutsCallback callback) {
+  bool result = CreatePlatformShortcuts(web_app_path, creation_locations,
+                                        creation_reason, shortcut_info);
+  std::move(callback).Run(result);
 }
 
-Result UpdatePlatformShortcuts(
+void UpdatePlatformShortcuts(
     const base::FilePath& web_app_path,
     const std::u16string& old_app_title,
     std::optional<ShortcutLocations> user_specified_locations,
+    ResultCallback callback,
     const ShortcutInfo& shortcut_info) {
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::MAY_BLOCK);
@@ -636,8 +712,10 @@ Result UpdatePlatformShortcuts(
   bool success_updating_icon =
       CheckAndSaveIcon(icon_file, shortcut_info.favicon, true);
 
-  ShortcutLocations existing_locations =
-      GetAppExistingShortCutLocationImpl(shortcut_info);
+  ShortcutLocations existing_locations;
+  if (user_specified_locations.has_value()) {
+    existing_locations = GetAppExistingShortCutLocationImpl(shortcut_info);
+  }
 
   bool require_creation_in_different_places =
       user_specified_locations.has_value() &&
@@ -668,8 +746,17 @@ Result UpdatePlatformShortcuts(
         old_icon_file.ReplaceExtension(kIconChecksumFileExt));
     base::DeleteFile(old_icon_file);
     base::DeleteFile(old_checksum_file);
+  } else {
+    // If the app title hasn't changed, kCurrentAppShortcutsVersion must have
+    // changed. Currently the only upgrade needed for Windows shortcuts is to
+    // add toast activation clsids to the shortcuts in the app menu. If future
+    // version changes happen, we may want to use the apps.shortcuts_arch pref
+    // to decide what shortcuts to update.
+    UpdateAppMenuShortcuts(shortcut_info.profile_path, shortcut_info.title);
+    success_updating_icon = true;
   }
-  return (success_updating_icon ? Result::kOk : Result::kError);
+  Result result = (success_updating_icon ? Result::kOk : Result::kError);
+  std::move(callback).Run(result);
 }
 
 ShortcutLocations GetAppExistingShortCutLocationImpl(

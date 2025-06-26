@@ -6,12 +6,12 @@
 
 #include <map>
 #include <set>
+#include <string_view>
 
 #include "base/memory/scoped_refptr.h"
 #include "base/test/mock_callback.h"
 #include "base/test/task_environment.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "components/prefs/testing_pref_store.h"
 #include "components/sync/test/test_sync_service.h"
 #include "components/sync_preferences/pref_model_associator_client.h"
@@ -37,38 +37,32 @@ constexpr char kMergeableDictPref2[] = "mergeable.dict.pref2";
 constexpr char kCustomMergePref[] = "custom.merge.pref";
 
 // Assigning an id of 0 to all the test prefs.
-const std::unordered_map<std::string, SyncablePrefMetadata>
-    kSyncablePrefsDatabase = {
-        {kPref1,
-         {0, syncer::PREFERENCES, PrefSensitivity::kNone,
-          MergeBehavior::kNone}},
-        {kPref2,
-         {0, syncer::PREFERENCES, PrefSensitivity::kNone,
-          MergeBehavior::kNone}},
-        {kPref3,
-         {0, syncer::PREFERENCES, PrefSensitivity::kNone,
-          MergeBehavior::kNone}},
-        {kPrefName,
-         {0, syncer::PREFERENCES, PrefSensitivity::kNone,
-          MergeBehavior::kNone}},
-        {kPriorityPrefName,
-         {0, syncer::PRIORITY_PREFERENCES, PrefSensitivity::kNone,
-          MergeBehavior::kNone}},
-        {kHistorySensitivePrefName,
-         {0, syncer::PREFERENCES, PrefSensitivity::kSensitiveRequiresHistory,
-          MergeBehavior::kNone}},
-        {kMergeableListPref,
-         {0, syncer::PREFERENCES, PrefSensitivity::kNone,
-          MergeBehavior::kMergeableListWithRewriteOnUpdate}},
-        {kMergeableDictPref1,
-         {0, syncer::PREFERENCES, PrefSensitivity::kNone,
-          MergeBehavior::kMergeableDict}},
-        {kMergeableDictPref2,
-         {0, syncer::PREFERENCES, PrefSensitivity::kNone,
-          MergeBehavior::kMergeableDict}},
-        {kCustomMergePref,
-         {0, syncer::PREFERENCES, PrefSensitivity::kNone,
-          MergeBehavior::kCustom}},
+const TestSyncablePrefsDatabase::PrefsMap kSyncablePrefsDatabase = {
+    {kPref1,
+     {0, syncer::PREFERENCES, PrefSensitivity::kNone, MergeBehavior::kNone}},
+    {kPref2,
+     {0, syncer::PREFERENCES, PrefSensitivity::kNone, MergeBehavior::kNone}},
+    {kPref3,
+     {0, syncer::PREFERENCES, PrefSensitivity::kNone, MergeBehavior::kNone}},
+    {kPrefName,
+     {0, syncer::PREFERENCES, PrefSensitivity::kNone, MergeBehavior::kNone}},
+    {kPriorityPrefName,
+     {0, syncer::PRIORITY_PREFERENCES, PrefSensitivity::kNone,
+      MergeBehavior::kNone}},
+    {kHistorySensitivePrefName,
+     {0, syncer::PREFERENCES, PrefSensitivity::kSensitiveRequiresHistory,
+      MergeBehavior::kNone}},
+    {kMergeableListPref,
+     {0, syncer::PREFERENCES, PrefSensitivity::kNone,
+      MergeBehavior::kMergeableListWithRewriteOnUpdate}},
+    {kMergeableDictPref1,
+     {0, syncer::PREFERENCES, PrefSensitivity::kNone,
+      MergeBehavior::kMergeableDict}},
+    {kMergeableDictPref2,
+     {0, syncer::PREFERENCES, PrefSensitivity::kNone,
+      MergeBehavior::kMergeableDict}},
+    {kCustomMergePref,
+     {0, syncer::PREFERENCES, PrefSensitivity::kNone, MergeBehavior::kCustom}},
 };
 
 base::Value MakeDict(
@@ -129,7 +123,7 @@ class MockPrefStoreObserver : public PrefStore::Observer {
  public:
   ~MockPrefStoreObserver() override = default;
 
-  MOCK_METHOD(void, OnPrefValueChanged, (const std::string& key), (override));
+  MOCK_METHOD(void, OnPrefValueChanged, (std::string_view), (override));
   MOCK_METHOD(void, OnInitializationCompleted, (bool succeeded), (override));
 };
 
@@ -145,7 +139,7 @@ class TestPrefModelAssociatorClient : public PrefModelAssociatorClient {
 
   // PrefModelAssociatorClient implementation.
   base::Value MaybeMergePreferenceValues(
-      const std::string& pref_name,
+      std::string_view pref_name,
       const base::Value& local_value,
       const base::Value& server_value) const override {
     return base::Value();
@@ -194,7 +188,7 @@ class DualLayerUserPrefStoreTest : public DualLayerUserPrefStoreTestBase {
     // data types appropriately.
     dual_layer_store_->EnableType(syncer::PREFERENCES);
     dual_layer_store_->EnableType(syncer::PRIORITY_PREFERENCES);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     dual_layer_store_->EnableType(syncer::OS_PREFERENCES);
     dual_layer_store_->EnableType(syncer::OS_PRIORITY_PREFERENCES);
 #endif
@@ -1217,7 +1211,7 @@ class MergeTestPrefModelAssociatorClient : public PrefModelAssociatorClient {
 
   // PrefModelAssociatorClient implementation.
   base::Value MaybeMergePreferenceValues(
-      const std::string& pref_name,
+      std::string_view pref_name,
       const base::Value& local_value,
       const base::Value& server_value) const override {
     if (auto it = custom_merge_values_.find(pref_name);
@@ -1242,7 +1236,7 @@ class MergeTestPrefModelAssociatorClient : public PrefModelAssociatorClient {
 
   std::set<std::string> mergeable_dict_prefs_;
   std::set<std::string> mergeable_list_prefs_;
-  std::map<std::string, base::Value> custom_merge_values_;
+  std::map<std::string, base::Value, std::less<>> custom_merge_values_;
 };
 
 class DualLayerUserPrefStoreMergeTest : public testing::Test {
@@ -1262,7 +1256,7 @@ class DualLayerUserPrefStoreMergeTest : public testing::Test {
 
     dual_layer_store_->EnableType(syncer::PREFERENCES);
     dual_layer_store_->EnableType(syncer::PRIORITY_PREFERENCES);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     dual_layer_store_->EnableType(syncer::OS_PREFERENCES);
     dual_layer_store_->EnableType(syncer::OS_PRIORITY_PREFERENCES);
 #endif

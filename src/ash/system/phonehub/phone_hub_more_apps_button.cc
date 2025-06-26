@@ -18,6 +18,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/size.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/layout/table_layout.h"
 
@@ -60,7 +61,7 @@ PhoneHubMoreAppsButton::PhoneHubMoreAppsButton(
       app_stream_launcher_data_model_(app_stream_launcher_data_model) {
   CHECK(app_stream_launcher_data_model_);
   SetFocusBehavior(FocusBehavior::ALWAYS);
-  SetAccessibleName(
+  GetViewAccessibility().SetName(
       l10n_util::GetStringUTF16(IDS_ASH_PHONE_HUB_FULL_APPS_LIST_BUTTON_TITLE));
   SetTooltipText(
       l10n_util::GetStringUTF16(IDS_ASH_PHONE_HUB_FULL_APPS_LIST_BUTTON_TITLE));
@@ -128,7 +129,7 @@ void PhoneHubMoreAppsButton::StartLoadingAnimation(
   RemoveAllChildViews();
   for (size_t i = 0; i < 4; i++) {
     AppLoadingIcon* app_loading_icon =
-        AddChildView(new AppLoadingIcon(AppIcon::kSizeSmall));
+        AddChildViewRaw(new AppLoadingIcon(AppIcon::kSizeSmall));
     app_loading_icons_.push_back(app_loading_icon);
 
     size_t x = i % 2;

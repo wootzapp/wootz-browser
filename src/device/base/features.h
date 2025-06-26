@@ -18,13 +18,22 @@ DEVICE_BASE_EXPORT BASE_DECLARE_FEATURE(kNewBLEGattSessionHandling);
 // New features should be added to the device::features namespace.
 
 namespace features {
+
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
 DEVICE_BASE_EXPORT BASE_DECLARE_FEATURE(kWebBluetoothConfirmPairingSupport);
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
 
-#if defined(USE_UDEV)
-DEVICE_BASE_EXPORT BASE_DECLARE_FEATURE(kUdevUsbSubsystemFilter);
-#endif  // defined(USE_UDEV)
+#if BUILDFLAG(IS_WIN)
+DEVICE_BASE_EXPORT BASE_DECLARE_FEATURE(
+    kUncachedGattDiscoveryForGattConnection);
+#endif  // BUILDFLAG(IS_WIN)
+
+#if BUILDFLAG(IS_ANDROID)
+DEVICE_BASE_EXPORT BASE_DECLARE_FEATURE(kBluetoothRfcommAndroid);
+#else
+DEVICE_BASE_EXPORT BASE_DECLARE_FEATURE(kSerial);
+#endif  // BUILDFLAG(IS_ANDROID)
+
 }  // namespace features
 }  // namespace device
 

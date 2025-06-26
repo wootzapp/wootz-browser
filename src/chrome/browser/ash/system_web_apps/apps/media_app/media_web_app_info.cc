@@ -235,16 +235,35 @@ MediaSystemAppDelegate::MediaSystemAppDelegate(Profile* profile)
   PhotosExperienceSurveyTrigger::Register(profile);
 }
 
-std::unique_ptr<web_app::WebAppInstallInfo> CreateWebAppInfoForMediaWebApp() {
-  std::unique_ptr<web_app::WebAppInstallInfo> info =
-      std::make_unique<web_app::WebAppInstallInfo>();
-  info->start_url = GURL(ash::kChromeUIMediaAppURL);
+base::flat_map<std::string, std::string> HatsProductSpecificDataForMediaApp() {
+  ash::MediaAppUserActions actions =
+      ash::GetMediaAppUserActionsForHappinessTracking();
+  return base::flat_map<std::string, std::string>(
+      {{"did_open_image_in_gallery",
+        base::NumberToString(g_did_open_image_in_gallery)},
+       {"did_open_video_in_gallery",
+        base::NumberToString(g_did_open_video_in_gallery)},
+       {"clicked_edit_image_in_photos",
+        base::NumberToString(actions.clicked_edit_image_in_photos)},
+       {"clicked_edit_video_in_photos",
+        base::NumberToString(actions.clicked_edit_video_in_photos)}});
+}
+
+void SetPhotosExperienceSurveyTriggerAppIdForTesting(const char* app_id) {
+  PhotosExperienceSurveyTrigger::google_photos_app_id = app_id;
+}
+
+std::unique_ptr<web_app::WebAppInstallInfo>
+MediaSystemAppDelegate::GetWebAppInfo() const {
+  GURL start_url = GURL(ash::kChromeUIMediaAppURL);
+  auto info =
+      web_app::CreateSystemWebAppInstallInfoWithStartUrlAsIdentity(start_url);
   info->scope = GURL(ash::kChromeUIMediaAppURL);
 
   info->title = l10n_util::GetStringUTF16(IDS_MEDIA_APP_APP_NAME);
 
   web_app::CreateIconInfoForSystemWebApp(
-      info->start_url,
+      info->start_url(),
       {
           {"app_icon_16.png", 16, IDR_MEDIA_APP_APP_ICON_16_PNG},
           {"app_icon_32.png", 32, IDR_MEDIA_APP_APP_ICON_32_PNG},
@@ -294,29 +313,6 @@ std::unique_ptr<web_app::WebAppInstallInfo> CreateWebAppInfoForMediaWebApp() {
   return info;
 }
 
-base::flat_map<std::string, std::string> HatsProductSpecificDataForMediaApp() {
-  ash::MediaAppUserActions actions =
-      ash::GetMediaAppUserActionsForHappinessTracking();
-  return base::flat_map<std::string, std::string>(
-      {{"did_open_image_in_gallery",
-        base::NumberToString(g_did_open_image_in_gallery)},
-       {"did_open_video_in_gallery",
-        base::NumberToString(g_did_open_video_in_gallery)},
-       {"clicked_edit_image_in_photos",
-        base::NumberToString(actions.clicked_edit_image_in_photos)},
-       {"clicked_edit_video_in_photos",
-        base::NumberToString(actions.clicked_edit_video_in_photos)}});
-}
-
-void SetPhotosExperienceSurveyTriggerAppIdForTesting(const char* app_id) {
-  PhotosExperienceSurveyTrigger::google_photos_app_id = app_id;
-}
-
-std::unique_ptr<web_app::WebAppInstallInfo>
-MediaSystemAppDelegate::GetWebAppInfo() const {
-  return CreateWebAppInfoForMediaWebApp();
-}
-
 base::FilePath MediaSystemAppDelegate::GetLaunchDirectory(
     const apps::AppLaunchParams& params) const {
   // |launch_dir| is the directory that contains all |launch_files|. If
@@ -353,8 +349,9 @@ bool MediaSystemAppDelegate::ShouldShowNewWindowMenuOption() const {
   return true;
 }
 
-Browser* MediaSystemAppDelegate::GetWindowForLaunch(Profile* profile,
-                                                    const GURL& url) const {
+ash::BrowserDelegate* MediaSystemAppDelegate::GetWindowForLaunch(
+    Profile* profile,
+    const GURL& url) const {
   return nullptr;
 }
 
@@ -362,7 +359,7 @@ bool MediaSystemAppDelegate::ShouldHandleFileOpenIntents() const {
   return true;
 }
 
-Browser* MediaSystemAppDelegate::LaunchAndNavigateSystemWebApp(
+ash::BrowserDelegate* MediaSystemAppDelegate::LaunchAndNavigateSystemWebApp(
     Profile* profile,
     web_app::WebAppProvider* provider,
     const GURL& url,

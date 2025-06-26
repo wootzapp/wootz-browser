@@ -17,6 +17,8 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "cc/input/touch_action.h"
+#include "components/input/child_frame_input_helper.h"
+#include "components/input/event_with_latency_info.h"
 #include "components/viz/common/frame_sinks/begin_frame_source.h"
 #include "components/viz/common/frame_timing_details_map.h"
 #include "components/viz/common/resources/returned_resource.h"
@@ -25,7 +27,6 @@
 #include "content/browser/compositor/image_transport_factory.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
 #include "content/common/content_export.h"
-#include "content/common/input/event_with_latency_info.h"
 #include "content/public/browser/touch_selection_controller_client_manager.h"
 #include "services/viz/public/mojom/compositing/compositor_frame_sink.mojom.h"
 #include "third_party/blink/public/common/widget/visual_properties.h"
@@ -94,6 +95,7 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
   void WasOccluded() override;
   gfx::Rect GetViewBounds() override;
   gfx::Size GetVisibleViewportSize() override;
+  gfx::Size GetVisibleViewportSizeDevicePx() override;
   void SetInsets(const gfx::Insets& insets) override;
   gfx::NativeView GetNativeView() override;
   gfx::NativeViewAccessible GetNativeViewAccessible() override;
@@ -119,6 +121,7 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
                                  const gfx::Rect& bounds) override;
   void ClearKeyboardTriggeredTooltip() override;
   void GestureEventAck(const blink::WebGestureEvent& event,
+                       blink::mojom::InputEventResultSource ack_source,
                        blink::mojom::InputEventResultState ack_result) override;
   // Since the URL of content rendered by this class is not displayed in
   // the URL bar, this method does not need an implementation.
@@ -142,12 +145,12 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
   viz::FrameSinkId GetRootFrameSinkId() override;
   viz::SurfaceId GetCurrentSurfaceId() const override;
   bool HasSize() const override;
-  double GetZoomLevel() const override;
+  double GetCSSZoomFactor() const override;
   gfx::PointF TransformPointToRootCoordSpaceF(
-      const gfx::PointF& point) override;
+      const gfx::PointF& point) const override;
   bool TransformPointToCoordSpaceForView(
       const gfx::PointF& point,
-      RenderWidgetHostViewInput* target_view,
+      input::RenderWidgetHostViewInput* target_view,
       gfx::PointF* transformed_point) override;
   void DidNavigate() override;
   gfx::PointF TransformRootPointToViewCoordSpace(
@@ -158,7 +161,7 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
       blink::mojom::IntrinsicSizingInfoPtr sizing_info) override;
   std::unique_ptr<SyntheticGestureTarget> CreateSyntheticGestureTarget()
       override;
-  bool IsRenderWidgetHostViewChildFrame() override;
+  bool IsRenderWidgetHostViewChildFrame() const override;
   void InvalidateLocalSurfaceIdAndAllocationGroup() override;
 
 #if BUILDFLAG(IS_MAC)
@@ -249,7 +252,8 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
   void UpdateFrameSinkIdRegistration() override;
   void UpdateBackgroundColor() override;
   std::optional<DisplayFeature> GetDisplayFeature() override;
-  void SetDisplayFeatureForTesting(
+  void DisableDisplayFeatureOverrideForEmulation() override;
+  void OverrideDisplayFeatureForEmulation(
       const DisplayFeature* display_feature) override;
   void NotifyHostAndDelegateOnWasShown(
       blink::mojom::RecordContentToVisibleTimeRequestPtr) final;
@@ -278,6 +282,11 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
 
   ui::Compositor* GetCompositor() override;
 
+  void SetInputHelperForTesting(
+      std::unique_ptr<input::ChildFrameInputHelper> input_helper) {
+    input_helper_ = std::move(input_helper);
+  }
+
  protected:
   ~RenderWidgetHostViewChildFrame() override;
 
@@ -289,6 +298,9 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
       HiddenOOPIFWillNotGenerateCompositorFramesAfterNavigation);
   FRIEND_TEST_ALL_PREFIXES(SitePerProcessBrowserTest,
                            SubframeVisibleAfterRenderViewBecomesSwappedOut);
+  FRIEND_TEST_ALL_PREFIXES(RenderWidgetHostInputEventRouterTest,
+                           FilteredGestureDoesntInterruptBubbling);
+  friend class RenderWidgetHostViewChildFrameTest;
 
   virtual void FirstSurfaceActivation(const viz::SurfaceInfo& surface_info);
 
@@ -302,36 +314,32 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
   void OnDidUpdateVisualPropertiesComplete(
       const cc::RenderFrameMetadata& metadata);
 
-  void ProcessTouchpadZoomEventAckInRoot(
-      const blink::WebGestureEvent& event,
-      blink::mojom::InputEventResultState ack_result);
   void ForwardTouchpadZoomEventIfNecessary(
       const blink::WebGestureEvent& event,
       blink::mojom::InputEventResultState ack_result) override;
 
+  // TODO(crbug.com/375388841): Remove these once Aura also uses
+  // TouchSelectionControllerInputObserver. These are not needed on Android
+  // since it uses TouchSelectionControllerInputObserver.
+#if !BUILDFLAG(IS_ANDROID)
   // Performs gesture ack handling needed for swipe-to-move-cursor gestures.
   void HandleSwipeToMoveCursorGestureAck(const blink::WebGestureEvent& event);
 
+  // Whether a swipe-to-move-cursor gesture is activated.
+  bool swipe_to_move_cursor_activated_ = false;
+#endif
+
   std::vector<base::OnceClosure> frame_swapped_callbacks_;
+
+  std::unique_ptr<input::ChildFrameInputHelper> input_helper_;
 
   // The surface client ID of the parent RenderWidgetHostView.  0 if none.
   viz::FrameSinkId parent_frame_sink_id_;
-
-  gfx::RectF last_stable_screen_rect_;
-  gfx::RectF last_stable_screen_rect_for_iov2_;
-  base::TimeTicks screen_rect_stable_since_;
-  base::TimeTicks screen_rect_stable_since_for_iov2_;
 
   gfx::Insets insets_;
 
   std::unique_ptr<TouchSelectionControllerClientChildFrame>
       selection_controller_client_;
-
-  // True if there is currently a scroll sequence being bubbled to our parent.
-  bool is_scroll_sequence_bubbling_ = false;
-
-  // Whether a swipe-to-move-cursor gesture is activated.
-  bool swipe_to_move_cursor_activated_ = false;
 
   // If a new RWHVCF is created for a cross-origin navigation, the parent
   // will typically not notice and will not transmit a full complement of

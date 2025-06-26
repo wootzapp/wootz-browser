@@ -18,9 +18,20 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
+#include <vector>
+
+#include "base/containers/span.h"
 
 namespace chromecast {
 namespace media {
+
+// Copy of SbMediaSupportType from starboard.
+enum StarboardMediaSupportType {
+  kStarboardMediaSupportTypeNotSupported,
+  kStarboardMediaSupportTypeMaybe,
+  kStarboardMediaSupportTypeProbably,
+};
 
 // Copy of SbMediaType from starboard.
 enum StarboardMediaType {
@@ -187,8 +198,7 @@ struct StarboardVideoSampleInfo {
 // Copy of SbPlayerSampleSideData from starboard.
 struct StarboardSampleSideData {
   StarboardSampleSideDataType type;
-  const uint8_t* data;
-  size_t size;
+  base::span<const uint8_t> data;
 };
 
 // Copy of SbDrmEncryptionPattern from starboard.
@@ -222,12 +232,9 @@ struct StarboardDrmSampleInfo {
   uint8_t identifier[16];
   int identifier_size;
 
-  // The number of subsamples in this sample, must be at least 1.
-  int32_t subsample_count;
-
-  // The clear/encrypted mapping of each subsample in this sample. This must be
-  // an array of |subsample_count| mappings.
-  const StarboardDrmSubSampleMapping* subsample_mapping;
+  // The clear/encrypted mapping of each subsample in this sample. There must be
+  // at least one subsample mapping.
+  base::span<const StarboardDrmSubSampleMapping> subsample_mapping;
 };
 
 // Copy of SbPlayerSampleInfo from starboard.
@@ -240,11 +247,8 @@ struct StarboardSampleInfo {
   int buffer_size;
   // The timestamp of the sample.
   int64_t timestamp;
-  // Points to an array of side data for the input, when available.
-  StarboardSampleSideData* side_data;
-  // The number of side data pointed by |side_data|.  It should be set to 0 if
-  // there is no side data for the input.
-  int side_data_count;
+  // Side data for the input, when available.
+  base::span<const StarboardSampleSideData> side_data;
   union {
     // Information about an audio sample. This value can only be used when
     // |type| is kSbMediaTypeAudio.
@@ -349,7 +353,7 @@ using StarboardPlayerStatusFunc = void (*)(void* player,
 using StarboardPlayerErrorFunc = void (*)(void* player,
                                           void* context,
                                           StarboardPlayerError error,
-                                          const char* message);
+                                          std::string message);
 
 // Copy of SbDrmSessionUpdateRequestFunc from starboard.
 using StarboardDrmSessionUpdateRequestFunc =
@@ -358,31 +362,27 @@ using StarboardDrmSessionUpdateRequestFunc =
              int ticket,
              StarboardDrmStatus status,
              StarboardDrmSessionRequestType type,
-             const char* error_message,
-             const void* session_id,
-             int session_id_size,
-             const void* content,
-             int content_size,
-             const char* url);
+             std::string error_message,
+             std::string session_id,
+             std::vector<uint8_t> content,
+             std::string url);
 
 // Copy of SbDrmSessionUpdatedFunc from starboard.
 using StarboardDrmSessionUpdatedFunc = void (*)(void* drm_system,
                                                 void* context,
                                                 int ticket,
                                                 StarboardDrmStatus status,
-                                                const char* error_message,
-                                                const void* session_id,
-                                                int session_id_size);
+                                                std::string error_message,
+                                                std::string session_id);
 
-// Copy of SbDrmSessionKeyStatusesChangedFunc from starboard.
+// Copy of SbDrmSessionKeyStatusesChangedFunc from starboard. Modified to use
+// std::vector instead of raw ptrs, for data/lifetime safety.
 using StarboardDrmSessionKeyStatusesChangedFunc =
     void (*)(void* drm_system,
              void* context,
-             const void* session_id,
-             int session_id_size,
-             int number_of_keys,
-             const StarboardDrmKeyId* key_ids,
-             const StarboardDrmKeyStatus* key_statuses);
+             std::string session_id,
+             std::vector<StarboardDrmKeyId> key_ids,
+             std::vector<StarboardDrmKeyStatus> key_statuses);
 
 // Copy of SbDrmServerCertificateUpdatedFunc from starboard.
 using StarboardDrmServerCertificateUpdatedFunc =
@@ -390,13 +390,12 @@ using StarboardDrmServerCertificateUpdatedFunc =
              void* context,
              int ticket,
              StarboardDrmStatus status,
-             const char* error_message);
+             std::string error_message);
 
 // Copy of SbDrmSessionClosedFunc from starboard.
 using StarboardDrmSessionClosedFunc = void (*)(void* drm_system,
                                                void* context,
-                                               const void* session_id,
-                                               int session_id_size);
+                                               std::string session_id);
 
 // A wrapper for the player-related callbacks that starboard calls.
 struct StarboardPlayerCallbackHandler {
@@ -451,10 +450,10 @@ class StarboardApiWrapper {
                                int width,
                                int height) = 0;
   virtual void SeekTo(void* player, int64_t time, int seek_ticket) = 0;
-  virtual void WriteSample(void* player,
-                           StarboardMediaType type,
-                           StarboardSampleInfo* sample_infos,
-                           int sample_infos_count) = 0;
+  virtual void WriteSample(
+      void* player,
+      StarboardMediaType type,
+      base::span<const StarboardSampleInfo> sample_infos) = 0;
   virtual void WriteEndOfStream(void* player, StarboardMediaType type) = 0;
   virtual void GetPlayerInfo(void* player,
                              StarboardPlayerInfo* player_info) = 0;
@@ -491,6 +490,11 @@ class StarboardApiWrapper {
                                           int certificate_size) = 0;
   virtual bool DrmIsServerCertificateUpdatable(void* drm_system) = 0;
   virtual void DrmDestroySystem(void* drm_system) = 0;
+
+  // Version-agnostic functions for starboard/media.h.
+  virtual StarboardMediaSupportType CanPlayMimeAndKeySystem(
+      const char* mime,
+      const char* key_system) = 0;
 };
 
 // Returns a StarboardApiWrapper that calls into libcast_starboard_api.so. This

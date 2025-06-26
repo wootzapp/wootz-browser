@@ -34,7 +34,6 @@ class MockAudioStreamFactory : public media::mojom::AudioStreamFactory {
       const media::AudioParameters& params,
       uint32_t shared_memory_count,
       bool enable_agc,
-      base::ReadOnlySharedMemoryRegion key_press_count_buffer,
       media::mojom::AudioProcessingConfigPtr processing_config,
       CreateInputStreamCallback callback) override {}
   void AssociateInputAndOutputForAec(
@@ -42,6 +41,18 @@ class MockAudioStreamFactory : public media::mojom::AudioStreamFactory {
       const std::string& output_device_id) override {}
   void CreateOutputStream(
       mojo::PendingReceiver<media::mojom::AudioOutputStream> stream,
+      mojo::PendingAssociatedRemote<media::mojom::AudioOutputStreamObserver>
+          observer,
+      mojo::PendingRemote<media::mojom::AudioLog> log,
+      const std::string& device_id,
+      const media::AudioParameters& params,
+      const base::UnguessableToken& group_id,
+      base::OnceCallback<void(media::mojom::ReadWriteAudioDataPipePtr)>
+          callback) override;
+  void CreateSwitchableOutputStream(
+      mojo::PendingReceiver<media::mojom::AudioOutputStream> stream,
+      mojo::PendingReceiver<media::mojom::DeviceSwitchInterface>
+          device_switch_receiver,
       mojo::PendingAssociatedRemote<media::mojom::AudioOutputStreamObserver>
           observer,
       mojo::PendingRemote<media::mojom::AudioLog> log,
@@ -60,8 +71,8 @@ class MockAudioStreamFactory : public media::mojom::AudioStreamFactory {
       const media::AudioParameters& params,
       uint32_t shared_memory_count,
       const base::UnguessableToken& group_id,
-      base::OnceCallback<void(media::mojom::ReadOnlyAudioDataPipePtr)> callback)
-      override {}
+      base::OnceCallback<void(media::mojom::ReadWriteAudioDataPipePtr)>
+          callback) override {}
 
   mojo::PendingReceiver<media::mojom::AudioOutputStream> audio_output_stream_;
 };

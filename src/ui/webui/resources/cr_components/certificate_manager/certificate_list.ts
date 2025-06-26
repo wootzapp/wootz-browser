@@ -7,7 +7,6 @@
  * certificates.
  */
 import '//resources/cr_elements/cr_button/cr_button.js';
-import '//resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
 import './certificate_entry.js';
 import './certificate_shared.css.js';
 
@@ -73,13 +72,13 @@ export class CertificateListElement extends CertificateListElementBase {
     };
   }
 
-  certificates: CertificatesOrgGroup[];
-  certificateType: CertificateType;
-  importAllowed: boolean;
+  declare certificates: CertificatesOrgGroup[];
+  declare certificateType: CertificateType;
+  declare importAllowed: boolean;
   // <if expr="is_chromeos">
-  private isGuest_: boolean;
+  declare private isGuest_: boolean;
   // </if>
-  private isKiosk_: boolean;
+  declare private isKiosk_: boolean;
 
   private getDescription_(): string {
     if (this.certificates.length === 0) {

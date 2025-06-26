@@ -9,20 +9,15 @@
 #include <memory>
 
 #include "partition_alloc/address_pool_manager.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/memory_reclaimer.h"
 #include "partition_alloc/partition_address_space.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_hooks.h"
 #include "partition_alloc/partition_direct_map_extent.h"
 #include "partition_alloc/partition_oom.h"
 #include "partition_alloc/partition_page.h"
 #include "partition_alloc/partition_root.h"
 #include "partition_alloc/partition_stats.h"
-
-#if PA_BUILDFLAG(USE_STARSCAN)
-#include "partition_alloc/starscan/pcscan.h"
-#endif
 
 namespace partition_alloc {
 
@@ -51,7 +46,12 @@ void PartitionAllocGlobalInit(OomFunction on_out_of_memory) {
       (internal::PartitionPageSize() & internal::SystemPageOffsetMask()) == 0,
       "ok partition page multiple");
   static_assert(
-      sizeof(internal::PartitionPageMetadata) <= internal::kPageMetadataSize,
+      sizeof(
+          internal::PartitionPageMetadata<internal::MetadataKind::kReadOnly>) <=
+              internal::kPageMetadataSize &&
+          sizeof(internal::PartitionPageMetadata<
+                 internal::MetadataKind::kWritable>) <=
+              internal::kPageMetadataSize,
       "PartitionPage should not be too big");
   STATIC_ASSERT_OR_PA_CHECK(
       internal::kPageMetadataSize * internal::NumPartitionPagesPerSuperPage() <=

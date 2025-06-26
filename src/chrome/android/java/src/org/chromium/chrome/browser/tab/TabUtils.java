@@ -15,6 +15,8 @@ import android.graphics.Bitmap;
 import android.graphics.Matrix;
 import android.graphics.Point;
 import android.graphics.Rect;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.util.Size;
 import android.view.Display;
 import android.widget.ImageView;
@@ -26,12 +28,14 @@ import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.BuildInfo;
+import org.chromium.base.ContextUtils;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiThemeProvider;
 import org.chromium.components.browser_ui.site_settings.WebsitePreferenceBridge;
 import org.chromium.components.browser_ui.util.AutomotiveUtils;
+import org.chromium.components.browser_ui.util.DimensionCompat;
 import org.chromium.components.content_settings.ContentSettingValues;
 import org.chromium.components.content_settings.ContentSettingsType;
 import org.chromium.content_public.browser.WebContents;
@@ -134,24 +138,13 @@ public class TabUtils {
      *
      * @param tab The tab to be switched the user agent.
      * @param switchToDesktop Whether switching the user agent to desktop.
-     * @param forcedByUser Whether this was triggered by users action.
      * @param caller The caller of this method.
      */
-    // TODO(crbug.com/40891239): Remove param forcedByUser from TabUtils#switchUserAgent.
-    public static void switchUserAgent(
-            Tab tab, boolean switchToDesktop, boolean forcedByUser, int caller) {
+    public static void switchUserAgent(Tab tab, boolean switchToDesktop, int caller) {
         final boolean reloadOnChange = !tab.isNativePage();
         tab.getWebContents()
                 .getNavigationController()
                 .setUseDesktopUserAgent(switchToDesktop, reloadOnChange, caller);
-        if (forcedByUser) {
-            @TabUserAgent
-            int tabUserAgent = switchToDesktop ? TabUserAgent.DESKTOP : TabUserAgent.MOBILE;
-            if (isDesktopSiteGlobalEnabled(tab.getProfile()) == switchToDesktop) {
-                tabUserAgent = TabUserAgent.DEFAULT;
-            }
-            tab.setUserAgent(tabUserAgent);
-        }
     }
 
     /**
@@ -261,10 +254,12 @@ public class TabUtils {
                     AutomotiveUtils.getHorizontalAutomotiveToolbarHeightDp(context);
             int verticalAutomotiveToolbarWidthDp =
                     AutomotiveUtils.getVerticalAutomotiveToolbarWidthDp(context);
+            DimensionCompat dimensionCompat = getDimensionCompat(context);
+            float windowWidthDp = getWindowWidthDp(dimensionCompat, context);
+            float windowHeightDp = getWindowHeightExcludingSystemBarsDp(dimensionCompat, context);
             // This should match the aspect ratio of a Tab's content area.
-            return (context.getResources().getConfiguration().screenWidthDp * 1.f
-                            - verticalAutomotiveToolbarWidthDp)
-                    / (context.getResources().getConfiguration().screenHeightDp * 1.f
+            return (windowWidthDp - verticalAutomotiveToolbarWidthDp)
+                    / (windowHeightDp
                             - browserControlsHeightDp
                             - horizontalAutomotiveToolbarHeightDp);
         }
@@ -272,8 +267,26 @@ public class TabUtils {
         return PORTRAIT_THUMBNAIL_ASPECT_RATIO;
     }
 
+    private static float getWindowWidthDp(DimensionCompat compat, Context context) {
+        return compat.getWindowWidth() / context.getResources().getDisplayMetrics().density;
+    }
+
+    private static float getWindowHeightExcludingSystemBarsDp(
+            DimensionCompat compat, Context context) {
+        return (compat.getWindowHeight() - compat.getNavbarHeight() - compat.getStatusBarHeight())
+                / context.getResources().getDisplayMetrics().density;
+    }
+
+    private static DimensionCompat getDimensionCompat(Context context) {
+        // (TODO: crbug.com/351854698) Pass activity context instead.
+        Activity activity = ContextUtils.activityFromContext(context);
+        assert activity != null : "Activity from context should not be null for this class.";
+        return DimensionCompat.create(activity, null);
+    }
+
     /**
      * Derive grid card height based on width, expected thumbnail aspect ratio and margins.
+     *
      * @param cardWidthPx width of the card
      * @param context to derive view margins
      * @param browserControlsStateProvider - For getting browser controls height.
@@ -283,13 +296,26 @@ public class TabUtils {
             int cardWidthPx,
             Context context,
             BrowserControlsStateProvider browserControlsStateProvider) {
-        int tabThumbnailHeight =
-                (int)
-                        ((cardWidthPx - getThumbnailWidthDiff(context))
-                                / getTabThumbnailAspectRatio(
-                                        context, browserControlsStateProvider));
-        int cardHeightPx = tabThumbnailHeight + getThumbnailHeightDiff(context);
-        return cardHeightPx;
+        float aspectRatio = getTabThumbnailAspectRatio(context, browserControlsStateProvider);
+        int thumbnailHeight = (int) ((cardWidthPx - getThumbnailWidthDiff(context)) / aspectRatio);
+        return thumbnailHeight + getThumbnailHeightDiff(context);
+    }
+
+    /**
+     * Derive grid card width based on height, expected thumbnail aspect ratio and margins.
+     *
+     * @param cardHeightPx width of the card
+     * @param context to derive view margins
+     * @param browserControlsStateProvider - For getting browser controls height.
+     * @return computed card height.
+     */
+    public static int deriveGridCardWidth(
+            int cardHeightPx,
+            Context context,
+            BrowserControlsStateProvider browserControlsStateProvider) {
+        float aspectRatio = getTabThumbnailAspectRatio(context, browserControlsStateProvider);
+        int thumbnailWidth = (int) ((cardHeightPx - getThumbnailHeightDiff(context)) * aspectRatio);
+        return thumbnailWidth + getThumbnailWidthDiff(context);
     }
 
     /**
@@ -305,12 +331,13 @@ public class TabUtils {
     }
 
     /**
-     * Update the {@link Bitmap} and @{@link Matrix} of ImageView. The bitmap is scaled by a
-     * matrix to be scaled to larger of the two dimensions of {@code destinationSize},
-     * then top-center aligned.
+     * Update the {@link Bitmap} and @{@link Matrix} of ImageView. The drawable is scaled by a
+     * matrix to be scaled to larger of the two dimensions of {@code destinationSize}, then
+     * top-center aligned.
+     *
      * @param view The {@link ImageView} to update.
-     * @param bitmap The {@link Bitmap} to set in the view and scale.
-     * @param destinationSize The desired {@link Size} of the bitmap.
+     * @param drawable The {@link Drawable} to set in the view and scale.
+     * @param destinationSize The desired {@link Size} of the drawable.
      */
 
     public static void openUrlInNewTab(boolean isIncognito, String url) {
@@ -348,18 +375,24 @@ public class TabUtils {
         context.startActivity(intent);
     }
 
-    public static void setBitmapAndUpdateImageMatrix(
-            ImageView view, Bitmap bitmap, Size destinationSize) {
+    public static void setDrawableAndUpdateImageMatrix(
+            ImageView view, Drawable drawable, Size destinationSize) {
         if (BuildInfo.getInstance().isAutomotive) {
-            bitmap.setDensity(
-                    DisplayUtil.getUiDensityForAutomotive(view.getContext(), bitmap.getDensity()));
+            if (drawable instanceof BitmapDrawable bitmapDrawable) {
+                Bitmap bitmap = bitmapDrawable.getBitmap();
+                assert bitmap != null;
+                bitmap.setDensity(
+                        DisplayUtil.getUiDensityForAutomotive(
+                                view.getContext(), bitmap.getDensity()));
+            }
         }
-        view.setImageBitmap(bitmap);
+        view.setImageDrawable(drawable);
         int newWidth = destinationSize == null ? 0 : destinationSize.getWidth();
         int newHeight = destinationSize == null ? 0 : destinationSize.getHeight();
         if (newWidth <= 0
                 || newHeight <= 0
-                || (newWidth == bitmap.getWidth() && newHeight == bitmap.getHeight())) {
+                || (newWidth == drawable.getIntrinsicWidth()
+                        && newHeight == drawable.getIntrinsicHeight())) {
             view.setScaleType(ScaleType.FIT_CENTER);
             return;
         }
@@ -367,16 +400,16 @@ public class TabUtils {
         final Matrix m = new Matrix();
         final float scale =
                 Math.max(
-                        (float) newWidth / bitmap.getWidth(),
-                        (float) newHeight / bitmap.getHeight());
+                        (float) newWidth / drawable.getIntrinsicWidth(),
+                        (float) newHeight / drawable.getIntrinsicHeight());
         m.setScale(scale, scale);
 
-        /**
+        /*
          * Bitmap is top-left aligned by default. We want to translate the image to be horizontally
          * center-aligned. |destination width - scaled width| is the width that is out of view
-         * bounds. We need to translate bitmap (to left) by half of this distance.
+         * bounds. We need to translate the drawable (to left) by half of this distance.
          */
-        final int xOffset = (int) ((newWidth - (bitmap.getWidth() * scale)) / 2);
+        final int xOffset = (int) ((newWidth - (drawable.getIntrinsicWidth() * scale)) / 2);
         m.postTranslate(xOffset, 0);
 
         view.setScaleType(ScaleType.MATRIX);

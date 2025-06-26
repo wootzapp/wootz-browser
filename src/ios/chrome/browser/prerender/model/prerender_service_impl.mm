@@ -7,8 +7,8 @@
 #import "base/metrics/histogram_macros.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_util.h"
 #import "ios/chrome/browser/prerender/model/preload_controller.h"
-#import "ios/chrome/browser/sessions/session_restoration_service.h"
-#import "ios/chrome/browser/sessions/session_restoration_service_factory.h"
+#import "ios/chrome/browser/sessions/model/session_restoration_service.h"
+#import "ios/chrome/browser/sessions/model/session_restoration_service_factory.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/web/model/load_timing_tab_helper.h"
@@ -17,14 +17,13 @@
 #import "ios/web/public/web_state.h"
 #import "ui/base/page_transition_types.h"
 
-PrerenderServiceImpl::PrerenderServiceImpl(ChromeBrowserState* browser_state)
-    : controller_(
-          [[PreloadController alloc] initWithBrowserState:browser_state]) {}
+PrerenderServiceImpl::PrerenderServiceImpl(ProfileIOS* profile)
+    : controller_([[PreloadController alloc] initWithProfile:profile]) {}
 
 PrerenderServiceImpl::~PrerenderServiceImpl() = default;
 
 void PrerenderServiceImpl::Shutdown() {
-  [controller_ browserStateDestroyed];
+  [controller_ profileDestroyed];
   controller_ = nil;
 }
 
@@ -92,8 +91,8 @@ bool PrerenderServiceImpl::MaybeLoadPrerenderedURL(
     LoadTimingTabHelper::FromWebState(active_web_state)
         ->DidPromotePrerenderTab();
   }
-  ChromeBrowserState* browser_state = browser->GetBrowserState();
-  SessionRestorationServiceFactory::GetForBrowserState(browser_state)
+  ProfileIOS* profile = browser->GetProfile();
+  SessionRestorationServiceFactory::GetForProfile(profile)
       ->ScheduleSaveSessions();
   return true;
 }

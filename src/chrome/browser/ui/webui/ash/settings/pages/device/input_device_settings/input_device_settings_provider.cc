@@ -4,6 +4,9 @@
 
 #include "chrome/browser/ui/webui/ash/settings/pages/device/input_device_settings/input_device_settings_provider.h"
 
+#include <algorithm>
+#include <variant>
+
 #include "ash/constants/ash_features.h"
 #include "ash/public/cpp/accelerator_actions.h"
 #include "ash/public/cpp/input_device_settings_controller.h"
@@ -11,18 +14,28 @@
 #include "ash/public/mojom/input_device_settings.mojom.h"
 #include "ash/rgb_keyboard/rgb_keyboard_manager.h"
 #include "ash/shell.h"
+#include "ash/system/input_device_settings/input_device_settings_pref_names.h"
 #include "ash/system/keyboard_brightness_control_delegate.h"
 #include "base/containers/flat_set.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
+#include "chrome/browser/apps/app_service/app_launch_params.h"
+#include "chrome/browser/apps/app_service/app_service_proxy_ash.h"
+#include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
+#include "chrome/browser/apps/app_service/package_id_util.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/device/input_device_settings/input_device_settings_provider.mojom-forward.h"
 #include "chrome/grit/generated_resources.h"
 #include "chromeos/dbus/power_manager/backlight.pb.h"
+#include "components/prefs/pref_service.h"
+#include "components/services/app_service/public/cpp/app_launch_util.h"
+#include "components/services/app_service/public/cpp/package_id.h"
 #include "content/public/browser/web_contents.h"
 #include "mojo/public/cpp/bindings/clone_traits.h"
 #include "mojo/public/cpp/bindings/struct_ptr.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/events/ash/keyboard_capability.h"
+#include "ui/events/ash/mojom/meta_key.mojom-shared.h"
 #include "ui/views/widget/widget.h"
 
 namespace ash::settings {
@@ -30,7 +43,7 @@ namespace ash::settings {
 namespace {
 
 using ActionTypeVariant =
-    absl::variant<AcceleratorAction, ::ash::mojom::StaticShortcutAction>;
+    std::variant<AcceleratorAction, ::ash::mojom::StaticShortcutAction>;
 
 constexpr double kDefaultKeyboardBrightness = 40.0;
 
@@ -89,6 +102,7 @@ constexpr ActionChoice kGraphicsTabletOptions[] = {
      ::ash::mojom::StaticShortcutAction::kZoomOut},
     {IDS_SETTINGS_SCREENSHOT_OPTION_LABEL,
      AcceleratorAction::kTakePartialScreenshot},
+    {IDS_SETTINGS_OVERVIEW_OPTION_LABEL, AcceleratorAction::kToggleOverview},
 };
 
 mojom::ActionTypePtr GetActionType(AcceleratorAction accelerator_action) {
@@ -101,8 +115,7 @@ mojom::ActionTypePtr GetActionType(
 }
 
 mojom::ActionTypePtr GetActionTypeFromVariant(ActionTypeVariant variant) {
-  return absl::visit([](auto&& value) { return GetActionType(value); },
-                     variant);
+  return std::visit([](auto&& value) { return GetActionType(value); }, variant);
 }
 
 template <typename T>
@@ -139,8 +152,35 @@ std::vector<T> SanitizeAndSortDeviceList(std::vector<T> devices) {
       std::move(devices));
   std::vector<T> devices_no_duplicates =
       std::move(devices_no_duplicates_set).extract();
-  base::ranges::sort(devices_no_duplicates, CompareDevices<T>);
+  std::ranges::sort(devices_no_duplicates, CompareDevices<T>);
   return devices_no_duplicates;
+}
+
+void RecordKeyboardAmbientLightSensorDisabledCause(
+    const power_manager::AmbientLightSensorChange_Cause& cause) {
+  KeyboardAmbientLightSensorDisabledCause disabled_cause;
+  switch (cause) {
+    case power_manager::
+        AmbientLightSensorChange_Cause_USER_REQUEST_SETTINGS_APP:
+      disabled_cause =
+          KeyboardAmbientLightSensorDisabledCause::kUserRequestSettingsApp;
+      break;
+    case power_manager::AmbientLightSensorChange_Cause_BRIGHTNESS_USER_REQUEST:
+      disabled_cause =
+          KeyboardAmbientLightSensorDisabledCause::kBrightnessUserRequest;
+      break;
+    case power_manager::
+        AmbientLightSensorChange_Cause_BRIGHTNESS_USER_REQUEST_SETTINGS_APP:
+      disabled_cause = KeyboardAmbientLightSensorDisabledCause::
+          kBrightnessUserRequestSettingsApp;
+      break;
+    default:
+      return;  // Exit function if none of the specified cases match
+  }
+  base::UmaHistogramEnumeration(
+      "ChromeOS.Settings.Keyboard.UserInitiated."
+      "AmbientLightSensorDisabledCause",
+      disabled_cause);
 }
 
 }  // namespace
@@ -174,6 +214,9 @@ InputDeviceSettingsProvider::InputDeviceSettingsProvider() {
     if (power_manager_client) {
       // power_manager_client may be NULL in unittests.
       power_manager_client->AddObserver(this);
+      power_manager_client->GetSwitchStates(
+          base::BindOnce(&InputDeviceSettingsProvider::OnReceiveSwitchStates,
+                         weak_ptr_factory_.GetWeakPtr()));
     }
   }
 }
@@ -243,6 +286,19 @@ void InputDeviceSettingsProvider::KeyboardBrightnessChanged(
   if (keyboard_brightness_observer_.is_bound()) {
     keyboard_brightness_observer_->OnKeyboardBrightnessChanged(
         change.percent());
+  }
+}
+
+void InputDeviceSettingsProvider::KeyboardAmbientLightSensorEnabledChanged(
+    const power_manager::AmbientLightSensorChange& change) {
+  if (keyboard_ambient_light_sensor_observer_.is_bound()) {
+    keyboard_ambient_light_sensor_observer_
+        ->OnKeyboardAmbientLightSensorEnabledChanged(change.sensor_enabled());
+  }
+
+  if (features::IsKeyboardBacklightControlInSettingsEnabled() &&
+      !change.sensor_enabled()) {
+    RecordKeyboardAmbientLightSensorDisabledCause(change.cause());
   }
 }
 
@@ -367,7 +423,7 @@ void InputDeviceSettingsProvider::SetKeyboardBrightness(double percent) {
     return;
   }
   keyboard_brightness_control_delegate_->HandleSetKeyboardBrightness(
-      percent, /*gradual=*/true);
+      percent, /*gradual=*/true, KeyboardBrightnessChangeSource::kSettingsApp);
 }
 
 void InputDeviceSettingsProvider::SetKeyboardAmbientLightSensorEnabled(
@@ -379,13 +435,26 @@ void InputDeviceSettingsProvider::SetKeyboardAmbientLightSensorEnabled(
     return;
   }
   keyboard_brightness_control_delegate_
-      ->HandleSetKeyboardAmbientLightSensorEnabled(enabled);
+      ->HandleSetKeyboardAmbientLightSensorEnabled(
+          enabled, KeyboardAmbientLightSensorEnabledChangeSource::kSettingsApp);
+
+  // Record the keyboard auto-brightness toggle event.
+  base::UmaHistogramBoolean(
+      "ChromeOS.Settings.Device.Keyboard.AutoBrightnessEnabled.Changed",
+      /*sample=*/enabled);
 }
 
 void InputDeviceSettingsProvider::OnReceiveKeyboardBrightness(
     std::optional<double> brightness_percent) {
   keyboard_brightness_observer_->OnKeyboardBrightnessChanged(
       brightness_percent.value_or(kDefaultKeyboardBrightness));
+}
+
+void InputDeviceSettingsProvider::OnReceiveKeyboardAmbientLightSensorEnabled(
+    std::optional<bool> keyboard_ambient_light_sensor_enabled) {
+  keyboard_ambient_light_sensor_observer_
+      ->OnKeyboardAmbientLightSensorEnabledChanged(
+          keyboard_ambient_light_sensor_enabled.value_or(true));
 }
 
 void InputDeviceSettingsProvider::ObserveKeyboardSettings(
@@ -462,6 +531,49 @@ void InputDeviceSettingsProvider::ObserveKeyboardBrightness(
                      weak_ptr_factory_.GetWeakPtr()));
 }
 
+void InputDeviceSettingsProvider::ObserveKeyboardAmbientLightSensor(
+    mojo::PendingRemote<mojom::KeyboardAmbientLightSensorObserver> observer) {
+  DCHECK(features::IsKeyboardBacklightControlInSettingsEnabled());
+  keyboard_ambient_light_sensor_observer_.reset();
+  keyboard_ambient_light_sensor_observer_.Bind(std::move(observer));
+
+  // Get the initial keyboard ambient light sensor enabled status when first
+  // register the observer.
+  keyboard_brightness_control_delegate_
+      ->HandleGetKeyboardAmbientLightSensorEnabled(
+          base::BindOnce(&InputDeviceSettingsProvider::
+                             OnReceiveKeyboardAmbientLightSensorEnabled,
+                         weak_ptr_factory_.GetWeakPtr()));
+}
+
+void InputDeviceSettingsProvider::ObserveLidState(
+    mojo::PendingRemote<mojom::LidStateObserver> observer,
+    ObserveLidStateCallback callback) {
+  DCHECK(features::IsKeyboardBacklightControlInSettingsEnabled());
+  lid_state_observers_.Add(std::move(observer));
+  std::move(callback).Run(is_lid_open_);
+}
+
+void InputDeviceSettingsProvider::LidEventReceived(
+    chromeos::PowerManagerClient::LidState state,
+    base::TimeTicks time) {
+  DCHECK(features::IsKeyboardBacklightControlInSettingsEnabled());
+  // If the lid state is open or if the lid state sensors is not present, the
+  // lid is considered open
+  is_lid_open_ = state != chromeos::PowerManagerClient::LidState::CLOSED;
+  for (auto& observer : lid_state_observers_) {
+    observer->OnLidStateChanged(is_lid_open_);
+  }
+}
+
+void InputDeviceSettingsProvider::OnReceiveSwitchStates(
+    std::optional<chromeos::PowerManagerClient::SwitchStates> switch_states) {
+  DCHECK(features::IsKeyboardBacklightControlInSettingsEnabled());
+  if (switch_states.has_value()) {
+    LidEventReceived(switch_states->lid_state, /*time=*/{});
+  }
+}
+
 void InputDeviceSettingsProvider::OnCustomizableMouseButtonPressed(
     const ::ash::mojom::Mouse& mouse,
     const ::ash::mojom::Button& button) {
@@ -520,6 +632,30 @@ void InputDeviceSettingsProvider::OnTouchpadBatteryInfoChanged(
     const ::ash::mojom::Touchpad& touchpad) {
   CHECK(features::IsWelcomeExperienceEnabled());
   NotifyTouchpadsUpdated();
+}
+
+void InputDeviceSettingsProvider::OnMouseCompanionAppInfoChanged(
+    const ::ash::mojom::Mouse& mouse) {
+  CHECK(features::IsWelcomeExperienceEnabled());
+  NotifyMiceUpdated();
+}
+
+void InputDeviceSettingsProvider::OnKeyboardCompanionAppInfoChanged(
+    const ::ash::mojom::Keyboard& keyboard) {
+  CHECK(features::IsWelcomeExperienceEnabled());
+  NotifyKeyboardsUpdated();
+}
+
+void InputDeviceSettingsProvider::OnTouchpadCompanionAppInfoChanged(
+    const ::ash::mojom::Touchpad& touchpad) {
+  CHECK(features::IsWelcomeExperienceEnabled());
+  NotifyTouchpadsUpdated();
+}
+
+void InputDeviceSettingsProvider::OnGraphicsTabletCompanionAppInfoChanged(
+    const ::ash::mojom::GraphicsTablet& graphics_tablet) {
+  CHECK(features::IsWelcomeExperienceEnabled());
+  NotifyGraphicsTabletUpdated();
 }
 
 void InputDeviceSettingsProvider::OnKeyboardConnected(
@@ -664,6 +800,39 @@ void InputDeviceSettingsProvider::SetWidgetForTesting(views::Widget* widget) {
   HandleObserving();
 }
 
+void InputDeviceSettingsProvider::OnReceiveDeviceImage(
+    GetDeviceIconImageCallback callback,
+    const std::optional<std::string>& data_url) {
+  std::move(callback).Run(data_url);
+}
+
+void InputDeviceSettingsProvider::GetDeviceIconImage(
+    const std::string& device_key,
+    GetDeviceIconImageCallback callback) {
+  CHECK(features::IsWelcomeExperienceEnabled());
+  CHECK(InputDeviceSettingsController::Get());
+  InputDeviceSettingsController::Get()->GetDeviceImageDataUrl(
+      device_key,
+      base::BindOnce(&InputDeviceSettingsProvider::OnReceiveDeviceImage,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+}
+
+void InputDeviceSettingsProvider::LaunchCompanionApp(
+    const std::string& package_id_str) {
+  CHECK(features::IsWelcomeExperienceEnabled());
+  auto* profile = ProfileManager::GetActiveUserProfile();
+  auto package_id = apps::PackageId::FromString(package_id_str);
+  CHECK(package_id.has_value());
+  auto app_id = apps_util::GetAppWithPackageId(&*profile, package_id.value());
+  CHECK(app_id.has_value());
+  apps::AppServiceProxyFactory::GetForProfile(
+      ProfileManager::GetActiveUserProfile())
+      ->LaunchAppWithParams(apps::AppLaunchParams(
+          app_id.value(), apps::LaunchContainer::kLaunchContainerWindow,
+          WindowOpenDisposition::NEW_WINDOW,
+          apps::LaunchSource::kFromManagementApi));
+}
+
 void InputDeviceSettingsProvider::
     GetActionsForGraphicsTabletButtonCustomization(
         GetActionsForGraphicsTabletButtonCustomizationCallback callback) {
@@ -687,21 +856,10 @@ void InputDeviceSettingsProvider::GetActionsForMouseButtonCustomization(
   std::move(callback).Run(std::move(choices));
 }
 
-void InputDeviceSettingsProvider::HasLauncherButton(
-    HasLauncherButtonCallback callback) {
-  DCHECK(features::IsInputDeviceSettingsSplitEnabled());
-  DCHECK(InputDeviceSettingsController::Get());
-
-  auto keyboards =
-      InputDeviceSettingsController::Get()->GetConnectedKeyboards();
-  for (const ::ash::mojom::KeyboardPtr& keyboard : keyboards) {
-    if (keyboard->meta_key == ::ash::mojom::MetaKey::kLauncher) {
-      std::move(callback).Run(true);
-      return;
-    }
-  }
-
-  std::move(callback).Run(/*has_launcher_button=*/false);
+void InputDeviceSettingsProvider::GetMetaKeyToDisplay(
+    GetMetaKeyToDisplayCallback callback) {
+  std::move(callback).Run(
+      Shell::Get()->keyboard_capability()->GetMetaKeyToDisplay());
 }
 
 void InputDeviceSettingsProvider::OnReceiveHasKeyboardBacklight(

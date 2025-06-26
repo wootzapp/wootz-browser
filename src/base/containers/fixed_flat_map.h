@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
-#endif
-
 #ifndef BASE_CONTAINERS_FIXED_FLAT_MAP_H_
 #define BASE_CONTAINERS_FIXED_FLAT_MAP_H_
 
@@ -107,14 +102,14 @@ using fixed_flat_map = base::
 // Example usage:
 //   constexpr auto kMap = base::MakeFixedFlatMap<std::string_view, int>(
 //       {{"foo", 1}, {"bar", 2}, {"baz", 3}});
-template <class Key, class Mapped, size_t N, class Compare = std::less<>>
+template <class Key, class Mapped, class Compare = std::less<>, size_t N>
 consteval fixed_flat_map<Key, Mapped, N, Compare> MakeFixedFlatMap(
     std::pair<Key, Mapped> (&&data)[N],
     const Compare& comp = Compare()) {
   using FixedFlatMap = fixed_flat_map<Key, Mapped, N, Compare>;
   typename FixedFlatMap::value_compare value_comp{comp};
   if (!internal::is_sorted_and_unique(data, value_comp)) {
-    std::sort(data, data + N, value_comp);
+    std::ranges::sort(data, value_comp);
     if (!internal::is_sorted_and_unique(data, value_comp)) {
       internal::FixedFlatMapInputNotSortedOrNotUnique();
     }

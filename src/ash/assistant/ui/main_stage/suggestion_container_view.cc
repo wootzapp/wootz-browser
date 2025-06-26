@@ -68,14 +68,14 @@ class SuggestionChipAnimator : public ElementAnimator {
   void AnimateIn(ui::CallbackLayerAnimationObserver* observer) override {
     StartLayerAnimationSequence(
         layer()->GetAnimator(), CreateAnimateInAnimation(), observer,
-        base::BindRepeating<void(const std::string&, int)>(
+        base::BindRepeating<void(const std::string_view, int)>(
             base::UmaHistogramPercentage, kAssistantSuggestionChipHistogram));
   }
 
   void AnimateOut(ui::CallbackLayerAnimationObserver* observer) override {
     StartLayerAnimationSequence(
         layer()->GetAnimator(), CreateAnimateOutAnimation(), observer,
-        base::BindRepeating<void(const std::string&, int)>(
+        base::BindRepeating<void(const std::string_view, int)>(
             base::UmaHistogramPercentage, kAssistantSuggestionChipHistogram));
   }
 
@@ -124,11 +124,7 @@ SuggestionContainerView::~SuggestionContainerView() {
 
 gfx::Size SuggestionContainerView::CalculatePreferredSize(
     const views::SizeBounds& available_size) const {
-  return gfx::Size(INT_MAX, GetHeightForWidth(INT_MAX));
-}
-
-int SuggestionContainerView::GetHeightForWidth(int width) const {
-  return kPreferredHeightDip;
+  return gfx::Size(INT_MAX, kPreferredHeightDip);
 }
 
 void SuggestionContainerView::OnContentsPreferredSizeChanged(

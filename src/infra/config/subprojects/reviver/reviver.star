@@ -55,7 +55,10 @@ polymorphic.launcher(
     target_builders = [
         "ci/android-oreo-x86-rel",
         "ci/android-pie-x86-rel",
+        "ci/android-10-x86-rel",
         "ci/android-12-x64-rel",
+        "ci/android-13-x64-rel",
+        "ci/android-15-x64-rel",
     ],
 )
 
@@ -178,28 +181,9 @@ polymorphic.launcher(
     os = os.LINUX_DEFAULT,
     runner = "reviver/runner",
     target_builders = [
-        "ci/fuchsia-fyi-arm64-dbg",
-        "ci/fuchsia-fyi-x64-dbg",
+        "ci/fuchsia-arm64-cast-receiver-rel",
+        "ci/fuchsia-x64-cast-receiver-dbg",
         "ci/fuchsia-x64-cast-receiver-rel",
-    ],
-)
-
-# A coordinator for lacros.
-polymorphic.launcher(
-    name = "lacros-coordinator",
-    # To avoid peak hours, we run it from 8PM TO 4AM PST. It is
-    # 3 AM to 11 AM UTC.
-    schedule = "0 3,5,7,9 * * *",
-    pool = ci.DEFAULT_POOL,
-    os = os.LINUX_DEFAULT,
-    runner = "reviver/runner",
-    target_builders = [
-        polymorphic.target_builder(
-            builder = "ci/linux-lacros-builder-rel",
-            testers = [
-                "ci/linux-lacros-tester-rel",
-            ],
-        ),
     ],
 )
 

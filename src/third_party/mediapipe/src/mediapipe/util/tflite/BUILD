@@ -154,15 +154,15 @@ cc_library_with_tflite(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        ":error_reporter",
+        "//mediapipe/framework:resources",
         "//mediapipe/framework/api2:packet",
-        "//mediapipe/framework/port:file_helpers",
         "//mediapipe/framework/port:ret_check",
         "//mediapipe/framework/port:status",
         "//mediapipe/util:resource_util",
-        "@com_google_absl//absl/log:absl_log",
+        "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -182,6 +182,7 @@ cc_test_with_tflite(
         "//mediapipe/framework:calculator_framework",
         "//mediapipe/framework:calculator_state",
         "//mediapipe/framework:legacy_calculator_support",
+        "//mediapipe/framework:resources",
         "//mediapipe/framework/api2:packet",
         "//mediapipe/framework/port:gtest_main",
         "//mediapipe/framework/tool:tag_map_helper",
@@ -190,21 +191,25 @@ cc_test_with_tflite(
     ],
 )
 
-cc_library(
+cc_library_with_tflite(
     name = "tflite_signature_reader",
     srcs = ["tflite_signature_reader.cc"],
     hdrs = ["tflite_signature_reader.h"],
+    tflite_deps = [
+        "@org_tensorflow//tensorflow/lite:framework_stable",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "//mediapipe/framework/port:ret_check",
+        "//mediapipe/framework/port:status",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
-        "@org_tensorflow//tensorflow/lite:framework_stable",
     ],
 )
 
+# TODO b/336756170 - convert test to use cc_test_with_tflite
 cc_test(
     name = "tflite_signature_reader_test",
     srcs = ["tflite_signature_reader_test.cc"],
@@ -216,6 +221,7 @@ cc_test(
         ":tflite_model_loader",
         ":tflite_signature_reader",
         "//mediapipe/framework:packet",
+        "//mediapipe/framework:resources",
         "//mediapipe/framework/deps:file_path",
         "//mediapipe/framework/port:gtest_main",
         "//mediapipe/framework/port:status",
@@ -226,4 +232,15 @@ cc_test(
         "@org_tensorflow//tensorflow/lite:test_util",
         "@org_tensorflow//tensorflow/lite/kernels:builtin_ops",
     ],
+)
+
+cc_library_with_tflite(
+    name = "utils",
+    srcs = ["utils.cc"],
+    hdrs = ["utils.h"],
+    tflite_deps = [
+        "@org_tensorflow//tensorflow/lite:framework_stable",
+        "@org_tensorflow//tensorflow/lite/c:common",
+    ],
+    visibility = ["//visibility:public"],
 )

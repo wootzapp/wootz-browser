@@ -2,13 +2,21 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-load("//lib/branches.star", "branches")
+load("//lib/notifiers.star", "notifiers")
 
 luci.notifier(
     name = "chromesec-lkgr-failures",
     on_status_change = True,
     notify_emails = [
         "chromesec-lkgr-failures@google.com",
+    ],
+)
+
+luci.notifier(
+    name = "chrome-fuzzing-core",
+    on_status_change = True,
+    notify_emails = [
+        "chrome-fuzzing-core+bots@google.com",
     ],
 )
 
@@ -52,6 +60,16 @@ luci.notifier(
     on_status_change = True,
     notify_emails = [
         "chrome-memory-sheriffs+bots@google.com",
+    ],
+)
+
+luci.notifier(
+    name = "chromium-android-device-flasher",
+    # android-device-flasher runs only once a week. So have it sends
+    # notifications whenever there is an infra failure.
+    on_occurrence = ["INFRA_FAILURE"],
+    notify_emails = [
+        "chromium-infra+failures@google.com",
     ],
 )
 
@@ -112,18 +130,11 @@ luci.notifier(
     ],
 )
 
-luci.notifier(
-    name = "weblayer-sheriff",
-    on_new_status = ["FAILURE"],
-    notify_emails = [
-        "weblayer-sheriff@grotations.appspotmail.com",
-    ],
-)
-
 TREE_CLOSING_STEPS_REGEXP = "\\b({})\\b".format("|".join([
     "bot_update",
     "compile",
     "gclient runhooks",
+    "generate_build_files",
     "runhooks",
     "update",
     "\\w*nocompile_test",
@@ -141,7 +152,7 @@ def _empty_notifier(*, name):
     )
 
 def tree_closer(*, name, tree_status_host, **kwargs):
-    if branches.matches(branches.selector.MAIN):
+    if notifiers.tree_closer_branch():
         luci.tree_closer(
             name = name,
             tree_status_host = tree_status_host,
@@ -162,7 +173,7 @@ tree_closer(
 )
 
 def tree_closure_notifier(*, name, **kwargs):
-    if branches.matches(branches.selector.MAIN):
+    if notifiers.tree_closer_branch():
         luci.notifier(
             name = name,
             on_occurrence = ["FAILURE"],
@@ -265,8 +276,10 @@ luci.notifier(
 luci.notifier(
     name = "annotator-rel",
     notify_emails = [
-        "pastarmovj@chromium.org",
+        "chiav@chromium.org",
+        "crmullins@chromium.org",
         "nicolaso@chromium.org",
+        "pastarmovj@chromium.org",
     ],
     on_new_status = ["FAILURE"],
 )
@@ -323,4 +336,30 @@ luci.notifier(
         "thakis@google.com",
     ],
     on_new_status = ["INFRA_FAILURE"],
+)
+
+luci.notifier(
+    name = "chrome-fake-vaapi-test",
+    on_occurrence = ["SUCCESS", "FAILURE", "INFRA_FAILURE"],
+    failed_step_regexp = "video_decode_accelerator_tests_fake_vaapi.*",
+    notify_emails = [
+        "bchoobineh@google.com",
+    ],
+)
+
+luci.notifier(
+    name = "chrome-v4l2-visl-test",
+    on_occurrence = ["SUCCESS", "FAILURE", "INFRA_FAILURE"],
+    failed_step_regexp = "video_decode_accelerator_tests_v4l2*",
+    notify_emails = [
+        "stevecho@google.com",
+    ],
+)
+
+luci.notifier(
+    name = "multiscreen-owners",
+    on_new_status = ["FAILURE"],
+    notify_emails = [
+        "web-windowing-team@google.com",
+    ],
 )

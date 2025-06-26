@@ -36,8 +36,7 @@ CubicBezierTimingFunction::CreatePreset(EaseType ease_type) {
       return base::WrapUnique(
           new CubicBezierTimingFunction(ease_type, 0.42, 0.0, 0.58, 1));
     default:
-      NOTREACHED_IN_MIGRATION();
-      return nullptr;
+      NOTREACHED();
   }
 }
 std::unique_ptr<CubicBezierTimingFunction>
@@ -59,7 +58,9 @@ TimingFunction::Type CubicBezierTimingFunction::GetType() const {
   return Type::CUBIC_BEZIER;
 }
 
-double CubicBezierTimingFunction::GetValue(double x) const {
+double CubicBezierTimingFunction::GetValue(
+    double x,
+    TimingFunction::LimitDirection) const {
   return bezier_.Solve(x);
 }
 
@@ -86,10 +87,6 @@ TimingFunction::Type StepsTimingFunction::GetType() const {
   return Type::STEPS;
 }
 
-double StepsTimingFunction::GetValue(double t) const {
-  return GetPreciseValue(t, TimingFunction::LimitDirection::RIGHT);
-}
-
 std::unique_ptr<TimingFunction> StepsTimingFunction::Clone() const {
   return base::WrapUnique(new StepsTimingFunction(*this));
 }
@@ -98,8 +95,7 @@ double StepsTimingFunction::Velocity(double x) const {
   return 0;
 }
 
-double StepsTimingFunction::GetPreciseValue(double t,
-                                            LimitDirection direction) const {
+double StepsTimingFunction::GetValue(double t, LimitDirection direction) const {
   const double steps = static_cast<double>(steps_);
   double current_step = std::floor((steps * t) + GetStepsStartOffset());
   // Adjust step if using a left limit at a discontinuous step boundary.
@@ -133,8 +129,7 @@ int StepsTimingFunction::NumberOfJumps() const {
       return steps_ - 1;
 
     default:
-      NOTREACHED_IN_MIGRATION();
-      return steps_;
+      NOTREACHED();
   }
 }
 
@@ -151,8 +146,7 @@ float StepsTimingFunction::GetStepsStartOffset() const {
       return 0;
 
     default:
-      NOTREACHED_IN_MIGRATION();
-      return 1;
+      NOTREACHED();
   }
 }
 
@@ -190,7 +184,8 @@ double LinearTimingFunction::Velocity(double x) const {
   return 0;
 }
 
-double LinearTimingFunction::GetValue(double input_progress) const {
+double LinearTimingFunction::GetValue(double input_progress,
+                                      LimitDirection limit_direction) const {
   if (IsTrivial()) {
     return input_progress;
   }

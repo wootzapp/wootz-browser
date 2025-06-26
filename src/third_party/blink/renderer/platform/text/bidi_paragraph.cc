@@ -26,12 +26,10 @@ bool BidiParagraph::SetParagraph(const String& text,
   }
 
   ICUError error;
-  ubidi_setPara(ubidi_.get(), text.Characters16(), text.length(), para_level,
+  ubidi_setPara(ubidi_.get(), text.Span16().data(), text.length(), para_level,
                 nullptr, &error);
   if (U_FAILURE(error)) {
-    NOTREACHED_IN_MIGRATION();
-    ubidi_ = nullptr;
-    return false;
+    NOTREACHED();
   }
 
   if (!base_direction) {
@@ -67,7 +65,7 @@ std::optional<TextDirection> BidiParagraph::BaseDirectionForString(
   const size_t len = text.size();
   for (size_t i = 0; i < len;) {
     UChar32 ch;
-    U16_NEXT(data, i, len, ch);
+    UNSAFE_TODO(U16_NEXT(data, i, len, ch));
     switch (u_charDirection(ch)) {
       case U_LEFT_TO_RIGHT:
         return TextDirection::kLtr;

@@ -109,6 +109,12 @@ class CONTENT_EXPORT ServiceWorkerProviderContext
     return container_type_;
   }
 
+  // TODO(crbug.com/324939068): remove the code when the feature launched.
+  bool container_is_blob_url_shared_worker() const override;
+  void set_container_is_blob_url_shared_worker(bool is_blob_url) {
+    container_is_blob_url_shared_worker_ = is_blob_url;
+  }
+
   // Returns version id of the controller service worker object
   // (ServiceWorkerContainer#controller).
   int64_t GetControllerVersionId() const;
@@ -245,6 +251,8 @@ class CONTENT_EXPORT ServiceWorkerProviderContext
   network::mojom::URLLoaderFactory* GetSubresourceLoaderFactoryInternal();
 
   const blink::mojom::ServiceWorkerContainerType container_type_;
+  // TODO(crbug.com/324939068): remove the flag when the feature launched.
+  bool container_is_blob_url_shared_worker_ = false;
   scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner_;
 
   // This keeps the connection to the content::ServiceWorkerContainerHost in the
@@ -303,11 +311,7 @@ class CONTENT_EXPORT ServiceWorkerProviderContext
   std::optional<std::string> sha256_script_checksum_;
 
   std::optional<blink::ServiceWorkerRouterRules> router_rules_;
-  // TODO(crbug.com/40941292): It may be better to make this an optional, so it
-  // is possible to distinguish between unset and kStopped, which are not really
-  // equivalent.
-  blink::EmbeddedWorkerStatus initial_running_status_ =
-      blink::EmbeddedWorkerStatus::kStopped;
+  std::optional<blink::EmbeddedWorkerStatus> initial_running_status_;
   mojo::PendingRemote<blink::mojom::CacheStorage> remote_cache_storage_;
   mojo::PendingReceiver<blink::mojom::ServiceWorkerRunningStatusCallback>
       running_status_receiver_;

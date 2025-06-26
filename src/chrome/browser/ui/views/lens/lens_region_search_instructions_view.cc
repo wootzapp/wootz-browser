@@ -14,6 +14,7 @@
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
@@ -71,9 +72,10 @@ void LensRegionSearchInstructionsView::Init() {
       layout_provider->GetDistanceMetric(
           views::DistanceMetric::DISTANCE_CLOSE_BUTTON_MARGIN) +
           kCloseButtonExtraMargin));
-  SetButtons(ui::DIALOG_BUTTON_NONE);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   set_close_on_deactivate(false);
   set_corner_radius(kCornerRadius);
+  set_background_color(kColorFeatureLensPromoBubbleBackground);
 
   // Add the leading drag selection icon.
   auto selection_icon_view =
@@ -81,7 +83,7 @@ void LensRegionSearchInstructionsView::Init() {
           views::kDragGeneralSelectionIcon,
           kColorFeatureLensPromoBubbleForeground,
           layout_provider->GetDistanceMetric(
-              DISTANCE_BUBBLE_HEADER_VECTOR_ICON_SIZE)));
+              views::DISTANCE_BUBBLE_HEADER_VECTOR_ICON_SIZE)));
   AddChildView(std::move(selection_icon_view));
 
   gfx::Font default_font;
@@ -126,7 +128,6 @@ void LensRegionSearchInstructionsView::OnThemeChanged() {
   auto background_color =
       color_provider->GetColor(kColorFeatureLensPromoBubbleBackground);
 
-  set_color(background_color);
   label_->SetBackgroundColor(background_color);
   label_->SetEnabledColor(foreground_color);
   views::SetImageFromVectorIconWithColor(constructed_close_button_,

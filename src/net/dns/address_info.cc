@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/dns/address_info.h"
 
 #include <memory>
@@ -148,9 +153,9 @@ bool AddressInfo::IsAllLocalhostOfOneFamily() const {
 
 AddressList AddressInfo::CreateAddressList() const {
   AddressList list;
-  auto canonical_name = GetCanonicalName();
+  std::optional<std::string> canonical_name = GetCanonicalName();
   if (canonical_name) {
-    std::vector<std::string> aliases({*canonical_name});
+    std::vector<std::string> aliases({*std::move(canonical_name)});
     list.SetDnsAliases(std::move(aliases));
   }
   for (auto&& ai : *this) {

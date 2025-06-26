@@ -66,13 +66,27 @@ _FUNCTION_INFO = {
     'client_test': False,
     'internal': True,
     'cmd_args': 'GLuint device_id, GLuint device_generation, GLuint id, '
-                'GLuint generation, GLuint usage, MailboxFlags flags, '
+                'GLuint generation, uint64_t usage, '
+                'uint64_t internal_usage, MailboxFlags flags, '
                 'GLuint view_format_count, GLuint count, '
                 'const GLuint* mailbox_and_view_formats',
     'type': 'PUTn',
     'count': 1,
   },
+  'AssociateMailboxForBuffer': {
+    'impl_func': False,
+    'client_test': False,
+    'internal': True,
+    'cmd_args': 'GLuint device_id, GLuint device_generation, GLuint id, '
+                'GLuint generation, uint64_t usage, const GLuint* mailbox',
+    'type': 'PUT',
+    'count': 4,
+  },
   'DissociateMailbox': {
+    'impl_func': False,
+    'client_test': False,
+  },
+   'DissociateMailboxForBuffer': {
     'impl_func': False,
     'client_test': False,
   },

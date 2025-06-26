@@ -12,6 +12,7 @@
 #include "gpu/command_buffer/client/webgpu_interface.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_buffer_descriptor.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_buffer_map_state.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/typed_arrays/dom_array_buffer.h"
@@ -143,8 +144,11 @@ GPUBuffer* GPUBuffer::Create(GPUDevice* device,
   if (wgpuBuffer == nullptr) {
     DCHECK(dawn_desc.mappedAtCreation);
     exception_state.ThrowRangeError(
-        "createBuffer failed, size is too large for the implementation when "
-        "mappedAtCreation == true");
+        WTF::String::Format("createBuffer failed, size (%" PRIu64
+                            ") is too large for "
+                            "the implementation when "
+                            "mappedAtCreation == true",
+                            buffer_size));
     return nullptr;
   }
 
@@ -155,7 +159,7 @@ GPUBuffer* GPUBuffer::Create(GPUDevice* device,
     GPU* gpu = device->adapter()->gpu();
     gpu->TrackMappableBuffer(buffer);
     device->TrackMappableBuffer(buffer);
-    buffer->mappable_buffer_handles_ = gpu->mappable_buffer_handles();
+    buffer->mappable_buffer_handles_ = gpu->GetMappableBufferHandles();
   }
 
   return buffer;
@@ -234,7 +238,7 @@ uint32_t GPUBuffer::usage() const {
   return static_cast<uint32_t>(GetHandle().GetUsage());
 }
 
-String GPUBuffer::mapState() const {
+V8GPUBufferMapState GPUBuffer::mapState() const {
   return FromDawnEnum(GetHandle().GetMapState());
 }
 
@@ -271,6 +275,7 @@ ScriptPromise<IDLUndefined> GPUBuffer::MapAsyncImpl(
       WTF::BindOnce(&GPUBuffer::OnMapAsyncCallback, WrapPersistent(this))));
 
   GetHandle().MapAsync(static_cast<wgpu::MapMode>(mode), map_offset, map_size,
+                       wgpu::CallbackMode::AllowSpontaneous,
                        callback->UnboundCallback(), callback->AsUserdata());
 
   // WebGPU guarantees that promises are resolved in finite time so we
@@ -304,7 +309,9 @@ DOMArrayBuffer* GPUBuffer::GetMappedRangeImpl(ScriptState* script_state,
   if (range_size > std::numeric_limits<size_t>::max() - range_offset) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kOperationError,
-        "getMappedRange failed, offset + size overflows size_t");
+        WTF::String::Format(
+            "getMappedRange failed, offset(%zu) + size(%zu) overflows size_t",
+            range_offset, range_size));
     return nullptr;
   }
   size_t range_end = range_offset + range_size;
@@ -350,7 +357,9 @@ DOMArrayBuffer* GPUBuffer::GetMappedRangeImpl(ScriptState* script_state,
   // be done before the creation of ArrayBuffer.
   if (range_size > v8::TypedArray::kMaxByteLength) {
     exception_state.ThrowRangeError(
-        "getMappedRange failed, size is too large for the implementation");
+        WTF::String::Format("getMappedRange failed, size (%zu) is too large "
+                            "for the implementation. max size = %zu",
+                            range_size, v8::TypedArray::kMaxByteLength));
     return nullptr;
   }
 
@@ -367,50 +376,23 @@ DOMArrayBuffer* GPUBuffer::GetMappedRangeImpl(ScriptState* script_state,
 
 void GPUBuffer::OnMapAsyncCallback(
     ScriptPromiseResolver<IDLUndefined>* resolver,
-    WGPUBufferMapAsyncStatus cStatus) {
-  wgpu::BufferMapAsyncStatus status =
-      static_cast<wgpu::BufferMapAsyncStatus>(cStatus);
+    wgpu::MapAsyncStatus status,
+    wgpu::StringView message) {
   switch (status) {
-    case wgpu::BufferMapAsyncStatus::Success:
+    case wgpu::MapAsyncStatus::Success:
       resolver->Resolve();
       break;
-    case wgpu::BufferMapAsyncStatus::ValidationError:
-      resolver->RejectWithDOMException(DOMExceptionCode::kOperationError,
-                                       "Buffer is invalid");
-      break;
-    case wgpu::BufferMapAsyncStatus::Unknown:
-      resolver->RejectWithDOMException(DOMExceptionCode::kOperationError,
-                                       "Unknown error in mapAsync");
-      break;
-    case wgpu::BufferMapAsyncStatus::DeviceLost:
+    case wgpu::MapAsyncStatus::CallbackCancelled:
       resolver->RejectWithDOMException(DOMExceptionCode::kAbortError,
-                                       "Device is lost");
+                                       String::FromUTF8(message));
       break;
-    case wgpu::BufferMapAsyncStatus::InstanceDropped:
+    case wgpu::MapAsyncStatus::Aborted:
       resolver->RejectWithDOMException(DOMExceptionCode::kAbortError,
-                                       "Instance dropped");
+                                       String::FromUTF8(message));
       break;
-    case wgpu::BufferMapAsyncStatus::DestroyedBeforeCallback:
-      resolver->RejectWithDOMException(
-          DOMExceptionCode::kAbortError,
-          "Buffer is destroyed before the mapping is resolved");
-      break;
-    case wgpu::BufferMapAsyncStatus::UnmappedBeforeCallback:
-      resolver->RejectWithDOMException(
-          DOMExceptionCode::kAbortError,
-          "Buffer is unmapped before the mapping is resolved");
-      break;
-    case wgpu::BufferMapAsyncStatus::MappingAlreadyPending:
+    case wgpu::MapAsyncStatus::Error:
       resolver->RejectWithDOMException(DOMExceptionCode::kOperationError,
-                                       "A mapping is already pending");
-      break;
-    case wgpu::BufferMapAsyncStatus::OffsetOutOfRange:
-      resolver->RejectWithDOMException(DOMExceptionCode::kOperationError,
-                                       "The offset is out of range");
-      break;
-    case wgpu::BufferMapAsyncStatus::SizeOutOfRange:
-      resolver->RejectWithDOMException(DOMExceptionCode::kOperationError,
-                                       "The size is out of range");
+                                       String::FromUTF8(message));
       break;
   }
 }

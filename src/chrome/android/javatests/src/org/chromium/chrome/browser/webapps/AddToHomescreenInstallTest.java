@@ -16,6 +16,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
@@ -32,10 +33,8 @@ import org.chromium.components.webapps.AddToHomescreenCoordinator;
 import org.chromium.components.webapps.AddToHomescreenDialogView;
 import org.chromium.components.webapps.AddToHomescreenProperties;
 import org.chromium.components.webapps.AddToHomescreenViewDelegate;
-import org.chromium.components.webapps.AppBannerManager;
 import org.chromium.components.webapps.AppType;
 import org.chromium.content_public.browser.WebContents;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServerRule;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modaldialog.ModalDialogManager;
@@ -84,14 +83,9 @@ public class AddToHomescreenInstallTest {
         }
 
         @Override
-        protected AddToHomescreenDialogView initView(
-                AppBannerManager.InstallStringPair installStrings,
-                AddToHomescreenViewDelegate delegate) {
+        protected AddToHomescreenDialogView initView(AddToHomescreenViewDelegate delegate) {
             return new AddToHomescreenDialogView(
-                    getContextForTests(),
-                    getModalDialogManagerForTests(),
-                    installStrings,
-                    delegate) {
+                    getContextForTests(), getModalDialogManagerForTests(), delegate) {
                 @Override
                 protected void setTitle(String title) {
                     if (TextUtils.isEmpty(mTitle)) {
@@ -132,7 +126,7 @@ public class AddToHomescreenInstallTest {
     private void installApp(
             Tab tab, String title, boolean expectAdded, @AppType int expectedDialogType) {
         // Install the webapp.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     boolean started =
                             new TestAddToHomescreenCoordinator(
@@ -142,9 +136,7 @@ public class AddToHomescreenInstallTest {
                                             mActivity.getModalDialogManager(),
                                             title,
                                             expectedDialogType)
-                                    .showForAppMenu(
-                                            AppMenuVerbiage.APP_MENU_OPTION_INSTALL,
-                                            /* universalInstall= */ false);
+                                    .showForAppMenu(AppMenuVerbiage.APP_MENU_OPTION_INSTALL);
                     Assert.assertEquals(expectAdded, started);
                 });
 

@@ -15,7 +15,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "components/user_education/common/help_bubble_params.h"
+#include "components/user_education/common/help_bubble/help_bubble_params.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/gfx/geometry/rect.h"
@@ -31,7 +31,6 @@ class Label;
 namespace ash {
 
 enum class HelpBubbleId;
-enum class HelpBubbleStyle;
 
 namespace internal {
 
@@ -78,7 +77,6 @@ class ASH_EXPORT HelpBubbleViewAsh : public views::BubbleDialogDelegateView {
   gfx::Rect GetHitRect() const;
 
   HelpBubbleId id() const { return id_; }
-  HelpBubbleStyle style() const { return style_; }
 
  protected:
   // views::BubbleDialogDelegateView:
@@ -98,6 +96,7 @@ class ASH_EXPORT HelpBubbleViewAsh : public views::BubbleDialogDelegateView {
  private:
   FRIEND_TEST_ALL_PREFIXES(HelpBubbleViewTimeoutTest,
                            RespectsProvidedTimeoutAfterActivate);
+  FRIEND_TEST_ALL_PREFIXES(HelpBubbleViewAshTest, RootViewAccessibleName);
   friend class HelpBubbleViewsTest;
 
   void MaybeStartAutoCloseTimer();
@@ -110,7 +109,6 @@ class ASH_EXPORT HelpBubbleViewAsh : public views::BubbleDialogDelegateView {
   void UpdateRoundedCorners();
 
   const HelpBubbleId id_;
-  const HelpBubbleStyle style_;
 
   raw_ptr<views::ImageView> icon_view_ = nullptr;
   std::vector<raw_ptr<views::Label, VectorExperimental>> labels_;

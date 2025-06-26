@@ -14,6 +14,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "chromeos/dbus/power/power_manager_client.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_registry_simple.h"
 
 class AccountId;
@@ -59,13 +60,16 @@ class ASH_EXPORT BrightnessControllerChromeos
                             BrightnessChangeSource source) override;
   void GetBrightnessPercent(
       base::OnceCallback<void(std::optional<double>)> callback) override;
-  void SetAmbientLightSensorEnabled(bool enabled) override;
+  void SetAmbientLightSensorEnabled(
+      bool enabled,
+      AmbientLightSensorEnabledChangeSource source) override;
   void GetAmbientLightSensorEnabled(
       base::OnceCallback<void(std::optional<bool>)> callback) override;
   void HasAmbientLightSensor(
       base::OnceCallback<void(std::optional<bool>)> callback) override;
 
   // SessionObserver:
+  void OnActiveUserPrefServiceChanged(PrefService* pref_service) override;
   void OnActiveUserSessionChanged(const AccountId& account_id) override;
   void OnSessionStateChanged(session_manager::SessionState state) override;
 
@@ -74,6 +78,8 @@ class ASH_EXPORT BrightnessControllerChromeos
       const power_manager::BacklightBrightnessChange& change) override;
   void AmbientLightSensorEnabledChanged(
       const power_manager::AmbientLightSensorChange& change) override;
+  void LidEventReceived(chromeos::PowerManagerClient::LidState state,
+                        base::TimeTicks timestamp) override;
 
   // LoginDataDispatcher::Observer:
   void OnFocusPod(const AccountId& account_id) override;
@@ -81,10 +87,17 @@ class ASH_EXPORT BrightnessControllerChromeos
  private:
   void RecordHistogramForBrightnessAction(BrightnessAction brightness_action);
   void OnGetBrightnessAfterLogin(std::optional<double> brightness_percent);
+  void OnGetHasAmbientLightSensor(std::optional<bool> has_sensor);
+  void OnGetSwitchStates(
+      std::optional<chromeos::PowerManagerClient::SwitchStates> switch_states);
   void RestoreBrightnessSettings(const AccountId& account_id);
+  void MaybeRestoreBrightnessSettings();
+  void RestoreBrightnessSettingsOnFirstLogin();
+  bool IsInitialBrightnessSetByPolicy();
 
   raw_ptr<PrefService> local_state_;
   raw_ptr<SessionControllerImpl> session_controller_;
+  raw_ptr<PrefService> active_pref_service_;
 
   // The current AccountId, used to set and retrieve prefs. Expected to be
   // nullopt on the login screen, but will be set on login.
@@ -97,6 +110,24 @@ class ASH_EXPORT BrightnessControllerChromeos
   // Used for metrics recording. True if and only if a brightness adjustment has
   // occurred.
   bool has_brightness_been_adjusted_ = false;
+
+  // True if the ambient light sensor value has already been restored for a
+  // user's first login.
+  bool has_ambient_light_sensor_been_restored_for_new_user_ = false;
+
+  // True if the ambient light sensor status has already been recorded at login
+  // screen, it is used to ensures the status is recorded only once per boot.
+  bool has_ambient_light_sensor_status_been_recorded_ = false;
+
+  // True if device has an ambient light sensor.
+  std::optional<bool> has_sensor_ = false;
+
+  chromeos::PowerManagerClient::LidState lid_state_ =
+      chromeos::PowerManagerClient::LidState::OPEN;
+
+  // This PrefChangeRegistrar is used to check when the synced profile pref for
+  // the ambient light sensor value has finished syncing.
+  std::unique_ptr<PrefChangeRegistrar> pref_change_registrar_;
 
   base::WeakPtrFactory<BrightnessControllerChromeos> weak_ptr_factory_{this};
 };

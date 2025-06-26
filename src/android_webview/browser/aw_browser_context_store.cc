@@ -11,7 +11,7 @@
 
 #include "android_webview/browser/aw_browser_context.h"
 #include "android_webview/browser/aw_browser_process.h"
-#include "android_webview/browser_jni_headers/AwBrowserContextStore_jni.h"
+#include "android_webview/common/aw_features.h"
 #include "base/check_op.h"
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
@@ -28,6 +28,10 @@
 #include "components/prefs/scoped_user_pref_update.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
+#include "content/public/browser/spare_render_process_host_manager.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "android_webview/browser_jni_headers/AwBrowserContextStore_jni.h"
 
 namespace android_webview {
 
@@ -38,13 +42,9 @@ constexpr char kProfilePathKey[] = "path";
 
 bool g_initialized = false;
 
-BASE_FEATURE(kCreateSpareRendererOnBrowserContextCreation,
-             "CreateSpareRendererOnBrowserContextCreation",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-const base::FeatureParam<bool> kCreateSpareRendereForDefaultIfMultiProfile{
-    &kCreateSpareRendererOnBrowserContextCreation,
-    "create_spare_renderer_for_default_if_multi_profile", true};
+const base::FeatureParam<bool> kCreateSpareRendererForDefaultIfMultiProfile{
+    &features::kCreateSpareRendererOnBrowserContextCreation,
+    "create_spare_renderer_for_default_if_multi_profile", false};
 
 }  // namespace
 
@@ -96,6 +96,8 @@ std::vector<std::string> AwBrowserContextStore::List() const {
 AwBrowserContext* AwBrowserContextStore::Get(const std::string& name,
                                              const bool create_if_needed) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  TRACE_EVENT("android_webview", "AwBrowserContextStore::Get", "name", name,
+              "create_if_needed", create_if_needed);
   auto context_it = contexts_.find(name);
   Entry* entry;
   if (context_it != contexts_.end()) {
@@ -114,11 +116,11 @@ AwBrowserContext* AwBrowserContextStore::Get(const std::string& name,
     // Ensure this code path is only taken if the IO thread is already running,
     // as it's needed for launching processes.
     if (base::FeatureList::IsEnabled(
-            kCreateSpareRendererOnBrowserContextCreation) &&
+            features::kCreateSpareRendererOnBrowserContextCreation) &&
         content::BrowserThread::IsThreadInitialized(
             content::BrowserThread::IO) &&
-        (!is_default || kCreateSpareRendereForDefaultIfMultiProfile.Get())) {
-      content::RenderProcessHost::WarmupSpareRenderProcessHost(
+        (!is_default || kCreateSpareRendererForDefaultIfMultiProfile.Get())) {
+      content::SpareRenderProcessHostManager::Get().WarmupSpare(
           entry->instance.get());
     }
   }
@@ -155,7 +157,7 @@ AwBrowserContextStore::DeletionResult AwBrowserContextStore::Delete(
       return DeletionResult::kDeleted;
     }
   }
-  NOTREACHED_NORETURN() << "Profile exists in memory but not in prefs";
+  NOTREACHED() << "Profile exists in memory but not in prefs";
 }
 
 base::FilePath AwBrowserContextStore::GetRelativePathForTesting(
@@ -167,7 +169,7 @@ base::FilePath AwBrowserContextStore::GetRelativePathForTesting(
 }
 
 AwBrowserContextStore::Entry* AwBrowserContextStore::CreateNewContext(
-    const std::string_view name) {
+    std::string_view name) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   auto emplace_result = contexts_.emplace(std::string(name), Entry());
   // Check it was new
@@ -205,30 +207,25 @@ AwBrowserContext* AwBrowserContextStore::GetDefault() const {
   return default_context_;
 }
 
-jboolean JNI_AwBrowserContextStore_CheckNamedContextExists(
-    JNIEnv* const env,
-    const base::android::JavaParamRef<jstring>& jname) {
+jboolean JNI_AwBrowserContextStore_CheckNamedContextExists(JNIEnv* const env,
+                                                           std::string& jname) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  return AwBrowserContextStore::GetInstance()->Exists(
-      base::android::ConvertJavaStringToUTF8(env, jname));
+  return AwBrowserContextStore::GetInstance()->Exists(jname);
 }
 
 base::android::ScopedJavaLocalRef<jobject>
-JNI_AwBrowserContextStore_GetNamedContextJava(
-    JNIEnv* const env,
-    const base::android::JavaParamRef<jstring>& jname,
-    jboolean create_if_needed) {
+JNI_AwBrowserContextStore_GetNamedContextJava(JNIEnv* const env,
+                                              std::string& jname,
+                                              jboolean create_if_needed) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  AwBrowserContext* context = AwBrowserContextStore::GetInstance()->Get(
-      base::android::ConvertJavaStringToUTF8(env, jname), create_if_needed);
+  AwBrowserContext* context =
+      AwBrowserContextStore::GetInstance()->Get(jname, create_if_needed);
   return context ? context->GetJavaBrowserContext() : nullptr;
 }
 
-jboolean JNI_AwBrowserContextStore_DeleteNamedContext(
-    JNIEnv* const env,
-    const base::android::JavaParamRef<jstring>& jname) {
+jboolean JNI_AwBrowserContextStore_DeleteNamedContext(JNIEnv* const env,
+                                                      std::string& name) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  const std::string name = base::android::ConvertJavaStringToUTF8(env, jname);
   AwBrowserContextStore::DeletionResult result =
       AwBrowserContextStore::GetInstance()->Delete(name);
   switch (result) {
@@ -245,18 +242,16 @@ jboolean JNI_AwBrowserContextStore_DeleteNamedContext(
   }
 }
 
-base::android::ScopedJavaLocalRef<jstring>
-JNI_AwBrowserContextStore_GetNamedContextPathForTesting(
+std::string JNI_AwBrowserContextStore_GetNamedContextPathForTesting(
     JNIEnv* const env,
-    const base::android::JavaParamRef<jstring>& jname) {
+    std::string& name) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  std::string name = base::android::ConvertJavaStringToUTF8(env, jname);
   AwBrowserContextStore* store = AwBrowserContextStore::GetInstance();
   if (!store->Exists(name)) {
-    return nullptr;
+    return "";
   }
   base::FilePath path = store->GetRelativePathForTesting(name);
-  return base::android::ConvertUTF8ToJavaString(env, path.value());
+  return path.value();
 }
 
 base::android::ScopedJavaLocalRef<jobjectArray>

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "fuchsia_web/webengine/renderer/web_engine_audio_renderer.h"
 
 #include <fuchsia/media/audio/cpp/fidl_test_base.h>
@@ -13,10 +18,13 @@
 #include "base/containers/queue.h"
 #include "base/fuchsia/fuchsia_logging.h"
 #include "base/logging.h"
+#include "base/memory/raw_ptr.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
+#include "base/types/fixed_array.h"
 #include "media/base/buffering_state.h"
 #include "media/base/cdm_context.h"
 #include "media/base/decoder_buffer.h"
@@ -73,10 +81,7 @@ class TestDemuxerStream : public media::DemuxerStream {
     SatisfyRead();
   }
   media::AudioDecoderConfig audio_decoder_config() override { return config_; }
-  media::VideoDecoderConfig video_decoder_config() override {
-    NOTREACHED_IN_MIGRATION();
-    return media::VideoDecoderConfig();
-  }
+  media::VideoDecoderConfig video_decoder_config() override { NOTREACHED(); }
   Type type() const override { return AUDIO; }
   media::StreamLiveness liveness() const override {
     return media::StreamLiveness::kRecorded;
@@ -313,8 +318,8 @@ class TestAudioConsumer
   fidl::Binding<fuchsia::media::audio::VolumeControl> volume_control_binding_;
   std::unique_ptr<TestStreamSink> stream_sink_;
 
-  base::RunLoop* wait_stream_sink_created_loop_ = nullptr;
-  base::RunLoop* wait_started_loop_ = nullptr;
+  raw_ptr<base::RunLoop> wait_stream_sink_created_loop_ = nullptr;
+  raw_ptr<base::RunLoop> wait_started_loop_ = nullptr;
 
   bool create_stream_sink_called_ = false;
 
@@ -531,7 +536,7 @@ class WebEngineAudioRendererTestBase : public testing::Test {
   TestRendererClient client_;
 
   std::unique_ptr<media::AudioRenderer> audio_renderer_;
-  media::TimeSource* time_source_;
+  raw_ptr<media::TimeSource> time_source_;
   base::TimeDelta demuxer_stream_pos_;
 };
 
@@ -576,8 +581,7 @@ void WebEngineAudioRendererTestBase::ProduceDemuxerPacket(
     base::TimeDelta duration) {
   // Create a dummy packet that contains just 1 byte.
   const size_t kBufferSize = 1;
-  scoped_refptr<media::DecoderBuffer> buffer =
-      new media::DecoderBuffer(kBufferSize);
+  auto buffer = base::MakeRefCounted<media::DecoderBuffer>(kBufferSize);
   buffer->set_timestamp(demuxer_stream_pos_);
   buffer->set_duration(duration);
   demuxer_stream_pos_ += duration;
@@ -708,8 +712,7 @@ void WebEngineAudioRendererTestBase::TestPcmStream(
   const size_t kNumSamples = 10;
   const size_t kChannels = 2;
   size_t input_buffer_size = kNumSamples * kChannels * bytes_per_sample_input;
-  scoped_refptr<media::DecoderBuffer> buffer =
-      new media::DecoderBuffer(input_buffer_size);
+  auto buffer = base::MakeRefCounted<media::DecoderBuffer>(input_buffer_size);
   buffer->set_timestamp(demuxer_stream_pos_);
   buffer->set_duration(kPacketDuration);
   for (size_t i = 0; i < input_buffer_size; ++i) {
@@ -727,9 +730,9 @@ void WebEngineAudioRendererTestBase::TestPcmStream(
   // Read and verify packet content
   size_t output_size = kNumSamples * kChannels * bytes_per_sample_output;
   EXPECT_EQ(packet.payload_size, output_size);
-  uint8_t data[output_size];
+  base::FixedArray<uint8_t> data(output_size);
   zx_status_t result = stream_sink_->buffers()[packet.payload_buffer_id].read(
-      data, 0, output_size);
+      data.data(), 0, output_size);
   ZX_CHECK(result == ZX_OK, result);
 
   for (size_t i = 0; i < output_size; ++i) {

@@ -18,10 +18,6 @@
 #include "base/values.h"
 #include "components/autofill/core/common/signatures.h"
 
-using base::checked_cast;
-using base::NumberToString;
-using base::Value;
-
 namespace autofill {
 
 namespace {
@@ -39,14 +35,15 @@ SavePasswordProgressLogger::SavePasswordProgressLogger() = default;
 SavePasswordProgressLogger::~SavePasswordProgressLogger() = default;
 
 std::string FormSignatureToDebugString(FormSignature form_signature) {
-  return base::StrCat({NumberToString(form_signature.value()), " - ",
-                       NumberToString(HashFormSignature(form_signature))});
+  return base::StrCat(
+      {base::NumberToString(form_signature.value()), " - ",
+       base::NumberToString(HashFormSignature(form_signature))});
 }
 
 void SavePasswordProgressLogger::LogFormData(
     SavePasswordProgressLogger::StringID label,
     const FormData& form_data) {
-  CHECK(!form_data.url.is_empty());
+  CHECK(!form_data.url().is_empty());
   std::string message = GetStringFromID(label) + ": {\n";
   message += GetStringFromID(STRING_FORM_SIGNATURE) + ": " +
              FormSignatureToDebugString(CalculateFormSignature(form_data)) +
@@ -56,24 +53,24 @@ void SavePasswordProgressLogger::LogFormData(
       FormSignatureToDebugString(CalculateAlternativeFormSignature(form_data)) +
       "\n";
   message +=
-      GetStringFromID(STRING_ORIGIN) + ": " + ScrubURL(form_data.url) + "\n";
-  message +=
-      GetStringFromID(STRING_ACTION) + ": " + ScrubURL(form_data.action) + "\n";
-  if (form_data.main_frame_origin.GetURL().is_valid())
+      GetStringFromID(STRING_ORIGIN) + ": " + ScrubURL(form_data.url()) + "\n";
+  message += GetStringFromID(STRING_ACTION) + ": " +
+             ScrubURL(form_data.action()) + "\n";
+  if (form_data.main_frame_origin().GetURL().is_valid()) {
     message += GetStringFromID(STRING_MAIN_FRAME_ORIGIN) + ": " +
-               ScrubURL(form_data.main_frame_origin.GetURL()) + "\n";
+               ScrubURL(form_data.main_frame_origin().GetURL()) + "\n";
+  }
   message += GetStringFromID(STRING_FORM_NAME) + ": " +
-             ScrubElementID(form_data.name) + "\n";
+             ScrubElementID(form_data.name()) + "\n";
 
-  if (!form_data.renderer_id.is_null()) {
-    message +=
-        "Form renderer id: " + NumberToString(form_data.renderer_id.value()) +
-        "\n";
+  if (!form_data.renderer_id().is_null()) {
+    message += "Form renderer id: " +
+               base::NumberToString(form_data.renderer_id().value()) + "\n";
   }
 
   // Log fields.
   message += GetStringFromID(STRING_FIELDS) + ": " + "\n";
-  for (const auto& field : form_data.fields) {
+  for (const auto& field : form_data.fields()) {
     message += GetFormFieldDataLogString(field) + "\n";
   }
   message += "}";
@@ -84,39 +81,39 @@ void SavePasswordProgressLogger::LogHTMLForm(
     SavePasswordProgressLogger::StringID label,
     const std::string& name_or_id,
     const GURL& action) {
-  Value::Dict log;
+  base::Value::Dict log;
   log.Set(GetStringFromID(STRING_NAME_OR_ID), ScrubElementID(name_or_id));
   log.Set(GetStringFromID(STRING_ACTION), ScrubURL(action));
-  LogValue(label, Value(std::move(log)));
+  LogValue(label, base::Value(std::move(log)));
 }
 
 void SavePasswordProgressLogger::LogURL(
     SavePasswordProgressLogger::StringID label,
     const GURL& url) {
-  LogValue(label, Value(ScrubURL(url)));
+  LogValue(label, base::Value(ScrubURL(url)));
 }
 
 void SavePasswordProgressLogger::LogBoolean(
     SavePasswordProgressLogger::StringID label,
     bool truth_value) {
-  LogValue(label, Value(truth_value));
+  LogValue(label, base::Value(truth_value));
 }
 
 void SavePasswordProgressLogger::LogNumber(
     SavePasswordProgressLogger::StringID label,
     int signed_number) {
-  LogValue(label, Value(signed_number));
+  LogValue(label, base::Value(signed_number));
 }
 
 void SavePasswordProgressLogger::LogNumber(
     SavePasswordProgressLogger::StringID label,
     size_t unsigned_number) {
-  LogNumber(label, checked_cast<int>(unsigned_number));
+  LogNumber(label, base::checked_cast<int>(unsigned_number));
 }
 
 void SavePasswordProgressLogger::LogMessage(
     SavePasswordProgressLogger::StringID message) {
-  LogValue(STRING_MESSAGE, Value(GetStringFromID(message)));
+  LogValue(STRING_MESSAGE, base::Value(GetStringFromID(message)));
 }
 
 // static
@@ -133,10 +130,10 @@ std::string SavePasswordProgressLogger::GetFormFieldDataLogString(
       "%s: signature=%s, type=%s, renderer_id=%s, %s, %s%s",
       ScrubElementID(field.name()).c_str(),
       base::NumberToString(*CalculateFieldSignatureForField(field)).c_str(),
-      ScrubElementID(std::string(autofill::FormControlTypeToString(
-                         field.form_control_type())))
+      ScrubElementID(
+          std::string(FormControlTypeToString(field.form_control_type())))
           .c_str(),
-      NumberToString(*field.renderer_id()).c_str(), is_visible, is_empty,
+      base::NumberToString(*field.renderer_id()).c_str(), is_visible, is_empty,
       autocomplete.c_str());
 }
 
@@ -147,7 +144,8 @@ std::string SavePasswordProgressLogger::ScrubURL(const GURL& url) {
   return std::string();
 }
 
-void SavePasswordProgressLogger::LogValue(StringID label, const Value& log) {
+void SavePasswordProgressLogger::LogValue(StringID label,
+                                          const base::Value& log) {
   std::string log_string;
   bool conversion_to_string_successful = base::JSONWriter::WriteWithOptions(
       log, base::JSONWriter::OPTIONS_PRETTY_PRINT, &log_string);
@@ -447,21 +445,42 @@ std::string SavePasswordProgressLogger::GetStringFromID(
       return "PasswordManager::DidNavigateMainFrame";
     case STRING_NAVIGATION_NTP:
       return "Navigation to New Tab page";
-    case STRING_SERVER_PREDICTIONS:
-      return "Server predictions";
     case STRING_USERNAME_FIRST_FLOW_VOTE:
       return "Username first flow vote";
     case STRING_POSSIBLE_USERNAME_USED:
       return "Possible username is used";
     case STRING_POSSIBLE_USERNAME_NOT_USED:
       return "Possible username is not used";
+    case STRING_SAVING_BLOCKLISTED_EXPLICITLY:
+      return "Saving on this domain is explicitly blocklisted";
+    case STRING_SAVING_BLOCKLISTED_BY_SMART_BUBBLE:
+      return "Saving on this domain is blocklisted by the smart bubble";
+    case STRING_PASSWORD_CHANGE_STARTED:
+      return "Password Change started";
+    case STRING_PASSWORD_CHANGE_FINISHED:
+      return "Password Change finished with result";
+    case STRING_PASSWORD_CHANGE_STATE_CHANGED:
+      return "Password Change internal state changed to";
+    case STRING_RESOURCE_FAILED_LOADING_NO_SUBMITTED_MANAGER:
+      return "POST error with 400-403 status is detected, ignoring since there "
+             "is no submitted form";
+    case STRING_RESOURCE_FAILED_LOADING_FOR_WRONG_FRAME:
+      return "POST error with 400-403 status is detected, ignoring since it is "
+             "for a different frame";
+    case STRING_RESOURCE_FAILED_LOADING_FOR_WRONG_ORIGIN:
+      return "POST error with 400-403 status is detected, ignoring since it is "
+             "for a different origin";
+    case STRING_RESOURCE_FAILED_LOADING_LOGIN_FAILED:
+      return "POST error with 400-403 status is detected, considering "
+             "current submission failed";
+    case STRING_NO_SUBMITTED_MANAGER_AVAILABLE:
+      return "OnLoginSuccessful was invoked but no there is no submitted "
+             "manager";
     case SavePasswordProgressLogger::STRING_INVALID:
       return "INVALID";
       // Intentionally no default: clause here -- all IDs need to get covered.
   }
-  NOTREACHED_IN_MIGRATION();  // Win compilers don't believe this is
-                              // unreachable.
-  return std::string();
+  NOTREACHED();
 }
 
 }  // namespace autofill

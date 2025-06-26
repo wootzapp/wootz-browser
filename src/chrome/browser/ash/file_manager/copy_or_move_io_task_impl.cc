@@ -18,6 +18,7 @@
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
 #include "base/system/sys_info.h"
@@ -51,8 +52,11 @@
 #include "third_party/cros_system_api/constants/cryptohome.h"
 
 namespace file_manager::io_task {
-
 namespace {
+
+std::string Redact(const storage::FileSystemURL& url) {
+  return LOG_IS_ON(INFO) ? url.DebugString() : "(redacted)";
+}
 
 bool* DestinationNoSpace() {
   static bool destination_no_space = false;
@@ -89,14 +93,10 @@ storage::FileSystemOperationRunner::OperationID StartMoveOnIOThread(
       std::move(copy_or_move_hook_delegate), std::move(complete_callback));
 }
 
-// Helper function for copy or move tasks that determines whether or not
-// entries identified by their URLs should be considered as being on the
-// different file systems or not. The entries are seen as being on different
-// filesystems if either:
-// - the entries are not on the same volume OR
-// - one entry is in MyFiles, and the other one in Downloads.
-// crbug.com/1200251
-bool IsCrossFileSystem(Profile* profile,
+// Helper function for copy or move tasks that determines whether or not entries
+// identified by their URLs should be considered as being on the different file
+// systems or not.
+bool IsCrossFileSystem(Profile* const profile,
                        const storage::FileSystemURL& source_url,
                        const storage::FileSystemURL& destination_url) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -104,44 +104,24 @@ bool IsCrossFileSystem(Profile* profile,
   file_manager::VolumeManager* const volume_manager =
       file_manager::VolumeManager::Get(profile);
 
-  base::WeakPtr<file_manager::Volume> source_volume =
+  const base::WeakPtr<const file_manager::Volume> source_volume =
       volume_manager->FindVolumeFromPath(source_url.path());
-  base::WeakPtr<file_manager::Volume> destination_volume =
+  const base::WeakPtr<const file_manager::Volume> destination_volume =
       volume_manager->FindVolumeFromPath(destination_url.path());
 
-  if (!(source_volume && destination_volume)) {
-    // When either volume is unavailable, fallback to only checking the
-    // filesystem_id, which uniquely maps a URL to its ExternalMountPoints
-    // instance. NOTE: different volumes (e.g. for removables), might share the
-    // same ExternalMountPoints. NOTE 2: if either volume is unavailable, the
-    // operation itself is likely to fail.
+  // When either volume is unavailable, fall back to only checking the
+  // filesystem ID, which uniquely maps a URL to its ExternalMountPoints
+  // instance. NOTE 1: different volumes (e.g. for removables) might share the
+  // same ExternalMountPoints. NOTE 2: if either volume is unavailable, the
+  // operation itself is likely to fail.
+  if (!source_volume || !destination_volume) {
     return source_url.filesystem_id() != destination_url.filesystem_id();
   }
 
-  if (source_volume->volume_id() != destination_volume->volume_id()) {
-    return true;
-  }
+  VLOG(1) << "IsCrossFileSystem: " << source_volume->volume_id() << " -> "
+          << destination_volume->volume_id();
 
-  // On volumes other than DOWNLOADS, I/O operations within volumes that have
-  // the same ID are considered same-filesystem.
-  if (source_volume->type() != file_manager::VOLUME_TYPE_DOWNLOADS_DIRECTORY) {
-    return false;
-  }
-
-  // The Downloads folder being bind mounted in MyFiles, I/O operations within
-  // MyFiles may need to be considered cross-filesystem (if one path is in
-  // Downloads and the other is not).
-  base::FilePath my_files_path =
-      file_manager::util::GetMyFilesFolderForProfile(profile);
-  base::FilePath downloads_path = my_files_path.Append("Downloads");
-
-  bool source_in_downloads = downloads_path.IsParent(source_url.path());
-  // The destination_url can be the destination folder, so Downloads is a valid
-  // destination.
-  bool destination_in_downloads =
-      downloads_path == destination_url.path() ||
-      downloads_path.IsParent(destination_url.path());
-  return source_in_downloads != destination_in_downloads;
+  return source_volume->volume_id() != destination_volume->volume_id();
 }
 
 }  // namespace
@@ -443,8 +423,7 @@ void CopyOrMoveIOTaskImpl::GotDrivePooledQuota(
     // Log the error if we couldn't fetch the quota (probably because we are
     // offline), but continue the operation and we will show an error later
     // when we come back online and try to sync.
-    LOG(ERROR) << "Error fetching drive quota: "
-               << drive::FileErrorToString(error);
+    LOG(ERROR) << "Error fetching drive quota: " << error;
   } else {
     bool org_exceeded =
         usage->user_type == drivefs::mojom::UserType::kOrganization &&
@@ -485,8 +464,7 @@ void CopyOrMoveIOTaskImpl::GotSharedDriveMetadata(
     // Log the error if we couldn't fetch the metadata (probably because we are
     // offline), but continue the operation and we will show an error later
     // when we come back online and try to sync.
-    LOG(ERROR) << "Error fetching shared drive metadata: "
-               << drive::FileErrorToString(error);
+    LOG(ERROR) << "Error fetching shared drive metadata: " << error;
   } else if (metadata->shared_drive_quota) {
     const auto& quota = metadata->shared_drive_quota;
     if ((quota->individual_quota_bytes_total -
@@ -707,8 +685,7 @@ void CopyOrMoveIOTaskImpl::ContinueCopyOrMoveFile(
           kRemovePartiallyCopiedFilesOnError};
 
   // To ensure progress updates, force cross-filesystem I/O operations when the
-  // source and the destination are on different volumes, or between MyFiles
-  // and Downloads.
+  // source and the destination are on different volumes.
   if (IsCrossFileSystem(profile_, source_url, destination_url)) {
     options.Put(
         storage::FileSystemOperation::CopyOrMoveOption::kForceCrossFilesystem);
@@ -811,8 +788,7 @@ void CopyOrMoveIOTaskImpl::OnCopyOrMoveProgress(
         log_progress();
         return;
       default:
-        NOTREACHED_IN_MIGRATION() << "Unknown ProgressType: " << int(type);
-        return;
+        NOTREACHED() << "Unknown ProgressType: " << int(type);
     }
   }
 
@@ -881,8 +857,8 @@ void CopyOrMoveIOTaskImpl::OnCopyOrMoveComplete(size_t idx,
   // source errors are found.
   for (const auto& source : progress_->sources) {
     DCHECK(source.error.has_value());
-    if (source.error != base::File::FILE_OK) {
-      LOG(ERROR) << "Error on complete: error " << source.error.value() << " "
+    if (source.error.value() != base::File::FILE_OK) {
+      LOG(ERROR) << "Cannot copy or move " << Redact(source.url) << ": "
                  << base::File::ErrorToString(source.error.value());
       complete_state = State::kError;
       break;

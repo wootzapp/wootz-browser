@@ -16,16 +16,16 @@ import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.app.tab_activity_glue.ActivityTabWebContentsDelegateAndroid;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.compositor.CompositorViewHolder;
-import org.chromium.chrome.browser.compositor.bottombar.ephemeraltab.EphemeralTabCoordinator;
 import org.chromium.chrome.browser.contextmenu.ChromeContextMenuPopulator;
 import org.chromium.chrome.browser.contextmenu.ChromeContextMenuPopulatorFactory;
-import org.chromium.chrome.browser.contextmenu.ContextMenuPopulatorFactory;
+import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinator;
 import org.chromium.chrome.browser.externalnav.ExternalNavigationDelegateImpl;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.init.ChromeActivityNativeDelegate;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.magic_stack.ModuleRegistry;
+import org.chromium.chrome.browser.metrics.StartupMetricsTracker;
 import org.chromium.chrome.browser.native_page.NativePageFactory;
 import org.chromium.chrome.browser.pdf.PdfInfo;
 import org.chromium.chrome.browser.share.ShareDelegate;
@@ -39,13 +39,14 @@ import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tasks.HomeSurfaceTracker;
 import org.chromium.chrome.browser.toolbar.top.Toolbar;
+import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.util.BrowserControlsVisibilityDelegate;
 import org.chromium.components.browser_ui.util.ComposedBrowserControlsVisibilityDelegate;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuPopulatorFactory;
 import org.chromium.components.external_intents.ExternalNavigationHandler;
-import org.chromium.components.externalauth.ExternalAuthUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 
@@ -61,7 +62,6 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
     private final Runnable mContextMenuCopyLinkObserver;
     private final BottomSheetController mBottomSheetController;
     private final ChromeActivityNativeDelegate mChromeActivityNativeDelegate;
-    private final boolean mIsCustomTab;
     private final BrowserControlsStateProvider mBrowserControlsStateProvider;
     private final FullscreenManager mFullscreenManager;
     private final TabCreatorManager mTabCreatorManager;
@@ -79,6 +79,8 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
     private final HomeSurfaceTracker mHomeSurfaceTracker;
     private final ObservableSupplier<Integer> mTabStripHeightSupplier;
     private final OneshotSupplier<ModuleRegistry> mModuleRegistrySupplier;
+    private final ObservableSupplier<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
+    private final StartupMetricsTracker mStartupMetricsTracker;
 
     private NativePageFactory mNativePageFactory;
 
@@ -90,7 +92,6 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
             Runnable contextMenuCopyLinkObserver,
             BottomSheetController sheetController,
             ChromeActivityNativeDelegate chromeActivityNativeDelegate,
-            boolean isCustomTab,
             BrowserControlsStateProvider browserControlsStateProvider,
             FullscreenManager fullscreenManager,
             TabCreatorManager tabCreatorManager,
@@ -107,7 +108,9 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
             @Nullable HomeSurfaceTracker homeSurfaceTracker,
             ObservableSupplier<TabContentManager> tabContentManagerSupplier,
             @NonNull ObservableSupplier<Integer> tabStripHeightSupplier,
-            @NonNull OneshotSupplier<ModuleRegistry> moduleRegistrySupplier) {
+            @NonNull OneshotSupplier<ModuleRegistry> moduleRegistrySupplier,
+            @NonNull ObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
+            StartupMetricsTracker startupMetricsTracker) {
         mActivity = activity;
         mAppBrowserControlsVisibilityDelegate = appBrowserControlsVisibilityDelegate;
         mShareDelegateSupplier = shareDelegateSupplier;
@@ -115,7 +118,6 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
         mContextMenuCopyLinkObserver = contextMenuCopyLinkObserver;
         mBottomSheetController = sheetController;
         mChromeActivityNativeDelegate = chromeActivityNativeDelegate;
-        mIsCustomTab = isCustomTab;
         mBrowserControlsStateProvider = browserControlsStateProvider;
         mFullscreenManager = fullscreenManager;
         mTabCreatorManager = tabCreatorManager;
@@ -133,6 +135,8 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
         mTabContentManagerSupplier = tabContentManagerSupplier;
         mTabStripHeightSupplier = tabStripHeightSupplier;
         mModuleRegistrySupplier = moduleRegistrySupplier;
+        mEdgeToEdgeControllerSupplier = edgeToEdgeControllerSupplier;
+        mStartupMetricsTracker = startupMetricsTracker;
     }
 
     @Override
@@ -167,8 +171,7 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
                         mSnackbarManagerSupplier,
                         () -> mBottomSheetController),
                 mShareDelegateSupplier,
-                ChromeContextMenuPopulator.ContextMenuMode.NORMAL,
-                ExternalAuthUtils.getInstance());
+                ChromeContextMenuPopulator.ContextMenuMode.NORMAL);
     }
 
     @Override
@@ -198,7 +201,9 @@ public class TabbedModeTabDelegateFactory implements TabDelegateFactory {
                             mHomeSurfaceTracker,
                             mTabContentManagerSupplier,
                             mTabStripHeightSupplier,
-                            mModuleRegistrySupplier);
+                            mModuleRegistrySupplier,
+                            mEdgeToEdgeControllerSupplier,
+                            mStartupMetricsTracker);
         }
         return mNativePageFactory.createNativePage(url, candidatePage, tab, pdfInfo);
     }

@@ -12,6 +12,7 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
+#include "third_party/blink/renderer/core/frame/frame_test_helpers.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
@@ -19,22 +20,33 @@
 #include "third_party/blink/renderer/platform/heap/thread_state.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
+#include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
+#include "third_party/blink/renderer/platform/testing/url_test_helpers.h"
 #include "v8/include/v8.h"
 
 namespace blink {
 
 namespace {
 
-class TestHelperFunction : public ScriptFunction::Callable {
+class TestResolveFunction
+    : public ThenCallable<IDLString, TestResolveFunction> {
  public:
-  explicit TestHelperFunction(String* value) : value_(value) {}
+  explicit TestResolveFunction(String* value) : value_(value) {}
+  void React(ScriptState*, String value) { *value_ = value; }
 
-  ScriptValue Call(ScriptState* script_state, ScriptValue value) override {
+ private:
+  String* value_;
+};
+
+class TestRejectFunction : public ThenCallable<IDLAny, TestRejectFunction> {
+ public:
+  explicit TestRejectFunction(String* value) : value_(value) {}
+
+  void React(ScriptState* script_state, ScriptValue value) {
     DCHECK(!value.IsEmpty());
     *value_ = ToCoreString(
         script_state->GetIsolate(),
         value.V8Value()->ToString(script_state->GetContext()).ToLocalChecked());
-    return value;
   }
 
  private:
@@ -88,12 +100,9 @@ TEST_F(ScriptPromiseResolverBaseTest, resolve) {
   ASSERT_FALSE(promise.IsEmpty());
   {
     ScriptState::Scope scope(GetScriptState());
-    promise.Then(MakeGarbageCollected<ScriptFunction>(
-                     GetScriptState(),
-                     MakeGarbageCollected<TestHelperFunction>(&on_fulfilled)),
-                 MakeGarbageCollected<ScriptFunction>(
-                     GetScriptState(),
-                     MakeGarbageCollected<TestHelperFunction>(&on_rejected)));
+    promise.Then(GetScriptState(),
+                 MakeGarbageCollected<TestResolveFunction>(&on_fulfilled),
+                 MakeGarbageCollected<TestRejectFunction>(&on_rejected));
   }
 
   EXPECT_EQ(String(), on_fulfilled);
@@ -141,12 +150,9 @@ TEST_F(ScriptPromiseResolverBaseTest, reject) {
   ASSERT_FALSE(promise.IsEmpty());
   {
     ScriptState::Scope scope(GetScriptState());
-    promise.Then(MakeGarbageCollected<ScriptFunction>(
-                     GetScriptState(),
-                     MakeGarbageCollected<TestHelperFunction>(&on_fulfilled)),
-                 MakeGarbageCollected<ScriptFunction>(
-                     GetScriptState(),
-                     MakeGarbageCollected<TestHelperFunction>(&on_rejected)));
+    promise.Then(GetScriptState(),
+                 MakeGarbageCollected<TestResolveFunction>(&on_fulfilled),
+                 MakeGarbageCollected<TestRejectFunction>(&on_rejected));
   }
 
   EXPECT_EQ(String(), on_fulfilled);
@@ -194,12 +200,9 @@ TEST_F(ScriptPromiseResolverBaseTest, stop) {
   ASSERT_FALSE(promise.IsEmpty());
   {
     ScriptState::Scope scope(GetScriptState());
-    promise.Then(MakeGarbageCollected<ScriptFunction>(
-                     GetScriptState(),
-                     MakeGarbageCollected<TestHelperFunction>(&on_fulfilled)),
-                 MakeGarbageCollected<ScriptFunction>(
-                     GetScriptState(),
-                     MakeGarbageCollected<TestHelperFunction>(&on_rejected)));
+    promise.Then(GetScriptState(),
+                 MakeGarbageCollected<TestResolveFunction>(&on_fulfilled),
+                 MakeGarbageCollected<TestRejectFunction>(&on_rejected));
   }
 
   GetExecutionContext()->NotifyContextDestroyed();
@@ -212,11 +215,11 @@ TEST_F(ScriptPromiseResolverBaseTest, stop) {
 }
 
 TEST_F(ScriptPromiseResolverBaseTest, resolveUndefined) {
-  ScriptPromiseResolver<IDLUndefined>* resolver = nullptr;
-  ScriptPromise<IDLUndefined> promise;
+  ScriptPromiseResolver<IDLString>* resolver = nullptr;
+  ScriptPromise<IDLString> promise;
   {
     ScriptState::Scope scope(GetScriptState());
-    resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(
+    resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLString>>(
         GetScriptState());
     promise = resolver->Promise();
   }
@@ -225,12 +228,9 @@ TEST_F(ScriptPromiseResolverBaseTest, resolveUndefined) {
   ASSERT_FALSE(promise.IsEmpty());
   {
     ScriptState::Scope scope(GetScriptState());
-    promise.Then(MakeGarbageCollected<ScriptFunction>(
-                     GetScriptState(),
-                     MakeGarbageCollected<TestHelperFunction>(&on_fulfilled)),
-                 MakeGarbageCollected<ScriptFunction>(
-                     GetScriptState(),
-                     MakeGarbageCollected<TestHelperFunction>(&on_rejected)));
+    promise.Then(GetScriptState(),
+                 MakeGarbageCollected<TestResolveFunction>(&on_fulfilled),
+                 MakeGarbageCollected<TestRejectFunction>(&on_rejected));
   }
 
   resolver->Resolve();
@@ -241,11 +241,11 @@ TEST_F(ScriptPromiseResolverBaseTest, resolveUndefined) {
 }
 
 TEST_F(ScriptPromiseResolverBaseTest, rejectUndefined) {
-  ScriptPromiseResolver<IDLUndefined>* resolver = nullptr;
-  ScriptPromise<IDLUndefined> promise;
+  ScriptPromiseResolver<IDLString>* resolver = nullptr;
+  ScriptPromise<IDLString> promise;
   {
     ScriptState::Scope scope(GetScriptState());
-    resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(
+    resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLString>>(
         GetScriptState());
     promise = resolver->Promise();
   }
@@ -254,12 +254,9 @@ TEST_F(ScriptPromiseResolverBaseTest, rejectUndefined) {
   ASSERT_FALSE(promise.IsEmpty());
   {
     ScriptState::Scope scope(GetScriptState());
-    promise.Then(MakeGarbageCollected<ScriptFunction>(
-                     GetScriptState(),
-                     MakeGarbageCollected<TestHelperFunction>(&on_fulfilled)),
-                 MakeGarbageCollected<ScriptFunction>(
-                     GetScriptState(),
-                     MakeGarbageCollected<TestHelperFunction>(&on_rejected)));
+    promise.Then(GetScriptState(),
+                 MakeGarbageCollected<TestResolveFunction>(&on_fulfilled),
+                 MakeGarbageCollected<TestRejectFunction>(&on_rejected));
   }
 
   resolver->Reject();
@@ -267,6 +264,52 @@ TEST_F(ScriptPromiseResolverBaseTest, rejectUndefined) {
 
   EXPECT_EQ(String(), on_fulfilled);
   EXPECT_EQ("undefined", on_rejected);
+}
+
+TEST_F(ScriptPromiseResolverBaseTest, OverrideScriptStateToCurrentContext) {
+  frame_test_helpers::WebViewHelper web_view_helper;
+  std::string base_url = "http://www.test.com/";
+  url_test_helpers::RegisterMockedURLLoadFromBase(
+      WebString::FromUTF8(base_url), test::CoreTestDataPath(),
+      WebString::FromUTF8("single_iframe.html"));
+  url_test_helpers::RegisterMockedURLLoadFromBase(
+      WebString::FromUTF8(base_url), test::CoreTestDataPath(),
+      WebString::FromUTF8("visible_iframe.html"));
+  WebViewImpl* web_view_impl =
+      web_view_helper.InitializeAndLoad(base_url + "single_iframe.html");
+
+  LocalFrame* main_frame = web_view_impl->MainFrameImpl()->GetFrame();
+  LocalFrame* iframe = To<LocalFrame>(main_frame->Tree().FirstChild());
+  ScriptState* main_script_state = ToScriptStateForMainWorld(main_frame);
+  ScriptState* iframe_script_state = ToScriptStateForMainWorld(iframe);
+
+  ScriptPromiseResolver<IDLString>* resolver = nullptr;
+  ScriptPromise<IDLString> promise;
+  {
+    ScriptState::Scope scope(main_script_state);
+    resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLString>>(
+        main_script_state);
+    promise = resolver->Promise();
+  }
+
+  String on_fulfilled, on_rejected;
+  ASSERT_FALSE(promise.IsEmpty());
+  {
+    ScriptState::Scope scope(main_script_state);
+    promise.Then(main_script_state,
+                 MakeGarbageCollected<TestResolveFunction>(&on_fulfilled),
+                 MakeGarbageCollected<TestRejectFunction>(&on_rejected));
+  }
+
+  {
+    ScriptState::Scope scope(iframe_script_state);
+    iframe->DomWindow()->NotifyContextDestroyed();
+    resolver->ResolveOverridingToCurrentContext("hello");
+  }
+  PerformMicrotaskCheckpoint();
+
+  EXPECT_EQ(String(), on_fulfilled);
+  EXPECT_EQ(String(), on_rejected);
 }
 
 }  // namespace

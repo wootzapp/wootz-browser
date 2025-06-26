@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #include "base/memory/raw_ptr.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/consent_auditor/consent_auditor_factory.h"
 #include "chrome/browser/sync/test/integration/single_client_status_change_checker.h"
 #include "chrome/browser/sync/test/integration/status_change_checker.h"
@@ -50,7 +50,7 @@ class UserConsentEqualityChecker : public SingleClientStatusChangeChecker {
   bool IsExitConditionSatisfied(std::ostream* os) override {
     *os << "Waiting server side USER_CONSENTS to match expected.";
     std::vector<SyncEntity> entities =
-        fake_server_->GetSyncEntitiesByModelType(syncer::USER_CONSENTS);
+        fake_server_->GetSyncEntitiesByDataType(syncer::USER_CONSENTS);
 
     // |entities.size()| is only going to grow, if |entities.size()| ever
     // becomes bigger then all hope is lost of passing, stop now.
@@ -100,9 +100,9 @@ class SingleClientUserConsentsSyncTest : public SyncTest {
 
 IN_PROC_BROWSER_TEST_F(SingleClientUserConsentsSyncTest, ShouldSubmit) {
   ASSERT_TRUE(SetupSync());
-  ASSERT_EQ(0u, GetFakeServer()
-                    ->GetSyncEntitiesByModelType(syncer::USER_CONSENTS)
-                    .size());
+  ASSERT_EQ(
+      0u,
+      GetFakeServer()->GetSyncEntitiesByDataType(syncer::USER_CONSENTS).size());
   consent_auditor::ConsentAuditor* consent_service =
       ConsentAuditorFactory::GetForProfile(GetProfile(0));
   UserConsentSpecifics specifics;
@@ -118,7 +118,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientUserConsentsSyncTest, ShouldSubmit) {
 }
 
 // ChromeOS does not support signing out of a primary account.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(
     SingleClientUserConsentsSyncTest,
     ShouldPreserveConsentsOnSignoutAndResubmitWhenReenabled) {
@@ -142,7 +142,7 @@ IN_PROC_BROWSER_TEST_F(
 
   EXPECT_TRUE(ExpectUserConsents({specifics}));
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 IN_PROC_BROWSER_TEST_F(SingleClientUserConsentsSyncTest,
                        ShouldPreserveConsentsLoggedBeforeSyncSetup) {
@@ -181,7 +181,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientUserConsentsSyncTest,
 
 // ChromeOS does not support late signin after profile creation, so the test
 // below does not apply, at least in the current form.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(SingleClientUserConsentsSyncTest,
                        ShouldSubmitIfSignedInAlthoughFullSyncNotEnabled) {
   // We avoid calling SetupSync(), because we don't want to turn on full sync,
@@ -213,6 +213,6 @@ IN_PROC_BROWSER_TEST_F(SingleClientUserConsentsSyncTest,
   specifics.set_account_id(GetAccountId().ToString());
   EXPECT_TRUE(ExpectUserConsents({specifics}));
 }
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace

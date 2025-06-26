@@ -29,12 +29,15 @@ class CORE_EXPORT FragmentItems final {
   wtf_size_t Size() const { return items_.size(); }
 
   using Span = base::span<const FragmentItem>;
-  Span Items() const { return base::make_span(ItemsData(), items_.size()); }
+  Span Items() const { return base::span(items_); }
   bool Equals(const Span& span) const {
     return ItemsData() == span.data() && Size() == span.size();
   }
   bool IsSubSpan(const Span& span) const;
 
+  const FragmentItem& operator[](wtf_size_t index) const {
+    return items_[index];
+  }
   const FragmentItem& front() const {
     CHECK_GE(items_.size(), 1u);
     return items_[0];
@@ -48,9 +51,10 @@ class CORE_EXPORT FragmentItems final {
   // Returns |FirstLineText()| if it is available and |first_line| is |true|.
   // Otherwise returns |NormalText()|.
   const String& Text(bool first_line) const {
-    return UNLIKELY(first_line && first_line_text_content_)
-               ? first_line_text_content_
-               : text_content_;
+    if (first_line && first_line_text_content_) [[unlikely]] {
+      return first_line_text_content_;
+    }
+    return text_content_;
   }
 
   // When block-fragmented, returns the number of |FragmentItem| in earlier

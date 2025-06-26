@@ -20,6 +20,7 @@
 #include "chrome/browser/sync_file_system/syncable_file_system_util.h"
 #include "content/public/test/browser_test.h"
 #include "extensions/browser/extension_function.h"
+#include "storage/browser/file_system/file_system_features.h"
 #include "storage/browser/file_system/file_system_url.h"
 #include "storage/browser/quota/quota_manager.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -35,34 +36,25 @@ using ::testing::WithArg;
 
 namespace {
 
+enum class SyncActionMetrics {
+  kNone = 0,
+  kAdded = 1,
+  kUpdated = 2,
+  kDeleted = 3,
+  kMaxValue = kDeleted
+};
+
 class SyncFileSystemApiTest : public extensions::ExtensionApiTest {
  public:
-  SyncFileSystemApiTest()
-      : mock_remote_service_(nullptr), real_default_quota_(0) {}
-
-  void SetUpInProcessBrowserTestFixture() override {
-    extensions::ExtensionApiTest::SetUpInProcessBrowserTestFixture();
-
-    // TODO(calvinlo): Update test code after default quota is made const
-    // (http://crbug.com/155488).
-    real_default_quota_ =
-        storage::QuotaManager::kSyncableStorageDefaultStorageKeyQuota;
-    storage::QuotaManager::kSyncableStorageDefaultStorageKeyQuota = 123456;
-  }
-
-  void TearDownInProcessBrowserTestFixture() override {
-    storage::QuotaManager::kSyncableStorageDefaultStorageKeyQuota =
-        real_default_quota_;
-    extensions::ExtensionApiTest::TearDownInProcessBrowserTestFixture();
-  }
+  SyncFileSystemApiTest() = default;
 
   void SetUpOnMainThread() override {
     extensions::ExtensionApiTest::SetUpOnMainThread();
 
     // Override factory to inject a mock RemoteFileSyncService.
     // Must happen after the browser process is created because instantiating
-    // the factory will instantiate ExtensionSystemFactory which depends on
-    // ExtensionsBrowserClient setup in BrowserProcessImpl.
+    // the factory will instantiate ChromeExtensionSystemFactory which depends
+    // on ExtensionsBrowserClient setup in BrowserProcessImpl.
     SyncFileSystemServiceFactory::GetInstance()->SetTestingFactoryAndUse(
         profile(),
         base::BindLambdaForTesting([this](content::BrowserContext* context)
@@ -82,8 +74,7 @@ class SyncFileSystemApiTest : public extensions::ExtensionApiTest {
 
  private:
   raw_ptr<::testing::NiceMock<MockRemoteFileSyncService>, DanglingUntriaged>
-      mock_remote_service_;
-  int64_t real_default_quota_;
+      mock_remote_service_ = nullptr;
 };
 
 ACTION_P2(UpdateRemoteChangeQueue, origin, mock_remote_service) {

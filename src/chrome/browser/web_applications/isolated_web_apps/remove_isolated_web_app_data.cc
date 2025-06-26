@@ -4,6 +4,8 @@
 
 #include "chrome/browser/web_applications/isolated_web_apps/remove_isolated_web_app_data.h"
 
+#include <variant>
+
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/overloaded.h"
@@ -11,7 +13,7 @@
 #include "base/time/time.h"
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_constants.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_install_command_helper.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/isolated_web_app_install_command_helper.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_reader_registry.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_reader_registry_factory.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_source.h"
@@ -50,7 +52,7 @@ class RemovalObserver : public content::BrowsingDataRemover::Observer {
 void CloseBundle(Profile* profile,
                  const IwaSource& source,
                  base::OnceClosure callback) {
-  absl::visit(
+  std::visit(
       base::Overloaded{
           [&](const IwaSourceBundle& bundle) {
             auto* reader_registry =

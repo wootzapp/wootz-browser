@@ -2,11 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/dns/public/resolv_reader.h"
 
 #include <arpa/inet.h>
 #include <resolv.h>
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -30,20 +36,20 @@ namespace net {
 namespace {
 
 // MAXNS is normally 3, but let's test 4 if possible.
-const char* const kNameserversIPv4[] = {
+constexpr auto kNameserversIPv4 = std::to_array<const char*>({
     "8.8.8.8",
     "192.168.1.1",
     "63.1.2.4",
     "1.0.0.1",
-};
+});
 
 #if BUILDFLAG(IS_LINUX)
-const char* const kNameserversIPv6[] = {
+constexpr auto kNameserversIPv6 = std::to_array<const char*>({
     nullptr,
     "2001:db8::42",
     nullptr,
     "::FFFF:129.144.52.38",
-};
+});
 #endif
 
 // Fills in |res| with sane configuration.

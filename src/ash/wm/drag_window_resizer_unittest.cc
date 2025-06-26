@@ -27,6 +27,7 @@
 #include "ui/aura/window.h"
 #include "ui/base/cursor/cursor.h"
 #include "ui/base/hit_test.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animator.h"
@@ -109,7 +110,7 @@ class DragWindowResizerTest : public AshTestBase {
     system_modal_window_ = std::make_unique<aura::Window>(&delegate3_);
     system_modal_window_->SetType(aura::client::WINDOW_TYPE_NORMAL);
     system_modal_window_->SetProperty(aura::client::kModalKey,
-                                      ui::MODAL_TYPE_SYSTEM);
+                                      ui::mojom::ModalType::kSystem);
     system_modal_window_->Init(ui::LAYER_NOT_DRAWN);
     ParentWindowInPrimaryRootWindow(system_modal_window_.get());
     system_modal_window_->SetId(3);
@@ -599,77 +600,6 @@ TEST_F(DragWindowResizerTest, DragWindowControllerAcrossThreeDisplays) {
   resizer->CompleteDrag();
   EXPECT_EQ(root_windows[2], window_->GetRootWindow());
   EXPECT_FLOAT_EQ(1.0f, window_->layer()->opacity());
-}
-
-TEST_F(DragWindowResizerTest, DragWindowControllerWithCustomShadowBounds) {
-  UpdateDisplay("400x600,400x600,800x600");
-  aura::Window::Windows root_windows = Shell::GetAllRootWindows();
-
-  // Layout so that all three displays touch each other.
-  display::DisplayIdList list = display_manager()->GetConnectedDisplayIdList();
-  ASSERT_EQ(3u, list.size());
-  ASSERT_EQ(display::Screen::GetScreen()->GetPrimaryDisplay().id(), list[0]);
-  display::DisplayLayoutBuilder builder(list[0]);
-  builder.AddDisplayPlacement(list[1], list[0],
-                              display::DisplayPlacement::RIGHT, 0);
-  builder.AddDisplayPlacement(list[2], list[0],
-                              display::DisplayPlacement::BOTTOM, 0);
-  display_manager()->SetLayoutForCurrentDisplays(builder.Build());
-  const display::Display& display0 =
-      display_manager()->GetDisplayForId(list[0]);
-  const display::Display& display1 =
-      display_manager()->GetDisplayForId(list[1]);
-  const display::Display& display2 =
-      display_manager()->GetDisplayForId(list[2]);
-  // Sanity check.
-  ASSERT_EQ(gfx::Rect(0, 000, 400, 600), display0.bounds());
-  ASSERT_EQ(gfx::Rect(400, 0, 400, 600), display1.bounds());
-  ASSERT_EQ(gfx::Rect(0, 600, 800, 600), display2.bounds());
-
-  const gfx::Rect shadow_bounds(10, 10, 200, 200);
-  const auto update_controller_and_check_root_and_shadow =
-      [&shadow_bounds](DragWindowController* controller,
-                       aura::Window* root_window) {
-        controller->Update();
-        ASSERT_EQ(1, controller->GetDragWindowsCountForTest());
-        EXPECT_EQ(root_window,
-                  controller->GetDragWindowForTest(0)->GetRootWindow());
-        const ui::Shadow* shadow = controller->GetDragWindowShadowForTest(0);
-        ASSERT_TRUE(shadow);
-        ASSERT_TRUE(shadow->layer());
-        EXPECT_TRUE(shadow->layer()->visible());
-        EXPECT_EQ(shadow_bounds, shadow->content_bounds());
-      };
-  // Test mouse dragging.
-  {
-    wm::CursorManager* cursor_manager = Shell::Get()->cursor_manager();
-    // Start on |display1|.
-    cursor_manager->SetDisplay(display1);
-    window_->SetBoundsInScreen(gfx::Rect(420, 20, 100, 100), display1);
-    DragWindowController controller(window_.get(), /*is_touch_dragging=*/false,
-                                    std::make_optional(shadow_bounds));
-    // Move to |display0|.
-    cursor_manager->SetDisplay(display0);
-    window_->SetBoundsInScreen(gfx::Rect(20, 20, 100, 100), display0);
-    update_controller_and_check_root_and_shadow(&controller, root_windows[0]);
-    // Move to |display2|.
-    cursor_manager->SetDisplay(display2);
-    window_->SetBoundsInScreen(gfx::Rect(20, 620, 100, 100), display2);
-    update_controller_and_check_root_and_shadow(&controller, root_windows[2]);
-  }
-  // Test touch dragging.
-  {
-    // Start on |display0|.
-    window_->SetBoundsInScreen(gfx::Rect(20, 20, 100, 100), display0);
-    DragWindowController controller(window_.get(), /*is_touch_dragging=*/true,
-                                    std::make_optional(shadow_bounds));
-    // Move the window so some is visible on |display1|.
-    window_->SetBoundsInScreen(gfx::Rect(380, 20, 100, 100), display0);
-    update_controller_and_check_root_and_shadow(&controller, root_windows[1]);
-    // Move the window so some is visible on |display2|.
-    window_->SetBoundsInScreen(gfx::Rect(20, 580, 100, 100), display0);
-    update_controller_and_check_root_and_shadow(&controller, root_windows[2]);
-  }
 }
 
 // Verifies if the resizer sets and resets

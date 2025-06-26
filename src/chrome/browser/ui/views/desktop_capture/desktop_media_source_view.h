@@ -23,17 +23,20 @@ class DesktopMediaListView;
 
 // Controls the appearance of DesktopMediaSourceView.
 struct DesktopMediaSourceViewStyle {
-  DesktopMediaSourceViewStyle(const DesktopMediaSourceViewStyle& style);
-  DesktopMediaSourceViewStyle(int columns,
+  DesktopMediaSourceViewStyle();
+  DesktopMediaSourceViewStyle(size_t columns,
                               const gfx::Size& item_size,
                               const gfx::Rect& icon_rect,
                               const gfx::Rect& label_rect,
                               gfx::HorizontalAlignment text_alignment,
                               const gfx::Rect& image_rect);
+  DesktopMediaSourceViewStyle(const DesktopMediaSourceViewStyle& style);
+  DesktopMediaSourceViewStyle& operator=(
+      const DesktopMediaSourceViewStyle& style);
 
   // This parameter controls how many source items can be displayed in a row.
   // Source items are instances of DesktopMediaSourceView.
-  int columns;
+  size_t columns = 0;
 
   // The size of a single source item.
   gfx::Size item_size;
@@ -42,7 +45,7 @@ struct DesktopMediaSourceViewStyle {
   // source item.
   gfx::Rect icon_rect;
   gfx::Rect label_rect;
-  gfx::HorizontalAlignment text_alignment;
+  gfx::HorizontalAlignment text_alignment = gfx::ALIGN_LEFT;
   gfx::Rect image_rect;
 };
 
@@ -82,7 +85,6 @@ class DesktopMediaSourceView : public views::View {
   void OnFocus() override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
   void OnGestureEvent(ui::GestureEvent* event) override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
 
  private:
   // Updates selection state of the element. If |selected| is true then also
@@ -90,6 +92,11 @@ class DesktopMediaSourceView : public views::View {
   // (if any).
   void SetSelected(bool selected);
 
+  void OnLabelTextChanged();
+
+  void UpdateAccessibleName();
+
+  base::CallbackListSubscription label_text_changed_callback_;
   raw_ptr<DesktopMediaListView> parent_;
   content::DesktopMediaID source_id_;
 

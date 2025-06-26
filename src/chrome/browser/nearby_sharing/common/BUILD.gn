@@ -12,7 +12,6 @@ source_set("common") {
     "nearby_share_features.h",
     "nearby_share_prefs.cc",
     "nearby_share_prefs.h",
-    "nearby_share_profile_info_provider.h",
     "nearby_share_resource_getter.cc",
     "nearby_share_resource_getter.h",
     "nearby_share_switches.cc",
@@ -22,6 +21,7 @@ source_set("common") {
   public_deps = [ "//base" ]
 
   deps = [
+    "//ash/constants",
     "//build:branding_buildflags",
     "//chrome/app:generated_resources",
     "//chromeos/ash/services/nearby/public/mojom",
@@ -43,17 +43,6 @@ source_set("common") {
   }
 }
 
-source_set("test_support") {
-  testonly = true
-
-  sources = [
-    "fake_nearby_share_profile_info_provider.cc",
-    "fake_nearby_share_profile_info_provider.h",
-  ]
-
-  deps = [ ":common" ]
-}
-
 source_set("unit_tests") {
   testonly = true
 
@@ -61,7 +50,6 @@ source_set("unit_tests") {
 
   deps = [
     ":common",
-    ":test_support",
     "//base",
     "//base/test:test_support",
     "//build:branding_buildflags",

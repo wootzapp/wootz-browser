@@ -4,6 +4,7 @@
 
 #include "components/dom_distiller/content/browser/distillable_page_utils.h"
 
+#include <array>
 #include <cstring>
 #include <memory>
 #include <optional>
@@ -46,8 +47,12 @@ const char kSimpleArticleIFramePath[] =
 const char kArticlePath[] = "/dom_distiller/og_article.html";
 const char kNonArticlePath[] = "/dom_distiller/non_og_article.html";
 
-const char* kAllPaths[] = {kSimpleArticlePath, kSimpleArticleIFramePath,
-                           kArticlePath, kNonArticlePath};
+auto kAllPaths = std::to_array<const char*>({
+    kSimpleArticlePath,
+    kSimpleArticleIFramePath,
+    kArticlePath,
+    kNonArticlePath,
+});
 
 class MockObserver : public DistillabilityObserver {
  public:
@@ -198,7 +203,8 @@ using DistillablePageUtilsBrowserTestAdaboost =
 
 IN_PROC_BROWSER_TEST_F(DistillablePageUtilsBrowserTestAdaboost,
                        SimpleArticlesCallObserverTwiceWithIsDistillable) {
-  const char* paths[] = {kSimpleArticlePath, kSimpleArticleIFramePath};
+  auto paths = std::to_array<const char*>(
+      {kSimpleArticlePath, kSimpleArticleIFramePath});
   for (unsigned i = 0; i < sizeof(paths) / sizeof(paths[0]); ++i) {
     testing::InSequence dummy;
     EXPECT_CALL(holder_, OnResult(AllOf(IsDistillable(), Not(IsLast()),
@@ -235,7 +241,8 @@ using DistillablePageUtilsBrowserTestAllArticles =
 
 IN_PROC_BROWSER_TEST_F(DistillablePageUtilsBrowserTestAllArticles,
                        SimpleArticlesCallObserverTwiceWithIsDistillable) {
-  const char* paths[] = {kSimpleArticlePath, kSimpleArticleIFramePath};
+  auto paths = std::to_array<const char*>(
+      {kSimpleArticlePath, kSimpleArticleIFramePath});
   for (unsigned i = 0; i < sizeof(paths) / sizeof(paths[0]); ++i) {
     testing::InSequence dummy;
     EXPECT_CALL(holder_, OnResult(AllOf(IsDistillable(), Not(IsLast()),

@@ -15,6 +15,7 @@
 #include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/compositor/test/test_utils.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/widget/widget.h"
 
@@ -117,7 +118,7 @@ class TrayItemViewTest : public AshTestBase {
     // animation throughput data to be passed from cc to ui.
     ui::Compositor* const compositor =
         tray_item()->GetWidget()->GetCompositor();
-    while (compositor->has_throughput_trackers_for_testing()) {
+    while (compositor->has_compositor_metrics_trackers_for_testing()) {
       compositor->ScheduleFullRedraw();
       std::ignore = ui::WaitForNextFrameToBePresented(compositor,
                                                       base::Milliseconds(500));
@@ -238,8 +239,8 @@ TEST_F(TrayItemViewTest, LargeImageIcon) {
 
   // Set the image to a large image.
   gfx::Size kLargeImageSize(kLargeSize, kLargeSize);
-  tray_item()->image_view()->SetImage(
-      CreateSolidColorTestImage(kLargeImageSize, SK_ColorRED));
+  tray_item()->image_view()->SetImage(ui::ImageModel::FromImageSkia(
+      CreateSolidColorTestImage(kLargeImageSize, SK_ColorRED)));
 
   // The preferred size is the size of the larger image (which is not the
   // default tray icon size, see static_assert above).
@@ -338,6 +339,51 @@ TEST_F(TrayItemViewTest, ShowSmoothnessMetricRecordedWhenShowInterruptsHide) {
 
   // Verify that the "show" animation's smoothness metric was recorded.
   histogram_tester.ExpectTotalCount(kShowAnimationSmoothnessHistogramName, 1);
+}
+
+TEST_F(TrayItemViewTest, IconizedLabelAccessibleProperties) {
+  tray_item()->CreateLabel();
+  IconizedLabel* label = tray_item()->label();
+  ui::AXNodeData data;
+
+  // Test when custom accessible name is empty.
+  label->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(label->GetTextContext(), views::style::CONTEXT_LABEL);
+  EXPECT_EQ(data.role, ax::mojom::Role::kStaticText);
+  EXPECT_FALSE(data.HasStringAttribute(ax::mojom::StringAttribute::kName));
+
+  label->SetText(u"Sample text");
+  label->SetTextContext(views::style::CONTEXT_DIALOG_TITLE);
+  data = ui::AXNodeData();
+  label->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.role, ax::mojom::Role::kTitleBar);
+  EXPECT_EQ(data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+            u"Sample text");
+
+  // Test when custom accessible name is not empty.
+  label->SetCustomAccessibleName(u"Sample name");
+  label->SetTextContext(views::style::CONTEXT_LABEL);
+  data = ui::AXNodeData();
+  label->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.role, ax::mojom::Role::kStaticText);
+  EXPECT_EQ(data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+            u"Sample name");
+
+  label->SetTextContext(views::style::CONTEXT_DIALOG_TITLE);
+  label->SetText(u"New sample text");
+  data = ui::AXNodeData();
+  label->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.role, ax::mojom::Role::kStaticText);
+  EXPECT_EQ(data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+            u"Sample name");
+
+  // Test when custom accessible name is again set to empty.
+  label->SetCustomAccessibleName(u"");
+  data = ui::AXNodeData();
+  label->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.role, ax::mojom::Role::kTitleBar);
+  EXPECT_EQ(data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+            u"New sample text");
 }
 
 }  // namespace ash

@@ -5,6 +5,8 @@
 source_set("test_support") {
   testonly = true
   sources = [
+    "fake_service.cc",
+    "fake_service.h",
     "test_response_holder.cc",
     "test_response_holder.h",
   ]
@@ -12,6 +14,8 @@ source_set("test_support") {
   public_deps = [
     "//base",
     "//mojo/public/cpp/bindings",
+    "//services/on_device_model/public/cpp",
     "//services/on_device_model/public/mojom",
+    "//third_party/re2",
   ]
 }

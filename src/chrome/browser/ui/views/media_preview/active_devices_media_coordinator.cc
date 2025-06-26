@@ -65,6 +65,7 @@ ActiveDevicesMediaCoordinator::ActiveDevicesMediaCoordinator(
                        ? blink::mojom::MediaStreamType::DEVICE_VIDEO_CAPTURE
                        : blink::mojom::MediaStreamType::DEVICE_AUDIO_CAPTURE),
       media_preview_metrics_context_(metrics_context) {
+  CHECK_NE(view_type_, MediaCoordinator::ViewType::kBoth);
   CHECK(container_);
   media_devices_dispatcher_observer_.Observe(
       MediaCaptureDevicesDispatcher::GetInstance());
@@ -88,7 +89,7 @@ void ActiveDevicesMediaCoordinator::UpdateDevicePreferenceRanking() {
 }
 
 void ActiveDevicesMediaCoordinator::UpdateMediaCoordinatorList() {
-  if (!web_contents_.MaybeValid()) {
+  if (!web_contents_) {
     return;
   }
 
@@ -153,7 +154,7 @@ void ActiveDevicesMediaCoordinator::CreateImmutableCoordinators(
 
 void ActiveDevicesMediaCoordinator::AddMediaCoordinatorForDevice(
     const std::optional<std::string>& active_device_id) {
-  if (!web_contents_.MaybeValid()) {
+  if (!web_contents_ || !web_contents_->GetBrowserContext()) {
     return;
   }
 
@@ -169,14 +170,14 @@ void ActiveDevicesMediaCoordinator::AddMediaCoordinatorForDevice(
   }
 
   auto coordinator_key = active_device_id.value_or(kMutableCoordinatorId);
-  auto* prefs = user_prefs::UserPrefs::Get(web_contents_->GetBrowserContext());
   media_coordinators_.emplace(
       coordinator_key,
       std::make_unique<MediaCoordinator>(
           view_type_, *container_,
-          /*is_subsection=*/true, eligible_devices, *prefs,
+          /*is_subsection=*/true, eligible_devices,
+          web_contents_->GetBrowserContext()->GetWeakPtr(),
           /*allow_device_selection=*/!active_device_id.has_value(),
-          media_preview_metrics_context_));
+          media_preview_metrics_context_, /*delegate=*/nullptr));
   separators_.emplace(coordinator_key,
                       container_->AddChildView(CreateSeparator()));
 }
@@ -186,7 +187,7 @@ void ActiveDevicesMediaCoordinator::OnRequestUpdate(
     int render_frame_id,
     blink::mojom::MediaStreamType stream_type,
     const content::MediaRequestState state) {
-  if (!web_contents_.MaybeValid() || stream_type != stream_type_) {
+  if (!web_contents_ || stream_type != stream_type_) {
     return;
   }
 
@@ -207,8 +208,10 @@ void ActiveDevicesMediaCoordinator::OnRequestUpdate(
 
 void ActiveDevicesMediaCoordinator::OnPermissionChange(bool has_permission) {
   permission_allowed_ = has_permission;
-  for (const auto& [_, media_coordinator] : media_coordinators_) {
-    media_coordinator->OnPermissionChange(has_permission);
+  if (view_type_ == MediaCoordinator::ViewType::kCameraOnly) {
+    for (const auto& [_, media_coordinator] : media_coordinators_) {
+      media_coordinator->OnCameraPermissionChange(has_permission);
+    }
   }
 }
 

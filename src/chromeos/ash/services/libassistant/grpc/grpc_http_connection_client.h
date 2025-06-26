@@ -19,7 +19,7 @@
 #include "chromeos/assistant/internal/grpc_transport/streaming/streaming_write_queue.h"
 #include "chromeos/assistant/internal/libassistant/shared_headers.h"
 #include "chromeos/assistant/internal/proto/shared/proto/v2/http_connection_service.grpc.pb.h"
-#include "third_party/grpc/src/include/grpcpp/channel.h"
+#include "third_party/grpc/source/include/grpcpp/channel.h"
 
 namespace ash::libassistant {
 
@@ -92,9 +92,14 @@ class GrpcHttpConnectionClient {
 
   // `http_connection` owns itself and will be deleted when `Close()` is called.
   // When clean up `http_connections_`, will call `Close()` on the elements.
-  base::flat_map<int, assistant_client::HttpConnection*> http_connections_;
+  base::flat_map<int,
+                 raw_ptr<assistant_client::HttpConnection, CtnExperimental>>
+      http_connections_;
   // `delegate` owns itself.
-  base::flat_map<int, assistant_client::HttpConnection::Delegate*> delegates_;
+  base::flat_map<
+      int,
+      raw_ptr<assistant_client::HttpConnection::Delegate, CtnExperimental>>
+      delegates_;
 
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
   base::WeakPtrFactory<GrpcHttpConnectionClient> weak_factory_{this};

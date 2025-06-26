@@ -6,6 +6,7 @@
 
 #include <optional>
 
+#include "ash/constants/ash_features.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/notreached.h"
 #include "base/strings/strcat.h"
@@ -24,6 +25,22 @@
 namespace ash::input_method {
 
 namespace {
+
+bool IsInternationalizeEnabled() {
+  return base::FeatureList::IsEnabled(features::kOrcaAfrikaans) ||
+         base::FeatureList::IsEnabled(features::kOrcaDanish) ||
+         base::FeatureList::IsEnabled(features::kOrcaDutch) ||
+         base::FeatureList::IsEnabled(features::kOrcaFinnish) ||
+         base::FeatureList::IsEnabled(features::kOrcaFrench) ||
+         base::FeatureList::IsEnabled(features::kOrcaGerman) ||
+         base::FeatureList::IsEnabled(features::kOrcaItalian) ||
+         base::FeatureList::IsEnabled(features::kOrcaJapanese) ||
+         base::FeatureList::IsEnabled(features::kOrcaNorwegian) ||
+         base::FeatureList::IsEnabled(features::kOrcaPolish) ||
+         base::FeatureList::IsEnabled(features::kOrcaPortugese) ||
+         base::FeatureList::IsEnabled(features::kOrcaSpanish) ||
+         base::FeatureList::IsEnabled(features::kOrcaSwedish);
+}
 
 std::string GetConfigLabelFromFieldTrialConfig() {
   return base::GetFieldTrialParamValue("OrcaEnabled", "config_label");
@@ -55,7 +72,7 @@ std::map<std::string, std::string> CreateProviderRequest(
     provider_request["config_label"] = config_label;
   }
 
-  if (base::FeatureList::IsEnabled(chromeos::features::kOrcaInternationalize)) {
+  if (IsInternationalizeEnabled()) {
     provider_request["i18n"] = "true";
   }
 
@@ -68,6 +85,7 @@ orca::mojom::TextQueryErrorCode ConvertErrorCode(
     case manta::MantaStatusCode::kGenericError:
     case manta::MantaStatusCode::kMalformedResponse:
     case manta::MantaStatusCode::kNoIdentityManager:
+    case manta::MantaStatusCode::kImageHasPerson:
       return orca::mojom::TextQueryErrorCode::kUnknown;
     case manta::MantaStatusCode::kInvalidInput:
       return orca::mojom::TextQueryErrorCode::kInvalidArgument;
@@ -85,17 +103,8 @@ orca::mojom::TextQueryErrorCode ConvertErrorCode(
     case manta::MantaStatusCode::kRestrictedCountry:
       return orca::mojom::TextQueryErrorCode::kRestrictedRegion;
     case manta::MantaStatusCode::kOk:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
-}
-
-orca::mojom::TextQueryErrorPtr ConvertErrorResponse(manta::MantaStatus status) {
-  // In case the system locale mismatches the locale returned in the response,
-  // returns a generic error.
-
-  return orca::mojom::TextQueryError::New(
-      ConvertErrorCode(status.status_code),
-      /*message=*/GetSystemLocale() == status.locale ? status.message : "");
 }
 
 std::vector<orca::mojom::TextQueryResultPtr> ParseSuccessResponse(
@@ -184,7 +193,8 @@ void EditorTextQueryProvider::Process(orca::mojom::TextQueryRequestPtr request,
               return;
             }
 
-            auto error_response = ConvertErrorResponse(status);
+            auto error_response = orca::mojom::TextQueryError::New(
+                ConvertErrorCode(status.status_code), status.message);
             orca::mojom::TextQueryErrorCode error_code = error_response->code;
             std::move(process_callback)
                 .Run(orca::mojom::TextQueryResponse::NewError(

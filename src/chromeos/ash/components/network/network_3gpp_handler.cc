@@ -82,9 +82,7 @@ void Network3gppHandler::Network3gppDeviceHandlerImpl::SetCarrierLock(
 ///////////////////////////////////////////////////////////////////////////////
 // Network3gppHandler
 
-Network3gppHandler::Network3gppHandler() {
-  DCHECK(features::IsCellularCarrierLockEnabled());
-}
+Network3gppHandler::Network3gppHandler() {}
 
 Network3gppHandler::~Network3gppHandler() {
   if (!ShillManagerClient::Get()) {
@@ -198,6 +196,17 @@ void Network3gppHandler::DevicePropertiesCallback(
     return;
   }
 
+  // Add observer for object path property
+  if (cellular_device_path_ != device_path) {
+    if (!cellular_device_path_.empty()) {
+      ShillDeviceClient::Get()->RemovePropertyChangedObserver(
+          dbus::ObjectPath(cellular_device_path_), this);
+    }
+    cellular_device_path_ = device_path;
+    ShillDeviceClient::Get()->AddPropertyChangedObserver(
+        dbus::ObjectPath(cellular_device_path_), this);
+  }
+
   const std::string* object_path_string =
       properties->FindString(shill::kDBusObjectProperty);
   if (!object_path_string || object_path_string->empty()) {
@@ -215,14 +224,6 @@ void Network3gppHandler::DevicePropertiesCallback(
 
   device_handler_ = std::make_unique<Network3gppDeviceHandlerImpl>(
       *service_name, object_path, modem_client_);
-
-  if (!cellular_device_path_.empty()) {
-    ShillDeviceClient::Get()->RemovePropertyChangedObserver(
-        dbus::ObjectPath(cellular_device_path_), this);
-  }
-  cellular_device_path_ = device_path;
-  ShillDeviceClient::Get()->AddPropertyChangedObserver(
-      dbus::ObjectPath(cellular_device_path_), this);
 }
 
 void Network3gppHandler::OnObjectPathChanged(const base::Value& object_path) {

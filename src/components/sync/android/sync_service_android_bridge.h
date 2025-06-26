@@ -10,11 +10,12 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/memory/raw_ptr.h"
 #include "components/sync/service/sync_service_observer.h"
+#include "google_apis/gaia/google_service_auth_error.h"
 
 namespace syncer {
+
 class SyncService;
 class SyncSetupInProgressHandle;
-}  // namespace syncer
 
 // Forwards calls from SyncServiceImpl.java to the native SyncService and
 // back. Instead of directly implementing JNI free functions, this class is used
@@ -22,10 +23,14 @@ class SyncSetupInProgressHandle;
 // Note that on Android, there's only a single profile, a single native
 // SyncService, and therefore a single instance of this class.
 // Must only be accessed from the UI thread.
-class SyncServiceAndroidBridge : public syncer::SyncServiceObserver {
+class SyncServiceAndroidBridge : public SyncServiceObserver {
  public:
+  // `j_sync_service` must be an object implementing the SyncService interface.
+  static SyncService* FromJavaObject(
+      const base::android::JavaRef<jobject>& j_sync_service);
+
   // `native_sync_service` must be non-null and outlive this object.
-  explicit SyncServiceAndroidBridge(syncer::SyncService* native_sync_service);
+  explicit SyncServiceAndroidBridge(SyncService* native_sync_service);
   ~SyncServiceAndroidBridge() override;
 
   SyncServiceAndroidBridge(const SyncServiceAndroidBridge&) = delete;
@@ -33,19 +38,17 @@ class SyncServiceAndroidBridge : public syncer::SyncServiceObserver {
 
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject();
 
-  // syncer::SyncServiceObserver:
-  void OnStateChanged(syncer::SyncService* sync) override;
-  void OnSyncShutdown(syncer::SyncService* sync) override;
+  // SyncServiceObserver:
+  void OnStateChanged(SyncService* sync) override;
+  void OnSyncShutdown(SyncService* sync) override;
 
   // Please keep all methods below in the same order as the @NativeMethods in
   // SyncServiceImpl.java.
   void SetSyncRequested(JNIEnv* env);
-  jboolean CanSyncFeatureStart(JNIEnv* env);
   jboolean IsSyncFeatureEnabled(JNIEnv* env);
   jboolean IsSyncFeatureActive(JNIEnv* env);
   jboolean IsSyncDisabledByEnterprisePolicy(JNIEnv* env);
   jboolean IsEngineInitialized(JNIEnv* env);
-  jboolean IsTransportStateActive(JNIEnv* env);
   void SetSetupInProgress(JNIEnv* env, jboolean in_progress);
   jboolean IsInitialSyncFeatureSetupComplete(JNIEnv* env);
   void SetInitialSyncFeatureSetupComplete(JNIEnv* env, jint source);
@@ -54,6 +57,13 @@ class SyncServiceAndroidBridge : public syncer::SyncServiceObserver {
   void GetTypesWithUnsyncedData(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& callback);
+  void GetLocalDataDescriptions(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jintArray>& types,
+      const base::android::JavaParamRef<jobject>& callback);
+  void TriggerLocalDataMigration(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jintArray>& types);
   jboolean IsTypeManagedByPolicy(JNIEnv* env, jint type);
   jboolean IsTypeManagedByCustodian(JNIEnv* env, jint type);
   void SetSelectedTypes(JNIEnv* env,
@@ -69,6 +79,7 @@ class SyncServiceAndroidBridge : public syncer::SyncServiceObserver {
   jboolean IsTrustedVaultRecoverabilityDegraded(JNIEnv* env);
   jboolean IsUsingExplicitPassphrase(JNIEnv* env);
   jint GetPassphraseType(JNIEnv* env);
+  jint GetTransportState(JNIEnv* env);
   void SetEncryptionPassphrase(
       JNIEnv* env,
       const base::android::JavaParamRef<jstring>& passphrase);
@@ -79,7 +90,7 @@ class SyncServiceAndroidBridge : public syncer::SyncServiceObserver {
   jlong GetExplicitPassphraseTime(JNIEnv* env);
   void GetAllNodes(JNIEnv* env,
                    const base::android::JavaParamRef<jobject>& callback);
-  jint GetAuthError(JNIEnv* env);
+  GoogleServiceAuthError GetAuthError(JNIEnv* env);
   jboolean HasUnrecoverableError(JNIEnv* env);
   jboolean RequiresClientUpgrade(JNIEnv* env);
   base::android::ScopedJavaLocalRef<jobject> GetAccountInfo(JNIEnv* env);
@@ -98,13 +109,26 @@ class SyncServiceAndroidBridge : public syncer::SyncServiceObserver {
 
  private:
   // A reference to the sync service for this profile.
-  const raw_ptr<syncer::SyncService> native_sync_service_;
+  const raw_ptr<SyncService> native_sync_service_;
 
   // Java-side SyncServiceImpl object.
   base::android::ScopedJavaGlobalRef<jobject> java_ref_;
 
   // Prevents Sync from running until configuration is complete.
-  std::unique_ptr<syncer::SyncSetupInProgressHandle> sync_blocker_;
+  std::unique_ptr<SyncSetupInProgressHandle> sync_blocker_;
 };
+
+}  // namespace syncer
+
+namespace jni_zero {
+
+template <>
+inline syncer::SyncService* FromJniType<syncer::SyncService*>(
+    JNIEnv* env,
+    const base::android::JavaRef<jobject>& obj) {
+  return syncer::SyncServiceAndroidBridge::FromJavaObject(obj);
+}
+
+}  // namespace jni_zero
 
 #endif  // COMPONENTS_SYNC_ANDROID_SYNC_SERVICE_ANDROID_BRIDGE_H_

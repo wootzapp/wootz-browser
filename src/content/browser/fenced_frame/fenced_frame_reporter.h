@@ -10,6 +10,7 @@
 #include <set>
 #include <string>
 #include <tuple>
+#include <variant>
 #include <vector>
 
 #include "base/containers/flat_map.h"
@@ -24,7 +25,7 @@
 #include "content/public/browser/privacy_sandbox_invoking_api.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/services/auction_worklet/public/mojom/private_aggregation_request.mojom.h"
-#include "services/network/public/cpp/attribution_reporting_runtime_features.h"
+#include "net/url_request/referrer_policy.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/mojom/attribution.mojom-forward.h"
 #include "third_party/blink/public/common/fenced_frame/redacted_fenced_frame_config.h"
@@ -86,10 +87,10 @@ class CONTENT_EXPORT FencedFrameReporter
 
   using ReportingMacros = std::vector<std::pair<std::string, std::string>>;
 
-  using PrivateAggregationRequests =
-      std::vector<auction_worklet::mojom::PrivateAggregationRequestPtr>;
+  using FinalizedPrivateAggregationRequests = std::vector<
+      auction_worklet::mojom::FinalizedPrivateAggregationRequestPtr>;
 
-  using DestinationVariant = absl::
+  using DestinationVariant = std::
       variant<DestinationEnumEvent, DestinationURLEvent, AutomaticBeaconEvent>;
 
   // TODO(crbug.com/40285398): Once the CL that stops repeating checks for
@@ -250,15 +251,15 @@ class CONTENT_EXPORT FencedFrameReporter
   // will be set to the ID of the navigation request initiated from the fenced
   // frame and targeting the new top-level frame. In all other cases (including
   // the fence.reportEvent() case), the navigation id will be null.
+  // Note: `ad_root_origin` will only be set for automatic beacons originating
+  // from ad components.
   bool SendReport(
       const DestinationVariant& event_variant,
       blink::FencedFrame::ReportingDestination reporting_destination,
       RenderFrameHostImpl* request_initiator_frame,
-      network::AttributionReportingRuntimeFeatures
-          attribution_reporting_runtime_features,
       std::string& error_message,
       blink::mojom::ConsoleMessageLevel& console_message_level,
-      int initiator_frame_tree_node_id = RenderFrameHost::kNoFrameTreeNodeId,
+      FrameTreeNodeId initiator_frame_tree_node_id = FrameTreeNodeId(),
       std::optional<int64_t> navigation_id = std::nullopt);
 
   // Called when a mapping for private aggregation requests of non-reserved
@@ -274,7 +275,7 @@ class CONTENT_EXPORT FencedFrameReporter
   // `private_aggregation_event_map` if it has a matching key. Any future
   // reports of that type will be immediately sent using the provided map.
   void OnForEventPrivateAggregationRequestsReceived(
-      std::map<std::string, PrivateAggregationRequests>
+      std::map<std::string, FinalizedPrivateAggregationRequests>
           private_aggregation_event_map);
 
   // Uses `pa_event_type` to send a private aggregation request. The
@@ -317,7 +318,7 @@ class CONTENT_EXPORT FencedFrameReporter
 
   // Returns a copy of `private_aggregation_event_map_`, so that it can be
   // validated in tests. Should only be called from tests.
-  std::map<std::string, PrivateAggregationRequests>
+  std::map<std::string, FinalizedPrivateAggregationRequests>
   GetPrivateAggregationEventMapForTesting();
 
  private:
@@ -328,16 +329,15 @@ class CONTENT_EXPORT FencedFrameReporter
     BeaconId beacon_id;
     bool is_automatic_beacon;
     network::mojom::AttributionSupport attribution_reporting_support;
-    network::AttributionReportingRuntimeFeatures
-        attribution_reporting_runtime_features;
   };
 
   struct PendingEvent {
     PendingEvent(
         const DestinationVariant& event,
         const url::Origin& request_initiator,
+        const net::ReferrerPolicy request_referrer_policy,
         std::optional<AttributionReportingData> attribution_reporting_data,
-        int initiator_frame_tree_node_id);
+        FrameTreeNodeId initiator_frame_tree_node_id);
 
     PendingEvent(const PendingEvent&);
     PendingEvent(PendingEvent&&);
@@ -349,10 +349,11 @@ class CONTENT_EXPORT FencedFrameReporter
 
     DestinationVariant event;
     url::Origin request_initiator;
+    net::ReferrerPolicy request_referrer_policy;
     // The data necessary for attribution reporting. Will be `std::nullopt` if
     // attribution reporting is disallowed in the initiator frame.
     std::optional<AttributionReportingData> attribution_reporting_data;
-    int initiator_frame_tree_node_id;
+    FrameTreeNodeId initiator_frame_tree_node_id;
   };
 
   // The per-blink::FencedFrame::ReportingDestination reporting information.
@@ -389,8 +390,9 @@ class CONTENT_EXPORT FencedFrameReporter
       const DestinationVariant& event,
       blink::FencedFrame::ReportingDestination reporting_destination,
       const url::Origin& request_initiator,
+      const net::ReferrerPolicy request_referrer_policy,
       const std::optional<AttributionReportingData>& attribution_reporting_data,
-      int initiator_frame_tree_node_id,
+      FrameTreeNodeId initiator_frame_tree_node_id,
       std::string& error_message,
       blink::mojom::ConsoleMessageLevel& console_message_level,
       const std::string& devtools_request_id);
@@ -467,7 +469,7 @@ class CONTENT_EXPORT FencedFrameReporter
   // Private aggregation requests for non-reserved event types registered in
   // bidder worklets, keyed by event type.
   // OnForEventPrivateAggregationRequestsReceived() builds this map up.
-  std::map<std::string, PrivateAggregationRequests>
+  std::map<std::string, FinalizedPrivateAggregationRequests>
       private_aggregation_event_map_;
 
   // Fenced frame events for private aggregation API. An event is not removed

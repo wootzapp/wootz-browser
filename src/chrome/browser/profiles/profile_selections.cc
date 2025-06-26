@@ -8,9 +8,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "components/profile_metrics/browser_profile_type.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chromeos/ash/components/browser_context_helper/browser_context_types.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 bool AreKeyedServicesDisabledForProfileByDefault(const Profile* profile) {
   // By default disable all services for System Profile.
@@ -49,9 +49,9 @@ ProfileSelections::Builder& ProfileSelections::Builder::WithSystem(
 
 ProfileSelections::Builder& ProfileSelections::Builder::WithAshInternals(
     ProfileSelection selection) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   selections_->SetProfileSelectionForAshInternals(selection);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
   return *this;
 }
 
@@ -81,6 +81,7 @@ ProfileSelections ProfileSelections::BuildForRegularProfile() {
   return ProfileSelections::Builder()
       .WithGuest(ProfileSelection::kNone)
       .WithSystem(ProfileSelection::kNone)
+      .WithAshInternals(ProfileSelection::kNone)
       .Build();
 }
 
@@ -89,6 +90,7 @@ ProfileSelections ProfileSelections::BuildForRegularAndIncognito() {
       .WithRegular(ProfileSelection::kOwnInstance)
       .WithGuest(ProfileSelection::kNone)
       .WithSystem(ProfileSelection::kNone)
+      .WithAshInternals(ProfileSelection::kNone)
       .Build();
 }
 
@@ -97,6 +99,7 @@ ProfileSelections ProfileSelections::BuildRedirectedInIncognito() {
       .WithRegular(ProfileSelection::kRedirectedToOriginal)
       .WithGuest(ProfileSelection::kNone)
       .WithSystem(ProfileSelection::kNone)
+      .WithAshInternals(ProfileSelection::kNone)
       .Build();
 }
 
@@ -120,18 +123,14 @@ Profile* ProfileSelections::ApplyProfileSelection(Profile* profile) const {
 
 ProfileSelection ProfileSelections::GetProfileSelection(
     Profile* profile) const {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // This check has to be performed before the check on
   // `profile->IsRegularProfile()` because profiles that are internal ASH
   // (non-user) profiles will also satisfy the later condition.
   if (!ash::IsUserBrowserContext(profile)) {
-    // If the value for `ash_internals_profile_selection_` is not set, redirect
-    // to the default behavior, which is the behavior given to the
-    // RegularProfile.
-    return ash_internals_profile_selection_.value_or(
-        regular_profile_selection_);
+    return ash_internals_profile_selection_;
   }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   // Treat other off the record profiles as Incognito (primary otr) Profiles.
   if (profile->IsRegularProfile() || profile->IsIncognitoProfile() ||
@@ -141,21 +140,14 @@ ProfileSelection ProfileSelections::GetProfileSelection(
   }
 
   if (profile->IsGuestSession()) {
-    // If a value is not set for the Guest Profile Selection,
-    // `ProfileSelection::kNone` is set by default, meaning no profile will be
-    // selected.
-    return guest_profile_selection_.value_or(ProfileSelection::kNone);
+    return guest_profile_selection_;
   }
 
   if (profile->IsSystemProfile()) {
-    // If a value is not set for the System Profile Selection,
-    // `ProfileSelection::kNone` is set by default, meaning no profile will be
-    // selected.
-    return system_profile_selection_.value_or(ProfileSelection::kNone);
+    return system_profile_selection_;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return ProfileSelection::kNone;
+  NOTREACHED();
 }
 
 void ProfileSelections::SetProfileSelectionForRegular(

@@ -7,6 +7,7 @@
 
 var logging = requireNative('logging');
 var MessagingNatives = requireNative('messaging_natives');
+var tagLogMessage = require('guestViewConstants').tagLogMessage;
 var WebViewConstants = require('webViewConstants').WebViewConstants;
 var WebViewInternal = getInternalApi('webViewInternal');
 
@@ -100,13 +101,15 @@ WebViewActionRequest.prototype.handleActionRequestEvent = function() {
 
 // Displays a warning message when an action request is blocked by default.
 WebViewActionRequest.prototype.showWarningMessage = function() {
-  window.console.warn(this.WARNING_MSG_REQUEST_BLOCKED);
+  window.console.warn(tagLogMessage(
+      this.webViewImpl.getLogTag(), this.WARNING_MSG_REQUEST_BLOCKED));
 };
 
 // This function ensures that each action is taken at most once.
 WebViewActionRequest.prototype.validateCall = function() {
   if (this.actionTaken) {
-    throw new Error(this.ERROR_MSG_ACTION_ALREADY_TAKEN);
+    throw new Error(tagLogMessage(
+        this.webViewImpl.getLogTag(), this.ERROR_MSG_ACTION_ALREADY_TAKEN));
   }
   this.actionTaken = true;
 };
@@ -159,7 +162,8 @@ Dialog.prototype.showWarningMessage = function() {
   this.WARNING_MSG_REQUEST_BLOCKED = $String.replace(
       $String.replace(this.WARNING_MSG_REQUEST_BLOCKED, '%1', article), '%2',
       dialogType);
-  window.console.warn(this.WARNING_MSG_REQUEST_BLOCKED);
+  window.console.warn(tagLogMessage(
+      this.webViewImpl.getLogTag(), this.WARNING_MSG_REQUEST_BLOCKED));
 };
 
 Dialog.prototype.ERROR_MSG_ACTION_ALREADY_TAKEN =
@@ -184,8 +188,10 @@ NewWindow.prototype.getInterfaceObject = function() {
   return {
     attach: $Function.bind(function(webview) {
       this.validateCall();
-      if (!webview || !webview.tagName || webview.tagName != 'WEBVIEW') {
-        throw new Error(ERROR_MSG_WEBVIEW_EXPECTED);
+      if (!webview || !webview.tagName ||
+          (webview.tagName != 'WEBVIEW' &&
+           webview.tagName != 'CONTROLLEDFRAME')) {
+        throw new Error('Cannot attach to invalid container element.');
       }
 
       var webViewImpl = privates(webview).internal;
@@ -273,8 +279,10 @@ PermissionRequest.prototype.getInterfaceObject = function() {
 };
 
 PermissionRequest.prototype.showWarningMessage = function() {
-  window.console.warn($String.replace(
-      this.WARNING_MSG_REQUEST_BLOCKED, '%1', this.event.permission));
+  window.console.warn(tagLogMessage(
+      this.webViewImpl.getLogTag(),
+      $String.replace(
+          this.WARNING_MSG_REQUEST_BLOCKED, '%1', this.event.permission)));
 };
 
 // Checks that the requested permission is valid. Returns true if valid.

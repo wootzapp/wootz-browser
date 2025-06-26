@@ -23,7 +23,10 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/browser/script_executor.h"
+#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/dom_action_types.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 class Profile;
 
@@ -54,6 +57,8 @@ class ActivityLog : public BrowserContextKeyedAPI,
     virtual void OnExtensionActivity(scoped_refptr<Action> activity) = 0;
   };
 
+  explicit ActivityLog(content::BrowserContext* context);
+  ~ActivityLog() override;
   ActivityLog(const ActivityLog&) = delete;
   ActivityLog& operator=(const ActivityLog&) = delete;
 
@@ -143,9 +148,6 @@ class ActivityLog : public BrowserContextKeyedAPI,
  private:
   friend class ActivityLogTest;
   friend class BrowserContextKeyedAPIFactory<ActivityLog>;
-
-  explicit ActivityLog(content::BrowserContext* context);
-  ~ActivityLog() override;
 
   // Specifies if the Watchdog app is active (installed & enabled).
   // If so, we need to log to the database and stream to the API.

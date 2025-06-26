@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/renderer/skia_benchmarking_extension.h"
 
 #include <stddef.h>
@@ -29,10 +34,10 @@
 #include "third_party/blink/public/web/web_local_frame.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkCanvas.h"
-#include "third_party/skia/include/core/SkColorPriv.h"
 #include "third_party/skia/include/core/SkGraphics.h"
 #include "third_party/skia/include/core/SkPicture.h"
 #include "third_party/skia/include/core/SkStream.h"
+#include "third_party/skia/include/private/chromium/SkPMColor.h"
 #include "ui/gfx/codec/jpeg_codec.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/geometry/rect_conversions.h"
@@ -225,10 +230,10 @@ void SkiaBenchmarking::Rasterize(gin::Arguments* args) {
   // Swizzle from native Skia format to RGBA as we copy out.
   for (size_t i = 0; i < bitmap.computeByteSize(); i += 4) {
     uint32_t c = packed_pixels[i >> 2];
-    buffer_pixels[i] = SkGetPackedR32(c);
-    buffer_pixels[i + 1] = SkGetPackedG32(c);
-    buffer_pixels[i + 2] = SkGetPackedB32(c);
-    buffer_pixels[i + 3] = SkGetPackedA32(c);
+    buffer_pixels[i] = SkPMColorGetR(c);
+    buffer_pixels[i + 1] = SkPMColorGetG(c);
+    buffer_pixels[i + 2] = SkPMColorGetB(c);
+    buffer_pixels[i + 3] = SkPMColorGetA(c);
   }
 
   args->Return(gin::DataObjectBuilder(isolate)

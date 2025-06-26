@@ -56,13 +56,21 @@ void AppendFileHandler(web_app::WebAppInstallInfo& info,
 
 }  // namespace
 
-std::unique_ptr<web_app::WebAppInstallInfo> CreateWebAppInfoForFileManager() {
-  auto info = std::make_unique<web_app::WebAppInstallInfo>();
-  info->start_url = GURL(kChromeUIFileManagerURL);
+FileManagerSystemAppDelegate::FileManagerSystemAppDelegate(Profile* profile)
+    : ash::SystemWebAppDelegate(ash::SystemWebAppType::FILE_MANAGER,
+                                "File Manager",
+                                GURL(kChromeUIFileManagerURL),
+                                profile) {}
+
+std::unique_ptr<web_app::WebAppInstallInfo>
+FileManagerSystemAppDelegate::GetWebAppInfo() const {
+  GURL start_url(kChromeUIFileManagerURL);
+  auto info =
+      web_app::CreateSystemWebAppInstallInfoWithStartUrlAsIdentity(start_url);
   info->scope = GURL(kChromeUIFileManagerURL);
   info->title = l10n_util::GetStringUTF16(IDS_FILEMANAGER_APP_NAME);
   web_app::CreateIconInfoForSystemWebApp(
-      info->start_url,
+      info->start_url(),
       {
           {"icon16.png", 16, IDR_FILE_MANAGER_ICON_16},
           {"icon32.png", 32, IDR_FILE_MANAGER_ICON_32},
@@ -127,7 +135,7 @@ std::unique_ptr<web_app::WebAppInstallInfo> CreateWebAppInfoForFileManager() {
   AppendFileHandler(
       *info, "view-in-browser",
       {"htm", "html", "mht", "mhtml", "shtml", "xht", "xhtml", "svg", "txt"},
-      "text/plain");
+      "text/*");
 
   // Crostini:
   AppendFileHandler(*info, "install-linux-package", {"deb"});
@@ -136,22 +144,11 @@ std::unique_ptr<web_app::WebAppInstallInfo> CreateWebAppInfoForFileManager() {
   return info;
 }
 
-FileManagerSystemAppDelegate::FileManagerSystemAppDelegate(Profile* profile)
-    : ash::SystemWebAppDelegate(ash::SystemWebAppType::FILE_MANAGER,
-                                "File Manager",
-                                GURL(kChromeUIFileManagerURL),
-                                profile) {}
-
-std::unique_ptr<web_app::WebAppInstallInfo>
-FileManagerSystemAppDelegate::GetWebAppInfo() const {
-  return CreateWebAppInfoForFileManager();
-}
-
 bool FileManagerSystemAppDelegate::ShouldCaptureNavigations() const {
   return true;
 }
 
-Browser* FileManagerSystemAppDelegate::GetWindowForLaunch(
+ash::BrowserDelegate* FileManagerSystemAppDelegate::GetWindowForLaunch(
     Profile* profile,
     const GURL& url) const {
   return nullptr;

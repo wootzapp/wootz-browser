@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/session/session_types.h"
 #include "ash/public/cpp/wallpaper/wallpaper_controller_client.h"
@@ -66,8 +67,9 @@ bool SetWallpaperInfo(const AccountId& account_id,
                       const WallpaperInfo& info,
                       PrefService* const pref_service,
                       const std::string& pref_name) {
-  if (!pref_service)
+  if (!pref_service) {
     return false;
+  }
 
   DCHECK(IsAllowedInPrefs(info.type))
       << "Cannot save WallpaperType=" << base::to_underlying(info.type)
@@ -200,6 +202,11 @@ class WallpaperPrefManagerImpl : public WallpaperPrefManager {
   }
 
   void RemoveUserWallpaperInfo(const AccountId& account_id) override {
+    if (profile_helper_->IsEphemeral(account_id)) {
+      ephemeral_users_wallpaper_info_.erase(account_id);
+      return;
+    }
+
     RemoveWallpaperInfo(account_id, local_state_, prefs::kUserWallpaperInfo);
     RemoveWallpaperInfo(account_id,
                         profile_helper_->GetUserPrefServiceSyncable(account_id),
@@ -236,7 +243,7 @@ class WallpaperPrefManagerImpl : public WallpaperPrefManager {
   }
 
   std::optional<SkColor> GetCachedKMeanColor(
-      const std::string_view location) const override {
+      std::string_view location) const override {
     return GetSingleCachedColor(prefs::kWallpaperMeanColors, location);
   }
 
@@ -249,7 +256,7 @@ class WallpaperPrefManagerImpl : public WallpaperPrefManager {
     CacheSingleColor(prefs::kWallpaperCelebiColors, location, celebi_color);
   }
   std::optional<SkColor> GetCelebiColor(
-      const std::string_view location) const override {
+      std::string_view location) const override {
     return GetSingleCachedColor(prefs::kWallpaperCelebiColors, location);
   }
   void RemoveCelebiColor(const AccountId& account_id) override {
@@ -421,6 +428,7 @@ bool WallpaperPrefManager::ShouldSyncIn(const WallpaperInfo& synced_info,
                << " from remote prefs is not syncable.";
     return false;
   }
+
   if (synced_info.MatchesSelection(local_info)) {
     return false;
   }

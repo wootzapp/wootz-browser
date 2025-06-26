@@ -25,7 +25,6 @@ class ViewShadow;
 
 namespace ash {
 
-class ApplicationDragAndDropHost;
 class AppListA11yAnnouncer;
 class AppListBubbleAppsPage;
 class AppListBubbleAppsCollectionsPage;
@@ -49,16 +48,10 @@ class ASH_EXPORT AppListBubbleView : public views::View,
   METADATA_HEADER(AppListBubbleView, views::View)
 
  public:
-  AppListBubbleView(AppListViewDelegate* view_delegate,
-                    ApplicationDragAndDropHost* drag_and_drop_host);
+  explicit AppListBubbleView(AppListViewDelegate* view_delegate);
   AppListBubbleView(const AppListBubbleView&) = delete;
   AppListBubbleView& operator=(const AppListBubbleView&) = delete;
   ~AppListBubbleView() override;
-
-  // If |drag_and_drop_host| is not nullptr it will be called upon drag and drop
-  // operations outside the app list (e.g. to the shelf).
-  void SetDragAndDropHostOfCurrentAppList(
-      ApplicationDragAndDropHost* drag_and_drop_host);
 
   // Updates continue tasks and recent apps.
   void UpdateSuggestions();
@@ -121,8 +114,6 @@ class ASH_EXPORT AppListBubbleView : public views::View,
   void ActiveChanged(SearchBoxViewBase* sender) override {}
   void OnSearchBoxKeyEvent(ui::KeyEvent* event) override;
   bool CanSelectSearchResults() override;
-  bool HandleFocusMoveAboveSearchResults(
-      const ui::KeyEvent& key_event) override;
 
   // AppListFolderController:
   void ShowFolderForItemView(AppListItemView* folder_item_view,
@@ -152,7 +143,7 @@ class ASH_EXPORT AppListBubbleView : public views::View,
 
   AppListBubblePage current_page_for_test() { return current_page_; }
   views::ViewShadow* view_shadow_for_test() { return view_shadow_.get(); }
-  SearchBoxView* search_box_view_for_test() { return search_box_view_; }
+  SearchBoxView* search_box_view() { return search_box_view_; }
   views::View* separator_for_test() { return separator_; }
   bool showing_folder_for_test() { return showing_folder_; }
   AppListBubbleAppsPage* apps_page_for_test() { return apps_page_; }
@@ -164,10 +155,10 @@ class ASH_EXPORT AppListBubbleView : public views::View,
   friend class AssistantTestApiImpl;
 
   // Initializes the main contents (search box, apps page, and search page).
-  void InitContentsView(ApplicationDragAndDropHost* drag_and_drop_host);
+  void InitContentsView();
 
   // Initializes the folder view, which appears on top of all other views.
-  void InitFolderView(ApplicationDragAndDropHost* drag_and_drop_host);
+  void InitFolderView();
 
   // Makes the root apps grid view and other top-level views unfocusable if
   // `disabled` is true, such that focus is contained in the folder view.
@@ -233,7 +224,6 @@ class ASH_EXPORT AppListBubbleView : public views::View,
   // Called after the hide animation ends or aborts.
   base::OnceClosure on_hide_animation_ended_;
 
-  // See class comment in .cc file.
   std::unique_ptr<ButtonFocusSkipper> button_focus_skipper_;
 
   base::WeakPtrFactory<AppListBubbleView> weak_factory_{this};

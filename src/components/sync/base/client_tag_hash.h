@@ -8,14 +8,15 @@
 #include <compare>
 #include <iosfwd>
 #include <string>
+#include <string_view>
 
 #include "base/hash/hash.h"
-#include "components/sync/base/model_type.h"
+#include "components/sync/base/data_type.h"
 
 namespace syncer {
 
 // Represents a client defined unique hash for sync entities. Hash is derived
-// from client tag, and should be used as |client_tag_hash| for
+// from client tag, and should be used as `client_tag_hash` for
 // SyncEntity at least for CommitMessages. For convenience it supports storing
 // in ordered stl containers, logging and equality comparisons. It also supports
 // unordered stl containers using ClientTagHash::Hash.
@@ -28,9 +29,8 @@ class ClientTagHash {
     }
   };
 
-  // Creates ClientTagHash based on |client_tag|.
-  static ClientTagHash FromUnhashed(ModelType type,
-                                    const std::string& client_tag);
+  // Creates ClientTagHash based on `client_tag`.
+  static ClientTagHash FromUnhashed(DataType type, std::string_view client_tag);
 
   // Creates ClientTagHash from already hashed client tag.
   static ClientTagHash FromHashed(std::string hash_value);

@@ -41,7 +41,7 @@ class X509Certificate;
 
 namespace cast_channel {
 
-using ::cast::channel::CastMessage;
+using ::openscreen::cast::proto::CastMessage;
 
 class Logger;
 class MojoDataPump;
@@ -70,7 +70,7 @@ class CastSocket {
     virtual void OnReadyStateChanged(const CastSocket& socket) = 0;
   };
 
-  virtual ~CastSocket() {}
+  virtual ~CastSocket();
 
   // Used by BrowserContextKeyedAPIFactory.
   static const char* service_name() { return "CastSocketImplManager"; }
@@ -423,9 +423,7 @@ class CastSocketImpl : public CastSocket {
 
   // Raw pointer to the auth handshake delegate. Used to get detailed error
   // information.
-  // This pointer might dangle when running the following test:
-  // PageSpecificSiteDataDialogPrivacySandboxInteractiveUiTest.FirstPartyAllowed
-  raw_ptr<AuthTransportDelegate, AcrossTasksDanglingUntriaged> auth_delegate_;
+  raw_ptr<AuthTransportDelegate> auth_delegate_;
 
   // List of socket observers.
   base::ObserverList<Observer> observers_;

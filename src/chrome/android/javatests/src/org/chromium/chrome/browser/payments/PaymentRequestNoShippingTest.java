@@ -12,6 +12,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
@@ -22,8 +23,7 @@ import org.chromium.chrome.browser.payments.PaymentRequestTestRule.FactorySpeed;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.R;
 import org.chromium.components.autofill.AutofillProfile;
-import org.chromium.components.payments.Event;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.components.payments.Event2;
 
 import java.util.concurrent.TimeoutException;
 
@@ -65,7 +65,7 @@ public class PaymentRequestNoShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testCloseDialog() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "triggerPaymentRequest([{supportedMethods:'https://bobpay.test'}, "
                         + "{supportedMethods:'https://alicepay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
@@ -81,7 +81,7 @@ public class PaymentRequestNoShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testEditAndCloseDialog() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "triggerPaymentRequest([{supportedMethods:'https://bobpay.test'}, "
                         + "{supportedMethods:'https://alicepay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
@@ -100,7 +100,7 @@ public class PaymentRequestNoShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testEditAndCancelDialog() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "triggerPaymentRequest([{supportedMethods:'https://bobpay.test'}, "
                         + "{supportedMethods:'https://alicepay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
@@ -122,21 +122,21 @@ public class PaymentRequestNoShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testQuickDismissAndPayShouldNotCrash() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "triggerPaymentRequest([{supportedMethods:'https://bobpay.test'}, "
                         + "{supportedMethods:'https://alicepay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
 
         // Quickly dismiss and then press on "Continue"
         int callCount = mPaymentRequestTestRule.getDismissed().getCallCount();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getDialogForTest()
                             .onBackPressed();
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getDialogForTest()
                             .findViewById(R.id.button_primary)
                             .performClick();
@@ -164,21 +164,21 @@ public class PaymentRequestNoShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testQuickDismissAndCloseShouldNotCrash() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "triggerPaymentRequest([{supportedMethods:'https://bobpay.test'}, "
                         + "{supportedMethods:'https://alicepay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
 
         // Quickly dismiss and then press on [X].
         int callCount = mPaymentRequestTestRule.getDismissed().getCallCount();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getDialogForTest()
                             .onBackPressed();
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getDialogForTest()
                             .findViewById(R.id.close_button)
                             .performClick();
@@ -198,22 +198,22 @@ public class PaymentRequestNoShippingTest {
     @MediumTest
     @Feature({"Payments"})
     public void testQuickCloseAndDismissShouldNotCrash() throws TimeoutException {
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "triggerPaymentRequest([{supportedMethods:'https://bobpay.test'}, "
                         + "{supportedMethods:'https://alicepay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
 
         // Quickly press on [X] and then dismiss.
         int callCount = mPaymentRequestTestRule.getDismissed().getCallCount();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getDialogForTest()
                             .findViewById(R.id.close_button)
                             .performClick();
                     mPaymentRequestTestRule
-                            .getPaymentRequestUI()
+                            .getPaymentRequestUi()
                             .getDialogForTest()
                             .onBackPressed();
                 });
@@ -233,7 +233,7 @@ public class PaymentRequestNoShippingTest {
     @Feature({"Payments"})
     public void testPaymentRequestEventsMetric() throws TimeoutException {
         // Start and cancel the Payment Request.
-        mPaymentRequestTestRule.runJavaScriptAndWaitForUIEvent(
+        mPaymentRequestTestRule.runJavaScriptAndWaitForUiEvent(
                 "triggerPaymentRequest([{supportedMethods:'https://bobpay.test'}, "
                         + "{supportedMethods:'https://alicepay.test'}]);",
                 mPaymentRequestTestRule.getReadyToPay());
@@ -244,15 +244,13 @@ public class PaymentRequestNoShippingTest {
                 mPaymentRequestTestRule.runJavaScriptAndWaitForPromise("getResult()"));
 
         int expectedSample =
-                Event.SHOWN
-                        | Event.USER_ABORTED
-                        | Event.HAD_INITIAL_FORM_OF_PAYMENT
-                        | Event.HAD_NECESSARY_COMPLETE_SUGGESTIONS
-                        | Event.REQUEST_METHOD_OTHER
-                        | Event.AVAILABLE_METHOD_OTHER;
+                Event2.SHOWN
+                        | Event2.USER_ABORTED
+                        | Event2.HAD_INITIAL_FORM_OF_PAYMENT
+                        | Event2.REQUEST_METHOD_OTHER;
         Assert.assertEquals(
                 1,
                 RecordHistogram.getHistogramValueCountForTesting(
-                        "PaymentRequest.Events", expectedSample));
+                        "PaymentRequest.Events2", expectedSample));
     }
 }

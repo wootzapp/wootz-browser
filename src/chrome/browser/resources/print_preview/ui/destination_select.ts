@@ -12,15 +12,15 @@ import 'chrome://resources/cr_elements/cr_hidden_style.css.js';
 import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
 import 'chrome://resources/cr_elements/md_select.css.js';
 import 'chrome://resources/js/util.js';
-import 'chrome://resources/polymer/v3_0/iron-iconset-svg/iron-iconset-svg.js';
 import './destination_select_style.css.js';
 import './icons.html.js';
 import './print_preview_shared.css.js';
 import './throbber.css.js';
-import '../strings.m.js';
+import '/strings.m.js';
 
+import {IconsetMap} from 'chrome://resources/cr_elements/cr_icon/iconset_map.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
-import {IronMeta} from 'chrome://resources/polymer/v3_0/iron-meta/iron-meta.js';
+import {assert} from 'chrome://resources/js/assert.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {Destination} from '../data/destination.js';
@@ -68,22 +68,15 @@ export class PrintPreviewDestinationSelectElement extends
     };
   }
 
-  activeUser: string;
-  dark: boolean;
-  destination: Destination;
-  disabled: boolean;
-  loaded: boolean;
-  noDestinations: boolean;
-  pdfPrinterDisabled: boolean;
-  recentDestinationList: Destination[];
-  private pdfDestinationKey_: string;
-  private meta_: IronMeta;
-
-  constructor() {
-    super();
-
-    this.meta_ = new IronMeta({type: 'iconset', value: undefined});
-  }
+  declare activeUser: string;
+  declare dark: boolean;
+  declare destination: Destination;
+  declare disabled: boolean;
+  declare loaded: boolean;
+  declare noDestinations: boolean;
+  declare pdfPrinterDisabled: boolean;
+  declare recentDestinationList: Destination[];
+  declare private pdfDestinationKey_: string;
 
   override focus() {
     this.shadowRoot!.querySelector<HTMLElement>('.md-select')!.focus();
@@ -145,7 +138,9 @@ export class PrintPreviewDestinationSelectElement extends
       iconSetAndIcon = ['cr', 'error'];
     }
     iconSetAndIcon = iconSetAndIcon || icon.split(':');
-    const iconset = this.meta_.byKey(iconSetAndIcon[0]);
+
+    const iconset = IconsetMap.getInstance().get(iconSetAndIcon[0]);
+    assert(iconset);
     return getSelectDropdownBackground(iconset, iconSetAndIcon[1], this);
   }
 

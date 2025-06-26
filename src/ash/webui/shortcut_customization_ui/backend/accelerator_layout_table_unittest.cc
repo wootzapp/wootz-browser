@@ -14,6 +14,7 @@
 #include "base/hash/md5_boringssl.h"
 #include "base/strings/strcat.h"
 #include "base/strings/stringprintf.h"
+#include "chromeos/ash/services/assistant/public/cpp/features.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/base/ui_base_features.h"
 
@@ -22,9 +23,9 @@ namespace ash {
 namespace {
 
 // The total number of Ash accelerators.
-constexpr int kAshAcceleratorsTotalNum = 154;
+constexpr int kAshAcceleratorsTotalNum = 160;
 // The hash of Ash accelerators.
-constexpr char kAshAcceleratorsHash[] = "12a3a54ce8f829438d2ba8e71c81c602";
+constexpr char kAshAcceleratorsHash[] = "864aa0f17421e1ce783c85780a7cf357";
 
 std::string ToActionName(ash::AcceleratorAction action) {
   return base::StrCat(
@@ -115,8 +116,7 @@ class AcceleratorLayoutMetadataTest : public testing::Test {
 // exception list kAshAcceleratorsWithoutLayout.
 TEST_F(AcceleratorLayoutMetadataTest,
        AshAcceleratorsNotInAllowedListShouldHaveLayouts) {
-  for (size_t i = 0; i < ash::kAcceleratorDataLength; ++i) {
-    const ash::AcceleratorData& accel_data = ash::kAcceleratorData[i];
+  for (const ash::AcceleratorData& accel_data : ash::kAcceleratorData) {
     if (ShouldNotHaveLayouts(accel_data.action)) {
       EXPECT_FALSE(HasLayouts(accel_data.action))
           << ToActionName(accel_data.action)
@@ -146,22 +146,25 @@ TEST_F(AcceleratorLayoutMetadataTest,
 //    output.
 TEST_F(AcceleratorLayoutMetadataTest, ModifyAcceleratorShouldUpdateLayout) {
   std::vector<ash::AcceleratorData> ash_accelerators;
-  for (size_t i = 0; i < ash::kAcceleratorDataLength; ++i) {
-    ash_accelerators.emplace_back(ash::kAcceleratorData[i]);
+  for (const ash::AcceleratorData& data : ash::kAcceleratorData) {
+    ash_accelerators.emplace_back(data);
   }
-  for (size_t i = 0; i < ash::kDisableWithNewMappingAcceleratorDataLength;
-       ++i) {
-    ash_accelerators.emplace_back(
-        ash::kDisableWithNewMappingAcceleratorData[i]);
+  for (const ash::AcceleratorData& data :
+       ash::kDisableWithNewMappingAcceleratorData) {
+    ash_accelerators.emplace_back(data);
   }
 
   if (::features::IsImprovedKeyboardShortcutsEnabled()) {
-    for (size_t i = 0;
-         i <
-         ash::kEnabledWithImprovedDesksKeyboardShortcutsAcceleratorDataLength;
-         ++i) {
-      ash_accelerators.emplace_back(
-          ash::kEnabledWithImprovedDesksKeyboardShortcutsAcceleratorData[i]);
+    for (const AcceleratorData& data :
+         ash::kEnabledWithImprovedDesksKeyboardShortcutsAcceleratorData) {
+      ash_accelerators.emplace_back(data);
+    }
+  }
+
+  if (!ash::assistant::features::IsNewEntryPointEnabled()) {
+    for (const AcceleratorData& data :
+         ash::kAssistantSearchPlusAAcceleratorData) {
+      ash_accelerators.emplace_back(data);
     }
   }
 

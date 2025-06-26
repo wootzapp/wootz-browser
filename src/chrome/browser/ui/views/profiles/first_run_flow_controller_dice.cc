@@ -26,6 +26,7 @@
 #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service.h"
 #include "chrome/browser/search_engine_choice/search_engine_choice_dialog_service_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/profiles/profile_management_flow_controller.h"
 #include "chrome/browser/ui/views/profiles/profile_management_flow_controller_impl.h"
 #include "chrome/browser/ui/views/profiles/profile_management_step_controller.h"
@@ -49,7 +50,7 @@ namespace {
 constexpr base::TimeDelta kDefaultBrowserCheckTimeout = base::Seconds(2);
 
 const signin_metrics::AccessPoint kAccessPoint =
-    signin_metrics::AccessPoint::ACCESS_POINT_FOR_YOU_FRE;
+    signin_metrics::AccessPoint::kForYouFre;
 
 enum class ShowDefaultBrowserStep {
   // The default browser step should be shown as appropriate.
@@ -389,21 +390,34 @@ class FirstRunPostSignInAdapter : public ProfilePickerSignedInFlowController {
     ProfilePickerSignedInFlowController::Init();
   }
 
-  void FinishAndOpenBrowser(
-      PostHostClearedCallback post_host_cleared_callback) override {
+  PostHostClearedCallback CreateSupervisedUserIphCallback() {
+    return PostHostClearedCallback(base::BindOnce([](Browser* browser) {
+      CHECK(browser);
+      BrowserView* browser_view =
+          BrowserView::GetBrowserViewForBrowser(browser);
+      if (!browser_view) {
+        return;
+      }
+      browser_view->MaybeShowSupervisedUserProfileSignInIPH();
+    }));
+  }
+
+  void FinishAndOpenBrowserInternal(
+      PostHostClearedCallback post_host_cleared_callback,
+      bool is_continue_callback) override {
     // Do nothing if this has already been called. Note that this can get called
     // first time from a special case handling (such as the Settings link) and
     // than second time when the TurnSyncOnHelper finishes.
     if (!step_completed_callback_) {
       return;
     }
-
-    // The only callback we can receive in this flow is the one to
-    // finish configuring Sync. In this case we always want to
-    // immediately continue with that.
-    bool is_continue_callback = !post_host_cleared_callback->is_null();
+    // The supervised user IPH should be called after the present
+    // post_host_cleared_callback which finishes the browser creation.
+    auto combined_callback =
+        CombinePostHostClearedCallbacks(std::move(post_host_cleared_callback),
+                                        CreateSupervisedUserIphCallback());
     std::move(step_completed_callback_)
-        .Run(std::move(post_host_cleared_callback), is_continue_callback,
+        .Run(std::move(combined_callback), is_continue_callback,
              StepSwitchFinishedCallback());
   }
 
@@ -454,8 +468,7 @@ FirstRunFlowControllerDice::~FirstRunFlowControllerDice() {
   }
 }
 
-void FirstRunFlowControllerDice::Init(
-    StepSwitchFinishedCallback step_switch_finished_callback) {
+void FirstRunFlowControllerDice::Init() {
   RegisterStep(
       Step::kIntro,
       CreateIntroStep(host(),
@@ -463,10 +476,11 @@ void FirstRunFlowControllerDice::Init(
                           &FirstRunFlowControllerDice::HandleIntroSigninChoice,
                           weak_ptr_factory_.GetWeakPtr()),
                       /*enable_animations=*/true));
-  SwitchToStep(Step::kIntro, /*reset_state=*/true,
-               std::move(step_switch_finished_callback));
+  SwitchToStep(Step::kIntro, /*reset_state=*/true);
 
-  signin_metrics::LogSignInOffered(kAccessPoint);
+  signin_metrics::LogSignInOffered(
+      kAccessPoint, signin_metrics::PromoAction::
+                        PROMO_ACTION_NEW_ACCOUNT_NO_EXISTING_ACCOUNT);
 }
 
 void FirstRunFlowControllerDice::CancelPostSignInFlow() {
@@ -475,14 +489,18 @@ void FirstRunFlowControllerDice::CancelPostSignInFlow() {
   // accepted before we show the prompt. So here we need to revert it.
   // Currently we remove the account to match the behaviour from the profile
   // creation flow.
-  // TODO(crbug.com/40067597): Refactor ProfilePickerSignedInFlowController
-  // to split the lacros and dice behaviours more and remove the need for such
-  // hacky workarounds. Look into letting the user keep their account.
+  // TODO(crbug.com/40067597): Look into letting the user keep their account.
   signin::ClearProfileWithManagedAccounts(profile_);
 
   HandleIdentityStepsCompleted(profile_, PostHostClearedCallback(),
                                /*is_continue_callback=*/false,
                                StepSwitchFinishedCallback());
+}
+
+void FirstRunFlowControllerDice::PickProfile(
+    const base::FilePath& profile_path,
+    ProfilePicker::ProfilePickingArgs args) {
+  NOTREACHED() << "FRE is not expected to handle this flow";
 }
 
 bool FirstRunFlowControllerDice::PreFinishWithBrowser() {

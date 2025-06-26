@@ -4,6 +4,8 @@
 
 #include "third_party/blink/renderer/modules/cache_storage/inspector_cache_storage_agent.h"
 
+#include <sys/types.h>
+
 #include <algorithm>
 #include <memory>
 #include <utility>
@@ -14,10 +16,10 @@
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "services/network/public/mojom/fetch_api.mojom-blink.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/common/cache_storage/cache_storage_utils.h"
 #include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "third_party/blink/public/mojom/cache_storage/cache_storage.mojom-blink.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/fileapi/file_reader_client.h"
@@ -143,8 +145,7 @@ const char* CacheStorageErrorString(mojom::blink::CacheStorageError error) {
       // This function should only be called upon error.
       break;
   }
-  NOTREACHED_IN_MIGRATION();
-  return "";
+  NOTREACHED();
 }
 
 CachedResponseType ResponseTypeToString(
@@ -163,8 +164,7 @@ CachedResponseType ResponseTypeToString(
     case network::mojom::FetchResponseType::kOpaqueRedirect:
       return protocol::CacheStorage::CachedResponseTypeEnum::OpaqueRedirect;
   }
-  NOTREACHED_IN_MIGRATION();
-  return "";
+  NOTREACHED();
 }
 
 struct DataRequestParams {
@@ -260,9 +260,9 @@ class ResponsesAccumulator : public RefCounted<ResponsesAccumulator> {
       requests = std::move(old_requests);
     } else {
       for (auto& request : old_requests) {
-        String urlPath(request->url.GetPath());
-        if (!urlPath.Contains(params_.path_filter,
-                              WTF::kTextCaseUnicodeInsensitive)) {
+        String urlPath(request->url.GetPath().ToString());
+        if (urlPath.DeprecatedFindIgnoringCase(params_.path_filter) ==
+            WTF::kNotFound) {
           continue;
         }
         requests.push_back(std::move(request));
@@ -291,6 +291,7 @@ class ResponsesAccumulator : public RefCounted<ResponsesAccumulator> {
           request->is_history_navigation, request->devtools_stack_id,
           request->trust_token_params.Clone(), request->target_address_space,
           request->attribution_reporting_eligibility,
+          request->attribution_reporting_support,
           /*service_worker_race_network_request_token=*/std::nullopt);
       cache_remote_->Match(
           std::move(request), mojom::blink::CacheQueryOptions::New(),
@@ -490,7 +491,8 @@ class CachedResponseFileReaderLoaderClient final
   void DidFinishLoading() override {
     std::unique_ptr<CachedResponse> response =
         CachedResponse::create()
-            .setBody(protocol::Binary::fromSharedBuffer(data_))
+            .setBody(protocol::Binary::fromVector(
+                std::move(data_).CopyAs<Vector<uint8_t>>()))
             .build();
     callback_wrapper_->SendSuccess(std::move(response));
     dispose();
@@ -504,9 +506,8 @@ class CachedResponseFileReaderLoaderClient final
     dispose();
   }
 
-  FileErrorCode DidReceiveData(const char* data,
-                               unsigned data_length) override {
-    data_->Append(data, data_length);
+  FileErrorCode DidReceiveData(base::span<const uint8_t> data) override {
+    data_.Append(data);
     return FileErrorCode::kOK;
   }
 
@@ -523,7 +524,6 @@ class CachedResponseFileReaderLoaderClient final
       : loader_(MakeGarbageCollected<FileReaderLoader>(this,
                                                        std::move(task_runner))),
         callback_wrapper_(callback_wrapper),
-        data_(SharedBuffer::Create()),
         keep_alive_(this) {
     loader_->Start(std::move(blob));
   }
@@ -539,7 +539,7 @@ class CachedResponseFileReaderLoaderClient final
   Member<FileReaderLoader> loader_;
   scoped_refptr<RequestCallbackWrapper<RequestCachedResponseCallback>>
       callback_wrapper_;
-  scoped_refptr<SharedBuffer> data_;
+  SegmentedBuffer data_;
   SelfKeepAlive<CachedResponseFileReaderLoaderClient> keep_alive_;
 };
 
@@ -631,16 +631,15 @@ InspectorCacheStorageAgent::GetCacheStorageRemoteForId(
 }
 
 void InspectorCacheStorageAgent::requestCacheNames(
-    protocol::Maybe<String> maybe_security_origin,
-    protocol::Maybe<String> maybe_storage_key,
-    protocol::Maybe<protocol::Storage::StorageBucket> maybe_storage_bucket,
+    std::optional<String> maybe_security_origin,
+    std::optional<String> maybe_storage_key,
+    std::unique_ptr<protocol::Storage::StorageBucket> maybe_storage_bucket,
     std::unique_ptr<RequestCacheNamesCallback> callback) {
   int64_t trace_id = blink::cache_storage::CreateTraceId();
   TRACE_EVENT_WITH_FLOW0("CacheStorage",
                          "InspectorCacheStorageAgent::requestCacheNames",
                          TRACE_ID_GLOBAL(trace_id), TRACE_EVENT_FLAG_FLOW_OUT);
-  if (maybe_security_origin.has_value() + maybe_storage_key.has_value() +
-          maybe_storage_bucket.has_value() !=
+  if (!!maybe_security_origin + !!maybe_storage_key + !!maybe_storage_bucket !=
       1) {
     callback->sendFailure(ProtocolResponse::InvalidParams(
         "At least and at most one of security_origin, "
@@ -648,10 +647,10 @@ void InspectorCacheStorageAgent::requestCacheNames(
     return;
   }
   String storage_key, security_origin;
-  if (maybe_storage_key.has_value() || maybe_storage_bucket.has_value()) {
+  if (maybe_storage_key || maybe_storage_bucket) {
     storage_key = maybe_storage_key.has_value()
                       ? maybe_storage_key.value()
-                      : maybe_storage_bucket.value().getStorageKey();
+                      : maybe_storage_bucket->getStorageKey();
     std::optional<StorageKey> key =
         StorageKey::Deserialize(StringUTF8Adaptor(storage_key).AsStringView());
     if (!key.has_value()) {
@@ -677,7 +676,7 @@ void InspectorCacheStorageAgent::requestCacheNames(
   }
 
   std::optional<WTF::String> bucket_name;
-  if (maybe_storage_bucket.has_value() && maybe_storage_bucket->hasName()) {
+  if (maybe_storage_bucket && maybe_storage_bucket->hasName()) {
     bucket_name = maybe_storage_bucket->getName("");
   }
 
@@ -697,7 +696,7 @@ void InspectorCacheStorageAgent::requestCacheNames(
       WTF::BindOnce(
           [](String security_origin, String storage_key,
              std::optional<WTF::String> bucket_name,
-             protocol::Maybe<protocol::Storage::StorageBucket>
+             std::unique_ptr<protocol::Storage::StorageBucket>
                  maybe_storage_bucket,
              int64_t trace_id,
              scoped_refptr<RequestCallbackWrapper<RequestCacheNamesCallback>>
@@ -714,7 +713,7 @@ void InspectorCacheStorageAgent::requestCacheNames(
                           BuildCacheId(storage_key, bucket_name, cache_name))
                       .build();
 
-              if (maybe_storage_bucket.has_value()) {
+              if (maybe_storage_bucket) {
                 protocol_cache->setStorageBucket(maybe_storage_bucket->Clone());
               }
 
@@ -729,9 +728,9 @@ void InspectorCacheStorageAgent::requestCacheNames(
 
 void InspectorCacheStorageAgent::requestEntries(
     const String& cache_id,
-    protocol::Maybe<int> skip_count,
-    protocol::Maybe<int> page_size,
-    protocol::Maybe<String> path_filter,
+    std::optional<int> skip_count,
+    std::optional<int> page_size,
+    std::optional<String> path_filter,
     std::unique_ptr<RequestEntriesCallback> callback) {
   int64_t trace_id = blink::cache_storage::CreateTraceId();
   TRACE_EVENT_WITH_FLOW0("CacheStorage",

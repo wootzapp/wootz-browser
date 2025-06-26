@@ -26,10 +26,12 @@
 #include "components/user_manager/known_user.h"
 #include "ui/events/ash/keyboard_capability.h"
 #include "ui/events/ash/mojom/extended_fkeys_modifier.mojom-shared.h"
+#include "ui/events/ash/mojom/meta_key.mojom-shared.h"
 #include "ui/events/ash/mojom/modifier_key.mojom.h"
 #include "ui/events/event.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/keycodes/dom/dom_code.h"
+#include "ui/events/keycodes/keyboard_codes_posix.h"
 #include "ui/events/ozone/evdev/keyboard_mouse_combo_device_metrics.h"
 #include "ui/events/types/event_type.h"
 
@@ -59,14 +61,14 @@ bool ExistingSettingsHasValue(std::string_view setting_key,
 
 bool IsAlphaKeyboardCode(ui::KeyboardCode key_code) {
   return GetKeyInputTypeFromKeyEvent(ui::KeyEvent(
-             ui::ET_KEY_PRESSED, key_code, ui::DomCode::NONE, ui::EF_NONE)) ==
-         AcceleratorKeyInputType::kAlpha;
+             ui::EventType::kKeyPressed, key_code, ui::DomCode::NONE,
+             ui::EF_NONE)) == AcceleratorKeyInputType::kAlpha;
 }
 
 bool IsNumberKeyboardCode(ui::KeyboardCode key_code) {
   return GetKeyInputTypeFromKeyEvent(ui::KeyEvent(
-             ui::ET_KEY_PRESSED, key_code, ui::DomCode::NONE, ui::EF_NONE)) ==
-         AcceleratorKeyInputType::kDigit;
+             ui::EventType::kKeyPressed, key_code, ui::DomCode::NONE,
+             ui::EF_NONE)) == AcceleratorKeyInputType::kDigit;
 }
 
 // Verify if the customization restriction blocks the button remapping.
@@ -122,8 +124,19 @@ bool RestrictionBlocksRemapping(
         return false;
       }
       return remapping.button->get_vkey() != ui::VKEY_TAB;
+    case mojom::CustomizationRestriction::kAllowFKeyRewrites:
+      if (remapping.button->is_customizable_button()) {
+        return false;
+      }
+      return !(remapping.button->get_vkey() >= ui::VKEY_F1 &&
+               remapping.button->get_vkey() <= ui::VKEY_F15);
   }
 }
+
+// "0111:185a" is from the list of supported device keys listed here:
+// google3/chrome/chromeos/apps_foundation/almanac/fondue/boq/
+// peripherals_service/manual_config/companion_apps.h
+constexpr char kWelcomeExperienceTestDeviceKey[] = "0111:185a";
 
 }  // namespace
 
@@ -139,8 +152,11 @@ bool IsValidModifier(int val) {
 }
 
 std::string BuildDeviceKey(const ui::InputDevice& device) {
-  return base::StrCat(
-      {HexEncode(device.vendor_id), ":", HexEncode(device.product_id)});
+  return BuildDeviceKey(device.vendor_id, device.product_id);
+}
+
+std::string BuildDeviceKey(uint16_t vendor_id, uint16_t product_id) {
+  return base::StrCat({HexEncode(vendor_id), ":", HexEncode(product_id)});
 }
 
 template <typename T>
@@ -363,6 +379,12 @@ mojom::ButtonRemappingPtr ConvertDictToButtonRemapping(
   } else if (key_code &&
              customization_restriction !=
                  mojom::CustomizationRestriction::kDisableKeyEventRewrites) {
+    // Do not allow the keycode to be an unknown key. This indicates an internal
+    // error in the implementation and should not be allowed.
+    if (*key_code == ui::VKEY_UNKNOWN) {
+      return nullptr;
+    }
+
     button = mojom::Button::NewVkey(static_cast<::ui::KeyboardCode>(*key_code));
   } else {
     return nullptr;
@@ -413,20 +435,25 @@ mojom::ButtonRemappingPtr ConvertDictToButtonRemapping(
 }
 
 bool IsChromeOSKeyboard(const mojom::Keyboard& keyboard) {
-  return keyboard.meta_key == mojom::MetaKey::kLauncher ||
-         keyboard.meta_key == mojom::MetaKey::kSearch;
+  return keyboard.meta_key == ui::mojom::MetaKey::kLauncher ||
+         keyboard.meta_key == ui::mojom::MetaKey::kSearch;
 }
 
 bool IsSplitModifierKeyboard(const mojom::Keyboard& keyboard) {
-  return base::Contains(keyboard.modifier_keys,
-                        ui::mojom::ModifierKey::kFunction) &&
-         base::Contains(keyboard.modifier_keys,
-                        ui::mojom::ModifierKey::kRightAlt);
+  return keyboard.meta_key == ui::mojom::MetaKey::kLauncherRefresh;
 }
 
 bool IsSplitModifierKeyboard(int device_id) {
   return Shell::Get()->keyboard_capability()->HasFunctionKey(device_id) &&
-         Shell::Get()->keyboard_capability()->HasRightAltKey(device_id);
+         Shell::Get()->keyboard_capability()->HasQuickInsertKey(device_id);
+}
+
+std::string GetDeviceKeyForMetadataRequest(const std::string& device_key) {
+  if (features::IsWelcomeExperienceTestUnsupportedDevicesEnabled()) {
+    return kWelcomeExperienceTestDeviceKey;
+  }
+
+  return device_key;
 }
 
 }  // namespace ash

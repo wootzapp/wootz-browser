@@ -54,15 +54,8 @@ void TileRoundRect(gfx::Canvas* canvas,
 // For now, we should only apply dynamic color to the default frame header if
 // the window is a system web app.
 bool ShouldApplyDynamicColor(aura::Window* window) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   return window->GetProperty(chromeos::kAppTypeKey) ==
          chromeos::AppType::SYSTEM_APP;
-#else
-  // Default frame is used for non-browser frames in Lacros. In Lacros, we
-  // never need dynamic colors as we don't display SWAs. This will need to be
-  // redesigned if SWAs run in Lacros.
-  return false;
-#endif
 }
 
 }  // namespace
@@ -118,13 +111,10 @@ void DefaultFrameHeader::UpdateFrameColors() {
 
   if (updated) {
     StartTransitionAnimation(kDefaultFrameColorChangeAnimationDuration);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
     frame_color_metrics_helper_->UpdateFrameColorChangesCount();
-#endif
   }
 
-  if (::features::IsChromeRefresh2023() &&
-      ShouldApplyDynamicColor(GetTargetWindow())) {
+  if (ShouldApplyDynamicColor(GetTargetWindow())) {
     UpdateCaptionButtonColors(mode() == MODE_ACTIVE
                                   ? ui::kColorSysPrimary
                                   : ui::kColorFrameCaptionButtonUnfocused);
@@ -195,12 +185,10 @@ SkColor DefaultFrameHeader::GetCurrentFrameColor() const {
 }
 
 void DefaultFrameHeader::InitializeFrameColorMetricsHelper() {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   aura::Window* window = GetTargetWindow();
   CHECK(window);
   frame_color_metrics_helper_ = std::make_unique<FrameColorMetricsHelper>(
       window->GetProperty(chromeos::kAppTypeKey));
-#endif
 }
 
 }  // namespace chromeos

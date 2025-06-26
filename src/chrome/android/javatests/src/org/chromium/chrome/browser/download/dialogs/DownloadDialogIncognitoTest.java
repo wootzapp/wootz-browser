@@ -31,18 +31,19 @@ import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
 import org.chromium.chrome.browser.download.DuplicateDownloadDialog;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.profiles.OTRProfileID;
+import org.chromium.chrome.browser.profiles.OtrProfileId;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.components.browser_ui.modaldialog.AppModalPresenter;
 import org.chromium.components.browser_ui.modaldialog.ModalDialogView;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 
 /** Test to verify download dialog scenarios. */
@@ -56,7 +57,8 @@ public class DownloadDialogIncognitoTest {
     public static final int ICON_ID = R.drawable.btn_close;
 
     @Rule
-    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     private ModalDialogManager mModalDialogManager;
 
@@ -64,14 +66,14 @@ public class DownloadDialogIncognitoTest {
 
     @Before
     public void setUpTest() throws Exception {
-        mActivityTestRule.startMainActivityOnBlankPage();
+        mActivityTestRule.startOnBlankPage();
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     AppModalPresenter mAppModalPresenter =
                             new AppModalPresenter(mActivityTestRule.getActivity());
                     mModalDialogManager =
-                            TestThreadUtils.runOnUiThreadBlockingNoException(
+                            ThreadUtils.runOnUiThreadBlocking(
                                     () -> {
                                         return new ModalDialogManager(
                                                 mAppModalPresenter,
@@ -85,8 +87,8 @@ public class DownloadDialogIncognitoTest {
     @LargeTest
     public void testDuplicateDownloadForIncognitoMode() throws Exception {
         // Showing a duplicate download dialog with an Incognito profile.
-        OTRProfileID primaryProfileID = OTRProfileID.getPrimaryOTRProfileID();
-        showDuplicateDialog(primaryProfileID);
+        OtrProfileId primaryProfileId = OtrProfileId.getPrimaryOtrProfileId();
+        showDuplicateDialog(primaryProfileId);
 
         // Verify the Incognito warning message is shown.
         waitForWarningVisibilityToBe(VISIBLE);
@@ -100,8 +102,8 @@ public class DownloadDialogIncognitoTest {
     @LargeTest
     public void testDuplicateDownloadForRegularProfile() throws Exception {
         // Showing a duplicate download dialog with a regular profile.
-        OTRProfileID regularProfileID = null;
-        showDuplicateDialog(regularProfileID);
+        OtrProfileId regularProfileId = null;
+        showDuplicateDialog(regularProfileId);
 
         // Verify the Incognito warning message is NOT shown.
         waitForWarningVisibilityToBe(GONE);
@@ -109,10 +111,10 @@ public class DownloadDialogIncognitoTest {
 
     @Test
     @LargeTest
-    public void testDuplicateDownloadForIncognitoCCT() throws Exception {
+    public void testDuplicateDownloadForIncognitoCct() throws Exception {
         // Showing a duplicate download dialog with a non-primary off-the-record profile.
-        OTRProfileID nonPrimaryOTRId = OTRProfileID.createUnique("CCT:Incognito");
-        showDuplicateDialog(nonPrimaryOTRId);
+        OtrProfileId nonPrimaryOtrId = OtrProfileId.createUnique("CCT:Incognito");
+        showDuplicateDialog(nonPrimaryOtrId);
 
         // Verify the Incognito warning message is shown.
         waitForWarningVisibilityToBe(VISIBLE);
@@ -150,9 +152,9 @@ public class DownloadDialogIncognitoTest {
         verify(mResultCallback).onResult(false);
     }
 
-    private void showDuplicateDialog(OTRProfileID otrProfileID) {
+    private void showDuplicateDialog(OtrProfileId otrProfileId) {
         Context mContext = mActivityTestRule.getActivity().getApplicationContext();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     new DuplicateDownloadDialog()
                             .show(
@@ -162,13 +164,13 @@ public class DownloadDialogIncognitoTest {
                                     PAGE_URL,
                                     TOTAL_BYTES,
                                     true,
-                                    otrProfileID,
+                                    otrProfileId,
                                     mResultCallback);
                 });
     }
 
     private void showInsecureDownloadDialog() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Context mContext = mActivityTestRule.getActivity().getApplicationContext();
                     new InsecureDownloadDialog()
@@ -182,7 +184,7 @@ public class DownloadDialogIncognitoTest {
     }
 
     private void showDangerousContentDialog() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Context mContext = mActivityTestRule.getActivity().getApplicationContext();
                     new DangerousDownloadDialog()

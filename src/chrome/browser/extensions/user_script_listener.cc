@@ -13,8 +13,8 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/navigation_throttle.h"
-#include "extensions/browser/api/scripting/scripting_utils.h"
 #include "extensions/browser/extension_system.h"
+#include "extensions/browser/scripting_utils.h"
 #include "extensions/browser/user_script_manager.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest_handlers/content_scripts_handler.h"
@@ -122,7 +122,7 @@ void UserScriptListener::TriggerUserScriptsReadyForTesting(
   UserScriptsReady(context);
 }
 
-UserScriptListener::~UserScriptListener() {}
+UserScriptListener::~UserScriptListener() = default;
 
 bool UserScriptListener::ShouldDelayRequest(const GURL& url) {
   // Note: we could delay only requests made by the profile who is causing the

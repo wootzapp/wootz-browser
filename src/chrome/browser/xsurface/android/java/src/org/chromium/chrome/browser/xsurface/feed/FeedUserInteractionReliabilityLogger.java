@@ -8,6 +8,8 @@ import android.view.View;
 
 import androidx.annotation.IntDef;
 
+import org.jspecify.annotations.NullMarked;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
@@ -15,10 +17,11 @@ import java.lang.annotation.RetentionPolicy;
 /**
  * Implemented internally.
  *
- * Interface for capturing the reliability for every change in the collection of items presented to
- * the user during the interaction. One instance exists per feed surface and lasts for the surface's
- * lifetime.
+ * <p>Interface for capturing the reliability for every change in the collection of items presented
+ * to the user during the interaction. One instance exists per feed surface and lasts for the
+ * surface's lifetime.
  */
+@NullMarked
 public interface FeedUserInteractionReliabilityLogger {
     /** Called when the stream has been opened. This should be called before reporting any event. */
     default void onStreamOpened(@StreamType int streamType) {}
@@ -112,4 +115,7 @@ public interface FeedUserInteractionReliabilityLogger {
 
     /** Called when the pagination process has ended. */
     default void onPaginationEnded(@PaginationResult int result) {}
+
+    /** Include experiment IDs sent from the server in the reliability log. */
+    default void reportExperiments(int[] experimentIds) {}
 }

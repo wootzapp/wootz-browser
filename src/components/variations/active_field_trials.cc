@@ -6,6 +6,8 @@
 
 #include <stddef.h>
 
+#include <algorithm>
+#include <string_view>
 #include <vector>
 
 #include "base/command_line.h"
@@ -13,14 +15,13 @@
 #include "base/metrics/field_trial.h"
 #include "base/no_destructor.h"
 #include "base/process/launch.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/variations/hashing.h"
 #include "components/variations/synthetic_trials_active_group_id_provider.h"
+#include "components/variations/variations_crash_keys.h"
 #include "components/variations/variations_switches.h"
 
 namespace variations {
@@ -41,8 +42,8 @@ void AppendActiveGroupIdsAsStrings(
   }
 }
 
-uint32_t HashNameAndSuffix(base::StringPiece base_name,
-                           base::StringPiece optional_suffix) {
+uint32_t HashNameAndSuffix(std::string_view base_name,
+                           std::string_view optional_suffix) {
   // Note that most of the time, suffixes are empty, so this avoids creating new
   // strings if not necessary.
   if (optional_suffix.empty()) {
@@ -51,36 +52,36 @@ uint32_t HashNameAndSuffix(base::StringPiece base_name,
   return HashName(base::StrCat({base_name, optional_suffix}));
 }
 
-uint32_t HashNameAndSuffix(base::StringPiece base_name,
-                           base::StringPiece optional_suffix,
-                           base::StringPiece optional_suffix2) {
+uint32_t HashNameAndSuffix(std::string_view base_name,
+                           std::string_view optional_suffix,
+                           std::string_view optional_suffix2) {
   if (optional_suffix.empty() && optional_suffix2.empty()) {
     return HashName(base_name);
   }
   return HashName(base::StrCat({base_name, optional_suffix, optional_suffix2}));
 }
 
-ActiveGroupId MakeActiveGroupIdWithSuffix(base::StringPiece trial_name,
-                                          base::StringPiece group_name,
-                                          base::StringPiece optional_suffix,
+ActiveGroupId MakeActiveGroupIdWithSuffix(std::string_view trial_name,
+                                          std::string_view group_name,
+                                          std::string_view optional_suffix,
                                           bool is_overridden) {
   ActiveGroupId id;
   id.name = HashNameAndSuffix(trial_name, optional_suffix);
   id.group =
       HashNameAndSuffix(group_name, optional_suffix,
-                        is_overridden ? kOverrideSuffix : base::StringPiece());
+                        is_overridden ? kOverrideSuffix : std::string_view());
   return id;
 }
 
 }  // namespace
 
-ActiveGroupId MakeActiveGroupId(base::StringPiece trial_name,
-                                base::StringPiece group_name) {
+ActiveGroupId MakeActiveGroupId(std::string_view trial_name,
+                                std::string_view group_name) {
   return MakeActiveGroupId(trial_name, group_name, /*is_overridden=*/false);
 }
 
-ActiveGroupId MakeActiveGroupId(base::StringPiece trial_name,
-                                base::StringPiece group_name,
+ActiveGroupId MakeActiveGroupId(std::string_view trial_name,
+                                std::string_view group_name,
                                 bool is_overridden) {
   ActiveGroupId id;
   id.name = HashName(trial_name);
@@ -91,7 +92,7 @@ ActiveGroupId MakeActiveGroupId(base::StringPiece trial_name,
 }
 
 void GetFieldTrialActiveGroupIdsForActiveGroups(
-    base::StringPiece suffix,
+    std::string_view suffix,
     const base::FieldTrial::ActiveGroups& active_groups,
     std::vector<ActiveGroupId>* name_group_ids) {
   DCHECK(name_group_ids->empty());
@@ -103,7 +104,7 @@ void GetFieldTrialActiveGroupIdsForActiveGroups(
   }
 }
 
-void GetFieldTrialActiveGroupIds(base::StringPiece suffix,
+void GetFieldTrialActiveGroupIds(std::string_view suffix,
                                  std::vector<ActiveGroupId>* name_group_ids) {
   DCHECK(name_group_ids->empty());
   // A note on thread safety: Since GetActiveFieldTrialGroups() is thread
@@ -116,7 +117,7 @@ void GetFieldTrialActiveGroupIds(base::StringPiece suffix,
 }
 
 void GetFieldTrialActiveGroupIds(
-    base::StringPiece suffix,
+    std::string_view suffix,
     const base::FieldTrial::ActiveGroups& active_groups,
     std::vector<ActiveGroupId>* name_group_ids) {
   DCHECK(name_group_ids->empty());
@@ -124,7 +125,7 @@ void GetFieldTrialActiveGroupIds(
                                              name_group_ids);
 }
 
-void GetFieldTrialActiveGroupIdsAsStrings(base::StringPiece suffix,
+void GetFieldTrialActiveGroupIdsAsStrings(std::string_view suffix,
                                           std::vector<std::string>* output) {
   DCHECK(output->empty());
   std::vector<ActiveGroupId> name_group_ids;
@@ -133,7 +134,7 @@ void GetFieldTrialActiveGroupIdsAsStrings(base::StringPiece suffix,
 }
 
 void GetFieldTrialActiveGroupIdsAsStrings(
-    base::StringPiece suffix,
+    std::string_view suffix,
     const base::FieldTrial::ActiveGroups& active_groups,
     std::vector<std::string>* output) {
   DCHECK(output->empty());
@@ -143,9 +144,8 @@ void GetFieldTrialActiveGroupIdsAsStrings(
 }
 
 void GetSyntheticTrialGroupIdsAsString(std::vector<std::string>* output) {
-  std::vector<ActiveGroupId> name_group_ids;
-  SyntheticTrialsActiveGroupIdProvider::GetInstance()->GetActiveGroupIds(
-      &name_group_ids);
+  std::vector<ActiveGroupId> name_group_ids =
+      SyntheticTrialsActiveGroupIdProvider::GetInstance()->GetActiveGroupIds();
   AppendActiveGroupIdsAsStrings(name_group_ids, output);
 }
 
@@ -153,8 +153,8 @@ bool HasSyntheticTrial(const std::string& trial_name) {
   std::vector<std::string> synthetic_trials;
   variations::GetSyntheticTrialGroupIdsAsString(&synthetic_trials);
   std::string trial_hash = variations::HashNameAsHexString(trial_name);
-  return base::ranges::any_of(synthetic_trials, [&trial_hash](
-                                                    const auto& trial) {
+  return std::ranges::any_of(synthetic_trials, [&trial_hash](
+                                                   const auto& trial) {
     return base::StartsWith(trial, trial_hash, base::CompareCase::SENSITIVE);
   });
 }
@@ -170,6 +170,7 @@ bool IsInSyntheticTrialGroup(const std::string& trial_name,
 
 void SetSeedVersion(const std::string& seed_version) {
   GetSeedVersionInternal() = seed_version;
+  SetVariationsSeedVersionCrashKey(seed_version);
 }
 
 const std::string& GetSeedVersion() {
@@ -197,7 +198,7 @@ void PopulateLaunchOptionsWithVariationsInfo(
 namespace testing {
 
 void TestGetFieldTrialActiveGroupIds(
-    base::StringPiece suffix,
+    std::string_view suffix,
     const base::FieldTrial::ActiveGroups& active_groups,
     std::vector<ActiveGroupId>* name_group_ids) {
   GetFieldTrialActiveGroupIdsForActiveGroups(suffix, active_groups,

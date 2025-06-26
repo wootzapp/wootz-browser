@@ -11,7 +11,7 @@
 #include "ash/system/focus_mode/focus_mode_tasks_provider.h"
 #include "ash/test/ash_test_base.h"
 #include "base/i18n/rtl.h"
-#include "base/test/scoped_feature_list.h"
+#include "base/strings/utf_string_conversions.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/compositor/layer.h"
 #include "ui/views/controls/button/label_button.h"
@@ -39,7 +39,7 @@ namespace ash {
 
 class FocusModeChipCarouselTest : public AshTestBase {
  public:
-  FocusModeChipCarouselTest() : scoped_feature_(features::kFocusMode) {}
+  FocusModeChipCarouselTest() = default;
   ~FocusModeChipCarouselTest() override = default;
 
   // AshTestBase:
@@ -64,8 +64,7 @@ class FocusModeChipCarouselTest : public AshTestBase {
     base::Time updated = base::Time::Now();
     for (size_t i = 0; i != titles.size(); ++i) {
       FocusModeTask& task = tasks.emplace_back();
-      task.task_list_id = "task_list_id";
-      task.task_id = base::NumberToString(i);
+      task.task_id = {.list_id = "task_list_id", .id = base::NumberToString(i)};
       task.title = titles[i];
       task.updated = updated - base::Seconds(i);
     }
@@ -78,11 +77,11 @@ class FocusModeChipCarouselTest : public AshTestBase {
   }
 
   views::ScrollView* GetScrollView() {
-    return focus_mode_chip_carousel_->scroll_view_;
+    return focus_mode_chip_carousel_->GetScrollViewForTesting();
   }
 
   views::View* GetScrollContents() {
-    return focus_mode_chip_carousel_->scroll_view_->contents();
+    return focus_mode_chip_carousel_->GetScrollViewForTesting()->contents();
   }
 
   views::ImageButton* GetLeftOverflowIcon() {
@@ -94,7 +93,6 @@ class FocusModeChipCarouselTest : public AshTestBase {
   }
 
  private:
-  base::test::ScopedFeatureList scoped_feature_;
   std::unique_ptr<views::Widget> widget_;
   raw_ptr<FocusModeChipCarousel> focus_mode_chip_carousel_;
 };

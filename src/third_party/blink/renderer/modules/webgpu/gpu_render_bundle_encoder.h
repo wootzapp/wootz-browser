@@ -6,7 +6,6 @@
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGPU_GPU_RENDER_BUNDLE_ENCODER_H_
 
 #include "third_party/blink/renderer/bindings/modules/v8/v8_gpu_index_format.h"
-#include "third_party/blink/renderer/core/typed_arrays/nadc_typed_array_view.h"
 #include "third_party/blink/renderer/modules/webgpu/dawn_enum_conversions.h"
 #include "third_party/blink/renderer/modules/webgpu/dawn_object.h"
 #include "third_party/blink/renderer/modules/webgpu/gpu_programmable_pass_encoder.h"
@@ -36,7 +35,7 @@ class GPURenderBundleEncoder : public DawnObject<wgpu::RenderBundleEncoder>,
   GPURenderBundleEncoder(const GPURenderBundleEncoder&) = delete;
   GPURenderBundleEncoder& operator=(const GPURenderBundleEncoder&) = delete;
 
-  // gpu_render_bundle_encoder.idl
+  // gpu_render_bundle_encoder.idl {{{
   void setBindGroup(uint32_t index, DawnObject<wgpu::BindGroup>* bindGroup) {
     GetHandle().SetBindGroup(
         index, bindGroup ? bindGroup->GetHandle() : wgpu::BindGroup(nullptr), 0,
@@ -47,7 +46,7 @@ class GPURenderBundleEncoder : public DawnObject<wgpu::RenderBundleEncoder>,
                     const Vector<uint32_t>& dynamicOffsets);
   void setBindGroup(uint32_t index,
                     GPUBindGroup* bind_group,
-                    NADCTypedArrayView<uint32_t> dynamic_offsets_data,
+                    base::span<const uint32_t> dynamic_offsets_data,
                     uint64_t dynamic_offsets_data_start,
                     uint32_t dynamic_offsets_data_length,
                     ExceptionState& exception_state);
@@ -63,7 +62,6 @@ class GPURenderBundleEncoder : public DawnObject<wgpu::RenderBundleEncoder>,
   void setPipeline(const DawnObject<wgpu::RenderPipeline>* pipeline) {
     GetHandle().SetPipeline(pipeline->GetHandle());
   }
-
   void setIndexBuffer(const DawnObject<wgpu::Buffer>* buffer,
                       const V8GPUIndexFormat& format,
                       uint64_t offset) {
@@ -113,10 +111,10 @@ class GPURenderBundleEncoder : public DawnObject<wgpu::RenderBundleEncoder>,
     GetHandle().DrawIndexedIndirect(indirectBuffer->GetHandle(),
                                     indirectOffset);
   }
-
   GPURenderBundle* finish(const GPURenderBundleDescriptor* webgpu_desc);
+  // }}} End of WebIDL binding implementation.
 
-  void setLabelImpl(const String& value) override {
+  void SetLabelImpl(const String& value) override {
     std::string utf8_label = value.Utf8();
     GetHandle().SetLabel(utf8_label.c_str());
   }

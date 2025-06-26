@@ -330,23 +330,23 @@ void PendingScript::Trace(Visitor* visitor) const {
 bool PendingScript::IsControlledByScriptRunner() const {
   switch (scheduling_type_) {
     case ScriptSchedulingType::kNotSet:
-      NOTREACHED_IN_MIGRATION();
-      return false;
+      NOTREACHED();
 
     case ScriptSchedulingType::kDefer:
     case ScriptSchedulingType::kParserBlocking:
     case ScriptSchedulingType::kParserBlockingInline:
     case ScriptSchedulingType::kImmediate:
-    case ScriptSchedulingType::kForceDefer:
       return false;
+
+    case ScriptSchedulingType::kDeprecatedForceDefer:
+      NOTREACHED()
+          << "kDeprecatedForceDefer is deprecated and should not be in use";
 
     case ScriptSchedulingType::kInOrder:
     case ScriptSchedulingType::kAsync:
     case ScriptSchedulingType::kForceInOrder:
       return true;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
 }
 
 }  // namespace blink

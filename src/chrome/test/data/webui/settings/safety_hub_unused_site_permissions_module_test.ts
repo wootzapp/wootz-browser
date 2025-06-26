@@ -6,7 +6,7 @@
 import 'chrome://settings/lazy_load.js';
 
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
-import {keyDownOn} from 'chrome://resources/polymer/v3_0/iron-test-helpers/mock-interactions.js';
+import {keyDownOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
@@ -51,8 +51,8 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
     // about origins and associated permissions being equal.
     assertEquals(mockDataLength, siteList.length);
     for (const [i, site] of siteList.entries()) {
-      assertEquals(mockData[i]!.origin, site!.origin);
-      assertDeepEquals(site!.permissions, mockData[i]!.permissions);
+      assertEquals(mockData[i]!.origin, site.origin);
+      assertDeepEquals(site.permissions, mockData[i]!.permissions);
     }
   }
 
@@ -170,10 +170,20 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
    * Asserts a correct action was recorded into
    * recordSafetyHubUnusedSitePermissionsModuleInteractionsHistogram histogram.
    */
-  async function assertInteractionMetricRecorded(action: Interactions) {
+  async function assertInteractionMetricRecorded(
+      action: Interactions, isAbusiveNotification?: boolean) {
     const result = await metricsBrowserProxy.whenCalled(
         'recordSafetyHubUnusedSitePermissionsModuleInteractionsHistogram');
     assertEquals(action, result);
+
+    if (!isAbusiveNotification) {
+      isAbusiveNotification = false;
+    }
+    if (isAbusiveNotification) {
+      const resultAbusiveNotification = await metricsBrowserProxy.whenCalled(
+          'recordSafetyHubAbusiveNotificationPermissionRevocationInteractionsHistogram');
+      assertEquals(action, resultAbusiveNotification);
+    }
     metricsBrowserProxy.reset();
   }
 
@@ -258,7 +268,7 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
 
     // Ensure the correctness of the browser proxy call and the undo toast.
     await assertAllowAgain();
-    assertUndoToast(true, 'safetyCheckUnusedSitePermissionsToastLabel');
+    assertUndoToast(true, 'safetyHubUnusedSitePermissionsToastLabel');
 
     await browserProxy.whenCalled('recordSafetyHubInteraction');
 
@@ -266,10 +276,24 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
     await assertInteractionMetricRecorded(Interactions.ALLOW_AGAIN);
   });
 
+  test('Allow Again Click Abusive Notification Site', async function() {
+    // User clicks Allow Again.
+    getSiteList()[4]!.querySelector('cr-icon-button')!.click();
+
+    // Ensure the correctness of the browser proxy call and the undo toast.
+    await assertAllowAgain(4);
+    assertUndoToast(true, 'safetyHubUnusedSitePermissionsToastLabel', 4);
+
+    await browserProxy.whenCalled('recordSafetyHubInteraction');
+
+    // Ensure the metric for 'Allow Again' action is recorded.
+    await assertInteractionMetricRecorded(Interactions.ALLOW_AGAIN, true);
+  });
+
   test('Undo Allow Again', async function() {
     for (const [i, site] of getSiteList().entries()) {
       // User clicks Allow Again and then Undo.
-      site!.querySelector('cr-icon-button')!.click();
+      site.querySelector('cr-icon-button')!.click();
       metricsBrowserProxy.reset();
       testElement.$.toastUndoButton.click();
 
@@ -282,8 +306,15 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
           SafetyHubEvent.UNUSED_PERMISSIONS_MAYBE_CHANGED, mockData);
       flush();
 
-      // Ensure the metric for 'Undo Allow Again' action is recorded.
-      await assertInteractionMetricRecorded(Interactions.UNDO_ALLOW_AGAIN);
+      // Ensure the metric for 'Undo Allow Again' action is recorded. The
+      // last site at index 4 includes revoked notifications, so the abusive
+      // notification histogram should also be recorded.
+      if (i === 4) {
+        await assertInteractionMetricRecorded(
+            Interactions.UNDO_ALLOW_AGAIN, true);
+      } else {
+        await assertInteractionMetricRecorded(Interactions.UNDO_ALLOW_AGAIN);
+      }
 
       assertInitialUi();
     }
@@ -307,8 +338,15 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
           SafetyHubEvent.UNUSED_PERMISSIONS_MAYBE_CHANGED, mockData);
       flush();
 
-      // Ensure the metric for 'Undo Allow Again' action is recorded.
-      await assertInteractionMetricRecorded(Interactions.UNDO_ALLOW_AGAIN);
+      // Ensure the metric for 'Undo Allow Again' action is recorded. The
+      // last site at index 4 includes revoked notifications, so the abusive
+      // notification histogram should also be recorded.
+      if (i === 4) {
+        await assertInteractionMetricRecorded(
+            Interactions.UNDO_ALLOW_AGAIN, true);
+      } else {
+        await assertInteractionMetricRecorded(Interactions.UNDO_ALLOW_AGAIN);
+      }
 
       assertInitialUi();
     }
@@ -334,7 +372,7 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
     assertTrue(isVisible(testElement.$.bulkUndoButton));
 
     // Ensure the metric for 'Acknowledge All' action is recorded.
-    await assertInteractionMetricRecorded(Interactions.ACKNOWLEDGE_ALL);
+    await assertInteractionMetricRecorded(Interactions.ACKNOWLEDGE_ALL, true);
   });
 
   test('Undo Got It', async function() {
@@ -359,7 +397,8 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
     assertFalse(isVisible(testElement.$.bulkUndoButton));
 
     // Ensure the metric for 'Undo Acknowledge All' action is recorded.
-    await assertInteractionMetricRecorded(Interactions.UNDO_ACKNOWLEDGE_ALL);
+    await assertInteractionMetricRecorded(
+        Interactions.UNDO_ACKNOWLEDGE_ALL, true);
   });
 
   test('Allow Again Click and Undo - single entry', async function() {
@@ -420,7 +459,7 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
     // Check header string for plural case.
     let entries = getSiteList();
     assertEquals(5, entries.length);
-    await assertPluralString('safetyCheckUnusedSitePermissionsPrimaryLabel', 5);
+    await assertPluralString('safetyHubUnusedSitePermissionsPrimaryLabel', 5);
 
     // Check header string for singular case.
     const oneElementMockData = mockData.slice(0, 1);
@@ -430,7 +469,7 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
 
     entries = getSiteList();
     assertEquals(1, entries.length);
-    await assertPluralString('safetyCheckUnusedSitePermissionsPrimaryLabel', 1);
+    await assertPluralString('safetyHubUnusedSitePermissionsPrimaryLabel', 1);
 
     // Check the header string for a completion case after Got It action
     // (single entry in review).
@@ -439,7 +478,7 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
     await flushTasks();
     testElement.$.gotItButton.click();
     await assertPluralString(
-        'safetyCheckUnusedSitePermissionsToastBulkLabel', 1, 2);
+        'safetyHubUnusedSitePermissionsToastBulkLabel', 1, 2);
 
     // Check the header string for a completion case after Got It action
     // (multiple entries in review).
@@ -448,7 +487,7 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
     await flushTasks();
     testElement.$.gotItButton.click();
     await assertPluralString(
-        'safetyCheckUnusedSitePermissionsToastBulkLabel', 5, 2);
+        'safetyHubUnusedSitePermissionsToastBulkLabel', 5, 2);
 
     // Check the header string for a completion case after Allow Again action.
     webUIListenerCallback(
@@ -458,7 +497,7 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
     webUIListenerCallback(SafetyHubEvent.UNUSED_PERMISSIONS_MAYBE_CHANGED, []);
     await flushTasks();
     const expectedHeaderString = testElement.i18n(
-        'safetyCheckUnusedSitePermissionsToastLabel', mockData[0]!.origin);
+        'safetyHubUnusedSitePermissionsToastLabel', mockData[0]!.origin);
     assertEquals(expectedHeaderString, testElement.$.module.header);
   });
 
@@ -493,7 +532,7 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
     assertEquals(routes.SITE_SETTINGS, Router.getInstance().getCurrentRoute());
 
     // Ensure the metric for 'Go To Settings' action is recorded.
-    await assertInteractionMetricRecorded(Interactions.GO_TO_SETTINGS);
+    await assertInteractionMetricRecorded(Interactions.GO_TO_SETTINGS, true);
   });
 
   /**
@@ -504,12 +543,12 @@ suite('CrSettingsSafetyHubUnusedSitePermissionsTest', function() {
     // Click Allow Again for the first item in review to trigger an undo toast
     // to appear.
     getSiteList()[0]!.querySelector('cr-icon-button')!.click();
-    assertUndoToast(true, 'safetyCheckUnusedSitePermissionsToastLabel', 0);
+    assertUndoToast(true, 'safetyHubUnusedSitePermissionsToastLabel', 0);
 
     // Click Allow Again for the second item. This hides the existing toast and
     // shows a new one.
     getSiteList()[1]!.querySelector('cr-icon-button')!.click();
-    assertUndoToast(true, 'safetyCheckUnusedSitePermissionsToastLabel', 1);
+    assertUndoToast(true, 'safetyHubUnusedSitePermissionsToastLabel', 1);
 
     // Click Got It which hides the existing toast and does not show a new one.
     testElement.$.gotItButton.click();
@@ -627,7 +666,7 @@ suite('SafetyHubAbusiveNotificationRevocationDisabled', function() {
     let entries = getSiteList();
     assertEquals(4, entries.length);
     await assertPluralString(
-        'safetyCheckUnusedSitePermissionsSecondaryLabel', 4, 1);
+        'safetyHubUnusedSitePermissionsSecondaryLabel', 4, 1);
 
     // Check header string for singular case.
     const oneElementMockData = mockData.slice(0, 1);
@@ -638,7 +677,7 @@ suite('SafetyHubAbusiveNotificationRevocationDisabled', function() {
     entries = getSiteList();
     assertEquals(1, entries.length);
     await assertPluralString(
-        'safetyCheckUnusedSitePermissionsSecondaryLabel', 1, 1);
+        'safetyHubUnusedSitePermissionsSecondaryLabel', 1, 1);
   });
 
   test('Unused Site Permission strings', function() {

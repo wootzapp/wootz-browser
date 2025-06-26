@@ -11,17 +11,12 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/memory/ref_counted.h"
-#include "base/strings/string_piece.h"
 #include "base/task/thread_pool.h"
 #include "components/reporting/proto/synced/record.pb.h"
 #include "components/reporting/resources/resource_manager.h"
 #include "third_party/snappy/src/snappy.h"
 
 namespace reporting {
-
-BASE_FEATURE(kCompressReportingPipeline,
-             "CompressReportingPipeline",
-             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // static
 scoped_refptr<CompressionModule> CompressionModule::Create(
@@ -36,12 +31,6 @@ void CompressionModule::CompressRecord(
     scoped_refptr<ResourceManager> memory_resource,
     base::OnceCallback<void(std::string, std::optional<CompressionInformation>)>
         cb) const {
-  if (!is_enabled()) {
-    // Compression disabled, don't compress and don't return compression
-    // information.
-    std::move(cb).Run(std::move(record), std::nullopt);
-    return;
-  }
   // Compress if record is larger than the compression threshold and compression
   // enabled
   switch (compression_type_) {
@@ -79,11 +68,6 @@ void CompressionModule::CompressRecord(
       break;
     }
   }
-}
-
-// static
-bool CompressionModule::is_enabled() {
-  return base::FeatureList::IsEnabled(kCompressReportingPipeline);
 }
 
 CompressionModule::CompressionModule(

@@ -142,7 +142,7 @@ class MHTMLArchiveTest : public testing::Test {
   }
 
   HashMap<String, String> ExtractMHTMLHeaders() {
-    LineReader line_reader(String(mhtml_data_.data(), mhtml_data_.size()));
+    LineReader line_reader{String(mhtml_data_)};
     return ExtractHeaders(line_reader);
   }
 
@@ -166,8 +166,7 @@ class MHTMLArchiveTest : public testing::Test {
 
     if (validate) {
       // Validate the generated MHTML.
-      MHTMLParser parser(
-          SharedBuffer::Create(mhtml_data_.data(), mhtml_data_.size()));
+      MHTMLParser parser(SharedBuffer::Create(mhtml_data_));
       EXPECT_FALSE(parser.ParseArchive().empty())
           << "Generated MHTML is malformed";
     }
@@ -205,7 +204,9 @@ class MHTMLArchiveTest : public testing::Test {
  private:
   scoped_refptr<SharedBuffer> ReadFile(const char* file_name) {
     String file_path = file_path_ + file_name;
-    return test::ReadFromFile(file_path);
+    std::optional<Vector<char>> data = test::ReadFromFile(file_path);
+    CHECK(data);
+    return SharedBuffer::Create(std::move(*data));
   }
 
   String file_path_;
@@ -289,7 +290,7 @@ TEST_F(MHTMLArchiveTest, TestMHTMLPartsWithBinaryEncoding) {
 
   // Read the MHTML data line per line and do some pseudo-parsing to make sure
   // the right encoding is used for the different sections.
-  LineReader line_reader(String(mhtml_data().data(), mhtml_data().size()));
+  LineReader line_reader{String(mhtml_data())};
   int part_count = 0;
   String line, last_line;
   while (line_reader.GetNextLine(&line)) {
@@ -317,7 +318,7 @@ TEST_F(MHTMLArchiveTest, TestMHTMLPartsWithDefaultEncoding) {
 
   // Read the MHTML data line per line and do some pseudo-parsing to make sure
   // the right encoding is used for the different sections.
-  LineReader line_reader(String(mhtml_data().data(), mhtml_data().size()));
+  LineReader line_reader{String(mhtml_data())};
   int part_count = 0;
   String line, last_line;
   while (line_reader.GetNextLine(&line)) {
@@ -353,8 +354,7 @@ TEST_F(MHTMLArchiveTest, MHTMLFromScheme) {
   Serialize(ToKURL(kURL), "Test Serialization", "text/html",
             MHTMLArchive::kUseDefaultEncoding);
 
-  scoped_refptr<SharedBuffer> data =
-      SharedBuffer::Create(mhtml_data().data(), mhtml_data().size());
+  scoped_refptr<SharedBuffer> data = SharedBuffer::Create(mhtml_data());
 
   // MHTMLArchives can only be initialized from local schemes, http/https
   // schemes, and content scheme(Android specific).
@@ -391,8 +391,7 @@ TEST_F(MHTMLArchiveTest, MHTMLDate) {
       mhtml_headers.find("Date")->value.Utf8().c_str(), &header_date));
   EXPECT_EQ(mhtml_date(), header_date);
 
-  scoped_refptr<SharedBuffer> data =
-      SharedBuffer::Create(mhtml_data().data(), mhtml_data().size());
+  scoped_refptr<SharedBuffer> data = SharedBuffer::Create(mhtml_data());
   KURL http_url = ToKURL("http://www.example.com");
   MHTMLArchive* archive = MHTMLArchive::Create(http_url, data.get());
   ASSERT_NE(nullptr, archive);
@@ -407,9 +406,8 @@ TEST_F(MHTMLArchiveTest, EmptyArchive) {
   CheckLoadResult(http_url, nullptr, MHTMLLoadResult::kEmptyFile);
 
   // Test failure to load when |data| is non-null but empty.
-  const char* buf = "";
   scoped_refptr<SharedBuffer> data =
-      SharedBuffer::Create(buf, static_cast<size_t>(0u));
+      SharedBuffer::Create(base::span_from_cstring(""));
   CheckLoadResult(http_url, data.get(), MHTMLLoadResult::kEmptyFile);
 }
 
@@ -422,8 +420,7 @@ TEST_F(MHTMLArchiveTest, NoMainResource) {
   Serialize(ToKURL(kURL), "Test Serialization", "text/html",
             MHTMLArchive::kUseDefaultEncoding);
 
-  scoped_refptr<SharedBuffer> data =
-      SharedBuffer::Create(mhtml_data().data(), mhtml_data().size());
+  scoped_refptr<SharedBuffer> data = SharedBuffer::Create(mhtml_data());
   KURL http_url = ToKURL("http://www.example.com");
 
   CheckLoadResult(http_url, data.get(), MHTMLLoadResult::kMissingMainResource);
@@ -436,8 +433,7 @@ TEST_F(MHTMLArchiveTest, InvalidMHTML) {
   GenerateMHTMLData(resources, MHTMLArchive::kUseDefaultEncoding, ToKURL(kURL),
                     "Test invalid mhtml", "text/html", false);
 
-  scoped_refptr<SharedBuffer> data =
-      SharedBuffer::Create(mhtml_data().data(), mhtml_data().size());
+  scoped_refptr<SharedBuffer> data = SharedBuffer::Create(mhtml_data());
 
   CheckLoadResult(ToKURL(kURL), data.get(), MHTMLLoadResult::kInvalidArchive);
 }

@@ -5,14 +5,14 @@
 #include "third_party/blink/renderer/modules/encryptedmedia/navigator_request_media_key_system_access.h"
 
 #include <algorithm>
+#include <vector>
 
 #include "base/memory/ptr_util.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom-blink.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
 #include "third_party/blink/public/platform/web_encrypted_media_client.h"
 #include "third_party/blink/public/platform/web_encrypted_media_request.h"
 #include "third_party/blink/public/platform/web_media_key_system_configuration.h"
 #include "third_party/blink/public/platform/web_media_key_system_media_capability.h"
-#include "third_party/blink/public/platform/web_vector.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
@@ -75,10 +75,12 @@ MediaKeySystemAccessInitializer::MediaKeySystemAccessInitializer(
     const String& key_system,
     const HeapVector<Member<MediaKeySystemConfiguration>>&
         supported_configurations)
-    : MediaKeySystemAccessInitializerBase(context,
-                                          resolver,
-                                          key_system,
-                                          supported_configurations) {}
+    : MediaKeySystemAccessInitializerBase(
+          context,
+          resolver,
+          key_system,
+          supported_configurations,
+          /*is_from_media_capabilities=*/false) {}
 
 void MediaKeySystemAccessInitializer::RequestSucceeded(
     std::unique_ptr<WebContentDecryptionModuleAccess> access) {
@@ -132,7 +134,7 @@ NavigatorRequestMediaKeySystemAccess::requestMediaKeySystemAccess(
 
   LocalDOMWindow* window = LocalDOMWindow::From(script_state);
   if (!window->IsFeatureEnabled(
-          mojom::blink::PermissionsPolicyFeature::kEncryptedMedia,
+          network::mojom::PermissionsPolicyFeature::kEncryptedMedia,
           ReportOptions::kReportOnFailure)) {
     UseCounter::Count(window,
                       WebFeature::kEncryptedMediaDisabledByFeaturePolicy);
@@ -142,7 +144,7 @@ NavigatorRequestMediaKeySystemAccess::requestMediaKeySystemAccess(
         kEncryptedMediaPermissionsPolicyConsoleWarning));
     exception_state.ThrowSecurityError(
         "requestMediaKeySystemAccess is disabled by permissions policy.");
-    return ScriptPromise<MediaKeySystemAccess>();
+    return EmptyPromise();
   }
 
   // From https://w3c.github.io/encrypted-media/#requestMediaKeySystemAccess
@@ -151,7 +153,7 @@ NavigatorRequestMediaKeySystemAccess::requestMediaKeySystemAccess(
   //    newly created TypeError.
   if (key_system.empty()) {
     exception_state.ThrowTypeError("The keySystem parameter is empty.");
-    return ScriptPromise<MediaKeySystemAccess>();
+    return EmptyPromise();
   }
 
   // 2. If supportedConfigurations is empty, return a promise rejected with
@@ -159,7 +161,7 @@ NavigatorRequestMediaKeySystemAccess::requestMediaKeySystemAccess(
   if (!supported_configurations.size()) {
     exception_state.ThrowTypeError(
         "The supportedConfigurations parameter is empty.");
-    return ScriptPromise<MediaKeySystemAccess>();
+    return EmptyPromise();
   }
 
   // 3. Let document be the calling context's Document.
@@ -168,7 +170,7 @@ NavigatorRequestMediaKeySystemAccess::requestMediaKeySystemAccess(
     exception_state.ThrowDOMException(
         DOMExceptionCode::kInvalidStateError,
         "The context provided is not associated with a page.");
-    return ScriptPromise<MediaKeySystemAccess>();
+    return EmptyPromise();
   }
 
   UseCounter::Count(*window, WebFeature::kEncryptedMediaSecureOrigin);

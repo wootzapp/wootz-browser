@@ -19,6 +19,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.params.ParameterAnnotations.UseMethodParameter;
 import org.chromium.base.test.params.ParameterAnnotations.UseRunnerDelegate;
 import org.chromium.base.test.params.ParameterProvider;
@@ -39,10 +40,10 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.content_public.browser.NavigationEntry;
 import org.chromium.content_public.browser.NavigationHistory;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 
 import java.util.ArrayList;
@@ -65,8 +66,8 @@ public class IncognitoHistoryLeakageTest {
     private String mTestPage2;
 
     @Rule
-    public ChromeTabbedActivityTestRule mChromeActivityTestRule =
-            new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mChromeActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     @Rule
     public IncognitoCustomTabActivityTestRule mCustomTabActivityTestRule =
@@ -83,7 +84,7 @@ public class IncognitoHistoryLeakageTest {
 
     @After
     public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> IncognitoDataTestUtils.closeTabs(mChromeActivityTestRule));
     }
 
@@ -93,7 +94,7 @@ public class IncognitoHistoryLeakageTest {
      */
     private static List<HistoryItem> getBrowsingHistory(Tab tab) throws TimeoutException {
         final TestBrowsingHistoryObserver historyObserver = new TestBrowsingHistoryObserver();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Profile profile =
                             (tab == null)
@@ -126,7 +127,7 @@ public class IncognitoHistoryLeakageTest {
     @Test
     @LargeTest
     public void testBrowsingHistoryDoNotLeakFromIncognitoTabbedActivity() throws TimeoutException {
-        mChromeActivityTestRule.startMainActivityOnBlankPage();
+        mChromeActivityTestRule.startOnBlankPage();
         mChromeActivityTestRule.loadUrlInNewTab(mTestPage1, /* incognito= */ true);
         List<HistoryItem> historyEntriesOfIncognitoMode =
                 getBrowsingHistory(mChromeActivityTestRule.getActivity().getActivityTab());

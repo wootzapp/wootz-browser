@@ -5,6 +5,7 @@
 #ifndef CC_TREES_COMMIT_STATE_H_
 #define CC_TREES_COMMIT_STATE_H_
 
+#include <array>
 #include <memory>
 #include <unordered_map>
 #include <utility>
@@ -26,10 +27,12 @@
 #include "cc/layers/layer_list_iterator.h"
 #include "cc/metrics/begin_main_frame_metrics.h"
 #include "cc/metrics/event_metrics.h"
-#include "cc/paint/paint_image.h"
+#include "cc/paint/draw_image.h"
 #include "cc/resources/ui_resource_request.h"
+#include "cc/trees/begin_main_frame_trace_id.h"
 #include "cc/trees/browser_controls_params.h"
 #include "cc/trees/presentation_time_callback_buffer.h"
+#include "cc/trees/render_frame_metadata.h"
 #include "cc/trees/swap_promise.h"
 #include "cc/trees/viewport_property_ids.h"
 #include "cc/view_transition/view_transition_request.h"
@@ -82,9 +85,8 @@ struct CC_EXPORT CommitState {
   bool may_throttle_if_undrawn_frames = true;
   bool prefers_reduced_motion = false;
   BrowserControlsParams browser_controls_params;
-  EventListenerProperties
-      event_listener_properties[static_cast<size_t>(EventListenerClass::kLast) +
-                                1] = {EventListenerProperties::kNone};
+  std::array<EventListenerProperties, kEventListenerClassCount>
+      event_listener_properties = {EventListenerProperties::kNone};
   float bottom_controls_shown_ratio = 0.f;
   float device_scale_factor = 1.f;
   float external_page_scale_factor = 1.f;
@@ -99,6 +101,8 @@ struct CC_EXPORT CommitState {
   gfx::Rect device_viewport_rect;
   gfx::Size visual_device_viewport_size;
   gfx::Vector2dF elastic_overscroll;
+  // The scaled max safe area insets in physical pixels.
+  gfx::InsetsF max_safe_area_insets;
   int hud_layer_id = Layer::INVALID_ID;
   int source_frame_number = 0;
   LayerSelection selection;
@@ -123,7 +127,7 @@ struct CC_EXPORT CommitState {
   bool new_local_surface_id_request = false;
   bool next_commit_forces_recalculate_raster_scales = false;
   bool next_commit_forces_redraw = false;
-  uint64_t trace_id = 0;
+  BeginMainFrameTraceId trace_id{0};
   EventMetrics::List event_metrics;
 
   // Latency information for work done in ProxyMain::BeginMainFrame. The
@@ -139,7 +143,7 @@ struct CC_EXPORT CommitState {
   std::unique_ptr<gfx::DelegatedInkMetadata> delegated_ink_metadata;
 
   std::unique_ptr<PendingPageScaleAnimation> pending_page_scale_animation;
-  std::vector<std::pair<int, std::unique_ptr<PaintImage>>> queued_image_decodes;
+  std::vector<std::pair<int, std::unique_ptr<DrawImage>>> queued_image_decodes;
 
   // Presentation time callbacks requested for the next frame are initially
   // added here.
@@ -169,6 +173,12 @@ struct CC_EXPORT CommitState {
   // When non-empty, the next compositor frame also informs viz to issue a
   // screenshot against the previous surface.
   base::UnguessableToken screenshot_destination_token;
+
+  // Indicates the `item_sequence_number` for the primary main frame's
+  // `content::FrameNavigationEntry`. This is only set if the primary main frame
+  // is rendering to this compositor.
+  int64_t primary_main_frame_item_sequence_number =
+      RenderFrameMetadata::kInvalidItemSequenceNumber;
 };
 
 struct CC_EXPORT ThreadUnsafeCommitState {

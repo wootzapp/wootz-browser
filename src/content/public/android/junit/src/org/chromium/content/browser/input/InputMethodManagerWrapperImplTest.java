@@ -18,9 +18,7 @@ import android.view.inputmethod.InputMethodManager;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -30,9 +28,6 @@ import org.robolectric.annotation.LooperMode;
 import org.robolectric.shadows.ShadowLog;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.InputMethodManagerWrapper;
 import org.chromium.ui.base.WindowAndroid;
 
@@ -43,7 +38,6 @@ import java.lang.ref.WeakReference;
 // Any VERSION_CODE >= O is fine.
 @Config(manifest = Config.NONE, sdk = Build.VERSION_CODES.O)
 @LooperMode(LooperMode.Mode.LEGACY)
-@EnableFeatures({ContentFeatureList.OPTIMIZE_IMM_HIDE_CALLS})
 public class InputMethodManagerWrapperImplTest {
     private static final boolean DEBUG = false;
 
@@ -76,7 +70,6 @@ public class InputMethodManagerWrapperImplTest {
     @Mock private InputMethodManager mInputMethodManager;
     @Mock private WindowManager mContextWindowManager;
     @Mock private WindowManager mActivityWindowManager;
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
 
     private int mContextDisplayId = -1; // uninitialized
     private int mActivityDisplayId = -1; // uninitialized

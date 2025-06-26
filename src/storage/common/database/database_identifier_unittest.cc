@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include <array>
 #include <string>
 
 #include "testing/gtest/include/gtest/gtest.h"
@@ -59,7 +60,8 @@ TEST(DatabaseIdentifierTest, CreateIdentifierAllHostChars) {
     std::string hostname;
     std::string expected;
     bool shouldRoundTrip;
-  } cases[] = {
+  };
+auto cases = std::to_array<Case>({
     {"x\x1Fx", "__0", false},
     // TODO(crbug.com/40256677) SPACE (0x20) should not be escaped.
     {"x\x20x", "http_x%20x_0", false},
@@ -160,7 +162,7 @@ TEST(DatabaseIdentifierTest, CreateIdentifierAllHostChars) {
     {"x\x7ex", "http_x~x_0", false},
     {"x\x7fx", "__0", false},
     {"x\x80x", "__0", false},
-  };
+  });
   // clang-format on
 
   for (size_t i = 0; i < std::size(cases); ++i) {

@@ -11,7 +11,6 @@
 #include "base/metrics/field_trial.h"
 #include "base/metrics/field_trial_params.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/permissions/features.h"
 #include "components/permissions/permission_context_base.h"
@@ -21,6 +20,7 @@
 #include "components/permissions/test/permission_test_util.h"
 #include "components/permissions/test/test_permissions_client.h"
 #include "content/public/browser/content_browser_client.h"
+#include "content/public/browser/permission_descriptor_util.h"
 #include "content/public/browser/permission_request_description.h"
 #include "content/public/browser/permission_result.h"
 #include "content/public/common/content_client.h"
@@ -29,14 +29,15 @@
 #include "content/public/test/navigation_simulator.h"
 #include "content/public/test/test_browser_context.h"
 #include "content/public/test/test_renderer_host.h"
+#include "services/network/public/cpp/permissions_policy/origin_with_possible_wildcards.h"
+#include "services/network/public/cpp/permissions_policy/permissions_policy_declaration.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/permissions/permission_utils.h"
-#include "third_party/blink/public/common/permissions_policy/origin_with_possible_wildcards.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom.h"
 #include "url/origin.h"
 
 using blink::PermissionType;
-using blink::mojom::PermissionsPolicyFeature;
+using network::mojom::PermissionsPolicyFeature;
 
 namespace permissions {
 namespace {
@@ -100,7 +101,8 @@ class PermissionManagerTest : public content::RenderViewHostTestHarness {
     EXPECT_EQ(expected,
               GetPermissionManager()
                   ->GetPermissionStatusInternal(
-                      PermissionUtil::PermissionTypeToContentSettingType(type),
+                      content::PermissionDescriptorUtil::
+                          CreatePermissionDescriptorForPermissionType(type),
                       /*render_process_host=*/nullptr,
                       /*render_frame_host=*/nullptr, url_, url_,
                       should_include_device_status)
@@ -113,7 +115,9 @@ class PermissionManagerTest : public content::RenderViewHostTestHarness {
       content::PermissionStatusSource expected_status_source) {
     content::PermissionResult result =
         GetPermissionManager()->GetPermissionResultForOriginWithoutContext(
-            type, url::Origin::Create(url_), url::Origin::Create(url_));
+            content::PermissionDescriptorUtil::
+                CreatePermissionDescriptorForPermissionType(type),
+            url::Origin::Create(url_), url::Origin::Create(url_));
     EXPECT_EQ(expected_status, result.status);
     EXPECT_EQ(expected_status_source, result.source);
   }
@@ -134,7 +138,7 @@ class PermissionManagerTest : public content::RenderViewHostTestHarness {
                      PermissionStatus value) {
     GetHostContentSettingsMap()->SetContentSettingDefaultScope(
         requesting_origin, embedding_origin,
-        permissions::PermissionUtil::PermissionTypeToContentSettingType(type),
+        permissions::PermissionUtil::PermissionTypeToContentSettingsType(type),
         permissions::PermissionUtil::PermissionStatusToContentSetting(value));
   }
 
@@ -145,7 +149,8 @@ class PermissionManagerTest : public content::RenderViewHostTestHarness {
     GetPermissionManager()->RequestPermissionsFromCurrentDocument(
         rfh,
         std::move(content::PermissionRequestDescription(
-            std::vector(1, type),
+            content::PermissionDescriptorUtil::
+                CreatePermissionDescriptorForPermissionType(type),
             /*user_gesture=*/true, rfh->GetLastCommittedOrigin().GetURL())),
         base::BindOnce(
             [](base::OnceCallback<void(PermissionStatus)> callback,
@@ -164,8 +169,9 @@ class PermissionManagerTest : public content::RenderViewHostTestHarness {
     GetPermissionManager()->RequestPermissionsFromCurrentDocument(
         rfh,
         content::PermissionRequestDescription(
-            type, /*user_gesture=*/true,
-            rfh->GetLastCommittedOrigin().GetURL()),
+            content::PermissionDescriptorUtil::
+                CreatePermissionDescriptorForPermissionType(type),
+            /*user_gesture=*/true, rfh->GetLastCommittedOrigin().GetURL()),
         base::BindOnce(
             [](base::OnceCallback<void(PermissionStatus)> callback,
                const std::vector<PermissionStatus>& state) {
@@ -180,14 +186,18 @@ class PermissionManagerTest : public content::RenderViewHostTestHarness {
       PermissionType permission,
       content::RenderFrameHost* render_frame_host) {
     return GetPermissionManager()->GetPermissionStatusForCurrentDocument(
-        permission, render_frame_host);
+        content::PermissionDescriptorUtil::
+            CreatePermissionDescriptorForPermissionType(permission),
+        render_frame_host, /*should_include_device_status*/ false);
   }
 
   content::PermissionResult GetPermissionResultForCurrentDocument(
       PermissionType permission,
       content::RenderFrameHost* render_frame_host) {
     return GetPermissionManager()->GetPermissionResultForCurrentDocument(
-        permission, render_frame_host);
+        content::PermissionDescriptorUtil::
+            CreatePermissionDescriptorForPermissionType(permission),
+        render_frame_host, /*should_include_device_status*/ false);
   }
 
   PermissionStatus GetPermissionStatusForWorker(
@@ -195,26 +205,9 @@ class PermissionManagerTest : public content::RenderViewHostTestHarness {
       content::RenderProcessHost* render_process_host,
       const GURL& worker_origin) {
     return GetPermissionManager()->GetPermissionStatusForWorker(
-        permission, render_process_host, worker_origin);
-  }
-
-  content::PermissionControllerDelegate::SubscriptionId
-  SubscribeToPermissionStatusChange(
-      PermissionType permission,
-      content::RenderProcessHost* render_process_host,
-      content::RenderFrameHost* render_frame_host,
-      const GURL& requesting_origin,
-      bool should_include_device_status,
-      base::RepeatingCallback<void(PermissionStatus)> callback) {
-    return GetPermissionManager()->SubscribeToPermissionStatusChange(
-        permission, render_process_host, render_frame_host, requesting_origin,
-        should_include_device_status, std::move(callback));
-  }
-
-  void UnsubscribeFromPermissionStatusChange(
-      content::PermissionControllerDelegate::SubscriptionId subscription_id) {
-    GetPermissionManager()->UnsubscribeFromPermissionStatusChange(
-        subscription_id);
+        content::PermissionDescriptorUtil::
+            CreatePermissionDescriptorForPermissionType(permission),
+        render_process_host, worker_origin);
   }
 
   bool IsPermissionOverridable(PermissionType permission,
@@ -261,10 +254,10 @@ class PermissionManagerTest : public content::RenderViewHostTestHarness {
     content::RenderFrameHost* current = *rfh;
     auto navigation = content::NavigationSimulator::CreateRendererInitiated(
         current->GetLastCommittedURL(), current);
-    std::vector<blink::OriginWithPossibleWildcards> parsed_origins;
+    std::vector<network::OriginWithPossibleWildcards> parsed_origins;
     for (const std::string& origin : origins)
       parsed_origins.emplace_back(
-          *blink::OriginWithPossibleWildcards::FromOrigin(
+          *network::OriginWithPossibleWildcards::FromOrigin(
               url::Origin::Create(GURL(origin))));
     navigation->SetPermissionsPolicyHeader(
         {{feature, parsed_origins, /*self_if_matches=*/std::nullopt,
@@ -278,11 +271,11 @@ class PermissionManagerTest : public content::RenderViewHostTestHarness {
       content::RenderFrameHost* parent,
       const GURL& origin,
       PermissionsPolicyFeature feature = PermissionsPolicyFeature::kNotFound) {
-    blink::ParsedPermissionsPolicy frame_policy = {};
+    network::ParsedPermissionsPolicy frame_policy = {};
     if (feature != PermissionsPolicyFeature::kNotFound) {
       frame_policy.emplace_back(
           feature,
-          std::vector{*blink::OriginWithPossibleWildcards::FromOrigin(
+          std::vector{*network::OriginWithPossibleWildcards::FromOrigin(
               url::Origin::Create(origin))},
           /*self_if_matches=*/std::nullopt,
           /*matches_all_origins=*/false,
@@ -408,285 +401,6 @@ TEST_F(PermissionManagerTest, CheckPermissionResultAfterSet) {
                         PermissionStatus::GRANTED,
                         content::PermissionStatusSource::UNSPECIFIED);
 #endif
-}
-
-TEST_F(PermissionManagerTest, SubscriptionDestroyedCleanlyWithoutUnsubscribe) {
-  // Test that the PermissionManager shuts down cleanly with subscriptions that
-  // haven't been removed, crbug.com/720071.
-  SubscribeToPermissionStatusChange(
-      PermissionType::GEOLOCATION, /*render_process_host=*/nullptr, main_rfh(),
-      url(), /*should_include_device_status=*/false,
-      base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                          base::Unretained(this)));
-}
-
-TEST_F(PermissionManagerTest, SubscribeUnsubscribeAfterShutdown) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  // Simulate Keyed Services shutdown pass. Note: Shutdown will be called second
-  // time during browser_context destruction. This is ok for now: Shutdown is
-  // reenterant.
-  GetPermissionManager()->Shutdown();
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-
-  // Check that subscribe/unsubscribe after shutdown don't crash.
-  content::PermissionControllerDelegate::SubscriptionId subscription2_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  UnsubscribeFromPermissionStatusChange(subscription2_id);
-}
-
-TEST_F(PermissionManagerTest, SameTypeChangeNotifies) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::GRANTED);
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::GRANTED, callback_result());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, DifferentTypeChangeDoesNotNotify) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  SetPermission(url(), GURL(), PermissionType::NOTIFICATIONS,
-                PermissionStatus::GRANTED);
-
-  EXPECT_FALSE(callback_called());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, ChangeAfterUnsubscribeDoesNotNotify) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::GRANTED);
-
-  EXPECT_FALSE(callback_called());
-}
-
-TEST_F(PermissionManagerTest,
-       ChangeAfterUnsubscribeOnlyNotifiesActiveSubscribers) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  SubscribeToPermissionStatusChange(
-      PermissionType::GEOLOCATION, /*render_process_host=*/nullptr, main_rfh(),
-      url(), /*should_include_device_status=*/false,
-      base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                          base::Unretained(this)));
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::GRANTED);
-
-  EXPECT_EQ(callback_count(), 1);
-}
-
-TEST_F(PermissionManagerTest, DifferentPrimaryUrlDoesNotNotify) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  SetPermission(other_url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::GRANTED);
-
-  EXPECT_FALSE(callback_called());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, DifferentSecondaryUrlDoesNotNotify) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::STORAGE_ACCESS_GRANT, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  SetPermission(url(), other_url(), PermissionType::STORAGE_ACCESS_GRANT,
-                PermissionStatus::GRANTED);
-
-  EXPECT_FALSE(callback_called());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, WildCardPatternNotifies) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  GetHostContentSettingsMap()->SetDefaultContentSetting(
-      ContentSettingsType::GEOLOCATION, CONTENT_SETTING_ALLOW);
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::GRANTED, callback_result());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, ClearSettingsNotifies) {
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::GRANTED);
-
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  GetHostContentSettingsMap()->ClearSettingsForOneType(
-      ContentSettingsType::GEOLOCATION);
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::ASK, callback_result());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, NewValueCorrectlyPassed) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::DENIED);
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::DENIED, callback_result());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, ChangeWithoutPermissionChangeDoesNotNotify) {
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::GRANTED);
-
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::GRANTED);
-
-  EXPECT_FALSE(callback_called());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, ChangesBackAndForth) {
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::ASK);
-
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::GRANTED);
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::GRANTED, callback_result());
-
-  Reset();
-
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::ASK);
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::ASK, callback_result());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, ChangesBackAndForthWorker) {
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::ASK);
-
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, process(), /*render_frame_host=*/nullptr,
-          url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::GRANTED);
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::GRANTED, callback_result());
-
-  Reset();
-
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::ASK);
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::ASK, callback_result());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, SubscribeMIDIPermission) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::MIDI, /*render_process_host=*/nullptr, main_rfh(),
-          url(), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  CheckPermissionStatus(PermissionType::GEOLOCATION, PermissionStatus::ASK);
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::GRANTED);
-  CheckPermissionStatus(PermissionType::GEOLOCATION, PermissionStatus::GRANTED);
-
-  EXPECT_FALSE(callback_called());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
 }
 
 TEST_F(PermissionManagerTest, PermissionIgnoredCleanup) {
@@ -861,86 +575,6 @@ TEST_F(PermissionManagerTest, GetPermissionStatusDelegation) {
   prompt_factory.reset();
 }
 
-TEST_F(PermissionManagerTest, SubscribeWithPermissionDelegation) {
-  const char* kOrigin1 = "https://example.com";
-  const char* kOrigin2 = "https://google.com";
-
-  NavigateAndCommit(GURL(kOrigin1));
-  content::RenderFrameHost* parent = main_rfh();
-  content::RenderFrameHost* child = AddChildRFH(parent, GURL(kOrigin2));
-
-  // Allow access for the top level origin.
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::GRANTED);
-
-  // Enabling geolocation by FP should allow the child to request access also.
-  child = AddChildRFH(parent, GURL(kOrigin2),
-                      PermissionsPolicyFeature::kGeolocation);
-
-  EXPECT_EQ(PermissionStatus::GRANTED, GetPermissionStatusForCurrentDocument(
-                                           PermissionType::GEOLOCATION, child));
-
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr, child,
-          GURL(kOrigin2), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-  EXPECT_FALSE(callback_called());
-
-  // Blocking access to the parent should trigger the callback to be run for the
-  // child also.
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::DENIED);
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::DENIED, callback_result());
-
-  EXPECT_EQ(PermissionStatus::DENIED, GetPermissionStatusForCurrentDocument(
-                                          PermissionType::GEOLOCATION, child));
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, SubscribeUnsubscribeAndResubscribe) {
-  const char* kOrigin1 = "https://example.com";
-  NavigateAndCommit(GURL(kOrigin1));
-
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), GURL(kOrigin1), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-  EXPECT_EQ(callback_count(), 0);
-
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::GRANTED);
-
-  EXPECT_EQ(callback_count(), 1);
-  EXPECT_EQ(PermissionStatus::GRANTED, callback_result());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-
-  // ensure no callbacks are received when unsubscribed.
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::DENIED);
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::GRANTED);
-
-  EXPECT_EQ(callback_count(), 1);
-
-  content::PermissionControllerDelegate::SubscriptionId subscription_id_2 =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), GURL(kOrigin1), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-  EXPECT_EQ(callback_count(), 1);
-
-  SetPermission(PermissionType::GEOLOCATION, PermissionStatus::DENIED);
-
-  EXPECT_EQ(callback_count(), 2);
-  EXPECT_EQ(PermissionStatus::DENIED, callback_result());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id_2);
-}
-
 TEST_F(PermissionManagerTest, GetCanonicalOrigin) {
   GURL requesting("https://requesting.example.com");
   GURL embedding("https://embedding.example.com");
@@ -1023,41 +657,16 @@ TEST_F(PermissionManagerTest, RequestPermissionInDifferentStoragePartition) {
                 partitioned_child->GetLastCommittedOrigin().GetURL()));
 }
 
-TEST_F(PermissionManagerTest, SubscribersAreNotifedOfEmbargoEvents) {
-  const char* kOrigin1 = "https://example.com";
-  NavigateAndCommit(GURL(kOrigin1));
-
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), GURL(kOrigin1), /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-  EXPECT_EQ(callback_count(), 0);
-
-  auto* autoblocker =
-      permissions::PermissionsClient::Get()->GetPermissionDecisionAutoBlocker(
-          browser_context());
-
-  // 3 dismisses will trigger embargo, which should call the subscription
-  // callback.
-  autoblocker->RecordDismissAndEmbargo(GURL(kOrigin1),
-                                       ContentSettingsType::GEOLOCATION,
-                                       false /* dismissed_prompt_was_quiet */);
-  EXPECT_EQ(callback_count(), 0);
-  autoblocker->RecordDismissAndEmbargo(GURL(kOrigin1),
-                                       ContentSettingsType::GEOLOCATION,
-                                       false /* dismissed_prompt_was_quiet */);
-  EXPECT_EQ(callback_count(), 0);
-  autoblocker->RecordDismissAndEmbargo(GURL(kOrigin1),
-                                       ContentSettingsType::GEOLOCATION,
-                                       false /* dismissed_prompt_was_quiet */);
-  EXPECT_EQ(callback_count(), 1);
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest, UpdatePermissionStatusWithDeviceStatus) {
+// TODO(crbug.com/377264243): Enable the test when device permission is
+// supported in Android
+#if BUILDFLAG(IS_ANDROID)
+#define MAYBE_UpdatePermissionStatusWithDeviceStatus \
+  DISABLED_UpdatePermissionStatusWithDeviceStatus
+#else
+#define MAYBE_UpdatePermissionStatusWithDeviceStatus \
+  UpdatePermissionStatusWithDeviceStatus
+#endif
+TEST_F(PermissionManagerTest, MAYBE_UpdatePermissionStatusWithDeviceStatus) {
   struct {
     blink::mojom::PermissionStatus initial_status;
     bool has_device_permission;
@@ -1106,128 +715,6 @@ TEST_F(PermissionManagerTest, UpdatePermissionStatusWithDeviceStatus) {
 }
 
 TEST_F(PermissionManagerTest,
-       RequestableDevicePermissionChangesLazilyNotifiesObservers) {
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::GRANTED);
-  permissions_client().SetHasDevicePermission(true);
-  permissions_client().SetCanRequestDevicePermission(true);
-
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/true,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  permissions_client().SetHasDevicePermission(false);
-
-  // At this point we have not yet retrieved the permission status so the device
-  // permission change has not been detected.
-  EXPECT_FALSE(callback_called());
-
-  // This call will trigger an update of the device permission status and
-  // observers will be notified if needed.
-  GetPermissionResultForCurrentDocument(PermissionType::GEOLOCATION,
-                                        web_contents()->GetPrimaryMainFrame());
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::ASK, callback_result());
-  Reset();
-
-  // This does not change the overall permission status so no callback should be
-  // called.
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::ASK);
-  EXPECT_FALSE(callback_called());
-
-  // This does change the overall permission status from ask to blocked.
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::DENIED);
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::DENIED, callback_result());
-  Reset();
-
-  // We now reset to a granted state, which should move the overall permission
-  // status to ask (origin status "granted", but Chrome does not have the device
-  // permission).
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::GRANTED);
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::ASK, callback_result());
-  Reset();
-
-  // Now we reset the device permission status back to granted, which moves the
-  // overall permission status to granted.
-  permissions_client().SetHasDevicePermission(true);
-
-  // At this point we have not yet refreshed the permission status.
-  EXPECT_FALSE(callback_called());
-
-  // This call will make us retrieve the device permission status and observers
-  // will be notified if needed.
-  GetPermissionResultForCurrentDocument(PermissionType::GEOLOCATION,
-                                        web_contents()->GetPrimaryMainFrame());
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::GRANTED, callback_result());
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest,
-       NonrequestableDevicePermissionChangesLazilyNotifiesObservers) {
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::GRANTED);
-  permissions_client().SetHasDevicePermission(true);
-  permissions_client().SetCanRequestDevicePermission(false);
-
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::GEOLOCATION, /*render_process_host=*/nullptr,
-          main_rfh(), url(), /*should_include_device_status=*/true,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  EXPECT_EQ(
-      GetPermissionResultForCurrentDocument(
-          PermissionType::GEOLOCATION, web_contents()->GetPrimaryMainFrame())
-          .status,
-      blink::mojom::PermissionStatus::GRANTED);
-
-  permissions_client().SetHasDevicePermission(false);
-
-  // At this point the device permission has not been queried yet.
-  EXPECT_FALSE(callback_called());
-
-  // Get permission status to also trigger the device permission being queried
-  // which would result in observers being notified.
-  GetPermissionResultForCurrentDocument(PermissionType::GEOLOCATION,
-                                        web_contents()->GetPrimaryMainFrame());
-
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::DENIED, callback_result());
-  Reset();
-
-  // Overall these 2 changes don't change the permission status, since the
-  // status moves back to "denied". While there is a brief moment when both
-  // device and origin-level permissions are granted, the device permission
-  // status is not queried in the mean time so observers won't be notified.
-  permissions_client().SetHasDevicePermission(true);
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::DENIED);
-
-  EXPECT_FALSE(callback_called());
-
-  SetPermission(url(), url(), PermissionType::GEOLOCATION,
-                PermissionStatus::GRANTED);
-  EXPECT_TRUE(callback_called());
-  EXPECT_EQ(PermissionStatus::GRANTED, callback_result());
-  Reset();
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
-}
-
-TEST_F(PermissionManagerTest,
        GetPermissionContextForNotAddedPermissionContext) {
   PermissionContextBase* context =
       GetPermissionManager()->GetPermissionContextForTesting(
@@ -1235,19 +722,6 @@ TEST_F(PermissionManagerTest,
 
   // Context is null because it is not added to PermissionContextMap.
   EXPECT_TRUE(!context);
-}
-
-TEST_F(PermissionManagerTest,
-       SubscribeUnsubscribeForNotAddedPermissionContext) {
-  content::PermissionControllerDelegate::SubscriptionId subscription_id =
-      SubscribeToPermissionStatusChange(
-          PermissionType::TOP_LEVEL_STORAGE_ACCESS,
-          /*render_process_host=*/nullptr, main_rfh(), url(),
-          /*should_include_device_status=*/false,
-          base::BindRepeating(&PermissionManagerTest::OnPermissionChange,
-                              base::Unretained(this)));
-
-  UnsubscribeFromPermissionStatusChange(subscription_id);
 }
 
 }  // namespace permissions

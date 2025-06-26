@@ -7,17 +7,17 @@
 
 #import <UIKit/UIKit.h>
 
-#include <memory>
+#import <memory>
 
-#include "components/prefs/pref_change_registrar.h"
+#import "components/prefs/pref_change_registrar.h"
 #import "ios/chrome/browser/net/model/connection_type_observer_bridge.h"
-#include "ios/web/public/navigation/referrer.h"
+#import "ios/web/public/navigation/referrer.h"
 #import "ios/web/public/web_state_delegate_bridge.h"
-#include "ui/base/page_transition_types.h"
-#include "url/gurl.h"
+#import "ui/base/page_transition_types.h"
+#import "url/gurl.h"
 
-class ChromeBrowserState;
 @protocol PreloadControllerDelegate;
+class ProfileIOS;
 
 namespace web {
 class WebState;
@@ -38,11 +38,11 @@ class WebState;
 @property(nonatomic, readonly, getter=isEnabled) BOOL enabled;
 
 // Designated initializer.
-- (instancetype)initWithBrowserState:(ChromeBrowserState*)browserState;
+- (instancetype)initWithProfile:(ProfileIOS*)profile;
 
-// Called when the browser state this object was initialized with is being
+// Called when the profile this object was initialized with is being
 // destroyed.
-- (void)browserStateDestroyed;
+- (void)profileDestroyed;
 
 // Prerenders the given `url` with the given `transition`.  Normally, prerender
 // requests are fulfilled after a short delay, to prevent unnecessary prerenders

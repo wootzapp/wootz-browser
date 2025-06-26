@@ -62,10 +62,9 @@ class FetchInstallabilityForChromeManagement
  private:
   void OnUrlLoadedCheckInstallability(webapps::WebAppUrlLoaderResult result);
   void OnWebAppInstallabilityChecked(blink::mojom::ManifestPtr opt_manifest,
-                                     const GURL& manifest_url,
                                      bool valid_manifest_for_web_app,
                                      webapps::InstallableStatusCode error_code);
-  void OnAppLockGranted(std::unique_ptr<AppLock> app_lock);
+  void OnAppLockGranted();
 
   bool IsWebContentsDestroyed();
 

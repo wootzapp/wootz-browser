@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "fuchsia_web/webengine/browser/content_directory_loader_factory.h"
 
+#include <fuchsia/io/cpp/fidl.h>
 #include <lib/fdio/directory.h>
 #include <lib/fdio/fd.h>
 
@@ -86,11 +92,12 @@ bool GetRangeForRequest(const net::HttpRequestHeaders& headers,
                         size_t max_length,
                         size_t* start,
                         size_t* length) {
-  std::string range_header;
+  std::optional<std::string> range_header =
+      headers.GetHeader(net::HttpRequestHeaders::kRange);
   net::HttpByteRange byte_range;
-  if (headers.GetHeader(net::HttpRequestHeaders::kRange, &range_header)) {
+  if (range_header) {
     std::vector<net::HttpByteRange> ranges;
-    if (net::HttpUtil::ParseRangeHeader(range_header, &ranges) &&
+    if (net::HttpUtil::ParseRangeHeader(*range_header, &ranges) &&
         ranges.size() == 1) {
       byte_range = ranges[0];
     } else {
@@ -260,8 +267,6 @@ class ContentDirectoryURLLoader final : public network::mojom::URLLoader {
       const std::optional<GURL>& new_url) override {}
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override {}
-  void PauseReadingBodyFromNet() override {}
-  void ResumeReadingBodyFromNet() override {}
 
  private:
   // Called when body_writer_->Write() has completed asynchronously.
@@ -304,11 +309,11 @@ net::Error OpenFileFromDirectory(
           .Append(relative_file_path);
 
   const zx_status_t status =
-      fdio_open(absolute_file_path.value().c_str(),
-                static_cast<uint32_t>(fuchsia::io::OpenFlags::RIGHT_READABLE),
-                file_request.TakeChannel().release());
+      fdio_open3(absolute_file_path.value().c_str(),
+                 static_cast<uint64_t>(fuchsia::io::PERM_READABLE),
+                 file_request.TakeChannel().release());
   if (status != ZX_OK) {
-    ZX_DLOG(WARNING, status) << "fdio_open";
+    ZX_DLOG(WARNING, status) << "fdio_open3";
     return net::ERR_FILE_NOT_FOUND;
   }
 

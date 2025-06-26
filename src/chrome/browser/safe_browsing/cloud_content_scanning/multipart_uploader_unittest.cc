@@ -2,10 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "chrome/browser/safe_browsing/cloud_content_scanning/multipart_uploader.h"
 
 #include <memory>
 
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/callback_helpers.h"
@@ -18,9 +24,14 @@
 #include "chrome/browser/enterprise/connectors/test/uploader_test_utils.h"
 #include "components/file_access/test/mock_scoped_file_access_delegate.h"
 #include "content/public/test/browser_task_environment.h"
+#include "net/base/net_errors.h"
 #include "net/http/http_status_code.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 #include "services/network/public/cpp/resource_request.h"
+#include "services/network/public/cpp/shared_url_loader_factory.h"
+#include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
+#include "services/network/test/test_url_loader_factory.h"
+#include "services/network/test/test_utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -34,6 +45,14 @@ class MultipartUploadRequestTest : public testing::Test {
   MultipartUploadRequestTest()
       : task_environment_(base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
 
+  void SetUp() override {
+    testing::Test::SetUp();
+
+    test_shared_loader_factory_ =
+        base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
+            &test_url_loader_factory_);
+  }
+
   base::FilePath CreateFile(const std::string& file_name,
                             const std::string& content) {
     if (!temp_dir_.IsValid())
@@ -42,7 +61,7 @@ class MultipartUploadRequestTest : public testing::Test {
     base::FilePath path = temp_dir_.GetPath().AppendASCII(file_name);
     base::File file(path, base::File::FLAG_CREATE_ALWAYS |
                               base::File::FLAG_READ | base::File::FLAG_WRITE);
-    file.WriteAtCurrentPos(content.data(), content.size());
+    file.WriteAtCurrentPos(base::as_byte_span(content));
     return path;
   }
 
@@ -56,6 +75,8 @@ class MultipartUploadRequestTest : public testing::Test {
 
  protected:
   content::BrowserTaskEnvironment task_environment_;
+  network::TestURLLoaderFactory test_url_loader_factory_;
+  scoped_refptr<network::SharedURLLoaderFactory> test_shared_loader_factory_;
   base::ScopedTempDir temp_dir_;
 };
 
@@ -64,6 +85,7 @@ class MockMultipartUploadRequest : public MultipartUploadRequest {
   MockMultipartUploadRequest()
       : MultipartUploadRequest(nullptr,
                                GURL(),
+                               "",
                                "",
                                "",
                                TRAFFIC_ANNOTATION_FOR_TESTS,
@@ -81,6 +103,8 @@ class MockMultipartUploadDataPipeRequest : public MultipartUploadRequest {
                                "metadata",
                                path,
                                123,
+                               false,
+                               "histogram_suffix",
                                TRAFFIC_ANNOTATION_FOR_TESTS,
                                std::move(callback)) {}
 
@@ -91,6 +115,7 @@ class MockMultipartUploadDataPipeRequest : public MultipartUploadRequest {
                                GURL(),
                                "metadata",
                                std::move(page_region),
+                               "histogram_suffix",
                                TRAFFIC_ANNOTATION_FOR_TESTS,
                                std::move(callback)) {}
 
@@ -100,8 +125,8 @@ class MockMultipartUploadDataPipeRequest : public MultipartUploadRequest {
 
 TEST_F(MultipartUploadRequestTest, GeneratesCorrectBody) {
   auto connector_request = MultipartUploadRequest::CreateStringRequest(
-      nullptr, GURL(), "metadata", "data", TRAFFIC_ANNOTATION_FOR_TESTS,
-      base::DoNothing());
+      nullptr, GURL(), "metadata", "data", "histogram_suffix",
+      TRAFFIC_ANNOTATION_FOR_TESTS, base::DoNothing());
   auto* request = static_cast<MultipartUploadRequest*>(connector_request.get());
 
   std::string expected_body =
@@ -345,68 +370,123 @@ TEST_P(MultipartUploadDataPipeRequestTest, EquivalentToStringRequest) {
 
 TEST_F(MultipartUploadRequestTest, GeneratesCorrectHeaders_StringRequest) {
   network::ResourceRequest resource_request;
-  std::string header_value;
 
   auto connector_request = MultipartUploadRequest::CreateStringRequest(
-      nullptr, GURL(), "metadata", "data", TRAFFIC_ANNOTATION_FOR_TESTS,
-      base::DoNothing());
-  auto* request = static_cast<MultipartUploadRequest*>(connector_request.get());
-
-  request->SetRequestHeaders(&resource_request);
-  ASSERT_TRUE(resource_request.headers.HasHeader("X-Goog-Upload-Protocol"));
-  ASSERT_TRUE(resource_request.headers.GetHeader("X-Goog-Upload-Protocol",
-                                                 &header_value));
-  ASSERT_EQ(header_value, "multipart");
-  ASSERT_TRUE(resource_request.headers.HasHeader(
-      "X-Goog-Upload-Header-Content-Length"));
-  ASSERT_TRUE(resource_request.headers.GetHeader(
-      "X-Goog-Upload-Header-Content-Length", &header_value));
-  ASSERT_EQ(header_value, "4");
-  EXPECT_EQ(request->GetUploadInfo(), "Multipart - Pending");
-}
-
-TEST_F(MultipartUploadRequestTest, GeneratesCorrectHeaders_FileRequest) {
-  network::ResourceRequest resource_request;
-  std::string header_value;
-
-  auto connector_request = MultipartUploadRequest::CreateFileRequest(
-      nullptr, GURL(), "metadata", CreateFile("my_file_name.foo", "file_data"),
-      9, TRAFFIC_ANNOTATION_FOR_TESTS, base::DoNothing());
-  auto* request = static_cast<MultipartUploadRequest*>(connector_request.get());
-
-  request->SetRequestHeaders(&resource_request);
-  ASSERT_TRUE(resource_request.headers.HasHeader("X-Goog-Upload-Protocol"));
-  ASSERT_TRUE(resource_request.headers.GetHeader("X-Goog-Upload-Protocol",
-                                                 &header_value));
-  ASSERT_EQ(header_value, "multipart");
-  ASSERT_TRUE(resource_request.headers.HasHeader(
-      "X-Goog-Upload-Header-Content-Length"));
-  ASSERT_TRUE(resource_request.headers.GetHeader(
-      "X-Goog-Upload-Header-Content-Length", &header_value));
-  ASSERT_EQ(header_value, "9");
-  EXPECT_EQ(request->GetUploadInfo(), "Multipart - Pending");
-}
-
-TEST_F(MultipartUploadRequestTest, GeneratesCorrectHeaders_PageRequest) {
-  network::ResourceRequest resource_request;
-  std::string header_value;
-
-  auto connector_request = MultipartUploadRequest::CreatePageRequest(
-      nullptr, GURL(), "metadata", CreatePage("print_data"),
+      nullptr, GURL(), "metadata", "data", "histogram_suffix",
       TRAFFIC_ANNOTATION_FOR_TESTS, base::DoNothing());
   auto* request = static_cast<MultipartUploadRequest*>(connector_request.get());
 
   request->SetRequestHeaders(&resource_request);
   ASSERT_TRUE(resource_request.headers.HasHeader("X-Goog-Upload-Protocol"));
-  ASSERT_TRUE(resource_request.headers.GetHeader("X-Goog-Upload-Protocol",
-                                                 &header_value));
-  ASSERT_EQ(header_value, "multipart");
+  ASSERT_THAT(resource_request.headers.GetHeader("X-Goog-Upload-Protocol"),
+              testing::Optional(std::string("multipart")));
   ASSERT_TRUE(resource_request.headers.HasHeader(
       "X-Goog-Upload-Header-Content-Length"));
-  ASSERT_TRUE(resource_request.headers.GetHeader(
-      "X-Goog-Upload-Header-Content-Length", &header_value));
-  ASSERT_EQ(header_value, "10");
+  ASSERT_THAT(
+      resource_request.headers.GetHeader("X-Goog-Upload-Header-Content-Length"),
+      testing::Optional(std::string("4")));
   EXPECT_EQ(request->GetUploadInfo(), "Multipart - Pending");
+}
+
+TEST_F(MultipartUploadRequestTest, GeneratesCorrectHeaders_FileRequest) {
+  network::ResourceRequest resource_request;
+
+  auto connector_request = MultipartUploadRequest::CreateFileRequest(
+      nullptr, GURL(), "metadata", CreateFile("my_file_name.foo", "file_data"),
+      9, false, "histogram_suffix", TRAFFIC_ANNOTATION_FOR_TESTS,
+      base::DoNothing());
+  auto* request = static_cast<MultipartUploadRequest*>(connector_request.get());
+
+  request->SetRequestHeaders(&resource_request);
+  ASSERT_TRUE(resource_request.headers.HasHeader("X-Goog-Upload-Protocol"));
+  ASSERT_THAT(resource_request.headers.GetHeader("X-Goog-Upload-Protocol"),
+              testing::Optional(std::string("multipart")));
+  ASSERT_TRUE(resource_request.headers.HasHeader(
+      "X-Goog-Upload-Header-Content-Length"));
+  ASSERT_THAT(
+      resource_request.headers.GetHeader("X-Goog-Upload-Header-Content-Length"),
+      testing::Optional(std::string("9")));
+  EXPECT_EQ(request->GetUploadInfo(), "Multipart - Pending");
+}
+
+TEST_F(MultipartUploadRequestTest, GeneratesCorrectHeaders_PageRequest) {
+  network::ResourceRequest resource_request;
+
+  auto connector_request = MultipartUploadRequest::CreatePageRequest(
+      nullptr, GURL(), "metadata", CreatePage("print_data"), "histogram_suffix",
+      TRAFFIC_ANNOTATION_FOR_TESTS, base::DoNothing());
+  auto* request = static_cast<MultipartUploadRequest*>(connector_request.get());
+
+  request->SetRequestHeaders(&resource_request);
+  ASSERT_TRUE(resource_request.headers.HasHeader("X-Goog-Upload-Protocol"));
+  ASSERT_THAT(resource_request.headers.GetHeader("X-Goog-Upload-Protocol"),
+              testing::Optional(std::string("multipart")));
+  ASSERT_TRUE(resource_request.headers.HasHeader(
+      "X-Goog-Upload-Header-Content-Length"));
+  ASSERT_THAT(
+      resource_request.headers.GetHeader("X-Goog-Upload-Header-Content-Length"),
+      testing::Optional(std::string("10")));
+  EXPECT_EQ(request->GetUploadInfo(), "Multipart - Pending");
+}
+
+TEST_F(MultipartUploadRequestTest, StringRequest_Failure) {
+  base::HistogramTester histogram_tester;
+  auto dummy_upload_url = GURL("https://google.com");
+
+  base::RunLoop run_loop;
+  auto callback =
+      base::BindLambdaForTesting([&run_loop](bool success, int http_status,
+                                             const std::string& response_data) {
+        EXPECT_FALSE(success);
+        run_loop.Quit();
+      });
+
+  test_url_loader_factory_.AddResponse(
+      dummy_upload_url, network::CreateURLResponseHead(net::HTTP_UNAUTHORIZED),
+      "", network::URLLoaderCompletionStatus(net::OK));
+
+  auto connector_request = MultipartUploadRequest::CreateStringRequest(
+      test_shared_loader_factory_, dummy_upload_url, "metadata", "data",
+      "DummySuffix", TRAFFIC_ANNOTATION_FOR_TESTS, std::move(callback));
+  auto* request = static_cast<MultipartUploadRequest*>(connector_request.get());
+
+  request->Start();
+  run_loop.Run();
+
+  histogram_tester.ExpectUniqueSample(
+      /*name=*/"SafeBrowsing.MultipartUploader.NetworkResult.DummySuffix",
+      /*sample=*/net::HTTP_UNAUTHORIZED,
+      /*expected_bucket_count=*/1);
+}
+
+TEST_F(MultipartUploadRequestTest, StringRequest_Success) {
+  base::HistogramTester histogram_tester;
+  auto dummy_upload_url = GURL("https://google.com");
+
+  base::RunLoop run_loop;
+  auto callback =
+      base::BindLambdaForTesting([&run_loop](bool success, int http_status,
+                                             const std::string& response_data) {
+        EXPECT_TRUE(success);
+        run_loop.Quit();
+      });
+
+  test_url_loader_factory_.AddResponse(
+      dummy_upload_url, network::CreateURLResponseHead(net::HTTP_OK), "",
+      network::URLLoaderCompletionStatus(net::OK));
+
+  auto connector_request = MultipartUploadRequest::CreateStringRequest(
+      test_shared_loader_factory_, dummy_upload_url, "metadata", "data",
+      "DummySuffix", TRAFFIC_ANNOTATION_FOR_TESTS, std::move(callback));
+  auto* request = static_cast<MultipartUploadRequest*>(connector_request.get());
+
+  request->Start();
+  run_loop.Run();
+
+  histogram_tester.ExpectUniqueSample(
+      /*name=*/"SafeBrowsing.MultipartUploader.NetworkResult.DummySuffix",
+      /*sample=*/net::HTTP_OK,
+      /*expected_bucket_count=*/1);
 }
 
 }  // namespace safe_browsing

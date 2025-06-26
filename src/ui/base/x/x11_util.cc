@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // This file defines utility functions for X11 (Linux only). This code has been
 // ported from XCB since we can't use XCB on Ubuntu while its 32-bit support
 // remains woefully incomplete.
@@ -18,6 +23,7 @@
 
 #include "base/command_line.h"
 #include "base/containers/contains.h"
+#include "base/containers/span.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted_memory.h"
@@ -29,7 +35,6 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkImageInfo.h"
 #include "ui/base/cursor/mojom/cursor_type.mojom-shared.h"
@@ -133,7 +138,7 @@ void DrawPixmap(x11::Connection* connection,
   for (int row = 0; row < height; row += rows_per_request) {
     size_t n_rows = std::min<size_t>(rows_per_request, height - row);
     auto data = base::MakeRefCounted<base::RefCountedStaticMemory>(
-        vec.data() + row * row_bytes, n_rows * row_bytes);
+        base::span(vec).subspan(row * row_bytes, n_rows * row_bytes));
     connection->PutImage({
         .format = x11::ImageFormat::ZPixmap,
         .drawable = drawable,
@@ -443,7 +448,7 @@ WindowManagerName GuessWindowManager() {
   if (name == "i3") {
     return WM_I3;
   }
-  if (base::StartsWith(name, "IceWM", base::CompareCase::SENSITIVE)) {
+  if (name.starts_with("IceWM")) {
     return WM_ICE_WM;
   }
   if (name == "ion3") {
@@ -548,8 +553,7 @@ UMALinuxWindowManager GetWindowManagerUMA() {
     case WM_XMONAD:
       return UMALinuxWindowManager::kXmonad;
   }
-  NOTREACHED_IN_MIGRATION();
-  return UMALinuxWindowManager::kOther;
+  NOTREACHED();
 }
 
 bool IsX11WindowFullScreen(x11::Window window) {

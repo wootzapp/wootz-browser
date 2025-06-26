@@ -14,14 +14,14 @@ import org.chromium.base.Promise;
 import org.chromium.base.ThreadUtils;
 import org.chromium.components.signin.base.AccountCapabilities;
 import org.chromium.components.signin.base.AccountInfo;
-import org.chromium.components.signin.base.CoreAccountId;
+import org.chromium.components.signin.base.GaiaId;
 import org.chromium.components.signin.identitymanager.AccountInfoService;
 import org.chromium.components.signin.identitymanager.IdentityManager;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 /** This class is an {@link AccountInfoService} stub intended for testing. */
 public class FakeAccountInfoService implements IdentityManager.Observer, AccountInfoService {
@@ -30,7 +30,7 @@ public class FakeAccountInfoService implements IdentityManager.Observer, Account
     protected final ObserverList<Observer> mObservers;
 
     public FakeAccountInfoService() {
-        mObservers = TestThreadUtils.runOnUiThreadBlockingNoException(ObserverList::new);
+        mObservers = ThreadUtils.runOnUiThreadBlocking((Callable<ObserverList>) ObserverList::new);
     }
 
     @Override
@@ -75,16 +75,14 @@ public class FakeAccountInfoService implements IdentityManager.Observer, Account
             String givenName,
             @Nullable Bitmap avatar,
             @NonNull AccountCapabilities capabilities) {
-        String gaiaId = FakeAccountManagerFacade.toGaiaId(email);
-        final AccountInfo accountInfo =
-                new AccountInfo(
-                        new CoreAccountId(gaiaId),
-                        email,
-                        gaiaId,
-                        fullName,
-                        givenName,
-                        avatar,
-                        capabilities);
+        GaiaId gaiaId = FakeAccountManagerFacade.toGaiaId(email);
+        AccountInfo accountInfo =
+                new AccountInfo.Builder(email, gaiaId)
+                        .fullName(fullName)
+                        .givenName(givenName)
+                        .accountImage(avatar)
+                        .accountCapabilities(capabilities)
+                        .build();
         addAccountInfo(accountInfo);
         return accountInfo;
     }

@@ -18,8 +18,6 @@ using security_interstitials::UnsafeResource;
 
 #pragma mark - SafeBrowsingUnsafeResourceContainer
 
-WEB_STATE_USER_DATA_KEY_IMPL(SafeBrowsingUnsafeResourceContainer)
-
 SafeBrowsingUnsafeResourceContainer::SafeBrowsingUnsafeResourceContainer(
     web::WebState* web_state)
     : web_state_(web_state) {}
@@ -37,8 +35,6 @@ SafeBrowsingUnsafeResourceContainer::~SafeBrowsingUnsafeResourceContainer() =
 void SafeBrowsingUnsafeResourceContainer::StoreMainFrameUnsafeResource(
     const security_interstitials::UnsafeResource& resource) {
   DCHECK_EQ(resource.weak_web_state.get(), web_state_);
-  DCHECK_EQ(network::mojom::RequestDestination::kDocument,
-            resource.request_destination);
 
   // For main frame navigations, the copy is stored in
   // `main_frame_unsafe_resource_`.  It corresponds with the pending

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "device/fido/fido_parsing_utils.h"
 
 #include "base/check_op.h"
@@ -82,10 +87,6 @@ std::array<uint8_t, crypto::kSHA256Length> CreateSHA256Hash(
   std::array<uint8_t, crypto::kSHA256Length> hashed_data;
   crypto::SHA256HashString(data, hashed_data.data(), hashed_data.size());
   return hashed_data;
-}
-
-std::string_view ConvertToStringView(base::span<const uint8_t> data) {
-  return {reinterpret_cast<const char*>(data.data()), data.size()};
 }
 
 std::string ConvertBytesToUuid(base::span<const uint8_t, 16> bytes) {

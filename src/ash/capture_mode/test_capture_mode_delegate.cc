@@ -4,27 +4,26 @@
 
 #include "ash/capture_mode/test_capture_mode_delegate.h"
 
-#include "ash/capture_mode/capture_mode_types.h"
+#include <utility>
+
 #include "ash/capture_mode/fake_video_source_provider.h"
-#include "ash/public/cpp/capture_mode/recording_overlay_view.h"
+#include "ash/public/cpp/ash_web_view_factory.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "base/files/file_util.h"
+#include "base/functional/callback.h"
 #include "base/threading/thread_restrictions.h"
 #include "chromeos/ash/services/recording/public/mojom/recording_service.mojom.h"
 #include "chromeos/ash/services/recording/recording_service_test_api.h"
+#include "services/network/test/test_shared_url_loader_factory.h"
+#include "testing/gmock/include/gmock/gmock.h"
+#include "third_party/skia/include/core/SkBitmap.h"
 
 namespace ash {
 
 namespace {
 
-class TestRecordingOverlayView : public RecordingOverlayView {
- public:
-  TestRecordingOverlayView() = default;
-  TestRecordingOverlayView(const TestRecordingOverlayView&) = delete;
-  TestRecordingOverlayView& operator=(const TestRecordingOverlayView&) = delete;
-  ~TestRecordingOverlayView() override = default;
-};
+using ::testing::Return;
 
 }  // namespace
 
@@ -41,6 +40,7 @@ TestCaptureModeDelegate::TestCaptureModeDelegate()
   DCHECK(created_dir);
   created_dir = fake_one_drive_mount_path_.CreateUniqueTempDir();
   DCHECK(created_dir);
+  ON_CALL(*this, IsNetworkConnectionOffline).WillByDefault(Return(false));
 }
 
 TestCaptureModeDelegate::~TestCaptureModeDelegate() = default;
@@ -92,9 +92,6 @@ base::FilePath TestCaptureModeDelegate::GetUserDefaultDownloadsFolder() const {
   return fake_downloads_dir_.GetPath();
 }
 
-void TestCaptureModeDelegate::ShowScreenCaptureItemInFolder(
-    const base::FilePath& file_path) {}
-
 void TestCaptureModeDelegate::OpenScreenCaptureItem(
     const base::FilePath& file_path) {}
 
@@ -121,6 +118,10 @@ bool TestCaptureModeDelegate::IsCaptureAllowedByPolicy() const {
   return is_allowed_by_policy_;
 }
 
+bool TestCaptureModeDelegate::IsSearchAllowedByPolicy() const {
+  return is_search_allowed_by_policy_;
+}
+
 void TestCaptureModeDelegate::StartObservingRestrictedContent(
     const aura::Window* window,
     const gfx::Rect& bounds,
@@ -133,7 +134,9 @@ void TestCaptureModeDelegate::StopObservingRestrictedContent(
 }
 
 void TestCaptureModeDelegate::OnCaptureImageAttempted(aura::Window const*,
-                                                      gfx::Rect const&) {}
+                                                      gfx::Rect const&) {
+  ++num_capture_image_attempts_;
+}
 
 mojo::Remote<recording::mojom::RecordingService>
 TestCaptureModeDelegate::LaunchRecordingService() {
@@ -178,14 +181,13 @@ base::FilePath TestCaptureModeDelegate::GetOneDriveMountPointPath() const {
   return fake_one_drive_mount_path_.GetPath();
 }
 
+base::FilePath TestCaptureModeDelegate::GetOneDriveVirtualPath() const {
+  return fake_one_drive_mount_path_.GetPath();
+}
+
 TestCaptureModeDelegate::PolicyCapturePath
 TestCaptureModeDelegate::GetPolicyCapturePath() const {
   return policy_capture_path_;
-}
-
-std::unique_ptr<RecordingOverlayView>
-TestCaptureModeDelegate::CreateRecordingOverlayView() const {
-  return std::make_unique<TestRecordingOverlayView>();
 }
 
 void TestCaptureModeDelegate::ConnectToVideoSourceProvider(
@@ -218,5 +220,71 @@ void TestCaptureModeDelegate::UpdateVideoConferenceManager(
 
 void TestCaptureModeDelegate::NotifyDeviceUsedWhileDisabled(
     crosapi::mojom::VideoConferenceMediaDevice device) {}
+
+void TestCaptureModeDelegate::FinalizeSavedFile(
+    base::OnceCallback<void(bool, const base::FilePath&)> callback,
+    const base::FilePath& path,
+    const gfx::Image& thumbnail,
+    bool for_video) {
+  std::move(callback).Run(/*success=*/true, path);
+}
+
+base::FilePath TestCaptureModeDelegate::RedirectFilePath(
+    const base::FilePath& path) {
+  return path;
+}
+
+std::unique_ptr<AshWebView> TestCaptureModeDelegate::CreateSearchResultsView()
+    const {
+  // In ash unit and pixel tests we only need an `AshWebView` instance.
+  return AshWebViewFactory::Get()->Create(AshWebView::InitParams());
+}
+
+void TestCaptureModeDelegate::SendLensWebRegionSearch(
+    const gfx::Image& original_image,
+    const bool is_standalone_session,
+    ash::OnSearchUrlFetchedCallback search_callback,
+    ash::OnTextDetectionComplete text_callback,
+    base::OnceCallback<void()> error_callback) {
+  if (force_lens_web_error_) {
+    std::move(error_callback).Run();
+    return;
+  }
+
+  std::move(search_callback).Run(GURL("https://lens.google.com/"));
+  if (!lens_detected_text_.empty()) {
+    std::move(text_callback).Run(lens_detected_text_);
+  }
+}
+
+void TestCaptureModeDelegate::SendRegionSearch(
+    const SkBitmap& image,
+    const gfx::Rect& region,
+    ash::OnSearchUrlFetchedCallback search_callback,
+    ash::OnTextDetectionComplete text_callback) {
+  if (!lens_detected_text_.empty()) {
+    std::move(text_callback).Run(lens_detected_text_);
+  }
+  std::move(search_callback).Run(GURL("kTestUrl"));
+}
+
+void TestCaptureModeDelegate::SendMultimodalSearch(
+    const SkBitmap& image,
+    const gfx::Rect& region,
+    const std::string& text,
+    ash::OnSearchUrlFetchedCallback callback) {
+  ++num_multimodal_search_requests_;
+  std::move(callback).Run(GURL("kTestUrl"));
+}
+
+void TestCaptureModeDelegate::DeleteRemoteFile(
+    const base::FilePath& path,
+    base::OnceCallback<void(bool)> callback) {
+  std::move(callback).Run(true);
+}
+
+bool TestCaptureModeDelegate::ActiveUserDefaultSearchProviderIsGoogle() const {
+  return true;
+}
 
 }  // namespace ash

@@ -165,7 +165,7 @@ double Time::InSecondsFSinceUnixEpoch() const {
                    : std::numeric_limits<double>::infinity();
 }
 
-#if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
+#if PA_BUILDFLAG(IS_POSIX) || PA_BUILDFLAG(IS_FUCHSIA)
 // static
 Time Time::FromTimeSpec(const timespec& ts) {
   return FromSecondsSinceUnixEpoch(ts.tv_sec + static_cast<double>(ts.tv_nsec) /
@@ -248,7 +248,7 @@ TimeTicks TimeTicks::Now() {
 
 // static
 TimeTicks TimeTicks::UnixEpoch() {
-  static const TimeTicks epoch([]() {
+  static const TimeTicks epoch([] {
     return subtle::TimeTicksNowIgnoringOverride() -
            (subtle::TimeNowIgnoringOverride() - Time::UnixEpoch());
   }());

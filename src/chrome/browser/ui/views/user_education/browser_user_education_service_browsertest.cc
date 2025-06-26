@@ -11,6 +11,7 @@
 #include <sstream>
 #include <vector>
 
+#include "base/command_line.h"
 #include "base/containers/flat_set.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
@@ -30,13 +31,12 @@
 #include "components/feature_engagement/public/feature_list.h"
 #include "components/feature_engagement/public/tracker.h"
 #include "components/feature_engagement/test/scoped_iph_feature_list.h"
-#include "components/user_education/common/feature_promo_registry.h"
-#include "components/user_education/common/feature_promo_specification.h"
-#include "components/user_education/common/tutorial_identifier.h"
+#include "components/user_education/common/feature_promo/feature_promo_registry.h"
+#include "components/user_education/common/feature_promo/feature_promo_specification.h"
+#include "components/user_education/common/tutorial/tutorial_identifier.h"
 #include "components/user_education/common/user_education_features.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/interaction/interaction_sequence.h"
 
@@ -132,8 +132,7 @@ std::ostream& operator<<(std::ostream& os, const IPHFailure& failure) {
   os << failure.feature->name;
   switch (failure.reason) {
     case IPHFailureReason::kNone:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case IPHFailureReason::kUnlisted:
       os << " is not registered in feature_engagement::kAllFeatures in "
             "feature_list.cc. This will cause most attempts to show or access "
@@ -268,7 +267,6 @@ bool IsComparatorLimited(const feature_engagement::Comparator& comparator,
 
 using BrowserUserEducationServiceBrowserTest = InProcessBrowserTest;
 
-// TODO: crbug.com/336983096 - Consistently failing test.
 IN_PROC_BROWSER_TEST_F(BrowserUserEducationServiceBrowserTest,
                        FeatureConfigurationConsistencyCheck) {
   // Exceptions to the consistency checks. All of those with crbug.com IDs
@@ -315,8 +313,6 @@ IN_PROC_BROWSER_TEST_F(BrowserUserEducationServiceBrowserTest,
       {&feature_engagement::kIPHPowerBookmarksSidePanelFeature,
        IPHFailureReason::kWrongSessionRate,
        "crbug.com/1443067, crbug.com/1443063"},
-      {&feature_engagement::kIPHPasswordsAccountStorageFeature,
-       IPHFailureReason::kWrongSessionRate, "crbug.com/1443075"},
 
       // Deprecated; should probably be removed.
       {&feature_engagement::kIPHReadingListInSidePanelFeature, std::nullopt,
@@ -387,7 +383,6 @@ IN_PROC_BROWSER_TEST_F(BrowserUserEducationServiceBrowserTest,
         feature_engagement::SessionRateImpact::Type::ALL;
     const bool is_session_limited =
         IsComparatorLimited(feature_config->session_rate, 1);
-    const bool is_v2 = user_education::features::IsUserEducationV2();
 
     switch (spec.promo_type()) {
       case user_education::FeaturePromoSpecification::PromoType::kToast:
@@ -402,11 +397,12 @@ IN_PROC_BROWSER_TEST_F(BrowserUserEducationServiceBrowserTest,
       case user_education::FeaturePromoSpecification::PromoType::kTutorial:
       case user_education::FeaturePromoSpecification::PromoType::kCustomAction:
       case user_education::FeaturePromoSpecification::PromoType::kSnooze:
+      case user_education::FeaturePromoSpecification::PromoType::kCustomUi:
         switch (spec.promo_subtype()) {
           case user_education::FeaturePromoSpecification::PromoSubtype::kNormal:
             // Standard promos should be session-limited and should limit other
             // IPH.
-            if (is_v2 == is_session_limited) {
+            if (is_session_limited) {
               MaybeAddFailure(failures, exceptions, feature,
                               IPHFailureReason::kWrongSessionRate,
                               feature_config);
@@ -496,8 +492,7 @@ std::ostream& operator<<(std::ostream& os, const TutorialFailure& failure) {
   os << failure.tutorial_id;
   switch (failure.reason) {
     case TutorialFailureReason::kNone:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case TutorialFailureReason::kLikelySkippedStep:
       os << " shows a bubble anchored to an always-visible UI element "
          << failure.identifier << " (step " << failure.step_number
@@ -593,17 +588,12 @@ IN_PROC_BROWSER_TEST_F(BrowserUserEducationServiceBrowserTest, AutoConfigure) {
             config.used);
   EXPECT_EQ(feature_engagement::EventConfig(
                 "WebUiHelpBubbleTest_trigger",
-                user_education::features::IsUserEducationV2()
-                    ? feature_engagement::Comparator(feature_engagement::ANY, 0)
-                    : feature_engagement::Comparator(
-                          feature_engagement::LESS_THAN, 5),
+                feature_engagement::Comparator(feature_engagement::ANY, 0),
                 feature_engagement::kMaxStoragePeriod,
                 feature_engagement::kMaxStoragePeriod),
             config.trigger);
   EXPECT_TRUE(config.event_configs.empty());
-  EXPECT_EQ(user_education::features::IsUserEducationV2()
-                ? feature_engagement::Comparator(feature_engagement::ANY, 0)
-                : feature_engagement::Comparator(feature_engagement::EQUAL, 0),
+  EXPECT_EQ(feature_engagement::Comparator(feature_engagement::ANY, 0),
             config.session_rate);
   EXPECT_EQ(feature_engagement::SessionRateImpact::Type::ALL,
             config.session_rate_impact.type);
@@ -629,6 +619,18 @@ class BrowserUserEducationServiceNewBadgeBrowserTest
 
   ~BrowserUserEducationServiceNewBadgeBrowserTest() override = default;
 
+  void SetUpOnMainThread() override {
+    InProcessBrowserTest::SetUpOnMainThread();
+
+    // Make this seem like an old profile so we are not in the new profile
+    // grace period.
+    auto& storage_service =
+        UserEducationServiceFactory::GetForBrowserContext(browser()->profile())
+            ->user_education_storage_service();
+    storage_service.set_profile_creation_time_for_testing(
+        storage_service.GetCurrentTime() - base::Days(365));
+  }
+
  private:
   base::test::ScopedFeatureList feature_list_;
 };
@@ -649,9 +651,9 @@ IN_PROC_BROWSER_TEST_P(BrowserUserEducationServiceNewBadgeBrowserTest,
   // Ensure that the feature can be marked as used.
   for (int i = 0; i < user_education::features::GetNewBadgeFeatureUsedCount();
        i += 2) {
-    browser()->window()->NotifyPromoFeatureUsed(
+    browser()->window()->NotifyNewBadgeFeatureUsed(
         user_education::features::kNewBadgeTestFeature);
-    UserEducationService::MaybeNotifyPromoFeatureUsed(
+    UserEducationService::MaybeNotifyNewBadgeFeatureUsed(
         browser()->profile(), user_education::features::kNewBadgeTestFeature);
   }
 
@@ -674,9 +676,9 @@ IN_PROC_BROWSER_TEST_P(BrowserUserEducationServiceNewBadgeBrowserTest,
   // Ensure that the feature can be marked as used.
   for (int i = 0; i < user_education::features::GetNewBadgeFeatureUsedCount();
        i += 2) {
-    browser()->window()->NotifyPromoFeatureUsed(
+    browser()->window()->NotifyNewBadgeFeatureUsed(
         user_education::features::kNewBadgeTestFeature);
-    UserEducationService::MaybeNotifyPromoFeatureUsed(
+    UserEducationService::MaybeNotifyNewBadgeFeatureUsed(
         browser()->profile(), user_education::features::kNewBadgeTestFeature);
   }
 
@@ -721,4 +723,40 @@ IN_PROC_BROWSER_TEST_P(BrowserUserEducationServiceRecentSessionsTest,
       UserEducationServiceFactory::GetForBrowserContext(browser()->profile())
           ->recent_session_tracker();
   EXPECT_EQ(GetParam(), result != nullptr);
+}
+
+// Verify that the "disable rate limiting" command line arg works.
+class BrowserUserEducationServiceCommandLineTest
+    : public BrowserUserEducationServiceBrowserTest,
+      public testing::WithParamInterface<bool> {
+ public:
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    if (GetParam()) {
+      command_line->AppendSwitch(
+          user_education::features::kDisableRateLimitingCommandLine);
+    }
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(,
+                         BrowserUserEducationServiceCommandLineTest,
+                         testing::Bool());
+
+IN_PROC_BROWSER_TEST_P(BrowserUserEducationServiceCommandLineTest,
+                       DisableUserEducationRateLimiting) {
+  if (GetParam()) {
+    EXPECT_EQ(user_education::features::GetLowPriorityCooldown(),
+              base::Seconds(0));
+    EXPECT_EQ(user_education::features::GetSessionStartGracePeriod(),
+              base::Seconds(0));
+    EXPECT_EQ(user_education::features::GetNewProfileGracePeriod(),
+              base::Seconds(0));
+  } else {
+    EXPECT_GT(user_education::features::GetLowPriorityCooldown(),
+              base::Seconds(0));
+    EXPECT_GT(user_education::features::GetSessionStartGracePeriod(),
+              base::Seconds(0));
+    EXPECT_GT(user_education::features::GetNewProfileGracePeriod(),
+              base::Seconds(0));
+  }
 }

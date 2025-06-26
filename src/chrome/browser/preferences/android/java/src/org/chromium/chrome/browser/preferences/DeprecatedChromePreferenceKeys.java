@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.preferences;
 
 import org.chromium.base.shared_preferences.KeyPrefix;
 import org.chromium.build.annotations.CheckDiscard;
+import org.chromium.build.annotations.NullMarked;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -19,6 +20,7 @@ import java.util.List;
  * should rest here, not just Chrome-layer keys.
  */
 @CheckDiscard("Validation is performed in tests and in debug builds.")
+@NullMarked
 public class DeprecatedChromePreferenceKeys {
     static List<String> getKeysForTesting() {
         return Arrays.asList(
@@ -29,6 +31,7 @@ public class DeprecatedChromePreferenceKeys {
                 "Chrome.Assistant.Enabled",
                 "Chrome.AssistantVoiceConsentTapsCounter.ConsentTapsCount",
                 "Chrome.AutofillAssistant.NumberOfLiteScriptsCanceled",
+                "Chrome.ContinuousSearch.DismissalCount",
                 "Chrome.Cryptid.LastRenderTimestamp",
                 "Chrome.FirstRun.FieldTrialEnabled",
                 "Chrome.FirstRun.VariationFieldTrialGroup",
@@ -44,6 +47,8 @@ public class DeprecatedChromePreferenceKeys {
                 "Chrome.OfflineMeasurements.IsRoaming",
                 "Chrome.OfflineMeasurements.TimeBetweenChecksMillisList",
                 "Chrome.OfflineMeasurements.UserStateList",
+                "Chrome.PriceTracking.PriceAlerts",
+                "Chrome.PriceTracking.PriceAlertsShowCount",
                 "Chrome.PriceTracking.PriceDropAlerts",
                 "Chrome.Querytiles.RecentMvClicks",
                 "Chrome.Querytiles.RecentQueryTileClicks",
@@ -60,6 +65,11 @@ public class DeprecatedChromePreferenceKeys {
                 "Chrome.RequestDesktopSiteGlobalSetting.OptInMessageShown",
                 "Chrome.Segmentation.ShowQueryTiles",
                 "Chrome.SigninPromo.NTPImpressions",
+                "Chrome.StartSurface.IncognitoTabCount",
+                "Chrome.StartSurface.RegularTabCount",
+                "Chrome.Tab.ArchiveIphShowing",
+                "Chrome.Tab.ShowArchiveTabDialogIPH",
+                "Chrome.Tab.ShowTabGroupCreationDialog",
                 "Chrome.UMA.OnPreCreateCounter",
                 "Chrome.UMA.OnResumeCounter",
                 "Chrome.VideoTutorials.ShareUrls",
@@ -129,6 +139,7 @@ public class DeprecatedChromePreferenceKeys {
                 "displayed_data_reduction_promo_version",
                 "displayed_data_reduction_snackbar_promo_saved_bytes",
                 "darken_websites_enabled",
+                "enhanced_bookmark_signin_promo_show_count",
                 "first_run_signin_complete",
                 "fre_promo_opt_out",
                 "grid_tab_switcher_enabled",
@@ -160,6 +171,7 @@ public class DeprecatedChromePreferenceKeys {
                 "reached_code_sampling_interval",
                 "service_manager_for_background_prefetch",
                 "service_manager_for_download_resumption",
+                "settings_personalized_signin_promo_dismissed",
                 "signin_promo_impressions_count_bookmarks",
                 "signin_promo_impressions_count_settings",
                 "sole_integration_enabled",
@@ -168,6 +180,8 @@ public class DeprecatedChromePreferenceKeys {
                 "swap_pixel_format_to_fix_convert_from_translucent",
                 "tab_group_android_enabled",
                 "tab_persistent_store_task_runner_enabled",
+                "user_font_scale_factor",
+                "user_set_force_enable_zoom",
                 "webapk_number_of_uninstalls",
                 "website_settings_filter");
     }

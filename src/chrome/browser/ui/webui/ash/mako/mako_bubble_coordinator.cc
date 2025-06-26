@@ -10,6 +10,7 @@
 #include "ash/constants/ash_features.h"
 #include "base/check.h"
 #include "base/strings/string_util.h"
+#include "base/strings/to_string.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/ash/mako/mako_consent_view.h"
@@ -19,6 +20,8 @@
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/orca_resources.h"
 #include "chrome/grit/orca_resources_map.h"
+#include "chromeos/components/magic_boost/public/cpp/magic_boost_state.h"
+#include "chromeos/constants/chromeos_features.h"
 #include "content/public/common/url_constants.h"
 #include "net/base/url_util.h"
 #include "ui/base/ime/ash/ime_bridge.h"
@@ -62,6 +65,8 @@ void MakoBubbleCoordinator::LoadConsentUI(Profile* profile) {
 void MakoBubbleCoordinator::LoadEditorUI(
     Profile* profile,
     MakoEditorMode mode,
+    bool can_fallback_to_center_position,
+    bool feedback_enabled,
     std::optional<std::string_view> preset_query_id,
     std::optional<std::string_view> freeform_text) {
   if (IsShowingUI()) {
@@ -77,17 +82,27 @@ void MakoBubbleCoordinator::LoadEditorUI(
                                            freeform_text);
   url = net::AppendOrReplaceQueryParameter(url, kOrcaHostLanguageParamKey,
                                            GetSystemLocale());
+  url = net::AppendOrReplaceQueryParameter(url, kOrcaFeedbackEnabledParamKey,
+                                           base::ToString(feedback_enabled));
+  auto* magic_boost_state = chromeos::MagicBoostState::Get();
+  url = net::AppendOrReplaceQueryParameter(
+      url, kOrcaMagicBoostParamKey,
+      magic_boost_state && magic_boost_state->IsMagicBoostAvailable()
+          ? "true"
+          : "false");
+
   if (base::FeatureList::IsEnabled(ash::features::kOrcaResizingSupport)) {
     url = net::AppendOrReplaceQueryParameter(url, kOrcaResizingEnabledParamKey,
                                              "true");
   }
 
   contents_wrapper_ = std::make_unique<WebUIContentsWrapperT<MakoUntrustedUI>>(
-      url, profile, IDS_ACCNAME_ORCA, /*webui_resizes_host=*/true,
+      url, profile, IDS_ACCNAME_ORCA,
       /*esc_closes_ui=*/false);
   views::BubbleDialogDelegateView::CreateBubble(
       std::make_unique<MakoRewriteView>(contents_wrapper_.get(),
-                                        context_caret_bounds_));
+                                        context_caret_bounds_,
+                                        can_fallback_to_center_position));
 }
 
 void MakoBubbleCoordinator::ShowUI() {

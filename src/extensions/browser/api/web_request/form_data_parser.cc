@@ -10,11 +10,13 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/containers/to_vector.h"
 #include "base/lazy_instance.h"
 #include "base/memory/raw_ptr.h"
 #include "base/notreached.h"
 #include "base/strings/escape.h"
 #include "base/strings/string_util.h"
+#include "base/types/optional_util.h"
 #include "base/values.h"
 #include "net/http/http_request_headers.h"
 #include "third_party/re2/src/re2/re2.h"
@@ -116,7 +118,7 @@ class FormDataParserUrlEncoded : public FormDataParser {
   std::string value_;
   const RE2::Arg arg_name_;
   const RE2::Arg arg_value_;
-  const RE2::Arg* args_[args_size_];
+  std::array<const RE2::Arg*, args_size_> args_;
 
   // Caching the pointer to g_patterns.Get().
   raw_ptr<const Patterns> patterns_;
@@ -285,8 +287,7 @@ FormDataParser::Result::Result() = default;
 FormDataParser::Result::~Result() = default;
 
 void FormDataParser::Result::SetBinaryValue(std::string_view str) {
-  value_ = base::Value(
-      base::Value::BlobStorage(str.data(), str.data() + str.size()));
+  value_ = base::Value(base::ToVector(str));
 }
 
 void FormDataParser::Result::SetStringValue(std::string str) {
@@ -298,10 +299,8 @@ FormDataParser::~FormDataParser() = default;
 // static
 std::unique_ptr<FormDataParser> FormDataParser::Create(
     const net::HttpRequestHeaders& request_headers) {
-  std::string value;
-  const bool found =
-      request_headers.GetHeader(net::HttpRequestHeaders::kContentType, &value);
-  return CreateFromContentTypeHeader(found ? &value : nullptr);
+  return CreateFromContentTypeHeader(base::OptionalToPtr(
+      request_headers.GetHeader(net::HttpRequestHeaders::kContentType)));
 }
 
 // static
@@ -331,8 +330,9 @@ std::unique_ptr<FormDataParser> FormDataParser::CreateFromContentTypeHeader(
       offset += sizeof(kBoundaryString) - 1;
       boundary = content_type_header->substr(
           offset, content_type_header->find(';', offset));
-      if (!boundary.empty())
+      if (!boundary.empty()) {
         choice = MULTIPART;
+      }
     }
   }
   // Other cases are unparseable, including when |content_type| is "text/plain".
@@ -346,9 +346,7 @@ std::unique_ptr<FormDataParser> FormDataParser::CreateFromContentTypeHeader(
     case ERROR_CHOICE:
       return nullptr;
   }
-  NOTREACHED_IN_MIGRATION();  // Some compilers do not believe this is
-                              // unreachable.
-  return nullptr;
+  NOTREACHED();  // Some compilers do not believe this is unreachable.
 }
 
 FormDataParser::FormDataParser() = default;
@@ -371,10 +369,11 @@ bool FormDataParserUrlEncoded::AllDataReadOK() {
 }
 
 bool FormDataParserUrlEncoded::GetNextNameValue(Result* result) {
-  if (!source_set_ || source_malformed_)
+  if (!source_set_ || source_malformed_) {
     return false;
+  }
 
-  bool success = RE2::ConsumeN(&source_, pattern(), args_, args_size_);
+  bool success = RE2::ConsumeN(&source_, pattern(), args_.data(), args_size_);
   if (success) {
     const base::UnescapeRule::Type kUnescapeRules =
         base::UnescapeRule::REPLACE_PLUS_WITH_SPACE;
@@ -391,17 +390,19 @@ bool FormDataParserUrlEncoded::GetNextNameValue(Result* result) {
     }
   }
   if (source_.length() > 0) {
-    if (source_[0] == '&')
+    if (source_[0] == '&') {
       source_.remove_prefix(1);  // Remove the leading '&'.
-    else
+    } else {
       source_malformed_ = true;  // '&' missing between two name-value pairs.
+    }
   }
   return success && !source_malformed_;
 }
 
 bool FormDataParserUrlEncoded::SetSource(std::string_view source) {
-  if (source_set_)
+  if (source_set_) {
     return false;  // We do not allow multiple sources for this parser.
+  }
   source_ = source;
   source_set_ = true;
   source_malformed_ = false;
@@ -465,8 +466,9 @@ bool FormDataParserMultipart::FinishReadingPart(std::string_view* data) {
 }
 
 bool FormDataParserMultipart::GetNextNameValue(Result* result) {
-  if (source_.empty() || state_ != STATE_READY)
+  if (source_.empty() || state_ != STATE_READY) {
     return false;
+  }
 
   // 1. Read body-part headers.
   std::string_view name;
@@ -515,8 +517,9 @@ bool FormDataParserMultipart::GetNextNameValue(Result* result) {
 }
 
 bool FormDataParserMultipart::SetSource(std::string_view source) {
-  if (source.data() == nullptr || !source_.empty())
+  if (source.data() == nullptr || !source_.empty()) {
     return false;
+  }
   source_ = source;
 
   switch (state_) {
@@ -562,15 +565,17 @@ bool FormDataParserMultipart::TryReadHeader(std::string_view* name,
     return true;
   }
   const char* header_start = source_.data();
-  if (!RE2::Consume(&source_, header_pattern()))
+  if (!RE2::Consume(&source_, header_pattern())) {
     return false;
+  }
   // (*) After this point we must return true, because we consumed one header.
 
   // Subtract 2 for the trailing "\r\n".
   std::string_view header(header_start, source_.data() - header_start - 2);
 
-  if (!StartsWithPattern(header, content_disposition_pattern()))
+  if (!StartsWithPattern(header, content_disposition_pattern())) {
     return true;  // Skip headers that don't describe the content-disposition.
+  }
 
   std::string_view groups[2];
 

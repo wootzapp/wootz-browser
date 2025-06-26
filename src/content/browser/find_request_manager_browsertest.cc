@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/command_line.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
@@ -120,7 +125,7 @@ class FindRequestManagerTestBase : public ContentBrowserTest {
             blink::mojom::FindOptionsPtr options) {
     delegate()->UpdateLastRequest(++last_request_id_);
     contents()->Find(last_request_id_, base::UTF8ToUTF16(search_text),
-                     std::move(options));
+                     std::move(options), /*skip_delay=*/false);
   }
 
   WebContentsImpl* contents() const {
@@ -1228,7 +1233,8 @@ class FindTestWebContentsPrerenderingDelegate
     : public FindTestWebContentsDelegate {
  public:
   PreloadingEligibility IsPrerender2Supported(
-      WebContents& web_contents) override {
+      WebContents& web_contents,
+      PreloadingTriggerType trigger_type) override {
     return PreloadingEligibility::kEligible;
   }
 };

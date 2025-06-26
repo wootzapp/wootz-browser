@@ -4,6 +4,7 @@
 
 #include "third_party/blink/renderer/modules/direct_sockets/udp_writable_stream_wrapper.h"
 
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/notreached.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -42,7 +43,7 @@ class FakeRestrictedUDPSocket
       public network::mojom::blink::RestrictedUDPSocket {
  public:
   void Send(base::span<const uint8_t> data, SendCallback callback) override {
-    data_.Append(data.data(), static_cast<uint32_t>(data.size_bytes()));
+    data_.AppendSpan(data);
     std::move(callback).Run(net::Error::OK);
   }
 
@@ -50,12 +51,10 @@ class FakeRestrictedUDPSocket
               const net::HostPortPair& dest_addr,
               net::DnsQueryType dns_query_type,
               SendToCallback callback) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
-  void ReceiveMore(uint32_t num_additional_datagrams) override {
-    NOTREACHED_IN_MIGRATION();
-  }
+  void ReceiveMore(uint32_t num_additional_datagrams) override { NOTREACHED(); }
 
   const Vector<uint8_t>& GetReceivedData() const { return data_; }
   void Trace(cppgc::Visitor* visitor) const {}
@@ -104,7 +103,7 @@ class StreamCreator : public GarbageCollected<StreamCreator> {
   void Cleanup() { receiver_.reset(); }
 
  private:
-  void Close(ScriptValue exception) {
+  void Close(v8::Local<v8::Value> exception, int net_error) {
     close_called_with_ = !exception.IsEmpty();
   }
 
@@ -153,12 +152,12 @@ TEST(UDPWritableStreamWrapperTest, WriteUdpMessage) {
   auto* writer = udp_writable_stream_wrapper->Writable()->getWriter(
       script_state, ASSERT_NO_EXCEPTION);
 
-  auto* chunk = DOMArrayBuffer::Create("A", 1);
+  auto* chunk = DOMArrayBuffer::Create(base::byte_span_from_cstring("A"));
   auto* message = UDPMessage::Create();
   message->setData(
       MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferView>(chunk));
 
-  ScriptPromiseUntyped result =
+  auto result =
       writer->write(script_state, ScriptValue::From(script_state, message),
                     ASSERT_NO_EXCEPTION);
 
@@ -184,14 +183,14 @@ TEST(UDPWritableStreamWrapperTest, WriteUdpMessageFromTypedArray) {
   auto* writer = udp_writable_stream_wrapper->Writable()->getWriter(
       script_state, ASSERT_NO_EXCEPTION);
 
-  auto* buffer = DOMArrayBuffer::Create("ABC", 3);
+  auto* buffer = DOMArrayBuffer::Create(base::byte_span_from_cstring("ABC"));
   auto* chunk = DOMUint8Array::Create(buffer, 0, 3);
 
   auto* message = UDPMessage::Create();
   message->setData(MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferView>(
       NotShared<DOMUint8Array>(chunk)));
 
-  ScriptPromiseUntyped result =
+  auto result =
       writer->write(script_state, ScriptValue::From(script_state, message),
                     ASSERT_NO_EXCEPTION);
 
@@ -205,7 +204,7 @@ TEST(UDPWritableStreamWrapperTest, WriteUdpMessageFromTypedArray) {
               ::testing::ElementsAre('A', 'B', 'C'));
 }
 
-TEST(UDPWritableStreamWrapperTest, WriteUdpMessageWithEmptyDataField) {
+TEST(UDPWritableStreamWrapperTest, WriteUdpMessageWithEmptyDataFieldFails) {
   test::TaskEnvironment task_environment;
   V8TestingScope scope;
 
@@ -225,18 +224,14 @@ TEST(UDPWritableStreamWrapperTest, WriteUdpMessageWithEmptyDataField) {
   message->setData(
       MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferView>(chunk));
 
-  ScriptPromiseUntyped result =
+  auto result =
       writer->write(script_state, ScriptValue::From(script_state, message),
                     ASSERT_NO_EXCEPTION);
 
   ScriptPromiseTester tester(script_state, result);
   tester.WaitUntilSettled();
 
-  ASSERT_TRUE(tester.IsFulfilled());
-
-  // Nothing should have been written from the empty DOMArrayBuffer.
-  auto* fake_udp_socket = stream_creator->fake_udp_socket();
-  EXPECT_THAT(fake_udp_socket->GetReceivedData(), ::testing::ElementsAre());
+  ASSERT_TRUE(tester.IsRejected());
 }
 
 TEST(UDPWritableStreamWrapperTest, WriteAfterFinishedWrite) {
@@ -252,13 +247,13 @@ TEST(UDPWritableStreamWrapperTest, WriteAfterFinishedWrite) {
   auto* writer = udp_writable_stream_wrapper->Writable()->getWriter(
       script_state, ASSERT_NO_EXCEPTION);
 
-  for (const auto* value : {"A", "B"}) {
-    auto* chunk = DOMArrayBuffer::Create(value, 1);
+  for (const std::string_view value : {"A", "B"}) {
+    auto* chunk = DOMArrayBuffer::Create(base::as_byte_span(value));
     auto* message = UDPMessage::Create();
     message->setData(
         MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferView>(chunk));
 
-    ScriptPromiseUntyped result =
+    auto result =
         writer->write(script_state, ScriptValue::From(script_state, message),
                       ASSERT_NO_EXCEPTION);
 
@@ -286,12 +281,12 @@ TEST(UDPWritableStreamWrapperTest, WriteAfterClose) {
   auto* writer = udp_writable_stream_wrapper->Writable()->getWriter(
       script_state, ASSERT_NO_EXCEPTION);
 
-  auto* chunk = DOMArrayBuffer::Create("A", 1);
+  auto* chunk = DOMArrayBuffer::Create(base::byte_span_from_cstring("A"));
   auto* message = UDPMessage::Create();
   message->setData(
       MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferView>(chunk));
 
-  ScriptPromiseUntyped write_result =
+  auto write_result =
       writer->write(script_state, ScriptValue::From(script_state, message),
                     ASSERT_NO_EXCEPTION);
   ScriptPromiseTester write_tester(script_state, write_result);
@@ -299,8 +294,7 @@ TEST(UDPWritableStreamWrapperTest, WriteAfterClose) {
 
   ASSERT_TRUE(write_tester.IsFulfilled());
 
-  ScriptPromiseUntyped close_result =
-      writer->close(script_state, ASSERT_NO_EXCEPTION);
+  auto close_result = writer->close(script_state, ASSERT_NO_EXCEPTION);
   ScriptPromiseTester close_tester(script_state, close_result);
   close_tester.WaitUntilSettled();
 
@@ -309,7 +303,7 @@ TEST(UDPWritableStreamWrapperTest, WriteAfterClose) {
   ASSERT_EQ(udp_writable_stream_wrapper->GetState(),
             StreamWrapper::State::kClosed);
 
-  ScriptPromiseUntyped write_after_close_result =
+  auto write_after_close_result =
       writer->write(script_state, ScriptValue::From(script_state, message),
                     ASSERT_NO_EXCEPTION);
   ScriptPromiseTester write_after_close_tester(script_state,
@@ -338,12 +332,12 @@ TEST(UDPWritableStreamWrapperTest, WriteFailed) {
   auto* writer = udp_writable_stream_wrapper->Writable()->getWriter(
       script_state, ASSERT_NO_EXCEPTION);
 
-  auto* chunk = DOMArrayBuffer::Create("A", 1);
+  auto* chunk = DOMArrayBuffer::Create(base::byte_span_from_cstring("A"));
   auto* message = UDPMessage::Create();
   message->setData(
       MakeGarbageCollected<V8UnionArrayBufferOrArrayBufferView>(chunk));
 
-  ScriptPromiseUntyped write_result =
+  auto write_result =
       writer->write(script_state, ScriptValue::From(script_state, message),
                     ASSERT_NO_EXCEPTION);
   ScriptPromiseTester write_tester(script_state, write_result);

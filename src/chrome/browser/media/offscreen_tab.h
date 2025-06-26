@@ -51,7 +51,7 @@ class OffscreenTab final : public ProfileObserver,
   // can be deleted.
   class Owner {
    public:
-    virtual ~Owner() {}
+    virtual ~Owner() = default;
 
     // |tab| is no longer valid after this call.
     virtual void DestroyTab(OffscreenTab* tab) = 0;
@@ -97,7 +97,7 @@ class OffscreenTab final : public ProfileObserver,
                          const content::ContextMenuParams& params) final;
   content::KeyboardEventProcessingResult PreHandleKeyboardEvent(
       content::WebContents* source,
-      const content::NativeWebKeyboardEvent& event) final;
+      const input::NativeWebKeyboardEvent& event) final;
   bool PreHandleGestureEvent(content::WebContents* source,
                              const blink::WebGestureEvent& event) final;
   bool CanDragEnter(content::WebContents* source,

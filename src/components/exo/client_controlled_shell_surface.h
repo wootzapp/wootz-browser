@@ -17,6 +17,7 @@
 #include "components/exo/client_controlled_accelerators.h"
 #include "components/exo/shell_surface_base.h"
 #include "ui/base/hit_test.h"
+#include "ui/base/mojom/window_show_state.mojom-forward.h"
 #include "ui/compositor/compositor_lock.h"
 
 namespace ash {
@@ -54,7 +55,8 @@ class ClientControlledShellSurface : public ShellSurfaceBase,
                                  int64_t display_id,
                                  const gfx::Rect& bounds_in_display,
                                  bool is_resize,
-                                 int bounds_change) = 0;
+                                 int bounds_change,
+                                 bool is_adjusted_bounds) = 0;
     virtual void OnDragStarted(int component) = 0;
     virtual void OnDragFinished(int x, int y, bool canceled) = 0;
     virtual void OnZoomLevelChanged(ZoomChange zoom_change) = 0;
@@ -143,7 +145,8 @@ class ClientControlledShellSurface : public ShellSurfaceBase,
                            chromeos::WindowStateType requested_state,
                            int64_t display_id,
                            const gfx::Rect& bounds,
-                           int drag_bounds_change);
+                           int drag_bounds_change,
+                           bool is_adjusted_bounds);
 
   // Sends the window drag events to client.
   void OnDragStarted(int component);
@@ -197,10 +200,11 @@ class ClientControlledShellSurface : public ShellSurfaceBase,
       views::Widget* widget) override;
   bool ShouldSaveWindowPlacement() const override;
   void SaveWindowPlacement(const gfx::Rect& bounds,
-                           ui::WindowShowState show_state) override;
-  bool GetSavedWindowPlacement(const views::Widget* widget,
-                               gfx::Rect* bounds,
-                               ui::WindowShowState* show_state) const override;
+                           ui::mojom::WindowShowState show_state) override;
+  bool GetSavedWindowPlacement(
+      const views::Widget* widget,
+      gfx::Rect* bounds,
+      ui::mojom::WindowShowState* show_state) const override;
 
   // views::View:
   gfx::Size GetMaximumSize() const override;

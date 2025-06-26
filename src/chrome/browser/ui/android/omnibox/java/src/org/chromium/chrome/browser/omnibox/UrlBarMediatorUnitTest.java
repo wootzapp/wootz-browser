@@ -12,17 +12,21 @@ import android.text.SpannableStringBuilder;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.chrome.browser.omnibox.UrlBar.ScrollType;
+import org.chromium.chrome.browser.omnibox.UrlBarCoordinator.SelectionState;
 import org.chromium.chrome.browser.omnibox.UrlBarViewBinderUnitTest.ShadowOmniboxResourceProvider;
 import org.chromium.components.omnibox.OmniboxUrlEmphasizer;
 import org.chromium.components.omnibox.OmniboxUrlEmphasizer.UrlEmphasisColorSpan;
@@ -37,8 +41,9 @@ import org.chromium.url.GURL;
         manifest = Config.NONE,
         shadows = {ShadowOmniboxResourceProvider.class})
 public class UrlBarMediatorUnitTest {
-    @Mock UrlBar.UrlTextChangeListener mMockUrlTextListener;
-    @Mock UrlBar.UrlTextChangeListener mAnotherUrlTextMockListener;
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    @Mock Callback<String> mMockUrlTextListener;
+    @Mock Callback<String> mAnotherUrlTextMockListener;
     @Mock Callback<Boolean> mFocusChangeCallback;
 
     PropertyModel mModel;
@@ -46,8 +51,6 @@ public class UrlBarMediatorUnitTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-
         mModel = new PropertyModel(UrlBarProperties.ALL_KEYS);
         mMediator =
                 new UrlBarMediator(
@@ -319,18 +322,55 @@ public class UrlBarMediatorUnitTest {
     }
 
     @Test
-    public void urlTextChangeListenerCompositeObserver() {
-        mMediator.addUrlTextChangeListener(mMockUrlTextListener);
+    public void setUrlBarHintText() {
+        mMediator.setUrlBarHintText(R.string.hub_search_empty_hint);
+        Assert.assertEquals(R.string.hub_search_empty_hint, mModel.get(UrlBarProperties.HINT_TEXT));
+        mMediator.setUrlBarHintText(R.string.hub_search_empty_hint_incognito);
+        Assert.assertEquals(
+                R.string.hub_search_empty_hint_incognito, mModel.get(UrlBarProperties.HINT_TEXT));
+    }
 
-        String text = "foo";
-        String textWithAutocomplete = "foo.bar";
-        mMediator.onTextChanged(text);
-        Mockito.verify(mMockUrlTextListener, Mockito.times(1)).onTextChanged(text);
+    @Test
+    public void setIsInCct() {
+        Assert.assertFalse(mModel.get(UrlBarProperties.IS_IN_CCT));
+        mMediator.setIsInCct(true);
+        Assert.assertTrue(mModel.get(UrlBarProperties.IS_IN_CCT));
+    }
 
-        mMediator.addUrlTextChangeListener(mAnotherUrlTextMockListener);
-        mMediator.onTextChanged(text);
-        Mockito.verify(mMockUrlTextListener, Mockito.times(2)).onTextChanged(text);
-        Mockito.verify(mAnotherUrlTextMockListener, Mockito.times(1)).onTextChanged(text);
+    @Test
+    public void setShowOriginOnly() {
+        UrlBarData baseData =
+                UrlBarData.create(
+                        new GURL("http://www.example.com/a_path_to_ignore"),
+                        spannable("http://www.example.com/a_path_to_ignore"),
+                        0,
+                        22,
+                        "Blah");
+        mMediator.setUrlBarData(
+                baseData, UrlBar.ScrollType.SCROLL_TO_TLD, SelectionState.SELECT_END);
+
+        Assert.assertEquals(
+                "http://www.example.com/a_path_to_ignore",
+                mModel.get(UrlBarProperties.TEXT_STATE).text.toString());
+
+        mMediator.setShowOriginOnly(true);
+        Assert.assertEquals(
+                "http://www.example.com", mModel.get(UrlBarProperties.TEXT_STATE).text.toString());
+
+        mMediator.setShowOriginOnly(false);
+        Assert.assertEquals(
+                "http://www.example.com/a_path_to_ignore",
+                mModel.get(UrlBarProperties.TEXT_STATE).text.toString());
+    }
+
+    @Test
+    public void setShowOriginOnly_nonUrlText() {
+        UrlBarData baseData = UrlBarData.forNonUrlText("non url");
+        mMediator.setUrlBarData(baseData, ScrollType.NO_SCROLL, SelectionState.SELECT_END);
+        Assert.assertEquals("non url", mModel.get(UrlBarProperties.TEXT_STATE).text.toString());
+
+        mMediator.setShowOriginOnly(true);
+        Assert.assertEquals("non url", mModel.get(UrlBarProperties.TEXT_STATE).text.toString());
     }
 
     private static SpannableStringBuilder spannable(String text) {

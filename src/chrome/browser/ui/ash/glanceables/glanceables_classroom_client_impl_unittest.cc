@@ -9,7 +9,8 @@
 #include <utility>
 #include <vector>
 
-#include "ash/constants/ash_features.h"
+#include "ash/constants/ash_pref_names.h"
+#include "ash/constants/web_app_id_constants.h"
 #include "ash/glanceables/classroom/glanceables_classroom_types.h"
 #include "base/command_line.h"
 #include "base/functional/bind.h"
@@ -19,10 +20,21 @@
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
+#include "base/time/default_clock.h"
+#include "base/values.h"
+#include "chrome/browser/apps/app_service/app_service_proxy.h"
+#include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
+#include "chrome/browser/apps/app_service/publishers/app_publisher.h"
+#include "chrome/browser/prefs/browser_prefs.h"
+#include "chrome/test/base/testing_browser_process.h"
+#include "chrome/test/base/testing_profile.h"
+#include "chrome/test/base/testing_profile_manager.h"
+#include "components/policy/core/common/policy_pref_names.h"
+#include "components/services/app_service/public/cpp/app.h"
+#include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/test/browser_task_environment.h"
 #include "google_apis/common/api_error_codes.h"
 #include "google_apis/common/dummy_auth_service.h"
@@ -107,9 +119,103 @@ std::string CreateSubmissionsListResponse(const std::string& course_work_id,
 
 }  // namespace
 
+class GlanceablesClassroomClientImplIsDisabledByAdminTest
+    : public testing::Test {
+ public:
+  GlanceablesClassroomClientImplIsDisabledByAdminTest()
+      : profile_manager_(
+            TestingProfileManager(TestingBrowserProcess::GetGlobal())) {}
+
+  void SetUp() override { ASSERT_TRUE(profile_manager_.SetUp()); }
+
+  std::unique_ptr<sync_preferences::TestingPrefServiceSyncable>
+  GetDefaultPrefs() const {
+    auto prefs =
+        std::make_unique<sync_preferences::TestingPrefServiceSyncable>();
+    RegisterUserProfilePrefs(prefs->registry());
+    return prefs;
+  }
+
+  TestingProfile* CreateTestingProfile(
+      std::unique_ptr<sync_preferences::TestingPrefServiceSyncable> prefs) {
+    return profile_manager_.CreateTestingProfile(
+        "profile@example.com", std::move(prefs), u"User Name", /*avatar_id=*/0,
+        TestingProfile::TestingFactories());
+  }
+
+  GlanceablesClassroomClientImpl CreateClientForProfile(
+      Profile* profile) const {
+    return GlanceablesClassroomClientImpl(
+        profile, base::DefaultClock::GetInstance(),
+        base::BindLambdaForTesting(
+            [](const std::vector<std::string>& scopes,
+               const net::NetworkTrafficAnnotationTag& traffic_annotation_tag)
+                -> std::unique_ptr<google_apis::RequestSender> {
+              return nullptr;
+            }));
+  }
+
+ private:
+  content::BrowserTaskEnvironment task_environment_;
+  TestingProfileManager profile_manager_;
+};
+
+TEST_F(GlanceablesClassroomClientImplIsDisabledByAdminTest, Default) {
+  auto* const profile = CreateTestingProfile(GetDefaultPrefs());
+  EXPECT_FALSE(CreateClientForProfile(profile).IsDisabledByAdmin());
+}
+
+TEST_F(GlanceablesClassroomClientImplIsDisabledByAdminTest,
+       NoClassroomInContextualGoogleIntegrationsPref) {
+  auto prefs = GetDefaultPrefs();
+  base::Value::List enabled_integrations;
+  enabled_integrations.Append(prefs::kGoogleCalendarIntegrationName);
+  enabled_integrations.Append(prefs::kGoogleTasksIntegrationName);
+  prefs->SetList(prefs::kContextualGoogleIntegrationsConfiguration,
+                 std::move(enabled_integrations));
+
+  auto* const profile = CreateTestingProfile(std::move(prefs));
+  EXPECT_TRUE(CreateClientForProfile(profile).IsDisabledByAdmin());
+}
+
+TEST_F(GlanceablesClassroomClientImplIsDisabledByAdminTest,
+       DisabledClassroomApp) {
+  auto* const profile = CreateTestingProfile(GetDefaultPrefs());
+
+  std::vector<apps::AppPtr> app_deltas;
+  app_deltas.push_back(apps::AppPublisher::MakeApp(
+      apps::AppType::kWeb, ash::kGoogleClassroomAppId,
+      apps::Readiness::kDisabledByPolicy, "Classroom",
+      apps::InstallReason::kUser, apps::InstallSource::kBrowser));
+
+  apps::AppServiceProxyFactory::GetForProfile(profile)->OnApps(
+      std::move(app_deltas), apps::AppType::kWeb,
+      /*should_notify_initialized=*/true);
+
+  EXPECT_TRUE(CreateClientForProfile(profile).IsDisabledByAdmin());
+}
+
+TEST_F(GlanceablesClassroomClientImplIsDisabledByAdminTest,
+       BlockedClassroomUrl) {
+  auto prefs = GetDefaultPrefs();
+  base::Value::List blocklist;
+  blocklist.Append("classroom.google.com");
+  prefs->SetManagedPref(policy::policy_prefs::kUrlBlocklist,
+                        std::move(blocklist));
+
+  auto* const profile = CreateTestingProfile(std::move(prefs));
+  EXPECT_TRUE(CreateClientForProfile(profile).IsDisabledByAdmin());
+}
+
 class GlanceablesClassroomClientImplTest : public testing::Test {
  public:
+  GlanceablesClassroomClientImplTest()
+      : profile_manager_(
+            TestingProfileManager(TestingBrowserProcess::GetGlobal())) {}
+
   void SetUp() override {
+    ASSERT_TRUE(profile_manager_.SetUp());
+
     // This is the time most of the test expect.
     OverrideTime("10 Apr 2023 00:00 GMT");
 
@@ -122,6 +228,9 @@ class GlanceablesClassroomClientImplTest : public testing::Test {
               "test-user-agent", TRAFFIC_ANNOTATION_FOR_TESTS);
         });
     client_ = std::make_unique<GlanceablesClassroomClientImpl>(
+        profile_manager_.CreateTestingProfile("profile@example.com",
+                                              /*testing_factories=*/{},
+                                              url_loader_factory_),
         &test_clock_, create_request_sender_callback);
 
     test_server_.RegisterRequestHandler(
@@ -161,6 +270,7 @@ class GlanceablesClassroomClientImplTest : public testing::Test {
         }));
   }
 
+  base::SimpleTestClock* clock() { return &test_clock_; }
   GlanceablesClassroomClientImpl* client() { return client_.get(); }
   base::HistogramTester* histogram_tester() { return &histogram_tester_; }
   TestRequestHandler& request_handler() { return request_handler_; }
@@ -170,6 +280,7 @@ class GlanceablesClassroomClientImplTest : public testing::Test {
 
   content::BrowserTaskEnvironment task_environment_{
       base::test::TaskEnvironment::MainThreadType::IO};
+  TestingProfileManager profile_manager_;
   net::EmbeddedTestServer test_server_;
   scoped_refptr<network::TestSharedURLLoaderFactory> url_loader_factory_ =
       base::MakeRefCounted<network::TestSharedURLLoaderFactory>(
@@ -355,47 +466,46 @@ TEST_F(GlanceablesClassroomClientImplTest, FetchCourseWork) {
       GlanceablesClassroomClientImpl::CourseWorkType::kStudent;
   client()->FetchCourseWork(
       /*course_id=*/"course-123", course_work_type,
-      base::BindLambdaForTesting(
-          [&]() {
-            run_loop.Quit();
+      base::BindLambdaForTesting([&]() {
+        run_loop.Quit();
 
-            GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
-                client()->GetCourseWork(course_work_type);
+        GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
+            client()->GetCourseWork(course_work_type);
 
-            ASSERT_TRUE(courses_map.contains("course-123"));
-            auto& course_work_map = courses_map["course-123"];
-            ASSERT_EQ(course_work_map.size(), 2u);
+        ASSERT_TRUE(courses_map.contains("course-123"));
+        auto& course_work_map = courses_map["course-123"];
+        ASSERT_EQ(course_work_map.size(), 2u);
 
-            ASSERT_TRUE(course_work_map.contains("course-work-item-1"));
-            const GlanceablesClassroomCourseWorkItem& course_work_1 =
-                course_work_map.at("course-work-item-1");
-            EXPECT_EQ(course_work_1.title(), "Math assignment");
-            EXPECT_EQ(course_work_1.link(),
-                      "https://classroom.google.com/test-link-1");
-            EXPECT_FALSE(course_work_1.due());
+        ASSERT_TRUE(course_work_map.contains("course-work-item-1"));
+        const GlanceablesClassroomCourseWorkItem& course_work_1 =
+            course_work_map.at("course-work-item-1");
+        EXPECT_EQ(course_work_1.title(), "Math assignment");
+        EXPECT_EQ(course_work_1.link(),
+                  "https://classroom.google.com/test-link-1");
+        EXPECT_FALSE(course_work_1.due());
 
-            ASSERT_TRUE(course_work_map.contains("course-work-item-3"));
-            const GlanceablesClassroomCourseWorkItem& course_work_3 =
-                course_work_map.at("course-work-item-3");
-            EXPECT_EQ(course_work_3.title(), "Math assignment with due date");
-            EXPECT_EQ(course_work_3.link(),
-                      "https://classroom.google.com/test-link-3");
-            ASSERT_TRUE(course_work_3.due());
-            EXPECT_EQ(FormatTimeAsString(course_work_3.due().value()),
-                      "2023-04-25T15:09:25.250Z");
+        ASSERT_TRUE(course_work_map.contains("course-work-item-3"));
+        const GlanceablesClassroomCourseWorkItem& course_work_3 =
+            course_work_map.at("course-work-item-3");
+        EXPECT_EQ(course_work_3.title(), "Math assignment with due date");
+        EXPECT_EQ(course_work_3.link(),
+                  "https://classroom.google.com/test-link-3");
+        ASSERT_TRUE(course_work_3.due());
+        EXPECT_EQ(FormatTimeAsString(course_work_3.due().value()),
+                  "2023-04-25T15:09:25.250Z");
 
-            histogram_tester()->ExpectTotalCount(
-                "Ash.Glanceables.Api.Classroom.GetCourseWork.Latency",
-                /*expected_count=*/1);
-            histogram_tester()->ExpectUniqueSample(
-                "Ash.Glanceables.Api.Classroom.GetCourseWork.Status",
-                ApiErrorCode::HTTP_SUCCESS,
-                /*expected_bucket_count=*/1);
-            histogram_tester()->ExpectUniqueSample(
-                "Ash.Glanceables.Api.Classroom.GetCourseWork.PagesCount",
-                /*sample=*/1,
-                /*expected_bucket_count=*/1);
-          }));
+        histogram_tester()->ExpectTotalCount(
+            "Ash.Glanceables.Api.Classroom.GetCourseWork.Latency",
+            /*expected_count=*/1);
+        histogram_tester()->ExpectUniqueSample(
+            "Ash.Glanceables.Api.Classroom.GetCourseWork.Status",
+            ApiErrorCode::HTTP_SUCCESS,
+            /*expected_bucket_count=*/1);
+        histogram_tester()->ExpectUniqueSample(
+            "Ash.Glanceables.Api.Classroom.GetCourseWork.PagesCount",
+            /*sample=*/1,
+            /*expected_bucket_count=*/1);
+      }));
   run_loop.Run();
 }
 
@@ -505,53 +615,51 @@ TEST_F(GlanceablesClassroomClientImplTest, FetchCourseWorkAndSubmissions) {
       GlanceablesClassroomClientImpl::CourseWorkType::kTeacher;
   client()->FetchCourseWork(
       /*course_id=*/"course-123", course_work_type,
-      base::BindLambdaForTesting(
-          [&]() {
-            run_loop.Quit();
+      base::BindLambdaForTesting([&]() {
+        run_loop.Quit();
 
-            GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
-                client()->GetCourseWork(course_work_type);
+        GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
+            client()->GetCourseWork(course_work_type);
 
-            ASSERT_TRUE(courses_map.contains("course-123"));
-            auto& course_work_map = courses_map["course-123"];
-            ASSERT_EQ(course_work_map.size(), 3u);
+        ASSERT_TRUE(courses_map.contains("course-123"));
+        auto& course_work_map = courses_map["course-123"];
+        ASSERT_EQ(course_work_map.size(), 3u);
 
-            ASSERT_TRUE(course_work_map.contains("course-work-item-1"));
-            const GlanceablesClassroomCourseWorkItem& course_work_1 =
-                course_work_map.at("course-work-item-1");
-            EXPECT_EQ(course_work_1.title(), "Math assignment");
-            EXPECT_EQ(course_work_1.link(),
-                      "https://classroom.google.com/test-link-1");
-            EXPECT_FALSE(course_work_1.due());
-            EXPECT_EQ(course_work_1.total_submissions(), 1);
-            EXPECT_EQ(course_work_1.turned_in_submissions(), 0);
-            EXPECT_EQ(course_work_1.graded_submissions(), 0);
+        ASSERT_TRUE(course_work_map.contains("course-work-item-1"));
+        const GlanceablesClassroomCourseWorkItem& course_work_1 =
+            course_work_map.at("course-work-item-1");
+        EXPECT_EQ(course_work_1.title(), "Math assignment");
+        EXPECT_EQ(course_work_1.link(),
+                  "https://classroom.google.com/test-link-1");
+        EXPECT_FALSE(course_work_1.due());
+        EXPECT_EQ(course_work_1.total_submissions(), 1);
+        EXPECT_EQ(course_work_1.turned_in_submissions(), 0);
+        EXPECT_EQ(course_work_1.graded_submissions(), 0);
 
-            ASSERT_TRUE(course_work_map.contains("course-work-item-3"));
-            const GlanceablesClassroomCourseWorkItem& course_work_3 =
-                course_work_map.at("course-work-item-3");
-            EXPECT_EQ(course_work_3.title(), "Math assignment with due date");
-            EXPECT_EQ(course_work_3.link(),
-                      "https://classroom.google.com/test-link-3");
-            ASSERT_TRUE(course_work_3.due());
-            EXPECT_EQ(FormatTimeAsString(course_work_3.due().value()),
-                      "2023-04-25T15:09:25.250Z");
-            EXPECT_EQ(course_work_3.total_submissions(), 3);
-            EXPECT_EQ(course_work_3.turned_in_submissions(), 2);
-            EXPECT_EQ(course_work_3.graded_submissions(), 1);
+        ASSERT_TRUE(course_work_map.contains("course-work-item-3"));
+        const GlanceablesClassroomCourseWorkItem& course_work_3 =
+            course_work_map.at("course-work-item-3");
+        EXPECT_EQ(course_work_3.title(), "Math assignment with due date");
+        EXPECT_EQ(course_work_3.link(),
+                  "https://classroom.google.com/test-link-3");
+        ASSERT_TRUE(course_work_3.due());
+        EXPECT_EQ(FormatTimeAsString(course_work_3.due().value()),
+                  "2023-04-25T15:09:25.250Z");
+        EXPECT_EQ(course_work_3.total_submissions(), 3);
+        EXPECT_EQ(course_work_3.turned_in_submissions(), 2);
+        EXPECT_EQ(course_work_3.graded_submissions(), 1);
 
-            ASSERT_TRUE(course_work_map.contains("course-work-item-4"));
-            const GlanceablesClassroomCourseWorkItem& course_work_4 =
-                course_work_map.at("course-work-item-4");
-            EXPECT_EQ(course_work_4.title(),
-                      "Math assignment with no submissions");
-            EXPECT_EQ(course_work_4.link(),
-                      "https://classroom.google.com/test-link-4");
-            EXPECT_FALSE(course_work_4.due());
-            EXPECT_EQ(course_work_4.total_submissions(), 0);
-            EXPECT_EQ(course_work_4.turned_in_submissions(), 0);
-            EXPECT_EQ(course_work_4.graded_submissions(), 0);
-          }));
+        ASSERT_TRUE(course_work_map.contains("course-work-item-4"));
+        const GlanceablesClassroomCourseWorkItem& course_work_4 =
+            course_work_map.at("course-work-item-4");
+        EXPECT_EQ(course_work_4.title(), "Math assignment with no submissions");
+        EXPECT_EQ(course_work_4.link(),
+                  "https://classroom.google.com/test-link-4");
+        EXPECT_FALSE(course_work_4.due());
+        EXPECT_EQ(course_work_4.total_submissions(), 0);
+        EXPECT_EQ(course_work_4.turned_in_submissions(), 0);
+        EXPECT_EQ(course_work_4.graded_submissions(), 0);
+      }));
   run_loop.Run();
 }
 
@@ -566,24 +674,23 @@ TEST_F(GlanceablesClassroomClientImplTest, FetchCourseWorkOnHttpError) {
       GlanceablesClassroomClientImpl::CourseWorkType::kStudent;
   client()->FetchCourseWork(
       /*course_id=*/"course-123", course_work_type,
-      base::BindLambdaForTesting(
-          [&]() {
-            run_loop.Quit();
+      base::BindLambdaForTesting([&]() {
+        run_loop.Quit();
 
-            GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
-                client()->GetCourseWork(course_work_type);
+        GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
+            client()->GetCourseWork(course_work_type);
 
-            auto& course_work_map = courses_map["course-123"];
-            ASSERT_TRUE(course_work_map.empty());
+        auto& course_work_map = courses_map["course-123"];
+        ASSERT_TRUE(course_work_map.empty());
 
-            histogram_tester()->ExpectTotalCount(
-                "Ash.Glanceables.Api.Classroom.GetCourseWork.Latency",
-                /*expected_count=*/1);
-            histogram_tester()->ExpectUniqueSample(
-                "Ash.Glanceables.Api.Classroom.GetCourseWork.Status",
-                ApiErrorCode::HTTP_INTERNAL_SERVER_ERROR,
-                /*expected_bucket_count=*/1);
-          }));
+        histogram_tester()->ExpectTotalCount(
+            "Ash.Glanceables.Api.Classroom.GetCourseWork.Latency",
+            /*expected_count=*/1);
+        histogram_tester()->ExpectUniqueSample(
+            "Ash.Glanceables.Api.Classroom.GetCourseWork.Status",
+            ApiErrorCode::HTTP_INTERNAL_SERVER_ERROR,
+            /*expected_bucket_count=*/1);
+      }));
   run_loop.Run();
 }
 
@@ -701,46 +808,42 @@ TEST_F(GlanceablesClassroomClientImplTest,
       GlanceablesClassroomClientImpl::CourseWorkType::kTeacher;
   client()->FetchCourseWork(
       /*course_id=*/"course-123", course_work_type,
-      base::BindLambdaForTesting(
-          [&]() {
-            run_loop.Quit();
+      base::BindLambdaForTesting([&]() {
+        run_loop.Quit();
 
-            GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
-                client()->GetCourseWork(course_work_type);
+        GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
+            client()->GetCourseWork(course_work_type);
 
-            ASSERT_TRUE(courses_map.contains("course-123"));
-            auto& course_work_map = courses_map["course-123"];
-            ASSERT_EQ(course_work_map.size(), 3u);
+        ASSERT_TRUE(courses_map.contains("course-123"));
+        auto& course_work_map = courses_map["course-123"];
+        ASSERT_EQ(course_work_map.size(), 3u);
 
-            ASSERT_TRUE(
-                course_work_map.contains("course-work-item-from-page-1"));
-            const GlanceablesClassroomCourseWorkItem& course_work_1 =
-                course_work_map.at("course-work-item-from-page-1");
-            EXPECT_EQ(course_work_1.total_submissions(), 1);
-            EXPECT_EQ(course_work_1.turned_in_submissions(), 0);
-            EXPECT_EQ(course_work_1.graded_submissions(), 0);
+        ASSERT_TRUE(course_work_map.contains("course-work-item-from-page-1"));
+        const GlanceablesClassroomCourseWorkItem& course_work_1 =
+            course_work_map.at("course-work-item-from-page-1");
+        EXPECT_EQ(course_work_1.total_submissions(), 1);
+        EXPECT_EQ(course_work_1.turned_in_submissions(), 0);
+        EXPECT_EQ(course_work_1.graded_submissions(), 0);
 
-            ASSERT_TRUE(
-                course_work_map.contains("course-work-item-from-page-2"));
-            const GlanceablesClassroomCourseWorkItem& course_work_2 =
-                course_work_map.at("course-work-item-from-page-2");
-            EXPECT_EQ(course_work_2.total_submissions(), 1);
-            EXPECT_EQ(course_work_2.turned_in_submissions(), 1);
-            EXPECT_EQ(course_work_2.graded_submissions(), 0);
+        ASSERT_TRUE(course_work_map.contains("course-work-item-from-page-2"));
+        const GlanceablesClassroomCourseWorkItem& course_work_2 =
+            course_work_map.at("course-work-item-from-page-2");
+        EXPECT_EQ(course_work_2.total_submissions(), 1);
+        EXPECT_EQ(course_work_2.turned_in_submissions(), 1);
+        EXPECT_EQ(course_work_2.graded_submissions(), 0);
 
-            ASSERT_TRUE(
-                course_work_map.contains("course-work-item-from-page-3"));
-            const GlanceablesClassroomCourseWorkItem& course_work_3 =
-                course_work_map.at("course-work-item-from-page-3");
-            EXPECT_EQ(course_work_3.total_submissions(), 3);
-            EXPECT_EQ(course_work_3.turned_in_submissions(), 2);
-            EXPECT_EQ(course_work_3.graded_submissions(), 1);
+        ASSERT_TRUE(course_work_map.contains("course-work-item-from-page-3"));
+        const GlanceablesClassroomCourseWorkItem& course_work_3 =
+            course_work_map.at("course-work-item-from-page-3");
+        EXPECT_EQ(course_work_3.total_submissions(), 3);
+        EXPECT_EQ(course_work_3.turned_in_submissions(), 2);
+        EXPECT_EQ(course_work_3.graded_submissions(), 1);
 
-            histogram_tester()->ExpectUniqueSample(
-                "Ash.Glanceables.Api.Classroom.GetCourseWork.PagesCount",
-                /*sample=*/3,
-                /*expected_bucket_count=*/1);
-          }));
+        histogram_tester()->ExpectUniqueSample(
+            "Ash.Glanceables.Api.Classroom.GetCourseWork.PagesCount",
+            /*sample=*/3,
+            /*expected_bucket_count=*/1);
+      }));
   run_loop.Run();
 }
 
@@ -855,37 +958,36 @@ TEST_F(GlanceablesClassroomClientImplTest, FetchStudentSubmissions) {
       GlanceablesClassroomClientImpl::CourseWorkType::kStudent;
   client()->FetchStudentSubmissions(
       /*course_id=*/"course-123", /*course_work_id=*/"-", course_work_type,
-      base::BindLambdaForTesting(
-          [&]() {
-            run_loop.Quit();
+      base::BindLambdaForTesting([&]() {
+        run_loop.Quit();
 
-            GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
-                client()->GetCourseWork(course_work_type);
+        GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
+            client()->GetCourseWork(course_work_type);
 
-            ASSERT_TRUE(courses_map.contains("course-123"));
-            auto& course_work_map = courses_map["course-123"];
+        ASSERT_TRUE(courses_map.contains("course-123"));
+        auto& course_work_map = courses_map["course-123"];
 
-            ASSERT_EQ(course_work_map.size(), 1u);
-            ASSERT_TRUE(course_work_map.contains("course-work-1"));
+        ASSERT_EQ(course_work_map.size(), 1u);
+        ASSERT_TRUE(course_work_map.contains("course-work-1"));
 
-            const auto& course_work = course_work_map.at("course-work-1");
-            EXPECT_EQ(course_work.total_submissions(), 7);
-            EXPECT_EQ(course_work.turned_in_submissions(), 2);
-            EXPECT_EQ(course_work.graded_submissions(), 1);
+        const auto& course_work = course_work_map.at("course-work-1");
+        EXPECT_EQ(course_work.total_submissions(), 7);
+        EXPECT_EQ(course_work.turned_in_submissions(), 2);
+        EXPECT_EQ(course_work.graded_submissions(), 1);
 
-            histogram_tester()->ExpectTotalCount(
-                "Ash.Glanceables.Api.Classroom.GetStudentSubmissions.Latency",
-                /*expected_count=*/1);
-            histogram_tester()->ExpectUniqueSample(
-                "Ash.Glanceables.Api.Classroom.GetStudentSubmissions.Status",
-                ApiErrorCode::HTTP_SUCCESS,
-                /*expected_bucket_count=*/1);
-            histogram_tester()->ExpectUniqueSample(
-                "Ash.Glanceables.Api.Classroom.GetStudentSubmissions."
-                "PagesCount",
-                /*sample=*/1,
-                /*expected_bucket_count=*/1);
-          }));
+        histogram_tester()->ExpectTotalCount(
+            "Ash.Glanceables.Api.Classroom.GetStudentSubmissions.Latency",
+            /*expected_count=*/1);
+        histogram_tester()->ExpectUniqueSample(
+            "Ash.Glanceables.Api.Classroom.GetStudentSubmissions.Status",
+            ApiErrorCode::HTTP_SUCCESS,
+            /*expected_bucket_count=*/1);
+        histogram_tester()->ExpectUniqueSample(
+            "Ash.Glanceables.Api.Classroom.GetStudentSubmissions."
+            "PagesCount",
+            /*sample=*/1,
+            /*expected_bucket_count=*/1);
+      }));
   run_loop.Run();
 }
 
@@ -900,24 +1002,23 @@ TEST_F(GlanceablesClassroomClientImplTest, FetchStudentSubmissionsOnHttpError) {
       GlanceablesClassroomClientImpl::CourseWorkType::kStudent;
   client()->FetchStudentSubmissions(
       /*course_id=*/"course-123", /*course_work_id=*/"-", course_work_type,
-      base::BindLambdaForTesting(
-          [&]() {
-            run_loop.Quit();
+      base::BindLambdaForTesting([&]() {
+        run_loop.Quit();
 
-            GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
-                client()->GetCourseWork(course_work_type);
+        GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
+            client()->GetCourseWork(course_work_type);
 
-            auto& course_work_map = courses_map["course-123"];
-            ASSERT_TRUE(course_work_map.empty());
+        auto& course_work_map = courses_map["course-123"];
+        ASSERT_TRUE(course_work_map.empty());
 
-            histogram_tester()->ExpectTotalCount(
-                "Ash.Glanceables.Api.Classroom.GetStudentSubmissions.Latency",
-                /*expected_count=*/1);
-            histogram_tester()->ExpectUniqueSample(
-                "Ash.Glanceables.Api.Classroom.GetStudentSubmissions.Status",
-                ApiErrorCode::HTTP_INTERNAL_SERVER_ERROR,
-                /*expected_bucket_count=*/1);
-          }));
+        histogram_tester()->ExpectTotalCount(
+            "Ash.Glanceables.Api.Classroom.GetStudentSubmissions.Latency",
+            /*expected_count=*/1);
+        histogram_tester()->ExpectUniqueSample(
+            "Ash.Glanceables.Api.Classroom.GetStudentSubmissions.Status",
+            ApiErrorCode::HTTP_INTERNAL_SERVER_ERROR,
+            /*expected_bucket_count=*/1);
+      }));
   run_loop.Run();
 }
 
@@ -1054,29 +1155,28 @@ TEST_F(GlanceablesClassroomClientImplTest,
       GlanceablesClassroomClientImpl::CourseWorkType::kStudent;
   client()->FetchStudentSubmissions(
       /*course_id=*/"course-123", /*course_work_id=*/"-", course_work_type,
-      base::BindLambdaForTesting(
-          [&]() {
-            student_submissions_run_loop.Quit();
+      base::BindLambdaForTesting([&]() {
+        student_submissions_run_loop.Quit();
 
-            GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
-                client()->GetCourseWork(course_work_type);
+        GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
+            client()->GetCourseWork(course_work_type);
 
-            ASSERT_TRUE(courses_map.contains("course-123"));
-            auto& course_work_map = courses_map["course-123"];
+        ASSERT_TRUE(courses_map.contains("course-123"));
+        auto& course_work_map = courses_map["course-123"];
 
-            ASSERT_EQ(course_work_map.size(), 1u);
-            ASSERT_TRUE(course_work_map.contains("course-work-item-1"));
+        ASSERT_EQ(course_work_map.size(), 1u);
+        ASSERT_TRUE(course_work_map.contains("course-work-item-1"));
 
-            const auto& course_work = course_work_map.at("course-work-item-1");
-            EXPECT_EQ(course_work.total_submissions(), 7);
-            EXPECT_EQ(course_work.turned_in_submissions(), 2);
-            EXPECT_EQ(course_work.graded_submissions(), 1);
+        const auto& course_work = course_work_map.at("course-work-item-1");
+        EXPECT_EQ(course_work.total_submissions(), 7);
+        EXPECT_EQ(course_work.turned_in_submissions(), 2);
+        EXPECT_EQ(course_work.graded_submissions(), 1);
 
-            histogram_tester()->ExpectUniqueSample(
-                "Ash.Glanceables.Api.Classroom.GetStudentSubmissions.Status",
-                ApiErrorCode::HTTP_SUCCESS,
-                /*expected_bucket_count=*/1);
-          }));
+        histogram_tester()->ExpectUniqueSample(
+            "Ash.Glanceables.Api.Classroom.GetStudentSubmissions.Status",
+            ApiErrorCode::HTTP_SUCCESS,
+            /*expected_bucket_count=*/1);
+      }));
   student_submissions_run_loop.Run();
 
   EXPECT_CALL(request_handler(),
@@ -1097,34 +1197,33 @@ TEST_F(GlanceablesClassroomClientImplTest,
   base::RunLoop course_work_run_loop;
   client()->FetchCourseWork(
       /*course_id=*/"course-123", course_work_type,
-      base::BindLambdaForTesting(
-          [&]() {
-            course_work_run_loop.Quit();
+      base::BindLambdaForTesting([&]() {
+        course_work_run_loop.Quit();
 
-            GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
-                client()->GetCourseWork(course_work_type);
+        GlanceablesClassroomClientImpl::CourseWorkPerCourse& courses_map =
+            client()->GetCourseWork(course_work_type);
 
-            ASSERT_TRUE(courses_map.contains("course-123"));
-            auto& course_work_map = courses_map["course-123"];
+        ASSERT_TRUE(courses_map.contains("course-123"));
+        auto& course_work_map = courses_map["course-123"];
 
-            ASSERT_EQ(course_work_map.size(), 1u);
+        ASSERT_EQ(course_work_map.size(), 1u);
 
-            ASSERT_TRUE(course_work_map.contains("course-work-item-1"));
-            const GlanceablesClassroomCourseWorkItem& course_work =
-                course_work_map.at("course-work-item-1");
-            EXPECT_EQ(course_work.title(), "Math assignment");
-            EXPECT_EQ(course_work.link(),
-                      "https://classroom.google.com/test-link-1");
-            EXPECT_FALSE(course_work.due());
-            EXPECT_EQ(course_work.total_submissions(), 7);
-            EXPECT_EQ(course_work.turned_in_submissions(), 2);
-            EXPECT_EQ(course_work.graded_submissions(), 1);
+        ASSERT_TRUE(course_work_map.contains("course-work-item-1"));
+        const GlanceablesClassroomCourseWorkItem& course_work =
+            course_work_map.at("course-work-item-1");
+        EXPECT_EQ(course_work.title(), "Math assignment");
+        EXPECT_EQ(course_work.link(),
+                  "https://classroom.google.com/test-link-1");
+        EXPECT_FALSE(course_work.due());
+        EXPECT_EQ(course_work.total_submissions(), 7);
+        EXPECT_EQ(course_work.turned_in_submissions(), 2);
+        EXPECT_EQ(course_work.graded_submissions(), 1);
 
-            histogram_tester()->ExpectUniqueSample(
-                "Ash.Glanceables.Api.Classroom.GetCourseWork.Status",
-                ApiErrorCode::HTTP_SUCCESS,
-                /*expected_bucket_count=*/1);
-          }));
+        histogram_tester()->ExpectUniqueSample(
+            "Ash.Glanceables.Api.Classroom.GetCourseWork.Status",
+            ApiErrorCode::HTTP_SUCCESS,
+            /*expected_bucket_count=*/1);
+      }));
   course_work_run_loop.Run();
 }
 
@@ -1133,21 +1232,8 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
 TEST_F(GlanceablesClassroomClientImplTest,
        StudentRoleIsActiveWithEnrolledCourses) {
-  EXPECT_CALL(request_handler(),
-              HandleRequest(
-                  Field(&HttpRequest::relative_url,
-                        AllOf(HasSubstr("/courses?"), HasSubstr("studentId=me"),
-                              Not(HasSubstr("teacherId=me"))))))
-      .WillOnce(Return(ByMove(TestRequestHandler::CreateSuccessfulResponse(R"(
-            {
-              "courses": [
-                {
-                  "id": "course-id-1",
-                  "name": "Active Course 1",
-                  "courseState": "ACTIVE"
-                }
-              ]
-            })"))));
+  ExpectActiveCourse();
+
   EXPECT_CALL(request_handler(),
               HandleRequest(
                   Field(&HttpRequest::relative_url, HasSubstr("/courseWork?"))))
@@ -1193,6 +1279,7 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
 TEST_F(GlanceablesClassroomClientImplTest, ReturnsCompletedStudentAssignments) {
   ExpectActiveCourse();
+
   EXPECT_CALL(request_handler(),
               HandleRequest(
                   Field(&HttpRequest::relative_url, HasSubstr("/courseWork?"))))
@@ -1317,6 +1404,7 @@ TEST_F(GlanceablesClassroomClientImplTest, ReturnsCompletedStudentAssignments) {
 TEST_F(GlanceablesClassroomClientImplTest,
        ReturnsStudentAssignmentsWithApproachingDueDate) {
   ExpectActiveCourse();
+
   EXPECT_CALL(request_handler(),
               HandleRequest(
                   Field(&HttpRequest::relative_url, HasSubstr("/courseWork?"))))
@@ -1475,6 +1563,7 @@ TEST_F(GlanceablesClassroomClientImplTest,
 TEST_F(GlanceablesClassroomClientImplTest,
        ReturnsStudentAssignmentsWithMissedDueDate) {
   ExpectActiveCourse();
+
   EXPECT_CALL(request_handler(),
               HandleRequest(
                   Field(&HttpRequest::relative_url, HasSubstr("/courseWork?"))))
@@ -1651,6 +1740,7 @@ TEST_F(GlanceablesClassroomClientImplTest,
 TEST_F(GlanceablesClassroomClientImplTest,
        ReturnsStudentAssignmentsWithoutDueDate) {
   ExpectActiveCourse();
+
   EXPECT_CALL(request_handler(),
               HandleRequest(
                   Field(&HttpRequest::relative_url, HasSubstr("/courseWork?"))))
@@ -1820,6 +1910,7 @@ TEST_F(GlanceablesClassroomClientImplTest,
 TEST_F(GlanceablesClassroomClientImplTest,
        SubmissionsFailureWhenFetchingStudentAssignments) {
   ExpectActiveCourse();
+
   EXPECT_CALL(request_handler(),
               HandleRequest(
                   Field(&HttpRequest::relative_url, HasSubstr("/courseWork?"))))
@@ -1883,36 +1974,12 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
 TEST_F(GlanceablesClassroomClientImplTest,
        RefetchStudentAssignmentsAfterReshowingBubble) {
-  // Mock requests for a course where the user is student - expect two requests,
-  // second of which adds an assignment with an approaching due date.
-  EXPECT_CALL(request_handler(),
-              HandleRequest(Field(
-                  &HttpRequest::relative_url,
-                  AllOf(HasSubstr("/courses?"), HasSubstr("studentId=me")))))
-      .WillOnce(Return(ByMove(TestRequestHandler::CreateSuccessfulResponse(R"(
-            {
-              "courses": [
-                {
-                  "id": "student-course",
-                  "name": "Active Student Course",
-                  "courseState": "ACTIVE"
-                }
-              ]
-            })"))))
-      .WillOnce(Return(ByMove(TestRequestHandler::CreateSuccessfulResponse(R"(
-            {
-              "courses": [
-                {
-                  "id": "student-course",
-                  "name": "Active Student Course",
-                  "courseState": "ACTIVE"
-                }
-              ]
-            })"))));
+  ExpectActiveCourse();
+
   EXPECT_CALL(
       request_handler(),
       HandleRequest(Field(&HttpRequest::relative_url,
-                          HasSubstr("/courses/student-course/courseWork?"))))
+                          HasSubstr("/courses/course-id-1/courseWork?"))))
       .WillOnce(Return(ByMove(TestRequestHandler::CreateSuccessfulResponse(R"(
             {
               "courseWork": [
@@ -2000,7 +2067,7 @@ TEST_F(GlanceablesClassroomClientImplTest,
     const auto [success, assignments] = future.Take();
     EXPECT_TRUE(success);
     ASSERT_EQ(assignments.size(), 1u);
-    EXPECT_EQ(assignments.at(0)->course_title, "Active Student Course");
+    EXPECT_EQ(assignments.at(0)->course_title, "Active Course 1");
     EXPECT_EQ(assignments.at(0)->course_work_title,
               "Math assignment - missed due date");
   }
@@ -2027,7 +2094,7 @@ TEST_F(GlanceablesClassroomClientImplTest,
     const auto [success, assignments] = future.Take();
     EXPECT_TRUE(success);
     ASSERT_EQ(assignments.size(), 1u);
-    EXPECT_EQ(assignments.at(0)->course_title, "Active Student Course");
+    EXPECT_EQ(assignments.at(0)->course_title, "Active Course 1");
     EXPECT_EQ(assignments.at(0)->course_work_title,
               "Math assignment - approaching due date");
   }
@@ -2040,7 +2107,7 @@ TEST_F(GlanceablesClassroomClientImplTest,
     const auto [success, assignments] = future.Take();
     EXPECT_TRUE(success);
     ASSERT_EQ(assignments.size(), 1u);
-    EXPECT_EQ(assignments.at(0)->course_title, "Active Student Course");
+    EXPECT_EQ(assignments.at(0)->course_title, "Active Course 1");
     EXPECT_EQ(assignments.at(0)->course_work_title,
               "Math assignment - missed due date");
   }
@@ -2054,7 +2121,7 @@ TEST_F(GlanceablesClassroomClientImplTest,
     const auto [success, assignments] = future.Take();
     EXPECT_TRUE(success);
     ASSERT_EQ(assignments.size(), 1u);
-    EXPECT_EQ(assignments.at(0)->course_title, "Active Student Course");
+    EXPECT_EQ(assignments.at(0)->course_title, "Active Course 1");
     EXPECT_EQ(assignments.at(0)->course_work_title,
               "Math assignment - approaching due date");
   }
@@ -2062,7 +2129,7 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
 TEST_F(GlanceablesClassroomClientImplTest,
        FetchStudentCoursesAfterIsActiveCheck) {
-  ExpectActiveCourse(/*times=*/2);
+  ExpectActiveCourse();
 
   EXPECT_CALL(
       request_handler(),
@@ -2132,7 +2199,7 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
 TEST_F(GlanceablesClassroomClientImplTest,
        FetchStudentCoursesConcurrentlyWithIsActiveCheck) {
-  ExpectActiveCourse(/*times=*/2);
+  ExpectActiveCourse();
 
   EXPECT_CALL(
       request_handler(),
@@ -2197,27 +2264,12 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
 TEST_F(GlanceablesClassroomClientImplTest,
        DontRefetchStudentAssignmentsIfBubbleReshownWhileStillFetching) {
-  EXPECT_CALL(request_handler(),
-              HandleRequest(Field(
-                  &HttpRequest::relative_url,
-                  AllOf(HasSubstr("/courses?"), HasSubstr("studentId=me")))))
-      .WillOnce(Return(ByMove(TestRequestHandler::CreateSuccessfulResponse(R"(
-            {
-              "courses": [
-                {
-                  "id": "student-course",
-                  "name": "Active Student Course",
-                  "courseState": "ACTIVE"
-                }
-              ]
-            })"))))
-      .WillOnce(Return(ByMove(TestRequestHandler::CreateSuccessfulResponse(R"(
-            {"courses": []}
-      )"))));
+  ExpectActiveCourse();
+
   EXPECT_CALL(
       request_handler(),
       HandleRequest(Field(&HttpRequest::relative_url,
-                          HasSubstr("/courses/student-course/courseWork?"))))
+                          HasSubstr("/courses/course-id-1/courseWork?"))))
       .WillOnce(Return(ByMove(TestRequestHandler::CreateSuccessfulResponse(R"(
             {
               "courseWork": [
@@ -2266,14 +2318,14 @@ TEST_F(GlanceablesClassroomClientImplTest,
   const auto [initial_success, initial_assignments] = initial_future.Take();
   EXPECT_TRUE(initial_success);
   ASSERT_EQ(initial_assignments.size(), 1u);
-  EXPECT_EQ(initial_assignments.at(0)->course_title, "Active Student Course");
+  EXPECT_EQ(initial_assignments.at(0)->course_title, "Active Course 1");
   EXPECT_EQ(initial_assignments.at(0)->course_work_title,
             "Math assignment - missed due date");
 
   const auto [second_success, second_assignments] = second_future.Take();
   EXPECT_TRUE(second_success);
   ASSERT_EQ(second_assignments.size(), 1u);
-  EXPECT_EQ(second_assignments.at(0)->course_title, "Active Student Course");
+  EXPECT_EQ(second_assignments.at(0)->course_title, "Active Course 1");
   EXPECT_EQ(second_assignments.at(0)->course_work_title,
             "Math assignment - missed due date");
 
@@ -2285,21 +2337,9 @@ TEST_F(GlanceablesClassroomClientImplTest,
   const auto [third_success, third_assignments] = third_future.Take();
   EXPECT_TRUE(third_success);
   ASSERT_EQ(third_assignments.size(), 1u);
-  EXPECT_EQ(third_assignments.at(0)->course_title, "Active Student Course");
+  EXPECT_EQ(third_assignments.at(0)->course_title, "Active Course 1");
   EXPECT_EQ(third_assignments.at(0)->course_work_title,
             "Math assignment - missed due date");
-
-  // Request after closing the bubble should refetch data, which is in this case
-  // empty.
-  client()->OnGlanceablesBubbleClosed();
-
-  AssignmentListFuture refetch_future;
-  client()->GetStudentAssignmentsWithMissedDueDate(
-      refetch_future.GetCallback());
-
-  const auto [refetch_success, refetch_assignments] = refetch_future.Take();
-  EXPECT_TRUE(refetch_success);
-  EXPECT_EQ(refetch_assignments.size(), 0u);
 }
 
 TEST_F(GlanceablesClassroomClientImplTest,
@@ -2406,6 +2446,8 @@ TEST_F(GlanceablesClassroomClientImplTest,
   client()->OnGlanceablesBubbleClosed();
 
   {
+    clock()->Advance(base::Hours(4));
+
     AssignmentListFuture future;
     client()->GetStudentAssignmentsWithApproachingDueDate(future.GetCallback());
 
@@ -2420,6 +2462,8 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
   // Make sure assignments can be refetched after a failure.
   {
+    clock()->Advance(base::Hours(4));
+
     AssignmentListFuture future;
     client()->GetStudentAssignmentsWithApproachingDueDate(future.GetCallback());
 
@@ -2553,6 +2597,8 @@ TEST_F(GlanceablesClassroomClientImplTest,
   client()->OnGlanceablesBubbleClosed();
 
   {
+    clock()->Advance(base::Hours(4));
+
     AssignmentListFuture future;
     client()->GetStudentAssignmentsWithApproachingDueDate(future.GetCallback());
 
@@ -2567,6 +2613,8 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
   // Make sure assignments can be refetched after a failure.
   {
+    clock()->Advance(base::Hours(4));
+
     AssignmentListFuture future;
     client()->GetStudentAssignmentsWithApproachingDueDate(future.GetCallback());
 
@@ -2581,7 +2629,8 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
 TEST_F(GlanceablesClassroomClientImplTest,
        ReturnCachedDataIfCourseWorkFetchFailsForStudents) {
-  ExpectActiveCourse(/*call_count=*/2);
+  ExpectActiveCourse();
+
   EXPECT_CALL(request_handler(),
               HandleRequest(
                   Field(&HttpRequest::relative_url, HasSubstr("/courseWork?"))))
@@ -2725,7 +2774,8 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
 TEST_F(GlanceablesClassroomClientImplTest,
        ReturnCachedDataIfCourseWorkSecondPageFetchFailsForStudents) {
-  ExpectActiveCourse(/*call_count=*/2);
+  ExpectActiveCourse();
+
   EXPECT_CALL(request_handler(),
               HandleRequest(Field(&HttpRequest::relative_url,
                                   AllOf(HasSubstr("/courseWork?"),
@@ -2903,7 +2953,8 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
 TEST_F(GlanceablesClassroomClientImplTest,
        ReturnCachedDataIfSubmissionsFetchFailsForStudents) {
-  ExpectActiveCourse(/*call_count=*/2);
+  ExpectActiveCourse();
+
   EXPECT_CALL(request_handler(),
               HandleRequest(
                   Field(&HttpRequest::relative_url, HasSubstr("/courseWork?"))))
@@ -3058,7 +3109,8 @@ TEST_F(GlanceablesClassroomClientImplTest,
 
 TEST_F(GlanceablesClassroomClientImplTest,
        ReturnCachedDataIfSubmissionsSecondPageFetchFailsForStudents) {
-  ExpectActiveCourse(/*call_count=*/2);
+  ExpectActiveCourse();
+
   EXPECT_CALL(request_handler(),
               HandleRequest(
                   Field(&HttpRequest::relative_url, HasSubstr("/courseWork?"))))

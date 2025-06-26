@@ -4,14 +4,15 @@
 
 import 'chrome://os-settings/lazy_load.js';
 
-import {SettingsTrafficCountersElement} from 'chrome://os-settings/lazy_load.js';
+import type {SettingsTrafficCountersElement} from 'chrome://os-settings/lazy_load.js';
 import {MojoInterfaceProviderImpl} from 'chrome://resources/ash/common/network/mojo_interface_provider.js';
 import {OncMojo} from 'chrome://resources/ash/common/network/onc_mojo.js';
-import {TrafficCounter, TrafficCounterSource} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
+import type {TrafficCounter} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
+import {TrafficCounterSource} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
 import {ConnectionStateType, NetworkType} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
-import {Time} from 'chrome://resources/mojo/mojo/public/mojom/base/time.mojom-webui.js';
+import type {Time} from 'chrome://resources/mojo/mojo/public/mojom/base/time.mojom-webui.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
-import {assertEquals} from 'chrome://webui-test/chai_assert.js';
+import {assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {FakeNetworkConfig} from 'chrome://webui-test/chromeos/fake_network_config_mojom.js';
 import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 
@@ -122,7 +123,10 @@ suite('<settings-traffic-counters>', () => {
         NetworkType.kCellular, 'cellular_guid', 'cellular');
     managedProperties.connectionState = ConnectionStateType.kConnected;
     managedProperties.connectable = true;
-    managedProperties.trafficCounterProperties.userSpecifiedResetDay = 31;
+
+    const trafficCounterProps = OncMojo.createTrafficCounterProperties();
+    trafficCounterProps.userSpecifiedResetDay = 31;
+    managedProperties.trafficCounterProperties = trafficCounterProps;
     networkConfigRemote.setManagedPropertiesForTest(managedProperties);
     await flushTasks();
 
@@ -150,11 +154,12 @@ suite('<settings-traffic-counters>', () => {
         NetworkType.kCellular, 'cellular_guid', 'cellular');
     managedProperties.connectionState = ConnectionStateType.kConnected;
     managedProperties.connectable = true;
-    managedProperties.trafficCounterProperties.lastResetTime =
-        FAKE_INITIAL_LAST_RESET_TIME;
-    managedProperties.trafficCounterProperties.friendlyDate =
-        FAKE_INITIAL_FRIENDLY_DATE;
-    managedProperties.trafficCounterProperties.userSpecifiedResetDay = 31;
+
+    const trafficCounterProps = OncMojo.createTrafficCounterProperties();
+    trafficCounterProps.lastResetTime = FAKE_INITIAL_LAST_RESET_TIME;
+    trafficCounterProps.friendlyDate = FAKE_INITIAL_FRIENDLY_DATE;
+    trafficCounterProps.userSpecifiedResetDay = 31;
+    managedProperties.trafficCounterProperties = trafficCounterProps;
     networkConfigRemote.setManagedPropertiesForTest(managedProperties);
     await flushTasks();
 
@@ -186,14 +191,44 @@ suite('<settings-traffic-counters>', () => {
 
     // Reset the data usage.
     settingsTrafficCounters.$.resetDataUsageButton.click();
-    // Load the data post reset. Note we have to include the load() in tests
-    // and not in onResetDataUsageClicked_() because SettingTrafficCounters'
-    // parent element handles the reloading in prod.
-    settingsTrafficCounters.load();
     await flushTasks();
 
     assertEquals(EXPECTED_POST_RESET_DATA_USAGE_LABEL, getDataUsageLabel());
     assertEquals(
         EXPECTED_POST_RESET_DATA_USAGE_SUBLABEL, getDataUsageSubLabel());
+  });
+
+  test('Reset date functionality', async () => {
+    // Set managed properties for a connected cellular network.
+    const managedProperties = OncMojo.getDefaultManagedProperties(
+        NetworkType.kCellular, 'cellular_guid', 'cellular');
+    managedProperties.connectionState = ConnectionStateType.kConnected;
+    managedProperties.connectable = true;
+
+    const trafficCounterProps = OncMojo.createTrafficCounterProperties();
+    trafficCounterProps.userSpecifiedResetDay = 31;
+    managedProperties.trafficCounterProperties = trafficCounterProps;
+    networkConfigRemote.setManagedPropertiesForTest(managedProperties);
+    await flushTasks();
+
+    settingsTrafficCounters.guid = 'cellular_guid';
+    await flushTasks();
+
+    assertEquals('31', settingsTrafficCounters.$.resetDayList.value);
+
+    // Simulate an auto reset day update.
+    settingsTrafficCounters.$.resetDayList.value = '5';
+    settingsTrafficCounters.$.resetDayList.dispatchEvent(
+        new CustomEvent('change'));
+    await flushTasks();
+
+    await networkConfigRemote.whenCalled('setTrafficCountersResetDay');
+
+    const properties = await networkConfigRemote.getManagedProperties(
+        settingsTrafficCounters.guid);
+
+    const trafficCounterPropsRet = properties.result.trafficCounterProperties;
+    assertTrue(trafficCounterPropsRet !== undefined);
+    assertEquals(5, trafficCounterPropsRet!.userSpecifiedResetDay);
   });
 });

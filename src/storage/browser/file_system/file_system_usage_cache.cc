@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "storage/browser/file_system/file_system_usage_cache.h"
 
 #include <stddef.h>
@@ -184,11 +189,10 @@ bool FileSystemUsageCache::Read(const base::FilePath& usage_file_path,
   DCHECK(usage_out);
 
   uint8_t buffer[kUsageFileSize];
-  base::span<uint8_t> buffer_span = base::make_span<kUsageFileSize>(buffer);
-  if (usage_file_path.empty() || !ReadBytes(usage_file_path, buffer_span)) {
+  if (usage_file_path.empty() || !ReadBytes(usage_file_path, buffer)) {
     return false;
   }
-  base::Pickle read_pickle = base::Pickle::WithUnownedBuffer(buffer_span);
+  base::Pickle read_pickle = base::Pickle::WithUnownedBuffer(buffer);
   base::PickleIterator iter(read_pickle);
   uint32_t dirty = 0;
   int64_t usage = 0;
@@ -233,8 +237,7 @@ bool FileSystemUsageCache::Write(const base::FilePath& usage_file_path,
 base::File* FileSystemUsageCache::GetFile(const base::FilePath& file_path) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (is_incognito_) {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
   if (cache_files_.size() >= kMaxHandleCacheSize)
     CloseCacheFiles();

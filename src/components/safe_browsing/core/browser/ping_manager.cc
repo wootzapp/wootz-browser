@@ -18,6 +18,7 @@
 #include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
 #include "base/rand_util.h"
 #include "base/strings/escape.h"
@@ -240,17 +241,30 @@ PingManager::PingManager(
       kReadPersistedReportsDelay);
 }
 
-PingManager::~PingManager() {}
+PingManager::~PingManager() = default;
 
 // All SafeBrowsing request responses are handled here.
 void PingManager::OnURLLoaderComplete(
     network::SimpleURLLoader* source,
     std::unique_ptr<std::string> response_body) {
   auto it = safebrowsing_reports_.find(source);
-  DCHECK(it != safebrowsing_reports_.end());
+  CHECK(it != safebrowsing_reports_.end(), base::NotFatalUntil::M130);
   safebrowsing_reports_.erase(it);
+  if (!on_url_loader_complete_callback_.is_null()) {
+    std::move(on_url_loader_complete_callback_).Run();
+  }
 }
 
+void PingManager::OnSafeBrowsingHitURLLoaderComplete(
+    network::SimpleURLLoader* source,
+    std::unique_ptr<std::string> response_body) {
+  int response_code = source->ResponseInfo() && source->ResponseInfo()->headers
+                          ? source->ResponseInfo()->headers->response_code()
+                          : 0;
+  RecordHttpResponseOrErrorCode("SafeBrowsing.HitReport.NetworkResult",
+                                source->NetError(), response_code);
+  OnURLLoaderComplete(source, std::move(response_body));
+}
 void PingManager::OnThreatDetailsReportURLLoaderComplete(
     network::SimpleURLLoader* source,
     bool has_access_token,
@@ -258,19 +272,21 @@ void PingManager::OnThreatDetailsReportURLLoaderComplete(
   int response_code = source->ResponseInfo() && source->ResponseInfo()->headers
                           ? source->ResponseInfo()->headers->response_code()
                           : 0;
-  std::string metric = "SafeBrowsing.ClientSafeBrowsingReport.NetworkResult.";
-  std::string suffix = (has_access_token ? "YesAccessToken" : "NoAccessToken");
+  std::string metric = "SafeBrowsing.ClientSafeBrowsingReport.NetworkResult";
+  std::string suffix =
+      (has_access_token ? ".YesAccessToken" : ".NoAccessToken");
+  RecordHttpResponseOrErrorCode(metric.c_str(), source->NetError(),
+                                response_code);
   RecordHttpResponseOrErrorCode((metric + suffix).c_str(), source->NetError(),
                                 response_code);
-
   OnURLLoaderComplete(source, std::move(response_body));
 }
 
 // Sends a SafeBrowsing "hit" report.
 void PingManager::ReportSafeBrowsingHit(
     std::unique_ptr<safe_browsing::HitReport> hit_report) {
-  base::UmaHistogramBoolean("SafeBrowsing.HitReport.IsSubresource",
-                            hit_report->is_subresource);
+  base::UmaHistogramEnumeration("SafeBrowsing.HitReport.ThreatType",
+                                hit_report->threat_type);
 
   auto resource_request = std::make_unique<network::ResourceRequest>();
   SanitizeHitReport(hit_report.get());
@@ -280,6 +296,7 @@ void PingManager::ReportSafeBrowsingHit(
   if (!hit_report->post_data.empty()) {
     resource_request->method = "POST";
   }
+  resource_request->site_for_cookies = net::SiteForCookies::FromUrl(report_url);
 
   auto report_ptr = network::SimpleURLLoader::Create(
       std::move(resource_request), kTrafficAnnotation);
@@ -290,8 +307,8 @@ void PingManager::ReportSafeBrowsingHit(
 
   report_ptr->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
       url_loader_factory_.get(),
-      base::BindOnce(&PingManager::OnURLLoaderComplete, base::Unretained(this),
-                     report_ptr.get()));
+      base::BindOnce(&PingManager::OnSafeBrowsingHitURLLoaderComplete,
+                     base::Unretained(this), report_ptr.get()));
   safebrowsing_reports_.insert(std::move(report_ptr));
 
   // The following is to log this HitReport on any open chrome://safe-browsing
@@ -447,8 +464,11 @@ void PingManager::ReportThreatDetailsOnGotAccessToken(
   resource_request->url = report_url;
   resource_request->load_flags = net::LOAD_DISABLE_CACHE;
   resource_request->method = "POST";
+  resource_request->site_for_cookies = net::SiteForCookies::FromUrl(report_url);
 
   if (!access_token.empty()) {
+    LogAuthenticatedCookieResets(
+        *resource_request, SafeBrowsingAuthenticatedEndpoint::kThreatDetails);
     SetAccessTokenAndClearCookieInResourceRequest(resource_request.get(),
                                                   access_token);
   }
@@ -498,15 +518,32 @@ GURL PingManager::SafeBrowsingHitUrl(
     case SB_THREAT_TYPE_URL_CLIENT_SIDE_PHISHING:
       threat_list = "phishcsdhit";
       break;
-    default:
-      NOTREACHED_IN_MIGRATION();
+    case SB_THREAT_TYPE_UNUSED:
+    case SB_THREAT_TYPE_SAFE:
+    case SB_THREAT_TYPE_EXTENSION:
+    case DEPRECATED_SB_THREAT_TYPE_URL_CLIENT_SIDE_MALWARE:
+    case SB_THREAT_TYPE_API_ABUSE:
+    case SB_THREAT_TYPE_SUBRESOURCE_FILTER:
+    case SB_THREAT_TYPE_CSD_ALLOWLIST:
+    case DEPRECATED_SB_THREAT_TYPE_URL_PASSWORD_PROTECTION_PHISHING:
+    case SB_THREAT_TYPE_SAVED_PASSWORD_REUSE:
+    case SB_THREAT_TYPE_SIGNED_IN_SYNC_PASSWORD_REUSE:
+    case SB_THREAT_TYPE_SIGNED_IN_NON_SYNC_PASSWORD_REUSE:
+    case SB_THREAT_TYPE_BLOCKED_AD_REDIRECT:
+    case SB_THREAT_TYPE_AD_SAMPLE:
+    case SB_THREAT_TYPE_BLOCKED_AD_POPUP:
+    case SB_THREAT_TYPE_SUSPICIOUS_SITE:
+    case SB_THREAT_TYPE_ENTERPRISE_PASSWORD_REUSE:
+    case SB_THREAT_TYPE_BILLING:
+    case SB_THREAT_TYPE_APK_DOWNLOAD:
+    case SB_THREAT_TYPE_HIGH_CONFIDENCE_ALLOWLIST:
+    case SB_THREAT_TYPE_MANAGED_POLICY_WARN:
+    case SB_THREAT_TYPE_MANAGED_POLICY_BLOCK:
+      NOTREACHED();
   }
 
   std::string threat_source = "none";
   switch (hit_report->threat_source) {
-    case safe_browsing::ThreatSource::REMOTE:
-      threat_source = "rem";
-      break;
     case safe_browsing::ThreatSource::LOCAL_PVER4:
       threat_source = "l4";
       break;
@@ -526,26 +563,11 @@ GURL PingManager::SafeBrowsingHitUrl(
       threat_source = "asb";
       break;
     case safe_browsing::ThreatSource::UNKNOWN:
-      NOTREACHED_IN_MIGRATION();
-  }
-
-  // Add user_population component only if it's not empty.
-  std::string user_population_comp;
-  if (!hit_report->population_id.empty()) {
-    // Population_id should be URL-safe, but escape it and size-limit it
-    // anyway since it came from outside Chrome.
-    std::string up_str =
-        base::EscapeQueryParamValue(hit_report->population_id, true);
-    if (up_str.size() > 512) {
-      DCHECK(false) << "population_id is too long: " << up_str;
-      up_str = "UP_STRING_TOO_LONG";
-    }
-
-    user_population_comp = "&up=" + up_str;
+      NOTREACHED();
   }
 
   return GURL(base::StringPrintf(
-      "%s&evts=%s&evtd=%s&evtr=%s&evhr=%s&evtb=%d&src=%s&m=%d%s", url.c_str(),
+      "%s&evts=%s&evtd=%s&evtr=%s&evhr=%s&evtb=%d&src=%s&m=%d", url.c_str(),
       threat_list.c_str(),
       base::EscapeQueryParamValue(hit_report->malicious_url.spec(), true)
           .c_str(),
@@ -553,7 +575,7 @@ GURL PingManager::SafeBrowsingHitUrl(
       base::EscapeQueryParamValue(hit_report->referrer_url.spec(), true)
           .c_str(),
       hit_report->is_subresource, threat_source.c_str(),
-      hit_report->is_metrics_reporting_active, user_population_comp.c_str()));
+      hit_report->is_metrics_reporting_active));
 }
 
 GURL PingManager::ThreatDetailsUrl() const {
@@ -598,6 +620,11 @@ void PingManager::SetTokenFetcherForTesting(
 void PingManager::SetHatsDelegateForTesting(
     std::unique_ptr<SafeBrowsingHatsDelegate> hats_delegate) {
   hats_delegate_ = std::move(hats_delegate);
+}
+
+void PingManager::SetOnURLLoaderCompleteCallbackForTesting(
+    base::OnceCallback<void()> callback) {
+  on_url_loader_complete_callback_ = std::move(callback);
 }
 
 }  // namespace safe_browsing

@@ -16,7 +16,7 @@ namespace nearby::share::metrics {
 
 NearbyShareMetricLogger::NearbyShareMetricLogger() = default;
 
-NearbyShareMetricLogger::~NearbyShareMetricLogger() {}
+NearbyShareMetricLogger::~NearbyShareMetricLogger() = default;
 
 void NearbyShareMetricLogger::OnShareTargetDiscoveryStarted() {
   discovery_start_time_ = base::TimeTicks::Now();
@@ -37,7 +37,13 @@ void NearbyShareMetricLogger::OnShareTargetAdded(
   }
 
   share_target_discover_time_[share_target.id] = discover_time;
-  // Bluetooth is currently the default medium.
+  // Bluetooth is currently the default medium. Initial medium is
+  // set in OnInitialMedium, not here. Note that we only expect
+  // OnInitialMedium to be called when sending; luckily this
+  // aligns with the only case where the initial medium can be
+  // Wifi LAN instead of Bluetooth (thanks to mDNS Discovery).
+  share_target_initial_medium_[share_target.id] =
+      nearby::connections::mojom::Medium::kBluetooth;
   share_target_medium_[share_target.id] =
       nearby::connections::mojom::Medium::kBluetooth;
 }
@@ -50,6 +56,7 @@ void NearbyShareMetricLogger::OnShareTargetRemoved(
   share_target_accept_time_.erase(share_target.id);
   share_target_upgrade_time_.erase(share_target.id);
   share_target_medium_.erase(share_target.id);
+  share_target_initial_medium_.erase(share_target.id);
   transfer_size_.erase(share_target.id);
   transfer_progress_.erase(share_target.id);
 }
@@ -96,7 +103,7 @@ void NearbyShareMetricLogger::OnTransferCompleted(
   int64_t bytes_transferred =
       (percentage_complete / 100) * total_transfer_bytes;
   connections::mojom::Medium initial_medium =
-      connections::mojom::Medium::kBluetooth;
+      share_target_initial_medium_[share_target.id];
   connections::mojom::Medium final_medium =
       share_target_medium_[share_target.id];
 
@@ -159,6 +166,13 @@ void NearbyShareMetricLogger::OnTransferCompleted(
 
   // Emit the metric.
   ::metrics::structured::StructuredMetricsClient::Record(std::move(metric));
+}
+
+void NearbyShareMetricLogger::OnInitialMedium(
+    const ShareTarget& share_target,
+    nearby::connections::mojom::Medium medium) {
+  share_target_initial_medium_[share_target.id] = medium;
+  share_target_medium_[share_target.id] = medium;
 }
 
 void NearbyShareMetricLogger::OnBandwidthUpgrade(

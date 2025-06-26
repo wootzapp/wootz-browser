@@ -11,14 +11,15 @@ import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.FrameLayout;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.core.view.ViewCompat;
 
 import org.chromium.base.Log;
 import org.chromium.base.TraceEvent;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 /** Container holding messages. */
+@NullMarked
 public class MessageContainer extends FrameLayout {
     private static final String TAG = "MessageContainer";
 
@@ -34,20 +35,19 @@ public class MessageContainer extends FrameLayout {
         private int mFocusedView;
 
         @Override
-        public void onInitializeAccessibilityEvent(
-                @NonNull View host, @NonNull AccessibilityEvent event) {
+        public void onInitializeAccessibilityEvent(View host, AccessibilityEvent event) {
             handleEvent(event);
             super.onInitializeAccessibilityEvent(host, event);
         }
 
         @Override
         public boolean onRequestSendAccessibilityEvent(
-                @NonNull ViewGroup host, @NonNull View child, @NonNull AccessibilityEvent event) {
+                ViewGroup host, View child, AccessibilityEvent event) {
             handleEvent(event);
             return super.onRequestSendAccessibilityEvent(host, child, event);
         }
 
-        private void handleEvent(@NonNull AccessibilityEvent event) {
+        private void handleEvent(AccessibilityEvent event) {
             if (mA11yDelegate == null) return;
             if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_ACCESSIBILITY_FOCUSED) {
                 assert mFocusedView == 0 : "No other view should be focused";
@@ -62,11 +62,11 @@ public class MessageContainer extends FrameLayout {
         }
     }
 
-    private MessageContainerA11yDelegate mA11yDelegate;
+    private @Nullable MessageContainerA11yDelegate mA11yDelegate;
     private boolean mIsInitializingLayout;
     private int mA11yDismissActionId = NO_ID;
 
-    public MessageContainer(@NonNull Context context, @Nullable AttributeSet attrs) {
+    public MessageContainer(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         setAccessibilityDelegate(new MessageContainerA11yDelegateProxy());
     }
@@ -81,17 +81,12 @@ public class MessageContainer extends FrameLayout {
             throw new IllegalStateException("Should not contain the target view when adding.");
         }
         int index = 0;
-        if (MessageFeatureList.isStackAnimationEnabled()) {
-            if (getChildCount() > 1) {
-                throw new IllegalStateException(
-                        "Should not contain more than 2 views when adding a new message.");
-            } else if (getChildCount() == 1) {
-                View cur = getChildAt(0);
-                index = cur.getElevation() > view.getElevation() ? 1 : 0;
-            }
-        } else if (getChildCount() == 1) {
+        if (getChildCount() > 1) {
             throw new IllegalStateException(
-                    "Should not contain any view when adding a new message.");
+                    "Should not contain more than 2 views when adding a new message.");
+        } else if (getChildCount() == 1) {
+            View cur = getChildAt(0);
+            index = cur.getElevation() > view.getElevation() ? 1 : 0;
         }
         super.addView(view, index);
         onChildCountChanged();
@@ -122,7 +117,7 @@ public class MessageContainer extends FrameLayout {
                 getResources()
                         .getString(
                                 getChildCount() == 1
-                                        ? R.string.dismiss
+                                        ? R.string.chrome_dismiss
                                         : R.string.message_dismiss_and_show_next);
         mA11yDismissActionId =
                 ViewCompat.addAccessibilityAction(
@@ -145,10 +140,6 @@ public class MessageContainer extends FrameLayout {
             Log.w(TAG, "Null child in message container; child count %s", getChildCount());
         }
         return getChildAt(0).getHeight();
-    }
-
-    public int getMessageShadowTopMargin() {
-        return getResources().getDimensionPixelOffset(R.dimen.message_shadow_top_margin);
     }
 
     @Override

@@ -14,7 +14,6 @@ import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.FrameLayout;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.RecyclerView.OnScrollListener;
@@ -41,7 +40,6 @@ import org.chromium.chrome.browser.feed.webfeed.WebFeedBridge;
 import org.chromium.chrome.browser.feed.webfeed.WebFeedBridge.QueryResult;
 import org.chromium.chrome.browser.feed.webfeed.WebFeedBridge.WebFeedMetadata;
 import org.chromium.chrome.browser.feed.webfeed.WebFeedSubscriptionStatus;
-import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper;
@@ -56,9 +54,8 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.Stat
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerFactory;
 import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
-import org.chromium.components.browser_ui.widget.RoundedIconGenerator;
 import org.chromium.components.browser_ui.widget.displaystyle.UiConfig;
-import org.chromium.components.browser_ui.widget.scrim.ScrimCoordinator;
+import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.components.embedder_support.view.ContentView;
 import org.chromium.components.url_formatter.UrlFormatter;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -68,7 +65,6 @@ import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 import org.chromium.ui.util.ColorUtils;
@@ -96,18 +92,13 @@ public class CreatorCoordinator
     private FeedSurfaceScope mSurfaceScope;
     private FeedSurfaceScopeDependencyProviderImpl mDependencyProvider;
     private PropertyModel mCreatorModel;
-    private PropertyModelChangeProcessor<PropertyModel, CreatorProfileView, PropertyKey>
-            mCreatorProfileModelChangeProcessor;
-    private PropertyModelChangeProcessor<PropertyModel, CreatorToolbarView, PropertyKey>
-            mCreatorToolbarModelChangeProcessor;
 
     private final SnackbarManager mSnackbarManager;
     private final CreatorSnackbarController mCreatorSnackbarController;
     private final WindowAndroid mWindowAndroid;
     private BottomSheetController mBottomSheetController;
-    private ScrimCoordinator mScrim;
+    private ScrimManager mScrimManager;
     private ViewGroup mBottomSheetContainer;
-    private ViewGroup mLayout;
     private Profile mProfile;
     private Stream mStream;
     private int mHeaderCount;
@@ -124,8 +115,6 @@ public class CreatorCoordinator
     private final UnownedUserDataSupplier<ShareDelegate> mBottomsheetShareDelegateSupplier;
     private GURL mBottomSheetUrl;
     private int mEntryPoint;
-
-    private @Nullable FeedStreamViewResizer mStreamViewResizer;
 
     private static final String CREATOR_PROFILE_ID = "CreatorProfileView";
     private static final String CREATOR_PRIVACY_ID = "CreatorPrivacyId";
@@ -184,8 +173,7 @@ public class CreatorCoordinator
                 (ViewGroup) LayoutInflater.from(mActivity).inflate(R.layout.creator_activity, null);
         mLayoutView = mCreatorViewGroup.findViewById(R.id.creator_layout);
         mUiConfig = new UiConfig(mLayoutView);
-        mStreamViewResizer =
-                FeedStreamViewResizer.createAndAttach(mActivity, mRecyclerView, mUiConfig);
+        FeedStreamViewResizer.createAndAttach(mActivity, mRecyclerView, mUiConfig);
         mLayoutView.addView(mRecyclerView);
 
         // Generate Creator Model
@@ -196,16 +184,10 @@ public class CreatorCoordinator
         }
         initBottomSheet();
 
-        mCreatorProfileModelChangeProcessor =
-                PropertyModelChangeProcessor.create(
-                        mCreatorModel,
-                        (CreatorProfileView) mProfileView,
-                        CreatorProfileViewBinder::bind);
-        mCreatorToolbarModelChangeProcessor =
-                PropertyModelChangeProcessor.create(
-                        mCreatorModel,
-                        (CreatorToolbarView) mLayoutView,
-                        CreatorToolbarViewBinder::bind);
+        PropertyModelChangeProcessor.create(
+                mCreatorModel, (CreatorProfileView) mProfileView, CreatorProfileViewBinder::bind);
+        PropertyModelChangeProcessor.create(
+                mCreatorModel, (CreatorToolbarView) mLayoutView, CreatorToolbarViewBinder::bind);
         setUpToolbarListener();
 
         mMediator =
@@ -219,14 +201,10 @@ public class CreatorCoordinator
     /**
      * Query for webfeedId if we don't have it, and then create the FeedStream.
      *
-     * @param FeedActionDelegate Interface for Feed actions implemented by the Browser.
-     * @param HelpAndFeedbackLauncher Interface for launching a help and feedback page.
-     * @param Supplier<ShareDelegate> Supplier of the interface to expose sharing.
+     * @param feedActionDelegate Interface for Feed actions implemented by the Browser.
      */
     public void queryFeedStream(
-            FeedActionDelegate feedActionDelegate,
-            HelpAndFeedbackLauncher helpAndFeedbackLauncher,
-            Supplier<ShareDelegate> shareDelegateSupplier) {
+            FeedActionDelegate feedActionDelegate, Supplier<ShareDelegate> shareDelegateSupplier) {
         if (mCreatorModel.get(CreatorProperties.WEB_FEED_ID_KEY) == null) {
             Callback<QueryResult> queryWebFeedIdCallback =
                     result -> {
@@ -241,8 +219,7 @@ public class CreatorCoordinator
                                             .formatUrlForDisplayOmitSchemePathAndTrivialSubdomains(
                                                     new GURL(result.url)));
                         }
-                        initFeedStream(
-                                feedActionDelegate, helpAndFeedbackLauncher, shareDelegateSupplier);
+                        initFeedStream(feedActionDelegate, shareDelegateSupplier);
                     };
             WebFeedBridge.queryWebFeed(
                     mCreatorModel.get(CreatorProperties.URL_KEY), queryWebFeedIdCallback);
@@ -260,31 +237,27 @@ public class CreatorCoordinator
             WebFeedBridge.queryWebFeedId(
                     new String(mCreatorModel.get(CreatorProperties.WEB_FEED_ID_KEY)),
                     queryWebFeedIdCallback);
-            initFeedStream(feedActionDelegate, helpAndFeedbackLauncher, shareDelegateSupplier);
+            initFeedStream(feedActionDelegate, shareDelegateSupplier);
         }
     }
 
     /**
      * Create the FeedStream and bind it to the RecyclerView.
      *
-     * @param FeedActionDelegate Interface for Feed actions implemented by the Browser.
-     * @param HelpAndFeedbackLauncher Interface for launching a help and feedback page.
-     * @param Supplier<ShareDelegate> Supplier of the interface to expose sharing.
+     * @param feedActionDelegate Interface for Feed actions implemented by the Browser.
      */
     private void initFeedStream(
-            FeedActionDelegate feedActionDelegate,
-            HelpAndFeedbackLauncher helpAndFeedbackLauncher,
-            Supplier<ShareDelegate> shareDelegateSupplier) {
+            FeedActionDelegate feedActionDelegate, Supplier<ShareDelegate> shareDelegateSupplier) {
         mStream =
                 new FeedStream(
                         mActivity,
+                        mProfile,
                         mSnackbarManager,
                         mBottomSheetController,
                         mWindowAndroid,
-                        /* shareSupplier= */ shareDelegateSupplier,
+                        /* shareDelegateSupplier= */ shareDelegateSupplier,
                         StreamKind.SINGLE_WEB_FEED,
                         feedActionDelegate,
-                        helpAndFeedbackLauncher,
                         /* feedContentFirstLoadWatcher= */ this,
                         /* streamsMediator= */ new StreamsMediatorImpl(),
                         new SingleWebFeedParameters(
@@ -298,7 +271,7 @@ public class CreatorCoordinator
         mStream.bind(
                 mRecyclerView,
                 mContentManager,
-                /* feedScrollState= */ null,
+                /* savedInstanceState= */ null,
                 mSurfaceScope,
                 mHybridListRenderer,
                 null,
@@ -357,8 +330,8 @@ public class CreatorCoordinator
                     (RecyclerView)
                             mHybridListRenderer.bind(
                                     mContentManager,
-                                    /* mViewportView= */ null,
-                                    /* useStaggeredLayout= */ false);
+                                    /* viewport= */ null,
+                                    /* shouldUseStaggeredLayout= */ false);
             view.setId(R.id.creator_feed_stream_recycler_view);
             view.setClipToPadding(false);
             view.setBackgroundColor(SemanticColorUtils.getDefaultBgColor(mActivity));
@@ -421,18 +394,7 @@ public class CreatorCoordinator
 
     /** Set up the bottom sheet for this activity. */
     private void initBottomSheet() {
-        mScrim =
-                new ScrimCoordinator(
-                        mActivity,
-                        new ScrimCoordinator.SystemUiScrimDelegate() {
-                            @Override
-                            public void setStatusBarScrimFraction(float scrimFraction) {}
-
-                            @Override
-                            public void setNavigationBarScrimFraction(float scrimFraction) {}
-                        },
-                        mCreatorViewGroup,
-                        mActivity.getColor(R.color.default_scrim_color));
+        mScrimManager = new ScrimManager(mActivity, mCreatorViewGroup);
 
         mBottomSheetContainer = new FrameLayout(mActivity);
         mBottomSheetContainer.setId(R.id.creator_content_preview_bottom_sheet);
@@ -441,12 +403,13 @@ public class CreatorCoordinator
         mCreatorViewGroup.addView(mBottomSheetContainer);
         mBottomSheetController =
                 BottomSheetControllerFactory.createBottomSheetController(
-                        () -> mScrim,
+                        () -> mScrimManager,
                         (sheet) -> {},
                         mActivity.getWindow(),
                         KeyboardVisibilityDelegate.getInstance(),
                         () -> mBottomSheetContainer,
-                        () -> 0);
+                        () -> 0,
+                        /* desktopWindowStateManager= */ null);
     }
 
     private void setUpToolbarListener() {
@@ -564,7 +527,7 @@ public class CreatorCoordinator
 
     /**
      * @return The maximum base view height for sheet content view.
-     * */
+     */
     private int getMaxViewHeight() {
         return mCreatorViewGroup.getHeight();
     }
@@ -599,9 +562,7 @@ public class CreatorCoordinator
         // Creates an initially hidden WebContents which gets shown when the panel is opened.
         mWebContents = mCreatorWebContents.createWebContents();
 
-        mContentView =
-                ContentView.createContentView(
-                        mActivity, /* eventOffsetHandler= */ null, mWebContents);
+        mContentView = ContentView.createContentView(mActivity, mWebContents);
 
         mWebContents.setDelegates(
                 VersionInfo.getProductVersion(),
@@ -677,17 +638,16 @@ public class CreatorCoordinator
     static class FaviconLoader {
         private final Context mContext;
         private final FaviconHelper mFaviconHelper;
-        private final RoundedIconGenerator mIconGenerator;
         private final int mFaviconSize;
 
         /**
          * The FaviconLoader constructor.
+         *
          * @param context The context where the Favicon will be loaded.
          */
         public FaviconLoader(Context context) {
             mContext = context;
             mFaviconHelper = new FaviconHelper();
-            mIconGenerator = FaviconUtils.createCircularIconGenerator(mContext);
             mFaviconSize =
                     mContext.getResources().getDimensionPixelSize(R.dimen.preview_tab_favicon_size);
         }

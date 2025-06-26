@@ -37,11 +37,11 @@
 #include "third_party/blink/renderer/core/css/resolver/scoped_style_resolver.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver.h"
 #include "third_party/blink/renderer/core/css/resolver/style_resolver_stats.h"
+#include "third_party/blink/renderer/core/css/style_change_reason.h"
 #include "third_party/blink/renderer/core/css/style_scope_frame.h"
 #include "third_party/blink/renderer/core/css/style_sheet_contents.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/first_letter_pseudo_element.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/scriptable_document_parser.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/dom/slot_assignment_engine.h"
@@ -60,6 +60,7 @@
 #include "third_party/blink/renderer/core/html/html_iframe_element.h"
 #include "third_party/blink/renderer/core/html/html_span_element.h"
 #include "third_party/blink/renderer/core/html/html_style_element.h"
+#include "third_party/blink/renderer/core/layout/custom_scrollbar.h"
 #include "third_party/blink/renderer/core/layout/layout_counter.h"
 #include "third_party/blink/renderer/core/layout/layout_custom_scrollbar_part.h"
 #include "third_party/blink/renderer/core/layout/layout_text_fragment.h"
@@ -80,7 +81,7 @@
 #include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/testing_platform_support.h"
 #include "third_party/blink/renderer/platform/testing/unit_test_helpers.h"
-#include "ui/base/ui_base_types.h"
+#include "ui/base/mojom/window_show_state.mojom-blink.h"
 #include "ui/gfx/geometry/size_f.h"
 
 namespace blink {
@@ -122,9 +123,18 @@ class StyleEngineTest : public PageTestBase {
     return GetDocument().IsUseCounted(feature);
   }
 
+  bool IsWebDXFeatureCounted(mojom::blink::WebDXFeature feature) {
+    return GetDocument().IsWebDXFeatureCounted(feature);
+  }
+
   void ClearUseCounter(mojom::WebFeature feature) {
     GetDocument().ClearUseCounterForTesting(feature);
     DCHECK(!IsUseCounted(feature));
+  }
+
+  void ClearWebDXFeatureCounter(mojom::blink::WebDXFeature feature) {
+    GetDocument().ClearWebDXFeatureCounterForTesting(feature);
+    DCHECK(!IsWebDXFeatureCounted(feature));
   }
 
   String GetListMarkerText(LayoutObject* list_item) {
@@ -146,6 +156,10 @@ class StyleEngineTest : public PageTestBase {
     holder->GetDocument().documentElement()->setInnerHTML(html);
     holder->GetDocument().View()->UpdateAllLifecyclePhasesForTest();
     return holder;
+  }
+
+  wtf_size_t FunctionalMediaQueryResultsSize() {
+    return GetStyleEngine().functional_media_query_results_.size();
   }
 };
 
@@ -171,6 +185,17 @@ void StyleEngineTest::ApplyRuleSetInvalidation(TreeScope& tree_scope,
   GetStyleEngine().ApplyRuleSetInvalidationForTreeScope(
       tree_scope, tree_scope.RootNode(), selector_filter, style_scope_frame,
       rule_sets, /*changed_rule_flags=*/0);
+}
+
+TEST_F(StyleEngineTest, ClearWebDXFeatureCounter) {
+  // Chosen arbitrarily.
+  WebDXFeature feature = WebDXFeature::kViewportUnitVariants;
+
+  EXPECT_FALSE(IsWebDXFeatureCounted(feature));
+  GetDocument().CountWebDXFeature(feature);
+  EXPECT_TRUE(IsWebDXFeatureCounted(feature));
+  ClearWebDXFeatureCounter(feature);
+  EXPECT_FALSE(IsWebDXFeatureCounted(feature));
 }
 
 TEST_F(StyleEngineTest, DocumentDirtyAfterInject) {
@@ -571,7 +596,7 @@ TEST_F(StyleEngineTest, AnalyzedInject) {
       t8->GetComputedStyle()->VisitedDependentColor(GetCSSPropertyColor()));
 
   gfx::SizeF page_size(400, 400);
-  GetDocument().GetFrame()->StartPrinting(page_size, 1);
+  GetDocument().GetFrame()->StartPrinting(WebPrintParams(page_size));
   ASSERT_TRUE(t8->GetComputedStyle());
   EXPECT_EQ(
       Color::FromRGB(0, 0, 0),
@@ -1312,36 +1337,6 @@ TEST_F(StyleEngineTest, StyleSheetsForStyleSheetList_ShadowRoot) {
   EXPECT_TRUE(GetStyleEngine().NeedsActiveStyleUpdate());
 }
 
-TEST_F(StyleEngineTest, ViewportDescription) {
-  ScopedTestingPlatformSupport<TestingPlatformSupport> platform;
-  frame_test_helpers::WebViewHelper web_view_helper;
-  WebViewImpl* web_view_impl = web_view_helper.Initialize();
-  web_view_impl->MainFrameWidget()->SetDeviceScaleFactorForTesting(1.f);
-  web_view_impl->MainFrameWidget()->UpdateAllLifecyclePhases(
-      DocumentUpdateReason::kTest);
-
-  Document* document =
-      To<LocalFrame>(web_view_impl->GetPage()->MainFrame())->GetDocument();
-
-  auto desc = document->GetViewportData().GetViewportDescription();
-  float min_width = desc.min_width.GetFloatValue();
-  float max_width = desc.max_width.GetFloatValue();
-  float min_height = desc.min_height.GetFloatValue();
-  float max_height = desc.max_height.GetFloatValue();
-
-  const float device_scale = 3.5f;
-  web_view_impl->MainFrameWidget()->SetDeviceScaleFactorForTesting(
-      device_scale);
-  web_view_impl->MainFrameWidget()->UpdateAllLifecyclePhases(
-      DocumentUpdateReason::kTest);
-
-  desc = document->GetViewportData().GetViewportDescription();
-  EXPECT_FLOAT_EQ(device_scale * min_width, desc.min_width.GetFloatValue());
-  EXPECT_FLOAT_EQ(device_scale * max_width, desc.max_width.GetFloatValue());
-  EXPECT_FLOAT_EQ(device_scale * min_height, desc.min_height.GetFloatValue());
-  EXPECT_FLOAT_EQ(device_scale * max_height, desc.max_height.GetFloatValue());
-}
-
 TEST_F(StyleEngineTest, MediaQueryAffectingValueChanged_StyleElementNoMedia) {
   GetDocument().body()->setInnerHTML("<style>div{color:pink}</style>");
   UpdateAllLifecyclePhases();
@@ -1965,7 +1960,8 @@ TEST_F(StyleEngineTest, MediaQueriesChangeForcedColors) {
                 GetCSSPropertyColor()));
 
   ColorSchemeHelper color_scheme_helper(GetDocument());
-  color_scheme_helper.SetInForcedColors(/*in_forced_colors=*/true);
+  color_scheme_helper.SetInForcedColors(GetDocument(),
+                                        /*in_forced_colors=*/true);
   UpdateAllLifecyclePhases();
   EXPECT_EQ(Color::FromRGB(0, 128, 0),
             GetDocument().body()->GetComputedStyle()->VisitedDependentColor(
@@ -1997,7 +1993,8 @@ TEST_F(StyleEngineTest, MediaQueriesChangeForcedColorsAndPreferredColorScheme) {
 
   // InForcedColors = false, PreferredColorScheme = kLight
   ColorSchemeHelper color_scheme_helper(GetDocument());
-  color_scheme_helper.SetInForcedColors(/*in_forced_colors=*/false);
+  color_scheme_helper.SetInForcedColors(GetDocument(),
+                                        /*in_forced_colors=*/false);
   color_scheme_helper.SetPreferredColorScheme(
       mojom::blink::PreferredColorScheme::kLight);
   UpdateAllLifecyclePhases();
@@ -2014,7 +2011,8 @@ TEST_F(StyleEngineTest, MediaQueriesChangeForcedColorsAndPreferredColorScheme) {
                 GetCSSPropertyColor()));
 
   // InForcedColors = true, PreferredColorScheme = kDark
-  color_scheme_helper.SetInForcedColors(/*in_forced_colors=*/true);
+  color_scheme_helper.SetInForcedColors(GetDocument(),
+                                        /*in_forced_colors=*/true);
   UpdateAllLifecyclePhases();
   EXPECT_EQ(Color::FromRGB(255, 165, 0),
             GetDocument().body()->GetComputedStyle()->VisitedDependentColor(
@@ -2710,7 +2708,7 @@ TEST_F(StyleEngineTest, InitialDataCreation) {
   // After registering, there should be initial data.
   css_test_helpers::RegisterProperty(GetDocument(), "--x", "<length>", "10px",
                                      false);
-  auto data1 = GetStyleEngine().MaybeCreateAndGetInitialData();
+  auto* data1 = GetStyleEngine().MaybeCreateAndGetInitialData();
   EXPECT_TRUE(data1);
 
   // After a full recalc, we should have the same initial data.
@@ -2718,7 +2716,7 @@ TEST_F(StyleEngineTest, InitialDataCreation) {
   EXPECT_TRUE(GetDocument().documentElement()->NeedsStyleRecalc());
   EXPECT_TRUE(GetDocument().documentElement()->ChildNeedsStyleRecalc());
   UpdateAllLifecyclePhases();
-  auto data2 = GetStyleEngine().MaybeCreateAndGetInitialData();
+  auto* data2 = GetStyleEngine().MaybeCreateAndGetInitialData();
   EXPECT_TRUE(data2);
   EXPECT_EQ(data1, data2);
 
@@ -2904,12 +2902,14 @@ TEST_F(StyleEngineTest, ColorSchemeBaseBackgroundChange) {
   EXPECT_EQ(Color(0x12, 0x12, 0x12),
             GetDocument().View()->BaseBackgroundColor());
 
-  color_scheme_helper.SetInForcedColors(/*in_forced_colors=*/true);
+  color_scheme_helper.SetInForcedColors(GetDocument(),
+                                        /*in_forced_colors=*/true);
   UpdateAllLifecyclePhases();
   mojom::blink::ColorScheme color_scheme = mojom::blink::ColorScheme::kLight;
   Color system_background_color = LayoutTheme::GetTheme().SystemColor(
       CSSValueID::kCanvas, color_scheme,
-      GetDocument().GetColorProviderForPainting(color_scheme));
+      GetDocument().GetColorProviderForPainting(color_scheme),
+      GetDocument().IsInWebAppScope());
 
   EXPECT_EQ(system_background_color,
             GetDocument().View()->BaseBackgroundColor());
@@ -3468,6 +3468,213 @@ TEST_F(StyleEngineTest,
       div->GetComputedStyle()->VisitedDependentColor(GetCSSPropertyColor()));
 }
 
+TEST_F(StyleEngineTest, FunctionalMediaTargetedRecalcNoChange) {
+  GetDocument().documentElement()->setInnerHTML(R"HTML(
+    <style>
+      @function --a() {
+        result: 1;
+      }
+      @function --b() {
+        result: 2;
+        @media (width > 1000px) {
+          result: 3;
+        }
+      }
+      #a { z-index: --a(); }
+      #b { z-index: --b(); }
+    </style>
+    <div id=a></div>
+    <div id=b></div>
+    <div id=c></div>
+  )HTML");
+
+  UpdateAllLifecyclePhasesForTest();
+
+  Element* a = GetDocument().getElementById(AtomicString("a"));
+  Element* b = GetDocument().getElementById(AtomicString("b"));
+  ASSERT_TRUE(a);
+  ASSERT_TRUE(b);
+
+  EXPECT_EQ(1u, a->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(2u, b->ComputedStyleRef().ZIndex());
+
+  wtf_size_t initial_count = GetStyleEngine().StyleForElementCount();
+  GetDocument().View()->SetLayoutSizeFixedToFrameSize(false);
+  GetDocument().View()->SetLayoutSize(gfx::Size(900, 600));
+  UpdateAllLifecyclePhasesForTest();
+
+  EXPECT_EQ(0u, GetStyleEngine().StyleForElementCount() - initial_count);
+}
+
+TEST_F(StyleEngineTest, FunctionalMediaTargetedRecalcChange) {
+  GetDocument().documentElement()->setInnerHTML(R"HTML(
+    <style>
+      @function --a() {
+        result: 1;
+      }
+      @function --b() {
+        result: 2;
+        @media (width > 1000px) {
+          result: 3;
+        }
+      }
+      #a { z-index: --a(); }
+      #b { z-index: --b(); }
+    </style>
+    <div id=a></div>
+    <div id=b></div>
+    <div></div>
+  )HTML");
+
+  UpdateAllLifecyclePhasesForTest();
+
+  Element* a = GetDocument().getElementById(AtomicString("a"));
+  Element* b = GetDocument().getElementById(AtomicString("b"));
+  ASSERT_TRUE(a);
+  ASSERT_TRUE(b);
+
+  EXPECT_EQ(1u, a->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(2u, b->ComputedStyleRef().ZIndex());
+
+  wtf_size_t initial_count = GetStyleEngine().StyleForElementCount();
+  GetDocument().View()->SetLayoutSizeFixedToFrameSize(false);
+  GetDocument().View()->SetLayoutSize(gfx::Size(1200, 600));
+  UpdateAllLifecyclePhasesForTest();
+
+  EXPECT_EQ(1u, GetStyleEngine().StyleForElementCount() - initial_count);
+  EXPECT_EQ(1u, a->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(3u, b->ComputedStyleRef().ZIndex());
+}
+
+TEST_F(StyleEngineTest, FunctionalMediaSharedInvalidationData) {
+  GetDocument().documentElement()->setInnerHTML(R"HTML(
+    <style>
+      @function --z-index() {
+        result: 1;
+        @media (width > 1000px) {
+          result: 2;
+        }
+      }
+      div { z-index: --z-index(); }
+    </style>
+    <div id=a></div>
+    <div id=b></div>
+    <div id=c></div>
+    <div id=d></div>
+  )HTML");
+
+  UpdateAllLifecyclePhasesForTest();
+
+  Element* a = GetDocument().getElementById(AtomicString("a"));
+  Element* b = GetDocument().getElementById(AtomicString("b"));
+  Element* c = GetDocument().getElementById(AtomicString("c"));
+  Element* d = GetDocument().getElementById(AtomicString("d"));
+  ASSERT_TRUE(a);
+  ASSERT_TRUE(b);
+  ASSERT_TRUE(c);
+  ASSERT_TRUE(d);
+
+  EXPECT_EQ(1u, a->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(1u, b->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(1u, c->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(1u, d->ComputedStyleRef().ZIndex());
+
+  // Even though multiple elements perform the same evaluation,
+  // there is only one entry in `StyleEngine::functional_media_query_results_`.
+  EXPECT_EQ(1u, FunctionalMediaQueryResultsSize());
+
+  GetDocument().View()->SetLayoutSizeFixedToFrameSize(false);
+  GetDocument().View()->SetLayoutSize(gfx::Size(1200, 600));
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_EQ(2u, a->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(2u, b->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(2u, c->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(2u, d->ComputedStyleRef().ZIndex());
+}
+
+TEST_F(StyleEngineTest, FunctionalMediaSharedInvalidationData_Prelude) {
+  GetDocument().documentElement()->setInnerHTML(R"HTML(
+    <style>
+      @function --z-index-1() {
+        result: 1;
+        @media (width > 1000px) {
+          result: 2;
+        }
+      }
+      @function --z-index-2() {
+        result: 3;
+        @media (width > 1000px) { /* Identical to the other prelude */
+          result: 4;
+        }
+      }
+      #a, #b { z-index: --z-index-1(); }
+      #c, #d { z-index: --z-index-2(); }
+    </style>
+    <div id=a></div>
+    <div id=b></div>
+    <div id=c></div>
+    <div id=d></div>
+  )HTML");
+
+  UpdateAllLifecyclePhasesForTest();
+
+  Element* a = GetDocument().getElementById(AtomicString("a"));
+  Element* b = GetDocument().getElementById(AtomicString("b"));
+  Element* c = GetDocument().getElementById(AtomicString("c"));
+  Element* d = GetDocument().getElementById(AtomicString("d"));
+  ASSERT_TRUE(a);
+  ASSERT_TRUE(b);
+  ASSERT_TRUE(c);
+  ASSERT_TRUE(d);
+
+  EXPECT_EQ(1u, a->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(1u, b->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(3u, c->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(3u, d->ComputedStyleRef().ZIndex());
+
+  // @media preludes that are identical should collapse into one.
+  EXPECT_EQ(1u, FunctionalMediaQueryResultsSize());
+
+  GetDocument().View()->SetLayoutSizeFixedToFrameSize(false);
+  GetDocument().View()->SetLayoutSize(gfx::Size(1200, 600));
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_EQ(2u, a->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(2u, b->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(4u, c->ComputedStyleRef().ZIndex());
+  EXPECT_EQ(4u, d->ComputedStyleRef().ZIndex());
+}
+
+TEST_F(StyleEngineTest, FunctionalMediaInvalidationDataClearedOnFullRecalc) {
+  GetDocument().documentElement()->setInnerHTML(R"HTML(
+    <style>
+      @function --z-index() {
+        result: 0;
+        @media (width > 100px) { result: 1; }
+        @media (width > 200px) { result: 2; }
+        @media (width > 300px) { result: 3; }
+        @media (width > 400px) { result: 4; }
+        @media (width > 500px) { result: 5; }
+        @media (width > 600px) { result: 6; }
+        @media (width > 700px) { result: 7; }
+        @media (width > 800px) { result: 8; }
+        @media (width > 900px) { result: 9; }
+      }
+      div { z-index: --z-index(); }
+    </style>
+    <div id=a></div>
+  )HTML");
+
+  UpdateAllLifecyclePhasesForTest();
+
+  Element* a = GetDocument().getElementById(AtomicString("a"));
+  ASSERT_TRUE(a);
+  EXPECT_EQ(9u, FunctionalMediaQueryResultsSize());
+
+  GetStyleEngine().MarkAllElementsForStyleRecalc(
+      StyleChangeReasonForTracing::Create("test"));
+  EXPECT_EQ(0u, FunctionalMediaQueryResultsSize());
+}
+
 TEST_F(StyleEngineTest, RevertUseCount) {
   GetDocument().body()->setInnerHTML(
       "<style>div { display: unset; }</style><div></div>");
@@ -3517,7 +3724,8 @@ TEST_F(StyleEngineTest, NoRevertUseCountForForcedColors) {
   EXPECT_EQ("rgb(255, 0, 0)", ComputedValue(elem, "color")->CssText());
 
   ColorSchemeHelper color_scheme_helper(GetDocument());
-  color_scheme_helper.SetInForcedColors(/*in_forced_colors=*/true);
+  color_scheme_helper.SetInForcedColors(GetDocument(),
+                                        /*in_forced_colors=*/true);
   UpdateAllLifecyclePhases();
   EXPECT_EQ(ComputedValue(ref, "color")->CssText(),
             ComputedValue(elem, "color")->CssText());
@@ -3554,7 +3762,7 @@ TEST_F(StyleEngineTest, PrintNoDarkColorScheme) {
       body->GetComputedStyle()->VisitedDependentColor(GetCSSPropertyColor()));
 
   gfx::SizeF page_size(400, 400);
-  GetDocument().GetFrame()->StartPrinting(page_size, 1);
+  GetDocument().GetFrame()->StartPrinting(WebPrintParams(page_size));
   EXPECT_EQ(Color::kBlack, root->GetComputedStyle()->VisitedDependentColor(
                                GetCSSPropertyColor()));
   EXPECT_EQ(mojom::blink::ColorScheme::kLight,
@@ -3589,7 +3797,7 @@ TEST_F(StyleEngineTest, PrintNoForceDarkMode) {
             true);
 
   gfx::SizeF page_size(400, 400);
-  GetDocument().GetFrame()->StartPrinting(page_size, 1);
+  GetDocument().GetFrame()->StartPrinting(WebPrintParams(page_size));
   EXPECT_EQ(frame_view->DocumentBackgroundColor(), Color::kWhite);
   EXPECT_EQ(GetDocument().documentElement()->GetComputedStyle()->ForceDark(),
             false);
@@ -3624,7 +3832,7 @@ TEST_F(StyleEngineTest, PrintScriptingEnabled) {
       body->GetComputedStyle()->VisitedDependentColor(GetCSSPropertyColor()));
 
   gfx::SizeF page_size(400, 400);
-  GetDocument().GetFrame()->StartPrinting(page_size, 1);
+  GetDocument().GetFrame()->StartPrinting(WebPrintParams(page_size));
   EXPECT_EQ(
       Color::FromRGB(0, 128, 0),
       body->GetComputedStyle()->VisitedDependentColor(GetCSSPropertyColor()));
@@ -4011,10 +4219,13 @@ TEST_F(StyleEngineTest, MediaQueriesChangeDisplayState) {
             GetDocument().body()->GetComputedStyle()->VisitedDependentColor(
                 GetCSSPropertyBackgroundColor()));
 
-  WTF::Vector<std::pair<ui::WindowShowState, Color>> test_cases = {
-      {ui::SHOW_STATE_MINIMIZED, Color::FromRGB(/*cyan*/ 0, 255, 255)},
-      {ui::SHOW_STATE_MAXIMIZED, Color::FromRGB(/*red*/ 255, 0, 0)},
-      {ui::SHOW_STATE_FULLSCREEN, Color::FromRGB(/*blue*/ 0, 0, 255)}};
+  WTF::Vector<std::pair<ui::mojom::blink::WindowShowState, Color>> test_cases =
+      {{ui::mojom::blink::WindowShowState::kMinimized,
+        Color::FromRGB(/*cyan*/ 0, 255, 255)},
+       {ui::mojom::blink::WindowShowState::kMaximized,
+        Color::FromRGB(/*red*/ 255, 0, 0)},
+       {ui::mojom::blink::WindowShowState::kFullscreen,
+        Color::FromRGB(/*blue*/ 0, 0, 255)}};
 
   for (const auto& [show_state, color] : test_cases) {
     GetFrame().GetSettings()->SetWindowShowState(show_state);
@@ -4223,6 +4434,56 @@ TEST_F(StyleEngineSimTest, ColorSchemeBaseBackgroundWhileRenderBlocking) {
 
   main_resource.Finish();
   css_resource.Finish();
+}
+
+TEST_F(StyleEngineSimTest, IFramePreferredColorScheme) {
+  ColorSchemeHelper color_scheme_helper(GetDocument());
+  color_scheme_helper.SetPreferredColorScheme(
+      mojom::blink::PreferredColorScheme::kLight);
+
+  SimRequest main_resource("https://example.com", "text/html");
+  SimRequest frame_resource("https://example.com/frame.html", "text/html");
+
+  LoadURL("https://example.com");
+
+  main_resource.Complete(R"HTML(
+    <!doctype html>
+    <iframe id="frame" src="https://example.com/frame.html"></iframe>
+  )HTML");
+
+  frame_resource.Complete(R"HTML(
+    <!doctype html>
+    <style>
+      @media (prefers-color-scheme: light) {
+        body { background: lime; }
+      }
+      @media (prefers-color-scheme: dark) {
+        body { background: green; }
+      }
+    </style>
+  )HTML");
+
+  test::RunPendingTasks();
+  Compositor().BeginFrame();
+
+  auto* frame_element = To<HTMLIFrameElement>(
+      GetDocument().getElementById(AtomicString("frame")));
+  auto* frame_document = frame_element->contentDocument();
+  ASSERT_TRUE(frame_document);
+  EXPECT_EQ(mojom::blink::PreferredColorScheme::kLight,
+            GetDocument().GetStyleEngine().GetPreferredColorScheme());
+  EXPECT_EQ(mojom::blink::PreferredColorScheme::kLight,
+            frame_document->GetStyleEngine().GetPreferredColorScheme());
+
+  color_scheme_helper.SetPreferredColorScheme(
+      mojom::blink::PreferredColorScheme::kDark);
+  test::RunPendingTasks();
+  Compositor().BeginFrame();
+
+  EXPECT_EQ(mojom::blink::PreferredColorScheme::kDark,
+            GetDocument().GetStyleEngine().GetPreferredColorScheme());
+  EXPECT_EQ(mojom::blink::PreferredColorScheme::kDark,
+            frame_document->GetStyleEngine().GetPreferredColorScheme());
 }
 
 TEST_F(StyleEngineContainerQueryTest, UpdateStyleAndLayoutTreeForContainer) {
@@ -4940,7 +5201,7 @@ TEST_F(StyleEngineTest, AudioUAStyleNameSpace) {
   EXPECT_FALSE(html_audio->GetComputedStyle());
 
   gfx::SizeF page_size(400, 400);
-  GetDocument().GetFrame()->StartPrinting(page_size, 1);
+  GetDocument().GetFrame()->StartPrinting(WebPrintParams(page_size));
 
   // Also for printing.
   EXPECT_TRUE(audio->GetComputedStyle());
@@ -5692,8 +5953,7 @@ TEST_F(StyleEngineSimTest, UserFontFaceOverrideWithCascadeLayers) {
   Compositor().BeginFrame();
 
   ahem_resource.Complete(
-      test::ReadFromFile(test::CoreTestDataPath("Ahem.woff2"))
-          ->CopyAs<Vector<char>>());
+      *test::ReadFromFile(test::CoreTestDataPath("Ahem.woff2")));
 
   test::RunPendingTasks();
   Compositor().BeginFrame();
@@ -5746,8 +6006,7 @@ TEST_F(StyleEngineSimTest, UserAndAuthorFontFaceOverrideWithCascadeLayers) {
   Compositor().BeginFrame();
 
   ahem_resource.Complete(
-      test::ReadFromFile(test::CoreTestDataPath("Ahem.woff2"))
-          ->CopyAs<Vector<char>>());
+      *test::ReadFromFile(test::CoreTestDataPath("Ahem.woff2")));
 
   test::RunPendingTasks();
   Compositor().BeginFrame();
@@ -6612,8 +6871,7 @@ TEST_F(StyleEngineTest, BorderWidthsAreRecalculatedWhenZoomChanges) {
   WebFrameWidget* mainFrameWidget = web_view_impl->MainFrameWidget();
 
   const auto setZoom{[&](const float zoomFactor) {
-    mainFrameWidget->SetZoomLevelForTesting(
-        PageZoomFactorToZoomLevel(zoomFactor));
+    mainFrameWidget->SetZoomLevelForTesting(ZoomFactorToZoomLevel(zoomFactor));
 
     mainFrameWidget->UpdateAllLifecyclePhases(DocumentUpdateReason::kTest);
   }};
@@ -6707,44 +6965,6 @@ TEST_F(StyleEngineTest, BorderWidthsAreRecalculatedWhenZoomChanges) {
   // zoom and device scale factor is reset.
   reset();
   checkBorderWidth(1.0f);
-}
-
-TEST_F(StyleEngineTest, AnimationShorthandFlags) {
-  String css = "animation: foo 1s";
-  {
-    ScopedScrollTimelineForTest scroll_timeline_enabled(false);
-    ScopedScrollTimelineCurrentTimeForTest current_time_enabled(false);
-    const CSSPropertyValueSet* set =
-        css_test_helpers::ParseDeclarationBlock(css);
-    ASSERT_TRUE(set);
-    EXPECT_EQ(8u, set->PropertyCount());
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationDuration));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationTimingFunction));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationDelay));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationIterationCount));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationDirection));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationFillMode));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationPlayState));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationName));
-  }
-  {
-    ScopedScrollTimelineForTest scroll_timeline_enabled(true);
-    const CSSPropertyValueSet* set =
-        css_test_helpers::ParseDeclarationBlock(css);
-    ASSERT_TRUE(set);
-    EXPECT_EQ(11u, set->PropertyCount());
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationDuration));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationTimingFunction));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationDelay));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationIterationCount));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationDirection));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationFillMode));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationPlayState));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationName));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationTimeline));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationRangeStart));
-    EXPECT_TRUE(set->HasProperty(CSSPropertyID::kAnimationRangeEnd));
-  }
 }
 
 TEST_F(StyleEngineTest, InitialStyle_Recalc) {
@@ -6848,8 +7068,6 @@ TEST_F(StyleEngineTest, InitialStyleCount_EnsureComputedStyle) {
 }
 
 TEST_F(StyleEngineTest, UseCountCSSAnchorPositioning) {
-  ScopedCSSAnchorPositioningForTest enabled(true);
-
   EXPECT_FALSE(IsUseCounted(WebFeature::kCSSAnchorPositioning));
 
   SetBodyInnerHTML("<style>#foo { top: anchor(top); }");
@@ -6864,426 +7082,7 @@ TEST_F(StyleEngineTest, UseCountCSSAnchorPositioning) {
   EXPECT_TRUE(IsUseCounted(WebFeature::kCSSAnchorPositioning));
 }
 
-TEST_F(StyleEngineTest, UseCountCSSDeclarationAfterNestedRule) {
-  //
-  // The use-counter should not trigger for the following cases:
-  //
-
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-    </style>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-      }
-    </style>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-        & {
-          top: 10px;
-        }
-      }
-    </style>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  // Relative selector.
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-        > .a {
-          top: 10px;
-        }
-      }
-    </style>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  // Relaxed nesting.
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-        div {
-          top: 10px;
-        }
-      }
-    </style>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  // Nested group rule.
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-        @media (width) {
-          top: 10px;
-        }
-      }
-    </style>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  // Deep nesting.
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-        .a {
-          .b {
-            left: 10px;
-          }
-        }
-      }
-    </style>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  //
-  // The use-counter should trigger for the following cases:
-  //
-
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-        & {
-          top: 10px;
-        }
-        background-color: red;
-      }
-    </style>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  // Relative selector.
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-        > .a {
-          top: 10px;
-        }
-        background-color: red;
-      }
-    </style>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  // Nested group rule.
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-        @media (width) {
-          top: 10px;
-        }
-        background-color: red;
-      }
-    </style>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  // Relaxed nesting.
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-        span {
-          top: 10px;
-        }
-        background-color: red;
-      }
-    </style>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-
-  // Deep nesting.
-  ClearUseCounter(WebFeature::kCSSDeclarationAfterNestedRule);
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-        .a {
-          .b {
-            left: 10px;
-          }
-          top: 10px;
-        }
-      }
-    </style>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSDeclarationAfterNestedRule));
-}
-
-TEST_F(StyleEngineTest, UseCountCSSBareDeclarationRequiresShift_Empty) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-    </style>
-    <div></div>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest, UseCountCSSBareDeclarationRequiresShift_NoNesting) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        color: green;
-      }
-    </style>
-    <div></div>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest,
-       UseCountCSSBareDeclarationRequiresShift_TrailingUncontested) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        & { color: pink; }
-        width: 100px;
-      }
-    </style>
-    <div></div>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest,
-       UseCountCSSBareDeclarationRequiresShift_TrailingDuplicate) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        width: 50px;
-        & { color: pink; }
-        width: 100px;
-      }
-    </style>
-    <div></div>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest, UseCountCSSBareDeclarationRequiresShift_LaterRuleWins) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        & { color: red; }
-        width: 100px;
-      }
-      div {
-        width: 42px;
-      }
-    </style>
-    <div id=a></div>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest,
-       UseCountCSSBareDeclarationRequiresShift_HigherSpecificityWins) {
-  // Rule with higher specificity overwrites the invisible rule.
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      #a {
-        width: 42px;
-      }
-      div {
-        & { width: 33px; }
-        width: 100px;
-      }
-    </style>
-    <div id=a></div>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest,
-       UseCountCSSBareDeclarationRequiresShift_ExplicitAmpersand) {
-  // The explicit '&' rule matches with specificity equal to :is(.a,.x.y.z),
-  // but the invisible rule expanded into the full/unwrapped selector list
-  // at parse time, and matches with the specificity of just '.a'.
-  // Therefore the invisible rule doesn't make a difference here.
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      .a, .x.y.z {
-        & { width: 33px; }
-        width: 100px;
-      }
-    </style>
-    <div class=a></div>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest, UseCountCSSBareDeclarationRequiresShift_TrailingWin) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        & { width: 33px; }
-        width: 100px;
-      }
-    </style>
-    <div></div>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest,
-       UseCountCSSBareDeclarationRequiresShift_TrailingWinMedia) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div {
-        @media (width) {
-          width: 33px;
-        }
-        width: 100px;
-      }
-    </style>
-    <div></div>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest,
-       UseCountCSSBareDeclarationRequiresShift_TrailingWinSelectorList) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      h1, h2, h3, div {
-        & { width: 33px; }
-        width: 100px;
-      }
-    </style>
-    <div></div>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest, UseCountCSSBareDeclarationRequiresShift_DeeplyNested) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      .a {
-        &.b {
-          &.c {
-            & { width: 33px; }
-            width: 100px;
-          }
-        }
-      }
-    </style>
-    <div class="a b c"></div>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest, UseCountCSSNestedGroupRuleSpecificity_NoNesting) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-    </style>
-    <div></div>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSNestedGroupRuleSpecificity));
-}
-
-TEST_F(StyleEngineTest, UseCountCSSNestedGroupRuleSpecificity_NoContest) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div, .x.y.z {
-        @media (width) {
-          width: 33px;
-        }
-      }
-    </style>
-    <div></div>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSNestedGroupRuleSpecificity));
-}
-
-TEST_F(StyleEngineTest, UseCountCSSNestedGroupRuleSpecificity_LaterRuleWins) {
-  // Lowering the specificity of the implicit &-rule does not matter here,
-  // because there is anyway another rule with even higher specificity that
-  // wins the cascade.
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div, .x.y.z {
-        @media (width) {
-          width: 33px;
-        }
-      }
-      :is(div, .x.y.z.w) {
-        width: 100px;
-      }
-    </style>
-    <div class=a></div>
-  )HTML");
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSNestedGroupRuleSpecificity));
-}
-
-TEST_F(StyleEngineTest,
-       UseCountCSSNestedGroupRuleSpecificity_LaterRuleIsAffected) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div, .x.y.z {
-        @media (width) {
-          width: 33px;
-        }
-      }
-      div {
-        width: 100px;
-      }
-    </style>
-    <div class=a></div>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSNestedGroupRuleSpecificity));
-}
-
-TEST_F(StyleEngineTest,
-       UseCountCSSNestedGroupRuleSpecificity_NoBareDeclarationShift) {
-  SetBodyInnerHTML(R"HTML(
-    <style>
-      div, .x.y.z {
-        @media (width) {
-          width: 33px;
-          div:where(&) {
-            width: 100px;
-          }
-        }
-      }
-    </style>
-    <div class=a></div>
-  )HTML");
-  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSNestedGroupRuleSpecificity));
-
-  // The kBareDeclarationShift should at no point have been set
-  // by nested group rules.
-  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSBareDeclarationShift));
-}
-
-TEST_F(StyleEngineTest, EnsureDraggableRegionTriggersRelayout) {
+TEST_F(StyleEngineTest, EnsureAppRegionTriggersRelayout) {
   frame_test_helpers::WebViewHelper web_view_helper;
   WebViewImpl* web_view_impl = web_view_helper.Initialize();
   web_view_impl->SetSupportsDraggableRegions(true);
@@ -7311,7 +7110,7 @@ TEST_F(StyleEngineTest, EnsureDraggableRegionTriggersRelayout) {
   Element* drag_element = document->getElementById(AtomicString("drag-region"));
 
   auto regions = document->DraggableRegions();
-  auto* it =
+  auto it =
       std::find_if(regions.begin(), regions.end(),
                    [](blink::DraggableRegionValue s) { return s.draggable; });
   EXPECT_EQ(it, regions.end()) << "There should be no drag regions";
@@ -7339,7 +7138,8 @@ TEST_F(StyleEngineTest, EnsureDraggableRegionTriggersRelayout) {
 TEST_F(StyleEngineTest, ForcedColorsLightDark) {
   ScopedForcedColorsForTest scoped_feature(true);
   ColorSchemeHelper color_scheme_helper(GetDocument());
-  color_scheme_helper.SetInForcedColors(/*in_forced_colors=*/true);
+  color_scheme_helper.SetInForcedColors(GetDocument(),
+                                        /*in_forced_colors=*/true);
   GetDocument().body()->setInnerHTML(R"HTML(
     <style>
       :root { color-scheme: light only; }
@@ -7366,6 +7166,330 @@ TEST_F(StyleEngineTest, ForcedColorsLightDark) {
 
   EXPECT_EQ(light_dark.VisitedDependentColor(GetCSSPropertyColor()),
             reference.VisitedDependentColor(GetCSSPropertyColor()));
+}
+
+TEST_F(StyleEngineTest, UseCountMediaQueryRangeSyntax) {
+  EXPECT_FALSE(IsUseCounted(WebFeature::kMediaQueryRangeSyntax));
+
+  ClearUseCounter(WebFeature::kMediaQueryRangeSyntax);
+  SetBodyInnerHTML("<style>@media (width: 1px){}</style>");
+  EXPECT_FALSE(IsUseCounted(WebFeature::kMediaQueryRangeSyntax));
+
+  ClearUseCounter(WebFeature::kMediaQueryRangeSyntax);
+  SetBodyInnerHTML("<style>@media (width = 1px){}</style>");
+  EXPECT_TRUE(IsUseCounted(WebFeature::kMediaQueryRangeSyntax));
+
+  ClearUseCounter(WebFeature::kMediaQueryRangeSyntax);
+  SetBodyInnerHTML("<style>@media ((width: 1px) and (height: 1px)){}</style>");
+  EXPECT_FALSE(IsUseCounted(WebFeature::kMediaQueryRangeSyntax));
+
+  ClearUseCounter(WebFeature::kMediaQueryRangeSyntax);
+  SetBodyInnerHTML("<style>@media (width){}</style>");
+  EXPECT_FALSE(IsUseCounted(WebFeature::kMediaQueryRangeSyntax));
+
+  ClearUseCounter(WebFeature::kMediaQueryRangeSyntax);
+  SetBodyInnerHTML("<style>@media (width < 1px){}</style>");
+  EXPECT_TRUE(IsUseCounted(WebFeature::kMediaQueryRangeSyntax));
+
+  ClearUseCounter(WebFeature::kMediaQueryRangeSyntax);
+  SetBodyInnerHTML("<style>@media (1px < width){}</style>");
+  EXPECT_TRUE(IsUseCounted(WebFeature::kMediaQueryRangeSyntax));
+
+  ClearUseCounter(WebFeature::kMediaQueryRangeSyntax);
+  SetBodyInnerHTML("<style>@media (1px < width < 2px){}</style>");
+  EXPECT_TRUE(IsUseCounted(WebFeature::kMediaQueryRangeSyntax));
+}
+
+TEST_F(StyleEngineTest, CreateUnconnectedRuleSet) {
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <style id=style>
+      .a { color: green; }
+      .a { width: 100px; }
+    </style>
+  )HTML");
+  UpdateAllLifecyclePhases();
+
+  CSSStyleSheet* sheet =
+      To<HTMLStyleElement>(GetDocument().getElementById(AtomicString("style")))
+          ->sheet();
+  ASSERT_TRUE(sheet);
+  EXPECT_TRUE(sheet->Contents()->HasRuleSet());
+
+  sheet->Contents()->ClearRuleSet();
+  EXPECT_FALSE(sheet->Contents()->HasRuleSet());
+
+  RuleSet* rule_set = GetStyleEngine().CreateUnconnectedRuleSet(*sheet);
+  ASSERT_TRUE(rule_set);
+  rule_set->AssertCompacted();
+  EXPECT_EQ(2u, rule_set->ClassRules(AtomicString("a")).size());
+
+  // As the above RuleSet is unconnected, it should not have affected
+  // the RuleSet held by StyleSheetContents.
+  EXPECT_FALSE(sheet->Contents()->HasRuleSet());
+}
+
+TEST_F(StyleEngineTest, CreateUnconnectedRuleSetMedia) {
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <style id=style media=print>
+      .a { color: green; }
+      .a { width: 100px; }
+    </style>
+  )HTML");
+  UpdateAllLifecyclePhases();
+  CSSStyleSheet* sheet =
+      To<HTMLStyleElement>(GetDocument().getElementById(AtomicString("style")))
+          ->sheet();
+  EXPECT_FALSE(GetStyleEngine().CreateUnconnectedRuleSet(*sheet));
+}
+
+TEST_F(StyleEngineTest, HasComplexSafaAreaConstraints) {
+  ScopedUpdateComplexSafaAreaConstraintsForTest
+      update_complex_safe_area_constraints(true);
+
+  // (a) Any styles that are not 'bottom' anchored, should not have complex
+  // safe area constraints.
+
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="padding-bottom: 30px" />
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_FALSE(GetStyleEngine().HasComplexSafaAreaConstraints());
+
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="padding-bottom: env(safe-area-inset-bottom)" />
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_FALSE(GetStyleEngine().HasComplexSafaAreaConstraints());
+
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="height: calc(env(safe-area-inset-bottom) + 30px)" />
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_FALSE(GetStyleEngine().HasComplexSafaAreaConstraints());
+
+  // (b) Any styles that are 'bottom' anchored, may have complex safe area
+  // constraints depending on the following usages.
+
+  // When no style properties use env(safe-area-inset-bottom), there are no
+  // complex safe area constraints.
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="bottom: 5px; padding-bottom: 30px" />
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_FALSE(GetStyleEngine().HasComplexSafaAreaConstraints());
+
+  // When a style property other than 'bottom' uses env(safe-area-inset-bottom),
+  // there are complex safe area constraints.
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="bottom: 5px; padding-bottom: env(safe-area-inset-bottom)" />
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_TRUE(GetStyleEngine().HasComplexSafaAreaConstraints());
+
+  // When the 'bottom' style property uses env(safe-area-inset-bottom)
+  // as defined under 'IsBottomRelativeToSafeAreaInset' in
+  // computed_style_extra_fields.json5, this is considered a "fast-path"
+  // and there are no complex safe area constraints.
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="bottom: env(safe-area-inset-bottom)" />
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_FALSE(GetStyleEngine().HasComplexSafaAreaConstraints());
+
+  // When a style property other than 'bottom' uses calc() with
+  // env(safe-area-inset-bottom), there are complex safe area constraints.
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="bottom: 5px; height: calc(env(safe-area-inset-bottom) + 30px)" />
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_TRUE(GetStyleEngine().HasComplexSafaAreaConstraints());
+}
+
+TEST_F(StyleEngineTest, HasComplexSafaAreaConstraintsNestedBottom) {
+  ScopedUpdateComplexSafaAreaConstraintsForTest
+      update_complex_safe_area_constraints(true);
+
+  // Any styles that are nested in a 'bottom' anchored element, may have
+  // complex safe area constraints depending on the following usages.
+
+  // When no style properties use env(safe-area-inset-bottom), there are no
+  // complex safe area constraints.
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="bottom: 5px">
+      <div style="padding-bottom: 30px" />
+    </div>
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_FALSE(GetStyleEngine().HasComplexSafaAreaConstraints());
+
+  // When a style property other than 'bottom' uses env(safe-area-inset-bottom),
+  // there are complex safe area constraints.
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="bottom: 5px">
+      <div style="padding-bottom: env(safe-area-inset-bottom)" />
+    </div>
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_TRUE(GetStyleEngine().HasComplexSafaAreaConstraints());
+
+  // When the 'bottom' style property uses env(safe-area-inset-bottom)
+  // as defined under 'IsBottomRelativeToSafeAreaInset' in
+  // computed_style_extra_fields.json5, this is considered a "fast-path"
+  // and there are no complex safe area constraints.
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="bottom: 5px">
+      <div style="env(safe-area-inset-bottom)" />
+    </div>
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_FALSE(GetStyleEngine().HasComplexSafaAreaConstraints());
+
+  // When a style property other than 'bottom' uses calc() with
+  // env(safe-area-inset-bottom), there are complex safe area constraints.
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div style="bottom: 5px">
+      <div style="height: calc(env(safe-area-inset-bottom) + 30px)" />
+    </div>
+  )HTML");
+  UpdateAllLifecyclePhases();
+  EXPECT_TRUE(GetStyleEngine().HasComplexSafaAreaConstraints());
+}
+
+TEST_F(StyleEngineTest, ScrollStateUseCounter) {
+  EXPECT_FALSE(
+      IsWebDXFeatureCounted(WebDXFeature::kContainerScrollStateQueries));
+
+  GetDocument().body()->setInnerHTML(
+      "<style> @container scroll-state(stuck) { * { color: pink } } </style>");
+  UpdateAllLifecyclePhases();
+  EXPECT_FALSE(
+      IsWebDXFeatureCounted(WebDXFeature::kContainerScrollStateQueries));
+
+  GetDocument().body()->setInnerHTML(
+      "<style> @container not scroll-state(stuck) { * { color: pink } } "
+      "</style>");
+  UpdateAllLifecyclePhases();
+  EXPECT_FALSE(
+      IsWebDXFeatureCounted(WebDXFeature::kContainerScrollStateQueries));
+
+  GetDocument().body()->setInnerHTML(
+      "<style> #notfound { container-type: scroll-state } </style>");
+  UpdateAllLifecyclePhases();
+  EXPECT_TRUE(
+      IsWebDXFeatureCounted(WebDXFeature::kContainerScrollStateQueries));
+  ClearWebDXFeatureCounter(WebDXFeature::kContainerScrollStateQueries);
+}
+
+TEST_F(StyleEngineTest, CSSVarFallbackCycleCounter) {
+  // No fallback.
+  ClearUseCounter(WebFeature::kCSSVarFallbackCycle);
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <style>
+      div {
+        --x: var(--invalid);
+      }
+    </style>
+    <div></div>
+  )HTML");
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSVarFallbackCycle));
+
+  // Invalid var() in a fallback that's used.
+  ClearUseCounter(WebFeature::kCSSVarFallbackCycle);
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <style>
+      div {
+        --x: var(--invalid, var(--invalid2));
+      }
+    </style>
+    <div></div>
+  )HTML");
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSVarFallbackCycle));
+
+  // Cycle in used fallback.
+  ClearUseCounter(WebFeature::kCSSVarFallbackCycle);
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <style>
+      div {
+        --x: var(--invalid, var(--x));
+      }
+    </style>
+    <div></div>
+  )HTML");
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSVarFallbackCycle));
+
+  // Cycle in unused fallback.
+  ClearUseCounter(WebFeature::kCSSVarFallbackCycle);
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <style>
+      div {
+        --x: var(--y, var(--x));
+        --y: 10px;
+      }
+    </style>
+    <div></div>
+  )HTML");
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSVarFallbackCycle));
+}
+
+TEST_F(StyleEngineTest, CSSAttrFallbackCycleCounter) {
+  // No fallback.
+  ClearUseCounter(WebFeature::kCSSAttrFallbackCycle);
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <style>
+      div {
+        --x: attr(data-foo type(*));
+      }
+    </style>
+    <div data-foo="attr(data-invalid type(*))"></div>
+  )HTML");
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSAttrFallbackCycle));
+
+  // Invalid var() in a fallback that's used.
+  ClearUseCounter(WebFeature::kCSSAttrFallbackCycle);
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <style>
+      div {
+        --x: attr(data-foo type(*));
+      }
+    </style>
+    <div
+      data-foo="attr(data-invalid type(*), attr(data-invalid2 type(*)))"></div>
+  )HTML");
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSAttrFallbackCycle));
+
+  // Cycle in used fallback.
+  ClearUseCounter(WebFeature::kCSSAttrFallbackCycle);
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <style>
+      div {
+        --x: attr(data-foo type(*));
+      }
+    </style>
+    <div data-foo="attr(data-invalid type(*), attr(data-foo type(*)))"></div>
+  )HTML");
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_FALSE(IsUseCounted(WebFeature::kCSSAttrFallbackCycle));
+
+  // Cycle in unused fallback.
+  ClearUseCounter(WebFeature::kCSSAttrFallbackCycle);
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <style>
+      div {
+        --x: attr(data-foo type(*));
+      }
+    </style>
+    <div
+      data-foo="attr(data-bar type(*), attr(data-foo type(*)))"
+      data-bar="10px"></div>
+  )HTML");
+  UpdateAllLifecyclePhasesForTest();
+  EXPECT_TRUE(IsUseCounted(WebFeature::kCSSAttrFallbackCycle));
 }
 
 }  // namespace blink

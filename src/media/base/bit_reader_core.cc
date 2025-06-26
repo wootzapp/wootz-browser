@@ -156,7 +156,7 @@ bool BitReaderCore::Refill(int min_nbits) {
       byte_stream_provider_->GetBytes(max_nbytes, &byte_stream_window_ptr));
   auto byte_stream_window =
       // TODO(crbug.com/40284755): GetBytes() should return a span.
-      UNSAFE_BUFFERS(base::span(byte_stream_window_ptr, window_size));
+      UNSAFE_TODO(base::span(byte_stream_window_ptr, window_size));
   if (byte_stream_window.empty()) {
     return false;
   }
@@ -164,10 +164,8 @@ bool BitReaderCore::Refill(int min_nbits) {
   // Pad the window to 8 big-endian bytes to fill `reg_next_`. `reg_next_` is
   // read from the MSB, so the new bytes are written to the front in big-endian.
   std::array<uint8_t, 8u> bytes = {};
-  base::span(bytes)
-      .first(byte_stream_window.size())
-      .copy_from(byte_stream_window);
-  reg_next_ = base::numerics::U64FromBigEndian(bytes);
+  base::span(bytes).copy_prefix_from(byte_stream_window);
+  reg_next_ = base::U64FromBigEndian(bytes);
   nbits_next_ = base::checked_cast<int>(byte_stream_window.size() * 8u);
 
   // Transfer from the next to the current register.

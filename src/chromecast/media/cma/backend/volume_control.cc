@@ -113,9 +113,7 @@ class VolumeControlInternal : public SystemVolumeControl::Delegate {
 
   void RemoveVolumeObserver(VolumeObserver* observer) {
     base::AutoLock lock(observer_lock_);
-    volume_observers_.erase(std::remove(volume_observers_.begin(),
-                                        volume_observers_.end(), observer),
-                            volume_observers_.end());
+    std::erase(volume_observers_, observer);
   }
 
   float GetVolume(AudioContentType type) {
@@ -286,7 +284,7 @@ class VolumeControlInternal : public SystemVolumeControl::Delegate {
     DCHECK(thread_.task_runner()->BelongsToCurrentThread());
     DCHECK_NE(AudioContentType::kOther, type);
 #if BUILDFLAG(SYSTEM_OWNS_VOLUME)
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
 #else
     volume_multipliers_[type] = multiplier;
     float scale =

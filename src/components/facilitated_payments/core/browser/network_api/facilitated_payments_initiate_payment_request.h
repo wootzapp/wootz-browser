@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/gtest_prod_util.h"
+#include "components/autofill/core/browser/payments/payments_autofill_client.h"
 #include "components/autofill/core/browser/payments/payments_requests/payments_request.h"
 #include "components/facilitated_payments/core/browser/network_api/facilitated_payments_initiate_payment_request_details.h"
 #include "components/facilitated_payments/core/browser/network_api/facilitated_payments_initiate_payment_response_details.h"
@@ -18,10 +19,12 @@ namespace payments::facilitated {
 // This class is used for making a payment request to the Payments server. It is
 // used by all FOPs under Facilitated Payments. It encapsulates the info
 // required for making the server call, and pipes the server response back to
-// the `FacilitatedPaymentsManager` through a callback.
+// the payment manager through a callback.
 class FacilitatedPaymentsInitiatePaymentRequest
     : public autofill::payments::PaymentsRequest {
  public:
+  // Either the PIX code or the payment link must be present in the
+  // `request_details`.
   FacilitatedPaymentsInitiatePaymentRequest(
       std::unique_ptr<FacilitatedPaymentsInitiatePaymentRequestDetails>
           request_details,
@@ -42,11 +45,22 @@ class FacilitatedPaymentsInitiatePaymentRequest
   void ParseResponse(const base::Value::Dict& response) override;
   bool IsResponseComplete() override;
   void RespondToDelegate(
-      autofill::AutofillClient::PaymentsRpcResult result) override;
+      autofill::payments::PaymentsAutofillClient::PaymentsRpcResult result)
+      override;
 
  private:
   FRIEND_TEST_ALL_PREFIXES(FacilitatedPaymentsInitiatePaymentRequestTest,
                            ParseResponse_WithActionToken);
+  FRIEND_TEST_ALL_PREFIXES(FacilitatedPaymentsInitiatePaymentRequestTest,
+                           ParseResponse_WithSecurePayload);
+  FRIEND_TEST_ALL_PREFIXES(FacilitatedPaymentsInitiatePaymentRequestTest,
+                           ParseResponse_WithCorruptActionToken);
+  FRIEND_TEST_ALL_PREFIXES(FacilitatedPaymentsInitiatePaymentRequestTest,
+                           ParseResponse_MissingSecureDataKey);
+  FRIEND_TEST_ALL_PREFIXES(FacilitatedPaymentsInitiatePaymentRequestTest,
+                           ParseResponse_MissingSecureDataValue);
+  FRIEND_TEST_ALL_PREFIXES(FacilitatedPaymentsInitiatePaymentRequestTest,
+                           ParseResponse_ActionTokenContainedInOldFormatAndNew);
   FRIEND_TEST_ALL_PREFIXES(FacilitatedPaymentsInitiatePaymentRequestTest,
                            ParseResponse_WithErrorMessage);
 

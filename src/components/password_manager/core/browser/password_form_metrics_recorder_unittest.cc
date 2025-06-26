@@ -17,6 +17,7 @@
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
 #include "components/autofill/core/common/form_data.h"
+#include "components/autofill/core/common/form_data_test_api.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "components/password_manager/core/browser/password_manager.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
@@ -41,8 +42,15 @@ namespace password_manager {
 namespace {
 
 constexpr ukm::SourceId kTestSourceId = 0x1234;
+constexpr char16_t kSavedUsername[] = u"saved_user";
+constexpr char16_t kSavedPassword[] = u"saved_password";
+constexpr FieldRendererId kUsernameFieldId(1);
+constexpr FieldRendererId kPasswordFieldId(2);
 
 using features_util::PasswordAccountStorageUsageLevel;
+using PasswordFormMetricsRecorder::ClassificationCorrectness::kCorrect;
+using PasswordFormMetricsRecorder::ClassificationCorrectness::kUnknown;
+using PasswordFormMetricsRecorder::ClassificationCorrectness::kWrong;
 using UkmEntry = ukm::builders::PasswordForm;
 using StoreSet = std::set<std::pair<std::u16string, PasswordForm::Store>>;
 
@@ -54,23 +62,21 @@ scoped_refptr<PasswordFormMetricsRecorder> CreatePasswordFormMetricsRecorder(
       is_main_frame_secure, kTestSourceId, pref_service);
 }
 
-// TODO(crbug.com/40528506) Replace this with generalized infrastructure.
-// Verifies that the metric |metric_name| was recorded with value |value| in the
-// single entry of |test_ukm_recorder_| exactly |expected_count| times.
-void ExpectUkmValueCount(ukm::TestUkmRecorder* test_ukm_recorder,
-                         const char* metric_name,
-                         int64_t value,
-                         int64_t expected_count) {
+// Checks if the metric `metric_name` was recorded in the single entry of
+// `test_ukm_recorder_`.
+void ExpectUkmEntryRecorded(ukm::TestUkmRecorder* test_ukm_recorder,
+                            const char* metric_name,
+                            std::optional<int64_t> expected_recording) {
   auto entries = test_ukm_recorder->GetEntriesByName(UkmEntry::kEntryName);
   EXPECT_EQ(1u, entries.size());
+
   for (const ukm::mojom::UkmEntry* const entry : entries) {
     EXPECT_EQ(kTestSourceId, entry->source_id);
-    if (expected_count) {
-      test_ukm_recorder->ExpectEntryMetric(entry, metric_name, value);
+    if (expected_recording.has_value()) {
+      test_ukm_recorder->ExpectEntryMetric(entry, metric_name,
+                                           expected_recording.value());
     } else {
-      const int64_t* count =
-          test_ukm_recorder->GetEntryMetric(entry, metric_name);
-      EXPECT_TRUE(count == nullptr || *count != expected_count);
+      EXPECT_FALSE(test_ukm_recorder->EntryHasMetric(entry, metric_name));
     }
   }
 }
@@ -123,8 +129,9 @@ TEST_F(PasswordFormMetricsRecorderTest, Generation) {
     {
       auto recorder = CreatePasswordFormMetricsRecorder(
           /*is_main_frame_secure*/ true, &pref_service_);
-      if (test.generation_available)
+      if (test.generation_available) {
         recorder->MarkGenerationAvailable();
+      }
       if (test.has_generated_password) {
         recorder->SetGeneratedPasswordStatus(
             PasswordFormMetricsRecorder::GeneratedPasswordStatus::
@@ -143,37 +150,36 @@ TEST_F(PasswordFormMetricsRecorderTest, Generation) {
       }
     }
 
-    ExpectUkmValueCount(
-        &test_ukm_recorder, UkmEntry::kSubmission_ObservedName,
+    bool form_was_submitted =
         test.submission !=
-                PasswordFormMetricsRecorder::SubmitResult::kNotSubmitted
-            ? 1
-            : 0,
-        1);
+        PasswordFormMetricsRecorder::SubmitResult::kNotSubmitted;
+    ExpectUkmEntryRecorded(&test_ukm_recorder,
+                           UkmEntry::kSubmission_ObservedName,
+                           std::make_optional<int64_t>(form_was_submitted));
 
-    int expected_login_failed =
+    EXPECT_EQ(
         test.submission == PasswordFormMetricsRecorder::SubmitResult::kFailed
             ? 1
-            : 0;
-    EXPECT_EQ(expected_login_failed,
-              user_action_tester.GetActionCount("PasswordManager_LoginFailed"));
-    ExpectUkmValueCount(&test_ukm_recorder,
-                        UkmEntry::kSubmission_SubmissionResultName,
-                        static_cast<int64_t>(
-                            PasswordFormMetricsRecorder::SubmitResult::kFailed),
-                        expected_login_failed);
-
-    int expected_login_passed =
+            : 0,
+        user_action_tester.GetActionCount("PasswordManager_LoginFailed"));
+    EXPECT_EQ(
         test.submission == PasswordFormMetricsRecorder::SubmitResult::kPassed
             ? 1
-            : 0;
-    EXPECT_EQ(expected_login_passed,
-              user_action_tester.GetActionCount("PasswordManager_LoginPassed"));
-    ExpectUkmValueCount(&test_ukm_recorder,
-                        UkmEntry::kSubmission_SubmissionResultName,
-                        static_cast<int64_t>(
-                            PasswordFormMetricsRecorder::SubmitResult::kPassed),
-                        expected_login_passed);
+            : 0,
+        user_action_tester.GetActionCount("PasswordManager_LoginPassed"));
+
+    ExpectUkmEntryRecorded(
+        &test_ukm_recorder, UkmEntry::kSubmission_SubmissionResultName,
+        form_was_submitted
+            ? std::make_optional<int64_t>(static_cast<int64_t>(test.submission))
+            : std::nullopt);
+
+    ExpectUkmEntryRecorded(
+        &test_ukm_recorder,
+        UkmEntry::kSubmission_SubmissionResult_GeneratedPasswordName,
+        form_was_submitted && test.has_generated_password
+            ? std::make_optional<int64_t>(static_cast<int64_t>(test.submission))
+            : std::nullopt);
 
     if (test.has_generated_password) {
       switch (test.submission) {
@@ -254,9 +260,9 @@ TEST_F(PasswordFormMetricsRecorderTest, SubmittedFormType) {
     if (test.should_record_metrics) {
       histogram_tester.ExpectUniqueSample("PasswordManager.SubmittedFormType2",
                                           test.form_type.value(), 1);
-      ExpectUkmValueCount(&test_ukm_recorder,
-                          UkmEntry::kSubmission_SubmittedFormType2Name,
-                          static_cast<int64_t>(test.form_type.value()), 1);
+      ExpectUkmEntryRecorded(&test_ukm_recorder,
+                             UkmEntry::kSubmission_SubmittedFormType2Name,
+                             static_cast<int64_t>(test.form_type.value()));
     } else {
       histogram_tester.ExpectTotalCount("PasswordManager.SubmittedFormType2",
                                         0);
@@ -602,19 +608,22 @@ PasswordForm ConvertToPasswordForm(
     form_field.set_value(ASCIIToUTF16(field.value));
     form_field.set_user_input(ASCIIToUTF16(field.user_input));
 
-    if (field.user_typed)
+    if (field.user_typed) {
       form_field.set_properties_mask(form_field.properties_mask() |
                                      FieldPropertiesFlags::kUserTyped);
+    }
 
-    if (field.manually_filled)
+    if (field.manually_filled) {
       form_field.set_properties_mask(
           form_field.properties_mask() |
           FieldPropertiesFlags::kAutofilledOnUserTrigger);
+    }
 
-    if (field.automatically_filled)
+    if (field.automatically_filled) {
       form_field.set_properties_mask(
           form_field.properties_mask() |
           FieldPropertiesFlags::kAutofilledOnPageLoad);
+    }
 
     form_field.set_form_control_type(
         field.is_password ? autofill::FormControlType::kInputPassword
@@ -628,7 +637,7 @@ PasswordForm ConvertToPasswordForm(
       password_form.username_value = value;
     }
 
-    password_form.form_data.fields.push_back(form_field);
+    test_api(password_form.form_data).Append(form_field);
   }
   return password_form;
 }
@@ -637,10 +646,12 @@ StoreSet ConvertToString16AndStoreSet(
     const std::vector<std::string>& profile_store_values,
     const std::vector<std::string>& account_store_values) {
   StoreSet result;
-  for (const std::string& str : profile_store_values)
+  for (const std::string& str : profile_store_values) {
     result.emplace(ASCIIToUTF16(str), PasswordForm::Store::kProfileStore);
-  for (const std::string& str : account_store_values)
+  }
+  for (const std::string& str : account_store_values) {
     result.emplace(ASCIIToUTF16(str), PasswordForm::Store::kAccountStore);
+  }
   return result;
 }
 
@@ -719,9 +730,9 @@ void CheckFillingAssistanceTestCase(
     PasswordForm password_form_data = ConvertToPasswordForm(test_case.fields);
     if (sub_case.is_main_frame_secure) {
       if (sub_case.is_mixed_form) {
-        password_form_data.form_data.action = GURL("http://notsecure.test");
+        password_form_data.form_data.set_action(GURL("http://notsecure.test"));
       } else {
-        password_form_data.form_data.action = GURL("https://secure.test");
+        password_form_data.form_data.set_action(GURL("https://secure.test"));
       }
     }
 
@@ -743,8 +754,9 @@ void CheckFillingAssistanceTestCase(
           sub_case.account_storage_usage_level);
     }
 
-    if (test_case.submission_is_successful)
+    if (test_case.submission_is_successful) {
       recorder->LogSubmitPassed();
+    }
     recorder.reset();
 
     int expected_count = test_case.expectation ? 1 : 0;
@@ -1155,10 +1167,9 @@ TEST_F(PasswordFormMetricsRecorderTest,
   histogram_tester_.ExpectUniqueSample(
       "PasswordManager.FillingAssistanceForSingleUsername", expected_assistance,
       1);
-  ExpectUkmValueCount(&test_ukm_recorder,
-                      UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
-                      static_cast<int64_t>(expected_assistance),
-                      /*expected_count=*/1);
+  ExpectUkmEntryRecorded(&test_ukm_recorder,
+                         UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
+                         static_cast<int64_t>(expected_assistance));
 }
 
 // Tests the calculation of the filling assistance metric for a single username
@@ -1192,10 +1203,9 @@ TEST_F(PasswordFormMetricsRecorderTest,
   histogram_tester_.ExpectUniqueSample(
       "PasswordManager.FillingAssistanceForSingleUsername", expected_assistance,
       1);
-  ExpectUkmValueCount(&test_ukm_recorder,
-                      UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
-                      static_cast<int64_t>(expected_assistance),
-                      /*expected_count=*/1);
+  ExpectUkmEntryRecorded(&test_ukm_recorder,
+                         UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
+                         static_cast<int64_t>(expected_assistance));
 }
 
 // Tests the calculation of the filling assistance metric for a single username
@@ -1229,10 +1239,9 @@ TEST_F(PasswordFormMetricsRecorderTest,
   histogram_tester_.ExpectUniqueSample(
       "PasswordManager.FillingAssistanceForSingleUsername", expected_assistance,
       1);
-  ExpectUkmValueCount(&test_ukm_recorder,
-                      UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
-                      static_cast<int64_t>(expected_assistance),
-                      /*expected_count=*/1);
+  ExpectUkmEntryRecorded(&test_ukm_recorder,
+                         UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
+                         static_cast<int64_t>(expected_assistance));
 }
 
 // Tests the calculation of the filling assistance metric for a single username
@@ -1264,10 +1273,9 @@ TEST_F(PasswordFormMetricsRecorderTest,
   histogram_tester_.ExpectUniqueSample(
       "PasswordManager.FillingAssistanceForSingleUsername", expected_assistance,
       1);
-  ExpectUkmValueCount(&test_ukm_recorder,
-                      UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
-                      static_cast<int64_t>(expected_assistance),
-                      /*expected_count=*/1);
+  ExpectUkmEntryRecorded(&test_ukm_recorder,
+                         UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
+                         static_cast<int64_t>(expected_assistance));
 }
 
 // Tests the calculation of the filling assistance metric for a single username
@@ -1302,10 +1310,9 @@ TEST_F(PasswordFormMetricsRecorderTest,
   histogram_tester_.ExpectUniqueSample(
       "PasswordManager.FillingAssistanceForSingleUsername", expected_assistance,
       1);
-  ExpectUkmValueCount(&test_ukm_recorder,
-                      UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
-                      static_cast<int64_t>(expected_assistance),
-                      /*expected_count=*/1);
+  ExpectUkmEntryRecorded(&test_ukm_recorder,
+                         UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
+                         static_cast<int64_t>(expected_assistance));
 }
 
 // Tests the calculation of the filling assistance metric for a single username
@@ -1338,10 +1345,9 @@ TEST_F(
   histogram_tester_.ExpectUniqueSample(
       "PasswordManager.FillingAssistanceForSingleUsername", expected_assistance,
       1);
-  ExpectUkmValueCount(&test_ukm_recorder,
-                      UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
-                      static_cast<int64_t>(expected_assistance),
-                      /*expected_count=*/1);
+  ExpectUkmEntryRecorded(&test_ukm_recorder,
+                         UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
+                         static_cast<int64_t>(expected_assistance));
 }
 
 // Tests the calculation of the filling assistance metric for a single username
@@ -1371,10 +1377,9 @@ TEST_F(PasswordFormMetricsRecorderTest,
   histogram_tester_.ExpectUniqueSample(
       "PasswordManager.FillingAssistanceForSingleUsername", expected_assistance,
       1);
-  ExpectUkmValueCount(&test_ukm_recorder,
-                      UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
-                      static_cast<int64_t>(expected_assistance),
-                      /*expected_count=*/1);
+  ExpectUkmEntryRecorded(&test_ukm_recorder,
+                         UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
+                         static_cast<int64_t>(expected_assistance));
 }
 
 // Tests the calculation of the filling assistance metric for a single username
@@ -1403,10 +1408,9 @@ TEST_F(PasswordFormMetricsRecorderTest,
   histogram_tester_.ExpectUniqueSample(
       "PasswordManager.FillingAssistanceForSingleUsername", expected_assistance,
       1);
-  ExpectUkmValueCount(&test_ukm_recorder,
-                      UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
-                      static_cast<int64_t>(expected_assistance),
-                      /*expected_count=*/1);
+  ExpectUkmEntryRecorded(&test_ukm_recorder,
+                         UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
+                         static_cast<int64_t>(expected_assistance));
 }
 
 // Tests the calculation of the filling assistance metric for a single username
@@ -1440,10 +1444,9 @@ TEST_F(PasswordFormMetricsRecorderTest,
   histogram_tester_.ExpectUniqueSample(
       "PasswordManager.FillingAssistanceForSingleUsername", expected_assistance,
       1);
-  ExpectUkmValueCount(&test_ukm_recorder,
-                      UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
-                      static_cast<int64_t>(expected_assistance),
-                      /*expected_count=*/1);
+  ExpectUkmEntryRecorded(&test_ukm_recorder,
+                         UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
+                         static_cast<int64_t>(expected_assistance));
 }
 
 TEST_F(PasswordFormMetricsRecorderTest,
@@ -1477,10 +1480,9 @@ TEST_F(PasswordFormMetricsRecorderTest,
   histogram_tester_.ExpectUniqueSample(
       "PasswordManager.FillingAssistanceForSingleUsername", expected_assistance,
       1);
-  ExpectUkmValueCount(&test_ukm_recorder,
-                      UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
-                      static_cast<int64_t>(expected_assistance),
-                      /*expected_count=*/1);
+  ExpectUkmEntryRecorded(&test_ukm_recorder,
+                         UkmEntry::kManagerFill_AssistanceForSingleUsernameName,
+                         static_cast<int64_t>(expected_assistance));
 }
 
 // Tests that if filling assistance is recorded for both a password form and
@@ -2049,6 +2051,336 @@ TEST_F(PasswordFormMetricsRecorderTest, FormParsingDifferencePassword) {
       entries[0], UkmEntry::kParsingDiffFillingAndSavingName,
       static_cast<int>(
           PasswordFormMetricsRecorder::ParsingDifference::kPasswordDiff));
+}
+
+TEST_F(PasswordFormMetricsRecorderTest, AutomationRate) {
+  const std::vector<TestCaseFieldInfo> form_fields = {
+      // Placeholder field should be ignored, as it had not user interaction.
+      {.value = "placeholder"},
+      {.value = "username", .user_typed = true},
+      {.value = "OTP", .user_typed = true},
+      // The only autofilled field is password field.
+      {.value = "strong_password",
+       .manually_filled = true,
+       .is_password = true}};
+  PasswordForm password_form_data = ConvertToPasswordForm(form_fields);
+
+  {
+    auto recorder = CreatePasswordFormMetricsRecorder(
+        /*is_main_frame_secure=*/true, &pref_service_);
+    recorder->CalculateFillingAssistanceMetric(
+        password_form_data, /*saved_usernames=*/{}, /*saved_passwords=*/{},
+        /*is_blocklisted=*/false,
+        /*interactions_stats=*/{},
+        PasswordAccountStorageUsageLevel::kUsingAccountStorage);
+    recorder->LogSubmitPassed();
+  }
+
+  int expected_rate =
+      100 * form_fields[3].value.size() /
+      (form_fields[1].value.size() + form_fields[2].value.size() +
+       form_fields[3].value.size());
+  histogram_tester_.ExpectUniqueSample("PasswordManager.FillingAutomationRate",
+                                       expected_rate, 1);
+}
+
+struct ClassificationCorrectnessFieldInfo {
+  std::u16string value;
+  FieldRendererId renderer_id;
+};
+
+struct ClassificationCorrectnessTestCase {
+  const std::string_view description_for_logging;
+
+  bool submission_detected = true;
+  bool submission_is_successful = true;
+
+  // Renderer IDs of key form elements received during form parsing.
+  FieldRendererId username_field_id = FieldRendererId();
+  FieldRendererId password_field_id = FieldRendererId();
+  FieldRendererId new_password_field_id = FieldRendererId();
+  FieldRendererId confirm_password_field_id = FieldRendererId();
+
+  std::vector<ClassificationCorrectnessFieldInfo> fields;
+
+  std::vector<std::u16string> saved_usernames;
+  std::vector<std::u16string> saved_passwords;
+
+  std::map<std::string, PasswordFormMetricsRecorder::ClassificationCorrectness>
+      expectation;
+};
+
+void CheckClassificationCorrectnessTestCase(
+    const ClassificationCorrectnessTestCase& test_case) {
+  SCOPED_TRACE(testing::Message("Test description: ")
+               << test_case.description_for_logging);
+  base::HistogramTester histogram_tester;
+  ukm::TestAutoSetUkmRecorder test_ukm_recorder;
+  sync_preferences::TestingPrefServiceSyncable pref_service;
+  PasswordManager::RegisterProfilePrefs(pref_service.registry());
+
+  auto recorder = CreatePasswordFormMetricsRecorder(
+      /*is_main_frame_secure=*/true, &pref_service);
+
+  PasswordForm parsed_form;
+  parsed_form.username_element_renderer_id = test_case.username_field_id;
+  parsed_form.password_element_renderer_id = test_case.password_field_id;
+  parsed_form.new_password_element_renderer_id =
+      test_case.new_password_field_id;
+  parsed_form.confirmation_password_element_renderer_id =
+      test_case.confirm_password_field_id;
+  recorder->CacheParsingResultInFillingMode(parsed_form);
+
+  if (test_case.submission_detected) {
+    FormData submitted_form;
+    for (const auto& field : test_case.fields) {
+      FormFieldData form_field;
+      form_field.set_value(field.value);
+      form_field.set_renderer_id(field.renderer_id);
+      test_api(submitted_form).Append(form_field);
+    }
+
+    recorder->CalculateClassificationCorrectnessMetric(
+        submitted_form, test_case.saved_usernames, test_case.saved_passwords);
+  }
+
+  if (test_case.submission_is_successful) {
+    recorder->LogSubmitPassed();
+  }
+  recorder.reset();
+
+  for (const auto& field_type :
+       {"Username", "CurrentPassword", "NewPassword", "ConfirmationPassword"}) {
+    const std::string metric_name = base::StrCat(
+        {"PasswordManager.ClassificationCorrectness.", field_type});
+    const std::string ukm_entry_name =
+        base::StrCat({"ClassificationCorrectness.", field_type});
+
+    if (test_case.expectation.find(field_type) != test_case.expectation.end()) {
+      histogram_tester.ExpectUniqueSample(
+          metric_name, static_cast<int>(test_case.expectation.at(field_type)),
+          1);
+      ExpectUkmEntryRecorded(
+          &test_ukm_recorder, ukm_entry_name.c_str(),
+          static_cast<int>(test_case.expectation.at(field_type)));
+
+    } else {
+      histogram_tester.ExpectTotalCount(metric_name, 0);
+      ExpectUkmEntryRecorded(&test_ukm_recorder, ukm_entry_name.c_str(),
+                             std::nullopt);
+    }
+  }
+}
+
+TEST_F(PasswordFormMetricsRecorderTest,
+       ClassificationCorrectness_NoSubmission) {
+  CheckClassificationCorrectnessTestCase({
+      .description_for_logging = "No submission, no histogram recorded",
+      .submission_detected = false,
+      .username_field_id = kUsernameFieldId,
+      .password_field_id = kPasswordFieldId,
+      .fields = {{.value = kSavedUsername, .renderer_id = kUsernameFieldId},
+                 {.value = kSavedPassword, .renderer_id = kPasswordFieldId}},
+      .saved_usernames = {kSavedUsername},
+      .saved_passwords = {kSavedPassword},
+  });
+}
+
+TEST_F(PasswordFormMetricsRecorderTest,
+       ClassificationCorrectness_NoSuccessfulSubmission) {
+  CheckClassificationCorrectnessTestCase({
+      .description_for_logging =
+          "No sucessful submission, no histogram recorded",
+      .submission_detected = true,
+      .submission_is_successful = false,
+      .username_field_id = kUsernameFieldId,
+      .password_field_id = kPasswordFieldId,
+      .fields = {{.value = kSavedUsername, .renderer_id = kUsernameFieldId},
+                 {.value = kSavedPassword, .renderer_id = kPasswordFieldId}},
+      .saved_usernames = {kSavedUsername},
+      .saved_passwords = {kSavedPassword},
+  });
+}
+
+TEST_F(PasswordFormMetricsRecorderTest,
+       ClassificationCorrectness_NoSavedCredentials) {
+  CheckClassificationCorrectnessTestCase({
+      .description_for_logging =
+          "No saved credentials, cannot estimate correctness",
+      .username_field_id = kUsernameFieldId,
+      .password_field_id = kPasswordFieldId,
+      .fields = {{.value = kSavedUsername, .renderer_id = kUsernameFieldId},
+                 {.value = kSavedPassword, .renderer_id = kPasswordFieldId}},
+      .saved_usernames = {},
+      .saved_passwords = {},
+  });
+}
+
+TEST_F(PasswordFormMetricsRecorderTest,
+       ClassificationCorrectness_CorrectlyClassifiedUsernameAndPassword) {
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging =
+           "Correct classification: username and password fields contain saved "
+           "values",
+       .username_field_id = kUsernameFieldId,
+       .password_field_id = kPasswordFieldId,
+       .fields = {{.value = kSavedUsername, .renderer_id = kUsernameFieldId},
+                  {.value = kSavedPassword, .renderer_id = kPasswordFieldId}},
+       .saved_usernames = {kSavedUsername},
+       .saved_passwords = {kSavedPassword},
+       .expectation = {{"Username", kCorrect}, {"CurrentPassword", kCorrect}}});
+}
+
+TEST_F(PasswordFormMetricsRecorderTest,
+       ClassificationCorrectness_WronglyClassifiedUsernameAndPassword) {
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging =
+           "Incorrect classification: fields that were not classififed as "
+           "username and password contain previously saved values.",
+       .username_field_id = kUsernameFieldId,
+       .password_field_id = kPasswordFieldId,
+       .fields = {{.value = u"not_really_username",
+                   .renderer_id = kUsernameFieldId},
+                  {.value = u"not_really_password",
+                   .renderer_id = kPasswordFieldId},
+                  {.value = kSavedUsername, .renderer_id = FieldRendererId(3)},
+                  {.value = kSavedPassword, .renderer_id = FieldRendererId(4)}},
+       .saved_usernames = {kSavedUsername},
+       .saved_passwords = {kSavedPassword},
+       .expectation = {{"Username", kWrong}, {"CurrentPassword", kWrong}}});
+}
+
+TEST_F(PasswordFormMetricsRecorderTest,
+       ClassificationCorrectness_UnknownUsernameAndPassword) {
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging =
+           "Unknown correctness: there were saved values, but some other "
+           "values were submitted",
+       .username_field_id = kUsernameFieldId,
+       .password_field_id = kPasswordFieldId,
+       .fields = {{.value = u"new_username", .renderer_id = kUsernameFieldId},
+                  {.value = u"new_password", .renderer_id = kPasswordFieldId}},
+       .saved_usernames = {kSavedUsername},
+       .saved_passwords = {kSavedPassword},
+       .expectation = {{"Username", kUnknown}, {"CurrentPassword", kUnknown}}});
+}
+
+TEST_F(PasswordFormMetricsRecorderTest,
+       ClassificationCorrectness_FieldMissingAtSubmisisonTime) {
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging =
+           "Username field was present during inital parsing, but missing at "
+           "submisison time. Record histogram only for the password field.",
+       .username_field_id = kUsernameFieldId,
+       .password_field_id = kPasswordFieldId,
+       .fields = {{.value = kSavedPassword, .renderer_id = kPasswordFieldId}},
+       .saved_usernames = {kSavedUsername},
+       .saved_passwords = {kSavedPassword},
+       .expectation = {{"CurrentPassword", kCorrect}}});
+}
+
+TEST_F(PasswordFormMetricsRecorderTest,
+       ClassificationCorrectness_NewPasswordFieldOnly) {
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging =
+           "Incorrect classification: the field classified as new password "
+           "contains a previously saved password value",
+       .new_password_field_id = kPasswordFieldId,
+       .fields = {{.value = kSavedPassword, .renderer_id = kPasswordFieldId}},
+       .saved_usernames = {},
+       .saved_passwords = {kSavedPassword},
+       .expectation = {{"NewPassword", kWrong}}});
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging =
+           "Incorrect classification: the field classified as new password "
+           "contains a previously saved username value",
+       .new_password_field_id = kPasswordFieldId,
+       .fields = {{.value = kSavedUsername, .renderer_id = kPasswordFieldId}},
+       .saved_usernames = {kSavedUsername},
+       .saved_passwords = {kSavedPassword},
+       .expectation = {{"NewPassword", kWrong}}});
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging =
+           "Correct classification: the field classified as new password "
+           "contains a previously unseen value",
+       .new_password_field_id = kPasswordFieldId,
+       .fields = {{.value = u"new_shiny_pw", .renderer_id = kPasswordFieldId}},
+       .saved_usernames = {kSavedUsername},
+       .saved_passwords = {kSavedPassword},
+       .expectation = {{"NewPassword", kCorrect}}});
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging =
+           "Unknown correctness of new password classification: no saved "
+           "values and no confirmation field",
+       .new_password_field_id = kPasswordFieldId,
+       .fields = {{.value = u"new_shiny_pw", .renderer_id = kPasswordFieldId}},
+       .saved_usernames = {},
+       .saved_passwords = {},
+       .expectation = {{"NewPassword", kUnknown}}});
+}
+
+TEST_F(PasswordFormMetricsRecorderTest,
+       ClassificationCorrectness_NewAndConfirmationPasswordFields) {
+  constexpr FieldRendererId kSecondPasswordFieldId(3);
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging = "New and confirmation password values don't "
+                                  "match, and there are no saved values.",
+       .new_password_field_id = kPasswordFieldId,
+       .confirm_password_field_id = kSecondPasswordFieldId,
+       .fields =
+           {
+               {.value = u"pizza", .renderer_id = kPasswordFieldId},
+               {.value = u"pineapple", .renderer_id = kSecondPasswordFieldId},
+           },
+       .saved_usernames = {},
+       .saved_passwords = {},
+       .expectation = {{"NewPassword", kWrong},
+                       {"ConfirmationPassword", kWrong}}});
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging = "New and confirmation password values "
+                                  "match, and there are no saved values.",
+       .new_password_field_id = kPasswordFieldId,
+       .confirm_password_field_id = kSecondPasswordFieldId,
+       .fields =
+           {
+               {.value = u"new_shiny_pwd", .renderer_id = kPasswordFieldId},
+               {.value = u"new_shiny_pwd",
+                .renderer_id = kSecondPasswordFieldId},
+           },
+       .saved_usernames = {},
+       .saved_passwords = {},
+       .expectation = {{"NewPassword", kCorrect},
+                       {"ConfirmationPassword", kCorrect}}});
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging =
+           "New and confirmation password values "
+           "match, but saved values indicate it's not a new password.",
+       .new_password_field_id = kPasswordFieldId,
+       .confirm_password_field_id = kSecondPasswordFieldId,
+       .fields =
+           {
+               {.value = kSavedPassword, .renderer_id = kPasswordFieldId},
+               {.value = kSavedPassword, .renderer_id = kSecondPasswordFieldId},
+           },
+       .saved_usernames = {kSavedUsername},
+       .saved_passwords = {kSavedPassword},
+       .expectation = {{"NewPassword", kWrong},
+                       {"ConfirmationPassword", kCorrect}}});
+  CheckClassificationCorrectnessTestCase(
+      {.description_for_logging =
+           "New and confirmation password values do not match, but saved "
+           "values confirm that the new password is new.",
+       .new_password_field_id = kPasswordFieldId,
+       .confirm_password_field_id = kSecondPasswordFieldId,
+       .fields =
+           {
+               {.value = u"pizza", .renderer_id = kPasswordFieldId},
+               {.value = u"pineapple", .renderer_id = kSecondPasswordFieldId},
+           },
+       .saved_usernames = {kSavedUsername},
+       .saved_passwords = {kSavedPassword},
+       .expectation = {{"NewPassword", kCorrect},
+                       {"ConfirmationPassword", kWrong}}});
 }
 
 }  // namespace password_manager

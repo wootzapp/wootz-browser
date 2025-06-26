@@ -23,7 +23,6 @@ static_library("browser") {
     "bookmark_undo_provider.h",
     "bookmark_utils.h",
     "bookmark_uuids.h",
-    "core_bookmark_model.h",
     "history_bookmark_model.h",
     "model_loader.h",
     "scoped_group_bookmark_actions.h",
@@ -46,7 +45,6 @@ static_library("browser") {
     "bookmark_storage.cc",
     "bookmark_utils.cc",
     "bookmark_uuids.cc",
-    "core_bookmark_model.cc",
     "model_loader.cc",
     "scoped_group_bookmark_actions.cc",
     "titled_url_index.cc",
@@ -65,9 +63,11 @@ static_library("browser") {
     "//base:i18n",
     "//components/favicon_base",
     "//components/keyed_service/core",
+    "//components/omnibox/common",
     "//components/pref_registry",
     "//components/prefs",
     "//components/query_parser",
+    "//components/signin/public/base",
     "//components/strings",
     "//components/sync/base:features",
     "//components/url_formatter",
@@ -123,6 +123,7 @@ bundle_data("unit_tests_bundle_data") {
   testonly = true
   sources = [
     "//components/test/data/bookmarks/meta_info_as_string.json",
+    "//components/test/data/bookmarks/model_nested_user_folders.json",
     "//components/test/data/bookmarks/model_with_duplicate_ids.json",
     "//components/test/data/bookmarks/model_with_sync_metadata_1.json",
     "//components/test/data/bookmarks/model_with_sync_metadata_2.json",
@@ -149,7 +150,6 @@ source_set("unit_tests") {
     ":browser",
     ":unit_tests_bundle_data",
     "//base/test:test_support",
-    "//build:chromeos_buildflags",
     "//components/bookmarks/common",
     "//components/bookmarks/test",
     "//components/favicon_base",
@@ -157,6 +157,7 @@ source_set("unit_tests") {
     "//components/prefs",
     "//components/prefs:test_support",
     "//components/query_parser",
+    "//components/signin/public/base",
     "//components/sync/base:features",
     "//testing/gtest",
     "//ui/base",
@@ -167,7 +168,6 @@ source_set("unit_tests") {
 
   if (toolkit_views) {
     sources += [ "bookmark_node_data_unittest.cc" ]
-    deps += [ "//build:chromeos_buildflags" ]
   }
 }
 

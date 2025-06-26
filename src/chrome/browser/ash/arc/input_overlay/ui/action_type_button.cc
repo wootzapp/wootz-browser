@@ -10,6 +10,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/focus_ring.h"
@@ -48,7 +49,7 @@ ActionTypeButton::ActionTypeButton(PressedCallback callback,
   SetVisible(true);
   SetBackground(views::CreateRoundedRectBackground(SK_ColorTRANSPARENT,
                                                    /*radius=*/kCornerRadius));
-  SetBorder(views::CreateThemedRoundedRectBorder(
+  SetBorder(views::CreateRoundedRectBorder(
       /*thickness=*/kBorderThickness,
       /*radius=*/kCornerRadius, cros_tokens::kCrosSysHoverOnSubtle));
   SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY);
@@ -65,6 +66,8 @@ ActionTypeButton::ActionTypeButton(PressedCallback callback,
   focus_ring->SetColorId(ui::kColorAshFocusRing);
   focus_ring->SetHaloInset(kHaloInset);
   focus_ring->SetHaloThickness(kHaloThickness);
+
+  GetViewAccessibility().SetRole(ax::mojom::Role::kRadioButton);
 }
 
 ActionTypeButton::~ActionTypeButton() = default;
@@ -76,9 +79,9 @@ void ActionTypeButton::RefreshColors() {
   auto disabled_color_id = is_selected
                                ? ash::kColorAshIconPrimaryDisabledColor
                                : ash::kColorAshIconSecondaryDisabledColor;
-  SetEnabledTextColorIds(active_color_id);
-  SetTextColorId(ButtonState::STATE_DISABLED, disabled_color_id);
-  SetBackground(is_selected ? views::CreateThemedRoundedRectBackground(
+  SetEnabledTextColors(active_color_id);
+  SetTextColor(ButtonState::STATE_DISABLED, disabled_color_id);
+  SetBackground(is_selected ? views::CreateRoundedRectBackground(
                                   cros_tokens::kCrosSysHighlightShape,
                                   /*radius=*/kCornerRadius)
                             : views::CreateRoundedRectBackground(
@@ -86,7 +89,7 @@ void ActionTypeButton::RefreshColors() {
                                   /*radius=*/kCornerRadius));
   SetBorder(is_selected
                 ? views::CreateEmptyBorder(/*thickness=*/kBorderThickness)
-                : views::CreateThemedRoundedRectBorder(
+                : views::CreateRoundedRectBorder(
                       /*thickness=*/kBorderThickness,
                       /*radius=*/kCornerRadius,
                       cros_tokens::kCrosSysHoverOnSubtle));
@@ -139,14 +142,6 @@ void ActionTypeButton::OnThemeChanged() {
   views::Button::OnThemeChanged();
   UpdateImage();
   RefreshColors();
-}
-
-void ActionTypeButton::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  ash::OptionButtonBase::GetAccessibleNodeData(node_data);
-  node_data->role = ax::mojom::Role::kRadioButton;
-  node_data->SetName(label()->GetText());
-  node_data->SetCheckedState(selected() ? ax::mojom::CheckedState::kTrue
-                                        : ax::mojom::CheckedState::kFalse);
 }
 
 bool ActionTypeButton::OnKeyPressed(const ui::KeyEvent& event) {

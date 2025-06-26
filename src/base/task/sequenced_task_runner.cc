@@ -9,13 +9,12 @@
 #include "base/functional/bind.h"
 #include "base/task/default_delayed_task_handle_delegate.h"
 #include "base/time/time.h"
-#include "third_party/abseil-cpp/absl/base/attributes.h"
 
 namespace base {
 
 namespace {
 
-ABSL_CONST_INIT thread_local SequencedTaskRunner::CurrentDefaultHandle*
+constinit thread_local SequencedTaskRunner::CurrentDefaultHandle*
     current_default_handle = nullptr;
 
 }  // namespace
@@ -129,14 +128,13 @@ bool SequencedTaskRunner::DeleteOrReleaseSoonInternal(
 
 OnTaskRunnerDeleter::OnTaskRunnerDeleter(
     scoped_refptr<SequencedTaskRunner> task_runner)
-    : task_runner_(std::move(task_runner)) {
-}
+    : task_runner_(std::move(task_runner)) {}
 
 OnTaskRunnerDeleter::~OnTaskRunnerDeleter() = default;
 
 OnTaskRunnerDeleter::OnTaskRunnerDeleter(OnTaskRunnerDeleter&&) = default;
 
-OnTaskRunnerDeleter& OnTaskRunnerDeleter::operator=(
-    OnTaskRunnerDeleter&&) = default;
+OnTaskRunnerDeleter& OnTaskRunnerDeleter::operator=(OnTaskRunnerDeleter&&) =
+    default;
 
 }  // namespace base

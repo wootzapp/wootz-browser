@@ -22,6 +22,7 @@
 #include "components/page_load_metrics/common/page_load_metrics.mojom.h"
 #include "components/page_load_metrics/common/page_load_timing.h"
 #include "content/public/browser/global_request_id.h"
+#include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "net/cookies/canonical_cookie.h"
 #include "services/metrics/public/cpp/ukm_source.h"
@@ -68,29 +69,7 @@ enum class PageLoadTrackerPageType {
 
 extern const char kErrorEvents[];
 extern const char kPageLoadPrerender2Event[];
-extern const char kPageLoadPrerender2VisibilityAtActivation[];
 extern const char kPageLoadTrackerPageType[];
-
-// These values are persisted to logs. Entries should not be renumbered and
-// numeric values should never be reused.
-enum class VisibilityAtActivation {
-  kHidden = 0,
-  kOccluded = 1,
-  kVisible = 2,
-  kMaxValue = kVisible
-};
-
-// These values are recorded into a UMA histogram as causes of irregular LCP
-// image load timings. These entries should not be renumbered and the numeric
-// values should not be reused. These entries should be kept in sync with the
-// definition in tools/metrics/histograms/enums.xml
-enum class ImageLoadStartLessThanDocumentTtfbCause {
-  kUnknown = 0,
-  kLoadedFromMemoryCache = 1,
-  kPreloadedWithEarlyHints = 2,
-  kLoadedFromMemoryCacheAndPreloadedWithEarlyHints = 3,
-  kMaxValue = kLoadedFromMemoryCacheAndPreloadedWithEarlyHints
-};
 
 }  // namespace internal
 
@@ -257,8 +236,9 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
       const gfx::Rect& main_frame_viewport_rect) override;
   void OnMainFrameImageAdRectsChanged(
       const base::flat_map<int, gfx::Rect>& main_frame_image_ad_rects) override;
-  void SetUpSharedMemoryForSmoothness(
-      base::ReadOnlySharedMemoryRegion shared_memory) override;
+  void SetUpSharedMemoryForUkms(
+      base::ReadOnlySharedMemoryRegion smoothness_memory,
+      base::ReadOnlySharedMemoryRegion dropped_frames_memory) override;
 
   // PageLoadMetricsObserverDelegate implementation:
   content::WebContents* GetWebContents() const override;
@@ -308,24 +288,32 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
   bool IsFirstNavigationInWebContents() const override;
   bool IsOriginVisit() const override;
   bool IsTerminalVisit() const override;
+  bool ShouldObserveScheme(std::string_view scheme) const override;
   int64_t GetNavigationId() const override;
 
-  void Redirect(content::NavigationHandle* navigation_handle);
-  void WillProcessNavigationResponse(
+  // The following methods are called on navigation related events.
+  //
+  // Called only on main frames.
+  void DidUpdateNavigationHandleTiming(
       content::NavigationHandle* navigation_handle);
+  void Redirect(content::NavigationHandle* navigation_handle);
   void Commit(content::NavigationHandle* navigation_handle);
   void DidCommitSameDocumentNavigation(
       content::NavigationHandle* navigation_handle);
   void DidInternalNavigationAbort(content::NavigationHandle* navigation_handle);
-  void ReadyToCommitNavigation(content::NavigationHandle* navigation_handle);
-  void DidFinishSubFrameNavigation(
-      content::NavigationHandle* navigation_handle);
   void FailedProvisionalLoad(content::NavigationHandle* navigation_handle,
                              base::TimeTicks failed_load_time);
+  // Called only on subframes.
+  void DidFinishSubFrameNavigation(
+      content::NavigationHandle* navigation_handle);
+  // Called on main and sub-frames.
+  void ReadyToCommitNavigation(content::NavigationHandle* navigation_handle);
+  void WillProcessNavigationResponse(
+      content::NavigationHandle* navigation_handle);
   void PageHidden();
   void PageShown();
   void RenderFrameDeleted(content::RenderFrameHost* rfh);
-  void FrameTreeNodeDeleted(int frame_tree_node_id);
+  void FrameTreeNodeDeleted(content::FrameTreeNodeId frame_tree_node_id);
 
   void OnInputEvent(const blink::WebInputEvent& event);
 
@@ -450,6 +438,11 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
   // page tracked.
   void OnSharedStorageSelectURLCalled();
 
+  // Called when a Fledge auction completes.
+  void OnAdAuctionComplete(bool is_server_auction,
+                           bool is_on_device_auction,
+                           content::AuctionResult result);
+
   // Checks if this tracker is for outermost pages.
   bool IsOutermostTracker() const { return !parent_tracker_; }
 
@@ -464,6 +457,9 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
                      const std::optional<blink::SubresourceLoadMetrics>&
                          subresource_load_metrics,
                      mojom::SoftNavigationMetricsPtr soft_navigation_metrics);
+
+  void AddCustomUserTimings(
+      std::vector<mojom::CustomUserTimingMarkPtr> custom_timings);
 
   // Sets RenderFrameHost for the main frame of the page this tracker instance
   // is bound. This is called on moving the tracker to the active / inactive
@@ -586,11 +582,9 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
 
   const raw_ptr<content::WebContents> web_contents_;
 
-  // Holds the RenderFrameHost for the main frame of the page that this tracker
-  // instance is bound. Safe to use raw_ptr as the tracker instance is accessed
-  // via a map that uses the RenderFrameHost as the key while it's valid.
-  raw_ptr<content::RenderFrameHost, AcrossTasksDanglingUntriaged>
-      page_main_frame_;
+  // ID of the RenderFrameHost for the main frame of the page that this tracker
+  // instance is bound.
+  content::GlobalRenderFrameHostId page_main_frame_id_;
 
   const bool is_first_navigation_in_web_contents_;
   const bool is_origin_visit_;
@@ -607,8 +601,6 @@ class PageLoadTracker : public PageLoadMetricsUpdateDispatcher::Client,
 
   ukm::SourceId potential_soft_navigation_source_id_ = ukm::kInvalidSourceId;
   ukm::SourceId previous_soft_navigation_source_id_ = ukm::kInvalidSourceId;
-
-  std::optional<base::TimeTicks> main_frame_receive_headers_start_;
 
   const internal::PageLoadTrackerPageType page_type_;
 

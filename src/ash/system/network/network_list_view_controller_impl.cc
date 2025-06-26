@@ -7,6 +7,7 @@
 #include <memory>
 #include <vector>
 
+#include "ash/ash_element_identifiers.h"
 #include "ash/constants/ash_features.h"
 #include "ash/public/cpp/bluetooth_config_service.h"
 #include "ash/resources/vector_icons/vector_icons.h"
@@ -37,6 +38,8 @@
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/controls/image_view.h"
+#include "ui/views/view.h"
+#include "ui/views/view_class_properties.h"
 
 namespace ash {
 
@@ -51,6 +54,7 @@ using ::chromeos::network_config::mojom::DeviceStateProperties;
 using ::chromeos::network_config::mojom::DeviceStateType;
 using ::chromeos::network_config::mojom::FilterType;
 using ::chromeos::network_config::mojom::GlobalPolicy;
+using ::chromeos::network_config::mojom::InhibitReason;
 using ::chromeos::network_config::mojom::ManagedPropertiesPtr;
 using ::chromeos::network_config::mojom::NetworkFilter;
 using ::chromeos::network_config::mojom::NetworkStateProperties;
@@ -67,7 +71,7 @@ constexpr auto kWifiGroupLabelPadding = gfx::Insets::TLBR(8, 22, 8, 4);
 // Helper function to remove `*view` from its view hierarchy, delete the view,
 // and reset the value of `*view` to be `nullptr`.
 template <class T>
-void RemoveAndResetViewIfExists(T** view) {
+void RemoveAndResetViewIfExists(raw_ptr<T>* view) {
   DCHECK(view);
 
   if (!*view) {
@@ -77,8 +81,7 @@ void RemoveAndResetViewIfExists(T** view) {
   views::View* parent = (*view)->parent();
 
   if (parent) {
-    parent->RemoveChildViewT(*view);
-    *view = nullptr;
+    parent->RemoveChildViewT(view->ExtractAsDangling());
   }
 }
 
@@ -98,6 +101,16 @@ bool IsCellularDeviceInhibited() {
   }
   return cellular_device->inhibit_reason !=
          chromeos::network_config::mojom::InhibitReason::kNotInhibited;
+}
+
+bool IsCellularDeviceFlashing() {
+  const DeviceStateProperties* cellular_device =
+      Shell::Get()->system_tray_model()->network_state_model()->GetDevice(
+          NetworkType::kCellular);
+  if (!cellular_device) {
+    return false;
+  }
+  return cellular_device->is_flashing;
 }
 
 bool IsESimSupported() {
@@ -122,14 +135,6 @@ bool IsESimSupported() {
     }
   }
   return false;
-}
-
-bool IsCellularSimLocked() {
-  const DeviceStateProperties* cellular_device =
-      Shell::Get()->system_tray_model()->network_state_model()->GetDevice(
-          NetworkType::kCellular);
-  return cellular_device &&
-         !cellular_device->sim_lock_status->lock_type.empty();
 }
 
 NetworkType GetMobileSectionNetworkType() {
@@ -179,6 +184,10 @@ void NetworkListViewControllerImpl::ActiveNetworkStateChanged() {
 
 void NetworkListViewControllerImpl::NetworkListChanged() {
   GetNetworkStateList();
+}
+
+void NetworkListViewControllerImpl::DeviceStateListChanged() {
+  UpdateMobileSection();
 }
 
 void NetworkListViewControllerImpl::GlobalPolicyChanged() {
@@ -275,7 +284,7 @@ void NetworkListViewControllerImpl::OnGetNetworkStateList(
         &previous_network_views);
 
     // Add mobile status message to NetworkDetailedNetworkView's
-    // `mobile_network_list_view_` if it exist.
+    // `mobile_network_list_view_` if it exists.
     if (mobile_status_message_) {
       network_detailed_network_view()
           ->GetNetworkList(GetMobileSectionNetworkType())
@@ -285,6 +294,8 @@ void NetworkListViewControllerImpl::OnGetNetworkStateList(
     if (ShouldAddESimEntry()) {
       mobile_item_index = CreateConfigureNetworkEntry(
           &add_esim_entry_, GetMobileSectionNetworkType(), mobile_item_index);
+      add_esim_entry_->SetProperty(views::kElementIdentifierKey,
+                                   kNetworkAddEsimElementId);
     } else {
       RemoveAndResetViewIfExists(&add_esim_entry_);
     }
@@ -501,8 +512,9 @@ void NetworkListViewControllerImpl::MaybeShowConnectionWarningManagedIcon(
 }
 
 bool NetworkListViewControllerImpl::ShouldAddESimEntry() const {
-  const bool is_add_esim_enabled =
-      is_mobile_network_enabled_ && !IsCellularDeviceInhibited();
+  const bool is_add_esim_enabled = is_mobile_network_enabled_ &&
+                                   !IsCellularDeviceInhibited() &&
+                                   !IsCellularDeviceFlashing();
 
   bool is_add_esim_visible = IsESimSupported();
   const GlobalPolicy* global_policy = model()->global_policy();
@@ -571,7 +583,7 @@ void NetworkListViewControllerImpl::SetConnectionWarningIcon(
   // Set 'info' icon on left side.
   std::unique_ptr<views::ImageView> image_view = base::WrapUnique(
       TrayPopupUtils::CreateMainImageView(/*use_wide_layout=*/false));
-  image_view->SetImage(gfx::CreateVectorIcon(
+  image_view->SetImage(ui::ImageModel::FromVectorIcon(
       use_managed_icon ? kSystemTrayManagedIcon : kSystemMenuInfoIcon,
       AshColorProvider::Get()->GetContentLayerColor(
           AshColorProvider::ContentLayerType::kIconColorPrimary)));
@@ -668,7 +680,7 @@ size_t NetworkListViewControllerImpl::CreateWifiGroupHeader(
                : IDS_ASH_QUICK_SETTINGS_UNKNOWN_NETWORKS));
   header->SetHorizontalAlignment(gfx::HorizontalAlignment::ALIGN_TO_HEAD);
   header->SetBorder(views::CreateEmptyBorder(kWifiGroupLabelPadding));
-  header->SetEnabledColorId(cros_tokens::kCrosSysOnSurfaceVariant);
+  header->SetEnabledColor(cros_tokens::kCrosSysOnSurfaceVariant);
   TypographyProvider::Get()->StyleLabel(TypographyToken::kCrosBody2, *header);
 
   if (is_known) {
@@ -685,7 +697,7 @@ size_t NetworkListViewControllerImpl::CreateWifiGroupHeader(
 }
 
 size_t NetworkListViewControllerImpl::CreateConfigureNetworkEntry(
-    HoverHighlightView** configure_network_entry_ptr,
+    raw_ptr<HoverHighlightView>* configure_network_entry_ptr,
     NetworkType type,
     size_t index) {
   if (*configure_network_entry_ptr) {
@@ -800,7 +812,37 @@ void NetworkListViewControllerImpl::UpdateMobileToggleAndSetStatusMessage() {
                                           /*animate_toggle=*/true);
       network_detailed_network_view()->UpdateMobileStatus(true);
 
+      if (has_cellular_networks_ || has_tether_networks_) {
+        RemoveAndResetViewIfExists(&mobile_status_message_);
+        return;
+      }
+      const InhibitReason inhibit_reason = GetCellularInhibitReason();
+      if (inhibit_reason == InhibitReason::kInstallingProfile ||
+          inhibit_reason == InhibitReason::kRefreshingProfileList ||
+          inhibit_reason == InhibitReason::kRequestingAvailableProfiles) {
+        CreateInfoLabelIfMissingAndUpdate(
+            GetCellularInhibitReasonMessageId(inhibit_reason),
+            &mobile_status_message_);
+        return;
+      }
       RemoveAndResetViewIfExists(&mobile_status_message_);
+      return;
+    }
+
+    if (IsCellularDeviceFlashing()) {
+      // When a device is flashing, it cannot process any new operations. Thus,
+      // keep the toggle on to show users that the device is active, but set it
+      // to be disabled to make it clear that users cannot update it until
+      // operation completes.
+      CreateInfoLabelIfMissingAndUpdate(IDS_ASH_STATUS_TRAY_UPDATING,
+                                        &mobile_status_message_);
+
+      mobile_header_view_->SetToggleVisibility(/*visible=*/true);
+      mobile_header_view_->SetToggleState(/*enabled=*/false,
+                                          /*is_on=*/true,
+                                          /*animate_toggle=*/true);
+      network_detailed_network_view()->UpdateMobileStatus(true);
+
       return;
     }
 
@@ -812,13 +854,6 @@ void NetworkListViewControllerImpl::UpdateMobileToggleAndSetStatusMessage() {
     // The toggle will never be enabled during cellular state transitions.
     toggle_enabled &=
         cellular_enabled || cellular_state == DeviceStateType::kDisabled;
-
-    // The toggle will never be enabled if the device is SIM locked and we
-    // cannot open the Settings UI.
-    toggle_enabled &=
-        cellular_enabled ||
-        Shell::Get()->session_controller()->ShouldEnableSettings() ||
-        !IsCellularSimLocked();
 
     mobile_header_view_->SetToggleVisibility(/*visibility=*/true);
     mobile_header_view_->SetToggleState(/*enabled=*/toggle_enabled,
@@ -895,7 +930,7 @@ void NetworkListViewControllerImpl::UpdateMobileToggleAndSetStatusMessage() {
 
 void NetworkListViewControllerImpl::CreateInfoLabelIfMissingAndUpdate(
     int message_id,
-    TrayInfoLabel** info_label_ptr) {
+    raw_ptr<TrayInfoLabel>* info_label_ptr) {
   DCHECK(message_id);
   DCHECK(info_label_ptr);
 
@@ -928,7 +963,7 @@ void NetworkListViewControllerImpl::CreateInfoLabelIfMissingAndUpdate(
                           ->GetNetworkList(NetworkType::kTether)
                           ->AddChildView(std::move(info));
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -1028,9 +1063,10 @@ void NetworkListViewControllerImpl::ShowConnectionWarning(
 }
 
 void NetworkListViewControllerImpl::HideConnectionWarning() {
-  // If `connection_warning_icon_` existed, it must be cleared first because
-  // `connection_warning_` owns it.
+  // If `connection_warning_icon_` or `connection_warning_label_` existed, they
+  // must be cleared first because `connection_warning_` owns them.
   RemoveAndResetViewIfExists(&connection_warning_icon_);
+  RemoveAndResetViewIfExists(&connection_warning_label_);
   RemoveAndResetViewIfExists(&connection_warning_);
 }
 

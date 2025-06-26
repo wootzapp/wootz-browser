@@ -72,12 +72,11 @@ void EssentialSearchManagerTest::SetUp() {
   profile_manager_ = std::make_unique<TestingProfileManager>(
       TestingBrowserProcess::GetGlobal());
   ASSERT_TRUE(profile_manager_->SetUp());
-  TestingProfile::TestingFactories factories =
+  profile_ = profile_manager_->CreateTestingProfile(
+      kEmail, /*prefs=*/{}, kEmail16,
+      /*avatar_id=*/0,
       IdentityTestEnvironmentProfileAdaptor::
-          GetIdentityTestEnvironmentFactories();
-  profile_ =
-      profile_manager_->CreateTestingProfile(kEmail, /*prefs=*/{}, kEmail16,
-                                             /*avatar_id=*/0, factories);
+          GetIdentityTestEnvironmentFactories());
   identity_test_env_adaptor_ =
       std::make_unique<IdentityTestEnvironmentProfileAdaptor>(profile_.get());
   identity_test_env_ = identity_test_env_adaptor_->identity_test_env();
@@ -103,7 +102,7 @@ void EssentialSearchManagerTest::ExpectSocsCookieInUserProfile(
   net::CookieList cookie_list = GetCookiesInUserProfile();
   EXPECT_GT(cookie_list.size(), 0u);
 
-  const auto socs_cookie_iterator = base::ranges::find(
+  const auto socs_cookie_iterator = std::ranges::find(
       cookie_list, cookie_name,
       [](const net::CanonicalCookie& cookie) { return cookie.Name(); });
   ASSERT_NE(socs_cookie_iterator, cookie_list.end());

@@ -73,13 +73,20 @@ function setupEvents() {
   const billing =
       interstitialType === 'SAFEBROWSING' && loadTimeData.getBoolean('billing');
   const blockedInterception = interstitialType === 'BLOCKED_INTERCEPTION';
-  const insecureForm = interstitialType == 'INSECURE_FORM';
-  const httpsOnly = interstitialType == 'HTTPS_ONLY';
+  const insecureForm = interstitialType === 'INSECURE_FORM';
+  const httpsOnly = interstitialType === 'HTTPS_ONLY';
   const enterpriseBlock = interstitialType === 'ENTERPRISE_BLOCK';
   const enterpriseWarn = interstitialType === 'ENTERPRISE_WARN';
+  const managedProfileRequired =
+      interstitialType === 'MANAGED_PROFILE_REQUIRED';
+  const supervisedUserVerify = interstitialType === 'SUPERVISED_USER_VERIFY';
+  const supervisedUserVerifySubframe =
+      interstitialType === 'SUPERVISED_USER_VERIFY_SUBFRAME';
   const hidePrimaryButton = loadTimeData.getBoolean('hide_primary_button');
-  const showRecurrentErrorParagraph =
-      loadTimeData.getBoolean('show_recurrent_error_paragraph');
+  const showBlockedSiteMessage =
+      loadTimeData.valueExists('show_blocked_site_message') ?
+      loadTimeData.getBoolean('show_blocked_site_message') :
+      false;
 
   const body = document.querySelector('#body');
   if (ssl || blockedInterception) {
@@ -99,10 +106,20 @@ function setupEvents() {
     body.classList.add('insecure-form');
   } else if (httpsOnly) {
     body.classList.add('https-only');
+    if (loadTimeData.valueExists('august2024Refresh') &&
+        loadTimeData.getBoolean('august2024Refresh')) {
+      body.classList.add('https-only-august2024-refresh');
+    }
   } else if (enterpriseBlock) {
     body.classList.add('enterprise-block');
   } else if (enterpriseWarn) {
     body.classList.add('enterprise-warn');
+  } else if (managedProfileRequired) {
+    body.classList.add('managed-profile-required');
+  } else if (supervisedUserVerify) {
+    body.classList.add('supervised-user-verify');
+  } else if (supervisedUserVerifySubframe) {
+    body.classList.add('supervised-user-verify-subframe');
   } else {
     body.classList.add('safe-browsing');
     // Override the default theme color.
@@ -119,6 +136,8 @@ function setupEvents() {
     primaryButton.addEventListener('click', function() {
       switch (interstitialType) {
         case 'CAPTIVE_PORTAL':
+        case 'SUPERVISED_USER_VERIFY':
+        case 'SUPERVISED_USER_VERIFY_SUBFRAME':
           sendCommand(SecurityInterstitialCommandId.CMD_OPEN_LOGIN);
           break;
 
@@ -135,6 +154,7 @@ function setupEvents() {
         case 'SAFEBROWSING':
         case 'ENTERPRISE_BLOCK':
         case 'ENTERPRISE_WARN':
+        case 'MANAGED_PROFILE_REQUIRED':
         case 'ORIGIN_POLICY':
           sendCommand(SecurityInterstitialCommandId.CMD_DONT_PROCEED);
           break;
@@ -192,12 +212,14 @@ function setupEvents() {
     document.querySelector('#final-paragraph').classList.add(HIDDEN_CLASS);
   }
 
-
-  if (!ssl || !showRecurrentErrorParagraph) {
-    document.querySelector('#recurrent-error-message')
-        .classList.add(HIDDEN_CLASS);
-  } else {
-    body.classList.add('showing-recurrent-error-message');
+  if (showBlockedSiteMessage) {
+    document.querySelector('#blocked-site-message')
+        .classList.remove(HIDDEN_CLASS);
+    body.classList.add('showing-blocked-site-message');
+    document.getElementById('blocked-site-message-header').textContent =
+        loadTimeData.getString('blockedSiteMessageHeader');
+    document.getElementById('blocked-site-message-reason').textContent =
+        loadTimeData.getString('blockedSiteMessageReason');
   }
 
   const diagnosticLink = document.querySelector('#diagnostic-link');
@@ -216,7 +238,8 @@ function setupEvents() {
 
   const detailsButton = document.querySelector('#details-button');
   if (captivePortal || billing || lookalike || insecureForm || httpsOnly ||
-      enterpriseWarn || enterpriseBlock) {
+      enterpriseWarn || enterpriseBlock || supervisedUserVerify ||
+      managedProfileRequired || supervisedUserVerifySubframe) {
     // Captive portal, billing, lookalike pages, insecure form, enterprise warn,
     // enterprise block, and HTTPS only mode interstitials don't
     // have details buttons.

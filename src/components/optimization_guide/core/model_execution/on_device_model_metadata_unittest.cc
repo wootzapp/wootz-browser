@@ -20,6 +20,9 @@ namespace optimization_guide {
 
 namespace {
 
+const struct OnDeviceBaseModelSpec kModelSpec = {"test", "0.0.1", {}};
+const struct OnDeviceBaseModelSpec kModelSpecNew = {"test", "0.0.2", {}};
+
 class OnDeviceModelMetadataTest : public testing::Test {
  public:
   OnDeviceModelMetadataTest() = default;
@@ -63,41 +66,32 @@ class OnDeviceModelMetadataTest : public testing::Test {
 };
 
 TEST_F(OnDeviceModelMetadataTest, EmptyFilePath) {
-  loader().Load(base::FilePath(), "test");
+  loader().Load(base::FilePath(), "test", kModelSpec);
   RunUntilIdle();
-
-  EXPECT_EQ(metadata()->GetAdapter(proto::MODEL_EXECUTION_FEATURE_COMPOSE),
-            nullptr);
+  EXPECT_EQ(0, metadata()->validation_config().validation_prompts().size());
 }
 
 TEST_F(OnDeviceModelMetadataTest, ConfigFileNotInProvidedPath) {
-  loader().Load(temp_dir(), "test");
+  loader().Load(temp_dir(), "test", kModelSpec);
   RunUntilIdle();
-
-  EXPECT_EQ(metadata()->GetAdapter(proto::MODEL_EXECUTION_FEATURE_COMPOSE),
-            nullptr);
+  EXPECT_EQ(0, metadata()->validation_config().validation_prompts().size());
 }
 
 TEST_F(OnDeviceModelMetadataTest, ValidConfig) {
   proto::OnDeviceModelExecutionConfig config;
-  config.add_feature_configs()->set_feature(
-      proto::MODEL_EXECUTION_FEATURE_COMPOSE);
+  config.mutable_validation_config()->add_validation_prompts()->set_prompt(
+      "test prompt");
   WriteConfigToFile(temp_dir().Append(kOnDeviceModelExecutionConfigFile),
                     config);
-  loader().Load(temp_dir(), "test");
+  loader().Load(temp_dir(), "test", kModelSpec);
   RunUntilIdle();
-
-  EXPECT_NE(metadata()->GetAdapter(proto::MODEL_EXECUTION_FEATURE_COMPOSE),
-            nullptr);
-  EXPECT_EQ(
-      metadata()->GetAdapter(proto::MODEL_EXECUTION_FEATURE_TAB_ORGANIZATION),
-      nullptr);
+  EXPECT_EQ(1, metadata()->validation_config().validation_prompts().size());
 }
 
 TEST_F(OnDeviceModelMetadataTest, ResolvesToLastLoad) {
   proto::OnDeviceModelExecutionConfig config;
-  config.add_feature_configs()->set_feature(
-      proto::MODEL_EXECUTION_FEATURE_COMPOSE);
+  config.mutable_validation_config()->add_validation_prompts()->set_prompt(
+      "test prompt");
   WriteConfigToFile(temp_dir().Append(kOnDeviceModelExecutionConfigFile),
                     config);
 
@@ -107,31 +101,32 @@ TEST_F(OnDeviceModelMetadataTest, ResolvesToLastLoad) {
   base::FilePath new_config_file_path(new_temp_dir.GetPath().Append(
       FILE_PATH_LITERAL("on_device_model_execution_config.pb")));
   proto::OnDeviceModelExecutionConfig new_config;
-  new_config.add_feature_configs()->set_feature(
-      proto::MODEL_EXECUTION_FEATURE_TAB_ORGANIZATION);
+  new_config.mutable_validation_config()->add_validation_prompts()->set_prompt(
+      "prompt1");
+  new_config.mutable_validation_config()->add_validation_prompts()->set_prompt(
+      "prompt2");
   WriteConfigToFile(new_config_file_path, new_config);
 
   // Do both loads
-  loader().Load(temp_dir(), "version1");
-  loader().Load(new_temp_dir.GetPath(), "version2");
+  loader().Load(temp_dir(), "version1", kModelSpec);
+  loader().Load(new_temp_dir.GetPath(), "version2", kModelSpecNew);
   RunUntilIdle();
 
   // The final state should match the last Load.
   EXPECT_EQ(metadata()->version(), "version2");
-  EXPECT_EQ(metadata()->GetAdapter(proto::MODEL_EXECUTION_FEATURE_COMPOSE),
-            nullptr);
-  EXPECT_NE(
-      metadata()->GetAdapter(proto::MODEL_EXECUTION_FEATURE_TAB_ORGANIZATION),
-      nullptr);
+  EXPECT_EQ(metadata()->model_spec().model_version,
+            kModelSpecNew.model_version);
+  EXPECT_EQ(metadata()->model_spec().model_name, kModelSpecNew.model_name);
+  EXPECT_EQ(2, metadata()->validation_config().validation_prompts().size());
 }
 
 TEST_F(OnDeviceModelMetadataTest, NullStateChangeResets) {
   proto::OnDeviceModelExecutionConfig config;
-  config.add_feature_configs()->set_feature(
-      proto::MODEL_EXECUTION_FEATURE_COMPOSE);
+  config.mutable_validation_config()->add_validation_prompts()->set_prompt(
+      "test prompt");
   WriteConfigToFile(temp_dir().Append(kOnDeviceModelExecutionConfigFile),
                     config);
-  loader().Load(temp_dir(), "test");
+  loader().Load(temp_dir(), "test", kModelSpec);
   loader().StateChanged(nullptr);
   RunUntilIdle();
   // Should have reverted to null again after the first load finished.

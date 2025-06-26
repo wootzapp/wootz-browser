@@ -45,15 +45,15 @@ class PaletteInterpolationTest : public FontTestBase {
   void SetUp() override {
     FontDescription::VariantLigatures ligatures;
 
-    Font color_palette_font = blink::test::CreateTestFont(
+    Font* color_palette_font = blink::test::CreateTestFont(
         AtomicString("Ahem"), pathToColorPalettesTestFont(), 16, &ligatures);
     color_palette_typeface_ =
-        sk_ref_sp(color_palette_font.PrimaryFont()->PlatformData().Typeface());
+        sk_ref_sp(color_palette_font->PrimaryFont()->PlatformData().Typeface());
 
-    Font non_color_font = blink::test::CreateTestFont(
+    Font* non_color_font = blink::test::CreateTestFont(
         AtomicString("Ahem"), pathToNonColorTestFont(), 16, &ligatures);
     non_color_ahem_typeface_ =
-        sk_ref_sp(non_color_font.PrimaryFont()->PlatformData().Typeface());
+        sk_ref_sp(non_color_font->PrimaryFont()->PlatformData().Typeface());
   }
 
   void ExpectColorsEqualInSRGB(
@@ -96,7 +96,6 @@ TEST_F(PaletteInterpolationTest, RetrievePaletteIndexFromNonColorFont) {
 }
 
 TEST_F(PaletteInterpolationTest, MixCustomPalettesAtHalfTime) {
-  ScopedFontPaletteAnimationForTest scoped_feature(true);
   PaletteInterpolation palette_interpolation(color_palette_typeface_);
   scoped_refptr<FontPalette> palette_start =
       FontPalette::Create(AtomicString("palette1"));
@@ -146,7 +145,6 @@ TEST_F(PaletteInterpolationTest, MixCustomPalettesAtHalfTime) {
 }
 
 TEST_F(PaletteInterpolationTest, MixCustomAndNonExistingPalettes) {
-  ScopedFontPaletteAnimationForTest scoped_feature(true);
   PaletteInterpolation palette_interpolation(color_palette_typeface_);
   scoped_refptr<FontPalette> palette_start =
       FontPalette::Create(AtomicString("palette1"));
@@ -197,7 +195,6 @@ TEST_F(PaletteInterpolationTest, MixCustomAndNonExistingPalettes) {
 }
 
 TEST_F(PaletteInterpolationTest, MixNonExistingPalettes) {
-  ScopedFontPaletteAnimationForTest scoped_feature(true);
   PaletteInterpolation palette_interpolation(color_palette_typeface_);
   scoped_refptr<FontPalette> palette_start =
       FontPalette::Create(AtomicString("palette1"));
@@ -230,7 +227,6 @@ TEST_F(PaletteInterpolationTest, MixNonExistingPalettes) {
 }
 
 TEST_F(PaletteInterpolationTest, MixCustomPalettesInOklab) {
-  ScopedFontPaletteAnimationForTest scoped_feature(true);
   PaletteInterpolation palette_interpolation(color_palette_typeface_);
   scoped_refptr<FontPalette> palette_start =
       FontPalette::Create(AtomicString("palette1"));
@@ -279,7 +275,6 @@ TEST_F(PaletteInterpolationTest, MixCustomPalettesInOklab) {
 }
 
 TEST_F(PaletteInterpolationTest, MixCustomPalettesInSRGB) {
-  ScopedFontPaletteAnimationForTest scoped_feature(true);
   PaletteInterpolation palette_interpolation(color_palette_typeface_);
   scoped_refptr<FontPalette> palette_start =
       FontPalette::Create(AtomicString("palette1"));

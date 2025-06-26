@@ -4,14 +4,15 @@
 
 #include "chrome/browser/ui/android/hats/hats_service_android.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/android/resource_mapper.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
@@ -38,6 +39,7 @@ HatsServiceAndroid::DelayedSurveyTask::DelayedSurveyTask(
     content::WebContents* web_contents,
     const SurveyBitsData& product_specific_bits_data,
     const SurveyStringData& product_specific_string_data,
+    NavigationBehaviour navigation_behaviour,
     base::OnceClosure success_callback,
     base::OnceClosure failure_callback,
     const std::optional<std::string>& supplied_trigger_id,
@@ -46,6 +48,7 @@ HatsServiceAndroid::DelayedSurveyTask::DelayedSurveyTask(
       trigger_(trigger),
       product_specific_bits_data_(product_specific_bits_data),
       product_specific_string_data_(product_specific_string_data),
+      navigation_behaviour_(navigation_behaviour),
       success_callback_(std::move(success_callback)),
       failure_callback_(std::move(failure_callback)),
       supplied_trigger_id_(supplied_trigger_id),
@@ -123,12 +126,27 @@ void HatsServiceAndroid::DelayedSurveyTask::DismissCallback(
     case messages::DismissReason::DISMISSED_BY_FEATURE:
       reason = ShouldShowSurveyReasonsAndroid::kAndroidDismissedByFeature;
       break;
+    case messages::DismissReason::CLOSE_BUTTON:
+      reason = ShouldShowSurveyReasonsAndroid::kAndroidCloseButton;
+      break;
     case messages::DismissReason::COUNT:
-      reason = ShouldShowSurveyReasonsAndroid::kAndroidUnknown;
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
   UMA_HISTOGRAM_ENUMERATION(kHatsShouldShowSurveyReasonAndroidHistogram,
                             reason);
+  hats_service_->RemoveTask(*this);
+}
+
+void HatsServiceAndroid::DelayedSurveyTask::DidFinishNavigation(
+    content::NavigationHandle* navigation_handle) {
+  if (hats_service_->IsNavigationAllowed(navigation_handle,
+                                         navigation_behaviour_)) {
+    return;
+  }
+
+  if (!failure_callback_.is_null()) {
+    std::move(failure_callback_).Run();
+  }
   hats_service_->RemoveTask(*this);
 }
 
@@ -154,7 +172,9 @@ void HatsServiceAndroid::LaunchSurvey(
     base::OnceClosure success_callback,
     base::OnceClosure failure_callback,
     const SurveyBitsData& product_specific_bits_data,
-    const SurveyStringData& product_specific_string_data) {
+    const SurveyStringData& product_specific_string_data,
+    const std::optional<std::string>& supplied_trigger_id,
+    const SurveyOptions& survey_options) {
   NOTIMPLEMENTED();
 }
 
@@ -197,9 +217,6 @@ bool HatsServiceAndroid::LaunchDelayedSurveyForWebContents(
     const std::optional<std::string>& supplied_trigger_id,
     const SurveyOptions& survey_options) {
   CHECK(web_contents);
-  CHECK(navigation_behaviour ==
-        NavigationBehaviour::ALLOW_ANY);  // Currently only ALLOW_ANY is
-                                          // supported on Android
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (survey_configs_by_triggers_.find(trigger) ==
       survey_configs_by_triggers_.end()) {
@@ -211,8 +228,9 @@ bool HatsServiceAndroid::LaunchDelayedSurveyForWebContents(
   }
   auto result = pending_tasks_.emplace(
       this, trigger, web_contents, product_specific_bits_data,
-      product_specific_string_data, std::move(success_callback),
-      std::move(failure_callback), supplied_trigger_id, survey_options);
+      product_specific_string_data, navigation_behaviour,
+      std::move(success_callback), std::move(failure_callback),
+      supplied_trigger_id, survey_options);
   if (!result.second) {
     return false;
   }
@@ -247,12 +265,13 @@ void HatsServiceAndroid::RecordSurveyAsShown(std::string trigger_id) {
   // take a survey from the same trigger, regardless of whether the survey was
   // updated.
   auto trigger_survey_config =
-      base::ranges::find(survey_configs_by_triggers_, trigger_id,
-                         [](const SurveyConfigs::value_type& pair) {
-                           return pair.second.trigger_id;
-                         });
+      std::ranges::find(survey_configs_by_triggers_, trigger_id,
+                        [](const SurveyConfigs::value_type& pair) {
+                          return pair.second.trigger_id;
+                        });
 
-  DCHECK(trigger_survey_config != survey_configs_by_triggers_.end());
+  CHECK(trigger_survey_config != survey_configs_by_triggers_.end(),
+        base::NotFatalUntil::M130);
   std::string trigger = trigger_survey_config->first;
 
   UMA_HISTOGRAM_ENUMERATION(kHatsShouldShowSurveyReasonAndroidHistogram,
@@ -261,4 +280,8 @@ void HatsServiceAndroid::RecordSurveyAsShown(std::string trigger_id) {
 
 void HatsServiceAndroid::RemoveTask(const DelayedSurveyTask& task) {
   pending_tasks_.erase(task);
+}
+
+bool HatsServiceAndroid::HasPendingTasksForTesting() {
+  return !pending_tasks_.empty();
 }

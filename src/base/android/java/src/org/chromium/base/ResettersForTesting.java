@@ -8,6 +8,8 @@ import androidx.annotation.GuardedBy;
 import androidx.annotation.IntDef;
 
 import org.chromium.build.BuildConfig;
+import org.chromium.build.annotations.Initializer;
+import org.chromium.build.annotations.NullMarked;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -83,6 +85,7 @@ import java.util.LinkedHashSet;
  * }
  * </code>
  */
+@NullMarked
 public class ResettersForTesting {
 
     @IntDef({
@@ -170,12 +173,21 @@ public class ResettersForTesting {
         Collections.reverse(resetters);
 
         sIsFlushing = true;
-        try {
-            for (Runnable resetter : resetters) {
+        Throwable firstError = null;
+        for (Runnable resetter : resetters) {
+            try {
+                // They should not throw... but when they do, they are generally independent, so
+                // continue on with remaining ones.
                 resetter.run();
+            } catch (Throwable t) {
+                if (firstError == null) {
+                    firstError = t;
+                }
             }
-        } finally {
-            sIsFlushing = false;
+        }
+        sIsFlushing = false;
+        if (firstError != null) {
+            throw new RuntimeException(firstError);
         }
     }
 
@@ -226,6 +238,7 @@ public class ResettersForTesting {
     }
 
     /** Enables calls to register(). */
+    @Initializer
     public static void enable() {
         assert BuildConfig.IS_FOR_TEST;
         synchronized (sLock) {
@@ -233,6 +246,17 @@ public class ResettersForTesting {
             sState = State.BETWEEN_CLASSES;
             sMethodResetters = new LinkedHashSet<>();
             sClassResetters = new LinkedHashSet<>();
+        }
+    }
+
+    /**
+     * Get the state of test run execution as known by ResettersForTesting. ResettersForTesting
+     * keeps track of the state by setting hooks after @BeforeClass and @AfterClass, and @Before
+     * and @After.
+     */
+    public static @State int getState() {
+        synchronized (sLock) {
+            return sState;
         }
     }
 }

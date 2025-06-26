@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/paint_preview/common/serialized_recording.h"
 
 #include <optional>
@@ -15,6 +20,7 @@
 #include "components/paint_preview/common/paint_preview_tracker.h"
 #include "components/paint_preview/common/serial_utils.h"
 #include "mojo/public/cpp/base/big_buffer.h"
+#include "skia/ext/skia_utils_base.h"
 #include "third_party/skia/include/core/SkStream.h"
 
 namespace paint_preview {
@@ -89,8 +95,7 @@ bool SerializedRecording::IsValid() const {
   } else if (is_buffer()) {
     return buffer_.has_value();
   } else {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
 }
 
@@ -108,8 +113,7 @@ std::optional<SkpResult> SerializedRecording::Deserialize() && {
                           /*copyData=*/false);
     result.skp = SkPicture::MakeFromStream(&stream, &procs);
   } else {
-    NOTREACHED_IN_MIGRATION();
-    return {};
+    NOTREACHED();
   }
 
   return {std::move(result)};
@@ -130,8 +134,7 @@ sk_sp<SkPicture> SerializedRecording::DeserializeWithContext(
                           /*copyData=*/false);
     return SkPicture::MakeFromStream(&stream, &procs);
   } else {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
 }
 
@@ -171,7 +174,7 @@ std::optional<mojo_base::BigBuffer> RecordToBuffer(
   sk_sp<SkData> data = memory_stream.detachAsData();
   *serialized_size = std::min(data->size(), max_capture_size);
   mojo_base::BigBuffer buffer(
-      base::span<const uint8_t>(data->bytes(), *serialized_size));
+      skia::as_byte_span(*data).first(*serialized_size));
   if (data->size() > max_capture_size)
     return std::nullopt;
 

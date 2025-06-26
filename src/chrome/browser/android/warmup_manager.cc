@@ -6,10 +6,13 @@
 #include "base/android/jni_string.h"
 #include "chrome/browser/predictors/loading_predictor.h"
 #include "chrome/browser/predictors/loading_predictor_factory.h"
+#include "chrome/browser/preloading/prefetch/chrome_prefetch_manager.h"
 #include "chrome/browser/profiles/profile.h"
+#include "content/public/browser/web_contents.h"
+#include "url/android/gurl_android.h"
 #include "url/gurl.h"
 
-// Must come after other includes, because FromJniType() uses Profile.
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/android/chrome_jni_headers/WarmupManager_jni.h"
 
 using base::android::JavaParamRef;
@@ -27,15 +30,24 @@ static void JNI_WarmupManager_StartPreconnectPredictorInitialization(
 static void JNI_WarmupManager_PreconnectUrlAndSubresources(
     JNIEnv* env,
     Profile* profile,
-    const JavaParamRef<jstring>& url_str) {
-  if (url_str) {
-    GURL url = GURL(base::android::ConvertJavaStringToUTF8(env, url_str));
+    std::string& url_str) {
+  GURL url = GURL(url_str);
 
-    auto* loading_predictor =
-        predictors::LoadingPredictorFactory::GetForProfile(profile);
-    if (loading_predictor) {
-      loading_predictor->PrepareForPageLoad(url,
-                                            predictors::HintOrigin::EXTERNAL);
-    }
+  auto* loading_predictor =
+      predictors::LoadingPredictorFactory::GetForProfile(profile);
+  if (loading_predictor) {
+    loading_predictor->PrepareForPageLoad(/*initiator_origin=*/std::nullopt,
+                                          url,
+                                          predictors::HintOrigin::EXTERNAL);
   }
+}
+
+static void JNI_WarmupManager_StartPrefetchFromCct(
+    JNIEnv* env,
+    content::WebContents* web_contents,
+    GURL& url,
+    jboolean juse_prefetch_proxy,
+    std::optional<url::Origin>& trusted_source_origin) {
+  ChromePrefetchManager::GetOrCreateForWebContents(web_contents)
+      ->StartPrefetchFromCCT(url, juse_prefetch_proxy, trusted_source_origin);
 }

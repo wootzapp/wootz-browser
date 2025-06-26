@@ -80,6 +80,7 @@ class CORE_EXPORT TextControlElement : public HTMLFormControlElementWithState {
   HTMLElement* PlaceholderElement() const;
   void UpdatePlaceholderVisibility();
   void UpdatePlaceholderShadowPseudoId(HTMLElement& placeholder);
+  virtual String GetPlaceholderValue() const = 0;
 
   VisiblePosition VisiblePositionForIndex(int) const;
   unsigned selectionStart() const;
@@ -163,6 +164,13 @@ class CORE_EXPORT TextControlElement : public HTMLFormControlElementWithState {
   virtual void SetSuggestedValue(const String& value);
   const String& SuggestedValue() const;
 
+  void ScheduleSelectionchangeEvent();
+
+  void ResetEventQueueStatus(const AtomicString& event_type) override {
+    if (event_type == event_type_names::kSelectionchange)
+      has_scheduled_selectionchange_event_ = false;
+  }
+
   void Trace(Visitor*) const override;
 
   ETextOverflow ValueForTextOverflow() const;
@@ -170,7 +178,6 @@ class CORE_EXPORT TextControlElement : public HTMLFormControlElementWithState {
  protected:
   TextControlElement(const QualifiedName&, Document&);
   virtual HTMLElement* UpdatePlaceholderText() = 0;
-  virtual String GetPlaceholderValue() const = 0;
 
   // Creates the editor if necessary. Implementations that support an editor
   // should callback to CreateInnerEditorElement().
@@ -234,7 +241,7 @@ class CORE_EXPORT TextControlElement : public HTMLFormControlElementWithState {
                          mojom::blink::FocusType,
                          InputDeviceCapabilities* source_capabilities) final;
   void ScheduleSelectEvent();
-  void ScheduleSelectionchangeEvent();
+  void ScheduleSelectionchangeEventOnThisOrDocument();
   void DisabledOrReadonlyAttributeChanged(const QualifiedName&);
 
   // Called in dispatchFocusEvent(), after placeholder process, before calling
@@ -267,6 +274,9 @@ class CORE_EXPORT TextControlElement : public HTMLFormControlElementWithState {
 
   String suggested_value_;
   String value_before_set_suggested_value_;
+
+  // Indicate whether there is one scheduled selectionchange event.
+  bool has_scheduled_selectionchange_event_ = false;
 
   FRIEND_TEST_ALL_PREFIXES(TextControlElementTest, IndexForPosition);
   FRIEND_TEST_ALL_PREFIXES(HTMLTextAreaElementTest, ValueWithHardLineBreaks);

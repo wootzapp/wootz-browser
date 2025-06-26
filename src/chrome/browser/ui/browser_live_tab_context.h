@@ -14,6 +14,7 @@
 #include "components/sessions/core/tab_restore_types.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
+#include "ui/base/mojom/window_show_state.mojom-forward.h"
 #include "ui/base/ui_base_types.h"
 
 class Browser;
@@ -40,7 +41,7 @@ class BrowserLiveTabContext : public sessions::LiveTabContext {
   BrowserLiveTabContext(const BrowserLiveTabContext&) = delete;
   BrowserLiveTabContext& operator=(const BrowserLiveTabContext&) = delete;
 
-  ~BrowserLiveTabContext() override {}
+  ~BrowserLiveTabContext() override = default;
 
   // Overridden from LiveTabContext:
   void ShowBrowserWindow() override;
@@ -66,11 +67,14 @@ class BrowserLiveTabContext : public sessions::LiveTabContext {
       const tab_groups::TabGroupId& group,
       const tab_groups::TabGroupVisualData& visual_data) override;
   const gfx::Rect GetRestoredBounds() const override;
-  ui::WindowShowState GetRestoredState() const override;
+  ui::mojom::WindowShowState GetRestoredState() const override;
   std::string GetWorkspace() const override;
-  sessions::LiveTab* AddRestoredTab(const sessions::tab_restore::Tab& tab,
-                                    int tab_index,
-                                    bool select) override;
+  sessions::LiveTab* AddRestoredTab(
+      const sessions::tab_restore::Tab& tab,
+      int tab_index,
+      bool select,
+      bool is_restoring_group_or_window,
+      sessions::tab_restore::Type original_session_type) override;
   sessions::LiveTab* ReplaceRestoredTab(
       const sessions::tab_restore::Tab& tab) override;
   void CloseTab() override;
@@ -81,7 +85,7 @@ class BrowserLiveTabContext : public sessions::LiveTabContext {
       sessions::SessionWindow::WindowType type,
       const std::string& app_name,
       const gfx::Rect& bounds,
-      ui::WindowShowState show_state,
+      ui::mojom::WindowShowState show_state,
       const std::string& workspace,
       const std::string& user_title,
       const std::map<std::string, std::string>& extra_data);

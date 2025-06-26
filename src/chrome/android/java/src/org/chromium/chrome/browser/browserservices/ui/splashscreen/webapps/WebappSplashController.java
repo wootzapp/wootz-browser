@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.browserservices.ui.splashscreen.webapps;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.view.View;
@@ -29,8 +28,6 @@ import org.chromium.ui.util.ColorUtils;
 import org.chromium.webapk.lib.common.WebApkCommonUtils;
 import org.chromium.webapk.lib.common.splash.SplashLayout;
 
-import javax.inject.Inject;
-
 /** Displays the splash screen for homescreen shortcuts and WebAPKs. */
 public class WebappSplashController implements SplashDelegate {
     public static final int HIDE_ANIMATION_DURATION_MS = 300;
@@ -41,21 +38,20 @@ public class WebappSplashController implements SplashDelegate {
 
     private WebApkSplashNetworkErrorObserver mWebApkNetworkErrorObserver;
 
-    @Inject
     public WebappSplashController(
-            SplashController splashController,
             Activity activity,
+            SplashController splashController,
             TabObserverRegistrar tabObserverRegistrar,
             BrowserServicesIntentDataProvider intentDataProvider) {
         mSplashController = splashController;
         mTabObserverRegistrar = tabObserverRegistrar;
+
         mWebappInfo = WebappInfo.create(intentDataProvider);
 
         mSplashController.setConfig(this, HIDE_ANIMATION_DURATION_MS);
 
         if (mWebappInfo.isForWebApk()) {
-            mWebApkNetworkErrorObserver =
-                    new WebApkSplashNetworkErrorObserver(activity, mWebappInfo.name());
+            mWebApkNetworkErrorObserver = new WebApkSplashNetworkErrorObserver(activity);
             mTabObserverRegistrar.registerTabObserver(mWebApkNetworkErrorObserver);
         }
     }
@@ -124,7 +120,6 @@ public class WebappSplashController implements SplashDelegate {
             Bitmap splashImage,
             boolean isSplashIconMaskable) {
         Context context = ContextUtils.getApplicationContext();
-        Resources resources = context.getResources();
 
         Bitmap selectedIcon = splashImage;
         boolean selectedIconGenerated = false;

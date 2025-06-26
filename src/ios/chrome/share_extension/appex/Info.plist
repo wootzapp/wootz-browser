@@ -23,7 +23,7 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>KSChannelChromeScheme</key>
-	<string>${WOOTZAPP_CHANNEL_SCHEME}</string>
+	<string>${CHROME_CHANNEL_SCHEME}</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionAttributes</key>
@@ -45,7 +45,7 @@
 							)
 						)
 					).@count == 1
-				).@count == 1
+				).@count >= 1
 			</string>
 		</dict>
 		<key>NSExtensionPrincipalClass</key>

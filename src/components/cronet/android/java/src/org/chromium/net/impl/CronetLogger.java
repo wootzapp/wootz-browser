@@ -4,6 +4,8 @@
 
 package org.chromium.net.impl;
 
+import org.chromium.net.ConnectionCloseSource;
+
 import java.time.Duration;
 import java.util.List;
 
@@ -82,6 +84,8 @@ public abstract class CronetLogger {
         public Boolean httpFlagsSuccessful;
         public List<Long> httpFlagsNames;
         public List<Long> httpFlagsValues;
+        public String cronetImplVersion;
+        public CronetSource source = CronetSource.CRONET_SOURCE_UNSPECIFIED;
     }
 
     /** Aggregates the information about a CronetEngine configuration. */
@@ -193,6 +197,13 @@ public abstract class CronetLogger {
             CANCELLED,
         }
 
+        // TODO(b/355615357): Add more specific failure reasons.
+        public static enum RequestFailureReason {
+            UNKNOWN,
+            NETWORK,
+            OTHER,
+        }
+
         private final long mRequestHeaderSizeInBytes;
         private final long mRequestBodySizeInBytes;
         private final long mResponseHeaderSizeInBytes;
@@ -209,6 +220,14 @@ public abstract class CronetLogger {
         private final int mOnUploadReadCount;
         private final boolean mIsBidiStream;
         private final boolean mFinalUserCallbackThrew;
+        private final int mUid;
+        private final int mNetworkInternalErrorCode;
+        private final int mQuicErrorCode;
+        private final @ConnectionCloseSource int mSource;
+        private final RequestFailureReason mFailureReason;
+        private final boolean mSocketReused;
+        private final String mCronetVersion;
+        private final CronetSource mCronetSource;
 
         public CronetTrafficInfo(
                 long requestHeaderSizeInBytes,
@@ -226,7 +245,15 @@ public abstract class CronetLogger {
                 int readCount,
                 int uploadReadCount,
                 boolean isBidiStream,
-                boolean finalUserCallbackThrew) {
+                boolean finalUserCallbackThrew,
+                int uid,
+                int networkInternalErrorCode,
+                int quicErrorCode,
+                @ConnectionCloseSource int source,
+                RequestFailureReason failureReason,
+                boolean sockedReused,
+                String cronetVersion,
+                CronetSource cronetSource) {
             mRequestHeaderSizeInBytes = requestHeaderSizeInBytes;
             mRequestBodySizeInBytes = requestBodySizeInBytes;
             mResponseHeaderSizeInBytes = responseHeaderSizeInBytes;
@@ -243,6 +270,14 @@ public abstract class CronetLogger {
             mOnUploadReadCount = uploadReadCount;
             mIsBidiStream = isBidiStream;
             mFinalUserCallbackThrew = finalUserCallbackThrew;
+            mUid = uid;
+            mNetworkInternalErrorCode = networkInternalErrorCode;
+            mQuicErrorCode = quicErrorCode;
+            mSource = source;
+            mFailureReason = failureReason;
+            mSocketReused = sockedReused;
+            mCronetVersion = cronetVersion;
+            mCronetSource = cronetSource;
         }
 
         /**
@@ -329,6 +364,38 @@ public abstract class CronetLogger {
 
         public boolean getFinalUserCallbackThrew() {
             return mFinalUserCallbackThrew;
+        }
+
+        public int getUid() {
+            return mUid;
+        }
+
+        public int getNetworkInternalErrorCode() {
+            return mNetworkInternalErrorCode;
+        }
+
+        public int getQuicErrorCode() {
+            return mQuicErrorCode;
+        }
+
+        public @ConnectionCloseSource int getConnectionCloseSource() {
+            return mSource;
+        }
+
+        public RequestFailureReason getFailureReason() {
+            return mFailureReason;
+        }
+
+        public boolean getIsSocketReused() {
+            return mSocketReused;
+        }
+
+        public String getCronetVersion() {
+            return mCronetVersion;
+        }
+
+        public CronetSource getCronetSource() {
+            return mCronetSource;
         }
     }
 

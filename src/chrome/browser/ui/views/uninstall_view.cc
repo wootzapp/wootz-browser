@@ -15,6 +15,7 @@
 #include "chrome/installer/util/shell_util.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/views/accessibility/accessibility_paint_checks.h"
 #include "ui/views/controls/button/checkbox.h"
 #include "ui/views/controls/combobox/combobox.h"
@@ -50,7 +51,7 @@ void UninstallView::SetupControls() {
 
   auto builder =
       views::Builder<UninstallView>(this)
-          .SetButtonLabel(ui::DIALOG_BUTTON_OK,
+          .SetButtonLabel(ui::mojom::DialogButton::kOk,
                           l10n_util::GetStringUTF16(IDS_UNINSTALL_BUTTON_TEXT))
           .SetTitle(IDS_UNINSTALL_CHROME)
           .SetAcceptCallback(base::BindOnce(&UninstallView::OnDialogAccepted,
@@ -125,7 +126,7 @@ void UninstallView::SetupControls() {
 void UninstallView::OnDialogAccepted() {
   *user_selection_ = content::RESULT_CODE_NORMAL_EXIT;
   if (delete_profile_->GetChecked()) {
-    *user_selection_ = chrome::RESULT_CODE_UNINSTALL_DELETE_PROFILE;
+    *user_selection_ = CHROME_RESULT_CODE_UNINSTALL_DELETE_PROFILE;
   }
   if (change_default_browser_ && change_default_browser_->GetChecked()) {
     BrowsersMap::const_iterator i = browsers_->begin();
@@ -137,7 +138,7 @@ void UninstallView::OnDialogAccepted() {
 }
 
 void UninstallView::OnDialogCancelled() {
-  *user_selection_ = chrome::RESULT_CODE_UNINSTALL_USER_CANCEL;
+  *user_selection_ = CHROME_RESULT_CODE_UNINSTALL_USER_CANCEL;
 }
 
 size_t UninstallView::GetItemCount() const {

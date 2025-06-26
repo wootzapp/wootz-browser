@@ -106,7 +106,7 @@ class VROrientationDeviceTest : public testing::Test {
   }
 
   uint64_t GetBufferOffset() {
-    return SensorReadingSharedBuffer::GetOffset(kOrientationSensorType);
+    return GetSensorReadingSharedBufferOffset(kOrientationSensorType);
   }
 
   void InitializeDevice(mojom::SensorInitParamsPtr params) {
@@ -139,7 +139,8 @@ class VROrientationDeviceTest : public testing::Test {
         [](base::OnceClosure quit_closure,
            base::OnceCallback<void(mojom::VRPosePtr)> callback,
            mojom::XRFrameDataPtr ptr) {
-          std::move(callback).Run(std::move(ptr->mojo_from_viewer));
+          std::move(callback).Run(
+              std::move(ptr->render_info->mojo_from_viewer));
           std::move(quit_closure).Run();
         },
         loop.QuitClosure(), std::move(callback)));
@@ -199,17 +200,19 @@ class VROrientationDeviceTest : public testing::Test {
   }
 
   void WriteToBuffer(gfx::Quaternion q) {
-    SensorReadingSharedBuffer* buffer =
-        reinterpret_cast<SensorReadingSharedBuffer*>(
-            static_cast<char*>(mapped_region_.mapping.memory()) +
-            GetBufferOffset());
+    size_t offset = GetBufferOffset();
+    CHECK(offset % sizeof(SensorReadingSharedBuffer) == 0u);
+    auto buffers =
+        mapped_region_.mapping.GetMemoryAsSpan<SensorReadingSharedBuffer>();
+    SensorReadingSharedBuffer& buffer =
+        buffers[offset / sizeof(SensorReadingSharedBuffer)];
 
-    auto& seqlock = buffer->seqlock.value();
+    auto& seqlock = buffer.seqlock.value();
     seqlock.WriteBegin();
-    buffer->reading.orientation_quat.x = q.x();
-    buffer->reading.orientation_quat.y = q.y();
-    buffer->reading.orientation_quat.z = q.z();
-    buffer->reading.orientation_quat.w = q.w();
+    buffer.reading.orientation_quat.x = q.x();
+    buffer.reading.orientation_quat.y = q.y();
+    buffer.reading.orientation_quat.z = q.z();
+    buffer.reading.orientation_quat.w = q.w();
     seqlock.WriteEnd();
   }
 

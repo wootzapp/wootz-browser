@@ -9,7 +9,6 @@
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/path_service.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -19,7 +18,6 @@
 #include "base/test/test_timeouts.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/notifications/notification_common.h"
 #include "chrome/browser/notifications/notification_display_service_impl.h"
@@ -246,6 +244,11 @@ IN_PROC_BROWSER_TEST_F(PlatformNotificationServiceBrowserTest,
   histogram_tester_.ExpectUniqueSample(
       "Notifications.PersistentWebNotificationClickResult",
       0 /* SERVICE_WORKER_OK */, 1);
+
+  histogram_tester_.ExpectUniqueSample(
+      "Notifications.Engagement.Displayed.Volume0", 1, 1);
+  histogram_tester_.ExpectUniqueSample(
+      "Notifications.Engagement.Clicked.Volume0", 1, 1);
 }
 
 IN_PROC_BROWSER_TEST_F(PlatformNotificationServiceBrowserTest,
@@ -435,7 +438,7 @@ IN_PROC_BROWSER_TEST_F(PlatformNotificationServiceBrowserTest,
 }
 
 // Chrome OS shows the notification settings inline.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(PlatformNotificationServiceBrowserTest,
                        WebNotificationSiteSettingsButton) {
   GrantNotificationPermissionForTest();
@@ -876,8 +879,7 @@ IN_PROC_BROWSER_TEST_F(
 #if !BUILDFLAG(IS_MAC)
 
 // TODO(crbug.com/40132496) Test is flaky on Linux TSan.
-#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)) && \
-    defined(THREAD_SANITIZER)
+#if BUILDFLAG(IS_LINUX) && defined(THREAD_SANITIZER)
 #define MAYBE_TestShouldDisplayFullscreen DISABLED_TestShouldDisplayFullscreen
 #else
 #define MAYBE_TestShouldDisplayFullscreen TestShouldDisplayFullscreen
@@ -1012,54 +1014,6 @@ IN_PROC_BROWSER_TEST_F(PlatformNotificationServiceBrowserTest,
       KeepAliveOrigin::PENDING_NOTIFICATION_CLOSE_EVENT));
 }
 #endif  // BUILDFLAG(ENABLE_BACKGROUND_MODE)
-
-class PlatformNotificationServiceWithoutContentImageBrowserTest
-    : public PlatformNotificationServiceBrowserTest {
- public:
-  // InProcessBrowserTest overrides.
-  void SetUpInProcessBrowserTestFixture() override {
-    scoped_feature_list_.InitWithFeatures(
-        {}, {features::kNotificationContentImage});
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(
-    PlatformNotificationServiceWithoutContentImageBrowserTest,
-    KillSwitch) {
-  GrantNotificationPermissionForTest();
-
-  EXPECT_EQ("ok", RunScript("DisplayPersistentAllOptionsNotification()"));
-
-  std::vector<message_center::Notification> notifications =
-      GetDisplayedNotifications(true /* is_persistent */);
-  ASSERT_EQ(1u, notifications.size());
-
-  // Since the kNotificationContentImage kill switch has disabled images, the
-  // notification should be shown without an image.
-  EXPECT_TRUE(notifications[0].image().IsEmpty());
-}
-
-IN_PROC_BROWSER_TEST_F(
-    PlatformNotificationServiceWithoutContentImageBrowserTest,
-    KillSwitch_NonPersistentNotifications) {
-  GrantNotificationPermissionForTest();
-
-  EXPECT_EQ("ok", RunScript(
-                      R"(DisplayNonPersistentNotification('Title2', {
-          image: 'icon.png'
-        }))"));
-
-  std::vector<message_center::Notification> notifications =
-      GetDisplayedNotifications(false /* is_persistent */);
-  ASSERT_EQ(1u, notifications.size());
-
-  // Since the kNotificationContentImage kill switch has disabled images, the
-  // notification should be shown without an image.
-  EXPECT_TRUE(notifications[0].image().IsEmpty());
-}
 
 class PlatformNotificationServiceIncomingCallTest
     : public PlatformNotificationServiceBrowserTest {

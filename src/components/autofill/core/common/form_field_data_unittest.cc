@@ -11,7 +11,6 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace autofill {
-
 namespace {
 
 void FillCommonFields(FormFieldData* data) {
@@ -26,8 +25,8 @@ void FillCommonFields(FormFieldData* data) {
   data->set_is_focusable(true);
   data->set_should_autocomplete(false);
   data->set_text_direction(base::i18n::RIGHT_TO_LEFT);
-  data->set_options({{.value = u"First", .content = u"First"},
-                     {.value = u"Second", .content = u"Second"}});
+  data->set_options({{.value = u"First", .text = u"First"},
+                     {.value = u"Second", .text = u"Second"}});
 }
 
 void FillVersion2Fields(FormFieldData* data) {
@@ -87,7 +86,7 @@ void WriteSection2(const FormFieldData& data, base::Pickle* pickle) {
   }
   pickle->WriteInt(static_cast<int>(data.options().size()));
   for (const auto& option : data.options()) {
-    pickle->WriteString16(option.content);
+    pickle->WriteString16(option.text);
   }
 }
 
@@ -96,7 +95,7 @@ void WriteVersion9Specific(const FormFieldData& data, base::Pickle* pickle) {
   pickle->WriteInt(static_cast<int>(data.options().size()));
   for (const SelectOption& option : data.options()) {
     pickle->WriteString16(option.value);
-    pickle->WriteString16(option.content);
+    pickle->WriteString16(option.text);
   }
 }
 
@@ -225,8 +224,6 @@ void SerializeInVersion9Format(const FormFieldData& data,
   WriteVersion8Specific(data, pickle);
 }
 
-}  // namespace
-
 TEST(FormFieldDataTest, SerializeAndDeserialize) {
   FormFieldData data;
   FillCommonFields(&data);
@@ -244,7 +241,7 @@ TEST(FormFieldDataTest, SerializeAndDeserialize) {
   FormFieldData actual;
   EXPECT_TRUE(DeserializeFormFieldData(&iter, &actual));
 
-  EXPECT_TRUE(actual.SameFieldAs(data));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, data));
 }
 
 TEST(FormFieldDataTest, DeserializeVersion1) {
@@ -259,7 +256,7 @@ TEST(FormFieldDataTest, DeserializeVersion1) {
   FormFieldData actual;
   EXPECT_TRUE(DeserializeFormFieldData(&iter, &actual));
 
-  EXPECT_TRUE(actual.SameFieldAs(data));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, data));
 }
 
 TEST(FormFieldDataTest, DeserializeVersion2) {
@@ -275,7 +272,7 @@ TEST(FormFieldDataTest, DeserializeVersion2) {
   FormFieldData actual;
   EXPECT_TRUE(DeserializeFormFieldData(&iter, &actual));
 
-  EXPECT_TRUE(actual.SameFieldAs(data));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, data));
 }
 
 TEST(FormFieldDataTest, DeserializeVersion3) {
@@ -292,7 +289,7 @@ TEST(FormFieldDataTest, DeserializeVersion3) {
   FormFieldData actual;
   EXPECT_TRUE(DeserializeFormFieldData(&iter, &actual));
 
-  EXPECT_TRUE(actual.SameFieldAs(data));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, data));
 }
 
 TEST(FormFieldDataTest, DeserializeVersion4) {
@@ -309,7 +306,7 @@ TEST(FormFieldDataTest, DeserializeVersion4) {
   FormFieldData actual;
   EXPECT_TRUE(DeserializeFormFieldData(&iter, &actual));
 
-  EXPECT_TRUE(actual.SameFieldAs(data));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, data));
 }
 
 TEST(FormFieldDataTest, DeserializeVersion5) {
@@ -327,7 +324,7 @@ TEST(FormFieldDataTest, DeserializeVersion5) {
   FormFieldData actual;
   EXPECT_TRUE(DeserializeFormFieldData(&iter, &actual));
 
-  EXPECT_TRUE(actual.SameFieldAs(data));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, data));
 }
 
 TEST(FormFieldDataTest, DeserializeVersion6) {
@@ -346,7 +343,7 @@ TEST(FormFieldDataTest, DeserializeVersion6) {
   FormFieldData actual;
   EXPECT_TRUE(DeserializeFormFieldData(&iter, &actual));
 
-  EXPECT_TRUE(actual.SameFieldAs(data));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, data));
 }
 
 TEST(FormFieldDataTest, DeserializeVersion7) {
@@ -366,7 +363,7 @@ TEST(FormFieldDataTest, DeserializeVersion7) {
   FormFieldData actual;
   EXPECT_TRUE(DeserializeFormFieldData(&iter, &actual));
 
-  EXPECT_TRUE(actual.SameFieldAs(data));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, data));
 }
 
 TEST(FormFieldDataTest, DeserializeVersion8) {
@@ -387,7 +384,7 @@ TEST(FormFieldDataTest, DeserializeVersion8) {
   FormFieldData actual;
   EXPECT_TRUE(DeserializeFormFieldData(&iter, &actual));
 
-  EXPECT_TRUE(actual.SameFieldAs(data));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, data));
 }
 
 TEST(FormFieldDataTest, DeserializeVersion9) {
@@ -408,7 +405,7 @@ TEST(FormFieldDataTest, DeserializeVersion9) {
   FormFieldData actual;
   EXPECT_TRUE(DeserializeFormFieldData(&iter, &actual));
 
-  EXPECT_TRUE(actual.SameFieldAs(data));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, data));
 }
 
 // Verify that if the data isn't valid, the FormFieldData isn't populated
@@ -423,7 +420,7 @@ TEST(FormFieldDataTest, DeserializeBadData) {
   FormFieldData actual;
   EXPECT_FALSE(DeserializeFormFieldData(&iter, &actual));
   FormFieldData empty;
-  EXPECT_TRUE(actual.SameFieldAs(empty));
+  EXPECT_TRUE(FormFieldData::DeepEqual(actual, empty));
 }
 
 TEST(FormFieldDataTest, IsTextInputElement) {
@@ -451,4 +448,26 @@ TEST(FormFieldDataTest, IsTextInputElement) {
   }
 }
 
+// Tests that FormFieldData::selected_option() finds the first matching option.
+TEST(FormFieldDataTest, SelectedOption) {
+  FormFieldData f;
+  EXPECT_EQ(f.selected_option(), std::nullopt);
+
+  f.set_options({SelectOption{.value = u"value1", .text = u"text1"},
+                 SelectOption{.value = u"value2", .text = u"text2"},
+                 SelectOption{.value = u"value2", .text = u"text3"}});
+
+  f.set_value(u"garbage");
+  EXPECT_EQ(f.selected_option(), std::nullopt);
+
+  f.set_value(u"value1");
+  EXPECT_EQ(f.selected_option().CopyAsOptional(),
+            (SelectOption{.value = u"value1", .text = u"text1"}));
+
+  f.set_value(u"value2");
+  EXPECT_EQ(f.selected_option().CopyAsOptional(),
+            (SelectOption{.value = u"value2", .text = u"text2"}));
+}
+
+}  // namespace
 }  // namespace autofill

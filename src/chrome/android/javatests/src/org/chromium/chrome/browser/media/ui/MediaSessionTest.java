@@ -16,14 +16,16 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.ntp.NewTabPage;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
 import org.chromium.chrome.test.util.NewTabPageTestUtils;
 import org.chromium.chrome.test.util.browser.TabLoadObserver;
 import org.chromium.components.browser_ui.media.MediaNotificationController;
@@ -32,7 +34,6 @@ import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.url_formatter.SchemeDisplay;
 import org.chromium.components.url_formatter.UrlFormatter;
 import org.chromium.content_public.browser.test.util.DOMUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.media.MediaSwitches;
 import org.chromium.net.test.EmbeddedTestServer;
 
@@ -46,7 +47,8 @@ import java.util.concurrent.TimeoutException;
 })
 public class MediaSessionTest {
     @Rule
-    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     private static final String TEST_PATH = "/content/test/data/media/session/media-session.html";
     private static final String VIDEO_ID = "long-video";
@@ -59,7 +61,7 @@ public class MediaSessionTest {
     @Test
     @LargeTest
     public void testPauseOnHeadsetUnplug() throws IllegalArgumentException, TimeoutException {
-        mActivityTestRule.startMainActivityWithURL(mTestServer.getURL(TEST_PATH));
+        mActivityTestRule.startOnTestServerUrl(TEST_PATH);
         Tab tab = mActivityTestRule.getActivity().getActivityTab();
 
         Assert.assertTrue(DOMUtils.isMediaPaused(tab.getWebContents(), VIDEO_ID));
@@ -80,7 +82,7 @@ public class MediaSessionTest {
     @Test
     @LargeTest
     public void mediaSessionUrlUpdatedAfterNativePageNavigation() throws Exception {
-        mActivityTestRule.startMainActivityWithURL("about:blank");
+        mActivityTestRule.startOnBlankPage();
 
         Tab tab = mActivityTestRule.getActivity().getActivityTab();
         mActivityTestRule.loadUrl(UrlConstants.NTP_URL);
@@ -95,7 +97,7 @@ public class MediaSessionTest {
         DOMUtils.waitForMediaPlay(tab.getWebContents(), VIDEO_ID);
         waitForNotificationReady();
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     MediaNotificationController controller =
                             MediaNotificationManager.getController(
@@ -109,17 +111,28 @@ public class MediaSessionTest {
 
     @Before
     public void setUp() {
-        mTestServer =
-                EmbeddedTestServer.createAndStartServer(
-                        ApplicationProvider.getApplicationContext());
+        mTestServer = mActivityTestRule.getTestServer();
     }
 
     private void waitForNotificationReady() {
         // Extended timeout to avoid flakiness https://crbug.com/1315419
         CriteriaHelper.pollInstrumentationThread(
                 () -> {
-                    return MediaNotificationManager.getController(R.id.media_playback_notification)
-                            != null;
+                    if (MediaNotificationManager.getController(R.id.media_playback_notification)
+                            == null) {
+                        return false;
+                    }
+
+                    MediaNotificationController controller =
+                            MediaNotificationManager.getController(
+                                    R.id.media_playback_notification);
+                    controller.mPendingIntentActionSwipe =
+                            controller.createPendingIntent(
+                                    MediaNotificationController.ACTION_SWIPE);
+
+                    // After creating `mPendingIntentActionSwipe`, wait until the throttler exits
+                    // the throttled state.
+                    return controller.mThrottler.mThrottleTask == null;
                 },
                 LONG_TIMEOUT,
                 DEFAULT_POLL_INTERVAL);

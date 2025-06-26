@@ -90,10 +90,7 @@ public class MemoryPressureMonitorTest {
         mMonitor.setCurrentPressureSupplierForTesting(null);
     }
 
-    /**
-     * Runs all UiThread tasks posted |delayMs| in the future.
-     * @param delayMs
-     */
+    /** Runs all UiThread tasks posted |delayMs| in the future. */
     private void runUiThreadFor(long delayMs) {
         ShadowLooper.idleMainLooper(delayMs, TimeUnit.MILLISECONDS);
     }
@@ -231,7 +228,7 @@ public class MemoryPressureMonitorTest {
                 new TestPressureSupplier(MemoryPressureLevel.MODERATE);
         mMonitor.setCurrentPressureSupplierForTesting(pressureSupplier);
 
-        mMonitor.enablePolling();
+        mMonitor.enablePolling(false);
 
         // When polling is enabled, current pressure should be retrieved and reported.
         pressureSupplier.assertCalled();
@@ -247,7 +244,7 @@ public class MemoryPressureMonitorTest {
         TestPressureSupplier pressureSupplier = new TestPressureSupplier(null);
         mMonitor.setCurrentPressureSupplierForTesting(pressureSupplier);
 
-        mMonitor.enablePolling();
+        mMonitor.enablePolling(false);
 
         // The pressure supplier should be called, but its null result should be ignored.
         pressureSupplier.assertCalled();
@@ -265,7 +262,7 @@ public class MemoryPressureMonitorTest {
 
         // The notification above started a throttling interval, so we shouldn't ask for the
         // current pressure when polling is enabled.
-        mMonitor.enablePolling();
+        mMonitor.enablePolling(false);
 
         pressureSupplier.assertNotCalled();
     }
@@ -283,7 +280,7 @@ public class MemoryPressureMonitorTest {
         mMonitor.notifyPressure(MemoryPressureLevel.CRITICAL);
         callback.reset();
 
-        mMonitor.enablePolling();
+        mMonitor.enablePolling(false);
 
         runUiThreadFor(THROTTLING_INTERVAL_MS - 1);
 
@@ -306,7 +303,7 @@ public class MemoryPressureMonitorTest {
 
         mMonitor.notifyPressure(MemoryPressureLevel.MODERATE);
 
-        mMonitor.enablePolling();
+        mMonitor.enablePolling(false);
 
         runUiThreadFor(THROTTLING_INTERVAL_MS);
 
@@ -324,7 +321,7 @@ public class MemoryPressureMonitorTest {
         mMonitor.notifyPressure(MemoryPressureLevel.MODERATE);
         mMonitor.notifyPressure(MemoryPressureLevel.CRITICAL);
 
-        mMonitor.enablePolling();
+        mMonitor.enablePolling(false);
 
         runUiThreadFor(THROTTLING_INTERVAL_MS);
 
@@ -341,7 +338,7 @@ public class MemoryPressureMonitorTest {
 
         mMonitor.notifyPressure(MemoryPressureLevel.CRITICAL);
 
-        mMonitor.enablePolling();
+        mMonitor.enablePolling(false);
 
         runUiThreadFor(THROTTLING_INTERVAL_MS - 1);
 

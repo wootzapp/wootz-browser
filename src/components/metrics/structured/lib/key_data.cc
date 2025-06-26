@@ -10,6 +10,7 @@
 #include "base/check.h"
 #include "base/logging.h"
 #include "base/notreached.h"
+#include "base/numerics/byte_conversions.h"
 #include "base/rand_util.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
@@ -17,8 +18,8 @@
 #include "base/unguessable_token.h"
 #include "components/metrics/structured/lib/histogram_util.h"
 #include "components/metrics/structured/lib/key_util.h"
+#include "crypto/hash.h"
 #include "crypto/hmac.h"
-#include "crypto/sha2.h"
 
 namespace metrics::structured {
 namespace {
@@ -40,70 +41,59 @@ KeyData::KeyData(std::unique_ptr<StorageDelegate> storage_delegate)
 KeyData::~KeyData() = default;
 
 uint64_t KeyData::Id(const uint64_t project_name_hash,
-                     int key_rotation_period) {
+                     base::TimeDelta key_rotation_period) {
   if (!storage_delegate_->IsReady()) {
     return 0u;
   }
 
   // Retrieve the key for |project_name_hash|.
-  EnsureKeyUpdated(project_name_hash, base::Days(key_rotation_period));
+  EnsureKeyUpdated(project_name_hash, key_rotation_period);
   const std::optional<std::string_view> key = GetKeyBytes(project_name_hash);
-  if (!key) {
-    NOTREACHED_IN_MIGRATION();
-    return 0u;
-  }
+  CHECK(key);
 
   // Compute and return the hash.
-  uint64_t hash;
-  crypto::SHA256HashString(key.value(), &hash, sizeof(uint64_t));
-  return hash;
+  auto hash = crypto::hash::Sha256(*key);
+  return base::U64FromNativeEndian(base::span<uint8_t>(hash).first<8>());
 }
 
 uint64_t KeyData::HmacMetric(const uint64_t project_name_hash,
                              const uint64_t metric_name_hash,
                              const std::string& value,
-                             int key_rotation_period) {
+                             base::TimeDelta key_rotation_period) {
   if (!storage_delegate_->IsReady()) {
     return 0u;
   }
 
   // Retrieve the key for |project_name_hash|.
-  EnsureKeyUpdated(project_name_hash, base::Days(key_rotation_period));
+  EnsureKeyUpdated(project_name_hash, key_rotation_period);
   const std::optional<std::string_view> key = GetKeyBytes(project_name_hash);
-  if (!key) {
-    NOTREACHED_IN_MIGRATION();
-    return 0u;
-  }
-
-  // Initialize the HMAC.
-  crypto::HMAC hmac(crypto::HMAC::HashAlgorithm::SHA256);
-  CHECK(hmac.Init(key.value()));
+  CHECK(key);
 
   // Compute and return the digest.
   const std::string salted_value =
       base::StrCat({HashToHex(metric_name_hash), value});
-  uint64_t digest;
-  CHECK(hmac.Sign(salted_value, reinterpret_cast<uint8_t*>(&digest),
-                  sizeof(digest)));
-  return digest;
+  auto hmac = crypto::hmac::SignSha256(base::as_byte_span(*key),
+                                       base::as_byte_span(salted_value));
+  return base::U64FromNativeEndian(base::span<uint8_t>(hmac).first<8>());
 }
 
-std::optional<int> KeyData::LastKeyRotation(
+std::optional<base::TimeDelta> KeyData::LastKeyRotation(
     const uint64_t project_name_hash) const {
   const KeyProto* key = storage_delegate_->GetKey(project_name_hash);
   if (!key) {
     return std::nullopt;
   }
-  return key->last_rotation();
+  return base::Days(key->last_rotation());
 }
 
 std::optional<int> KeyData::GetKeyAgeInWeeks(uint64_t project_name_hash) const {
-  std::optional<int> last_rotation = LastKeyRotation(project_name_hash);
+  std::optional<base::TimeDelta> last_rotation =
+      LastKeyRotation(project_name_hash);
   if (!last_rotation.has_value()) {
     return std::nullopt;
   }
   const int now = NowInDays();
-  const int days_since_rotation = now - *last_rotation;
+  const int days_since_rotation = now - last_rotation->InDays();
   return days_since_rotation / 7;
 }
 

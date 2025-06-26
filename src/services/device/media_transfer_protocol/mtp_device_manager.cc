@@ -234,7 +234,7 @@ void MtpDeviceManager::CopyFileFromLocal(const std::string& storage_handle,
     return;
   }
   copy_file_from_local_callbacks_.push(std::move(callback));
-  mtp_client_->CopyFileFromLocal(
+  mtp_client_->RequestCopyFileFromLocal(
       storage_handle, source_file_descriptor, parent_id, file_name,
       base::BindOnce(&MtpDeviceManager::OnCopyFileFromLocal,
                      weak_ptr_factory_.GetWeakPtr()),
@@ -319,7 +319,7 @@ void MtpDeviceManager::OnGetStorageInfo(
     // attachments, which should not be in |storage_info_map_|, or for
     // storage detachments, which do not add to |storage_info_map_|.
     // Return to avoid giving client phantom detach events.
-    DUMP_WILL_BE_NOTREACHED_NORETURN();
+    DUMP_WILL_BE_NOTREACHED();
     return;
   }
 
@@ -350,8 +350,7 @@ void MtpDeviceManager::OnOpenStorage(const std::string& handle) {
     handles_.insert(handle);
     std::move(open_storage_callbacks_.front()).Run(handle, false);
   } else {
-    NOTREACHED_IN_MIGRATION();
-    std::move(open_storage_callbacks_.front()).Run(std::string(), true);
+    NOTREACHED();
   }
   open_storage_callbacks_.pop();
 }
@@ -368,8 +367,7 @@ void MtpDeviceManager::OnCloseStorage() {
     handles_.erase(handle);
     std::move(close_storage_callbacks_.front().first).Run(false);
   } else {
-    NOTREACHED_IN_MIGRATION();
-    std::move(close_storage_callbacks_.front().first).Run(true);
+    NOTREACHED();
   }
   close_storage_callbacks_.pop();
 }

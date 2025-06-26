@@ -107,8 +107,7 @@ void SVGAnimateMotionElement::ChildMPathChanged() {
 void SVGAnimateMotionElement::ParseAttribute(
     const AttributeModificationParams& params) {
   if (params.name == svg_names::kPathAttr) {
-    path_ = Path();
-    BuildPathFromString(params.new_value, path_);
+    path_ = BuildPathFromString(params.new_value);
     AnimationAttributeChanged();
     return;
   }
@@ -167,8 +166,8 @@ static bool ParsePointInternal(const CharType* ptr,
 static bool ParsePoint(const String& string, gfx::PointF& point) {
   if (string.empty())
     return false;
-  return WTF::VisitCharacters(string, [&](const auto* chars, unsigned length) {
-    return ParsePointInternal(chars, chars + length, point);
+  return WTF::VisitCharacters(string, [&](auto chars) {
+    return ParsePointInternal(chars.data(), chars.data() + chars.size(), point);
   });
 }
 

@@ -23,8 +23,7 @@ import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
-import org.chromium.chrome.browser.ChromeApplicationImpl;
-import org.chromium.chrome.browser.dependency_injection.ChromeAppComponent;
+import org.chromium.chrome.browser.browserservices.permissiondelegation.InstalledWebappPermissionManager;
 import org.chromium.components.embedder_support.util.Origin;
 
 import java.util.concurrent.TimeoutException;
@@ -56,11 +55,10 @@ public class TrustedWebActivityClientLocationDelegationTest {
 
     @Before
     public void setUp() throws TimeoutException, RemoteException {
-        ChromeAppComponent component = ChromeApplicationImpl.getComponent();
-        mClient = component.resolveTrustedWebActivityClient();
+        mClient = TrustedWebActivityClient.getInstance();
 
         // TestTrustedWebActivityService is in the test support apk.
-        component.resolvePermissionManager().addDelegateApp(ORIGIN, TEST_SUPPORT_PACKAGE);
+        InstalledWebappPermissionManager.addDelegateApp(ORIGIN, TEST_SUPPORT_PACKAGE);
     }
 
     /** Tests {@link TrustedWebActivityClient#checkLocationPermission} */
@@ -75,7 +73,7 @@ public class TrustedWebActivityClientLocationDelegationTest {
         PostTask.runOrPostTask(
                 TaskTraits.UI_DEFAULT,
                 () -> mClient.checkLocationPermission(SCOPE.toString(), callback));
-        locationPermission.waitForFirst();
+        locationPermission.waitForOnly();
     }
 
     /** Tests {@link TrustedWebActivityClient#startListeningLocationUpdates} */
@@ -104,7 +102,7 @@ public class TrustedWebActivityClientLocationDelegationTest {
                                 SCOPE.toString(),
                                 /* highAccuracy= */ false,
                                 locationUpdateCallback));
-        locationUpdate.waitForFirst();
+        locationUpdate.waitForOnly();
     }
 
     /** Tests {@link TrustedWebActivityClient#startListeningLocationUpdates} */
@@ -132,6 +130,6 @@ public class TrustedWebActivityClientLocationDelegationTest {
                                 otherOrigin.toString(),
                                 /* highAccuracy= */ false,
                                 locationUpdateCallback));
-        locationError.waitForFirst();
+        locationError.waitForOnly();
     }
 }

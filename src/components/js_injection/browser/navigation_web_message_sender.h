@@ -63,13 +63,33 @@ class NavigationWebMessageSender
   // created. This indicates to the client that the special navigation listeners
   // are implemented (it might not be available in older versions).
   static const char kOptedInMessage[];
-  // Indicates that a navigation has completed. The message will contain details
-  // like the URL, whether the navigation is same-document or not, etc. This is
-  // dispatched on `DidFinishNavigation()`.
+
+  // The navigation messages will contain details of the navigation like the
+  // URL, whether the navigation is same-document or not, etc.
+  //
+  // Indicates that a navigation has started. This is dispatched on
+  // `DidStartNavigation()`.
+  static const char kNavigationStartedMessage[];
+  // Indicates that a navigation has been redirected. This is dispatched on
+  // `DidStartNavigation()`.
+  static const char kNavigationRedirectedMessage[];
+  // Indicates that a navigation has completed. This is dispatched on
+  // `DidFinishNavigation()`.
   static const char kNavigationCompletedMessage[];
-  // Indicates that the page has finished loading. This is dispatched on
-  // `DidFinishLoad()`.
+
+  // Indicates that the page has finished loading (i.e. the "load" event fired
+  // on the primary main frame). This is dispatched on `DidFinishLoad()`.
   static const char kPageLoadEndMessage[];
+
+  // Indicates that the page's initial DOM Content has finished loading (i.e.
+  // the "domcontentloaded" event fired on the primary main frame). This is
+  // dispatched on `DOMContentLoaded()`.
+  static const char kDOMContentLoadedMessage[];
+
+  // Indicates that the primary main frame just did a first contentful paint.
+  // This is dispatched on `OnFirstContentfulPaintInPrimaryMainFrame()`.
+  static const char kFirstContentfulPaintMessage[];
+
   // Indicates that the page has been deleted. This is dispatched from the class
   // destructor, since this is a PageUserData. If the page is BFCached, this
   // will be when the page is evicted. Otherwise, it will be when the primary
@@ -105,13 +125,25 @@ class NavigationWebMessageSender
                              WebMessageHostFactory* factory);
 
   // content::WebContentsObserver implementations
+  void DOMContentLoaded(content::RenderFrameHost* render_frame_host) override;
   void DidFinishLoad(content::RenderFrameHost* render_frame_host,
                      const GURL& validated_url) override;
+  void DidStartNavigation(
+      content::NavigationHandle* navigation_handle) override;
+  void DidRedirectNavigation(
+      content::NavigationHandle* navigation_handle) override;
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
+  void OnFirstContentfulPaintInPrimaryMainFrame() override;
 
   void PostMessageWithType(std::string_view type);
   void PostMessage(base::Value::Dict message_dict);
+
+  bool ShouldSendMessageForNavigation(
+      content::NavigationHandle* navigation_handle);
+
+  bool ShouldSendMessageForRenderFrameHost(
+      content::RenderFrameHost* render_frame_host);
 
   WebMessageHost* GetWebMessageHostForTesting() { return host_.get(); }
 

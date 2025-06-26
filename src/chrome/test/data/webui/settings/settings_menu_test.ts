@@ -7,16 +7,19 @@
 // clang-format off
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import type {SettingsMenuElement, SettingsRoutes} from 'chrome://settings/settings.js';
-import {resetRouterForTesting, loadTimeData, pageVisibility, Router} from 'chrome://settings/settings.js';
+import {resetRouterForTesting, loadTimeData, MetricsBrowserProxyImpl, pageVisibility, Router} from 'chrome://settings/settings.js';
 import {assertEquals, assertFalse, assertTrue} from 'chrome://webui-test/chai_assert.js';
-import {isVisible} from 'chrome://webui-test/test_util.js';
+import {isVisible, microtasksFinished} from 'chrome://webui-test/test_util.js';
 import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
+
+import {TestMetricsBrowserProxy} from './test_metrics_browser_proxy.js';
 
 // clang-format on
 
 suite('SettingsMenu', function() {
   let settingsMenu: SettingsMenuElement;
   let routes: SettingsRoutes;
+  let metricsBrowserProxy: TestMetricsBrowserProxy;
 
   function createSettingsMenu() {
     routes = Router.getInstance().getRoutes();
@@ -27,6 +30,8 @@ suite('SettingsMenu', function() {
   }
 
   setup(function() {
+    metricsBrowserProxy = new TestMetricsBrowserProxy();
+    MetricsBrowserProxyImpl.setInstance(metricsBrowserProxy);
     createSettingsMenu();
   });
 
@@ -48,31 +53,27 @@ suite('SettingsMenu', function() {
     Router.getInstance().navigateTo(routes.RESET);
     const selector = settingsMenu.$.menu;
     assertTrue(!!selector.selected);
-    const path = new window.URL(selector.selected.toString()).pathname;
-    assertEquals('/reset', path);
+    assertEquals('/reset', selector.selected.toString());
   });
 
   test('navigateToAnotherSection', function() {
     Router.getInstance().navigateTo(routes.RESET);
     const selector = settingsMenu.$.menu;
     assertTrue(!!selector.selected);
-    let path = new window.URL(selector.selected.toString()).pathname;
-    assertEquals('/reset', path);
+    assertEquals('/reset', selector.selected.toString());
 
     Router.getInstance().navigateTo(routes.PEOPLE);
     flush();
 
     assertTrue(!!selector.selected);
-    path = new window.URL(selector.selected.toString()).pathname;
-    assertEquals('/people', path);
+    assertEquals('/people', selector.selected.toString());
   });
 
   test('navigateToBasic', function() {
     Router.getInstance().navigateTo(routes.RESET);
     const selector = settingsMenu.$.menu;
     assertTrue(!!selector.selected);
-    const path = new window.URL(selector.selected.toString()).pathname;
-    assertEquals('/reset', path);
+    assertEquals('/reset', selector.selected.toString());
 
     Router.getInstance().navigateTo(routes.BASIC);
     flush();
@@ -80,22 +81,6 @@ suite('SettingsMenu', function() {
     // BASIC has no sub page selected.
     assertFalse(!!selector.selected);
   });
-
-  // <if expr="_google_chrome">
-  test('navigateToGetMostChrome', function() {
-    loadTimeData.overrideValues({showGetTheMostOutOfChromeSection: true});
-    resetRouterForTesting();
-    createSettingsMenu();
-    Router.getInstance().navigateTo(routes.GET_MOST_CHROME);
-    flush();
-
-    // GET_MOST_CHROME should select the 'About Chrome' entry.
-    const selector = settingsMenu.$.menu;
-    assertTrue(!!selector.selected);
-    const path = new window.URL(selector.selected.toString()).pathname;
-    assertEquals('/help', path);
-  });
-  // </if>
 
   test('noExperimental', async function() {
     loadTimeData.overrideValues({showAdvancedFeaturesMainControl: false});
@@ -121,8 +106,7 @@ suite('SettingsMenu', function() {
 
     const selector = settingsMenu.$.menu;
     assertTrue(!!selector.selected);
-    const path = new window.URL(selector.selected.toString()).pathname;
-    assertEquals('/ai', path);
+    assertEquals('/ai', selector.selected.toString());
   });
 
   test('pageVisibility', function() {
@@ -133,7 +117,7 @@ suite('SettingsMenu', function() {
         'defaultBrowser',
         // </if>
         'downloads', 'languages', 'onStartup', 'people', 'reset',
-        // <if expr="not chromeos_ash">
+        // <if expr="not is_chromeos">
         'system',
         // </if>
       ];
@@ -168,5 +152,29 @@ suite('SettingsMenu', function() {
 
     // Now, the menu items should be hidden.
     assertPagesHidden(true);
+  });
+
+  test('aiPageMenuClick', async function() {
+    loadTimeData.overrideValues({
+      showAdvancedFeaturesMainControl: true,
+      enableAiSettingsPageRefresh: true,
+    });
+    resetRouterForTesting();
+    createSettingsMenu();
+    await flushTasks();
+
+    const entry =
+        settingsMenu.shadowRoot!.querySelector<HTMLElement>('a[href=\'/ai\']');
+    assertTrue(!!entry);
+    assertTrue(isVisible(entry));
+
+    // Ensure UMA is logged.
+    entry.click();
+    assertEquals(
+        'SettingsMenu_AiPageEntryPointClicked',
+        await metricsBrowserProxy.whenCalled('recordAction'));
+
+    await microtasksFinished();
+    assertEquals(routes.AI, Router.getInstance().getCurrentRoute());
   });
 });

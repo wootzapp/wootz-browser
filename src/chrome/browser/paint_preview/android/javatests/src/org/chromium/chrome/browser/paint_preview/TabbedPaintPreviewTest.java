@@ -19,10 +19,10 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mock;
 import org.mockito.Mockito;
 
 import org.chromium.base.Callback;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.UnguessableToken;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.test.util.CallbackHelper;
@@ -32,12 +32,12 @@ import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsV
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.paint_preview.services.PaintPreviewTabService;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabClosureParams;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.components.paintpreview.browser.NativePaintPreviewServiceProvider;
 import org.chromium.components.paintpreview.player.PlayerCompositorDelegate;
 import org.chromium.components.paintpreview.player.PlayerManager;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.util.TokenHolder;
 import org.chromium.url.GURL;
 
@@ -50,9 +50,6 @@ import java.util.concurrent.TimeoutException;
 public class TabbedPaintPreviewTest {
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
-
-    // Tell R8 not to break the ability to mock the class.
-    @Mock private PaintPreviewTabService mUnused;
 
     private static final String TEST_URL = "/chrome/test/data/android/about.html";
 
@@ -116,7 +113,7 @@ public class TabbedPaintPreviewTest {
     public void testDisplayedCorrectly() throws ExecutionException, TimeoutException {
         Tab tab = mActivityTestRule.getActivity().getActivityTab();
         TabbedPaintPreview tabbedPaintPreview =
-                TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
+                ThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         CallbackHelper viewReadyCallback = new CallbackHelper();
         CallbackHelper firstPaintCallback = new CallbackHelper();
         PlayerManager.Listener listener =
@@ -140,14 +137,14 @@ public class TabbedPaintPreviewTest {
                 };
 
         boolean showed =
-                TestThreadUtils.runOnUiThreadBlocking(() -> tabbedPaintPreview.maybeShow(listener));
+                ThreadUtils.runOnUiThreadBlocking(() -> tabbedPaintPreview.maybeShow(listener));
         Assert.assertTrue("Paint Preview failed to display.", showed);
         Assert.assertTrue("Paint Preview was not displayed.", tabbedPaintPreview.isShowing());
         Assert.assertTrue(
                 "Paint Preview was not attached to tab.", tabbedPaintPreview.isAttached());
-        viewReadyCallback.waitForFirst("Paint preview view ready never happened.");
-        firstPaintCallback.waitForFirst("Paint preview first paint never happened.");
-        TestThreadUtils.runOnUiThreadBlocking(() -> tabbedPaintPreview.remove(false, false));
+        viewReadyCallback.waitForOnly("Paint preview view ready never happened.");
+        firstPaintCallback.waitForOnly("Paint preview first paint never happened.");
+        ThreadUtils.runOnUiThreadBlocking(() -> tabbedPaintPreview.remove(false, false));
     }
 
     /**
@@ -158,27 +155,27 @@ public class TabbedPaintPreviewTest {
     @MediumTest
     public void testBrowserControlsPersistent() throws ExecutionException {
         TestControlsVisibilityDelegate visibilityDelegate =
-                TestThreadUtils.runOnUiThreadBlocking(TestControlsVisibilityDelegate::new);
+                ThreadUtils.runOnUiThreadBlocking(TestControlsVisibilityDelegate::new);
         Tab tab = mActivityTestRule.getActivity().getActivityTab();
         TabbedPaintPreview tabbedPaintPreview =
-                TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
+                ThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
         tabbedPaintPreview.setBrowserVisibilityDelegate(visibilityDelegate);
         PlayerManager.Listener emptyListener = new EmptyPlayerListener();
 
         // Assert toolbar persistence is changed based on paint preview visibility.
         assertToolbarPersistence(false, visibilityDelegate);
         boolean showed =
-                TestThreadUtils.runOnUiThreadBlocking(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> tabbedPaintPreview.maybeShow(emptyListener));
         Assert.assertTrue("Paint Preview failed to display.", showed);
         assertToolbarPersistence(true, visibilityDelegate);
-        TestThreadUtils.runOnUiThreadBlocking(() -> tabbedPaintPreview.remove(false, false));
+        ThreadUtils.runOnUiThreadBlocking(() -> tabbedPaintPreview.remove(false, false));
         assertToolbarPersistence(false, visibilityDelegate);
 
         // Assert toolbar persistence is changed based visibility of the tab that is showing the
         // paint preview.
         showed =
-                TestThreadUtils.runOnUiThreadBlocking(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> tabbedPaintPreview.maybeShow(emptyListener));
         Assert.assertTrue("Paint Preview failed to display.", showed);
         assertToolbarPersistence(true, visibilityDelegate);
@@ -186,13 +183,16 @@ public class TabbedPaintPreviewTest {
                 mActivityTestRule.loadUrlInNewTab(
                         mActivityTestRule.getTestServer().getURL(TEST_URL));
         assertToolbarPersistence(false, visibilityDelegate);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mActivityTestRule
                                 .getActivity()
                                 .getTabModelSelector()
                                 .getCurrentModel()
-                                .closeTab(newTab));
+                                .getTabRemover()
+                                .closeTabs(
+                                        TabClosureParams.closeTab(newTab).allowUndo(false).build(),
+                                        /* allowDialog= */ false));
         assertToolbarPersistence(true, visibilityDelegate);
     }
 
@@ -206,7 +206,7 @@ public class TabbedPaintPreviewTest {
     public void testProgressbar() throws ExecutionException {
         Tab tab = mActivityTestRule.getActivity().getActivityTab();
         TabbedPaintPreview tabbedPaintPreview =
-                TestThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
+                ThreadUtils.runOnUiThreadBlocking(() -> TabbedPaintPreview.get(tab));
 
         CallbackHelper simulateCallback = new CallbackHelper();
         BooleanCallbackHelper preventionCallback = new BooleanCallbackHelper();
@@ -222,7 +222,7 @@ public class TabbedPaintPreviewTest {
         assertProgressbarUpdatePreventionCallback(false, preventionCallback);
 
         // Paint Preview showing in the current tab.
-        TestThreadUtils.runOnUiThreadBlocking(() -> tabbedPaintPreview.maybeShow(emptyListener));
+        ThreadUtils.runOnUiThreadBlocking(() -> tabbedPaintPreview.maybeShow(emptyListener));
         assertProgressbarUpdatePreventionCallback(true, preventionCallback);
 
         // Switch to a new tab that doesn't show paint preview.
@@ -232,13 +232,16 @@ public class TabbedPaintPreviewTest {
         assertProgressbarUpdatePreventionCallback(false, preventionCallback);
 
         // Close the new tab, we should be back at the old tab with the paint preview showing.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mActivityTestRule
                                 .getActivity()
                                 .getTabModelSelector()
                                 .getCurrentModel()
-                                .closeTab(newTab));
+                                .getTabRemover()
+                                .closeTabs(
+                                        TabClosureParams.closeTab(newTab).allowUndo(false).build(),
+                                        /* allowDialog= */ false));
         assertProgressbarUpdatePreventionCallback(true, preventionCallback);
 
         // Remove paint preview.
@@ -246,7 +249,7 @@ public class TabbedPaintPreviewTest {
                 "Should have not requested progressbar fill simulation.",
                 0,
                 simulateCallback.getCallCount());
-        TestThreadUtils.runOnUiThreadBlocking(() -> tabbedPaintPreview.remove(false, false));
+        ThreadUtils.runOnUiThreadBlocking(() -> tabbedPaintPreview.remove(false, false));
         Assert.assertEquals(
                 "Should have requested progressbar fill simulation.",
                 1,
@@ -322,8 +325,8 @@ public class TabbedPaintPreviewTest {
         public int showControlsPersistent() {
             Assert.assertEquals(
                     "Lock toolbar persistence is called before releasing a " + "previous token.",
-                    mLastToken,
-                    TokenHolder.INVALID_TOKEN);
+                    TokenHolder.INVALID_TOKEN,
+                    mLastToken);
             mLastToken = super.showControlsPersistent();
             return mLastToken;
         }
@@ -351,7 +354,7 @@ public class TabbedPaintPreviewTest {
                 boolean mainFrameMode,
                 @NonNull CompositorListener compositorListener,
                 Callback<Integer> compositorErrorCallback) {
-            Assert.assertEquals(nativeCaptureResultPtr, 0);
+            Assert.assertEquals(0, nativeCaptureResultPtr);
             Assert.assertFalse(mainFrameMode);
             new Handler()
                     .postDelayed(

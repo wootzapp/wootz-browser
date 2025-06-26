@@ -14,11 +14,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.TestFileUtil;
 import org.chromium.chrome.browser.download.items.OfflineContentAggregatorFactory;
-import org.chromium.chrome.browser.profiles.OTRProfileID;
+import org.chromium.chrome.browser.profiles.OtrProfileId;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ReducedModeNativeTestRule;
 import org.chromium.components.offline_items_collection.ContentId;
@@ -26,7 +27,6 @@ import org.chromium.components.offline_items_collection.OfflineContentProvider;
 import org.chromium.components.offline_items_collection.OfflineItem;
 import org.chromium.components.offline_items_collection.OfflineItemState;
 import org.chromium.components.offline_items_collection.UpdateDelta;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServerRule;
 import org.chromium.url.GURL;
 
@@ -52,7 +52,7 @@ public final class ServicificationDownloadTest {
                 String filePath,
                 String fileName,
                 long systemDownloadId,
-                OTRProfileID otrProfileID,
+                OtrProfileId otrProfileId,
                 boolean isSupportedMimeType,
                 boolean isOpenable,
                 Bitmap icon,
@@ -62,11 +62,6 @@ public final class ServicificationDownloadTest {
                 long totalBytes) {
             mDownloadCompleted = true;
             return 0;
-        }
-
-        public void waitForDownloadCompletion() {
-            CriteriaHelper.pollUiThread(
-                    () -> mDownloadCompleted, "Failed waiting for the download to complete.");
         }
     }
 
@@ -92,7 +87,7 @@ public final class ServicificationDownloadTest {
 
     @Before
     public void setUp() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mNotificationService = new MockDownloadNotificationService();
                     mDownloadUpdateObserver = new DownloadUpdateObserver();
@@ -113,7 +108,7 @@ public final class ServicificationDownloadTest {
                         + "/test.gzip";
         TestFileUtil.deleteFile(tempFile);
         final String url = mEmbeddedTestServerRule.getServer().getURL(TEST_DOWNLOAD_FILE);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     DownloadManagerService downloadManagerService =
                             DownloadManagerService.getDownloadManagerService();

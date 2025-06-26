@@ -4,19 +4,22 @@
 
 #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_item_view.h"
 
+#include <array>
+
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "build/build_config.h"
+#include "chrome/browser/feedback/show_feedback_page.h"
 #include "chrome/browser/flag_descriptions.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_model.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/grit/generated_resources.h"
-#include "components/flags_ui/feature_entry.h"
+#include "components/user_education/common/new_badge/new_badge_controller.h"
 #include "components/user_education/views/new_badge_label.h"
+#include "components/webui/flags/feature_entry.h"
 #include "extensions/browser/api/feedback_private/feedback_private_api.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -85,7 +88,7 @@ class LabsComboboxModel : public ui::ComboboxModel {
         description_translation_id = IDS_CHROMELABS_DISABLED;
       }
     } else {
-      const int kEnableDisableDescriptions[] = {
+      static constexpr std::array kEnableDisableDescriptions{
           IDS_CHROMELABS_DEFAULT,
           IDS_CHROMELABS_ENABLED,
           IDS_CHROMELABS_DISABLED,
@@ -117,16 +120,11 @@ ChromeLabsItemView::ChromeLabsItemView(
       ->SetOrientation(views::LayoutOrientation::kVertical);
   SetBorder(views::CreateEmptyBorder(
       gfx::Insets::VH(ChromeLayoutProvider::Get()->GetDistanceMetric(
-                          DISTANCE_CONTROL_LIST_VERTICAL),
+                          views::DISTANCE_CONTROL_LIST_VERTICAL),
                       0)));
 
   experiment_name_ = AddChildView(
       std::make_unique<user_education::NewBadgeLabel>(lab.visible_name));
-  // The NewBadgeLabel’s default visibility is true. However, we only want the
-  // new badge to show if PrefService conditions are met. Here we set the
-  // default to false. Then, when the bubble is being shown the view controller
-  // will set the NewBadgeLabel’s visibility to true if applicable.
-  experiment_name_->SetDisplayNewBadge(false);
   experiment_name_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   experiment_name_->SetBadgePlacement(
       user_education::NewBadgeLabel::BadgePlacement::kImmediatelyAfterText);
@@ -158,24 +156,26 @@ ChromeLabsItemView::ChromeLabsItemView(
   experiment_name_->GetViewAccessibility().SetIsIgnored(true);
   experiment_description->GetViewAccessibility().SetIsIgnored(true);
   GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
-  if (!lab.visible_name.empty())
+  if (!lab.visible_name.empty()) {
     GetViewAccessibility().SetName(lab.visible_name,
                                    ax::mojom::NameFrom::kAttribute);
+  }
 
-    // There is currently a MacOS VoiceOver screen reader bug where VoiceOver
-    // does not announce the accessible description for groups
-    // (crbug.com/1197159). The MacOS specific code here provides a temporary
-    // mitigation for screen reader users and moves announcing the description
-    // to when the user interacts with the combobox of that experiment. Don’t
-    // add an accessible description for now to prevent the screen reader from
-    // announcing the description twice in the time between when the VoiceOver
-    // bug is fixed and this code gets removed.
-    // TODO(elainechien): Remove MacOS specific code for experiment description
-    // when VoiceOver bug is fixed.
+  // There is currently a MacOS VoiceOver screen reader bug where VoiceOver
+  // does not announce the accessible description for groups
+  // (crbug.com/1197159). The MacOS specific code here provides a temporary
+  // mitigation for screen reader users and moves announcing the description
+  // to when the user interacts with the combobox of that experiment. Don’t
+  // add an accessible description for now to prevent the screen reader from
+  // announcing the description twice in the time between when the VoiceOver
+  // bug is fixed and this code gets removed.
+  // TODO(elainechien): Remove MacOS specific code for experiment description
+  // when VoiceOver bug is fixed.
 
 #if !BUILDFLAG(IS_MAC)
-  if (!lab.visible_description.empty())
+  if (!lab.visible_description.empty()) {
     GetViewAccessibility().SetDescription(lab.visible_description);
+  }
 #endif
 
   AddChildView(
@@ -223,7 +223,13 @@ ChromeLabsItemView::ChromeLabsItemView(
                           0, 0))
                   .SetProperty(
                       views::kFlexBehaviorKey,
+                      // FlexSpecification has multiple constructors, and if no
+                      // direction is specified, the settings will be used in
+                      // both horizontal and vertical directions. Therefore, we
+                      // must specify the horizontal direction. Otherwise, the
+                      // vertical height will be stretched.
                       views::FlexSpecification(
+                          views::LayoutOrientation::kHorizontal,
                           views::MinimumFlexSizeRule::kPreferred,
                           views::MaximumFlexSizeRule::kUnbounded)
                           .WithAlignment(views::LayoutAlignment::kEnd)))
@@ -238,8 +244,9 @@ std::optional<size_t> ChromeLabsItemView::GetSelectedIndex() const {
 
 // Same as NewBadgeLabel::SetDisplayNewBadge this should only be called before
 // the label is shown.
-void ChromeLabsItemView::ShowNewBadge() {
-  experiment_name_->SetDisplayNewBadge(true);
+void ChromeLabsItemView::SetShowNewBadge(
+    user_education::DisplayNewBadge show_new_badge) {
+  experiment_name_->SetDisplayNewBadge(show_new_badge);
 }
 
 const flags_ui::FeatureEntry* ChromeLabsItemView::GetFeatureEntry() {

@@ -9,7 +9,6 @@
 #include "mojo/public/cpp/bindings/associated_receiver_set.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "third_party/blink/public/mojom/bluetooth/web_bluetooth.mojom-blink.h"
-#include "third_party/blink/renderer/bindings/core/v8/callback_promise_adapter.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
@@ -56,6 +55,7 @@ void BluetoothRemoteGATTServer::CleanupDisconnectedDeviceAndFireEvent() {
   connected_ = false;
   active_algorithms_.clear();
   device_->ClearAttributeInstanceMapAndFireEvent();
+  feature_handle_for_scheduler_.reset();
 }
 
 void BluetoothRemoteGATTServer::DispatchDisconnected() {
@@ -81,6 +81,10 @@ void BluetoothRemoteGATTServer::ConnectCallback(
 
   if (result == mojom::blink::WebBluetoothResult::SUCCESS) {
     connected_ = true;
+    feature_handle_for_scheduler_ =
+        resolver->GetExecutionContext()->GetScheduler()->RegisterFeature(
+            SchedulingPolicy::Feature::kWebBluetooth,
+            SchedulingPolicy{SchedulingPolicy::DisableAggressiveThrottling()});
     resolver->Resolve(this);
   } else {
     resolver->Reject(BluetoothError::CreateDOMException(result));
@@ -100,7 +104,7 @@ ScriptPromise<BluetoothRemoteGATTServer> BluetoothRemoteGATTServer::connect(
         DOMExceptionCode::kNetworkError,
         BluetoothError::CreateNotConnectedExceptionMessage(
             BluetoothOperation::kServicesRetrieval));
-    return ScriptPromise<BluetoothRemoteGATTServer>();
+    return EmptyPromise();
   }
 
   mojom::blink::WebBluetoothService* service =
@@ -197,14 +201,14 @@ BluetoothRemoteGATTServer::getPrimaryService(
     ExceptionState& exception_state) {
   String service_uuid = BluetoothUUID::getService(service, exception_state);
   if (exception_state.HadException())
-    return ScriptPromise<BluetoothRemoteGATTService>();
+    return EmptyPromise();
 
   if (!connected_ || !device_->GetBluetooth()->IsServiceBound()) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNetworkError,
         BluetoothError::CreateNotConnectedExceptionMessage(
             BluetoothOperation::kServicesRetrieval));
-    return ScriptPromise<BluetoothRemoteGATTService>();
+    return EmptyPromise();
   }
 
   auto* resolver =

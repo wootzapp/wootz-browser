@@ -12,10 +12,14 @@
 #include "base/android/jni_android.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "content/browser/android/render_widget_host_connector.h"
+#include "content/browser/navigation_transitions/back_forward_transition_animator.h"
 #include "content/browser/renderer_host/navigation_controller_android.h"
 #include "content/browser/renderer_host/render_widget_host_view_android.h"
 #include "content/common/content_export.h"
+#include "content/public/browser/back_forward_transition_animation_manager.h"
 #include "third_party/blink/public/mojom/input/input_handler.mojom-forward.h"
+#include "ui/android/browser_controls_offset_tag_definitions.h"
 
 class GURL;
 
@@ -39,6 +43,8 @@ class CONTENT_EXPORT WebContentsAndroid {
   WebContentsAndroid& operator=(const WebContentsAndroid&) = delete;
 
   ~WebContentsAndroid();
+
+  void Init();
 
   WebContentsImpl* web_contents() const { return web_contents_; }
 
@@ -92,9 +98,7 @@ class CONTENT_EXPORT WebContentsAndroid {
 
   void ResumeLoadingCreatedWebContents(JNIEnv* env);
 
-  void OnHide(JNIEnv* env);
-  void OnShow(JNIEnv* env);
-  void SetImportance(JNIEnv* env, jint importance);
+  void SetPrimaryMainFrameImportance(JNIEnv* env, jint importance);
   void SuspendAllMediaPlayers(JNIEnv* env);
   void SetAudioMuted(JNIEnv* env, jboolean mute);
   jboolean IsAudioMuted(JNIEnv* env);
@@ -186,9 +190,6 @@ class CONTENT_EXPORT WebContentsAndroid {
   base::android::ScopedJavaLocalRef<jobject> GetOrCreateEventForwarder(
       JNIEnv* env);
 
-  void SetMediaSession(
-      const base::android::ScopedJavaLocalRef<jobject>& j_media_session);
-
   void SendOrientationChangeEvent(JNIEnv* env, jint orientation);
 
   void OnScaleFactorChanged(JNIEnv* env);
@@ -200,6 +201,13 @@ class CONTENT_EXPORT WebContentsAndroid {
                                 int left,
                                 int bottom,
                                 int right);
+
+  void SetContextMenuInsets(JNIEnv* env,
+                            int top,
+                            int left,
+                            int bottom,
+                            int right);
+
   void NotifyRendererPreferenceUpdate(JNIEnv* env);
 
   void NotifyBrowserControlsHeightChanged(JNIEnv* env);
@@ -209,12 +217,13 @@ class CONTENT_EXPORT WebContentsAndroid {
   base::android::ScopedJavaLocalRef<jobject> GetRenderWidgetHostView(
       JNIEnv* env);
 
-  base::android::ScopedJavaLocalRef<jobjectArray> GetInnerWebContents(
-      JNIEnv* env);
-
   jint GetVisibility(JNIEnv* env);
 
-  void UpdateWebContentsVisibility(JNIEnv* env, jint visibiity);
+  void UpdateWebContentsVisibility(JNIEnv* env, jint visibility);
+
+  void UpdateOffsetTagDefinitions(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& joffset_tag_definitions);
 
   RenderWidgetHostViewAndroid* GetRenderWidgetHostViewAndroid();
 
@@ -227,6 +236,20 @@ class CONTENT_EXPORT WebContentsAndroid {
 
   void AddDestructionObserver(DestructionObserver* observer);
   void RemoveDestructionObserver(DestructionObserver* observer);
+
+  void OnContentForNavigationEntryShown(JNIEnv* env);
+  jint GetCurrentBackForwardTransitionStage(JNIEnv* env);
+
+  void CaptureContentAsBitmapForTesting(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& jcallback);
+  void OnFinishGetContentBitmapForTesting(
+      const base::android::JavaRef<jobject>& callback,
+      gfx::Image snapshot);
+
+  void SetLongPressLinkSelectText(JNIEnv* env, jboolean enabled);
+
+  void SetSupportsForwardTransitionAnimation(JNIEnv* env, jboolean enabled);
 
   // Adds a crash report, like DumpWithoutCrashing(), including the Java stack
   // trace from which `web_contents` was created. This is meant to help debug
@@ -251,7 +274,7 @@ class CONTENT_EXPORT WebContentsAndroid {
       const base::android::JavaRef<jobject>& view_structure_root,
       const base::android::JavaRef<jobject>& view_structure_builder,
       const base::android::JavaRef<jobject>& callback,
-      const ui::AXTreeUpdate& result);
+      ui::AXTreeUpdate& result);
 
   raw_ptr<WebContentsImpl> web_contents_;
 
@@ -259,6 +282,25 @@ class CONTENT_EXPORT WebContentsAndroid {
   base::android::ScopedJavaGlobalRef<jobject> obj_;
 
   base::ObserverList<DestructionObserver> destruction_observers_;
+
+  class BrowserControlsOffsetTagMediator : public RenderWidgetHostConnector {
+   public:
+    explicit BrowserControlsOffsetTagMediator(WebContents* web_contents);
+    ~BrowserControlsOffsetTagMediator() override;
+
+    void SetOffsetTagDefinitions(const ui::BrowserControlsOffsetTagDefinitions&
+                                     new_offset_tag_definitions);
+
+    void UpdateRenderProcessConnection(
+        RenderWidgetHostViewAndroid* old_rwhva,
+        RenderWidgetHostViewAndroid* new_rhwva) override;
+
+   private:
+    raw_ptr<RenderWidgetHostViewAndroid> rwhva_ = nullptr;
+    ui::BrowserControlsOffsetTagDefinitions offset_tag_definitions_;
+  };
+
+  raw_ptr<BrowserControlsOffsetTagMediator> offset_tag_mediator_ = nullptr;
 
   base::WeakPtrFactory<WebContentsAndroid> weak_factory_{this};
 };

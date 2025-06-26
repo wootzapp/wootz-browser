@@ -11,9 +11,12 @@
 #include "base/test/task_environment.h"
 #include "components/optimization_guide/core/model_execution/feature_keys.h"
 #include "components/optimization_guide/core/model_execution/model_execution_features.h"
+#include "components/optimization_guide/core/model_execution/model_execution_prefs.h"
 #include "components/optimization_guide/core/model_execution/on_device_model_feature_adapter.h"
-#include "components/optimization_guide/core/model_execution/test_on_device_model_component.h"
+#include "components/optimization_guide/core/model_execution/test/fake_model_assets.h"
+#include "components/optimization_guide/core/model_execution/test/test_on_device_model_component_state_manager.h"
 #include "components/optimization_guide/core/optimization_guide_constants.h"
+#include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/core/test_model_info_builder.h"
 #include "components/optimization_guide/core/test_optimization_guide_model_provider.h"
 #include "components/optimization_guide/proto/on_device_base_model_metadata.pb.h"
@@ -24,14 +27,17 @@ namespace optimization_guide {
 
 namespace {
 
-constexpr char kBaseModelName[] = "test_model";
-constexpr char kBaseModelVersion[] = "1";
+constexpr char kBaseModelName[] = "Test";
+constexpr char kBaseModelVersion[] = "0.0.1";
 
 proto::Any CreateOnDeviceBaseModelMetadata(
     const OnDeviceBaseModelSpec& model_spec) {
   proto::OnDeviceBaseModelMetadata model_metadata;
   model_metadata.set_base_model_name(model_spec.model_name);
   model_metadata.set_base_model_version(model_spec.model_version);
+  *model_metadata.mutable_supported_performance_hints() = {
+      model_spec.supported_performance_hints.begin(),
+      model_spec.supported_performance_hints.end()};
 
   std::string serialized_metadata;
   model_metadata.SerializeToString(&serialized_metadata);
@@ -80,27 +86,34 @@ class OnDeviceModelAdaptationLoaderTest : public testing::Test {
   void SetUp() override {
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
     feature_list_.InitWithFeaturesAndParameters(
-        {{features::internal::kOnDeviceModelTestFeature,
-          {{"enable_adaptation", "true"}}}},
+        {{features::internal::kOnDeviceModelTestFeature, {}},
+         {features::kOptimizationGuideModelExecution, {}},
+         {features::kOptimizationGuideOnDeviceModel, {}}},
         {});
+    model_execution::prefs::RegisterLocalStatePrefs(local_state_.registry());
+    local_state_.SetInteger(
+        model_execution::prefs::localstate::kOnDevicePerformanceClass,
+        base::to_underlying(OnDeviceModelPerformanceClass::kHigh));
+
+    on_device_component_state_manager_.get()->OnDeviceEligibleFeatureUsed(
+        ModelBasedCapabilityKey::kTest);
+    task_environment_.RunUntilIdle();
 
     adaptation_loader_ = std::make_unique<OnDeviceModelAdaptationLoader>(
         ModelBasedCapabilityKey::kTest, &model_provider_,
-        on_device_component_state_manager_.get()->GetWeakPtr(),
+        on_device_component_state_manager_.get()->GetWeakPtr(), &local_state_,
         base::BindRepeating(
             &OnDeviceModelAdaptationLoaderTest::OnModelAdaptationLoaded,
             base::Unretained(this)));
+    task_environment_.RunUntilIdle();
   }
 
   void SetNullBaseModelStateChanged() {
     adaptation_loader_->StateChanged(nullptr);
   }
 
-  void SetBaseModelStateChanged(
-      std::optional<OnDeviceBaseModelSpec> model_spec) {
-    OnDeviceModelComponentState component_state;
-    component_state.model_spec_ = model_spec;
-    adaptation_loader_->StateChanged(&component_state);
+  void SetBaseModelStateChanged() {
+    on_device_component_state_manager_.SetReady(base_model_asset_);
   }
 
   void SendAdaptationModelUpdated(
@@ -108,6 +121,11 @@ class OnDeviceModelAdaptationLoaderTest : public testing::Test {
     adaptation_loader_->OnModelUpdated(
         proto::OptimizationTarget::OPTIMIZATION_TARGET_MODEL_VALIDATION,
         model_info);
+  }
+
+  void InvokeOnDeviceEligibleFeatureFirstUsed() {
+    adaptation_loader_->OnDeviceEligibleFeatureFirstUsed(
+        ModelBasedCapabilityKey::kTest);
   }
 
   base::FilePath temp_dir() const { return temp_dir_.GetPath(); }
@@ -120,10 +138,11 @@ class OnDeviceModelAdaptationLoaderTest : public testing::Test {
 
   base::test::ScopedFeatureList feature_list_;
   base::test::TaskEnvironment task_environment_;
-  TestingPrefServiceSimple pref_service_;
+  TestingPrefServiceSimple local_state_;
+  FakeBaseModelAsset base_model_asset_;
   base::ScopedTempDir temp_dir_;
   TestOnDeviceModelComponentStateManager on_device_component_state_manager_{
-      &pref_service_};
+      &local_state_};
   FakeOptimizationGuideModelProvider model_provider_;
   std::unique_ptr<OnDeviceModelAdaptationLoader> adaptation_loader_;
   std::unique_ptr<OnDeviceModelAdaptationMetadata> adaptation_metadata_;
@@ -139,32 +158,8 @@ TEST_F(OnDeviceModelAdaptationLoaderTest, BaseModelUnavailable) {
   EXPECT_FALSE(adaptation_metadata_);
 }
 
-TEST_F(OnDeviceModelAdaptationLoaderTest, BaseModelSpecInvalid) {
-  SetBaseModelStateChanged(std::nullopt);
-  EXPECT_FALSE(model_provider_.optimization_target_);
-  histogram_tester_.ExpectUniqueSample(
-      "OptimizationGuide.ModelExecution.OnDeviceAdaptationModelAvailability."
-      "Test",
-      OnDeviceModelAdaptationAvailability::kBaseModelSpecInvalid, 1);
-  EXPECT_FALSE(adaptation_metadata_);
-}
-
-TEST_F(OnDeviceModelAdaptationLoaderTest, AdaptationModelUnavailable) {
-  SetBaseModelStateChanged(
-      OnDeviceBaseModelSpec{kBaseModelName, kBaseModelVersion});
-  EXPECT_EQ(proto::OptimizationTarget::OPTIMIZATION_TARGET_MODEL_VALIDATION,
-            model_provider_.optimization_target_);
-  SendAdaptationModelUpdated(std::nullopt);
-  histogram_tester_.ExpectUniqueSample(
-      "OptimizationGuide.ModelExecution.OnDeviceAdaptationModelAvailability."
-      "Test",
-      OnDeviceModelAdaptationAvailability::kAdaptationModelUnavailable, 1);
-  EXPECT_FALSE(adaptation_metadata_);
-}
-
 TEST_F(OnDeviceModelAdaptationLoaderTest, AdaptationModelInvalid) {
-  SetBaseModelStateChanged(
-      OnDeviceBaseModelSpec{kBaseModelName, kBaseModelVersion});
+  SetBaseModelStateChanged();
   EXPECT_EQ(proto::OptimizationTarget::OPTIMIZATION_TARGET_MODEL_VALIDATION,
             model_provider_.optimization_target_);
 
@@ -179,8 +174,7 @@ TEST_F(OnDeviceModelAdaptationLoaderTest, AdaptationModelInvalid) {
 }
 
 TEST_F(OnDeviceModelAdaptationLoaderTest, AdaptationModelIncompatible) {
-  SetBaseModelStateChanged(
-      OnDeviceBaseModelSpec{kBaseModelName, kBaseModelVersion});
+  SetBaseModelStateChanged();
   EXPECT_EQ(proto::OptimizationTarget::OPTIMIZATION_TARGET_MODEL_VALIDATION,
             model_provider_.optimization_target_);
 
@@ -188,7 +182,7 @@ TEST_F(OnDeviceModelAdaptationLoaderTest, AdaptationModelIncompatible) {
   TestModelInfoBuilder model_info_builder;
   model_info_builder
       .SetModelMetadata(CreateOnDeviceBaseModelMetadata(
-          {"different_base_model_name", kBaseModelVersion}))
+          {"different_base_model_name", kBaseModelVersion, {}}))
       .SetAdditionalFiles({
           temp_dir().Append(kOnDeviceModelAdaptationWeightsFile),
       });
@@ -202,15 +196,14 @@ TEST_F(OnDeviceModelAdaptationLoaderTest, AdaptationModelIncompatible) {
 
 TEST_F(OnDeviceModelAdaptationLoaderTest,
        AdaptationModelInvalidWithoutExecutionConfig) {
-  SetBaseModelStateChanged(
-      OnDeviceBaseModelSpec{kBaseModelName, kBaseModelVersion});
+  SetBaseModelStateChanged();
   EXPECT_EQ(proto::OptimizationTarget::OPTIMIZATION_TARGET_MODEL_VALIDATION,
             model_provider_.optimization_target_);
 
   TestModelInfoBuilder model_info_builder;
   model_info_builder
-      .SetModelMetadata(
-          CreateOnDeviceBaseModelMetadata({kBaseModelName, kBaseModelVersion}))
+      .SetModelMetadata(CreateOnDeviceBaseModelMetadata(
+          {kBaseModelName, kBaseModelVersion, {}}))
       .SetAdditionalFiles({
           temp_dir().Append(kOnDeviceModelAdaptationWeightsFile),
           temp_dir().Append(kOnDeviceModelExecutionConfigFile),
@@ -229,15 +222,14 @@ TEST_F(OnDeviceModelAdaptationLoaderTest,
 
 TEST_F(OnDeviceModelAdaptationLoaderTest,
        AdaptationModelInvalidMissingExecutionConfig) {
-  SetBaseModelStateChanged(
-      OnDeviceBaseModelSpec{kBaseModelName, kBaseModelVersion});
+  SetBaseModelStateChanged();
   EXPECT_EQ(proto::OptimizationTarget::OPTIMIZATION_TARGET_MODEL_VALIDATION,
             model_provider_.optimization_target_);
 
   TestModelInfoBuilder model_info_builder;
   model_info_builder
-      .SetModelMetadata(
-          CreateOnDeviceBaseModelMetadata({kBaseModelName, kBaseModelVersion}))
+      .SetModelMetadata(CreateOnDeviceBaseModelMetadata(
+          {kBaseModelName, kBaseModelVersion, {}}))
       .SetAdditionalFiles({
           temp_dir().Append(kOnDeviceModelAdaptationWeightsFile),
       });
@@ -258,15 +250,14 @@ TEST_F(OnDeviceModelAdaptationLoaderTest,
 
 TEST_F(OnDeviceModelAdaptationLoaderTest,
        AdaptationModelInvalidMultipleFeaturesInExecutionConfig) {
-  SetBaseModelStateChanged(
-      OnDeviceBaseModelSpec{kBaseModelName, kBaseModelVersion});
+  SetBaseModelStateChanged();
   EXPECT_EQ(proto::OptimizationTarget::OPTIMIZATION_TARGET_MODEL_VALIDATION,
             model_provider_.optimization_target_);
 
   TestModelInfoBuilder model_info_builder;
   model_info_builder
-      .SetModelMetadata(
-          CreateOnDeviceBaseModelMetadata({kBaseModelName, kBaseModelVersion}))
+      .SetModelMetadata(CreateOnDeviceBaseModelMetadata(
+          {kBaseModelName, kBaseModelVersion, {}}))
       .SetAdditionalFiles({
           temp_dir().Append(kOnDeviceModelAdaptationWeightsFile),
       });
@@ -290,15 +281,14 @@ TEST_F(OnDeviceModelAdaptationLoaderTest,
 }
 
 TEST_F(OnDeviceModelAdaptationLoaderTest, AdaptationModelValid) {
-  SetBaseModelStateChanged(
-      OnDeviceBaseModelSpec{kBaseModelName, kBaseModelVersion});
+  SetBaseModelStateChanged();
   EXPECT_EQ(proto::OptimizationTarget::OPTIMIZATION_TARGET_MODEL_VALIDATION,
             model_provider_.optimization_target_);
 
   TestModelInfoBuilder model_info_builder;
   model_info_builder
-      .SetModelMetadata(
-          CreateOnDeviceBaseModelMetadata({kBaseModelName, kBaseModelVersion}))
+      .SetModelMetadata(CreateOnDeviceBaseModelMetadata(
+          {kBaseModelName, kBaseModelVersion, {}}))
       .SetAdditionalFiles({
           temp_dir().Append(kOnDeviceModelAdaptationWeightsFile),
           temp_dir().Append(kOnDeviceModelExecutionConfigFile),
@@ -318,7 +308,81 @@ TEST_F(OnDeviceModelAdaptationLoaderTest, AdaptationModelValid) {
       OnDeviceModelAdaptationAvailability::kAvailable, 1);
   EXPECT_TRUE(adaptation_metadata_);
   EXPECT_EQ(base::FilePath(kOnDeviceModelAdaptationWeightsFile),
-            adaptation_metadata_->asset_paths().weights.BaseName());
+            adaptation_metadata_->asset_paths()->weights.BaseName());
+}
+
+TEST_F(OnDeviceModelAdaptationLoaderTest, AdaptationModelValidWithoutWeights) {
+  SetBaseModelStateChanged();
+  EXPECT_EQ(proto::OptimizationTarget::OPTIMIZATION_TARGET_MODEL_VALIDATION,
+            model_provider_.optimization_target_);
+
+  TestModelInfoBuilder model_info_builder;
+  model_info_builder
+      .SetModelMetadata(CreateOnDeviceBaseModelMetadata(
+          {kBaseModelName, kBaseModelVersion, {}}))
+      .SetAdditionalFiles({
+          temp_dir().Append(kOnDeviceModelExecutionConfigFile),
+      });
+
+  proto::OnDeviceModelExecutionConfig config;
+  config.add_feature_configs()->set_feature(
+      proto::MODEL_EXECUTION_FEATURE_TEST);
+  WriteConfigToFile(temp_dir().Append(kOnDeviceModelExecutionConfigFile),
+                    config);
+
+  SendAdaptationModelUpdated(model_info_builder.Build().get());
+  task_environment_.RunUntilIdle();
+  histogram_tester_.ExpectUniqueSample(
+      "OptimizationGuide.ModelExecution.OnDeviceAdaptationModelAvailability."
+      "Test",
+      OnDeviceModelAdaptationAvailability::kAvailable, 1);
+  EXPECT_TRUE(adaptation_metadata_);
+  EXPECT_FALSE(adaptation_metadata_->asset_paths());
+}
+
+TEST_F(OnDeviceModelAdaptationLoaderTest,
+       AdaptationModelDownloadRegisteredWhenFeatureFirstUsed) {
+  // With the feature as not used yet, model observer won't be registered.
+  local_state_.ClearPref(
+      model_execution::prefs::localstate::kLastUsageByFeature);
+  SetBaseModelStateChanged();
+  EXPECT_FALSE(model_provider_.optimization_target_);
+  histogram_tester_.ExpectUniqueSample(
+      "OptimizationGuide.ModelExecution.OnDeviceAdaptationModelAvailability."
+      "Test",
+      OnDeviceModelAdaptationAvailability::kFeatureNotRecentlyUsed, 1);
+
+  // When the feature is used, observer will be registered.
+  model_execution::prefs::RecordFeatureUsage(&local_state_,
+                                             ModelBasedCapabilityKey::kTest);
+  InvokeOnDeviceEligibleFeatureFirstUsed();
+  EXPECT_EQ(proto::OptimizationTarget::OPTIMIZATION_TARGET_MODEL_VALIDATION,
+            model_provider_.optimization_target_);
+
+  TestModelInfoBuilder model_info_builder;
+  model_info_builder
+      .SetModelMetadata(CreateOnDeviceBaseModelMetadata(
+          {kBaseModelName, kBaseModelVersion, {}}))
+      .SetAdditionalFiles({
+          temp_dir().Append(kOnDeviceModelAdaptationWeightsFile),
+          temp_dir().Append(kOnDeviceModelExecutionConfigFile),
+      });
+
+  proto::OnDeviceModelExecutionConfig config;
+  config.add_feature_configs()->set_feature(
+      proto::MODEL_EXECUTION_FEATURE_TEST);
+  WriteConfigToFile(temp_dir().Append(kOnDeviceModelExecutionConfigFile),
+                    config);
+
+  SendAdaptationModelUpdated(model_info_builder.Build().get());
+  task_environment_.RunUntilIdle();
+  histogram_tester_.ExpectBucketCount(
+      "OptimizationGuide.ModelExecution.OnDeviceAdaptationModelAvailability."
+      "Test",
+      OnDeviceModelAdaptationAvailability::kAvailable, 1);
+  EXPECT_TRUE(adaptation_metadata_);
+  EXPECT_EQ(base::FilePath(kOnDeviceModelAdaptationWeightsFile),
+            adaptation_metadata_->asset_paths()->weights.BaseName());
 }
 
 }  // namespace optimization_guide

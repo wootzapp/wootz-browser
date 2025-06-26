@@ -12,7 +12,6 @@
 
 #include "base/functional/callback.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr_exclusion.h"
 #include "base/time/time.h"
 #include "media/base/audio_decoder_config.h"
 #include "media/base/channel_layout.h"
@@ -20,6 +19,10 @@
 #include "media/base/media_export.h"
 #include "media/base/subsample_entry.h"
 #include "media/base/video_codecs.h"
+#include "media/base/video_color_space.h"
+#include "media/base/video_frame.h"
+#include "media/base/video_types.h"
+#include "media/base/win/dxgi_device_manager.h"
 #include "media/media_buildflags.h"
 
 struct ID3D11DeviceChild;
@@ -29,7 +32,9 @@ class IMFMediaType;
 namespace media {
 
 // Helper function to print HRESULT to std::string.
-const auto PrintHr = logging::SystemErrorCodeToString;
+inline std::string PrintHr(logging::SystemErrorCode error_code) {
+  return logging::SystemErrorCodeToString(error_code);
+}
 
 // Helper macro for DVLOG with function name and this pointer.
 #define DVLOG_FUNC(level) DVLOG(level) << __func__ << ": (" << this << ") "
@@ -44,7 +49,7 @@ const auto PrintHr = logging::SystemErrorCodeToString;
   do {                                                                  \
     HRESULT hresult = (expr);                                           \
     if (FAILED(hresult)) {                                              \
-      DLOG(ERROR) << __func__ << ": failed with \"" << PrintHr(hresult) \
+      LOG(ERROR) << __func__ << ": failed with \"" << PrintHr(hresult) \
                   << "\"";                                              \
       return hresult;                                                   \
     }                                                                   \
@@ -53,7 +58,7 @@ const auto PrintHr = logging::SystemErrorCodeToString;
 #define RETURN_ON_FAILURE(success, log, ret) \
   do {                                       \
     if (!(success)) {                        \
-      DLOG(ERROR) << log;                    \
+      LOG(ERROR) << log;                    \
       return ret;                            \
     }                                        \
   } while (0)
@@ -78,17 +83,11 @@ class MEDIA_EXPORT MediaBufferScopedPointer {
 
   ~MediaBufferScopedPointer();
 
-  uint8_t* get() { return buffer_; }
-  DWORD current_length() const { return current_length_; }
-  DWORD max_length() const { return max_length_; }
+  base::span<uint8_t> as_span() { return data_; }
 
  private:
   Microsoft::WRL::ComPtr<IMFMediaBuffer> media_buffer_;
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #addr-of
-  RAW_PTR_EXCLUSION uint8_t* buffer_;
-  DWORD max_length_;
-  DWORD current_length_;
+  base::raw_span<uint8_t> data_;
 };
 
 // Copies |in_string| to |out_string| that is allocated with CoTaskMemAlloc().
@@ -175,6 +174,14 @@ MEDIA_EXPORT GUID
 VideoCodecToMFSubtype(VideoCodec codec,
                       VideoCodecProfile profile = VIDEO_CODEC_PROFILE_UNKNOWN);
 
+// Converts `video_pixel_format` into a MediaFoundation subtype.
+MEDIA_EXPORT GUID
+VideoPixelFormatToMFSubtype(VideoPixelFormat video_pixel_format);
+
+// Converts `primaries` into an MFVideoPrimaries value
+MEDIA_EXPORT MFVideoPrimaries
+VideoPrimariesToMFVideoPrimaries(gfx::ColorSpace::PrimaryID primaries);
+
 // Callback to transform a Media Foundation sample when converting from the
 // DecoderBuffer if needed.
 using TransformSampleCB =
@@ -194,6 +201,28 @@ MEDIA_EXPORT HRESULT
 CreateDecryptConfigFromSample(IMFSample* mf_sample,
                               const GUID& key_id,
                               std::unique_ptr<DecryptConfig>* decrypt_config);
+
+// Converts `frame` into an IMFSample, using an underlying D3D texture,
+// reading back from the GPU, or copying the frame contents as necessary.
+MEDIA_EXPORT HRESULT GenerateSampleFromVideoFrame(
+    const media::VideoFrame* frame,
+    DXGIDeviceManager* dxgi_device_manager,
+    bool use_dxgi_buffer,
+    Microsoft::WRL::ComPtr<ID3D11Texture2D>* staging_texture,
+    DWORD buffer_alignment,
+    IMFSample** sample_out);
+
+class CommandBufferHelper;
+typedef base::OnceCallback<void(scoped_refptr<VideoFrame> frame,
+                                Microsoft::WRL::ComPtr<IMFSample>,
+                                HRESULT)>
+    SampleAvailableCB;
+
+MEDIA_EXPORT void GenerateSampleFromSharedImageVideoFrame(
+    scoped_refptr<VideoFrame> frame,
+    Microsoft::WRL::ComPtr<ID3D11Device> d3d_device,
+    scoped_refptr<CommandBufferHelper> command_buffer_helper,
+    SampleAvailableCB sample_available_cb);
 
 }  // namespace media
 

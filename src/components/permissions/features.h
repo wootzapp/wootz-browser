@@ -16,29 +16,13 @@ namespace features {
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
 BASE_DECLARE_FEATURE(kBackForwardCacheUnblockPermissionRequest);
 
+#if !BUILDFLAG(IS_ANDROID)
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kBlockPromptsIfDismissedOften);
+BASE_DECLARE_FEATURE(kKeyboardLockPrompt);
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kBlockPromptsIfIgnoredOften);
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kBlockRepeatedAutoReauthnPrompts);
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kBlockRepeatedNotificationPermissionPrompts);
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kOneTimePermission);
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kFailFastQuietChip);
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kPermissionElementDialogPositioning);
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kPermissionPredictionServiceUseUrlOverride);
+BASE_DECLARE_FEATURE(kPermissionElementPromptPositioning);
 
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
 BASE_DECLARE_FEATURE(kPermissionOnDeviceNotificationPredictions);
@@ -47,24 +31,24 @@ COMPONENT_EXPORT(PERMISSIONS_COMMON)
 BASE_DECLARE_FEATURE(kPermissionOnDeviceGeolocationPredictions);
 
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kPermissionDedicatedCpssSetting);
+BASE_DECLARE_FEATURE(kPermissionPredictionsV2);
 
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kPermissionPredictionsV2);
+BASE_DECLARE_FEATURE(kPermissionsAIv1);
+
+COMPONENT_EXPORT(PERMISSIONS_COMMON)
+BASE_DECLARE_FEATURE(kPermissionsAIv3);
 
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
 BASE_DECLARE_FEATURE(kPermissionsPromptSurvey);
 
+COMPONENT_EXPORT(PERMISSIONS_COMMON)
+BASE_DECLARE_FEATURE(kAllowMultipleOriginsForWebKioskPermissions);
+
 #if BUILDFLAG(IS_ANDROID)
 
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kBlockNotificationPromptsIfDisabledOnAppLevel);
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
 BASE_DECLARE_FEATURE(kPermissionDedicatedCpssSettingAndroid);
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-BASE_DECLARE_FEATURE(kRecordPermissionExpirationTimestamps);
 
 #else
 
@@ -77,40 +61,36 @@ BASE_DECLARE_FEATURE(kMitigateUnpartitionedWebviewPermissions);
 #endif  // BUILDFLAG(IS_ANDROID)
 
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
+BASE_DECLARE_FEATURE(kPermissionSiteSettingsRadioButton);
+
+COMPONENT_EXPORT(PERMISSIONS_COMMON)
 BASE_DECLARE_FEATURE(kShowRelatedWebsiteSetsPermissionGrants);
 
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
 BASE_DECLARE_FEATURE(kCpssQuietChipTextUpdate);
 
+COMPONENT_EXPORT(PERMISSIONS_COMMON)
+BASE_DECLARE_FEATURE(kCpssUseTfliteSignatureRunner);
+
+COMPONENT_EXPORT(PERMISSIONS_COMMON)
+BASE_DECLARE_FEATURE(kFedCmUpdatedCooldownPeriod);
+
+#if BUILDFLAG(IS_ANDROID)
+COMPONENT_EXPORT(PERMISSIONS_COMMON)
+BASE_DECLARE_FEATURE(kOsAdditionalSecurityPermissionKillSwitch);
+#endif
 }  // namespace features
 namespace feature_params {
 
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-extern const base::FeatureParam<bool> kUseStrongerPromptLanguage;
+enum class PermissionElementPromptPosition {
+  kWindowMiddle,
+  kNearElement,
+  kLegacyPrompt,
+};
 
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
-extern const base::FeatureParam<bool> kUseWhileVisitingLanguage;
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-extern const base::FeatureParam<bool> kShowAllowAlwaysAsFirstButton;
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-extern const base::FeatureParam<base::TimeDelta> kOneTimePermissionTimeout;
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-extern const base::FeatureParam<base::TimeDelta> kOneTimePermissionLongTimeout;
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-extern const base::FeatureParam<std::string>
-    kPermissionPredictionServiceUrlOverride;
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-extern const base::FeatureParam<double>
-    kPermissionOnDeviceGeolocationPredictionsHoldbackChance;
-
-COMPONENT_EXPORT(PERMISSIONS_COMMON)
-extern const base::FeatureParam<double>
-    kPermissionOnDeviceNotificationPredictionsHoldbackChance;
+extern const base::FeatureParam<PermissionElementPromptPosition>
+    kPermissionElementPromptPositioningParam;
 
 COMPONENT_EXPORT(PERMISSIONS_COMMON)
 extern const base::FeatureParam<double> kPermissionPredictionsV2HoldbackChance;
@@ -161,6 +141,22 @@ COMPONENT_EXPORT(PERMISSIONS_COMMON)
 extern const base::FeatureParam<std::string>
     kPermissionPromptSurveyOneTimePromptsDecidedBucket;
 
+COMPONENT_EXPORT(PERMISSIONS_COMMON)
+extern const base::FeatureParam<std::string>
+    kPermissionPromptSurveyPepcPromptPositionFilter;
+
+COMPONENT_EXPORT(PERMISSIONS_COMMON)
+extern const base::FeatureParam<std::string>
+    kPermissionPromptSurveyInitialPermissionStatusFilter;
+
+COMPONENT_EXPORT(PERMISSIONS_COMMON)
+extern const base::FeatureParam<std::string>
+    kWebKioskBrowserPermissionsAllowlist;
+
+#if !BUILDFLAG(IS_ANDROID)
+COMPONENT_EXPORT(PERMISSIONS_COMMON)
+extern const base::FeatureParam<bool> kKeyboardLockPromptUIStyle;
+#endif
 }  // namespace feature_params
 }  // namespace permissions
 

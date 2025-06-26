@@ -7,7 +7,6 @@
 #include <memory>
 #include <utility>
 
-#include "third_party/blink/renderer/bindings/core/v8/callback_promise_adapter.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
@@ -115,7 +114,7 @@ ScriptPromise<IDLUndefined> BluetoothDevice::watchAdvertisements(
   ExecutionContext* context = GetExecutionContext();
   if (!context) {
     exception_state.ThrowTypeError(kInactiveDocumentError);
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   CHECK(context->IsSecureContext());
@@ -128,7 +127,7 @@ ScriptPromise<IDLUndefined> BluetoothDevice::watchAdvertisements(
       AbortWatchAdvertisements(options->signal());
       exception_state.ThrowDOMException(DOMExceptionCode::kAbortError,
                                         kAbortErrorMessage);
-      return ScriptPromise<IDLUndefined>();
+      return EmptyPromise();
     }
 
     // 1.2. Add the following abort steps to options.signal:
@@ -147,7 +146,7 @@ ScriptPromise<IDLUndefined> BluetoothDevice::watchAdvertisements(
     // 'pending-watch' 2.1. Reject promise with InvalidStateError.
     exception_state.ThrowDOMException(DOMExceptionCode::kInvalidStateError,
                                       kInvalidStateErrorMessage);
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   // 2. If this.[[watchAdvertisementsState]] is 'watching':
@@ -208,7 +207,7 @@ ScriptPromise<IDLUndefined> BluetoothDevice::forget(
     ExceptionState& exception_state) {
   if (!GetExecutionContext()) {
     exception_state.ThrowTypeError(kInactiveDocumentError);
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(

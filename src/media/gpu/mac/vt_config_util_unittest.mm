@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/mac/vt_config_util.h"
 
 #include <CoreMedia/CoreMedia.h>
@@ -48,10 +53,7 @@ bool GetBoolValue(CFDictionaryRef dict, CFStringRef key) {
 base::span<const uint8_t> GetDataValue(CFDictionaryRef dict, CFStringRef key) {
   CFDataRef data =
       base::apple::CFCastStrict<CFDataRef>(CFDictionaryGetValue(dict, key));
-  return data ? base::span<const uint8_t>(
-                    reinterpret_cast<const uint8_t*>(CFDataGetBytePtr(data)),
-                    base::checked_cast<size_t>(CFDataGetLength(data)))
-              : base::span<const uint8_t>();
+  return data ? base::apple::CFDataToSpan(data) : base::span<const uint8_t>();
 }
 
 base::span<const uint8_t> GetNestedDataValue(CFDictionaryRef dict,

@@ -5,6 +5,7 @@
 #include "chrome/app/android/chrome_main_delegate_android.h"
 
 #include <memory>
+#include <variant>
 
 #include "base/android/jni_android.h"
 #include "base/base_paths_android.h"
@@ -17,10 +18,12 @@
 #include "base/trace_event/trace_event.h"
 #include "chrome/browser/android/chrome_startup_flags.h"
 #include "chrome/browser/android/metrics/uma_utils.h"
+#include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/common/profiler/main_thread_stack_sampling_profiler.h"
 #include "components/policy/core/common/android/android_combined_policy_provider.h"
 #include "components/startup_metric_utils/common/startup_metric_utils.h"
 #include "content/public/browser/browser_main_runner.h"
+#include "content/public/common/content_switches.h"
 
 namespace {
 // Whether to use the process start time for startup metrics.
@@ -55,8 +58,17 @@ void ChromeMainDelegateAndroid::PreSandboxStartup() {
   // function, which are now redundant.
   base::PoissonAllocationSampler::Init();
 
-  // Start the sampling profiler after crashpad initialization.
-  sampling_profiler_ = std::make_unique<MainThreadStackSamplingProfiler>();
+  // We only create a MainThreadStackSamplingProfiler for the browser process.
+  // `ChromeContentGpuClient` and `ChromeContentRendererClient` create their own
+  // `ThreadProfiler` for the child processes.
+  auto type = base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+      switches::kProcessType);
+  if (type.empty()) {
+    CHECK(chrome_content_browser_client_);
+    // Start the sampling profiler after crashpad initialization.
+    chrome_content_browser_client_->SetSamplingProfiler(
+        std::make_unique<MainThreadStackSamplingProfiler>());
+  }
 }
 
 void ChromeMainDelegateAndroid::SecureDataDirectory() {
@@ -76,7 +88,7 @@ void ChromeMainDelegateAndroid::SecureDataDirectory() {
   }
 }
 
-absl::variant<int, content::MainFunctionParams>
+std::variant<int, content::MainFunctionParams>
 ChromeMainDelegateAndroid::RunProcess(
     const std::string& process_type,
     content::MainFunctionParams main_function_params) {

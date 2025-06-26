@@ -11,11 +11,15 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
+#include "base/no_destructor.h"
 #include "base/sequence_checker.h"
 #include "base/synchronization/waitable_event.h"
+#include "base/task/thread_pool.h"
+#include "build/build_config.h"
 #include "content/common/features.h"
 #include "content/services/auction_worklet/auction_v8_helper.h"
 #include "content/services/auction_worklet/bidder_worklet.h"
+#include "content/services/auction_worklet/public/mojom/auction_worklet_service.mojom-forward.h"
 #include "content/services/auction_worklet/public/mojom/auction_worklet_service.mojom.h"
 #include "content/services/auction_worklet/seller_worklet.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -28,6 +32,18 @@ namespace auction_worklet {
 namespace {
 
 static size_t g_next_seller_worklet_thread_index = 0;
+
+#if BUILDFLAG(IS_ANDROID)
+scoped_refptr<base::SequencedTaskRunner> AuctionWorkletMojoRunner() {
+  // It's important we always use the same runner here since it needs to
+  // talk to AuctionV8HelperHolder.
+  static base::NoDestructor<scoped_refptr<base::SequencedTaskRunner>>
+      auction_worklet_mojo_runner(
+          scoped_refptr(base::ThreadPool::CreateSequencedTaskRunner(
+              {base::TaskPriority::USER_VISIBLE})));
+  return *auction_worklet_mojo_runner;
+}
+#endif
 
 }  // namespace
 
@@ -57,13 +73,27 @@ class AuctionWorkletServiceImpl::V8HelperHolder
   };
 
   static scoped_refptr<V8HelperHolder> BidderInstance(
-      ProcessModel process_model) {
-    if (!g_bidder_instance) {
-      g_bidder_instance =
-          new V8HelperHolder(process_model, WorkletType::kBidder);
+      ProcessModel process_model,
+      size_t thread_index) {
+    if (!g_bidder_instances) {
+      g_bidder_instances = new std::vector<V8HelperHolder*>();
     }
-    DCHECK_CALLED_ON_VALID_SEQUENCE(g_bidder_instance->sequence_checker_);
-    return g_bidder_instance;
+
+    while (g_bidder_instances->size() <= thread_index) {
+      g_bidder_instances->push_back(
+          new V8HelperHolder(process_model, WorkletType::kBidder,
+                             /*thread_index=*/g_bidder_instances->size()));
+    }
+
+    if (!g_bidder_instances->at(thread_index)) {
+      g_bidder_instances->at(thread_index) =
+          new V8HelperHolder(process_model, WorkletType::kBidder, thread_index);
+    }
+
+    DCHECK_CALLED_ON_VALID_SEQUENCE(
+        g_bidder_instances->at(thread_index)->sequence_checker_);
+
+    return g_bidder_instances->at(thread_index);
   }
 
   static scoped_refptr<V8HelperHolder> SellerInstance(
@@ -79,6 +109,11 @@ class AuctionWorkletServiceImpl::V8HelperHolder
                              /*thread_index=*/g_seller_instances->size()));
     }
 
+    if (!g_seller_instances->at(thread_index)) {
+      g_seller_instances->at(thread_index) =
+          new V8HelperHolder(process_model, WorkletType::kSeller, thread_index);
+    }
+
     DCHECK_CALLED_ON_VALID_SEQUENCE(
         g_seller_instances->at(thread_index)->sequence_checker_);
 
@@ -88,8 +123,9 @@ class AuctionWorkletServiceImpl::V8HelperHolder
   const scoped_refptr<AuctionV8Helper>& V8Helper() {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     if (!auction_v8_helper_) {
-      auction_v8_helper_ =
-          AuctionV8Helper::Create(AuctionV8Helper::CreateTaskRunner());
+      auction_v8_helper_ = AuctionV8Helper::Create(
+          AuctionV8Helper::CreateTaskRunner(),
+          /*init_v8=*/process_model_ == ProcessModel::kDedicated);
       if (process_model_ == ProcessModel::kDedicated) {
         auction_v8_helper_->SetDestroyedCallback(base::BindOnce(
             &V8HelperHolder::FinishedDestroying, base::Unretained(this)));
@@ -108,12 +144,6 @@ class AuctionWorkletServiceImpl::V8HelperHolder
         worklet_type_(worklet_type),
         thread_index_(thread_index) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-
-    if (worklet_type_ == WorkletType::kBidder) {
-      DCHECK_EQ(g_bidder_instance, nullptr);
-    } else {
-      DCHECK_EQ(g_seller_instances->size(), thread_index_);
-    }
   }
 
   ~V8HelperHolder() {
@@ -129,8 +159,18 @@ class AuctionWorkletServiceImpl::V8HelperHolder
     }
 
     if (worklet_type_ == WorkletType::kBidder) {
-      DCHECK_EQ(g_bidder_instance, this);
-      g_bidder_instance = nullptr;
+      DCHECK_EQ(g_bidder_instances->at(thread_index_), this);
+      g_bidder_instances->at(thread_index_) = nullptr;
+
+      size_t alive_instances_count =
+          std::count_if(g_bidder_instances->begin(), g_bidder_instances->end(),
+                        [](V8HelperHolder* instance) { return !!instance; });
+
+      if (alive_instances_count == 0) {
+        g_bidder_instances->clear();
+        delete g_bidder_instances;
+        g_bidder_instances = nullptr;
+      }
     } else {
       DCHECK_EQ(g_seller_instances->at(thread_index_), this);
       g_seller_instances->at(thread_index_) = nullptr;
@@ -156,7 +196,7 @@ class AuctionWorkletServiceImpl::V8HelperHolder
     wait_for_v8_shutdown_.Signal();
   }
 
-  static V8HelperHolder* g_bidder_instance;
+  static std::vector<V8HelperHolder*>* g_bidder_instances;
   static std::vector<V8HelperHolder*>* g_seller_instances;
 
   scoped_refptr<AuctionV8Helper> auction_v8_helper_;
@@ -168,21 +208,30 @@ class AuctionWorkletServiceImpl::V8HelperHolder
   SEQUENCE_CHECKER(sequence_checker_);
 };
 
-AuctionWorkletServiceImpl::V8HelperHolder*
-    AuctionWorkletServiceImpl::V8HelperHolder::g_bidder_instance = nullptr;
+std::vector<AuctionWorkletServiceImpl::V8HelperHolder*>*
+    AuctionWorkletServiceImpl::V8HelperHolder::g_bidder_instances = nullptr;
 
 std::vector<AuctionWorkletServiceImpl::V8HelperHolder*>*
     AuctionWorkletServiceImpl::V8HelperHolder::g_seller_instances = nullptr;
 
+#if BUILDFLAG(IS_ANDROID)
 // static
 void AuctionWorkletServiceImpl::CreateForRenderer(
     mojo::PendingReceiver<mojom::AuctionWorkletService> receiver) {
-  mojo::MakeSelfOwnedReceiver(
-      base::WrapUnique(new AuctionWorkletServiceImpl(
-          ProcessModel::kShared,
-          mojo::PendingReceiver<mojom::AuctionWorkletService>())),
-      std::move(receiver));
+  if (base::FeatureList::IsEnabled(
+          features::kFledgeAndroidWorkletOffMainThread)) {
+    auto task_runner = AuctionWorkletMojoRunner();
+
+    task_runner->PostTask(
+        FROM_HERE,
+        base::BindOnce(
+            &AuctionWorkletServiceImpl::CreateForRendererOnThisThread,
+            task_runner, std::move(receiver)));
+  } else {
+    CreateForRendererOnThisThread(/*task_runner=*/nullptr, std::move(receiver));
+  }
 }
+#endif
 
 // static
 std::unique_ptr<AuctionWorkletServiceImpl>
@@ -195,9 +244,7 @@ AuctionWorkletServiceImpl::CreateForService(
 AuctionWorkletServiceImpl::AuctionWorkletServiceImpl(
     ProcessModel process_model,
     mojo::PendingReceiver<mojom::AuctionWorkletService> receiver)
-    : auction_bidder_v8_helper_holder_(
-          V8HelperHolder::BidderInstance(process_model)),
-      receiver_(this, std::move(receiver)) {
+    : process_model_(process_model), receiver_(this, std::move(receiver)) {
   for (size_t i = 0;
        i <
        static_cast<size_t>(features::kFledgeSellerWorkletThreadPoolSize.Get());
@@ -211,18 +258,29 @@ AuctionWorkletServiceImpl::~AuctionWorkletServiceImpl() = default;
 
 std::vector<scoped_refptr<AuctionV8Helper>>
 AuctionWorkletServiceImpl::AuctionV8HelpersForTesting() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   std::vector<scoped_refptr<AuctionV8Helper>> result;
-  result.push_back(auction_bidder_v8_helper_holder_->V8Helper());
+  for (const auto& v8_helper_holder : auction_bidder_v8_helper_holders_) {
+    result.push_back(v8_helper_holder->V8Helper());
+  }
   for (const auto& v8_helper_holder : auction_seller_v8_helper_holders_) {
     result.push_back(v8_helper_holder->V8Helper());
   }
   return result;
 }
 
+void AuctionWorkletServiceImpl::SetTrustedSignalsCache(
+    mojo::PendingRemote<mojom::TrustedSignalsCache> trusted_signals_cache) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  DCHECK(!trusted_signals_kvv2_manager_);
+  DCHECK(!pending_trusted_signals_cache_);
+  pending_trusted_signals_cache_ = std::move(trusted_signals_cache);
+}
+
 void AuctionWorkletServiceImpl::LoadBidderWorklet(
     mojo::PendingReceiver<mojom::BidderWorklet> bidder_worklet_receiver,
-    mojo::PendingRemote<mojom::AuctionSharedStorageHost>
-        shared_storage_host_remote,
+    std::vector<mojo::PendingRemote<mojom::AuctionSharedStorageHost>>
+        shared_storage_hosts,
     bool pause_for_debugger_on_start,
     mojo::PendingRemote<network::mojom::URLLoaderFactory>
         pending_url_loader_factory,
@@ -234,15 +292,29 @@ void AuctionWorkletServiceImpl::LoadBidderWorklet(
     const std::string& trusted_bidding_signals_slot_size_param,
     const url::Origin& top_window_origin,
     mojom::AuctionWorkletPermissionsPolicyStatePtr permissions_policy_state,
-    std::optional<uint16_t> experiment_group_id) {
+    std::optional<uint16_t> experiment_group_id,
+    mojom::TrustedSignalsPublicKeyPtr public_key) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  // If needed, expand the thread pool to match the number of threads requested.
+  for (size_t i = auction_bidder_v8_helper_holders_.size();
+       i < shared_storage_hosts.size(); ++i) {
+    auction_bidder_v8_helper_holders_.push_back(
+        V8HelperHolder::BidderInstance(process_model_, /*thread_index=*/i));
+  }
+
+  std::vector<scoped_refptr<AuctionV8Helper>> v8_helpers;
+  for (size_t i = 0; i < shared_storage_hosts.size(); ++i) {
+    v8_helpers.push_back(auction_bidder_v8_helper_holders_[i]->V8Helper());
+  }
+
   auto bidder_worklet = std::make_unique<BidderWorklet>(
-      auction_bidder_v8_helper_holder_->V8Helper(),
-      std::move(shared_storage_host_remote), pause_for_debugger_on_start,
-      std::move(pending_url_loader_factory),
-      std::move(auction_network_events_handler), script_source_url,
-      wasm_helper_url, trusted_bidding_signals_url,
+      std::move(v8_helpers), std::move(shared_storage_hosts),
+      pause_for_debugger_on_start, std::move(pending_url_loader_factory),
+      std::move(auction_network_events_handler), GetTrustedSignalsKVv2Manager(),
+      script_source_url, wasm_helper_url, trusted_bidding_signals_url,
       trusted_bidding_signals_slot_size_param, top_window_origin,
-      std::move(permissions_policy_state), experiment_group_id);
+      std::move(permissions_policy_state), experiment_group_id,
+      std::move(public_key));
   auto* bidder_worklet_ptr = bidder_worklet.get();
 
   mojo::ReceiverId receiver_id = bidder_worklets_.Add(
@@ -266,7 +338,12 @@ void AuctionWorkletServiceImpl::LoadSellerWorklet(
     const std::optional<GURL>& trusted_scoring_signals_url,
     const url::Origin& top_window_origin,
     mojom::AuctionWorkletPermissionsPolicyStatePtr permissions_policy_state,
-    std::optional<uint16_t> experiment_group_id) {
+    std::optional<uint16_t> experiment_group_id,
+    std::optional<bool> send_creative_scanning_metadata,
+    mojom::TrustedSignalsPublicKeyPtr public_key,
+    mojo::PendingRemote<auction_worklet::mojom::LoadSellerWorkletClient>
+        load_seller_worklet_client) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   std::vector<scoped_refptr<AuctionV8Helper>> v8_helpers;
   for (size_t i = 0; i < auction_seller_v8_helper_holders_.size(); ++i) {
     v8_helpers.push_back(auction_seller_v8_helper_holders_[i]->V8Helper());
@@ -277,12 +354,14 @@ void AuctionWorkletServiceImpl::LoadSellerWorklet(
   auto seller_worklet = std::make_unique<SellerWorklet>(
       std::move(v8_helpers), std::move(shared_storage_hosts),
       pause_for_debugger_on_start, std::move(pending_url_loader_factory),
-      std::move(auction_network_events_handler), decision_logic_url,
-      trusted_scoring_signals_url, top_window_origin,
+      std::move(auction_network_events_handler), GetTrustedSignalsKVv2Manager(),
+      decision_logic_url, trusted_scoring_signals_url, top_window_origin,
       std::move(permissions_policy_state), experiment_group_id,
+      send_creative_scanning_metadata, std::move(public_key),
       base::BindRepeating(
           &AuctionWorkletServiceImpl::GetNextSellerWorkletThreadIndex,
-          base::Unretained(this)));
+          base::Unretained(this)),
+      std::move(load_seller_worklet_client));
   auto* seller_worklet_ptr = seller_worklet.get();
 
   mojo::ReceiverId receiver_id = seller_worklets_.Add(
@@ -294,6 +373,7 @@ void AuctionWorkletServiceImpl::LoadSellerWorklet(
 }
 
 size_t AuctionWorkletServiceImpl::GetNextSellerWorkletThreadIndex() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   size_t result = g_next_seller_worklet_thread_index++;
   g_next_seller_worklet_thread_index %=
       auction_seller_v8_helper_holders_.size();
@@ -303,6 +383,7 @@ size_t AuctionWorkletServiceImpl::GetNextSellerWorkletThreadIndex() {
 void AuctionWorkletServiceImpl::DisconnectSellerWorklet(
     mojo::ReceiverId receiver_id,
     const std::string& reason) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   seller_worklets_.RemoveWithReason(receiver_id, /*custom_reason_code=*/0,
                                     reason);
 }
@@ -310,8 +391,48 @@ void AuctionWorkletServiceImpl::DisconnectSellerWorklet(
 void AuctionWorkletServiceImpl::DisconnectBidderWorklet(
     mojo::ReceiverId receiver_id,
     const std::string& reason) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   bidder_worklets_.RemoveWithReason(receiver_id, /*custom_reason_code=*/0,
                                     reason);
+}
+
+#if BUILDFLAG(IS_ANDROID)
+// static
+void AuctionWorkletServiceImpl::CreateForRendererOnThisThread(
+    scoped_refptr<base::SequencedTaskRunner> task_runner,
+    mojo::PendingReceiver<mojom::AuctionWorkletService> receiver) {
+  if (task_runner) {
+    DCHECK(task_runner->RunsTasksInCurrentSequence());
+  }
+  mojo::MakeSelfOwnedReceiver(
+      base::WrapUnique(new AuctionWorkletServiceImpl(
+          ProcessModel::kShared,
+          mojo::PendingReceiver<mojom::AuctionWorkletService>())),
+      std::move(receiver));
+}
+#endif
+
+TrustedSignalsKVv2Manager*
+AuctionWorkletServiceImpl::GetTrustedSignalsKVv2Manager() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  if (!trusted_signals_kvv2_manager_ && pending_trusted_signals_cache_) {
+    // Check for bidder V8 context first, since sellers are automatically
+    // populated, and want use V8 contexts that will be used anyways, instead of
+    // using a separate V8 context to parse trusted signals. It's unclear if the
+    // V8 helper used here matters. The first generateBid() call can't run until
+    // signals have been parsed, so there should be no contention with that, at
+    // least.
+    scoped_refptr<AuctionV8Helper> v8_helper;
+    if (!auction_bidder_v8_helper_holders_.empty()) {
+      v8_helper = auction_bidder_v8_helper_holders_.front()->V8Helper();
+    } else {
+      CHECK(!auction_seller_v8_helper_holders_.empty());
+      v8_helper = auction_seller_v8_helper_holders_.front()->V8Helper();
+    }
+    trusted_signals_kvv2_manager_ = std::make_unique<TrustedSignalsKVv2Manager>(
+        std::move(pending_trusted_signals_cache_), std::move(v8_helper));
+  }
+  return trusted_signals_kvv2_manager_.get();
 }
 
 }  // namespace auction_worklet

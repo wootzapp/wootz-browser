@@ -208,6 +208,13 @@ class URLDatabase {
                                    KeywordID keyword_id,
                                    const std::u16string& term);
 
+  // Retrieves aggregate values for a subset of fields across all URLs
+  // associated with the given `term`.
+  // Fills `url_info` with the relevant aggregate URL data.
+  // Returns true on success.
+  bool GetAggregateURLDataForKeywordSearchTerm(const std::u16string& term,
+                                               URLRow* url_info);
+
   // Looks up a keyword search term given a url id. Returns all the search terms
   // in `rows`. Returns true on success.
   bool GetKeywordSearchTermRow(URLID url_id, KeywordSearchTermRow* row);
@@ -309,11 +316,6 @@ class URLDatabase {
   // Returns the database for the functions in this interface. The descendant of
   // this class implements these functions to return its objects.
   virtual sql::Database& GetDB() = 0;
-
-  // Replaces the lower_term column in the keyword search terms table with
-  // normalized_term which contains the search term, in lower case, and with
-  // whitespaces collapsed for migration to version 42.
-  bool MigrateKeywordsSearchTermsLowerTermColumn();
 
  private:
   // True if InitKeywordSearchTermsTable() has been invoked. Not all subclasses

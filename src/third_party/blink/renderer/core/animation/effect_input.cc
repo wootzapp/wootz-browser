@@ -48,9 +48,10 @@
 #include "third_party/blink/renderer/core/animation/keyframe_effect_model.h"
 #include "third_party/blink/renderer/core/animation/string_keyframe.h"
 #include "third_party/blink/renderer/core/css/css_identifier_value.h"
-#include "third_party/blink/renderer/core/css/css_primitive_value_mappings.h"
+#include "third_party/blink/renderer/core/css/css_identifier_value_mappings.h"
 #include "third_party/blink/renderer/core/css/css_style_sheet.h"
 #include "third_party/blink/renderer/core/css/css_value_id_mappings_generated.h"
+#include "third_party/blink/renderer/core/css/media_values.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser.h"
 #include "third_party/blink/renderer/core/css/properties/computed_style_utils.h"
 #include "third_party/blink/renderer/core/css/properties/css_parsing_utils.h"
@@ -58,7 +59,6 @@
 #include "third_party/blink/renderer/core/css/style_sheet_contents.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/execution_context/security_context.h"
 #include "third_party/blink/renderer/core/frame/frame_console.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
@@ -89,21 +89,20 @@ Vector<std::optional<EffectModel::CompositeOperation>> ParseCompositeProperty(
   switch (composite->GetContentType()) {
     case V8UnionCompositeOperationOrAutoOrCompositeOperationOrAutoSequence::
         ContentType::kCompositeOperationOrAuto:
-      return {EffectModel::StringToCompositeOperation(
-          composite->GetAsCompositeOperationOrAuto().AsString())};
+      return {EffectModel::EnumToCompositeOperation(
+          composite->GetAsCompositeOperationOrAuto().AsEnum())};
     case V8UnionCompositeOperationOrAutoOrCompositeOperationOrAutoSequence::
         ContentType::kCompositeOperationOrAutoSequence: {
       Vector<std::optional<EffectModel::CompositeOperation>> result;
       for (const auto& composite_operation :
            composite->GetAsCompositeOperationOrAutoSequence()) {
-        result.push_back(EffectModel::StringToCompositeOperation(
-            composite_operation.AsString()));
+        result.push_back(EffectModel::EnumToCompositeOperation(
+            composite_operation.AsEnum()));
       }
       return result;
     }
   }
-  NOTREACHED_IN_MIGRATION();
-  return {};
+  NOTREACHED();
 }
 
 struct ParsedOffset {
@@ -143,38 +142,39 @@ std::optional<ParsedOffset> ParseOffsetFromCssText(
     ExceptionState& exception_state) {
   const CSSParserContext* context =
       document.ElementSheet().Contents()->ParserContext();
-  CSSTokenizer tokenizer(css_text);
-  const auto tokens = tokenizer.TokenizeToEOF();
-  CSSParserTokenRange token_range(tokens);
-  token_range.ConsumeWhitespace();
+  MediaValues* media_values =
+      MediaValues::CreateDynamicIfFrameExists(document.GetFrame());
+  CSSParserTokenStream stream(css_text);
+  stream.ConsumeWhitespace();
 
   // <number>
   {
-    CSSParserTokenRange range_copy = token_range;
+    CSSParserTokenStream::State savepoint = stream.Save();
     const CSSPrimitiveValue* primitive = css_parsing_utils::ConsumeNumber(
-        range_copy, *context, CSSPrimitiveValue::ValueRange::kAll);
-    if (primitive && range_copy.AtEnd()) {
-      return ParsedOffset(
-          {TimelineOffset::NamedRange::kNone, primitive->GetValue<double>()});
+        stream, *context, CSSPrimitiveValue::ValueRange::kAll);
+    if (primitive && stream.AtEnd()) {
+      return ParsedOffset({TimelineOffset::NamedRange::kNone,
+                           primitive->ComputeNumber(*media_values)});
     }
+    stream.Restore(savepoint);
   }
 
   // <percent>
   {
-    CSSParserTokenRange range_copy = token_range;
+    CSSParserTokenStream::State savepoint = stream.Save();
     const CSSPrimitiveValue* primitive = css_parsing_utils::ConsumePercent(
-        range_copy, *context, CSSPrimitiveValue::ValueRange::kAll);
-    if (primitive && range_copy.AtEnd()) {
+        stream, *context, CSSPrimitiveValue::ValueRange::kAll);
+    if (primitive && stream.AtEnd()) {
       return ParsedOffset({TimelineOffset::NamedRange::kNone,
-                           primitive->GetValue<double>() / 100});
+                           primitive->ComputeNumber(*media_values)});
     }
+    stream.Restore(savepoint);
   }
 
   // <range-name> <percent>
-  auto* range_name_percent =
-      To<CSSValueList>(css_parsing_utils::ConsumeTimelineRangeNameAndPercent(
-          token_range, *context));
-  if (!range_name_percent || !token_range.AtEnd()) {
+  auto* range_name_percent = To<CSSValueList>(
+      css_parsing_utils::ConsumeTimelineRangeNameAndPercent(stream, *context));
+  if (!range_name_percent || !stream.AtEnd()) {
     exception_state.ThrowTypeError(
         "timeline offset must be of the form [timeline-range-name] "
         "<percentage>");
@@ -183,8 +183,8 @@ std::optional<ParsedOffset> ParseOffsetFromCssText(
   TimelineOffset::NamedRange range =
       To<CSSIdentifierValue>(range_name_percent->Item(0))
           .ConvertTo<TimelineOffset::NamedRange>();
-  double relative_offset =
-      To<CSSPrimitiveValue>(range_name_percent->Item(1)).GetFloatValue() / 100;
+  double relative_offset = To<CSSPrimitiveValue>(range_name_percent->Item(1))
+                               .ComputeNumber(*media_values);
 
   return ParsedOffset({range, relative_offset});
 }
@@ -214,8 +214,7 @@ std::optional<ParsedOffset> ParseOffset(Document& document,
 
   // If calling using a PropertyIndexKeyframe, we must already have handled
   // sequences.
-  NOTREACHED_IN_MIGRATION();
-  return std::nullopt;
+  NOTREACHED();
 }
 
 void SetKeyframeOffset(Keyframe& keyframe, ParsedOffset& offset) {
@@ -264,8 +263,7 @@ Vector<std::optional<ParsedOffset>> ExtractPropertyIndexedKeyframeOffsets(
   return offsets;
 }
 
-void SetKeyframeValue(Element* element,
-                      Document& document,
+void SetKeyframeValue(Document& document,
                       StringKeyframe& keyframe,
                       const String& property,
                       const String& value,
@@ -297,47 +295,24 @@ void SetKeyframeValue(Element* element,
                     value));
       }
     }
-    return;
   }
-  css_property =
-      AnimationInputHelpers::KeyframeAttributeToPresentationAttribute(property,
-                                                                      element);
-  if (css_property != CSSPropertyID::kInvalid) {
-    keyframe.SetPresentationAttributeValue(CSSProperty::Get(css_property),
-                                           value, secure_context_mode,
-                                           style_sheet_contents);
-    return;
-  }
-  const QualifiedName* svg_attribute =
-      AnimationInputHelpers::KeyframeAttributeToSVGAttribute(property, element);
-  if (svg_attribute)
-    keyframe.SetSVGAttributeValue(*svg_attribute, value);
 }
 
 bool IsAnimatableKeyframeAttribute(const String& property,
-                                   Element* element,
                                    const Document& document) {
   CSSPropertyID css_property =
       AnimationInputHelpers::KeyframeAttributeToCSSProperty(property, document);
-  if (css_property != CSSPropertyID::kInvalid) {
-    return !CSSAnimations::IsAnimationAffectingProperty(
-        CSSProperty::Get(css_property));
+  if (css_property == CSSPropertyID::kInvalid) {
+    return false;
   }
 
-  css_property =
-      AnimationInputHelpers::KeyframeAttributeToPresentationAttribute(property,
-                                                                      element);
-  if (css_property != CSSPropertyID::kInvalid)
-    return true;
-
-  return !!AnimationInputHelpers::KeyframeAttributeToSVGAttribute(property,
-                                                                  element);
+  return !CSSAnimations::IsAnimationAffectingProperty(
+      CSSProperty::Get(css_property));
 }
 
 void AddPropertyValuePairsForKeyframe(
     v8::Isolate* isolate,
     v8::Local<v8::Object> keyframe_obj,
-    Element* element,
     const Document& document,
     Vector<std::pair<String, String>>& property_value_pairs,
     ExceptionState& exception_state) {
@@ -351,7 +326,7 @@ void AddPropertyValuePairsForKeyframe(
   std::sort(keyframe_properties.begin(), keyframe_properties.end(),
             WTF::CodeUnitCompareLessThan);
 
-  v8::TryCatch try_catch(isolate);
+  TryRethrowScope rethrow_scope(isolate, exception_state);
   for (const auto& property : keyframe_properties) {
     if (property == "offset" || property == "float" ||
         property == "composite" || property == "easing") {
@@ -359,8 +334,9 @@ void AddPropertyValuePairsForKeyframe(
     }
 
     // By spec, we are not allowed to access any non-animatable property.
-    if (!IsAnimatableKeyframeAttribute(property, element, document))
+    if (!IsAnimatableKeyframeAttribute(property, document)) {
       continue;
+    }
 
     // By spec, we are only allowed to access a given (property, value) pair
     // once. This is observable by the web client, so we take care to adhere
@@ -369,7 +345,6 @@ void AddPropertyValuePairsForKeyframe(
     if (!keyframe_obj
              ->Get(isolate->GetCurrentContext(), V8String(isolate, property))
              .ToLocal(&v8_value)) {
-      exception_state.RethrowV8Exception(try_catch.Exception());
       return;
     }
 
@@ -386,8 +361,7 @@ void AddPropertyValuePairsForKeyframe(
   }
 }
 
-StringKeyframeVector ConvertArrayForm(Element* element,
-                                      Document& document,
+StringKeyframeVector ConvertArrayForm(Document& document,
                                       ScriptIterator iterator,
                                       ScriptState* script_state,
                                       ExceptionState& exception_state) {
@@ -424,7 +398,7 @@ StringKeyframeVector ConvertArrayForm(Element* element,
 
     if (!keyframe->IsNullOrUndefined()) {
       AddPropertyValuePairsForKeyframe(
-          isolate, v8::Local<v8::Object>::Cast(keyframe), element, document,
+          isolate, v8::Local<v8::Object>::Cast(keyframe), document,
           property_value_pairs, exception_state);
       if (exception_state.HadException())
         return {};
@@ -497,12 +471,13 @@ StringKeyframeVector ConvertArrayForm(Element* element,
     const BaseKeyframe* base_keyframe = processed_base_keyframes[i];
     for (const auto& pair : processed_properties[i]) {
       // TODO(crbug.com/777971): Make parsing of property values spec-compliant.
-      SetKeyframeValue(element, document, *keyframe, pair.first, pair.second,
+      SetKeyframeValue(document, *keyframe, pair.first, pair.second,
                        execution_context);
     }
 
     std::optional<EffectModel::CompositeOperation> composite =
-        EffectModel::StringToCompositeOperation(base_keyframe->composite());
+        EffectModel::EnumToCompositeOperation(
+            base_keyframe->composite().AsEnum());
     if (composite) {
       keyframe->SetComposite(composite.value());
     }
@@ -540,11 +515,10 @@ bool GetPropertyIndexedKeyframeValues(const v8::Local<v8::Object>& keyframe,
   // By spec, we are only allowed to access a given (property, value) pair once.
   // This is observable by the web client, so we take care to adhere to that.
   v8::Local<v8::Value> v8_value;
-  v8::TryCatch try_catch(script_state->GetIsolate());
   v8::Local<v8::Context> context = script_state->GetContext();
   v8::Isolate* isolate = script_state->GetIsolate();
+  TryRethrowScope rethrow_scope(isolate, exception_state);
   if (!keyframe->Get(context, V8String(isolate, property)).ToLocal(&v8_value)) {
-    exception_state.RethrowV8Exception(try_catch.Exception());
     return {};
   }
 
@@ -636,8 +610,9 @@ StringKeyframeVector ConvertObjectForm(Element* element,
     }
 
     // By spec, we are not allowed to access any non-animatable property.
-    if (!IsAnimatableKeyframeAttribute(property, element, document))
+    if (!IsAnimatableKeyframeAttribute(property, document)) {
       continue;
+    }
 
     Vector<String> values;
     if (!GetPropertyIndexedKeyframeValues(v8_keyframe, property, script_state,
@@ -663,15 +638,14 @@ StringKeyframeVector ConvertObjectForm(Element* element,
       if (result.is_new_entry)
         result.stored_value->value = MakeGarbageCollected<StringKeyframe>();
 
-      SetKeyframeValue(element, document, *result.stored_value->value, property,
+      SetKeyframeValue(document, *result.stored_value->value, property,
                        values[i], execution_context);
     }
   }
 
   // 5.3 Sort processed keyframes by the computed keyframe offset of each
   // keyframe in increasing order.
-  Vector<double> keys;
-  WTF::CopyKeysToVector(keyframes, keys);
+  Vector<double> keys(keyframes.Keys());
   std::sort(keys.begin(), keys.end());
 
   // Steps 5.5 - 5.12 deal with assigning the user-specified offset, easing, and
@@ -813,8 +787,8 @@ StringKeyframeVector EffectInput::ParseKeyframesArgument(
 
   // 3. Let method be the result of GetMethod(object, @@iterator).
   v8::Isolate* isolate = script_state->GetIsolate();
-  auto script_iterator =
-      ScriptIterator::FromIterable(isolate, keyframes_obj, exception_state);
+  auto script_iterator = ScriptIterator::FromIterable(
+      isolate, keyframes_obj, exception_state, ScriptIterator::Kind::kSync);
   if (exception_state.HadException())
     return {};
 
@@ -825,24 +799,23 @@ StringKeyframeVector EffectInput::ParseKeyframesArgument(
 
   // Map logical to physical properties.
   const ComputedStyle* style = element ? element->GetComputedStyle() : nullptr;
-  TextDirection text_direction =
-      style ? style->Direction() : TextDirection::kLtr;
-  WritingMode writing_mode =
-      style ? style->GetWritingMode() : WritingMode::kHorizontalTb;
+  WritingDirectionMode writing_direction =
+      style ? style->GetWritingDirection()
+            : WritingDirectionMode(WritingMode::kHorizontalTb,
+                                   TextDirection::kLtr);
 
   StringKeyframeVector parsed_keyframes;
   if (script_iterator.IsNull()) {
     parsed_keyframes = ConvertObjectForm(element, document, keyframes_obj,
                                          script_state, exception_state);
   } else {
-    parsed_keyframes =
-        ConvertArrayForm(element, document, std::move(script_iterator),
-                         script_state, exception_state);
+    parsed_keyframes = ConvertArrayForm(document, std::move(script_iterator),
+                                        script_state, exception_state);
   }
 
   for (wtf_size_t i = 0; i < parsed_keyframes.size(); i++) {
     StringKeyframe* keyframe = parsed_keyframes[i];
-    keyframe->SetLogicalPropertyResolutionContext(text_direction, writing_mode);
+    keyframe->SetLogicalPropertyResolutionContext(writing_direction);
   }
 
   return parsed_keyframes;

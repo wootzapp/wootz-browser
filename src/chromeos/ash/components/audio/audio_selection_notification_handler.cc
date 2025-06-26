@@ -201,16 +201,15 @@ void AudioSelectionNotificationHandler::ShowNotification(
     case NotificationType::kMultipleSources:
       title_message_id = l10n_util::GetStringUTF16(
           IDS_ASH_AUDIO_SELECTION_MULTIPLE_DEVICES_TITLE);
-      // TODO(zhangwenyu): Check with UX how to handle rare case where existing
-      // devices' name is not available.
-      body_message_id = l10n_util::GetStringFUTF16(
-          IDS_ASH_AUDIO_SELECTION_MULTIPLE_DEVICES_BODY,
-          base::UTF8ToUTF16(active_input_device_name.has_value()
-                                ? active_input_device_name.value()
-                                : ""),
-          base::UTF8ToUTF16(active_output_device_name.has_value()
-                                ? active_output_device_name.value()
-                                : ""));
+      body_message_id =
+          active_input_device_name.has_value() &&
+                  active_output_device_name.has_value()
+              ? l10n_util::GetStringFUTF16(
+                    IDS_ASH_AUDIO_SELECTION_MULTIPLE_DEVICES_BODY,
+                    base::UTF8ToUTF16(active_input_device_name.value()),
+                    base::UTF8ToUTF16(active_output_device_name.value()))
+              : l10n_util::GetStringUTF16(
+                    IDS_ASH_AUDIO_SELECTION_MULTIPLE_DEVICES_BODY_WITH_NAME_UNAVAILABLE);
       buttons_info.emplace_back(
           l10n_util::GetStringUTF16(IDS_ASH_AUDIO_SELECTION_BUTTON_SETTINGS));
       notification_event =
@@ -290,7 +289,7 @@ void AudioSelectionNotificationHandler::HandleSwitchButtonClicked(
     case NotificationType::kMultipleSources:
       // Do not record in this case. When the notification type is
       // kMultipleSources, notification with settings button should display.
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   // Activate audio devices.
@@ -392,13 +391,37 @@ AudioSelectionNotificationHandler::GetNotificationTemplate(
           std::nullopt, hotplug_output_devices.front().display_name};
 }
 
-void AudioSelectionNotificationHandler::RemoveNotificationIfNecessary(
-    const AudioDeviceList& removed_devices) {
-  const AudioDeviceList& hotplug_devices = removed_devices.front().is_input
+void AudioSelectionNotificationHandler::
+    RemoveNotificationIfHotpluggedDeviceActivated(
+        const AudioDeviceList& activated_devices) {
+  const AudioDeviceList& hotplug_devices = activated_devices.front().is_input
                                                ? hotplug_input_devices_
                                                : hotplug_output_devices_;
-  for (const AudioDevice& device : removed_devices) {
+  for (const AudioDevice& device : activated_devices) {
     if (IsDeviceInList(device, hotplug_devices)) {
+      // Remove notification and hotplug_input/output_devices_.
+      auto* message_center = message_center::MessageCenter::Get();
+      message_center->RemoveNotification(kAudioSelectionNotificationId,
+                                         /*by_user=*/false);
+
+      hotplug_input_devices_.clear();
+      hotplug_output_devices_.clear();
+      return;
+    }
+  }
+}
+
+void AudioSelectionNotificationHandler::
+    RemoveNotificationIfHotpluggedDeviceDisconnected(
+        bool is_input,
+        const AudioDeviceList& current_devices) {
+  const AudioDeviceList& hotplug_devices =
+      is_input ? hotplug_input_devices_ : hotplug_output_devices_;
+
+  // If hotplugged devices that trigger the notification does not exist in
+  // current devices, remove the notification.
+  for (const AudioDevice& device : hotplug_devices) {
+    if (!IsDeviceInList(device, current_devices)) {
       // Remove notification and hotplug_input/output_devices_.
       auto* message_center = message_center::MessageCenter::Get();
       message_center->RemoveNotification(kAudioSelectionNotificationId,

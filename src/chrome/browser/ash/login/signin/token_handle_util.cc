@@ -4,7 +4,6 @@
 
 #include "chrome/browser/ash/login/signin/token_handle_util.h"
 
-#include "ash/constants/ash_features.h"
 #include "base/json/values_util.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
@@ -55,8 +54,7 @@ bool MaybeReturnCachedStatus(
     return true;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool IsReauthRequired(const TokenHandleUtil::Status& status,
@@ -72,8 +70,7 @@ bool IsReauthRequired(const TokenHandleUtil::Status& status,
       // only if the user is using their Gaia password for logging in.
       return user_has_gaia_password;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 void FinishWithStatus(TokenHandleUtil::TokenValidationCallback callback,
@@ -82,9 +79,6 @@ void FinishWithStatus(TokenHandleUtil::TokenValidationCallback callback,
                       const TokenHandleUtil::Status& status,
                       std::optional<bool> user_has_gaia_password) {
   bool has_gaia_pass = user_has_gaia_password.value_or(true);
-  if (!has_gaia_pass) {
-    CHECK(features::AreLocalPasswordsEnabledForConsumers());
-  }
   user_manager::KnownUser known_user(g_browser_process->local_state());
   // Check that the token that was checked matches the latest known token.
   // This may happen if token check took too long, and user went through
@@ -147,7 +141,7 @@ TokenHandleUtil::TokenHandleUtil()
 TokenHandleUtil::~TokenHandleUtil() = default;
 
 // static
-bool TokenHandleUtil::HasToken(const AccountId& account_id) {
+bool TokenHandleUtil::HasToken(const AccountId& account_id) const {
   user_manager::KnownUser known_user(g_browser_process->local_state());
   const std::string* token =
       known_user.FindStringPath(account_id, kTokenHandlePref);
@@ -155,7 +149,7 @@ bool TokenHandleUtil::HasToken(const AccountId& account_id) {
 }
 
 // static
-bool TokenHandleUtil::IsRecentlyChecked(const AccountId& account_id) {
+bool TokenHandleUtil::IsRecentlyChecked(const AccountId& account_id) const {
   user_manager::KnownUser known_user(g_browser_process->local_state());
   const base::Value* value =
       known_user.FindPath(account_id, kTokenHandleLastCheckedPref);
@@ -171,15 +165,24 @@ bool TokenHandleUtil::IsRecentlyChecked(const AccountId& account_id) {
 }
 
 // static
-bool TokenHandleUtil::ShouldObtainHandle(const AccountId& account_id) {
+bool TokenHandleUtil::ShouldObtainHandle(const AccountId& account_id) const {
   return !HasToken(account_id) || HasTokenStatusInvalid(account_id);
 }
 
-// static
 void TokenHandleUtil::IsReauthRequired(
     const AccountId& account_id,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
     TokenValidationCallback callback) {
+  const user_manager::User* user =
+      user_manager::UserManager::Get()->FindUser(account_id);
+
+  if (!user) {
+    DUMP_WILL_BE_NOTREACHED() << "Invalid user";
+    std::move(callback).Run(account_id, std::string(),
+                            /*reauth_required=*/false);
+    return;
+  }
+
   user_manager::KnownUser known_user(g_browser_process->local_state());
   const std::string* token =
       known_user.FindStringPath(account_id, kTokenHandlePref);
@@ -243,16 +246,10 @@ void TokenHandleUtil::OnStatusChecked(TokenValidationCallback callback,
                                       const AccountId& account_id,
                                       const std::string& token,
                                       const Status& status) {
-  if (!features::AreLocalPasswordsEnabledForConsumers()) {
-    FinishWithStatus(std::move(callback), token, account_id, status,
-                     /*user_has_gaia_password=*/true);
-    return;
-  }
-
   const user_manager::User* user =
       user_manager::UserManager::Get()->FindUser(account_id);
   if (!user) {
-    NOTREACHED_IN_MIGRATION() << "Invalid user";
+    DUMP_WILL_BE_NOTREACHED() << "Invalid user";
     FinishWithStatus(std::move(callback), token, account_id, status,
                      /*user_has_gaia_password=*/true);
     return;

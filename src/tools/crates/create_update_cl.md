@@ -3,8 +3,15 @@
 This document describes how Chromium updates crates.io Rust crates that Chromium
 depends on.
 
-We have a weekly rotation (go/chromium-crates-update-rotation) of engineers
-responsible for creating and landing CLs that update Rust crates.
+## Staffing
+
+We have a
+[weekly rotation](https://goto.google.com/chromium-crates-update-rotation) of
+Google engineers responsible for creating and landing CLs that update Rust
+crates.
+
+Google engineers can join the rotation by emailing
+[chrome-safe-coding@google.com](mailto:chrome-safe-coding@google.com).
 
 ## Initial setup
 
@@ -12,6 +19,12 @@ The "Rust: periodic update of 3rd-party crates" rotation requires access to an
 up-to-date Chromium repo.  One way to start a shift is to run `git fetch`,
 `git checkout origin/main`, and `gclient sync` (but other workflows should also
 work - e.g. ones based on `git-new-workdir`).
+
+## Avoiding Conflicts
+
+Before creating a CL stack, check for open CLs with the [`cratesio-autoupdate`
+tag](https://chromium-review.googlesource.com/q/hashtag:%22cratesio-autoupdate%22+(status:open%20OR%20status:merged)).
+Such CLs tend to conflict, so coordinate with owners of any open CLs.
 
 ## Automated step: `create_update_cl.py`
 
@@ -25,86 +38,52 @@ $ tools/crates/create_update_cl.py auto
 The script depends on `depot_tools` and `git` being present in the `PATH`.
 
 In `auto` mode `//tools/crates/create_update_cl.py` runs `gnrt update` to
-discover all possible minor version updates and then for each update creates a
+discover crate updates and then for each update creates a
 new local git branch (and a Gerrit CL unless invoked with `--no-upload`).
 Each branch contains an update created by `gnrt update <old crate id>`, `gnrt
 vendor`, and `gnrt gen`.
 Depending on how many crates are updated, the script may need 10-15 minutes to
 run.
 
-(Side-note: outside the rotation one may also use the script to update a single
-crate - e.g. `tools/crates/create_update_cl.py single bytemuck`.  When working
-with multi-epoch/version crates the old version to update can be specified
-as follows: `tools/crates/create_update_cl.py single syn@2.0.55`.)
+The script should Just Work in most cases, but sometimes it may fail when
+dealing with a specific create update.  See the "Recovering from script
+failures" section below for what to do when that happens.
 
-Before the auto-generated CLs can be landed, some additional manual steps need
-to be done first - see the sections below.
+Before the auto-generated CLs can be landed, you will need to get an LGTM from
+`//third_party/rust/OWNERS`.  See `//third_party/rust/OWNERS-security-review.md`
+for a review checklist.
 
-## Manual step: `run_cargo_vet.py`
+## New transitive dependencies
 
-The changes in the auto-generated CL need to go through a security audit, which
-will ensure that `cargo vet` criteria (e.g. `ub-risk-0`, `safe-to-deploy`,
-etc.). still hold for the new versions.  The CL description specifies what are
-the _minimum_ criteria required for the updated crates (note that
-`supply-chain/audits.toml` can and should record a stricter certification if
-possible).
-See the `//docs/rust-unsafe.md` doc for details on how to audit and certify
-the new crate versions (this may require looping in `unsafe` Rust experts
-and/or cryptography experts).
+Notes from `//third_party/rust/OWNERS-security-review.md` apply:
 
-For each update CL, there is a separate git branch created. An audit will most
-likely need to be recorded in
-`third_party/rust/chromium_crates_io/supply-chain/audits.toml` and committed to
-the git branch for each update CL. There are some known corner cases where
-`audits.toml` changes are not needed:
+* The dependency will need to go through security review.
+* An FYI email should be sent to
+  [chrome-atls-discuss@google.com](mailto:chrome-atls-discuss@google.com)
+  in order to record the addition.
 
-* Updates of crates listed in `remove_crates` in
-  `third_party/rust/chromium_crates_io/gnrt_config.toml` (e.g. the `cc` crate
-  which is a dependency of `cxx` but is not actually used/needed in Chromium).
-  This case should be recognized by the `create_update_cl.py` script and noted
-  in the CL description.
-* Updates of grand-parented-in crates that are covered by exemptions in
-  `third_party/rust/chromium_crates_io/supply-chain/config.toml` instead of
-  being covered by real audits from `audits.toml`.  For such crates, skim the
-  delta and use your best judgement on whether to bump the crate version that
-  the exemption applies to.  Note that `supply-chain/config.toml` is generated
-  by `gnrt vendor` and should not be edited directly - please instead edit
-  `third_party/rust/chromium_crates_io/vet_config.toml.hbs` and then run
-  `tools/crates/run_gnrt.py vendor` to regenerate `supply-chain/config.toml`.
-* Update to a crate version that is already covered by `audits.toml` of other
-  projects that Chromium's `run_cargo_vet.py` imports.  In such case you may
-  need to commit changes that `cargo vet` generates in
-  `third_party/rust/chromium_crates_io/supply-chain/imports.lock`.
+### Optional: Adding the transitive dependency in its own CL.
 
-This step may require one or more of the commands below, for each git branch
-associated with an update CL (starting with the earliest branches - ones
-closest to `origin/main`):
-
-1. `git checkout rust-crates-update--...`
-    - If this is the second or subsequent branch, then also run `git rebase` to
-      rebase it on top of the manual `audits.toml` changes in the upstream
-      branches
-1. Check which crate (or crates) and which audit criteria need to be reviewed in
-   this branch / CL: `tools/crates/run_cargo_vet.py check`
-    - Note that `run_cargo_vet.py check` may list a _subset_ of the criteria
-      that the automated script has listed in the CL description (e.g. if some
-      of the criteria are already covered by `audits.toml` imported from other
-      projects).
-    - Also note that `cargo vet` will list the _minimum_ required criteria
-      (and `audits.toml` can and should record stricter certification if
-      possible).
-1. Follow the cargo vet instructions to inspect diffs and certify the results
-    - Note that special guidelines may apply to delta audits
-      (TODO: Land the [PR here](https://github.com/google/rust-crate-audits/pull/16)).
-1. `git add third_party/rust/chromium_crates_io/supply-chain`.
-   `git commit -m 'cargo vet'`
-1. `git cl upload -m 'cargo vet'`
+If the new crate is non-trivial, it's possible to split the
+additional crate into its own CL, however then it will default to global
+visibility and allowing non-test use.
+* `gnrt add` and `gnrt vendor` can add the dependency to a fresh checkout.
+* Mark the crate as being for third-party code only by setting
+  `allow_first_party_usage` to `false` for the crate in
+  `third_party/rust/chromium_crates_io/gnrt_config.toml`.
+* If the crates making use of the transitive dependency are only allowed
+  in tests, then set `group = 'test'` for the crate in
+  `third_party/rust/chromium_crates_io/gnrt_config.toml`. This reduces
+  the level of security review required for the library.
+* `gnrt gen` will then generate the GN rules.
+* Rebase the roll CL on top of the changes to make sure the choices made above
+  are correct. `gn gen` will fail in CQ if the crate was placed in the `'test'`
+  group but needs to be visible outside of tests.
 
 ## Potential additional steps
 
-* If updating `cxx`, you may need to also update its version in:
-    - `build/rust/BUILD.gn`
-    - `third_party/rust/cxx/v1/cxx.h`
+* If updating `cxx`, you will also need to update its version in
+    - `build/rust/cxx_version.gni`
 
 * The `create_update_cl.py` script may stop early if it detects that `gnrt
   vendor` or `gnrt gen` have reported any warnings or errors (e.g. a "License
@@ -124,13 +103,15 @@ review and landing process.
 
 ## Checking for new major versions
 
-Note that `create_update_cl.py` will only handle minor version changes (e.g.
-123.1 => 123.2, or 0.123.1 => 0.123.2).  Major version changes (e.g. 1.0 => 2.0,
-which may include breaking API changes and other breaking changes) need to be
-handled separately.
+Note that `create_update_cl.py auto` will by default only handle minor version
+updates (e.g.  123.1 => 123.2, or 0.123.1 => 0.123.2).  Major version changes
+(e.g. 1.0 => 2.0, which may include breaking API changes and other breaking
+changes) need to be handled separately - this section describes what to do.
+
+### Detecting available major version updates
 
 As part of the rotation, one should attempt to check for new major versions of
-direct Chromium dependencies (i.e. dependencies directly listed in
+_direct_ Chromium dependencies (i.e. dependencies directly listed in
 `third_party/rust/chromium_crates_io/Cargo.toml`).  To discover direct _and_
 transitive dependencies with a new major version, you can use the command below
 (running it in the final update CL branch - after all the minor version
@@ -144,9 +125,9 @@ $ tools/crates/run_cargo.py -Zunstable-options -C third_party/rust/chromium_crat
 ...
 ```
 
-### Workflow A: Single update CL
+### Major version update: Workflow A: Single update CL
 
-If the updating to a new major version doesn't require lots of Chromium changes,
+If updating to a new major version doesn't require lots of Chromium changes,
 then it may be possible to land the update in a single CL.  This is typically
 possible when the APIs affected by the major version's breaking change either
 weren't used by Chromium, or were used only in a handful of places.
@@ -156,27 +137,11 @@ introduce breaking changes in the _behavior_ of the existing APIs.
 
 To update:
 
-1. Prepare `Cargo.toml` change:
-    1. `git checkout origin/main`
-    1. `git checkout -b major-version-update-of-foo`
-    1. Edit `third_party/rust/chromium_crates_io/Cargo.toml` to change the major
-       version of the crate (or crates) you want to update.
-       **Important**: Do not edit `Cargo.lock` (e.g. don't run `gnrt vendor`
-       etc.).
-    1. `git add third_party/rust/chromium_crates_io/Cargo.toml`
-    1. `git commit -m "Manual edit of Cargo.toml"`
-    1. `git cl upload -m "Manual edit of Cargo.toml" --bypass-hooks --skip-title --force`
-1. Run the helper script as follows:
-   `tools/crates/create_update_cl.py manual
-   --title "Roll foo crate to new major version in //third_party/rust."`
-    - This will fix up the CL description
-    - To make the review easier, one of the patchsets covers just the path
-      changes.  For example - see [the delta here](https://crrev.com/c/5445719/2..7).
-1. Follow the manual steps from the minor version update rotation:
-    1. `cargo vet` audit
-    1. Review, landing, etc.
+1. `tools/crates/create_update_cl.py auto -- some_crate_name --breaking`
+1. Follow the manual steps from the minor version update rotation for
+   review, landing, etc.
 
-### Workflow B: Incremental transition
+### Major version update: Workflow B: Incremental transition
 
 When lots of first-party code depends on the old major version, then the
 transition to the new major version may need to be done incrementally.  In this
@@ -207,3 +172,105 @@ version = "0.1"
 [dependencies.serde_json_lenient]
 version = "0.2"
 ```
+
+## Other ways to use `create_update_cl.py`
+
+### `auto` mode
+
+Extra arguments passed to `create_update_cl.py auto` end up being passed to
+`cargo update`.  For a complete list of available options, see
+[Cargo documentation here](https://doc.rust-lang.org/cargo/commands/cargo-update.html#update-options)),
+but the most common scenarios are covered in the sections below.
+
+#### Updating all crates during the weekly rotation
+
+`tools/crates/create_update_cl.py auto` with no extra arguments will attempt to
+discover **minor** version updates for **all** crates that Chromium depends on
+and for their transitive dependencies.
+
+#### Updating the minor version of a single crate
+
+`tools/crates/create_update_cl.py auto -- some_crate_name` can be used to
+trigger a **minor** version update of a single crate.
+
+#### Updating the major version of a single crate
+
+`tools/crates/create_update_cl.py auto -- some_crate_name --breaking` can be
+used to trigger a **major** version update of a single crate
+
+### `manual` mode
+
+For maximal control, the script can be used in `manual` mode:
+
+1. Prepare `Cargo.toml` change:
+    1. `git checkout origin/main`
+    1. `git checkout -b manual-update-of-foo`
+    1. Edit `third_party/rust/chromium_crates_io/Cargo.toml` to change the crate
+       version of the crate (or crates) you want to update.
+       **Important**: Do not edit `Cargo.lock` (e.g. don't run `gnrt vendor`
+       etc.).
+    1. `git add third_party/rust/chromium_crates_io/Cargo.toml`
+    1. `git commit -m "Manual edit of Cargo.toml"`
+    1. `git cl upload -m "Manual edit of Cargo.toml" --bypass-hooks --skip-title --force`
+1. Run the helper script as follows:
+   `tools/crates/create_update_cl.py manual
+   --title "Roll foo crate to new version X"`
+    - This will run `gnrt vendor` to discover and execute updates that were
+      requested by the manual edits of `Cargo.toml` in the previous steps.
+    - This will automatically add more details to the CL description
+    - To make the review easier, one of the patchsets covers just the path
+      changes.  For example - see [the delta here](https://crrev.com/c/5445719/2..7).
+
+## Recovering from script failures
+
+Sometimes the `create_update_cl.py` script will fail when dealing with
+a specific crate update.  The general workflow in this case is to
+1) fix the issue in a separate CL, and 2) restart the tool from the middle
+by using `--upstream-branch` that points to the last successful update branch
+(or to the fix CL) rather than defaulting to `origin/main`.
+
+Examples of a few specific situations that may lead to script failure:
+
+* An update brought in a new crate, but `gnrt` didn't recognize new crate's
+  license kind or license file.  In that case a prerequisite CL needs to be
+  landed first, teaching `gnrt` about the new license kinds/files
+  (somewhere around
+  [here](https://source.chromium.org/chromium/chromium/src/+/main:tools/crates/gnrt/lib/readme.rs;l=264-290;drc=c838bc6c6317d4c1ead1f7f0c615af353482f2b3)).
+  Example CL with such a fix: https://crrev.com/c/6219211
+* Patches from `//third_party/rust/chromium_crates_io/patches/` no longer
+  apply cleanly to the new version of a crate.  In that case the crate update CL
+  needs to 1) first update the patches, and then 2) update the crate as usual.
+  This is not very well supported by the script... But something like this
+  should work:
+    - Checkout a new branch:
+        ```
+        $ git checkout rust-crates-update--last-successful-update
+        $ git checkout -b fix-patches-for-foo
+        $ git branch --set-upstream-to=rust-crates-update--last-successful-update
+        ```
+    - Fix the patches and upload as a temporary / throw-away CL
+      (this CL can't be landed on its own - it needs to be combined
+      with the actual update CL):
+        ```
+        $ # Fix the patches
+        $ git commit -a -m ...
+        $ git cl upload
+        ```
+    - Restart the script (the CL created by the script can't be landed
+      as-is / on its own - it needs to be combined with the fixed patches
+      in the step below) with `--upstream-branch` parameter:
+        ```
+        $ tools/crates/create_update_cl.py auto \
+            --upstream-branch=fix-patches-for-foo \
+            -- name-of-failed-crate
+        ```
+    - Combine the branches:
+        ```
+        $ git map-branches -v # to orient yourself
+        $ git checkout rust-crates-update--new-successful-update
+        $ git branch --set-upstream-to=rust-crates-update--last-successful-update
+        $ git cl upload -m Rebasing... # --bypass-hooks as needed
+        ```
+* `//third_party/rust/chromium_crates_io/gnrt_config.toml` needs to be updated
+  to work with a new crate version.  The same workflow should work as for fixing
+  `//third_party/rust/chromium_crates_io/patches/` (see the item above).

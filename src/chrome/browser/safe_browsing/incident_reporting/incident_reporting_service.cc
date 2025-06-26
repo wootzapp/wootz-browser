@@ -7,6 +7,8 @@
 #include <math.h>
 #include <stddef.h>
 
+#include <algorithm>
+#include <array>
 #include <memory>
 #include <string>
 #include <utility>
@@ -15,8 +17,8 @@
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/not_fatal_until.h"
 #include "base/process/process.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/task_traits.h"
@@ -92,14 +94,14 @@ const int64_t kDefaultCallbackIntervalMs = 1000 * 20;
 // Logs the type of incident in |incident_data| to a user metrics histogram.
 void LogIncidentDataType(IncidentDisposition disposition,
                          const Incident& incident) {
-  static const char* const kHistogramNames[] = {
+  static auto const kHistogramNames = std::to_array({
       "SBIRS.ReceivedIncident",
       "SBIRS.DroppedIncident",
       "SBIRS.Incident",
       "SBIRS.PrunedIncident",
       "SBIRS.DiscardedIncident",
       "SBIRS.NoDownloadIncident",
-  };
+  });
   static_assert(std::size(kHistogramNames) == NUM_DISPOSITIONS,
                 "Keep kHistogramNames in sync with enum IncidentDisposition.");
   DCHECK_GE(disposition, 0);
@@ -216,8 +218,7 @@ IncidentReportingService::Receiver::Receiver(
     : service_(service),
       thread_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
 
-IncidentReportingService::Receiver::~Receiver() {
-}
+IncidentReportingService::Receiver::~Receiver() = default;
 
 void IncidentReportingService::Receiver::AddIncidentForProfile(
     Profile* profile,
@@ -299,8 +300,7 @@ IncidentReportingService::UploadContext::UploadContext(
     std::unique_ptr<ClientIncidentReport> report)
     : report(std::move(report)) {}
 
-IncidentReportingService::UploadContext::~UploadContext() {
-}
+IncidentReportingService::UploadContext::~UploadContext() = default;
 
 // static
 bool IncidentReportingService::IsEnabledForProfile(Profile* profile) {
@@ -312,7 +312,7 @@ bool IncidentReportingService::IsEnabledForProfile(Profile* profile) {
 }
 
 IncidentReportingService::IncidentReportingService(
-    SafeBrowsingService* safe_browsing_service)
+    SafeBrowsingServiceImpl* safe_browsing_service)
     : IncidentReportingService(safe_browsing_service,
                                base::Milliseconds(kDefaultCallbackIntervalMs),
                                GetBackgroundTaskRunner()) {
@@ -388,7 +388,7 @@ void IncidentReportingService::AddDownloadManager(
 }
 
 IncidentReportingService::IncidentReportingService(
-    SafeBrowsingService* safe_browsing_service,
+    SafeBrowsingServiceImpl* safe_browsing_service,
     base::TimeDelta delayed_task_interval,
     const scoped_refptr<base::TaskRunner>& delayed_task_runner)
     : url_loader_factory_(nullptr),
@@ -487,7 +487,7 @@ void IncidentReportingService::OnProfileWillBeDestroyed(Profile* profile) {
   profile->RemoveObserver(this);
 
   auto it = profiles_.find(profile);
-  DCHECK(it != profiles_.end());
+  CHECK(it != profiles_.end(), base::NotFatalUntil::M130);
 
   // Take ownership of the context.
   std::unique_ptr<ProfileContext> context = std::move(it->second);
@@ -953,9 +953,9 @@ void IncidentReportingService::OnReportUploadResult(
 
   // The upload is no longer outstanding, so take ownership of the context (from
   // the collection of outstanding uploads) in this scope.
-  auto it = base::ranges::find(uploads_, context,
-                               &std::unique_ptr<UploadContext>::get);
-  DCHECK(it != uploads_.end());
+  auto it = std::ranges::find(uploads_, context,
+                              &std::unique_ptr<UploadContext>::get);
+  CHECK(it != uploads_.end(), base::NotFatalUntil::M130);
   std::unique_ptr<UploadContext> upload(std::move(*it));
   uploads_.erase(it);
 

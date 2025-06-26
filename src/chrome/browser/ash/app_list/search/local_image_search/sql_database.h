@@ -11,6 +11,7 @@
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
 #include "base/sequence_checker.h"
+#include "base/strings/cstring_view.h"
 #include "sql/database.h"
 #include "sql/meta_table.h"
 
@@ -27,7 +28,7 @@ class SqlDatabase {
  public:
   SqlDatabase(
       const base::FilePath& path_to_db,
-      const std::string& histogram_tag,
+      sql::Database::Tag histogram_tag,
       int current_version_number,
       base::RepeatingCallback<int(SqlDatabase* db)> create_table_schema,
       base::RepeatingCallback<int(SqlDatabase* db, int current_version_number)>
@@ -47,7 +48,7 @@ class SqlDatabase {
   // a statement that can Bind* and Run(), otherwise nullptr.
   std::unique_ptr<sql::Statement> GetStatementForQuery(
       const sql::StatementID& sql_from_here,
-      const char* query);
+      base::cstring_view query);
 
   base::FilePath GetPathToDb() const;
 
@@ -69,9 +70,6 @@ class SqlDatabase {
 
   // The path to the *.db file.
   const base::FilePath path_to_db_;
-
-  // The identifying prefix for metrics.
-  const std::string histogram_tag_;
 
   sql::Database db_;
   sql::MetaTable meta_table_;

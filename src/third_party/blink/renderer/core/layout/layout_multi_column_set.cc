@@ -103,12 +103,13 @@ class ChildFragmentIterator {
   wtf_size_t child_index_ = 0;
 };
 
-LayoutPoint ComputeLocation(const PhysicalBoxFragment& column_box,
-                            PhysicalOffset column_offset,
-                            LayoutUnit set_inline_size,
-                            const LayoutBlockFlow& container,
-                            wtf_size_t fragment_index,
-                            const PhysicalBoxStrut& border_padding_scrollbar) {
+DeprecatedLayoutPoint ComputeLocation(
+    const PhysicalBoxFragment& column_box,
+    PhysicalOffset column_offset,
+    LayoutUnit set_inline_size,
+    const LayoutBlockFlow& container,
+    wtf_size_t fragment_index,
+    const PhysicalBoxStrut& border_padding_scrollbar) {
   const PhysicalBoxFragment* container_fragment =
       container.GetPhysicalFragment(fragment_index);
   WritingModeConverter converter(
@@ -133,13 +134,12 @@ LayoutPoint ComputeLocation(const PhysicalBoxFragment& column_box,
   }
   // We have calculated the physical offset relative to the border edge of
   // this multicol container fragment. We'll now convert it to a legacy
-  // engine LayoutPoint, which will also take care of converting it into the
-  // flow thread coordinate space, if we happen to be nested inside another
-  // fragmentation context.
-  return LayoutBoxUtils::ComputeLocation(
-      column_box, physical_offset,
-      *container.GetPhysicalFragment(fragment_index),
-      previous_container_break_token);
+  // engine DeprecatedLayoutPoint, which will also take care of converting it
+  // into the flow thread coordinate space, if we happen to be nested inside
+  // another fragmentation context.
+  return ComputeBoxLocation(column_box, physical_offset,
+                            *container.GetPhysicalFragment(fragment_index),
+                            previous_container_break_token);
 }
 
 }  // namespace
@@ -355,7 +355,7 @@ void LayoutMultiColumnSet::WillBeRemovedFromTree() {
   DetachFromFlowThread();
 }
 
-LayoutPoint LayoutMultiColumnSet::LocationInternal() const {
+DeprecatedLayoutPoint LayoutMultiColumnSet::LocationInternal() const {
   NOT_DESTROYED();
   UpdateGeometryIfNeeded();
   return frame_location_;
@@ -378,7 +378,7 @@ void LayoutMultiColumnSet::UpdateGeometry() {
   NOT_DESTROYED();
   DCHECK(!HasValidCachedGeometry());
   SetHasValidCachedGeometry(true);
-  frame_location_ = LayoutPoint();
+  frame_location_ = DeprecatedLayoutPoint();
   ResetColumnHeight();
   const LayoutBlockFlow* container = MultiColumnBlockFlow();
   DCHECK_GT(container->PhysicalFragmentCount(), 0u);
@@ -396,7 +396,7 @@ void LayoutMultiColumnSet::UpdateGeometry() {
                    border_padding_scrollbar.VerticalSum());
   LogicalSize logical_size;
   logical_size.inline_size =
-      content_size.ConvertToLogical(writing_mode).inline_size;
+      ToLogicalSize(content_size, writing_mode).inline_size;
 
   // TODO(layout-dev): Ideally we should not depend on the layout tree structure
   // because it may be different from the tree for the physical fragments.
@@ -520,83 +520,6 @@ void LayoutMultiColumnSet::DetachFromFlowThread() {
     flow_thread_->RemoveColumnSetFromThread(this);
     flow_thread_ = nullptr;
   }
-}
-
-bool LayoutMultiColumnSet::ComputeColumnRuleBounds(
-    const PhysicalOffset& paint_offset,
-    Vector<PhysicalRect>& column_rule_bounds) const {
-  NOT_DESTROYED();
-  // Reference: https://www.w3.org/TR/css3-multicol/#column-gaps-and-rules
-  const ComputedStyle& block_style = MultiColumnBlockFlow()->StyleRef();
-  bool rule_transparent = block_style.ColumnRuleIsTransparent();
-  EBorderStyle rule_style = block_style.ColumnRuleStyle();
-  LayoutUnit rule_thickness(block_style.ColumnRuleWidth());
-  LayoutUnit col_gap = ColumnGap();
-  bool render_rule =
-      ComputedStyle::BorderStyleIsVisible(rule_style) && !rule_transparent;
-  if (!render_rule)
-    return false;
-
-  unsigned col_count = ActualColumnCount();
-  if (col_count <= 1)
-    return false;
-
-  bool left_to_right = StyleRef().IsLeftToRightDirection();
-  LayoutUnit curr_logical_left_offset =
-      left_to_right ? LayoutUnit() : ContentLogicalWidth();
-  LayoutUnit rule_add = BorderAndPaddingLogicalLeft();
-  LayoutUnit rule_logical_left =
-      left_to_right ? LayoutUnit() : ContentLogicalWidth();
-  LayoutUnit inline_direction_size = PageLogicalWidth();
-
-  for (unsigned i = 0; i < col_count; i++) {
-    // Move to the next position.
-    if (left_to_right) {
-      rule_logical_left += inline_direction_size + col_gap / 2;
-      curr_logical_left_offset += inline_direction_size + col_gap;
-    } else {
-      rule_logical_left -= (inline_direction_size + col_gap / 2);
-      curr_logical_left_offset -= (inline_direction_size + col_gap);
-    }
-
-    // Now compute the final bounds.
-    if (i < col_count - 1) {
-      LayoutUnit rule_left, rule_right, rule_top, rule_bottom;
-      if (IsHorizontalWritingMode()) {
-        rule_left = paint_offset.left + rule_logical_left - rule_thickness / 2 +
-                    rule_add;
-        rule_right = rule_left + rule_thickness;
-        rule_top = paint_offset.top + BorderTop() + PaddingTop();
-        rule_bottom = rule_top + ContentHeight();
-      } else {
-        rule_left = paint_offset.left + BorderLeft() + PaddingLeft();
-        rule_right = rule_left + ContentWidth();
-        rule_top = paint_offset.top + rule_logical_left - rule_thickness / 2 +
-                   rule_add;
-        rule_bottom = rule_top + rule_thickness;
-      }
-
-      column_rule_bounds.push_back(PhysicalRect(
-          rule_left, rule_top, rule_right - rule_left, rule_bottom - rule_top));
-    }
-
-    rule_logical_left = curr_logical_left_offset;
-  }
-  return true;
-}
-
-PhysicalRect LayoutMultiColumnSet::LocalVisualRectIgnoringVisibility() const {
-  NOT_DESTROYED();
-  PhysicalRect block_flow_bounds =
-      LayoutBlockFlow::LocalVisualRectIgnoringVisibility();
-
-  // Now add in column rule bounds, if present.
-  Vector<PhysicalRect> column_rule_bounds;
-  if (ComputeColumnRuleBounds(PhysicalOffset(), column_rule_bounds)) {
-    block_flow_bounds.Unite(UnionRect(column_rule_bounds));
-  }
-
-  return block_flow_bounds;
 }
 
 void LayoutMultiColumnSet::SetIsIgnoredByNG() {

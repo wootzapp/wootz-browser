@@ -5,12 +5,12 @@
 #include "chrome/browser/preloading/prerender/prerender_manager.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/time/time.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/preloading/chrome_preloading.h"
 #include "chrome/browser/preloading/prefetch/search_prefetch/field_trial_settings.h"
@@ -18,8 +18,11 @@
 #include "chrome/browser/preloading/prefetch/search_prefetch/search_prefetch_service_factory.h"
 #include "chrome/browser/preloading/prerender/prerender_utils.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/page_load_metrics/browser/navigation_handle_user_data.h"
+#include "components/search_engines/template_url.h"
+#include "components/search_engines/template_url_service.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/preloading.h"
@@ -37,6 +40,10 @@ const char kHistogramPrerenderPredictionStatusDefaultSearchEngine[] =
     "Prerender.Experimental.PredictionStatus.DefaultSearchEngine";
 const char kHistogramPrerenderPredictionStatusDirectUrlInput[] =
     "Prerender.Experimental.PredictionStatus.DirectUrlInput";
+const char kHistogramPrerenderBookmarkBarIsPrerenderingSrpUrl[] =
+    "Prerender.IsPrerenderingSRPUrl.Embedder_BookmarkBar";
+const char kHistogramPrerenderNTPIsPrerenderingSrpUrl[] =
+    "Prerender.IsPrerenderingSRPUrl.Embedder_NewTabPage";
 }  // namespace internal
 
 namespace {
@@ -65,6 +72,15 @@ void AttachBookmarkBarNavigationHandleUserData(
                              InitiatorLocation::kBookmarkBar);
 }
 
+bool IsSearchUrl(content::WebContents& web_contents, const GURL& url) {
+  auto* profile = Profile::FromBrowserContext(web_contents.GetBrowserContext());
+  TemplateURLService* template_url_service =
+      TemplateURLServiceFactory::GetForProfile(profile);
+  return template_url_service &&
+         template_url_service->IsSearchResultsPageFromDefaultSearchProvider(
+             url);
+}
+
 }  // namespace
 
 PrerenderManager::~PrerenderManager() = default;
@@ -75,7 +91,6 @@ class PrerenderManager::SearchPrerenderTask {
       const GURL& canonical_search_url,
       std::unique_ptr<content::PrerenderHandle> search_prerender_handle)
       : search_prerender_handle_(std::move(search_prerender_handle)),
-        task_started_timestamp_(base::TimeTicks::Now()),
         prerendered_canonical_search_url_(canonical_search_url) {}
 
   ~SearchPrerenderTask() {
@@ -137,30 +152,6 @@ class PrerenderManager::SearchPrerenderTask {
         prerendered_canonical_search_url_, web_contents.GetLastCommittedURL());
   }
 
-  void RecordTimestampOnDidStartNavigation(
-      base::TimeTicks start_navigation_timestamp) {
-    latest_start_navigation_event_timestamp_ = start_navigation_timestamp;
-  }
-
-  void RecordLifeTimeMetric() {
-    // Record the lifetime of this prerender.
-    // @ PrerenderHintReceived    @ Activation/NavigationStarted
-    // |<---------delta---------->|
-    // where:
-    // task_started_timestamp_ = Timestamp@PrerenderHintReceived
-    // latest_start_navigation_event_timestamp_ =
-    //   Timestamp@Activation/NavigationStarted
-    base::TimeDelta delta =
-        latest_start_navigation_event_timestamp_ - task_started_timestamp_;
-    // The upper-bound of this histogram is decided by the default duration of
-    // the search prefetch setting. See `prefetch_caching_limit_ms`.
-    base::UmaHistogramCustomTimes(
-        "Prerender.Experimental.Search."
-        "FirstCorrectPrerenderHintReceivedToRealSearchNavigationStartedDuratio"
-        "n",
-        delta, base::Milliseconds(1), base::Seconds(60), /*buckets=*/50);
-  }
-
   void set_prediction_status(PrerenderPredictionStatus prediction_status) {
     // If the final status was set, do nothing because the status has been
     // finalized.
@@ -173,14 +164,6 @@ class PrerenderManager::SearchPrerenderTask {
  private:
   std::unique_ptr<content::PrerenderHandle> search_prerender_handle_;
 
-  // Recorded on OnDidStartNavigation and used on PrimaryPageChanged. Only the
-  // latest recorded TimeTicks is meaningful. See the comment in
-  // PrerenderManager::DidStartNavigation for more information.
-  base::TimeTicks latest_start_navigation_event_timestamp_;
-
-  // Recorded upon starting the task.
-  const base::TimeTicks task_started_timestamp_;
-
   // A task is associated with a prediction, this tracks the correctness of the
   // prediction.
   PrerenderPredictionStatus prediction_status_ =
@@ -189,33 +172,6 @@ class PrerenderManager::SearchPrerenderTask {
   // Stores the search term that `search_prerender_handle_` is prerendering.
   const GURL prerendered_canonical_search_url_;
 };
-
-void PrerenderManager::DidStartNavigation(
-    content::NavigationHandle* navigation_handle) {
-  // Only watching the changes to primary main frame.
-  if (!navigation_handle->IsInPrimaryMainFrame() ||
-      navigation_handle->IsSameDocument())
-    return;
-
-  // Ideally it should record the lifetime metric directly here if the search
-  // terms match. However, the DidStartNavigation method can be called in other
-  // cases(for example, the primary page has an ongoing navigation), and we only
-  // care about the latest DidStartNavigation event right before
-  // PrimaryPageChanged, and record metric if the search terms match(Note: we do
-  // not only record the metric on the successful prerender activation, but also
-  // on the failed cases, as long as the predictions are correct, since this
-  // metric is used to understand the search prerender prediction rather than
-  // the prerender operation). Besides this, it would waste the resources if we
-  // parsed the URL for many times. i.e., in this method and in
-  // PrimaryPageChanged. So it only records the timestamp, and
-  // PrimaryPageChanged will record the metric later if needed.
-  // TODO(crbug.com/40208255): Record the metrics at the moment
-  // when a suggestion is selected.
-  if (search_prerender_task_) {
-    search_prerender_task_->RecordTimestampOnDidStartNavigation(
-        navigation_handle->NavigationStart());
-  }
-}
 
 void PrerenderManager::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
@@ -240,6 +196,14 @@ PrerenderManager::StartPrerenderBookmark(const GURL& prerendering_url) {
   content::PreloadingURLMatchCallback same_url_matcher =
       content::PreloadingData::GetSameURLMatcher(prerendering_url);
 
+  if (IsSearchUrl(*web_contents(), prerendering_url)) {
+    base::UmaHistogramBoolean(
+        internal::kHistogramPrerenderBookmarkBarIsPrerenderingSrpUrl, true);
+    return nullptr;
+  }
+
+  base::UmaHistogramBoolean(
+      internal::kHistogramPrerenderBookmarkBarIsPrerenderingSrpUrl, false);
   // Create new PreloadingAttempt and pass all the values corresponding to
   // this prerendering attempt for Prerender.
   content::PreloadingAttempt* preloading_attempt =
@@ -278,8 +242,18 @@ PrerenderManager::StartPrerenderBookmark(const GURL& prerendering_url) {
   bookmark_prerender_handle_ = web_contents()->StartPrerendering(
       prerendering_url, content::PreloadingTriggerType::kEmbedder,
       prerender_utils::kBookmarkBarMetricSuffix,
+      /*additional_headers=*/net::HttpRequestHeaders(),
+      /*no_vary_search_hint=*/std::nullopt,
       ui::PageTransitionFromInt(ui::PAGE_TRANSITION_AUTO_BOOKMARK),
-      content::PreloadingHoldbackStatus::kUnspecified, preloading_attempt,
+      // Considering the characteristics of triggers (e.g., the duration from
+      // trigger to activation), warm-up is not enabled for now on this trigger.
+      // Please see crbug and its doc for more details.
+      /*should_warm_up_compositor=*/false,
+      /*should_prepare_paint_tree=*/false,
+      content::PreloadingHoldbackStatus::kUnspecified,
+      content::PreloadPipelineInfo::Create(
+          /*planned_max_preloading_type=*/content::PreloadingType::kPrerender),
+      preloading_attempt,
       /*url_match_predicate=*/{},
       std::move(prerender_navigation_handle_callback));
 
@@ -291,6 +265,14 @@ base::WeakPtr<content::PrerenderHandle>
 PrerenderManager::StartPrerenderNewTabPage(
     const GURL& prerendering_url,
     content::PreloadingPredictor predictor) {
+  if (IsSearchUrl(*web_contents(), prerendering_url)) {
+    base::UmaHistogramBoolean(
+        internal::kHistogramPrerenderNTPIsPrerenderingSrpUrl, true);
+    return nullptr;
+  }
+
+  base::UmaHistogramBoolean(
+      internal::kHistogramPrerenderNTPIsPrerenderingSrpUrl, false);
   // Helpers to create content::PreloadingAttempt.
   auto* preloading_data =
       content::PreloadingData::GetOrCreateForWebContents(web_contents());
@@ -332,8 +314,18 @@ PrerenderManager::StartPrerenderNewTabPage(
   new_tab_page_prerender_handle_ = web_contents()->StartPrerendering(
       prerendering_url, content::PreloadingTriggerType::kEmbedder,
       prerender_utils::kNewTabPageMetricSuffix,
+      /*additional_headers=*/net::HttpRequestHeaders(),
+      /*no_vary_search_hint=*/std::nullopt,
       ui::PageTransitionFromInt(ui::PAGE_TRANSITION_AUTO_BOOKMARK),
-      content::PreloadingHoldbackStatus::kUnspecified, preloading_attempt,
+      // Considering the characteristics of triggers (e.g., the duration from
+      // trigger to activation), warm-up is not enabled for now on this trigger.
+      // Please see crbug and its doc for more details.
+      /*should_warm_up_compositor=*/false,
+      /*should_prepare_paint_tree=*/false,
+      content::PreloadingHoldbackStatus::kUnspecified,
+      content::PreloadPipelineInfo::Create(
+          /*planned_max_preloading_type=*/content::PreloadingType::kPrerender),
+      preloading_attempt,
       /*url_match_predicate=*/{},
       std::move(prerender_navigation_handle_callback));
 
@@ -391,9 +383,16 @@ PrerenderManager::StartPrerenderDirectUrlInput(
   direct_url_input_prerender_handle_ = web_contents()->StartPrerendering(
       prerendering_url, content::PreloadingTriggerType::kEmbedder,
       prerender_utils::kDirectUrlInputMetricSuffix,
+      /*additional_headers=*/net::HttpRequestHeaders(),
+      /*no_vary_search_hint=*/std::nullopt,
       ui::PageTransitionFromInt(ui::PAGE_TRANSITION_TYPED |
                                 ui::PAGE_TRANSITION_FROM_ADDRESS_BAR),
-      content::PreloadingHoldbackStatus::kUnspecified, &preloading_attempt,
+      /*should_warm_up_compositor=*/true,
+      /*should_prepare_paint_tree=*/false,
+      content::PreloadingHoldbackStatus::kUnspecified,
+      content::PreloadPipelineInfo::Create(
+          /*planned_max_preloading_type=*/content::PreloadingType::kPrerender),
+      &preloading_attempt,
       /*url_match_predicate=*/{}, /*prerender_navigation_handle_callback=*/{});
 
   if (direct_url_input_prerender_handle_) {
@@ -415,24 +414,29 @@ void PrerenderManager::StartPrerenderSearchResult(
 
   // web_contents() owns the instance that stores this callback, so it is safe
   // to call std::ref.
-  base::RepeatingCallback<bool(const GURL&)> url_match_predicate =
-      base::BindRepeating(&IsSearchDestinationMatch, canonical_search_url,
-                          web_contents()->GetBrowserContext());
+  base::RepeatingCallback<bool(const GURL&,
+                               const std::optional<content::UrlMatchType>&)>
+      url_match_predicate = base::BindRepeating(
+          &IsSearchDestinationMatchWithWebUrlMatchResult, canonical_search_url,
+          web_contents()->GetBrowserContext());
 
   content::PreloadingHoldbackStatus holdback_status_override =
       content::PreloadingHoldbackStatus::kUnspecified;
-  if (base::FeatureList::IsEnabled(features::kPrerenderDSEHoldback)) {
-    holdback_status_override = content::PreloadingHoldbackStatus::kHoldback;
-  }
 
   std::unique_ptr<content::PrerenderHandle> prerender_handle =
       web_contents()->StartPrerendering(
           prerendering_url, content::PreloadingTriggerType::kEmbedder,
           prerender_utils::kDefaultSearchEngineMetricSuffix,
+          /*additional_headers=*/net::HttpRequestHeaders(),
+          /*no_vary_search_hint=*/std::nullopt,
           ui::PageTransitionFromInt(ui::PAGE_TRANSITION_GENERATED |
                                     ui::PAGE_TRANSITION_FROM_ADDRESS_BAR),
-          holdback_status_override, preloading_attempt.get(),
-          std::move(url_match_predicate),
+          /*should_warm_up_compositor=*/true,
+          /*should_prepare_paint_tree=*/true, holdback_status_override,
+          content::PreloadPipelineInfo::Create(
+              /*planned_max_preloading_type=*/content::PreloadingType::
+                  kPrerender),
+          preloading_attempt.get(), std::move(url_match_predicate),
           /*prerender_navigation_handle_callback=*/{});
 
   if (prerender_handle) {
@@ -503,12 +507,8 @@ void PrerenderManager::ResetPrerenderHandlesOnPrimaryPageChanged(
         web_contents()->GetBrowserContext(), opened_url);
 
     if (is_search_destination_match) {
-      // We may want to record this metric on AutocompleteMatch selected relying
-      // on GetMatchSelectionTimestamp. But this is for rough estimation so it
-      // may not need the precise data.
       search_prerender_task_->set_prediction_status(
           PrerenderPredictionStatus::kHitFinished);
-      search_prerender_task_->RecordLifeTimeMetric();
     }
 
     if (is_search_destination_match &&
@@ -530,8 +530,6 @@ bool PrerenderManager::ResetSearchPrerenderTaskIfNecessary(
     return true;
 
   // Do not re-prerender the same search result.
-  // TODO(crbug.com/40208255): re-prerender the search result if the
-  // prerendered content has been removed.
   if (search_prerender_task_->prerendered_canonical_search_url() ==
       canonical_search_url) {
     // In case a prerender is already present for the URL, prerendering is

@@ -4,24 +4,22 @@
 
 #import "ios/web/download/download_native_task_bridge.h"
 
+#import <optional>
+
 #import "base/apple/foundation_util.h"
 #import "base/check.h"
 #import "base/files/file_util.h"
 #import "base/functional/callback.h"
 #import "base/task/thread_pool.h"
 #import "ios/web/download/download_result.h"
-#import "ios/web/web_view/error_translation_util.h"
+#import "ios/web/util/error_translation_util.h"
 #import "net/base/net_errors.h"
 
 namespace {
 
 // Helper to get the size of file at `file_path`. Returns -1 in case of error.
 int64_t FileSizeForFileAtPath(base::FilePath file_path) {
-  int64_t file_size = 0;
-  if (!base::GetFileSize(file_path, &file_size))
-    return -1;
-
-  return file_size;
+  return base::GetFileSize(file_path).value_or(-1);
 }
 
 // Helper to invoke the download complete callback after getting the file
@@ -93,13 +91,25 @@ enum class DownloadNativeTaskState {
 
 - (void)dealloc {
   [self stopObservingDownloadProgress];
+
+  // At this point, _startDownloadBlock should be nil. However as seen in
+  // https://crbug.com/344476170 it appears this invariant is not true.
+  // Since WebKit terminates the app with a NSException if the block is
+  // not called, invoke here if it is still set. This is a workaround
+  // until a proper fix is implemented (i.e. using a real state object
+  // to ensure that it is not possible for the block to not be invoked
+  // when the `_status` changes).
+  if (_startDownloadBlock) {
+    _startDownloadBlock(nil);
+    _startDownloadBlock = nil;
+  }
 }
 
 - (void)cancel {
   if (_status == DownloadNativeTaskState::kPendingStart) {
     // WKDownload will pass a block to its delegate when calling its
     // - download:decideDestinationUsingResponse:suggestedFilename
-    //:completionHandler: method. WKDownload enforces that this block is called
+    //: completionHandler: method. WKDownload enforces that this block is called
     // before the object is destroyed or the download is cancelled. Thus it
     // must be called now.
     //
@@ -147,6 +157,7 @@ enum class DownloadNativeTaskState {
       [self responseReceived:_response];
       [self startObservingDownloadProgress];
       _startDownloadBlock(_urlForDownload);
+      _startDownloadBlock = nil;
       return;
     }
 
@@ -339,7 +350,7 @@ enum class DownloadNativeTaskState {
         base::apple::ObjCCastStrict<NSHTTPURLResponse>(response).statusCode;
   }
 
-  std::move(_responseCallback).Run(http_error, response.MIMEType);
+  std::move(_responseCallback).Run(http_error, response.MIMEType, response.URL);
 }
 
 @end

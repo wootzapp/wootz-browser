@@ -70,11 +70,11 @@ aura::Window* GetPowerMenuContainer() {
 std::unique_ptr<views::Widget> CreateMenuWidget() {
   auto menu_widget = std::make_unique<views::Widget>();
   views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
   params.z_order = ui::ZOrderLevel::kFloatingWindow;
   params.accept_events = true;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.name = "PowerButtonMenuWindow";
   params.layer_type = ui::LAYER_SOLID_COLOR;
   params.parent = GetPowerMenuContainer();
@@ -572,16 +572,15 @@ void PowerButtonController::ParsePowerButtonPositionSwitch() {
     return;
   }
 
-  std::optional<base::Value> parsed_json = base::JSONReader::Read(
+  std::optional<base::Value::Dict> parsed_json = base::JSONReader::ReadDict(
       cl->GetSwitchValueASCII(switches::kAshPowerButtonPosition));
-  if (!parsed_json || !parsed_json->is_dict()) {
+  if (!parsed_json) {
     LOG(ERROR) << switches::kAshPowerButtonPosition << " flag has no value";
     return;
   }
 
-  const base::Value::Dict& position_info = parsed_json->GetDict();
-  const std::string* edge = position_info.FindString(kEdgeField);
-  std::optional<double> position = position_info.FindDouble(kPositionField);
+  const std::string* edge = parsed_json->FindString(kEdgeField);
+  std::optional<double> position = parsed_json->FindDouble(kPositionField);
 
   if (!edge || !position) {
     LOG(ERROR) << "Both " << kEdgeField << " field and " << kPositionField

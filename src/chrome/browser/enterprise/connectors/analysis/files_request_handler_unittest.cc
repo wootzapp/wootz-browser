@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/enterprise/connectors/analysis/files_request_handler.h"
 
 #include <map>
@@ -9,6 +14,7 @@
 #include <string>
 #include <vector>
 
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
@@ -16,6 +22,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/path_service.h"
+#include "base/strings/to_string.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/gmock_callback_support.h"
@@ -23,6 +30,7 @@
 #include "base/test/test_future.h"
 #include "build/build_config.h"
 #include "chrome/browser/enterprise/connectors/analysis/content_analysis_features.h"
+#include "chrome/browser/enterprise/connectors/analysis/content_analysis_info.h"
 #include "chrome/browser/enterprise/connectors/common.h"
 #include "chrome/browser/enterprise/connectors/connectors_service.h"
 #include "chrome/browser/enterprise/connectors/test/deep_scanning_test_utils.h"
@@ -131,7 +139,7 @@ class BaseTest : public testing::Test {
     for (const auto& file_name : file_names) {
       base::FilePath path = temp_dir_.GetPath().Append(file_name);
       base::File file(path, base::File::FLAG_CREATE | base::File::FLAG_WRITE);
-      file.WriteAtCurrentPos(content.data(), content.size());
+      file.WriteAtCurrentPos(base::as_byte_span(content));
       paths.emplace_back(path);
     }
     return paths;
@@ -156,6 +164,43 @@ MATCHER_P3(MatchesRequestHandlerResult, complies, final_result, tag, "") {
   return complies_matches && final_result_matches && tag_matches;
 }
 
+class TestContentAnalysisInfo : public ContentAnalysisInfo {
+ public:
+  explicit TestContentAnalysisInfo(
+      const enterprise_connectors::AnalysisSettings& settings,
+      int user_action_requests_count)
+      : settings_(settings),
+        user_action_requests_count_(user_action_requests_count) {}
+
+  const AnalysisSettings& settings() const override { return settings_.get(); }
+
+  // These methods correspond to fields in `BinaryUploadService::Request`.
+  int user_action_requests_count() const override {
+    return user_action_requests_count_;
+  }
+
+  std::string tab_title() const override { return kTabTitle; }
+
+  std::string user_action_id() const override { return kUserActionId; }
+
+  std::string email() const override { return "test@user.com"; }
+
+  std::string url() const override { return kTestUrl; }
+
+  const GURL& tab_url() const override {
+    static GURL url(kTestUrl);
+    return url;
+  }
+
+  ContentAnalysisRequest::Reason reason() const override {
+    return ContentAnalysisRequest::FILE_PICKER_DIALOG;
+  }
+
+ private:
+  const raw_ref<const enterprise_connectors::AnalysisSettings> settings_;
+  int user_action_requests_count_ = 0;
+};
+
 }  // namespace
 
 // Make a RequestHandlerResult show nicely in google tests.
@@ -165,7 +210,7 @@ MATCHER_P3(MatchesRequestHandlerResult, complies, final_result, tag, "") {
 void PrintTo(const RequestHandlerResult& request_handler_result,
              std::ostream* os) {
   *os << "RequestHandlerResult: (";
-  *os << "complies: " << (request_handler_result.complies ? "true" : "false")
+  *os << "complies: " << base::ToString(request_handler_result.complies)
       << ", ";
 
   *os << "final_result: "
@@ -212,6 +257,7 @@ class FilesRequestHandlerTest : public BaseTest {
         base::test::TestFuture<std::vector<RequestHandlerResult>>;
     ResultFuture future;
 
+    TestContentAnalysisInfo info(*settings, paths.size());
     // The access point is only used for metrics, so its value doesn't affect
     // the tests in this file and can always be the same.
     fake_files_request_handler_ =
@@ -220,11 +266,10 @@ class FilesRequestHandlerTest : public BaseTest {
                 &FilesRequestHandlerTest::FakeFileUploadCallback,
                 weak_ptr_factory_.GetWeakPtr(),
                 settings->cloud_or_local_settings.is_cloud_analysis()),
-            /*upload_service=*/nullptr, profile_, *settings, GURL(kTestUrl), "",
-            "", kUserActionId, kTabTitle, kContentTransferMethod,
-            safe_browsing::DeepScanAccessPoint::UPLOAD,
-            ContentAnalysisRequest::FILE_PICKER_DIALOG, paths,
-            future.GetCallback());
+            /*content_analysis_info=*/&info,
+            /*upload_service=*/nullptr, profile_, GURL(kTestUrl), "", "",
+            kContentTransferMethod, safe_browsing::DeepScanAccessPoint::UPLOAD,
+            paths, future.GetCallback());
 
     fake_files_request_handler_->UploadData();
 
@@ -352,11 +397,6 @@ class FilesRequestHandlerTest : public BaseTest {
     // Set any non empty request token.
     response.set_request_token("request_token");
     return response;
-  }
-
-  void EnableResumableUploads() {
-    scoped_feature_list_.InitAndEnableFeature(
-        enterprise_connectors::kResumableUploadEnabled);
   }
 
   bool was_upload_performed() { return upload_performed_; }
@@ -558,34 +598,8 @@ TEST_F(FilesRequestHandlerTest, FileIsEncrypted_PolicyAllows) {
   EXPECT_THAT((*results)[0],
               MatchesRequestHandlerResult(
                   true, FinalContentAnalysisResult::SUCCESS, ""));
-  EXPECT_FALSE(was_upload_performed());
-}
-
-TEST_F(FilesRequestHandlerTest,
-       FileIsEncrypted_ResumableEnabled_UploadPerformed) {
-  content::InProcessUtilityThreadHelper in_process_utility_thread_helper;
-
-  EnableResumableUploads();
-
-  enterprise_connectors::test::SetAnalysisConnector(
-      profile_->GetPrefs(), AnalysisConnector::FILE_ATTACHED,
-      kBlockingScansForDlpAndMalware);
-  GURL url(kTestUrl);
-  std::vector<base::FilePath> paths;
-
-  base::FilePath test_zip;
-  EXPECT_TRUE(base::PathService::Get(chrome::DIR_TEST_DATA, &test_zip));
-  test_zip = test_zip.AppendASCII("safe_browsing")
-                 .AppendASCII("download_protection")
-                 .AppendASCII("encrypted.zip");
-  paths.emplace_back(test_zip);
-
-  auto results = ScanUpload(paths);
-  ASSERT_TRUE(results.has_value());
-  EXPECT_EQ(1u, results->size());
-  EXPECT_THAT((*results)[0],
-              MatchesRequestHandlerResult(
-                  true, FinalContentAnalysisResult::SUCCESS, ""));
+  // When the resumable upload protocol is in use and the policy does not block
+  // encrypted files by default, the file's metadata is uploaded for scanning.
   EXPECT_TRUE(was_upload_performed());
 }
 
@@ -692,35 +706,8 @@ TEST_F(FilesRequestHandlerTest, FileIsLarge_PolicyAllows) {
   EXPECT_THAT((*results)[0],
               MatchesRequestHandlerResult(
                   true, FinalContentAnalysisResult::SUCCESS, ""));
-  EXPECT_FALSE(was_upload_performed());
-}
-
-TEST_F(FilesRequestHandlerTest, FileIsLarge_ResumableEnabled_UploadPerformed) {
-  content::InProcessUtilityThreadHelper in_process_utility_thread_helper;
-
-  EnableResumableUploads();
-
-  enterprise_connectors::test::SetAnalysisConnector(
-      profile_->GetPrefs(), AnalysisConnector::FILE_ATTACHED,
-      kBlockingScansForDlpAndMalware);
-  GURL url(kTestUrl);
-  std::vector<base::FilePath> paths;
-
-  base::ScopedTempDir temp_dir;
-  ASSERT_TRUE(temp_dir.CreateUniqueTempDir());
-  base::FilePath file_path = temp_dir.GetPath().AppendASCII("large.doc");
-  std::string contents(
-      safe_browsing::BinaryUploadService::kMaxUploadSizeBytes + 1, 'a');
-  base::WriteFile(file_path, contents);
-  paths.emplace_back(file_path);
-  SetExpectedUserActionRequestsCount(1);
-
-  auto results = ScanUpload(paths);
-  ASSERT_TRUE(results.has_value());
-  EXPECT_EQ(1u, results->size());
-  EXPECT_THAT((*results)[0],
-              MatchesRequestHandlerResult(
-                  true, FinalContentAnalysisResult::SUCCESS, ""));
+  // When the resumable upload protocol is in use and the policy does not block
+  // large files by default, the file's metadata is uploaded for scanning.
   EXPECT_TRUE(was_upload_performed());
 }
 

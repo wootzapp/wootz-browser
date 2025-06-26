@@ -7,6 +7,7 @@
 #include <string>
 
 #include "base/strings/escape.h"
+#include "base/strings/utf_string_conversions.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_types.h"
 #include "components/history/core/browser/url_database.h"
@@ -75,14 +76,13 @@ void ZeroSuggestVerbatimMatchProvider::Start(const AutocompleteInput& input,
     return;
   }
 
-  std::u16string title = input.current_title();
-  bool title_empty = title.empty();
-  CreateVerbatimMatch(input, std::move(title));
+  CreateVerbatimMatch(input, input.current_title());
 
   // It is possible for `title` to be empty if the page is currently loading.
   // If title is empty and async matches are permitted, make an effort to
   // retrieve page title from history database.
-  if (!title_empty || input.omit_asynchronous_matches()) {
+  if (!matches_.back().description.empty() ||
+      input.omit_asynchronous_matches()) {
     return;
   }
 
@@ -154,7 +154,19 @@ void ZeroSuggestVerbatimMatchProvider::CreateVerbatimMatch(
               url_service->search_terms_data())) {
         dse->ExtractSearchTermsFromURL(match.destination_url,
                                        url_service->search_terms_data(),
-                                       &match.fill_into_edit);
+                                       &match.contents);
+        // Upgrade Verbatim Match to a SEARCH_WHAY_YOU_TYPED.
+        match.type = AutocompleteMatchType::SEARCH_WHAT_YOU_TYPED;
+        match.keyword = dse->keyword();
+        match.fill_into_edit = match.contents;
+        if (match.description.empty() ||
+            match.description ==
+                base::UTF8ToUTF16(match.destination_url.spec())) {
+          match.description = match.fill_into_edit;
+          if (match.description_class.empty()) {
+            match.description_class.push_back({0, ACMatchClassification::NONE});
+          }
+        }
       }
     }
   }

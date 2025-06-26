@@ -23,11 +23,11 @@ import org.mockito.MockitoAnnotations;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.LooperMode;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.webapps.R;
 import org.chromium.content_public.browser.test.mock.MockWebContents;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.url.GURL;
 
 /** Instrumentation tests for PWA Universal Install bottom sheet. */
@@ -73,14 +73,14 @@ public class PwaUniversalInstallBottomSheetCoordinatorTest {
                         this::onInstallCalled,
                         this::onAddShortcutCalled,
                         this::onOpenAppCalled,
-                        /* appInstalled= */ false,
+                        /* webAppAlreadyInstalled= */ false,
                         mBottomSheetControllerMock,
                         /* arrowId= */ 0,
                         /* installOverlayId= */ 0,
                         /* shortcutOverlayId= */ 0);
 
         View view = coordinator.getBottomSheetViewForTesting();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     Assert.assertEquals(
                             "Add to home screen",

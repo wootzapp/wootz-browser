@@ -8,10 +8,8 @@
 #include <iterator>
 #include <memory>
 #include <utility>
-#include <vector>
 
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/test/scoped_feature_list.h"
 #include "components/performance_manager/graph/frame_node_impl.h"
 #include "components/performance_manager/graph/page_node_impl.h"
@@ -40,7 +38,6 @@ class UserPerformanceTuningNotifierTest : public GraphTestHarness {
 
     int tab_count_threshold_reached_count_ = 0;
     int memory_percent_threshold_reached_count_ = 0;
-    std::vector<uint64_t> pages_pmf_kb_;
   };
 
   class TestProcessMetricsDecorator : public ProcessMetricsDecorator {

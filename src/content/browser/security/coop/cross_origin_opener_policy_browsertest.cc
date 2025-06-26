@@ -216,8 +216,10 @@ class CrossOriginOpenerPolicyBrowserTest
             base::Unretained(this))),
         https_server_(net::EmbeddedTestServer::TYPE_HTTPS) {
     // Enable COOP/COEP:
-    feature_list_.InitAndEnableFeature(
-        network::features::kCrossOriginOpenerPolicy);
+    feature_list_.InitWithFeatures(
+        {network::features::kCrossOriginOpenerPolicy,
+         network::features::kCoopNoopenerAllowPopups},
+        {features::kProcessPerSiteUpToMainFrameThreshold});
 
     // Enable RenderDocument:
     InitAndEnableRenderDocumentFeature(&feature_list_for_render_document_,
@@ -232,6 +234,13 @@ class CrossOriginOpenerPolicyBrowserTest
       feature_list_for_back_forward_cache_.InitWithFeatures(
           {}, {features::kBackForwardCache});
     }
+
+    // Set the speculative RFH creation delay to 0 so that the speculative RFH
+    // is always created before receiving the response. Otherwise the RFH will
+    // always be created with the correct COOP header.
+    feature_list_for_defer_speculative_rfh_.InitAndEnableFeatureWithParameters(
+        features::kDeferSpeculativeRFHCreation,
+        {{"create_speculative_rfh_delay_ms", "0"}});
   }
 
   // Provides meaningful param names instead of /0, /1, ...
@@ -297,7 +306,6 @@ class CrossOriginOpenerPolicyBrowserTest
 
  private:
   void SetUpCommandLine(base::CommandLine* command_line) override {
-    ContentBrowserTest::SetUpCommandLine(command_line);
     mock_cert_verifier_.SetUpCommandLine(command_line);
   }
 
@@ -325,6 +333,7 @@ class CrossOriginOpenerPolicyBrowserTest
   base::test::ScopedFeatureList feature_list_;
   base::test::ScopedFeatureList feature_list_for_render_document_;
   base::test::ScopedFeatureList feature_list_for_back_forward_cache_;
+  base::test::ScopedFeatureList feature_list_for_defer_speculative_rfh_;
   net::EmbeddedTestServer https_server_;
 };
 
@@ -1854,7 +1863,11 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     // Start navigating to a COOP page.
     TestNavigationManager coop_navigation(web_contents(), coop_page);
     shell()->LoadURL(coop_page);
-    EXPECT_TRUE(coop_navigation.WaitForRequestStart());
+    if (ShouldCreateNewHostForAllFrames()) {
+      coop_navigation.WaitForSpeculativeRenderFrameHostCreation();
+    } else {
+      EXPECT_TRUE(coop_navigation.WaitForRequestStart());
+    }
 
     // Simulate the renderer process crashing.
     RenderProcessHost* process = initial_site_instance->GetProcess();
@@ -1965,7 +1978,11 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     // Start navigating to a non COOP page.
     TestNavigationManager non_coop_navigation(web_contents(), non_coop_page);
     shell()->LoadURL(non_coop_page);
-    EXPECT_TRUE(non_coop_navigation.WaitForRequestStart());
+    if (ShouldCreateNewHostForAllFrames()) {
+      non_coop_navigation.WaitForSpeculativeRenderFrameHostCreation();
+    } else {
+      EXPECT_TRUE(non_coop_navigation.WaitForRequestStart());
+    }
 
     // Simulate the renderer process crashing.
     RenderProcessHost* process = initial_site_instance->GetProcess();
@@ -2080,7 +2097,11 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     TestNavigationManager coop_navigation(web_contents(),
                                           coop_allow_popups_page);
     shell()->LoadURL(coop_allow_popups_page);
-    EXPECT_TRUE(coop_navigation.WaitForRequestStart());
+    if (ShouldCreateNewHostForAllFrames()) {
+      coop_navigation.WaitForSpeculativeRenderFrameHostCreation();
+    } else {
+      EXPECT_TRUE(coop_navigation.WaitForRequestStart());
+    }
 
     // Simulate the renderer process crashing.
     RenderProcessHost* process = initial_site_instance->GetProcess();
@@ -2330,7 +2351,11 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     // Navigate to a non COOP page.
     TestNavigationManager non_coop_navigation(web_contents(), non_coop_page);
     shell()->LoadURL(non_coop_page);
-    EXPECT_TRUE(non_coop_navigation.WaitForRequestStart());
+    if (ShouldCreateNewHostForAllFrames()) {
+      non_coop_navigation.WaitForSpeculativeRenderFrameHostCreation();
+    } else {
+      EXPECT_TRUE(non_coop_navigation.WaitForRequestStart());
+    }
 
     // A speculative RenderFrameHost will only be created if we always use a new
     // RenderFrameHost for all cross-document navigations.
@@ -2360,6 +2385,9 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     TestNavigationManager coop_navigation(web_contents(), coop_page);
     shell()->LoadURL(coop_page);
     EXPECT_TRUE(coop_navigation.WaitForRequestStart());
+    if (CanSameSiteMainFrameNavigationsChangeRenderFrameHosts()) {
+      coop_navigation.WaitForSpeculativeRenderFrameHostCreation();
+    }
 
     auto* speculative_rfh = web_contents()
                                 ->GetPrimaryFrameTree()
@@ -2395,6 +2423,9 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     TestNavigationManager non_coop_navigation(web_contents(), non_coop_page);
     shell()->LoadURL(non_coop_page);
     EXPECT_TRUE(non_coop_navigation.WaitForRequestStart());
+    if (CanSameSiteMainFrameNavigationsChangeRenderFrameHosts()) {
+      non_coop_navigation.WaitForSpeculativeRenderFrameHostCreation();
+    }
 
     auto* speculative_rfh = web_contents()
                                 ->GetPrimaryFrameTree()
@@ -2429,6 +2460,9 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     TestNavigationManager coop_navigation(web_contents(), coop_page);
     shell()->LoadURL(coop_page);
     EXPECT_TRUE(coop_navigation.WaitForRequestStart());
+    if (ShouldCreateNewHostForAllFrames()) {
+      coop_navigation.WaitForSpeculativeRenderFrameHostCreation();
+    }
 
     // A speculative RenderFrameHost will only be created if we always use a new
     // RenderFrameHost for all cross-document navigations.
@@ -3438,9 +3472,26 @@ IN_PROC_BROWSER_TEST_P(VirtualBrowsingContextGroupTest,
   EXPECT_NE(group_4, group_1);
 }
 
+// A subclass for tests incompatible with OriginKeyedProcessesByDefault.
+class CrossOriginOpenerPolicyNoOKPBrowserTest
+    : public CrossOriginOpenerPolicyBrowserTest {
+ public:
+  CrossOriginOpenerPolicyNoOKPBrowserTest() {
+    feature_list_
+        .InitWithFeatures(/*enabled_features=*/
+                          {}, /*disabled_features=*/{
+                              features::kOriginKeyedProcessesByDefault});
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
 // A test to make sure that loading a page with COOP/COEP headers doesn't set
-// is_origin_keyed() on the SiteInstance's SiteInfo.
-IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
+// is_origin_keyed() on the SiteInstance's SiteInfo. This test should be run
+// with OriginKeyedProcessesByDefault disabled, otherwise the SiteInfo will
+// be origin-keyed regardless of COOP/COEP.
+IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyNoOKPBrowserTest,
                        CoopCoepNotOriginKeyed) {
   GURL isolated_page(
       https_server()->GetURL("a.test",
@@ -3496,7 +3547,7 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     SiteInstanceImpl* current_si = current_frame_host()->GetSiteInstance();
     EXPECT_TRUE(current_si->IsCrossOriginIsolated());
     EXPECT_FALSE(current_si->IsRelatedSiteInstance(previous_si.get()));
-    EXPECT_NE(current_si->GetProcess(), previous_si->GetProcess());
+    EXPECT_NE(current_si->GetProcess(), previous_si->GetOrCreateProcess());
   }
 
   // Navigation to the same cross-origin isolated page.
@@ -3517,7 +3568,7 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     SiteInstanceImpl* current_si = current_frame_host()->GetSiteInstance();
     EXPECT_FALSE(current_si->IsCrossOriginIsolated());
     EXPECT_FALSE(current_si->IsRelatedSiteInstance(previous_si.get()));
-    EXPECT_NE(current_si->GetProcess(), previous_si->GetProcess());
+    EXPECT_NE(current_si->GetProcess(), previous_si->GetOrCreateProcess());
   }
 
   // Back navigation from a cross-origin isolated page to a non cross-origin
@@ -3539,7 +3590,7 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     EXPECT_FALSE(non_cross_origin_isolated_site_instance->IsRelatedSiteInstance(
         cross_origin_isolated_site_instance.get()));
     EXPECT_NE(non_cross_origin_isolated_site_instance->GetProcess(),
-              cross_origin_isolated_site_instance->GetProcess());
+              cross_origin_isolated_site_instance->GetOrCreateProcess());
   }
 
   // Cross origin navigation in between two cross-origin isolated pages.
@@ -3552,7 +3603,8 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     EXPECT_TRUE(site_instance_1->IsCrossOriginIsolated());
     EXPECT_TRUE(site_instance_2->IsCrossOriginIsolated());
     EXPECT_FALSE(site_instance_1->IsRelatedSiteInstance(site_instance_2));
-    EXPECT_NE(site_instance_1->GetProcess(), site_instance_2->GetProcess());
+    EXPECT_NE(site_instance_1->GetOrCreateProcess(),
+              site_instance_2->GetProcess());
   }
 }
 
@@ -3588,7 +3640,7 @@ IN_PROC_BROWSER_TEST_P(
     SiteInstanceImpl* current_si = current_frame_host()->GetSiteInstance();
     EXPECT_TRUE(current_si->IsCrossOriginIsolated());
     EXPECT_FALSE(current_si->IsRelatedSiteInstance(previous_si.get()));
-    EXPECT_NE(current_si->GetProcess(), previous_si->GetProcess());
+    EXPECT_NE(current_si->GetProcess(), previous_si->GetOrCreateProcess());
   }
 
   // Navigation to the same cross-origin isolated page.
@@ -3609,7 +3661,7 @@ IN_PROC_BROWSER_TEST_P(
     SiteInstanceImpl* current_si = current_frame_host()->GetSiteInstance();
     EXPECT_FALSE(current_si->IsCrossOriginIsolated());
     EXPECT_FALSE(current_si->IsRelatedSiteInstance(previous_si.get()));
-    EXPECT_NE(current_si->GetProcess(), previous_si->GetProcess());
+    EXPECT_NE(current_si->GetProcess(), previous_si->GetOrCreateProcess());
   }
 
   // Cross origin navigation in between two cross-origin isolated pages.
@@ -3622,7 +3674,8 @@ IN_PROC_BROWSER_TEST_P(
     EXPECT_TRUE(site_instance_1->IsCrossOriginIsolated());
     EXPECT_TRUE(site_instance_2->IsCrossOriginIsolated());
     EXPECT_FALSE(site_instance_1->IsRelatedSiteInstance(site_instance_2));
-    EXPECT_NE(site_instance_1->GetProcess(), site_instance_2->GetProcess());
+    EXPECT_NE(site_instance_1->GetOrCreateProcess(),
+              site_instance_2->GetProcess());
   }
 }
 
@@ -3683,7 +3736,14 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     SiteInstanceImpl* iframe_si = iframe_rfh->GetSiteInstance();
     EXPECT_TRUE(iframe_si->IsCrossOriginIsolated());
     EXPECT_TRUE(iframe_si->IsRelatedSiteInstance(main_si));
-    EXPECT_EQ(iframe_si->GetProcess(), main_si->GetProcess());
+    if (SiteIsolationPolicy::AreOriginKeyedProcessesEnabledByDefault()) {
+      // In this case, the main frame and the child frame have different
+      // origins, so when OriginKeyedProcessesByDefault is enabled they will
+      // be placed into different processes.
+      EXPECT_NE(iframe_si->GetProcess(), main_si->GetProcess());
+    } else {
+      EXPECT_EQ(iframe_si->GetProcess(), main_si->GetProcess());
+    }
   }
 }
 
@@ -3847,7 +3907,7 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     EXPECT_FALSE(NavigateToURL(shell(), invalid_url));
     SiteInstanceImpl* current_si = current_frame_host()->GetSiteInstance();
     EXPECT_FALSE(current_si->IsRelatedSiteInstance(previous_si.get()));
-    EXPECT_NE(current_si->GetProcess(), previous_si->GetProcess());
+    EXPECT_NE(current_si->GetProcess(), previous_si->GetOrCreateProcess());
     EXPECT_FALSE(current_si->IsCrossOriginIsolated());
   }
 }
@@ -4134,7 +4194,14 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   SiteInstanceImpl* iframe_si = iframe_rfh->GetSiteInstance();
   EXPECT_TRUE(iframe_si->IsCrossOriginIsolated());
   EXPECT_TRUE(iframe_si->IsRelatedSiteInstance(main_si));
-  EXPECT_EQ(iframe_si->GetProcess(), main_si->GetProcess());
+  if (SiteIsolationPolicy::AreOriginKeyedProcessesEnabledByDefault()) {
+    // The main frame and the child frame have different origins, so when
+    // OriginKeyedProcessesByDefault is enabled they will be placed in different
+    // processes.
+    EXPECT_NE(iframe_si->GetProcess(), main_si->GetProcess());
+  } else {
+    EXPECT_EQ(iframe_si->GetProcess(), main_si->GetProcess());
+  }
 
   // Open an isolated popup, but cross-origin.
   {
@@ -4338,11 +4405,11 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   GURL url_3(https_server()->GetURL("a.test", "/empty.html?3"));
 
   EXPECT_TRUE(NavigateToURL(shell(), url_1));
-  int rph_id_1 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_1 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_TRUE(NavigateToURL(shell(), url_2));
-  int rph_id_2 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_2 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_TRUE(NavigateToURL(shell(), url_3));
-  int rph_id_3 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_3 = current_frame_host()->GetProcess()->GetDeprecatedID();
 
   EXPECT_EQ(rph_id_1, rph_id_2);
   EXPECT_EQ(rph_id_2, rph_id_3);
@@ -4361,11 +4428,11 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
       "a.test", "/set-header?Cross-Origin-Opener-Policy: same-origin&3"));
 
   EXPECT_TRUE(NavigateToURL(shell(), url_1));
-  int rph_id_1 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_1 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_TRUE(NavigateToURL(shell(), url_2));
-  int rph_id_2 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_2 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_TRUE(NavigateToURL(shell(), url_3));
-  int rph_id_3 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_3 = current_frame_host()->GetProcess()->GetDeprecatedID();
 
   EXPECT_EQ(rph_id_1, rph_id_2);
   EXPECT_EQ(rph_id_2, rph_id_3);
@@ -4383,11 +4450,11 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   GURL url_3(https_server()->GetURL("a.test", "/empty.html"));
 
   EXPECT_TRUE(NavigateToURL(shell(), url_1));
-  int rph_id_1 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_1 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_TRUE(NavigateToURL(shell(), url_2));
-  int rph_id_2 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_2 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_TRUE(NavigateToURL(shell(), url_3));
-  int rph_id_3 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_3 = current_frame_host()->GetProcess()->GetDeprecatedID();
 
   // If we're using the COOP site isolation heuristic (e.g., on Android), we
   // have to swap processes since we're going from an unlocked process to a
@@ -4416,11 +4483,11 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   GURL url_3(https_server()->GetURL("c.a.test", "/empty.html"));
 
   EXPECT_TRUE(NavigateToURL(shell(), url_1));
-  int rph_id_1 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_1 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_TRUE(NavigateToURL(shell(), url_2));
-  int rph_id_2 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_2 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_TRUE(NavigateToURL(shell(), url_3));
-  int rph_id_3 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_3 = current_frame_host()->GetProcess()->GetDeprecatedID();
 
   // If we're using the COOP site isolation heuristic (e.g., on Android), we
   // have to swap processes since we're going from an unlocked process to a
@@ -4433,6 +4500,12 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
     // locked process back to an unlocked process, and hence require a process
     // swap.
     EXPECT_NE(rph_id_2, rph_id_3);
+  } else if (SiteIsolationPolicy::AreOriginKeyedProcessesEnabledByDefault()) {
+    // With OriginKeyedProcessesByDefault, each unique origin will be placed in
+    // a separate process.
+    EXPECT_NE(rph_id_1, rph_id_2);
+    EXPECT_NE(rph_id_2, rph_id_3);
+    EXPECT_NE(rph_id_1, rph_id_3);
   } else {
     EXPECT_EQ(rph_id_1, rph_id_2);
     EXPECT_EQ(rph_id_2, rph_id_3);
@@ -4449,11 +4522,11 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   GURL url_3(https_server()->GetURL("c.test", "/empty.html"));
 
   EXPECT_TRUE(NavigateToURL(shell(), url_1));
-  int rph_id_1 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_1 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_TRUE(NavigateToURL(shell(), url_2));
-  int rph_id_2 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_2 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_TRUE(NavigateToURL(shell(), url_3));
-  int rph_id_3 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_3 = current_frame_host()->GetProcess()->GetDeprecatedID();
 
   EXPECT_NE(rph_id_1, rph_id_2);
   EXPECT_NE(rph_id_2, rph_id_3);
@@ -4508,6 +4581,7 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
 // BrowsingInstance swap required by COOP).
 IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
                        NoExtraProcessSwapFromDiscardedSpeculativeRFH) {
+  base::HistogramTester histogram_tester;
   if (IsIsolatedOriginRequiredToGuaranteeDedicatedProcess()) {
     IsolateOriginsForTesting(embedded_test_server(), shell()->web_contents(),
                              {url::Origin::Create(GURL("https://b.test/"))});
@@ -4522,25 +4596,24 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   // site, and on desktop it'll be in a process that's locked to a.test.  We're
   // interested in covering both cases.
   EXPECT_TRUE(NavigateToURL(shell(), url_1));
-  int rph_id_1 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_1 = current_frame_host()->GetProcess()->GetDeprecatedID();
 
   // Start a navigation to b.test, which will have COOP headers, but this isn't
   // known until response time.  This creates a speculative RFH and process
   // that's locked to b.test.
   TestNavigationManager navigation(web_contents(), url_2);
   EXPECT_TRUE(BeginNavigateToURLFromRenderer(web_contents(), url_2));
-  EXPECT_TRUE(navigation.WaitForRequestStart());
+  navigation.WaitForSpeculativeRenderFrameHostCreation();
   RenderFrameHostWrapper speculative_rfh(web_contents()
                                              ->GetPrimaryFrameTree()
                                              .root()
                                              ->render_manager()
                                              ->speculative_frame_host());
   ASSERT_TRUE(speculative_rfh.get());
-  int rph_id_2 = speculative_rfh->GetProcess()->GetID();
+  int rph_id_2 = speculative_rfh->GetProcess()->GetDeprecatedID();
   EXPECT_NE(rph_id_1, rph_id_2);
 
   // Allow the navigation to receive the response and commit.
-  navigation.ResumeNavigation();
   EXPECT_TRUE(navigation.WaitForNavigationFinished());
   EXPECT_TRUE(navigation.was_successful());
 
@@ -4552,7 +4625,7 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   // process locked to b.test, which is exactly the process that we created for
   // the original speculative RFH. Ensure that this process gets reused and not
   // wasted.
-  int rph_id_3 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_3 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_EQ(rph_id_2, rph_id_3);
 
   // The original speculative RFH should always be destroyed.
@@ -4567,6 +4640,9 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   // it cannot be reused, and we end up creating a new speculative RFH and
   // destroying the original one.
   EXPECT_TRUE(speculative_rfh.IsDestroyed());
+
+  histogram_tester.ExpectUniqueSample(
+      "Navigation.ProcessReuseOnCOOP.DifferentSiteInstance", true, 1);
 }
 
 // Ensure that same-site navigations that result in a COOP mismatch avoid an
@@ -4574,13 +4650,14 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
 // BrowsingContextGroup of size 1 (in this case, in the same WebContents).
 IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
                        NoExtraProcessSwapFromSameSiteCOOPMismatch) {
+  base::HistogramTester histogram_tester;
   GURL url_1(https_server()->GetURL("a.test", "/empty.html"));
   GURL url_2(https_server()->GetURL(
       "a.test", "/set-header?Cross-Origin-Opener-Policy: same-origin"));
 
   // Navigate to a non-COOP URL.
   EXPECT_TRUE(NavigateToURL(shell(), url_1));
-  int rph_id_1 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_1 = current_frame_host()->GetProcess()->GetDeprecatedID();
   bool rph_1_is_locked =
       current_frame_host()->GetProcess()->GetProcessLock().is_locked_to_site();
 
@@ -4588,11 +4665,6 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   TestNavigationManager navigation(web_contents(), url_2);
   EXPECT_TRUE(BeginNavigateToURLFromRenderer(web_contents(), url_2));
   EXPECT_TRUE(navigation.WaitForRequestStart());
-  RenderFrameHostImpl* speculative_rfh = web_contents()
-                                             ->GetPrimaryFrameTree()
-                                             .root()
-                                             ->render_manager()
-                                             ->speculative_frame_host();
 
   // When the back-forward cache is enabled, or when RenderDocument is used, we
   // will get a speculative RenderFrameHost, which should reuse the existing
@@ -4600,16 +4672,25 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   // should stay in the current RenderFrameHost.
   int rph_id_2;
   if (IsBackForwardCacheEnabled() || ShouldCreateNewHostForAllFrames()) {
+    navigation.WaitForSpeculativeRenderFrameHostCreation();
+    RenderFrameHost* speculative_rfh = web_contents()
+                                           ->GetPrimaryFrameTree()
+                                           .root()
+                                           ->render_manager()
+                                           ->speculative_frame_host();
     ASSERT_TRUE(speculative_rfh);
-    rph_id_2 = speculative_rfh->GetProcess()->GetID();
+    rph_id_2 = speculative_rfh->GetProcess()->GetDeprecatedID();
     EXPECT_EQ(rph_id_1, rph_id_2);
   } else {
-    ASSERT_FALSE(speculative_rfh);
+    ASSERT_FALSE(web_contents()
+                     ->GetPrimaryFrameTree()
+                     .root()
+                     ->render_manager()
+                     ->speculative_frame_host());
     rph_id_2 = rph_id_1;
   }
 
-  // Allow the navigation to receive the response and commit.
-  navigation.ResumeNavigation();
+  // Allow the navigation to receive the response commit.
   EXPECT_TRUE(navigation.WaitForNavigationFinished());
   EXPECT_TRUE(navigation.was_successful());
 
@@ -4622,7 +4703,7 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   // and the old process wasn't already locked to a.test.  In that case, a
   // process swap is required, since we are going from an unlocked process to a
   // locked process.
-  int rph_id_3 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_3 = current_frame_host()->GetProcess()->GetDeprecatedID();
   if (SiteIsolationPolicy::IsSiteIsolationForCOOPEnabled()) {
     EXPECT_NE(rph_id_2, rph_id_3);
     EXPECT_FALSE(rph_1_is_locked);
@@ -4630,8 +4711,19 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
                     ->GetProcess()
                     ->GetProcessLock()
                     .is_locked_to_site());
+    histogram_tester.ExpectUniqueSample("Navigation.ProcessReuseOnCOOP.None",
+                                        false, 1);
   } else {
     EXPECT_EQ(rph_id_2, rph_id_3);
+
+    if (IsBackForwardCacheEnabled() || ShouldCreateNewHostForAllFrames()) {
+      histogram_tester.ExpectUniqueSample(
+          "Navigation.ProcessReuseOnCOOP.DifferentSiteInstance", true, 1);
+    } else {
+      histogram_tester.ExpectUniqueSample(
+          "Navigation.ProcessReuseOnCOOP.SameSiteNavigationInSingleWebContents",
+          true, 1);
+    }
   }
 }
 
@@ -4639,6 +4731,7 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
 // one COOP page to another COOP page.
 IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
                        NavigatingFromCOOPToCOOPHasNoExtraProcessCreation) {
+  base::HistogramTester histogram_tester;
   GURL url_1(https_server()->GetURL(
       "a.test", "/set-header?Cross-Origin-Opener-Policy: same-origin"));
   GURL url_2(https_server()->GetURL(
@@ -4646,12 +4739,16 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
 
   // Navigate to a COOP URL.
   EXPECT_TRUE(NavigateToURL(shell(), url_1));
-  int rph_id_1 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_1 = current_frame_host()->GetProcess()->GetDeprecatedID();
+  histogram_tester.ExpectUniqueSample("Navigation.ProcessReuseOnCOOP.None",
+                                      false, 1);
 
   // Start a navigation to another same-site COOP URL.
   TestNavigationManager navigation(web_contents(), url_2);
   EXPECT_TRUE(BeginNavigateToURLFromRenderer(web_contents(), url_2));
-  EXPECT_TRUE(navigation.WaitForRequestStart());
+  // Wait for response to ensure any speculative RFH has already been created,
+  // if necessary.
+  ASSERT_TRUE(navigation.WaitForResponse());
   RenderFrameHostImpl* speculative_rfh = web_contents()
                                              ->GetPrimaryFrameTree()
                                              .root()
@@ -4669,14 +4766,14 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   int rph_id_2;
   if (IsBackForwardCacheEnabled() || ShouldCreateNewHostForAllFrames()) {
     ASSERT_TRUE(speculative_rfh);
-    rph_id_2 = speculative_rfh->GetProcess()->GetID();
+    rph_id_2 = speculative_rfh->GetProcess()->GetDeprecatedID();
     EXPECT_EQ(rph_id_1, rph_id_2);
   } else {
     ASSERT_FALSE(speculative_rfh);
     rph_id_2 = rph_id_1;
   }
 
-  // Allow the navigation to receive the response and commit.
+  // Allow the navigation to commit.
   navigation.ResumeNavigation();
   EXPECT_TRUE(navigation.WaitForNavigationFinished());
   EXPECT_TRUE(navigation.was_successful());
@@ -4684,7 +4781,7 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   // When the response for `url_2` was received, we should verify that COOP
   // status hasn't changed, so no BrowsingInstance swap is needed, and we
   // should stay in the same process.
-  int rph_id_3 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_3 = current_frame_host()->GetProcess()->GetDeprecatedID();
   EXPECT_EQ(rph_id_2, rph_id_3);
 }
 
@@ -4696,13 +4793,14 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
 // fresh process.
 IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
                        NoProcessReuseForSameSiteCOOPMismatchInPopup) {
+  base::HistogramTester histogram_tester;
   GURL url_1(https_server()->GetURL("a.test", "/empty.html"));
   GURL url_2(https_server()->GetURL(
       "a.test", "/set-header?Cross-Origin-Opener-Policy: same-origin"));
 
   // Navigate to a non-COOP URL.
   EXPECT_TRUE(NavigateToURL(shell(), url_1));
-  int rph_id_1 = current_frame_host()->GetProcess()->GetID();
+  int rph_id_1 = current_frame_host()->GetProcess()->GetDeprecatedID();
 
   // Open a same-site popup with COOP.
   Shell* new_shell = OpenPopup(web_contents(), url_2, "");
@@ -4715,8 +4813,11 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
   // new speculative RFH in a new SiteInstance/BrowsingInstance, and it should
   // create a fresh process rather than reuse the old a.com process, since
   // there was more than one active window in the old BrowsingInstance.
-  int rph_id_2 = popup_contents->GetPrimaryMainFrame()->GetProcess()->GetID();
+  int rph_id_2 =
+      popup_contents->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID();
   EXPECT_NE(rph_id_1, rph_id_2);
+  histogram_tester.ExpectUniqueSample("Navigation.ProcessReuseOnCOOP.None",
+                                      false, 1);
 }
 
 // Tests the behavior around COOP BrowsingInstance swap when prerendering a COOP
@@ -4724,6 +4825,7 @@ IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
 // Regression test for crbug.com/1519131.
 IN_PROC_BROWSER_TEST_P(ProcessReuseOnPrerenderCOOPSwapBrowserTest,
                        COOPSwapForPrerenderingCOOPPage) {
+  base::HistogramTester histogram_tester;
   GURL initial_page(https_server()->GetURL("a.test", "/empty.html"));
   GURL prerender_page(https_server()->GetURL(
       "a.test", "/set-header?Cross-Origin-Opener-Policy: same-origin"));
@@ -4734,7 +4836,7 @@ IN_PROC_BROWSER_TEST_P(ProcessReuseOnPrerenderCOOPSwapBrowserTest,
   scoped_refptr<SiteInstanceImpl> si_1 = rfh_1->GetSiteInstance();
   base::UnguessableToken bi_token_1 =
       rfh_1->GetSiteInstance()->browsing_instance_token();
-  int rph_id_1 = rfh_1->GetProcess()->GetID();
+  int rph_id_1 = rfh_1->GetProcess()->GetDeprecatedID();
 
   // Start prerendering a COOP page.
   TestNavigationManager navigation_manager(web_contents(), prerender_page);
@@ -4745,14 +4847,15 @@ IN_PROC_BROWSER_TEST_P(ProcessReuseOnPrerenderCOOPSwapBrowserTest,
   // with new BrowsingInstance / SiteInstance, and a new process will be
   // assigned to it accordingly.
   ASSERT_TRUE(navigation_manager.WaitForRequestStart());
-  int prerender_host_id = prerender_helper().GetHostForUrl(prerender_page);
+  FrameTreeNodeId prerender_host_id =
+      prerender_helper().GetHostForUrl(prerender_page);
   RenderFrameHostImpl* rfh_2 =
       web_contents()->UnsafeFindFrameByFrameTreeNodeId(prerender_host_id);
   ASSERT_TRUE(rfh_2);
   scoped_refptr<SiteInstanceImpl> si_2 = rfh_2->GetSiteInstance();
   base::UnguessableToken bi_token_2 =
       rfh_2->GetSiteInstance()->browsing_instance_token();
-  int rph_id_2 = rfh_2->GetProcess()->GetID();
+  int rph_id_2 = rfh_2->GetProcess()->GetDeprecatedID();
   ASSERT_NE(rfh_1, rfh_2);
   ASSERT_NE(si_1, si_2);
   ASSERT_NE(bi_token_1, bi_token_2);
@@ -4772,12 +4875,14 @@ IN_PROC_BROWSER_TEST_P(ProcessReuseOnPrerenderCOOPSwapBrowserTest,
   scoped_refptr<SiteInstanceImpl> si_3 = rfh_3->GetSiteInstance();
   base::UnguessableToken bi_token_3 =
       rfh_3->GetSiteInstance()->browsing_instance_token();
-  int rph_id_3 = rfh_3->GetProcess()->GetID();
+  int rph_id_3 = rfh_3->GetProcess()->GetDeprecatedID();
   EXPECT_NE(rfh_2, rfh_3);
   EXPECT_NE(si_2, si_3);
   EXPECT_NE(bi_token_2, bi_token_3);
   // Renderer process is reused.
   EXPECT_EQ(rph_id_2, rph_id_3);
+  histogram_tester.ExpectUniqueSample("Navigation.ProcessReuseOnCOOP.Prerender",
+                                      true, 1);
 }
 
 // TODO(crbug.com/40138297). Test inheritance of the virtual browsing
@@ -4789,6 +4894,10 @@ static auto kTestParams =
                      testing::Bool());
 INSTANTIATE_TEST_SUITE_P(All,
                          CrossOriginOpenerPolicyBrowserTest,
+                         kTestParams,
+                         CrossOriginOpenerPolicyBrowserTest::DescribeParams);
+INSTANTIATE_TEST_SUITE_P(All,
+                         CrossOriginOpenerPolicyNoOKPBrowserTest,
                          kTestParams,
                          CrossOriginOpenerPolicyBrowserTest::DescribeParams);
 INSTANTIATE_TEST_SUITE_P(All,
@@ -5314,88 +5423,6 @@ IN_PROC_BROWSER_TEST_F(UnrestrictedSharedArrayBufferOriginTrialBrowserTest,
   EXPECT_EQ(0, EvalJs(sub_document, "g_sab_size"));
 }
 #endif
-
-// Ensure the SharedArrayBufferOnDesktop kill switch is correctly implemented.
-class SharedArrayBufferOnDesktopBrowserTest
-    : public CrossOriginOpenerPolicyBrowserTest {
- public:
-  SharedArrayBufferOnDesktopBrowserTest() {
-    feature_list_.InitWithFeatures(
-        {
-            // Enabled
-            features::kSharedArrayBufferOnDesktop,
-        },
-        {
-            // Disabled
-            features::kSharedArrayBuffer,
-        });
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         SharedArrayBufferOnDesktopBrowserTest,
-                         kTestParams,
-                         CrossOriginOpenerPolicyBrowserTest::DescribeParams);
-
-IN_PROC_BROWSER_TEST_P(SharedArrayBufferOnDesktopBrowserTest,
-                       DesktopHasSharedArrayBuffer) {
-  CHECK(!base::FeatureList::IsEnabled(features::kSharedArrayBuffer));
-  GURL url = https_server()->GetURL("a.test", "/empty.html");
-  EXPECT_TRUE(NavigateToURL(shell(), url));
-  EXPECT_EQ(false, EvalJs(current_frame_host(), "self.crossOriginIsolated"));
-#if !BUILDFLAG(IS_ANDROID)
-  EXPECT_EQ(true,
-            EvalJs(current_frame_host(), "'SharedArrayBuffer' in globalThis"));
-#else   // !BUILDFLAG(IS_ANDROID)
-  EXPECT_EQ(false,
-            EvalJs(current_frame_host(), "'SharedArrayBuffer' in globalThis"));
-#endif  // !BUILDFLAG(IS_ANDROID)
-}
-
-IN_PROC_BROWSER_TEST_P(SharedArrayBufferOnDesktopBrowserTest,
-                       DesktopTransferSharedArrayBuffer) {
-  CHECK(!base::FeatureList::IsEnabled(features::kSharedArrayBuffer));
-  GURL main_url = https_server()->GetURL("a.test", "/empty.html");
-  GURL iframe_url = https_server()->GetURL("a.test", "/empty.html");
-  EXPECT_TRUE(NavigateToURL(shell(), main_url));
-  EXPECT_TRUE(ExecJs(current_frame_host(),
-                     JsReplace("g_iframe = document.createElement('iframe');"
-                               "g_iframe.src = $1;"
-                               "document.body.appendChild(g_iframe);",
-                               iframe_url)));
-  WaitForLoadStop(web_contents());
-
-  RenderFrameHostImpl* main_document = current_frame_host();
-  RenderFrameHostImpl* sub_document =
-      current_frame_host()->child_at(0)->current_frame_host();
-
-  EXPECT_EQ(false, EvalJs(main_document, "self.crossOriginIsolated"));
-  EXPECT_EQ(false, EvalJs(sub_document, "self.crossOriginIsolated"));
-
-  EXPECT_TRUE(ExecJs(main_document, R"(
-    g_sab_size = new Promise(resolve => {
-      addEventListener("message", event => resolve(event.data.byteLength));
-    });
-  )",
-                     EXECUTE_SCRIPT_NO_RESOLVE_PROMISES));
-
-#if !BUILDFLAG(IS_ANDROID)
-  EXPECT_TRUE(ExecJs(sub_document, R"(
-    const sab = new SharedArrayBuffer(1234);
-    parent.postMessage(sab, "*");
-  )"));
-
-  EXPECT_EQ(1234, EvalJs(main_document, "g_sab_size"));
-#else   // !BUILDFLAG(IS_ANDROID)
-  EXPECT_FALSE(ExecJs(sub_document, R"(
-    const sab = new SharedArrayBuffer(1234);
-    parent.postMessage(sab, "*");
-  )"));
-#endif  // !BUILDFLAG(IS_ANDROID)
-}
 
 IN_PROC_BROWSER_TEST_P(SoapByDefaultVirtualBrowsingContextGroupTest, NoHeader) {
   const VirtualBcgAllowPopupTestCase kTestCases[] = {
@@ -6637,7 +6664,7 @@ IN_PROC_BROWSER_TEST_P(CoopRestrictPropertiesBrowserTest,
   popup_window->GetController().GoBack();
 
   // Check that the proper speculative SiteInstance was selected.
-  ASSERT_TRUE(nav_manager.WaitForRequestStart());
+  nav_manager.WaitForSpeculativeRenderFrameHostCreation();
   RenderFrameHostImpl* speculative_rfh = popup_window->GetPrimaryFrameTree()
                                              .root()
                                              ->render_manager()
@@ -8643,6 +8670,149 @@ IN_PROC_BROWSER_TEST_P(CoopRestrictPropertiesReportingBrowserTest,
   }
 }
 
+// Navigate in between two documents. Check the virtual browsing context group
+// is properly updated.
+IN_PROC_BROWSER_TEST_P(CrossOriginOpenerPolicyBrowserTest,
+                       NavigationVirtualBrowsingContextGroupNoopener) {
+  GURL::Replacements cross_origin;
+  cross_origin.SetHostStr("cross-origin.example.com");
+
+  const struct {
+    GURL url_a;
+    GURL url_b;
+    bool expect_different_group_a_to_b;
+    bool expect_different_group_b_to_a;
+  } kTestCases[] = {
+      {
+          // unsafe-none, noopener => no change
+          https_server()->GetURL("a.test",
+                                 "/set-header?"
+                                 "Cross-Origin-Opener-Policy: unsafe-none"),
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy: noopener-allow-popups"),
+          true,
+          false,
+      },
+      {
+          // Same origin, noopener => change
+          https_server()->GetURL("a.test",
+                                 "/set-header?"
+                                 "Cross-Origin-Opener-Policy: same-origin"),
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy: noopener-allow-popups"),
+          true,
+          true,
+      },
+      {
+          // Same origin allow popups, noopener => change
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy: same-origin-allow-popups"),
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy: noopener-allow-popups"),
+          true,
+          true,
+      },
+      {
+          // noopener allow popups, noopener allow popups => no change
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy: noopener-allow-popups"),
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy: noopener-allow-popups"),
+          false,
+          false,
+      },
+      {
+          // noopener allow popups, cross-origin noopener allow popups => change
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy: noopener-allow-popups"),
+          https_server()
+              ->GetURL("a.test",
+                       "/set-header?"
+                       "Cross-Origin-Opener-Policy: noopener-allow-popups")
+              .ReplaceComponents(cross_origin),
+          true,
+          true,
+      },
+      {
+          // unsafe-none, noopener => no change
+          https_server()->GetURL("a.test",
+                                 "/set-header?"
+                                 "Cross-Origin-Opener-Policy: unsafe-none"),
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy-Report-Only: noopener-allow-popups"),
+          true,
+          false,
+      },
+      {
+          // Same origin, noopener => change
+          https_server()->GetURL("a.test",
+                                 "/set-header?"
+                                 "Cross-Origin-Opener-Policy: same-origin"),
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy-Report-Only: noopener-allow-popups"),
+          true,
+          true,
+      },
+      {
+          // Same origin allow popups, noopener => change
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy: same-origin-allow-popups"),
+          https_server()->GetURL(
+              "a.test",
+              "/set-header?"
+              "Cross-Origin-Opener-Policy-Report-Only: noopener-allow-popups"),
+          true,
+          true,
+      },
+  };
+
+  for (const auto& test_case : kTestCases) {
+    SCOPED_TRACE(testing::Message()
+                 << std::endl
+                 << "url_a = " << test_case.url_a << std::endl
+                 << "url_b = " << test_case.url_b << std::endl);
+    ASSERT_TRUE(NavigateToURL(shell(), test_case.url_a));
+    int group_1 = VirtualBrowsingContextGroup(web_contents());
+
+    ASSERT_TRUE(NavigateToURL(shell(), test_case.url_b));
+    int group_2 = VirtualBrowsingContextGroup(web_contents());
+
+    ASSERT_TRUE(NavigateToURL(shell(), test_case.url_a));
+    int group_3 = VirtualBrowsingContextGroup(web_contents());
+
+    if (test_case.expect_different_group_a_to_b) {
+      EXPECT_NE(group_1, group_2);  // url_a -> url_b.
+    } else {
+      EXPECT_EQ(group_1, group_2);  // url_a -> url_b.
+    }
+    if (test_case.expect_different_group_b_to_a) {
+      EXPECT_NE(group_2, group_3);  // url_a <- url_b.
+    } else {
+      EXPECT_EQ(group_2, group_3);  // url_b <- url_b.
+    }
+  }
+}
+
 // Use window.open(url). Check the virtual browsing context group of the two
 // window.
 IN_PROC_BROWSER_TEST_P(CoopRestrictPropertiesReportingBrowserTest,
@@ -10000,7 +10170,7 @@ IN_PROC_BROWSER_TEST_P(CoopRestrictPropertiesAccessBrowserTest, Prerender) {
   // TODO(crbug.com/40917339): This is an undesired consequence of
   // always starting the prerendering in another BrowsingInstance. See if this
   // should be fixed.
-  int host_id = prerender_helper().AddPrerender(coop_rp_page);
+  FrameTreeNodeId host_id = prerender_helper().AddPrerender(coop_rp_page);
   RenderFrameHostImpl* prerender_frame_host = static_cast<RenderFrameHostImpl*>(
       prerender_helper().GetPrerenderedMainFrameHost(host_id));
   ASSERT_TRUE(prerender_frame_host);

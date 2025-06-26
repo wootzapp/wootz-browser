@@ -72,8 +72,8 @@ class OverlayAgentTest : public views::ViewsTestBase {
 #else
     ui::EventTarget* target = widget()->GetRootView();
 #endif
-    auto event = std::make_unique<ui::MouseEvent>(ui::ET_MOUSE_MOVED, p, p,
-                                                  ui::EventTimeForNow(),
+    auto event = std::make_unique<ui::MouseEvent>(ui::EventType::kMouseMoved, p,
+                                                  p, ui::EventTimeForNow(),
                                                   ui::EF_NONE, ui::EF_NONE);
     ui::Event::DispatcherApi(event.get()).set_target(target);
     return event;
@@ -118,9 +118,9 @@ class OverlayAgentTest : public views::ViewsTestBase {
   void CreateWidget(const gfx::Rect& bounds,
                     views::Widget::InitParams::Type type) {
     widget_ = std::make_unique<views::Widget>();
-    views::Widget::InitParams params;
+    views::Widget::InitParams params(
+        views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
     params.delegate = nullptr;
-    params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
     params.bounds = bounds;
     params.type = type;
 #if defined(USE_AURA)
@@ -203,8 +203,8 @@ TEST_F(OverlayAgentTest, FindElementIdTargetedByPointViews) {
   // |            --------- |
   // |                      |
   // ------------------------
-  contents_view->AddChildView(child_2);
-  contents_view->AddChildView(child_1);
+  contents_view->AddChildViewRaw(child_2);
+  contents_view->AddChildViewRaw(child_1);
   child_1->SetBounds(20, 20, 100, 100);
   child_2->SetBounds(90, 50, 100, 100);
 
@@ -261,13 +261,12 @@ TEST_F(OverlayAgentTest, HighlightRects) {
 
     views::View* child_1 = new views::View;
     views::View* child_2 = new views::View;
-    client_view->AddChildView(child_1);
-    client_view->AddChildView(child_2);
+    client_view->AddChildViewRaw(child_1);
+    client_view->AddChildViewRaw(child_2);
     child_1->SetBoundsRect(test_case.first_element_bounds);
     child_2->SetBoundsRect(test_case.second_element_bounds);
 
-    overlay_agent()->setInspectMode(
-        "searchForNode", protocol::Maybe<protocol::Overlay::HighlightConfig>());
+    overlay_agent()->setInspectMode("searchForNode", nullptr);
     ui::test::EventGenerator generator(GetRootWindow(widget()));
 
     // Highlight child 1.
@@ -292,8 +291,7 @@ TEST_F(OverlayAgentTest, HighlightRects) {
     // If we don't explicitly stop inspecting, we'll leave ourselves as
     // a pretarget handler for the root window and UAF in the next test.
     // TODO(lgrey): Fix this when refactoring to support Mac.
-    overlay_agent()->setInspectMode(
-        "none", protocol::Maybe<protocol::Overlay::HighlightConfig>());
+    overlay_agent()->setInspectMode("none", nullptr);
   }
 }
 
@@ -311,17 +309,16 @@ TEST_F(OverlayAgentTest, MouseEventsGenerateFEEventsInInspectMode) {
 
   EXPECT_EQ(0, GetOverlayInspectNodeRequestedCount(node_id));
   EXPECT_EQ(0, GetOverlayNodeHighlightRequestedCount(node_id));
-  overlay_agent()->setInspectMode(
-      "searchForNode", protocol::Maybe<protocol::Overlay::HighlightConfig>());
+  overlay_agent()->setInspectMode("searchForNode", nullptr);
 
   // Moving the mouse cursor over the widget bounds should request a node
   // highlight.
   ui::test::EventGenerator generator(GetRootWindow(widget()));
   generator.MoveMouseTo(widget()->GetClientAreaBoundsInScreen().origin());
 
-  // Aura platforms generate both ET_MOUSE_ENTERED and ET_MOUSE_MOVED for
-  // this but Mac just generates ET_MOUSE_ENTERED, so just ensure we sent
-  // at least one.
+  // Aura platforms generate both EventType::kMouseEntered and
+  // EventType::kMouseMoved for this but Mac just generates
+  // EventType::kMouseEntered, so just ensure we sent at least one.
   EXPECT_GT(GetOverlayNodeHighlightRequestedCount(node_id), 0);
   EXPECT_EQ(0, GetOverlayInspectNodeRequestedCount(node_id));
 
@@ -352,8 +349,7 @@ TEST_F(OverlayAgentTest, MouseEventsGenerateFEEventsInInspectMode) {
   EXPECT_EQ(kBackgroundColor, highlighting_layer->GetTargetColor());
   EXPECT_TRUE(highlighting_layer->visible());
 #else
-  overlay_agent()->setInspectMode(
-      "none", protocol::Maybe<protocol::Overlay::HighlightConfig>());
+  overlay_agent()->setInspectMode("none", nullptr);
 #endif
 
   int highlight_notification_count =

@@ -99,10 +99,11 @@ export class SettingsUiElement extends SettingsUiElementBase {
     };
   }
 
-  private toolbarSpinnerActive_: boolean;
-  private narrow_: boolean;
-  private pageVisibility_: PageVisibility;
-  private lastSearchQuery_: string;
+  declare prefs: {[key: string]: any};
+  declare private toolbarSpinnerActive_: boolean;
+  declare private narrow_: boolean;
+  declare private pageVisibility_: PageVisibility;
+  declare private lastSearchQuery_: string;
 
   constructor() {
     super();
@@ -181,15 +182,17 @@ export class SettingsUiElement extends SettingsUiElementBase {
     if (route === routes.PRIVACY_GUIDE) {
       // Privacy guide has a multi-card layout, which only needs shadows to
       // show when there is more content to scroll.
-      this.enableShadowBehavior(true);
+      this.setForceDropShadows(false);
+      this.enableScrollObservation(true);
     } else if (route.depth <= 1) {
       // Main page uses scroll position to determine whether a shadow should
       // be shown.
-      this.enableShadowBehavior(true);
+      this.setForceDropShadows(false);
+      this.enableScrollObservation(true);
     } else if (!route.isNavigableDialog) {
       // Sub-pages always show the top shadow, regardless of scroll position.
-      this.enableShadowBehavior(false);
-      this.showDropShadows();
+      this.enableScrollObservation(false);
+      this.setForceDropShadows(true);
     }
 
     const urlSearchQuery =

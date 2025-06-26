@@ -5,6 +5,8 @@
 #ifndef CC_TREES_IMAGE_ANIMATION_CONTROLLER_H_
 #define CC_TREES_IMAGE_ANIMATION_CONTROLLER_H_
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -94,6 +96,7 @@ class CC_EXPORT ImageAnimationController {
                                AnimationDriver* driver);
   void UnregisterAnimationDriver(PaintImage::Id paint_image_id,
                                  AnimationDriver* driver);
+  bool IsRegistered(PaintImage::Id paint_image_id);
 
   // Called to advance the animations to the frame to be used on the sync tree.
   // This should be called only once for a sync tree and must be followed with
@@ -137,6 +140,14 @@ class CC_EXPORT ImageAnimationController {
     scheduler_.set_now_callback_for_testing(cb);
   }
 
+  // If all animating images have the same frame duration, then returns the
+  // frame duration and number of images.
+  struct ConsistentFrameDuration {
+    base::TimeDelta frame_duration;
+    uint32_t num_images;
+  };
+  std::optional<ConsistentFrameDuration> GetConsistentContentFrameDuration();
+
  private:
   class AnimationState {
    public:
@@ -151,10 +162,11 @@ class CC_EXPORT ImageAnimationController {
     bool ShouldAnimate() const;
     bool ShouldAnimate(int repetitions_completed, size_t pending_index) const;
     bool AdvanceFrame(const viz::BeginFrameArgs& args,
-                      bool enable_image_animation_resync,
-                      bool use_resume_behavior);
+                      bool enable_image_animation_resync);
     void UpdateMetadata(const DiscardableImageMap::AnimatedImageMetadata& data);
     void PushPendingToActive();
+    // If all frames have same frame duration, return that duration.
+    std::optional<base::TimeDelta> GetConsistentContentFrameDuration();
 
     void AddDriver(AnimationDriver* driver);
     void RemoveDriver(AnimationDriver* driver);
@@ -182,12 +194,10 @@ class CC_EXPORT ImageAnimationController {
 
       // The time at which we would like to display the next frame. This can be
       // in the past, for instance, if we pause the animation from the image
-      // becoming invisible. This time is updated based on either the animation
-      // timeline provided by the image (when using Catch-up behavior) or the
-      // next displayed frame (when using Resume behavior). Here, "displayed
-      // frame" means an animation that updates faster than the display's
-      // refresh rate and might skip frames to maintain display speed. See
-      // kAnimatedImageResume.
+      // becoming invisible. This time is updated based on the animation
+      // timeline provided by the image. Here, "displayed frame" means an
+      // animation that updates faster than the display's refresh rate and
+      // might skip frames to maintain display speed.
       base::TimeTicks next_desired_frame_time;
 
       // The time of the next tick at which we want to invalidate and update the
@@ -212,6 +222,7 @@ class CC_EXPORT ImageAnimationController {
     bool needs_invalidation() const {
       return current_state_.pending_index != active_index_;
     }
+    void ComputeConsistentContentFrameDuration();
 
     PaintImage::Id paint_image_id_ = PaintImage::kInvalidId;
 
@@ -233,6 +244,11 @@ class CC_EXPORT ImageAnimationController {
     // The index being used on the active tree, if a recording with this image
     // is still present.
     size_t active_index_ = PaintImage::kDefaultFrameIndex;
+
+    // Cache result for `GetConsistentContentFrameDuration`.
+    base::TimeDelta cached_consistent_frame_duration_;
+    bool cached_has_consistent_frame_duration_ = false;
+    bool cached_consistent_frame_duration_valid_ = false;
 
     // Set if there is at least one driver interested in animating this image,
     // cached from the last update.
@@ -314,7 +330,6 @@ class CC_EXPORT ImageAnimationController {
   InvalidationScheduler scheduler_;
 
   const bool enable_image_animation_resync_;
-  const bool use_resume_behavior_;
 
   bool did_navigate_ = false;
 };

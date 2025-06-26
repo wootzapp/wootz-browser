@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/capture/video/apple/video_capture_device_apple.h"
 
 #include <stddef.h>
@@ -238,7 +243,8 @@ void VideoCaptureDeviceApple::ReceiveFrame(
   client_->OnIncomingCapturedData(
       video_frame, video_frame_length, frame_format, color_space,
       rotation /* clockwise_rotation */, false /* flip_y */,
-      base::TimeTicks::Now(), timestamp, capture_begin_time);
+      base::TimeTicks::Now(), timestamp, capture_begin_time,
+      GetVideoFrameMetadata());
 }
 
 void VideoCaptureDeviceApple::ReceiveExternalGpuMemoryBufferFrame(
@@ -252,9 +258,10 @@ void VideoCaptureDeviceApple::ReceiveExternalGpuMemoryBufferFrame(
                      ", and expected " + capture_format_.frame_size.ToString());
     return;
   }
+
   client_->OnIncomingCapturedExternalBuffer(
       std::move(frame), base::TimeTicks::Now(), timestamp, capture_begin_time,
-      gfx::Rect(capture_format_.frame_size));
+      gfx::Rect(capture_format_.frame_size), GetVideoFrameMetadata());
 }
 
 void VideoCaptureDeviceApple::OnPhotoTaken(const uint8_t* image_data,
@@ -366,6 +373,16 @@ bool VideoCaptureDeviceApple::UpdateCaptureResolution() {
     return false;
   }
   return true;
+}
+
+VideoFrameMetadata VideoCaptureDeviceApple::GetVideoFrameMetadata() {
+  VideoFrameMetadata metadata;
+  if ([capture_device_ isPortraitEffectSupported]) {
+    bool isPortraitEffectActive = [capture_device_ isPortraitEffectActive];
+    metadata.background_blur = EffectInfo{.enabled = isPortraitEffectActive};
+  }
+
+  return metadata;
 }
 
 }  // namespace media

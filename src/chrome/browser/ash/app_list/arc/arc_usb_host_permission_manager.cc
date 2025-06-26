@@ -7,13 +7,13 @@
 #include <utility>
 #include <vector>
 
-#include "ash/components/arc/arc_util.h"
-#include "ash/components/arc/usb/usb_host_bridge.h"
 #include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ash/app_list/arc/arc_app_dialog.h"
 #include "chrome/browser/ash/app_list/arc/arc_usb_host_permission_manager_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chromeos/ash/experiences/arc/arc_util.h"
+#include "chromeos/ash/experiences/arc/usb/usb_host_bridge.h"
 #include "extensions/browser/api/device_permissions_manager.h"
 
 namespace arc {
@@ -217,10 +217,6 @@ void ArcUsbHostPermissionManager::RestorePermissionFromChromePrefs() {
 void ArcUsbHostPermissionManager::RequestUsbScanDeviceListPermission(
     const std::string& package_name,
     ArcUsbHostUiDelegate::RequestPermissionCallback callback) {
-  // Grants Arc USB permission for |package_name| in Arc kiosk mode.
-  if (IsArcKioskMode())
-    UpdateArcUsbScanDeviceListPermission(package_name, true /*allowed*/);
-
   if (HasUsbScanDeviceListPermission(package_name)) {
     std::move(callback).Run(true);
     return;
@@ -251,12 +247,6 @@ void ArcUsbHostPermissionManager::RequestUsbAccessPermission(
           vendor_id, product_id, manufacturer_string, product_string,
           serial_number, true /*always_include_manufacturer*/),
       serial_number, vendor_id, product_id);
-
-  // Grants Arc USB permission for |package_name| in Arc kiosk mode.
-  if (IsArcKioskMode()) {
-    UpdateArcUsbAccessPermission(package_name, usb_device_entry,
-                                 true /*allowed*/);
-  }
 
   if (HasUsbAccessPermission(package_name, usb_device_entry)) {
     std::move(callback).Run(true);

@@ -5,6 +5,7 @@
 #include "content/browser/devtools/devtools_url_loader_interceptor.h"
 
 #include <memory>
+#include <optional>
 #include <string_view>
 
 #include "base/barrier_closure.h"
@@ -96,11 +97,11 @@ DevToolsURLLoaderInterceptor::Modifications::Modifications(
     : auth_challenge_response(std::move(auth_challenge_response)) {}
 
 DevToolsURLLoaderInterceptor::Modifications::Modifications(
-    protocol::Maybe<std::string> modified_url,
-    protocol::Maybe<std::string> modified_method,
-    protocol::Maybe<protocol::Binary> modified_post_data,
+    std::optional<std::string> modified_url,
+    std::optional<std::string> modified_method,
+    std::optional<protocol::Binary> modified_post_data,
     std::unique_ptr<HeadersVector> modified_headers,
-    protocol::Maybe<bool> intercept_response)
+    std::optional<bool> intercept_response)
     : modified_url(std::move(modified_url)),
       modified_method(std::move(modified_method)),
       modified_post_data(std::move(modified_post_data)),
@@ -112,9 +113,9 @@ DevToolsURLLoaderInterceptor::Modifications::Modifications(
     scoped_refptr<net::HttpResponseHeaders> response_headers,
     scoped_refptr<base::RefCountedMemory> response_body,
     size_t body_offset,
-    protocol::Maybe<std::string> modified_url,
-    protocol::Maybe<std::string> modified_method,
-    protocol::Maybe<protocol::Binary> modified_post_data,
+    std::optional<std::string> modified_url,
+    std::optional<std::string> modified_method,
+    std::optional<protocol::Binary> modified_post_data,
     std::unique_ptr<HeadersVector> modified_headers,
     std::unique_ptr<AuthChallengeResponse> auth_challenge_response)
     : error_reason(std::move(error_reason)),
@@ -215,10 +216,9 @@ class BodyReader : public mojo::DataPipeDrainer::Client {
   }
 
  private:
-  void OnDataAvailable(const void* data, size_t num_bytes) override {
+  void OnDataAvailable(base::span<const uint8_t> data) override {
     DCHECK(!data_complete_);
-    body_->as_string().append(
-        std::string(static_cast<const char*>(data), num_bytes));
+    body_->as_string().append(base::as_string_view(data));
   }
 
   void OnDataComplete() override;
@@ -458,8 +458,6 @@ class InterceptionJob : public network::mojom::URLLoaderClient,
       const std::optional<GURL>& new_url) override;
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override;
-  void PauseReadingBodyFromNet() override;
-  void ResumeReadingBodyFromNet() override;
 
   // network::mojom::URLLoaderClient methods
   void OnReceiveEarlyHints(network::mojom::EarlyHintsPtr early_hints) override;
@@ -950,7 +948,6 @@ void InterceptionJob::GetResponseBody(
     body_reader_ = std::make_unique<BodyReader>(base::BindOnce(
         &InterceptionJob::ResponseBodyComplete, base::Unretained(this)));
     client_receiver_.Resume();
-    loader_->ResumeReadingBodyFromNet();
   }
   body_reader_->AddCallback(std::move(callback));
   // Needs to happen after |AddCallback| to avoid a DCHECK.
@@ -974,7 +971,6 @@ void InterceptionJob::TakeResponseBodyPipe(
   client_receiver_.Resume();
   if (body_)
     StartLoadingResponseBody(std::move(body_));
-  loader_->ResumeReadingBodyFromNet();
 }
 
 void InterceptionJob::ContinueInterceptedRequest(
@@ -1119,7 +1115,6 @@ Response InterceptionJob::InnerContinueRequest(
                                std::move(body_),
                                std::move(response_metadata_->cached_metadata));
     response_metadata_.reset();
-    loader_->ResumeReadingBodyFromNet();
     client_receiver_.Resume();
     return Response::Success();
   }
@@ -1164,8 +1159,8 @@ void InterceptionJob::ApplyModificationsToRequest(
 
   if (modifications->modified_post_data.has_value()) {
     const auto& post_data = modifications->modified_post_data.value();
-    request->request_body = network::ResourceRequestBody::CreateFromBytes(
-        reinterpret_cast<const char*>(post_data.data()), post_data.size());
+    request->request_body =
+        network::ResourceRequestBody::CreateFromCopyOfBytes(post_data);
     request_bodies_.clear();
   }
 
@@ -1283,10 +1278,7 @@ void InterceptionJob::ProcessSetCookies(const net::HttpResponseHeaders& headers,
   }
 
   std::vector<std::unique_ptr<net::CanonicalCookie>> cookies;
-  base::Time response_date;
-  std::optional<base::Time> server_time = std::nullopt;
-  if (headers.GetDateValue(&response_date))
-    server_time = std::make_optional(response_date);
+  std::optional<base::Time> server_time = headers.GetDateValue();
   base::Time now = base::Time::Now();
 
   const std::string_view name("Set-Cookie");
@@ -1357,24 +1349,26 @@ void InterceptionJob::ProcessRedirectByClient(const GURL& redirect_url) {
 
 void InterceptionJob::SendResponse(scoped_refptr<base::RefCountedMemory> body,
                                    size_t offset) {
-  size_t body_size = body ? body->size() : 0;
-  CHECK_LE(offset, body_size);
-  body_size -= offset;
+  base::span<const uint8_t> bytes_to_write;
+  if (body) {
+    bytes_to_write = base::as_byte_span(*body).subspan(offset);
+  }
   // We shouldn't be able to transfer a string that big over the protocol,
   // but just in case...
-  CHECK_LE(body_size, UINT32_MAX)
+  CHECK_LE(bytes_to_write.size(), UINT32_MAX)
       << "Response bodies larger than " << UINT32_MAX << " are not supported";
   mojo::ScopedDataPipeConsumerHandle consumer_handle;
   mojo::ScopedDataPipeProducerHandle producer_handle;
-  CHECK_EQ(mojo::CreateDataPipe(body_size, producer_handle, consumer_handle),
+  CHECK_EQ(mojo::CreateDataPipe(bytes_to_write.size(), producer_handle,
+                                consumer_handle),
            MOJO_RESULT_OK);
 
   if (body) {
-    size_t num_bytes = body_size;
+    size_t actually_written_bytes = 0;
     MojoResult res = producer_handle->WriteData(
-        body->data() + offset, &num_bytes, MOJO_WRITE_DATA_FLAG_NONE);
+        bytes_to_write, MOJO_WRITE_DATA_FLAG_NONE, actually_written_bytes);
     DCHECK_EQ(0u, res);
-    DCHECK_EQ(num_bytes, body_size);
+    DCHECK_EQ(actually_written_bytes, bytes_to_write.size());
   }
   client_->OnReceiveResponse(std::move(response_metadata_->head),
                              std::move(consumer_handle),
@@ -1644,16 +1638,6 @@ void InterceptionJob::SetPriority(net::RequestPriority priority,
     loader_->SetPriority(priority, intra_priority_value);
 }
 
-void InterceptionJob::PauseReadingBodyFromNet() {
-  if (!body_reader_ && loader_ && state_ != State::kResponseTaken)
-    loader_->PauseReadingBodyFromNet();
-}
-
-void InterceptionJob::ResumeReadingBodyFromNet() {
-  if (!body_reader_ && loader_ && state_ != State::kResponseTaken)
-    loader_->ResumeReadingBodyFromNet();
-}
-
 // URLLoaderClient methods
 void InterceptionJob::OnReceiveEarlyHints(
     network::mojom::EarlyHintsPtr early_hints) {
@@ -1671,7 +1655,6 @@ void InterceptionJob::OnReceiveResponse(
                                std::move(cached_metadata));
     return;
   }
-  loader_->PauseReadingBodyFromNet();
   client_receiver_.Pause();
   body_ = std::move(body);
 

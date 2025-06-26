@@ -5,9 +5,9 @@
 #include "ui/message_center/popup_timers_controller.h"
 
 #include <algorithm>
+#include <memory>
 
 #include "base/containers/contains.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/message_center/public/cpp/message_center_constants.h"
 #include "ui/message_center/public/cpp/notification_types.h"
@@ -17,7 +17,7 @@ namespace message_center {
 namespace {
 
 bool UseHighPriorityDelay(Notification* notification) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // ChromeOS is going to ignore the `never_timeout` field so all notification
   // popups are automatically dismissed in 6 seconds. System priority
   // notifications with `never_timeout` set will be displayed for 30 minutes.
@@ -61,7 +61,8 @@ void PopupTimersController::StartTimer(const std::string& id,
     return;
   }
 
-  std::unique_ptr<PopupTimer> timer(new PopupTimer(id, timeout, AsWeakPtr()));
+  auto timer =
+      std::make_unique<PopupTimer>(id, timeout, weak_ptr_factory_.GetWeakPtr());
 
   timer->Start();
   popup_timers_.emplace(id, std::move(timer));
@@ -136,24 +137,20 @@ void PopupTimersController::OnNotificationUpdated(const std::string& id) {
     return;
   }
 
-// ChromeOS is going to ignore the `never_timeout` field for notification
-// popups. Only enabled behind the `kNotificationsIgnoreRequireInteraction` flag
-// for now.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-  if (!features::IsNotificationsIgnoreRequireInteractionEnabled()) {
-    if ((*iter)->never_timeout()) {
-      CancelTimer(id);
-      return;
-    }
-  }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+  // ChromeOS is going to ignore the `never_timeout` field for notification
+  // popups. Only enabled behind the `kNotificationsIgnoreRequireInteraction`
+  // flag for now.
+  const bool must_cancel_timer =
+      (*iter)->never_timeout()
+#if BUILDFLAG(IS_CHROMEOS)
+      && !features::IsNotificationsIgnoreRequireInteractionEnabled()
+#endif
+      ;
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-  if ((*iter)->never_timeout()) {
+  if (must_cancel_timer) {
     CancelTimer(id);
     return;
   }
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
 
   auto timer = popup_timers_.find(id);
   // The timer must already have been started and not be running. Relies on

@@ -13,8 +13,8 @@
 #include "ash/user_education/user_education_delegate.h"
 #include "components/account_id/account_id.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
-#include "components/user_education/common/help_bubble.h"
-#include "components/user_education/common/tutorial_description.h"
+#include "components/user_education/common/help_bubble/help_bubble.h"
+#include "components/user_education/common/tutorial/tutorial_description.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 namespace ash {
@@ -33,14 +33,6 @@ class ASH_EXPORT MockUserEducationDelegate : public UserEducationDelegate {
   ~MockUserEducationDelegate() override;
 
   // UserEducationDelegate:
-  MOCK_METHOD(std::unique_ptr<user_education::HelpBubble>,
-              CreateHelpBubble,
-              (const AccountId& account_id,
-               HelpBubbleId help_bubble_id,
-               user_education::HelpBubbleParams help_bubble_params,
-               ui::ElementIdentifier element_id,
-               ui::ElementContext element_context),
-              (override));
   MOCK_METHOD(std::optional<ui::ElementIdentifier>,
               GetElementIdentifierForAppId,
               (const std::string& app_id),

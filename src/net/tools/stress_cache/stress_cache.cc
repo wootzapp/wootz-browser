@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 // This is a simple application that stress-tests the crash recovery of the disk
 // cache. The main application starts a copy of itself on a loop, checking the
 // exit code of the child process. When the child dies in an unexpected way,
@@ -43,6 +48,7 @@
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "net/base/test_completion_callback.h"
+#include "net/disk_cache/backend_cleanup_tracker.h"
 #include "net/disk_cache/blockfile/backend_impl.h"
 #include "net/disk_cache/blockfile/stress_support.h"
 #include "net/disk_cache/disk_cache.h"
@@ -97,7 +103,7 @@ int MasterCode() {
 std::string GenerateStressKey() {
   char key[20 * 1024];
   size_t size = 50 + rand() % 20000;
-  CacheTestFillBuffer(key, size, true);
+  CacheTestFillBuffer(base::as_writable_byte_span(key).first(size), true);
 
   key[size - 1] = '\0';
   return std::string(key);
@@ -316,7 +322,8 @@ void StressTheCache(int iteration) {
   g_data = new Data();
   g_data->iteration = iteration;
   g_data->cache = new disk_cache::BackendImpl(
-      path, mask, cache_thread.task_runner().get(), net::DISK_CACHE, nullptr);
+      path, mask, /*cleanup_tracker=*/nullptr, cache_thread.task_runner().get(),
+      net::DISK_CACHE, nullptr);
   g_data->cache->SetMaxSize(cache_size);
   g_data->cache->SetFlags(disk_cache::kNoLoadProtection);
 
@@ -381,8 +388,8 @@ bool StartCrashThread() {
 
 void CrashHandler(const char* file,
                   int line,
-                  const std::string_view str,
-                  const std::string_view stack_trace) {
+                  std::string_view str,
+                  std::string_view stack_trace) {
   g_crashing = true;
   base::debug::BreakDebugger();
 }

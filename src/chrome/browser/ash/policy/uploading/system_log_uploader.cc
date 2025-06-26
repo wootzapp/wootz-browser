@@ -68,7 +68,6 @@ const char* const kSystemLogFileNames[] = {"/var/log/bios_info.txt",
                                            "/var/log/eventlog.txt",
                                            "/var/log/extensions.log",
                                            "/var/log/extensions.1.log",
-                                           "/var/log/platform_info.txt",
                                            "/var/log/messages",
                                            "/var/log/messages.1",
                                            "/var/log/net.log",
@@ -181,7 +180,7 @@ SystemLogDelegate::SystemLogDelegate(
     scoped_refptr<base::SequencedTaskRunner> task_runner)
     : task_runner_(task_runner) {}
 
-SystemLogDelegate::~SystemLogDelegate() {}
+SystemLogDelegate::~SystemLogDelegate() = default;
 
 std::string SystemLogDelegate::GetPolicyAsJSON() {
   bool include_user_policies = false;
@@ -342,7 +341,7 @@ SystemLogUploader::SystemLogUploader(
   RefreshUploadSettings();
 }
 
-SystemLogUploader::~SystemLogUploader() {}
+SystemLogUploader::~SystemLogUploader() = default;
 
 void SystemLogUploader::OnSuccess() {
   SYSLOG(INFO) << "Upload successful.";

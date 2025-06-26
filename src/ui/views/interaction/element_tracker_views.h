@@ -14,7 +14,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
 #include "base/scoped_multi_source_observation.h"
-#include "base/strings/string_piece.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/interaction/element_tracker.h"
 #include "ui/views/view_utils.h"
@@ -174,7 +173,7 @@ class VIEWS_EXPORT ElementTrackerViews {
 
   // We do not get notified at the View level if a view's widget has not yet
   // been shown. We need this notification to know when the view is actually
-  // visible to the user. So if a view is added to the trakcer or is added to
+  // visible to the user. So if a view is added to the tracker or is added to
   // a widget, and its widget is not visible, we watch it until it is (or it is
   // destroyed).
   void MaybeTrackWidget(Widget* widget);
@@ -195,8 +194,9 @@ template <class T>
 T* ElementTrackerViews::GetUniqueViewAs(ui::ElementIdentifier id,
                                         ui::ElementContext context) {
   views::View* const view = GetUniqueView(id, context);
-  if (!view)
+  if (!view) {
     return nullptr;
+  }
   T* const result = views::AsViewClass<T>(view);
   DCHECK(result);
   return result;
@@ -206,8 +206,9 @@ template <class T>
 T* ElementTrackerViews::GetFirstMatchingViewAs(ui::ElementIdentifier id,
                                                ui::ElementContext context) {
   views::View* const view = GetFirstMatchingView(id, context);
-  if (!view)
+  if (!view) {
     return nullptr;
+  }
   T* const result = views::AsViewClass<T>(view);
   DCHECK(result);
   return result;

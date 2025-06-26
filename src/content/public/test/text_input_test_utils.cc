@@ -9,6 +9,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
+#include "components/input/render_widget_host_view_input_observer.h"
 #include "content/browser/renderer_host/frame_tree.h"
 #include "content/browser/renderer_host/frame_tree_node.h"
 #include "content/browser/renderer_host/render_frame_host_impl.h"
@@ -16,7 +17,6 @@
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
 #include "content/browser/renderer_host/text_input_manager.h"
 #include "content/browser/web_contents/web_contents_impl.h"
-#include "content/common/input/render_widget_host_view_input_observer.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -110,11 +110,9 @@ class TextInputManagerTester::InternalObserver
       on_selection_bounds_changed_callback_.Run();
   }
 
-  void OnImeCompositionRangeChanged(
-      TextInputManager* text_input_manager,
-      RenderWidgetHostViewBase* updated_view,
-      bool character_bounds_changed,
-      const std::optional<std::vector<gfx::Rect>>& line_bounds) override {
+  void OnImeCompositionRangeChanged(TextInputManager* text_input_manager,
+                                    RenderWidgetHostViewBase* updated_view,
+                                    bool character_bounds_changed) override {
     updated_view_ = updated_view;
     const gfx::Range* range =
         text_input_manager_->GetCompositionRangeForTesting();
@@ -154,7 +152,7 @@ class TextInputManagerTester::InternalObserver
 // this class is used in TestRenderWidgetHostViewDestructionObserver to expose
 // the required observer API for testing outside of content/.
 class TestRenderWidgetHostViewDestructionObserver::InternalObserver
-    : public RenderWidgetHostViewInputObserver {
+    : public input::RenderWidgetHostViewInputObserver {
  public:
   InternalObserver(RenderWidgetHostViewBase* view)
       : view_(view), destroyed_(false) {
@@ -178,7 +176,7 @@ class TestRenderWidgetHostViewDestructionObserver::InternalObserver
 
  private:
   void OnRenderWidgetHostViewInputDestroyed(
-      RenderWidgetHostViewInput* view) override {
+      input::RenderWidgetHostViewInput* view) override {
     DCHECK_EQ(view_, view);
     destroyed_ = true;
     view->RemoveObserver(this);

@@ -16,9 +16,7 @@
 #include "cc/metrics/frame_sequence_tracker_collection.h"
 #include "cc/metrics/frame_sorter.h"
 #include "cc/metrics/video_playback_roughness_reporter.h"
-#include "components/viz/client/shared_bitmap_reporter.h"
 #include "components/viz/common/gpu/raster_context_provider.h"
-#include "components/viz/common/resources/shared_bitmap.h"
 #include "components/viz/common/surfaces/child_local_surface_id_allocator.h"
 #include "gpu/ipc/client/gpu_channel_observer.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -43,7 +41,6 @@ namespace blink {
 class PLATFORM_EXPORT VideoFrameSubmitter
     : public WebVideoFrameSubmitter,
       public viz::ContextLostObserver,
-      public viz::SharedBitmapReporter,
       public gpu::GpuChannelLostObserver,
       public viz::mojom::blink::CompositorFrameSinkClient {
  public:
@@ -81,18 +78,12 @@ class PLATFORM_EXPORT VideoFrameSubmitter
       WTF::Vector<viz::ReturnedResource> resources) override;
   void OnBeginFrame(const viz::BeginFrameArgs&,
                     const WTF::HashMap<uint32_t, viz::FrameTimingDetails>&,
-                    bool frame_ack,
                     WTF::Vector<viz::ReturnedResource> resources) override;
   void OnBeginFramePausedChanged(bool paused) override {}
   void ReclaimResources(WTF::Vector<viz::ReturnedResource> resources) override;
   void OnCompositorFrameTransitionDirectiveProcessed(
       uint32_t sequence_id) override {}
   void OnSurfaceEvicted(const viz::LocalSurfaceId& local_surface_id) override {}
-
-  // viz::SharedBitmapReporter implementation.
-  void DidAllocateSharedBitmap(base::ReadOnlySharedMemoryRegion,
-                               const viz::SharedBitmapId&) override;
-  void DidDeleteSharedBitmap(const viz::SharedBitmapId&) override;
 
  private:
   friend class VideoFrameSubmitterTest;
@@ -150,6 +141,24 @@ class PLATFORM_EXPORT VideoFrameSubmitter
       const viz::BeginFrameAck& begin_frame_ack,
       scoped_refptr<media::VideoFrame> video_frame,
       media::VideoTransformation transform);
+
+  // Opacity state with respect to what we've told `surface_embedder_`.
+  enum class Opacity {
+    // We have not told the embedder anything yet.
+    kNotReported,
+
+    // We told the embedder that we have submitted an opaque frame.
+    kIsOpaque,
+
+    // We told the embedder that we have submitted a non-opaque frame.
+    kIsNotOpaque
+  };
+
+  // Notify `surface_embedder_` if the opacity of the most recent video frame
+  // has changed.
+  void NotifyOpacityIfNeeded(Opacity new_opacity);
+
+  void ClearFrameResources();
 
   raw_ptr<cc::VideoFrameProvider> video_frame_provider_ = nullptr;
   bool is_media_stream_ = false;
@@ -236,6 +245,12 @@ class PLATFORM_EXPORT VideoFrameSubmitter
   base::flat_set<uint32_t> ignorable_submitted_frames_;
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
+
+  // The average delta between receiving a frame and presenting it. Can be used
+  // to estimate the expected display time of a frame.
+  base::TimeDelta average_delta_between_receive_and_present_;
+
+  Opacity opacity_ = Opacity::kNotReported;
 
   THREAD_CHECKER(thread_checker_);
 

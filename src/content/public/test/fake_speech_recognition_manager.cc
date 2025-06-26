@@ -102,6 +102,18 @@ void FakeSpeechRecognitionManager::SetFakeResult(const std::string& value,
 
 int FakeSpeechRecognitionManager::CreateSession(
     const SpeechRecognitionSessionConfig& config) {
+  return CreateSession(std::move(config), mojo::NullReceiver(),
+                       mojo::NullRemote(), std::nullopt);
+}
+
+int FakeSpeechRecognitionManager::CreateSession(
+    const SpeechRecognitionSessionConfig& config,
+    mojo::PendingReceiver<media::mojom::SpeechRecognitionSession>
+        session_receiver,
+    mojo::PendingRemote<media::mojom::SpeechRecognitionSessionClient>
+        client_remote,
+    std::optional<SpeechRecognitionAudioForwarderConfig>
+        audio_forwarder_config) {
   VLOG(1) << "FAKE CreateSession invoked.";
   // FakeSpeechRecognitionManager only allows one active session at a time.
   EXPECT_EQ(0, session_id_);
@@ -172,6 +184,13 @@ void FakeSpeechRecognitionManager::AbortAllSessionsForRenderFrame(
   did_cancel_all_ = true;
 }
 
+void FakeSpeechRecognitionManager::UpdateRecognitionContextForSession(
+    int session_id,
+    const media::SpeechRecognitionRecognitionContext& recognition_context) {
+  VLOG(1) << "UpdateRecognitionContextForSession invoked.";
+  EXPECT_EQ(session_id_, session_id);
+}
+
 const SpeechRecognitionSessionConfig&
 FakeSpeechRecognitionManager::GetSessionConfig(int session_id) {
   EXPECT_EQ(session_id, session_id_);
@@ -182,6 +201,11 @@ SpeechRecognitionSessionContext FakeSpeechRecognitionManager::GetSessionContext(
     int session_id) {
   EXPECT_EQ(session_id, session_id_);
   return session_ctx_;
+}
+
+bool FakeSpeechRecognitionManager::UseOnDeviceSpeechRecognition(
+    const SpeechRecognitionSessionConfig& config) {
+  return false;
 }
 
 void FakeSpeechRecognitionManager::SetFakeRecognitionResult(

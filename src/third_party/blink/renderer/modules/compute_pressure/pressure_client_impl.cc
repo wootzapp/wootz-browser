@@ -40,7 +40,7 @@ V8PressureState::Enum PressureStateToV8PressureState(PressureState state) {
     case PressureState::kCritical:
       return V8PressureState::Enum::kCritical;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 V8PressureSource::Enum PressureSourceToV8PressureSource(PressureSource source) {
@@ -48,7 +48,7 @@ V8PressureSource::Enum PressureSourceToV8PressureSource(PressureSource source) {
     case PressureSource::kCpu:
       return V8PressureSource::Enum::kCpu;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 }  // namespace
@@ -57,7 +57,7 @@ PressureClientImpl::PressureClientImpl(ExecutionContext* context,
                                        PressureObserverManager* manager)
     : ExecutionContextClient(context),
       manager_(manager),
-      receiver_(this, context) {}
+      associated_receiver_(this, context) {}
 
 PressureClientImpl::~PressureClientImpl() = default;
 
@@ -85,20 +85,22 @@ void PressureClientImpl::RemoveObserver(PressureObserver* observer) {
   }
 }
 
-mojo::PendingRemote<device::mojom::blink::PressureClient>
-PressureClientImpl::BindNewPipeAndPassRemote() {
-  scoped_refptr<base::SingleThreadTaskRunner> task_runner =
-      GetExecutionContext()->GetTaskRunner(TaskType::kMiscPlatformAPI);
-  auto remote = receiver_.BindNewPipeAndPassRemote(std::move(task_runner));
-  receiver_.set_disconnect_handler(
+mojo::PendingAssociatedRemote<device::mojom::blink::PressureClient>
+PressureClientImpl::BindNewEndpointAndPassRemote(
+    scoped_refptr<base::SequencedTaskRunner> task_runner) {
+  auto associated_pending_remote =
+      associated_receiver_.BindNewEndpointAndPassRemote(task_runner);
+
+  associated_receiver_.set_disconnect_handler(
       WTF::BindOnce(&PressureClientImpl::Reset, WrapWeakPersistent(this)));
-  return remote;
+
+  return associated_pending_remote;
 }
 
 void PressureClientImpl::Reset() {
   state_ = State::kUninitialized;
   observers_.clear();
-  receiver_.reset();
+  associated_receiver_.reset();
 }
 
 DOMHighResTimeStamp PressureClientImpl::CalculateTimestamp(
@@ -110,15 +112,15 @@ DOMHighResTimeStamp PressureClientImpl::CalculateTimestamp(
   } else if (auto* worker = DynamicTo<WorkerGlobalScope>(context); worker) {
     performance = WorkerGlobalScopePerformance::performance(*worker);
   } else {
-    NOTREACHED_NORETURN();
+    NOTREACHED();
   }
   CHECK(performance);
   return performance->MonotonicTimeToDOMHighResTimeStamp(timeticks);
 }
 
 void PressureClientImpl::Trace(Visitor* visitor) const {
+  visitor->Trace(associated_receiver_);
   visitor->Trace(manager_);
-  visitor->Trace(receiver_);
   visitor->Trace(observers_);
   ExecutionContextClient::Trace(visitor);
 }

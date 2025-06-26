@@ -31,6 +31,9 @@ NotificationPermissionsReviewServiceFactory::
           "NotificationPermissionsReviewService",
           ProfileSelections::Builder()
               .WithRegular(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
               .Build()) {
   DependsOn(HostContentSettingsMapFactory::GetInstance());
   DependsOn(site_engagement::SiteEngagementServiceFactory::GetInstance());
@@ -50,3 +53,11 @@ std::unique_ptr<KeyedService> NotificationPermissionsReviewServiceFactory::
       engagement_service);
 }
 
+bool NotificationPermissionsReviewServiceFactory::
+    ServiceIsCreatedWithBrowserContext() const {
+#if BUILDFLAG(IS_ANDROID)
+  return base::FeatureList::IsEnabled(features::kSafetyHub);
+#else   // BUILDFLAG(IS_ANDROID)
+  return base::FeatureList::IsEnabled(features::kSafetyHubServicesOnStartUp);
+#endif  // BUILDFLAG(IS_ANDROID)
+}

@@ -17,22 +17,22 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "cloud_policy_constants.h"
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
 #include "components/policy/core/common/cloud/test/policy_builder.h"
 #include "components/policy/core/common/policy_switches.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 #include "crypto/rsa_private_key.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "base/system/sys_info.h"
 #include "base/test/scoped_chromeos_version_info.h"
 #include "base/time/time.h"
 #include "testing/gtest/include/gtest/gtest-death-test.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace em = enterprise_management;
 
@@ -124,13 +124,18 @@ class CloudPolicyValidatorTest : public testing::Test {
     std::string public_key = PolicyBuilder::GetPublicTestKeyAsString();
     EXPECT_FALSE(public_key.empty());
 
+    const std::string& verification_data =
+        policy_response->new_public_key_verification_data();
+    const std::string& verification_data_signature =
+        policy_response->new_public_key_verification_data_signature();
+
     auto validator = std::make_unique<UserCloudPolicyValidator>(
         std::move(policy_response),
         base::SingleThreadTaskRunner::GetCurrentDefault());
     validator->ValidateTimestamp(timestamp_, timestamp_option_);
     if (validate_by_gaia_id_) {
       validator->ValidateUsernameAndGaiaId(
-          /*expected_user=*/std::string(), PolicyBuilder::kFakeGaiaId);
+          /*expected_user=*/std::string(), GaiaId(PolicyBuilder::kFakeGaiaId));
     } else {
       validator->ValidateUsername(PolicyBuilder::kFakeUsername);
     }
@@ -141,7 +146,8 @@ class CloudPolicyValidatorTest : public testing::Test {
     validator->ValidatePolicyType(dm_protocol::kChromeUserPolicyType);
     validator->ValidatePayload();
     validator->ValidateCachedKey(public_key, cached_key_signature_,
-                                 owning_domain_);
+                                 owning_domain_, verification_data,
+                                 verification_data_signature);
     if (allow_key_rotation_) {
       validator->ValidateSignatureAllowingRotation(public_key, owning_domain_);
       validator->ValidateInitialKey(owning_domain_);
@@ -198,7 +204,7 @@ class CloudPolicyValidatorTest : public testing::Test {
   MOCK_METHOD1(ValidationCompletion, void(UserCloudPolicyValidator* validator));
 };
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 TEST_F(CloudPolicyValidatorTest,
        SuccessfulValidationWithDisableKeyVerificationOnTestImage) {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
@@ -235,7 +241,7 @@ TEST_F(CloudPolicyValidatorTest,
       },
       "");
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 TEST_F(CloudPolicyValidatorTest, SuccessfulValidation) {
   Validate(Invoke(this, &CloudPolicyValidatorTest::CheckSuccessfulValidation));
@@ -283,7 +289,7 @@ TEST_F(CloudPolicyValidatorTest,
   Validate(CheckStatus(CloudPolicyValidatorBase::VALIDATION_OK));
 }
 
-TEST_F(CloudPolicyValidatorTest, SuccessfulValidationWithSHA1) {
+TEST_F(CloudPolicyValidatorTest, SuccessfulValidationWithSignatureTypeSHA1) {
   policy_.SetSignatureType(em::PolicyFetchRequest::SHA1_RSA);
   policy_.policy_data().set_policy_type(
       dm_protocol::kChromeMachineLevelUserCloudPolicyType);
@@ -296,7 +302,23 @@ TEST_F(CloudPolicyValidatorTest, SuccessfulValidationWithSHA1) {
                  std::move(validator));
 }
 
-TEST_F(CloudPolicyValidatorTest, SuccessfulValidationWithSHA256) {
+// Assume that if a policy blob does not have `policy_data_signature_type` set,
+// the blob is signed with SHA1_RSA.
+TEST_F(CloudPolicyValidatorTest, SuccessfulValidationWithMissingSignatureType) {
+  policy_.SetSignatureType(em::PolicyFetchRequest::SHA1_RSA);
+  policy_.policy_data().set_policy_type(
+      dm_protocol::kChromeMachineLevelUserCloudPolicyType);
+  policy_.Build();
+  policy_.policy().clear_policy_data_signature_type();
+  std::unique_ptr<UserCloudPolicyValidator> validator =
+      CreateValidator(policy_.GetCopy());
+  validator->ValidatePolicyType(
+      dm_protocol::kChromeMachineLevelUserCloudPolicyType);
+  ValidatePolicy(CheckStatus(CloudPolicyValidatorBase::VALIDATION_OK),
+                 std::move(validator));
+}
+
+TEST_F(CloudPolicyValidatorTest, SuccessfulValidationWithSignatureTypeSHA256) {
   policy_.SetSignatureType(em::PolicyFetchRequest::SHA256_RSA);
   policy_.policy_data().set_policy_type(
       dm_protocol::kChromeMachineLevelUserCloudPolicyType);
@@ -309,20 +331,19 @@ TEST_F(CloudPolicyValidatorTest, SuccessfulValidationWithSHA256) {
                  std::move(validator));
 }
 
-TEST_F(CloudPolicyValidatorTest,
-       FailedValidationWithSHA256WithUnsupportedPolicyType) {
-  // We will only use signature type for CBCM. Other policy type will still be
-  // verified by SHA1 until we have fully tested them.
-  // In this test, we use user `kChromeUserPolicyType` by default.
-  policy_.SetSignatureType(em::PolicyFetchRequest::SHA256_RSA);
-  policy_.policy_data().set_policy_type(
-      dm_protocol::kChromeDevicePolicyType);
+// Treat `em::PolicyFetchRequest::NONE` in `policy_data_signature_type`
+// as unsigned, which is not supported.
+TEST_F(CloudPolicyValidatorTest, FailedValidationWithSignatureTypeNONE) {
+  policy_.SetSignatureType(em::PolicyFetchRequest::SHA1_RSA);
+  policy_.policy_data().set_policy_type(dm_protocol::kChromeUserPolicyType);
   policy_.Build();
+  policy_.policy().set_policy_data_signature_type(em::PolicyFetchRequest::NONE);
   std::unique_ptr<UserCloudPolicyValidator> validator =
       CreateValidator(policy_.GetCopy());
-  validator->ValidatePolicyType(
-      dm_protocol::kChromeDevicePolicyType);
-  Validate(CheckStatus(CloudPolicyValidatorBase::VALIDATION_BAD_SIGNATURE));
+  validator->ValidatePolicyType(dm_protocol::kChromeUserPolicyType);
+  ValidatePolicy(
+      CheckStatus(CloudPolicyValidatorBase::VALIDATION_BAD_SIGNATURE),
+      std::move(validator));
 }
 
 TEST_F(CloudPolicyValidatorTest, UsernameCanonicalization) {
@@ -516,8 +537,16 @@ TEST_F(CloudPolicyValidatorTest, ErrorInvalidPublicKeyVerificationSignature) {
       policy_.GetCopy());
 }
 
+TEST_F(CloudPolicyValidatorTest, GoodNewSignatureEmptyDeprecatedSignature) {
+  policy_.Build();
+  policy_.policy().set_new_public_key_verification_signature_deprecated("");
+  ValidatePolicy(CheckStatus(CloudPolicyValidatorBase::VALIDATION_OK),
+                 policy_.GetCopy());
+}
+
 TEST_F(CloudPolicyValidatorTest, ErrorDomainMismatchForKeyVerification) {
   policy_.Build();
+  policy_.policy().set_new_public_key_verification_data("invalid");
   // Generate a non-matching owning_domain, which should cause a validation
   // failure.
   owning_domain_ = "invalid.com";
@@ -545,8 +574,12 @@ TEST_F(CloudPolicyValidatorTest, ErrorNoCachedKeySignature) {
   // Generate an empty cached_key_signature_ and this should cause a validation
   // error when we try to verify the signing key with it.
   cached_key_signature_ = "";
-  Validate(CheckStatus(
-      CloudPolicyValidatorBase::VALIDATION_BAD_KEY_VERIFICATION_SIGNATURE));
+  policy_.Build();
+  policy_.policy().set_new_public_key_verification_data("invalid");
+  ValidatePolicy(
+      CheckStatus(
+          CloudPolicyValidatorBase::VALIDATION_BAD_KEY_VERIFICATION_SIGNATURE),
+      policy_.GetCopy());
 }
 
 TEST_F(CloudPolicyValidatorTest, ErrorInvalidCachedKeySignature) {
@@ -554,8 +587,12 @@ TEST_F(CloudPolicyValidatorTest, ErrorInvalidCachedKeySignature) {
   // the signing key) and this should cause a validation error when we try to
   // verify the signing key with it.
   cached_key_signature_ = PolicyBuilder::GetTestOtherSigningKeySignature();
-  Validate(CheckStatus(
-      CloudPolicyValidatorBase::VALIDATION_BAD_KEY_VERIFICATION_SIGNATURE));
+  policy_.Build();
+  policy_.policy().set_new_public_key_verification_data("invalid");
+  ValidatePolicy(
+      CheckStatus(
+          CloudPolicyValidatorBase::VALIDATION_BAD_KEY_VERIFICATION_SIGNATURE),
+      policy_.GetCopy());
 }
 
 TEST_F(CloudPolicyValidatorTest, SuccessfulNoDomainValidation) {

@@ -14,23 +14,16 @@
 #include "base/check_is_test.h"
 #include "base/containers/flat_map.h"
 #include "base/memory/raw_ptr.h"
+#include "base/time/time.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "ui/gfx/delegated_ink_metadata.h"
+#include "ui/gfx/delegated_ink_point.h"
 #include "ui/gfx/geometry/transform_util.h"
 #include "ui/gfx/mojom/delegated_ink_point_renderer.mojom.h"
 #include "ui/gl/dc_layer_overlay_params.h"
 #include "ui/gl/gl_export.h"
 
 namespace gl {
-
-namespace {
-struct DelegatedInkPointCompare {
-  bool operator()(const gfx::DelegatedInkPoint& lhs,
-                  const gfx::DelegatedInkPoint& rhs) const {
-    return lhs.timestamp() < rhs.timestamp();
-  }
-};
-}  // namespace
 
 // On construction, this class will create a new visual for the visual tree with
 // an IDCompositionDelegatedInk object as the contents. This will be added as
@@ -46,6 +39,12 @@ class GL_EXPORT DelegatedInkPointRendererGpu
   DelegatedInkPointRendererGpu();
   ~DelegatedInkPointRendererGpu() override;
 
+  struct DelegatedInkPointCompare {
+    bool operator()(const gfx::DelegatedInkPoint& lhs,
+                    const gfx::DelegatedInkPoint& rhs) const {
+      return lhs.timestamp() < rhs.timestamp();
+    }
+  };
   using DelegatedInkPointTokenMap = base::flat_map<gfx::DelegatedInkPoint,
                                                    std::optional<unsigned int>,
                                                    DelegatedInkPointCompare>;
@@ -65,6 +64,7 @@ class GL_EXPORT DelegatedInkPointRendererGpu
   void ResetPrediction() override;
 
   gfx::DelegatedInkMetadata* MetadataForTesting() const {
+    CHECK_IS_TEST();
     return metadata_.get();
   }
 
@@ -72,7 +72,7 @@ class GL_EXPORT DelegatedInkPointRendererGpu
   // If the Delegated Ink Renderer can not be initialized, it returns a
   // nullptr. The ink trail will synchronize its updates with |root_swap_chain|
   // if present, otherwise it will synchronize with DComp commit.
-  std::unique_ptr<DCLayerOverlayParams> MakeDelegatedInkOverlay(
+  std::optional<DCLayerOverlayParams> MakeDelegatedInkOverlay(
       IDCompositionDevice2* dcomp_device2,
       IDXGISwapChain1* root_swap_chain,
       std::unique_ptr<gfx::DelegatedInkMetadata> metadata);
@@ -80,6 +80,7 @@ class GL_EXPORT DelegatedInkPointRendererGpu
   uint64_t InkTrailTokenCountForTesting() const;
 
   uint64_t DelegatedInkPointPointerIdCountForTesting() const {
+    CHECK_IS_TEST();
     return delegated_ink_points_.size();
   }
 
@@ -87,16 +88,18 @@ class GL_EXPORT DelegatedInkPointRendererGpu
 
   const DelegatedInkPointTokenMap& DelegatedInkPointsForTesting(
       int32_t pointer_id) {
+    CHECK_IS_TEST();
     DCHECK(delegated_ink_points_.find(pointer_id) !=
            delegated_ink_points_.end());
     return delegated_ink_points_[pointer_id];
   }
 
   bool WaitForNewTrailToDrawForTesting() const {
+    CHECK_IS_TEST();
     return wait_for_new_trail_to_draw_;
   }
 
-  std::vector<base::TimeTicks> PointstoBeDrawnForTesting() const {
+  std::vector<gfx::DelegatedInkPoint> PointstoBeDrawnForTesting() const {
     CHECK_IS_TEST();
     return points_to_be_drawn_;
   }
@@ -176,7 +179,11 @@ class GL_EXPORT DelegatedInkPointRendererGpu
 
   // Holds the timestamp of points added to the Delegated Ink's Trail to measure
   // the time between point creation and draw operation called.
-  std::vector<base::TimeTicks> points_to_be_drawn_;
+  std::vector<gfx::DelegatedInkPoint> points_to_be_drawn_;
+
+  // The timestamp in which a Delegated Ink point that matches the metadata was
+  // first painted.
+  std::optional<base::TimeTicks> metadata_paint_time_;
 };
 
 }  // namespace gl

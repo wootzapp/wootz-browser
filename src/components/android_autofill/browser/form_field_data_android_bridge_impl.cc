@@ -12,32 +12,34 @@
 #include "base/android/jni_weak_ref.h"
 #include "base/android/scoped_java_ref.h"
 #include "base/containers/span.h"
-#include "components/android_autofill/browser/jni_headers/FormFieldData_jni.h"
-#include "components/autofill/core/browser/autofill_type.h"
+#include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/common/autofill_util.h"
 #include "components/autofill/core/common/form_field_data.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/android_autofill/browser/jni_headers/FormFieldData_jni.h"
 
 namespace autofill {
 
 namespace {
 
-using base::android::AttachCurrentThread;
 using base::android::ConvertJavaStringToUTF16;
 using base::android::ConvertUTF16ToJavaString;
 using base::android::ConvertUTF8ToJavaString;
 using base::android::ScopedJavaLocalRef;
 using base::android::ToJavaArrayOfStrings;
+using jni_zero::AttachCurrentThread;
 
-// Converts the `AutofillType`s to strings and returns a Java array of strings.
+// Converts the `FieldType`s to strings and returns a Java array of strings.
 // Returns `nullptr` instead if `server_predictions` is empty.
 base::android::ScopedJavaLocalRef<jobjectArray> ToJavaArrayOfPredictionStrings(
     JNIEnv* env,
-    const std::vector<AutofillType>& server_predictions) {
+    const std::vector<FieldType>& server_predictions) {
   if (!server_predictions.empty()) {
     std::vector<std::string> server_prediction_array;
     server_prediction_array.reserve(server_predictions.size());
     for (const auto& p : server_predictions) {
-      server_prediction_array.emplace_back(std::string(p.ToStringView()));
+      server_prediction_array.emplace_back(FieldTypeToString(p));
     }
     return ToJavaArrayOfStrings(env, server_prediction_array);
   }
@@ -63,8 +65,8 @@ FormFieldDataAndroidBridgeImpl::GetOrCreateJavaPeer(
                               const auto& projection) {
     std::vector<std::u16string> projected_options;
     projected_options.reserve(options.size());
-    base::ranges::transform(options, std::back_inserter(projected_options),
-                            projection);
+    std::ranges::transform(options, std::back_inserter(projected_options),
+                           projection);
     return ToJavaArrayOfStrings(env, projected_options);
   };
 
@@ -80,22 +82,23 @@ FormFieldDataAndroidBridgeImpl::GetOrCreateJavaPeer(
       ConvertUTF16ToJavaString(env, field.id_attribute()),
       /*optionValues=*/ProjectOptions(field.options(), &SelectOption::value),
       /*optionContents=*/
-      ProjectOptions(field.options(), &SelectOption::content),
+      ProjectOptions(field.options(), &SelectOption::text),
       IsCheckable(field.check_status()), IsChecked(field.check_status()),
       field.max_length(),
-      /*heuristicType=*/field_types.heuristic_type.IsUnknown()
+      /*heuristicType=*/field_types.heuristic_type == UNKNOWN_TYPE
           ? nullptr
-          : ConvertUTF8ToJavaString(env,
-                                    field_types.heuristic_type.ToStringView()),
-      ConvertUTF8ToJavaString(env, field_types.server_type.ToStringView()),
-      ConvertUTF8ToJavaString(env, field_types.computed_type.ToStringView()),
+          : ConvertUTF8ToJavaString(
+                env, FieldTypeToStringView(field_types.heuristic_type)),
+      ConvertUTF8ToJavaString(env,
+                              FieldTypeToStringView(field_types.server_type)),
+      ConvertUTF8ToJavaString(env, field_types.computed_type),
       ToJavaArrayOfPredictionStrings(env, field_types.server_predictions),
       field.bounds().x(), field.bounds().y(), field.bounds().right(),
       field.bounds().bottom(),
       /*datalistValues=*/
       ProjectOptions(field.datalist_options(), &SelectOption::value),
       /*datalistLabels=*/
-      ProjectOptions(field.datalist_options(), &SelectOption::content),
+      ProjectOptions(field.datalist_options(), &SelectOption::text),
       /*visible=*/field.IsFocusable(), field.is_autofilled());
   java_ref_ = JavaObjectWeakGlobalRef(env, obj);
   return obj;
@@ -132,8 +135,9 @@ void FormFieldDataAndroidBridgeImpl::UpdateFieldTypes(
 
   Java_FormFieldData_updateFieldTypes(
       env, obj,
-      ConvertUTF8ToJavaString(env, field_types.server_type.ToStringView()),
-      ConvertUTF8ToJavaString(env, field_types.computed_type.ToStringView()),
+      ConvertUTF8ToJavaString(env,
+                              FieldTypeToStringView(field_types.server_type)),
+      ConvertUTF8ToJavaString(env, field_types.computed_type),
       ToJavaArrayOfPredictionStrings(env, field_types.server_predictions));
 }
 

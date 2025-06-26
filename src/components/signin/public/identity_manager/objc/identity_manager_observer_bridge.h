@@ -32,6 +32,8 @@
                             error:(const GoogleServiceAuthError&)error;
 - (void)onEndBatchOfRefreshTokenStateChanges;
 - (void)onExtendedAccountInfoUpdated:(const AccountInfo&)info;
+- (void)onAccountsOnDeviceChanged;
+- (void)onEndBatchOfPrimaryAccountChanges;
 - (void)onIdentityManagerShutdown:(signin::IdentityManager*)identityManager;
 
 @end
@@ -65,6 +67,8 @@ class IdentityManagerObserverBridge : public IdentityManager::Observer {
       const GoogleServiceAuthError& error) override;
   void OnEndBatchOfRefreshTokenStateChanges() override;
   void OnExtendedAccountInfoUpdated(const AccountInfo& info) override;
+  void OnAccountsOnDeviceChanged() override;
+  void OnEndBatchOfPrimaryAccountChanges() override;
   void OnIdentityManagerShutdown(IdentityManager* identity_manager) override;
 
  private:

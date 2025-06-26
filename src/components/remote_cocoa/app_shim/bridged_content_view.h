@@ -71,7 +71,9 @@ REMOTE_COCOA_APP_SHIM_EXPORT
 // Updates the tooltip on the ToolTipBaseView if the text needs to change.
 // |locationInContent| is the position from the top left of the window's
 // contentRect (also this NSView's frame), as given by a ui::LocatedEvent.
-- (void)updateTooltipIfRequiredAt:(const gfx::Point&)locationInContent;
+- (void)updateTooltipIfRequiredAt:(const gfx::Point&)locationInContent
+                           bridge:(remote_cocoa::NativeWidgetNSWindowBridge*)
+                                      bridge;
 
 // Notifies the associated FocusManager whether full keyboard access is enabled
 // or not.
@@ -84,7 +86,7 @@ REMOTE_COCOA_APP_SHIM_EXPORT
 
 // The TextInputClient of the currently focused views::View.
 // TODO(ccameron): This cannot be relied on across processes.
-- (ui::TextInputClient*)textInputClient;
+- (ui::TextInputClient*)textInputClientForTesting;
 
 // Returns true if it is needed to call -[NSApp updateWindows] while updating
 // the text input client.

@@ -427,6 +427,14 @@ function getCSS() {
       -webkit-mask-image: url(../foreground/images/files/ui/error_banner_icon.svg);
     }
 
+    :host([type='star']) span {
+      -webkit-mask-image: url(../foreground/images/files/ui/star.svg);
+    }
+
+    :host([type='odfs']) span {
+      -webkit-mask-image: url(../foreground/images/files/ui/odfs.svg);
+    }
+
     :host([type='gdoc']) span,
     :host([type='script']) span,
     :host([type='tini']) span {

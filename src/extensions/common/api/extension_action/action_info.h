@@ -9,7 +9,8 @@
 #include <string>
 
 #include "extensions/common/extension.h"
-#include "extensions/common/extension_icon_set.h"
+#include "extensions/common/icons/extension_icon_set.h"
+#include "extensions/common/icons/extension_icon_variants.h"
 #include "url/gurl.h"
 
 namespace extensions {
@@ -31,6 +32,7 @@ struct ActionInfo {
 
   explicit ActionInfo(Type type);
   ActionInfo(const ActionInfo& other);
+  ActionInfo(ActionInfo&& other);
   ~ActionInfo();
 
   // Loads an ActionInfo from the given Dict. Populating
@@ -66,12 +68,15 @@ struct ActionInfo {
   ExtensionIconSet default_icon;
   std::string default_title;
   GURL default_popup_url;
-  GURL default_widget_url;
+
   // Specifies if the action applies to all web pages ("enabled") or
   // only specific pages ("disabled"). Only applies to the "action" key.
   DefaultState default_state;
   // Whether or not this action was synthesized to force visibility.
   bool synthesized;
+
+  // Icon Variants can be defined here in action or at manifest.json top level.
+  std::optional<ExtensionIconVariants> icon_variants;
 };
 
 }  // namespace extensions

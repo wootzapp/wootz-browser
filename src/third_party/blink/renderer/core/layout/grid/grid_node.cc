@@ -77,7 +77,7 @@ GridItems GridNode::ConstructGridItems(
         continue;
       }
 
-      auto grid_item = std::make_unique<GridItemData>(
+      auto* grid_item = MakeGarbageCollected<GridItemData>(
           To<BlockNode>(child), parent_grid_style, root_grid_style,
           must_consider_grid_items_for_column_sizing,
           must_consider_grid_items_for_row_sizing);
@@ -90,11 +90,12 @@ GridItems GridNode::ConstructGridItems(
       if (opt_has_nested_subgrid) {
         *opt_has_nested_subgrid |= grid_item->IsSubgrid();
       }
-      grid_items.Append(std::move(grid_item));
+      grid_items.Append(grid_item);
     }
 
-    if (should_sort_grid_items_by_order_property)
+    if (should_sort_grid_items_by_order_property) {
       grid_items.SortByOrderProperty();
+    }
   }
 
 #if DCHECK_IS_ON()
@@ -113,7 +114,8 @@ GridItems GridNode::ConstructGridItems(
   }
 
   // Copy each resolved position to its respective grid item data.
-  auto* resolved_position = cached_placement_data->grid_item_positions.begin();
+  auto resolved_position =
+      base::span(cached_placement_data->grid_item_positions).begin();
   for (auto& grid_item : grid_items) {
     grid_item.resolved_position = *(resolved_position++);
   }
@@ -189,16 +191,17 @@ MinMaxSizesResult GridNode::ComputeSubgridMinMaxSizes(
 
   auto* layout_grid = To<LayoutGrid>(box_.Get());
 
-  if (!layout_grid->HasCachedMinMaxSizes()) {
+  if (!layout_grid->HasCachedSubgridMinMaxSizes()) {
     const auto fragment_geometry = CalculateInitialFragmentGeometry(
         space, *this, /*break_token=*/nullptr, /*is_intrinsic=*/true);
 
-    layout_grid->SetMinMaxSizesCache(
+    layout_grid->SetSubgridMinMaxSizesCache(
         GridLayoutAlgorithm({*this, fragment_geometry, space})
-            .ComputeSubgridMinMaxSizes(sizing_subtree));
+            .ComputeSubgridMinMaxSizes(sizing_subtree),
+        sizing_subtree.LayoutData());
   }
 
-  return {layout_grid->CachedMinMaxSizes(),
+  return {layout_grid->CachedSubgridMinMaxSizes(),
           /*depends_on_block_constraints=*/false};
 }
 
@@ -210,7 +213,7 @@ LayoutUnit GridNode::ComputeSubgridIntrinsicBlockSize(
 
   auto* layout_grid = To<LayoutGrid>(box_.Get());
 
-  if (!layout_grid->HasCachedMinMaxSizes()) {
+  if (!layout_grid->HasCachedSubgridMinMaxSizes()) {
     const auto fragment_geometry = CalculateInitialFragmentGeometry(
         space, *this, /*break_token=*/nullptr, /*is_intrinsic=*/true);
 
@@ -220,12 +223,13 @@ LayoutUnit GridNode::ComputeSubgridIntrinsicBlockSize(
 
     // The min and max-content block size are both the box's "ideal" size after
     // layout (see https://drafts.csswg.org/css-sizing-3/#max-content).
-    layout_grid->SetMinMaxSizesCache(
-        {intrinsic_block_size, intrinsic_block_size});
+    layout_grid->SetSubgridMinMaxSizesCache(
+        {intrinsic_block_size, intrinsic_block_size},
+        sizing_subtree.LayoutData());
   }
 
   // Both intrinsic sizes are the same, so we can return either.
-  return layout_grid->CachedMinMaxSizes().max_size;
+  return layout_grid->CachedSubgridMinMaxSizes().max_size;
 }
 
 }  // namespace blink

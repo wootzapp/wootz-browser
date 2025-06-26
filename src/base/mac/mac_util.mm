@@ -31,7 +31,6 @@
 #include "base/mac/scoped_ioobject.h"
 #include "base/posix/sysctl.h"
 #include "base/strings/string_number_conversions.h"
-
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
@@ -482,6 +481,15 @@ void OpenSystemSettingsPane(SystemSettingsPane pane,
               @"extension";
       } else {
         pane_file = @"/System/Library/PreferencePanes/PrintAndFax.prefPane";
+      }
+      break;
+    case SystemSettingsPane::kPrivacySecurity:
+      if (MacOSMajorVersion() >= 13) {
+        url = @"x-apple.systempreferences:com.apple.settings.PrivacySecurity."
+              @"extension?Privacy";
+      } else {
+        url = @"x-apple.systempreferences:com.apple.preference.security?"
+              @"Privacy";
       }
       break;
     case SystemSettingsPane::kPrivacySecurity_Accessibility:

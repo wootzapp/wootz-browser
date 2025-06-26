@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chromecast/media/audio/cast_audio_output_stream.h"
 
 #include <stdint.h>
@@ -111,8 +116,7 @@ class FakeAudioDecoder : public CmaBackend::AudioDecoder {
         delegate_->OnDecoderError();
         return CmaBackend::BufferStatus::kBufferSuccess;
       default:
-        NOTREACHED_IN_MIGRATION();
-        return CmaBackend::BufferStatus::kBufferFailed;
+        NOTREACHED();
     }
   }
   void GetStatistics(Statistics* statistics) override {}
@@ -176,10 +180,7 @@ class FakeCmaBackend : public CmaBackend {
     audio_decoder_ = std::make_unique<FakeAudioDecoder>(params_);
     return audio_decoder_.get();
   }
-  VideoDecoder* CreateVideoDecoder() override {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
-  }
+  VideoDecoder* CreateVideoDecoder() override { NOTREACHED(); }
 
   bool Initialize() override { return true; }
   bool Start(int64_t start_pts) override {

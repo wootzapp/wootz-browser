@@ -9,6 +9,7 @@
 
 #include "base/containers/flat_set.h"
 #include "base/no_destructor.h"
+#include "base/trace_event/trace_event.h"
 #include "device/vr/openxr/openxr_extension_helper.h"
 #include "device/vr/public/mojom/vr_service.mojom.h"
 #include "third_party/openxr/dev/xr_android.h"
@@ -46,6 +47,7 @@ mojom::XRLightEstimationDataPtr OpenXrLightEstimatorAndroid::GetLightEstimate(
   if (light_estimator_ == XR_NULL_HANDLE) {
     return nullptr;
   }
+  TRACE_EVENT0("xr", "GetLightEstimate");
 
   XrLightEstimateGetInfoANDROID estimate_info = {
       XR_TYPE_LIGHT_ESTIMATE_GET_INFO_ANDROID};
@@ -81,16 +83,22 @@ mojom::XRLightEstimationDataPtr OpenXrLightEstimatorAndroid::GetLightEstimate(
   auto& spherical_harmonics = light_probe->spherical_harmonics;
 
   constexpr size_t kNumShCoefficients = 9;
+  constexpr size_t kNumChannels = 3;
   constexpr size_t kRedChannel = 0;
   constexpr size_t kGreenChannel = 1;
   constexpr size_t kBlueChannel = 2;
-  spherical_harmonics->coefficients.reserve(kNumShCoefficients);
-  for (size_t i = 0; i < kNumShCoefficients; i++) {
+
+  base::span<float[kNumChannels], kNumShCoefficients> coefficients =
+      base::span(ambient_harmonics.coefficients);
+  spherical_harmonics->coefficients.reserve(coefficients.size());
+
+  for (auto& coefficient : coefficients) {
+    base::span<float, kNumChannels> coefficient_data = base::span(coefficient);
     spherical_harmonics->coefficients.emplace_back(
-        ambient_harmonics.coefficients[i][kRedChannel],
-        ambient_harmonics.coefficients[i][kGreenChannel],
-        ambient_harmonics.coefficients[i][kBlueChannel]);
+        coefficient_data[kRedChannel], coefficient_data[kGreenChannel],
+        coefficient_data[kBlueChannel]);
   }
+
   light_probe->main_light_intensity = {directional_light.intensity.x,
                                        directional_light.intensity.y,
                                        directional_light.intensity.z};
@@ -121,6 +129,25 @@ OpenXrLightEstimatorAndroidFactory::GetSupportedFeatures(
   }
 
   return {device::mojom::XRSessionFeature::LIGHT_ESTIMATION};
+}
+
+void OpenXrLightEstimatorAndroidFactory::ProcessSystemProperties(
+    const OpenXrExtensionEnumeration* extension_enum,
+    XrInstance instance,
+    XrSystemId system) {
+  XrSystemLightEstimationPropertiesANDROID light_estimation_properties{
+      XR_TYPE_SYSTEM_LIGHT_ESTIMATION_PROPERTIES_ANDROID};
+
+  XrSystemProperties system_properties{XR_TYPE_SYSTEM_PROPERTIES};
+  system_properties.next = &light_estimation_properties;
+
+  bool lighting_supported = false;
+  XrResult result = xrGetSystemProperties(instance, system, &system_properties);
+  if (XR_SUCCEEDED(result)) {
+    lighting_supported = light_estimation_properties.supportsLightEstimation;
+  }
+
+  SetSystemPropertiesSupport(lighting_supported);
 }
 
 std::unique_ptr<OpenXrLightEstimator>

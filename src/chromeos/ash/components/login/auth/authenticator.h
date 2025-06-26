@@ -65,18 +65,18 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_LOGIN_AUTH) Authenticator
   virtual void LoginAsKioskAccount(const AccountId& app_account_id,
                                    bool ephemeral) = 0;
 
-  // Initiates login into ARC kiosk mode account identified by |app_account_id|.
-  // The |app_account_id| is a generated account id for the account.
-  // ARC kiosk mode mounts a public cryptohome.
-  // |ephemeral| controls whether cryptohome is ephemeral or persistent.
-  virtual void LoginAsArcKioskAccount(const AccountId& app_account_id,
-                                      bool ephemeral) = 0;
-
   // Initiates login into web kiosk mode account identified by |app_account_id|.
   // The |app_account_id| is a generated account id for the account.
   // Web kiosk mode mounts a public cryptohome.
   // |ephemeral| controls whether cryptohome is ephemeral or persistent.
   virtual void LoginAsWebKioskAccount(const AccountId& app_account_id,
+                                      bool ephemeral) = 0;
+
+  // Initiates login into IWA kiosk mode account identified by |app_account_id|.
+  // The |app_account_id| is a generated account id for the account.
+  // IWA kiosk mode mounts a public cryptohome.
+  // |ephemeral| controls whether cryptohome is ephemeral or persistent.
+  virtual void LoginAsIwaKioskAccount(const AccountId& app_account_id,
                                       bool ephemeral) = 0;
 
   // Continues the login of persistent user that is already authenticated via

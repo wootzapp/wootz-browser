@@ -19,25 +19,23 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.UserDataHost;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.omnibox.ChromeAutocompleteSchemeClassifier;
 import org.chromium.chrome.browser.omnibox.ChromeAutocompleteSchemeClassifierJni;
 import org.chromium.chrome.browser.omnibox.NewTabPageDelegate;
+import org.chromium.chrome.browser.pdf.PdfUtils.PdfPageType;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.tab.Tab;
@@ -49,7 +47,6 @@ import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.components.security_state.SecurityStateModel;
 import org.chromium.components.security_state.SecurityStateModelJni;
 import org.chromium.content_public.browser.test.NativeLibraryTestUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.url.GURL;
 import org.chromium.url.JUnitTestGURLs;
 
@@ -59,7 +56,6 @@ import java.util.concurrent.ExecutionException;
 /** Instrumentation tests for the toolbar security icon. */
 @RunWith(BaseJUnit4ClassRunner.class)
 @Batch(Batch.UNIT_TESTS)
-@DisableFeatures({ChromeFeatureList.OMNIBOX_UPDATED_CONNECTION_SECURITY_INDICATORS})
 public final class ToolbarSecurityIconTest {
     private static final boolean IS_SMALL_DEVICE = true;
     private static final boolean IS_OFFLINE_PAGE = true;
@@ -72,10 +68,7 @@ public final class ToolbarSecurityIconTest {
                 ConnectionSecurityLevel.SECURE
             };
 
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
-
-    @Rule public JniMocker mocker = new JniMocker();
-
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Tab mTab;
 
     @Mock SecurityStateModel.Natives mSecurityStateMocks;
@@ -92,15 +85,12 @@ public final class ToolbarSecurityIconTest {
 
     @Before
     public void setUp() throws ExecutionException {
-        MockitoAnnotations.initMocks(this);
 
         NativeLibraryTestUtils.loadNativeLibraryNoBrowserProcess();
-        mocker.mock(SecurityStateModelJni.TEST_HOOKS, mSecurityStateMocks);
-        mocker.mock(
-                ChromeAutocompleteSchemeClassifierJni.TEST_HOOKS,
+        SecurityStateModelJni.setInstanceForTesting(mSecurityStateMocks);
+        ChromeAutocompleteSchemeClassifierJni.setInstanceForTesting(
                 mChromeAutocompleteSchemeClassifierJni);
-        mocker.mock(
-                org.chromium.chrome.browser.toolbar.LocationBarModelJni.TEST_HOOKS,
+        org.chromium.chrome.browser.toolbar.LocationBarModelJni.setInstanceForTesting(
                 mLocationBarModelJni);
 
         GURL exampleUrl = JUnitTestGURLs.EXAMPLE_URL;
@@ -113,7 +103,7 @@ public final class ToolbarSecurityIconTest {
         doReturn(exampleUrl.getSpec())
                 .when(mLocationBarModelJni)
                 .getURLForDisplay(Mockito.anyLong(), Mockito.any());
-        doReturn((new Random()).nextLong()).when(mLocationBarModelJni).init(Mockito.any());
+        doReturn(new Random().nextLong()).when(mLocationBarModelJni).init(Mockito.any());
 
         Context context =
                 new ContextThemeWrapper(
@@ -126,7 +116,7 @@ public final class ToolbarSecurityIconTest {
                                 (url) -> url.getSpec(),
                                 ToolbarUnitTestUtils.OFFLINE_STATUS));
         ProfileManager.setLastUsedProfileForTesting(mMockProfile);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mLocationBarModel.initializeWithNative();
                     UserDataHost userDataHost = new UserDataHost();
@@ -196,23 +186,96 @@ public final class ToolbarSecurityIconTest {
                     "Wrong phone resource for security level " + securityLevel,
                     R.drawable.ic_offline_pin_24dp,
                     mLocationBarModel.getSecurityIconResource(
-                            securityLevel, IS_SMALL_DEVICE, IS_OFFLINE_PAGE, !IS_PAINT_PREVIEW));
+                            securityLevel,
+                            IS_SMALL_DEVICE,
+                            IS_OFFLINE_PAGE,
+                            !IS_PAINT_PREVIEW,
+                            PdfPageType.NONE));
             assertEquals(
                     "Wrong tablet resource for security level " + securityLevel,
                     R.drawable.ic_offline_pin_24dp,
                     mLocationBarModel.getSecurityIconResource(
-                            securityLevel, !IS_SMALL_DEVICE, IS_OFFLINE_PAGE, !IS_PAINT_PREVIEW));
+                            securityLevel,
+                            !IS_SMALL_DEVICE,
+                            IS_OFFLINE_PAGE,
+                            !IS_PAINT_PREVIEW,
+                            PdfPageType.NONE));
 
             assertEquals(
                     "Wrong phone resource for security level " + securityLevel,
                     R.drawable.omnibox_info,
                     mLocationBarModel.getSecurityIconResource(
-                            securityLevel, IS_SMALL_DEVICE, IS_OFFLINE_PAGE, IS_PAINT_PREVIEW));
+                            securityLevel,
+                            IS_SMALL_DEVICE,
+                            IS_OFFLINE_PAGE,
+                            IS_PAINT_PREVIEW,
+                            PdfPageType.NONE));
             assertEquals(
                     "Wrong tablet resource for security level " + securityLevel,
                     R.drawable.omnibox_info,
                     mLocationBarModel.getSecurityIconResource(
-                            securityLevel, !IS_SMALL_DEVICE, IS_OFFLINE_PAGE, IS_PAINT_PREVIEW));
+                            securityLevel,
+                            !IS_SMALL_DEVICE,
+                            IS_OFFLINE_PAGE,
+                            IS_PAINT_PREVIEW,
+                            PdfPageType.NONE));
+
+            assertEquals(
+                    "Wrong phone resource for security level " + securityLevel,
+                    R.drawable.omnibox_info,
+                    mLocationBarModel.getSecurityIconResource(
+                            securityLevel,
+                            IS_SMALL_DEVICE,
+                            !IS_OFFLINE_PAGE,
+                            !IS_PAINT_PREVIEW,
+                            PdfPageType.TRANSIENT_SECURE));
+            assertEquals(
+                    "Wrong tablet resource for security level " + securityLevel,
+                    R.drawable.omnibox_info,
+                    mLocationBarModel.getSecurityIconResource(
+                            securityLevel,
+                            !IS_SMALL_DEVICE,
+                            !IS_OFFLINE_PAGE,
+                            !IS_PAINT_PREVIEW,
+                            PdfPageType.TRANSIENT_SECURE));
+
+            assertEquals(
+                    "Wrong phone resource for security level " + securityLevel,
+                    R.drawable.omnibox_not_secure_warning,
+                    mLocationBarModel.getSecurityIconResource(
+                            securityLevel,
+                            IS_SMALL_DEVICE,
+                            !IS_OFFLINE_PAGE,
+                            !IS_PAINT_PREVIEW,
+                            PdfPageType.TRANSIENT_INSECURE));
+            assertEquals(
+                    "Wrong tablet resource for security level " + securityLevel,
+                    R.drawable.omnibox_not_secure_warning,
+                    mLocationBarModel.getSecurityIconResource(
+                            securityLevel,
+                            !IS_SMALL_DEVICE,
+                            !IS_OFFLINE_PAGE,
+                            !IS_PAINT_PREVIEW,
+                            PdfPageType.TRANSIENT_INSECURE));
+
+            assertEquals(
+                    "Wrong phone resource for security level " + securityLevel,
+                    R.drawable.omnibox_info,
+                    mLocationBarModel.getSecurityIconResource(
+                            securityLevel,
+                            IS_SMALL_DEVICE,
+                            !IS_OFFLINE_PAGE,
+                            !IS_PAINT_PREVIEW,
+                            PdfPageType.LOCAL));
+            assertEquals(
+                    "Wrong tablet resource for security level " + securityLevel,
+                    R.drawable.omnibox_info,
+                    mLocationBarModel.getSecurityIconResource(
+                            securityLevel,
+                            !IS_SMALL_DEVICE,
+                            !IS_OFFLINE_PAGE,
+                            !IS_PAINT_PREVIEW,
+                            PdfPageType.LOCAL));
         }
 
         assertEquals(
@@ -221,14 +284,16 @@ public final class ToolbarSecurityIconTest {
                         ConnectionSecurityLevel.NONE,
                         IS_SMALL_DEVICE,
                         !IS_OFFLINE_PAGE,
-                        !IS_PAINT_PREVIEW));
+                        !IS_PAINT_PREVIEW,
+                        PdfPageType.NONE));
         assertEquals(
                 R.drawable.omnibox_info,
                 mLocationBarModel.getSecurityIconResource(
                         ConnectionSecurityLevel.NONE,
                         !IS_SMALL_DEVICE,
                         !IS_OFFLINE_PAGE,
-                        !IS_PAINT_PREVIEW));
+                        !IS_PAINT_PREVIEW,
+                        PdfPageType.NONE));
 
         assertEquals(
                 R.drawable.omnibox_not_secure_warning,
@@ -236,14 +301,16 @@ public final class ToolbarSecurityIconTest {
                         ConnectionSecurityLevel.WARNING,
                         IS_SMALL_DEVICE,
                         !IS_OFFLINE_PAGE,
-                        !IS_PAINT_PREVIEW));
+                        !IS_PAINT_PREVIEW,
+                        PdfPageType.NONE));
         assertEquals(
                 R.drawable.omnibox_not_secure_warning,
                 mLocationBarModel.getSecurityIconResource(
                         ConnectionSecurityLevel.WARNING,
                         !IS_SMALL_DEVICE,
                         !IS_OFFLINE_PAGE,
-                        !IS_PAINT_PREVIEW));
+                        !IS_PAINT_PREVIEW,
+                        PdfPageType.NONE));
 
         assertEquals(
                 R.drawable.omnibox_dangerous,
@@ -251,44 +318,33 @@ public final class ToolbarSecurityIconTest {
                         ConnectionSecurityLevel.DANGEROUS,
                         IS_SMALL_DEVICE,
                         !IS_OFFLINE_PAGE,
-                        !IS_PAINT_PREVIEW));
+                        !IS_PAINT_PREVIEW,
+                        PdfPageType.NONE));
         assertEquals(
                 R.drawable.omnibox_dangerous,
                 mLocationBarModel.getSecurityIconResource(
                         ConnectionSecurityLevel.DANGEROUS,
                         !IS_SMALL_DEVICE,
                         !IS_OFFLINE_PAGE,
-                        !IS_PAINT_PREVIEW));
+                        !IS_PAINT_PREVIEW,
+                        PdfPageType.NONE));
 
         assertEquals(
-                R.drawable.omnibox_https_valid,
-                mLocationBarModel.getSecurityIconResource(
-                        ConnectionSecurityLevel.SECURE_WITH_POLICY_INSTALLED_CERT,
-                        IS_SMALL_DEVICE,
-                        !IS_OFFLINE_PAGE,
-                        !IS_PAINT_PREVIEW));
-        assertEquals(
-                R.drawable.omnibox_https_valid,
-                mLocationBarModel.getSecurityIconResource(
-                        ConnectionSecurityLevel.SECURE_WITH_POLICY_INSTALLED_CERT,
-                        !IS_SMALL_DEVICE,
-                        !IS_OFFLINE_PAGE,
-                        !IS_PAINT_PREVIEW));
-
-        assertEquals(
-                R.drawable.omnibox_https_valid,
+                R.drawable.omnibox_https_valid_page_info,
                 mLocationBarModel.getSecurityIconResource(
                         ConnectionSecurityLevel.SECURE,
                         IS_SMALL_DEVICE,
                         !IS_OFFLINE_PAGE,
-                        !IS_PAINT_PREVIEW));
+                        !IS_PAINT_PREVIEW,
+                        PdfPageType.NONE));
         assertEquals(
-                R.drawable.omnibox_https_valid,
+                R.drawable.omnibox_https_valid_page_info,
                 mLocationBarModel.getSecurityIconResource(
                         ConnectionSecurityLevel.SECURE,
                         !IS_SMALL_DEVICE,
                         !IS_OFFLINE_PAGE,
-                        !IS_PAINT_PREVIEW));
+                        !IS_PAINT_PREVIEW,
+                        PdfPageType.NONE));
     }
 
     @Test

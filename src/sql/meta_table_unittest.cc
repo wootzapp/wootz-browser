@@ -11,6 +11,7 @@
 #include "base/files/file_path.h"
 #include "base/files/scoped_temp_dir.h"
 #include "sql/database.h"
+#include "sql/test/test_helpers.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace sql {
@@ -19,8 +20,6 @@ namespace {
 
 class SQLMetaTableTest : public testing::Test {
  public:
-  ~SQLMetaTableTest() override = default;
-
   void SetUp() override {
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
     ASSERT_TRUE(
@@ -29,7 +28,7 @@ class SQLMetaTableTest : public testing::Test {
 
  protected:
   base::ScopedTempDir temp_dir_;
-  Database db_;
+  Database db_{test::kTestTag};
 };
 
 TEST_F(SQLMetaTableTest, DoesTableExist) {
@@ -57,8 +56,9 @@ TEST_F(SQLMetaTableTest, RazeIfIncompatiblePreservesDatabasesWithoutMetadata) {
 
   // The table should not have been cleared, since the database does not have a
   // metadata table.
-  EXPECT_TRUE(MetaTable::RazeIfIncompatible(&db_, 1,
-                                            /*current_version=*/1));
+  EXPECT_EQ(RazeIfIncompatibleResult::kCompatible,
+            MetaTable::RazeIfIncompatible(&db_, 1,
+                                          /*current_version=*/1));
   EXPECT_TRUE(db_.DoesTableExist("data"));
 }
 
@@ -76,7 +76,8 @@ TEST_F(SQLMetaTableTest, RazeIfIncompatibleRazesIncompatiblyOldTables) {
 
   // The table should have been cleared, since the least version compatible with
   // the written database is greater than the current version.
-  EXPECT_TRUE(
+  EXPECT_EQ(
+      RazeIfIncompatibleResult::kRazedSuccessfully,
       MetaTable::RazeIfIncompatible(&db_, kWrittenVersion + 1,
                                     /*current_version=*/kWrittenVersion + 1));
   EXPECT_FALSE(db_.DoesTableExist("data"));
@@ -96,9 +97,10 @@ TEST_F(SQLMetaTableTest, RazeIfIncompatibleRazesIncompatiblyNewTables) {
 
   // The table should have been cleared, since the least version compatible with
   // the written database is greater than the current version.
-  EXPECT_TRUE(MetaTable::RazeIfIncompatible(
-      &db_, MetaTable::kNoLowestSupportedVersion,
-      /*current_version=*/kCompatibleVersion - 1));
+  EXPECT_EQ(RazeIfIncompatibleResult::kRazedSuccessfully,
+            MetaTable::RazeIfIncompatible(
+                &db_, MetaTable::kNoLowestSupportedVersion,
+                /*current_version=*/kCompatibleVersion - 1));
   EXPECT_FALSE(db_.DoesTableExist("data"));
 }
 
@@ -113,23 +115,27 @@ TEST_F(SQLMetaTableTest, RazeIfIncompatibleDoesntRazeWhenItShouldnt) {
     EXPECT_TRUE(db_.DoesTableExist("data"));
   }
 
-  EXPECT_TRUE(MetaTable::RazeIfIncompatible(&db_, kVersion,
-                                            /*current_version=*/kVersion));
+  EXPECT_EQ(RazeIfIncompatibleResult::kCompatible,
+            MetaTable::RazeIfIncompatible(&db_, kVersion,
+                                          /*current_version=*/kVersion));
   EXPECT_TRUE(db_.DoesTableExist("data"))
       << "Table should still exist if the database version is exactly right.";
 
-  EXPECT_TRUE(MetaTable::RazeIfIncompatible(&db_, kVersion - 1,
-                                            /*current_version=*/kVersion));
+  EXPECT_EQ(RazeIfIncompatibleResult::kCompatible,
+            MetaTable::RazeIfIncompatible(&db_, kVersion - 1,
+                                          /*current_version=*/kVersion));
   EXPECT_TRUE(db_.DoesTableExist("data"))
       << "... or if the lower bound is less than the actual version";
 
-  EXPECT_TRUE(
+  EXPECT_EQ(
+      RazeIfIncompatibleResult::kCompatible,
       MetaTable::RazeIfIncompatible(&db_, MetaTable::kNoLowestSupportedVersion,
                                     /*current_version=*/kVersion));
   EXPECT_TRUE(db_.DoesTableExist("data"))
       << "... or if the lower bound is not set";
 
-  EXPECT_TRUE(
+  EXPECT_EQ(
+      RazeIfIncompatibleResult::kCompatible,
       MetaTable::RazeIfIncompatible(&db_, MetaTable::kNoLowestSupportedVersion,
                                     /*current_version=*/kVersion - 1));
   EXPECT_TRUE(db_.DoesTableExist("data"))

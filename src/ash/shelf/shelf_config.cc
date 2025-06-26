@@ -441,54 +441,40 @@ SkColor ShelfConfig::GetShelfControlButtonColor(
     return is_in_app_ ? SK_ColorTRANSPARENT : GetDefaultShelfColor(widget);
   }
   return widget->GetColorProvider()->GetColor(
-      chromeos::features::IsJellyEnabled()
-          ? static_cast<ui::ColorId>(cros_tokens::kCrosSysSystemOnBase)
-          : kColorAshControlBackgroundColorInactive);
+      cros_tokens::kCrosSysSystemOnBase);
 }
 
 SkColor ShelfConfig::GetMaximizedShelfColor(const views::Widget* widget) const {
-  if (!chromeos::features::IsJellyEnabled()) {
-    return SkColorSetA(GetDefaultShelfColor(widget), 0xFF);  // 100% opacity
-  }
   return widget->GetColorProvider()->GetColor(cros_tokens::kCrosSysSystemBase);
 }
 
 ui::ColorId ShelfConfig::GetShelfBaseLayerColorId() const {
-  if (!chromeos::features::IsJellyEnabled()) {
-    if (!in_tablet_mode_) {
-      return kColorAshShieldAndBase80;
-    }
-
-    if (!is_in_app_) {
-      return kColorAshShieldAndBase60;
-    }
-
-    return DarkLightModeControllerImpl::Get()->IsDarkModeEnabled()
-               ? kColorAshShieldAndBase90
-               : kColorAshShieldAndBaseOpaque;
-  }
-
   if (in_tablet_mode_ && is_in_app_) {
     // In tablet mode with an app, we use the same opaque color as maximized.
     return cros_tokens::kCrosSysSystemBase;
   }
 
-  return cros_tokens::kCrosSysSystemBaseElevated;
+  return chromeos::features::IsSystemBlurEnabled()
+             ? cros_tokens::kCrosSysSystemBaseElevated
+             : cros_tokens::kCrosSysSystemBaseElevatedOpaque;
 }
 
 SkColor ShelfConfig::GetDefaultShelfColor(const views::Widget* widget) const {
   DCHECK(widget);
 
   const auto* color_provider = widget->GetColorProvider();
-  if (!features::IsBackgroundBlurEnabled())
+  if (!features::IsBackgroundBlurEnabled()) {
     return color_provider->GetColor(kColorAshShieldAndBase90);
+  }
 
   return color_provider->GetColor(GetShelfBaseLayerColorId());
 }
 
 int ShelfConfig::GetShelfControlButtonBlurRadius() const {
-  if (features::IsBackgroundBlurEnabled() && in_tablet_mode_ && !is_in_app_)
+  if (features::IsBackgroundBlurEnabled() && in_tablet_mode_ && !is_in_app_ &&
+      chromeos::features::IsSystemBlurEnabled()) {
     return shelf_blur_radius_;
+  }
   return 0;
 }
 

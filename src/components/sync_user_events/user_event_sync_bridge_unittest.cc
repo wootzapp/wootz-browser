@@ -15,8 +15,9 @@
 #include "components/sync/model/data_batch.h"
 #include "components/sync/protocol/entity_specifics.pb.h"
 #include "components/sync/protocol/user_event_specifics.pb.h"
-#include "components/sync/test/mock_model_type_change_processor.h"
-#include "components/sync/test/model_type_store_test_util.h"
+#include "components/sync/test/data_type_store_test_util.h"
+#include "components/sync/test/mock_data_type_local_change_processor.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -37,7 +38,7 @@ using testing::SaveArg;
 using testing::SizeIs;
 using testing::UnorderedElementsAre;
 using testing::WithArg;
-using WriteBatch = ModelTypeStore::WriteBatch;
+using WriteBatch = DataTypeStore::WriteBatch;
 
 MATCHER_P(MatchesUserEvent, expected, "") {
   if (!arg.has_user_event()) {
@@ -100,15 +101,15 @@ class UserEventSyncBridgeTest : public testing::Test {
   UserEventSyncBridgeTest() { ResetBridge(); }
 
   void ResetBridge() {
-    OnceModelTypeStoreFactory store_factory;
+    OnceDataTypeStoreFactory store_factory;
     if (bridge_) {
       // Carry over the underlying store from previous bridge instances.
-      std::unique_ptr<ModelTypeStore> store = bridge_->StealStoreForTest();
+      std::unique_ptr<DataTypeStore> store = bridge_->StealStoreForTest();
       bridge_.reset();
       store_factory =
-          ModelTypeStoreTestUtil::MoveStoreToFactory(std::move(store));
+          DataTypeStoreTestUtil::MoveStoreToFactory(std::move(store));
     } else {
-      store_factory = ModelTypeStoreTestUtil::FactoryForInMemoryStoreForTest();
+      store_factory = DataTypeStoreTestUtil::FactoryForInMemoryStoreForTest();
     }
     bridge_ = std::make_unique<UserEventSyncBridge>(
         std::move(store_factory), mock_processor_.CreateForwardingProcessor(),
@@ -116,7 +117,7 @@ class UserEventSyncBridgeTest : public testing::Test {
   }
 
   void WaitUntilModelReadyToSync(
-      const std::string& account_id = "test_account_id") {
+      const GaiaId& gaia_id = GaiaId("test_account_id")) {
     base::RunLoop loop;
     base::RepeatingClosure quit_closure = loop.QuitClosure();
     // Let the bridge initialize fully, which should run ModelReadyToSync().
@@ -124,7 +125,7 @@ class UserEventSyncBridgeTest : public testing::Test {
         .WillByDefault(InvokeWithoutArgs([=]() { quit_closure.Run(); }));
     loop.Run();
     ON_CALL(*processor(), IsTrackingMetadata()).WillByDefault(Return(true));
-    ON_CALL(*processor(), TrackedAccountId()).WillByDefault(Return(account_id));
+    ON_CALL(*processor(), TrackedGaiaId()).WillByDefault(Return(gaia_id));
   }
 
   static std::string GetStorageKey(const UserEventSpecifics& specifics) {
@@ -132,20 +133,11 @@ class UserEventSyncBridgeTest : public testing::Test {
   }
 
   UserEventSyncBridge* bridge() { return bridge_.get(); }
-  MockModelTypeChangeProcessor* processor() { return &mock_processor_; }
+  MockDataTypeLocalChangeProcessor* processor() { return &mock_processor_; }
   TestGlobalIdMapper* mapper() { return &test_global_id_mapper_; }
 
   std::map<std::string, sync_pb::EntitySpecifics> GetAllDataForDebugging() {
-    base::RunLoop loop;
-    std::unique_ptr<DataBatch> batch;
-    bridge_->GetAllDataForDebugging(base::BindOnce(
-        [](base::RunLoop* loop, std::unique_ptr<DataBatch>* out_batch,
-           std::unique_ptr<DataBatch> batch) {
-          *out_batch = std::move(batch);
-          loop->Quit();
-        },
-        &loop, &batch));
-    loop.Run();
+    std::unique_ptr<DataBatch> batch = bridge_->GetAllDataForDebugging();
     EXPECT_NE(nullptr, batch);
 
     std::map<std::string, sync_pb::EntitySpecifics> storage_key_to_specifics;
@@ -160,18 +152,7 @@ class UserEventSyncBridgeTest : public testing::Test {
 
   std::unique_ptr<sync_pb::EntitySpecifics> GetDataForCommit(
       const std::string& storage_key) {
-    base::RunLoop loop;
-    std::unique_ptr<DataBatch> batch;
-    bridge_->GetDataForCommit(
-        {storage_key},
-        base::BindOnce(
-            [](base::RunLoop* loop, std::unique_ptr<DataBatch>* out_batch,
-               std::unique_ptr<DataBatch> batch) {
-              *out_batch = std::move(batch);
-              loop->Quit();
-            },
-            &loop, &batch));
-    loop.Run();
+    std::unique_ptr<DataBatch> batch = bridge_->GetDataForCommit({storage_key});
     EXPECT_NE(nullptr, batch);
 
     std::unique_ptr<sync_pb::EntitySpecifics> specifics;
@@ -185,7 +166,7 @@ class UserEventSyncBridgeTest : public testing::Test {
 
  private:
   base::test::TaskEnvironment task_environment_;
-  testing::NiceMock<MockModelTypeChangeProcessor> mock_processor_;
+  testing::NiceMock<MockDataTypeLocalChangeProcessor> mock_processor_;
   TestGlobalIdMapper test_global_id_mapper_;
   std::unique_ptr<UserEventSyncBridge> bridge_;
 };
@@ -269,7 +250,8 @@ TEST_F(UserEventSyncBridgeTest, ApplyIncrementalSyncChanges) {
   EXPECT_THAT(GetAllDataForDebugging(), SizeIs(2));
 
   syncer::EntityChangeList entity_change_list;
-  entity_change_list.push_back(EntityChange::CreateDelete(storage_key1));
+  entity_change_list.push_back(
+      EntityChange::CreateDelete(storage_key1, syncer::EntityData()));
   auto error_on_delete = bridge()->ApplyIncrementalSyncChanges(
       bridge()->CreateMetadataChangeList(), std::move(entity_change_list));
   EXPECT_FALSE(error_on_delete);
@@ -305,7 +287,8 @@ TEST_F(UserEventSyncBridgeTest, HandleGlobalIdChange) {
               ElementsAre(Pair(storage_key, MatchesUserEvent(CreateSpecifics(
                                                 1u, third_id, 2u)))));
   syncer::EntityChangeList entity_change_list;
-  entity_change_list.push_back(EntityChange::CreateDelete(storage_key));
+  entity_change_list.push_back(
+      EntityChange::CreateDelete(storage_key, syncer::EntityData()));
   auto error_on_delete = bridge()->ApplyIncrementalSyncChanges(
       bridge()->CreateMetadataChangeList(), std::move(entity_change_list));
   EXPECT_FALSE(error_on_delete);
@@ -363,10 +346,10 @@ TEST_F(UserEventSyncBridgeTest, MulipleEventsChanging) {
 
 TEST_F(UserEventSyncBridgeTest, RecordBeforeMetadataLoads) {
   ON_CALL(*processor(), IsTrackingMetadata()).WillByDefault(Return(false));
-  ON_CALL(*processor(), TrackedAccountId()).WillByDefault(Return(""));
+  ON_CALL(*processor(), TrackedGaiaId()).WillByDefault(Return(GaiaId()));
   bridge()->RecordUserEvent(SpecificsUniquePtr(1u, 2u, 3u));
   EXPECT_CALL(*processor(), ModelReadyToSync);
-  WaitUntilModelReadyToSync("account_id");
+  WaitUntilModelReadyToSync(GaiaId("gaia_id"));
   EXPECT_THAT(GetAllDataForDebugging(), IsEmpty());
 }
 

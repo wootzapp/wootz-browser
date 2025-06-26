@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/audio/mac/audio_manager_mac.h"
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -19,9 +25,9 @@
 #include "base/functional/bind.h"
 #include "base/mac/mac_util.h"
 #include "base/memory/free_deleter.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/power_monitor/power_monitor.h"
 #include "base/power_monitor/power_observer.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
@@ -35,7 +41,6 @@
 #include "media/audio/audio_device_description.h"
 #include "media/audio/mac/audio_loopback_input_mac.h"
 #include "media/audio/mac/core_audio_util_mac.h"
-#include "media/audio/mac/coreaudio_dispatch_override.h"
 #include "media/audio/mac/screen_capture_kit_swizzler.h"
 #include "media/base/audio_parameters.h"
 #include "media/base/audio_timestamp_helper.h"
@@ -45,10 +50,6 @@
 #include "media/base/media_switches.h"
 
 namespace media {
-
-BASE_FEATURE(kMonitorOutputSampleRateChangesMac,
-             "MonitorOutputSampleRateChangesMac",
-             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Maximum number of output streams that can be open simultaneously.
 static const int kMaxOutputStreams = 50;
@@ -458,7 +459,7 @@ class AudioManagerMac::AudioPowerObserver : public base::PowerSuspendObserver {
  public:
   AudioPowerObserver()
       : is_suspending_(false),
-        is_monitoring_(base::PowerMonitor::IsInitialized()),
+        is_monitoring_(base::PowerMonitor::GetInstance()->IsInitialized()),
         num_resume_notifications_(0) {
     // The PowerMonitor requires significant setup (a CFRunLoop and preallocated
     // IO ports) so it's not available under unit tests.  See the OSX impl of
@@ -466,7 +467,7 @@ class AudioManagerMac::AudioPowerObserver : public base::PowerSuspendObserver {
     if (!is_monitoring_) {
       return;
     }
-    base::PowerMonitor::AddPowerSuspendObserver(this);
+    base::PowerMonitor::GetInstance()->AddPowerSuspendObserver(this);
   }
 
   AudioPowerObserver(const AudioPowerObserver&) = delete;
@@ -477,7 +478,7 @@ class AudioManagerMac::AudioPowerObserver : public base::PowerSuspendObserver {
     if (!is_monitoring_) {
       return;
     }
-    base::PowerMonitor::RemovePowerSuspendObserver(this);
+    base::PowerMonitor::GetInstance()->RemovePowerSuspendObserver(this);
   }
 
   bool IsSuspending() const {
@@ -496,7 +497,7 @@ class AudioManagerMac::AudioPowerObserver : public base::PowerSuspendObserver {
 
   bool IsOnBatteryPower() const {
     DCHECK(thread_checker_.CalledOnValidThread());
-    return base::PowerMonitor::IsOnBatteryPower();
+    return base::PowerMonitor::GetInstance()->IsOnBatteryPower();
   }
 
  private:
@@ -669,7 +670,7 @@ AudioParameters AudioManagerMac::GetInputStreamParameters(
   if (AudioDeviceDescription::IsLoopbackDevice(device_id)) {
     return AudioParameters(AudioParameters::AUDIO_PCM_LOW_LATENCY,
                            ChannelLayoutConfig::Stereo(), kLoopbackSampleRate,
-                           ChooseBufferSize(true, kLoopbackSampleRate));
+                           kLoopbackFramesPerBuffer);
   }
 
   AudioDeviceID device = GetAudioDeviceIdByUId(true, device_id);
@@ -711,15 +712,14 @@ AudioParameters AudioManagerMac::GetInputStreamParameters(
     params.set_effects(AudioParameters::NOISE_SUPPRESSION);
   }
 
-  // VoiceProcessingIO cannot be used on aggregate devices, since it creates an
-  // aggregate device itself.  It also only runs in mono, but we allow upmixing
-  // to stereo since we can't claim a device works either in stereo without echo
-  // cancellation or mono with echo cancellation.
-  if ((params.channel_layout() == CHANNEL_LAYOUT_MONO ||
-       params.channel_layout() == CHANNEL_LAYOUT_STEREO) &&
-      GetDeviceTransportType(device) != kAudioDeviceTransportTypeAggregate) {
+  base::UmaHistogramBoolean(
+      "Media.Audio.Mac.NoiseSuppressionAvailable",
+      params.effects() & AudioParameters::NOISE_SUPPRESSION);
+
+  if (AUAudioInputStream::IsEchoCancellationSupported(device, params)) {
+    params.set_effects(params.effects() | AudioParameters::ECHO_CANCELLER);
     params.set_effects(params.effects() |
-                       AudioParameters::EXPERIMENTAL_ECHO_CANCELLER);
+                       AudioParameters::AUTOMATIC_GAIN_CONTROL);
   }
 
   return params;
@@ -791,8 +791,7 @@ AudioOutputStream* AudioManagerMac::MakeLowLatencyOutputStream(
         base::BindPostTaskToCurrentDefault(
             base::BindRepeating(&AudioManagerMac::HandleDeviceChanges,
                                 weak_ptr_factory_.GetWeakPtr())),
-        /*monitor_sample_rate_changes=*/
-        base::FeatureList::IsEnabled(kMonitorOutputSampleRateChangesMac),
+        /*monitor_sample_rate_changes=*/true,
         /*monitor_default_input=*/false,
         /*monitor_addition_removal=*/false,
         /*monitor_sources=*/false);
@@ -890,13 +889,8 @@ AudioInputStream* AudioManagerMac::MakeLowLatencyInputStream(
     return nullptr;
   }
 
-  VoiceProcessingMode voice_processing_mode =
-      (params.effects() & AudioParameters::ECHO_CANCELLER)
-          ? VoiceProcessingMode::kEnabled
-          : VoiceProcessingMode::kDisabled;
-
-  auto* stream = new AUAudioInputStream(this, params, audio_device_id,
-                                        log_callback, voice_processing_mode);
+  auto* stream =
+      new AUAudioInputStream(this, params, audio_device_id, log_callback);
   low_latency_input_streams_.insert(stream);
   return stream;
 }
@@ -971,7 +965,6 @@ AudioParameters AudioManagerMac::GetPreferredOutputStreamParameters(
 
 void AudioManagerMac::InitializeOnAudioThread() {
   DCHECK(GetTaskRunner()->BelongsToCurrentThread());
-  InitializeCoreAudioDispatchOverride();
   power_observer_ = std::make_unique<AudioPowerObserver>();
 }
 

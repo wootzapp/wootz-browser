@@ -9,6 +9,7 @@
 #include <optional>
 
 #include "base/containers/span.h"
+#include "base/memory/stack_allocated.h"
 #include "base/numerics/byte_conversions.h"
 #include "base/numerics/safe_conversions.h"
 
@@ -21,13 +22,15 @@ namespace base {
 // with span directly).
 template <class T>
 class SpanReader {
+  STACK_ALLOCATED();
+
  public:
   // Construct SpanReader from a span.
   explicit SpanReader(span<T> buf) : buf_(buf), original_size_(buf_.size()) {}
 
   // Returns a span over the next `n` objects, if there are enough objects left.
   // Otherwise, it returns nullopt and does nothing.
-  std::optional<span<T>> Read(base::StrictNumeric<size_t> n) {
+  std::optional<span<T>> Read(StrictNumeric<size_t> n) {
     if (n > remaining()) {
       return std::nullopt;
     }
@@ -51,7 +54,7 @@ class SpanReader {
   // Returns true and writes a span over the next `n` objects into `out`, if
   // there are enough objects left. Otherwise, it returns false and does
   // nothing.
-  bool ReadInto(base::StrictNumeric<size_t> n, span<T>& out) {
+  bool ReadInto(StrictNumeric<size_t> n, span<T>& out) {
     if (n > remaining()) {
       return false;
     }
@@ -75,7 +78,7 @@ class SpanReader {
 
   // Returns true and skips over the next `n` objects, if there are enough
   // objects left. Otherwise, it returns false and does nothing.
-  std::optional<base::span<T>> Skip(base::StrictNumeric<size_t> n) {
+  std::optional<span<T>> Skip(StrictNumeric<size_t> n) {
     if (n > remaining()) {
       return std::nullopt;
     }
@@ -278,8 +281,9 @@ class SpanReader {
   size_t original_size_;
 };
 
-template <class T, size_t N>
-SpanReader(span<T, N>) -> SpanReader<T>;
+template <typename ElementType, size_t Extent, typename InternalPtrType>
+SpanReader(span<ElementType, Extent, InternalPtrType>)
+    -> SpanReader<ElementType>;
 
 }  // namespace base
 

@@ -5,8 +5,10 @@
 #ifndef MEDIA_GPU_CHROMEOS_FRAME_RESOURCE_H_
 #define MEDIA_GPU_CHROMEOS_FRAME_RESOURCE_H_
 
+#include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/time/time.h"
+#include "base/unguessable_token.h"
 #include "media/base/video_frame.h"
 #include "media/base/video_frame_layout.h"
 #include "media/base/video_frame_metadata.h"
@@ -28,6 +30,8 @@ class NativePixmapFrameResource;
 // e.g. VideoFrame or NativePixmap.
 class FrameResource : public base::RefCountedThreadSafe<FrameResource> {
  public:
+  REQUIRE_ADOPTION_FOR_REFCOUNTED_TYPE();
+
   FrameResource();
   // FrameResource is not moveable or copyable.
   FrameResource(const FrameResource&) = delete;
@@ -92,16 +96,10 @@ class FrameResource : public base::RefCountedThreadSafe<FrameResource> {
   // Create a shared GPU memory handle to |this|'s data.
   virtual gfx::GpuMemoryBufferHandle CreateGpuMemoryBufferHandle() const = 0;
 
-  // Returns true if |this| is backed by a GpuMemoryBuffer.
-  bool HasGpuMemoryBuffer() const { return !!GetGpuMemoryBuffer(); }
-
-  // Gets the GpuMemoryBuffer backing |this|.
-  virtual gfx::GpuMemoryBuffer* GetGpuMemoryBuffer() const = 0;
-
-  // Returns an identifier based on the frame data's underlying storage. This
-  // returns consistent results even if the frame gets wrapped. Returns an
-  // invalid GenericSharedMemoryId if an identifier cannot be determined.
-  virtual gfx::GenericSharedMemoryId GetSharedMemoryId() const = 0;
+  // Gets the ScopedMapping object which clients can use to access the CPU
+  // visible memory and other metadata for the gpu buffer backing |this|.
+  virtual std::unique_ptr<VideoFrame::ScopedMapping> MapGMBOrSharedImage()
+      const = 0;
 
   virtual const VideoFrameLayout& layout() const = 0;
 
@@ -139,6 +137,10 @@ class FrameResource : public base::RefCountedThreadSafe<FrameResource> {
   virtual VideoFrameMetadata& metadata() = 0;
   virtual void set_metadata(const VideoFrameMetadata& metadata) = 0;
 
+  // An UnguessableToken that identifies unique frames regardless of wrapping.
+  // The returned UnguessableToken is guaranteed to be non-empty.
+  virtual const base::UnguessableToken& tracking_token() const = 0;
+
   virtual base::TimeDelta timestamp() const = 0;
   virtual void set_timestamp(base::TimeDelta timestamp) = 0;
 
@@ -172,9 +174,12 @@ class FrameResource : public base::RefCountedThreadSafe<FrameResource> {
   // Returns a human-readable string describing |this|.
   virtual std::string AsHumanReadableString() const = 0;
 
+  // Gets the GpuMemoryBufferHandle backing |this|.
+  virtual gfx::GpuMemoryBufferHandle GetGpuMemoryBufferHandleForTesting()
+      const = 0;
+
  protected:
   friend class base::RefCountedThreadSafe<FrameResource>;
-
   virtual ~FrameResource() = default;
 
  private:

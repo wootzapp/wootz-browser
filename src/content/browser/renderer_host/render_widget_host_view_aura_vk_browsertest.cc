@@ -5,12 +5,11 @@
 #include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
 #include "build/build_config.h"
-#include "content/browser/accessibility/browser_accessibility.h"
-#include "content/browser/accessibility/browser_accessibility_manager.h"
 #include "content/browser/renderer_host/delegated_frame_host.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_aura.h"
 #include "content/browser/web_contents/web_contents_impl.h"
+#include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/web_contents.h"
@@ -22,11 +21,14 @@
 #include "content/public/test/content_browser_test.h"
 #include "content/public/test/content_browser_test_utils.h"
 #include "content/public/test/prerender_test_util.h"
+#include "content/public/test/scoped_accessibility_mode_override.h"
 #include "content/public/test/text_input_test_utils.h"
 #include "content/shell/browser/shell.h"
 #include "net/base/filename_util.h"
 #include "net/dns/mock_host_resolver.h"
 #include "third_party/blink/public/common/switches.h"
+#include "ui/accessibility/platform/browser_accessibility.h"
+#include "ui/accessibility/platform/browser_accessibility_manager.h"
 #include "ui/base/ime/text_input_type.h"
 #include "ui/base/ime/virtual_keyboard_controller.h"
 #include "ui/base/ime/virtual_keyboard_controller_observer.h"
@@ -136,7 +138,6 @@ class RenderWidgetHostViewAuraBrowserMockIMETest : public ContentBrowserTest {
     command_line->AppendSwitchASCII(switches::kEnableBlinkFeatures,
                                     "VirtualKeyboard,EditContext");
     command_line->AppendSwitch(blink::switches::kAllowPreCommitInput);
-    ContentBrowserTest::SetUpCommandLine(command_line);
   }
 
   RenderViewHost* GetRenderViewHost() const {
@@ -151,22 +152,26 @@ class RenderWidgetHostViewAuraBrowserMockIMETest : public ContentBrowserTest {
         GetRenderViewHost()->GetWidget()->GetView());
   }
 
-  BrowserAccessibility* FindNode(ax::mojom::Role role,
-                                 const std::string& name_or_value) {
-    BrowserAccessibility* root = GetManager()->GetBrowserAccessibilityRoot();
+  ui::BrowserAccessibility* FindNode(ax::mojom::Role role,
+                                     const std::string& name_or_value) {
+    ui::BrowserAccessibility* root =
+        GetManager()->GetBrowserAccessibilityRoot();
     CHECK(root);
     return FindNodeInSubtree(*root, role, name_or_value);
   }
 
-  BrowserAccessibilityManager* GetManager() {
+  ui::BrowserAccessibilityManager* GetManager() {
     WebContentsImpl* web_contents =
         static_cast<WebContentsImpl*>(shell()->web_contents());
     return web_contents->GetRootBrowserAccessibilityManager();
   }
 
   void LoadInitialAccessibilityTreeFromHtml(const std::string& html) {
+    // Accessibility must already be enabled.
+    ASSERT_TRUE(BrowserAccessibilityState::GetInstance()
+                    ->GetAccessibilityMode()
+                    .has_mode(ui::AXMode::kWebContents));
     AccessibilityNotificationWaiter waiter(shell()->web_contents(),
-                                           ui::kAXModeComplete,
                                            ax::mojom::Event::kLoadComplete);
     GURL html_data_url("data:text/html," + html);
     EXPECT_TRUE(NavigateToURL(shell(), html_data_url));
@@ -176,9 +181,10 @@ class RenderWidgetHostViewAuraBrowserMockIMETest : public ContentBrowserTest {
   net::EmbeddedTestServer server_{net::EmbeddedTestServer::TYPE_HTTPS};
 
  private:
-  BrowserAccessibility* FindNodeInSubtree(BrowserAccessibility& node,
-                                          ax::mojom::Role role,
-                                          const std::string& name_or_value) {
+  ui::BrowserAccessibility* FindNodeInSubtree(
+      ui::BrowserAccessibility& node,
+      ax::mojom::Role role,
+      const std::string& name_or_value) {
     const std::string& name =
         node.GetStringAttribute(ax::mojom::StringAttribute::kName);
     const std::string value = base::UTF16ToUTF8(node.GetValueForControl());
@@ -188,7 +194,7 @@ class RenderWidgetHostViewAuraBrowserMockIMETest : public ContentBrowserTest {
     }
 
     for (unsigned int i = 0; i < node.PlatformChildCount(); ++i) {
-      BrowserAccessibility* result =
+      ui::BrowserAccessibility* result =
           FindNodeInSubtree(*node.PlatformGetChild(i), role, name_or_value);
       if (result)
         return result;
@@ -200,13 +206,15 @@ class RenderWidgetHostViewAuraBrowserMockIMETest : public ContentBrowserTest {
 #if BUILDFLAG(IS_WIN)
 IN_PROC_BROWSER_TEST_F(RenderWidgetHostViewAuraBrowserMockIMETest,
                        VirtualKeyboardAccessibilityFocusTest) {
+  ScopedAccessibilityModeOverride complete(ui::kAXModeComplete);
+
   LoadInitialAccessibilityTreeFromHtml(R"HTML(
       <div><button>Before</button></div>
       <div contenteditable>Editable text</div>
       <div><button>After</button></div>
       )HTML");
 
-  BrowserAccessibility* target =
+  ui::BrowserAccessibility* target =
       FindNode(ax::mojom::Role::kGenericContainer, "Editable text");
   ASSERT_NE(nullptr, target);
   WebContentsImpl* web_contents =
@@ -215,13 +223,13 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostViewAuraBrowserMockIMETest,
   web_contents->GetPrimaryFrameTree().SetFocusedFrame(
       root, root->current_frame_host()->GetSiteInstance()->group());
 
-  AccessibilityNotificationWaiter waiter2(
-      shell()->web_contents(), ui::kAXModeComplete, ax::mojom::Event::kFocus);
+  AccessibilityNotificationWaiter waiter2(shell()->web_contents(),
+                                          ax::mojom::Event::kFocus);
   GetManager()->SetFocus(*target);
   GetManager()->DoDefaultAction(*target);
   ASSERT_TRUE(waiter2.WaitForNotification());
 
-  BrowserAccessibility* focus = GetManager()->GetFocus();
+  ui::BrowserAccessibility* focus = GetManager()->GetFocus();
   EXPECT_EQ(focus->GetId(), target->GetId());
 }
 
@@ -246,10 +254,10 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostViewAuraBrowserMockIMETest,
   const int width = EvalJs(shell(), "elemRect3.width").ExtractInt();
   const int height = EvalJs(shell(), "elemRect3.height").ExtractInt();
   gfx::Point tap_point = gfx::Point(left + width / 2, top + height / 2);
-  SimulateTouchEventAt(web_contents, ui::ET_TOUCH_PRESSED, tap_point);
+  SimulateTouchEventAt(web_contents, ui::EventType::kTouchPressed, tap_point);
   SimulateTapDownAt(web_contents, tap_point);
   SimulateTapAt(web_contents, tap_point);
-  SimulateTouchEventAt(web_contents, ui::ET_TOUCH_RELEASED, tap_point);
+  SimulateTouchEventAt(web_contents, ui::EventType::kTouchReleased, tap_point);
   type_observer_auto.Wait();
 }
 
@@ -274,10 +282,10 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostViewAuraBrowserMockIMETest,
   const int width = EvalJs(shell(), "elemRect3.width").ExtractInt();
   const int height = EvalJs(shell(), "elemRect3.height").ExtractInt();
   gfx::Point tap_point = gfx::Point(left + width / 2, top + height / 2);
-  SimulateTouchEventAt(web_contents, ui::ET_TOUCH_PRESSED, tap_point);
+  SimulateTouchEventAt(web_contents, ui::EventType::kTouchPressed, tap_point);
   SimulateTapDownAt(web_contents, tap_point);
   SimulateTapAt(web_contents, tap_point);
-  SimulateTouchEventAt(web_contents, ui::ET_TOUCH_RELEASED, tap_point);
+  SimulateTouchEventAt(web_contents, ui::EventType::kTouchReleased, tap_point);
   show_ime_observer_true.Wait();
 }
 
@@ -302,10 +310,10 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostViewAuraBrowserMockIMETest,
   const int width = EvalJs(shell(), "elemRect1.width").ExtractInt();
   const int height = EvalJs(shell(), "elemRect1.height").ExtractInt();
   gfx::Point tap_point = gfx::Point(left + width / 2, top + height / 2);
-  SimulateTouchEventAt(web_contents, ui::ET_TOUCH_PRESSED, tap_point);
+  SimulateTouchEventAt(web_contents, ui::EventType::kTouchPressed, tap_point);
   SimulateTapDownAt(web_contents, tap_point);
   SimulateTapAt(web_contents, tap_point);
-  SimulateTouchEventAt(web_contents, ui::ET_TOUCH_RELEASED, tap_point);
+  SimulateTouchEventAt(web_contents, ui::EventType::kTouchReleased, tap_point);
   type_observer_show.Wait();
   TextInputManagerVkVisibilityRequestObserver type_observer_hide(
       web_contents, ui::mojom::VirtualKeyboardVisibilityRequest::HIDE);
@@ -335,10 +343,10 @@ IN_PROC_BROWSER_TEST_F(RenderWidgetHostViewAuraBrowserMockIMETest,
   const int width = EvalJs(shell(), "elemRect2.width").ExtractInt();
   const int height = EvalJs(shell(), "elemRect2.height").ExtractInt();
   gfx::Point tap_point = gfx::Point(left + width / 2, top + height / 2);
-  SimulateTouchEventAt(web_contents, ui::ET_TOUCH_PRESSED, tap_point);
+  SimulateTouchEventAt(web_contents, ui::EventType::kTouchPressed, tap_point);
   SimulateTapDownAt(web_contents, tap_point);
   SimulateTapAt(web_contents, tap_point);
-  SimulateTouchEventAt(web_contents, ui::ET_TOUCH_RELEASED, tap_point);
+  SimulateTouchEventAt(web_contents, ui::EventType::kTouchReleased, tap_point);
   type_observer_show.Wait();
   TextInputManagerVkVisibilityRequestObserver type_observer_hide(
       web_contents, ui::mojom::VirtualKeyboardVisibilityRequest::HIDE);

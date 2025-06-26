@@ -202,6 +202,14 @@ class WebSigninInterceptor {
         const BubbleParameters& bubble_parameters,
         base::OnceCallback<void(SigninInterceptionResult)> callback) = 0;
 
+    virtual std::unique_ptr<ScopedWebSigninInterceptionBubbleHandle>
+    ShowOidcInterceptionDialog(
+        content::WebContents* web_contents,
+        const BubbleParameters& bubble_parameters,
+        signin::SigninChoiceWithConfirmAndRetryCallback callback,
+        base::OnceClosure dialog_closed_closure,
+        base::RepeatingClosure retry_callback) = 0;
+
     // Shows the first run experience for `account_id` in `browser` opened for
     // a newly created profile.
     virtual void ShowFirstRunExperienceInNewProfile(

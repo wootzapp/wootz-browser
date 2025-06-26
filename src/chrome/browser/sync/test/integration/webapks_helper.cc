@@ -5,6 +5,7 @@
 #include "chrome/browser/sync/test/integration/webapks_helper.h"
 
 #include "chrome/browser/android/webapk/webapk_sync_service.h"
+#include "chrome/browser/android/webapk/webapk_sync_service_factory.h"
 #include "chrome/browser/sync/test/integration/sync_datatype_helper.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 
@@ -23,7 +24,7 @@ std::vector<sync_pb::WebApkSpecifics> SyncEntitiesToWebApkSpecifics(
 }
 
 webapk::WebApkSyncService* GetWebApkSyncServiceFromClient(int index) {
-  return webapk::WebApkSyncService::GetForProfile(
+  return webapk::WebApkSyncServiceFactory::GetForProfile(
       sync_datatype_helper::test()->GetProfile(index));
 }
 
@@ -46,8 +47,8 @@ ServerWebApkMatchChecker::ServerWebApkMatchChecker(const Matcher& matcher)
 ServerWebApkMatchChecker::~ServerWebApkMatchChecker() = default;
 
 void ServerWebApkMatchChecker::OnCommit(
-    syncer::ModelTypeSet committed_model_types) {
-  if (committed_model_types.Has(syncer::WEB_APKS)) {
+    syncer::DataTypeSet committed_data_types) {
+  if (committed_data_types.Has(syncer::WEB_APKS)) {
     CheckExitCondition();
   }
 }
@@ -55,7 +56,7 @@ void ServerWebApkMatchChecker::OnCommit(
 bool ServerWebApkMatchChecker::IsExitConditionSatisfied(std::ostream* os) {
   std::vector<sync_pb::WebApkSpecifics> entities =
       SyncEntitiesToWebApkSpecifics(
-          fake_server()->GetSyncEntitiesByModelType(syncer::WEB_APKS));
+          fake_server()->GetSyncEntitiesByDataType(syncer::WEB_APKS));
 
   testing::StringMatchResultListener result_listener;
   const bool matches =

@@ -67,7 +67,7 @@ class ContentCapabilitiesTest : public extensions::ExtensionApiTest {
         "{\n"
         "  \"name\": \"content_capabilities test extensions\",\n"
         "  \"version\": \"1\",\n"
-        "  \"manifest_version\": 2,\n"
+        "  \"manifest_version\": 3,\n"
         "  \"content_capabilities\": {\n"
         "    \"matches\": %s,\n"
         "    \"permissions\": %s\n"
@@ -251,15 +251,8 @@ IN_PROC_BROWSER_TEST_F(ContentCapabilitiesTest, ClipboardWrite) {
   // script without a user gesture.
   EXPECT_TRUE(
       CanWriteClipboard(extension.get(), GetTestURLFor("bar.example.com")));
-  if (base::FeatureList::IsEnabled(
-          features::kUserActivationSameOriginVisibility)) {
-    EXPECT_TRUE(CanWriteClipboardInAboutBlankFrame(
-        extension.get(), GetTestURLFor("bar.example.com")));
-  } else {
-    // In UserActivationV2, acitvation doesn't propagate to a child frame.
-    EXPECT_FALSE(CanWriteClipboardInAboutBlankFrame(
-        extension.get(), GetTestURLFor("bar.example.com")));
-  }
+  EXPECT_TRUE(CanWriteClipboardInAboutBlankFrame(
+      extension.get(), GetTestURLFor("bar.example.com")));
 
   EXPECT_FALSE(
       CanReadClipboard(extension.get(), GetTestURLFor("foo.example.com")));

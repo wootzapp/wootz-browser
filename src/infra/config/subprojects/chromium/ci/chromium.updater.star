@@ -5,11 +5,13 @@
 
 load("//lib/branches.star", "branches")
 load("//lib/builder_config.star", "builder_config")
+load("//lib/builder_health_indicators.star", "health_spec")
 load("//lib/builders.star", "builders", "cpu", "os", "siso")
 load("//lib/ci.star", "ci")
 load("//lib/consoles.star", "consoles")
 load("//lib/gn_args.star", "gn_args")
-load("//lib/builder_health_indicators.star", "health_spec")
+load("//lib/html.star", "linkify")
+load("//lib/targets.star", "targets")
 
 ci.defaults.set(
     executable = ci.DEFAULT_EXECUTABLE,
@@ -19,11 +21,18 @@ ci.defaults.set(
     os = os.LINUX_DEFAULT,
     execution_timeout = ci.DEFAULT_EXECUTION_TIMEOUT,
     health_spec = health_spec.DEFAULT,
+    reclient_enabled = False,
     service_account = ci.DEFAULT_SERVICE_ACCOUNT,
     shadow_service_account = ci.DEFAULT_SHADOW_SERVICE_ACCOUNT,
     siso_enabled = True,
     siso_project = siso.project.DEFAULT_TRUSTED,
     siso_remote_jobs = siso.remote_jobs.DEFAULT,
+)
+
+targets.builder_defaults.set(
+    mixins = [
+        "chromium-tester-service-account",
+    ],
 )
 
 consoles.console_view(
@@ -44,8 +53,11 @@ consoles.console_view(
     ("win64-clang", "official|win", "clang (64)"),
 )]
 
+_UPDATER_LINK = linkify("https://chromium.googlesource.com/chromium/src/+/main/docs/updater/design_doc.md", "Chromium updater")
+
 ci.builder(
     name = "linux-updater-builder-dbg",
+    description_html = _UPDATER_LINK + " Linux x64 debug builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -64,7 +76,9 @@ ci.builder(
         configs = [
             "updater",
             "debug_static_builder",
-            "reclient",
+            "remoteexec",
+            "linux",
+            "x64",
         ],
     ),
     builderless = True,
@@ -73,10 +87,12 @@ ci.builder(
         category = "debug|linux",
         short_name = "bld",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.builder(
     name = "linux-updater-builder-rel",
+    description_html = _UPDATER_LINK + " Linux x64 release builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -95,7 +111,9 @@ ci.builder(
         configs = [
             "updater",
             "release_builder",
-            "reclient",
+            "remoteexec",
+            "linux",
+            "x64",
         ],
     ),
     builderless = True,
@@ -104,10 +122,12 @@ ci.builder(
         category = "release|linux",
         short_name = "bld",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "linux-updater-tester-dbg",
+    description_html = _UPDATER_LINK + " Linux x64 debug builder.",
     triggered_by = ["linux-updater-builder-dbg"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -124,14 +144,25 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.LINUX,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_linux",
+        ],
+        mixins = [
+            "linux-jammy",
+            "x86-64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
         category = "debug|linux",
         short_name = "test",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "linux-updater-tester-rel",
+    description_html = _UPDATER_LINK + " Linux x64 release tester.",
     triggered_by = ["linux-updater-builder-rel"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -148,14 +179,25 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.LINUX,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_linux",
+        ],
+        mixins = [
+            "linux-jammy",
+            "x86-64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
         category = "release|linux",
         short_name = "test",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.builder(
     name = "mac-updater-builder-dbg",
+    description_html = _UPDATER_LINK + " macOS x64 debug builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -174,8 +216,14 @@ ci.builder(
         configs = [
             "updater",
             "debug_static_builder",
-            "reclient",
+            "remoteexec",
+            "mac",
             "x64",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
         ],
     ),
     builderless = True,
@@ -183,13 +231,15 @@ ci.builder(
     os = os.MAC_ANY,
     cpu = cpu.ARM64,
     console_view_entry = consoles.console_view_entry(
-        category = "debug|mac",
+        category = "debug|mac (x64)",
         short_name = "bld",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.builder(
     name = "mac-updater-builder-rel",
+    description_html = _UPDATER_LINK + " macOS x64 release builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -208,20 +258,30 @@ ci.builder(
         configs = [
             "updater",
             "release_builder",
-            "reclient",
+            "remoteexec",
+            "mac",
+            "x64",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
         ],
     ),
     builderless = True,
     cores = None,
     os = os.MAC_ANY,
+    cpu = cpu.ARM64,
     console_view_entry = consoles.console_view_entry(
-        category = "release|mac",
+        category = "release|mac (x64)",
         short_name = "bld",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.builder(
     name = "mac-updater-builder-arm64-dbg",
+    description_html = _UPDATER_LINK + " macOS arm64 debug builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -241,7 +301,13 @@ ci.builder(
             "arm64",
             "updater",
             "debug_static_builder",
-            "reclient",
+            "remoteexec",
+            "mac",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
         ],
     ),
     builderless = True,
@@ -249,13 +315,15 @@ ci.builder(
     os = os.MAC_ANY,
     cpu = cpu.ARM64,
     console_view_entry = consoles.console_view_entry(
-        category = "debug|mac",
+        category = "debug|mac (arm64)",
         short_name = "bld",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.builder(
     name = "mac-updater-builder-arm64-rel",
+    description_html = _UPDATER_LINK + " macOS arm64 release builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -275,7 +343,13 @@ ci.builder(
             "arm64",
             "updater",
             "release_builder",
-            "reclient",
+            "remoteexec",
+            "mac",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
         ],
     ),
     builderless = True,
@@ -283,13 +357,15 @@ ci.builder(
     os = os.MAC_ANY,
     cpu = cpu.ARM64,
     console_view_entry = consoles.console_view_entry(
-        category = "release|mac",
+        category = "release|mac (arm64)",
         short_name = "bld",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.builder(
     name = "mac-updater-builder-asan-dbg",
+    description_html = _UPDATER_LINK + " macOS x64 ASAN debug builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -309,68 +385,30 @@ ci.builder(
             "updater",
             "asan",
             "debug_static_builder",
-            "reclient",
+            "remoteexec",
+            "mac",
+            "x64",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
         ],
     ),
     builderless = True,
     cores = None,
     os = os.MAC_ANY,
+    cpu = cpu.ARM64,
     console_view_entry = consoles.console_view_entry(
-        category = "debug|mac",
+        category = "debug|mac (x64)",
         short_name = "bld-asan",
     ),
-)
-
-ci.thin_tester(
-    name = "mac10.15-updater-tester-dbg",
-    triggered_by = ["mac-updater-builder-dbg"],
-    builder_spec = builder_config.builder_spec(
-        execution_mode = builder_config.execution_mode.TEST,
-        gclient_config = builder_config.gclient_config(
-            config = "chromium",
-        ),
-        chromium_config = builder_config.chromium_config(
-            config = "chromium",
-            apply_configs = [
-                "mb",
-            ],
-            build_config = builder_config.build_config.DEBUG,
-            target_bits = 64,
-            target_platform = builder_config.target_platform.MAC,
-        ),
-    ),
-    console_view_entry = consoles.console_view_entry(
-        category = "debug|mac",
-        short_name = "10.15",
-    ),
-)
-
-ci.thin_tester(
-    name = "mac10.15-updater-tester-rel",
-    triggered_by = ["mac-updater-builder-rel"],
-    builder_spec = builder_config.builder_spec(
-        execution_mode = builder_config.execution_mode.TEST,
-        gclient_config = builder_config.gclient_config(
-            config = "chromium",
-        ),
-        chromium_config = builder_config.chromium_config(
-            config = "chromium",
-            apply_configs = [
-                "mb",
-            ],
-            build_config = builder_config.build_config.RELEASE,
-            target_bits = 64,
-            target_platform = builder_config.target_platform.MAC,
-        ),
-    ),
-    console_view_entry = consoles.console_view_entry(
-        category = "release|mac",
-        short_name = "10.15",
-    ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "mac11-arm64-updater-tester-dbg",
+    description_html = _UPDATER_LINK + " macOS 11 arm64 debug tester.",
     triggered_by = ["mac-updater-builder-arm64-dbg"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -387,14 +425,24 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.MAC,
         ),
     ),
-    console_view_entry = consoles.console_view_entry(
-        category = "debug|mac",
-        short_name = "11 arm64",
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_mac",
+        ],
+        mixins = [
+            "mac_11_arm64",
+        ],
     ),
+    console_view_entry = consoles.console_view_entry(
+        category = "debug|mac (arm64)",
+        short_name = "11",
+    ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "mac11-arm64-updater-tester-rel",
+    description_html = _UPDATER_LINK + " macOS 11 arm64 release tester.",
     triggered_by = ["mac-updater-builder-arm64-rel"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -411,14 +459,24 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.MAC,
         ),
     ),
-    console_view_entry = consoles.console_view_entry(
-        category = "release|mac",
-        short_name = "11 arm64",
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_mac",
+        ],
+        mixins = [
+            "mac_11_arm64",
+        ],
     ),
+    console_view_entry = consoles.console_view_entry(
+        category = "release|mac (arm64)",
+        short_name = "11",
+    ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "mac11-x64-updater-tester-dbg",
+    description_html = _UPDATER_LINK + " macOS 11 x64 debug tester.",
     triggered_by = ["mac-updater-builder-dbg"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -435,14 +493,24 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.MAC,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_mac",
+        ],
+        mixins = [
+            "mac_11_x64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
-        category = "debug|mac",
+        category = "debug|mac (x64)",
         short_name = "11",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "mac11-x64-updater-tester-rel",
+    description_html = _UPDATER_LINK + " macOS 11 x64 release tester.",
     triggered_by = ["mac-updater-builder-rel"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -459,14 +527,24 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.MAC,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_mac",
+        ],
+        mixins = [
+            "mac_11_x64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
-        category = "release|mac",
+        category = "release|mac (x64)",
         short_name = "11",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "mac12-arm64-updater-tester-rel",
+    description_html = _UPDATER_LINK + " macOS 12 arm64 release tester.",
     triggered_by = ["mac-updater-builder-arm64-rel"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -483,14 +561,24 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.MAC,
         ),
     ),
-    console_view_entry = consoles.console_view_entry(
-        category = "release|mac",
-        short_name = "12 arm64",
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_mac",
+        ],
+        mixins = [
+            "mac_12_arm64",
+        ],
     ),
+    console_view_entry = consoles.console_view_entry(
+        category = "release|mac (arm64)",
+        short_name = "12",
+    ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "mac12-x64-updater-tester-asan-dbg",
+    description_html = _UPDATER_LINK + " macOS 12 x64 ASAN debug tester.",
     triggered_by = ["mac-updater-builder-asan-dbg"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -507,14 +595,24 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.MAC,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_mac",
+        ],
+        mixins = [
+            "mac_12_x64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
-        category = "debug|mac",
+        category = "debug|mac (x64)",
         short_name = "12 asan",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "mac13-arm64-updater-tester-dbg",
+    description_html = _UPDATER_LINK + " macOS 13 arm64 debug tester.",
     triggered_by = ["mac-updater-builder-arm64-dbg"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -531,14 +629,24 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.MAC,
         ),
     ),
-    console_view_entry = consoles.console_view_entry(
-        category = "debug|mac",
-        short_name = "13 arm64",
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_mac",
+        ],
+        mixins = [
+            "mac_13_arm64",
+        ],
     ),
+    console_view_entry = consoles.console_view_entry(
+        category = "debug|mac (arm64)",
+        short_name = "13",
+    ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "mac13-x64-updater-tester-rel",
+    description_html = _UPDATER_LINK + " macOS 13 x64 release tester.",
     triggered_by = ["mac-updater-builder-rel"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -555,14 +663,160 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.MAC,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_mac",
+        ],
+        mixins = [
+            "mac_13_x64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
-        category = "release|mac",
+        category = "release|mac (x64)",
         short_name = "13",
     ),
+    contact_team_email = "omaha@google.com",
+)
+
+ci.thin_tester(
+    name = "mac14-arm64-updater-tester-dbg",
+    description_html = _UPDATER_LINK + " macOS 14 arm64 debug tester.",
+    triggered_by = ["mac-updater-builder-arm64-dbg"],
+    builder_spec = builder_config.builder_spec(
+        execution_mode = builder_config.execution_mode.TEST,
+        gclient_config = builder_config.gclient_config(
+            config = "chromium",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "chromium",
+            apply_configs = [
+                "mb",
+            ],
+            build_config = builder_config.build_config.DEBUG,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.MAC,
+        ),
+    ),
+    targets = targets.bundle(
+        targets = [
+            "updater_user_gtests_mac",
+        ],
+        mixins = [
+            "mac_14_arm64",
+        ],
+    ),
+    console_view_entry = consoles.console_view_entry(
+        category = "debug|mac (arm64)",
+        short_name = "14",
+    ),
+    contact_team_email = "omaha@google.com",
+)
+
+ci.thin_tester(
+    name = "mac14-x64-updater-tester-rel",
+    description_html = _UPDATER_LINK + " macOS 14 x64 release tester.",
+    triggered_by = ["mac-updater-builder-rel"],
+    builder_spec = builder_config.builder_spec(
+        execution_mode = builder_config.execution_mode.TEST,
+        gclient_config = builder_config.gclient_config(
+            config = "chromium",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "chromium",
+            apply_configs = [
+                "mb",
+            ],
+            build_config = builder_config.build_config.RELEASE,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.MAC,
+        ),
+    ),
+    targets = targets.bundle(
+        targets = [
+            "updater_user_gtests_mac",
+        ],
+        mixins = [
+            "mac_14_x64",
+        ],
+    ),
+    console_view_entry = consoles.console_view_entry(
+        category = "release|mac (x64)",
+        short_name = "14",
+    ),
+    contact_team_email = "omaha@google.com",
+)
+
+ci.thin_tester(
+    name = "mac15-arm64-updater-tester-dbg",
+    description_html = _UPDATER_LINK + " macOS 15 arm64 debug tester.",
+    triggered_by = ["mac-updater-builder-arm64-dbg"],
+    builder_spec = builder_config.builder_spec(
+        execution_mode = builder_config.execution_mode.TEST,
+        gclient_config = builder_config.gclient_config(
+            config = "chromium",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "chromium",
+            apply_configs = [
+                "mb",
+            ],
+            build_config = builder_config.build_config.DEBUG,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.MAC,
+        ),
+    ),
+    targets = targets.bundle(
+        targets = [
+            "updater_user_gtests_mac",
+        ],
+        mixins = [
+            "mac_15_arm64",
+        ],
+    ),
+    console_view_entry = consoles.console_view_entry(
+        category = "debug|mac (arm64)",
+        short_name = "15",
+    ),
+    contact_team_email = "omaha@google.com",
+)
+
+ci.thin_tester(
+    name = "mac15-arm64-updater-tester-rel",
+    description_html = _UPDATER_LINK + " macOS 15 arm64 release tester.",
+    triggered_by = ["mac-updater-builder-arm64-rel"],
+    builder_spec = builder_config.builder_spec(
+        execution_mode = builder_config.execution_mode.TEST,
+        gclient_config = builder_config.gclient_config(
+            config = "chromium",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "chromium",
+            apply_configs = [
+                "mb",
+            ],
+            build_config = builder_config.build_config.RELEASE,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.MAC,
+        ),
+    ),
+    targets = targets.bundle(
+        targets = [
+            "updater_user_gtests_mac",
+        ],
+        mixins = [
+            "mac_15_arm64",
+        ],
+    ),
+    console_view_entry = consoles.console_view_entry(
+        category = "release|mac (arm64)",
+        short_name = "15",
+    ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.builder(
-    name = "win-updater-builder-dbg",
+    name = "win-arm64-updater-builder-dbg",
+    description_html = _UPDATER_LINK + " Windows arm64 debug builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -581,7 +835,98 @@ ci.builder(
         configs = [
             "updater",
             "debug_static_builder",
-            "reclient",
+            "remoteexec",
+            "win",
+            "arm64",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
+        ],
+    ),
+    builderless = True,
+    os = os.WINDOWS_DEFAULT,
+    console_view_entry = consoles.console_view_entry(
+        category = "debug|win (arm64)",
+        short_name = "bld",
+    ),
+    contact_team_email = "omaha@google.com",
+    execution_timeout = 6 * time.hour,
+    siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CI,
+)
+
+ci.builder(
+    name = "win-arm64-updater-builder-rel",
+    description_html = _UPDATER_LINK + " Windows arm64 release builder.",
+    builder_spec = builder_config.builder_spec(
+        gclient_config = builder_config.gclient_config(
+            config = "chromium",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "chromium",
+            apply_configs = [
+                "mb",
+            ],
+            build_config = builder_config.build_config.RELEASE,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.WIN,
+        ),
+    ),
+    gn_args = gn_args.config(
+        configs = [
+            "updater",
+            "release_builder",
+            "remoteexec",
+            "win",
+            "arm64",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
+        ],
+    ),
+    builderless = True,
+    os = os.WINDOWS_DEFAULT,
+    console_view_entry = consoles.console_view_entry(
+        category = "release|win (arm64)",
+        short_name = "bld",
+    ),
+    contact_team_email = "omaha@google.com",
+    execution_timeout = 6 * time.hour,
+    siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CI,
+)
+
+ci.builder(
+    name = "win-updater-builder-dbg",
+    description_html = _UPDATER_LINK + " Windows x64 debug builder.",
+    builder_spec = builder_config.builder_spec(
+        gclient_config = builder_config.gclient_config(
+            config = "chromium",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "chromium",
+            apply_configs = [
+                "mb",
+            ],
+            build_config = builder_config.build_config.DEBUG,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.WIN,
+        ),
+    ),
+    gn_args = gn_args.config(
+        configs = [
+            "updater",
+            "debug_static_builder",
+            "remoteexec",
+            "win",
+            "x64",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
         ],
     ),
     builderless = True,
@@ -590,11 +935,13 @@ ci.builder(
         category = "debug|win (64)",
         short_name = "bld",
     ),
+    contact_team_email = "omaha@google.com",
     siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CI,
 )
 
 ci.builder(
     name = "win32-updater-builder-dbg",
+    description_html = _UPDATER_LINK + " Windows x32 debug builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -613,9 +960,15 @@ ci.builder(
         configs = [
             "updater",
             "debug_static_builder",
-            "reclient",
+            "remoteexec",
             "x86",
             "no_symbols",
+            "win",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
         ],
     ),
     builderless = True,
@@ -625,12 +978,14 @@ ci.builder(
         category = "debug|win (32)",
         short_name = "bld",
     ),
+    contact_team_email = "omaha@google.com",
     execution_timeout = ci.DEFAULT_EXECUTION_TIMEOUT * 2,
     siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CI,
 )
 
 ci.builder(
     name = "win-updater-builder-rel",
+    description_html = _UPDATER_LINK + " Windows x64 release builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -649,7 +1004,14 @@ ci.builder(
         configs = [
             "updater",
             "release_builder",
-            "reclient",
+            "remoteexec",
+            "win",
+            "x64",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
         ],
     ),
     builderless = True,
@@ -658,11 +1020,13 @@ ci.builder(
         category = "release|win (64)",
         short_name = "bld",
     ),
+    contact_team_email = "omaha@google.com",
     siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CI,
 )
 
 ci.builder(
     name = "win32-updater-builder-rel",
+    description_html = _UPDATER_LINK + " Windows x32 release builder.",
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "chromium",
@@ -681,8 +1045,14 @@ ci.builder(
         configs = [
             "updater",
             "release_builder",
-            "reclient",
+            "remoteexec",
+            "win",
             "x86",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "chrome/updater:all",
         ],
     ),
     builderless = True,
@@ -691,11 +1061,13 @@ ci.builder(
         category = "release|win (32)",
         short_name = "bld",
     ),
+    contact_team_email = "omaha@google.com",
     siso_remote_jobs = siso.remote_jobs.LOW_JOBS_FOR_CI,
 )
 
 ci.thin_tester(
     name = "win10-updater-tester-dbg",
+    description_html = _UPDATER_LINK + " Windows 10 x64 debug tester.",
     triggered_by = ["win-updater-builder-dbg"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -712,14 +1084,25 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.WIN,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_win",
+        ],
+        mixins = [
+            "win10",
+            "x86-64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
         category = "debug|win (64)",
         short_name = "10",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "win10-32-on-64-updater-tester-dbg",
+    description_html = _UPDATER_LINK + " Windows 10 32-on-64 debug tester.",
     triggered_by = ["win32-updater-builder-dbg"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -736,14 +1119,25 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.WIN,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_win",
+        ],
+        mixins = [
+            "win10",
+            "x86-64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
         category = "debug|win (32)",
         short_name = "10 (x64)",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "win10-32-on-64-updater-tester-rel",
+    description_html = _UPDATER_LINK + " Windows 10 32-on-64 release tester.",
     triggered_by = ["win32-updater-builder-rel"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -760,14 +1154,25 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.WIN,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_win",
+        ],
+        mixins = [
+            "win10",
+            "x86-64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
         category = "release|win (32)",
         short_name = "10 (x64)",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "win10-updater-tester-dbg-uac",
+    description_html = _UPDATER_LINK + " Windows 10 x64 debug tester with UAC on.",
     triggered_by = ["win-updater-builder-dbg"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -784,14 +1189,25 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.WIN,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_win_uac",
+        ],
+        mixins = [
+            "win10-any",
+            "x86-64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
         category = "debug|win (64)",
         short_name = "UAC10",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "win10-updater-tester-rel",
+    description_html = _UPDATER_LINK + " Windows 10 x64 release tester.",
     triggered_by = ["win-updater-builder-rel"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -807,15 +1223,26 @@ ci.thin_tester(
             target_bits = 64,
             target_platform = builder_config.target_platform.WIN,
         ),
+    ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_win",
+        ],
+        mixins = [
+            "win10",
+            "x86-64",
+        ],
     ),
     console_view_entry = consoles.console_view_entry(
         category = "release|win (64)",
         short_name = "10",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "win10-updater-tester-rel-uac",
+    description_html = _UPDATER_LINK + " Windows 10 x64 release tester with UAC on.",
     triggered_by = ["win-updater-builder-rel"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -832,14 +1259,95 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.WIN,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_win_uac",
+        ],
+        mixins = [
+            "win10-any",
+            "x86-64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
         category = "release|win (64)",
         short_name = "UAC10",
     ),
+    contact_team_email = "omaha@google.com",
+)
+
+ci.builder(
+    name = "win11-arm64-updater-tester-dbg",
+    description_html = _UPDATER_LINK + " Windows 11 arm64 debug binary tester.",
+    triggered_by = ["win-arm64-updater-builder-dbg"],
+    builder_spec = builder_config.builder_spec(
+        execution_mode = builder_config.execution_mode.TEST,
+        gclient_config = builder_config.gclient_config(
+            config = "chromium",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "chromium",
+            apply_configs = [
+                "mb",
+            ],
+            build_config = builder_config.build_config.DEBUG,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.WIN,
+        ),
+    ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_win",
+        ],
+        mixins = [
+            "win11-any",
+            "arm64",
+        ],
+    ),
+    console_view_entry = consoles.console_view_entry(
+        category = "debug|win (arm64)",
+        short_name = "11",
+    ),
+    contact_team_email = "omaha@google.com",
+)
+
+ci.thin_tester(
+    name = "win11-arm64-updater-tester-rel",
+    description_html = _UPDATER_LINK + " Windows 11 arm64 release tester.",
+    triggered_by = ["win-arm64-updater-builder-rel"],
+    builder_spec = builder_config.builder_spec(
+        execution_mode = builder_config.execution_mode.TEST,
+        gclient_config = builder_config.gclient_config(
+            config = "chromium",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "chromium",
+            apply_configs = [
+                "mb",
+            ],
+            build_config = builder_config.build_config.RELEASE,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.WIN,
+        ),
+    ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_win",
+        ],
+        mixins = [
+            "win11-any",
+            "arm64",
+        ],
+    ),
+    console_view_entry = consoles.console_view_entry(
+        category = "release|win (arm64)",
+        short_name = "11",
+    ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "win11-updater-tester-dbg-uac",
+    description_html = _UPDATER_LINK + " Windows 11 x64 debug tester with UAC on.",
     triggered_by = ["win-updater-builder-dbg"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -856,14 +1364,25 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.WIN,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_win_uac",
+        ],
+        mixins = [
+            "win11-any",
+            "x86-64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
         category = "debug|win (64)",
         short_name = "UAC11",
     ),
+    contact_team_email = "omaha@google.com",
 )
 
 ci.thin_tester(
     name = "win11-updater-tester-rel",
+    description_html = _UPDATER_LINK + " Windows 11 x64 release tester with UAC on.",
     triggered_by = ["win-updater-builder-rel"],
     builder_spec = builder_config.builder_spec(
         execution_mode = builder_config.execution_mode.TEST,
@@ -880,8 +1399,18 @@ ci.thin_tester(
             target_platform = builder_config.target_platform.WIN,
         ),
     ),
+    targets = targets.bundle(
+        targets = [
+            "updater_gtests_win",
+        ],
+        mixins = [
+            "win11-any",
+            "x86-64",
+        ],
+    ),
     console_view_entry = consoles.console_view_entry(
         category = "release|win (64)",
         short_name = "11",
     ),
+    contact_team_email = "omaha@google.com",
 )

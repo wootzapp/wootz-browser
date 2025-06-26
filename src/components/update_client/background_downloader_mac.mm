@@ -41,6 +41,7 @@
 #include "base/threading/sequence_bound.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#import "components/update_client/background_downloader_mac_delegate.h"
 #include "components/update_client/crx_downloader.h"
 #include "components/update_client/task_traits.h"
 #include "components/update_client/update_client_errors.h"
@@ -62,12 +63,6 @@ using DelegateDownloadProgressCallback =
     base::RepeatingCallback<void(const GURL&)>;
 using OnDownloadCompleteCallback = update_client::
     BackgroundDownloaderSharedSession::OnDownloadCompleteCallback;
-
-base::FilePath URLToFilename(const GURL& url) {
-  uint32_t hash = base::PersistentHash(url.spec());
-  return base::FilePath::FromASCII(
-      base::HexEncode(reinterpret_cast<uint8_t*>(&hash), sizeof(hash)));
-}
 
 // The age at which unclaimed downloads should be evicted from the cache.
 constexpr base::TimeDelta kMaxCachedDownloadAge = base::Days(2);
@@ -118,131 +113,7 @@ NSURL* NSURLWithGURL(const GURL& url) {
   return [NSURL URLWithString:escaped_url_string];
 }
 
-GURL GURLWithNSURL(NSURL* url) {
-  if (url) {
-    return GURL(url.absoluteString.UTF8String);
-  }
-  return GURL();
-}
-
 }  // namespace
-
-@interface DownloadDelegate : NSObject <NSURLSessionDownloadDelegate>
-- (instancetype)initWithDownloadCache:(base::FilePath)downloadCache
-             downloadCompleteCallback:
-                 (DelegateDownloadCompleteCallback)downloadCompleteCallback
-             metricsCollectedCallback:
-                 (DelegateMetricsCollectedCallback)metricsCollectedCallback
-                     progressCallback:
-                         (DelegateDownloadProgressCallback)progressCallback;
-@end
-
-@implementation DownloadDelegate {
-  base::FilePath _download_cache;
-  DelegateDownloadCompleteCallback _download_complete_callback;
-  DelegateMetricsCollectedCallback _metrics_collected_callback;
-  DelegateDownloadProgressCallback _progress_callback;
-  scoped_refptr<base::SequencedTaskRunner> _callback_runner;
-}
-
-- (instancetype)initWithDownloadCache:(base::FilePath)downloadCache
-             downloadCompleteCallback:
-                 (DelegateDownloadCompleteCallback)downloadCompleteCallback
-             metricsCollectedCallback:
-                 (DelegateMetricsCollectedCallback)metricsCollectedCallback
-                     progressCallback:
-                         (DelegateDownloadProgressCallback)progressCallback {
-  if (self = [super init]) {
-    _download_cache = downloadCache;
-    _download_complete_callback = downloadCompleteCallback;
-    _metrics_collected_callback = metricsCollectedCallback;
-    _progress_callback = progressCallback;
-    _callback_runner = base::SequencedTaskRunner::GetCurrentDefault();
-  }
-  return self;
-}
-
-- (void)endTask:(NSURLSessionTask*)task
-    withLocation:(std::optional<base::FilePath>)location
-       withError:(int)error {
-  _callback_runner->PostTask(
-      FROM_HERE, base::BindOnce(_download_complete_callback,
-                                GURLWithNSURL(task.originalRequest.URL),
-                                location.value_or(base::FilePath()), error,
-                                task.countOfBytesReceived,
-                                task.countOfBytesExpectedToReceive));
-}
-
-#pragma mark - NSURLSessionDownloadDelegate
-
-- (void)URLSession:(NSURLSession*)session
-                 downloadTask:(NSURLSessionDownloadTask*)downloadTask
-    didFinishDownloadingToURL:(NSURL*)location {
-  if (!base::PathExists(_download_cache) &&
-      !base::CreateDirectory(_download_cache)) {
-    LOG(ERROR) << "Failed to create download cache directory at: "
-               << _download_cache;
-    [self endTask:downloadTask
-        withLocation:std::nullopt
-           withError:static_cast<int>(update_client::CrxDownloaderError::
-                                          MAC_BG_CANNOT_CREATE_DOWNLOAD_CACHE)];
-    return;
-  }
-
-  const base::FilePath temp_path =
-      base::apple::NSStringToFilePath(location.path);
-  base::FilePath cache_path = _download_cache.Append(
-      URLToFilename(GURLWithNSURL(downloadTask.originalRequest.URL)));
-  if (!base::Move(temp_path, cache_path)) {
-    DLOG(ERROR)
-        << "Failed to move the downloaded file from the temporary location: "
-        << temp_path << " to: " << cache_path;
-    [self endTask:downloadTask
-        withLocation:std::nullopt
-           withError:static_cast<int>(update_client::CrxDownloaderError::
-                                          MAC_BG_MOVE_TO_CACHE_FAIL)];
-    return;
-  }
-
-  [self endTask:downloadTask
-      withLocation:cache_path
-         withError:static_cast<int>(update_client::CrxDownloaderError::NONE)];
-}
-
-- (void)URLSession:(NSURLSession*)session
-                 downloadTask:(nonnull NSURLSessionDownloadTask*)downloadTask
-                 didWriteData:(int64_t)bytesWritten
-            totalBytesWritten:(int64_t)totalBytesWritten
-    totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
-  if (bytesWritten > 0) {
-    _callback_runner->PostTask(
-        FROM_HERE,
-        base::BindOnce(_progress_callback,
-                       GURLWithNSURL(downloadTask.originalRequest.URL)));
-  }
-}
-
-#pragma mark - NSURLSessionDelegate
-
-- (void)URLSession:(NSURLSession*)session
-                    task:(nonnull NSURLSessionTask*)task
-    didCompleteWithError:(nullable NSError*)error {
-  if (error) {
-    [self endTask:task withLocation:std::nullopt withError:error.code];
-  }
-}
-
-- (void)URLSession:(NSURLSession*)session
-                          task:(NSURLSessionTask*)task
-    didFinishCollectingMetrics:(NSURLSessionTaskMetrics*)metrics {
-  _callback_runner->PostTask(
-      FROM_HERE, base::BindOnce(_metrics_collected_callback,
-                                GURLWithNSURL(task.originalRequest.URL),
-                                metrics.taskInterval.duration *
-                                    base::TimeTicks::kMillisecondsPerSecond));
-}
-
-@end
 
 namespace update_client {
 
@@ -253,7 +124,8 @@ class BackgroundDownloaderSharedSessionImpl {
       : download_cache_(download_cache) {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-    DownloadDelegate* delegate = [[DownloadDelegate alloc]
+    UpdateClientDownloadDelegate* delegate = [[UpdateClientDownloadDelegate
+        alloc]
            initWithDownloadCache:download_cache_
         downloadCompleteCallback:
             base::BindRepeating(
@@ -318,9 +190,9 @@ class BackgroundDownloaderSharedSessionImpl {
       CrxDownloader::DownloadMetrics metrics = GetDefaultMetrics(url);
       metrics.error =
           static_cast<int>(CrxDownloaderError::MAC_BG_SESSION_INVALIDATED);
-      metrics::RecordBDMStartDownloadOutcome(
-          metrics::BDMStartDownloadOutcome::kImmediateError);
-      callback.Run(false, {metrics.error, base::FilePath()}, metrics);
+      callback.Run(false,
+                   {metrics.error, metrics.extra_code1, base::FilePath()},
+                   metrics);
       return;
     }
 
@@ -328,15 +200,13 @@ class BackgroundDownloaderSharedSessionImpl {
       CrxDownloader::DownloadMetrics metrics = GetDefaultMetrics(url);
       metrics.error =
           static_cast<int>(CrxDownloaderError::MAC_BG_DUPLICATE_DOWNLOAD);
-      metrics::RecordBDMStartDownloadOutcome(
-          metrics::BDMStartDownloadOutcome::kImmediateError);
-      callback.Run(false, {metrics.error, base::FilePath()}, metrics);
+      callback.Run(false,
+                   {metrics.error, metrics.extra_code1, base::FilePath()},
+                   metrics);
       return;
     }
 
     if (HandleDownloadFromCache(url, callback)) {
-      metrics::RecordBDMStartDownloadOutcome(
-          metrics::BDMStartDownloadOutcome::kDownloadRecoveredFromCache);
       return;
     }
 
@@ -360,19 +230,15 @@ class BackgroundDownloaderSharedSessionImpl {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
     if (has_download) {
-      metrics::RecordBDMStartDownloadOutcome(
-          metrics::BDMStartDownloadOutcome::kSessionHasOngoingDownload);
       downloads_.emplace(url, callback);
     } else if (num_tasks >= kMaxTasks) {
       CrxDownloader::DownloadMetrics metrics = GetDefaultMetrics(url);
       metrics.error =
           static_cast<int>(CrxDownloaderError::MAC_BG_SESSION_TOO_MANY_TASKS);
-      metrics::RecordBDMStartDownloadOutcome(
-          metrics::BDMStartDownloadOutcome::kTooManyTasks);
-      callback.Run(false, {metrics.error, base::FilePath()}, metrics);
+      callback.Run(false,
+                   {metrics.error, metrics.extra_code1, base::FilePath()},
+                   metrics);
     } else {
-      metrics::RecordBDMStartDownloadOutcome(
-          metrics::BDMStartDownloadOutcome::kNewDownloadTaskCreated);
       NSMutableURLRequest* urlRequest =
           [[NSMutableURLRequest alloc] initWithURL:NSURLWithGURL(url)];
       NSURLSessionDownloadTask* downloadTask =
@@ -428,14 +294,18 @@ class BackgroundDownloaderSharedSessionImpl {
       callback.Run(result.is_handled, result.result, result.download_metrics);
     } else {
       int64_t download_size = -1;
-      if (!base::GetFileSize(cached_path, &download_size)) {
+      std::optional<int64_t> file_size_opt = base::GetFileSize(cached_path);
+      if (file_size_opt.has_value()) {
+        download_size = file_size_opt.value();
+      } else {
         LOG(ERROR) << "Failed determine file size for " << cached_path;
       }
       CrxDownloader::DownloadMetrics metrics = GetDefaultMetrics(url);
       metrics.downloaded_bytes = download_size;
       metrics.total_bytes = download_size;
       callback.Run(true,
-                   {static_cast<int>(CrxDownloaderError::NONE), cached_path},
+                   {static_cast<int>(CrxDownloaderError::NONE),
+                    /*extra_code1=*/0, cached_path},
                    metrics);
     }
 
@@ -489,7 +359,7 @@ class BackgroundDownloaderSharedSessionImpl {
 
     bool had_result = results_.contains(url);
     bool is_handled = error == 0 || (error >= 500 && error < 600);
-    CrxDownloader::Result result = {error, location};
+    CrxDownloader::Result result = {error, /*extra_code1=*/0, location};
     CrxDownloader::DownloadMetrics download_metrics =
         had_result ? results_.at(url).download_metrics
                    : CrxDownloader::DownloadMetrics{};
@@ -531,7 +401,6 @@ class BackgroundDownloaderSharedSessionImpl {
     CHECK(results_.contains(url));
 
     bool requestor_known = downloads_.contains(url);
-    metrics::RecordBDMResultRequestorKnown(requestor_known);
     if (requestor_known) {
       DownloadResult result = results_.at(url);
       downloads_.at(url).Run(result.is_handled, result.result,
@@ -604,7 +473,7 @@ class BackgroundDownloaderSharedSessionImpl {
         // the task can be cleaned even if it fails to send a progress update.
         filtered_progresses.emplace(url, now);
       } else {
-        const base::Time& last_progress_time = last_progress_times_.at(url);
+        base::Time last_progress_time = last_progress_times_.at(url);
         if (now - last_progress_time > kNoProgressTimeout) {
           [task cancel];
         } else {
@@ -622,6 +491,8 @@ class BackgroundDownloaderSharedSessionImpl {
     metrics.url = url;
     metrics.downloader =
         CrxDownloader::DownloadMetrics::Downloader::kBackgroundMac;
+    metrics.error = 0;
+    metrics.extra_code1 = 0;
     return metrics;
   }
 

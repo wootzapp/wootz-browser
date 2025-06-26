@@ -26,13 +26,13 @@ GetCardUploadDetailsRequest::GetCardUploadDetailsRequest(
     const std::vector<ClientBehaviorConstants>& client_behavior_signals,
     const bool full_sync_enabled,
     const std::string& app_locale,
-    base::OnceCallback<void(AutofillClient::PaymentsRpcResult,
+    base::OnceCallback<void(PaymentsAutofillClient::PaymentsRpcResult,
                             const std::u16string&,
                             std::unique_ptr<base::Value::Dict>,
                             std::vector<std::pair<int, int>>)> callback,
     const int billable_service_number,
     const int64_t billing_customer_number,
-    PaymentsNetworkInterface::UploadCardSource upload_card_source)
+    UploadCardSource upload_card_source)
     : addresses_(addresses),
       detected_values_(detected_values),
       client_behavior_signals_(client_behavior_signals),
@@ -86,35 +86,25 @@ std::string GetCardUploadDetailsRequest::GetRequestContent() {
   request_dict.Set("detected_values", detected_values_);
 
   switch (upload_card_source_) {
-    case PaymentsNetworkInterface::UploadCardSource::UNKNOWN_UPLOAD_CARD_SOURCE:
+    case UploadCardSource::UNKNOWN_UPLOAD_CARD_SOURCE:
       request_dict.Set("upload_card_source", "UNKNOWN_UPLOAD_CARD_SOURCE");
       break;
-    case PaymentsNetworkInterface::UploadCardSource::UPSTREAM_CHECKOUT_FLOW:
+    case UploadCardSource::UPSTREAM_CHECKOUT_FLOW:
       request_dict.Set("upload_card_source", "UPSTREAM_CHECKOUT_FLOW");
       break;
-    case PaymentsNetworkInterface::UploadCardSource::UPSTREAM_SETTINGS_PAGE:
+    case UploadCardSource::UPSTREAM_SETTINGS_PAGE:
       request_dict.Set("upload_card_source", "UPSTREAM_SETTINGS_PAGE");
       break;
-    case PaymentsNetworkInterface::UploadCardSource::UPSTREAM_CARD_OCR:
+    case UploadCardSource::UPSTREAM_CARD_OCR:
       request_dict.Set("upload_card_source", "UPSTREAM_CARD_OCR");
       break;
-    case PaymentsNetworkInterface::UploadCardSource::
-        LOCAL_CARD_MIGRATION_CHECKOUT_FLOW:
-      request_dict.Set("upload_card_source",
-                       "LOCAL_CARD_MIGRATION_CHECKOUT_FLOW");
-      break;
-    case PaymentsNetworkInterface::UploadCardSource::
-        LOCAL_CARD_MIGRATION_SETTINGS_PAGE:
-      request_dict.Set("upload_card_source",
-                       "LOCAL_CARD_MIGRATION_SETTINGS_PAGE");
-      break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   std::string request_content;
   base::JSONWriter::Write(request_dict, &request_content);
-  VLOG(3) << "getdetailsforsavecard request body: " << request_content;
+  DVLOG(3) << "getdetailsforsavecard request body: " << request_content;
   return request_content;
 }
 
@@ -142,7 +132,7 @@ bool GetCardUploadDetailsRequest::IsResponseComplete() {
 }
 
 void GetCardUploadDetailsRequest::RespondToDelegate(
-    AutofillClient::PaymentsRpcResult result) {
+    PaymentsAutofillClient::PaymentsRpcResult result) {
   std::move(callback_).Run(result, context_token_, std::move(legal_message_),
                            supported_card_bin_ranges_);
 }

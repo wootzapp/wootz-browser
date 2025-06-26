@@ -51,11 +51,8 @@ class ChromeSpeechRecognitionManagerDelegate
       base::OnceCallback<void(bool ask_user, bool is_allowed)> callback)
       override;
   content::SpeechRecognitionEventListener* GetEventListener() override;
-  bool FilterProfanities(int render_process_id) override;
 #if !BUILDFLAG(IS_ANDROID)
   // This will bind to the Speech Recognition Service if available.
-  // On LaCros, it will forward to Ash. On other platforms (Ash, Desktop), it
-  // will bind to appropriate Speech Recognition Service when enabled.
   void BindSpeechRecognitionContext(
       mojo::PendingReceiver<media::mojom::SpeechRecognitionContext> receiver)
       override;

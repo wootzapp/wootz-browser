@@ -47,7 +47,7 @@ std::vector<uint8_t> StringViewToUint8Vector(std::string_view s) {
 }
 
 std::vector<uint8_t> String16ToUint8Vector(const std::u16string& s) {
-  auto bytes = base::as_bytes(base::make_span(s));
+  auto bytes = base::as_byte_span(s);
   return std::vector<uint8_t>(bytes.begin(), bytes.end());
 }
 
@@ -483,7 +483,7 @@ TEST_F(SessionStorageImplTest, Scavenging) {
   {
     base::RunLoop loop;
     // Cause the connection to start loading, so we start scavenging mid-load.
-    session_storage()->Flush(base::DoNothing());
+    session_storage()->Flush();
     session_storage()->ScavengeUnusedNamespaces(loop.QuitClosure());
     loop.Run();
   }

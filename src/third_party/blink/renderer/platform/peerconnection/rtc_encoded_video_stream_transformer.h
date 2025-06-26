@@ -45,7 +45,7 @@ class PLATFORM_EXPORT RTCEncodedVideoStreamTransformer {
   class PLATFORM_EXPORT Broker : public WTF::ThreadSafeRefCounted<Broker> {
    public:
     void RegisterTransformedFrameSinkCallback(
-        rtc::scoped_refptr<webrtc::TransformedFrameCallback>,
+        webrtc::scoped_refptr<webrtc::TransformedFrameCallback>,
         uint32_t ssrc);
 
     void UnregisterTransformedFrameSinkCallback(uint32_t ssrc);
@@ -90,7 +90,7 @@ class PLATFORM_EXPORT RTCEncodedVideoStreamTransformer {
   // transformed frames to the WebRTC decoder. Runs on the thread which
   // created this object. The callback can run on any thread.
   void RegisterTransformedFrameSinkCallback(
-      rtc::scoped_refptr<webrtc::TransformedFrameCallback>,
+      webrtc::scoped_refptr<webrtc::TransformedFrameCallback>,
       uint32_t ssrc);
 
   // Called by WebRTC to let us know that any reference to the callback object
@@ -127,7 +127,7 @@ class PLATFORM_EXPORT RTCEncodedVideoStreamTransformer {
   // the given ssrc.
   bool HasTransformedFrameSinkCallback(uint32_t ssrc) const;
 
-  rtc::scoped_refptr<webrtc::FrameTransformerInterface> Delegate();
+  webrtc::scoped_refptr<webrtc::FrameTransformerInterface> Delegate();
 
   // Set the TaskRunner used for the Source side - to deliver frames up to the
   // UnderlyingSource. Is threadsafe.
@@ -139,15 +139,23 @@ class PLATFORM_EXPORT RTCEncodedVideoStreamTransformer {
   void StartShortCircuiting();
 
  private:
+  void LogMessage(const std::string& message);
+
   const scoped_refptr<Broker> broker_;
-  const rtc::scoped_refptr<webrtc::FrameTransformerInterface> delegate_;
+  const webrtc::scoped_refptr<webrtc::FrameTransformerInterface> delegate_;
+
   mutable base::Lock sink_lock_;
-  Vector<
-      std::pair<uint32_t, rtc::scoped_refptr<webrtc::TransformedFrameCallback>>>
+  Vector<std::pair<uint32_t,
+                   webrtc::scoped_refptr<webrtc::TransformedFrameCallback>>>
       send_frame_to_sink_callbacks_ GUARDED_BY(sink_lock_);
+  bool short_circuit_ GUARDED_BY(sink_lock_) = false;
+  Vector<std::unique_ptr<webrtc::TransformableVideoFrameInterface>>
+      buffered_frames_ GUARDED_BY(sink_lock_);
+  uint16_t dropped_frames_count_ = 0;
+
+  // source_lock_ must be taken *before* sink_lock_ to avoid deadlock.
   base::Lock source_lock_;
   TransformerCallback transformer_callback_ GUARDED_BY(source_lock_);
-  bool short_circuit_ GUARDED_BY(sink_lock_) = false;
 };
 
 }  // namespace blink

@@ -5,7 +5,7 @@
 #ifndef MEDIA_FILTERS_HLS_RENDITION_IMPL_H_
 #define MEDIA_FILTERS_HLS_RENDITION_IMPL_H_
 
-#include "base/moving_window.h"
+#include "crypto/aes_cbc.h"
 #include "media/filters/hls_rendition.h"
 #include "media/formats/hls/segment_stream.h"
 
@@ -24,7 +24,8 @@ class MEDIA_EXPORT HlsRenditionImpl : public HlsRendition {
                    std::string role,
                    scoped_refptr<hls::MediaPlaylist> playlist,
                    std::optional<base::TimeDelta> duration,
-                   GURL media_playlist_uri);
+                   GURL media_playlist_uri,
+                   MediaLog* media_log);
 
   // `HlsRendition` implementation
   std::optional<base::TimeDelta> GetDuration() override;
@@ -34,8 +35,9 @@ class MEDIA_EXPORT HlsRenditionImpl : public HlsRendition {
   ManifestDemuxer::SeekResponse Seek(base::TimeDelta seek_time) override;
   void StartWaitingForSeek() override;
   void Stop() override;
-  void UpdatePlaylist(scoped_refptr<hls::MediaPlaylist> playlist,
-                      std::optional<GURL> new_playlist_uri) override;
+  void UpdatePlaylist(scoped_refptr<hls::MediaPlaylist> playlist) override;
+  void UpdatePlaylistURI(const GURL& playlist_uri) override;
+  const GURL& MediaPlaylistUri() const override;
 
  private:
   // A pending segment consists of the stream from which network data is fetched
@@ -54,10 +56,12 @@ class MEDIA_EXPORT HlsRenditionImpl : public HlsRendition {
 
   // Appends and parses data on network read. Will additionally set a pending
   // request if there is more to read.
-  void OnSegmentData(base::OnceClosure cb,
+  void OnSegmentData(scoped_refptr<hls::MediaSegment> segment,
+                     base::OnceClosure cb,
                      base::TimeDelta fetch_required_time,
                      base::TimeDelta parse_end,
                      base::TimeTicks net_req_start,
+                     bool fetched_new_key,
                      HlsDataSourceProvider::ReadResult result);
 
   // This allows calculating the ideal buffer size, based on adaptability,
@@ -79,7 +83,7 @@ class MEDIA_EXPORT HlsRenditionImpl : public HlsRendition {
   // Callback helper to receive notice when a new manifest has been updated.
   void OnManifestUpdate(ManifestDemuxer::DelayCallback cb,
                         base::TimeDelta delay,
-                        bool success);
+                        HlsDemuxerStatus success);
 
   // Helper method to use duration to determine stream liveness.
   bool IsLive() const;
@@ -111,11 +115,20 @@ class MEDIA_EXPORT HlsRenditionImpl : public HlsRendition {
   // The time that a livestream was paused at.
   std::optional<base::TimeTicks> livestream_pause_time_ = std::nullopt;
 
+  // Decrypt full segments if using AES128 or AES256.
+  scoped_refptr<hls::MediaSegment> segment_with_key_;
+  std::vector<uint8_t> key_;
+  std::array<uint8_t, crypto::aes_cbc::kBlockSize> iv_;
+
+  std::unique_ptr<MediaLog> media_log_;
+
   // toggleable bool flags.
   bool set_stream_end_ = false;
   bool is_stopped_for_shutdown_ = false;
   bool has_ever_played_ = false;
   bool requires_init_segment_ = true;
+
+  std::optional<hls::types::DecimalInteger> last_discontinuity_sequence_num_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

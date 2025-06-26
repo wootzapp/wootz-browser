@@ -26,6 +26,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/compositor/animation_throughput_reporter.h"
 #include "ui/compositor/presentation_time_recorder.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
@@ -400,6 +401,12 @@ void ScrollableShelfView::ScrollToNewPage(bool forward) {
     ScrollByXOffset(offset, /*animating=*/true);
   else
     ScrollByYOffset(offset, /*animating=*/true);
+}
+
+void ScrollableShelfView::UpdateAccessiblePreviousAndNextFocus() {
+  GetViewAccessibility().SetNextFocus(GetShelf()->GetStatusAreaWidget());
+  GetViewAccessibility().SetPreviousFocus(
+      GetShelf()->shelf_widget()->navigation_widget());
 }
 
 views::FocusSearch* ScrollableShelfView::GetFocusSearch() {
@@ -843,18 +850,12 @@ void ScrollableShelfView::OnGestureEvent(ui::GestureEvent* event) {
   } else if (shelf_view_->HandleGestureEvent(event)) {
     // |event| is consumed by ShelfView.
     event->StopPropagation();
-  } else if (event->type() == ui::ET_GESTURE_SCROLL_BEGIN) {
+  } else if (event->type() == ui::EventType::kGestureScrollBegin) {
     // |event| is consumed by neither ScrollableShelfView nor ShelfView. So the
     // gesture end event will not be propagated to this view. Then we need to
     // reset the class members related with scroll status explicitly.
     ResetScrollStatus();
   }
-}
-
-void ScrollableShelfView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  GetViewAccessibility().SetNextFocus(GetShelf()->GetStatusAreaWidget());
-  GetViewAccessibility().SetPreviousFocus(
-      GetShelf()->shelf_widget()->navigation_widget());
 }
 
 void ScrollableShelfView::OnBoundsChanged(const gfx::Rect& previous_bounds) {
@@ -1062,7 +1063,7 @@ ScrollableShelfView::CreateScopedActiveInkDropCount(const ShelfButton* sender) {
 void ScrollableShelfView::ShowContextMenuForViewImpl(
     views::View* source,
     const gfx::Point& point,
-    ui::MenuSourceType source_type) {
+    ui::mojom::MenuSourceType source_type) {
   // |point| is in screen coordinates. So it does not need to transform.
   shelf_view_->ShowContextMenuForViewImpl(shelf_view_, point, source_type);
 }
@@ -1197,7 +1198,7 @@ void ScrollableShelfView::ScheduleScrollForItemDragIfNeeded(
 
   drag_item_bounds_in_screen_.emplace(item_bounds_in_screen);
   if (AreBoundsWithinVisibleSpace(*drag_item_bounds_in_screen_)) {
-    page_flip_timer_.AbandonAndStop();
+    page_flip_timer_.Stop();
     return;
   }
 
@@ -1209,7 +1210,7 @@ void ScrollableShelfView::ScheduleScrollForItemDragIfNeeded(
 void ScrollableShelfView::CancelScrollForItemDrag() {
   drag_item_bounds_in_screen_.reset();
   if (page_flip_timer_.IsRunning())
-    page_flip_timer_.AbandonAndStop();
+    page_flip_timer_.Stop();
 }
 
 void ScrollableShelfView::OnImplicitAnimationsCompleted() {
@@ -1222,8 +1223,9 @@ void ScrollableShelfView::OnImplicitAnimationsCompleted() {
     UpdateTappableIconIndices();
 
   // Notifies ChromeVox of the changed location at the end of animation.
-  shelf_view_->NotifyAccessibilityEvent(ax::mojom::Event::kLocationChanged,
-                                        /*send_native_event=*/true);
+  shelf_view_->NotifyAccessibilityEventDeprecated(
+      ax::mojom::Event::kLocationChanged,
+      /*send_native_event=*/true);
 
   if (!drag_item_bounds_in_screen_ ||
       AreBoundsWithinVisibleSpace(*drag_item_bounds_in_screen_)) {
@@ -1306,7 +1308,7 @@ bool ScrollableShelfView::ShouldHandleGestures(const ui::GestureEvent& event) {
   if (scroll_status_ == kNotInScroll && !event.IsScrollGestureEvent())
     return false;
 
-  if (event.type() == ui::ET_GESTURE_SCROLL_BEGIN) {
+  if (event.type() == ui::EventType::kGestureScrollBegin) {
     CHECK_EQ(scroll_status_, kNotInScroll);
 
     float main_offset = event.details().scroll_x_hint();
@@ -1327,7 +1329,7 @@ bool ScrollableShelfView::ShouldHandleGestures(const ui::GestureEvent& event) {
   bool should_handle_gestures = scroll_status_ == kAlongMainAxisScroll;
 
   if (scroll_status_ == kAlongMainAxisScroll &&
-      event.type() == ui::ET_GESTURE_SCROLL_BEGIN) {
+      event.type() == ui::EventType::kGestureScrollBegin) {
     scroll_offset_before_main_axis_scrolling_ = scroll_offset_;
     layout_strategy_before_main_axis_scrolling_ = layout_strategy_;
 
@@ -1335,8 +1337,9 @@ bool ScrollableShelfView::ShouldHandleGestures(const ui::GestureEvent& event) {
     MaybeUpdateGradientZone();
   }
 
-  if (event.type() == ui::ET_GESTURE_END)
+  if (event.type() == ui::EventType::kGestureEnd) {
     ResetScrollStatus();
+  }
 
   return should_handle_gestures;
 }
@@ -1356,7 +1359,7 @@ bool ScrollableShelfView::ProcessGestureEvent(const ui::GestureEvent& event) {
 
   // Handle scroll-related events, but don't do anything special for begin and
   // end.
-  if (event.type() == ui::ET_GESTURE_SCROLL_BEGIN) {
+  if (event.type() == ui::EventType::kGestureScrollBegin) {
     DCHECK(!presentation_time_recorder_);
     if (Shell::Get()->IsInTabletMode()) {
       if (Shell::Get()->app_list_controller()->IsVisible(
@@ -1396,9 +1399,10 @@ bool ScrollableShelfView::ProcessGestureEvent(const ui::GestureEvent& event) {
     return true;
   }
 
-  if (event.type() == ui::ET_GESTURE_END) {
-    // Do not reset |presentation_time_recorder_| in ui::ET_GESTURE_SCROLL_END
-    // event because it may not exist due to gesture fling.
+  if (event.type() == ui::EventType::kGestureEnd) {
+    // Do not reset |presentation_time_recorder_| in
+    // ui::EventType::kGestureScrollEnd event because it may not exist due to
+    // gesture fling.
     presentation_time_recorder_.reset();
 
     // The type of scrolling offset is float to ensure that ScrollableShelfView
@@ -1413,7 +1417,7 @@ bool ScrollableShelfView::ProcessGestureEvent(const ui::GestureEvent& event) {
     return true;
   }
 
-  if (event.type() == ui::ET_SCROLL_FLING_START) {
+  if (event.type() == ui::EventType::kScrollFlingStart) {
     const bool is_horizontal_alignment = GetShelf()->IsHorizontalAlignment();
     if (!ShouldHandleScroll(gfx::Vector2dF(event.details().velocity_x(),
                                            event.details().velocity_y()),
@@ -1441,8 +1445,9 @@ bool ScrollableShelfView::ProcessGestureEvent(const ui::GestureEvent& event) {
     return true;
   }
 
-  if (event.type() != ui::ET_GESTURE_SCROLL_UPDATE)
+  if (event.type() != ui::EventType::kGestureScrollUpdate) {
     return false;
+  }
 
   float scroll_delta = 0.f;
   const bool is_horizontal = GetShelf()->IsHorizontalAlignment();
@@ -2150,8 +2155,9 @@ bool ScrollableShelfView::ShouldDelegateScrollToShelf(
   // When the shelf is not aligned in the bottom, the events should be
   // propagated and handled as MouseWheel events.
 
-  if (event.type() != ui::ET_SCROLL)
+  if (event.type() != ui::EventType::kScroll) {
     return false;
+  }
 
   const float main_offset =
       GetShelf()->IsHorizontalAlignment() ? event.x_offset() : event.y_offset();

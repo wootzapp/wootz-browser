@@ -4,10 +4,13 @@
 
 #include "services/network/cors/preflight_cache.h"
 
+#include <array>
+
 #include "base/test/simple_test_tick_clock.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
 #include "net/base/network_isolation_key.h"
+#include "net/base/schemeful_site.h"
 #include "net/http/http_request_headers.h"
 #include "net/log/net_log.h"
 #include "net/log/net_log_event_type.h"
@@ -29,14 +32,15 @@ struct CacheTestEntry {
   const char* url;
 };
 
-constexpr CacheTestEntry kCacheEntries[] = {
+constexpr const auto kCacheEntries = std::to_array<CacheTestEntry>({
     {"http://www.origin1.com:8080", "http://www.test.com/A"},
     {"http://www.origin2.com:80", "http://www.test.com/B"},
     {"http://www.origin3.com:80", "http://www.test.com/C"},
     {"http://www.origin4.com:80", "http://www.test.com/D"},
     {"http://A.origin.com:80", "http://www.test.com/A"},
     {"http://A.origin.com:8080", "http://www.test.com/A"},
-    {"http://B.origin.com:80", "http://www.test.com/B"}};
+    {"http://B.origin.com:80", "http://www.test.com/B"},
+});
 
 class PreflightCacheTest : public testing::Test {
  public:
@@ -193,7 +197,8 @@ TEST_F(PreflightCacheTest, CacheTimeout) {
 TEST_F(PreflightCacheTest, RespectsNetworkIsolationKeys) {
   const std::string kOriginStr1("http://www.test.com/A");
   const url::Origin kOrigin1 = url::Origin::Create(GURL(kOriginStr1));
-  const net::NetworkIsolationKey kNik(kOrigin1, kOrigin1);
+  const net::SchemefulSite kSite1 = net::SchemefulSite(kOrigin1);
+  const net::NetworkIsolationKey kNik(kSite1, kSite1);
   const GURL kUrl1(kOriginStr1);
 
   const GURL kUrl2("http://www.other.com:80");
@@ -224,8 +229,10 @@ TEST_F(PreflightCacheTest, RespectsNetworkIsolationKeys) {
 TEST_F(PreflightCacheTest, HandlesOpaqueOrigins) {
   const url::Origin kOrigin1;
   const url::Origin kOrigin2;
-  const net::NetworkIsolationKey kNik1(kOrigin1, kOrigin1);
-  const net::NetworkIsolationKey kNik2(kOrigin2, kOrigin2);
+  const net::SchemefulSite kSite1 = net::SchemefulSite(kOrigin1);
+  const net::SchemefulSite kSite2 = net::SchemefulSite(kOrigin2);
+  const net::NetworkIsolationKey kNik1(kSite2, kSite1);
+  const net::NetworkIsolationKey kNik2(kSite2, kSite2);
   const GURL kUrl("http://www.test.com/A");
 
   // The cache starts empty.
@@ -247,13 +254,15 @@ TEST_F(PreflightCacheTest, HandlesOpaqueOrigins) {
   EXPECT_FALSE(
       CheckEntryAndRefreshCache(kOrigin1, kUrl, net::NetworkIsolationKey()));
   EXPECT_FALSE(CheckEntryAndRefreshCache(
-      kOrigin1, kUrl, net::NetworkIsolationKey(url::Origin(), url::Origin())));
+      kOrigin1, kUrl,
+      net::NetworkIsolationKey(net::SchemefulSite(), net::SchemefulSite())));
 }
 
 TEST_F(PreflightCacheTest, PrivateNetworkAccess) {
   const url::Origin origin;
   const GURL url("http://www.test.com/A");
-  const net::NetworkIsolationKey nik(origin, origin);
+  const net::SchemefulSite Site = net::SchemefulSite(origin);
+  const net::NetworkIsolationKey nik(Site, Site);
 
   // The cache starts empty.
   EXPECT_EQ(0u, CountEntries());
@@ -279,7 +288,8 @@ TEST_F(PreflightCacheTest, PrivateNetworkAccess) {
 TEST_F(PreflightCacheTest, NetLogCheckCacheExist) {
   const url::Origin kOrigin;
   const GURL kUrl("http://www.test.com/A");
-  const net::NetworkIsolationKey kNik(kOrigin, kOrigin);
+  const net::SchemefulSite kSite = net::SchemefulSite(kOrigin);
+  const net::NetworkIsolationKey kNik(kSite, kSite);
   net::RecordingNetLogObserver net_log_observer;
 
   AppendEntry(kOrigin, kUrl, kNik);

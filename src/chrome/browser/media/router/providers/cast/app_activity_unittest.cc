@@ -54,7 +54,7 @@ class AppActivityTest : public CastActivityTestBase {
     activity_ = std::make_unique<AppActivity>(
         MediaRoute(kRouteId, MediaSource("https://example.com/receiver.html"),
                    kSinkId, "", false),
-        kAppId, &message_handler_, &session_tracker_);
+        kAppId, &message_handler_, &session_tracker_, logger_, debugger_);
   }
 
   void SetUpSession() { activity_->SetOrUpdateSession(*session_, sink_, ""); }
@@ -66,8 +66,9 @@ class AppActivityTest : public CastActivityTestBase {
   MediaRoute& route() const { return activity_->route_; }
 
   MockCastSessionClient* AddMockClient(const std::string& client_id) {
-    return CastActivityTestBase::AddMockClient(activity_.get(), client_id,
-                                               tab_id_counter_++);
+    return CastActivityTestBase::AddMockClient(
+        activity_.get(), client_id,
+        content::FrameTreeNodeId(tab_id_counter_++));
   }
 
   int tab_id_counter_ = 239;  // Arbitrary number.
@@ -80,15 +81,17 @@ TEST_F(AppActivityTest, SendAppMessageToReceiver) {
 
   EXPECT_CALL(message_handler_, SendAppMessage(kChannelId, _))
       .WillOnce(Return(cast_channel::Result::kFailed))
-      .WillOnce(WithArg<1>([](const cast::channel::CastMessage& cast_message) {
-        EXPECT_EQ("theClientId", cast_message.source_id());
-        EXPECT_EQ("theTransportId", cast_message.destination_id());
-        EXPECT_EQ("urn:x-cast:com.google.foo", cast_message.namespace_());
-        EXPECT_TRUE(cast_message.has_payload_utf8());
-        EXPECT_THAT(cast_message.payload_utf8(), IsJson(R"({"foo": "bar"})"));
-        EXPECT_FALSE(cast_message.has_payload_binary());
-        return cast_channel::Result::kOk;
-      }));
+      .WillOnce(WithArg<1>(
+          [](const openscreen::cast::proto::CastMessage& cast_message) {
+            EXPECT_EQ("theClientId", cast_message.source_id());
+            EXPECT_EQ("theTransportId", cast_message.destination_id());
+            EXPECT_EQ("urn:x-cast:com.google.foo", cast_message.namespace_());
+            EXPECT_TRUE(cast_message.has_payload_utf8());
+            EXPECT_THAT(cast_message.payload_utf8(),
+                        IsJson(R"({"foo": "bar"})"));
+            EXPECT_FALSE(cast_message.has_payload_binary());
+            return cast_channel::Result::kOk;
+          }));
 
   std::unique_ptr<CastInternalMessage> message =
       CastInternalMessage::From(ParseJsonDict(R"({

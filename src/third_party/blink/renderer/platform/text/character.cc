@@ -38,7 +38,6 @@
 #include <algorithm>
 
 #include "base/synchronization/lock.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/text/character_property_data.h"
 #include "third_party/blink/renderer/platform/text/icu_error.h"
 #include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
@@ -61,7 +60,7 @@ UCPTrie* CreateTrie() {
 
 unsigned GetProperty(UChar32 c, CharacterProperty property) {
   static const UCPTrie* trie = CreateTrie();
-  return UCPTRIE_FAST_GET(trie, UCPTRIE_16, c) &
+  return UNSAFE_TODO(UCPTRIE_FAST_GET(trie, UCPTRIE_16, c)) &
          static_cast<CharacterPropertyType>(property);
 }
 
@@ -108,10 +107,18 @@ bool Character::IsHangulSlow(UChar32 character) {
   return GetProperty(character, CharacterProperty::kIsHangul);
 }
 
+// static
 HanKerningCharType Character::GetHanKerningCharType(UChar32 character) {
   return static_cast<HanKerningCharType>(
       GetProperty(character, CharacterProperty::kHanKerningShiftedMask) >>
       static_cast<unsigned>(CharacterProperty::kHanKerningShift));
+}
+
+// static
+EastAsianSpacingType Character::GetEastAsianSpacingType(UChar32 character) {
+  return static_cast<EastAsianSpacingType>(
+      GetProperty(character, CharacterProperty::kEastAsianSpacingShiftedMask) >>
+      static_cast<unsigned>(CharacterProperty::kEastAsianSpacingShift));
 }
 
 bool Character::MaybeHanKerningOpenSlow(UChar32 ch) {
@@ -180,9 +187,7 @@ unsigned Character::ExpansionOpportunityCount(
         count++;
         is_after_expansion = true;
         continue;
-      } else if (!RuntimeEnabledFeatures::
-                     TextAlignJustifyBidiIsolateEnabled() ||
-                 !IsDefaultIgnorable(character)) {
+      } else if (!IsDefaultIgnorable(character)) {
         is_after_expansion = false;
       }
     }
@@ -204,9 +209,7 @@ unsigned Character::ExpansionOpportunityCount(
         count++;
         is_after_expansion = true;
         continue;
-      } else if (!RuntimeEnabledFeatures::
-                     TextAlignJustifyBidiIsolateEnabled() ||
-                 !IsDefaultIgnorable(character)) {
+      } else if (!IsDefaultIgnorable(character)) {
         is_after_expansion = false;
       }
     }
@@ -248,6 +251,7 @@ bool Character::CanReceiveTextEmphasis(UChar32 c) {
 
   // Additional word-separator characters listed in CSS Text Level 3 Editor's
   // Draft 3 November 2010.
+  // https://www.w3.org/TR/css-text-3/#word-separator
   if (c == kEthiopicWordspaceCharacter ||
       c == kAegeanWordSeparatorLineCharacter ||
       c == kAegeanWordSeparatorDotCharacter ||
@@ -255,6 +259,19 @@ bool Character::CanReceiveTextEmphasis(UChar32 c) {
       c == kTibetanMarkIntersyllabicTshegCharacter ||
       c == kTibetanMarkDelimiterTshegBstarCharacter)
     return false;
+
+  // Punctuation
+  if (category &
+      (WTF::unicode::kPunctuation_Dash | WTF::unicode::kPunctuation_Open |
+       WTF::unicode::kPunctuation_Close | WTF::unicode::kPunctuation_Connector |
+       WTF::unicode::kPunctuation_Other |
+       WTF::unicode::kPunctuation_InitialQuote |
+       WTF::unicode::kPunctuation_FinalQuote)) {
+    return false;
+  }
+  // TODO(layout-dev): css/css-text-decor/text-emphasis-punctuation-3.html
+  // requires implementation for the following rule in the specification:
+  // > do not NFKD normalize to any of the following symbols:
 
   return true;
 }
@@ -323,10 +340,11 @@ static const UChar stretchy_operator_with_inline_axis[]{
 bool Character::IsVerticalMathCharacter(UChar32 text_content) {
   return text_content != kArabicMathematicalOperatorMeemWithHahWithTatweel &&
          text_content != kArabicMathematicalOperatorHahWithDal &&
-         !std::binary_search(stretchy_operator_with_inline_axis,
-                             stretchy_operator_with_inline_axis +
-                                 std::size(stretchy_operator_with_inline_axis),
-                             text_content);
+         !std::binary_search(
+             stretchy_operator_with_inline_axis,
+             UNSAFE_TODO(stretchy_operator_with_inline_axis +
+                         std::size(stretchy_operator_with_inline_axis)),
+             text_content);
 }
 
 }  // namespace blink

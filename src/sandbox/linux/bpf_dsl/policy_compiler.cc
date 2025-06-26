@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <sys/syscall.h>
 
+#include <array>
 #include <bit>
 #include <limits>
 #include <ostream>
@@ -40,7 +41,7 @@ const bool kIsX32 = true;
 const bool kIsX32 = false;
 #endif
 
-const int kSyscallsRequiredForUnsafeTraps[] = {
+constexpr auto kSyscallsRequiredForUnsafeTraps = std::to_array<int>({
     __NR_rt_sigprocmask,
     __NR_rt_sigreturn,
 #if defined(__NR_sigprocmask)
@@ -49,7 +50,7 @@ const int kSyscallsRequiredForUnsafeTraps[] = {
 #if defined(__NR_sigreturn)
     __NR_sigreturn,
 #endif
-};
+});
 
 ResultExpr DefaultPanic(const char* error) {
   return Kill();

@@ -25,13 +25,19 @@ using blink::mojom::GenericIssueErrorType;
 namespace autofill::form_issues {
 namespace {
 
+constexpr CallTimerState kCallTimerStateDummy = {
+    .call_site = CallTimerState::CallSite::kUpdateFormCache,
+    .last_autofill_agent_reset = {},
+    .last_dom_content_loaded = {},
+};
+
 // Checks if the provided list `form_issues` contains a certain issue type.
 // Optionally checks whether the expected issue type has the specified
 // `violating_attr`.
 bool FormIssuesContainIssueType(const std::vector<FormIssue>& form_issues,
                                 GenericIssueErrorType expected_issue,
                                 const std::string& violating_attr = "") {
-  return base::ranges::any_of(form_issues, [&](const auto& form_issue) {
+  return std::ranges::any_of(form_issues, [&](const auto& form_issue) {
     return form_issue.issue_type == expected_issue &&
            (violating_attr.empty() ||
             violating_attr == form_issue.violating_node_attribute.Utf8());
@@ -83,7 +89,7 @@ TEST_F(FormAutofillIssuesTest, FormDuplicateIdForInputError) {
       GetFormIssuesForTesting(form_target.GetFormControlElements(), {});
 
   int duplicated_ids_issue_count =
-      base::ranges::count_if(form_issues, [](const FormIssue& form_issue) {
+      std::ranges::count_if(form_issues, [](const FormIssue& form_issue) {
         return form_issue.issue_type ==
                    GenericIssueErrorType::kFormDuplicateIdForInputError &&
                form_issue.violating_node_attribute.Utf8() == "id";
@@ -212,7 +218,7 @@ TEST_F(
   WebLocalFrame* web_frame = GetMainFrame();
 
   std::vector<FormIssue> form_issues =
-      GetFormIssuesForTesting(form_util::GetAutofillableFormControlElements(
+      GetFormIssuesForTesting(form_util::GetOwnedAutofillableFormControls(
                                   web_frame->GetDocument(), WebFormElement()),
                               {});
 
@@ -237,12 +243,12 @@ TEST_F(FormAutofillIssuesTest, FormLabelForNameError) {
   WebLocalFrame* web_frame = GetMainFrame();
   FormData form_data = *form_util::ExtractFormData(
       web_frame->GetDocument(), WebFormElementFromHTML(kHtml),
-      *base::MakeRefCounted<FieldDataManager>(),
-      {form_util::ExtractOption::kValue});
+      *base::MakeRefCounted<FieldDataManager>(), kCallTimerStateDummy,
+      /*button_titles_cache=*/nullptr);
 
   std::vector<FormIssue> form_issues =
       CheckForLabelsWithIncorrectForAttributeForTesting(
-          web_frame->GetDocument(), form_data.fields, {});
+          web_frame->GetDocument(), form_data.fields(), {});
 
   EXPECT_EQ(form_issues.size(), 2u);
   EXPECT_TRUE(FormIssuesContainIssueType(
@@ -261,12 +267,12 @@ TEST_F(FormAutofillIssuesTest, FormLabelForMatchesNonExistingIdError) {
   WebLocalFrame* web_frame = GetMainFrame();
   FormData form_data = *form_util::ExtractFormData(
       web_frame->GetDocument(), WebFormElementFromHTML(kHtml),
-      *base::MakeRefCounted<FieldDataManager>(),
-      {form_util::ExtractOption::kValue});
+      *base::MakeRefCounted<FieldDataManager>(), kCallTimerStateDummy,
+      /*button_titles_cache=*/nullptr);
 
   std::vector<FormIssue> form_issues =
       CheckForLabelsWithIncorrectForAttributeForTesting(
-          web_frame->GetDocument(), form_data.fields, {});
+          web_frame->GetDocument(), form_data.fields(), {});
 
   EXPECT_EQ(form_issues.size(), 1u);
   EXPECT_TRUE(FormIssuesContainIssueType(

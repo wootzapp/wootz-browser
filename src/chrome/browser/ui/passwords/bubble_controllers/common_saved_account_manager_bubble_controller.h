@@ -11,10 +11,6 @@
 #include "components/password_manager/core/browser/password_feature_manager.h"
 #include "components/password_manager/core/browser/password_store/interactions_stats.h"
 
-namespace ui {
-class ImageModel;
-}
-
 // This controller provides common logic for bubbles that are used to add/update
 // credentials.
 class CommonSavedAccountManagerBubbleController
@@ -37,15 +33,11 @@ class CommonSavedAccountManagerBubbleController
   // Called by the view code when the "Google Password Manager" link in the
   // bubble footer in clicked by the user.
   void OnGooglePasswordManagerLinkClicked(
-      password_manager::ManagePasswordsReferrer refferer);
+      password_manager::ManagePasswordsReferrer referrer);
 
   // Returns the email of current primary account. Returns empty string if no
   // account is signed in.
   std::u16string GetPrimaryAccountEmail();
-
-  // Returns the avatar of the primary account. Returns an empty image if no
-  // account is signed in.
-  ui::ImageModel GetPrimaryAccountAvatar(int icon_size_dip);
 
   const password_manager::PasswordForm& pending_password() const {
     return pending_password_;

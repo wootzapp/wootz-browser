@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "sandbox/win/tests/validation_tests/commands.h"
 
 #include <windows.h>
@@ -44,7 +49,7 @@ void trim_quote(std::wstring* string) {
 }
 
 int TestOpenFile(std::wstring path, bool for_write) {
-  wchar_t path_expanded[MAX_PATH + 1] = {0};
+  wchar_t path_expanded[MAX_PATH + 1] = {};
   DWORD size = ::ExpandEnvironmentStrings(path.c_str(), path_expanded,
                                           MAX_PATH);
   if (!size)
@@ -183,7 +188,7 @@ bool IsInteractiveDesktop(bool* is_interactive) {
   HDESK current_desk = ::GetThreadDesktop(::GetCurrentThreadId());
   if (current_desk == NULL)
     return false;
-  wchar_t current_desk_name[256] = {0};
+  wchar_t current_desk_name[256] = {};
   if (!::GetUserObjectInformationW(current_desk, UOI_NAME, current_desk_name,
                                    sizeof(current_desk_name), NULL))
     return false;

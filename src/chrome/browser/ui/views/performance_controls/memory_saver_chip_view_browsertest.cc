@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/ui/views/performance_controls/memory_saver_chip_view.h"
+
 #include "base/functional/bind.h"
 #include "base/scoped_observation.h"
 #include "base/test/bind.h"
@@ -18,9 +20,7 @@
 #include "chrome/browser/ui/views/page_action/page_action_icon_controller.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
 #include "chrome/browser/ui/views/performance_controls/memory_saver_bubble_view.h"
-#include "chrome/browser/ui/views/performance_controls/memory_saver_chip_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
-#include "chrome/browser/ui/views/user_education/browser_feature_promo_controller.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -76,10 +76,13 @@ class MemorySaverChipViewBrowserTest
   }
 };
 
+// TODO(crbug.com/376283619): Remove this test after the page action is
+// migrated to the new framework, and sufficient ink-drop test coverage is
+// present in the framework itself.
 IN_PROC_BROWSER_TEST_F(MemorySaverChipViewBrowserTest,
                        ShowAndHideInkDropOnDialog) {
   PageActionIconView* chip = GetMemorySaverChipView();
-  ui::MouseEvent press(ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
+  ui::MouseEvent press(ui::EventType::kMousePressed, gfx::Point(), gfx::Point(),
                        ui::EventTimeForNow(), 0, 0);
   views::test::ButtonTestApi test_api(chip);
 

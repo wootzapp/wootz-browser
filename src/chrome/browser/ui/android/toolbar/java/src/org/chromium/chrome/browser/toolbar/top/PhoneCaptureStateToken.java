@@ -9,7 +9,7 @@ import android.content.res.ColorStateList;
 import androidx.annotation.ColorInt;
 import androidx.annotation.DrawableRes;
 
-import org.chromium.chrome.browser.toolbar.ButtonData;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonData;
 import org.chromium.chrome.browser.toolbar.top.ToolbarPhone.VisualState;
 
 import java.util.Objects;
@@ -103,14 +103,5 @@ class PhoneCaptureStateToken {
             return ToolbarSnapshotDifference.HOME_BUTTON;
         }
         return ToolbarSnapshotDifference.NONE;
-    }
-
-    @ColorInt
-    int getTint() {
-        return mTint;
-    }
-
-    int getTabCount() {
-        return mTabCount;
     }
 }

@@ -4,8 +4,9 @@
 
 import 'chrome://os-settings/lazy_load.js';
 
-import {GuestOsBrowserProxyImpl, SettingsGuestOsSharedUsbDevicesElement} from 'chrome://os-settings/lazy_load.js';
-import {CrDialogElement} from 'chrome://os-settings/os_settings.js';
+import type {SettingsGuestOsSharedUsbDevicesElement} from 'chrome://os-settings/lazy_load.js';
+import {GuestOsBrowserProxyImpl} from 'chrome://os-settings/lazy_load.js';
+import type {CrDialogElement} from 'chrome://os-settings/os_settings.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
@@ -32,6 +33,7 @@ suite('<settings-guest-os-shared-usb-devices>', () => {
         vendorId: '0000',
         productId: '0000',
         promptBeforeSharing: false,
+        serialNumber: '',
       },
       {
         guid: '0002',
@@ -43,6 +45,7 @@ suite('<settings-guest-os-shared-usb-devices>', () => {
         vendorId: '0000',
         productId: '0000',
         promptBeforeSharing: true,
+        serialNumber: '',
       },
       {
         guid: '0003',
@@ -54,6 +57,7 @@ suite('<settings-guest-os-shared-usb-devices>', () => {
         vendorId: '0000',
         productId: '0000',
         promptBeforeSharing: true,
+        serialNumber: '',
       },
     ];
     GuestOsBrowserProxyImpl.setInstanceForTesting(guestOsBrowserProxy);
@@ -175,6 +179,7 @@ suite('<settings-guest-os-shared-usb-devices> multi-container', () => {
         vendorId: '0000',
         productId: '0000',
         promptBeforeSharing: false,
+        serialNumber: '',
       },
       {
         guid: '0002',
@@ -186,6 +191,7 @@ suite('<settings-guest-os-shared-usb-devices> multi-container', () => {
         vendorId: '0000',
         productId: '0000',
         promptBeforeSharing: true,
+        serialNumber: '',
       },
       {
         guid: '0003',
@@ -197,6 +203,7 @@ suite('<settings-guest-os-shared-usb-devices> multi-container', () => {
         vendorId: '0000',
         productId: '0000',
         promptBeforeSharing: true,
+        serialNumber: '',
       },
     ];
     GuestOsBrowserProxyImpl.setInstanceForTesting(guestOsBrowserProxy);

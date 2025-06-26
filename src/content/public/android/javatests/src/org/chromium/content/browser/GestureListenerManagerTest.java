@@ -17,6 +17,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
@@ -30,7 +31,6 @@ import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.RenderFrameHostTestExt;
 import org.chromium.content_public.browser.test.util.TestCallbackHelperContainer;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.content_shell_apk.ContentShellActivityTestRule;
 
@@ -119,7 +119,7 @@ public class GestureListenerManagerTest {
         // which may not have been created yet). Wait for a visual update, which should ensure the
         // renderer is ready.
         CallbackHelper callbackHelper = new CallbackHelper();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     new RenderFrameHostTestExt(webContents.getMainFrame())
                             .updateVisualState(
@@ -128,10 +128,10 @@ public class GestureListenerManagerTest {
                                         callbackHelper.notifyCalled();
                                     });
                 });
-        callbackHelper.waitForFirst();
+        callbackHelper.waitForOnly();
 
         final GestureStateListenerImpl listener = new GestureStateListenerImpl();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     GestureListenerManagerImpl manager =
                             (GestureListenerManagerImpl)
@@ -145,8 +145,8 @@ public class GestureListenerManagerTest {
                     Assert.assertEquals(
                             ALL_UPDATES, manager.getRootScrollOffsetUpdateFrequencyForTesting());
                     View webContentsView = webContents.getViewAndroidDelegate().getContainerView();
-                    mCurrentX = webContentsView.getWidth() / 2;
-                    mCurrentY = webContentsView.getHeight() / 2;
+                    mCurrentX = webContentsView.getWidth() / 2f;
+                    mCurrentY = webContentsView.getHeight() / 2f;
                     Assert.assertTrue(mCurrentY > 0);
                 });
 
@@ -161,7 +161,7 @@ public class GestureListenerManagerTest {
                 250);
         listener.mCallbackHelper.waitForCallback(0);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     GestureListenerManagerImpl manager =
                             (GestureListenerManagerImpl)

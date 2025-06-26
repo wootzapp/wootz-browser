@@ -11,11 +11,11 @@
 #include "third_party/blink/public/platform/scheduler/test/renderer_scheduler_test_support.h"
 #include "third_party/blink/renderer/core/frame/visual_viewport.h"
 #include "third_party/blink/renderer/core/scroll/scroll_alignment.h"
+#include "third_party/blink/renderer/core/scroll/scroll_into_view_util.h"
 #include "third_party/blink/renderer/core/scroll/scroll_types.h"
 #include "third_party/blink/renderer/core/scroll/scrollable_area.h"
 #include "third_party/blink/renderer/core/scroll/scrollbar_theme_overlay_mock.h"
 #include "third_party/blink/renderer/core/testing/core_unit_test_helper.h"
-#include "third_party/blink/renderer/platform/geometry/layout_rect.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread.h"
 #include "third_party/blink/renderer/platform/scheduler/public/thread_scheduler.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
@@ -59,7 +59,7 @@ class ScrollableAreaStub : public GarbageCollected<ScrollableAreaStub>,
   }
 
   gfx::Vector2d ScrollOffsetInt() const override {
-    return gfx::ToFlooredVector2d(scroll_offset_);
+    return SnapScrollOffsetToPhysicalPixels(scroll_offset_);
   }
   ScrollOffset GetScrollOffset() const override { return scroll_offset_; }
   gfx::Vector2d MinimumScrollOffsetInt() const override {
@@ -112,7 +112,7 @@ class ScrollableAreaStub : public GarbageCollected<ScrollableAreaStub>,
   bool ScrollbarsCanBeActive() const override { return true; }
   bool ShouldPlaceVerticalScrollbarOnLeft() const override { return true; }
   void ScrollControlWasSetNeedsPaintInvalidation() override {}
-  bool UsesCompositedScrolling() const override { NOTREACHED_NORETURN(); }
+  bool UsesCompositedScrolling() const override { NOTREACHED(); }
   bool UserInputScrollable(ScrollbarOrientation orientation) const override {
     return orientation == kHorizontalScrollbar ? user_input_scrollable_x_
                                                : user_input_scrollable_y_;
@@ -157,6 +157,8 @@ class RootLayoutViewportStub : public ScrollableAreaStub {
     return ret;
   }
 
+  PhysicalOffset LocalToScrollOriginOffset() const override { return {}; }
+
  private:
   int VisibleWidth() const override { return viewport_size_.width(); }
   int VisibleHeight() const override { return viewport_size_.height(); }
@@ -173,6 +175,8 @@ class VisualViewportStub : public ScrollableAreaStub {
         ContentsSize() - gfx::ScaleToFlooredSize(ViewportSize(), 1 / scale_);
     return ScrollOffset(diff.width(), diff.height());
   }
+
+  PhysicalOffset LocalToScrollOriginOffset() const override { return {}; }
 
   void SetScale(float scale) { scale_ = scale; }
 
@@ -346,7 +350,7 @@ TEST_F(RootFrameViewportTest, ScrollIntoView) {
   root_frame_viewport->ScrollIntoView(
       layout_viewport->DocumentToFrame(PhysicalRect(100, 250, 50, 50)),
       PhysicalBoxStrut(),
-      ScrollAlignment::CreateScrollIntoViewParams(
+      scroll_into_view_util::CreateScrollIntoViewParams(
           ScrollAlignment::ToEdgeIfNeeded(), ScrollAlignment::ToEdgeIfNeeded(),
           mojom::blink::ScrollType::kProgrammatic, true,
           mojom::blink::ScrollBehavior::kInstant));
@@ -356,7 +360,7 @@ TEST_F(RootFrameViewportTest, ScrollIntoView) {
   root_frame_viewport->ScrollIntoView(
       layout_viewport->DocumentToFrame(PhysicalRect(25, 75, 50, 50)),
       PhysicalBoxStrut(),
-      ScrollAlignment::CreateScrollIntoViewParams(
+      scroll_into_view_util::CreateScrollIntoViewParams(
           ScrollAlignment::ToEdgeIfNeeded(), ScrollAlignment::ToEdgeIfNeeded(),
           mojom::blink::ScrollType::kProgrammatic, true,
           mojom::blink::ScrollBehavior::kInstant));
@@ -373,7 +377,7 @@ TEST_F(RootFrameViewportTest, ScrollIntoView) {
   root_frame_viewport->ScrollIntoView(
       layout_viewport->DocumentToFrame(PhysicalRect(50, 75, 50, 75)),
       PhysicalBoxStrut(),
-      ScrollAlignment::CreateScrollIntoViewParams(
+      scroll_into_view_util::CreateScrollIntoViewParams(
           ScrollAlignment::ToEdgeIfNeeded(), ScrollAlignment::ToEdgeIfNeeded(),
           mojom::blink::ScrollType::kProgrammatic, true,
           mojom::blink::ScrollBehavior::kInstant));
@@ -383,7 +387,7 @@ TEST_F(RootFrameViewportTest, ScrollIntoView) {
   root_frame_viewport->ScrollIntoView(
       layout_viewport->DocumentToFrame(PhysicalRect(190, 290, 10, 10)),
       PhysicalBoxStrut(),
-      ScrollAlignment::CreateScrollIntoViewParams(
+      scroll_into_view_util::CreateScrollIntoViewParams(
           ScrollAlignment::ToEdgeIfNeeded(), ScrollAlignment::ToEdgeIfNeeded(),
           mojom::blink::ScrollType::kProgrammatic, true,
           mojom::blink::ScrollBehavior::kInstant));
@@ -406,7 +410,7 @@ TEST_F(RootFrameViewportTest, ScrollIntoView) {
       layout_viewport->DocumentToFrame(PhysicalRect(
           root_frame_viewport->VisibleContentRect(kExcludeScrollbars))),
       PhysicalBoxStrut(),
-      ScrollAlignment::CreateScrollIntoViewParams(
+      scroll_into_view_util::CreateScrollIntoViewParams(
           ScrollAlignment::ToEdgeIfNeeded(), ScrollAlignment::ToEdgeIfNeeded(),
           mojom::blink::ScrollType::kProgrammatic, true,
           mojom::blink::ScrollBehavior::kInstant));
@@ -417,7 +421,7 @@ TEST_F(RootFrameViewportTest, ScrollIntoView) {
       layout_viewport->DocumentToFrame(PhysicalRect(
           root_frame_viewport->VisibleContentRect(kExcludeScrollbars))),
       PhysicalBoxStrut(),
-      ScrollAlignment::CreateScrollIntoViewParams(
+      scroll_into_view_util::CreateScrollIntoViewParams(
           ScrollAlignment::CenterAlways(), ScrollAlignment::CenterAlways(),
           mojom::blink::ScrollType::kProgrammatic, true,
           mojom::blink::ScrollBehavior::kInstant));
@@ -428,7 +432,7 @@ TEST_F(RootFrameViewportTest, ScrollIntoView) {
       layout_viewport->DocumentToFrame(PhysicalRect(
           root_frame_viewport->VisibleContentRect(kExcludeScrollbars))),
       PhysicalBoxStrut(),
-      ScrollAlignment::CreateScrollIntoViewParams(
+      scroll_into_view_util::CreateScrollIntoViewParams(
           ScrollAlignment::TopAlways(), ScrollAlignment::TopAlways(),
           mojom::blink::ScrollType::kProgrammatic, true,
           mojom::blink::ScrollBehavior::kInstant));
@@ -639,7 +643,8 @@ TEST_F(RootFrameViewportRenderTest,
   view_state.page_scale_factor_ = 1.5;
   RootFrameViewport* root_frame_viewport = static_cast<RootFrameViewport*>(
       GetDocument().View()->GetScrollableArea());
-  root_frame_viewport->SetPendingHistoryRestoreScrollOffset(view_state, false);
+  root_frame_viewport->SetPendingHistoryRestoreScrollOffset(
+      view_state, false, mojom::blink::ScrollBehavior::kAuto);
   root_frame_viewport->ApplyPendingHistoryRestoreScrollOffset();
 
   // Override the 1.5 scale with 1.0.

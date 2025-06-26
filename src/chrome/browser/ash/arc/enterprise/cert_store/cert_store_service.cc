@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/arc/enterprise/cert_store/cert_store_service.h"
 
 #include <algorithm>
@@ -11,8 +16,6 @@
 #include <utility>
 #include <vector>
 
-#include "ash/components/arc/arc_browser_context_keyed_service_factory_base.h"
-#include "ash/components/arc/arc_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/logging.h"
@@ -21,8 +24,6 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "chrome/browser/ash/arc/enterprise/cert_store/arc_cert_installer_utils.h"
-#include "chrome/browser/ash/arc/keymaster/arc_keymaster_bridge.h"
-#include "chrome/browser/ash/arc/keymint/arc_keymint_bridge.h"
 #include "chrome/browser/ash/arc/policy/arc_policy_bridge.h"
 #include "chrome/browser/ash/platform_keys/key_permissions/key_permissions_service_factory.h"
 #include "chrome/browser/ash/platform_keys/key_permissions/key_permissions_service_impl.h"
@@ -35,7 +36,11 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_keyed_service_factory.h"
 #include "chrome/common/net/x509_certificate_model_nss.h"
-#include "chrome/services/keymaster/public/mojom/cert_store.mojom.h"
+#include "chromeos/ash/experiences/arc/arc_browser_context_keyed_service_factory_base.h"
+#include "chromeos/ash/experiences/arc/arc_util.h"
+#include "chromeos/ash/experiences/arc/keymaster/arc_keymaster_bridge.h"
+#include "chromeos/ash/experiences/arc/keymint/arc_keymint_bridge.h"
+#include "chromeos/ash/services/keymaster/public/mojom/cert_store.mojom.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/core/common/policy_namespace.h"
 #include "content/public/browser/browser_context.h"
@@ -51,44 +56,6 @@
 namespace arc {
 
 namespace {
-
-// Singleton factory for CertStoreService.
-class CertStoreServiceFactory : public ProfileKeyedServiceFactory {
- public:
-  static CertStoreService* GetForBrowserContext(
-      content::BrowserContext* context) {
-    return static_cast<CertStoreService*>(
-        GetInstance()->GetServiceForBrowserContext(context, true));
-  }
-
-  static CertStoreServiceFactory* GetInstance() {
-    return base::Singleton<CertStoreServiceFactory>::get();
-  }
-
-  CertStoreServiceFactory(const CertStoreServiceFactory&) = delete;
-  CertStoreServiceFactory& operator=(const CertStoreServiceFactory&) = delete;
-
- private:
-  friend base::DefaultSingletonTraits<CertStoreServiceFactory>;
-  CertStoreServiceFactory()
-      : ProfileKeyedServiceFactory(
-            "CertStoreService",
-            ProfileSelections::Builder()
-                .WithRegular(ProfileSelection::kOwnInstance)
-                // TODO(crbug.com/40257657): Check if this service is needed in
-                // Guest mode.
-                .WithGuest(ProfileSelection::kOwnInstance)
-                .Build()) {
-    DependsOn(NssServiceFactory::GetInstance());
-  }
-
-  bool ServiceIsNULLWhileTesting() const override { return true; }
-
-  KeyedService* BuildServiceInstanceFor(
-      content::BrowserContext* context) const override {
-    return new CertStoreService(context);
-  }
-};
 
 // The following series of functions related to ListCerts make use of the
 // NSSCertDatabase to fulfill its goal of listing certificates. The cert
@@ -378,17 +345,6 @@ std::vector<keymint::mojom::ChromeOsKeyPtr> PrepareChromeOsKeysForKeyMint(
 
 }  // namespace
 
-// static
-CertStoreService* CertStoreService::GetForBrowserContext(
-    content::BrowserContext* context) {
-  return CertStoreServiceFactory::GetForBrowserContext(context);
-}
-
-// static
-BrowserContextKeyedServiceFactory* CertStoreService::GetFactory() {
-  return CertStoreServiceFactory::GetInstance();
-}
-
 CertStoreService::CertStoreService(content::BrowserContext* context)
     : CertStoreService(context, std::make_unique<ArcCertInstaller>(context)) {}
 
@@ -626,11 +582,6 @@ void CertStoreService::OnArcCertsInstalled(bool need_policy_update,
                                      policy::PolicyMap(), policy::PolicyMap());
     }
   }
-}
-
-// static
-void CertStoreService::EnsureFactoryBuilt() {
-  CertStoreServiceFactory::GetInstance();
 }
 
 }  // namespace arc

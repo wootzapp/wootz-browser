@@ -47,6 +47,7 @@ TAG_SPECIALIZATIONS = {
             'monterey',
             'ventura',
             'sonoma',
+            'sequoia',
         ],
         'win': [
             'win8',
@@ -66,8 +67,7 @@ TAG_SPECIALIZATIONS = {
         # These two are both Fuchsia-related.
         'fuchsia-chrome': [],
         'web-engine-shell': [],
-        # These two are both ChromeOS-related.
-        'lacros-chrome': [],
+        # ChromeOS.
         'cros-chrome': [],
     },
     'GPU_TAGS': {
@@ -77,7 +77,9 @@ TAG_SPECIALIZATIONS = {
             'amd-0x67ef',
             'amd-0x6821',
             'amd-0x7340',
+            'amd-0x7480',
         ],
+        'amd64': [],
         'apple': [
             'apple-apple-m1',
             'apple-apple-m2',
@@ -89,6 +91,7 @@ TAG_SPECIALIZATIONS = {
             'google-0xffff',
             'google-0xc0de',
         ],
+        'imagination': [],
         'intel': [
             # Individual GPUs should technically fit under intel-gen-X, but we
             # only support one level of nesting, so treat the generation tags as
@@ -104,13 +107,22 @@ TAG_SPECIALIZATIONS = {
             'intel-0x5912',
             'intel-0x9bc5',
         ],
+        'microsoft': [
+            'microsoft-0xffff',
+        ],
         'nvidia': [
             'nvidia-0xfe9',
             'nvidia-0x1cb3',
             'nvidia-0x2184',
+            'nvidia-0x2783',
         ],
         'qualcomm': [
+            # 043a = 0x41333430 = older Adreno GPU
+            # 0636 = 0x36333630 = Adreno 690 GPU (such as Surface Pro 9 5G)
+            # 0c36 = 0x36334330 = Adreno 741 GPU
             'qualcomm-0x41333430',
+            'qualcomm-0x36333630',
+            'qualcomm-0x36334330',
         ],
     },
 }
@@ -172,8 +184,8 @@ TAG_HEADER = """\
 {OS_TAGS}
 # Devices
 # tags: [ android-nexus-5x android-pixel-2 android-pixel-4
-#             android-pixel-6 android-shield-android-tv android-sm-a135m
-#             android-sm-a235m android-sm-s911u1
+#             android-pixel-6 android-shield-android-tv android-sm-a137f
+#             android-sm-a236b android-sm-s911u1
 #         chromeos-board-amd64-generic chromeos-board-eve chromeos-board-jacuzzi
 #             chromeos-board-octopus chromeos-board-volteer
 #         fuchsia-board-astro fuchsia-board-nelson fuchsia-board-sherlock
@@ -206,19 +218,16 @@ TAG_HEADER = """\
 # tags: [ mesa_lt_19.1
 #         mesa_ge_21.0
 #         mesa_ge_23.2
-#         nvidia_ge_31.0.15.4601 nvidia_lt_31.0.15.4601 ]
+#         nvidia_ge_31.0.15.4601 nvidia_lt_31.0.15.4601
+#         nvidia_ge_535.183.01 nvidia_lt_535.183.01 ]
 # ASan
 # tags: [ asan no-asan ]
 # Display Server
 # tags: [ display-server-wayland display-server-x ]
-# OOP-Canvas
-# tags: [ oop-c no-oop-c ]
 # WebGPU Backend Validation
 # tags: [ dawn-backend-validation dawn-no-backend-validation ]
 # WebGPU Adapter
 # tags: [ webgpu-adapter-default webgpu-adapter-swiftshader ]
-# WebGPU Compat Mode
-# tags: [ webgpu-compat webgpu-not-compat ]
 # WebGPU DXC
 # tags: [ webgpu-dxc-enabled webgpu-dxc-disabled ]
 # WebGPU worker usage
@@ -226,6 +235,8 @@ TAG_HEADER = """\
 #         webgpu-service-worker
 #         webgpu-dedicated-worker
 #         webgpu-shared-worker ]
+# WebGPU Compat context
+# tags: [ compat-default compat-min-es31 ]
 # Clang coverage
 # tags: [ clang-coverage no-clang-coverage ]
 # Skia Graphite

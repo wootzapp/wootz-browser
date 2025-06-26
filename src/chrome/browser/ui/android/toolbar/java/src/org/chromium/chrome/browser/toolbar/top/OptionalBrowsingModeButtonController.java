@@ -8,9 +8,9 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.toolbar.ButtonData;
-import org.chromium.chrome.browser.toolbar.ButtonDataProvider;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonData;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonDataProvider;
 import org.chromium.chrome.browser.user_education.UserEducationHelper;
 
 import java.util.HashMap;
@@ -133,10 +133,10 @@ public class OptionalBrowsingModeButtonController {
         mToolbarLayout.updateOptionalButton(buttonData);
         // ToolbarPhone's optional button has animated transitions and it takes care of showing IPH
         // on its own.
-        if (buttonData.getButtonSpec().getIPHCommandBuilder() != null
+        if (buttonData.getButtonSpec().getIphCommandBuilder() != null
                 && !(mToolbarLayout instanceof ToolbarPhone)) {
-            mUserEducationHelper.requestShowIPH(
-                    buttonData.getButtonSpec().getIPHCommandBuilder().build());
+            mUserEducationHelper.requestShowIph(
+                    buttonData.getButtonSpec().getIphCommandBuilder().build());
         }
     }
 

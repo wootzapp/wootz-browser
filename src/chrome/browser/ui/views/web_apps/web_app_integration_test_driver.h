@@ -19,7 +19,6 @@
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/browser_dialogs.h"
-#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/location_bar/intent_chip_button.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
@@ -240,6 +239,8 @@ class WebAppIntegrationTestDriver : WebAppInstallManagerObserver {
     virtual bool IsSyncTest() = 0;
     virtual void SyncTurnOff() = 0;
     virtual void SyncTurnOn() = 0;
+    virtual void SyncSignOut(Profile*) = 0;
+    virtual void SyncSignIn(Profile*) = 0;
     virtual void AwaitWebAppQuiescence() = 0;
     virtual Profile* GetProfileClient(ProfileClient client) = 0;
   };
@@ -273,8 +274,10 @@ class WebAppIntegrationTestDriver : WebAppInstallManagerObserver {
   void EnableFileHandling(Site site);
   void DisableWindowControlsOverlay(Site site);
   void EnableWindowControlsOverlay(Site site);
+#if BUILDFLAG(IS_CHROMEOS)
   void CreateShortcut(Site site, WindowOptions window_options);
-  void InstallMenuOption(InstallableSite site);
+#endif  // BUILDFLAG(IS_CHROMEOS)
+  void InstallMenuOption(Site site);
   void InstallLocally(Site site);
   void InstallOmniboxIcon(InstallableSite site);
   void InstallPolicyApp(Site site,
@@ -303,9 +306,14 @@ class WebAppIntegrationTestDriver : WebAppInstallManagerObserver {
   void LaunchFromChromeApps(Site site);
   void LaunchFromLaunchIcon(Site site);
   void LaunchFromMenuOption(Site site);
-  void LaunchFromPlatformShortcut(Site site);
 #if BUILDFLAG(IS_MAC)
   void LaunchFromAppShimFallback(Site site);
+  // If `allow_shim_failure` is set to true, this won't assert that the initial
+  // app shim launch was successful. The step will still verify that the launch
+  // was eventually successful.
+  void LaunchFromPlatformShortcut(Site site, bool allow_shim_failure = false);
+#else
+  void LaunchFromPlatformShortcut(Site site);
 #endif
   void OpenAppSettingsFromChromeApps(Site site);
   void OpenAppSettingsFromAppMenu(Site site);
@@ -332,6 +340,8 @@ class WebAppIntegrationTestDriver : WebAppInstallManagerObserver {
   void SwitchActiveProfile(ProfileName profile_name);
   void SyncTurnOff();
   void SyncTurnOn();
+  void SyncSignOut();
+  void SyncSignIn();
   void UninstallFromList(Site site);
   void UninstallFromMenu(Site site);
   void UninstallFromAppSettings(Site site);
@@ -397,6 +407,7 @@ class WebAppIntegrationTestDriver : WebAppInstallManagerObserver {
   void CheckHasSubApp(Site parent_app, Site sub_app);
   void CheckNoSubApps(Site parent_app);
   void CheckAppLoadedInTab(Site site);
+  void CheckSiteLoadedInTab(Site site);
 
  protected:
   // WebAppInstallManagerObserver:
@@ -477,7 +488,7 @@ class WebAppIntegrationTestDriver : WebAppInstallManagerObserver {
 
   void CheckPwaWindowCreatedImpl(Profile* profile, Site site, Number number);
 
-  base::FilePath GetResourceFile(base::FilePath::StringPieceType relative_path);
+  base::FilePath GetResourceFile(base::FilePath::StringViewType relative_path);
 
   std::vector<base::FilePath> GetTestFilePaths(FilesOptions file_options);
 
@@ -581,6 +592,8 @@ class WebAppIntegrationTest : public InProcessBrowserTest,
   bool IsSyncTest() override;
   void SyncTurnOff() override;
   void SyncTurnOn() override;
+  void SyncSignOut(Profile*) override;
+  void SyncSignIn(Profile*) override;
   void AwaitWebAppQuiescence() override;
   Profile* GetProfileClient(ProfileClient client) override;
 

@@ -7,6 +7,8 @@ import("//printing/buildflags/buildflags.gni")
 
 import("//ui/webui/resources/tools/build_webui.gni")
 
+assert(!is_chromeos,
+       "ChromeOS should use chrome/browser/resources/ash/print_preview")
 assert(enable_print_preview, "enable_print_preview check failed")
 
 build_webui("build") {
@@ -23,17 +25,20 @@ build_webui("build") {
     "ui/button_strip.ts",
     "ui/color_settings.ts",
     "ui/copies_settings.ts",
+    "ui/destination_dialog.ts",
     "ui/destination_list.ts",
+    "ui/destination_list_item.ts",
+    "ui/destination_select.ts",
     "ui/destination_settings.ts",
     "ui/dpi_settings.ts",
     "ui/duplex_settings.ts",
     "ui/header.ts",
     "ui/layout_settings.ts",
+    "ui/link_container.ts",
     "ui/margin_control.ts",
     "ui/margin_control_container.ts",
     "ui/margins_settings.ts",
     "ui/media_size_settings.ts",
-    "ui/media_type_settings.ts",
     "ui/more_settings.ts",
     "ui/number_settings_section.ts",
     "ui/other_options_settings.ts",
@@ -47,32 +52,8 @@ build_webui("build") {
     "ui/sidebar.ts",
   ]
 
-  if (is_chromeos) {
-    web_component_files += [
-      "ui/destination_dropdown_cros.ts",
-      "ui/destination_list_item_cros.ts",
-      "ui/destination_select_cros.ts",
-      "ui/pin_settings.ts",
-      "ui/printer_setup_info_cros.ts",
-      "ui/provisional_destination_resolver.ts",
-      "ui/destination_dialog_cros.ts",
-      "ui/searchable_drop_down_cros.ts",
-    ]
-  } else {
-    web_component_files += [
-      "ui/destination_select.ts",
-      "ui/link_container.ts",
-      "ui/destination_dialog.ts",
-      "ui/destination_list_item.ts",
-    ]
-  }
-
-  non_web_component_files = [
+  ts_files = [
     "dark_mode_mixin.ts",
-    "metrics.ts",
-    "native_layer.ts",
-    "print_preview.ts",
-    "print_preview_utils.ts",
     "data/cdd.ts",
     "data/coordinate2d.ts",
     "data/destination.ts",
@@ -83,36 +64,51 @@ build_webui("build") {
     "data/margins.ts",
     "data/measurement_system.ts",
     "data/model.ts",
+    "data/observable.ts",
     "data/printable_area.ts",
     "data/scaling.ts",
     "data/size.ts",
     "data/state.ts",
+    "metrics.ts",
+    "native_layer.ts",
+    "print_preview.ts",
+    "print_preview_utils.ts",
+    "ui/debouncer.ts",
     "ui/highlight_utils.ts",
     "ui/input_mixin.ts",
+    "ui/input_mixin_lit.ts",
     "ui/plugin_proxy.ts",
     "ui/select_mixin.ts",
+    "ui/select_mixin_lit.ts",
     "ui/settings_mixin.ts",
+    "ui/settings_mixin_lit.ts",
   ]
-
-  if (is_chromeos) {
-    non_web_component_files += [
-      "data/print_server_store.ts",
-      "data/printer_status_cros.ts",
-      "native_layer_cros.ts",
-    ]
-  }
 
   # Files that are passed as input to css_to_wrapper().
   css_files = [
+    "ui/advanced_options_settings.css",
+    "ui/button_strip.css",
+    "ui/copies_settings.css",
     "ui/destination_dialog_style.css",
     "ui/destination_list_item_style.css",
     "ui/destination_select_style.css",
+    "ui/dpi_settings.css",
+    "ui/duplex_settings.css",
+    "ui/header.css",
+    "ui/link_container.css",
+    "ui/media_size_settings.css",
+    "ui/more_settings.css",
+    "ui/pages_settings.css",
     "ui/print_preview_shared.css",
+    "ui/print_preview_shared_lit.css",
     "ui/print_preview_vars.css",
+    "ui/settings_select.css",
     "ui/throbber.css",
+    "ui/throbber_lit.css",
   ]
 
   icons_html_files = [ "ui/icons.html" ]
+  html_to_wrapper_template = "detect"
 
   ts_composite = true
   ts_definitions = [
@@ -124,6 +120,7 @@ build_webui("build") {
 
   ts_deps = [
     "//chrome/browser/resources/pdf:build_ts",
+    "//third_party/lit/v3_0:build_ts",
     "//third_party/polymer/v3_0:library",
     "//ui/webui/resources/cr_elements:build_ts",
     "//ui/webui/resources/js:build_ts",

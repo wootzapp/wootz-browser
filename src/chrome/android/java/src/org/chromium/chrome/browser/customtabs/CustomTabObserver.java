@@ -13,14 +13,12 @@ import android.text.format.DateUtils;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
-import androidx.browser.customtabs.CustomTabsSessionToken;
 
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.browser.base.ColdStartTracker;
-import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
+import org.chromium.chrome.browser.browserservices.intents.SessionHolder;
 import org.chromium.chrome.browser.customtabs.ClientManager.CalledWarmup;
 import org.chromium.chrome.browser.customtabs.features.TabInteractionRecorder;
-import org.chromium.chrome.browser.dependency_injection.ActivityScope;
 import org.chromium.chrome.browser.intents.BrowserIntentUtils;
 import org.chromium.chrome.browser.metrics.SimpleStartupForegroundSessionDetector;
 import org.chromium.chrome.browser.page_load_metrics.PageLoadMetrics;
@@ -37,13 +35,10 @@ import org.chromium.url.GURL;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
-import javax.inject.Inject;
-
 /** A {@link TabObserver} that also handles custom tabs specific logging and messaging. */
-@ActivityScope
 public class CustomTabObserver extends EmptyTabObserver {
     private final CustomTabsConnection mCustomTabsConnection;
-    private final CustomTabsSessionToken mSession;
+    private final SessionHolder<?> mSession;
     private final boolean mOpenedByChrome;
     private final NavigationInfoCaptureTrigger mNavigationInfoCaptureTrigger =
             new NavigationInfoCaptureTrigger(this::captureNavigationInfo);
@@ -68,6 +63,9 @@ public class CustomTabObserver extends EmptyTabObserver {
     // The time of the first navigation commit in the most recent Custom Tab launch.
     private long mFirstCommitRealtimeMillis;
 
+    // Lets Long press on links select the link text instead of triggering context menu.
+    private boolean mLongPressLinkSelectText;
+
     @IntDef({State.RESET, State.WAITING_LOAD_START, State.WAITING_LOAD_FINISH})
     @Retention(RetentionPolicy.SOURCE)
     @interface State {
@@ -83,6 +81,15 @@ public class CustomTabObserver extends EmptyTabObserver {
 
     private class LargestContentfulPaintObserver implements PageLoadMetrics.Observer {
         @Override
+        public void onFirstContentfulPaint(
+                WebContents webContents,
+                long navigationId,
+                long navigationStartMicros,
+                long firstContentfulPaintMs) {
+            recordFirstContentfulPaint(navigationStartMicros / 1000 + firstContentfulPaintMs);
+        }
+
+        @Override
         public void onLargestContentfulPaint(
                 WebContents webContents,
                 long navigationId,
@@ -95,13 +102,10 @@ public class CustomTabObserver extends EmptyTabObserver {
         }
     }
 
-    @Inject
-    public CustomTabObserver(
-            BrowserServicesIntentDataProvider intentDataProvider,
-            CustomTabsConnection connection) {
-        mOpenedByChrome = intentDataProvider.isOpenedByChrome();
-        mCustomTabsConnection = mOpenedByChrome ? null : connection;
-        mSession = intentDataProvider.getSession();
+    public CustomTabObserver(boolean openedByChrome, SessionHolder<?> token) {
+        mOpenedByChrome = openedByChrome;
+        mCustomTabsConnection = mOpenedByChrome ? null : CustomTabsConnection.getInstance();
+        mSession = token;
         resetPageLoadTracking();
     }
 
@@ -112,9 +116,9 @@ public class CustomTabObserver extends EmptyTabObserver {
     }
 
     /**
-     * Tracks the next page load, with timestamp as the origin of time.
-     * If a load is already happening, we track its PLT.
-     * If not, we track NavigationCommit timing + PLT for the next load.
+     * Tracks the next page load, with timestamp as the origin of time. If a load is already
+     * happening, we track its PLT. If not, we track NavigationCommit timing + PLT for the next
+     * load.
      */
     public void trackNextPageLoadForLaunch(Tab tab, Intent sourceIntent) {
         mIntentReceivedRealtimeMillis = BrowserIntentUtils.getStartupRealtimeMillis(sourceIntent);
@@ -130,6 +134,9 @@ public class CustomTabObserver extends EmptyTabObserver {
 
     public void trackNextPageLoadForHiddenTab(
             boolean usedSpeculation, boolean hasCommitted, Intent sourceIntent) {
+        // If page load is already being tracked, it must have been an early nav - nothing to do
+        // here.
+        if (mIntentReceivedRealtimeMillis != 0) return;
         mUsedHiddenTabSpeculation = usedSpeculation;
         mLaunchedForSpeculationRealtimeMillis =
                 BrowserIntentUtils.getStartupRealtimeMillis(sourceIntent);
@@ -137,8 +144,31 @@ public class CustomTabObserver extends EmptyTabObserver {
                 BrowserIntentUtils.getStartupUptimeMillis(sourceIntent);
         trackNextLCP();
         if (usedSpeculation && hasCommitted) {
-            recordFirstCommitNavigation(mLaunchedForSpeculationRealtimeMillis);
+            recordFirstCommitNavigation();
         }
+    }
+
+    /**
+     * Enable/disable the behavior of long press on links selecting text instead of triggering
+     * context menu.
+     *
+     * @param tab Tab to apply the behavior to for its WebContents.
+     * @param enabled Behavior enabled or not.
+     */
+    public void setLongPressLinkSelectText(Tab tab, boolean enabled) {
+        mLongPressLinkSelectText = enabled;
+        setLongPressLinkSelectTextInternal(tab);
+    }
+
+    private void setLongPressLinkSelectTextInternal(Tab tab) {
+        WebContents webContents = tab.getWebContents();
+        if (webContents == null) return;
+        webContents.setLongPressLinkSelectText(mLongPressLinkSelectText);
+    }
+
+    @Override
+    public void onContentChanged(Tab tab) {
+        setLongPressLinkSelectTextInternal(tab);
     }
 
     @Override
@@ -256,31 +286,31 @@ public class CustomTabObserver extends EmptyTabObserver {
 
         mFirstCommitRealtimeMillis = SystemClock.elapsedRealtime();
 
-        recordFirstCommitNavigation(mFirstCommitRealtimeMillis);
+        recordFirstCommitNavigation();
     }
 
-    private void recordFirstCommitNavigation(long firstCommitRealtimeMillis) {
+    private void recordFirstCommitNavigation() {
         if (mCustomTabsConnection == null) return;
         String histogram = null;
         long duration = 0;
         // Note that this will exclude Webapp launches in all cases due to either
         // mUsedHiddenTabSpeculation being null, or mIntentReceivedTimestamp being 0.
         if (mUsedHiddenTabSpeculation != null && mUsedHiddenTabSpeculation) {
-            duration = firstCommitRealtimeMillis - mLaunchedForSpeculationRealtimeMillis;
+            duration = mFirstCommitRealtimeMillis - mLaunchedForSpeculationRealtimeMillis;
             histogram = "CustomTabs.Startup.TimeToFirstCommitNavigation2.Speculated";
         } else if (mIntentReceivedRealtimeMillis > 0) {
             // When the process is already warm the earliest measurable point in startup is when the
             // intent is received so we measure from there. In the cold start case we measure from
             // when the process was started as the best comparison against the warm case.
             if (wasWarmedUp()) {
-                duration = firstCommitRealtimeMillis - mIntentReceivedRealtimeMillis;
+                duration = mFirstCommitRealtimeMillis - mIntentReceivedRealtimeMillis;
                 histogram = "CustomTabs.Startup.TimeToFirstCommitNavigation2.WarmedUp";
             } else if (ColdStartTracker.wasColdOnFirstActivityCreationOrNow()
                     && SimpleStartupForegroundSessionDetector.runningCleanForegroundSession()) {
-                duration = firstCommitRealtimeMillis - Process.getStartElapsedRealtime();
+                duration = mFirstCommitRealtimeMillis - Process.getStartElapsedRealtime();
                 histogram = "CustomTabs.Startup.TimeToFirstCommitNavigation2.Cold";
             } else {
-                duration = firstCommitRealtimeMillis - mIntentReceivedRealtimeMillis;
+                duration = mFirstCommitRealtimeMillis - mIntentReceivedRealtimeMillis;
                 histogram = "CustomTabs.Startup.TimeToFirstCommitNavigation2.Warm";
             }
         }
@@ -290,29 +320,37 @@ public class CustomTabObserver extends EmptyTabObserver {
         }
     }
 
-    public void recordLargestContentfulPaint(long lcpUptimeMillis) {
+    private void recordFirstContentfulPaint(long fcpUptimeMillis) {
+        recordPaint(fcpUptimeMillis, "TimeToFirstContentfulPaint");
+    }
+
+    private void recordLargestContentfulPaint(long lcpUptimeMillis) {
+        recordPaint(lcpUptimeMillis, "TimeToLargestContentfulPaint2");
+    }
+
+    private void recordPaint(long paintUptimeMillis, String paintMetricName) {
         if (mCustomTabsConnection == null) return;
         String histogram = null;
         long duration = 0;
         // Note that this will exclude Webapp launches in all cases due to either
         // mUsedHiddenTabSpeculation being null, or mIntentReceivedTimestamp being 0.
         if (mUsedHiddenTabSpeculation != null && mUsedHiddenTabSpeculation) {
-            duration = lcpUptimeMillis - mLaunchedForSpeculationUptimeMillis;
-            histogram = "CustomTabs.Startup.TimeToLargestContentfulPaint2.Speculated";
+            duration = paintUptimeMillis - mLaunchedForSpeculationUptimeMillis;
+            histogram = "CustomTabs.Startup." + paintMetricName + ".Speculated";
         } else if (mIntentReceivedRealtimeMillis > 0) {
             // When the process is already warm the earliest measurable point in startup is when the
             // intent is received so we measure from there. In the cold start case we measure from
             // when the process was started as the best comparison against the warm case.
             if (wasWarmedUp()) {
-                duration = lcpUptimeMillis - mIntentReceivedUptimeMillis;
-                histogram = "CustomTabs.Startup.TimeToLargestContentfulPaint2.WarmedUp";
+                duration = paintUptimeMillis - mIntentReceivedUptimeMillis;
+                histogram = "CustomTabs.Startup." + paintMetricName + ".WarmedUp";
             } else if (ColdStartTracker.wasColdOnFirstActivityCreationOrNow()
                     && SimpleStartupForegroundSessionDetector.runningCleanForegroundSession()) {
-                duration = lcpUptimeMillis - Process.getStartUptimeMillis();
-                histogram = "CustomTabs.Startup.TimeToLargestContentfulPaint2.Cold";
+                duration = paintUptimeMillis - Process.getStartUptimeMillis();
+                histogram = "CustomTabs.Startup." + paintMetricName + ".Cold";
             } else {
-                duration = lcpUptimeMillis - mIntentReceivedUptimeMillis;
-                histogram = "CustomTabs.Startup.TimeToLargestContentfulPaint2.Warm";
+                duration = paintUptimeMillis - mIntentReceivedUptimeMillis;
+                histogram = "CustomTabs.Startup." + paintMetricName + ".Warm";
             }
         }
         if (histogram != null) {

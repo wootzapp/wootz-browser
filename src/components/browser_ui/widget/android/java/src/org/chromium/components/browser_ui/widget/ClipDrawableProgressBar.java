@@ -9,16 +9,19 @@ import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.drawable.ClipDrawable;
 import android.graphics.drawable.ColorDrawable;
+import android.util.AttributeSet;
 import android.view.Gravity;
-import android.view.ViewGroup.LayoutParams;
 import android.widget.ImageView;
 
 import androidx.annotation.VisibleForTesting;
 import androidx.core.view.ViewCompat;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 
 /** An alternative progress bar implemented using ClipDrawable for simplicity and performance. */
+@NullMarked
 public class ClipDrawableProgressBar extends ImageView {
     /** Structure that has complete {@link ClipDrawableProgressBar} drawing information. */
     public static class DrawingInfo {
@@ -52,15 +55,15 @@ public class ClipDrawableProgressBar extends ImageView {
     private int mDesiredVisibility;
 
     /** An observer of updates to the progress bar. */
-    private ProgressBarObserver mProgressBarObserver;
+    private @Nullable ProgressBarObserver mProgressBarObserver;
 
     /**
      * Create the progress bar with a custom height.
+     *
      * @param context An Android context.
-     * @param height The height in px of the progress bar.
      */
-    public ClipDrawableProgressBar(Context context, int height) {
-        super(context);
+    public ClipDrawableProgressBar(Context context, AttributeSet attrs) {
+        super(context, attrs);
 
         mDesiredVisibility = getVisibility();
 
@@ -71,8 +74,6 @@ public class ClipDrawableProgressBar extends ImageView {
         setImageDrawable(
                 new ClipDrawable(mForegroundDrawable, Gravity.START, ClipDrawable.HORIZONTAL));
         setBackgroundColor(mBackgroundColor);
-
-        setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, height));
     }
 
     /** @param observer An update observer for the progress bar. */
@@ -111,7 +112,15 @@ public class ClipDrawableProgressBar extends ImageView {
     }
 
     /**
+     * @return Background color of the progress bar.
+     */
+    public int getBackgroundColor() {
+        return mBackgroundColor;
+    }
+
+    /**
      * Get progress bar drawing information.
+     *
      * @param drawingInfoOut An instance that the result will be written.
      */
     public void getDrawingInfo(DrawingInfo drawingInfoOut) {

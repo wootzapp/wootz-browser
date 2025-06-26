@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/webui/support_tool/support_tool_ui.h"
 
+#include <algorithm>
 #include <optional>
 #include <set>
 #include <string>
@@ -15,11 +16,9 @@
 #include "base/functional/bind.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
 #include "chrome/browser/platform_util.h"
@@ -32,8 +31,8 @@
 #include "chrome/browser/support_tool/support_tool_handler.h"
 #include "chrome/browser/support_tool/support_tool_util.h"
 #include "chrome/browser/ui/chrome_select_file_policy.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/webui/support_tool/support_tool_ui_utils.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/branded_strings.h"
@@ -53,7 +52,14 @@
 #include "ui/gfx/native_widget_types.h"
 #include "ui/shell_dialogs/select_file_dialog.h"
 #include "ui/shell_dialogs/selected_file_info.h"
+#include "ui/webui/webui_util.h"
 #include "url/gurl.h"
+
+bool SupportToolUIConfig::IsWebUIEnabled(
+    content::BrowserContext* browser_context) {
+  Profile* profile = Profile::FromBrowserContext(browser_context);
+  return SupportToolUI::IsEnabled(profile);
+}
 
 namespace {
 
@@ -101,9 +107,8 @@ void CreateAndAddSupportToolHTMLSource(Profile* profile, const GURL& url) {
 
   source->AddLocalizedStrings(SupportToolUI::GetLocalizedStrings());
 
-  webui::SetupWebUIDataSource(
-      source, base::make_span(kSupportToolResources, kSupportToolResourcesSize),
-      IDR_SUPPORT_TOOL_SUPPORT_TOOL_CONTAINER_HTML);
+  webui::SetupWebUIDataSource(source, kSupportToolResources,
+                              IDR_SUPPORT_TOOL_SUPPORT_TOOL_CONTAINER_HTML);
 
   source->AddResourcePath(kUrlGeneratorPath,
                           IDR_SUPPORT_TOOL_URL_GENERATOR_CONTAINER_HTML);
@@ -156,11 +161,9 @@ class SupportToolMessageHandler : public content::WebUIMessageHandler,
   void HandleGenerateSupportToken(const base::Value::List& args);
 
   // SelectFileDialog::Listener implementation.
-  void FileSelected(const ui::SelectedFileInfo& file,
-                    int index,
-                    void* params) override;
+  void FileSelected(const ui::SelectedFileInfo& file, int index) override;
 
-  void FileSelectionCanceled(void* params) override;
+  void FileSelectionCanceled() override;
 
  private:
   base::Value::List GetAccountsList();
@@ -343,7 +346,7 @@ void SupportToolMessageHandler::HandleStartDataCollection(
       GetSupportToolHandler(*issue_details->FindString("caseId"),
                             *issue_details->FindString("emailAddress"),
                             *issue_details->FindString("issueDescription"),
-                            Profile::FromWebUI(web_ui()),
+                            std::nullopt, Profile::FromWebUI(web_ui()),
                             GetIncludedDataCollectorTypes(data_collectors));
   this->handler_->CollectSupportData(
       base::BindOnce(&SupportToolMessageHandler::OnDataCollectionDone,
@@ -408,12 +411,11 @@ void SupportToolMessageHandler::HandleStartDataExport(
       /*file_types=*/&file_types,
       /*file_type_index=*/0,
       /*default_extension=*/base::FilePath::StringType(), owning_window,
-      /*params=*/nullptr);
+      /*caller=*/nullptr);
 }
 
 void SupportToolMessageHandler::FileSelected(const ui::SelectedFileInfo& file,
-                                             int index,
-                                             void* params) {
+                                             int index) {
   base::UmaHistogramEnumeration(
       kSupportToolWebUIActionHistogram,
       SupportToolWebUIActionType::kCreateSupportPacket);
@@ -428,7 +430,7 @@ void SupportToolMessageHandler::FileSelected(const ui::SelectedFileInfo& file,
                      weak_ptr_factory_.GetWeakPtr()));
 }
 
-void SupportToolMessageHandler::FileSelectionCanceled(void* params) {
+void SupportToolMessageHandler::FileSelectionCanceled() {
   selected_pii_to_keep_.clear();
   select_file_dialog_.reset();
 }
@@ -446,8 +448,8 @@ void SupportToolMessageHandler::OnDataExportDone(
   data_path_ = path;
   base::Value::Dict data_export_result;
   const auto& export_error =
-      base::ranges::find(errors, SupportToolErrorCode::kDataExportError,
-                         &SupportToolError::error_code);
+      std::ranges::find(errors, SupportToolErrorCode::kDataExportError,
+                        &SupportToolError::error_code);
   if (export_error == errors.end()) {
     data_export_result.Set("success", true);
     data_export_result.Set("path", path.BaseName().AsUTF8Unsafe());
@@ -602,8 +604,6 @@ base::Value::Dict SupportToolUI::GetLocalizedStrings() {
       l10n_util::GetStringUTF16(IDS_SUPPORT_TOOL_DONT_INCLUDE_EMAIL));
   localized_strings.Set("selectAll",
                         l10n_util::GetStringUTF16(IDS_SUPPORT_TOOL_SELECT_ALL));
-  localized_strings.Set(
-      "selectNone", l10n_util::GetStringUTF16(IDS_SUPPORT_TOOL_SELECT_NONE));
   return localized_strings;
 }
 

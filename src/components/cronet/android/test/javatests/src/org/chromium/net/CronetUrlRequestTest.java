@@ -27,11 +27,17 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ApkInfo;
+import org.chromium.base.DeviceInfo;
 import org.chromium.base.Log;
 import org.chromium.base.test.util.DoNotBatch;
+import org.chromium.build.BuildConfig;
+import org.chromium.net.CronetTestRule.BoolFlag;
 import org.chromium.net.CronetTestRule.CronetImplementation;
+import org.chromium.net.CronetTestRule.Flags;
 import org.chromium.net.CronetTestRule.IgnoreFor;
 import org.chromium.net.CronetTestRule.RequiresMinAndroidApi;
 import org.chromium.net.CronetTestRule.RequiresMinApi;
@@ -40,13 +46,17 @@ import org.chromium.net.TestUrlRequestCallback.FailureType;
 import org.chromium.net.TestUrlRequestCallback.ResponseStep;
 import org.chromium.net.apihelpers.UploadDataProviders;
 import org.chromium.net.impl.CronetExceptionImpl;
+import org.chromium.net.impl.CronetLibraryLoader;
+import org.chromium.net.impl.CronetLogger.CronetSource;
 import org.chromium.net.impl.CronetUrlRequest;
 import org.chromium.net.impl.NetworkExceptionImpl;
+import org.chromium.net.impl.TestLogger;
 import org.chromium.net.impl.UrlResponseInfoImpl;
 import org.chromium.net.test.FailurePhase;
 
 import java.io.IOException;
 import java.net.ConnectException;
+import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -70,12 +80,18 @@ public class CronetUrlRequestTest {
     // URL used for base tests.
     private static final String TEST_URL = "http://127.0.0.1:8000";
 
-    @Rule public final CronetTestRule mTestRule = CronetTestRule.withAutomaticEngineStartup();
-
+    public final CronetTestRule mTestRule = CronetTestRule.withAutomaticEngineStartup();
+    private final CronetLoggerTestRule<TestLogger> mLoggerTestRule =
+            new CronetLoggerTestRule<>(TestLogger.class);
     private MockUrlRequestJobFactory mMockUrlRequestJobFactory;
+
+    @Rule public final RuleChain chain = RuleChain.outerRule(mLoggerTestRule).around(mTestRule);
+
+    private TestLogger mTestLogger;
 
     @Before
     public void setUp() throws Exception {
+        mTestLogger = mLoggerTestRule.mTestLogger;
         assertThat(
                         NativeTestServer.startNativeTestServer(
                                 mTestRule.getTestFramework().getContext()))
@@ -174,6 +190,56 @@ public class CronetUrlRequestTest {
                 .getEngine()
                 .newUrlRequestBuilder(
                         NativeTestServer.getRedirectURL(), callback, callback.getExecutor());
+    }
+
+    @Test
+    @SmallTest
+    @Flags(
+            boolFlags = {
+                @BoolFlag(
+                        name = CronetLibraryLoader.UPDATE_NETWORK_STATE_ONCE_ON_STARTUP_FLAG_NAME,
+                        value = true)
+            })
+    public void testSimpleGetWithReducedNetworkChangeNotifierExperiment() throws Exception {
+        testSimpleGet();
+    }
+
+    @Test
+    @SmallTest
+    @IgnoreFor(
+            implementations = {CronetImplementation.FALLBACK, CronetImplementation.AOSP_PLATFORM},
+            reason = "The output differs depending on the type of Cronet Impl.")
+    @RequiresMinAndroidApi(Build.VERSION_CODES.O)
+    public void testTrafficInfoAtomSourceStaticallyLinked() throws Exception {
+        testSimpleGet();
+        mTestLogger.waitForLogCronetTrafficInfo();
+        assertThat(mTestLogger.getLastCronetTrafficInfo().getCronetSource())
+                .isEqualTo(CronetSource.CRONET_SOURCE_STATICALLY_LINKED);
+    }
+
+    @Test
+    @SmallTest
+    @Flags(
+            boolFlags = {
+                @BoolFlag(name = CronetLibraryLoader.INITIALIZE_BUILD_INFO_ON_STARTUP, value = true)
+            })
+    public void testSimpleRequestMustCreateApkInfoOrDeviceInfoWhenFlagEnabled() throws Exception {
+        testBindToDefaultNetworkSucceeds();
+        assertThat(ApkInfo.isInitializedForTesting()).isTrue();
+        assertThat(DeviceInfo.isInitializedForTesting()).isTrue();
+    }
+
+    @Test
+    @SmallTest
+    @Flags(
+            boolFlags = {
+                @BoolFlag(
+                        name = CronetLibraryLoader.INITIALIZE_BUILD_INFO_ON_STARTUP,
+                        value = false)
+            })
+    public void testSimpleRequestMustNotCreateDeviceInfoWhenFlagDisabled() throws Exception {
+        testBindToDefaultNetworkSucceeds();
+        assertThat(DeviceInfo.isInitializedForTesting()).isFalse();
     }
 
     @Test
@@ -577,10 +643,13 @@ public class CronetUrlRequestTest {
         builder.addHeader("header:name", "headervalue");
         IllegalArgumentException e =
                 assertThrows(IllegalArgumentException.class, () -> builder.build().start());
+        var oldMessage = "Invalid header header:name=headervalue";
+        var newMessage = "Invalid header with headername: header:name";
         if (mTestRule.implementationUnderTest() == CronetImplementation.AOSP_PLATFORM
-                && !mTestRule.isRunningInAOSP()) {
-            // TODO(b/307234565): Remove check once chromium Android 14 emulator has latest changes.
-            assertThat(e).hasMessageThat().isEqualTo("Invalid header header:name=headervalue");
+                && !BuildConfig.CRONET_FOR_AOSP_BUILD) {
+            // We may be running against an HttpEngine backed by an old version of Cronet, so accept
+            // both the old and new variants of the message.
+            assertThat(e).hasMessageThat().isAnyOf(oldMessage, newMessage);
         } else {
             assertThat(e).hasMessageThat().isEqualTo("Invalid header with headername: header:name");
         }
@@ -617,14 +686,15 @@ public class CronetUrlRequestTest {
         builder.addHeader("headername", "bad header\r\nvalue");
         IllegalArgumentException e =
                 assertThrows(IllegalArgumentException.class, () -> builder.build().start());
+        var oldMessage = "Invalid header headername=bad header\r\nvalue";
+        var newMessage = "Invalid header with headername: headername";
         if (mTestRule.implementationUnderTest() == CronetImplementation.AOSP_PLATFORM
-                && !mTestRule.isRunningInAOSP()) {
-            // TODO(b/307234565): Remove check once chromium Android 14 emulator has latest changes.
-            assertThat(e)
-                    .hasMessageThat()
-                    .isEqualTo("Invalid header headername=bad header\r\nvalue");
+                && !BuildConfig.CRONET_FOR_AOSP_BUILD) {
+            // We may be running against an HttpEngine backed by an old version of Cronet, so accept
+            // both the old and new variants of the message.
+            assertThat(e).hasMessageThat().isAnyOf(oldMessage, newMessage);
         } else {
-            assertThat(e).hasMessageThat().isEqualTo("Invalid header with headername: headername");
+            assertThat(e).hasMessageThat().isEqualTo(newMessage);
         }
     }
 
@@ -2318,7 +2388,7 @@ public class CronetUrlRequestTest {
 
     @Test
     @SmallTest
-    public void testFailures() throws Exception {
+    public void testThrowOrCancelInOnRedirect() {
         throwOrCancel(FailureType.CANCEL_SYNC, ResponseStep.ON_RECEIVED_REDIRECT, false, false);
         throwOrCancel(FailureType.CANCEL_ASYNC, ResponseStep.ON_RECEIVED_REDIRECT, false, false);
         throwOrCancel(
@@ -2327,7 +2397,11 @@ public class CronetUrlRequestTest {
                 false,
                 false);
         throwOrCancel(FailureType.THROW_SYNC, ResponseStep.ON_RECEIVED_REDIRECT, false, true);
+    }
 
+    @Test
+    @SmallTest
+    public void testThrowOrCancelInOnResponseStarted() {
         throwOrCancel(FailureType.CANCEL_SYNC, ResponseStep.ON_RESPONSE_STARTED, true, false);
         throwOrCancel(FailureType.CANCEL_ASYNC, ResponseStep.ON_RESPONSE_STARTED, true, false);
         throwOrCancel(
@@ -2336,7 +2410,11 @@ public class CronetUrlRequestTest {
                 true,
                 false);
         throwOrCancel(FailureType.THROW_SYNC, ResponseStep.ON_RESPONSE_STARTED, true, true);
+    }
 
+    @Test
+    @SmallTest
+    public void testThrowOrCancelInOnReadCompleted() {
         throwOrCancel(FailureType.CANCEL_SYNC, ResponseStep.ON_READ_COMPLETED, true, false);
         throwOrCancel(FailureType.CANCEL_ASYNC, ResponseStep.ON_READ_COMPLETED, true, false);
         throwOrCancel(
@@ -2345,6 +2423,30 @@ public class CronetUrlRequestTest {
                 true,
                 false);
         throwOrCancel(FailureType.THROW_SYNC, ResponseStep.ON_READ_COMPLETED, true, true);
+    }
+
+    @Test
+    @SmallTest
+    public void testCancelBeforeResponse() throws IOException {
+        // Use a hanging server to prevent race between getting a response and cancel().
+        // Cronet only records the responseInfo once onResponseStarted is called.
+        try (ServerSocket hangingServer = new ServerSocket(0)) {
+            String url = "http://localhost:" + hangingServer.getLocalPort();
+            TestUrlRequestCallback callback = new TestUrlRequestCallback();
+            UrlRequest.Builder builder =
+                    mTestRule
+                            .getTestFramework()
+                            .getEngine()
+                            .newUrlRequestBuilder(url, callback, callback.getExecutor());
+            UrlRequest urlRequest = builder.build();
+            urlRequest.start();
+            hangingServer.accept();
+            urlRequest.cancel();
+            callback.blockForDone();
+
+            assertResponseStepCanceled(callback);
+            assertThat(callback.getResponseInfo()).isNull();
+        }
     }
 
     @Test
@@ -2672,6 +2774,7 @@ public class CronetUrlRequestTest {
         QuicException quicException = (QuicException) callback.mError;
         // 1 is QUIC_INTERNAL_ERROR
         assertThat(quicException.getQuicDetailedErrorCode()).isEqualTo(1);
+        assertThat(quicException.getConnectionCloseSource()).isEqualTo(ConnectionCloseSource.SELF);
         assertThat(quicException.getErrorCode())
                 .isEqualTo(NetworkException.ERROR_QUIC_PROTOCOL_FAILED);
     }
@@ -2695,6 +2798,7 @@ public class CronetUrlRequestTest {
         // URLRequestFailedJob::PopulateNetErrorDetails for this test.
         final int quicErrorCode = 83;
         assertThat(quicException.getQuicDetailedErrorCode()).isEqualTo(quicErrorCode);
+        assertThat(quicException.getConnectionCloseSource()).isEqualTo(ConnectionCloseSource.SELF);
         assertThat(quicException.getErrorCode()).isEqualTo(NetworkException.ERROR_NETWORK_CHANGED);
     }
 
@@ -2840,12 +2944,12 @@ public class CronetUrlRequestTest {
         }
     }
 
-    @Test
-    @SmallTest
     /**
      * Open many connections and cancel them right away. This test verifies all internal sockets and
      * other Closeables are properly closed. See crbug.com/726193.
      */
+    @Test
+    @SmallTest
     public void testGzipCancel() throws Exception {
         String url = NativeTestServer.getFileURL("/gzipped.html");
         for (int i = 0; i < 100; i++) {
@@ -2877,10 +2981,10 @@ public class CronetUrlRequestTest {
         }
     }
 
+    /** Do a HEAD request and get back a 404. */
     @Test
     @SmallTest
     @RequiresMinApi(8) // JavaUrlRequest fixed in API level 8: crrev.com/499303
-    /** Do a HEAD request and get back a 404. */
     public void test404Head() throws Exception {
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder builder =
@@ -2898,7 +3002,6 @@ public class CronetUrlRequestTest {
     @Test
     @SmallTest
     @RequiresMinApi(9) // Tagging support added in API level 9: crrev.com/c/chromium/src/+/930086
-    @RequiresMinAndroidApi(Build.VERSION_CODES.M) // crbug/1301957
     public void testTagging() throws Exception {
         if (!CronetTestUtil.nativeCanGetTaggedBytes()) {
             Log.i(TAG, "Skipping test - GetTaggedBytes unsupported.");
@@ -2962,12 +3065,12 @@ public class CronetUrlRequestTest {
         assertThat(CronetTestUtil.nativeGetTaggedBytes(tag)).isGreaterThan(priorBytes);
     }
 
-    @Test
-    @SmallTest
     /**
      * Initiate many requests concurrently to make sure neither Cronet implementation crashes.
      * Regression test for https://crbug.com/844031.
      */
+    @Test
+    @SmallTest
     public void testManyRequests() throws Exception {
         String url = NativeTestServer.getMultiRedirectURL();
         final int numRequests = 2000;
@@ -3029,7 +3132,6 @@ public class CronetUrlRequestTest {
     }
 
     @Test
-    @RequiresMinAndroidApi(Build.VERSION_CODES.M)
     public void testBindToInvalidNetworkFails() {
         String url = NativeTestServer.getEchoMethodURL();
         ExperimentalCronetEngine cronetEngine = mTestRule.getTestFramework().getEngine();
@@ -3063,7 +3165,6 @@ public class CronetUrlRequestTest {
     }
 
     @Test
-    @RequiresMinAndroidApi(Build.VERSION_CODES.M)
     public void testBindToDefaultNetworkSucceeds() {
         String url = NativeTestServer.getEchoMethodURL();
         ConnectivityManagerDelegate delegate =

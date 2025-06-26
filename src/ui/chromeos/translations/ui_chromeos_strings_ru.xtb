@@ -19,6 +19,7 @@
 <translation id="115443833402798225">Корейская раскладка (Ahnmatae)</translation>
 <translation id="1155759005174418845">Каталанский</translation>
 <translation id="1168100932582989117">Серверы имен Google</translation>
+<translation id="1170788066030116158">Дата съемки</translation>
 <translation id="1172970565351728681">Осталось около <ph name="REMAINING_TIME" /></translation>
 <translation id="1173894706177603556">Переименовать</translation>
 <translation id="1173916544412572294">Сеть <ph name="NETWORK_INDEX" /> из <ph name="NETWORK_COUNT" />, телефон – <ph name="PHONE_NAME" />, статус подключения – "<ph name="CONNECTION_STATUS" />", уровень сигнала – <ph name="SIGNAL_STRENGTH" /> %, заряд батареи – <ph name="BATTERY_STATUS" /> %, подробная информация</translation>
@@ -72,6 +73,7 @@
 <translation id="1577977504532381335">Посмотреть правила администратора</translation>
 <translation id="158849752021629804">Необходима домашняя сеть</translation>
 <translation id="1589128298353575783"><ph name="NUMBER_OF_PB" /> ПБ</translation>
+<translation id="1601786938618212857">Создать ZIP-архив</translation>
 <translation id="1620510694547887537">Камера</translation>
 <translation id="162175252992296058">Португальский, американская международная раскладка</translation>
 <translation id="1629521517399325891">Сертификат пользователя нельзя использовать для аутентификации сети.</translation>
@@ -105,6 +107,7 @@
 <translation id="1810764548349082891">Предпросмотр недоступен</translation>
 <translation id="1812302367230252929">Амхарский, транслитерация</translation>
 <translation id="1813278315230285598">Службы</translation>
+<translation id="181434555916624618">Результаты с изображением людей пока недоступны. Попробуйте ввести другой запрос.</translation>
 <translation id="1829129547161959350">Пингвин</translation>
 <translation id="183183971458492120">Загрузка данных…</translation>
 <translation id="1832073788765803750">Катакана половинной ширины</translation>
@@ -135,7 +138,6 @@
 <translation id="2084809735218147718">Человек пишет благодарственное письмо</translation>
 <translation id="2088690981887365033">Сеть VPN</translation>
 <translation id="209653272837065803">Недостаточно места для продолжения синхронизации файлов.</translation>
-<translation id="2111134541987263231">Включите параметр <ph name="BEGIN_BOLD" />Разрешить использование в режиме инкогнито<ph name="END_BOLD" />.</translation>
 <translation id="2114191879048183086">Некоторые объекты (<ph name="NUMBER_OF_ITEMS" />) будут удалены, и вы не сможете их восстановить.</translation>
 <translation id="2122305276694332719">Включать этот параметр не рекомендуется, так как при автоматическом подключении к скрытой сети другие пользователи могут увидеть ваше устройство и некоторые сетевые настройки.</translation>
 <translation id="2125607626296734455">Кхмерский</translation>
@@ -166,7 +168,6 @@
 <translation id="2304820083631266885">Планета</translation>
 <translation id="2305020378527873881">Том <ph name="VOLUME_NAME" /> извлечен.</translation>
 <translation id="2307462900900812319">Настройка сети</translation>
-<translation id="2312704192806647271">{COUNT,plural, =1{Расширение со следующим идентификатором не найдено: <ph name="BEGIN_LIST" /><ph name="END_LIST" /> Обратитесь к администратору.}one{Расширения со следующими идентификаторами не найдены: <ph name="BEGIN_LIST" /><ph name="END_LIST" /> Обратитесь к администратору.}few{Расширения со следующими идентификаторами не найдены: <ph name="BEGIN_LIST" /><ph name="END_LIST" /> Обратитесь к администратору.}many{Расширения со следующими идентификаторами не найдены: <ph name="BEGIN_LIST" /><ph name="END_LIST" /> Обратитесь к администратору.}other{Расширения со следующими идентификаторами не найдены: <ph name="BEGIN_LIST" /><ph name="END_LIST" /> Обратитесь к администратору.}}</translation>
 <translation id="2325650632570794183">Этот тип файла не поддерживается. Зайдите в Интернет-магазин Chrome, чтобы найти приложение, с помощью которого его можно открыть.</translation>
 <translation id="2326539130272988168">Болгарский</translation>
 <translation id="233822363739146957">Недостаточно места для синхронизации всех ваших файлов.</translation>
@@ -238,7 +239,6 @@
 <translation id="290843123675549676">Маратхи</translation>
 <translation id="2923240520113693977">Эстонский</translation>
 <translation id="2938685643439809023">Монгольский</translation>
-<translation id="293972288692056847">{COUNT,plural, =1{Не удается найти расширение}one{Не удается найти расширения}few{Не удается найти расширения}many{Не удается найти расширения}other{Не удается найти расширения}}</translation>
 <translation id="2943503720238418293">Слишком длинное название.</translation>
 <translation id="2949781154072577687">Форматирование внешнего хранилища "<ph name="DRIVE_NAME" />"…</translation>
 <translation id="2951236788251446349">Медуза</translation>
@@ -295,7 +295,6 @@
 <translation id="3356580349448036450">Готово</translation>
 <translation id="3358452157379365236">Гитара</translation>
 <translation id="3368922792935385530">Подключено</translation>
-<translation id="3372635229069101468">Нажмите <ph name="BEGIN_BOLD" />Сведения<ph name="END_BOLD" />.</translation>
 <translation id="3382143449143186018">Непальский, раскладка InScript</translation>
 <translation id="338691029516748599">Сеть <ph name="NETWORK_INDEX" /> из <ph name="NETWORK_COUNT" />, название – "<ph name="NETWORK_NAME" />", статус защиты – "<ph name="SECURITY_STATUS" />", уровень сигнала – <ph name="SIGNAL_STRENGTH" /> %, под управлением администратора, подключение</translation>
 <translation id="3408072735282270043">Активировать сеть "<ph name="NETWORK_NAME" />"</translation>
@@ -337,6 +336,7 @@
 <translation id="3689865792480713551">Отменить <ph name="ACTIVITY_DESCRIPTION" />.</translation>
 <translation id="3690128548376345212">Сеть <ph name="NETWORK_INDEX" /> из <ph name="NETWORK_COUNT" />, <ph name="NETWORK_NAME" />, не активирована, <ph name="CONNECTION_STATUS" />, уровень сигнала – <ph name="SIGNAL_STRENGTH" /> %, подробная информация</translation>
 <translation id="3691184985318546178">Сингальский</translation>
+<translation id="3702842351052426940">Возможно, произошла деактивация. Замените SIM-карту или переключитесь на другой профиль eSIM.</translation>
 <translation id="3722341589402358578">Произошла ошибка. Возможно, не все объекты были удалены.</translation>
 <translation id="3726463242007121105">Невозможно получить доступ к устройству, так как его файловая система не поддерживается.</translation>
 <translation id="3727148787322499904">Изменение этого параметра повлияет на все общие сети</translation>
@@ -356,6 +356,7 @@
 <translation id="3822559385185038546">Прокси-сервер принудительно включен администратором</translation>
 <translation id="3830674330436234648">Воспроизведение невозможно</translation>
 <translation id="383652340667548381">Сербский</translation>
+<translation id="3839045880592694915">Подключение модема запрещено оператором связи. Обратитесь к нему за дополнительной информацией.</translation>
 <translation id="385051799172605136">Назад</translation>
 <translation id="3855472144336161447">Немецкая (Neo 2)</translation>
 <translation id="3858860766373142691">Название</translation>
@@ -375,15 +376,14 @@
 <translation id="3999574733850440202">Недавно открытые файлы Microsoft были перенесены на OneDrive</translation>
 <translation id="4002066346123236978">Название</translation>
 <translation id="4017788180641807848">Английский (США), раскладка Workman</translation>
-<translation id="4019998208269143058">Добавить в Быстрый доступ к файлам</translation>
 <translation id="4040753847560036377">Неверный PUK-код.</translation>
 <translation id="4057991113334098539">Активация...</translation>
 <translation id="4092890906744441904">Ирландский</translation>
+<translation id="4101601646343868113">Подключитесь к мобильной сети и подтвердите, что ваш тарифный план активен</translation>
 <translation id="4124731372776320263">Синхронизация 1 файла на Диске…</translation>
 <translation id="4124935795427217608">Единорог</translation>
 <translation id="4131235941541910880">Перемещайте ненужные объекты в корзину.</translation>
 <translation id="4134804435730168042">Сеть <ph name="NETWORK_INDEX" /> из <ph name="NETWORK_COUNT" />, название – <ph name="NETWORK_NAME" />, поставщик – <ph name="NETWORK_PROVIDER_NAME" />. Чтобы активировать сеть, настройте устройство.</translation>
-<translation id="41501027364808384">{COUNT,plural, =1{Разрешите использование в режиме инкогнито следующего расширения:}one{Разрешите использование в режиме инкогнито следующих расширений:}few{Разрешите использование в режиме инкогнито следующих расширений:}many{Разрешите использование в режиме инкогнито следующих расширений:}other{Разрешите использование в режиме инкогнито следующих расширений:}}</translation>
 <translation id="4153015322587141338">Нажмите на файл правой кнопкой мыши и выберите "<ph name="PIN_COMMAND" />".</translation>
 <translation id="4157569377477607576">Не рекомендуется администратором:</translation>
 <translation id="4159731583141908892">Перемещено: <ph name="FILE_NAME" />.</translation>
@@ -391,7 +391,6 @@
 <translation id="4179621117429069925">Этот файл находится в корзине</translation>
 <translation id="4186579485882418952">Включить офлайн-режим</translation>
 <translation id="4193154014135846272">Документ Google</translation>
-<translation id="4197674956721858839">Архивировать выбранные элементы</translation>
 <translation id="4202378258276439759">Испанский (Латинская Америка)</translation>
 <translation id="4202977638116331303">Грузинский</translation>
 <translation id="421017592316736757">Для доступа к файлу необходимо подключение к Интернету.</translation>
@@ -419,6 +418,7 @@
 <translation id="4387004326333427325">Сертификат аутентификации отклонен удаленно</translation>
 <translation id="4394214039309501350">Внешняя ссылка</translation>
 <translation id="4394980935660306080">На этой неделе</translation>
+<translation id="4397435965699247285">OneDrive недоступен в офлайн-режиме.</translation>
 <translation id="4398096759193130964">Восстановите их или перетащите из корзины в новую папку.</translation>
 <translation id="4401287888955153199">Извлечь всё</translation>
 <translation id="4410695710508688828">Ошибка извлечения. <ph name="ERROR_MESSAGE" /></translation>
@@ -481,9 +481,7 @@
 <translation id="4801956050125744859">Оставить обе версии</translation>
 <translation id="4804827417948292437">Авокадо</translation>
 <translation id="4805966553127040832">Восстановление объектов (<ph name="COUNT" />)…</translation>
-<translation id="4816695657735045067">{COUNT,plural, =1{В вашей организации для работы в режиме инкогнито требуется расширение}one{В вашей организации для работы в режиме инкогнито требуются некоторые расширения}few{В вашей организации для работы в режиме инкогнито требуются некоторые расширения}many{В вашей организации для работы в режиме инкогнито требуются некоторые расширения}other{В вашей организации для работы в режиме инкогнито требуются некоторые расширения}}</translation>
 <translation id="4826849268470072925">Тамильский, раскладка ITRANS</translation>
-<translation id="482932175346970750">Введите <ph name="BEGIN_BOLD" />chrome://extensions<ph name="END_BOLD" /> в адресной строке браузера.</translation>
 <translation id="4843566743023903107">Устройства Chromebase</translation>
 <translation id="4850886885716139402">Смотреть</translation>
 <translation id="485316830061041779">Немецкий</translation>
@@ -556,7 +554,6 @@
     вместе с коллегами в одном удобном сервисе.<ph name="MARKUP_9" /></translation>
 <translation id="5275973617553375938">Восстановленные файлы с Google Диска</translation>
 <translation id="5278111733643988471">Чтобы восстановить этот объект, перетащите его из корзины в новую папку. Папка "<ph name="PARENT_FOLDER_NAME" />", в которой он находился ранее, была удалена.</translation>
-<translation id="5283101102242354279">Вот как разрешить использовать расширение в режиме инкогнито:</translation>
 <translation id="5288441970121584418">Бургер</translation>
 <translation id="5293615890992542006">Администратор запретил перемещать этот файл.</translation>
 <translation id="5305688511332277257">Не установлено</translation>
@@ -603,6 +600,7 @@
 <translation id="5625294776298156701">Тамильский, раскладка Tamil99</translation>
 <translation id="5633226425545095130">Если вы переместите этот объект, то его увидят все пользователи, у которых есть доступ к общей папке "<ph name="DESTINATION_NAME" />".</translation>
 <translation id="5649768706273821470">Прослушать</translation>
+<translation id="5650895901941743674">проверьте настройки точки доступа.</translation>
 <translation id="5669691691057771421">Введите новый PIN-код</translation>
 <translation id="5678784840044122290">Приложение Linux будет доступно в терминале. Кроме того, на панель запуска мог быть добавлен значок.</translation>
 <translation id="5686799162999241776"><ph name="BEGIN_BOLD" />Не удалось отключиться от архива или электронного диска<ph name="END_BOLD" />
@@ -682,6 +680,7 @@
 <translation id="6267547857941397424">Сеть <ph name="NETWORK_INDEX" /> из <ph name="NETWORK_COUNT" />, телефон – <ph name="PHONE_NAME" />, уровень сигнала – <ph name="SIGNAL_STRENGTH" /> %, заряд батареи – <ph name="BATTERY_STATUS" /> %, подключение</translation>
 <translation id="6269630227984243955">Малайский</translation>
 <translation id="6271903698064569429">Не удается загрузить файлы, поскольку на общем диске "<ph name="SHARED_DRIVE_NAME" />" недостаточно свободного места.</translation>
+<translation id="6279140785485544797">Возможно, срок действия вашего тарифного плана на мобильный интернет истек. Обратитесь к оператору связи.</translation>
 <translation id="6287852322318138013">Выберите программу, в которой необходимо открыть этот файл</translation>
 <translation id="6295542640242147836">Блокировка SIM-карты</translation>
 <translation id="6296410173147755564">Недействительный PUK-код.</translation>
@@ -691,7 +690,6 @@
 <translation id="6320212353742551423">Архив <ph name="ARCHIVE_TYPE" /></translation>
 <translation id="6321303798550928047">Приветствие</translation>
 <translation id="6327785803543103246">Автоматическое определение настроек прокси-сервера</translation>
-<translation id="6337014272874260727">Удалить из Быстрого доступа к файлам</translation>
 <translation id="6339145975392024142">Американская международная (ПК)</translation>
 <translation id="6356685157277930264">Окно с информацией о файлах</translation>
 <translation id="6358884629796491903">Дракон</translation>
@@ -737,6 +735,7 @@
 <translation id="6750737795876287924">Текущий каталог</translation>
 <translation id="6751256176799620176">1 папка выбрана</translation>
 <translation id="6755827872271341378">Устройство с Chrome OS Flex</translation>
+<translation id="6777029074498310250">Чтобы узнать больше, перейдите на страницу <ph name="LINK_BEGIN" />onedrive.live.com<ph name="LINK_END" />.</translation>
 <translation id="6790428901817661496">Воспроизвести</translation>
 <translation id="6794539005637808366">Восстановите объект или перетащите его из корзины в новую папку.</translation>
 <translation id="6795884519221689054">Панда</translation>
@@ -755,7 +754,7 @@
 <translation id="6876155724392614295">Велосипед</translation>
 <translation id="6878261347041253038">Раскладка деванагари (фонетическая)</translation>
 <translation id="6885780034956018177">Улитка</translation>
-<translation id="6896758677409633944">Копировать</translation>
+<translation id="6896758677409633944">Скопировать</translation>
 <translation id="6898028766943174120">Другие вложенные папки…</translation>
 <translation id="6915678159055240887">Chromebox</translation>
 <translation id="6918340160281024199">США (Workman)</translation>
@@ -790,6 +789,7 @@
 <translation id="7086590977277044826">Тамильский, раскладка InScript</translation>
 <translation id="7088615885725309056">Раньше</translation>
 <translation id="7103992300314999525">Македонский</translation>
+<translation id="7104338189998813914">Возникла проблема с доступом к вашему аккаунту OneDrive</translation>
 <translation id="7106346894903675391">Приобрести дополнительное пространство…</translation>
 <translation id="7126604456862387217">"&lt;b&gt;<ph name="SEARCH_STRING" />&lt;/b&gt;" – &lt;em&gt;искать на Диске&lt;/em&gt;</translation>
 <translation id="7135561821015524160">Каннада, фонетический</translation>
@@ -807,7 +807,6 @@
 <translation id="7238643356913091553"><ph name="NETWORK_NAME" />, подробная информация</translation>
 <translation id="7246947237293279874">FTP-прокси</translation>
 <translation id="7248671827512403053">Приложение</translation>
-<translation id="7252604552361840748">Найдите указанное выше расширение.</translation>
 <translation id="7256405249507348194">Неопознанная ошибка: <ph name="DESC" /></translation>
 <translation id="7268659760406822741">Доступные сервисы</translation>
 <translation id="7291818353625820805">Хотите, чтобы символы вводились повторно? Отключите диакритические знаки в настройках клавиатуры.</translation>
@@ -1008,6 +1007,7 @@
 <translation id="8600173386174225982">Файлы отображаются в виде значков.</translation>
 <translation id="8601932370724196034">Графический файл Crostini</translation>
 <translation id="8609695766746872526">Исландский</translation>
+<translation id="8630384863424041081">Введите PIN-код SIM-карты или PIN-код по умолчанию, предоставленный оператором связи. Если вам нужна помощь, обратитесь к оператору.</translation>
 <translation id="863903787380594467">Неверный PIN-код. Осталось попыток: <ph name="RETRIES" />.</translation>
 <translation id="8639391553632924850"><ph name="INPUT_LABEL" /> – порт</translation>
 <translation id="8656407365183407932">Доступ к файлам в офлайн-режиме закрыт</translation>

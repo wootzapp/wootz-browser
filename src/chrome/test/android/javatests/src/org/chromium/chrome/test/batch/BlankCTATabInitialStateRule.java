@@ -8,24 +8,27 @@ import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.IncognitoTabHostUtils;
+import org.chromium.chrome.browser.tabmodel.TabClosureParams;
+import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModel;
-import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.util.ChromeTabUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+
+import java.util.Collections;
 
 /**
  * To be used by batched tests that would like to reset to a single blank tab open in
  * ChromeTabbedActivity between each test, without restarting the Activity.
  *
- * State is stored statically, and so the Activity may be reused across multiple test suites within
- * the same {@link Batch}.
+ * <p>State is stored statically, and so the Activity may be reused across multiple test suites
+ * within the same {@link Batch}.
  */
 public class BlankCTATabInitialStateRule implements TestRule {
     private static ChromeTabbedActivity sActivity;
@@ -52,7 +55,7 @@ public class BlankCTATabInitialStateRule implements TestRule {
             @Override
             public void evaluate() throws Throwable {
                 if (sActivity == null) {
-                    TestThreadUtils.runOnUiThreadBlocking(
+                    ThreadUtils.runOnUiThreadBlocking(
                             () -> {
                                 FirstRunStatus.setFirstRunFlowComplete(true);
                             });
@@ -86,7 +89,7 @@ public class BlankCTATabInitialStateRule implements TestRule {
     }
 
     private int regularTabCount() {
-        return TestThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     return sActivity.getTabModelSelector().getModel(false).getCount();
                 });
@@ -97,20 +100,49 @@ public class BlankCTATabInitialStateRule implements TestRule {
         return regularTabCount() > 0;
     }
 
+    private void closeAllButOneTab(TabModel tabModel) {
+        ThreadUtils.assertOnUiThread();
+
+        while (tabModel.getCount() > 1) {
+            tabModel.getTabRemover()
+                    .forceCloseTabs(
+                            TabClosureParams.closeTab(tabModel.getTabAt(1))
+                                    .allowUndo(false)
+                                    .build());
+        }
+    }
+
     // Avoids closing the primary tab (and killing the renderer) in order to reset tab state
     // quickly, at the cost of thoroughness. This should be adequate for most tests.
     private void resetTabStateFast() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     IncognitoTabHostUtils.closeAllIncognitoTabs();
                     // Close all but the first regular tab as these tests expect to start with a
                     // single tab.
                     TabModel regularTabModel =
                             sActivity.getTabModelSelector().getModel(/* incognito= */ false);
-                    while (TabModelUtils.closeTabByIndex(regularTabModel, 1)) {}
+                    closeAllButOneTab(regularTabModel);
+
+                    TabGroupModelFilter filter =
+                            sActivity
+                                    .getTabModelSelector()
+                                    .getTabGroupModelFilterProvider()
+                                    .getTabGroupModelFilter(/* isIncognito= */ false);
+                    Tab activityTab = sActivity.getActivityTab();
+                    if (filter.isTabInTabGroup(activityTab)) {
+                        filter.getTabUngrouper()
+                                .ungroupTabs(
+                                        Collections.singletonList(activityTab),
+                                        /* trailing= */ false,
+                                        /* allowDialog= */ false);
+                        // If the group is a collaboration it is possible a tab got added to perseve
+                        // the group. If this happens delete the tab forcibly.
+                        closeAllButOneTab(regularTabModel);
+                    }
                 });
         mActivityTestRule.loadUrl("about:blank");
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     sActivity.getCurrentWebContents().getNavigationController().clearHistory();
                 });
@@ -120,7 +152,7 @@ public class BlankCTATabInitialStateRule implements TestRule {
     // about:blank state.
     private void resetTabStateThorough() {
         Tab createdTab =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> {
                             // We have to avoid closing all tabs and triggering CTA's self-finish
                             // logic when all tabs are closed.
@@ -136,7 +168,14 @@ public class BlankCTATabInitialStateRule implements TestRule {
                                             .getModel(/* incognito= */ false);
                             for (int i = regularTabModel.getCount() - 1; i >= 0; i--) {
                                 Tab tab = regularTabModel.getTabAt(i);
-                                if (tab != newTab) regularTabModel.closeTab(tab);
+                                if (tab != newTab) {
+                                    regularTabModel
+                                            .getTabRemover()
+                                            .forceCloseTabs(
+                                                    TabClosureParams.closeTab(tab)
+                                                            .allowUndo(false)
+                                                            .build());
+                                }
                             }
                             return newTab;
                         });

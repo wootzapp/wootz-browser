@@ -5,10 +5,10 @@
 
 load("//lib/branches.star", "branches")
 load("//lib/builder_config.star", "builder_config")
-load("//lib/builder_url.star", "linkify_builder")
 load("//lib/builders.star", "builders", "os", "siso")
 load("//lib/consoles.star", "consoles")
 load("//lib/gn_args.star", "gn_args")
+load("//lib/html.star", "linkify_builder")
 load("//lib/try.star", "try_")
 load("//project.star", "settings")
 
@@ -24,8 +24,12 @@ try_.defaults.set(
     orchestrator_siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CQ,
     service_account = try_.DEFAULT_SERVICE_ACCOUNT,
     siso_enabled = True,
+    # crbug.com/372192123 - downloading with "minimum" strategy doesn't work
+    # well for Fuchsia builds because some packaging steps require executables.
+    siso_output_local_strategy = "greedy",
     siso_project = siso.project.DEFAULT_UNTRUSTED,
     siso_remote_jobs = siso.remote_jobs.HIGH_JOBS_FOR_CQ,
+    siso_remote_linking = True,
 )
 
 consoles.list_view(
@@ -65,7 +69,7 @@ try_.builder(
         configs = [
             "release",
             "official_optimize",
-            "reclient",
+            "remoteexec",
             "fuchsia",
             "arm64",
             "cast_receiver_size_optimized",
@@ -119,8 +123,9 @@ try_.builder(
     gn_args = gn_args.config(
         configs = [
             "debug_builder",
-            "reclient",
+            "remoteexec",
             "fuchsia_smart_display",
+            "x64",
         ],
     ),
     free_space = builders.free_space.high,
@@ -141,15 +146,9 @@ try_.builder(
 )
 
 try_.builder(
-    name = "fuchsia-fyi-x64-dbg",
-    mirrors = ["ci/fuchsia-fyi-x64-dbg"],
-    gn_args = "ci/fuchsia-fyi-x64-dbg",
-)
-
-try_.builder(
     name = "fuchsia-fyi-x64-dbg-persistent-emulator",
     mirrors = ["ci/fuchsia-fyi-x64-dbg-persistent-emulator"],
-    gn_args = "ci/fuchsia-fyi-x64-dbg",
+    gn_args = "ci/fuchsia-fyi-x64-dbg-persistent-emulator",
     contact_team_email = "chrome-fuchsia-engprod@google.com",
     execution_timeout = 10 * time.hour,
 )
@@ -157,7 +156,6 @@ try_.builder(
 try_.builder(
     name = "fuchsia-x64-cast-receiver-dbg",
     branch_selector = branches.selector.FUCHSIA_BRANCHES,
-    description_html = "try replica of " + linkify_builder("ci", "fuchsia-x64-cast-receiver-dbg", "chromium"),
     mirrors = ["ci/fuchsia-x64-cast-receiver-dbg"],
     gn_args = gn_args.config(
         configs = [
@@ -204,13 +202,20 @@ try_.orchestrator_builder(
     experiments = {
         # go/nplus1shardsproposal
         "chromium.add_one_test_shard": 10,
-        "chromium.compilator_can_outlive_parent": 100,
         # crbug.com/940930
         "chromium.enable_cleandead": 100,
     },
     main_list_view = "try",
     tryjob = try_.job(),
     use_clang_coverage = True,
+)
+
+# TODO(fxbug.dev/370067428): Remove once Netstack2 no longer exists.
+try_.builder(
+    name = "fuchsia-netstack2-x64-cast-receiver-rel",
+    mirrors = ["ci/fuchsia-netstack2-x64-cast-receiver-rel"],
+    gn_args = "ci/fuchsia-netstack2-x64-cast-receiver-rel",
+    contact_team_email = "chrome-fuchsia-engprod@google.com",
 )
 
 try_.compilator_builder(

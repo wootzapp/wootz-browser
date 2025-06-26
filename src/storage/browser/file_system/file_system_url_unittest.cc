@@ -2,10 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "storage/browser/file_system/file_system_url.h"
 
 #include <stddef.h>
 
+#include <array>
 #include <utility>
 
 #include "base/feature_list.h"
@@ -48,7 +54,7 @@ BucketLocator CreateNonDefaultBucket() {
   return BucketLocator(
       BucketId::FromUnsafeValue(kBucketId),
       blink::StorageKey::CreateFromStringForTesting("http://www.example.com/"),
-      blink::mojom::StorageType::kTemporary, /*is_default=*/false);
+      /*is_default=*/false);
 }
 
 }  // namespace
@@ -79,7 +85,7 @@ TEST(FileSystemURLTest, CreateSibling) {
   // Another CreateSibling precondition is that the sibling_name is non-empty.
   // We don't test for that here because a base::SafeBaseName is designed to be
   // non-empty by construction: the base::SafeBaseName::Create factory function
-  // returns absl::Optional<base::SafeBaseName> not base::SafeBaseName.
+  // returns std::optional<base::SafeBaseName> not base::SafeBaseName.
   //
   // See also TODO(crbug.com/40205226)
   const base::SafeBaseName sibling_name =
@@ -219,6 +225,18 @@ TEST(FileSystemURLTest, CreateSiblingPreservesBuckets) {
   EXPECT_EQ(without.bucket(), std::nullopt);
 }
 
+#if BUILDFLAG(IS_ANDROID)
+// Android content-URIs do not support siblings.
+TEST(FileSystemURLTest, CreateSiblingNotSupportedForContentUri) {
+  FileSystemURL url = FileSystemURL::CreateForTest(
+      blink::StorageKey::CreateFromStringForTesting("http://foo"),
+      kFileSystemTypeTemporary,
+      base::FilePath::FromUTF8Unsafe("content://provider/a"));
+  FileSystemURL sibling = url.CreateSibling(*base::SafeBaseName::Create("b"));
+  EXPECT_FALSE(sibling.is_valid());
+}
+#endif
+
 TEST(FileSystemURLTest, EnsureFilePathIsRelative) {
   FileSystemURL url = CreateFileSystemURL(
       "filesystem:http://chromium.org/temporary/////directory/file");
@@ -258,7 +276,7 @@ TEST(FileSystemURLTest, RejectMalformedURL) {
 }
 
 TEST(FileSystemURLTest, CompareURLs) {
-  const GURL urls[] = {
+  const auto urls = std::to_array<GURL>({
       GURL("filesystem:http://chromium.org/temporary/dir a/file a"),
       GURL("filesystem:http://chromium.org/temporary/dir a/file a"),
       GURL("filesystem:http://chromium.org/temporary/dir a/file b"),
@@ -266,7 +284,8 @@ TEST(FileSystemURLTest, CompareURLs) {
       GURL("filesystem:http://chromium.org/temporary/dir b/file a"),
       GURL("filesystem:http://chromium.org/temporary/dir aa/file b"),
       GURL("filesystem:http://chromium.com/temporary/dir a/file a"),
-      GURL("filesystem:https://chromium.org/temporary/dir a/file a")};
+      GURL("filesystem:https://chromium.org/temporary/dir a/file a"),
+  });
 
   FileSystemURL::Comparator compare;
   for (size_t i = 0; i < std::size(urls); ++i) {
@@ -455,6 +474,24 @@ TEST(FileSystemURLTest, IsInSameFileSystem) {
   // file system.
   EXPECT_EQ(url_invalid_a, url_invalid_b);
   EXPECT_FALSE(url_invalid_a.IsInSameFileSystem(url_invalid_b));
+
+#if BUILDFLAG(IS_ANDROID)
+  // Android content-URIs are never considered same-file-system.
+  url_foo_temp_a = FileSystemURL::CreateForTest(
+      blink::StorageKey::CreateFromStringForTesting("http://foo"),
+      kFileSystemTypeTemporary, base::FilePath::FromUTF8Unsafe("a"));
+  FileSystemURL url_foo_temp_cu_a = FileSystemURL::CreateForTest(
+      blink::StorageKey::CreateFromStringForTesting("http://foo"),
+      kFileSystemTypeTemporary,
+      base::FilePath::FromUTF8Unsafe("content://provider/a"));
+  FileSystemURL url_foo_temp_cu_b = FileSystemURL::CreateForTest(
+      blink::StorageKey::CreateFromStringForTesting("http://foo"),
+      kFileSystemTypeTemporary,
+      base::FilePath::FromUTF8Unsafe("content://provider/b"));
+  EXPECT_FALSE(url_foo_temp_cu_a.IsInSameFileSystem(url_foo_temp_cu_a));
+  EXPECT_FALSE(url_foo_temp_cu_a.IsInSameFileSystem(url_foo_temp_cu_b));
+  EXPECT_FALSE(url_foo_temp_cu_a.IsInSameFileSystem(url_foo_temp_a));
+#endif
 }
 
 TEST(FileSystemURLTest, ValidAfterMoves) {

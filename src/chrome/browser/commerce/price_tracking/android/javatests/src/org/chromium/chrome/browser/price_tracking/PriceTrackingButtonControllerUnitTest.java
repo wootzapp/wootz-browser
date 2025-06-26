@@ -21,13 +21,13 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.Shadows;
 import org.robolectric.annotation.Config;
@@ -37,9 +37,7 @@ import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
 import org.chromium.chrome.browser.bookmarks.TabBookmarker;
@@ -48,10 +46,10 @@ import org.chromium.chrome.browser.commerce.PriceTrackingUtilsJni;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
-import org.chromium.chrome.browser.toolbar.ButtonData;
-import org.chromium.chrome.browser.toolbar.ButtonData.ButtonSpec;
-import org.chromium.chrome.browser.toolbar.ButtonDataProvider;
-import org.chromium.chrome.browser.toolbar.ButtonDataProvider.ButtonDataObserver;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonData;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonData.ButtonSpec;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonDataProvider;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonDataProvider.ButtonDataObserver;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.components.bookmarks.BookmarkType;
@@ -66,9 +64,8 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 @Config(manifest = Config.NONE)
 @EnableFeatures({ChromeFeatureList.ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2})
 public class PriceTrackingButtonControllerUnitTest {
-    @Rule public TestRule mFeaturesProcessor = new Features.JUnitProcessor();
-    @Rule public JniMocker mJniMocker = new JniMocker();
 
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     private Activity mActivity;
     private ObservableSupplierImpl<Profile> mProfileSupplier;
     private ObservableSupplier<BookmarkModel> mBookmarkModelSupplier;
@@ -90,9 +87,7 @@ public class PriceTrackingButtonControllerUnitTest {
         mActivity = Robolectric.setupActivity(Activity.class);
         mActivity.setTheme(R.style.Theme_BrowserUI_DayNight);
 
-        MockitoAnnotations.initMocks(this);
-
-        mJniMocker.mock(PriceTrackingUtilsJni.TEST_HOOKS, mMockPriceTrackingUtilsJni);
+        PriceTrackingUtilsJni.setInstanceForTesting(mMockPriceTrackingUtilsJni);
         mPriceTrackingStateSupplier = new ObservableSupplierImpl<>(false);
         mProfileSupplier = new ObservableSupplierImpl<>(mMockProfile);
         mBookmarkModelSupplier = new ObservableSupplierImpl<>(mMockBookmarkModel);

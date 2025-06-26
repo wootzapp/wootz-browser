@@ -258,7 +258,7 @@ export class HelpBubbleController {
     this.bubble_.focusAnchor = params.focusOnShowHint === false;
 
     if (params.timeout) {
-      this.bubble_.timeoutMs = Number(params.timeout!.microseconds / 1000n);
+      this.bubble_.timeoutMs = Number(params.timeout.microseconds / 1000n);
       assert(this.bubble_.timeoutMs > 0);
     }
 
@@ -292,19 +292,5 @@ export class HelpBubbleController {
       (this.bubble_ || this.anchor_).focus();
       this.anchor_.scrollIntoView(HELP_BUBBLE_SCROLL_ANCHOR_OPTIONS);
     }
-  }
-
-  /**
-   * Gets the immediate ancestor element of `element` in the DOM, or null if
-   * none. This steps out of shadow DOMs as it finds them.
-   */
-  private static getImmediateAncestor(element: Element): Element|null {
-    if (element.parentElement) {
-      return element.parentElement;
-    }
-    if (element.parentNode instanceof ShadowRoot) {
-      return (element.parentNode as ShadowRoot).host;
-    }
-    return null;
   }
 }

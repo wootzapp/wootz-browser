@@ -6,14 +6,16 @@
 
 #include <AppKit/AppKit.h>
 
+#include <algorithm>
 #include <vector>
 
 #include "base/apple/foundation_util.h"
 #include "base/check.h"
-#include "base/ranges/algorithm.h"
+#include "base/feature_list.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/find_bar/find_bar_controller.h"
 #include "chrome/browser/ui/fullscreen_util_mac.h"
+#include "chrome/browser/ui/lens/lens_overlay_controller.h"
 #include "chrome/browser/ui/views/frame/browser_non_client_frame_view_mac.h"
 #include "chrome/browser/ui/views/frame/browser_view_layout.h"
 #include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
@@ -21,6 +23,7 @@
 #include "chrome/browser/ui/views/infobars/infobar_container_view.h"
 #include "chrome/common/chrome_features.h"
 #include "components/constrained_window/constrained_window_views.h"
+#include "components/remote_cocoa/app_shim/features.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
@@ -30,14 +33,19 @@
 #include "ui/views/focus/focus_search.h"
 #include "ui/views/widget/native_widget.h"
 
+#if BUILDFLAG(ENABLE_GLIC)
+#include "chrome/browser/glic/widget/glic_widget.h"
+#endif
+
 namespace {
 
-// The width of the traffic lights. Used to layout the tab strip leaving a hole
+// The width of the traffic lights. Used to animate the tab strip leaving a hole
 // for the traffic lights.
 // TODO(crbug.com/40892148): Get this dynamically. Unfortunately the
 // values in BrowserNonClientFrameViewMac::GetCaptionButtonInsets don't account
 // for a window with an NSToolbar.
-const int kTrafficLightsWidth = 70;
+constexpr int kTrafficLightsWidth = 62;
+constexpr int kTabAlignmentInset = 4;
 
 class ImmersiveModeFocusSearchMac : public views::FocusSearch {
  public:
@@ -68,8 +76,9 @@ ImmersiveModeControllerMac::RevealedLock::RevealedLock(
     : controller_(std::move(controller)) {}
 
 ImmersiveModeControllerMac::RevealedLock::~RevealedLock() {
-  if (auto* controller = controller_.get())
+  if (auto* controller = controller_.get()) {
     controller->LockDestroyed();
+  }
 }
 
 ImmersiveModeControllerMac::ImmersiveModeControllerMac(bool separate_tab_strip)
@@ -102,19 +111,11 @@ void ImmersiveModeControllerMac::SetEnabled(bool enabled) {
 
       // Move the tab strip to the `tab_overlay_widget`, the host of the
       // `tab_overlay_view`.
-      browser_view_->tab_overlay_view()->AddChildView(
+      browser_view_->tab_overlay_view()->AddChildViewRaw(
           browser_view_->tab_strip_region_view());
 
-      // Inset the start of |tab_strip_region_view()| by |kTrafficLightsWidth|.
-      // This will leave a hole for the traffic light to appear.
-      // Without this +1 top inset the tabs sit 1px too high. I assume this is
-      // because in fullscreen there is no resize handle.
-      gfx::Insets insets =
-          browser_view_->frame()->GetFrameView()->CaptionButtonsOnLeadingEdge()
-              ? gfx::Insets::TLBR(1, kTrafficLightsWidth, 0, 0)
-              : gfx::Insets::TLBR(1, 0, 0, kTrafficLightsWidth);
       browser_view_->tab_strip_region_view()->SetBorder(
-          views::CreateEmptyBorder(insets));
+          views::CreateEmptyBorder(GetTabStripRegionViewInsets()));
 
       views::NativeWidgetMacNSWindowHost* tab_overlay_host =
           views::NativeWidgetMacNSWindowHost::GetFromNativeWindow(
@@ -161,6 +162,10 @@ void ImmersiveModeControllerMac::SetEnabled(bool enabled) {
     browser_view_->OnImmersiveRevealStarted();
     browser_view_->InvalidateLayout();
 
+    for (Observer& observer : observers_) {
+      observer.OnImmersiveFullscreenEntered();
+    }
+
     views::NativeWidgetMacNSWindowHost* overlay_host =
         views::NativeWidgetMacNSWindowHost::GetFromNativeWindow(
             browser_view_->overlay_widget()->GetNativeWindow());
@@ -199,8 +204,9 @@ void ImmersiveModeControllerMac::SetEnabled(bool enabled) {
     // Notify BrowserView about the fullscreen exit so that the top container
     // can be reparented, otherwise it might be destroyed along with the
     // overlay widget.
-    for (Observer& observer : observers_)
+    for (Observer& observer : observers_) {
       observer.OnImmersiveFullscreenExited();
+    }
 
     // Rollback the view shuffling from enablement.
     MoveChildren(browser_view_->overlay_widget(), browser_view_->GetWidget());
@@ -225,6 +231,16 @@ void ImmersiveModeControllerMac::SetEnabled(bool enabled) {
           nullptr);
     }
   }
+}
+
+gfx::Insets ImmersiveModeControllerMac::GetTabStripRegionViewInsets() {
+  int right_left_inset = kTabAlignmentInset + kTrafficLightsWidth;
+
+  // Without this +1 top inset the tabs sit 1px too high. I assume this is
+  // because in fullscreen there is no resize handle.
+  return browser_view_->frame()->GetFrameView()->CaptionButtonsOnLeadingEdge()
+             ? gfx::Insets::TLBR(1, right_left_inset, 0, 0)
+             : gfx::Insets::TLBR(1, 0, 0, right_left_inset);
 }
 
 bool ImmersiveModeControllerMac::IsEnabled() const {
@@ -315,15 +331,13 @@ void ImmersiveModeControllerMac::OnContentFullscreenChanged(
   }
 }
 
-void ImmersiveModeControllerMac::OnWillChangeFocus(views::View* focused_before,
-                                                   views::View* focused_now) {}
-
 void ImmersiveModeControllerMac::OnDidChangeFocus(views::View* focused_before,
                                                   views::View* focused_now) {
   if (browser_view_->top_container()->Contains(focused_now) ||
       browser_view_->tab_overlay_view()->Contains(focused_now)) {
-    if (!focus_lock_)
+    if (!focus_lock_) {
       focus_lock_ = GetRevealedLock(ANIMATE_REVEAL_NO);
+    }
   } else {
     focus_lock_.reset();
   }
@@ -374,8 +388,8 @@ void ImmersiveModeControllerMac::MoveChildren(views::Widget* from_widget,
     return;
   }
 
-  views::Widget::Widgets widgets;
-  views::Widget::GetAllChildWidgets(from_widget->GetNativeView(), &widgets);
+  views::Widget::Widgets widgets =
+      views::Widget::GetAllChildWidgets(from_widget->GetNativeView());
   for (views::Widget* widget : widgets) {
     if (ShouldMoveChild(widget)) {
       views::Widget::ReparentNativeView(widget->GetNativeView(),
@@ -402,8 +416,14 @@ bool ImmersiveModeControllerMac::ShouldMoveChild(views::Widget* child) {
     }
   }
 
-  if (child->GetNativeWindowProperty(views::kWidgetIdentifierKey) ==
-      constrained_window::kConstrainedWindowWidgetIdentifier) {
+  const void* widget_identifier =
+      child->GetNativeWindowProperty(views::kWidgetIdentifierKey);
+  if (widget_identifier ==
+          constrained_window::kConstrainedWindowWidgetIdentifier
+#if BUILDFLAG(ENABLE_GLIC)
+      || widget_identifier == glic::kGlicWidgetIdentifier
+#endif
+  ) {
     return true;
   }
 
@@ -434,19 +454,27 @@ bool ImmersiveModeControllerMac::ShouldMoveChild(views::Widget* child) {
 
 void ImmersiveModeControllerMac::OnImmersiveModeToolbarRevealChanged(
     bool is_revealed) {
+  if (is_revealed_ == is_revealed) {
+    return;
+  }
   is_revealed_ = is_revealed;
-  // TODO(crbug.com/40892148): update tabstrip position so that it occupies full
-  // width when the traffic lights are hidden.
+
+  // Notify observers that immersive reveal has started.
+  for (Observer& observer : observers_) {
+    if (is_revealed) {
+      observer.OnImmersiveRevealStarted();
+    } else {
+      observer.OnImmersiveRevealEnded();
+    }
+  }
 }
 
 void ImmersiveModeControllerMac::OnImmersiveModeMenuBarRevealChanged(
-    float reveal_amount) {
+    double reveal_amount) {
   reveal_amount_ = reveal_amount;
   if (!browser_view_->infobar_container()->IsEmpty()) {
     browser_view_->InvalidateLayout();
   }
-  // TODO(crbug.com/40892148): update tabstrip position so that it occupies full
-  // width when the traffic lights are hidden.
 }
 
 void ImmersiveModeControllerMac::OnAutohidingMenuBarHeightChanged(
@@ -522,7 +550,7 @@ views::View* ImmersiveModeFocusSearchMac::FindNextFocusableView(
     traverse_order.push_back(browser_view_->tab_overlay_widget());
   }
 
-  auto current_widget_it = base::ranges::find_if(
+  auto current_widget_it = std::ranges::find_if(
       traverse_order, [starting_view](const views::Widget* widget) {
         return widget->GetRootView()->Contains(starting_view);
       });

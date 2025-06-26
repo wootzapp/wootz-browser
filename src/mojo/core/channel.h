@@ -9,7 +9,7 @@
 
 #include "base/compiler_specific.h"
 #include "base/containers/span.h"
-#include "base/memory/nonscannable_memory.h"
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/process/process.h"
@@ -25,6 +25,10 @@
 #include "mojo/public/cpp/platform/platform_handle.h"
 
 namespace mojo::core {
+
+namespace ipcz_driver {
+class Envelope;
+}
 
 const size_t kChannelMessageAlignment = 8;
 
@@ -62,7 +66,7 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
   struct Message;
 
   using MessagePtr = std::unique_ptr<Message>;
-  using AlignedBuffer = std::unique_ptr<char, base::NonScannableDeleter>;
+  using AlignedBuffer = std::unique_ptr<char[]>;
 
   // A message to be written to a channel.
   struct MOJO_SYSTEM_IMPL_EXPORT Message {
@@ -132,7 +136,11 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
     };
 
     // Header used for all messages when the Channel backs an ipcz transport.
-    struct ALIGNAS(8) IpczHeader {
+    //
+    // Note: This struct *must* be forward and backward compatible. Changes are
+    // append-only, must add a new "struct {} vx" member, and code must be able
+    // to deal with newer and older versions of this header.
+    struct IpczHeader {
       // The size of this header in bytes. Used for versioning.
       uint16_t size;
 
@@ -143,7 +151,20 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
       // Total size of this message in bytes. This is the size of this header
       // plus the size of any message data immediately following it.
       uint32_t num_bytes;
+
+      struct {
+        // When this header was created, relative to the reference of
+        // base::TimeTicks().
+        int64_t creation_timeticks_us;
+      } v2;
+      NO_UNIQUE_ADDRESS struct {
+      } v2_marker;
     };
+
+    static constexpr size_t kMinIpczHeaderSize = offsetof(IpczHeader, v2);
+    static bool IsAtLeastV2(const IpczHeader& header) {
+      return header.size >= offsetof(IpczHeader, v2_marker);
+    }
 
 #if BUILDFLAG(MOJO_USE_APPLE_CHANNEL)
     struct MachPortsEntry {
@@ -287,9 +308,11 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
     // Notify of a received message. |payload| is not owned and must not be
     // retained; it will be null if |payload_size| is 0. |handles| are
     // transferred to the callee.
-    virtual void OnChannelMessage(const void* payload,
-                                  size_t payload_size,
-                                  std::vector<PlatformHandle> handles) = 0;
+    virtual void OnChannelMessage(
+        const void* payload,
+        size_t payload_size,
+        std::vector<PlatformHandle> handles,
+        scoped_refptr<ipcz_driver::Envelope> envelope) = 0;
 
     // Notify that an error has occured and the Channel will cease operation.
     virtual void OnChannelError(Error error) = 0;
@@ -346,6 +369,9 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
   // Allows the caller to change the Channel's HandlePolicy after construction.
   void set_handle_policy(HandlePolicy policy) { handle_policy_ = policy; }
 
+  // Allows the caller to determine the current HandlePolicy.
+  HandlePolicy handle_policy() const { return handle_policy_; }
+
   // Request that the channel be shut down. This should always be called before
   // releasing the last reference to a Channel to ensure that it's cleaned up
   // on its I/O task runner's thread.
@@ -388,9 +414,6 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
 
   Delegate* delegate() const { return delegate_; }
 
-  // Allows the caller to determine the current HandlePolicy.
-  HandlePolicy handle_policy() const { return handle_policy_; }
-
   // Called by the implementation when it wants somewhere to stick data.
   // |*buffer_capacity| may be set by the caller to indicate the desired buffer
   // size. If 0, a sane default size will be used instead.
@@ -412,7 +435,10 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
   // If the channel was created with DispatchBufferPolicy::kUnmanaged, the
   // implementation should call this directly. If it was created with kManaged,
   // OnReadComplete() will call this. |*size_hint| will be set to a recommended
-  // size for the next read done by the implementation.
+  // size for the next read done by the implementation. If `received_handles` is
+  // not null, the provided handles are taken as handles which accompanied the
+  // bytes in `buffer`. Otherwise the implementation must make handles available
+  // via GetReadPlatformHandles/ForIpcz() as needed.
   enum class DispatchResult {
     // The message was dispatched and consumed. |size_hint| contains the size
     // of the message.
@@ -428,6 +454,11 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
   };
   DispatchResult TryDispatchMessage(base::span<const char> buffer,
                                     size_t* size_hint);
+  DispatchResult TryDispatchMessage(
+      base::span<const char> buffer,
+      std::optional<std::vector<PlatformHandle>> received_handles,
+      scoped_refptr<ipcz_driver::Envelope> envelope,
+      size_t* size_hint);
 
   // Called by the implementation when something goes horribly wrong. It is NOT
   // OK to call this synchronously from any public interface methods.
@@ -478,14 +509,15 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
     kReceive,
   };
 
+  void RecordSentMessageMetrics(size_t payload_size);
+
+ private:
+  // Returns true for ~1/1000 calls. Used to reduce reporting overhead.
+  bool ShouldRecordSubsampledHistograms();
   // Records histograms that count sent/received messages per process type.
   // Must be guarded by a call to ShouldRecordSubsampledHistograms().
   static void LogHistogramForIPCMetrics(MessageType type);
 
-  // Returns true for ~1/1000 calls. Used to reduce reporting overhead.
-  bool ShouldRecordSubsampledHistograms();
-
- private:
   friend class base::RefCountedThreadSafe<Channel>;
 
   class ReadBuffer;
@@ -503,6 +535,9 @@ class MOJO_SYSTEM_IMPL_EXPORT Channel
   // pseudo-random numbers which leaves the synchronization to the client and is
   // not thread-safe, hence guarded by lock here.
   base::MetricsSubSampler sub_sampler_ GUARDED_BY(lock_);
+
+  FRIEND_TEST_ALL_PREFIXES(ChannelTest, IpczHeaderCompatibilityTest);
+  FRIEND_TEST_ALL_PREFIXES(ChannelTest, TryDispatchMessageWithEnvelope);
 };
 
 }  // namespace mojo::core

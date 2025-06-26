@@ -69,8 +69,6 @@ class FakePasswordStoreBackend : public PasswordStoreBackend {
   void GetAllLoginsWithAffiliationAndBrandingAsync(
       LoginsOrErrorReply callback) override;
   void GetAutofillableLoginsAsync(LoginsOrErrorReply callback) override;
-  void GetAllLoginsForAccountAsync(std::string account,
-                                   LoginsOrErrorReply callback) override;
   void FillMatchingLoginsAsync(
       LoginsOrErrorReply callback,
       bool include_psl,
@@ -84,23 +82,17 @@ class FakePasswordStoreBackend : public PasswordStoreBackend {
   void RemoveLoginAsync(const base::Location& location,
                         const PasswordForm& form,
                         PasswordChangesOrErrorReply callback) override;
-  void RemoveLoginsByURLAndTimeAsync(
-      const base::Location& location,
-      const base::RepeatingCallback<bool(const GURL&)>& url_filter,
-      base::Time delete_begin,
-      base::Time delete_end,
-      base::OnceCallback<void(bool)> sync_completion,
-      PasswordChangesOrErrorReply callback) override;
   void RemoveLoginsCreatedBetweenAsync(
       const base::Location& location,
       base::Time delete_begin,
       base::Time delete_end,
+      base::OnceCallback<void(bool)> sync_completion,
       PasswordChangesOrErrorReply callback) override;
   void DisableAutoSignInForOriginsAsync(
       const base::RepeatingCallback<bool(const GURL&)>& origin_filter,
       base::OnceClosure completion) override;
   SmartBubbleStatsStore* GetSmartBubbleStatsStore() override;
-  std::unique_ptr<syncer::ModelTypeControllerDelegate>
+  std::unique_ptr<syncer::DataTypeControllerDelegate>
   CreateSyncControllerDelegate() override;
   void OnSyncServiceInitialized(syncer::SyncService* sync_service) override;
   void RecordAddLoginAsyncCalledFromTheStore() override;
@@ -123,10 +115,6 @@ class FakePasswordStoreBackend : public PasswordStoreBackend {
   void DisableAutoSignInForOriginsInternal(
       const base::RepeatingCallback<bool(const GURL&)>& origin_filter);
   PasswordStoreChangeList RemoveLoginInternal(const PasswordForm& form);
-  PasswordStoreChangeList RemoveLoginsByURLAndTimeInternal(
-      const base::RepeatingCallback<bool(const GURL&)>& url_filter,
-      base::Time delete_begin,
-      base::Time delete_end);
   PasswordStoreChangeList RemoveLoginsCreatedBetweenInternal(
       base::Time delete_begin,
       base::Time delete_end);

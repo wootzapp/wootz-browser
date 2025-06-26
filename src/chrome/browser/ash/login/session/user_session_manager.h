@@ -13,7 +13,6 @@
 #include <string>
 #include <vector>
 
-#include "ash/components/arc/net/always_on_vpn_manager.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/functional/callback.h"
@@ -29,7 +28,6 @@
 #include "chrome/browser/ash/hats/hats_notification_controller.h"
 #include "chrome/browser/ash/login/signin/oauth2_login_manager.h"
 #include "chrome/browser/ash/login/signin/token_handle_util.h"
-#include "chrome/browser/ash/net/secure_dns_manager.h"
 #include "chrome/browser/ash/net/xdr_manager.h"
 #include "chrome/browser/ash/release_notes/release_notes_notification.h"
 #include "chrome/browser/ash/system_web_apps/apps/help_app/help_app_notification_controller.h"
@@ -37,6 +35,7 @@
 #include "chromeos/ash/components/dbus/session_manager/session_manager_client.h"
 #include "chromeos/ash/components/login/auth/authenticator.h"
 #include "chromeos/ash/components/login/auth/public/user_context.h"
+#include "chromeos/ash/experiences/arc/net/always_on_vpn_manager.h"
 #include "chromeos/dbus/tpm_manager/tpm_manager.pb.h"
 #include "components/user_manager/user.h"
 #include "components/user_manager/user_manager.h"
@@ -205,10 +204,6 @@ class UserSessionManager
   // UserSessionManager finished restoring user sessions.
   bool UserSessionsRestored() const;
 
-  // Returns true iff browser has been restarted after crash and
-  // user sessions restoration is in progress.
-  bool UserSessionsRestoreInProgress() const;
-
   // Called when user profile is loaded. Send the notification before creating
   // the browser so additional objects that need the profile (e.g. the launcher)
   // can be created first.
@@ -372,7 +367,8 @@ class UserSessionManager
   void StopChildStatusObserving(Profile* profile);
 
   void CreateUserSession(const UserContext& user_context,
-                         bool has_auth_cookies);
+                         bool has_auth_cookies,
+                         bool has_active_session);
   void PreStartSession(StartSessionType start_session_type);
 
   // Store any useful UserContext data early on when profile has not been
@@ -394,6 +390,9 @@ class UserSessionManager
 
   void StartCrosSession();
   void PrepareProfile(const base::FilePath& profile_path);
+
+  // Check if the ARCVM DLC image was installed on the device.
+  void CheckArcVmDlcImageExist();
 
   // Callback for Profile::CREATE_STATUS_CREATED profile state.
   // Initializes basic preferences for newly created profile. Any other
@@ -541,9 +540,6 @@ class UserSessionManager
   // On a normal boot then login into user sessions this will be false.
   bool user_sessions_restored_;
 
-  // True if user sessions restoration after crash is in progress.
-  bool user_sessions_restore_in_progress_;
-
   // User sessions that have to be restored after browser crash.
   // [user_id] > [user_id_hash]
   using PendingUserSessions = std::map<AccountId, std::string>;
@@ -610,8 +606,6 @@ class UserSessionManager
 
   std::unique_ptr<arc::AlwaysOnVpnManager> always_on_vpn_manager_;
 
-  std::unique_ptr<SecureDnsManager> secure_dns_manager_;
-
   std::unique_ptr<XdrManager> xdr_manager_;
 
   std::unique_ptr<ChildPolicyObserver> child_policy_observer_;
@@ -628,6 +622,10 @@ class UserSessionManager
 
   // Callback that allows tests to inject a test EolNotification implementation.
   EolNotificationHandlerFactoryCallback eol_notification_handler_test_factory_;
+
+  // Whether `metrics::BeginFirstWebContentsProfiling()` has been called. Should
+  // only be called once per program lifetime.
+  bool has_recorded_first_web_contents_metrics_ = false;
 
   base::WeakPtrFactory<UserSessionManager> weak_factory_{this};
 };

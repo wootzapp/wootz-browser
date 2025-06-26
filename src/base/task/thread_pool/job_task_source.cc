@@ -21,8 +21,7 @@
 #include "base/time/time_override.h"
 #include "base/trace_event/base_tracing.h"
 
-namespace base {
-namespace internal {
+namespace base::internal {
 
 namespace {
 
@@ -259,8 +258,9 @@ size_t JobTaskSource::GetRemainingConcurrency() const {
   }
   const size_t max_concurrency = GetMaxConcurrency(state.worker_count());
   // Avoid underflows.
-  if (state.worker_count() > max_concurrency)
+  if (state.worker_count() > max_concurrency) {
     return 0;
+  }
   return max_concurrency - state.worker_count();
 }
 
@@ -402,8 +402,7 @@ TimeTicks JobTaskSource::GetDelayedSortKey() const {
 // This function isn't expected to be called since a job is never delayed.
 // However, the class still needs to provide an override.
 bool JobTaskSource::HasReadyTasks(TimeTicks now) const {
-  NOTREACHED_IN_MIGRATION();
-  return true;
+  NOTREACHED();
 }
 
 std::optional<Task> JobTaskSource::Clear(TaskSource::Transaction* transaction) {
@@ -415,5 +414,4 @@ std::optional<Task> JobTaskSource::Clear(TaskSource::Transaction* transaction) {
   return std::nullopt;
 }
 
-}  // namespace internal
-}  // namespace base
+}  // namespace base::internal

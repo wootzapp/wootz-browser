@@ -647,13 +647,11 @@ TEST_F(FirstPartySetsHandlerImplEnabledTest,
   // Exploit another helper to wait until the public sets file has been read.
   GetSetsAndWait();
 
-  net::SchemefulSite example(GURL("https://example.test"));
-  net::SchemefulSite associated(GURL("https://associatedsite.test"));
-
   base::test::TestFuture<net::FirstPartySetMetadata> future;
-  handler().ComputeFirstPartySetMetadata(example, &associated,
-                                         net::FirstPartySetsContextConfig(),
-                                         future.GetCallback());
+  handler().ComputeFirstPartySetMetadata(
+      net::SchemefulSite(GURL("https://example.test")),
+      net::SchemefulSite(GURL("https://associatedsite.test")),
+      net::FirstPartySetsContextConfig(), future.GetCallback());
   EXPECT_TRUE(future.IsReady());
   EXPECT_NE(future.Take(), net::FirstPartySetMetadata());
 }
@@ -662,11 +660,10 @@ TEST_F(FirstPartySetsHandlerImplEnabledTest,
        ComputeFirstPartySetMetadata_AsynchronousResult) {
   // Send query before the sets are ready.
   base::test::TestFuture<net::FirstPartySetMetadata> future;
-  net::SchemefulSite example(GURL("https://example.test"));
-  net::SchemefulSite associated(GURL("https://associatedsite.test"));
-  handler().ComputeFirstPartySetMetadata(example, &associated,
-                                         net::FirstPartySetsContextConfig(),
-                                         future.GetCallback());
+  handler().ComputeFirstPartySetMetadata(
+      net::SchemefulSite(GURL("https://example.test")),
+      net::SchemefulSite(GURL("https://associatedsite.test")),
+      net::FirstPartySetsContextConfig(), future.GetCallback());
   EXPECT_FALSE(future.IsReady());
 
   handler().Init(scoped_dir_.GetPath(), net::LocalSetDeclaration());
@@ -691,7 +688,7 @@ TEST_F(FirstPartySetsHandlerImplEnabledTest,
       net::FirstPartySetsContextConfig(),
       [&](const net::SchemefulSite& site,
           const net::FirstPartySetEntry& entry) {
-        NOTREACHED_NORETURN();
+        NOTREACHED();
         return true;
       }));
 
@@ -746,10 +743,11 @@ TEST_F(FirstPartySetsHandlerImplEnabledTest,
   // Calling ForEachEffectiveSetEntry with context config which add a new
   // associated site https://associatedsite2.test to the above set.
   EXPECT_TRUE(handler().ForEachEffectiveSetEntry(
-      net::FirstPartySetsContextConfig(
+      net::FirstPartySetsContextConfig::Create(
           {{associated2,
             net::FirstPartySetEntryOverride(net::FirstPartySetEntry(
-                example, net::SiteType::kAssociated, std::nullopt))}}),
+                example, net::SiteType::kAssociated, std::nullopt))}})
+          .value(),
       [&](const net::SchemefulSite& site,
           const net::FirstPartySetEntry& entry) {
         set_entries.emplace_back(site, entry);

@@ -8,6 +8,7 @@
 
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
+#include "base/test/bind.h"
 #include "base/test/gmock_expected_support.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
@@ -15,6 +16,7 @@
 #include "chrome/browser/web_applications/isolated_web_apps/error/unusable_swbn_file_error.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_trust_checker.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
+#include "chrome/browser/web_applications/isolated_web_apps/iwa_identity_validator.h"
 #include "chrome/browser/web_applications/isolated_web_apps/signed_web_bundle_reader.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/test_signed_web_bundle_builder.h"
 #include "chrome/browser/web_applications/test/signed_web_bundle_utils.h"
@@ -41,6 +43,7 @@ using ::testing::IsTrue;
 class IsolatedWebAppResponseReaderTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    IwaIdentityValidator::CreateSingleton();
     SetTrustedWebBundleIdsForTesting({web_bundle_id_});
     ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
   }
@@ -52,10 +55,8 @@ class IsolatedWebAppResponseReaderTest : public ::testing::Test {
                         "Hello World");
     auto unsigned_bundle = builder.CreateBundle();
 
-    web_package::WebBundleSigner::Ed25519KeyPair key_pair(kTestPublicKey,
-                                                          kTestPrivateKey);
-    auto signed_bundle =
-        web_package::WebBundleSigner::SignBundle(unsigned_bundle, {key_pair});
+    auto signed_bundle = web_package::test::WebBundleSigner::SignBundle(
+        unsigned_bundle, test::GetDefaultEd25519KeyPair());
 
     base::FilePath web_bundle_path;
     EXPECT_TRUE(
@@ -65,28 +66,14 @@ class IsolatedWebAppResponseReaderTest : public ::testing::Test {
     return web_bundle_path;
   }
 
-  base::expected<void, UnusableSwbnFileError> ReadIntegrityBlockAndMetadata(
-      SignedWebBundleReader& reader) {
-    base::test::TestFuture<base::expected<void, UnusableSwbnFileError>> future;
-    reader.StartReading(
-        base::BindOnce(
-            [](web_package::SignedWebBundleIntegrityBlock integrity_block,
-               base::OnceCallback<void(
-                   SignedWebBundleReader::SignatureVerificationAction)>
-                   callback) {
-              std::move(callback).Run(
-                  SignedWebBundleReader::SignatureVerificationAction::
-                      ContinueAndVerifySignatures());
-            }),
-        future.GetCallback());
+  SignedWebBundleReader::Result CreateReaderAndInitialize(
+      const base::FilePath& web_bundle_path,
+      const std::optional<GURL>& base_url,
+      bool verify_signatures = true) {
+    base::test::TestFuture<SignedWebBundleReader::Result> future;
+    SignedWebBundleReader::Create(web_bundle_path, base_url, verify_signatures,
+                                  future.GetCallback());
     return future.Take();
-  }
-
-  IsolatedWebAppResponseReaderImpl::TrustChecker CreateTrustChecker() {
-    return base::BindRepeating(
-        &IsolatedWebAppTrustChecker::IsTrusted,
-        std::make_unique<IsolatedWebAppTrustChecker>(profile_), web_bundle_id_,
-        /*is_dev_mode_bundle=*/false);
   }
 
   content::BrowserTaskEnvironment task_environment_;
@@ -95,7 +82,7 @@ class IsolatedWebAppResponseReaderTest : public ::testing::Test {
 
   TestingProfile profile_;
   web_package::SignedWebBundleId web_bundle_id_ =
-      *web_package::SignedWebBundleId::Create(kTestEd25519WebBundleId);
+      test::GetDefaultEd25519WebBundleId();
 
   GURL base_url_ =
       IsolatedWebAppUrlInfo::CreateFromSignedWebBundleId(web_bundle_id_)
@@ -105,12 +92,12 @@ class IsolatedWebAppResponseReaderTest : public ::testing::Test {
 
 TEST_F(IsolatedWebAppResponseReaderTest, ChecksWhetherBundleIsStillTrusted) {
   base::FilePath web_bundle_path = CreateSignedBundleAndWriteToDisk();
-  auto reader = SignedWebBundleReader::Create(web_bundle_path, base_url_);
-  auto status = ReadIntegrityBlockAndMetadata(*reader.get());
-  ASSERT_THAT(status, HasValue());
+
+  ASSERT_OK_AND_ASSIGN(auto reader,
+                       CreateReaderAndInitialize(web_bundle_path, base_url_));
 
   auto response_reader = std::make_unique<IsolatedWebAppResponseReaderImpl>(
-      std::move(reader), CreateTrustChecker());
+      std::move(reader), profile_, web_bundle_id_, /*dev_mode=*/false);
 
   {
     network::ResourceRequest request;
@@ -145,12 +132,11 @@ TEST_F(IsolatedWebAppResponseReaderTest, ChecksWhetherBundleIsStillTrusted) {
 TEST_F(IsolatedWebAppResponseReaderTest,
        ReadResponseStripsQueryParametersAndFragment) {
   base::FilePath web_bundle_path = CreateSignedBundleAndWriteToDisk();
-  auto reader = SignedWebBundleReader::Create(web_bundle_path, base_url_);
-  auto status = ReadIntegrityBlockAndMetadata(*reader.get());
-  ASSERT_THAT(status, HasValue());
+  ASSERT_OK_AND_ASSIGN(auto reader,
+                       CreateReaderAndInitialize(web_bundle_path, base_url_));
 
   auto response_reader = std::make_unique<IsolatedWebAppResponseReaderImpl>(
-      std::move(reader), CreateTrustChecker());
+      std::move(reader), profile_, web_bundle_id_, /*dev_mode=*/false);
 
   {
     network::ResourceRequest request;
@@ -177,12 +163,11 @@ TEST_F(IsolatedWebAppResponseReaderTest,
 
 TEST_F(IsolatedWebAppResponseReaderTest, ReadResponseBody) {
   base::FilePath web_bundle_path = CreateSignedBundleAndWriteToDisk();
-  auto reader = SignedWebBundleReader::Create(web_bundle_path, base_url_);
-  auto status = ReadIntegrityBlockAndMetadata(*reader.get());
-  ASSERT_THAT(status, HasValue());
+  ASSERT_OK_AND_ASSIGN(auto reader,
+                       CreateReaderAndInitialize(web_bundle_path, base_url_));
 
   auto response_reader = std::make_unique<IsolatedWebAppResponseReaderImpl>(
-      std::move(reader), CreateTrustChecker());
+      std::move(reader), profile_, web_bundle_id_, /*dev_mode=*/false);
 
   network::ResourceRequest request;
   request.url = base_url_;
@@ -219,14 +204,13 @@ TEST_F(IsolatedWebAppResponseReaderTest, ReadResponseBody) {
 
 TEST_F(IsolatedWebAppResponseReaderTest, Close) {
   base::FilePath web_bundle_path = CreateSignedBundleAndWriteToDisk();
-  auto reader = SignedWebBundleReader::Create(web_bundle_path, base_url_);
-  // TODO: handle return value.
-  auto status = ReadIntegrityBlockAndMetadata(*reader.get());
-  ASSERT_THAT(status, HasValue());
+
+  ASSERT_OK_AND_ASSIGN(auto reader,
+                       CreateReaderAndInitialize(web_bundle_path, base_url_));
   auto* raw_reader = reader.get();
 
   auto response_reader = std::make_unique<IsolatedWebAppResponseReaderImpl>(
-      std::move(reader), CreateTrustChecker());
+      std::move(reader), profile_, web_bundle_id_, /*dev_mode=*/false);
 
   network::ResourceRequest request;
   request.url = base_url_;
@@ -241,7 +225,7 @@ TEST_F(IsolatedWebAppResponseReaderTest, Close) {
   response_reader->Close(close_future.GetCallback());
   ASSERT_TRUE(close_future.Wait());
 
-  EXPECT_EQ(raw_reader->GetState(), SignedWebBundleReader::State::kClosed);
+  EXPECT_TRUE(raw_reader->IsClosed());
 
   // If the response_reader is closed, then reading the response should return
   // `net::ERR_FAILED`.

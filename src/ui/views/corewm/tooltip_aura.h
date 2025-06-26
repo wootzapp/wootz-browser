@@ -95,20 +95,17 @@ class VIEWS_EXPORT TooltipAura : public Tooltip, public WidgetObserver {
   void Hide() override;
   bool IsVisible() override;
 
-  // WidgetObserver:
-  void OnWidgetDestroying(Widget* widget) override;
-
   // A callback to generate a `TooltipViewAura` instance.
   const TooltipViewFactory tooltip_view_factory_;
 
   // The widget containing the tooltip. May be NULL.
-  raw_ptr<TooltipWidget> widget_ = nullptr;
+  std::unique_ptr<TooltipWidget> widget_;
 
   // The window we're showing the tooltip for. Never NULL and valid while
   // showing.
   raw_ptr<aura::Window> tooltip_window_ = nullptr;
 
-  int max_width_ = kTooltipMaxWidth;
+  int max_width_;
 
   // Observes tooltip state change.
   base::ObserverList<wm::TooltipObserver> observers_;

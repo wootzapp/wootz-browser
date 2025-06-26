@@ -29,9 +29,10 @@ MojomKeyStatus EnumTraits<MojomKeyStatus, NativeKeyStatus>::ToMojom(
       return MojomKeyStatus::KEY_STATUS_PENDING;
     case NativeKeyStatus::RELEASED:
       return MojomKeyStatus::RELEASED;
+    case NativeKeyStatus::USABLE_IN_FUTURE:
+      return MojomKeyStatus::USABLE_IN_FUTURE;
   }
-  NOTREACHED_IN_MIGRATION();
-  return MojomKeyStatus::INTERNAL_ERROR;
+  NOTREACHED();
 }
 
 // static
@@ -60,9 +61,11 @@ bool EnumTraits<MojomKeyStatus, NativeKeyStatus>::FromMojom(
     case MojomKeyStatus::RELEASED:
       *out = NativeKeyStatus::RELEASED;
       return true;
+    case MojomKeyStatus::USABLE_IN_FUTURE:
+      *out = NativeKeyStatus::USABLE_IN_FUTURE;
+      return true;
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 // static

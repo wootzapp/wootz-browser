@@ -3,6 +3,8 @@
 // found in the LICENSE file.
 
 #include "components/browsing_topics/browsing_topics_calculator.h"
+
+#include <array>
 #include <memory>
 
 #include "base/files/scoped_temp_dir.h"
@@ -45,10 +47,12 @@ constexpr char kHost5[] = "www.foo5.com";
 constexpr char kHost6[] = "www.foo6.com";
 
 Topic ExpectedRandomTopic(size_t index) {
-  Topic kExpectedRandomTopicsForTaxonomyV1[5] = {
-      Topic(101), Topic(102), Topic(103), Topic(104), Topic(105)};
-  Topic kExpectedRandomTopicsForTaxonomyV2[5] = {
-      Topic(176), Topic(177), Topic(180), Topic(183), Topic(184)};
+  std::array<Topic, 5> kExpectedRandomTopicsForTaxonomyV1 = {
+      Topic(101), Topic(102), Topic(103), Topic(104), Topic(105),
+  };
+  std::array<Topic, 5> kExpectedRandomTopicsForTaxonomyV2 = {
+      Topic(176), Topic(177), Topic(180), Topic(183), Topic(184),
+  };
 
   if (blink::features::kBrowsingTopicsTaxonomyVersion.Get() == 1) {
     return kExpectedRandomTopicsForTaxonomyV1[index];
@@ -58,7 +62,7 @@ Topic ExpectedRandomTopic(size_t index) {
     return kExpectedRandomTopicsForTaxonomyV2[index];
   }
 
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 class TestHistoryService : public history::HistoryService {
@@ -111,7 +115,8 @@ class BrowsingTopicsCalculatorTest : public testing::Test {
     tracking_protection_settings_ =
         std::make_unique<privacy_sandbox::TrackingProtectionSettings>(
             &prefs_, host_content_settings_map_.get(),
-            /*onboarding_service=*/nullptr, /*is_incognito=*/false);
+            /*management_service=*/nullptr,
+            /*is_incognito=*/false);
     cookie_settings_ = base::MakeRefCounted<content_settings::CookieSettings>(
         host_content_settings_map_.get(), &prefs_,
         tracking_protection_settings_.get(), false,

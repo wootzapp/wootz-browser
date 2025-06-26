@@ -79,7 +79,7 @@ def _BinaryDirTargetOS(binary_dir):
                                  text=True)
         value = popen.communicate()[0]
         if popen.returncode == 0:
-            match = re.match('target_os = "(.*)"$', value)
+            match = re.match(r'target_os = "(.*)"$', value)
             if match:
                 return match.group(1)
 
@@ -89,8 +89,9 @@ def _BinaryDirTargetOS(binary_dir):
     if os.path.exists(build_ninja_path):
         with open(build_ninja_path) as build_ninja_file:
             build_ninja_content = build_ninja_file.read()
-            match = re.search('-linux-android(eabi)?-ar$', build_ninja_content,
-                              re.MULTILINE)
+            match = re.search(r'-linux-android(eabi)?-ar$',
+                              build_ninja_content,
+                              flags=re.MULTILINE)
             if match:
                 return 'android'
 
@@ -197,7 +198,7 @@ def _RunOnAndroidTarget(binary_dir, test, android_device, extra_command_line):
                                  stdout=subprocess.PIPE,
                                  text=True)
 
-        FINAL_LINE_RE = re.compile('status=(\d+)$')
+        FINAL_LINE_RE = re.compile(r'status=(\d+)$')
         final_line = None
         while True:
             # Use readline so that the test output appears “live” when running.
@@ -333,7 +334,9 @@ def _RunOnIOSTarget(binary_dir, test, is_xcuitest=False, gtest_filter=None):
             }
         }
         if gtest_filter:
-            module_data['CommandLineArguments'] = ['--gtest_filter='+gtest_filter]
+            module_data['CommandLineArguments'] = [
+                '--gtest_filter=' + gtest_filter
+            ]
         return {test: module_data}
 
     def xcuitest(binary_dir, test):
@@ -347,6 +350,7 @@ def _RunOnIOSTarget(binary_dir, test, is_xcuitest=False, gtest_filter=None):
         target_app_path = os.path.join(test_path, test + '.app')
         module_data = {
             'IsUITestBundle': True,
+            'SystemAttachmentLifetime': 'deleteOnSuccess',
             'IsXCTRunnerHostedTestBundle': True,
             'TestBundlePath': bundle_path,
             'TestHostPath': runner_path,
@@ -376,7 +380,7 @@ def _RunOnIOSTarget(binary_dir, test, is_xcuitest=False, gtest_filter=None):
             '-xctestrun',
             xctestrun_path,
             '-destination',
-            'platform=iOS Simulator,OS=15.5,name=iPhone 13',
+            'platform=iOS Simulator,name=iPhone 15',
         ]
         with open(xctestrun_path, 'wb') as fp:
             if is_xcuitest:
@@ -435,7 +439,7 @@ def main(args):
             for line in adb_devices.splitlines():
                 line = line
                 if (line == 'List of devices attached' or
-                        re.match('^\* daemon .+ \*$', line) or line == ''):
+                        re.match(r'^\* daemon .+ \*$', line) or line == ''):
                     continue
                 (device, ignore) = line.split('\t')
                 devices.append(device)

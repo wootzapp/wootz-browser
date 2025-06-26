@@ -12,7 +12,7 @@
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/ranges/algorithm.h"
+#include "base/not_fatal_until.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chromeos/components/sensors/sensor_util.h"
@@ -200,7 +200,7 @@ PlatformSensorProviderChromeOS::ParseLocation(
       chromeos::sensors::mojom::kLocationBase,
       chromeos::sensors::mojom::kLocationLid,
       chromeos::sensors::mojom::kLocationCamera};
-  const auto it = base::ranges::find(location_strings, raw_location.value());
+  const auto it = std::ranges::find(location_strings, raw_location.value());
   if (it == std::end(location_strings))
     return std::nullopt;
 
@@ -352,7 +352,7 @@ void PlatformSensorProviderChromeOS::GetAttributesCallback(
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
 
   auto it = sensors_.find(id);
-  DCHECK(it != sensors_.end());
+  CHECK(it != sensors_.end(), base::NotFatalUntil::M130);
   auto& sensor = it->second;
   DCHECK(sensor.remote.is_bound());
 
@@ -416,7 +416,7 @@ bool PlatformSensorProviderChromeOS::AreAllSensorsReady() const {
   if (!sensor_ids_received_)
     return false;
 
-  return base::ranges::all_of(sensors_, [](const auto& sensor) {
+  return std::ranges::all_of(sensors_, [](const auto& sensor) {
     return sensor.second.ignored ||
            (sensor.second.scale.has_value() &&
             (!DeviceNeedsLocationWithTypes(sensor.second.types) ||

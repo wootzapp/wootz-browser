@@ -6,23 +6,26 @@ package org.chromium.chrome.browser.xsurface.feed;
 
 import androidx.annotation.IntDef;
 
+import org.jspecify.annotations.NullMarked;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
  * Implemented internally.
  *
- * Interface for logging latency and availability signals for feed launches. All timestamps are in
- * terms of nanoseconds since system boot. One instance exists per feed surface and lasts for the
+ * <p>Interface for logging latency and availability signals for feed launches. All timestamps are
+ * in terms of nanoseconds since system boot. One instance exists per feed surface and lasts for the
  * surface's lifetime.
  */
+@NullMarked
 public interface FeedLaunchReliabilityLogger {
     @IntDef({SurfaceType.UNSPECIFIED, SurfaceType.NEW_TAB_PAGE, SurfaceType.START_SURFACE})
     @Retention(RetentionPolicy.SOURCE)
     public @interface SurfaceType {
         int UNSPECIFIED = 0;
         int NEW_TAB_PAGE = 1;
-        int START_SURFACE = 2;
+        @Deprecated int START_SURFACE = 2;
     }
 
     @IntDef({
@@ -38,13 +41,13 @@ public interface FeedLaunchReliabilityLogger {
         int FOR_YOU = 1;
         int WEB_FEED = 2;
         int SINGLE_WEB_FEED = 3;
-        int SUPERVISED_USER_FEED = 4;
+        @Deprecated int SUPERVISED_USER_FEED = 4;
     }
 
     /**
      * Set details about the stream being launched and send any pending events.
      *
-     * @param streamType Feed type (e.g. "for you", "following" or "supervised user").
+     * @param streamType Feed type (e.g. "for you", or "following").
      * @param streamId Identifier for the stream used to disambiguate events from concurrent
      *     streams.
      */
@@ -152,8 +155,12 @@ public interface FeedLaunchReliabilityLogger {
     /** Drop anything kept with pendingFinished(). */
     default void cancelPendingFinished() {}
 
+    /** Include experiment IDs sent from the server in the reliability log. */
+    default void reportExperiments(int[] experimentIds) {}
+
     /**
      * Log when the feed is launched because its UI surface was created.
+     *
      * @param surfaceType Feed surface type (e.g. new tab page or Start Surface).
      * @param timestamp Time at which the surface began to be created.
      */

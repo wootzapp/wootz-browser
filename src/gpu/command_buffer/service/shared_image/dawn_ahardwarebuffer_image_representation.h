@@ -23,12 +23,14 @@ class DawnAHardwareBufferImageRepresentation : public DawnImageRepresentation {
       AndroidImageBacking* backing,
       MemoryTypeTracker* tracker,
       wgpu::Device device,
+      wgpu::BackendType backend_type,
       wgpu::TextureFormat format,
       std::vector<wgpu::TextureFormat> view_formats,
       AHardwareBuffer* buffer);
   ~DawnAHardwareBufferImageRepresentation() override;
 
-  wgpu::Texture BeginAccess(wgpu::TextureUsage usage) override;
+  wgpu::Texture BeginAccess(wgpu::TextureUsage usage,
+                            wgpu::TextureUsage internal_usage) override;
   void EndAccess() override;
 
  private:
@@ -39,11 +41,17 @@ class DawnAHardwareBufferImageRepresentation : public DawnImageRepresentation {
   base::android::ScopedHardwareBufferHandle handle_;
   wgpu::Texture texture_;
   wgpu::Device device_;
+  wgpu::BackendType backend_type_;
   wgpu::TextureFormat format_;
   std::vector<wgpu::TextureFormat> view_formats_;
+  // There is a SharedTextureMemory per representation with how this works
+  // currently. Switching to a single cached SharedTextureMemory for the backing
+  // needs some care as multiple representations would use the same VkImage and
+  // layout/queue transitions might be problematic.
   wgpu::SharedTextureMemory shared_texture_memory_;
+  AccessMode access_mode_ = AccessMode::kNone;
 };
 
 }  // namespace gpu
 
-#endif  // GPU_COMMAND_BUFFER_SERVICE_SHARED_IMAGE_DAWN_EGL_IMAGE_REPRESENTATION_H_
+#endif  // GPU_COMMAND_BUFFER_SERVICE_SHARED_IMAGE_DAWN_AHARDWAREBUFFER_IMAGE_REPRESENTATION_H_

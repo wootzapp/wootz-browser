@@ -24,8 +24,7 @@ WebInputEvent::Type PointerEventTypeForTouchPointState(
       return WebInputEvent::Type::kPointerMove;
     case WebTouchPoint::State::kStateStationary:
     default:
-      NOTREACHED_IN_MIGRATION();
-      return WebInputEvent::Type::kUndefined;
+      NOTREACHED();
   }
 }
 
@@ -56,6 +55,9 @@ WebPointerEvent::WebPointerEvent(const WebTouchEvent& touch_event,
             GetType() == WebInputEvent::Type::kPointerUp)
                ? WebPointerProperties::Button::kLeft
                : WebPointerProperties::Button::kNoButton;
+  if (touch_event.GetPreventCountingAsInteraction()) {
+    SetPreventCountingAsInteractionTrue();
+  }
 }
 
 WebPointerEvent::WebPointerEvent(WebInputEvent::Type type,
@@ -69,6 +71,9 @@ WebPointerEvent::WebPointerEvent(WebInputEvent::Type type,
   DCHECK_LE(type, WebInputEvent::Type::kPointerTypeLast);
   SetFrameScale(mouse_event.FrameScale());
   SetFrameTranslate(mouse_event.FrameTranslate());
+  if (mouse_event.GetPreventCountingAsInteraction()) {
+    SetPreventCountingAsInteractionTrue();
+  }
 }
 
 std::unique_ptr<WebInputEvent> WebPointerEvent::Clone() const {

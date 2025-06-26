@@ -13,9 +13,9 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "components/autofill/content/browser/autofill_shared_storage.pb.h"
-#include "components/autofill/content/common/content_autofill_features.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/payments/payments_service_url.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
+#include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/services/storage/shared_storage/shared_storage_database.h"
 #include "components/services/storage/shared_storage/shared_storage_manager.h"
 #include "content/public/browser/storage_partition.h"
@@ -65,8 +65,8 @@ IN_PROC_BROWSER_TEST_F(ContentAutofillSharedStorageHandlerBrowserTest,
       base::Base64Decode(base::UTF16ToUTF8(result.data), &decoded_data));
   card_list_proto.ParseFromString(decoded_data);
   auto card_data_list = card_list_proto.server_cards();
-  // TODO(b/324137757): AddTestServerCreditCard results in duplicate cards in
-  // the database. Check for exactly one card here once that's fixed.
+  // TODO(crbug.com/324137757): AddTestServerCreditCard results in duplicate
+  // cards in the database. Check for exactly one card here once that's fixed.
   ASSERT_LE(1, card_data_list.size());
   AutofillCreditCardData card_data = card_data_list[0];
   EXPECT_EQ(card.LastFourDigits(), base::UTF8ToUTF16(card_data.last_four()));

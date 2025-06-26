@@ -11,6 +11,9 @@
 #include "base/memory/raw_ptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "extensions/browser/extension_creator.h"
+#include "extensions/buildflags/buildflags.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 namespace extensions {
 
@@ -31,7 +34,7 @@ class PackExtensionJob {
                                ExtensionCreator::ErrorType error_type) = 0;
 
    protected:
-    virtual ~Client() {}
+    virtual ~Client() = default;
   };
 
   PackExtensionJob(Client* client,

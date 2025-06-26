@@ -9,11 +9,12 @@
 
 #include "base/unguessable_token.h"
 #include "content/common/content_export.h"
+#include "content/public/browser/frame_tree_node_id.h"
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/weak_document_ptr.h"
 #include "content/public/common/referrer.h"
 #include "net/base/isolation_info.h"
-#include "net/filter/source_stream.h"
+#include "net/filter/source_stream_type.h"
 #include "net/http/http_request_headers.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/mojom/client_security_state.mojom-forward.h"
@@ -39,7 +40,7 @@ struct CONTENT_EXPORT NavigationRequestInfo {
       bool is_outermost_main_frame,
       bool is_main_frame,
       bool are_ancestors_secure,
-      int frame_tree_node_id,
+      FrameTreeNodeId frame_tree_node_id,
       bool report_raw_headers,
       bool upgrade_if_insecure,
       std::unique_ptr<network::PendingSharedURLLoaderFactory>
@@ -48,7 +49,7 @@ struct CONTENT_EXPORT NavigationRequestInfo {
       const base::UnguessableToken& devtools_frame_token,
       net::HttpRequestHeaders cors_exempt_headers,
       network::mojom::ClientSecurityStatePtr client_security_state,
-      const std::optional<std::vector<net::SourceStream::SourceType>>&
+      const std::optional<std::vector<net::SourceStreamType>>&
           devtools_accepted_stream_types,
       bool is_pdf,
       int initiator_process_id,
@@ -59,7 +60,8 @@ struct CONTENT_EXPORT NavigationRequestInfo {
       bool allow_cookies_from_browser,
       int64_t navigation_id,
       bool shared_storage_writable,
-      bool is_ad_tagged);
+      bool is_ad_tagged,
+      bool force_no_https_upgrade);
   NavigationRequestInfo(const NavigationRequestInfo& other) = delete;
   ~NavigationRequestInfo();
 
@@ -96,17 +98,17 @@ struct CONTENT_EXPORT NavigationRequestInfo {
   const bool is_outermost_main_frame;
 
   // Whether this navigation is for a main frame; one that is the root of its
-  // own frame tree. This can include embedded frame trees such as Portals and
-  // FencedFrames. Both `is_primary_main_frame` and `is_outermost_main_frame`
-  // imply `is_main_frame`, however, `is_main_frame` does not imply either
-  // primary or outermost.
+  // own frame tree. This can include embedded frame trees such as FencedFrames.
+  // Both `is_primary_main_frame` and `is_outermost_main_frame` imply
+  // `is_main_frame`, however, `is_main_frame` does not imply either primary or
+  // outermost.
   const bool is_main_frame;
 
   // Whether all ancestor frames of the frame that is navigating have a secure
   // origin. True for main frames.
   const bool are_ancestors_secure;
 
-  const int frame_tree_node_id;
+  const FrameTreeNodeId frame_tree_node_id;
 
   const bool report_raw_headers;
 
@@ -134,7 +136,7 @@ struct CONTENT_EXPORT NavigationRequestInfo {
   // If not null, the network service will not advertise any stream types
   // (via Accept-Encoding) that are not listed. Also, it will not attempt
   // decoding any non-listed stream types.
-  std::optional<std::vector<net::SourceStream::SourceType>>
+  std::optional<std::vector<net::SourceStreamType>>
       devtools_accepted_stream_types;
 
   // Indicates that this navigation is for PDF content in a renderer.
@@ -168,6 +170,9 @@ struct CONTENT_EXPORT NavigationRequestInfo {
   // Whether the embedder indicated this navigation is being used for
   // advertising purposes.
   bool is_ad_tagged;
+
+  // If true, the navigation will not be upgraded to HTTPS.
+  bool force_no_https_upgrade;
 };
 
 }  // namespace content

@@ -10,6 +10,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "base/gtest_prod_util.h"
@@ -17,7 +18,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_multi_source_observation.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
+#include "chrome/browser/permissions/system/system_permission_settings.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/ui/webui/settings/settings_page_ui_handler.h"
@@ -27,11 +28,14 @@
 #include "components/prefs/pref_store.h"
 #include "content/public/browser/host_zoom_map.h"
 #include "ppapi/buildflags/buildflags.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "url/origin.h"
 
 class BrowsingDataModel;
 class PrefChangeRegistrar;
+
+namespace system_permission_settings {
+class ScopedObservation;
+}
 
 namespace settings {
 
@@ -68,12 +72,12 @@ class SiteSettingsHandler
     bool operator<(const GroupingKey& other) const;
 
    private:
-    explicit GroupingKey(const absl::variant<std::string, url::Origin>& value);
+    explicit GroupingKey(const std::variant<std::string, url::Origin>& value);
 
     url::Origin ToOrigin() const;
 
     // eTLD+1 or Origin
-    absl::variant<std::string, url::Origin> value_;
+    std::variant<std::string, url::Origin> value_;
   };
 
   using AllSitesMap =
@@ -113,14 +117,18 @@ class SiteSettingsHandler
 
   void OnZoomLevelChanged(const content::HostZoomMap::ZoomLevelChange& change);
 
+  // SystemPermissionSettingsObserver:
+  void OnSystemPermissionChanged(ContentSettingsType content_settings_type,
+                                 bool is_blocked);
+
   void ServicePendingRequests();
 
   // Asynchronously fetches the usage for a given origin. Replies back with
   // OnGetUsageInfo above.
   void HandleFetchUsageTotal(const base::Value::List& args);
 
-  // Asynchronously fetches the fps membership information label.
-  void HandleGetFpsMembershipLabel(const base::Value::List& args);
+  // Asynchronously fetches the rws membership information label.
+  void HandleGetRwsMembershipLabel(const base::Value::List& args);
 
   // Deletes the storage being used for a given host.
   void HandleClearUnpartitionedUsage(const base::Value::List& args);
@@ -210,6 +218,12 @@ class SiteSettingsHandler
   // Clear web storage data and cookies for a site group.
   void HandleClearSiteGroupDataAndCookies(const base::Value::List& args);
 
+  // Gets the list of content types that are blocked at the OS level.
+  void HandleGetSystemDeniedPermissions(const base::Value::List& args);
+
+  // Attempts to open the the OS permission settings.
+  void HandleOpenSystemPermissionSettings(const base::Value::List& args);
+
   void ClearAllSitesMapForTesting();
 
   void SetModelForTesting(
@@ -223,6 +237,7 @@ class SiteSettingsHandler
   // TODO(crbug.com/40101962): Remove this friend class when the Persistent
   // Permissions feature flag is removed.
   friend class PersistentPermissionsSiteSettingsHandlerTest;
+  friend class SmartCardReaderPermissionsSiteSettingsHandlerTest;
 
   // Rebuilds the BrowsingDataModel. Pending requests are serviced when the
   // browsing data model is built.
@@ -287,6 +302,9 @@ class SiteSettingsHandler
   // Sends the list of notification permissions to review to the WebUI.
   void SendNotificationPermissionReviewList();
 
+  // Returns the list of permissions blocked at the system level.
+  base::Value GetSystemDeniedPermissions();
+
   const raw_ptr<Profile, DanglingUntriaged> profile_;
 
   base::ScopedMultiSourceObservation<Profile, ProfileObserver>
@@ -331,6 +349,13 @@ class SiteSettingsHandler
 
   // Whether to send site detail data on model update.
   bool update_site_details_ = false;
+
+  // Maintains observation of OS level permissions.
+  std::unique_ptr<system_permission_settings::ScopedObservation>
+      system_permission_settings_observation_;
+
+  // Used to listen to OS level changes to permissions
+  // std::unique_ptr<permissions::OSPermissionObserver> os_permission_observer_;
 
   base::WeakPtrFactory<SiteSettingsHandler> weak_ptr_factory_{this};
 };

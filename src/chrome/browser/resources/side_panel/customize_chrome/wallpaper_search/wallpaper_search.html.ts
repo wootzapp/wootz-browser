@@ -50,11 +50,11 @@ export function getHtml(this: WallpaperSearchElement) {
             .value="${this.selectedDescriptorC_}" right-align-dropbox
             @value-changed="${this.onMoodDescriptorChange_}">
         </customize-chrome-combobox>
-        <cr-grid columns="6" id="descriptorMenuD">
+        <cr-grid columns="6" id="descriptorMenuD" role="radiogroup">
           ${this.descriptorD_.map((item, index) => html`
             <button class="default-color"
                 data-index="${index}" @click="${this.onDefaultColorClick_}"
-                aria-current="${this.isColorSelected_(item)}"
+                aria-checked="${this.isColorSelected_(item)}"
                 title="${this.getColorLabel_(item)}">
               <cr-ripple></cr-ripple>
               <customize-chrome-check-mark-wrapper class="color-check-mark"
@@ -66,7 +66,7 @@ export function getHtml(this: WallpaperSearchElement) {
             </button>
           `)}
           <button id="customColorContainer" @click="${this.onCustomColorClick_}"
-              aria-current="${this.isCustomColorSelected_()}"
+              aria-checked="${this.isCustomColorSelected_()}"
               title="$i18n{colorPickerLabel}">
             <cr-ripple></cr-ripple>
             <customize-chrome-check-mark-wrapper class="color-check-mark"
@@ -107,22 +107,17 @@ export function getHtml(this: WallpaperSearchElement) {
             <rect x="0" y="0" width="86.67" height="86.67" rx="12"></rect>
             <rect x="96.67" y="0" width="86.67" height="86.67" rx="12"></rect>
             <rect x="193.34" y="0" width="86.67" height="86.67" rx="12"></rect>
-            <rect x="0" y="96.67" width="86.67" height="86.67" rx="12"></rect>
-            <rect x="96.67" y="96.67" width="86.67" height="86.67" rx="12">
-            </rect>
-            <rect x="193.34" y="96.67" width="86.67" height="86.67" rx="12">
-            </rect>
           </clipPath>
         </svg>
       </cr-loading-gradient>
     </div>
-    <cr-grid columns="3" disable-arrow-navigation
-        ?hidden="${!this.shouldShowGrid_()}">
+    <cr-grid id="resultGrid" columns="3"
+        ?hidden="${!this.results_}" role="radiogroup">
       ${this.results_.map((item, index) => html`
-        <div class="tile result" tabindex="0" role="button"
+        <div class="tile result" tabindex="0" role="radio"
             data-index="${index}" @click="${this.onResultClick_}"
             aria-label="${this.getResultAriaLabel_(index)}"
-            aria-current="${this.isBackgroundSelected_(item.id)}">
+            aria-checked="${this.isBackgroundSelected_(item.id)}">
           <customize-chrome-check-mark-wrapper class="image-check-mark"
               ?checked="${this.isBackgroundSelected_(item.id)}">
             <div class="image-container">
@@ -130,11 +125,6 @@ export function getHtml(this: WallpaperSearchElement) {
               </img>
             </div>
           </customize-chrome-check-mark-wrapper>
-        </div>
-      `)}
-      ${this.emptyResultContainers_.map(_ => html`
-        <div class="tile empty">
-          <div class="image-container"></div>
         </div>
       `)}
     </cr-grid>
@@ -192,13 +182,13 @@ ${this.inspirationCardEnabled_ ? html`
               ${this.getInspirationGroupTitle_(item.descriptors)}
             </div>
           </h3>
-          <cr-grid columns="3" disable-arrow-navigation>
+          <cr-grid columns="3" role="radiogroup">
             ${item.inspirations.map((item, index) => html`
               <div class="tile result"
                   data-group-index="${groupIndex}" data-index="${index}"
                   @click="${this.onInspirationImageClick_}"
-                  tabindex="0" role="button"
-                  aria-current="${this.isBackgroundSelected_(item.id)}"
+                  tabindex="0" role="radio"
+                  aria-checked="${this.isBackgroundSelected_(item.id)}"
                   aria-label="${item.description}">
                 <customize-chrome-check-mark-wrapper class="image-check-mark"
                     ?checked="${this.isBackgroundSelected_(item.id)}">
@@ -220,12 +210,12 @@ ${this.inspirationCardEnabled_ ? html`
     <h2 slot="heading">$i18n{wallpaperSearchHistoryHeader}</h2>
   </sp-heading>
   <div class="content">
-    <cr-grid columns="3" disable-arrow-navigation>
+    <cr-grid columns="3" role="radiogroup">
       ${this.history_.map((item, index) => html`
-        <div class="tile result" tabindex="0" role="button"
+        <div class="tile result" tabindex="0" role="radio"
             aria-label="${this.getHistoryResultAriaLabel_(index, item)}"
             data-index="${index}" @click="${this.onHistoryImageClick_}"
-            aria-current="${this.isBackgroundSelected_(item.id)}">
+            aria-checked="${this.isBackgroundSelected_(item.id)}">
           <customize-chrome-check-mark-wrapper class="image-check-mark"
               ?checked="${this.isBackgroundSelected_(item.id)}">
             <div class="image-container">
@@ -233,11 +223,6 @@ ${this.inspirationCardEnabled_ ? html`
               </img>
             </div>
           </customize-chrome-check-mark-wrapper>
-        </div>
-      `)}
-      ${this.emptyHistoryContainers_.map(_ => html`
-        <div class="tile empty">
-          <div class="image-container"></div>
         </div>
       `)}
     </cr-grid>

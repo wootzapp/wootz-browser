@@ -47,11 +47,11 @@
 #include "third_party/blink/renderer/core/layout/hit_test_location.h"
 #include "third_party/blink/renderer/core/layout/inline/inline_cursor.h"
 #include "third_party/blink/renderer/core/layout/inline/offset_mapping.h"
+#include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/layout/layout_flow_thread.h"
 #include "third_party/blink/renderer/core/layout/layout_inline.h"
 #include "third_party/blink/renderer/core/layout/layout_multi_column_flow_thread.h"
 #include "third_party/blink/renderer/core/layout/layout_multi_column_spanner_placeholder.h"
-#include "third_party/blink/renderer/core/layout/layout_ng_block_flow.h"
 #include "third_party/blink/renderer/core/layout/layout_object_inlines.h"
 #include "third_party/blink/renderer/core/layout/layout_result.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
@@ -62,39 +62,55 @@
 #include "third_party/blink/renderer/core/layout/table/layout_table.h"
 #include "third_party/blink/renderer/core/layout/text_autosizer.h"
 #include "third_party/blink/renderer/core/layout/unpositioned_float.h"
+#include "third_party/blink/renderer/core/paint/box_fragment_painter.h"
 #include "third_party/blink/renderer/core/paint/inline_paint_context.h"
 #include "third_party/blink/renderer/core/paint/object_paint_invalidator.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/paint/paint_layer_scrollable_area.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/clear_collection_scope.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
 #include "third_party/blink/renderer/platform/wtf/size_assertions.h"
 
 namespace blink {
 
+namespace {
+
+// Return true if this block container allows inline children. If false is
+// returned, and there are inline children, an anonymous block wrapper needs to
+// be created.
+bool AllowsInlineChildren(const LayoutBlockFlow& block) {
+  return !IsA<LayoutMultiColumnFlowThread>(block) &&
+         !block.IsScrollMarkerGroup();
+}
+
+}  // anonymous namespace
+
 struct SameSizeAsLayoutBlockFlow : public LayoutBlock {
   Member<void*> member;
+  Member<void*> inline_node_data;
 };
 
 ASSERT_SIZE(LayoutBlockFlow, SameSizeAsLayoutBlockFlow);
 
 LayoutBlockFlow::LayoutBlockFlow(ContainerNode* node) : LayoutBlock(node) {
-  SetChildrenInline(true);
+  if (AllowsInlineChildren(*this)) {
+    SetChildrenInline(true);
+  }
 }
 
 LayoutBlockFlow::~LayoutBlockFlow() = default;
 
 LayoutBlockFlow* LayoutBlockFlow::CreateAnonymous(Document* document,
                                                   const ComputedStyle* style) {
-  auto* layout_block_flow = MakeGarbageCollected<LayoutNGBlockFlow>(nullptr);
+  auto* layout_block_flow = MakeGarbageCollected<LayoutBlockFlow>(nullptr);
   layout_block_flow->SetDocumentForAnonymous(document);
   layout_block_flow->SetStyle(style);
   return layout_block_flow;
 }
 
 bool LayoutBlockFlow::IsInitialLetterBox() const {
+  NOT_DESTROYED();
   return IsA<FirstLetterPseudoElement>(GetNode()) &&
          !StyleRef().InitialLetter().IsNormal();
 }
@@ -105,8 +121,8 @@ bool LayoutBlockFlow::CanContainFirstFormattedLine() const {
   // line of an element. For example, the first line of an anonymous block
   // box is only affected if it is the first child of its parent element.
   // https://drafts.csswg.org/css-text-3/#text-indent-property
-  return !IsAnonymousBlock() || !PreviousSibling() || IsFlexItemIncludingNG() ||
-         IsGridItemIncludingNG();
+  return !IsAnonymousBlock() || !PreviousSibling() || IsFlexItem() ||
+         IsGridItem();
 }
 
 void LayoutBlockFlow::WillBeDestroyed() {
@@ -205,7 +221,6 @@ void LayoutBlockFlow::AddChild(LayoutObject* new_child,
 
 static bool IsMergeableAnonymousBlock(const LayoutBlockFlow* block) {
   return block->IsAnonymousBlock() && !block->BeingDestroyed() &&
-         !block->IsRubyColumn() && !block->IsRubyBase() &&
          !block->IsViewTransitionRoot();
 }
 
@@ -328,23 +343,12 @@ static bool AllowsCollapseAnonymousBlockChild(const LayoutBlockFlow& parent,
   // destroyed. See crbug.com/282088
   if (child.BeingDestroyed())
     return false;
-  // Ruby elements use anonymous wrappers for ruby columns and ruby bases by
-  // design, so we don't remove them.
-  if (child.IsRubyColumn() || child.IsRubyBase()) {
-    return false;
-  }
   // The ViewTransitionRoot is also anonymous by design and shouldn't be
   // elided.
   if (child.IsViewTransitionRoot()) {
     return false;
   }
-  if (IsA<LayoutMultiColumnFlowThread>(parent) &&
-      parent.Parent()->IsLayoutNGObject() && child.ChildrenInline()) {
-    // The test[1] reaches here.
-    // [1] "fast/multicol/dynamic/remove-spanner-in-content.html"
-    return false;
-  }
-  return true;
+  return !child.ChildrenInline() || AllowsInlineChildren(parent);
 }
 
 void LayoutBlockFlow::CollapseAnonymousBlockChild(LayoutBlockFlow* child) {
@@ -428,21 +432,16 @@ void LayoutBlockFlow::ReparentPrecedingFloatingOrOutOfFlowSiblings() {
   }
 }
 
-static bool AllowsInlineChildren(const LayoutBlockFlow& block_flow) {
-  // Collapsing away anonymous wrappers isn't relevant for the children of
-  // anonymous blocks, unless they are ruby bases.
-  if (block_flow.IsAnonymousBlock() && !block_flow.IsRubyBase())
-    return false;
-  if (IsA<LayoutMultiColumnFlowThread>(block_flow) &&
-      block_flow.Parent()->IsLayoutNGObject())
-    return false;
-  return true;
-}
-
 void LayoutBlockFlow::MakeChildrenInlineIfPossible() {
   NOT_DESTROYED();
-  if (!AllowsInlineChildren(*this))
+  if (!AllowsInlineChildren(*this)) {
     return;
+  }
+  // Collapsing away anonymous wrappers isn't relevant for the children of
+  // anonymous blocks.
+  if (IsAnonymousBlock()) {
+    return;
+  }
 
   HeapVector<Member<LayoutBlockFlow>, 3> blocks_to_remove;
   for (LayoutObject* child = FirstChild(); child;
@@ -466,11 +465,6 @@ void LayoutBlockFlow::MakeChildrenInlineIfPossible() {
     // siblings underneath them.
     if (!child->ChildrenInline())
       return;
-    // Ruby elements use anonymous wrappers for ruby columns and ruby bases by
-    // design, so we don't remove them.
-    if (child->IsRubyColumn() || child->IsRubyBase()) {
-      return;
-    }
 
     blocks_to_remove.push_back(child_block_flow);
   }
@@ -601,7 +595,7 @@ Node* LayoutBlockFlow::NodeForHitTest() const {
   // If we are in the margins of block elements that are part of a
   // block-in-inline we're actually still inside the enclosing element
   // that was split. Use the appropriate inner node.
-  if (UNLIKELY(IsBlockInInline())) {
+  if (IsBlockInInline()) [[unlikely]] {
     DCHECK(Parent());
     DCHECK(Parent()->IsLayoutInline());
     return Parent()->NodeForHitTest();
@@ -633,7 +627,41 @@ bool LayoutBlockFlow::HitTestChildren(HitTestResult& result,
   return false;
 }
 
+void LayoutBlockFlow::AddOutlineRects(
+    OutlineRectCollector& collector,
+    LayoutObject::OutlineInfo* info,
+    const PhysicalOffset& additional_offset,
+    OutlineType include_block_overflows) const {
+  NOT_DESTROYED();
+
+  // TODO(crbug.com/40155711): Currently |PhysicalBoxFragment| does not support
+  // NG block fragmentation. Fallback to the legacy code path.
+  if (PhysicalFragmentCount() == 1) {
+    const PhysicalBoxFragment* fragment = GetPhysicalFragment(0);
+    if (fragment->HasItems()) {
+      fragment->AddSelfOutlineRects(additional_offset, include_block_overflows,
+                                    collector, info);
+      return;
+    }
+  }
+
+  LayoutBlock::AddOutlineRects(collector, info, additional_offset,
+                               include_block_overflows);
+}
+
+void LayoutBlockFlow::DirtyLinesFromChangedChild(LayoutObject* child) {
+  NOT_DESTROYED();
+
+  // We need to dirty line box fragments only if the child is once laid out in
+  // LayoutNG inline formatting context. New objects are handled in
+  // InlineNode::MarkLineBoxesDirty().
+  if (child->IsInLayoutNGInlineFormattingContext()) {
+    FragmentItems::DirtyLinesFromChangedChild(*child, *this);
+  }
+}
+
 bool LayoutBlockFlow::AllowsColumns() const {
+  NOT_DESTROYED();
   // Ruby elements manage child insertion in a special way, and would mess up
   // insertion of the flow thread. The flow thread needs to be a direct child of
   // the multicol block (|this|).
@@ -674,8 +702,9 @@ void LayoutBlockFlow::CreateOrDestroyMultiColumnFlowThreadIfNeeded(
   if (!specifies_columns)
     return;
 
-  if (IsListItemIncludingNG())
+  if (IsListItem()) {
     UseCounter::Count(GetDocument(), WebFeature::kMultiColAndListItem);
+  }
 
   if (!AllowsColumns())
     return;
@@ -740,7 +769,7 @@ void LayoutBlockFlow::SetShouldDoFullPaintInvalidationForFirstLine() {
       for (InlineCursor descendants = first_line.CursorForDescendants();
            descendants; descendants.MoveToNext()) {
         const FragmentItem* item = descendants.Current().Item();
-        if (UNLIKELY(item->IsLayoutObjectDestroyedOrMoved())) {
+        if (item->IsLayoutObjectDestroyedOrMoved()) [[unlikely]] {
           descendants.MoveToNextSkippingChildren();
           continue;
         }
@@ -759,10 +788,8 @@ void LayoutBlockFlow::SetShouldDoFullPaintInvalidationForFirstLine() {
 PositionWithAffinity LayoutBlockFlow::PositionForPoint(
     const PhysicalOffset& point) const {
   NOT_DESTROYED();
-  // NG codepath requires |kPrePaintClean|.
-  // |SelectionModifier| calls this only in legacy codepath.
-  DCHECK(!IsLayoutNGObject() || GetDocument().Lifecycle().GetState() >=
-                                    DocumentLifecycle::kPrePaintClean);
+  DCHECK_GE(GetDocument().Lifecycle().GetState(),
+            DocumentLifecycle::kPrePaintClean);
 
   if (IsAtomicInlineLevel()) {
     PositionWithAffinity position =
@@ -772,6 +799,10 @@ PositionWithAffinity LayoutBlockFlow::PositionForPoint(
   }
   if (!ChildrenInline())
     return LayoutBlock::PositionForPoint(point);
+
+  if (PhysicalFragmentCount()) {
+    return PositionForPointInFragments(point);
+  }
 
   return CreatePositionWithAffinity(0);
 }

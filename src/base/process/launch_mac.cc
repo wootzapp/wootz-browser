@@ -11,16 +11,20 @@
 #include <string.h>
 #include <sys/wait.h>
 
+#include "base/apple/mach_port_rendezvous.h"
 #include "base/command_line.h"
 #include "base/files/scoped_file.h"
 #include "base/logging.h"
-#include "base/mac/mach_port_rendezvous.h"
 #include "base/memory/raw_ptr.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/process/environment_internal.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/trace_event/base_tracing.h"
+
+#if BUILDFLAG(IS_MAC)
+#include "base/apple/mach_port_rendezvous_mac.h"
+#endif
 
 extern "C" {
 // Changes the current thread's directory to a path or directory file
@@ -34,6 +38,11 @@ int responsibility_spawnattrs_setdisclaim(posix_spawnattr_t attrs,
 }  // extern "C"
 
 namespace base {
+
+void CheckPThreadStackMinIsSafe() {
+  static_assert(__builtin_constant_p(PTHREAD_STACK_MIN),
+                "Always constant on mac");
+}
 
 namespace {
 
@@ -140,6 +149,9 @@ bool GetAppOutputInternal(const std::vector<std::string>& argv,
   }
 
   Process process = LaunchProcess(argv, launch_options);
+  if (!process.IsValid()) {
+    return false;
+  }
 
   // Close the parent process' write descriptor, so that EOF is generated in
   // read loop below.
@@ -230,32 +242,37 @@ Process LaunchProcess(const std::vector<std::string>& argv,
   if (options.disclaim_responsibility) {
     DPSXCHECK(responsibility_spawnattrs_setdisclaim(attr.get(), 1));
   }
+
+  EnvironmentMap new_environment_map = options.environment;
+  MachPortRendezvousServerMac::AddFeatureStateToEnvironment(
+      new_environment_map);
+#else
+  const EnvironmentMap& new_environment_map = options.environment;
 #endif
 
   std::vector<char*> argv_cstr;
   argv_cstr.reserve(argv.size() + 1);
-  for (const auto& arg : argv)
+  for (const auto& arg : argv) {
     argv_cstr.push_back(const_cast<char*>(arg.c_str()));
+  }
   argv_cstr.push_back(nullptr);
 
-  std::unique_ptr<char*[]> owned_environ;
+  base::HeapArray<char*> owned_environ;
   char* empty_environ = nullptr;
   char** new_environ =
       options.clear_environment ? &empty_environ : *_NSGetEnviron();
-  if (!options.environment.empty()) {
+  if (!new_environment_map.empty()) {
     owned_environ =
-        internal::AlterEnvironment(new_environ, options.environment);
-    new_environ = owned_environ.get();
+        internal::AlterEnvironment(new_environ, new_environment_map);
+    new_environ = owned_environ.data();
   }
 
   const char* executable_path = !options.real_path.empty()
                                     ? options.real_path.value().c_str()
                                     : argv_cstr[0];
 
-  if (__builtin_available(macOS 11.0, *)) {
-    if (options.enable_cpu_security_mitigations) {
-      DPSXCHECK(posix_spawnattr_set_csm_np(attr.get(), POSIX_SPAWN_NP_CSM_ALL));
-    }
+  if (options.enable_cpu_security_mitigations) {
+    DPSXCHECK(posix_spawnattr_set_csm_np(attr.get(), POSIX_SPAWN_NP_CSM_ALL));
   }
 
   if (!options.current_directory.empty()) {
@@ -286,12 +303,16 @@ Process LaunchProcess(const std::vector<std::string>& argv,
     // a non-test and need ports.
     CHECK(!has_mach_ports_for_rendezvous);
 #else
-    // If |options.mach_ports_for_rendezvous| is specified : the server's lock
-    // must be held for the duration of posix_spawnp() so that new child's PID
-    // can be recorded with the set of ports.
+    // If `options.mach_ports_for_rendezvous` or `options.process_requirement`
+    // is specified : the server's lock must be held for the duration of
+    // posix_spawnp() so that new child's PID can be recorded with the set of
+    // ports or process requirement.
+    bool needs_rendezvous_lock =
+        has_mach_ports_for_rendezvous || options.process_requirement;
+
     AutoLockMaybe rendezvous_lock(
-        has_mach_ports_for_rendezvous
-            ? &MachPortRendezvousServer::GetInstance()->GetLock()
+        needs_rendezvous_lock
+            ? &MachPortRendezvousServerMac::GetInstance()->GetLock()
             : nullptr);
 #endif
     // Use posix_spawnp as some callers expect to have PATH consulted.
@@ -299,11 +320,17 @@ Process LaunchProcess(const std::vector<std::string>& argv,
                       &argv_cstr[0], new_environ);
 
 #if !BUILDFLAG(IS_IOS)
-    if (has_mach_ports_for_rendezvous) {
+    if (needs_rendezvous_lock) {
       if (rv == 0) {
-        MachPortRendezvousServer::GetInstance()->GetLock().AssertAcquired();
-        MachPortRendezvousServer::GetInstance()->RegisterPortsForPid(
-            pid, options.mach_ports_for_rendezvous);
+        MachPortRendezvousServerMac::GetInstance()->GetLock().AssertAcquired();
+        if (has_mach_ports_for_rendezvous) {
+          MachPortRendezvousServerMac::GetInstance()->RegisterPortsForPid(
+              pid, options.mach_ports_for_rendezvous);
+        }
+        if (options.process_requirement) {
+          MachPortRendezvousServerMac::GetInstance()
+              ->SetProcessRequirementForPid(pid, *options.process_requirement);
+        }
       } else {
         // Because |options| is const-ref, the collection has to be copied here.
         // The caller expects to relinquish ownership of any strong rights if

@@ -2,9 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/354829279): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/gfx/linux/gbm_wrapper.h"
 
 #include <gbm.h>
+#include <sys/mman.h>
 
 #include <memory>
 #include <utility>
@@ -12,7 +18,6 @@
 
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ptr_exclusion.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/posix/eintr_wrapper.h"
 #include "skia/ext/legacy_display_globals.h"
@@ -200,12 +205,13 @@ class Buffer final : public ui::GbmBuffer {
   sk_sp<SkSurface> GetSurface() override {
     DCHECK(!mmap_data_);
     uint32_t stride;
-    void* addr;
-    addr = gbm_bo_map(bo_, 0, 0, gbm_bo_get_width(bo_), gbm_bo_get_height(bo_),
-                      GBM_BO_TRANSFER_READ_WRITE, &stride, &mmap_data_);
+    void* addr = gbm_bo_map(bo_, 0, 0, gbm_bo_get_width(bo_),
+                            gbm_bo_get_height(bo_), GBM_BO_TRANSFER_READ_WRITE,
+                            &stride, &mmap_data_.AsEphemeralRawAddr());
 
-    if (!addr)
+    if (addr == nullptr || addr == MAP_FAILED) {
       return nullptr;
+    }
     SkImageInfo info =
         SkImageInfo::MakeN32Premul(size_.width(), size_.height());
     SkSurfaceProps props = skia::LegacyDisplayGlobals::GetSkSurfaceProps();
@@ -221,9 +227,7 @@ class Buffer final : public ui::GbmBuffer {
   }
 
   raw_ptr<gbm_bo> bo_;
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #addr-of
-  RAW_PTR_EXCLUSION void* mmap_data_ = nullptr;
+  raw_ptr<void> mmap_data_ = nullptr;
 
   const uint32_t format_;
   const uint64_t format_modifier_;
@@ -411,11 +415,7 @@ class Device final : public ui::GbmDevice {
     fd_data.num_fds = handle.planes.size();
     fd_data.modifier = handle.modifier;
 
-    // One specific situation where we expect 4 planes is for Intel media
-    // compressed buffers: the number of planes for such buffers and format
-    // NV12/P010 is twice the normal, two for Y and UV and two for auxiliary
-    // compression metadata.
-    DCHECK_LE(handle.planes.size(), 4u);
+    DCHECK_LE(handle.planes.size(), 3u);
 
     for (size_t i = 0; i < handle.planes.size(); ++i) {
       fd_data.fds[i] = handle.planes[i < handle.planes.size() ? i : 0].fd.get();

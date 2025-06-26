@@ -10,30 +10,32 @@
 #include <string>
 #include <vector>
 
-#include "ash/components/arc/mojom/power.mojom.h"
-#include "ash/components/arc/mojom/process.mojom.h"
 #include "ash/display/screen_orientation_controller.h"
 #include "ash/public/cpp/assistant/assistant_state.h"
 #include "ash/rotator/screen_rotation_animator_observer.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "cc/metrics/frame_sequence_metrics.h"
 #include "chrome/browser/ash/arc/tracing/arc_app_performance_tracing.h"
 #include "chrome/browser/ash/bruschetta/bruschetta_installer.h"
-#include "chrome/browser/ash/crosapi/browser_manager.h"
 #include "chrome/browser/ash/printing/cups_printers_manager.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/common/extensions/api/autotest_private.h"
+#include "chromeos/ash/experiences/arc/mojom/power.mojom.h"
+#include "chromeos/ash/experiences/arc/mojom/process.mojom.h"
 #include "chromeos/services/machine_learning/public/mojom/machine_learning_service.mojom-forward.h"
 #include "chromeos/services/machine_learning/public/mojom/model.mojom.h"
 #include "chromeos/ui/base/window_state_type.h"
+#include "components/session_manager/session_manager_types.h"
 #include "components/webapps/common/web_app_id.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/extension_function.h"
 #include "extensions/browser/extension_function_histogram_value.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/viz/privileged/mojom/compositing/frame_sink_manager.mojom-forward.h"
+#include "services/viz/privileged/mojom/compositing/frame_sinks_metrics_recorder.mojom-forward.h"
 #include "ui/base/clipboard/clipboard_monitor.h"
 #include "ui/base/clipboard/clipboard_observer.h"
 #include "ui/display/display.h"
@@ -289,25 +291,6 @@ class AutotestPrivateGetArcStateFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-class AutotestPrivateStartArcFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("autotestPrivate.startArc",
-                             AUTOTESTPRIVATE_STARTARC)
-
- private:
-  ~AutotestPrivateStartArcFunction() override;
-  ResponseAction Run() override;
-};
-
-class AutotestPrivateStopArcFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("autotestPrivate.stopArc", AUTOTESTPRIVATE_STOPARC)
-
- private:
-  ~AutotestPrivateStopArcFunction() override;
-  ResponseAction Run() override;
-};
-
 class AutotestPrivateSetPlayStoreEnabledFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("autotestPrivate.setPlayStoreEnabled",
@@ -337,19 +320,6 @@ class AutotestPrivateIsArcProvisionedFunction : public ExtensionFunction {
  private:
   ~AutotestPrivateIsArcProvisionedFunction() override;
   ResponseAction Run() override;
-};
-
-class AutotestPrivateGetLacrosInfoFunction : public ExtensionFunction {
- public:
-  DECLARE_EXTENSION_FUNCTION("autotestPrivate.getLacrosInfo",
-                             AUTOTESTPRIVATE_GETLACROSINFO)
-
- private:
-  ~AutotestPrivateGetLacrosInfoFunction() override;
-  ResponseAction Run() override;
-  static api::autotest_private::LacrosState ToLacrosState(
-      crosapi::BrowserManager::State state);
-  static api::autotest_private::LacrosMode ToLacrosMode(bool is_enabled);
 };
 
 class AutotestPrivateGetArcAppFunction : public ExtensionFunction {
@@ -887,6 +857,11 @@ class AutotestPrivateSetCrostiniAppScaledFunction : public ExtensionFunction {
 class AutotestPrivateAPI : public BrowserContextKeyedAPI,
                            public ui::ClipboardObserver {
  public:
+  explicit AutotestPrivateAPI(
+      content::BrowserContext* context,
+      base::PassKey<BrowserContextKeyedAPIFactory<AutotestPrivateAPI>>);
+  ~AutotestPrivateAPI() override;
+
   static BrowserContextKeyedAPIFactory<AutotestPrivateAPI>*
   GetFactoryInstance();
 
@@ -896,9 +871,6 @@ class AutotestPrivateAPI : public BrowserContextKeyedAPI,
 
  private:
   friend class BrowserContextKeyedAPIFactory<AutotestPrivateAPI>;
-
-  explicit AutotestPrivateAPI(content::BrowserContext* context);
-  ~AutotestPrivateAPI() override;
 
   // BrowserContextKeyedAPI implementation.
   static const char* service_name() { return "AutotestPrivateAPI"; }
@@ -1517,6 +1489,7 @@ class AutotestPrivateStopSmoothnessTrackingFunction : public ExtensionFunction {
   ResponseAction Run() override;
 
   void OnReportData(
+      base::TimeTicks start_time,
       const cc::FrameSequenceMetrics::CustomReportData& frame_data,
       std::vector<int>&& throughput);
   void OnTimeOut(int64_t display_id);
@@ -1719,6 +1692,19 @@ class AutotestPrivateIsInputMethodReadyForTestingFunction
   ResponseAction Run() override;
 };
 
+class AutotestPrivateOverrideLobsterResponseForTestingFunction
+    : public ExtensionFunction {
+ public:
+  AutotestPrivateOverrideLobsterResponseForTestingFunction();
+  DECLARE_EXTENSION_FUNCTION(
+      "autotestPrivate.overrideLobsterResponseForTesting",
+      AUTOTESTPRIVATE_OVERRIDELOBSTERRESPONSE)
+
+ private:
+  ~AutotestPrivateOverrideLobsterResponseForTestingFunction() override;
+  ResponseAction Run() override;
+};
+
 class AutotestPrivateOverrideOrcaResponseForTestingFunction
     : public ExtensionFunction {
  public:
@@ -1728,6 +1714,21 @@ class AutotestPrivateOverrideOrcaResponseForTestingFunction
 
  private:
   ~AutotestPrivateOverrideOrcaResponseForTestingFunction() override;
+  ResponseAction Run() override;
+};
+
+class AutotestPrivateOverrideScannerResponsesForTestingFunction
+    : public ExtensionFunction {
+ public:
+  AutotestPrivateOverrideScannerResponsesForTestingFunction();
+
+  DECLARE_EXTENSION_FUNCTION(
+      "autotestPrivate.overrideScannerResponsesForTesting",
+      AUTOTESTPRIVATE_OVERRIDESCANNERRESPONSESFORTESTING)
+
+ private:
+  ~AutotestPrivateOverrideScannerResponsesForTestingFunction() override;
+
   ResponseAction Run() override;
 };
 
@@ -1788,6 +1789,30 @@ class AutotestPrivateStopFrameCountingFunction : public ExtensionFunction {
   ResponseAction Run() override;
 
   void OnDataReceived(viz::mojom::FrameCountingDataPtr data_ptr);
+};
+
+class AutotestPrivateStartOverdrawTrackingFunction : public ExtensionFunction {
+ public:
+  AutotestPrivateStartOverdrawTrackingFunction();
+  DECLARE_EXTENSION_FUNCTION("autotestPrivate.startOverdrawTracking",
+                             AUTOTESTPRIVATE_STARTOVERDRAWTRACKING)
+
+ private:
+  ~AutotestPrivateStartOverdrawTrackingFunction() override;
+  ResponseAction Run() override;
+};
+
+class AutotestPrivateStopOverdrawTrackingFunction : public ExtensionFunction {
+ public:
+  AutotestPrivateStopOverdrawTrackingFunction();
+  DECLARE_EXTENSION_FUNCTION("autotestPrivate.stopOverdrawTracking",
+                             AUTOTESTPRIVATE_STOPOVERDRAWTRACKING)
+
+ private:
+  ~AutotestPrivateStopOverdrawTrackingFunction() override;
+  ResponseAction Run() override;
+
+  void OnDataReceived(viz::mojom::OverdrawDataPtr data_ptr);
 };
 
 class AutotestPrivateInstallBruschettaFunction : public ExtensionFunction {
@@ -1887,10 +1912,28 @@ class AutotestPrivateSetDeviceLanguageFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class AutotestPrivateGetDeviceEventLogFunction : public ExtensionFunction {
+ public:
+  AutotestPrivateGetDeviceEventLogFunction();
+  DECLARE_EXTENSION_FUNCTION("autotestPrivate.getDeviceEventLog",
+                             AUTOTESTPRIVATE_GETDEVICEEVENTLOG)
+
+ private:
+  ~AutotestPrivateGetDeviceEventLogFunction() override;
+  ResponseAction Run() override;
+};
+
 template <>
-KeyedService*
-BrowserContextKeyedAPIFactory<AutotestPrivateAPI>::BuildServiceInstanceFor(
-    content::BrowserContext* context) const;
+std::unique_ptr<KeyedService>
+BrowserContextKeyedAPIFactory<AutotestPrivateAPI>::
+    BuildServiceInstanceForBrowserContext(
+        content::BrowserContext* context) const;
+
+template <>
+std::unique_ptr<KeyedService>
+BrowserContextKeyedAPIFactory<AutotestPrivateAPI>::
+    BuildServiceInstanceForBrowserContext(
+        content::BrowserContext* context) const;
 
 }  // namespace extensions
 

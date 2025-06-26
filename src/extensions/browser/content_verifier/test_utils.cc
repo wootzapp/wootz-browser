@@ -203,9 +203,8 @@ bool TestContentVerifyJobObserver::ObserverClient::WaitForExpectedJobs() {
 
 // MockContentVerifierDelegate ------------------------------------------------
 MockContentVerifierDelegate::MockContentVerifierDelegate()
-    : verifier_key_(
-          kWebstoreSignaturesPublicKey,
-          kWebstoreSignaturesPublicKey + kWebstoreSignaturesPublicKeySize) {}
+    : verifier_key_(kWebstoreSignaturesPublicKey.begin(),
+                    kWebstoreSignaturesPublicKey.end()) {}
 
 MockContentVerifierDelegate::~MockContentVerifierDelegate() = default;
 
@@ -281,7 +280,7 @@ void VerifierObserver::OnFetchComplete(
   if (!content::BrowserThread::CurrentlyOn(creation_thread_)) {
     content::BrowserThread::GetTaskRunnerForThread(creation_thread_)
         ->PostTask(FROM_HERE, base::BindOnce(&VerifierObserver::OnFetchComplete,
-                                             base::Unretained(this),
+                                             weak_ptr_factory_.GetWeakPtr(),
                                              content_hash, did_hash_mismatch));
     return;
   }

@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <array>
 #include <map>
 #include <memory>
 #include <string>
@@ -50,9 +51,12 @@ const char kOtherURL[] = "http://b.com/";
 const size_t kTotalGoodImages = 2;
 const size_t kTotalImages = 3;
 // Good images need to be in the front.
-const char* kImageURLs[kTotalImages] = {
-    "http://a.com/img1.jpg", "http://a.com/img2.jpg", "./bad_url_should_fail"};
-const char* kImageData[kTotalImages] = {"abcde", "12345", "VWXYZ"};
+std::array<const char*, kTotalImages> kImageURLs = {
+    "http://a.com/img1.jpg",
+    "http://a.com/img2.jpg",
+    "./bad_url_should_fail",
+};
+std::array<const char*, kTotalImages> kImageData = {"abcde", "12345", "VWXYZ"};
 const char kDebugLog[] = "Debug Log";
 
 const std::string GetImageName(int page_num, int image_num) {

@@ -7,7 +7,7 @@
 
 #include "base/check_op.h"
 #include "base/dcheck_is_on.h"
-#include "third_party/blink/renderer/platform/graphics/graphics_types.h"
+#include "third_party/blink/renderer/platform/graphics/paint/display_item_client_types.h"
 #include "third_party/blink/renderer/platform/graphics/paint_invalidation_reason.h"
 #include "third_party/blink/renderer/platform/platform_export.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -286,9 +286,7 @@ class PLATFORM_EXPORT DisplayItem {
   static WTF::String TypeAsDebugString(DisplayItem::Type);
   WTF::String AsDebugString(const PaintArtifact&) const;
   WTF::String IdAsString(const PaintArtifact&) const;
-  void PropertiesAsJSON(JSONObject&,
-                        const PaintArtifact&,
-                        bool client_known_to_be_alive = false) const;
+  void PropertiesAsJSON(JSONObject&, const PaintArtifact&) const;
 #endif
 
  protected:

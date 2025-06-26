@@ -15,7 +15,7 @@ CascadeFilter AddValidPropertiesFilter(
     CascadeFilter filter,
     const MatchedProperties& matched_properties) {
   switch (static_cast<ValidPropertyFilter>(
-      matched_properties.types_.valid_property_filter)) {
+      matched_properties.data_.valid_property_filter)) {
     case ValidPropertyFilter::kNoFilter:
       return filter;
     case ValidPropertyFilter::kCue:
@@ -32,8 +32,6 @@ CascadeFilter AddValidPropertiesFilter(
       return filter.Add(CSSProperty::kValidForHighlight, false);
     case ValidPropertyFilter::kPositionTry:
       return filter.Add(CSSProperty::kValidForPositionTry, false);
-    case ValidPropertyFilter::kLimitedPageContext:
-      return filter.Add(CSSProperty::kValidForLimitedPageContext, false);
     case ValidPropertyFilter::kPageContext:
       return filter.Add(CSSProperty::kValidForPageContext, false);
   }
@@ -41,7 +39,7 @@ CascadeFilter AddValidPropertiesFilter(
 
 CascadeFilter AddLinkFilter(CascadeFilter filter,
                             const MatchedProperties& matched_properties) {
-  switch (matched_properties.types_.link_match_type) {
+  switch (matched_properties.data_.link_match_type) {
     case CSSSelector::kMatchVisited:
       return filter.Add(CSSProperty::kVisited, false);
     case CSSSelector::kMatchLink:

@@ -21,7 +21,6 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "chromeos/ash/components/dbus/dlcservice/dlcservice_client.h"
-#include "chromeos/constants/chromeos_features.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/controls/image_view.h"
 
@@ -43,14 +42,9 @@ class ToggleEffectsViewTest
 
   // AshTestBase:
   void SetUp() override {
-    std::vector<base::test::FeatureRef> enabled_features = {
-        features::kFeatureManagementVideoConference,
-        chromeos::features::kJelly};
-    if (IsVcDlcUiEnabled()) {
-      enabled_features.push_back(features::kVcDlcUi);
-    }
-    scoped_feature_list_.InitWithFeatures(enabled_features,
-                                          /*disabled_features=*/{});
+    scoped_feature_list_.InitWithFeatureStates(
+        {{features::kFeatureManagementVideoConference, true},
+         {features::kVcDlcUi, IsVcDlcUiEnabled()}});
 
     if (IsVcDlcUiEnabled()) {
       DlcserviceClient::InitializeFake();
@@ -158,7 +152,7 @@ TEST_P(ToggleEffectsViewTest, TooltipIsUpdated) {
       GetFirstToggleEffectButton()->GetTooltipText(),
       l10n_util::GetStringFUTF16(
           VIDEO_CONFERENCE_TOGGLE_BUTTON_TOOLTIP,
-          l10n_util::GetStringUTF16(IDS_PRIVACY_NOTIFICATION_TITLE_CAMERA),
+          l10n_util::GetStringUTF16(IDS_PRIVACY_INDICATORS_STATUS_CAMERA),
           l10n_util::GetStringUTF16(VIDEO_CONFERENCE_TOGGLE_BUTTON_STATE_OFF)));
 
   // Toggle it on, the tooltip should update.
@@ -168,7 +162,7 @@ TEST_P(ToggleEffectsViewTest, TooltipIsUpdated) {
       GetFirstToggleEffectButton()->GetTooltipText(),
       l10n_util::GetStringFUTF16(
           VIDEO_CONFERENCE_TOGGLE_BUTTON_TOOLTIP,
-          l10n_util::GetStringUTF16(IDS_PRIVACY_NOTIFICATION_TITLE_CAMERA),
+          l10n_util::GetStringUTF16(IDS_PRIVACY_INDICATORS_STATUS_CAMERA),
           l10n_util::GetStringUTF16(VIDEO_CONFERENCE_TOGGLE_BUTTON_STATE_ON)));
 
   // Cleanup.

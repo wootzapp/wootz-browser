@@ -5,6 +5,8 @@
 #ifndef CHROMEOS_ASH_COMPONENTS_GROWTH_CAMPAIGNS_CONSTANTS_H_
 #define CHROMEOS_ASH_COMPONENTS_GROWTH_CAMPAIGNS_CONSTANTS_H_
 
+#include "base/component_export.h"
+
 namespace growth {
 
 // List of events growth campaign supports.
@@ -12,24 +14,23 @@ enum class CampaignEvent {
   kImpression = 0,
   // Dismissed by user explicitly, e.g. click a button in the UI.
   kDismissed,
-  kAppOpened
+  kAppOpened,
+  kEvent,
+  kGroupImpression,
+  kGroupDismissed
 };
 
-// Only event name with this prefix can be processed by the Feature Engagement
-// framework.
-inline constexpr char kGrowthCampaignsEventNamePrefix[] =
-    "ChromeOSAshGrowthCampaigns";
+// The name of an event which is triggered when hovering over the hotseat area.
+COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_GROWTH_UTILS)
+inline const char kGrowthCampaignsEventHotseatHover[] = "hotseat_hover";
 
-// All event names will be prefixed by `kGrowthCampaignsEventNamePrefix`.
-// Campaign specific event names will be suffixed by campaign id.
-// App specific event names will be suffixed by app id.
-// E.g. `ChromeOSAshGrowthCampaigns_Impression_CampaignId`
-//      `ChromeOSAshGrowthCampaigns_AppOpened_AppId`
-inline constexpr char kCampaignEventNameImpression[] = "_Campaign%s_Impression";
+// The name of an event which is triggered when unlocking session.
+COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_GROWTH_UTILS)
+inline const char kGrowthCampaignsEventSessionUnlock[] = "session_unlock";
 
-inline constexpr char kCampaignEventNameDismissed[] = "_Campaign%s_Dismissed";
-
-inline constexpr char kCampaignEventNameAppOpened[] = "_AppOpened_AppId_%s";
+// The name of an event which is triggered when the game window opened.
+COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_GROWTH_UTILS)
+inline const char kGrowthCampaignsEventGameWindowOpened[] = "GameWindowOpened";
 
 }  // namespace growth
 

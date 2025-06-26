@@ -31,12 +31,13 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_NODE_H_
 #define THIRD_PARTY_BLINK_PUBLIC_WEB_WEB_NODE_H_
 
-#include "base/functional/function_ref.h"
+#include <iosfwd>
+#include <vector>
+
 #include "cc/paint/element_id.h"
 #include "third_party/blink/public/platform/web_common.h"
 #include "third_party/blink/public/platform/web_private_ptr.h"
 #include "third_party/blink/public/platform/web_string.h"
-#include "third_party/blink/public/platform/web_vector.h"
 #include "v8/include/v8-forward.h"
 
 namespace blink {
@@ -55,6 +56,7 @@ class WebPluginContainer;
 // reason, subclasses must not add any additional data members.
 class BLINK_EXPORT WebNode {
  public:
+
   static WebNode FromDomNodeId(int dom_node_id);
 
   virtual ~WebNode();
@@ -78,6 +80,7 @@ class BLINK_EXPORT WebNode {
 
   WebNode ParentNode() const;
   WebNode ParentOrShadowHostNode() const;
+  bool IsInUserAgentShadowRoot() const;
   WebString NodeValue() const;
   WebDocument GetDocument() const;
   WebNode FirstChild() const;
@@ -95,6 +98,10 @@ class BLINK_EXPORT WebNode {
   bool IsElementNode() const;
   void SimulateClick();
 
+  // Returns the top-most ancestor such this WebNode and that ancestor and all
+  // nodes in between are contenteditable.
+  WebElement RootEditableElement() const;
+
   // See cc/paint/element_id.h for the definition of these ids.
   cc::ElementId ScrollingElementIdForTesting() const;
 
@@ -105,16 +112,17 @@ class BLINK_EXPORT WebNode {
   // If the JS API would have thrown this returns null instead.
   WebElement QuerySelector(const WebString& selector) const;
 
-  WebVector<WebElement> QuerySelectorAll(const WebString& selector) const;
+  std::vector<WebElement> QuerySelectorAll(const WebString& selector) const;
 
-
-  // Returns the contents of the first descendant that is either (1) an element
-  // containing only text or (2) a readonly text input, whose text contains the
-  // given substring, if the validity checker returns true for it. The substring
-  // search is ASCII case insensitive.
-  WebString FindTextInElementWith(
-      const WebString& substring,
-      base::FunctionRef<bool(const WebString&)> validity_checker) const;
+  // Returns all Text nodes where `regex` would match for the text inside of
+  // the node, case-insensitive. This function does not normalize adjacent Text
+  // nodes and search them together. It only matches within individual Text
+  // nodes. It is therefore possible that some text is displayed to the user as
+  // a single run of text, but will not match the regex, because the nodes
+  // aren't normalized. This function searches within both the DOM and Shadow
+  // DOM.
+  std::vector<WebNode> FindAllTextNodesMatchingRegex(
+      const WebString& regex) const;
 
   bool Focused() const;
 
@@ -135,6 +143,8 @@ class BLINK_EXPORT WebNode {
   // be performed.
   template <typename T>
   T DynamicTo() const;
+
+  BLINK_EXPORT friend std::ostream& operator<<(std::ostream&, const WebNode&);
 
 #if INSIDE_BLINK
   WebNode(Node*);

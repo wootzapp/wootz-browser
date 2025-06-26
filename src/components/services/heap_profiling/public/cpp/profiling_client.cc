@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/services/heap_profiling/public/cpp/profiling_client.h"
 
 #include <string>
@@ -9,7 +14,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_buildflags.h"
 #include "base/debug/stack_trace.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
@@ -19,14 +23,11 @@
 #include "base/trace_event/malloc_dump_provider.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "build/build_config.h"
-
-#if !BUILDFLAG(IS_IOS)
-#include "components/services/heap_profiling/public/cpp/heap_profiling_trace_source.h"
-#endif
+#include "partition_alloc/buildflags.h"
 
 #if BUILDFLAG(IS_APPLE) && !PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && \
     PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
-#include "base/allocator/partition_allocator/src/partition_alloc/shim/allocator_interception_apple.h"
+#include "partition_alloc/shim/allocator_interception_apple.h"
 #endif  // BUILDFLAG(IS_APPLE) && !PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
         // && PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 
@@ -82,11 +83,6 @@ void ProfilingClient::StartProfiling(mojom::ProfilingParamsPtr params,
         // && PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 
   StartProfilingInternal(std::move(params), std::move(callback));
-
-#if !BUILDFLAG(IS_IOS)
-  // Create trace source so that it registers itself to the tracing system.
-  HeapProfilingTraceSource::GetInstance();
-#endif
 }
 
 namespace {
@@ -120,7 +116,7 @@ void InitAllocationRecorder(mojom::ProfilingParamsPtr params) {
 
   if (params->stack_mode == mojom::StackMode::NATIVE_WITH_THREAD_NAMES) {
     g_include_thread_names = true;
-    base::SamplingHeapProfiler::Get()->SetRecordThreadNames(true);
+    base::SamplingHeapProfiler::Get()->EnableRecordThreadNames();
   }
 
   switch (params->stack_mode) {
@@ -149,8 +145,7 @@ mojom::AllocatorType ConvertType(AllocationSubsystem type) {
     case AllocationSubsystem::kPartitionAllocator:
       return mojom::AllocatorType::kPartitionAlloc;
     case AllocationSubsystem::kManualForTesting:
-      NOTREACHED_IN_MIGRATION();
-      return mojom::AllocatorType::kMalloc;
+      NOTREACHED();
   }
 }
 
@@ -222,24 +217,6 @@ void ProfilingClient::RetrieveHeapProfile(
     profile->strings.emplace(reinterpret_cast<uintptr_t>(string), string);
 
   std::move(callback).Run(std::move(profile));
-}
-
-void ProfilingClient::AddHeapProfileToTrace(
-    AddHeapProfileToTraceCallback callback) {
-  auto* profiler = base::SamplingHeapProfiler::Get();
-  std::vector<base::SamplingHeapProfiler::Sample> samples =
-      profiler->GetSamples(/*profile_id=*/0);
-
-#if !BUILDFLAG(IS_IOS)
-  bool success =
-      HeapProfilingTraceSource::GetInstance()->AddToTraceIfEnabled(samples);
-#else
-  bool success = false;
-  // Tracing is not supported in iOS.
-  NOTREACHED_IN_MIGRATION();
-#endif
-
-  std::move(callback).Run(success);
 }
 
 }  // namespace heap_profiling

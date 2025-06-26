@@ -33,6 +33,7 @@
 #include "third_party/blink/renderer/core/dom/events/event_listener_map.h"
 
 #include "base/bits.h"
+#include "base/compiler_specific.h"
 #include "base/debug/crash_logging.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_event_listener_options.h"
 #include "third_party/blink/renderer/core/dom/events/add_event_listener_options_resolved.h"
@@ -110,9 +111,8 @@ static bool AddListenerToVector(EventListenerVector* listener_vector,
                                 EventListener* listener,
                                 const AddEventListenerOptionsResolved* options,
                                 RegisteredEventListener** registered_listener) {
-  auto* end = listener_vector->end();
-  for (auto* iter = listener_vector->begin(); iter != end; ++iter) {
-    if ((*iter)->Matches(listener, options)) {
+  for (auto& item : *listener_vector) {
+    if (item->Matches(listener, options)) {
       // Duplicate listener.
       return false;
     }
@@ -158,7 +158,7 @@ static bool RemoveListenerFromVector(
     RegisteredEventListener** registered_listener) {
   EventListenerVector::iterator end = listener_vector->end();
   for (EventListenerVector::iterator iter = listener_vector->begin();
-       iter != end; ++iter) {
+       iter != end; UNSAFE_TODO(++iter)) {
     if ((*iter)->Matches(listener, options)) {
       (*iter)->SetRemoved();
       *registered_listener = *iter;

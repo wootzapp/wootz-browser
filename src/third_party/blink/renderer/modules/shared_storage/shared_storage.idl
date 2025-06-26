@@ -17,20 +17,27 @@
     CallWith=ScriptState,
     RaisesException,
     MeasureAs=SharedStorageAPI_Append_Method
-  ] Promise<any> append(DOMString key, DOMString value);
+  ] Promise<any> append(DOMString key, DOMString value, optional SharedStorageModifierMethodOptions options);
 
   [
     CallWith=ScriptState,
     ImplementedAs=Delete,
     RaisesException,
     MeasureAs=SharedStorageAPI_Delete_Method
-  ] Promise<any> delete(DOMString key);
+  ] Promise<any> delete(DOMString key, optional SharedStorageModifierMethodOptions options);
 
   [
     CallWith=ScriptState,
     RaisesException,
     MeasureAs=SharedStorageAPI_Clear_Method
-  ] Promise<any> clear();
+  ] Promise<any> clear(optional SharedStorageModifierMethodOptions options);
+
+  [
+    RuntimeEnabled=SharedStorageWebLocks,
+    CallWith=ScriptState,
+    RaisesException,
+    MeasureAs=SharedStorageAPI_BatchUpdate_Method
+  ] Promise<any> batchUpdate(sequence<SharedStorageModifierMethod> methods, optional SharedStorageModifierMethodOptions options);
 
   [
     CallWith=ScriptState,
@@ -61,7 +68,7 @@
     RaisesException,
     MeasureAs=SharedStorageAPI_SelectURL_Method
   ] Promise<SharedStorageResponse> selectURL(DOMString name,
-                                 FrozenArray<SharedStorageUrlWithMetadata> urls,
+                                 sequence<SharedStorageUrlWithMetadata> urls,
                                  optional SharedStorageRunOperationMethodOptions options);
 
   [
@@ -72,12 +79,12 @@
   ] Promise<any> run(DOMString name, optional SharedStorageRunOperationMethodOptions options);
 
   [
-    RuntimeEnabled=SharedStorageAPIM125,
+    Exposed=Window,
     CallWith=ScriptState,
     RaisesException,
     MeasureAs=SharedStorageAPI_CreateWorklet_Method
   ] Promise<SharedStorageWorklet> createWorklet(USVString moduleURL,
-                                                optional WorkletOptions options = {});
+                                                optional SharedStorageWorkletOptions options = {});
 
   [
     Exposed=Window,

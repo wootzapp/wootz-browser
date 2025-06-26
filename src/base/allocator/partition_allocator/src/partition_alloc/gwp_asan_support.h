@@ -5,8 +5,8 @@
 #ifndef PARTITION_ALLOC_GWP_ASAN_SUPPORT_H_
 #define PARTITION_ALLOC_GWP_ASAN_SUPPORT_H_
 
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/component_export.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 
 #if PA_BUILDFLAG(ENABLE_GWP_ASAN_SUPPORT)
 
@@ -111,6 +111,7 @@ class PA_COMPONENT_EXPORT(PARTITION_ALLOC) GwpAsanSupport {
  public:
   static void* MapRegion(size_t slot_count, std::vector<uint16_t>& free_list);
   static bool CanReuse(uintptr_t slot_start);
+  static void DestructForTesting();
 };
 
 }  // namespace partition_alloc

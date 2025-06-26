@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>
 
+#include "ash/ash_element_identifiers.h"
 #include "ash/controls/rounded_scroll_bar.h"
 #include "ash/public/cpp/ash_view_ids.h"
 #include "ash/strings/grit/ash_strings.h"
@@ -166,7 +167,8 @@ void TrayDetailedView::CreateTitleRow(int string_id) {
 
 void TrayDetailedView::CreateScrollableList() {
   DCHECK(!scroller_);
-  scroller_ = AddChildView(std::make_unique<views::ScrollView>());
+  scroller_ = AddChildView(std::make_unique<views::ScrollView>(
+      views::ScrollView::ScrollWithLayers::kEnabled));
   scroller_->SetDrawOverflowIndicator(false);
   scroll_content_ = scroller_->SetContents(
       views::Builder<views::FlexLayoutView>()
@@ -176,6 +178,7 @@ void TrayDetailedView::CreateScrollableList() {
   auto vertical_scroll = std::make_unique<RoundedScrollBar>(
       views::ScrollBar::Orientation::kVertical);
   vertical_scroll->SetInsets(kScrollBarInsets);
+  vertical_scroll->SetAlwaysShowThumb(true);
   scroller_->SetVerticalScrollBar(std::move(vertical_scroll));
   scroller_->SetProperty(views::kMarginsKey, delegate_->GetScrollViewMargin());
   scroller_->SetPaintToLayer();
@@ -212,6 +215,16 @@ HoverHighlightView* TrayDetailedView::AddScrollListItem(
   return item;
 }
 
+void TrayDetailedView::CreateZeroStateView(
+    std::unique_ptr<ZeroStateView> view) {
+  CHECK(!zero_state_view_);
+  CHECK(scroller());
+  zero_state_view_ =
+      AddChildViewAt(std::move(view), GetIndexOf(scroller_).value());
+  box_layout()->SetFlexForView(zero_state_view_, 1);
+  zero_state_view_->SetVisible(false);
+}
+
 HoverHighlightView* TrayDetailedView::AddScrollListCheckableItem(
     views::View* container,
     const gfx::VectorIcon& icon,
@@ -220,7 +233,7 @@ HoverHighlightView* TrayDetailedView::AddScrollListCheckableItem(
     bool enterprise_managed) {
   HoverHighlightView* item = AddScrollListItem(container, icon, text);
   if (enterprise_managed) {
-    item->SetAccessibleName(l10n_util::GetStringFUTF16(
+    item->GetViewAccessibility().SetName(l10n_util::GetStringFUTF16(
         IDS_ASH_ACCESSIBILITY_FEATURE_MANAGED, text));
   }
   TrayPopupUtils::InitializeAsCheckableRow(item, checked, enterprise_managed);
@@ -234,6 +247,7 @@ void TrayDetailedView::Reset() {
   progress_bar_ = nullptr;
   back_button_ = nullptr;
   tri_view_ = nullptr;
+  zero_state_view_ = nullptr;
 }
 
 void TrayDetailedView::ShowProgress(double value, bool visible) {
@@ -252,9 +266,17 @@ void TrayDetailedView::ShowProgress(double value, bool visible) {
             AshColorProvider::ContentLayerType::kIconColorProminent));
   }
 
+  progress_bar_->SetProperty(views::kElementIdentifierKey,
+                             kTrayDetailedViewProgressBarElementId);
   progress_bar_->SetValue(value);
   progress_bar_->SetVisible(visible);
   children()[size_t{kTitleRowProgressBarIndex}]->SetVisible(!visible);
+}
+
+void TrayDetailedView::SetZeroStateViewVisibility(bool visible) {
+  CHECK(zero_state_view_);
+  zero_state_view_->SetVisible(visible);
+  scroller_->SetVisible(!visible);
 }
 
 views::Button* TrayDetailedView::CreateInfoButton(
@@ -277,7 +299,7 @@ views::Button* TrayDetailedView::CreateHelpButton(
 }
 
 void TrayDetailedView::HandleViewClicked(views::View* view) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 std::unique_ptr<TriView> TrayDetailedView::CreateTitleTriView(int string_id) {
@@ -289,7 +311,7 @@ std::unique_ptr<TriView> TrayDetailedView::CreateTitleTriView(int string_id) {
 
   auto* title_label = TrayPopupUtils::CreateDefaultLabel();
   title_label->SetText(l10n_util::GetStringUTF16(string_id));
-  title_label->SetEnabledColorId(cros_tokens::kCrosSysOnSurface);
+  title_label->SetEnabledColor(cros_tokens::kCrosSysOnSurface);
   ash::TypographyProvider::Get()->StyleLabel(ash::TypographyToken::kCrosTitle1,
                                              *title_label);
   tri_view->AddView(TriView::Container::CENTER, title_label);
@@ -324,15 +346,18 @@ void TrayDetailedView::Layout(PassKey) {
   }
 }
 
-int TrayDetailedView::GetHeightForWidth(int width) const {
+gfx::Size TrayDetailedView::CalculatePreferredSize(
+    const views::SizeBounds& available_size) const {
+  gfx::Size preferred_size =
+      views::View::CalculatePreferredSize(available_size);
   if (bounds().IsEmpty()) {
-    return views::View::GetHeightForWidth(width);
+    return preferred_size;
   }
 
   // The height of the bubble that contains this detailed view is set to
   // the preferred height of the default view, and that determines the
   // initial height of |this|. Always request to stay the same height.
-  return height();
+  return gfx::Size(preferred_size.width(), height());
 }
 
 BEGIN_METADATA(TrayDetailedView)

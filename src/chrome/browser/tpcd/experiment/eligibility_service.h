@@ -18,26 +18,13 @@
 namespace privacy_sandbox {
 class PrivacySandboxSettings;
 class TrackingProtectionOnboarding;
-}
+}  // namespace privacy_sandbox
 
 namespace tpcd::experiment {
 
 class ExperimentManager;
 
-enum class ProfileEligibilityMismatch {
-  kEligibleProfileInExperiment = 0,
-  kIneligibleProfileNotInExperiment = 1,
-  kIneligibleProfileInExperiment = 2,
-  kEligibleProfileNotInExperiment = 3,
-  kMaxValue = kEligibleProfileNotInExperiment,
-};
-
-const char ProfileEligibilityMismatchHistogramName[] =
-    "Privacy.3pcd.ProfileEligibilityMismatch";
-
-class EligibilityService
-    : public privacy_sandbox::TrackingProtectionOnboarding::Observer,
-      public KeyedService {
+class EligibilityService : public KeyedService {
  public:
   EligibilityService(
       Profile* profile,
@@ -73,14 +60,6 @@ class EligibilityService
       privacy_sandbox::TrackingProtectionOnboarding::SilentOnboardingStatus
           onboarding_status);
 
-  // privacy_sandbox::TrackingProtectionOnboarding::Observer:
-  void OnTrackingProtectionOnboardingUpdated(
-      privacy_sandbox::TrackingProtectionOnboarding::OnboardingStatus
-          onboarding_status) override;
-  void OnTrackingProtectionSilentOnboardingUpdated(
-      privacy_sandbox::TrackingProtectionOnboarding::SilentOnboardingStatus
-          onboarding_status) override;
-
   raw_ptr<Profile> profile_;
   // `onboarding_service_` may be null for OTR and system profiles.
   raw_ptr<privacy_sandbox::TrackingProtectionOnboarding> onboarding_service_;
@@ -93,11 +72,6 @@ class EligibilityService
   // setting the `profile_eligibility_`.
   std::optional<privacy_sandbox::TpcdExperimentEligibility>
       profile_eligibility_;
-
-  base::ScopedObservation<
-      privacy_sandbox::TrackingProtectionOnboarding,
-      privacy_sandbox::TrackingProtectionOnboarding::Observer>
-      onboarding_observation_{this};
 
   base::WeakPtrFactory<EligibilityService> weak_factory_{this};
 };

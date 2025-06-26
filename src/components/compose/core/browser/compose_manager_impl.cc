@@ -12,11 +12,11 @@
 #include "base/feature_list.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/autofill_manager.h"
-#include "components/autofill/core/browser/browser_autofill_manager.h"
-#include "components/autofill/core/browser/ui/suggestion.h"
-#include "components/autofill/core/browser/ui/suggestion_type.h"
+#include "components/autofill/core/browser/foundations/autofill_client.h"
+#include "components/autofill/core/browser/foundations/autofill_manager.h"
+#include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
+#include "components/autofill/core/browser/suggestions/suggestion.h"
+#include "components/autofill/core/browser/suggestions/suggestion_type.h"
 #include "components/compose/core/browser/compose_client.h"
 #include "components/compose/core/browser/compose_features.h"
 #include "components/compose/core/browser/compose_metrics.h"
@@ -68,7 +68,7 @@ void ComposeManagerImpl::OpenCompose(AutofillDriver& driver,
                                      FieldGlobalId field_id,
                                      UiEntryPoint entry_point) {
   if (entry_point == UiEntryPoint::kContextMenu) {
-    client_->getPageUkmTracker()->MenuItemClicked();
+    client_->GetPageUkmTracker()->MenuItemClicked();
     LogComposeContextMenuCtr(ComposeContextMenuCtrEvent::kMenuItemClicked);
   }
   driver.ExtractForm(
@@ -85,7 +85,7 @@ void ComposeManagerImpl::OpenComposeWithUpdatedSelection(
   if (!form_data) {
     LogOpenComposeDialogResult(
         OpenComposeDialogResult::kAutofillFormDataNotFound);
-    client_->getPageUkmTracker()->ShowDialogAbortedDueToMissingFormData();
+    client_->GetPageUkmTracker()->ShowDialogAbortedDueToMissingFormData();
     return;
   }
 
@@ -94,27 +94,32 @@ void ComposeManagerImpl::OpenComposeWithUpdatedSelection(
   if (!form_field_data) {
     LogOpenComposeDialogResult(
         OpenComposeDialogResult::kAutofillFormFieldDataNotFound);
-    client_->getPageUkmTracker()->ShowDialogAbortedDueToMissingFormFieldData();
+    client_->GetPageUkmTracker()->ShowDialogAbortedDueToMissingFormFieldData();
     return;
   }
 
-  if (base::FeatureList::IsEnabled(features::kComposeTextSelection) &&
-      IsWordCountWithinBounds(
+  // Select all text if the current selection is one or zero words.
+  if (IsWordCountWithinBounds(
           base::UTF16ToUTF8(form_field_data->selected_text()), 0, 1)) {
-    // Select all words. Consecutive calls using the same message pipe
-    // should complete in the same order it's received.
-    // Therefore, we can safely assume that the text selection will complete
-    // before the subsequent extract form call without race conditions.
     driver->ApplyFieldAction(autofill::mojom::FieldActionType::kSelectAll,
                              autofill::mojom::ActionPersistence::kFill,
                              field_id, u"");
 
-    // Re-extract form to update to the newly selected text.
-    driver->ExtractForm(
-        form_data->global_id(),
-        base::BindOnce(&ComposeManagerImpl::OpenComposeWithFormData,
-                       weak_ptr_factory_.GetWeakPtr(), field_id,
-                       ui_entry_point));
+    // Calling `driver->ExtractForm()` here does not always pick up the newly
+    // selected text when the form is in an IFRAME. Instead, just edit form data
+    // manually to reflect the newly selected text.
+    std::optional<autofill::FormData> updated_form_data = form_data;
+    std::vector<autofill::FormFieldData> fields =
+        updated_form_data->ExtractFields();
+    for (auto& field : fields) {
+      if (field.global_id() == field_id) {
+        field.set_selected_text(field.value());
+      }
+    }
+    updated_form_data->set_fields(std::move(fields));
+
+    OpenComposeWithFormData(field_id, ui_entry_point, driver,
+                            updated_form_data);
     LogComposeSelectAllStatus(ComposeSelectAllStatus::kSelectedAll);
     return;
   }
@@ -130,7 +135,7 @@ void ComposeManagerImpl::OpenComposeWithFormData(
   if (!form_data) {
     LogOpenComposeDialogResult(
         OpenComposeDialogResult::kAutofillFormDataNotFoundAfterSelectAll);
-    client_->getPageUkmTracker()->ShowDialogAbortedDueToMissingFormData();
+    client_->GetPageUkmTracker()->ShowDialogAbortedDueToMissingFormData();
     return;
   }
 
@@ -139,7 +144,7 @@ void ComposeManagerImpl::OpenComposeWithFormData(
   if (!form_field_data) {
     LogOpenComposeDialogResult(
         OpenComposeDialogResult::kAutofillFormFieldDataNotFound);
-    client_->getPageUkmTracker()->ShowDialogAbortedDueToMissingFormFieldData();
+    client_->GetPageUkmTracker()->ShowDialogAbortedDueToMissingFormFieldData();
     return;
   }
 
@@ -163,14 +168,15 @@ void ComposeManagerImpl::OpenComposeWithFormFieldData(
 }
 
 std::optional<Suggestion> ComposeManagerImpl::GetSuggestion(
+    const autofill::FormData& form,
     const autofill::FormFieldData& field,
     AutofillSuggestionTriggerSource trigger_source) {
-  if (!client_->ShouldTriggerPopup(field, trigger_source)) {
+  if (!client_->ShouldTriggerPopup(form, field, trigger_source)) {
     return std::nullopt;
   }
   std::u16string suggestion_text;
   std::u16string label_text;
-  SuggestionType type;
+  Suggestion suggestion;
   // State is saved as a `ComposeSession` in the `ComposeClient`. A user can
   // resume where they left off in a field if the `ComposeClient` has a
   // `ComposeSession` for that field.
@@ -178,25 +184,28 @@ std::optional<Suggestion> ComposeManagerImpl::GetSuggestion(
   if (has_session) {
     // The nudge text indicates that the user can resume where they left off in
     // the Compose dialog.
-    suggestion_text =
-        l10n_util::GetStringUTF16(IDS_COMPOSE_SUGGESTION_SAVED_TEXT);
+    suggestion.main_text = Suggestion::Text(
+        l10n_util::GetStringUTF16(IDS_COMPOSE_SUGGESTION_SAVED_TEXT),
+        Suggestion::Text::IsPrimary(true));
     label_text = l10n_util::GetStringUTF16(IDS_COMPOSE_SUGGESTION_SAVED_LABEL);
-    type = trigger_source ==
-                   AutofillSuggestionTriggerSource::kComposeDialogLostFocus
-               ? SuggestionType::kComposeSavedStateNotification
-               : SuggestionType::kComposeResumeNudge;
+    suggestion.type =
+        trigger_source ==
+                AutofillSuggestionTriggerSource::kComposeDialogLostFocus
+            ? SuggestionType::kComposeSavedStateNotification
+            : SuggestionType::kComposeResumeNudge;
+    suggestion.feature_for_new_badge = &features::kEnableComposeSavedStateNudge;
   } else {
     // Text for a new Compose session.
-    suggestion_text =
-        l10n_util::GetStringUTF16(IDS_COMPOSE_SUGGESTION_MAIN_TEXT);
+    suggestion.main_text = Suggestion::Text(
+        l10n_util::GetStringUTF16(IDS_COMPOSE_SUGGESTION_MAIN_TEXT),
+        Suggestion::Text::IsPrimary(true));
     label_text = l10n_util::GetStringUTF16(IDS_COMPOSE_SUGGESTION_LABEL);
-    type = SuggestionType::kComposeProactiveNudge;
+    suggestion.type = SuggestionType::kComposeProactiveNudge;
+    suggestion.feature_for_new_badge = &features::kEnableComposeProactiveNudge;
   }
-  Suggestion suggestion(std::move(suggestion_text));
-  suggestion.type = type;
   suggestion.icon = Suggestion::Icon::kPenSpark;
   // Add footer label if not using compact ui.
-  if (!compose::GetComposeConfig().proactive_nudge_compact_ui) {
+  if (!GetComposeConfig().proactive_nudge_compact_ui) {
     suggestion.labels = {{Suggestion::Text(std::move(label_text))}};
   }
 
@@ -224,22 +233,19 @@ std::optional<Suggestion> ComposeManagerImpl::GetSuggestion(
 
 void ComposeManagerImpl::NeverShowComposeForOrigin(const url::Origin& origin) {
   client_->AddSiteToNeverPromptList(origin);
-  compose::LogComposeProactiveNudgeCtr(
-      compose::ComposeProactiveNudgeCtrEvent::kUserDisabledSite);
-  client_->getPageUkmTracker()->ProactiveNudgeDisabledForSite();
 }
 
 void ComposeManagerImpl::DisableCompose() {
   client_->DisableProactiveNudge();
-  compose::LogComposeProactiveNudgeCtr(
-      compose::ComposeProactiveNudgeCtrEvent::kUserDisabledProactiveNudge);
-  client_->getPageUkmTracker()->ProactiveNudgeDisabledGlobally();
 }
 
 void ComposeManagerImpl::GoToSettings() {
   client_->OpenProactiveNudgeSettings();
-  compose::LogComposeProactiveNudgeCtr(
-      compose::ComposeProactiveNudgeCtrEvent::kOpenSettings);
+  LogComposeProactiveNudgeCtr(ComposeNudgeCtrEvent::kOpenSettings);
+}
+
+bool ComposeManagerImpl::ShouldAnchorNudgeOnCaret() {
+  return GetComposeConfig().is_nudge_shown_at_cursor;
 }
 
 }  // namespace compose

@@ -9,47 +9,25 @@ namespace ash::input_method {
 
 enum class PromoCardAction {
   // User explicitly hits 'Learn More' button to proceed to use the feature.
-  kAccepted,
+  kAccept,
   // User explicitly declines the promo card.
-  kDeclined,
+  kDecline,
   // User dismisses the promo card.
-  kDismissed,
+  kDismiss,
 };
 
 enum class ConsentAction : int {
   // User explicitly hits "Yes/Agree" button.
-  kApproved,
+  kApprove,
   // User explicitly hits "No/Disagree" button.
-  kDeclined
+  kDecline
 };
-
-// Defines the status of the consent which we ask the user to provide before
-// we can display the feature to them.
-// Only append new entries to the end of the enum value list and do not reorder
-// the enum value list to maintain compatibility with the integer values saved
-// in the pref storage.
-enum class ConsentStatus : int {
-  // User has agreed to consent by pressing "Yes/Agree" button to all dialogs
-  // from the consent window.
-  kApproved = 0,
-  // User has disagreed to consent by pressing "No/Disagree" button to any
-  // dialog from the consent window.
-  kDeclined = 1,
-  // Invalid state of the consent result.
-  kInvalid = 2,
-  // No explicit consent to use the feature has been received yet.
-  kPending = 3,
-  // No request has been sent to users to collect their consent.
-  kUnset = 4,
-};
-
-// TODO: b: - Migrate EditorMode and EditorOpportunityMode out of this file.
-enum class EditorMode { kBlocked, kConsentNeeded, kRewrite, kWrite };
 
 enum class EditorOpportunityMode {
-  kNone,
+  kInvalidInput,
   kRewrite,
   kWrite,
+  kNotAllowedForUse,
 };
 
 // Defines the reason why the editor is blocked.
@@ -79,16 +57,16 @@ enum class EditorBlockedReason {
   // Blocked because user is not in a supported country.
   kBlockedByUnsupportedRegion,
   // Blocked because user is using a managed device.
-  kBlockedByManagedStatus,
+  // kBlockedByManagedStatus_DEPRECATRD,
   // Blocked because user does not have the capability (age, account type) to
   // use the feature.
   kBlockedByUnsupportedCapability,
   // Blocked because the capability value has been been fetched and determined
   // yet.
   kBlockedByUnknownCapability,
+  // Blocked because there is a policy that disables the feature.
+  kBlockedByPolicy,
 };
-
-ConsentStatus GetConsentStatusFromInteger(int status_value);
 
 }  // namespace ash::input_method
 

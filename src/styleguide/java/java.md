@@ -39,14 +39,34 @@ try (var ignored = StrictModeContext.allowDiskWrites()) {
 
 ### Exceptions
 
-We discourage overly broad catches via `Throwable`, `Exception`, or
-`RuntimeException`, except when dealing with `RemoteException` or similar
-system APIs.
+A quick primer:
+
+* `Throwable`: Base class for all exceptions
+  * `Error`: Base class for exceptions which are meant to crash the app.
+  * `Exception`: Base class for exceptions that make sense the `catch`.
+    * `RuntimeException`: Base class for exceptions that do not need to be
+       declared as `throws` ("unchecked exceptions").
+
+#### Broad Catch Handlers {#broad-catches}
+
+Use catch statements that do not catch exceptions they are not meant to.
+ * There is rarely a valid reason to `catch (Throwable t)`, since that
+   includes the (generally unrecoverable) `Error` types.
+
+Use `catch (Exception e)` when working with OS APIs that might throw
+(assuming the program can recover from them).
  * There have been many cases of crashes caused by `IllegalStateException` /
    `IllegalArgumentException` / `SecurityException` being thrown where only
-   `RemoteException` was being caught. In these cases, use
-   `catch (RemoteException | RuntimeException e)`.
- * For all broad catch expressions, add a comment to explain why.
+   `RemoteException` was being caught. Unless catch handlers will differ
+   based on exception type, just catch `Exception`.
+
+Do not use `catch (RuntimeException e)`.
+ * It is useful to extend `RuntimeException` to make unchecked exception
+   types, but the type does not make much sense in `catch` clauses, as
+   there are not times when you'd want to catch all unchecked exceptions,
+   but not also want to catch all checked exceptions.
+
+#### Exception Messages {#exception-messages}
 
 Avoid adding messages to exceptions that do not aid in debugging. For example:
 
@@ -62,6 +82,31 @@ try {
     throw new RuntimeException(String.format("Failed to parse %s", fileName), e);
 }
 ```
+
+#### Wrapping with RuntimeException {#throw-unchecked}
+
+It is common to wrap a checked exception with a RuntimeException for cases
+where a checked exception is not recoverable, or not possible. In order to
+reduce the number of stack trace "caused by" clauses, and to save on binary
+size, use [`JavaUtils.throwUnchecked()`] instead.
+
+```java
+try {
+    somethingThatThrowsIOException();
+} catch (IOException e) {
+    // Bad - RuntimeException adds no context and creates longer stack traces.
+    throw new RuntimeException(e);
+    // Good - Original exception is preserved.
+    throw JavaUtils.throwUnchecked(e);
+}
+```
+
+*** note
+Do not use `throwUnchecked()` when the exception may want to be caught.
+***
+
+
+[`JavaUtils.throwUnchecked()`]: https://source.chromium.org/search?q=symbol:JavaUtils.throwUnchecked
 
 ### Asserts
 
@@ -185,6 +230,15 @@ to ensure in debug builds and tests that `destroy()` is called.
 [Google's Java style guide]: https://google.github.io/styleguide/javaguide.html#s6.4-finalizers
 [Android's Java style guide]: https://source.android.com/docs/setup/contribute/code-style#dont-use-finalizers
 
+## Nullability Annotations
+
+A migration to add `@NullMarked` to all Java files is currently underway
+([crbug.com/389129271]). See [nullaway.md] for how to use `@Nullable` and
+related annotations.
+
+[crbug.com/389129271]: https://crbug.com/389129271
+[nullaway.md]: nullaway.md
+
 ## Java Library APIs
 
 Android provides the ability to bundle copies of `java.*` APIs alongside
@@ -216,25 +270,41 @@ Log.d(TAG, "There are %d cats", countCats());  // countCats() not stripped.
 
 ### Streams
 
-Most uses of [Java streams] are discouraged. If you can write your code as an
-explicit loop, then do so. The primary reason for this guidance is because the
-lambdas (and method references) needed for streams almost always result in
-larger binary size ([example](https://chromium-review.googlesource.com/c/chromium/src/+/4329952).
+Using [Java streams] outside of tests is strongly discouraged. If you can write
+your code as an explicit loop, then do so. The primary reason for this guidance
+is because the lambdas and method references needed for streams almost always
+result in larger binary size than their loop equivalents (see
+[crbug.com/344943957] for examples).
 
 The `parallel()` and `parallelStream()` APIs are simpler than their loop
-equivalents, but are are currently banned due to a lack of a compelling use case
-in Chrome. If you find one, please discuss on `java@chromium.org`.
+equivalents, but are banned due to a lack of a compelling use case in Chrome.
+If you find one, please discuss on `java@chromium.org`.
+
+Use of `stream()` without a lambda / method reference is allowed. E.g.:
+
+```java
+@SuppressWarnings("NoStreams")
+private static List<Integer> boxInts(int[] arr) {
+    return Arrays.stream(arr).boxed().collect(Collectors.toList());
+}
+
+@SuppressWarnings("NoStreams")
+private static List<String> readLines(BufferedReader bufferedReader) {
+    return bufferedReader.lines().collect(Collectors.toList());
+}
+```
 
 [Java streams]: https://docs.oracle.com/javase/8/docs/api/java/util/stream/package-summary.html
+[crbug.com/344943957]: https://crbug.com/344943957
 
 ### AndroidX Annotations {#annotations}
 
 * Use them liberally. They are [documented here](https://developer.android.com/studio/write/annotations).
   * They generally improve readability.
   * Many make lint more useful.
-* `javax.annotation.Nullable` vs `androidx.annotation.Nullable`
-  * Always prefer `androidx.annotation.Nullable`.
-  * It uses `@Retention(SOURCE)` rather than `@Retention(RUNTIME)`.
+* What about `androidx.annotation.Nullable`?
+  * We are migrating away from it (see [nullaway.md]).
+  * Keep using it in files that have not yet been migrated.
 
 #### IntDefs {#intdefs}
 
@@ -345,11 +415,13 @@ In summary:
 * Use real dependencies when feasible and fast. Use Mockito’s `@Mock` most
   of the time, but write fakes for frequently used dependencies.
 
-* Do not use Robolectric Shadows for Chromium code. Instead, use
-  `setForTesting()` methods so that it is clear that test hooks exist.
-  * When `setForTesting()` methods alter global state, use
-    [`ResettersForTesting.register()`] to ensure that the state is reset
-    between tests. Omit resetting them via `@After` methods.
+* Do not use Robolectric Shadows for Chromium code.
+  * Shadows make code harder to refactor.
+  * Prefer to refactor code to make it more testable.
+  * When you really need to use a test double for a static method, add a
+    `setFooForTesting() [...]` method to make the test contract explicit.
+    * Use [`ResettersForTesting.register()`] from within `ForTesting()`
+      methods to ensure that state is reset between tests.
 
 * Use Robolectric when possible (when tests do not require native). Other
   times, use on-device tests with one of the following annotations:

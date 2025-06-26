@@ -13,6 +13,7 @@
 
 #include "base/bits.h"
 #include "base/check_op.h"
+#include "base/compiler_specific.h"
 #include "base/functional/callback.h"
 #include "base/memory/aligned_memory.h"
 #include "base/memory/stack_allocated.h"
@@ -20,6 +21,7 @@
 #include "cc/paint/scroll_offset_map.h"
 #include "third_party/skia/include/core/SkM44.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
+#include "ui/gfx/display_color_spaces.h"
 
 class SkCanvas;
 class SkColorSpace;
@@ -234,15 +236,17 @@ class CC_PAINT_EXPORT PaintOpBuffer : public SkRefCnt {
   int num_slow_paths_up_to_min_for_MSAA() const {
     return num_slow_paths_up_to_min_for_MSAA_;
   }
-  bool HasNonAAPaint() const { return has_non_aa_paint_; }
-  bool HasDiscardableImages() const { return has_discardable_images_; }
-
+  bool has_non_aa_paint() const { return has_non_aa_paint_; }
   bool has_draw_ops() const { return has_draw_ops_; }
   bool has_draw_text_ops() const { return has_draw_text_ops_; }
   bool has_save_layer_ops() const { return has_save_layer_ops_; }
   bool has_save_layer_alpha_ops() const { return has_save_layer_alpha_ops_; }
   bool has_effects_preventing_lcd_text_for_save_layer_alpha() const {
     return has_effects_preventing_lcd_text_for_save_layer_alpha_;
+  }
+  bool has_discardable_images() const { return has_discardable_images_; }
+  gfx::ContentColorUsage content_color_usage() const {
+    return content_color_usage_;
   }
   bool NeedsAdditionalInvalidationForLCDText(
       const PaintOpBuffer& old_buffer) const;
@@ -254,6 +258,7 @@ class CC_PAINT_EXPORT PaintOpBuffer : public SkRefCnt {
   // If the shrinking-to-fit allocates a new data buffer, this PaintOpBuffer
   // retains the original data buffer for future use.
   PaintRecord ReleaseAsRecord();
+  PaintRecord DeepCopyAsRecord();
 
   bool EqualsForTesting(const PaintOpBuffer& other) const;
 
@@ -293,9 +298,6 @@ class CC_PAINT_EXPORT PaintOpBuffer : public SkRefCnt {
 
     has_non_aa_paint_ |= op->HasNonAAPaint();
 
-    has_discardable_images_ |= op->HasDiscardableImages();
-    has_discardable_images_ |= op->HasDiscardableImagesFromFlags();
-
     subrecord_bytes_used_ += op->AdditionalBytesUsed();
     subrecord_op_count_ += op->AdditionalOpCount();
 
@@ -305,6 +307,10 @@ class CC_PAINT_EXPORT PaintOpBuffer : public SkRefCnt {
     has_save_layer_alpha_ops_ |= op->HasSaveLayerAlphaOps();
     has_effects_preventing_lcd_text_for_save_layer_alpha_ |=
         op->HasEffectsPreventingLCDTextForSaveLayerAlpha();
+
+    has_discardable_images_ |= op->HasDiscardableImages(&content_color_usage_);
+    has_discardable_images_ |=
+        op->HasDiscardableImagesFromFlags(&content_color_usage_);
   }
 
   size_t GetOpOffsetForTracing(const PaintOp& op) const {
@@ -316,6 +322,8 @@ class CC_PAINT_EXPORT PaintOpBuffer : public SkRefCnt {
   }
 
   const char* DataBufferForTesting() const { return data_.get(); }
+
+  const PaintOp& GetOpAtForTesting(size_t index) const;
 
   class Iterator;
   class OffsetIterator;
@@ -361,7 +369,7 @@ class CC_PAINT_EXPORT PaintOpBuffer : public SkRefCnt {
     if (used_ + aligned_size > reserved_) {
       return AllocatePaintOpSlowPath(aligned_size);
     } else {
-      void* op = data_.get() + used_;
+      void* op = UNSAFE_TODO(data_.get() + used_);
       used_ += aligned_size;
       op_count_++;
       return op;
@@ -386,12 +394,14 @@ class CC_PAINT_EXPORT PaintOpBuffer : public SkRefCnt {
   int num_slow_paths_up_to_min_for_MSAA_ = 0;
 
   bool has_non_aa_paint_ : 1 = false;
-  bool has_discardable_images_ : 1 = false;
   bool has_draw_ops_ : 1 = false;
   bool has_draw_text_ops_ : 1 = false;
   bool has_save_layer_ops_ : 1 = false;
   bool has_save_layer_alpha_ops_ : 1 = false;
   bool has_effects_preventing_lcd_text_for_save_layer_alpha_ : 1 = false;
+
+  bool has_discardable_images_ : 1 = false;
+  gfx::ContentColorUsage content_color_usage_ = gfx::ContentColorUsage::kSRGB;
 };
 
 }  // namespace cc

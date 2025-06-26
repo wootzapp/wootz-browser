@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/test/embedded_test_server/http_request.h"
 
 #include <algorithm>
@@ -172,8 +177,8 @@ HttpRequestParser::ParseResult HttpRequestParser::ParseHeaders() {
       LOG(WARNING) << "Malformed Content-Length header's value.";
     }
   } else if (http_request_->headers.count("Transfer-Encoding") > 0) {
-    if (base::CompareCaseInsensitiveASCII(
-            http_request_->headers["Transfer-Encoding"], "chunked") == 0) {
+    if (base::EqualsCaseInsensitiveASCII(
+            http_request_->headers["Transfer-Encoding"], "chunked")) {
       http_request_->has_content = true;
       chunked_decoder_ = std::make_unique<HttpChunkedDecoder>();
       state_ = STATE_CONTENT;
@@ -196,7 +201,8 @@ HttpRequestParser::ParseResult HttpRequestParser::ParseContent() {
   const size_t available_bytes = buffer_.size() - buffer_position_;
   if (chunked_decoder_.get()) {
     int bytes_written = chunked_decoder_->FilterBuf(
-        const_cast<char*>(buffer_.data()) + buffer_position_, available_bytes);
+        base::as_writable_byte_span(buffer_).subspan(buffer_position_,
+                                                     available_bytes));
     http_request_->content.append(buffer_.data() + buffer_position_,
                                   bytes_written);
 

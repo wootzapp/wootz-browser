@@ -19,7 +19,8 @@ import '../settings_shared.css.js';
 import './captions_subpage.js';
 import 'chrome://resources/ash/common/cr_elements/localized_link/localized_link.js';
 
-import {CrToggleElement} from 'chrome://resources/ash/common/cr_elements/cr_toggle/cr_toggle.js';
+import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
+import type {CrToggleElement} from 'chrome://resources/ash/common/cr_elements/cr_toggle/cr_toggle.js';
 import {I18nMixin} from 'chrome://resources/ash/common/cr_elements/i18n_mixin.js';
 import {WebUiListenerMixin} from 'chrome://resources/ash/common/cr_elements/web_ui_listener_mixin.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
@@ -29,10 +30,22 @@ import {DeepLinkingMixin} from '../common/deep_linking_mixin.js';
 import {RouteOriginMixin} from '../common/route_origin_mixin.js';
 import {Setting} from '../mojom-webui/setting.mojom-webui.js';
 import type {LanguageHelper, LanguagesModel} from '../os_languages_page/languages_types.js';
-import {Route, routes} from '../router.js';
+import type {Route} from '../router.js';
+import {routes} from '../router.js';
 
 import {getTemplate} from './audio_and_captions_page.html.js';
-import {AudioAndCaptionsPageBrowserProxy, AudioAndCaptionsPageBrowserProxyImpl} from './audio_and_captions_page_browser_proxy.js';
+import type {AudioAndCaptionsPageBrowserProxy} from './audio_and_captions_page_browser_proxy.js';
+import {AudioAndCaptionsPageBrowserProxyImpl} from './audio_and_captions_page_browser_proxy.js';
+
+export enum NotificationColor {
+  RED = 0xff0000,
+  YELLOW = 0xffff00,
+  GREEN = 0x00ff01,
+  CYAN = 0x00ffff,
+  BLUE = 0x0000fe,
+  MAGENTA = 0xff00fe,
+  PINK = 0xff017e,
+}
 
 export interface SettingsAudioAndCaptionsPageElement {
   $: {
@@ -40,8 +53,9 @@ export interface SettingsAudioAndCaptionsPageElement {
   };
 }
 
-const SettingsAudioAndCaptionsPageElementBase = DeepLinkingMixin(
-    RouteOriginMixin(WebUiListenerMixin(I18nMixin(PolymerElement))));
+const SettingsAudioAndCaptionsPageElementBase =
+    DeepLinkingMixin(RouteOriginMixin(
+        PrefsMixin(WebUiListenerMixin(I18nMixin(PolymerElement)))));
 
 export class SettingsAudioAndCaptionsPageElement extends
     SettingsAudioAndCaptionsPageElementBase {
@@ -55,14 +69,6 @@ export class SettingsAudioAndCaptionsPageElement extends
 
   static get properties() {
     return {
-      /**
-       * Preferences state.
-       */
-      prefs: {
-        type: Object,
-        notify: true,
-      },
-
       /**
        * Read-only reference to the languages model provided by the
        * 'settings-languages' instance.
@@ -83,25 +89,70 @@ export class SettingsAudioAndCaptionsPageElement extends
         },
       },
 
-      /**
-       * Used by DeepLinkingMixin to focus this page's deep links.
-       */
-      supportedSettingIds: {
-        type: Object,
-        value: () => new Set<Setting>([
-          Setting.kMonoAudio,
-          Setting.kStartupSound,
-          Setting.kLiveCaption,
-        ]),
+      isAccessibilityFlashNotificationFeatureEnabled_: {
+        readOnly: true,
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean(
+              'isAccessibilityFlashNotificationFeatureEnabled');
+        },
+      },
+
+      notificationColorOptions_: {
+        readOnly: true,
+        type: Array,
+        value() {
+          return [
+            {
+              value: NotificationColor.RED,
+              name: loadTimeData.getString('cursorColorRed'),
+            },
+            {
+              value: NotificationColor.YELLOW,
+              name: loadTimeData.getString('cursorColorYellow'),
+            },
+            {
+              value: NotificationColor.GREEN,
+              name: loadTimeData.getString('cursorColorGreen'),
+            },
+            {
+              value: NotificationColor.CYAN,
+              name: loadTimeData.getString('cursorColorCyan'),
+            },
+            {
+              value: NotificationColor.BLUE,
+              name: loadTimeData.getString('cursorColorBlue'),
+            },
+            {
+              value: NotificationColor.MAGENTA,
+              name: loadTimeData.getString('cursorColorMagenta'),
+            },
+            {
+              value: NotificationColor.PINK,
+              name: loadTimeData.getString('cursorColorPink'),
+            },
+          ];
+        },
       },
     };
   }
 
-  prefs: {[key: string]: any};
   languages: LanguagesModel;
   languageHelper: LanguageHelper;
+
+  // DeepLinkingMixin override
+  override supportedSettingIds = new Set<Setting>([
+    Setting.kFlashNotifications,
+    Setting.kLiveCaption,
+    Setting.kMonoAudio,
+    Setting.kStartupSound,
+  ]);
+
   private audioAndCaptionsBrowserProxy_: AudioAndCaptionsPageBrowserProxy;
+  private readonly isAccessibilityFlashNotificationFeatureEnabled_: boolean;
   private isKioskModeActive_: boolean;
+  private readonly notificationColorOptions_:
+      Array<{value: number, name: string}>;
 
   constructor() {
     super();
@@ -176,6 +227,10 @@ export class SettingsAudioAndCaptionsPageElement extends
    */
   private updateStartupSoundEnabled_(startupSoundEnabled: boolean): void {
     this.$.startupSoundEnabled.checked = startupSoundEnabled;
+  }
+
+  private previewFlashNotification_(): void {
+    this.audioAndCaptionsBrowserProxy_.previewFlashNotification();
   }
 }
 

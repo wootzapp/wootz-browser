@@ -7,7 +7,7 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list_factory.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/browser_util.h"
 #import "ios/chrome/browser/shared/model/web_state_list/tab_group.h"
 #import "ios/chrome/browser/shared/model/web_state_list/tab_utils.h"
@@ -17,10 +17,11 @@
 std::set<const TabGroup*> GetAllGroupsForBrowserList(BrowserList* browser_list,
                                                      BOOL incognito) {
   std::set<const TabGroup*> groups;
-  std::set<Browser*> all_browsers = incognito
-                                        ? browser_list->AllIncognitoBrowsers()
-                                        : browser_list->AllRegularBrowsers();
-  for (Browser* browser : all_browsers) {
+  const BrowserList::BrowserType browser_types =
+      incognito ? BrowserList::BrowserType::kIncognito
+                : BrowserList::BrowserType::kRegular;
+  std::set<Browser*> browsers = browser_list->BrowsersOfType(browser_types);
+  for (Browser* browser : browsers) {
     WebStateList* web_state_list = browser->GetWebStateList();
     groups.merge(web_state_list->GetGroups());
   }
@@ -28,27 +29,25 @@ std::set<const TabGroup*> GetAllGroupsForBrowserList(BrowserList* browser_list,
   return groups;
 }
 
-std::set<const TabGroup*> GetAllGroupsForBrowserState(
-    ChromeBrowserState* browser_state) {
-  BrowserList* browser_list =
-      BrowserListFactory::GetForBrowserState(browser_state);
-  const bool incognito = browser_state->IsOffTheRecord();
+std::set<const TabGroup*> GetAllGroupsForProfile(ProfileIOS* profile) {
+  BrowserList* browser_list = BrowserListFactory::GetForProfile(profile);
+  const bool incognito = profile->IsOffTheRecord();
   return GetAllGroupsForBrowserList(browser_list, incognito);
 }
 
 void MoveTabToGroup(web::WebStateID web_state_identifier,
                     const TabGroup* destination_group,
-                    ChromeBrowserState* browser_state) {
-  BOOL incognito = browser_state->IsOffTheRecord();
-  BrowserList* browser_list =
-      BrowserListFactory::GetForBrowserState(browser_state);
-  std::set<Browser*> all_browsers = incognito
-                                        ? browser_list->AllIncognitoBrowsers()
-                                        : browser_list->AllRegularBrowsers();
+                    ProfileIOS* profile) {
+  BOOL incognito = profile->IsOffTheRecord();
+  BrowserList* browser_list = BrowserListFactory::GetForProfile(profile);
+  const BrowserList::BrowserType browser_types =
+      incognito ? BrowserList::BrowserType::kIncognito
+                : BrowserList::BrowserType::kRegularAndInactive;
+  std::set<Browser*> browsers = browser_list->BrowsersOfType(browser_types);
 
   int web_state_index = WebStateList::kInvalidIndex;
   Browser* origin_browser;
-  for (Browser* browser : all_browsers) {
+  for (Browser* browser : browsers) {
     WebStateList* web_state_list = browser->GetWebStateList();
     int index = GetWebStateIndex(
         web_state_list,
@@ -69,7 +68,7 @@ void MoveTabToGroup(web::WebStateID web_state_identifier,
     return;
   }
 
-  for (Browser* browser : all_browsers) {
+  for (Browser* browser : browsers) {
     WebStateList* web_state_list = browser->GetWebStateList();
     if (web_state_list->ContainsGroup(destination_group)) {
       MoveTabFromBrowserToBrowser(
@@ -84,9 +83,10 @@ void MoveTabToGroup(web::WebStateID web_state_identifier,
 Browser* GetBrowserForGroup(BrowserList* browser_list,
                             const TabGroup* group,
                             bool is_otr_group) {
-  std::set<Browser*> browsers = is_otr_group
-                                    ? browser_list->AllIncognitoBrowsers()
-                                    : browser_list->AllRegularBrowsers();
+  const BrowserList::BrowserType browser_types =
+      is_otr_group ? BrowserList::BrowserType::kIncognito
+                   : BrowserList::BrowserType::kRegular;
+  std::set<Browser*> browsers = browser_list->BrowsersOfType(browser_types);
   for (Browser* browser : browsers) {
     WebStateList* web_state_list = browser->GetWebStateList();
     if (web_state_list->ContainsGroup(group)) {

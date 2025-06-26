@@ -59,7 +59,6 @@ class GLShareGroup;
 
 namespace gpu {
 
-class BuiltInShaderCacheWriter;
 class DawnContextProvider;
 class ImageDecodeAcceleratorWorker;
 struct GpuPreferences;
@@ -111,7 +110,9 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
       viz::MetalContextProvider* metal_context_provider = nullptr,
       DawnContextProvider* dawn_context_provider = nullptr,
       webgpu::DawnCachingInterfaceFactory* dawn_caching_interface_factory =
-          nullptr);
+          nullptr,
+      const SharedContextState::GrContextOptionsProvider*
+          gr_context_options_provider = nullptr);
 
   GpuChannelManager(const GpuChannelManager&) = delete;
   GpuChannelManager& operator=(const GpuChannelManager&) = delete;
@@ -207,9 +208,10 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
     return shared_image_manager_;
   }
 
+  Scheduler* scheduler() const { return scheduler_; }
+
   bool use_passthrough_cmd_decoder() const {
-    return gpu_preferences_.use_passthrough_cmd_decoder &&
-           gles2::PassthroughCommandDecoderSupported();
+    return gpu_preferences_.use_passthrough_cmd_decoder;
   }
 
   // Retrieve GPU Resource consumption statistics for the task manager
@@ -339,11 +341,6 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
   raw_ptr<GpuWatchdogThread> watchdog_;
 
   scoped_refptr<gl::GLShareGroup> share_group_;
-
-#if BUILDFLAG(IS_MAC)
-  std::unique_ptr<BuiltInShaderCacheWriter> shader_cache_writer_;
-#endif
-
   std::unique_ptr<gles2::Outputter> outputter_;
   raw_ptr<Scheduler> scheduler_;
   // SyncPointManager guaranteed to outlive running MessageLoop.
@@ -402,6 +399,9 @@ class GPU_IPC_SERVICE_EXPORT GpuChannelManager
   raw_ptr<DawnContextProvider> dawn_context_provider_ = nullptr;
 
   GpuPeakMemoryMonitor peak_memory_monitor_;
+
+  raw_ptr<const SharedContextState::GrContextOptionsProvider>
+      gr_context_options_provider_ = nullptr;
 
   // Creation time of GpuChannelManger.
   const base::TimeTicks creation_time_ = base::TimeTicks::Now();

@@ -22,7 +22,7 @@ namespace {
 // The two infobar message text used in tests.  Both support badges.
 std::u16string kFirstInfobarMessageText = u"FakeInfobarDelegate1";
 std::u16string kSecondInfobarMessageText = u"FakeInfobarDelegate2";
-}
+}  // namespace
 
 using infobars::InfoBar;
 using infobars::InfoBarManager;
@@ -33,6 +33,7 @@ class InfobarOverlayRequestInserterTest : public PlatformTest {
   InfobarOverlayRequestInserterTest() {
     web_state_.SetNavigationManager(
         std::make_unique<web::FakeNavigationManager>());
+    OverlayRequestQueue::CreateForWebState(&web_state_);
     InfobarOverlayRequestInserter::CreateForWebState(
         &web_state_, &FakeInfobarOverlayRequestFactory);
     InfoBarManagerImpl::CreateForWebState(&web_state_);

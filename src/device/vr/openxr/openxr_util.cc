@@ -7,6 +7,9 @@
 #include <string>
 
 #include "base/check_op.h"
+#include "base/numerics/angle_conversions.h"
+#include "device/vr/public/mojom/vr_service.mojom.h"
+#include "device/vr/public/mojom/xr_session.mojom.h"
 #include "ui/gfx/geometry/quaternion.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/gfx/geometry/transform_util.h"
@@ -51,6 +54,16 @@ XrPosef GfxTransformToXrPose(const gfx::Transform& transform) {
            static_cast<float>(decomposed_transform->translate[2])}};
 }
 
+mojom::VRFieldOfViewPtr XrFovToMojomFov(const XrFovf& xr_fov) {
+  auto field_of_view = mojom::VRFieldOfView::New();
+  field_of_view->up_degrees = base::RadToDeg(xr_fov.angleUp);
+  field_of_view->down_degrees = base::RadToDeg(-xr_fov.angleDown);
+  field_of_view->left_degrees = base::RadToDeg(-xr_fov.angleLeft);
+  field_of_view->right_degrees = base::RadToDeg(xr_fov.angleRight);
+
+  return field_of_view;
+}
+
 bool IsPoseValid(XrSpaceLocationFlags locationFlags) {
   XrSpaceLocationFlags PoseValidFlags = XR_SPACE_LOCATION_POSITION_VALID_BIT |
                                         XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
@@ -67,6 +80,7 @@ bool IsArOnlyFeature(device::mojom::XRSessionFeature feature) {
     case device::mojom::XRSessionFeature::LAYERS:
     case device::mojom::XRSessionFeature::HAND_INPUT:
     case device::mojom::XRSessionFeature::SECONDARY_VIEWS:
+    case device::mojom::XRSessionFeature::WEBGPU:
       return false;
     case device::mojom::XRSessionFeature::DOM_OVERLAY:
     case device::mojom::XRSessionFeature::HIT_TEST:

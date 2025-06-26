@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 
+#include <array>
 #include <memory>
 
 #include "base/memory/ref_counted.h"
@@ -373,16 +374,9 @@ class ExtensionPrefValueMapTestIncognitoTests
 
 TEST_P(ExtensionPrefValueMapTestIncognitoTests, OverrideIncognito) {
   OverrideIncognitoTestCase test = GetParam();
-  const char* strings[] = {
+  static constexpr std::array strings = {
       "",  // undefined
-      "val1",
-      "val2",
-      "val3",
-      "val4",
-      "val5",
-      "val6",
-      "val7",
-      "val8",
+      "val1", "val2", "val3", "val4", "val5", "val6", "val7", "val8",
   };
 
   const bool kEnabled = true;

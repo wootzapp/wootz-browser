@@ -8,6 +8,8 @@ import "gpu/ipc/common/capabilities.mojom";
 import "gpu/ipc/common/context_result.mojom";
 import "gpu/ipc/common/mailbox.mojom";
 import "gpu/ipc/common/shared_image_metadata.mojom";
+import "gpu/ipc/common/shared_image_pool_id.mojom";
+import "gpu/ipc/common/shared_image_pool_client_interface.mojom";
 import "gpu/ipc/common/surface_handle.mojom";
 import "gpu/ipc/common/sync_token.mojom";
 import "gpu/ipc/common/vulkan_ycbcr_info.mojom";
@@ -53,26 +55,24 @@ enum SchedulingPriority {
 struct ContextCreationAttribs {
   gl.mojom.GpuPreference gpu_preference = kLowPower;
 
-  // -1 if invalid or unspecified.
-  [EnableIf=is_android] bool need_alpha = false;
   bool bind_generates_resource = true;
   bool fail_if_major_perf_caveat = false;
   bool lose_context_when_out_of_memory = false;
   bool enable_gles2_interface = true;
   bool enable_grcontext = false;
   bool enable_raster_interface = false;
-  bool enable_oop_rasterization = false;
+  bool enable_gpu_rasterization = false;
 
   ContextType context_type = kOpenGLES2;
 };
 
 struct CreateCommandBufferParams {
-  [EnableIf=is_android] SurfaceHandle surface_handle;
   int32 share_group_id;
   int32 stream_id;
   SchedulingPriority stream_priority;
   ContextCreationAttribs attribs;
   url.mojom.Url active_url;
+  string label;
 };
 
 // Corresponds to the definition in gpu/command_buffer/common/constants.h.
@@ -143,7 +143,7 @@ interface GpuChannel {
   // contains a single 64 bit atomic integer used as a flushed message id.
   // The number is read from renderers and updated from the
   // gpu process on FlushDeferredRequests.
-  [Sync] GetSharedMemoryForFlushId() =>
+  [Sync, NoInterrupt] GetSharedMemoryForFlushId() =>
     (mojo_base.mojom.ReadOnlySharedMemoryRegion? version_buffer);
 
   // Tells the GPU process to create a new command buffer. A corresponding
@@ -246,7 +246,7 @@ interface GpuChannel {
   [EnableIf=is_fuchsia]
   RegisterSysmemBufferCollection(
       handle<platform> service_handle, handle<platform> sysmem_token,
-      gfx.mojom.BufferFormat format, gfx.mojom.BufferUsage usage,
+      viz.mojom.SharedImageFormat format, gfx.mojom.BufferUsage usage,
       bool register_with_image_pipe);
 
   // Updates the contents of the GpuMemoryBuffer associated with the shared
@@ -257,6 +257,25 @@ interface GpuChannel {
   CopyToGpuMemoryBufferAsync(
       Mailbox mailbox, array<SyncToken> sync_token_dependencies,
       uint64 release_count) => (bool success);
+
+  [Sync, EnableIf=is_win]
+  // Copies GMB pixel data from the native handle to the |shared_memory|.
+  // Returns |true| if the copy has succeeded.
+  // Note that this method has some similar functionality but is different than
+  // above CopyToGpuMemoryBufferAsync in the sense that above method is only
+  // used for shared memory GMBs whereas this method is used for native GMBs.
+  // This has to be a blocking operation since it will be called during
+  // GpuMemoryBuffer::Map() operation which should provide updated data to
+  // clients before using it.
+  CopyNativeGmbToSharedMemorySync(gfx.mojom.GpuMemoryBufferHandle
+      buffer_handle, mojo_base.mojom.UnsafeSharedMemoryRegion shared_memory)
+                     => (bool success);
+
+  // This is non-blocking version of above method.
+  [EnableIf=is_win]
+  CopyNativeGmbToSharedMemoryAsync(gfx.mojom.GpuMemoryBufferHandle
+      buffer_handle, mojo_base.mojom.UnsafeSharedMemoryRegion shared_memory)
+                     => (bool success);
 };
 
 // Interface used to issue commands to a specific CommandBuffer instance in the
@@ -481,9 +500,6 @@ union DeferredSharedImageRequest {
   // See CreateSharedImageWithBufferParams.
   CreateSharedImageWithBufferParams create_shared_image_with_buffer;
 
-  // See CreateGMBSharedImageParams.
-  CreateGMBSharedImageParams create_gmb_shared_image;
-
   // Registers a new shared memory region to share with the GPU process for
   // uploading shared image data.
   mojo_base.mojom.ReadOnlySharedMemoryRegion register_upload_buffer;
@@ -492,7 +508,6 @@ union DeferredSharedImageRequest {
   UpdateSharedImageParams update_shared_image;
 
   // See CopyToGpuMemoryBufferParams.
-  [EnableIf=is_win]
   CopyToGpuMemoryBufferParams copy_to_gpu_memory_buffer;
 
   // Destroys the shared image identified by this Mailbox.
@@ -519,6 +534,12 @@ union DeferredSharedImageRequest {
   // See UnregisterDxgiFenceParams.
   [EnableIf=is_win]
   UnregisterDxgiFenceParams unregister_dxgi_fence;
+
+  // See CreateSharedImagePoolParams.
+  CreateSharedImagePoolParams create_shared_image_pool;
+
+  // See DestroySharedImagePoolParams.
+  DestroySharedImagePoolParams destroy_shared_image_pool;
 };
 
 // Asynchronously synchronize the put and get offsets of both processes.
@@ -570,6 +591,10 @@ struct CreateSharedImageParams {
 
   // Information about the shared image.
   SharedImageInfo si_info;
+
+  // An optional SharedImagePoolId which indicates the pool this shared image
+  // is created from.
+  SharedImagePoolId? pool_id;
 };
 
 // Creates a new shared image and populates it with pixel data from a shared
@@ -604,27 +629,10 @@ struct CreateSharedImageWithBufferParams {
 
   // A handle to the existing GPU memory buffer.
   gfx.mojom.GpuMemoryBufferHandle buffer_handle;
-};
 
-// Creates a new shared image from an existing GPU memory buffer.
-struct CreateGMBSharedImageParams {
-  // The mailbox used to identify the shared image.
-  Mailbox mailbox;
-
-  // A handle to the existing GPU memory buffer.
-  gfx.mojom.GpuMemoryBufferHandle buffer_handle;
-
-  // Size in pixels of the GPU memory buffer.
-  gfx.mojom.Size size;
-
-  // Format of pixels in the GPU memory buffer.
-  gfx.mojom.BufferFormat format;
-
-  // Plane for which to create the shared image.
-  gfx.mojom.BufferPlane plane;
-
-  // Information about the shared image.
-  SharedImageInfo si_info;
+  // An optional SharedImagePoolId which indicates the pool this shared image
+  // is created from.
+  SharedImagePoolId? pool_id;
 };
 
 // Updates the contents of a shared image from whatever is backing it, if
@@ -647,10 +655,9 @@ struct AddReferenceToSharedImageParams {
 };
 
 // Updates the contents of the GpuMemoryBuffer associated with the shared image.
-// Necessary on platforms like Windows where renderer cannot create native GMBs.
-// The command performs synchronization with the GPU so the copy is complete
-// after the command runs.
-[EnableIf=is_win]
+// Necessary on platforms like Windows and Linux where renderer cannot create
+// native GMBs. The command performs synchronization with the GPU so the copy is
+// complete after the command runs.
 struct CopyToGpuMemoryBufferParams {
   // The mailbox identifying the shared image which should update its GMB.
   Mailbox mailbox;
@@ -722,4 +729,22 @@ struct UnregisterDxgiFenceParams {
 
   // The DXGIHandleToken to identifying the fence needs to be cleared.
   gfx.mojom.DXGIHandleToken dxgi_token;
+};
+
+// Params needed when creating a SharedImagePool in the GPU service side.
+struct CreateSharedImagePoolParams {
+  // SharedImagePoolId corresponding to which the service side SharedImagePool
+  // will be created.
+  SharedImagePoolId pool_id;
+
+  // Interface used by service side SharedImagePool to communicate with client
+  // side SharedImagePool.
+  pending_remote<gpu.mojom.SharedImagePoolClientInterface> client_remote;
+};
+
+// Params needed to destroy a specific SharedImagePool in the GPU service side.
+struct DestroySharedImagePoolParams {
+  // SharedImagePool in the service side corresponding to the SharedImagePoolId
+  // will be destroyed.
+  SharedImagePoolId pool_id;
 };

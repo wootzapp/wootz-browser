@@ -5,14 +5,13 @@
 #ifndef CONTENT_BROWSER_ATTRIBUTION_REPORTING_SEND_RESULT_H_
 #define CONTENT_BROWSER_ATTRIBUTION_REPORTING_SEND_RESULT_H_
 
+#include <variant>
+
+#include "content/common/content_export.h"
+
 namespace content {
 
-// Struct that contains data about sent reports. Some info is displayed in the
-// Conversion Internals WebUI.
-// TODO(apaseltiner): Consider replacing this struct with a single int that
-// contains either HTTP response code, network error, or custom values for
-// `Status::kDropped` and `Status::kFailedToAssemble`.
-struct SendResult {
+struct CONTENT_EXPORT SendResult {
   enum class Status {
     kSent,
     // The report failed without receiving response headers.
@@ -28,30 +27,37 @@ struct SendResult {
     // The report was dropped because of transient assembly failure, e.g. the
     // public key was not fetched.
     kTransientAssemblyFailure,
+    // The report was dropped because it exceeded the max report lifetime.
+    kExpired,
   };
 
-  explicit SendResult(Status status,
-                      int network_error = 0,
-                      int http_response_code = 0)
-      : status(status),
-        network_error(network_error),
-        http_response_code(http_response_code) {}
+  struct Sent {
+    enum class Result {
+      kSent,
+      kTransientFailure,
+      kFailure,
+    };
 
-  SendResult(const SendResult&) = default;
-  SendResult& operator=(const SendResult&) = default;
+    Result result;
+    int status;
+    Sent(Result result, int status) : result(result), status(status) {}
 
-  SendResult(SendResult&&) = default;
-  SendResult& operator=(SendResult&&) = default;
+    friend bool operator==(const Sent&, const Sent&) = default;
+  };
 
-  ~SendResult() = default;
+  struct Expired {};
 
-  Status status;
+  struct Dropped {};
 
-  // Information on the network request that was sent.
-  int network_error;
-  int http_response_code;
+  struct AssemblyFailure {
+    bool transient;
+    explicit AssemblyFailure(bool transient) : transient(transient) {}
+  };
 
-  friend bool operator==(const SendResult&, const SendResult&) = default;
+  Status status() const;
+
+  using Result = std::variant<Sent, Dropped, Expired, AssemblyFailure>;
+  Result result;
 };
 
 }  // namespace content

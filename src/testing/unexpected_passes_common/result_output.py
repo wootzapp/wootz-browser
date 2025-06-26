@@ -6,20 +6,23 @@
 Also probably a good example of how to *not* write HTML.
 """
 
-from __future__ import print_function
-
 import collections
 import logging
+import re
 import sys
 import tempfile
-from typing import Any, Dict, IO, List, Optional, OrderedDict, Set, Tuple, Union
+from typing import Any, Dict, IO, List, Optional, Set, Union
 
+# vpython-provided modules.
 import six
 
+# //testing imports.
 from unexpected_passes_common import data_types
 
-# Used for posting Buganizer comments.
+# //third_party/ imports.
+# Used for generating and posting Buganizer comments.
 from blinkpy.w3c import buganizer
+from typ import expectations_parser
 
 FULL_PASS = 'Fully passed in the following'
 PARTIAL_PASS = 'Partially passed in the following'
@@ -250,6 +253,9 @@ UnusedExpectation = Dict[str, List[data_types.Expectation]]
 
 RemovedUrlsType = Union[List[str], Set[str]]
 
+_BUG_PREFIX_PATTERN = re.compile(
+    expectations_parser.TaggedTestListParser.BUG_PREFIX_REGEX)
+
 
 def OutputResults(stale_dict: data_types.TestExpectationMap,
                   semi_stale_dict: data_types.TestExpectationMap,
@@ -328,7 +334,7 @@ def OutputResults(stale_dict: data_types.TestExpectationMap,
       _RecursiveHtmlToFile(active_str_dict, file_handle)
 
     if unused_expectations_str_list:
-      file_handle.write('\n<h1>' + SECTION_UNUSED + "</h1>\n")
+      file_handle.write('\n<h1>' + SECTION_UNUSED + '</h1>\n')
       _RecursiveHtmlToFile(unused_expectations_str_list, file_handle)
     if unmatched_results_str_dict:
       file_handle.write('\n<h1>' + SECTION_UNMATCHED + '</h1>\n')
@@ -619,9 +625,9 @@ def _OutputAffectedUrls(affected_urls: List[str],
     orphaned_urls: A list of strings containing URLs to output as closable.
     file_handle: A file handle to write the string to. Defaults to stdout.
   """
-  _OutputUrlsForCommandLine(affected_urls, "Affected bugs", file_handle)
+  _OutputUrlsForCommandLine(affected_urls, 'Affected bugs', file_handle)
   if orphaned_urls:
-    _OutputUrlsForCommandLine(orphaned_urls, "Closable bugs", file_handle)
+    _OutputUrlsForCommandLine(orphaned_urls, 'Closable bugs', file_handle)
 
 
 def _OutputUrlsForCommandLine(urls: List[str],
@@ -675,7 +681,7 @@ def _OutputUrlsForClDescription(affected_urls: List[str],
 
     while len(urls):
       current_bug = urls.popleft()
-      current_bug = current_bug.split('crbug.com/', 1)[1]
+      current_bug = _BUG_PREFIX_PATTERN.split(current_bug, 1)[1]
       # Handles cases like crbug.com/angleproject/1234.
       current_bug = current_bug.replace('/', ':')
 
@@ -735,6 +741,12 @@ def _PostCommentsToOrphanedBugs(orphaned_urls: List[str]) -> None:
   for url in orphaned_urls:
     try:
       comment_list = buganizer_client.GetIssueComments(url)
+      # GetIssueComments currently returns a dict if something goes wrong
+      # instead of raising an exception.
+      if isinstance(comment_list, dict):
+        logging.exception('Failed to get comments from %s: %s', url,
+                          comment_list.get('error', 'error not provided'))
+        continue
       existing_comments = [c['comment'] for c in comment_list]
       if BUGANIZER_COMMENT not in existing_comments:
         buganizer_client.NewComment(url, BUGANIZER_COMMENT)

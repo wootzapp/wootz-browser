@@ -18,7 +18,7 @@
 namespace ash {
 namespace {
 
-const char kChromeVoxPanelRelativeUrl[] = "/chromevox/panel/panel.html";
+const char kChromeVoxPanelRelativeUrl[] = "/chromevox/mv2/panel/panel.html";
 const char kDisableSpokenFeedbackURLFragment[] = "close";
 const char kFocusURLFragment[] = "focus";
 const char kFullscreenURLFragment[] = "fullscreen";
@@ -41,7 +41,7 @@ class ChromeVoxPanel::ChromeVoxPanelWebContentsObserver
   ChromeVoxPanelWebContentsObserver& operator=(
       const ChromeVoxPanelWebContentsObserver&) = delete;
 
-  ~ChromeVoxPanelWebContentsObserver() override {}
+  ~ChromeVoxPanelWebContentsObserver() override = default;
 
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override {
@@ -71,7 +71,7 @@ ChromeVoxPanel::ChromeVoxPanel(content::BrowserContext* browser_context)
   SetAccessibilityPanelFullscreen(false);
 }
 
-ChromeVoxPanel::~ChromeVoxPanel() {}
+ChromeVoxPanel::~ChromeVoxPanel() = default;
 
 void ChromeVoxPanel::EnterFullscreen() {
   Focus();

@@ -13,16 +13,16 @@
 
 namespace ash {
 
-// When entering in pine session and customizing suggestion types to show, the
-// birch bar needs to fetch data from model. While waiting for the data, the
-// loader views will show on birch bar with corresponding fading in and out
-// animations.
+// When entering an informed restore session and customizing suggestion types to
+// show, the birch bar needs to fetch data from the model. While waiting for the
+// data, the loader views will show on the birch bar with corresponding fading
+// in and out animations.
 class BirchChipLoaderView : public BirchChipButtonBase {
   METADATA_HEADER(BirchChipLoaderView, BirchChipButtonBase)
 
  public:
   enum class Type {
-    kInit,    // Used during loading in pine.
+    kInit,    // Used during loading for informed restore.
     kReload,  // Used when suggestions are customized by user.
     kNone,
   };
@@ -42,6 +42,7 @@ class BirchChipLoaderView : public BirchChipButtonBase {
   void AddAnimationToBuilder(views::AnimationBuilder& builder);
 
   // BirchChipButtonBase:
+  void Init(BirchItem* item) override;
   const BirchItem* GetItem() const override;
   BirchItem* GetItem() override;
   void Shutdown() override;

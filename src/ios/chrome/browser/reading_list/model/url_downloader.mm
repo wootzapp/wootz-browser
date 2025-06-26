@@ -55,6 +55,7 @@ const char kReplaceDownloadedImagesScript[] =
     "    var imgTags = document.getElementsByTagName(\"img\");"
     "    for(image of imgTags) {"
     "        image.src = imgData[image.src] || image.src;"
+    "        image.removeAttribute('srcset');"
     "    }"
     "}, false);"
     "</script>";
@@ -69,12 +70,168 @@ const int kMaximumTotalPageSize = 10 * 1024 * 1024;
 // page distillation is canceled (page will only be available online).
 const int kMaximumImageSize = 1024 * 1024;
 
+// Creates the offline directory for `url`. Returns true if successful or if
+// the directory already exists.
+bool CreateOfflineURLDirectory(const GURL& url,
+                               const base::FilePath& base_directory) {
+  base::FilePath directory_path =
+      reading_list::OfflineURLDirectoryAbsolutePath(base_directory, url);
+  if (!DirectoryExists(directory_path)) {
+    return CreateDirectoryAndGetError(directory_path, nil);
+  }
+  return true;
+}
+
+// Saves the file downloaded by the `url_loader`. Creates the directory if
+// needed.
+std::pair<URLDownloader::SuccessState, int64_t> SavePDFFile(
+    const base::FilePath& temporary_path,
+    const GURL& original_url,
+    const base::FilePath& base_directory) {
+  if (CreateOfflineURLDirectory(original_url, base_directory)) {
+    base::FilePath path = reading_list::OfflinePagePath(
+        original_url, reading_list::OFFLINE_TYPE_PDF);
+    base::FilePath absolute_path =
+        reading_list::OfflineURLAbsolutePathFromRelativePath(base_directory,
+                                                             path);
+
+    if (base::Move(temporary_path, absolute_path)) {
+      int64_t pdf_file_size = base::GetFileSize(absolute_path).value_or(0);
+      return {URLDownloader::DOWNLOAD_SUCCESS, pdf_file_size};
+    } else {
+      return {URLDownloader::ERROR, 0};
+    }
+  }
+
+  return {URLDownloader::ERROR, 0};
+}
+
+// Injects script to replace images in `images` array with a data-uri
+// of their contents. If the data does not represent an image, it is
+// skipped.
+std::string ReplaceImagesInHTML(
+    const GURL& url,
+    const std::string& html,
+    const std::vector<DistillerViewerInterface::ImageInfo>& images,
+    const GURL& distilled_url,
+    const std::string& csp_nonce) {
+  std::string mutable_html = html;
+  std::string image_js;
+  bool local_images_found = false;
+  for (size_t i = 0; i < images.size(); i++) {
+    if (images[i].url.SchemeIs(url::kDataScheme)) {
+      // Data URI, the data part of the image is empty, no need to store it.
+      continue;
+    }
+    std::string local_image_name;
+    // Mixed content is HTTP images on HTTPS pages.
+    bool image_is_mixed_content = distilled_url.SchemeIsCryptographic() &&
+                                  !images[i].url.SchemeIsCryptographic();
+    // Only inline images if it is not mixed content and image data is valid.
+    if (image_is_mixed_content || !images[i].url.is_valid() ||
+        images[i].data.empty()) {
+      continue;
+    }
+
+    // Try to detect the mime-type from the bytes so an arbitrary page cannot
+    // be included. Returned mime-type must start with "image/".
+    std::string sniffed_type;
+    if (!net::SniffMimeTypeFromLocalData(images[i].data, &sniffed_type)) {
+      continue;
+    }
+
+    if (!base::StartsWith(sniffed_type, "image/")) {
+      continue;
+    }
+
+    std::string image_url;
+    std::string image_data;
+    base::Value value(images[i].url.spec());
+
+    base::JSONWriter::Write(value, &image_url);
+    image_data = base::Base64Encode(images[i].data);
+
+    std::string src_with_data =
+        base::StringPrintf("data:image/png;base64,%s", image_data.c_str());
+    image_js += "imgData[" + image_url + "] = \"" + src_with_data + "\";";
+
+    local_images_found = true;
+  }
+
+  if (local_images_found) {
+    std::vector<std::string> substitutions;
+    substitutions.push_back(csp_nonce);
+
+    mutable_html += base::ReplaceStringPlaceholders(
+        kDisableImageContextMenuScript, substitutions, nullptr);
+
+    substitutions.push_back(image_js);
+    mutable_html += base::ReplaceStringPlaceholders(
+        kReplaceDownloadedImagesScript, substitutions, nullptr);
+  }
+
+  return mutable_html;
+}
+
+// Saves `html` to disk in the correct location for `url`; returns success.
+std::pair<bool, int64_t> SaveHTMLForURL(std::string html,
+                                        const GURL& url,
+                                        const base::FilePath& base_directory) {
+  if (html.empty()) {
+    return {false, 0};
+  }
+  base::FilePath path = reading_list::OfflineURLAbsolutePathFromRelativePath(
+      base_directory,
+      reading_list::OfflinePagePath(url, reading_list::OFFLINE_TYPE_HTML));
+  if (!base::WriteFile(path, html)) {
+    return {false, 0};
+  }
+  return {true, html.size()};
+}
+
+// Saves distilled html to disk, including saving images and main file.
+std::pair<URLDownloader::SuccessState, int64_t> SaveDistilledHTML(
+    const GURL& url,
+    const std::vector<DistillerViewerInterface::ImageInfo>& images,
+    const std::string& html,
+    const base::FilePath& base_directory,
+    const GURL& distilled_url,
+    const std::string& csp_nonce) {
+  int total_size = html.size();
+  for (size_t i = 0; i < images.size(); i++) {
+    if (images[i].data.size() > kMaximumImageSize) {
+      UMA_HISTOGRAM_MEMORY_KB("IOS.ReadingList.ImageTooLargeFailure",
+                              images[i].data.size() / 1024);
+      return {URLDownloader::PERMANENT_ERROR, 0};
+    }
+    // Image will be base64 encoded.
+    total_size += 4 * images[i].data.size() / 3;
+  }
+  if (total_size > kMaximumTotalPageSize) {
+    UMA_HISTOGRAM_MEMORY_KB("IOS.ReadingList.PageTooLargeFailure",
+                            total_size / 1024);
+    return {URLDownloader::PERMANENT_ERROR, 0};
+  }
+
+  if (CreateOfflineURLDirectory(url, base_directory)) {
+    std::pair<bool, int64_t> res = SaveHTMLForURL(
+        ReplaceImagesInHTML(url, html, images, distilled_url, csp_nonce), url,
+        base_directory);
+    if (res.first) {
+      return {URLDownloader::DOWNLOAD_SUCCESS, res.second};
+    } else {
+      return {URLDownloader::ERROR, 0};
+    }
+  }
+  return {URLDownloader::ERROR, 0};
+}
+
 }  // namespace
 
 // URLDownloader
 
 URLDownloader::URLDownloader(
-    dom_distiller::DistillerFactory* distiller_factory,
+    DistillerService* distiller_service,
     reading_list::ReadingListDistillerPageFactory* distiller_page_factory,
     PrefService* prefs,
     base::FilePath chrome_profile_path,
@@ -82,7 +239,7 @@ URLDownloader::URLDownloader(
     const DownloadCompletion& download_completion,
     const SuccessCompletion& delete_completion)
     : distiller_page_factory_(distiller_page_factory),
-      distiller_factory_(distiller_factory),
+      distiller_service_(distiller_service),
       pref_service_(prefs),
       download_completion_(download_completion),
       delete_completion_(delete_completion),
@@ -121,9 +278,16 @@ void URLDownloader::DownloadOfflineURL(const GURL& url) {
 }
 
 void URLDownloader::CancelDownloadOfflineURL(const GURL& url) {
-  tasks_.erase(
-      std::remove(tasks_.begin(), tasks_.end(), std::make_pair(DOWNLOAD, url)),
-      tasks_.end());
+  base::Erase(tasks_, std::make_pair(DOWNLOAD, url));
+}
+
+void URLDownloader::DownloadPDFOrHTMLCompletionHandler(
+    const GURL& url,
+    const std::string& title,
+    const base::FilePath& offline_path,
+    std::pair<SuccessState, int64_t> result) {
+  saved_size_ += result.second;
+  DownloadCompletionHandler(url, title, offline_path, result.first);
 }
 
 void URLDownloader::DownloadCompletionHandler(
@@ -133,17 +297,9 @@ void URLDownloader::DownloadCompletionHandler(
     SuccessState success) {
   DCHECK(working_);
 
-  auto post_delete = base::BindOnce(
-      [](URLDownloader* _this, const GURL& url, const std::string& title,
-         const base::FilePath& offline_path, SuccessState success) {
-        _this->download_completion_.Run(url, _this->distilled_url_, success,
-                                        offline_path, _this->saved_size_,
-                                        title);
-        _this->distiller_.reset();
-        _this->working_ = false;
-        _this->HandleNextTask();
-      },
-      base::Unretained(this), url, title, offline_path, success);
+  auto post_delete =
+      base::BindOnce(&URLDownloader::PostDelete, weak_factory_.GetWeakPtr(),
+                     url, title, offline_path, success);
 
   // If downloading failed, clean up any partial download.
   if (success == ERROR) {
@@ -160,6 +316,17 @@ void URLDownloader::DownloadCompletionHandler(
   } else {
     std::move(post_delete).Run();
   }
+}
+
+void URLDownloader::PostDelete(const GURL& url,
+                               const std::string& title,
+                               const base::FilePath& offline_path,
+                               SuccessState success) {
+  download_completion_.Run(url, distilled_url_, success, offline_path,
+                           saved_size_, title);
+  distiller_viewer_.reset();
+  working_ = false;
+  HandleNextTask();
 }
 
 void URLDownloader::DeleteCompletionHandler(const GURL& url, bool success) {
@@ -186,12 +353,12 @@ void URLDownloader::HandleNextTask() {
         task_runner_.get(), FROM_HERE,
         base::BindOnce(&base::DeletePathRecursively, directory_path),
         base::BindOnce(&URLDownloader::DeleteCompletionHandler,
-                       base::Unretained(this), url));
+                       weak_factory_.GetWeakPtr(), url));
   } else if (task.first == DOWNLOAD) {
-    DCHECK(!distiller_);
+    DCHECK(!distiller_viewer_);
     OfflinePathExists(directory_path,
                       base::BindOnce(&URLDownloader::DownloadURL,
-                                     base::Unretained(this), url));
+                                     weak_factory_.GetWeakPtr(), url));
   }
 }
 
@@ -209,11 +376,11 @@ void URLDownloader::DownloadURL(const GURL& url, bool offline_url_exists) {
       reading_list_distiller_page =
           distiller_page_factory_->CreateReadingListDistillerPage(url, this);
 
-  distiller_.reset(new dom_distiller::DistillerViewer(
-      distiller_factory_, std::move(reading_list_distiller_page), pref_service_,
+  distiller_viewer_.reset(new DistillerViewer(
+      distiller_service_, std::move(reading_list_distiller_page), pref_service_,
       url,
       base::BindRepeating(&URLDownloader::DistillerCallback,
-                          base::Unretained(this))));
+                          weak_factory_.GetWeakPtr())));
 }
 
 void URLDownloader::DistilledPageRedirectedToURL(const GURL& page_url,
@@ -244,17 +411,17 @@ void URLDownloader::OnURLLoadComplete(const GURL& original_url,
 
   task_tracker_.PostTaskAndReplyWithResult(
       task_runner_.get(), FROM_HERE,
-      base::BindOnce(&URLDownloader::SavePDFFile, base::Unretained(this),
-                     response_path),
-      base::BindOnce(&URLDownloader::DownloadCompletionHandler,
-                     base::Unretained(this), original_url, "", path));
+      base::BindOnce(&SavePDFFile, response_path, original_url_,
+                     base_directory_),
+      base::BindOnce(&URLDownloader::DownloadPDFOrHTMLCompletionHandler,
+                     weak_factory_.GetWeakPtr(), original_url, "", path));
 
   url_loader_.reset();
 }
 
 void URLDownloader::CancelTask() {
   task_tracker_.TryCancelAll();
-  distiller_.reset();
+  distiller_viewer_.reset();
 }
 
 void URLDownloader::FetchPDFFile() {
@@ -263,43 +430,22 @@ void URLDownloader::FetchPDFFile() {
   auto resource_request = std::make_unique<network::ResourceRequest>();
   resource_request->url = pdf_url;
   resource_request->load_flags = net::LOAD_SKIP_CACHE_VALIDATION;
+  resource_request->site_for_cookies = net::SiteForCookies::FromUrl(pdf_url);
 
   url_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
                                                  NO_TRAFFIC_ANNOTATION_YET);
   url_loader_->DownloadToTempFile(
       url_loader_factory_.get(),
-      base::BindOnce(&URLDownloader::OnURLLoadComplete, base::Unretained(this),
-                     pdf_url));
-}
-
-URLDownloader::SuccessState URLDownloader::SavePDFFile(
-    const base::FilePath& temporary_path) {
-  if (CreateOfflineURLDirectory(original_url_)) {
-    base::FilePath path = reading_list::OfflinePagePath(
-        original_url_, reading_list::OFFLINE_TYPE_PDF);
-    base::FilePath absolute_path =
-        reading_list::OfflineURLAbsolutePathFromRelativePath(base_directory_,
-                                                             path);
-
-    if (base::Move(temporary_path, absolute_path)) {
-      int64_t pdf_file_size;
-      base::GetFileSize(absolute_path, &pdf_file_size);
-      saved_size_ += pdf_file_size;
-      return DOWNLOAD_SUCCESS;
-    } else {
-      return ERROR;
-    }
-  }
-
-  return ERROR;
+      base::BindOnce(&URLDownloader::OnURLLoadComplete,
+                     weak_factory_.GetWeakPtr(), pdf_url));
 }
 
 void URLDownloader::DistillerCallback(
     const GURL& page_url,
     const std::string& html,
-    const std::vector<dom_distiller::DistillerViewerInterface::ImageInfo>&
-        images,
-    const std::string& title) {
+    const std::vector<DistillerViewerInterface::ImageInfo>& images,
+    const std::string& title,
+    const std::string& csp_nonce) {
   if (html.empty()) {
     // The page may not be HTML. Check the mime-type to see if another handler
     // can save offline content.
@@ -315,125 +461,10 @@ void URLDownloader::DistillerCallback(
 
   task_tracker_.PostTaskAndReplyWithResult(
       task_runner_.get(), FROM_HERE,
-      base::BindOnce(&URLDownloader::SaveDistilledHTML, base::Unretained(this),
-                     page_url, images, html),
-      base::BindOnce(&URLDownloader::DownloadCompletionHandler,
-                     base::Unretained(this), page_url, title,
+      base::BindOnce(&SaveDistilledHTML, page_url, images, html,
+                     base_directory_, distilled_url_, csp_nonce),
+      base::BindOnce(&URLDownloader::DownloadPDFOrHTMLCompletionHandler,
+                     weak_factory_.GetWeakPtr(), page_url, title,
                      reading_list::OfflinePagePath(
                          page_url, reading_list::OFFLINE_TYPE_HTML)));
-}
-
-URLDownloader::SuccessState URLDownloader::SaveDistilledHTML(
-    const GURL& url,
-    const std::vector<dom_distiller::DistillerViewerInterface::ImageInfo>&
-        images,
-    const std::string& html) {
-  int total_size = html.size();
-  for (size_t i = 0; i < images.size(); i++) {
-    if (images[i].data.size() > kMaximumImageSize) {
-      UMA_HISTOGRAM_MEMORY_KB("IOS.ReadingList.ImageTooLargeFailure",
-                              images[i].data.size() / 1024);
-      return PERMANENT_ERROR;
-    }
-    // Image will be base64 encoded.
-    total_size += 4 * images[i].data.size() / 3;
-  }
-  if (total_size > kMaximumTotalPageSize) {
-    UMA_HISTOGRAM_MEMORY_KB("IOS.ReadingList.PageTooLargeFailure",
-                            total_size / 1024);
-    return PERMANENT_ERROR;
-  }
-
-  if (CreateOfflineURLDirectory(url)) {
-    return SaveHTMLForURL(ReplaceImagesInHTML(url, html, images), url)
-               ? DOWNLOAD_SUCCESS
-               : ERROR;
-  }
-  return ERROR;
-}
-
-bool URLDownloader::CreateOfflineURLDirectory(const GURL& url) {
-  base::FilePath directory_path =
-      reading_list::OfflineURLDirectoryAbsolutePath(base_directory_, url);
-  if (!DirectoryExists(directory_path)) {
-    return CreateDirectoryAndGetError(directory_path, nil);
-  }
-  return true;
-}
-
-std::string URLDownloader::ReplaceImagesInHTML(
-    const GURL& url,
-    const std::string& html,
-    const std::vector<dom_distiller::DistillerViewerInterface::ImageInfo>&
-        images) {
-  std::string mutable_html = html;
-  std::string image_js;
-  bool local_images_found = false;
-  for (size_t i = 0; i < images.size(); i++) {
-    if (images[i].url.SchemeIs(url::kDataScheme)) {
-      // Data URI, the data part of the image is empty, no need to store it.
-      continue;
-    }
-    std::string local_image_name;
-    // Mixed content is HTTP images on HTTPS pages.
-    bool image_is_mixed_content = distilled_url_.SchemeIsCryptographic() &&
-                                  !images[i].url.SchemeIsCryptographic();
-    // Only inline images if it is not mixed content and image data is valid.
-    if (image_is_mixed_content || !images[i].url.is_valid() ||
-        images[i].data.empty()) {
-      continue;
-    }
-
-    // Try to detect the mime-type from the bytes so an arbitrary page cannot
-    // be included. Returned mime-type must start with "image/".
-    std::string sniffed_type;
-    if (!net::SniffMimeTypeFromLocalData(images[i].data, &sniffed_type)) {
-      continue;
-    }
-
-    if (!base::StartsWith(sniffed_type, "image/")) {
-      continue;
-    }
-
-    std::string image_url;
-    std::string image_data;
-    base::Value value(images[i].url.spec());
-
-    base::JSONWriter::Write(value, &image_url);
-    image_data = base::Base64Encode(images[i].data);
-
-    std::string src_with_data =
-        base::StringPrintf("data:image/png;base64,%s", image_data.c_str());
-    image_js += "imgData[" + image_url + "] = \"" + src_with_data + "\";";
-
-    local_images_found = true;
-  }
-
-  if (local_images_found) {
-    std::vector<std::string> substitutions;
-    substitutions.push_back(distiller_->GetCspNonce());
-
-    mutable_html += base::ReplaceStringPlaceholders(
-        kDisableImageContextMenuScript, substitutions, nullptr);
-
-    substitutions.push_back(image_js);
-    mutable_html += base::ReplaceStringPlaceholders(
-        kReplaceDownloadedImagesScript, substitutions, nullptr);
-  }
-
-  return mutable_html;
-}
-
-bool URLDownloader::SaveHTMLForURL(std::string html, const GURL& url) {
-  if (html.empty()) {
-    return false;
-  }
-  base::FilePath path = reading_list::OfflineURLAbsolutePathFromRelativePath(
-      base_directory_,
-      reading_list::OfflinePagePath(url, reading_list::OFFLINE_TYPE_HTML));
-  if (!base::WriteFile(path, html)) {
-    return false;
-  }
-  saved_size_ += html.size();
-  return true;
 }

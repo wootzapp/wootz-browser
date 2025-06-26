@@ -4,7 +4,6 @@
 
 import("//build/buildflag_header.gni")
 import("//build/config/cast.gni")
-import("//build/config/chromeos/ui_mode.gni")
 import("//media/media_options.gni")
 import("//testing/test.gni")
 
@@ -64,19 +63,15 @@ source_set("audio") {
     "snooper_node.h",
     "stream_factory.cc",
     "stream_factory.h",
-    "stream_monitor.h",
     "sync_reader.cc",
     "sync_reader.h",
     "system_info.cc",
     "system_info.h",
-    "user_input_monitor.cc",
-    "user_input_monitor.h",
   ]
 
   deps = [
     ":testing_api_support",
     "//build:chromecast_buildflags",
-    "//build:chromeos_buildflags",
   ]
 
   public_deps = [
@@ -118,6 +113,8 @@ source_set("audio") {
       "processing_audio_fifo.h",
       "sync_mixing_graph_input.cc",
       "sync_mixing_graph_input.h",
+      "system_loopback_listener.cc",
+      "system_loopback_listener.h",
     ]
 
     public_deps += [ "//media/webrtc" ]
@@ -187,13 +184,11 @@ source_set("tests") {
     "test/mock_group_member.h",
     "test/mock_log.cc",
     "test/mock_log.h",
-    "user_input_monitor_unittest.cc",
   ]
 
   deps = [
     ":audio",
     "//base/test:test_support",
-    "//build:chromeos_buildflags",
     "//media:test_support",
     "//services/audio/public/cpp",
     "//services/audio/public/cpp:test_support",
@@ -201,14 +196,6 @@ source_set("tests") {
     "//testing/gmock",
     "//testing/gtest",
   ]
-
-  if (is_chromeos_ash || is_castos || is_cast_android) {
-    sources += [
-      "public/cpp/sounds/audio_stream_handler_unittest.cc",
-      "public/cpp/sounds/sounds_manager_unittest.cc",
-    ]
-    data = [ "//media/test/data/" ]
-  }
 
   if (chrome_wide_echo_cancellation_supported) {
     sources += [

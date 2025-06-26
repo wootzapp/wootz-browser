@@ -11,19 +11,20 @@ import 'chrome://resources/ash/common/cr_elements/cr_button/cr_button.js';
 import 'chrome://resources/polymer/v3_0/iron-icon/iron-icon.js';
 import '../../common/icons.html.js';
 
+import {FullscreenPreviewState} from 'chrome://resources/ash/common/personalization/wallpaper_state.js';
 import {isNonEmptyFilePath} from 'chrome://resources/ash/common/sea_pen/sea_pen_utils.js';
 import {assert} from 'chrome://resources/js/assert.js';
 
-import {CurrentWallpaper, WallpaperLayout} from '../../personalization_app.mojom-webui.js';
+import type {CurrentWallpaper} from '../../personalization_app.mojom-webui.js';
+import {WallpaperLayout} from '../../personalization_app.mojom-webui.js';
 import {WithPersonalizationStore} from '../personalization_store.js';
 
-import {DisplayableImage} from './constants.js';
+import type {DisplayableImage} from './constants.js';
 import {getWallpaperLayoutEnum, isGooglePhotosPhoto} from './utils.js';
 import {setFullscreenStateAction} from './wallpaper_actions.js';
 import {cancelPreviewWallpaper, confirmPreviewWallpaper, selectWallpaper} from './wallpaper_controller.js';
 import {getTemplate} from './wallpaper_fullscreen_element.html.js';
 import {getWallpaperProvider} from './wallpaper_interface_provider.js';
-import {FullscreenPreviewState} from './wallpaper_state.js';
 
 const fullscreenClass = 'fullscreen-preview';
 const fullscreenTransitionClass = 'fullscreen-preview-transition';
@@ -177,13 +178,13 @@ export class WallpaperFullscreenElement extends WithPersonalizationStore {
       case FullscreenPreviewState.OFF:
         this.showContainer_ = false;
         document.body.classList.remove(fullscreenClass);
+        cancelPreviewWallpaper(getWallpaperProvider());
         await waitForOpacityTransition();
         document.body.classList.remove(fullscreenTransitionClass);
         this.selectedLayout_ = null;
         if (this.getFullscreenElement()) {
           await this.exitFullscreen();
         }
-        cancelPreviewWallpaper(getWallpaperProvider());
         return;
       case FullscreenPreviewState.LOADING:
         // Do not assign this.showContainer_ here. If last state was
@@ -216,11 +217,11 @@ export class WallpaperFullscreenElement extends WithPersonalizationStore {
     }
   }
 
-  private async onClickExit_() {
+  private onClickExit_() {
     this.dispatch(setFullscreenStateAction(FullscreenPreviewState.OFF));
   }
 
-  private async onClickConfirm_() {
+  private onClickConfirm_() {
     // Confirm the preview wallpaper before exiting fullscreen. In tablet
     // splitscreen, this prevents `WallpaperController::OnOverviewModeWillStart`
     // from triggering first, which leads to preview wallpaper getting canceled

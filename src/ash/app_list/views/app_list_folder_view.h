@@ -21,7 +21,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/compositor/throughput_tracker.h"
+#include "ui/compositor/compositor_metrics_tracker.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/view.h"
 
@@ -110,7 +110,6 @@ class ASH_EXPORT AppListFolderView : public views::View,
   void AddedToWidget() override;
   void Layout(PassKey) override;
   void ChildPreferredSizeChanged(View* child) override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   void OnGestureEvent(ui::GestureEvent* event) override;
 
   // AppListModelProvider::Observer:
@@ -182,13 +181,8 @@ class ASH_EXPORT AppListFolderView : public views::View,
   void ReparentItem(AppsGridView::Pointer pointer,
                     AppListItemView* original_drag_view,
                     const gfx::Point& drag_point_in_folder_grid) override;
-  void DispatchDragEventForReparent(
-      AppsGridView::Pointer pointer,
-      const gfx::Point& drag_point_in_folder_grid) override;
-  void DispatchEndDragEventForReparent(
-      bool events_forwarded_to_drag_drop_host,
-      bool cancel_drag,
-      std::unique_ptr<AppDragIconProxy> drag_icon_proxy) override;
+  void DispatchEndDragEventForReparent(bool events_forwarded_to_drag_drop_host,
+                                       bool cancel_drag) override;
   void Close() override;
   bool IsDragPointOutsideOfFolder(const gfx::Point& drag_point) override;
   bool IsOEMFolder() const override;
@@ -227,6 +221,8 @@ class ASH_EXPORT AppListFolderView : public views::View,
   // `hide_for_reparent` is true if an item in the folder is being reparented to
   // the root grid view.
   void OnHideAnimationDone(bool hide_for_reparent);
+
+  void UpdateExpandedCollapsedAccessibleState() const;
 
   // Controller interface implemented by the container for this view.
   const raw_ptr<AppListFolderController> folder_controller_;

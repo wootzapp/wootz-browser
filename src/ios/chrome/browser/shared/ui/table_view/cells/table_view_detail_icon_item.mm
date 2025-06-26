@@ -6,10 +6,10 @@
 
 #import "base/check.h"
 #import "base/notreached.h"
+#import "ios/chrome/browser/settings/ui_bundled/cells/settings_cells_constants.h"
 #import "ios/chrome/browser/shared/ui/elements/new_feature_badge_view.h"
 #import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
-#import "ios/chrome/browser/ui/settings/cells/settings_cells_constants.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
@@ -143,6 +143,9 @@ NewFeatureBadgeView* NewIPHBadgeView() {
   NSLayoutConstraint* _iconVisibleConstraint;
   NSLayoutConstraint* _iconCenterAlignment;
   NSLayoutConstraint* _iconTopAlignment;
+  NSLayoutConstraint* _textTopAlignment;
+  NSLayoutConstraint* _iconBackgroundDefaultWidthConstraint;
+  NSLayoutConstraint* _iconBackgroundCustomWidthConstraint;
 
   // View representing the current badge view.
   UIView* _badgeView;
@@ -189,7 +192,7 @@ NewFeatureBadgeView* NewIPHBadgeView() {
     _textStackView.spacing = kDefaultTextLabelSpacing;
     [contentView addSubview:_textStackView];
 
-    // Set up the constraints for when the icon is visible and hidden.  One of
+    // Set up the constraints for when the icon is visible and hidden. One of
     // these will be active at a time, defaulting to hidden.
     _iconHiddenConstraint = [_textStackView.leadingAnchor
         constraintEqualToAnchor:contentView.leadingAnchor
@@ -216,13 +219,30 @@ NewFeatureBadgeView* NewIPHBadgeView() {
                        constant:kIconTopAlignmentVerticalSpacing];
     [self updateIconAlignment];
 
+    // This constraint is not enabled by default and is set by
+    // `setTextLabelMarginTop`.
+    _textLabelMarginTop = 0.;
+    _textTopAlignment = [self.textLabel.topAnchor
+        constraintEqualToAnchor:_textStackView.topAnchor
+                       constant:_textLabelMarginTop];
+
+    _iconBackgroundDefaultWidthConstraint = [_iconBackground.widthAnchor
+        constraintEqualToConstant:kTableViewIconImageSize];
+    _iconBackgroundDefaultWidthConstraint.active = YES;
+
+    [_iconImageView
+        setContentCompressionResistancePriority:UILayoutPriorityRequired - 1
+                                        forAxis:
+                                            UILayoutConstraintAxisHorizontal];
+    _iconBackgroundCustomWidthConstraint = [_iconBackground.widthAnchor
+        constraintEqualToAnchor:_iconImageView.widthAnchor];
+    _iconBackgroundCustomWidthConstraint.active = NO;
+
     [NSLayoutConstraint activateConstraints:@[
       // Icon.
       [_iconBackground.leadingAnchor
           constraintEqualToAnchor:contentView.leadingAnchor
                          constant:kTableViewHorizontalSpacing],
-      [_iconBackground.widthAnchor
-          constraintEqualToConstant:kTableViewIconImageSize],
       [_iconBackground.heightAnchor
           constraintEqualToAnchor:_iconBackground.widthAnchor],
 
@@ -245,8 +265,27 @@ NewFeatureBadgeView* NewIPHBadgeView() {
     [self updateCellForAccessibilityContentSizeCategory:
               UIContentSizeCategoryIsAccessibilityCategory(
                   self.traitCollection.preferredContentSizeCategory)];
+
+    if (@available(iOS 17, *)) {
+      NSArray<UITrait>* traits = TraitCollectionSetForTraits(
+          @[ UITraitPreferredContentSizeCategory.class ]);
+      __weak __typeof(self) weakSelf = self;
+      UITraitChangeHandler handler = ^(id<UITraitEnvironment> traitEnvironment,
+                                       UITraitCollection* previousCollection) {
+        [weakSelf updateUIOnTraitChange:previousCollection];
+      };
+      [self registerForTraitChanges:traits withHandler:handler];
+    }
   }
   return self;
+}
+
+- (void)setTextLabelMarginTop:(CGFloat)marginTop {
+  _textLabelMarginTop = marginTop;
+  _textTopAlignment.constant = _textLabelMarginTop;
+  _textTopAlignment.active = YES;
+  [self.textLabel setNeedsUpdateConstraints];
+  [self.textStackView setNeedsLayout];
 }
 
 - (void)setIconImage:(UIImage*)image
@@ -344,20 +383,28 @@ NewFeatureBadgeView* NewIPHBadgeView() {
   _badgeType = badgeType;
 }
 
+- (void)updateIconBackgroundWidthToFitContent:(BOOL)useCustomWidth {
+  if (useCustomWidth) {
+    _iconBackgroundDefaultWidthConstraint.active = NO;
+    _iconBackgroundCustomWidthConstraint.active = YES;
+    return;
+  }
+  _iconBackgroundCustomWidthConstraint.active = NO;
+  _iconBackgroundDefaultWidthConstraint.active = YES;
+}
+
 #pragma mark - UIView
 
+#if !defined(__IPHONE_17_0) || __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_17_0
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection {
   [super traitCollectionDidChange:previousTraitCollection];
-  BOOL isCurrentCategoryAccessibility =
-      UIContentSizeCategoryIsAccessibilityCategory(
-          self.traitCollection.preferredContentSizeCategory);
-  if (isCurrentCategoryAccessibility !=
-      UIContentSizeCategoryIsAccessibilityCategory(
-          previousTraitCollection.preferredContentSizeCategory)) {
-    [self updateCellForAccessibilityContentSizeCategory:
-              isCurrentCategoryAccessibility];
+  if (@available(iOS 17, *)) {
+    return;
   }
+
+  [self updateUIOnTraitChange:previousTraitCollection];
 }
+#endif
 
 #pragma mark - UITableViewCell
 
@@ -368,6 +415,8 @@ NewFeatureBadgeView* NewIPHBadgeView() {
   [self setIconImage:nil tintColor:nil backgroundColor:nil cornerRadius:0];
   [self setDetailText:nil];
   [self setBadgeType:BadgeType::kNone];
+  [self updateIconBackgroundWidthToFitContent:NO];
+  _textTopAlignment.active = NO;
 }
 
 #pragma mark - Private
@@ -426,8 +475,7 @@ NewFeatureBadgeView* NewIPHBadgeView() {
     case BadgeType::kNew:
       return NewIPHBadgeView();
     case BadgeType::kNone: {
-      NOTREACHED_IN_MIGRATION();
-      return nil;
+      NOTREACHED();
     }
   }
 }
@@ -533,8 +581,7 @@ NewFeatureBadgeView* NewIPHBadgeView() {
                              l10n_util::GetNSString(
                                  IDS_IOS_NEW_FEATURE_ACCESSIBILITY_HINT)];
       case BadgeType::kNone:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
   return self.textLabel.text;
@@ -564,11 +611,24 @@ NewFeatureBadgeView* NewIPHBadgeView() {
                              l10n_util::GetNSString(
                                  IDS_IOS_NEW_FEATURE_ACCESSIBILITY_HINT)] ];
       case BadgeType::kNone:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
   return @[ self.textLabel.text ];
+}
+
+// Updates the cell's UI when device's content size category is an accessibility
+// category.
+- (void)updateUIOnTraitChange:(UITraitCollection*)previousTraitCollection {
+  BOOL isCurrentCategoryAccessibility =
+      UIContentSizeCategoryIsAccessibilityCategory(
+          self.traitCollection.preferredContentSizeCategory);
+  if (isCurrentCategoryAccessibility !=
+      UIContentSizeCategoryIsAccessibilityCategory(
+          previousTraitCollection.preferredContentSizeCategory)) {
+    [self updateCellForAccessibilityContentSizeCategory:
+              isCurrentCategoryAccessibility];
+  }
 }
 
 @end

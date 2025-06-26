@@ -14,6 +14,10 @@
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
 
+namespace views {
+class View;
+}
+
 // Dictionary of supported nudge payload. For example:
 // {
 //   "title": "Nudge title",
@@ -30,21 +34,36 @@ class ShowNudgeActionPerformer : public UiActionPerformer,
 
   // growth::Action:
   void Run(int campaign_id,
+           std::optional<int> group_id,
            const base::Value::Dict* action_params,
            growth::ActionPerformer::Callback callback) override;
   growth::ActionType ActionType() const override;
 
+  void SetAnchoredViewForTesting(
+      std::optional<views::View*> anchored_view_for_test);
+
  private:
-  bool ShowNudge(int campaign_id, const NudgePayload* nudge_payload);
+  bool ShowNudge(int campaign_id,
+                 std::optional<int> group_id,
+                 const NudgePayload* nudge_payload);
+  bool MaybeSetAnchorView(const base::Value::Dict* anchor_dict,
+                          ash::AnchoredNudgeData& nudge_data);
   void MaybeSetButtonData(int campaign_id,
+                          std::optional<int> group_id,
                           const base::Value::Dict* button_dict,
                           ash::AnchoredNudgeData& nudge_data,
-                          bool is_primary);
+                          bool is_primary,
+                          bool should_log_cros_events);
   void OnNudgeButtonClicked(int campaign_id,
+                            std::optional<int> group_id,
                             CampaignButtonId button_id,
                             const base::Value::Dict* action_dict,
-                            bool should_mark_dismissed);
-  void OnNudgeDismissed(int campaign_id);
+                            bool should_mark_dismissed,
+                            bool should_log_cros_events);
+  void OnNudgeDismissed(int campaign_id,
+                        std::optional<int> group_id,
+                        bool should_log_cros_events);
+  void MaybeSetWidgetObservers();
   void MaybeCancelNudge();
   void CancelNudge();
 

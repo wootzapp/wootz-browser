@@ -167,8 +167,9 @@ scoped_refptr<Extension> ManifestTest::LoadAndExpectWarning(
   EXPECT_TRUE(extension.get()) << manifest.name();
   EXPECT_EQ(std::string(), error) << manifest.name();
   EXPECT_EQ(1u, extension->install_warnings().size());
-  if (extension->install_warnings().size() == 1)
+  if (extension->install_warnings().size() == 1) {
     EXPECT_EQ(expected_warning, extension->install_warnings()[0].message);
+  }
   return extension;
 }
 
@@ -179,6 +180,29 @@ scoped_refptr<Extension> ManifestTest::LoadAndExpectWarning(
     int flags) {
   return LoadAndExpectWarning(
       ManifestData(manifest_name), expected_warning, location, flags);
+}
+
+scoped_refptr<Extension> ManifestTest::LoadAndExpectWarnings(
+    const ManifestData& manifest,
+    const std::vector<std::string>& expected_warnings,
+    ManifestLocation location,
+    int flags) {
+  std::string error;
+  scoped_refptr<Extension> extension =
+      LoadExtension(manifest, &error, location, flags);
+  EXPECT_TRUE(extension) << manifest.name();
+  EXPECT_EQ(std::string(), error) << manifest.name();
+  EXPECT_EQ(expected_warnings.size(), extension->install_warnings().size());
+
+  std::vector<std::string> warning_messages;
+  warning_messages.reserve(extension->install_warnings().size());
+  for (const auto& warning : extension->install_warnings()) {
+    warning_messages.push_back(warning.message);
+  }
+
+  EXPECT_THAT(warning_messages,
+              testing::UnorderedElementsAreArray(expected_warnings));
+  return extension;
 }
 
 scoped_refptr<Extension> ManifestTest::LoadAndExpectWarnings(
@@ -298,15 +322,14 @@ ManifestTest::Testcase::Testcase(const std::string& manifest_filename,
       location_(location),
       flags_(flags) {}
 
-void ManifestTest::RunTestcases(const Testcase* testcases,
-                                         size_t num_testcases,
-                                         ExpectType type) {
-  for (size_t i = 0; i < num_testcases; ++i)
-    RunTestcase(testcases[i], type);
+void ManifestTest::RunTestcases(base::span<const Testcase> testcases,
+                                ExpectType type) {
+  for (const auto& testcase : testcases) {
+    RunTestcase(testcase, type);
+  }
 }
 
-void ManifestTest::RunTestcase(const Testcase& testcase,
-                                        ExpectType type) {
+void ManifestTest::RunTestcase(const Testcase& testcase, ExpectType type) {
   SCOPED_TRACE(base::StringPrintf("Testing file '%s'",
                                   testcase.manifest_filename_.c_str()));
 

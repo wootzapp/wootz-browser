@@ -5,6 +5,7 @@
 #include "ash/login/ui/login_user_view.h"
 
 #include <memory>
+#include <string_view>
 
 #include "ash/ash_element_identifiers.h"
 #include "ash/login/ui/animated_rounded_image_view.h"
@@ -19,13 +20,10 @@
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
-#include "ash/style/ash_color_id.h"
-#include "ash/style/ash_color_provider.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chromeos/constants/chromeos_features.h"
 #include "chromeos/ui/vector_icons/vector_icons.h"
 #include "components/user_manager/user_type.h"
 #include "ui/accessibility/ax_node_data.h"
@@ -42,6 +40,7 @@
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/gfx/text_elider.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
@@ -66,7 +65,6 @@ constexpr int kJellyDropdownIconSizeDp = 20;
 
 // Width/height of the user view. Ensures proper centering.
 constexpr int kLargeUserViewWidthDp = 306;
-constexpr int kLargeUserViewHeightDp = 346;
 constexpr int kSmallUserViewWidthDp = 304;
 constexpr int kExtraSmallUserViewWidthDp = 282;
 
@@ -170,25 +168,22 @@ class LoginUserView::UserImage : public NonAccessibleView {
     const int image_size = GetImageSize(style);
     image_ = new AnimatedRoundedImageView(gfx::Size(image_size, image_size),
                                           image_size / 2);
-    AddChildView(image_.get());
+    AddChildViewRaw(image_.get());
     enterprise_icon_container_ = AddChildView(std::make_unique<views::View>());
     const int icon_size = GetIconSize(style);
     enterprise_icon_container_->SetLayoutManager(
         std::make_unique<EnterpriseBadgeLayout>(icon_size));
 
-    const bool is_jelly = chromeos::features::IsJellyrollEnabled();
-    ui::ColorId icon_background_color_id =
-        is_jelly ? static_cast<ui::ColorId>(cros_tokens::kCrosSysSecondary)
-                 : kColorAshIconColorSecondaryBackground;
-    ui::ColorId icon_color_id =
-        is_jelly ? static_cast<ui::ColorId>(cros_tokens::kCrosSysOnSecondary)
-                 : kColorAshIconColorSecondary;
+    const ui::ColorId icon_background_color_id =
+        static_cast<ui::ColorId>(cros_tokens::kCrosSysSecondary);
+    const ui::ColorId icon_color_id =
+        static_cast<ui::ColorId>(cros_tokens::kCrosSysOnSecondary);
 
     views::ImageView* icon_ = enterprise_icon_container_->AddChildView(
         std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
             chromeos::kEnterpriseIcon, icon_color_id,
             icon_size * kIconProportion)));
-    icon_->SetBackground(views::CreateThemedRoundedRectBackground(
+    icon_->SetBackground(views::CreateRoundedRectBackground(
         icon_background_color_id, icon_size / 2));
   }
 
@@ -286,11 +281,7 @@ class LoginUserView::UserLabel : public NonAccessibleView {
     user_name_ = new views::Label();
     user_name_->SetSubpixelRenderingEnabled(false);
     user_name_->SetAutoColorReadabilityEnabled(false);
-    if (chromeos::features::IsJellyrollEnabled()) {
-      user_name_->SetEnabledColorId(cros_tokens::kCrosSysOnSurface);
-    } else {
-      user_name_->SetEnabledColorId(kColorAshTextColorPrimary);
-    }
+    user_name_->SetEnabledColor(cros_tokens::kCrosSysOnSurface);
 
     const gfx::FontList& base_font_list = views::Label::GetDefaultFontList();
     const gfx::FontList font_list(
@@ -313,7 +304,7 @@ class LoginUserView::UserLabel : public NonAccessibleView {
         break;
     }
 
-    AddChildView(user_name_.get());
+    AddChildViewRaw(user_name_.get());
   }
 
   UserLabel(const UserLabel&) = delete;
@@ -333,7 +324,7 @@ class LoginUserView::UserLabel : public NonAccessibleView {
                                        gfx::ElideBehavior::ELIDE_TAIL));
   }
 
-  const std::u16string& displayed_name() const { return user_name_->GetText(); }
+  std::u16string_view displayed_name() const { return user_name_->GetText(); }
 
  private:
   raw_ptr<views::Label> user_name_ = nullptr;
@@ -352,7 +343,11 @@ class LoginUserView::TapButton : public views::Button {
 
  public:
   TapButton(PressedCallback callback, LoginUserView* parent)
-      : views::Button(std::move(callback)), parent_(parent) {}
+      : views::Button(std::move(callback)), parent_(parent) {
+    // TODO(https://crbug.com/1065516): Define the button name.
+    GetViewAccessibility().SetName(
+        "", ax::mojom::NameFrom::kAttributeExplicitlyEmpty);
+  }
 
   TapButton(const TapButton&) = delete;
   TapButton& operator=(const TapButton&) = delete;
@@ -367,11 +362,6 @@ class LoginUserView::TapButton : public views::Button {
   void OnBlur() override {
     views::Button::OnBlur();
     parent_->UpdateOpacity();
-  }
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override {
-    // TODO(https://crbug.com/1065516): Define the button name.
-    node_data->SetNameExplicitlyEmpty();
-    Button::GetAccessibleNodeData(node_data);
   }
 
  private:
@@ -392,7 +382,7 @@ LoginDisplayStyle LoginUserView::TestApi::display_style() const {
   return view_->display_style_;
 }
 
-const std::u16string& LoginUserView::TestApi::displayed_name() const {
+std::u16string_view LoginUserView::TestApi::displayed_name() const {
   return view_->user_label_->displayed_name();
 }
 
@@ -458,19 +448,11 @@ LoginUserView::LoginUserView(LoginDisplayStyle style,
         &LoginUserView::DropdownButtonPressed, base::Unretained(this)));
     dropdown_->SetHasInkDropActionOnClick(false);
     dropdown_->SetFocusBehavior(FocusBehavior::ALWAYS);
-    if (!chromeos::features::IsJellyrollEnabled()) {
-      dropdown_->SetImageModel(
-          views::Button::STATE_NORMAL,
-          ui::ImageModel::FromVectorIcon(kLockScreenDropdownIcon,
-                                         kColorAshIconColorPrimary,
-                                         kDropdownIconSizeDp));
-    } else {
-      dropdown_->SetImageModel(
-          views::Button::STATE_NORMAL,
-          ui::ImageModel::FromVectorIcon(kLockScreenDropdownIcon,
-                                         cros_tokens::kCrosSysOnSurface,
-                                         kJellyDropdownIconSizeDp));
-    }
+    dropdown_->SetImageModel(
+        views::Button::STATE_NORMAL,
+        ui::ImageModel::FromVectorIcon(kLockScreenDropdownIcon,
+                                       cros_tokens::kCrosSysOnSurface,
+                                       kJellyDropdownIconSizeDp));
   }
   tap_button_ = new TapButton(on_tap_, this);
   SetTapEnabled(true);
@@ -589,22 +571,22 @@ LoginButton* LoginUserView::GetDropdownButton() {
 
 gfx::Size LoginUserView::CalculatePreferredSize(
     const views::SizeBounds& available_size) const {
+  int preferred_width = 0;
   switch (display_style_) {
     case LoginDisplayStyle::kLarge:
-      return gfx::Size(kLargeUserViewWidthDp, kLargeUserViewHeightDp);
+      preferred_width = kLargeUserViewWidthDp;
+      break;
     case LoginDisplayStyle::kSmall:
-      return gfx::Size(kSmallUserViewWidthDp, kSmallUserImageSizeDp);
+      preferred_width = kSmallUserViewWidthDp;
+      break;
     case LoginDisplayStyle::kExtraSmall:
-      return gfx::Size(kExtraSmallUserViewWidthDp, kExtraSmallUserImageSizeDp);
+      preferred_width = kExtraSmallUserViewWidthDp;
+      break;
   }
-}
 
-int LoginUserView::GetHeightForWidth(int w) const {
-  // TODO(crbug.com/40232718): The behavior of GetHeightForWidth is inconsistent
-  // with the behavior of CalculatePreferredSize. This results in LoginUserView
-  // having different heights in different layouts. There is a conflict between
-  // multiple pixel tests.
-  return GetLayoutManager()->GetPreferredHeightForWidth(this, w);
+  return gfx::Size(
+      preferred_width,
+      GetLayoutManager()->GetPreferredHeightForWidth(this, preferred_width));
 }
 
 void LoginUserView::Layout(PassKey) {
@@ -619,7 +601,7 @@ void LoginUserView::RequestFocus() {
 views::View::Views LoginUserView::GetChildrenInZOrder() {
   auto children = views::View::GetChildrenInZOrder();
   const auto move_child_to_top = [&](View* child) {
-    auto it = base::ranges::find(children, child);
+    auto it = std::ranges::find(children, child);
     DCHECK(it != children.end());
     std::rotate(it, it + 1, children.end());
   };
@@ -653,7 +635,7 @@ void LoginUserView::UpdateCurrentUserState() {
   } else {
     accessible_name = email;
   }
-  tap_button_->SetAccessibleName(accessible_name);
+  tap_button_->GetViewAccessibility().SetName(accessible_name);
   if (dropdown_) {
     // The accessible name for the dropdown depends on whether it also contains
     // the remove user button for the user in question.
@@ -662,7 +644,7 @@ void LoginUserView::UpdateCurrentUserState() {
             ? IDS_ASH_LOGIN_POD_REMOVE_ACCOUNT_DIALOG_BUTTON_ACCESSIBLE_NAME
             : IDS_ASH_LOGIN_POD_ACCOUNT_DIALOG_BUTTON_ACCESSIBLE_NAME,
         email);
-    dropdown_->SetAccessibleName(accessible_name);
+    dropdown_->GetViewAccessibility().SetName(accessible_name);
   }
 
   user_image_->UpdateForUser(current_user_);
@@ -726,10 +708,10 @@ void LoginUserView::SetLargeLayout() {
                      kVerticalSpacingBetweenEntriesDp)
       .AddRows(1, views::TableLayout::kFixedSize);
 
-  AddChildView(tap_button_.get());
+  AddChildViewRaw(tap_button_.get());
   tap_button_->SetProperty(views::kViewIgnoredByLayoutKey, true);
 
-  AddChildView(user_image_.get());
+  AddChildViewRaw(user_image_.get());
   user_image_->SetProperty(views::kTableColAndRowSpanKey, gfx::Size(5, 1));
   user_image_->SetProperty(views::kTableHorizAlignKey,
                            views::LayoutAlignment::kCenter);
@@ -739,10 +721,10 @@ void LoginUserView::SetLargeLayout() {
     skip_column->SetPreferredSize(dropdown_->GetPreferredSize());
   }
 
-  AddChildView(user_label_.get());
+  AddChildViewRaw(user_label_.get());
 
   if (dropdown_) {
-    AddChildView(dropdown_.get());
+    AddChildViewRaw(dropdown_.get());
   }
 }
 
@@ -750,11 +732,11 @@ void LoginUserView::SetSmallishLayout() {
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal, gfx::Insets(),
       kSmallManyDistanceFromUserIconToUserLabelDp));
-  AddChildView(tap_button_.get());
+  AddChildViewRaw(tap_button_.get());
   tap_button_->SetProperty(views::kViewIgnoredByLayoutKey, true);
 
-  AddChildView(user_image_.get());
-  AddChildView(user_label_.get());
+  AddChildViewRaw(user_image_.get());
+  AddChildViewRaw(user_label_.get());
 }
 
 BEGIN_METADATA(LoginUserView)

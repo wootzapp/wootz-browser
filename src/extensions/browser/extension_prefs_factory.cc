@@ -33,8 +33,12 @@ ExtensionPrefsFactory* ExtensionPrefsFactory::GetInstance() {
 void ExtensionPrefsFactory::SetInstanceForTesting(
     content::BrowserContext* context,
     std::unique_ptr<ExtensionPrefs> prefs) {
-  Disassociate(context);
-  Associate(context, std::move(prefs));
+  SetTestingFactory(
+      context,
+      base::BindOnce([](std::unique_ptr<ExtensionPrefs> prefs,
+                        content::BrowserContext* context)
+                         -> std::unique_ptr<KeyedService> { return prefs; },
+                     std::move(prefs)));
 }
 
 ExtensionPrefsFactory::ExtensionPrefsFactory()
@@ -64,7 +68,7 @@ ExtensionPrefsFactory::BuildServiceInstanceForBrowserContext(
 content::BrowserContext* ExtensionPrefsFactory::GetBrowserContextToUse(
     content::BrowserContext* context) const {
   return ExtensionsBrowserClient::Get()->GetContextRedirectedToOriginal(
-      context, /*force_guest_profile=*/true);
+      context);
 }
 
 }  // namespace extensions

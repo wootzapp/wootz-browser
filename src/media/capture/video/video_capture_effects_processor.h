@@ -7,18 +7,23 @@
 
 #include <optional>
 
+#include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/trace_event/trace_id_helper.h"
 #include "base/types/expected.h"
+#include "gpu/command_buffer/client/shared_image_interface.h"
 #include "media/capture/capture_export.h"
 #include "media/capture/mojom/video_capture_buffer.mojom-forward.h"
 #include "media/capture/video/video_capture_device.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
+#include "services/video_effects/public/cpp/buildflags.h"
 #include "services/video_effects/public/mojom/video_effects_processor.mojom.h"
+
+static_assert(BUILDFLAG(ENABLE_VIDEO_EFFECTS),
+              "enable_video_effects must be true.");
 
 namespace media {
 
@@ -75,11 +80,10 @@ class CAPTURE_EXPORT VideoCaptureEffectsProcessor {
       base::expected<PostProcessDoneInfo,
                      video_effects::mojom::PostProcessError>)>;
 
-  // On-CPU variant. Marshals `data` into a shared memory buffer and prepares
-  // the shared images backed by `out_buffer` for receiving the processing
-  // results. Invokes the processor.
+  // On-CPU variant. Prepares the shared images backed by `out_buffer` for
+  // receiving the processing results. Invokes the processor.
   void PostProcessData(
-      base::span<const uint8_t> data,
+      base::ReadOnlySharedMemoryRegion data,
       mojom::VideoFrameInfoPtr frame_info,
       VideoCaptureDevice::Client::Buffer out_buffer,
       const VideoCaptureFormat& out_buffer_format,
@@ -97,11 +101,31 @@ class CAPTURE_EXPORT VideoCaptureEffectsProcessor {
       VideoCaptureBufferType out_buffer_type,
       VideoCaptureEffectsProcessor::PostProcessDoneCallback post_process_cb);
 
+  // On-GPU variant. Creates shared images backed by `in_buffer` and
+  // `out_buffer`. Invokes the processor. (Mainly used on MacOS)
+  void PostProcessExternalBuffer(
+      CapturedExternalVideoBuffer in_buffer,
+      mojom::VideoFrameInfoPtr frame_info,
+      VideoCaptureDevice::Client::Buffer out_buffer,
+      const VideoCaptureFormat& out_buffer_format,
+      VideoCaptureBufferType out_buffer_type,
+      VideoCaptureEffectsProcessor::PostProcessDoneCallback post_process_cb);
+
+  base::WeakPtr<VideoCaptureEffectsProcessor> GetWeakPtr();
+
  private:
   struct PostProcessContext {
+    // Creates the context. If `in_buffer` is set, then `in_shared_image` must
+    // also be set for buffers that had shared images created from them. Same
+    // requirement applies for `out_buffer` and `out_shared_image`. If we don't
+    // maintain the ownership of shared images backed by the buffers, the dtors
+    // of `gpu::ClientSharedImage` will be invoked and the shared images won't
+    // be visible on the other side of the IPC, despite being exported for IPC.
     PostProcessContext(
         std::optional<VideoCaptureDevice::Client::Buffer> in_buffer,
+        scoped_refptr<gpu::ClientSharedImage> in_shared_image,
         VideoCaptureDevice::Client::Buffer out_buffer,
+        scoped_refptr<gpu::ClientSharedImage> out_shared_image,
         VideoCaptureEffectsProcessor::PostProcessDoneCallback post_process_cb);
     ~PostProcessContext();
 
@@ -118,15 +142,19 @@ class CAPTURE_EXPORT VideoCaptureEffectsProcessor {
     // May be std::nullopt if the context was created for a post-process request
     // that operates on on-CPU data - we won't have an `in_buffer` in this case.
     std::optional<VideoCaptureDevice::Client::Buffer> in_buffer;
+    // May be null if `in_buffer` is not set.
+    scoped_refptr<gpu::ClientSharedImage> in_shared_image;
+
     VideoCaptureDevice::Client::Buffer out_buffer;
+    scoped_refptr<gpu::ClientSharedImage> out_shared_image;
     VideoCaptureEffectsProcessor::PostProcessDoneCallback post_process_cb;
   };
 
   void OnPostProcess(PostProcessContext context,
                      video_effects::mojom::PostProcessResultPtr result);
 
-  scoped_refptr<base::SequencedTaskRunner> task_runner_;
-  mojo::Remote<video_effects::mojom::VideoEffectsProcessor> effects_processor_;
+  mojo::Remote<video_effects::mojom::VideoEffectsProcessor> effects_processor_
+      GUARDED_BY_CONTEXT(sequence_checker_);
 
   SEQUENCE_CHECKER(sequence_checker_);
 
@@ -136,4 +164,4 @@ class CAPTURE_EXPORT VideoCaptureEffectsProcessor {
 
 }  // namespace media
 
-#endif  // MEDIA_CAPTURE_VIDEO_VIDEO_CAPTURE_POST_PROCESSOR_H_
+#endif  // MEDIA_CAPTURE_VIDEO_VIDEO_CAPTURE_EFFECTS_PROCESSOR_H_

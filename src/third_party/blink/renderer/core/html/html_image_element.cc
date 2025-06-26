@@ -23,6 +23,7 @@
 
 #include "third_party/blink/renderer/core/html/html_image_element.h"
 
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/loader/lcp_critical_path_predictor_util.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_image_bitmap_options.h"
 #include "third_party/blink/renderer/core/css/css_property_names.h"
@@ -57,7 +58,6 @@
 #include "third_party/blink/renderer/core/layout/adjust_for_absolute_zoom.h"
 #include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/layout/layout_image.h"
-#include "third_party/blink/renderer/core/layout/layout_ng_block_flow.h"
 #include "third_party/blink/renderer/core/lcp_critical_path_predictor/element_locator.h"
 #include "third_party/blink/renderer/core/lcp_critical_path_predictor/lcp_critical_path_predictor.h"
 #include "third_party/blink/renderer/core/loader/resource/image_resource_content.h"
@@ -113,7 +113,6 @@ HTMLImageElement::HTMLImageElement(Document& document, bool created_by_parser)
       is_legacy_format_or_unoptimized_image_(false),
       is_ad_related_(false),
       is_lcp_element_(false),
-      is_changed_shortly_after_mouseover_(false),
       is_auto_sized_(false),
       is_predicted_lcp_element_(false) {
   if (blink::LcppScriptObserverEnabled()) {
@@ -181,7 +180,7 @@ bool HTMLImageElement::IsPresentationAttribute(
 void HTMLImageElement::CollectStyleForPresentationAttribute(
     const QualifiedName& name,
     const AtomicString& value,
-    MutableCSSPropertyValueSet* style) {
+    HeapVector<CSSPropertyValue, 8>& style) {
   if (name == html_names::kWidthAttr) {
     AddHTMLLengthToStyle(style, CSSPropertyID::kWidth, value);
     if (FastHasAttribute(html_names::kHeightAttr)) {
@@ -213,7 +212,7 @@ void HTMLImageElement::CollectStyleForPresentationAttribute(
 }
 
 void HTMLImageElement::CollectExtraStyleForPresentationAttribute(
-    MutableCSSPropertyValueSet* style) {
+    HeapVector<CSSPropertyValue, 8>& style) {
   if (!source_)
     return;
 
@@ -296,7 +295,7 @@ void HTMLImageElement::SetBestFitURLAndDPRFromImageCandidate(
     layout_image->SetImageDevicePixelRatio(image_device_pixel_ratio_);
 
     if (old_image_device_pixel_ratio != image_device_pixel_ratio_)
-      layout_image->IntrinsicSizeChanged();
+      layout_image->NaturalSizeChanged();
   }
 
   if (intrinsic_sizing_viewport_dependant) {
@@ -406,20 +405,15 @@ void HTMLImageElement::ParseAttribute(
                                                               referrer_policy);
     }
   } else if (name == html_names::kSharedstoragewritableAttr &&
-             RuntimeEnabledFeatures::SharedStorageAPIM118Enabled(
+             RuntimeEnabledFeatures::SharedStorageAPIEnabled(
                  GetExecutionContext())) {
-    if (!GetExecutionContext()->IsSecureContext()) {
+    auto* execution_context = GetExecutionContext();
+    if (!execution_context || !execution_context->IsSecureContext()) {
       GetDocument().AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
           mojom::blink::ConsoleMessageSource::kOther,
           mojom::blink::ConsoleMessageLevel::kError,
-          WebString::FromUTF8("sharedStorageWritable: sharedStorage operations "
-                              "are only available in secure contexts.")));
-    } else if (GetExecutionContext()->GetSecurityOrigin()->IsOpaque()) {
-      GetDocument().AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
-          mojom::blink::ConsoleMessageSource::kOther,
-          mojom::blink::ConsoleMessageLevel::kError,
-          WebString::FromUTF8("sharedStorageWritable: sharedStorage operations "
-                              "are not available for opaque origins.")));
+          "sharedStorageWritable: sharedStorage operations are only available "
+          "in secure contexts."));
     } else if (!params.new_value.IsNull()) {
       UseCounter::Count(GetDocument(),
                         WebFeature::kSharedStorageAPI_Image_Attribute);
@@ -487,7 +481,7 @@ ImageCandidate HTMLImageElement::FindBestFitImageFromPictureParent() {
     if (!source)
       continue;
 
-    if (!source->FastGetAttribute(html_names::kSrcAttr).IsNull()) {
+    if (source->FastHasAttribute(html_names::kSrcAttr)) {
       Deprecation::CountDeprecation(GetExecutionContext(),
                                     WebFeature::kPictureSourceSrc);
     }
@@ -502,8 +496,8 @@ ImageCandidate HTMLImageElement::FindBestFitImageFromPictureParent() {
       continue;
 
     ImageCandidate candidate = BestFitSourceForSrcsetAttribute(
-        GetDocument().DevicePixelRatio(), SourceSize(*source),
-        source->FastGetAttribute(html_names::kSrcsetAttr), &GetDocument());
+        GetDocument().DevicePixelRatio(), SourceSize(*source), srcset,
+        &GetDocument());
     if (candidate.IsEmpty())
       continue;
     source_ = source;
@@ -530,8 +524,7 @@ LayoutObject* HTMLImageElement::CreateLayoutObject(const ComputedStyle& style) {
     }
     case LayoutDisposition::kCollapsed:  // Falls through.
     default:
-      NOTREACHED_IN_MIGRATION();
-      return nullptr;
+      NOTREACHED();
   }
 }
 
@@ -582,12 +575,12 @@ Node::InsertionNotificationRequest HTMLImageElement::InsertedInto(
     }
   }
 
-  static const bool is_lcpp_enabled =
-      base::FeatureList::IsEnabled(features::kLCPCriticalPathPredictor);
-  if (is_lcpp_enabled &&
+  static const bool is_image_lcpp_enabled =
+      base::FeatureList::IsEnabled(features::kLCPCriticalPathPredictor) &&
       features::
           kLCPCriticalPathPredictorImageLoadPriorityEnabledForHTMLImageElement
-              .Get()) {
+              .Get();
+  if (is_image_lcpp_enabled) {
     if (LocalFrame* frame = GetDocument().GetFrame()) {
       if (LCPCriticalPathPredictor* lcpp = frame->GetLCPP()) {
         if (lcpp->IsElementMatchingLocator(*this)) {
@@ -639,9 +632,7 @@ unsigned HTMLImageElement::width() {
       return width;
 
     // if the image is available, use its width
-    if (ImageResourceContent* image_content = GetImageLoader().GetContent()) {
-      return image_content->IntrinsicSize(kRespectImageOrientation).width();
-    }
+    return GetImageLoader().AccessNaturalSize().width();
   }
 
   return LayoutBoxWidth();
@@ -662,9 +653,7 @@ unsigned HTMLImageElement::height() {
       return height;
 
     // if the image is available, use its height
-    if (ImageResourceContent* image_content = GetImageLoader().GetContent()) {
-      return image_content->IntrinsicSize(kRespectImageOrientation).height();
-    }
+    return GetImageLoader().AccessNaturalSize().height();
   }
 
   return LayoutBoxHeight();
@@ -680,8 +669,7 @@ PhysicalSize HTMLImageElement::DensityCorrectedIntrinsicDimensions() const {
       image_content->DevicePixelRatioHeaderValue() > 0)
     pixel_density = 1 / image_content->DevicePixelRatioHeaderValue();
 
-  PhysicalSize natural_size(
-      image_content->GetImage()->Size(kRespectImageOrientation));
+  PhysicalSize natural_size(GetImageLoader().AccessNaturalSize());
   natural_size.Scale(pixel_density);
   return natural_size;
 }
@@ -901,8 +889,12 @@ gfx::SizeF HTMLImageElement::DefaultDestinationSize(
     return gfx::SizeF();
 
   Image* image = image_content->GetImage();
-  if (auto* svg_image = DynamicTo<SVGImage>(image))
-    return svg_image->ConcreteObjectSize(default_object_size);
+  if (auto* svg_image = DynamicTo<SVGImage>(image)) {
+    const SVGImageViewInfo* view_info =
+        SVGImageForContainer::CreateViewInfo(*svg_image, *this);
+    return SVGImageForContainer::ConcreteObjectSize(*svg_image, view_info,
+                                                    default_object_size);
+  }
 
   PhysicalSize size(image->Size(respect_orientation));
   if (GetLayoutObject() && GetLayoutObject()->IsLayoutImage() &&
@@ -1005,8 +997,6 @@ void HTMLImageElement::SelectSourceURL(
   if (!GetDocument().IsActive())
     return;
 
-  is_changed_shortly_after_mouseover_ =
-      PaintTiming::From(GetDocument()).IsLCPMouseoverDispatchedRecently();
   HTMLSourceElement* old_source = source_;
   ImageCandidate candidate = FindBestFitImageFromPictureParent();
   if (candidate.IsEmpty()) {

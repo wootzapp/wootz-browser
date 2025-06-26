@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/policy/core/common/policy_service_impl.h"
 
 #include <stddef.h>
@@ -19,14 +24,12 @@
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/policy/core/common/policy_bundle.h"
 #include "components/policy/core/common/policy_logger.h"
 #include "components/policy/core/common/policy_map.h"
@@ -319,7 +322,7 @@ void PolicyServiceImpl::UseLocalTestPolicyProvider(
 }
 
 void PolicyServiceImpl::OnUpdatePolicy(ConfigurationPolicyProvider* provider) {
-  DCHECK_EQ(1, base::ranges::count(providers_, provider));
+  DCHECK_EQ(1, std::ranges::count(providers_, provider));
   refresh_pending_.erase(provider);
   provider_update_pending_.insert(provider);
 
@@ -578,7 +581,7 @@ void PolicyServiceImpl::MaybeNotifyPolicyDomainStatusChange(
   // domain status changes to ready. Ignore if scope is unspecified.
   if (policy_domain_status_[POLICY_DOMAIN_CHROME] ==
           PolicyDomainStatus::kPolicyReady &&
-      base::ranges::find(updated_domains, POLICY_DOMAIN_CHROME) !=
+      std::ranges::find(updated_domains, POLICY_DOMAIN_CHROME) !=
           updated_domains.end()) {
     RecordInitializationTime(
         scope_for_metrics_,

@@ -16,6 +16,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
+#include "gpu/command_buffer/client/client_shared_image.h"
 #include "gpu/command_buffer/service/sequence_id.h"
 #include "gpu/ipc/service/command_buffer_stub.h"
 #include "media/base/video_frame.h"
@@ -67,7 +68,7 @@ class VideoToolboxFrameConverter
   void DestroyStub();
 
   void OnVideoFrameReleased(
-      base::OnceCallback<void(const gpu::SyncToken&)> destroy_shared_image_cb,
+      scoped_refptr<gpu::ClientSharedImage> client_shared_image,
       base::apple::ScopedCFTypeRef<CVImageBufferRef> image,
       const gpu::SyncToken& sync_token);
 
@@ -79,7 +80,6 @@ class VideoToolboxFrameConverter
   raw_ptr<gpu::CommandBufferStub> stub_ = nullptr;
   gpu::SequenceId wait_sequence_id_;
   raw_ptr<gpu::SharedImageStub> sis_ = nullptr;
-  bool texture_rectangle_ = false;
 };
 
 }  // namespace media

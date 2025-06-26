@@ -14,12 +14,10 @@
 #include "third_party/blink/renderer/core/html/canvas/canvas_rendering_context.h"
 #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
 #include "third_party/blink/renderer/core/paint/paint_controller_paint_test.h"
-#include "third_party/blink/renderer/platform/graphics/canvas_2d_layer_bridge.h"
 #include "third_party/blink/renderer/platform/graphics/canvas_resource_provider.h"
 #include "third_party/blink/renderer/platform/graphics/gpu/shared_gpu_context.h"
 #include "third_party/blink/renderer/platform/graphics/test/gpu_test_utils.h"
 #include "third_party/blink/renderer/platform/graphics/web_graphics_context_3d_provider_wrapper.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 
 #include "third_party/blink/renderer/core/scroll/scrollbar_theme.h"
 
@@ -49,7 +47,7 @@ class HTMLCanvasPainterTest : public PaintControllerPaintTestBase {
 
   void TearDown() override {
     PaintControllerPaintTestBase::TearDown();
-    SharedGpuContext::ResetForTesting();
+    SharedGpuContext::Reset();
     accelerated_compositing_scope_ = nullptr;
   }
 
@@ -81,11 +79,7 @@ TEST_F(HTMLCanvasPainterTest, Canvas2DLayerAppearsInLayerTree) {
   attributes.alpha = true;
   CanvasRenderingContext* context =
       element->GetCanvasRenderingContext("2d", attributes);
-  gfx::Size size(300, 200);
-  std::unique_ptr<Canvas2DLayerBridge> bridge =
-      std::make_unique<Canvas2DLayerBridge>();
-  element->SetPreferred2DRasterMode(RasterModeHint::kPreferGPU);
-  element->SetResourceProviderForTesting(nullptr, std::move(bridge), size);
+  element->GetOrCreateCanvasResourceProvider();
   ASSERT_EQ(context, element->RenderingContext());
 
   // Force the page to paint.

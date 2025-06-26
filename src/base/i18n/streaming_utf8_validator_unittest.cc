@@ -4,6 +4,9 @@
 
 #ifdef UNSAFE_BUFFERS_BUILD
 // TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+//
+// Note: U8_NEXT couldn't be rewritten using the spanification_tool, because it
+// is a macro.
 #pragma allow_unsafe_buffers
 #endif
 
@@ -17,6 +20,7 @@
 #include <string>
 #include <string_view>
 
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
@@ -48,13 +52,14 @@ class StreamingUtf8ValidatorThoroughTest : public ::testing::Test {
 
   // This uses the same logic as base::IsStringUTF8 except it considers
   // non-characters valid (and doesn't require a string as input).
-  static bool IsStringUtf8(const uint8_t* src, int32_t src_len) {
-    int32_t char_index = 0;
-    while (char_index < src_len) {
+  static bool IsStringUtf8(base::span<const uint8_t> src) {
+    size_t char_index = 0;
+    while (char_index < src.size()) {
       base_icu::UChar32 code_point;
-      U8_NEXT(src, char_index, src_len, code_point);
-      if (!base::IsValidCodepoint(code_point))
+      U8_NEXT(src, char_index, src.size(), code_point);
+      if (!base::IsValidCodepoint(code_point)) {
         return false;
+      }
     }
     return true;
   }
@@ -66,8 +71,7 @@ class StreamingUtf8ValidatorThoroughTest : public ::testing::Test {
     uint8_t test[sizeof n];
     memcpy(test, &n, sizeof n);
     StreamingUtf8Validator validator;
-    EXPECT_EQ(IsStringUtf8(test, sizeof n),
-              validator.AddBytes(test) == VALID_ENDPOINT)
+    EXPECT_EQ(IsStringUtf8(test), validator.AddBytes(test) == VALID_ENDPOINT)
         << "Difference of opinion for \""
         << base::StringPrintf("\\x%02X\\x%02X\\x%02X\\x%02X", test[0], test[1],
                               test[2], test[3])
@@ -121,20 +125,32 @@ TEST_F(StreamingUtf8ValidatorThoroughTest, DISABLED_TestEverything) {
 // All of the strings in |valid| must represent a single codepoint, because
 // partial sequences are constructed by taking non-empty prefixes of these
 // strings.
-const char* const valid[] = {"\r",           "\n",           "a",
-                             "\xc2\x81",     "\xe1\x80\xbf", "\xf1\x80\xa0\xbf",
-                             "\xef\xbb\xbf",  // UTF-8 BOM
+const char* const valid[] = {
+    "\r",           "\n", "a", "\xc2\x81", "\xe1\x80\xbf", "\xf1\x80\xa0\xbf",
+    "\xef\xbb\xbf",  // UTF-8 BOM
 };
 
-const char* const* const valid_end = valid + std::size(valid);
+const char* const* const valid_end = std::end(valid);
 
 const char* const invalid[] = {
     // always invalid bytes
-    "\xc0", "\xc1",
-    "\xf5", "\xf6", "\xf7",
-    "\xf8", "\xf9", "\xfa", "\xfb", "\xfc", "\xfd", "\xfe", "\xff",
+    "\xc0",
+    "\xc1",
+    "\xf5",
+    "\xf6",
+    "\xf7",
+    "\xf8",
+    "\xf9",
+    "\xfa",
+    "\xfb",
+    "\xfc",
+    "\xfd",
+    "\xfe",
+    "\xff",
     // surrogate code points
-    "\xed\xa0\x80", "\xed\x0a\x8f", "\xed\xbf\xbf",
+    "\xed\xa0\x80",
+    "\xed\x0a\x8f",
+    "\xed\xbf\xbf",
     //
     // overlong sequences
     "\xc0\x80",              // U+0000
@@ -156,10 +172,11 @@ const char* const invalid[] = {
     "\xfc\x9c\xbf\x80\xbf\x80",  // 6 bytes
     //
     // BOMs in UTF-16(BE|LE)
-    "\xfe\xff", "\xff\xfe",
+    "\xfe\xff",
+    "\xff\xfe",
 };
 
-const char* const* const invalid_end = invalid + std::size(invalid);
+const char* const* const invalid_end = std::end(invalid);
 
 // A ForwardIterator which returns all the non-empty prefixes of the elements of
 // "valid".
@@ -195,8 +212,9 @@ class PartialIterator {
       : index_(index), prefix_length_(prefix_length) {}
 
   void Advance() {
-    if (index_ < std::size(valid) && prefix_length_ < strlen(valid[index_]))
+    if (index_ < std::size(valid) && prefix_length_ < strlen(valid[index_])) {
       ++prefix_length_;
+    }
     while (index_ < std::size(valid) &&
            prefix_length_ == strlen(valid[index_])) {
       ++index_;
@@ -236,7 +254,7 @@ class StreamingUtf8ValidatorSingleSequenceTest : public ::testing::Test {
       std::string_view sequence = *it;
       StreamingUtf8Validator::State state = VALID_ENDPOINT;
       for (const auto& cit : sequence) {
-        state = validator.AddBytes(base::as_bytes(base::make_span(&cit, 1u)));
+        state = validator.AddBytes(base::byte_span_from_ref(cit));
       }
       EXPECT_EQ(expected, state) << "Failed for \"" << sequence << "\"";
     }
@@ -279,28 +297,24 @@ TEST(StreamingUtf8ValidatorTest, NothingIsValid) {
 // test.
 TEST(StreamingUtf8ValidatorTest, NulIsValid) {
   static const char kNul[] = "\x00";
-  EXPECT_EQ(VALID_ENDPOINT, StreamingUtf8Validator().AddBytes(
-                                base::as_bytes(base::make_span(kNul, 1u))));
+  EXPECT_EQ(VALID_ENDPOINT,
+            StreamingUtf8Validator().AddBytes(byte_span_from_cstring(kNul)));
 }
 
 // Just a basic sanity test before we start getting fancy.
 TEST(StreamingUtf8ValidatorTest, HelloWorld) {
   static const char kHelloWorld[] = "Hello, World!";
-  EXPECT_EQ(VALID_ENDPOINT,
-            StreamingUtf8Validator().AddBytes(base::as_bytes(
-                base::make_span(kHelloWorld, strlen(kHelloWorld)))));
+  EXPECT_EQ(VALID_ENDPOINT, StreamingUtf8Validator().AddBytes(
+                                byte_span_from_cstring(kHelloWorld)));
 }
 
 // Check that the Reset() method works.
 TEST(StreamingUtf8ValidatorTest, ResetWorks) {
   StreamingUtf8Validator validator;
-  EXPECT_EQ(INVALID,
-            validator.AddBytes(base::as_bytes(base::make_span("\xC0", 1u))));
-  EXPECT_EQ(INVALID,
-            validator.AddBytes(base::as_bytes(base::make_span("a", 1u))));
+  EXPECT_EQ(INVALID, validator.AddBytes(byte_span_from_cstring("\xC0")));
+  EXPECT_EQ(INVALID, validator.AddBytes(byte_span_from_cstring("a")));
   validator.Reset();
-  EXPECT_EQ(VALID_ENDPOINT,
-            validator.AddBytes(base::as_bytes(base::make_span("a", 1u))));
+  EXPECT_EQ(VALID_ENDPOINT, validator.AddBytes(byte_span_from_cstring("a")));
 }
 
 TEST_F(StreamingUtf8ValidatorSingleSequenceTest, Valid) {
@@ -320,8 +334,8 @@ TEST_F(StreamingUtf8ValidatorSingleSequenceTest, ValidByByte) {
 }
 
 TEST_F(StreamingUtf8ValidatorSingleSequenceTest, PartialByByte) {
-  CheckRangeByteAtATime(
-      PartialIterator(), PartialIterator::end(), VALID_MIDPOINT);
+  CheckRangeByteAtATime(PartialIterator(), PartialIterator::end(),
+                        VALID_MIDPOINT);
 }
 
 TEST_F(StreamingUtf8ValidatorSingleSequenceTest, InvalidByByte) {
@@ -333,24 +347,18 @@ TEST_F(StreamingUtf8ValidatorDoubleSequenceTest, ValidPlusValidIsValid) {
 }
 
 TEST_F(StreamingUtf8ValidatorDoubleSequenceTest, ValidPlusPartialIsPartial) {
-  CheckCombinations(valid,
-                    valid_end,
-                    PartialIterator(),
-                    PartialIterator::end(),
+  CheckCombinations(valid, valid_end, PartialIterator(), PartialIterator::end(),
                     VALID_MIDPOINT);
 }
 
 TEST_F(StreamingUtf8ValidatorDoubleSequenceTest, PartialPlusValidIsInvalid) {
-  CheckCombinations(
-      PartialIterator(), PartialIterator::end(), valid, valid_end, INVALID);
+  CheckCombinations(PartialIterator(), PartialIterator::end(), valid, valid_end,
+                    INVALID);
 }
 
 TEST_F(StreamingUtf8ValidatorDoubleSequenceTest, PartialPlusPartialIsInvalid) {
-  CheckCombinations(PartialIterator(),
-                    PartialIterator::end(),
-                    PartialIterator(),
-                    PartialIterator::end(),
-                    INVALID);
+  CheckCombinations(PartialIterator(), PartialIterator::end(),
+                    PartialIterator(), PartialIterator::end(), INVALID);
 }
 
 TEST_F(StreamingUtf8ValidatorDoubleSequenceTest, ValidPlusInvalidIsInvalid) {
@@ -366,13 +374,13 @@ TEST_F(StreamingUtf8ValidatorDoubleSequenceTest, InvalidPlusInvalidIsInvalid) {
 }
 
 TEST_F(StreamingUtf8ValidatorDoubleSequenceTest, InvalidPlusPartialIsInvalid) {
-  CheckCombinations(
-      invalid, invalid_end, PartialIterator(), PartialIterator::end(), INVALID);
+  CheckCombinations(invalid, invalid_end, PartialIterator(),
+                    PartialIterator::end(), INVALID);
 }
 
 TEST_F(StreamingUtf8ValidatorDoubleSequenceTest, PartialPlusInvalidIsInvalid) {
-  CheckCombinations(
-      PartialIterator(), PartialIterator::end(), invalid, invalid_end, INVALID);
+  CheckCombinations(PartialIterator(), PartialIterator::end(), invalid,
+                    invalid_end, INVALID);
 }
 
 TEST(StreamingUtf8ValidatorValidateTest, EmptyIsValid) {

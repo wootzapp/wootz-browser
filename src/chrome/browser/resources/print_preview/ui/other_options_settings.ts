@@ -6,7 +6,7 @@ import 'chrome://resources/cr_elements/cr_hidden_style.css.js';
 import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
 import './print_preview_shared.css.js';
 import './settings_section.js';
-import '../strings.m.js';
+import '/strings.m.js';
 
 import type {CrCheckboxElement} from 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
 import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
@@ -74,9 +74,9 @@ export class PrintPreviewOtherOptionsSettingsElement extends
     ];
   }
 
-  disabled: boolean;
-  private options_: CheckboxOption[];
-  private firstIndex_: number;
+  declare disabled: boolean;
+  declare private options_: CheckboxOption[];
+  declare private firstIndex_: number;
   private timeouts_: Map<string, number|null> = new Map();
   private previousValues_: Map<string, boolean> = new Map();
 
@@ -114,7 +114,7 @@ export class PrintPreviewOtherOptionsSettingsElement extends
     const setting = this.getSetting(this.options_[index].name);
     this.set(`options_.${index}.available`, setting.available);
     this.set(`options_.${index}.value`, setting.value);
-    this.set(`options_.${index}.managed`, setting.setByPolicy);
+    this.set(`options_.${index}.managed`, setting.setByGlobalPolicy);
 
     // Update first index
     const availableOptions = this.options_.filter(option => !!option.available);

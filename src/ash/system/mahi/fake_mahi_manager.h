@@ -15,7 +15,13 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/widget/unique_widget_ptr.h"
 
+namespace gfx {
+class Rect;
+}  // namespace gfx
+
 namespace ash {
+
+// FakeMahiManager -------------------------------------------------------------
 
 // A fake implementation of `MahiManager` used for development only. Returns
 // predetermined contents asyncly. Created only when
@@ -31,7 +37,10 @@ class ASH_EXPORT FakeMahiManager : public chromeos::MahiManager {
   std::u16string GetContentTitle() override;
   gfx::ImageSkia GetContentIcon() override;
   GURL GetContentUrl() override;
+  std::u16string GetSelectedText() override;
+  void GetContent(MahiContentCallback callback) override;
   void GetSummary(MahiSummaryCallback callback) override;
+  void GetElucidation(MahiElucidationCallback callback) override;
   void GetOutlines(MahiOutlinesCallback callback) override;
   void GoToOutlineContent(int outline_id) override {}
   void AnswerQuestion(const std::u16string& question,
@@ -44,8 +53,19 @@ class ASH_EXPORT FakeMahiManager : public chromeos::MahiManager {
   void OnContextMenuClicked(
       crosapi::mojom::MahiContextMenuRequestPtr context_menu_request) override;
   void OpenFeedbackDialog() override {}
+  void OpenMahiPanel(int64_t display_id,
+                     const gfx::Rect& mahi_menu_bounds) override;
   bool IsEnabled() override;
   void SetMediaAppPDFFocused() override;
+  bool AllowRepeatingAnswers() override;
+  void AnswerQuestionRepeating(
+      const std::u16string& question,
+      bool current_panel_content,
+      MahiAnswerQuestionCallbackRepeating callback) override;
+
+  MahiUiController* ui_controller() { return &ui_controller_; }
+
+  void set_mahi_enabled(bool enabled) { mahi_enabled_ = enabled; }
 
   void set_answer_text(const std::u16string& answer_text) {
     answer_text_ = answer_text;
@@ -59,8 +79,16 @@ class ASH_EXPORT FakeMahiManager : public chromeos::MahiManager {
     content_title_ = content_title;
   }
 
+  void set_current_selected_text(const std::u16string& selected_text) {
+    current_selected_text_ = selected_text;
+  }
+
   void set_summary_text(const std::u16string& summary_text) {
     summary_text_ = summary_text;
+  }
+
+  void set_elucidation_text(const std::u16string& elucidation_text) {
+    elucidation_text_ = elucidation_text;
   }
 
  private:
@@ -68,9 +96,26 @@ class ASH_EXPORT FakeMahiManager : public chromeos::MahiManager {
   std::optional<std::u16string> asked_question_;
   gfx::ImageSkia content_icon_;
   std::optional<std::u16string> content_title_;
+  std::optional<std::u16string> current_selected_text_;
   std::optional<std::u16string> summary_text_;
+  std::optional<std::u16string> elucidation_text_;
+  bool mahi_enabled_ = true;
 
   MahiUiController ui_controller_;
+};
+
+// ScopedFakeMahiManagerZeroDuration -------------------------------------------
+
+// A scoped class that applies a zero duration to `FakeMahiManager` callback
+// handling. NOTE: This class should not be used interleavingly.
+class ASH_EXPORT ScopedFakeMahiManagerZeroDuration {
+ public:
+  ScopedFakeMahiManagerZeroDuration();
+  ScopedFakeMahiManagerZeroDuration(const ScopedFakeMahiManagerZeroDuration&) =
+      delete;
+  ScopedFakeMahiManagerZeroDuration& operator=(
+      const ScopedFakeMahiManagerZeroDuration&) = delete;
+  ~ScopedFakeMahiManagerZeroDuration();
 };
 
 }  // namespace ash

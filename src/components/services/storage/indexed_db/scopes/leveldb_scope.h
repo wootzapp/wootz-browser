@@ -27,7 +27,7 @@
 #include "third_party/leveldatabase/src/include/leveldb/status.h"
 #include "third_party/leveldatabase/src/include/leveldb/write_batch.h"
 
-namespace content {
+namespace content::indexed_db {
 
 // LevelDBScope is a specialized type of transaction used only for writing data,
 // and is created using the |LevelDBScopes::CreateScope| method.
@@ -102,11 +102,6 @@ class LevelDBScope {
     return buffer_batch_.ApproximateSize();
   }
 
-  uint64_t GetApproximateBytesWritten() const {
-    DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-    return approximate_bytes_written_.ValueOrDie();
-  }
-
  private:
   friend class LevelDBScopes;
   class UndoLogWriter;
@@ -120,8 +115,7 @@ class LevelDBScope {
                size_t write_batch_size,
                scoped_refptr<LevelDBState> level_db,
                std::vector<PartitionedLock> locks,
-               RollbackCallback rollback_callback,
-               TearDownCallback tear_down_callback);
+               RollbackCallback rollback_callback);
 
   // Called by LevelDBScopes. Saves all data, release all locks, and returns the
   // status & the mode of this scope. The caller (LevelDBScopes) is expected to
@@ -141,7 +135,6 @@ class LevelDBScope {
   // decrements the |undo_sequence_number_|.
   void AddBufferedUndoTask();
 
-  void AddCleanupDeleteRangeTask(std::string begin, std::string end);
   void AddCleanupDeleteAndCompactRangeTask(std::string begin, std::string end);
   // Writes the current |cleanup_task_buffer_| to the |write_batch_|, and
   // decrements the |cleanup_sequence_number_|.
@@ -180,12 +173,9 @@ class LevelDBScope {
   const scoped_refptr<LevelDBState> level_db_;
   std::vector<PartitionedLock> locks_;
   RollbackCallback rollback_callback_;
-  // Warning: Calling this callback can destroy this scope.
-  TearDownCallback tear_down_callback_;
 
   leveldb::WriteBatch buffer_batch_;
   bool buffer_batch_empty_ = true;
-  base::CheckedNumeric<uint64_t> approximate_bytes_written_ = 0;
   bool has_written_to_disk_ = false;
   bool committed_ = false;
 
@@ -195,6 +185,6 @@ class LevelDBScope {
   std::string value_buffer_;
 };
 
-}  // namespace content
+}  // namespace content::indexed_db
 
 #endif  // COMPONENTS_SERVICES_STORAGE_INDEXED_DB_SCOPES_LEVELDB_SCOPE_H_

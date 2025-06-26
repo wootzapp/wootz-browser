@@ -3,15 +3,14 @@
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.toolbar.bottom;
-
-import android.app.Activity;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.tab.CurrentTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.base.Callback;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
-
+import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
+import org.chromium.chrome.browser.tab.Tab;
 /**
  * Interface for the bottom controls content UI. This UI delegates various operations to
  * the implementation. This UI manages its own visibility through
@@ -26,17 +25,18 @@ public interface BottomControlsContentDelegate extends BackPressHandler {
 
     /**
      * Initialize the delegate on native initialization.
-     * @param activity Activity for the delegate.
+     *
      * @param visibilityController Bottom controls visibility controller.
      * @param onModelTokenChange Callback to notify when a new capture is needed.
      * @param topUiThemeColorProvider {@link ThemeColorProvider} for top UI.
      * @param tabSupplier Activity tab supplier
+     * 
      */
     void initializeWithNative(
-            Activity activity,
             BottomControlsCoordinator.BottomControlsVisibilityController visibilityController,
             Callback<Object> onModelTokenChange,
             TopUiThemeColorProvider topUiThemeColorProvider, ObservableSupplier<Tab> tabSupplier);
+
 
     /** Destroy the delegate. */
     void destroy();

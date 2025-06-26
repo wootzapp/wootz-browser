@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "ui/base/x/x11_cursor_loader.h"
 
 #include <dlfcn.h>
@@ -9,8 +14,12 @@
 #include <limits>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "base/compiler_specific.h"
+#include "base/containers/fixed_flat_map.h"
+#include "base/containers/flat_map.h"
+#include "base/containers/flat_set.h"
 #include "base/containers/span.h"
 #include "base/environment.h"
 #include "base/files/file_path.h"
@@ -45,92 +54,28 @@ namespace ui {
 
 namespace {
 
-// These cursor names are indexed by their ID in a cursor font.
-constexpr const char* cursor_names[] = {
-    "X_cursor",
-    "arrow",
-    "based_arrow_down",
-    "based_arrow_up",
-    "boat",
-    "bogosity",
-    "bottom_left_corner",
-    "bottom_right_corner",
-    "bottom_side",
-    "bottom_tee",
-    "box_spiral",
-    "center_ptr",
-    "circle",
-    "clock",
-    "coffee_mug",
-    "cross",
-    "cross_reverse",
-    "crosshair",
-    "diamond_cross",
-    "dot",
-    "dotbox",
-    "double_arrow",
-    "draft_large",
-    "draft_small",
-    "draped_box",
-    "exchange",
-    "fleur",
-    "gobbler",
-    "gumby",
-    "hand1",
-    "hand2",
-    "heart",
-    "icon",
-    "iron_cross",
-    "left_ptr",
-    "left_side",
-    "left_tee",
-    "leftbutton",
-    "ll_angle",
-    "lr_angle",
-    "man",
-    "middlebutton",
-    "mouse",
-    "pencil",
-    "pirate",
-    "plus",
-    "question_arrow",
-    "right_ptr",
-    "right_side",
-    "right_tee",
-    "rightbutton",
-    "rtl_logo",
-    "sailboat",
-    "sb_down_arrow",
-    "sb_h_double_arrow",
-    "sb_left_arrow",
-    "sb_right_arrow",
-    "sb_up_arrow",
-    "sb_v_double_arrow",
-    "shuttle",
-    "sizing",
-    "spider",
-    "spraycan",
-    "star",
-    "target",
-    "tcross",
-    "top_left_arrow",
-    "top_left_corner",
-    "top_right_corner",
-    "top_side",
-    "top_tee",
-    "trek",
-    "ul_angle",
-    "umbrella",
-    "ur_angle",
-    "watch",
-    "xterm",
+using ThemeAndCursorName = std::pair<std::string, std::string>;
+
+// Track the addition of an object to a set, removing it automatically when
+// the ScopedSetInsertion goes out of scope.
+class ScopedSetInsertion {
+ public:
+  ScopedSetInsertion(base::flat_set<ThemeAndCursorName>* org_set,
+                     const ThemeAndCursorName& elem)
+      : set_(org_set), elem_(elem) {
+    set_->insert(elem);
+  }
+  ScopedSetInsertion(const ScopedSetInsertion&) = delete;
+  ScopedSetInsertion& operator=(const ScopedSetInsertion&) = delete;
+  ~ScopedSetInsertion() { set_->erase(elem_); }
+
+ private:
+  const raw_ptr<base::flat_set<ThemeAndCursorName>> set_;
+  const ThemeAndCursorName elem_;
 };
 
 std::string GetEnv(const std::string& var) {
-  auto env = base::Environment::Create();
-  std::string value;
-  env->GetVar(var, &value);
-  return value;
+  return base::Environment::Create()->GetVar(var).value_or(std::string());
 }
 
 NO_SANITIZE("cfi-icall")
@@ -211,15 +156,29 @@ base::FilePath CanonicalizePath(base::FilePath path) {
   return path;
 }
 
-// Reads the cursor called |name| for the theme named |theme|. Searches  all
-// paths in the XCursor path and parent themes.
-scoped_refptr<base::RefCountedMemory> ReadCursorFromTheme(
+scoped_refptr<base::RefCountedMemory> ReadCursorFromThemeImpl(
     const std::string& theme,
-    const std::string& name) {
+    const std::string& cursor_name,
+    base::flat_set<ThemeAndCursorName>* parent_theme_and_cursor_names,
+    base::flat_map<ThemeAndCursorName, scoped_refptr<base::RefCountedMemory>>*
+        cache) {
   constexpr const char kCursorDir[] = "cursors";
   constexpr const char kThemeInfo[] = "index.theme";
-  std::vector<std::string> base_themes;
 
+  auto theme_and_cursor_name = std::make_pair(theme, cursor_name);
+  auto it = cache->find(theme_and_cursor_name);
+  if (it != cache->end()) {
+    return it->second;
+  }
+
+  if (parent_theme_and_cursor_names->contains(theme_and_cursor_name)) {
+    // Circular dependency.
+    return nullptr;
+  }
+  ScopedSetInsertion scoped_set_insertion(parent_theme_and_cursor_names,
+                                          theme_and_cursor_name);
+
+  std::vector<std::string> base_themes;
   auto paths = base::SplitString(CursorPath(), ":", base::TRIM_WHITESPACE,
                                  base::SPLIT_WANT_NONEMPTY);
   for (const auto& path : paths) {
@@ -230,23 +189,43 @@ scoped_refptr<base::RefCountedMemory> ReadCursorFromTheme(
     base::FilePath cursor_dir = theme_dir.Append(kCursorDir);
 
     std::string contents;
-    if (base::ReadFileToString(cursor_dir.Append(name), &contents))
-      return base::MakeRefCounted<base::RefCountedString>(std::move(contents));
+    if (base::ReadFileToString(cursor_dir.Append(cursor_name), &contents)) {
+      auto result =
+          base::MakeRefCounted<base::RefCountedString>(std::move(contents));
+      (*cache)[theme_and_cursor_name] = result;
+      return result;
+    }
 
     if (base_themes.empty())
       base_themes = GetBaseThemes(theme_dir.Append(kThemeInfo));
   }
 
   for (const auto& path : base_themes) {
-    if (auto contents = ReadCursorFromTheme(path, name))
+    if (auto contents = ReadCursorFromThemeImpl(
+            path, cursor_name, parent_theme_and_cursor_names, cache)) {
+      (*cache)[theme_and_cursor_name] = contents;
       return contents;
+    }
   }
 
+  (*cache)[theme_and_cursor_name] = nullptr;
   return nullptr;
 }
 
+// Reads the cursor called `name` for the theme named `theme`. Searches all
+// paths in the XCursor path and parent themes.
+scoped_refptr<base::RefCountedMemory> ReadCursorFromTheme(
+    const std::string& theme,
+    const std::string& cursor_name) {
+  base::flat_set<ThemeAndCursorName> parent_theme_names;
+  base::flat_map<ThemeAndCursorName, scoped_refptr<base::RefCountedMemory>>
+      cache;
+  return ReadCursorFromThemeImpl(theme, cursor_name, &parent_theme_names,
+                                 &cache);
+}
+
 scoped_refptr<base::RefCountedMemory> ReadCursorFile(
-    const std::string& name,
+    const std::string& cursor_name,
     const std::string& rm_xcursor_theme) {
   constexpr const char kDefaultTheme[] = "default";
   std::string themes[] = {
@@ -266,21 +245,22 @@ scoped_refptr<base::RefCountedMemory> ReadCursorFile(
   for (const std::string& theme : themes) {
     if (theme.empty())
       continue;
-    if (auto file = ReadCursorFromTheme(theme, name))
+    if (auto file = ReadCursorFromTheme(theme, cursor_name)) {
       return file;
+    }
   }
   return nullptr;
 }
 
 std::vector<XCursorLoader::Image> ReadCursorImages(
-    const std::vector<std::string>& names,
+    const std::vector<std::string>& cursor_names,
     const std::string& rm_xcursor_theme,
     uint32_t preferred_size) {
   // Fallback on a left pointer if possible.
-  auto names_copy = names;
-  names_copy.push_back("left_ptr");
-  for (const auto& name : names_copy) {
-    if (auto contents = ReadCursorFile(name, rm_xcursor_theme)) {
+  auto cursor_names_copy = cursor_names;
+  cursor_names_copy.push_back("left_ptr");
+  for (const auto& cursor_name : cursor_names_copy) {
+    if (auto contents = ReadCursorFile(cursor_name, rm_xcursor_theme)) {
       auto images = ParseCursorFile(contents, preferred_size);
       if (!images.empty())
         return images;
@@ -310,9 +290,6 @@ XCursorLoader::XCursorLoader(x11::Connection* connection,
 
   if (auto pf_reply = pf_cookie.Sync())
     pict_format_ = GetRenderARGBFormat(*pf_reply.reply);
-
-  for (uint16_t i = 0; i < std::size(cursor_names); i++)
-    cursor_name_to_char_[cursor_names[i]] = i;
 }
 
 XCursorLoader::~XCursorLoader() {
@@ -320,19 +297,19 @@ XCursorLoader::~XCursorLoader() {
 }
 
 scoped_refptr<X11Cursor> XCursorLoader::LoadCursor(
-    const std::vector<std::string>& names) {
+    const std::vector<std::string>& cursor_names) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto cursor = base::MakeRefCounted<X11Cursor>();
   if (SupportsCreateCursor()) {
     base::ThreadPool::PostTaskAndReplyWithResult(
         FROM_HERE,
         {base::MayBlock(), base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-        base::BindOnce(ReadCursorImages, names, rm_xcursor_theme_,
+        base::BindOnce(ReadCursorImages, cursor_names, rm_xcursor_theme_,
                        GetPreferredCursorSize()),
         base::BindOnce(&XCursorLoader::LoadCursorImpl,
-                       weak_factory_.GetWeakPtr(), cursor, names));
+                       weak_factory_.GetWeakPtr(), cursor, cursor_names));
   } else {
-    LoadCursorImpl(cursor, names, {});
+    LoadCursorImpl(cursor, cursor_names, {});
   }
   return cursor;
 }
@@ -407,7 +384,7 @@ scoped_refptr<X11Cursor> XCursorLoader::CreateCursor(
 
 void XCursorLoader::LoadCursorImpl(
     scoped_refptr<X11Cursor> cursor,
-    const std::vector<std::string>& names,
+    const std::vector<std::string>& cursor_names,
     const std::vector<XCursorLoader::Image>& images) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   auto xcursor = connection_->GenerateId<x11::Cursor>();
@@ -415,7 +392,7 @@ void XCursorLoader::LoadCursorImpl(
     xcursor = CreateCursor(images)->ReleaseCursor();
   } else {
     // Fallback to using a font cursor.
-    auto core_char = CursorNamesToChar(names);
+    auto core_char = CursorNamesToChar(cursor_names);
     constexpr uint16_t kFontCursorFgColor = 0;
     constexpr uint16_t kFontCursorBgColor = 65535;
     connection_->CreateGlyphCursor({xcursor, cursor_font_, cursor_font_,
@@ -484,13 +461,97 @@ void XCursorLoader::ParseXResources(std::string_view resources) {
 }
 
 uint16_t XCursorLoader::CursorNamesToChar(
-    const std::vector<std::string>& names) const {
+    const std::vector<std::string>& cursor_names) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  for (const auto& name : names) {
-    auto it = cursor_name_to_char_.find(name);
-    if (it != cursor_name_to_char_.end())
+
+  // These cursor names are indexed by their ID in a cursor font.
+  constexpr auto kMap = base::MakeFixedFlatMap<std::string_view, uint16_t>({
+      {"X_cursor", 0u},
+      {"arrow", 1u},
+      {"based_arrow_down", 2u},
+      {"based_arrow_up", 3u},
+      {"boat", 4u},
+      {"bogosity", 5u},
+      {"bottom_left_corner", 6u},
+      {"bottom_right_corner", 7u},
+      {"bottom_side", 8u},
+      {"bottom_tee", 9u},
+      {"box_spiral", 10u},
+      {"center_ptr", 11u},
+      {"circle", 12u},
+      {"clock", 13u},
+      {"coffee_mug", 14u},
+      {"cross", 15u},
+      {"cross_reverse", 16u},
+      {"crosshair", 17u},
+      {"diamond_cross", 18u},
+      {"dot", 19u},
+      {"dotbox", 20u},
+      {"double_arrow", 21u},
+      {"draft_large", 22u},
+      {"draft_small", 23u},
+      {"draped_box", 24u},
+      {"exchange", 25u},
+      {"fleur", 26u},
+      {"gobbler", 27u},
+      {"gumby", 28u},
+      {"hand1", 29u},
+      {"hand2", 30u},
+      {"heart", 31u},
+      {"icon", 32u},
+      {"iron_cross", 33u},
+      {"left_ptr", 34u},
+      {"left_side", 35u},
+      {"left_tee", 36u},
+      {"leftbutton", 37u},
+      {"ll_angle", 38u},
+      {"lr_angle", 39u},
+      {"man", 40u},
+      {"middlebutton", 41u},
+      {"mouse", 42u},
+      {"pencil", 43u},
+      {"pirate", 44u},
+      {"plus", 45u},
+      {"question_arrow", 46u},
+      {"right_ptr", 47u},
+      {"right_side", 48u},
+      {"right_tee", 49u},
+      {"rightbutton", 50u},
+      {"rtl_logo", 51u},
+      {"sailboat", 52u},
+      {"sb_down_arrow", 53u},
+      {"sb_h_double_arrow", 54u},
+      {"sb_left_arrow", 55u},
+      {"sb_right_arrow", 56u},
+      {"sb_up_arrow", 57u},
+      {"sb_v_double_arrow", 58u},
+      {"shuttle", 59u},
+      {"sizing", 60u},
+      {"spider", 61u},
+      {"spraycan", 62u},
+      {"star", 63u},
+      {"target", 64u},
+      {"tcross", 65u},
+      {"top_left_arrow", 66u},
+      {"top_left_corner", 67u},
+      {"top_right_corner", 68u},
+      {"top_side", 69u},
+      {"top_tee", 70u},
+      {"trek", 71u},
+      {"ul_angle", 72u},
+      {"umbrella", 73u},
+      {"ur_angle", 74u},
+      {"watch", 75u},
+      {"xterm", 76u},
+  });
+
+  for (const auto& cursor_name : cursor_names) {
+    auto it = kMap.find(cursor_name);
+    if (it != kMap.end()) {
       return it->second;
+    }
   }
+
   // Use a left pointer as a fallback.
   return 0;
 }
@@ -535,19 +596,15 @@ std::vector<XCursorLoader::Image> ParseCursorFile(
 
   size_t offset = 0u;
 
-  // Reads 32-bit values from `file` and writes them into the `dest` buffer.
-  auto ReadU32s = [&](base::span<uint8_t> dest) {
+  // Reads bytes from `file` and writes them into the `dest` buffer.
+  auto ReadBytes = [&](base::span<uint8_t> dest) {
     CHECK_EQ(dest.size() % 4u, 0u);
-    auto src = base::span(*file);
+    auto src = base::span<const uint8_t>(*file);
     if (auto end = base::CheckAdd(offset, dest.size());
         !end.IsValid() || end.ValueOrDie() > src.size()) {
       return false;
     }
-    for (size_t i = 0; i < dest.size(); i += 4u) {
-      uint32_t pixel = base::numerics::U32FromLittleEndian(
-          src.subspan(offset + i).first<4u>());
-      dest.subspan(i, 4u).copy_from(base::byte_span_from_ref(pixel));
-    }
+    dest.copy_from(src.subspan(offset, dest.size()));
     offset += dest.size();
     return true;
   };
@@ -558,8 +615,7 @@ std::vector<XCursorLoader::Image> ParseCursorFile(
         !end.IsValid() || end.ValueOrDie() > src.size()) {
       return false;
     }
-    dest = base::numerics::U32FromLittleEndian(
-        src.subspan(offset).first<sizeof(dest)>());
+    dest = base::U32FromLittleEndian(src.subspan(offset).first<sizeof(dest)>());
     offset += sizeof(dest);
     return true;
   };
@@ -622,7 +678,7 @@ std::vector<XCursorLoader::Image> ParseCursorFile(
         !ReadU32(chunk_header.version) ||  //
         chunk_header.type != entry.type ||
         chunk_header.subtype != entry.subtype) {
-      continue;
+      return {};
     }
 
     struct ImageHeader {
@@ -637,12 +693,12 @@ std::vector<XCursorLoader::Image> ParseCursorFile(
         !ReadU32(image.xhot) ||    //
         !ReadU32(image.yhot) ||    //
         !ReadU32(image.delay)) {
-      continue;
+      return {};
     }
     // Ignore unreasonably-sized cursors to prevent allocating too much
     // memory in the bitmap below.
     if (image.width > 8192u || image.height > 8192u) {
-      continue;
+      return {};
     }
     SkBitmap bitmap;
     bitmap.allocN32Pixels(image.width, image.height);
@@ -652,10 +708,10 @@ std::vector<XCursorLoader::Image> ParseCursorFile(
         //
         // TODO(crbug.com/40284755): SkBitmap should provide a span-based
         // API.
-        UNSAFE_BUFFERS(base::span(static_cast<uint8_t*>(bitmap.getPixels()),
-                                  bitmap.computeByteSize()));
-    if (!ReadU32s(pixels)) {
-      continue;
+        UNSAFE_TODO(base::span(static_cast<uint8_t*>(bitmap.getPixels()),
+                               bitmap.computeByteSize()));
+    if (!ReadBytes(pixels)) {
+      return {};
     }
     images.push_back(XCursorLoader::Image{bitmap,
                                           gfx::Point(image.xhot, image.yhot),

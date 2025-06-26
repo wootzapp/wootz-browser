@@ -8,6 +8,7 @@
 #include "ash/accelerators/accelerator_controller_impl.h"
 #include "ash/accelerators/accelerator_table.h"
 #include "ash/accessibility/test_accessibility_controller_client.h"
+#include "ash/constants/ash_features.h"
 #include "ash/public/cpp/shelf_config.h"
 #include "ash/root_window_controller.h"
 #include "ash/screen_util.h"
@@ -48,9 +49,9 @@ views::Widget* CreateTestWidgetWithParent(views::Widget::InitParams::Type type,
                                           gfx::NativeView parent,
                                           const gfx::Rect& bounds,
                                           bool child) {
-  views::Widget::InitParams params(type);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET, type);
   params.delegate = nullptr;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.parent = parent;
   params.bounds = bounds;
   params.child = child;
@@ -69,19 +70,11 @@ void PerformMoveWindowAccel() {
 
 class DisplayMoveWindowUtilTest : public AshTestBase {
  public:
-  DisplayMoveWindowUtilTest() {
-    scoped_feature_list_.InitWithFeatures(
-        /*enabled_features=*/{features::kFasterSplitScreenSetup,
-                              features::kOsSettingsRevampWayfinding},
-        /*disabled_features=*/{});
-  }
+  DisplayMoveWindowUtilTest() = default;
   DisplayMoveWindowUtilTest(const DisplayMoveWindowUtilTest&) = delete;
   DisplayMoveWindowUtilTest& operator=(const DisplayMoveWindowUtilTest&) =
       delete;
   ~DisplayMoveWindowUtilTest() override = default;
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(DisplayMoveWindowUtilTest, SingleDisplay) {
@@ -375,7 +368,8 @@ TEST_F(DisplayMoveWindowUtilTest, WindowWithTransientChild) {
 // target instead.
 TEST_F(DisplayMoveWindowUtilTest, ActiveTransientChildWindow) {
   UpdateDisplay("400x300,400x300");
-  std::unique_ptr<views::Widget> window = CreateTestWidget();
+  std::unique_ptr<views::Widget> window =
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
   window->SetBounds(gfx::Rect(10, 20, 200, 100));
 
   // Create a |child| transient widget of |window|. When |child| is shown, it is

@@ -44,7 +44,10 @@ PASS oldChildWindow.navigator.connection.onchange is newChildWindow.navigator.co
 PASS oldChildWindow.navigator.connection.rtt is newChildWindow.navigator.connection.rtt
 PASS oldChildWindow.navigator.connection.saveData is newChildWindow.navigator.connection.saveData
 PASS oldChildWindow.navigator.cookieEnabled is newChildWindow.navigator.cookieEnabled
+PASS oldChildWindow.navigator.deprecatedRunAdAuctionEnforcesKAnonymity is newChildWindow.navigator.deprecatedRunAdAuctionEnforcesKAnonymity
 PASS oldChildWindow.navigator.deviceMemory is newChildWindow.navigator.deviceMemory
+PASS oldChildWindow.navigator.devicePosture.onchange is newChildWindow.navigator.devicePosture.onchange
+PASS oldChildWindow.navigator.devicePosture.type is newChildWindow.navigator.devicePosture.type
 PASS oldChildWindow.navigator.doNotTrack is newChildWindow.navigator.doNotTrack
 PASS oldChildWindow.navigator.gpu.wgslLanguageFeatures.size is newChildWindow.navigator.gpu.wgslLanguageFeatures.size
 PASS oldChildWindow.navigator.hardwareConcurrency is newChildWindow.navigator.hardwareConcurrency
@@ -115,6 +118,7 @@ PASS oldChildWindow.oncanplaythrough is newChildWindow.oncanplaythrough
 PASS oldChildWindow.onchange is newChildWindow.onchange
 PASS oldChildWindow.onclick is newChildWindow.onclick
 PASS oldChildWindow.onclose is newChildWindow.onclose
+PASS oldChildWindow.oncommand is newChildWindow.oncommand
 PASS oldChildWindow.oncontentvisibilityautostatechange is newChildWindow.oncontentvisibilityautostatechange
 PASS oldChildWindow.oncontextlost is newChildWindow.oncontextlost
 PASS oldChildWindow.oncontextmenu is newChildWindow.oncontextmenu
@@ -186,6 +190,8 @@ PASS oldChildWindow.onreset is newChildWindow.onreset
 PASS oldChildWindow.onresize is newChildWindow.onresize
 PASS oldChildWindow.onscroll is newChildWindow.onscroll
 PASS oldChildWindow.onscrollend is newChildWindow.onscrollend
+PASS oldChildWindow.onscrollsnapchange is newChildWindow.onscrollsnapchange
+PASS oldChildWindow.onscrollsnapchanging is newChildWindow.onscrollsnapchanging
 PASS oldChildWindow.onsearch is newChildWindow.onsearch
 PASS oldChildWindow.onsecuritypolicyviolation is newChildWindow.onsecuritypolicyviolation
 PASS oldChildWindow.onseeked is newChildWindow.onseeked

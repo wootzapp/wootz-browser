@@ -16,6 +16,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.process_launcher.ChildProcessConnection;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
@@ -26,9 +27,9 @@ import org.chromium.base.test.util.UrlUtils;
 import org.chromium.content.browser.ChildProcessLauncherHelperImpl;
 import org.chromium.content_public.browser.ChildProcessImportance;
 import org.chromium.content_public.browser.RenderFrameHost;
+import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsStatics;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_shell.Shell;
 import org.chromium.content_shell_apk.ChildProcessLauncherTestUtils;
 import org.chromium.content_shell_apk.ContentShellActivity;
@@ -36,7 +37,6 @@ import org.chromium.content_shell_apk.ContentShellActivityTestRule;
 
 import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 
 /**
  * Test various Java WebContents specific features.
@@ -56,12 +56,10 @@ public class WebContentsTest {
      * Check that {@link WebContents#isDestroyed()} works as expected.
      * TODO(dtrainor): Test this using {@link WebContents#destroy()} instead once it is possible to
      * build a {@link WebContents} directly in the content/ layer.
-     *
-     * @throws ExecutionException
      */
     @Test
     @SmallTest
-    public void testWebContentsIsDestroyedMethod() throws ExecutionException {
+    public void testWebContentsIsDestroyedMethod() {
         final ContentShellActivity activity =
                 mActivityTestRule.launchContentShellWithUrl(TEST_URL_1);
         mActivityTestRule.waitForActiveShellToBeDoneLoading();
@@ -227,11 +225,10 @@ public class WebContentsTest {
     /**
      * Check that serializing a destroyed WebContents always results in a null deserialized
      * WebContents.
-     * @throws ExecutionException
      */
     @Test
     @SmallTest
-    public void testSerializingADestroyedWebContentsDoesNotDeserialize() throws ExecutionException {
+    public void testSerializingADestroyedWebContentsDoesNotDeserialize() {
         ContentShellActivity activity = mActivityTestRule.launchContentShellWithUrl(TEST_URL_1);
         mActivityTestRule.waitForActiveShellToBeDoneLoading();
         WebContents webContents = activity.getActiveWebContents();
@@ -261,12 +258,10 @@ public class WebContentsTest {
     /**
      * Check that destroying a WebContents after serializing it always results in a null
      * deserialized WebContents.
-     * @throws ExecutionException
      */
     @Test
     @SmallTest
-    public void testDestroyingAWebContentsAfterSerializingDoesNotDeserialize()
-            throws ExecutionException {
+    public void testDestroyingAWebContentsAfterSerializingDoesNotDeserialize() {
         ContentShellActivity activity = mActivityTestRule.launchContentShellWithUrl(TEST_URL_1);
         mActivityTestRule.waitForActiveShellToBeDoneLoading();
         WebContents webContents = activity.getActiveWebContents();
@@ -386,7 +381,7 @@ public class WebContentsTest {
         mActivityTestRule.waitForActiveShellToBeDoneLoading();
         final WebContentsImpl webContents = ((WebContentsImpl) activity.getActiveWebContents());
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     List<RenderFrameHost> frames = webContents.getAllRenderFrameHosts();
                     Assert.assertEquals(3, frames.size());
@@ -411,17 +406,21 @@ public class WebContentsTest {
 
     @Test
     @SmallTest
-    // This test may run with --site-per-process, which also enables a feature to maintain a
-    // spare renderer process. The test expects only one renderer process and may
-    // incorrectly check its assertions on the spare process instead, so disable it.
-    @CommandLineFlags.Add({"disable-features=SpareRendererForSitePerProcess"})
+    // This test may run with --site-per-process or AndroidWarmUpSpareRendererWithTimeout,
+    // which also enables a feature to maintain a spare renderer process.
+    // The test expects only one renderer process and may incorrectly check its
+    // assertions on the spare process instead, so disable it.
+    @CommandLineFlags.Add({
+        "disable-features=SpareRendererForSitePerProcess,AndroidWarmUpSpareRendererWithTimeout"
+    })
     public void testChildProcessImportance() {
         final ContentShellActivity activity =
                 mActivityTestRule.launchContentShellWithUrl(TEST_URL_1);
         mActivityTestRule.waitForActiveShellToBeDoneLoading();
         final WebContents webContents = activity.getActiveWebContents();
         // Make sure visibility do not affect bindings.
-        TestThreadUtils.runOnUiThreadBlocking(() -> webContents.onHide());
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> webContents.updateWebContentsVisibility(Visibility.HIDDEN));
 
         final ChildProcessConnection connection = getSandboxedChildProcessConnection();
         // Need to poll here because there is an intentional delay for removing binding.
@@ -432,18 +431,21 @@ public class WebContentsTest {
                 },
                 "Failed to remove moderate binding");
 
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> webContents.setImportance(ChildProcessImportance.MODERATE));
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> webContents.setPrimaryMainFrameImportance(ChildProcessImportance.MODERATE));
         ChildProcessLauncherTestUtils.runOnLauncherThreadBlocking(
                 () -> Assert.assertTrue(connection.isVisibleBindingBound()));
     }
 
     @Test
     @SmallTest
-    // This test may run with --site-per-process, which also enables a feature to maintain a
-    // spare renderer process. The test expects only one renderer process and may
-    // incorrectly check its assertions on the spare process instead, so disable it.
-    @CommandLineFlags.Add({"disable-features=SpareRendererForSitePerProcess"})
+    // This test may run with --site-per-process or AndroidWarmUpSpareRendererWithTimeout,
+    // which also enables a feature to maintain a spare renderer process.
+    // The test expects only one renderer process and may incorrectly check its
+    // assertions on the spare process instead, so disable it.
+    @CommandLineFlags.Add({
+        "disable-features=SpareRendererForSitePerProcess,AndroidWarmUpSpareRendererWithTimeout"
+    })
     public void testVisibilityControlsBinding() {
         final ContentShellActivity activity =
                 mActivityTestRule.launchContentShellWithUrl(TEST_URL_1);
@@ -454,20 +456,22 @@ public class WebContentsTest {
         ChildProcessLauncherTestUtils.runOnLauncherThreadBlocking(
                 () -> Assert.assertTrue(connection.isStrongBindingBound()));
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> webContents.onHide());
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> webContents.updateWebContentsVisibility(Visibility.HIDDEN));
         CriteriaHelper.pollInstrumentationThread(
                 () ->
                         ChildProcessLauncherTestUtils.runOnLauncherAndGetResult(
                                 () -> !connection.isStrongBindingBound()),
                 "Failed to remove strong binding");
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> webContents.onShow());
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> webContents.updateWebContentsVisibility(Visibility.VISIBLE));
         ChildProcessLauncherTestUtils.runOnLauncherThreadBlocking(
                 () -> Assert.assertTrue(connection.isStrongBindingBound()));
     }
 
     private boolean isWebContentsDestroyed(final WebContents webContents) {
-        return TestThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 new Callable<Boolean>() {
                     @Override
                     public Boolean call() {

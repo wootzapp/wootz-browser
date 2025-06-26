@@ -7,8 +7,10 @@
 #include "third_party/blink/renderer/bindings/core/v8/capture_source_location.h"
 #include "third_party/blink/renderer/bindings/core/v8/native_value_traits_impl.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_dom_exception.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_element.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_set_return_value_for_core.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/range.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
@@ -94,9 +96,13 @@ void ExceptionToRejectPromiseScope::ConvertExceptionToRejectPromise() {
   // As exceptions must always be created in the current realm, reject
   // promises must also be created in the current realm while regular promises
   // are created in the relevant realm of the context object.
-  ScriptState* script_state = ScriptState::ForCurrentRealm(info_);
+  //
+  // We don't know the type of the promise here - but given that we're only
+  // going to extract the v8::Value and discard the ScriptPromise, it
+  // doesn't matter what type we use.
   bindings::V8SetReturnValue(
-      info_, ScriptPromiseUntyped::Reject(script_state, exception_state_));
+      info_, ScriptPromise<IDLUndefined>::Reject(
+                 ScriptState::ForCurrentRealm(info_), try_catch_.Exception()));
 }
 
 namespace bindings {
@@ -199,15 +205,17 @@ std::optional<size_t> FindIndexInEnumStringTable(
     base::span<const char* const> enum_value_table,
     const char* enum_type_name,
     ExceptionState& exception_state) {
-  const String& str_value = NativeValueTraits<IDLString>::NativeValue(
-      isolate, value, exception_state);
-  if (UNLIKELY(exception_state.HadException()))
+  auto adapter = NativeValueTraits<IDLString>::NativeValue(isolate, value,
+                                                           exception_state);
+  const StringView& str_value = adapter;
+  if (exception_state.HadException()) [[unlikely]] {
     return std::nullopt;
+  }
 
   std::optional<size_t> index =
       FindIndexInEnumStringTable(str_value, enum_value_table);
 
-  if (UNLIKELY(!index.has_value())) {
+  if (!index.has_value()) [[unlikely]] {
     exception_state.ThrowTypeError("The provided value '" + str_value +
                                    "' is not a valid enum value of type " +
                                    enum_type_name + ".");
@@ -216,11 +224,13 @@ std::optional<size_t> FindIndexInEnumStringTable(
 }
 
 std::optional<size_t> FindIndexInEnumStringTable(
-    const String& str_value,
+    const StringView& str_value,
     base::span<const char* const> enum_value_table) {
   for (size_t i = 0; i < enum_value_table.size(); ++i) {
-    if (Equal(str_value.Impl(), enum_value_table[i]))
+    // Avoid operator== because of the strlen inside a StringView construction.
+    if (WTF::EqualToCString(str_value, enum_value_table[i])) {
       return i;
+    }
   }
   return std::nullopt;
 }
@@ -232,11 +242,9 @@ void ReportInvalidEnumSetToAttribute(v8::Isolate* isolate,
   ScriptState* script_state = ScriptState::ForCurrentRealm(isolate);
   ExecutionContext* execution_context = ExecutionContext::From(script_state);
 
-  exception_state.ThrowTypeError("The provided value '" + value +
-                                 "' is not a valid enum value of type " +
-                                 enum_type_name + ".");
-  String message = exception_state.Message();
-  exception_state.ClearException();
+  String message = "The provided value '" + value +
+                   "' is not a valid enum value of type " + enum_type_name +
+                   ".";
 
   execution_context->AddConsoleMessage(MakeGarbageCollected<ConsoleMessage>(
       mojom::blink::ConsoleMessageSource::kJavaScript,
@@ -254,13 +262,12 @@ bool IsEsIterableObject(v8::Isolate* isolate,
 
   // step 9.1. Let method be ? GetMethod(V, @@iterator).
   // https://tc39.es/ecma262/#sec-getmethod
-  v8::TryCatch try_catch(isolate);
+  TryRethrowScope rethrow_scope(isolate, exception_state);
   v8::Local<v8::Value> iterator_key = v8::Symbol::GetIterator(isolate);
   v8::Local<v8::Value> iterator_value;
   if (!value.As<v8::Object>()
            ->Get(isolate->GetCurrentContext(), iterator_key)
            .ToLocal(&iterator_value)) {
-    exception_state.RethrowV8Exception(try_catch.Exception());
     return false;
   }
 
@@ -315,6 +322,7 @@ v8::MaybeLocal<v8::Value> CreateLegacyFactoryFunctionFunction(
             .As<v8::FunctionTemplate>();
     function_template->Inherit(interface_template);
     function_template->SetClassName(V8AtomicString(isolate, func_name));
+    function_template->SetExceptionContext(v8::ExceptionContext::kConstructor);
     per_isolate_data->AddV8Template(world, callback_key, function_template);
   }
 
@@ -384,68 +392,66 @@ template <typename IDLType,
           void (Element::*MemFunc)(const QualifiedName&, ArgType)>
 void PerformAttributeSetCEReactionsReflect(
     const v8::FunctionCallbackInfo<v8::Value>& info,
-    const QualifiedName& content_attribute,
-    const char* interface_name,
-    const char* attribute_name) {
+    const QualifiedName& content_attribute) {
   v8::Isolate* isolate = info.GetIsolate();
-  ExceptionState exception_state(isolate, ExceptionContextType::kAttributeSet,
-                                 interface_name, attribute_name);
-  if (UNLIKELY(info.Length() < 1)) {
-    exception_state.ThrowTypeError(
-        ExceptionMessages::NotEnoughArguments(1, info.Length()));
+  if (info.Length() < 1) [[unlikely]] {
+    V8ThrowException::ThrowTypeError(
+        isolate, ExceptionMessages::NotEnoughArguments(1, info.Length()));
     return;
   }
 
-  CEReactionsScope ce_reactions_scope;
+  CEReactionsScope ce_reactions_scope(isolate);
 
   Element* blink_receiver = V8Element::ToWrappableUnsafe(isolate, info.This());
-  auto&& arg_value = NativeValueTraits<IDLType>::NativeValue(isolate, info[0],
-                                                             exception_state);
-  if (UNLIKELY(exception_state.HadException()))
+  auto&& arg_value = NativeValueTraits<IDLType>::NativeValue(
+      isolate, info[0], PassThroughException(isolate));
+  if (isolate->HasPendingException()) [[unlikely]] {
     return;
+  }
 
   (blink_receiver->*MemFunc)(content_attribute, arg_value);
 }
 
 void PerformAttributeSetCEReactionsReflectTypeBoolean(
     const v8::FunctionCallbackInfo<v8::Value>& info,
-    const QualifiedName& content_attribute,
-    const char* interface_name,
-    const char* attribute_name) {
+    const QualifiedName& content_attribute) {
   PerformAttributeSetCEReactionsReflect<IDLBoolean, bool,
                                         &Element::SetBooleanAttribute>(
-      info, content_attribute, interface_name, attribute_name);
+      info, content_attribute);
 }
 
 void PerformAttributeSetCEReactionsReflectTypeString(
     const v8::FunctionCallbackInfo<v8::Value>& info,
-    const QualifiedName& content_attribute,
-    const char* interface_name,
-    const char* attribute_name) {
+    const QualifiedName& content_attribute) {
   PerformAttributeSetCEReactionsReflect<IDLString, const AtomicString&,
                                         &Element::setAttribute>(
-      info, content_attribute, interface_name, attribute_name);
+      info, content_attribute);
 }
 
 void PerformAttributeSetCEReactionsReflectTypeStringLegacyNullToEmptyString(
     const v8::FunctionCallbackInfo<v8::Value>& info,
-    const QualifiedName& content_attribute,
-    const char* interface_name,
-    const char* attribute_name) {
+    const QualifiedName& content_attribute) {
   PerformAttributeSetCEReactionsReflect<IDLStringLegacyNullToEmptyString,
                                         const AtomicString&,
                                         &Element::setAttribute>(
-      info, content_attribute, interface_name, attribute_name);
+      info, content_attribute);
 }
 
 void PerformAttributeSetCEReactionsReflectTypeStringOrNull(
     const v8::FunctionCallbackInfo<v8::Value>& info,
-    const QualifiedName& content_attribute,
-    const char* interface_name,
-    const char* attribute_name) {
+    const QualifiedName& content_attribute) {
   PerformAttributeSetCEReactionsReflect<
       IDLNullable<IDLString>, const AtomicString&, &Element::setAttribute>(
-      info, content_attribute, interface_name, attribute_name);
+      info, content_attribute);
+}
+
+CORE_EXPORT void CountWebDXFeature(v8::Isolate* isolate, WebDXFeature feature) {
+  v8::Local<v8::Context> current_context = isolate->GetCurrentContext();
+  ScriptState* current_script_state =
+      ScriptState::From(isolate, current_context);
+  ExecutionContext* current_execution_context =
+      ToExecutionContext(current_script_state);
+  UseCounter::CountWebDXFeature(current_execution_context, feature);
 }
 
 }  // namespace bindings

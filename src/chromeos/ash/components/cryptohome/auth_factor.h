@@ -7,11 +7,12 @@
 
 #include <optional>
 #include <string>
+#include <variant>
 
 #include "base/component_export.h"
 #include "base/containers/enum_set.h"
+#include "base/time/time.h"
 #include "chromeos/ash/components/cryptohome/common_types.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 
 namespace cryptohome {
 
@@ -46,6 +47,22 @@ enum class AuthFactorType {
   kSmartCard,
   kKiosk,
   kFingerprint,
+};
+
+enum class LockoutPolicy {
+  // Default value.
+  kUnknown = 0,
+  // Ideally this will be default, but should be explicitly set for an
+  // AuthFactor where multiple attempts are allowed without any repercussions.
+  kNone,
+  // kAttemptLimited is for an AuthFactors that is not available for a
+  // user x number of wrong attempts. For example, for PIN we lockout
+  // user from PIN usage after five attempts.
+  kAttemptLimited,
+  // kTimeLimited is when we locked out user from using a certain AuthFactor
+  // for a particular time after particular number of wrong attempts.
+  // The policy specifics itself can be custom defined by an AuthFactor.
+  kTimeLimited,
 };
 
 using AuthFactorsSet = base::
@@ -95,7 +112,9 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_CRYPTOHOME)
   // This constructor should be used for AuthFactors created on the Chrome side.
   // It fills in current Chrome version, leaving ChromeOS version empty.
   AuthFactorCommonMetadata();
-  AuthFactorCommonMetadata(ComponentVersion chrome, ComponentVersion chromeos);
+  AuthFactorCommonMetadata(ComponentVersion chrome,
+                           ComponentVersion chromeos,
+                           LockoutPolicy lockout_policy);
   ~AuthFactorCommonMetadata();
 
   AuthFactorCommonMetadata(AuthFactorCommonMetadata&&) noexcept;
@@ -115,16 +134,56 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_CRYPTOHOME)
     return chromeos_version_last_updated_;
   }
 
+  const LockoutPolicy& lockout_policy() const { return lockout_policy_; }
+
  private:
   ComponentVersion chrome_version_last_updated_;
   ComponentVersion chromeos_version_last_updated_;
+  LockoutPolicy lockout_policy_;
 };
 
 // Per-factor statuses (read-only properties set by cryptohomed):
+// TODO(b/341733466): Individual per-factor statuses are discouraged.
+// A general auth factor status is already returned by cryptohomed for
+// each AuthFactorWithStatus.
 
-struct COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_CRYPTOHOME) PinStatus {
-  bool auth_locked;
+// PinStatus provides the pin status info returned from cryptohomed.
+// PinStatus only represents a status snapshot at the time of its
+// construction. Care must be taken in checking the freshness of
+// any PinStatus object.
+class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_CRYPTOHOME) PinStatus {
+ public:
+  // Default constructor: the pin factor is immediately available.
+  PinStatus();
+  // Constructor takes one TimeDelta value:
+  // |available_in| indicates a timeout after which the factor will become
+  // available.
+  //   0 means the factor is immediately available.
+  //   TimeDelta::Max() means the factor is locked out indefinitely.
+  PinStatus(base::TimeDelta available_in);
+
+  PinStatus(PinStatus&&) noexcept;
+  PinStatus& operator=(PinStatus&&) noexcept;
+
+  PinStatus(const PinStatus&);
+  PinStatus& operator=(const PinStatus&);
+
+  ~PinStatus();
+
+  // The time when the pin auth factor will be available.
+  // If locked out indefinitely, return Time::Max().
+  base::Time AvailableAt() const;
+
+  // Indicates a not-avaiable pin.
+  bool IsLockedFactor() const;
+
+ private:
+  base::Time available_at_;
 };
+
+// Represents the time when the pin auth factor will be available. If the field
+// is not present, it means the PIN is enabled or disabled permanently.
+using PinLockAvailability = std::optional<base::Time>;
 
 // Common types used in factor-specific metadata:
 
@@ -205,6 +264,9 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_CRYPTOHOME) PinMetadata {
   std::optional<KnowledgeFactorHashInfo> hash_info_;
 };
 
+class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_CRYPTOHOME) FingerprintMetadata {
+};
+
 // AuthFactor definition.
 // If it is obtainted from `cryptohome` it will contain factor-specific status,
 // otherwise it would only contain identity and metadata.
@@ -227,6 +289,9 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_CRYPTOHOME) AuthFactor {
              AuthFactorCommonMetadata metadata,
              PinMetadata pin_metadata,
              PinStatus status);
+  AuthFactor(AuthFactorRef ref,
+             AuthFactorCommonMetadata metadata,
+             FingerprintMetadata fingerprint_metadata);
 
   AuthFactor(AuthFactor&&) noexcept;
   AuthFactor& operator=(AuthFactor&&) noexcept;
@@ -247,17 +312,19 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_CRYPTOHOME) AuthFactor {
   const CryptohomeRecoveryMetadata& GetCryptohomeRecoveryMetadata() const;
   const PasswordMetadata& GetPasswordMetadata() const;
   const PinMetadata& GetPinMetadata() const;
+  const FingerprintMetadata& GetFingerprintMetadata() const;
 
  private:
   AuthFactorRef ref_;
   AuthFactorCommonMetadata common_metadata_;
-  absl::variant<absl::monostate,
-                SmartCardMetadata,
-                CryptohomeRecoveryMetadata,
-                PasswordMetadata,
-                PinMetadata>
+  std::variant<std::monostate,
+               SmartCardMetadata,
+               CryptohomeRecoveryMetadata,
+               PasswordMetadata,
+               PinMetadata,
+               FingerprintMetadata>
       factor_metadata_;
-  absl::variant<absl::monostate, PinStatus> factor_status_;
+  std::variant<std::monostate, PinStatus> factor_status_;
 };
 
 }  // namespace cryptohome

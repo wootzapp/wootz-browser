@@ -1,4 +1,4 @@
-<style>
+<style include="wallpaper common">
   :host {
     --personalization-app-grid-item-height: 120px;
     --personalization-app-grid-item-spacing: 20px;
@@ -67,6 +67,11 @@
 
   :host([aria-disabled='true']) .item {
     cursor: default;
+  }
+
+  :host([aria-disabled='true']) .secondary-text {
+    color: var(--cros-text-color-secondary);
+    text-shadow: none;
   }
 
   :host(:focus-visible) .item {
@@ -181,8 +186,7 @@
     visibility: hidden;
   }
 
-  p.primary-text:last-of-type,
-  ::slotted(p.primary-text:last-of-type) {
+  :host([data-google-photos]) p.primary-text:last-of-type {
     margin-bottom: var(--cros-annotation-2-line-height);
   }
 
@@ -257,12 +261,14 @@
         <template is="dom-if" if="[[isPrimaryTextVisible_(primaryText)]]" restamp>
           <p class="primary-text" title$="[[primaryText]]">[[primaryText]]</p>
         </template>
+      </slot>
+      <slot name="secondaryText">
         <template is="dom-if"
             if="[[isSecondaryTextVisible_(secondaryText)]]"
             restamp>
-          <p class="secondary-text" title$="[[secondaryText]]">
+        <p class="secondary-text" title$="[[secondaryText]]">
             [[secondaryText]]
-          </p>
+        </p>
         </template>
       </slot>
     </div>

@@ -4,9 +4,9 @@
 
 #include "device/vr/openxr/openxr_extension_handler_factory.h"
 
+#include <algorithm>
 #include <memory>
 
-#include "base/ranges/algorithm.h"
 #include "device/vr/openxr/openxr_extension_helper.h"
 #include "third_party/openxr/src/include/openxr/openxr.h"
 
@@ -16,7 +16,15 @@ OpenXrExtensionHandlerFactory::~OpenXrExtensionHandlerFactory() = default;
 
 bool OpenXrExtensionHandlerFactory::IsEnabled(
     const OpenXrExtensionEnumeration* extension_enum) const {
-  return AreAllRequestedExtensionsSupported(extension_enum);
+  return supported_by_system_properties_ &&
+         AreAllRequestedExtensionsSupported(extension_enum);
+}
+
+void OpenXrExtensionHandlerFactory::ProcessSystemProperties(
+    const OpenXrExtensionEnumeration* extension_enum,
+    XrInstance instance,
+    XrSystemId system) {
+  SetSystemPropertiesSupport(true);
 }
 
 std::unique_ptr<OpenXrAnchorManager>
@@ -24,6 +32,15 @@ OpenXrExtensionHandlerFactory::CreateAnchorManager(
     const OpenXrExtensionHelper& extension_helper,
     XrSession session,
     XrSpace mojo_space) const {
+  return nullptr;
+}
+
+std::unique_ptr<OpenXrDepthSensor>
+OpenXrExtensionHandlerFactory::CreateDepthSensor(
+    const OpenXrExtensionHelper& extension_helper,
+    XrSession session,
+    XrSpace mojo_space,
+    const mojom::XRDepthOptions& depth_options) const {
   return nullptr;
 }
 
@@ -66,11 +83,15 @@ OpenXrExtensionHandlerFactory::CreateUnboundedSpaceProvider(
 
 bool OpenXrExtensionHandlerFactory::AreAllRequestedExtensionsSupported(
     const OpenXrExtensionEnumeration* extension_enum) const {
-  return base::ranges::all_of(
+  return std::ranges::all_of(
       GetRequestedExtensions(),
       [&extension_enum](std::string_view extension_name) {
         return extension_enum->ExtensionSupported(extension_name.data());
       });
+}
+
+void OpenXrExtensionHandlerFactory::SetSystemPropertiesSupport(bool supported) {
+  supported_by_system_properties_ = supported;
 }
 
 }  // namespace device

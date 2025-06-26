@@ -18,9 +18,9 @@ import org.jni_zero.NativeMethods;
 import org.chromium.base.Log;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.compositor.bottombar.ephemeraltab.EphemeralTabCoordinator;
-import org.chromium.chrome.browser.compositor.bottombar.ephemeraltab.EphemeralTabObserver;
-import org.chromium.chrome.browser.compositor.bottombar.ephemeraltab.EphemeralTabSheetContent;
+import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinator;
+import org.chromium.chrome.browser.ephemeraltab.EphemeralTabObserver;
+import org.chromium.chrome.browser.ephemeraltab.EphemeralTabSheetContent;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabUtils;
@@ -174,9 +174,7 @@ public class PageInfoAboutThisSiteController {
     }
 
     private String getTitle() {
-        return mRowView.getContext()
-                .getResources()
-                .getString(R.string.page_info_about_this_page_title);
+        return mRowView.getContext().getString(R.string.page_info_about_this_page_title);
     }
 
     private @Nullable SiteInfo getSiteInfo() {

@@ -11,14 +11,16 @@
 #import "base/functional/bind.h"
 #import "base/location.h"
 #import "base/memory/raw_ptr.h"
+#import "base/memory/weak_ptr.h"
 #import "base/scoped_observation.h"
 #import "base/strings/string_util.h"
 #import "base/values.h"
-#import "components/grit/dev_ui_components_resources.h"
+#import "components/grit/net_export_resources.h"
+#import "components/grit/net_export_resources_map.h"
 #import "components/net_log/net_export_file_writer.h"
 #import "components/net_log/net_export_ui_constants.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/webui/model/net_export_tab_helper.h"
 #import "ios/chrome/browser/webui/model/show_mail_composer_context.h"
@@ -38,9 +40,8 @@ web::WebUIIOSDataSource* CreateNetExportHTMLSource() {
       web::WebUIIOSDataSource::Create(kChromeUINetExportHost);
 
   source->UseStringsJs();
-  source->AddResourcePath(net_log::kNetExportUICSS, IDR_NET_LOG_NET_EXPORT_CSS);
-  source->AddResourcePath(net_log::kNetExportUIJS, IDR_NET_LOG_NET_EXPORT_JS);
-  source->SetDefaultResource(IDR_NET_LOG_NET_EXPORT_HTML);
+  source->AddResourcePaths(kNetExportResources);
+  source->AddResourcePath("", IDR_NET_EXPORT_NET_EXPORT_HTML);
   return source;
 }
 
@@ -74,8 +75,7 @@ class NetExportMessageHandler
   // Send NetLog data via email.
   void SendEmail(const base::FilePath& file_to_send);
 
-  void NotifyUIWithState(
-      const base::Value::Dict& file_writer_state);
+  void NotifyUIWithState(const base::Value::Dict& file_writer_state);
 
   // Cache of GetApplicationContext()->GetNetExportFileWriter().
   // This is owned by the ApplicationContext.
@@ -84,6 +84,8 @@ class NetExportMessageHandler
   base::ScopedObservation<net_log::NetExportFileWriter,
                           net_log::NetExportFileWriter::StateObserver>
       state_observation_manager_{this};
+
+  base::WeakPtrFactory<NetExportMessageHandler> weak_factory_{this};
 };
 
 NetExportMessageHandler::NetExportMessageHandler()
@@ -159,7 +161,7 @@ void NetExportMessageHandler::OnStopNetLog(const base::Value::List& list) {
 void NetExportMessageHandler::OnSendNetLog(const base::Value::List& list) {
   DCHECK_CURRENTLY_ON(web::WebThread::UI);
   file_writer_->GetFilePathToCompletedLog(base::BindOnce(
-      &NetExportMessageHandler::SendEmail, base::Unretained(this)));
+      &NetExportMessageHandler::SendEmail, weak_factory_.GetWeakPtr()));
 }
 
 void NetExportMessageHandler::OnNewState(const base::Value::Dict& state) {
@@ -167,8 +169,9 @@ void NetExportMessageHandler::OnNewState(const base::Value::Dict& state) {
 }
 
 void NetExportMessageHandler::SendEmail(const base::FilePath& file_to_send) {
-  if (file_to_send.empty())
+  if (file_to_send.empty()) {
     return;
+  }
   DCHECK_CURRENTLY_ON(web::WebThread::UI);
 
   NSString* subject = @"net_internals_log";
@@ -205,6 +208,6 @@ void NetExportMessageHandler::NotifyUIWithState(
 NetExportUI::NetExportUI(web::WebUIIOS* web_ui, const std::string& host)
     : web::WebUIIOSController(web_ui, host) {
   web_ui->AddMessageHandler(std::make_unique<NetExportMessageHandler>());
-  web::WebUIIOSDataSource::Add(ChromeBrowserState::FromWebUIIOS(web_ui),
+  web::WebUIIOSDataSource::Add(ProfileIOS::FromWebUIIOS(web_ui),
                                CreateNetExportHTMLSource());
 }

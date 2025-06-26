@@ -30,7 +30,6 @@ import org.chromium.chrome.browser.readaloud.player.Colors;
 import org.chromium.chrome.browser.readaloud.player.InteractionHandler;
 import org.chromium.chrome.browser.readaloud.player.R;
 import org.chromium.chrome.browser.readaloud.player.TouchDelegateUtil;
-import org.chromium.chrome.browser.readaloud.player.VisibilityState;
 import org.chromium.chrome.modules.readaloud.PlaybackListener;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.interpolators.Interpolators;
@@ -55,17 +54,15 @@ public class MiniPlayerLayout extends LinearLayout {
 
     private @PlaybackListener.State int mLastPlaybackState;
     private boolean mEnableAnimations;
-    private InteractionHandler mInteractionHandler;
     private ObjectAnimator mAnimator;
-    private @VisibilityState int mFinalVisibility;
     private MiniPlayerMediator mMediator;
     private float mFinalOpacity;
     private @ColorInt int mBackgroundColorArgb;
+    private int mYOffset;
 
     /** Constructor for inflating from XML. */
     public MiniPlayerLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
-        mFinalVisibility = VisibilityState.GONE;
     }
 
     void destroy() {
@@ -136,8 +133,11 @@ public class MiniPlayerLayout extends LinearLayout {
         mFinalOpacity = endValue;
         setAlpha(startValue);
 
+        View nonErrorLayoutContainer = mErrorLayout.getVisibility() == View.GONE ? mContents : null;
         Runnable onFinished =
-                endValue == 1f ? mMediator::onFullOpacityReached : mMediator::onZeroOpacityReached;
+                endValue == 1f
+                        ? () -> mMediator.onFullOpacityReached(nonErrorLayoutContainer)
+                        : mMediator::onZeroOpacityReached;
 
         if (mEnableAnimations) {
             // TODO: handle case where existing animation is incomplete and needs to be reversed
@@ -180,8 +180,22 @@ public class MiniPlayerLayout extends LinearLayout {
         mProgressBar.setProgress((int) (progress * mProgressBar.getMax()), true);
     }
 
+    /**
+     * Set the yOffset of the mini player layout. If yOffset < 0, the view need to shift up from the
+     * bottom. It is implemented by applying a bottom margin.
+     */
+    void setYOffset(int yOffset) {
+        if (mYOffset == yOffset) return;
+
+        assert yOffset <= 0;
+
+        mYOffset = -yOffset;
+        MarginLayoutParams mlp = (MarginLayoutParams) getLayoutParams();
+        mlp.bottomMargin = mYOffset;
+        setLayoutParams(mlp);
+    }
+
     void setInteractionHandler(InteractionHandler handler) {
-        mInteractionHandler = handler;
         setOnClickListener(R.id.close_button, handler::onCloseClick);
         setOnClickListener(R.id.mini_player_container, handler::onMiniPlayerExpandClick);
         setOnClickListener(R.id.play_button, handler::onPlayPauseClick);

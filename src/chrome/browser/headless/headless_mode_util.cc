@@ -18,11 +18,16 @@
 #include "chrome/browser/headless/headless_mode_switches.h"
 #include "chrome/common/chrome_switches.h"
 #include "content/public/common/content_switches.h"
+#include "ui/base/ui_base_switches.h"
 
 #if BUILDFLAG(IS_LINUX)
 #include "ui/gl/gl_switches.h"               // nogncheck
 #include "ui/ozone/public/ozone_switches.h"  // nogncheck
 #endif  // BUILDFLAG(IS_LINUX)
+
+#if BUILDFLAG(IS_WIN)
+#include "chrome/chrome_elf/chrome_elf_main.h"
+#endif  // BUILDFLAG(IS_WIN)
 
 namespace headless {
 
@@ -34,7 +39,7 @@ enum HeadlessMode {
   kNoHeadlessMode,
   kOldHeadlessMode,
   kNewHeadlessMode,
-  kDefaultHeadlessMode = kOldHeadlessMode
+  kDefaultHeadlessMode = kNewHeadlessMode
 };
 
 HeadlessMode GetHeadlessMode() {
@@ -84,14 +89,18 @@ class HeadlessModeHandleImpl : public HeadlessModeHandle {
     // parallel headless processes execution, see https://crbug.com/1477376.
     if (!command_line->HasSwitch(::switches::kUserDataDir) &&
         !command_line->HasSwitch(::switches::kProcessType)) {
-      command_line->AppendSwitchPath(switches::kUserDataDir, GetUserDataDir());
+      const base::FilePath& user_data_dir = GetUserDataDir();
+      if (!user_data_dir.empty()) {
+        command_line->AppendSwitchPath(switches::kUserDataDir, user_data_dir);
+      }
     }
 
 #if BUILDFLAG(IS_LINUX)
   // Headless mode on Linux relies on ozone/headless platform.
   command_line->AppendSwitchASCII(::switches::kOzonePlatform,
                                   switches::kHeadless);
-  if (!command_line->HasSwitch(switches::kOzoneOverrideScreenSize)) {
+  if (!command_line->HasSwitch(switches::kScreenInfo) &&
+      !command_line->HasSwitch(switches::kOzoneOverrideScreenSize)) {
     command_line->AppendSwitchASCII(switches::kOzoneOverrideScreenSize,
                                     "800,600");
   }
@@ -99,7 +108,8 @@ class HeadlessModeHandleImpl : public HeadlessModeHandle {
   // If Ozone/Headless is enabled, Vulkan initialization crashes unless
   // Angle implementation is specified explicitly.
   if (!command_line->HasSwitch(switches::kUseGL) &&
-      !command_line->HasSwitch(switches::kUseANGLE)) {
+      !command_line->HasSwitch(switches::kUseANGLE) &&
+      !command_line->HasSwitch(switches::kEnableGPU)) {
     command_line->AppendSwitchASCII(
         switches::kUseANGLE, gl::kANGLEImplementationSwiftShaderForWebGLName);
   }
@@ -108,8 +118,29 @@ class HeadlessModeHandleImpl : public HeadlessModeHandle {
 
   const base::FilePath& GetUserDataDir() {
     if (!user_data_dir_.IsValid()) {
+#if BUILDFLAG(IS_WIN)
+      // On Windows user data dir is handled before chrome.dll is loaded in
+      // chrome_elf, see chrome/install_static/user_data_dir.h/cc, so check to
+      // see if the temporary data dir for headless mode was created there and
+      // if so, associate it with our code for cleanup on exit.
+      if (IsTemporaryUserDataDirectoryCreatedForHeadless()) {
+        wchar_t user_data_dir_buf[MAX_PATH],
+            invalid_user_data_dir_buf[MAX_PATH];
+        if (GetUserDataDirectoryThunk(user_data_dir_buf,
+                                      std::size(user_data_dir_buf),
+                                      invalid_user_data_dir_buf,
+                                      std::size(invalid_user_data_dir_buf))) {
+          base::FilePath user_data_dir(user_data_dir_buf);
+          if (!user_data_dir.empty()) {
+            CHECK(user_data_dir_.Set(user_data_dir));
+          }
+        }
+      }
+#else   // BUILDFLAG(IS_WIN)
       CHECK(user_data_dir_.CreateUniqueTempDir());
+#endif  // BUILDFLAG(IS_WIN)
     }
+
     return user_data_dir_.GetPath();
   }
 
@@ -163,8 +194,6 @@ bool IsChromeSchemeUrlAllowed() {
 }
 
 void SetUpCommandLine(const base::CommandLine* command_line) {}
-
-void DeleteTempUserDataDir() {}
 
 std::unique_ptr<HeadlessModeHandle> InitHeadlessMode() {
   return nullptr;

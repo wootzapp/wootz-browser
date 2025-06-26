@@ -27,8 +27,11 @@ namespace device::enclave {
 // connect to an enclave.
 struct COMPONENT_EXPORT(DEVICE_FIDO) EnclaveIdentity {
   EnclaveIdentity();
-  ~EnclaveIdentity();
   EnclaveIdentity(const EnclaveIdentity&);
+  EnclaveIdentity(EnclaveIdentity&&);
+  EnclaveIdentity& operator=(const EnclaveIdentity&);
+  EnclaveIdentity& operator=(EnclaveIdentity&&);
+  ~EnclaveIdentity();
 
   GURL url;
   std::array<uint8_t, kP256X962Length> public_key;
@@ -37,12 +40,17 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) EnclaveIdentity {
 // ClientKeyType enumerates the types of identity keys that a client might
 // register with an enclave.
 enum class ClientKeyType {
+  // kSoftware ("sw") keys are just kept in software.
+  kSoftware,
   // kHardware ("hw") keys are hardware-bound, but can be used silently.
   kHardware,
   // kUserVerified ("uv") keys are hardware-bound, but can only be used for
   // signing after the user has performed some explicit action such as providing
   // a local biometric or PIN.
   kUserVerified,
+  // kSoftwareUserVerified keys are not hardware-bound, but user verification is
+  // performed before they sign with anything.
+  kSoftwareUserVerified,
 };
 
 // Describes the result of a PIN claim validation by the enclave service.
@@ -102,6 +110,16 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) ClaimedPIN {
   std::vector<uint8_t> wrapped_pin;
 };
 
+// Legal `up` and `uv` bit combinations.
+enum class UserPresentAndVerifiedBits {
+  // up=0, uv=0. Only allowed for MakeCredential (for mediation=conditional).
+  kNeither,
+  // up=1, uv=0
+  kPresentOnly,
+  // up=1, uv=1
+  kPresentAndVerified,
+};
+
 // A CredentialRequest contains the values that, in addition to a CTAP request,
 // are needed for building a fully-formed enclave request.
 struct COMPONENT_EXPORT(DEVICE_FIDO) CredentialRequest {
@@ -117,6 +135,10 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) CredentialRequest {
   SavePasskeyCallback save_passkey_callback;
   // Callback for deferred creation of a UV key.
   UVKeyCreationCallback uv_key_creation_callback;
+  // Callback to be invoked if an error occurs that is fatal to the device's
+  // enclave service registration, requiring it to be reset to an unregistered
+  // state.
+  base::OnceClosure unregister_callback;
   // access_token contains an OAuth2 token to authenticate access to the enclave
   // at the account level.
   std::string access_token;
@@ -139,8 +161,11 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) CredentialRequest {
   // The PIN entered by the user (wrapped for the enclave), and the correct PIN
   // (encrypted to the security domain secret). Optional, may be nullptr.
   std::unique_ptr<ClaimedPIN> claimed_pin;
-  // True when a user verification has been performed, false otherwise.
-  bool user_verified = false;
+  // The user presence and user verified bits. Only considered for
+  // MakeCredential. For GetAssertion the authenticatorData that contains these
+  // bits is enclave-supplied.
+  UserPresentAndVerifiedBits up_and_uv_bits =
+      UserPresentAndVerifiedBits::kPresentOnly;
 };
 
 }  // namespace device::enclave

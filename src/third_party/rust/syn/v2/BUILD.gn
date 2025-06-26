@@ -6,17 +6,15 @@
 # tools/crates/gnrt.
 # Do not edit!
 
-
 import("//build/rust/cargo_crate.gni")
 
 cargo_crate("lib") {
   crate_name = "syn"
   epoch = "2"
   crate_type = "rlib"
-  crate_root =
-      "//third_party/rust/chromium_crates_io/vendor/syn-2.0.71/src/lib.rs"
+  crate_root =  "//third_party/rust/chromium_crates_io/vendor/syn-2.0.71/src/lib.rs"
   sources = [
-    "//third_party/rust/chromium_crates_io/vendor/syn-2.0.71/src/attr.rs",
+   "//third_party/rust/chromium_crates_io/vendor/syn-2.0.71/src/attr.rs",
     "//third_party/rust/chromium_crates_io/vendor/syn-2.0.71/src/bigint.rs",
     "//third_party/rust/chromium_crates_io/vendor/syn-2.0.71/src/buffer.rs",
     "//third_party/rust/chromium_crates_io/vendor/syn-2.0.71/src/classify.rs",
@@ -79,6 +77,7 @@ cargo_crate("lib") {
   cargo_pkg_authors = "David Tolnay <dtolnay@gmail.com>"
   cargo_pkg_name = "syn"
   cargo_pkg_description = "Parser for Rust source code"
+  library_configs -= [ "//build/config/coverage:default_coverage" ]
   library_configs -= [ "//build/config/compiler:chromium_code" ]
   library_configs += [ "//build/config/compiler:no_chromium_code" ]
   executable_configs -= [ "//build/config/compiler:chromium_code" ]
@@ -92,12 +91,18 @@ cargo_crate("lib") {
   ]
   features = [
     "clone-impls",
+    "default",
     "derive",
     "extra-traits",
+    "fold",
     "full",
     "parsing",
     "printing",
     "proc-macro",
+    "visit",
   ]
-  features += [ "extra-traits", "visit", "visit-mut" ]
+   features += [ "extra-traits", "visit", "visit-mut" ]
+  rustflags = [
+    "--cap-lints=allow",  # Suppress all warnings in crates.io crates
+  ]
 }

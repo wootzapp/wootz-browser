@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/disk_cache/blockfile/block_files.h"
 
+#include <array>
 #include <atomic>
 #include <limits>
 #include <memory>
@@ -27,7 +33,9 @@ const char kBlockName[] = "data_";
 
 // This array is used to perform a fast lookup of the nibble bit pattern to the
 // type of entry that can be stored there (number of consecutive blocks).
-const char s_types[16] = {4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+const std::array<char, 16> s_types = {
+    4, 3, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+};
 
 // Returns the type of block (number of consecutive blocks that can be stored)
 // for a given nibble of the bitmap.
@@ -113,8 +121,7 @@ bool BlockHeader::CreateMapBlock(int size, int* index) {
 
 void BlockHeader::DeleteMapBlock(int index, int size) {
   if (size < 0 || size > kMaxNumBlocks) {
-    NOTREACHED_IN_MIGRATION();
-    return;
+    NOTREACHED();
   }
   int byte_index = index / 8;
   uint8_t* byte_map = reinterpret_cast<uint8_t*>(header_->allocation_map);

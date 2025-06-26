@@ -521,9 +521,9 @@ TEST_F(PowerButtonControllerTest, ConvertibleOnTabletMode) {
 // Tests that a single set of power button pressed-and-released operation should
 // cause only one SetBacklightsForcedOff call.
 TEST_F(PowerButtonControllerTest, IgnorePowerOnKeyEvent) {
-  ui::KeyEvent power_key_pressed(ui::ET_KEY_PRESSED, ui::VKEY_POWER,
+  ui::KeyEvent power_key_pressed(ui::EventType::kKeyPressed, ui::VKEY_POWER,
                                  ui::EF_NONE);
-  ui::KeyEvent power_key_released(ui::ET_KEY_RELEASED, ui::VKEY_POWER,
+  ui::KeyEvent power_key_released(ui::EventType::kKeyReleased, ui::VKEY_POWER,
                                   ui::EF_NONE);
 
   // There are two |power_key_pressed| events and |power_key_released| events
@@ -638,12 +638,21 @@ TEST_F(PowerButtonControllerTest,
 
   PressPowerButton();
   ReleasePowerButton();
+  // Menu background is still animating back to inivisibility,
+  // so remains open.
+  EXPECT_TRUE(power_button_test_api_->IsMenuOpened());
+  // Once animation completes, it's hidden again.
+  ui::LayerAnimator* animator =
+      power_button_test_api_->GetPowerButtonMenuBackgroundLayer()
+          ->GetAnimator();
+  animator->StopAnimating();
   EXPECT_FALSE(power_button_test_api_->IsMenuOpened());
 
   tick_clock_.Advance(base::Milliseconds(200));
   PressPowerButton();
   ReleasePowerButton();
-  // Showing menu animation should be cancelled and menu is not shown.
+  // Showing menu animation should abort and animate back to invisible.
+  animator->StopAnimating();
   EXPECT_FALSE(power_button_test_api_->IsMenuOpened());
   EXPECT_FALSE(power_button_test_api_->PreShutdownTimerIsRunning());
 }
@@ -827,7 +836,7 @@ TEST_F(PowerButtonControllerTest, MenuItemsToLoginAndLockedStatus) {
   // Should have sign out, lock screen and feedback items if user is logged in
   // and screen is unlocked.
   ClearLogin();
-  CreateUserSessions(1);
+  SimulateUserLogin(kRegularUserLoginInfo);
   OpenPowerButtonMenu();
   EXPECT_FALSE(GetLockedState());
   EXPECT_TRUE(power_button_test_api_->MenuHasSignOutItem());
@@ -938,7 +947,8 @@ TEST_F(PowerButtonControllerTest, SuspendWithMenuOn) {
 
 // Tests the formerly-active window state in showing power menu.
 TEST_F(PowerButtonControllerTest, FormerlyActiveWindowInShowingMenu) {
-  std::unique_ptr<views::Widget> widget = CreateTestWidget();
+  std::unique_ptr<views::Widget> widget =
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
   ASSERT_TRUE(widget->IsActive());
 
   OpenPowerButtonMenu();
@@ -1024,7 +1034,7 @@ TEST_F(PowerButtonControllerTest, MenuNavigation) {
   TapToDismissPowerButtonMenu();
 
   ClearLogin();
-  CreateUserSessions(1);
+  SimulateUserLogin(kRegularUserLoginInfo);
   OpenPowerButtonMenu();
   ASSERT_TRUE(power_button_test_api_->MenuHasSignOutItem());
   ASSERT_TRUE(power_button_test_api_->MenuHasLockScreenItem());
@@ -1076,7 +1086,11 @@ TEST_F(PowerButtonControllerTest, PartiallyShownMenuInTabletMode) {
   EXPECT_FALSE(power_button_test_api_->ShowMenuAnimationDone());
   ReleasePowerButton();
   EXPECT_FALSE(power_button_test_api_->ShowMenuAnimationDone());
-  // The partially shown menu should be dismissed by power button up.
+  // The partially shown menu should be dismissed by power button up, but
+  // needs to be allowed to complete animation before it is completely hidden.
+  power_button_test_api_->GetPowerButtonMenuBackgroundLayer()
+      ->GetAnimator()
+      ->StopAnimating();
   EXPECT_FALSE(power_button_test_api_->IsMenuOpened());
   // Screen should not be turned off with power button released.
   EXPECT_FALSE(power_manager_client()->backlights_forced_off());

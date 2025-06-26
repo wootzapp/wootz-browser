@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/autofill/autofill_uitest.h"
+
 #include <string>
 
 #include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
-#include "chrome/browser/autofill/autofill_uitest.h"
 #include "chrome/browser/autofill/autofill_uitest_util.h"
 #include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "chrome/browser/platform_util.h"
@@ -17,11 +18,10 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "components/autofill/content/browser/content_autofill_driver.h"
-#include "components/autofill/content/browser/content_autofill_driver_factory.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
-#include "components/autofill/core/browser/browser_autofill_manager_test_api.h"
-#include "components/autofill/core/browser/personal_data_manager.h"
-#include "components/autofill/core/browser/personal_data_manager_observer.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager_observer.h"
+#include "components/autofill/core/browser/foundations/browser_autofill_manager_test_api.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/test/browser_test_utils.h"
@@ -61,8 +61,8 @@ void TryToCloseAllPrompts(content::WebContents* web_contents) {
   top_level_view = platform_util::GetParent(top_level_view)
                        ? platform_util::GetParent(top_level_view)
                        : top_level_view;
-  views::Widget::Widgets all_widgets;
-  views::Widget::GetAllChildWidgets(top_level_view, &all_widgets);
+  views::Widget::Widgets all_widgets =
+      views::Widget::GetAllChildWidgets(top_level_view);
   for (views::Widget* w : all_widgets) {
     if (w->IsDialogBox())
       w->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
@@ -151,7 +151,7 @@ void AutofillUiTest::SetUpOnMainThread() {
   test_api(test_api(*GetBrowserAutofillManager()).form_filler())
       .set_limit_before_refill(base::Hours(1));
   autofill_driver_factory_observation_.Observe(
-      client->GetAutofillDriverFactory());
+      &client->GetAutofillDriverFactory());
 
   // Wait for Personal Data Manager to be fully loaded to prevent that
   // spurious notifications deceive the tests.
@@ -211,7 +211,7 @@ void AutofillUiTest::SendKeyToPopup(content::RenderFrameHost* render_frame_host,
       render_frame_host->GetView()->GetRenderWidgetHost();
 
   // Route popup-targeted key presses via the render view host.
-  content::NativeWebKeyboardEvent event(
+  input::NativeWebKeyboardEvent event(
       blink::WebKeyboardEvent::Type::kRawKeyDown,
       blink::WebInputEvent::kNoModifiers, ui::EventTimeForNow());
   event.windows_key_code = key_code;
@@ -246,7 +246,7 @@ testing::AssertionResult AutofillUiTest::SendKeyToPopupAndWait(
     base::TimeDelta timeout,
     base::Location location) {
   // Route popup-targeted key presses via the render view host.
-  content::NativeWebKeyboardEvent event(
+  input::NativeWebKeyboardEvent event(
       blink::WebKeyboardEvent::Type::kRawKeyDown,
       blink::WebInputEvent::kNoModifiers, ui::EventTimeForNow());
   event.windows_key_code = key_code;
@@ -278,7 +278,7 @@ void AutofillUiTest::DoNothingAndWaitAndIgnoreEvents(base::TimeDelta timeout) {
 }
 
 bool AutofillUiTest::HandleKeyPressEvent(
-    const content::NativeWebKeyboardEvent& event) {
+    const input::NativeWebKeyboardEvent& event) {
   return true;
 }
 
@@ -292,8 +292,7 @@ content::RenderViewHost* AutofillUiTest::GetRenderViewHost() {
 
 BrowserAutofillManager* AutofillUiTest::GetBrowserAutofillManager() {
   ContentAutofillDriver* driver =
-      ContentAutofillDriverFactory::FromWebContents(GetWebContents())
-          ->DriverForFrame(current_main_rfh_);
+      ContentAutofillDriver::GetForRenderFrameHost(current_main_rfh_);
   // ContentAutofillDriver will be null if the current RenderFrameHost
   // is not owned by the current WebContents. This state appears to occur
   // when there is a web page popup during teardown

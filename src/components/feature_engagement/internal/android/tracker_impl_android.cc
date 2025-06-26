@@ -16,9 +16,11 @@
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
-#include "components/feature_engagement/internal/jni_headers/TrackerImpl_jni.h"
 #include "components/feature_engagement/public/feature_list.h"
 #include "components/feature_engagement/public/tracker.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/feature_engagement/internal/jni_headers/TrackerImpl_jni.h"
 
 namespace feature_engagement {
 
@@ -91,7 +93,7 @@ void TrackerImplAndroid::NotifyEvent(
   tracker_->NotifyEvent(event);
 }
 
-bool TrackerImplAndroid::ShouldTriggerHelpUI(
+bool TrackerImplAndroid::ShouldTriggerHelpUi(
     JNIEnv* env,
     const base::android::JavaRef<jobject>& jobj,
     const base::android::JavaParamRef<jstring>& jfeature) {
@@ -102,7 +104,7 @@ bool TrackerImplAndroid::ShouldTriggerHelpUI(
 }
 
 base::android::ScopedJavaLocalRef<jobject>
-TrackerImplAndroid::ShouldTriggerHelpUIWithSnooze(
+TrackerImplAndroid::ShouldTriggerHelpUiWithSnooze(
     JNIEnv* env,
     const base::android::JavaRef<jobject>& jobj,
     const base::android::JavaParamRef<jstring>& jfeature) {
@@ -115,7 +117,7 @@ TrackerImplAndroid::ShouldTriggerHelpUIWithSnooze(
       env, triggerDetails.ShouldShowIph(), triggerDetails.ShouldShowSnooze());
 }
 
-bool TrackerImplAndroid::WouldTriggerHelpUI(
+bool TrackerImplAndroid::WouldTriggerHelpUi(
     JNIEnv* env,
     const base::android::JavaRef<jobject>& jobj,
     const base::android::JavaParamRef<jstring>& jfeature) {

@@ -103,7 +103,7 @@ PermissionsManagerUnittest::AddExtensionWithAPIPermission(
   scoped_refptr<const extensions::Extension> extension =
       extensions::ExtensionBuilder(name)
           .SetManifestVersion(3)
-          .AddPermission(permission)
+          .AddAPIPermission(permission)
           .SetLocation(location)
           .Build();
   DCHECK(extension->permissions_data()->HasAPIPermission(permission));
@@ -121,8 +121,7 @@ PermissionsManagerUnittest::AddExtensionWithHostPermission(
   scoped_refptr<const extensions::Extension> extension =
       extensions::ExtensionBuilder(name)
           .SetManifestVersion(3)
-          .SetManifestKey("host_permissions",
-                          base::Value::List().Append(host_permission))
+          .AddHostPermission(host_permission)
           .Build();
 
   ExtensionRegistryFactory::GetForBrowserContext(browser_context())
@@ -403,7 +402,7 @@ TEST_F(PermissionsManagerUnittest, CanAffectExtension_ByLocation) {
     scoped_refptr<const Extension> extension =
         ExtensionBuilder("test")
             .SetLocation(test_case.location)
-            .AddPermission("<all_urls>")
+            .AddHostPermission("<all_urls>")
             .Build();
     EXPECT_EQ(manager_->CanAffectExtension(*extension),
               test_case.can_be_affected)
@@ -427,7 +426,7 @@ TEST_F(PermissionsManagerUnittest, CanUserSelectSiteAccess_AllUrls) {
 
   // Verify "on click", "on site" and "on all sites" cannot be selected for a
   // restricted url.
-  const GURL chrome_url("wootzapp://settings");
+  const GURL chrome_url("chrome://settings");
   EXPECT_FALSE(manager_->CanUserSelectSiteAccess(*extension, chrome_url,
                                                  UserSiteAccess::kOnClick));
   EXPECT_FALSE(manager_->CanUserSelectSiteAccess(*extension, chrome_url,
@@ -494,10 +493,10 @@ TEST_F(PermissionsManagerUnittest, HasActiveTabAndCanAccess_PolicyUrl) {
       "ActiveTab Extension",
       extensions::mojom::ManifestLocation::kExternalPolicy);
 
-  constexpr int kContextId = 0;
-  extension->permissions_data()->SetContextId(kContextId);
+  int context_id = extensions::util::GetBrowserContextId(browser_context());
+  extension->permissions_data()->SetContextId(context_id);
   extension->permissions_data()->SetUsesDefaultHostRestrictions();
-  enterprise_extension->permissions_data()->SetContextId(kContextId);
+  enterprise_extension->permissions_data()->SetContextId(context_id);
   enterprise_extension->permissions_data()->SetUsesDefaultHostRestrictions();
 
   // Add a policy-blocked site.
@@ -507,8 +506,7 @@ TEST_F(PermissionsManagerUnittest, HasActiveTabAndCanAccess_PolicyUrl) {
   extensions::URLPatternSet default_blocked_hosts;
   default_blocked_hosts.AddPattern(default_policy_blocked_pattern);
   extensions::PermissionsData::SetDefaultPolicyHostRestrictions(
-      extensions::util::GetBrowserContextId(browser_context()),
-      default_blocked_hosts, default_allowed_hosts);
+      context_id, default_blocked_hosts, default_allowed_hosts);
 
   // Allow enterprise extension access to policy-blocked site.
   extensions::URLPatternSet allowed_hosts;
@@ -525,25 +523,37 @@ TEST_F(PermissionsManagerUnittest, HasActiveTabAndCanAccess_PolicyUrl) {
       manager_->HasActiveTabAndCanAccess(*enterprise_extension, policy_url));
 }
 
-TEST_F(PermissionsManagerUnittest,
-       ExtensionRequestsHostPermissionsOrActiveTab) {
+// Tests that HasRequestedHostPermissions returns true only for extensions
+// that explicitly requested host permissions.
+TEST_F(PermissionsManagerUnittest, HasRequestedHostPermissions) {
   auto no_permissions_extension = AddExtension("Extension");
+  auto requested_site_extension = AddExtensionWithHostPermission(
+      "RequestedUrl Extension", "*://*.requested.com/*");
+  auto all_urls_extension = AddExtensionWithHostPermission(
+      "RequestedUrl Extension", "*://*.requested.com/*");
+  auto active_tab_extension = AddExtensionWithActiveTab("ActiveTab Extension");
+
+  EXPECT_FALSE(
+      manager_->HasRequestedHostPermissions(*no_permissions_extension));
+  EXPECT_TRUE(manager_->HasRequestedHostPermissions(*requested_site_extension));
+  EXPECT_TRUE(manager_->HasRequestedHostPermissions(*all_urls_extension));
+  EXPECT_FALSE(manager_->HasRequestedHostPermissions(*active_tab_extension));
+}
+
+TEST_F(PermissionsManagerUnittest, HasRequestedActiveTab) {
+  auto no_permissions_extension = AddExtension("Extension");
+  auto requested_site_extension = AddExtensionWithHostPermission(
+      "RequestedUrl Extension", "*://*.requested.com/*");
   auto dnr_extension =
       AddExtensionWithAPIPermission("DNR extension", "declarativeNetRequest");
   auto active_tab_extension = AddExtensionWithActiveTab("ActiveTab Extension");
-  auto host_permissions_extension = AddExtensionWithHostPermission(
-      "RequestedUrl Extension", "*://*.requested.com/*");
 
-  // Verify that ExtensionRequestsHostPermissionsOrActiveTab returns true only
-  // for extensions that explicitly request host permissions or activeTab.
-  EXPECT_FALSE(manager_->ExtensionRequestsHostPermissionsOrActiveTab(
-      *no_permissions_extension));
-  EXPECT_FALSE(
-      manager_->ExtensionRequestsHostPermissionsOrActiveTab(*dnr_extension));
-  EXPECT_TRUE(manager_->ExtensionRequestsHostPermissionsOrActiveTab(
-      *active_tab_extension));
-  EXPECT_TRUE(manager_->ExtensionRequestsHostPermissionsOrActiveTab(
-      *host_permissions_extension));
+  // Verify that HasRequestedActiveTab returns true only for extensions
+  // that explicitly requested activeTab.
+  EXPECT_FALSE(manager_->HasRequestedActiveTab(*no_permissions_extension));
+  EXPECT_FALSE(manager_->HasRequestedActiveTab(*requested_site_extension));
+  EXPECT_FALSE(manager_->HasRequestedActiveTab(*dnr_extension));
+  EXPECT_TRUE(manager_->HasRequestedActiveTab(*active_tab_extension));
 }
 
 class PermissionsManagerWithPermittedSitesUnitTest

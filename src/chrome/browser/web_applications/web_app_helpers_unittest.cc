@@ -59,9 +59,17 @@ TEST(WebAppHelpers, GenerateManifestIdFromStartUrlOnly) {
 }
 
 TEST(WebAppHelpers, IsValidWebAppUrl) {
-  // TODO(crbug.com/40793595): Remove chrome-extension scheme.
-  EXPECT_TRUE(IsValidWebAppUrl(
-      GURL("chrome-extension://oafaagfgbdpldilgjjfjocjglfbolmac")));
+  // TODO(crbug.com/40793595): Remove chrome-extension scheme from being
+  // installed as PWAs on ChromeOS.
+  bool is_chrome_extension_valid_web_app = true;
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+  // chrome-extension:// URLs can no longer be PWAs, but they can be shortcuts.
+  is_chrome_extension_valid_web_app = false;
+#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+
+  EXPECT_EQ(IsValidWebAppUrl(
+                GURL("chrome-extension://oafaagfgbdpldilgjjfjocjglfbolmac")),
+            is_chrome_extension_valid_web_app);
 
   EXPECT_TRUE(IsValidWebAppUrl(GURL("https://chromium.org")));
   EXPECT_TRUE(IsValidWebAppUrl(GURL("https://www.chromium.org")));

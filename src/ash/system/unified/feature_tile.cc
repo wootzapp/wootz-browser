@@ -392,8 +392,8 @@ void FeatureTile::UpdateColors() {
           ? std::make_unique<ProgressBackground>(
                 /*progress_color_id=*/cros_tokens::kCrosSysHighlightShape,
                 /*background_color_id=*/background_color)
-          : views::CreateThemedRoundedRectBackground(background_color,
-                                                     corner_radius_));
+          : views::CreateRoundedRectBackground(background_color,
+                                               corner_radius_));
 
   auto* ink_drop = views::InkDrop::Get(this);
   ink_drop->SetBaseColorId(toggled_
@@ -410,9 +410,9 @@ void FeatureTile::UpdateColors() {
     UpdateIconButtonFocusRingColor();
   }
 
-  label_->SetEnabledColorId(foreground_color);
+  label_->SetEnabledColor(foreground_color);
   if (sub_label_) {
-    sub_label_->SetEnabledColorId(foreground_optional_color);
+    sub_label_->SetEnabledColor(foreground_optional_color);
   }
   if (drill_in_arrow_) {
     UpdateDrillInArrowColor();
@@ -654,20 +654,6 @@ void FeatureTile::SetDownloadState(DownloadState state, int progress) {
   // Once the tile's UI has been updated, notify any observers of the download
   // state change.
   NotifyDownloadStateChanged();
-}
-
-void FeatureTile::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  views::Button::GetAccessibleNodeData(node_data);
-  // If the icon is clickable then the main feature tile usually takes the user
-  // to a detailed page (like Network or Bluetooth). Those tiles act more like a
-  // regular button than a toggle button.
-  if (is_togglable_ && !is_icon_clickable_) {
-    node_data->role = ax::mojom::Role::kToggleButton;
-    node_data->SetCheckedState(toggled_ ? ax::mojom::CheckedState::kTrue
-                                        : ax::mojom::CheckedState::kFalse);
-  } else {
-    node_data->role = ax::mojom::Role::kButton;
-  }
 }
 
 void FeatureTile::AddLayerToRegion(ui::Layer* layer,

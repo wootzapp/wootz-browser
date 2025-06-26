@@ -128,7 +128,7 @@ class ComponentInstallerPolicy {
   // network type changes from unmetered to metered during a download, there is
   // no guarantee that the transfer will be suspended or cancelled.
   virtual bool AllowUpdatesOnMeteredConnections() const;
-  virtual bool IsWootzComponent() const;     
+  virtual bool IsWootzComponent() const;
 
   // Returns true if the component is allowed to update.
   // Defaults to |true|.
@@ -167,7 +167,7 @@ class ComponentInstaller final : public update_client::CrxInstaller {
 
   // Overrides from update_client::CrxInstaller.
   void OnUpdateError(int error) override;
-  bool IsWootzComponent() const override;     
+  bool IsWootzComponent() const override; 
 
   void Install(const base::FilePath& unpack_path,
                const std::string& public_key,
@@ -175,8 +175,8 @@ class ComponentInstaller final : public update_client::CrxInstaller {
                ProgressCallback progress_callback,
                Callback callback) override;
 
-  bool GetInstalledFile(const std::string& file,
-                        base::FilePath* installed_file) override;
+  std::optional<base::FilePath> GetInstalledFile(
+      const std::string& file) override;
   // Components bundled with installations of Chrome cannot be uninstalled.
   bool Uninstall() override;
 
@@ -227,7 +227,7 @@ class ComponentInstaller final : public update_client::CrxInstaller {
 
   void DeleteUnselectedComponentVersions(
       const base::FilePath& base_dir,
-      const std::optional<base::Version>& selected_version);
+      std::optional<base::Version> selected_version);
   std::optional<base::FilePath> GetComponentDirectory();
   void ComponentReady(base::Value::Dict manifest);
   void UninstallOnTaskRunner();

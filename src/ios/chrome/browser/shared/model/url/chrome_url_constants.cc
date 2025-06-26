@@ -19,12 +19,16 @@ const char kChromeUICreditsURL[] = "chrome://credits/";
 const char kChromeUIFlagsURL[] = "chrome://flags/";
 const char kChromeUIHistoryURL[] = "chrome://history/";
 const char kChromeUIInspectURL[] = "chrome://inspect/";
-const char kChromeUIIntersitialsURL[] = "chrome://interstitials";
+const char kChromeUIInterstitialsURL[] = "chrome://interstitials";
 const char kChromeUIManagementURL[] = "chrome://management";
 const char kChromeUINewTabURL[] = "chrome://newtab/";
 const char kChromeUINTPTilesInternalsURL[] = "chrome://ntp-tiles-internals/";
 const char kChromeUIOfflineURL[] = "chrome://offline/";
+const char kChromeUIOnDeviceLlmInternalsURL[] =
+    "chrome://on-device-llm-internals/";
 const char kChromeUIPolicyURL[] = "chrome://policy/";
+const char kChromeUIPolicyLogsURL[] = "chrome://policy/logs";
+const char kChromeUIPolicyTestURL[] = "chrome://policy/test";
 const char kChromeUISettingsURL[] = "chrome://settings/";
 const char kChromeUITermsURL[] = "chrome://terms/";
 const char kChromeUIVersionURL[] = "chrome://version/";
@@ -35,6 +39,7 @@ const char kChromeUICrashHost[] = "crash";
 const char kChromeUIChromeURLsHost[] = "chrome-urls";
 const char kChromeUICrashesHost[] = "crashes";
 const char kChromeUICreditsHost[] = "credits";
+const char kChromeUIDataSharingInternalsHost[] = "data-sharing-internals";
 const char kChromeUIDinoHost[] = "dino";
 const char kChromeUIDownloadInternalsHost[] = "download-internals";
 const char kChromeUIExternalFileHost[] = "external-file";
@@ -43,7 +48,7 @@ const char kChromeUIGCMInternalsHost[] = "gcm-internals";
 const char kChromeUIHistogramHost[] = "histograms";
 const char kChromeUIHistoryHost[] = "history";
 const char kChromeUIInspectHost[] = "inspect";
-const char kChromeUIIntersitialsHost[] = "interstitials";
+const char kChromeUIInterstitialsHost[] = "interstitials";
 const char kChromeUILocalStateHost[] = "local-state";
 const char kChromeUIManagementHost[] = "management";
 const char kChromeUINetExportHost[] = "net-export";
@@ -51,10 +56,12 @@ const char kChromeUINewTabHost[] = "newtab";
 const char kChromeUINTPTilesInternalsHost[] = "ntp-tiles-internals";
 const char kChromeUIOfflineHost[] = "offline";
 const char kChromeUIOmahaHost[] = "omaha";
+const char kChromeUIOnDeviceLlmInternalsHost[] = "on-device-llm-internals";
 const char kChromeUIPasswordManagerInternalsHost[] =
     "password-manager-internals";
 const char kChromeUIPolicyHost[] = "policy";
 const char kChromeUIPrefsInternalsHost[] = "prefs-internals";
+const char kChromeUIProfileInternalsHost[] = "profile-internals";
 const char kChromeUISignInInternalsHost[] = "signin-internals";
 const char kChromeUITermsHost[] = "terms";
 const char kChromeUITranslateInternalsHost[] = "translate-internals";
@@ -62,6 +69,7 @@ const char kChromeUIURLKeyedMetricsHost[] = "ukm";
 const char kChromeUIUserActionsHost[] = "user-actions";
 const char kChromeUIUserDefaultsInternalsHost[] = "userdefaults-internals";
 const char kChromeUIVersionHost[] = "version";
+const char kChromeUIDownloadsHost[] = "downloads";
 
 // Add hosts here to be included in chrome://chrome-urls (about:about).
 // These hosts will also be suggested by BuiltinProvider.
@@ -70,9 +78,12 @@ const char* const kChromeHostURLs[] = {
     commerce::kChromeUICommerceInternalsHost,
     kChromeUIChromeURLsHost,
     kChromeUICreditsHost,
+    kChromeUIDownloadInternalsHost,
     kChromeUIFlagsHost,
     kChromeUIHistogramHost,
     kChromeUIInspectHost,
+    kChromeUIInterstitialsHost,
+    kChromeUILocalStateHost,
     kChromeUIManagementHost,
     kChromeUINetExportHost,
     kChromeUINewTabHost,
@@ -115,9 +126,6 @@ const char kSyncEncryptionHelpURL[] =
     "https://support.google.com/chrome/answer/"
     "1181035?p=settings_encryption&ios=1";
 
-const char kClearBrowsingDataMyActivityUrlInFooterURL[] =
-    "https://history.google.com/history/?utm_source=chrome_cbd";
-
 const char kClearBrowsingDataDSEMyActivityUrlInFooterURL[] =
     "https://myactivity.google.com/myactivity?utm_source=chrome_cbd";
 
@@ -148,3 +156,8 @@ const char kManagementLearnMoreURL[] =
 
 const char kEnhancedSafeBrowsingLearnMoreURL[] =
     "https://support.google.com/chrome?p=safe_browsing_preferences";
+
+const char kMyActivityURL[] = "https://myactivity.google.com/myactivity";
+
+const char kLearnMoreLensURL[] =
+    "https://support.google.com/chrome/?p=google_lens_ios";

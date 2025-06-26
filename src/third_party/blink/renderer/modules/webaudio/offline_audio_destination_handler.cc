@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "base/compiler_specific.h"
 #include "base/trace_event/typed_macros.h"
 #include "media/base/audio_glitch_info.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
@@ -14,6 +15,7 @@
 #include "third_party/blink/renderer/modules/webaudio/audio_worklet.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_worklet_messaging_proxy.h"
 #include "third_party/blink/renderer/modules/webaudio/base_audio_context.h"
+#include "third_party/blink/renderer/modules/webaudio/cross_thread_audio_worklet_processor_info.h"
 #include "third_party/blink/renderer/modules/webaudio/offline_audio_context.h"
 #include "third_party/blink/renderer/platform/audio/audio_bus.h"
 #include "third_party/blink/renderer/platform/audio/audio_utilities.h"
@@ -39,7 +41,7 @@ OfflineAudioDestinationHandler::OfflineAudioDestinationHandler(
   DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
 
   channel_count_ = number_of_channels;
-  SetInternalChannelCountMode(kExplicit);
+  SetInternalChannelCountMode(V8ChannelCountMode::Enum::kExplicit);
   SetInternalChannelInterpretation(AudioBus::kSpeakers);
 }
 
@@ -122,15 +124,15 @@ void OfflineAudioDestinationHandler::StartRendering() {
 
 void OfflineAudioDestinationHandler::StopRendering() {
   // offline audio rendering CANNOT BE stopped by JavaScript.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void OfflineAudioDestinationHandler::Pause() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void OfflineAudioDestinationHandler::Resume() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void OfflineAudioDestinationHandler::InitializeOfflineRenderThread(
@@ -193,8 +195,8 @@ void OfflineAudioDestinationHandler::DoOfflineRendering() {
     for (unsigned channel_index = 0; channel_index < number_of_channels;
          ++channel_index) {
       const float* source = render_bus_->Channel(channel_index)->Data();
-      memcpy(destinations[channel_index] + frames_processed_, source,
-             sizeof(float) * frames_available_to_copy);
+      UNSAFE_TODO(memcpy(destinations[channel_index] + frames_processed_,
+                         source, sizeof(float) * frames_available_to_copy));
     }
 
     frames_processed_ += frames_available_to_copy;

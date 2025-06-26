@@ -13,8 +13,8 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "components/autofill/core/browser/autofill_data_util.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
+#include "components/autofill/core/browser/data_quality/autofill_data_util.h"
 #include "components/autofill/core/browser/geo/autofill_country.h"
 #include "third_party/libphonenumber/phonenumber_api.h"
 
@@ -306,8 +306,7 @@ bool PhoneNumbersMatch(const std::u16string& number_a,
       return true;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 std::u16string GetFormattedPhoneNumberForDisplay(const AutofillProfile& profile,
@@ -318,8 +317,8 @@ std::u16string GetFormattedPhoneNumberForDisplay(const AutofillProfile& profile,
   // The reason for this is international phone numbers for another country. For
   // example, without adding a "+", the US number 1-415-123-1234 for an AU
   // address would be wrongly formatted as +61 1-415-123-1234 which is invalid.
-  std::string phone = base::UTF16ToUTF8(
-      profile.GetInfo(AutofillType(PHONE_HOME_WHOLE_NUMBER), locale));
+  std::string phone =
+      base::UTF16ToUTF8(profile.GetInfo(PHONE_HOME_WHOLE_NUMBER, locale));
   std::string tentative_intl_phone = "+" + phone;
 
   // Always favor the tentative international phone number if it's determined as

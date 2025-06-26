@@ -4,6 +4,7 @@
 
 #include "extensions/browser/extension_function_crash_keys.h"
 
+#include <array>
 #include <utility>
 #include <vector>
 
@@ -55,19 +56,21 @@ void UpdateCrashKeys() {
   std::sort(calls.begin(), calls.end(), std::greater<>());
   // Set up crash keys.
   using ArrayItemKey = crash_reporter::CrashKeyString<64>;
-  static ArrayItemKey crash_keys[] = {
-      {"extension-function-caller-1", ArrayItemKey::Tag::kArray},
-      {"extension-function-caller-2", ArrayItemKey::Tag::kArray},
-      {"extension-function-caller-3", ArrayItemKey::Tag::kArray},
+  static constexpr int kMaxCrashKeys = 3;
+  static std::array<ArrayItemKey, kMaxCrashKeys> crash_keys = {
+      ArrayItemKey{"extension-function-caller-1", ArrayItemKey::Tag::kArray},
+      ArrayItemKey{"extension-function-caller-2", ArrayItemKey::Tag::kArray},
+      ArrayItemKey{"extension-function-caller-3", ArrayItemKey::Tag::kArray},
   };
   // Store up to 3 crash keys with extension IDs.
   int index = 0;
-  for (auto it = calls.begin(); it != calls.end() && index < 3; ++it, ++index) {
+  for (auto it = calls.begin(); it != calls.end() && index < kMaxCrashKeys;
+       ++it, ++index) {
     const ExtensionId* extension_id = it->second;
     crash_keys[index].Set(*extension_id);
   }
   // Clear the remaining crash keys.
-  for (; index < 3; ++index) {
+  for (; index < kMaxCrashKeys; ++index) {
     crash_keys[index].Clear();
   }
 }

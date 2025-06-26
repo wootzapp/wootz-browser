@@ -14,11 +14,11 @@
 #include "base/check.h"
 #include "base/compiler_specific.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/account_id/account_id.h"
 #include "components/policy/proto/cloud_policy.pb.h"
 #include "components/policy/proto/device_management_backend.pb.h"
 #include "crypto/rsa_private_key.h"
+#include "google_apis/gaia/gaia_id.h"
 
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 #include "components/policy/proto/chrome_extension_policy.pb.h"
@@ -29,6 +29,8 @@ class CloudPolicySettings;
 }  // namespace enterprise_management
 
 namespace policy {
+
+extern const uint8_t kVerificationPrivateKey[1218];
 
 // A helper class for testing that provides a straightforward interface for
 // constructing policy blobs for use in testing. NB: This uses fake data and
@@ -42,7 +44,7 @@ class PolicyBuilder {
   // Constants used as dummy data for filling the PolicyData protobuf.
   static const char kFakeDeviceId[];
   static const char kFakeDomain[];
-  static const char kFakeGaiaId[];
+  static const GaiaId::Literal kFakeGaiaId;
   static const char kFakeMachineName[];
   static const char kFakePolicyType[];
   static const int kFakePublicKeyVersion;
@@ -165,7 +167,7 @@ class PolicyBuilder {
   std::string raw_new_signing_key_signature_;
 
   enterprise_management::PolicyFetchRequest::SignatureType signature_type_ =
-      enterprise_management::PolicyFetchRequest::NONE;
+      enterprise_management::PolicyFetchRequest::SHA1_RSA;
 };
 
 // Type-parameterized PolicyBuilder extension that allows for building policy
@@ -186,8 +188,9 @@ class TypedPolicyBuilder : public PolicyBuilder {
 
   // PolicyBuilder:
   void Build() override {
-    if (payload_)
+    if (payload_) {
       CHECK(payload_->SerializeToString(policy_data().mutable_policy_value()));
+    }
 
     PolicyBuilder::Build();
   }
@@ -223,7 +226,7 @@ using ComponentCloudPolicyBuilder =
     TypedPolicyBuilder<enterprise_management::ExternalPolicyData>;
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 using ComponentActiveDirectoryPolicyBuilder = StringPolicyBuilder;
 #endif
 

@@ -16,7 +16,7 @@
 #include "net/base/filename_util.h"
 #include "storage/browser/file_system/file_system_url.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "extensions/browser/api/extensions_api_client.h"
 #include "extensions/browser/api/file_handlers/non_native_file_system_delegate.h"
 #endif
@@ -38,7 +38,7 @@ bool GetIsDirectoryFromFileInfo(const base::FilePath& path) {
 void GetIsDirectoryForLocalPath(content::BrowserContext* context,
                                 const base::FilePath& path,
                                 base::OnceCallback<void(bool)> callback) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   NonNativeFileSystemDelegate* delegate =
       ExtensionsAPIClient::Get()->GetNonNativeFileSystemDelegate();
   if (delegate && delegate->IsUnderNonNativeLocalPath(context, path)) {
@@ -86,8 +86,9 @@ void IsDirectoryCollector::CollectForEntriesPaths(
 
 void IsDirectoryCollector::OnIsDirectoryCollected(size_t index,
                                                   bool is_directory) {
-  if (is_directory)
+  if (is_directory) {
     result_->insert(paths_[index]);
+  }
   if (!--left_) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback_), std::move(result_)));

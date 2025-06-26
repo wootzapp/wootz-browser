@@ -15,6 +15,7 @@
 #include "base/test/test_future.h"
 #include "chrome/browser/media/prefs/capture_device_ranking.h"
 #include "chrome/browser/ui/views/frame/test_with_browser_view.h"
+#include "chrome/browser/ui/views/media_preview/media_preview_metrics.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/media_effects/test/fake_audio_service.h"
 #include "components/media_effects/test/fake_video_capture_service.h"
@@ -30,6 +31,8 @@ using testing::ElementsAre;
 
 namespace {
 
+constexpr char kNumDevicesHistogram[] =
+    "MediaPreviews.UI.DeviceSelection.Permissions.Mic.NumDevices";
 constexpr char kDeviceId[] = "device_id";
 constexpr char kDeviceName[] = "device_name";
 constexpr char kGroupId[] = "group_id";
@@ -41,7 +44,8 @@ media_preview_metrics::Context GetMetricsContext() {
   // Mic coordinator is expected to narrow preview type to kMic.
   // This is verified in ExpectHistogramTotalDevices() below.
   return {media_preview_metrics::UiLocation::kPermissionPrompt,
-          media_preview_metrics::PreviewType::kCameraAndMic};
+          media_preview_metrics::PreviewType::kCameraAndMic,
+          media_preview_metrics::PromptType::kSingle, nullptr};
 }
 
 }  // namespace
@@ -99,13 +103,6 @@ class MicCoordinatorTest : public TestWithBrowserView {
     return secondary_texts;
   }
 
-  void VerifyEmptyCombobox() const {
-    // Our combobox model size will always be >= 1.
-    // Verify that there is precisely one item in the combobox model.
-    EXPECT_EQ(GetComboboxModel().GetItemCount(), 1u);
-    EXPECT_EQ(GetComboboxModel().GetItemAt(/*index=*/0), std::u16string());
-  }
-
   bool AddFakeInputDevice(const media::AudioDeviceDescription& descriptor) {
     return fake_audio_service_.AddFakeInputDeviceBlocking(descriptor);
   }
@@ -115,9 +112,7 @@ class MicCoordinatorTest : public TestWithBrowserView {
   }
 
   void ExpectHistogramTotalDevices(size_t expected_bucket_min_value) {
-    const std::string histogram_name =
-        "MediaPreviews.UI.DeviceSelection.Permissions.Mic.NumDevices";
-    histogram_tester_->ExpectUniqueSample(histogram_name,
+    histogram_tester_->ExpectUniqueSample(kNumDevicesHistogram,
                                           expected_bucket_min_value,
                                           /*expected_bucket_count=*/1);
     histogram_tester_.emplace();
@@ -136,7 +131,7 @@ class MicCoordinatorTest : public TestWithBrowserView {
 };
 
 TEST_F(MicCoordinatorTest, RelevantAudioInputDeviceInfoExtraction) {
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add first mic, and connect to it.
   // Mic connection is done automatically to the device at combobox's default
@@ -170,7 +165,7 @@ TEST_F(MicCoordinatorTest, RelevantAudioInputDeviceInfoExtraction) {
 
   // Remove first mic.
   ASSERT_TRUE(RemoveFakeInputDevice(kDeviceId));
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   coordinator_.reset();
   ExpectHistogramTotalDevices(/*expected_bucket_min_value=*/0);
@@ -179,16 +174,18 @@ TEST_F(MicCoordinatorTest, RelevantAudioInputDeviceInfoExtraction) {
 TEST_F(MicCoordinatorTest,
        RelevantAudioInputDeviceInfoExtraction_ConstrainedToEligibleDevices) {
   coordinator_.reset();
-  ExpectHistogramTotalDevices(/*expected_bucket_min_value=*/0);
+  // Nothing is recorded if device list is not initialized yet.
+  histogram_tester_->ExpectTotalCount(kNumDevicesHistogram,
+                                      /*expected_count=*/0);
 
   InitializeCoordinator({kDeviceId2});
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add first mic. It won't be added to the combobox because it's not in the
   // eligible list.
   ASSERT_TRUE(AddFakeInputDevice({kDeviceName, kDeviceId, kGroupId}));
   EXPECT_FALSE(on_input_stream_id_future_.IsReady());
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add second mic and connect to it since it's in the eligible list.
   ASSERT_TRUE(AddFakeInputDevice({kDeviceName2, kDeviceId2, kGroupId2}));
@@ -203,14 +200,14 @@ TEST_F(MicCoordinatorTest,
 
   // Remove second mic.
   ASSERT_TRUE(RemoveFakeInputDevice(kDeviceId2));
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   coordinator_.reset();
   ExpectHistogramTotalDevices(/*expected_bucket_min_value=*/0);
 }
 
 TEST_F(MicCoordinatorTest, ConnectToDifferentDevice) {
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add first mic, and connect to it.
   ASSERT_TRUE(AddFakeInputDevice({kDeviceName, kDeviceId, kGroupId}));
@@ -231,7 +228,7 @@ TEST_F(MicCoordinatorTest, ConnectToDifferentDevice) {
 }
 
 TEST_F(MicCoordinatorTest, TryConnectToSameDevice) {
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add mic, and connect to it.
   ASSERT_TRUE(AddFakeInputDevice({kDeviceName, kDeviceId, kGroupId}));
@@ -246,7 +243,7 @@ TEST_F(MicCoordinatorTest, TryConnectToSameDevice) {
 
   // Remove mic.
   ASSERT_TRUE(RemoveFakeInputDevice(kDeviceId));
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add mic, and connect to it again.
   ASSERT_TRUE(AddFakeInputDevice({kDeviceName, kDeviceId, kGroupId}));
@@ -258,7 +255,7 @@ TEST_F(MicCoordinatorTest, TryConnectToSameDevice) {
 }
 
 TEST_F(MicCoordinatorTest, DefaultMicHandling) {
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   const auto kDefaultDeviceName =
       l10n_util::GetStringUTF8(IDS_MEDIA_PREVIEW_SYSTEM_DEFAULT_MIC);
@@ -294,7 +291,7 @@ TEST_F(MicCoordinatorTest, DefaultMicHandling) {
 }
 
 TEST_F(MicCoordinatorTest, CommunicationsMicHandling) {
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   constexpr char kCommunicationsDeviceName[] = "communications_name";
 
@@ -325,7 +322,7 @@ TEST_F(MicCoordinatorTest, CommunicationsMicHandling) {
 }
 
 TEST_F(MicCoordinatorTest, UpdateDevicePreferenceRanking) {
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
   const media::AudioDeviceDescription kDevice1{kDeviceName, kDeviceId,
                                                kGroupId};
   const media::AudioDeviceDescription kDevice2{kDeviceName2, kDeviceId2,

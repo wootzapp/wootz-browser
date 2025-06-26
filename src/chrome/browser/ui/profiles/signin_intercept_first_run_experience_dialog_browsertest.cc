@@ -39,7 +39,7 @@
 #include "components/signin/public/base/signin_metrics.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/sync/test/test_sync_service.h"
-#include "components/user_education/common/feature_promo_controller.h"
+#include "components/user_education/common/feature_promo/feature_promo_controller.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_navigation_observer.h"
@@ -116,7 +116,10 @@ class SigninInterceptFirstRunExperienceDialogBrowserTest : public TestBase {
                      TrackerInitializationMode::kDoNotWait),
                  ClockMode::kUseTestClock,
                  InitialSessionState::kOutsideGracePeriod,
-                 /*use_main_profile=*/true) {}
+                 /*use_main_profile=*/true),
+        scoped_iph_delay_(
+            AvatarToolbarButton::SetScopedIPHMinDelayAfterCreationForTesting(
+                base::Seconds(0))) {}
 
   ~SigninInterceptFirstRunExperienceDialogBrowserTest() override = default;
 
@@ -143,10 +146,6 @@ class SigninInterceptFirstRunExperienceDialogBrowserTest : public TestBase {
   void SetUpOnMainThread() override {
     TestBase::SetUpOnMainThread();
     identity_test_env()->SetAutomaticIssueOfAccessTokens(true);
-
-    // Needed for profile switch IPH testing.
-    AvatarToolbarButton::SetIPHMinDelayAfterCreationForTesting(
-        base::Seconds(0));
   }
 
   // Returns true if the profile switch IPH has been shown.
@@ -199,8 +198,8 @@ class SigninInterceptFirstRunExperienceDialogBrowserTest : public TestBase {
   }
 
   void ExpectSigninHistogramsRecorded() {
-    const auto access_point = signin_metrics::AccessPoint::
-        ACCESS_POINT_SIGNIN_INTERCEPT_FIRST_RUN_EXPERIENCE;
+    const auto access_point =
+        signin_metrics::AccessPoint::kSigninInterceptFirstRunExperience;
     histogram_tester_.ExpectUniqueSample("Signin.SigninStartedAccessPoint",
                                          access_point, 1);
     histogram_tester_.ExpectUniqueSample("Signin.SigninCompletedAccessPoint",
@@ -243,13 +242,15 @@ class SigninInterceptFirstRunExperienceDialogBrowserTest : public TestBase {
  protected:
   const GURL kSyncConfirmationUrl = AppendSyncConfirmationQueryParams(
       GURL("chrome://sync-confirmation"),
-      SyncConfirmationStyle::kSigninInterceptModal);
+      SyncConfirmationStyle::kSigninInterceptModal,
+      /*is_sync_promo=*/true);
   const GURL kProfileCustomizationUrl = GURL("chrome://profile-customization");
   const GURL kSyncSettingsUrl = GURL("wootzapp://settings/syncSetup");
 
  private:
   testing::NiceMock<policy::MockConfigurationPolicyProvider> policy_provider_;
-
+  // Needed for profile switch IPH testing.
+  base::AutoReset<base::TimeDelta> scoped_iph_delay_;
   base::HistogramTester histogram_tester_;
   base::UserActionTester user_action_tester_;
 
@@ -566,7 +567,7 @@ IN_PROC_BROWSER_TEST_F(SigninInterceptFirstRunExperienceDialogBrowserTest,
   // confirmation UI until the sync engine starts.
   SignIn(kEnterpriseEmail);
   // Delays the sync confirmation UI.
-  sync_service()->SetTransportState(
+  sync_service()->SetMaxTransportState(
       syncer::SyncService::TransportState::INITIALIZING);
 
   controller()->ShowModalInterceptFirstRunExperienceDialog(
@@ -582,7 +583,7 @@ IN_PROC_BROWSER_TEST_F(SigninInterceptFirstRunExperienceDialogBrowserTest,
 
   // `TurnSyncOnHelper` should be destroyed after the sync engine is up and
   // running.
-  sync_service()->SetTransportState(
+  sync_service()->SetMaxTransportState(
       syncer::SyncService::TransportState::ACTIVE);
   sync_service()->FireStateChanged();
   EXPECT_FALSE(
@@ -598,8 +599,7 @@ IN_PROC_BROWSER_TEST_F(SigninInterceptFirstRunExperienceDialogBrowserTest,
 IN_PROC_BROWSER_TEST_F(SigninInterceptFirstRunExperienceDialogBrowserTest,
                        SyncDisabled) {
   SignIn(kEnterpriseEmail);
-  sync_service()->SetDisableReasons(
-      {syncer::SyncService::DISABLE_REASON_ENTERPRISE_POLICY});
+  sync_service()->SetAllowedByEnterprisePolicy(false);
   ExpectPrimaryAccountWithExactConsentLevel(signin::ConsentLevel::kSignin);
   content::TestNavigationObserver profile_customization_observer(
       kProfileCustomizationUrl);

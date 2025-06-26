@@ -23,7 +23,6 @@
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/task/sequenced_task_runner.h"
-#include "chromeos/crosapi/cpp/lacros_startup_state.h"
 #include "components/prefs/pref_member.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -100,7 +99,7 @@ class AcceleratorConfigurationProvider
                  IsMutableCallback callback) override;
   void IsCustomizationAllowedByPolicy(
       IsCustomizationAllowedByPolicyCallback callback) override;
-  void HasLauncherButton(HasLauncherButtonCallback callback) override;
+  void GetMetaKeyToDisplay(GetMetaKeyToDisplayCallback callback) override;
   void GetConflictAccelerator(mojom::AcceleratorSource source,
                               uint32_t action_id,
                               const ui::Accelerator& accelerator,
@@ -149,6 +148,8 @@ class AcceleratorConfigurationProvider
       shortcut_customization::mojom::EditDialogCompletedActions
           completed_actions) override;
 
+  void HasCustomAccelerators(HasCustomAcceleratorsCallback callback) override;
+
   // ui::InputDeviceEventObserver:
   void OnInputDeviceConfigurationChanged(uint8_t input_device_types) override;
 
@@ -193,7 +194,8 @@ class AcceleratorConfigurationProvider
   FRIEND_TEST_ALL_PREFIXES(AcceleratorConfigurationProviderTest,
                            SetLayoutDetailsMapForTesting);
   friend class AcceleratorConfigurationProviderTest;
-  using NonConfigAcceleratorActionMap = ui::AcceleratorMap<AcceleratorActionId>;
+  using NonConfigAcceleratorActionMap =
+      ui::AcceleratorMap<std::vector<AcceleratorActionId>>;
   using AccessibilityAcceleratorActionMap =
       ui::AcceleratorMap<AcceleratorActionId>;
 
@@ -248,7 +250,8 @@ class AcceleratorConfigurationProvider
       bool locked,
       mojom::AcceleratorType type,
       mojom::AcceleratorState state,
-      std::vector<mojom::AcceleratorInfoPtr>& output);
+      std::vector<mojom::AcceleratorInfoPtr>& output,
+      bool is_accelerator_locked = false);
 
   // Returns a non-null value if there was an error with pre-processing the
   // accelerator to be added.

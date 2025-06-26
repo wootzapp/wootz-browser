@@ -14,6 +14,7 @@ if (is_android) {
 }
 
 if (is_ios) {
+  import("//build/config/apple/mobile_config.gni")
   import("//ios/build/config.gni")
 }
 
@@ -140,10 +141,7 @@ component("events_base") {
 
   defines = [ "EVENTS_BASE_IMPLEMENTATION" ]
 
-  deps = [
-    ":dom_keycode_converter",
-    "//build:chromeos_buildflags",
-  ]
+  deps = [ ":dom_keycode_converter" ]
 
   public_deps = [
     ":event_constants",
@@ -160,6 +158,15 @@ component("events_base") {
       "keycodes/keyboard_code_conversion_mac.mm",
     ]
     deps += [ "//base:i18n" ]
+  }
+
+  if (is_ios && use_blink) {
+    if (target_platform == "iphoneos") {
+      sources += [
+        "keycodes/keyboard_code_conversion_ios.h",
+        "keycodes/keyboard_code_conversion_ios.mm",
+      ]
+    }
   }
 
   if (is_fuchsia) {
@@ -240,6 +247,7 @@ component("events") {
   if (is_win) {
     public += [
       "win/events_win_utils.h",
+      "win/stylus_handwriting_properties_win.h",
       "win/system_event_state_lookup.h",
     ]
 
@@ -248,6 +256,7 @@ component("events") {
       "keycodes/platform_key_map_win.h",
       "win/events_win.cc",
       "win/events_win_utils.cc",
+      "win/stylus_handwriting_properties_win.cc",
       "win/system_event_state_lookup.cc",
     ]
   }
@@ -318,6 +327,12 @@ component("events") {
     sources -= [ "win/events_win.cc" ]
   }
 
+  # Used for the feature flag check. Should be deleted once the feature is
+  # enabled by default.
+  if (is_win) {
+    deps += [ "//components/stylus_handwriting/win:win" ]
+  }
+
   if (use_ozone) {
     public += [ "ozone/events_ozone.h" ]
     sources += [ "ozone/events_ozone.cc" ]
@@ -338,8 +353,6 @@ component("events") {
       "gestures/gesture_recognizer_impl.cc",
       "gestures/motion_event_aura.cc",
     ]
-
-    deps += [ "//build:chromeos_buildflags" ]
   }
 
   if (is_win || is_apple || use_ozone) {
@@ -355,6 +368,8 @@ component("events") {
       "android/key_event_android.h",
       "android/key_event_utils.h",
       "android/motion_event_android.h",
+      "android/motion_event_android_java.h",
+      "android/motion_event_android_native.h",
 
       # TODO(crbug.com/40255699): Move this outside is_android block when
       # consuming cross-platform code which uses it lands.
@@ -367,6 +382,8 @@ component("events") {
       "android/key_event_android.cc",
       "android/key_event_utils.cc",
       "android/motion_event_android.cc",
+      "android/motion_event_android_java.cc",
+      "android/motion_event_android_native.cc",
       "back_gesture_event.cc",
     ]
     deps += [
@@ -482,7 +499,6 @@ component("gesture_detection") {
   deps = [
     ":events_base",
     "//base",
-    "//build:chromeos_buildflags",
     "//ui/base:features",
     "//ui/display",
     "//ui/gfx",
@@ -510,8 +526,6 @@ component("velocity_tracker") {
     "velocity_tracker/bitset_32.h",
     "velocity_tracker/motion_event.cc",
     "velocity_tracker/motion_event.h",
-    "velocity_tracker/motion_event_buffer.cc",
-    "velocity_tracker/motion_event_buffer.h",
     "velocity_tracker/motion_event_generic.cc",
     "velocity_tracker/motion_event_generic.h",
     "velocity_tracker/velocity_tracker.cc",
@@ -576,7 +590,6 @@ static_library("test_support") {
   ]
   deps = [
     "//base",
-    "//build:chromeos_buildflags",
     "//skia",
     "//ui/events/platform",
     "//ui/gfx",
@@ -659,7 +672,6 @@ if (use_blink) {
       "scoped_target_handler_unittest.cc",
       "test/scoped_event_waiter_unittest.cc",
       "velocity_tracker/bitset_32_unittest.cc",
-      "velocity_tracker/motion_event_buffer_unittest.cc",
       "velocity_tracker/motion_event_generic_unittest.cc",
       "velocity_tracker/velocity_tracker_unittest.cc",
     ]
@@ -704,9 +716,12 @@ if (use_blink) {
 
     if (is_android) {
       sources += [ "android/motion_event_android_unittest.cc" ]
-      deps += [ "//ui/android:ui_full_java" ]
+      deps += [
+        ":motionevent_jni_headers",
+        "//ui/android:ui_full_java",
+      ]
     } else {
-      data_deps = [ "//third_party/mesa_headers" ]
+      data_deps = [ "//third_party/angle:includes" ]
     }
 
     if (use_ozone) {
@@ -715,10 +730,12 @@ if (use_blink) {
 
     if (use_ozone) {
       deps += [
-        "//ui/events/devices:unittests",
         "//ui/events/ozone:unittests",
         "//ui/events/ozone/layout",
       ]
+    }
+    if (use_ozone || (is_ios && use_blink)) {
+      deps += [ "//ui/events/devices:unittests" ]
     }
 
     if (use_aura) {
@@ -735,6 +752,7 @@ if (use_blink) {
         "win/event_utils_win_unittest.cc",
         "win/media_keyboard_hook_win_unittest.cc",
         "win/modifier_keyboard_hook_win_unittest.cc",
+        "win/stylus_handwriting_properties_win_unittest.cc",
       ]
       deps += [ "//ui/events:keyboard_hook" ]
     }

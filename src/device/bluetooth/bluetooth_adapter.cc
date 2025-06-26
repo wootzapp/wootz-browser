@@ -82,6 +82,12 @@ BluetoothAdapter::PermissionStatus BluetoothAdapter::GetOsPermissionStatus()
   return PermissionStatus::kAllowed;
 }
 
+void BluetoothAdapter::RequestSystemPermission(
+    BluetoothAdapter::RequestSystemPermissionCallback callback) {
+  ui_task_runner_->PostTask(
+      FROM_HERE, base::BindOnce(std::move(callback), GetOsPermissionStatus()));
+}
+
 void BluetoothAdapter::SetPowered(bool powered,
                                   base::OnceClosure callback,
                                   ErrorCallback error_callback) {
@@ -291,6 +297,11 @@ BluetoothDevice::PairingDelegate* BluetoothAdapter::DefaultPairingDelegate() {
   return pairing_delegates_.front().first;
 }
 
+// Default to assume the controller doesn't supports ext adv.
+bool BluetoothAdapter::IsExtendedAdvertisementsAvailable() const {
+  return false;
+}
+
 std::vector<BluetoothAdvertisement*>
 BluetoothAdapter::GetPendingAdvertisementsForTesting() const {
   return {};
@@ -418,6 +429,19 @@ int BluetoothAdapter::NumScanningDiscoverySessions() const {
   }
 
   return count;
+}
+
+void BluetoothAdapter::ClearAllDevices() {
+  // Move all elements of the original devices list to a new list here,
+  // leaving the original list empty so that when we send DeviceRemoved(),
+  // GetDevices() returns no devices.
+  DevicesMap devices_swapped;
+  devices_swapped.swap(devices_);
+  for (auto& iter : devices_swapped) {
+    for (auto& observer : observers_) {
+      observer.DeviceRemoved(this, iter.second.get());
+    }
+  }
 }
 
 void BluetoothAdapter::NotifyGattServicesDiscovered(BluetoothDevice* device) {

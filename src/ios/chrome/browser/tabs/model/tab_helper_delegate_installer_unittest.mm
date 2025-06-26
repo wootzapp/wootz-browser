@@ -5,13 +5,13 @@
 #import "ios/chrome/browser/tabs/model/tab_helper_delegate_installer.h"
 
 #import "base/memory/raw_ptr.h"
-#import "base/test/task_environment.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list_delegate.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_opener.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
+#import "ios/web/public/test/web_task_environment.h"
 #import "ios/web/public/web_state_user_data.h"
 #import "testing/gtest/include/gtest/gtest.h"
 #import "testing/platform_test.h"
@@ -48,23 +48,24 @@ class FakeTabHelper : public web::WebStateUserData<FakeTabHelper> {
   // Accessors for the Delegate.
   void SetDelegate(Delegate* delegate) {
     delegate_ = delegate;
-    if (!set_delegate_cb_.is_null())
+    if (!set_delegate_cb_.is_null()) {
       set_delegate_cb_.Run(delegate);
+    }
   }
   Delegate* GetDelegate() const { return delegate_; }
 
   // Accessors for the SecondDelegate.
   void SetSecondDelegate(SecondDelegate* delegate) {
     second_delegate_ = delegate;
-    if (!set_second_delegate_cb_.is_null())
+    if (!set_second_delegate_cb_.is_null()) {
       set_second_delegate_cb_.Run(second_delegate_.get());
+    }
   }
   SecondDelegate* GetSecondDelegate() const { return second_delegate_; }
 
  private:
   explicit FakeTabHelper(web::WebState* web_state) {}
   friend class web::WebStateUserData<FakeTabHelper>;
-  WEB_STATE_USER_DATA_KEY_DECL();
 
   // The delegates.
   raw_ptr<Delegate> delegate_ = nullptr;
@@ -74,7 +75,6 @@ class FakeTabHelper : public web::WebStateUserData<FakeTabHelper> {
   SetDelegateCallback set_delegate_cb_;
   SetSecondDelegateCallback set_second_delegate_cb_;
 };
-WEB_STATE_USER_DATA_KEY_IMPL(FakeTabHelper)
 // WebStateListDelegate that installs FakeTabHelpers.
 class FakeTabHelperWebStateListDelegate : public WebStateListDelegate {
  public:
@@ -99,14 +99,14 @@ using SecondDelegateInstaller =
 class TabHelperDelegateInstallerTest : public PlatformTest {
  protected:
   TabHelperDelegateInstallerTest()
-      : browser_state_(TestChromeBrowserState::Builder().Build()),
+      : profile_(TestProfileIOS::Builder().Build()),
         browser_(std::make_unique<TestBrowser>(
-            browser_state_.get(),
+            profile_.get(),
             std::make_unique<FakeTabHelperWebStateListDelegate>())) {}
   ~TabHelperDelegateInstallerTest() override {}
 
-  base::test::TaskEnvironment task_environment_;
-  std::unique_ptr<ChromeBrowserState> browser_state_;
+  web::WebTaskEnvironment task_environment_;
+  std::unique_ptr<ProfileIOS> profile_;
   std::unique_ptr<Browser> browser_;
   Delegate delegate_;
   SecondDelegate second_delegate_;

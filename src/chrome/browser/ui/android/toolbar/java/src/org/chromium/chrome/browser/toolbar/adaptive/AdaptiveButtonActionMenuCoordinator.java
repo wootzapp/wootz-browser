@@ -20,15 +20,21 @@ import org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils;
 import org.chromium.ui.listmenu.BasicListMenu;
 import org.chromium.ui.listmenu.ListMenu;
 import org.chromium.ui.listmenu.ListMenuButton;
-import org.chromium.ui.listmenu.ListMenuButtonDelegate;
+import org.chromium.ui.listmenu.ListMenuDelegate;
 import org.chromium.ui.listmenu.ListMenuItemProperties;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.ui.widget.RectProvider;
 
 /** Coordinator for the Adaptive Button action menu, responsible for creating a popup menu. */
 public class AdaptiveButtonActionMenuCoordinator {
+    private final boolean mShowMenu;
+
     // For test.
     private BasicListMenu mListMenu;
+
+    public AdaptiveButtonActionMenuCoordinator(boolean showMenu) {
+        mShowMenu = showMenu;
+    }
 
     /**
      * Creates a long-click listener which shows the adaptive button popup menu.
@@ -40,11 +46,13 @@ public class AdaptiveButtonActionMenuCoordinator {
         if (!AdaptiveToolbarFeatures.isCustomizationEnabled()) return null;
 
         return view -> {
-            displayMenu(
-                    view.getContext(),
-                    (ListMenuButton) view,
-                    buildMenuItems(),
-                    id -> onItemClicked.onResult(id));
+            if (mShowMenu) {
+                displayMenu(
+                        view.getContext(),
+                        (ListMenuButton) view,
+                        buildMenuItems(),
+                        id -> onItemClicked.onResult(id));
+            }
             return true;
         };
     }
@@ -81,8 +89,8 @@ public class AdaptiveButtonActionMenuCoordinator {
                 verticalPadding,
                 listView.getPaddingEnd(),
                 verticalPadding);
-        ListMenuButtonDelegate delegate =
-                new ListMenuButtonDelegate() {
+        ListMenuDelegate delegate =
+                new ListMenuDelegate() {
                     @Override
                     public ListMenu getListMenu() {
                         return mListMenu;
@@ -106,7 +114,7 @@ public class AdaptiveButtonActionMenuCoordinator {
                 BrowserUiListMenuUtils.buildMenuListItem(
                         R.string.adaptive_toolbar_menu_edit_shortcut,
                         R.id.customize_adaptive_button_menu_id,
-                        /* iconId= */ 0,
+                        /* startIconId= */ 0,
                         /* enabled= */ true));
         return itemList;
     }

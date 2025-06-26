@@ -15,6 +15,7 @@
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/ash_color_id.h"
 #include "ash/style/icon_button.h"
+#include "ash/system/camera/camera_effects_controller.h"
 #include "ash/system/privacy/screen_security_controller.h"
 #include "ash/system/system_notification_controller.h"
 #include "ash/system/tray/tray_background_view.h"
@@ -43,6 +44,7 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_operations.h"
 #include "ui/gfx/scoped_canvas.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/button_controller.h"
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/view_utils.h"
@@ -51,6 +53,7 @@ namespace ash {
 
 namespace {
 
+constexpr int kVideoConferenceTrayBubbleCornerRadius = 24;
 constexpr float kTrayButtonsSpacing = 4;
 constexpr float kPrivacyIndicatorRadius = 3;
 
@@ -161,7 +164,7 @@ VideoConferenceTrayButton::VideoConferenceTrayButton(
 
   SetToggledVectorIcon(*toggled_icon);
 
-  SetAccessibleRole(ax::mojom::Role::kToggleButton);
+  GetViewAccessibility().SetRole(ax::mojom::Role::kToggleButton);
 
   // Reduce the focus ring padding which is installed by default by
   // `IconButton`. The default padding results in the focus ring being painted
@@ -312,6 +315,9 @@ VideoConferenceTray::VideoConferenceTray(Shelf* shelf)
             tray_container()->children().size())
       << "Icons must be updated here in case a media session begins prior to "
          "connecting a secondary display.";
+
+  GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_ASH_VIDEO_CONFERENCE_ACCESSIBLE_NAME));
 }
 
 VideoConferenceTray::~VideoConferenceTray() {
@@ -321,7 +327,7 @@ VideoConferenceTray::~VideoConferenceTray() {
   VideoConferenceTrayController::Get()->RemoveObserver(this);
 }
 
-void VideoConferenceTray::CloseBubble() {
+void VideoConferenceTray::CloseBubbleInternal() {
   bubble_open_ = false;
   toggle_bubble_button_->SetToggled(false);
   bubble_.reset();
@@ -336,12 +342,8 @@ views::Widget* VideoConferenceTray::GetBubbleWidget() const {
   return bubble_ ? bubble_->bubble_widget() : nullptr;
 }
 
-std::u16string VideoConferenceTray::GetAccessibleNameForTray() {
-  return l10n_util::GetStringUTF16(IDS_ASH_VIDEO_CONFERENCE_ACCESSIBLE_NAME);
-}
-
 std::u16string VideoConferenceTray::GetAccessibleNameForBubble() {
-  return GetAccessibleNameForTray();
+  return l10n_util::GetStringUTF16(IDS_ASH_VIDEO_CONFERENCE_ACCESSIBLE_NAME);
 }
 
 void VideoConferenceTray::HideBubbleWithView(
@@ -409,6 +411,17 @@ void VideoConferenceTray::OnScreenSharingStateChange(bool is_capturing_screen) {
     screen_share_icon_->SetIsCapturing(
         /*is_capturing=*/is_capturing_screen);
   }
+}
+
+void VideoConferenceTray::OnDlcDownloadStateChanged(
+    bool add_warning,
+    const std::u16string& feature_tile_title) {
+  auto* bubble_view = GetBubbleView();
+  if (!bubble_view) {
+    return;
+  }
+  views::AsViewClass<video_conference::BubbleView>(bubble_view)
+      ->OnDLCDownloadStateInError(add_warning, feature_tile_title);
 }
 
 void VideoConferenceTray::OnCameraCapturingStateChange(bool is_capturing) {
@@ -481,6 +494,10 @@ void VideoConferenceTray::ToggleBubble(const ui::Event& event) {
 
   VideoConferenceTrayController::Get()->CloseAllVcNudges();
 
+  VideoConferenceTrayController::Get()
+      ->GetEffectsManager()
+      .NotifyVideoConferenceBubbleOpened();
+
   // If we are already in the process of getting the media apps, we don't need
   // to get it again.
   if (!getting_media_apps_) {
@@ -525,6 +542,7 @@ void VideoConferenceTray::ConstructBubbleWithMediaApps(MediaApps apps) {
   std::unique_ptr<TrayBubbleView> bubble_view;
   auto init_params = CreateInitParamsForTrayBubble(/*tray=*/this);
   init_params.preferred_width = kWideTrayMenuWidth;
+  init_params.corner_radius = kVideoConferenceTrayBubbleCornerRadius;
 
   // If all of the apps are Linux apps, we will just use `LinuxAppsBubbleView`
   // specifically for this situation.

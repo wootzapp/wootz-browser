@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -222,10 +223,10 @@ TEST_F(SysInfoTest, HardwareModelNameFormatMacAndiOS) {
   // a number.
   EXPECT_TRUE(base::MatchPattern(hardware_model, "iOS Simulator (*)"))
       << hardware_model;
-  std::vector<StringPiece> mainPieces =
+  std::vector<std::string_view> mainPieces =
       SplitStringPiece(hardware_model, "()", KEEP_WHITESPACE, SPLIT_WANT_ALL);
   ASSERT_EQ(3u, mainPieces.size()) << hardware_model;
-  std::vector<StringPiece> modelPieces =
+  std::vector<std::string_view> modelPieces =
       SplitStringPiece(mainPieces[1], ",", KEEP_WHITESPACE, SPLIT_WANT_ALL);
   ASSERT_GE(modelPieces.size(), 1u) << hardware_model;
   if (modelPieces.size() == 1u) {
@@ -239,7 +240,7 @@ TEST_F(SysInfoTest, HardwareModelNameFormatMacAndiOS) {
 #else
   // The expected format is "Foo,Bar" where Foo is "iPhone" or "iPad" and Bar is
   // a number.
-  std::vector<StringPiece> pieces =
+  std::vector<std::string_view> pieces =
       SplitStringPiece(hardware_model, ",", KEEP_WHITESPACE, SPLIT_WANT_ALL);
   ASSERT_EQ(2u, pieces.size()) << hardware_model;
   int value;
@@ -461,4 +462,26 @@ TEST_F(SysInfoTest, ScopedRunningOnChromeOS) {
 
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
+#if BUILDFLAG(IS_POSIX)
+TEST_F(SysInfoTest, KernelVersionNumber) {
+  auto current_kernel_version = SysInfo::KernelVersionNumber::Current();
+
+  EXPECT_GT(current_kernel_version, SysInfo::KernelVersionNumber());
+  // Chromium will realistically never run on a kernel as old as 2.1.11
+  EXPECT_GT(current_kernel_version, SysInfo::KernelVersionNumber(2, 1, 11));
+
+  SysInfo::KernelVersionNumber next_major_kernel_version(
+      current_kernel_version.major + 1);
+  EXPECT_LT(current_kernel_version, next_major_kernel_version);
+
+  SysInfo::KernelVersionNumber next_minor_kernel_version(
+      current_kernel_version.major, current_kernel_version.minor + 1);
+  EXPECT_LT(current_kernel_version, next_minor_kernel_version);
+
+  SysInfo::KernelVersionNumber next_bugfix_kernel_version(
+      current_kernel_version.major, current_kernel_version.minor,
+      current_kernel_version.bugfix + 1);
+  EXPECT_LT(current_kernel_version, next_bugfix_kernel_version);
+}
+#endif  // BUILDFLAG(IS_POSIX)
 }  // namespace base

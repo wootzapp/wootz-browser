@@ -17,11 +17,9 @@
 #include "base/json/json_writer.h"
 #include "base/notreached.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/cloud_devices/common/cloud_device_description_consts.h"
 #include "components/cloud_devices/common/description_items_inl.h"
 #include "ui/gfx/geometry/rect.h"
@@ -130,17 +128,13 @@ constexpr char kTypeDuplexLongEdge[] = "LONG_EDGE";
 constexpr char kTypeDuplexNoDuplex[] = "NO_DUPLEX";
 constexpr char kTypeDuplexShortEdge[] = "SHORT_EDGE";
 
-constexpr char kTypeFitToPageFillPage[] = "FILL_PAGE";
-constexpr char kTypeFitToPageFitToPage[] = "FIT_TO_PAGE";
-constexpr char kTypeFitToPageGrowToPage[] = "GROW_TO_PAGE";
-constexpr char kTypeFitToPageNoFitting[] = "NO_FITTING";
-constexpr char kTypeFitToPageShrinkToPage[] = "SHRINK_TO_PAGE";
+constexpr char kTypeFitToPageAuto[] = "AUTO";
+constexpr char kTypeFitToPageAutoFit[] = "AUTO_FIT";
+constexpr char kTypeFitToPageFill[] = "FILL";
+constexpr char kTypeFitToPageFit[] = "FIT";
+constexpr char kTypeFitToPageNone[] = "NONE";
 
-constexpr char kTypeMarginsBorderless[] = "BORDERLESS";
-constexpr char kTypeMarginsCustom[] = "CUSTOM";
-constexpr char kTypeMarginsStandard[] = "STANDARD";
 constexpr char kTypeOrientationAuto[] = "AUTO";
-
 constexpr char kTypeOrientationLandscape[] = "LANDSCAPE";
 constexpr char kTypeOrientationPortrait[] = "PORTRAIT";
 
@@ -213,24 +207,15 @@ constexpr struct OrientationNames {
     {OrientationType::AUTO_ORIENTATION, kTypeOrientationAuto},
 };
 
-constexpr struct MarginsNames {
-  MarginsType id;
-  const char* const json_name;
-} kMarginsNames[] = {
-    {MarginsType::NO_MARGINS, kTypeMarginsBorderless},
-    {MarginsType::STANDARD_MARGINS, kTypeMarginsStandard},
-    {MarginsType::CUSTOM_MARGINS, kTypeMarginsCustom},
-};
-
 constexpr struct FitToPageNames {
   FitToPageType id;
   const char* const json_name;
 } kFitToPageNames[] = {
-    {FitToPageType::NO_FITTING, kTypeFitToPageNoFitting},
-    {FitToPageType::FIT_TO_PAGE, kTypeFitToPageFitToPage},
-    {FitToPageType::GROW_TO_PAGE, kTypeFitToPageGrowToPage},
-    {FitToPageType::SHRINK_TO_PAGE, kTypeFitToPageShrinkToPage},
-    {FitToPageType::FILL_PAGE, kTypeFitToPageFillPage},
+    {FitToPageType::AUTO, kTypeFitToPageAuto},
+    {FitToPageType::AUTO_FIT, kTypeFitToPageAutoFit},
+    {FitToPageType::FILL, kTypeFitToPageFill},
+    {FitToPageType::FIT, kTypeFitToPageFit},
+    {FitToPageType::NONE, kTypeFitToPageNone},
 };
 
 constexpr struct DocumentSheetBackNames {
@@ -453,8 +438,7 @@ const gfx::Size& FindMediaSizeByType(MediaSize size_name) {
       return media.size_um;
     }
   }
-  NOTREACHED_IN_MIGRATION();
-  return kMediaDefinitions[0].size_um;
+  NOTREACHED();
 }
 
 const MediaDefinition* FindMediaBySize(const gfx::Size& size_um) {
@@ -475,8 +459,7 @@ std::string TypeToString(const T& names, IdType id) {
     if (id == name.id)
       return name.json_name;
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 template <class T, class IdType>
@@ -497,7 +480,7 @@ PwgRasterConfig::PwgRasterConfig()
       reverse_order_streaming(false),
       rotate_all_pages(false) {}
 
-PwgRasterConfig::~PwgRasterConfig() {}
+PwgRasterConfig::~PwgRasterConfig() = default;
 
 RangeVendorCapability::RangeVendorCapability() = default;
 
@@ -571,8 +554,7 @@ bool RangeVendorCapability::IsValid() const {
       return true;
     }
   }
-  NOTREACHED_IN_MIGRATION() << "Bad range capability value type";
-  return false;
+  NOTREACHED() << "Bad range capability value type";
 }
 
 bool RangeVendorCapability::LoadFrom(const base::Value::Dict& dict) {
@@ -664,8 +646,7 @@ bool TypedValueVendorCapability::IsValid() const {
     case ValueType::STRING:
       return true;
   }
-  NOTREACHED_IN_MIGRATION() << "Bad typed value capability value type";
-  return false;
+  NOTREACHED() << "Bad typed value capability value type";
 }
 
 bool TypedValueVendorCapability::LoadFrom(const base::Value::Dict& dict) {
@@ -734,7 +715,7 @@ VendorCapability::VendorCapability(VendorCapability&& other)
           TypedValueVendorCapability(std::move(other.typed_value_capability_));
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -756,7 +737,7 @@ void VendorCapability::InternalCleanup() {
       typed_value_capability_.~TypedValueVendorCapability();
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
   type_ = Type::NONE;
 }
@@ -776,7 +757,7 @@ bool VendorCapability::operator==(const VendorCapability& other) const {
     case Type::TYPED_VALUE:
       return typed_value_capability_ == other.typed_value_capability_;
   }
-  NOTREACHED_IN_MIGRATION() << "Bad vendor capability type";
+  NOTREACHED() << "Bad vendor capability type";
 }
 
 bool VendorCapability::IsValid() const {
@@ -792,8 +773,7 @@ bool VendorCapability::IsValid() const {
     case Type::TYPED_VALUE:
       return typed_value_capability_.IsValid();
   }
-  NOTREACHED_IN_MIGRATION() << "Bad vendor capability type";
-  return false;
+  NOTREACHED() << "Bad vendor capability type";
 }
 
 bool VendorCapability::LoadFrom(const base::Value::Dict& dict) {
@@ -834,8 +814,7 @@ bool VendorCapability::LoadFrom(const base::Value::Dict& dict) {
   switch (type_) {
     case Type::NONE:
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case Type::RANGE:
       new (&range_capability_) RangeVendorCapability();
       return range_capability_.LoadFrom(*range_capability_value);
@@ -846,8 +825,6 @@ bool VendorCapability::LoadFrom(const base::Value::Dict& dict) {
       new (&typed_value_capability_) TypedValueVendorCapability();
       return typed_value_capability_.LoadFrom(*typed_value_capability_value);
   }
-
-  return false;
 }
 
 void VendorCapability::SaveTo(base::Value::Dict* dict) const {
@@ -858,8 +835,7 @@ void VendorCapability::SaveTo(base::Value::Dict* dict) const {
 
   switch (type_) {
     case Type::NONE:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case Type::RANGE: {
       base::Value::Dict range_capability_value;
       range_capability_.SaveTo(&range_capability_value);
@@ -911,27 +887,20 @@ bool VendorItem::operator==(const VendorItem& other) const {
   return id == other.id && value == other.value;
 }
 
-Margins::Margins()
-    : type(MarginsType::STANDARD_MARGINS),
-      top_um(0),
-      right_um(0),
-      bottom_um(0),
-      left_um(0) {}
+Margins::Margins() : top_um(0), right_um(0), bottom_um(0), left_um(0) {}
 
-Margins::Margins(MarginsType type,
-                 int32_t top_um,
+Margins::Margins(int32_t top_um,
                  int32_t right_um,
                  int32_t bottom_um,
                  int32_t left_um)
-    : type(type),
-      top_um(top_um),
+    : top_um(top_um),
       right_um(right_um),
       bottom_um(bottom_um),
       left_um(left_um) {}
 
 bool Margins::operator==(const Margins& other) const {
-  return type == other.type && top_um == other.top_um &&
-         right_um == other.right_um && bottom_um == other.bottom_um;
+  return top_um == other.top_um && right_um == other.right_um &&
+         bottom_um == other.bottom_um;
 }
 
 Dpi::Dpi() : horizontal(0), vertical(0) {
@@ -1330,9 +1299,6 @@ class MarginsTraits : public NoValueValidation,
                       public ItemsTraits<kOptionMargins> {
  public:
   static bool Load(const base::Value::Dict& dict, Margins* option) {
-    const std::string* type = dict.FindString(kKeyType);
-    if (!type || !TypeFromString(kMarginsNames, *type, &option->type))
-      return false;
     std::optional<int> top_um = dict.FindInt(kMarginTop);
     std::optional<int> right_um = dict.FindInt(kMarginRight);
     std::optional<int> bottom_um = dict.FindInt(kMarginBottom);
@@ -1347,7 +1313,6 @@ class MarginsTraits : public NoValueValidation,
   }
 
   static void Save(const Margins& option, base::Value::Dict* dict) {
-    dict->Set(kKeyType, TypeToString(kMarginsNames, option.type));
     dict->Set(kMarginTop, option.top_um);
     dict->Set(kMarginRight, option.right_um);
     dict->Set(kMarginBottom, option.bottom_um);

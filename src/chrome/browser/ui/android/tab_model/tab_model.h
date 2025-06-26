@@ -40,8 +40,11 @@ class TabModelObserver;
 // with Android's Tabs and Tab Model.
 class TabModel {
  public:
+  // LINT.IfChange(TabLaunchType)
   // Various ways tabs can be launched.
   // Values must be numbered from 0 and can't have gaps.
+  // This enum is used to back a histogram, entries should not be renumbered or
+  // reused.
   // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.chrome.browser.tab
   enum class TabLaunchType {
     // Opened from a link. Sets up a relationship between the newly created tab
@@ -86,11 +89,14 @@ class TabModel {
     // Opened a non-restored tab during the startup process
     FROM_STARTUP,
     // Opened from the start surface.
+    // This is deprecated.
     FROM_START_SURFACE,
     // Opened from Tab group UI.
     // Tab group UI include:
     // - "+" button in the bottom tab strip
     // - "+" button in the tab grid dialog
+    // - "New tab in group" option in the tab strip group context menu
+    // - "Reopen" action in shared tab group messages.
     FROM_TAB_GROUP_UI,
     // Open from the long press context menu item 'Open in new tab in group'.
     // Will not be brought to the foreground.
@@ -119,9 +125,27 @@ class TabModel {
     UNSET,
     // Used when creating a tab to keep synced tab groups up to date.
     FROM_SYNC_BACKGROUND,
+    // Open most recent tab in foregroud, used by ctrl-shift-t to restore
+    // most recently closed tab or tabs.
+    FROM_RECENT_TABS_FOREGROUND,
+    // Open a new tab to prevent collaborations from having 0 tabs.
+    FROM_COLLABORATION_BACKGROUND_IN_GROUP,
+    // Opened from the bookmark bar. Will not be brought to the foreground.
+    FROM_BOOKMARK_BAR_BACKGROUND,
+    // Changed windows by moving from one activity to another. Will be opened
+    // in the background. Use FROM_REPARENTING above to open the re-parented tab
+    // in the foreground.
+    FROM_REPARENTING_BACKGROUND,
+    // From history navigation (back / forward) when opening a new tab/window in
+    // the background.
+    FROM_HISTORY_NAVIGATION_BACKGROUND,
+    // From history navigation (back / forward) when opening a new tab/window in
+    // the foreground.
+    FROM_HISTORY_NAVIGATION_FOREGROUND,
     // Must be last.
     SIZE
   };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/new_tab_page/enums.xml:TabLaunchType)
 
   // Various ways tabs can be selected.
   // Values must be numbered from 0 and can't have gaps.
@@ -180,22 +204,24 @@ class TabModel {
   virtual base::android::ScopedJavaLocalRef<jobject> GetJavaObject() const = 0;
 
   virtual void SetActiveIndex(int index) = 0;
+  virtual void ForceCloseAllTabs() = 0;
   virtual void CloseTabAt(int index) = 0;
 
   // Used for restoring tabs from synced foreign sessions.
   virtual void CreateTab(TabAndroid* parent,
-                         content::WebContents* web_contents) = 0;
-
-  virtual void CreateTabActive(TabAndroid* parent,
                          content::WebContents* web_contents,
-                         WindowOpenDisposition disposition ) = 0;
+                         bool select) = 0;
+  virtual void CreateTabActive(TabAndroid* parent,
+                          content::WebContents* web_contents,
+                          WindowOpenDisposition disposition ) = 0;
 
   virtual void HandlePopupNavigation(TabAndroid* parent,
                                      NavigateParams* params) = 0;
 
   // Used by Developer Tools to create a new tab with a given URL.
   // Replaces CreateTabForTesting.
-  virtual content::WebContents* CreateNewTabForDevTools(const GURL& url) = 0;
+  virtual content::WebContents* CreateNewTabForDevTools(const GURL& url,
+                                                        bool new_window) = 0;
 
   // Return true if we are currently restoring sessions asynchronously.
   virtual bool IsSessionRestoreInProgress() const = 0;

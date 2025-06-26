@@ -7,11 +7,11 @@
 
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/block_node.h"
-#include "third_party/blink/renderer/core/layout/grid/grid_item.h"
 #include "third_party/blink/renderer/core/layout/grid/layout_grid.h"
 
 namespace blink {
 
+class GridItems;
 class GridSizingSubtree;
 
 // Grid specific extensions to `BlockNode`.
@@ -30,8 +30,14 @@ class CORE_EXPORT GridNode final : public BlockNode {
     return CachedPlacementData().line_resolver;
   }
 
-  void InvalidateMinMaxSizesCache() const {
-    To<LayoutGrid>(box_.Get())->InvalidateMinMaxSizesCache();
+  void InvalidateSubgridMinMaxSizesCache() const {
+    box_->SetSubgridMinMaxSizesCacheDirty(true);
+  }
+
+  bool ShouldInvalidateSubgridMinMaxSizesCacheFor(
+      const GridLayoutData& layout_data) const {
+    return To<LayoutGrid>(box_.Get())
+        ->ShouldInvalidateSubgridMinMaxSizesCacheFor(layout_data);
   }
 
   // If `oof_children` is provided, aggregate any out of flow children.

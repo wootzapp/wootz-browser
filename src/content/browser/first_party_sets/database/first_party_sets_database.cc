@@ -25,6 +25,7 @@
 #include "net/first_party_sets/first_party_set_entry_override.h"
 #include "net/first_party_sets/first_party_sets_cache_filter.h"
 #include "net/first_party_sets/first_party_sets_context_config.h"
+#include "net/first_party_sets/first_party_sets_validator.h"
 #include "net/first_party_sets/global_first_party_sets.h"
 #include "sql/database.h"
 #include "sql/meta_table.h"
@@ -409,7 +410,6 @@ std::optional<net::GlobalFirstPartySets> FirstPartySetsDatabase::GetGlobalSets(
   CHECK(!browser_context_id.empty());
 
   // Query public sets entries.
-  std::vector<std::pair<net::SchemefulSite, net::FirstPartySetEntry>> entries;
   static constexpr char kVersionSql[] =
       "SELECT public_sets_version FROM browser_context_sets_version "
       "WHERE browser_context_id=?";
@@ -417,6 +417,7 @@ std::optional<net::GlobalFirstPartySets> FirstPartySetsDatabase::GetGlobalSets(
       db_->GetCachedStatement(SQL_FROM_HERE, kVersionSql));
   version_statement.BindString(0, browser_context_id);
 
+  base::flat_map<net::SchemefulSite, net::FirstPartySetEntry> sets;
   std::string version;
   if (version_statement.Step()) {
     version = version_statement.ColumnString(0);
@@ -427,14 +428,17 @@ std::optional<net::GlobalFirstPartySets> FirstPartySetsDatabase::GetGlobalSets(
         db_->GetCachedStatement(SQL_FROM_HERE, kSelectSql));
     statement.BindString(0, version);
 
+    std::vector<std::pair<net::SchemefulSite, net::FirstPartySetEntry>> entries;
+    net::FirstPartySetsValidator validator;
+
     while (statement.Step()) {
       std::optional<net::SchemefulSite> site =
           FirstPartySetParser::CanonicalizeRegisteredDomain(
-              statement.ColumnString(0), /*emit_errors=*/false);
+              statement.ColumnStringView(0), /*emit_errors=*/false);
 
       std::optional<net::SchemefulSite> primary =
           FirstPartySetParser::CanonicalizeRegisteredDomain(
-              statement.ColumnString(1), /*emit_errors=*/false);
+              statement.ColumnStringView(1), /*emit_errors=*/false);
 
       std::optional<net::SiteType> site_type =
           net::FirstPartySetEntry::DeserializeSiteType(statement.ColumnInt(2));
@@ -443,11 +447,25 @@ std::optional<net::GlobalFirstPartySets> FirstPartySetsDatabase::GetGlobalSets(
       // possible. Consider deleting them from DB.
       if (site.has_value() && primary.has_value() && site_type.has_value()) {
         entries.emplace_back(
-            std::move(site).value(),
+            site.value(),
             net::FirstPartySetEntry(primary.value(), site_type.value(),
                                     /*site_index=*/std::nullopt));
+        validator.Update(site.value(), primary.value());
       }
     }
+
+    sets = base::flat_map<net::SchemefulSite, net::FirstPartySetEntry>(
+        std::move(entries));
+    // Make sure the global sets read from DB does not have any singleton or
+    // orphan.
+    if (!validator.IsValid()) {
+      base::EraseIf(
+          sets, [&validator](const std::pair<net::SchemefulSite,
+                                             net::FirstPartySetEntry>& pair) {
+            return !validator.IsSiteValid(pair.first);
+          });
+    }
+
     if (!statement.Succeeded())
       return std::nullopt;
   }
@@ -457,7 +475,7 @@ std::optional<net::GlobalFirstPartySets> FirstPartySetsDatabase::GetGlobalSets(
 
   // Aliases are merged with entries inside of the public sets table so it is
   // sufficient to declare the global sets object with only the entries field.
-  net::GlobalFirstPartySets global_sets(base::Version(version), entries,
+  net::GlobalFirstPartySets global_sets(base::Version(version), sets,
                                         /*aliases=*/{});
 
   // Query & apply manual configuration. Safe because this config and this
@@ -540,7 +558,7 @@ FirstPartySetsDatabase::FetchSitesToClear(
   while (statement.Step()) {
     std::optional<net::SchemefulSite> site =
         FirstPartySetParser::CanonicalizeRegisteredDomain(
-            statement.ColumnString(0), /*emit_errors=*/false);
+            statement.ColumnStringView(0), /*emit_errors=*/false);
     // TODO(crbug.com/40221249): Invalid sites should be rare case but possible.
     // Consider deleting them from DB.
     if (site.has_value()) {
@@ -575,7 +593,7 @@ FirstPartySetsDatabase::FetchAllSitesToClearFilter(
   while (statement.Step()) {
     std::optional<net::SchemefulSite> site =
         FirstPartySetParser::CanonicalizeRegisteredDomain(
-            statement.ColumnString(0), /*emit_errors=*/false);
+            statement.ColumnStringView(0), /*emit_errors=*/false);
     // TODO(crbug.com/40221249): Invalid sites should be rare case but possible.
     // Consider deleting them from DB.
     if (site.has_value()) {
@@ -611,10 +629,10 @@ FirstPartySetsDatabase::FetchPolicyConfigurations(
   while (statement.Step()) {
     std::optional<net::SchemefulSite> site =
         FirstPartySetParser::CanonicalizeRegisteredDomain(
-            statement.ColumnString(0), /*emit_errors=*/false);
+            statement.ColumnStringView(0), /*emit_errors=*/false);
 
     std::optional<net::SchemefulSite> maybe_primary_site;
-    if (std::string primary_site = statement.ColumnString(1);
+    if (std::string_view primary_site = statement.ColumnStringView(1);
         !primary_site.empty()) {
       maybe_primary_site = FirstPartySetParser::CanonicalizeRegisteredDomain(
           primary_site, /*emit_errors=*/false);
@@ -641,7 +659,7 @@ FirstPartySetsDatabase::FetchPolicyConfigurations(
     return std::nullopt;
   }
 
-  return net::FirstPartySetsContextConfig(std::move(results));
+  return net::FirstPartySetsContextConfig::Create(std::move(results));
 }
 
 bool FirstPartySetsDatabase::HasEntryInBrowserContextsClearedForTesting(
@@ -685,13 +703,13 @@ FirstPartySetsDatabase::FetchManualConfiguration(
   while (statement.Step()) {
     std::optional<net::SchemefulSite> site =
         FirstPartySetParser::CanonicalizeRegisteredDomain(
-            statement.ColumnString(0), /*emit_errors=*/false);
+            statement.ColumnStringView(0), /*emit_errors=*/false);
 
     std::optional<net::SchemefulSite> maybe_primary_site;
     std::optional<net::SiteType> maybe_site_type;
     // DB entry for "deleted"  site will have null `primary_site` and
     // `site_type`.
-    if (std::string primary_site = statement.ColumnString(1);
+    if (std::string_view primary_site = statement.ColumnStringView(1);
         !primary_site.empty()) {
       maybe_primary_site = FirstPartySetParser::CanonicalizeRegisteredDomain(
           primary_site, /*emit_errors=*/false);
@@ -721,7 +739,7 @@ FirstPartySetsDatabase::FetchManualConfiguration(
     return std::nullopt;
   }
 
-  return net::FirstPartySetsContextConfig(std::move(results));
+  return net::FirstPartySetsContextConfig::Create(std::move(results));
 }
 
 bool FirstPartySetsDatabase::LazyInit() {
@@ -732,8 +750,9 @@ bool FirstPartySetsDatabase::LazyInit() {
 
   CHECK_EQ(db_.get(), nullptr);
   db_ = std::make_unique<sql::Database>(
-      sql::DatabaseOptions{.page_size = 4096, .cache_size = 32});
-  db_->set_histogram_tag("FirstPartySets");
+      sql::DatabaseOptions().set_page_size(4096).set_cache_size(32).set_preload(
+          base::FeatureList::IsEnabled(sql::features::kPreOpenPreloadDatabase)),
+      sql::Database::Tag("FirstPartySets"));
   // base::Unretained is safe here because this FirstPartySetsDatabase owns
   // the sql::Database instance that stores and uses the callback. So,
   // `this` is guaranteed to outlive the callback.
@@ -755,7 +774,9 @@ bool FirstPartySetsDatabase::LazyInit() {
 bool FirstPartySetsDatabase::OpenDatabase() {
   CHECK(db_);
   if (db_->is_open() || db_->Open(db_path_)) {
-    db_->Preload();
+    if (!base::FeatureList::IsEnabled(sql::features::kPreOpenPreloadDatabase)) {
+      db_->Preload();
+    }
     return true;
   }
   return false;
@@ -798,9 +819,9 @@ FirstPartySetsDatabase::InitStatus FirstPartySetsDatabase::InitializeTables() {
   // Razes the DB if the version is deprecated or too new to get the feature
   // working.
   CHECK_LT(kDeprecatedVersionNumber, kCurrentVersionNumber);
-  if (!sql::MetaTable::RazeIfIncompatible(
+  if (sql::MetaTable::RazeIfIncompatible(
           db_.get(), /*lowest_supported_version=*/kDeprecatedVersionNumber + 1,
-          kCurrentVersionNumber)) {
+          kCurrentVersionNumber) == sql::RazeIfIncompatibleResult::kFailed) {
     return InitStatus::kError;
   }
 

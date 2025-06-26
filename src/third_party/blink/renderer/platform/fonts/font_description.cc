@@ -29,7 +29,9 @@
 
 #include "third_party/blink/renderer/platform/fonts/font_description.h"
 
+#include "base/compiler_specific.h"
 #include "base/memory/values_equivalent.h"
+#include "base/strings/to_string.h"
 #include "build/build_config.h"
 #include "third_party/blink/public/platform/web_font_description.h"
 #include "third_party/blink/renderer/platform/language.h"
@@ -66,13 +68,13 @@ bool FontDescription::use_subpixel_text_positioning_ = false;
 // static
 FontDescription FontDescription::CreateHashTableEmptyValue() {
   FontDescription result;
-  memset(&result, 0, sizeof(FontDescription));
+  UNSAFE_TODO(memset(&result, 0, sizeof(FontDescription)));
   DCHECK(result.IsHashTableEmptyValue());
   return result;
 }
 
 FontDescription::FontDescription(WTF::HashTableDeletedValueType) {
-  memset(this, 0, sizeof(FontDescription));
+  UNSAFE_TODO(memset(this, 0, sizeof(FontDescription)));
   fields_.hash_category_ = kHashDeletedValue;
 }
 
@@ -85,8 +87,6 @@ FontDescription::FontDescription()
       font_selection_request_(kNormalWeightValue,
                               kNormalWidthValue,
                               kNormalSlopeValue) {
-  fields_as_unsigned_.parts[0] = 0;
-  fields_as_unsigned_.parts[1] = 0;
   fields_.orientation_ = static_cast<unsigned>(FontOrientation::kHorizontal);
   fields_.width_variant_ = kRegularWidth;
   fields_.variant_caps_ = kCapsNormal;
@@ -102,18 +102,21 @@ FontDescription::FontDescription()
   fields_.text_rendering_ = kAutoTextRendering;
   fields_.synthetic_bold_ = false;
   fields_.synthetic_italic_ = false;
+  fields_.synthetic_oblique_ = false;
   fields_.subpixel_text_position_ = use_subpixel_text_positioning_;
   fields_.typesetting_features_ = 0;
   fields_.variant_numeric_ = FontVariantNumeric().fields_as_unsigned_;
+  fields_.variant_east_asian_ = 0;
   fields_.subpixel_ascent_descent_ = false;
   fields_.font_optical_sizing_ = OpticalSizing::kAutoOpticalSizing;
+  fields_.has_size_adjust_descriptor_ = false;
   fields_.hash_category_ = kHashRegularValue;
   fields_.font_synthesis_weight_ = kAutoFontSynthesisWeight;
   fields_.font_synthesis_style_ = kAutoFontSynthesisStyle;
   fields_.font_synthesis_small_caps_ = kAutoFontSynthesisSmallCaps;
   fields_.variant_position_ = kNormalVariantPosition;
   fields_.variant_emoji_ = kNormalVariantEmoji;
-  static_assert(static_cast<unsigned>(TextSpacingTrim::kInitial) == 0);
+  fields_.text_spacing_trim_ = static_cast<unsigned>(TextSpacingTrim::kInitial);
 }
 
 FontDescription::FontDescription(const FontDescription&) = default;
@@ -267,6 +270,7 @@ FontCacheKey FontDescription::CacheKey(
     const FontFaceCreationParams& creation_params,
     bool is_unique_match) const {
   unsigned options =
+      static_cast<unsigned>(fields_.variant_emoji_) << 10 |         // bit 11-12
       static_cast<unsigned>(fields_.font_synthesis_style_) << 9 |   // bit 10
       static_cast<unsigned>(fields_.font_synthesis_weight_) << 8 |  // bit 9
       static_cast<unsigned>(fields_.font_optical_sizing_) << 7 |    // bit 8
@@ -282,7 +286,7 @@ FontCacheKey FontDescription::CacheKey(
   float device_scale_factor_for_key = 1.0f;
 #endif
   FontCacheKey cache_key(creation_params, EffectiveFontSize(),
-                         options | font_selection_request_.GetHash() << 11,
+                         options | font_selection_request_.GetHash() << 13,
                          device_scale_factor_for_key, size_adjust_,
                          variation_settings_, font_palette_,
                          font_variant_alternates_, is_unique_match);
@@ -349,21 +353,8 @@ void FontDescription::UpdateTypesettingFeatures() {
     fields_.typesetting_features_ |= blink::kCaps;
 }
 
-namespace {
-
-// This converts -0.0 to 0.0, so that they have the same hash value. This
-// ensures that equal FontDescription have the same hash value.
-float NormalizeSign(float number) {
-  if (UNLIKELY(number == 0.0))
-    return 0.0;
-  return number;
-}
-
-}  // namespace
-
 unsigned FontDescription::StyleHashWithoutFamilyList() const {
   unsigned hash = 0;
-  StringHasher string_hasher;
   const FontFeatureSettings* settings = FeatureSettings();
   if (settings) {
     unsigned num_features = settings->size();
@@ -383,16 +374,14 @@ unsigned FontDescription::StyleHashWithoutFamilyList() const {
 
   if (locale_) {
     const AtomicString& locale = locale_->LocaleString();
-    for (unsigned i = 0; i < locale.length(); i++)
-      string_hasher.AddCharacter(locale[i]);
+    WTF::AddIntToHash(hash, locale.Hash());
   }
-  WTF::AddIntToHash(hash, string_hasher.GetHash());
 
-  WTF::AddFloatToHash(hash, NormalizeSign(specified_size_));
-  WTF::AddFloatToHash(hash, NormalizeSign(computed_size_));
-  WTF::AddFloatToHash(hash, NormalizeSign(adjusted_size_));
-  WTF::AddFloatToHash(hash, NormalizeSign(letter_spacing_));
-  WTF::AddFloatToHash(hash, NormalizeSign(word_spacing_));
+  WTF::AddFloatToHash(hash, specified_size_);
+  WTF::AddFloatToHash(hash, computed_size_);
+  WTF::AddFloatToHash(hash, adjusted_size_);
+  WTF::AddFloatToHash(hash, letter_spacing_);
+  WTF::AddFloatToHash(hash, word_spacing_);
   WTF::AddIntToHash(hash, fields_as_unsigned_.parts[0]);
   WTF::AddIntToHash(hash, fields_as_unsigned_.parts[1]);
   WTF::AddIntToHash(hash, font_selection_request_.GetHash());
@@ -529,6 +518,13 @@ int FontDescription::MinimumPrefixWidthToHyphenate() const {
   const int kMinimumPrefixWidthDenominator = 4;
   return ComputedPixelSize() * kMinimumPrefixWidthNumerator /
          kMinimumPrefixWidthDenominator;
+}
+
+ResolvedFontFeatures FontDescription::ResolveFontFeatures() const {
+  if (const FontVariantAlternates* alternates = GetFontVariantAlternates()) {
+    return alternates->GetResolvedFontFeatures();
+  }
+  return ResolvedFontFeatures();
 }
 
 String FontDescription::ToString(GenericFamilyType familyType) {
@@ -692,7 +688,7 @@ String FontDescription::VariantLigatures::ToString() const {
 String FontDescription::Size::ToString() const {
   return String::Format(
       "keyword_size=%u, specified_size=%f, is_absolute_size=%s", keyword, value,
-      is_absolute ? "true" : "false");
+      base::ToString(is_absolute).c_str());
 }
 
 String FontDescription::FamilyDescription::ToString() const {
@@ -712,10 +708,6 @@ String FontDescription::ToString(FontVariantPosition variant_position) {
       return "Super";
   }
   return "Unknown";
-}
-
-static const char* ToBooleanString(bool value) {
-  return value ? "true" : "false";
 }
 
 String FontDescription::ToString() const {
@@ -754,15 +746,16 @@ String FontDescription::ToString() const {
       blink::ToString(Orientation()).Ascii().c_str(),
       blink::ToString(WidthVariant()).Ascii().c_str(),
       FontDescription::ToString(VariantCaps()).Ascii().c_str(),
-      ToBooleanString(IsAbsoluteSize()),
+      base::ToString(IsAbsoluteSize()).c_str(),
       FontDescription::ToString(GenericFamily()).Ascii().c_str(),
       FontDescription::ToString(Kerning()).Ascii().c_str(),
       GetVariantLigatures().ToString().Ascii().c_str(), KeywordSize(),
       blink::ToString(FontSmoothing()).Ascii().c_str(),
       blink::ToString(TextRendering()).Ascii().c_str(),
-      ToBooleanString(IsSyntheticBold()), ToBooleanString(IsSyntheticItalic()),
-      ToBooleanString(UseSubpixelPositioning()),
-      ToBooleanString(SubpixelAscentDescent()),
+      base::ToString(IsSyntheticBold()).c_str(),
+      base::ToString(IsSyntheticItalic()).c_str(),
+      base::ToString(UseSubpixelPositioning()).c_str(),
+      base::ToString(SubpixelAscentDescent()).c_str(),
       VariantNumeric().ToString().Ascii().c_str(),
       VariantEastAsian().ToString().Ascii().c_str(),
       blink::ToString(FontOpticalSizing()).Ascii().c_str(),

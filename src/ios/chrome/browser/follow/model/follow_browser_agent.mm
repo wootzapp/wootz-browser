@@ -18,16 +18,16 @@
 #import "ios/chrome/browser/follow/model/follow_service.h"
 #import "ios/chrome/browser/follow/model/follow_service_factory.h"
 #import "ios/chrome/browser/follow/model/web_page_urls.h"
+#import "ios/chrome/browser/ntp/shared/metrics/feed_metrics_constants.h"
+#import "ios/chrome/browser/ntp/shared/metrics/feed_metrics_recorder.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/commands/feed_commands.h"
 #import "ios/chrome/browser/shared/public/commands/new_tab_page_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/public/features/system_flags.h"
-#import "ios/chrome/browser/ui/ntp/metrics/feed_metrics_constants.h"
-#import "ios/chrome/browser/ui/ntp/metrics/feed_metrics_recorder.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 
@@ -36,29 +36,12 @@ namespace {
 // Maximum number of times the First Follow UI must be shown.
 constexpr int kFirstFollowModalShownMaxCount = 3;
 
-// Old deprecated key used to store how many time the First Follow UI
-// has been displayed in NSUserDefaults. Needs to be removed when the
-// migration code in `ShouldShowFirstFollowUI()` is removed.
-NSString* const kDisplayedFirstFollowModalCountKey =
-    @"DisplayedFirstFollowModalCount";
-
 // Time delay in showing and announcing the notification after a site is
 // followed/unfollowed from follow feed management.
 const base::TimeDelta kSnackbarMessageVoiceOverDelay = base::Seconds(0.8);
 
 // Returns whether the First Follow UI must be displayed.
 bool ShouldShowFirstFollowUI(PrefService* pref_service) {
-  // Migrate the old preference from NSUserDefaults if it exists. This code
-  // needs to be removed in version M-120.
-  NSUserDefaults* user_defaults = [NSUserDefaults standardUserDefaults];
-  if ([user_defaults objectForKey:kDisplayedFirstFollowModalCountKey]) {
-    const NSUInteger count =
-        [user_defaults integerForKey:kDisplayedFirstFollowModalCountKey];
-
-    pref_service->SetInteger(prefs::kFirstFollowUIShownCount, count);
-    [user_defaults removeObjectForKey:kDisplayedFirstFollowModalCountKey];
-  }
-
   if (experimental_flags::ShouldAlwaysShowFirstFollow()) {
     return true;
   }
@@ -92,8 +75,6 @@ bool IsFollowSourceFromMenu(FollowSource source) {
 }
 
 }  // namespace
-
-BROWSER_USER_DATA_KEY_IMPL(FollowBrowserAgent)
 
 FollowBrowserAgent::~FollowBrowserAgent() = default;
 
@@ -256,12 +237,10 @@ void FollowBrowserAgent::OnFollowSuccess(WebPageURLs* web_page_urls,
 
   // Enable the feed prefs to show the feed and to expand it if they
   // are disabled.
-  PrefService* const pref_service = browser_->GetBrowserState()->GetPrefs();
-  if (!pref_service->GetBoolean(prefs::kArticlesForYouEnabled))
+  PrefService* const pref_service = browser_->GetProfile()->GetPrefs();
+  if (!pref_service->GetBoolean(prefs::kArticlesForYouEnabled)) {
     pref_service->SetBoolean(prefs::kArticlesForYouEnabled, true);
-
-  if (!pref_service->GetBoolean(feed::prefs::kArticlesListVisible))
-    pref_service->SetBoolean(feed::prefs::kArticlesListVisible, true);
+  }
 
   // Display the First Follow modal UI if needed.
   const bool is_overflow_menu_source = source == FollowSource::OverflowMenu;
@@ -324,8 +303,9 @@ void FollowBrowserAgent::OnFollowFailure(WebPageURLs* web_page_urls,
                           FollowSnackbarActionType::kSnackbarActionRetryFollow];
 
     // Retry following the website.
-    if (weak_ptr)
+    if (weak_ptr) {
       weak_ptr->FollowWebSite(web_page_urls, FollowSource::Retry);
+    }
   };
 
   auto completion_action = ^(BOOL success) {
@@ -362,8 +342,9 @@ void FollowBrowserAgent::OnUnfollowSuccess(WebPageURLs* web_page_urls,
                           FollowSnackbarActionType::kSnackbarActionUndo];
 
     // Undo unfollowing the website.
-    if (weak_ptr)
+    if (weak_ptr) {
       weak_ptr->FollowWebSite(web_page_urls, FollowSource::Undo);
+    }
   };
 
   auto completion_action = ^(BOOL success) {
@@ -395,8 +376,9 @@ void FollowBrowserAgent::OnUnfollowFailure(WebPageURLs* web_page_urls,
                                                  kSnackbarActionRetryUnfollow];
 
     // Retry unfollowing the website.
-    if (weak_ptr)
+    if (weak_ptr) {
       weak_ptr->UnfollowWebSite(web_page_urls, FollowSource::Retry);
+    }
   };
 
   auto completion_action = ^(BOOL success) {
@@ -412,8 +394,8 @@ void FollowBrowserAgent::OnUnfollowFailure(WebPageURLs* web_page_urls,
 
 raw_ptr<FollowService> FollowBrowserAgent::GetFollowService() {
   if (!service_) {
-    ChromeBrowserState* browser_state = browser_->GetBrowserState();
-    service_ = FollowServiceFactory::GetForBrowserState(browser_state);
+    ProfileIOS* profile = browser_->GetProfile();
+    service_ = FollowServiceFactory::GetForProfile(profile);
     DCHECK(service_);
   }
   return service_;
@@ -421,10 +403,9 @@ raw_ptr<FollowService> FollowBrowserAgent::GetFollowService() {
 
 FeedMetricsRecorder* FollowBrowserAgent::GetMetricsRecorder() {
   if (!metrics_recorder_) {
-    ChromeBrowserState* browser_state = browser_->GetBrowserState();
-    metrics_recorder_ =
-        DiscoverFeedServiceFactory::GetForBrowserState(browser_state)
-            ->GetFeedMetricsRecorder();
+    ProfileIOS* profile = browser_->GetProfile();
+    metrics_recorder_ = DiscoverFeedServiceFactory::GetForProfile(profile)
+                            ->GetFeedMetricsRecorder();
   }
   return metrics_recorder_;
 }

@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -12,10 +13,8 @@
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
-#include "base/functional/callback_forward.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
 #include "base/test/mock_callback.h"
@@ -32,6 +31,7 @@
 #include "chrome/updater/update_service.h"
 #include "chrome/updater/updater_scope.h"
 #include "chrome/updater/util/util.h"
+#include "components/policy/core/common/policy_types.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/multiprocess_func_list.h"
@@ -109,10 +109,11 @@ class UpdaterIPCTestCase : public testing::Test {
     EXPECT_EQ(lhs.installer_cmd_line, rhs.installer_cmd_line);
   }
 
-  static UpdateService::StateChangeCallback ExpectUpdateStatesCallback() {
+  static base::RepeatingCallback<void(const UpdateService::UpdateState&)>
+  ExpectUpdateStatesCallback() {
     std::vector<UpdateService::UpdateState> states = GetExampleUpdateStates();
     // For the convenience of using `back` and `pop_back` below.
-    base::ranges::reverse(states);
+    std::ranges::reverse(states);
     return base::BindRepeating(
         [](std::vector<UpdateService::UpdateState>& states,
            const UpdateService::UpdateState& state) {
@@ -123,7 +124,8 @@ class UpdaterIPCTestCase : public testing::Test {
         base::OwnedRef(states));
   }
 
-  static UpdateService::Callback ExpectResultCallback(base::RunLoop& run_loop) {
+  static base::OnceCallback<void(UpdateService::Result)> ExpectResultCallback(
+      base::RunLoop& run_loop) {
     return base::BindOnce([](UpdateService::Result result) {
              EXPECT_EQ(result, UpdateService::Result::kInstallFailed);
            })
@@ -168,7 +170,8 @@ class UpdaterIPCTestCase : public testing::Test {
                 (override));
     MOCK_METHOD(void,
                 FetchPolicies,
-                (base::OnceCallback<void(int)> callback),
+                (policy::PolicyFetchReason reason,
+                 base::OnceCallback<void(int)> callback),
                 (override));
     MOCK_METHOD(void,
                 RegisterApp,
@@ -189,8 +192,9 @@ class UpdaterIPCTestCase : public testing::Test {
                 (const std::string& app_id,
                  Priority priority,
                  PolicySameVersionUpdate policy_same_version_update,
-                 StateChangeCallback state_update,
-                 Callback callback),
+                 const std::string& language,
+                 base::RepeatingCallback<void(const UpdateState&)> state_update,
+                 base::OnceCallback<void(Result)> callback),
                 (override));
     MOCK_METHOD(void,
                 Update,
@@ -198,12 +202,14 @@ class UpdaterIPCTestCase : public testing::Test {
                  const std::string& install_data_index,
                  Priority priority,
                  PolicySameVersionUpdate policy_same_version_update,
-                 StateChangeCallback state_update,
-                 Callback callback),
+                 const std::string& language,
+                 base::RepeatingCallback<void(const UpdateState&)> state_update,
+                 base::OnceCallback<void(Result)> callback),
                 (override));
     MOCK_METHOD(void,
                 UpdateAll,
-                (StateChangeCallback state_update, Callback callback),
+                (base::RepeatingCallback<void(const UpdateState&)> state_update,
+                 base::OnceCallback<void(Result)> callback),
                 (override));
     MOCK_METHOD(void,
                 Install,
@@ -211,8 +217,9 @@ class UpdaterIPCTestCase : public testing::Test {
                  const std::string& client_install_data,
                  const std::string& install_data_index,
                  Priority priority,
-                 StateChangeCallback state_update,
-                 Callback callback),
+                 const std::string& language,
+                 base::RepeatingCallback<void(const UpdateState&)> state_update,
+                 base::OnceCallback<void(Result)> callback),
                 (override));
     MOCK_METHOD(void, CancelInstalls, (const std::string& app_id), (override));
     MOCK_METHOD(void,
@@ -222,8 +229,9 @@ class UpdaterIPCTestCase : public testing::Test {
                  const std::string& install_args,
                  const std::string& install_data,
                  const std::string& install_settings,
-                 StateChangeCallback state_update,
-                 Callback callback),
+                 const std::string& language,
+                 base::RepeatingCallback<void(const UpdateState&)> state_update,
+                 base::OnceCallback<void(Result)> callback),
                 (override));
 
    protected:
@@ -265,7 +273,8 @@ TEST_F(UpdaterIPCTestCase, AllRpcsComplete) {
       });
 
   EXPECT_CALL(*mock_service, FetchPolicies)
-      .WillOnce([](base::OnceCallback<void(int)> callback) {
+      .WillOnce([](policy::PolicyFetchReason reason,
+                   base::OnceCallback<void(int)> callback) {
         std::move(callback).Run(42);
       });
 
@@ -287,27 +296,32 @@ TEST_F(UpdaterIPCTestCase, AllRpcsComplete) {
       .WillOnce([](base::OnceClosure callback) { std::move(callback).Run(); });
 
   EXPECT_CALL(*mock_service, UpdateAll)
-      .WillOnce([](UpdateService::StateChangeCallback state_change_callback,
-                   UpdateService::Callback callback) {
-        for (const UpdateService::UpdateState& state :
-             GetExampleUpdateStates()) {
-          state_change_callback.Run(state);
-        }
-        std::move(callback).Run(UpdateService::Result::kInstallFailed);
-      });
+      .WillOnce(
+          [](base::RepeatingCallback<void(const UpdateService::UpdateState&)>
+                 state_change_callback,
+             base::OnceCallback<void(UpdateService::Result)> callback) {
+            for (const UpdateService::UpdateState& state :
+                 GetExampleUpdateStates()) {
+              state_change_callback.Run(state);
+            }
+            std::move(callback).Run(UpdateService::Result::kInstallFailed);
+          });
 
   EXPECT_CALL(*mock_service, Update)
       .WillOnce(
           [](const std::string& app_id, const std::string& install_data_index,
              UpdateService::Priority priority,
              UpdateService::PolicySameVersionUpdate policy_same_version_update,
-             UpdateService::StateChangeCallback state_change_callback,
-             UpdateService::Callback callback) {
+             const std::string& language,
+             base::RepeatingCallback<void(const UpdateService::UpdateState&)>
+                 state_change_callback,
+             base::OnceCallback<void(UpdateService::Result)> callback) {
             EXPECT_EQ(app_id, "ex1");
             EXPECT_EQ(install_data_index, "install_data_index");
             EXPECT_EQ(priority, UpdateService::Priority::kBackground);
             EXPECT_EQ(policy_same_version_update,
                       UpdateService::PolicySameVersionUpdate::kAllowed);
+            EXPECT_EQ(language, "en-us");
 
             for (const UpdateService::UpdateState& state :
                  GetExampleUpdateStates()) {
@@ -317,22 +331,24 @@ TEST_F(UpdaterIPCTestCase, AllRpcsComplete) {
           });
 
   EXPECT_CALL(*mock_service, Install)
-      .WillOnce([](const RegistrationRequest&,
-                   const std::string& client_install_data,
-                   const std::string& install_data_index,
-                   UpdateService::Priority priority,
-                   UpdateService::StateChangeCallback state_change_callback,
-                   UpdateService::Callback callback) {
-        EXPECT_EQ(client_install_data, "client_install_data");
-        EXPECT_EQ(install_data_index, "install_data_index");
-        EXPECT_EQ(priority, UpdateService::Priority::kForeground);
+      .WillOnce(
+          [](const RegistrationRequest&, const std::string& client_install_data,
+             const std::string& install_data_index,
+             UpdateService::Priority priority, const std::string& language,
+             base::RepeatingCallback<void(const UpdateService::UpdateState&)>
+                 state_change_callback,
+             base::OnceCallback<void(UpdateService::Result)> callback) {
+            EXPECT_EQ(client_install_data, "client_install_data");
+            EXPECT_EQ(install_data_index, "install_data_index");
+            EXPECT_EQ(priority, UpdateService::Priority::kForeground);
+            EXPECT_EQ(language, "en-us");
 
-        for (const UpdateService::UpdateState& state :
-             GetExampleUpdateStates()) {
-          state_change_callback.Run(state);
-        }
-        std::move(callback).Run(UpdateService::Result::kInstallFailed);
-      });
+            for (const UpdateService::UpdateState& state :
+                 GetExampleUpdateStates()) {
+              state_change_callback.Run(state);
+            }
+            std::move(callback).Run(UpdateService::Result::kInstallFailed);
+          });
 
   EXPECT_CALL(*mock_service, CancelInstalls)
       .WillOnce([](const std::string& app_id) { EXPECT_EQ(app_id, "ex1"); });
@@ -341,14 +357,16 @@ TEST_F(UpdaterIPCTestCase, AllRpcsComplete) {
       .WillOnce(
           [](const std::string& app_id, const base::FilePath& installer_path,
              const std::string& install_args, const std::string& install_data,
-             const std::string& install_settings,
-             UpdateService::StateChangeCallback state_change_callback,
-             UpdateService::Callback callback) {
+             const std::string& install_settings, const std::string& language,
+             base::RepeatingCallback<void(const UpdateService::UpdateState&)>
+                 state_change_callback,
+             base::OnceCallback<void(UpdateService::Result)> callback) {
             EXPECT_EQ(app_id, "ex1");
             EXPECT_EQ(installer_path, base::FilePath("/path/to/installer"));
             EXPECT_EQ(install_args, "install_args");
             EXPECT_EQ(install_data, "install_data");
             EXPECT_EQ(install_settings, "install_settings");
+            EXPECT_EQ(language, "en-us");
 
             for (const UpdateService::UpdateState& state :
                  GetExampleUpdateStates()) {
@@ -386,7 +404,8 @@ MULTIPROCESS_TEST_MAIN(UpdateServiceClient) {
   }
   {
     base::RunLoop run_loop;
-    client_proxy->FetchPolicies(base::BindOnce([](int result) {
+    client_proxy->FetchPolicies(policy::PolicyFetchReason::kUnspecified,
+                                base::BindOnce([](int result) {
                                   EXPECT_EQ(result, 42);
                                 }).Then(run_loop.QuitClosure()));
     run_loop.Run();
@@ -437,18 +456,18 @@ MULTIPROCESS_TEST_MAIN(UpdateServiceClient) {
   }
   {
     base::RunLoop run_loop;
-    client_proxy->Update("ex1", "install_data_index",
-                         UpdateService::Priority::kBackground,
-                         UpdateService::PolicySameVersionUpdate::kAllowed,
-                         UpdaterIPCTestCase::ExpectUpdateStatesCallback(),
-                         UpdaterIPCTestCase::ExpectResultCallback(run_loop));
+    client_proxy->Update(
+        "ex1", "install_data_index", UpdateService::Priority::kBackground,
+        UpdateService::PolicySameVersionUpdate::kAllowed, "en-us",
+        UpdaterIPCTestCase::ExpectUpdateStatesCallback(),
+        UpdaterIPCTestCase::ExpectResultCallback(run_loop));
     run_loop.Run();
   }
   {
     base::RunLoop run_loop;
     RegistrationRequest request;
     client_proxy->Install(request, "client_install_data", "install_data_index",
-                          UpdateService::Priority::kForeground,
+                          UpdateService::Priority::kForeground, "en-us",
                           UpdaterIPCTestCase::ExpectUpdateStatesCallback(),
                           UpdaterIPCTestCase::ExpectResultCallback(run_loop));
     run_loop.Run();
@@ -461,7 +480,7 @@ MULTIPROCESS_TEST_MAIN(UpdateServiceClient) {
     base::RunLoop run_loop;
     client_proxy->RunInstaller(
         "ex1", base::FilePath("/path/to/installer"), "install_args",
-        "install_data", "install_settings",
+        "install_data", "install_settings", "en-us",
         UpdaterIPCTestCase::ExpectUpdateStatesCallback(),
         UpdaterIPCTestCase::ExpectResultCallback(run_loop));
     run_loop.Run();

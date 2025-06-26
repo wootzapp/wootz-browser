@@ -114,7 +114,7 @@ class TestAndroidPageLoadMetricsObserver
 class AndroidPageLoadMetricsObserverTest
     : public page_load_metrics::PageLoadMetricsObserverTestHarness {
  public:
-  AndroidPageLoadMetricsObserverTest() {}
+  AndroidPageLoadMetricsObserverTest() = default;
 
   void SetUp() override {
     PageLoadMetricsObserverTestHarness::SetUp();
@@ -191,7 +191,7 @@ TEST_F(AndroidPageLoadMetricsObserverTest, LoadTimingInfo) {
           GURL("https://www.example.com"),
           web_contents()->GetPrimaryMainFrame());
   navigation_simulator->Start();
-  int frame_tree_node_id =
+  content::FrameTreeNodeId frame_tree_node_id =
       navigation_simulator->GetNavigationHandle()->GetFrameTreeNodeId();
   navigation_simulator->Commit();
 

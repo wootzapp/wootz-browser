@@ -7,6 +7,8 @@
 
 #include "base/time/time.h"
 #include "chromeos/ash/components/nearby/common/client/nearby_http_result.h"
+#include "chromeos/ash/components/nearby/presence/enums/nearby_presence_enums.h"
+#include "chromeos/ash/services/nearby/public/cpp/nearby_process_manager.h"
 
 namespace ash::nearby::presence::metrics {
 
@@ -32,6 +34,8 @@ void RecordFirstTimeServerRegistrationDuration(
 // numeric values should never be reused. This enum should be kept in sync with
 // the NearbyPresenceFirstTimeRegistrationResult enum in
 // //tools/metrics/histograms/metadata/nearby/enums.xml.
+//
+// LINT.IfChange(NearbyPresenceFirstTimeRegistrationResult)
 enum class FirstTimeRegistrationResult {
   kSuccess = 0,
   kRegistrationWithServerFailure = 1,
@@ -41,11 +45,18 @@ enum class FirstTimeRegistrationResult {
   kSaveRemoteCredentialsFailure = 5,
   kMaxValue = kSaveRemoteCredentialsFailure,
 };
+// LINT.ThenChange(//tools/metrics/histograms/metadata/nearby/enums.xml:NearbyPresenceFirstTimeRegistrationResult)
+
 void RecordFirstTimeRegistrationFlowResult(FirstTimeRegistrationResult result);
 void RecordFirstTimeServerRegistrationFailureReason(
     ash::nearby::NearbyHttpResult failure_reason);
 void RecordFirstTimeServerRegistrationTotalAttemptsNeededCount(
     int attempt_count);
+void RecordScanRequestResult(enums::StatusCode result);
+void RecordDeviceFoundLatency(base::TimeDelta device_found_latency);
+void RecordNearbyProcessShutdownReason(
+    ash::nearby::NearbyProcessManager::NearbyProcessShutdownReason
+        shutdown_reason);
 
 }  // namespace ash::nearby::presence::metrics
 

@@ -5,7 +5,6 @@
 #include "chrome/browser/content_settings/page_specific_content_settings_delegate.h"
 
 #include "base/feature_list.h"
-#include "build/build_config.h"
 #include "chrome/browser/browsing_data/browsing_data_file_system_util.h"
 #include "chrome/browser/browsing_data/chrome_browsing_data_model_delegate.h"
 #include "chrome/browser/content_settings/chrome_content_settings_utils.h"
@@ -13,6 +12,7 @@
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "chrome/browser/permissions/permission_decision_auto_blocker_factory.h"
+#include "chrome/browser/permissions/system/system_permission_settings.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_switches.h"
@@ -41,23 +41,20 @@
 #include "pdf/pdf_features.h"
 #endif  // BUILDFLAG(ENABLE_PDF)
 
-#if BUILDFLAG(IS_MAC)
-#include "chrome/browser/media/webrtc/system_media_capture_permissions_mac.h"
-#endif
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "components/permissions/permission_indicators_tab_data.h"
+#include "components/tabs/public/tab_interface.h"
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 using content_settings::PageSpecificContentSettings;
-
-namespace chrome {
 
 PageSpecificContentSettingsDelegate::PageSpecificContentSettingsDelegate(
     content::WebContents* web_contents)
     : WebContentsObserver(web_contents) {
-  if (base::FeatureList::IsEnabled(
-          content_settings::features::kImprovedSemanticsActivityIndicators)) {
     media_observation_.Observe(MediaCaptureDevicesDispatcher::GetInstance()
                                    ->GetMediaStreamCaptureIndicator()
                                    .get());
-  }
 }
 
 PageSpecificContentSettingsDelegate::~PageSpecificContentSettingsDelegate() =
@@ -71,11 +68,34 @@ PageSpecificContentSettingsDelegate::FromWebContents(
       PageSpecificContentSettings::GetDelegateForWebContents(web_contents));
 }
 
+// Helper function for recording indicator usage data.
+void IndicatorUsageHistogramHelper(content::WebContents* web_contents,
+                                   permissions::RequestTypeForUma request_type,
+                                   bool is_capturing) {
+#if !BUILDFLAG(IS_ANDROID)
+  tabs::TabInterface* tab_model =
+      tabs::TabInterface::MaybeGetFromContents(web_contents);
+  if (!tab_model) {
+    return;
+  }
+  permissions::PermissionIndicatorsTabData* permission_indicators_tab_data =
+      tab_model->GetTabFeatures()->permission_indicators_tab_data();
+  if (permission_indicators_tab_data) {
+    permission_indicators_tab_data->OnMediaCaptureChanged(request_type,
+                                                          is_capturing);
+  }
+#endif  // !BUILDFLAG(IS_ANDROID)
+}
+
 void PageSpecificContentSettingsDelegate::OnIsCapturingVideoChanged(
     content::WebContents* web_contents,
     bool is_capturing_video) {
   OnCapturingStateChanged(web_contents, ContentSettingsType::MEDIASTREAM_CAMERA,
                           is_capturing_video);
+  IndicatorUsageHistogramHelper(
+      web_contents,
+      permissions::RequestTypeForUma::PERMISSION_MEDIASTREAM_CAMERA,
+      is_capturing_video);
 }
 
 void PageSpecificContentSettingsDelegate::OnIsCapturingAudioChanged(
@@ -83,6 +103,9 @@ void PageSpecificContentSettingsDelegate::OnIsCapturingAudioChanged(
     bool is_capturing_audio) {
   OnCapturingStateChanged(web_contents, ContentSettingsType::MEDIASTREAM_MIC,
                           is_capturing_audio);
+  IndicatorUsageHistogramHelper(
+      web_contents, permissions::RequestTypeForUma::PERMISSION_MEDIASTREAM_MIC,
+      is_capturing_audio);
 }
 
 void PageSpecificContentSettingsDelegate::OnCapturingStateChanged(
@@ -265,22 +288,7 @@ bool PageSpecificContentSettingsDelegate::IsBlockedOnSystemLevel(
   DCHECK(type == ContentSettingsType::MEDIASTREAM_MIC ||
          type == ContentSettingsType::MEDIASTREAM_CAMERA);
 
-#if BUILDFLAG(IS_MAC)
-  switch (type) {
-    case ContentSettingsType::MEDIASTREAM_CAMERA: {
-      return system_media_permissions::CheckSystemVideoCapturePermission() ==
-             system_media_permissions::SystemPermission::kDenied;
-    }
-    case ContentSettingsType::MEDIASTREAM_MIC: {
-      return system_media_permissions::CheckSystemAudioCapturePermission() ==
-             system_media_permissions::SystemPermission::kDenied;
-    }
-    default:
-      return false;
-  }
-#else
-  return false;
-#endif
+  return system_permission_settings::IsDenied(type);
 }
 
 bool PageSpecificContentSettingsDelegate::IsFrameAllowlistedForJavaScript(
@@ -313,5 +321,3 @@ void PageSpecificContentSettingsDelegate::PrimaryPageChanged(
     content::Page& page) {
   ClearPendingProtocolHandler();
 }
-
-}  // namespace chrome

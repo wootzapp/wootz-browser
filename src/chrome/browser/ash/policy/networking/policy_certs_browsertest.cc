@@ -19,7 +19,6 @@
 #include "base/test/test_future.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ash/login/existing_user_controller.h"
 #include "chrome/browser/ash/login/helper.h"
 #include "chrome/browser/ash/login/startup_utils.h"
@@ -27,9 +26,7 @@
 #include "chrome/browser/ash/login/test/oobe_base_test.h"
 #include "chrome/browser/ash/login/test/oobe_screen_waiter.h"
 #include "chrome/browser/ash/login/test/session_manager_state_waiter.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
-#include "chrome/browser/ash/policy/core/device_local_account.h"
 #include "chrome/browser/ash/policy/core/device_policy_cros_browser_test.h"
 #include "chrome/browser/ash/policy/login/login_policy_test_base.h"
 #include "chrome/browser/ash/policy/login/signin_profile_extensions_policy_test_base.h"
@@ -42,6 +39,7 @@
 #include "chrome/browser/policy/networking/user_network_configuration_updater_factory.h"
 #include "chrome/browser/policy/profile_policy_connector_builder.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/webui/ash/login/gaia_screen_handler.h"
@@ -56,6 +54,7 @@
 #include "components/onc/onc_constants.h"
 #include "components/policy/core/browser/browser_policy_connector.h"
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
+#include "components/policy/core/common/device_local_account_type.h"
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "components/policy/core/common/policy_switches.h"
 #include "components/policy/policy_constants.h"
@@ -139,7 +138,7 @@ class WebTrustedCertsChangedObserver
 // cert change has occurred.
 class CertDatabaseChangedObserver : public net::CertDatabase::Observer {
  public:
-  CertDatabaseChangedObserver() {}
+  CertDatabaseChangedObserver() = default;
 
   CertDatabaseChangedObserver(const CertDatabaseChangedObserver&) = delete;
   CertDatabaseChangedObserver& operator=(const CertDatabaseChangedObserver&) =
@@ -422,10 +421,9 @@ class PolicyProvidedCertsDeviceLocalAccountTest
 
   ash::EmbeddedPolicyTestServerMixin policy_test_server_mixin_{&mixin_host_};
 
-  const AccountId device_local_account_id_ =
-      AccountId::FromUserEmail(GenerateDeviceLocalAccountUserId(
-          kDeviceLocalAccountId,
-          DeviceLocalAccount::TYPE_PUBLIC_SESSION));
+  const AccountId device_local_account_id_ = AccountId::FromUserEmail(
+      GenerateDeviceLocalAccountUserId(kDeviceLocalAccountId,
+                                       DeviceLocalAccountType::kPublicSession));
 
   MockConfigurationPolicyProvider user_policy_provider_;
   UserPolicyCertsHelper user_policy_certs_helper_;
@@ -496,7 +494,7 @@ class PolicyProvidedCertsOnUserSessionInitTest : public LoginPolicyTestBase {
       const PolicyProvidedCertsOnUserSessionInitTest&) = delete;
 
  protected:
-  PolicyProvidedCertsOnUserSessionInitTest() {}
+  PolicyProvidedCertsOnUserSessionInitTest() = default;
 
   void GetPolicySettings(em::CloudPolicySettings* policy) const override {
     std::string user_policy_blob = GetTestCertsFileContents(kRootCaCertOnc);
@@ -533,8 +531,8 @@ IN_PROC_BROWSER_TEST_F(PolicyProvidedCertsOnUserSessionInitTest,
 // Testing policy-provided client cert import.
 class PolicyProvidedClientCertsTest : public DevicePolicyCrosBrowserTest {
  protected:
-  PolicyProvidedClientCertsTest() {}
-  ~PolicyProvidedClientCertsTest() override {}
+  PolicyProvidedClientCertsTest() = default;
+  ~PolicyProvidedClientCertsTest() override = default;
 
   void SetUpInProcessBrowserTestFixture() override {
     // Set up the mock policy provider.

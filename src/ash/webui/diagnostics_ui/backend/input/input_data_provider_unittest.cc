@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ash/webui/diagnostics_ui/backend/input/input_data_provider.h"
 
 #include <cstdint>
@@ -11,7 +16,6 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
-#include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/tablet_mode.h"
 #include "ash/shell.h"
 #include "ash/system/diagnostics/diagnostics_log_controller.h"
@@ -263,7 +267,8 @@ class FakeDeviceManager : public ui::DeviceManager {
 };
 
 class FakeInputDataEventWatcher;
-typedef std::map<uint32_t, FakeInputDataEventWatcher*> watchers_t;
+typedef std::map<uint32_t, raw_ptr<FakeInputDataEventWatcher, CtnExperimental>>
+    watchers_t;
 
 // Fake evdev watcher class that lets us manually post input
 // events into an InputDataProvider; this keeps an external
@@ -672,7 +677,8 @@ class InputDataProviderTest : public AshTestBase {
     system::StatisticsProvider::SetTestProvider(&statistics_provider_);
 
     fake_udev_ = std::make_unique<testing::FakeUdevLoader>();
-    widget_ = CreateTestWidget();
+    widget_ =
+        CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
     provider_ = std::make_unique<TestInputDataProvider>(
         widget_.get(), watchers_, &event_rewriter_delegate_);
     DiagnosticsLogController::Initialize(
@@ -879,12 +885,6 @@ TEST_F(InputDataProviderTest, GetConnectedDevices_HasInternalKeyboard) {
 TEST_F(InputDataProviderTest, GetConnectedDevices_SplitModifierKeyboard) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitAndEnableFeature(features::kModifierSplit);
-  auto ignore_modifier_split_secret_key =
-      ash::switches::SetIgnoreModifierSplitSecretKeyForTest();
-
-  Shell::Get()
-      ->keyboard_capability()
-      ->ResetModifierSplitDogfoodControllerForTesting();
 
   // Initialize one split modifier keyboard in DeviceDataManager.
   std::vector<ui::KeyboardDevice> keyboard_devices;
@@ -904,15 +904,9 @@ TEST_F(InputDataProviderTest, GetConnectedDevices_SplitModifierKeyboard) {
   ASSERT_TRUE(future.IsReady());
 }
 
-TEST_F(InputDataProviderTest, FilterOutSplitModifierKeyboard) {
+TEST_F(InputDataProviderTest, FilterOutSplitModifierKeyboardWithoutConfig) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitAndEnableFeature(features::kModifierSplit);
-  auto ignore_modifier_split_secret_key =
-      ash::switches::SetIgnoreModifierSplitSecretKeyForTest();
-
-  Shell::Get()
-      ->keyboard_capability()
-      ->ResetModifierSplitDogfoodControllerForTesting();
 
   // Initialize one split modifier keyboard in DeviceDataManager.
   std::vector<ui::KeyboardDevice> keyboard_devices;
@@ -1744,7 +1738,8 @@ TEST_F(InputDataProviderTest, KeyObservationDisconnect) {
 TEST_F(InputDataProviderTest, KeyObservationObeysFocusSwitching) {
   std::unique_ptr<FakeKeyboardObserver> fake_observer =
       std::make_unique<FakeKeyboardObserver>();
-  std::unique_ptr<views::Widget> other_widget = CreateTestWidget();
+  std::unique_ptr<views::Widget> other_widget =
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
 
   // Provider's widget must be active and visible.
   provider_->attached_widget_->Show();
@@ -2007,7 +2002,8 @@ TEST_F(InputDataProviderTest, KeyObservationMultipleProviders) {
   // Create a second InputDataProvider, with a separate window/widget,
   // as would happen if multiple instances of the SWA were created.
   watchers_t provider2_watchers;
-  auto provider2_widget = CreateTestWidget();
+  auto provider2_widget =
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
 
   std::unique_ptr<TestInputDataProvider> provider2_ =
       std::make_unique<TestInputDataProvider>(provider2_widget.get(),
@@ -2137,7 +2133,8 @@ TEST_F(InputDataProviderTest, KeyObservationMultipleProviders) {
   fake_observer2->events_.clear();
 
   // Activate a new widget, ensuring neither previous window is active.
-  auto widget3 = CreateTestWidget();
+  auto widget3 =
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET);
   widget3->Activate();
   base::RunLoop().RunUntilIdle();
 

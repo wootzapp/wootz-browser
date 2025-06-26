@@ -33,8 +33,9 @@ const size_t kPromptBlockButtonIndex = 2;
 std::unique_ptr<OverlayResponse> CreateDialogResponse(
     std::unique_ptr<OverlayResponse> response) {
   AlertResponse* alert_response = response->GetInfo<AlertResponse>();
-  if (!alert_response)
+  if (!alert_response) {
     return nullptr;
+  }
 
   JavaScriptPromptDialogResponse::Action action =
       JavaScriptPromptDialogResponse::Action::kCancel;
@@ -54,8 +55,6 @@ std::unique_ptr<OverlayResponse> CreateDialogResponse(
 }  // namespace
 
 #pragma mark - JavaScriptPromptDialogRequest
-
-OVERLAY_USER_DATA_SETUP_IMPL(JavaScriptPromptDialogRequest);
 
 JavaScriptPromptDialogRequest::JavaScriptPromptDialogRequest(
     web::WebState* web_state,
@@ -104,8 +103,6 @@ void JavaScriptPromptDialogRequest::CreateAuxiliaryData(
 }
 
 #pragma mark - JavaScriptPromptDialogResponse
-
-OVERLAY_USER_DATA_SETUP_IMPL(JavaScriptPromptDialogResponse);
 
 JavaScriptPromptDialogResponse::JavaScriptPromptDialogResponse(
     Action action,

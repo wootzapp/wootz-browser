@@ -15,21 +15,12 @@
     text-align: center;
   }
 
-  :host-context(body.revamp-wayfinding-enabled) #hotspotSubtitle {
+  #hotspotSubtitle {
     color: var(--cr-secondary-text-color);
     font-size: inherit;
     padding-left: 20px;
     padding-top: 8px;
     max-width: 560px;
-  }
-
-  :host-context(body:not(.revamp-wayfinding-enabled)) #hotspotSubtitle {
-    color: var(--cr-secondary-text-color);
-    font-size: inherit;
-    left: 56px;
-    padding-inline-end: 210px;
-    position: relative;
-    top: -22px;
   }
 
   #apnSubpageTitleExtra {
@@ -69,13 +60,13 @@
                     aria-labelledby="add-wifi-label"></cr-icon-button>
               </div>
             </template>
-            <div actionable$="[[!isAddingBuiltInVpnProhibited_]]"
+            <div actionable$="[[!isBuiltInVpnManagementBlocked_]]"
                 class="list-item" on-click="onAddVpnClick_">
               <div class="start settings-box-text"
                   id="add-vpn-label" aria-hidden="true">
                 $i18n{internetAddVPN}
               </div>
-              <template is="dom-if" if="[[isAddingBuiltInVpnProhibited_]]">
+              <template is="dom-if" if="[[isBuiltInVpnManagementBlocked_]]">
                 <cr-policy-indicator id="vpnPolicyIndicator"
                     icon-aria-label="$i18n{networkVpnBuiltin}"
                     indicator-type="devicePolicy"
@@ -84,7 +75,7 @@
               </template>
               <cr-icon-button id="add-vpn-button" class="icon-add-circle"
                   aria-labelledby="add-vpn-label"
-                  disabled="[[isAddingBuiltInVpnProhibited_]]">
+                  disabled="[[isBuiltInVpnManagementBlocked_]]">
               </cr-icon-button>
             </div>
             <template is="dom-repeat" items="[[vpnProviders_]]">
@@ -169,6 +160,13 @@
           slot="subpage-title-extra"
           device-state="[[getDeviceState_(subpageType_, deviceStates)]]">
       </settings-internet-subpage-menu>
+      <template is="dom-if" if="[[isDeviceUpdating_]]" restamp>
+        <div class="settings-box first">
+          <div id="flashingSubtitle" class="settings-box-text">
+            $i18n{internetDeviceFlashing}
+          </div>
+        </div>
+      </template>
       <template is="dom-if"
           if="[[isProviderLocked_]]" restamp>
         <!-- Carrier locked network. -->
@@ -190,7 +188,8 @@
           show-spinner="{{showSpinner_}}"
           is-connected-to-non-cellular-network="[[isConnectedToNonCellularNetwork_]]"
           is-cellular-setup-active="[[showCellularSetupDialog_]]"
-          is-adding-built-in-vpn-prohibited="[[isAddingBuiltInVpnProhibited_]]">
+          is-built-in-vpn-management-blocked=
+              "[[isBuiltInVpnManagementBlocked_]]">
       </settings-internet-subpage>
     </os-settings-subpage>
   </template>

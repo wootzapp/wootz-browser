@@ -26,7 +26,6 @@
 #include "base/threading/sequence_bound.h"
 #include "base/types/expected.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/reporting/compression/compression_module.h"
 #include "components/reporting/compression/decompression.h"
 #include "components/reporting/encryption/test_encryption_module.h"
@@ -43,6 +42,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::AnyOf;
 using ::testing::AtMost;
 using ::testing::Between;
@@ -50,8 +50,8 @@ using ::testing::DoAll;
 using ::testing::Eq;
 using ::testing::Invoke;
 using ::testing::Ne;
-using ::testing::Not;
 using ::testing::NotNull;
+using ::testing::Property;
 using ::testing::Return;
 using ::testing::Sequence;
 using ::testing::StrEq;
@@ -74,10 +74,10 @@ const base::FilePath::CharType METADATA_NAME[] = FILE_PATH_LITERAL("META");
 // Forbidden file/folder names
 const base::FilePath::StringType kInvalidFilePrefix = FILE_PATH_LITERAL("..");
 #if BUILDFLAG(IS_WIN)
-const base::FilePath::StringPieceType kInvalidDirectoryPath =
+const base::FilePath::StringViewType kInvalidDirectoryPath =
     FILE_PATH_LITERAL("o:\\some\\inaccessible\\dir");
 #else
-const base::FilePath::StringPieceType kInvalidDirectoryPath =
+const base::FilePath::StringViewType kInvalidDirectoryPath =
     FILE_PATH_LITERAL("////////////");
 #endif
 
@@ -402,7 +402,7 @@ class StorageQueueTest
           // unique_ptr and pass to SequenceBoundUpload to own.
           // MockUpload outlives TestUploader and is destructed together with
           // SequenceBoundUpload (on a sequenced task runner).
-          mock_upload_(new ::testing::NiceMock<const MockUpload>()),
+          mock_upload_(new ::testing::NiceMock<MockUpload>()),
           sequence_bound_upload_(self->main_task_runner_,
                                  base::WrapUnique(mock_upload_.get())) {
       DETACH_FROM_SEQUENCE(test_uploader_checker_);
@@ -428,12 +428,8 @@ class StorageQueueTest
       ASSERT_TRUE(wrapped_record.ParseFromString(
           encrypted_record.encrypted_wrapped_record()));
 
-      // Verify compression information is enabled or disabled.
-      if (CompressionModule::is_enabled()) {
-        EXPECT_TRUE(encrypted_record.has_compression_information());
-      } else {
-        EXPECT_FALSE(encrypted_record.has_compression_information());
-      }
+      // Verify compression information is enabled.
+      EXPECT_TRUE(encrypted_record.has_compression_information());
 
       std::optional<Record> possible_record_copy;
       if (encrypted_record.has_record_copy()) {
@@ -2503,6 +2499,35 @@ TEST_P(StorageQueueTest, WriteWithUnencryptedCopy) {
   // Flush manually.
   SetExpectedUploadsCount();
   FlushOrDie();
+}
+
+TEST_P(StorageQueueTest, WriteWithNoDestination) {
+  static constexpr char kTestData[] = "test_data";
+
+  CreateTestStorageQueueOrDie(BuildStorageQueueOptionsOnlyManual());
+
+  Record record;
+  record.set_data(kTestData);
+  if (!dm_token_.empty()) {
+    record.set_dm_token(dm_token_);
+  }
+
+  // Attempt Write with no destination.
+  Status write_result = WriteRecord(std::move(record));
+  ASSERT_THAT(write_result,
+              AllOf(Property(&Status::code, Eq(error::FAILED_PRECONDITION)),
+                    Property(&Status::message,
+                             StrEq("Malformed record: missing destination"))))
+      << write_result;
+
+  // Attempt Write with undefined destination.
+  record.set_destination(UNDEFINED_DESTINATION);
+  write_result = WriteRecord(std::move(record));
+  ASSERT_THAT(write_result,
+              AllOf(Property(&Status::code, Eq(error::FAILED_PRECONDITION)),
+                    Property(&Status::message,
+                             StrEq("Malformed record: missing destination"))))
+      << write_result;
 }
 
 INSTANTIATE_TEST_SUITE_P(

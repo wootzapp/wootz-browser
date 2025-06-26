@@ -27,11 +27,19 @@
 + (NSError*)storeCredentialWithUsername:(NSString*)username
                                password:(NSString*)password;
 
+// Returns true if there is a stored credential matching the `username` and
+// `password`.
++ (bool)verifyCredentialStoredWithUsername:(NSString*)username
+                                  password:(NSString*)password;
+
 // Clears any credentials that were stored during a test run.
 + (bool)clearCredentials;
 
 // Returns the number of stored credentials.
 + (int)storedCredentialsCount;
+
+// Returns true if the Passkeys M2 feature is enabled.
++ (bool)isPasskeysM2FeatureEnabled;
 
 @end
 

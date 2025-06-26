@@ -79,11 +79,18 @@ constexpr base::TimeDelta kSaveAndRecallLaunchFadeDelay =
 constexpr base::TimeDelta kSaveAndRecallLaunchFadeDuration =
     base::Milliseconds(250);
 
+// Section label values.
+constexpr gfx::Size kLabelSizeLandscape = {708, 24};
+constexpr gfx::Size kLabelSizePortrait = {464, 24};
+constexpr int kLabelTextShadowElevation = 4;
+
 struct SavedDesks {
   // Saved desks created as templates.
   std::vector<raw_ptr<const DeskTemplate, VectorExperimental>> desk_templates;
   // Saved desks created for save & recall.
   std::vector<raw_ptr<const DeskTemplate, VectorExperimental>> save_and_recall;
+  // Saved desks created for coral.
+  std::vector<raw_ptr<const DeskTemplate, VectorExperimental>> coral;
 };
 
 SavedDesks Group(
@@ -91,13 +98,16 @@ SavedDesks Group(
         saved_desks) {
   SavedDesks grouped;
 
-  for (const ash::DeskTemplate* saved_desk : saved_desks) {
+  for (const DeskTemplate* saved_desk : saved_desks) {
     switch (saved_desk->type()) {
       case DeskTemplateType::kTemplate:
         grouped.desk_templates.push_back(saved_desk);
         break;
       case DeskTemplateType::kSaveAndRecall:
         grouped.save_and_recall.push_back(saved_desk);
+        break;
+      case DeskTemplateType::kCoral:
+        grouped.coral.push_back(saved_desk);
         break;
       // Do nothing in the case of a floating workspace type or an unknown type.
       case DeskTemplateType::kFloatingWorkspace:
@@ -121,6 +131,19 @@ std::unique_ptr<views::View> GetLabelAndGridGroupContents() {
       views::BoxLayout::CrossAxisAlignment::kCenter);
 
   return group_contents;
+}
+
+// TODO(zxdan): Style the label.
+std::unique_ptr<views::Label> MakeGridLabel(int label_string_id) {
+  auto label = std::make_unique<views::Label>(
+      l10n_util::GetStringUTF16(label_string_id));
+  gfx::ShadowValues shadows =
+      gfx::ShadowValue::MakeChromeOSSystemUIShadowValues(
+          kLabelTextShadowElevation);
+  label->SetShadows(shadows);
+  label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  TypographyProvider::Get()->StyleLabel(TypographyToken::kCrosTitle1, *label);
+  return label;
 }
 
 }  // namespace
@@ -220,10 +243,10 @@ SavedDeskLibraryView::CreateSavedDeskLibraryWidget(aura::Window* root) {
   DCHECK(root->IsRootWindow());
 
   views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
   params.activatable = views::Widget::InitParams::Activatable::kYes;
   params.accept_events = true;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   // The parent should be a container that covers all the windows but is below
   // some other system UI features such as system tray and capture mode and also
   // below the system modal dialogs.
@@ -285,17 +308,37 @@ SavedDeskLibraryView::SavedDeskLibraryView() {
   // Create grids depending on which features are enabled.
   if (saved_desk_util::AreDesksTemplatesEnabled()) {
     auto group_contents = GetLabelAndGridGroupContents();
+    if (features::IsCoralFeatureEnabled()) {
+      grid_labels_.push_back(group_contents->AddChildView(
+          MakeGridLabel(IDS_ASH_DESKS_TEMPLATES_LIBRARY_TEMPLATES_GRID_LABEL)));
+    }
     desk_template_grid_view_ =
         group_contents->AddChildView(std::make_unique<SavedDeskGridView>());
     grid_views_.push_back(desk_template_grid_view_.get());
 
     scroll_contents->AddChildView(std::move(group_contents));
   }
-  if (saved_desk_util::ShouldShowSavedDesksButtons()) {
+  if (saved_desk_util::ShouldShowSavedDesksOptions()) {
     auto group_contents = GetLabelAndGridGroupContents();
+    if (features::IsCoralFeatureEnabled()) {
+      grid_labels_.push_back(group_contents->AddChildView(MakeGridLabel(
+          IDS_ASH_DESKS_TEMPLATES_LIBRARY_SAVE_AND_RECALL_GRID_LABEL)));
+    }
     save_and_recall_grid_view_ =
         group_contents->AddChildView(std::make_unique<SavedDeskGridView>());
     grid_views_.push_back(save_and_recall_grid_view_.get());
+
+    scroll_contents->AddChildView(std::move(group_contents));
+  }
+  if (features::IsCoralFeatureEnabled()) {
+    auto group_contents = GetLabelAndGridGroupContents();
+    if (features::IsCoralFeatureEnabled()) {
+      grid_labels_.push_back(group_contents->AddChildView(
+          MakeGridLabel(IDS_ASH_DESKS_TEMPLATES_LIBRARY_CORAL_GRID_LABEL)));
+    }
+    coral_grid_view_ =
+        group_contents->AddChildView(std::make_unique<SavedDeskGridView>());
+    grid_views_.push_back(coral_grid_view_.get());
 
     scroll_contents->AddChildView(std::move(group_contents));
   }
@@ -322,7 +365,7 @@ SavedDeskLibraryView::~SavedDeskLibraryView() {
 
 SavedDeskItemView* SavedDeskLibraryView::GetItemForUUID(
     const base::Uuid& uuid) {
-  for (ash::SavedDeskGridView* grid_view : grid_views()) {
+  for (SavedDeskGridView* grid_view : grid_views()) {
     if (auto* item = grid_view->GetItemForUUID(uuid))
       return item;
   }
@@ -342,17 +385,27 @@ void SavedDeskLibraryView::AddOrUpdateEntries(
     save_and_recall_grid_view_->AddOrUpdateEntries(grouped.save_and_recall,
                                                    order_first_uuid, animate);
   }
+  if (coral_grid_view_ && !grouped.coral.empty()) {
+    coral_grid_view_->AddOrUpdateEntries(grouped.coral, order_first_uuid,
+                                         animate);
+  }
 
+  UpdateGridLabels();
+
+  // TODO(crbug.com/380312832): check if the immediate layout is necessary or at
+  // least only do layout when needed.
   DeprecatedLayoutImmediately();
 }
 
 void SavedDeskLibraryView::DeleteEntries(const std::vector<base::Uuid>& uuids,
                                          bool delete_animation) {
-  if (desk_template_grid_view_)
-    desk_template_grid_view_->DeleteEntries(uuids, delete_animation);
-  if (save_and_recall_grid_view_)
-    save_and_recall_grid_view_->DeleteEntries(uuids, delete_animation);
+  for (SavedDeskGridView* grid_view : grid_views_) {
+    grid_view->DeleteEntries(uuids, delete_animation);
+  }
+  UpdateGridLabels();
 
+  // TODO(crbug.com/380312832): check if the immediate layout is necessary or at
+  // least only do layout when needed.
   DeprecatedLayoutImmediately();
 }
 
@@ -410,7 +463,7 @@ void SavedDeskLibraryView::AnimateDeskLaunch(const base::Uuid& uuid,
 }
 
 bool SavedDeskLibraryView::IsAnimating() const {
-  for (ash::SavedDeskGridView* grid_view : grid_views()) {
+  for (SavedDeskGridView* grid_view : grid_views()) {
     if (grid_view->IsAnimating())
       return true;
   }
@@ -421,8 +474,8 @@ bool SavedDeskLibraryView::IsAnimating() const {
 bool SavedDeskLibraryView::IntersectsWithUi(
     const gfx::Point& screen_location) const {
   // Check saved desk items.
-  for (ash::SavedDeskGridView* grid : grid_views()) {
-    for (ash::SavedDeskItemView* item : grid->grid_items()) {
+  for (SavedDeskGridView* grid : grid_views()) {
+    for (SavedDeskItemView* item : grid->grid_items()) {
       if (item->GetBoundsInScreen().Contains(screen_location))
         return true;
     }
@@ -457,28 +510,29 @@ void SavedDeskLibraryView::OnLocatedEvent(ui::LocatedEvent* event,
                       : event->root_location();
 
   switch (event->type()) {
-    case ui::ET_MOUSE_MOVED:
-    case ui::ET_MOUSE_ENTERED:
-    case ui::ET_MOUSE_RELEASED:
-    case ui::ET_MOUSE_EXITED:
-    case ui::ET_GESTURE_SCROLL_BEGIN:
-    case ui::ET_GESTURE_LONG_PRESS:
-    case ui::ET_GESTURE_LONG_TAP: {
+    case ui::EventType::kMouseMoved:
+    case ui::EventType::kMouseEntered:
+    case ui::EventType::kMouseReleased:
+    case ui::EventType::kMouseExited:
+    case ui::EventType::kGestureScrollBegin:
+    case ui::EventType::kGestureLongPress:
+    case ui::EventType::kGestureLongTap: {
       if (event->IsGestureEvent())
         SavedDeskNameView::CommitChanges(GetWidget());
 
       // For gesture scroll, we don't update hover button visibility but commit
       // name changes for grid items.
-      if (event->type() == ui::ET_GESTURE_SCROLL_BEGIN)
+      if (event->type() == ui::EventType::kGestureScrollBegin) {
         break;
+      }
 
-      for (ash::SavedDeskGridView* grid_view : grid_views()) {
+      for (SavedDeskGridView* grid_view : grid_views()) {
         for (SavedDeskItemView* grid_item : grid_view->grid_items())
           grid_item->UpdateHoverButtonsVisibility(screen_location, is_touch);
       }
       break;
     }
-    case ui::ET_GESTURE_TAP:
+    case ui::EventType::kGestureTap:
       // When it's a tap outside grid items, it should either commit the name
       // change or exit the overview mode. Currently those are handled in
       // `OverviewGrid` for both saved desk library view and desk bar
@@ -516,6 +570,23 @@ std::optional<gfx::Rect> SavedDeskLibraryView::GetDeskPreviewBoundsForLaunch(
   return std::nullopt;
 }
 
+void SavedDeskLibraryView::UpdateGridLabels() {
+  if (!features::IsCoralFeatureEnabled()) {
+    return;
+  }
+
+  CHECK_EQ(grid_labels_.size(), grid_views_.size());
+
+  const bool landscape = width() >= kLandscapeMinWidth;
+  for (size_t i = 0; i < grid_labels_.size(); ++i) {
+    // Make the grid label invisible if the corresponding grid view is
+    // empty. This will exclude it from the box layout.
+    grid_labels_[i]->SetVisible(!grid_views_[i]->grid_items().empty());
+    grid_labels_[i]->SetPreferredSize(landscape ? kLabelSizeLandscape
+                                                : kLabelSizePortrait);
+  }
+}
+
 void SavedDeskLibraryView::AddedToWidget() {
   event_handler_ = std::make_unique<SavedDeskLibraryEventHandler>(this);
 
@@ -533,7 +604,7 @@ void SavedDeskLibraryView::Layout(PassKey) {
 
   const bool landscape = width() >= kLandscapeMinWidth;
   size_t total_saved_desks = 0;
-  for (ash::SavedDeskGridView* grid_view : grid_views()) {
+  for (SavedDeskGridView* grid_view : grid_views()) {
     grid_view->set_layout_mode(landscape
                                    ? SavedDeskGridView::LayoutMode::LANDSCAPE
                                    : SavedDeskGridView::LayoutMode::PORTRAIT);

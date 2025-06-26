@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "third_party/blink/renderer/platform/image-decoders/fast_shared_buffer_reader.h"
 
 namespace blink {
@@ -69,7 +74,10 @@ size_t FastSharedBufferReader::GetSomeData(const char*& some_data,
 
 void FastSharedBufferReader::GetSomeDataInternal(size_t data_position) const {
   data_position_ = data_position;
-  segment_length_ = data_->GetSomeData(segment_, data_position);
+  base::span<const char> segment =
+      base::as_chars(data_->GetSomeData(data_position));
+  segment_ = segment.data();
+  segment_length_ = segment.size();
   DCHECK(segment_length_);
 }
 

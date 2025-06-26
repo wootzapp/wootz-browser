@@ -24,14 +24,12 @@ InstallLimiterFactory* InstallLimiterFactory::GetInstance() {
 }
 
 InstallLimiterFactory::InstallLimiterFactory()
-    : ProfileKeyedServiceFactory(
-          "InstallLimiter",
-          ProfileSelections::Builder()
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-              // Use OTR profile for Guest Session.
-              .WithGuest(ProfileSelection::kOffTheRecordOnly)
-#endif
-              .Build()) {
+    : ProfileKeyedServiceFactory("InstallLimiter",
+                                 ProfileSelections::Builder()
+                                     // Guest Session won't download extensions.
+                                     .WithGuest(ProfileSelection::kNone)
+                                     .WithAshInternals(ProfileSelection::kNone)
+                                     .Build()) {
   if (extensions::ExtensionsBrowserClient::Get())
     DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
 }

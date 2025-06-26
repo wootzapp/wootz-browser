@@ -86,6 +86,12 @@ void OffsetMappingBuilder::AppendIdentityMapping(unsigned length) {
   has_open_unit_ = true;
 }
 
+void OffsetMappingBuilder::RevertIdentityMapping1() {
+  CHECK(!current_layout_object_);
+  --current_offset_;
+  --destination_length_;
+}
+
 void OffsetMappingBuilder::AppendCollapsedMapping(unsigned length) {
   DCHECK_GT(length, 0u);
   const unsigned dom_start = current_offset_;
@@ -97,8 +103,7 @@ void OffsetMappingBuilder::AppendCollapsedMapping(unsigned length) {
   if (!current_layout_object_)
     return;
 
-  if (has_open_unit_ &&
-      mapping_units_.back().GetType() == OffsetMappingUnitType::kCollapsed) {
+  if (has_open_unit_ && mapping_units_.back().IsCollapsed()) {
     DCHECK_EQ(mapping_units_.back().GetLayoutObject(), current_layout_object_);
     DCHECK_EQ(mapping_units_.back().DOMEnd(), dom_start);
     mapping_units_.back().dom_end_ += length;
@@ -113,7 +118,6 @@ void OffsetMappingBuilder::AppendCollapsedMapping(unsigned length) {
 
 void OffsetMappingBuilder::AppendVariableMapping(unsigned dom_length,
                                                  unsigned text_content_length) {
-  DCHECK(RuntimeEnabledFeatures::OffsetMappingUnitVariableEnabled());
   DCHECK_GT(dom_length, 0u);
   DCHECK_GT(text_content_length, 0u);
   const unsigned dom_start = current_offset_;
@@ -185,7 +189,7 @@ void OffsetMappingBuilder::CollapseTrailingSpace(unsigned space_offset) {
 
   // TODO(xiaochengh): Optimize if this becomes performance bottleneck.
   wtf_size_t position = base::checked_cast<wtf_size_t>(
-      std::distance(mapping_units_.begin(), container_unit));
+      std::distance(mapping_units_.data(), container_unit));
   mapping_units_.EraseAt(position);
   mapping_units_.InsertVector(position, new_units);
   wtf_size_t new_unit_end = position + new_units.size();
@@ -207,8 +211,7 @@ void OffsetMappingBuilder::RestoreTrailingCollapsibleSpace(
   for (auto& unit : base::Reversed(mapping_units_)) {
     if (unit.text_content_end_ < offset) {
       // There are no collapsed unit.
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     }
     if (unit.text_content_start_ != offset ||
         unit.text_content_end_ != offset ||
@@ -217,7 +220,7 @@ void OffsetMappingBuilder::RestoreTrailingCollapsibleSpace(
       ++unit.text_content_end_;
       continue;
     }
-    DCHECK_EQ(unit.type_, OffsetMappingUnitType::kCollapsed);
+    DCHECK(unit.IsCollapsed());
     const unsigned original_dom_end = unit.dom_end_;
     unit.type_ = OffsetMappingUnitType::kIdentity;
     unit.dom_end_ = unit.dom_start_ + 1;
@@ -227,20 +230,18 @@ void OffsetMappingBuilder::RestoreTrailingCollapsibleSpace(
     // When we collapsed multiple spaces, e.g. <b>   </b>.
     mapping_units_.insert(
         base::checked_cast<wtf_size_t>(
-            std::distance(mapping_units_.begin(), &unit) + 1),
+            std::distance(mapping_units_.data(), &unit) + 1),
         OffsetMappingUnit(OffsetMappingUnitType::kCollapsed, layout_text,
                           unit.dom_end_, original_dom_end,
                           unit.text_content_end_, unit.text_content_end_));
     return;
   }
-  NOTREACHED_IN_MIGRATION();
-  return;
+  NOTREACHED();
 }
 
 bool OffsetMappingBuilder::SetDestinationString(const String& string) {
   DCHECK_EQ(destination_length_, string.length());
-  if (RuntimeEnabledFeatures::NoOffsetMappingForInconsistentTextEnabled() &&
-      destination_length_ != string.length()) {
+  if (destination_length_ != string.length()) {
     // If we continue building an OffsetMapping with the inconsistent IFC text
     // content, it might cause out-of-bounds accesses. It happens only if we
     // have a bug, and we should fail safely.

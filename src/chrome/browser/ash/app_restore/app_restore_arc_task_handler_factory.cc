@@ -8,6 +8,8 @@
 #include "chrome/browser/ash/app_list/arc/arc_app_list_prefs_factory.h"
 #include "chrome/browser/ash/app_restore/app_restore_arc_task_handler.h"
 #include "chrome/browser/ash/arc/arc_util.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/profiles/profile.h"
 
 namespace ash::app_restore {
@@ -35,6 +37,9 @@ AppRestoreArcTaskHandlerFactory::AppRestoreArcTaskHandlerFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
               .Build()) {
   DependsOn(ArcAppListPrefsFactory::GetInstance());
   DependsOn(apps::AppServiceProxyFactory::GetInstance());
@@ -48,8 +53,10 @@ AppRestoreArcTaskHandlerFactory::BuildServiceInstanceForBrowserContext(
   if (!arc::IsArcAllowedForProfile(Profile::FromBrowserContext(context)))
     return nullptr;
 
+  auto* scheduler_configuration_manager =
+      g_browser_process->platform_part()->scheduler_configuration_manager();
   return std::make_unique<AppRestoreArcTaskHandler>(
-      Profile::FromBrowserContext(context));
+      Profile::FromBrowserContext(context), scheduler_configuration_manager);
 }
 
 }  // namespace ash::app_restore

@@ -28,7 +28,7 @@
 #include "chrome/browser/ash/app_list/search/chrome_search_result.h"
 #include "chrome/browser/feature_engagement/tracker_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/ash/app_icon_color_cache.h"
+#include "chrome/browser/ui/ash/app_icon_color_cache/app_icon_color_cache.h"
 #include "components/feature_engagement/public/feature_constants.h"
 #include "components/feature_engagement/public/tracker.h"
 #include "extensions/common/constants.h"
@@ -410,6 +410,10 @@ void ChromeAppListModelUpdater::SetAccessibleName(const std::string& id,
   std::unique_ptr<ash::AppListItemMetadata> data = item->CloneMetadata();
   data->accessible_name = name;
   model_.SetItemMetadata(id, std::move(data));
+}
+
+bool ChromeAppListModelUpdater::ModelHasBeenReorderedInThisSession() {
+  return has_requested_move_item_position_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -860,6 +864,7 @@ void ChromeAppListModelUpdater::RequestMoveItemToFolder(
     data->folder_id = folder_id;
     data->position = target_position;
     model_.SetItemMetadata(id, std::move(data));
+    has_requested_move_item_position_ = true;
   }
 
   // When user moves a local item to a folder, the user is believed to accept
@@ -889,6 +894,7 @@ void ChromeAppListModelUpdater::RequestMoveItemToRoot(
   data->folder_id = "";
   data->position = target_position;
   model_.SetItemMetadata(id, std::move(data));
+  has_requested_move_item_position_ = true;
 
   if (is_under_temporary_sort()) {
     EndTemporarySortAndTakeAction(EndAction::kCommitAndClearSort);
@@ -971,6 +977,7 @@ void ChromeAppListModelUpdater::RequestPositionUpdate(
 
   // Commit positions and clear the sort order if a local item is moved.
   if (reason == ash::RequestPositionUpdateReason::kMoveItem) {
+    has_requested_move_item_position_ = true;
     if (is_under_temporary_sort()) {
       EndTemporarySortAndTakeAction(EndAction::kCommitAndClearSort);
     } else {
@@ -985,6 +992,17 @@ void ChromeAppListModelUpdater::RequestPositionUpdate(
   }
 }
 
+void ChromeAppListModelUpdater::RequestDefaultPositionForModifiedOrder() {
+  const std::map<std::string, std::unique_ptr<ChromeAppListItem>>& items =
+      item_manager_->items();
+  for (const auto& id_item_pair : items) {
+    ChromeAppListItem* item = id_item_pair.second.get();
+    RequestPositionUpdate(id_item_pair.first,
+                          item->CalculateDefaultPositionForModifiedOrder(),
+                          ash::RequestPositionUpdateReason::kMoveItem);
+  }
+}
+
 std::string ChromeAppListModelUpdater::RequestFolderCreation(
     std::string merge_target_id,
     std::string item_to_merge_id) {
@@ -996,6 +1014,8 @@ std::string ChromeAppListModelUpdater::RequestFolderCreation(
   if (under_temporary_sort) {
     EndTemporarySortAndTakeAction(EndAction::kCommit);
   }
+
+  has_requested_move_item_position_ = true;
 
   ash::AppListItem* target_item = model_.FindItem(merge_target_id);
   DCHECK(target_item);
@@ -1260,6 +1280,7 @@ void ChromeAppListModelUpdater::UpdateItemPositionWithReorderParam(
                "ChromeAppListModelUpdater::UpdateItemPositionWithReorderParam");
   for (const auto& reorder_param : reorder_params)
     SetItemPosition(reorder_param.sync_item_id, reorder_param.ordinal);
+  has_requested_move_item_position_ = true;
 }
 
 void ChromeAppListModelUpdater::ResetPrefSortOrderInNonTemporaryMode(

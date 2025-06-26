@@ -31,6 +31,7 @@
 #include "third_party/blink/public/mojom/script/script_type.mojom-shared.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_cache_consumer.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_streamer.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_compile_hints_common.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/loader/resource/text_resource.h"
 #include "third_party/blink/renderer/platform/bindings/parkable_string.h"
@@ -45,7 +46,6 @@ class CachedMetadataHandler;
 class FetchParameters;
 class KURL;
 class ResourceFetcher;
-class ScriptCachedMetadataHandler;
 
 namespace v8_compile_hints {
 class V8CrowdsourcedCompileHintsConsumer;
@@ -77,7 +77,8 @@ class CORE_EXPORT ScriptResource final : public TextResource {
       v8::Isolate*,
       StreamingAllowed,
       v8_compile_hints::V8CrowdsourcedCompileHintsProducer*,
-      v8_compile_hints::V8CrowdsourcedCompileHintsConsumer*);
+      v8_compile_hints::V8CrowdsourcedCompileHintsConsumer*,
+      v8_compile_hints::MagicCommentMode magic_comment_mode);
 
   // Public for testing
   static ScriptResource* CreateForTest(
@@ -91,6 +92,9 @@ class CORE_EXPORT ScriptResource final : public TextResource {
                  const TextResourceDecoderOptions&,
                  v8::Isolate*,
                  StreamingAllowed,
+                 v8_compile_hints::V8CrowdsourcedCompileHintsProducer*,
+                 v8_compile_hints::V8CrowdsourcedCompileHintsConsumer*,
+                 v8_compile_hints::MagicCommentMode magic_comment_mode,
                  mojom::blink::ScriptType);
   ~ScriptResource() override;
 
@@ -137,6 +141,13 @@ class CORE_EXPORT ScriptResource final : public TextResource {
            !streamer_->IsFinished();
   }
   bool HasFinishedStreamer() { return streamer_ && streamer_->IsFinished(); }
+  bool HasBackgroundStreamerWithDecodedData() {
+    return background_streamer_ && background_streamer_->HasDecodedData();
+  }
+  bool HasBackgroundStreamerWithConsumeCodeCacheTask() {
+    return background_streamer_ &&
+           background_streamer_->HasConsumeCodeCacheTask();
+  }
 
   // Gets the cache consumer from the ScriptResource, clearing it from the
   // resource so that it cannot be used twice.
@@ -158,6 +169,10 @@ class CORE_EXPORT ScriptResource final : public TextResource {
   v8_compile_hints::V8CrowdsourcedCompileHintsConsumer*
   GetV8CrowdsourcedCompileHintsConsumer() const {
     return v8_compile_hints_consumer_.Get();
+  }
+
+  v8_compile_hints::MagicCommentMode GetV8CompileHintsMagicCommentMode() const {
+    return magic_comment_mode_;
   }
 
   // Returns the Isolate if set. This may be null.
@@ -221,11 +236,19 @@ class CORE_EXPORT ScriptResource final : public TextResource {
     explicit ScriptResourceFactory(
         v8::Isolate* isolate,
         StreamingAllowed streaming_allowed,
+        v8_compile_hints::V8CrowdsourcedCompileHintsProducer*
+            v8_compile_hints_producer,
+        v8_compile_hints::V8CrowdsourcedCompileHintsConsumer*
+            v8_compile_hints_consumer,
+        v8_compile_hints::MagicCommentMode magic_comment_mode,
         mojom::blink::ScriptType initial_request_script_type)
         : ResourceFactory(ResourceType::kScript,
                           TextResourceDecoderOptions::kPlainTextContent),
           isolate_(isolate),
           streaming_allowed_(streaming_allowed),
+          v8_compile_hints_producer_(v8_compile_hints_producer),
+          v8_compile_hints_consumer_(v8_compile_hints_consumer),
+          magic_comment_mode_(magic_comment_mode),
           initial_request_script_type_(initial_request_script_type) {}
 
     Resource* Create(
@@ -234,12 +257,23 @@ class CORE_EXPORT ScriptResource final : public TextResource {
         const TextResourceDecoderOptions& decoder_options) const override {
       return MakeGarbageCollected<ScriptResource>(
           request, options, decoder_options, isolate_, streaming_allowed_,
-          initial_request_script_type_);
+          v8_compile_hints_producer_, v8_compile_hints_consumer_,
+          magic_comment_mode_, initial_request_script_type_);
     }
 
    private:
     v8::Isolate* isolate_;
     StreamingAllowed streaming_allowed_;
+    v8_compile_hints::V8CrowdsourcedCompileHintsProducer*
+        v8_compile_hints_producer_;
+    v8_compile_hints::V8CrowdsourcedCompileHintsConsumer*
+        v8_compile_hints_consumer_;
+    // For transmitting the status of the runtime enabled feature to script
+    // streaming, which can access the ScriptResource but not the
+    // ExecutionContext.
+    // TODO(42203853): Remove this once explicit compile hints have launched and
+    // the feature is always on.
+    v8_compile_hints::MagicCommentMode magic_comment_mode_;
     mojom::blink::ScriptType initial_request_script_type_;
   };
 
@@ -272,7 +306,7 @@ class CORE_EXPORT ScriptResource final : public TextResource {
   ScriptStreamer::NotStreamingReason no_streamer_reason_ =
       ScriptStreamer::NotStreamingReason::kInvalid;
   StreamingState streaming_state_ = StreamingState::kWaitingForDataPipe;
-  Member<ScriptCachedMetadataHandler> cached_metadata_handler_;
+  Member<CachedMetadataHandler> cached_metadata_handler_;
   Member<ScriptCacheConsumer> cache_consumer_;
   ConsumeCacheState consume_cache_state_;
   const mojom::blink::ScriptType initial_request_script_type_;
@@ -293,6 +327,13 @@ class CORE_EXPORT ScriptResource final : public TextResource {
   // ScriptResource.
   Member<v8_compile_hints::V8CrowdsourcedCompileHintsConsumer>
       v8_compile_hints_consumer_;
+
+  // For transmitting the status of the runtime enabled feature to script
+  // streaming, which can access the ScriptResource but not the
+  // ExecutionContext.
+  // TODO(42203853): Remove this once explicit compile hints have launched and
+  // the feature is always on.
+  v8_compile_hints::MagicCommentMode magic_comment_mode_;
 
   Member<BackgroundResourceScriptStreamer> background_streamer_;
 };

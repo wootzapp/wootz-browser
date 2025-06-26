@@ -14,7 +14,6 @@
 #include "third_party/blink/renderer/core/layout/block_layout_algorithm_utils.h"
 #include "third_party/blink/renderer/core/layout/length_utils.h"
 #include "third_party/blink/renderer/core/layout/relative_utils.h"
-#include "third_party/blink/renderer/core/layout/out_of_flow_layout_part.h"
 #include "third_party/blink/renderer/core/layout/physical_box_fragment.h"
 #include "third_party/blink/renderer/core/layout/space_utils.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
@@ -64,8 +63,9 @@ SimplifiedLayoutAlgorithm::SimplifiedLayoutAlgorithm(
     if (result.BfcBlockOffset())
       container_builder_.SetBfcBlockOffset(*result.BfcBlockOffset());
 
-    if (result.LinesUntilClamp())
+    if (result.LinesUntilClamp()) {
       container_builder_.SetLinesUntilClamp(result.LinesUntilClamp());
+    }
 
     container_builder_.SetExclusionSpace(result.GetExclusionSpace());
 
@@ -132,7 +132,7 @@ SimplifiedLayoutAlgorithm::SimplifiedLayoutAlgorithm(
     if (const auto* table_collapsed_borders_geometry =
             physical_fragment.TableCollapsedBordersGeometry()) {
       container_builder_.SetTableCollapsedBordersGeometry(
-          std::make_unique<TableFragmentData::CollapsedBordersGeometry>(
+          std::make_unique<CollapsedTableBordersGeometry>(
               *table_collapsed_borders_geometry));
     }
   } else if (physical_fragment.IsTableSection()) {
@@ -176,7 +176,7 @@ SimplifiedLayoutAlgorithm::SimplifiedLayoutAlgorithm(
 
     auto ComputeNewBlockSize = [&]() -> LayoutUnit {
       return ComputeBlockSizeForFragment(
-          GetConstraintSpace(), Style(), BorderPadding(),
+          GetConstraintSpace(), Node(), BorderPadding(),
           result.IntrinsicBlockSize(),
           container_builder_.InitialBorderBoxSize().inline_size);
     };
@@ -265,19 +265,12 @@ const LayoutResult* SimplifiedLayoutAlgorithm::Layout() {
     LogicalStaticPosition position = layer->GetStaticPosition();
     container_builder_.AddOutOfFlowChildCandidate(
         To<BlockNode>(child), position.offset, position.inline_edge,
-        position.block_edge);
+        position.block_edge, position.align_self_direction);
   }
 
-  // We add both items and line-box fragments for existing mechanisms to work.
-  // We may revisit this in future. See also |BoxFragmentBuilder::AddResult|.
-  if (const FragmentItems* previous_items = previous_fragment.Items()) {
-    auto* items_builder = container_builder_.ItemsBuilder();
-    DCHECK(items_builder);
-    DCHECK_EQ(items_builder->GetWritingDirection(), writing_direction_);
-    const auto result =
-        items_builder->AddPreviousItems(previous_fragment, *previous_items);
-    if (!result.succeeded)
-      return nullptr;
+  if (previous_fragment.Items()) {
+    // Simplified layout of fragments with items isn't supported. Give up.
+    return nullptr;
   }
 
   // Some layout types (grid) manually calculate their inflow-bounds rather
@@ -300,7 +293,7 @@ const LayoutResult* SimplifiedLayoutAlgorithm::Layout() {
       previous_result_.InitialBreakBefore());
   container_builder_.SetPreviousBreakAfter(previous_result_.FinalBreakAfter());
 
-  OutOfFlowLayoutPart(Node(), GetConstraintSpace(), &container_builder_).Run();
+  container_builder_.HandleOofsAndSpecialDescendants();
 
   return container_builder_.ToBoxFragment();
 }

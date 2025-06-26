@@ -8,24 +8,23 @@ import android.content.Context;
 
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordUserAction;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 
 /** Shows the snackbar for Privacy Sandbox settings, allowing the user to quickly navigate there. */
+@NullMarked
 public class PrivacySandboxSnackbarController implements SnackbarManager.SnackbarController {
     private Context mContext;
-    private SettingsLauncher mSettingsLauncher;
     private SnackbarManager mSnackbarManager;
 
-    /** Creates an instance of the controller given a SnackbarManager and a SettingsLauncher. */
-    public PrivacySandboxSnackbarController(
-            Context context, SnackbarManager manager, SettingsLauncher launcher) {
+    /** Creates an instance of the controller given a SnackbarManager. */
+    public PrivacySandboxSnackbarController(Context context, SnackbarManager manager) {
         ThreadUtils.assertOnUiThread();
         assert manager != null;
         mContext = context;
         mSnackbarManager = manager;
-        mSettingsLauncher = launcher;
     }
 
     /** Displays a snackbar, showing the user an option to go to Privacy Sandbox settings. */
@@ -49,11 +48,11 @@ public class PrivacySandboxSnackbarController implements SnackbarManager.Snackba
 
     // Implement SnackbarController.
     @Override
-    public void onAction(Object actionData) {
+    public void onAction(@Nullable Object actionData) {
         PrivacySandboxSettingsBaseFragment.launchPrivacySandboxSettings(
-                mContext, mSettingsLauncher, PrivacySandboxReferrer.COOKIES_SNACKBAR);
+                mContext, PrivacySandboxReferrer.COOKIES_SNACKBAR);
     }
 
     @Override
-    public void onDismissNoAction(Object actionData) {}
+    public void onDismissNoAction(@Nullable Object actionData) {}
 }

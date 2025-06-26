@@ -8,6 +8,7 @@ import androidx.annotation.Nullable;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.chrome.browser.xsurface.feed.FeedLaunchReliabilityLogger;
@@ -25,11 +26,6 @@ public class FeedReliabilityLoggingBridge {
     private DiscoverAboveTheFoldRenderResult mRenderResult;
     private boolean mRenderingStarted;
     private DiscoverLaunchResult mLaunchResult;
-
-    public static org.jni_zero.JniStaticTestMocker<FeedReliabilityLoggingBridge.Natives>
-            getTestHooksForTesting() {
-        return FeedReliabilityLoggingBridgeJni.TEST_HOOKS;
-    }
 
     public FeedReliabilityLoggingBridge() {
         // mLaunchLogger should be null until FeedStream.bind() calls setLogger(). We don't expect
@@ -195,6 +191,14 @@ public class FeedReliabilityLoggingBridge {
         if (mUserInteractionLogger != null) {
             mUserInteractionLogger.onPaginationEnded(
                     success ? PaginationResult.SUCCESS_WITH_MORE_FEED : PaginationResult.FAILURE);
+        }
+    }
+
+    @CalledByNative
+    public void reportExperiments(@JniType("std::vector<int32_t>") int[] experimentIds) {
+        mLaunchLogger.reportExperiments(experimentIds);
+        if (mUserInteractionLogger != null) {
+            mUserInteractionLogger.reportExperiments(experimentIds);
         }
     }
 

@@ -24,7 +24,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/bind_post_task.h"
 #include "base/task/sequenced_task_runner.h"
@@ -52,7 +51,6 @@
 namespace thumbnail {
 namespace {
 
-constexpr float kApproximationScaleFactor = 4.f;
 constexpr base::TimeDelta kDefaultCaptureMinRequestTimeMs(
     base::Milliseconds(1000));
 
@@ -60,37 +58,6 @@ constexpr int kKiB = 1024;
 
 // Indicates whether we prefer to have more free CPU memory over GPU memory.
 constexpr bool kPreferCPUMemory = true;
-
-unsigned int NextPowerOfTwo(int a) {
-  DCHECK(a >= 0);
-  auto x = static_cast<unsigned int>(a);
-  --x;
-  x |= x >> 1u;
-  x |= x >> 2u;
-  x |= x >> 4u;
-  x |= x >> 8u;
-  x |= x >> 16u;
-  return x + 1;
-}
-
-unsigned int RoundUpMod4(int a) {
-  DCHECK(a >= 0);
-  auto x = static_cast<unsigned int>(a);
-  return (x + 3u) & ~3u;
-}
-
-gfx::Size GetEncodedSize(const gfx::Size& bitmap_size, bool supports_npot) {
-  DCHECK(bitmap_size.width() >= 0);
-  DCHECK(bitmap_size.height() >= 0);
-  DCHECK(!bitmap_size.IsEmpty());
-  if (!supports_npot) {
-    return gfx::Size(NextPowerOfTwo(bitmap_size.width()),
-                     NextPowerOfTwo(bitmap_size.height()));
-  } else {
-    return gfx::Size(RoundUpMod4(bitmap_size.width()),
-                     RoundUpMod4(bitmap_size.height()));
-  }
-}
 
 // Borrowed from GetDelayForNextMemoryLog() in browser_metrics.cc.
 //
@@ -327,38 +294,12 @@ void ThumbnailCache::PruneCache() {
   }
 }
 
-void ThumbnailCache::ForkToSaveAsJpeg(
-    base::OnceCallback<void(bool, const SkBitmap&)> callback,
-    int tab_id,
-    bool result,
-    const SkBitmap& bitmap) {
-  if (result && !bitmap.isNull()) {
-    SaveAsJpeg(
-        tab_id,
-        std::unique_ptr<ThumbnailCaptureTracker, base::OnTaskRunnerDeleter>(
-            nullptr, base::OnTaskRunnerDeleter(
-                         base::SequencedTaskRunner::GetCurrentDefault())),
-        bitmap);
-  }
-  std::move(callback).Run(result, bitmap);
-}
-
 void ThumbnailCache::DecompressEtc1ThumbnailFromFile(
     TabId tab_id,
-    bool save_jpeg,
     base::OnceCallback<void(bool, const SkBitmap&)> post_decompress_callback) {
-  base::OnceCallback<void(bool, const SkBitmap&)> transcoding_callback;
-  if (save_jpeg && save_jpeg_thumbnails_) {
-    transcoding_callback = base::BindOnce(
-        &ThumbnailCache::ForkToSaveAsJpeg, weak_factory_.GetWeakPtr(),
-        std::move(post_decompress_callback), tab_id);
-  } else {
-    transcoding_callback = std::move(post_decompress_callback);
-  }
-
   auto decompress_task = base::BindOnce(
       &thumbnail::Etc1ThumbnailHelper::Decompress, etc1_helper_.GetWeakPtr(),
-      std::move(transcoding_callback));
+      std::move(post_decompress_callback));
   etc1_helper_.Read(
       tab_id, base::BindPostTaskToCurrentDefault(std::move(decompress_task)));
 }
@@ -464,11 +405,9 @@ void ThumbnailCache::CompressThumbnailIfNecessary(
           base::BindOnce(&ThumbnailCache::PostEtc1CompressionTask,
                          weak_factory_.GetWeakPtr(), tab_id, time_stamp, scale);
 
-  gfx::Size raw_data_size(bitmap.width(), bitmap.height());
-  gfx::Size encoded_size = GetEncodedSize(
-      raw_data_size, ui_resource_provider_->SupportsETC1NonPowerOfTwo());
-
-  etc1_helper_.Compress(bitmap, encoded_size, std::move(post_compression_task));
+  etc1_helper_.Compress(bitmap,
+                        ui_resource_provider_->SupportsETC1NonPowerOfTwo(),
+                        std::move(post_compression_task));
 
   if (save_jpeg_thumbnails_) {
     SaveAsJpeg(tab_id, std::move(tracker), bitmap);
@@ -526,7 +465,7 @@ void ThumbnailCache::MakeSpaceForNewItemIfNecessary(TabId tab_id) {
 }
 
 void ThumbnailCache::RemoveFromReadQueue(TabId tab_id) {
-  auto read_iter = base::ranges::find(read_queue_, tab_id);
+  auto read_iter = std::ranges::find(read_queue_, tab_id);
   if (read_iter != read_queue_.end()) {
     read_queue_.erase(read_iter);
   }
@@ -619,7 +558,7 @@ void ThumbnailCache::PostEtc1ReadTask(TabId tab_id,
                                       const gfx::Size& content_size) {
   read_in_progress_ = false;
 
-  auto iter = base::ranges::find(read_queue_, tab_id);
+  auto iter = std::ranges::find(read_queue_, tab_id);
   if (iter == read_queue_.end()) {
     ReadNextThumbnail();
     return;
@@ -677,28 +616,6 @@ ThumbnailCache::ThumbnailMetaData::ThumbnailMetaData(
     const base::Time& current_time,
     GURL url)
     : capture_time_(current_time), url_(std::move(url)) {}
-
-std::pair<SkBitmap, float> ThumbnailCache::CreateApproximation(
-    const SkBitmap& bitmap,
-    float scale) {
-  DCHECK(!bitmap.empty());
-  DCHECK_GT(scale, 0);
-  float new_scale = 1.f / kApproximationScaleFactor;
-
-  gfx::Size dst_size = gfx::ScaleToFlooredSize(
-      gfx::Size(bitmap.width(), bitmap.height()), new_scale);
-  SkBitmap dst_bitmap;
-  dst_bitmap.allocPixels(SkImageInfo::Make(dst_size.width(), dst_size.height(),
-                                           bitmap.info().colorType(),
-                                           bitmap.info().alphaType()));
-  dst_bitmap.eraseColor(0);
-  SkCanvas canvas(dst_bitmap);
-  canvas.scale(new_scale, new_scale);
-  canvas.drawImage(bitmap.asImage(), 0, 0);
-  dst_bitmap.setImmutable();
-
-  return std::make_pair(dst_bitmap, new_scale * scale);
-}
 
 void ThumbnailCache::OnMemoryPressure(
     base::MemoryPressureListener::MemoryPressureLevel level) {

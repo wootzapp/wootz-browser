@@ -27,8 +27,9 @@ LayoutProvider::LayoutProvider() {
 }
 
 LayoutProvider::~LayoutProvider() {
-  if (this == g_layout_delegate)
+  if (this == g_layout_delegate) {
     g_layout_delegate = nullptr;
+  }
 }
 
 // static
@@ -74,7 +75,7 @@ gfx::Insets LayoutProvider::GetInsetsMetric(int metric) const {
     case InsetsMetric::INSETS_ICON_BUTTON:
       return gfx::Insets(2);
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 int LayoutProvider::GetDistanceMetric(int metric) const {
@@ -82,6 +83,8 @@ int LayoutProvider::GetDistanceMetric(int metric) const {
   DCHECK_LT(metric, VIEWS_DISTANCE_END);
 
   switch (static_cast<DistanceMetric>(metric)) {
+    case DISTANCE_BUBBLE_HEADER_VECTOR_ICON_SIZE:
+      return 20;
     case DISTANCE_BUBBLE_PREFERRED_WIDTH:
       return kSmallDialogWidth;
     case DISTANCE_BUTTON_HORIZONTAL_PADDING:
@@ -90,8 +93,12 @@ int LayoutProvider::GetDistanceMetric(int metric) const {
       return 112;
     case DISTANCE_CLOSE_BUTTON_MARGIN:
       return 20;
+    case DISTANCE_CONTROL_LIST_VERTICAL:
+      return 12;
     case DISTANCE_CONTROL_VERTICAL_TEXT_PADDING:
       return 10;
+    case DISTANCE_TABLE_VERTICAL_TEXT_PADDING:
+      return 6;
     case DISTANCE_DIALOG_BUTTON_MINIMUM_WIDTH:
       // Minimum label size plus padding.
       return 32 + 2 * GetDistanceMetric(DISTANCE_BUTTON_HORIZONTAL_PADDING);
@@ -107,8 +114,16 @@ int LayoutProvider::GetDistanceMetric(int metric) const {
     case DISTANCE_DIALOG_CONTENT_MARGIN_TOP_TEXT:
       // See the comment in DISTANCE_DIALOG_CONTENT_MARGIN_BOTTOM_TEXT above.
       return GetDistanceMetric(DISTANCE_DIALOG_CONTENT_MARGIN_TOP_CONTROL) - 8;
+    case DISTANCE_DROPDOWN_BUTTON_LABEL_ARROW_SPACING:
+      return 8;
+    case DISTANCE_DROPDOWN_BUTTON_RIGHT_MARGIN:
+      return 12;
+    case DISTANCE_DROPDOWN_BUTTON_LEFT_MARGIN:
+      return 16;
     case DISTANCE_MODAL_DIALOG_PREFERRED_WIDTH:
       return kMediumDialogWidth;
+    case DISTANCE_LARGE_MODAL_DIALOG_PREFERRED_WIDTH:
+      return kLargeDialogWidth;
     case DISTANCE_RELATED_BUTTON_HORIZONTAL:
       return 8;
     case DISTANCE_RELATED_CONTROL_HORIZONTAL:
@@ -119,6 +134,8 @@ int LayoutProvider::GetDistanceMetric(int metric) const {
       return 12;
     case DISTANCE_DIALOG_SCROLLABLE_AREA_MAX_HEIGHT:
       return 192;
+    case DISTANCE_MODAL_DIALOG_SCROLLABLE_AREA_MAX_HEIGHT:
+      return 448;
     case DISTANCE_TABLE_CELL_HORIZONTAL_MARGIN:
       return 12;
     case DISTANCE_TEXTFIELD_HORIZONTAL_TEXT_PADDING:
@@ -131,9 +148,9 @@ int LayoutProvider::GetDistanceMetric(int metric) const {
       return 4;
     case VIEWS_DISTANCE_END:
     case VIEWS_DISTANCE_MAX:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 const TypographyProvider& LayoutProvider::GetTypographyProvider() const {
@@ -191,10 +208,12 @@ ShapeSysTokens GetShapeSysToken(ShapeContextTokens id) {
           {ShapeContextTokens::kButtonRadius, ShapeSysTokens::kFull},
           {ShapeContextTokens::kComboboxRadius, ShapeSysTokens::kSmall},
           {ShapeContextTokens::kDialogRadius, ShapeSysTokens::kMediumSmall},
+          {ShapeContextTokens::kExtensionsMenuButtonRadius,
+           ShapeSysTokens::kXSmall},
           {ShapeContextTokens::kFindBarViewRadius, ShapeSysTokens::kSmall},
-          {ShapeContextTokens::kMenuRadius, ShapeSysTokens::kSmall},
-          {ShapeContextTokens::kMenuAuxRadius, ShapeSysTokens::kSmall},
-          {ShapeContextTokens::kMenuTouchRadius, ShapeSysTokens::kSmall},
+          {ShapeContextTokens::kMenuRadius, ShapeSysTokens::kMediumSmall},
+          {ShapeContextTokens::kMenuAuxRadius, ShapeSysTokens::kMediumSmall},
+          {ShapeContextTokens::kMenuTouchRadius, ShapeSysTokens::kMediumSmall},
           {ShapeContextTokens::kOmniboxExpandedRadius, ShapeSysTokens::kMedium},
           {ShapeContextTokens::kTextfieldRadius, ShapeSysTokens::kSmall},
           {ShapeContextTokens::kSidePanelContentRadius,

@@ -22,6 +22,7 @@
 #include "chrome/services/cups_proxy/public/cpp/cups_util.h"
 #include "net/http/http_util.h"
 #include "printing/backend/cups_ipp_helper.h"
+#include "printing/backend/cups_weak_functions.h"
 
 namespace cups_proxy {
 namespace {
@@ -86,8 +87,7 @@ size_t GetAttributeValuesSize(const ipp_parser::mojom::IppAttributePtr& attr) {
       return attr_value->get_resolutions().size();
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }
 
 // Returns true if |data| starts with the full |prefix|, false otherwise.
@@ -291,7 +291,7 @@ ipp_t* IppValidator::ValidateIppMessage(
         break;
       }
       default:
-        NOTREACHED_IN_MIGRATION() << "Unknown IPP attribute type found.";
+        NOTREACHED() << "Unknown IPP attribute type found.";
     }
   }
 

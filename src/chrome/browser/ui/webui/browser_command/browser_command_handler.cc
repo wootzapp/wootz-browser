@@ -6,20 +6,27 @@
 
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/command_updater_impl.h"
 #include "chrome/browser/enterprise/util/managed_browser_utils.h"
+#include "chrome/browser/feedback/show_feedback_page.h"
 #include "chrome/browser/new_tab_page/promos/promo_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/chrome_pages.h"
+#include "chrome/browser/ui/customize_chrome/side_panel_controller.h"
+#include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/user_education/tutorial_identifiers.h"
 #include "chrome/browser/user_education/user_education_service.h"
 #include "chrome/browser/user_education/user_education_service_factory.h"
+#include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/password_manager/core/common/password_manager_features.h"
@@ -28,13 +35,21 @@
 #include "components/safe_browsing/core/common/safe_browsing_policy_handler.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #include "components/safe_browsing/core/common/safebrowsing_referral_methods.h"
-#include "components/user_education/common/tutorial_identifier.h"
-#include "components/user_education/common/tutorial_service.h"
+#include "components/saved_tab_groups/public/features.h"
+#include "components/user_education/common/tutorial/tutorial_identifier.h"
+#include "components/user_education/common/tutorial/tutorial_service.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/base/window_open_disposition_utils.h"
+
+#if BUILDFLAG(ENABLE_GLIC)
+#include "chrome/browser/glic/glic_enabling.h"
+#include "chrome/browser/glic/glic_keyed_service.h"
+#include "chrome/browser/glic/glic_keyed_service_factory.h"
+#include "chrome/browser/ui/webui/webui_embedding_context.h"
+#endif  // BUILDFLAG(ENABLE_GLIC)
 
 using browser_command::mojom::ClickInfoPtr;
 using browser_command::mojom::Command;
@@ -47,13 +62,16 @@ const char BrowserCommandHandler::kPromoBrowserCommandHistogramName[] =
 BrowserCommandHandler::BrowserCommandHandler(
     mojo::PendingReceiver<CommandHandler> pending_page_handler,
     Profile* profile,
-    std::vector<browser_command::mojom::Command> supported_commands)
+    std::vector<browser_command::mojom::Command> supported_commands,
+    content::WebContents* web_contents)
     : profile_(profile),
       supported_commands_(supported_commands),
       command_updater_(std::make_unique<CommandUpdaterImpl>(this)),
-      page_handler_(this, std::move(pending_page_handler)) {
-  if (supported_commands_.empty())
+      page_handler_(this, std::move(pending_page_handler)),
+      web_contents_(web_contents) {
+  if (supported_commands_.empty()) {
     return;
+  }
 
   EnableSupportedCommands();
 }
@@ -74,7 +92,7 @@ void BrowserCommandHandler::CanExecuteCommand(
       // Nothing to do.
       break;
     case Command::kOpenSafetyCheck:
-      can_execute = !chrome::enterprise_util::IsBrowserManaged(profile_);
+      can_execute = !enterprise_util::IsBrowserManaged(profile_);
       break;
     case Command::kOpenSafeBrowsingEnhancedProtectionSettings: {
       bool managed = safe_browsing::SafeBrowsingPolicyHandler::
@@ -87,12 +105,13 @@ void BrowserCommandHandler::CanExecuteCommand(
       can_execute = true;
       break;
     case Command::kOpenPrivacyGuide:
-      can_execute = !chrome::enterprise_util::IsBrowserManaged(profile_) &&
-                    !profile_->IsChild();
+      can_execute =
+          !enterprise_util::IsBrowserManaged(profile_) && !profile_->IsChild();
       base::UmaHistogramBoolean("Privacy.Settings.PrivacyGuide.CanShowNTPPromo",
                                 can_execute);
       break;
     case Command::kStartTabGroupTutorial:
+    case Command::kStartSavedTabGroupTutorial:
       can_execute = TutorialServiceExists() && BrowserSupportsTabGroups();
       break;
     case Command::kOpenPasswordManager:
@@ -105,19 +124,21 @@ void BrowserCommandHandler::CanExecuteCommand(
       can_execute = true;
       break;
     case Command::kOpenNTPAndStartCustomizeChromeTutorial:
-      can_execute = TutorialServiceExists() &&
-                    DefaultSearchProviderIsGoogle();
+      can_execute = TutorialServiceExists() && DefaultSearchProviderIsGoogle();
       break;
     case Command::kStartPasswordManagerTutorial:
       can_execute = TutorialServiceExists();
-      break;
-    case Command::kStartSavedTabGroupTutorial:
-      can_execute = TutorialServiceExists() && BrowserSupportsSavedTabGroups();
       break;
     case Command::kOpenAISettings:
       can_execute = true;
       break;
     case Command::kOpenSafetyCheckFromWhatsNew:
+      can_execute = true;
+      break;
+    case Command::kOpenPaymentsSettings:
+      can_execute = true;
+      break;
+    case Command::kOpenGlic:
       can_execute = true;
       break;
   }
@@ -172,6 +193,7 @@ void BrowserCommandHandler::ExecuteCommandWithDisposition(
           base::UserMetricsAction("NewTabPage_Promos_PrivacyGuide"));
       break;
     case Command::kStartTabGroupTutorial:
+    case Command::kStartSavedTabGroupTutorial:
       StartTabGroupTutorial();
       break;
     case Command::kOpenPasswordManager:
@@ -190,9 +212,6 @@ void BrowserCommandHandler::ExecuteCommandWithDisposition(
     case Command::kStartPasswordManagerTutorial:
       StartPasswordManagerTutorial();
       break;
-    case Command::kStartSavedTabGroupTutorial:
-      StartSavedTabGroupTutorial();
-      break;
     case Command::kOpenAISettings:
       OpenAISettings();
       break;
@@ -200,9 +219,16 @@ void BrowserCommandHandler::ExecuteCommandWithDisposition(
       NavigateToURL(GURL(chrome::GetSettingsUrl(chrome::kSafetyCheckSubPage)),
                     disposition);
       break;
-    default:
-      NOTREACHED_IN_MIGRATION() << "Unspecified behavior for command " << id;
+    case Command::kOpenPaymentsSettings:
+      NavigateToURL(GURL(chrome::GetSettingsUrl(chrome::kPaymentsSubPage)),
+                    disposition);
       break;
+    case Command::kOpenGlic: {
+      OpenGlic();
+      break;
+    }
+    default:
+      NOTREACHED() << "Unspecified behavior for command " << id;
   }
 }
 
@@ -301,6 +327,26 @@ void BrowserCommandHandler::StartSavedTabGroupTutorial() {
   params.callback = base::BindOnce(&BrowserCommandHandler::OnTutorialStarted,
                                    base::Unretained(this), tutorial_id);
   StartTutorial(std::move(params));
+}
+
+void BrowserCommandHandler::OpenGlic() {
+#if BUILDFLAG(ENABLE_GLIC)
+  if (!glic::GlicEnabling::IsEnabledForProfile(profile_)) {
+    return;
+  }
+
+  glic::GlicKeyedService* glic_service = glic::GlicKeyedService::Get(profile_);
+
+  if (!glic_service) {
+    return;
+  }
+
+  auto* browser_window = webui::GetBrowserWindowInterface(web_contents_);
+
+  glic_service->window_controller().Toggle(
+      browser_window, /*prevent_close=*/false,
+      glic::mojom::InvocationSource::kWhatsNew);
+#endif  // BUILDFLAG(ENABLE_GLIC)
 }
 
 void BrowserCommandHandler::OpenFeedbackForm() {

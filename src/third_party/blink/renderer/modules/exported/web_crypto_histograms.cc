@@ -54,8 +54,7 @@ static WebFeature AlgorithmIdToFeature(WebCryptoAlgorithmId id) {
       return WebFeature::kCryptoAlgorithmX25519;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return static_cast<WebFeature>(0);
+  NOTREACHED();
 }
 
 static void HistogramAlgorithmId(ExecutionContext* context,
@@ -140,7 +139,7 @@ void HistogramAlgorithmAndKey(ExecutionContext* context,
 }
 
 void HistogramDeriveBitsTruncation(ExecutionContext* context,
-                                   unsigned int length_bits,
+                                   std::optional<unsigned int> length_bits,
                                    WebCryptoWarningType status) {
   if (length_bits == 0) {
     UseCounter::Count(context, WebFeature::kSubtleCryptoDeriveBitsZeroLength);

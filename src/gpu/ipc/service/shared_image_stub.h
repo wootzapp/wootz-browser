@@ -8,6 +8,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
+#include "gpu/command_buffer/common/shared_image_usage.h"
 #include "gpu/command_buffer/service/memory_tracking.h"
 #include "gpu/command_buffer/service/sequence_id.h"
 #include "gpu/command_buffer/service/sync_point_manager.h"
@@ -42,8 +43,7 @@ class GPU_IPC_SERVICE_EXPORT SharedImageStub : public MemoryTracker {
                                                  int32_t route_id);
 
   // Executes a DeferredRequest routed to this stub by a GpuChannel.
-  void ExecuteDeferredRequest(mojom::DeferredSharedImageRequestPtr request,
-                              uint64_t release_count);
+  void ExecuteDeferredRequest(mojom::DeferredSharedImageRequestPtr request);
 
   bool GetGpuMemoryBufferHandleInfo(const gpu::Mailbox& mailbox,
                                     gfx::GpuMemoryBufferHandle& handle,
@@ -58,50 +58,42 @@ class GPU_IPC_SERVICE_EXPORT SharedImageStub : public MemoryTracker {
   int ClientId() const override;
   uint64_t ContextGroupTracingId() const override;
 
-  SequenceId sequence() const;
+  SequenceId sequence() const { return sequence_; }
   SharedImageFactory* factory() const { return factory_.get(); }
   GpuChannel* channel() const { return channel_; }
-  SharedContextState* shared_context_state() { return context_state_.get(); }
+  scoped_refptr<SharedContextState>& shared_context_state() {
+    return context_state_;
+  }
+  const scoped_refptr<gpu::GpuChannelSharedImageInterface>&
+  shared_image_interface();
 
   SharedImageDestructionCallback GetSharedImageDestructionCallback(
       const Mailbox& mailbox);
 
-  // NOTE: The below method is DEPRECATED for single planar formats eg. RGB
-  // BufferFormats. Please use the equivalent method below it taking in single
-  // planar SharedImageFormat with GpuMemoryBufferHandle.
-  bool CreateSharedImage(const Mailbox& mailbox,
-                         gfx::GpuMemoryBufferHandle handle,
-                         gfx::BufferFormat format,
-                         gfx::BufferPlane plane,
-                         const gfx::Size& size,
-                         const gfx::ColorSpace& color_space,
-                         GrSurfaceOrigin surface_origin,
-                         SkAlphaType alpha_type,
-                         uint32_t usage,
-                         std::string debug_label);
-  bool CreateSharedImage(const Mailbox& mailbox,
-                         gfx::GpuMemoryBufferHandle handle,
-                         viz::SharedImageFormat format,
-                         const gfx::Size& size,
-                         const gfx::ColorSpace& color_space,
-                         GrSurfaceOrigin surface_origin,
-                         SkAlphaType alpha_type,
-                         uint32_t usage,
-                         std::string debug_label);
+  bool CreateSharedImage(
+      const Mailbox& mailbox,
+      gfx::GpuMemoryBufferHandle handle,
+      viz::SharedImageFormat format,
+      const gfx::Size& size,
+      const gfx::ColorSpace& color_space,
+      GrSurfaceOrigin surface_origin,
+      SkAlphaType alpha_type,
+      SharedImageUsageSet usage,
+      std::string debug_label,
+      std::optional<SharedImagePoolId> pool_id = std::nullopt);
 
   bool UpdateSharedImage(const Mailbox& mailbox,
                          gfx::GpuFenceHandle in_fence_handle);
 
 #if BUILDFLAG(IS_WIN)
   void CopyToGpuMemoryBufferAsync(const Mailbox& mailbox,
-                                  uint64_t release_count,
                                   base::OnceCallback<void(bool)> callback);
 #endif
 
 #if BUILDFLAG(IS_FUCHSIA)
   void RegisterSysmemBufferCollection(zx::eventpair service_handle,
                                       zx::channel sysmem_token,
-                                      gfx::BufferFormat format,
+                                      const viz::SharedImageFormat& format,
                                       gfx::BufferUsage usage,
                                       bool register_with_image_pipe);
 #endif  // BUILDFLAG(IS_FUCHSIA)
@@ -113,30 +105,21 @@ class GPU_IPC_SERVICE_EXPORT SharedImageStub : public MemoryTracker {
  private:
   SharedImageStub(GpuChannel* channel, int32_t route_id);
 
-  // TODO(yzshen): Instead of having individual handlers release sync points,
-  // change the scheduler to do the release at the end of each task.
-  void OnCreateSharedImage(mojom::CreateSharedImageParamsPtr params,
-                           uint64_t release_count);
+  void OnCreateSharedImage(mojom::CreateSharedImageParamsPtr params);
   void OnCreateSharedImageWithData(
-      mojom::CreateSharedImageWithDataParamsPtr params,
-      uint64_t release_count);
+      mojom::CreateSharedImageWithDataParamsPtr params);
   void OnCreateSharedImageWithBuffer(
-      mojom::CreateSharedImageWithBufferParamsPtr params,
-      uint64_t release_count);
-  void OnCreateGMBSharedImage(mojom::CreateGMBSharedImageParamsPtr params,
-                              uint64_t release_count);
+      mojom::CreateSharedImageWithBufferParamsPtr params);
   void OnUpdateSharedImage(const Mailbox& mailbox,
-                           uint64_t release_count,
                            gfx::GpuFenceHandle in_fence_handle);
-  void OnAddReference(const Mailbox& mailbox, uint64_t release_count);
+  void OnAddReference(const Mailbox& mailbox);
 
   void OnDestroySharedImage(const Mailbox& mailbox);
   void OnRegisterSharedImageUploadBuffer(base::ReadOnlySharedMemoryRegion shm);
+  void OnCopyToGpuMemoryBuffer(const Mailbox& mailbox);
 #if BUILDFLAG(IS_WIN)
-  void OnCopyToGpuMemoryBuffer(const Mailbox& mailbox, uint64_t release_count);
-  void OnCreateSwapChain(mojom::CreateSwapChainParamsPtr params,
-                         uint64_t release_count);
-  void OnPresentSwapChain(const Mailbox& mailbox, uint64_t release_count);
+  void OnCreateSwapChain(mojom::CreateSwapChainParamsPtr params);
+  void OnPresentSwapChain(const Mailbox& mailbox);
   void OnRegisterDxgiFence(const Mailbox& mailbox,
                            gfx::DXGIHandleToken dxgi_token,
                            gfx::GpuFenceHandle fence_handle);
@@ -146,6 +129,9 @@ class GPU_IPC_SERVICE_EXPORT SharedImageStub : public MemoryTracker {
   void OnUnregisterDxgiFence(const Mailbox& mailbox,
                              gfx::DXGIHandleToken dxgi_token);
 #endif  // BUILDFLAG(IS_WIN)
+
+  void OnCreateSharedImagePool(mojom::CreateSharedImagePoolParamsPtr params);
+  void OnDestroySharedImagePool(mojom::DestroySharedImagePoolParamsPtr params);
 
   ContextResult Initialize();
   void OnError();
@@ -164,7 +150,7 @@ class GPU_IPC_SERVICE_EXPORT SharedImageStub : public MemoryTracker {
   CommandBufferId command_buffer_id_;
   scoped_refptr<GpuChannelSharedImageInterface>
       gpu_channel_shared_image_interface_;
-  scoped_refptr<gpu::SyncPointClientState> sync_point_client_state_;
+  const SequenceId sequence_;
   scoped_refptr<SharedContextState> context_state_;
   std::unique_ptr<SharedImageFactory> factory_;
   uint64_t size_ = 0;

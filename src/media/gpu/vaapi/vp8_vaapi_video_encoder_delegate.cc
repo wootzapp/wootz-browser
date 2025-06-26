@@ -2,11 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/vaapi/vp8_vaapi_video_encoder_delegate.h"
 
 #include <va/va.h>
 #include <va/va_enc_vp8.h>
 
+#include <array>
 #include <bit>
 
 #include "base/bits.h"
@@ -46,12 +52,12 @@ constexpr uint8_t kScreenMaxQP = 106;
 // libvpx vp8 rate control, whose range is 0-63.
 // Cited from //third_party/libvpx/source/libvpx/vp8/vp8_ratectrl_rtc.cc
 uint8_t QindexToQuantizer(uint8_t q_index) {
-  constexpr uint8_t kQuantizerToQindex[] = {
+  constexpr auto kQuantizerToQindex = std::to_array<uint8_t>({
       0,  1,  2,  3,  4,  5,  7,   8,   9,   10,  12,  13,  15,  17,  18,  19,
       20, 21, 23, 24, 25, 26, 27,  28,  29,  30,  31,  33,  35,  37,  39,  41,
       43, 45, 47, 49, 51, 53, 55,  57,  59,  61,  64,  67,  70,  73,  76,  79,
       82, 85, 88, 91, 94, 97, 100, 103, 106, 109, 112, 115, 118, 121, 124, 127,
-  };
+  });
 
   for (size_t q = 0; q < std::size(kQuantizerToQindex); ++q) {
     if (kQuantizerToQindex[q] >= q_index)
@@ -243,14 +249,11 @@ size_t GetActiveTemporalLayers(
 }
 
 bool VP8TLEncodingIsEnabled() {
-  // TODO(b/202926617): Remove once VP8 TL encoding is enabled by default.
-  const static bool enable_vp8_tl_encoding =
 #if defined(ARCH_CPU_X86_FAMILY) && BUILDFLAG(IS_CHROMEOS)
-      base::FeatureList::IsEnabled(kVaapiVp8TemporalLayerHWEncoding);
+  return true;
 #else
-      false;
-#endif
-  return enable_vp8_tl_encoding;
+  return false;
+#endif  // defined(ARCH_CPU_X86_FAMILY) && BUILDFLAG(IS_CHROMEOS)
 }
 
 }  // namespace
@@ -583,20 +586,20 @@ bool VP8VaapiVideoEncoderDelegate::SubmitFrameParameters(
 
   VAEncPictureParameterBufferVP8 pic_param = {};
 
-  pic_param.reconstructed_frame = pic->AsVaapiVP8Picture()->GetVASurfaceID();
+  pic_param.reconstructed_frame = pic->AsVaapiVP8Picture()->va_surface_id();
   DCHECK_NE(pic_param.reconstructed_frame, VA_INVALID_ID);
 
   auto last_frame = ref_frames.GetFrame(Vp8RefType::VP8_FRAME_LAST);
   pic_param.ref_last_frame =
-      last_frame ? last_frame->AsVaapiVP8Picture()->GetVASurfaceID()
+      last_frame ? last_frame->AsVaapiVP8Picture()->va_surface_id()
                  : VA_INVALID_ID;
   auto golden_frame = ref_frames.GetFrame(Vp8RefType::VP8_FRAME_GOLDEN);
   pic_param.ref_gf_frame =
-      golden_frame ? golden_frame->AsVaapiVP8Picture()->GetVASurfaceID()
+      golden_frame ? golden_frame->AsVaapiVP8Picture()->va_surface_id()
                    : VA_INVALID_ID;
   auto alt_frame = ref_frames.GetFrame(Vp8RefType::VP8_FRAME_ALTREF);
   pic_param.ref_arf_frame =
-      alt_frame ? alt_frame->AsVaapiVP8Picture()->GetVASurfaceID()
+      alt_frame ? alt_frame->AsVaapiVP8Picture()->va_surface_id()
                 : VA_INVALID_ID;
   pic_param.coded_buf = job.coded_buffer_id();
   DCHECK_NE(pic_param.coded_buf, VA_INVALID_ID);

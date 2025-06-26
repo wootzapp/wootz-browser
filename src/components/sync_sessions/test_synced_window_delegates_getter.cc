@@ -165,9 +165,9 @@ int64_t TestSyncedTabDelegate::GetRootTaskIdForNavigationId(int nav_id) const {
 }
 
 std::unique_ptr<SyncedTabDelegate>
-TestSyncedTabDelegate::CreatePlaceholderTabSyncedTabDelegate() {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+TestSyncedTabDelegate::ReadPlaceholderTabSnapshotIfItShouldSync(
+    SyncSessionsClient* sessions_client) {
+  NOTREACHED();
 }
 
 PlaceholderTabDelegate::PlaceholderTabDelegate(SessionID tab_id)
@@ -189,93 +189,80 @@ void PlaceholderTabDelegate::SetPlaceholderTabSyncedTabDelegate(
 }
 
 std::unique_ptr<SyncedTabDelegate>
-PlaceholderTabDelegate::CreatePlaceholderTabSyncedTabDelegate() {
+PlaceholderTabDelegate::ReadPlaceholderTabSnapshotIfItShouldSync(
+    SyncSessionsClient* sessions_client) {
   CHECK(placeholder_tab_synced_tab_delegate_);
   return std::move(placeholder_tab_synced_tab_delegate_);
 }
 
 SessionID PlaceholderTabDelegate::GetWindowId() const {
-  NOTREACHED_IN_MIGRATION();
-  return SessionID::InvalidValue();
+  NOTREACHED();
 }
 
 bool PlaceholderTabDelegate::IsBeingDestroyed() const {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 base::Time PlaceholderTabDelegate::GetLastActiveTime() {
-  NOTREACHED_IN_MIGRATION();
-  return base::Time::UnixEpoch();
+  NOTREACHED();
 }
 
 std::string PlaceholderTabDelegate::GetExtensionAppId() const {
-  NOTREACHED_IN_MIGRATION();
-  return "";
+  NOTREACHED();
 }
 
 bool PlaceholderTabDelegate::IsInitialBlankNavigation() const {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 int PlaceholderTabDelegate::GetCurrentEntryIndex() const {
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }
 
 int PlaceholderTabDelegate::GetEntryCount() const {
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }
 
 GURL PlaceholderTabDelegate::GetVirtualURLAtIndex(int i) const {
-  NOTREACHED_IN_MIGRATION();
-  return GURL();
+  NOTREACHED();
 }
 
 void PlaceholderTabDelegate::GetSerializedNavigationAtIndex(
     int i,
     sessions::SerializedNavigationEntry* serialized_entry) const {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 bool PlaceholderTabDelegate::ProfileHasChildAccount() const {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 const std::vector<std::unique_ptr<const sessions::SerializedNavigationEntry>>*
 PlaceholderTabDelegate::GetBlockedNavigations() const {
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 bool PlaceholderTabDelegate::ShouldSync(SyncSessionsClient* sessions_client) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 int64_t PlaceholderTabDelegate::GetTaskIdForNavigationId(int nav_id) const {
   // Task IDs are currently not used in the tests. -1 signals an unknown Task
   // ID.
-  NOTREACHED_IN_MIGRATION() << "Task IDs are not used for Placeholder Tabs";
-  return -1;
+  NOTREACHED() << "Task IDs are not used for Placeholder Tabs";
 }
 
 int64_t PlaceholderTabDelegate::GetParentTaskIdForNavigationId(
     int nav_id) const {
   // Task IDs are currently not used in the tests. -1 signals an unknown Task
   // ID.
-  NOTREACHED_IN_MIGRATION() << "Task IDs are not used for Placeholder Tabs";
-  return -1;
+  NOTREACHED() << "Task IDs are not used for Placeholder Tabs";
 }
 
 int64_t PlaceholderTabDelegate::GetRootTaskIdForNavigationId(int nav_id) const {
   // Task IDs are currently not used in the tests. -1 signals an unknown Task
   // ID.
-  NOTREACHED_IN_MIGRATION() << "Task IDs are not used for Placeholder Tabs";
-  return -1;
+  NOTREACHED() << "Task IDs are not used for Placeholder Tabs";
 }
 
 TestSyncedWindowDelegate::TestSyncedWindowDelegate(
@@ -378,8 +365,7 @@ TestSyncedTabDelegate* TestSyncedWindowDelegatesGetter::AddTab(
     SessionID tab_id) {
   tabs_.push_back(std::make_unique<TestSyncedTabDelegate>(
       window_id, tab_id,
-      base::BindRepeating(&DummyRouter::NotifyNav,
-                          base::Unretained(&router_))));
+      base::BindRepeating(&TestRouter::NotifyNav, base::Unretained(&router_))));
   for (auto& window : windows_) {
     if (window->GetSessionId() == window_id) {
       int tab_index = window->GetTabCount();
@@ -428,27 +414,27 @@ const SyncedWindowDelegate* TestSyncedWindowDelegatesGetter::FindById(
   return nullptr;
 }
 
-TestSyncedWindowDelegatesGetter::DummyRouter::DummyRouter() = default;
+TestSyncedWindowDelegatesGetter::TestRouter::TestRouter() = default;
 
-TestSyncedWindowDelegatesGetter::DummyRouter::~DummyRouter() = default;
+TestSyncedWindowDelegatesGetter::TestRouter::~TestRouter() = default;
 
-void TestSyncedWindowDelegatesGetter::DummyRouter::StartRoutingTo(
+void TestSyncedWindowDelegatesGetter::TestRouter::StartRoutingTo(
     LocalSessionEventHandler* handler) {
   handler_ = handler;
 }
 
-void TestSyncedWindowDelegatesGetter::DummyRouter::Stop() {
+void TestSyncedWindowDelegatesGetter::TestRouter::Stop() {
   handler_ = nullptr;
 }
 
-void TestSyncedWindowDelegatesGetter::DummyRouter::NotifyNav(
+void TestSyncedWindowDelegatesGetter::TestRouter::NotifyNav(
     SyncedTabDelegate* tab) {
   if (handler_) {
     handler_->OnLocalTabModified(tab);
   }
 }
 
-void TestSyncedWindowDelegatesGetter::DummyRouter::
+void TestSyncedWindowDelegatesGetter::TestRouter::
     NotifySessionRestoreComplete() {
   if (handler_) {
     handler_->OnSessionRestoreComplete();

@@ -27,7 +27,9 @@ import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.build.BuildConfig;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.password_check.PasswordCheckFactory;
+import org.chromium.chrome.browser.password_manager.GmsUpdateLauncher;
 import org.chromium.chrome.browser.password_manager.ManagePasswordsReferrer;
 import org.chromium.chrome.browser.password_manager.PasswordCheckReferrer;
 import org.chromium.chrome.browser.password_manager.PasswordManagerHelper;
@@ -35,6 +37,7 @@ import org.chromium.chrome.browser.password_manager.PasswordManagerUtilBridge;
 import org.chromium.chrome.browser.password_manager.PasswordStoreBridge;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.pwd_check_wrapper.PasswordCheckController;
 import org.chromium.chrome.browser.pwd_check_wrapper.PasswordCheckController.PasswordCheckResult;
 import org.chromium.chrome.browser.pwd_check_wrapper.PasswordCheckController.PasswordStorageType;
@@ -44,8 +47,14 @@ import org.chromium.chrome.browser.safe_browsing.settings.SafeBrowsingSettingsFr
 import org.chromium.chrome.browser.safety_check.PasswordsCheckPreferenceProperties.PasswordsState;
 import org.chromium.chrome.browser.safety_check.SafetyCheckProperties.SafeBrowsingState;
 import org.chromium.chrome.browser.safety_check.SafetyCheckProperties.UpdatesState;
-import org.chromium.chrome.browser.ui.signin.SyncConsentActivityLauncher;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
+import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncConfig;
+import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncConfig.NoAccountSigninMode;
+import org.chromium.chrome.browser.ui.signin.BottomSheetSigninAndHistorySyncConfig.WithAccountSigninMode;
+import org.chromium.chrome.browser.ui.signin.SigninAndHistorySyncActivityLauncher;
+import org.chromium.chrome.browser.ui.signin.account_picker.AccountPickerBottomSheetStrings;
+import org.chromium.chrome.browser.ui.signin.history_sync.HistorySyncConfig;
+import org.chromium.components.browser_ui.settings.SettingsCustomTabLauncher;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
 import org.chromium.components.sync.SyncService;
@@ -71,6 +80,9 @@ class SafetyCheckMediator {
 
     private static final String SAFETY_CHECK_INTERACTIONS = "Settings.SafetyCheck.Interactions";
 
+    /** Profile to launch SigninActivity. */
+    private Profile mProfile;
+
     /** Model representing the current state of the update and safe browsing checks. */
     private PropertyModel mSafetyCheckModel;
 
@@ -92,11 +104,8 @@ class SafetyCheckMediator {
     /** Provides access to C++ APIs. */
     private SafetyCheckBridge mBridge;
 
-    /** An instance of SettingsLauncher to start other activities. */
-    private SettingsLauncher mSettingsLauncher;
-
     /** Client to launch a SigninActivity. */
-    private SyncConsentActivityLauncher mSigninLauncher;
+    private SigninAndHistorySyncActivityLauncher mSigninLauncher;
 
     /** Async logic for password check. */
     private boolean mShowSafePasswordState;
@@ -106,13 +115,16 @@ class SafetyCheckMediator {
 
     private PasswordManagerHelper mPasswordManagerHelper;
 
+    /**
+     * Used to open a p-link help center article in a custom tab. Needed by the password manager
+     * settings.
+     */
+    private SettingsCustomTabLauncher mSettingsCustomTabLauncher;
+
     private ObservableSupplier<ModalDialogManager> mModalDialogManagerSupplier;
 
     /** Callbacks and related objects to show the checking state for at least 1 second. */
     private Handler mHandler;
-
-    /** Stores the callback updating the password check state in the UI after the delay. */
-    private Runnable mRunnablePasswords;
 
     /** Stores the callback updating the safe browsing check state in the UI after the delay. */
     private Runnable mRunnableSafeBrowsing;
@@ -123,8 +135,8 @@ class SafetyCheckMediator {
     private long mCheckStartTime = -1;
 
     /**
-     * UMA histogram values for Safety check interactions. Some value don't apply to Android.
-     * Note: this should stay in sync with SettingsSafetyCheckInteractions in enums.xml.
+     * UMA histogram values for Safety check interactions. Some value don't apply to Android. Note:
+     * this should stay in sync with SettingsSafetyCheckInteractions in enums.xml.
      */
     @IntDef({
         SafetyCheckInteractions.STARTED,
@@ -174,7 +186,7 @@ class SafetyCheckMediator {
                                 RecordHistogram.recordEnumeratedHistogram(
                                         "Settings.SafetyCheck.UpdatesResult",
                                         SafetyCheckProperties.updatesStateToNative(status),
-                                        UpdateStatus.MAX_VALUE + 1);
+                                        UpdateStatus.MAX_VALUE);
                                 mSafetyCheckModel.set(SafetyCheckProperties.UPDATES_STATE, status);
                             }
                         });
@@ -183,50 +195,54 @@ class SafetyCheckMediator {
     /**
      * Creates a new instance given a model, an updates client, and a settings launcher.
      *
-     * @param model A model instance.
+     * @param profile Profile to launch SigninActivity.
+     * @param safetyCheckModel A model instance.
      * @param client An updates client.
-     * @param settingsLauncher An instance of the {@link SettingsLauncher} implementation.
-     * @param signinLauncher An instance implementing {@SigninActivityLauncher}.
+     * @param signinLauncher An instance implementing {@link SigninAndHistorySyncActivityLauncher}.
+     * @param passwordStoreBridge Provides access to stored passwords.
      * @param modalDialogManagerSupplier A supplier for the {@link ModalDialogManager}.
      */
     public SafetyCheckMediator(
+            Profile profile,
             PropertyModel safetyCheckModel,
             PropertyModel passwordsCheckAccountModel,
             PropertyModel passwordsCheckLocalModel,
             SafetyCheckUpdatesDelegate client,
             SafetyCheckBridge bridge,
-            SettingsLauncher settingsLauncher,
-            SyncConsentActivityLauncher signinLauncher,
+            SigninAndHistorySyncActivityLauncher signinLauncher,
             SyncService syncService,
             PrefService prefService,
+            PasswordStoreBridge passwordStoreBridge,
             PasswordManagerHelper passwordManagerHelper,
-            ObservableSupplier<ModalDialogManager> modalDialogManagerSupplier) {
+            ObservableSupplier<ModalDialogManager> modalDialogManagerSupplier,
+            SettingsCustomTabLauncher settingsCustomTabLauncher) {
         this(
+                profile,
                 safetyCheckModel,
                 passwordsCheckAccountModel,
                 passwordsCheckLocalModel,
                 client,
                 bridge,
-                settingsLauncher,
                 signinLauncher,
                 syncService,
                 prefService,
                 new Handler(),
-                new PasswordStoreBridge(),
+                passwordStoreBridge,
                 new PasswordCheckControllerFactory(),
-                passwordManagerHelper);
-        mModalDialogManagerSupplier = modalDialogManagerSupplier;
+                passwordManagerHelper,
+                modalDialogManagerSupplier);
+        mSettingsCustomTabLauncher = settingsCustomTabLauncher;
     }
 
     @VisibleForTesting
     SafetyCheckMediator(
+            Profile profile,
             PropertyModel safetyCheckModel,
             PropertyModel passwordsCheckAccountModel,
             PropertyModel passwordsCheckLocalModel,
             SafetyCheckUpdatesDelegate client,
             SafetyCheckBridge bridge,
-            SettingsLauncher settingsLauncher,
-            SyncConsentActivityLauncher signinLauncher,
+            SigninAndHistorySyncActivityLauncher signinLauncher,
             SyncService syncService,
             PrefService prefService,
             PasswordStoreBridge passwordStoreBridge,
@@ -235,54 +251,52 @@ class SafetyCheckMediator {
             Handler handler,
             ObservableSupplier<ModalDialogManager> modalDialogManagerSupplier) {
         this(
+                profile,
                 safetyCheckModel,
                 passwordsCheckAccountModel,
                 passwordsCheckLocalModel,
                 client,
                 bridge,
-                settingsLauncher,
                 signinLauncher,
                 syncService,
                 prefService,
                 handler,
                 passwordStoreBridge,
                 passwordCheckControllerFactory,
-                passwordManagerHelper);
-        mModalDialogManagerSupplier = modalDialogManagerSupplier;
+                passwordManagerHelper,
+                modalDialogManagerSupplier);
     }
 
-    SafetyCheckMediator(
+    private SafetyCheckMediator(
+            Profile profile,
             PropertyModel safetyCheckModel,
             PropertyModel passwordsCheckAccountModel,
             PropertyModel passwordsCheckLocalModel,
             SafetyCheckUpdatesDelegate client,
             SafetyCheckBridge bridge,
-            SettingsLauncher settingsLauncher,
-            SyncConsentActivityLauncher signinLauncher,
+            SigninAndHistorySyncActivityLauncher signinLauncher,
             @Nullable SyncService syncService,
             PrefService prefService,
             Handler handler,
             PasswordStoreBridge passwordStoreBridge,
             PasswordCheckControllerFactory passwordCheckControllerFactory,
-            PasswordManagerHelper passwordManagerHelper) {
+            PasswordManagerHelper passwordManagerHelper,
+            ObservableSupplier<ModalDialogManager> modalDialogManagerSupplier) {
+        mProfile = profile;
         mSafetyCheckModel = safetyCheckModel;
         mPasswordsCheckAccountStorageModel = passwordsCheckAccountModel;
         mPasswordsCheckLocalStorageModel = passwordsCheckLocalModel;
         mUpdatesClient = client;
         mBridge = bridge;
-        mSettingsLauncher = settingsLauncher;
         mSigninLauncher = signinLauncher;
         mSyncService = syncService;
         mHandler = handler;
         mPreferenceManager = ChromeSharedPreferences.getInstance();
         mPasswordCheckController =
                 passwordCheckControllerFactory.create(
-                        syncService,
-                        prefService,
-                        passwordStoreBridge,
-                        settingsLauncher,
-                        passwordManagerHelper);
+                        syncService, prefService, passwordStoreBridge, passwordManagerHelper);
         mPasswordManagerHelper = passwordManagerHelper;
+        mModalDialogManagerSupplier = modalDialogManagerSupplier;
         // Set the listener for clicking the updates element.
         mSafetyCheckModel.set(
                 SafetyCheckProperties.UPDATES_CLICK_LISTENER,
@@ -305,14 +319,15 @@ class SafetyCheckMediator {
                             RecordHistogram.recordEnumeratedHistogram(
                                     SAFETY_CHECK_INTERACTIONS,
                                     SafetyCheckInteractions.SAFE_BROWSING_MANAGE,
-                                    SafetyCheckInteractions.MAX_VALUE + 1);
+                                    SafetyCheckInteractions.MAX_VALUE);
                             // Open the Safe Browsing settings.
                             Intent intent =
-                                    settingsLauncher.createSettingsActivityIntent(
-                                            p.getContext(),
-                                            SafeBrowsingSettingsFragment.class,
-                                            SafeBrowsingSettingsFragment.createArguments(
-                                                    SettingsAccessPoint.SAFETY_CHECK));
+                                    SettingsNavigationFactory.createSettingsNavigation()
+                                            .createSettingsIntent(
+                                                    p.getContext(),
+                                                    SafeBrowsingSettingsFragment.class,
+                                                    SafeBrowsingSettingsFragment.createArguments(
+                                                            SettingsAccessPoint.SAFETY_CHECK));
                             p.getContext().startActivity(intent);
                             return true;
                         });
@@ -359,16 +374,19 @@ class SafetyCheckMediator {
             mSafetyCheckModel.set(
                     SafetyCheckProperties.SAFE_BROWSING_STATE, SafeBrowsingState.UNCHECKED);
             mSafetyCheckModel.set(SafetyCheckProperties.UPDATES_STATE, UpdatesState.UNCHECKED);
-
-            // If the new Password Manager backend is out of date, attempting to fetch breached
-            // credentials will expectedly fail and display an error message. This error is
-            // designed to be only shown when user explicitly runs the check (or it was ran
-            // recently). For this case, breached credential fetch is skipped.
-            if (mPasswordManagerHelper.canUseUpm()
-                    && !PasswordManagerUtilBridge.areMinUpmRequirementsMet()) {
-                setPasswordsState(mPasswordsCheckAccountStorageModel, PasswordsState.UNCHECKED);
-                setPasswordsState(mPasswordsCheckLocalStorageModel, PasswordsState.UNCHECKED);
-                return;
+            // After login DB deprecation, every invocation of SafetyCheck is guaranteed to only
+            // be made if the user can access UPM.
+            if (!ChromeFeatureList.isEnabled(ChromeFeatureList.LOGIN_DB_DEPRECATION_ANDROID)) {
+                // If the new Password Manager backend is out of date, attempting to fetch breached
+                // credentials will expectedly fail and display an error message. This error is
+                // designed to be only shown when user explicitly runs the check (or it was ran
+                // recently). For this case, breached credential fetch is skipped.
+                if (mPasswordManagerHelper.canUseUpm()
+                        && !PasswordManagerUtilBridge.areMinUpmRequirementsMet()) {
+                    setPasswordsState(mPasswordsCheckAccountStorageModel, PasswordsState.UNCHECKED);
+                    setPasswordsState(mPasswordsCheckLocalStorageModel, PasswordsState.UNCHECKED);
+                    return;
+                }
             }
         }
         setPasswordsState(mPasswordsCheckAccountStorageModel, PasswordsState.CHECKING);
@@ -396,7 +414,7 @@ class SafetyCheckMediator {
         RecordHistogram.recordEnumeratedHistogram(
                 SAFETY_CHECK_INTERACTIONS,
                 SafetyCheckInteractions.STARTED,
-                SafetyCheckInteractions.MAX_VALUE + 1);
+                SafetyCheckInteractions.MAX_VALUE);
         // Record the start time for tracking 1 second checking delay in the UI.
         mCheckStartTime = SystemClock.elapsedRealtime();
         // Record the absolute start time for showing when the last Safety check was performed.
@@ -467,7 +485,7 @@ class SafetyCheckMediator {
                         RecordHistogram.recordEnumeratedHistogram(
                                 "Settings.SafetyCheck.SafeBrowsingResult",
                                 status,
-                                SafeBrowsingStatus.MAX_VALUE + 1);
+                                SafeBrowsingStatus.MAX_VALUE);
                         mSafetyCheckModel.set(
                                 SafetyCheckProperties.SAFE_BROWSING_STATE,
                                 SafetyCheckProperties.safeBrowsingStateFromNative(status));
@@ -515,7 +533,7 @@ class SafetyCheckMediator {
             RecordHistogram.recordEnumeratedHistogram(
                     "Settings.SafetyCheck.PasswordsResult2",
                     passwordsStateToNative(passwordsState),
-                    PasswordsStatus.MAX_VALUE + 1);
+                    PasswordsStatus.MAX_VALUE);
         }
 
         passwordsCheckModel.set(PasswordsCheckPreferenceProperties.PASSWORDS_STATE, passwordsState);
@@ -534,7 +552,7 @@ class SafetyCheckMediator {
             RecordHistogram.recordEnumeratedHistogram(
                     "Settings.SafetyCheck.PasswordsResult2",
                     PasswordsStatus.SIGNED_OUT,
-                    PasswordsStatus.MAX_VALUE + 1);
+                    PasswordsStatus.MAX_VALUE);
             return passwordsState;
         }
         if (!mShowSafePasswordState) {
@@ -569,18 +587,39 @@ class SafetyCheckMediator {
                         mPasswordManagerHelper.showPasswordSettings(
                                 p.getContext(),
                                 ManagePasswordsReferrer.SAFETY_CHECK,
-                                mSettingsLauncher,
                                 mModalDialogManagerSupplier,
                                 /* managePasskeys= */ false,
-                                account);
+                                account,
+                                mSettingsCustomTabLauncher);
                         return true;
                     };
         } else if (state == PasswordsState.SIGNED_OUT) {
             listener =
                     (p) -> {
-                        // Open the sign in page.
-                        mSigninLauncher.launchActivityIfAllowed(
-                                p.getContext(), SigninAccessPoint.SAFETY_CHECK);
+                        AccountPickerBottomSheetStrings strings =
+                                new AccountPickerBottomSheetStrings.Builder(
+                                                R.string.signin_account_picker_bottom_sheet_title)
+                                        .setSubtitleStringId(
+                                                R.string.safety_check_passwords_error_signed_out)
+                                        .build();
+                        BottomSheetSigninAndHistorySyncConfig config =
+                                new BottomSheetSigninAndHistorySyncConfig.Builder(
+                                                strings,
+                                                NoAccountSigninMode.BOTTOM_SHEET,
+                                                WithAccountSigninMode.DEFAULT_ACCOUNT_BOTTOM_SHEET,
+                                                HistorySyncConfig.OptInMode.NONE)
+                                        .build();
+                        // Open the sign-in page.
+                        @Nullable
+                        Intent intent =
+                                mSigninLauncher.createBottomSheetSigninIntentOrShowError(
+                                        p.getContext(),
+                                        mProfile,
+                                        config,
+                                        SigninAccessPoint.SAFETY_CHECK);
+                        if (intent != null) {
+                            p.getContext().startActivity(intent);
+                        }
                         return true;
                     };
         } else if (state == PasswordsState.COMPROMISED_EXIST || state == PasswordsState.SAFE) {
@@ -591,12 +630,16 @@ class SafetyCheckMediator {
                         RecordHistogram.recordEnumeratedHistogram(
                                 SAFETY_CHECK_INTERACTIONS,
                                 SafetyCheckInteractions.PASSWORDS_MANAGE,
-                                SafetyCheckInteractions.MAX_VALUE + 1);
+                                SafetyCheckInteractions.MAX_VALUE);
                         // Open the Password Check UI.
-                        if (!mPasswordManagerHelper.canUseUpm()) {
-                            PasswordCheckFactory.getOrCreate(mSettingsLauncher)
-                                    .showUi(p.getContext(), PasswordCheckReferrer.SAFETY_CHECK);
-                        } else {
+                        if (ChromeFeatureList.isEnabled(
+                                        ChromeFeatureList.LOGIN_DB_DEPRECATION_ANDROID)
+                                || mPasswordManagerHelper.canUseUpm()) {
+                            // This UI surface was deprecated for all use-cases apart form the
+                            // PhishGuard dialog. The dialog option leading to SafetyCheck, implies
+                            // that there are passwords saved in both local and account stores. This
+                            // means that UPM
+                            // is guaranteed to be available.
                             String account =
                                     getAccountNameForPasswordStorageType(
                                             passwordStorageType, mSyncService);
@@ -604,14 +647,18 @@ class SafetyCheckMediator {
                                     p.getContext(),
                                     PasswordCheckReferrer.SAFETY_CHECK,
                                     mModalDialogManagerSupplier,
-                                    account);
+                                    account,
+                                    mSettingsCustomTabLauncher);
+                        } else {
+                            PasswordCheckFactory.getOrCreate()
+                                    .showUi(p.getContext(), PasswordCheckReferrer.SAFETY_CHECK);
                         }
                         return true;
                     };
         } else if (state == PasswordsState.BACKEND_VERSION_NOT_SUPPORTED) {
             listener =
                     (p) -> {
-                        PasswordManagerHelper.launchGmsUpdate(p.getContext());
+                        GmsUpdateLauncher.launch(p.getContext());
                         return true;
                     };
         }
@@ -679,7 +726,7 @@ class SafetyCheckMediator {
         RecordHistogram.recordEnumeratedHistogram(
                 "Settings.SafetyCheck.PasswordsResult2",
                 PasswordsCheckPreferenceProperties.passwordsStateToNative(PasswordsState.ERROR),
-                PasswordsStatus.MAX_VALUE + 1);
+                PasswordsStatus.MAX_VALUE);
         determinePasswordStateOnLoadComplete(
                 new PasswordCheckResult(new Exception(error)), passwordStorageType, isInitialLoad);
     }

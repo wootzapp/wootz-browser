@@ -27,18 +27,18 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.mockito.stubbing.Answer;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
-import org.chromium.base.FeatureList;
+import org.chromium.base.FeatureOverrides;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features;
@@ -67,9 +67,21 @@ import java.util.concurrent.TimeUnit;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 @SuppressWarnings("DoNotMock") // Mocking GURL
+@Features.EnableFeatures(
+        ChromeFeatureList.COMMERCE_MERCHANT_VIEWER
+                + ":"
+                + MerchantViewerConfig.TRUST_SIGNALS_MESSAGE_WINDOW_DURATION_PARAM
+                + "/-1/"
+                + MerchantViewerConfig.TRUST_SIGNALS_MESSAGE_DISABLED_PARAM
+                + "/false/"
+                + MerchantViewerConfig.TRUST_SIGNALS_MESSAGE_RATING_THRESHOLD_PARAM
+                + "/4.0/"
+                + MerchantViewerConfig
+                        .TRUST_SIGNALS_NON_PERSONALIZED_FAMILIARITY_SCORE_THRESHOLD_PARAM
+                + "/0.8")
 public class MerchantTrustSignalsCoordinatorTest {
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
 
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private Context mMockContext;
 
     @Mock private Resources mMockResources;
@@ -125,15 +137,13 @@ public class MerchantTrustSignalsCoordinatorTest {
     private MerchantInfo mDummyMerchantTrustSignals =
             new MerchantInfo(4.5f, 100, null, false, 0f, false, false);
     private MerchantTrustSignalsCoordinator mCoordinator;
-    private FeatureList.TestValues mTestValues;
     private String mSerializedTimestamps;
     private MerchantTrustMessageContext mMessageContext;
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         doReturn(mMockResources).when(mMockContext).getResources();
-        doReturn("").when(mMockResources).getString(anyInt());
+        doReturn("").when(mMockContext).getString(anyInt());
         doReturn("").when(mMockResources).getQuantityString(anyInt(), anyInt(), any());
         doReturn(FAKE_HOST).when(mMockGurl).getHost();
         doReturn(FAKE_HOST).when(mMockGurl).getSpec();
@@ -169,26 +179,6 @@ public class MerchantTrustSignalsCoordinatorTest {
 
         setMockTrustSignalsData(mDummyMerchantTrustSignals);
         setMockTrustSignalsEventData(FAKE_HOST, mMockMerchantTrustSignalsEvent);
-
-        mTestValues = new FeatureList.TestValues();
-        mTestValues.addFieldTrialParamOverride(
-                ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
-                MerchantViewerConfig.TRUST_SIGNALS_MESSAGE_WINDOW_DURATION_PARAM,
-                "-1");
-        mTestValues.addFieldTrialParamOverride(
-                ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
-                MerchantViewerConfig.TRUST_SIGNALS_MESSAGE_DISABLED_PARAM,
-                "false");
-        mTestValues.addFieldTrialParamOverride(
-                ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
-                MerchantViewerConfig.TRUST_SIGNALS_MESSAGE_RATING_THRESHOLD_PARAM,
-                "4.0");
-        mTestValues.addFieldTrialParamOverride(
-                ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
-                MerchantViewerConfig
-                        .TRUST_SIGNALS_NON_PERSONALIZED_FAMILIARITY_SCORE_THRESHOLD_PARAM,
-                "0.8");
-        FeatureList.setTestValues(mTestValues);
 
         mMessageContext = new MerchantTrustMessageContext(mMockNavigationHandle, mMockWebContents);
         mCoordinator =
@@ -304,10 +294,10 @@ public class MerchantTrustSignalsCoordinatorTest {
     @SmallTest
     @Test
     public void testMaybeDisplayMessage_LastEventWithinTimeWindow() {
-        mTestValues.addFieldTrialParamOverride(
+        FeatureOverrides.overrideParam(
                 ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
                 MerchantViewerConfig.TRUST_SIGNALS_MESSAGE_WINDOW_DURATION_PARAM,
-                "60000");
+                60000);
         doReturn(System.currentTimeMillis() - TimeUnit.SECONDS.toMillis(10))
                 .when(mMockMerchantTrustSignalsEvent)
                 .getTimestamp();
@@ -364,14 +354,16 @@ public class MerchantTrustSignalsCoordinatorTest {
     @SmallTest
     @Test
     public void testMaybeDisplayMessage_WithSiteEngagementAboveThreshold() {
-        mTestValues.addFieldTrialParamOverride(
-                ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
-                MerchantViewerConfig.TRUST_SIGNALS_USE_SITE_ENGAGEMENT_PARAM,
-                "true");
-        mTestValues.addFieldTrialParamOverride(
-                ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
-                MerchantViewerConfig.TRUST_SIGNALS_SITE_ENGAGEMENT_THRESHOLD_PARAM,
-                "80.0");
+        FeatureOverrides.newBuilder()
+                .param(
+                        ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
+                        MerchantViewerConfig.TRUST_SIGNALS_USE_SITE_ENGAGEMENT_PARAM,
+                        true)
+                .param(
+                        ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
+                        MerchantViewerConfig.TRUST_SIGNALS_SITE_ENGAGEMENT_THRESHOLD_PARAM,
+                        80.0)
+                .apply();
         doReturn(90.0)
                 .when(mCoordinator)
                 .getSiteEngagementScore(any(Profile.class), any(String.class));
@@ -385,14 +377,16 @@ public class MerchantTrustSignalsCoordinatorTest {
     @SmallTest
     @Test
     public void testMaybeDisplayMessage_WithSiteEngagementBelowThreshold() {
-        mTestValues.addFieldTrialParamOverride(
-                ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
-                MerchantViewerConfig.TRUST_SIGNALS_USE_SITE_ENGAGEMENT_PARAM,
-                "true");
-        mTestValues.addFieldTrialParamOverride(
-                ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
-                MerchantViewerConfig.TRUST_SIGNALS_SITE_ENGAGEMENT_THRESHOLD_PARAM,
-                "80.0");
+        FeatureOverrides.newBuilder()
+                .param(
+                        ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
+                        MerchantViewerConfig.TRUST_SIGNALS_USE_SITE_ENGAGEMENT_PARAM,
+                        true)
+                .param(
+                        ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
+                        MerchantViewerConfig.TRUST_SIGNALS_SITE_ENGAGEMENT_THRESHOLD_PARAM,
+                        80.0)
+                .apply();
         doReturn(70.0)
                 .when(mCoordinator)
                 .getSiteEngagementScore(any(Profile.class), any(String.class));
@@ -428,10 +422,10 @@ public class MerchantTrustSignalsCoordinatorTest {
     @SmallTest
     @Test
     public void testMaybeDisplayMessage_MessageDisabledForAllMerchants() {
-        mTestValues.addFieldTrialParamOverride(
+        FeatureOverrides.overrideParam(
                 ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
                 MerchantViewerConfig.TRUST_SIGNALS_MESSAGE_DISABLED_PARAM,
-                "true");
+                true);
 
         mCoordinator.maybeDisplayMessage(mDummyMerchantTrustSignals, mMessageContext, false);
 
@@ -537,14 +531,16 @@ public class MerchantTrustSignalsCoordinatorTest {
     @SmallTest
     @Test
     public void testOnlyAbleToShowThreeMessagesInGivenTime() {
-        mTestValues.addFieldTrialParamOverride(
-                ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
-                MerchantViewerConfig.TRUST_SIGNALS_MAX_ALLOWED_NUMBER_IN_GIVEN_WINDOW_PARAM,
-                "3");
-        mTestValues.addFieldTrialParamOverride(
-                ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
-                MerchantViewerConfig.TRUST_SIGNALS_NUMBER_CHECK_WINDOW_DURATION_PARAM,
-                "60000");
+        FeatureOverrides.newBuilder()
+                .param(
+                        ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
+                        MerchantViewerConfig.TRUST_SIGNALS_MAX_ALLOWED_NUMBER_IN_GIVEN_WINDOW_PARAM,
+                        3)
+                .param(
+                        ChromeFeatureList.COMMERCE_MERCHANT_VIEWER,
+                        MerchantViewerConfig.TRUST_SIGNALS_NUMBER_CHECK_WINDOW_DURATION_PARAM,
+                        60000)
+                .apply();
 
         // We won't reach the max allowed number until we show three messages.
         Assert.assertFalse(mCoordinator.hasReachedMaxAllowedMessageNumberInGivenTime());

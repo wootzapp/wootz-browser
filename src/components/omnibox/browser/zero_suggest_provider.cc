@@ -24,6 +24,7 @@
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/autocomplete_match_classification.h"
 #include "components/omnibox/browser/autocomplete_provider_client.h"
+#include "components/omnibox/browser/autocomplete_provider_debouncer.h"
 #include "components/omnibox/browser/autocomplete_provider_listener.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
 #include "components/omnibox/browser/omnibox_prefs.h"
@@ -32,6 +33,7 @@
 #include "components/omnibox/browser/remote_suggestions_service.h"
 #include "components/omnibox/browser/search_suggestion_parser.h"
 #include "components/omnibox/browser/zero_suggest_cache_service.h"
+#include "components/omnibox/common/omnibox_feature_configs.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
@@ -53,7 +55,6 @@ namespace {
 
 using ResultType = ZeroSuggestProvider::ResultType;
 constexpr bool is_ios = !!BUILDFLAG(IS_IOS);
-constexpr bool is_android = !!BUILDFLAG(IS_ANDROID);
 
 // Represents whether ZeroSuggestProvider is allowed to display zero-prefix
 // suggestions, and if not, why not.
@@ -75,6 +76,33 @@ enum class Eligibility {
 
   kMaxValue = kGenerallyIneligible,
 };
+
+// Called in Start() or StartPrefetch(), logs eligibility UMA histogram. Must be
+// called exactly once. Otherwise the meaning of the the histogram it logs would
+// change.
+void LogOmniboxZeroSuggestEligibility(ResultType result_type, bool eligible) {
+  Eligibility eligibility = Eligibility::kEligible;
+  switch (result_type) {
+    case ResultType::kRemoteNoURL: {
+      if (!eligible) {
+        eligibility = Eligibility::kRequestNoURLIneligible;
+      }
+      break;
+    }
+    case ResultType::kRemoteSendURL: {
+      if (!eligible) {
+        eligibility = Eligibility::kRequestSendURLIneligible;
+      }
+      break;
+    }
+    case ResultType::kNone: {
+      eligibility = Eligibility::kGenerallyIneligible;
+      break;
+    }
+  }
+  base::UmaHistogramEnumeration("Omnibox.ZeroSuggestProvider.Eligibility",
+                                eligibility);
+}
 
 void LogOmniboxZeroSuggestRequest(const RemoteRequestEvent request_event,
                                   const ResultType result_type,
@@ -100,7 +128,7 @@ bool ShouldCacheResultTypeInContext(const ResultType result_type,
                                     const OEP::PageClassification page_class) {
   switch (result_type) {
     case ResultType::kRemoteNoURL:
-      return true;
+      return !omnibox::IsLensSearchbox(page_class);
     case ResultType::kRemoteSendURL:
       return omnibox::IsSearchResultsPage(page_class)
                  ? base::FeatureList::IsEnabled(
@@ -108,9 +136,7 @@ bool ShouldCacheResultTypeInContext(const ResultType result_type,
                  : base::FeatureList::IsEnabled(
                        omnibox::kZeroSuggestPrefetchingOnWeb);
     case ResultType::kNone:
-      NOTREACHED_IN_MIGRATION()
-          << "kNone is not a valid zero suggest result type.";
-      return false;
+      NOTREACHED() << "kNone is not a valid zero suggest result type.";
   }
 }
 
@@ -206,76 +232,74 @@ bool ReadStoredResponse(const AutocompleteProviderClient* client,
   return true;
 }
 
-}  // namespace
-
-// static
-ZeroSuggestProvider::ResultType ZeroSuggestProvider::ResultTypeToRun(
-    const AutocompleteInput& input) {
+// Returns the type of results that should be generated for the given input.
+// It does not check whether zero-suggest requests can be made. Those checks
+// are done in GetResultTypeAndEligibility().
+ResultType ResultTypeForInput(const AutocompleteInput& input) {
   const auto page_class = input.current_page_classification();
-  const auto focus_type_input_type =
-      std::make_pair(input.focus_type(), input.type());
+
+  // Disallow non-zero-prefix inputs.
+  if (!input.IsZeroSuggest()) {
+    return ResultType::kNone;
+  }
 
   // Android Search Widget.
   if (page_class == OEP::ANDROID_SHORTCUTS_WIDGET) {
-    if (focus_type_input_type.first != OFT::INTERACTION_DEFAULT) {
-      return ResultType::kRemoteNoURL;
-    }
+    return ResultType::kRemoteNoURL;
   }
 
   // New Tab Page.
   if (omnibox::IsNTPPage(page_class)) {
-    if (focus_type_input_type ==
-        std::make_pair(OFT::INTERACTION_FOCUS, OIT::EMPTY)) {
+    if (input.type() == OIT::EMPTY) {
+      return ResultType::kRemoteNoURL;
+    }
+  }
+
+  // Lens unimodal, multimodal, and contextual searchboxes.
+  if (omnibox::IsLensSearchbox(page_class)) {
+    if (input.type() == OIT::EMPTY) {
       return ResultType::kRemoteNoURL;
     }
   }
 
   // The following cases require sending the current page URL in the request.
-  // Ensure the URL is valid with an HTTP(S) scheme and is not the NTP page URL.
-  if (omnibox::IsNTPPage(page_class) ||
-      !PageURLIsEligibleForSuggestRequest(input.current_url())) {
+  // Ensure the page URL is valid with an HTTP(S) scheme and is not the NTP URL.
+  if (!BaseSearchProvider::PageURLIsEligibleForSuggestRequest(
+          input.current_url(), page_class)) {
     return ResultType::kNone;
   }
 
-  // Open Web - does NOT include Search Results Page.
-  if (omnibox::IsOtherWebPage(page_class)) {
-    if (focus_type_input_type ==
-            std::make_pair(OFT::INTERACTION_FOCUS, OIT::URL) &&
-        (is_ios || is_android)) {
+  // Open Web and Search Results Page.
+  if (omnibox::IsOtherWebPage(page_class) ||
+      omnibox::IsSearchResultsPage(page_class)) {
+    if (input.type() == OIT::URL &&
+        (is_ios || base::FeatureList::IsEnabled(
+                       omnibox::kFocusTriggersWebAndSRPZeroSuggest))) {
       return ResultType::kRemoteSendURL;
     }
-    if (focus_type_input_type ==
-            std::make_pair(OFT::INTERACTION_CLOBBER, OIT::EMPTY) &&
-        base::FeatureList::IsEnabled(
-            omnibox::kClobberTriggersContextualWebZeroSuggest)) {
-      return ResultType::kRemoteSendURL;
-    }
-  }
-
-  // Search Results Page.
-  if (omnibox::IsSearchResultsPage(page_class)) {
-    if (focus_type_input_type ==
-            std::make_pair(OFT::INTERACTION_FOCUS, OIT::URL) &&
-        (is_ios || is_android)) {
-      return ResultType::kRemoteSendURL;
-    }
-    if (focus_type_input_type ==
-            std::make_pair(OFT::INTERACTION_CLOBBER, OIT::EMPTY) &&
-        base::FeatureList::IsEnabled(omnibox::kClobberTriggersSRPZeroSuggest)) {
-      return ResultType::kRemoteSendURL;
-    }
-  }
-
-  // Lens searchboxes.
-  if (omnibox::IsLensSearchbox(page_class)) {
-    if (focus_type_input_type ==
-        std::make_pair(OFT::INTERACTION_FOCUS, OIT::EMPTY)) {
+    if (input.type() == OIT::EMPTY && !is_ios) {
       return ResultType::kRemoteSendURL;
     }
   }
 
   return ResultType::kNone;
 }
+
+void MaybeAddContextualUrlSuggestParam(
+    TemplateURLRef::SearchTermsArgs& search_terms_args) {
+  if (!search_terms_args.current_page_url.empty() &&
+      omnibox::IsOtherWebPage(search_terms_args.page_classification)) {
+    std::string_view contextual_url_suggest_param =
+        omnibox_feature_configs::ContextualSearch::Get()
+            .contextual_url_suggest_param;
+    if (!contextual_url_suggest_param.empty()) {
+      search_terms_args.additional_query_params =
+          base::StrCat({"ctxus=", contextual_url_suggest_param});
+    }
+  }
+}
+
+}  // namespace
 
 // static
 ZeroSuggestProvider* ZeroSuggestProvider::Create(
@@ -285,51 +309,83 @@ ZeroSuggestProvider* ZeroSuggestProvider::Create(
 }
 
 // static
+AutocompleteMatch ZeroSuggestProvider::NavigationToMatch(
+    AutocompleteProvider* provider,
+    AutocompleteProviderClient* client,
+    const SearchSuggestionParser::NavigationResult& navigation) {
+  AutocompleteMatch match(provider, navigation.relevance(), false,
+                          navigation.type());
+  match.destination_url = navigation.url();
+
+  match.fill_into_edit +=
+      AutocompleteInput::FormattedStringWithEquivalentMeaning(
+          navigation.url(), url_formatter::FormatUrl(navigation.url()),
+          client->GetSchemeClassifier(), nullptr);
+
+  // Zero suggest results should always omit protocols and never appear bold.
+  auto format_types = AutocompleteMatch::GetFormatTypes(false, false);
+  match.contents = url_formatter::FormatUrl(navigation.url(), format_types,
+                                            base::UnescapeRule::SPACES, nullptr,
+                                            nullptr, nullptr);
+  match.contents_class = ClassifyTermMatches({}, match.contents.length(), 0,
+                                             ACMatchClassification::URL);
+
+  match.description =
+      AutocompleteMatch::SanitizeString(navigation.description());
+  match.description_class = ClassifyTermMatches({}, match.description.length(),
+                                                0, ACMatchClassification::NONE);
+  match.suggest_type = navigation.suggest_type();
+  for (const int subtype : navigation.subtypes()) {
+    match.subtypes.insert(SuggestSubtypeForNumber(subtype));
+  }
+  return match;
+}
+
+// static
 void ZeroSuggestProvider::RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(omnibox::kZeroSuggestCachedResults,
                                std::string());
   registry->RegisterDictionaryPref(omnibox::kZeroSuggestCachedResultsWithURL);
 }
 
-bool ZeroSuggestProvider::AllowZeroPrefixSuggestions(
+// static
+std::pair<ZeroSuggestProvider::ResultType, bool>
+ZeroSuggestProvider::GetResultTypeAndEligibility(
     const AutocompleteProviderClient* client,
     const AutocompleteInput& input) {
-  auto eligibility = Eligibility::kEligible;
+  const auto result_type = ResultTypeForInput(input);
 
-  const TemplateURLService* template_url_service =
-      client->GetTemplateURLService();
+  const auto* template_url_service = client->GetTemplateURLService();
+  if (!template_url_service) {
+    return std::make_pair(result_type, /*eligibility=*/false);
+  }
 
-  switch (ResultTypeToRun(input)) {
+  auto eligibility = true;
+  switch (result_type) {
     case ResultType::kRemoteNoURL: {
-      if (!template_url_service ||
-          !template_url_service->GetDefaultSearchProvider() ||
-          !CanSendSuggestRequestWithoutPageURL(
+      if (!CanSendSecureSuggestRequest(
+              input.current_page_classification(),
               template_url_service->GetDefaultSearchProvider(),
               template_url_service->search_terms_data(), client)) {
-        eligibility = Eligibility::kRequestNoURLIneligible;
+        eligibility = false;
       }
       break;
     }
     case ResultType::kRemoteSendURL: {
-      if (!client->GetTemplateURLService() ||
-          !template_url_service->GetDefaultSearchProvider() ||
-          !CanSendSuggestRequestWithPageURL(
-              input.current_url(),
+      if (!CanSendSuggestRequestWithPageURL(
+              input.current_url(), input.current_page_classification(),
               template_url_service->GetDefaultSearchProvider(),
               template_url_service->search_terms_data(), client)) {
-        eligibility = Eligibility::kRequestSendURLIneligible;
+        eligibility = false;
       }
       break;
     }
-    default: {
-      eligibility = Eligibility::kGenerallyIneligible;
+    case ResultType::kNone: {
+      eligibility = false;
       break;
     }
   }
-
-  base::UmaHistogramEnumeration("Omnibox.ZeroSuggestProvider.Eligibility",
-                                eligibility);
-  return eligibility == Eligibility::kEligible;
+  return std::make_pair(result_type, eligibility);
 }
 
 void ZeroSuggestProvider::StartPrefetch(const AutocompleteInput& input) {
@@ -337,15 +393,28 @@ void ZeroSuggestProvider::StartPrefetch(const AutocompleteInput& input) {
 
   TRACE_EVENT0("omnibox", "ZeroSuggestProvider::StartPrefetch");
 
-  if (!AllowZeroPrefixSuggestions(client(), input)) {
+  if (!OmniboxFieldTrial::IsZeroSuggestPrefetchingEnabledInContext(
+          input.current_page_classification())) {
     return;
   }
 
-  const ResultType result_type = ResultTypeToRun(input);
-  if (result_type == ResultType::kNone) {
+  auto [result_type, eligible] = GetResultTypeAndEligibility(client(), input);
+  LogOmniboxZeroSuggestEligibility(result_type, eligible);
+  if (!eligible) {
     return;
   }
 
+  if (base::FeatureList::IsEnabled(omnibox::kZeroSuggestPrefetchDebouncing)) {
+    debouncer_->RequestRun(
+        base::BindOnce(&ZeroSuggestProvider::RunZeroSuggestPrefetch,
+                       base::Unretained(this), input, result_type));
+  } else {
+    RunZeroSuggestPrefetch(input, result_type);
+  }
+}
+
+void ZeroSuggestProvider::RunZeroSuggestPrefetch(const AutocompleteInput& input,
+                                                 const ResultType result_type) {
   TemplateURLRef::SearchTermsArgs search_terms_args;
   search_terms_args.page_classification = input.current_page_classification();
   search_terms_args.request_source = input.request_source();
@@ -353,16 +422,9 @@ void ZeroSuggestProvider::StartPrefetch(const AutocompleteInput& input) {
   search_terms_args.current_page_url = result_type == ResultType::kRemoteSendURL
                                            ? input.current_url().spec()
                                            : std::string();
-  // Make sure the Lens interaction response is sent in the request, if
-  // available.
-  search_terms_args.lens_overlay_interaction_response =
-      input.lens_overlay_interaction_response();
-
-  // AllowZeroPrefixSuggestions() ensures these are not nullptr.
-  const TemplateURLService* template_url_service =
-      client()->GetTemplateURLService();
-  const TemplateURL* template_url =
-      template_url_service->GetDefaultSearchProvider();
+  search_terms_args.lens_overlay_suggest_inputs =
+      input.lens_overlay_suggest_inputs();
+  MaybeAddContextualUrlSuggestParam(search_terms_args);
 
   std::unique_ptr<network::SimpleURLLoader>* prefetch_loader = nullptr;
   if (result_type == ResultType::kRemoteNoURL) {
@@ -370,7 +432,7 @@ void ZeroSuggestProvider::StartPrefetch(const AutocompleteInput& input) {
   } else if (result_type == ResultType::kRemoteSendURL) {
     prefetch_loader = &srp_web_prefetch_loader_;
   } else {
-    NOTREACHED_NORETURN();
+    NOTREACHED();
   }
 
   // If the app is currently in the background state, do not initiate ZPS
@@ -386,12 +448,17 @@ void ZeroSuggestProvider::StartPrefetch(const AutocompleteInput& input) {
                                  /*is_prefetch=*/true);
   }
 
+  const auto* template_url_service = client()->GetTemplateURLService();
   // Create a loader for the appropriate page context and take ownership of it.
+  // Prefetching zero-prefix suggestions in OTR contexts is not allowed.
+  DCHECK(!client()->IsOffTheRecord());
   *prefetch_loader =
       client()
           ->GetRemoteSuggestionsService(/*create_if_necessary=*/true)
           ->StartZeroPrefixSuggestionsRequest(
-              RemoteRequestType::kZeroSuggestPrefetch, template_url,
+              RemoteRequestType::kZeroSuggestPrefetch,
+              client()->IsOffTheRecord(),
+              template_url_service->GetDefaultSearchProvider(),
               search_terms_args, template_url_service->search_terms_data(),
               base::BindOnce(&ZeroSuggestProvider::OnPrefetchURLLoadComplete,
                              weak_ptr_factory_.GetWeakPtr(), input,
@@ -406,14 +473,13 @@ void ZeroSuggestProvider::Start(const AutocompleteInput& input,
   TRACE_EVENT0("omnibox", "ZeroSuggestProvider::Start");
   Stop(true, false);
 
-  if (!AllowZeroPrefixSuggestions(client(), input)) {
+  auto [result_type, eligible] = GetResultTypeAndEligibility(client(), input);
+  LogOmniboxZeroSuggestEligibility(result_type, eligible);
+  if (!eligible) {
     return;
   }
 
-  result_type_running_ = ResultTypeToRun(input);
-  if (result_type_running_ == ResultType::kNone) {
-    return;
-  }
+  result_type_running_ = result_type;
 
   // Convert the stored response to |matches_|, if applicable.
   SearchSuggestionParser::Results results;
@@ -432,12 +498,6 @@ void ZeroSuggestProvider::Start(const AutocompleteInput& input,
 
   done_ = false;
 
-  // AllowZeroPrefixSuggestions() ensures these are not nullptr.
-  const TemplateURLService* template_url_service =
-      client()->GetTemplateURLService();
-  const TemplateURL* template_url =
-      template_url_service->GetDefaultSearchProvider();
-
   TemplateURLRef::SearchTermsArgs search_terms_args;
   search_terms_args.page_classification = input.current_page_classification();
   search_terms_args.request_source = input.request_source();
@@ -446,18 +506,23 @@ void ZeroSuggestProvider::Start(const AutocompleteInput& input,
       result_type_running_ == ResultType::kRemoteSendURL
           ? input.current_url().spec()
           : std::string();
-  // Make sure the Lens interaction response is sent in the request, if
-  // available.
-  search_terms_args.lens_overlay_interaction_response =
-      input.lens_overlay_interaction_response();
+  search_terms_args.lens_overlay_suggest_inputs =
+      input.lens_overlay_suggest_inputs();
+  MaybeAddContextualUrlSuggestParam(search_terms_args);
 
+  const auto* template_url_service = client()->GetTemplateURLService();
   // Create a loader for the request and take ownership of it.
+  // Request for zero-prefix suggestions in OTR contexts is not allowed; except
+  // for the Lens searchboxes.
+  DCHECK(!client()->IsOffTheRecord() ||
+         omnibox::IsLensSearchbox(input.current_page_classification()));
   loader_ =
       client()
           ->GetRemoteSuggestionsService(/*create_if_necessary=*/true)
           ->StartZeroPrefixSuggestionsRequest(
-              RemoteRequestType::kZeroSuggest, template_url, search_terms_args,
-              template_url_service->search_terms_data(),
+              RemoteRequestType::kZeroSuggest, client()->IsOffTheRecord(),
+              template_url_service->GetDefaultSearchProvider(),
+              search_terms_args, template_url_service->search_terms_data(),
               base::BindOnce(&ZeroSuggestProvider::OnURLLoadComplete,
                              weak_ptr_factory_.GetWeakPtr(), input,
                              result_type_running_));
@@ -471,6 +536,10 @@ void ZeroSuggestProvider::Stop(bool clear_cached_results,
                                bool due_to_user_inactivity) {
   AutocompleteProvider::Stop(clear_cached_results, due_to_user_inactivity);
 
+  if (base::FeatureList::IsEnabled(omnibox::kZeroSuggestPrefetchDebouncing)) {
+    debouncer_->CancelRequest();
+  }
+
   if (loader_) {
     LogOmniboxZeroSuggestRequest(RemoteRequestEvent::kRequestInvalidated,
                                  result_type_running_,
@@ -481,6 +550,7 @@ void ZeroSuggestProvider::Stop(bool clear_cached_results,
 
   if (clear_cached_results) {
     experiment_stats_v2s_.clear();
+    gws_event_id_hashes_.clear();
   }
 }
 
@@ -503,6 +573,12 @@ ZeroSuggestProvider::ZeroSuggestProvider(AutocompleteProviderClient* client,
                                          AutocompleteProviderListener* listener)
     : BaseSearchProvider(AutocompleteProvider::TYPE_ZERO_SUGGEST, client) {
   AddListener(listener);
+
+  if (base::FeatureList::IsEnabled(omnibox::kZeroSuggestPrefetchDebouncing)) {
+    debouncer_ = std::make_unique<AutocompleteProviderDebouncer>(
+        OmniboxFieldTrial::kZeroSuggestPrefetchDebounceFromLastRun.Get(),
+        OmniboxFieldTrial::kZeroSuggestPrefetchDebounceDelay.Get());
+  }
 }
 
 ZeroSuggestProvider::~ZeroSuggestProvider() = default;
@@ -590,7 +666,7 @@ void ZeroSuggestProvider::OnPrefetchURLLoadComplete(
   } else if (result_type == ResultType::kRemoteSendURL) {
     prefetch_loader = &srp_web_prefetch_loader_;
   } else {
-    NOTREACHED_NORETURN();
+    NOTREACHED();
   }
 
   DCHECK_EQ(prefetch_loader->get(), source);
@@ -603,7 +679,14 @@ void ZeroSuggestProvider::OnPrefetchURLLoadComplete(
     // If the app is currently in the background state, do not parse and store
     // ZPS prefetch responses. This helps to conserve CPU cycles on iOS while in
     // the background state.
-    if (!client()->in_background_state()) {
+    // If `kZeroSuggestPrefetchingOnSRPCounterfactual` has been enabled, we also
+    // ignore any ZPS prefetch response on SRP, ensuring that ZPS prefetching
+    // is essentially a no-op in this case.
+    if (!client()->in_background_state() &&
+        !(OmniboxFieldTrial::kZeroSuggestPrefetchingOnSRPCounterfactual.Get() &&
+          input.current_page_classification() ==
+              metrics::OmniboxEventProto::SRP_ZPS_PREFETCH &&
+          result_type == ResultType::kRemoteSendURL)) {
       SearchSuggestionParser::Results unused_results;
       StoreRemoteResponse(SearchSuggestionParser::ExtractJsonData(
                               source, std::move(response_body)),
@@ -615,42 +698,13 @@ void ZeroSuggestProvider::OnPrefetchURLLoadComplete(
   prefetch_loader->reset();
 }
 
-AutocompleteMatch ZeroSuggestProvider::NavigationToMatch(
-    const SearchSuggestionParser::NavigationResult& navigation) {
-  AutocompleteMatch match(this, navigation.relevance(), false,
-                          navigation.type());
-  match.destination_url = navigation.url();
-
-  match.fill_into_edit +=
-      AutocompleteInput::FormattedStringWithEquivalentMeaning(
-          navigation.url(), url_formatter::FormatUrl(navigation.url()),
-          client()->GetSchemeClassifier(), nullptr);
-
-  // Zero suggest results should always omit protocols and never appear bold.
-  auto format_types = AutocompleteMatch::GetFormatTypes(false, false);
-  match.contents = url_formatter::FormatUrl(navigation.url(), format_types,
-                                            base::UnescapeRule::SPACES, nullptr,
-                                            nullptr, nullptr);
-  match.contents_class = ClassifyTermMatches({}, match.contents.length(), 0,
-                                             ACMatchClassification::URL);
-
-  match.description =
-      AutocompleteMatch::SanitizeString(navigation.description());
-  match.description_class = ClassifyTermMatches({}, match.description.length(),
-                                                0, ACMatchClassification::NONE);
-  match.suggest_type = navigation.suggest_type();
-  for (const int subtype : navigation.subtypes()) {
-    match.subtypes.insert(SuggestSubtypeForNumber(subtype));
-  }
-  return match;
-}
-
 void ZeroSuggestProvider::ConvertSuggestResultsToAutocompleteMatches(
     const SearchSuggestionParser::Results& results,
     const AutocompleteInput& input) {
   matches_.clear();
   suggestion_groups_map_.clear();
   experiment_stats_v2s_.clear();
+  gws_event_id_hashes_.clear();
 
   if (results.field_trial_triggered) {
     client()->GetOmniboxTriggeredFeatureService()->FeatureTriggered(
@@ -661,7 +715,7 @@ void ZeroSuggestProvider::ConvertSuggestResultsToAutocompleteMatches(
   // suggestions as unbolded.
   MatchMap map;
   for (size_t i = 0; i < results.suggest_results.size(); ++i) {
-    AddMatchToMap(results.suggest_results[i], std::string(), input,
+    AddMatchToMap(results.suggest_results[i], input,
                   client()->GetTemplateURLService()->GetDefaultSearchProvider(),
                   client()->GetTemplateURLService()->search_terms_data(), i,
                   false, false, &map);
@@ -686,7 +740,7 @@ void ZeroSuggestProvider::ConvertSuggestResultsToAutocompleteMatches(
   const SearchSuggestionParser::NavigationResults& nav_results(
       results.navigation_results);
   for (const auto& nav_result : nav_results) {
-    matches_.push_back(NavigationToMatch(nav_result));
+    matches_.push_back(NavigationToMatch(this, client(), nav_result));
   }
 
   // Update the suggestion groups information from the server response.
@@ -697,5 +751,10 @@ void ZeroSuggestProvider::ConvertSuggestResultsToAutocompleteMatches(
   // Update the list of experiment stats from the server response.
   for (const auto& experiment_stats_v2 : results.experiment_stats_v2s) {
     experiment_stats_v2s_.push_back(experiment_stats_v2);
+  }
+
+  // Update the list of GWS event ID hashes from the server response.
+  for (const auto& gws_event_id_hash : results.gws_event_id_hashes) {
+    gws_event_id_hashes_.push_back(gws_event_id_hash);
   }
 }

@@ -28,8 +28,6 @@
 
 namespace partition_alloc::internal {
 
-namespace {
-
 zx::resource GetVmexResource() {
   auto vmex_resource_client =
       component::Connect<fuchsia_kernel::VmexResource>();
@@ -93,8 +91,6 @@ zx_vm_option_t PageAccessibilityToZxVmOptions(
   };
   PA_NOTREACHED();
 }
-
-}  // namespace
 
 // zx_vmar_map() will fail if the VMO cannot be mapped at |vmar_offset|, i.e.
 // |hint| is not advisory.
@@ -208,6 +204,10 @@ void DiscardSystemPagesInternal(uint64_t address, size_t length) {
   zx_status_t status = zx::vmar::root_self()->op_range(
       ZX_VMO_OP_DECOMMIT, address, length, nullptr, 0);
   PA_ZX_CHECK(status == ZX_OK, status);
+}
+
+bool SealSystemPagesInternal(uint64_t address, size_t length) {
+  return false;
 }
 
 void DecommitSystemPagesInternal(

@@ -7,8 +7,9 @@
  * 'privacy-guide-safe-browsing-fragment' is the fragment in a privacy
  * guide card that contains the safe browsing settings and their descriptions.
  */
+
+import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
 import '/shared/settings/prefs/prefs.js';
-import './privacy_guide_description_item.js';
 import './privacy_guide_fragment_shared.css.js';
 import '../../controls/settings_radio_group.js';
 import '../../privacy_page/collapse_radio_button.js';
@@ -41,27 +42,11 @@ export class PrivacyGuideSafeBrowsingFragmentElement extends
   static get properties() {
     return {
       /**
-       * Preferences state.
-       */
-      prefs: {
-        type: Object,
-        notify: true,
-      },
-
-      /**
        * Valid safe browsing states.
        */
       safeBrowsingSettingEnum_: {
         type: Object,
         value: SafeBrowsingSetting,
-      },
-
-      enableFriendlierSafeBrowsingSettings_: {
-        type: Boolean,
-        value() {
-          return loadTimeData.getBoolean(
-              'enableFriendlierSafeBrowsingSettings');
-        },
       },
 
       enableHashPrefixRealTimeLookups_: {
@@ -76,8 +61,7 @@ export class PrivacyGuideSafeBrowsingFragmentElement extends
   private metricsBrowserProxy_: MetricsBrowserProxy =
       MetricsBrowserProxyImpl.getInstance();
   private startStateEnhanced_: boolean;
-  private enableFriendlierSafeBrowsingSettings_: boolean;
-  private enableHashPrefixRealTimeLookups_: boolean;
+  declare private enableHashPrefixRealTimeLookups_: boolean;
 
   override ready() {
     super.ready();
@@ -116,7 +100,7 @@ export class PrivacyGuideSafeBrowsingFragmentElement extends
           PrivacyGuideSettingsStates.SAFE_BROWSING_STANDARD_TO_ENHANCED :
           PrivacyGuideSettingsStates.SAFE_BROWSING_STANDARD_TO_STANDARD;
     }
-    this.metricsBrowserProxy_.recordPrivacyGuideSettingsStatesHistogram(state!);
+    this.metricsBrowserProxy_.recordPrivacyGuideSettingsStatesHistogram(state);
   }
 
   private onSafeBrowsingEnhancedClick_() {
@@ -129,19 +113,10 @@ export class PrivacyGuideSafeBrowsingFragmentElement extends
         'Settings.PrivacyGuide.ChangeSafeBrowsingStandard');
   }
 
-  private getSafeBrowsingEnhancedSubLabel_(): string {
-    return this.i18n(
-        this.enableFriendlierSafeBrowsingSettings_ ?
-            'safeBrowsingEnhancedDescUpdated' :
-            'safeBrowsingEnhancedDesc');
-  }
-
   private getSafeBrowsingStandardSubLabel_(): string {
     return this.i18n(
-        this.enableFriendlierSafeBrowsingSettings_ ?
-            this.enableHashPrefixRealTimeLookups_ ?
-            'safeBrowsingStandardDescUpdatedProxy' :
-            'safeBrowsingStandardDescUpdated' :
+        this.enableHashPrefixRealTimeLookups_ ?
+            'safeBrowsingStandardDescProxy' :
             'safeBrowsingStandardDesc');
   }
 

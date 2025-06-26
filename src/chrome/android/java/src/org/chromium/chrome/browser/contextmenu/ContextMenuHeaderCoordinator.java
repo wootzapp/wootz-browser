@@ -17,14 +17,15 @@ import org.chromium.chrome.browser.omnibox.ChromeAutocompleteSchemeClassifier;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuNativeDelegate;
 import org.chromium.components.embedder_support.contextmenu.ContextMenuParams;
+import org.chromium.components.embedder_support.contextmenu.ContextMenuUtils;
 import org.chromium.components.omnibox.OmniboxUrlEmphasizer;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.ui.modelutil.PropertyModel;
 
 class ContextMenuHeaderCoordinator {
     private PropertyModel mModel;
-    private ContextMenuHeaderMediator mMediator;
 
     ContextMenuHeaderCoordinator(
             Activity activity,
@@ -36,13 +37,12 @@ class ContextMenuHeaderCoordinator {
                         activity,
                         ContextMenuUtils.getTitle(params),
                         getUrl(activity, params, profile));
-        mMediator =
-                new ContextMenuHeaderMediator(activity, mModel, params, profile, nativeDelegate);
+        new ContextMenuHeaderMediator(activity, mModel, params, profile, nativeDelegate);
     }
 
     @VisibleForTesting
     static PropertyModel buildModel(Context context, String title, CharSequence url) {
-        boolean usePopupContextMenu = ContextMenuUtils.usePopupContextMenuForContext(context);
+        boolean usePopupContextMenu = ContextMenuUtils.isPopupSupported(context);
 
         int monogramSizeDimen =
                 usePopupContextMenu

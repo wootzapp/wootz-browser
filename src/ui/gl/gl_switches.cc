@@ -4,22 +4,22 @@
 
 #include "ui/gl/gl_switches.h"
 
+#include "build/android_buildflags.h"
 #include "build/build_config.h"
 #include "ui/gl/gl_display_manager.h"
+#include "ui/gl/startup_trace.h"
 
 #if BUILDFLAG(IS_ANDROID)
 #include "base/android/build_info.h"
 #endif
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
 #include <vulkan/vulkan_core.h>
 #include "third_party/angle/src/gpu_info_util/SystemInfo.h"  // nogncheck
 #endif
 
 namespace gl {
 
-const char kGLImplementationDesktopName[] = "desktop";
-const char kGLImplementationAppleName[] = "apple";
 const char kGLImplementationEGLName[] = "egl";
 const char kGLImplementationANGLEName[] = "angle";
 const char kGLImplementationMockName[] = "mock";
@@ -30,6 +30,8 @@ const char kANGLEImplementationDefaultName[]  = "default";
 const char kANGLEImplementationD3D9Name[]     = "d3d9";
 const char kANGLEImplementationD3D11Name[]    = "d3d11";
 const char kANGLEImplementationD3D11on12Name[] = "d3d11on12";
+const char kANGLEImplementationD3D11WarpName[] = "d3d11-warp";
+const char kANGLEImplementationD3D11WarpForWebGLName[] = "d3d11-warp-webgl";
 const char kANGLEImplementationOpenGLName[]   = "gl";
 const char kANGLEImplementationOpenGLEGLName[] = "gl-egl";
 const char kANGLEImplementationOpenGLESName[] = "gles";
@@ -56,6 +58,7 @@ const char kCmdDecoderPassthroughName[] = "passthrough";
 const char kSwapChainFormatNV12[] = "nv12";
 const char kSwapChainFormatYUY2[] = "yuy2";
 const char kSwapChainFormatBGRA[] = "bgra";
+const char kSwapChainFormatP010[] = "p010";
 
 }  // namespace gl
 
@@ -134,14 +137,19 @@ const char kDisableGLExtensions[] = "disable-gl-extensions";
 // Enables SwapBuffersWithBounds if it is supported.
 const char kEnableSwapBuffersWithBounds[] = "enable-swap-buffers-with-bounds";
 
-// Enables using DirectComposition video overlays, even if hardware overlays
-// aren't supported.
+// Disable DirectComposition.
+const char kDisableDirectComposition[] = "disable-direct-composition";
+
+// Enable DirectComposition video overlays even if hardware doesn't support it.
 const char kEnableDirectCompositionVideoOverlays[] =
     "enable-direct-composition-video-overlays";
 
 // Initialize the GPU process using the adapter with the specified LUID. This is
 // only used on Windows, as LUID is a Windows specific structure.
 const char kUseAdapterLuid[] = "use-adapter-luid";
+
+// Allow usage of SwiftShader for WebGL
+const char kEnableUnsafeSwiftShader[] = "enable-unsafe-swiftshader";
 
 // Used for overriding the swap chain format for direct composition SDR video
 // overlays.
@@ -162,8 +170,10 @@ const char* const kGLSwitchesCopiedFromGpuProcessHost[] = {
     kOverrideUseSoftwareGLForTests,
     kUseANGLE,
     kEnableSwapBuffersWithBounds,
+    kDisableDirectComposition,
     kEnableDirectCompositionVideoOverlays,
     kDirectCompositionVideoSwapChainFormat,
+    kEnableUnsafeSwiftShader,
 };
 const size_t kGLSwitchesCopiedFromGpuProcessHostNumSwitches =
     std::size(kGLSwitchesCopiedFromGpuProcessHost);
@@ -222,14 +232,6 @@ BASE_FEATURE(kDirectCompositionUnlimitedOverlays,
              "DirectCompositionUnlimitedOverlays",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// Allow overlay candidates to have resources that are not scanout. These
-// resources will be copied to DComp surfaces in the output device, as needed.
-// This allows testing delegated compositing on versions of Windows that do not
-// support directly scanning out textures.
-BASE_FEATURE(kCopyNonOverlayResourcesToDCompSurfaces,
-             "CopyNonOverlayResourcesToDCompSurfaces",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 // Allow dual GPU rendering through EGL where supported, i.e., allow a WebGL
 // or WebGPU context to be on the high performance GPU if preferred and Chrome
 // internal rendering to be on the low power GPU.
@@ -264,17 +266,16 @@ BASE_FEATURE(kDefaultANGLEOpenGL,
 // Default to using ANGLE's Metal backend.
 BASE_FEATURE(kDefaultANGLEMetal,
              "DefaultANGLEMetal",
-#if BUILDFLAG(IS_IOS) || (BUILDFLAG(IS_MAC) && defined(ARCH_CPU_ARM64))
-             base::FEATURE_ENABLED_BY_DEFAULT
-#else
-             base::FEATURE_DISABLED_BY_DEFAULT
-#endif
-);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Default to using ANGLE's Vulkan backend.
 BASE_FEATURE(kDefaultANGLEVulkan,
              "DefaultANGLEVulkan",
+#if BUILDFLAG(IS_DESKTOP_ANDROID)
+             base::FEATURE_ENABLED_BY_DEFAULT);
+#else
              base::FEATURE_DISABLED_BY_DEFAULT);
+#endif
 
 // Track current program's shaders at glUseProgram() call for crash report
 // purpose. Only effective on Windows because the attached shaders may only
@@ -286,9 +287,21 @@ BASE_FEATURE(kTrackCurrentShaders,
 // Enable sharing Vulkan device queue with ANGLE's Vulkan backend.
 BASE_FEATURE(kVulkanFromANGLE,
              "VulkanFromANGLE",
+#if BUILDFLAG(IS_DESKTOP_ANDROID)
+             base::FEATURE_ENABLED_BY_DEFAULT);
+#else
              base::FEATURE_DISABLED_BY_DEFAULT);
+#endif
 
 bool IsDefaultANGLEVulkan() {
+  // Force on if DefaultANGLEVulkan feature is enabled from command line.
+  base::FeatureList* feature_list = base::FeatureList::GetInstance();
+  if (feature_list && feature_list->IsFeatureOverriddenFromCommandLine(
+                          features::kDefaultANGLEVulkan.name,
+                          base::FeatureList::OVERRIDE_ENABLE_FEATURE)) {
+    return true;
+  }
+
 #if defined(MEMORY_SANITIZER)
   return false;
 #else  // !defined(MEMORY_SANITIZER)
@@ -298,11 +311,22 @@ bool IsDefaultANGLEVulkan() {
   if (base::android::BuildInfo::GetInstance()->sdk_int() <
       base::android::SDK_VERSION_Q)
     return false;
-#endif  // BUILDFLAG(IS_ANDROID)
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-  angle::SystemInfo system_info;
-  if (!angle::GetSystemInfoVulkan(&system_info))
+
+  // For the sake of finch trials, limit to newer devices (Android T+); this
+  // condition can be relaxed over time.
+  if (base::android::BuildInfo::GetInstance()->sdk_int() <
+      base::android::SDK_VERSION_T) {
     return false;
+  }
+#endif  // BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+  angle::SystemInfo system_info;
+  {
+    GPU_STARTUP_TRACE_EVENT("angle::GetSystemInfoVulkan");
+    if (!angle::GetSystemInfoVulkan(&system_info)) {
+      return false;
+    }
+  }
 
   if (static_cast<size_t>(system_info.activeGPUIndex) >=
       system_info.gpus.size()) {
@@ -311,11 +335,60 @@ bool IsDefaultANGLEVulkan() {
 
   const auto& active_gpu = system_info.gpus[system_info.activeGPUIndex];
 
-#if BUILDFLAG(IS_LINUX)
-  // Vulkan 1.1 is required.
+  // Vulkan 1.1 is required by ANGLE.
   if (active_gpu.driverApiVersion < VK_VERSION_1_1)
     return false;
 
+  // If |dirverId| is 0, the driver lacks VK_KHR_driver_properties.
+  // Consider this driver too old to be usable.
+  if (active_gpu.driverId == 0)
+    return false;
+
+#if BUILDFLAG(IS_ANDROID)
+  // Exclude SwiftShader-based Android emulators for now.
+  if (active_gpu.driverId == VK_DRIVER_ID_GOOGLE_SWIFTSHADER)
+    return false;
+
+  // Encountered bugs with older Imagination drivers.  New drivers seem fixed,
+  // but disabled for the sake of experiment for now. crbug.com/371512561
+  if (active_gpu.driverId == VK_DRIVER_ID_IMAGINATION_PROPRIETARY) {
+    return false;
+  }
+
+  // Exclude old ARM drivers due to crashes related to creating
+  // AHB-based Video images in Vulkan.  http://crbug.com/382676807.
+  if (active_gpu.driverId == VK_DRIVER_ID_ARM_PROPRIETARY &&
+      active_gpu.detailedDriverVersion.major <= 32) {
+    return false;
+  }
+
+  // Exclude old ARM chipsets due to rendering bugs, G52 is still found in
+  // Xiaomi phones. Note that if included in the future, there still seems to be
+  // a driver bug with async garbage collection, so that feature needs to be
+  // disabled in ANGLE. http://crbug.com/405085132
+  if (active_gpu.driverId == VK_DRIVER_ID_ARM_PROPRIETARY &&
+      active_gpu.deviceName.find("G52") != std::string::npos) {
+    return false;
+  }
+
+  // Exclude old Qualcomm drivers due to inefficient (and buggy) fallback
+  // to CPU path in glCopyTextureCHROMIUM with multi-plane images.
+  // http://crbug.com/383056998.
+  if (active_gpu.driverId == VK_DRIVER_ID_QUALCOMM_PROPRIETARY &&
+      active_gpu.detailedDriverVersion.minor <= 530) {
+    return false;
+  }
+
+  // Exclude Qualcomm 512.615 driver on Xiaomi phones that is the cause of
+  // yet-to-be explained GPU hangs.
+  // http://crbug.com/382725542
+  if (active_gpu.driverId == VK_DRIVER_ID_QUALCOMM_PROPRIETARY &&
+      active_gpu.detailedDriverVersion.minor == 615) {
+    return false;
+  }
+#endif  // BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(IS_LINUX)
   // AMDVLK driver is buggy, so disable Vulkan with AMDVLK for now.
   // crbug.com/1340081
   if (active_gpu.driverId == VK_DRIVER_ID_AMD_OPEN_SOURCE)
@@ -327,7 +400,8 @@ bool IsDefaultANGLEVulkan() {
     return false;
   }
 
-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) ||
+        // BUILDFLAG(IS_ANDROID)
   return base::FeatureList::IsEnabled(kDefaultANGLEVulkan);
 #endif  // !defined(MEMORY_SANITIZER)
 }
@@ -349,18 +423,12 @@ BASE_FEATURE(kDXGISwapChainPresentInterval0,
              "DXGISwapChainPresentInterval0",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// Kill switch using floating point based rounding adjustments in
-// SwapChainPresenter::Adjust* functions.
-BASE_FEATURE(kUseSwapChainPresenterFloatingPointAdjustments,
-             "UseSwapChainPresenterFloatingPointAdjustments",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 bool SupportsEGLDualGPURendering() {
-#if defined(USE_EGL) && (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC))
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   return base::FeatureList::IsEnabled(kEGLDualGPURendering);
 #else
   return false;
-#endif  // USE_EGL && (IS_WIN || IS_MAC)
+#endif  // IS_WIN || IS_MAC
 }
 
 }  // namespace features

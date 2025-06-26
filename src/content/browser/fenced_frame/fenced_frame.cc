@@ -9,6 +9,7 @@
 #include "content/browser/renderer_host/render_frame_proxy_host.h"
 #include "content/browser/renderer_host/render_widget_host_view_child_frame.h"
 #include "content/browser/web_contents/web_contents_impl.h"
+#include "net/storage_access_api/status.h"
 #include "third_party/blink/public/common/fenced_frame/fenced_frame_utils.h"
 #include "third_party/blink/public/common/frame/fenced_frame_sandbox_flags.h"
 #include "third_party/blink/public/common/frame/frame_owner_element_type.h"
@@ -22,7 +23,8 @@ namespace {
 FrameTreeNode* CreateDelegateFrameTreeNode(
     RenderFrameHostImpl* owner_render_frame_host) {
   return owner_render_frame_host->frame_tree()->AddFrame(
-      &*owner_render_frame_host, owner_render_frame_host->GetProcess()->GetID(),
+      &*owner_render_frame_host,
+      owner_render_frame_host->GetProcess()->GetDeprecatedID(),
       owner_render_frame_host->GetProcess()->GetNextRoutingID(),
       // We're creating an dummy outer delegate node which will never have a
       // corresponding `RenderFrameImpl`, and therefore we pass null
@@ -164,6 +166,9 @@ void FencedFrame::Navigate(
 
   // Embedder initiated fenced frame navigation should force a new browsing
   // instance.
+  // Note: `navigation_start_time` already comes from the renderer process in
+  // HTMLFencedFrameElement::FencedFrameDelegate::Navigate, so it is not
+  // necessary to record a different `actual_navigation_start_time`.
   inner_root->navigator().NavigateFromFrameProxy(
       inner_root->current_frame_host(), validated_url,
       /*initiator_frame_token=*/nullptr,
@@ -177,10 +182,13 @@ void FencedFrame::Navigate(
       network::mojom::SourceLocation::New(), /*has_user_gesture=*/false,
       /*is_form_submission=*/false,
       /*impression=*/std::nullopt, initiator_activation_and_ad_status,
+      /*actual_navigation_start_time=*/navigation_start_time,
       navigation_start_time,
       /*is_embedder_initiated_fenced_frame_navigation=*/true,
       /*is_unfenced_top_navigation=*/false,
       /*force_new_browsing_instance=*/true, /*is_container_initiated=*/false,
+      /*has_rel_opener=*/false,
+      /*storage_access_api_status=*/net::StorageAccessApiStatus::kNone,
       embedder_shared_storage_context);
 }
 
@@ -188,7 +196,7 @@ bool FencedFrame::IsHidden() {
   return web_contents_->IsHidden();
 }
 
-int FencedFrame::GetOuterDelegateFrameTreeNodeId() {
+FrameTreeNodeId FencedFrame::GetOuterDelegateFrameTreeNodeId() {
   DCHECK(outer_delegate_frame_tree_node_);
   return outer_delegate_frame_tree_node_->frame_tree_node_id();
 }
@@ -200,14 +208,28 @@ RenderFrameHostImpl* FencedFrame::GetProspectiveOuterDocument() {
 }
 
 FrameTree* FencedFrame::LoadingTree() {
-  // TODO(crbug.com/40191159): Consider and fix the case when fenced frames are
-  // being prerendered.
+  CHECK_NE(RenderFrameHostImpl::LifecycleStateImpl::kPrerendering,
+           owner_render_frame_host_->lifecycle_state());
   return web_contents_->LoadingTree();
 }
 
 void FencedFrame::SetFocusedFrame(FrameTreeNode* node,
                                   SiteInstanceGroup* source) {
   web_contents_->SetFocusedFrame(node, source);
+}
+
+FrameTree* FencedFrame::GetOwnedPictureInPictureFrameTree() {
+  return nullptr;
+}
+
+bool FencedFrame::OnRenderFrameProxyVisibilityChanged(
+    RenderFrameProxyHost* render_frame_proxy_host,
+    blink::mojom::FrameVisibility visibility) {
+  return false;
+}
+
+FrameTree* FencedFrame::GetPictureInPictureOpenerFrameTree() {
+  return nullptr;
 }
 
 RenderFrameProxyHost*
@@ -232,8 +254,8 @@ FencedFrame::InitInnerFrameTreeAndReturnProxyToOuterFrameTree(
   // already created the main frame for the window, but wants the browser to
   // refrain from showing the main frame until the renderer signals the browser
   // via the mojom.LocalMainFrameHost.ShowCreatedWindow(). This flow does not
-  // apply for fenced frames, portals, and prerendered nested FrameTrees, hence
-  // the decision to mark it as false.
+  // apply for fenced frames and prerendered nested FrameTrees, hence the
+  // decision to mark it as false.
   frame_tree_->Init(site_instance.get(),
                     /*renderer_initiated_creation=*/false,
                     /*main_frame_name=*/"",
@@ -347,7 +369,8 @@ void FencedFrame::DidChangeFramePolicy(const blink::FramePolicy& frame_policy) {
   // in the browser, allowing us to use non-fixed sets of sandbox flags.
   inner_root->SetPendingFramePolicy(blink::FramePolicy(
       current_frame_policy.sandbox_flags, frame_policy.container_policy,
-      current_frame_policy.required_document_policy));
+      current_frame_policy.required_document_policy,
+      frame_policy.deferred_fetch_policy));
 }
 
 }  // namespace content

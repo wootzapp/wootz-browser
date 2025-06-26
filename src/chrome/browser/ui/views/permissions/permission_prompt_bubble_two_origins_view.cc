@@ -13,6 +13,7 @@
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/favicon/core/favicon_service.h"
 #include "components/favicon_base/favicon_callback.h"
+#include "components/permissions/permission_request.h"
 #include "components/permissions/permission_util.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/url_formatter/elide_url.h"
@@ -74,7 +75,8 @@ PermissionPromptBubbleTwoOriginsView::PermissionPromptBubbleTwoOriginsView(
     CreateExtraTextLabel(extra_text.value());
   }
 
-  CreatePermissionButtons(GetAllowAlwaysText(delegate->Requests()));
+  const auto& requests = delegate->Requests();
+  CreatePermissionButtons(GetAllowAlwaysText(requests), GetBlockText(requests));
 
   // Only requests for Storage Access should use this prompt.
   CHECK(delegate);
@@ -127,6 +129,8 @@ PermissionPromptBubbleTwoOriginsView::~PermissionPromptBubbleTwoOriginsView() {
 }
 
 void PermissionPromptBubbleTwoOriginsView::AddedToWidget() {
+  StartTrackingPictureInPictureOcclusion();
+
   if (GetUrlIdentityObject().type != UrlIdentity::Type::kDefault) {
     return;
   }
@@ -167,7 +171,7 @@ void PermissionPromptBubbleTwoOriginsView::Show() {
                                    base::Unretained(this)));
 }
 
-std::u16string PermissionPromptBubbleTwoOriginsView::CreateWindowTitle() const {
+std::u16string PermissionPromptBubbleTwoOriginsView::CreateWindowTitle() {
   CHECK_GT(delegate()->Requests().size(), 0u);
 
   switch (delegate()->Requests()[0]->request_type()) {
@@ -178,14 +182,20 @@ std::u16string PermissionPromptBubbleTwoOriginsView::CreateWindowTitle() const {
               delegate()->GetEmbeddingOrigin(),
               ContentSettingsType::STORAGE_ACCESS);
 
-      return l10n_util::GetStringFUTF16(
+      size_t title_offset;
+      std::u16string title_string = l10n_util::GetStringFUTF16(
           IDS_STORAGE_ACCESS_PERMISSION_TWO_ORIGIN_PROMPT_TITLE,
           url_formatter::FormatUrlForSecurityDisplay(
               patterns.first.ToRepresentativeUrl(),
-              url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC));
+              url_formatter::SchemeDisplay::OMIT_CRYPTOGRAPHIC),
+          &title_offset);
+      SetTitleBoldedRanges(
+          {{title_offset,
+            title_offset + GetUrlIdentityObject().name.length()}});
+      return title_string;
     }
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -228,8 +238,7 @@ void PermissionPromptBubbleTwoOriginsView::OnEmbeddingOriginFaviconLoaded(
 
   if (favicon_result.is_valid()) {
     favicon_right_->SetImage(ui::ImageModel::FromImage(
-        gfx::Image::CreateFrom1xPNGBytes(favicon_result.bitmap_data->data(),
-                                         favicon_result.bitmap_data->size())));
+        gfx::Image::CreateFrom1xPNGBytes(favicon_result.bitmap_data)));
   }
   MaybeShow();
 }
@@ -242,8 +251,7 @@ void PermissionPromptBubbleTwoOriginsView::OnRequestingOriginFaviconLoaded(
 
   if (favicon_result.is_valid()) {
     favicon_left_->SetImage(ui::ImageModel::FromImage(
-        gfx::Image::CreateFrom1xPNGBytes(favicon_result.bitmap_data->data(),
-                                         favicon_result.bitmap_data->size())));
+        gfx::Image::CreateFrom1xPNGBytes(favicon_result.bitmap_data)));
   }
   MaybeShow();
 }

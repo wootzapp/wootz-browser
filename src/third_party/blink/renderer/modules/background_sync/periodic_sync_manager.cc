@@ -5,7 +5,7 @@
 #include "third_party/blink/renderer/modules/background_sync/periodic_sync_manager.h"
 
 #include "base/task/sequenced_task_runner.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
@@ -36,7 +36,7 @@ ScriptPromise<IDLUndefined> PeriodicSyncManager::registerPeriodicSync(
     exception_state.ThrowDOMException(
         DOMExceptionCode::kInvalidStateError,
         "Registration failed - no active Service Worker");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   ExecutionContext* execution_context = ExecutionContext::From(script_state);
@@ -44,7 +44,7 @@ ScriptPromise<IDLUndefined> PeriodicSyncManager::registerPeriodicSync(
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNotAllowedError,
         "Periodic Background Sync is not allowed in fenced frames.");
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* resolver = MakeGarbageCollected<ScriptPromiseResolver<IDLUndefined>>(
@@ -144,8 +144,7 @@ void PeriodicSyncManager::RegisterCallback(
       resolver->Resolve();
       break;
     case mojom::blink::BackgroundSyncError::NOT_FOUND:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case mojom::blink::BackgroundSyncError::STORAGE:
       resolver->Reject(V8ThrowDOMException::CreateOrDie(
           resolver->GetScriptState()->GetIsolate(),
@@ -179,9 +178,10 @@ void PeriodicSyncManager::GetRegistrationsCallback(
   switch (error) {
     case mojom::blink::BackgroundSyncError::NONE: {
       Vector<String> tags;
-      for (const auto& registration : registrations)
+      for (const auto& registration : registrations) {
         tags.push_back(registration->tag);
-      resolver->Resolve(tags);
+      }
+      resolver->Resolve(std::move(tags));
       break;
     }
     case mojom::blink::BackgroundSyncError::NOT_FOUND:
@@ -189,8 +189,7 @@ void PeriodicSyncManager::GetRegistrationsCallback(
     case mojom::blink::BackgroundSyncError::PERMISSION_DENIED:
       // These errors should never be returned from
       // BackgroundSyncManager::GetPeriodicSyncRegistrations
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case mojom::blink::BackgroundSyncError::STORAGE:
       resolver->Reject(V8ThrowDOMException::CreateOrDie(
           resolver->GetScriptState()->GetIsolate(),
@@ -224,8 +223,7 @@ void PeriodicSyncManager::UnregisterCallback(
     case mojom::blink::BackgroundSyncError::NOT_FOUND:
     case mojom::blink::BackgroundSyncError::NOT_ALLOWED:
     case mojom::BackgroundSyncError::PERMISSION_DENIED:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 

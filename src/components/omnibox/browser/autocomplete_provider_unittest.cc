@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/omnibox/browser/autocomplete_provider.h"
 
 #include <stddef.h>
@@ -31,16 +36,17 @@
 #include "components/omnibox/browser/autocomplete_provider_listener.h"
 #include "components/omnibox/browser/keyword_provider.h"
 #include "components/omnibox/browser/mock_autocomplete_provider_client.h"
-#include "components/omnibox/browser/omnibox_feature_configs.h"
 #include "components/omnibox/browser/omnibox_prefs.h"
 #include "components/omnibox/browser/omnibox_triggered_feature_service.h"
 #include "components/omnibox/browser/search_provider.h"
 #include "components/omnibox/browser/suggestion_group_util.h"
 #include "components/omnibox/browser/zero_suggest_provider.h"
+#include "components/omnibox/common/omnibox_feature_configs.h"
 #include "components/omnibox/common/omnibox_features.h"
 #include "components/open_from_clipboard/fake_clipboard_recent_content.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/search_engines/search_engines_switches.h"
+#include "components/search_engines/search_engines_test_environment.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/search_engines/template_url_service_client.h"
@@ -419,7 +425,9 @@ class AutocompleteProviderTest : public testing::Test {
     experiment_stats_v2s.push_back(experiment_stat_v2);
   }
 
-  TestingPrefServiceSimple* GetPrefs() { return &pref_service_; }
+  PrefService* GetPrefs() {
+    return &search_engines_test_environment_.pref_service();
+  }
 
   // Resets the controller with the given |type|. |type| is a bitmap containing
   // AutocompleteProvider::Type values that will (potentially, depending on
@@ -427,8 +435,9 @@ class AutocompleteProviderTest : public testing::Test {
   void ResetControllerWithType(int type);
 
   base::test::TaskEnvironment task_environment_;
-  TestingPrefServiceSimple pref_service_;
   TestAutocompleteControllerObserver autocomplete_controller_observer_;
+  search_engines::SearchEnginesTestEnvironment search_engines_test_environment_;
+
   std::unique_ptr<AutocompleteController> controller_;
   // Owned by |controller_|.
   raw_ptr<MockAutocompleteProviderClient> client_;
@@ -444,7 +453,7 @@ class AutocompleteProviderTest : public testing::Test {
 AutocompleteProviderTest::AutocompleteProviderTest()
     : client_(new MockAutocompleteProviderClient()) {
   client_->set_template_url_service(
-      std::make_unique<TemplateURLService>(nullptr, 0));
+      search_engines_test_environment_.template_url_service());
 }
 
 AutocompleteProviderTest::~AutocompleteProviderTest() {
@@ -648,7 +657,7 @@ void AutocompleteProviderTest::RunSearchboxStatsTest(
     // Prepare the input.
     AutocompleteInput input(u"", metrics::OmniboxEventProto::OTHER,
                             TestingSchemeClassifier());
-    input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_CLOBBER);
+    input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_FOCUS);
     controller_->input_ = input;
   }
 
@@ -669,7 +678,8 @@ void AutocompleteProviderTest::RunSearchboxStatsTest(
   }
   result_.Reset();
   result_.AppendMatches(matches);
-  result_.MergeSuggestionGroupsMap(omnibox::BuildDefaultGroups());
+  result_.MergeSuggestionGroupsMap(
+      omnibox::BuildDefaultGroupsForInput(AutocompleteInput()));
   result_.set_zero_prefix_enabled_in_session(input_is_zero_suggest);
 
   // Update Searchbox stats.
@@ -817,36 +827,20 @@ TEST_F(AutocompleteProviderTest, ExtraQueryParams) {
   RunExactKeymatchTest(true);
   CopyResults();
 
-  // When LimitKeywordModeSuggestions is enabled, DSE suggestions are curbed in
-  // keyword mode, so this test is only relevant when disabled.
-  if (!omnibox_feature_configs::LimitKeywordModeSuggestions::Get().enabled) {
-    ASSERT_EQ(2U, result_.size());
-    EXPECT_EQ("http://keyword/test",
-              result_.match_at(0)->destination_url.possibly_invalid_spec());
-    EXPECT_EQ("http://defaultturl/k%20test?a=b",
-              result_.match_at(1)->destination_url.possibly_invalid_spec());
-  }
+  ASSERT_EQ(1U, result_.size());
+  EXPECT_EQ("http://keyword/test",
+            result_.match_at(0)->destination_url.possibly_invalid_spec());
 }
 
 // Ensures matches from (only) the default search provider are curbed when in
-// keyword mode and LimitKeywordModeSuggestions is enabled.
+// keyword mode.
 TEST_F(AutocompleteProviderTest, CurbDefaultSuggestions) {
-  // Enable LimitKeywordModeSuggestions flag.
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatureState(
-      omnibox_feature_configs::LimitKeywordModeSuggestions::
-          kLimitKeywordModeSuggestions,
-      true);
-  omnibox_feature_configs::ScopedConfigForTesting<
-      omnibox_feature_configs::LimitKeywordModeSuggestions>
-      scoped_config;
-
   ResetControllerWithKeywordAndSearchProviders();
   RunExactKeymatchTest(true);
   CopyResults();
 
-  // When LimitKeywordModeSuggestions is enabled, DSE suggestions are curbed, so
-  // the default turl suggestion should not be present in the results.
+  // DSE suggestions are curbed in keyword mode, so the default turl suggestion
+  // should not be present in the res=ults.
   ASSERT_EQ(1U, result_.size());
   EXPECT_EQ("http://keyword/test",
             result_.match_at(0)->destination_url.possibly_invalid_spec());
@@ -942,7 +936,8 @@ TEST_F(AutocompleteProviderTest, SuggestionGroups) {
 
     // AutocompleteResult::SetSuggestionGroupHidden() does nothing for unknown
     // suggestion group IDs.
-    result_.SetSuggestionGroupHidden(GetPrefs(), kBadGroupId, /*hidden=*/true);
+    result_.SetSuggestionGroupHidden(GetPrefs(), kBadGroupId,
+                                     /*hidden=*/true);
     EXPECT_FALSE(result_.IsSuggestionGroupHidden(GetPrefs(), kBadGroupId));
 
     // AutocompleteResult::GetSectionForSuggestionGroup() returns
@@ -1820,19 +1815,19 @@ TEST_F(AutocompleteProviderTest, ResizeMatches) {
   // The first `max_matches` matches should keep their relevance score and have
   // `culled_by_provider` set to false.
   ACMatches provider_matches = provider->get_matches();
-  base::ranges::for_each(provider_matches.begin(),
-                         std::next(provider_matches.begin(), kMaxMatches),
-                         [&](auto match) {
-                           EXPECT_NE(match.relevance, 0);
-                           EXPECT_FALSE(match.culled_by_provider);
-                         });
+  std::ranges::for_each(provider_matches.begin(),
+                        std::next(provider_matches.begin(), kMaxMatches),
+                        [&](auto match) {
+                          EXPECT_NE(match.relevance, 0);
+                          EXPECT_FALSE(match.culled_by_provider);
+                        });
   // Any match beyond that should have their relevance score zeroed and
   // `culled_by_provider` set.
-  base::ranges::for_each(std::next(provider_matches.begin(), kMaxMatches),
-                         provider_matches.end(), [&](auto match) {
-                           EXPECT_EQ(match.relevance, 0);
-                           EXPECT_TRUE(match.culled_by_provider);
-                         });
+  std::ranges::for_each(std::next(provider_matches.begin(), kMaxMatches),
+                        provider_matches.end(), [&](auto match) {
+                          EXPECT_EQ(match.relevance, 0);
+                          EXPECT_TRUE(match.culled_by_provider);
+                        });
 
   // Now disable the flag. With ML Scoring disabled, `matches_` should actually
   // be resized and `relevance` and `culled_by_provider` should be untouched.
@@ -1841,7 +1836,7 @@ TEST_F(AutocompleteProviderTest, ResizeMatches) {
 
   provider->ResizeMatches(kMaxMatches, false);
   EXPECT_EQ(provider->get_matches().size(), kMaxMatches);
-  base::ranges::for_each(provider->get_matches(), [&](auto match) {
+  std::ranges::for_each(provider->get_matches(), [&](auto match) {
     EXPECT_NE(match.relevance, 0);
     EXPECT_FALSE(match.culled_by_provider);
   });
@@ -1899,6 +1894,12 @@ TEST_F(AutocompleteProviderPrefetchTest, SupportedProvider_NonPrefetch) {
 
 TEST_F(AutocompleteProviderPrefetchTest, SupportedProvider_Prefetch) {
   // Add a test provider that supports prefetch requests.
+
+  base::test::ScopedFeatureList features;
+  features.InitWithFeatures(
+      /*enabled_features=*/{omnibox::kZeroSuggestPrefetching},
+      /*disabled_features=*/{});
+
   TestProvider* provider = new TestProvider(kResultsPerProvider, u"http://a",
                                             kTestTemplateURLKeyword, client_);
   provider->set_supports_prefetch(true);
@@ -1913,7 +1914,7 @@ TEST_F(AutocompleteProviderPrefetchTest, SupportedProvider_Prefetch) {
           &AutocompleteProviderTest::CopyResults, base::Unretained(this))));
   provider->AddListener(provider_listener_.get());
 
-  AutocompleteInput input(u"", metrics::OmniboxEventProto::OTHER,
+  AutocompleteInput input(u"", metrics::OmniboxEventProto::NTP_ZPS_PREFETCH,
                           TestingSchemeClassifier());
   controller_->StartPrefetch(input);
   // Wait for StartPrefetch() to be called on the provider.
@@ -1935,6 +1936,10 @@ TEST_F(AutocompleteProviderPrefetchTest, SupportedProvider_Prefetch) {
 }
 
 TEST_F(AutocompleteProviderPrefetchTest, SupportedProvider_OngoingNonPrefetch) {
+  base::test::ScopedFeatureList features;
+  features.InitWithFeatures(
+      /*enabled_features=*/{omnibox::kZeroSuggestPrefetching},
+      /*disabled_features=*/{});
   // Add a test provider that supports prefetch requests.
   TestProvider* provider = new TestProvider(kResultsPerProvider, u"http://a",
                                             kTestTemplateURLKeyword, client_);
@@ -1950,7 +1955,7 @@ TEST_F(AutocompleteProviderPrefetchTest, SupportedProvider_OngoingNonPrefetch) {
           &AutocompleteProviderTest::CopyResults, base::Unretained(this))));
   provider->AddListener(provider_listener_.get());
 
-  AutocompleteInput input(u"bar", metrics::OmniboxEventProto::OTHER,
+  AutocompleteInput input(u"bar", metrics::OmniboxEventProto::NTP_ZPS_PREFETCH,
                           TestingSchemeClassifier());
   controller_->Start(input);
 
@@ -1982,6 +1987,10 @@ TEST_F(AutocompleteProviderPrefetchTest, SupportedProvider_OngoingNonPrefetch) {
 }
 
 TEST_F(AutocompleteProviderPrefetchTest, UnsupportedProvider_Prefetch) {
+  base::test::ScopedFeatureList features;
+  features.InitWithFeatures(
+      /*enabled_features=*/{omnibox::kZeroSuggestPrefetching},
+      /*disabled_features=*/{});
   // Add a test provider that does not support prefetch requests.
   TestProvider* provider = new TestProvider(kResultsPerProvider, u"http://a",
                                             kTestTemplateURLKeyword, client_);
@@ -1990,7 +1999,7 @@ TEST_F(AutocompleteProviderPrefetchTest, UnsupportedProvider_Prefetch) {
   base::RunLoop provider_run_loop;
   provider->set_closure(provider_run_loop.QuitClosure());
 
-  AutocompleteInput input(u"", metrics::OmniboxEventProto::OTHER,
+  AutocompleteInput input(u"", metrics::OmniboxEventProto::NTP_ZPS_PREFETCH,
                           TestingSchemeClassifier());
   controller_->StartPrefetch(input);
 

@@ -7,12 +7,12 @@
 
 #import <Foundation/Foundation.h>
 
-#include "components/sessions/core/session_id.h"
-#include "ui/base/window_open_disposition.h"
+#import "components/sessions/core/session_id.h"
+#import "ui/base/window_open_disposition.h"
 
 class Browser;
-class ChromeBrowserState;
 class GURL;
+class ProfileIOS;
 
 namespace web {
 class WebState;
@@ -22,10 +22,10 @@ class WebState;
 bool IsURLAllowedInIncognito(const GURL& url);
 
 // Loads `url` in `web_state`, performing any necessary updates to
-// `browser_state`. It is an error to pass a value of GURL that doesn't have a
+// `profile`. It is an error to pass a value of GURL that doesn't have a
 // javascript: scheme.
 void LoadJavaScriptURL(const GURL& url,
-                       ChromeBrowserState* browser_state,
+                       ProfileIOS* profile,
                        web::WebState* web_state);
 
 // Restores the closed tab identified by `session_id`, using `disposition`,

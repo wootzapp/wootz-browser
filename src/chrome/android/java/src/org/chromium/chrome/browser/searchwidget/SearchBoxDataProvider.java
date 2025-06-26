@@ -22,17 +22,8 @@ import org.chromium.url.GURL;
 class SearchBoxDataProvider implements LocationBarDataProvider {
     private /* PageClassification */ int mPageClassification;
     private @ColorInt int mPrimaryColor;
-    private Tab mTab;
     private GURL mGurl;
-
-    /**
-     * Called when native library is loaded and a tab has been initialized.
-     *
-     * @param tab The tab to use.
-     */
-    public void onNativeLibraryReady(Tab tab) {
-        mTab = tab;
-    }
+    private boolean mIsIncognito;
 
     /**
      * Initialize this instance of the SearchBoxDataProvider.
@@ -42,8 +33,9 @@ class SearchBoxDataProvider implements LocationBarDataProvider {
      *
      * @param context current context
      */
-    /* package */ void initialize(Context context) {
-        mPrimaryColor = ChromeColors.getPrimaryBackgroundColor(context, isIncognito());
+    /* package */ void initialize(Context context, boolean isIncognito) {
+        mPrimaryColor = ChromeColors.getPrimaryBackgroundColor(context, isIncognito);
+        mIsIncognito = isIncognito;
     }
 
     @Override
@@ -53,11 +45,16 @@ class SearchBoxDataProvider implements LocationBarDataProvider {
 
     @Override
     public boolean isIncognito() {
-        return false;
+        return mIsIncognito;
     }
 
     @Override
-    public boolean isInOverviewAndShowingOmnibox() {
+    public boolean isIncognitoBranded() {
+        return mIsIncognito;
+    }
+
+    @Override
+    public boolean isOffTheRecord() {
         return false;
     }
 
@@ -73,12 +70,12 @@ class SearchBoxDataProvider implements LocationBarDataProvider {
 
     @Override
     public Tab getTab() {
-        return mTab;
+        return null;
     }
 
     @Override
     public boolean hasTab() {
-        return mTab != null;
+        return false;
     }
 
     @Override
@@ -123,7 +120,7 @@ class SearchBoxDataProvider implements LocationBarDataProvider {
     }
 
     @Override
-    public int getPageClassification(boolean isFocusedFromFakebox, boolean isPrefetch) {
+    public int getPageClassification(boolean isPrefetch) {
         return mPageClassification;
     }
 
@@ -148,5 +145,9 @@ class SearchBoxDataProvider implements LocationBarDataProvider {
 
     void setCurrentUrl(GURL url) {
         mGurl = url;
+    }
+
+    void setIsIncognitoForTesting(boolean isIncognito) {
+        mIsIncognito = isIncognito;
     }
 }

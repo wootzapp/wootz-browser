@@ -18,7 +18,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/values_test_util.h"
 #include "base/values.h"
 #include "chrome/browser/ash/printing/fake_cups_printers_manager.h"
@@ -27,7 +26,6 @@
 #include "chrome/browser/download/download_core_service_impl.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/ui/chrome_select_file_policy.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chromeos/ash/components/dbus/concierge/concierge_client.h"
 #include "chromeos/ash/components/dbus/printscanmgr/fake_printscanmgr_client.h"
@@ -103,14 +101,6 @@ class FakePpdProvider : public chromeos::PpdProvider {
   ~FakePpdProvider() override {}
 };
 
-class TestSelectFilePolicy : public ui::SelectFilePolicy {
- public:
-  TestSelectFilePolicy& operator=(const TestSelectFilePolicy&) = delete;
-
-  bool CanOpenSelectFileDialog() override { return true; }
-  void SelectFileDenied() override {}
-};
-
 // A fake ui::SelectFileDialog, which will cancel the file selection instead of
 // selecting a file and verify that the extensions are correctly set.
 class FakeSelectFileDialog : public ui::SelectFileDialog {
@@ -132,13 +122,12 @@ class FakeSelectFileDialog : public ui::SelectFileDialog {
                       int file_type_index,
                       const base::FilePath::StringType& default_extension,
                       gfx::NativeWindow owning_window,
-                      void* params,
                       const GURL* caller) override {
     // Check that the extensions we expect match the actual extensions passed
     // from the CupsPrintersHandler.
     VerifyExtensions(file_types);
     // Close the file select dialog.
-    listener_->FileSelectionCanceled(params);
+    listener_->FileSelectionCanceled();
   }
 
   bool IsRunning(gfx::NativeWindow owning_window) const override {
@@ -188,8 +177,7 @@ class TestSelectFileDialogFactory : public ui::SelectFileDialogFactory {
       std::unique_ptr<ui::SelectFilePolicy> policy) override {
     // TODO(jimmyxgong): Investigate why using |policy| created by
     // CupsPrintersHandler crashes the test.
-    return new FakeSelectFileDialog(listener,
-                                    std::make_unique<TestSelectFilePolicy>(),
+    return new FakeSelectFileDialog(listener, nullptr,
                                     expected_file_type_info_);
   }
 
@@ -221,7 +209,6 @@ class CupsPrintersHandlerTest : public testing::Test {
   ~CupsPrintersHandlerTest() override = default;
 
   void SetUp() override {
-    feature_list_.InitAndEnableFeature(::features::kLocalPrinterObserving);
     printers_handler_ = CupsPrintersHandler::CreateForTesting(
         profile_.get(), base::MakeRefCounted<FakePpdProvider>(),
         &printers_manager_);
@@ -230,12 +217,6 @@ class CupsPrintersHandlerTest : public testing::Test {
     printers_handler_->AllowJavascriptForTesting();
     printing::PrintBackend::SetPrintBackendForTesting(print_backend_.get());
     PrintscanmgrClient::InitializeFake();
-    // Initialize NewWindowDelegate things.
-    auto instance = std::make_unique<MockNewWindowDelegate>();
-    auto primary = std::make_unique<MockNewWindowDelegate>();
-    new_window_delegate_primary_ = primary.get();
-    new_window_provider_ = std::make_unique<TestNewWindowDelegateProvider>(
-        std::move(instance), std::move(primary));
 
     DownloadCoreServiceFactory::GetForBrowserContext(profile_.get())
         ->SetDownloadManagerDelegateForTesting(
@@ -249,7 +230,6 @@ class CupsPrintersHandlerTest : public testing::Test {
   }
 
   void TearDown() override {
-    new_window_provider_.reset();
     PrintscanmgrClient::Shutdown();
     printing::PrintBackend::SetPrintBackendForTesting(nullptr);
   }
@@ -289,16 +269,12 @@ class CupsPrintersHandlerTest : public testing::Test {
   // Must outlive |profile_|.
   content::BrowserTaskEnvironment task_environment_;
   std::unique_ptr<TestingProfile> profile_;
-  base::test::ScopedFeatureList feature_list_;
   content::TestWebUI web_ui_;
-  std::unique_ptr<CupsPrintersHandler> printers_handler_;
   FakeCupsPrintersManager printers_manager_;
+  std::unique_ptr<CupsPrintersHandler> printers_handler_;
   base::RunLoop run_loop_;
   scoped_refptr<printing::TestPrintBackend> print_backend_ =
       base::MakeRefCounted<printing::TestPrintBackend>();
-  raw_ptr<MockNewWindowDelegate, DanglingUntriaged>
-      new_window_delegate_primary_;
-  std::unique_ptr<TestNewWindowDelegateProvider> new_window_provider_;
   base::ScopedTempDir download_dir_;
   base::HistogramTester histogram_tester_;
 
@@ -307,6 +283,11 @@ class CupsPrintersHandlerTest : public testing::Test {
   const std::string kPpdErrorString =
       base::StringPrintf("Unable to retrieve PPD for %s.",
                          kPpdPrinterName.c_str());
+
+  MockNewWindowDelegate& new_window_delegate() { return new_window_delegate_; }
+
+ private:
+  MockNewWindowDelegate new_window_delegate_;
 };
 
 TEST_F(CupsPrintersHandlerTest, RemoveCorrectPrinter) {
@@ -358,7 +339,7 @@ TEST_F(CupsPrintersHandlerTest, ViewPPD) {
       printer.id(),
       std::make_unique<printing::PrinterSemanticCapsAndDefaults>(), nullptr);
 
-  EXPECT_CALL(*new_window_delegate_primary_,
+  EXPECT_CALL(new_window_delegate(),
               OpenUrl(testing::Property(&GURL::ExtractFileName,
                                         testing::StartsWith(kPpdPrinterName)),
                       ash::NewWindowDelegate::OpenUrlFrom::kUserInteraction,
@@ -386,7 +367,7 @@ TEST_F(CupsPrintersHandlerTest, ViewPPDWithLicense) {
       printer.id(),
       std::make_unique<printing::PrinterSemanticCapsAndDefaults>(), nullptr);
 
-  EXPECT_CALL(*new_window_delegate_primary_,
+  EXPECT_CALL(new_window_delegate(),
               OpenUrl(testing::Property(&GURL::ExtractFileName,
                                         testing::StartsWith(kPpdPrinterName)),
                       ash::NewWindowDelegate::OpenUrlFrom::kUserInteraction,
@@ -417,7 +398,7 @@ TEST_F(CupsPrintersHandlerTest, ViewPPDUnsanitizedFilename) {
       printer.id(),
       std::make_unique<printing::PrinterSemanticCapsAndDefaults>(), nullptr);
 
-  EXPECT_CALL(*new_window_delegate_primary_,
+  EXPECT_CALL(new_window_delegate(),
               OpenUrl(testing::Property(&GURL::ExtractFileName,
                                         testing::StartsWith(sanitized_name)),
                       ash::NewWindowDelegate::OpenUrlFrom::kUserInteraction,
@@ -446,7 +427,7 @@ TEST_F(CupsPrintersHandlerTest, ViewPPDWithLicenseBadPpd) {
       printer.id(),
       std::make_unique<printing::PrinterSemanticCapsAndDefaults>(), nullptr);
 
-  EXPECT_CALL(*new_window_delegate_primary_,
+  EXPECT_CALL(new_window_delegate(),
               OpenUrl(testing::Property(&GURL::ExtractFileName,
                                         testing::StartsWith(kPpdPrinterName)),
                       ash::NewWindowDelegate::OpenUrlFrom::kUserInteraction,
@@ -466,7 +447,7 @@ TEST_F(CupsPrintersHandlerTest, ViewPPDPrinterNotFound) {
   // Test the case where the printer is not known to the printer manager.
   // No printers were added to CupsPrintersManager.
 
-  EXPECT_CALL(*new_window_delegate_primary_,
+  EXPECT_CALL(new_window_delegate(),
               OpenUrl(testing::Property(&GURL::ExtractFileName,
                                         testing::StartsWith(kPpdPrinterName)),
                       ash::NewWindowDelegate::OpenUrlFrom::kUserInteraction,
@@ -493,7 +474,7 @@ TEST_F(CupsPrintersHandlerTest, ViewPPDPrinterNotSetup) {
       printer.id(),
       std::make_unique<printing::PrinterSemanticCapsAndDefaults>(), nullptr);
 
-  EXPECT_CALL(*new_window_delegate_primary_,
+  EXPECT_CALL(new_window_delegate(),
               OpenUrl(testing::Property(&GURL::ExtractFileName,
                                         testing::StartsWith(kPpdPrinterName)),
                       ash::NewWindowDelegate::OpenUrlFrom::kUserInteraction,
@@ -520,7 +501,7 @@ TEST_F(CupsPrintersHandlerTest, ViewPPDEmptyPPD) {
       printer.id(),
       std::make_unique<printing::PrinterSemanticCapsAndDefaults>(), nullptr);
 
-  EXPECT_CALL(*new_window_delegate_primary_,
+  EXPECT_CALL(new_window_delegate(),
               OpenUrl(testing::Property(&GURL::ExtractFileName,
                                         testing::StartsWith(kPpdPrinterName)),
                       ash::NewWindowDelegate::OpenUrlFrom::kUserInteraction,

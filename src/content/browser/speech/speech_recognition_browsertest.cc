@@ -50,12 +50,11 @@
 #include "content/browser/speech/soda_speech_recognition_engine_impl.h"
 #include "media/base/media_switches.h"
 #include "media/mojo/mojom/audio_data.mojom.h"
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "ash/constants/ash_features.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
-
 #endif  // !BUILDFLAG(IS_FUCHSIA)
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "ash/constants/ash_features.h"
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 using base::RunLoop;
 using CaptureCallback = media::AudioCapturerSource::CaptureCallback;
@@ -143,10 +142,9 @@ class MockCapturerSource : public media::AudioCapturerSource {
   MOCK_METHOD1(SetOutputDeviceForAec,
                void(const std::string& output_device_id));
 
- protected:
+ private:
   ~MockCapturerSource() override = default;
 
- private:
   StartCallback start_callback_;
   StopCallback stop_callback_;
   raw_ptr<CaptureCallback, AcrossTasksDanglingUntriaged> capture_callback_;
@@ -176,7 +174,7 @@ std::string MakeGoodResponse() {
 
   // Prepend 4 byte prefix length indication to the protobuf message as
   // envisaged by the google streaming recognition webservice protocol.
-  msg_string.insert(0u, base::as_string_view(base::numerics::U32ToBigEndian(
+  msg_string.insert(0u, base::as_string_view(base::U32ToBigEndian(
                             base::checked_cast<uint32_t>(msg_string.size()))));
   return msg_string;
 }
@@ -198,9 +196,9 @@ class SpeechRecognitionBrowserTest : public ContentBrowserTest {
         /*enabled_features=*/
         {
             media::kOnDeviceWebSpeech,
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
             ash::features::kOnDeviceSpeechRecognition,
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
         },
         /*disabled_features=*/{});
   }
@@ -296,7 +294,7 @@ class SpeechRecognitionBrowserTest : public ContentBrowserTest {
         audio_buffer[i] =
             static_cast<uint8_t>(127 * sin(i * 3.14F / (16 * buffer_size)));
     } else {
-      base::ranges::fill(audio_buffer, 0);
+      std::ranges::fill(audio_buffer, 0);
     }
 
     std::unique_ptr<media::AudioBus> audio_bus =
@@ -304,8 +302,7 @@ class SpeechRecognitionBrowserTest : public ContentBrowserTest {
     audio_bus->FromInterleaved<media::SignedInt16SampleTypeTraits>(
         reinterpret_cast<int16_t*>(&audio_buffer.data()[0]),
         audio_bus->frames());
-    capture_callback->Capture(audio_bus.get(), base::TimeTicks::Now(), {}, 0.0,
-                              false);
+    capture_callback->Capture(audio_bus.get(), base::TimeTicks::Now(), {}, 0.0);
   }
 
   void FeedAudioCapturerSource(const media::AudioParameters& audio_params,
@@ -426,7 +423,7 @@ IN_PROC_BROWSER_TEST_F(SpeechRecognitionBrowserTest,
   mock_soda_installer_.NotifySodaInstalledForTesting(
       speech::LanguageCode::kEnUs);
   EXPECT_CALL(mock_soda_installer_, GetAvailableLanguages())
-      .WillOnce(InvokeWithoutArgs([]() {
+      .WillRepeatedly(InvokeWithoutArgs([]() {
         std::vector<std::string> langs;
         langs.push_back("en-US");
         return langs;

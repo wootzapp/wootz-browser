@@ -2,13 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {EventTracker} from '//resources/js/event_tracker.js';
 import {assert} from 'chrome://resources/js/assert.js';
 
 import {createCustomEvent} from '../utils/event_utils.js';
 import {getDestinationProvider} from '../utils/mojo_data_providers.js';
-import {Destination, DestinationProvider, FakeDestinationObserverInterface, SessionContext, type UiManagedDestinationFields} from '../utils/print_preview_cros_app_types.js';
+import type {Destination, DestinationProviderCompositeInterface, FakeDestinationObserverInterface, SessionContext} from '../utils/print_preview_cros_app_types.js';
+import {isValidDestination} from '../utils/validation_utils.js';
 
 import {PDF_DESTINATION} from './destination_constants.js';
+import {PRINT_TICKET_MANAGER_TICKET_CHANGED, PrintTicketManager} from './print_ticket_manager.js';
 
 /**
  * @fileoverview
@@ -50,11 +53,12 @@ export class DestinationManager extends EventTarget implements
   }
 
   static resetInstanceForTesting(): void {
+    DestinationManager.instance?.eventTracker.removeAll();
     DestinationManager.instance = null;
   }
 
   // Non-static properties:
-  private destinationProvider: DestinationProvider;
+  private destinationProvider: DestinationProviderCompositeInterface;
   private destinations: Destination[] = [];
   // Cache used for constant lookup of destinations by key.
   private destinationCache: Map<string, Destination> = new Map();
@@ -62,6 +66,9 @@ export class DestinationManager extends EventTarget implements
   private initialDestinationsLoaded = false;
   private state = DestinationManagerState.NOT_LOADED;
   private sessionContext: SessionContext;
+  private eventTracker = new EventTracker();
+  // Managers need to be set after construction to avoid circular dependencies.
+  private printTicketManager: PrintTicketManager;
 
   // `initializeSession` is only intended to be called once from the
   // `PrintPreviewCrosAppController`.
@@ -71,6 +78,13 @@ export class DestinationManager extends EventTarget implements
     assert(
         !this.sessionContext, 'SessionContext should only be configured once');
     this.sessionContext = sessionContext;
+
+    // Setup event listeners.
+    this.printTicketManager = PrintTicketManager.getInstance();
+    this.eventTracker.add(
+        this.printTicketManager, PRINT_TICKET_MANAGER_TICKET_CHANGED,
+        () => this.onPrintTicketChanged());
+
     this.fetchInitialDestinations();
     this.dispatchEvent(
         createCustomEvent(DESTINATION_MANAGER_SESSION_INITIALIZED));
@@ -95,11 +109,22 @@ export class DestinationManager extends EventTarget implements
     this.insertDigitalDestinations();
   }
 
-  // TODO(b/323421684): Returns true if initial fetch has returned
-  // and there are valid destinations available in the destination
-  // cache.
-  hasLoadedAnInitialDestination(): boolean {
-    return this.initialDestinationsLoaded;
+  // Returns true if destination exists in cache.
+  destinationExists(destinationId: string): boolean {
+    return this.destinationCache.has(destinationId);
+  }
+
+  // Returns true if initial fetch has returned and there are valid destinations
+  // available.
+  hasAnyDestinations(): boolean {
+    return this.isSessionInitialized() && this.initialDestinationsLoaded &&
+        this.destinations.length > 0;
+  }
+
+  // Retrieve destination by ID.
+  getDestination(destinationId: string): Destination {
+    assert(this.destinationExists(destinationId));
+    return this.destinationCache.get(destinationId)!;
   }
 
   // Retrieve a list of all known destinations.
@@ -160,9 +185,6 @@ export class DestinationManager extends EventTarget implements
       return;
     }
 
-    // Ensure fields managed by UI values are maintained.
-    this.overrideUiManagedFields(destination, existingDestination);
-
     // Update destination in list and cache.
     const index = this.destinations.findIndex(
         (d: Destination) => d.id === destination.id);
@@ -178,15 +200,13 @@ export class DestinationManager extends EventTarget implements
     assert(this.isSessionInitialized);
     // Request initial data.
     this.updateState(DestinationManagerState.FETCHING);
-    // TODO(b/323421684): Once the initial local destinations fetch completes
-    // update has initial destination set, determine relevant initial
-    // destination, and create the initial print ticket. If policy restricts
-    // fetching a destination type an empty destination list will be returned.
     this.destinationProvider.getLocalDestinations().then(
-        (destinations: Destination[]): void => {
-          this.addOrUpdateDestinations(destinations);
+        (response: {destinations: Destination[]}): void => {
+          this.addOrUpdateDestinations(response.destinations);
           this.initialDestinationsLoaded = true;
-          this.updateActiveDestination(PDF_DESTINATION.id);
+          // TODO(b/323421684): Refactor selectInitialDestination to call
+          // setPrintTicketDestination print ticket manager.
+          this.selectInitialDestination();
           this.updateState(DestinationManagerState.LOADED);
         });
   }
@@ -198,15 +218,54 @@ export class DestinationManager extends EventTarget implements
     this.addOrUpdateDestination(PDF_DESTINATION);
   }
 
-  // Creates a merge of `destination` and UI managed fields from `uiFields`
-  // to ensure fields set by UI are not lost during update.
-  // Example field: `printerManuallySelected`.
-  private overrideUiManagedFields(
-      destination: Destination, uiFields: UiManagedDestinationFields): void {
-    destination.printerManuallySelected = uiFields.printerManuallySelected;
+  // Handles active destination updates triggered by the UI. If update is to a
+  // different property (active destination already matches the print ticket)
+  // do not attempt to update the active destination.
+  private onPrintTicketChanged(): void {
+    assert(this.printTicketManager);
+    const currentPrintTicket = this.printTicketManager.getPrintTicket();
+    assert(currentPrintTicket);
+    const nextActiveDestinationId = currentPrintTicket.destinationId || '';
+    if (nextActiveDestinationId === this.activeDestinationId) {
+      return;
+    }
+    assert(
+        isValidDestination(nextActiveDestinationId),
+        'PrintTicket won\'t be set to an invalid ID');
+    this.updateActiveDestination(nextActiveDestinationId);
   }
 
-  // Updates destination ID and triggers event.
+  // Determines the best fitting active destination from the available
+  // destinations. Best fitting destination is determined in this order:
+  //  1. The most recently used available destination from user preferences.
+  //  2. Using "matching regex" defined by policy. See DefaultPrinterSelection
+  //     policy.
+  //  3. Using fallback behavior.
+  //  NOTE: CrOS does not support system default printer at this time.
+  private selectInitialDestination(): void {
+    assert(this.activeDestinationId === '');
+    if (this.destinations.length === 0) {
+      // TODO(b/323421684): Handle no-destination state.
+      return;
+    }
+
+    // TODO(b/323421684): Attempt to select a recently used destination.
+    // TODO(b/323421684): Attempt to select using policy regex.
+    this.selectFallbackDestination();
+  }
+
+  // Fallback to PDF destination if available; otherwise use first available
+  // destination.
+  private selectFallbackDestination(): void {
+    assert(this.destinations.length > 0);
+    if (this.destinationCache.get(PDF_DESTINATION.id)) {
+      this.updateActiveDestination(PDF_DESTINATION.id);
+      return;
+    }
+    this.updateActiveDestination(this.destinations[0].id);
+  }
+
+  // Updates active destination ID and triggers event.
   private updateActiveDestination(destinationId: string): void {
     this.activeDestinationId = destinationId;
     this.dispatchEvent(
@@ -235,6 +294,15 @@ export class DestinationManager extends EventTarget implements
     }
     this.destinationCache.set(destination.id, destination);
     this.destinations[index] = destination;
+  }
+
+  // Removes destination from list and cache.
+  removeDestinationForTesting(destinationId: string): void {
+    if (this.destinationCache.delete(destinationId)) {
+      const index = this.destinations.findIndex(
+          (d: Destination) => d.id === destinationId);
+      this.destinations.splice(index);
+    }
   }
 }
 

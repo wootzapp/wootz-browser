@@ -9,9 +9,11 @@ import static org.chromium.chrome.browser.preferences.ChromePreferenceKeys.UI_TH
 import android.os.Build;
 import android.os.Bundle;
 
-import androidx.annotation.Nullable;
-
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
+import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.night_mode.NightModeMetrics;
 import org.chromium.chrome.browser.night_mode.NightModeUtils;
@@ -25,6 +27,7 @@ import org.chromium.components.browser_ui.settings.SettingsUtils;
 import org.chromium.ui.UiUtils;
 
 /** Fragment to manage the theme user settings. */
+@NullMarked
 public class ThemeSettingsFragment extends ChromeBaseSettingsFragment
         implements CustomDividerFragment {
     static final String PREF_UI_THEME_PREF = "ui_theme_pref";
@@ -33,10 +36,12 @@ public class ThemeSettingsFragment extends ChromeBaseSettingsFragment
 
     private boolean mWebContentsDarkModeEnabled;
 
+    private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
+
     @Override
-    public void onCreatePreferences(@Nullable Bundle savedInstanceState, String rootKey) {
+    public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
         SettingsUtils.addPreferencesFromResource(this, R.xml.theme_preferences);
-        getActivity().setTitle(R.string.theme_settings);
+        mPageTitle.set(getString(R.string.theme_settings));
 
         SharedPreferencesManager sharedPreferencesManager = ChromeSharedPreferences.getInstance();
         RadioButtonGroupThemePreference radioButtonGroupThemePreference =
@@ -79,7 +84,12 @@ public class ThemeSettingsFragment extends ChromeBaseSettingsFragment
     }
 
     @Override
-    public void onActivityCreated(Bundle savedInstanceState) {
+    public ObservableSupplier<String> getPageTitle() {
+        return mPageTitle;
+    }
+
+    @Override
+    public void onActivityCreated(@Nullable Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
 
         // On O_MR1, the flag View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR in this fragment is not

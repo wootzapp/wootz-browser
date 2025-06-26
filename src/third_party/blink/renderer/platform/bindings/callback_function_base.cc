@@ -5,6 +5,7 @@
 #include "third_party/blink/renderer/platform/bindings/callback_function_base.h"
 
 #include "third_party/blink/renderer/platform/bindings/binding_security_for_platform.h"
+#include "third_party/blink/renderer/platform/bindings/exception_messages.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/scheduler/public/task_attribution_info.h"
 #include "third_party/blink/renderer/platform/scheduler/public/task_attribution_tracker.h"
@@ -52,7 +53,7 @@ void CallbackFunctionBase::Trace(Visitor* visitor) const {
 ScriptState* CallbackFunctionBase::CallbackRelevantScriptStateOrReportError(
     const char* interface_name,
     const char* operation_name) const {
-  if (LIKELY(callback_relevant_script_state_)) {
+  if (callback_relevant_script_state_) [[likely]] {
     return callback_relevant_script_state_;
   }
 
@@ -60,36 +61,34 @@ ScriptState* CallbackFunctionBase::CallbackRelevantScriptStateOrReportError(
   ScriptState::Scope incumbent_scope(incumbent_script_state_);
   v8::TryCatch try_catch(GetIsolate());
   try_catch.SetVerbose(true);
-  ExceptionState exception_state(GetIsolate(),
-                                 ExceptionContextType::kOperationInvoke,
-                                 interface_name, operation_name);
-  exception_state.ThrowSecurityError(
+  ExceptionState exception_state(GetIsolate());
+  exception_state.ThrowSecurityError(ExceptionMessages::FailedToExecute(
+      operation_name, interface_name,
       "An invocation of the provided callback failed due to cross origin "
-      "access.");
+      "access."));
   return nullptr;
 }
 
 ScriptState* CallbackFunctionBase::CallbackRelevantScriptStateOrThrowException(
     const char* interface_name,
     const char* operation_name) const {
-  if (LIKELY(callback_relevant_script_state_)) {
+  if (callback_relevant_script_state_) [[likely]] {
     return callback_relevant_script_state_;
   }
 
   // Throw a SecurityError due to a cross origin callback object.
   ScriptState::Scope incumbent_scope(incumbent_script_state_);
-  ExceptionState exception_state(GetIsolate(),
-                                 ExceptionContextType::kOperationInvoke,
-                                 interface_name, operation_name);
-  exception_state.ThrowSecurityError(
+  ExceptionState exception_state(GetIsolate());
+  exception_state.ThrowSecurityError(ExceptionMessages::FailedToExecute(
+      operation_name, interface_name,
       "An invocation of the provided callback failed due to cross origin "
-      "access.");
+      "access."));
   return nullptr;
 }
 
 void CallbackFunctionBase::EvaluateAsPartOfCallback(
     base::OnceCallback<void(ScriptState*)> closure) {
-  if (UNLIKELY(!callback_relevant_script_state_)) {
+  if (!callback_relevant_script_state_) [[unlikely]] {
     return;
   }
 

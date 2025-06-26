@@ -4,6 +4,8 @@
 
 package org.chromium.base.process_launcher;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -12,11 +14,15 @@ import android.os.Looper;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.TraceEvent;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.build.annotations.RequiresNonNull;
 
 import java.io.IOException;
 import java.util.List;
 
 /** This class is used to start a child process by connecting to a ChildProcessService. */
+@NullMarked
 public class ChildProcessLauncher {
     private static final String TAG = "ChildProcLauncher";
 
@@ -25,16 +31,16 @@ public class ChildProcessLauncher {
         /**
          * Called when the launcher is about to start. Gives the embedder a chance to provide an
          * already bound connection if it has one. (allowing for warm-up connections: connections
-         * that are already bound in advance to speed up child process start-up time).
-         * Note that onBeforeConnectionAllocated will not be called if this method returns a
-         * connection.
+         * that are already bound in advance to speed up child process start-up time). Note that
+         * onBeforeConnectionAllocated will not be called if this method returns a connection.
+         *
          * @param connectionAllocator the allocator the returned connection should have been
-         * allocated of.
+         *     allocated of.
          * @param serviceCallback the service callback that the connection should use.
          * @return a bound connection to use to connect to the child process service, or null if a
-         * connection should be allocated and bound by the launcher.
+         *     connection should be allocated and bound by the launcher.
          */
-        public ChildProcessConnection getBoundConnection(
+        public @Nullable ChildProcessConnection getBoundConnection(
                 ChildConnectionAllocator connectionAllocator,
                 ChildProcessConnection.ServiceCallback serviceCallback) {
             return null;
@@ -95,11 +101,14 @@ public class ChildProcessLauncher {
     private final ChildConnectionAllocator mConnectionAllocator;
 
     // The IBinder interfaces provided to the created service.
-    private final List<IBinder> mClientInterfaces;
+    private final @Nullable List<IBinder> mClientInterfaces;
+
+    // A binder box which can be used by the child to unpack additional binders.
+    private final @Nullable IBinder mBinderBox;
 
     // The actual service connection. Set once we have connected to the service. Volatile as it is
     // accessed from threads other than the Launcher thread.
-    private volatile ChildProcessConnection mConnection;
+    private volatile @Nullable ChildProcessConnection mConnection;
 
     /**
      * Constructor.
@@ -111,6 +120,7 @@ public class ChildProcessLauncher {
      * @param connectionAllocator the allocator used to create connections to the service.
      * @param clientInterfaces the interfaces that should be passed to the started process so it can
      *     communicate with the parent process.
+     * @param binderBox an optional binder box the child can use to unpack additional binders
      */
     public ChildProcessLauncher(
             Handler launcherHandler,
@@ -118,7 +128,8 @@ public class ChildProcessLauncher {
             String[] commandLine,
             FileDescriptorInfo[] filesToBeMapped,
             ChildConnectionAllocator connectionAllocator,
-            List<IBinder> clientInterfaces) {
+            @Nullable List<IBinder> clientInterfaces,
+            @Nullable IBinder binderBox) {
         assert connectionAllocator != null;
         mLauncherHandler = launcherHandler;
         isRunningOnLauncherThread();
@@ -127,15 +138,17 @@ public class ChildProcessLauncher {
         mDelegate = delegate;
         mFilesToBeMapped = filesToBeMapped;
         mClientInterfaces = clientInterfaces;
+        mBinderBox = binderBox;
     }
 
     /**
      * Starts the child process and calls setup on it if {@param setupConnection} is true.
+     *
      * @param setupConnection whether the setup should be performed on the connection once
-     * established
+     *     established
      * @param queueIfNoFreeConnection whether to queue that request if no service connection is
-     * available. If the launcher was created with a connection provider, this parameter has no
-     * effect.
+     *     available. If the launcher was created with a connection provider, this parameter has no
+     *     effect.
      * @return true if the connection was started or was queued.
      */
     public boolean start(final boolean setupConnection, final boolean queueIfNoFreeConnection) {
@@ -191,7 +204,7 @@ public class ChildProcessLauncher {
         }
     }
 
-    public ChildProcessConnection getConnection() {
+    public @Nullable ChildProcessConnection getConnection() {
         return mConnection;
     }
 
@@ -228,6 +241,7 @@ public class ChildProcessLauncher {
         return true;
     }
 
+    @RequiresNonNull("mConnection")
     private void setupConnection() {
         ChildProcessConnection.ZygoteInfoCallback zygoteInfoCallback =
                 new ChildProcessConnection.ZygoteInfoCallback() {
@@ -240,23 +254,29 @@ public class ChildProcessLauncher {
         ChildProcessConnection.ConnectionCallback connectionCallback =
                 new ChildProcessConnection.ConnectionCallback() {
                     @Override
-                    public void onConnected(ChildProcessConnection connection) {
+                    public void onConnected(@Nullable ChildProcessConnection connection) {
                         onServiceConnected(connection);
                     }
                 };
         Bundle connectionBundle = createConnectionBundle();
         mDelegate.onBeforeConnectionSetup(connectionBundle);
         mConnection.setupConnection(
-                connectionBundle, getClientInterfaces(), connectionCallback, zygoteInfoCallback);
+                connectionBundle,
+                getClientInterfaces(),
+                getBinderBox(),
+                connectionCallback,
+                zygoteInfoCallback);
     }
 
-    private void onServiceConnected(ChildProcessConnection connection) {
+    private void onServiceConnected(@Nullable ChildProcessConnection connection) {
+        ChildProcessConnection curConnection = mConnection;
         assert isRunningOnLauncherThread();
-        assert mConnection == connection || connection == null;
+        assert curConnection != null;
+        assert curConnection == connection || connection == null;
 
-        Log.d(TAG, "on connect callback, pid=%d", mConnection.getPid());
+        Log.d(TAG, "on connect callback, pid=%d", curConnection.getPid());
 
-        mDelegate.onConnectionEstablished(mConnection);
+        mDelegate.onConnectionEstablished(curConnection);
 
         // Proactively close the FDs rather than waiting for the GC to do it.
         try {
@@ -270,11 +290,16 @@ public class ChildProcessLauncher {
 
     public int getPid() {
         assert isRunningOnLauncherThread();
-        return mConnection == null ? NULL_PROCESS_HANDLE : mConnection.getPid();
+        ChildProcessConnection connection = mConnection;
+        return connection == null ? NULL_PROCESS_HANDLE : connection.getPid();
     }
 
-    public List<IBinder> getClientInterfaces() {
+    public @Nullable List<IBinder> getClientInterfaces() {
         return mClientInterfaces;
+    }
+
+    public @Nullable IBinder getBinderBox() {
+        return mBinderBox;
     }
 
     private boolean isRunningOnLauncherThread() {
@@ -289,15 +314,15 @@ public class ChildProcessLauncher {
     }
 
     private void onChildProcessDied() {
-        assert isRunningOnLauncherThread();
         if (getPid() != 0) {
-            mDelegate.onConnectionLost(mConnection);
+            mDelegate.onConnectionLost(assumeNonNull(mConnection));
         }
     }
 
     public void stop() {
         assert isRunningOnLauncherThread();
-        Log.d(TAG, "stopping child connection: pid=%d", mConnection.getPid());
-        mConnection.stop();
+        ChildProcessConnection connection = assumeNonNull(mConnection);
+        Log.d(TAG, "stopping child connection: pid=%d", connection.getPid());
+        connection.stop();
     }
 }

@@ -4,6 +4,7 @@
 
 #include "content/browser/aggregation_service/aggregation_service_storage_sql.h"
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -22,11 +23,9 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
 #include "base/time/time.h"
 #include "components/aggregation_service/aggregation_coordinator_utils.h"
-#include "components/aggregation_service/features.h"
 #include "content/browser/aggregation_service/aggregatable_report.h"
 #include "content/browser/aggregation_service/aggregation_service.h"
 #include "content/browser/aggregation_service/aggregation_service_storage.h"
@@ -42,6 +41,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/storage_key/storage_key.h"
+#include "third_party/blink/public/mojom/aggregation_service/aggregatable_report.mojom-shared.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -65,6 +65,14 @@ std::string RemoveQuotes(std::string_view input) {
   std::string output;
   base::RemoveChars(input, "\"", &output);
   return output;
+}
+
+AggregatableReportRequest CreateExampleRequestWithDelayType() {
+  return aggregation_service::CreateExampleRequest(
+      blink::mojom::AggregationServiceMode::kDefault,
+      /*failed_send_attempts=*/0,
+      /*aggregation_coordinator_origin=*/std::nullopt,
+      AggregatableReportRequest::DelayType::ScheduledWithFullDelay);
 }
 
 }  // namespace
@@ -152,6 +160,21 @@ TEST_F(AggregationServiceStorageSqlTest,
       AggregationServiceStorageSql::InitStatus::kSuccess, 1);
 }
 
+TEST_F(AggregationServiceStorageSqlTest, CantOpenDb_HistogramRecorded) {
+  ASSERT_TRUE(base::CreateDirectory(db_path()));
+
+  OpenDatabase();
+  GURL url(kExampleUrl);
+  PublicKeyset keyset(kExampleKeys, /*fetch_time=*/clock_.Now(),
+                      /*expiry_time=*/base::Time::Max());
+  storage_->SetPublicKeys(url, keyset);
+  CloseDatabase();
+
+  histograms_.ExpectUniqueSample(
+      "PrivacySandbox.AggregationService.Storage.Sql.InitStatus",
+      AggregationServiceStorageSql::InitStatus::kFailedToOpenDbFile, 1);
+}
+
 TEST_F(AggregationServiceStorageSqlTest,
        DatabaseInitialized_TablesAndIndexesLazilyInitialized) {
   OpenDatabase();
@@ -188,7 +211,7 @@ TEST_F(AggregationServiceStorageSqlTest,
       base::ThreadTicks::IsSupported() ? 1 : 0);
 
   {
-    sql::Database raw_db;
+    sql::Database raw_db(sql::test::kTestTag);
     EXPECT_TRUE(raw_db.Open(db_path()));
 
     // [urls], [keys], [report_requests], [meta], [sqlite_sequence] (for
@@ -455,7 +478,7 @@ TEST_F(AggregationServiceStorageSqlTest, VersionTooNew_RazesDB) {
   CloseDatabase();
 
   {
-    sql::Database raw_db;
+    sql::Database raw_db(sql::test::kTestTag);
     EXPECT_TRUE(raw_db.Open(db_path()));
 
     sql::MetaTable meta;
@@ -492,8 +515,7 @@ TEST_F(AggregationServiceStorageSqlTest, StoreRequest_ExpectedResult) {
   EXPECT_FALSE(storage_->NextReportTimeAfter(base::Time::Min()).has_value());
   EXPECT_TRUE(GetRequestsReportingOnOrBefore(base::Time::Max()).empty());
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
 
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
   ASSERT_TRUE(storage_->NextReportTimeAfter(base::Time::Min()).has_value());
@@ -519,8 +541,7 @@ TEST_F(AggregationServiceStorageSqlTest, StoreRequest_ExpectedResult) {
 TEST_F(AggregationServiceStorageSqlTest, DeleteRequest_ExpectedResult) {
   OpenDatabase();
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
 
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(), 1u);
@@ -543,8 +564,7 @@ TEST_F(AggregationServiceStorageSqlTest,
   storage_->UpdateReportForSendFailure(RequestId(1),
                                        /*new_report_time=*/base::Time::Now());
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
 
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
 
@@ -579,8 +599,7 @@ TEST_F(AggregationServiceStorageSqlTest,
        RepeatGetPendingRequests_RequestReturnedAgain) {
   OpenDatabase();
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
 
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
   ASSERT_TRUE(storage_->NextReportTimeAfter(base::Time::Min()).has_value());
@@ -612,8 +631,7 @@ TEST_F(AggregationServiceStorageSqlTest,
 TEST_F(AggregationServiceStorageSqlTest, DatabaseReopened_RequestsPersisted) {
   OpenDatabase();
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
 
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
 
@@ -638,8 +656,7 @@ TEST_F(AggregationServiceStorageSqlTest,
        GetRequestsReportingOnOrBefore_ReturnValuesAlignWithReportTime) {
   OpenDatabase();
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
   base::Time report_time = request.shared_info().scheduled_report_time;
 
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
@@ -669,9 +686,9 @@ TEST_F(AggregationServiceStorageSqlTest,
        GetRequestsReportingOnOrBefore_ReturnValuesAlignWithLimit) {
   OpenDatabase();
 
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
 
   // IDs autoincrement from 1.
   EXPECT_THAT(
@@ -693,8 +710,7 @@ TEST_F(AggregationServiceStorageSqlTest,
 TEST_F(AggregationServiceStorageSqlTest, GetRequests_ReturnValuesAlignWithIds) {
   OpenDatabase();
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
 
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
@@ -710,8 +726,7 @@ TEST_F(AggregationServiceStorageSqlTest,
        NextReportTimeAfter_ReturnValuesAlignWithReportTime) {
   OpenDatabase();
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
   base::Time report_time = request.shared_info().scheduled_report_time;
 
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
@@ -753,8 +768,9 @@ TEST_F(AggregationServiceStorageSqlTest,
     shared_info.scheduled_report_time = scheduled_report_time;
 
     std::optional<AggregatableReportRequest> request =
-        AggregatableReportRequest::Create(example_request.payload_contents(),
-                                          std::move(shared_info));
+        AggregatableReportRequest::Create(
+            example_request.payload_contents(), std::move(shared_info),
+            AggregatableReportRequest::DelayType::ScheduledWithReducedDelay);
     ASSERT_TRUE(request.has_value());
 
     storage_->StoreRequest(std::move(request.value()));
@@ -826,8 +842,8 @@ TEST_F(AggregationServiceStorageSqlTest,
        ClearAllDataWithoutFilter_AllRequestsDeleted) {
   OpenDatabase();
 
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
 
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(), 2u);
 
@@ -849,13 +865,13 @@ TEST_F(AggregationServiceStorageSqlTest,
       base::Time::FromMillisecondsSinceUnixEpoch(1652984901234);
 
   clock_.SetNow(kExampleTime);
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
 
   clock_.Advance(base::Hours(1));
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
 
   clock_.Advance(base::Hours(1));
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
 
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(), 3u);
 
@@ -878,22 +894,24 @@ TEST_F(AggregationServiceStorageSqlTest,
 
 TEST_F(AggregationServiceStorageSqlTest,
        ClearDataAllTimesWithFilter_OnlyRequestsSpecifiedAreDeleted) {
-  const url::Origin reporting_origins[] = {
+  const auto reporting_origins = std::to_array({
       url::Origin::Create(GURL("https://a.example")),
       url::Origin::Create(GURL("https://b.example")),
-      url::Origin::Create(GURL("https://c.example"))};
+      url::Origin::Create(GURL("https://c.example")),
+  });
 
   OpenDatabase();
 
   for (const url::Origin& reporting_origin : reporting_origins) {
     AggregatableReportRequest example_request =
-        aggregation_service::CreateExampleRequest();
+        CreateExampleRequestWithDelayType();
     AggregatableReportSharedInfo shared_info =
         example_request.shared_info().Clone();
     shared_info.reporting_origin = reporting_origin;
     storage_->StoreRequest(
-        AggregatableReportRequest::Create(example_request.payload_contents(),
-                                          std::move(shared_info))
+        AggregatableReportRequest::Create(
+            example_request.payload_contents(), std::move(shared_info),
+            AggregatableReportRequest::DelayType::ScheduledWithReducedDelay)
             .value());
   }
 
@@ -921,10 +939,10 @@ TEST_F(AggregationServiceStorageSqlTest,
 }
 
 TEST_F(AggregationServiceStorageSqlTest, GetReportRequestReportingOrigins) {
-  const url::Origin origins[] = {
-      url::Origin::Create(GURL("https://a.example")),
-      url::Origin::Create(GURL("https://b.example")),
-      url::Origin::Create(GURL("https://c.example"))};
+  const auto origins = std::to_array<url::Origin>(
+      {url::Origin::Create(GURL("https://a.example")),
+       url::Origin::Create(GURL("https://b.example")),
+       url::Origin::Create(GURL("https://c.example"))});
 
   OpenDatabase();
 
@@ -935,8 +953,9 @@ TEST_F(AggregationServiceStorageSqlTest, GetReportRequestReportingOrigins) {
         example_request.shared_info().Clone();
     shared_info.reporting_origin = origin;
     storage_->StoreRequest(
-        AggregatableReportRequest::Create(example_request.payload_contents(),
-                                          std::move(shared_info))
+        AggregatableReportRequest::Create(
+            example_request.payload_contents(), std::move(shared_info),
+            AggregatableReportRequest::DelayType::ScheduledWithReducedDelay)
             .value());
   }
 
@@ -950,8 +969,7 @@ TEST_F(AggregationServiceStorageSqlTest,
        AdjustOfflineReportTimes_AffectsPastReportsOnly) {
   OpenDatabase();
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
 
   base::Time original_report_time = request.shared_info().scheduled_report_time;
 
@@ -995,8 +1013,7 @@ TEST_F(AggregationServiceStorageSqlTest,
        AdjustOfflineReportTimes_SupportsZeroMinAndConstantDelay) {
   OpenDatabase();
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
 
   base::Time original_report_time = request.shared_info().scheduled_report_time;
 
@@ -1052,8 +1069,9 @@ TEST_F(AggregationServiceStorageSqlTest,
     shared_info.scheduled_report_time = scheduled_report_time;
 
     std::optional<AggregatableReportRequest> request =
-        AggregatableReportRequest::Create(example_request.payload_contents(),
-                                          std::move(shared_info));
+        AggregatableReportRequest::Create(
+            example_request.payload_contents(), std::move(shared_info),
+            AggregatableReportRequest::DelayType::ScheduledWithReducedDelay);
     ASSERT_TRUE(request.has_value());
 
     storage_->StoreRequest(std::move(request.value()));
@@ -1098,7 +1116,7 @@ TEST_F(AggregationServiceStorageSqlTest,
   // of StoreRequest(), and could be replaced with any other method that calls
   // `EnsureDatabaseOpen(DbCreationPolicy::kCreateIfAbsent)`.
   OpenDatabase();
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
   CloseDatabase();
 
   ASSERT_TRUE(sql::test::CorruptSizeInHeader(db_path()));
@@ -1118,7 +1136,7 @@ TEST_F(AggregationServiceStorageSqlTest,
   // second time when it detects that it was poisoned during the first attempt.
   histograms_.ExpectUniqueSample(
       "PrivacySandbox.AggregationService.Storage.Sql.Error",
-      base::checked_cast<base::HistogramBase::Sample>(
+      base::checked_cast<base::HistogramBase::Sample32>(
           sql::SqliteLoggedResultCode::kCorrupt),
       /*expected_bucket_count=*/2);
 
@@ -1134,14 +1152,14 @@ TEST_F(AggregationServiceStorageSqlTest, StoreRequest_RespectsLimit) {
   for (size_t i = 0; i < example_limit; ++i) {
     EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(), i);
 
-    storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+    storage_->StoreRequest(CreateExampleRequestWithDelayType());
   }
 
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(),
             example_limit);
 
   // Storing one more report will silently fail.
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(),
             example_limit);
 
@@ -1151,7 +1169,7 @@ TEST_F(AggregationServiceStorageSqlTest, StoreRequest_RespectsLimit) {
             example_limit - 1);
 
   // We can then store another request.
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(),
             example_limit);
 
@@ -1178,14 +1196,14 @@ TEST_F(AggregationServiceStorageSqlTest, StoreRequest_LimitIsScopedCorrectly) {
   for (size_t i = 0; i < example_limit; ++i) {
     EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(), i);
 
-    storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+    storage_->StoreRequest(CreateExampleRequestWithDelayType());
   }
 
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(),
             example_limit);
 
   // Storing one more report will silently fail.
-  storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+  storage_->StoreRequest(CreateExampleRequestWithDelayType());
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(),
             example_limit);
 
@@ -1198,8 +1216,10 @@ TEST_F(AggregationServiceStorageSqlTest, StoreRequest_LimitIsScopedCorrectly) {
       example_request.shared_info().Clone();
   different_api_shared_info.api_identifier = "some-other-api";
   storage_->StoreRequest(
-      AggregatableReportRequest::Create(example_request.payload_contents(),
-                                        std::move(different_api_shared_info))
+      AggregatableReportRequest::Create(
+          example_request.payload_contents(),
+          std::move(different_api_shared_info),
+          AggregatableReportRequest::DelayType::ScheduledWithReducedDelay)
           .value());
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(),
             example_limit);
@@ -1209,10 +1229,12 @@ TEST_F(AggregationServiceStorageSqlTest, StoreRequest_LimitIsScopedCorrectly) {
       example_request.shared_info().Clone();
   different_reporting_origin_shared_info.reporting_origin =
       url::Origin::Create(GURL("https://some-other-reporting-origin.example"));
-  storage_->StoreRequest(AggregatableReportRequest::Create(
-                             example_request.payload_contents(),
-                             std::move(different_reporting_origin_shared_info))
-                             .value());
+  storage_->StoreRequest(
+      AggregatableReportRequest::Create(
+          example_request.payload_contents(),
+          std::move(different_reporting_origin_shared_info),
+          AggregatableReportRequest::DelayType::ScheduledWithReducedDelay)
+          .value());
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(),
             example_limit + 1);
 
@@ -1248,6 +1270,7 @@ TEST_F(AggregationServiceStorageSqlTest,
   AggregatableReportRequest request =
       AggregatableReportRequest::Create(
           example_request.payload_contents(), std::move(shared_info),
+          AggregatableReportRequest::DelayType::ScheduledWithReducedDelay,
           /*reporting_path=*/std::string(), /*debug_key=*/1234)
           .value();
 
@@ -1280,6 +1303,7 @@ TEST_F(AggregationServiceStorageSqlTest,
       AggregatableReportRequest::Create(
           example_request.payload_contents(),
           example_request.shared_info().Clone(),
+          AggregatableReportRequest::DelayType::ScheduledWithReducedDelay,
           /*reporting_path=*/std::string(),
           /*debug_key=*/std::nullopt,
           /*additional_fields=*/{{"additional_key", "example_value"}})
@@ -1320,11 +1344,12 @@ TEST_F(AggregationServiceStorageSqlTest,
       url::Origin::Create(GURL("https://coordinator.example"));
 
   AggregatableReportRequest request =
-      AggregatableReportRequest::Create(payload_contents,
-                                        example_request.shared_info().Clone(),
-                                        /*reporting_path=*/std::string(),
-                                        /*debug_key=*/std::nullopt,
-                                        /*additional_fields=*/{})
+      AggregatableReportRequest::Create(
+          payload_contents, example_request.shared_info().Clone(),
+          AggregatableReportRequest::DelayType::ScheduledWithReducedDelay,
+          /*reporting_path=*/std::string(),
+          /*debug_key=*/std::nullopt,
+          /*additional_fields=*/{})
           .value();
 
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
@@ -1346,8 +1371,7 @@ TEST_F(AggregationServiceStorageSqlInMemoryTest,
   base::HistogramTester histograms;
   OpenDatabase();
 
-  AggregatableReportRequest request =
-      aggregation_service::CreateExampleRequest();
+  AggregatableReportRequest request = CreateExampleRequestWithDelayType();
 
   storage_->StoreRequest(aggregation_service::CloneReportRequest(request));
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(), 1u);
@@ -1365,76 +1389,6 @@ TEST_F(AggregationServiceStorageSqlInMemoryTest,
 }
 
 TEST_F(AggregationServiceStorageSqlTest,
-       AggregationCoordinatorFeatureModifiedBetweenStorageAndLoading_Success) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndDisableFeature(
-      ::aggregation_service::kAggregationServiceMultipleCloudProviders);
-  OpenDatabase();
-
-  AggregatableReportRequest example_request =
-      aggregation_service::CreateExampleRequest();
-
-  storage_->StoreRequest(
-      aggregation_service::CloneReportRequest(example_request));
-  EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(), 1u);
-
-  // Turning the feature on should not affect the report loading.
-  scoped_feature_list.Reset();
-  scoped_feature_list.InitAndEnableFeature(
-      ::aggregation_service::kAggregationServiceMultipleCloudProviders);
-  ::aggregation_service::ScopedAggregationCoordinatorAllowlistForTesting
-      scoped_coordinator_allowlist(
-          {url::Origin::Create(GURL("https://a.test"))});
-
-  ASSERT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(), 1u);
-  EXPECT_FALSE(GetRequestsReportingOnOrBefore(base::Time::Max())[0]
-                   .request.payload_contents()
-                   .aggregation_coordinator_origin.has_value());
-
-  storage_->ClearDataBetween(base::Time(), base::Time(), base::NullCallback());
-
-  AggregationServicePayloadContents payload_contents =
-      example_request.payload_contents();
-  payload_contents.aggregation_coordinator_origin =
-      url::Origin::Create(GURL("https://a.test"));
-
-  storage_->StoreRequest(
-      AggregatableReportRequest::Create(payload_contents,
-                                        example_request.shared_info().Clone())
-          .value());
-  ASSERT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(), 1u);
-  EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max())[0]
-                .request.payload_contents()
-                .aggregation_coordinator_origin.value()
-                .GetURL()
-                .spec(),
-            "https://a.test/");
-
-  // Turning the feature off should also not affect the report loading.
-  scoped_feature_list.Reset();
-  scoped_feature_list.InitAndDisableFeature(
-      ::aggregation_service::kAggregationServiceMultipleCloudProviders);
-
-  ASSERT_EQ(storage_
-                ->GetRequestsReportingOnOrBefore(base::Time::Max(),
-                                                 /*limit=*/std::nullopt)
-                .size(),
-            1u);
-  EXPECT_EQ(storage_
-                ->GetRequestsReportingOnOrBefore(base::Time::Max(),
-                                                 /*limit=*/std::nullopt)[0]
-                .request.payload_contents()
-                .aggregation_coordinator_origin.value()
-                .GetURL()
-                .spec(),
-            "https://a.test/");
-  histograms_.ExpectTotalCount(
-      "PrivacySandbox.AggregationService.Storage.Sql."
-      "RequestDelayFromUpdatedReportTime2",
-      0);
-}
-
-TEST_F(AggregationServiceStorageSqlTest,
        AggregationCoordinatorAllowlistChanges_ReportDeleted) {
   std::optional<
       ::aggregation_service::ScopedAggregationCoordinatorAllowlistForTesting>
@@ -1446,7 +1400,7 @@ TEST_F(AggregationServiceStorageSqlTest,
   OpenDatabase();
 
   AggregatableReportRequest example_request =
-      aggregation_service::CreateExampleRequest();
+      CreateExampleRequestWithDelayType();
 
   AggregationServicePayloadContents payload_contents =
       example_request.payload_contents();
@@ -1454,8 +1408,9 @@ TEST_F(AggregationServiceStorageSqlTest,
       url::Origin::Create(GURL("https://a.test"));
 
   storage_->StoreRequest(
-      AggregatableReportRequest::Create(payload_contents,
-                                        example_request.shared_info().Clone())
+      AggregatableReportRequest::Create(
+          payload_contents, example_request.shared_info().Clone(),
+          AggregatableReportRequest::DelayType::ScheduledWithReducedDelay)
           .value());
   EXPECT_EQ(GetRequestsReportingOnOrBefore(base::Time::Max()).size(), 1u);
 
@@ -1496,10 +1451,10 @@ class AggregationServiceStorageSqlMigrationsTest
     std::string contents = GetDatabaseData(version_id);
     ASSERT_FALSE(contents.empty());
 
-    sql::Database db;
+    sql::Database db(sql::test::kTestTag);
     // Use `db_path()` if none is specified.
     ASSERT_TRUE(db.Open(db_path ? *db_path : this->db_path()));
-    ASSERT_TRUE(db.Execute(contents.data()));
+    ASSERT_TRUE(db.ExecuteScriptForTesting(contents));
   }
 
   std::string GetCurrentSchema() {
@@ -1507,7 +1462,7 @@ class AggregationServiceStorageSqlMigrationsTest
         FILE_PATH_LITERAL("TestCurrentVersion.db"));
     LoadDatabase(AggregationServiceStorageSql::kCurrentVersionNumber,
                  &current_version_path);
-    sql::Database db;
+    sql::Database db(sql::test::kTestTag);
     EXPECT_TRUE(db.Open(current_version_path));
     return db.GetSchema();
   }
@@ -1515,8 +1470,9 @@ class AggregationServiceStorageSqlMigrationsTest
   static int VersionFromDatabase(sql::Database* db) {
     sql::Statement statement(
         db->GetUniqueStatement("SELECT value FROM meta WHERE key='version'"));
-    if (!statement.Step())
+    if (!statement.Step()) {
       return 0;
+    }
     return statement.ColumnInt(0);
   }
 
@@ -1529,8 +1485,9 @@ class AggregationServiceStorageSqlMigrationsTest
         base::StrCat({"aggregation_service/databases/version_",
                       base::NumberToString(version_id), ".sql"})));
 
-    if (!base::PathExists(source_path))
+    if (!base::PathExists(source_path)) {
       return std::string();
+    }
 
     std::string contents;
     base::ReadFileToString(source_path, &contents);
@@ -1545,14 +1502,14 @@ TEST_F(AggregationServiceStorageSqlMigrationsTest, MigrateEmptyToCurrent) {
 
     // We need to perform an operation that is non-trivial on an empty database
     // to force initialization.
-    storage_->StoreRequest(aggregation_service::CreateExampleRequest());
+    storage_->StoreRequest(CreateExampleRequestWithDelayType());
 
     CloseDatabase();
   }
 
   // Verify schema is current.
   {
-    sql::Database db;
+    sql::Database db(sql::test::kTestTag);
     ASSERT_TRUE(db.Open(db_path()));
 
     EXPECT_EQ(VersionFromDatabase(&db),
@@ -1582,7 +1539,7 @@ TEST_F(AggregationServiceStorageSqlMigrationsTest, MigrateVersion1ToCurrent) {
 
   // Verify pre-conditions.
   {
-    sql::Database db;
+    sql::Database db(sql::test::kTestTag);
     ASSERT_TRUE(db.Open(db_path()));
     ASSERT_FALSE(db.DoesTableExist("report_requests"));
 
@@ -1597,7 +1554,7 @@ TEST_F(AggregationServiceStorageSqlMigrationsTest, MigrateVersion1ToCurrent) {
 
   // Verify schema is current.
   {
-    sql::Database db;
+    sql::Database db(sql::test::kTestTag);
     ASSERT_TRUE(db.Open(db_path()));
 
     EXPECT_EQ(VersionFromDatabase(&db),
@@ -1627,7 +1584,7 @@ TEST_F(AggregationServiceStorageSqlMigrationsTest, MigrateVersion2ToCurrent) {
 
   // Verify pre-conditions.
   {
-    sql::Database db;
+    sql::Database db(sql::test::kTestTag);
     ASSERT_TRUE(db.Open(db_path()));
     ASSERT_TRUE(db.DoesTableExist("report_requests"));
     ASSERT_FALSE(db.DoesIndexExist("reporting_origin_idx"));
@@ -1644,7 +1601,7 @@ TEST_F(AggregationServiceStorageSqlMigrationsTest, MigrateVersion2ToCurrent) {
 
   // Verify schema is current.
   {
-    sql::Database db;
+    sql::Database db(sql::test::kTestTag);
     ASSERT_TRUE(db.Open(db_path()));
 
     EXPECT_EQ(VersionFromDatabase(&db),

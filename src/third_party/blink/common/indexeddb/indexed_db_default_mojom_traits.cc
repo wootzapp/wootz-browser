@@ -87,8 +87,7 @@ UnionTraits<blink::mojom::IDBKeyDataView, blink::IndexedDBKey>::GetTag(
     case blink::mojom::IDBKeyType::Invalid:  // Only used in blink.
     case blink::mojom::IDBKeyType::Min:;     // Only used in the browser.
   }
-  NOTREACHED_IN_MIGRATION();
-  return blink::mojom::IDBKeyDataView::Tag::kOtherNone;
+  NOTREACHED();
 }
 
 // static
@@ -104,9 +103,9 @@ bool UnionTraits<blink::mojom::IDBKeyDataView, blink::IndexedDBKey>::Read(
       return true;
     }
     case blink::mojom::IDBKeyDataView::Tag::kBinary: {
-      ArrayDataView<uint8_t> bytes;
-      data.GetBinaryDataView(&bytes);
-      std::string binary(bytes.data(), bytes.data() + bytes.size());
+      ArrayDataView<uint8_t> byte_view;
+      data.GetBinaryDataView(&byte_view);
+      std::string binary(base::as_string_view(byte_view));
       *out = blink::IndexedDBKey(std::move(binary));
       return true;
     }
@@ -149,8 +148,7 @@ StructTraits<blink::mojom::IDBKeyPathDataView, blink::IndexedDBKeyPath>::data(
     case blink::mojom::IDBKeyPathType::Null:;  // No-op, fall out of switch
                                                // block to NOTREACHED().
   }
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 // static

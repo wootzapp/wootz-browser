@@ -3,7 +3,8 @@
 // found in the LICENSE file.
 
 #include "base/strings/stringprintf.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
+#include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sync/test/integration/extension_settings_helper.h"
 #include "chrome/browser/sync/test/integration/extensions_helper.h"
@@ -13,7 +14,7 @@
 #include "components/sync/service/sync_service_impl.h"
 #include "content/public/test/browser_test.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
 #endif
 
@@ -71,6 +72,11 @@ class TwoClientExtensionSettingsSyncTest : public SyncTest {
     // TODO(crbug.com/40724949): rewrite tests to not use verifier.
     return true;
   }
+
+ private:
+  // TODO(https://crbug.com/40804030): Remove when these tests use only MV3
+  // extensions.
+  extensions::ScopedTestMV2Enabler mv2_enabler_;
 };
 
 IN_PROC_BROWSER_TEST_F(TwoClientExtensionSettingsSyncTest,

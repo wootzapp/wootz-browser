@@ -1,6 +1,7 @@
 <?xml version="1.0" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="or">
+<translation id="100421257800558142">ଡାହାଣ ତୀର କୀ ଦବାନ୍ତୁ</translation>
 <translation id="100506692671054486">କୌଣସି ପୂର୍ବବର୍ତ୍ତୀ କମାଣ୍ଡ ନାହିଁ</translation>
 <translation id="1009046985747440431">ନାଭିଗେଟ୍ କରିବା ପାଇଁ ଅପ୍ କିମ୍ବା ଡାଉନ୍ ତୀରଚିହ୍ନ କୀ; ସକ୍ରିୟ କରିବା ପାଇଁ enter କୀ ଦବାନ୍ତୁ</translation>
 <translation id="1011903154582639569">ଏକ କୀ'କୁ ଖୋଜି ଦବାଇ ଧରନ୍ତୁ ତା'ପରେ ସେହି ଅକ୍ଷରଟି ଟାଇପ୍ କରିବାକୁ ଆଙ୍ଗୁଠିକୁ ଉଠାଇ ଦିଅନ୍ତୁ</translation>
@@ -21,12 +22,14 @@
 <translation id="1120743664840974483">{"a": "alpha", "b": "bravo", "c": "charlie", "d": "delta", "e": "echo", "f": "foxtrot", "g": "golf", "h": "hotel", "i": "india", "j": "juliet","k": "kilo", "l": "lima", "m": "mike", "n": "november", "o": "oscar","p": "papa", "q": "quebec", "r": "romeo", "s": "sierra", "t": "tango", "u": "uniform", "v": "victor", "w": "whiskey","x": "xray", "y": "yankee", "z": "zulu"}</translation>
 <translation id="1120938014254001895">ଦୁଇଟି ଆଙ୍ଗୁଠିକୁ ଉପରକୁ ସ୍ୱାଇପ୍ କରନ୍ତୁ</translation>
 <translation id="1126928665165112660">ଇଟାଲିକ୍ ନୁହେଁ</translation>
+<translation id="1133751489735776037">ମାଉସରେ ତିନି ଥର-କ୍ଲିକ କରନ୍ତୁ</translation>
 <translation id="113582498867142724"><ph name="NUM" />ଟି ଆଇଟମ୍‌ ସହିତ <ph name="TAG" /> ସଂଗ୍ରହ</translation>
 <translation id="1146441463334103638">ସ୍କ୍ରିନ୍ ଚାଲୁ କିମ୍ବା ବନ୍ଦ କରିବାକୁ ଟୋଗଲ୍ କରନ୍ତୁ</translation>
 <translation id="1156488781945104845">ବର୍ତ୍ତମାନର ସମୟ</translation>
 <translation id="1161762950103988776">ଜମ୍ପ୍</translation>
 <translation id="1164857107703583584">ଏକ ୱେବ୍ ପୃଷ୍ଠାରେ ଅଧିକ ଭଲ ଭାବେ ନାଭିଗେଟ୍ କରିବା ପାଇଁ ଜମ୍ପ୍ କମାଣ୍ଡଗୁଡ଼ିକୁ ବ୍ୟବହାର କରାଯାଇପାରିବ।</translation>
 <translation id="1175914831232945926">ଅଙ୍କଗୁଡ଼ିକ</translation>
+<translation id="1186712907912748007">ଡ୍ରାଗ ଏବଂ ଡ୍ରପ କରିବା ଚାଲିଛି। ଶେଷ କରିବା ପାଇଁ <ph name="GESTURE" />। ଅନ୍ୟ ଜେଶ୍ଚରଗୁଡ଼ିକ ଅସ୍ଥାୟୀ ଭାବେ ଉପଲବ୍ଧ ନାହିଁ।</translation>
 <translation id="1188858454923323853">କମ୍ପ୍ଲିମେଣ୍ଟାରୀ</translation>
 <translation id="1189258430971676908">ଅଭ୍ୟାସ କ୍ଷେତ୍ର: ଡ୍ରପ୍-ଡାଉନ୍ ତାଲିକାଗୁଡ଼ିକ</translation>
 <translation id="1195238899008218998">ଉପସଂହାର</translation>
@@ -52,16 +55,19 @@
 <translation id="1243477406442346359">କର୍ନଫ୍ଲାୱାର୍ ନୀଳ</translation>
 <translation id="1246424317317450637">ବୋଲ୍ଡ</translation>
 <translation id="1251750620252348585">ପରବର୍ତ୍ତୀ ସ୍ତର 6 ଶୀର୍ଷକ</translation>
+<translation id="1264956950255940376">ବାମ ଆଖିରେ ଟେରେଇ ଚାହାଁନ୍ତୁ</translation>
 <translation id="1268366246392928616">କୌଣସି ପୂର୍ବବର୍ତ୍ତୀ ଗାଣିତିକ ଅଭିବ୍ୟକ୍ତି ନାହିଁ</translation>
 <translation id="1275718070701477396">ଚୟନ କରାଯାଇଛି</translation>
 <translation id="1284576163386164372">ଚାରି-ଆଙ୍ଗୁଠିରେ ଟାପ୍ କରି ମେନୁକୁ ଖୋଲି ଆପଣ ସର୍ବଦା ଟ୍ୟୁଟୋରିଆଲ୍ ଦେଖିପାରିବେ। ତାପରେ “ChromeVox” ବିଭାଗରେ ଟ୍ୟୁଟୋରିଆଲକୁ ସକ୍ରିୟ କରନ୍ତୁ।</translation>
 <translation id="1291286136605998134">ଟୋଗଲ୍ ବଟନ୍</translation>
 <translation id="1299774449519412690">ହାଲୁକା ଆକାଶିଆ ନୀଳ</translation>
 <translation id="1303806948938513162">ChromeVox ମେନୁକୁ ଯିବାକୁ 4 ଆଙ୍ଗୁଠି ସାହାଯ୍ୟରେ ଟାପ୍ କରନ୍ତୁ</translation>
+<translation id="1304162325618937178">ସ୍ପେସ କୀ ଦବାନ୍ତୁ</translation>
 <translation id="1313373992684326101">ପୂର୍ବବର୍ତ୍ତୀ ବିଭାଗକୁ ମୁଭ୍ କରନ୍ତୁ। ଉଦାହରଣରେ ସ୍ଥିତି ଟ୍ରେ ଏବଂ ଲଞ୍ଚର୍ ଅନ୍ତର୍ଭୁକ୍ତ ଅଛି।</translation>
 <translation id="1315077335264761176">ଟଚ୍ ଓରିଏଣ୍ଟେସନ୍</translation>
 <translation id="1325363694295259631"><ph name="NAME" />, ମେନୁ ଆଇଟମ୍ ରେଡିଓ ବଟନ୍ ଅଚୟନ କରାଯାଇଛି</translation>
 <translation id="1325946044405407859">ଟାନ୍</translation>
+<translation id="1328928545650070438">ଭ୍ରୂଲତାକୁ ତଳକୁ କରନ୍ତୁ</translation>
 <translation id="1331702245475014624"><ph name="TOTAL" /> ର <ph name="INDEX" /></translation>
 <translation id="1334095593597963605">ଅକ୍ଷର ଏବଂ ଶବ୍ଦ ଇକୋ</translation>
 <translation id="1334570596456017464">ସବ୍‌ସ୍କ୍ରିପ୍ଟ</translation>
@@ -70,10 +76,11 @@
 <translation id="1346059596910821859">ପରାମର୍ଶ</translation>
 <translation id="1354356357730355833">କପି କରନ୍ତୁ</translation>
 <translation id="1360699455582016846"><ph name="ROUTING_KEY_NUMBER" /> ରାଉଟିଂ କୀ' ଅଧୀନରେ ଥିବା ଆଇଟମ୍ ଉପରେ କ୍ଲିକ୍ କରନ୍ତୁ</translation>
+<translation id="1365650529628379165">ଭ୍ରୂଲତା ଉପରକୁ ଉଠାନ୍ତୁ</translation>
 <translation id="1376703628032300005">ପରବର୍ତ୍ତୀ ଅକ୍ଷରକୁ ମୁଭ କରନ୍ତୁ</translation>
 <translation id="1377925789329510816">ଏହା ହେଉଛି ଶେଷ ହେଡିଂ। ଏହି ପୃଷ୍ଠାର ପ୍ରଥମ ହେଡିଂକୁ ଯିବା ପାଇଁ Search+H କିମ୍ବା ଦ୍ଵିତୀୟ ହେଡିଂକୁ ଯିବା ପାଇଁ Search+Shift+Hକୁ ଦବାନ୍ତୁ।</translation>
 <translation id="138218114945450791">ହାଲୁକା ନୀଳ</translation>
-<translation id="1383876407941801731">Search</translation>
+<translation id="1383876407941801731">ସର୍ଚ୍ଚ</translation>
 <translation id="1396114365388024581">ଟାବ୍‍ ଲିଷ୍ଟ</translation>
 <translation id="1405567553485452995">ହାଲୁକା ସବୁଜ</translation>
 <translation id="1411043317877497323">ଅଭ୍ୟାସ କ୍ଷେତ୍ର</translation>
@@ -131,6 +138,7 @@
 <translation id="1771761307086386028">ଡାହାଣକୁ ସ୍କ୍ରୋଲ୍ କରନ୍ତୁ</translation>
 <translation id="1781173782405573156">କୀ' ଜରିଆରେ ପାସ୍ କରନ୍ତୁ</translation>
 <translation id="1787176709638001873">ପାସ୍‌ୱର୍ଡ ଟେକ୍ସଟ୍‌ ଏଡିଟ୍ କରିବା</translation>
+<translation id="1795438342141780114">କର୍ସରକୁ କେନ୍ଦ୍ରରେ ରିସେଟ କରନ୍ତୁ</translation>
 <translation id="180203835522132923">"ସର୍ଚ୍ଚ କରନ୍ତୁ" ବଟନ + O, ତାପରେ W</translation>
 <translation id="1810107444790159527">ତାଲିକା ବାକ୍ସ</translation>
 <translation id="1812527064848182527">ଲ୍ୟାଣ୍ଡସ୍କେପ୍</translation>
@@ -148,6 +156,7 @@
 <translation id="1914424852593176649">ଆକାର <ph name="FONT_SIZE" /></translation>
 <translation id="1914635379910604678"><ph name="DOT" /> ଚୋର୍ଡ୍</translation>
 <translation id="1923956950274750765">ମଧ୍ୟମ ଅର୍କିଡ୍</translation>
+<translation id="1926147969119007125">ଫେସ ନିୟନ୍ତ୍ରଣକୁ ବିରତ କରନ୍ତୁ</translation>
 <translation id="1928932365747995741">କୌଣସି ପୂର୍ବବର୍ତ୍ତୀ ସମ୍ପାଦନଯୋଗ୍ୟ ଟେକ୍ସଟ୍ ଫିଲ୍ଡ ନାହିଁ</translation>
 <translation id="1964135212174907577">ପରବର୍ତ୍ତୀ ଅବ୍‌ଜେକ୍ଟ</translation>
 <translation id="1973886230221301399">ChromeVox</translation>
@@ -169,6 +178,7 @@
 <translation id="2121067395472282800">ଆକ୍‌ସେସ୍ କୀ:<ph name="KEY" /></translation>
 <translation id="2126597928985245619">ଏହି ଆଇଟମ୍ ପାଇଁ କୌଣସି ଟେକ୍ସଟ୍ ଉପଲବ୍ଧ ନାହିଁ</translation>
 <translation id="2127747486437921899">ଇଟାଲିକ୍</translation>
+<translation id="2148212683005708350"><ph name="MODIFIER_ONE" /> + <ph name="MODIFIER_TWO" /> + <ph name="MODIFIER_THREE" /> + <ph name="KEY" /></translation>
 <translation id="2152179395627233441">ଅଭ୍ୟାସ କ୍ଷେତ୍ରକୁ ବନ୍ଦ କରନ୍ତୁ</translation>
 <translation id="2163782704988363449">ଲେଖାରେ ତ୍ରୁଟି</translation>
 <translation id="2169714232367507776">ବର୍ତ୍ତମାନର ଆଇଟମ୍ ଉପରେ କ୍ଲିକ୍ କରନ୍ତୁ</translation>
@@ -178,9 +188,11 @@
 <translation id="2197863150503783129">ସାଡାଲ୍ ବାଦାମୀ</translation>
 <translation id="2199994615414171367">ପୂର୍ବବର୍ତ୍ତୀ ଗଣିତ</translation>
 <translation id="2203046366315513658">ମୂଲ୍ୟ କମ୍ କରନ୍ତୁ</translation>
+<translation id="2206580811360135054">ୱିଣ୍ଡୋଗୁଡ଼ିକର ଓଭରଭ୍ୟୁ ଦେଖାନ୍ତୁ କିମ୍ୱା ଲୁଚାନ୍ତୁ</translation>
 <translation id="2216790501338699346">ଲିଙ୍କ୍ URL: <ph name="LINK_URL" /></translation>
 <translation id="2220205454259065436">ଗୋଟିଏ ଅକ୍ଷର ପଛକୁ ନିଅନ୍ତୁ</translation>
 <translation id="2220529011494928058">କୌଣସି ଏକ ତ୍ରୁଟିର ରିପୋର୍ଟ କରନ୍ତୁ</translation>
+<translation id="2239819015858077439">ଡାଉନ ତୀର କୀ ଦବାନ୍ତୁ</translation>
 <translation id="2243633977138166243">ନାଭିଗେଟ୍ କରିବାକୁ ବାମ କିମ୍ବା ଡାହାଣ ତୀର କୀ; ସକ୍ରିୟ କରିବା ପାଇଁ Enter କୀ ଦବାନ୍ତୁ</translation>
 <translation id="224426591676115802">ଏହି ଭାଷା ପାଇଁ କୌଣସି ଭଏସ୍ ଉପଲବ୍ଧ ନାହିଁ: <ph name="LANGUAGE" /></translation>
 <translation id="2247700577781885251">ଶିକ୍ଷଣ ମୋଡ୍ ବନ୍ଦ କରାଯାଉଛି</translation>
@@ -188,6 +200,7 @@
 <translation id="2267538686624070261">ଭୁଲ ବନାନ ଛାଡ଼ି ଦେଉଛି</translation>
 <translation id="2267945578749931355">ପରବର୍ତ୍ତୀ ବର୍ଣ୍ଣ</translation>
 <translation id="2278490101488436824">ତିନି ଆଙ୍ଗୁଠିକୁ ବାମକୁ ସ୍ବାଇପ୍ କରନ୍ତୁ</translation>
+<translation id="228059581448666199">ମାଉସରେ ବାମ-କ୍ଲିକ କରନ୍ତୁ</translation>
 <translation id="2303873575703885770">ଏକ ଆଇଟମକୁ ସକ୍ରିୟ କରନ୍ତୁ</translation>
 <translation id="2305942658236913680">କୌଣସି ପରବର୍ତ୍ତୀ ହେଡିଂ ନାହିଁ</translation>
 <translation id="2311237334957139798">ବିବରଣୀ ସ୍ତର ଅନୁସାରେ ପୂର୍ବବର୍ତ୍ତୀ ପୃଷ୍ଠାକୁ ଯାଆନ୍ତୁ</translation>
@@ -197,6 +210,7 @@
 <translation id="2347456970887948350">ଏକ ଲିଙ୍କ୍</translation>
 <translation id="2363753371702255035">ବୁଲେଟ</translation>
 <translation id="2365384324219615024">ଆଇଟମଗୁଡ଼ିକୁ ସକ୍ରିୟ କରିବା ପାଇଁ ଆପଣ Enter କୀ ମଧ୍ୟ ଦବାଇ ପାରିବେ। ଉଦାହରଣ ସ୍ୱରୂପ, ଏକ ଫର୍ମରେ ଟେକ୍ସଟ୍ ଦାଖଲ କରିବାକୁ Enter କୀ ବ୍ୟବହାର କରାଯାଇପାରିବ। ଜାରି ରଖିବାକୁ, Enter କୀ ଦବାନ୍ତୁ।</translation>
+<translation id="2371402123699727805">ଡିକ୍ଟେସନ ସକ୍ରିୟ ଅଛି। ବନ୍ଦ କରିବା ପାଇଁ <ph name="GESTURE" />। ଅନ୍ୟ ଜେଶ୍ଚରଗୁଡ଼ିକ ଅସ୍ଥାୟୀ ଭାବେ ଉପଲବ୍ଧ ନାହିଁ।</translation>
 <translation id="2381733276052567791">ସ୍ପୀଚ୍‌ ଚାଲୁ କିମ୍ବା ବନ୍ଦ କରି ଟୋଗଲ୍ କରନ୍ତୁ</translation>
 <translation id="2390264819538553347">ଆଗକୁ ବଢ଼ିବା ପାଇଁ, ଏଣ୍ଟର୍ ଦବାନ୍ତୁ; ପଛକୁ ଯିବା ପାଇଁ, ବ୍ୟାକସ୍ପେସ୍‌ ଦବାନ୍ତୁ।</translation>
 <translation id="2398579267367951220">ପୃଷ୍ଠା ସର୍ଚ୍ଚ କରିବା ପାଇଁ ଟାଇପ କରନ୍ତୁ। ଫଳାଫଳକୁ ଯିବା ପାଇଁ ଏଣ୍ଟର କୀ, ଫଳାଫଳଗୁଡ଼ିକୁ ବ୍ରାଉଜ କରିବା ପାଇଁ ଉପର କିମ୍ବା ତଳ ତୀର କୀ'ଗୁଡ଼ିକୁ ଦବାନ୍ତୁ, ଆପଣଙ୍କ ସର୍ଚ୍ଚ ପରିବର୍ତ୍ତନ କରିବାକୁ ଟାଇପିଂ ଜାରି ରଖନ୍ତୁ କିମ୍ବା ବାତିଲ କରିବାକୁ ଏସ୍କେପ କୀ ଦବାନ୍ତୁ।</translation>
@@ -220,12 +234,14 @@
 <translation id="2490721194269245365">ଗୋଲାପି ମାଟିଆ</translation>
 <translation id="249330843868392562">ଟେକ୍ସଟ୍-ରୁ-ସ୍ପୀଚ୍‍ ସେଟିଂସ୍‌ ଖୋଲନ୍ତୁ</translation>
 <translation id="2497706219848005458">ସବୁଜ ହଳଦିଆ</translation>
+<translation id="2512979179176933762">ୱିଣ୍ଡୋଗୁଡ଼ିକ ଦେଖାନ୍ତୁ</translation>
 <translation id="2523609930580546572">ChromeVox ଟ୍ୟୁଟୋରିଆଲ୍</translation>
 <translation id="2525706221823668172">Chromebook କୀବୋର୍ଡ ସର୍ଟକଟ୍‍ଗୁଡ଼ିକ</translation>
 <translation id="2553108862507765288">ବ୍ୟାକରଣ ନିୟମ ଅନୁଯାୟୀ ତ୍ରୁଟି</translation>
 <translation id="2556326187583116255">ବର୍ତ୍ତମାନର ଯେ କୌଣସି ସ୍ପିଚକୁ ବନ୍ଦ କରିବା ପାଇଁ 2ଟି ଆଙ୍ଗୁଠିରେ ଟାପ୍ କରନ୍ତୁ</translation>
 <translation id="2573256689920773241">ବେସିକ୍ ନାଭିଗେସନ୍</translation>
 <translation id="257674075312929031">ଗୋଷ୍ଠୀ</translation>
+<translation id="2577127557293415225">ଉଭୟ ଆଖିକୁ କିଛି ସମୟ ପାଇଁ ବନ୍ଦ କରନ୍ତୁ</translation>
 <translation id="2582407057977008361">ଅଲଗା</translation>
 <translation id="2592212930811759050">ଏଡିଟିଂ ଆରମ୍ଭ କରିବାକୁ ଦୁଇଥର ଟାପ୍ କରନ୍ତୁ</translation>
 <translation id="2598495320872286378">ବ୍ୟାକରଣ ତ୍ରୁଟି</translation>
@@ -258,13 +274,14 @@
 <translation id="2723001399770238859">ଅଡିଓ</translation>
 <translation id="2737898226590637227">କୌଣସି ପରବର୍ତ୍ତୀ ARIA ଲ୍ୟାଣ୍ଡମାର୍କ ନାହିଁ</translation>
 <translation id="2749275490991666823">ଯାଞ୍ଚ କରାଯାଇଛି।</translation>
+<translation id="2751454300227269244">ଆପଣଙ୍କ ପାଟିକୁ ଡାହାଣକୁ ମୁଭ କରନ୍ତୁ</translation>
 <translation id="27527859628328957">ପରବର୍ତ୍ତୀ ଫୋକସ୍‌ଯୋଗ୍ୟ ଆଇଟମ୍‍କୁ ଯାଆନ୍ତୁ</translation>
 <translation id="2756452585631602151">ଏକ କଷ୍ଟମ୍ ଲେବଲ୍ ଲେଖନ୍ତୁ</translation>
 <translation id="2766299274563946262">ବାମ ପାର୍ଶ୍ୱରେ କୌଣସି ସେଲ୍ ନାହିଁ</translation>
+<translation id="2770947749427257887">ସ୍କ୍ରୋଲ ମୋଡ ଲେଖନ୍ତୁ</translation>
 <translation id="2783001728278437613">{COUNT,plural, =1{+#}other{+#}}</translation>
 <translation id="2792200646155001340">ପୂର୍ବବର୍ତ୍ତୀ ଆଇଟମକୁ ମୁଭ୍ କରିବା ପାଇଁ ଆପଣ ଗୋଟିଏ ଆଙ୍ଗୁଠିରେ ଡାହାଣରୁ ବାମକୁ ସ୍ୱାଇପ୍ ମଧ୍ୟ କରିପାରିବେ। ବର୍ତ୍ତମାନ ଏହାକୁ ବ୍ୟବହାର କରି ଦେଖନ୍ତୁ।</translation>
 <translation id="280499067616661124">ପୃଷ୍ଠାରେ ChromeVox ଖୋଜନ୍ତୁ</translation>
-<translation id="2811019999044652585">ସ୍କ୍ରିନ୍‌ର ଅନ୍ୟଭାଗଗୁଡ଼ିକ ଯେପରିକି, ଟୁଲ୍‌ବାର୍ କିମ୍ବା ସିଷ୍ଟମ୍ ଟ୍ରେ ଆଦିକୁ ଯିବା ପାଇଁ, Control+Forward କୀ ଦବାନ୍ତୁ। ଏକ Chromebookରେ, ଫରୱାର୍ଡ କୀ, 2 ନମ୍ବର କୀ'ର ଠିକ୍ ଉପରେ ଅଛି।</translation>
 <translation id="2811204574343810641">ଧାଡ଼ି</translation>
 <translation id="2816868829355607410">ଅଭ୍ୟାସ କ୍ଷେତ୍ର: ଜମ୍ପ୍ କମାଣ୍ଡଗୁଡ଼ିକ</translation>
 <translation id="2841013758207633010">ସମୟ</translation>
@@ -272,10 +289,13 @@
 <translation id="2843432675592278677">କୌଣସି ପୂର୍ବବର୍ତ୍ତୀ ARIA ଲ୍ୟାଣ୍ଡମାର୍କ ନାହିଁ</translation>
 <translation id="2843814945404750166">ଗାଢ଼ ଅଲିଭ୍ ସବୁଜ</translation>
 <translation id="2843837985843789981">ପୂର୍ବବର୍ତ୍ତୀ ଗୋଷ୍ଠୀ</translation>
+<translation id="2849035674501872372">ଉପରକୁ ଦେଖନ୍ତୁ</translation>
+<translation id="2860710618359053450">ତଳ ପାଟି ହାଡ଼କୁ ଡାହାଣପଟକୁ କରନ୍ତୁ</translation>
 <translation id="2864481629947106776">ପୂର୍ବବର୍ତ୍ତୀ ଲିଙ୍କ୍</translation>
 <translation id="2867808975387772810">ଗ୍ରନ୍ଥସୂଚୀ</translation>
 <translation id="2873259058405069099">ଟେବଲ୍‌ର ଆରମ୍ଭକୁ ଯାଆନ୍ତୁ</translation>
 <translation id="287383510823843610">ଗାଢ଼ କମଳା</translation>
+<translation id="2876760662374103627">ଫେସ ନିୟନ୍ତ୍ରଣ ସକ୍ରିୟ ଅଛି</translation>
 <translation id="2879867157561757640">ତିନିଗୋଟି ଆଙ୍ଗୁଠିରେ ତଳକୁ ସ୍ୱାଇପ୍‌ କରନ୍ତୁ</translation>
 <translation id="288178314850623291">ନିର୍ଦ୍ଦିଷ୍ଟ ପ୍ରକାରର ଉପାଦାନଏଲିମେଣ୍ଟକୁ ବାଦଦେବା ପାଇଁ ଜମ୍ପ କମାଣ୍ଡକୁ ବ୍ୟବହାର କରନ୍ତୁ। ହେଡିଂ ମଧ୍ୟରେ ଆଗକୁ ବଢ଼ିବା ପାଇଁ Search + H କିମ୍ୱା ପଛକୁ ଯିବା ପାଇଁ Search + Shift + H ଦାବନ୍ତୁ।</translation>
 <translation id="2885764457467528513">{COUNT,plural, =1{ମିନିଟ୍}other{ମିନିଟ୍}}</translation>
@@ -308,6 +328,7 @@
 <translation id="3060880924447482063">ଆଇଟମ୍ ଅନୁସାରେ ଚଳନ ପାଇଁ ବାମ କିମ୍ୱା ଡାହାଣକୁ ସ୍ୱାଇପ୍ କରନ୍ତୁ</translation>
 <translation id="3070245424257836917">ତିନି ଆଙ୍ଗୁଠିକୁ ଉପରକୁ ସ୍ବାଇପ୍ କରନ୍ତୁ</translation>
 <translation id="307516670110542567">କ୍ୱିକ୍ ଓରିଏଣ୍ଟେସନ୍</translation>
+<translation id="3077734595579995578">Shift</translation>
 <translation id="3078345202707391975">ପରବର୍ତ୍ତୀ ସ୍ତର 2 ଶୀର୍ଷକ</translation>
 <translation id="3078740164268491126">ଟେବଲ୍</translation>
 <translation id="3082249673510793544">ପଛକୁ ସ୍କ୍ରୋଲ୍‌ କରନ୍ତୁ</translation>
@@ -335,8 +356,10 @@
 <translation id="3153928844647607688">ଟେବଲ୍ <ph name="TABLENAME" />, <ph name="TABLEROWS" /> × <ph name="TABLECOLS" /></translation>
 <translation id="3159493096109238499">ବେଜ୍</translation>
 <translation id="316542773973815724">ନାଭିଗେସନ୍</translation>
+<translation id="3167446923957429259">ଆପଣଙ୍କ ପାଟିକୁ ବାମକୁ ମୁଭ କରନ୍ତୁ</translation>
 <translation id="3172700825913348768">{COUNT,plural, =1{ସ୍ପେସ୍}other{#ଟି ସ୍ପେସ୍}}</translation>
 <translation id="3179119189286472195">ଲିଙ୍କ୍‍ ନଥିବା ଟେକ୍ସଟ୍‍</translation>
+<translation id="3180990259147710757">ତଳ ପାଟି ହାଡ଼କୁ ବାମପଟକୁ କରନ୍ତୁ</translation>
 <translation id="320041337977930740">ଡିସପ୍ଲେ ଶୈଳୀକୁ ଇଣ୍ଟରଲିଭରେ ବଦଳାନ୍ତୁ</translation>
 <translation id="3206698050650195442">ଟ୍ୟୁଟୋରିଆଲରୁ ବାହାରି ଯାଆନ୍ତୁ</translation>
 <translation id="3208346789712025453">କୌଣସି ପରବର୍ତ୍ତୀ ନିୟନ୍ତ୍ରଣ ନାହିଁ</translation>
@@ -355,7 +378,7 @@
 <translation id="3283583562490372694">ଅନ୍‌ଚେକ୍‌ କରାଯାଇନାହିଁ</translation>
 <translation id="3286372614333682499">ପୋଟ୍ରେଟ</translation>
 <translation id="3286390186030710347">ସ୍ଲାଇଡର୍</translation>
-<translation id="3300733168898541351">ପୂର୍ବବତ୍ କରନ୍ତୁ</translation>
+<translation id="3300733168898541351">ଅନଡୁ କରନ୍ତୁ</translation>
 <translation id="3307886118343381874">ଟେବଲ୍‍ର ଶେଷକୁ ଯାଆନ୍ତୁ</translation>
 <translation id="3312997241656799641">ପରେ ଦେଖାଯାଇଥିବା ଲିଙ୍କ</translation>
 <translation id="3313245066383501820">ChromeVox ସଂଶୋଧନ କୀ</translation>
@@ -364,6 +387,7 @@
 <translation id="3322936298410871309">ପୂର୍ବବର୍ତ୍ତୀ 'ସ୍ତର 1 ଶୀର୍ଷକ'</translation>
 <translation id="3323447499041942178">ଟେକ୍ସଟ୍ ବକ୍ସ</translation>
 <translation id="3324983252691184275">ଗାଢ଼ ଲାଲ୍‌ ରଙ୍ଗ</translation>
+<translation id="334252345105450327">ଏକ ସ୍କ୍ରିନସଟ୍ ନିଅନ୍ତୁ</translation>
 <translation id="335581015389089642">ସ୍ପୀଚ୍‌</translation>
 <translation id="3356951775008366684">ଶବ୍ଦ ପାଇଁ ଫୋନେଟିକ୍ ଉଚ୍ଚାରଣ ଘୋଷଣା କରନ୍ତୁ</translation>
 <translation id="3359142382821736686">ବିଭାଜନକାରୀ</translation>
@@ -372,6 +396,7 @@
 <translation id="3374537878095184207">{COUNT,plural, =1{ଯୁକ୍ତ}other{#ଟି ଯୁକ୍ତ ଚିହ୍ନ}}</translation>
 <translation id="338583716107319301">ବିଭାଜନକାରୀ</translation>
 <translation id="3389259863310851658">ପୂର୍ବବର୍ତ୍ତୀ ଫର୍ମ କ୍ଷେତ୍ର</translation>
+<translation id="3390740059150071453">ବାମପଟକୁ ଦେଖନ୍ତୁ</translation>
 <translation id="3393605254399152980">ଆପଣ ଯାହାକୁ ସ୍ପର୍ଶ କରିଥିବା ତାହାକୁ ଶୁଣିବା ପାଇଁ ଗୋଟିଏ ଆଙ୍ଗୁଳିରେ ଡ୍ରାଗ୍ କରନ୍ତୁ</translation>
 <translation id="3406283310380167331">ଫର୍ମଗୁଡ଼ିକର ତାଲିକା ଦେଖାନ୍ତୁ</translation>
 <translation id="3407726812456125464">ଚୟନିତ ଟେକ୍ସଟ ଶୁଣନ୍ତୁ</translation>
@@ -385,6 +410,7 @@
 <translation id="3466530247399808663">ଗୋଟିଏ ଅବୈଧ କୀ'କୁ ଦବାଯାଇଛି</translation>
 <translation id="3468959318854349468">କୌଣସି ଶୀର୍ଷକ ନାହିଁ</translation>
 <translation id="3469413619751135069">ହାଲୁକା ସବୁଜ</translation>
+<translation id="3473744269398144689">ଡିକ୍ଟେସନ ଆରମ୍ଭ କରନ୍ତୁ</translation>
 <translation id="3490765818161916458">ତାଲିକା ଗ୍ରିଡ୍</translation>
 <translation id="3492609944033322585">{COUNT,plural, =1{ଡାହାଣପଟ ବନ୍ଧନୀ}other{#ଟି ଡାହାଣପଟ ବନ୍ଧନୀ}}</translation>
 <translation id="3494946239022273294">mnuitm</translation>
@@ -426,6 +452,7 @@
 <translation id="3777255250339039212">h1</translation>
 <translation id="3777742246909257041">ତୁଷାର</translation>
 <translation id="3781428340399460090">ଅତ୍ୟଧିକ ଗୋଲାପି</translation>
+<translation id="3783640748446814672">alt</translation>
 <translation id="3783725005098956899">ଲଗ୍ ଦେଖାନ୍ତୁ</translation>
 <translation id="3801735343383419236">ସ୍ୱତଃସମ୍ପୂର୍ଣ୍ଣ ତାଲିକା</translation>
 <translation id="3806327402890551732">ପରବର୍ତ୍ତୀ ବା ପୂର୍ବବର୍ତ୍ତୀ ଆଇଟମକୁ ମୁଭ୍ କରନ୍ତୁ</translation>
@@ -440,6 +467,7 @@
 <translation id="3870295413168340326">କୌଣସି ପୂର୍ବବର୍ତ୍ତୀ ସ୍ତର 3 ହେଡିଂ ନାହିଁ</translation>
 <translation id="3887399638190992181">ଅତ୍ୟାବଶ୍ୟକ କୀଗୁଡ଼ିକ</translation>
 <translation id="3887576927692165210">ed</translation>
+<translation id="3896762831164962772">ଫେସ ନିୟନ୍ତ୍ରଣକୁ ବିରତ କରାଯାଇଛି। ପୁଣି ଆରମ୍ଭ କରିବା ପାଇଁ <ph name="GESTURE" />। ଅନ୍ୟ ଜେଶ୍ଚରଗୁଡ଼ିକ ଅସ୍ଥାୟୀ ଭାବେ ଉପଲବ୍ଧ ନାହିଁ।</translation>
 <translation id="3897092660631435901">ମେନୁ</translation>
 <translation id="3907138069015388678">lstgrd</translation>
 <translation id="3909320334364316587">ପୂର୍ବବର୍ତ୍ତୀ ସ୍ତର 6 ଶୀର୍ଷକ</translation>
@@ -471,6 +499,7 @@
 <translation id="409334809956508737">ପୂର୍ବବର୍ତ୍ତୀ ଅବ୍‌ଜେକ୍ଟ</translation>
 <translation id="4099274309791143834">ସବ୍‌ମେନୁ ଅଛି</translation>
 <translation id="4101527861445851766">ଠିକ୍‍ ଚିହ୍ନ ଦିଅଯାଇଥିବା ଗୋଟିଏ ଚେକ୍‍ବକ୍ସ</translation>
+<translation id="410225014223200513">ଆପଣଙ୍କ ଓଠରେ ଏକ ସର୍କଲ ତିଆରି କରନ୍ତୁ</translation>
 <translation id="4115378294792113321">ମାଜେଣ୍ଟା</translation>
 <translation id="4116415223832267137">ଆଲର୍ଟ</translation>
 <translation id="4148180433151187540">{COUNT,plural, =1{ଡାହାଣପଟ ବନ୍ଧନୀ}other{#ଟି ଡାହାଣପଟ ବନ୍ଧନୀ}}</translation>
@@ -498,6 +527,8 @@
 <translation id="4246217262268234757">ଷ୍ଟିଲ୍ ନୀଳ</translation>
 <translation id="4253168017788158739">ନୋଟ୍</translation>
 <translation id="4254798249533888099">ଗଛ</translation>
+<translation id="4255016471934258618">ଆପଣଙ୍କ ପାଟିକୁ ସମ୍ପୂର୍ଣ୍ଣ ଖୋଲନ୍ତୁ</translation>
+<translation id="4259220820964911921">ଫେସ କଣ୍ଟ୍ରୋଲ ସକ୍ଷମ କରିବେ?</translation>
 <translation id="4271220233568730077">ପରବର୍ତ୍ତୀ ଗଣିତ</translation>
 <translation id="4275397969489577657">ଇଭେଣ୍ଟ ଷ୍ଟ୍ରିମ୍ ଲଗ୍‌ଇନ୍‌ ସକ୍ଷମ କରନ୍ତୁ</translation>
 <translation id="4278486392851938658">ପୂର୍ବରୁ ଭିଜିଟ୍ କରିଥିବା କୌଣସି ଲିଙ୍କ୍ ନାହିଁ</translation>
@@ -505,9 +536,11 @@
 <translation id="4289540628985791613">ଅବଲୋକନ</translation>
 <translation id="4294967782363273192">ସାନରୁ ବଡ଼ କ୍ରମରେ ସର୍ଟ କରନ୍ତୁ</translation>
 <translation id="4300318234632215983">ଗୋଟିଏ ଲିଙ୍କ୍ ପଛରେ ଥିବା URL ଘୋଷଣା କରନ୍ତୁ</translation>
+<translation id="4321179778687042513">ctrl</translation>
 <translation id="4322625298640984693">ସିଏନା</translation>
 <translation id="4342180618051828363">{COUNT,plural, =1{ଡଟ୍}=3{ଏଲିପସିସ୍}other{#ଟି ଡଟ୍}}</translation>
 <translation id="4352022650330571548"><ph name="PHRASE" /> ଟାଇପ କରନ୍ତୁ</translation>
+<translation id="4360738659108163902">ମାଉସରେ ଡାହାଣ-କ୍ଲିକ କରନ୍ତୁ</translation>
 <translation id="4372435075475052704">ସର୍ବନିମ୍ନ:<ph name="X" /></translation>
 <translation id="4372705107434148843">ସ୍ପିଚ୍ ବନ୍ଦ କରନ୍ତୁ</translation>
 <translation id="4376316291247992553">ଗ୍ରାଫିକ୍‌କୁ ବ୍ରେଲ୍ଲୀ ରୂପେ ଦେଖନ୍ତୁ</translation>
@@ -517,9 +550,13 @@
 <translation id="4391478986194775161">cntntinfo</translation>
 <translation id="4402014469255336455">ଗାଢ଼ ଆକାଶିଆ ନୀଳ</translation>
 <translation id="4406249099130339147">ବିରାମ ଚିହ୍ନର ଇକୋ:</translation>
+<translation id="441418754432585599"><ph name="MODIFIER_ONE" /> + <ph name="MODIFIER_TWO" /> + <ph name="KEY" /></translation>
+<translation id="4423525817792153232">ଆପଣଙ୍କର ସବୁ ଦାନ୍ତ ଦେଖାନ୍ତୁ</translation>
 <translation id="4432457053224379116">ଇଣ୍ଡିଆନ୍ ରେଡ୍</translation>
 <translation id="4432896207833262240">ଚିହ୍ନଟ କରାଯାଇଥିବା ବିଷୟବସ୍ତୁ</translation>
 <translation id="4437615272777527928">ମେନୁ ସର୍ଚ୍ଚ କରିବାକୁ ଟାଇପ କରନ୍ତୁ। ଫଳାଫଳକୁ ଯିବା ପାଇଁ ଅପ ଏବଂ ଡାଉନ ତୀର କୀ'ଗୁଡ଼ିକ ବ୍ୟବହାର କରନ୍ତୁ। ଟେକ୍ସଟ କେରେଟ ଆଡଜଷ୍ଟ କରିବାକୁ ଏବଂ ମେନୁଗୁଡ଼ିକ ମଧ୍ୟରେ ମୁଭ କରିବାକୁ ବାମ ଏବଂ ଡାହାଣ ତୀର କୀ'ଗୁଡ଼ିକୁ ବ୍ୟବହାର କରନ୍ତୁ।</translation>
+<translation id="4441677939526091190">ଅପ ତୀର କୀ ଦବାନ୍ତୁ</translation>
+<translation id="4453530046591759283">ଟୁଲବାର କିମ୍ବା ସିଷ୍ଟମ ଟ୍ରେ ପରି ସ୍କ୍ରିନର ଅନ୍ୟ ଅଂଶଗୁଡ଼ିକୁ ଯିବା ପାଇଁ Control+F1 କୀ ଦବାନ୍ତୁ। F1 ହେଉଛି ଏସକେପ କୀ'ର ଡାହାଣପଟରେ ଥିବା ପ୍ରଥମ କୀ।</translation>
 <translation id="4457472090507035117">ବର୍ତ୍ତମାନର ସ୍ୱରକୁ ଚୟନ କରନ୍ତୁ:</translation>
 <translation id="4476183483923481720">ନୂଆ ରେଖା</translation>
 <translation id="4479068155583208887">ଫାୟାର୍ ବ୍ରିକ୍</translation>
@@ -536,6 +573,7 @@
 <translation id="4562381607973973258">ହେଡର୍</translation>
 <translation id="4597532268155981612">ଫର୍ମ</translation>
 <translation id="4601367666219428522">tbl <ph name="TABLENAME" /> <ph name="TABLEROWS" />x<ph name="TABLECOLS" /></translation>
+<translation id="4606933160360542263">କଷ୍ଟମ କୀ କମ୍ବିନେସନ: <ph name="KEY_COMBINATION" /></translation>
 <translation id="4615592953348396470">ପରବର୍ତ୍ତୀ କୀ ଦବାଇବା ଅଣଦେଖା କରାଯାଉଛି</translation>
 <translation id="4617384941327705512">ସ୍ମାର୍ଟ ଷ୍ଟିକି ମୋଡ ବନ୍ଦ ଅଛି</translation>
 <translation id="4623097797855662355">Colophon</translation>
@@ -559,11 +597,12 @@
 <translation id="4787577491510559358">ବର୍ତ୍ତମାନର ଆଇଟମ୍ ପାଇଁ ଫର୍ମାଟିଂ ଘୋଷଣା କରନ୍ତୁ</translation>
 <translation id="479989351350248267">ଖୋଜନ୍ତୁ</translation>
 <translation id="4802034228771424756">କୌଣସି ଫୋକସ କରାଯାଇଥିବା ଟେକ୍ସଟ ଫିଲ୍ଡ ନାହିଁ</translation>
-<translation id="4804818685124855865">ବିଚ୍ଛିନ୍ନ କରନ୍ତୁ</translation>
+<translation id="4804818685124855865">ଡିସକନେକ୍ଟ କରନ୍ତୁ</translation>
 <translation id="481165870889056555">ବର୍ତ୍ତମାନ ପୃଷ୍ଠାର ଟାଇଟେଲ୍ ଘୋଷଣା କରନ୍ତୁ</translation>
 <translation id="4815668758102003883">ଇଷତ୍ ସବୁଜ ନୀଳ</translation>
 <translation id="4826415162591436065">ଆଗକୁ ନେଭିଗେଟ୍ କରନ୍ତୁ</translation>
 <translation id="4827410568042294688">ଚୟନ କରାଯାଇନାହିଁ</translation>
+<translation id="4835598628985424375">ଓଠକୁ ଏକତ୍ର ସ୍କୁଇଜ କରି ଭିତରକୁ ଟାଣନ୍ତୁ</translation>
 <translation id="4838490795649708173">ଚାରୋଟି ଆଙ୍ଗୁଳି ମାଧ୍ୟମରେ ଟାପ୍ କରନ୍ତୁ</translation>
 <translation id="4839925464551908214">ପୂର୍ବବର୍ତ୍ତୀ ଧାଡ଼ିକୁ ଯାଆନ୍ତୁ</translation>
 <translation id="4841614409681890122">ଗାଢ଼ ଗୋଲାପି</translation>
@@ -572,6 +611,7 @@
 <translation id="4848993367330139335">tmr</translation>
 <translation id="4854380505292502090">କୌଣସି ପୂର୍ବବର୍ତ୍ତୀ ମିଡିଆ ୱିଜେଟ୍ ନାହିଁ</translation>
 <translation id="4855927945655956315">ଅତ୍ୟାବଶ୍ୟକ କୀଗୁଡ଼ିକ: Control</translation>
+<translation id="485806788160414322">ମିଡିଆ ପ୍ଲେ କରନ୍ତୁ ବା ବିରତ କରନ୍ତୁ</translation>
 <translation id="4862744964787595316">ବୋଲ୍ଡ ନୁହେଁ</translation>
 <translation id="4865995900839719272">ପୂର୍ବବର୍ତ୍ତୀ ଲାଇନକୁ ମୁଭ କରନ୍ତୁ</translation>
 <translation id="4866956062845190338">ରେଡିଓ ବଟନ୍ ମାଧ୍ୟମରେ ମେନୁ ଆଇଟମ୍</translation>
@@ -618,6 +658,7 @@
 <translation id="5138912041966667164">ମଧ୍ୟମ ସ୍ଲେଟ ନୀଳ</translation>
 <translation id="5140016802771803559">ରେବେକା ବାଇଗଣୀ</translation>
 <translation id="5142101052131610456">ସମସ୍ତ ଲେସନ୍</translation>
+<translation id="514387318601895731">ତଳକୁ ଦେଖନ୍ତୁ</translation>
 <translation id="5158275234811857234">କଭର୍</translation>
 <translation id="516076699907426116">ଜାରି ରଖିବାକୁ, ପରବର୍ତ୍ତୀ ଲେସନ୍ ବଟନ୍ ଖୋଜିବା ପାଇଁ ସ୍ପର୍ଶ ଦ୍ୱାରା ଏକ୍ସପ୍ଲୋର୍ କରନ୍ତୁ। ତା’ପରେ ଜାରି ରଖିବାକୁ ଦୁଇଥର-ଟାପ୍ କରନ୍ତୁ।</translation>
 <translation id="5170206230005240598">ବ୍ରେଲି କ୍ୟାପ୍ସନଗୁଡ଼ିକୁ ସକ୍ଷମ କରାଯାଇଛି</translation>
@@ -627,6 +668,7 @@
 <translation id="5263344797180442561">h2</translation>
 <translation id="528468243742722775">ସମାପ୍ତ କରନ୍ତୁ</translation>
 <translation id="5290220123487191192">ଚାଲନ୍ତୁ ଆପଣ ନିୟମିତ ଭାବେ ବ୍ୟବହାର କରିବାକୁ ଥିବା କିଛି ଜେଶ୍ଚର୍ ସହ ଆରମ୍ଭ କରିବା। ଯଦି ଆପଣ ସକ୍ରିୟ କରିବାକୁ ଚାହୁଁଥିବା ଏକ ଆଇଟମକୁ ଖୋଜି ପାଆନ୍ତି, ତେବେ ଗୋଟିଏ ଆଙ୍ଗୁଠିରେ ସ୍କ୍ରିନକୁ ଦୁଇଥର-ଟାପ୍ କରନ୍ତୁ। ଜାରି ରଖିବାକୁ ବର୍ତ୍ତମାନ ଦୁଇଥର-ଟାପ୍ କରନ୍ତୁ।</translation>
+<translation id="5291860916305032607">ଫେସ ନିୟନ୍ତ୍ରଣକୁ ପୁଣି ଆରମ୍ଭ କରନ୍ତୁ</translation>
 <translation id="5302089807023311274">ଗ୍ରନ୍ଥସୂଚୀର ସନ୍ଦର୍ଭ</translation>
 <translation id="530391007967514163">ତଳେ ଥିବା ଟେକ୍ସଟରେ ନାଭିଗେଟ୍ କରିବା ପାଇଁ ହେଡିଂ ମାଧ୍ୟମରେ ଜମ୍ପ୍ କରିବାକୁ ଚେଷ୍ଟା କରନ୍ତୁ।</translation>
 <translation id="5304943142864553931"><ph name="TITLE" />, ଟାବ୍</translation>
@@ -652,6 +694,7 @@
 <translation id="5400836586163650660">ଧୂସର</translation>
 <translation id="5402367795255837559">ବ୍ରେଲ୍ଲୀ</translation>
 <translation id="5402791055281059602">ଏକ ମୋଡାଲ୍ ଆଲର୍ଟ</translation>
+<translation id="5406272775687194041">ଡ୍ରାଗ ଏବଂ ଡ୍ରପ କରିବା କାର୍ଯ୍ୟକୁ ଆରମ୍ଭ କରନ୍ତୁ</translation>
 <translation id="5407530583102765689">{COUNT,plural, =1{ସେମିକୋଲନ୍}other{#ଟି ସେମିକୋଲନ୍}}</translation>
 <translation id="5420259671171615858">ମେନୁଗୁଡ଼ିକୁ ଖୋଜନ୍ତୁ</translation>
 <translation id="5435274640623994081">ଇୟରକନ୍‌ ଲଗ୍ଇନ୍‌କୁ ସକ୍ଷମ କରନ୍ତୁ</translation>
@@ -661,6 +704,7 @@
 <translation id="5452267669091857717">କୌଣସି ପରବର୍ତ୍ତୀ ସ୍ତର 1 ହେଡିଂ ନାହିଁ</translation>
 <translation id="5455441614648621694">କମ୍ପ୍ଲିମେଣ୍ଟାରୀ</translation>
 <translation id="5462510922370980473">ପୃଷ୍ଠା ତାଲିକା</translation>
+<translation id="5489460663499094917">ସ୍କ୍ରୋଲ ମୋଡ ସକ୍ରିୟ ଅଛି। ବାହାରି ଯିବା ପାଇଁ <ph name="GESTURE" />। ଅନ୍ୟ ଜେଶ୍ଚରଗୁଡ଼ିକ ଅସ୍ଥାୟୀ ଭାବେ ଉପଲବ୍ଧ ନାହିଁ।</translation>
 <translation id="5495517933067991341">ଅତ୍ୟାବଶ୍ୟକ କୀଗୁଡ଼ିକ: Shift</translation>
 <translation id="549602578321198708">ଶଦ୍ଦ</translation>
 <translation id="5513242761114685513">ପ୍ରସଙ୍ଗ ମେନୁ</translation>
@@ -693,6 +737,7 @@
 <translation id="5653397561111110475">Chromebook ସ୍ପର୍ଶ ସ୍କ୍ରିନ୍‌ର ଆକ୍ସେସିବିଲିଟୀ ବୈଶିଷ୍ଟ୍ୟଗୁଡ଼ିକ ବ୍ୟବହାର କରନ୍ତୁ</translation>
 <translation id="5655682562155942719">ନିର୍ଦ୍ଦେଶଗୁଡ଼ିକୁ ଯାଆନ୍ତୁ</translation>
 <translation id="56637627897541303">ଟେକ୍ସଟ୍ କ୍ଷେତ୍ର</translation>
+<translation id="5666746275818170484">ବାମ ତୀର କୀ ଦବାନ୍ତୁ</translation>
 <translation id="5669637233317991674">ଏହି ଲେସନକୁ ନାଭିଗେଟ କରିବା ପାଇଁ Search + ଡାହାଣ ତୀର କୀ କିମ୍ବା Search + ବାମ ତୀର କୀ ଦବାନ୍ତୁ</translation>
 <translation id="5677240841070992068">ବର୍ତ୍ତମାନର ଲୋକେସନ୍</translation>
 <translation id="5678161956734658133">mled</translation>
@@ -710,12 +755,15 @@
 <translation id="5760594853119905566">ପରିଶିଷ୍ଟ</translation>
 <translation id="5761219715606611783">ବହୁତ ବଢ଼ିଆ! ଆପଣ ChromeVox ଟଚର ବେସିକ୍ ବିଷୟଗୁଡ଼ିକ ଶିଖିଛନ୍ତି। ଆପଣ ନିମ୍ନୋକ୍ତ ବଟନଗୁଡ଼ିକୁ ବ୍ୟବହାର କରି ଟ୍ୟୁଟୋରିଆଲକୁ ପୁଣି ଦେଖିପାରିବେ କିମ୍ବା ଏହି ଟ୍ୟୁଟୋରିଆଲରୁ ବାହାରି ଯାଇପାରିବେ।</translation>
 <translation id="5776001898637896684">Google ଉନ୍ନତ ନେଟୱାର୍କ ଟେକ୍ସଟ୍-ଟୁ-ସ୍ପିଚ୍ ଏକ୍ସଟେନସନ୍</translation>
+<translation id="5783252477644995371">ଫେସ କଣ୍ଟ୍ରୋଲ ଆପଣଙ୍କୁ ଫେସକୁ ପଏଣ୍ଟ କରିବା ଏବଂ କାର୍ଯ୍ୟଗୁଡ଼ିକୁ କରିବାର କ୍ଷମତା ସହ କର୍ସର ନିୟନ୍ତ୍ରଣ ପ୍ରଦାନ କରେ, ଯେପରି ହସିବା ଭଳି ଫେସିଆଲ ଜେଶ୍ଚର ମାଧ୍ୟମରେ ବାମ କ୍ଲିକ କରିବା</translation>
 <translation id="5805940204952508776">ଦୁଇଟି ଆଙ୍ଗୁଳିରେ ଟାପ୍ କରନ୍ତୁ</translation>
+<translation id="5807774529265708172">ଅନ-ସ୍କ୍ରିନ କୀବୋର୍ଡ ଦେଖାନ୍ତୁ କିମ୍ବା ଲୁଚାନ୍ତୁ</translation>
 <translation id="5819072574982403430">ଟ୍ରୀ ଆଇଟମ୍‌</translation>
 <translation id="5822819874379903994">ଗାଢ଼ ସବୁଜ ନୀଳ</translation>
 <translation id="5824976764713185207">ପୃଷ୍ଠା ଲୋଡ୍ ହେବା ପରେ ଏହାକୁ ସ୍ୱଚାଳିତ ଭାବେ ପଢ଼ନ୍ତୁ</translation>
 <translation id="5826479389509458994">ଧାଡ଼ି <ph name="ROW" />ସ୍ତମ୍ଭ <ph name="COL" /></translation>
 <translation id="5833044594931167190">କୌଣସି ARIA ଲ୍ୟାଣ୍ଡମାର୍କ ନାହିଁ</translation>
+<translation id="584044465500042213">ସ୍କ୍ରୋଲ ମୋଡରୁ ବାହାରି ଯାଆନ୍ତୁ</translation>
 <translation id="5842625257683688671">କୌଣସି ପରବର୍ତ୍ତୀ ଗ୍ରାଫିକ୍ ନାହିଁ</translation>
 <translation id="5847883414085148048">ସମର୍ପଣ</translation>
 <translation id="5850707923114094062">ପଛକୁ ପ୍ୟାନ୍ କରନ୍ତୁ</translation>
@@ -736,6 +784,7 @@
 <translation id="5923780477617566089">ବର୍ତ୍ତମାନର ତାରିଖ</translation>
 <translation id="5926889058434275234">ଜେଶ୍ଚରର ଏକ ସମ୍ପୂର୍ଣ୍ଣ ତାଲିକା ପାଇଁ ସହାୟତା କେନ୍ଦ୍ରକୁ ଭିଜିଟ୍ କରନ୍ତୁ।</translation>
 <translation id="5937336320314038555">{COUNT,plural, =1{ସମାନ}other{#ଟି ସମାନ ଚିହ୍ନ}}</translation>
+<translation id="5947651424015173580">ମାଉସରେ ଦୁଇ ଥର-କ୍ଲିକ କରନ୍ତୁ</translation>
 <translation id="5948123859135882163">ନିର୍ମାଣାତ୍ମକ ଓ ଶବ୍ଦାର୍ଥ ମଧ୍ୟରେ ଥିବା ଗଣିତର ଭାବର ବ୍ୟାଖ୍ୟା ଟୋଗଲ୍ କରନ୍ତୁ</translation>
 <translation id="5955304353782037793">ଆପ୍</translation>
 <translation id="5956928062748260866">ଡାୟଲଗ୍‌</translation>
@@ -744,6 +793,7 @@
 <translation id="597121107011153418">{COUNT,plural, =1{#ଟି ଆଇଟମ୍ ସହ}other{#ଟି ଆଇଟମ୍ ସହ}}</translation>
 <translation id="5981446804259161541">ଫିକା ସିୟାନ୍</translation>
 <translation id="5983179082906765664">ନାଭିଗେସନ୍ ବିବରଣୀ ସ୍ତର ବଢ଼ାନ୍ତୁ</translation>
+<translation id="5988563937187882754">ଡାହାଣପଟକୁ ଦେଖନ୍ତୁ</translation>
 <translation id="5992285135956208197">ଗ୍ରାଫିକ୍ସ ଡକ୍ୟୁମେଣ୍ଟ</translation>
 <translation id="5999630716831179808">ଭଏସ୍</translation>
 <translation id="6006050241733874051">ଫର୍ମ</translation>
@@ -796,6 +846,7 @@
 <translation id="6385591741672306837">ସ୍ତମ୍ଭ</translation>
 <translation id="6387719785439924554">ଅଲଗା</translation>
 <translation id="6393014464788431702">ସମସ୍ତ ଇଭେଣ୍ଟ ଫିଲ୍ଟର୍ ଅକ୍ଷମ କରନ୍ତୁ</translation>
+<translation id="6406989068857078334">ମାଉସ ସ୍ପିଡ କମ କରାଯାଇଛି, କ୍ଲିକ କରିବାକୁ ପୁଣି <ph name="GESTURE" /></translation>
 <translation id="6411569524720229058">ଶରତ</translation>
 <translation id="6417265370957905582">Google Assistant</translation>
 <translation id="641759969622533235">{COUNT,plural, =1{କୋଲନ୍}other{#ଟି କୋଲନ୍}}</translation>
@@ -818,6 +869,7 @@
 <translation id="6584162722998608255">ତା'ପରେ, ଆପଣ ସ୍କ୍ରିନରେ ଚାରିଆଡ଼େ କିପରି ମୁଭ୍ କରିବେ ସେ ବିଷୟରେ ଜାଣିବେ। ପରବର୍ତ୍ତୀ ଆଇଟମକୁ ମୁଭ୍ କରିବା ପାଇଁ ଆପଣ ଗୋଟିଏ ଆଙ୍ଗୁଠିରେ ବାମରୁ ଡାହାଣକୁ ସ୍ୱାଇପ୍ କରିପାରିବେ। ପରବର୍ତ୍ତୀ ଷ୍ଟେପକୁ ମୁଭ୍ କରିବା ପାଇଁ ବର୍ତ୍ତମାନ ଏହାକୁ ବ୍ୟବହାର କରି ଦେଖନ୍ତୁ।</translation>
 <translation id="6609828810966525877">ଲର୍ଣ୍ଣ ମୋଡ୍ ଏବଂ Chromebook ସହାୟତା କେନ୍ଦ୍ରରେ ଅଧିକ ଜେଶ୍ଚର୍ ଏକ୍ସପ୍ଲୋର୍ କରନ୍ତୁ</translation>
 <translation id="6628427060004938651">ଭାଗ</translation>
+<translation id="6629951648264770593"><ph name="MODIFIER" /> + <ph name="KEY" /></translation>
 <translation id="6637586476836377253">ଲଗ୍‌</translation>
 <translation id="6657128831881431364">ପ୍ରୋଗ୍ରେସ୍ ବାର୍</translation>
 <translation id="667999046851023355">ଡକ୍ୟୁମେଣ୍ଟ</translation>
@@ -853,7 +905,7 @@
 <translation id="6910211073230771657">ଡିଲିଟ୍ କରାଗଲା</translation>
 <translation id="6910969481785184048">ଚାଲୁ, ବନ୍ଦ ଏବଂ ଅଟକାଇବା</translation>
 <translation id="6919104639734799681">ଟେବଲ୍‍ଗୁଡ଼ିକର ତାଲିକା ଦେଖାନ୍ତୁ</translation>
-<translation id="692135145298539227">ବିଲୋପ</translation>
+<translation id="692135145298539227">ଡିଲିଟ କରନ୍ତୁ</translation>
 <translation id="6945221475159498467">ଚୟନ କରନ୍ତୁ</translation>
 <translation id="6949846980769640811">ମଧ୍ୟମ ନୀଳ ସବୁଜ</translation>
 <translation id="6951482098621102657">କୌଣସି ପରବର୍ତ୍ତୀ ସ୍ତର 5 ହେଡିଂ ନାହିଁ</translation>
@@ -880,7 +932,9 @@
 <translation id="7091296112653361280">ନାଭାଜୋ ଧଳା</translation>
 <translation id="7095834689119144465">କେବଳ ସାଂଖ୍ୟିକ ଟେକ୍ସଟ୍‍ ଏଡ଼ିଟ୍‍ କରନ୍ତୁ</translation>
 <translation id="7096001299300236431">ପୂର୍ବବର୍ତ୍ତୀ ମିଡିଆ</translation>
+<translation id="7096668131290451939">ଜାଣନ୍ତୁ ମୋଡରୁ ବାହାରି ଯିବା ପାଇଁ ପୁଣି Escape ଦବାନ୍ତୁ</translation>
 <translation id="7116595520562830928">multln</translation>
+<translation id="7125177678433853645"><ph name="MODIFIER_ONE" /> + <ph name="MODIFIER_TWO" /> + <ph name="MODIFIER_THREE" /> + <ph name="MODIFIER_FOUR" /> + <ph name="KEY" /></translation>
 <translation id="712735679809149106">ଶବ୍ଦ ଇକୋ</translation>
 <translation id="7137397390322864165">ସାଲ୍‌ମନ୍</translation>
 <translation id="7140168702531682811">ସୁପର୍‌‌ସ୍କ୍ରିପ୍ଟ</translation>
@@ -891,6 +945,7 @@
 <translation id="7161771961008409533">ପପ୍-ଅପ୍ ବଟନ୍</translation>
 <translation id="7167657087543110">ଅକ୍ଷର ଇକୋ</translation>
 <translation id="7173102181852295013">ମିଡନାଇଟ୍ ନୀଳ</translation>
+<translation id="7194194198490288773"><ph name="ACTION" /> (<ph name="GESTURE" />)</translation>
 <translation id="7203150201908454328">ପ୍ରସାରିତ ହୋଇଛି</translation>
 <translation id="7209751026933045237">କୌଣସି ପରବର୍ତ୍ତୀ ସ୍ଲାଇଡର୍ ନାହିଁ</translation>
 <translation id="7218782500591078391">ସ୍ୱର୍ଣ୍ଣିମ ରଡ୍</translation>
@@ -911,6 +966,7 @@
 <translation id="7285387653379749618">ଟେବୁଲଗୁଡ଼ିକ</translation>
 <translation id="7289186959554153431">ଶୀର୍ଷକ 3</translation>
 <translation id="7292195267473691167"><ph name="LOCALE" /> (<ph name="VARIANT" />)</translation>
+<translation id="7297440685387139507">ଡ୍ରାଗ ଏବଂ ଡ୍ରପ କରିବା କାର୍ଯ୍ୟକୁ ଶେଷ କରନ୍ତୁ</translation>
 <translation id="7308519659008003150">କୌଣସି ପୂର୍ବବର୍ତ୍ତୀ ଫର୍ମ ଫିଲ୍ଡ ନାହିଁ</translation>
 <translation id="731121099745151312">tritm</translation>
 <translation id="7313717760367325059">ସହାୟତା</translation>
@@ -969,6 +1025,7 @@
 <translation id="7701040980221191251">କିଛି ନାହିଁ</translation>
 <translation id="7701196182766842984">autolst</translation>
 <translation id="7714340021005120797">କୌଣସି ପରବର୍ତ୍ତୀ କମ୍ବୋ ବକ୍ସ ନାହିଁ</translation>
+<translation id="7715455358521357192">ଡାହାଣ ଆଖିରେ ଟେରେଇ ଚାହାଁନ୍ତୁ</translation>
 <translation id="7724603315864178912">Cut</translation>
 <translation id="7731785449856576010">କୌଣସି ପରବର୍ତ୍ତୀ ମିଡିଆ ୱିଜେଟ୍ ନାହିଁ</translation>
 <translation id="7735498529470878067">ସ୍କ୍ରିନରେ କଣ ଅଛି ତାହା ଶୀଘ୍ର ଜାଣିବାରେ 'ସ୍ପର୍ଶ ଦ୍ୱାରା ଏକ୍ସପ୍ଲୋର୍ କରନ୍ତୁ' ସୁବିଧାଟି ଆପଣଙ୍କୁ ସାହାଯ୍ୟ କରିପାରିବ।</translation>
@@ -1023,6 +1080,7 @@
 <translation id="8098587210054821856">ସ୍ଲେଟ୍ ଧୂସର</translation>
 <translation id="8121539003537428024">ସମସ୍ତ ଇଭେଣ୍ଟ ଫିଲ୍ଟର୍ ସକ୍ଷମ କରନ୍ତୁ</translation>
 <translation id="8123975449645947908">ପଛକୁ ସ୍କ୍ରୋଲ୍ କରନ୍ତୁ</translation>
+<translation id="8126355825906412872">ହସ</translation>
 <translation id="8126386426083591964">କୌଣସି ପୂର୍ବବର୍ତ୍ତୀ ସ୍ତର 5 ହେଡିଂ ନାହିଁ</translation>
 <translation id="812886159861361726"><ph name="FILE_NAME" /> ଡାଉନ୍‌ଲୋଡ୍ ହେବା ବନ୍ଦ ହୋଇଗଲା</translation>
 <translation id="8129445297241948503">ଉପରେ କୌଣସି ସେଲ୍ ନାହିଁ</translation>
@@ -1043,8 +1101,9 @@
 <translation id="8205922869661890178">ଡେଭେଲପର୍ ଲଗ୍ ପୃଷ୍ଠା ଖୋଲନ୍ତୁ</translation>
 <translation id="8212109599554677485">ଡିସପ୍ଲେ ଶୈଳୀକୁ ପାଖାପାଖିରେ ବଦଳାନ୍ତୁ</translation>
 <translation id="8215202828671303819">ଏକାଧିକ ଚୟନ</translation>
+<translation id="822316432305106615">ପ୍ରିସିସନ କ୍ଲିକ ଆରମ୍ଭ କରନ୍ତୁ</translation>
 <translation id="8249864170673238087"><ph name="COLOR" />, <ph name="OPACITY_PERCENTAGE" />% ଅସ୍ୱଚ୍ଛତା।</translation>
-<translation id="8261506727792406068">ବିଲୋପ</translation>
+<translation id="8261506727792406068">ଡିଲିଟ</translation>
 <translation id="826825447994856889">ପରିଚୟ</translation>
 <translation id="827266600368092403">ଚୟନ ଆରମ୍ଭ କିମ୍ବା ଶେଷ କରନ୍ତୁ</translation>
 <translation id="827422111966801947">ଘନନୀଳ</translation>
@@ -1057,6 +1116,7 @@
 <translation id="8316881042119029234">ପୁରୁଣା ଲେସ୍</translation>
 <translation id="8326783648485765113">ଲନ୍ ସବୁଜ</translation>
 <translation id="8345569862449483843">{COUNT,plural, =1{ପାଉଣ୍ଡ}other{#ଟି ପାଉଣ୍ଡ ଚିହ୍ନ}}</translation>
+<translation id="8351821207686449674">କେପସନକୁ ଟୋଗଲ କରନ୍ତୁ</translation>
 <translation id="8378855320830505539">ଅଞ୍ଚଳ</translation>
 <translation id="8382679411218029383">ସ୍ୱତଃସମ୍ପୂର୍ଣ୍ଣ ଇନ୍‍ଲାଇନ୍ ଓ ତାଲିକା</translation>
 <translation id="8394908167088220973">ମିଡିଆ ଚଲାନ୍ତୁ/ବିରତ କରନ୍ତୁ</translation>
@@ -1072,7 +1132,6 @@
 <translation id="847040613207937740">କୌଣସି ପରବର୍ତ୍ତୀ ଚେକବକ୍ସ ନାହିଁ</translation>
 <translation id="8473540203671727883">ମାଉସର ତଳେ ଥିବା ଟେକ୍ସଟ କୁହନ୍ତୁ</translation>
 <translation id="8476408756881832830">ChromeVox କହୁଥିବା ସମୟରେ ପ୍ଲେବ୍ୟାକ୍‌ ବିରତ କରନ୍ତୁ</translation>
-<translation id="8476508772960940536">ୱିଣ୍ଡୋର ସଂକ୍ଷିପ୍ତ ବିବରଣୀ</translation>
 <translation id="8480873377842220259">ବର୍ତ୍ତମାନ ଆପଣ କିଛି ବେସିକ ନାଭିଗେସନ ଜାଣିବେ। ସ୍କ୍ରିନର ଚାରିପାଖରେ ମୁଭ କରିବାକୁ ଆପଣ Search କୀ'କୁ ଧରି ରଖି ତୀର କୀଗୁଡ଼ିକୁ ଦବାଇ ପାରିବେ। ଜାରି ରଖିବାକୁ, Search + Right ତୀର କୀ ଦବାନ୍ତୁ।</translation>
 <translation id="8503360654911991865">ନାଭିଗେସନ୍ ଗ୍ରାନୁଲାରିଟି ହ୍ରାସ କରନ୍ତୁ</translation>
 <translation id="8520472399088452386">ସ୍ପିନ୍ ବଟନ୍</translation>
@@ -1114,6 +1173,7 @@
 <translation id="8775203254697638994">ଏମିତି ସମୟ ଆସିବ ଯେତେବେଳେ ଆପଣଙ୍କୁ ଏକ ଡ୍ରପ-ଡାଉନ ତାଲିକାରୁ କୌଣସି ଆଇଟମ ଚୟନ କରିବାକୁ ହେବ। ତାହା କରିବାକୁ, ପ୍ରଥମେ Search + Space କୀ ଦବାଇ ତାଲିକାକୁ ବିସ୍ତାର କରନ୍ତୁ। ତା'ପରେ ଏକ ଆଇଟମ ଚୟନ କରିବା ପାଇଁ Up ଏବଂ Down ତୀର କୀଗୁଡ଼ିକୁ ବ୍ୟବହାର କରନ୍ତୁ। ପରିଶେଷରେ, Search + Space କୀ ଦବାଇ ତାଲିକାକୁ ସଙ୍କୁଚିତ କରନ୍ତୁ।</translation>
 <translation id="8779057862865475116">କୌଣସି ପୂର୍ବବର୍ତ୍ତୀ ଲିଙ୍କ୍ ନାହିଁ</translation>
 <translation id="8796411681063377102">ପରବର୍ତ୍ତୀ ସ୍ତର 3 ଶୀର୍ଷକ</translation>
+<translation id="8821891849214789910">ଡିକ୍ଟେସନ ବନ୍ଦ କରନ୍ତୁ</translation>
 <translation id="8823311177246872527"><ph name="TOTALPAGES" /> ରୁ <ph name="CURRENTPAGE" /> ପୃଷ୍ଠା</translation>
 <translation id="8825828890761629845">bnr</translation>
 <translation id="8851136666856101339">ମୁଖ୍ୟ</translation>

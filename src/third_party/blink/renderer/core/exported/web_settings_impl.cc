@@ -30,6 +30,8 @@
 
 #include "third_party/blink/renderer/core/exported/web_settings_impl.h"
 
+#include <optional>
+
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_url.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
@@ -147,11 +149,6 @@ void WebSettingsImpl::SetRequireTransientActivationForShowFileOrDirectoryPicker(
     bool required) {
   settings_->SetRequireTransientActivationForShowFileOrDirectoryPicker(
       required);
-}
-
-void WebSettingsImpl::SetRequireTransientActivationForHtmlFullscreen(
-    bool required) {
-  settings_->SetRequireTransientActivationForHtmlFullscreen(required);
 }
 
 void WebSettingsImpl::SetAutoZoomFocusedEditableToLegibleScale(
@@ -352,6 +349,10 @@ void WebSettingsImpl::SetDoubleTapToZoomEnabled(
 
 void WebSettingsImpl::SetDownloadableBinaryFontsEnabled(bool enabled) {
   settings_->SetDownloadableBinaryFontsEnabled(enabled);
+}
+
+void WebSettingsImpl::SetDynamicSafeAreaInsetsEnabled(bool enabled) {
+  settings_->SetDynamicSafeAreaInsetsEnabled(enabled);
 }
 
 void WebSettingsImpl::SetJavaScriptCanAccessClipboard(bool enabled) {
@@ -757,6 +758,11 @@ void WebSettingsImpl::SetInForcedColors(bool in_forced_colors) {
   settings_->SetInForcedColors(in_forced_colors);
 }
 
+void WebSettingsImpl::SetIsForcedColorsDisabled(
+    bool is_forced_colors_disabled) {
+  settings_->SetIsForcedColorsDisabled(is_forced_colors_disabled);
+}
+
 void WebSettingsImpl::SetPreferredRootScrollbarColorScheme(
     mojom::blink::PreferredColorScheme color_scheme) {
   settings_->SetPreferredRootScrollbarColorScheme(color_scheme);
@@ -803,6 +809,11 @@ void WebSettingsImpl::
         bool is_required) {
   settings_->SetRequireTransientActivationAndAuthorizationForSubAppsAPI(
       is_required);
+}
+
+void WebSettingsImpl::SetRootScrollbarThemeColor(
+    std::optional<SkColor> theme_color) {
+  settings_->SetRootScrollbarThemeColor(theme_color);
 }
 
 }  // namespace blink

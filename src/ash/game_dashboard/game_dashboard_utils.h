@@ -46,13 +46,14 @@ ASH_EXPORT bool ShouldEnableFeatures();
 // focused. This is determined by looking at the currently `focused_widget` and
 // whether or not the tab navigation is moving in `reverse`.
 ASH_EXPORT views::Widget* GetNextWidgetToFocus(
-    const std::vector<views::Widget*> widget_list,
+    const std::vector<views::Widget*>& widget_list,
     const views::Widget* focused_widget,
     bool reverse);
 
 // Returns flags value if `window` is an ARC game window. Otherwise, it returns
 // nullopt.
-std::optional<ArcGameControlsFlag> GetGameControlsFlag(aura::Window* window);
+std::optional<ArcGameControlsFlag> GetGameControlsFlag(
+    const aura::Window* window);
 
 // Updates Game Controls mapping hint button, such as button enabled state,
 // toggled state, label text and tooltip text. `button` refers to

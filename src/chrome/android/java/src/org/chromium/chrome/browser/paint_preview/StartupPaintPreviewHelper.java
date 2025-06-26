@@ -7,8 +7,11 @@ package org.chromium.chrome.browser.paint_preview;
 import android.content.Context;
 import android.os.SystemClock;
 
+import androidx.annotation.Nullable;
+
 import org.chromium.base.Callback;
 import org.chromium.base.ObserverList;
+import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
@@ -26,10 +29,10 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
 
 /** Glue code for the Paint Preview show-on-startup feature. */
-public class StartupPaintPreviewHelper {
+public class StartupPaintPreviewHelper implements Destroyable {
     /**
-     * Tracks whether a paint preview should be shown on tab restore. We use this to only attempt
-     * to display a paint preview on the first tab restoration that happens on Chrome startup when
+     * Tracks whether a paint preview should be shown on tab restore. We use this to only attempt to
+     * display a paint preview on the first tab restoration that happens on Chrome startup when
      * cold.
      */
     private static boolean sShouldShowOnRestore;
@@ -42,6 +45,8 @@ public class StartupPaintPreviewHelper {
     private final ObserverList<PaintPreviewMetricsObserver> mMetricsObservers =
             new ObserverList<>();
 
+    private @Nullable Destroyable mServiceObserver;
+
     /**
      * Initializes the logic required for the Paint Preview on startup feature. Mainly, observes a
      * {@link TabModelSelector} to monitor for initialization completion.
@@ -49,9 +54,8 @@ public class StartupPaintPreviewHelper {
      * @param windowAndroid The WindowAndroid that corresponds to the tabModelSelector.
      * @param activityCreationTime The time the ChromeActivity was created.
      * @param browserControlsManager The BrowserControlsManager which is used to fetch the browser
-     *         visibility delegate
+     *     visibility delegate
      * @param tabModelSelector The TabModelSelector to observe.
-     * @param willShowStartSurface Whether the start surface will be shown.
      * @param progressBarCoordinatorSupplier Supplier for the progress bar.
      */
     public StartupPaintPreviewHelper(
@@ -59,15 +63,13 @@ public class StartupPaintPreviewHelper {
             long activityCreationTime,
             BrowserControlsManager browserControlsManager,
             TabModelSelector tabModelSelector,
-            boolean willShowStartSurface,
             Supplier<LoadProgressCoordinator> progressBarCoordinatorSupplier) {
         mActivityCreationTime = activityCreationTime;
         mBrowserControlsManager = browserControlsManager;
         mProgressBarCoordinatorSupplier = progressBarCoordinatorSupplier;
 
         if (MultiWindowUtils.getInstance()
-                        .areMultipleChromeInstancesRunning(windowAndroid.getContext().get())
-                || willShowStartSurface) {
+                .areMultipleChromeInstancesRunning(windowAndroid.getContext().get())) {
             sShouldShowOnRestore = false;
         }
 
@@ -91,8 +93,10 @@ public class StartupPaintPreviewHelper {
                                                 .areMultipleChromeInstancesRunning(context);
                         // Avoid running the audit in multi-window mode as otherwise we will delete
                         // data that is possibly in use by the other Activity's TabModelSelector.
-                        PaintPreviewTabServiceFactory.getServiceInstance()
-                                .onRestoreCompleted(tabModelSelector, runAudit);
+                        assert mServiceObserver == null;
+                        mServiceObserver =
+                                PaintPreviewTabServiceFactory.getServiceInstance()
+                                        .onRestoreCompleted(tabModelSelector, runAudit);
                         tabModelSelector.removeObserver(this);
                     }
 
@@ -108,12 +112,9 @@ public class StartupPaintPreviewHelper {
                 });
     }
 
-    /**
-     * Sets whether a Paint Preview should attempt to be shown on restoration of a tab. If the
-     * feature is not enabled this is effectively a no-op.
-     */
-    public static void setShouldShowOnRestore(boolean shouldShowOnRestore) {
-        sShouldShowOnRestore = shouldShowOnRestore;
+    /** Enables Paint Preview show attempt on restoration of a tab. */
+    public static void enableShowOnRestore() {
+        sShouldShowOnRestore = true;
     }
 
     /** Attempts to display the Paint Preview representation for the given Tab. */
@@ -178,5 +179,12 @@ public class StartupPaintPreviewHelper {
      */
     public void addMetricsObserver(PaintPreviewMetricsObserver observer) {
         mMetricsObservers.addObserver(observer);
+    }
+
+    @Override
+    public void destroy() {
+        if (mServiceObserver != null) {
+            mServiceObserver.destroy();
+        }
     }
 }

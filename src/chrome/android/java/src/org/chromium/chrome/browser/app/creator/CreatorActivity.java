@@ -6,13 +6,16 @@ package org.chromium.chrome.browser.app.creator;
 
 import static org.chromium.chrome.browser.tab.Tab.INVALID_TAB_ID;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.view.MenuItem;
 
 import androidx.appcompat.widget.Toolbar;
 
 import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.Supplier;
 import org.chromium.base.supplier.UnownedUserDataSupplier;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.SnackbarActivity;
@@ -20,7 +23,6 @@ import org.chromium.chrome.browser.content.WebContentsFactory;
 import org.chromium.chrome.browser.creator.CreatorCoordinator;
 import org.chromium.chrome.browser.feed.SingleWebFeedEntryPoint;
 import org.chromium.chrome.browser.feed.webfeed.CreatorIntentConstants;
-import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
 import org.chromium.chrome.browser.init.ActivityLifecycleDispatcherImpl;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegate;
@@ -39,33 +41,34 @@ import org.chromium.ui.base.IntentRequestTracker;
 
 /** Activity for the Creator Page. */
 public class CreatorActivity extends SnackbarActivity {
-    private ActivityWindowAndroid mWindowAndroid;
+    private @Nullable ActivityWindowAndroid mWindowAndroid;
     private BottomSheetController mBottomSheetController;
     private CreatorActionDelegateImpl mCreatorActionDelegate;
     private ActivityTabProvider mActivityTabProvider;
     private ActivityLifecycleDispatcherImpl mLifecycleDispatcher;
-    private UnownedUserDataSupplier<ShareDelegate> mShareDelegateSupplier;
-    private UnownedUserDataSupplier<ShareDelegate> mTabShareDelegateSupplier;
-    private ObservableSupplierImpl<Profile> mProfileSupplier;
-    private Profile mProfile;
+    private @Nullable UnownedUserDataSupplier<ShareDelegate> mShareDelegateSupplier;
+    private @Nullable UnownedUserDataSupplier<ShareDelegate> mTabShareDelegateSupplier;
 
     private static class TabShareDelegateImpl extends ShareDelegateImpl {
         public TabShareDelegateImpl(
+                Context context,
                 BottomSheetController controller,
                 ActivityLifecycleDispatcherImpl lifecycleDispatcher,
                 ActivityTabProvider tabProvider,
                 ObservableSupplierImpl tabModelSelectorProvider,
-                ObservableSupplierImpl profileSupplier,
+                Supplier profileSupplier,
                 ShareSheetDelegate delegate,
                 boolean isCustomTab) {
             super(
+                    context,
                     controller,
                     lifecycleDispatcher,
                     tabProvider,
                     tabModelSelectorProvider,
                     profileSupplier,
                     delegate,
-                    isCustomTab);
+                    isCustomTab,
+                    /* dataSharingTabManager= */ null);
         }
 
         @Override
@@ -75,7 +78,18 @@ public class CreatorActivity extends SnackbarActivity {
     }
 
     @Override
-    public void onCreate(Bundle savedInstanceState) {
+    protected void onCreateInternal(Bundle savedInstanceState) {
+        mActivityTabProvider = new ActivityTabProvider();
+        mLifecycleDispatcher = new ActivityLifecycleDispatcherImpl(this);
+        mShareDelegateSupplier = new ShareDelegateSupplier();
+        mTabShareDelegateSupplier = new ShareDelegateSupplier();
+
+        super.onCreateInternal(savedInstanceState);
+    }
+
+    @Override
+    protected void onProfileAvailable(Profile profile) {
+        super.onProfileAvailable(profile);
         byte[] webFeedId =
                 getIntent().getByteArrayExtra(CreatorIntentConstants.CREATOR_WEB_FEED_ID);
         String url = getIntent().getStringExtra(CreatorIntentConstants.CREATOR_URL);
@@ -89,26 +103,23 @@ public class CreatorActivity extends SnackbarActivity {
         int mParentTabId =
                 getIntent().getIntExtra(CreatorIntentConstants.CREATOR_TAB_ID, INVALID_TAB_ID);
 
-        mActivityTabProvider = new ActivityTabProvider();
-        mLifecycleDispatcher = new ActivityLifecycleDispatcherImpl(this);
-        mShareDelegateSupplier = new ShareDelegateSupplier();
-        mTabShareDelegateSupplier = new ShareDelegateSupplier();
-
-        super.onCreate(savedInstanceState);
-        mProfileSupplier = new ObservableSupplierImpl<>();
-        mProfile = getProfileProvider().getOriginalProfile();
-        mProfileSupplier.set(mProfile);
-
         IntentRequestTracker intentRequestTracker = IntentRequestTracker.createFromActivity(this);
-        mWindowAndroid = new ActivityWindowAndroid(this, false, intentRequestTracker);
+        mWindowAndroid =
+                new ActivityWindowAndroid(
+                        this,
+                        false,
+                        intentRequestTracker,
+                        getInsetObserver(),
+                        /* trackOcclusion= */ true);
 
         TabShareDelegateImpl tabshareDelegate =
                 new TabShareDelegateImpl(
+                        this,
                         mBottomSheetController,
                         mLifecycleDispatcher,
                         mActivityTabProvider,
                         /* tabModelSelectProvider */ new ObservableSupplierImpl<>(),
-                        mProfileSupplier,
+                        getProfileSupplier(),
                         new ShareDelegateImpl.ShareSheetDelegate(),
                         /* isCustomTab= */ false);
         mTabShareDelegateSupplier.set(tabshareDelegate);
@@ -119,7 +130,7 @@ public class CreatorActivity extends SnackbarActivity {
                         webFeedId,
                         getSnackbarManager(),
                         mWindowAndroid,
-                        mProfile,
+                        profile,
                         url,
                         this::createWebContents,
                         this::createNewTab,
@@ -132,27 +143,26 @@ public class CreatorActivity extends SnackbarActivity {
 
         ShareDelegate shareDelegate =
                 new ShareDelegateImpl(
+                        this,
                         mBottomSheetController,
                         mLifecycleDispatcher,
                         mActivityTabProvider,
                         /* tabModelSelectProvider */ new ObservableSupplierImpl<>(),
-                        mProfileSupplier,
+                        getProfileSupplier(),
                         new ShareDelegateImpl.ShareSheetDelegate(),
-                        /* isCustomTab= */ false);
+                        /* isCustomTab= */ false,
+                        null);
         mShareDelegateSupplier.set(shareDelegate);
         mCreatorActionDelegate =
                 new CreatorActionDelegateImpl(
                         this,
-                        mProfile,
+                        profile,
                         getSnackbarManager(),
                         coordinator,
                         mParentTabId,
                         mBottomSheetController);
 
-        coordinator.queryFeedStream(
-                mCreatorActionDelegate,
-                HelpAndFeedbackLauncherImpl.getForProfile(mProfile),
-                mShareDelegateSupplier);
+        coordinator.queryFeedStream(mCreatorActionDelegate, mShareDelegateSupplier);
 
         setContentView(coordinator.getView());
         Toolbar actionBar = findViewById(R.id.action_bar);
@@ -176,15 +186,24 @@ public class CreatorActivity extends SnackbarActivity {
 
     @Override
     protected void onDestroy() {
-        mWindowAndroid.destroy();
-        mTabShareDelegateSupplier.destroy();
-        mShareDelegateSupplier.destroy();
+        if (mWindowAndroid != null) {
+            mWindowAndroid.destroy();
+            mWindowAndroid = null;
+        }
+        if (mTabShareDelegateSupplier != null) {
+            mTabShareDelegateSupplier.destroy();
+            mTabShareDelegateSupplier = null;
+        }
+        if (mShareDelegateSupplier != null) {
+            mShareDelegateSupplier.destroy();
+            mShareDelegateSupplier = null;
+        }
         super.onDestroy();
     }
 
     // This implements the CreatorWebContents interface.
     public WebContents createWebContents() {
-        return WebContentsFactory.createWebContents(mProfile, true, false);
+        return WebContentsFactory.createWebContents(getProfileSupplier().get(), true, false);
     }
 
     // This implements the CreatorOpenTab interface.
@@ -195,6 +214,6 @@ public class CreatorActivity extends SnackbarActivity {
     // This implements the SignInInterstitialInitiator interface.
     public void showSignInInterstitial() {
         mCreatorActionDelegate.showSignInInterstitial(
-                SigninAccessPoint.CREATOR_FEED_FOLLOW, mBottomSheetController, mWindowAndroid);
+                SigninAccessPoint.CREATOR_FEED_FOLLOW, mBottomSheetController);
     }
 }

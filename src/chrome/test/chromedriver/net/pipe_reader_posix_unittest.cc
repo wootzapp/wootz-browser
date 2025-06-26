@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <cmath>
 #include <string>
 
@@ -126,12 +131,12 @@ TEST_F(PipeReaderPosixTest, Read) {
   ASSERT_TRUE(thread.StartWithOptions(std::move(options)));
   const std::string sent_message = "Hello, World!";
   thread.task_runner()->PostTask(
-      FROM_HERE, base::BindOnce(
-                     [](base::File write_pipe, std::string message) {
-                       write_pipe.WriteAtCurrentPos(message.data(),
-                                                    message.size());
-                     },
-                     std::move(write_pipe), sent_message));
+      FROM_HERE,
+      base::BindOnce(
+          [](base::File write_pipe, std::string message) {
+            write_pipe.WriteAtCurrentPos(base::as_byte_span(message));
+          },
+          std::move(write_pipe), sent_message));
 
   std::pair<std::string, int> received = ReadAll(reader.get());
 
@@ -169,12 +174,12 @@ TEST_F(PipeReaderPosixTest, ReadLarge) {
   const int expected_message_size = 1 << 20;
   std::string sent_message(expected_message_size, 'a');
   thread.task_runner()->PostTask(
-      FROM_HERE, base::BindOnce(
-                     [](base::File write_pipe, std::string message) {
-                       write_pipe.WriteAtCurrentPos(message.data(),
-                                                    message.size());
-                     },
-                     std::move(write_pipe), sent_message));
+      FROM_HERE,
+      base::BindOnce(
+          [](base::File write_pipe, std::string message) {
+            write_pipe.WriteAtCurrentPos(base::as_byte_span(message));
+          },
+          std::move(write_pipe), sent_message));
 
   std::pair<std::string, int> received = ReadAll(reader.get());
 

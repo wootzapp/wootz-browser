@@ -4,12 +4,12 @@
 
 #include "chrome/browser/accessibility/embedded_a11y_extension_loader.h"
 
+#include "base/debug/dump_without_crashing.h"
 #include "base/path_service.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/component_loader.h"
-#include "chrome/browser/extensions/extension_service.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "content/public/browser/browser_accessibility_state.h"
@@ -17,7 +17,6 @@
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_file_task_runner.h"
-#include "extensions/browser/extension_system.h"
 #include "extensions/common/extension_l10n_util.h"
 #include "extensions/common/file_util.h"
 
@@ -32,8 +31,15 @@ std::optional<base::Value::Dict> LoadManifestOnFileThread(
   auto manifest =
       extensions::file_util::LoadManifest(path, manifest_filename, &error);
   if (!manifest) {
-    LOG(ERROR) << "Can't load " << path.Append(manifest_filename).AsUTF8Unsafe()
-               << ": " << error;
+    std::ostringstream errorStream;
+    errorStream << "Can't load "
+                << path.Append(manifest_filename).AsUTF8Unsafe() << ": "
+                << error;
+    LOG(ERROR) << errorStream.str();
+    static auto* const crash_key = base::debug::AllocateCrashKeyString(
+        "helper_extension_failure", base::debug::CrashKeySize::Size1024);
+    base::debug::SetCrashKeyString(crash_key, errorStream.str());
+    base::debug::DumpWithoutCrashing();
     return std::nullopt;
   }
   if (localize) {
@@ -49,24 +55,11 @@ std::optional<base::Value::Dict> LoadManifestOnFileThread(
   return manifest;
 }
 
-extensions::ComponentLoader* GetComponentLoader(Profile* profile) {
-  auto* extension_system = extensions::ExtensionSystem::Get(profile);
-  if (!extension_system) {
-    // May be missing on the Lacros login profile.
-    return nullptr;
-  }
-  auto* extension_service = extension_system->extension_service();
-  if (!extension_service) {
-    return nullptr;
-  }
-  return extension_service->component_loader();
-}
-
 }  // namespace
 
 EmbeddedA11yExtensionLoader::ExtensionInfo::ExtensionInfo(
-    const std::string extension_id,
-    const std::string extension_path,
+    const std::string& extension_id,
+    const base::FilePath& extension_path,
     const base::FilePath::CharType* extension_manifest_file,
     bool should_localize)
     : extension_id(extension_id),
@@ -112,7 +105,42 @@ void EmbeddedA11yExtensionLoader::Init() {
 
 void EmbeddedA11yExtensionLoader::InstallExtensionWithId(
     const std::string& extension_id,
-    const std::string& extension_path,
+    const std::string& extension_resource_directory,
+    const base::FilePath::CharType* manifest_name,
+    bool should_localize) {
+  if (extension_map_.contains(extension_id)) {
+    return;
+  }
+
+  base::FilePath resources_path;
+#if BUILDFLAG(IS_MAC)
+  base::FilePath root_path;
+  CHECK(base::PathService::Get(base::DIR_MODULE, &root_path));
+  resources_path = root_path.Append("resources");
+#else
+  if (!base::PathService::Get(chrome::DIR_RESOURCES, &resources_path)) {
+    NOTREACHED();
+  }
+#endif
+
+  base::FilePath::StringType common_extension_directory;
+#if BUILDFLAG(IS_WIN)
+  common_extension_directory = base::UTF8ToWide(extension_resource_directory);
+#else
+  common_extension_directory = extension_resource_directory;
+#endif
+
+  auto path = resources_path.Append(common_extension_directory);
+
+  ExtensionInfo new_extension = {extension_id, path, manifest_name,
+                                 should_localize};
+  extension_map_.insert({extension_id, new_extension});
+  UpdateAllProfiles(extension_id);
+}
+
+void EmbeddedA11yExtensionLoader::InstallExtensionWithIdAndPath(
+    const std::string& extension_id,
+    const base::FilePath& extension_path,
     const base::FilePath::CharType* manifest_name,
     bool should_localize) {
   if (extension_map_.contains(extension_id)) {
@@ -194,7 +222,7 @@ void EmbeddedA11yExtensionLoader::UpdateProfile(
 void EmbeddedA11yExtensionLoader::MaybeRemoveExtension(
     Profile* profile,
     const std::string& extension_id) {
-  auto* component_loader = GetComponentLoader(profile);
+  auto* component_loader = extensions::ComponentLoader::Get(profile);
   if (!component_loader || !component_loader->Exists(extension_id)) {
     return;
   }
@@ -207,42 +235,22 @@ void EmbeddedA11yExtensionLoader::MaybeRemoveExtension(
 void EmbeddedA11yExtensionLoader::MaybeInstallExtension(
     Profile* profile,
     const std::string& extension_id,
-    const std::string& extension_path,
+    const base::FilePath& extension_path,
     const base::FilePath::CharType* manifest_name,
     bool should_localize) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  auto* component_loader = GetComponentLoader(profile);
+  auto* component_loader = extensions::ComponentLoader::Get(profile);
   if (!component_loader || component_loader->Exists(extension_id)) {
     return;
   }
 
-  base::FilePath resources_path;
-#if BUILDFLAG(IS_MAC)
-  base::FilePath root_path;
-  CHECK(base::PathService::Get(base::DIR_ASSETS, &root_path));
-  resources_path = root_path.Append("resources");
-#else
-  if (!base::PathService::Get(chrome::DIR_RESOURCES, &resources_path)) {
-    NOTREACHED_IN_MIGRATION();
-  }
-#endif
-
-  base::FilePath::StringType common_path;
-#if BUILDFLAG(IS_WIN)
-  common_path = base::UTF8ToWide(extension_path);
-#else
-  common_path = extension_path;
-#endif
-
-  auto path = resources_path.Append(common_path);
-
   extensions::GetExtensionFileTaskRunner()->PostTaskAndReplyWithResult(
       FROM_HERE,
-      base::BindOnce(&LoadManifestOnFileThread, path, manifest_name,
+      base::BindOnce(&LoadManifestOnFileThread, extension_path, manifest_name,
                      /*localize=*/should_localize),
       base::BindOnce(&EmbeddedA11yExtensionLoader::InstallExtension,
-                     weak_ptr_factory_.GetWeakPtr(), component_loader, path,
-                     extension_id));
+                     weak_ptr_factory_.GetWeakPtr(), component_loader,
+                     extension_path, extension_id));
 }
 
 void EmbeddedA11yExtensionLoader::InstallExtension(
@@ -259,8 +267,16 @@ void EmbeddedA11yExtensionLoader::InstallExtension(
     return;
   }
 
+// TODO(b/324143642): Extension manifest file should not be null.
+// Temporarily logging the error to prevent crashes while we diagnose why it's
+// null.
+  if (!manifest) {
+    LOG(ERROR) << "Unable to load extension manifest for extension "
+               << extension_id << "; Path: " << path;
+    return;
+  }
   CHECK(manifest) << "Unable to load extension manifest for extension "
-                  << extension_id;
+                  << extension_id << "; Path: " << path;
   std::string actual_id =
       component_loader->Add(std::move(manifest.value()), path);
   CHECK_EQ(actual_id, extension_id);

@@ -12,15 +12,16 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/notreached.h"
 #include "base/rand_util.h"
 #include "base/test/task_environment.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/media/webrtc/webrtc_event_log_manager_unittest_helpers.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/zlib/google/compression_utils.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/account_id/account_id.h"
@@ -295,7 +296,7 @@ class LogFileWriterTest
  public:
   LogFileWriterTest() { EXPECT_TRUE(temp_dir_.CreateUniqueTempDir()); }
 
-  ~LogFileWriterTest() override {}
+  ~LogFileWriterTest() override = default;
 
   void Init(WebRtcEventLogCompression compression) {
     DCHECK(!compression_.has_value()) << "Must only be called once.";
@@ -330,7 +331,7 @@ class LogFileWriterTest
         break;
       }
       default: {
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
       }
     }
   }
@@ -664,7 +665,7 @@ TEST_F(GzippedLogFileWriterTest,
   EXPECT_FALSE(base::PathExists(path_));  // Errored files deleted by Close().
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 
 struct DoesProfileDefaultToLoggingEnabledForUserTypeTestCase {
   user_manager::UserType user_type;
@@ -687,7 +688,7 @@ TEST_P(DoesProfileDefaultToLoggingEnabledForUserTypeParametrizedTest,
   std::unique_ptr<TestingProfile> testing_profile = profile_builder.Build();
   auto fake_user_manager_ = std::make_unique<ash::FakeChromeUserManager>();
   // We use a standard Gaia account by default:
-  AccountId account_id = AccountId::FromUserEmailGaiaId("name", "id");
+  AccountId account_id = AccountId::FromUserEmailGaiaId("name", GaiaId("id"));
 
   switch (test_case.user_type) {
     case user_manager::UserType::kRegular:
@@ -706,9 +707,6 @@ TEST_P(DoesProfileDefaultToLoggingEnabledForUserTypeParametrizedTest,
       break;
     case user_manager::UserType::kChild:
       fake_user_manager_->AddChildUser(account_id);
-      break;
-    case user_manager::UserType::kArcKioskApp:
-      fake_user_manager_->AddArcKioskAppUser(account_id);
       break;
     default:
       FAIL() << "Invalid test setup. Unexpected user type.";
@@ -733,9 +731,8 @@ INSTANTIATE_TEST_SUITE_P(
             {user_manager::UserType::kPublicAccount, false},
             {user_manager::UserType::kKioskApp, false},
             {user_manager::UserType::kChild, false},
-            {user_manager::UserType::kArcKioskApp, false},
         }));
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace webrtc_event_logging

@@ -26,8 +26,6 @@
 #import "net/base/apple/url_conversions.h"
 #import "url/gurl.h"
 
-BROWSER_USER_DATA_KEY_IMPL(AppLauncherBrowserAgent)
-
 using app_launcher_overlays::AllowAppLaunchResponse;
 using app_launcher_overlays::AppLaunchConfirmationRequest;
 
@@ -215,7 +213,7 @@ void AppLauncherBrowserAgent::TabHelperDelegate::LaunchAppForTabHelper(
 
   // Uses a Mailto Handler to open the appropriate app.
   if (url.SchemeIs(url::kMailToScheme)) {
-    MailtoHandlerServiceFactory::GetForBrowserState(browser_->GetBrowserState())
+    MailtoHandlerServiceFactory::GetForProfile(browser_->GetProfile())
         ->HandleMailtoURL(net::NSURLWithGURL(url),
                           base::BindOnce(std::move(launch_completion), true));
     return;

@@ -15,18 +15,21 @@
 #include "base/files/file_path.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ptr_exclusion.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/gmock_move_support.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/metrics/user_action_tester.h"
 #include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/search/background/ntp_background_data.h"
+#include "chrome/browser/global_features.h"
+#include "chrome/browser/new_tab_page/modules/modules_constants.h"
+#include "chrome/browser/new_tab_page/modules/new_tab_page_modules.h"
 #include "chrome/browser/search/background/ntp_background_service_factory.h"
 #include "chrome/browser/search/background/ntp_custom_background_service.h"
 #include "chrome/browser/search/background/ntp_custom_background_service_observer.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "chrome/browser/search_engines/template_url_service_factory_test_util.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/browser.h"
@@ -38,12 +41,19 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/test_browser_window.h"
+#include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
+#include "components/application_locale_storage/application_locale_storage.h"
 #include "components/keyed_service/core/keyed_service.h"
+#include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/search/ntp_features.h"
+#include "components/search_engines/template_url_service.h"
+#include "components/themes/ntp_background_data.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_task_environment.h"
+#include "content/public/test/scoped_web_ui_controller_factory_registration.h"
 #include "content/public/test/test_web_contents_factory.h"
+#include "content/public/test/web_ui_browsertest_util.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension_builder.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -95,14 +105,12 @@ class TestSelectFileDialog : public ui::SelectFileDialog {
                       int file_type_index,
                       const base::FilePath::StringType& default_extension,
                       gfx::NativeWindow owning_window,
-                      void* params,
                       const GURL* caller) override {
     if (auto_cancel_) {
-      listener_->FileSelectionCanceled(params);
+      listener_->FileSelectionCanceled();
     } else {
       base::FilePath path(FILE_PATH_LITERAL("/test/path"));
-      listener_->FileSelected(ui::SelectedFileInfo(path), file_type_index,
-                              params);
+      listener_->FileSelected(ui::SelectedFileInfo(path), file_type_index);
     }
   }
   // Pure virtual methods that need to be implemented.
@@ -114,15 +122,6 @@ class TestSelectFileDialog : public ui::SelectFileDialog {
 
  private:
   bool auto_cancel_;
-};
-
-class TestSelectFilePolicy : public ui::SelectFilePolicy {
- public:
-  TestSelectFilePolicy& operator=(const TestSelectFilePolicy&) = delete;
-
-  // Pure virtual methods that need to be implemented.
-  bool CanOpenSelectFileDialog() override { return true; }
-  void SelectFileDenied() override {}
 };
 
 // A test SelectFileDialogFactory so that the TestSelectFileDialog is used.
@@ -137,8 +136,7 @@ class TestSelectFileDialogFactory : public ui::SelectFileDialogFactory {
   ui::SelectFileDialog* Create(
       ui::SelectFileDialog::Listener* listener,
       std::unique_ptr<ui::SelectFilePolicy> policy) override {
-    return new TestSelectFileDialog(
-        listener, std::make_unique<TestSelectFilePolicy>(), auto_cancel_);
+    return new TestSelectFileDialog(listener, nullptr, auto_cancel_);
   }
 
  private:
@@ -167,9 +165,12 @@ class MockPage : public side_panel::mojom::CustomizeChromePage {
               SetMostVisitedSettings,
               (bool custom_links_enabled, bool visible));
   MOCK_METHOD(void, SetTheme, (side_panel::mojom::ThemePtr));
+  MOCK_METHOD(void, SetThemeEditable, (bool));
   MOCK_METHOD(void,
               ScrollToSection,
               (side_panel::mojom::CustomizeChromeSection));
+  MOCK_METHOD(void, AttachedTabStateUpdated, (bool));
+  MOCK_METHOD(void, NtpManagedByNameUpdated, (const std::string&));
 
   mojo::Receiver<side_panel::mojom::CustomizeChromePage> receiver_{this};
 };
@@ -196,12 +197,17 @@ class MockNtpCustomBackgroundService : public NtpCustomBackgroundService {
 class MockNtpBackgroundService : public NtpBackgroundService {
  public:
   explicit MockNtpBackgroundService(
+      ApplicationLocaleStorage* application_locale_storage,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
-      : NtpBackgroundService(url_loader_factory) {}
+      : NtpBackgroundService(application_locale_storage, url_loader_factory) {}
   MOCK_CONST_METHOD0(collection_info, std::vector<CollectionInfo>&());
   MOCK_CONST_METHOD0(collection_images, std::vector<CollectionImage>&());
   MOCK_METHOD(void, FetchCollectionInfo, ());
   MOCK_METHOD(void, FetchCollectionImageInfo, (const std::string&));
+  MOCK_METHOD(void,
+              FetchReplacementCollectionPreviewImage,
+              (const std::string&,
+               NtpBackgroundService::FetchReplacementImageCallback));
   MOCK_METHOD(void, AddObserver, (NtpBackgroundServiceObserver*));
 };
 
@@ -223,19 +229,21 @@ class MockThemeService : public ThemeService {
 };
 
 std::unique_ptr<TestingProfile> MakeTestingProfile(
+    ApplicationLocaleStorage* application_locale_storage,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
   TestingProfile::Builder profile_builder;
   profile_builder.AddTestingFactory(
       NtpBackgroundServiceFactory::GetInstance(),
       base::BindRepeating(
-          [](scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+          [](ApplicationLocaleStorage* application_locale_storage,
+             scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
              content::BrowserContext* context)
               -> std::unique_ptr<KeyedService> {
             return std::make_unique<
                 testing::NiceMock<MockNtpBackgroundService>>(
-                url_loader_factory);
+                application_locale_storage, url_loader_factory);
           },
-          url_loader_factory));
+          application_locale_storage, url_loader_factory));
   profile_builder.AddTestingFactory(
       ThemeServiceFactory::GetInstance(),
       base::BindRepeating([](content::BrowserContext* context)
@@ -252,8 +260,12 @@ std::unique_ptr<TestingProfile> MakeTestingProfile(
 class CustomizeChromePageHandlerTest : public testing::Test {
  public:
   CustomizeChromePageHandlerTest()
-      : profile_(
-            MakeTestingProfile(test_url_loader_factory_.GetSafeWeakWrapper())),
+      : application_locale_storage_(TestingBrowserProcess::GetGlobal()
+                                        ->GetFeatures()
+                                        ->application_locale_storage()),
+        profile_(
+            MakeTestingProfile(application_locale_storage_.get(),
+                               test_url_loader_factory_.GetSafeWeakWrapper())),
         mock_ntp_custom_background_service_(profile_.get()),
         mock_ntp_background_service_(static_cast<MockNtpBackgroundService*>(
             NtpBackgroundServiceFactory::GetForProfile(profile_.get()))),
@@ -268,13 +280,16 @@ class CustomizeChromePageHandlerTest : public testing::Test {
     EXPECT_CALL(mock_ntp_custom_background_service_, AddObserver)
         .Times(1)
         .WillOnce(SaveArg<0>(&ntp_custom_background_service_observer_));
-    const std::vector<std::pair<const std::string, int>> module_id_names = {
-        {"recipe_tasks", IDS_NTP_MODULES_RECIPE_TASKS_SENTENCE},
-        {"chrome_cart", IDS_NTP_MODULES_CART_SENTENCE}};
+    const std::vector<ntp::ModuleIdDetail> module_id_details = {
+        {ntp_modules::kMostRelevantTabResumptionModuleId,
+         IDS_NTP_MODULES_MOST_RELEVANT_TAB_RESUMPTION_TITLE},
+        {ntp_modules::kMicrosoftAuthenticationModuleId,
+         IDS_NTP_MODULES_MICROSOFT_AUTHENTICATION_NAME,
+         IDS_NTP_MICROSOFT_AUTHENTICATION_SIDE_PANEL_DESCRIPTION}};
     handler_ = std::make_unique<CustomizeChromePageHandler>(
         mojo::PendingReceiver<side_panel::mojom::CustomizeChromePageHandler>(),
         mock_page_.BindAndGetRemote(), &mock_ntp_custom_background_service_,
-        web_contents_, module_id_names);
+        web_contents_, module_id_details, mock_open_url_callback_.Get());
     mock_page_.FlushForTesting();
     EXPECT_EQ(handler_.get(), ntp_background_service_observer_);
     EXPECT_EQ(handler_.get(), ntp_custom_background_service_observer_);
@@ -284,6 +299,8 @@ class CustomizeChromePageHandlerTest : public testing::Test {
     browser_params.type = Browser::TYPE_NORMAL;
     browser_params.window = browser_window_.get();
     browser_ = std::unique_ptr<Browser>(Browser::Create(browser_params));
+
+    application_locale_storage_->Set("foo");
 
     scoped_feature_list_.Reset();
     task_environment_.RunUntilIdle();
@@ -317,28 +334,25 @@ class CustomizeChromePageHandlerTest : public testing::Test {
   // NOTE: The initialization order of these members matters.
   content::BrowserTaskEnvironment task_environment_;
   network::TestURLLoaderFactory test_url_loader_factory_;
+  raw_ptr<ApplicationLocaleStorage> application_locale_storage_;
   std::unique_ptr<TestingProfile> profile_;
   testing::NiceMock<MockNtpCustomBackgroundService>
       mock_ntp_custom_background_service_;
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #addr-of
-  RAW_PTR_EXCLUSION NtpCustomBackgroundServiceObserver*
-      ntp_custom_background_service_observer_;
   raw_ptr<MockNtpBackgroundService> mock_ntp_background_service_;
   content::TestWebContentsFactory web_contents_factory_;
   raw_ptr<content::WebContents> web_contents_;
   testing::NiceMock<MockPage> mock_page_;
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #addr-of
-  RAW_PTR_EXCLUSION NtpBackgroundServiceObserver*
-      ntp_background_service_observer_;
   raw_ptr<MockThemeService> mock_theme_service_;
   base::test::ScopedFeatureList scoped_feature_list_;
   std::unique_ptr<Browser> browser_;
   std::unique_ptr<TestBrowserWindow> browser_window_;
   base::HistogramTester histogram_tester_;
   base::UserActionTester user_action_tester_;
+  base::MockRepeatingCallback<void(const GURL& gurl)> mock_open_url_callback_;
   std::unique_ptr<CustomizeChromePageHandler> handler_;
+  raw_ptr<NtpCustomBackgroundServiceObserver>
+      ntp_custom_background_service_observer_;
+  raw_ptr<NtpBackgroundServiceObserver> ntp_background_service_observer_;
 };
 
 TEST_F(CustomizeChromePageHandlerTest, SetMostVisitedSettings) {
@@ -610,6 +624,17 @@ TEST_F(CustomizeChromePageHandlerTest, GetBackgroundImages) {
             images[0]->preview_image_url);
 }
 
+TEST_F(CustomizeChromePageHandlerTest, GetReplacementCollectionPreviewImage) {
+  base::MockCallback<
+      CustomizeChromePageHandler::GetReplacementCollectionPreviewImageCallback>
+      callback;
+  EXPECT_CALL(mock_ntp_background_service(),
+              FetchReplacementCollectionPreviewImage)
+      .Times(1);
+
+  handler().GetReplacementCollectionPreviewImage("test_id", callback.Get());
+}
+
 TEST_F(CustomizeChromePageHandlerTest, SetDefaultColor) {
   EXPECT_CALL(mock_theme_service(), UseDefaultTheme).Times(1);
   EXPECT_CALL(mock_theme_service(), UseDeviceTheme(false)).Times(1);
@@ -635,7 +660,6 @@ TEST_F(CustomizeChromePageHandlerTest, ChooseLocalCustomBackgroundSuccess) {
   EXPECT_CALL(mock_ntp_custom_background_service_,
               SelectLocalBackgroundImage(An<const base::FilePath&>()))
       .Times(1);
-  EXPECT_CALL(mock_theme_service(), UseDefaultTheme).Times(1);
   ASSERT_EQ(0, user_action_tester().GetActionCount(
                    "NTPRicherPicker.Backgrounds.UploadConfirmed"));
   handler().ChooseLocalCustomBackground(callback.Get());
@@ -670,10 +694,10 @@ TEST_F(CustomizeChromePageHandlerTest, SetBackgroundImage) {
 
 TEST_F(CustomizeChromePageHandlerTest, OpenChromeWebStore) {
   histogram_tester().ExpectTotalCount("NewTabPage.ChromeWebStoreOpen", 0);
+  GURL url;
+  EXPECT_CALL(mock_open_url_callback_, Run).Times(1).WillOnce(SaveArg<0>(&url));
   handler().OpenChromeWebStore();
-  ASSERT_EQ(1, browser().tab_strip_model()->count());
-  ASSERT_EQ("https://chrome.google.com/webstore?category=theme",
-            browser().tab_strip_model()->GetWebContentsAt(0)->GetURL());
+  ASSERT_EQ(GURL("https://chrome.google.com/webstore?category=theme"), url);
   histogram_tester().ExpectTotalCount("NewTabPage.ChromeWebStoreOpen", 1);
 
   ASSERT_EQ(
@@ -684,10 +708,10 @@ TEST_F(CustomizeChromePageHandlerTest, OpenChromeWebStore) {
 
 TEST_F(CustomizeChromePageHandlerTest, OpenThirdPartyThemePage) {
   histogram_tester().ExpectTotalCount("NewTabPage.ChromeWebStoreOpen", 0);
+  GURL url;
+  EXPECT_CALL(mock_open_url_callback_, Run).Times(1).WillOnce(SaveArg<0>(&url));
   handler().OpenThirdPartyThemePage("foo");
-  ASSERT_EQ(1, browser().tab_strip_model()->count());
-  ASSERT_EQ("https://chrome.google.com/webstore/detail/foo",
-            browser().tab_strip_model()->GetWebContentsAt(0)->GetURL());
+  ASSERT_EQ(GURL("https://chrome.google.com/webstore/detail/foo"), url);
   histogram_tester().ExpectTotalCount("NewTabPage.ChromeWebStoreOpen", 1);
   ASSERT_EQ(
       histogram_tester().GetBucketCount("NewTabPage.ChromeWebStoreOpen",
@@ -697,13 +721,15 @@ TEST_F(CustomizeChromePageHandlerTest, OpenThirdPartyThemePage) {
 
 TEST_F(CustomizeChromePageHandlerTest, OpenChromeWebStoreCategoryPage) {
   histogram_tester().ExpectTotalCount("NewTabPage.ChromeWebStoreOpen", 0);
+  GURL url;
+  EXPECT_CALL(mock_open_url_callback_, Run).Times(1).WillOnce(SaveArg<0>(&url));
   handler().OpenChromeWebStoreCategoryPage(
       side_panel::mojom::ChromeWebStoreCategory::kWorkflowPlanning);
-  ASSERT_EQ(1, browser().tab_strip_model()->count());
+
   ASSERT_EQ(
-      "https://chromewebstore.google.com/category/extensions/"
-      "productivity/workflow?utm_source=chromeSidebarExtensionCards",
-      browser().tab_strip_model()->GetWebContentsAt(0)->GetURL());
+      GURL("https://chromewebstore.google.com/category/extensions/"
+           "productivity/workflow?utm_source=chromeSidebarExtensionCards"),
+      url);
   histogram_tester().ExpectTotalCount("NewTabPage.ChromeWebStoreOpen", 1);
 
   ASSERT_EQ(histogram_tester().GetBucketCount(
@@ -714,13 +740,13 @@ TEST_F(CustomizeChromePageHandlerTest, OpenChromeWebStoreCategoryPage) {
 
 TEST_F(CustomizeChromePageHandlerTest, OpenChromeWebStoreCollectionPage) {
   histogram_tester().ExpectTotalCount("NewTabPage.ChromeWebStoreOpen", 0);
+  GURL url;
+  EXPECT_CALL(mock_open_url_callback_, Run).Times(1).WillOnce(SaveArg<0>(&url));
   handler().OpenChromeWebStoreCollectionPage(
       side_panel::mojom::ChromeWebStoreCollection::kWritingEssentials);
-  ASSERT_EQ(1, browser().tab_strip_model()->count());
-  ASSERT_EQ(
-      "https://chromewebstore.google.com/collection/"
-      "writing_essentials?utm_source=chromeSidebarExtensionCards",
-      browser().tab_strip_model()->GetWebContentsAt(0)->GetURL());
+  ASSERT_EQ(GURL("https://chromewebstore.google.com/collection/"
+                 "writing_essentials?utm_source=chromeSidebarExtensionCards"),
+            url);
   histogram_tester().ExpectTotalCount("NewTabPage.ChromeWebStoreOpen", 1);
 
   ASSERT_EQ(histogram_tester().GetBucketCount(
@@ -729,14 +755,23 @@ TEST_F(CustomizeChromePageHandlerTest, OpenChromeWebStoreCollectionPage) {
             1);
 }
 
+TEST_F(CustomizeChromePageHandlerTest, OpenNtpManagedByPage) {
+  GURL url;
+  EXPECT_CALL(mock_open_url_callback_, Run).Times(1).WillOnce(SaveArg<0>(&url));
+  handler().OpenNtpManagedByPage();
+
+  EXPECT_EQ(GURL(chrome::kBrowserSettingsSearchEngineURL), url);
+}
+
 TEST_F(CustomizeChromePageHandlerTest, OpenChromeWebStoreHomePage) {
   histogram_tester().ExpectTotalCount("NewTabPage.ChromeWebStoreOpen", 0);
+  GURL url;
+  EXPECT_CALL(mock_open_url_callback_, Run).Times(1).WillOnce(SaveArg<0>(&url));
   handler().OpenChromeWebStoreHomePage();
-  ASSERT_EQ(1, browser().tab_strip_model()->count());
   ASSERT_EQ(
-      "https://"
-      "chromewebstore.google.com/?utm_source=chromeSidebarExtensionCards",
-      browser().tab_strip_model()->GetWebContentsAt(0)->GetURL());
+      GURL("https://"
+           "chromewebstore.google.com/?utm_source=chromeSidebarExtensionCards"),
+      url);
   histogram_tester().ExpectTotalCount("NewTabPage.ChromeWebStoreOpen", 1);
 
   ASSERT_EQ(histogram_tester().GetBucketCount("NewTabPage.ChromeWebStoreOpen",
@@ -774,6 +809,20 @@ TEST_F(CustomizeChromePageHandlerTest, ScrollToSection) {
   EXPECT_EQ(side_panel::mojom::CustomizeChromeSection::kAppearance, section);
 }
 
+TEST_F(CustomizeChromePageHandlerTest, AttachedTabStateUpdated) {
+  bool kIsSourceTabFirstPartyNtpValue = false;
+
+  bool isSourceTabFirstPartyNtp;
+  EXPECT_CALL(mock_page_, AttachedTabStateUpdated)
+      .Times(1)
+      .WillOnce(SaveArg<0>(&isSourceTabFirstPartyNtp));
+
+  handler().AttachedTabStateUpdated(kIsSourceTabFirstPartyNtpValue);
+  mock_page_.FlushForTesting();
+
+  EXPECT_EQ(kIsSourceTabFirstPartyNtpValue, isSourceTabFirstPartyNtp);
+}
+
 TEST_F(CustomizeChromePageHandlerTest, ScrollToUnspecifiedSection) {
   EXPECT_CALL(mock_page_, ScrollToSection).Times(0);
 
@@ -794,14 +843,56 @@ TEST_F(CustomizeChromePageHandlerTest, UpdateScrollToSection) {
   EXPECT_EQ(side_panel::mojom::CustomizeChromeSection::kAppearance, section);
 }
 
+class CustomizeChromePageHandlerWallpaperSearchTest
+    : public CustomizeChromePageHandlerTest,
+      public ::testing::WithParamInterface<bool> {
+ public:
+  CustomizeChromePageHandlerWallpaperSearchTest() {
+    std::vector<base::test::FeatureRef> kWallpaperSearchFeatures = {
+        ntp_features::kCustomizeChromeWallpaperSearch,
+        optimization_guide::features::kOptimizationGuideModelExecution};
+
+    if (WallpaperSearchEnabled()) {
+      scoped_feature_list_.InitWithFeatures(kWallpaperSearchFeatures, {});
+    } else {
+      scoped_feature_list_.InitWithFeatures({}, kWallpaperSearchFeatures);
+    }
+  }
+  bool WallpaperSearchEnabled() const { return GetParam(); }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+TEST_P(CustomizeChromePageHandlerWallpaperSearchTest,
+       ChooseLocalCustomBackground) {
+  base::MockCallback<
+      CustomizeChromePageHandler::ChooseLocalCustomBackgroundCallback>
+      callback;
+  ui::SelectFileDialog::SetFactory(
+      std::make_unique<TestSelectFileDialogFactory>(false));
+
+  if (WallpaperSearchEnabled()) {
+    EXPECT_CALL(mock_theme_service(), UseDefaultTheme).Times(0);
+  } else {
+    EXPECT_CALL(mock_theme_service(), UseDefaultTheme).Times(1);
+  }
+
+  handler().ChooseLocalCustomBackground(callback.Get());
+}
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         CustomizeChromePageHandlerWallpaperSearchTest,
+                         ::testing::Bool());
+
 class CustomizeChromePageHandlerWithModulesTest
     : public CustomizeChromePageHandlerTest {
  public:
   void SetUp() override {
     base::test::ScopedFeatureList features;
     features.InitWithFeatures(
-        /*enabled_features=*/{ntp_features::kNtpRecipeTasksModule,
-                              ntp_features::kNtpChromeCartModule},
+        /*enabled_features=*/{ntp_features::
+                                  kNtpMostRelevantTabResumptionModule},
         /*disabled_features=*/{});
     CustomizeChromePageHandlerTest::SetUp();
   }
@@ -810,55 +901,261 @@ class CustomizeChromePageHandlerWithModulesTest
 TEST_F(CustomizeChromePageHandlerWithModulesTest, SetModulesSettings) {
   std::vector<side_panel::mojom::ModuleSettingsPtr> modules_settings;
   bool managed;
-  bool visible;
   EXPECT_CALL(mock_page_, SetModulesSettings)
-      .Times(2)
+      .Times(1)
       .WillRepeatedly(
-          Invoke([&modules_settings, &managed, &visible](
+          Invoke([&modules_settings, &managed](
                      std::vector<side_panel::mojom::ModuleSettingsPtr>
                          modules_settings_arg,
                      bool managed_arg, bool visible_arg) {
             modules_settings = std::move(modules_settings_arg);
             managed = managed_arg;
+          }));
+
+  profile().GetPrefs()->SetBoolean(prefs::kNtpModulesVisible, true);
+  mock_page_.FlushForTesting();
+
+  EXPECT_FALSE(managed);
+  EXPECT_EQ(2u, modules_settings.size());
+  const auto& tab_resumption_settings = modules_settings[0];
+  EXPECT_EQ(ntp_modules::kMostRelevantTabResumptionModuleId,
+            tab_resumption_settings->id);
+  EXPECT_EQ(l10n_util::GetStringUTF8(
+                IDS_NTP_MODULES_MOST_RELEVANT_TAB_RESUMPTION_TITLE),
+            tab_resumption_settings->name);
+  EXPECT_EQ(std::nullopt, tab_resumption_settings->description);
+  EXPECT_TRUE(tab_resumption_settings->enabled);
+  const auto& microsoft_auth_settings = modules_settings[1];
+  EXPECT_EQ(ntp_modules::kMicrosoftAuthenticationModuleId,
+            microsoft_auth_settings->id);
+  EXPECT_EQ(
+      l10n_util::GetStringUTF8(IDS_NTP_MODULES_MICROSOFT_AUTHENTICATION_NAME),
+      microsoft_auth_settings->name);
+  EXPECT_EQ(l10n_util::GetStringUTF8(
+                IDS_NTP_MICROSOFT_AUTHENTICATION_SIDE_PANEL_DESCRIPTION),
+            microsoft_auth_settings->description);
+  EXPECT_TRUE(microsoft_auth_settings->enabled);
+}
+
+TEST_F(CustomizeChromePageHandlerWithModulesTest, SetModulesVisible_True) {
+  std::vector<side_panel::mojom::ModuleSettingsPtr> modules_settings;
+  bool visible;
+  EXPECT_CALL(mock_page_, SetModulesSettings)
+      .Times(1)
+      .WillRepeatedly(
+          Invoke([&modules_settings, &visible](
+                     std::vector<side_panel::mojom::ModuleSettingsPtr>
+                         modules_settings_arg,
+                     bool managed_arg, bool visible_arg) {
+            modules_settings = std::move(modules_settings_arg);
             visible = visible_arg;
           }));
 
-  constexpr char kChromeCartId[] = "chrome_cart";
-  profile().GetPrefs()->SetBoolean(prefs::kNtpModulesVisible, true);
-  auto disabled_module_ids = base::Value::List();
-  disabled_module_ids.Append(kChromeCartId);
-  profile().GetPrefs()->SetList(prefs::kNtpDisabledModules,
-                                std::move(disabled_module_ids));
+  handler().SetModulesVisible(true);
   mock_page_.FlushForTesting();
 
   EXPECT_TRUE(visible);
-  EXPECT_FALSE(managed);
-  EXPECT_EQ(2u, modules_settings.size());
-  EXPECT_EQ("recipe_tasks", modules_settings[0]->id);
-  EXPECT_TRUE(modules_settings[0]->enabled);
-  EXPECT_EQ(kChromeCartId, modules_settings[1]->id);
-  EXPECT_FALSE(modules_settings[1]->enabled);
 }
 
-TEST_F(CustomizeChromePageHandlerWithModulesTest, SetModulesVisible) {
-  profile().GetPrefs()->SetBoolean(prefs::kNtpModulesVisible, false);
-  handler().SetModulesVisible(true);
+TEST_F(CustomizeChromePageHandlerWithModulesTest, SetModulesVisible_False) {
+  std::vector<side_panel::mojom::ModuleSettingsPtr> modules_settings;
+  bool visible;
+  EXPECT_CALL(mock_page_, SetModulesSettings)
+      .Times(1)
+      .WillRepeatedly(
+          Invoke([&modules_settings, &visible](
+                     std::vector<side_panel::mojom::ModuleSettingsPtr>
+                         modules_settings_arg,
+                     bool managed_arg, bool visible_arg) {
+            modules_settings = std::move(modules_settings_arg);
+            visible = visible_arg;
+          }));
 
-  EXPECT_CALL(mock_page_, SetModulesSettings).Times(2);
+  handler().SetModulesVisible(false);
   mock_page_.FlushForTesting();
 
-  EXPECT_TRUE(profile().GetPrefs()->GetBoolean(prefs::kNtpModulesVisible));
+  EXPECT_FALSE(visible);
 }
 
 TEST_F(CustomizeChromePageHandlerWithModulesTest, SetModuleDisabled) {
-  const std::string kDriveModuleId = "drive";
-  handler().SetModuleDisabled(kDriveModuleId, true);
-  const auto& disabled_module_ids =
-      profile().GetPrefs()->GetList(prefs::kNtpDisabledModules);
+  std::vector<side_panel::mojom::ModuleSettingsPtr> modules_settings;
+  EXPECT_CALL(mock_page_, SetModulesSettings)
+      .Times(1)
+      .WillRepeatedly(Invoke(
+          [&modules_settings](std::vector<side_panel::mojom::ModuleSettingsPtr>
+                                  modules_settings_arg,
+                              bool managed_arg, bool visible_arg) {
+            modules_settings = std::move(modules_settings_arg);
+          }));
 
-  EXPECT_CALL(mock_page_, SetModulesSettings).Times(1);
+  const std::string kTabResumptionId(
+      ntp_modules::kMostRelevantTabResumptionModuleId);
+  handler().SetModuleDisabled(kTabResumptionId, true);
   mock_page_.FlushForTesting();
 
-  EXPECT_EQ(1u, disabled_module_ids.size());
-  EXPECT_EQ(kDriveModuleId, disabled_module_ids.front().GetString());
+  EXPECT_EQ(2u, modules_settings.size());
+  const auto& tab_resumption_settings = modules_settings[0];
+  EXPECT_EQ(kTabResumptionId, tab_resumption_settings->id);
+  EXPECT_FALSE(tab_resumption_settings->enabled);
+  const auto& disabled_module_ids =
+      profile().GetPrefs()->GetList(prefs::kNtpDisabledModules);
+  EXPECT_EQ(kTabResumptionId, disabled_module_ids.front().GetString());
+  const auto& microsoft_auth_settings = modules_settings[1];
+  EXPECT_EQ(ntp_modules::kMicrosoftAuthenticationModuleId,
+            microsoft_auth_settings->id);
+  EXPECT_TRUE(microsoft_auth_settings->enabled);
+}
+
+TEST_F(CustomizeChromePageHandlerWithModulesTest,
+       SetModuleHiddenInCustomizeChrome) {
+  std::vector<side_panel::mojom::ModuleSettingsPtr> modules_settings;
+  EXPECT_CALL(mock_page_, SetModulesSettings)
+      .Times(1)
+      .WillRepeatedly(Invoke(
+          [&modules_settings](std::vector<side_panel::mojom::ModuleSettingsPtr>
+                                  modules_settings_arg,
+                              bool managed_arg, bool visible_arg) {
+            modules_settings = std::move(modules_settings_arg);
+          }));
+
+  base::Value::List hidden_modules_list;
+  hidden_modules_list.Append(ntp_modules::kMostRelevantTabResumptionModuleId);
+
+  profile().GetPrefs()->SetList(prefs::kNtpHiddenModules,
+                                std::move(hidden_modules_list));
+  mock_page_.FlushForTesting();
+
+  EXPECT_EQ(2u, modules_settings.size());
+  const auto& tab_resumption_settings = modules_settings[0];
+  EXPECT_FALSE(tab_resumption_settings->visible);
+  const auto& microsoft_auth_settings = modules_settings[1];
+  EXPECT_TRUE(microsoft_auth_settings->visible);
+}
+
+class CustomizeChromePageHandlerWithModulesVisibilityTest
+    : public CustomizeChromePageHandlerWithModulesTest,
+      public ::testing::WithParamInterface<bool> {
+ public:
+  bool ModulesVisible() const { return GetParam(); }
+};
+
+TEST_P(CustomizeChromePageHandlerWithModulesVisibilityTest, SetModulesVisible) {
+  std::vector<side_panel::mojom::ModuleSettingsPtr> modules_settings;
+  bool visible;
+  EXPECT_CALL(mock_page_, SetModulesSettings)
+      .Times(1)
+      .WillRepeatedly(
+          Invoke([&modules_settings, &visible](
+                     std::vector<side_panel::mojom::ModuleSettingsPtr>
+                         modules_settings_arg,
+                     bool managed_arg, bool visible_arg) {
+            modules_settings = std::move(modules_settings_arg);
+            visible = visible_arg;
+          }));
+
+  handler().SetModulesVisible(ModulesVisible());
+  mock_page_.FlushForTesting();
+
+  EXPECT_EQ(ModulesVisible(), visible);
+}
+
+INSTANTIATE_TEST_SUITE_P(All,
+                         CustomizeChromePageHandlerWithModulesVisibilityTest,
+                         ::testing::Bool());
+
+class CustomizeChromePageHandlerWithTemplateURLServiceTest
+    : public CustomizeChromePageHandlerTest {
+ public:
+  CustomizeChromePageHandlerWithTemplateURLServiceTest()
+      : factory_util_(profile_.get()) {}
+  ~CustomizeChromePageHandlerWithTemplateURLServiceTest() override = default;
+
+  void SetUp() override {
+    CustomizeChromePageHandlerTest::SetUp();
+    factory_util_.VerifyLoad();
+    AddSearchProviders();
+  }
+
+  static constexpr char16_t kFirstPartyShortName[] = u"first party";
+  static constexpr char16_t kThirdPartyShortName[] = u"third party";
+  static constexpr char kFirstPartyDomain[] = "{google:baseURL}";
+  static constexpr char kFirstPartySuggestDomain[] = "{google:baseSuggestURL}";
+  static constexpr char kThirdPartyDomain[] = "www.third_party.com";
+
+  void AddSearchProviders() {
+    {  // third party
+      TemplateURLData data;
+      data.SetURL(std::string(kThirdPartyDomain) + "/search?q={searchTerms}");
+      data.suggestions_url =
+          std::string(kThirdPartyDomain) + "/search?q={searchTerms}";
+      data.image_url = std::string(kThirdPartyDomain) + "/searchbyimage/upload";
+      data.image_translate_url =
+          std::string(kThirdPartyDomain) + "/searchbyimage/upload?translate";
+      data.new_tab_url = std::string(kThirdPartyDomain) + "/_/chrome/newtab";
+      data.contextual_search_url =
+          std::string(kThirdPartyDomain) + "/_/contextualsearch";
+      data.alternate_urls.push_back(std::string(kThirdPartyDomain) +
+                                    "/s#q={searchTerms}");
+      data.SetShortName(kThirdPartyShortName);
+      third_party_url_ =
+          factory_util_.model()->Add(std::make_unique<TemplateURL>(data));
+    }
+
+    {  // first party
+      TemplateURLData data;
+      data.SetURL(std::string(kFirstPartyDomain) + "search?q={searchTerms}");
+      data.suggestions_url =
+          std::string(kFirstPartySuggestDomain) + "search?q={searchTerms}";
+      data.image_url = std::string(kFirstPartyDomain) + "searchbyimage/upload";
+      data.image_translate_url =
+          std::string(kFirstPartyDomain) + "searchbyimage/upload?translate";
+      data.new_tab_url = std::string(kFirstPartyDomain) + "_/chrome/newtab";
+      data.contextual_search_url =
+          std::string(kFirstPartyDomain) + "_/contextualsearch";
+      data.alternate_urls.push_back(std::string(kFirstPartyDomain) +
+                                    "s#q={searchTerms}");
+      data.SetShortName(kFirstPartyShortName);
+      first_party_url_ =
+          factory_util_.model()->Add(std::make_unique<TemplateURL>(data));
+    }
+  }
+
+  void SetFirstPartyDefault() {
+    factory_util_.model()->SetUserSelectedDefaultSearchProvider(
+        first_party_url_);
+  }
+
+  void SetThirdPartyDefault() {
+    factory_util_.model()->SetUserSelectedDefaultSearchProvider(
+        third_party_url_);
+  }
+
+ private:
+  TemplateURLServiceFactoryTestUtil factory_util_;
+  raw_ptr<TemplateURL> first_party_url_ = nullptr;
+  raw_ptr<TemplateURL> third_party_url_ = nullptr;
+};
+
+TEST_F(CustomizeChromePageHandlerWithTemplateURLServiceTest,
+       NtpManagedByNameUpdated) {
+  mock_page_.FlushForTesting();
+  testing::Mock::VerifyAndClearExpectations(&mock_page_);
+
+  std::string name;
+  EXPECT_CALL(mock_page_, NtpManagedByNameUpdated)
+      .Times(1)
+      .WillOnce(SaveArg<0>(&name));
+  SetFirstPartyDefault();
+  mock_page_.FlushForTesting();
+  EXPECT_EQ(std::string(), name);
+
+  mock_page_.FlushForTesting();
+  testing::Mock::VerifyAndClearExpectations(&mock_page_);
+
+  EXPECT_CALL(mock_page_, NtpManagedByNameUpdated)
+      .Times(1)
+      .WillOnce(SaveArg<0>(&name));
+  SetThirdPartyDefault();
+  mock_page_.FlushForTesting();
+  EXPECT_EQ(std::string(base::UTF16ToUTF8(kThirdPartyShortName)), name);
 }

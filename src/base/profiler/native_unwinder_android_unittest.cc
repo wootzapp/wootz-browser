@@ -9,11 +9,11 @@
 
 #include "base/profiler/native_unwinder_android.h"
 
-#include <sys/mman.h>
-
 #include <inttypes.h>
 #include <stdio.h>  // For printf address.
 #include <string.h>
+#include <sys/mman.h>
+
 #include <algorithm>
 #include <iterator>
 #include <vector>
@@ -25,6 +25,7 @@
 #include "base/profiler/native_unwinder_android_map_delegate.h"
 #include "base/profiler/native_unwinder_android_memory_regions_map_impl.h"
 #include "base/profiler/register_context.h"
+#include "base/profiler/register_context_registers.h"
 #include "base/profiler/stack_buffer.h"
 #include "base/profiler/stack_copier_signal.h"
 #include "base/profiler/stack_sampler.h"
@@ -102,8 +103,10 @@ class TestStackCopierDelegate : public StackCopier::Delegate {
 std::vector<Frame> CaptureScenario(
     UnwindScenario* scenario,
     ModuleCache* module_cache,
-    OnceCallback<void(RegisterContext*, uintptr_t, std::vector<Frame>*)>
-        unwind_callback) {
+    OnceCallback<void(UnwinderStateCapture*,
+                      RegisterContext*,
+                      uintptr_t,
+                      std::vector<Frame>*)> unwind_callback) {
   std::vector<Frame> sample;
   WithTargetThread(
       scenario,
@@ -131,20 +134,15 @@ std::vector<Frame> CaptureScenario(
                 module_cache->GetModuleForAddress(
                     RegisterContextInstructionPointer(&thread_context)));
 
-            std::move(unwind_callback).Run(&thread_context, stack_top, &sample);
+            std::move(unwind_callback)
+                .Run(nullptr, &thread_context, stack_top, &sample);
           }));
 
   return sample;
 }
 
-// TODO(crbug.com/40156557): After fix, re-enable on all ASAN bots.
-#if defined(ADDRESS_SANITIZER)
-#define MAYBE_PlainFunction DISABLED_PlainFunction
-#else
-#define MAYBE_PlainFunction PlainFunction
-#endif
 // Checks that the expected information is present in sampled frames.
-TEST(NativeUnwinderAndroidTest, MAYBE_PlainFunction) {
+TEST(NativeUnwinderAndroidTest, PlainFunction) {
   const auto sdk_version = base::android::BuildInfo::GetInstance()->sdk_int();
   if (sdk_version < base::android::SDK_VERSION_NOUGAT) {
     GTEST_SKIP();
@@ -155,24 +153,25 @@ TEST(NativeUnwinderAndroidTest, MAYBE_PlainFunction) {
       CreateMemoryRegionsMap());
 
   ModuleCache module_cache;
-  auto unwinder = std::make_unique<NativeUnwinderAndroid>(
-      0, &map_delegate, /*is_java_name_hashing_enabled=*/false);
+  auto unwinder = std::make_unique<NativeUnwinderAndroid>(0, &map_delegate);
 
   unwinder->Initialize(&module_cache);
-  std::vector<Frame> sample =
-      CaptureScenario(&scenario, &module_cache,
-                      BindLambdaForTesting([&](RegisterContext* thread_context,
-                                               uintptr_t stack_top,
-                                               std::vector<Frame>* sample) {
-                        ASSERT_TRUE(unwinder->CanUnwindFrom(sample->back()));
-                        UnwindResult result = unwinder->TryUnwind(
-                            thread_context, stack_top, sample);
-                        EXPECT_EQ(UnwindResult::kCompleted, result);
-                      }));
+  std::vector<Frame> sample = CaptureScenario(
+      &scenario, &module_cache,
+      BindLambdaForTesting([&](UnwinderStateCapture* capture_state,
+                               RegisterContext* thread_context,
+                               uintptr_t stack_top,
+                               std::vector<Frame>* sample) {
+        ASSERT_TRUE(unwinder->CanUnwindFrom(sample->back()));
+        UnwindResult result = unwinder->TryUnwind(capture_state, thread_context,
+                                                  stack_top, sample);
+        EXPECT_EQ(UnwindResult::kCompleted, result);
+      }));
 
   // Check that all the modules are valid.
-  for (const auto& frame : sample)
+  for (const auto& frame : sample) {
     EXPECT_NE(nullptr, frame.module);
+  }
 
   // The stack should contain a full unwind.
   ExpectStackContains(sample, {scenario.GetWaitForSampleAddressRange(),
@@ -180,15 +179,9 @@ TEST(NativeUnwinderAndroidTest, MAYBE_PlainFunction) {
                                scenario.GetOuterFunctionAddressRange()});
 }
 
-// TODO(crbug.com/40156557): After fix, re-enable on all ASAN bots.
-#if defined(ADDRESS_SANITIZER)
-#define MAYBE_Alloca DISABLED_Alloca
-#else
-#define MAYBE_Alloca Alloca
-#endif
 // Checks that the unwinder handles stacks containing dynamically-allocated
 // stack memory.
-TEST(NativeUnwinderAndroidTest, MAYBE_Alloca) {
+TEST(NativeUnwinderAndroidTest, Alloca) {
   const auto sdk_version = base::android::BuildInfo::GetInstance()->sdk_int();
   if (sdk_version < base::android::SDK_VERSION_NOUGAT) {
     GTEST_SKIP();
@@ -200,24 +193,25 @@ TEST(NativeUnwinderAndroidTest, MAYBE_Alloca) {
       CreateMemoryRegionsMap());
 
   ModuleCache module_cache;
-  auto unwinder = std::make_unique<NativeUnwinderAndroid>(
-      0, &map_delegate, /*is_java_name_hashing_enabled=*/false);
+  auto unwinder = std::make_unique<NativeUnwinderAndroid>(0, &map_delegate);
 
   unwinder->Initialize(&module_cache);
-  std::vector<Frame> sample =
-      CaptureScenario(&scenario, &module_cache,
-                      BindLambdaForTesting([&](RegisterContext* thread_context,
-                                               uintptr_t stack_top,
-                                               std::vector<Frame>* sample) {
-                        ASSERT_TRUE(unwinder->CanUnwindFrom(sample->back()));
-                        UnwindResult result = unwinder->TryUnwind(
-                            thread_context, stack_top, sample);
-                        EXPECT_EQ(UnwindResult::kCompleted, result);
-                      }));
+  std::vector<Frame> sample = CaptureScenario(
+      &scenario, &module_cache,
+      BindLambdaForTesting([&](UnwinderStateCapture* capture_state,
+                               RegisterContext* thread_context,
+                               uintptr_t stack_top,
+                               std::vector<Frame>* sample) {
+        ASSERT_TRUE(unwinder->CanUnwindFrom(sample->back()));
+        UnwindResult result = unwinder->TryUnwind(capture_state, thread_context,
+                                                  stack_top, sample);
+        EXPECT_EQ(UnwindResult::kCompleted, result);
+      }));
 
   // Check that all the modules are valid.
-  for (const auto& frame : sample)
+  for (const auto& frame : sample) {
     EXPECT_NE(nullptr, frame.module);
+  }
 
   // The stack should contain a full unwind.
   ExpectStackContains(sample, {scenario.GetWaitForSampleAddressRange(),
@@ -225,15 +219,9 @@ TEST(NativeUnwinderAndroidTest, MAYBE_Alloca) {
                                scenario.GetOuterFunctionAddressRange()});
 }
 
-// TODO(crbug.com/40156557): After fix, re-enable on all ASAN bots.
-#if defined(ADDRESS_SANITIZER)
-#define MAYBE_OtherLibrary DISABLED_OtherLibrary
-#else
-#define MAYBE_OtherLibrary OtherLibrary
-#endif
 // Checks that a stack that runs through another library produces a stack with
 // the expected functions.
-TEST(NativeUnwinderAndroidTest, MAYBE_OtherLibrary) {
+TEST(NativeUnwinderAndroidTest, OtherLibrary) {
   const auto sdk_version = base::android::BuildInfo::GetInstance()->sdk_int();
   if (sdk_version < base::android::SDK_VERSION_NOUGAT) {
     GTEST_SKIP();
@@ -246,20 +234,20 @@ TEST(NativeUnwinderAndroidTest, MAYBE_OtherLibrary) {
   NativeUnwinderAndroidMapDelegateForTesting map_delegate(
       CreateMemoryRegionsMap());
   ModuleCache module_cache;
-  auto unwinder = std::make_unique<NativeUnwinderAndroid>(
-      0, &map_delegate, /*is_java_name_hashing_enabled=*/false);
+  auto unwinder = std::make_unique<NativeUnwinderAndroid>(0, &map_delegate);
 
   unwinder->Initialize(&module_cache);
-  std::vector<Frame> sample =
-      CaptureScenario(&scenario, &module_cache,
-                      BindLambdaForTesting([&](RegisterContext* thread_context,
-                                               uintptr_t stack_top,
-                                               std::vector<Frame>* sample) {
-                        ASSERT_TRUE(unwinder->CanUnwindFrom(sample->back()));
-                        UnwindResult result = unwinder->TryUnwind(
-                            thread_context, stack_top, sample);
-                        EXPECT_EQ(UnwindResult::kCompleted, result);
-                      }));
+  std::vector<Frame> sample = CaptureScenario(
+      &scenario, &module_cache,
+      BindLambdaForTesting([&](UnwinderStateCapture* capture_state,
+                               RegisterContext* thread_context,
+                               uintptr_t stack_top,
+                               std::vector<Frame>* sample) {
+        ASSERT_TRUE(unwinder->CanUnwindFrom(sample->back()));
+        UnwindResult result = unwinder->TryUnwind(capture_state, thread_context,
+                                                  stack_top, sample);
+        EXPECT_EQ(UnwindResult::kCompleted, result);
+      }));
 
   // The stack should contain a full unwind.
   ExpectStackContains(sample, {scenario.GetWaitForSampleAddressRange(),
@@ -283,21 +271,21 @@ TEST(NativeUnwinderAndroidTest, ExcludeOtherLibrary) {
           .get();
   ASSERT_NE(nullptr, other_library_map);
   auto unwinder = std::make_unique<NativeUnwinderAndroid>(
-      other_library_map->start(), &map_delegate,
-      /*is_java_name_hashing_enabled=*/false);
+      other_library_map->start(), &map_delegate);
   unwinder->Initialize(&module_cache);
 
-  std::vector<Frame> sample =
-      CaptureScenario(&scenario, &module_cache,
-                      BindLambdaForTesting([&](RegisterContext* thread_context,
-                                               uintptr_t stack_top,
-                                               std::vector<Frame>* sample) {
-                        ASSERT_TRUE(unwinder->CanUnwindFrom(sample->back()));
-                        EXPECT_EQ(UnwindResult::kUnrecognizedFrame,
-                                  unwinder->TryUnwind(thread_context, stack_top,
-                                                      sample));
-                        EXPECT_FALSE(unwinder->CanUnwindFrom(sample->back()));
-                      }));
+  std::vector<Frame> sample = CaptureScenario(
+      &scenario, &module_cache,
+      BindLambdaForTesting([&](UnwinderStateCapture* capture_state,
+                               RegisterContext* thread_context,
+                               uintptr_t stack_top,
+                               std::vector<Frame>* sample) {
+        ASSERT_TRUE(unwinder->CanUnwindFrom(sample->back()));
+        EXPECT_EQ(UnwindResult::kUnrecognizedFrame,
+                  unwinder->TryUnwind(capture_state, thread_context, stack_top,
+                                      sample));
+        EXPECT_FALSE(unwinder->CanUnwindFrom(sample->back()));
+      }));
 
   ExpectStackContains(sample, {scenario.GetWaitForSampleAddressRange()});
   ExpectStackDoesNotContain(sample, {scenario.GetSetupFunctionAddressRange(),
@@ -305,13 +293,7 @@ TEST(NativeUnwinderAndroidTest, ExcludeOtherLibrary) {
 }
 
 // Check that unwinding can be resumed after an incomplete unwind.
-#if defined(ADDRESS_SANITIZER)
-// TODO(crbug.com/40156557): Fix, re-enable.
-#define MAYBE_ResumeUnwinding DISABLED_ResumeUnwinding
-#else
-#define MAYBE_ResumeUnwinding ResumeUnwinding
-#endif
-TEST(NativeUnwinderAndroidTest, MAYBE_ResumeUnwinding) {
+TEST(NativeUnwinderAndroidTest, ResumeUnwinding) {
   NativeLibrary other_library = LoadOtherLibrary();
   UnwindScenario scenario(
       BindRepeating(&CallThroughOtherLibrary, Unretained(other_library)));
@@ -326,14 +308,13 @@ TEST(NativeUnwinderAndroidTest, MAYBE_ResumeUnwinding) {
   // NativeUnwinderAndroid work with other unwinders, but doesn't reproduce what
   // happens in production.
   ModuleCache module_cache_for_all;
-  auto unwinder_for_all = std::make_unique<NativeUnwinderAndroid>(
-      0, &map_delegate, /*is_java_name_hashing_enabled=*/false);
+  auto unwinder_for_all =
+      std::make_unique<NativeUnwinderAndroid>(0, &map_delegate);
   unwinder_for_all->Initialize(&module_cache_for_all);
 
   ModuleCache module_cache_for_native;
   auto unwinder_for_native = std::make_unique<NativeUnwinderAndroid>(
-      reinterpret_cast<uintptr_t>(&__executable_start), &map_delegate,
-      /*is_java_name_hashing_enabled=*/false);
+      reinterpret_cast<uintptr_t>(&__executable_start), &map_delegate);
   unwinder_for_native->Initialize(&module_cache_for_native);
 
   ModuleCache module_cache_for_chrome;
@@ -344,21 +325,21 @@ TEST(NativeUnwinderAndroidTest, MAYBE_ResumeUnwinding) {
           .get();
   ASSERT_NE(nullptr, other_library_map);
   auto unwinder_for_chrome = std::make_unique<NativeUnwinderAndroid>(
-      other_library_map->start(), &map_delegate,
-      /*is_java_name_hashing_enabled=*/false);
+      other_library_map->start(), &map_delegate);
   unwinder_for_chrome->Initialize(&module_cache_for_chrome);
 
   std::vector<Frame> sample = CaptureScenario(
       &scenario, &module_cache_for_native,
-      BindLambdaForTesting([&](RegisterContext* thread_context,
+      BindLambdaForTesting([&](UnwinderStateCapture* capture_state,
+                               RegisterContext* thread_context,
                                uintptr_t stack_top,
                                std::vector<Frame>* sample) {
         // |unwinder_for_native| unwinds through native frames, but stops at
         // chrome frames. It might not contain SampleAddressRange.
         ASSERT_TRUE(unwinder_for_native->CanUnwindFrom(sample->back()));
-        EXPECT_EQ(
-            UnwindResult::kUnrecognizedFrame,
-            unwinder_for_native->TryUnwind(thread_context, stack_top, sample));
+        EXPECT_EQ(UnwindResult::kUnrecognizedFrame,
+                  unwinder_for_native->TryUnwind(capture_state, thread_context,
+                                                 stack_top, sample));
         EXPECT_FALSE(unwinder_for_native->CanUnwindFrom(sample->back()));
 
         ExpectStackDoesNotContain(*sample,
@@ -369,9 +350,9 @@ TEST(NativeUnwinderAndroidTest, MAYBE_ResumeUnwinding) {
         // |unwinder_for_chrome| unwinds through Chrome frames, but stops at
         // |other_library|. It won't contain SetupFunctionAddressRange.
         ASSERT_TRUE(unwinder_for_chrome->CanUnwindFrom(sample->back()));
-        EXPECT_EQ(
-            UnwindResult::kUnrecognizedFrame,
-            unwinder_for_chrome->TryUnwind(thread_context, stack_top, sample));
+        EXPECT_EQ(UnwindResult::kUnrecognizedFrame,
+                  unwinder_for_chrome->TryUnwind(capture_state, thread_context,
+                                                 stack_top, sample));
         EXPECT_FALSE(unwinder_for_chrome->CanUnwindFrom(sample->back()));
         EXPECT_LT(prior_stack_size, sample->size());
         ExpectStackContains(*sample, {scenario.GetWaitForSampleAddressRange()});
@@ -381,9 +362,9 @@ TEST(NativeUnwinderAndroidTest, MAYBE_ResumeUnwinding) {
 
         // |unwinder_for_all| should complete unwinding through all frames.
         ASSERT_TRUE(unwinder_for_all->CanUnwindFrom(sample->back()));
-        EXPECT_EQ(
-            UnwindResult::kCompleted,
-            unwinder_for_all->TryUnwind(thread_context, stack_top, sample));
+        EXPECT_EQ(UnwindResult::kCompleted,
+                  unwinder_for_all->TryUnwind(capture_state, thread_context,
+                                              stack_top, sample));
       }));
 
   // The stack should contain a full unwind.
@@ -393,7 +374,8 @@ TEST(NativeUnwinderAndroidTest, MAYBE_ResumeUnwinding) {
 }
 
 // Checks that java frames can be unwound through.
-TEST(NativeUnwinderAndroidTest, JavaFunction) {
+// TODO(crbug.com/362210993): Re-enable test.
+TEST(NativeUnwinderAndroidTest, DISABLED_JavaFunction) {
   auto* build_info = base::android::BuildInfo::GetInstance();
   const auto sdk_version = build_info->sdk_int();
 
@@ -409,24 +391,25 @@ TEST(NativeUnwinderAndroidTest, JavaFunction) {
       CreateMemoryRegionsMap());
 
   ModuleCache module_cache;
-  auto unwinder = std::make_unique<NativeUnwinderAndroid>(
-      0, &map_delegate, /*is_java_name_hashing_enabled=*/false);
+  auto unwinder = std::make_unique<NativeUnwinderAndroid>(0, &map_delegate);
 
   unwinder->Initialize(&module_cache);
-  std::vector<Frame> sample =
-      CaptureScenario(&scenario, &module_cache,
-                      BindLambdaForTesting([&](RegisterContext* thread_context,
-                                               uintptr_t stack_top,
-                                               std::vector<Frame>* sample) {
-                        ASSERT_TRUE(unwinder->CanUnwindFrom(sample->back()));
-                        UnwindResult result = unwinder->TryUnwind(
-                            thread_context, stack_top, sample);
-                        EXPECT_EQ(UnwindResult::kCompleted, result);
-                      }));
+  std::vector<Frame> sample = CaptureScenario(
+      &scenario, &module_cache,
+      BindLambdaForTesting([&](UnwinderStateCapture* capture_state,
+                               RegisterContext* thread_context,
+                               uintptr_t stack_top,
+                               std::vector<Frame>* sample) {
+        ASSERT_TRUE(unwinder->CanUnwindFrom(sample->back()));
+        UnwindResult result = unwinder->TryUnwind(capture_state, thread_context,
+                                                  stack_top, sample);
+        EXPECT_EQ(UnwindResult::kCompleted, result);
+      }));
 
   // Check that all the modules are valid.
-  for (const auto& frame : sample)
+  for (const auto& frame : sample) {
     EXPECT_NE(nullptr, frame.module);
+  }
 
   // The stack should contain a full unwind.
   ExpectStackContains(sample, {scenario.GetWaitForSampleAddressRange(),
@@ -476,8 +459,7 @@ TEST(NativeUnwinderAndroidTest, ModuleDebugBasenameForNonElf) {
   memory_regions_map->SetMapsForTesting(std::move(maps));
   NativeUnwinderAndroidMapDelegateForTesting map_delegate(
       std::move(memory_regions_map));
-  auto unwinder = std::make_unique<NativeUnwinderAndroid>(
-      0, &map_delegate, /*is_java_name_hashing_enabled=*/false);
+  auto unwinder = std::make_unique<NativeUnwinderAndroid>(0, &map_delegate);
   unwinder->Initialize(&module_cache);
 
   const ModuleCache::Module* module = module_cache.GetModuleForAddress(0x1000u);
@@ -499,8 +481,7 @@ TEST(NativeUnwinderAndroidTest, ModulesCreatedOnlyForExecutableRegions) {
   NativeUnwinderAndroidMapDelegateForTesting map_delegate(
       std::move(memory_regions_map));
   ModuleCache module_cache;
-  auto unwinder = std::make_unique<NativeUnwinderAndroid>(
-      0, &map_delegate, /*is_java_name_hashing_enabled=*/false);
+  auto unwinder = std::make_unique<NativeUnwinderAndroid>(0, &map_delegate);
   unwinder->Initialize(&module_cache);
 
   const ModuleCache::Module* module1 =
@@ -524,8 +505,7 @@ TEST(NativeUnwinderAndroidTest,
 
   {
     ModuleCache module_cache;
-    auto unwinder = std::make_unique<NativeUnwinderAndroid>(
-        0, &map_delegate, /*is_java_name_hashing_enabled=*/false);
+    auto unwinder = std::make_unique<NativeUnwinderAndroid>(0, &map_delegate);
     unwinder->Initialize(&module_cache);
     EXPECT_EQ(1u, map_delegate.acquire_count());
     EXPECT_EQ(0u, map_delegate.release_count());

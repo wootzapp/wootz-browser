@@ -16,8 +16,19 @@
 // safe.
 class FakeSafeBrowsingService : public SafeBrowsingService {
  public:
-  // URLs with this host are treated as unsafe.
+  // URLs with this host are treated as unsafe by all fake checkers.
   static const std::string kUnsafeHost;
+
+  // URLs with this host are treated as unsafe only by async fake checkers.
+  static const std::string kAsyncUnsafeHost;
+
+  // URLs with this host are treated as blocked by an Enterprise organization by
+  // all fake checkers.
+  static const std::string kEnterpriseBlockHost;
+
+  // URLs with this host are treated as requiring an Enterprise warning by all
+  // fake checkers.
+  static const std::string kEnterpriseWarnHost;
 
   FakeSafeBrowsingService();
 
@@ -25,10 +36,11 @@ class FakeSafeBrowsingService : public SafeBrowsingService {
   FakeSafeBrowsingService& operator=(const FakeSafeBrowsingService&) = delete;
 
   // SafeBrowsingService:
-  void Initialize(PrefService* prefs,
-                  const base::FilePath& user_data_path,
-                  safe_browsing::SafeBrowsingMetricsCollector*
-                      safe_browsing_metrics_collector) override;
+  void Initialize(const base::FilePath& user_data_path) override;
+  void OnBrowserStateCreated(
+      PrefService* prefs,
+      safe_browsing::SafeBrowsingMetricsCollector* metrics_collector) override;
+  void OnBrowserStateDestroyed(PrefService* prefs) override;
   void ShutDown() override;
   std::unique_ptr<safe_browsing::SafeBrowsingUrlCheckerImpl> CreateUrlChecker(
       network::mojom::RequestDestination request_destination,

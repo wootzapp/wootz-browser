@@ -7,7 +7,6 @@
 #include <memory>
 
 #import "base/memory/raw_ptr.h"
-#import "base/test/ios/wait_util.h"
 #include "base/values.h"
 #import "components/translate/ios/browser/translate_java_script_feature.h"
 #include "ios/web/public/test/fakes/fake_browser_state.h"
@@ -19,9 +18,6 @@
 #include "testing/platform_test.h"
 #include "url/gurl.h"
 
-using base::test::ios::kWaitForActionTimeout;
-using base::test::ios::WaitUntilConditionOrTimeout;
-
 namespace translate {
 
 class TranslateControllerTest : public PlatformTest,
@@ -31,8 +27,7 @@ class TranslateControllerTest : public PlatformTest,
       : fake_web_state_(std::make_unique<web::FakeWebState>()),
         fake_browser_state_(std::make_unique<web::FakeBrowserState>()),
         fake_main_frame_(web::FakeWebFrame::Create(/*frame_id=*/"",
-                                                   /*is_main_frame=*/true,
-                                                   GURL())),
+                                                   /*is_main_frame=*/true)),
         error_type_(TranslateErrors::NONE),
         ready_time_(0),
         load_time_(0),

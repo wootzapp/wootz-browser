@@ -73,7 +73,9 @@
           "builder": "mac11-arm64-rel",
           "group": "tryserver.chromium.mac"
         }
-      ]
+      ],
+      "retry_failed_shards": true,
+      "targets_spec_directory": "src/infra/config/generated/builders/ci/mac11-arm64-rel-tests/targets"
     }
   },
   "$recipe_engine/resultdb/test_presentation": {
@@ -84,6 +86,9 @@
     ]
   },
   "builder_group": "chromium.mac",
+  "gardener_rotations": [
+    "chromium"
+  ],
   "recipe": "chromium",
   "sheriff_rotations": [
     "chromium"

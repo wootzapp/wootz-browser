@@ -15,6 +15,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "base/types/fixed_array.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/events/event.h"
 #include "ui/events/event_utils.h"
@@ -90,8 +91,6 @@ HardwareProperties GestureHardwareProperties(
   hwprops.bottom = props->area_bottom;
   hwprops.res_x = props->res_x;
   hwprops.res_y = props->res_y;
-  hwprops.screen_x_dpi = 133;
-  hwprops.screen_y_dpi = 133;
   hwprops.orientation_minimum = props->orientation_minimum;
   hwprops.orientation_maximum = props->orientation_maximum;
   hwprops.max_finger_cnt = Event_Get_Slot_Count(evdev);
@@ -259,13 +258,13 @@ void GestureInterpreterLibevdevCros::OnLibEvdevCrosEvent(Evdev* evdev,
   hwstate.rel_hwheel = evstate->rel_hwheel;
 
   if (received_mouse_input_) {
-    received_mouse_input_.Run(evstate->rel_x);
-    received_mouse_input_.Run(evstate->rel_y);
+    received_mouse_input_.Run(evstate->rel_x, timestamp);
+    received_mouse_input_.Run(evstate->rel_y, timestamp);
   }
 
   // Touch.
-  FingerState fingers[Event_Get_Slot_Count(evdev)];
-  memset(&fingers, 0, sizeof(fingers));
+  base::FixedArray<FingerState> fingers(Event_Get_Slot_Count(evdev));
+  memset(fingers.data(), 0, fingers.memsize());
   int current_finger = 0;
   for (int i = 0; i < evstate->slot_count; i++) {
     MtSlotPtr slot = &evstate->slots[i];
@@ -284,7 +283,7 @@ void GestureInterpreterLibevdevCros::OnLibEvdevCrosEvent(Evdev* evdev,
   }
   hwstate.touch_cnt = Event_Get_Touch_Count(evdev);
   hwstate.finger_cnt = current_finger;
-  hwstate.fingers = fingers;
+  hwstate.fingers = fingers.data();
 
   // Buttons.
   if (Event_Get_Button_Left(evdev))
@@ -416,7 +415,7 @@ void GestureInterpreterLibevdevCros::OnGestureScroll(
         StimeToTimeTicks(gesture->end_time)));
   } else {
     dispatcher_->DispatchScrollEvent(ScrollEventParams(
-        id_, ET_SCROLL, cursor_->GetLocation(),
+        id_, EventType::kScroll, cursor_->GetLocation(),
         gfx::Vector2dF(scroll->dx, scroll->dy),
         gfx::Vector2dF(scroll->ordinal_dx, scroll->ordinal_dy),
         kGestureScrollFingerCount, StimeToTimeTicks(gesture->end_time)));
@@ -474,9 +473,9 @@ void GestureInterpreterLibevdevCros::OnGestureFling(const Gesture* gesture,
   if (!cursor_)
     return;  // No cursor!
 
-  EventType type =
-      (fling->fling_state == GESTURES_FLING_START ? ET_SCROLL_FLING_START
-                                                  : ET_SCROLL_FLING_CANCEL);
+  EventType type = (fling->fling_state == GESTURES_FLING_START
+                        ? EventType::kScrollFlingStart
+                        : EventType::kScrollFlingCancel);
 
   // Fling is like 2-finger scrolling but with velocity instead of displacement.
   dispatcher_->DispatchScrollEvent(ScrollEventParams(
@@ -498,7 +497,7 @@ void GestureInterpreterLibevdevCros::OnGestureSwipe(const Gesture* gesture,
 
   // Swipe is 3-finger scrolling.
   dispatcher_->DispatchScrollEvent(ScrollEventParams(
-      id_, ET_SCROLL, cursor_->GetLocation(),
+      id_, EventType::kScroll, cursor_->GetLocation(),
       gfx::Vector2dF(swipe->dx, swipe->dy),
       gfx::Vector2dF(swipe->ordinal_dx, swipe->ordinal_dy),
       kGestureSwipeFingerCount, StimeToTimeTicks(gesture->end_time)));
@@ -516,7 +515,7 @@ void GestureInterpreterLibevdevCros::OnGestureSwipeLift(
   // TODO(spang): Figure out why and put it in this comment.
 
   dispatcher_->DispatchScrollEvent(ScrollEventParams(
-      id_, ET_SCROLL_FLING_START, cursor_->GetLocation(),
+      id_, EventType::kScrollFlingStart, cursor_->GetLocation(),
       gfx::Vector2dF() /* delta */, gfx::Vector2dF() /* ordinal_delta */,
       kGestureScrollFingerCount, StimeToTimeTicks(gesture->end_time)));
 }
@@ -532,7 +531,7 @@ void GestureInterpreterLibevdevCros::OnGestureFourFingerSwipe(
     return;  // No cursor!
 
   dispatcher_->DispatchScrollEvent(ScrollEventParams(
-      id_, ET_SCROLL, cursor_->GetLocation(),
+      id_, EventType::kScroll, cursor_->GetLocation(),
       gfx::Vector2dF(swipe->dx, swipe->dy),
       gfx::Vector2dF(swipe->ordinal_dx, swipe->ordinal_dy),
       /*finger_count=*/4, StimeToTimeTicks(gesture->end_time)));
@@ -550,7 +549,7 @@ void GestureInterpreterLibevdevCros::OnGestureFourFingerSwipeLift(
   // TODO(spang): Figure out why and put it in this comment.
 
   dispatcher_->DispatchScrollEvent(ScrollEventParams(
-      id_, ET_SCROLL_FLING_START, cursor_->GetLocation(),
+      id_, EventType::kScrollFlingStart, cursor_->GetLocation(),
       /*delta=*/gfx::Vector2dF(), /*ordinal_delta=*/gfx::Vector2dF(),
       /*finger_count=*/4, StimeToTimeTicks(gesture->end_time)));
 }
@@ -567,13 +566,13 @@ void GestureInterpreterLibevdevCros::OnGesturePinch(const Gesture* gesture,
   EventType type;
   switch (pinch->zoom_state) {
     case GESTURES_ZOOM_START:
-      type = ET_GESTURE_PINCH_BEGIN;
+      type = EventType::kGesturePinchBegin;
       break;
     case GESTURES_ZOOM_UPDATE:
-      type = ET_GESTURE_PINCH_UPDATE;
+      type = EventType::kGesturePinchUpdate;
       break;
     case GESTURES_ZOOM_END:
-      type = ET_GESTURE_PINCH_END;
+      type = EventType::kGesturePinchEnd;
       break;
     default:
       LOG(WARNING) << base::StringPrintf("Unrecognized pinch zoom state (%u)",
@@ -642,12 +641,12 @@ void GestureInterpreterLibevdevCros::DispatchMouseButton(unsigned int button,
 }
 
 void GestureInterpreterLibevdevCros::SetReceivedValidKeyboardInputCallback(
-    base::RepeatingCallback<void(uint64_t)> callback) {
+    base::RepeatingCallback<void(uint64_t, double)> callback) {
   received_keyboard_input_ = std::move(callback);
 }
 
 void GestureInterpreterLibevdevCros::SetReceivedValidMouseInputCallback(
-    base::RepeatingCallback<void(int)> callback) {
+    base::RepeatingCallback<void(int, double)> callback) {
   received_mouse_input_ = std::move(callback);
 }
 
@@ -687,7 +686,7 @@ void GestureInterpreterLibevdevCros::DispatchChangedKeys(
       // which will update the dispatched list of keyboards with this new
       // information.
       if (received_keyboard_input_) {
-        received_keyboard_input_.Run(key);
+        received_keyboard_input_.Run(key, timestamp);
       }
 
       // Dispatch key press or release to keyboard.

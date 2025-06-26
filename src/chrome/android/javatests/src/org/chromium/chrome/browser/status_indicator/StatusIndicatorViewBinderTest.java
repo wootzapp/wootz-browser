@@ -11,6 +11,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import android.app.Activity;
 import android.graphics.Color;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.ColorDrawable;
@@ -22,26 +23,37 @@ import androidx.core.content.res.ResourcesCompat;
 import androidx.test.annotation.UiThreadTest;
 import androidx.test.filters.SmallTest;
 
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.MathUtils;
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.chrome.R;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.ViewResourceFrameLayout;
 import org.chromium.components.browser_ui.widget.text.TextViewWithCompoundDrawables;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.BlankUiTestActivity;
 
 /** Tests for {@link StatusIndicatorViewBinder}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Batch(Batch.UNIT_TESTS)
-public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
+public class StatusIndicatorViewBinderTest {
     private static final String STATUS_TEXT = "Offline";
+
+    @ClassRule
+    public static BaseActivityTestRule<BlankUiTestActivity> sActivityTestRule =
+            new BaseActivityTestRule<>(BlankUiTestActivity.class);
+
+    private static Activity sActivity;
 
     private ViewResourceFrameLayout mContainer;
     private TextViewWithCompoundDrawables mStatusTextView;
@@ -50,14 +62,17 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
     private PropertyModel mModel;
     private PropertyModelChangeProcessor mMCP;
 
-    @Override
-    public void setUpTest() throws Exception {
-        super.setUpTest();
+    @BeforeClass
+    public static void setupSuite() {
+        sActivity = sActivityTestRule.launchActivity(null);
+    }
 
-        TestThreadUtils.runOnUiThreadBlocking(
+    @Before
+    public void setUp() throws Exception {
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    getActivity().setContentView(R.layout.status_indicator_container);
-                    mContainer = getActivity().findViewById(R.id.status_indicator);
+                    sActivity.setContentView(R.layout.status_indicator_container);
+                    mContainer = sActivity.findViewById(R.id.status_indicator);
                     mStatusTextView = mContainer.findViewById(R.id.status_text);
 
                     mSceneLayer = new MockStatusIndicatorSceneLayer();
@@ -79,10 +94,9 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
                 });
     }
 
-    @Override
-    public void tearDownTest() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(mMCP::destroy);
-        super.tearDownTest();
+    @After
+    public void tearDown() throws Exception {
+        ThreadUtils.runOnUiThreadBlocking(mMCP::destroy);
     }
 
     @Test
@@ -96,11 +110,11 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
 
         Drawable drawable =
                 ResourcesCompat.getDrawable(
-                        getActivity().getResources(),
+                        sActivity.getResources(),
                         R.drawable.ic_error_white_24dp_filled,
-                        getActivity().getTheme());
+                        sActivity.getTheme());
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.set(StatusIndicatorProperties.STATUS_TEXT, STATUS_TEXT);
                     mModel.set(StatusIndicatorProperties.STATUS_ICON, drawable);
@@ -123,7 +137,7 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
                 "Wrong initial composited view visibility.",
                 mSceneLayer.isSceneOverlayTreeShowing());
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.set(StatusIndicatorProperties.ANDROID_VIEW_VISIBILITY, View.VISIBLE);
                     mModel.set(StatusIndicatorProperties.COMPOSITED_VIEW_VISIBLE, true);
@@ -132,7 +146,7 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
         assertEquals("Android view is not visible.", View.VISIBLE, mContainer.getVisibility());
         assertTrue("Composited view is not visible.", mSceneLayer.isSceneOverlayTreeShowing());
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.set(StatusIndicatorProperties.ANDROID_VIEW_VISIBILITY, View.GONE);
                     mModel.set(StatusIndicatorProperties.COMPOSITED_VIEW_VISIBLE, false);
@@ -146,8 +160,8 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
     @SmallTest
     @UiThreadTest
     public void testColorAndTint() {
-        int bgColor = SemanticColorUtils.getDefaultBgColor(getActivity());
-        int textColor = SemanticColorUtils.getDefaultTextColor(getActivity());
+        int bgColor = SemanticColorUtils.getDefaultBgColor(sActivity);
+        int textColor = SemanticColorUtils.getDefaultTextColor(sActivity);
         assertEquals(
                 "Wrong initial background color.",
                 bgColor,
@@ -156,11 +170,11 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
 
         Drawable drawable =
                 ResourcesCompat.getDrawable(
-                        getActivity().getResources(),
+                        sActivity.getResources(),
                         R.drawable.ic_error_white_24dp_filled,
-                        getActivity().getTheme());
+                        sActivity.getTheme());
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.set(StatusIndicatorProperties.STATUS_ICON, drawable);
                     mModel.set(StatusIndicatorProperties.BACKGROUND_COLOR, Color.BLUE);
@@ -186,17 +200,17 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
         assertEquals(
                 "Wrong initial text alpha.", 1.f, mStatusTextView.getAlpha(), MathUtils.EPSILON);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mModel.set(StatusIndicatorProperties.TEXT_ALPHA, .5f));
 
         assertEquals("Wrong text alpha.", .5f, mStatusTextView.getAlpha(), MathUtils.EPSILON);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mModel.set(StatusIndicatorProperties.TEXT_ALPHA, .0f));
 
         assertEquals("Wrong text alpha.", 0.f, mStatusTextView.getAlpha(), MathUtils.EPSILON);
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mModel.set(StatusIndicatorProperties.TEXT_ALPHA, 1.f));
 
         assertEquals("Wrong text alpha.", 1.f, mStatusTextView.getAlpha(), MathUtils.EPSILON);
@@ -214,7 +228,7 @@ public class StatusIndicatorViewBinderTest extends BlankUiTestActivityTestCase {
     }
 
     /** Mock {@link StatusIndicatorSceneLayer} class to avoid native initialization. */
-    private class MockStatusIndicatorSceneLayer extends StatusIndicatorSceneLayer {
+    private static class MockStatusIndicatorSceneLayer extends StatusIndicatorSceneLayer {
         MockStatusIndicatorSceneLayer() {
             super(null);
         }

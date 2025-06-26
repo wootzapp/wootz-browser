@@ -8,6 +8,7 @@
 #include "base/memory/raw_ref.h"
 #include "base/task/task_runner.h"
 #include "base/token.h"
+#include "build/build_config.h"
 #include "content/browser/tracing/background_tracing_manager_impl.h"
 #include "content/browser/tracing/trace_report/trace_report.mojom.h"
 #include "content/browser/tracing/trace_report/trace_upload_list.h"
@@ -19,7 +20,7 @@
 #include "mojo/public/cpp/bindings/remote.h"
 
 namespace content {
-// Handles communication between the browser and chrome://traces-internals.
+// Handles communication between the browser and chrome://traces.
 class CONTENT_EXPORT TraceReportHandler
     : public trace_report::mojom::PageHandler {
  public:
@@ -31,7 +32,8 @@ class CONTENT_EXPORT TraceReportHandler
       mojo::PendingReceiver<trace_report::mojom::PageHandler> receiver,
       mojo::PendingRemote<trace_report::mojom::Page> page,
       TraceUploadList& trace_upload_list,
-      BackgroundTracingManager& background_tracing_manager);
+      BackgroundTracingManagerImpl& background_tracing_manager,
+      TracingDelegate* tracing_delegate);
 
   TraceReportHandler(const TraceReportHandler&) = delete;
   TraceReportHandler& operator=(const TraceReportHandler&) = delete;
@@ -48,20 +50,43 @@ class CONTENT_EXPORT TraceReportHandler
   void DownloadTrace(const base::Token& uuid,
                      DownloadTraceCallback callback) override;
   void GetAllPresetScenarios(GetAllPresetScenariosCallback callback) override;
+  void GetAllFieldScenarios(GetAllFieldScenariosCallback callback) override;
   void GetEnabledScenarios(GetEnabledScenariosCallback callback) override;
   void SetEnabledScenarios(const std::vector<std::string>& new_config,
                            SetEnabledScenariosCallback callback) override;
+  void GetPrivacyFilterEnabled(
+      GetPrivacyFilterEnabledCallback callback) override;
+  void SetPrivacyFilterEnabled(bool enable) override;
+
+  void SetScenariosConfigFromString(
+      const std::string& config_string,
+      SetScenariosConfigFromStringCallback callback) override;
+  void SetScenariosConfigFromBuffer(
+      mojo_base::BigBuffer config_pb,
+      SetScenariosConfigFromBufferCallback callback) override;
+
+#if BUILDFLAG(IS_WIN)
+  void GetSystemTracingState(GetSystemTracingStateCallback callback) override;
+  void GetSecurityShieldIconUrl(
+      GetSecurityShieldIconUrlCallback callback) override;
+  void EnableSystemTracing(EnableSystemTracingCallback callback) override;
+  void DisableSystemTracing(DisableSystemTracingCallback callback) override;
+#endif  // BUILDFLAG(IS_WIN)
 
  private:
   void OnGetAllReportsTaskComplete(GetAllTraceReportsCallback callback,
                                    std::vector<ClientTraceReport> results);
+  bool SetScenariosConfig(
+      const perfetto::protos::gen::ChromeFieldTracingConfig& config);
+  void MaybeSetupPresetTracingFromFieldTrial();
 
   mojo::Receiver<trace_report::mojom::PageHandler> receiver_;
   mojo::PendingRemote<trace_report::mojom::Page> page_;
 
   // Used to perform actions with on a single trace_report_database instance.
-  raw_ref<TraceUploadList> trace_upload_list_;
-  raw_ref<BackgroundTracingManager> background_tracing_manager_;
+  const raw_ref<TraceUploadList> trace_upload_list_;
+  const raw_ref<BackgroundTracingManagerImpl> background_tracing_manager_;
+  const raw_ptr<TracingDelegate> tracing_delegate_;
 
   base::WeakPtrFactory<TraceReportHandler> weak_factory_{this};
 };

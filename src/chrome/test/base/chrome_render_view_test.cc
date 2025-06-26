@@ -17,11 +17,10 @@
 #include "components/autofill/content/renderer/password_autofill_agent.h"
 #include "components/autofill/content/renderer/password_generation_agent.h"
 #include "components/autofill/content/renderer/test_password_autofill_agent.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "components/spellcheck/renderer/spellcheck.h"
 #include "components/spellcheck/spellcheck_buildflags.h"
-#include "content/public/common/input/native_web_keyboard_event.h"
 #include "extensions/buildflags/buildflags.h"
-#include "extensions/renderer/extensions_renderer_api_provider.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/platform/web_url_request.h"
@@ -31,11 +30,15 @@
 #include "third_party/blink/public/web/web_script_source.h"
 #include "third_party/blink/public/web/web_view.h"
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/renderer/extensions/chrome_extensions_renderer_client.h"
+#include "extensions/renderer/dispatcher.h"                        // nogncheck
+#include "extensions/renderer/extensions_renderer_api_provider.h"  // nogncheck
+#endif
+
+#if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "extensions/browser/extension_function_dispatcher.h"
 #include "extensions/common/extension.h"
-#include "extensions/renderer/dispatcher.h"
 #endif
 
 using autofill::AutofillAgent;
@@ -82,7 +85,7 @@ void ChromeRenderViewTest::SetUp() {
           &associated_interfaces_);
   password_generation_ = unique_password_generation.get();
   autofill_agent_ = new AutofillAgent(
-      GetMainRenderFrame(), {}, std::move(unique_password_autofill_agent),
+      GetMainRenderFrame(), std::move(unique_password_autofill_agent),
       std::move(unique_password_generation), &associated_interfaces_);
 }
 
@@ -122,10 +125,9 @@ void ChromeRenderViewTest::RegisterMainFrameRemoteInterfaces() {}
 
 void ChromeRenderViewTest::InitChromeContentRendererClient(
     ChromeContentRendererClient* client) {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-  ChromeExtensionsRendererClient* ext_client =
-      ChromeExtensionsRendererClient::GetInstance();
-  ext_client->SetExtensionDispatcherForTest(
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+  ChromeExtensionsRendererClient::Create();
+  extensions::ExtensionsRendererClient::Get()->SetDispatcherForTesting(
       std::make_unique<extensions::Dispatcher>(
           std::vector<std::unique_ptr<
               const extensions::ExtensionsRendererAPIProvider>>()));

@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/gtk/nav_button_provider_gtk.h"
 
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
 #include "ui/base/glib/glib_cast.h"
 #include "ui/base/glib/scoped_gobject.h"
@@ -44,8 +50,7 @@ const char* ButtonStyleClassFromButtonType(
     case ui::NavButtonProvider::FrameButtonDisplayType::kClose:
       return "close";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
   }
 }
 
@@ -62,8 +67,7 @@ GtkStateFlags GtkStateFlagsFromButtonState(
     case ui::NavButtonProvider::ButtonState::kDisabled:
       return GTK_STATE_FLAG_INSENSITIVE;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return GTK_STATE_FLAG_NORMAL;
+      NOTREACHED();
   }
 }
 
@@ -79,8 +83,7 @@ const char* IconNameFromButtonType(
     case ui::NavButtonProvider::FrameButtonDisplayType::kClose:
       return "window-close-symbolic";
     default:
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
   }
 }
 
@@ -114,11 +117,13 @@ gfx::Size LoadNavButtonIcon(ui::NavButtonProvider::FrameButtonDisplayType type,
     auto* snapshot = gtk_snapshot_new();
     gdk_paintable_snapshot(paintable, snapshot, width, height);
     auto* node = gtk_snapshot_free_to_node(snapshot);
-    GdkTexture* texture = GetTextureFromRenderNode(node);
     size_t nbytes = width * height * sizeof(SkColor);
     SkColor* pixels = reinterpret_cast<SkColor*>(g_malloc(nbytes));
+    memset(pixels, 0, nbytes);
     size_t stride = sizeof(SkColor) * width;
-    gdk_texture_download(texture, reinterpret_cast<guchar*>(pixels), stride);
+    if (GdkTexture* texture = GetTextureFromRenderNode(node)) {
+      gdk_texture_download(texture, reinterpret_cast<guchar*>(pixels), stride);
+    }
     SkColor fg = GtkStyleContextGetColor(button_context);
     for (int i = 0; i < width * height; ++i) {
       pixels[i] = SkColorSetA(fg, SkColorGetA(pixels[i]));
@@ -196,7 +201,7 @@ void CalculateUnscaledButtonSize(
     gfx::Size* button_size,
     gfx::Insets* button_margin) {
   // views::ImageButton expects the images for each state to be of the
-  // same size, but GTK can, in general, use a differnetly-sized
+  // same size, but GTK can, in general, use a differently-sized
   // button for each state.  For this reason, render buttons for all
   // states at the size of a GTK_STATE_FLAG_NORMAL button.
   auto button_context = AppendCssNodeToStyleContext(
@@ -433,16 +438,16 @@ gfx::ImageSkia NavButtonProviderGtk::GetImage(
     ui::NavButtonProvider::FrameButtonDisplayType type,
     ui::NavButtonProvider::ButtonState state) const {
   auto it = button_images_.find(type);
-  DCHECK(it != button_images_.end());
+  CHECK(it != button_images_.end(), base::NotFatalUntil::M130);
   auto it2 = it->second.find(state);
-  DCHECK(it2 != it->second.end());
+  CHECK(it2 != it->second.end(), base::NotFatalUntil::M130);
   return it2->second;
 }
 
 gfx::Insets NavButtonProviderGtk::GetNavButtonMargin(
     ui::NavButtonProvider::FrameButtonDisplayType type) const {
   auto it = button_margins_.find(type);
-  DCHECK(it != button_margins_.end());
+  CHECK(it != button_margins_.end(), base::NotFatalUntil::M130);
   return it->second;
 }
 

@@ -26,8 +26,7 @@
 #include "base/dcheck_is_on.h"
 #include "third_party/blink/public/mojom/scroll/scrollbar_mode.mojom-blink.h"
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/layout/layout_ng_block_flow.h"
-#include "third_party/blink/renderer/core/layout/layout_quote.h"
+#include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/scroll/scrollable_area.h"
 #include "third_party/blink/renderer/platform/graphics/overlay_scrollbar_clip_behavior.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_set.h"
@@ -63,9 +62,8 @@ struct VariableLengthTransformResult {
 // about the different viewports.
 //
 // Because there is one LayoutView per rooted layout tree (or Frame), this class
-// is used to add members shared by this tree (e.g. m_layoutState or
-// m_layoutQuoteHead).
-class CORE_EXPORT LayoutView : public LayoutNGBlockFlow {
+// is used to add members shared by this tree.
+class CORE_EXPORT LayoutView : public LayoutBlockFlow {
  public:
   explicit LayoutView(ContainerNode* document);
   ~LayoutView() override;
@@ -112,7 +110,6 @@ class CORE_EXPORT LayoutView : public LayoutNGBlockFlow {
 
   bool IsChildAllowed(LayoutObject*, const ComputedStyle&) const override;
 
-  void InvalidateSvgRootsWithRelativeLengthDescendents();
   LayoutUnit ComputeMinimumWidth();
 
   // Based on LocalFrameView::LayoutSize, but:
@@ -120,6 +117,9 @@ class CORE_EXPORT LayoutView : public LayoutNGBlockFlow {
   // - Accounts for printing layout
   // - scrollbar exclusion is compatible with root layer scrolling
   gfx::Size GetLayoutSize(IncludeScrollbarsInRect = kExcludeScrollbars) const;
+
+  // Same as above, but ignore print settings.
+  gfx::Size GetNonPrintingLayoutSize(IncludeScrollbarsInRect) const;
 
   int ViewHeight(
       IncludeScrollbarsInRect scrollbar_inclusion = kExcludeScrollbars) const {
@@ -158,8 +158,9 @@ class CORE_EXPORT LayoutView : public LayoutNGBlockFlow {
 
   void CommitPendingSelection();
 
-  void AbsoluteQuads(Vector<gfx::QuadF>&,
-                     MapCoordinatesFlags mode = 0) const override;
+  void QuadsInAncestorInternal(Vector<gfx::QuadF>&,
+                               const LayoutBoxModelObject* ancestor,
+                               MapCoordinatesFlags) const override;
 
   PhysicalRect ViewRect() const override;
   PhysicalRect OverflowClipRect(const PhysicalOffset& location,
@@ -192,13 +193,13 @@ class CORE_EXPORT LayoutView : public LayoutNGBlockFlow {
 
   bool IsFragmentationContextRoot() const override;
 
-  void SetInitialContainingBlockSizeForPagination(PhysicalSize size) {
+  void SetInitialContainingBlockSizeForPrinting(PhysicalSize size) {
     NOT_DESTROYED();
-    initial_containing_block_size_for_pagination_ = size;
+    initial_containing_block_size_for_printing_ = size;
   }
-  PhysicalSize InitialContainingBlockSizeForPagination() const {
+  PhysicalSize InitialContainingBlockSizeForPrinting() const {
     NOT_DESTROYED();
-    return initial_containing_block_size_for_pagination_;
+    return initial_containing_block_size_for_printing_;
   }
 
   void SetPaginationScaleFactor(float factor) {
@@ -279,8 +280,6 @@ class CORE_EXPORT LayoutView : public LayoutNGBlockFlow {
   // media queries when printing.
   gfx::SizeF DefaultPageAreaSize() const;
 
-  PhysicalRect LocalVisualRectIgnoringVisibility() const override;
-
   // Invalidates paint for the entire view, including composited descendants,
   // but not including child frames.
   // It is very likely you do not want to call this method.
@@ -321,10 +320,10 @@ class CORE_EXPORT LayoutView : public LayoutNGBlockFlow {
                           TransformState&,
                           MapCoordinatesFlags) const override;
 
-  static bool ShouldUsePrintingLayout(const Document&);
-  bool ShouldUsePrintingLayout() const {
+  static bool ShouldUsePaginatedLayout(const Document&);
+  bool ShouldUsePaginatedLayout() const {
     NOT_DESTROYED();
-    return ShouldUsePrintingLayout(GetDocument());
+    return ShouldUsePaginatedLayout(GetDocument());
   }
 
   void MapLocalToAncestor(const LayoutBoxModelObject* ancestor,
@@ -358,7 +357,7 @@ class CORE_EXPORT LayoutView : public LayoutNGBlockFlow {
 
   // Set if laying out with a new initial containing block size, and populated
   // as we handle nodes that may have been affected by that.
-  Member<HeapHashSet<Member<const LayoutObject>>>
+  Member<GCedHeapHashSet<Member<const LayoutObject>>>
       initial_containing_block_resize_handled_list_;
 
   bool CanHaveChildren() const override;
@@ -371,8 +370,10 @@ class CORE_EXPORT LayoutView : public LayoutNGBlockFlow {
     return false;
   }
 
-  // The page area (content area) size of the first page, when printing.
-  PhysicalSize initial_containing_block_size_for_pagination_;
+  // The page area (content area) size of the first page, when printing. This
+  // size should always be consulted when printing, also when not paginating
+  // (e.g. if it's a subframe).
+  PhysicalSize initial_containing_block_size_for_printing_;
 
   // The scale factor that is applied to page area sizes. This affects the
   // initial containing block size for print layout. Used to honor any scaling

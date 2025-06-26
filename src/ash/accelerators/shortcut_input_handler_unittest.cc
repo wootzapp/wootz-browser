@@ -7,7 +7,7 @@
 #include "ash/public/mojom/input_device_settings.mojom.h"
 #include "ash/test/ash_test_base.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "ui/base/accelerators/ash/right_alt_event_property.h"
+#include "ui/base/accelerators/ash/quick_insert_event_property.h"
 #include "ui/events/event.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/keycodes/dom/dom_code.h"
@@ -78,44 +78,48 @@ class ShortcutInputHandlerTest : public AshTestBase {
 };
 
 TEST_F(ShortcutInputHandlerTest, ObserverTest) {
-  ui::KeyEvent pressed_event(ui::ET_KEY_PRESSED, ui::VKEY_0, ui::EF_NONE);
+  ui::KeyEvent pressed_event(ui::EventType::kKeyPressed, ui::VKEY_0,
+                             ui::EF_NONE);
   shortcut_input_handler_->OnEvent(&pressed_event);
   EXPECT_EQ(1, observer_->num_input_events_pressed());
   EXPECT_EQ(0, observer_->num_input_events_released());
 
-  ui::KeyEvent released_event(ui::ET_KEY_RELEASED, ui::VKEY_0, ui::EF_NONE);
+  ui::KeyEvent released_event(ui::EventType::kKeyReleased, ui::VKEY_0,
+                              ui::EF_NONE);
   shortcut_input_handler_->OnEvent(&released_event);
   EXPECT_EQ(1, observer_->num_input_events_pressed());
   EXPECT_EQ(1, observer_->num_input_events_released());
 
-  ui::KeyEvent prewritten_pressed_event(ui::ET_KEY_PRESSED, ui::VKEY_1,
+  ui::KeyEvent prewritten_pressed_event(ui::EventType::kKeyPressed, ui::VKEY_1,
                                         ui::EF_NONE);
   shortcut_input_handler_->OnPrerewriteKeyInputEvent(prewritten_pressed_event);
   EXPECT_EQ(1, observer_->num_prerewritten_input_events_pressed());
   EXPECT_EQ(0, observer_->num_prerewritten_input_events_released());
 
-  ui::KeyEvent prewritten_released_event(ui::ET_KEY_RELEASED, ui::VKEY_1,
-                                         ui::EF_NONE);
+  ui::KeyEvent prewritten_released_event(ui::EventType::kKeyReleased,
+                                         ui::VKEY_1, ui::EF_NONE);
   shortcut_input_handler_->OnPrerewriteKeyInputEvent(prewritten_released_event);
   EXPECT_EQ(1, observer_->num_prerewritten_input_events_pressed());
   EXPECT_EQ(1, observer_->num_prerewritten_input_events_released());
 }
 
 TEST_F(ShortcutInputHandlerTest, ConsumeTest) {
-  ui::KeyEvent pressed_event(ui::ET_KEY_PRESSED, ui::VKEY_0, ui::EF_NONE);
+  ui::KeyEvent pressed_event(ui::EventType::kKeyPressed, ui::VKEY_0,
+                             ui::EF_NONE);
   shortcut_input_handler_->OnEvent(&pressed_event);
   EXPECT_FALSE(pressed_event.stopped_propagation());
 
   shortcut_input_handler_->SetShouldConsumeKeyEvents(
       /*should_consume_key_events=*/true);
-  ui::KeyEvent released_event(ui::ET_KEY_RELEASED, ui::VKEY_0, ui::EF_NONE);
+  ui::KeyEvent released_event(ui::EventType::kKeyReleased, ui::VKEY_0,
+                              ui::EF_NONE);
   shortcut_input_handler_->OnEvent(&released_event);
   EXPECT_TRUE(released_event.stopped_propagation());
 }
 
 TEST_F(ShortcutInputHandlerTest, ShowAllWindows) {
   ui::KeyEvent prerewritten_pressed_event =
-      ui::KeyEvent(ui::ET_KEY_PRESSED, ui::VKEY_UNKNOWN,
+      ui::KeyEvent(ui::EventType::kKeyPressed, ui::VKEY_UNKNOWN,
                    ui::DomCode::SHOW_ALL_WINDOWS, ui::EF_NONE);
 
   shortcut_input_handler_->OnPrerewriteKeyInputEvent(
@@ -123,15 +127,15 @@ TEST_F(ShortcutInputHandlerTest, ShowAllWindows) {
   EXPECT_EQ(observer_->key_code(), ui::VKEY_MEDIA_LAUNCH_APP1);
 }
 
-TEST_F(ShortcutInputHandlerTest, RightAlt) {
+TEST_F(ShortcutInputHandlerTest, QuickInsert) {
   ui::KeyEvent prerewritten_pressed_event =
-      ui::KeyEvent(ui::ET_KEY_PRESSED, ui::VKEY_ASSISTANT,
+      ui::KeyEvent(ui::EventType::kKeyPressed, ui::VKEY_ASSISTANT,
                    ui::DomCode::LAUNCH_ASSISTANT, ui::EF_NONE);
-  ui::SetRightAltProperty(&prerewritten_pressed_event);
+  ui::SetQuickInsertProperty(&prerewritten_pressed_event);
 
   shortcut_input_handler_->OnPrerewriteKeyInputEvent(
       prerewritten_pressed_event);
-  EXPECT_EQ(observer_->key_code(), ui::VKEY_RIGHT_ALT);
+  EXPECT_EQ(observer_->key_code(), ui::VKEY_QUICK_INSERT);
 }
 
 }  // namespace ash

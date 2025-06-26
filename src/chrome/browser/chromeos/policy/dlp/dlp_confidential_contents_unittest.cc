@@ -4,15 +4,15 @@
 
 #include "chrome/browser/chromeos/policy/dlp/dlp_confidential_contents.h"
 
+#include <algorithm>
 #include <sstream>
 #include <string>
 
-#include "base/ranges/algorithm.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/test_mock_time_task_runner.h"
 #include "chrome/browser/chromeos/policy/dlp/dlp_rules_manager.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/enterprise/data_controls/dlp_histogram_helper.h"
+#include "components/enterprise/data_controls/core/browser/dlp_histogram_helper.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_renderer_host.h"
@@ -63,11 +63,11 @@ class DlpConfidentialContentsTest : public testing::Test {
   // |web_contents|.
   bool Contains(const DlpConfidentialContents& contents,
                 content::WebContents* web_contents) {
-    return base::ranges::any_of(contents.GetContents(),
-                                [&](const DlpConfidentialContent& content) {
-                                  return content.url.EqualsIgnoringRef(
-                                      web_contents->GetLastCommittedURL());
-                                });
+    return std::ranges::any_of(contents.GetContents(),
+                               [&](const DlpConfidentialContent& content) {
+                                 return content.url.EqualsIgnoringRef(
+                                     web_contents->GetLastCommittedURL());
+                               });
   }
 
  protected:

@@ -12,7 +12,6 @@ import 'chrome://resources/cr_elements/cr_icon_button/cr_icon_button.js';
 import 'chrome://resources/cr_elements/cr_lazy_render/cr_lazy_render.js';
 import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import 'chrome://resources/cr_elements/cr_shared_vars.css.js';
-import 'chrome://resources/polymer/v3_0/iron-collapse/iron-collapse.js';
 import '../settings_shared.css.js';
 import '../site_favicon.js';
 
@@ -60,14 +59,16 @@ export class StorageAccessSiteListEntryElement extends
         notify: true,
         value: false,
       },
+
+      description_: String,
+      expandAriaLabel_: String,
     };
   }
 
-  model: StorageAccessSiteException;
-
-  private description_: string;
-  private expandAriaLabel_: string;
-  private expanded_: boolean;
+  declare model: StorageAccessSiteException;
+  declare private description_: string;
+  declare private expandAriaLabel_: string;
+  declare private expanded_: boolean;
 
   /**
    * Triggered when the top row reset button is clicked.

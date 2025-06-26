@@ -14,6 +14,35 @@ import string
 from signing import commands
 
 
+def _get_unexpired_identities():
+    """Returns a set of the SHA-1 hashes of unexpired code signing identities
+
+    Raises:
+        ValueError: If no unexpired code signing identities are found.
+    """
+    # Avoid -v because it filters out self-signed certificates.
+    command = ['security', 'find-identity', '-p', 'codesigning']
+    output = commands.run_command_output(command)
+
+    matches = re.finditer(
+        rb'\d+\) (?P<id>[0-9A-Fa-f]{40}) "[^"]+"( \((?P<error>[^\)]+)\))?',
+        output,
+        flags=re.MULTILINE)
+
+    identities = set()
+    for match in matches:
+        # Exclude expired certificates. Other errors are ignored.
+        if match.group('error') == b'CSSMERR_TP_CERT_EXPIRED':
+            continue
+
+        identities.add(match.group('id'))
+
+    if not identities:
+        raise ValueError('No code signing identities found')
+
+    return identities
+
+
 def _get_identity_hash(identity):
     """Returns a string of the SHA-1 hash of a specified keychain identity.
 
@@ -29,15 +58,21 @@ def _get_identity_hash(identity):
     if len(identity) == 40 and all(ch in string.hexdigits for ch in identity):
         return identity.lower()
 
+    unexpired_identities = _get_unexpired_identities()
+
     command = ['security', 'find-certificate', '-a', '-c', identity, '-Z']
     output = commands.run_command_output(command)
 
-    hash_match = re.search(
+    hashes = re.findall(
         b'^SHA-1 hash: ([0-9A-Fa-f]{40})$', output, flags=re.MULTILINE)
-    if not hash_match:
+    if not hashes:
         raise ValueError('Cannot find identity', identity)
 
-    return hash_match.group(1).decode('utf-8').lower()
+    valid_hashes = [h for h in hashes if h in unexpired_identities]
+    if not valid_hashes:
+        raise ValueError('Identity found, but expired', identity)
+
+    return valid_hashes[0].decode('utf-8').lower()
 
 
 class CodeSignedProduct(object):
@@ -191,9 +226,6 @@ class NotarizeAndStapleLevel(enum.Enum):
 
     `NONE` means no notarization tasks should be performed.
 
-    `NOWAIT` means to submit the signed application and packaging to Apple for
-    notarization, but not to wait for a reply.
-
     `WAIT_NOSTAPLE` means to submit the signed application and packaging to
     Apple for notarization, and wait for a reply, but not to staple the
     resulting notarization ticket.
@@ -203,15 +235,11 @@ class NotarizeAndStapleLevel(enum.Enum):
     ticket.
     """
     NONE = 0
-    NOWAIT = 1
-    WAIT_NOSTAPLE = 2
-    STAPLE = 3
+    WAIT_NOSTAPLE = 1
+    STAPLE = 2
 
     def should_notarize(self):
         return self.value > self.NONE.value
-
-    def should_wait(self):
-        return self.value > self.NOWAIT.value
 
     def should_staple(self):
         return self.value > self.WAIT_NOSTAPLE.value
@@ -246,7 +274,8 @@ class Distribution(object):
                  package_as_dmg=True,
                  package_as_pkg=False,
                  package_as_zip=False,
-                 inflation_kilobytes=0):
+                 inflation_kilobytes=0,
+                 use_alternative_dmg_visuals=False):
         """Creates a new Distribution object. All arguments are optional.
 
         Args:
@@ -280,6 +309,9 @@ class Distribution(object):
                 the product.
             inflation_kilobytes: If non-zero, a blob of this size will be
                 inserted into the DMG. Incompatible with package_as_pkg = True.
+            use_alternative_dmg_visuals: If True, then alternate visuals for
+                crbug.com/393198671 will be used in the .dmg file. Requires
+                package_as_dmg. Mutually exclusive with channel_customize.
         """
         if channel_customize:
             # Side-by-side channels must have a distinct names and creator
@@ -300,9 +332,14 @@ class Distribution(object):
         self.package_as_dmg = package_as_dmg
         self.package_as_pkg = package_as_pkg
         self.inflation_kilobytes = inflation_kilobytes
+        self.use_alternative_dmg_visuals = use_alternative_dmg_visuals
 
         # inflation_kilobytes are only inserted into DMGs
         assert not self.inflation_kilobytes or self.package_as_dmg
+
+        assert not (self.channel_customize and self.use_alternative_dmg_visuals)
+        if self.use_alternative_dmg_visuals:
+            assert self.package_as_dmg
 
     def brandless_copy(self):
         """Derives and returns a copy of this Distribution object, identical

@@ -8,11 +8,9 @@
 #include "ash/api/tasks/fake_tasks_client.h"
 #include "ash/api/tasks/tasks_types.h"
 #include "ash/constants/ash_features.h"
-#include "ash/constants/ash_switches.h"
 #include "ash/glanceables/classroom/fake_glanceables_classroom_client.h"
 #include "ash/glanceables/classroom/glanceables_classroom_item_view.h"
 #include "ash/glanceables/classroom/glanceables_classroom_student_view.h"
-#include "ash/glanceables/common/glanceables_error_message_view.h"
 #include "ash/glanceables/common/glanceables_view_id.h"
 #include "ash/glanceables/glanceables_controller.h"
 #include "ash/glanceables/tasks/glanceables_task_view.h"
@@ -22,11 +20,11 @@
 #include "ash/shell.h"
 #include "ash/style/combobox.h"
 #include "ash/style/counter_expand_button.h"
+#include "ash/style/error_message_toast.h"
 #include "ash/system/status_area_widget_test_helper.h"
 #include "ash/system/unified/date_tray.h"
 #include "ash/system/unified/glanceable_tray_bubble.h"
 #include "ash/test/ash_test_util.h"
-#include "base/command_line.h"
 #include "base/test/gtest_tags.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/types/cxx23_to_underlying.h"
@@ -39,6 +37,7 @@
 #include "components/session_manager/core/session_manager.h"
 #include "components/user_manager/user_manager.h"
 #include "content/public/test/browser_test.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/keycodes/keyboard_codes_posix.h"
@@ -55,7 +54,7 @@ namespace ash {
 namespace {
 
 constexpr char kTestUserName[] = "test@test.test";
-constexpr char kTestUserGaiaId[] = "123456";
+constexpr GaiaId::Literal kTestUserGaiaId("123456");
 
 constexpr char kDueDate[] = "2 Aug 2025 10:00 GMT";
 
@@ -115,6 +114,8 @@ class GlanceablesBrowserTest : public InProcessBrowserTest {
     ASSERT_TRUE(base::Time::FromString(kDueDate, &date));
     fake_glanceables_tasks_client_ =
         glanceables_tasks_test_util::InitializeFakeTasksClient(date);
+    fake_glanceables_tasks_client_->set_http_error(
+        google_apis::ApiErrorCode::HTTP_SUCCESS);
     fake_glanceables_classroom_client_ =
         std::make_unique<FakeGlanceablesClassroomClient>();
 
@@ -159,22 +160,24 @@ class GlanceablesBrowserTest : public InProcessBrowserTest {
 
   Combobox* GetTasksComboBoxView() const {
     return views::AsViewClass<Combobox>(GetTasksView()->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kTasksBubbleComboBox)));
+        base::to_underlying(GlanceablesViewId::kTimeManagementBubbleComboBox)));
   }
 
   views::ScrollView* GetTasksScrollView() const {
     return views::AsViewClass<views::ScrollView>(GetTasksView()->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kTasksBubbleListScrollView)));
+        base::to_underlying(GlanceablesViewId::kContentsScrollView)));
   }
 
   views::View* GetTasksItemContainerView() const {
-    return views::AsViewClass<views::View>(GetTasksView()->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kTasksBubbleListContainer)));
+    return views::AsViewClass<views::View>(
+        GetTasksView()->GetViewByID(base::to_underlying(
+            GlanceablesViewId::kTimeManagementBubbleListContainer)));
   }
 
   CounterExpandButton* GetTasksExpandButtonView() const {
-    return views::AsViewClass<CounterExpandButton>(GetTasksView()->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kTasksBubbleExpandButton)));
+    return views::AsViewClass<CounterExpandButton>(
+        GetTasksView()->GetViewByID(base::to_underlying(
+            GlanceablesViewId::kTimeManagementBubbleExpandButton)));
   }
 
   views::LabelButton* GetAddNewTaskButton() const {
@@ -196,24 +199,29 @@ class GlanceablesBrowserTest : public InProcessBrowserTest {
     return current_items;
   }
 
+  void SetStudentAssignmentsCount(size_t count) {
+    fake_glanceables_classroom_client_->SetAssignmentsCount(count);
+  }
+
   views::View* GetStudentView() const {
     return GetGlanceableTrayBubble()->GetClassroomStudentView();
   }
 
   views::View* GetStudentComboBoxView() const {
     return views::AsViewClass<views::View>(GetStudentView()->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kClassroomBubbleComboBox)));
+        base::to_underlying(GlanceablesViewId::kTimeManagementBubbleComboBox)));
   }
 
   CounterExpandButton* GetStudentExpandButtonView() const {
     return views::AsViewClass<CounterExpandButton>(
         GetStudentView()->GetViewByID(base::to_underlying(
-            GlanceablesViewId::kClassroomBubbleExpandButton)));
+            GlanceablesViewId::kTimeManagementBubbleExpandButton)));
   }
 
   views::View* GetStudentItemContainerView() const {
-    return views::AsViewClass<views::View>(GetStudentView()->GetViewByID(
-        base::to_underlying(GlanceablesViewId::kClassroomBubbleListContainer)));
+    return views::AsViewClass<views::View>(
+        GetStudentView()->GetViewByID(base::to_underlying(
+            GlanceablesViewId::kTimeManagementBubbleListContainer)));
   }
 
   std::vector<std::string> GetCurrentStudentAssignmentCourseWorkTitles() const {
@@ -255,10 +263,9 @@ class GlanceablesMvpBrowserTest : public GlanceablesBrowserTest {
  public:
   GlanceablesMvpBrowserTest() {
     features_.InitWithFeatures(
-        /*enabled_features=*/{features::kGlanceablesV2},
+        /*enabled_features=*/
+        {features::kGlanceablesTimeManagementClassroomStudentView},
         /*disabled_features=*/{features::kGlanceablesTimeManagementTasksView});
-    base::CommandLine::ForCurrentProcess()->AppendSwitch(
-        switches::kGlanceablesIgnoreEnableMergeRequestBuildFlag);
   }
 
   void SetUpOnMainThread() override {
@@ -302,6 +309,7 @@ IN_PROC_BROWSER_TEST_F(GlanceablesMvpBrowserTest, OpenStudentCourseItemURL) {
 
 IN_PROC_BROWSER_TEST_F(GlanceablesMvpBrowserTest, ClickSeeAllStudentButton) {
   ASSERT_TRUE(glanceables_controller()->GetClassroomClient());
+  SetStudentAssignmentsCount(101);
 
   // Click the date tray to show the glanceable bubbles.
   ToggleDateTray();
@@ -313,14 +321,9 @@ IN_PROC_BROWSER_TEST_F(GlanceablesMvpBrowserTest, ClickSeeAllStudentButton) {
       Shell::Get()->GetPrimaryRootWindow()->GetBoundsInScreen().Contains(
           GetStudentView()->GetBoundsInScreen()));
 
-  // Check that the approaching course work items are shown.
-  EXPECT_EQ(GetCurrentStudentAssignmentCourseWorkTitles(),
-            std::vector<std::string>({"Approaching Course Work 0",
-                                      "Approaching Course Work 1",
-                                      "Approaching Course Work 2"}));
-
   // Click the "See All" button in the student glanceable footer, and check that
   // the correct URL is opened.
+  GetStudentFooterSeeAllButton()->ScrollViewToVisible();
   GetEventGenerator()->MoveMouseTo(
       GetStudentFooterSeeAllButton()->GetBoundsInScreen().CenterPoint());
   GetEventGenerator()->ClickLeftButton();
@@ -849,9 +852,9 @@ IN_PROC_BROWSER_TEST_F(GlanceablesTasksBrowserTest,
   EXPECT_TRUE(GetGlanceableTrayBubble());
   EXPECT_TRUE(GetTasksView());
 
-  auto* error_view = views::AsViewClass<GlanceablesErrorMessageView>(
+  auto* error_view = views::AsViewClass<ErrorMessageToast>(
       GetTasksView()->GetViewByID(base::to_underlying(
-          GlanceablesViewId::kGlanceablesErrorMessageView)));
+          GlanceablesViewId::kTimeManagementErrorMessageToast)));
   ASSERT_TRUE(error_view);
   EXPECT_EQ(error_view->GetMessageForTest(), u"Couldn't load items.");
   EXPECT_EQ(error_view->GetButtonForTest()->GetText(), u"Reload");
@@ -863,8 +866,8 @@ IN_PROC_BROWSER_TEST_F(GlanceablesTasksBrowserTest,
       error_view->GetButtonForTest()->GetBoundsInScreen().CenterPoint());
   GetEventGenerator()->ClickLeftButton();
 
-  EXPECT_FALSE(GetTasksView()->GetViewByID(
-      base::to_underlying(GlanceablesViewId::kGlanceablesErrorMessageView)));
+  EXPECT_FALSE(GetTasksView()->GetViewByID(base::to_underlying(
+      GlanceablesViewId::kTimeManagementErrorMessageToast)));
   auto* combobox = GetTasksComboBoxView();
   EXPECT_EQ(combobox->GetTextForRow(combobox->GetSelectedIndex().value()),
             u"Task List 1 Title");
@@ -907,99 +910,77 @@ IN_PROC_BROWSER_TEST_F(GlanceablesTasksBrowserTest, SwitchTaskListsWithError) {
   EXPECT_EQ(combobox->GetTextForRow(combobox->GetSelectedIndex().value()),
             u"Task List 1 Title");
 
-  auto* error_view = views::AsViewClass<GlanceablesErrorMessageView>(
+  auto* error_view = views::AsViewClass<ErrorMessageToast>(
       GetTasksView()->GetViewByID(base::to_underlying(
-          GlanceablesViewId::kGlanceablesErrorMessageView)));
+          GlanceablesViewId::kTimeManagementErrorMessageToast)));
   ASSERT_TRUE(error_view);
   EXPECT_EQ(error_view->GetMessageForTest(), u"Couldn't load items.");
   EXPECT_EQ(error_view->GetButtonForTest()->GetText(), u"Dismiss");
 }
 
-// -----------------------------------------------------------------------------
-
-// TODO(b/338917100): Consider converting these browsertests to unittests.
-class GlanceablesTasksAndClassroomTest : public GlanceablesBrowserTest {
- public:
-  GlanceablesTasksAndClassroomTest() {
-    features_.InitWithFeatures(
-        /*enabled_features=*/
-        {features::kGlanceablesTimeManagementTasksView,
-         features::kGlanceablesTimeManagementClassroomStudentView},
-        /*disabled_features=*/{});
-  }
-
-  void SetUpOnMainThread() override {
-    GlanceablesBrowserTest::SetUpOnMainThread();
-    ASSERT_TRUE(glanceables_controller()->GetTasksClient());
-    ASSERT_TRUE(glanceables_controller()->GetClassroomClient());
-  }
-
- private:
-  base::test::ScopedFeatureList features_;
-};
-
-IN_PROC_BROWSER_TEST_F(GlanceablesTasksAndClassroomTest, Basics) {
+IN_PROC_BROWSER_TEST_F(GlanceablesTasksBrowserTest,
+                       SavelyRemoveTaskViewInEditState) {
+  // Click the date tray to show the glanceable bubbles.
   ToggleDateTray();
 
   EXPECT_TRUE(GetGlanceableTrayBubble());
-  auto* const tasks_view = GetTasksView();
-  EXPECT_TRUE(tasks_view);
-  auto* const classroom_view = GetStudentView();
-  EXPECT_TRUE(classroom_view);
+  EXPECT_TRUE(GetTasksView());
 
-  // Check that both views have their own backgrounds.
-  EXPECT_TRUE(tasks_view->GetBackground());
-  EXPECT_TRUE(classroom_view->GetBackground());
+  // Check that task list items from the first list are shown.
+  EXPECT_EQ(GetCurrentTaskListItemTitles(),
+            std::vector<std::string>(
+                {"Task List 1 Item 1 Title", "Task List 1 Item 2 Title"}));
 
-  // Check that both views contain their expand buttons.
-  EXPECT_TRUE(GetTasksExpandButtonView());
-  EXPECT_TRUE(GetStudentExpandButtonView());
-}
-
-IN_PROC_BROWSER_TEST_F(GlanceablesTasksAndClassroomTest,
-                       TimeManagementExpandStates) {
+  // Close the glanceables.
   ToggleDateTray();
+  base::RunLoop().RunUntilIdle();
 
-  EXPECT_TRUE(GetGlanceableTrayBubble());
-  auto* const tasks_view =
-      views::AsViewClass<GlanceablesTasksView>(GetTasksView());
-  auto* const classroom_view =
-      views::AsViewClass<GlanceablesClassroomStudentView>(GetStudentView());
+  // Turn on the pause_on_fetch to pause in between the cached tasks is shown
+  // and the tasks has started fetching.
+  auto* const client = fake_glanceables_tasks_client();
+  client->set_paused_on_fetch(true);
 
-  // Initially both views are expanded.
-  // TODO(b/338917100): Consider having a half folded state.
-  EXPECT_TRUE(tasks_view->is_expanded());
-  EXPECT_TRUE(classroom_view->is_expanded());
+  // Delete the whole task list.
+  client->DeleteTaskList(/*task_list_id=*/"TaskListID1");
 
-  // Expanding/Collapsing `tasks_view` will collapse/expand `classroom_view`.
-  auto* const tasks_expand_button = GetTasksExpandButtonView();
-  ASSERT_TRUE(tasks_expand_button);
+  // Open the glanceables again.
+  ToggleDateTray();
+  base::RunLoop().RunUntilIdle();
+
+  // Check that the deleted task list is still shown.
+  EXPECT_EQ(GetCurrentTaskListItemTitles(),
+            std::vector<std::string>(
+                {"Task List 1 Item 1 Title", "Task List 1 Item 2 Title"}));
+
+  GetTasksView()->GetWidget()->LayoutRootViewIfNecessary();
+
+  // Before fetch, click on the cached task and see if the textfield shows up.
+  auto* first_task_view_label =
+      GetTaskItemView(/*item_index=*/0)
+          ->GetViewByID(
+              base::to_underlying(GlanceablesViewId::kTaskItemTitleLabel));
   GetEventGenerator()->MoveMouseTo(
-      tasks_expand_button->GetBoundsInScreen().CenterPoint());
+      first_task_view_label->GetBoundsInScreen().CenterPoint());
   GetEventGenerator()->ClickLeftButton();
-  EXPECT_FALSE(tasks_view->is_expanded());
-  EXPECT_TRUE(classroom_view->is_expanded());
 
-  GetEventGenerator()->MoveMouseTo(
-      tasks_expand_button->GetBoundsInScreen().CenterPoint());
-  GetEventGenerator()->ClickLeftButton();
-  EXPECT_TRUE(tasks_view->is_expanded());
-  EXPECT_FALSE(classroom_view->is_expanded());
+  auto* first_task_view_textfield =
+      GetTaskItemView(/*item_index=*/0)
+          ->GetViewByID(
+              base::to_underlying(GlanceablesViewId::kTaskItemTitleTextField));
+  ASSERT_TRUE(first_task_view_textfield);
+  ASSERT_TRUE(first_task_view_textfield->GetVisible());
 
-  // Same for `classroom_view`.
-  auto* const classroom_expand_button = GetStudentExpandButtonView();
-  ASSERT_TRUE(classroom_expand_button);
-  GetEventGenerator()->MoveMouseTo(
-      classroom_expand_button->GetBoundsInScreen().CenterPoint());
-  GetEventGenerator()->ClickLeftButton();
-  EXPECT_FALSE(tasks_view->is_expanded());
-  EXPECT_TRUE(classroom_view->is_expanded());
+  // Start fetching new data.
+  client->RunPendingGetTaskListsCallbacks();
+  EXPECT_FALSE(GetTasksView()->GetCanProcessEventsWithinSubtree());
+  client->RunPendingGetTasksCallbacks();
+  EXPECT_TRUE(GetTasksView()->GetCanProcessEventsWithinSubtree());
 
-  GetEventGenerator()->MoveMouseTo(
-      classroom_expand_button->GetBoundsInScreen().CenterPoint());
-  GetEventGenerator()->ClickLeftButton();
-  EXPECT_TRUE(tasks_view->is_expanded());
-  EXPECT_FALSE(classroom_view->is_expanded());
+  // Check if the second list is shown after fetch and nothing crashed.
+  EXPECT_EQ(GetCurrentTaskListItemTitles(),
+            std::vector<std::string>({"Task List 2 Item 1 Title",
+                                      "Task List 2 Item 2 Title",
+                                      "Task List 2 Item 3 Title"}));
 }
 
 }  // namespace ash

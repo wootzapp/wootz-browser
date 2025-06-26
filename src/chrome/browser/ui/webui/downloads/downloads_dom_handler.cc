@@ -16,8 +16,8 @@
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/metrics/user_metrics.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/supports_user_data.h"
 #include "base/task/current_thread.h"
@@ -39,7 +39,6 @@
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/safe_browsing/download_protection/download_protection_util.h"
 #include "chrome/browser/safe_browsing/safe_browsing_service.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -73,6 +72,10 @@
 #include "ui/display/screen.h"
 #include "ui/gfx/image/image.h"
 
+#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+#include "chrome/browser/safe_browsing/download_protection/download_protection_util.h"
+#endif
+
 using content::BrowserThread;
 
 namespace {
@@ -84,9 +87,7 @@ enum DownloadsDOMEvent {
   DOWNLOADS_DOM_EVENT_GET_DOWNLOADS = 0,
   DOWNLOADS_DOM_EVENT_OPEN_FILE = 1,
   DOWNLOADS_DOM_EVENT_DRAG = 2,
-  // This is obsoleted by ImprovedDownloadPageWarnings.
-  // TODO(chlily): Clean up the value.
-  DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS = 3,
+  // Obsolete: DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS = 3,
   DOWNLOADS_DOM_EVENT_DISCARD_DANGEROUS = 4,
   DOWNLOADS_DOM_EVENT_SHOW = 5,
   DOWNLOADS_DOM_EVENT_PAUSE = 6,
@@ -104,12 +105,17 @@ enum DownloadsDOMEvent {
   DOWNLOADS_DOM_EVENT_OPEN_BYPASS_WARNING_PROMPT = 18,
   DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS_FROM_PROMPT = 19,
   DOWNLOADS_DOM_EVENT_CANCEL_BYPASS_WARNING_PROMPT = 20,
+  DOWNLOADS_DOM_EVENT_OPEN_SURVEY_ON_DANGEROUS_INTERSTITIAL = 21,
   DOWNLOADS_DOM_EVENT_MAX
 };
 
 void CountDownloadsDOMEvents(DownloadsDOMEvent event) {
   UMA_HISTOGRAM_ENUMERATION("Download.DOMEvent", event,
                             DOWNLOADS_DOM_EVENT_MAX);
+}
+
+bool CanLogWarningMetrics(download::DownloadItem* file) {
+  return file && file->IsDangerous() && !file->IsDone();
 }
 
 void PromptForScanningInBubble(content::WebContents* web_contents,
@@ -148,22 +154,16 @@ void MaybeReportBypassAction(download::DownloadItem* file,
   // sent, because this event should be included in the report.
   DownloadItemWarningData::AddWarningActionEvent(file, surface, action);
 
-  if (!file->GetURL().is_valid()) {
-    return;
-  }
-  if (content::BrowserContext* browser_context =
-          content::DownloadItemUtils::GetBrowserContext(file);
-      browser_context && browser_context->IsOffTheRecord()) {
-    return;
-  }
   // Do not send cancel or keep report since it's not a terminal action.
   if (action != WarningAction::PROCEED && action != WarningAction::DISCARD) {
     return;
   }
+#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
   SendSafeBrowsingDownloadReport(
       safe_browsing::ClientSafeBrowsingReportRequest::
           DANGEROUS_DOWNLOAD_RECOVERY,
       /*did_proceed=*/action == WarningAction::PROCEED, file);
+#endif
 }
 
 // Triggers a Trust and Safety sentiment survey (if enabled). Should be called
@@ -275,7 +275,7 @@ void DownloadsDOMHandler::Drag(const std::string& id) {
   gfx::NativeView view = web_contents->GetNativeView();
   gfx::Image* icon = g_browser_process->icon_manager()->LookupIconFromFilepath(
       file->GetTargetFilePath(), IconLoader::NORMAL,
-      screen->GetDisplayNearestView(view).device_scale_factor());
+      screen->GetPreferredScaleFactorForView(view).value_or(1.0f));
   {
     // Enable nested tasks during DnD, while |DragDownload()| blocks.
     base::CurrentThread::ScopedAllowApplicationTasksInNativeNestedLoop allow;
@@ -283,29 +283,10 @@ void DownloadsDOMHandler::Drag(const std::string& id) {
   }
 }
 
-void DownloadsDOMHandler::SaveDangerousRequiringGesture(const std::string& id) {
-  if (!GetWebUIWebContents()->HasRecentInteraction()) {
-    LOG(ERROR) << "SaveDangerousRequiringGesture received without recent "
-                  "user interaction";
-    return;
-  }
-
-  CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS);
-  download::DownloadItem* file = GetDownloadByStringId(id);
-  if (file) {
-    DownloadItemWarningData::AddWarningActionEvent(
-        file, DownloadItemWarningData::WarningSurface::DOWNLOADS_PAGE,
-        DownloadItemWarningData::WarningAction::KEEP);
-    ShowDangerPrompt(file);
-  }
-}
-
 // "Suspicious" in this context applies to insecure as well as dangerous
 // downloads of certain danger types.
 void DownloadsDOMHandler::SaveSuspiciousRequiringGesture(
     const std::string& id) {
-  CHECK(base::FeatureList::IsEnabled(
-      safe_browsing::kImprovedDownloadPageWarnings));
   if (!GetWebUIWebContents()->HasRecentInteraction()) {
     LOG(ERROR) << "SaveSuspiciousRequiringGesture received without recent "
                   "user interaction";
@@ -342,13 +323,10 @@ void DownloadsDOMHandler::SaveSuspiciousRequiringGesture(
   }
 }
 
-void DownloadsDOMHandler::RecordOpenBypassWarningPrompt(const std::string& id) {
-  CHECK(base::FeatureList::IsEnabled(
-      safe_browsing::kImprovedDownloadPageWarnings));
-
+void DownloadsDOMHandler::RecordOpenBypassWarningDialog(const std::string& id) {
   CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_OPEN_BYPASS_WARNING_PROMPT);
   download::DownloadItem* file = GetDownloadByStringId(id);
-  if (!file || !file->IsDangerous() || file->IsDone()) {
+  if (!CanLogWarningMetrics(file)) {
     return;
   }
 
@@ -358,19 +336,17 @@ void DownloadsDOMHandler::RecordOpenBypassWarningPrompt(const std::string& id) {
                           WarningAction::KEEP);
 }
 
-void DownloadsDOMHandler::SaveDangerousFromPromptRequiringGesture(
+void DownloadsDOMHandler::SaveDangerousFromDialogRequiringGesture(
     const std::string& id) {
-  CHECK(base::FeatureList::IsEnabled(
-      safe_browsing::kImprovedDownloadPageWarnings));
   if (!GetWebUIWebContents()->HasRecentInteraction()) {
-    LOG(ERROR) << "SaveDangerousFromPromptRequiringGesture received without "
+    LOG(ERROR) << "SaveDangerousFromDialogRequiringGesture received without "
                   "recent user interaction";
     return;
   }
 
   CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS_FROM_PROMPT);
   download::DownloadItem* file = GetDownloadByStringId(id);
-  if (!file || !file->IsDangerous() || file->IsDone()) {
+  if (!CanLogWarningMetrics(file)) {
     return;
   }
 
@@ -389,14 +365,11 @@ void DownloadsDOMHandler::SaveDangerousFromPromptRequiringGesture(
   file->ValidateDangerousDownload();
 }
 
-void DownloadsDOMHandler::RecordCancelBypassWarningPrompt(
+void DownloadsDOMHandler::RecordCancelBypassWarningDialog(
     const std::string& id) {
-  CHECK(base::FeatureList::IsEnabled(
-      safe_browsing::kImprovedDownloadPageWarnings));
-
   CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_CANCEL_BYPASS_WARNING_PROMPT);
   download::DownloadItem* file = GetDownloadByStringId(id);
-  if (!file || !file->IsDangerous() || file->IsDone()) {
+  if (!CanLogWarningMetrics(file)) {
     return;
   }
 
@@ -455,7 +428,7 @@ void DownloadsDOMHandler::RetryDownload(const std::string& id) {
   // chrome://downloads/ page. Thus we get the NIK from |file|, not from
   // |render_frame_host|.
   auto dl_params = std::make_unique<download::DownloadUrlParameters>(
-      url, render_frame_host->GetProcess()->GetID(),
+      url, render_frame_host->GetProcess()->GetDeprecatedID(),
       render_frame_host->GetRoutingID(), traffic_annotation);
   dl_params->set_content_initiated(true);
   dl_params->set_initiator(url::Origin::Create(GURL("wootzapp://downloads")));
@@ -620,7 +593,7 @@ void DownloadsDOMHandler::OpenDuringScanningRequiringGesture(
   if (download) {
     DownloadItemModel model(download);
     model.SetOpenWhenComplete(true);
-#if BUILDFLAG(FULL_SAFE_BROWSING)
+#if BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION)
     model.CompleteSafeBrowsingScan();
 #endif
   }
@@ -633,15 +606,20 @@ void DownloadsDOMHandler::DeepScan(const std::string& id) {
     return;
   }
 
-  if (DownloadItemWarningData::IsEncryptedArchive(download)) {
+  if (DownloadItemWarningData::IsTopLevelEncryptedArchive(download)) {
     // For encrypted archives, we need a password from the user. We will request
     // this in the download bubble.
     PromptForScanningInBubble(GetWebUIWebContents(), download);
     return;
   }
 
+#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
   LogDeepScanEvent(download,
                    safe_browsing::DeepScanEvent::kPromptAcceptedFromWebUI);
+#endif
+  DownloadItemWarningData::AddWarningActionEvent(
+      download, DownloadItemWarningData::WarningSurface::DOWNLOADS_PAGE,
+      DownloadItemWarningData::WarningAction::ACCEPT_DEEP_SCAN);
   DownloadItemModel model(download);
   DownloadCommands commands(model.GetWeakPtr());
   commands.ExecuteCommand(DownloadCommands::DEEP_SCAN);
@@ -664,14 +642,9 @@ void DownloadsDOMHandler::BypassDeepScanRequiringGesture(
     }
     DownloadItemModel model(download);
     DownloadCommands commands(model.GetWeakPtr());
-    // Under ImprovedDownloadPageWarnings, the button says "Download suspicious
-    // file" which does not imply opening the file. In the old behavior, the
-    // button says "Open anyway" so we should open the file.
-    commands.ExecuteCommand(
-        base::FeatureList::IsEnabled(
-            safe_browsing::kImprovedDownloadPageWarnings)
-            ? DownloadCommands::BYPASS_DEEP_SCANNING
-            : DownloadCommands::BYPASS_DEEP_SCANNING_AND_OPEN);
+    // The button says "Download suspicious file" which does not imply opening
+    // the file.
+    commands.ExecuteCommand(DownloadCommands::BYPASS_DEEP_SCANNING);
   }
 }
 
@@ -683,13 +656,16 @@ void DownloadsDOMHandler::ReviewDangerousRequiringGesture(
   }
 
   CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_REVIEW_DANGEROUS);
+#if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
   download::DownloadItem* download = GetDownloadByStringId(id);
   if (download) {
     DownloadItemModel model(download);
     model.ReviewScanningVerdict(GetWebUIWebContents());
   }
+#endif
 }
 
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
 // This function will be called when a user clicks on the ESB
 // (Enhanced Safe Browsing) download row promo. It will notify
 // the feature engagement backend to record the event that the
@@ -707,6 +683,11 @@ void DownloadsDOMHandler::OpenEsbSettings() {
       feature_engagement::TrackerFactory::GetForBrowserContext(
           browser->profile());
   tracker->NotifyEvent("esb_download_promo_row_clicked");
+  base::RecordAction(
+      base::UserMetricsAction("SafeBrowsing.EsbDownloadRowPromo.Click"));
+  base::UmaHistogramEnumeration(
+      "SafeBrowsing.EsbDownloadRowPromo.Outcome",
+      SafeBrowsingEsbDownloadRowPromoOutcome::kClicked);
 }
 
 void DownloadsDOMHandler::IsEligibleForEsbPromo(
@@ -724,7 +705,6 @@ void DownloadsDOMHandler::IsEligibleForEsbPromo(
     std::move(callback).Run(false);
     return;
   }
-
   bool should_show_esb_promo = false;
   if (feature_engagement::Tracker* tracker =
           feature_engagement::TrackerFactory::GetForBrowserContext(
@@ -748,7 +728,26 @@ void DownloadsDOMHandler::LogEsbPromotionRowViewed() {
       feature_engagement::TrackerFactory::GetForBrowserContext(
           manager->GetBrowserContext());
   tracker->NotifyEvent("esb_download_promo_row_viewed");
+  base::UmaHistogramEnumeration("SafeBrowsing.EsbDownloadRowPromo.Outcome",
+                                SafeBrowsingEsbDownloadRowPromoOutcome::kShown);
 }
+#else
+// These next three functions are empty implementations for the non-branded
+// chromium build since the ESB download row promo only runs on branded
+// google chrome.
+void DownloadsDOMHandler::OpenEsbSettings() {
+  return;
+}
+
+void DownloadsDOMHandler::IsEligibleForEsbPromo(
+    IsEligibleForEsbPromoCallback callback) {
+  std::move(callback).Run(false);
+}
+
+void DownloadsDOMHandler::LogEsbPromotionRowViewed() {
+  return;
+}
+#endif
 
 // DownloadsDOMHandler, private: --------------------------------------------
 
@@ -773,54 +772,6 @@ void DownloadsDOMHandler::FinalizeRemovals() {
       }
     }
   }
-}
-
-// TODO(chlily): This is obsoleted by ImprovedDownloadPageWarnings. Clean this
-// up.
-void DownloadsDOMHandler::ShowDangerPrompt(
-    download::DownloadItem* dangerous_item) {
-  DownloadDangerPrompt* danger_prompt = DownloadDangerPrompt::Create(
-      dangerous_item, GetWebUIWebContents(), false,
-      base::BindOnce(&DownloadsDOMHandler::DangerPromptDone,
-                     weak_ptr_factory_.GetWeakPtr(), dangerous_item->GetId()));
-  // danger_prompt will delete itself.
-  DCHECK(danger_prompt);
-}
-
-// TODO(chlily): This is obsoleted by ImprovedDownloadPageWarnings. Clean this
-// up.
-void DownloadsDOMHandler::DangerPromptDone(
-    int download_id,
-    DownloadDangerPrompt::Action action) {
-  if (action != DownloadDangerPrompt::ACCEPT) {
-    return;
-  }
-  download::DownloadItem* item = nullptr;
-  if (GetMainNotifierManager()) {
-    item = GetMainNotifierManager()->GetDownload(download_id);
-  }
-  if (!item && GetOriginalNotifierManager()) {
-    item = GetOriginalNotifierManager()->GetDownload(download_id);
-  }
-  if (!item || item->IsDone()) {
-    return;
-  }
-  CountDownloadsDOMEvents(DOWNLOADS_DOM_EVENT_SAVE_DANGEROUS);
-
-  // If a download is insecure, validate that first. Is most cases, insecure
-  // download warnings will occur first, but in the worst case scenario, we show
-  // a dangerous warning twice. That's better than showing an insecure download
-  // warning, then dismissing the dangerous download warning. Since insecure
-  // downloads triggering the UI are temporary and rare to begin with, this
-  // should very rarely occur.
-  if (item->IsInsecure()) {
-    item->ValidateInsecureDownload();
-    return;
-  }
-
-  RecordDownloadsPageValidatedHistogram(item);
-
-  item->ValidateDangerousDownload();
 }
 
 void DownloadsDOMHandler::MaybeTriggerDownloadWarningHatsSurvey(
@@ -871,8 +822,7 @@ download::DownloadItem* DownloadsDOMHandler::GetDownloadByStringId(
     const std::string& id) {
   uint64_t id_num;
   if (!base::StringToUint64(id, &id_num)) {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
 
   return GetDownloadById(static_cast<uint32_t>(id_num));

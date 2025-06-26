@@ -8,91 +8,88 @@
 namespace commerce {
 
 // The host for the commerce internals page.
-extern const char kChromeUICommerceInternalsHost[];
+inline constexpr char kChromeUICommerceInternalsHost[] = "commerce-internals";
 
 // The host for compare.
-extern const char kChromeUICompareHost[];
+inline constexpr char kChromeUICompareHost[] = "compare";
+
+// The URL for managing compare entities.
+inline constexpr char kChromeUICompareListsUrl[] =
+    "chrome://history/comparisonTables";
 
 // The URL for compare.
-extern const char kChromeUICompareUrl[];
+inline constexpr char kChromeUICompareUrl[] = "chrome://compare";
+
+// The URL for compare disclosure.
+inline constexpr char kChromeUICompareDisclosureUrl[] =
+    "chrome://compare/disclosure";
+
+// The URL for compare learn more page.
+inline constexpr char kChromeUICompareLearnMoreUrl[] =
+    "https://support.google.com/chrome/?p=compare_tabs";
+
+// The URL for compare learn more page for managed users.
+inline constexpr char kChromeUICompareLearnMoreManagedUrl[] =
+    "https://support.google.com/chrome/a?p=tab_compare";
 
 // The host for the shopping insights side panel page.
-extern const char kChromeUIShoppingInsightsSidePanelHost[];
+inline constexpr char kChromeUIShoppingInsightsSidePanelHost[] =
+    "shopping-insights-side-panel.top-chrome";
 
 // The url for the shopping insights side panel page.
-extern const char kChromeUIShoppingInsightsSidePanelUrl[];
+inline constexpr char kChromeUIShoppingInsightsSidePanelUrl[] =
+    "chrome://shopping-insights-side-panel.top-chrome";
 
 // Content type for network request.
-extern const char kContentType[];
+inline constexpr char kContentType[] = "application/json; charset=UTF-8";
 
 // Http DELETE method.
-extern const char kDeleteHttpMethod[];
+inline constexpr char kDeleteHttpMethod[] = "DELETE";
 
 // Empty data for POST request.
-extern const char kEmptyPostData[];
+inline constexpr char kEmptyPostData[] = "";
 
 // Http GET method.
-extern const char kGetHttpMethod[];
+inline constexpr char kGetHttpMethod[] = "GET";
+
+// The maximum enforced interval (in days) between two triggers of the product
+// specifications entry point.
+inline constexpr int kProductSpecMaxEntryPointTriggeringInterval = 64;
 
 // OAuth name used for network request.
-extern const char kOAuthName[];
+inline constexpr char kOAuthName[] = "chromememex_svc";
 
 // OAuth scope used for network request.
-extern const char kOAuthScope[];
+inline constexpr char kOAuthScope[] =
+    "https://www.googleapis.com/auth/chromememex";
 
 // Open graph keys.
-extern const char kOgImage[];
-extern const char kOgPriceAmount[];
-extern const char kOgPriceCurrency[];
-extern const char kOgProductLink[];
-extern const char kOgTitle[];
-extern const char kOgType[];
+inline constexpr char kOgImage[] = "image";
+inline constexpr char kOgPriceAmount[] = "price:amount";
+inline constexpr char kOgPriceCurrency[] = "price:currency";
+inline constexpr char kOgProductLink[] = "product_link";
+inline constexpr char kOgTitle[] = "title";
+inline constexpr char kOgType[] = "type";
 
 // Specific open graph values we're interested in.
-extern const char kOgTypeOgProduct[];
-extern const char kOgTypeProductItem[];
+inline constexpr char kOgTypeOgProduct[] = "product";
+inline constexpr char kOgTypeProductItem[] = "product.item";
 
 // Http POST method.
-extern const char kPostHttpMethod[];
+inline constexpr char kPostHttpMethod[] = "POST";
+
+// Prefix for model quality logging entry for product specifications.
+inline constexpr char kProductSpecificationsLoggingPrefix[] =
+    "product-specifications:";
 
 // A means of specifying the URL for the product specifications backend from
 // the command line.
-extern const char kProductSpecificationsUrlKey[];
+inline constexpr char kProductSpecificationsUrlKey[] =
+    "product-specifications-url";
 
 // The conversion multiplier to go from standard currency units to
 // micro-currency units.
-extern const long kToMicroCurrency;
-
-// Please do not use below UTM constants beyond commerce use cases.
-// UTM campaign label.
-extern const char kUTMCampaignLabel[];
-
-// UTM campaign value for partner merchant carts when discount is enabled.
-extern const char kUTMCampaignValueForCartDiscount[];
-
-// UTM campaign value for partner merchant carts when discount is disabled.
-extern const char kUTMCampaignValueForCartNoDiscount[];
-
-// UTM campaign value for non-partner merchant carts.
-extern const char kUTMCampaignValueForChromeCart[];
-
-// UTM campaign value for discounts in history clusters.
-extern const char kUTMCampaignValueForDiscounts[];
-
-// UTM medium label.
-extern const char kUTMMediumLabel[];
-
-// General UTM medium value.
-extern const char kUTMMediumValue[];
-
-// Prefix of UTM labels, including the underscore.
-extern const char kUTMPrefix[];
-
-// UTM source label.
-extern const char kUTMSourceLabel[];
-
-// General UTM source value.
-extern const char kUTMSourceValue[];
+inline constexpr long kToMicroCurrency = 1e6;
 }  // namespace commerce
 
 #endif  // COMPONENTS_COMMERCE_CORE_COMMERCE_CONSTANTS_H_

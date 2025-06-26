@@ -11,7 +11,6 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_web_ui_view.h"
@@ -32,32 +31,27 @@ BEGIN_TEMPLATE_METADATA(SidePanelWebUIViewT_BookmarksSidePanelUI,
                         SidePanelWebUIViewT)
 END_METADATA
 
-BookmarksSidePanelCoordinator::BookmarksSidePanelCoordinator(Browser* browser)
-    : BrowserUserData<BookmarksSidePanelCoordinator>(*browser) {}
-
-BookmarksSidePanelCoordinator::~BookmarksSidePanelCoordinator() = default;
+BookmarksSidePanelCoordinator::BookmarksSidePanelCoordinator() = default;
 
 void BookmarksSidePanelCoordinator::CreateAndRegisterEntry(
     SidePanelRegistry* global_registry) {
   global_registry->Register(std::make_unique<SidePanelEntry>(
       SidePanelEntry::Id::kBookmarks,
-      l10n_util::GetStringUTF16(IDS_BOOKMARK_MANAGER_TITLE),
-      ui::ImageModel::FromVectorIcon(kBookmarksSidePanelRefreshIcon,
-                                     ui::kColorIcon),
       base::BindRepeating(
           &BookmarksSidePanelCoordinator::CreateBookmarksWebView,
           base::Unretained(this))));
 }
 
 std::unique_ptr<views::View>
-BookmarksSidePanelCoordinator::CreateBookmarksWebView() {
+BookmarksSidePanelCoordinator::CreateBookmarksWebView(
+    SidePanelEntryScope& scope) {
   auto bookmarks_web_view =
       std::make_unique<SidePanelWebUIViewT<BookmarksSidePanelUI>>(
-          base::RepeatingClosure(), base::RepeatingClosure(),
+          scope, base::RepeatingClosure(), base::RepeatingClosure(),
           std::make_unique<WebUIContentsWrapperT<BookmarksSidePanelUI>>(
               GURL(chrome::kChromeUIBookmarksSidePanelURL),
-              GetBrowser().profile(), IDS_BOOKMARK_MANAGER_TITLE,
-              /*webui_resizes_host=*/false,
+              scope.GetBrowserWindowInterface().GetProfile(),
+              IDS_BOOKMARK_MANAGER_TITLE,
               /*esc_closes_ui=*/false));
   bookmarks_web_view->SetProperty(views::kElementIdentifierKey,
                                   kBookmarkSidePanelWebViewElementId);
@@ -65,5 +59,3 @@ BookmarksSidePanelCoordinator::CreateBookmarksWebView() {
       bookmarks_web_view.get()->contents_wrapper()->web_contents());
   return bookmarks_web_view;
 }
-
-BROWSER_USER_DATA_KEY_IMPL(BookmarksSidePanelCoordinator);

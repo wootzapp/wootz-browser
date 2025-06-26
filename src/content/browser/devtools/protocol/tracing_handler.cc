@@ -29,7 +29,6 @@
 #include "base/trace_event/tracing_agent.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "components/tracing/common/trace_startup_config.h"
 #include "content/browser/devtools/devtools_agent_host_impl.h"
 #include "content/browser/devtools/devtools_io_context.h"
 #include "content/browser/devtools/devtools_stream_file.h"
@@ -51,6 +50,7 @@
 #include "services/tracing/public/cpp/perfetto/perfetto_config.h"
 #include "services/tracing/public/cpp/perfetto/perfetto_session.h"
 #include "services/tracing/public/cpp/perfetto/trace_packet_tokenizer.h"
+#include "services/tracing/public/cpp/trace_startup_config.h"
 #include "services/tracing/public/cpp/tracing_features.h"
 #include "services/tracing/public/mojom/constants.mojom-forward.h"
 #include "third_party/abseil-cpp/absl/strings/ascii.h"
@@ -199,6 +199,12 @@ void FillFrameData(base::trace_event::TracedValue* data,
   data->SetString("url", std::move(trimmed_url));
   data->SetString("name", frame_host->GetFrameName());
   data->SetBoolean("isOutermostMainFrame", frame_host->IsOutermostMainFrame());
+  // Use FrameTree's primary status since the `frame_host` itself might not be
+  // the primary main RenderFrameHost yet, if this function is called when
+  // `frame_host` is still speculative / pending commit.
+  data->SetBoolean("isInPrimaryMainFrame",
+                   frame_host->IsOutermostMainFrame() &&
+                       frame_host->frame_tree()->is_primary());
   if (frame_host->GetParent()) {
     data->SetString(
         "parent", frame_host->GetParent()->GetDevToolsFrameToken().ToString());
@@ -612,8 +618,7 @@ void TracingHandler::OnTraceDataCollected(
   const size_t messageSuffixSize = 10;
   message.reserve(message.size() + valid_trace_fragment.size() +
                   messageSuffixSize - trace_data_buffer_state_.offset);
-  message.append(valid_trace_fragment.c_str() +
-                 trace_data_buffer_state_.offset);
+  message.append(valid_trace_fragment, trace_data_buffer_state_.offset);
   message += "] } }";
 
   frontend_->sendRawNotification(
@@ -707,16 +712,17 @@ void TracingHandler::OnTraceToStreamComplete(const std::string& stream_handle) {
                              stream_compression);
 }
 
-void TracingHandler::Start(Maybe<std::string> categories,
-                           Maybe<std::string> options,
-                           Maybe<double> buffer_usage_reporting_interval,
-                           Maybe<std::string> transfer_mode,
-                           Maybe<std::string> transfer_format,
-                           Maybe<std::string> transfer_compression,
-                           Maybe<Tracing::TraceConfig> config,
-                           Maybe<Binary> perfetto_config,
-                           Maybe<std::string> tracing_backend,
-                           std::unique_ptr<StartCallback> callback) {
+void TracingHandler::Start(
+    std::optional<std::string> categories,
+    std::optional<std::string> options,
+    std::optional<double> buffer_usage_reporting_interval,
+    std::optional<std::string> transfer_mode,
+    std::optional<std::string> transfer_format,
+    std::optional<std::string> transfer_compression,
+    std::unique_ptr<Tracing::TraceConfig> config,
+    std::optional<Binary> perfetto_config,
+    std::optional<std::string> tracing_backend,
+    std::unique_ptr<StartCallback> callback) {
   bool return_as_stream = transfer_mode.value_or("") ==
                           Tracing::Start::TransferModeEnum::ReturnAsStream;
   bool gzip_compression =
@@ -755,9 +761,9 @@ void TracingHandler::Start(Maybe<std::string> categories,
   } else {
     base::trace_event::TraceConfig browser_config =
         base::trace_event::TraceConfig();
-    if (config.has_value()) {
+    if (config) {
       base::Value::Dict dict;
-      CHECK(crdtp::ConvertProtocolValue(config.value(), &dict));
+      CHECK(crdtp::ConvertProtocolValue(*config, &dict));
       browser_config =
           GetTraceConfigFromDevToolsConfig(base::Value(std::move(dict)));
     } else if (categories.has_value() || options.has_value()) {
@@ -796,7 +802,7 @@ void TracingHandler::Start(Maybe<std::string> categories,
     return;
   }
 
-  if (config.has_value() && (categories.has_value() || options.has_value())) {
+  if (config && (categories.has_value() || options.has_value())) {
     callback->sendFailure(Response::InvalidParams(
         "Either trace config (preferred), or categories+options should be "
         "specified, but not both."));
@@ -875,8 +881,8 @@ void TracingHandler::AttemptAdoptStartupSession(
   if (session_for_process_filter_) {
     return;
   }
-  auto* startup_config = tracing::TraceStartupConfig::GetInstance();
-  if (!startup_config->AttemptAdoptBySessionOwner(
+  auto& startup_config = tracing::TraceStartupConfig::GetInstance();
+  if (!startup_config.AttemptAdoptBySessionOwner(
           tracing::TraceStartupConfig::SessionOwner::kDevToolsTracingHandler)) {
     return;
   }
@@ -885,10 +891,8 @@ void TracingHandler::AttemptAdoptStartupSession(
   gzip_compression_ = gzip_compression;
   proto_format_ = proto_format;
 
-  base::trace_event::TraceConfig browser_config =
-      tracing::TraceStartupConfig::GetInstance()->GetTraceConfig();
-  perfetto::TraceConfig perfetto_config = CreatePerfettoConfiguration(
-      browser_config, return_as_stream_, proto_format_);
+  perfetto::TraceConfig perfetto_config =
+      tracing::TraceStartupConfig::GetInstance().GetPerfettoConfig();
 
   session_ =
       std::make_unique<PerfettoTracingSession>(proto_format_, tracing_backend);
@@ -991,8 +995,8 @@ void TracingHandler::OnCategoriesReceived(
 }
 
 void TracingHandler::RequestMemoryDump(
-    Maybe<bool> deterministic,
-    Maybe<std::string> level_of_detail,
+    std::optional<bool> deterministic,
+    std::optional<std::string> level_of_detail,
     std::unique_ptr<RequestMemoryDumpCallback> callback) {
   if (!IsTracing()) {
     callback->sendFailure(Response::ServerError("Tracing is not started"));
@@ -1036,17 +1040,19 @@ void TracingHandler::OnFrameFromVideoConsumer(
     return;
   }
   const SkBitmap skbitmap = DevToolsVideoConsumer::GetSkBitmapFromFrame(frame);
-  uint64_t frame_sequence = *frame->metadata().frame_sequence;
-
   // This reference_time is an ESTIMATE. It is set by the compositor frame sink
   // from the `expected_display_time`, which is based on a previously known
   // frame start PLUS the vsync interval (eg 16.6ms)
   base::TimeTicks expected_display_time = *frame->metadata().reference_time;
 
-  TRACE_EVENT_OBJECT_SNAPSHOT_WITH_ID_AND_TIMESTAMP(
-      TRACE_DISABLED_BY_DEFAULT("devtools.screenshot"), "Screenshot",
-      frame_sequence, expected_display_time,
-      std::make_unique<DevToolsTraceableScreenshot>(skbitmap));
+  uint64_t frame_sequence = *frame->metadata().frame_sequence;
+  uint64_t source_id = *frame->metadata().source_id;
+
+  TRACE_EVENT_INSTANT(TRACE_DISABLED_BY_DEFAULT("devtools.screenshot"),
+                      "Screenshot", "expected_display_time",
+                      expected_display_time, "frame_sequence", frame_sequence,
+                      "source_id", source_id, "snapshot",
+                      std::make_unique<DevToolsTraceableScreenshot>(skbitmap));
 
   ++number_of_screenshots_from_video_consumer_;
   DCHECK(video_consumer_);
@@ -1109,8 +1115,9 @@ void TracingHandler::EmitFrameTree() {
     auto* frame_host =
         static_cast<RenderFrameHostImpl*>(wc->GetPrimaryMainFrame());
     CHECK(frame_host);
-    data->SetInteger("frameTreeNodeId",
-                     frame_host->frame_tree_node()->frame_tree_node_id());
+    data->SetInteger(
+        "frameTreeNodeId",
+        frame_host->frame_tree_node()->frame_tree_node_id().value());
     data->SetBoolean("persistentIds", true);
     data->BeginArray("frames");
     wc->ForEachRenderFrameHost([&data](RenderFrameHost* rfh) {
@@ -1155,7 +1162,7 @@ void TracingHandler::ReadyToCommitNavigation(
   }
 }
 
-void TracingHandler::FrameDeleted(int frame_tree_node_id) {
+void TracingHandler::FrameDeleted(FrameTreeNodeId frame_tree_node_id) {
   if (!did_initiate_recording_)
     return;
   FrameTreeNode* node = FrameTreeNode::GloballyFindByID(frame_tree_node_id);
@@ -1175,7 +1182,7 @@ void TracingHandler::FrameDeleted(int frame_tree_node_id) {
 
 // static
 bool TracingHandler::IsStartupTracingActive() {
-  return ::tracing::TraceStartupConfig::GetInstance()->IsEnabled();
+  return ::tracing::TraceStartupConfig::GetInstance().IsEnabled();
 }
 
 // static

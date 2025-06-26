@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ash/file_manager/app_service_file_tasks.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -11,13 +12,13 @@
 #include <vector>
 
 #include "ash/constants/ash_features.h"
+#include "ash/constants/web_app_id_constants.h"
 #include "ash/webui/file_manager/url_constants.h"
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_restrictions.h"
@@ -28,7 +29,6 @@
 #include "chrome/browser/apps/app_service/launch_utils.h"
 #include "chrome/browser/apps/app_service/policy_util.h"
 #include "chrome/browser/ash/crostini/crostini_features.h"
-#include "chrome/browser/ash/file_manager/app_id.h"
 #include "chrome/browser/ash/file_manager/file_tasks.h"
 #include "chrome/browser/ash/file_manager/fileapi_util.h"
 #include "chrome/browser/ash/file_manager/filesystem_api_util.h"
@@ -36,12 +36,15 @@
 #include "chrome/browser/ash/file_manager/path_util.h"
 #include "chrome/browser/ash/file_manager/virtual_file_tasks.h"
 #include "chrome/browser/ash/fusebox/fusebox_server.h"
+#include "chrome/browser/chromeos/upload_office_to_cloud/upload_office_to_cloud.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/webui/ash/cloud_upload/hats_office_trigger.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
-#include "chrome/browser/web_applications/web_app_id_constants.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/common/extensions/api/file_manager_private.h"
 #include "chrome/common/pref_names.h"
+#include "chromeos/ash/components/file_manager/app_id.h"
 #include "components/prefs/pref_service.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/services/app_service/public/cpp/app_types.h"
@@ -89,8 +92,6 @@ TaskType GetTaskType(apps::AppType app_type) {
       return TASK_TYPE_WEB_APP;
     case apps::AppType::kChromeApp:
     case apps::AppType::kExtension:
-    case apps::AppType::kStandaloneBrowserChromeApp:
-    case apps::AppType::kStandaloneBrowserExtension:
       // Chrome apps and Extensions both get called file_handler, even though
       // extensions really have file_browser_handler. It doesn't matter anymore
       // because both are executed through App Service, which can tell the
@@ -103,8 +104,6 @@ TaskType GetTaskType(apps::AppType app_type) {
     case apps::AppType::kPluginVm:
       return TASK_TYPE_PLUGIN_VM_APP;
     case apps::AppType::kUnknown:
-    case apps::AppType::kBuiltIn:
-    case apps::AppType::kStandaloneBrowser:
     case apps::AppType::kRemote:
     case apps::AppType::kBorealis:
       return TASK_TYPE_UNKNOWN;
@@ -202,7 +201,7 @@ bool IsFilesAppUrlOpener(const std::string& app_id,
 }
 
 bool IsSystemAppIdWithFileHandlers(std::string_view id) {
-  return id == web_app::kMediaAppId;
+  return id == ash::kMediaAppId;
 }
 
 void FindAppServiceTasks(Profile* profile,
@@ -253,8 +252,6 @@ void FindAppServiceTasks(Profile* profile,
       apps::AppType::kSystemWeb,
       apps::AppType::kChromeApp,
       apps::AppType::kExtension,
-      apps::AppType::kStandaloneBrowserChromeApp,
-      apps::AppType::kStandaloneBrowserExtension,
       apps::AppType::kBruschetta,
       apps::AppType::kCrostini,
       apps::AppType::kPluginVm,
@@ -378,6 +375,16 @@ void ExecuteAppServiceTask(
       apps_util::kIntentActionView, std::move(intent_files));
   intent->activity_name = task.action_id;
 
+  if (base::FeatureList::IsEnabled(::features::kHappinessTrackingOffice) &&
+      task.app_id == extension_misc::kQuickOfficeComponentExtensionId &&
+      task.action_id == kActionIdQuickOffice) {
+    auto survey_launching_app =
+        chromeos::IsEligibleAndEnabledUploadOfficeToCloud(profile)
+            ? ash::cloud_upload::HatsOfficeLaunchingApp::kQuickOffice
+            : ash::cloud_upload::HatsOfficeLaunchingApp::kQuickOfficeClippyOff;
+    ash::cloud_upload::HatsOfficeTrigger::Get().ShowSurveyAfterDelay(
+        survey_launching_app);
+  }
   // `window_info` as nullptr sets `display_id` to `display::kInvalidDisplayId`
   // later, which is the default value. `display::kDefaultDisplayId` is not. The
   // default value allows a window on any display to be reused, i.e. a wildcard.

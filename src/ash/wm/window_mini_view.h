@@ -40,8 +40,13 @@ class WindowMiniViewBase : public views::View {
   WindowMiniViewBase& operator=(const WindowMiniViewBase&) = delete;
   ~WindowMiniViewBase() override;
 
+  bool is_mini_view_focused() const { return is_focused_; }
+
   // Shows or hides a focus ring around this.
   void UpdateFocusState(bool focus);
+
+  [[nodiscard]] base::CallbackListSubscription AddFocusedChangedCallback(
+      views::PropertyChangedCallback callback);
 
   // Returns true if a preview of the given `window` is contained in `this`.
   virtual bool Contains(aura::Window* window) const = 0;
@@ -129,6 +134,9 @@ class ASH_EXPORT WindowMiniView : public WindowMiniViewBase,
   // `header_view_rounded_corners_` and `preview_view_rounded_corners_`.
   void ResetRoundedCorners();
 
+  // views::View:
+  void OnThemeChanged() override;
+
   // WindowMiniViewBase:
   bool Contains(aura::Window* window) const override;
   aura::Window* GetWindowAtPoint(const gfx::Point& screen_point) const override;
@@ -138,7 +146,6 @@ class ASH_EXPORT WindowMiniView : public WindowMiniViewBase,
   void SetSelectedWindowForFocus(aura::Window* window) override;
   void ClearFocusSelection() override;
   void Layout(PassKey) override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
 
   // aura::WindowObserver:
   void OnWindowPropertyChanged(aura::Window* window,
@@ -148,7 +155,7 @@ class ASH_EXPORT WindowMiniView : public WindowMiniViewBase,
   void OnWindowTitleChanged(aura::Window* window) override;
 
  protected:
-  explicit WindowMiniView(aura::Window* source_window);
+  WindowMiniView(aura::Window* source_window, bool use_custom_focus_predicate);
 
   // Returns the bounds where the backdrop and preview should go.
   gfx::Rect GetContentAreaBounds() const;
@@ -164,7 +171,10 @@ class ASH_EXPORT WindowMiniView : public WindowMiniViewBase,
   // the `header_view_`, `preview_view_` and focus ring.
   void OnRoundedCornersSet();
 
-  void InstallFocusRing();
+  void InstallFocusRing(bool use_custom_predicate);
+
+  void UpdateAccessibleIgnoredState();
+  void UpdateAccessibleName();
 
   // Generates the focus ring path for `this`, which has four rounded corners by
   // default. If this is part of a snap group, the path should match the rounded

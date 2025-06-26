@@ -26,11 +26,8 @@
 
     <div id="canvasDiv">
       <canvas id="canvas" height="240" width="460"></canvas>
-      <iron-media-query query="(prefers-color-scheme: dark)"
-          query-matches="{{isDarkModeActive_}}">
-      </iron-media-query>
       <cr-lottie id="scanningAnimation" aria-hidden="true"
           autoplay="[[autoplay]]">
       </cr-lottie>
-      <iron-icon id="fingerprintScanned" hidden></iron-icon>
+      <cr-icon id="fingerprintScanned" hidden></cr-icon>
     </div>

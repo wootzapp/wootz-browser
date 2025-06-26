@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "base/base_export.h"
-#include "base/strings/string_piece.h"
+#include "base/compiler_specific.h"
 #include "base/strings/string_split.h"
 
 namespace base {
@@ -24,7 +24,7 @@ namespace base {
     SplitResult result_type);
 
 [[nodiscard]] BASE_EXPORT std::vector<std::wstring_view> SplitStringPiece(
-    std::wstring_view input,
+    std::wstring_view input LIFETIME_BOUND,
     std::wstring_view separators,
     WhitespaceHandling whitespace,
     SplitResult result_type);
@@ -36,7 +36,7 @@ namespace base {
     SplitResult result_type);
 
 [[nodiscard]] BASE_EXPORT std::vector<std::wstring_view>
-SplitStringPieceUsingSubstr(std::wstring_view input,
+SplitStringPieceUsingSubstr(std::wstring_view input LIFETIME_BOUND,
                             std::wstring_view delimiter,
                             WhitespaceHandling whitespace,
                             SplitResult result_type);

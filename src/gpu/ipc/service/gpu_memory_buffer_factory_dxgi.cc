@@ -10,7 +10,6 @@
 #include "base/synchronization/waitable_event.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
-#include "gpu/command_buffer/common/gpu_memory_buffer_support.h"
 #include "gpu/ipc/common/dxgi_helpers.h"
 #include "ui/gfx/buffer_format_util.h"
 #include "ui/gfx/buffer_types.h"
@@ -166,9 +165,8 @@ gfx::GpuMemoryBufferHandle GpuMemoryBufferFactoryDXGI::CreateGpuMemoryBuffer(
       dxgi_format = DXGI_FORMAT_NV12;
       break;
     default:
-      NOTREACHED_IN_MIGRATION() << "invalid buffer format, format="
-                                << gfx::BufferFormatToString(format);
-      return handle;
+      NOTREACHED() << "invalid buffer format, format="
+                   << gfx::BufferFormatToString(format);
   }
 
   size_t buffer_size;
@@ -214,9 +212,8 @@ gfx::GpuMemoryBufferHandle GpuMemoryBufferFactoryDXGI::CreateGpuMemoryBuffer(
     return handle;
   }
 
-  handle.dxgi_handle.Set(texture_handle);
-  handle.dxgi_token = gfx::DXGIHandleToken();
-  handle.type = gfx::DXGI_SHARED_HANDLE;
+  handle = gfx::GpuMemoryBufferHandle(
+      gfx::DXGIHandle(base::win::ScopedHandle(texture_handle)));
   handle.id = id;
 
   return handle;
@@ -241,7 +238,7 @@ bool GpuMemoryBufferFactoryDXGI::FillSharedMemoryRegionWithBufferContents(
     return false;
   }
 
-  return CopyDXGIBufferToShMem(buffer_handle.dxgi_handle.Get(),
+  return CopyDXGIBufferToShMem(buffer_handle.dxgi_handle().buffer_handle(),
                                mapping.GetMemoryAsSpan<uint8_t>(),
                                d3d11_device.Get(), &staging_texture_);
 }

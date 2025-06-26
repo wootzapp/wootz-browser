@@ -4,12 +4,10 @@
 
 package org.chromium.chrome.browser.page_info;
 
-import static org.chromium.base.test.util.Batch.PER_CLASS;
 import static org.chromium.components.permissions.PermissionDialogDelegate.getRequestTypeEnumSize;
 
 import android.Manifest;
 import android.content.Context;
-import android.content.res.Resources;
 
 import androidx.test.filters.MediumTest;
 
@@ -21,14 +19,15 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterProvider;
 import org.chromium.base.test.params.ParameterSet;
 import org.chromium.base.test.params.ParameterizedRunner;
-import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
@@ -38,7 +37,7 @@ import org.chromium.chrome.browser.browsing_data.TimePeriod;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
 import org.chromium.chrome.browser.omnibox.UrlBarEditingTextStateProvider;
-import org.chromium.chrome.browser.omnibox.status.PageInfoIPHController;
+import org.chromium.chrome.browser.omnibox.status.PageInfoIphController;
 import org.chromium.chrome.browser.omnibox.status.StatusMediator;
 import org.chromium.chrome.browser.omnibox.status.StatusProperties;
 import org.chromium.chrome.browser.permissions.PermissionTestRule;
@@ -54,7 +53,6 @@ import org.chromium.components.permissions.PermissionDialogController;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.ContentFeatureMap;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.device.geolocation.LocationProviderOverrider;
 import org.chromium.ui.modelutil.PropertyModel;
 
@@ -65,10 +63,12 @@ import java.util.List;
 @RunWith(ParameterizedRunner.class)
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
-@Batch(PER_CLASS)
+// TODO(crbug.com/344672094): Failing when batched, batch this again.
 public class PageInfoDiscoverabilityTest {
     @ClassRule
     public static final PermissionTestRule sPermissionTestRule = new PermissionTestRule();
+
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
     public final BlankCTATabInitialStateRule mInitialStateRule =
@@ -95,10 +95,6 @@ public class PageInfoDiscoverabilityTest {
             // ParameterSet.value = {ContentSettingsType, isInSiteSettings}
             parameters.add(
                     new ParameterSet()
-                            .name("RequestType.kAccessibilityEvents")
-                            .value(ContentSettingsType.ACCESSIBILITY_EVENTS, false));
-            parameters.add(
-                    new ParameterSet()
                             .name("RequestType.kArSession")
                             .value(ContentSettingsType.AR, true));
             parameters.add(
@@ -116,8 +112,16 @@ public class PageInfoDiscoverabilityTest {
                             .value(ContentSettingsType.DEFAULT, false));
             parameters.add(
                     new ParameterSet()
+                            .name("RequestType.kFileSystemAccess")
+                            .value(ContentSettingsType.FILE_SYSTEM_WRITE_GUARD, true));
+            parameters.add(
+                    new ParameterSet()
                             .name("RequestType.kGeolocation")
                             .value(ContentSettingsType.GEOLOCATION, true));
+            parameters.add(
+                    new ParameterSet()
+                            .name("RequestType.kHandTracking")
+                            .value(ContentSettingsType.HAND_TRACKING, true));
             parameters.add(
                     new ParameterSet()
                             .name("RequestType.kIdleDetection")
@@ -188,7 +192,7 @@ public class PageInfoDiscoverabilityTest {
             parameters.add(
                     new ParameterSet()
                             .name("Chooser.Serial")
-                            .value(ContentSettingsType.SERIAL_CHOOSER_DATA, false));
+                            .value(ContentSettingsType.SERIAL_CHOOSER_DATA, true));
 
             return parameters;
         }
@@ -198,10 +202,9 @@ public class PageInfoDiscoverabilityTest {
     @Mock UrlBarEditingTextStateProvider mUrlBarEditingTextStateProvider;
     @Mock Profile mProfile;
     @Mock TemplateUrlService mTemplateUrlService;
-    @Mock PageInfoIPHController mPageInfoIPHController;
+    @Mock PageInfoIphController mPageInfoIphController;
 
     Context mContext;
-    Resources mResources;
     PropertyModel mModel;
     PermissionDialogController mPermissionDialogController;
     StatusMediator mMediator;
@@ -209,19 +212,16 @@ public class PageInfoDiscoverabilityTest {
 
     @Before
     public void setUp() throws Exception {
-        MockitoAnnotations.initMocks(this);
         mContext = sPermissionTestRule.getActivity();
-        mResources = mContext.getResources();
         mPermissionDialogController = PermissionDialogController.getInstance();
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel = new PropertyModel(StatusProperties.ALL_KEYS);
                     mTemplateUrlServiceSupplier = new OneshotSupplierImpl<>();
                     mMediator =
                             new StatusMediator(
                                     mModel,
-                                    mResources,
                                     mContext,
                                     mUrlBarEditingTextStateProvider,
                                     /* isTablet= */ false,
@@ -229,7 +229,7 @@ public class PageInfoDiscoverabilityTest {
                                     mPermissionDialogController,
                                     mTemplateUrlServiceSupplier,
                                     () -> mProfile,
-                                    mPageInfoIPHController,
+                                    mPageInfoIphController,
                                     sPermissionTestRule.getActivity().getWindowAndroid(),
                                     null);
                     mTemplateUrlServiceSupplier.set(mTemplateUrlService);
@@ -243,7 +243,7 @@ public class PageInfoDiscoverabilityTest {
 
         // Reset content settings.
         CallbackHelper helper = new CallbackHelper();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     BrowsingDataBridge.getForProfile(ProfileManager.getLastUsedRegularProfile())
                             .clearBrowsingData(
@@ -339,7 +339,7 @@ public class PageInfoDiscoverabilityTest {
         }
         Assert.assertEquals(ContentSettingsType.DEFAULT, mMediator.getLastPermission());
         @ContentSettingsType.EnumType int[] permissions = {contentSettingsType};
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mMediator.onDialogResult(
                             sPermissionTestRule.getActivity().getWindowAndroid(),

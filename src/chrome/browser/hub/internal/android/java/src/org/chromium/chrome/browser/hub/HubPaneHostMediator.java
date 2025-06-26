@@ -4,62 +4,73 @@
 
 package org.chromium.chrome.browser.hub;
 
-import static org.chromium.chrome.browser.hub.HubPaneHostProperties.ACTION_BUTTON_DATA;
-import static org.chromium.chrome.browser.hub.HubPaneHostProperties.COLOR_SCHEME;
+import static org.chromium.chrome.browser.hub.HubPaneHostProperties.HAIRLINE_VISIBILITY;
 import static org.chromium.chrome.browser.hub.HubPaneHostProperties.PANE_ROOT_VIEW;
+import static org.chromium.chrome.browser.hub.HubPaneHostProperties.SNACKBAR_CONTAINER_CALLBACK;
 
 import android.view.View;
-
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import android.view.ViewGroup;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.TransitiveObservableSupplier;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.ui.modelutil.PropertyModel;
 
 /** Logic for hosting a single pane at a time in the Hub. */
+@NullMarked
 public class HubPaneHostMediator {
-    private final @NonNull Callback<Pane> mOnPangeChangeCallback = this::onPaneChange;
-    private final @NonNull Callback<FullButtonData> mOnActionButtonChangeCallback =
-            this::onActionButtonChange;
-    private final @NonNull PropertyModel mPropertyModel;
-    private final @NonNull ObservableSupplier<Pane> mPaneSupplier;
+    private final Callback<Pane> mOnPaneChangeCallback = this::onPaneChange;
+    private final Callback<Boolean> mOnHairlineVisibilityChange = this::onHairlineVisibilityChange;
+    private final PropertyModel mPropertyModel;
+    private final ObservableSupplier<Pane> mPaneSupplier;
+    private final TransitiveObservableSupplier<Pane, Boolean> mHairlineVisibilitySupplier;
 
-    private @Nullable TransitiveObservableSupplier<Pane, FullButtonData> mActionButtonDataSupplier;
+    /**
+     * Should be non-null after constructor finishes, cannot be final as the Java compiler can't
+     * figure this out.
+     */
+    private ViewGroup mSnackbarContainer;
 
     /** Creates the mediator. */
-    public HubPaneHostMediator(
-            @NonNull PropertyModel propertyModel, @NonNull ObservableSupplier<Pane> paneSupplier) {
+    public HubPaneHostMediator(PropertyModel propertyModel, ObservableSupplier<Pane> paneSupplier) {
         mPropertyModel = propertyModel;
         mPaneSupplier = paneSupplier;
-        mPaneSupplier.addObserver(mOnPangeChangeCallback);
+        mPaneSupplier.addObserver(mOnPaneChangeCallback);
 
-        if (HubFieldTrial.usesFloatActionButton()) {
-            mActionButtonDataSupplier =
-                    new TransitiveObservableSupplier<>(
-                            paneSupplier, p -> p.getActionButtonDataSupplier());
-            mActionButtonDataSupplier.addObserver(mOnActionButtonChangeCallback);
-        }
+        mHairlineVisibilitySupplier =
+                new TransitiveObservableSupplier<>(
+                        paneSupplier, p -> p.getHairlineVisibilitySupplier());
+        mHairlineVisibilitySupplier.addObserver(mOnHairlineVisibilityChange);
+
+        // This sets mSnackbarContainer to non-null.
+        propertyModel.set(SNACKBAR_CONTAINER_CALLBACK, this::consumeSnackbarContainer);
+        assert mSnackbarContainer != null;
     }
 
     /** Cleans up observers. */
     public void destroy() {
         mPropertyModel.set(PANE_ROOT_VIEW, null);
-        mPaneSupplier.removeObserver(mOnPangeChangeCallback);
-        if (mActionButtonDataSupplier != null) {
-            mActionButtonDataSupplier.removeObserver(mOnActionButtonChangeCallback);
-            mActionButtonDataSupplier = null;
-        }
+        mPaneSupplier.removeObserver(mOnPaneChangeCallback);
+        mHairlineVisibilitySupplier.removeObserver(mOnHairlineVisibilityChange);
+    }
+
+    /** Returns the view group to contain the snackbar. */
+    public ViewGroup getSnackbarContainer() {
+        return mSnackbarContainer;
     }
 
     private void onPaneChange(@Nullable Pane pane) {
-        mPropertyModel.set(COLOR_SCHEME, HubColors.getColorSchemeSafe(pane));
         View view = pane == null ? null : pane.getRootView();
         mPropertyModel.set(PANE_ROOT_VIEW, view);
     }
 
-    private void onActionButtonChange(@Nullable FullButtonData actionButtonData) {
-        mPropertyModel.set(ACTION_BUTTON_DATA, actionButtonData);
+    private void onHairlineVisibilityChange(@Nullable Boolean visible) {
+        mPropertyModel.set(HAIRLINE_VISIBILITY, Boolean.TRUE.equals(visible));
+    }
+
+    private void consumeSnackbarContainer(ViewGroup snackbarContainer) {
+        mSnackbarContainer = snackbarContainer;
     }
 }

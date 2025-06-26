@@ -4,14 +4,14 @@
 
 #include "ash/public/cpp/wallpaper/wallpaper_info.h"
 
+#include <algorithm>
 #include <iostream>
 
+#include "ash/constants/ash_features.h"
 #include "ash/public/cpp/wallpaper/online_wallpaper_params.h"
 #include "ash/public/cpp/wallpaper/wallpaper_types.h"
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/types/cxx23_to_underlying.h"
-#include "base/version.h"
 
 namespace ash {
 
@@ -132,7 +132,7 @@ bool WallpaperInfo::MatchesSelection(const WallpaperInfo& other) const {
     case WallpaperType::kDaily:
       return type == other.type && layout == other.layout &&
              collection_id == other.collection_id && unit_id == other.unit_id &&
-             base::ranges::equal(variants, other.variants);
+             std::ranges::equal(variants, other.variants);
     case WallpaperType::kOnceGooglePhotos:
     case WallpaperType::kDailyGooglePhotos:
       return location == other.location && layout == other.layout &&
@@ -217,12 +217,6 @@ std::optional<WallpaperInfo> WallpaperInfo::FromDict(
   WallpaperInfo info;
   info.type = wallpaper_type;
 
-  const std::string* version =
-      dict.FindString(WallpaperInfo::kNewWallpaperVersionNodeName);
-  if (version) {
-    info.version = base::Version(*version);
-  }
-
   int64_t date_val;
   if (!base::StringToInt64(*date_string, &date_val)) {
     return std::nullopt;
@@ -246,9 +240,6 @@ std::optional<WallpaperInfo> WallpaperInfo::FromDict(
 
 base::Value::Dict WallpaperInfo::ToDict() const {
   base::Value::Dict wallpaper_info_dict;
-  if (version.IsValid()) {
-    wallpaper_info_dict.Set(kNewWallpaperVersionNodeName, version.GetString());
-  }
   if (asset_id.has_value()) {
     wallpaper_info_dict.Set(kNewWallpaperAssetIdNodeName,
                             base::NumberToString(asset_id.value()));

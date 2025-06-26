@@ -5,19 +5,11 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
-#include <optional>
 #include <string>
-#include <tuple>
-#include <utility>
-#include <vector>
 
 #include "base/command_line.h"
 #include "base/files/file_path.h"
-#include "base/files/file_util.h"
-#include "base/logging.h"
-#include "base/numerics/checked_math.h"
 #include "base/strings/string_number_conversions.h"
-#include "base/strings/string_util.h"
 #include "chrome/updater/certificate_tag.h"
 #include "chrome/updater/tag.h"
 
@@ -67,8 +59,9 @@ struct CommandLineArguments {
 };
 
 void PrintUsageAndExit(const base::CommandLine* cmdline) {
-  std::cerr << "Usage: " << cmdline->GetProgram().MaybeAsASCII()
-            << " [flags] binary.[exe|msi]" << std::endl;
+  std::cerr << "Usage: " << cmdline->GetProgram().AsUTF8Unsafe()
+            << " [--get-tag|set-tag=TAG] [--padded-length=PADDED_LENGTH]"
+            << " [--out=OUT] binary.[exe|msi]" << std::endl;
   std::exit(255);
 }
 
@@ -96,12 +89,12 @@ CommandLineArguments ParseCommandLineArgs(int argc, char** argv) {
   cmdline->RemoveSwitch(kGetTagSwitch);
 
   args.set_superfluous_cert = cmdline->HasSwitch(kSetTagSwitch);
-  args.tag_string = cmdline->GetSwitchValueASCII(kSetTagSwitch);
+  args.tag_string = cmdline->GetSwitchValueUTF8(kSetTagSwitch);
   cmdline->RemoveSwitch(kSetTagSwitch);
 
   if (cmdline->HasSwitch(kPaddedLength)) {
     int padded_length = 0;
-    if (!base::StringToInt(cmdline->GetSwitchValueASCII(kPaddedLength),
+    if (!base::StringToInt(cmdline->GetSwitchValueUTF8(kPaddedLength),
                            &padded_length) ||
         padded_length < 0) {
       PrintUsageAndExit(cmdline);

@@ -13,8 +13,9 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
+#include "base/scoped_observation.h"
 #include "base/values.h"
-#include "chrome/browser/ui/browser_list_observer.h"
+#include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/common/extensions/api/cookies.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/event_router.h"
@@ -33,7 +34,7 @@ namespace extensions {
 
 // Observes CookieManager Mojo messages and routes them as events to the
 // extension system.
-class CookiesEventRouter : public BrowserListObserver {
+class CookiesEventRouter : public ProfileObserver {
  public:
   explicit CookiesEventRouter(content::BrowserContext* context);
 
@@ -42,8 +43,8 @@ class CookiesEventRouter : public BrowserListObserver {
 
   ~CookiesEventRouter() override;
 
-  // BrowserListObserver:
-  void OnBrowserAdded(Browser* browser) override;
+  // ProfileObserver:
+  void OnOffTheRecordProfileCreated(Profile* off_the_record) override;
 
  private:
   // This helper class connects to the CookieMonster over Mojo, and relays Mojo
@@ -84,6 +85,8 @@ class CookiesEventRouter : public BrowserListObserver {
                      const GURL& cookie_domain);
 
   raw_ptr<Profile> profile_;
+
+  base::ScopedObservation<Profile, ProfileObserver> profile_observation_;
 
   // To listen to cookie changes in both the original and the off the record
   // profiles, we need a pair of bindings, as well as a pair of
@@ -196,6 +199,23 @@ class CookiesRemoveFunction : public ExtensionFunction {
   std::optional<api::cookies::Remove::Params> parsed_args_;
 };
 
+// Implements the cookies.getPartitionKey() extension function.
+class CookiesGetPartitionKeyFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("cookies.getPartitionKey", COOKIES_GETPARTITIONKEY)
+
+  CookiesGetPartitionKeyFunction();
+
+ protected:
+  ~CookiesGetPartitionKeyFunction() override;
+
+  // ExtensionFunction:
+  ResponseAction Run() override;
+
+ private:
+  std::optional<api::cookies::GetPartitionKey::Params> parsed_args_;
+};
+
 // Implements the cookies.getAllCookieStores() extension function.
 class CookiesGetAllCookieStoresFunction : public ExtensionFunction {
  public:
@@ -203,7 +223,7 @@ class CookiesGetAllCookieStoresFunction : public ExtensionFunction {
                              COOKIES_GETALLCOOKIESTORES)
 
  protected:
-  ~CookiesGetAllCookieStoresFunction() override {}
+  ~CookiesGetAllCookieStoresFunction() override = default;
 
   // ExtensionFunction:
   ResponseAction Run() override;

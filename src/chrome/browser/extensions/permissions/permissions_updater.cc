@@ -14,12 +14,8 @@
 #include "base/memory/ref_counted.h"
 #include "base/no_destructor.h"
 #include "base/values.h"
-#include "chrome/browser/extensions/api/permissions/permissions_api_helpers.h"
 #include "chrome/browser/extensions/extension_management.h"
-#include "chrome/browser/extensions/extension_system_factory.h"
-#include "chrome/browser/extensions/permissions/scripting_permissions_modifier.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/common/extensions/api/permissions.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/keyed_service/content/browser_context_keyed_service_shutdown_notifier_factory.h"
 #include "components/keyed_service/core/keyed_service_shutdown_notifier.h"
@@ -30,30 +26,32 @@
 #include "extensions/browser/event_router_factory.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_system_provider.h"
 #include "extensions/browser/extension_util.h"
+#include "extensions/browser/extensions_browser_client.h"
 #include "extensions/browser/network_permissions_updater.h"
 #include "extensions/browser/permissions_manager.h"
 #include "extensions/browser/renderer_startup_helper.h"
 #include "extensions/browser/script_injection_tracker.h"
+#include "extensions/browser/service_worker/service_worker_host.h"
 #include "extensions/common/cors_util.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_features.h"
 #include "extensions/common/manifest_handlers/permissions_parser.h"
 #include "extensions/common/mojom/permission_set.mojom.h"
 #include "extensions/common/mojom/renderer.mojom.h"
+#include "extensions/common/permissions/api_permission_set.h"
 #include "extensions/common/permissions/permission_set.h"
 #include "extensions/common/permissions/permissions_data.h"
+#include "extensions/common/url_pattern_set.h"
 
 using content::RenderProcessHost;
-using extensions::permissions_api_helpers::PackPermissionSet;
 
 namespace extensions {
 
-namespace permissions = api::permissions;
-
 namespace {
 
-// A helper class to watch profile lifetime.
+// A helper class to watch profile lifetime. See `Subscribe()` call below.
 class PermissionsUpdaterShutdownNotifierFactory
     : public BrowserContextKeyedServiceShutdownNotifierFactory {
  public:
@@ -75,9 +73,10 @@ class PermissionsUpdaterShutdownNotifierFactory
       : BrowserContextKeyedServiceShutdownNotifierFactory(
             "PermissionsUpdaterShutdownFactory") {
     DependsOn(EventRouterFactory::GetInstance());
-    DependsOn(ExtensionSystemFactory::GetInstance());
+    CHECK(ExtensionsBrowserClient::Get());
+    DependsOn(ExtensionsBrowserClient::Get()->GetExtensionSystemFactory());
   }
-  ~PermissionsUpdaterShutdownNotifierFactory() override {}
+  ~PermissionsUpdaterShutdownNotifierFactory() override = default;
 };
 
 // Returns an URLPatternSet containing the sites that the user has indicated
@@ -205,7 +204,7 @@ PermissionsUpdater::NetworkPermissionsUpdateHelper::
                   base::Unretained(this)))) {}
 
 PermissionsUpdater::NetworkPermissionsUpdateHelper::
-    ~NetworkPermissionsUpdateHelper() {}
+    ~NetworkPermissionsUpdateHelper() = default;
 
 void PermissionsUpdater::NetworkPermissionsUpdateHelper::OnShutdown() {
   // The profile is shutting down. Don't dispatch the permissions updated
@@ -228,7 +227,7 @@ PermissionsUpdater::PermissionsUpdater(content::BrowserContext* browser_context,
                                        InitFlag init_flag)
     : browser_context_(browser_context), init_flag_(init_flag) {}
 
-PermissionsUpdater::~PermissionsUpdater() {}
+PermissionsUpdater::~PermissionsUpdater() = default;
 
 void PermissionsUpdater::GrantOptionalPermissions(
     const Extension& extension,
@@ -341,8 +340,13 @@ void PermissionsUpdater::RevokeOptionalPermissions(
       PermissionSet::CreateDifference(
           extension.permissions_data()->active_permissions(), permissions);
 
+  // Since this adjusts the active(desired) permissions and is usually done by
+  // the extension, we need not withhold the optional permissions.
+  constexpr bool withhold_optional_permissions = false;
+
   RemovePermissionsImpl(extension, std::move(new_active_permissions),
                         permissions, permissions_store_mask,
+                        withhold_optional_permissions,
                         std::move(completion_callback));
 }
 
@@ -427,6 +431,7 @@ void PermissionsUpdater::RevokeRuntimePermissions(
   constexpr int permissions_store_mask = kRuntimeGrantedPermissions;
   RemovePermissionsImpl(extension, std::move(new_active_permissions),
                         permissions, permissions_store_mask,
+                        /*withhold_optional_permissions=*/true,
                         std::move(completion_callback));
 }
 
@@ -498,7 +503,8 @@ void PermissionsUpdater::RemovePermissionsUnsafe(
   ExtensionPrefs::Get(browser_context_)
       ->SetDesiredActivePermissions(extension->id(), *total);
 
-  SetPermissions(extension, std::move(total));
+  SetPermissions(extension, std::move(total),
+                 /*withhold_optional_permissions=*/true);
   NetworkPermissionsUpdateHelper::UpdatePermissions(
       browser_context_, REMOVED, extension, *successfully_removed,
       base::DoNothing());
@@ -576,7 +582,8 @@ void PermissionsUpdater::InitializePermissions(const Extension* extension) {
     ApplyPolicyHostRestrictions(*extension);
   }
 
-  SetPermissions(extension, std::move(granted_permissions));
+  SetPermissions(extension, std::move(granted_permissions),
+                 /*withhold_optional_permissions=*/true);
 }
 
 void PermissionsUpdater::AddPermissionsForTesting(
@@ -588,11 +595,19 @@ void PermissionsUpdater::AddPermissionsForTesting(
 
 void PermissionsUpdater::SetPermissions(
     const Extension* extension,
-    std::unique_ptr<const PermissionSet> new_active) {
-  // Calculate the withheld permissions as any permissions that were required,
-  // but are not in the active set.
+    std::unique_ptr<const PermissionSet> new_active,
+    bool withhold_optional_permissions) {
+  // Calculate the withheld permissions as any permissions that were required
+  // or were active and granted via the Permissions API, but are not in the
+  // active set.
   const PermissionSet& required =
       PermissionsParser::GetRequiredPermissions(extension);
+  const PermissionSet& optional =
+      PermissionsParser::GetOptionalPermissions(extension);
+  std::unique_ptr<const PermissionSet> desired_permissions =
+      PermissionsManager::Get(browser_context_)
+          ->GetDesiredActivePermissionsFromPrefs(*extension);
+  bool has_optional_permissions = !optional.IsEmpty();
   // TODO(crbug.com/41405109): Currently, withheld permissions should only
   // contain permissions withheld by the runtime host permissions feature.
   // However, there could possibly be API permissions that were removed from the
@@ -604,11 +619,25 @@ void PermissionsUpdater::SetPermissions(
   // set of runtime-hosts-withheld permissions, we just look at the delta in the
   // URLPatternSets. However, this is very fragile, and should be dealt with
   // more robustly.
+  URLPatternSet desired_explicit_hosts;
+  if (has_optional_permissions && desired_permissions &&
+      withhold_optional_permissions) {
+    // We need to consider withholding desired optional hosts when the user
+    // chooses to revoke an optional permission by updating site access.
+    std::unique_ptr<const PermissionSet> desired_optional_permissions =
+        PermissionSet::CreateIntersection(*desired_permissions, optional);
+    desired_explicit_hosts = URLPatternSet::CreateUnion(
+        desired_optional_permissions->explicit_hosts().Clone(),
+        required.explicit_hosts().Clone());
+  } else {
+    desired_explicit_hosts = required.explicit_hosts().Clone();
+  }
+  URLPatternSet scriptable_hosts = required.scriptable_hosts().Clone();
   std::unique_ptr<const PermissionSet> new_withheld =
       PermissionSet::CreateDifference(
           PermissionSet(APIPermissionSet(), ManifestPermissionSet(),
-                        required.explicit_hosts().Clone(),
-                        required.scriptable_hosts().Clone()),
+                        std::move(desired_explicit_hosts),
+                        std::move(scriptable_hosts)),
           *new_active);
 
   extension->permissions_data()->SetPermissions(std::move(new_active),
@@ -629,26 +658,16 @@ void PermissionsUpdater::NotifyPermissionsUpdated(
   }
 
   PermissionsManager::UpdateReason reason;
-  events::HistogramValue histogram_value = events::UNKNOWN;
-  const char* event_name = nullptr;
   Profile* profile = Profile::FromBrowserContext(browser_context);
 
   if (event_type == REMOVED) {
     reason = PermissionsManager::UpdateReason::kRemoved;
-    histogram_value = events::PERMISSIONS_ON_REMOVED;
-    event_name = permissions::OnRemoved::kEventName;
   } else if (event_type == ADDED) {
     reason = PermissionsManager::UpdateReason::kAdded;
-    histogram_value = events::PERMISSIONS_ON_ADDED;
-    event_name = permissions::OnAdded::kEventName;
   } else {
     DCHECK_EQ(POLICY, event_type);
     reason = PermissionsManager::UpdateReason::kPolicy;
   }
-
-  // Notify other APIs or interested parties.
-  PermissionsManager::Get(browser_context)
-      ->NotifyExtensionPermissionsUpdated(*extension, *changed, reason);
 
   // Send the new permissions to the renderers iff extension is enabled.
   // A disabled extension can have its permissions updated by the user in
@@ -664,6 +683,13 @@ void PermissionsUpdater::NotifyPermissionsUpdated(
           !profile->IsSameOrParent(
               Profile::FromBrowserContext(host->GetBrowserContext()))) {
         continue;
+      }
+
+      // Update permissions for service workers.
+      std::vector<ServiceWorkerHost*> service_worker_hosts =
+          ServiceWorkerHost::GetServiceWorkerHostList(host);
+      for (ServiceWorkerHost* service_worker_host : service_worker_hosts) {
+        service_worker_host->UpdateExtensionPermissions(*extension, *changed);
       }
 
       mojom::Renderer* renderer =
@@ -691,19 +717,9 @@ void PermissionsUpdater::NotifyPermissionsUpdated(
     }
   }
 
-  // Trigger the onAdded and onRemoved events in the extension. We explicitly
-  // don't do this for policy-related events.
-  EventRouter* event_router =
-      event_name ? EventRouter::Get(browser_context) : nullptr;
-  if (event_router) {
-    base::Value::List event_args;
-    std::unique_ptr<api::permissions::Permissions> permissions =
-        PackPermissionSet(*changed);
-    event_args.Append(permissions->ToValue());
-    auto event = std::make_unique<Event>(
-        histogram_value, event_name, std::move(event_args), browser_context);
-    event_router->DispatchEventToExtension(extension->id(), std::move(event));
-  }
+  // Notify APIs or other interested parties.
+  PermissionsManager::Get(browser_context)
+      ->NotifyExtensionPermissionsUpdated(*extension, *changed, reason);
 
   std::move(completion_callback).Run();
 }
@@ -746,7 +762,8 @@ void PermissionsUpdater::AddPermissionsImpl(
       active_permissions_to_add,
       extension.permissions_data()->active_permissions());
 
-  SetPermissions(&extension, std::move(new_active));
+  SetPermissions(&extension, std::move(new_active),
+                 /*withhold_optional_permissions=*/true);
 
   ExtensionPrefs* prefs = ExtensionPrefs::Get(browser_context_);
   if ((prefs_permissions_store_mask & kActivePermissions) != 0) {
@@ -773,8 +790,10 @@ void PermissionsUpdater::RemovePermissionsImpl(
     std::unique_ptr<const PermissionSet> new_active_permissions,
     const PermissionSet& permissions_to_remove_from_prefs,
     int prefs_permissions_store_mask,
+    bool withhold_optional_permissions,
     base::OnceClosure completion_callback) {
-  SetPermissions(&extension, std::move(new_active_permissions));
+  SetPermissions(&extension, std::move(new_active_permissions),
+                 withhold_optional_permissions);
 
   ExtensionPrefs* prefs = ExtensionPrefs::Get(browser_context_);
   if ((prefs_permissions_store_mask & kActivePermissions) != 0) {

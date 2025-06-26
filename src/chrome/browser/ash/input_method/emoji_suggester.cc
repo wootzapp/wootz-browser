@@ -288,7 +288,7 @@ void EmojiSuggester::ShowSuggestion(const std::string& text) {
 
   buttons_.clear();
   for (size_t i = 0; i < candidates_.size(); i++) {
-    suggestion_button_.index = i;
+    suggestion_button_.suggestion_index = i;
     suggestion_button_.announce_string = l10n_util::GetStringFUTF16(
         IDS_SUGGESTION_EMOJI_CHOSEN, candidates_[i], base::FormatNumber(i + 1),
         base::FormatNumber(candidates_.size()));
@@ -325,8 +325,7 @@ bool EmojiSuggester::AcceptSuggestion(size_t index) {
   std::string error;
   suggestion_handler_->AcceptSuggestionCandidate(
       *focused_context_id_, candidates_[index],
-      /* delete_previous_utf16_len=*/0, /*use_replace_surrounding_text=*/false,
-      &error);
+      /* delete_previous_utf16_len=*/0, &error);
 
   if (!error.empty()) {
     LOG(ERROR) << "Failed to accept suggestion. " << error;

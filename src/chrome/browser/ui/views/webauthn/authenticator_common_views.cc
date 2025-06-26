@@ -4,21 +4,30 @@
 
 #include "chrome/browser/ui/views/webauthn/authenticator_common_views.h"
 
+#include <memory>
+#include <string>
+#include <utility>
+
+#include "chrome/browser/ui/passwords/ui_utils.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/models/image_model.h"
+#include "ui/color/color_id.h"
 #include "ui/gfx/geometry/insets.h"
+#include "ui/gfx/text_constants.h"
 #include "ui/gfx/vector_icon_types.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
+#include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
-#include "ui/views/layout/layout_provider.h"
-#include "ui/views/layout/table_layout.h"
+#include "ui/views/style/typography.h"
 #include "ui/views/view.h"
 
 namespace {
 constexpr int kGapSize = 8;
-constexpr int kSmallIconSize = 20;
+constexpr int kGpmIconSize = 20;
 constexpr int kMediumIconSize = 26;
 constexpr int kHorizontalInset = 8;
 constexpr int kHorizontalSpacing = 16;
@@ -51,16 +60,14 @@ std::unique_ptr<views::View> CreatePasskeyWithUsernameLabel(
   return std::move(container);
 }
 
-std::unique_ptr<views::View> CreatePasskeyIconWithLabelRow(
-    const gfx::VectorIcon& icon,
-    const std::u16string& label) {
-  auto row = std::make_unique<views::BoxLayoutView>();
-  row->SetOrientation(views::BoxLayout::Orientation::kHorizontal);
-  row->SetBetweenChildSpacing(kGapSize);
-
-  row->AddChildView(std::make_unique<views::ImageView>(
-      ui::ImageModel::FromVectorIcon(icon, ui::kColorIcon, kSmallIconSize)));
-  row->AddChildView(std::make_unique<views::Label>(
-      label, views::style::CONTEXT_DIALOG_BODY_TEXT));
-  return row;
+std::unique_ptr<views::View> CreateGpmIconWithLabel() {
+  auto view = std::make_unique<views::BoxLayoutView>();
+  view->SetOrientation(views::BoxLayout::Orientation::kHorizontal);
+  view->SetBetweenChildSpacing(kGapSize);
+  view->AddChildView(
+      std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
+          GooglePasswordManagerVectorIcon(), ui::kColorIcon, kGpmIconSize)));
+  view->AddChildView(std::make_unique<views::Label>(
+      l10n_util::GetStringUTF16(IDS_WEBAUTHN_SOURCE_GOOGLE_PASSWORD_MANAGER)));
+  return view;
 }

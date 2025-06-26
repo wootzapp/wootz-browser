@@ -96,11 +96,7 @@ UiElementContainerView::~UiElementContainerView() = default;
 
 gfx::Size UiElementContainerView::CalculatePreferredSize(
     const views::SizeBounds& available_size) const {
-  return gfx::Size(INT_MAX, GetHeightForWidth(INT_MAX));
-}
-
-int UiElementContainerView::GetHeightForWidth(int width) const {
-  return content_view()->GetHeightForWidth(width);
+  return gfx::Size(INT_MAX, content_view()->GetHeightForWidth(INT_MAX));
 }
 
 gfx::Size UiElementContainerView::GetMinimumSize() const {
@@ -192,8 +188,7 @@ void UiElementContainerView::OnCommittedQueryChanged(
 
 void UiElementContainerView::OnThemeChanged() {
   views::View::OnThemeChanged();
-
-  scroll_indicator_->background()->SetNativeControlColor(
+  scroll_indicator_->background()->SetColor(
       GetOverflowIndicatorBackgroundColor());
 
   // SetNativeControlColor doesn't trigger a repaint.
@@ -242,7 +237,7 @@ void UiElementContainerView::OnAllViewsAnimatedIn() {
   // and the card fallback text, but webview result is not included. We don't
   // read when there is TTS to avoid speaking over the server response.
   if (!response->has_tts())
-    NotifyAccessibilityEvent(ax::mojom::Event::kAlert, true);
+    NotifyAccessibilityEventDeprecated(ax::mojom::Event::kAlert, true);
 }
 
 void UiElementContainerView::OnOverflowIndicatorVisibilityChanged(

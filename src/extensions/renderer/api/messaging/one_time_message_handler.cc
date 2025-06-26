@@ -4,13 +4,13 @@
 
 #include "extensions/renderer/api/messaging/one_time_message_handler.h"
 
+#include <algorithm>
 #include <map>
 #include <vector>
 
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
-#include "base/ranges/algorithm.h"
 #include "base/supports_user_data.h"
 #include "content/public/renderer/render_frame.h"
 #include "extensions/common/api/messaging/message.h"
@@ -25,6 +25,7 @@
 #include "extensions/renderer/bindings/api_event_handler.h"
 #include "extensions/renderer/bindings/api_request_handler.h"
 #include "extensions/renderer/bindings/get_per_context_data.h"
+#include "extensions/renderer/console.h"
 #include "extensions/renderer/gc_callback.h"
 #include "extensions/renderer/get_script_context.h"
 #include "extensions/renderer/ipc_message_sender.h"
@@ -53,6 +54,7 @@ namespace {
 struct OneTimeOpener {
   int request_id = -1;
   binding::AsyncResponseType async_type = binding::AsyncResponseType::kNone;
+  mojom::ChannelType channel_type;
 };
 
 // A receiver port in the context; i.e., a listener to runtime.onMessage.
@@ -91,8 +93,8 @@ void OneTimeMessageResponseHelper(
 
   v8::Local<v8::External> external = info.Data().As<v8::External>();
   auto* raw_callback = static_cast<OneTimeMessageCallback*>(external->Value());
-  auto iter = base::ranges::find(data->pending_callbacks, raw_callback,
-                                 &std::unique_ptr<OneTimeMessageCallback>::get);
+  auto iter = std::ranges::find(data->pending_callbacks, raw_callback,
+                                &std::unique_ptr<OneTimeMessageCallback>::get);
   if (iter == data->pending_callbacks.end())
     return;
 
@@ -184,6 +186,7 @@ v8::Local<v8::Promise> OneTimeMessageHandler::SendMessage(
     OneTimeOpener& port = data->openers[new_port_id];
     port.request_id = details.request_id;
     port.async_type = async_type;
+    port.channel_type = channel_type;
     promise = details.promise;
     DCHECK_EQ(async_type == binding::AsyncResponseType::kPromise,
               !promise.IsEmpty());
@@ -203,7 +206,7 @@ v8::Local<v8::Promise> OneTimeMessageHandler::SendMessage(
       break;
     case mojom::ChannelType::kConnect:
       // connect() calls aren't handled by the OneTimeMessageHandler.
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 
   ipc_sender->SendOpenMessageChannel(
@@ -331,8 +334,7 @@ bool OneTimeMessageHandler::DeliverMessageToReceiver(
 
   if (!v8::Function::New(context, &OneTimeMessageResponseHelper, external)
            .ToLocal(&response_function)) {
-    NOTREACHED_IN_MIGRATION();
-    return handled;
+    NOTREACHED();
   }
 
   new GCCallback(
@@ -343,24 +345,37 @@ bool OneTimeMessageHandler::DeliverMessageToReceiver(
       base::OnceClosure());
 
   v8::HandleScope handle_scope(isolate);
-  v8::Local<v8::Value> v8_message =
-      messaging_util::MessageToV8(context, message);
-  v8::Local<v8::Object> v8_sender = port.sender.Get(isolate);
-  v8::LocalVector<v8::Value> args(isolate,
-                                  {v8_message, v8_sender, response_function});
 
-  JSRunner::ResultCallback dispatch_callback;
-  // For runtime.onMessage, we require that the listener return `true` if they
-  // intend to respond asynchronously. Check the results of the listeners.
-  if (port.event_name == messaging_util::kOnMessageEvent) {
-    dispatch_callback =
-        base::BindOnce(&OneTimeMessageHandler::OnEventFired,
-                       weak_factory_.GetWeakPtr(), target_port_id);
+  // The current port is a receiver. The parsing should be fail-safe if this is
+  // a receiver for a native messaging host (i.e. the event name is
+  // kOnConnectNativeEvent). This is because a native messaging host can send
+  // malformed messages.
+  std::string error;
+  v8::Local<v8::Value> v8_message = messaging_util::MessageToV8(
+      context, message,
+      port.event_name == messaging_util::kOnConnectNativeEvent, &error);
+
+  if (error.empty()) {
+    v8::Local<v8::Object> v8_sender = port.sender.Get(isolate);
+    v8::LocalVector<v8::Value> args(isolate,
+                                    {v8_message, v8_sender, response_function});
+
+    JSRunner::ResultCallback dispatch_callback;
+    // For runtime.onMessage, we require that the listener return `true` if they
+    // intend to respond asynchronously. Check the results of the listeners.
+    if (port.event_name == messaging_util::kOnMessageEvent) {
+      dispatch_callback =
+          base::BindOnce(&OneTimeMessageHandler::OnEventFired,
+                         weak_factory_.GetWeakPtr(), target_port_id);
+    }
+
+    data->pending_callbacks.push_back(std::move(callback));
+    bindings_system_->api_system()->event_handler()->FireEventInContext(
+        port.event_name, context, &args, nullptr, std::move(dispatch_callback));
+  } else {
+    console::AddMessage(script_context,
+                        blink::mojom::ConsoleMessageLevel::kError, error);
   }
-
-  data->pending_callbacks.push_back(std::move(callback));
-  bindings_system_->api_system()->event_handler()->FireEventInContext(
-      port.event_name, context, &args, nullptr, std::move(dispatch_callback));
 
   // Note: The context could be invalidated at this point!
 
@@ -398,11 +413,23 @@ bool OneTimeMessageHandler::DeliverReplyToOpener(ScriptContext* script_context,
 
   // This port was the opener, so the message is the response from the
   // receiver. Invoke the callback and close the message port.
-  v8::Local<v8::Value> v8_message =
-      messaging_util::MessageToV8(v8_context, message);
-  v8::LocalVector<v8::Value> args(v8_context->GetIsolate(), {v8_message});
+  v8::Isolate* isolate = script_context->isolate();
+
+  // Parsing should be fail-safe for kNative channel type as native messaging
+  // hosts can send malformed messages.
+  std::string error;
+  v8::Local<v8::Value> v8_message = messaging_util::MessageToV8(
+      v8_context, message, port.channel_type == mojom::ChannelType::kNative,
+      &error);
+
+  if (v8_message.IsEmpty()) {
+    // If the parsing fails, send back a v8::Undefined() message.
+    v8_message = v8::Undefined(isolate);
+  }
+
+  v8::LocalVector<v8::Value> args(isolate, {v8_message});
   bindings_system_->api_system()->request_handler()->CompleteRequest(
-      port.request_id, args, std::string());
+      port.request_id, args, error);
 
   bindings_system_->messaging_service()->CloseMessagePort(
       script_context, target_port_id, /*close_channel=*/true);

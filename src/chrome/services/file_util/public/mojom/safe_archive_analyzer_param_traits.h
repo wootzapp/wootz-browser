@@ -13,8 +13,8 @@
 #include "ipc/ipc_message_macros.h"
 #include "ipc/ipc_message_protobuf_utils.h"
 
-#if !BUILDFLAG(FULL_SAFE_BROWSING)
-#error BUILDFLAG(FULL_SAFE_BROWSING) should be set.
+#if !BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION)
+#error BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION) should be set.
 #endif
 
 IPC_ENUM_TRAITS_VALIDATE(
@@ -107,6 +107,7 @@ IPC_ENUM_TRAITS_MAX_VALUE(
 
 IPC_STRUCT_TRAITS_BEGIN(safe_browsing::EncryptionInfo)
   IPC_STRUCT_TRAITS_MEMBER(is_encrypted)
+  IPC_STRUCT_TRAITS_MEMBER(is_top_level_encrypted)
   IPC_STRUCT_TRAITS_MEMBER(password_status)
 IPC_STRUCT_TRAITS_END()
 

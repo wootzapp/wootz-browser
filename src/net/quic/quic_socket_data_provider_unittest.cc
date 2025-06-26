@@ -11,7 +11,9 @@
 #include "base/test/bind.h"
 #include "base/test/gtest_util.h"
 #include "net/base/io_buffer.h"
+#include "net/base/request_priority.h"
 #include "net/quic/mock_quic_context.h"
+#include "net/quic/quic_http_utils.h"
 #include "net/quic/quic_test_packet_maker.h"
 #include "net/socket/datagram_client_socket.h"
 #include "net/socket/diff_serv_code_point.h"
@@ -23,9 +25,9 @@
 
 namespace net::test {
 
-class MockQuicDataTest : public TestWithTaskEnvironment {
+class QuicSocketDataProviderTest : public TestWithTaskEnvironment {
  public:
-  MockQuicDataTest()
+  QuicSocketDataProviderTest()
       : packet_maker_(std::make_unique<QuicTestPacketMaker>(
             version_,
             quic::QuicUtils::CreateRandomConnectionId(
@@ -38,8 +40,30 @@ class MockQuicDataTest : public TestWithTaskEnvironment {
 
   // Create a simple test packet.
   std::unique_ptr<quic::QuicReceivedPacket> TestPacket(uint64_t packet_number) {
-    return packet_maker_->MakeDatagramPacket(
-        packet_number, base::NumberToString(packet_number));
+    return packet_maker_->Packet(packet_number)
+        .AddMessageFrame(base::NumberToString(packet_number))
+        .Build();
+  }
+
+  std::unique_ptr<quic::QuicReceivedPacket> TestInitialSettingsPacket(
+      uint64_t packet_number) {
+    return packet_maker_->MakeInitialSettingsPacket(packet_number);
+  }
+
+  // Create a simple request header packet.
+  std::unique_ptr<quic::QuicReceivedPacket>
+  TestHeadersPacket(uint64_t packet_number, std::string path, bool fin) {
+    quiche::HttpHeaderBlock headers;
+    headers[":scheme"] = "https";
+    headers[":path"] = path;
+    spdy::SpdyPriority priority =
+        ConvertRequestPriorityToQuicPriority(DEFAULT_PRIORITY);
+    size_t spdy_headers_frame_len;
+    // Headers frame should be sent with stream 0.
+    auto rv = packet_maker_->MakeRequestHeadersPacket(
+        packet_number, 0, fin, priority, std::move(headers),
+        &spdy_headers_frame_len, /*should_include_priority_frame=*/false);
+    return rv;
   }
 
  protected:
@@ -51,7 +75,7 @@ class MockQuicDataTest : public TestWithTaskEnvironment {
 };
 
 // A linear sequence of sync expectations completes.
-TEST_F(MockQuicDataTest, LinearSequenceSync) {
+TEST_F(QuicSocketDataProviderTest, LinearSequenceSync) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
 
@@ -85,7 +109,7 @@ TEST_F(MockQuicDataTest, LinearSequenceSync) {
 }
 
 // A linear sequence of async expectations completes.
-TEST_F(MockQuicDataTest, LinearSequenceAsync) {
+TEST_F(QuicSocketDataProviderTest, LinearSequenceAsync) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
 
@@ -120,7 +144,7 @@ TEST_F(MockQuicDataTest, LinearSequenceAsync) {
 }
 
 // The `TosByte` builder method results in a correct TOS byte in the read.
-TEST_F(MockQuicDataTest, ReadTos) {
+TEST_F(QuicSocketDataProviderTest, ReadTos) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
   const uint8_t kTestTos = (DSCP_CS1 << 2) + ECN_CE;
@@ -147,7 +171,7 @@ TEST_F(MockQuicDataTest, ReadTos) {
 }
 
 // AddReadError creates a read returning an error.
-TEST_F(MockQuicDataTest, AddReadError) {
+TEST_F(QuicSocketDataProviderTest, AddReadError) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
 
@@ -170,7 +194,7 @@ TEST_F(MockQuicDataTest, AddReadError) {
 }
 
 // AddRead with a QuicReceivedPacket correctly sets the ECN.
-TEST_F(MockQuicDataTest, AddReadQuicReceivedPacketGetsEcn) {
+TEST_F(QuicSocketDataProviderTest, AddReadQuicReceivedPacketGetsEcn) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
 
@@ -198,7 +222,7 @@ TEST_F(MockQuicDataTest, AddReadQuicReceivedPacketGetsEcn) {
 }
 
 // A write of data different from the expectation generates a failure.
-TEST_F(MockQuicDataTest, MismatchedWrite) {
+TEST_F(QuicSocketDataProviderTest, MismatchedWrite) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
 
@@ -222,7 +246,7 @@ TEST_F(MockQuicDataTest, MismatchedWrite) {
 }
 
 // AllDataConsumed is false if there are still pending expectations.
-TEST_F(MockQuicDataTest, NotAllConsumed) {
+TEST_F(QuicSocketDataProviderTest, NotAllConsumed) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
 
@@ -248,7 +272,7 @@ TEST_F(MockQuicDataTest, NotAllConsumed) {
 
 // When a Write call occurs with no matching expectation, that is treated as an
 // error.
-TEST_F(MockQuicDataTest, ReadBlocksWrite) {
+TEST_F(QuicSocketDataProviderTest, ReadBlocksWrite) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
 
@@ -274,7 +298,7 @@ TEST_F(MockQuicDataTest, ReadBlocksWrite) {
 
 // When a Read call occurs with no matching expectation, it waits for a matching
 // expectation to become read.
-TEST_F(MockQuicDataTest, WriteDelaysRead) {
+TEST_F(QuicSocketDataProviderTest, WriteDelaysRead) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
 
@@ -316,7 +340,7 @@ TEST_F(MockQuicDataTest, WriteDelaysRead) {
 }
 
 // When a pause becomes ready, subsequent calls are delayed.
-TEST_F(MockQuicDataTest, PauseDelaysCalls) {
+TEST_F(QuicSocketDataProviderTest, PauseDelaysCalls) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
 
@@ -390,7 +414,7 @@ TEST_F(MockQuicDataTest, PauseDelaysCalls) {
 }
 
 // Using `After`, a `Read` and `Write` can be allowed in either order.
-TEST_F(MockQuicDataTest, ParallelReadAndWrite) {
+TEST_F(QuicSocketDataProviderTest, ParallelReadAndWrite) {
   for (bool read_first : {false, true}) {
     SCOPED_TRACE(::testing::Message() << "read_first: " << read_first);
     QuicSocketDataProvider socket_data(version_);
@@ -448,7 +472,7 @@ TEST_F(MockQuicDataTest, ParallelReadAndWrite) {
 
 // When multiple Read expectations become ready at the same time, fail with a
 // CHECK error.
-TEST_F(MockQuicDataTest, MultipleReadsReady) {
+TEST_F(QuicSocketDataProviderTest, MultipleReadsReady) {
   QuicSocketDataProvider socket_data(version_);
   MockClientSocketFactory socket_factory;
 
@@ -471,6 +495,57 @@ TEST_F(MockQuicDataTest, MultipleReadsReady) {
                           TRAFFIC_ANNOTATION_FOR_TESTS));
   EXPECT_CHECK_DEATH(
       socket->Read(buffer.get(), buffer->size(), base::DoNothing()));
+}
+
+// Test an HTTP header packet is decoded by the server session.
+TEST_F(QuicSocketDataProviderTest, PrintHTTPHeadersPacket) {
+  QuicSocketDataProvider socket_data(version_);
+  MockClientSocketFactory socket_factory;
+
+  const std::string path = "/.well-known/masque/udp/www.example.org/443/";
+  socket_data.AddWrite("connect-udp", TestHeadersPacket(2, path, false));
+
+  socket_factory.AddSocketDataProvider(&socket_data);
+  std::unique_ptr<DatagramClientSocket> socket =
+      socket_factory.CreateDatagramClientSocket(
+          DatagramSocket::BindType::DEFAULT_BIND, nullptr,
+          net_log_with_source_.source());
+  socket->Connect(IPEndPoint());
+  std::unique_ptr<quic::QuicReceivedPacket> packet = TestPacket(999);
+  scoped_refptr<StringIOBuffer> buffer = base::MakeRefCounted<StringIOBuffer>(
+      std::string(packet->data(), packet->length()));
+
+  EXPECT_NONFATAL_FAILURE(
+      EXPECT_EQ(ERR_UNEXPECTED,
+                socket->Write(buffer.get(), packet->length(), base::DoNothing(),
+                              TRAFFIC_ANNOTATION_FOR_TESTS)),
+      // Path should be decoded by the server session and appear in the output.
+      std::format(":path={0}", path));
+}
+
+// Test an HTTP's initial settings packet is decoded by the server session.
+TEST_F(QuicSocketDataProviderTest, PrintInitialSettingsPacket) {
+  QuicSocketDataProvider socket_data(version_);
+  MockClientSocketFactory socket_factory;
+
+  socket_data.AddWrite("InitialSettings", TestInitialSettingsPacket(2));
+
+  socket_factory.AddSocketDataProvider(&socket_data);
+  std::unique_ptr<DatagramClientSocket> socket =
+      socket_factory.CreateDatagramClientSocket(
+          DatagramSocket::BindType::DEFAULT_BIND, nullptr,
+          net_log_with_source_.source());
+  socket->Connect(IPEndPoint());
+  std::unique_ptr<quic::QuicReceivedPacket> packet = TestPacket(999);
+  scoped_refptr<StringIOBuffer> buffer = base::MakeRefCounted<StringIOBuffer>(
+      std::string(packet->data(), packet->length()));
+
+  EXPECT_NONFATAL_FAILURE(
+      EXPECT_EQ(ERR_UNEXPECTED,
+                socket->Write(buffer.get(), packet->length(), base::DoNothing(),
+                              TRAFFIC_ANNOTATION_FOR_TESTS)),
+      // Content of the setting frame should be decoded in the output.
+      "SETTINGS_H3_DATAGRAM = 1;");
 }
 
 }  // namespace net::test

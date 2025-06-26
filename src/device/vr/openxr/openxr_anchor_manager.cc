@@ -8,6 +8,7 @@
 
 #include "base/containers/flat_set.h"
 #include "base/no_destructor.h"
+#include "base/trace_event/trace_event.h"
 #include "base/types/expected.h"
 #include "device/vr/openxr/openxr_api_wrapper.h"
 #include "device/vr/openxr/openxr_extension_helper.h"
@@ -37,22 +38,20 @@ void OpenXrAnchorManager::AddCreateAnchorRequest(
 
 device::mojom::XRAnchorsDataPtr OpenXrAnchorManager::ProcessAnchorsForFrame(
     OpenXrApiWrapper* openxr,
-    const mojom::VRStageParametersPtr& current_stage_parameters,
     const std::vector<mojom::XRInputSourceStatePtr>& input_state,
     XrTime predicted_display_time) {
-  ProcessCreateAnchorRequests(openxr, current_stage_parameters, input_state);
+  TRACE_EVENT0("xr", "ProcessAnchorsForFrame");
+  ProcessCreateAnchorRequests(openxr, input_state);
   return GetCurrentAnchorsData(predicted_display_time);
 }
 
 void OpenXrAnchorManager::ProcessCreateAnchorRequests(
     OpenXrApiWrapper* openxr,
-    const mojom::VRStageParametersPtr& current_stage_parameters,
     const std::vector<mojom::XRInputSourceStatePtr>& input_state) {
   for (auto& request : create_anchor_requests_) {
     std::optional<XrLocation> anchor_location =
         GetXrLocationFromNativeOriginInformation(
-            openxr, current_stage_parameters,
-            request.GetNativeOriginInformation(),
+            openxr, request.GetNativeOriginInformation(),
             request.GetNativeOriginFromAnchor(), input_state);
     if (!anchor_location.has_value()) {
       request.TakeCallback().Run(device::mojom::CreateAnchorResult::FAILURE, 0);
@@ -142,7 +141,6 @@ mojom::XRAnchorsDataPtr OpenXrAnchorManager::GetCurrentAnchorsData(
 std::optional<OpenXrAnchorManager::XrLocation>
 OpenXrAnchorManager::GetXrLocationFromNativeOriginInformation(
     OpenXrApiWrapper* openxr,
-    const mojom::VRStageParametersPtr& current_stage_parameters,
     const mojom::XRNativeOriginInformation& native_origin_information,
     const gfx::Transform& native_origin_from_anchor,
     const std::vector<mojom::XRInputSourceStatePtr>& input_state) const {
@@ -152,8 +150,7 @@ OpenXrAnchorManager::GetXrLocationFromNativeOriginInformation(
       // created relative to input sources
       return std::nullopt;
     case mojom::XRNativeOriginInformation::Tag::kReferenceSpaceType:
-      return GetXrLocationFromReferenceSpace(openxr, current_stage_parameters,
-                                             native_origin_information,
+      return GetXrLocationFromReferenceSpace(openxr, native_origin_information,
                                              native_origin_from_anchor);
     // TODO: Look into plane data
     case mojom::XRNativeOriginInformation::Tag::kPlaneId:
@@ -171,28 +168,11 @@ OpenXrAnchorManager::GetXrLocationFromNativeOriginInformation(
 std::optional<OpenXrAnchorManager::XrLocation>
 OpenXrAnchorManager::GetXrLocationFromReferenceSpace(
     OpenXrApiWrapper* openxr,
-    const mojom::VRStageParametersPtr& current_stage_parameters,
     const mojom::XRNativeOriginInformation& native_origin_information,
     const gfx::Transform& native_origin_from_anchor) const {
-  // Floor corresponds to offset_from_local * local, so we must apply the
-  // offset to get the correct pose in the local space.
-  auto type = native_origin_information.get_reference_space_type();
-  if (type == device::mojom::XRReferenceSpaceType::kLocalFloor) {
-    if (!current_stage_parameters) {
-      return std::nullopt;
-    }
-    // The offset from the floor to mojo (aka local) is encoded in
-    // current_stage_parameters->mojo_from_floor. mojo_from_floor *
-    // native_origin_from_anchor gives us the correct location of the anchor
-    // relative to the local floor reference space.
-    return XrLocation{
-        GfxTransformToXrPose(current_stage_parameters->mojo_from_floor *
-                             native_origin_from_anchor),
-        openxr->GetReferenceSpace(device::mojom::XRReferenceSpaceType::kLocal)};
-  }
-
   return XrLocation{GfxTransformToXrPose(native_origin_from_anchor),
-                    openxr->GetReferenceSpace(type)};
+                    openxr->GetReferenceSpace(
+                        native_origin_information.get_reference_space_type())};
 }
 
 }  // namespace device

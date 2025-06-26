@@ -16,11 +16,11 @@
 
 namespace extensions {
 
-ChromeMimeHandlerViewGuestDelegate::ChromeMimeHandlerViewGuestDelegate() {
-}
+ChromeMimeHandlerViewGuestDelegate::ChromeMimeHandlerViewGuestDelegate() =
+    default;
 
-ChromeMimeHandlerViewGuestDelegate::~ChromeMimeHandlerViewGuestDelegate() {
-}
+ChromeMimeHandlerViewGuestDelegate::~ChromeMimeHandlerViewGuestDelegate() =
+    default;
 
 bool ChromeMimeHandlerViewGuestDelegate::HandleContextMenu(
     content::RenderFrameHost& render_frame_host,
@@ -50,7 +50,7 @@ void ChromeMimeHandlerViewGuestDelegate::RecordLoadMetric(
                           ? PDFLoadStatus::kLoadedFullPagePdfWithPdfium
                           : PDFLoadStatus::kLoadedEmbeddedPdfWithPdfium);
 
-  accessibility::RecordPDFOpenedWithA11yFeatureWithPdfOcr(browser_context);
+  accessibility::RecordPDFOpenedWithA11yFeatureWithPdfOcr();
 }
 
 }  // namespace extensions

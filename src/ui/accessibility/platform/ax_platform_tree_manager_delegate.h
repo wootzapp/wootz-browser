@@ -10,6 +10,7 @@
 #include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_enums.mojom-forward.h"
 #include "ui/accessibility/ax_node_id_forward.h"
+#include "ui/accessibility/platform/ax_platform_node_id.h"
 #include "ui/accessibility/platform/ax_platform_tree_manager.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/rect.h"
@@ -131,6 +132,10 @@ class COMPONENT_EXPORT(AX_PLATFORM) AXPlatformTreeManagerDelegate {
   virtual bool ShouldSuppressAXLoadComplete() = 0;
   virtual content::WebContentsAccessibility*
   AccessibilityGetWebContentsAccessibility() = 0;
+
+  // Returns true if the current accessibility tree is for web content, false if
+  // it's for Views.
+  virtual bool AccessibilityIsWebContentSource() = 0;
 
  protected:
   AXPlatformTreeManagerDelegate() = default;

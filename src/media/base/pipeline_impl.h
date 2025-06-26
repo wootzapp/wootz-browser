@@ -111,8 +111,9 @@ class MEDIA_EXPORT PipelineImpl : public Pipeline {
   void SetVolume(float volume) override;
   void SetLatencyHint(std::optional<base::TimeDelta> latency_hint) override;
   void SetPreservesPitch(bool preserves_pitch) override;
-  void SetWasPlayedWithUserActivation(
-      bool was_played_with_user_activation) override;
+  void SetRenderMutedAudio(bool render_muted_audio) override;
+  void SetWasPlayedWithUserActivationAndHighMediaEngagement(
+      bool was_played_with_user_activation_and_high_media_engagement) override;
   base::TimeDelta GetMediaTime() const override;
   Ranges<base::TimeDelta> GetBufferedTimeRanges() const override;
   base::TimeDelta GetMediaDuration() const override;
@@ -136,22 +137,6 @@ class MEDIA_EXPORT PipelineImpl : public Pipeline {
  private:
   friend class MediaLog;
   class RendererWrapper;
-
-  // Pipeline states, as described above.
-  // TODO(alokp): Move this to RendererWrapper after removing the references
-  // from MediaLog.
-  enum State {
-    kCreated,
-    kStarting,
-    kSeeking,
-    kPlaying,
-    kStopping,
-    kStopped,
-    kSuspending,
-    kSuspended,
-    kResuming,
-  };
-  static const char* GetStateString(State state);
 
   // Create a Renderer asynchronously. Must be called on the main task runner
   // and the callback will be called on the main task runner as well.

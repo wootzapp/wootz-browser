@@ -73,8 +73,16 @@ class COMPONENT_EXPORT(DBUS_POWER) FakePowerManagerClient
   requested_screen_brightness_cause() const {
     return requested_screen_brightness_cause_;
   }
+  power_manager::SetAmbientLightSensorEnabledRequest_Cause
+  requested_ambient_light_sensor_enabled_cause() const {
+    return requested_ambient_light_sensor_enabled_cause_;
+  }
   double keyboard_brightness_percent() const {
     return keyboard_brightness_percent_.value();
+  }
+  power_manager::SetBacklightBrightnessRequest_Cause
+  requested_keyboard_brightness_cause() const {
+    return requested_keyboard_brightness_cause_;
   }
   double keyboard_ambient_light_sensor_enabled() const {
     return keyboard_ambient_light_sensor_enabled_;
@@ -124,7 +132,9 @@ class COMPONENT_EXPORT(DBUS_POWER) FakePowerManagerClient
   void SetScreenBrightness(
       const power_manager::SetBacklightBrightnessRequest& request) override;
   void GetScreenBrightnessPercent(DBusMethodCallback<double> callback) override;
-  void SetAmbientLightSensorEnabled(bool enabled) override;
+  void SetAmbientLightSensorEnabled(
+      const power_manager::SetAmbientLightSensorEnabledRequest& request)
+      override;
   void GetAmbientLightSensorEnabled(DBusMethodCallback<bool> callback) override;
   void HasAmbientLightSensor(DBusMethodCallback<bool> callback) override;
   void HasKeyboardBacklight(DBusMethodCallback<bool> callback) override;
@@ -135,7 +145,9 @@ class COMPONENT_EXPORT(DBUS_POWER) FakePowerManagerClient
   void SetKeyboardBrightness(
       const power_manager::SetBacklightBrightnessRequest& request) override;
   void ToggleKeyboardBacklight() override;
-  void SetKeyboardAmbientLightSensorEnabled(bool enabled) override;
+  void SetKeyboardAmbientLightSensorEnabled(
+      const power_manager::SetAmbientLightSensorEnabledRequest& request)
+      override;
   void GetKeyboardAmbientLightSensorEnabled(
       DBusMethodCallback<bool> callback) override;
   const std::optional<power_manager::PowerSupplyProperties>& GetLastStatus()
@@ -215,6 +227,11 @@ class COMPONENT_EXPORT(DBUS_POWER) FakePowerManagerClient
   void SendAmbientLightSensorEnabledChanged(
       const power_manager::AmbientLightSensorChange& proto);
 
+  // Notifies observers about changes to the Keyboard Ambient Light Sensor
+  // status.
+  void SendKeyboardAmbientLightSensorEnabledChanged(
+      const power_manager::AmbientLightSensorChange& proto);
+
   // Notifies observers about the screen idle state changing.
   void SendScreenIdleStateChanged(const power_manager::ScreenIdleState& proto);
 
@@ -279,7 +296,7 @@ class COMPONENT_EXPORT(DBUS_POWER) FakePowerManagerClient
   // Deletes all timers, if any, associated with |tag|.
   void DeleteArcTimersInternal(const std::string& tag);
 
-  base::ObserverList<Observer>::Unchecked observers_;
+  base::ObserverList<Observer> observers_;
 
   std::optional<bool> service_availability_ = true;
 
@@ -321,6 +338,18 @@ class COMPONENT_EXPORT(DBUS_POWER) FakePowerManagerClient
       requested_screen_brightness_cause_ =
           power_manager::SetBacklightBrightnessRequest_Cause_MODEL;
 
+  // Last als request cause via SetAmbientLightSensorEnabled().
+  // Initially set to an arbitrary value.
+  power_manager::SetAmbientLightSensorEnabledRequest_Cause
+      requested_ambient_light_sensor_enabled_cause_ = power_manager::
+          SetAmbientLightSensorEnabledRequest_Cause_USER_REQUEST_FROM_SETTINGS_APP;
+
+  // Last keyboard brightness request cause via HandleSetKeyboardBrightness().
+  // Initially set to an arbitrary value.
+  power_manager::SetBacklightBrightnessRequest_Cause
+      requested_keyboard_brightness_cause_ =
+          power_manager::SetBacklightBrightnessRequest_Cause_MODEL;
+
   // Last value set by SetAmbientLightSensorEnabled. Defaults to true to match
   // system behavior.
   bool is_ambient_light_sensor_enabled_ = true;
@@ -339,7 +368,7 @@ class COMPONENT_EXPORT(DBUS_POWER) FakePowerManagerClient
   bool backlights_forced_off_ = false;
 
   // True if the device has a keyboard backlight.
-  bool has_keyboard_backlight_ = false;
+  bool has_keyboard_backlight_ = true;
 
   // Last battery saver mode state set in SetBatterySaverModeState().
   bool battery_saver_mode_enabled_ = false;

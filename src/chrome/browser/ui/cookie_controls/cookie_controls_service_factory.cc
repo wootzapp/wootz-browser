@@ -6,7 +6,6 @@
 
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/cookie_controls/cookie_controls_service.h"
-#include "components/content_settings/core/common/cookie_controls_enforcement.h"
 
 // static
 CookieControlsService* CookieControlsServiceFactory::GetForProfile(
@@ -22,8 +21,9 @@ CookieControlsServiceFactory* CookieControlsServiceFactory::GetInstance() {
 }
 
 // static
-KeyedService* CookieControlsServiceFactory::BuildInstanceFor(Profile* profile) {
-  return new CookieControlsService(profile);
+std::unique_ptr<KeyedService> CookieControlsServiceFactory::BuildInstanceFor(
+    Profile* profile) {
+  return std::make_unique<CookieControlsService>(profile);
 }
 
 CookieControlsServiceFactory::CookieControlsServiceFactory()
@@ -36,11 +36,15 @@ CookieControlsServiceFactory::CookieControlsServiceFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
               .Build()) {}
 
 CookieControlsServiceFactory::~CookieControlsServiceFactory() = default;
 
-KeyedService* CookieControlsServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+CookieControlsServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* profile) const {
   return BuildInstanceFor(Profile::FromBrowserContext(profile));
 }

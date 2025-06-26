@@ -20,12 +20,17 @@ MirrorLayerImpl::MirrorLayerImpl(LayerTreeImpl* tree_impl, int id)
 
 MirrorLayerImpl::~MirrorLayerImpl() = default;
 
+mojom::LayerType MirrorLayerImpl::GetLayerType() const {
+  return mojom::LayerType::kMirror;
+}
+
 std::unique_ptr<LayerImpl> MirrorLayerImpl::CreateLayerImpl(
     LayerTreeImpl* tree_impl) const {
   return MirrorLayerImpl::Create(tree_impl, id());
 }
 
-void MirrorLayerImpl::AppendQuads(viz::CompositorRenderPass* render_pass,
+void MirrorLayerImpl::AppendQuads(const AppendQuadsContext& context,
+                                  viz::CompositorRenderPass* render_pass,
                                   AppendQuadsData* append_quads_data) {
   // TODO(mohsen): Currently, effects on the mirrored layer (e.g mask and
   // opacity) are ignored. Consider applying them here.
@@ -102,10 +107,6 @@ gfx::Rect MirrorLayerImpl::GetEnclosingVisibleRectInTargetSpace() const {
   float scale =
       mirrored_layer ? mirrored_layer->GetIdealContentsScaleKey() : 1.0f;
   return GetScaledEnclosingVisibleRectInTargetSpace(scale);
-}
-
-const char* MirrorLayerImpl::LayerTypeAsString() const {
-  return "cc::MirrorLayerImpl";
 }
 
 }  // namespace cc

@@ -4,17 +4,19 @@
 
 #include "components/attribution_reporting/aggregatable_values.h"
 
+#include <stdint.h>
+
+#include <algorithm>
 #include <optional>
 #include <utility>
 
 #include "base/check.h"
 #include "base/containers/flat_tree.h"
-#include "base/not_fatal_until.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "base/types/expected.h"
 #include "base/types/expected_macros.h"
 #include "base/values.h"
+#include "components/attribution_reporting/aggregatable_utils.h"
 #include "components/attribution_reporting/constants.h"
 #include "components/attribution_reporting/filters.h"
 #include "components/attribution_reporting/parsing_utils.h"
@@ -26,39 +28,67 @@ namespace {
 
 using ::attribution_reporting::mojom::TriggerRegistrationError;
 
-bool IsValueInRange(int value) {
-  return value > 0 && value <= kMaxAggregatableValue;
-}
-
 bool IsValid(const AggregatableValues::Values& values) {
-  return base::ranges::all_of(values, [](const auto& value) {
-    return AggregationKeyIdHasValidLength(value.first) &&
-           IsValueInRange(value.second);
+  return std::ranges::all_of(values, [](const auto& value) {
+    return IsAggregatableValueInRange(value.second.value());
   });
 }
 
-base::expected<AggregatableValues::Values, mojom::TriggerRegistrationError>
+base::expected<AggregatableValues::Values, TriggerRegistrationError>
 ParseValues(const base::Value::Dict& dict,
             TriggerRegistrationError key_error,
             TriggerRegistrationError value_error) {
   AggregatableValues::Values::container_type container;
 
   for (auto [id, key_value] : dict) {
-    if (!AggregationKeyIdHasValidLength(id)) {
-      return base::unexpected(key_error);
-    }
-
-    std::optional<int> int_value = key_value.GetIfInt();
-    if (!int_value.has_value() || !IsValueInRange(*int_value)) {
-      return base::unexpected(value_error);
-    }
-
-    container.emplace_back(id, *int_value);
+    ASSIGN_OR_RETURN(AggregatableValuesValue value,
+                     AggregatableValuesValue::FromJSON(key_value, value_error));
+    container.emplace_back(id, std::move(value));
   }
   return AggregatableValues::Values(base::sorted_unique, std::move(container));
 }
 
 }  // namespace
+
+// static
+std::optional<AggregatableValuesValue>
+AggregatableValuesValue::AggregatableValuesValue::Create(
+    int value,
+    uint64_t filtering_id) {
+  if (!IsAggregatableValueInRange(value)) {
+    return std::nullopt;
+  }
+  return AggregatableValuesValue(value, filtering_id);
+}
+
+// static
+base::expected<AggregatableValuesValue, TriggerRegistrationError>
+AggregatableValuesValue::FromJSON(const base::Value& json,
+                                  TriggerRegistrationError value_error) {
+  int value;
+  std::optional<uint64_t> filtering_id;
+
+  if (const base::Value::Dict* dict = json.GetIfDict()) {
+    const base::Value* value_v = dict->Find(kValue);
+    if (!value_v) {
+      return base::unexpected(value_error);
+    }
+    ASSIGN_OR_RETURN(value, ParseAggregatableValue(*value_v),
+                     [value_error](ParseError) { return value_error; });
+
+    ASSIGN_OR_RETURN(filtering_id, ParseUint64(*dict, kFilteringId),
+                     [value_error](ParseError) { return value_error; });
+  } else {
+    ASSIGN_OR_RETURN(value, ParseAggregatableValue(json),
+                     [value_error](ParseError) { return value_error; });
+  }
+  return AggregatableValuesValue(value,
+                                 filtering_id.value_or(kDefaultFilteringId));
+}
+
+AggregatableValuesValue::AggregatableValuesValue(uint32_t value,
+                                                 uint64_t filtering_id)
+    : value_(value), filtering_id_(filtering_id) {}
 
 // static
 std::optional<AggregatableValues> AggregatableValues::Create(
@@ -72,7 +102,7 @@ std::optional<AggregatableValues> AggregatableValues::Create(
 }
 
 // static
-base::expected<std::vector<AggregatableValues>, mojom::TriggerRegistrationError>
+base::expected<std::vector<AggregatableValues>, TriggerRegistrationError>
 AggregatableValues::FromJSON(base::Value* input_value) {
   std::vector<AggregatableValues> configs;
   if (!input_value) {
@@ -121,11 +151,22 @@ AggregatableValues::FromJSON(base::Value* input_value) {
   return configs;
 }
 
+base::Value::Dict AggregatableValuesValue::ToJson() const {
+  CHECK(base::IsValueInRangeForNumericType<int>(value_));
+
+  base::Value::Dict dict;
+
+  dict.Set(kValue, static_cast<int>(value_));
+  SerializeUint64(dict, kFilteringId, filtering_id_);
+
+  return dict;
+}
+
 AggregatableValues::AggregatableValues() = default;
 
 AggregatableValues::AggregatableValues(Values values, FilterPair filters)
     : values_(std::move(values)), filters_(std::move(filters)) {
-  CHECK(IsValid(values_), base::NotFatalUntil::M128);
+  CHECK(IsValid(values_));
 }
 
 AggregatableValues::~AggregatableValues() = default;
@@ -143,9 +184,7 @@ AggregatableValues& AggregatableValues::operator=(AggregatableValues&&) =
 base::Value::Dict AggregatableValues::ToJson() const {
   base::Value::Dict values_dict;
   for (const auto& [key, value] : values_) {
-    CHECK(base::IsValueInRangeForNumericType<int>(value),
-          base::NotFatalUntil::M128);
-    values_dict.Set(key, static_cast<int>(value));
+    values_dict.Set(key, value.ToJson());
   }
 
   base::Value::Dict dict;

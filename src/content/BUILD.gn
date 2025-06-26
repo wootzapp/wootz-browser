@@ -66,6 +66,7 @@ content_shared_components = [
   "//content/public/child:child_sources",
   "//content/public/common:common_sources",
   "//content/public/gpu:gpu_sources",
+  "//content/public/renderer:render_frame_media_playback_options",
   "//content/public/renderer:renderer_sources",
   "//content/public/utility:utility_sources",
 ]
@@ -95,7 +96,7 @@ grit("content_resources") {
     "content_resources.pak",
   ]
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     deps = [
       "//mojo/public/mojom/base:base_js__generator",
       "//ui/base/mojom:mojom_js__generator",

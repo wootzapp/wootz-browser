@@ -4,12 +4,13 @@
 
 package org.chromium.base.test.transit;
 
-import androidx.annotation.Nullable;
+import static org.chromium.build.NullUtil.assumeNonNull;
 
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.transit.ConditionStatus.Status;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 
@@ -19,9 +20,9 @@ import java.util.function.Function;
  *
  * <p>The logical expression is passed in as a |checkFunction|.
  *
- * <p>LogicalElements should be declared by calling {@link
- * Elements.Builder#declareLogicalElement(LogicalElement)} passing in an instance created by one of
- * the factory methods here such as {@link #uiThreadLogicalElement(String, Function, Supplier)}.
+ * <p>LogicalElements should be declared by calling {@link Elements.Builder#declareElement(Element)}
+ * passing in an instance created by one of the factory methods here such as {@link
+ * #uiThreadLogicalElement(String, Function, Supplier)}.
  *
  * <p>Generates ENTER and EXIT Conditions for the ConditionalState to ensure the LogicalElement is
  * in the right state.
@@ -31,13 +32,13 @@ import java.util.function.Function;
  *
  * @param <ParamT> type of parameter the |checkFunction| requires.
  */
-public class LogicalElement<ParamT> implements ElementInState {
-
-    private static final Supplier<Void> NULL_SUPPLIER =
+@NullMarked
+public class LogicalElement<ParamT> extends Element<Void> {
+    private static final Supplier<Void> SUPPLIER_OF_NULL =
             new Supplier<>() {
                 @Override
                 public Void get() {
-                    return null;
+                    return assumeNonNull(null);
                 }
 
                 @Override
@@ -45,13 +46,11 @@ public class LogicalElement<ParamT> implements ElementInState {
                     return true;
                 }
             };
+
     private final boolean mIsRunOnUiThread;
     private final String mDescription;
-    private final String mId;
     private final Function<ParamT, ConditionStatus> mCheckFunction;
     private final Supplier<ParamT> mParamSupplier;
-    private final Condition mEnterCondition;
-    private final Condition mExitCondition;
 
     /**
      * Create a LogicalElement that runs the check on the UI Thread.
@@ -87,7 +86,7 @@ public class LogicalElement<ParamT> implements ElementInState {
 
     /**
      * Version of {@link #uiThreadLogicalElement(String, Function, Supplier)} when |checkFunction|
-     * has no dependencies on Suppliers.
+     * has no dependencies.
      */
     public static LogicalElement<Void> uiThreadLogicalElement(
             String description, Callable<ConditionStatus> checkCallable) {
@@ -95,7 +94,7 @@ public class LogicalElement<ParamT> implements ElementInState {
                 /* isRunOnUiThread= */ true,
                 description,
                 new CallableAsFunction(checkCallable),
-                NULL_SUPPLIER,
+                SUPPLIER_OF_NULL,
                 /* id= */ null);
     }
 
@@ -133,7 +132,7 @@ public class LogicalElement<ParamT> implements ElementInState {
 
     /**
      * Version of {@link #instrumentationThreadLogicalElement(String, Function, Supplier)} when
-     * |checkFunction| has no dependencies on Suppliers.
+     * |checkFunction| has no dependencies.
      */
     public static LogicalElement<Void> instrumentationThreadLogicalElement(
             String description, Callable<ConditionStatus> checkCallable) {
@@ -141,7 +140,7 @@ public class LogicalElement<ParamT> implements ElementInState {
                 /* isRunOnUiThread= */ false,
                 description,
                 new CallableAsFunction(checkCallable),
-                NULL_SUPPLIER,
+                SUPPLIER_OF_NULL,
                 /* id= */ null);
     }
 
@@ -151,44 +150,32 @@ public class LogicalElement<ParamT> implements ElementInState {
             Function<ParamT, ConditionStatus> checkFunction,
             Supplier<ParamT> paramSupplier,
             @Nullable String id) {
+        super("LE/" + (id != null ? id : description));
         mIsRunOnUiThread = isRunOnUiThread;
         mDescription = description;
-        mId = "LE/" + (id != null ? id : description);
         mCheckFunction = checkFunction;
         mParamSupplier = paramSupplier;
-
-        mEnterCondition = new EnterCondition(mIsRunOnUiThread);
-        mExitCondition = new ExitCondition(mIsRunOnUiThread);
     }
 
     @Override
-    public String getId() {
-        return mId;
+    public ConditionWithResult<Void> createEnterCondition() {
+        return new EnterCondition(mIsRunOnUiThread);
     }
 
     @Override
-    public Condition getEnterCondition() {
-        return mEnterCondition;
+    public Condition createExitCondition() {
+        return new ExitCondition(mIsRunOnUiThread);
     }
 
-    @Override
-    public Condition getExitCondition(Set<String> destinationElementIds) {
-        if (!destinationElementIds.contains(mId)) {
-            return mExitCondition;
-        } else {
-            return null;
-        }
-    }
-
-    private class EnterCondition extends Condition {
+    private class EnterCondition extends ConditionWithResult<Void> {
         private EnterCondition(boolean isRunOnUiThread) {
             super(isRunOnUiThread);
             dependOnSupplier(mParamSupplier, "Param");
         }
 
         @Override
-        protected ConditionStatus checkWithSuppliers() {
-            return mCheckFunction.apply(mParamSupplier.get());
+        protected ConditionStatusWithResult<Void> resolveWithSuppliers() {
+            return mCheckFunction.apply(mParamSupplier.get()).withoutResult();
         }
 
         @Override

@@ -7,15 +7,18 @@
 #include "base/notreached.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/vector_icons/vector_icons.h"
+#include "chrome/browser/promos/promos_types.h"
+#include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/autofill/payments/save_payment_icon_controller.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/autofill/autofill_location_bar_bubble.h"
 #include "chrome/browser/ui/views/autofill/payments/manage_saved_iban_bubble_view.h"
-#include "chrome/browser/ui/views/autofill/payments/save_card_and_virtual_card_enroll_confirmation_bubble_views.h"
 #include "chrome/browser/ui/views/autofill/payments/save_card_bubble_views.h"
 #include "chrome/browser/ui/views/autofill/payments/save_iban_bubble_view.h"
+#include "chrome/browser/ui/views/autofill/payments/save_payment_method_and_virtual_card_enroll_confirmation_bubble_views.h"
+#include "chrome/browser/ui/views/promos/ios_promo_bubble.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/autofill/core/common/autofill_payments_features.h"
 #include "components/strings/grit/components_strings.h"
@@ -23,6 +26,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 
 namespace autofill {
 
@@ -31,13 +35,13 @@ SavePaymentIconView::SavePaymentIconView(
     IconLabelBubbleView::Delegate* icon_label_bubble_delegate,
     PageActionIconView::Delegate* page_action_icon_delegate,
     int command_id)
-    : PageActionIconView(command_updater,
-                         command_id,
-                         icon_label_bubble_delegate,
-                         page_action_icon_delegate,
-                         command_id == IDC_SAVE_CREDIT_CARD_FOR_PAGE
-                             ? "SaveCard"
-                             : "SaveIban") {
+    : PageActionIconView(
+          command_updater,
+          command_id,
+          icon_label_bubble_delegate,
+          page_action_icon_delegate,
+          command_id == IDC_SAVE_CREDIT_CARD_FOR_PAGE ? "SaveCard" : "SaveIban",
+          kActionShowPaymentsBubbleOrPage) {
   if (command_id == IDC_SAVE_CREDIT_CARD_FOR_PAGE) {
     SetID(VIEW_ID_SAVE_CREDIT_CARD_BUTTON);
   } else {
@@ -46,8 +50,8 @@ SavePaymentIconView::SavePaymentIconView(
   }
   command_id_ = command_id;
   SetUpForInOutAnimation();
-  SetAccessibilityProperties(/*role*/ std::nullopt,
-                             GetTextForTooltipAndAccessibleName());
+  GetViewAccessibility().SetName(GetTextForTooltipAndAccessibleName());
+  UpdateTooltipText();
 }
 
 SavePaymentIconView::~SavePaymentIconView() = default;
@@ -68,9 +72,20 @@ void SavePaymentIconView::UpdateImpl() {
 
   bool command_enabled =
       SetCommandEnabled(controller && controller->IsIconVisible());
-  SetVisible(command_enabled);
+  bool should_show =
+      command_enabled && !delegate()->ShouldHidePageActionIcon(this);
 
-  SetAccessibleName(GetTextForTooltipAndAccessibleName());
+  // Show the icon if the Desktop to iOS payment promo is currently being shown,
+  // and check the command_id_ to only show for one of the instances of
+  // SavePaymentIconView.
+  should_show = should_show ||
+                (command_id_ == IDC_SAVE_CREDIT_CARD_FOR_PAGE &&
+                 IOSPromoBubble::IsPromoTypeVisible(IOSPromoType::kPayment));
+
+  SetVisible(should_show);
+
+  GetViewAccessibility().SetName(GetTextForTooltipAndAccessibleName());
+  UpdateTooltipText();
 
   if (command_enabled && controller->ShouldShowSavingPaymentAnimation()) {
     SetEnabled(false);

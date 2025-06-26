@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #ifndef THIRD_PARTY_BLINK_PUBLIC_COMMON_INPUT_WEB_GESTURE_EVENT_H_
 #define THIRD_PARTY_BLINK_PUBLIC_COMMON_INPUT_WEB_GESTURE_EVENT_H_
 
@@ -121,8 +126,6 @@ class BLINK_COMMON_EXPORT WebGestureEvent : public WebInputEvent {
     struct {
       float delta_x;
       float delta_y;
-      float velocity_x;
-      float velocity_y;
       InertialPhaseState inertial_phase;
       // Default initialized to kScrollByPrecisePixel.
       ui::ScrollGranularity delta_units;
@@ -242,9 +245,6 @@ class BLINK_COMMON_EXPORT WebGestureEvent : public WebInputEvent {
   InertialPhaseState InertialPhase() const;
   bool Synthetic() const;
 
-  float VelocityX() const;
-  float VelocityY() const;
-
   gfx::SizeF TapAreaInRootFrame() const;
   int TapCount() const;
   int TapDownCount() const;
@@ -278,8 +278,7 @@ class BLINK_COMMON_EXPORT WebGestureEvent : public WebInputEvent {
       case Type::kGestureDoubleTap:
         return false;
       default:
-        NOTREACHED_IN_MIGRATION();
-        return false;
+        NOTREACHED();
     }
   }
 
@@ -316,8 +315,7 @@ class BLINK_COMMON_EXPORT WebGestureEvent : public WebInputEvent {
       case Type::kGestureDoubleTap:
         return data.tap.needs_wheel_event;
       default:
-        NOTREACHED_IN_MIGRATION();
-        return false;
+        NOTREACHED();
     }
   }
 

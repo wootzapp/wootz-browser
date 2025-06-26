@@ -37,7 +37,7 @@
 #include "net/socket/websocket_endpoint_lock_manager.h"
 #include "net/spdy/spdy_session_pool.h"
 #include "net/ssl/ssl_client_session_cache.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/spdy_protocol.h"
+#include "net/third_party/quiche/src/quiche/http2/core/spdy_protocol.h"
 
 namespace base {
 class Value;
@@ -54,6 +54,7 @@ class HttpAuthHandlerFactory;
 class HttpNetworkSessionPeer;
 class HttpResponseBodyDrainer;
 class HttpServerProperties;
+class HttpStreamPool;
 class HttpUserAgentSettings;
 class NetLog;
 #if BUILDFLAG(ENABLE_REPORTING)
@@ -172,7 +173,7 @@ struct NET_EXPORT HttpNetworkSessionParams {
   bool ignore_ip_address_changes = false;
 
   // Whether to use the ALPN information in the DNS HTTPS record.
-  bool use_dns_https_svcb_alpn = false;
+  bool use_dns_https_svcb_alpn = true;
 };
 
 // Structure with pointers to the dependencies of the HttpNetworkSession.
@@ -249,6 +250,7 @@ class NET_EXPORT HttpNetworkSession {
   HttpServerProperties* http_server_properties() {
     return http_server_properties_;
   }
+  HttpStreamPool* http_stream_pool() { return http_stream_pool_.get(); }
   HttpStreamFactory* http_stream_factory() {
     return http_stream_factory_.get();
   }
@@ -294,6 +296,11 @@ class NET_EXPORT HttpNetworkSession {
   // Disable QUIC for new streams.
   void DisableQuic();
 
+  // Returns true when QUIC is forcibly used for `destination`.
+  bool ShouldForceQuic(const url::SchemeHostPort& destination,
+                       const ProxyInfo& proxy_info,
+                       bool is_websocket);
+
   // Ignores certificate errors on new connection attempts.
   void IgnoreCertificateErrorsForTesting();
 
@@ -306,6 +313,9 @@ class NET_EXPORT HttpNetworkSession {
   // will be nullptr.
   CommonConnectJobParams CreateCommonConnectJobParams(
       bool for_websockets = false);
+
+  // Rewrite the port of `endpoint` when testing fixed port is specified.
+  void ApplyTestingFixedPort(url::SchemeHostPort& endpoint) const;
 
  private:
   friend class HttpNetworkSessionPeer;
@@ -336,6 +346,14 @@ class NET_EXPORT HttpNetworkSession {
   std::unique_ptr<ClientSocketPoolManager> normal_socket_pool_manager_;
   std::unique_ptr<ClientSocketPoolManager> websocket_socket_pool_manager_;
   QuicSessionPool quic_session_pool_;
+  // `http_stream_pool_` needs to outlive `spdy_session_pool_` because it owns
+  // SpdySessions, which own HttpStreamHandle and handles are owned by
+  // `http_stream_pool_`.
+  // `http_stream_pool_` needs to be destroyed before `quic_session_pool_`
+  // because an HttpStreamPool::QuicTask, which is owned by `http_stream_pool_`,
+  // may have a QuicSessionAttempt that must be destroyed before
+  // `quic_session_pool_`.
+  std::unique_ptr<HttpStreamPool> http_stream_pool_;
   SpdySessionPool spdy_session_pool_;
   std::unique_ptr<HttpStreamFactory> http_stream_factory_;
   std::set<std::unique_ptr<HttpResponseBodyDrainer>, base::UniquePtrComparator>

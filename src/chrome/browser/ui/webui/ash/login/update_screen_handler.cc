@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/webui/ash/login/update_screen_handler.h"
 
 #include <memory>
+#include <string_view>
 
 #include "ash/constants/ash_features.h"
 #include "base/values.h"
@@ -18,16 +19,12 @@ namespace ash {
 
 namespace {
 
-constexpr bool strings_equal(char const* a, char const* b) {
-  return *a == *b && (*a == '\0' || strings_equal(a + 1, b + 1));
-}
-static_assert(
-    strings_equal(UpdateView::kScreenId.name,
+static_assert(std::string_view(UpdateView::kScreenId.name) ==
                   "oobe"
                   // break with comment is used here so the verification value
                   // won't get automatically renamed by mass renaming tools
-                  "-update"),
-    "The update screen id must never change");
+                  "-update",
+              "The update screen id must never change");
 
 // These values must be kept in sync with UIState in JS code.
 constexpr const char kCheckingForUpdate[] = "checking";

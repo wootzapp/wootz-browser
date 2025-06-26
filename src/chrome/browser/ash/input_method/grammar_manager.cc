@@ -14,7 +14,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ash/input_method/assistive_window_properties.h"
-#include "chrome/browser/ash/input_method/ui/suggestion_details.h"
+#include "chrome/browser/ui/ash/input_method/suggestion_details.h"
 #include "ui/base/ime/ash/ime_bridge.h"
 #include "ui/base/ime/ash/text_input_target.h"
 #include "ui/events/keycodes/dom/dom_code.h"
@@ -97,7 +97,7 @@ void GrammarManager::OnFocus(int context_id, SpellcheckMode spellcheck_mode) {
 }
 
 bool GrammarManager::OnKeyEvent(const ui::KeyEvent& event) {
-  if (!suggestion_shown_ || event.type() != ui::ET_KEY_PRESSED) {
+  if (!suggestion_shown_ || event.type() != ui::EventType::kKeyPressed) {
     return false;
   }
 

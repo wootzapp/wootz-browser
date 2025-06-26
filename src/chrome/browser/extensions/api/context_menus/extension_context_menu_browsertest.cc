@@ -7,6 +7,7 @@
 #include <memory>
 #include <set>
 #include <string_view>
+#include <tuple>
 
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
@@ -24,6 +25,7 @@
 #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
 #include "chrome/browser/renderer_context_menu/render_view_context_menu_test_util.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -47,9 +49,13 @@
 #include "net/dns/mock_host_resolver.h"
 #include "ui/base/models/menu_model.h"
 
+#if BUILDFLAG(IS_CHROMEOS)
+#include "ash/wm/window_pin_util.h"
+#endif
+
 using content::WebContents;
 using extensions::ContextMenuMatcher;
-using ContextType = extensions::ExtensionBrowserTest::ContextType;
+using ContextType = extensions::browser_test_util::ContextType;
 using extensions::MenuItem;
 using extensions::ResultCatcher;
 using ui::MenuModel;
@@ -173,7 +179,7 @@ class ExtensionContextMenuBrowserTest
     if (!FindCommandId(menu, id, &command_id))
       return false;
 
-    MenuModel* model = nullptr;
+    raw_ptr<MenuModel> model = nullptr;
     size_t index = 0;
     if (!menu->GetMenuModelAndItemIndex(command_id, &model, &index)) {
       return false;
@@ -609,7 +615,7 @@ IN_PROC_BROWSER_TEST_P(ExtensionContextMenuLazyTest, TopLevel) {
       TestRenderViewContextMenu::Create(GetWebContents(), url));
 
   size_t index = 0;
-  MenuModel* model = nullptr;
+  raw_ptr<MenuModel> model = nullptr;
 
   ASSERT_TRUE(menu->GetMenuModelAndItemIndex(
       ContextMenuMatcher::ConvertToExtensionsCustomCommandId(0), &model,
@@ -651,27 +657,27 @@ static void VerifyMenuForSeparatorsTest(const MenuModel& menu) {
   //  normal3
 
   size_t index = 0;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   ASSERT_EQ(7u, menu.GetItemCount());
 #else
   ASSERT_EQ(11u, menu.GetItemCount());
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
   ExpectLabelAndType("radio1", MenuModel::TYPE_RADIO, menu, index++);
   ExpectLabelAndType("radio2", MenuModel::TYPE_RADIO, menu, index++);
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   EXPECT_EQ(MenuModel::TYPE_SEPARATOR, menu.GetTypeAt(index++));
 #endif  // !BUILDFLAG(IS_CHROMEOS)
   ExpectLabelAndType("normal1", MenuModel::TYPE_COMMAND, menu, index++);
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   EXPECT_EQ(MenuModel::TYPE_SEPARATOR, menu.GetTypeAt(index++));
 #endif  // !BUILDFLAG(IS_CHROMEOS)
   ExpectLabelAndType("normal2", MenuModel::TYPE_COMMAND, menu, index++);
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   EXPECT_EQ(MenuModel::TYPE_SEPARATOR, menu.GetTypeAt(index++));
 #endif  // !BUILDFLAG(IS_CHROMEOS)
   ExpectLabelAndType("radio3", MenuModel::TYPE_RADIO, menu, index++);
   ExpectLabelAndType("radio4", MenuModel::TYPE_RADIO, menu, index++);
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   EXPECT_EQ(MenuModel::TYPE_SEPARATOR, menu.GetTypeAt(index++));
 #endif  // !BUILDFLAG(IS_CHROMEOS)
   ExpectLabelAndType("normal3", MenuModel::TYPE_COMMAND, menu, index++);
@@ -698,7 +704,7 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuPersistentTest, Separators) {
 
   // The top-level item should be an "automagic parent" with the extension's
   // name.
-  MenuModel* model = nullptr;
+  raw_ptr<MenuModel> model = nullptr;
   size_t index = 0;
   std::u16string label;
   ASSERT_TRUE(menu->GetMenuModelAndItemIndex(
@@ -712,6 +718,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionContextMenuPersistentTest, Separators) {
   MenuModel* submenu = model->GetSubmenuModelAt(index);
   ASSERT_TRUE(submenu);
   VerifyMenuForSeparatorsTest(*submenu);
+  // Depends on `menu` so must be cleared before it is destroyed below.
+  model = nullptr;
 
   // Now run our second test - navigate to test2.html which creates an explicit
   // parent node and populates that with the same items as in test1.
@@ -969,6 +977,50 @@ IN_PROC_BROWSER_TEST_P(ExtensionContextMenuLazyTest, UpdateCheckboxes) {
   VerifyRadioItemSelectionState(menu.get(), extension->id(), "checkbox2",
                                 false);
 }
+
+#if BUILDFLAG(IS_CHROMEOS)
+// Extension context menu tests with and without locked fullscreen when locked
+// and not locked for OnTask. Only relevant for non-web browser scenarios.
+class ExtensionContextMenuLockedFullscreenTest
+    : public ExtensionContextMenuBrowserTest,
+      public testing::WithParamInterface<std::tuple<bool, bool>> {
+ protected:
+  bool IsLockedFullscreen() { return std::get<0>(GetParam()); }
+  bool IsLockedForOnTask() { return std::get<1>(GetParam()); }
+};
+
+IN_PROC_BROWSER_TEST_P(ExtensionContextMenuLockedFullscreenTest,
+                       VerifyItemStateForOnTask) {
+  browser()->SetLockedForOnTask(IsLockedForOnTask());
+  if (IsLockedFullscreen()) {
+    PinWindow(browser()->window()->GetNativeWindow(), /*trusted=*/true);
+  }
+
+  // Load test extension and wait for js test code to create context menu with
+  // one item.
+  ExtensionTestMessageListener listener("created context menu");
+  base::FilePath extension_dir = GetRootDir().AppendASCII("locked_fullscreen");
+  ASSERT_TRUE(
+      LoadExtension(extension_dir, {.wait_for_registration_stored = true}));
+  ASSERT_TRUE(listener.WaitUntilSatisfied());
+
+  // Create / build the context menu and verify item state is enabled if the
+  // instance is locked for OnTask or if the instance is not in locked
+  // fullscreen mode.
+  const GURL page_url("http://www.google.com");
+  const std::unique_ptr<TestRenderViewContextMenu> menu(
+      TestRenderViewContextMenu::Create(GetWebContents(), page_url));
+  int command_id = ContextMenuMatcher::ConvertToExtensionsCustomCommandId(0);
+  bool expect_command_enabled = IsLockedForOnTask() || !IsLockedFullscreen();
+  ASSERT_EQ(expect_command_enabled, menu->IsCommandIdEnabled(command_id));
+}
+
+INSTANTIATE_TEST_SUITE_P(ExtensionContextMenuLockedFullscreenTests,
+                         ExtensionContextMenuLockedFullscreenTest,
+                         ::testing::Combine(
+                             /*IsLockedFullscreen=*/::testing::Bool(),
+                             /*IsLockedForOnTask=*/::testing::Bool()));
+#endif
 
 INSTANTIATE_TEST_SUITE_P(EventPage,
                          ExtensionContextMenuLazyTest,

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "chrome/browser/extensions/api/runtime/chrome_runtime_api_delegate.h"
 
 #include <memory>
@@ -18,6 +23,7 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
+#include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
@@ -27,13 +33,17 @@
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "components/update_client/update_query_params.h"
+#include "content/public/browser/web_contents.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_system.h"
+#include "extensions/browser/view_type_utils.h"
 #include "extensions/browser/warning_service.h"
 #include "extensions/browser/warning_set.h"
 #include "extensions/common/api/runtime.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/common/manifest.h"
+#include "extensions/common/mojom/view_type.mojom.h"
 #include "net/base/backoff_entry.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -85,7 +95,7 @@ BackoffPolicy::BackoffPolicy() {
 
       // initial_delay_ms (note that we set 'always_use_initial_delay' to false
       // below)
-      1000 * extensions::kDefaultUpdateFrequencySeconds,
+      extensions::kDefaultUpdateFrequency.InMilliseconds(),
 
       // multiply_factor
       1,
@@ -139,17 +149,13 @@ void ChromeRuntimeAPIDelegate::set_tick_clock_for_tests(
 void ChromeRuntimeAPIDelegate::AddUpdateObserver(
     extensions::UpdateObserver* observer) {
   registered_for_updates_ = true;
-  ExtensionSystem::Get(browser_context_)
-      ->extension_service()
-      ->AddUpdateObserver(observer);
+  ExtensionUpdater::Get(browser_context_)->AddObserver(observer);
 }
 
 void ChromeRuntimeAPIDelegate::RemoveUpdateObserver(
     extensions::UpdateObserver* observer) {
   if (registered_for_updates_) {
-    ExtensionSystem::Get(browser_context_)
-        ->extension_service()
-        ->RemoveUpdateObserver(observer);
+    ExtensionUpdater::Get(browser_context_)->RemoveObserver(observer);
   }
 }
 
@@ -187,9 +193,8 @@ void ChromeRuntimeAPIDelegate::ReloadExtension(
                            reload_info.second);
   reload_info.first = now;
 
-  extensions::ExtensionService* service =
-      ExtensionSystem::Get(browser_context_)->extension_service();
-
+  extensions::ExtensionRegistrar* registrar =
+      extensions::ExtensionRegistrar::Get(browser_context_);
   if (reload_info.second >= fast_reload_count) {
     // Unloading an extension clears all warnings, so first terminate the
     // extension, and then add the warning. Since this is called from an
@@ -198,8 +203,8 @@ void ChromeRuntimeAPIDelegate::ReloadExtension(
     // post both tasks.
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
-        base::BindOnce(&extensions::ExtensionService::TerminateExtension,
-                       service->AsExtensionServiceWeakPtr(), extension_id));
+        base::BindOnce(&extensions::ExtensionRegistrar::TerminateExtension,
+                       registrar->GetWeakPtr(), extension_id));
     extensions::WarningSet warnings;
     warnings.insert(
         extensions::Warning::CreateReloadTooFrequentWarning(extension_id));
@@ -216,8 +221,8 @@ void ChromeRuntimeAPIDelegate::ReloadExtension(
     // if the extension has already been reloaded; so instead we post a task.
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
-        base::BindOnce(&extensions::ExtensionService::ReloadExtension,
-                       service->AsExtensionServiceWeakPtr(), extension_id));
+        base::BindOnce(&extensions::ExtensionRegistrar::ReloadExtension,
+                       registrar->GetWeakPtr(), extension_id));
   }
 }
 
@@ -225,10 +230,9 @@ bool ChromeRuntimeAPIDelegate::CheckForUpdates(
     const extensions::ExtensionId& extension_id,
     UpdateCheckCallback callback) {
 #if 0 // wootz disable ext updates 
-  ExtensionSystem* system = ExtensionSystem::Get(browser_context_);
-  extensions::ExtensionService* service = system->extension_service();
-  ExtensionUpdater* updater = service->updater();
-  if (!updater) {
+  Profile* profile = Profile::FromBrowserContext(browser_context_);
+  ExtensionUpdater* updater = ExtensionUpdater::Get(profile);
+  if (!updater->enabled()) {
     return false;
   }
 
@@ -254,6 +258,7 @@ bool ChromeRuntimeAPIDelegate::CheckForUpdates(
                        base::Unretained(this), extension_id);
     updater->CheckNow(std::move(params));
   }
+  return true;
 #endif
   return false;
 }
@@ -289,11 +294,10 @@ bool ChromeRuntimeAPIDelegate::GetPlatformInfo(PlatformInfo* info) {
     info->os = extensions::api::runtime::PlatformOs::kLinux;
   } else if (strcmp(os, "openbsd") == 0) {
     info->os = extensions::api::runtime::PlatformOs::kOpenbsd;
-  }  else if (strcmp(os, "android") == 0) {
+  } else if (strcmp(os, "android") == 0) {
     info->os = extensions::api::runtime::PlatformOs::kAndroid;
   } else {
-    NOTREACHED_IN_MIGRATION() << "Platform not supported: " << os;
-    return false;
+    NOTREACHED() << "Platform not supported: " << os;
   }
 
   const char* arch = update_client::UpdateQueryParams::GetArch();
@@ -310,8 +314,7 @@ bool ChromeRuntimeAPIDelegate::GetPlatformInfo(PlatformInfo* info) {
   } else if (strcmp(arch, "mips64el") == 0) {
     info->arch = extensions::api::runtime::PlatformArch::kMips64;
   } else {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
 
   const char* nacl_arch = update_client::UpdateQueryParams::GetNaclArch();
@@ -326,8 +329,7 @@ bool ChromeRuntimeAPIDelegate::GetPlatformInfo(PlatformInfo* info) {
   } else if (strcmp(nacl_arch, "mips64") == 0) {
     info->nacl_arch = extensions::api::runtime::PlatformNaclArch::kMips64;
   } else {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
 
   return true;
@@ -351,6 +353,27 @@ bool ChromeRuntimeAPIDelegate::OpenOptionsPage(
     content::BrowserContext* browser_context) {
   return extensions::ExtensionTabUtil::OpenOptionsPageFromAPI(extension,
                                                               browser_context);
+}
+
+int ChromeRuntimeAPIDelegate::GetDeveloperToolsWindowId(
+    content::WebContents* developer_tools_web_contents) {
+  // For developer tools contexts, first check the docked state. If the
+  // developer tools are docked, return the window ID of the inspected web
+  // contents. Otherwise, return the window ID of the developer tools window.
+  CHECK_EQ(extensions::GetViewType(developer_tools_web_contents),
+           extensions::mojom::ViewType::kDeveloperTools);
+  CHECK(DevToolsWindow::IsDevToolsWindow(developer_tools_web_contents));
+
+  DevToolsWindow* devtools_window =
+      DevToolsWindow::AsDevToolsWindow(developer_tools_web_contents);
+  content::WebContents* inspected_web_contents =
+      devtools_window->GetInspectedWebContents();
+  bool is_docked = inspected_web_contents->GetTopLevelNativeWindow() ==
+                   developer_tools_web_contents->GetTopLevelNativeWindow();
+
+  content::WebContents* web_contents_to_use =
+      is_docked ? inspected_web_contents : developer_tools_web_contents;
+  return extensions::ExtensionTabUtil::GetWindowIdOfTab(web_contents_to_use);
 }
 
 void ChromeRuntimeAPIDelegate::OnExtensionUpdateFound(

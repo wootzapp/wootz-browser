@@ -4,11 +4,15 @@
 
 #include "extensions/browser/service_worker/service_worker_task_queue_factory.h"
 
+#include <memory>
+
+#include "base/notreached.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "extensions/browser/extension_registry_factory.h"
 #include "extensions/browser/extensions_browser_client.h"
 #include "extensions/browser/process_manager_factory.h"
 #include "extensions/browser/service_worker/service_worker_task_queue.h"
+#include "extensions/common/extension_features.h"
 
 using content::BrowserContext;
 namespace extensions {
@@ -38,10 +42,17 @@ ServiceWorkerTaskQueueFactory::~ServiceWorkerTaskQueueFactory() = default;
 std::unique_ptr<KeyedService>
 ServiceWorkerTaskQueueFactory::BuildServiceInstanceForBrowserContext(
     BrowserContext* context) const {
-  auto task_queue = std::make_unique<ServiceWorkerTaskQueue>(context);
+  std::unique_ptr<ServiceWorkerTaskQueue> task_queue;
+  if (base::FeatureList::IsEnabled(
+          extensions_features::kUseNewServiceWorkerTaskQueue)) {
+    // TODO(crbug.com/40276609): Insert new task queue once
+    // ServiceWorkerTaskQueue is an abstract class.
+    NOTREACHED();
+  } else {
+    task_queue = std::make_unique<ServiceWorkerTaskQueue>(context);
+  }
   BrowserContext* original_context =
-      ExtensionsBrowserClient::Get()->GetContextRedirectedToOriginal(
-          context, /*force_guest_profile=*/true);
+      ExtensionsBrowserClient::Get()->GetContextRedirectedToOriginal(context);
   if (original_context != context) {
     // To let incognito context's ServiceWorkerTaskQueue know about extensions
     // that were activated (which has its own instance of
@@ -55,8 +66,7 @@ ServiceWorkerTaskQueueFactory::BuildServiceInstanceForBrowserContext(
 
 BrowserContext* ServiceWorkerTaskQueueFactory::GetBrowserContextToUse(
     BrowserContext* context) const {
-  return ExtensionsBrowserClient::Get()->GetContextOwnInstance(
-      context, /*force_guest_profile=*/true);
+  return ExtensionsBrowserClient::Get()->GetContextOwnInstance(context);
 }
 
 }  // namespace extensions

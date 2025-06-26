@@ -2,12 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "mojo/public/cpp/bindings/message.h"
 
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <algorithm>
 #include <atomic>
 #include <string_view>
 #include <tuple>
@@ -19,7 +25,7 @@
 #include "base/lazy_instance.h"
 #include "base/memory/ptr_util.h"
 #include "base/numerics/safe_math.h"
-#include "base/ranges/algorithm.h"
+#include "base/rand_util.h"
 #include "base/threading/sequence_local_storage_slot.h"
 #include "base/trace_event/trace_event.h"
 #include "base/trace_event/trace_id_helper.h"
@@ -51,6 +57,8 @@ GetSmallSLSMessageDispatchContext() {
       sls;
   return sls;
 }
+
+thread_local base::MetricsSubSampler g_sub_sampler;
 
 void SetMessageDispatchContext(internal::MessageDispatchContext* context) {
   if (base::FeatureList::IsEnabled(kMojoBindingsInlineSLS)) {
@@ -85,38 +93,33 @@ uint64_t GetTraceId(uint32_t name, uint32_t trace_nonce) {
          static_cast<uint64_t>(trace_nonce);
 }
 
+void WriteMessageHeaderV1(uint32_t name,
+                          uint32_t flags,
+                          uint32_t trace_nonce,
+                          internal::Buffer* payload_buffer) {
+  internal::MessageHeaderV1* header;
+  AllocateHeaderFromBuffer(payload_buffer, &header);
+  header->version = 1;
+  header->name = name;
+  header->flags = flags;
+  header->trace_nonce = trace_nonce;
+}
+
 void WriteMessageHeader(uint32_t name,
                         uint32_t flags,
                         uint32_t trace_nonce,
                         size_t payload_interface_id_count,
-                        internal::Buffer* payload_buffer) {
-  if (payload_interface_id_count > 0) {
-    // Version 2
-    internal::MessageHeaderV2* header;
-    AllocateHeaderFromBuffer(payload_buffer, &header);
-    header->version = 2;
-    header->name = name;
-    header->flags = flags;
-    header->trace_nonce = trace_nonce;
-    // The payload immediately follows the header.
-    header->payload.Set(header + 1);
-  } else if (flags &
-             (Message::kFlagExpectsResponse | Message::kFlagIsResponse)) {
-    // Version 1
-    internal::MessageHeaderV1* header;
-    AllocateHeaderFromBuffer(payload_buffer, &header);
-    header->version = 1;
-    header->name = name;
-    header->flags = flags;
-    header->trace_nonce = trace_nonce;
-  } else {
-    internal::MessageHeader* header;
-    AllocateHeaderFromBuffer(payload_buffer, &header);
-    header->version = 0;
-    header->name = name;
-    header->flags = flags;
-    header->trace_nonce = trace_nonce;
-  }
+                        internal::Buffer* payload_buffer,
+                        int64_t creation_timeticks_us) {
+  internal::MessageHeaderV3* header;
+  AllocateHeaderFromBuffer(payload_buffer, &header);
+  header->version = 3;
+  header->name = name;
+  header->flags = flags;
+  header->trace_nonce = trace_nonce;
+  // The payload immediately follows the header.
+  header->payload.Set(header + 1);
+  header->creation_timeticks_us = creation_timeticks_us;
 }
 
 void CreateSerializedMessageObject(uint32_t name,
@@ -128,7 +131,8 @@ void CreateSerializedMessageObject(uint32_t name,
                                    std::vector<ScopedHandle>* handles,
                                    ScopedMessageHandle* out_handle,
                                    internal::Buffer* out_buffer,
-                                   size_t estimated_payload_size) {
+                                   size_t estimated_payload_size,
+                                   int64_t creation_timeticks_us) {
   ScopedMessageHandle handle;
   MojoResult rv = CreateMessage(&handle, create_message_flags);
   DCHECK_EQ(MOJO_RESULT_OK, rv);
@@ -137,7 +141,7 @@ void CreateSerializedMessageObject(uint32_t name,
   void* buffer;
   uint32_t buffer_size;
   const size_t total_size = internal::ComputeSerializedMessageSize(
-      flags, payload_size, payload_interface_id_count);
+      payload_size, payload_interface_id_count);
   const size_t total_allocation_size = internal::EstimateSerializedMessageSize(
       name, payload_size, total_size, estimated_payload_size);
 
@@ -170,7 +174,7 @@ void CreateSerializedMessageObject(uint32_t name,
   // Make sure we zero the memory first!
   memset(payload_buffer.data(), 0, buffer_size);
   WriteMessageHeader(name, flags, trace_nonce, payload_interface_id_count,
-                     &payload_buffer);
+                     &payload_buffer, creation_timeticks_us);
 
   *out_handle = std::move(handle);
   *out_buffer = std::move(payload_buffer);
@@ -251,16 +255,23 @@ Message::Message(uint32_t name,
                  MojoCreateMessageFlags create_message_flags,
                  std::vector<ScopedHandle>* handles,
                  size_t estimated_payload_size) {
+  int64_t creation_timeticks_us = 0;
+  // Sub-sample end to end time histogram on the sender side to reduce overhead.
+  if (base::TimeTicks::IsConsistentAcrossProcesses() &&
+      g_sub_sampler.ShouldSample(0.001)) {
+    creation_timeticks_us =
+        (base::TimeTicks::Now() - base::TimeTicks()).InMicroseconds();
+  }
   uint32_t trace_nonce =
       static_cast<uint32_t>(base::trace_event::GetNextGlobalTraceId());
   TRACE_EVENT(TRACE_DISABLED_BY_DEFAULT("mojom"), "mojo::Message::Message",
               perfetto::Flow::Global(::mojo::GetTraceId(name, trace_nonce)),
               "name", name, "flags", flags, "trace_nonce", trace_nonce);
 
-  CreateSerializedMessageObject(name, flags, trace_nonce, payload_size,
-                                payload_interface_id_count,
-                                create_message_flags, handles, &handle_,
-                                &payload_buffer_, estimated_payload_size);
+  CreateSerializedMessageObject(
+      name, flags, trace_nonce, payload_size, payload_interface_id_count,
+      create_message_flags, handles, &handle_, &payload_buffer_,
+      estimated_payload_size, creation_timeticks_us);
   transferable_ = true;
   serialized_ = true;
 }
@@ -315,8 +326,8 @@ Message::Message(ScopedMessageHandle handle,
     return;
 
   payload_buffer_ = internal::Buffer(handle_.get(), 0, buffer, buffer_size);
-  WriteMessageHeader(header.name, header.flags, trace_nonce,
-                     /*payload_interface_id_count=*/0, &payload_buffer_);
+  WriteMessageHeaderV1(header.name, header.flags, trace_nonce,
+                       &payload_buffer_);
 
   // We need to copy additional header data which may have been set after
   // original message construction, as this codepath may be reached at some
@@ -357,7 +368,7 @@ Message::Message(base::span<const uint8_t> payload,
     std::ignore = handle.release();
 
   payload_buffer_ = internal::Buffer(buffer, payload.size(), payload.size());
-  base::ranges::copy(payload, static_cast<uint8_t*>(payload_buffer_.data()));
+  std::ranges::copy(payload, static_cast<uint8_t*>(payload_buffer_.data()));
   transferable_ = true;
   serialized_ = true;
 }
@@ -655,6 +666,13 @@ void Message::WriteIntoTrace(perfetto::TracedValue ctx) const {
     dict.Add("flags", header()->flags);
     dict.Add("trace_nonce", header()->trace_nonce);
   }
+}
+
+int64_t Message::creation_timeticks_us() const {
+  if (version() < 3) {
+    return 0;
+  }
+  return header_v3()->creation_timeticks_us;
 }
 
 bool MessageReceiver::PrefersSerializedMessages() {

@@ -233,7 +233,7 @@ class Service::Context : public ServiceContext {
     return chromeos::PowerManagerClient::Get();
   }
 
-  std::string primary_account_gaia_id() override {
+  GaiaId primary_account_gaia_id() override {
     return parent_->RetrievePrimaryAccountInfo().gaia;
   }
 
@@ -322,7 +322,7 @@ void Service::SuspendDone(base::TimeDelta sleep_duration) {
   // |token_refresh_timer_| may become stale during sleeping, so we immediately
   // request a new token to make sure it is fresh.
   if (token_refresh_timer_->IsRunning()) {
-    token_refresh_timer_->AbandonAndStop();
+    token_refresh_timer_->Stop();
     RequestAccessToken();
   }
 }
@@ -681,6 +681,10 @@ void Service::AddAshSessionObserver() {
 
 void Service::UpdateListeningState() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  if (!assistant_manager_service_) {
+    return;
+  }
 
   bool should_listen =
       !locked_ &&

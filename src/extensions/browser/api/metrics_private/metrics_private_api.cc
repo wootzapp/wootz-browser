@@ -113,8 +113,9 @@ void MetricsHistogramHelperFunction::RecordValue(const std::string& name,
   max = std::max(max, min + 1);
   buckets = std::max(buckets, static_cast<size_t>(3));
   // Trim buckets down to a maximum of the given range + over/underflow buckets
-  if (buckets > static_cast<size_t>(max - min + 2))
+  if (buckets > static_cast<size_t>(max - min + 2)) {
     buckets = max - min + 2;
+  }
 
   base::HistogramBase* counter;
   if (type == base::LINEAR_HISTOGRAM) {
@@ -129,8 +130,9 @@ void MetricsHistogramHelperFunction::RecordValue(const std::string& name,
 
   // The histogram can be NULL if it is constructed with bad arguments.  Ignore
   // that data for this API.  An error message will be logged.
-  if (counter)
+  if (counter) {
     counter->Add(sample);
+  }
 }
 
 ExtensionFunction::ResponseAction MetricsPrivateRecordValueFunction::Run() {
@@ -293,8 +295,9 @@ ExtensionFunction::ResponseValue
 MetricsPrivateGetHistogramFunction::GetHistogram(const std::string& name) {
   const base::HistogramBase* histogram =
       base::StatisticsRecorder::FindHistogram(name);
-  if (!histogram)
+  if (!histogram) {
     return Error(base::StrCat({"Histogram ", name, " not found"}));
+  }
 
   std::unique_ptr<base::HistogramSamples> samples =
       histogram->SnapshotSamples();
@@ -303,9 +306,9 @@ MetricsPrivateGetHistogramFunction::GetHistogram(const std::string& name) {
 
   for (std::unique_ptr<base::SampleCountIterator> it = samples->Iterator();
        !it->Done(); it->Next()) {
-    base::HistogramBase::Sample min = 0;
+    base::HistogramBase::Sample32 min = 0;
     int64_t max = 0;
-    base::HistogramBase::Count count = 0;
+    base::HistogramBase::Count32 count = 0;
     it->Get(&min, &max, &count);
 
     api::metrics_private::HistogramBucket bucket;

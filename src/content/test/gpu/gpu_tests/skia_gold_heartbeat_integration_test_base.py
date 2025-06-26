@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, List, Optional
+from typing import Any
 
 import bs4  # pylint: disable=import-error
 
@@ -27,6 +27,7 @@ DEFAULT_HEARTBEAT_TIMEOUT = 15
 SLOW_HEARTBEAT_MULTIPLIER = 8
 DEFAULT_CONTROLLER_MESSAGE_TIMEOUT = 5
 SLOW_CONTROLLER_MESSAGE_MULTIPLIER = 5
+ASAN_MESSAGE_LOOP_MULTIPLIER = 1.5
 
 DEFAULT_GLOBAL_TIMEOUT = 300
 
@@ -125,7 +126,7 @@ class SkiaGoldHeartbeatTestCase(sgitb.SkiaGoldTestCase):
   def __init__(self,
                name: str,
                *args,
-               test_actions: Optional[List[TestAction]] = None,
+               test_actions: list[TestAction] | None = None,
                **kwargs):
     super().__init__(name, *args, **kwargs)
     if test_actions:
@@ -143,7 +144,7 @@ class SkiaGoldHeartbeatIntegrationTestBase(sgitb.SkiaGoldIntegrationTestBase):
   using an iframe.
   """
 
-  websocket_server: Optional[wss.WebsocketServer] = None
+  websocket_server: wss.WebsocketServer | None = None
   page_loaded = False
   reload_page_for_next_navigation = False
 
@@ -211,10 +212,10 @@ class SkiaGoldHeartbeatIntegrationTestBase(sgitb.SkiaGoldIntegrationTestBase):
           url,
           script_to_evaluate_on_commit=self._dom_automation_controller_script)
       tab.WaitForDocumentReadyStateToBeComplete(timeout=5)
-      tab.action_runner.EvaluateJavaScript('connectWebsocket("%d")' %
-                                           websocket_server.server_port,
-                                           timeout=5)
-      websocket_server.WaitForConnection()
+      tab.action_runner.EvaluateJavaScript(
+          f'connectWebsocket("{websocket_server.server_port}")', timeout=5)
+      websocket_server.WaitForConnection(
+          websocket_utils.GetScaledConnectionTimeout(self.child.jobs))
       response = websocket_server.Receive(5)
       response = json.loads(response)
       assert response['type'] == 'CONNECTION_ACK'
@@ -223,8 +224,7 @@ class SkiaGoldHeartbeatIntegrationTestBase(sgitb.SkiaGoldIntegrationTestBase):
 
     url = self.UrlOfStaticFilePath(test_path)
     initial_scaling = PageHasViewportInitialScaling(test_path)
-    tab.action_runner.EvaluateJavaScript('runTest("%s", %s)' %
-                                         (url, initial_scaling))
+    tab.action_runner.EvaluateJavaScript(f'runTest("{url}", {initial_scaling})')
 
   # pylint: disable=too-many-branches
   def HandleMessageLoop(self, test_timeout: float, tab_data: TabData,
@@ -238,6 +238,7 @@ class SkiaGoldHeartbeatIntegrationTestBase(sgitb.SkiaGoldIntegrationTestBase):
           instead of the ones associated with the primary tab.
       loop_state: The LoopState to use. Will be modified in place.
     """
+    test_timeout = test_timeout * self._GetMessageLoopTimeoutMultiplier()
     tab = tab_data.tab
     websocket_server = tab_data.websocket_server
     start_time = time.time()
@@ -249,9 +250,9 @@ class SkiaGoldHeartbeatIntegrationTestBase(sgitb.SkiaGoldIntegrationTestBase):
 
         if time.time() - start_time > test_timeout:
           raise RuntimeError(
-              'Hit %.3f second global timeout, but page continued to send '
-              'messages over the websocket, i.e. was not due to a renderer '
-              'crash.' % test_timeout)
+              f'Hit {test_timeout:.3f} second global timeout, but page '
+              f'continued to send messages over the websocket, i.e. was not '
+              f'due to a renderer crash.')
 
         if response_type == 'TEST_STARTED':
           VerifyMessageOrderTestStarted(loop_state)
@@ -278,7 +279,7 @@ class SkiaGoldHeartbeatIntegrationTestBase(sgitb.SkiaGoldIntegrationTestBase):
             self.fail('Page reported failure')
           break
 
-        raise RuntimeError('Received unknown message type %s' % response_type)
+        raise RuntimeError(f'Received unknown message type {response_type}')
     except wss.WebsocketReceiveMessageTimeoutError:
       websocket_utils.HandleWebsocketReceiveTimeoutError(tab, start_time)
       raise
@@ -295,6 +296,12 @@ class SkiaGoldHeartbeatIntegrationTestBase(sgitb.SkiaGoldIntegrationTestBase):
         logging.warning('Could not retrieve messages from test page.')
 
   # pylint: enable=too-many-branches
+
+  def _GetMessageLoopTimeoutMultiplier(self) -> float:
+    multiplier = 1
+    if self._is_asan:
+      multiplier = ASAN_MESSAGE_LOOP_MULTIPLIER
+    return multiplier
 
   def _GetHeartbeatTimeout(self) -> int:
     multiplier = 1

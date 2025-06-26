@@ -8,6 +8,7 @@
 #include "ash/public/cpp/assistant/assistant_state_base.h"
 #include "base/values.h"
 #include "chrome/browser/ui/webui/ash/settings/pages/os_settings_section.h"
+#include "chromeos/components/magic_boost/public/cpp/magic_boost_state.h"
 #include "chromeos/components/quick_answers/public/cpp/quick_answers_state.h"
 
 namespace content {
@@ -23,7 +24,8 @@ class SearchTagRegistry;
 // feature and relevant flags are enabled/disabled.
 class SearchSection : public OsSettingsSection,
                       public AssistantStateObserver,
-                      public QuickAnswersStateObserver {
+                      public QuickAnswersStateObserver,
+                      public chromeos::MagicBoostState::Observer {
  public:
   SearchSection(Profile* profile, SearchTagRegistry* search_tag_registry);
   ~SearchSection() override;
@@ -49,10 +51,23 @@ class SearchSection : public OsSettingsSection,
   // QuickAnswersStateObserver:
   void OnSettingsEnabled(bool enabled) override;
   void OnEligibilityChanged(bool eligible) override;
+  void OnFeatureTypeChanged() override;
+
+  // chromeos::MagicBoostState::Observer:
+  void OnMagicBoostEnabledUpdated(bool enabled) override;
+  void OnIsDeleting() override;
 
   bool IsAssistantAllowed() const;
   void UpdateAssistantSearchTags();
   void UpdateQuickAnswersSearchTags();
+  // Add or remove magic boost search tags based on `is_magic_boost_available`.
+  // If available, also add / remove the sub search tags based on the magic
+  // boost prefs status.
+  void UpdateMagicBoostSearchTags(bool is_magic_boost_available);
+
+  base::ScopedObservation<chromeos::MagicBoostState,
+                          chromeos::MagicBoostState::Observer>
+      magic_boost_state_observation_{this};
 };
 
 }  // namespace ash::settings

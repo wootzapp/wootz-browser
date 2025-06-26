@@ -58,7 +58,6 @@ class MockStreamFactory : public audio::FakeStreamFactory {
       const media::AudioParameters& params,
       uint32_t shared_memory_count,
       bool enable_agc,
-      base::ReadOnlySharedMemoryRegion key_press_count_buffer,
       media::mojom::AudioProcessingConfigPtr processing_config,
       CreateInputStreamCallback created_callback) override {
     last_created_callback_ = std::move(created_callback);
@@ -134,7 +133,7 @@ class AudioSourceFetcherImplTest
         std::move(callback));
   }
 
-  void VerifyAudioBuffer(int sample_rate, int frame_count) {
+  void VerifyAudioBuffer(int sample_rate, int frame_count, bool stop = false) {
     base::RunLoop run_loop;
     SetOnSendAudioToSpeechRecognitionCallback(
         base::BindLambdaForTesting([&](media::mojom::AudioDataS16Ptr buffer) {
@@ -143,6 +142,9 @@ class AudioSourceFetcherImplTest
 
           run_loop.Quit();
         }));
+    if (stop) {
+      audio_source_fetcher()->Stop();
+    }
     run_loop.Run();
   }
 
@@ -156,17 +158,17 @@ class AudioSourceFetcherImplTest
   void OnLanguageIdentificationEvent(
       media::mojom::LanguageIdentificationEventPtr event) override {}
 
+  base::test::TaskEnvironment task_environment_;
   std::unique_ptr<AudioSourceFetcherImpl> audio_source_fetcher_;
   base::HistogramTester histogram_tester_;
 
  private:
-  base::test::TaskEnvironment task_environment;
   raw_ptr<MockAudioSourceConsumer, DanglingUntriaged>
       speech_recognition_recognizer_;
   bool is_server_based_;
 };
 
-TEST_P(AudioSourceFetcherImplTest, ResampleForServerBasedRecognizer) {
+TEST_P(AudioSourceFetcherImplTest, Resample) {
   MockStreamFactory fake_stream_factory;
   media::AudioParameters params =
       media::AudioParameters(media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
@@ -184,8 +186,7 @@ TEST_P(AudioSourceFetcherImplTest, ResampleForServerBasedRecognizer) {
   audio_source_fetcher()->Capture(audio_bus.get(),
                                   /*audio_capture_time=*/base::TimeTicks::Now(),
                                   /*glitch_info=*/{},
-                                  /*volume=*/1.0,
-                                  /*key_pressed=*/true);
+                                  /*volume=*/1.0);
   if (is_server_based()) {
     VerifyAudioBuffer(kServerBasedRecognitionAudioSampleRate,
                       kServerBasedRecognitionAudioFramesPerBuffer);
@@ -214,6 +215,37 @@ TEST_P(AudioSourceFetcherImplTest, ResampleForServerBasedRecognizer) {
                                    : kOnDeviceRecognitionSessionLength;
   histogram_tester_.ExpectTimeBucketCount(histogram_name, length,
                                           /*count=*/1);
+}
+
+TEST_P(AudioSourceFetcherImplTest, StopDuringResample) {
+  MockStreamFactory fake_stream_factory;
+  media::AudioParameters params =
+      media::AudioParameters(media::AudioParameters::AUDIO_PCM_LOW_LATENCY,
+                             media::ChannelLayoutConfig::Stereo(),
+                             /*sample_rate=*/kOriginalSampleRate,
+                             /*frames_per_buffer=*/kOriginalFramesPerBuffer);
+  audio_source_fetcher()->Start(fake_stream_factory.MakeRemote(), "device_id",
+                                params);
+
+  auto audio_bus = media::AudioBus::Create(params);
+
+  // Initialize channel data in `audio_bus`.
+  audio_bus->Zero();
+  audio_source_fetcher()->Capture(audio_bus.get(),
+                                  /*audio_capture_time=*/base::TimeTicks::Now(),
+                                  /*glitch_info=*/{},
+                                  /*volume=*/1.0);
+  if (is_server_based()) {
+    // Stop will prevent the pending resample call from running, so no audio
+    // will be available to verify.
+    audio_source_fetcher_->Stop();
+    task_environment_.RunUntilIdle();
+  } else {
+    VerifyAudioBuffer(kOriginalSampleRate, kOriginalFramesPerBuffer,
+                      /*stop=*/true);
+  }
+  audio_source_fetcher_.reset();
+  fake_stream_factory.ResetReceiver();
 }
 
 INSTANTIATE_TEST_SUITE_P(All, AudioSourceFetcherImplTest, ::testing::Bool());

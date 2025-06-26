@@ -70,25 +70,31 @@ inline constexpr char kSupervisedUserSecondCustodianProfileURL[] =
 // Whether the supervised user may approve extension permission requests. If
 // false, extensions should not be able to request new permissions, and new
 // extensions should not be installable.
+//
+// Only valid if supervised_user::
+// IsSupervisedUserSkipParentApprovalToInstallExtensionsEnabled() is false.
 inline constexpr char kSupervisedUserExtensionsMayRequestPermissions[] =
     "profile.managed.extensions_may_request_permissions";
 
 // Whether the supervised user may approve extension permission requests, under
-// the updated supervised user extension handling flow (feature flag
-// `kEnableSupervisedUserExtensionInstallationWithoutApproval`).
+// the updated supervised user extension handling flow.
 // If true extensions can be installed without parental approval, if false
 // the parent must grant approvoal on each installation.
+//
+// Only valid if supervised_user::
+// IsSupervisedUserSkipParentApprovalToInstallExtensionsEnabled() is true.
 inline constexpr char kSkipParentApprovalToInstallExtensions[] =
     "profile.managed.skip_parent_approval_to_install_extensions";
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 // DictionaryValue that maps extension ids to the approved version of this
 // extension for a supervised user. Missing extensions are not approved.
 inline constexpr char kSupervisedUserApprovedExtensions[] =
     "profile.managed.approved_extensions";
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
 // The supervised user ID.
+// TODO(b/342097235): this pref is being deprecated.
 inline constexpr char kSupervisedUserId[] = "profile.managed_user_id";
 
 // Maps host names to whether the host is manually allowed or blocked.
@@ -122,15 +128,7 @@ inline constexpr char kSupervisedUserSharedSettings[] =
 inline constexpr char kDefaultSupervisedUserFilteringBehavior[] =
     "profile.managed.default_filtering_behavior";
 
-// An integer pref that stores the current state of the interstitial banner for
-// a supervised user (SupervisedUserFilter::FirstTimeInterstitialBannerState):
-// 0: kNeedToShow
-// 1: kSetupComplete
-// 2: kUnknown
-inline constexpr char kFirstTimeInterstitialBannerState[] =
-    "profile.managed.banner_state";
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 // An integer pref that stores the current state of the local extension
 // parent approval migration when the feature
@@ -147,7 +145,13 @@ inline constexpr char kLocallyParentApprovedExtensionsMigrationState[] =
 // This is only populated on Win/Linux/Mac.
 inline constexpr char kSupervisedUserLocallyParentApprovedExtensions[] =
     "profile.managed.locally_parent_approved_extensions";
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+
+// A string pref that stores the family member role of the primary account
+// as per kids_management::FamilyRole or
+// `supervised_user::kDefaultEmptyFamilyMemberRole` if not in a Family group.
+inline constexpr char kFamilyLinkUserMemberRole[] =
+    "profile.family_member_role";
 
 }  // namespace prefs
 

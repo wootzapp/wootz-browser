@@ -6,6 +6,7 @@
 
 #include <unicode/utf16.h>
 
+#include "third_party/blink/renderer/core/layout/geometry/writing_mode_converter.h"
 #include "third_party/blink/renderer/core/layout/inline/fragment_item.h"
 #include "third_party/blink/renderer/core/layout/inline/inline_cursor.h"
 #include "third_party/blink/renderer/core/layout/layout_box.h"
@@ -67,7 +68,7 @@ FragmentItemsInVisualOrder(const LayoutObject& query_root) {
       }
     }
   }
-  return std::tie(item_list, items);
+  return {std::move(item_list), items};
 }
 
 std::tuple<Vector<const FragmentItem*>, const FragmentItems*>
@@ -163,15 +164,24 @@ gfx::PointF StartOrEndPosition(const LayoutObject& query_root,
   const float ascent =
       font ? font->GetFontMetrics().FixedAscent(item->Style().GetFontBaseline())
            : 0.0f;
-  const bool left_or_top =
-      IsLtr(item->ResolvedDirection()) == (pos == QueryPosition::kStart);
+  const bool is_reversed =
+      IsLtr(item->ResolvedDirection()) != (pos == QueryPosition::kStart);
   gfx::PointF point;
-  if (item->IsHorizontal()) {
-    point = left_or_top ? char_rect.origin() : char_rect.top_right();
-    point.Offset(0.0f, ascent);
-  } else {
-    point = left_or_top ? char_rect.top_right() : char_rect.bottom_right();
-    point.Offset(-ascent, 0.0f);
+  switch (item->GetWritingMode()) {
+    case WritingMode::kHorizontalTb:
+      point = is_reversed ? char_rect.top_right() : char_rect.origin();
+      point.Offset(0.0f, ascent);
+      break;
+    case WritingMode::kVerticalLr:
+    case WritingMode::kVerticalRl:
+    case WritingMode::kSidewaysRl:
+      point = is_reversed ? char_rect.bottom_right() : char_rect.top_right();
+      point.Offset(-ascent, 0.0f);
+      break;
+    case WritingMode::kSidewaysLr:
+      point = is_reversed ? char_rect.origin() : char_rect.bottom_left();
+      point.Offset(ascent, 0.0f);
+      break;
   }
   if (item->HasSvgTransformForPaint()) {
     point = item->BuildSvgTransformForPaint().MapPoint(point);
@@ -254,8 +264,16 @@ float SvgTextQuery::RotationOfCharacter(unsigned index) const {
     return 0.0f;
   }
   float rotation = item->GetSvgFragmentData()->angle;
-  if (item->Style().IsHorizontalWritingMode()) {
-    return rotation;
+  switch (item->Style().GetWritingMode()) {
+    case WritingMode::kHorizontalTb:
+      return rotation;
+    case WritingMode::kSidewaysRl:
+      return rotation + 90.0f;
+    case WritingMode::kSidewaysLr:
+      return rotation - 90.0f;
+    case WritingMode::kVerticalRl:
+    case WritingMode::kVerticalLr:
+      break;
   }
   ETextOrientation orientation = item->Style().GetTextOrientation();
   if (orientation == ETextOrientation::kUpright) {
@@ -312,12 +330,14 @@ int SvgTextQuery::CharacterNumberAtPosition(const gfx::PointF& position) const {
       hit_item->OffsetInContainerFragment();
   // FragmentItem::TextOffsetForPoint() is not suitable here because it
   // returns an offset for the nearest glyph edge.
+  LayoutUnit inline_offset =
+      WritingModeConverter({hit_item->GetWritingMode(), TextDirection::kLtr},
+                           hit_item->Size())
+          .ToLogical(transformed_point, {})
+          .inline_offset;
   unsigned offset_in_item =
       hit_item->TextShapeResult()->CreateShapeResult()->OffsetForPosition(
-          hit_item->ScaleInlineOffset(hit_item->IsHorizontal()
-                                          ? transformed_point.left
-                                          : transformed_point.top),
-          BreakGlyphsOption(true));
+          hit_item->ScaleInlineOffset(inline_offset), BreakGlyphsOption(true));
   return addressable_code_unit_count + offset_in_item;
 }
 

@@ -31,6 +31,9 @@ chromium-metrics-reviews@google.com.
   <int value="1" label="Demo Mode Free Play Apps"/>
   <int value="2" label="Nudge"/>
   <int value="3" label="Notification"/>
+  <int value="4" label="OOBE Perk Discovery Page"/>
+  <int value="5" label="Demo Mode Sign In Experience"/>
+  <int value="6" label="Dry Run"/>
 </enum>
 
 <enum name="CampaignsManagerError">
@@ -67,6 +70,29 @@ chromium-metrics-reviews@google.com.
   <int value="30" label="Invalid button action in notification payload"/>
   <int value="31" label="Invalid notification payload"/>
   <int value="32" label="Invalid trigger targeting"/>
+  <int value="33" label="Anchor widget not found for anchoring nudge"/>
+  <int value="34" label="Position not supported for anchoring nudge"/>
+  <int value="35" label="Initializing tracker failed"/>
+  <int value="36" label="Tracker is not available in session"/>
+  <int value="37" label="User pref service not available"/>
+  <int value="38" label="User pref value type mismatched"/>
+  <int value="39" label="Invalid user pref"/>
+  <int value="40" label="Invalid user pref targeting"/>
+  <int value="41" label="Parsing user pref targeting failed"/>
+  <int value="42" label="Missing action performer action"/>
+  <int value="43" label="Minor user state is unknown"/>
+  <int value="44" label="Profile becomes nullptr in session"/>
+  <int value="45" label="Shelf not visible at matching"/>
+  <int value="46" label="Hotseat not visible at matching"/>
+  <int value="47" label="Shelf view not available at matching"/>
+  <int value="48" label="App icon not shown in hotseat"/>
+  <int value="49" label="Record events before campaigns loaded"/>
+  <int value="50" label="Shelf icon not found for anchoring nudge"/>
+  <int value="51" label="No board info is available"/>
+  <int value="52" label="Feature index out of range"/>
+  <int value="53" label="Invalid URL regrex"/>
+  <int value="54" label="Unrecognized built-in image"/>
+  <int value="55" label="Missing built-in vector icon"/>
 </enum>
 
 </enums>

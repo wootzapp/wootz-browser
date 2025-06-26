@@ -4,6 +4,7 @@
 
 #include "chrome/browser/extensions/extension_action_runner.h"
 
+#include <algorithm>
 #include <memory>
 #include <tuple>
 #include <vector>
@@ -14,10 +15,9 @@
 #include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/single_thread_task_runner.h"
-#include "chrome/browser/extensions/api/extension_action/extension_action_api.h"
 // #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
+#include "chrome/browser/extensions/extension_action_dispatcher.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/extensions/permissions/active_tab_permission_granter.h"
 #include "chrome/browser/extensions/permissions/permissions_updater.h"
@@ -44,7 +44,6 @@
 #include "extensions/browser/permissions_manager.h"
 #include "extensions/common/api/extension_action/action_info.h"
 #include "extensions/common/extension.h"
-#include "extensions/common/extension_features.h"
 #include "extensions/common/extension_id.h"
 #include "extensions/common/extension_set.h"
 #include "extensions/common/manifest.h"
@@ -80,8 +79,7 @@ ExtensionActionRunner::ExtensionActionRunner(content::WebContents* web_contents)
       num_page_requests_(0),
       browser_context_(web_contents->GetBrowserContext()),
       was_used_on_page_(false),
-      ignore_active_tab_granted_(false),
-      test_observer_(nullptr) {
+      ignore_active_tab_granted_(false) {
   CHECK(web_contents);
   extension_registry_observation_.Observe(
       ExtensionRegistry::Get(browser_context_));
@@ -117,25 +115,22 @@ ExtensionAction::ShowAction ExtensionActionRunner::RunAction(
 
   // Anything that gets here should have a page or browser action, or toggle the
   // extension's side panel, and not blocked actions.
-  if (base::FeatureList::IsEnabled(
-          extensions_features::kExtensionSidePanelIntegration)) {
-    // This method is only called to execute an action by the user, so we can
-    // grant tab permissions unless `action` will toggle the side panel. Tab
-    // permissions are not granted in this case because:
-    //  - the extension's side panel entry can be opened through the side panel
-    //    itself which does not grant tab permissions
-    //  - extension side panels can persist through tab changes and so
-    //  permissions
-    //    granted for one tab shouldn't persist on that side panel across tab
-    //    changes.
-    // TODO(crbug.com/40904917): Evaluate if this is the best course of action.
-    // SidePanelService* side_panel_service =
-    //     SidePanelService::Get(browser_context_);
-    // if (side_panel_service &&
-    //     side_panel_service->HasSidePanelActionForTab(*extension, tab_id)) {
-    //   return ExtensionAction::ShowAction::kToggleSidePanel;
-    // }
-  }
+  // This method is only called to execute an action by the user, so we can
+  // grant tab permissions unless `action` will toggle the side panel. Tab
+  // permissions are not granted in this case because:
+  //  - the extension's side panel entry can be opened through the side panel
+  //    itself which does not grant tab permissions
+  //  - extension side panels can persist through tab changes and so
+  //  permissions
+  //    granted for one tab shouldn't persist on that side panel across tab
+  //    changes.
+  // TODO(crbug.com/40904917): Evaluate if this is the best course of action.
+  // SidePanelService* side_panel_service =
+  //     SidePanelService::Get(browser_context_);
+  // if (side_panel_service &&
+  //     side_panel_service->HasSidePanelActionForTab(*extension, tab_id)) {
+  //   return ExtensionAction::ShowAction::kToggleSidePanel;
+  // }
 
   if (grant_tab_permissions) {
     GrantTabPermissions({extension});
@@ -154,7 +149,7 @@ ExtensionAction::ShowAction ExtensionActionRunner::RunAction(
     return ExtensionAction::ShowAction::kShowPopup;
   }
 
-  ExtensionActionAPI::Get(browser_context_)
+  ExtensionActionDispatcher::Get(browser_context_)
       ->DispatchExtensionActionClicked(*extension_action, web_contents(),
                                        extension);
   return ExtensionAction::ShowAction::kNone;
@@ -166,7 +161,7 @@ void ExtensionActionRunner::GrantTabPermissions(
     const std::vector<const Extension*>& extensions) {
   SitePermissionsHelper permissions_helper(
       Profile::FromBrowserContext(browser_context_));
-  bool refresh_required = base::ranges::any_of(
+  bool refresh_required = std::ranges::any_of(
       extensions, [this, &permissions_helper](const Extension* extension) {
         return permissions_helper.PageNeedsRefreshToRun(
             GetBlockedActions(extension->id()));
@@ -192,7 +187,7 @@ void ExtensionActionRunner::GrantTabPermissions(
   // hasn't been refreshed yet.
   const GURL& url = web_contents()->GetLastCommittedURL();
   auto* permissions_manager = PermissionsManager::Get(browser_context_);
-  DCHECK(base::ranges::all_of(
+  DCHECK(std::ranges::all_of(
       extensions, [url, &permissions_manager](const Extension* extension) {
         return permissions_manager->GetUserSiteAccess(*extension, url) ==
                PermissionsManager::UserSiteAccess::kOnClick;
@@ -221,8 +216,8 @@ void ExtensionActionRunner::OnWebRequestBlocked(const Extension* extension) {
     NotifyChange(extension);
   }
 
-  if (test_observer_) {
-    test_observer_->OnBlockedActionAdded();
+  for (TestObserver& observer : test_observers_) {
+    observer.OnBlockedActionAdded();
   }
 }
 
@@ -246,7 +241,7 @@ int ExtensionActionRunner::GetBlockedActions(
           break;
         case mojom::RunLocation::kUndefined:
         case mojom::RunLocation::kRunDeferred:
-          NOTREACHED_IN_MIGRATION();
+          NOTREACHED();
       }
     }
   }
@@ -288,8 +283,7 @@ ExtensionActionRunner::RequiresUserConsentForScriptInjection(
       return extension->permissions_data()->GetPageAccess(url, tab_id, nullptr);
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return PermissionsData::PageAccess::kDenied;
+  NOTREACHED();
 #endif
 }
 
@@ -310,8 +304,8 @@ void ExtensionActionRunner::RequestScriptInjection(
 
   was_used_on_page_ = true;
 
-  if (test_observer_) {
-    test_observer_->OnBlockedActionAdded();
+  for (TestObserver& observer : test_observers_) {
+    observer.OnBlockedActionAdded();
   }
 }
 
@@ -351,12 +345,6 @@ void ExtensionActionRunner::OnRequestScriptInjectionPermission(
     mojom::InjectionType script_type,
     mojom::RunLocation run_location,
     mojom::LocalFrameHost::RequestScriptInjectionPermissionCallback callback) {
-  if (!crx_file::id_util::IdIsValid(extension_id)) {
-    NOTREACHED_IN_MIGRATION() << "'" << extension_id << "' is not a valid id.";
-    std::move(callback).Run(false);
-    return;
-  }
-
   const Extension* extension = ExtensionRegistry::Get(browser_context_)
                                    ->enabled_extensions()
                                    .GetByID(extension_id);
@@ -385,9 +373,17 @@ void ExtensionActionRunner::OnRequestScriptInjectionPermission(
   }
 }
 
+void ExtensionActionRunner::AddObserver(TestObserver* observer) {
+  test_observers_.AddObserver(observer);
+}
+
+void ExtensionActionRunner::RemoveObserver(TestObserver* observer) {
+  test_observers_.RemoveObserver(observer);
+}
+
 void ExtensionActionRunner::NotifyChange(const Extension* extension) {
-  ExtensionActionAPI* extension_action_api =
-      ExtensionActionAPI::Get(browser_context_);
+  ExtensionActionDispatcher* extension_action_api =
+      ExtensionActionDispatcher::Get(browser_context_);
   ExtensionAction* extension_action =
       ExtensionActionManager::Get(browser_context_)
           ->GetExtensionAction(*extension);
@@ -493,7 +489,7 @@ void ExtensionActionRunner::DidFinishNavigation(
   // Note: This needs to be called *after* the maps have been updated, so that
   // when the UI updates, this object returns the proper result for "wants to
   // run".
-  ExtensionActionAPI::Get(browser_context_)
+  ExtensionActionDispatcher::Get(browser_context_)
       ->ClearAllValuesForTab(web_contents());
   // |rules_monitor_service| can be null for some unit tests.
   if (rules_monitor_service) {
@@ -506,7 +502,7 @@ void ExtensionActionRunner::DidFinishNavigation(
 }
 
 void ExtensionActionRunner::WebContentsDestroyed() {
-  ExtensionActionAPI::Get(browser_context_)
+  ExtensionActionDispatcher::Get(browser_context_)
       ->ClearAllValuesForTab(web_contents());
 
   declarative_net_request::RulesMonitorService* rules_monitor_service =

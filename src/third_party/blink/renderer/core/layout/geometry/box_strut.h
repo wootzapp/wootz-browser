@@ -11,8 +11,8 @@
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/geometry/box_sides.h"
 #include "third_party/blink/renderer/core/layout/geometry/logical_offset.h"
-#include "third_party/blink/renderer/core/layout/geometry/physical_offset.h"
 #include "third_party/blink/renderer/platform/geometry/layout_unit.h"
+#include "third_party/blink/renderer/platform/geometry/physical_offset.h"
 #include "third_party/blink/renderer/platform/text/text_direction.h"
 #include "third_party/blink/renderer/platform/text/writing_mode.h"
 #include "ui/gfx/geometry/outsets_f.h"
@@ -24,6 +24,8 @@ class String;
 namespace blink {
 
 struct LineBoxStrut;
+struct LogicalRect;
+struct LogicalSize;
 struct PhysicalBoxStrut;
 struct PhysicalRect;
 struct PhysicalSize;
@@ -41,6 +43,13 @@ struct CORE_EXPORT BoxStrut {
         block_start(block_start),
         block_end(block_end) {}
   BoxStrut(const LineBoxStrut&, bool is_flipped_lines);
+
+  // Create a strut based on an inner rectangle positioned within an area.
+  BoxStrut(const LogicalSize& outer_size, const LogicalRect& inner_rect);
+
+  // Update each of data members with std::min(this->member, other.member).
+  // This function returns `*this`.
+  BoxStrut& Intersect(const BoxStrut& other);
 
   LayoutUnit LineLeft(TextDirection direction) const {
     return IsLtr(direction) ? inline_start : inline_end;
@@ -305,8 +314,7 @@ inline PhysicalBoxStrut BoxStrut::ConvertToPhysical(
       return PhysicalBoxStrut(direction_end, block_end, direction_start,
                               block_start);
     default:
-      NOTREACHED_IN_MIGRATION();
-      return PhysicalBoxStrut();
+      NOTREACHED();
   }
 }
 

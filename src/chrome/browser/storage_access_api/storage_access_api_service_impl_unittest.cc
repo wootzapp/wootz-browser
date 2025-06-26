@@ -37,15 +37,10 @@ class StorageAccessAPIServiceImplTest : public testing::Test {
         TestingBrowserProcess::GetGlobal());
     ASSERT_TRUE(profile_manager_->SetUp());
     profile_ = profile_manager_->CreateTestingProfile("TestProfile");
-    service_ = StorageAccessAPIServiceFactory::GetForBrowserContext(profile_);
-    ASSERT_NE(service_, nullptr);
   }
 
   void TearDown() override {
-    DCHECK(service_);
-    // Even though we reassign this in SetUp, service may be persisted between
-    // tests if the factory has already created a service for the testing
-    // profile being used.
+    profile_ = nullptr;
     profile_manager_->DeleteAllTestingProfiles();
     profile_manager_.reset();
   }
@@ -54,14 +49,13 @@ class StorageAccessAPIServiceImplTest : public testing::Test {
 
  protected:
   Profile* profile() { return profile_; }
-  StorageAccessAPIServiceImpl* service() { return service_; }
 
  private:
   content::BrowserTaskEnvironment env_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   std::unique_ptr<TestingProfileManager> profile_manager_;
-  raw_ptr<Profile, DanglingUntriaged> profile_;
-  raw_ptr<StorageAccessAPIServiceImpl, DanglingUntriaged> service_;
+  raw_ptr<Profile> profile_;
+  base::test::ScopedFeatureList features_;
 };
 
 TEST_F(StorageAccessAPIServiceImplTest, RenewPermissionGrant) {
@@ -70,15 +64,13 @@ TEST_F(StorageAccessAPIServiceImplTest, RenewPermissionGrant) {
   url::Origin origin_b(
       url::Origin::Create(GURL(base::StrCat({"https://", kHostB}))));
 
-  base::SimpleTestClock clock;
-  clock.SetNow(base::Time::Now());
-
   HostContentSettingsMap* settings_map =
       HostContentSettingsMapFactory::GetForProfile(profile());
 
-  settings_map->SetClockForTesting(&clock);
+  settings_map->SetClockForTesting(env().GetMockClock());
 
-  content_settings::ContentSettingConstraints constraints(clock.Now());
+  content_settings::ContentSettingConstraints constraints(
+      env().GetMockClock()->Now());
   constraints.set_lifetime(base::Days(30));
 
   settings_map->SetContentSettingDefaultScope(
@@ -89,7 +81,7 @@ TEST_F(StorageAccessAPIServiceImplTest, RenewPermissionGrant) {
       StorageAccessAPIServiceFactory::GetForBrowserContext(profile());
   ASSERT_NE(nullptr, service);
 
-  clock.Advance(base::Days(20));
+  env().FastForwardBy(base::Days(20));
 
   // 20 days into a 30 day lifetime, so the setting hasn't expired yet.
   EXPECT_EQ(CONTENT_SETTING_ALLOW, settings_map->GetContentSetting(
@@ -98,13 +90,13 @@ TEST_F(StorageAccessAPIServiceImplTest, RenewPermissionGrant) {
 
   EXPECT_TRUE(service->RenewPermissionGrant(origin_a, origin_b));
 
-  clock.Advance(base::Days(20));
+  env().FastForwardBy(base::Days(20));
   // The 30d lifetime was renewed 20 days ago, so it hasn't expired yet.
   EXPECT_EQ(CONTENT_SETTING_ALLOW, settings_map->GetContentSetting(
                                        origin_a.GetURL(), origin_b.GetURL(),
                                        ContentSettingsType::STORAGE_ACCESS));
 
-  clock.Advance(base::Days(11));
+  env().FastForwardBy(base::Days(11));
   // The 30d lifetime was renewed 31 days ago, so it has expired now.
   EXPECT_EQ(CONTENT_SETTING_ASK, settings_map->GetContentSetting(
                                      origin_a.GetURL(), origin_b.GetURL(),
@@ -123,15 +115,13 @@ TEST_F(StorageAccessAPIServiceImplTest, PermissionDenial_NotRenewed) {
   url::Origin origin_b(
       url::Origin::Create(GURL(base::StrCat({"https://", kHostB}))));
 
-  base::SimpleTestClock clock;
-  clock.SetNow(base::Time::Now());
-
   HostContentSettingsMap* settings_map =
       HostContentSettingsMapFactory::GetForProfile(profile());
 
-  settings_map->SetClockForTesting(&clock);
+  settings_map->SetClockForTesting(env().GetMockClock());
 
-  content_settings::ContentSettingConstraints constraints(clock.Now());
+  content_settings::ContentSettingConstraints constraints(
+      env().GetMockClock()->Now());
   constraints.set_lifetime(base::Days(30));
 
   settings_map->SetContentSettingDefaultScope(
@@ -142,7 +132,7 @@ TEST_F(StorageAccessAPIServiceImplTest, PermissionDenial_NotRenewed) {
       StorageAccessAPIServiceFactory::GetForBrowserContext(profile());
   ASSERT_NE(nullptr, service);
 
-  clock.Advance(base::Days(20));
+  env().FastForwardBy(base::Days(20));
 
   // 20 days into a 30 day lifetime, so the setting hasn't expired yet.
   EXPECT_EQ(CONTENT_SETTING_BLOCK, settings_map->GetContentSetting(
@@ -151,7 +141,7 @@ TEST_F(StorageAccessAPIServiceImplTest, PermissionDenial_NotRenewed) {
 
   EXPECT_FALSE(service->RenewPermissionGrant(origin_a, origin_b));
 
-  clock.Advance(base::Days(20));
+  env().FastForwardBy(base::Days(20));
   // Denials are not renewed by user interaction, so the setting has expired by
   // now.
   EXPECT_EQ(CONTENT_SETTING_ASK, settings_map->GetContentSetting(

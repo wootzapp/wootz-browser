@@ -4,7 +4,9 @@
 
 #include "third_party/blink/renderer/modules/webaudio/testing/internals_web_audio.h"
 
+#include "third_party/blink/renderer/modules/webaudio/audio_context.h"
 #include "third_party/blink/renderer/modules/webaudio/audio_node.h"
+#include "third_party/blink/renderer/modules/webaudio/realtime_audio_destination_node.h"
 #include "third_party/blink/renderer/platform/instrumentation/instance_counters.h"
 
 namespace blink {
@@ -27,6 +29,16 @@ unsigned InternalsWebAudio::audioWorkletProcessorCount(Internals& internals) {
 #endif
   return InstanceCounters::CounterValue(
       InstanceCounters::kAudioWorkletProcessorCounter);
+}
+
+void InternalsWebAudio::emulateDeviceFailureOnAudioContext(
+    Internals& internals, AudioContext* context) {
+  context->invoke_onrendererror_from_platform_for_testing();
+}
+
+bool InternalsWebAudio::isSilenceDetectionActive(Internals& internals,
+                                                  AudioContext* context) {
+  return context->GetRealtimeAudioDestinationNode()->GetOwnHandler().is_silence_detection_active_for_testing();
 }
 
 }  // namespace blink

@@ -3,10 +3,12 @@
 // found in the LICENSE file.
 
 import './shared_style.css.js';
-import './strings.m.js';
+import '/strings.m.js';
+import 'chrome://resources/cr_components/history_embeddings/icons.html.js';
 import 'chrome://resources/cr_elements/cr_toolbar/cr_toolbar.js';
 import 'chrome://resources/cr_elements/cr_toolbar/cr_toolbar_selection_overlay.js';
 
+import type {HistoryQuery} from 'chrome://resources/cr_components/history/history.mojom-webui.js';
 import {getInstance as getAnnouncerInstance} from 'chrome://resources/cr_elements/cr_a11y_announcer/cr_a11y_announcer.js';
 import type {CrToolbarElement} from 'chrome://resources/cr_elements/cr_toolbar/cr_toolbar.js';
 import type {CrToolbarSearchFieldElement} from 'chrome://resources/cr_elements/cr_toolbar/cr_toolbar_search_field.js';
@@ -39,17 +41,31 @@ export class HistoryToolbarElement extends PolymerElement {
       count: {
         type: Number,
         observer: 'changeToolbarView_',
+        value: 0,
       },
 
       // True if 1 or more history items are selected. When this value changes
       // the background colour changes.
-      itemsSelected_: Boolean,
+      itemsSelected_: {
+        type: Boolean,
+        value: false,
+      },
 
       pendingDelete: Boolean,
 
       searchIconOverride_: {
         type: String,
         computed: 'computeSearchIconOverride_(selectedPage)',
+      },
+
+      searchInputAriaDescription_: {
+        type: String,
+        computed: 'computeSearchInputAriaDescriptionOverride_(selectedPage)',
+      },
+
+      searchPrompt_: {
+        type: String,
+        computed: 'computeSearchPrompt_(selectedPage)',
       },
 
       // The most recent term entered in the search field. Updated incrementally
@@ -86,13 +102,20 @@ export class HistoryToolbarElement extends PolymerElement {
     };
   }
 
-  count: number = 0;
-  private searchIconOverride_?: string;
-  searchTerm: string;
-  selectedPage: string;
-  spinnerActive: boolean;
-  showMenuPromo: boolean;
-  private itemsSelected_: boolean = false;
+  declare count: number;
+  declare pendingDelete: boolean;
+  declare private searchIconOverride_?: string;
+  declare private searchInputAriaDescription_?: string;
+  declare private searchPrompt_: string;
+  declare searchTerm: string;
+  declare selectedPage: string;
+  declare hasDrawer: boolean;
+  declare hasMoreResults: boolean;
+  declare querying: boolean;
+  declare queryInfo?: HistoryQuery;
+  declare spinnerActive: boolean;
+  declare showMenuPromo: boolean;
+  declare private itemsSelected_: boolean;
 
   private fire_(eventName: string, detail?: any) {
     this.dispatchEvent(
@@ -148,10 +171,40 @@ export class HistoryToolbarElement extends PolymerElement {
   private computeSearchIconOverride_(): string|undefined {
     if (loadTimeData.getBoolean('enableHistoryEmbeddings') &&
         TABBED_PAGES.includes(this.selectedPage)) {
-      return 'history:embeddings';
+      return 'history-embeddings:search';
     }
 
     return undefined;
+  }
+
+  private computeSearchInputAriaDescriptionOverride_(): string|undefined {
+    if (loadTimeData.getBoolean('enableHistoryEmbeddings') &&
+        TABBED_PAGES.includes(this.selectedPage)) {
+      return loadTimeData.getString('historyEmbeddingsDisclaimer');
+    }
+
+    return undefined;
+  }
+
+  private computeSearchPrompt_(): string {
+    if (loadTimeData.getBoolean('enableHistoryEmbeddings') &&
+        TABBED_PAGES.includes(this.selectedPage)) {
+      if (loadTimeData.getBoolean('enableHistoryEmbeddingsAnswers')) {
+        const possiblePrompts = [
+          'historyEmbeddingsSearchPrompt',
+          'historyEmbeddingsAnswersSearchAlternativePrompt1',
+          'historyEmbeddingsAnswersSearchAlternativePrompt2',
+          'historyEmbeddingsAnswersSearchAlternativePrompt3',
+          'historyEmbeddingsAnswersSearchAlternativePrompt4',
+        ];
+        const randomIndex = Math.floor(Math.random() * possiblePrompts.length);
+        return loadTimeData.getString(possiblePrompts[randomIndex]);
+      }
+
+      return loadTimeData.getString('historyEmbeddingsSearchPrompt');
+    }
+
+    return loadTimeData.getString('searchPrompt');
   }
 }
 

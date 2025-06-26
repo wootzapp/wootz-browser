@@ -2,24 +2,29 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chromeos/ash/services/quick_pair/fast_pair_data_parser.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <vector>
 
+#include "ash/constants/ash_features.h"
 #include "ash/quick_pair/common/fast_pair/fast_pair_decoder.h"
 #include "base/base64.h"
 #include "base/containers/circular_deque.h"
 #include "base/containers/flat_map.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "chromeos/ash/services/quick_pair/fast_pair_decryption.h"
 #include "chromeos/ash/services/quick_pair/public/cpp/battery_notification.h"
 #include "chromeos/ash/services/quick_pair/public/cpp/not_discoverable_advertisement.h"
 #include "chromeos/ash/services/quick_pair/public/mojom/fast_pair_data_parser.mojom.h"
 #include "components/cross_device/logging/logging.h"
-#include "crypto/openssl_util.h"
 #include "device/bluetooth/public/cpp/bluetooth_address.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 
@@ -86,8 +91,8 @@ void ConvertVectorsToArrays(
     const std::vector<uint8_t>& encrypted_bytes,
     std::array<uint8_t, kAesBlockByteSize>& out_aes_key_bytes,
     std::array<uint8_t, kEncryptedDataByteSize>& out_encrypted_bytes) {
-  base::ranges::copy(aes_key_bytes, out_aes_key_bytes.begin());
-  base::ranges::copy(encrypted_bytes, out_encrypted_bytes.begin());
+  std::ranges::copy(aes_key_bytes, out_aes_key_bytes.begin());
+  std::ranges::copy(encrypted_bytes, out_encrypted_bytes.begin());
 }
 
 int GetBatteryPercentange(uint8_t battery_byte) {
@@ -146,19 +151,23 @@ mojom::BatteryInfoPtr CreateBatteryInfo(uint8_t battery_byte) {
 
 FastPairDataParser::FastPairDataParser(
     mojo::PendingReceiver<mojom::FastPairDataParser> receiver)
-    : receiver_(this, std::move(receiver)) {
-  crypto::EnsureOpenSSLInit();
-}
+    : receiver_(this, std::move(receiver)) {}
 
 FastPairDataParser::~FastPairDataParser() = default;
 
 void FastPairDataParser::GetHexModelIdFromServiceData(
     const std::vector<uint8_t>& service_data,
     GetHexModelIdFromServiceDataCallback callback) {
-  std::move(callback).Run(
-      fast_pair_decoder::HasModelId(&service_data)
-          ? fast_pair_decoder::GetHexModelIdFromServiceData(&service_data)
-          : std::nullopt);
+  // TODO(399163998): Clean up logic post-feature launch.
+  if (features::IsFastPairAdvertisingFormat2025Enabled()) {
+    std::move(callback).Run(
+        fast_pair_decoder::GetHexModelIdFromServiceData(&service_data));
+  } else {
+    std::move(callback).Run(
+        fast_pair_decoder::HasModelId(&service_data)
+            ? fast_pair_decoder::GetHexModelIdFromServiceData(&service_data)
+            : std::nullopt);
+  }
 }
 
 void FastPairDataParser::ParseDecryptedResponse(
@@ -314,8 +323,8 @@ void FastPairDataParser::ParseMessageStreamMessages(
     return;
   }
 
-  base::circular_deque<uint8_t> remaining_bytes(message_bytes.begin(),
-                                                message_bytes.end());
+  base::circular_deque<uint8_t> remaining_bytes(base::from_range,
+                                                message_bytes);
   while (remaining_bytes.size() >= kMinMessageByteCount) {
     uint8_t message_group_byte = remaining_bytes.front();
     remaining_bytes.pop_front();
@@ -462,7 +471,7 @@ mojom::MessageStreamMessagePtr FastPairDataParser::ParseDeviceInformationEvent(
     }
 
     std::array<uint8_t, 6> address_bytes;
-    base::ranges::copy(additional_data, address_bytes.begin());
+    std::ranges::copy(additional_data, address_bytes.begin());
 
     return mojom::MessageStreamMessage::NewBleAddressUpdate(
         device::CanonicalizeBluetoothAddress(address_bytes));

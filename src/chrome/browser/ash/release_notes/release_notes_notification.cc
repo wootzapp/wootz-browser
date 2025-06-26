@@ -6,10 +6,10 @@
 
 #include <string>
 
+#include "ash/constants/ash_features.h"
 #include "ash/constants/notifier_catalogs.h"
 #include "ash/public/cpp/notification_utils.h"
 #include "ash/resources/vector_icons/vector_icons.h"
-#include "ash/utility/forest_util.h"
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "base/strings/string_util.h"
@@ -35,11 +35,12 @@ namespace ash {
 ReleaseNotesNotification::ReleaseNotesNotification(Profile* profile)
     : profile_(profile), weak_ptr_factory_(this) {}
 
-ReleaseNotesNotification::~ReleaseNotesNotification() {}
+ReleaseNotesNotification::~ReleaseNotesNotification() = default;
 
 void ReleaseNotesNotification::MaybeShowReleaseNotes() {
   release_notes_storage_ = std::make_unique<ReleaseNotesStorage>(profile_);
-  if (!release_notes_storage_->ShouldNotify() || IsForestFeatureEnabled()) {
+  if (!release_notes_storage_->ShouldNotify() ||
+      features::IsForestFeatureEnabled()) {
     return;
   }
   ShowReleaseNotesNotification();

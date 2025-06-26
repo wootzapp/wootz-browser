@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ash/webui/vc_background_ui/vc_background_ui.h"
 
 #include <string>
@@ -18,7 +23,6 @@
 #include "ash/webui/system_apps/public/system_web_app_type.h"
 #include "ash/webui/system_apps/public/system_web_app_ui_config.h"
 #include "ash/webui/vc_background_ui/url_constants.h"
-#include "chromeos/crosapi/cpp/lacros_startup_state.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
 #include "components/manta/features.h"
 #include "content/public/browser/browser_context.h"
@@ -34,8 +38,6 @@ namespace ash::vc_background_ui {
 
 namespace {
 
-using std::literals::string_view_literals::operator""sv;
-
 void AddStrings(content::WebUIDataSource* source) {
   source->AddString("vcBackgroundTitle",
                     l10n_util::GetStringUTF16(IDS_VC_BACKGROUND_APP_TITLE));
@@ -48,9 +50,8 @@ void AddStrings(content::WebUIDataSource* source) {
 }
 
 void AddResources(content::WebUIDataSource* source) {
-  source->AddResourcePath(""sv, IDR_ASH_VC_BACKGROUND_INDEX_HTML);
-  source->AddResourcePaths(base::make_span(kAshVcBackgroundResources,
-                                           kAshVcBackgroundResourcesSize));
+  source->AddResourcePath("", IDR_ASH_VC_BACKGROUND_INDEX_HTML);
+  source->AddResourcePaths(kAshVcBackgroundResources);
 
 #if !DCHECK_IS_ON()
   // If a user goes to an invalid url and non-DCHECK mode (DHECK = debug mode)
@@ -115,28 +116,25 @@ void VcBackgroundUI::BindInterface(
 
 void VcBackgroundUI::AddBooleans(content::WebUIDataSource* source) {
   const bool common_sea_pen_requirements =
-      sea_pen_provider_->IsEligibleForSeaPen();
+      sea_pen_provider_->IsEligibleForSeaPen() &&
+      ::ash::features::IsVcBackgroundReplaceEnabled() &&
+      manta::features::IsMantaServiceEnabled();
   source->AddBoolean("isSeaPenEnabled",
-                     ::ash::features::IsVcBackgroundReplaceEnabled() &&
-                         manta::features::IsMantaServiceEnabled() &&
                          common_sea_pen_requirements);
   source->AddBoolean("isSeaPenTextInputEnabled",
-                     ::ash::features::IsVcBackgroundReplaceEnabled() &&
+                     common_sea_pen_requirements &&
                          ::ash::features::IsSeaPenTextInputEnabled() &&
-                         manta::features::IsMantaServiceEnabled() &&
-                         common_sea_pen_requirements);
-  source->AddBoolean("isSeaPenUINextEnabled",
-                     ::ash::features::IsVcBackgroundReplaceEnabled() &&
-                         ::ash::features::IsSeaPenUINextEnabled() &&
-                         manta::features::IsMantaServiceEnabled() &&
-                         common_sea_pen_requirements);
-  source->AddBoolean("isSeaPenEnterpriseEnabled",
-                     ::ash::features::IsVcBackgroundReplaceEnabled() &&
-                         ::ash::features::IsSeaPenEnterpriseEnabled() &&
-                         manta::features::IsMantaServiceEnabled() &&
-                         common_sea_pen_requirements);
-  source->AddBoolean("isLacrosEnabled",
-                     ::crosapi::lacros_startup_state::IsLacrosEnabled());
+                         sea_pen_provider_->IsEligibleForSeaPenTextInput());
+  source->AddBoolean("isSeaPenUseExptTemplateEnabled",
+                     common_sea_pen_requirements &&
+                         ::ash::features::IsSeaPenUseExptTemplateEnabled());
+  source->AddBoolean("isManagedSeaPenEnabled",
+                     common_sea_pen_requirements &&
+                         sea_pen_provider_->IsManagedSeaPenEnabled());
+  source->AddBoolean("isManagedSeaPenFeedbackEnabled",
+                     sea_pen_provider_->IsManagedSeaPenFeedbackEnabled());
+  source->AddBoolean("isVcResizeThumbnailEnabled",
+                     ::ash::features::IsVcResizeThumbnailEnabled());
 }
 
 WEB_UI_CONTROLLER_TYPE_IMPL(VcBackgroundUI)

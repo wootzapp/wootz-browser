@@ -12,7 +12,7 @@
 #import "base/test/ios/wait_util.h"
 #import "components/strings/grit/components_strings.h"
 #import "components/url_formatter/url_formatter.h"
-#import "ios/chrome/browser/ui/popup_menu/popup_menu_constants.h"
+#import "ios/chrome/browser/popup_menu/ui_bundled/popup_menu_constants.h"
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
@@ -26,7 +26,6 @@
 #import "ios/web/public/test/http_server/http_server.h"
 #import "ios/web/public/test/http_server/http_server_util.h"
 
-using base::test::ios::kWaitForActionTimeout;
 using chrome_test_util::ButtonWithAccessibilityLabelId;
 using chrome_test_util::OmniboxText;
 using chrome_test_util::TapWebElement;
@@ -138,17 +137,7 @@ void TestFormResponseProvider::GetResponseHeadersAndBody(
     *response_body = request.method + std::string(" ") + request.body;
     return;
   }
-  NOTREACHED_IN_MIGRATION();
-}
-
-// Waits for the keyboard to appear. Returns NO on timeout.
-BOOL WaitForKeyboardToAppear() {
-  GREYCondition* waitForKeyboard = [GREYCondition
-      conditionWithName:@"Wait for keyboard"
-                  block:^BOOL {
-                    return [EarlGrey isKeyboardShownWithError:nil];
-                  }];
-  return [waitForKeyboard waitWithTimeout:kWaitForActionTimeout.InSecondsF()];
+  NOTREACHED();
 }
 
 }  // namespace
@@ -569,16 +558,11 @@ id<GREYMatcher> ResendPostButtonMatcher() {
                           [ElementSelector selectorWithElementID:ID])];
 
     // Wait for the accessory icon to appear.
-    GREYAssert(WaitForKeyboardToAppear(), @"Keyboard didn't appear.");
+    [ChromeEarlGrey waitForKeyboardToAppear];
 
-    if (@available(iOS 16, *)) {
-      // TODO(crbug.com/40227513): Move this logic into EG.
-      XCUIApplication* app = [[XCUIApplication alloc] init];
-      [[[app keyboards] buttons][@"go"] tap];
-    } else {
-      [[EarlGrey selectElementWithMatcher:grey_accessibilityID(@"Go")]
-          performAction:grey_tap()];
-    }
+    // TODO(crbug.com/40227513): Move this logic into EG.
+    XCUIApplication* app = [[XCUIApplication alloc] init];
+    [[[app keyboards] buttons][@"go"] tap];
   }
 }
 

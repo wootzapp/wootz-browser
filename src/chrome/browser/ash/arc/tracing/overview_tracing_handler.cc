@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/arc/tracing/overview_tracing_handler.h"
 
 #include <map>
@@ -9,9 +14,8 @@
 #include <string_view>
 #include <vector>
 
-#include "ash/components/arc/arc_features.h"
-#include "ash/components/arc/arc_util.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/i18n/time_formatting.h"
 #include "base/json/json_writer.h"
 #include "base/linux_util.h"
@@ -24,10 +28,16 @@
 #include "base/timer/timer.h"
 #include "base/trace_event/common/trace_event_common.h"
 #include "base/trace_event/trace_config.h"
+#include "chrome/browser/apps/app_service/app_service_proxy.h"
+#include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/ash/arc/tracing/arc_system_stat_collector.h"
 #include "chrome/browser/ash/arc/tracing/arc_tracing_graphics_model.h"
 #include "chrome/browser/ash/arc/tracing/arc_tracing_model.h"
 #include "chrome/browser/ash/arc/tracing/present_frames_tracer.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "chromeos/ash/experiences/arc/arc_features.h"
+#include "chromeos/ash/experiences/arc/arc_util.h"
 #include "components/exo/shell_surface_util.h"
 #include "components/exo/surface.h"
 #include "components/exo/wm_helper.h"
@@ -342,9 +352,13 @@ void OverviewTracingHandler::UpdateActiveArcWindowInfo() {
   const gfx::ImageSkia* app_icon =
       arc_active_window_->GetProperty(aura::client::kAppIconKey);
   if (app_icon) {
-    gfx::PNGCodec::EncodeBGRASkBitmap(
-        app_icon->GetRepresentation(1.0f).GetBitmap(),
-        false /* discard_transparency */, &active_trace_->task_icon_png);
+    std::optional<std::vector<uint8_t>> data =
+        gfx::PNGCodec::EncodeBGRASkBitmap(
+            app_icon->GetRepresentation(1.0f).GetBitmap(),
+            false /* discard_transparency */);
+    if (data) {
+      active_trace_->task_icon_png = std::move(data).value();
+    }
   }
 }
 
@@ -393,6 +407,20 @@ void OverviewTracingHandler::StopTracingOnController(
       content::TracingController::CreateStringEndpoint(std::move(after_stop)));
 }
 
+OverviewTracingHandler::AppWindowList OverviewTracingHandler::AllAppWindows()
+    const {
+  auto* app_service = apps::AppServiceProxyFactory::GetForProfile(
+      ProfileManager::GetPrimaryUserProfile());
+  AppWindowList windows;
+  if (app_service) {
+    app_service->InstanceRegistry().ForEachInstance(
+        [&windows](const auto& update) {
+          windows.emplace_back(update.Window());
+        });
+  }
+  return windows;
+}
+
 void OverviewTracingHandler::StartTracing(const base::FilePath& save_path,
                                           base::TimeDelta max_time) {
   active_trace_ = std::make_unique<ActiveTrace>();
@@ -428,6 +456,18 @@ void OverviewTracingHandler::StopTracing() {
   StopTracingOnController(
       base::BindOnce(&OverviewTracingHandler::OnTracingStopped,
                      weak_ptr_factory_.GetWeakPtr(), std::move(active_trace_)));
+}
+
+OverviewTracingHandler::AppWindowList
+OverviewTracingHandler::NonTraceTargetWindows() const {
+  auto windows = AllAppWindows();
+  auto arc_window_pos =
+      std::find(windows.begin(), windows.end(), arc_active_window_);
+  if (arc_window_pos != windows.end()) {
+    windows.erase(arc_window_pos);
+  }
+
+  return windows;
 }
 
 bool OverviewTracingHandler::is_tracing() const {

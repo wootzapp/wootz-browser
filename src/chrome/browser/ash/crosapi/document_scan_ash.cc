@@ -52,53 +52,6 @@ static_assert(lorgnette::SCAN_FAILURE_MODE_FLATBED_OPEN ==
 static_assert(lorgnette::SCAN_FAILURE_MODE_IO_ERROR ==
               static_cast<int>(mojom::ScanFailureMode::kIoError));
 
-mojom::ScanFailureMode ProtobufResultToMojoResult(
-    lorgnette::ScanFailureMode failure_mode) {
-  // The static_assert() checks above make this cast safe.
-  return static_cast<mojom::ScanFailureMode>(failure_mode);
-}
-
-// Wrapper around `data` that allows this to be a WeakPtr.
-struct ScanResult {
- public:
-  ScanResult() = default;
-  ScanResult(const ScanResult&) = delete;
-  ScanResult& operator=(const ScanResult&) = delete;
-  ~ScanResult() = default;
-
-  base::WeakPtr<ScanResult> AsWeakPtr() {
-    return weak_ptr_factory.GetWeakPtr();
-  }
-
-  std::optional<std::string> data;
-
- private:
-  base::WeakPtrFactory<ScanResult> weak_ptr_factory{this};
-};
-
-void OnPageReceived(base::WeakPtr<ScanResult> scan_result,
-                    std::string scanned_image,
-                    uint32_t /*page_number*/) {
-  if (!scan_result)
-    return;
-
-  // Take only the first page of the scan.
-  if (scan_result->data.has_value())
-    return;
-
-  scan_result->data = std::move(scanned_image);
-}
-
-// As a standalone function, this will always run `callback`. If this was a
-// DocumentScanAsh method instead, then that method bound to a
-// base::WeakPtr<DocumentScanAsh> may sometimes not run `callback`.
-void OnScanCompleted(DocumentScanAsh::ScanFirstPageCallback callback,
-                     std::unique_ptr<ScanResult> scan_result,
-                     lorgnette::ScanFailureMode failure_mode) {
-  std::move(callback).Run(ProtobufResultToMojoResult(failure_mode),
-                          std::move(scan_result->data));
-}
-
 void GetScannerListAdapter(
     DocumentScanAsh::GetScannerListCallback callback,
     const std::optional<lorgnette::ListScannersResponse>& response_in) {
@@ -175,6 +128,7 @@ void ReadScanDataAdapter(
 void SetOptionsAdapter(
     const std::string& scanner_handle,
     std::vector<std::string> option_names,
+    std::vector<std::string> invalid_option_names,
     DocumentScanAsh::SetOptionsCallback callback,
     const std::optional<lorgnette::SetOptionsResponse>& response_in) {
   if (!response_in) {
@@ -189,7 +143,12 @@ void SetOptionsAdapter(
     std::move(callback).Run(std::move(response));
     return;
   }
-  std::move(callback).Run(mojom::SetOptionsResponse::From(response_in.value()));
+  lorgnette::SetOptionsResponse response = response_in.value();
+  for (const std::string& invalid_name : invalid_option_names) {
+    (*response.mutable_results())[invalid_name] =
+        lorgnette::OperationResult::OPERATION_RESULT_WRONG_TYPE;
+  }
+  std::move(callback).Run(mojom::SetOptionsResponse::From(response));
 }
 
 void GetOptionGroupsAdapter(
@@ -238,32 +197,11 @@ void DocumentScanAsh::GetScannerNames(GetScannerNamesCallback callback) {
           base::BindOnce(GetScannerNamesAdapter, std::move(callback)));
 }
 
-void DocumentScanAsh::ScanFirstPage(const std::string& scanner_name,
-                                    ScanFirstPageCallback callback) {
-  lorgnette::ScanSettings settings;
-  settings.set_color_mode(lorgnette::MODE_COLOR);  // Hardcoded for now.
-
-  auto scan_result = std::make_unique<ScanResult>();
-  auto scan_result_weak_ptr = scan_result->AsWeakPtr();
-  ash::LorgnetteScannerManagerFactory::GetForBrowserContext(GetProfile())
-      ->Scan(scanner_name, settings, base::NullCallback(),
-             base::BindRepeating(&OnPageReceived, scan_result_weak_ptr),
-             base::BindOnce(&OnScanCompleted, std::move(callback),
-                            std::move(scan_result)));
-}
-
 void DocumentScanAsh::GetScannerList(const std::string& client_id,
                                      mojom::ScannerEnumFilterPtr filter,
                                      GetScannerListCallback callback) {
   using LocalScannerFilter = ash::LorgnetteScannerManager::LocalScannerFilter;
   using SecureScannerFilter = ash::LorgnetteScannerManager::SecureScannerFilter;
-
-  if (!ash::features::IsAdvancedDocumentScanAPIEnabled()) {
-    auto response = crosapi::mojom::GetScannerListResponse::New();
-    response->result = crosapi::mojom::ScannerOperationResult::kUnsupported;
-    std::move(callback).Run(std::move(response));
-    return;
-  }
 
   ash::LorgnetteScannerManagerFactory::GetForBrowserContext(GetProfile())
       ->GetScannerInfoList(
@@ -278,14 +216,6 @@ void DocumentScanAsh::GetScannerList(const std::string& client_id,
 void DocumentScanAsh::OpenScanner(const std::string& client_id,
                                   const std::string& scanner_id,
                                   OpenScannerCallback callback) {
-  if (!ash::features::IsAdvancedDocumentScanAPIEnabled()) {
-    auto response = crosapi::mojom::OpenScannerResponse::New();
-    response->scanner_id = scanner_id;
-    response->result = crosapi::mojom::ScannerOperationResult::kUnsupported;
-    std::move(callback).Run(std::move(response));
-    return;
-  }
-
   lorgnette::OpenScannerRequest request;
   request.mutable_scanner_id()->set_connection_string(scanner_id);
   request.set_client_id(client_id);
@@ -297,14 +227,6 @@ void DocumentScanAsh::OpenScanner(const std::string& client_id,
 
 void DocumentScanAsh::CloseScanner(const std::string& scanner_handle,
                                    CloseScannerCallback callback) {
-  if (!ash::features::IsAdvancedDocumentScanAPIEnabled()) {
-    auto response = crosapi::mojom::CloseScannerResponse::New();
-    response->scanner_handle = scanner_handle;
-    response->result = crosapi::mojom::ScannerOperationResult::kUnsupported;
-    std::move(callback).Run(std::move(response));
-    return;
-  }
-
   lorgnette::CloseScannerRequest request;
   request.mutable_scanner()->set_token(scanner_handle);
   ash::LorgnetteScannerManagerFactory::GetForBrowserContext(GetProfile())
@@ -316,14 +238,6 @@ void DocumentScanAsh::CloseScanner(const std::string& scanner_handle,
 void DocumentScanAsh::StartPreparedScan(const std::string& scanner_handle,
                                         mojom::StartScanOptionsPtr options,
                                         StartPreparedScanCallback callback) {
-  if (!ash::features::IsAdvancedDocumentScanAPIEnabled()) {
-    auto response = mojom::StartPreparedScanResponse::New();
-    response->result = mojom::ScannerOperationResult::kUnsupported;
-    response->scanner_handle = scanner_handle;
-    std::move(callback).Run(std::move(response));
-    return;
-  }
-
   lorgnette::StartPreparedScanRequest request;
   request.mutable_scanner()->set_token(scanner_handle);
   request.set_image_format(options->format);
@@ -339,14 +253,6 @@ void DocumentScanAsh::StartPreparedScan(const std::string& scanner_handle,
 
 void DocumentScanAsh::ReadScanData(const std::string& job_handle,
                                    ReadScanDataCallback callback) {
-  if (!ash::features::IsAdvancedDocumentScanAPIEnabled()) {
-    auto response = mojom::ReadScanDataResponse::New();
-    response->result = mojom::ScannerOperationResult::kUnsupported;
-    response->job_handle = job_handle;
-    std::move(callback).Run(std::move(response));
-    return;
-  }
-
   lorgnette::ReadScanDataRequest request;
   request.mutable_job_handle()->set_token(job_handle);
 
@@ -358,44 +264,36 @@ void DocumentScanAsh::ReadScanData(const std::string& job_handle,
 void DocumentScanAsh::SetOptions(const std::string& scanner_handle,
                                  std::vector<mojom::OptionSettingPtr> options,
                                  SetOptionsCallback callback) {
-  if (!ash::features::IsAdvancedDocumentScanAPIEnabled()) {
-    auto response = mojom::SetOptionsResponse::New();
-    response->scanner_handle = scanner_handle;
-    for (const mojom::OptionSettingPtr& option : options) {
-      auto result = mojom::SetOptionResult::New();
-      result->name = option->name;
-      result->result = mojom::ScannerOperationResult::kUnsupported;
-      response->results.emplace_back(std::move(result));
-    }
-    std::move(callback).Run(std::move(response));
-    return;
-  }
-
   lorgnette::SetOptionsRequest request;
   request.mutable_scanner()->set_token(scanner_handle);
-  // Keep track of the option names so we can bind to our adapter below.
+  // Keep track of all of the option names.  This is used if we don't get a
+  // valid response from the backend.  All of these options will get sent back
+  // to the caller with an error result.
   std::vector<std::string> option_names;
+  // Separately, keep track of any invalid options names (where the type
+  // specified for the value does not equal the type of the option).  These
+  // options will get sent back to the caller with an appropriate error result.
+  std::vector<std::string> invalid_option_names;
   for (const mojom::OptionSettingPtr& option_request : options) {
     option_names.emplace_back(option_request->name);
 
-    *request.add_options() = option_request.To<lorgnette::ScannerOption>();
+    auto maybe_option =
+        option_request.To<std::optional<lorgnette::ScannerOption>>();
+    if (maybe_option.has_value()) {
+      *request.add_options() = maybe_option.value();
+    } else {
+      invalid_option_names.emplace_back(option_request->name);
+    }
   }
 
   ash::LorgnetteScannerManagerFactory::GetForBrowserContext(GetProfile())
       ->SetOptions(request, base::BindOnce(&SetOptionsAdapter, scanner_handle,
-                                           option_names, std::move(callback)));
+                                           option_names, invalid_option_names,
+                                           std::move(callback)));
 }
 
 void DocumentScanAsh::GetOptionGroups(const std::string& scanner_handle,
                                       GetOptionGroupsCallback callback) {
-  if (!ash::features::IsAdvancedDocumentScanAPIEnabled()) {
-    auto response = mojom::GetOptionGroupsResponse::New();
-    response->result = mojom::ScannerOperationResult::kUnsupported;
-    response->scanner_handle = scanner_handle;
-    std::move(callback).Run(std::move(response));
-    return;
-  }
-
   lorgnette::GetCurrentConfigRequest request;
   request.mutable_scanner()->set_token(scanner_handle);
 
@@ -407,14 +305,6 @@ void DocumentScanAsh::GetOptionGroups(const std::string& scanner_handle,
 
 void DocumentScanAsh::CancelScan(const std::string& job_handle,
                                  CancelScanCallback callback) {
-  if (!ash::features::IsAdvancedDocumentScanAPIEnabled()) {
-    auto response = mojom::CancelScanResponse::New();
-    response->job_handle = job_handle;
-    response->result = mojom::ScannerOperationResult::kUnsupported;
-    std::move(callback).Run(std::move(response));
-    return;
-  }
-
   lorgnette::CancelScanRequest request;
   request.mutable_job_handle()->set_token(job_handle);
 

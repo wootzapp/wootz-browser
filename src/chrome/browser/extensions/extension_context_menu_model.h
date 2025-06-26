@@ -11,7 +11,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "extensions/common/extension_id.h"
-#include "ui/base/models/simple_menu_model.h"
+#include "ui/menus/simple_menu_model.h"
 #include "url/origin.h"
 
 class Browser;
@@ -31,6 +31,13 @@ class SidePanelService;
 class ExtensionContextMenuModel : public ui::SimpleMenuModel,
                                   public ui::SimpleMenuModel::Delegate {
  public:
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kHomePageMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kToggleVisibilityMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kPageAccessMenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kPageAccessRunOnClickSubmenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kPageAccessRunOnSiteSubmenuItem);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kPageAccessRunOnAllSitesSubmenuItem);
+
   enum MenuEntries {
     HOME_PAGE = 0,
     OPTIONS,

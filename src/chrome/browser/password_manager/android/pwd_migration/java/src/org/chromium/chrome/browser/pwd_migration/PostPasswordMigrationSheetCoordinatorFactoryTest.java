@@ -10,12 +10,13 @@ import static org.mockito.Mockito.when;
 
 import android.content.Context;
 
-import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
@@ -31,6 +32,7 @@ import java.lang.ref.WeakReference;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class PostPasswordMigrationSheetCoordinatorFactoryTest {
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private BottomSheetController mBottomSheetController;
     @Mock private WindowAndroid mWindowAndroid;
@@ -40,18 +42,12 @@ public class PostPasswordMigrationSheetCoordinatorFactoryTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         Context context = RuntimeEnvironment.application.getApplicationContext();
         WeakReference<Context> weakContext = new WeakReference<Context>(context);
         when(mWindowAndroid.getContext()).thenReturn(weakContext);
         mPostPasswordMigrationSheetCoordinator =
                 new PostPasswordMigrationSheetCoordinator(
                         context, mBottomSheetController, mProfile);
-    }
-
-    @After
-    public void tearDown() {
-        PostPasswordMigrationSheetCoordinatorFactory.setCoordinatorInstanceForTesting(null);
     }
 
     @Test

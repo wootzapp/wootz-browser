@@ -10,7 +10,6 @@
 #include "base/functional/bind.h"
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -38,7 +37,7 @@ using content::Referrer;
 using content::WebContents;
 
 // TODO(jam): http://crbug.com/350550
-#if !(BUILDFLAG(IS_CHROMEOS_ASH) && defined(ADDRESS_SANITIZER))
+#if !(BUILDFLAG(IS_CHROMEOS) && defined(ADDRESS_SANITIZER))
 
 namespace {
 
@@ -116,10 +115,10 @@ IN_PROC_BROWSER_TEST_F(CrashRecoveryBrowserTest, Reload) {
   EXPECT_NE(title_before_crash, title_after_crash);
   ASSERT_TRUE(
       GetActiveWebContents()->GetPrimaryMainFrame()->GetView()->IsShowing());
-  ASSERT_FALSE(GetActiveWebContents()
-                   ->GetPrimaryMainFrame()
-                   ->GetProcess()
-                   ->IsProcessBackgrounded());
+  ASSERT_NE(base::Process::Priority::kBestEffort, GetActiveWebContents()
+                                                      ->GetPrimaryMainFrame()
+                                                      ->GetProcess()
+                                                      ->GetPriority());
 }
 
 // Test that reload after a crash forces a cache revalidation.

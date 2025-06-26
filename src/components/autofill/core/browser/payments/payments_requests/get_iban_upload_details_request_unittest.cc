@@ -9,24 +9,20 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace autofill::payments {
-
 namespace {
 
 constexpr char kAppLocale[] = "dummy_locale";
 constexpr char kCountryCode[] = "FR";
-constexpr int kBillableServiceNumber = 12345678;
 constexpr int64_t kBillingCustomerNumber = 111222333;
 constexpr char16_t kCapitalizedIbanRegex[] =
     u"^[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}[A-Z0-9]{0,18}$";
-
-}  // namespace
 
 class GetIbanUploadDetailsRequestTest : public testing::Test {
  public:
   void SetUp() override {
     request_ = std::make_unique<GetIbanUploadDetailsRequest>(
         /*full_sync_enabled=*/true, kAppLocale, kBillingCustomerNumber,
-        kBillableServiceNumber, kCountryCode, base::DoNothing());
+        kCountryCode, base::DoNothing());
   }
 
   GetIbanUploadDetailsRequest* GetRequest() { return request_.get(); }
@@ -51,7 +47,8 @@ class GetIbanUploadDetailsRequestTest : public testing::Test {
 TEST_F(GetIbanUploadDetailsRequestTest,
        GetRequestContent_ContainsExpectedData) {
   EXPECT_EQ(GetRequest()->GetRequestUrlPath(),
-            "payments/apis/chromepaymentsservice/getdetailsforiban");
+            "payments/apis/chromepaymentsservice/"
+            "getdetailsforcreatepaymentinstrument");
   EXPECT_FALSE(GetRequest()->GetRequestContent().empty());
   EXPECT_NE(GetRequest()->GetRequestContent().find("language_code"),
             std::string::npos);
@@ -59,8 +56,8 @@ TEST_F(GetIbanUploadDetailsRequestTest,
             std::string::npos);
   EXPECT_NE(GetRequest()->GetRequestContent().find("billable_service"),
             std::string::npos);
-  EXPECT_NE(GetRequest()->GetRequestContent().find(
-                base::NumberToString(kBillableServiceNumber)),
+  EXPECT_NE(GetRequest()->GetRequestContent().find(base::NumberToString(
+                kUploadPaymentMethodBillableServiceNumber)),
             std::string::npos);
   EXPECT_NE(GetRequest()->GetRequestContent().find("customer_context"),
             std::string::npos);
@@ -128,4 +125,5 @@ TEST_F(GetIbanUploadDetailsRequestTest, ParseResponse_MissingValidationRegex) {
   EXPECT_FALSE(IsResponseComplete());
 }
 
+}  // namespace
 }  // namespace autofill::payments

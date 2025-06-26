@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/renderer/pepper/pepper_media_device_manager.h"
 #include <vector>
 
@@ -37,11 +42,10 @@ PP_DeviceType_Dev FromMediaDeviceType(MediaDeviceType type) {
       return PP_DEVICETYPE_DEV_AUDIOCAPTURE;
     case MediaDeviceType::kMediaVideoInput:
       return PP_DEVICETYPE_DEV_VIDEOCAPTURE;
-    case MediaDeviceType::kMediaAudioOuput:
+    case MediaDeviceType::kMediaAudioOutput:
       return PP_DEVICETYPE_DEV_AUDIOOUTPUT;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return PP_DEVICETYPE_DEV_INVALID;
+      NOTREACHED();
   }
 }
 
@@ -52,10 +56,9 @@ MediaDeviceType ToMediaDeviceType(PP_DeviceType_Dev type) {
     case PP_DEVICETYPE_DEV_VIDEOCAPTURE:
       return MediaDeviceType::kMediaVideoInput;
     case PP_DEVICETYPE_DEV_AUDIOOUTPUT:
-      return MediaDeviceType::kMediaAudioOuput;
+      return MediaDeviceType::kMediaAudioOutput;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return MediaDeviceType::kMediaAudioOuput;
+      NOTREACHED();
   }
 }
 
@@ -209,8 +212,7 @@ base::UnguessableToken PepperMediaDeviceManager::GetSessionID(
       return GetMediaStreamDeviceObserver()->GetVideoSessionId(
           blink::WebString::FromUTF8(label));
     default:
-      NOTREACHED_IN_MIGRATION();
-      return base::UnguessableToken();
+      NOTREACHED();
   }
 }
 
@@ -225,8 +227,7 @@ blink::mojom::MediaStreamType PepperMediaDeviceManager::FromPepperDeviceType(
     case PP_DEVICETYPE_DEV_VIDEOCAPTURE:
       return blink::mojom::MediaStreamType::DEVICE_VIDEO_CAPTURE;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return blink::mojom::MediaStreamType::NO_SERVICE;
+      NOTREACHED();
   }
 }
 
@@ -279,7 +280,7 @@ blink::mojom::MediaStreamDispatcherHost*
 PepperMediaDeviceManager::GetMediaStreamDispatcherHost() {
   if (!dispatcher_host_) {
     CHECK(render_frame());
-    render_frame()->GetBrowserInterfaceBroker()->GetInterface(
+    render_frame()->GetBrowserInterfaceBroker().GetInterface(
         dispatcher_host_.BindNewPipeAndPassReceiver());
   }
   return dispatcher_host_.get();
@@ -299,7 +300,7 @@ blink::mojom::MediaDevicesDispatcherHost*
 PepperMediaDeviceManager::GetMediaDevicesDispatcher() {
   if (!media_devices_dispatcher_) {
     CHECK(render_frame());
-    render_frame()->GetBrowserInterfaceBroker()->GetInterface(
+    render_frame()->GetBrowserInterfaceBroker().GetInterface(
         media_devices_dispatcher_.BindNewPipeAndPassReceiver());
   }
 

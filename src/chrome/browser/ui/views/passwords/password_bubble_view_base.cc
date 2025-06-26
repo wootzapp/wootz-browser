@@ -4,9 +4,12 @@
 
 #include "chrome/browser/ui/views/passwords/password_bubble_view_base.h"
 
+#include "base/functional/bind.h"
 #include "base/notreached.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/actions/chrome_action_id.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/passwords/passwords_model_delegate.h"
 #include "chrome/browser/ui/views/accessibility/theme_tracking_non_accessible_image_view.h"
@@ -20,13 +23,18 @@
 #include "chrome/browser/ui/views/passwords/move_to_account_store_bubble_view.h"
 #include "chrome/browser/ui/views/passwords/password_add_username_view.h"
 #include "chrome/browser/ui/views/passwords/password_auto_sign_in_view.h"
-#include "chrome/browser/ui/views/passwords/password_default_store_changed_view.h"
-#include "chrome/browser/ui/views/passwords/password_generation_confirmation_view.h"
+#include "chrome/browser/ui/views/passwords/password_change/password_change_view_factory.h"
 #include "chrome/browser/ui/views/passwords/password_save_unsynced_credentials_locally_view.h"
 #include "chrome/browser/ui/views/passwords/password_save_update_view.h"
 #include "chrome/browser/ui/views/passwords/post_save_compromised_bubble_view.h"
 #include "chrome/browser/ui/views/passwords/shared_passwords_notification_view.h"
+#include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "chrome/browser/ui/views/webauthn/passkey_deleted_confirmation_view.h"
+#include "chrome/browser/ui/views/webauthn/passkey_not_accepted_bubble_view.h"
+#include "chrome/browser/ui/views/webauthn/passkey_saved_confirmation_view.h"
+#include "chrome/browser/ui/views/webauthn/passkey_updated_confirmation_view.h"
+#include "chrome/browser/ui/views/webauthn/passkey_upgrade_bubble_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/password_form.h"
@@ -38,10 +46,22 @@
 #include "chrome/browser/ui/views/passwords/password_relaunch_chrome_view.h"
 #endif
 
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ui/views/passwords/biometric_authentication_confirmation_bubble_view.h"
 #include "chrome/browser/ui/views/passwords/biometric_authentication_for_filling_bubble_view.h"
 #endif
+
+namespace {
+PageActionIconType GetPageActionIconType(content::WebContents* web_contents) {
+  base::WeakPtr<PasswordsModelDelegate> delegate =
+      PasswordsModelDelegateFromWebContents(web_contents);
+  password_manager::ui::State model_state = delegate->GetState();
+  if (model_state == password_manager::ui::PASSWORD_CHANGE_STATE) {
+    return PageActionIconType::kChangePassword;
+  }
+  return PageActionIconType::kManagePasswords;
+}
+}  // namespace
 
 // static
 PasswordBubbleViewBase* PasswordBubbleViewBase::g_manage_passwords_bubble_ =
@@ -60,7 +80,7 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
   ToolbarButtonProvider* button_provider =
       browser_view->toolbar_button_provider();
   views::View* anchor_view =
-      button_provider->GetAnchorView(PageActionIconType::kManagePasswords);
+      button_provider->GetAnchorView(kActionShowPasswordsBubbleOrPage);
 
   PasswordBubbleViewBase* bubble =
       CreateBubble(web_contents, anchor_view, reason);
@@ -69,16 +89,38 @@ void PasswordBubbleViewBase::ShowBubble(content::WebContents* web_contents,
   // TODO(crbug.com/40218026): In non-DCHECK mode we could fall through here and
   // hard-crash if we requested a bubble and were in the wrong state. In the
   // meantime we will abort if we did not create a bubble.
-  if (!g_manage_passwords_bubble_)
+  if (!g_manage_passwords_bubble_) {
     return;
+  }
 
-  g_manage_passwords_bubble_->SetHighlightedButton(
-      button_provider->GetPageActionIconView(
-          PageActionIconType::kManagePasswords));
+  // If the anchor_view is a button, it will automatically be used as the
+  // highlighted button by BubbleDialogDelegate. If not, we set the page action
+  // icon as the highlighted button here.
+  if (!views::Button::AsButton(anchor_view)) {
+    g_manage_passwords_bubble_->SetHighlightedButton(
+        button_provider->GetPageActionIconView(
+            GetPageActionIconType(web_contents)));
+  }
 
   views::BubbleDialogDelegateView::CreateBubble(g_manage_passwords_bubble_);
 
   g_manage_passwords_bubble_->ShowForReason(reason);
+  g_manage_passwords_bubble_->RegisterWindowClosingCallback(base::BindOnce(
+      [](PasswordBubbleViewBase* closing_bubble) {
+        if (closing_bubble == g_manage_passwords_bubble_) {
+          g_manage_passwords_bubble_ = nullptr;
+        }
+      },
+      bubble));
+
+    auto* passwords_action_item = actions::ActionManager::Get().FindAction(
+        kActionShowPasswordsBubbleOrPage,
+        browser->browser_actions()->root_action_item());
+    CHECK(passwords_action_item);
+    bool should_suppress_next_button_trigger =
+        g_manage_passwords_bubble_->ShouldCloseOnDeactivate();
+    passwords_action_item->SetIsShowingBubble(
+        should_suppress_next_button_trigger);
 }
 
 // static
@@ -87,8 +129,9 @@ PasswordBubbleViewBase* PasswordBubbleViewBase::CreateBubble(
     views::View* anchor_view,
     DisplayReason reason) {
   PasswordBubbleViewBase* view = nullptr;
-  password_manager::ui::State model_state =
-      PasswordsModelDelegateFromWebContents(web_contents)->GetState();
+  base::WeakPtr<PasswordsModelDelegate> delegate =
+      PasswordsModelDelegateFromWebContents(web_contents);
+  password_manager::ui::State model_state = delegate->GetState();
   if (model_state == password_manager::ui::MANAGE_STATE) {
     view = new ManagePasswordsView(web_contents, anchor_view);
   } else if (model_state == password_manager::ui::AUTO_SIGNIN_STATE) {
@@ -116,7 +159,7 @@ PasswordBubbleViewBase* PasswordBubbleViewBase::CreateBubble(
   } else if (model_state ==
              password_manager::ui::GENERATED_PASSWORD_CONFIRMATION_STATE) {
     view = new PasswordAddUsernameView(web_contents, anchor_view, reason);
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_CHROMEOS)
   } else if (model_state ==
              password_manager::ui::BIOMETRIC_AUTHENTICATION_FOR_FILLING_STATE) {
     view = new BiometricAuthenticationForFillingBubbleView(
@@ -140,10 +183,28 @@ PasswordBubbleViewBase* PasswordBubbleViewBase::CreateBubble(
             ->GetPrefs());
 #endif
   } else if (model_state ==
-             password_manager::ui::PASSWORD_STORE_CHANGED_BUBBLE_STATE) {
-    view = new PasswordDefaultStoreChangedView(web_contents, anchor_view);
+             password_manager::ui::PASSKEY_SAVED_CONFIRMATION_STATE) {
+    view = new PasskeySavedConfirmationView(web_contents, anchor_view,
+                                            delegate->PasskeyRpId());
+  } else if (model_state ==
+             password_manager::ui::PASSKEY_DELETED_CONFIRMATION_STATE) {
+    view =
+        new PasskeyDeletedConfirmationView(web_contents, anchor_view, reason);
+  } else if (model_state ==
+             password_manager::ui::PASSKEY_UPDATED_CONFIRMATION_STATE) {
+    view = new PasskeyUpdatedConfirmationView(web_contents, anchor_view, reason,
+                                              delegate->PasskeyRpId());
+  } else if (model_state == password_manager::ui::PASSKEY_NOT_ACCEPTED_STATE) {
+    view = new PasskeyNotAcceptedBubbleView(web_contents, anchor_view, reason,
+                                            delegate->PasskeyRpId());
+  } else if (model_state == password_manager::ui::PASSKEY_UPGRADE_STATE) {
+    view = new PasskeyUpgradeBubbleView(web_contents, anchor_view, reason,
+                                        delegate->PasskeyRpId());
+  } else if (model_state == password_manager::ui::PASSWORD_CHANGE_STATE) {
+    view = CreatePasswordChangeBubbleView(delegate->GetPasswordChangeDelegate(),
+                                          web_contents, anchor_view);
   } else {
-    NOTREACHED_NORETURN();
+    NOTREACHED();
   }
 
   g_manage_passwords_bubble_ = view;
@@ -163,7 +224,9 @@ void PasswordBubbleViewBase::CloseCurrentBubble() {
         g_manage_passwords_bubble_->GetController();
     DCHECK(controller);
     controller->OnBubbleClosing();
-    g_manage_passwords_bubble_->GetWidget()->Close();
+    if (auto* const widget = g_manage_passwords_bubble_->GetWidget()) {
+      widget->Close();
+    }
   }
 }
 
@@ -184,16 +247,27 @@ PasswordBubbleViewBase::PasswordBubbleViewBase(
     content::WebContents* web_contents,
     views::View* anchor_view,
     bool easily_dismissable)
-    : LocationBarBubbleDelegateView(anchor_view, web_contents) {
+    : LocationBarBubbleDelegateView(anchor_view,
+                                    web_contents,
+                                    /*autosize=*/true) {
   SetShowCloseButton(true);
   set_fixed_width(views::LayoutProvider::Get()->GetDistanceMetric(
       views::DISTANCE_BUBBLE_PREFERRED_WIDTH));
   set_close_on_deactivate(easily_dismissable);
+
+  browser_ = chrome::FindBrowserWithTab(web_contents);
 }
 
 PasswordBubbleViewBase::~PasswordBubbleViewBase() {
-  if (g_manage_passwords_bubble_ == this)
-    g_manage_passwords_bubble_ = nullptr;
+  CHECK(this != g_manage_passwords_bubble_);
+  // It is possible in tests for |browser_| not to exist.
+  if (browser_) {
+    auto* passwords_action_item = actions::ActionManager::Get().FindAction(
+        kActionShowPasswordsBubbleOrPage,
+        browser_->browser_actions()->root_action_item());
+    CHECK(passwords_action_item);
+    passwords_action_item->SetIsShowingBubble(false);
+  }
 }
 
 void PasswordBubbleViewBase::SetBubbleHeader(int light_image_id,
@@ -202,7 +276,7 @@ void PasswordBubbleViewBase::SetBubbleHeader(int light_image_id,
   auto image_view = std::make_unique<ThemeTrackingNonAccessibleImageView>(
       *bundle.GetImageSkiaNamed(light_image_id),
       *bundle.GetImageSkiaNamed(dark_image_id),
-      base::BindRepeating(&views::BubbleDialogDelegate::GetBackgroundColor,
+      base::BindRepeating(&views::BubbleDialogDelegate::background_color,
                           base::Unretained(this)));
 
   gfx::Size preferred_size = image_view->GetPreferredSize();

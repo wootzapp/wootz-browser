@@ -9,7 +9,9 @@
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/platform/bindings/script_forbidden_scope.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
@@ -42,18 +44,19 @@ class ScriptPromiseProperty final
 
   ScriptPromise<IDLResolvedType> Promise(DOMWrapperWorld& world) {
     if (!GetExecutionContext()) {
-      return ScriptPromise<IDLResolvedType>();
+      return EmptyPromise();
     }
 
     ScriptState* script_state = ToScriptState(execution_context_.Get(), world);
+    ScriptState::Scope scope(script_state);
 
     for (auto& promise : promises_) {
       if (promise.second == script_state) {
-        return static_cast<ScriptPromise<IDLResolvedType>&>(promise.first);
+        return ScriptPromise<IDLResolvedType>::FromV8Promise(
+            script_state->GetIsolate(),
+            promise.first.Get(script_state->GetIsolate()));
       }
     }
-
-    ScriptState::Scope scope(script_state);
 
     auto* resolver =
         MakeGarbageCollected<ScriptPromiseResolver<IDLResolvedType>>(
@@ -62,9 +65,6 @@ class ScriptPromiseProperty final
     // releasing, but ScriptPromiseProperty doesn't have such a requirement, so
     // suppress the check forcibly.
     resolver->SuppressDetachCheck();
-    ScriptPromise<IDLResolvedType> promise = resolver->Promise();
-    if (mark_as_handled_)
-      promise.MarkAsHandled();
     switch (state_) {
       case kPending:
         resolvers_.push_back(resolver);
@@ -76,8 +76,15 @@ class ScriptPromiseProperty final
         resolver->template Reject<IDLRejectedType>(rejected_);
         break;
     }
-    promises_.emplace_back(promise, script_state);
-    return promise;
+    v8::Local<v8::Promise> promise = resolver->V8Promise();
+    if (mark_as_handled_) {
+      promise->MarkAsHandled();
+    }
+    promises_.emplace_back(TraceWrapperV8Reference<v8::Promise>(
+                               script_state->GetIsolate(), promise),
+                           script_state);
+    return ScriptPromise<IDLResolvedType>::FromV8Promise(
+        script_state->GetIsolate(), promise);
   }
 
   template <typename PassResolvedType>
@@ -134,7 +141,7 @@ class ScriptPromiseProperty final
   void MarkAsHandled() {
     mark_as_handled_ = true;
     for (auto& promise : promises_) {
-      promise.first.MarkAsHandled();
+      promise.first.Get(promise.second->GetIsolate())->MarkAsHandled();
     }
   }
 
@@ -178,12 +185,16 @@ class ScriptPromiseProperty final
   MemberResolvedType resolved_{DefaultPromiseResultValue<MemberResolvedType>()};
   MemberRejectedType rejected_{DefaultPromiseResultValue<MemberRejectedType>()};
 
-  // These vectors contain ScriptPromiseResolver<IDLResolvedType> and
-  // ScriptPromise<IDLResolvedType>, respectively. We save ~10KB of binary
-  // size by storing them as the untemplated base class and downcasting where
-  // needed.
+  // `resolvers_` contains ScriptPromiseResolver<IDLResolvedType>, which can be
+  // downcasted to its proper type as needed.
+  // `promises_` contains v8::Promises, which can re wrapped in
+  // ScriptPromiser<IDLResolvedType> as need.
+  // We save ~10KB of binary size by not storing the resolvers and promises with
+  // their templated types.
   HeapVector<Member<ScriptPromiseResolverBase>> resolvers_;
-  HeapVector<std::pair<ScriptPromiseUntyped, Member<ScriptState>>> promises_;
+  HeapVector<
+      std::pair<TraceWrapperV8Reference<v8::Promise>, Member<ScriptState>>>
+      promises_;
   WeakMember<ExecutionContext> const execution_context_;
 
   bool mark_as_handled_ = false;

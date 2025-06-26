@@ -17,10 +17,12 @@
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "chrome/browser/new_tab_page/feature_promo_helper/new_tab_page_feature_promo_helper.h"
+#include "chrome/browser/new_tab_page/microsoft_auth/microsoft_auth_service.h"
+#include "chrome/browser/new_tab_page/microsoft_auth/microsoft_auth_service_observer.h"
+#include "chrome/browser/new_tab_page/modules/new_tab_page_modules.h"
 #include "chrome/browser/new_tab_page/promos/promo_service.h"
 #include "chrome/browser/new_tab_page/promos/promo_service_observer.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
-#include "chrome/browser/search/background/ntp_background_service_observer.h"
 #include "chrome/browser/search/background/ntp_custom_background_service.h"
 #include "chrome/browser/search/background/ntp_custom_background_service_observer.h"
 #include "chrome/browser/themes/theme_service.h"
@@ -31,6 +33,8 @@
 #include "components/optimization_guide/core/model_execution/settings_enabled_observer.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/search_provider_logos/logo_common.h"
+#include "components/segmentation_platform/public/result.h"
+#include "components/themes/ntp_background_service_observer.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
@@ -43,6 +47,7 @@
 class GURL;
 class NtpBackgroundService;
 class Profile;
+class MicrosoftAuthService;
 class NTPUserDataLogger;
 class NewTabPageFeaturePromoHelper;
 
@@ -50,9 +55,21 @@ namespace content {
 class WebContents;
 }  // namespace content
 
+namespace customize_chrome {
+class SidePanelController;
+}  // namespace customize_chrome
+
 namespace search_provider_logos {
 class LogoService;
 }  // namespace search_provider_logos
+
+namespace segmentation_platform {
+class SegmentationPlatformService;
+}  // namespace segmentation_platform
+
+namespace syncer {
+class SyncService;
+}  // namespace syncer
 
 namespace ui {
 class ThemeProvider;
@@ -65,21 +82,24 @@ class NewTabPageHandler : public new_tab_page::mojom::PageHandler,
                           public NtpBackgroundServiceObserver,
                           public ui::SelectFileDialog::Listener,
                           public PromoServiceObserver,
-                          public optimization_guide::SettingsEnabledObserver {
+                          public optimization_guide::SettingsEnabledObserver,
+                          public MicrosoftAuthServiceObserver {
  public:
-  NewTabPageHandler(
-      mojo::PendingReceiver<new_tab_page::mojom::PageHandler>
-          pending_page_handler,
-      mojo::PendingRemote<new_tab_page::mojom::Page> pending_page,
-      Profile* profile,
-      NtpCustomBackgroundService* ntp_custom_background_service,
-      ThemeService* theme_service,
-      search_provider_logos::LogoService* logo_service,
-      content::WebContents* web_contents,
-      std::unique_ptr<NewTabPageFeaturePromoHelper>
-          customize_chrome_feature_promo_helper,
-      const base::Time& ntp_navigation_start_time,
-      const std::vector<std::pair<const std::string, int>>* module_id_names);
+  NewTabPageHandler(mojo::PendingReceiver<new_tab_page::mojom::PageHandler>
+                        pending_page_handler,
+                    mojo::PendingRemote<new_tab_page::mojom::Page> pending_page,
+                    Profile* profile,
+                    NtpCustomBackgroundService* ntp_custom_background_service,
+                    ThemeService* theme_service,
+                    search_provider_logos::LogoService* logo_service,
+                    syncer::SyncService* sync_service,
+                    segmentation_platform::SegmentationPlatformService*
+                        segmentation_platform_service,
+                    content::WebContents* web_contents,
+                    std::unique_ptr<NewTabPageFeaturePromoHelper>
+                        customize_chrome_feature_promo_helper,
+                    const base::Time& ntp_navigation_start_time,
+                    const std::vector<ntp::ModuleIdDetail>* module_id_details);
 
   NewTabPageHandler(const NewTabPageHandler&) = delete;
   NewTabPageHandler& operator=(const NewTabPageHandler&) = delete;
@@ -91,6 +111,15 @@ class NewTabPageHandler : public new_tab_page::mojom::PageHandler,
   static const char kModuleRestoredHistogram[];
 
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
+
+  // This method should be called before the tab is deleted.
+  void TabWillDelete();
+
+  // Called when a child page wants to bind its interface in `page_`, so they
+  // can communicate via Mojo.
+  void ConnectToParentDocument(
+      mojo::PendingRemote<new_tab_page::mojom::MicrosoftAuthUntrustedDocument>
+          child_untrusted_document_remote);
 
   // new_tab_page::mojom::PageHandler:
   void SetMostVisitedSettings(bool custom_links_enabled, bool visible) override;
@@ -126,17 +155,18 @@ class NewTabPageHandler : public new_tab_page::mojom::PageHandler,
   void GetModulesIdNames(GetModulesIdNamesCallback callback) override;
   void SetModulesOrder(const std::vector<std::string>& module_ids) override;
   void GetModulesOrder(GetModulesOrderCallback callback) override;
-  void IncrementModulesShownCount() override;
-  void SetModulesFreVisible(bool visible) override;
-  void UpdateModulesFreVisibility() override;
-  void LogModulesFreOptInStatus(
-      new_tab_page::mojom::OptInStatus opt_in_status) override;
+  void UpdateModulesLoadable() override;
   void SetCustomizeChromeSidePanelVisible(
       bool visible,
       new_tab_page::mojom::CustomizeChromeSection section) override;
   void IncrementCustomizeChromeButtonOpenCount() override;
+  void GetMobilePromoQrCode(GetMobilePromoQrCodeCallback callback) override;
+  void OnMobilePromoShown() override;
+  void OnDismissMobilePromo() override;
+  void OnUndoDismissMobilePromo() override;
   void MaybeShowFeaturePromo(
       new_tab_page::mojom::IphFeature iph_feature) override;
+  void IncrementWallpaperSearchButtonShownCount() override;
   void OnAppRendered(double time) override;
   void OnOneGoogleBarRendered(double time) override;
   void OnPromoRendered(double time,
@@ -154,6 +184,9 @@ class NewTabPageHandler : public new_tab_page::mojom::PageHandler,
                       const std::optional<std::string>& share_id) override;
   void OnPromoLinkClicked() override;
 
+  void SetCustomizeChromeSidePanelControllerForTesting(
+      customize_chrome::SidePanelController* side_panel_controller);
+
  private:
   // ui::NativeThemeObserver:
   void OnNativeThemeUpdated(ui::NativeTheme* observed_theme) override;
@@ -163,7 +196,6 @@ class NewTabPageHandler : public new_tab_page::mojom::PageHandler,
 
   // NtpCustomBackgroundServiceObserver:
   void OnCustomBackgroundImageUpdated() override;
-  void OnNtpCustomBackgroundServiceShuttingDown() override;
 
   // NtpBackgroundServiceObserver:
   void OnCollectionInfoAvailable() override;
@@ -178,11 +210,17 @@ class NewTabPageHandler : public new_tab_page::mojom::PageHandler,
   // SettingsEnabledObserver:
   void OnChangeInFeatureCurrentlyEnabledState(bool is_now_enabled) override;
 
+  // MicrosoftAuthServiceObserver:
+  void OnAuthStateUpdated() override;
+
   // SelectFileDialog::Listener:
-  void FileSelected(const ui::SelectedFileInfo& file,
-                    int index,
-                    void* params) override;
-  void FileSelectionCanceled(void* params) override;
+  void FileSelected(const ui::SelectedFileInfo& file, int index) override;
+  void FileSelectionCanceled() override;
+
+  // Called when the embedding TabInterface has changed.
+  // TODO(crbug.com/378475391): This can be removed once the NTP has been
+  // restricted from loading in app windows.
+  void OnTabInterfaceChanged();
 
   void OnLogoAvailable(
       GetDoodleCallback callback,
@@ -221,12 +259,34 @@ class NewTabPageHandler : public new_tab_page::mojom::PageHandler,
       std::string_view interaction,
       const std::string& module_id);
 
+  // Check if user is eligible to see a mobile promo generated locally. The
+  // callback is a mojo callback that must be called in all cases.
+  void CheckIfUserEligibleForMobilePromo(GetMobilePromoQrCodeCallback callback);
+  // Handle the response from the segmentation platform querying mobile promo
+  // status. The callback is a mojo callback that must be called in all cases.
+  void HandleMobilePromoSegmentationResponse(
+      GetMobilePromoQrCodeCallback callback,
+      base::Time request_start_time,
+      const segmentation_platform::ClassificationResult& result);
+
+  void SetCustomizeChromeSidePanelController(
+      customize_chrome::SidePanelController* side_panel_controller);
+  void SetModuleHidden(const std::string& module_id, bool hidden);
+
+  // Synchronizes Microsoft module enablement with their current authentication
+  // state. The return value indicates whether the modules should be considered
+  // loadable.
+  bool SyncMicrosoftModulesWithAuth();
+
   ChooseLocalCustomBackgroundCallback choose_local_custom_background_callback_;
   raw_ptr<NtpBackgroundService> ntp_background_service_;
   raw_ptr<NtpCustomBackgroundService> ntp_custom_background_service_;
   raw_ptr<search_provider_logos::LogoService> logo_service_;
   raw_ptr<const ui::ThemeProvider> theme_provider_;
   raw_ptr<ThemeService> theme_service_;
+  raw_ptr<syncer::SyncService> sync_service_;
+  raw_ptr<segmentation_platform::SegmentationPlatformService>
+      segmentation_platform_service_;
   GURL last_blocklisted_;
   GetBackgroundCollectionsCallback background_collections_callback_;
   base::TimeTicks background_collections_request_start_time_;
@@ -239,14 +299,14 @@ class NewTabPageHandler : public new_tab_page::mojom::PageHandler,
   raw_ptr<content::WebContents> web_contents_;
   std::unique_ptr<NewTabPageFeaturePromoHelper> feature_promo_helper_;
   base::Time ntp_navigation_start_time_;
-  raw_ptr<const std::vector<std::pair<const std::string, int>>>
-      module_id_names_;
+  raw_ptr<const std::vector<ntp::ModuleIdDetail>> module_id_details_;
   NTPUserDataLogger logger_;
   std::unordered_map<const network::SimpleURLLoader*,
                      std::unique_ptr<network::SimpleURLLoader>>
       loader_map_;
   PrefChangeRegistrar pref_change_registrar_;
   raw_ptr<PromoService> promo_service_;
+  raw_ptr<MicrosoftAuthService> microsoft_auth_service_;
   raw_ptr<OptimizationGuideKeyedService> optimization_guide_keyed_service_;
   base::ScopedObservation<ui::NativeTheme, ui::NativeThemeObserver>
       native_theme_observation_{this};
@@ -257,8 +317,17 @@ class NewTabPageHandler : public new_tab_page::mojom::PageHandler,
       ntp_custom_background_service_observation_{this};
   base::ScopedObservation<PromoService, PromoServiceObserver>
       promo_service_observation_{this};
+  base::ScopedObservation<MicrosoftAuthService, MicrosoftAuthServiceObserver>
+      microsoft_auth_service_observation_{this};
   std::optional<base::TimeTicks> promo_load_start_time_;
   base::Value::Dict interaction_module_id_trigger_dict_;
+
+  // TODO(crbug.com/378475391): Make this const once the TabModel is guaranteed
+  // to be present during load and fixed for the NTP's lifetime.
+  raw_ptr<customize_chrome::SidePanelController>
+      customize_chrome_side_panel_controller_;
+
+  base::CallbackListSubscription tab_changed_subscription_;
 
   // These are located at the end of the list of member variables to ensure the
   // WebUI page is disconnected before other members are destroyed.

@@ -59,7 +59,6 @@ class DrivePinningBaseScreenTest : public OobeBaseTest {
   DrivePinningBaseScreenTest() {
     feature_list_.InitWithFeatures(
         {ash::features::kOobeChoobe, ash::features::kOobeDrivePinning,
-         ash::features::kDriveFsBulkPinning,
          ash::features::kFeatureManagementDriveFsBulkPinning},
         {});
   }
@@ -73,6 +72,7 @@ class DrivePinningBaseScreenTest : public OobeBaseTest {
     original_callback_ = drive_pining_screen->get_exit_callback_for_testing();
     drive_pining_screen->set_exit_callback_for_testing(
         screen_result_waiter_.GetRepeatingCallback());
+    drive_pining_screen->set_ignore_choobe_controller_state_for_testing(true);
   }
 
   void SetPinningManagerProgress(Progress progress) {

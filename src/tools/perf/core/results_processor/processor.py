@@ -126,10 +126,15 @@ def ProcessResults(options, is_unittest=False):
 
     print('View results at file://', output_file, sep='')
 
-  if options.fetch_device_data:
-    PullDeviceArtifacts(options)
+  exit_code = GenerateExitCode(test_results)
 
-  return GenerateExitCode(test_results)
+  if options.fetch_device_data:
+    if options.fetch_device_data_on_success and exit_code != 0:
+      logging.warning('Not fetching device data due to non zero exit code.')
+    else:
+      PullDeviceArtifacts(options)
+
+  return exit_code
 
 
 def _AmortizeProcessingDuration(processing_duration, test_results):
@@ -500,6 +505,14 @@ def PullDeviceArtifacts(options):
     utils = device_utils.DeviceUtils(devices[0])
     logging.info('Pulling files from %s to %s', device_path, local_path)
     utils.PullFile(device_path, local_path)
+    local_profile_dir = os.path.join(local_path, os.path.basename(device_path))
+    for root, _, filenames in os.walk(local_profile_dir):
+      for filename in filenames:
+        relative_path = os.path.relpath(os.path.join(root, filename),
+                                        local_profile_dir)
+        to_be_removed = f"{device_path}/{relative_path}"
+        utils.RemovePath(to_be_removed)
+        logging.info('Removed %s', to_be_removed)
     logging.info('Finished pulling files.')
   elif platform == 'chromeos':
     logging.warning('Searching for devices')

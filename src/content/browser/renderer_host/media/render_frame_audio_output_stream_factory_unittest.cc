@@ -17,10 +17,13 @@
 #include "base/unguessable_token.h"
 #include "content/browser/media/forwarding_audio_stream_factory.h"
 #include "content/browser/renderer_host/media/media_stream_manager.h"
+#include "content/browser/renderer_host/media/mock_preferred_audio_output_device_manager.h"
+#include "content/browser/renderer_host/media/preferred_audio_output_device_manager.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/test/mock_render_process_host.h"
+#include "content/public/test/navigation_simulator.h"
 #include "content/public/test/test_renderer_host.h"
 #include "media/audio/audio_system_impl.h"
 #include "media/audio/fake_audio_log_factory.h"
@@ -96,10 +99,29 @@ class RenderFrameAudioOutputStreamFactoryTest
         const media::AudioParameters& params,
         const base::UnguessableToken& group_id,
         CreateOutputStreamCallback created_callback) override {
-      last_created_callback = std::move(created_callback);
+      last_created_callback_ = std::move(created_callback);
     }
 
-    CreateOutputStreamCallback last_created_callback;
+    void CreateSwitchableOutputStream(
+        mojo::PendingReceiver<media::mojom::AudioOutputStream> stream,
+        mojo::PendingReceiver<media::mojom::DeviceSwitchInterface>
+            device_switch_receiver,
+        mojo::PendingAssociatedRemote<media::mojom::AudioOutputStreamObserver>
+            observer,
+        mojo::PendingRemote<media::mojom::AudioLog> log,
+        const std::string& device_id,
+        const media::AudioParameters& params,
+        const base::UnguessableToken& group_id,
+        CreateOutputStreamCallback created_callback) override {
+      last_created_callback_ = std::move(created_callback);
+    }
+
+    bool last_created_callback() const {
+      return !last_created_callback_.is_null();
+    }
+
+   private:
+    CreateOutputStreamCallback last_created_callback_;
   };
 
   using MockAuthorizationCallback = StrictMock<
@@ -216,7 +238,7 @@ TEST_F(RenderFrameAudioOutputStreamFactoryTest,
 
   base::RunLoop().RunUntilIdle();
 
-  EXPECT_TRUE(!!audio_service_stream_factory_.last_created_callback);
+  EXPECT_TRUE(!!audio_service_stream_factory_.last_created_callback());
   EXPECT_EQ(0u, factory.CurrentNumberOfProvidersForTesting());
 }
 
@@ -250,7 +272,7 @@ TEST_F(RenderFrameAudioOutputStreamFactoryTest,
 
   base::RunLoop().RunUntilIdle();
 
-  EXPECT_FALSE(!!audio_service_stream_factory_.last_created_callback);
+  EXPECT_FALSE(!!audio_service_stream_factory_.last_created_callback());
 }
 
 }  // namespace content

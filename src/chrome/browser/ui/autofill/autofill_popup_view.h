@@ -11,9 +11,9 @@
 #include <string>
 
 #include "base/memory/weak_ptr.h"
-#include "components/autofill/core/browser/autofill_client.h"
+#include "components/autofill/core/browser/foundations/autofill_client.h"
 #include "components/autofill/core/common/aliases.h"
-#include "content/public/common/input/native_web_keyboard_event.h"
+#include "components/input/native_web_keyboard_event.h"
 
 namespace autofill {
 
@@ -23,9 +23,16 @@ class AutofillSuggestionController;
 // AutofillPopupView.
 class AutofillPopupView {
  public:
-  // Factory function for creating the view.
+  struct SearchBarConfig {
+    std::u16string placeholder;
+    std::u16string no_results_message;
+  };
+
+  // Factory function for creating the view. Providing `std::nullopt` to
+  // the `search_bar_config` results in creating a popup without a search bar.
   static base::WeakPtr<AutofillPopupView> Create(
-      base::WeakPtr<AutofillSuggestionController> controller);
+      base::WeakPtr<AutofillSuggestionController> controller,
+      std::optional<const SearchBarConfig> search_bar_config = std::nullopt);
 
   // Attempts to display the Autofill popup and fills it with data from the
   // controller. Returns whether the popup was shown.
@@ -38,12 +45,14 @@ class AutofillPopupView {
   // swallowed. This allows views to handle events that depend on its internal
   // state, such as changing the selected Autofill cell.
   virtual bool HandleKeyPressEvent(
-      const content::NativeWebKeyboardEvent& event) = 0;
+      const input::NativeWebKeyboardEvent& event) = 0;
 
   // Refreshes the position and redraws popup when suggestions change. Returns
   // whether the resulting popup was shown (or had to hide, e.g. due to
-  // insufficient size).
-  virtual void OnSuggestionsChanged() = 0;
+  // insufficient size). If `prefer_prev_arrow_side` is `true`, the view takes
+  // prev arrow side as the first preferred when recalculating the popup
+  // position (potentially changed due to the change of the content).
+  virtual void OnSuggestionsChanged(bool prefer_prev_arrow_side) = 0;
 
   // Returns true if the autofill popup overlaps with the
   // picture-in-picture window.
@@ -71,7 +80,7 @@ class AutofillPopupView {
   virtual base::WeakPtr<AutofillPopupView> GetWeakPtr() = 0;
 
  protected:
-  virtual ~AutofillPopupView() {}
+  virtual ~AutofillPopupView() = default;
 };
 
 }  // namespace autofill

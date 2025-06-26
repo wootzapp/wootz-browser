@@ -76,10 +76,12 @@ class CORE_EXPORT SpaceSplitString {
   bool IsNull() const { return !data_; }
   const AtomicString& operator[](wtf_size_t i) const { return (*data_)[i]; }
   Vector<AtomicString, 4>::const_iterator begin() const {
-    return data_ ? data_->begin() : nullptr;
+    return data_ ? data_->begin()
+                 : Vector<AtomicString, 4>::const_iterator(nullptr);
   }
   Vector<AtomicString, 4>::const_iterator end() const {
-    return data_ ? data_->end() : nullptr;
+    return data_ ? data_->end()
+                 : Vector<AtomicString, 4>::const_iterator(nullptr);
   }
 
   void Trace(Visitor* visitor) const { visitor->Trace(data_); }
@@ -128,8 +130,7 @@ class CORE_EXPORT SpaceSplitString {
     void CreateVector(const AtomicString&);
     template <typename CharacterType>
     inline void CreateVector(const AtomicString&,
-                             const CharacterType*,
-                             unsigned);
+                             base::span<const CharacterType>);
 
     bool might_be_shared_;
     Vector<AtomicString, 4> vector_;

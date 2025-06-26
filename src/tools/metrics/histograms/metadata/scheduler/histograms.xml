@@ -33,23 +33,19 @@ chromium-metrics-reviews@google.com.
   <variant name="Other"/>
 </variants>
 
-<histogram name="Scheduling.BeginImplFrameLatency2" units="microseconds"
-    expires_after="M85">
-  <owner>stanisc@chromium.org</owner>
+<histogram name="MessagePumpEpoll.WatchedFileDescriptors"
+    units="FileDescriptors" expires_after="2025-10-05">
+  <owner>mthiesse@chromium.org</owner>
+  <owner>lizeb@chromium.org</owner>
   <summary>
-    The time from v-sync to when the main side actually starts the
-    BeginImplFrame.
-
-    Warning: This metric may include reports from clients with low-resolution
-    clocks (i.e. on Windows, ref. |TimeTicks::IsHighResolution()|). Such reports
-    will cause this metric to have an abnormal distribution. When considering
-    revising this histogram, see UMA_HISTOGRAM_CUSTOM_MICROSECONDS_TIMES for the
-    solution.
+    The number of file descriptors in the watch list for the epoll message pump.
+    Sampled periodically every minute for each thread with an epoll message
+    pump.
   </summary>
 </histogram>
 
 <histogram name="Scheduling.DBusSchedQoS.PidReusedOnSetProcessState"
-    enum="PidReuseResult" expires_after="2024-09-12">
+    enum="PidReuseResult" expires_after="2025-08-24">
   <owner>kawasin@google.com</owner>
   <owner>joelaf@google.com</owner>
   <summary>
@@ -63,7 +59,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Scheduling.DBusSchedQoS.PidReusedOnSetThreadState"
-    enum="PidReuseResult" expires_after="2024-09-12">
+    enum="PidReuseResult" expires_after="2025-08-24">
   <owner>kawasin@google.com</owner>
   <owner>joelaf@google.com</owner>
   <summary>
@@ -76,8 +72,20 @@ chromium-metrics-reviews@google.com.
   </summary>
 </histogram>
 
+<histogram name="Scheduling.DBusSchedQoS.ServiceConnectionSuccess"
+    enum="Boolean" expires_after="2025-06-22">
+  <owner>kawasin@google.com</owner>
+  <owner>joelaf@google.com</owner>
+  <summary>
+    Records whether ResourcedClient::WaitForServiceToBeAvailable() succeeds or
+    not. It fails only when ObjectProxy::ConnectToNameOwnerChangedSignal() fails
+    which we expect to fail very rarely. This is emitted every time the callback
+    of ResourcedClient::WaitForServiceToBeAvailable() runs.
+  </summary>
+</histogram>
+
 <histogram name="Scheduling.DBusSchedQoS.SetProcessStateLatency"
-    units="microseconds" expires_after="2024-09-12">
+    units="microseconds" expires_after="2025-08-24">
   <owner>kawasin@google.com</owner>
   <owner>joelaf@google.com</owner>
   <summary>
@@ -88,7 +96,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Scheduling.DBusSchedQoS.SetThreadStateLatency"
-    units="microseconds" expires_after="2024-09-12">
+    units="microseconds" expires_after="2025-08-24">
   <owner>kawasin@google.com</owner>
   <owner>joelaf@google.com</owner>
   <summary>
@@ -99,7 +107,7 @@ chromium-metrics-reviews@google.com.
 </histogram>
 
 <histogram name="Scheduling.MessagePumpTimeKeeper.{NamedThread}"
-    enum="MessagePumpPhases" expires_after="2024-10-06">
+    enum="MessagePumpPhases" expires_after="2025-10-19">
   <owner>gab@chromium.org</owner>
   <owner>fdoray@chromium.org</owner>
   <owner>spvw@chromium.org</owner>
@@ -135,6 +143,26 @@ chromium-metrics-reviews@google.com.
   </summary>
 </histogram>
 
+<histogram name="Scheduling.SchedQoS.SetProcessStateError" enum="QoSErrorType"
+    expires_after="2025-09-07">
+  <owner>kawasin@google.com</owner>
+  <owner>joelaf@google.com</owner>
+  <summary>
+    The error types from schedqos feature in resourced. This is recorded each
+    time the SetProcessState DBus request fails. The request rarely fails.
+  </summary>
+</histogram>
+
+<histogram name="Scheduling.SchedQoS.SetThreadStateError" enum="QoSErrorType"
+    expires_after="2025-09-07">
+  <owner>kawasin@google.com</owner>
+  <owner>joelaf@google.com</owner>
+  <summary>
+    The error types from schedqos feature in resourced. This is recorded each
+    time the SetThreadState DBus request fails. The request rarely fails.
+  </summary>
+</histogram>
+
 <histogram
     name="Scheduling.ThreadController.ActiveIntervalDuration.Short.{NamedThread}"
     units="microseconds" expires_after="2025-01-26">
@@ -154,7 +182,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Scheduling.ThreadController.ActiveIntervalDuration.{Length}.{NamedThread}"
-    units="ms" expires_after="2025-01-26">
+    units="ms" expires_after="2025-10-12">
   <owner>olivierli@google.com</owner>
   <owner>etienneb@google.com</owner>
   <summary>
@@ -185,7 +213,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Scheduling.ThreadController.ActiveIntervalOffCpuDuration.{Length}.{NamedThread}"
-    units="ms" expires_after="2025-01-26">
+    units="ms" expires_after="2025-10-12">
   <owner>olivierli@google.com</owner>
   <owner>etienneb@google.com</owner>
   <summary>
@@ -199,7 +227,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Scheduling.ThreadController.ActiveIntervalOnCpuDuration.Short.{NamedThread}"
-    units="microseconds" expires_after="2025-01-26">
+    units="microseconds" expires_after="2025-03-30">
   <owner>olivierli@google.com</owner>
   <owner>etienneb@google.com</owner>
   <summary>
@@ -216,7 +244,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Scheduling.ThreadController.ActiveIntervalOnCpuDuration.{Length}.{NamedThread}"
-    units="ms" expires_after="2025-01-26">
+    units="ms" expires_after="2025-10-12">
   <owner>olivierli@google.com</owner>
   <owner>etienneb@google.com</owner>
   <summary>
@@ -230,7 +258,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Scheduling.ThreadController.ActiveIntervalOnCpuPercentage.Short.{NamedThread}"
-    units="%" expires_after="2025-01-26">
+    units="%" expires_after="2025-08-10">
   <owner>olivierli@google.com</owner>
   <owner>etienneb@google.com</owner>
   <summary>
@@ -243,7 +271,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Scheduling.ThreadController.ActiveIntervalOnCpuPercentage.{Length}.{NamedThread}"
-    units="%" expires_after="2025-01-26">
+    units="%" expires_after="2025-10-12">
   <owner>olivierli@google.com</owner>
   <owner>etienneb@google.com</owner>
   <summary>
@@ -257,7 +285,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Scheduling.ThreadController.ActiveOffCpuVsWallTimePercentage.CrGpuMain"
-    units="%" expires_after="2025-05-07">
+    units="%" expires_after="2026-05-07">
   <owner>henrika@google.com</owner>
   <owner>handellm@google.com</owner>
   <summary>
@@ -278,7 +306,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Scheduling.ThreadController.ActiveOnCpuVsWallTimePercentage.CrGpuMain"
-    units="%" expires_after="2025-05-07">
+    units="%" expires_after="2026-05-07">
   <owner>henrika@google.com</owner>
   <owner>handellm@google.com</owner>
   <summary>
@@ -299,7 +327,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Scheduling.ThreadController.ActiveVsWallTimePercentage.CrGpuMain"
-    units="%" expires_after="2025-05-07">
+    units="%" expires_after="2026-05-07">
   <owner>henrika@google.com</owner>
   <owner>handellm@google.com</owner>
   <summary>
@@ -334,7 +362,7 @@ chromium-metrics-reviews@google.com.
 
 <histogram
     name="Scheduling.ThreadController.IdleDuration.{Length}.{NamedThread}"
-    units="ms" expires_after="2025-01-26">
+    units="ms" expires_after="2025-10-12">
   <owner>olivierli@google.com</owner>
   <owner>etienneb@google.com</owner>
   <summary>
@@ -346,28 +374,52 @@ chromium-metrics-reviews@google.com.
   <token key="NamedThread" variants="NamedThread"/>
 </histogram>
 
-<histogram base="true" name="ThreadPool.NumTasksBeforeDetach" units="tasks"
-    expires_after="M85">
-  <owner>fdoray@chromium.org</owner>
-  <owner>gab@chromium.org</owner>
-  <owner>robliao@chromium.org</owner>
+<histogram
+    name="Scheduling.{CompositorTimingHistoryProcess}BeginImplFrameLatency2"
+    units="microseconds" expires_after="M85">
+  <owner>stanisc@chromium.org</owner>
   <summary>
-    Number of tasks executed by a SchedulerWorker before it detached. Recorded
-    when a SchedulerWorker detaches.
+    The time from v-sync to when the main side actually starts the
+    BeginImplFrame.
+
+    Warning: This metric may include reports from clients with low-resolution
+    clocks (i.e. on Windows, ref. |TimeTicks::IsHighResolution()|). Such reports
+    will cause this metric to have an abnormal distribution. When considering
+    revising this histogram, see UMA_HISTOGRAM_CUSTOM_MICROSECONDS_TIMES for the
+    solution. {CompositorTimingHistoryProcess}
   </summary>
+  <token key="CompositorTimingHistoryProcess">
+    <variant name=""/>
+    <variant name="Browser." summary=""/>
+    <variant name="Renderer." summary=""/>
+  </token>
 </histogram>
 
-<histogram base="true" name="ThreadPool.UnnecessaryWakeup" enum="BooleanHit"
-    expires_after="2024-11-03">
+<histogram name="ThreadPool.UnnecessaryWakeup.{ThreadPoolName}.{WorkerGroup}"
+    enum="BooleanHit" expires_after="2025-10-12">
   <owner>spvw@chromium.org</owner>
   <owner>gab@chromium.org</owner>
   <summary>
     Records a hit when a thread pool worker thread woke up unnecessarily (when
     the first GetWork called by a WorkerThread post-wakeup doesn't return a
     task). This count can be compared between experiments aiming to reduce
-    wakeups. Or, it could be used to derive wakeups/{foo} by using UMA formulas
-    against other time-or-event-based metrics.
+    wakeups. Or, it could be used to derive wakeups/(foo) by using UMA formulas
+    against other time-or-event-based metrics. {ThreadPoolName} {WorkerGroup}
   </summary>
+  <token key="ThreadPoolName">
+    <variant name="Browser" summary="ThreadPool for the browser process."/>
+    <variant name="ContentChild"
+        summary="ThreadPools for various instantiations of
+                 content::ChildProcess."/>
+    <variant name="GPU" summary="ThreadPool for the gpu process."/>
+    <variant name="Renderer" summary="ThreadPools for renderer processes."/>
+  </token>
+  <token key="WorkerGroup">
+    <variant name="Background"
+        summary="Applies to the Background priority worker group."/>
+    <variant name="Foreground"
+        summary="Applies to the Foreground priority worker group."/>
+  </token>
 </histogram>
 
 </histograms>

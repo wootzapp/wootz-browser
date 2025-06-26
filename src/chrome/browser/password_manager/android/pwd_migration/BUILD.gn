@@ -9,11 +9,13 @@ android_library("java") {
     ":java_resources",
     "//base:base_java",
     "//base/version_info/android:version_constants_java",
+    "//chrome/browser/flags:java",
     "//chrome/browser/password_manager/android:java",
     "//chrome/browser/password_manager/android:java_resources",
     "//chrome/browser/password_manager/android:password_manager_resource_provider_java",
     "//chrome/browser/preferences:java",
     "//chrome/browser/profiles/android:java",
+    "//chrome/browser/settings:factory_java",
     "//chrome/browser/signin/services/android:java",
     "//chrome/browser/sync/android:java",
     "//chrome/browser/ui/android/signin:java",
@@ -34,20 +36,13 @@ android_library("java") {
     "//third_party/jni_zero:jni_zero_java",
     "//ui/android:ui_java",
   ]
+  srcjar_deps = [
+    "//chrome/browser/password_manager/android/buildflags:buildflags_srcjar",
+  ]
 
   sources = [
     "java/src/org/chromium/chrome/browser/pwd_migration/ExportDeletionDialogFragment.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/ExportFlowInterface.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/NonCancelableProgressBar.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningCoordinator.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningIntroFragment.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningMediator.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningOnClickHandler.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningOptionsFragment.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningProperties.java",
     "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningUtil.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningView.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningViewBinder.java",
     "java/src/org/chromium/chrome/browser/pwd_migration/PostPasswordMigrationSheetCoordinator.java",
     "java/src/org/chromium/chrome/browser/pwd_migration/PostPasswordMigrationSheetCoordinatorFactory.java",
     "java/src/org/chromium/chrome/browser/pwd_migration/PostPasswordMigrationSheetMediator.java",
@@ -64,7 +59,6 @@ robolectric_library("junit") {
   testonly = true
 
   sources = [
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningMediatorTest.java",
     "java/src/org/chromium/chrome/browser/pwd_migration/PostPasswordMigrationSheetCoordinatorFactoryTest.java",
     "java/src/org/chromium/chrome/browser/pwd_migration/PostPasswordMigrationSheetMediatorTest.java",
     "java/src/org/chromium/chrome/browser/pwd_migration/PostPasswordMigrationSheetModuleTest.java",
@@ -101,6 +95,9 @@ robolectric_library("junit") {
     "//third_party/mockito:mockito_java",
     "//ui/android:ui_java",
   ]
+  srcjar_deps = [
+    "//chrome/browser/password_manager/android/buildflags:buildflags_srcjar",
+  ]
 }
 
 android_library("javatests") {
@@ -110,8 +107,6 @@ android_library("javatests") {
   # Consult izuzic@ before adding more tests to this target.
   # This target will exist only temporary.
   sources = [
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningRenderTest.java",
-    "java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningViewTest.java",
     "java/src/org/chromium/chrome/browser/pwd_migration/PostPasswordMigrationSheetRenderTest.java",
     "java/src/org/chromium/chrome/browser/pwd_migration/PostPasswordMigrationSheetViewTest.java",
   ]
@@ -124,6 +119,7 @@ android_library("javatests") {
     "//chrome/android:chrome_java",
     "//chrome/browser/flags:java",
     "//chrome/browser/password_manager/android:java",
+    "//chrome/browser/password_manager/android:java_resources",
     "//chrome/browser/profiles/android:java",
     "//chrome/browser/signin/services/android:java",
     "//chrome/browser/ui/android/night_mode:night_mode_java_test_support",
@@ -155,9 +151,6 @@ android_resources("java_resources") {
   ]
   sources = [
     "java/res/layout/post_pwd_migration_sheet.xml",
-    "java/res/layout/pwd_migration_warning.xml",
-    "java/res/layout/pwd_migration_warning_intro_fragment.xml",
-    "java/res/layout/pwd_migration_warning_options.xml",
     "java/res/values/dimens.xml",
   ]
 }

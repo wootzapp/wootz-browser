@@ -13,28 +13,32 @@
 
 #include "android_webview/browser/aw_contents_io_thread_client.h"
 #include "android_webview/browser/aw_contents_origin_matcher.h"
+#include "android_webview/browser/aw_context_permissions_delegate.h"
 #include "android_webview/browser/aw_permission_manager.h"
 #include "android_webview/browser/aw_ssl_host_state_delegate.h"
+#include "android_webview/browser/file_system_access/aw_file_system_access_permission_context.h"
 #include "android_webview/browser/network_service/aw_proxy_config_monitor.h"
+#include "android_webview/browser/prefetch/aw_prefetch_manager.h"
 #include "base/android/jni_weak_ref.h"
+#include "base/android/scoped_java_ref.h"
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
 #include "base/lazy_instance.h"
 #include "base/memory/ref_counted.h"
+#include "base/memory/weak_ptr.h"
 #include "components/keyed_service/core/simple_factory_key.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/visitedlink/browser/visitedlink_delegate.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/zoom_level_delegate.h"
+#include "net/http/http_request_headers.h"
 #include "services/cert_verifier/public/mojom/cert_verifier_service_factory.mojom-forward.h"
+#include "services/network/public/mojom/url_loader.mojom.h"
+#include "third_party/blink/public/mojom/permissions/permission_status.mojom-shared.h"
 
 class GURL;
 class PrefService;
-
-namespace autofill {
-class AutocompleteHistoryManager;
-}
 
 namespace content {
 class ClientHintsControllerDelegate;
@@ -58,9 +62,13 @@ class AwFormDatabaseService;
 class AwQuotaManagerBridge;
 class CookieManager;
 
+// The maximum number of prerendering allowed for this BrowserContext.
+inline constexpr int MAX_ALLOWED_PRERENDERING_COUNT = 3;
+
 // Lifetime: Profile
 class AwBrowserContext : public content::BrowserContext,
-                         public visitedlink::VisitedLinkDelegate {
+                         public visitedlink::VisitedLinkDelegate,
+                         public AwContextPermissionsDelegate {
  public:
   explicit AwBrowserContext(std::string name,
                             base::FilePath relative_path,
@@ -112,6 +120,9 @@ class AwBrowserContext : public content::BrowserContext,
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& io_thread_client);
 
+  int AllowedPrerenderingCount() const;
+  void SetAllowedPrerenderingCount(JNIEnv* const env, int allowed_count);
+
   // content::BrowserContext implementation.
   base::FilePath GetPath() override;
   bool IsOffTheRecord() override;
@@ -130,6 +141,8 @@ class AwBrowserContext : public content::BrowserContext,
   content::BackgroundSyncController* GetBackgroundSyncController() override;
   content::BrowsingDataRemoverDelegate* GetBrowsingDataRemoverDelegate()
       override;
+  content::FileSystemAccessPermissionContext*
+  GetFileSystemAccessPermissionContext() override;
   content::ReduceAcceptLanguageControllerDelegate*
   GetReduceAcceptLanguageControllerDelegate() override;
   std::unique_ptr<download::InProgressDownloadManager>
@@ -138,11 +151,23 @@ class AwBrowserContext : public content::BrowserContext,
       override;
   std::unique_ptr<content::ZoomLevelDelegate> CreateZoomLevelDelegate(
       const base::FilePath& partition_path) override;
+  std::string GetExtraHeadersForUrl(const GURL& url) override;
 
   // visitedlink::VisitedLinkDelegate implementation.
   void RebuildTable(const scoped_refptr<URLEnumerator>& enumerator) override;
   void BuildVisitedLinkTable(
       const scoped_refptr<VisitedLinkEnumerator>& enumerator) override;
+
+  // android_webview::AwContextPermissionsDelegate implementation.
+  blink::mojom::PermissionStatus GetGeolocationPermission(
+      const GURL& origin) const override;
+
+  // Returns the default "Accept Language" header before WebView has access
+  // to the user preferred locale.
+  std::string GetDefaultAcceptLanguageHeader();
+
+  mojo::PendingRemote<network::mojom::URLLoaderFactory>
+  CreateURLLoaderFactory();
 
   PrefService* GetPrefService() const { return user_pref_service_.get(); }
 
@@ -159,13 +184,9 @@ class AwBrowserContext : public content::BrowserContext,
 
   void ClearPersistentOriginTrialStorageForTesting(JNIEnv* env);
 
-  jboolean HasFormData(JNIEnv* env);
-  void ClearFormData(JNIEnv* env);
-
   scoped_refptr<AwContentsOriginMatcher> service_worker_xrw_allowlist_matcher();
 
   void SetExtraHeaders(const GURL& url, const std::string& headers);
-  std::string GetExtraHeaders(const GURL& url);
 
  private:
   friend class AwBrowserContextIoThreadHandle;
@@ -187,9 +208,11 @@ class AwBrowserContext : public content::BrowserContext,
   base::FilePath http_cache_path_;
 
   scoped_refptr<AwQuotaManagerBridge> quota_manager_bridge_;
+
+  // Cleans up the database tables created by the AwFormDatabaseService
+  // until M132.
+  // TODO(crbug.com/390473673): Remove after M143.
   std::unique_ptr<AwFormDatabaseService> form_database_service_;
-  std::unique_ptr<autofill::AutocompleteHistoryManager>
-      autocomplete_history_manager_;
 
   std::unique_ptr<visitedlink::VisitedLinkWriter> visitedlink_writer_;
 
@@ -201,6 +224,7 @@ class AwBrowserContext : public content::BrowserContext,
   std::unique_ptr<content::OriginTrialsControllerDelegate>
       origin_trials_controller_delegate_;
 
+  AwFileSystemAccessPermissionContext fsa_permission_context_;
   SimpleFactoryKey simple_factory_key_;
 
   scoped_refptr<AwContentsOriginMatcher> service_worker_xrw_allowlist_matcher_;
@@ -218,8 +242,21 @@ class AwBrowserContext : public content::BrowserContext,
   // In generally, use GetCookieManager() rather than using this directly.
   std::unique_ptr<CookieManager> cookie_manager_;
 
+  std::unique_ptr<AwPrefetchManager> prefetch_manager_;
+
   // The IO thread client that should be used by service workers.
   base::android::ScopedJavaGlobalRef<jobject> sw_io_thread_client_;
+
+  // The maximum number of concurrent prerendering attempts that can be
+  // triggered by AwContents::StartPrerendering().
+  int allowed_prerendering_count_ = 2;
+
+  // Enables usage of net::StaleHostResolver. This will not be applied to any
+  // in-flight requests, only applied to the requests made afterwards. It should
+  // be enabled before making any requests.
+  bool enable_stale_dns_ = false;
+
+  base::WeakPtrFactory<AwBrowserContext> weak_method_factory_{this};
 };
 
 }  // namespace android_webview

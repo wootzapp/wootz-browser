@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 
+#include "base/component_export.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_native_library.h"
 #include "base/types/pass_key.h"
@@ -15,16 +16,14 @@
 
 namespace ml {
 
-// A ChromeML object encapsulates a reference to the ChromeML library, exposing
-// the library's API functions to callers and ensuring that the library remains
-// loaded and usable throughout the object's lifetime.
-class ChromeML {
+class COMPONENT_EXPORT(ON_DEVICE_MODEL_ML) ChromeML {
  public:
-  // Use Get() to acquire a global instance.
-  ChromeML(base::PassKey<ChromeML>,
-           base::ScopedNativeLibrary library,
-           const ChromeMLAPI* api);
+  explicit ChromeML(const ChromeMLAPI* api);
   ~ChromeML();
+  ChromeML(const ChromeML& other) = delete;
+  ChromeML& operator=(const ChromeML& other) = delete;
+  ChromeML(ChromeML&& other) = delete;
+  ChromeML& operator=(ChromeML&& other) = delete;
 
   // Gets a lazily initialized global instance of ChromeML. May return null
   // if the underlying library could not be loaded.
@@ -34,21 +33,15 @@ class ChromeML {
   // Exposes the raw ChromeMLAPI functions defined by the library.
   const ChromeMLAPI& api() const { return *api_; }
 
-  // Whether or not the GPU is blocklisted.
-  bool IsGpuBlocked() const;
-
-  void SetAllowGpuForTesting(bool allow_gpu) {
-    allow_gpu_for_testing_ = allow_gpu;
-  }
-
  private:
   static std::unique_ptr<ChromeML> Create(
       const std::optional<std::string>& library_name);
 
-  const base::ScopedNativeLibrary library_;
-  const raw_ptr<const ChromeMLAPI> api_;
-  bool allow_gpu_for_testing_ = false;
+  raw_ptr<const ChromeMLAPI> api_;
 };
+
+COMPONENT_EXPORT(ON_DEVICE_MODEL_ML)
+const ChromeMLConstraintFns* GetConstraintFns();
 
 }  // namespace ml
 

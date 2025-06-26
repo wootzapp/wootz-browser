@@ -10,7 +10,6 @@
 #include "base/test/bind.h"
 #include "base/test/test_future.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -107,7 +106,7 @@ IN_PROC_BROWSER_TEST_F(WebAppUninstallDialogViewBrowserTest,
 
   EXPECT_TRUE(test_future.Wait());
   EXPECT_EQ(test_future.Get<webapps::UninstallResultCode>(),
-            webapps::UninstallResultCode::kSuccess);
+            webapps::UninstallResultCode::kAppRemoved);
 }
 
 IN_PROC_BROWSER_TEST_F(WebAppUninstallDialogViewBrowserTest,
@@ -139,5 +138,5 @@ IN_PROC_BROWSER_TEST_F(WebAppUninstallDialogViewBrowserTest,
 
   EXPECT_TRUE(test_future.Wait());
   EXPECT_EQ(test_future.Get<webapps::UninstallResultCode>(),
-            webapps::UninstallResultCode::kSuccess);
+            webapps::UninstallResultCode::kAppRemoved);
 }

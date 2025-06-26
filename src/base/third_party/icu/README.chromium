@@ -1,8 +1,9 @@
 Name: ICU
 URL: http://site.icu-project.org/
 Version: 60
-License: Unicode
+License: Unicode-DFS-2016, ICU
 License File: LICENSE
+Security Critical: yes
 Shipped: no
 
 This file has the relevant components from ICU copied to handle basic UTF8/16/32

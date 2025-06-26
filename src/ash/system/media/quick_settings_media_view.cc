@@ -156,7 +156,7 @@ void QuickSettingsMediaView::OnGestureEvent(ui::GestureEvent* event) {
   // between media items.
   if (pagination_controller_->OnGestureEvent(*event, GetContentsBounds())) {
     event->SetHandled();
-  } else if (event->type() == ui::ET_GESTURE_TAP) {
+  } else if (event->type() == ui::EventType::kGestureTap) {
     // A tap gesture is handled in the same way as a mouse click event. The
     // controller does not need to know the item id for now so we do not need to
     // record it.
@@ -201,20 +201,19 @@ void QuickSettingsMediaView::UpdateItemOrder(std::list<std::string> ids) {
     return;
   }
 
-  // Remove all the media views for re-ordering.
-  std::map<const std::string,
-           std::unique_ptr<global_media_controls::MediaItemUIView>>
-      media_items;
-  for (auto& item : items_) {
-    media_items[item.first] =
-        media_scroll_view_->contents()->RemoveChildViewT(item.second);
-  }
+  // Note that `items_` might contain entries that are not listed in `ids`.  For
+  // example, frozen entries are likely not included.  We should pretend that
+  // all items not in `ids` are at the end of the list in arbitrary order.
 
-  // Add back the media views given the new order.
+  // Remove each item that's in `ids`, and add it to the appropriate position in
+  // the container.
+  size_t position = 0;
   for (auto& id : ids) {
-    DCHECK(base::Contains(media_items, id));
-    items_[id] = media_scroll_view_->contents()->AddChildView(
-        std::move(media_items[id]));
+    auto item = items_.find(id);
+    CHECK(item != items_.end());
+    auto view = media_scroll_view_->contents()->RemoveChildViewT(item->second);
+    item->second = media_scroll_view_->contents()->AddChildViewAt(
+        std::move(view), position++);
   }
 }
 
@@ -222,6 +221,10 @@ int QuickSettingsMediaView::GetMediaViewHeight() const {
   return (items_.size() > 1)
              ? kMultipleMediaViewHeight
              : global_media_controls::kCrOSMediaItemUpdatedUISize.height();
+}
+
+base::WeakPtr<QuickSettingsMediaView> QuickSettingsMediaView::AsWeakPtr() {
+  return weak_factory_.GetWeakPtr();
 }
 
 BEGIN_METADATA(QuickSettingsMediaView)

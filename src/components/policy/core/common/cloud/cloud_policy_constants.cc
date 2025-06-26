@@ -8,7 +8,6 @@
 
 #include "base/command_line.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/policy/core/common/policy_switches.h"
 
 namespace policy {
@@ -38,6 +37,7 @@ const char kOAuthTokenHeaderPrefix[] = "OAuth";
 const char kOidcAuthHeaderPrefix[] = "GoogleDM3PAuth";
 const char kOidcAuthTokenHeaderPrefix[] = " oauth_token=";
 const char kOidcIdTokenHeaderPrefix[] = " id_token=";
+const char kOidcEncryptedUserInfoPrefix[] = " encrypted_user_information=";
 
 // String constants for the device and app type we report to the server.
 const char kValueAppType[] = "Chrome";
@@ -69,6 +69,7 @@ const char kValueRequestActiveDirectoryPlayActivity[] =
     "active_directory_play_activity";
 const char kValueRequestAppInstallReport[] = "app_install_report";
 const char kValueRequestRegisterBrowser[] = "register_browser";
+const char kValueRequestRegisterPolicyAgent[] = "register_policy_agent";
 const char kValueRequestChromeDesktopReport[] = "chrome_desktop_report";
 const char kValueRequestChromeOsUserReport[] = "chrome_os_user_report";
 const char kValueRequestInitialEnrollmentStateRetrieval[] =
@@ -78,9 +79,13 @@ const char kValueRequestUploadPolicyValidationReport[] =
 const char kValueRequestPublicSamlUser[] = "public_saml_user_request";
 const char kValueRequestCertProvisioningRequest[] = "client_cert_provisioning";
 const char kValueRequestChromeProfileReport[] = "chrome_profile_report";
+const char kValueRequestFmRegistrationTokenUpload[] =
+    "fm_registration_token_upload";
+const char kValueRequestDeterminePromotionEligibility[] =
+    "promotion_eligibility";
 
 const char kChromeDevicePolicyType[] = "google/chromeos/device";
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 const char kChromeUserPolicyType[] = "google/chromeos/user";
 #elif BUILDFLAG(IS_ANDROID)
 const char kChromeUserPolicyType[] = "google/android/user";
@@ -105,6 +110,18 @@ const char kChromeMachineLevelUserCloudPolicyType[] =
 const char kChromeMachineLevelExtensionCloudPolicyType[] =
     "google/chrome/machine-level-extension";
 const char kChromeRemoteCommandPolicyType[] = "google/chromeos/remotecommand";
+
+// A policy type which is expanded to google/machine-level-omaha,
+// google/chrome/machine-level-user, and google/chrome/machine-level-extension
+// on the server side. This type is used by policy agents (i.e. GoogleUpdater
+// and Chrome Enterprise Companion App) on Linux, Mac, and Windows.
+// TODO(b/361632880): Consider removing this if google/machine-level-omaha can
+// be requested directly.
+const char kGoogleUpdateMachineLevelAppsPolicyType[] =
+    "google/machine-level-apps";
+
+const char kGoogleUpdateMachineLevelOmahaPolicyType[] =
+    "google/machine-level-omaha";
 
 const char kChromeAshUserRemoteCommandType[] = "google/ash/user/remotecommand";
 const char kChromeDeviceRemoteCommandType[] = "google/ash/device/remotecommand";
@@ -157,7 +174,5 @@ std::string GetPolicyVerificationKey() {
 // can load it one last time. However, it really depends on the reason of the
 // rotation. From a different angle, if a key is no longer trusted, so should
 // anything bound to it.
-
-const char kPolicyFCMInvalidationSenderID[] = "1013309121859";
 
 }  // namespace policy

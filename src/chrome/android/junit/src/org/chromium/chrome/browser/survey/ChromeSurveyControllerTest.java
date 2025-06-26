@@ -16,7 +16,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -26,7 +25,6 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.preferences.Pref;
@@ -43,11 +41,9 @@ import org.chromium.components.user_prefs.UserPrefsJni;
 /** Unit tests for {@link ChromeSurveyController} and {@link SurveyThrottler}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@Features.EnableFeatures(ChromeFeatureList.ANDROID_HATS_REFACTOR)
+@Features.EnableFeatures(ChromeFeatureList.CHROME_SURVEY_NEXT_ANDROID)
 public class ChromeSurveyControllerTest {
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
-    @Rule public JniMocker mJniMocker = new JniMocker();
 
     @Mock UserPrefs.Natives mUserPrefsJniMock;
     @Mock PrefService mPrefServiceMock;
@@ -59,9 +55,10 @@ public class ChromeSurveyControllerTest {
 
     @Before
     public void before() {
+        ChromeSurveyController.setEnableForTesting();
         doReturn(Mockito.mock(Resources.class)).when(mActivity).getResources();
         ProfileManager.setLastUsedProfileForTesting(mProfile);
-        mJniMocker.mock(UserPrefsJni.TEST_HOOKS, mUserPrefsJniMock);
+        UserPrefsJni.setInstanceForTesting(mUserPrefsJniMock);
         when(mUserPrefsJniMock.get(mProfile)).thenReturn(mPrefServiceMock);
         when(mPrefServiceMock.getBoolean(Pref.FEEDBACK_SURVEYS_ENABLED)).thenReturn(true);
         SurveyClientFactory.initialize(null);
@@ -81,7 +78,7 @@ public class ChromeSurveyControllerTest {
     }
 
     @Test
-    @Features.DisableFeatures(ChromeFeatureList.ANDROID_HATS_REFACTOR)
+    @Features.DisableFeatures(ChromeFeatureList.CHROME_SURVEY_NEXT_ANDROID)
     public void doNotInitializationWhenFeatureDisabled() {
         setTestSurveyConfigForTrigger("startup_survey", new String[0], new String[0]);
         ChromeSurveyController controller =

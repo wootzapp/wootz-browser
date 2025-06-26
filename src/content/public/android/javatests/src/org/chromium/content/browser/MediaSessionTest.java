@@ -19,6 +19,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.BuildInfo;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -29,7 +30,6 @@ import org.chromium.content_public.browser.MediaSession;
 import org.chromium.content_public.browser.MediaSessionObserver;
 import org.chromium.content_public.browser.test.ContentJUnit4ClassRunner;
 import org.chromium.content_public.browser.test.util.DOMUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_shell_apk.ContentShellActivityTestRule;
 import org.chromium.media.MediaSwitches;
 
@@ -134,11 +134,11 @@ public class MediaSessionTest {
         try {
             mActivityTestRule.launchContentShellWithUrlSync(MEDIA_SESSION_TEST_URL);
         } catch (Throwable t) {
-            Assert.fail("Couldn't load test page");
+            throw new AssertionError("Couldn't load test page", t);
         }
 
         mAudioFocusChangeListener = new MockAudioFocusChangeListener();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mObserver =
                             new MediaSessionObserver(

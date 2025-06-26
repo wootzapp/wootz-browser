@@ -26,8 +26,7 @@
 #ifndef THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGL_WEBGL_FRAMEBUFFER_H_
 #define THIRD_PARTY_BLINK_RENDERER_MODULES_WEBGL_WEBGL_FRAMEBUFFER_H_
 
-#include "third_party/blink/renderer/modules/webgl/webgl_context_object.h"
-#include "third_party/blink/renderer/modules/webgl/webgl_shared_object.h"
+#include "third_party/blink/renderer/modules/webgl/webgl_object.h"
 #include "third_party/blink/renderer/platform/bindings/name_client.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
@@ -43,7 +42,7 @@ namespace blink {
 class WebGLRenderbuffer;
 class WebGLTexture;
 
-class WebGLFramebuffer final : public WebGLContextObject {
+class WebGLFramebuffer final : public WebGLObject {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -52,8 +51,8 @@ class WebGLFramebuffer final : public WebGLContextObject {
    public:
     ~WebGLAttachment() override = default;
 
-    virtual WebGLSharedObject* Object() const = 0;
-    virtual bool IsSharedObject(WebGLSharedObject*) const = 0;
+    virtual WebGLObject* Object() const = 0;
+    virtual bool IsObject(WebGLObject*) const = 0;
     virtual bool Valid() const = 0;
     virtual void OnDetached(gpu::gles2::GLES2Interface*) = 0;
     virtual void Attach(gpu::gles2::GLES2Interface*,
@@ -79,8 +78,6 @@ class WebGLFramebuffer final : public WebGLContextObject {
                                         bool has_depth,
                                         bool has_stencil);
 
-  GLuint Object() const { return object_; }
-
   // For a non-multiview attachment, set the num_views parameter to 0. For a
   // multiview attachment, set the layer to the base view index.
   void SetAttachmentForBoundFramebuffer(GLenum target,
@@ -94,8 +91,8 @@ class WebGLFramebuffer final : public WebGLContextObject {
                                         GLenum attachment,
                                         WebGLRenderbuffer*);
   // If an object is attached to the currently bound framebuffer, remove it.
-  void RemoveAttachmentFromBoundFramebuffer(GLenum target, WebGLSharedObject*);
-  WebGLSharedObject* GetAttachmentObject(GLenum) const;
+  void RemoveAttachmentFromBoundFramebuffer(GLenum target, WebGLObject*);
+  WebGLObject* GetAttachmentObject(GLenum) const;
 
   // WebGL 1 specific:
   //   1) can't allow depth_stencil for depth/stencil attachments, and vice
@@ -137,7 +134,6 @@ class WebGLFramebuffer final : public WebGLContextObject {
   const char* NameInHeapSnapshot() const override { return "WebGLFramebuffer"; }
 
  protected:
-  bool HasObject() const override { return object_ != 0; }
   void DeleteObjectImpl(gpu::gles2::GLES2Interface*) override;
 
  private:
@@ -164,8 +160,6 @@ class WebGLFramebuffer final : public WebGLContextObject {
   void RemoveAttachmentInternal(GLenum target, GLenum attachment);
 
   void CommitWebGL1DepthStencilIfConsistent(GLenum target);
-
-  GLuint object_;
 
   typedef HeapHashMap<GLenum, Member<WebGLAttachment>> AttachmentMap;
 

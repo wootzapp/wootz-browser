@@ -12,7 +12,9 @@
 #include "components/omnibox/browser/actions/omnibox_pedal.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/suggestion_answer.h"
+#include "components/omnibox/common/omnibox_feature_configs.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/omnibox_proto/rich_answer_template.pb.h"
 #include "url/gurl.h"
 
 namespace {
@@ -82,14 +84,16 @@ TEST(AutocompleteMatchTypeTest, AccessibilityLabelPedal) {
 
 namespace {
 
-bool ParseAnswer(const std::string& answer_json, SuggestionAnswer* answer) {
-  std::optional<base::Value> value = base::JSONReader::Read(answer_json);
-  if (!value || !value->is_dict())
+bool ParseJsonToAnswerData(const std::string& answer_json,
+                           omnibox::RichAnswerTemplate* answer_template) {
+  std::optional<base::Value::Dict> value =
+      base::JSONReader::ReadDict(answer_json);
+  if (!value) {
     return false;
+  }
 
-  // ParseAnswer previously did not change the default answer type of -1, so
-  // here we keep the same behavior by explicitly supplying default value.
-  return SuggestionAnswer::ParseAnswer(value->GetDict(), u"-1", answer);
+  return omnibox::answer_data_parser::ParseJsonToAnswerData(*value,
+                                                            answer_template);
 }
 
 }  // namespace
@@ -99,17 +103,32 @@ TEST(AutocompleteMatchTypeTest, AccessibilityLabelAnswer) {
   const std::u16string& kSearchDesc = u"Google Search";
 
   AutocompleteMatch match;
+  match.answer_type = omnibox::ANSWER_TYPE_WEATHER;
   match.type = AutocompleteMatchType::SEARCH_WHAT_YOU_TYPED;
   match.description = kSearchDesc;
+
+  // No addititional accessibility text found in the answer data.
   std::string answer_json =
       "{ \"l\": ["
       "  { \"il\": { \"t\": [{ \"t\": \"text\", \"tt\": 8 }] } }, "
       "  { \"il\": { \"t\": [{ \"t\": \"sunny with a chance of hail\", \"tt\": "
       "5 }] } }] }";
-  SuggestionAnswer answer;
-  ASSERT_TRUE(ParseAnswer(answer_json, &answer));
-  match.answer = answer;
 
+  omnibox::RichAnswerTemplate answer_template;
+  ASSERT_TRUE(ParseJsonToAnswerData(answer_json, &answer_template));
+  ASSERT_FALSE(answer_template.answers(0).subhead().has_a11y_text());
+  match.answer_template = answer_template;
   EXPECT_EQ(kSearch + u", answer, sunny with a chance of hail, 4 of 6",
+            AutocompleteMatchType::ToAccessibilityLabel(match, kSearch, 3, 6));
+
+  answer_template.Clear();
+  // Accessibility text found in the answer data.
+  omnibox::AnswerData* answer_data = answer_template.add_answers();
+  answer_data->mutable_headline()->set_text("headline");
+  answer_data->mutable_subhead()->set_text("subhead");
+  answer_data->mutable_subhead()->set_a11y_text("accessibility text");
+  match.answer_template = answer_template;
+
+  EXPECT_EQ(kSearch + u", answer, accessibility text, 4 of 6",
             AutocompleteMatchType::ToAccessibilityLabel(match, kSearch, 3, 6));
 }

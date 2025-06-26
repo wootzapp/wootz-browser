@@ -21,9 +21,6 @@ suite('GooglePhotosZeroStateElementTest', function() {
         null,
         googlePhotosZeroStateElement.shadowRoot!.getElementById('message'),
         'no message shown');
-    assertEquals(
-        null, googlePhotosZeroStateElement.shadowRoot!.querySelector('img'),
-        'no image shown');
   });
 
   test('displays correct message for albums and photos tab', async () => {
@@ -41,7 +38,8 @@ suite('GooglePhotosZeroStateElementTest', function() {
       // `localizedLink.localizedString` typescript type is string but is
       // actually TrustedHTML.
       assertTrue(
-          (localizedLink.localizedString as unknown) instanceof TrustedHTML,
+          (localizedLink.localizedString as unknown) instanceof
+              window.TrustedHTML,
           'localizedLink has message set as TrustedHTML');
       assertEquals(
           'No image available. To add photos, go to ' +
@@ -49,10 +47,6 @@ suite('GooglePhotosZeroStateElementTest', function() {
               'photos.google.com</a>',
           localizedLink.localizedString.toString(),
           'localized link message matches');
-
-      assertTrue(
-          !!googlePhotosZeroStateElement.shadowRoot!.querySelector('img'),
-          'img is shown');
     }
   });
 
@@ -70,7 +64,8 @@ suite('GooglePhotosZeroStateElementTest', function() {
     // `localizedLink.localizedString` typescript type is string but is
     // actually TrustedHTML.
     assertTrue(
-        (localizedLink.localizedString as unknown) instanceof TrustedHTML,
+        (localizedLink.localizedString as unknown) instanceof
+            window.TrustedHTML,
         'localizedLink has message set as TrustedHTML');
 
     assertEquals(
@@ -80,9 +75,5 @@ suite('GooglePhotosZeroStateElementTest', function() {
             'photos.google.com</a>',
         localizedLink.localizedString.toString(),
         'inner text matches on photos_by_album_id tab');
-
-    assertTrue(
-        !!googlePhotosZeroStateElement.shadowRoot!.querySelector('img'),
-        'img is shown');
   });
 });

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -19,7 +24,6 @@
 #include "base/test/test_file_util.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/download/public/common/download_path_reservation_tracker.h"
 #include "components/download/public/common/mock_download_item.h"
 #include "net/base/filename_util.h"
@@ -620,7 +624,7 @@ TEST_F(DownloadPathReservationTrackerTest, UpdatesToTargetPath) {
 
 // Tests for long name truncation. On other platforms automatic truncation
 // is not performed (yet).
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_CHROMEOS)
 
 TEST_F(DownloadPathReservationTrackerTest, BasicTruncation) {
   int real_max_length =

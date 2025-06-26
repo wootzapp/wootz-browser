@@ -10,11 +10,8 @@
 #include <vector>
 
 #include "base/functional/callback_forward.h"
-#include "base/location.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
-#include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/graph/graph_registered.h"
 #include "components/performance_manager/public/resource_attribution/query_results.h"
 #include "components/performance_manager/public/resource_attribution/resource_contexts.h"
@@ -22,6 +19,10 @@
 #include "components/performance_manager/resource_attribution/cpu_measurement_monitor.h"
 #include "components/performance_manager/resource_attribution/memory_measurement_provider.h"
 #include "components/performance_manager/resource_attribution/performance_manager_aliases.h"
+
+namespace performance_manager {
+class Graph;
+}
 
 namespace resource_attribution {
 class ContextCollection;
@@ -34,8 +35,7 @@ class QueryParams;
 // QueryScheduler keeps track of all queries for a particular resource type and
 // owns the machinery that performs measurements.
 class QueryScheduler
-    : public performance_manager::GraphRegisteredImpl<QueryScheduler>,
-      public performance_manager::GraphOwned {
+    : public performance_manager::GraphOwnedAndRegistered<QueryScheduler> {
  public:
   QueryScheduler();
   ~QueryScheduler() override;
@@ -43,13 +43,12 @@ class QueryScheduler
   QueryScheduler(const QueryScheduler&) = delete;
   QueryScheduler& operator=(const QueryScheduler&) = delete;
 
-  base::WeakPtr<QueryScheduler> GetWeakPtr();
+  // Returns the singleton QueryScheduler, or nullptr if none exists. This is
+  // equivalent to QueryScheduler::GetFromGraph(nullptr), but also works in
+  // unit tests using GraphTestHarness.
+  static QueryScheduler* Get();
 
-  // Invokes `callback` on the PM sequence with a pointer to the registered
-  // QueryScheduler.
-  static void CallWithScheduler(
-      base::OnceCallback<void(QueryScheduler*)> callback,
-      const base::Location& location = base::Location::Current());
+  base::WeakPtr<QueryScheduler> GetWeakPtr();
 
   // Adds a scoped query for `query_params`. Increases the query count for all
   // resource types and contexts referenced in `query_params`.
@@ -109,8 +108,6 @@ class QueryScheduler
       std::vector<QueryResultMap> all_results);
 
   SEQUENCE_CHECKER(sequence_checker_);
-
-  raw_ptr<Graph> graph_ GUARDED_BY_CONTEXT(sequence_checker_);
 
   // CPU measurement machinery.
   CPUMeasurementMonitor cpu_monitor_ GUARDED_BY_CONTEXT(sequence_checker_);

@@ -399,9 +399,10 @@ void PipelineController::SetPreservesPitch(bool preserves_pitch) {
   pipeline_->SetPreservesPitch(preserves_pitch);
 }
 
-void PipelineController::SetWasPlayedWithUserActivation(
-    bool was_played_with_user_activation) {
-  pipeline_->SetWasPlayedWithUserActivation(was_played_with_user_activation);
+void PipelineController::SetWasPlayedWithUserActivationAndHighMediaEngagement(
+    bool was_played_with_user_activation_and_high_media_engagement) {
+  pipeline_->SetWasPlayedWithUserActivationAndHighMediaEngagement(
+      was_played_with_user_activation_and_high_media_engagement);
 }
 
 base::TimeDelta PipelineController::GetMediaTime() const {
@@ -457,6 +458,10 @@ void PipelineController::OnExternalVideoFrameRequest() {
 void PipelineController::FireOnTrackChangeCompleteForTesting(State set_to) {
   previous_track_change_state_ = set_to;
   OnTrackChangeComplete();
+}
+
+void PipelineController::SetRenderMutedAudio(bool render_muted_audio) {
+  pipeline_->SetRenderMutedAudio(render_muted_audio);
 }
 
 void PipelineController::OnTrackChangeComplete() {

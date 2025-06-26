@@ -13,9 +13,7 @@
 #include "base/no_destructor.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/branding_buildflags.h"
-#include "build/build_config.h"
-#include "build/buildflag.h"
+#include "ui/base/accelerators/ash/quick_insert_event_property.h"
 #include "ui/base/ime/ash/input_method_manager.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ui_base_features.h"
@@ -30,10 +28,6 @@
 #include "ui/events/keycodes/keyboard_codes_posix.h"
 #include "ui/events/ozone/layout/keyboard_layout_engine.h"
 #include "ui/events/ozone/layout/keyboard_layout_engine_manager.h"
-
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-#include "chromeos/ash/resources/internal/strings/grit/ash_internal_strings.h"
-#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
 namespace ash {
 
@@ -127,12 +121,10 @@ const base::flat_map<ui::KeyboardCode, std::u16string>& GetKeyDisplayMap() {
           {ui::KeyboardCode::VKEY_MULTIPLY, u"numpad *"},
           {ui::KeyboardCode::VKEY_SUBTRACT, u"numpad -"},
           {ui::KeyboardCode::VKEY_CAPITAL, u"caps lock"},
-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
-          {ui::KeyboardCode::VKEY_RIGHT_ALT,
-           l10n_util::GetStringUTF16(IDS_KEYBOARD_RIGHT_ALT_LABEL)},
-#else
-          {ui::KeyboardCode::VKEY_RIGHT_ALT, u"right alt"},
-#endif
+          {ui::KeyboardCode::VKEY_ACCESSIBILITY, u"Accessibility"},
+          {ui::KeyboardCode::VKEY_QUICK_INSERT, u"QuickInsert"},
+          {ui::KeyboardCode::VKEY_DO_NOT_DISTURB, u"DoNotDisturb"},
+          {ui::KeyboardCode::VKEY_CAMERA_ACCESS_TOGGLE, u"CameraAccessToggle"},
       }));
   return *key_display_map;
 }
@@ -405,6 +397,10 @@ AcceleratorKeyInputType GetKeyInputTypeFromKeyEvent(
     return AcceleratorKeyInputType::kNumberPad;
   }
 
+  if (HasQuickInsertProperty(key_event)) {
+    return AcceleratorKeyInputType::kQuickInsert;
+  }
+
   switch (key_event.code()) {
     case ui::DomCode::META_LEFT:
       return AcceleratorKeyInputType::kMetaLeft;
@@ -425,6 +421,8 @@ AcceleratorKeyInputType GetKeyInputTypeFromKeyEvent(
       return AcceleratorKeyInputType::kShiftLeft;
     case ui::DomCode::SHIFT_RIGHT:
       return AcceleratorKeyInputType::kShiftRight;
+    case ui::DomCode::FN:
+      return AcceleratorKeyInputType::kFunction;
     default:
       break;
   }
@@ -450,6 +448,8 @@ AcceleratorKeyInputType GetKeyInputTypeFromKeyEvent(
       return AcceleratorKeyInputType::kRightArrow;
     case ui::VKEY_LEFT:
       return AcceleratorKeyInputType::kLeftArrow;
+    case ui::VKEY_ASSISTANT:
+      return AcceleratorKeyInputType::kAssistant;
     default:
       break;
   }

@@ -12,6 +12,7 @@
 #include "base/scoped_observation.h"
 #include "base/sequence_checker.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/types/expected.h"
 #include "build/chromeos_buildflags.h"
 #include "chrome/browser/extensions/api/storage/policy_value_store.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
@@ -36,7 +37,7 @@
 #include "extensions/common/manifest.h"
 #include "extensions/common/manifest_constants.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #endif
 
@@ -188,15 +189,12 @@ void ManagedValueStoreCache::ExtensionTracker::LoadSchemasOnFileTaskRunner(
       continue;
     }
     // The extension should have been validated, so assume the schema exists
-    // and is valid.
-    std::string error;
-    policy::Schema schema =
-        StorageSchemaManifestHandler::GetSchema(extension.get(), &error);
-    // If the schema is invalid then proceed with an empty schema. The extension
-    // will be listed in chrome://policy but won't be able to load any policies.
-    if (!schema.valid())
-      schema = policy::Schema();
-    (*components)[extension->id()] = schema;
+    // and is valid. If the schema is invalid then proceed with an empty schema.
+    // The extension will be listed in chrome://policy but won't be able to load
+    // any policies.
+    (*components)[extension->id()] =
+        StorageSchemaManifestHandler::GetSchema(extension.get())
+            .value_or(policy::Schema());
   }
 
   content::GetUIThreadTaskRunner({})->PostTask(
@@ -352,7 +350,7 @@ void ManagedValueStoreCache::OnPolicyUpdated(const policy::PolicyNamespace& ns,
 // static
 policy::PolicyDomain ManagedValueStoreCache::GetPolicyDomain(
     const Profile& profile) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   return ash::ProfileHelper::IsSigninProfile(&profile)
              ? policy::POLICY_DOMAIN_SIGNIN_EXTENSIONS
              : policy::POLICY_DOMAIN_EXTENSIONS;

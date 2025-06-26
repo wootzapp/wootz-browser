@@ -18,8 +18,10 @@ from telemetry.web_perf import timeline_based_measurement
 
 from page_sets import speedometer3_pages
 
-_PERF_TEST_DIR = os.path.join(path_util.GetChromiumSrcDir(), 'third_party',
-                              'speedometer')
+_SPEEDOMETER_DIR = os.path.join(path_util.GetChromiumSrcDir(), 'third_party',
+                                'speedometer')
+_ARCHIVE_DATA_FILE = 'data/crossbench_android_speedometer_3.0.json'
+_CLOUD_STORAGE_BUCKET = story.PARTNER_BUCKET
 
 
 class _Speedometer3(press._PressBenchmark):  # pylint: disable=protected-access
@@ -36,6 +38,14 @@ class _Speedometer3(press._PressBenchmark):  # pylint: disable=protected-access
   enable_rcs = False
   enable_details = False
   iteration_count = None
+  take_memory_measurement = False
+
+  def __init__(self,
+               archive_data_file=_ARCHIVE_DATA_FILE,
+               cloud_storage_bucket=_CLOUD_STORAGE_BUCKET):
+    super(_Speedometer3, self).__init__()
+    self.archive_data_file = archive_data_file
+    self.cloud_storage_bucket = cloud_storage_bucket
 
   @classmethod
   def GetStoryClass(cls):
@@ -56,7 +66,8 @@ class _Speedometer3(press._PressBenchmark):  # pylint: disable=protected-access
 
     story_set.AddStory(
         story_cls(story_set, should_filter_suites, filtered_suite_names,
-                  iteration_count, self.enable_details))
+                  iteration_count, self.enable_details,
+                  self.take_memory_measurement))
     return story_set
 
   def CreateCoreTimelineBasedMeasurementOptions(self):
@@ -64,6 +75,9 @@ class _Speedometer3(press._PressBenchmark):  # pylint: disable=protected-access
       return timeline_based_measurement.Options()
 
     cat_filter = chrome_trace_category_filter.ChromeTraceCategoryFilter()
+
+    if self.take_memory_measurement:
+      cat_filter.AddDisabledByDefault('disabled-by-default-memory-infra')
 
     # "blink.console" is used for marking ranges in
     # cache_temperature.MarkTelemetryInternal.
@@ -139,7 +153,8 @@ class Speedometer30(_Speedometer3):
   """Speedometer3.0 benchmark.
   Explicitly named version."""
 
-  _SOURCE_DIR = os.path.join(_PERF_TEST_DIR, 'v3.0')
+  SCHEDULED = False
+  _SOURCE_DIR = os.path.join(_SPEEDOMETER_DIR, 'v3.0')
 
   @classmethod
   def GetStoryClass(cls):
@@ -147,14 +162,35 @@ class Speedometer30(_Speedometer3):
 
   @classmethod
   def Name(cls):
-    return 'UNSCHEDULED_speedometer3.0'
+    return 'speedometer3.0'
+
+
+@benchmark.Info(emails=['cbruni@chromium.org', 'vahl@chromium.org'],
+                component='Blink>JavaScript',
+                documentation_url='https://browserbench.org/Speedometer3.1')
+class Speedometer31(_Speedometer3):
+  """Speedometer3.1 benchmark.
+  Explicitly named version."""
+
+  SCHEDULED = False
+  _SOURCE_DIR = os.path.join(_SPEEDOMETER_DIR, 'v3.1')
+
+  @classmethod
+  def GetStoryClass(cls):
+    return speedometer3_pages.Speedometer31Story
+
+  @classmethod
+  def Name(cls):
+    return 'speedometer3.1'
 
 
 @benchmark.Info(emails=['cbruni@chromium.org', 'vahl@chromium.org'],
                 component='Blink>JavaScript',
                 documentation_url='https://github.com/WebKit/Speedometer')
-class Speedometer3(Speedometer30):
+class Speedometer3(Speedometer31):
   """The latest version of the Speedometer3 benchmark."""
+  SCHEDULED = True
+
   @classmethod
   def GetStoryClass(cls):
     return speedometer3_pages.Speedometer3Story
@@ -183,20 +219,20 @@ class V8Speedometer3Future(Speedometer3):
 @benchmark.Info(emails=['omerkatz@chromium.org'],
                 component='Blink>JavaScript>GarbageCollection',
                 documentation_url='https://github.com/WebKit/Speedometer')
-class Speedometer3NoMinorMS(Speedometer3):
+class Speedometer3MinorMS(Speedometer3):
   """The latest Speedometer3 benchmark without the MinorMS flag.
 
   Shows the performance of Scavenger young generation GC in V8.
   """
   @classmethod
   def Name(cls):
-    return 'speedometer3-nominorms'
+    return 'speedometer3-minorms'
 
   def SetExtraBrowserOptions(self, options):
-    options.AppendExtraBrowserArgs('--js-flags=--no-minor-ms')
+    options.AppendExtraBrowserArgs('--js-flags=--minor-ms')
 
 
-@benchmark.Info(emails=['agarwaltushar@google.com', 'wnwen@google.com'],
+@benchmark.Info(emails=['rasikan@google.com', 'wnwen@google.com'],
                 component='Blink>JavaScript',
                 documentation_url='https://browserbench.org/Speedometer3.0')
 class Speedometer3Predictable(Speedometer3):

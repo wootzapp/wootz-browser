@@ -48,7 +48,9 @@ RecentDriveSource::CallContext::CallContext(CallContext&& context)
 
 RecentDriveSource::CallContext::~CallContext() = default;
 
-RecentDriveSource::RecentDriveSource(Profile* profile) : profile_(profile) {
+RecentDriveSource::RecentDriveSource(Profile* profile)
+    : RecentSource(extensions::api::file_manager_private::VolumeType::kDrive),
+      profile_(profile) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 }
 
@@ -103,14 +105,14 @@ void RecentDriveSource::GetRecentFiles(const Params& params,
   query_params->query_source =
       drivefs::mojom::QueryParameters::QuerySource::kLocalOnly;
   query_params->sort_field =
-      drivefs::mojom::QueryParameters::SortField::kLastModified;
+      drivefs::mojom::QueryParameters::SortField::kLastViewedByMe;
   query_params->sort_direction =
       drivefs::mojom::QueryParameters::SortDirection::kDescending;
   std::vector<std::string> type_filters =
       RecentDriveSource::CreateTypeFilters(params.file_type());
-  query_params->modified_time = params.cutoff_time();
+  query_params->viewed_time = params.cutoff_time();
   query_params->title = params.query();
-  query_params->modified_time_operator =
+  query_params->viewed_time_operator =
       drivefs::mojom::QueryParameters::DateComparisonOperator::kGreaterThan;
   if (type_filters.size() == 1) {
     query_params->mime_type = type_filters.front();

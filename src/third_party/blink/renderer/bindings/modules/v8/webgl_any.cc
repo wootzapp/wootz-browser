@@ -15,28 +15,20 @@ ScriptValue WebGLAny(ScriptState* script_state, bool value) {
                      v8::Boolean::New(script_state->GetIsolate(), value));
 }
 
-ScriptValue WebGLAny(ScriptState* script_state,
-                     const bool* value,
-                     uint32_t size) {
-  auto span = base::make_span(value, size);
-  return ScriptValue(
-      script_state->GetIsolate(),
-      ToV8Traits<IDLSequence<IDLBoolean>>::ToV8(script_state, span));
-}
-
-ScriptValue WebGLAny(ScriptState* script_state, const Vector<bool>& value) {
+ScriptValue WebGLAny(ScriptState* script_state, base::span<const bool> value) {
   return ScriptValue(
       script_state->GetIsolate(),
       ToV8Traits<IDLSequence<IDLBoolean>>::ToV8(script_state, value));
 }
 
-ScriptValue WebGLAny(ScriptState* script_state, const Vector<unsigned>& value) {
+ScriptValue WebGLAny(ScriptState* script_state,
+                     base::span<const unsigned> value) {
   return ScriptValue(
       script_state->GetIsolate(),
       ToV8Traits<IDLSequence<IDLUnsignedShort>>::ToV8(script_state, value));
 }
 
-ScriptValue WebGLAny(ScriptState* script_state, const Vector<int>& value) {
+ScriptValue WebGLAny(ScriptState* script_state, base::span<const int> value) {
   return ScriptValue(
       script_state->GetIsolate(),
       ToV8Traits<IDLSequence<IDLLong>>::ToV8(script_state, value));

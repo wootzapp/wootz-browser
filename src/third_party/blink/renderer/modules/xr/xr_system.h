@@ -37,6 +37,7 @@
 namespace blink {
 
 class Navigator;
+class V8XRSessionMode;
 class XRFrameProvider;
 class XRSession;
 class XRSessionInit;
@@ -87,14 +88,11 @@ class XRSystem final : public EventTarget,
 
   DEFINE_ATTRIBUTE_EVENT_LISTENER(devicechange, kDevicechange)
 
-  ScriptPromise<IDLUndefined> supportsSession(ScriptState*,
-                                              const String&,
-                                              ExceptionState& exception_state);
   ScriptPromise<IDLBoolean> isSessionSupported(ScriptState*,
-                                               const String&,
+                                               const V8XRSessionMode&,
                                                ExceptionState& exception_state);
   ScriptPromise<XRSession> requestSession(ScriptState*,
-                                          const String&,
+                                          const V8XRSessionMode&,
                                           XRSessionInit*,
                                           ExceptionState& exception_state);
 
@@ -139,7 +137,16 @@ class XRSystem final : public EventTarget,
   void MakeXrCompatibleSync(
       device::mojom::XrCompatibleResult* xr_compatible_result);
 
+  void OnSessionEnded(XRSession* session);
+
+  device::mojom::blink::WebXrInternalsRendererListener*
+  GetWebXrInternalsRendererListener();
+
+  void AddWebXrInternalsMessage(const String& message);
+
  private:
+  void DisableBackForwardCache();
+
   enum SensorRequirement {
     kNone,
     kOptional,
@@ -181,7 +188,7 @@ class XRSystem final : public EventTarget,
     PendingRequestSessionQuery& operator=(const PendingRequestSessionQuery&) =
         delete;
 
-    virtual ~PendingRequestSessionQuery() = default;
+    ~PendingRequestSessionQuery() = default;
 
     // Resolves underlying promise with passed in XR session.
     // If metrics are to be recorded for this session, an
@@ -246,9 +253,11 @@ class XRSystem final : public EventTarget,
 
     void SetDepthSensingConfiguration(
         const Vector<device::mojom::XRDepthUsage>& preferred_usage,
-        const Vector<device::mojom::XRDepthDataFormat>& preferred_format) {
+        const Vector<device::mojom::XRDepthDataFormat>& preferred_format,
+        const Vector<device::mojom::XRDepthType>& type_request) {
       preferred_usage_ = preferred_usage;
       preferred_format_ = preferred_format;
+      depth_type_request_ = type_request;
     }
 
     const Vector<device::mojom::XRDepthUsage>& PreferredUsage() const {
@@ -259,9 +268,13 @@ class XRSystem final : public EventTarget,
       return preferred_format_;
     }
 
+    const Vector<device::mojom::XRDepthType>& DepthTypeRequest() const {
+      return depth_type_request_;
+    }
+
     uint64_t TraceId() const { return trace_id_; }
 
-    virtual void Trace(Visitor*) const;
+    void Trace(Visitor*) const;
 
    private:
     void ParseSensorRequirement();
@@ -291,6 +304,7 @@ class XRSystem final : public EventTarget,
 
     Vector<device::mojom::XRDepthUsage> preferred_usage_;
     Vector<device::mojom::XRDepthDataFormat> preferred_format_;
+    Vector<device::mojom::XRDepthType> depth_type_request_;
   };
 
   static device::mojom::blink::XRSessionOptionsPtr XRSessionOptionsFromQuery(
@@ -304,14 +318,13 @@ class XRSystem final : public EventTarget,
       : public GarbageCollected<PendingSupportsSessionQuery> {
    public:
     PendingSupportsSessionQuery(ScriptPromiseResolverBase*,
-                                device::mojom::blink::XRSessionMode,
-                                bool throw_on_unsupported);
+                                device::mojom::blink::XRSessionMode);
 
     PendingSupportsSessionQuery(const PendingSupportsSessionQuery&) = delete;
     PendingSupportsSessionQuery& operator=(const PendingSupportsSessionQuery&) =
         delete;
 
-    virtual ~PendingSupportsSessionQuery() = default;
+    ~PendingSupportsSessionQuery() = default;
 
     // Resolves underlying promise.
     void Resolve(bool supported, ExceptionState* exception_state = nullptr);
@@ -342,13 +355,11 @@ class XRSystem final : public EventTarget,
     void RejectWithTypeError(const String& message,
                              ExceptionState* exception_state);
 
-    bool ThrowOnUnsupported() const { return throw_on_unsupported_; }
-
     device::mojom::blink::XRSessionMode mode() const;
 
     uint64_t TraceId() const { return trace_id_; }
 
-    virtual void Trace(Visitor*) const;
+    void Trace(Visitor*) const;
 
    private:
     Member<ScriptPromiseResolverBase> resolver_;
@@ -356,26 +367,18 @@ class XRSystem final : public EventTarget,
 
     // Used for trace calls in order to correlate this request across processes.
     const uint64_t trace_id_;
-
-    // Only set when calling the deprecated supportsSession method.
-    const bool throw_on_unsupported_ = false;
   };
 
   // Helper, logs message to the console as well as DVLOGs.
   void AddConsoleMessage(mojom::blink::ConsoleMessageLevel error_level,
                          const String& message);
 
-  void InternalIsSessionSupported(ScriptPromiseResolverBase*,
-                                  const String&,
-                                  ExceptionState& exception_state,
-                                  bool throw_on_unsupported);
-
   const char* CheckInlineSessionRequestAllowed(
       LocalFrame* frame,
       const PendingRequestSessionQuery& query);
 
   RequestedXRSessionFeatureSet ParseRequestedFeatures(
-      const HeapVector<ScriptValue>& features,
+      const Vector<String>& features,
       const device::mojom::blink::XRSessionMode& session_mode,
       XRSessionInit* session_init,
       mojom::ConsoleMessageLevel error_level);
@@ -423,6 +426,7 @@ class XRSystem final : public EventTarget,
           client_receiver,
       device::mojom::blink::XRSessionDeviceConfigPtr device_config,
       XRSessionFeatureSet enabled_features,
+      uint64_t trace_id,
       bool sensorless_session = false);
 
   XRSession* CreateSensorlessInlineSession();
@@ -483,6 +487,9 @@ class XRSystem final : public EventTarget,
 
   bool is_context_destroyed_ = false;
   bool did_service_ever_disconnect_ = false;
+
+  HeapMojoRemote<device::mojom::blink::WebXrInternalsRendererListener>
+      webxr_internals_renderer_listener_;
 };
 
 }  // namespace blink

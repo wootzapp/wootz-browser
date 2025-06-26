@@ -7,10 +7,13 @@
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
 #include "base/android/library_loader/library_loader_hooks.h"
+#include "base/android/pre_freeze_background_memory_trimmer.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/file_descriptor_store.h"
 #include "base/logging.h"
 #include "base/posix/global_descriptors.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "base/process_launcher_jni/ChildProcessService_jni.h"
 
 using base::android::JavaIntArrayToIntVector;
@@ -78,6 +81,10 @@ void JNI_ChildProcessService_ExitChildProcess(JNIEnv* env) {
 NOINLINE void JNI_ChildProcessService_DumpProcessStack(JNIEnv* env) {
   LOG(ERROR) << "Dumping as requested.";
   base::debug::DumpWithoutCrashing();
+}
+
+void JNI_ChildProcessService_OnSelfFreeze(JNIEnv* env) {
+  PreFreezeBackgroundMemoryTrimmer::OnSelfFreeze();
 }
 
 }  // namespace android

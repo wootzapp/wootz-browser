@@ -99,9 +99,9 @@ class UI_ANDROID_EXPORT ViewAndroid {
 
   enum class LayoutType {
     // Can have its own size given by |OnSizeChanged| events.
-    NORMAL,
+    kNormal,
     // Always follows its parent's size.
-    MATCH_PARENT
+    kMatchParent
   };
 
   explicit ViewAndroid(LayoutType layout_type);
@@ -168,9 +168,10 @@ class UI_ANDROID_EXPORT ViewAndroid {
                         jint drag_obj_rect_height);
 
   gfx::Size GetPhysicalBackingSize() const;
-  gfx::Size GetSize() const;
-  gfx::Rect bounds() const { return bounds_; }
+  gfx::Size GetSizeDIPs() const;
+  gfx::Size GetSizeDevicePx() const;
 
+  // |width| and |height| are in device pixels.
   void OnSizeChanged(int width, int height);
   // |deadline_override| if not nullopt will be used as the cc::DeadlinePolicy
   // timeout for this resize.
@@ -233,6 +234,8 @@ class UI_ANDROID_EXPORT ViewAndroid {
 
   void NotifyVirtualKeyboardOverlayRect(const gfx::Rect& keyboard_rect);
 
+  void NotifyContextMenuInsetsObservers(const gfx::Rect&);
+
   void SetLayoutForTesting(int x, int y, int width, int height);
 
   EventForwarder* event_forwarder() { return event_forwarder_.get(); }
@@ -243,6 +246,8 @@ class UI_ANDROID_EXPORT ViewAndroid {
 
  protected:
   void RemoveAllChildren(bool attached_to_window);
+
+  void OnPointerLockRelease();
 
   raw_ptr<ViewAndroid> parent_;
 
@@ -256,6 +261,7 @@ class UI_ANDROID_EXPORT ViewAndroid {
   FRIEND_TEST_ALL_PREFIXES(ViewAndroidBoundsTest, OnSizeChanged);
   friend class EventForwarder;
   friend class ViewAndroidBoundsTest;
+  friend class WindowAndroid;
 
   bool OnDragEvent(const DragEventAndroid& event);
   bool OnTouchEvent(const MotionEventAndroid& event);
@@ -294,7 +300,7 @@ class UI_ANDROID_EXPORT ViewAndroid {
 
   bool has_event_forwarder() const { return !!event_forwarder_; }
 
-  bool match_parent() const { return layout_type_ == LayoutType::MATCH_PARENT; }
+  bool match_parent() const { return layout_type_ == LayoutType::kMatchParent; }
 
   // Checks if there is any event forwarder in any node up to root.
   static bool RootPathHasEventForwarder(ViewAndroid* view);
@@ -303,7 +309,7 @@ class UI_ANDROID_EXPORT ViewAndroid {
   // each leaf of subtree.
   static bool SubtreeHasEventForwarder(ViewAndroid* view);
 
-  void OnSizeChangedInternal(const gfx::Size& size);
+  void OnSizeChangedInternal(const gfx::Size& size_device_px);
   void DispatchOnSizeChanged();
 
   // Returns the Java delegate for this view. This is used to delegate work
@@ -312,6 +318,11 @@ class UI_ANDROID_EXPORT ViewAndroid {
   const base::android::ScopedJavaLocalRef<jobject> GetViewAndroidDelegate()
       const;
 
+  // True if a hit test is currently being performed on this ViewAndroid or its
+  // descendants. This is used to detect and log cases where the view hierarchy
+  // is modified (e.g., a child is removed) during hit testing, which can lead
+  // to unexpected behavior or crashes.
+  bool is_hit_testing_ = false;
   std::list<raw_ptr<ViewAndroid, CtnExperimental>> children_;
   base::ObserverList<ViewAndroidObserver>::Unchecked observer_list_;
   scoped_refptr<cc::slim::Layer> layer_;
@@ -321,7 +332,11 @@ class UI_ANDROID_EXPORT ViewAndroid {
 
   // Basic view layout information. Used to do hit testing deciding whether
   // the passed events should be processed by the view. Unit in DIP.
-  gfx::Rect bounds_;
+  gfx::Rect bounds_dips_;
+
+  // Same as above, but before dividing by the device scale factor.
+  gfx::Rect bounds_device_px_;
+
   const LayoutType layout_type_;
 
   // In physical pixel.

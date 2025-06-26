@@ -12,6 +12,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
+#include "base/not_fatal_until.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/bind_post_task.h"
 #include "base/trace_event/trace_event.h"
@@ -363,7 +364,7 @@ void ChunkDemuxerStream::CompletePendingReadIfPossible_Locked() {
 
   switch (state_) {
     case UNINITIALIZED:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
     case RETURNING_ABORT_FOR_READS:
       // Null buffers should be returned in this state since we are waiting
       // for a seek. Any buffers in the SourceBuffer should NOT be returned
@@ -671,13 +672,8 @@ ChunkDemuxer::Status ChunkDemuxer::AddId(
   }
 
   DCHECK(init_cb_);
-
-  std::string expected_codec = GetCodecName(audio_config->codec());
-  std::unique_ptr<media::StreamParser> stream_parser(
-      media::StreamParserFactory::Create(std::move(audio_config)));
-  DCHECK(stream_parser);
-
-  return AddIdInternal(id, std::move(stream_parser), expected_codec);
+  return AddIdInternal(id, StreamParserFactory::Create(std::move(audio_config)),
+                       std::nullopt);
 }
 
 ChunkDemuxer::Status ChunkDemuxer::AddId(
@@ -699,13 +695,8 @@ ChunkDemuxer::Status ChunkDemuxer::AddId(
   }
 
   DCHECK(init_cb_);
-
-  std::string expected_codec = GetCodecName(video_config->codec());
-  std::unique_ptr<media::StreamParser> stream_parser(
-      media::StreamParserFactory::Create(std::move(video_config)));
-  DCHECK(stream_parser);
-
-  return AddIdInternal(id, std::move(stream_parser), expected_codec);
+  return AddIdInternal(id, StreamParserFactory::Create(std::move(video_config)),
+                       std::nullopt);
 }
 
 ChunkDemuxer::Status ChunkDemuxer::AddId(const std::string& id,
@@ -858,7 +849,7 @@ Ranges<base::TimeDelta> ChunkDemuxer::GetBufferedRanges(
 
   auto itr = source_state_map_.find(id);
 
-  DCHECK(itr != source_state_map_.end());
+  CHECK(itr != source_state_map_.end());
   return itr->second->GetBufferedRanges(duration_, state_ == ENDED);
 }
 
@@ -869,7 +860,7 @@ base::TimeDelta ChunkDemuxer::GetLowestPresentationTimestamp(
 
   auto itr = source_state_map_.find(id);
 
-  DCHECK(itr != source_state_map_.end());
+  CHECK(itr != source_state_map_.end());
   return itr->second->GetLowestPresentationTimestamp();
 }
 
@@ -880,7 +871,7 @@ base::TimeDelta ChunkDemuxer::GetHighestPresentationTimestamp(
 
   auto itr = source_state_map_.find(id);
 
-  DCHECK(itr != source_state_map_.end());
+  CHECK(itr != source_state_map_.end());
   return itr->second->GetHighestPresentationTimestamp();
 }
 
@@ -920,7 +911,7 @@ void ChunkDemuxer::FindAndEnableProperTracks(
 
   std::vector<DemuxerStream*> streams(enabled_streams.begin(),
                                       enabled_streams.end());
-  std::move(change_completed_cb).Run(track_type, streams);
+  std::move(change_completed_cb).Run(streams);
 }
 
 void ChunkDemuxer::OnEnabledAudioTracksChanged(
@@ -978,13 +969,12 @@ bool ChunkDemuxer::EvictCodedFrames(const std::string& id,
 }
 
 bool ChunkDemuxer::AppendToParseBuffer(const std::string& id,
-                                       const uint8_t* data,
-                                       size_t length) {
-  DVLOG(1) << "AppendToParseBuffer(" << id << ", " << length << ")";
+                                       base::span<const uint8_t> data) {
+  DVLOG(1) << "AppendToParseBuffer(" << id << ", " << data.size() << ")";
 
   DCHECK(!id.empty());
 
-  if (length == 0u) {
+  if (data.empty()) {
     // We don't DCHECK that |state_| != ENDED here, since |state_| is protected
     // by |lock_|. However, transition into ENDED can happen only on
     // MarkEndOfStream called by the MediaSource object on parse failure or on
@@ -992,8 +982,6 @@ bool ChunkDemuxer::AppendToParseBuffer(const std::string& id,
     // nonzero-length appends, we still DCHECK within the lock, below.
     return true;
   }
-
-  DCHECK(data);
 
   {
     base::AutoLock auto_lock(lock_);
@@ -1003,7 +991,7 @@ bool ChunkDemuxer::AppendToParseBuffer(const std::string& id,
       case INITIALIZING:
       case INITIALIZED:
         DCHECK(IsValidId_Locked(id));
-        if (!source_state_map_[id]->AppendToParseBuffer(data, length)) {
+        if (!source_state_map_[id]->AppendToParseBuffer(data)) {
           // Just indicate that the append failed. Let the caller give app an
           // error so that it may adapt. This is different from
           // RunSegmentParserLoop(), where fatal MediaSource failure should
@@ -1570,7 +1558,7 @@ ChunkDemuxerStream* ChunkDemuxer::CreateDemuxerStream(
       break;
 
     case DemuxerStream::UNKNOWN:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 
   std::unique_ptr<ChunkDemuxerStream> stream =

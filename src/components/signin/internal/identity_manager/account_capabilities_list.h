@@ -35,6 +35,10 @@ ACCOUNT_CAPABILITY(kIsOptedInToParentalSupervisionCapabilityName,
                    IS_OPTED_IN_TO_PARENTAL_SUPERVISION_CAPABILITY_NAME,
                    "accountcapabilities/guzdslldmfya")
 
+ACCOUNT_CAPABILITY(kCanFetchFamilyMemberInfoCapabilityName,
+                   CAN_FETCH_FAMILY_MEMBER_INFO_CAPABILITY_NAME,
+                   "accountcapabilities/ge2dinbnmnqxa")
+
 ACCOUNT_CAPABILITY(kCanToggleAutoUpdatesName,
                    CAN_TOGGLE_AUTO_UPDATES_NAME,
                    "accountcapabilities/gu4dmlldmfya")
@@ -42,6 +46,10 @@ ACCOUNT_CAPABILITY(kCanToggleAutoUpdatesName,
 ACCOUNT_CAPABILITY(kCanUseChromeIpProtectionName,
                    CAN_USE_CHROME_IP_PROTECTION_NAME,
                    "accountcapabilities/geydgnznmnqxa")
+
+ACCOUNT_CAPABILITY(kCanUseCopyEditorFeatureName,
+                   CAN_USE_COPYEDITOR_FEATURE_NAME,
+                   "accountcapabilities/ge2tkmznmnqxa")
 
 ACCOUNT_CAPABILITY(kCanUseDevToolsGenerativeAiFeaturesCapabilityName,
                    CAN_USE_DEVTOOLS_GENERATIVE_AI_FEATURES_CAPABILITY_NAME,
@@ -75,3 +83,19 @@ ACCOUNT_CAPABILITY(kIsSubjectToParentalControlsCapabilityName,
 ACCOUNT_CAPABILITY(kCanUseEduFeaturesCapabilityName,
                    CAN_USE_EDU_FEATURES_CAPABILITY_NAME,
                    "accountcapabilities/gezdsmbnmnqxa")
+
+ACCOUNT_CAPABILITY(kCanUseSpeakerLabelInRecorderApp,
+                   CAN_USE_SPEAKER_LABEL_IN_RECORDER_APP,
+                   "accountcapabilities/ge2tknznmnqxa")
+
+ACCOUNT_CAPABILITY(kCanUseGenerativeAiInRecorderApp,
+                   CAN_USE_GENERATIVE_AI_IN_RECORDER_APP,
+                   "accountcapabilities/ge2tkobnmnqxa")
+
+ACCOUNT_CAPABILITY(kCanUseGenerativeAiPhotoEditing,
+                   CAN_USE_GENERATIVE_AI_PHOTO_EDITING,
+                   "accountcapabilities/ge3dgobnmnqxa")
+
+ACCOUNT_CAPABILITY(kCanUseChromeOSGenerativeAi,
+                   CAN_USE_CHROMEOS_GENERATIVE_AI,
+                   "accountcapabilities/ge3dgmjnmnqxa")

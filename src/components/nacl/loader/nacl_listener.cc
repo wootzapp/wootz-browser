@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/nacl/loader/nacl_listener.h"
 
 #include <errno.h>
@@ -151,9 +156,7 @@ NaClListener::NaClListener()
 }
 
 NaClListener::~NaClListener() {
-  NOTREACHED_IN_MIGRATION();
-  shutdown_event_.Signal();
-  g_listener = NULL;
+  NOTREACHED();
 }
 
 bool NaClListener::Send(IPC::Message* msg) {
@@ -191,7 +194,7 @@ class FileTokenMessageFilter : public IPC::MessageFilter {
     g_listener->OnFileTokenResolved(token_lo, token_hi, ipc_fd, file_path);
   }
  private:
-  ~FileTokenMessageFilter() override {}
+  ~FileTokenMessageFilter() override = default;
 };
 
 void NaClListener::Listen() {

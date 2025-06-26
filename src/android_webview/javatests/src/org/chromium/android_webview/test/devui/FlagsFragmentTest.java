@@ -33,6 +33,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.os.SystemClock;
 import android.text.SpannableString;
 import android.text.style.BackgroundColorSpan;
@@ -69,14 +70,15 @@ import org.chromium.android_webview.nonembedded_util.WebViewPackageHelper;
 import org.chromium.android_webview.services.DeveloperUiService;
 import org.chromium.android_webview.test.AwJUnit4ClassRunner;
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.test.util.ViewUtils;
 
 import java.util.Arrays;
@@ -123,7 +125,7 @@ public class FlagsFragmentTest {
         Context context = ContextUtils.getApplicationContext();
         Intent intent = new Intent(context, MainActivity.class);
         MainActivity.markPopupPermissionRequestedInPrefsForTesting();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     FlagsFragment.setFlagListForTesting(sMockFlagList);
                     DeveloperUiService.setFlagListForTesting(sMockFlagList);
@@ -158,7 +160,7 @@ public class FlagsFragmentTest {
         // gap between calls to update UI thread. To fix this, we should just hide the edit text
         // cursor. It does not change the test functionality, but will eliminate one source of
         // flakiness.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     EditText searchBar = mRule.getActivity().findViewById(R.id.flag_search_bar);
                     searchBar.setCursorVisible(false);
@@ -263,7 +265,7 @@ public class FlagsFragmentTest {
     // is in that position, it just sends a touch event for those coordinates.
     private static void tapCompoundDrawableOnUiThread(
             TextView view, @CompoundDrawable int position) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     long downTime = SystemClock.uptimeMillis();
                     long eventTime = downTime + 50;
@@ -572,10 +574,10 @@ public class FlagsFragmentTest {
         return flagInteraction;
     }
 
+    /** Verify if the baseFeature flag contains only "Default", "Enabled" , "Disabled" states. */
     @Test
     @MediumTest
     @Feature({"AndroidWebView"})
-    /** Verify if the baseFeature flag contains only "Default", "Enabled" , "Disabled" states. */
     public void testFlagStates_baseFeature() throws Throwable {
         ListView flagsList = mRule.getActivity().findViewById(R.id.flags_list);
 
@@ -594,10 +596,10 @@ public class FlagsFragmentTest {
         testFlagStatesHelper(firstBaseFeaturePosition);
     }
 
+    /** Verify if the commandline flag contains only "Default", "Enabled" states. */
     @Test
     @MediumTest
     @Feature({"AndroidWebView"})
-    /** Verify if the commandline flag contains only "Default", "Enabled" states. */
     public void testFlagStates_commandLineFlag() throws Throwable {
         ListView flagsList = mRule.getActivity().findViewById(R.id.flags_list);
 
@@ -640,6 +642,7 @@ public class FlagsFragmentTest {
     @Test
     @MediumTest
     @Feature({"AndroidWebView"})
+    @DisableIf.Build(sdk_equals = Build.VERSION_CODES.Q, message = "crbug.com/391716082")
     public void testTogglingFlagShowsBlueDot_baseFeature() throws Throwable {
         ListView flagsList = mRule.getActivity().findViewById(R.id.flags_list);
 
@@ -789,6 +792,10 @@ public class FlagsFragmentTest {
     @MediumTest
     @Feature({"AndroidWebView"})
     public void testResetFlagsByIntent() throws Throwable {
+        // TODO(crbug.com/408061337): Check whether this pollUiThread fixes the test failures on
+        // Android P builders and remove if not.
+        CriteriaHelper.pollUiThread(
+                () -> mRule.getActivity().hasWindowFocus(), "Activity did not gain focus.");
         // 1. First test that the intent resets the flags
         // Given one flag is set
         toggleFlag(onData(anything()).inAdapterView(withId(R.id.flags_list)).atPosition(1), true);

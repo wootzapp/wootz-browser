@@ -29,7 +29,8 @@ std::vector<InteractionsStats> StatementToInteractionsStats(sql::Statement* s) {
   std::vector<InteractionsStats> results;
   while (s->Step()) {
     results.emplace_back();
-    results.back().origin_domain = GURL(s->ColumnString(COLUMN_ORIGIN_DOMAIN));
+    results.back().origin_domain =
+        GURL(s->ColumnStringView(COLUMN_ORIGIN_DOMAIN));
     results.back().username_value = s->ColumnString16(COLUMN_USERNAME);
     results.back().dismissal_count = s->ColumnInt(COLUMN_DISMISSALS);
     results.back().update_time = s->ColumnTime(COLUMN_DATE);
@@ -57,26 +58,31 @@ bool StatisticsTable::CreateTableIfNecessary() {
         "dismissal_count INTEGER, "
         "update_time INTEGER NOT NULL, "
         "UNIQUE(origin_domain, username_value))";
-    if (!db_->Execute(query))
+    if (!db_->Execute(query)) {
       return false;
+    }
     const char index[] = "CREATE INDEX stats_origin ON stats(origin_domain)";
-    if (!db_->Execute(index))
+    if (!db_->Execute(index)) {
       return false;
+    }
   }
   return true;
 }
 
 bool StatisticsTable::MigrateToVersion(int version) {
-  if (!db_->DoesTableExist("stats"))
+  if (!db_->DoesTableExist("stats")) {
     return true;
-  if (version == 16)
+  }
+  if (version == 16) {
     return db_->Execute("DROP TABLE stats");
+  }
   return true;
 }
 
 bool StatisticsTable::AddRow(const InteractionsStats& stats) {
-  if (!stats.origin_domain.is_valid())
+  if (!stats.origin_domain.is_valid()) {
     return false;
+  }
   sql::Statement s(db_->GetCachedStatement(
       SQL_FROM_HERE,
       "INSERT OR REPLACE INTO stats "
@@ -90,8 +96,9 @@ bool StatisticsTable::AddRow(const InteractionsStats& stats) {
 }
 
 bool StatisticsTable::RemoveRow(const GURL& domain) {
-  if (!domain.is_valid())
+  if (!domain.is_valid()) {
     return false;
+  }
   sql::Statement s(db_->GetCachedStatement(SQL_FROM_HERE,
                                            "DELETE FROM stats WHERE "
                                            "origin_domain = ? "));
@@ -100,8 +107,9 @@ bool StatisticsTable::RemoveRow(const GURL& domain) {
 }
 
 std::vector<InteractionsStats> StatisticsTable::GetRows(const GURL& domain) {
-  if (!domain.is_valid())
+  if (!domain.is_valid()) {
     return std::vector<InteractionsStats>();
+  }
   const char query[] =
       "SELECT origin_domain, username_value, "
       "dismissal_count, update_time FROM stats WHERE origin_domain == ?";
@@ -114,8 +122,9 @@ bool StatisticsTable::RemoveStatsByOriginAndTime(
     const base::RepeatingCallback<bool(const GURL&)>& origin_filter,
     base::Time delete_begin,
     base::Time delete_end) {
-  if (delete_end.is_null())
+  if (delete_end.is_null()) {
     delete_end = base::Time::Max();
+  }
 
   // All origins.
   if (origin_filter.is_null()) {
@@ -138,8 +147,9 @@ bool StatisticsTable::RemoveStatsByOriginAndTime(
 
   std::set<std::string> origins;
   while (select_statement.Step()) {
-    if (!origin_filter.Run(GURL(select_statement.ColumnString(0))))
+    if (!origin_filter.Run(GURL(select_statement.ColumnStringView(0)))) {
       continue;
+    }
 
     origins.insert(select_statement.ColumnString(0));
   }

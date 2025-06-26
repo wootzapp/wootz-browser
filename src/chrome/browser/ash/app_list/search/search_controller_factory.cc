@@ -8,14 +8,11 @@
 
 #include "ash/constants/ash_features.h"
 #include "ash/public/cpp/app_list/app_list_features.h"
-#include "ash/webui/help_app_ui/help_app_manager.h"
-#include "ash/webui/help_app_ui/help_app_manager_factory.h"
 #include "base/files/file_enumerator.h"
 #include "base/metrics/field_trial_params.h"
 #include "build/build_config.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/ash/app_list/search/app_search_provider.h"
-#include "chrome/browser/ash/app_list/search/app_shortcuts_search_provider.h"
 #include "chrome/browser/ash/app_list/search/app_zero_state_provider.h"
 #include "chrome/browser/ash/app_list/search/arc/arc_app_shortcuts_search_provider.h"
 #include "chrome/browser/ash/app_list/search/arc/arc_playstore_search_provider.h"
@@ -30,7 +27,6 @@
 #include "chrome/browser/ash/app_list/search/help_app_zero_state_provider.h"
 #include "chrome/browser/ash/app_list/search/keyboard_shortcut_provider.h"
 #include "chrome/browser/ash/app_list/search/local_image_search/local_image_search_provider.h"
-#include "chrome/browser/ash/app_list/search/omnibox/omnibox_lacros_provider.h"
 #include "chrome/browser/ash/app_list/search/omnibox/omnibox_provider.h"
 #include "chrome/browser/ash/app_list/search/os_settings_provider.h"
 #include "chrome/browser/ash/app_list/search/personalization_provider.h"
@@ -38,17 +34,9 @@
 #include "chrome/browser/ash/app_list/search/search_features.h"
 #include "chrome/browser/ash/app_list/search/system_info/system_info_card_provider.h"
 #include "chrome/browser/ash/arc/arc_util.h"
-#include "chrome/browser/ash/crosapi/browser_util.h"
-#include "chrome/browser/ash/crosapi/crosapi_manager.h"
 #include "chrome/browser/ash/drive/drive_integration_service.h"
-#include "chrome/browser/ash/system_web_apps/apps/personalization_app/personalization_app_manager.h"
-#include "chrome/browser/ash/system_web_apps/apps/personalization_app/personalization_app_manager_factory.h"
 #include "chrome/browser/ash/system_web_apps/apps/personalization_app/personalization_app_utils.h"
-#include "chrome/browser/chromeos/launcher_search/search_util.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/ash/settings/services/settings_manager/os_settings_manager.h"
-#include "chrome/browser/ui/webui/ash/settings/services/settings_manager/os_settings_manager_factory.h"
-#include "chromeos/constants/chromeos_features.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
 #include "components/session_manager/core/session_manager.h"
 
@@ -78,16 +66,8 @@ std::unique_ptr<SearchController> CreateSearchController(
       controller->GetAppSearchDataSource()));
   controller->AddProvider(std::make_unique<AppZeroStateProvider>(
       controller->GetAppSearchDataSource()));
-
-  if (crosapi::browser_util::IsLacrosEnabled()) {
-    controller->AddProvider(std::make_unique<OmniboxLacrosProvider>(
-        profile, list_controller,
-        OmniboxLacrosProvider::GetSingletonControllerCallback()));
-  } else {
-    controller->AddProvider(std::make_unique<OmniboxProvider>(
-        profile, list_controller, crosapi::ProviderTypes()));
-  }
-
+  controller->AddProvider(std::make_unique<OmniboxProvider>(
+      profile, list_controller, LauncherSearchProviderTypes()));
   controller->AddProvider(std::make_unique<AssistantTextSearchProvider>());
 
   // File search providers are added only when not in guest session and running
@@ -105,10 +85,6 @@ std::unique_ptr<SearchController> CreateSearchController(
       controller->AddProvider(
           std::make_unique<LocalImageSearchProvider>(profile));
     }
-    if (chromeos::features::IsCrosWebAppShortcutUiUpdateEnabled()) {
-      controller->AddProvider(std::make_unique<AppShortcutsSearchProvider>(
-          profile, list_controller));
-    }
   }
 
   if (app_list_features::IsLauncherPlayStoreSearchEnabled()) {
@@ -121,9 +97,7 @@ std::unique_ptr<SearchController> CreateSearchController(
         kMaxAppShortcutResults, profile, list_controller));
   }
 
-  if (ash::features::IsLauncherContinueSectionWithRecentsEnabled() ||
-      base::GetFieldTrialParamByFeatureAsBool(
-          ash::features::kProductivityLauncher, "enable_continue", false)) {
+  if (ash::features::IsLauncherContinueSectionWithRecentsEnabled()) {
     controller->AddProvider(std::make_unique<ZeroStateFileProvider>(profile));
 
     controller->AddProvider(std::make_unique<ZeroStateDriveProvider>(
@@ -132,23 +106,12 @@ std::unique_ptr<SearchController> CreateSearchController(
         session_manager::SessionManager::Get()));
   }
 
-  auto* os_settings_manager =
-      ash::settings::OsSettingsManagerFactory::GetForProfile(profile);
-  auto* app_service_proxy =
-      apps::AppServiceProxyFactory::GetForProfile(profile);
-  if (os_settings_manager && app_service_proxy) {
-    controller->AddProvider(std::make_unique<OsSettingsProvider>(
-        profile, os_settings_manager->search_handler(),
-        os_settings_manager->hierarchy()));
-  }
+  controller->AddProvider(std::make_unique<OsSettingsProvider>(profile));
 
   controller->AddProvider(std::make_unique<KeyboardShortcutProvider>(profile));
 
   if (base::FeatureList::IsEnabled(ash::features::kHelpAppLauncherSearch)) {
-    controller->AddProvider(std::make_unique<HelpAppProvider>(
-        profile,
-        ash::help_app::HelpAppManagerFactory::GetForBrowserContext(profile)
-            ->search_handler()));
+    controller->AddProvider(std::make_unique<HelpAppProvider>(profile));
   }
 
   controller->AddProvider(
@@ -163,17 +126,24 @@ std::unique_ptr<SearchController> CreateSearchController(
   }
 
   if (ash::personalization_app::CanSeeWallpaperOrPersonalizationApp(profile)) {
-    auto* personalization_app_manager = ash::personalization_app::
-        PersonalizationAppManagerFactory::GetForBrowserContext(profile);
-    DCHECK(personalization_app_manager);
-
-    if (personalization_app_manager) {
-      controller->AddProvider(std::make_unique<PersonalizationProvider>(
-          profile, personalization_app_manager->search_handler()));
-    }
+    controller->AddProvider(std::make_unique<PersonalizationProvider>(profile));
   }
 
   return controller;
+}
+
+int LauncherSearchProviderTypes() {
+  // We use all the default providers except for the document provider,
+  // which suggests Drive files on enterprise devices. This is disabled to
+  // avoid duplication with search results from DriveFS.
+  int providers = AutocompleteClassifier::DefaultOmniboxProviders() &
+                  ~AutocompleteProvider::TYPE_DOCUMENT;
+
+  // The open tab provider is not included in the default providers, so add
+  // it in manually.
+  providers |= AutocompleteProvider::TYPE_OPEN_TAB;
+
+  return providers;
 }
 
 }  // namespace app_list

@@ -67,7 +67,7 @@ void TextDecorationPainter::UpdateDecorationInfo(
   TextDecorationLine effective_selection_decoration_lines =
       TextDecorationLine::kNone;
   Color effective_selection_decoration_color;
-  if (UNLIKELY(phase_ == kSelection)) {
+  if (phase_ == kSelection) [[unlikely]] {
     effective_selection_decoration_lines =
         selection_->GetSelectionStyle().selection_decoration_lines;
     effective_selection_decoration_color =
@@ -78,9 +78,8 @@ void TextDecorationPainter::UpdateDecorationInfo(
     // Need to recompute a scaled font and a scaling factor because they
     // depend on the scaling factor of an element referring to the text.
     float scaling_factor = 1;
-    Font scaled_font;
-    LayoutSVGInlineText::ComputeNewScaledFontForStyle(
-        *text_item.GetLayoutObject(), scaling_factor, scaled_font);
+    const Font* scaled_font = LayoutSVGInlineText::ComputeNewScaledFontForStyle(
+        *text_item.GetLayoutObject(), scaling_factor);
     DCHECK(scaling_factor);
     // Adjust the origin of the decoration because
     // TextPainter::PaintDecorationsExceptLineThrough() will change the
@@ -91,12 +90,12 @@ void TextDecorationPainter::UpdateDecorationInfo(
     // adjust the baseline position, then shift it for scaled_font.
     top += text_item.ScaledFont().PrimaryFont()->GetFontMetrics().FixedAscent();
     top *= scaling_factor / text_item.SvgScalingFactor();
-    top -= scaled_font.PrimaryFont()->GetFontMetrics().FixedAscent();
+    top -= scaled_font->PrimaryFont()->GetFontMetrics().FixedAscent();
     result.emplace(LineRelativeOffset{decoration_rect_.offset.line_left, top},
                    decoration_rect_.InlineSize(), style, inline_context_,
                    effective_selection_decoration_lines,
                    effective_selection_decoration_color, decoration_override,
-                   &scaled_font, MinimumThickness1(false),
+                   scaled_font, MinimumThickness1(false),
                    text_item.SvgScalingFactor() / scaling_factor);
   } else {
     LineRelativeRect decoration_rect =
@@ -125,8 +124,8 @@ void TextDecorationPainter::Begin(const FragmentItem& text_item, Phase phase) {
   UpdateDecorationInfo(decoration_info_, text_item, style_);
   clip_rect_.reset();
 
-  if (decoration_info_ && UNLIKELY(selection_)) {
-    if (UNLIKELY(text_item.IsSvgText())) {
+  if (decoration_info_ && selection_) [[unlikely]] {
+    if (text_item.IsSvgText()) [[unlikely]] {
       clip_rect_.emplace(
           ExpandRectForSVGDecorations(selection_->LineRelativeSelectionRect()));
     } else {

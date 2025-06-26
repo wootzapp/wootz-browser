@@ -15,7 +15,7 @@
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/notifications/notification_display_service_tester.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -37,20 +37,23 @@
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/metrics/metrics_service.h"
-#include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/features/password_manager_features_util.h"
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
 #include "components/signin/public/base/signin_switches.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
+#include "components/sync/base/data_type.h"
 #include "components/sync/base/features.h"
-#include "components/sync/base/model_type.h"
 #include "components/sync/base/time.h"
+#include "components/sync/base/user_selectable_type.h"
 #include "components/sync/engine/loopback_server/loopback_server_entity.h"
 #include "components/sync/engine/nigori/cross_user_sharing_public_private_key_pair.h"
 #include "components/sync/engine/nigori/key_derivation_params.h"
 #include "components/sync/engine/nigori/nigori.h"
 #include "components/sync/nigori/cross_user_sharing_keys.h"
 #include "components/sync/nigori/cryptographer_impl.h"
+#include "components/sync/protocol/nigori_local_data.pb.h"
+#include "components/sync/service/sync_service.h"
+#include "components/sync/service/sync_user_settings.h"
 #include "components/sync/service/trusted_vault_synthetic_field_trial.h"
 #include "components/sync/test/fake_server_nigori_helper.h"
 #include "components/sync/test/nigori_test_utils.h"
@@ -67,6 +70,7 @@
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_launcher.h"
 #include "crypto/ec_private_key.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/gaia_switches.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "net/base/features.h"
@@ -75,16 +79,15 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "url/url_constants.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
+#include "ash/constants/ash_switches.h"
 #include "chrome/browser/ash/sync/sync_error_notifier.h"
 #include "chrome/browser/ash/sync/sync_error_notifier_factory.h"
-#include "chrome/browser/ui/webui/trusted_vault/trusted_vault_dialog_delegate.h"
-#include "chromeos/ash/components/standalone_browser/feature_refs.h"
 #include "components/trusted_vault/features.h"
 #include "ui/views/test/widget_test.h"
 #include "ui/views/widget/any_widget_observer.h"
 #include "ui/views/widget/widget.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace {
 
@@ -139,7 +142,7 @@ MATCHER_P4(StatusLabelsMatch,
   return true;
 }
 
-std::string GetDefaultUserGaiaID() {
+GaiaId GetDefaultUserGaiaID() {
   return signin::GetTestGaiaIdForEmail(SyncTest::kDefaultUserEmail);
 }
 
@@ -269,8 +272,6 @@ class FakeSecurityDomainsServerMemberStatusChecker
   const raw_ptr<trusted_vault::FakeSecurityDomainsServer> server_;
 };
 
-}  // namespace
-
 class SingleClientNigoriSyncTest : public SyncTest {
  public:
   SingleClientNigoriSyncTest() : SyncTest(SINGLE_CLIENT) {}
@@ -287,17 +288,10 @@ class SingleClientNigoriSyncTest : public SyncTest {
   }
 
   std::vector<variations::ActiveGroupId> GetSyntheticFieldTrials() {
-    std::vector<variations::ActiveGroupId> synthetic_trials;
-    g_browser_process->metrics_service()
+    return g_browser_process->metrics_service()
         ->GetSyntheticTrialRegistry()
-        ->GetSyntheticFieldTrialsOlderThan(base::TimeTicks::Now(),
-                                           &synthetic_trials);
-    return synthetic_trials;
+        ->GetCurrentSyntheticFieldTrialsForTest();
   }
-
- private:
-  base::test::ScopedFeatureList feature_list_{
-      syncer::kTrustedVaultAutoUpgradeSyntheticFieldTrial};
 };
 
 class SingleClientNigoriSyncTestWithNotAwaitQuiescence
@@ -323,16 +317,7 @@ class SingleClientNigoriSyncTestWithNotAwaitQuiescence
 class SingleClientNigoriCrossUserSharingPublicPrivateKeyPairSyncTest
     : public SingleClientNigoriSyncTest {
  public:
-  SingleClientNigoriCrossUserSharingPublicPrivateKeyPairSyncTest() {
-    // Enable the password receiving flow to verify cross-user sharing keys by
-    // decrypting incoming password sharing invitations.
-    override_features_.InitWithFeatures(
-        /*enabled_features=*/{syncer::kSharingOfferKeyPairBootstrap,
-                              password_manager::features::
-                                  kPasswordManagerEnableReceiverService},
-        /*disabled_features=*/{});
-  }
-
+  SingleClientNigoriCrossUserSharingPublicPrivateKeyPairSyncTest() = default;
   SingleClientNigoriCrossUserSharingPublicPrivateKeyPairSyncTest(
       const SingleClientNigoriCrossUserSharingPublicPrivateKeyPairSyncTest&) =
       delete;
@@ -415,12 +400,9 @@ class SingleClientNigoriCrossUserSharingPublicPrivateKeyPairSyncTest
     // TODO(crbug.com/41483767): consider waiting for Cryptographer update
     // rather than relying on bookmarks.
     GetFakeServer()->InjectEntity(bookmarks_helper::CreateBookmarkServerEntity(
-        "title", GURL("http://abc.com")));
-    return bookmarks_helper::BookmarksTitleChecker(0, "title", 1).Wait();
+        u"title", GURL("http://abc.com")));
+    return bookmarks_helper::BookmarksTitleChecker(0, u"title", 1).Wait();
   }
-
- private:
-  base::test::ScopedFeatureList override_features_;
 };
 
 // Some tests are flaky on Chromeos when run with IP Protection enabled.
@@ -534,8 +516,8 @@ IN_PROC_BROWSER_TEST_F(
   // so it's an incremental update.
   ASSERT_FALSE(
       GetSyncService(0)->GetUserSettings()->GetAllEncryptedDataTypes().Has(
-          syncer::ModelType::BOOKMARKS));
-  const std::string kTitle = "Bookmark title";
+          syncer::DataType::BOOKMARKS));
+  const std::u16string kTitle = u"Bookmark title";
   const GURL kUrl = GURL("https://g.com");
   std::unique_ptr<syncer::LoopbackServerEntity> bookmark =
       bookmarks_helper::CreateBookmarkServerEntity(kTitle, kUrl);
@@ -702,7 +684,7 @@ IN_PROC_BROWSER_TEST_F(
   // 3. Rewrite server-side nigori with keystore one (this also triggers an
   // invalidation, so client should see CLIENT_DATA_OBSOLETE).
   GetFakeServer()->TriggerError(sync_pb::SyncEnums::CLIENT_DATA_OBSOLETE);
-  GetFakeServer()->DeleteAllEntitiesForModelType(syncer::PASSWORDS);
+  GetFakeServer()->DeleteAllEntitiesForDataType(syncer::PASSWORDS);
 
   const std::vector<std::vector<uint8_t>>& keystore_keys =
       GetFakeServer()->GetKeystoreKeys();
@@ -774,7 +756,7 @@ IN_PROC_BROWSER_TEST_F(
   // 3. Rewrite server-side nigori with keystore one (this also triggers an
   // invalidation, so client should see CLIENT_DATA_OBSOLETE).
   GetFakeServer()->TriggerError(sync_pb::SyncEnums::CLIENT_DATA_OBSOLETE);
-  GetFakeServer()->DeleteAllEntitiesForModelType(syncer::PASSWORDS);
+  GetFakeServer()->DeleteAllEntitiesForDataType(syncer::PASSWORDS);
 
   const std::vector<std::vector<uint8_t>>& keystore_keys =
       GetFakeServer()->GetKeystoreKeys();
@@ -816,12 +798,13 @@ IN_PROC_BROWSER_TEST_F(SingleClientNigoriSyncTest,
       /*keystore_decryptor_params=*/kKeystoreKeyParams,
       /*keystore_key_params=*/kKeystoreKeyParams);
 
-  sync_pb::NigoriSpecifics::AutoUpgradeDebugInfo* auto_upgrade_debug_info =
+  const std::string kGroupName = "Cohort7_Control";
+  sync_pb::TrustedVaultAutoUpgradeExperimentGroup* experiment_group =
       nigori_specifics.mutable_trusted_vault_debug_info()
-          ->mutable_auto_upgrade_debug_info();
-  auto_upgrade_debug_info->set_auto_upgrade_cohort_id(7);
-  auto_upgrade_debug_info->set_auto_upgrade_experiment_group(
-      sync_pb::NigoriSpecifics::AutoUpgradeDebugInfo::CONTROL);
+          ->mutable_auto_upgrade_experiment_group();
+  experiment_group->set_cohort(7);
+  experiment_group->set_type(
+      sync_pb::TrustedVaultAutoUpgradeExperimentGroup::CONTROL);
 
   SetNigoriInFakeServer(nigori_specifics, GetFakeServer());
 
@@ -829,17 +812,22 @@ IN_PROC_BROWSER_TEST_F(SingleClientNigoriSyncTest,
 
   EXPECT_TRUE(ContainsTrialAndGroupName(
       GetSyntheticFieldTrials(),
-      syncer::kTrustedVaultAutoUpgradeSyntheticFieldTrialName, "Control_7"));
+      syncer::kTrustedVaultAutoUpgradeSyntheticFieldTrialName, kGroupName));
 }
 
 IN_PROC_BROWSER_TEST_F(SingleClientNigoriSyncTest,
                        ShouldRegisterTrustedVaultSyntheticFieldTrial) {
+  // Same as in previous test (PRE_ test).
+  const std::string kGroupName = "Cohort7_Control";
+
   ASSERT_TRUE(SetupClients());
 
-  // Upon browser restart, the group should be re-registered automatically.
+  // Shortly after profile startup, the group should be re-registered
+  // automatically.
+  base::RunLoop().RunUntilIdle();
   EXPECT_TRUE(ContainsTrialAndGroupName(
       GetSyntheticFieldTrials(),
-      syncer::kTrustedVaultAutoUpgradeSyntheticFieldTrialName, "Control_7"));
+      syncer::kTrustedVaultAutoUpgradeSyntheticFieldTrialName, kGroupName));
 }
 
 IN_PROC_BROWSER_TEST_F(
@@ -1211,18 +1199,18 @@ IN_PROC_BROWSER_TEST_F(SingleClientNigoriWithWebApiTest,
                   ->IsTrustedVaultKeyRequiredForPreferredDataTypes());
   ASSERT_FALSE(GetSyncService(0)->GetActiveDataTypes().Has(syncer::PASSWORDS));
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   // Verify the profile-menu error string.
   ASSERT_THAT(
       GetAvatarSyncErrorType(GetProfile(0)),
       Eq(AvatarSyncErrorType::kTrustedVaultKeyMissingForPasswordsError));
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
   // Verify the string that would be displayed in settings.
   ASSERT_THAT(GetSyncStatusLabels(GetProfile(0)),
               StatusLabelsMatch(
                   SyncStatusMessageType::kPasswordsOnlySyncError,
-                  IDS_SETTINGS_EMPTY_STRING, IDS_SYNC_STATUS_NEEDS_KEYS_BUTTON,
+                  IDS_SYNC_EMPTY_STRING, IDS_SYNC_STATUS_NEEDS_KEYS_BUTTON,
                   SyncStatusActionType::kRetrieveTrustedVaultKeys));
 
   // There needs to be an existing tab for the second tab (the retrieval flow)
@@ -1247,14 +1235,14 @@ IN_PROC_BROWSER_TEST_F(SingleClientNigoriWithWebApiTest,
                    ->GetUserSettings()
                    ->IsTrustedVaultKeyRequiredForPreferredDataTypes());
   EXPECT_THAT(GetSyncStatusLabels(GetProfile(0)),
-              StatusLabelsMatch(
-                  SyncStatusMessageType::kSynced, IDS_SYNC_ACCOUNT_SYNCING,
-                  IDS_SETTINGS_EMPTY_STRING, SyncStatusActionType::kNoAction));
+              StatusLabelsMatch(SyncStatusMessageType::kSynced,
+                                IDS_SYNC_ACCOUNT_SYNCING, IDS_SYNC_EMPTY_STRING,
+                                SyncStatusActionType::kNoAction));
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   // Verify the profile-menu error string is empty.
   EXPECT_FALSE(GetAvatarSyncErrorType(GetProfile(0)).has_value());
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 }
 
 // Regression test for crbug.com/1479879: test verifies that client is able to
@@ -1319,58 +1307,21 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_FALSE(GetSecurityDomainsServer()->IsRecoverabilityDegraded());
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 class SingleClientNigoriWithWebApiAndDialogUIParamTest
-    : public testing::WithParamInterface<bool>,
-      public SingleClientNigoriWithWebApiTest {
+    : public SingleClientNigoriWithWebApiTest {
  public:
-  SingleClientNigoriWithWebApiAndDialogUIParamTest() {
-    if (GetParam()) {
-      std::vector<base::test::FeatureRef> enabled_features =
-          ash::standalone_browser::GetFeatureRefs();
-      enabled_features.push_back(
-          trusted_vault::kChromeOSTrustedVaultUseWebUIDialog);
-      feature_list_.InitWithFeatures(enabled_features,
-                                     /*disabled_features=*/{});
-    } else {
-      feature_list_.InitAndDisableFeature(
-          trusted_vault::kChromeOSTrustedVaultUseWebUIDialog);
-    }
-  }
-
+  SingleClientNigoriWithWebApiAndDialogUIParamTest() = default;
   ~SingleClientNigoriWithWebApiAndDialogUIParamTest() override = default;
 
-  void SetUpOnMainThread() override {
-    SingleClientNigoriWithWebApiTest::SetUpOnMainThread();
-    if (GetParam()) {
-      trusted_vault_widget_shown_waiter_ =
-          std::make_unique<views::NamedWidgetShownWaiter>(
-              views::test::AnyWidgetTestPasskey{},
-              TrustedVaultDialogDelegate::kWidgetName);
-    }
-  }
-
   bool WaitForTrustedVaultReauthCompletion() {
-    if (GetParam()) {
-      CHECK(trusted_vault_widget_shown_waiter_);
-      views::Widget* trusted_vault_widged =
-          trusted_vault_widget_shown_waiter_->WaitIfNeededAndGet();
-      views::test::WidgetDestroyedWaiter(trusted_vault_widged).Wait();
-      return true;
-    } else {
       return TabClosedChecker(
                  GetBrowser(0)->tab_strip_model()->GetActiveWebContents())
           .Wait();
-    }
   }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-  std::unique_ptr<views::NamedWidgetShownWaiter>
-      trusted_vault_widget_shown_waiter_;
 };
 
-IN_PROC_BROWSER_TEST_P(SingleClientNigoriWithWebApiAndDialogUIParamTest,
+IN_PROC_BROWSER_TEST_F(SingleClientNigoriWithWebApiAndDialogUIParamTest,
                        ShouldAcceptTrustedVaultKeysUponAshSystemNotification) {
   // Mimic the account being already using a trusted vault passphrase.
   SetNigoriInFakeServer(BuildTrustedVaultNigoriSpecifics({kTestEncryptionKey}),
@@ -1421,7 +1372,7 @@ IN_PROC_BROWSER_TEST_P(SingleClientNigoriWithWebApiAndDialogUIParamTest,
                    ->IsTrustedVaultKeyRequiredForPreferredDataTypes());
 }
 
-IN_PROC_BROWSER_TEST_P(
+IN_PROC_BROWSER_TEST_F(
     SingleClientNigoriWithWebApiAndDialogUIParamTest,
     ShouldImproveTrustedVaultRecoverabilityUponAshSystemNotification) {
   // Mimic the key being available upon startup but recoverability degraded.
@@ -1482,10 +1433,7 @@ IN_PROC_BROWSER_TEST_P(
                   .Wait());
 }
 
-INSTANTIATE_TEST_SUITE_P(All,
-                         SingleClientNigoriWithWebApiAndDialogUIParamTest,
-                         ::testing::Bool());
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 IN_PROC_BROWSER_TEST_F(SingleClientNigoriWithWebApiTest,
                        ShouldAcceptEncryptionKeysFromSubFrameIfSyncEnabled) {
@@ -1574,14 +1522,14 @@ IN_PROC_BROWSER_TEST_F(SingleClientNigoriWithWebApiTest,
                    ->IsTrustedVaultRecoverabilityDegraded());
   EXPECT_TRUE(GetSyncService(0)->GetActiveDataTypes().Has(syncer::PASSWORDS));
   EXPECT_THAT(GetSyncStatusLabels(GetProfile(0)),
-              StatusLabelsMatch(
-                  SyncStatusMessageType::kSynced, IDS_SYNC_ACCOUNT_SYNCING,
-                  IDS_SETTINGS_EMPTY_STRING, SyncStatusActionType::kNoAction));
+              StatusLabelsMatch(SyncStatusMessageType::kSynced,
+                                IDS_SYNC_ACCOUNT_SYNCING, IDS_SYNC_EMPTY_STRING,
+                                SyncStatusActionType::kNoAction));
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   // Verify the profile-menu error string is empty.
   EXPECT_FALSE(GetAvatarSyncErrorType(GetProfile(0)).has_value());
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 }
 
 IN_PROC_BROWSER_TEST_F(
@@ -1786,11 +1734,11 @@ IN_PROC_BROWSER_TEST_F(
   // reproduces a more realistic case of the first-time turn-sync-on experience,
   // with a temporary stage where the user is signed in without sync-the-feature
   // being enabled. Except on Ash where the two steps happen at once.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   ASSERT_TRUE(SetupClients());
   ASSERT_TRUE(GetClient(0)->SignInPrimaryAccount());
   ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
   // TODO(crbug.com/40914333): SetupSync(WAIT_FOR_COMMITS_TO_COMPLETE) (e.g.
   // with default argument) causes test flakiness here due to unrelated issue in
   // SharingService. From this test perspective it doesn't matter whether to use
@@ -1914,18 +1862,18 @@ IN_PROC_BROWSER_TEST_F(SingleClientNigoriWithWebApiTest,
                    ->GetUserSettings()
                    ->IsTrustedVaultKeyRequiredForPreferredDataTypes());
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   // Verify the profile-menu error string.
   EXPECT_THAT(GetAvatarSyncErrorType(GetProfile(0)),
               Eq(AvatarSyncErrorType::
                      kTrustedVaultRecoverabilityDegradedForPasswordsError));
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
   // No messages expected in settings.
   EXPECT_THAT(GetSyncStatusLabels(GetProfile(0)),
-              StatusLabelsMatch(
-                  SyncStatusMessageType::kSynced, IDS_SYNC_ACCOUNT_SYNCING,
-                  IDS_SETTINGS_EMPTY_STRING, SyncStatusActionType::kNoAction));
+              StatusLabelsMatch(SyncStatusMessageType::kSynced,
+                                IDS_SYNC_ACCOUNT_SYNCING, IDS_SYNC_EMPTY_STRING,
+                                SyncStatusActionType::kNoAction));
 
   // Mimic opening a web page where the user can interact with the degraded
   // recoverability flow. Before that, there needs to be an existing tab for the
@@ -1945,10 +1893,10 @@ IN_PROC_BROWSER_TEST_F(SingleClientNigoriWithWebApiTest,
                    ->IsTrustedVaultRecoverabilityDegraded());
   EXPECT_FALSE(GetSecurityDomainsServer()->IsRecoverabilityDegraded());
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   // Verify the profile-menu error string is empty.
   EXPECT_FALSE(GetAvatarSyncErrorType(GetProfile(0)).has_value());
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
   histogram_tester.ExpectUniqueSample(
       "Sync.TrustedVaultRecoverabilityDegradedOnStartup",
@@ -2169,7 +2117,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientNigoriWithWebApiTest,
   EXPECT_FALSE(GetSecurityDomainsServer()->ReceivedInvalidRequest());
 
   histogram_tester.ExpectUniqueSample(
-      "Sync.TrustedVaultDownloadKeysStatus",
+      "TrustedVault.DownloadKeysStatus.ChromeSync",
       /*sample=*/trusted_vault::TrustedVaultDownloadKeysStatus::kSuccess,
       /*expected_bucket_count=*/1);
   histogram_tester.ExpectUniqueSample(
@@ -2302,34 +2250,8 @@ IN_PROC_BROWSER_TEST_F(SingleClientNigoriWithWebApiTest,
 }
 
 // ChromeOS doesn't have unconsented primary accounts.
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
-
-class SingleClientNigoriWithWebApiExplicitParamTest
-    : public SingleClientNigoriWithWebApiTest,
-      public testing::WithParamInterface<bool /*explicit_signin*/> {
- public:
-  SingleClientNigoriWithWebApiExplicitParamTest() = default;
-
-  bool is_explicit_signin() const { return GetParam(); }
-
-  void SignInMaybeExplicit() {
-    if (is_explicit_signin()) {
-      secondary_account_helper::SignInUnconsentedAccount(
-          GetProfile(0), &test_url_loader_factory_,
-          SyncTest::kDefaultUserEmail);
-    } else {
-      secondary_account_helper::ImplicitSignInUnconsentedAccount(
-          GetProfile(0), &test_url_loader_factory_,
-          SyncTest::kDefaultUserEmail);
-    }
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_{
-      switches::kExplicitBrowserSigninUIOnDesktop};
-};
-
-IN_PROC_BROWSER_TEST_P(SingleClientNigoriWithWebApiExplicitParamTest,
+#if !BUILDFLAG(IS_CHROMEOS)
+IN_PROC_BROWSER_TEST_F(SingleClientNigoriWithWebApiTest,
                        ShouldAcceptEncryptionKeysFromTheWebInTransportMode) {
   // Mimic the account using a trusted vault passphrase.
   SetNigoriInFakeServer(BuildTrustedVaultNigoriSpecifics({kTestEncryptionKey}),
@@ -2337,19 +2259,11 @@ IN_PROC_BROWSER_TEST_P(SingleClientNigoriWithWebApiExplicitParamTest,
 
   ASSERT_TRUE(SetupClients());
 
-  SignInMaybeExplicit();
+  secondary_account_helper::SignInUnconsentedAccount(
+      GetProfile(0), &test_url_loader_factory_, SyncTest::kDefaultUserEmail);
+
   ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
   ASSERT_FALSE(GetSyncService(0)->IsSyncFeatureEnabled());
-
-  if (!is_explicit_signin()) {
-    // If signin is implicit, Chrome isn't trying to sync passwords, because the
-    // user hasn't opted in to passwords account storage. So the error shouldn't
-    // be surfaced yet.
-    ASSERT_FALSE(GetAvatarSyncErrorType(GetProfile(0)).has_value());
-
-    password_manager::features_util::OptInToAccountStorage(
-        GetProfile(0)->GetPrefs(), GetSyncService(0));
-  }
 
   // The error is now shown, because PASSWORDS is trying to sync. The data
   // type isn't active yet though due to the missing encryption keys.
@@ -2381,8 +2295,8 @@ IN_PROC_BROWSER_TEST_P(SingleClientNigoriWithWebApiExplicitParamTest,
   EXPECT_FALSE(GetAvatarSyncErrorType(GetProfile(0)).has_value());
 }
 
-IN_PROC_BROWSER_TEST_P(
-    SingleClientNigoriWithWebApiExplicitParamTest,
+IN_PROC_BROWSER_TEST_F(
+    SingleClientNigoriWithWebApiTest,
     ShouldReportDegradedTrustedVaultRecoverabilityInTransportMode) {
   base::HistogramTester histogram_tester;
 
@@ -2402,18 +2316,10 @@ IN_PROC_BROWSER_TEST_P(
       GetSecurityDomainsServer()->GetAllTrustedVaultKeys(),
       /*last_key_version=*/GetSecurityDomainsServer()->GetCurrentEpoch());
 
-  SignInMaybeExplicit();
+  secondary_account_helper::SignInUnconsentedAccount(
+      GetProfile(0), &test_url_loader_factory_, SyncTest::kDefaultUserEmail);
   ASSERT_TRUE(GetClient(0)->AwaitSyncTransportActive());
   ASSERT_FALSE(GetSyncService(0)->IsSyncFeatureEnabled());
-
-  if (!is_explicit_signin()) {
-    // Chrome isn't trying to sync passwords, because the user hasn't opted in
-    // to passwords account storage. So the error shouldn't be surfaced yet.
-    ASSERT_FALSE(GetAvatarSyncErrorType(GetProfile(0)).has_value());
-
-    password_manager::features_util::OptInToAccountStorage(
-        GetProfile(0)->GetPrefs(), GetSyncService(0));
-  }
 
   ASSERT_TRUE(TrustedVaultRecoverabilityDegradedStateChecker(GetSyncService(0),
                                                              /*degraded=*/true)
@@ -2443,11 +2349,6 @@ IN_PROC_BROWSER_TEST_P(
       /*sample=*/true, /*expected_bucket_count=*/1);
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    /* no prefix */,
-    SingleClientNigoriWithWebApiExplicitParamTest,
-    ::testing::Bool(),
-    [](const testing::TestParamInfo<bool>& info) {
-      return info.param ? "Explicit" : "Implicit";
-    });
-#endif  // !BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // !BUILDFLAG(IS_CHROMEOS)
+
+}  // namespace

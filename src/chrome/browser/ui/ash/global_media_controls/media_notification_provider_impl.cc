@@ -65,9 +65,7 @@ MediaNotificationProviderImpl::MediaNotificationProviderImpl(
           item_manager_.get(), /*source_id=*/std::nullopt);
   item_manager_->AddItemProducer(media_session_item_producer_.get());
 
-  if (base::FeatureList::IsEnabled(media::kGlobalMediaControlsCrOSUpdatedUI)) {
-    media_color_theme_ = GetCrosMediaColorTheme();
-  }
+  media_color_theme_ = GetCrosMediaColorTheme();
 }
 
 MediaNotificationProviderImpl::~MediaNotificationProviderImpl() {
@@ -154,8 +152,7 @@ void MediaNotificationProviderImpl::OnPrimaryUserSessionStarted() {
           GetProfile());
   AddMediaItemManagerToCastService(item_manager_.get());
 
-  if (!media_router::GlobalMediaControlsCastStartStopEnabled(GetProfile()) ||
-      !crosapi::CrosapiManager::IsInitialized()) {
+  if (!crosapi::CrosapiManager::IsInitialized()) {
     return;
   }
   supplemental_device_picker_producer_ =

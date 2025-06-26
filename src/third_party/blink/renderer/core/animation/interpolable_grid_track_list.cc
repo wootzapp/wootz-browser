@@ -6,7 +6,6 @@
 
 #include <memory>
 #include "third_party/blink/renderer/core/animation/interpolable_grid_track_repeater.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
@@ -19,6 +18,7 @@ InterpolableGridTrackList::InterpolableGridTrackList(InterpolableList* values,
 // static
 InterpolableGridTrackList* InterpolableGridTrackList::MaybeCreate(
     const NGGridTrackList& track_list,
+    const CSSProperty& property,
     float zoom) {
   // Subgrids do not have sizes stored on their track list to interpolate.
   if (track_list.HasAutoRepeater() || track_list.IsSubgriddedAxis()) {
@@ -36,11 +36,10 @@ InterpolableGridTrackList* InterpolableGridTrackList::MaybeCreate(
 
     const NGGridTrackRepeater repeater(
         track_list.RepeatIndex(i), track_list.RepeatSize(i),
-        track_list.RepeatCount(i, 0), track_list.LineNameIndicesCount(i),
-        track_list.RepeatType(i));
+        track_list.RepeatCount(i, 0), track_list.RepeatType(i));
     InterpolableGridTrackRepeater* result =
         InterpolableGridTrackRepeater::Create(repeater, repeater_track_sizes,
-                                              zoom);
+                                              property, zoom);
     DCHECK(result);
     values->Set(i, result);
   }

@@ -35,14 +35,14 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #endif
 
 namespace {
 
 bool IsEphemeralProfile(Profile* profile) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   if (ash::ProfileHelper::IsEphemeralUserProfile(profile))
     return true;
 #endif
@@ -56,7 +56,7 @@ bool IsEphemeralProfile(Profile* profile) {
 }
 
 bool ShouldEnablePageContentAnnotations(Profile* profile) {
-  if (chrome::IsRunningInAppMode()) {
+  if (IsRunningInAppMode()) {
     // The annotations we provide cannot provide any benefit to users in kiosk
     // mode, so we can skip.
     return false;
@@ -95,6 +95,9 @@ PageContentAnnotationsServiceFactory::PageContentAnnotationsServiceFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
               .Build()) {
   DependsOn(OptimizationGuideKeyedServiceFactory::GetInstance());
   DependsOn(HistoryServiceFactory::GetInstance());

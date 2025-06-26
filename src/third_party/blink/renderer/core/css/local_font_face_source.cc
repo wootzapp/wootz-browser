@@ -9,7 +9,9 @@
 #include "third_party/blink/renderer/core/css/css_custom_font_data.h"
 #include "third_party/blink/renderer/core/css/css_font_face.h"
 #include "third_party/blink/renderer/core/probe/core_probes.h"
+#include "third_party/blink/renderer/platform/fonts/bitmap_glyphs_block_list.h"
 #include "third_party/blink/renderer/platform/fonts/font_cache.h"
+#include "third_party/blink/renderer/platform/fonts/font_custom_platform_data.h"
 #include "third_party/blink/renderer/platform/fonts/font_description.h"
 #include "third_party/blink/renderer/platform/fonts/font_global_context.h"
 #include "third_party/blink/renderer/platform/fonts/font_selector.h"
@@ -58,8 +60,7 @@ const SimpleFontData* LocalFontFaceSource::CreateLoadingFallbackFontData(
   const SimpleFontData* temporary_font =
       FontCache::Get().GetLastResortFallbackFont(font_description);
   if (!temporary_font) {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
   CSSCustomFontData* css_font_data = MakeGarbageCollected<CSSCustomFontData>(
       this, CSSCustomFontData::kVisibleFallback);
@@ -69,9 +70,9 @@ const SimpleFontData* LocalFontFaceSource::CreateLoadingFallbackFontData(
 
 const SimpleFontData* LocalFontFaceSource::CreateFontData(
     const FontDescription& font_description,
-    const FontSelectionCapabilities&) {
+    const FontSelectionCapabilities& font_selection_capabilities) {
   if (!IsValid()) {
-    ReportFontLookup(font_description, nullptr);
+    ReportFontLookup(font_description);
     return nullptr;
   }
 
@@ -86,8 +87,7 @@ const SimpleFontData* LocalFontFaceSource::CreateFontData(
   if (IsValid() && IsLoading()) {
     const SimpleFontData* fallback_font_data =
         CreateLoadingFallbackFontData(font_description);
-    ReportFontLookup(font_description, fallback_font_data,
-                     true /* is_loading_fallback */);
+    ReportFontLookup(font_description, true /* is_loading_fallback */);
     return fallback_font_data;
   }
 
@@ -108,13 +108,54 @@ const SimpleFontData* LocalFontFaceSource::CreateFontData(
   unstyled_description.SetStyle(kNormalSlopeValue);
   unstyled_description.SetWeight(kNormalWeightValue);
 #endif
-  // TODO(https://crbug.com/1302264): Enable passing down of font-palette
-  // information here (font_description.GetFontPalette()).
-  const SimpleFontData* font_data = FontCache::Get().GetFontData(
+  // We're using the FontCache here to perform local unique lookup, including
+  // potentially doing GMSCore lookups for fonts available through that, mainly
+  // to retrieve and get access to the SkTypeface. This may return nullptr (e.g.
+  // OOM), in which case we want to exit before creating the SkTypeface.
+  const SimpleFontData* unique_lookup_result = FontCache::Get().GetFontData(
       unstyled_description, font_name_, AlternateFontName::kLocalUniqueFace);
-  histograms_.Record(font_data);
-  ReportFontLookup(unstyled_description, font_data);
-  return font_data;
+  if (!unique_lookup_result) {
+    return nullptr;
+  }
+
+  sk_sp<SkTypeface> typeface(unique_lookup_result->PlatformData().TypefaceSp());
+
+  // From the SkTypeface, here we're reusing the FontCustomPlatformData code
+  // which performs application of font-variation-settings, optical sizing and
+  // mapping of style (stretch, style, weight) to canonical variation axes. (See
+  // corresponding code in RemoteFontFaceSource). For the size argument,
+  // specifying 0, as the font instances returned from the font cache are
+  // usually memory-mapped, and not kept and decoded in memory as in
+  // RemoteFontFaceSource.
+  FontCustomPlatformData* custom_platform_data =
+      FontCustomPlatformData::Create(typeface, 0);
+
+  const FontPlatformData* platform_data =
+      custom_platform_data->GetFontPlatformData(
+          font_description.EffectiveFontSize(),
+          font_description.AdjustedSpecifiedSize(),
+          font_description.IsSyntheticBold() &&
+              font_description.SyntheticBoldAllowed(),
+          font_description.IsSyntheticItalic() &&
+              font_description.SyntheticItalicAllowed(),
+          font_description.GetFontSelectionRequest(),
+          font_selection_capabilities, font_description.FontOpticalSizing(),
+          font_description.TextRendering(),
+          font_description.ResolveFontFeatures(),
+          font_description.Orientation(), font_description.VariationSettings(),
+          font_description.GetFontPalette());
+
+  FontPlatformData* platform_data_avoid_bitmaps =
+      MakeGarbageCollected<FontPlatformData>(*platform_data);
+
+  platform_data_avoid_bitmaps->SetAvoidEmbeddedBitmaps(
+      BitmapGlyphsBlockList::ShouldAvoidEmbeddedBitmapsForTypeface(*typeface));
+
+  SimpleFontData* font_data_variations_palette_applied =
+      MakeGarbageCollected<SimpleFontData>(platform_data_avoid_bitmaps);
+
+  histograms_.Record(font_data_variations_palette_applied);
+  return font_data_variations_palette_applied;
 }
 
 void LocalFontFaceSource::BeginLoadIfNeeded() {
@@ -164,14 +205,6 @@ void LocalFontFaceSource::Trace(Visitor* visitor) const {
   visitor->Trace(face_);
   visitor->Trace(font_selector_);
   CSSFontFaceSource::Trace(visitor);
-}
-
-void LocalFontFaceSource::ReportFontLookup(
-    const FontDescription& font_description,
-    const SimpleFontData* font_data,
-    bool is_loading_fallback) {
-  font_selector_->ReportFontLookupByUniqueNameOnly(
-      font_name_, font_description, font_data, is_loading_fallback);
 }
 
 }  // namespace blink

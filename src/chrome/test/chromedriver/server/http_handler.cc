@@ -6,8 +6,10 @@
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <utility>
 
 #include "base/check.h"
@@ -18,7 +20,7 @@
 #include "base/json/json_writer.h"
 #include "base/logging.h"  // For CHECK macros.
 #include "base/memory/scoped_refptr.h"
-#include "base/ranges/algorithm.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -227,12 +229,13 @@ CommandMapping::CommandMapping(const CommandMapping& other) = default;
 CommandMapping::~CommandMapping() = default;
 
 // Create a command mapping with a prefixed HTTP path (.e.g goog/).
-CommandMapping VendorPrefixedCommandMapping(HttpMethod method,
-                                            const char* path_pattern,
-                                            const Command& command) {
+CommandMapping VendorPrefixedSessionCommandMapping(HttpMethod method,
+                                                   std::string_view path_suffix,
+                                                   const Command& command) {
   return CommandMapping(
       method,
-      base::StringPrintfNonConstexpr(path_pattern, kChromeDriverCompanyPrefix),
+      base::StrCat({"session/:sessionId/", kChromeDriverCompanyPrefix, "/",
+                    path_suffix}),
       command);
 }
 
@@ -269,13 +272,16 @@ HttpHandler::HttpHandler(
       url_loader_factory_owner_->GetURLLoaderFactory());
   session_connection_map_.emplace("", std::vector<int>());
 
+  auto terminate_on_cmd = base::BindRepeating(&HttpHandler::OnSessionTerminated,
+                                              weak_ptr_factory_.GetWeakPtr());
+
   Command init_session_cmd = WrapToCommand(
       "InitSession",
       base::BindRepeating(
           &ExecuteInitSession,
           InitSessionParams(wrapper_url_loader_factory_.get(), socket_factory_,
                             device_manager_.get(), cmd_task_runner,
-                            &session_connection_map_)));
+                            terminate_on_cmd)));
   Command create_and_init_session = base::BindRepeating(
       &ExecuteCreateSession, &session_thread_map_, init_session_cmd);
 
@@ -287,8 +293,7 @@ HttpHandler::HttpHandler(
                      WrapCreateNewSessionCommand(create_and_init_session)),
       CommandMapping(kDelete, "session/:sessionId",
                      base::BindRepeating(
-                         &ExecuteSessionCommand, &session_thread_map_,
-                         &session_connection_map_, "Quit",
+                         &ExecuteSessionCommand, &session_thread_map_, "Quit",
                          base::BindRepeating(&ExecuteQuit, false), true, true)),
       CommandMapping(kGet, "status", base::BindRepeating(&ExecuteGetStatus)),
       CommandMapping(kGet, "session/:sessionId/timeouts",
@@ -1013,11 +1018,19 @@ HttpHandler::HttpHandler(
 
       // Extensions for Navigational Tracking Mitigations:
       // https://privacycg.github.io/nav-tracking-mitigations
-      VendorPrefixedCommandMapping(
+      CommandMapping(
           kDelete, "session/:sessionId/storage/run_bounce_tracking_mitigations",
           WrapToCommand(
               "RunBounceTrackingMitigations",
               base::BindRepeating(&ExecuteRunBounceTrackingMitigations))),
+
+      // Extensions for Protected Audience KAnonymity support:
+      // https://wicg.github.io/turtledove/#kanonymity-automation
+      CommandMapping(
+          kPost, "session/:sessionId/protected_audience/set_k_anonymity",
+          WrapToCommand(
+              "SetProtectedAudienceKAnonymity",
+              base::BindRepeating(&ExecuteSetProtectedAudienceKAnonymity))),
 
       // Extensions for Custom Handlers API:
       // https://html.spec.whatwg.org/multipage/system-state.html#rph-automation
@@ -1060,6 +1073,32 @@ HttpHandler::HttpHandler(
           kDelete, "session/:sessionId/deviceposture",
           WrapToCommand("ClearDevicePosture",
                         base::BindRepeating(&ExecuteClearDevicePosture))),
+
+      // Extensions for Viewport Segments API:
+      // https://drafts.csswg.org/css-viewport-1/#automation-of-the-segments-property
+      CommandMapping(
+          kPost, "session/:sessionId/displayfeatures",
+          WrapToCommand("SetDisplayFeatures",
+                        base::BindRepeating(&ExecuteSetDisplayFeatures))),
+      CommandMapping(
+          kDelete, "session/:sessionId/displayfeatures",
+          WrapToCommand("ClearDisplayFeatures",
+                        base::BindRepeating(&ExecuteClearDisplayFeatures))),
+
+      // Extensions for Compute Pressure API:
+      // https://w3c.github.io/compute-pressure/#automation
+      CommandMapping(kPost, "session/:sessionId/pressuresource",
+                     WrapToCommand("CreateVirtualPressureSource",
+                                   base::BindRepeating(
+                                       &ExecuteCreateVirtualPressureSource))),
+      CommandMapping(kPost, "session/:sessionId/pressuresource/:type",
+                     WrapToCommand("UpdateVirtualPressureSource",
+                                   base::BindRepeating(
+                                       &ExecuteUpdateVirtualPressureSource))),
+      CommandMapping(kDelete, "session/:sessionId/pressuresource/:type",
+                     WrapToCommand("RemoveVirtualPressureSource",
+                                   base::BindRepeating(
+                                       &ExecuteRemoveVirtualPressureSource))),
 
       //
       // Non-standard extension commands
@@ -1127,41 +1166,41 @@ HttpHandler::HttpHandler(
       CommandMapping(kPost, "session/:sessionId/chromium/send_command",
                      WrapToCommand("SendCommand",
                                    base::BindRepeating(&ExecuteSendCommand))),
-      VendorPrefixedCommandMapping(
-          kPost, "session/:sessionId/%s/cdp/execute",
+      VendorPrefixedSessionCommandMapping(
+          kPost, "cdp/execute",
           WrapToCommand("ExecuteCDP",
                         base::BindRepeating(&ExecuteSendCommandAndGetResult))),
       CommandMapping(
           kPost, "session/:sessionId/chromium/send_command_and_get_result",
           WrapToCommand("SendCommandAndGetResult",
                         base::BindRepeating(&ExecuteSendCommandAndGetResult))),
-      VendorPrefixedCommandMapping(
-          kPost, "session/:sessionId/%s/page/freeze",
+      VendorPrefixedSessionCommandMapping(
+          kPost, "page/freeze",
           WrapToCommand("Freeze", base::BindRepeating(&ExecuteFreeze))),
-      VendorPrefixedCommandMapping(
-          kPost, "session/:sessionId/%s/page/resume",
+      VendorPrefixedSessionCommandMapping(
+          kPost, "page/resume",
           WrapToCommand("Resume", base::BindRepeating(&ExecuteResume))),
-      VendorPrefixedCommandMapping(
-          kPost, "session/:sessionId/%s/cast/set_sink_to_use",
+      VendorPrefixedSessionCommandMapping(
+          kPost, "cast/set_sink_to_use",
           WrapToCommand("SetSinkToUse",
                         base::BindRepeating(&ExecuteSetSinkToUse))),
-      VendorPrefixedCommandMapping(
-          kPost, "session/:sessionId/%s/cast/start_desktop_mirroring",
+      VendorPrefixedSessionCommandMapping(
+          kPost, "cast/start_desktop_mirroring",
           WrapToCommand("StartDesktopMirroring",
                         base::BindRepeating(&ExecuteStartDesktopMirroring))),
-      VendorPrefixedCommandMapping(
-          kPost, "session/:sessionId/%s/cast/start_tab_mirroring",
+      VendorPrefixedSessionCommandMapping(
+          kPost, "cast/start_tab_mirroring",
           WrapToCommand("StartTabMirroring",
                         base::BindRepeating(&ExecuteStartTabMirroring))),
-      VendorPrefixedCommandMapping(
-          kPost, "session/:sessionId/%s/cast/stop_casting",
+      VendorPrefixedSessionCommandMapping(
+          kPost, "cast/stop_casting",
           WrapToCommand("StopCasting",
                         base::BindRepeating(&ExecuteStopCasting))),
-      VendorPrefixedCommandMapping(
-          kGet, "session/:sessionId/%s/cast/get_sinks",
+      VendorPrefixedSessionCommandMapping(
+          kGet, "cast/get_sinks",
           WrapToCommand("GetSinks", base::BindRepeating(&ExecuteGetSinks))),
-      VendorPrefixedCommandMapping(
-          kGet, "session/:sessionId/%s/cast/get_issue_message",
+      VendorPrefixedSessionCommandMapping(
+          kGet, "cast/get_issue_message",
           WrapToCommand("GetIssueMessage",
                         base::BindRepeating(&ExecuteGetIssueMessage))),
 
@@ -1191,7 +1230,7 @@ HttpHandler::HttpHandler(
                         base::BindRepeating(&ExecuteSendCommandFromWebSocket))),
   };
   command_map_ =
-      std::make_unique<CommandMap>(commands, commands + std::size(commands));
+      std::make_unique<CommandMap>(std::begin(commands), std::end(commands));
 
   static_bidi_command_map_.emplace(
       "session.status", base::BindRepeating(&ExecuteBidiSessionStatus));
@@ -1202,8 +1241,7 @@ HttpHandler::HttpHandler(
 
   session_bidi_command_map_.emplace(
       "session.end",
-      base::BindRepeating(&ExecuteSessionCommand, &session_thread_map_,
-                          &session_connection_map_, "Quit",
+      base::BindRepeating(&ExecuteSessionCommand, &session_thread_map_, "Quit",
                           base::BindRepeating(&ExecuteBidiSessionEnd), true,
                           true));
 
@@ -1244,9 +1282,8 @@ base::WeakPtr<HttpHandler> HttpHandler::WeakPtr() {
 Command HttpHandler::WrapToCommand(const char* name,
                                    const SessionCommand& session_command,
                                    bool w3c_standard_command) {
-  return base::BindRepeating(&ExecuteSessionCommand, &session_thread_map_,
-                             &session_connection_map_, name, session_command,
-                             w3c_standard_command, false);
+  return base::BindRepeating(&ExecuteSessionCommand, &session_thread_map_, name,
+                             session_command, w3c_standard_command, false);
 }
 
 Command HttpHandler::WrapToCommand(const char* name,
@@ -1529,7 +1566,7 @@ HttpHandler::PrepareStandardResponse(
       DCHECK(false);
       // Examples of unexpected codes:
       // * kChromeNotReachable: kSessionNotCreated must be returned instead;
-      // * kNavigationDetectedByRemoteEnd: kUnknownError must be returned
+      // * kAbortedByNavigation: kUnknownError must be returned
       //   instead.
       response = std::make_unique<net::HttpServerResponseInfo>(
           net::HTTP_INTERNAL_SERVER_ERROR);
@@ -1765,6 +1802,11 @@ void HttpHandler::OnNewSessionCreated(const CommandCallback& next_callback,
   next_callback.Run(status, std::move(result), session_id, w3c);
 }
 
+void HttpHandler::OnSessionTerminated(std::string session_id) {
+  session_thread_map_.erase(session_id);
+  session_connection_map_.erase(session_id);
+}
+
 void HttpHandler::OnNewBidiSessionOnCmdThread(
     HttpServerInterface* http_server,
     int connection_id,
@@ -1935,7 +1977,7 @@ void HttpHandler::OnClose(HttpServerInterface* http_server, int connection_id) {
     return;
   }
   std::vector<int>& bucket = ses_it->second;
-  auto bucket_it = base::ranges::find(bucket, connection_id);
+  auto bucket_it = std::ranges::find(bucket, connection_id);
   // The case when it can happen:
   // The session thread has sent a response (e.g. Quit command) to the client.
   // After that the session thread preempted before closing all connections.
@@ -2041,17 +2083,17 @@ Status internal::ParseBidiCommand(const std::string& data,
   std::optional<double> maybe_id = parsed.FindDouble("id");
   if (!maybe_id) {
     return Status(kInvalidArgument,
-                  "BiDi command has no id of type integer: " + data);
+                  "BiDi command has no 'id' of type js-uint: " + data);
   }
   std::string* maybe_method = parsed.FindString("method");
   if (!maybe_method) {
     return Status(kInvalidArgument,
-                  "BiDi command has no method of type string: " + data);
+                  "BiDi command has no 'method' of type string: " + data);
   }
   base::Value::Dict* maybe_params = parsed.FindDict("params");
   if (!maybe_params) {
     return Status(kInvalidArgument,
-                  "BiDi command has no params of type dictionary: " + data);
+                  "BiDi command has no 'params' of type dictionary: " + data);
   }
   return status;
 }

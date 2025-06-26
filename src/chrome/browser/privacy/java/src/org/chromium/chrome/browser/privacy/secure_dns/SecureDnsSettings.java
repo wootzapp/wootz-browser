@@ -9,6 +9,10 @@ import android.os.Bundle;
 
 import androidx.preference.Preference;
 
+import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.net.SecureDnsManagementMode;
 import org.chromium.chrome.browser.privacy.secure_dns.SecureDnsProviderPreference.State;
 import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
@@ -20,9 +24,10 @@ import org.chromium.net.SecureDnsMode;
 import java.util.List;
 
 /**
- * Fragment to manage Secure DNS preference.  It consists of a toggle switch and,
- * if the switch is enabled, a SecureDnsControl.
+ * Fragment to manage Secure DNS preference. It consists of a toggle switch and, if the switch is
+ * enabled, a SecureDnsControl.
  */
+@NullMarked
 public class SecureDnsSettings extends ChromeBaseSettingsFragment {
     // Must match keys in secure_dns_settings.xml.
     private static final String PREF_SECURE_DNS_SWITCH = "secure_dns_switch";
@@ -30,6 +35,7 @@ public class SecureDnsSettings extends ChromeBaseSettingsFragment {
 
     private ChromeSwitchPreference mSecureDnsSwitch;
     private SecureDnsProviderPreference mSecureDnsProviderPreference;
+    private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
 
     /**
      * @return A summary for use in the Preference that opens this fragment.
@@ -56,12 +62,13 @@ public class SecureDnsSettings extends ChromeBaseSettingsFragment {
     }
 
     @Override
-    public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
-        getActivity().setTitle(R.string.settings_secure_dns_title);
+    public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+        mPageTitle.set(getString(R.string.settings_secure_dns_title));
         SettingsUtils.addPreferencesFromResource(this, R.xml.secure_dns_settings);
 
         // Set up preferences inside the activity.
-        mSecureDnsSwitch = (ChromeSwitchPreference) findPreference(PREF_SECURE_DNS_SWITCH);
+        mSecureDnsSwitch =
+                (ChromeSwitchPreference) findPreference(PREF_SECURE_DNS_SWITCH);
         mSecureDnsSwitch.setManagedPreferenceDelegate(
                 new ChromeManagedPreferenceDelegate(getProfile()) {
                     @Override
@@ -95,7 +102,8 @@ public class SecureDnsSettings extends ChromeBaseSettingsFragment {
         }
 
         mSecureDnsProviderPreference =
-                (SecureDnsProviderPreference) findPreference(PREF_SECURE_DNS_PROVIDER);
+                (SecureDnsProviderPreference)
+                        findPreference(PREF_SECURE_DNS_PROVIDER);
         mSecureDnsProviderPreference.setOnPreferenceChangeListener(
                 (preference, value) -> {
                     State controlState = (State) value;
@@ -111,6 +119,11 @@ public class SecureDnsSettings extends ChromeBaseSettingsFragment {
 
         // Update preference views and state.
         loadPreferenceState();
+    }
+
+    @Override
+    public ObservableSupplier<String> getPageTitle() {
+        return mPageTitle;
     }
 
     /**

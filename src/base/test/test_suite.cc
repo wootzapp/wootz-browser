@@ -52,16 +52,17 @@
 #include "base/test/multiprocess_test.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/scoped_run_loop_timeout.h"
+#include "base/test/test_suite_helper.h"
 #include "base/test/test_switches.h"
 #include "base/test/test_timeouts.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
 #include "base/tracing_buildflags.h"
 #include "build/build_config.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
-#include "partition_alloc/tagging.h"
+#include "partition_alloc/buildflags.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "testing/libfuzzer/fuzztest_init_helper.h"
 #include "testing/multiprocess_func_list.h"
 
 #if BUILDFLAG(IS_APPLE)
@@ -166,39 +167,7 @@ class FeatureListScopedToEachTest : public testing::EmptyTestEventListener {
       delete;
 
   void OnTestStart(const testing::TestInfo& test_info) override {
-    const CommandLine* command_line = CommandLine::ForCurrentProcess();
-
-    // We set up a FeatureList via ScopedFeatureList::InitFromCommandLine().
-    // This ensures that code using that API will not hit an error that it's
-    // not set. It will be cleared by ~ScopedFeatureList().
-
-    // TestFeatureForBrowserTest1 and TestFeatureForBrowserTest2 used in
-    // ContentBrowserTestScopedFeatureListTest to ensure ScopedFeatureList keeps
-    // features from command line.
-    // TestBlinkFeatureDefault is used in RuntimeEnabledFeaturesTest to test a
-    // behavior with OverrideState::OVERIDE_USE_DEFAULT.
-    std::string enabled =
-        command_line->GetSwitchValueASCII(switches::kEnableFeatures);
-    std::string disabled =
-        command_line->GetSwitchValueASCII(switches::kDisableFeatures);
-    enabled += ",TestFeatureForBrowserTest1,*TestBlinkFeatureDefault";
-    disabled += ",TestFeatureForBrowserTest2";
-    scoped_feature_list_.InitFromCommandLine(enabled, disabled);
-
-    // The enable-features and disable-features flags were just slurped into a
-    // FeatureList, so remove them from the command line. Tests should enable
-    // and disable features via the ScopedFeatureList API rather than
-    // command-line flags.
-    CommandLine new_command_line(command_line->GetProgram());
-    CommandLine::SwitchMap switches = command_line->GetSwitches();
-
-    switches.erase(switches::kEnableFeatures);
-    switches.erase(switches::kDisableFeatures);
-
-    for (const auto& iter : switches)
-      new_command_line.AppendSwitchNative(iter.first, iter.second);
-
-    *CommandLine::ForCurrentProcess() = new_command_line;
+    test::InitScopedFeatureListForTesting(scoped_feature_list_);
 
     // TODO(crbug.com/40255771): Enable PartitionAlloc in unittests with
     // ASAN.
@@ -286,12 +255,13 @@ class CheckProcessPriority : public testing::EmptyTestEventListener {
 #endif  // !BUILDFLAG(IS_APPLE)
 
 const std::string& GetProfileName() {
-  static const NoDestructor<std::string> profile_name([]() {
+  static const NoDestructor<std::string> profile_name([] {
     const CommandLine& command_line = *CommandLine::ForCurrentProcess();
-    if (command_line.HasSwitch(switches::kProfilingFile))
+    if (command_line.HasSwitch(switches::kProfilingFile)) {
       return command_line.GetSwitchValueASCII(switches::kProfilingFile);
-    else
+    } else {
       return std::string("test-profile-{pid}");
+    }
   }());
   return *profile_name;
 }
@@ -400,8 +370,9 @@ TestSuite::TestSuite(int argc, wchar_t** argv) : argc_(argc) {
 #endif  // BUILDFLAG(IS_WIN)
 
 TestSuite::~TestSuite() {
-  if (initialized_command_line_)
+  if (initialized_command_line_) {
     CommandLine::Reset();
+  }
 }
 
 // Don't add additional code to this method.  Instead add it to
@@ -421,15 +392,17 @@ int TestSuite::Run() {
   // services, so skip this if that switch was present.
   // This must be called before Initialize() because, for example,
   // content::ContentTestSuite::Initialize() may use the cached values.
-  if (client_func.empty())
+  if (client_func.empty()) {
     CHECK(FetchAndCacheSystemInfo());
+  }
 #endif
 
   Initialize();
 
   // Check to see if we are being run as a client process.
-  if (!client_func.empty())
+  if (!client_func.empty()) {
     return multi_process_function_list::InvokeChildProcessTest(client_func);
+  }
 
 #if BUILDFLAG(IS_IOS)
   test_listener_ios::RegisterTestEndListener();
@@ -442,18 +415,17 @@ int TestSuite::Run() {
   ::partition_alloc::ChangeMemoryTaggingModeForCurrentThread(
       ::partition_alloc::TagViolationReportingMode::kSynchronous);
 #elif BUILDFLAG(IS_ANDROID)
-    // On Android, the tests are opted into synchronous MTE mode by the
-    // memtagMode attribute in an AndroidManifest.xml file or via an `am compat`
-    // command, so and explicit call to ChangeMemoryTaggingModeForCurrentThread
-    // is not needed.
+  // On Android, the tests are opted into synchronous MTE mode by the
+  // memtagMode attribute in an AndroidManifest.xml file or via an `am compat`
+  // command, so and explicit call to ChangeMemoryTaggingModeForCurrentThread
+  // is not needed.
 #endif
 
   int result = RunAllTests();
 
 #if BUILDFLAG(IS_APPLE)
-  // This MUST happen before Shutdown() since Shutdown() tears down
-  // objects (such as NotificationService::current()) that Cocoa
-  // objects use to remove themselves as observers.
+  // This MUST happen before Shutdown() since Shutdown() tears down objects that
+  // Cocoa objects use to remove themselves as observers.
   scoped_pool.Recycle();
 #endif
 
@@ -474,8 +446,8 @@ void TestSuite::DisableCheckForLeakedGlobals() {
 
 void TestSuite::UnitTestAssertHandler(const char* file,
                                       int line,
-                                      const std::string_view summary,
-                                      const std::string_view stack_trace) {
+                                      std::string_view summary,
+                                      std::string_view stack_trace) {
 #if BUILDFLAG(IS_ANDROID)
   // Correlating test stdio with logcat can be difficult, so we emit this
   // helpful little hint about what was running.  Only do this for Android
@@ -586,8 +558,9 @@ void TestSuite::Initialize() {
   // TODO(crbug.com/40120934): Remove this in favor of the codepath in
   // FeatureList::SetInstance() when/if OnTestStart() TestEventListeners
   // are fixed to be invoked in the child process as expected.
-  if (command_line->HasSwitch("gtest_internal_run_death_test"))
+  if (command_line->HasSwitch("gtest_internal_run_death_test")) {
     logging::LOGGING_DCHECK = logging::LOGGING_FATAL;
+  }
 #endif  // BUILDFLAG(DCHECK_IS_CONFIGURABLE)
 
 #if BUILDFLAG(IS_IOS)
@@ -636,8 +609,9 @@ void TestSuite::Initialize() {
   listeners.Append(new DisableMaybeTests);
   listeners.Append(new ResetCommandLineBetweenTests);
   listeners.Append(new FeatureListScopedToEachTest);
-  if (check_for_leaked_globals_)
+  if (check_for_leaked_globals_) {
     listeners.Append(new CheckForLeakedGlobals);
+  }
   if (check_for_thread_and_process_priority_) {
 #if !BUILDFLAG(IS_APPLE)
     listeners.Append(new CheckProcessPriority);
@@ -663,6 +637,7 @@ void TestSuite::InitializeFromCommandLine(int* argc, char** argv) {
   // CommandLine::Init() is called earlier from PreInitialize().
   testing::InitGoogleTest(argc, argv);
   testing::InitGoogleMock(argc, argv);
+  MaybeInitFuzztest(*argc, argv);
 
 #if BUILDFLAG(IS_IOS)
   InitIOSArgs(*argc, argv);

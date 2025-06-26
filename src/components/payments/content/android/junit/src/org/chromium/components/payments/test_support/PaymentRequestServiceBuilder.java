@@ -147,18 +147,13 @@ public class PaymentRequestServiceBuilder implements Delegate {
     }
 
     @Override
-    public JourneyLogger createJourneyLogger(boolean isIncognito, WebContents webContents) {
+    public JourneyLogger createJourneyLogger(WebContents webContents) {
         return mJourneyLogger;
     }
 
     @Override
     public String formatUrlForSecurityDisplay(GURL url) {
         return url.getSpec();
-    }
-
-    @Override
-    public byte[][] getCertificateChain(WebContents webContents) {
-        return new byte[0][];
     }
 
     @Override

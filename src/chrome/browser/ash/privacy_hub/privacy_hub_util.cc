@@ -10,6 +10,9 @@
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/privacy_hub_delegate.h"
+#include "ash/public/cpp/session/session_controller.h"
+#include "ash/public/cpp/session/session_observer.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/system/geolocation/geolocation_controller.h"
 #include "ash/system/privacy_hub/camera_privacy_switch_controller.h"
@@ -23,15 +26,138 @@
 #include "base/functional/callback.h"
 #include "base/notreached.h"
 #include "base/supports_user_data.h"
-#include "chrome/browser/ash/camera_presence_notifier.h"
-#include "chrome/browser/ash/privacy_hub/content_block_observation.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/ui/ash/app_access_notifier.h"
+#include "chrome/browser/ui/ash/app_access/app_access_notifier.h"
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
+#include "chromeos/ash/components/camera_presence_notifier/camera_presence_notifier.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 
 namespace ash::privacy_hub_util {
+
+namespace {
+
+PrefService* ActivePrefService() {
+  auto* session_controller =
+      CHECK_DEREF(ash::Shell::Get()).session_controller();
+  return CHECK_DEREF(session_controller).GetActivePrefService();
+}
+
+ScopedUserPermissionPrefForTest::AccessLevel GetCurrentAccessLevel(
+    ContentType type) {
+  if (type == ContentType::MEDIASTREAM_CAMERA) {
+    const bool allowed =
+        CHECK_DEREF(ActivePrefService()).GetBoolean(prefs::kUserCameraAllowed);
+    return allowed ? ScopedUserPermissionPrefForTest::AccessLevel::kAllowed
+                   : ScopedUserPermissionPrefForTest::AccessLevel::kDisallowed;
+  }
+  if (type == ContentType::MEDIASTREAM_MIC) {
+    const bool allowed = CHECK_DEREF(ActivePrefService())
+                             .GetBoolean(prefs::kUserMicrophoneAllowed);
+    return allowed ? ScopedUserPermissionPrefForTest::AccessLevel::kAllowed
+                   : ScopedUserPermissionPrefForTest::AccessLevel::kDisallowed;
+  }
+  CHECK(type == ContentType::GEOLOCATION);
+  return static_cast<ScopedUserPermissionPrefForTest::AccessLevel>(
+      CHECK_DEREF(ActivePrefService())
+          .GetInteger(prefs::kUserGeolocationAccessLevel));
+}
+
+void SetCurrentAccessLevel(
+    ContentType type,
+    ScopedUserPermissionPrefForTest::AccessLevel access_level) {
+  if (type == ContentType::MEDIASTREAM_CAMERA) {
+    CHECK(access_level !=
+          ScopedUserPermissionPrefForTest::AccessLevel::kOnlyAllowedForSystem);
+    CHECK_DEREF(ActivePrefService())
+        .SetBoolean(prefs::kUserCameraAllowed,
+                    access_level ==
+                        ScopedUserPermissionPrefForTest::AccessLevel::kAllowed);
+    return;
+  }
+  if (type == ContentType::MEDIASTREAM_MIC) {
+    CHECK(access_level !=
+          ScopedUserPermissionPrefForTest::AccessLevel::kOnlyAllowedForSystem);
+    CHECK_DEREF(ActivePrefService())
+        .SetBoolean(prefs::kUserMicrophoneAllowed,
+                    access_level ==
+                        ScopedUserPermissionPrefForTest::AccessLevel::kAllowed);
+    return;
+  }
+  CHECK(type == ContentType::GEOLOCATION);
+  CHECK_DEREF(ActivePrefService())
+      .SetInteger(prefs::kUserGeolocationAccessLevel,
+                  static_cast<int>(access_level));
+}
+
+class ContentBlockObservationImpl : public ContentBlockObservation {
+ public:
+  // Access restricted constructor.
+  ContentBlockObservationImpl(SessionController* session_controller,
+                              SystemPermissionChangedCallback callback)
+      : callback_(std::move(callback)) {
+    // Microphone and camera settings are following the active user's
+    // preferences. Subscribing to the active user's pref changes.
+    CHECK(Shell::Get()->session_controller());
+    active_user_pref_change_registrar_ =
+        std::make_unique<PrefChangeRegistrar>();
+    active_user_pref_change_registrar_->Init(
+        Shell::Get()->session_controller()->GetActivePrefService());
+    active_user_pref_change_registrar_->Add(
+        prefs::kUserCameraAllowed,
+        base::BindRepeating(&ContentBlockObservationImpl::OnPreferenceChanged,
+                            base::Unretained(this)));
+    active_user_pref_change_registrar_->Add(
+        prefs::kUserMicrophoneAllowed,
+        base::BindRepeating(&ContentBlockObservationImpl::OnPreferenceChanged,
+                            base::Unretained(this)));
+
+    // Geolocation setting is exclusively controlled by the primary user of the
+    // session. This is different from the camera and microphone implementation.
+    // Subscribing to the primary user's pref changes.
+    primary_user_pref_change_registrar_ =
+        std::make_unique<PrefChangeRegistrar>();
+    primary_user_pref_change_registrar_->Init(
+        Shell::Get()->session_controller()->GetPrimaryUserPrefService());
+    primary_user_pref_change_registrar_->Add(
+        prefs::kUserGeolocationAccessLevel,
+        base::BindRepeating(&ContentBlockObservationImpl::OnPreferenceChanged,
+                            base::Unretained(this)));
+  }
+
+  ~ContentBlockObservationImpl() override = default;
+
+ private:
+  // Handles changes in the user pref ( e.g. toggling the camera switch on
+  // Privacy Hub UI).
+  void OnPreferenceChanged(const std::string& pref_name) {
+    if (pref_name == prefs::kUserCameraAllowed) {
+      callback_.Run(
+          ContentType::MEDIASTREAM_CAMERA,
+          privacy_hub_util::ContentBlocked(ContentType::MEDIASTREAM_CAMERA));
+      return;
+    }
+    if (pref_name == prefs::kUserMicrophoneAllowed) {
+      callback_.Run(
+          ContentType::MEDIASTREAM_MIC,
+          privacy_hub_util::ContentBlocked(ContentType::MEDIASTREAM_MIC));
+      return;
+    }
+    if (pref_name == prefs::kUserGeolocationAccessLevel) {
+      callback_.Run(ContentType::GEOLOCATION,
+                    privacy_hub_util::ContentBlocked(ContentType::GEOLOCATION));
+      return;
+    }
+    NOTREACHED();
+  }
+
+  SystemPermissionChangedCallback callback_;
+  std::unique_ptr<PrefChangeRegistrar> active_user_pref_change_registrar_;
+  std::unique_ptr<PrefChangeRegistrar> primary_user_pref_change_registrar_;
+  base::WeakPtrFactory<ContentBlockObservationImpl> weak_ptr_factory_{this};
+};
+}  // namespace
 
 void SetFrontend(PrivacyHubDelegate* ptr) {
   PrivacyHubController* const controller = PrivacyHubController::Get();
@@ -112,6 +238,10 @@ bool IsCrosLocationOobeNegotiationNeeded() {
   return true;
 }
 
+GeolocationAccessLevel GetSystemGeolocationAccessLevel() {
+  return GeolocationPrivacySwitchController::Get()->AccessLevel();
+}
+
 namespace {
 std::optional<bool> camera_led_fallback_for_testing{};
 }
@@ -160,7 +290,7 @@ void SetAppAccessNotifier(AppAccessNotifier* app_access_notifier) {
         case Sensor::kLocation:
           break;
       }
-      NOTREACHED_NORETURN();
+      NOTREACHED();
     }
 
    private:
@@ -198,20 +328,20 @@ bool ContentBlocked(ContentType type) {
     case ContentType::MEDIASTREAM_CAMERA: {
       auto* const controller = CameraPrivacySwitchController::Get();
       CHECK(controller);
-      return controller->IsCameraUsageAllowed();
+      return !controller->IsCameraUsageAllowed();
     }
     case ContentType::MEDIASTREAM_MIC: {
       auto* const controller = MicrophonePrivacySwitchController::Get();
       CHECK(controller);
-      return controller->IsMicrophoneUsageAllowed();
+      return !controller->IsMicrophoneUsageAllowed();
     }
     case ContentType::GEOLOCATION: {
       if (!features::IsCrosPrivacyHubLocationEnabled()) {
-        return true;
+        return false;  // content not blocked as geo blocking not supported.
       }
       auto* const controller = GeolocationPrivacySwitchController::Get();
       CHECK(controller);
-      return controller->IsGeolocationUsageAllowedForApps();
+      return !controller->IsGeolocationUsageAllowedForApps();
     }
     default: {
       // If the provided content type is not controllable in ChromeOS, then it
@@ -221,12 +351,29 @@ bool ContentBlocked(ContentType type) {
   }
 }
 
-std::unique_ptr<base::CheckedObserver> CreateObservationForBlockedContent(
-    ContentBlockCallback callback) {
-  return ContentBlockObservation::Create(std::move(callback));
+std::unique_ptr<ContentBlockObservation> CreateObservationForBlockedContent(
+    SystemPermissionChangedCallback callback) {
+  if (!ash::Shell::HasInstance()) {
+    return nullptr;
+  }
+  auto* shell = ash::Shell::Get();
+  CHECK(shell);
+  auto* session_controller = shell->session_controller();
+  if (!session_controller) {
+    return nullptr;
+  }
+  PrefService* pref_service =
+      session_controller->GetLastActiveUserPrefService();
+  if (!pref_service) {
+    return nullptr;
+  }
+
+  auto observation = std::make_unique<ContentBlockObservationImpl>(
+      session_controller, std::move(callback));
+  return observation;
 }
 
-void OpenSystemSettings(Profile* profile, ContentType type) {
+void OpenSystemSettings(ContentType type) {
   const char* settings_path = "";
   switch (type) {
     case ContentType::MEDIASTREAM_CAMERA: {
@@ -235,7 +382,7 @@ void OpenSystemSettings(Profile* profile, ContentType type) {
     }
     case ContentType::MEDIASTREAM_MIC: {
       settings_path =
-          chromeos::settings::mojom::kPrivacyHubGeolocationSubpagePath;
+          chromeos::settings::mojom::kPrivacyHubMicrophoneSubpagePath;
       break;
     }
     case ContentType::GEOLOCATION: {
@@ -245,13 +392,31 @@ void OpenSystemSettings(Profile* profile, ContentType type) {
     }
     default: {
       // This should only be called for camera, microphone, or geolocation.
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     }
   }
 
-  chrome::SettingsWindowManager::GetInstance()->ShowOSSettings(profile,
-                                                               settings_path);
+  chrome::SettingsWindowManager::GetInstance()->ShowOSSettings(
+      ProfileManager::GetActiveUserProfile(), settings_path);
+}
+
+ScopedUserPermissionPrefForTest::ScopedUserPermissionPrefForTest(
+    ContentType type,
+    ScopedUserPermissionPrefForTest::AccessLevel access_level)
+    : content_type_(type), previous_access_level_(GetCurrentAccessLevel(type)) {
+  // Only Geolocation, camera and mic are supported.
+  CHECK((ContentType::GEOLOCATION == type) ||
+        (ContentType::MEDIASTREAM_CAMERA == type) ||
+        (ContentType::MEDIASTREAM_MIC == type));
+  if (ContentType::GEOLOCATION != type) {
+    CHECK(access_level !=
+          ScopedUserPermissionPrefForTest::AccessLevel::kOnlyAllowedForSystem);
+  }
+  SetCurrentAccessLevel(type, access_level);
+}
+
+ScopedUserPermissionPrefForTest::~ScopedUserPermissionPrefForTest() {
+  SetCurrentAccessLevel(content_type_, previous_access_level_);
 }
 
 }  // namespace ash::privacy_hub_util

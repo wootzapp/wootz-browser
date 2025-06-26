@@ -4,6 +4,8 @@
 
 #include "components/performance_manager/public/metrics/metrics_collector.h"
 
+#include <utility>
+
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -46,8 +48,10 @@ class MetricsCollectorTest : public GraphTestHarness {
   }
 
   void TearDown() override {
-    graph()->TakeFromGraph(metrics_collector_);  // Destroy the observer.
-    metrics_collector_ = nullptr;
+    // Clear |metrics_collector_| to avoid leaving a dangling pointer.
+    MetricsCollector* collector = std::exchange(metrics_collector_, nullptr);
+    // Destroy the observer.
+    graph()->TakeFromGraph(collector);
     Super::TearDown();
   }
 
@@ -57,7 +61,7 @@ class MetricsCollectorTest : public GraphTestHarness {
   base::HistogramTester histogram_tester_;
 
  private:
-  raw_ptr<MetricsCollector, DanglingUntriaged> metrics_collector_ = nullptr;
+  raw_ptr<MetricsCollector> metrics_collector_ = nullptr;
 };
 
 TEST_F(MetricsCollectorTest, ProcessLifetime_LaunchAndExit) {
@@ -238,7 +242,7 @@ TEST_F(MetricsCollectorTest, ProcessLifetime_Utility) {
 }
 
 TEST_F(MetricsCollectorTest, NewNavigationWithSameOriginTab) {
-  auto page_node = CreateNode<PageNodeImpl>(WebContentsProxy(), "context_1");
+  auto page_node = CreateNode<PageNodeImpl>(nullptr, "context_1");
 
   page_node->OnMainFrameNavigationCommitted(
       false, base::TimeTicks::Now(), kDummyID, GURL("http://www.example1.org"),
@@ -247,8 +251,7 @@ TEST_F(MetricsCollectorTest, NewNavigationWithSameOriginTab) {
       histogram_tester_.GetAllSamples("Tabs.NewNavigationWithSameOriginTab"),
       ElementsAre(base::Bucket(0, 1)));
 
-  auto same_origin_page_node =
-      CreateNode<PageNodeImpl>(WebContentsProxy(), "context_1");
+  auto same_origin_page_node = CreateNode<PageNodeImpl>(nullptr, "context_1");
   same_origin_page_node->OnMainFrameNavigationCommitted(
       false, base::TimeTicks::Now(), kDummyID,
       GURL("http://www.example1.org/example"), kHtmlMimeType,
@@ -267,7 +270,7 @@ TEST_F(MetricsCollectorTest, NewNavigationWithSameOriginTab) {
       ElementsAre(base::Bucket(0, 1), base::Bucket(1, 1)));
 
   auto different_origin_page_node =
-      CreateNode<PageNodeImpl>(WebContentsProxy(), "context_1");
+      CreateNode<PageNodeImpl>(nullptr, "context_1");
   different_origin_page_node->OnMainFrameNavigationCommitted(
       false, base::TimeTicks::Now(), kDummyID, GURL("http://www.example2.org"),
       kHtmlMimeType, kAskNotificationPermission);
@@ -276,7 +279,7 @@ TEST_F(MetricsCollectorTest, NewNavigationWithSameOriginTab) {
       ElementsAre(base::Bucket(0, 2), base::Bucket(1, 1)));
 
   auto different_context_page_node =
-      CreateNode<PageNodeImpl>(WebContentsProxy(), "context_2");
+      CreateNode<PageNodeImpl>(nullptr, "context_2");
   different_context_page_node->OnMainFrameNavigationCommitted(
       false, base::TimeTicks::Now(), kDummyID, GURL("http://www.example1.org"),
       kHtmlMimeType, kAskNotificationPermission);

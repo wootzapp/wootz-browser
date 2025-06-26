@@ -4,34 +4,33 @@
 
 package org.chromium.components.crash;
 
-import androidx.annotation.Nullable;
-
 import org.jni_zero.CalledByNative;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ThreadUtils;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  * This class allows setting crash keys from the Java side. The set of crash keys is defined at
  * build time. To add a new crash key, add a new entry to:
+ *
  * <ol>
- *     <li>The CrashKeyIndex enum in {@code crash_keys_android.h}</li>
- *     <li>The CrashKeyString array in {@code crash_keys_android.cc}</li>
- *     <li>The {@link #KEYS} array in this class.</li>
+ *   <li>The CrashKeyIndex enum in {@code crash_keys_android.h}
+ *   <li>The CrashKeyString array in {@code crash_keys_android.cc}
+ *   <li>The {@link #KEYS} array in this class.
  * </ol>
+ *
  * The crash keys will only be included in browser process crash reports.
  */
+@NullMarked
 public class CrashKeys {
     private static final String[] KEYS =
             new String[] {
-                "loaded_dynamic_module",
-                "active_dynamic_module",
                 "application_status",
                 "installed_modules",
-                "emulated_modules",
-                "dynamic_module_dex_name",
                 "partner_customization_config",
                 "first_run"
             };
@@ -107,6 +106,6 @@ public class CrashKeys {
 
     @NativeMethods
     interface Natives {
-        void set(CrashKeys caller, int key, String value);
+        void set(CrashKeys caller, int key, @Nullable String value);
     }
 }

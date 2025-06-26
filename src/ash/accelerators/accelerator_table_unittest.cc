@@ -2,10 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "ash/accelerators/accelerator_table.h"
+
 #include <set>
 #include <tuple>
 
-#include "ash/accelerators/accelerator_table.h"
+#include "ash/public/cpp/accelerators.h"
 #include "base/hash/md5.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
@@ -16,10 +18,10 @@ namespace ash {
 namespace {
 
 // The number of non-Search-based accelerators.
-constexpr int kNonSearchAcceleratorsNum = 112;
+constexpr int kNonSearchAcceleratorsNum = 113;
 // The hash of non-Search-based accelerators. See HashAcceleratorData().
 constexpr char kNonSearchAcceleratorsHash[] =
-    "b6b832050cc5c1b6f5e0701f47343815";
+    "d8d437fd800f34f648c5bc4bb47926b0";
 
 struct Cmp {
   bool operator()(const AcceleratorData& lhs,
@@ -41,12 +43,12 @@ std::string AcceleratorDataToString(const AcceleratorData& accelerator) {
 }
 
 std::string HashAcceleratorData(
-    const std::vector<AcceleratorData> accelerators) {
+    const std::vector<AcceleratorData>& accelerators) {
   base::MD5Context context;
   base::MD5Init(&context);
-  for (const AcceleratorData& accelerator : accelerators)
+  for (const AcceleratorData& accelerator : accelerators) {
     base::MD5Update(&context, AcceleratorDataToString(accelerator));
-
+  }
   base::MD5Digest digest;
   base::MD5Final(&digest, &context);
   return MD5DigestToBase16(digest);
@@ -56,13 +58,11 @@ std::string HashAcceleratorData(
 
 TEST(AcceleratorTableTest, CheckDuplicatedAccelerators) {
   std::set<AcceleratorData, Cmp> accelerators;
-  for (size_t i = 0; i < kAcceleratorDataLength; ++i) {
-    const AcceleratorData& entry = kAcceleratorData[i];
+  for (const AcceleratorData& entry : kAcceleratorData) {
     EXPECT_TRUE(accelerators.insert(entry).second)
         << "Duplicated accelerator: " << AcceleratorDataToString(entry);
   }
-  for (size_t i = 0; i < kDisableWithNewMappingAcceleratorDataLength; ++i) {
-    const AcceleratorData& entry = kDisableWithNewMappingAcceleratorData[i];
+  for (const AcceleratorData& entry : kDisableWithNewMappingAcceleratorData) {
     EXPECT_TRUE(accelerators.insert(entry).second)
         << "Duplicated accelerator: " << AcceleratorDataToString(entry);
   }
@@ -70,35 +70,35 @@ TEST(AcceleratorTableTest, CheckDuplicatedAccelerators) {
 
 TEST(AcceleratorTableTest, CheckDuplicatedReservedActions) {
   std::set<AcceleratorAction> actions;
-  for (size_t i = 0; i < kReservedActionsLength; ++i) {
-    EXPECT_TRUE(actions.insert(kReservedActions[i]).second)
-        << "Duplicated action: " << kReservedActions[i];
+  for (const AcceleratorAction& action : kReservedActions) {
+    EXPECT_TRUE(actions.insert(action).second)
+        << "Duplicated action: " << action;
   }
 }
 
 TEST(AcceleratorTableTest, CheckDuplicatedActionsAllowedAtLoginOrLockScreen) {
   std::set<AcceleratorAction> actions;
-  for (size_t i = 0; i < kActionsAllowedAtLoginOrLockScreenLength; ++i) {
-    EXPECT_TRUE(actions.insert(kActionsAllowedAtLoginOrLockScreen[i]).second)
-        << "Duplicated action: " << kActionsAllowedAtLoginOrLockScreen[i];
+  for (const AcceleratorAction& action : kActionsAllowedAtLoginOrLockScreen) {
+    EXPECT_TRUE(actions.insert(action).second)
+        << "Duplicated action: " << action;
   }
-  for (size_t i = 0; i < kActionsAllowedAtLockScreenLength; ++i) {
-    EXPECT_TRUE(actions.insert(kActionsAllowedAtLockScreen[i]).second)
-        << "Duplicated action: " << kActionsAllowedAtLockScreen[i];
+  for (const AcceleratorAction& action : kActionsAllowedAtLockScreen) {
+    EXPECT_TRUE(actions.insert(action).second)
+        << "Duplicated action: " << action;
   }
 }
 
 TEST(AcceleratorTableTest, CheckDuplicatedActionsAllowedAtPowerMenu) {
   std::set<AcceleratorAction> actions;
-  for (size_t i = 0; i < kActionsAllowedAtPowerMenuLength; ++i) {
-    EXPECT_TRUE(actions.insert(kActionsAllowedAtPowerMenu[i]).second)
-        << "Duplicated action: " << kActionsAllowedAtPowerMenu[i];
+  for (const AcceleratorAction& action : kActionsAllowedAtPowerMenu) {
+    EXPECT_TRUE(actions.insert(action).second)
+        << "Duplicated action: " << action;
   }
 }
 
 TEST(AcceleratorTableTest, CheckDuplicatedActionsAllowedAtModalWindow) {
   std::set<AcceleratorAction> actions;
-  for (size_t i = 0; i < kActionsAllowedAtModalWindowLength; ++i) {
+  for (size_t i = 0; i < kActionsAllowedAtModalWindow.size(); ++i) {
     EXPECT_TRUE(actions.insert(kActionsAllowedAtModalWindow[i]).second)
         << "Duplicated action: " << kActionsAllowedAtModalWindow[i]
         << " at index: " << i;
@@ -107,7 +107,7 @@ TEST(AcceleratorTableTest, CheckDuplicatedActionsAllowedAtModalWindow) {
 
 TEST(AcceleratorTableTest, CheckDuplicatedRepeatableActions) {
   std::set<AcceleratorAction> actions;
-  for (size_t i = 0; i < kRepeatableActionsLength; ++i) {
+  for (size_t i = 0; i < kRepeatableActions.size(); ++i) {
     EXPECT_TRUE(actions.insert(kRepeatableActions[i]).second)
         << "Duplicated action: " << kRepeatableActions[i] << " at index: " << i;
   }
@@ -115,18 +115,16 @@ TEST(AcceleratorTableTest, CheckDuplicatedRepeatableActions) {
 
 TEST(AcceleratorTableTest, CheckDeprecatedAccelerators) {
   std::set<AcceleratorData, Cmp> deprecated_actions;
-  for (size_t i = 0; i < kDeprecatedAcceleratorsLength; ++i) {
+  for (const AcceleratorData& entry : kDeprecatedAccelerators) {
     // A deprecated action can never appear twice in the list.
-    const AcceleratorData& entry = kDeprecatedAccelerators[i];
     EXPECT_TRUE(deprecated_actions.insert(entry).second)
         << "Duplicate deprecated accelerator: "
         << AcceleratorDataToString(entry);
   }
 
   std::set<AcceleratorAction> actions;
-  for (size_t i = 0; i < kDeprecatedAcceleratorsDataLength; ++i) {
+  for (const DeprecatedAcceleratorData& data : kDeprecatedAcceleratorsData) {
     // There must never be any duplicated actions.
-    const DeprecatedAcceleratorData& data = kDeprecatedAcceleratorsData[i];
     EXPECT_TRUE(actions.insert(data.action).second)
         << "Deprecated action: " << data.action;
 
@@ -140,14 +138,12 @@ TEST(AcceleratorTableTest, CheckDeprecatedAccelerators) {
 // All new accelerators should be Search-based and approved by UX.
 TEST(AcceleratorTableTest, CheckSearchBasedAccelerators) {
   std::vector<AcceleratorData> non_search_accelerators;
-  for (size_t i = 0; i < kAcceleratorDataLength; ++i) {
-    const AcceleratorData& entry = kAcceleratorData[i];
+  for (const AcceleratorData& entry : kAcceleratorData) {
     if (entry.modifiers & ui::EF_COMMAND_DOWN)
       continue;
     non_search_accelerators.emplace_back(entry);
   }
-  for (size_t i = 0; i < kDisableWithNewMappingAcceleratorDataLength; ++i) {
-    const AcceleratorData& entry = kDisableWithNewMappingAcceleratorData[i];
+  for (const AcceleratorData& entry : kDisableWithNewMappingAcceleratorData) {
     if (entry.modifiers & ui::EF_COMMAND_DOWN)
       continue;
     non_search_accelerators.emplace_back(entry);

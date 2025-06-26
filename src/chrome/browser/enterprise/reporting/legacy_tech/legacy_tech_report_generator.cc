@@ -3,7 +3,8 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/enterprise/reporting/legacy_tech/legacy_tech_report_generator.h"
-#include "components/enterprise/common/proto/legacy_tech_events.pb.h"
+
+#include "components/enterprise/common/proto/synced/legacy_tech_events.pb.h"
 #include "content/public/browser/legacy_tech_cookie_issue_details.h"
 
 namespace enterprise_reporting {
@@ -75,7 +76,7 @@ std::unique_ptr<LegacyTechEvent> LegacyTechReportGenerator::Generate(
         report->mutable_cookie_issue_details();
 
     cookie_issue_report->set_transfer_or_script_url(
-        cookie_issue_data.transfer_or_script_url);
+        SanitizeUrl(cookie_issue_data.transfer_or_script_url).spec());
     cookie_issue_report->set_name(cookie_issue_data.name);
     cookie_issue_report->set_domain(cookie_issue_data.domain);
     cookie_issue_report->set_path(cookie_issue_data.path);

@@ -33,9 +33,10 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
+import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.device.DeviceConditions;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
@@ -45,16 +46,17 @@ import org.chromium.chrome.browser.profiles.ProfileJni;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.components.user_prefs.UserPrefsJni;
-import org.chromium.content_public.browser.WebContents;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.content_public.browser.test.mock.MockWebContents;
 import org.chromium.net.ConnectionType;
 import org.chromium.ui.modaldialog.ModalDialogManager;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.BlankUiTestActivity;
 
 /** Unit tests for {@link ImageDescriptionsController} */
 @RunWith(BaseJUnit4ClassRunner.class)
-public class ImageDescriptionsControllerTest extends BlankUiTestActivityTestCase {
-    @Rule public JniMocker mJniMocker = new JniMocker();
+public class ImageDescriptionsControllerTest {
+    @Rule
+    public BaseActivityTestRule<BlankUiTestActivity> mActivityTestRule =
+            new BaseActivityTestRule<>(BlankUiTestActivity.class);
 
     @Mock private ImageDescriptionsController.Natives mControllerJniMock;
 
@@ -67,7 +69,7 @@ public class ImageDescriptionsControllerTest extends BlankUiTestActivityTestCase
 
     @Mock private ModalDialogManager mModalDialogManager;
 
-    @Mock private WebContents mWebContents;
+    @Mock private MockWebContents mWebContents;
 
     private SharedPreferencesManager mManager;
     private ImageDescriptionsController mController;
@@ -75,17 +77,18 @@ public class ImageDescriptionsControllerTest extends BlankUiTestActivityTestCase
 
     @Before
     public void setUp() throws Exception {
-        super.setUpTest();
+        mActivityTestRule.launchActivity(null);
+
         MockitoAnnotations.initMocks(this);
 
-        mJniMocker.mock(ProfileJni.TEST_HOOKS, mProfileJniMock);
+        ProfileJni.setInstanceForTesting(mProfileJniMock);
         when(mProfileJniMock.fromWebContents(mWebContents)).thenReturn(mProfile);
         when(mProfile.getOriginalProfile()).thenReturn(mProfile);
 
-        mJniMocker.mock(UserPrefsJni.TEST_HOOKS, mUserPrefsJniMock);
+        UserPrefsJni.setInstanceForTesting(mUserPrefsJniMock);
         when(mUserPrefsJniMock.get(mProfile)).thenReturn(mPrefService);
 
-        mJniMocker.mock(ImageDescriptionsControllerJni.TEST_HOOKS, mControllerJniMock);
+        ImageDescriptionsControllerJni.setInstanceForTesting(mControllerJniMock);
 
         resetSharedPreferences();
 
@@ -95,7 +98,7 @@ public class ImageDescriptionsControllerTest extends BlankUiTestActivityTestCase
 
     @After
     public void tearDown() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> DeviceConditions.sForceConnectionTypeForTesting = false);
     }
 
@@ -106,10 +109,10 @@ public class ImageDescriptionsControllerTest extends BlankUiTestActivityTestCase
     }
 
     private void simulateMenuItemClick() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mController.onImageDescriptionsMenuItemSelected(
-                            getActivity(), mModalDialogManager, mWebContents);
+                            mActivityTestRule.getActivity(), mModalDialogManager, mWebContents);
                 });
     }
 
@@ -221,7 +224,14 @@ public class ImageDescriptionsControllerTest extends BlankUiTestActivityTestCase
         verify(mModalDialogManager, never()).showDialog(any(), anyInt());
 
         onView(withText(R.string.image_descriptions_toast_off))
-                .inRoot(withDecorView(not(is(getActivity().getWindow().getDecorView()))))
+                .inRoot(
+                        withDecorView(
+                                not(
+                                        is(
+                                                mActivityTestRule
+                                                        .getActivity()
+                                                        .getWindow()
+                                                        .getDecorView()))))
                 .check(matches(isDisplayed()));
     }
 
@@ -240,7 +250,7 @@ public class ImageDescriptionsControllerTest extends BlankUiTestActivityTestCase
                 mController.onlyOnWifiEnabled(mProfile));
 
         // Setup no wifi condition.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     DeviceConditions.sForceConnectionTypeForTesting = true;
                     DeviceConditions.mConnectionTypeForTesting = ConnectionType.CONNECTION_NONE;
@@ -253,7 +263,14 @@ public class ImageDescriptionsControllerTest extends BlankUiTestActivityTestCase
         verify(mControllerJniMock, times(1)).getImageDescriptionsOnce(eq(mWebContents));
 
         onView(withText(R.string.image_descriptions_toast_just_once))
-                .inRoot(withDecorView(not(is(getActivity().getWindow().getDecorView()))))
+                .inRoot(
+                        withDecorView(
+                                not(
+                                        is(
+                                                mActivityTestRule
+                                                        .getActivity()
+                                                        .getWindow()
+                                                        .getDecorView()))))
                 .check(matches(isDisplayed()));
     }
 
@@ -274,7 +291,14 @@ public class ImageDescriptionsControllerTest extends BlankUiTestActivityTestCase
         verify(mControllerJniMock, times(1)).getImageDescriptionsOnce(eq(mWebContents));
 
         onView(withText(R.string.image_descriptions_toast_just_once))
-                .inRoot(withDecorView(not(is(getActivity().getWindow().getDecorView()))))
+                .inRoot(
+                        withDecorView(
+                                not(
+                                        is(
+                                                mActivityTestRule
+                                                        .getActivity()
+                                                        .getWindow()
+                                                        .getDecorView()))))
                 .check(matches(isDisplayed()));
     }
 

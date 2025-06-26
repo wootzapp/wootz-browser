@@ -8,10 +8,7 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.util.AttributeSet;
 
-import androidx.appcompat.content.res.AppCompatResources;
-
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.ntp.TitleUtil;
 import org.chromium.chrome.browser.suggestions.SiteSuggestion;
 import org.chromium.components.browser_ui.widget.tile.TileView;
@@ -33,6 +30,7 @@ public class SuggestionsTileView extends TileView {
     /**
      * Initializes the view using the data held by {@code tile}. This should be called immediately
      * after inflation.
+     *
      * @param tile The tile that holds the data to populate this view.
      * @param titleLines The number of text lines to use for the tile title.
      */
@@ -44,8 +42,6 @@ public class SuggestionsTileView extends TileView {
                 titleLines);
         mData = tile.getData();
         setIconViewLayoutParams(tile);
-        setTitleParams();
-        setTileViewIconBackground();
     }
 
     /** Retrieves data associated with this view.  */
@@ -85,24 +81,9 @@ public class SuggestionsTileView extends TileView {
                     resources.getDimensionPixelSize(R.dimen.tile_view_icon_margin_top_modern);
         }
         mIconView.setLayoutParams(params);
-    }
 
-    /** Updates the margin of the title in the tile element for polishing purposes. */
-    private void setTitleParams() {
-        if (!ChromeFeatureList.sSurfacePolish.isEnabled()) return;
-
-        MarginLayoutParams marginLayoutParams =
-                (MarginLayoutParams) getTitleView().getLayoutParams();
-        marginLayoutParams.topMargin =
-                getResources()
-                        .getDimensionPixelSize(R.dimen.tile_view_title_margin_top_modern_polish);
-    }
-
-    /** Update the background for the tile view icon for polishing purposes. */
-    private void setTileViewIconBackground() {
-        if (!ChromeFeatureList.sSurfacePolish.isEnabled()) return;
-
-        mIconBackgroundView.setBackground(
-                AppCompatResources.getDrawable(getContext(), R.drawable.oval_surface_3));
+        if (mData.source == TileSource.CUSTOM_LINKS) {
+            setStyleForCustomTile();
+        }
     }
 }

@@ -31,6 +31,12 @@ class BookmarkModelObserver : public base::CheckedObserver {
   // Invoked from the destructor of the BookmarkModel.
   virtual void BookmarkModelBeingDeleted() {}
 
+  // Invoked prior to moving a bookmark node.
+  virtual void OnWillMoveBookmarkNode(const BookmarkNode* old_parent,
+                                      size_t old_index,
+                                      const BookmarkNode* new_parent,
+                                      size_t new_index) {}
+
   // Invoked when a node has moved.
   virtual void BookmarkNodeMoved(const BookmarkNode* old_parent,
                                  size_t old_index,
@@ -40,8 +46,6 @@ class BookmarkModelObserver : public base::CheckedObserver {
   // Invoked when a node has been added. If the added node has any descendants,
   // BookmarkModel` will invoke `BookmarkNodeAdded` recursively for all these
   // descendants.
-  // TODO(crbug.com/40266065): See if this should send only one notification,
-  //                          for consistency with `BookmarkNodeRemoved`.
   //
   // `added_by_user` is true when a new bookmark was added by the user and false
   // when a node is added by sync or duplicated.
@@ -109,7 +113,6 @@ class BookmarkModelObserver : public base::CheckedObserver {
   // Invoked before an extensive set of model changes is about to begin.
   // This tells UI intensive observers to wait until the updates finish to
   // update themselves.
-  // These methods should only be used for imports and sync.
   // Observers should still respond to BookmarkNodeRemoved immediately,
   // to avoid holding onto stale node pointers.
   virtual void ExtensiveBookmarkChangesBeginning() {}

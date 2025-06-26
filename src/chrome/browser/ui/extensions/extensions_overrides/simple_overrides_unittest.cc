@@ -83,7 +83,6 @@ const char* kDisallowedFeatures[] = {
     extensions::manifest_keys::kPlatformAppContentSecurityPolicy,
     extensions::manifest_keys::kReplacementWebApp,
     extensions::manifest_keys::kSockets,
-    extensions::manifest_keys::kSystemIndicator,
     extensions::manifest_keys::kTheme,
     extensions::manifest_keys::kTrialTokens,
     extensions::manifest_keys::kTtsEngine,
@@ -202,7 +201,7 @@ TEST(ExtensionSimpleOverridesTest,
 TEST(ExtensionSimpleOverridesTest,
      ExtensionWithPermissionsIsNotConsideredSimple) {
   scoped_refptr<const extensions::Extension> extension =
-      extensions::ExtensionBuilder("alpha").AddPermission("tabs").Build();
+      extensions::ExtensionBuilder("alpha").AddAPIPermission("tabs").Build();
   EXPECT_FALSE(simple_overrides::IsSimpleOverrideExtension(*extension));
 }
 

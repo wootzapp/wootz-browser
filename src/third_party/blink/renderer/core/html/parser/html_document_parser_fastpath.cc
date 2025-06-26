@@ -2,13 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "third_party/blink/renderer/core/html/parser/html_document_parser_fastpath.h"
 
 #include <algorithm>
 #include <iostream>
+#include <string_view>
 #include <type_traits>
 
 #include "base/metrics/histogram_functions.h"
+#include "base/notreached.h"
 #include "base/timer/elapsed_timer.h"
 #include "base/trace_event/trace_event.h"
 #include "third_party/blink/renderer/core/dom/attribute.h"
@@ -45,9 +52,181 @@
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string_encoding.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_uchar.h"
 
+#if defined(BLINK_ENABLE_VECTORIZED_HTML_SCANNING)
+#include "third_party/highway/src/hwy/highway.h"
+#define VECTORIZE_SCANNING 1
+#else
+#define VECTORIZE_SCANNING 0
+#endif
+
 namespace blink {
 
 namespace {
+
+#if VECTORIZE_SCANNING
+// We use the vectorized classification trick to scan and classify characters.
+// Instead of checking the string byte-by-byte (or vector-by-vector), the
+// algorithm takes the lower nibbles (4-bits) of the passed string and uses them
+// as offsets into the table, represented as a vector. The values corresponding
+// to those offsets are actual interesting symbols. The algorithm then simply
+// compares the looked up values with the input vector. The true lanes in the
+// resulting vector correspond to the interesting symbols.
+//
+// A big shout out to Daniel Lemire for suggesting the idea. See more on
+// vectorized classification in the Daniel's paper:
+// https://arxiv.org/pdf/1902.08318.
+//
+// For relatively short incoming strings (less than 64 characters) it's assumed
+// that byte-by-byte comparison is faster. TODO(340582182): According to
+// microbenchmarks on M1, string larger than 16 bytes are already scanned faster
+// with SIMD.
+constexpr size_t kVectorizationThreshold = 64;
+// The byte that shall never match any symbol. Using 0xff for it is okay since
+// we only want to match ASCII chars (<=128).
+constexpr uint8_t kNeverMatchedChar = 0xff;
+
+// The result of the TryMatch function (see below). Contains the index inside
+// the vector (the lane) and the found character.
+struct MatchedCharacter {
+  bool Matched() const { return found_character != kNeverMatchedChar; }
+
+  size_t index_in_vector = 0;
+  uint8_t found_character = kNeverMatchedChar;
+};
+
+// Tries to match the characters for the single vector. If matched, returns the
+// first matched character in the vector.
+template <typename D, typename VectorT>
+  requires(sizeof(hwy::HWY_NAMESPACE::TFromD<D>) == 1)
+HWY_ATTR ALWAYS_INLINE MatchedCharacter TryMatch(D tag,
+                                                 VectorT input,
+                                                 VectorT low_nibble_table,
+                                                 VectorT low_nib_and_mask) {
+  namespace hw = hwy::HWY_NAMESPACE;
+
+  // Get the low nibbles.
+  const auto nib_lo = input & low_nib_and_mask;
+  // Lookup the values in the table using the nibbles as offsets into the table.
+  const auto shuf_lo = hw::TableLookupBytes(low_nibble_table, nib_lo);
+  // The values in the tables correspond to the interesting symbols. Just
+  // compare them with the input vector.
+  const auto result = shuf_lo == input;
+  // Find the interesting symbol.
+  if (const intptr_t index = hw::FindFirstTrue(tag, result); index != -1) {
+    return {static_cast<size_t>(index), hw::ExtractLane(input, index)};
+  }
+
+  return {};
+}
+
+// Scans the 1-byte string and returns the first matched character (1-byte) or
+// kNeverMatchedChar otherwise.
+template <typename T, typename VectorT>
+  requires(sizeof(T) == 1)
+HWY_ATTR ALWAYS_INLINE uint8_t SimdAdvanceAndLookup(const T*& start,
+                                                    const T* end,
+                                                    VectorT low_nibble_table) {
+  namespace hw = hwy::HWY_NAMESPACE;
+  DCHECK_GE(static_cast<size_t>(end - start), kVectorizationThreshold);
+
+  hw::FixedTag<uint8_t, 16> tag;
+  static constexpr auto stride = hw::MaxLanes(tag);
+
+  const auto low_nib_and_mask = hw::Set(tag, 0xf);
+
+  // The main scanning loop.
+  for (; start + (stride - 1) < end; start += stride) {
+    const auto input = hw::LoadU(tag, reinterpret_cast<const uint8_t*>(start));
+    if (const auto result =
+            TryMatch(tag, input, low_nibble_table, low_nib_and_mask);
+        result.Matched()) {
+      start = reinterpret_cast<const T*>(start + result.index_in_vector);
+      return result.found_character;
+    };
+  }
+
+  // Scan the last stride.
+  if (start < end) {
+    const auto input =
+        hw::LoadU(tag, reinterpret_cast<const uint8_t*>(end - stride));
+    if (const auto result =
+            TryMatch(tag, input, low_nibble_table, low_nib_and_mask);
+        result.Matched()) {
+      start = end - stride + result.index_in_vector;
+      return result.found_character;
+    }
+    start = end;
+  }
+
+  return kNeverMatchedChar;
+}
+
+// This overload for 2-bytes strings uses the interleaved load to check the
+// lower bytes of the string. We don't use the gather instruction, since it's
+// not available on NEON (as opposed to SVE) and is emulated in Highway.
+template <typename T, typename VectorT>
+  requires(sizeof(T) == 2)
+HWY_ATTR ALWAYS_INLINE uint8_t SimdAdvanceAndLookup(const T*& start,
+                                                    const T* end,
+                                                    VectorT low_nibble_table) {
+  namespace hw = hwy::HWY_NAMESPACE;
+  DCHECK_GE(static_cast<size_t>(end - start), kVectorizationThreshold);
+
+  hw::FixedTag<uint8_t, 16> tag;
+  static constexpr auto stride = hw::MaxLanes(tag);
+
+  const auto low_nib_and_mask = hw::Set(tag, 0xf);
+
+  // The main scanning loop.
+  while (start + (stride - 1) < end) {
+    VectorT dummy_upper;
+    VectorT input;
+    hw::LoadInterleaved2(tag, reinterpret_cast<const uint8_t*>(start), input,
+                         dummy_upper);
+    if (const auto result =
+            TryMatch(tag, input, low_nibble_table, low_nib_and_mask);
+        result.Matched()) {
+      const auto index = result.index_in_vector;
+      // Check if the upper byte is zero.
+      if (*(start + index) >> 8 == 0) {
+        start = reinterpret_cast<const T*>(start + index);
+        return result.found_character;
+      }
+
+      start += index + 1;
+      continue;
+    }
+
+    // Otherwise, continue scanning.
+    start += stride;
+  }
+
+  // Scan the last stride.
+  if (start < end) {
+    VectorT dummy_upper;
+    VectorT input;
+    hw::LoadInterleaved2(tag, reinterpret_cast<const uint8_t*>(end - stride),
+                         input, dummy_upper);
+    for (auto result = TryMatch(tag, input, low_nibble_table, low_nib_and_mask);
+         result.Matched();
+         result = TryMatch(tag, input, low_nibble_table, low_nib_and_mask)) {
+      const auto index = result.index_in_vector;
+      // Check if the upper byte is zero.
+      if (*(end - stride + index) >> 8 == 0) {
+        start = reinterpret_cast<const T*>(end - stride + index);
+        return result.found_character;
+      }
+
+      // Otherwise, set the corresponding lane to kNeverMatchedChar to never
+      // match it again and continue.
+      input = hw::InsertLane(input, index, kNeverMatchedChar);
+    }
+    start = end;
+  }
+
+  return kNeverMatchedChar;
+}
+#endif  // VECTORIZE_SCANNING
 
 template <class Char, size_t n>
 bool operator==(base::span<const Char> span, const char (&s)[n]) {
@@ -144,7 +323,7 @@ struct ScanTextResult {
     if (is_newline_then_whitespace_string &&
         text.size() < WTF::NewlineThenWhitespaceStringsTable::kTableSize) {
       DCHECK(WTF::NewlineThenWhitespaceStringsTable::IsNewlineThenWhitespaces(
-          String(text.data(), static_cast<unsigned>(text.size()))));
+          String(text)));
       return WTF::NewlineThenWhitespaceStringsTable::GetStringForLength(
           text.size());
     }
@@ -158,13 +337,12 @@ struct ScanTextResult {
 
 template <>
 String ScanTextResult<LChar>::TextToString() const {
-  return String(text.data(), static_cast<unsigned>(text.size()));
+  return String(text);
 }
 
 template <>
 String ScanTextResult<UChar>::TextToString() const {
-  return String(StringImpl::Create8BitIfPossible(
-      text.data(), static_cast<wtf_size_t>(text.size())));
+  return String(StringImpl::Create8BitIfPossible(text));
 }
 
 // This HTML parser is used as a fast-path for setting innerHTML.
@@ -389,8 +567,7 @@ class HTMLFastPathParser {
       static HTMLElement* Create(Document& document) {
         // Body is only supported as an element for adding children, and not
         // a node that is created by this code.
-        CHECK(false);
-        return nullptr;
+        NOTREACHED();
       }
     };
 
@@ -552,6 +729,46 @@ class HTMLFastPathParser {
     }
   }
 
+#if VECTORIZE_SCANNING
+  ALWAYS_INLINE HWY_ATTR ScanTextResult<Char> ScanTextVectorized(
+      const Char* initial_start) {
+    namespace hw = hwy::HWY_NAMESPACE;
+    DCHECK_GE(static_cast<size_t>(end_ - pos_), kVectorizationThreshold);
+    hw::FixedTag<uint8_t, 16> tag;
+    // ASCII representation of interesting symbols:
+    //   <: 0011 1100
+    //  \r: 0000 1101
+    //  \0: 0000 0000
+    //   &: 0010 0110
+    // The lower nibbles represent offsets into the |low_nibble_table|. The
+    // values in the table are the corresponding characters.
+    const auto low_nibble_table = hw::Dup128VecFromValues(
+        tag, '\0', 0, 0, 0, 0, 0, '&', 0, 0, 0, 0, 0, '<', '\r', 0, 0);
+    switch (SimdAdvanceAndLookup(pos_, end_, low_nibble_table)) {
+      case kNeverMatchedChar:
+        DCHECK_EQ(pos_, end_);
+        return {{initial_start, static_cast<size_t>(pos_ - initial_start)},
+                nullptr};
+      case '\0':
+        DCHECK_EQ(*pos_, '\0');
+        return Fail(HtmlFastPathResult::kFailedContainsNull,
+                    ScanTextResult<Char>{Span{}, nullptr});
+      case '<':
+        DCHECK_EQ(*pos_, '<');
+        return {{initial_start, static_cast<size_t>(pos_ - initial_start)},
+                nullptr};
+      case '&':
+      case '\r':
+        DCHECK(*pos_ == '&' || *pos_ == '\r');
+        pos_ = initial_start;
+        return {Span{}, ScanEscapedText()};
+    };
+
+    NOTREACHED();
+    return {};
+  }
+#endif  // VECTORIZE_SCANNING
+
   // We first try to scan text as an unmodified subsequence of the input.
   // However, if there are escape sequences, we have to copy the text to a
   // separate buffer and we might go outside of `Char` range if we are in an
@@ -560,29 +777,38 @@ class HTMLFastPathParser {
   // empty, as only one of them can be non-empty.
   ScanTextResult<Char> ScanText() {
     const Char* start = pos_;
-    bool is_newline_then_whitespace_string = false;
+
+    // First, try to check if the test is a canonical whitespace string.
     if (pos_ != end_ && *pos_ == '\n') {
-      is_newline_then_whitespace_string = true;
-      ++pos_;
+      while (++pos_ != end_ && *pos_ == ' ')
+        ;
+      if (pos_ == end_ || *pos_ == '<') {
+        return {{start, static_cast<size_t>(pos_ - start)},
+                nullptr,
+                /*is_newline_then_whitespace_string=*/true};
+      }
     }
+
+#if VECTORIZE_SCANNING
+    if (static_cast<size_t>(end_ - pos_) >= kVectorizationThreshold) {
+      return ScanTextVectorized(start);
+    }
+#endif  // VECTORIZE_SCANNING
+
     while (pos_ != end_ && *pos_ != '<') {
       // '&' indicates escape sequences, '\r' might require
       // https://infra.spec.whatwg.org/#normalize-newlines
       if (*pos_ == '&' || *pos_ == '\r') {
         pos_ = start;
         return {Span{}, ScanEscapedText()};
-      } else if (UNLIKELY(*pos_ == '\0')) {
+      } else if (*pos_ == '\0') [[unlikely]] {
         return Fail(HtmlFastPathResult::kFailedContainsNull,
                     ScanTextResult<Char>{Span{}, nullptr});
       }
-      if (*pos_ != ' ') {
-        is_newline_then_whitespace_string = false;
-      }
       ++pos_;
     }
-    return {{start, static_cast<size_t>(pos_ - start)},
-            nullptr,
-            is_newline_then_whitespace_string};
+
+    return {{start, static_cast<size_t>(pos_ - start)}, nullptr};
   }
 
   // Slow-path of `ScanText()`, which supports escape sequences by copying to a
@@ -603,7 +829,7 @@ class HTMLFastPathParser {
         }
         uchar_buffer_.AddChar('\n');
         ++pos_;
-      } else if (UNLIKELY(*pos_ == '\0')) {
+      } else if (*pos_ == '\0') [[unlikely]] {
         return Fail(HtmlFastPathResult::kFailedContainsNull, nullptr);
       } else {
         uchar_buffer_.AddChar(*pos_);
@@ -652,7 +878,7 @@ class HTMLFastPathParser {
     while (pos_ != end_ && ((*pos_ >= 'a' && *pos_ <= 'z') || *pos_ == '-')) {
       ++pos_;
     }
-    if (UNLIKELY(pos_ == end_)) {
+    if (pos_ == end_) [[unlikely]] {
       return Fail(HtmlFastPathResult::kFailedEndOfInputReached, Span());
     }
     if (!IsValidAttributeNameChar(*pos_)) {
@@ -676,10 +902,80 @@ class HTMLFastPathParser {
                 static_cast<size_t>(attribute_name_buffer_.size()));
   }
 
-  static constexpr int kSingleQuote = 0x27;     // '
-  static constexpr int kDoubleQuote = 0x22;     // "
-  static constexpr int kAmpersand = 0x26;       // &
-  static constexpr int kCarriageReturn = 0x0D;  // \r
+#if VECTORIZE_SCANNING
+  ALWAYS_INLINE uint8_t
+  ScanAttrValueVectorizedWithSingleQuote(const Char* initial_start) {
+    namespace hw = hwy::HWY_NAMESPACE;
+    DCHECK_GE(static_cast<size_t>(end_ - pos_), kVectorizationThreshold);
+    hw::FixedTag<uint8_t, 16> tag;
+    // ASCII representation of interesting symbols:
+    //   ': 0010 0111
+    //  \r: 0000 1101
+    //  \0: 0000 0000
+    //   &: 0010 0110
+    // The lower nibbles represent offsets into the |low_nibble_table|. The
+    // values in the table are the corresponding characters.
+    const auto low_nibble_table = hw::Dup128VecFromValues(
+        tag, '\0', 0, 0, 0, 0, 0, '&', '\'', 0, 0, 0, 0, 0, '\r', 0, 0);
+    return SimdAdvanceAndLookup(pos_, end_, low_nibble_table);
+  }
+
+  ALWAYS_INLINE uint8_t
+  ScanAttrValueVectorizedWithDoubleQuote(const Char* initial_start) {
+    namespace hw = hwy::HWY_NAMESPACE;
+    DCHECK_GE(static_cast<size_t>(end_ - pos_), kVectorizationThreshold);
+    hw::FixedTag<uint8_t, 16> tag;
+    // ASCII representation of interesting symbols:
+    //   ": 0010 0010
+    //  \r: 0000 1101
+    //  \0: 0000 0000
+    //   &: 0010 0110
+    // The lower nibbles represent offsets into the |low_nibble_table|. The
+    // values in the table are the corresponding characters.
+    const auto low_nibble_table = hw::Dup128VecFromValues(
+        tag, '\0', 0, '"', 0, 0, 0, '&', 0, 0, 0, 0, 0, 0, '\r', 0, 0);
+    return SimdAdvanceAndLookup(pos_, end_, low_nibble_table);
+  }
+
+  ALWAYS_INLINE std::pair<Span, USpan> ScanAttrValueVectorized(
+      Char quote_symbol,
+      const Char* initial_start) {
+    DCHECK(quote_symbol == '\'' || quote_symbol == '\"');
+    const uint8_t found_character =
+        quote_symbol == '\''
+            ? ScanAttrValueVectorizedWithSingleQuote(initial_start)
+            : ScanAttrValueVectorizedWithDoubleQuote(initial_start);
+
+    switch (found_character) {
+      case kNeverMatchedChar:
+        DCHECK_EQ(pos_, end_);
+        return Fail(HtmlFastPathResult::kFailedParsingQuotedAttributeValue,
+                    std::pair{Span{}, USpan{}});
+      case '\0':
+        DCHECK_EQ(*pos_, '\0');
+        // \0 is generally mapped to \uFFFD (but there are exceptions).
+        // Fallback to normal path as this generally does not happen often.
+        return Fail(HtmlFastPathResult::kFailedParsingQuotedAttributeValue,
+                    std::pair{Span{}, USpan{}});
+      case '\'':
+      case '"': {
+        DCHECK(*pos_ == '\'' || *pos_ == '\"');
+        Span result =
+            Span{initial_start, static_cast<size_t>(pos_ - initial_start)};
+        // Consume quote.
+        ConsumeNext();
+        return {result, USpan{}};
+      }
+      case '&':
+      case '\r':
+        DCHECK(*pos_ == '&' || *pos_ == '\r');
+        pos_ = initial_start - 1;
+        return {Span{}, ScanEscapedAttrValue()};
+    };
+
+    NOTREACHED();
+  }
+#endif  // VECTORIZE_SCANNING
 
   std::pair<Span, USpan> ScanAttrValue() {
     Span result;
@@ -690,20 +986,25 @@ class HTMLFastPathParser {
         quote_char == '"' || quote_char == '\'') {
       // clang-format on
       start = ++pos_;
+#if VECTORIZE_SCANNING
+      if (static_cast<size_t>(end_ - pos_) >= kVectorizationThreshold) {
+        return ScanAttrValueVectorized(quote_char, start);
+      }
+#endif  // VECTORIZE_SCANNING
       while (pos_ != end_) {
         uint16_t c = GetNext();
-        static_assert(kSingleQuote > kDoubleQuote);
+        static_assert('\'' > '\"');
         // The c is mostly like to be a~z or A~Z, the ASCII code value of a~z
         // and A~Z is greater than kSingleQuote, so we just need to compare
         // kSingleQuote here.
-        if (LIKELY(c > kSingleQuote)) {
+        if (c > '\'') [[likely]] {
           ++pos_;
-        } else if (c == kAmpersand || c == kCarriageReturn) {
+        } else if (c == '&' || c == '\r') {
           pos_ = start - 1;
           return {Span{}, ScanEscapedAttrValue()};
-        } else if (c == kDoubleQuote || c == kSingleQuote) {
+        } else if (c == '\'' || c == '\"') {
           break;
-        } else if (UNLIKELY(c == '\0')) {
+        } else if (c == '\0') [[unlikely]] {
           // \0 is generally mapped to \uFFFD (but there are exceptions).
           // Fallback to normal path as this generally does not happen often.
           return Fail(HtmlFastPathResult::kFailedParsingQuotedAttributeValue,
@@ -789,8 +1090,10 @@ class HTMLFastPathParser {
       // A rather arbitrary constant to prevent unbounded lookahead in the case
       // of ill-formed input.
       constexpr int kMaxLength = 20;
-      if (pos_ == end_ || pos_ - start > kMaxLength ||
-          UNLIKELY(*pos_ == '\0')) {
+      if (pos_ == end_ || pos_ - start > kMaxLength) {
+        return Fail(HtmlFastPathResult::kFailedParsingCharacterReference);
+      }
+      if (*pos_ == '\0') [[unlikely]] {
         return Fail(HtmlFastPathResult::kFailedParsingCharacterReference);
       }
       // Note: the fast path will only parse `;`-terminated character
@@ -857,7 +1160,7 @@ class HTMLFastPathParser {
       // This handles uncommon named references.
       // This does not use `reference` as `reference` does not contain the `;`,
       // which impacts behavior of ConsumeHTMLEntity().
-      String input_string{start, static_cast<unsigned>(pos_ - start)};
+      String input_string{base::span(start, pos_)};
       SegmentedString input_segmented{input_string};
       DecodedHTMLEntity entity;
       bool not_enough_characters = false;
@@ -959,18 +1262,21 @@ class HTMLFastPathParser {
     QualifiedName name = LookupHTMLAttributeName(
         name_span.data(), static_cast<unsigned>(name_span.size()));
     if (name == g_null_name) {
-      name = QualifiedName(AtomicString(
-          name_span.data(), static_cast<unsigned>(name_span.size())));
+      name = QualifiedName(AtomicString(name_span));
     }
 
+    // The string pointer in |value| is null for attributes with no values, but
+    // the null atom is used to represent absence of attributes; attributes with
+    // no values have the value set to an empty atom instead.
     AtomicString value;
     if (value_span.second.empty()) {
-      value = HTMLAtomicStringCache::MakeAttributeValue(value_span.first);
+      value = AtomicString(value_span.first);
     } else {
-      value = HTMLAtomicStringCache::MakeAttributeValue(value_span.second);
+      value = AtomicString(value_span.second);
     }
-    DCHECK(!value.IsNull()) << "Attribute value should never be null";
-
+    if (value.IsNull()) {
+      value = g_empty_atom;
+    }
     return Attribute(std::move(name), std::move(value));
   }
 
@@ -1359,24 +1665,6 @@ UnsupportedTagType UnsupportedTagTypeValueForNode(const Node& node) {
   return UnsupportedTagType::kNotHtml;
 }
 
-// Histogram names used when logging unsupported tag type.
-const char* kUnsupportedTagTypeCompositeName =
-    "Blink.HTMLFastPathParser.UnsupportedTag.CompositeMaskV2";
-const char* kUnsupportedTagTypeMaskNames[] = {
-    "Blink.HTMLFastPathParser.UnsupportedTag.Mask0V2",
-    "Blink.HTMLFastPathParser.UnsupportedTag.Mask1V2",
-    "Blink.HTMLFastPathParser.UnsupportedTag.Mask2V2",
-};
-
-// Histogram names used when logging unsupported context tag type.
-const char* kUnsupportedContextTagTypeCompositeName =
-    "Blink.HTMLFastPathParser.UnsupportedContextTag.CompositeMaskV2";
-const char* kUnsupportedContextTagTypeMaskNames[] = {
-    "Blink.HTMLFastPathParser.UnsupportedContextTag.Mask0V2",
-    "Blink.HTMLFastPathParser.UnsupportedContextTag.Mask1V2",
-    "Blink.HTMLFastPathParser.UnsupportedContextTag.Mask2V2",
-};
-
 // Logs histograms for either an unsupported tag or unsupported context tag.
 // `type_mask` is a bitmask of the unsupported tags that were encountered. As
 // the uma frontend doesn't handle large bitmasks well, there are 4 separate
@@ -1388,9 +1676,10 @@ const char* kUnsupportedContextTagTypeMaskNames[] = {
 //   . bit 1 set if `type_mask` has at least one bit set in bits 1-8.
 //   . bit 2 set if `type_mask` has at least one bit set in bits 9-16.
 //   . bit 3 set if `type_mask` has at least one bit set in bits 17-24.
-void LogFastPathUnsupportedTagTypeDetails(uint32_t type_mask,
-                                          const char* composite_histogram_name,
-                                          const char* mask_histogram_names[]) {
+void LogFastPathUnsupportedTagTypeDetails(
+    uint32_t type_mask,
+    std::string_view composite_histogram_name,
+    base::span<const std::string_view, 3> mask_histogram_names) {
   // This should only be called once an unsupported tag is encountered.
   DCHECK_NE(static_cast<uint32_t>(0), type_mask);
   uint32_t chunk_mask = 0;
@@ -1427,7 +1716,6 @@ bool TryParsingHTMLFragmentImpl(const base::span<const Char>& source,
   number_of_bytes_parsed = parser.NumberOfBytesParsed();
   // The time needed to parse is typically < 1ms (even at the 99%).
   if (success) {
-    root_node.ParserFinishedBuildingDocumentFragment();
     UMA_HISTOGRAM_CUSTOM_MICROSECONDS_TIMES(
         "Blink.HTMLFastPathParser.SuccessfulParseTime2", parse_timer.Elapsed(),
         base::Microseconds(1), base::Milliseconds(10), 100);
@@ -1451,8 +1739,12 @@ bool TryParsingHTMLFragmentImpl(const base::span<const Char>& source,
     if (context_tag_type != UnsupportedTagType::kSupported) {
       LogFastPathUnsupportedTagTypeDetails(
           static_cast<uint32_t>(context_tag_type),
-          kUnsupportedContextTagTypeCompositeName,
-          kUnsupportedContextTagTypeMaskNames);
+          "Blink.HTMLFastPathParser.UnsupportedContextTag.CompositeMaskV2",
+          base::span<const std::string_view, 3>({
+              "Blink.HTMLFastPathParser.UnsupportedContextTag.Mask0V2",
+              "Blink.HTMLFastPathParser.UnsupportedContextTag.Mask1V2",
+              "Blink.HTMLFastPathParser.UnsupportedContextTag.Mask2V2",
+          }));
     }
   }
   if (success) {
@@ -1496,9 +1788,13 @@ void LogTagsForUnsupportedTagTypeFailure(DocumentFragment& fragment) {
   // The mask may still be 0 in some cases, such as empty text, or tags that
   // don't create nodes (frameset).
   if (type_mask != 0) {
-    LogFastPathUnsupportedTagTypeDetails(type_mask,
-                                         kUnsupportedTagTypeCompositeName,
-                                         kUnsupportedTagTypeMaskNames);
+    LogFastPathUnsupportedTagTypeDetails(
+        type_mask, "Blink.HTMLFastPathParser.UnsupportedTag.CompositeMaskV2",
+        base::span<const std::string_view, 3>({
+            "Blink.HTMLFastPathParser.UnsupportedTag.Mask0V2",
+            "Blink.HTMLFastPathParser.UnsupportedTag.Mask1V2",
+            "Blink.HTMLFastPathParser.UnsupportedTag.Mask2V2",
+        }));
   }
 }
 

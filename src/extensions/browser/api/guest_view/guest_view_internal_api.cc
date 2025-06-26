@@ -55,7 +55,8 @@ ExtensionFunction::ResponseAction GuestViewInternalCreateGuestFunction::Run() {
   // consider this the most likely owner for the guest view. It is possible,
   // however, for the guest to be embedded in another same-process frame upon
   // attachment.
-  const int sender_process_id = render_frame_host()->GetProcess()->GetID();
+  const int sender_process_id =
+      render_frame_host()->GetProcess()->GetDeprecatedID();
 
   content::RenderFrameHost* owner_rfh = nullptr;
   auto token = base::Token::FromString(params->owner_frame_token);
@@ -130,8 +131,9 @@ ExtensionFunction::ResponseAction GuestViewInternalSetSizeFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
   GuestViewBase* guest =
       GuestViewBase::FromInstanceID(source_process_id(), params->instance_id);
-  if (!guest)
+  if (!guest) {
     return RespondNow(Error(kUnknownErrorDoNotUse));
+  }
 
   guest_view::SetSizeParams set_size_params;
   if (params->params.enable_auto_size) {

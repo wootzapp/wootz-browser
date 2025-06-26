@@ -7,7 +7,6 @@ package org.chromium.chrome.browser.search_resumption;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.when;
 
 import android.text.TextUtils;
 
@@ -22,9 +21,10 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.FeatureList;
+import org.chromium.base.FeatureOverrides;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
@@ -36,12 +36,17 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.sync.SyncService;
+import org.chromium.components.sync.UserSelectableType;
 import org.chromium.url.GURL;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /** Unit tests for {@link SearchResumptionModuleUtils}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 @SuppressWarnings("DoNotMock") // Mocks GURL
+@Features.EnableFeatures(ChromeFeatureList.SEARCH_RESUMPTION_MODULE_ANDROID)
 public class SearchResumptionModuleUtilsUnitTest {
     @Mock private TemplateUrlService mTemplateUrlService;
     @Mock private IdentityServicesProvider mIdentityServicesProvider;
@@ -53,15 +58,9 @@ public class SearchResumptionModuleUtilsUnitTest {
     @Mock private GURL mGurl1;
     @Mock private GURL mGurl2;
 
-    private FeatureList.TestValues mFeatureListValues;
-
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        mFeatureListValues = new FeatureList.TestValues();
-        FeatureList.setTestValues(mFeatureListValues);
-        mFeatureListValues.addFeatureFlagOverride(
-                ChromeFeatureList.SEARCH_RESUMPTION_MODULE_ANDROID, true);
 
         TemplateUrlServiceFactory.setInstanceForTesting(mTemplateUrlService);
         IdentityServicesProvider.setInstanceForTests(mIdentityServicesProvider);
@@ -84,17 +83,7 @@ public class SearchResumptionModuleUtilsUnitTest {
                         ModuleNotShownReason.DEFAULT_ENGINE_NOT_GOOGLE));
 
         doReturn(true).when(mTemplateUrlService).isDefaultSearchEngineGoogle();
-        when(mSyncServiceMock.hasKeepEverythingSynced()).thenReturn(false);
-        doReturn(true).when(mIdentityManager).hasPrimaryAccount(anyInt());
-        Assert.assertFalse(SearchResumptionModuleUtils.shouldShowSearchResumptionModule(mProfile));
-        Assert.assertEquals(
-                1,
-                RecordHistogram.getHistogramValueCountForTesting(
-                        SearchResumptionModuleUtils.UMA_MODULE_NOT_SHOW,
-                        ModuleNotShownReason.NOT_SYNC));
-
         doReturn(true).when(mTemplateUrlService).isDefaultSearchEngineGoogle();
-        when(mSyncServiceMock.hasKeepEverythingSynced()).thenReturn(true);
         doReturn(false).when(mIdentityManager).hasPrimaryAccount(anyInt());
         Assert.assertFalse(SearchResumptionModuleUtils.shouldShowSearchResumptionModule(mProfile));
         Assert.assertEquals(
@@ -102,6 +91,18 @@ public class SearchResumptionModuleUtilsUnitTest {
                 RecordHistogram.getHistogramValueCountForTesting(
                         SearchResumptionModuleUtils.UMA_MODULE_NOT_SHOW,
                         ModuleNotShownReason.NOT_SIGN_IN));
+
+        doReturn(true).when(mIdentityManager).hasPrimaryAccount(anyInt());
+        doReturn(new HashSet<>()).when(mSyncServiceMock).getSelectedTypes();
+        Assert.assertFalse(SearchResumptionModuleUtils.shouldShowSearchResumptionModule(mProfile));
+        Assert.assertEquals(
+                1,
+                RecordHistogram.getHistogramValueCountForTesting(
+                        SearchResumptionModuleUtils.UMA_MODULE_NOT_SHOW,
+                        ModuleNotShownReason.NOT_SYNC));
+
+        doReturn(Set.of(UserSelectableType.HISTORY)).when(mSyncServiceMock).getSelectedTypes();
+        Assert.assertTrue(SearchResumptionModuleUtils.shouldShowSearchResumptionModule(mProfile));
     }
 
     @Test
@@ -153,10 +154,10 @@ public class SearchResumptionModuleUtilsUnitTest {
         long lastVisitedTimestampMs = 0;
         doReturn(lastVisitedTimestampMs).when(mTab).getTimestampMillis();
         int expirationTimeSeconds = 1;
-        mFeatureListValues.addFieldTrialParamOverride(
+        FeatureOverrides.overrideParam(
                 ChromeFeatureList.SEARCH_RESUMPTION_MODULE_ANDROID,
                 SearchResumptionModuleUtils.TAB_EXPIRATION_TIME_PARAM,
-                String.valueOf(expirationTimeSeconds));
+                expirationTimeSeconds);
         Assert.assertFalse(SearchResumptionModuleUtils.isTabToTrackValid(mTabToTrack));
         Assert.assertEquals(
                 1,
@@ -169,10 +170,10 @@ public class SearchResumptionModuleUtilsUnitTest {
         doReturn(false).when(mGurl1).isEmpty();
         doReturn(true).when(mGurl1).isValid();
         expirationTimeSeconds = (int) (System.currentTimeMillis() / 1000) + 60; // one more minute
-        mFeatureListValues.addFieldTrialParamOverride(
+        FeatureOverrides.overrideParam(
                 ChromeFeatureList.SEARCH_RESUMPTION_MODULE_ANDROID,
                 SearchResumptionModuleUtils.TAB_EXPIRATION_TIME_PARAM,
-                String.valueOf(expirationTimeSeconds));
+                expirationTimeSeconds);
         Assert.assertEquals(
                 expirationTimeSeconds,
                 ChromeFeatureList.getFieldTrialParamByFeatureAsInt(

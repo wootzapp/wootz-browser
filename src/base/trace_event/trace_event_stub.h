@@ -296,7 +296,6 @@ struct IgnoredValue {
 #define TRACE_EVENT(category, name, ...) INTERNAL_TRACE_IGNORE(category, name)
 #define TRACE_EVENT_INSTANT(category, name, ...) \
   INTERNAL_TRACE_IGNORE(category, name)
-#define PERFETTO_INTERNAL_ADD_EMPTY_EVENT() INTERNAL_TRACE_IGNORE()
 
 namespace base {
 namespace trace_event {
@@ -379,10 +378,6 @@ class BASE_EXPORT MemoryDumpManager {
       TRACE_DISABLED_BY_DEFAULT("memory-infra");
 };
 
-inline uint64_t GetNextGlobalTraceId() {
-  return 0;
-}
-
 }  // namespace trace_event
 }  // namespace base
 
@@ -454,6 +449,17 @@ void WriteIntoTracedValue(TracedValue, T&&) {}
 
 struct Track {
   explicit Track(uint64_t id) {}
+};
+
+struct NamedTrack {
+  template <class T>
+  explicit NamedTrack(T name, uint64_t id = 0, Track parent = Track{0}) {}
+};
+
+struct Flow {
+  static inline Flow ProcessScoped(uint64_t flow_id) { return Flow(); }
+  static inline Flow FromPointer(void* ptr) { return Flow(); }
+  static inline Flow Global(uint64_t flow_id) { return Flow(); }
 };
 
 namespace protos::pbzero {

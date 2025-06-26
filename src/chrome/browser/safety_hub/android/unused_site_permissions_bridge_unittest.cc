@@ -9,7 +9,7 @@
 #include "base/android/jni_android.h"
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/safety_hub/unused_site_permissions_service.h"
+#include "chrome/browser/ui/safety_hub/revoked_permissions_service.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings_constraints.h"
@@ -43,7 +43,8 @@ class UnusedSitePermissionsBridgeTest : public testing::Test {
   void AddRevokedPermissions() {
     base::Value::List revoked_permissions_list;
     for (ContentSettingsType type : kUnusedPermissionList) {
-      revoked_permissions_list.Append(static_cast<int32_t>(type));
+      revoked_permissions_list.Append(
+          RevokedPermissionsService::ConvertContentSettingsTypeToKey(type));
     }
     auto dict = base::Value::Dict().Set(permissions::kRevokedKey,
                                         revoked_permissions_list.Clone());
@@ -66,32 +67,40 @@ class UnusedSitePermissionsBridgeTest : public testing::Test {
 
 TEST_F(UnusedSitePermissionsBridgeTest, TestJavaRoundTrip) {
   PermissionsData expected;
-  expected.origin = ContentSettingsPattern::FromString(kUnusedTestSite);
+  expected.primary_pattern =
+      ContentSettingsPattern::FromString(kUnusedTestSite);
   expected.permission_types = kUnusedPermissionList;
   expected.constraints =
       content_settings::ContentSettingConstraints(kExpiration - kLifetime);
   expected.constraints.set_lifetime(kLifetime);
+  expected.revocation_type = PermissionsRevocationType::kUnusedPermissions;
 
   const auto jobject = ToJavaPermissionsData(env(), expected);
   PermissionsData converted = FromJavaPermissionsData(env(), jobject);
 
-  EXPECT_EQ(expected.origin, converted.origin);
+  EXPECT_EQ(expected.primary_pattern, converted.primary_pattern);
   EXPECT_EQ(expected.permission_types, converted.permission_types);
   EXPECT_EQ(kExpiration, converted.constraints.expiration());
   EXPECT_EQ(kLifetime, converted.constraints.lifetime());
+  EXPECT_EQ(PermissionsRevocationType::kUnusedPermissions,
+            converted.revocation_type);
 }
 
 TEST_F(UnusedSitePermissionsBridgeTest, TestDefaultValuesRoundTrip) {
   PermissionsData expected;
+  // The pattern has to be a valid single origin pattern.
+  expected.primary_pattern =
+      ContentSettingsPattern::FromString(kUnusedTestSite);
 
   const auto jobject = ToJavaPermissionsData(env(), expected);
   PermissionsData converted = FromJavaPermissionsData(env(), jobject);
 
-  EXPECT_EQ(expected.origin, converted.origin);
+  EXPECT_EQ(expected.primary_pattern, converted.primary_pattern);
   EXPECT_EQ(expected.permission_types, converted.permission_types);
   EXPECT_EQ(expected.constraints.expiration(),
             converted.constraints.expiration());
   EXPECT_EQ(expected.constraints.lifetime(), converted.constraints.lifetime());
+  EXPECT_EQ(expected.revocation_type, converted.revocation_type);
 }
 
 TEST_F(UnusedSitePermissionsBridgeTest, TestGetRevokedPermissions) {

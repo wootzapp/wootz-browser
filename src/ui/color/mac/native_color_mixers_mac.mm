@@ -2,15 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "ui/color/color_mixers.h"
-
 #import <Cocoa/Cocoa.h>
 
 #include "base/containers/fixed_flat_set.h"
 #import "skia/ext/skia_utils_mac.h"
-#include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_mixer.h"
+#include "ui/color/color_mixers.h"
 #include "ui/color/color_provider.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/color/color_recipe.h"
@@ -79,14 +77,7 @@ void AddNativeCoreColorMixer(ColorProvider* provider,
         0x66)};
   };
 
-  if (@available(macOS 11, *)) {
-    [AppearanceForKey(key) performAsCurrentDrawingAppearance:load_colors];
-  } else {
-    NSAppearance* saved_appearance = NSAppearance.currentAppearance;
-    NSAppearance.currentAppearance = AppearanceForKey(key);
-    load_colors();
-    NSAppearance.currentAppearance = saved_appearance;
-  }
+  [AppearanceForKey(key) performAsCurrentDrawingAppearance:load_colors];
 }
 
 void AddNativeColorSetInColorMixer(ColorMixer& mixer) {
@@ -112,15 +103,7 @@ void AddNativeUiColorMixer(ColorProvider* provider,
       mixer[kColorSysStateFocusRing] = PickGoogleColor(
           skia::NSSystemColorToSkColor(NSColor.keyboardFocusIndicatorColor),
           kColorSysBase, color_utils::kMinimumVisibleContrastRatio);
-    }
-    if (!features::IsChromeRefresh2023()) {
-      SkColor menu_separator_color =
-          properties.dark ? SkColorSetA(gfx::kGoogleGrey800, 0xCC)
-                          : SkColorSetA(SK_ColorBLACK, 0x26);
-      mixer[kColorMenuSeparator] = {menu_separator_color};
-    }
 
-    if (!features::IsChromeRefresh2023() || !key.user_color.has_value()) {
       const SkColor system_highlight_color =
           skia::NSSystemColorToSkColor(NSColor.selectedTextBackgroundColor);
       mixer[kColorTextSelectionBackground] = {system_highlight_color};
@@ -139,16 +122,11 @@ void AddNativeUiColorMixer(ColorProvider* provider,
         properties.dark ? SK_ColorLTGRAY : SK_ColorDKGRAY};
     mixer[kColorMenuItemForegroundSelected] = {properties.dark ? SK_ColorBLACK
                                                                : SK_ColorWHITE};
+
+    mixer[kColorTableRowHighlight] = {kColorSysStateHoverOnSubtle};
   };
 
-  if (@available(macOS 11, *)) {
-    [AppearanceForKey(key) performAsCurrentDrawingAppearance:load_colors];
-  } else {
-    NSAppearance* saved_appearance = NSAppearance.currentAppearance;
-    NSAppearance.currentAppearance = AppearanceForKey(key);
-    load_colors();
-    NSAppearance.currentAppearance = saved_appearance;
-  }
+  [AppearanceForKey(key) performAsCurrentDrawingAppearance:load_colors];
 }
 
 void AddNativePostprocessingMixer(ColorProvider* provider,
@@ -156,7 +134,7 @@ void AddNativePostprocessingMixer(ColorProvider* provider,
   // Ensure the system tint is applied by default for pre-refresh browsers. For
   // post-refresh only apply the tint if running old design system themes or the
   // color source is explicitly configured for grayscale.
-  if (features::IsChromeRefresh2023() && !key.custom_theme &&
+  if (!key.custom_theme &&
       key.user_color_source != ColorProviderKey::UserColorSource::kGrayscale) {
     return;
   }
@@ -165,8 +143,9 @@ void AddNativePostprocessingMixer(ColorProvider* provider,
 
   for (ColorId id = kUiColorsStart; id < kUiColorsEnd; ++id) {
     // Apply system tint to non-OS colors.
-    if (!kNativeOSColorIds.contains(id))
+    if (!kNativeOSColorIds.contains(id)) {
       mixer[id] += ApplySystemControlTintIfNeeded();
+    }
   }
 }
 

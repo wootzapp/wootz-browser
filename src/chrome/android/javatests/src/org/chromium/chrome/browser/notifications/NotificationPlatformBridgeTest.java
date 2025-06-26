@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.notifications;
 
 import static androidx.test.espresso.matcher.ViewMatchers.assertThat;
 
+import static org.chromium.chrome.browser.notifications.SuspiciousNotificationWarningUtils.SUSPICIOUS_NOTIFICATION_WARNING_INTERACTIONS_HISTOGRAM_NAME;
 import static org.chromium.components.content_settings.PrefNames.NOTIFICATIONS_VIBRATE_ENABLED;
 
 import android.app.Notification;
@@ -19,6 +20,7 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 
+import androidx.annotation.RequiresApi;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.MediumTest;
@@ -30,14 +32,21 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.FeatureOverrides;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
+import org.chromium.base.test.util.Features;
+import org.chromium.base.test.util.HistogramWatcher;
+import org.chromium.base.test.util.MinAndroidSdkLevel;
 import org.chromium.base.test.util.UserActionTester;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
+import org.chromium.chrome.browser.notifications.SuspiciousNotificationWarningUtils.SuspiciousNotificationWarningInteractions;
 import org.chromium.chrome.browser.permissions.PermissionTestRule;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.tab.Tab;
@@ -53,15 +62,12 @@ import org.chromium.components.site_engagement.SiteEngagementService;
 import org.chromium.components.url_formatter.SchemeDisplay;
 import org.chromium.components.url_formatter.UrlFormatter;
 import org.chromium.components.user_prefs.UserPrefs;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.url.GURL;
 
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -111,21 +117,12 @@ public class NotificationPlatformBridgeTest {
     }
 
     private double getEngagementScoreBlocking() {
-        try {
-            return TestThreadUtils.runOnUiThreadBlocking(
-                    new Callable<Double>() {
-                        @Override
-                        public Double call() {
-                            // TODO (https://crbug.com/1063807):  Add incognito mode tests.
-                            return SiteEngagementService.getForBrowserContext(
-                                            ProfileManager.getLastUsedRegularProfile())
-                                    .getScore(mPermissionTestRule.getOrigin());
-                        }
-                    });
-        } catch (ExecutionException ex) {
-            assert false : "Unexpected ExecutionException";
-        }
-        return 0.0;
+        // TODO (https://crbug.com/1063807):  Add incognito mode tests.
+        return ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        SiteEngagementService.getForBrowserContext(
+                                        ProfileManager.getLastUsedRegularProfile())
+                                .getScore(mPermissionTestRule.getOrigin()));
     }
 
     /**
@@ -145,7 +142,7 @@ public class NotificationPlatformBridgeTest {
                 new PermissionTestRule.PermissionUpdateWaiter(
                         "denied: ", mNotificationTestRule.getActivity());
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mNotificationTestRule.getActivity().getActivityTab().addObserver(updateWaiter);
                 });
@@ -190,7 +187,7 @@ public class NotificationPlatformBridgeTest {
                 new PermissionTestRule.PermissionUpdateWaiter(
                         "granted: ", mNotificationTestRule.getActivity());
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mNotificationTestRule.getActivity().getActivityTab().addObserver(updateWaiter);
                 });
@@ -264,12 +261,8 @@ public class NotificationPlatformBridgeTest {
         // Validate the notification's behavior. On Android O+ the defaults are ignored as vibrate
         // and silent moved to the notification channel. The silent flag is achieved by using a
         // group alert summary.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Assert.assertEquals(0, notification.defaults);
-            Assert.assertEquals(Notification.GROUP_ALERT_ALL, notification.getGroupAlertBehavior());
-        } else {
-            Assert.assertEquals(Notification.DEFAULT_ALL, notification.defaults);
-        }
+        Assert.assertEquals(0, notification.defaults);
+        Assert.assertEquals(Notification.GROUP_ALERT_ALL, notification.getGroupAlertBehavior());
         Assert.assertEquals(Notification.PRIORITY_DEFAULT, notification.priority);
     }
 
@@ -480,10 +473,7 @@ public class NotificationPlatformBridgeTest {
 
         // On Android O+ the defaults are ignored as vibrate and silent moved to the notification
         // channel. The silent flag is achieved by using a group alert summary.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Assert.assertEquals(
-                    Notification.GROUP_ALERT_SUMMARY, notification.getGroupAlertBehavior());
-        }
+        Assert.assertEquals(Notification.GROUP_ALERT_SUMMARY, notification.getGroupAlertBehavior());
     }
 
     private void verifyVibrationNotRequestedWhenDisabledInPrefs(String notificationOptions)
@@ -492,7 +482,7 @@ public class NotificationPlatformBridgeTest {
                 ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
 
         // Disable notification vibration in preferences.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         UserPrefs.get(ProfileManager.getLastUsedRegularProfile())
                                 .setBoolean(NOTIFICATIONS_VIBRATE_ENABLED, false));
@@ -501,18 +491,7 @@ public class NotificationPlatformBridgeTest {
 
         // On Android O+ the defaults are ignored as vibrate and silent moved to the notification
         // channel.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Assert.assertEquals(0, notification.defaults);
-        } else {
-            // Vibration should not be in the defaults.
-            Assert.assertEquals(
-                    Notification.DEFAULT_ALL & ~Notification.DEFAULT_VIBRATE,
-                    notification.defaults);
-
-            // There should be a custom no-op vibration pattern.
-            Assert.assertEquals(1, notification.vibrate.length);
-            Assert.assertEquals(0L, notification.vibrate[0]);
-        }
+        Assert.assertEquals(0, notification.defaults);
     }
 
     /**
@@ -549,7 +528,7 @@ public class NotificationPlatformBridgeTest {
                 ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
 
         // By default, vibration is enabled in notifications.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         Assert.assertTrue(
                                 UserPrefs.get(ProfileManager.getLastUsedRegularProfile())
@@ -559,19 +538,7 @@ public class NotificationPlatformBridgeTest {
 
         // On Android O+ the defaults are ignored as vibrate and silent moved to the notification
         // channel.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Assert.assertEquals(0, notification.defaults);
-        } else {
-            // Vibration should not be in the defaults, a custom pattern was provided.
-            Assert.assertEquals(
-                    Notification.DEFAULT_ALL & ~Notification.DEFAULT_VIBRATE,
-                    notification.defaults);
-
-            // The custom pattern should have been passed along.
-            Assert.assertEquals(2, notification.vibrate.length);
-            Assert.assertEquals(0L, notification.vibrate[0]);
-            Assert.assertEquals(42L, notification.vibrate[1]);
-        }
+        Assert.assertEquals(0, notification.defaults);
     }
 
     /**
@@ -669,13 +636,6 @@ public class NotificationPlatformBridgeTest {
         Bitmap generatedIcon =
                 generator.generateIconForUrl(new GURL(mPermissionTestRule.getOrigin()));
         Assert.assertNotNull(generatedIcon);
-        // Starts from Android O MR1, large icon can be downscaled by Android platform code.
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            Assert.assertTrue(
-                    generatedIcon.sameAs(
-                            NotificationTestUtil.getLargeIconFromNotification(
-                                    context, notification)));
-        }
     }
 
     /*
@@ -766,6 +726,164 @@ public class NotificationPlatformBridgeTest {
                 1,
                 RecordHistogram.getHistogramTotalCountForTesting(
                         "Notifications.Android.JobStartDelay"));
+    }
+
+    /**
+     * Verifies that activating the PendingIntent associated with the "Unsubscribe" button shows the
+     * `provisionally unsubscribed` notification and suspends all existing notifications, and then,
+     * clicking "Okay" commits this and revokes the notification permission.
+     *
+     * <p>One-tap Unsubscribe is supported on Android P and later.
+     */
+    @Test
+    @LargeTest
+    @Feature({"Browser", "Notifications"})
+    @Features.EnableFeatures(ChromeFeatureList.NOTIFICATION_ONE_TAP_UNSUBSCRIBE)
+    @MinAndroidSdkLevel(Build.VERSION_CODES.P)
+    public void testNotificationProvisionalUnsubscribeAndCommit() throws Exception {
+        mNotificationTestRule.setNotificationContentSettingForOrigin(
+                ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
+        Assert.assertEquals("\"granted\"", runJavaScript("Notification.permission"));
+
+        Notification notification1 = showAndGetNotification("Notification1", "{}");
+        showNotification("Notification2", "{}");
+        mNotificationTestRule.waitForNotificationCount(2);
+
+        // Click the "Unsubscribe" button.
+        Assert.assertEquals(1, notification1.actions.length);
+        PendingIntent unsubscribeIntent = notification1.actions[0].actionIntent;
+        Assert.assertNotNull(unsubscribeIntent);
+        unsubscribeIntent.send();
+
+        // Wait for the two notifications to be collapsed and the `provisionally unsubscribed`
+        // notification to appear.
+        mNotificationTestRule.waitForNotificationCount(1);
+
+        // Click the "Okay" button to commit. This is the second button.
+        Notification provisionallyUnsubscribedNotification =
+                mNotificationTestRule.getNotificationEntries().get(0).getNotification();
+        Assert.assertEquals(2, provisionallyUnsubscribedNotification.actions.length);
+        PendingIntent commitIntent = provisionallyUnsubscribedNotification.actions[1].actionIntent;
+        Assert.assertNotNull(commitIntent);
+        commitIntent.send();
+
+        // Wait for the `provisionally unsubscribed` notification to disappear.
+        mNotificationTestRule.waitForNotificationCount(0);
+
+        // This should have caused notifications permission to become reset.
+        Assert.assertEquals("\"default\"", runJavaScript("Notification.permission"));
+        checkThatShowNotificationIsDenied();
+    }
+
+    /**
+     * Verifies that activating the PendingIntent associated with the "Unsubscribe" button shows the
+     * `provisionally unsubscribed` notification and suspends all existing notifications, and then,
+     * clicking "Undo" reverts this and does not revoke the notification permission.
+     *
+     * <p>This also verifies that the icon image, which is stored and then loaded from the native
+     * `NotificationDatabase`, properly survives this journey.
+     *
+     * <p>One-tap Unsubscribe is supported on Android P and later.
+     */
+    @Test
+    @LargeTest
+    @Feature({"Browser", "Notifications"})
+    @Features.EnableFeatures(ChromeFeatureList.NOTIFICATION_ONE_TAP_UNSUBSCRIBE)
+    @MinAndroidSdkLevel(Build.VERSION_CODES.P)
+    public void testNotificationProvisionalUnsubscribeAndUndo() throws Exception {
+        mNotificationTestRule.setNotificationContentSettingForOrigin(
+                ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
+        Assert.assertEquals("\"granted\"", runJavaScript("Notification.permission"));
+
+        Notification notification1 = showAndGetNotification("Notification1", "{icon: 'red.png'}");
+        showNotification("Notification2", "{}");
+        mNotificationTestRule.waitForNotificationCount(2);
+
+        // Verify that the origin notifications will play sound/vibration.
+        var originalSBNotifications = mNotificationTestRule.getNotificationEntries();
+        Assert.assertEquals(
+                Notification.GROUP_ALERT_ALL,
+                originalSBNotifications.get(0).getNotification().getGroupAlertBehavior());
+        Assert.assertEquals(
+                Notification.GROUP_ALERT_ALL,
+                originalSBNotifications.get(1).getNotification().getGroupAlertBehavior());
+
+        // Click the "Unsubscribe" button.
+        Assert.assertEquals(1, notification1.actions.length);
+        PendingIntent unsubscribeIntent = notification1.actions[0].actionIntent;
+        Assert.assertNotNull(unsubscribeIntent);
+        unsubscribeIntent.send();
+
+        // Wait for the two notifications to be collapsed and the `provisionally unsubscribed`
+        // notification to appear.
+        mNotificationTestRule.waitForNotificationCount(1);
+
+        // Click the "Undo" button to revert. This is the first button.
+        Notification provisionallyUnsubscribedNotification =
+                mNotificationTestRule.getNotificationEntries().get(0).getNotification();
+        Assert.assertEquals(2, provisionallyUnsubscribedNotification.actions.length);
+        PendingIntent undoIntent = provisionallyUnsubscribedNotification.actions[0].actionIntent;
+        Assert.assertNotNull(undoIntent);
+        undoIntent.send();
+
+        // Wait for the `provisionally unsubscribed` notification to disappear and the two
+        // notifications to be restored.
+        mNotificationTestRule.waitForNotificationCount(2);
+
+        // Verify the icon is restored correctly.
+        Context context = ApplicationProvider.getApplicationContext();
+        var restoredSBNotifications = mNotificationTestRule.getNotificationEntries();
+        Bitmap largeIcon =
+                NotificationTestUtil.getLargeIconFromNotification(
+                        context, restoredSBNotifications.get(0).getNotification());
+        Assert.assertNotNull(largeIcon);
+        Assert.assertEquals(Color.RED, largeIcon.getPixel(0, 0));
+
+        // Verify that both notifications are silent when they are restored.
+        Assert.assertEquals(
+                Notification.GROUP_ALERT_SUMMARY,
+                restoredSBNotifications.get(0).getNotification().getGroupAlertBehavior());
+        Assert.assertEquals(
+                Notification.GROUP_ALERT_SUMMARY,
+                restoredSBNotifications.get(1).getNotification().getGroupAlertBehavior());
+
+        // This should not have caused notifications permission to become denied.
+        Assert.assertEquals("\"granted\"", runJavaScript("Notification.permission"));
+        showNotification("Notification3", "{}");
+        mNotificationTestRule.waitForNotificationCount(3);
+    }
+
+    /**
+     * Verifies that activating the PendingIntent associated with the "Unsubscribe" button shows the
+     * `provisionally unsubscribed` notification and suspends all existing notifications, even when
+     * we are using service-type intents.
+     *
+     * <p>One-tap Unsubscribe is supported on Android P and later.
+     */
+    @Test
+    @LargeTest
+    @Feature({"Browser", "Notifications"})
+    @Features.EnableFeatures(
+            ChromeFeatureList.NOTIFICATION_ONE_TAP_UNSUBSCRIBE + ":use_service_intent/true")
+    @MinAndroidSdkLevel(Build.VERSION_CODES.P)
+    public void testNotificationProvisionalUnsubscribeWithServiceIntent() throws Exception {
+        mNotificationTestRule.setNotificationContentSettingForOrigin(
+                ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
+        Assert.assertEquals("\"granted\"", runJavaScript("Notification.permission"));
+
+        Notification notification1 = showAndGetNotification("Notification1", "{}");
+        showNotification("Notification2", "{}");
+        mNotificationTestRule.waitForNotificationCount(2);
+
+        // Click the "Unsubscribe" button.
+        Assert.assertEquals(1, notification1.actions.length);
+        PendingIntent unsubscribeIntent = notification1.actions[0].actionIntent;
+        Assert.assertNotNull(unsubscribeIntent);
+        unsubscribeIntent.send();
+
+        // Wait for the two notifications to be collapsed and the `provisionally unsubscribed`
+        // notification to appear.
+        mNotificationTestRule.waitForNotificationCount(1);
     }
 
     /**
@@ -873,6 +991,429 @@ public class NotificationPlatformBridgeTest {
     }
 
     /**
+     * The next two tests verify that the PendingIntent associated with the "Unsubscribe" button is
+     * either a broadcast or service type intent based on field trial configuration.
+     *
+     * <p>One-tap Unsubscribe is supported on Android P and later, but these tests rely on
+     * `isBroadcast` and `isService` that was added in API level 31.
+     */
+    @Test
+    @MediumTest
+    @Feature({"Browser", "Notifications"})
+    @Features.EnableFeatures(
+            ChromeFeatureList.NOTIFICATION_ONE_TAP_UNSUBSCRIBE + ":use_service_intent/false")
+    @MinAndroidSdkLevel(Build.VERSION_CODES.S)
+    @RequiresApi(Build.VERSION_CODES.S)
+    public void testNotificationProvisionalUnsubscribeIsBroadcast() throws Exception {
+        mNotificationTestRule.setNotificationContentSettingForOrigin(
+                ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
+
+        Notification notification = showAndGetNotification("Notification1", "{}");
+
+        // Verify the "Unsubscribe" button's intent.
+        Assert.assertEquals(1, notification.actions.length);
+        PendingIntent unsubscribeIntent = notification.actions[0].actionIntent;
+        Assert.assertNotNull(unsubscribeIntent);
+        Assert.assertTrue(unsubscribeIntent.isBroadcast());
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"Browser", "Notifications"})
+    @Features.EnableFeatures(
+            ChromeFeatureList.NOTIFICATION_ONE_TAP_UNSUBSCRIBE + ":use_service_intent/true")
+    @MinAndroidSdkLevel(Build.VERSION_CODES.S)
+    @RequiresApi(Build.VERSION_CODES.S)
+    public void testNotificationProvisionalUnsubscribeIsService() throws Exception {
+        mNotificationTestRule.setNotificationContentSettingForOrigin(
+                ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
+
+        Notification notification = showAndGetNotification("Notification1", "{}");
+
+        // Verify the "Unsubscribe" button's intent.
+        Assert.assertEquals(1, notification.actions.length);
+        PendingIntent unsubscribeIntent = notification.actions[0].actionIntent;
+        Assert.assertNotNull(unsubscribeIntent);
+        Assert.assertTrue(unsubscribeIntent.isService());
+    }
+
+    /**
+     * Verifies that when `SHOW_WARNINGS_FOR_SUSPICIOUS_NOTIFICATIONS` is enabled, suspicious
+     * notifications are replaced by warning notifications. Then dismiss one notification and
+     * tapping the "Unsubscribe" button on another notification to perform both expected behaviors.
+     */
+    @Test
+    @LargeTest
+    @Feature({"Browser", "Notifications"})
+    @Features.EnableFeatures({
+        ChromeFeatureList.NOTIFICATION_ONE_TAP_UNSUBSCRIBE,
+        ChromeFeatureList.SHOW_WARNINGS_FOR_SUSPICIOUS_NOTIFICATIONS
+    })
+    @MinAndroidSdkLevel(Build.VERSION_CODES.P)
+    public void testNotificationShowWarningNotificationsThenDismissAndUnsubscribe()
+            throws Exception {
+        mNotificationTestRule.setNotificationContentSettingForOrigin(
+                ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
+        Assert.assertEquals("\"granted\"", runJavaScript("Notification.permission"));
+
+        var histogramWatcher =
+                HistogramWatcher.newBuilder()
+                        .expectIntRecordTimes(
+                                SUSPICIOUS_NOTIFICATION_WARNING_INTERACTIONS_HISTOGRAM_NAME,
+                                SuspiciousNotificationWarningInteractions.WARNING_SHOWN,
+                                2)
+                        .expectIntRecords(
+                                SUSPICIOUS_NOTIFICATION_WARNING_INTERACTIONS_HISTOGRAM_NAME,
+                                SuspiciousNotificationWarningInteractions.UNSUBSCRIBE,
+                                SuspiciousNotificationWarningInteractions.DISMISS)
+                        .build();
+
+        NotificationPlatformBridge notificationBridge =
+                NotificationPlatformBridge.getInstanceForTests();
+        Assert.assertNotNull(notificationBridge);
+        notificationBridge.setIsSuspiciousParameterForTesting(true);
+
+        // Display 2 suspicious notifications that will be replaced by warnings.
+        showNotification("Notification0", "{body: 'Hello'}");
+        showNotification("Notification1", "{}");
+        mNotificationTestRule.waitForNotificationCount(2);
+
+        // Display 1 non-suspicious notification.
+        notificationBridge.setIsSuspiciousParameterForTesting(false);
+        showNotification("Notification2", "{}");
+        mNotificationTestRule.waitForNotificationCount(3);
+
+        // Check 2 notification contents were replaced by warnings.
+        List<NotificationEntry> notifications = mNotificationTestRule.getNotificationEntries();
+        String expectedOrigin =
+                UrlFormatter.formatUrlForSecurityDisplay(
+                        mPermissionTestRule.getOrigin(), SchemeDisplay.OMIT_HTTP_AND_HTTPS);
+        for (int i = 0; i < 2; i++) {
+            // Validate the warning notification contents.
+            Notification warningNotification = notifications.get(i).getNotification();
+            Assert.assertEquals(
+                    "Possible spam", NotificationTestUtil.getExtraTitle(warningNotification));
+            Assert.assertTrue(
+                    NotificationTestUtil.getExtraText(warningNotification)
+                            .contains("Chrome detected possible spam from " + expectedOrigin));
+            Assert.assertEquals(
+                    expectedOrigin, NotificationTestUtil.getExtraSubText(warningNotification));
+
+            // Validate the warning notification buttons.
+            Assert.assertEquals(2, warningNotification.actions.length);
+            PendingIntent unsubscribeIntent = warningNotification.actions[0].actionIntent;
+            PendingIntent showNotificationIntent = warningNotification.actions[1].actionIntent;
+            Assert.assertNotNull(unsubscribeIntent);
+            Assert.assertNotNull(showNotificationIntent);
+        }
+
+        // Verify that the two suspicious notification interactions will be logged.
+        Assert.assertEquals(
+                2,
+                NotificationPlatformBridge.sSuspiciousNotificationsMap
+                        .get(mPermissionTestRule.getOrigin())
+                        .size());
+
+        // Dismiss the warning notification1.
+        Notification warningNotification1 = notifications.get(1).getNotification();
+        warningNotification1.deleteIntent.send();
+        mNotificationTestRule.waitForNotificationManagerMutation();
+
+        // Click the "Unsubscribe" button on warning notification0.
+        Notification warningNotification0 = notifications.get(0).getNotification();
+        PendingIntent unsubscribeIntent = warningNotification0.actions[0].actionIntent;
+        unsubscribeIntent.send();
+
+        // Wait for the provisionally unsubscribe notification to appear.
+        mNotificationTestRule.waitForNotificationCount(1);
+        Notification provisionallyUnsubscribedNotification =
+                mNotificationTestRule.getNotificationEntries().get(0).getNotification();
+        Assert.assertEquals(2, provisionallyUnsubscribedNotification.actions.length);
+        Assert.assertEquals(
+                "Unsubscribed from notifications",
+                NotificationTestUtil.getExtraTitle(provisionallyUnsubscribedNotification));
+        Assert.assertTrue(
+                NotificationTestUtil.getExtraText(provisionallyUnsubscribedNotification)
+                        .contains("You'll no longer receive notifications from " + expectedOrigin));
+        Assert.assertEquals(
+                expectedOrigin, NotificationTestUtil.getExtraSubText(warningNotification1));
+
+        // Verify that warning notification1 will no longer be logged.
+        Assert.assertEquals(
+                1,
+                NotificationPlatformBridge.sSuspiciousNotificationsMap
+                        .get(mPermissionTestRule.getOrigin())
+                        .size());
+
+        // Click the "Okay" button to commit. This is the second button.
+        PendingIntent commitIntent = provisionallyUnsubscribedNotification.actions[1].actionIntent;
+        Assert.assertNotNull(commitIntent);
+        commitIntent.send();
+
+        // Wait for the `provisionally unsubscribed` notification to disappear.
+        mNotificationTestRule.waitForNotificationCount(0);
+
+        // Validate histogram is logged correctly.
+        histogramWatcher.assertExpected();
+
+        // Verify interactions will no longer be logged.
+        Assert.assertTrue(NotificationPlatformBridge.sSuspiciousNotificationsMap.isEmpty());
+    }
+
+    /**
+     * Verifies that when `SHOW_WARNINGS_FOR_SUSPICIOUS_NOTIFICATIONS` is enabled, suspicious
+     * notifications are replaced by a warning and tapping the "Show Notification" button performs
+     * the show notification behaviour. Then, tapping the "Always allow" button displays the
+     * original backups of the warning notifications from the same origin.
+     */
+    @Test
+    @LargeTest
+    @Feature({"Browser", "Notifications"})
+    @Features.EnableFeatures({
+        ChromeFeatureList.NOTIFICATION_ONE_TAP_UNSUBSCRIBE,
+        ChromeFeatureList.SHOW_WARNINGS_FOR_SUSPICIOUS_NOTIFICATIONS
+    })
+    @MinAndroidSdkLevel(Build.VERSION_CODES.P)
+    public void testNotificationShowWarningNotificationThenShowNotificationThenAlwaysAllow()
+            throws Exception {
+        mNotificationTestRule.setNotificationContentSettingForOrigin(
+                ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
+        Assert.assertEquals("\"granted\"", runJavaScript("Notification.permission"));
+
+        var histogramWatcher =
+                HistogramWatcher.newBuilder()
+                        .expectIntRecordTimes(
+                                SUSPICIOUS_NOTIFICATION_WARNING_INTERACTIONS_HISTOGRAM_NAME,
+                                SuspiciousNotificationWarningInteractions.WARNING_SHOWN,
+                                3)
+                        .expectIntRecordTimes(
+                                SUSPICIOUS_NOTIFICATION_WARNING_INTERACTIONS_HISTOGRAM_NAME,
+                                SuspiciousNotificationWarningInteractions
+                                        .SHOW_ORIGINAL_NOTIFICATION,
+                                2)
+                        .expectIntRecords(
+                                SUSPICIOUS_NOTIFICATION_WARNING_INTERACTIONS_HISTOGRAM_NAME,
+                                SuspiciousNotificationWarningInteractions.ALWAYS_ALLOW)
+                        .build();
+
+        NotificationPlatformBridge notificationBridge =
+                NotificationPlatformBridge.getInstanceForTests();
+        Assert.assertNotNull(notificationBridge);
+        notificationBridge.setIsSuspiciousParameterForTesting(true);
+
+        // Display 1 notification.
+        showAndGetNotification("MyNotification1", "{body: 'Hello'}");
+        mNotificationTestRule.waitForNotificationCount(1);
+
+        // Click the "Show Notification" button.
+        List<NotificationEntry> notifications = mNotificationTestRule.getNotificationEntries();
+        Notification warningNotification = notifications.get(0).getNotification();
+        Assert.assertEquals(2, warningNotification.actions.length);
+        PendingIntent showNotificationIntent = warningNotification.actions[1].actionIntent;
+        Assert.assertNotNull(showNotificationIntent);
+        showNotificationIntent.send();
+
+        // Check the original notification is restored silently.
+        Notification restoredNotificationFromWarning =
+                mNotificationTestRule.waitForNotification().notification;
+        Assert.assertEquals(
+                Notification.GROUP_ALERT_SUMMARY,
+                restoredNotificationFromWarning.getGroupAlertBehavior());
+
+        // Display 2 notifications that will be replaced by warnings.
+        showNotification("MyNotification2", "{}");
+        showNotification("MyNotification3", "{}");
+        mNotificationTestRule.waitForNotificationCount(3);
+
+        // Tap the "Show notification" button on a 2nd notification.
+        notifications = mNotificationTestRule.getNotificationEntries();
+        Notification notification2 = notifications.get(1).getNotification();
+        PendingIntent showNotificationIntent2 = notification2.actions[1].actionIntent;
+        Assert.assertNotNull(showNotificationIntent2);
+        showNotificationIntent2.send();
+        mNotificationTestRule.waitForNotificationManagerMutation();
+
+        // Set to false so the "Always allow" confirmation notification will not be marked as
+        // suspicious.
+        notificationBridge.setIsSuspiciousParameterForTesting(false);
+
+        // Click the "Always allow" button on the restored original notification.
+        Assert.assertEquals(2, restoredNotificationFromWarning.actions.length);
+        PendingIntent alwaysAllowIntent = restoredNotificationFromWarning.actions[1].actionIntent;
+        Assert.assertNotNull(alwaysAllowIntent);
+        alwaysAllowIntent.send();
+        mNotificationTestRule.waitForNotificationCount(4);
+
+        // Verify 3 notifications have their original titles and only have one button
+        // (Unsubscribe).
+        notifications = mNotificationTestRule.getNotificationEntries();
+        for (int i = 0; i < 3; i++) {
+            Notification restoredNotification = notifications.get(i).getNotification();
+            Assert.assertEquals(
+                    "MyNotification" + (i + 1),
+                    NotificationTestUtil.getExtraTitle(restoredNotification));
+            Assert.assertEquals(1, restoredNotification.actions.length);
+        }
+
+        // Verify the confirmation notification.
+        Notification confirmationNotification = notifications.get(3).getNotification();
+        Assert.assertEquals(
+                "Always allow", NotificationTestUtil.getExtraTitle(confirmationNotification));
+        Assert.assertEquals(
+                "Chrome will stop flagging notifications from this site as spam",
+                NotificationTestUtil.getExtraText(confirmationNotification));
+        Assert.assertNull(confirmationNotification.actions);
+
+        // Validate histogram is logged.
+        histogramWatcher.assertExpected();
+
+        // Verify interactions will no longer be logged.
+        Assert.assertTrue(NotificationPlatformBridge.sSuspiciousNotificationsMap.isEmpty());
+    }
+
+    /**
+     * Verifies that when `SHOW_WARNINGS_FOR_SUSPICIOUS_NOTIFICATIONS` is enabled, non-suspicious
+     * notifications behave the same and are not replaced by warnings.
+     */
+    @Test
+    @LargeTest
+    @Feature({"Browser", "Notifications"})
+    @Features.EnableFeatures({
+        ChromeFeatureList.NOTIFICATION_ONE_TAP_UNSUBSCRIBE,
+        ChromeFeatureList.SHOW_WARNINGS_FOR_SUSPICIOUS_NOTIFICATIONS
+    })
+    @MinAndroidSdkLevel(Build.VERSION_CODES.P)
+    public void testShowWarningFeatureDoesNotWarnForUnsuspiciousNotification() throws Exception {
+        mNotificationTestRule.setNotificationContentSettingForOrigin(
+                ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
+        Assert.assertEquals("\"granted\"", runJavaScript("Notification.permission"));
+        var histogramWatcher =
+                HistogramWatcher.newBuilder()
+                        .expectNoRecords(
+                                SUSPICIOUS_NOTIFICATION_WARNING_INTERACTIONS_HISTOGRAM_NAME)
+                        .build();
+
+        NotificationPlatformBridge notificationBridge =
+                NotificationPlatformBridge.getInstanceForTests();
+        Assert.assertNotNull(notificationBridge);
+        notificationBridge.setIsSuspiciousParameterForTesting(false);
+
+        showNotification("Notification0", "{body: 'Hello'}");
+        showNotification("Notification1", "{body: 'Hello'}");
+        showNotification("Notification2", "{body: 'Hello'}");
+        mNotificationTestRule.waitForNotificationCount(3);
+
+        // Check notification contents were not replaced by a warning.
+        List<NotificationEntry> notifications = mNotificationTestRule.getNotificationEntries();
+        Notification notification0 = notifications.get(0).getNotification();
+        String expectedOrigin =
+                UrlFormatter.formatUrlForSecurityDisplay(
+                        mPermissionTestRule.getOrigin(), SchemeDisplay.OMIT_HTTP_AND_HTTPS);
+        // Validate the contents of the notification.
+        Assert.assertEquals("Notification0", NotificationTestUtil.getExtraTitle(notification0));
+        Assert.assertEquals("Hello", NotificationTestUtil.getExtraText(notification0));
+        Assert.assertEquals(expectedOrigin, NotificationTestUtil.getExtraSubText(notification0));
+
+        // Dismiss notification1.
+        Notification notification1 = notifications.get(1).getNotification();
+        notification1.deleteIntent.send();
+        mNotificationTestRule.waitForNotificationManagerMutation();
+
+        // Click the "Unsubscribe" button on warning notification0.
+        PendingIntent unsubscribeIntent = notification0.actions[0].actionIntent;
+        unsubscribeIntent.send();
+
+        // Wait for the provisionally unsubscribe notification to appear and click the "Okay" button
+        // to commit.
+        mNotificationTestRule.waitForNotificationCount(1);
+        Notification provisionallyUnsubscribedNotification =
+                mNotificationTestRule.getNotificationEntries().get(0).getNotification();
+        PendingIntent commitIntent = provisionallyUnsubscribedNotification.actions[1].actionIntent;
+        Assert.assertNotNull(commitIntent);
+        commitIntent.send();
+
+        // Wait for the `provisionally unsubscribed` notification to disappear.
+        mNotificationTestRule.waitForNotificationCount(0);
+
+        // Validate nothing is logged.
+        Assert.assertTrue(NotificationPlatformBridge.sSuspiciousNotificationsMap.isEmpty());
+        histogramWatcher.assertExpected();
+    }
+
+    /**
+     * Verifies that when `SHOW_WARNINGS_FOR_SUSPICIOUS_NOTIFICATIONS` is enabled and the
+     * ShowWarningsForSuspiciousNotificationsShouldSwapButtons parameter is true, the buttons are
+     * switched.
+     */
+    @Test
+    @LargeTest
+    @Feature({"Browser", "Notifications"})
+    @Features.EnableFeatures({
+        ChromeFeatureList.NOTIFICATION_ONE_TAP_UNSUBSCRIBE,
+        ChromeFeatureList.SHOW_WARNINGS_FOR_SUSPICIOUS_NOTIFICATIONS
+    })
+    @MinAndroidSdkLevel(Build.VERSION_CODES.P)
+    public void testShowWarningFeatureSwitchButtons() throws Exception {
+        FeatureOverrides.overrideParam(
+                ChromeFeatureList.SHOW_WARNINGS_FOR_SUSPICIOUS_NOTIFICATIONS,
+                NotificationPlatformBridge
+                        .SHOW_WARNINGS_FOR_SUSPICIOUS_NOTIFICATIONS_SHOULD_SWAP_BUTTONS_PARAM_NAME,
+                true);
+        mNotificationTestRule.setNotificationContentSettingForOrigin(
+                ContentSettingValues.ALLOW, mPermissionTestRule.getOrigin());
+        Assert.assertEquals("\"granted\"", runJavaScript("Notification.permission"));
+
+        NotificationPlatformBridge notificationBridge =
+                NotificationPlatformBridge.getInstanceForTests();
+        Assert.assertNotNull(notificationBridge);
+        notificationBridge.setIsSuspiciousParameterForTesting(true);
+
+        // Display 1 notification.
+        showAndGetNotification("MyNotification1", "{body: 'Hello'}");
+        mNotificationTestRule.waitForNotificationCount(1);
+
+        // Click the "Show Notification" button, which is now the primary button.
+        List<NotificationEntry> notifications = mNotificationTestRule.getNotificationEntries();
+        Notification warningNotification = notifications.get(0).getNotification();
+        Assert.assertEquals(2, warningNotification.actions.length);
+        PendingIntent showNotificationIntent = warningNotification.actions[0].actionIntent;
+        Assert.assertNotNull(showNotificationIntent);
+        showNotificationIntent.send();
+
+        // Check the original notification is restored silently.
+        Notification restoredNotificationFromWarning =
+                mNotificationTestRule.waitForNotification().notification;
+        Assert.assertEquals(
+                Notification.GROUP_ALERT_SUMMARY,
+                restoredNotificationFromWarning.getGroupAlertBehavior());
+
+        // Set to false so the "Always allow" confirmation notification will not be marked as
+        // suspicious. Then click "Always allow".
+        notificationBridge.setIsSuspiciousParameterForTesting(false);
+        Assert.assertEquals(2, restoredNotificationFromWarning.actions.length);
+        PendingIntent alwaysAllowIntent = restoredNotificationFromWarning.actions[0].actionIntent;
+        Assert.assertNotNull(alwaysAllowIntent);
+        alwaysAllowIntent.send();
+        mNotificationTestRule.waitForNotificationCount(2);
+
+        // Verify notification has the original title and only has one button(Unsubscribe).
+        notifications = mNotificationTestRule.getNotificationEntries();
+        Notification restoredNotification = notifications.get(0).getNotification();
+        Assert.assertEquals(
+                "MyNotification1", NotificationTestUtil.getExtraTitle(restoredNotification));
+        Assert.assertEquals(1, restoredNotification.actions.length);
+
+        // Verify the confirmation notification.
+        Notification confirmationNotification = notifications.get(1).getNotification();
+        Assert.assertEquals(
+                "Always allow", NotificationTestUtil.getExtraTitle(confirmationNotification));
+        Assert.assertEquals(
+                "Chrome will stop flagging notifications from this site as spam",
+                NotificationTestUtil.getExtraText(confirmationNotification));
+        Assert.assertNull(confirmationNotification.actions);
+    }
+
+    /**
      * Shows a notification with |title| and |options|, waits until it has been displayed and then
      * returns the Notification object to the caller. Requires that only a single notification is
      * being displayed in the notification manager.
@@ -888,6 +1429,7 @@ public class NotificationPlatformBridgeTest {
     }
 
     private void showNotification(String title, String options) throws TimeoutException {
+        mNotificationTestRule.flushNotificationManagerMutations();
         runJavaScript(
                 "GetActivatedServiceWorkerForTest()"
                         + ".then(reg => reg.showNotification('"

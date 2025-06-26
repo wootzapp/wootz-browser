@@ -49,7 +49,6 @@
 #include "third_party/blink/renderer/platform/fonts/typesetting_features.h"
 #include "third_party/blink/renderer/platform/text/layout_locale.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
-#include "third_party/blink/renderer/platform/wtf/cross_thread_copier.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "third_party/skia/include/core/SkFontStyle.h"
@@ -485,6 +484,8 @@ class PLATFORM_EXPORT FontDescription {
 
   int MinimumPrefixWidthToHyphenate() const;
 
+  ResolvedFontFeatures ResolveFontFeatures() const;
+
   String ToString() const;
 
  private:
@@ -592,12 +593,6 @@ struct HashTraits<blink::FontDescription>
   static blink::FontDescription EmptyValue() {
     return blink::FontDescription::CreateHashTableEmptyValue();
   }
-};
-
-template <>
-struct CrossThreadCopier<blink::FontDescription>
-    : public CrossThreadCopierPassThrough<blink::FontDescription> {
-  STATIC_ONLY(CrossThreadCopier);
 };
 
 }  // namespace WTF

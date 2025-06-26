@@ -54,10 +54,6 @@ class TestExtensionsBrowserClient : public ExtensionsBrowserClient {
     extension_cache_ = std::move(extension_cache);
   }
 
-  void set_lock_screen_context(content::BrowserContext* context) {
-    lock_screen_context_ = context;
-  }
-
   // Sets a factory to respond to calls of the CreateUpdateClient method.
   void SetUpdateClientFactory(
       base::RepeatingCallback<update_client::UpdateClient*(void)> factory);
@@ -81,25 +77,18 @@ class TestExtensionsBrowserClient : public ExtensionsBrowserClient {
       content::BrowserContext* context) override;
   content::BrowserContext* GetOriginalContext(
       content::BrowserContext* context) override;
-
   content::BrowserContext* GetContextRedirectedToOriginal(
-      content::BrowserContext* context,
-      bool force_guest_profile) override;
+      content::BrowserContext* context) override;
   content::BrowserContext* GetContextOwnInstance(
-      content::BrowserContext* context,
-      bool force_guest_profile) override;
+      content::BrowserContext* context) override;
   content::BrowserContext* GetContextForOriginalOnly(
-      content::BrowserContext* context,
-      bool force_guest_profile) override;
+      content::BrowserContext* context) override;
   bool AreExtensionsDisabledForContext(
       content::BrowserContext* context) override;
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
+  bool IsActiveContext(content::BrowserContext* browser_context) const override;
   std::string GetUserIdHashFromContext(
       content::BrowserContext* context) override;
-#endif
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  bool IsFromMainProfile(content::BrowserContext* context) override;
 #endif
   bool IsGuestSession(content::BrowserContext* context) const override;
   bool IsExtensionIncognitoEnabled(
@@ -119,7 +108,6 @@ class TestExtensionsBrowserClient : public ExtensionsBrowserClient {
       int resource_id,
       scoped_refptr<net::HttpResponseHeaders> headers,
       mojo::PendingRemote<network::mojom::URLLoaderClient> client) override;
-
   bool AllowCrossRendererResourceLoad(
       const network::ResourceRequest& request,
       network::mojom::RequestDestination destination,
@@ -128,7 +116,8 @@ class TestExtensionsBrowserClient : public ExtensionsBrowserClient {
       bool is_incognito,
       const Extension* extension,
       const ExtensionSet& extensions,
-      const ProcessMap& process_map) override;
+      const ProcessMap& process_map,
+      const GURL& upstream_url) override;
   PrefService* GetPrefServiceForContext(
       content::BrowserContext* context) override;
   void GetEarlyExtensionPrefsObservers(
@@ -138,7 +127,7 @@ class TestExtensionsBrowserClient : public ExtensionsBrowserClient {
   mojo::PendingRemote<network::mojom::URLLoaderFactory>
   GetControlledFrameEmbedderURLLoader(
       const url::Origin& app_origin,
-      int frame_tree_node_id,
+      content::FrameTreeNodeId frame_tree_node_id,
       content::BrowserContext* browser_context) override;
   std::unique_ptr<ExtensionHostDelegate> CreateExtensionHostDelegate() override;
   bool DidVersionUpdate(content::BrowserContext* context) override;
@@ -165,12 +154,13 @@ class TestExtensionsBrowserClient : public ExtensionsBrowserClient {
   ExtensionCache* GetExtensionCache() override;
   bool IsBackgroundUpdateAllowed() override;
   bool IsMinBrowserVersionSupported(const std::string& min_version) override;
+  void CreateExtensionWebContentsObserver(
+      content::WebContents* web_contents) override;
   ExtensionWebContentsObserver* GetExtensionWebContentsObserver(
       content::WebContents* web_contents) override;
   KioskDelegate* GetKioskDelegate() override;
   scoped_refptr<update_client::UpdateClient> CreateUpdateClient(
       content::BrowserContext* context) override;
-  bool IsLockScreenContext(content::BrowserContext* context) override;
   std::string GetApplicationLocale() override;
 
   ExtensionSystemProvider* extension_system_factory() {
@@ -187,8 +177,6 @@ class TestExtensionsBrowserClient : public ExtensionsBrowserClient {
   raw_ptr<content::BrowserContext> main_context_ = nullptr;
   // Not owned.
   raw_ptr<content::BrowserContext> incognito_context_ = nullptr;
-  // Not owned.
-  raw_ptr<content::BrowserContext> lock_screen_context_ = nullptr;
 
   // Not owned.
   raw_ptr<ProcessManagerDelegate> process_manager_delegate_ = nullptr;

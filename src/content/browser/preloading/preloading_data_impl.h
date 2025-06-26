@@ -10,7 +10,6 @@
 #include <tuple>
 #include <vector>
 
-#include "base/memory/weak_ptr.h"
 #include "content/browser/preloading/prefetch/prefetch_container.h"
 #include "content/browser/preloading/preloading_confidence.h"
 #include "content/browser/preloading/preloading_prediction.h"
@@ -61,7 +60,7 @@ class CONTENT_EXPORT PreloadingDataImpl
   // any NoVarySearch query using `PrefetchService` if No-Vary-Search feature is
   // enabled.
   static PreloadingURLMatchCallback GetPrefetchServiceMatcher(
-      PrefetchService* prefetch_service,
+      PrefetchService& prefetch_service,
       const PrefetchContainer::Key& predicted);
 
   // Disallow copy and assign.
@@ -82,10 +81,11 @@ class CONTENT_EXPORT PreloadingDataImpl
   void SetIsNavigationInDomainCallback(
       PreloadingPredictor predictor,
       PredictorDomainCallback is_navigation_in_domain_callback) override;
-  bool CheckNavigationInDomainCallbackForTesting(
-      PreloadingPredictor predictor) {
-    return is_navigation_in_predictor_domain_callbacks_.count(predictor);
-  }
+  void SetHasSpeculationRulesPrerender();
+  bool HasSpeculationRulesPrerender() override;
+  void OnPreloadingHeuristicsModelInput(
+      const GURL& url,
+      ModelPredictionTrainingData::OutcomeCallback on_record_outcome) override;
 
   void AddPreloadingPrediction(const PreloadingPredictor& predictor,
                                PreloadingConfidence confidence,
@@ -137,6 +137,12 @@ class CONTENT_EXPORT PreloadingDataImpl
   void DidFinishNavigation(NavigationHandle* navigation_handle) override;
   void WebContentsDestroyed() override;
 
+  // A commonly used `PredictorDomainCallback`.
+  static bool IsLinkClickNavigation(NavigationHandle* navigation_handle);
+
+  size_t GetPredictionsSizeForTesting() const;
+  void SetMaxPredictionsToTenForTesting();
+
  private:
   explicit PreloadingDataImpl(WebContents* web_contents);
   friend class WebContentsUserData<PreloadingDataImpl>;
@@ -170,6 +176,10 @@ class CONTENT_EXPORT PreloadingDataImpl
   // the next navigation until the navigation takes place or the WebContents is
   // destroyed.
   std::vector<ExperimentalPreloadingPrediction> experimental_predictions_;
+  size_t total_seen_experimental_predictions_ = 0;
+
+  std::vector<ModelPredictionTrainingData> ml_predictions_;
+  size_t total_seen_ml_predictions_ = 0;
 
   // Stores all the preloading attempts that are happening for the next
   // navigation until the navigation takes place.
@@ -178,12 +188,21 @@ class CONTENT_EXPORT PreloadingDataImpl
   // Stores all the preloading predictions that are happening for the next
   // navigation until the navigation takes place.
   std::vector<PreloadingPrediction> preloading_predictions_;
+  size_t total_seen_preloading_predictions_ = 0;
+
+  // This flag will be true if there's been at least 1 attempt to do a
+  // speculation-rules based prerender.
+  bool has_speculation_rules_prerender_ = false;
 
   // The random seed used to determine if a preloading attempt should be sampled
   // in UKM logs. We use a different random seed for each session and then hash
   // that seed with the UKM source ID so that all attempts for a given source ID
   // are sampled in or out together.
   uint32_t sampling_seed_;
+
+  // In production, a large number of predictions are allowed before we start
+  // sampling. For tests, we may set the limit to something small.
+  bool max_predictions_is_ten_for_testing_ = false;
 };
 
 }  // namespace content

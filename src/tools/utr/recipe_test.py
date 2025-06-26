@@ -29,6 +29,7 @@ class LegacyRunnerTests(unittest.TestCase):
   def setUp(self):
     self.tmp_dir = pathlib.Path(tempfile.mkdtemp())
     self.tmp_dir.joinpath('recipes').touch()
+    self.build_dir = self.tmp_dir.joinpath('some', 'build', 'dir')
     self.addCleanup(shutil.rmtree, self.tmp_dir)
 
     self.subp_mock = self.AsyncMock()
@@ -42,10 +43,15 @@ class LegacyRunnerTests(unittest.TestCase):
     self.mock_input = patch_input.start()
     self.addCleanup(patch_input.stop)
 
+    patch_terminal_size = mock.patch('os.get_terminal_size')
+    mock_terminal_size = patch_terminal_size.start()
+    mock_terminal_size.return_value = (128, 1)
+    self.addCleanup(patch_terminal_size.stop)
+
   def testProps(self):
     runner = recipe.LegacyRunner(self.tmp_dir, {}, 'some-project',
                                  'some-bucket', 'some-builder', [], False,
-                                 False, False)
+                                 False, False, self.build_dir)
     self.assertEqual(
         runner._input_props['$recipe_engine/buildbucket']['build']['builder']
         ['builder'], 'some-builder')
@@ -53,7 +59,7 @@ class LegacyRunnerTests(unittest.TestCase):
   def testRun(self):
     runner = recipe.LegacyRunner(self.tmp_dir, {}, 'some-project',
                                  'some-bucket', 'some-builder', [], False,
-                                 False, False)
+                                 False, False, self.build_dir)
     self.subp_mock.returncode = 123
     with mock.patch('asyncio.create_subprocess_exec',
                     return_value=self.subp_mock):
@@ -63,7 +69,7 @@ class LegacyRunnerTests(unittest.TestCase):
   def testJson(self):
     runner = recipe.LegacyRunner(self.tmp_dir, {}, 'some-project',
                                  'some-bucket', 'some-builder', [], False,
-                                 False, False)
+                                 False, False, self.build_dir)
     with mock.patch('asyncio.create_subprocess_exec',
                     return_value=self.subp_mock):
       # Passing run.
@@ -75,26 +81,29 @@ class LegacyRunnerTests(unittest.TestCase):
 
       # Missing json file
       self.subp_mock.returncode = 1
-      _, error_msg = runner.run_recipe()
-      self.assertEqual(error_msg, 'Build/test failure')
+      rc, error_msg = runner.run_recipe()
+      self.assertEqual(rc, 1)
+      self.assertIsNone(error_msg)
 
       # Broken json
       with open(self.tmp_dir.joinpath('out.json'), 'w') as f:
         f.write('this-is-not-json')
-      _, error_msg = runner.run_recipe()
-      self.assertEqual(error_msg, 'Build/test failure')
+      rc, error_msg = runner.run_recipe()
+      self.assertEqual(rc, 1)
+      self.assertIsNone(error_msg)
 
       # Actual json. It'll get printed to the terminal, so all that run_recipe()
       # returns is a generic failure message.
       with open(self.tmp_dir.joinpath('out.json'), 'w') as f:
         json.dump({'failure': {'humanReason': 'it exploded'}}, f)
-      _, error_msg = runner.run_recipe()
-      self.assertEqual(error_msg, 'Build/test failure')
+      rc, error_msg = runner.run_recipe()
+      self.assertEqual(rc, 1)
+      self.assertIsNone(error_msg)
 
   def testReruns(self):
     runner = recipe.LegacyRunner(self.tmp_dir, {}, 'some-project',
                                  'some-bucket', 'some-builder', [], False,
-                                 False, False)
+                                 False, False, self.build_dir)
     with mock.patch('asyncio.create_subprocess_exec',
                     return_value=self.subp_mock):
       # Input "n" to the first re-run prompt.
@@ -127,7 +136,7 @@ class LegacyRunnerTests(unittest.TestCase):
   def testRerunsWithForce(self):
     runner = recipe.LegacyRunner(self.tmp_dir, {}, 'some-project',
                                  'some-bucket', 'some-builder', [], False,
-                                 False, True)
+                                 False, True, self.build_dir)
     with mock.patch('asyncio.create_subprocess_exec',
                     return_value=self.subp_mock):
       # Re-running once and succeeding. Need to manage two different tmp dirs,
@@ -142,6 +151,30 @@ class LegacyRunnerTests(unittest.TestCase):
       _, error_msg = runner.run_recipe()
       self.assertIsNone(error_msg)
       self.mock_input.assert_not_called()
+
+  def testRerunsWithOverwrite(self):
+    runner = recipe.LegacyRunner(self.tmp_dir, {},
+                                 'some-project',
+                                 'some-bucket',
+                                 'some-builder', [],
+                                 False,
+                                 False,
+                                 False,
+                                 self.build_dir,
+                                 skip_coverage=True)
+    with mock.patch('asyncio.create_subprocess_exec',
+                    return_value=self.subp_mock):
+      self.mock_input.return_value = 'n'
+      with open(self.tmp_dir.joinpath('rerun_props.json'), 'w') as f:
+        json.dump([['y', {'some-new-prop': 'some-val'}], ['n', {}]], f)
+      runner.run_recipe()
+
+      # The first run of the recipe should have coverage-related fields off
+      # due to skip_coverage=True.
+      stdin_write = self.subp_mock.mock_calls[0]
+      input_props = json.loads(stdin_write.args[0])
+      self.assertTrue(input_props['rerun_options']['bypass_branch_check'])
+      self.assertTrue(input_props['rerun_options']['skip_instrumentation'])
 
 
 if __name__ == '__main__':

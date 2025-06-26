@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/services/paint_preview_compositor/paint_preview_compositor_impl.h"
 
 #include <stdint.h>
@@ -287,8 +292,7 @@ class PaintPreviewCompositorBeginCompositeTest
         break;
       }
       default:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
 
@@ -492,9 +496,7 @@ TEST_P(PaintPreviewCompositorBeginCompositeTest, InvalidProto) {
   {
     testing::internal::CaptureStdout();
     request->preview = mojo_base::ProtoWrapper(
-        base::make_span(reinterpret_cast<const uint8_t*>(test_data.c_str()),
-                        test_data.size()),
-        "paint_preview.PaintPreviewProto",
+        base::as_byte_span(test_data), "paint_preview.PaintPreviewProto",
         mojo_base::ProtoWrapperBytes::GetPassKey());
     BeginCompositeAndValidate(
         std::move(request),

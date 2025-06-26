@@ -75,7 +75,7 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
   void SetCanPaintToLayer(bool can_paint_to_layer);
 
   // The loading animation only steps when this function is called. The
-  // |elapsed_time| parameter is expected to be the same among all tabs in a tab
+  // `elapsed_time` parameter is expected to be the same among all tabs in a tab
   // strip in order to keep the throbbers in sync.
   void StepLoadingAnimation(const base::TimeDelta& elapsed_time);
 
@@ -83,13 +83,13 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
   bool GetActiveStateForTesting() { return is_active_tab_; }
 
   void EnlargeDiscardIndicatorRadius(int radius);
+  void SetShouldShowDiscardIndicator(bool enabled);
 
  private:
   class CrashAnimation;
   friend CrashAnimation;
   friend class TabTest;
-  FRIEND_TEST_ALL_PREFIXES(TabTestWithDiscardRingImprovements,
-                           DiscardIndicatorResponsiveness);
+  FRIEND_TEST_ALL_PREFIXES(TabTest, DiscardIndicatorResponsiveness);
 
   // views::View:
   void OnPaint(gfx::Canvas* canvas) override;
@@ -99,7 +99,7 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
   void AnimationProgressed(const gfx::Animation* animation) override;
   void AnimationEnded(const gfx::Animation* animation) override;
 
-  // Paints the attention indicator and |favicon_| at the given location.
+  // Paints the attention indicator and `favicon_` at the given location.
   void PaintAttentionIndicatorAndIcon(gfx::Canvas* canvas,
                                       const gfx::ImageSkia& icon,
                                       const gfx::Rect& bounds);
@@ -162,9 +162,6 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
   // The point in time when the tab icon was first painted in the loading state.
   base::TimeTicks loading_animation_start_time_;
 
-  // Paint state for the loading animation after the most recent waiting paint.
-  gfx::ThrobberWaitingState waiting_state_;
-
   // When the favicon_ has theming applied to it, the themed version will be
   // cached here. If this isNull(), then there is no theming and favicon_
   // should be used.
@@ -191,6 +188,13 @@ class TabIcon : public views::View, public views::AnimationDelegateViews {
   // fade out
   gfx::LinearAnimation tab_discard_animation_;
 
+  // The discard indicator will be shown only if the tab is discarded and the
+  // discard ring treatment pref is enabled. Keep track of both of the component
+  // booleans, in order to determine if the discard indicator is shown/unshown
+  // due to a change in the discard status or a change to the pref, because
+  // we don't want to animate the discard ring in the latter case.
+  bool is_discarded_ = false;
+  bool should_show_discard_indicator_ = true;
   bool was_discard_indicator_shown_ = false;
 
   // Crash animation (in place of favicon). Lazily created since most of the

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "services/tracing/public/cpp/trace_event_args_allowlist.h"
 
 #include <string_view>
@@ -24,8 +29,7 @@ struct AllowlistEntry {
   // Pattern to match the interested trace event name.
   const char* event_name;
   // List of patterns that match the allowlisted arguments.
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #global-scope
+  // RAW_PTR_EXCLUSION: constant data that is not freed.
   RAW_PTR_EXCLUSION const char* const* arg_name_filter;
 };
 
@@ -46,7 +50,7 @@ const char* const kTopLevelIpcRunTaskAllowedArgs[] = {"chrome_task_annotator",
 const char* const kMemoryPressureEventsAllowedArgs[] = {
     "chrome_memory_pressure_notification", nullptr};
 
-const AllowlistEntry kEventArgsAllowlist[] = {
+constexpr auto kEventArgsAllowlist = std::to_array<AllowlistEntry>({
     // Args recorded in perfetto protos and exported by trace processor JSON
     // exporter:
 
@@ -98,28 +102,31 @@ const AllowlistEntry kEventArgsAllowlist[] = {
     {TRACE_DISABLED_BY_DEFAULT("memory-infra"), "*", kMemoryDumpAllowedArgs},
     {TRACE_DISABLED_BY_DEFAULT("system_stats"), "*", nullptr},
     {TRACE_DISABLED_BY_DEFAULT("v8.gc"), "*", kV8GCAllowedArgs},
-    {nullptr, nullptr, nullptr}};
+    {nullptr, nullptr, nullptr},
+});
 
-const char* kMetadataAllowlist[] = {"chrome-bitness",
-                                    "chrome-dcheck-on",
-                                    "chrome-library-name",
-                                    "clock-domain",
-                                    "config",
-                                    "cpu-*",
-                                    "field-trials",
-                                    "gpu-*",
-                                    "highres-ticks",
-                                    "hardware-class",
-                                    "last_triggered_rule",
-                                    "network-type",
-                                    "num-cpus",
-                                    "os-*",
-                                    "physical-memory",
-                                    "product-version",
-                                    "scenario_name",
-                                    "trace-config",
-                                    "user-agent",
-                                    nullptr};
+auto kMetadataAllowlist = std::to_array<const char*>({
+    "chrome-bitness",
+    "chrome-dcheck-on",
+    "chrome-library-name",
+    "clock-domain",
+    "config",
+    "cpu-*",
+    "field-trials",
+    "gpu-*",
+    "highres-ticks",
+    "hardware-class",
+    "last_triggered_rule",
+    "network-type",
+    "num-cpus",
+    "os-*",
+    "physical-memory",
+    "product-version",
+    "scenario_name",
+    "trace-config",
+    "user-agent",
+    nullptr,
+});
 
 }  // namespace
 

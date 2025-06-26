@@ -26,7 +26,7 @@ struct PrintableEFloat {
 };
 
 std::ostream& operator<<(std::ostream& os, const PrintableEFloat& printable) {
-  const char* kStrings[] = {
+  std::array<const char*, 5> kStrings = {
       "kNone", "kLeft", "kRight", "kInlineStart", "kInlineEnd",
   };
   const unsigned index = static_cast<unsigned>(printable.value);
@@ -41,7 +41,7 @@ struct PrintableKind {
 };
 
 std::ostream& operator<<(std::ostream& os, const PrintableKind& printable) {
-  const char* kStrings[] = {
+  std::array<const char*, 2> kStrings = {
       "kFloat",
       "kInitialLetterBox",
   };

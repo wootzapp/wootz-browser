@@ -30,15 +30,18 @@ ManagedConfigurationAPIFactory::ManagedConfigurationAPIFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
               .Build()) {}
 
 ManagedConfigurationAPIFactory::~ManagedConfigurationAPIFactory() = default;
 
-KeyedService* ManagedConfigurationAPIFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+ManagedConfigurationAPIFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   Profile* profile(Profile::FromBrowserContext(context));
-  ManagedConfigurationAPI* api = new ManagedConfigurationAPI(profile);
-  return api;
+  return std::make_unique<ManagedConfigurationAPI>(profile);
 }
 
 void ManagedConfigurationAPIFactory::RegisterProfilePrefs(

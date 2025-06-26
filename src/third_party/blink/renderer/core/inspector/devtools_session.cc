@@ -8,6 +8,8 @@
 #include <utility>
 #include <vector>
 
+#include "base/compiler_specific.h"
+#include "base/notreached.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
@@ -47,7 +49,9 @@ bool ShouldInterruptForMethod(const String& method) {
 std::vector<uint8_t> Get8BitStringFrom(v8_inspector::StringBuffer* msg) {
   const v8_inspector::StringView& s = msg->string();
   DCHECK(s.is8Bit());
-  return std::vector<uint8_t>(s.characters8(), s.characters8() + s.length());
+  // SAFETY: `s.characters8()` valid for `s.length()` bytes.
+  return std::vector<uint8_t>(s.characters8(),
+                              UNSAFE_BUFFERS(s.characters8() + s.length()));
 }
 }  // namespace
 
@@ -102,13 +106,13 @@ class DevToolsSession::IOSession : public mojom::blink::DevToolsSession {
                            TRACE_EVENT_FLAG_FLOW_OUT | TRACE_EVENT_FLAG_FLOW_IN,
                            "call_id", call_id);
     // Crash renderer.
-    if (method == "Page.crash")
-      CHECK(false);
+    if (method == "Page.crash") {
+      NOTREACHED();
+    }
     // Post a task to the worker or main renderer thread that will interrupt V8
     // and be run immediately. Only methods that do not run JS code are safe.
     Vector<uint8_t> message_copy;
-    message_copy.Append(message.data(),
-                        base::checked_cast<wtf_size_t>(message.size()));
+    message_copy.AppendSpan(message);
     if (ShouldInterruptForMethod(method)) {
       inspector_task_runner_->AppendTask(CrossThreadBindOnce(
           &::blink::DevToolsSession::DispatchProtocolCommandImpl,
@@ -120,6 +124,12 @@ class DevToolsSession::IOSession : public mojom::blink::DevToolsSession {
           MakeUnwrappingCrossThreadWeakHandle(session_), call_id, method,
           std::move(message_copy)));
     }
+  }
+
+  void UnpauseAndTerminate() override {
+    inspector_task_runner_->AppendTask(
+        CrossThreadBindOnce(&::blink::DevToolsSession::UnpauseAndTerminate,
+                            MakeUnwrappingCrossThreadWeakHandle(session_)));
   }
 
  private:
@@ -137,6 +147,7 @@ DevToolsSession::DevToolsSession(
         main_receiver,
     mojo::PendingReceiver<mojom::blink::DevToolsSession> io_receiver,
     mojom::blink::DevToolsSessionStatePtr reattach_session_state,
+    const String& script_to_evaluate_on_load,
     bool client_expects_binary_responses,
     bool client_is_trusted,
     const String& session_id,
@@ -149,6 +160,7 @@ DevToolsSession::DevToolsSession(
       client_is_trusted_(client_is_trusted),
       v8_session_state_(kV8StateKey),
       v8_session_state_cbor_(&v8_session_state_, /*default_value=*/{}),
+      script_to_evaluate_on_load_(script_to_evaluate_on_load),
       session_id_(session_id),
       session_waits_for_debugger_(session_waits_for_debugger) {
   receiver_.Bind(std::move(main_receiver), mojo_task_runner);
@@ -201,7 +213,7 @@ void DevToolsSession::Append(InspectorAgent* agent) {
 void DevToolsSession::Detach() {
   agent_->client_->DebuggerTaskStarted();
   agent_->client_->DetachSession(this);
-  agent_->sessions_.erase(this);
+  agent_->DetachDevToolsSession(this);
   receiver_.reset();
   host_remote_.reset();
   CHECK(io_session_);
@@ -271,9 +283,8 @@ void DevToolsSession::DispatchProtocolCommandImpl(
 }
 
 void DevToolsSession::DidStartProvisionalLoad(LocalFrame* frame) {
-  if (v8_session_ && agent_->inspected_frames_->Root() == frame) {
-    v8_session_->setSkipAllPauses(true);
-    v8_session_->resume(true /* terminate on resume */);
+  if (agent_->inspected_frames_->Root() == frame) {
+    UnpauseAndTerminate();
   }
 }
 
@@ -316,7 +327,7 @@ void DevToolsSession::FallThrough(int call_id,
                                   crdtp::span<uint8_t> method,
                                   crdtp::span<uint8_t> message) {
   // There's no other layer to handle the command.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void DevToolsSession::sendResponse(
@@ -340,8 +351,9 @@ void DevToolsSession::SendProtocolResponse(int call_id,
   if (WebTestSupport::IsRunningWebTest())
     agent_->FlushProtocolNotifications();
 
-  host_remote_->DispatchProtocolResponse(FinalizeMessage(std::move(message)),
-                                         call_id, session_state_.TakeUpdates());
+  host_remote_->DispatchProtocolResponse(
+      FinalizeMessage(std::move(message), call_id), call_id,
+      session_state_.TakeUpdates());
 }
 
 void DevToolsSession::SendProtocolNotification(
@@ -381,7 +393,7 @@ void DevToolsSession::FlushProtocolNotifications() {
     v8_session_state_cbor_.Set(v8_session_->state());
   for (wtf_size_t i = 0; i < notification_queue_.size(); ++i) {
     host_remote_->DispatchProtocolNotification(
-        FinalizeMessage(std::move(notification_queue_[i]).Run()),
+        FinalizeMessage(std::move(notification_queue_[i]).Run(), std::nullopt),
         session_state_.TakeUpdates());
   }
   notification_queue_.clear();
@@ -395,7 +407,8 @@ void DevToolsSession::Trace(Visitor* visitor) const {
 }
 
 blink::mojom::blink::DevToolsMessagePtr DevToolsSession::FinalizeMessage(
-    std::vector<uint8_t> message) const {
+    std::vector<uint8_t> message,
+    std::optional<int> call_id) const {
   std::vector<uint8_t> message_to_send = std::move(message);
   if (!session_id_.empty()) {
     crdtp::Status status = crdtp::cbor::AppendString8EntryToCBORMap(
@@ -407,12 +420,30 @@ blink::mojom::blink::DevToolsMessagePtr DevToolsSession::FinalizeMessage(
     std::vector<uint8_t> json;
     crdtp::Status status =
         crdtp::json::ConvertCBORToJSON(crdtp::SpanFrom(message_to_send), &json);
+    if (status.error == crdtp::Error::CBOR_STACK_LIMIT_EXCEEDED &&
+        call_id.has_value()) {
+      return FinalizeMessage(
+          crdtp::CreateErrorResponse(
+              call_id.value(), crdtp::DispatchResponse::ServerError(
+                                   "Failed to convert response to JSON: " +
+                                   status.ToASCIIString()))
+              ->Serialize(),
+          std::nullopt);
+    }
     CHECK(status.ok()) << status.ToASCIIString();
     message_to_send = std::move(json);
   }
   auto mojo_msg = mojom::blink::DevToolsMessage::New();
-  mojo_msg->data = std::move(message_to_send);
+  mojo_msg->data = {message_to_send};
   return mojo_msg;
+}
+
+void DevToolsSession::UnpauseAndTerminate() {
+  if (!v8_session_) {
+    return;
+  }
+  v8_session_->setSkipAllPauses(true);
+  v8_session_->resume(true /* terminate on resume */);
 }
 
 }  // namespace blink

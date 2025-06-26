@@ -126,7 +126,7 @@ public class CreatorTabMediator {
                     public void didFinishNavigationInPrimaryMainFrame(NavigationHandle navigation) {
                         if (navigation.hasCommitted()) {
                             mIsOnErrorPage = navigation.isErrorPage();
-                            mSheetContent.updateURL(mWebContents.get().getVisibleUrl());
+                            mSheetContent.updateURL(getWebContents().getVisibleUrl());
                         } else {
                             // Not viewable contents such as download. Show a toast and close the
                             // tab.
@@ -176,7 +176,7 @@ public class CreatorTabMediator {
                     }
 
                     @Override
-                    public void loadingStateChanged(boolean shouldShowLoadingUI) {
+                    public void loadingStateChanged(boolean shouldShowLoadingUi) {
                         boolean isLoading = mWebContents != null && mWebContents.isLoading();
                         if (isLoading) {
                             if (mSheetContent == null) return;
@@ -212,9 +212,8 @@ public class CreatorTabMediator {
                 return R.drawable.omnibox_info;
             case ConnectionSecurityLevel.DANGEROUS:
                 return R.drawable.omnibox_not_secure_warning;
-            case ConnectionSecurityLevel.SECURE_WITH_POLICY_INSTALLED_CERT:
             case ConnectionSecurityLevel.SECURE:
-                return R.drawable.omnibox_https_valid;
+                return R.drawable.omnibox_https_valid_lock;
             default:
                 assert false;
         }
@@ -224,7 +223,7 @@ public class CreatorTabMediator {
     /** Destroys the objects used for the current preview tab. */
     void destroyContent() {
         if (mWebContentsObserver != null) {
-            mWebContentsObserver.destroy();
+            mWebContentsObserver.observe(null);
             mWebContentsObserver = null;
         }
         mWebContentsDelegate = null;

@@ -12,6 +12,7 @@
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 
 class Browser;
+class BrowserWindowInterface;
 
 // Base view that provide security-related functionality to permission prompts.
 // This class will:
@@ -28,6 +29,7 @@ class PermissionPromptBaseView : public views::BubbleDialogDelegateView,
   PermissionPromptBaseView(
       Browser* browser,
       base::WeakPtr<permissions::PermissionPrompt::Delegate> delegate);
+  ~PermissionPromptBaseView() override;
 
   // views::BubbleDialogDelegateView:
   // Overridden to elide the prompt title if needed
@@ -62,8 +64,34 @@ class PermissionPromptBaseView : public views::BubbleDialogDelegateView,
   static std::u16string GetAllowAlwaysText(
       const std::vector<raw_ptr<permissions::PermissionRequest,
                                 VectorExperimental>>& visible_requests);
+  static std::u16string GetBlockText(
+      const std::vector<raw_ptr<permissions::PermissionRequest,
+                                VectorExperimental>>& visible_requests);
+
+  // Starts observing our widget for occlusion by a picture-in-picture window.
+  // Subclasses must manually call this if they override `AddedToWidget()`
+  // without calling `PermissionPromptBaseView::AddedToWidget()`.
+  void StartTrackingPictureInPictureOcclusion();
+
+  void AnchorToPageInfoOrChip();
+
+  Browser* browser() const { return browser_; }
+
+  bool record_browser_always_active_value() const {
+    return record_browser_always_active_value_;
+  }
+
+  permissions::RequestTypeForUma request_type() const { return request_type_; }
+
+  std::vector<std::pair<size_t, size_t>> GetTitleBoldedRanges();
+  void SetTitleBoldedRanges(
+      std::vector<std::pair<size_t, size_t>> bolded_ranges);
 
  private:
+  void DidBecomeInactive(BrowserWindowInterface* browser_window_interface);
+
+  base::CallbackListSubscription browser_subscription_;
+
   const UrlIdentity url_identity_;
 
   ScopedPictureInPictureOcclusionObservation occlusion_observation_{this};
@@ -73,6 +101,18 @@ class PermissionPromptBaseView : public views::BubbleDialogDelegateView,
   // means it will be in an always-on-top window, and needs to be tracked by the
   // PictureInPictureOcclusionTracker.
   const bool is_for_picture_in_picture_window_;
+
+  // Boolean value to track if the browser was always active while the prompt
+  // was displayed.
+  bool record_browser_always_active_value_ = true;
+
+  const raw_ptr<Browser> browser_ = nullptr;
+
+  // $ORIGIN in the title should be bolded, the ranges of the $ORIGINs are
+  // gained while building the title string via `l10n_util::GetStringFUTF16()`.
+  std::vector<std::pair<size_t, size_t>> title_bolded_ranges_ = {};
+
+  permissions::RequestTypeForUma request_type_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_PERMISSIONS_PERMISSION_PROMPT_BASE_VIEW_H_

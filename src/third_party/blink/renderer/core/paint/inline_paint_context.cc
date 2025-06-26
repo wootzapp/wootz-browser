@@ -22,8 +22,6 @@ void InlinePaintContext::ClearDecoratingBoxes(
 InlinePaintContext::ScopedInlineItem::ScopedInlineItem(
     const FragmentItem& item,
     InlinePaintContext* inline_context) {
-  if (!RuntimeEnabledFeatures::TextDecoratingBoxEnabled())
-    return;
   DCHECK(inline_context);
   inline_context_ = inline_context;
   last_decorations_ = inline_context->last_decorations_;
@@ -41,7 +39,6 @@ InlinePaintContext::ScopedInlineItem::ScopedInlineItem(
 wtf_size_t InlinePaintContext::SyncDecoratingBox(
     const FragmentItem& item,
     DecoratingBoxList* saved_decorating_boxes) {
-  DCHECK(RuntimeEnabledFeatures::TextDecoratingBoxEnabled());
   DCHECK(!saved_decorating_boxes || saved_decorating_boxes->empty());
 
   // Compare the instance addresses of |AppliedTextDecorations| because it is
@@ -89,10 +86,6 @@ wtf_size_t InlinePaintContext::SyncDecoratingBox(
         if (decorations != &parent_decorations) {
           // It's a decorating box if it has more decorations than its parent.
           if (decorations->size() > parent_decorations.size()) {
-            DCHECK_EQ(decorations->size(), parent_decorations.size() + 1);
-            DCHECK_NE(style->GetTextDecorationLine(),
-                      TextDecorationLine::kNone);
-
             // Ensure the parent is in sync. Ancestors are pushed first.
             wtf_size_t num_pushes = 0;
             if (&parent_decorations != stop_at_) {
@@ -100,8 +93,9 @@ wtf_size_t InlinePaintContext::SyncDecoratingBox(
                                 &parent_decorations);
             }
 
-            PushDecoratingBox(item, *layout_object, *style, *decorations);
-            return num_pushes + 1;
+            num_pushes += PushDecoratingBoxesUntilParent(
+                item, *layout_object, *style, *decorations, parent_decorations);
+            return num_pushes;
           }
 
           // Rare but sometimes |AppliedTextDecorations| is duplicated instead
@@ -124,12 +118,14 @@ wtf_size_t InlinePaintContext::SyncDecoratingBox(
           // If the number of this node's decorations is equal to or less than
           // the parent's, this node stopped the propagation. Reset the
           // decorating boxes. In this case, this node has 0 or 1 decorations.
-          if (decorations->size() <= 1) {
+          if (decorations->empty()) {
             inline_context_->ClearDecoratingBoxes(saved_decorating_boxes_);
-            if (decorations->empty())
-              return 0;
-            DCHECK_NE(style->GetTextDecorationLine(),
-                      TextDecorationLine::kNone);
+            return 0;
+          }
+          if (decorations->size() == 1 &&
+              (decorations->front().Lines() == style->GetTextDecorationLine() ||
+               !RuntimeEnabledFeatures::CssDecoratingBoxPseudoFixEnabled())) {
+            inline_context_->ClearDecoratingBoxes(saved_decorating_boxes_);
             PushDecoratingBox(item, *layout_object, *style, *decorations);
             return 1;
           }
@@ -145,21 +141,20 @@ wtf_size_t InlinePaintContext::SyncDecoratingBox(
             const wtf_size_t size =
                 std::min(saved_decorating_boxes_->size(), decorations->size());
             inline_context_->PushDecoratingBoxes(
-                base::make_span(saved_decorating_boxes_->begin(), size));
+                base::span(*saved_decorating_boxes_).first(size));
             return size;
           }
 
 #if DCHECK_IS_ON()
           ShowLayoutTree(layout_object);
 #endif
-          NOTREACHED_IN_MIGRATION()
-              << "size=" << decorations->size()
-              << ", parent=" << parent_decorations.size()
-              << ", TextDecorationLine="
-              << static_cast<int>(style->GetTextDecorationLine());
+          NOTREACHED() << "size=" << decorations->size()
+                       << ", parent=" << parent_decorations.size()
+                       << ", TextDecorationLine="
+                       << static_cast<int>(style->GetTextDecorationLine());
         }
 
-        if (UNLIKELY(!IsA<LayoutInline>(parent))) {
+        if (!IsA<LayoutInline>(parent)) [[unlikely]] {
           // This shouldn't happen, indicating text-decoration isn't propagated
           // as expected, but the logs indicate it does, though not too often.
           // Just abort the sync.
@@ -188,6 +183,53 @@ wtf_size_t InlinePaintContext::SyncDecoratingBox(
         layout_object = parent;
         style = &parent_style;
       }
+    }
+
+    wtf_size_t PushDecoratingBoxesUntilParent(
+        const FragmentItem* item,
+        const LayoutObject& layout_object,
+        const ComputedStyle& style,
+        const Vector<AppliedTextDecoration, 1>& decorations,
+        const Vector<AppliedTextDecoration, 1>& parent_decorations) {
+      const Vector<AppliedTextDecoration, 1>* base_decorations =
+          style.BaseAppliedTextDecorations();
+      if (base_decorations == &parent_decorations) {
+        DCHECK_EQ(decorations.size(), parent_decorations.size() + 1);
+        DCHECK_NE(style.GetTextDecorationLine(), TextDecorationLine::kNone);
+        PushDecoratingBox(item, layout_object, style, decorations);
+        return 1;
+      }
+
+      if (base_decorations && base_decorations != &decorations &&
+          decorations.size() == parent_decorations.size() + 2) {
+        // When the normal style and `::first-line` have different decorations,
+        // the normal style inherits from the parent, and the `:first-line`
+        // inherits from the normal style, resulting two decorating boxes.
+        DCHECK_NE(style.GetTextDecorationLine(), TextDecorationLine::kNone);
+        PushDecoratingBox(item, layout_object, style, *base_decorations);
+        PushDecoratingBox(item, layout_object, style, decorations);
+        return 2;
+      }
+
+      // The style engine may create a clone, not an inherited decorations,
+      // such as a `<span>` in `::first-line`.
+      if (decorations.size() == parent_decorations.size() + 1) {
+        PushDecoratingBox(item, layout_object, style, decorations);
+        return 1;
+      }
+
+      // As the last resort, when the decorations tree isn't expected, matching
+      // the count to the increased size from the parent is critical.
+      if (decorations.size() > parent_decorations.size()) {
+        const wtf_size_t count = decorations.size() - parent_decorations.size();
+        for (wtf_size_t i = 0; i < count; ++i) {
+          PushDecoratingBox(item, layout_object, style, decorations);
+        }
+        return count;
+      }
+
+      DCHECK_EQ(decorations.size(), parent_decorations.size());
+      return 0;
     }
 
     void PushDecoratingBox(
@@ -229,8 +271,6 @@ wtf_size_t InlinePaintContext::SyncDecoratingBox(
 InlinePaintContext::ScopedInlineBoxAncestors::ScopedInlineBoxAncestors(
     const InlineCursor& inline_box,
     InlinePaintContext* inline_context) {
-  if (!RuntimeEnabledFeatures::TextDecoratingBoxEnabled())
-    return;
   DCHECK(inline_context);
   inline_context_ = inline_context;
   inline_context->PushDecoratingBoxAncestors(inline_box);
@@ -238,7 +278,6 @@ InlinePaintContext::ScopedInlineBoxAncestors::ScopedInlineBoxAncestors(
 
 void InlinePaintContext::PushDecoratingBoxAncestors(
     const InlineCursor& inline_box) {
-  DCHECK(RuntimeEnabledFeatures::TextDecoratingBoxEnabled());
   DCHECK(inline_box.Current());
   DCHECK(inline_box.Current().IsInlineBox());
   DCHECK(decorating_boxes_.empty());
@@ -270,15 +309,12 @@ void InlinePaintContext::PushDecoratingBoxes(
 InlinePaintContext::ScopedLineBox::ScopedLineBox(
     const InlineCursor& line_cursor,
     InlinePaintContext* inline_context) {
-  if (!RuntimeEnabledFeatures::TextDecoratingBoxEnabled())
-    return;
   DCHECK(inline_context);
   inline_context_ = inline_context;
   inline_context->SetLineBox(line_cursor);
 }
 
 void InlinePaintContext::SetLineBox(const InlineCursor& line_cursor) {
-  DCHECK(RuntimeEnabledFeatures::TextDecoratingBoxEnabled());
   DCHECK_EQ(line_cursor.Current()->Type(), FragmentItem::kLine);
   line_cursor_ = line_cursor;
   DCHECK(decorating_boxes_.empty());
@@ -298,7 +334,7 @@ void InlinePaintContext::SetLineBox(const InlineCursor& line_cursor) {
   // Compute the offset of the non-existent anonymous inline box.
   PhysicalOffset offset = line_item.OffsetInContainerFragment();
   if (const PhysicalLineBoxFragment* fragment = line_item.LineBoxFragment()) {
-    if (const SimpleFontData* font = style.GetFont().PrimaryFont()) {
+    if (const SimpleFontData* font = style.GetFont()->PrimaryFont()) {
       offset.top += fragment->Metrics().ascent;
       offset.top -= font->GetFontMetrics().FixedAscent();
     }

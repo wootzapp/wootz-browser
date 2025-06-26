@@ -82,25 +82,14 @@ class ActionTap::ActionTapView : public ActionView {
     }
   }
 
-  void OnKeyBindingChange(ActionLabel* action_label,
-                          ui::DomCode code) override {
-    DCHECK(labels_.size() == 1 && labels_[0] == action_label);
-    if (labels_.size() != 1 || labels_[0] != action_label) {
-      return;
-    }
-
-    auto input_element = InputElement::CreateActionTapKeyElement(code);
-    ChangeInputBinding(action_, action_label, std::move(input_element));
-  }
-
   void OnBindingToKeyboard() override {
     if (!IsMouseBound(action_->GetCurrentDisplayedInput())) {
       return;
     }
 
-    action_->set_pending_input(
+    action_->BindInput(
         InputElement::CreateActionTapKeyElement(ui::DomCode::NONE));
-    SetViewContent(BindingOption::kPending);
+    SetViewContent(BindingOption::kCurrent);
   }
 
   void OnBindingToMouse(std::string mouse_action) override {
@@ -281,14 +270,7 @@ std::unique_ptr<ActionView> ActionTap::CreateView(
 }
 
 void ActionTap::UnbindInput(const InputElement& input_element) {
-  if (pending_input_) {
-    pending_input_.reset();
-  }
-  pending_input_ = InputElement::CreateActionTapKeyElement(ui::DomCode::NONE);
-  if (!IsBeta() && action_view_) {
-    action_view_->set_unbind_label_index(0);
-  }
-  PostUnbindInputProcess();
+  BindInput(InputElement::CreateActionTapKeyElement(ui::DomCode::NONE));
 }
 
 ActionType ActionTap::GetType() const {
@@ -310,7 +292,7 @@ bool ActionTap::RewriteKeyEvent(const ui::KeyEvent* key_event,
     return true;
   }
 
-  if (key_event->type() == ui::ET_KEY_PRESSED) {
+  if (key_event->type() == ui::EventType::kKeyPressed) {
     DCHECK_LT(current_position_idx_, touch_down_positions_.size());
     // TODO(b/308486017): "Modifier key + regular key" support is TBD. Currently
     // it is not supported.
@@ -357,9 +339,9 @@ bool ActionTap::RewriteMouseEvent(const ui::MouseEvent* mouse_event,
     return false;
   }
 
-  if (type == ui::ET_MOUSE_PRESSED) {
+  if (type == ui::EventType::kMousePressed) {
     DCHECK(!touch_id_);
-  } else if (type == ui::ET_MOUSE_RELEASED) {
+  } else if (type == ui::EventType::kMouseReleased) {
     DCHECK(touch_id_);
   }
 

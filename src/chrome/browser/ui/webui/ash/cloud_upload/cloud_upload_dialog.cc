@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_dialog.h"
 
+#include "ash/constants/web_app_id_constants.h"
 #include "ash/public/cpp/new_window_delegate.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "base/containers/enum_set.h"
@@ -19,12 +20,16 @@
 #include "base/strings/escape.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "base/timer/elapsed_timer.h"
 #include "base/types/cxx23_to_underlying.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/ash/arc/fileapi/arc_documents_provider_util.h"
+#include "chrome/browser/ash/browser_delegate/browser_controller.h"
+#include "chrome/browser/ash/browser_delegate/browser_delegate.h"
+#include "chrome/browser/ash/extensions/file_manager/event_router_factory.h"
 #include "chrome/browser/ash/file_manager/file_tasks.h"
 #include "chrome/browser/ash/file_manager/io_task.h"
 #include "chrome/browser/ash/file_manager/office_file_tasks.h"
@@ -44,9 +49,10 @@
 #include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_ui.h"
 #include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_util.h"
 #include "chrome/browser/ui/webui/ash/cloud_upload/drive_upload_handler.h"
+#include "chrome/browser/ui/webui/ash/cloud_upload/hats_office_trigger.h"
 #include "chrome/browser/ui/webui/ash/cloud_upload/one_drive_upload_handler.h"
 #include "chrome/browser/ui/webui/ash/office_fallback/office_fallback_ui.h"
-#include "chrome/browser/web_applications/web_app_id_constants.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/common/extensions/extension_constants.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/generated_resources.h"
@@ -56,9 +62,11 @@
 #include "extensions/browser/api/file_handlers/mime_util.h"
 #include "extensions/browser/entry_info.h"
 #include "extensions/common/constants.h"
+#include "mojo/public/cpp/bindings/callback_helpers.h"
 #include "net/base/url_util.h"
 #include "storage/browser/file_system/file_system_url.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/chromeos/strings/grit/ui_chromeos_strings.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/message_center/public/cpp/notification.h"
@@ -110,16 +118,6 @@ enum class Microsoft365Availability {
   kMaxValue = kODFS,
 };
 
-// Opens the file specified by |url| in a new tab. |url| must be a
-// docs.google.com URL for an office file.
-void OpenDriveUrl(const GURL& url) {
-  DCHECK(url.host() == "docs.google.com");
-  ash::NewWindowDelegate::GetPrimary()->OpenUrl(
-      net::AppendOrReplaceQueryParameter(url, "cros_files", "true"),
-      ash::NewWindowDelegate::OpenUrlFrom::kUserInteraction,
-      ash::NewWindowDelegate::Disposition::kNewForegroundTab);
-}
-
 // Handle system error notification "Sign in" click.
 void HandleSignInClick(Profile* profile, std::optional<int> button_index) {
   // If the "Sign in" button was pressed, rather than a click to somewhere
@@ -136,18 +134,24 @@ void HandleSignInClick(Profile* profile, std::optional<int> button_index) {
 }
 
 // TODO(b/288038136): Use a notification manager to handle error notifications.
-// Show system error notification to communicate that their file can't be
-// opened. If the user needs to reauthenticate to OneDrive, prompt the user to
+// TODO(b/242685536) Use "files" in the title for multi-files when support for
+// multi-files is added.
+// Show system notification to communicate that their file can't be opened. If
+// the user needs to reauthenticate to OneDrive, prompt the user to
 // reauthenticate to ODFS via a "Sign in" button.
-void ShowUnableToOpenNotification(Profile* profile,
-                                  bool reauthentication_required = false) {
-  std::string message = GetGenericErrorMessage();
+void ShowUnableToOpenNotification(
+    Profile* profile,
+    std::string message = GetGenericErrorMessage(),
+    std::string title =
+        l10n_util::GetPluralStringFUTF8(IDS_OFFICE_UPLOAD_ERROR_CANT_OPEN_FILE,
+                                        1),
+    message_center::SystemNotificationWarningLevel warning_level =
+        message_center::SystemNotificationWarningLevel::WARNING) {
   std::vector<message_center::ButtonInfo> notification_buttons;
 
-  // Special case of |FILE_ERROR_ACCESS_DENIED| where the user needs to
-  // reauthenticate to OneDrive.
-  if (reauthentication_required) {
-    message = GetReauthenticationRequiredMessage();
+  if (message == GetReauthenticationRequiredMessage()) {
+    // Special case of |FILE_ERROR_ACCESS_DENIED| where the user needs to
+    // reauthenticate to OneDrive.
     //  Add "Sign in" button.
     notification_buttons.emplace_back(
         l10n_util::GetStringUTF16(IDS_OFFICE_NOTIFICATION_SIGN_IN_BUTTON));
@@ -156,11 +160,7 @@ void ShowUnableToOpenNotification(Profile* profile,
   auto notification = ash::CreateSystemNotificationPtr(
       /*type=*/message_center::NOTIFICATION_TYPE_SIMPLE,
       /*id=*/kNotificationId,
-      // TODO(b/242685536) Use "files" for multi-files when support for
-      // multi-files is added.
-      /*title=*/
-      l10n_util::GetPluralStringFUTF16(IDS_OFFICE_UPLOAD_ERROR_CANT_OPEN_FILE,
-                                       1),
+      /*title*/ base::UTF8ToUTF16(title),
       /*message=*/base::UTF8ToUTF16(message),
       /*display_source=*/
       l10n_util::GetStringUTF16(IDS_ASH_MESSAGE_CENTER_SYSTEM_APP_NAME_FILES),
@@ -170,12 +170,13 @@ void ShowUnableToOpenNotification(Profile* profile,
       /*delegate=*/
       base::MakeRefCounted<message_center::HandleNotificationClickDelegate>(
           base::BindRepeating(&HandleSignInClick, profile)),
-      /*small_image=*/ash::kFolderIcon,
-      /*warning_level=*/
-      message_center::SystemNotificationWarningLevel::WARNING);
+      /*small_image=*/ash::kFolderIcon, warning_level);
 
   notification->set_buttons(notification_buttons);
+  // Set never_timeout with the highest priority, SYSTEM_PRIORITY, so that the
+  // notification never times out.
   notification->set_never_timeout(true);
+  notification->SetSystemPriority();
   NotificationDisplayService* notification_service =
       NotificationDisplayServiceFactory::GetForProfile(profile);
   notification_service->Display(NotificationHandler::Type::TRANSIENT,
@@ -192,16 +193,26 @@ void OnGetReauthenticationRequired(
     base::expected<ODFSMetadata, base::File::Error> metadata) {
   bool reauthentication_required = false;
   if (metadata.has_value()) {
-    reauthentication_required = metadata->reauthentication_required;
+    // TODO(b/330786891): Only query account_state once
+    // reauthentication_required is no longer needed for backwards compatibility
+    // with ODFS.
+    reauthentication_required =
+        metadata->reauthentication_required ||
+        (metadata->account_state.has_value() &&
+         metadata->account_state.value() ==
+             OdfsAccountState::kReauthenticationRequired);
   } else {
     LOG(ERROR) << "Failed to get reauthentication required state: "
                << metadata.error();
   }
-  ShowUnableToOpenNotification(profile, reauthentication_required);
-  std::move(callback).Run(
-      reauthentication_required
-          ? OfficeOneDriveOpenErrors::kGetActionsReauthRequired
-          : OfficeOneDriveOpenErrors::kGetActionsAccessDenied);
+  if (reauthentication_required) {
+    ShowUnableToOpenNotification(profile, GetReauthenticationRequiredMessage());
+    std::move(callback).Run(
+        OfficeOneDriveOpenErrors::kGetActionsReauthRequired);
+    return;
+  }
+  ShowUnableToOpenNotification(profile);
+  std::move(callback).Run(OfficeOneDriveOpenErrors::kGetActionsAccessDenied);
 }
 
 // Open file with |file_path| from ODFS |file_system|. Open in the OneDrive PWA
@@ -249,11 +260,46 @@ void OpenFileFromODFS(
               return;
             }
             auto* proxy = apps::AppServiceProxyFactory::GetForProfile(profile);
-            proxy->LaunchAppWithUrl(web_app::kMicrosoft365AppId,
-                                    /*event_flags=*/ui::EF_NONE, url,
-                                    apps::LaunchSource::kFromFileManager,
-                                    /*window_info=*/nullptr);
-            std::move(callback).Run(OfficeOneDriveOpenErrors::kSuccess);
+            if (!proxy->AppRegistryCache().IsAppInstalled(
+                    ash::kMicrosoft365AppId)) {
+              LOG(ERROR) << "MS365 with app ID " << ash::kMicrosoft365AppId
+                         << " is not installed";
+              ShowUnableToOpenNotification(profile);
+              std::move(callback).Run(
+                  OfficeOneDriveOpenErrors::kMS365NotInstalled);
+              return;
+            }
+            proxy->LaunchAppWithUrl(
+                ash::kMicrosoft365AppId,
+                /*event_flags=*/ui::EF_NONE, url,
+                apps::LaunchSource::kFromFileManager,
+                /*window_info=*/nullptr,
+                base::BindOnce(
+                    [](Profile* profile,
+                       base::OnceCallback<void(OfficeOneDriveOpenErrors)>
+                           callback,
+                       apps::LaunchResult&& launch_result) {
+                      OfficeOneDriveOpenErrors open;
+                      switch (launch_result.state) {
+                        case apps::LaunchResult::State::kSuccess:
+                          open = OfficeOneDriveOpenErrors::kSuccess;
+                          break;
+                        default:
+                          LOG(ERROR) << "Failed to launch URL";
+                          ShowUnableToOpenNotification(profile);
+                          open = OfficeOneDriveOpenErrors::kFailedToLaunch;
+                          break;
+                      }
+                      std::move(callback).Run(open);
+                    },
+                    profile, std::move(callback)));
+            if (base::FeatureList::IsEnabled(
+                    ::features::kHappinessTrackingOffice)) {
+              ash::cloud_upload::HatsOfficeTrigger::Get()
+                  .ShowSurveyAfterAppInactive(
+                      ash::kMicrosoft365AppId,
+                      ash::cloud_upload::HatsOfficeLaunchingApp::kMS365);
+            }
           },
           profile, file_system, std::move(callback)));
 }
@@ -280,8 +326,8 @@ void OpenODFSUrl(Profile* profile,
 bool HasFileWithExtensionFromSet(
     const std::vector<storage::FileSystemURL>& file_urls,
     const std::set<std::string>& extensions) {
-  return base::ranges::any_of(file_urls, [&extensions](const auto& file_url) {
-    return base::ranges::any_of(extensions, [&file_url](const auto& extension) {
+  return std::ranges::any_of(file_urls, [&extensions](const auto& file_url) {
+    return std::ranges::any_of(extensions, [&file_url](const auto& extension) {
       return file_url.path().MatchesExtension(extension);
     });
   });
@@ -307,7 +353,7 @@ bool HasPowerPointFile(const std::vector<storage::FileSystemURL>& file_urls) {
 bool HaveExplicitFileHandlers(
     Profile* profile,
     const std::vector<storage::FileSystemURL>& file_urls) {
-  return base::ranges::all_of(file_urls, [profile](const auto& url) {
+  return std::ranges::all_of(file_urls, [profile](const auto& url) {
     return fm_tasks::HasExplicitDefaultFileHandler(profile,
                                                    url.path().FinalExtension());
   });
@@ -317,7 +363,7 @@ bool HaveExplicitFileHandlers(
 // pre-existing preference for these file types.
 bool HaveExplicitFileHandlers(Profile* profile,
                               const std::set<std::string>& extensions) {
-  return base::ranges::all_of(extensions, [profile](const auto& extension) {
+  return std::ranges::all_of(extensions, [profile](const auto& extension) {
     return fm_tasks::HasExplicitDefaultFileHandler(profile, extension);
   });
 }
@@ -348,16 +394,10 @@ mojom::OperationType UploadTypeToOperationType(UploadType upload_type) {
 
 void OnWaitingForAndroidUnsupportedPathFallbackChoiceReceived(
     Profile* profile,
-    const fm_tasks::TaskDescriptor& task,
     const std::vector<storage::FileSystemURL>& file_urls,
     ash::office_fallback::FallbackReason fallback_reason,
     std::unique_ptr<ash::cloud_upload::CloudOpenMetrics> cloud_open_metrics,
     std::optional<const std::string> choice) {
-  if (!IsOpenInOfficeTask(task)) {
-    NOTREACHED_IN_MIGRATION();
-    return;
-  }
-
   if (!choice.has_value()) {
     // The user's choice was unable to be retrieved.
     fm_tasks::LogOneDriveMetricsAfterFallback(
@@ -399,6 +439,16 @@ void OnWaitingForAndroidUnsupportedPathFallbackChoiceReceived(
   }
 }
 
+bool BringDialogToFrontIfItExists(const std::string& id) {
+  SystemWebDialogDelegate* existing_dialog =
+      SystemWebDialogDelegate::FindInstance(id);
+  if (!existing_dialog) {
+    return false;
+  }
+  existing_dialog->StackAtTop();
+  return true;
+}
+
 }  // namespace
 
 // static
@@ -410,6 +460,30 @@ bool CloudOpenTask::Execute(
     const fm_tasks::TaskDescriptor& task,
     const CloudProvider cloud_provider,
     std::unique_ptr<CloudOpenMetrics> cloud_open_metrics) {
+  DCHECK(!file_urls.empty());
+  auto* event_router = file_manager::EventRouterFactory::GetForProfile(profile);
+  // TODO(b/242685536) add support for multiple files.
+  if (event_router) {
+    if (!event_router->AddCloudOpenTask(file_urls.front())) {
+      LOG(ERROR) << "File already being opened";
+      // If a cloud upload dialog already exists, bring it to the front to
+      // prompt the user to keep going.
+      BringDialogToFrontIfItExists(chrome::kChromeUICloudUploadURL);
+      // Notify the user that a file is already being opened. Nothing is wrong
+      // when the file is already being opened, so use a normal level
+      // notification
+      ShowUnableToOpenNotification(
+          profile, GetAlreadyBeingOpenedMessage(), GetAlreadyBeingOpenedTitle(),
+          /*warning_level=*/
+          message_center::SystemNotificationWarningLevel::NORMAL);
+      cloud_open_metrics->LogTaskResult(
+          OfficeTaskResult::kFileAlreadyBeingOpened);
+      return false;
+    }
+  } else {
+    LOG(ERROR) << "Cannot get EventRouter";
+  }
+
   scoped_refptr<CloudOpenTask> upload_task = WrapRefCounted(new CloudOpenTask(
       profile, file_urls, task, cloud_provider, std::move(cloud_open_metrics)));
   // Keep `upload_task` alive until `TaskFinished` executes.
@@ -432,6 +506,14 @@ CloudOpenTask::CloudOpenTask(
 }
 
 CloudOpenTask::~CloudOpenTask() {
+  auto* event_router =
+      file_manager::EventRouterFactory::GetForProfile(profile_);
+  DCHECK(!file_urls_.empty());
+  if (event_router) {
+    event_router->RemoveCloudOpenTask(file_urls_.front());
+  } else {
+    LOG(ERROR) << "Cannot get EventRouter";
+  }
   BrowserList::RemoveObserver(this);
 }
 
@@ -439,7 +521,6 @@ CloudOpenTask::~CloudOpenTask() {
 // there are any issues, e.g. ODFS is not mounted. Otherwise, attempts to move
 // files to the correct cloud or open the files if they are already there.
 bool CloudOpenTask::ExecuteInternal() {
-  DCHECK(!file_urls_.empty());
   if (file_urls_.empty()) {
     LOG(ERROR) << "No files to open";
     cloud_open_metrics_->LogTaskResult(OfficeTaskResult::kNoFilesToOpen);
@@ -493,9 +574,12 @@ bool CloudOpenTask::OpenOrMoveFiles() {
     }
   }
   cloud_open_metrics_->LogSourceVolume(source_volume);
-
+  std::string ext = file_urls_.front().path().Extension();
   if (cloud_provider_ == CloudProvider::kGoogleDrive &&
       PathIsOnDriveFS(profile_, file_urls_.front().path())) {
+    // Set as WARNING as INFO is not allowed.
+    LOG(WARNING) << "Opening a " << ext << " file from Google Drive";
+
     // The files are on Drive already.
     transfer_required_ = OfficeFilesTransferRequired::kNotRequired;
     cloud_open_metrics_->LogTransferRequired(
@@ -506,6 +590,9 @@ bool CloudOpenTask::OpenOrMoveFiles() {
 
   if (cloud_provider_ == CloudProvider::kOneDrive &&
       source_volume == OfficeFilesSourceVolume::kMicrosoftOneDrive) {
+    // Set as WARNING as INFO is not allowed.
+    LOG(WARNING) << "Opening a " << ext << " file from OneDrive";
+
     // The files are on OneDrive already, selected from ODFS.
     transfer_required_ = OfficeFilesTransferRequired::kNotRequired;
     cloud_open_metrics_->LogTransferRequired(
@@ -517,6 +604,9 @@ bool CloudOpenTask::OpenOrMoveFiles() {
   if (cloud_provider_ == CloudProvider::kOneDrive &&
       source_volume ==
           OfficeFilesSourceVolume::kAndroidOneDriveDocumentsProvider) {
+    // Set as WARNING as INFO is not allowed.
+    LOG(WARNING) << "Opening a " << ext << " file from Android OneDrive";
+
     // The files are on OneDrive already, selected from Android OneDrive.
     transfer_required_ = OfficeFilesTransferRequired::kNotRequired;
     cloud_open_metrics_->LogTransferRequired(
@@ -530,14 +620,21 @@ bool CloudOpenTask::OpenOrMoveFiles() {
     return true;
   }
 
-    // The files need to be moved.
-    auto operation =
-        GetUploadType(profile_, file_urls_.front()) == UploadType::kCopy
-            ? OfficeFilesTransferRequired::kCopy
-            : OfficeFilesTransferRequired::kMove;
-    transfer_required_ = operation;
-    cloud_open_metrics_->LogTransferRequired(operation);
-    return ConfirmMoveOrStartUpload();
+  // The files need to be moved.
+  auto operation =
+      GetUploadType(profile_, file_urls_.front()) == UploadType::kCopy
+          ? OfficeFilesTransferRequired::kCopy
+          : OfficeFilesTransferRequired::kMove;
+  // Set as WARNING as INFO is not allowed.
+  LOG(WARNING) << (operation == OfficeFilesTransferRequired::kCopy ? "Copy"
+                                                                   : "Mov")
+               << "ing a " << ext << " file to "
+               << (cloud_provider_ == CloudProvider::kGoogleDrive
+                       ? "Google Drive"
+                       : "OneDrive");
+  transfer_required_ = operation;
+  cloud_open_metrics_->LogTransferRequired(operation);
+  return ConfirmMoveOrStartUpload();
 }
 
 void CloudOpenTask::OpenAlreadyHostedDriveUrls() {
@@ -545,16 +642,23 @@ void CloudOpenTask::OpenAlreadyHostedDriveUrls() {
       drive::DriveIntegrationServiceFactory::FindForProfile(profile_);
   base::FilePath relative_path;
   for (const auto& file_url : file_urls_) {
-    if (integration_service->GetRelativeDrivePath(file_url.path(),
-                                                  &relative_path)) {
-      integration_service->GetDriveFsInterface()->GetMetadata(
-          relative_path,
-          base::BindOnce(&CloudOpenTask::OnGoogleDriveGetMetadata, this));
-    } else {
-      LOG(ERROR) << "Unexpected error obtaining the relative path ";
+    if (!integration_service->GetRelativeDrivePath(file_url.path(),
+                                                   &relative_path)) {
+      LOG(ERROR) << "Unexpected error obtaining the relative path";
       LogGoogleDriveOpenResultUMA(
           OfficeTaskResult::kOpened,
           OfficeDriveOpenErrors::kCannotGetRelativePath);
+
+    } else if (!integration_service->GetDriveFsInterface()) {
+      LOG(ERROR) << "DriveFs interface not available";
+      LogGoogleDriveOpenResultUMA(OfficeTaskResult::kOpened,
+                                  OfficeDriveOpenErrors::kDriveFsInterface);
+    } else {
+      integration_service->GetDriveFsInterface()->GetMetadata(
+          relative_path,
+          mojo::WrapCallbackWithDefaultInvokeIfNotRun(
+              base::BindOnce(&CloudOpenTask::OnGoogleDriveGetMetadata, this),
+              drive::FILE_ERROR_SERVICE_UNAVAILABLE, nullptr));
     }
   }
 }
@@ -565,32 +669,43 @@ void CloudOpenTask::OnGoogleDriveGetMetadata(
     drive::FileError error,
     drivefs::mojom::FileMetadataPtr metadata) {
   OfficeDriveOpenErrors open_result = OfficeDriveOpenErrors::kSuccess;
-  GURL hosted_url(metadata->alternate_url);
-  if (error != drive::FILE_ERROR_OK) {
+  if (error == drive::FILE_ERROR_SERVICE_UNAVAILABLE) {
+    LOG(ERROR) << "DriveFs is unavailable";
+    open_result = OfficeDriveOpenErrors::kDriveFsUnavailable;
+  } else if (error != drive::FILE_ERROR_OK) {
     LOG(ERROR) << "Drive metadata error: " << error;
     open_result = OfficeDriveOpenErrors::kNoMetadata;
-  } else if (hosted_url.is_empty() &&
-             metadata->item_id.value_or("").starts_with("local-")) {
-    LOG(ERROR) << "Local item id, the file hasn't been uploaded";
-    open_result = OfficeDriveOpenErrors::kWaitingForUpload;
-    GetUserFallbackChoice(
-        profile_, task_, file_urls_,
-        ash::office_fallback::FallbackReason::kWaitingForUpload,
-        base::DoNothing());
-  } else if (hosted_url.is_empty()) {
-    LOG(ERROR) << "Empty URL";
-    open_result = OfficeDriveOpenErrors::kEmptyAlternateUrl;
-  } else if (!hosted_url.is_valid()) {
-    LOG(ERROR) << "Invalid URL";
-    open_result = OfficeDriveOpenErrors::kInvalidAlternateUrl;
-  } else if (hosted_url.host() == "drive.google.com") {
-    LOG(ERROR) << "URL was from drive.google.com";
-    open_result = OfficeDriveOpenErrors::kDriveAlternateUrl;
-  } else if (hosted_url.host() != "docs.google.com") {
-    LOG(ERROR) << "URL was not from docs.google.com";
-    open_result = OfficeDriveOpenErrors::kUnexpectedAlternateUrl;
+  } else if (metadata.is_null()) {
+    LOG(ERROR) << "Drive metadata is null";
+    open_result = OfficeDriveOpenErrors::kNoMetadata;
   } else {
-    OpenDriveUrl(hosted_url);
+    GURL hosted_url(metadata->alternate_url);
+    if (hosted_url.is_empty() &&
+        metadata->item_id.value_or("").starts_with("local-")) {
+      LOG(ERROR) << "Local item id, the file hasn't been uploaded";
+      open_result = OfficeDriveOpenErrors::kWaitingForUpload;
+      GetUserFallbackChoice(
+          profile_, task_, file_urls_,
+          ash::office_fallback::FallbackReason::kWaitingForUpload,
+          base::DoNothing());
+    } else if (hosted_url.is_empty()) {
+      LOG(ERROR) << "Empty URL";
+      open_result = OfficeDriveOpenErrors::kEmptyAlternateUrl;
+    } else if (!hosted_url.is_valid()) {
+      LOG(ERROR) << "Invalid URL";
+      open_result = OfficeDriveOpenErrors::kInvalidAlternateUrl;
+    } else if (hosted_url.host() == "drive.google.com") {
+      LOG(ERROR) << "URL was from drive.google.com";
+      open_result = OfficeDriveOpenErrors::kDriveAlternateUrl;
+    } else if (hosted_url.host() != "docs.google.com") {
+      LOG(ERROR) << "URL was not from docs.google.com";
+      open_result = OfficeDriveOpenErrors::kUnexpectedAlternateUrl;
+    } else {
+      // TODO(crbug.com/242685536) add support for multiple files.
+      ::file_manager::util::OpenHostedFileInNewTabOrApp(
+          profile_, file_urls_.front().path(), base::DoNothing(),
+          net::AppendOrReplaceQueryParameter(hosted_url, "cros_files", "true"));
+    }
   }
   LogGoogleDriveOpenResultUMA(OfficeTaskResult::kOpened, open_result);
 }
@@ -599,10 +714,13 @@ void CloudOpenTask::OnGoogleDriveGetMetadata(
 // DriveFS. Check the file was successfully uploaded to DriveFS.
 void CloudOpenTask::OpenUploadedDriveUrl(const GURL& url,
                                          const OfficeTaskResult task_result) {
+  // TODO(b/242685536) add support for multiple files.
+  ::file_manager::util::OpenHostedFileInNewTabOrApp(
+      profile_, file_urls_.front().path(), base::DoNothing(),
+      net::AppendOrReplaceQueryParameter(url, "cros_files", "true"));
   // TODO(b/296950967): This function logs both open result and task result (but
   // only if open fails) metrics internally, pull them up to a higher level so
   // all the metrics are logged in one place.
-  OpenDriveUrl(url);
   LogGoogleDriveOpenResultUMA(task_result, OfficeDriveOpenErrors::kSuccess);
 }
 
@@ -662,8 +780,7 @@ bool CloudOpenTask::ShouldShowConfirmationDialog() {
     return force_show_confirmation_dialog ||
            !fm_tasks::GetAlwaysMoveOfficeFilesToOneDrive(profile_);
   }
-  NOTREACHED_IN_MIGRATION();
-  return true;
+  NOTREACHED();
 }
 
 bool CloudOpenTask::ConfirmMoveOrStartUpload() {
@@ -791,8 +908,7 @@ void CloudOpenTask::OpenAndroidOneDriveUrl(
         profile_, task_, file_urls_, fallback_reason,
         base::BindOnce(
             &OnWaitingForAndroidUnsupportedPathFallbackChoiceReceived, profile_,
-            task_, file_urls_, fallback_reason,
-            std::move(cloud_open_metrics_)));
+            file_urls_, fallback_reason, std::move(cloud_open_metrics_)));
 
     return;
   }
@@ -958,10 +1074,11 @@ void CloudOpenTask::RecordUploadLatencyUMA() {
 // page.
 bool CloudOpenTask::InitAndShowSetupOrMoveDialog(
     SetupOrMoveDialogPage dialog_page) {
-  // Allow no more than one upload dialog at a time. In the case of multiple
-  // upload requests, they should either be handled simultaneously or queued.
-  if (SystemWebDialogDelegate::HasInstance(
-          GURL(chrome::kChromeUICloudUploadURL))) {
+  // Allow no more than one upload dialog at a time. If one already exists,
+  // bring it to the front to prompt the user to keep going. In the case of
+  // multiple upload requests, they should either be handled simultaneously or
+  // queued.
+  if (BringDialogToFrontIfItExists(chrome::kChromeUICloudUploadURL)) {
     LOG(WARNING) << "Another cloud upload dialog is already being shown";
     if (dialog_page == SetupOrMoveDialogPage::kMoveConfirmationGoogleDrive ||
         dialog_page == SetupOrMoveDialogPage::kMoveConfirmationOneDrive) {
@@ -1101,11 +1218,10 @@ void CloudOpenTask::ShowDialog(
                             office_move_confirmation_shown);
 
   // Get Files App window, if it exists.
-  files_app_browser_ =
-      FindSystemWebAppBrowser(profile_, ash::SystemWebAppType::FILE_MANAGER);
+  files_app_browser_ = FindSystemWebAppBrowser(
+      profile_, ash::SystemWebAppType::FILE_MANAGER, ash::BrowserType::kApp);
   gfx::NativeWindow modal_parent =
-      files_app_browser_ ? files_app_browser_->window()->GetNativeWindow()
-                         : nullptr;
+      files_app_browser_ ? files_app_browser_->GetNativeWindow() : nullptr;
 
   if (!modal_parent) {
     need_new_files_app_ = true;
@@ -1165,15 +1281,15 @@ void CloudOpenTask::OnBrowserAdded(Browser* browser) {
     return;
   }
   need_new_files_app_ = false;
-  files_app_browser_ = browser;
-  pending_dialog_->ShowSystemDialog(
-      files_app_browser_->window()->GetNativeWindow());
+  files_app_browser_ = BrowserController::GetInstance()->GetDelegate(browser);
+  pending_dialog_->ShowSystemDialog(files_app_browser_->GetNativeWindow());
   // The dialog is deleted in `SystemWebDialogDelegate::OnDialogClosed`.
   pending_dialog_ = nullptr;
 }
 
 void CloudOpenTask::OnBrowserClosing(Browser* browser) {
-  if (browser == files_app_browser_) {
+  if (BrowserController::GetInstance()->GetDelegate(browser) ==
+      files_app_browser_) {
     // The Files app that the dialog is modal to is closed. This will close the
     // dialog with an empty user response.
     files_app_closed_ = true;
@@ -1225,8 +1341,12 @@ void CloudOpenTask::OnSetupDialogComplete(const std::string& user_response) {
   } else if (user_response == kUserActionCancel) {
     cloud_open_metrics_->LogTaskResult(OfficeTaskResult::kCancelledAtSetup);
     // Do nothing.
+    // Set as WARNING as INFO is not allowed.
+    LOG(WARNING) << "Cancelled setup";
   } else if (!user_response.empty()) {
     cloud_open_metrics_->LogTaskResult(OfficeTaskResult::kLocalFileTask);
+    // Set as WARNING as INFO is not allowed.
+    LOG(WARNING) << "Chose local file task";
     LaunchLocalFileTask(user_response);
   } else {
     // Always map an empty user response to a Cancel user response. This can
@@ -1237,6 +1357,8 @@ void CloudOpenTask::OnSetupDialogComplete(const std::string& user_response) {
       LOG(ERROR) << "Empty user response not due to the files app closing";
     }
     cloud_open_metrics_->LogTaskResult(OfficeTaskResult::kCancelledAtSetup);
+    // Set as WARNING as INFO is not allowed.
+    LOG(WARNING) << "Cancelled setup";
   }
 }
 
@@ -1284,6 +1406,8 @@ void CloudOpenTask::OnMoveConfirmationComplete(
              user_response == kUserActionCancelOneDrive) {
     cloud_open_metrics_->LogTaskResult(
         OfficeTaskResult::kCancelledAtConfirmation);
+    // Set as WARNING as INFO is not allowed.
+    LOG(WARNING) << "Cancelled move";
   } else if (!user_response.empty()) {
     LOG(ERROR) << "Unhandled response: " << user_response;
   } else {
@@ -1296,6 +1420,8 @@ void CloudOpenTask::OnMoveConfirmationComplete(
     }
     cloud_open_metrics_->LogTaskResult(
         OfficeTaskResult::kCancelledAtConfirmation);
+    // Set as WARNING as INFO is not allowed.
+    LOG(WARNING) << "Cancelled move";
   }
 }
 
@@ -1429,8 +1555,8 @@ CloudUploadDialog::CloudUploadDialog(mojom::DialogArgsPtr args,
 
 CloudUploadDialog::~CloudUploadDialog() = default;
 
-ui::ModalType CloudUploadDialog::GetDialogModalType() const {
-  return ui::MODAL_TYPE_WINDOW;
+ui::mojom::ModalType CloudUploadDialog::GetDialogModalType() const {
+  return ui::mojom::ModalType::kWindow;
 }
 
 bool CloudUploadDialog::ShouldCloseDialogOnEscape() const {
@@ -1495,16 +1621,16 @@ void CloudUploadDialog::GetDialogSize(gfx::Size* size) const {
     size->set_width(kDialogWidthForConnectToOneDrive);
     size->set_height(kDialogHeightForConnectToOneDrive);
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
 bool ShowConnectOneDriveDialog(gfx::NativeWindow modal_parent) {
-  // Allow no more than one upload dialog at a time. Only one of either this
-  // dialog, or CloudOpenTask can be shown at a time because they use the same
-  // WebUI for dialogs.
-  if (SystemWebDialogDelegate::HasInstance(
-          GURL(chrome::kChromeUICloudUploadURL))) {
+  // Allow no more than one upload dialog at a time. If one already exists,
+  // bring it to the front to prompt the user to keep going. Only one of either
+  // this dialog, or CloudOpenTask can be shown at a time because they use the
+  // same WebUI for dialogs.
+  if (BringDialogToFrontIfItExists(chrome::kChromeUICloudUploadURL)) {
     LOG(WARNING) << "Another cloud upload dialog is already being shown";
     return false;
   }

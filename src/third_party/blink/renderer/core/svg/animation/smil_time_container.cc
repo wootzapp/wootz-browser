@@ -31,13 +31,16 @@
 #include "third_party/blink/renderer/core/animation/document_timeline.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/frame/local_frame_view.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
+#include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/core/svg/animation/element_smil_animations.h"
 #include "third_party/blink/renderer/core/svg/animation/svg_smil_element.h"
 #include "third_party/blink/renderer/core/svg/graphics/svg_image.h"
+#include "third_party/blink/renderer/core/svg/svg_component_transfer_function_element.h"
+#include "third_party/blink/renderer/core/svg/svg_fe_light_element.h"
+#include "third_party/blink/renderer/core/svg/svg_fe_merge_node_element.h"
 #include "third_party/blink/renderer/core/svg/svg_svg_element.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
@@ -638,9 +641,16 @@ void SMILTimeContainer::UpdateTimedElements(TimingUpdate& update) {
 
 namespace {
 
+bool NonRenderedElementThatAffectsContent(const SVGElement& target) {
+  return IsA<SVGFELightElement>(target) ||
+         IsA<SVGComponentTransferFunctionElement>(target) ||
+         IsA<SVGFEMergeNodeElement>(target);
+}
+
 bool CanThrottleTarget(const SVGElement& target) {
-  // Don't throttle if the target is in the layout tree.
-  if (target.GetLayoutObject()) {
+  // Don't throttle if the target is in the layout tree or needs to
+  // recalc style.
+  if (target.GetLayoutObject() || target.NeedsStyleRecalc()) {
     return false;
   }
   // Don't throttle if the target has computed style (for example <stop>
@@ -652,6 +662,12 @@ bool CanThrottleTarget(const SVGElement& target) {
   if (!target.InstancesForElement().empty()) {
     return false;
   }
+  // Don't throttle if the target is a non-rendered element that affects
+  // content.
+  if (NonRenderedElementThatAffectsContent(target)) {
+    return false;
+  }
+
   return true;
 }
 

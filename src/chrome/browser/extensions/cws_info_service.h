@@ -13,7 +13,10 @@
 #include "base/observer_list.h"
 #include "base/timer/timer.h"
 #include "components/keyed_service/core/keyed_service.h"
+#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension_id.h"
+
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 class PrefService;
 class Profile;
@@ -30,7 +33,6 @@ class ExtensionPrefs;
 class ExtensionRegistry;
 class BatchGetStoreMetadatasResponse;
 
-BASE_DECLARE_FEATURE(kCWSInfoService);
 BASE_DECLARE_FEATURE(kCWSInfoFastCheck);
 
 // This is an interface class to allow for easy mocking.

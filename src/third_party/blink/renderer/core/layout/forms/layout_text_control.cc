@@ -62,7 +62,7 @@ void StyleDidChange(HTMLElement* inner_editor,
     // ::selection style is or was present on LayoutTextControl.
     if (new_style.HasPseudoElementStyle(kPseudoIdSelection) ||
         (old_style && old_style->HasPseudoElementStyle(kPseudoIdSelection))) {
-      inner_editor_layout_object->InvalidateSelectedChildrenOnStyleChange();
+      inner_editor_layout_object->InvalidateSelectionOnStyleChange();
     }
   }
 }
@@ -146,20 +146,20 @@ bool HasValidAvgCharWidth(const Font& font) {
     return false;
   }
 
-  static HashSet<AtomicString>* font_families_with_invalid_char_width_map =
-      nullptr;
-
   const AtomicString& family = font.GetFontDescription().Family().FamilyName();
   if (family.empty()) {
     return false;
   }
 
+  static HashSet<AtomicString>* font_families_with_invalid_char_width_map =
+      nullptr;
   if (!font_families_with_invalid_char_width_map) {
     font_families_with_invalid_char_width_map = new HashSet<AtomicString>;
-
-    for (size_t i = 0; i < std::size(kFontFamiliesWithInvalidCharWidth); ++i) {
+    font_families_with_invalid_char_width_map->ReserveCapacityForSize(
+        std::size(kFontFamiliesWithInvalidCharWidth));
+    for (const auto* font_family : kFontFamiliesWithInvalidCharWidth) {
       font_families_with_invalid_char_width_map->insert(
-          AtomicString(kFontFamiliesWithInvalidCharWidth[i]));
+          AtomicString(font_family));
     }
   }
 
@@ -167,9 +167,9 @@ bool HasValidAvgCharWidth(const Font& font) {
 }
 
 float GetAvgCharWidth(const ComputedStyle& style) {
-  const Font& font = style.GetFont();
-  const SimpleFontData* primary_font = font.PrimaryFont();
-  if (primary_font && HasValidAvgCharWidth(font)) {
+  const Font* font = style.GetFont();
+  const SimpleFontData* primary_font = font->PrimaryFont();
+  if (primary_font && HasValidAvgCharWidth(*font)) {
     const float width = primary_font->AvgCharWidth();
     // We apply roundf() only if the fractional part of |width| is >= 0.5
     // because:
@@ -180,7 +180,7 @@ float GetAvgCharWidth(const ComputedStyle& style) {
   }
 
   const UChar kCh = '0';
-  return ComputeTextWidth(StringView(&kCh, 1u), style);
+  return ComputeTextWidth(StringView(base::span_from_ref(kCh)), style);
 }
 
 }  // namespace layout_text_control

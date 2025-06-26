@@ -9,7 +9,7 @@
 
 namespace blink {
 
-LayoutFieldset::LayoutFieldset(Element* element) : LayoutNGBlockFlow(element) {
+LayoutFieldset::LayoutFieldset(Element* element) : LayoutBlockFlow(element) {
   SetChildrenInline(false);
 }
 
@@ -55,7 +55,7 @@ void LayoutFieldset::AddChild(LayoutObject* new_child,
   // >   element except for the rendered legend, if there is one.
 
   if (new_child->IsRenderedLegendCandidate() && !FindInFlowLegend()) {
-    LayoutNGBlockFlow::AddChild(new_child, FirstChild());
+    LayoutBlockFlow::AddChild(new_child, FirstChild());
     return;
   }
   LayoutBlock* fieldset_content = FindAnonymousFieldsetContentBox();
@@ -64,7 +64,7 @@ void LayoutFieldset::AddChild(LayoutObject* new_child,
 }
 
 void LayoutFieldset::InsertedIntoTree() {
-  LayoutNGBlockFlow::InsertedIntoTree();
+  LayoutBlockFlow::InsertedIntoTree();
 
   if (FindAnonymousFieldsetContentBox()) {
     return;
@@ -98,10 +98,13 @@ void LayoutFieldset::InsertedIntoTree() {
   // Update CanContain*PositionObjects flag again though
   // CreateAnonymousWithParentAndDisplay() already called them because
   // ComputeIs*Container() depends on Parent().
+  const auto& content_style = fieldset_content->StyleRef();
+  const bool is_fixed_container =
+      fieldset_content->ComputeIsFixedContainer(content_style);
+  fieldset_content->SetCanContainFixedPositionObjects(is_fixed_container);
   fieldset_content->SetCanContainAbsolutePositionObjects(
-      fieldset_content->ComputeIsAbsoluteContainer(fieldset_content->Style()));
-  fieldset_content->SetCanContainFixedPositionObjects(
-      fieldset_content->ComputeIsFixedContainer(fieldset_content->Style()));
+      fieldset_content->ComputeIsAbsoluteContainer(content_style,
+                                                   is_fixed_container));
 }
 
 void LayoutFieldset::UpdateAnonymousChildStyle(
@@ -126,19 +129,33 @@ void LayoutFieldset::UpdateAnonymousChildStyle(
   child_style_builder.SetPaddingBottom(StyleRef().PaddingBottom());
   child_style_builder.SetPaddingLeft(StyleRef().PaddingLeft());
 
+  child_style_builder.SetBoxDecorationBreak(StyleRef().BoxDecorationBreak());
+
   if (StyleRef().SpecifiesColumns() && AllowsColumns()) {
-    child_style_builder.SetColumnCount(StyleRef().ColumnCount());
-    child_style_builder.SetColumnWidth(StyleRef().ColumnWidth());
-  } else {
-    child_style_builder.SetHasAutoColumnCount();
-    child_style_builder.SetHasAutoColumnWidth();
+    if (!StyleRef().HasAutoColumnCount()) {
+      child_style_builder.SetColumnCount(StyleRef().ColumnCount());
+    }
+    if (!StyleRef().HasAutoColumnWidth()) {
+      child_style_builder.SetColumnWidth(StyleRef().ColumnWidth());
+    }
+    if (!StyleRef().HasAutoColumnHeight()) {
+      child_style_builder.SetColumnHeight(StyleRef().ColumnHeight());
+    }
+    child_style_builder.SetColumnWrap(StyleRef().ColumnWrap());
   }
   child_style_builder.SetColumnGap(StyleRef().ColumnGap());
   child_style_builder.SetColumnFill(StyleRef().GetColumnFill());
-  child_style_builder.SetColumnRuleColor(StyleColor(
-      LayoutObject::ResolveColor(StyleRef(), GetCSSPropertyColumnRuleColor())));
+  child_style_builder.SetColumnRuleColor(
+      GapDataList<StyleColor>(StyleColor(LayoutObject::ResolveColor(
+          StyleRef(), GetCSSPropertyColumnRuleColor()))));
+  child_style_builder.SetRowRuleColor(GapDataList<StyleColor>(StyleColor(
+      LayoutObject::ResolveColor(StyleRef(), GetCSSPropertyRowRuleColor()))));
   child_style_builder.SetColumnRuleStyle(StyleRef().ColumnRuleStyle());
-  child_style_builder.SetColumnRuleWidth(StyleRef().ColumnRuleWidth());
+  child_style_builder.SetRowRuleStyle(StyleRef().RowRuleStyle());
+  child_style_builder.SetColumnRuleWidth(
+      GapDataList<int>(StyleRef().ColumnRuleWidth()));
+  child_style_builder.SetRowRuleWidth(
+      GapDataList<int>(StyleRef().RowRuleWidth()));
 
   child_style_builder.SetFlexDirection(StyleRef().FlexDirection());
   child_style_builder.SetFlexWrap(StyleRef().FlexWrap());
@@ -165,8 +182,6 @@ void LayoutFieldset::UpdateAnonymousChildStyle(
   child_style_builder.SetUnicodeBidi(StyleRef().GetUnicodeBidi());
 
   // scroll-start
-  child_style_builder.SetScrollStartBlock(StyleRef().ScrollStartBlock());
-  child_style_builder.SetScrollStartInline(StyleRef().ScrollStartInline());
   child_style_builder.SetScrollStartX(StyleRef().ScrollStartX());
   child_style_builder.SetScrollStartY(StyleRef().ScrollStartY());
 }
@@ -179,7 +194,7 @@ void LayoutFieldset::InvalidatePaint(
     GetMutableForPainting().SetShouldDoFullPaintInvalidation(
         PaintInvalidationReason::kLayout);
   }
-  LayoutNGBlockFlow::InvalidatePaint(context);
+  LayoutBlockFlow::InvalidatePaint(context);
 }
 
 bool LayoutFieldset::BackgroundIsKnownToBeOpaqueInRect(
@@ -197,14 +212,14 @@ LayoutUnit LayoutFieldset::ScrollWidth() const {
   if (const auto* content = FindAnonymousFieldsetContentBox()) {
     return content->ScrollWidth();
   }
-  return LayoutNGBlockFlow::ScrollWidth();
+  return LayoutBlockFlow::ScrollWidth();
 }
 
 LayoutUnit LayoutFieldset::ScrollHeight() const {
   if (const auto* content = FindAnonymousFieldsetContentBox()) {
     return content->ScrollHeight();
   }
-  return LayoutNGBlockFlow::ScrollHeight();
+  return LayoutBlockFlow::ScrollHeight();
 }
 
 // static

@@ -9,7 +9,7 @@
 #include <string>
 
 #include "base/scoped_observation.h"
-#include "chrome/browser/ash/note_taking_helper.h"
+#include "chrome/browser/ash/note_taking/note_taking_helper.h"
 #include "chrome/browser/ui/webui/settings/settings_page_ui_handler.h"
 #include "ui/events/devices/device_data_manager.h"
 #include "ui/events/devices/input_device_event_observer.h"
@@ -44,8 +44,6 @@ class StylusHandler : public ::settings::SettingsPageUIHandler,
   void UpdateNoteTakingApps();
   void HandleRequestApps(const base::Value::List& unused_args);
   void HandleSetPreferredNoteTakingApp(const base::Value::List& args);
-  void HandleSetPreferredNoteTakingAppEnabledOnLockScreen(
-      const base::Value::List& args);
   void HandleInitialize(const base::Value::List& args);
 
   // Enables or disables the stylus UI section.

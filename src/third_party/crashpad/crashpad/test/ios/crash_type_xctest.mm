@@ -22,36 +22,38 @@
 #include "build/build_config.h"
 #include "client/length_delimited_ring_buffer.h"
 #import "test/ios/host/cptest_shared_object.h"
+#include "util/mac/sysctl.h"
 #include "util/mach/exception_types.h"
 #include "util/mach/mach_extensions.h"
 
+namespace crashpad {
 namespace {
 
 #if TARGET_OS_SIMULATOR
 // macOS 14.0 is 23A344, macOS 13.6.5 is 22G621, so if the first two characters
 // in the kern.osversion are > 22, this build will reproduce the simulator bug
 // in crbug.com/328282286
-bool IsMacOSVersion143OrGreaterAndiOS16OrLess() {
+// macOS 14.0 is 23A344, macOS 13.6.5 is 22G621, so if the first two
+// characters in the kern.osversion are > 22, this build will reproduce the
+// simulator bug in crbug.com/328282286
+// This now reproduces on macOS 15.4 24E248 as well for iOS17 simulators.
+bool HasMacOSBrokeDYLDTaskInfo() {
+  if (__builtin_available(iOS 18, *)) {
+    return false;
+  }
+  std::string build = crashpad::ReadStringSysctlByName("kern.osversion", false);
+  if (std::stoi(build.substr(0, 2)) >= 24) {
+    return true;
+  }
   if (__builtin_available(iOS 17, *)) {
     return false;
   }
-
-  size_t buf_len;
-  static constexpr char name[] = "kern.osversion";
-  if (sysctlbyname(name, nullptr, &buf_len, nullptr, 0) != 0) {
-    return false;
-  }
-
-  std::string build(buf_len - 1, '\0');
-  if (sysctlbyname(name, &build[0], &buf_len, nullptr, 0) != 0) {
-    return false;
-  }
-
   return std::stoi(build.substr(0, 2)) > 22;
 }
 #endif
 
 }  // namespace
+}  // namespace crashpad
 
 @interface CPTestTestCase : XCTestCase {
   XCUIApplication* app_;
@@ -111,6 +113,12 @@ bool IsMacOSVersion143OrGreaterAndiOS16OrLess() {
 
 - (void)setUp {
   app_ = [[XCUIApplication alloc] init];
+  if ([self.name isEqualToString:@"-[CPTestTestCase testExtensionStreams]"]) {
+    app_.launchArguments = @[ @"--test-extension-streams" ];
+  } else if ([self.name isEqualToString:
+                            @"-[CPTestTestCase testCrashWithExtraMemory]"]) {
+    app_.launchArguments = @[ @"--test-extra_memory" ];
+  }
   [app_ launch];
   rootObject_ = [EDOClientService rootObjectWithPort:12345];
   [rootObject_ clearPendingReports];
@@ -350,9 +358,10 @@ bool IsMacOSVersion143OrGreaterAndiOS16OrLess() {
 
 - (void)testCrashWithAnnotations {
 #if TARGET_OS_SIMULATOR
-  // This test will fail on older (<iOS17 simulators) when running on macOS 14.3
-  // or newer due to a bug in Simulator. crbug.com/328282286
-  if (IsMacOSVersion143OrGreaterAndiOS16OrLess()) {
+  // This test will fail on <iOS17 simulators when running on macOS >=14.3 or
+  // <iOS18 simulators when running on macOS >=15.4 due to a bug in Simulator.
+  // crbug.com/328282286
+  if (crashpad::HasMacOSBrokeDYLDTaskInfo()) {
     return;
   }
 #endif
@@ -404,12 +413,49 @@ bool IsMacOSVersion143OrGreaterAndiOS16OrLess() {
   XCTAssertFalse(reader.Pop(ringBufferEntry));
 }
 
+- (void)testCrashWithExtraMemory {
+#if TARGET_OS_SIMULATOR
+  // This test will fail on <iOS17 simulators when running on macOS >=14.3 or
+  // <iOS18 simulators when running on macOS >=15.4 due to a bug in Simulator.
+  // crbug.com/328282286
+  if (crashpad::HasMacOSBrokeDYLDTaskInfo()) {
+    return;
+  }
+#endif
+
+  [rootObject_ crashKillAbort];
+  [self verifyCrashReportException:EXC_SOFT_SIGNAL];
+
+  NSDictionary* dict = [rootObject_ getExtraMemory];
+  BOOL found = NO;
+  for (NSString* key in dict) {
+    if ([dict[key] isEqualToString:@"hello world"]) {
+      found = YES;
+      break;
+    }
+  }
+  XCTAssertTrue(found);
+}
+
+- (void)testExtensionStreams {
+#if TARGET_OS_SIMULATOR
+  // This test will fail on <iOS17 simulators when running on macOS >=14.3 or
+  // <iOS18 simulators when running on macOS >=15.4 due to a bug in Simulator.
+  // crbug.com/328282286
+  if (crashpad::HasMacOSBrokeDYLDTaskInfo()) {
+    return;
+  }
+#endif
+  [rootObject_ crashKillAbort];
+  [self verifyCrashReportException:EXC_SOFT_SIGNAL];
+  XCTAssertTrue([rootObject_ hasExtensionStream]);
+}
+
 - (void)testDumpWithoutCrash {
   [rootObject_ generateDumpWithoutCrash:10 threads:3];
 
   // The app should not crash
   XCTAssertTrue(app_.state == XCUIApplicationStateRunningForeground);
-
   XCTAssertEqual([rootObject_ pendingReportCount], 30);
 }
 

@@ -35,10 +35,22 @@ sp-heading {
 }
 
 #toolbarButton {
-  display: flex;
-  justify-content: space-between;
-  padding-right: 16px;
   border: none;
+  color: var(--cr-primary-text-color);
+  display: flex;
+  height: 52px;
+  justify-content: space-between;
+  padding: 8px 16px;
+}
+
+#toolbar-customization-heading {
+  padding: 0;
+}
+
+#toolbar-customization-inner-heading {
+  align-items: center;
+  display: flex;
+  gap: 4px;
 }
 
 customize-chrome-appearance,
@@ -65,7 +77,6 @@ customize-chrome-appearance {
 
 .description a {
   color: var(--cr-link-color);
-  text-decoration: none;
 }
 
 #buttonContainer {

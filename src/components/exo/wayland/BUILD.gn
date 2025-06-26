@@ -2,7 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
 import("//build/config/ozone.gni")
 import("//build/config/ui.gni")
 import("//gpu/vulkan/features.gni")
@@ -10,7 +9,7 @@ import("//testing/test.gni")
 import("//ui/base/ui_features.gni")
 
 # Exo is only used on ash.
-assert(is_chromeos_ash)
+assert(is_chromeos)
 
 # ash implies ozone.
 assert(use_ozone)
@@ -119,6 +118,7 @@ source_set("wayland") {
     "zcr_stylus.h",
     "zcr_stylus_tools.cc",
     "zcr_stylus_tools.h",
+    "zcr_test_controller.h",
     "zcr_touchpad_haptics.cc",
     "zcr_touchpad_haptics.h",
     "zcr_ui_controls.h",
@@ -227,6 +227,26 @@ source_set("wayland") {
   if (use_xkbcommon) {
     deps += [ "//ui/events/keycodes:xkb" ]
   }
+}
+
+static_library("test_controller") {
+  testonly = true
+  sources = [ "zcr_test_controller.cc" ]
+  deps = [
+    ":wayland",
+    "//base/test:test_support",
+    "//third_party/wayland:wayland_server",
+    "//third_party/wayland-protocols:test_controller_protocol",
+    "//ui/events",
+  ]
+}
+
+static_library("test_controller_stub") {
+  testonly = false
+  sources = [
+    "zcr_test_controller.h",
+    "zcr_test_controller_stub.cc",
+  ]
 }
 
 static_library("ui_controls_protocol") {
@@ -430,7 +450,6 @@ source_set("client_support") {
   ]
 
   if (ozone_platform_drm) {
-    configs += [ "//ui/gl:gl_config" ]
     deps += [
       "//build/config/linux/libdrm",
       "//ui/ozone",
@@ -457,7 +476,6 @@ executable("wayland_rects_client") {
   ]
 
   if (ozone_platform_drm) {
-    configs += [ "//ui/gl:gl_config" ]
     defines = [ "USE_GBM" ]
     deps += [
       "//build/config/linux/libdrm",
@@ -484,10 +502,6 @@ source_set("simple") {
     "//ui/gfx/geometry",
     "//ui/gl",
   ]
-
-  if (ozone_platform_drm) {
-    configs += [ "//ui/gl:gl_config" ]
-  }
 }
 
 source_set("client_version_test") {
@@ -503,10 +517,6 @@ source_set("client_version_test") {
   ]
 
   public_deps = []
-
-  if (ozone_platform_drm) {
-    configs += [ "//ui/gl:gl_config" ]
-  }
 }
 
 source_set("fullscreen_shell") {
@@ -526,10 +536,6 @@ source_set("fullscreen_shell") {
     "//ui/gfx/geometry",
     "//ui/gl",
   ]
-
-  if (ozone_platform_drm) {
-    configs += [ "//ui/gl:gl_config" ]
-  }
 }
 
 executable("wayland_simple_client") {
@@ -573,10 +579,6 @@ executable("wayland_subsurface_client") {
     "//ui/gfx/geometry",
     "//ui/gl",
   ]
-
-  if (ozone_platform_drm) {
-    configs += [ "//ui/gl:gl_config" ]
-  }
 }
 
 source_set("blur") {
@@ -594,10 +596,6 @@ source_set("blur") {
     "//ui/gfx/geometry",
     "//ui/gl",
   ]
-
-  if (ozone_platform_drm) {
-    configs += [ "//ui/gl:gl_config" ]
-  }
 }
 
 executable("wayland_blur_client") {
@@ -630,36 +628,6 @@ executable("wayland_fractional_scale_client") {
     "//third_party/wayland:wayland_client",
     "//third_party/wayland-protocols:fractional_scale_protocol",
     "//ui/gfx/geometry:geometry_skia",
-  ]
-}
-
-loadable_module("exo_wlcs") {
-  testonly = true
-  sources = [
-    "test/wlcs/display_server.cc",
-    "test/wlcs/display_server.h",
-    "test/wlcs/exo_wlcs.cc",
-    "test/wlcs/pointer.cc",
-    "test/wlcs/pointer.h",
-    "test/wlcs/touch.cc",
-    "test/wlcs/touch.h",
-    "test/wlcs/wlcs_helpers.cc",
-    "test/wlcs/wlcs_helpers.h",
-  ]
-
-  deps = [
-    "//ash",
-    "//ash:test_support",
-    "//base",
-    "//base/test:test_config",
-    "//components/exo",
-    "//components/exo/wayland",
-    "//components/exo/wayland:wayland_client_test_helper",
-    "//components/exo/wayland/fuzzer:server_environment",
-    "//skia",
-    "//third_party/wayland:wayland_client",
-    "//third_party/wayland:wayland_util",
-    "//ui/events:test_support",
   ]
 }
 
@@ -808,7 +776,6 @@ if (ozone_platform_drm) {
       "//ui/gfx/geometry",
     ]
 
-    configs += [ "//ui/gl:gl_config" ]
     deps += [ "//third_party/minigbm" ]
   }
 
@@ -827,7 +794,6 @@ if (ozone_platform_drm) {
       "//ui/gfx/geometry",
     ]
 
-    configs += [ "//ui/gl:gl_config" ]
     deps += [ "//third_party/minigbm" ]
   }
 
@@ -843,8 +809,6 @@ if (ozone_platform_drm) {
       "//third_party/wayland-protocols:linux_explicit_synchronization_protocol",
       "//ui/gl",
     ]
-
-    configs += [ "//ui/gl:gl_config" ]
   }
 
   if (enable_vulkan) {
@@ -863,7 +827,6 @@ if (ozone_platform_drm) {
         "//ui/gfx/geometry",
       ]
 
-      configs += [ "//ui/gl:gl_config" ]
       deps += [ "//third_party/minigbm" ]
     }
   }

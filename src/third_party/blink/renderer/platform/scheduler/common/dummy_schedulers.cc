@@ -3,11 +3,12 @@
 // found in the LICENSE file.
 
 #include "third_party/blink/renderer/platform/scheduler/public/dummy_schedulers.h"
+
 #include <memory>
 
 #include "base/memory/raw_ptr.h"
 #include "base/task/single_thread_task_runner.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/platform/scheduler/common/simple_main_thread_scheduler.h"
 #include "third_party/blink/renderer/platform/scheduler/main_thread/main_thread_scheduler_impl.h"
 #include "third_party/blink/renderer/platform/scheduler/public/agent_group_scheduler.h"
@@ -35,6 +36,7 @@ class DummyWidgetScheduler final : public WidgetScheduler {
   DummyWidgetScheduler& operator=(const DummyWidgetScheduler&) = delete;
   ~DummyWidgetScheduler() override = default;
 
+  void WillShutdown() override {}
   void Shutdown() override {}
   // Returns the input task runner.
   scoped_refptr<base::SingleThreadTaskRunner> InputTaskRunner() override {
@@ -54,7 +56,8 @@ class DummyWidgetScheduler final : public WidgetScheduler {
       WebInputEvent::Type web_input_event_type,
       const WebInputEventAttribution& web_input_event_attribution) override {}
   void DidHandleInputEventOnMainThread(const WebInputEvent& web_input_event,
-                                       WebInputEventResult result) override {}
+                                       WebInputEventResult result,
+                                       bool frame_requested) override {}
   void DidRunBeginMainFrame() override {}
   void SetHidden(bool hidden) override {}
 };
@@ -80,7 +83,6 @@ class DummyFrameScheduler : public FrameScheduler {
     return &page_scheduler_->GetAgentGroupScheduler();
   }
 
-  void SetPreemptedForCooperativeScheduling(Preempted) override {}
   void SetFrameVisible(bool) override {}
   bool IsFrameVisible() const override { return true; }
   void SetVisibleAreaLarge(bool) override {}
@@ -109,6 +111,7 @@ class DummyFrameScheduler : public FrameScheduler {
   void OnFirstContentfulPaintInMainFrame() override {}
   void OnFirstMeaningfulPaint(base::TimeTicks timestamp) override {}
   void OnDispatchLoadEvent() override {}
+  void OnDidInstallNewDocument() override {}
   void OnMainFrameInteractive() override {}
   bool IsExemptFromBudgetBasedThrottling() const override { return false; }
   std::unique_ptr<blink::mojom::blink::PauseSubresourceLoadingHandle>
@@ -120,7 +123,6 @@ class DummyFrameScheduler : public FrameScheduler {
       WebSchedulingPriority) override {
     return nullptr;
   }
-  ukm::SourceId GetUkmSourceId() override { return ukm::kInvalidSourceId; }
   void OnStartedUsingNonStickyFeature(
       SchedulingPolicy::Feature feature,
       const SchedulingPolicy& policy,
@@ -191,7 +193,8 @@ class DummyPageScheduler : public PageScheduler {
     return *agent_group_scheduler_;
   }
   VirtualTimeController* GetVirtualTimeController() override { return nullptr; }
-  scoped_refptr<WidgetScheduler> CreateWidgetScheduler() override {
+  scoped_refptr<WidgetScheduler> CreateWidgetScheduler(
+      WidgetScheduler::Delegate*) override {
     return base::MakeRefCounted<DummyWidgetScheduler>();
   }
 
@@ -277,8 +280,7 @@ class DummyWebMainThreadScheduler : public WebThreadScheduler,
   void PostDelayedIdleTask(const base::Location&,
                            base::TimeDelta delay,
                            Thread::IdleTask) override {}
-  void PostNonNestableIdleTask(const base::Location&,
-                               Thread::IdleTask) override {}
+  void RemoveCancelledIdleTasks() override {}
   void AddRAILModeObserver(RAILModeObserver*) override {}
   void RemoveRAILModeObserver(RAILModeObserver const*) override {}
   base::TimeTicks MonotonicallyIncreasingVirtualTime() override {
@@ -381,14 +383,10 @@ class DummyAgentGroupScheduler : public AgentGroupScheduler {
   WebThreadScheduler& GetMainThreadScheduler() override {
     return *main_thread_scheduler_;
   }
-  void BindInterfaceBroker(
-      mojo::PendingRemote<blink::mojom::BrowserInterfaceBroker> remote_broker)
-      override {}
-  BrowserInterfaceBrokerProxy& GetBrowserInterfaceBroker() override {
-    return GetEmptyBrowserInterfaceBroker();
-  }
   v8::Isolate* Isolate() override { return main_thread_scheduler_->Isolate(); }
   void AddAgent(Agent* agent) override {}
+  void OnUrgentMessageReceived() override {}
+  void OnUrgentMessageProcessed() override {}
 
  private:
   std::unique_ptr<DummyWebMainThreadScheduler> main_thread_scheduler_;

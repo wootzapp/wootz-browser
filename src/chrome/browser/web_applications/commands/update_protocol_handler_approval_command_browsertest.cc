@@ -6,13 +6,13 @@
 #include "base/files/file_util.h"
 #include "base/test/test_future.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/web_applications/web_app_browsertest_base.h"
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/test/web_app_test_utils.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
+#include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/common/chrome_features.h"
 #include "components/webapps/browser/installable/installable_metrics.h"
 #include "content/public/test/browser_test.h"
@@ -21,7 +21,7 @@
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_MAC)
-#include "chrome/browser/web_applications/app_shim_registry_mac.h"
+#include "chrome/browser/web_applications/os_integration/mac/app_shim_registry.h"
 #endif
 
 namespace web_app {
@@ -85,13 +85,7 @@ class UpdateProtocolHandlerApprovalCommandTest : public WebAppBrowserTestBase {
   }
 #endif  // BUILDFLAG(IS_MAC)
 
-  bool AreProtocolsRegisteredWithOs() {
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
-    return false;
-#else
-    return true;
-#endif
-  }
+  bool AreProtocolsRegisteredWithOs() { return !BUILDFLAG(IS_CHROMEOS); }
 };
 
 IN_PROC_BROWSER_TEST_F(UpdateProtocolHandlerApprovalCommandTest, Install) {

@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "base/values.h"
+#include "build/build_config.h"
 #include "chrome/browser/extensions/extension_browsertest.h"
 #include "net/test/spawned_test_server/spawned_test_server.h"
 
@@ -47,11 +48,16 @@ class ExtensionApiTest : public ExtensionBrowserTest {
     bool open_in_incognito = false;
 
     // Launch the extension as a platform app.
+    // Note: This is unsupported on desktop android builds.
     bool launch_as_platform_app = false;
 
     // Use //extensions/test/data/ as the root path instead of the default
     // path of //chrome/test/data/extensions/api_test/.
     bool use_extensions_root_dir = false;
+
+    // If given, the Profile instance is used. Otherwise, the default Profile
+    // (i.e., taken by browser()->profile()) for the browser_test is used.
+    raw_ptr<Profile> profile = nullptr;
   };
 
   explicit ExtensionApiTest(ContextType context_type = ContextType::kNone);
@@ -150,6 +156,9 @@ class ExtensionApiTest : public ExtensionBrowserTest {
 
  private:
   void OpenURL(const GURL& url, bool open_in_incognito);
+
+  // Initializes the test data directories to the proper locations.
+  void SetUpTestDataDir();
 
   // Hold details of the test, set in C++, which can be accessed by
   // javascript using chrome.test.getConfig().

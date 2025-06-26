@@ -155,7 +155,7 @@ class MediaServiceTest : public testing::Test {
     EXPECT_CALL(*this, OnRendererInitialized(expected_result))
         .WillOnce(QuitLoop(&run_loop));
     renderer_->Initialize(
-        std::move(client_remote), std::move(streams), nullptr,
+        std::move(client_remote), std::move(streams),
         base::BindOnce(&MediaServiceTest::OnRendererInitialized,
                        base::Unretained(this)));
     run_loop.Run();
@@ -167,15 +167,15 @@ class MediaServiceTest : public testing::Test {
   void OnCdmCreated(bool expected_result,
                     mojo::PendingRemote<mojom::ContentDecryptionModule> remote,
                     mojom::CdmContextPtr cdm_context,
-                    const std::string& error_message) {
+                    CreateCdmStatus status) {
     if (!expected_result) {
       EXPECT_FALSE(remote);
       EXPECT_FALSE(cdm_context);
-      EXPECT_TRUE(!error_message.empty());
+      EXPECT_NE(status, CreateCdmStatus::kSuccess);
       return;
     }
     EXPECT_TRUE(remote);
-    EXPECT_TRUE(error_message.empty());
+    EXPECT_EQ(status, CreateCdmStatus::kSuccess);
     cdm_.Bind(std::move(remote));
     cdm_.set_disconnect_handler(base::BindOnce(
         &MediaServiceTest::OnCdmConnectionError, base::Unretained(this)));
@@ -283,7 +283,7 @@ TEST_F(MediaServiceTest, MoreIdling) {
   else if (renderer_)
     renderer_.FlushForTesting();
   else
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
 
   // Disconnecting CDM and Renderer will cause the service to idle since no
   // other interfaces are connected.

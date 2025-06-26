@@ -4,6 +4,7 @@
 
 #include "components/variations/synthetic_trial_registry.h"
 
+#include "base/check_is_test.h"
 #include "base/containers/contains.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/observer_list.h"
@@ -111,18 +112,25 @@ void SyntheticTrialRegistry::RegisterExternalExperiments(
   }
 }
 
+std::vector<ActiveGroupId>
+SyntheticTrialRegistry::GetCurrentSyntheticFieldTrialsForTest() const {
+  CHECK_IS_TEST();
+  std::vector<ActiveGroupId> synthetic_trials;
+  GetSyntheticFieldTrialsOlderThan(base::TimeTicks::Now(), &synthetic_trials);
+  return synthetic_trials;
+}
+
 void SyntheticTrialRegistry::RegisterSyntheticFieldTrial(
     const SyntheticTrialGroup& trial) {
   for (auto& entry : synthetic_trial_groups_) {
     if (entry.id().name == trial.id().name) {
-      entry.SetAnnotationMode(trial.annotation_mode());
-      if (entry.id().group != trial.id().group) {
+      if (entry.id().group != trial.id().group ||
+          entry.annotation_mode() != trial.annotation_mode()) {
+        entry.SetAnnotationMode(trial.annotation_mode());
         entry.SetGroupName(trial.group_name());
         entry.SetStartTime(base::TimeTicks::Now());
+        NotifySyntheticTrialObservers({entry}, {});
       }
-      // Always notify the observers since some observers like persistent system
-      // profile need to be updated when annotation mode is changed.
-      NotifySyntheticTrialObservers({entry}, {});
       return;
     }
   }

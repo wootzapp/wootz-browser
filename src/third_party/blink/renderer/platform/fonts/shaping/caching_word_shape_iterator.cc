@@ -12,7 +12,7 @@ namespace blink {
 const ShapeResult* CachingWordShapeIterator::ShapeWordWithoutSpacing(
     const TextRun& word_run,
     const Font* font) {
-  ShapeCacheEntry* cache_entry = shape_cache_->Add(word_run, ShapeCacheEntry());
+  ShapeCacheEntry* cache_entry = shape_cache_->Add(word_run);
   if (cache_entry && *cache_entry)
     return *cache_entry;
 
@@ -31,8 +31,9 @@ const ShapeResult* CachingWordShapeIterator::ShapeWordWithoutSpacing(
 const ShapeResult* CachingWordShapeIterator::ShapeWord(const TextRun& word_run,
                                                        const Font* font) {
   const ShapeResult* result = ShapeWordWithoutSpacing(word_run, font);
-  if (LIKELY(!spacing_.HasSpacing()))
+  if (!spacing_.HasSpacing()) [[likely]] {
     return result;
+  }
 
   ShapeResult* spacing_result = result->ApplySpacingToCopy(spacing_, word_run);
   gfx::RectF ink_bounds = spacing_result->ComputeInkBounds();

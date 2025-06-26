@@ -73,7 +73,7 @@ class KeyboardAccessoryView extends LinearLayout {
                 public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
                     if (newState != RecyclerView.SCROLL_STATE_IDLE) {
                         mBarItemsView.removeOnScrollListener(mScrollingIphCallback);
-                        KeyboardAccessoryIPHUtils.emitScrollingEvent(mFeatureEngagementTracker);
+                        KeyboardAccessoryIphUtils.emitScrollingEvent(mFeatureEngagementTracker);
                     }
                 }
             };
@@ -164,6 +164,11 @@ class KeyboardAccessoryView extends LinearLayout {
     }
 
     @Override
+    public boolean onGenericMotionEvent(MotionEvent motionEvent) {
+        return true; // Accessory view is a sink for all events. Touch/Click is handled earlier.
+    }
+
+    @Override
     public boolean onInterceptTouchEvent(MotionEvent event) {
         final boolean isViewObscured =
                 (event.getFlags()
@@ -225,7 +230,7 @@ class KeyboardAccessoryView extends LinearLayout {
         mBarItemsView.addOnScrollListener(mScrollingIphCallback);
 
         // Remove any paddings that might be inherited since this messes up the fading edge.
-        ViewCompat.setPaddingRelative(mBarItemsView, 0, 0, 0, 0);
+        mBarItemsView.setPaddingRelative(0, 0, 0, 0);
         TraceEvent.end("KeyboardAccessoryView#onFinishInflate");
     }
 
@@ -355,7 +360,7 @@ class KeyboardAccessoryView extends LinearLayout {
                                     mAnimationListener.onFadeInEnd();
                                     mRunningAnimation = null;
                                 });
-        announceForAccessibility(getContentDescription());
+        ViewCompat.setAccessibilityPaneTitle(this, getContentDescription());
         TraceEvent.end("KeyboardAccessoryView#show");
     }
 
@@ -444,7 +449,7 @@ class KeyboardAccessoryView extends LinearLayout {
         // Remove all animations - the accessory shouldn't be visibly built anyway.
         recyclerView.setItemAnimator(null);
 
-        ViewCompat.setPaddingRelative(recyclerView, pad, 0, 0, 0);
+        recyclerView.setPaddingRelative(pad, 0, 0, 0);
     }
 
     @VisibleForTesting

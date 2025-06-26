@@ -11,7 +11,6 @@
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
-#include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/public/browser/network_service_instance.h"
@@ -24,7 +23,6 @@
 #include "content/public/test/url_loader_monitor.h"
 #include "content/shell/browser/shell.h"
 #include "net/dns/mock_host_resolver.h"
-#include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/is_potentially_trustworthy.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/trust_token_http_headers.h"
@@ -72,12 +70,12 @@ MATCHER_P2(HasHeader,
            other_matcher,
            "has header " + std::string(name) + " that " +
                DescribeMatcher<std::string>(other_matcher)) {
-  std::string header;
-  if (!arg.headers.GetHeader(name, &header)) {
+  std::optional<std::string> header = arg.headers.GetHeader(name);
+  if (!header) {
     *result_listener << base::StringPrintf("%s wasn't present", name);
     return false;
   }
-  return ExplainMatchResult(other_matcher, header, result_listener);
+  return ExplainMatchResult(other_matcher, *header, result_listener);
 }
 
 MATCHER(
@@ -93,15 +91,7 @@ MATCHER(
 
 }  // namespace
 
-TrustTokenBrowsertest::TrustTokenBrowsertest() {
-  auto& field_trial_param =
-      network::features::kTrustTokenOperationsRequiringOriginTrial;
-  features_.InitAndEnableFeatureWithParameters(
-      network::features::kPrivateStateTokens,
-      {{field_trial_param.name,
-        field_trial_param.GetName(network::features::TrustTokenOriginTrialSpec::
-                                      kOriginTrialNotRequired)}});
-}
+TrustTokenBrowsertest::TrustTokenBrowsertest() = default;
 
 void TrustTokenBrowsertest::SetUpOnMainThread() {
   host_resolver()->AddRule("*", "127.0.0.1");

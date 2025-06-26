@@ -8,6 +8,7 @@
 
 #include <optional>
 #include <string>
+#include <variant>
 
 #include "base/containers/flat_set.h"
 #include "base/test/values_test_util.h"
@@ -22,7 +23,6 @@
 #include "content/browser/attribution_reporting/attribution_test_utils.h"
 #include "content/browser/attribution_reporting/stored_source.h"
 #include "net/base/schemeful_site.h"
-#include "net/http/http_request_headers.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/aggregation_service/aggregatable_report.mojom.h"
@@ -174,7 +174,6 @@ TEST(AttributionReportTest, ReportBody_DebugKeys) {
         "randomized_trigger_rate":0.2,
         "report_id":"21abd97f-73e8-4b88-9389-a9fee6abda5e",
         "scheduled_report_time":"3600",
-        "source_debug_key":"7",
         "source_event_id":"100",
         "source_type":"navigation",
         "trigger_data":"5"
@@ -187,7 +186,6 @@ TEST(AttributionReportTest, ReportBody_DebugKeys) {
         "source_event_id":"100",
         "source_type":"navigation",
         "trigger_data":"5",
-        "trigger_debug_key":"7"
       })json")},
       {7, 8, base::test::ParseJsonDict(R"json({
         "attribution_destination":"https://conversion.test",
@@ -211,7 +209,7 @@ TEST(AttributionReportTest, ReportBody_DebugKeys) {
                       SourceBuilder(base::Time::UnixEpoch())
                           .SetSourceEventId(100)
                           .SetDebugKey(test_case.source_debug_key)
-                          .SetDebugCookieSet(true)
+                          .SetCookieBasedDebugAllowed(true)
                           .SetRandomizedResponseRate(0.2)
                           .BuildStored())
             .SetTriggerData(5)
@@ -237,58 +235,6 @@ TEST(AttributionReportTest, ReportBody_Aggregatable) {
           .BuildAggregatableAttribution();
 
   EXPECT_THAT(report.ReportBody(), IsJson(expected));
-}
-
-TEST(AttributionReportTest, PopulateAdditionalHeaders) {
-  const std::optional<std::string> kTestCases[] = {
-      std::nullopt,
-      "foo",
-  };
-
-  for (const auto& verification_token : kTestCases) {
-    AttributionReport report = ReportBuilder(AttributionInfoBuilder().Build(),
-                                             SourceBuilder().BuildStored())
-                                   .SetVerificationToken(verification_token)
-                                   .BuildAggregatableAttribution();
-
-    net::HttpRequestHeaders headers;
-    report.PopulateAdditionalHeaders(headers);
-
-    if (verification_token.has_value()) {
-      std::string header;
-      headers.GetHeader("Sec-Attribution-Reporting-Private-State-Token",
-                        &header);
-      EXPECT_EQ(header, *verification_token);
-    } else {
-      EXPECT_TRUE(headers.IsEmpty());
-    }
-  }
-}
-
-TEST(AttributionReportTest, PopulateAdditionalHeadersNullAggregatableReport) {
-  const std::optional<std::string> kTestCases[] = {
-      std::nullopt,
-      "foo",
-  };
-
-  for (const auto& verification_token : kTestCases) {
-    AttributionReport report = ReportBuilder(AttributionInfoBuilder().Build(),
-                                             SourceBuilder().BuildStored())
-                                   .SetVerificationToken(verification_token)
-                                   .BuildNullAggregatable();
-
-    net::HttpRequestHeaders headers;
-    report.PopulateAdditionalHeaders(headers);
-
-    if (verification_token.has_value()) {
-      std::string header;
-      headers.GetHeader("Sec-Attribution-Reporting-Private-State-Token",
-                        &header);
-      EXPECT_EQ(header, *verification_token);
-    } else {
-      EXPECT_TRUE(headers.IsEmpty());
-    }
-  }
 }
 
 TEST(AttributionReportTest, NullAggregatableReport) {
@@ -317,9 +263,8 @@ TEST(AttributionReportTest, NullAggregatableReport) {
             GURL("https://report.test/.well-known/attribution-reporting/"
                  "report-aggregate-attribution"));
 
-  auto& data =
-      absl::get<AttributionReport::NullAggregatableData>(report.data());
-  data.common_data.assembled_report =
+  auto& data = std::get<AttributionReport::AggregatableData>(report.data());
+  data.SetAssembledReport(
       AggregatableReport({AggregatableReport::AggregationServicePayload(
                              /*payload=*/kABCD1234AsBytes,
                              /*key_id=*/"key",
@@ -327,7 +272,7 @@ TEST(AttributionReportTest, NullAggregatableReport) {
                          "example_shared_info",
                          /*debug_key=*/std::nullopt,
                          /*additional_fields=*/{},
-                         /*aggregation_coordinator_origin=*/std::nullopt);
+                         /*aggregation_coordinator_origin=*/std::nullopt));
 
   EXPECT_THAT(report.ReportBody(), IsJson(expected));
 }
@@ -359,9 +304,8 @@ TEST(AttributionReportTest, ReportBody_AggregatableAttributionReport) {
                   /*bucket=*/1, /*value=*/2, /*filtering_id=*/std::nullopt)})
           .BuildAggregatableAttribution();
 
-  auto& data =
-      absl::get<AttributionReport::AggregatableAttributionData>(report.data());
-  data.common_data.assembled_report =
+  auto& data = std::get<AttributionReport::AggregatableData>(report.data());
+  data.SetAssembledReport(
       AggregatableReport({AggregatableReport::AggregationServicePayload(
                              /*payload=*/kABCD1234AsBytes,
                              /*key_id=*/"key",
@@ -369,7 +313,7 @@ TEST(AttributionReportTest, ReportBody_AggregatableAttributionReport) {
                          "example_shared_info",
                          /*debug_key=*/std::nullopt,
                          /*additional_fields=*/{},
-                         /*aggregation_coordinator_origin=*/std::nullopt);
+                         /*aggregation_coordinator_origin=*/std::nullopt));
 
   EXPECT_THAT(report.ReportBody(), IsJson(expected));
 }

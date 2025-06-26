@@ -37,14 +37,15 @@
 #include "third_party/blink/public/common/input/web_gesture_device.h"
 #include "third_party/blink/public/mojom/frame/color_scheme.mojom-blink-forward.h"
 #include "third_party/blink/public/mojom/scroll/scroll_into_view_params.mojom-blink-forward.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_scroll_behavior.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/layout/geometry/physical_rect.h"
 #include "third_party/blink/renderer/core/loader/history_item.h"
-#include "third_party/blink/renderer/core/scroll/scroll_start_targets.h"
 #include "third_party/blink/renderer/core/scroll/scrollbar.h"
 #include "third_party/blink/renderer/core/style/scroll_start_data.h"
 #include "third_party/blink/renderer/platform/graphics/compositor_element_id.h"
 #include "third_party/blink/renderer/platform/graphics/overlay_scrollbar_clip_behavior.h"
+#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/disallow_new_wrapper.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/prefinalizer.h"
@@ -64,10 +65,6 @@ class AnimationTimeline;
 class Layer;
 }  // namespace cc
 
-namespace ui {
-class ColorProvider;
-}  // namespace ui
-
 namespace blink {
 class ChromeClient;
 class Document;
@@ -81,7 +78,7 @@ class ProgrammaticScrollAnimator;
 class ScrollAnchor;
 class ScrollAnimatorBase;
 struct SerializedAnchor;
-class SmoothScrollSequencer;
+class ScrollMarkerGroupPseudoElement;
 
 using MainThreadScrollingReasons = uint32_t;
 
@@ -109,12 +106,6 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   ScrollableArea& operator=(const ScrollableArea&) = delete;
 
   static int PixelsPerLineStep(LocalFrame*);
-  static float MinFractionToStepWhenPaging();
-  int MaxOverlapBetweenPages() const;
-
-  // Returns the amount of delta, in |granularity| units, for a direction-based
-  // (i.e. keyboard or scrollbar arrow) scroll.
-  static float DirectionBasedScrollDelta(ui::ScrollGranularity granularity);
 
   // Convert a non-finite scroll value (Infinity, -Infinity, NaN) to 0 as
   // per https://drafts.csswg.org/cssom-view/#normalize-non-finite-values.
@@ -127,10 +118,6 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   // Used to scale a length in dip units into a length in layout/paint units.
   virtual float ScaleFromDIP() const;
 
-  virtual SmoothScrollSequencer* GetSmoothScrollSequencer() const {
-    return nullptr;
-  }
-
   virtual ScrollResult UserScroll(ui::ScrollGranularity,
                                   const ScrollOffset&,
                                   ScrollCallback on_finish);
@@ -138,7 +125,8 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   virtual bool SetScrollOffset(const ScrollOffset&,
                                mojom::blink::ScrollType,
                                mojom::blink::ScrollBehavior,
-                               ScrollCallback on_finish);
+                               ScrollCallback on_finish,
+                               bool targeted_scroll = false);
   virtual bool SetScrollOffset(
       const ScrollOffset&,
       mojom::blink::ScrollType,
@@ -150,7 +138,8 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
 
   virtual void SetPendingHistoryRestoreScrollOffset(
       const HistoryItem::ViewState& view_state,
-      bool should_restore_scroll) {}
+      bool should_restore_scroll,
+      mojom::blink::ScrollBehavior scroll_behavior) {}
   virtual void ApplyPendingHistoryRestoreScrollOffset() {}
 
   virtual bool HasPendingHistoryRestoreScrollOffset() { return false; }
@@ -163,18 +152,16 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
       const PhysicalBoxStrut& scroll_margin,
       const mojom::blink::ScrollIntoViewParamsPtr&);
 
-  static bool ScrollBehaviorFromString(const String&,
-                                       mojom::blink::ScrollBehavior&);
+  virtual PhysicalOffset LocalToScrollOriginOffset() const = 0;
+
+  static mojom::blink::ScrollBehavior V8EnumToScrollBehavior(
+      V8ScrollBehavior::Enum);
 
   // Register a callback that will be invoked when the next scroll completes -
   // this includes the scroll animation time.
   void RegisterScrollCompleteCallback(ScrollCallback callback);
   void RunScrollCompleteCallbacks(ScrollCompletionMode);
 
-  void ContentAreaWillPaint() const;
-  void MouseEnteredContentArea() const;
-  void MouseExitedContentArea() const;
-  void MouseMovedInContentArea() const;
   void MouseEnteredScrollbar(Scrollbar&);
   void MouseExitedScrollbar(Scrollbar&);
   void MouseCapturedScrollbar();
@@ -217,6 +204,15 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   bool SnapForEndAndDirection(const ScrollOffset& delta);
   void SnapAfterLayout();
 
+  // Tries to find a target snap position. If found, returns the target
+  // position. This *does not* update the target snap area element id and should
+  // only be used when querying what the snap position would be. When scrolling
+  // to the snap position GetSnapPositionAndSetTarget should be used instead.
+  virtual std::optional<cc::SnapPositionData> GetSnapPosition(
+      const cc::SnapSelectionStrategy& strategy) const {
+    return std::nullopt;
+  }
+
   // Tries to find a target snap position. If found, returns the target position
   // and updates the last target snap area element id for the snap container's
   // data. If not found, then clears the last target snap area element id.
@@ -235,7 +231,7 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   // scroller.
   virtual void DidChangeGlobalRootScroller() {}
 
-  virtual void ContentsResized();
+  virtual void ContentsResized() {}
 
   // This is for platform overlay scrollbars only, doesn't include
   // overflow:overlay scrollbars. Probably this should be renamed to
@@ -248,12 +244,6 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
     return static_cast<mojom::blink::ColorScheme>(
         overlay_scrollbar_color_scheme__);
   }
-
-  // Returns the color provider for this scrollbar.
-  const ui::ColorProvider* GetColorProvider(mojom::blink::ColorScheme) const;
-
-  // Returns the forced colors state for this scrollbar.
-  bool InForcedColorsMode() const;
 
   // This getter will create a MacScrollAnimator if it doesn't already exist,
   // only on MacOS.
@@ -328,24 +318,20 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   virtual gfx::Point ConvertFromContainingEmbeddedContentViewToScrollbar(
       const Scrollbar& scrollbar,
       const gfx::Point& parent_point) const {
-    NOTREACHED_IN_MIGRATION();
-    return parent_point;
+    NOTREACHED();
   }
   virtual gfx::Point ConvertFromScrollbarToContainingEmbeddedContentView(
       const Scrollbar& scrollbar,
       const gfx::Point& scrollbar_point) const {
-    NOTREACHED_IN_MIGRATION();
-    return scrollbar_point;
+    NOTREACHED();
   }
   virtual gfx::Point ConvertFromRootFrame(
       const gfx::Point& point_in_root_frame) const {
-    NOTREACHED_IN_MIGRATION();
-    return point_in_root_frame;
+    NOTREACHED();
   }
   virtual gfx::Point ConvertFromRootFrameToVisualViewport(
       const gfx::Point& point_in_root_frame) const {
-    NOTREACHED_IN_MIGRATION();
-    return point_in_root_frame;
+    NOTREACHED();
   }
 
   virtual Scrollbar* HorizontalScrollbar() const { return nullptr; }
@@ -377,12 +363,11 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
     return position.OffsetFromOrigin();
   }
   virtual gfx::Vector2d ScrollOffsetInt() const = 0;
-  virtual ScrollOffset GetScrollOffset() const {
-    return ScrollOffset(ScrollOffsetInt());
-  }
+  virtual ScrollOffset GetScrollOffset() const = 0;
   // Returns a floored version of the scroll offset as the web-exposed scroll
   // offset to ensure web compatibility in DOM APIs.
   virtual ScrollOffset GetWebExposedScrollOffset() const;
+  ScrollOffset GetScrollOffsetForScrollMarkerUpdate();
   virtual gfx::Vector2d MinimumScrollOffsetInt() const = 0;
   virtual ScrollOffset MinimumScrollOffset() const {
     return ScrollOffset(MinimumScrollOffsetInt());
@@ -430,6 +415,8 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   virtual void RegisterForAnimation() {}
   virtual void DeregisterForAnimation() {}
 
+  // TODO(crbug.com/40517276): Remove this function after launching
+  // RasterInducingScroll.
   virtual bool UsesCompositedScrolling() const = 0;
   virtual bool ShouldScrollOnMainThread() const { return false; }
 
@@ -580,7 +567,7 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   void ClearPendingScrollAnchorAdjustment();
 
   scoped_refptr<base::SingleThreadTaskRunner> GetCompositorTaskRunner();
-  void EnqueueSnapChangedEvent() const;
+  void EnqueueScrollSnapChangeEvent() const;
 
   ScrollOffset ScrollOffsetFromScrollStartData(
       const ScrollStartData& block_value,
@@ -589,27 +576,27 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   bool ScrollStartIsDefault() const;
   virtual bool IsApplyingScrollStart() const { return false; }
 
-  virtual void SetSnapchangedTargetIds(
+  virtual void SetScrollsnapchangeTargetIds(
       std::optional<cc::TargetSnapAreaElementIds>) {}
-  virtual void UpdateSnappedTargetsAndEnqueueSnapChanged() {}
+  virtual void UpdateSnappedTargetsAndEnqueueScrollSnapChange() {}
 
   bool ScrollOffsetIsNoop(const ScrollOffset& offset) const;
 
-  void EnqueueSnapChangingEvent() const;
-  virtual std::optional<cc::TargetSnapAreaElementIds> GetSnapchangingTargetIds()
-      const {
+  void EnqueueScrollSnapChangingEvent() const;
+  virtual std::optional<cc::TargetSnapAreaElementIds>
+  GetScrollsnapchangingTargetIds() const {
     return std::nullopt;
   }
-  virtual void SetSnapchangingTargetIds(
+  virtual void SetScrollsnapchangingTargetIds(
       std::optional<cc::TargetSnapAreaElementIds>) {}
-  virtual void UpdateSnapChangingTargetsAndEnqueueSnapChanging(
+  virtual void UpdateScrollSnapChangingTargetsAndEnqueueScrollSnapChanging(
       const cc::TargetSnapAreaElementIds& ids) {}
   virtual const cc::SnapSelectionStrategy* GetImplSnapStrategy() const {
     return nullptr;
   }
   virtual void SetImplSnapStrategy(std::unique_ptr<cc::SnapSelectionStrategy>) {
   }
-  virtual void EnqueueSnapChangingEventFromImplIfNeeded() {}
+  virtual void EnqueueScrollSnapChangingEventFromImplIfNeeded() {}
 
   virtual std::optional<cc::ElementId> GetTargetedSnapAreaId() {
     return std::nullopt;
@@ -617,6 +604,16 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   virtual void SetTargetedSnapAreaId(const std::optional<cc::ElementId>&) {}
 
   virtual void DropCompositorScrollDeltaNextCommit() {}
+
+  virtual void SetSnappedQueryTargetIds(
+      std::optional<cc::TargetSnapAreaElementIds>) {}
+  virtual bool IsGlobalRootNonOverlayScroller() const { return false; }
+
+  virtual ScrollMarkerGroupPseudoElement* GetScrollMarkerGroup() const {
+    return nullptr;
+  }
+
+  virtual void UpdateScrollMarkers() {}
 
  protected:
   // Deduces the mojom::blink::ScrollBehavior based on the
@@ -645,9 +642,9 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   void ShowNonMacOverlayScrollbars();
 
   // Called when scrollbar hides/shows for overlay scrollbars. This callback
-  // shouldn't do any significant work as it can be called unexpectadly often
+  // shouldn't do any significant work as it can be called unexpectedly often
   // on Mac. This happens because painting code has to set alpha to 1, paint,
-  // then reset to alpha, causing spurrious "visibilityChanged" calls.
+  // then reset to alpha, causing spurious "visibilityChanged" calls.
   virtual void ScrollbarVisibilityChanged() {}
 
   bool HasBeenDisposed() const { return has_been_disposed_; }
@@ -660,7 +657,7 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
                                   const ScrollOffset& delta);
 
   virtual void StopApplyingScrollStart() {}
-  const ScrollStartTargetCandidates* GetScrollStartTargets() const;
+  const LayoutObject* GetScrollInitialTarget() const;
 
   virtual Node* GetSnapEventTargetAlongAxis(const AtomicString& type,
                                             cc::SnapAxis) const {
@@ -670,12 +667,13 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
  private:
   FRIEND_TEST_ALL_PREFIXES(ScrollableAreaTest,
                            PopupOverlayScrollbarShouldNotFadeOut);
+  FRIEND_TEST_ALL_PREFIXES(ScrollableAreaTest,
+                           FilterIncomingScrollDuringSmoothUserScroll);
 
   void SetScrollbarsHiddenIfOverlayInternal(bool);
 
   bool ProgrammaticScrollHelper(const ScrollOffset&,
                                 mojom::blink::ScrollBehavior,
-                                bool is_sequenced_scroll,
                                 gfx::Vector2d animation_adjustment,
                                 ScrollCallback on_finish);
   void UserScrollHelper(const ScrollOffset&, mojom::blink::ScrollBehavior);
@@ -695,21 +693,52 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   virtual int DocumentStep(ScrollbarOrientation) const;
   virtual float PixelStep(ScrollbarOrientation) const;
 
-  // This returns the amount a percent-based delta should be resolved against;
-  // which is the visible height of the scroller. This value is eventually
-  // used to scroll the incoming scroll delta, where a scroll delta of 1
-  // represents one hundred percent.
-  float PercentageStep(ScrollbarOrientation) const;
-
   // Returns true if a snap point was found.
   bool PerformSnapping(
       const cc::SnapSelectionStrategy& strategy,
       mojom::blink::ScrollBehavior behavior =
           mojom::blink::ScrollBehavior::kSmooth,
-      base::ScopedClosureRunner on_finish = base::ScopedClosureRunner());
+      base::ScopedClosureRunner on_finish = base::ScopedClosureRunner(),
+      bool preserve_pinned_marker = false);
 
-  void ScrollToScrollStartTarget(const LayoutBox*, cc::SnapAxis);
-  void ScrollToScrollStartTargets(const ScrollStartTargetCandidates*);
+  void ScrollToScrollInitialTarget(const LayoutObject*);
+
+  bool ShouldFilterIncomingScroll(mojom::blink::ScrollType incoming_type) {
+    auto old_type = active_smooth_scroll_type_;
+
+    // Allow the incoming scroll to co-exist if its scroll type is
+    // kClamping, or kAnchoring.
+    if (incoming_type == mojom::blink::ScrollType::kClamping ||
+        incoming_type == mojom::blink::ScrollType::kAnchoring) {
+      return false;
+    }
+    // If the current smooth scroll is a kUser scroll, i.e. a smooth scroll
+    // triggered by find-in-page, filter the incoming scroll unless it is:
+    // - another find-in-page scroll (kUser),
+    // - a gesture scroll (kCompositor), or
+    // - an update from the current find-in-page scroll animation running on the
+    //   compositor (kCompositor).
+    // See crbug.com/913009, crbug.com/365493092 for more details.
+    if (old_type == mojom::blink::ScrollType::kUser &&
+        incoming_type != mojom::blink::ScrollType::kUser &&
+        incoming_type != mojom::blink::ScrollType::kCompositor) {
+      return true;
+    }
+    // TODO(crbug.com/325081538, crbug.com/342093060): Ideally, if the incoming
+    // scroll is a gesture scroll we'd cancel the current animation here.
+    // But to do that, we must be able to distinguish between compositor updates
+    // due to gesture scrolls from compositor updates due to impl-ticked
+    // programmatic scrolls. So we'd need to:
+    //   - split kCompositor ScrollType into kCompositorUser and
+    //     kCompositorProgrammatic and
+    //   - pass the ScrollType from the compositor to the main thread.
+    return false;
+  }
+
+  void set_active_smooth_scroll_type_for_testing(
+      mojom::blink::ScrollType type) {
+    active_smooth_scroll_type_ = type;
+  }
 
   // This animator is used to handle painting animations for MacOS scrollbars
   // using AppKit-specific code (Cocoa APIs). It requires input from
@@ -736,6 +765,8 @@ class CORE_EXPORT ScrollableArea : public GarbageCollectedMixin {
   unsigned scrollbar_captured_ : 1;
   unsigned mouse_over_scrollbar_ : 1;
   unsigned has_been_disposed_ : 1;
+
+  std::optional<mojom::blink::ScrollType> active_smooth_scroll_type_;
 
   scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner_;
 };

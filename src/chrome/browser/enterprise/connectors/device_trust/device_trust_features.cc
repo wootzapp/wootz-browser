@@ -14,4 +14,29 @@ bool IsKeyRotationEnabled() {
   return base::FeatureList::IsEnabled(kDTCKeyRotationEnabled);
 }
 
+BASE_FEATURE(kDTCKeyUploadedBySharedAPIEnabled,
+             "DTCKeyUploadedBySharedAPIEnabled",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+bool IsDTCKeyUploadedBySharedAPI() {
+  return base::FeatureList::IsEnabled(kDTCKeyUploadedBySharedAPIEnabled);
+}
+
+BASE_FEATURE(kDTCKeyRotationUploadedBySharedAPIEnabled,
+             "DTCKeyRotationUploadedBySharedAPIEnabled",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+bool IsDTCKeyRotationUploadedBySharedAPI() {
+  return base::FeatureList::IsEnabled(
+      kDTCKeyRotationUploadedBySharedAPIEnabled);
+}
+
+BASE_FEATURE(kDTCAntivirusSignalEnabled,
+             "DTCAntivirusSignalEnabled",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+bool IsDTCAntivirusSignalEnabled() {
+  return base::FeatureList::IsEnabled(kDTCAntivirusSignalEnabled);
+}
+
 }  // namespace enterprise_connectors

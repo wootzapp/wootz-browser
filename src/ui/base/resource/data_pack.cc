@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/base/resource/data_pack.h"
 
 #include <errno.h>
@@ -20,6 +25,7 @@
 #include "base/files/memory_mapped_file.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_span.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/synchronization/lock.h"
 #include "net/filter/gzip_header.h"
@@ -70,14 +76,6 @@ void MaybePrintResourceId(uint16_t resource_id) {
   }
 }
 
-bool MmapHasGzipHeader(const base::MemoryMappedFile* mmap) {
-  net::GZipHeader header;
-  const char* header_end = nullptr;
-  net::GZipHeader::Status header_status = header.ReadMore(
-      reinterpret_cast<const char*>(mmap->data()), mmap->length(), &header_end);
-  return header_status == net::GZipHeader::COMPLETE_HEADER;
-}
-
 }  // namespace
 
 namespace ui {
@@ -100,8 +98,8 @@ void DataPack::Iterator::UpdateResourceData() {
   const Entry* const next_entry = entry_ + 1;
   resource_data_ = new ResourceData(
       entry_->resource_id,
-      GetStringPieceFromOffset(entry_->file_offset, next_entry->file_offset,
-                               data_source_));
+      GetStringViewFromOffset(entry_->file_offset, next_entry->file_offset,
+                              data_source_));
 }
 
 DataPack::Iterator DataPack::begin() const {
@@ -165,7 +163,7 @@ class DataPack::BufferDataSource : public DataPack::DataSource {
   const uint8_t* GetData() const override { return buffer_.data(); }
 
  private:
-  base::span<const uint8_t> buffer_;
+  base::raw_span<const uint8_t> buffer_;
 };
 
 DataPack::DataPack(ResourceScaleFactor resource_scale_factor)
@@ -202,7 +200,7 @@ std::unique_ptr<DataPack::DataSource> DataPack::LoadFromPathInternal(
     DLOG(ERROR) << "Failed to mmap datapack";
     return nullptr;
   }
-  if (MmapHasGzipHeader(mmap.get())) {
+  if (net::GZipHeader::HasGZipHeader(mmap->bytes())) {
     std::string_view compressed(reinterpret_cast<char*>(mmap->data()),
                                 mmap->length());
     std::string data;
@@ -366,15 +364,14 @@ bool DataPack::HasResource(uint16_t resource_id) const {
 }
 
 // static
-std::string_view DataPack::GetStringPieceFromOffset(
-    uint32_t target_offset,
-    uint32_t next_offset,
-    const uint8_t* data_source) {
+std::string_view DataPack::GetStringViewFromOffset(uint32_t target_offset,
+                                                   uint32_t next_offset,
+                                                   const uint8_t* data_source) {
   size_t length = next_offset - target_offset;
   return {reinterpret_cast<const char*>(data_source + target_offset), length};
 }
 
-std::optional<std::string_view> DataPack::GetStringPiece(
+std::optional<std::string_view> DataPack::GetStringView(
     uint16_t resource_id) const {
   const Entry* target = LookupEntryById(resource_id);
   if (!target)
@@ -404,14 +401,14 @@ std::optional<std::string_view> DataPack::GetStringPiece(
   }
 
   MaybePrintResourceId(resource_id);
-  return GetStringPieceFromOffset(target->file_offset, next_entry->file_offset,
-                                  data_source_->GetData());
+  return GetStringViewFromOffset(target->file_offset, next_entry->file_offset,
+                                 data_source_->GetData());
 }
 
 base::RefCountedStaticMemory* DataPack::GetStaticMemory(
     uint16_t resource_id) const {
-  if (auto piece = GetStringPiece(resource_id); piece.has_value()) {
-    return new base::RefCountedStaticMemory(piece->data(), piece->length());
+  if (auto view = GetStringView(resource_id); view.has_value()) {
+    return new base::RefCountedStaticMemory(base::as_byte_span(*view));
   }
   return nullptr;
 }
@@ -470,7 +467,7 @@ bool DataPack::WritePack(const base::FilePath& path,
   std::vector<uint16_t> resource_ids;
   std::map<uint16_t, uint16_t> aliases;  // resource_id -> entry_index
   if (resources_count > 0) {
-    // A reverse map from string pieces to the index of the corresponding
+    // A reverse map from string view to the index of the corresponding
     // original id in the final resource list.
     std::map<std::string_view, uint16_t> rev_map;
     for (const auto& entry : resources) {

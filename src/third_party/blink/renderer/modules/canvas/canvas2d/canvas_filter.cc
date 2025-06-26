@@ -4,9 +4,12 @@
 
 #include "third_party/blink/renderer/modules/canvas/canvas2d/canvas_filter.h"
 
+#include <utility>
+
 #include "base/check_deref.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_object_objectarray_string.h"
+#include "third_party/blink/renderer/bindings/modules/v8/v8_typedefs.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/style/filter_operations.h"
 #include "third_party/blink/renderer/modules/canvas/canvas2d/canvas_filter_operation_resolver.h"
@@ -21,15 +24,14 @@ CanvasFilter::CanvasFilter(FilterOperations filter_operations)
 CanvasFilter* CanvasFilter::Create(ScriptState* script_state,
                                    const V8CanvasFilterInput* init,
                                    ExceptionState& exception_state) {
-  Font font_for_filter = Font();
   return MakeGarbageCollected<CanvasFilter>(CreateFilterOperations(
-      CHECK_DEREF(init), font_for_filter, nullptr,
+      CHECK_DEREF(init), MakeGarbageCollected<Font>(), nullptr,
       CHECK_DEREF(ExecutionContext::From(script_state)), exception_state));
 }
 
 FilterOperations CanvasFilter::CreateFilterOperations(
     const V8CanvasFilterInput& filter_input,
-    const Font& font,
+    const Font* font,
     Element* style_resolution_host,
     ExecutionContext& execution_context,
     ExceptionState& exception_state) {

@@ -4,29 +4,36 @@
 
 package org.chromium.base.test.transit;
 
-import static androidx.test.espresso.matcher.ViewMatchers.isDisplayingAtLeast;
-
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.core.Is.is;
 
 import android.view.View;
 
-import androidx.annotation.IntDef;
 import androidx.test.espresso.Espresso;
-import androidx.test.espresso.UiController;
 import androidx.test.espresso.ViewAction;
-import androidx.test.espresso.ViewInteraction;
+import androidx.test.espresso.ViewAssertion;
+import androidx.test.espresso.action.ViewActions;
 
 import org.hamcrest.Matcher;
-import org.hamcrest.StringDescription;
 
-import org.chromium.base.test.util.ViewPrinter;
+import org.chromium.base.test.transit.ViewConditions.DisplayedCondition;
+import org.chromium.base.test.transit.ViewConditions.NotDisplayedAnymoreCondition;
+import org.chromium.base.test.util.ForgivingClickAction;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-
-/** An Element representing a view characteristic of a ConditionalState. */
-public class ViewElement {
+/**
+ * Represents a {@link ViewSpec} added to a {@link ConditionalState}.
+ *
+ * <p>{@link ViewSpec}s should be declared as constants, while {@link ViewElement}s are created by
+ * calling {@link Elements.Builder#declareView(ViewSpec)}.
+ *
+ * <p>Generates ENTER and EXIT Conditions for the ConditionalState to ensure the ViewElement is in
+ * the right state.
+ *
+ * @param <ViewT> the type of the View.
+ */
+@NullMarked
+public class ViewElement<ViewT extends View> extends Element<ViewT> {
 
     /**
      * Minimum percentage of the View that needs to be displayed for a ViewElement's enter
@@ -36,180 +43,134 @@ public class ViewElement {
      */
     public static final int MIN_DISPLAYED_PERCENT = 90;
 
-    @IntDef({Scope.CONDITIONAL_STATE_SCOPED, Scope.SHARED, Scope.UNSCOPED})
-    @Retention(RetentionPolicy.SOURCE)
-    @interface Scope {
-        int CONDITIONAL_STATE_SCOPED = 0;
-        int SHARED = 1;
-        int UNSCOPED = 2;
-    }
-
-    private final Matcher<View> mViewMatcher;
-    private final @Scope int mScope;
-    private final String mId;
+    private final ViewSpec<ViewT> mViewSpec;
     private final Options mOptions;
 
-    /** Alias for {@link #sharedViewElement(Matcher)} as the default way to declare ViewElements. */
-    public static ViewElement viewElement(Matcher<View> viewMatcher) {
-        return sharedViewElement(viewMatcher);
-    }
-
-    /**
-     * Version of {@link #sharedViewElement(Matcher, Options)} using default Options.
-     *
-     * <p>This is a good default method to the declare ViewElements; when in doubt, use this.
-     */
-    public static ViewElement sharedViewElement(Matcher<View> viewMatcher) {
-        return new ViewElement(viewMatcher, Scope.SHARED, Options.DEFAULT);
-    }
-
-    /**
-     * Create a shared ViewElement that matches |viewMatcher|.
-     *
-     * <p>ViewElements are matched to View instances as ENTER conditions.
-     *
-     * <p>Shared ViewElements add an EXIT condition that no View is matched unless transitioning to
-     * a ConditionalState that declares a ViewElement with the same id (which usually means an equal
-     * Matcher<View>).
-     */
-    public static ViewElement sharedViewElement(Matcher<View> viewMatcher, Options options) {
-        return new ViewElement(viewMatcher, Scope.SHARED, options);
-    }
-
-    /** Version of {@link #scopedViewElement(Matcher, Options)} using default Options. */
-    public static ViewElement scopedViewElement(Matcher<View> viewMatcher) {
-        return new ViewElement(viewMatcher, Scope.CONDITIONAL_STATE_SCOPED, Options.DEFAULT);
-    }
-
-    /**
-     * Create a ConditionalState-scoped ViewElement that matches |viewMatcher|.
-     *
-     * <p>ViewElements are matched to View instances as ENTER conditions.
-     *
-     * <p>ConditionalState-scoped ViewElements are the most restrictive; they generate an EXIT
-     * condition that no View is matched under any circumstances.
-     */
-    public static ViewElement scopedViewElement(Matcher<View> viewMatcher, Options options) {
-        return new ViewElement(viewMatcher, Scope.CONDITIONAL_STATE_SCOPED, options);
-    }
-
-    /** Version of {@link #unscopedViewElement(Matcher, Options)} using default Options. */
-    public static ViewElement unscopedViewElement(Matcher<View> viewMatcher) {
-        return new ViewElement(viewMatcher, Scope.UNSCOPED, Options.DEFAULT);
-    }
-
-    /**
-     * Create an unscoped ViewElement that matches |viewMatcher|.
-     *
-     * <p>ViewElements are matched to View instances as ENTER conditions.
-     *
-     * <p>Unscoped ViewElements are the most permissive; they do not generate EXIT conditions,
-     * therefore they may or may not be gone.
-     */
-    public static ViewElement unscopedViewElement(Matcher<View> viewMatcher, Options options) {
-        return new ViewElement(viewMatcher, Scope.UNSCOPED, options);
-    }
-
-    private ViewElement(Matcher<View> viewMatcher, @Scope int scope, Options options) {
-        mViewMatcher = viewMatcher;
-        mScope = scope;
-
-        if (options.mElementId != null) {
-            // Use a custom id instead of the Matcher description.
-            mId = options.mElementId;
-        } else {
-            // Capture the description as soon as possible to compare ViewElements added to
-            // different
-            // states by their description. Espresso Matcher descriptions are not stable; the
-            // integer
-            // resource ids are translated when a View is provided. See examples in
-            // https://crbug.com/41494895#comment7.
-            mId = StringDescription.toString(mViewMatcher);
-        }
-
+    ViewElement(ViewSpec<ViewT> viewSpec, Options options) {
+        super(
+                "VE/"
+                        + (options.mElementId != null
+                                ? options.mElementId
+                                : viewSpec.getMatcherDescription()));
+        mViewSpec = viewSpec;
         mOptions = options;
-    }
-
-    String getId() {
-        return "VE/" + mId;
-    }
-
-    /**
-     * @return the Matcher<View> used to create this element
-     */
-    public Matcher<View> getViewMatcher() {
-        return mViewMatcher;
-    }
-
-    @Scope
-    int getScope() {
-        return mScope;
-    }
-
-    /**
-     * Start an Espresso interaction with a displayed View that matches this ViewElement's Matcher.
-     */
-    public ViewInteraction onView() {
-        return Espresso.onView(allOf(mViewMatcher, isDisplayingAtLeast(MIN_DISPLAYED_PERCENT)));
-    }
-
-    /**
-     * Perform an Espresso ViewAction on a displayed View that matches this ViewElement's Matcher.
-     */
-    public ViewInteraction perform(ViewAction action) {
-        return onView().perform(action);
-    }
-
-    /**
-     * @return the Options passed when declaring the ViewElement.
-     */
-    public Options getOptions() {
-        return mOptions;
     }
 
     /**
      * @return an Options builder to customize the ViewElement further.
      */
-    public static Options.Builder newOptions() {
+    public static ViewElement.Options.Builder newOptions() {
         return new Options().new Builder();
     }
 
+    @Override
+    public ConditionWithResult<ViewT> createEnterCondition() {
+        Matcher<View> viewMatcher = mViewSpec.getViewMatcher();
+        DisplayedCondition.Options conditionOptions =
+                DisplayedCondition.newOptions()
+                        .withExpectEnabled(mOptions.mExpectEnabled)
+                        .withExpectDisabled(mOptions.mExpectDisabled)
+                        .withDisplayingAtLeast(mOptions.mDisplayedPercentageRequired)
+                        .withSettleTimeMs(mOptions.mInitialSettleTimeMs)
+                        .build();
+        return new DisplayedCondition<>(viewMatcher, mViewSpec.getViewClass(), conditionOptions);
+    }
+
     /**
-     * Print the whole View hierarchy that contains the View matched to this ViewElement.
-     *
-     * <p>For debugging.
+     * Create a {@link DisplayedCondition} like the enter Condition, but also waiting for the View
+     * to settle (no changes to its rect coordinates) for 1 second.
      */
-    public void printFromRoot() {
-        perform(
-                new ViewAction() {
-                    @Override
-                    public Matcher<View> getConstraints() {
-                        return instanceOf(View.class);
-                    }
+    public ConditionWithResult<ViewT> createSettleCondition() {
+        Matcher<View> viewMatcher = mViewSpec.getViewMatcher();
+        DisplayedCondition.Options conditionOptions =
+                DisplayedCondition.newOptions()
+                        .withExpectEnabled(mOptions.mExpectEnabled)
+                        .withExpectDisabled(mOptions.mExpectDisabled)
+                        .withDisplayingAtLeast(mOptions.mDisplayedPercentageRequired)
+                        .withSettleTimeMs(1000)
+                        .build();
+        return new DisplayedCondition<>(viewMatcher, mViewSpec.getViewClass(), conditionOptions);
+    }
 
-                    @Override
-                    public String getDescription() {
-                        return "print the View hierarchy for debugging";
-                    }
+    @Override
+    public @Nullable Condition createExitCondition() {
+        if (mOptions.mScoped) {
+            return new NotDisplayedAnymoreCondition(mViewSpec.getViewMatcher());
+        } else {
+            return null;
+        }
+    }
 
-                    @Override
-                    public void perform(UiController uiController, View view) {
-                        ViewPrinter.printView(view.getRootView());
-                    }
-                });
+    /** Returns the {@link ViewSpec} for this ViewElement. */
+    public ViewSpec<ViewT> getViewSpec() {
+        return mViewSpec;
+    }
+
+    /** Trigger an Espresso action on this View. */
+    public Transition.Trigger performTrigger(ViewAction action) {
+        return () -> {
+            View view = get();
+            Espresso.onView(is(view)).perform(action);
+        };
+    }
+
+    /**
+     * Trigger an Espresso click on this View.
+     *
+     * <p>Requires it to be >90% displayed.
+     */
+    public Transition.Trigger clickTrigger() {
+        return performTrigger(ViewActions.click());
+    }
+
+    /**
+     * Trigger an Espresso click on this View.
+     *
+     * <p>Does not require the View to be > 90% displayed like {@link #clickTrigger()}.
+     *
+     * <p>TODO(crbug.com/411140394): Rename clickTrigger() to strictClickTrigger() and rename this
+     * to clickTrigger().
+     */
+    public Transition.Trigger forgivingClickTrigger() {
+        return performTrigger(ForgivingClickAction.forgivingClick());
+    }
+
+    /**
+     * Trigger an Espresso long click on this View.
+     *
+     * <p>Requires it to be >90% displayed.
+     */
+    public Transition.Trigger longClickTrigger() {
+        return performTrigger(ViewActions.longClick());
+    }
+
+    /** Trigger an Espresso ViewAssertion on this View. */
+    public void check(ViewAssertion assertion) {
+        View view = get();
+        Espresso.onView(is(view)).check(assertion);
     }
 
     /** Extra options for declaring ViewElements. */
     public static class Options {
         static final Options DEFAULT = new Options();
+        protected boolean mScoped = true;
         protected boolean mExpectEnabled = true;
-        protected String mElementId;
+        protected boolean mExpectDisabled;
+        protected @Nullable String mElementId;
+        protected int mDisplayedPercentageRequired = ViewElement.MIN_DISPLAYED_PERCENT;
+        protected int mInitialSettleTimeMs;
 
         protected Options() {}
 
         public class Builder {
             public Options build() {
                 return Options.this;
+            }
+
+            /** Don't except the View to necessarily disappear when exiting the ConditionalState. */
+            public Builder unscoped() {
+                mScoped = false;
+                return this;
             }
 
             /** Use a custom Element id instead of the Matcher<View> description. */
@@ -229,8 +190,57 @@ public class ViewElement {
              */
             public Builder expectDisabled() {
                 mExpectEnabled = false;
+                mExpectDisabled = true;
+                return this;
+            }
+
+            /** Do not expect the View to be necessarily disabled or enabled. */
+            public Builder allowDisabled() {
+                mExpectEnabled = false;
+                mExpectDisabled = false;
+                return this;
+            }
+
+            /**
+             * Changes the minimum percentage of the View that needs be displayed to fulfill the
+             * enter Condition. Default is >=90% visible, which matches the minimum requirement for
+             * ViewInteractions like click().
+             */
+            public Builder displayingAtLeast(int percentage) {
+                mDisplayedPercentageRequired = percentage;
+                return this;
+            }
+
+            /** Waits for the View's rect to stop moving. */
+            public Builder initialSettleTime(int settleTimeMs) {
+                mInitialSettleTimeMs = settleTimeMs;
                 return this;
             }
         }
+    }
+
+    /** Convenience {@link Options} setting unscoped(). */
+    public static Options unscopedOption() {
+        return newOptions().unscoped().build();
+    }
+
+    /** Convenience {@link Options} setting elementId(). */
+    public static Options elementIdOption(String id) {
+        return newOptions().elementId(id).build();
+    }
+
+    /** Convenience {@link Options} setting expectDisabled(). */
+    public static Options expectDisabledOption() {
+        return newOptions().expectDisabled().build();
+    }
+
+    /** Convenience {@link Options} setting allowDisabled(). */
+    public static Options allowDisabledOption() {
+        return newOptions().allowDisabled().build();
+    }
+
+    /** Convenience {@link Options} setting displayingAtLeast(). */
+    public static Options displayingAtLeastOption(int percentage) {
+        return newOptions().displayingAtLeast(percentage).build();
     }
 }

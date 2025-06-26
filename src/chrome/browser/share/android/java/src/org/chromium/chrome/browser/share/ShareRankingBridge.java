@@ -8,15 +8,14 @@ import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.Callback;
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.profiles.Profile;
 
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * This class is a shim that wraps the JNI interface to the C++-side
- * ShareHistory object.
- */
+/** This class is a shim that wraps the JNI interface to the C++-side ShareHistory object. */
+@NullMarked
 public class ShareRankingBridge {
     public static void rank(
             Profile profile,
@@ -31,7 +30,7 @@ public class ShareRankingBridge {
                 .rank(
                         profile,
                         type,
-                        available.toArray(),
+                        available,
                         fold,
                         length,
                         persist,
@@ -44,8 +43,8 @@ public class ShareRankingBridge {
     public interface Natives {
         void rank(
                 @JniType("Profile*") Profile profile,
-                String type,
-                Object[] available,
+                @JniType("std::string") String type,
+                @JniType("std::vector<std::string>") List<String> available,
                 int fold,
                 int length,
                 boolean persist,

@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "ash/public/cpp/image_downloader.h"
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -17,9 +18,9 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
+#include "chrome/browser/ash/image_downloader/image_downloader_impl.h"
 #include "chrome/browser/ash/login/helper.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/browser/ui/ash/image_downloader_impl.h"
 #include "components/user_manager/user_image/user_image.h"
 #include "google_apis/credentials_mode.h"
 #include "ipc/ipc_channel.h"
@@ -61,7 +62,7 @@ struct ImageInfo {
   ImageInfo(ImageInfo&&) = default;
   ImageInfo& operator=(ImageInfo&&) = default;
 
-  ~ImageInfo() {}
+  ~ImageInfo() = default;
 
   base::FilePath file_path;
   int pixels_per_side;
@@ -120,12 +121,12 @@ user_manager::UserImage::ImageFormat ChooseImageFormatFromCodec(
       // image format of the bytes representation is unknown.
       return user_manager::UserImage::FORMAT_UNKNOWN;
   }
-  NOTREACHED_IN_MIGRATION();
-  return user_manager::UserImage::FORMAT_UNKNOWN;
+  NOTREACHED();
 }
 
 // Handles the decoded image returned from ImageDecoder through the
 // ImageRequest interface.
+// This class is self-deleting.
 class UserImageRequest : public ImageDecoder::ImageRequest {
  public:
   UserImageRequest(
@@ -133,12 +134,9 @@ class UserImageRequest : public ImageDecoder::ImageRequest {
       const std::string& image_data,
       scoped_refptr<base::SequencedTaskRunner> background_task_runner)
       : image_info_(std::move(image_info)),
-        // TODO(crbug.com/41243179): Remove the data copy here.
-        image_data_(new base::RefCountedBytes(
-            reinterpret_cast<const unsigned char*>(image_data.data()),
-            image_data.size())),
+        image_data_(base::MakeRefCounted<base::RefCountedBytes>(
+            base::as_byte_span(image_data))),
         background_task_runner_(background_task_runner) {}
-  ~UserImageRequest() override {}
 
   // ImageDecoder::ImageRequest implementation.
   void OnImageDecoded(const SkBitmap& decoded_image) override;
@@ -157,6 +155,8 @@ class UserImageRequest : public ImageDecoder::ImageRequest {
                         bool image_bytes_regenerated);
 
  private:
+  ~UserImageRequest() override = default;
+
   ImageInfo image_info_;
   scoped_refptr<base::RefCountedBytes> image_data_;
   scoped_refptr<base::SequencedTaskRunner> background_task_runner_;
@@ -238,7 +238,7 @@ void UserImageRequest::OnDecodeImageFailed() {
 void DecodeImage(
     ImageInfo image_info,
     scoped_refptr<base::SequencedTaskRunner> background_task_runner,
-    const std::string* data,
+    std::unique_ptr<std::string> data,
     bool data_is_ready) {
   if (!data_is_ready) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
@@ -249,9 +249,11 @@ void DecodeImage(
   }
 
   ImageDecoder::ImageCodec codec = image_info.image_codec;
-  UserImageRequest* image_request = new UserImageRequest(
-      std::move(image_info), *data, background_task_runner);
-  ImageDecoder::StartWithOptions(image_request, *data, codec, false);
+  // UserImageRequest is self-deleting.
+  auto* image_request = new UserImageRequest(std::move(image_info), *data,
+                                             std::move(background_task_runner));
+  ImageDecoder::StartWithOptions(image_request, std::move(*data), codec,
+                                 /*shrink_to_fit=*/false);
 }
 
 void OnAnimationDecoded(
@@ -275,8 +277,7 @@ void OnAnimationDecoded(
     image_skia.MakeThreadSafe();
 
     auto bytes = base::MakeRefCounted<base::RefCountedBytes>(
-        reinterpret_cast<const uint8_t*>(maybe_safe_encoded_data->data()),
-        maybe_safe_encoded_data->size());
+        base::as_byte_span(*maybe_safe_encoded_data));
     auto user_image = std::make_unique<user_manager::UserImage>(
         image_skia, bytes,
         frame_size == 1 ? user_manager::UserImage::FORMAT_PNG
@@ -294,10 +295,10 @@ void OnAnimationDecoded(
         FROM_HERE,
         base::BindOnce(
             [](const SkBitmap& bitmap) {
-              auto encoded = base::MakeRefCounted<base::RefCountedBytes>();
-              if (!gfx::PNGCodec::EncodeBGRASkBitmap(
-                      bitmap, /*discard_transparency=*/false,
-                      &encoded->as_vector())) {
+              std::optional<std::vector<uint8_t>> encoded =
+                  gfx::PNGCodec::EncodeBGRASkBitmap(
+                      bitmap, /*discard_transparency=*/false);
+              if (!encoded) {
                 return std::make_unique<user_manager::UserImage>();
               }
 
@@ -305,7 +306,10 @@ void OnAnimationDecoded(
               image_skia.MakeThreadSafe();
 
               auto user_image = std::make_unique<user_manager::UserImage>(
-                  image_skia, encoded, user_manager::UserImage::FORMAT_PNG);
+                  image_skia,
+                  base::MakeRefCounted<base::RefCountedBytes>(
+                      std::move(encoded).value()),
+                  user_manager::UserImage::FORMAT_PNG);
               user_image->MarkAsSafe();
 
               return user_image;
@@ -397,13 +401,14 @@ void StartWithFilePath(
     ImageDecoder::ImageCodec image_codec,
     int pixels_per_side,
     LoadedCallback loaded_cb) {
-  std::string* data = new std::string;
+  auto data = std::make_unique<std::string>();
+  auto* data_ptr = data.get();
   background_task_runner->PostTaskAndReplyWithResult(
-      FROM_HERE, base::BindOnce(&base::ReadFileToString, file_path, data),
+      FROM_HERE, base::BindOnce(&base::ReadFileToString, file_path, data_ptr),
       base::BindOnce(&DecodeImage,
                      ImageInfo(file_path, pixels_per_side, image_codec,
                                std::move(loaded_cb)),
-                     background_task_runner, base::Owned(data)));
+                     background_task_runner, std::move(data)));
 }
 
 void StartWithData(
@@ -414,7 +419,7 @@ void StartWithData(
     LoadedCallback loaded_cb) {
   DecodeImage(ImageInfo(base::FilePath(), pixels_per_side, image_codec,
                         std::move(loaded_cb)),
-              background_task_runner, data.get(), true /* data_is_ready */);
+              background_task_runner, std::move(data), /*data_is_ready=*/true);
 }
 
 void StartWithFilePathAnimated(

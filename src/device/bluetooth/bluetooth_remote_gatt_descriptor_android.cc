@@ -14,6 +14,8 @@
 #include "base/notreached.h"
 #include "base/task/single_thread_task_runner.h"
 #include "device/bluetooth/bluetooth_remote_gatt_service_android.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "device/bluetooth/jni_headers/ChromeBluetoothRemoteGattDescriptor_jni.h"
 
 using base::android::AttachCurrentThread;
@@ -104,7 +106,7 @@ void BluetoothRemoteGattDescriptorAndroid::ReadRemoteDescriptor(
 }
 
 void BluetoothRemoteGattDescriptorAndroid::WriteRemoteDescriptor(
-    const std::vector<uint8_t>& new_value,
+    base::span<const uint8_t> new_value,
     base::OnceClosure callback,
     ErrorCallback error_callback) {
   if (read_pending_ || write_pending_) {

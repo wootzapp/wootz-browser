@@ -9,6 +9,7 @@
 #include "base/containers/flat_map.h"
 #include "base/files/file_util.h"
 #include "base/strings/stringprintf.h"
+#include "base/strings/to_string.h"
 #include "base/test/trace_event_analyzer.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
@@ -185,7 +186,10 @@ class TabCapturePerformanceTest : public TabCapturePerformanceTestBase,
     trace_analyzer::TraceEventVector rate_events(events.begin() + trim_count,
                                                  events.end() - trim_count);
     trace_analyzer::RateStats stats;
-    const bool have_rate_stats = GetRateStats(rate_events, &stats, nullptr);
+    if (!GetRateStats(rate_events, &stats, nullptr)) {
+      return false;
+    }
+
     double mean_ms = stats.mean_us / 1000.0;
     double std_dev_ms = stats.standard_deviation_us / 1000.0;
     std::string mean_and_error = base::StringPrintf("%f,%f", mean_ms,
@@ -193,7 +197,7 @@ class TabCapturePerformanceTest : public TabCapturePerformanceTestBase,
     auto reporter = SetUpTabCaptureReporter(GetSuffixForTestFlags());
     reporter.AddResultMeanAndError(GetMetricFromEventName(event_name),
                                    mean_and_error);
-    return have_rate_stats;
+    return true;
   }
 
   // Analyze and print the mean and stddev of the amount of time between the
@@ -283,7 +287,7 @@ class TabCapturePerformanceTest : public TabCapturePerformanceTestBase,
 
 }  // namespace
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#if BUILDFLAG(IS_CHROMEOS)
 // Using MSAN on ChromeOS causes problems due to its hardware OpenGL library.
 #define MAYBE_Performance DISABLED_Performance
 #elif BUILDFLAG(IS_MAC)
@@ -304,7 +308,7 @@ IN_PROC_BROWSER_TEST_P(TabCapturePerformanceTest, MAYBE_Performance) {
   NavigateToTestPage(test_page_html_);
   const base::Value response = SendMessageToExtension(
       base::StringPrintf("{start:true, passThroughWebRTC:%s}",
-                         HasFlag(kTestThroughWebRTC) ? "true" : "false"));
+                         base::ToString(HasFlag(kTestThroughWebRTC))));
   ASSERT_TRUE(response.is_dict());
   const std::string* reason = response.GetDict().FindString("reason");
   ASSERT_TRUE(response.GetDict().FindBool("success").value_or(false))
@@ -348,7 +352,7 @@ IN_PROC_BROWSER_TEST_P(TabCapturePerformanceTest, MAYBE_Performance) {
       PrintFailRateResults(analyzer.get(), kEventCapture));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 
 // On ChromeOS, software compositing is not an option.
 INSTANTIATE_TEST_SUITE_P(All,
@@ -366,4 +370,4 @@ INSTANTIATE_TEST_SUITE_P(All,
                                          kTestThroughWebRTC,
                                          kTestThroughWebRTC | kUseGpu));
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)

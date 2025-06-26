@@ -12,7 +12,7 @@ suite('ComboboxTest', () => {
   let combobox: CustomizeChromeComboboxElement;
 
   function getGroup(groupIndex: number): HTMLElement {
-    return combobox.shadowRoot!.querySelectorAll('[role=group]')[groupIndex] as
+    return combobox.shadowRoot.querySelectorAll('[role=group]')[groupIndex] as
         HTMLElement;
   }
 
@@ -23,11 +23,11 @@ suite('ComboboxTest', () => {
   }
 
   function getDefaultOption(): HTMLElement {
-    return combobox.shadowRoot!.querySelector('#defaultOption')!;
+    return combobox.shadowRoot.querySelector('#defaultOption')!;
   }
 
   function getOption(optionIndex: number): HTMLElement {
-    return combobox.shadowRoot!.querySelectorAll(
+    return combobox.shadowRoot.querySelectorAll(
                '[role=option]:not(#defaultOption)')[optionIndex] as HTMLElement;
   }
 
@@ -36,7 +36,7 @@ suite('ComboboxTest', () => {
   }
 
   function getHighlightedElement() {
-    return combobox.shadowRoot!.querySelector('[highlighted]');
+    return combobox.shadowRoot.querySelector('[highlighted]');
   }
 
   function open() {
@@ -55,8 +55,8 @@ suite('ComboboxTest', () => {
     combobox.label = 'Label';
     combobox.defaultOptionLabel = 'Select a option';
     combobox.items = [
-      {label: 'Option 1'},
-      {label: 'Option 2'},
+      {key: 'Key 1', label: 'Option 1'},
+      {key: 'Key 2', label: 'Option 2'},
     ];
     document.body.appendChild(combobox);
     return microtasksFinished();
@@ -79,7 +79,7 @@ suite('ComboboxTest', () => {
       assertTrue(isVisible(combobox.$.dropdown));
       assertEquals(
           expectedHighlight,
-          combobox.shadowRoot!.querySelector('[highlighted]'));
+          combobox.shadowRoot.querySelector('[highlighted]'));
       // Close the dropdown.
       return keydown('Escape');
     }
@@ -97,12 +97,17 @@ suite('ComboboxTest', () => {
   test('HighlightsItemsOnKeydownWhenOpen', async () => {
     combobox.items = [
       {
+        key: 'Key A',
         label: 'Group A',
-        items: [{label: 'Option A1'}, {label: 'OptionA2'}],
+        items: [
+          {key: 'Key A1', label: 'Option A1'},
+          {key: 'KeyA2', label: 'OptionA2'},
+        ],
       },
       {
+        key: 'Key B',
         label: 'Group B',
-        items: [{label: 'Option B1'}],
+        items: [{key: 'Key B1', label: 'Option B1'}],
       },
     ];
     await microtasksFinished();
@@ -153,8 +158,9 @@ suite('ComboboxTest', () => {
   test('HighlightsOnPointerover', async () => {
     combobox.items = [
       {
+        key: 'Key A',
         label: 'Group A',
-        items: [{label: 'Option A1'}],
+        items: [{key: 'Key A1', label: 'Option A1'}],
       },
     ];
     await microtasksFinished();
@@ -205,8 +211,12 @@ suite('ComboboxTest', () => {
   test('SelectsItem', async () => {
     combobox.items = [
       {
+        key: 'Key A',
         label: 'Group A',
-        items: [{label: 'I am option 1'}, {label: 'I am option 2'}],
+        items: [
+          {key: 'I am key 1', label: 'I am option 1'},
+          {key: 'I am key 2', label: 'I am option 2'},
+        ],
       },
     ];
     await microtasksFinished();
@@ -267,7 +277,7 @@ suite('ComboboxTest', () => {
     option.click();
     await microtasksFinished();
     assertTrue(option.hasAttribute('selected'));
-    assertEquals('Option 1', combobox.value);
+    assertEquals('Key 1', combobox.value);
     option.click();
     await microtasksFinished();
     assertFalse(option.hasAttribute('selected'));
@@ -278,7 +288,7 @@ suite('ComboboxTest', () => {
     await keydown('ArrowDown');
     await keydown('Enter');
     assertTrue(option.hasAttribute('selected'));
-    assertEquals('Option 1', combobox.value);
+    assertEquals('Key 1', combobox.value);
     await open();
     await keydown('Enter');
     assertFalse(option.hasAttribute('selected'));
@@ -293,14 +303,14 @@ suite('ComboboxTest', () => {
     await open();
     option1.click();
     await valueChangeEvent;
-    assertEquals('Option 1', combobox.value);
+    assertEquals('Key 1', combobox.value);
     assertTrue(option1.hasAttribute('selected'));
 
     valueChangeEvent = eventToPromise('value-changed', combobox);
     await open();
     option2.click();
     await valueChangeEvent;
-    assertEquals('Option 2', combobox.value);
+    assertEquals('Key 2', combobox.value);
     assertTrue(option2.hasAttribute('selected'));
   });
 
@@ -308,12 +318,12 @@ suite('ComboboxTest', () => {
     const option1 = getOption(0);
     const option2 = getOption(1);
 
-    combobox.value = 'Option 1';
+    combobox.value = 'Key 1';
     await microtasksFinished();
     assertTrue(option1.hasAttribute('selected'));
     assertFalse(option2.hasAttribute('selected'));
 
-    combobox.value = 'Option 2';
+    combobox.value = 'Key 2';
     await microtasksFinished();
     assertFalse(option1.hasAttribute('selected'));
     assertTrue(option2.hasAttribute('selected'));
@@ -345,8 +355,12 @@ suite('ComboboxTest', () => {
   test('ExpandsAndCollapsesCategories', async () => {
     combobox.items = [
       {
+        key: 'Key A',
         label: 'Group A',
-        items: [{label: 'I am option 1'}, {label: 'I am option 2'}],
+        items: [
+          {key: 'I am key 1', label: 'I am option 1'},
+          {key: 'I am key 2', label: 'I am option 2'},
+        ],
       },
     ];
     await open();
@@ -354,7 +368,7 @@ suite('ComboboxTest', () => {
     // Only the default option should be visible yet since group is by default
     // collapsed.
     assertEquals(
-        1, combobox.shadowRoot!.querySelectorAll('[role=option]').length);
+        1, combobox.shadowRoot.querySelectorAll('[role=option]').length);
 
     const groupLabel = getGroup(0).querySelector('label')!;
     const groupLabelIcon = groupLabel.querySelector('cr-icon')!;
@@ -365,7 +379,7 @@ suite('ComboboxTest', () => {
     toggleGroupExpand(0);
     await microtasksFinished();
     const options = Array.from<HTMLElement>(
-        combobox.shadowRoot!.querySelectorAll('[role=option]'));
+        combobox.shadowRoot.querySelectorAll('[role=option]'));
     assertEquals(3, options.filter(option => isVisible(option)).length);
 
     assertEquals('true', groupLabel.ariaExpanded);
@@ -381,12 +395,12 @@ suite('ComboboxTest', () => {
 
   test('CheckmarksSelectedOption', async () => {
     combobox.items = [
-      {label: 'Option 1', imagePath: 'image/path1.png'},
-      {label: 'Option 2', imagePath: 'image/path2.png'},
+      {key: 'Key 1', label: 'Option 1', imagePath: 'image/path1.png'},
+      {key: 'Key 2', label: 'Option 2', imagePath: 'image/path2.png'},
     ];
     await microtasksFinished();
 
-    const optionCheckmarks = combobox.shadowRoot!.querySelectorAll(
+    const optionCheckmarks = combobox.shadowRoot.querySelectorAll(
         'customize-chrome-check-mark-wrapper');
     assertEquals(2, optionCheckmarks.length);
 
@@ -395,12 +409,12 @@ suite('ComboboxTest', () => {
     assertFalse(option1Checkmark.checked);
     assertFalse(option2Checkmark.checked);
 
-    combobox.value = 'Option 1';
+    combobox.value = 'Key 1';
     await microtasksFinished();
     assertTrue(option1Checkmark.checked);
     assertFalse(option2Checkmark.checked);
 
-    combobox.value = 'Option 2';
+    combobox.value = 'Key 2';
     await microtasksFinished();
     assertFalse(option1Checkmark.checked);
     assertTrue(option2Checkmark.checked);
@@ -410,7 +424,7 @@ suite('ComboboxTest', () => {
     await open();
     getOption(0).click();
     await microtasksFinished();
-    assertEquals('Option 1', combobox.value);
+    assertEquals('Key 1', combobox.value);
 
     getDefaultOption().click();
     await microtasksFinished();
@@ -425,8 +439,12 @@ suite('ComboboxTest', () => {
     // Groups should not indent default option.
     combobox.items = [
       {
+        key: 'Key A',
         label: 'Group A',
-        items: [{label: 'I am option 1'}, {label: 'I am option 2'}],
+        items: [
+          {key: 'I am key 1', label: 'I am option 1'},
+          {key: 'I am key 2', label: 'I am option 2'},
+        ],
       },
     ];
     await microtasksFinished();
@@ -434,7 +452,7 @@ suite('ComboboxTest', () => {
 
     // Items with images should not indent.
     combobox.items = [
-      {label: 'Option 1', imagePath: 'image/path1.png'},
+      {key: 'Key 1', label: 'Option 1', imagePath: 'image/path1.png'},
     ];
     await microtasksFinished();
     assertEquals('20px', defaultOptionStyles.paddingInlineStart);

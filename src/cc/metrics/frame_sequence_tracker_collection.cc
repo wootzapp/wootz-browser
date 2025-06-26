@@ -11,6 +11,7 @@
 #include "base/memory/ptr_util.h"
 #include "cc/metrics/compositor_frame_reporting_controller.h"
 #include "cc/metrics/frame_sequence_tracker.h"
+#include "cc/metrics/ukm_dropped_frames_data.h"
 
 namespace cc {
 
@@ -75,6 +76,13 @@ FrameSequenceTracker* FrameSequenceTrackerCollection::StartSequenceInternal(
           ThreadType::kCompositor, true);
     }
     ++compositor_thread_driving_smoothness_;
+  } else if (metrics->GetEffectiveThread() == ThreadType::kRaster) {
+    if (compositor_frame_reporting_controller_ &&
+        raster_thread_driving_smoothness_ == 0) {
+      compositor_frame_reporting_controller_->SetThreadAffectsSmoothness(
+          ThreadType::kRaster, true);
+    }
+    ++raster_thread_driving_smoothness_;
   } else {
     DCHECK_EQ(metrics->GetEffectiveThread(), ThreadType::kMain);
     if (compositor_frame_reporting_controller_ &&
@@ -122,6 +130,9 @@ void FrameSequenceTrackerCollection::StopSequence(
     key = std::make_pair(type, ThreadType::kCompositor);
     if (!frame_trackers_.contains(key))
       key = std::make_pair(type, ThreadType::kMain);
+    if (!frame_trackers_.contains(key)) {
+      key = std::make_pair(type, ThreadType::kRaster);
+    }
   }
 
   if (!frame_trackers_.contains(key))
@@ -140,6 +151,14 @@ void FrameSequenceTrackerCollection::StopSequence(
         compositor_thread_driving_smoothness_ == 0) {
       compositor_frame_reporting_controller_->SetThreadAffectsSmoothness(
           ThreadType::kCompositor, false);
+    }
+  } else if (tracker->metrics()->GetEffectiveThread() == ThreadType::kRaster) {
+    DCHECK_GT(raster_thread_driving_smoothness_, 0u);
+    --raster_thread_driving_smoothness_;
+    if (compositor_frame_reporting_controller_ &&
+        raster_thread_driving_smoothness_ == 0) {
+      compositor_frame_reporting_controller_->SetThreadAffectsSmoothness(
+          ThreadType::kRaster, false);
     }
   } else {
     DCHECK_GT(main_thread_driving_smoothness_, 0u);
@@ -244,8 +263,17 @@ void FrameSequenceTrackerCollection::DestroyTrackers() {
         accumulated_metrics_.erase(key);
       }
 
-      if (metrics->HasEnoughDataForReporting())
-        metrics->ReportMetrics();
+      if (metrics->HasEnoughDataForReporting()) {
+        // This value is guaranteed to be positive by the
+        // previous HasEnoughDataForReporting check.
+        int percent_dropped_frames4 = metrics->ReportMetrics();
+        CHECK_GE(percent_dropped_frames4, 0);
+        if (ukm_dropped_frames_data_) {
+          UkmDroppedFramesData dropped_frames_data;
+          dropped_frames_data.percent_dropped_frames = percent_dropped_frames4;
+          ukm_dropped_frames_data_->Write(dropped_frames_data);
+        }
+      }
       if (metrics->HasDataLeftForReporting())
         accumulated_metrics_[key] = std::move(metrics);
     }
@@ -334,6 +362,11 @@ void FrameSequenceTrackerCollection::AddSortedFrame(
   }
 
   DestroyTrackers();
+}
+
+void FrameSequenceTrackerCollection::SetUkmDroppedFramesDestination(
+    UkmDroppedFramesDataShared* dropped_frames_data) {
+  ukm_dropped_frames_data_ = dropped_frames_data;
 }
 
 }  // namespace cc

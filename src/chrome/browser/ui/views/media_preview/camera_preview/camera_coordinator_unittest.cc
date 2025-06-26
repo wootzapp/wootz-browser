@@ -18,6 +18,7 @@
 #include "base/test/test_future.h"
 #include "chrome/browser/media/prefs/capture_device_ranking.h"
 #include "chrome/browser/ui/views/frame/test_with_browser_view.h"
+#include "chrome/browser/ui/views/media_preview/media_preview_metrics.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/media_effects/test/fake_audio_service.h"
 #include "components/media_effects/test/fake_video_capture_service.h"
@@ -32,6 +33,8 @@ using testing::Pointwise;
 
 namespace {
 
+constexpr char kNumDevicesHistogram[] =
+    "MediaPreviews.UI.DeviceSelection.Permissions.Camera.NumDevices";
 constexpr char kDeviceId[] = "device_id";
 constexpr char kDeviceName[] = "device_name";
 constexpr char kDeviceId2[] = "device_id_2";
@@ -41,7 +44,8 @@ media_preview_metrics::Context GetMetricsContext() {
   // Camera coordinator is expected to narrow preview type to kCamera.
   // This is verified in ExpectHistogramTotalDevices() below.
   return {media_preview_metrics::UiLocation::kPermissionPrompt,
-          media_preview_metrics::PreviewType::kCameraAndMic};
+          media_preview_metrics::PreviewType::kCameraAndMic,
+          media_preview_metrics::PromptType::kCombined, nullptr};
 }
 
 MATCHER_P(HasItems, items, "") {
@@ -94,19 +98,12 @@ class CameraCoordinatorTest : public TestWithBrowserView {
 
     coordinator_.emplace(*parent_view_,
                          /*needs_borders=*/true, eligible_camera_ids,
-                         *profile()->GetPrefs(),
-                         /*allow_device_selection=*/true, GetMetricsContext());
+                         /*allow_device_selection=*/true,
+                         profile()->GetWeakPtr(), GetMetricsContext());
   }
 
   const ui::SimpleComboboxModel& GetComboboxModel() const {
     return coordinator_->GetComboboxModelForTest();
-  }
-
-  void VerifyEmptyCombobox() const {
-    // Our combobox model size will always be >= 1.
-    // Verify that there is precisely one item in the combobox model.
-    EXPECT_EQ(GetComboboxModel().GetItemCount(), 1u);
-    EXPECT_EQ(GetComboboxModel().GetItemAt(/*index=*/0), std::u16string());
   }
 
   bool AddFakeCamera(const media::VideoCaptureDeviceDescriptor& descriptor) {
@@ -118,9 +115,7 @@ class CameraCoordinatorTest : public TestWithBrowserView {
   }
 
   void ExpectHistogramTotalDevices(size_t expected_bucket_min_value) {
-    const std::string histogram_name =
-        "MediaPreviews.UI.DeviceSelection.Permissions.Camera.NumDevices";
-    histogram_tester_->ExpectUniqueSample(histogram_name,
+    histogram_tester_->ExpectUniqueSample(kNumDevicesHistogram,
                                           expected_bucket_min_value,
                                           /*expected_bucket_count=*/1);
     histogram_tester_.emplace();
@@ -141,7 +136,7 @@ class CameraCoordinatorTest : public TestWithBrowserView {
 };
 
 TEST_F(CameraCoordinatorTest, RelevantVideoCaptureDeviceInfoExtraction) {
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add first camera, and connect to it.
   // camera connection is done automatically to the device at combobox's default
@@ -174,7 +169,7 @@ TEST_F(CameraCoordinatorTest, RelevantVideoCaptureDeviceInfoExtraction) {
 
   // Remove first camera.
   ASSERT_TRUE(RemoveFakeCamera(kDeviceId));
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   coordinator_.reset();
   ExpectHistogramTotalDevices(/*expected_bucket_min_value=*/0);
@@ -183,16 +178,18 @@ TEST_F(CameraCoordinatorTest, RelevantVideoCaptureDeviceInfoExtraction) {
 TEST_F(CameraCoordinatorTest,
        RelevantVideoCaptureDeviceInfoExtraction_ConstrainedToEligibleDevices) {
   coordinator_.reset();
-  ExpectHistogramTotalDevices(/*expected_bucket_min_value=*/0);
+  // Nothing is recorded if device list is not initialized yet.
+  histogram_tester_->ExpectTotalCount(kNumDevicesHistogram,
+                                      /*expected_count=*/0);
 
   InitializeCoordinator({kDeviceId2});
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add first camera. It won't be added to the combobox because it's not in the
   // eligible list.
   ASSERT_TRUE(AddFakeCamera({kDeviceName, kDeviceId}));
   EXPECT_FALSE(on_get_video_source_future_.IsReady());
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add second camera and connect to it since it's in the eligible list.
   ASSERT_TRUE(AddFakeCamera({kDeviceName2, kDeviceId2}));
@@ -206,14 +203,14 @@ TEST_F(CameraCoordinatorTest,
 
   // Remove second camera.
   ASSERT_TRUE(RemoveFakeCamera(kDeviceId2));
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   coordinator_.reset();
   ExpectHistogramTotalDevices(/*expected_bucket_min_value=*/0);
 }
 
 TEST_F(CameraCoordinatorTest, ConnectToDifferentDevice) {
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add first camera, and connect to it.
   ASSERT_TRUE(AddFakeCamera({kDeviceName, kDeviceId}));
@@ -232,7 +229,7 @@ TEST_F(CameraCoordinatorTest, ConnectToDifferentDevice) {
 }
 
 TEST_F(CameraCoordinatorTest, TryConnectToSameDevice) {
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add camera, and connect to it.
   ASSERT_TRUE(AddFakeCamera({kDeviceName, kDeviceId}));
@@ -245,7 +242,7 @@ TEST_F(CameraCoordinatorTest, TryConnectToSameDevice) {
 
   // Remove camera.
   ASSERT_TRUE(RemoveFakeCamera(kDeviceId));
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
 
   // Add camera, and connect to it again.
   ASSERT_TRUE(AddFakeCamera({kDeviceName, kDeviceId}));
@@ -256,7 +253,7 @@ TEST_F(CameraCoordinatorTest, TryConnectToSameDevice) {
 }
 
 TEST_F(CameraCoordinatorTest, UpdateDevicePreferenceRanking) {
-  VerifyEmptyCombobox();
+  EXPECT_EQ(GetComboboxModel().GetItemCount(), 0u);
   const media::VideoCaptureDeviceInfo kDevice1{{kDeviceName, kDeviceId}};
   const media::VideoCaptureDeviceInfo kDevice2{{kDeviceName2, kDeviceId2}};
 

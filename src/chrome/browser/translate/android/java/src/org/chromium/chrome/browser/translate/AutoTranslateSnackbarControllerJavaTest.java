@@ -19,15 +19,14 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 
 import java.lang.ref.WeakReference;
 import java.util.concurrent.ExecutionException;
@@ -39,8 +38,6 @@ import java.util.concurrent.ExecutionException;
 public final class AutoTranslateSnackbarControllerJavaTest {
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
-
-    @Rule public JniMocker mJniMocker = new JniMocker();
 
     private static final long NATIVE_SNACKBAR_VIEW = 1001L;
 
@@ -62,7 +59,7 @@ public final class AutoTranslateSnackbarControllerJavaTest {
                 new AutoTranslateSnackbarController(
                         weakReference, mSnackbarManager, NATIVE_SNACKBAR_VIEW);
 
-        mJniMocker.mock(AutoTranslateSnackbarControllerJni.TEST_HOOKS, mMockJni);
+        AutoTranslateSnackbarControllerJni.setInstanceForTesting(mMockJni);
     }
 
     @Test
@@ -79,22 +76,22 @@ public final class AutoTranslateSnackbarControllerJavaTest {
                 currentSnackbar.getController() instanceof AutoTranslateSnackbarController);
         Assert.assertTrue(
                 "Incorrect ActionData type",
-                currentSnackbar.getActionDataForTesting()
+                currentSnackbar.getActionData()
                         instanceof AutoTranslateSnackbarController.TargetLanguageData);
         AutoTranslateSnackbarController.TargetLanguageData data =
                 (AutoTranslateSnackbarController.TargetLanguageData)
-                        currentSnackbar.getActionDataForTesting();
+                        currentSnackbar.getActionData();
         Assert.assertEquals("en", data.getTargetLanguage());
     }
 
-    @Test
-    @SmallTest
     /**
      * The target language is stored in Translate format, which uses the old deprecated Java codes
      * for several languages (Hebrew, Indonesian), and uses "tl" while Chromium uses "fil" for
      * Tagalog/Filipino. This tests that when using Translate format codes the Chrome version is
      * displayed in the Snackbar.
      */
+    @Test
+    @SmallTest
     public void testShowSnackbarChromeLanguage() throws Exception {
         // Use the Translate tag tl which Chrome should display as "Filipino"
         showSnackbar("tl");
@@ -105,7 +102,7 @@ public final class AutoTranslateSnackbarControllerJavaTest {
         Assert.assertEquals("Page translated to Filipino", getSnackbarMessageText());
         AutoTranslateSnackbarController.TargetLanguageData data =
                 (AutoTranslateSnackbarController.TargetLanguageData)
-                        currentSnackbar.getActionDataForTesting();
+                        currentSnackbar.getActionData();
         Assert.assertEquals("tl", data.getTargetLanguage());
     }
 
@@ -137,16 +134,16 @@ public final class AutoTranslateSnackbarControllerJavaTest {
     }
 
     private void showSnackbar(String targetLanguage) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mAutoTranslateSnackbarController.show(targetLanguage));
     }
 
     private void dismissSnackbar() {
-        TestThreadUtils.runOnUiThreadBlocking(() -> mAutoTranslateSnackbarController.dismiss());
+        ThreadUtils.runOnUiThreadBlocking(() -> mAutoTranslateSnackbarController.dismiss());
     }
 
     private void clickSnackbarAction() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mSnackbarManager.onClick(
                                 mActivityTestRule
@@ -155,7 +152,7 @@ public final class AutoTranslateSnackbarControllerJavaTest {
     }
 
     private void timeoutSnackbar() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mSnackbarManager.dismissSnackbars(
                                 mSnackbarManager.getCurrentSnackbarForTesting().getController()));
@@ -174,7 +171,7 @@ public final class AutoTranslateSnackbarControllerJavaTest {
     }
 
     private Snackbar getCurrentSnackbar() throws ExecutionException {
-        return TestThreadUtils.runOnUiThreadBlocking(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> mSnackbarManager.getCurrentSnackbarForTesting());
     }
 }

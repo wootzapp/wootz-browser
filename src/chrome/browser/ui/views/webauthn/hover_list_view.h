@@ -7,13 +7,13 @@
 
 #include <map>
 #include <memory>
-#include <optional>
 #include <string>
 
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/webauthn/hover_list_model.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/image_model.h"
+#include "ui/views/controls/button/button.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/view.h"
 
@@ -55,6 +55,7 @@ class HoverListView : public views::View {
   void AppendListItemView(const ui::ImageModel& icon,
                           std::u16string item_text,
                           std::u16string item_description,
+                          bool enabled,
                           int item_tag);
   void CreateAndAppendPlaceholderItem();
   views::Button& GetTopListItemView() const;

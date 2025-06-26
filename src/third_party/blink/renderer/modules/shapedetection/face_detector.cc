@@ -7,7 +7,7 @@
 #include <utility>
 
 #include "services/shape_detection/public/mojom/facedetection_provider.mojom-blink.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
@@ -16,10 +16,10 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_landmark.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_point_2d.h"
 #include "third_party/blink/renderer/core/dom/dom_exception.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/geometry/dom_rect.h"
-#include "third_party/blink/renderer/core/html/canvas/canvas_image_source.h"
 #include "third_party/blink/renderer/core/workers/worker_thread.h"
+#include "third_party/blink/renderer/modules/canvas/imagebitmap/image_bitmap_source_util.h"
 #include "third_party/blink/renderer/modules/shapedetection/shape_detection_type_converter.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
@@ -57,8 +57,8 @@ ScriptPromise<IDLSequence<DetectedFace>> FaceDetector::detect(
     ScriptState* script_state,
     const V8ImageBitmapSource* image_source,
     ExceptionState& exception_state) {
-  std::optional<SkBitmap> bitmap =
-      GetBitmapFromSource(script_state, image_source, exception_state);
+  std::optional<SkBitmap> bitmap = GetBitmapFromV8ImageBitmapSource(
+      script_state, image_source, exception_state);
   if (!bitmap) {
     return ScriptPromise<IDLSequence<DetectedFace>>();
   }
@@ -141,7 +141,7 @@ void FaceDetector::OnFaceServiceConnectionError() {
 }
 
 void FaceDetector::Trace(Visitor* visitor) const {
-  ShapeDetector::Trace(visitor);
+  ScriptWrappable::Trace(visitor);
   visitor->Trace(face_service_);
   visitor->Trace(face_service_requests_);
 }

@@ -4,6 +4,7 @@
 
 #include "components/translate/core/browser/translate_prefs.h"
 
+#include <algorithm>
 #include <limits>
 #include <map>
 #include <memory>
@@ -16,13 +17,11 @@
 #include "base/feature_list.h"
 #include "base/i18n/rtl.h"
 #include "base/json/values_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/language/core/browser/accept_languages_service.h"
 #include "components/language/core/browser/language_prefs.h"
 #include "components/language/core/browser/pref_names.h"
@@ -57,30 +56,6 @@ bool ContainsSameBaseLanguage(const std::vector<std::string>& list,
   return false;
 }
 
-// Removes from the language list any language that isn't supported as an
-// Accept-Language (it's not in kAcceptLanguageList) if and only if there
-// aren't any other languages from the same family in the list that are
-// supported.
-void PurgeUnsupportedLanguagesInLanguageFamily(std::string_view language,
-                                               std::vector<std::string>* list) {
-  std::string_view base_language = language::ExtractBaseLanguage(language);
-  for (const auto& lang : *list) {
-    // This method only operates on languages in the same family as |language|.
-    if (base_language != language::ExtractBaseLanguage(lang))
-      continue;
-    // If at least one of these same-family languages in |list| is supported by
-    // Accept-Languages, then that means that none of the languages in this
-    // family should be purged.
-    if (language::AcceptLanguagesService::CanBeAcceptLanguage(lang))
-      return;
-  }
-
-  // Purge all languages in the same family as |language|.
-  std::erase_if(*list, [base_language](const std::string& lang) {
-    return base_language == language::ExtractBaseLanguage(lang);
-  });
-}
-
 // Merge old always-translate languages from the deprecated pref to the new
 // version. Because of crbug/1291356, it's possible that on iOS the client
 // started using the new pref without properly migrating and clearing the old
@@ -105,7 +80,7 @@ void MigrateObsoleteAlwaysTranslateLanguagesPref(PrefService* prefs) {
     // about always translating from or to the old source language, or always
     // translating from the old target language, then skip merging this pair
     // into the new pref.
-    if (base::ranges::any_of(
+    if (std::ranges::any_of(
             always_translate_dictionary,
             [&old_language_pair](const auto& new_language_pair) {
               return old_language_pair.first == new_language_pair.first ||
@@ -120,10 +95,8 @@ void MigrateObsoleteAlwaysTranslateLanguagesPref(PrefService* prefs) {
     // If the old pair's source language matches any of the never-translate
     // languages, it probably means that this source language was set to never
     // be translated after the old pref was deprecated, so avoid this conflict.
-    const std::string& (base::Value::*get_string)() const =
-        &base::Value::GetString;
     if (base::Contains(prefs->GetList(prefs::kBlockedLanguages),
-                       old_language_pair.first, get_string)) {
+                       old_language_pair.first)) {
       continue;
     }
 
@@ -134,6 +107,17 @@ void MigrateObsoleteAlwaysTranslateLanguagesPref(PrefService* prefs) {
   prefs->ClearPref(TranslatePrefs::kPrefAlwaysTranslateListDeprecated);
 }
 
+bool IsTranslateLanguage(std::string_view language) {
+  // Allow "xx" to be used for testing purposes.
+  if (language == "xx") {
+    return true;
+  }
+
+  // Check if |language| is translatable.
+  TranslateLanguageList* language_list =
+      TranslateDownloadManager::GetInstance()->language_list();
+  return language_list && language_list->IsSupportedLanguage(language);
+}
 }  // namespace
 
 // The below properties used to be used but now are deprecated. Don't use them
@@ -226,7 +210,7 @@ void TranslatePrefs::ResetToDefaults() {
 // static
 base::Value::List TranslatePrefs::GetDefaultBlockedLanguages() {
   base::Value::List languages;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // Preferred languages.
   std::string language = language::kFallbackInputMethodLocale;
   language::ToTranslateLanguageSynonym(&language);
@@ -274,14 +258,18 @@ bool TranslatePrefs::IsBlockedLanguage(std::string_view input_language) const {
 
 void TranslatePrefs::BlockLanguage(std::string_view input_language) {
   DCHECK(!input_language.empty());
-  if (!IsBlockedLanguage(input_language)) {
-    std::string canonical_lang(input_language);
-    language::ToTranslateLanguageSynonym(&canonical_lang);
+  std::string canonical_lang(input_language);
+  language::ToTranslateLanguageSynonym(&canonical_lang);
+  if (!l10n_util::IsPossibleAcceptLanguage(canonical_lang)) {
+    return;
+  }
+
+  if (!IsBlockedLanguage(canonical_lang)) {
     ScopedListPrefUpdate update(prefs_, translate::prefs::kBlockedLanguages);
     update->Append(std::move(canonical_lang));
   }
   // Remove the blocked language from the always translate list if present.
-  SetLanguageAlwaysTranslateState(input_language, false);
+  RemoveLanguagePairFromAlwaysTranslateList(input_language);
 }
 
 void TranslatePrefs::UnblockLanguage(std::string_view input_language) {
@@ -312,7 +300,13 @@ std::vector<std::string> TranslatePrefs::GetNeverTranslateLanguages() const {
 
   std::vector<std::string> languages;
   for (const auto& language : fluent_languages_value) {
-    std::string chrome_language(language.GetString());
+    const std::string* language_as_string = language.GetIfString();
+    // This needs to be checked here as there can be corrupt entries in the pref
+    // list which causes a crash.
+    if (!language_as_string) {
+      continue;
+    }
+    std::string chrome_language{*language_as_string};
     language::ToChromeLanguageSynonym(&chrome_language);
     languages.push_back(chrome_language);
   }
@@ -363,12 +357,10 @@ void TranslatePrefs::RemoveFromLanguageList(std::string_view input_language) {
   GetUserSelectedLanguageList(&user_selected_languages);
 
   // Remove the language from the list.
-  const auto& it = base::ranges::find(user_selected_languages, chrome_language);
+  const auto& it = std::ranges::find(user_selected_languages, chrome_language);
   if (it != user_selected_languages.end()) {
 
     user_selected_languages.erase(it);
-    PurgeUnsupportedLanguagesInLanguageFamily(chrome_language,
-                                              &user_selected_languages);
     language_prefs_->SetUserSelectedLanguagesList(user_selected_languages);
 
     // We should unblock the language if this was the last one from the same
@@ -399,7 +391,7 @@ void TranslatePrefs::RearrangeLanguage(
   std::vector<std::string> languages;
   GetUserSelectedLanguageList(&languages);
 
-  auto pos = base::ranges::find(languages, language);
+  auto pos = std::ranges::find(languages, language);
   if (pos == languages.end())
     return;
 
@@ -461,8 +453,7 @@ void TranslatePrefs::RearrangeLanguage(
       return;
 
     default:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
 
   language_prefs_->SetUserSelectedLanguagesList(languages);
@@ -508,14 +499,9 @@ void TranslatePrefs::GetLanguageInfoList(
         std::move(code);
   }
 
-  // Get the sorted list of translatable languages.
-  std::vector<std::string> translate_languages;
-  translate::TranslateDownloadManager::GetSupportedLanguages(
-      translate_allowed, &translate_languages);
-  // |translate_languages| should already be sorted alphabetically for fast
-  // searching.
-  DCHECK(
-      std::is_sorted(translate_languages.begin(), translate_languages.end()));
+  if (translate_allowed) {
+    translate::TranslateDownloadManager::RequestLanguageList();
+  }
 
   // Build the language list from the language map.
   for (auto& entry : language_map) {
@@ -532,15 +518,13 @@ void TranslatePrefs::GetLanguageInfoList(
     language.native_display_name =
         base::UTF16ToUTF8(adjusted_native_display_name);
 
-    std::string supports_translate_code = language.code;
-
     // Extract the base language: if the base language can be translated, then
     // even the regional one should be marked as such.
-    language::ToTranslateLanguageSynonym(&supports_translate_code);
+    std::string translate_code = language.code;
+    language::ToTranslateLanguageSynonym(&translate_code);
     language.supports_translate =
-        std::binary_search(translate_languages.begin(),
-                           translate_languages.end(), supports_translate_code);
-
+        translate::TranslateDownloadManager::IsSupportedLanguage(
+            translate_code);
     language_list->push_back(std::move(language));
   }
 }
@@ -644,13 +628,17 @@ bool TranslatePrefs::IsLanguagePairOnAlwaysTranslateList(
 void TranslatePrefs::AddLanguagePairToAlwaysTranslateList(
     std::string_view source_language,
     std::string_view target_language) {
-  ScopedDictPrefUpdate update(prefs_, prefs::kPrefAlwaysTranslateList);
-
   // Get translate version of language codes.
   std::string translate_source_language(source_language);
   language::ToTranslateLanguageSynonym(&translate_source_language);
   std::string translate_target_language(target_language);
   language::ToTranslateLanguageSynonym(&translate_target_language);
+  if (!IsTranslateLanguage(translate_source_language) ||
+      !IsTranslateLanguage(translate_target_language)) {
+    return;
+  }
+
+  ScopedDictPrefUpdate update(prefs_, prefs::kPrefAlwaysTranslateList);
 
   update->Set(translate_source_language, translate_target_language);
   // Remove source language from block list if present.
@@ -658,26 +646,13 @@ void TranslatePrefs::AddLanguagePairToAlwaysTranslateList(
 }
 
 void TranslatePrefs::RemoveLanguagePairFromAlwaysTranslateList(
-    std::string_view source_language,
-    std::string_view target_language) {
+    std::string_view source_language) {
   ScopedDictPrefUpdate update(prefs_, prefs::kPrefAlwaysTranslateList);
 
   // Get translate version of language codes.
   std::string translate_source_language(source_language);
   language::ToTranslateLanguageSynonym(&translate_source_language);
   update->Remove(translate_source_language);
-}
-
-void TranslatePrefs::SetLanguageAlwaysTranslateState(
-    std::string_view source_language,
-    bool always_translate) {
-  if (always_translate) {
-    AddLanguagePairToAlwaysTranslateList(source_language,
-                                         GetRecentTargetLanguage());
-  } else {
-    RemoveLanguagePairFromAlwaysTranslateList(source_language,
-                                              GetRecentTargetLanguage());
-  }
 }
 
 std::vector<std::string> TranslatePrefs::GetAlwaysTranslateLanguages() const {
@@ -1004,7 +979,7 @@ void TranslatePrefs::RemoveValueFromNeverPromptList(const char* pref_id,
   ScopedListPrefUpdate update(prefs_, pref_id);
   base::Value::List& never_prompt_list = update.Get();
 
-  auto value_to_erase = base::ranges::find_if(
+  auto value_to_erase = std::ranges::find_if(
       never_prompt_list, [value](const base::Value& value_in_list) {
         return value_in_list.is_string() && value_in_list.GetString() == value;
       });

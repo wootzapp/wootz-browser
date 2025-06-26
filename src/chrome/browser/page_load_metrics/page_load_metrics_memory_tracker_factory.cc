@@ -5,6 +5,7 @@
 #include "chrome/browser/page_load_metrics/page_load_metrics_memory_tracker_factory.h"
 
 #include "base/no_destructor.h"
+#include "components/page_load_metrics/browser/features.h"
 #include "components/page_load_metrics/browser/page_load_metrics_memory_tracker.h"
 
 namespace page_load_metrics {
@@ -30,6 +31,9 @@ PageLoadMetricsMemoryTrackerFactory::PageLoadMetricsMemoryTrackerFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
               .Build()) {}
 
 bool PageLoadMetricsMemoryTrackerFactory::ServiceIsCreatedWithBrowserContext()

@@ -59,12 +59,13 @@ class TestBookmarkClientImpl : public BookmarkClientBase {
       const std::string& metadata_str,
       const base::RepeatingClosure& schedule_save_closure) override {}
 
-  void DecodeAccountBookmarkSyncMetadata(
+  DecodeAccountBookmarkSyncMetadataResult DecodeAccountBookmarkSyncMetadata(
       const std::string& metadata_str,
-      const base::RepeatingClosure& schedule_save_closure) override {}
+      const base::RepeatingClosure& schedule_save_closure) override {
+    return DecodeAccountBookmarkSyncMetadataResult::kSuccess;
+  }
 
   void OnBookmarkNodeRemovedUndoable(
-      bookmarks::BookmarkModel* model,
       const bookmarks::BookmarkNode* parent,
       size_t index,
       std::unique_ptr<bookmarks::BookmarkNode> node) override {}
@@ -150,7 +151,7 @@ TEST_F(BookmarkClientBaseTest, SuggestedFolder) {
 TEST_F(BookmarkClientBaseTest, SuggestedFolder_Rejected) {
   const GURL url_for_suggestion("http://example.com");
   const GURL url_for_suggestion2("http://example.com/other");
-  std::set<const GURL> url_set = {url_for_suggestion, url_for_suggestion2};
+  const std::set<GURL> url_set = {url_for_suggestion, url_for_suggestion2};
   const bookmarks::BookmarkNode* suggested_folder =
       model()->AddFolder(model()->other_node(), 0, u"suggested folder");
 
@@ -205,7 +206,7 @@ TEST_F(BookmarkClientBaseTest, SuggestedFolder_Rejected) {
 TEST_F(BookmarkClientBaseTest, SuggestedFolder_RejectionCoolOff) {
   const GURL url_for_suggestion("http://example.com");
   const GURL url_for_suggestion2("http://example.com/other");
-  std::set<const GURL> url_set = {url_for_suggestion, url_for_suggestion2};
+  const std::set<GURL> url_set = {url_for_suggestion, url_for_suggestion2};
   const bookmarks::BookmarkNode* suggested_folder =
       model()->AddFolder(model()->other_node(), 0, u"suggested folder");
 
@@ -275,8 +276,8 @@ TEST_F(BookmarkClientBaseTest, SuggestedFolder_ExplicitSave) {
   // Save another bookmark to the suggested folder explicitly, even though the
   // system wouldn't normally suggest it.
   const GURL normal_bookmark_url1 = GURL("http://example.com/normal_1");
-  bookmarks::AddIfNotBookmarked(model(), normal_bookmark_url1, u"bookmark 1",
-                                suggested_folder);
+  model()->AddNewURL(suggested_folder, suggested_folder->children().size(),
+                     u"bookmark 1", normal_bookmark_url1);
   node = model()->GetMostRecentlyAddedUserNodeForURL(normal_bookmark_url1);
   ASSERT_EQ(node->parent(), suggested_folder);
 

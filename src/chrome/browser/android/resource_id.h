@@ -51,6 +51,8 @@ DECLARE_RESOURCE_ID(IDR_ANDORID_MESSAGE_PERMISSION_CAMERA,
                     R.drawable.ic_photo_camera_black)
 DECLARE_RESOURCE_ID(IDR_ANDROID_MESSAGE_PERMISSION_XR,
                     R.drawable.gm_filled_cardboard_24)
+DECLARE_RESOURCE_ID(IDR_ANDROID_MESSAGE_PERMISSION_HAND_TRACKING,
+                    R.drawable.gm_filled_hand_gesture_24)
 DECLARE_RESOURCE_ID(IDR_ANDROID_MESSAGE_SETTINGS, R.drawable.settings_cog)
 DECLARE_RESOURCE_ID(IDR_ANDROID_MESSAGE_SHIELD_BLUE,
                     R.drawable.blue_google_shield)
@@ -86,6 +88,10 @@ DECLARE_RESOURCE_ID(IDR_ANDROID_AUTOFILL_UPLOAD_ADDRESS,
 // We use PNG files for the following images.
 LINK_RESOURCE_ID(IDR_CREDIT_CARD_CVC_HINT_BACK, R.drawable.cvc_icon)
 LINK_RESOURCE_ID(IDR_CREDIT_CARD_CVC_HINT_FRONT_AMEX, R.drawable.cvc_icon_amex)
+
+// A generic info outline icon.
+DECLARE_RESOURCE_ID(IDR_ANDROID_INFO_OUTLINE_LOGO_24DP,
+                    R.drawable.ic_info_outline_grey_24dp)
 
 // About this site resources
 // Page insights logo is used for Google branded builds only.

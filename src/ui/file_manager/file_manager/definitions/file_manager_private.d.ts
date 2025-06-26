@@ -367,6 +367,13 @@ declare global {
         ONEDRIVE = 'onedrive',
       }
 
+      export enum MigrationDestination {
+        NOT_SPECIFIED = 'not_specified',
+        GOOGLE_DRIVE = 'google_drive',
+        ONEDRIVE = 'onedrive',
+        DELETE = 'delete',
+      }
+
       export interface FileTaskDescriptor {
         appId: string;
         taskType: string;
@@ -554,6 +561,8 @@ declare global {
         driveFsBulkPinningEnabled: boolean;
         localUserFilesAllowed: boolean;
         defaultLocation: DefaultLocation;
+        skyVaultMigrationDestination: MigrationDestination;
+        skyVaultMigrationStartTime?: string;
       }
 
       export interface PreferencesChange {
@@ -1012,8 +1021,6 @@ declare global {
           void;
 
       export function notifyDriveDialogResult(result: DriveDialogResult): void;
-
-      export function openURL(url: string): void;
 
       export function openWindow(
           params: OpenWindowParams, callback: (result: boolean) => void): void;

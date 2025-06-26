@@ -22,13 +22,16 @@ namespace {
 
 class MockBufferMapCallback {
  public:
-  MOCK_METHOD(void, Call, (WGPUBufferMapAsyncStatus status, void* userdata));
+  MOCK_METHOD(void,
+              Call,
+              (wgpu::MapAsyncStatus status, wgpu::StringView message));
 };
 std::unique_ptr<testing::StrictMock<MockBufferMapCallback>>
     mock_buffer_map_callback;
 
-void ToMockBufferMapCallback(WGPUBufferMapAsyncStatus status, void* userdata) {
-  mock_buffer_map_callback->Call(status, userdata);
+void ToMockBufferMapCallback(wgpu::MapAsyncStatus status,
+                             wgpu::StringView message) {
+  mock_buffer_map_callback->Call(status, message);
 }
 
 }  // namespace
@@ -79,9 +82,8 @@ class SharedImageGLBackingProduceDawnTest : public WebGPUTest {
 };
 
 // Tests using Associate/DissociateMailbox to share an image with Dawn.
-// For simplicity of the test the image is shared between a Dawn device and
-// itself: we render to it using the Dawn device, then re-associate it to a
-// Dawn texture and read back the values that were written.
+// We render to the `SharedImage` via GL, re-associate it to a Dawn texture,
+// and read back the values that were written.
 TEST_F(SharedImageGLBackingProduceDawnTest, Basic) {
   if (ShouldSkipTest())
     return;
@@ -96,20 +98,18 @@ TEST_F(SharedImageGLBackingProduceDawnTest, Basic) {
 
   // Create the shared image
   SharedImageInterface* sii = gl_context_->GetSharedImageInterface();
-  scoped_refptr<gpu::ClientSharedImage> shared_image =
-      sii->CreateSharedImage({viz::SinglePlaneFormat::kRGBA_8888,
-                              {1, 1},
-                              gfx::ColorSpace::CreateSRGB(),
-                              SHARED_IMAGE_USAGE_GLES2_WRITE,
-                              "TestLabel"},
-                             kNullSurfaceHandle);
+  scoped_refptr<gpu::ClientSharedImage> shared_image = sii->CreateSharedImage(
+      {viz::SinglePlaneFormat::kRGBA_8888,
+       {1, 1},
+       gfx::ColorSpace::CreateSRGB(),
+       SharedImageUsageSet(
+           {SHARED_IMAGE_USAGE_GLES2_WRITE, SHARED_IMAGE_USAGE_WEBGPU_READ}),
+       "TestLabel"},
+      kNullSurfaceHandle);
   SyncToken mailbox_produced_token = sii->GenVerifiedSyncToken();
-  gl()->WaitSyncTokenCHROMIUM(mailbox_produced_token.GetConstData());
-  GLuint texture = gl()->CreateAndTexStorage2DSharedImageCHROMIUM(
-      shared_image->mailbox().name);
-
-  gl()->BeginSharedImageAccessDirectCHROMIUM(
-      texture, GL_SHARED_IMAGE_ACCESS_MODE_READWRITE_CHROMIUM);
+  auto texture = shared_image->CreateGLTexture(gl());
+  auto scoped_access =
+      texture->BeginAccess(mailbox_produced_token, /*readonly=*/false);
   GLuint fbo = 0;
   gl()->GenFramebuffers(1, &fbo);
   gl()->BindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -117,15 +117,14 @@ TEST_F(SharedImageGLBackingProduceDawnTest, Basic) {
   // Attach the texture to FBO.
   gl()->FramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                              GL_TEXTURE_2D, /* Hard code */
-                             texture, 0);
+                             scoped_access->texture_id(), 0);
 
   // Set the clear color to green.
   gl()->ClearColor(0.0f, 1.0f, 0.0f, 1.0f);
   gl()->Clear(GL_COLOR_BUFFER_BIT);
-  gl()->EndSharedImageAccessDirectCHROMIUM(texture);
 
-  SyncToken gl_op_token;
-  gl()->GenUnverifiedSyncTokenCHROMIUM(gl_op_token.GetData());
+  SyncToken gl_op_token = gpu::SharedImageTexture::ScopedAccess::EndAccess(
+      std::move(scoped_access));
   webgpu()->WaitSyncTokenCHROMIUM(gl_op_token.GetConstData());
 
   wgpu::Device device = GetNewDevice();
@@ -147,12 +146,12 @@ TEST_F(SharedImageGLBackingProduceDawnTest, Basic) {
     buffer_desc.usage = wgpu::BufferUsage::MapRead | wgpu::BufferUsage::CopyDst;
     wgpu::Buffer readback_buffer = device.CreateBuffer(&buffer_desc);
 
-    wgpu::ImageCopyTexture copy_src = {};
+    wgpu::TexelCopyTextureInfo copy_src = {};
     copy_src.texture = wgpu_texture;
     copy_src.mipLevel = 0;
     copy_src.origin = {0, 0, 0};
 
-    wgpu::ImageCopyBuffer copy_dst = {};
+    wgpu::TexelCopyBufferInfo copy_dst = {};
     copy_dst.buffer = readback_buffer;
     copy_dst.layout.offset = 0;
     copy_dst.layout.bytesPerRow = 256;
@@ -169,12 +168,12 @@ TEST_F(SharedImageGLBackingProduceDawnTest, Basic) {
     webgpu()->DissociateMailbox(reservation.id, reservation.generation);
 
     // Map the buffer and assert the pixel is the correct value.
-    readback_buffer.MapAsync(wgpu::MapMode::Read, 0, 4, ToMockBufferMapCallback,
-                             nullptr);
+    readback_buffer.MapAsync(wgpu::MapMode::Read, 0, 4,
+                             wgpu::CallbackMode::AllowSpontaneous,
+                             ToMockBufferMapCallback);
     EXPECT_CALL(*mock_buffer_map_callback,
-                Call(WGPUBufferMapAsyncStatus_Success, nullptr))
+                Call(wgpu::MapAsyncStatus::Success, testing::_))
         .Times(1);
-
     WaitForCompletion(device);
 
     const void* data = readback_buffer.GetConstMappedRange(0, 4);

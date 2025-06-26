@@ -9,16 +9,24 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import android.content.ClipData;
+import android.content.ClipDescription;
+import android.net.Uri;
+import android.view.DragEvent;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.MotionEvent.PointerCoords;
+import android.view.View;
 
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -26,14 +34,13 @@ import org.mockito.MockitoAnnotations;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.JniMocker;
-import org.chromium.ui.MotionEventUtils;
+import org.chromium.base.test.util.HistogramWatcher;
+import org.chromium.ui.util.MotionEventUtils;
 
 /** Tests logic in the {@link EventForwarder} class. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class EventForwarderTest {
-    @Rule public JniMocker mocker = new JniMocker();
 
     @Mock EventForwarder.Natives mNativeMock;
 
@@ -42,7 +49,7 @@ public class EventForwarderTest {
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        mocker.mock(EventForwarderJni.TEST_HOOKS, mNativeMock);
+        EventForwarderJni.setInstanceForTesting(mNativeMock);
     }
 
     @Test
@@ -89,13 +96,22 @@ public class EventForwarderTest {
     }
 
     @Test
+    public void testSendTrackpadHoverAsMouseEventToNative() {
+        EventForwarder eventForwarder = new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true);
+        MotionEvent hoverEvent = getTrackpadEvent(MotionEvent.ACTION_HOVER_MOVE, 0);
+        eventForwarder.onHoverEvent(hoverEvent);
+        verifyNativeMouseEventSent(NATIVE_EVENT_FORWARDER_ID, hoverEvent, eventForwarder, 1);
+    }
+
+    @Test
     public void testMotionEventWithHistory() {
         EventForwarder eventForwarder = new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, false);
+        final long downTime = 100;
         final long eventTime = 200;
         final long latestEventTime = 400;
         MotionEvent dragEvent =
                 MotionEvent.obtain(
-                        /* downTime= */ 100,
+                        downTime,
                         eventTime,
                         MotionEvent.ACTION_MOVE,
                         /* x= */ 14,
@@ -117,6 +133,7 @@ public class EventForwarderTest {
                         dragEvent,
                         eventTime * 1000_000,
                         latestEventTime * 1000_000,
+                        downTime,
                         dragEvent.getActionMasked(),
                         1,
                         /* historySize= */ 1,
@@ -155,6 +172,7 @@ public class EventForwarderTest {
                         anyLong(),
                         any(EventForwarder.class),
                         any(MotionEvent.class),
+                        anyLong(),
                         anyLong(),
                         anyLong(),
                         anyInt(),
@@ -224,6 +242,256 @@ public class EventForwarderTest {
                         anyInt());
     }
 
+    @Test
+    public void testDragDropEvent() {
+        // Text.
+        validateDragDropEvent(
+                new String[] {"text/plain"},
+                new ClipData.Item[] {new ClipData.Item("text content")},
+                new String[][] {}, // expectedFilenames
+                "text content", // expectedText
+                null, // expectedHtml
+                null); // expectedUrl
+
+        // Html.
+        validateDragDropEvent(
+                new String[] {"text/html"},
+                new ClipData.Item[] {new ClipData.Item("text content", "html content")},
+                new String[][] {}, // expectedFilenames
+                "text content", // expectedText
+                "html content", // expectedHtml
+                null); // expectedUrl
+
+        // Url.
+        validateDragDropEvent(
+                new String[] {"text/x-moz-url"},
+                new ClipData.Item[] {new ClipData.Item("url content")},
+                new String[][] {}, // expectedFilenames
+                "url content", // expectedText
+                null, // expectedHtml
+                "url content"); // expectedUrl
+
+        // Files.
+        validateDragDropEvent(
+                new String[] {"image/jpeg", "text/plain"},
+                new ClipData.Item[] {
+                    new ClipData.Item(Uri.parse("image.jpg")),
+                    new ClipData.Item(Uri.parse("hello.txt"))
+                },
+                new String[][] {{"image.jpg", ""}, {"hello.txt", ""}}, // expectedFilenames
+                null, // expectedText
+                null, // expectedHtml
+                null); // expectedUrl
+    }
+
+    @Test
+    public void testCapturedPointerTrackpadMoveEvent() {
+        EventForwarder eventForwarder = new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true);
+
+        final long downTime = 100;
+        final long eventTime = 200;
+        MotionEvent moveEvent =
+                MotionEvent.obtain(
+                        downTime,
+                        eventTime,
+                        MotionEvent.ACTION_MOVE,
+                        /* x= */ 14,
+                        /* y= */ 21,
+                        /* metaState= */ 0);
+        moveEvent.setSource(InputDevice.SOURCE_TOUCHPAD);
+
+        eventForwarder.onCapturedPointerEvent(moveEvent);
+        verify(mNativeMock, never())
+                .onMouseEvent(
+                        anyLong(),
+                        any(EventForwarder.class),
+                        anyLong(),
+                        anyInt(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyInt(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt());
+    }
+
+    @Test
+    public void testCapturedPointerTrackpadMoveEventAfterDown() {
+        EventForwarder eventForwarder = new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true);
+        final long downTime = 100;
+        final long eventTime = 200;
+        MotionEvent downEvent =
+                MotionEvent.obtain(
+                        downTime,
+                        eventTime,
+                        MotionEvent.ACTION_DOWN,
+                        /* x= */ 14,
+                        /* y= */ 21,
+                        /* metaState= */ 0);
+        downEvent.setSource(InputDevice.SOURCE_TOUCHPAD);
+        eventForwarder.onCapturedPointerEvent(downEvent);
+
+        MotionEvent moveEvent =
+                MotionEvent.obtain(
+                        downTime,
+                        eventTime,
+                        MotionEvent.ACTION_MOVE,
+                        /* x= */ 16,
+                        /* y= */ 23,
+                        /* metaState= */ 0);
+        moveEvent.setSource(InputDevice.SOURCE_TOUCHPAD);
+        eventForwarder.onCapturedPointerEvent(moveEvent);
+
+        verify(mNativeMock, times(1))
+                .onMouseEvent(
+                        NATIVE_EVENT_FORWARDER_ID,
+                        eventForwarder,
+                        MotionEventUtils.getEventTimeNanos(moveEvent),
+                        moveEvent.getActionMasked(),
+                        moveEvent.getX() - downEvent.getX(),
+                        moveEvent.getY() - downEvent.getY(),
+                        moveEvent.getPointerId(0),
+                        moveEvent.getPressure(0),
+                        moveEvent.getOrientation(0),
+                        moveEvent.getAxisValue(MotionEvent.AXIS_TILT, 0),
+                        EventForwarder.getMouseEventActionButton(moveEvent),
+                        moveEvent.getButtonState(),
+                        moveEvent.getMetaState(),
+                        MotionEvent.TOOL_TYPE_MOUSE);
+    }
+
+    @Test
+    public void testCapturedPointerTrackpadRightClickEvent() {
+        testCapturedPointerTrackpadMultiTouchClickEvent(2, MotionEvent.BUTTON_SECONDARY);
+    }
+
+    @Test
+    public void testCapturedPointerTrackpadMiddleClickEvent() {
+        testCapturedPointerTrackpadMultiTouchClickEvent(3, MotionEvent.BUTTON_TERTIARY);
+    }
+
+    private void testCapturedPointerTrackpadMultiTouchClickEvent(int pointersCnt, int buttonState) {
+        EventForwarder eventForwarder = new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true);
+
+        MotionEvent moveEvent =
+                MotionEvent.obtain(
+                        0,
+                        0,
+                        MotionEvent.ACTION_BUTTON_PRESS,
+                        pointersCnt,
+                        getToolTypeFingerProperties(pointersCnt),
+                        getPointerCoords(pointersCnt),
+                        0,
+                        MotionEvent.BUTTON_PRIMARY,
+                        0,
+                        0,
+                        0,
+                        0,
+                        InputDevice.SOURCE_TOUCHPAD,
+                        0);
+
+        eventForwarder.onCapturedPointerEvent(moveEvent);
+        verify(mNativeMock, times(1))
+                .onMouseEvent(
+                        NATIVE_EVENT_FORWARDER_ID,
+                        eventForwarder,
+                        MotionEventUtils.getEventTimeNanos(moveEvent),
+                        moveEvent.getActionMasked(),
+                        0,
+                        0,
+                        moveEvent.getPointerId(0),
+                        moveEvent.getPressure(0),
+                        moveEvent.getOrientation(0),
+                        moveEvent.getAxisValue(MotionEvent.AXIS_TILT, 0),
+                        EventForwarder.getMouseEventActionButton(moveEvent),
+                        buttonState,
+                        moveEvent.getMetaState(),
+                        MotionEvent.TOOL_TYPE_MOUSE);
+    }
+
+    @Test
+    public void testCapturedPointerMouseMoveEvent() {
+        EventForwarder eventForwarder = new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true);
+
+        final long downTime = 100;
+        final long eventTime = 200;
+        MotionEvent moveEvent =
+                MotionEvent.obtain(
+                        downTime,
+                        eventTime,
+                        MotionEvent.ACTION_MOVE,
+                        /* x= */ 1,
+                        /* y= */ -1,
+                        /* metaState= */ 0);
+        moveEvent.setSource(InputDevice.SOURCE_MOUSE_RELATIVE);
+
+        eventForwarder.onCapturedPointerEvent(moveEvent);
+        verify(mNativeMock, times(1))
+                .onMouseEvent(
+                        NATIVE_EVENT_FORWARDER_ID,
+                        eventForwarder,
+                        MotionEventUtils.getEventTimeNanos(moveEvent),
+                        moveEvent.getActionMasked(),
+                        moveEvent.getX(),
+                        moveEvent.getY(),
+                        moveEvent.getPointerId(0),
+                        moveEvent.getPressure(0),
+                        moveEvent.getOrientation(0),
+                        moveEvent.getAxisValue(MotionEvent.AXIS_TILT, 0),
+                        EventForwarder.getMouseEventActionButton(moveEvent),
+                        moveEvent.getButtonState(),
+                        moveEvent.getMetaState(),
+                        moveEvent.getToolType(0));
+
+        eventForwarder.onCapturedPointerEvent(moveEvent);
+        verify(mNativeMock, times(1))
+                .onMouseEvent(
+                        NATIVE_EVENT_FORWARDER_ID,
+                        eventForwarder,
+                        MotionEventUtils.getEventTimeNanos(moveEvent),
+                        moveEvent.getActionMasked(),
+                        moveEvent.getX() * 2,
+                        moveEvent.getY() * 2,
+                        moveEvent.getPointerId(0),
+                        moveEvent.getPressure(0),
+                        moveEvent.getOrientation(0),
+                        moveEvent.getAxisValue(MotionEvent.AXIS_TILT, 0),
+                        EventForwarder.getMouseEventActionButton(moveEvent),
+                        moveEvent.getButtonState(),
+                        moveEvent.getMetaState(),
+                        moveEvent.getToolType(0));
+    }
+
+    @Test
+    public void testCapturedPointerMouseScrollEvent() {
+        EventForwarder eventForwarder = new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, true);
+
+        final long downTime = 100;
+        final long eventTime = 200;
+        MotionEvent scrollEvent =
+                MotionEvent.obtain(
+                        downTime,
+                        eventTime,
+                        MotionEvent.ACTION_SCROLL,
+                        /* x= */ 0,
+                        /* y= */ 0,
+                        /* metaState= */ 0);
+        scrollEvent.setSource(InputDevice.SOURCE_MOUSE_RELATIVE);
+
+        eventForwarder.onCapturedPointerEvent(scrollEvent);
+        verify(mNativeMock, times(1))
+                .onGenericMotionEvent(
+                        anyLong(),
+                        any(EventForwarder.class),
+                        any(MotionEvent.class),
+                        anyLong(),
+                        anyLong());
+    }
+
     private void verifyNativeMouseEventSent(
             long nativeEventForwarder,
             MotionEvent event,
@@ -265,8 +533,8 @@ public class EventForwarderTest {
                 0,
                 action,
                 1,
-                getToolTypeFingerProperties(),
-                getPointerCoords(),
+                getToolTypeFingerProperties(1),
+                getPointerCoords(1),
                 0,
                 buttonState,
                 0,
@@ -277,26 +545,86 @@ public class EventForwarderTest {
                 0);
     }
 
-    private static MotionEvent.PointerProperties[] getToolTypeFingerProperties() {
+    private static MotionEvent.PointerProperties[] getToolTypeFingerProperties(int pointersCnt) {
         MotionEvent.PointerProperties[] pointerPropertiesArray =
-                new MotionEvent.PointerProperties[1];
-        MotionEvent.PointerProperties trackpadProperties = new MotionEvent.PointerProperties();
-        trackpadProperties.id = 7;
-        trackpadProperties.toolType = MotionEvent.TOOL_TYPE_FINGER;
-        pointerPropertiesArray[0] = trackpadProperties;
+                new MotionEvent.PointerProperties[pointersCnt];
+        for (int i = 0; i < pointersCnt; i++) {
+            MotionEvent.PointerProperties trackpadProperties = new MotionEvent.PointerProperties();
+            trackpadProperties.id = 7 + i;
+            trackpadProperties.toolType = MotionEvent.TOOL_TYPE_FINGER;
+            pointerPropertiesArray[i] = trackpadProperties;
+        }
         return pointerPropertiesArray;
     }
 
-    private static MotionEvent.PointerCoords[] getPointerCoords() {
-        MotionEvent.PointerCoords[] pointerCoordsArray = new MotionEvent.PointerCoords[1];
-        MotionEvent.PointerCoords coords = new MotionEvent.PointerCoords();
-        coords.x = 14;
-        coords.y = 21;
-        pointerCoordsArray[0] = coords;
+    private static MotionEvent.PointerCoords[] getPointerCoords(int pointersCnt) {
+        MotionEvent.PointerCoords[] pointerCoordsArray = new MotionEvent.PointerCoords[pointersCnt];
+        for (int i = 0; i < pointersCnt; i++) {
+            MotionEvent.PointerCoords coords = new MotionEvent.PointerCoords();
+            coords.x = 14 + i;
+            coords.y = 21 + i;
+            pointerCoordsArray[i] = coords;
+        }
         return pointerCoordsArray;
     }
 
     private static int getTrackpadSource() {
         return InputDevice.SOURCE_MOUSE;
+    }
+
+    private void validateDragDropEvent(
+            String[] mimeTypes,
+            ClipData.Item[] items,
+            String[][] expectedFilenames,
+            String expectedText,
+            String expectedHtml,
+            String expectedUrl) {
+        ClipData clipData = new ClipData("label", mimeTypes, items[0]);
+        for (int i = 1; i < items.length; i++) {
+            clipData.addItem(items[i]);
+        }
+        ClipDescription clipDescription = new ClipDescription("label", mimeTypes);
+        EventForwarder eventForwarder = new EventForwarder(NATIVE_EVENT_FORWARDER_ID, true, false);
+        DragEvent event = mock(DragEvent.class);
+        doReturn(DragEvent.ACTION_DROP).when(event).getAction();
+        doReturn(14f).when(event).getX();
+        doReturn(21f).when(event).getY();
+        doReturn(clipData).when(event).getClipData();
+        doReturn(clipDescription).when(event).getClipDescription();
+        HistogramWatcher histograms =
+                HistogramWatcher.newBuilder()
+                        .expectIntRecord("Android.DragDrop.Files.Count", expectedFilenames.length)
+                        .build();
+        eventForwarder.onDragEvent(event, mock(View.class));
+        verify(mNativeMock, times(1))
+                .onDragEvent(
+                        eq(EventForwarderTest.NATIVE_EVENT_FORWARDER_ID),
+                        eq(eventForwarder),
+                        eq(DragEvent.ACTION_DROP),
+                        eq(14.0f), // x
+                        eq(21.0f), // y
+                        eq(14.0f), // screenX
+                        eq(21.0f), // screenY
+                        eq(mimeTypes),
+                        eq(""), // content
+                        argThat(
+                                filenames -> {
+                                    if (filenames.length != expectedFilenames.length) {
+                                        return false;
+                                    }
+                                    for (int i = 0; i < filenames.length; i++) {
+                                        if (filenames[i].length != 2
+                                                || !expectedFilenames[i][0].equals(filenames[i][0])
+                                                || !expectedFilenames[i][1].equals(
+                                                        filenames[i][1])) {
+                                            return false;
+                                        }
+                                    }
+                                    return true;
+                                }),
+                        eq(expectedText),
+                        eq(expectedHtml),
+                        eq(expectedUrl));
+        histograms.assertExpected();
     }
 }

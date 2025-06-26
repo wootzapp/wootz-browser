@@ -32,6 +32,7 @@
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/events/types/event_type.h"
+#include "ui/views/accessibility/view_accessibility.h"
 
 namespace ash {
 
@@ -107,12 +108,22 @@ class AutoclickTest : public AshTestBase {
         ->menu_view_;
   }
 
+  AutoclickScrollBubbleController* GetAutoclickScrollBubbleController() {
+    return GetAutoclickController()
+        ->GetMenuBubbleControllerForTesting()
+        ->scroll_bubble_controller_.get();
+  }
+
   AutoclickScrollView* GetAutoclickScrollView() {
     AutoclickScrollBubbleController* controller =
-        GetAutoclickController()
-            ->GetMenuBubbleControllerForTesting()
-            ->scroll_bubble_controller_.get();
+        GetAutoclickScrollBubbleController();
     return controller ? controller->scroll_view_.get() : nullptr;
+  }
+
+  AutoclickScrollBubbleView* GetAutoclickScrollBubbleView() {
+    AutoclickScrollBubbleController* controller =
+        GetAutoclickScrollBubbleController();
+    return controller ? controller->bubble_view_.get() : nullptr;
   }
 
   views::Widget* GetAutoclickBubbleWidget() {
@@ -164,9 +175,9 @@ TEST_F(AutoclickTest, ToggleEnabled) {
   EXPECT_TRUE(GetAutoclickController()->IsEnabled());
   events = WaitForMouseEvents();
   ASSERT_EQ(2u, events.size());
-  EXPECT_EQ(ui::ET_MOUSE_PRESSED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMousePressed, events[0].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[0].flags());
-  EXPECT_EQ(ui::ET_MOUSE_RELEASED, events[1].type());
+  EXPECT_EQ(ui::EventType::kMouseReleased, events[1].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[1].flags());
 
   // We should not get any more clicks until we move the mouse.
@@ -175,9 +186,9 @@ TEST_F(AutoclickTest, ToggleEnabled) {
   GetEventGenerator()->MoveMouseTo(30, 30);
   events = WaitForMouseEvents();
   ASSERT_EQ(2u, events.size());
-  EXPECT_EQ(ui::ET_MOUSE_PRESSED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMousePressed, events[0].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[0].flags());
-  EXPECT_EQ(ui::ET_MOUSE_RELEASED, events[1].type());
+  EXPECT_EQ(ui::EventType::kMouseReleased, events[1].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[1].flags());
 
   // Disable autoclick, and we should see the original behaviour.
@@ -320,10 +331,10 @@ TEST_F(AutoclickTest, MovementWithinThresholdWhileTimerRunning) {
 
   EXPECT_EQ(2u, events.size());
   EXPECT_EQ(gfx::Point(100, 100), events[0].location());
-  EXPECT_EQ(ui::ET_MOUSE_PRESSED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMousePressed, events[0].type());
   EXPECT_EQ(ui::EF_LEFT_MOUSE_BUTTON, events[0].flags());
   EXPECT_EQ(gfx::Point(100, 100), events[1].location());
-  EXPECT_EQ(ui::ET_MOUSE_RELEASED, events[1].type());
+  EXPECT_EQ(ui::EventType::kMouseReleased, events[1].type());
   EXPECT_EQ(ui::EF_LEFT_MOUSE_BUTTON, events[1].flags());
 
   // When the click position is not stabilized, the mouse movement should
@@ -339,10 +350,10 @@ TEST_F(AutoclickTest, MovementWithinThresholdWhileTimerRunning) {
 
   EXPECT_EQ(2u, events.size());
   EXPECT_EQ(gfx::Point(210, 210), events[0].location());
-  EXPECT_EQ(ui::ET_MOUSE_PRESSED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMousePressed, events[0].type());
   EXPECT_EQ(ui::EF_LEFT_MOUSE_BUTTON, events[0].flags());
   EXPECT_EQ(gfx::Point(210, 210), events[1].location());
-  EXPECT_EQ(ui::ET_MOUSE_RELEASED, events[1].type());
+  EXPECT_EQ(ui::EventType::kMouseReleased, events[1].type());
   EXPECT_EQ(ui::EF_LEFT_MOUSE_BUTTON, events[1].flags());
 
   // Reset delay.
@@ -435,8 +446,9 @@ TEST_F(AutoclickTest, UserInputCancelsAutoclick) {
   EXPECT_EQ(0u, events.size());
 
   // However, just starting a scroll doesn't cancel. If you tap a touchpad on
-  // an Eve chromebook, for example, it can send an ET_SCROLL_FLING_CANCEL
-  // event, which shouldn't actually cancel autoclick.
+  // an Eve chromebook, for example, it can send an
+  // EventType::kScrollFlingCancel event, which shouldn't actually cancel
+  // autoclick.
   GetEventGenerator()->MoveMouseTo(100, 100);
   GetEventGenerator()->ScrollSequence(gfx::Point(100, 100), base::TimeDelta(),
                                       0, 0, 0, 1);
@@ -473,9 +485,9 @@ TEST_F(AutoclickTest, AutoclickChangeEventTypes) {
   GetEventGenerator()->MoveMouseTo(30, 30);
   events = WaitForMouseEvents();
   ASSERT_EQ(2u, events.size());
-  EXPECT_EQ(ui::ET_MOUSE_PRESSED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMousePressed, events[0].type());
   EXPECT_TRUE(ui::EF_RIGHT_MOUSE_BUTTON & events[0].flags());
-  EXPECT_EQ(ui::ET_MOUSE_RELEASED, events[1].type());
+  EXPECT_EQ(ui::EventType::kMouseReleased, events[1].type());
   EXPECT_TRUE(ui::EF_RIGHT_MOUSE_BUTTON & events[1].flags());
 
   // Changing the event type cancels the event
@@ -492,10 +504,10 @@ TEST_F(AutoclickTest, AutoclickChangeEventTypes) {
       AutoclickEventType::kLeftClick);
   events = WaitForMouseEvents();
   ASSERT_EQ(2u, events.size());
-  EXPECT_EQ(ui::ET_MOUSE_PRESSED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMousePressed, events[0].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[0].flags());
   EXPECT_FALSE(ui::EF_IS_DOUBLE_CLICK & events[0].flags());
-  EXPECT_EQ(ui::ET_MOUSE_RELEASED, events[1].type());
+  EXPECT_EQ(ui::EventType::kMouseReleased, events[1].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[1].flags());
   EXPECT_FALSE(ui::EF_IS_DOUBLE_CLICK & events[1].flags());
 
@@ -505,16 +517,16 @@ TEST_F(AutoclickTest, AutoclickChangeEventTypes) {
   GetEventGenerator()->MoveMouseTo(120, 120);
   events = WaitForMouseEvents();
   ASSERT_EQ(4u, events.size());
-  EXPECT_EQ(ui::ET_MOUSE_PRESSED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMousePressed, events[0].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[0].flags());
   EXPECT_FALSE(ui::EF_IS_DOUBLE_CLICK & events[0].flags());
-  EXPECT_EQ(ui::ET_MOUSE_RELEASED, events[1].type());
+  EXPECT_EQ(ui::EventType::kMouseReleased, events[1].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[1].flags());
   EXPECT_FALSE(ui::EF_IS_DOUBLE_CLICK & events[1].flags());
-  EXPECT_EQ(ui::ET_MOUSE_PRESSED, events[2].type());
+  EXPECT_EQ(ui::EventType::kMousePressed, events[2].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[2].flags());
   EXPECT_TRUE(ui::EF_IS_DOUBLE_CLICK & events[2].flags());
-  EXPECT_EQ(ui::ET_MOUSE_RELEASED, events[3].type());
+  EXPECT_EQ(ui::EventType::kMouseReleased, events[3].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[3].flags());
   EXPECT_TRUE(ui::EF_IS_DOUBLE_CLICK & events[3].flags());
 
@@ -537,26 +549,26 @@ TEST_F(AutoclickTest, AutoclickDragAndDropEvents) {
   GetEventGenerator()->MoveMouseTo(30, 30);
   events = WaitForMouseEvents();
   ASSERT_EQ(1u, events.size());
-  EXPECT_EQ(ui::ET_MOUSE_PRESSED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMousePressed, events[0].type());
   EXPECT_TRUE(ui::EF_LEFT_MOUSE_BUTTON & events[0].flags());
 
   ClearMouseEvents();
   GetEventGenerator()->MoveMouseTo(60, 60);
   events = GetMouseEvents();
   ASSERT_EQ(1u, events.size());
-  EXPECT_EQ(ui::ET_MOUSE_DRAGGED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMouseDragged, events[0].type());
 
   // Another move creates a drag
   ClearMouseEvents();
   GetEventGenerator()->MoveMouseTo(90, 90);
   events = GetMouseEvents();
   ASSERT_EQ(1u, events.size());
-  EXPECT_EQ(ui::ET_MOUSE_DRAGGED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMouseDragged, events[0].type());
 
   // Waiting in place creates the released event.
   events = WaitForMouseEvents();
   ASSERT_EQ(1u, events.size());
-  EXPECT_EQ(ui::ET_MOUSE_RELEASED, events[0].type());
+  EXPECT_EQ(ui::EventType::kMouseReleased, events[0].type());
 }
 
 TEST_F(AutoclickTest, AutoclickScrollEvents) {
@@ -574,7 +586,7 @@ TEST_F(AutoclickTest, AutoclickScrollEvents) {
   wheel_events = GetMouseWheelEvents();
   EXPECT_EQ(0u, events.size());
   ASSERT_EQ(1u, wheel_events.size());
-  EXPECT_EQ(ui::ET_MOUSEWHEEL, wheel_events[0].type());
+  EXPECT_EQ(ui::EventType::kMousewheel, wheel_events[0].type());
   EXPECT_EQ(gfx::Point(400, 300), wheel_events[0].location());
   EXPECT_GT(wheel_events[0].y_offset(), 0);
   ClearMouseEvents();
@@ -588,7 +600,7 @@ TEST_F(AutoclickTest, AutoclickScrollEvents) {
   wheel_events = GetMouseWheelEvents();
   EXPECT_EQ(0u, events.size());
   ASSERT_EQ(1u, wheel_events.size());
-  EXPECT_EQ(ui::ET_MOUSEWHEEL, wheel_events[0].type());
+  EXPECT_EQ(ui::EventType::kMousewheel, wheel_events[0].type());
   EXPECT_EQ(gfx::Point(90, 90), wheel_events[0].location());
   EXPECT_GT(wheel_events[0].y_offset(), 0);
   ClearMouseEvents();
@@ -599,7 +611,7 @@ TEST_F(AutoclickTest, AutoclickScrollEvents) {
   wheel_events = GetMouseWheelEvents();
   EXPECT_EQ(0u, events.size());
   ASSERT_EQ(1u, wheel_events.size());
-  EXPECT_EQ(ui::ET_MOUSEWHEEL, wheel_events[0].type());
+  EXPECT_EQ(ui::EventType::kMousewheel, wheel_events[0].type());
   EXPECT_EQ(gfx::Point(90, 90), wheel_events[0].location());
   EXPECT_GT(wheel_events[0].x_offset(), 0);
   ClearMouseEvents();
@@ -613,7 +625,7 @@ TEST_F(AutoclickTest, AutoclickScrollEvents) {
   wheel_events = GetMouseWheelEvents();
   EXPECT_EQ(0u, events.size());
   ASSERT_EQ(1u, wheel_events.size());
-  EXPECT_EQ(ui::ET_MOUSEWHEEL, wheel_events[0].type());
+  EXPECT_EQ(ui::EventType::kMousewheel, wheel_events[0].type());
   EXPECT_EQ(gfx::Point(200, 200), wheel_events[0].location());
   EXPECT_LT(wheel_events[0].y_offset(), 0);
   ClearMouseEvents();
@@ -624,7 +636,7 @@ TEST_F(AutoclickTest, AutoclickScrollEvents) {
   wheel_events = GetMouseWheelEvents();
   EXPECT_EQ(0u, events.size());
   ASSERT_EQ(1u, wheel_events.size());
-  EXPECT_EQ(ui::ET_MOUSEWHEEL, wheel_events[0].type());
+  EXPECT_EQ(ui::EventType::kMousewheel, wheel_events[0].type());
   EXPECT_EQ(gfx::Point(200, 200), wheel_events[0].location());
   EXPECT_LT(wheel_events[0].x_offset(), 0);
   ClearMouseEvents();
@@ -896,7 +908,8 @@ TEST_F(AutoclickTest, ShelfAutohidesWithAutoclickBubble) {
 
   // Create a visible window so auto-hide behavior is enforced.
   std::unique_ptr<views::Widget> widget =
-      CreateTestWidget(nullptr, desks_util::GetActiveDeskContainerId(),
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+                       nullptr, desks_util::GetActiveDeskContainerId(),
                        gfx::Rect(0, 0, 200, 200), true /* show */);
 
   // Turn on auto-hide for the shelf.
@@ -919,7 +932,8 @@ TEST_F(AutoclickTest, BubbleMovesWithShelfPositionChange) {
 
   // Create a visible window so WMEvents occur.
   std::unique_ptr<views::Widget> widget =
-      CreateTestWidget(nullptr, desks_util::GetActiveDeskContainerId(),
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+                       nullptr, desks_util::GetActiveDeskContainerId(),
                        gfx::Rect(0, 0, 200, 200), true /* show */);
 
   // Set up autoclick and the shelf.
@@ -1059,7 +1073,8 @@ TEST_F(AutoclickTest, HidesBubbleInFullscreenWhenCursorHides) {
     UpdateDisplay(test.display_spec);
 
     std::unique_ptr<views::Widget> widget = CreateTestWidget(
-        nullptr, desks_util::GetActiveDeskContainerId(), test.widget_position,
+        views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET, nullptr,
+        desks_util::GetActiveDeskContainerId(), test.widget_position,
         /*show=*/true);
     EXPECT_TRUE(GetAutoclickBubbleWidget()->IsVisible());
 
@@ -1113,7 +1128,8 @@ TEST_F(AutoclickTest, DoesNotHideBubbleWhenNotOverFullscreenWindow) {
   cursor_manager->SetCursor(ui::mojom::CursorType::kPointer);
 
   std::unique_ptr<views::Widget> widget =
-      CreateTestWidget(nullptr, desks_util::GetActiveDeskContainerId(),
+      CreateTestWidget(views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+                       nullptr, desks_util::GetActiveDeskContainerId(),
                        gfx::Rect(1000, 0, 200, 200), true);
 
   EXPECT_TRUE(GetAutoclickBubbleWidget()->IsVisible());
@@ -1133,9 +1149,9 @@ TEST_F(AutoclickTest, DoesNotHideBubbleWhenOverInactiveFullscreenWindow) {
   ::wm::CursorManager* cursor_manager = Shell::Get()->cursor_manager();
   cursor_manager->SetCursor(ui::mojom::CursorType::kPointer);
 
-  std::unique_ptr<views::Widget> widget =
-      CreateTestWidget(nullptr, desks_util::GetActiveDeskContainerId(),
-                       gfx::Rect(0, 0, 200, 200), true);
+  std::unique_ptr<views::Widget> widget = CreateTestWidget(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET, nullptr,
+      desks_util::GetActiveDeskContainerId(), gfx::Rect(0, 0, 200, 200), true);
   GetEventGenerator()->MoveMouseTo(gfx::Point(10, 10));
   widget->SetFullscreen(true);
   EXPECT_TRUE(widget->IsActive());
@@ -1293,6 +1309,28 @@ TEST_F(AutoclickTest, ScrollMenuBubblePostioning) {
   Shell::Get()->accessibility_controller()->SetAutoclickMenuPosition(
       FloatingMenuPosition::kBottomRight);
   EXPECT_EQ(GetAutoclickScrollView()->GetBoundsInScreen(), scroll_bounds);
+}
+
+TEST_F(AutoclickTest, ScrollBubbleViewAccessibleName) {
+  GetAutoclickController()->SetEnabled(true,
+                                       /*show_confirmation_dialog=*/false);
+  GetAutoclickController()->SetAutoclickEventType(
+      AutoclickEventType::kLeftClick);
+  EXPECT_FALSE(GetAutoclickScrollView());
+  EXPECT_FALSE(GetAutoclickScrollBubbleView());
+
+  // Enable scroll.
+  GetAutoclickController()->SetAutoclickEventType(AutoclickEventType::kScroll);
+  ASSERT_TRUE(GetAutoclickScrollView());
+  ASSERT_TRUE(GetAutoclickScrollBubbleView());
+
+  AutoclickScrollBubbleController* controller =
+      GetAutoclickScrollBubbleController();
+  AutoclickScrollBubbleView* bubble_view = GetAutoclickScrollBubbleView();
+  ui::AXNodeData node_data;
+  bubble_view->GetViewAccessibility().GetAccessibleNodeData(&node_data);
+  EXPECT_EQ(node_data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+            controller->GetAccessibleNameForBubble());
 }
 
 }  // namespace ash

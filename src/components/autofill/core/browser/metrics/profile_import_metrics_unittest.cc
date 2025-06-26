@@ -6,9 +6,9 @@
 
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics_test_base.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics_utils.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/common/autofill_clock.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -17,7 +17,6 @@ using ::base::Bucket;
 using ::base::BucketsAre;
 
 namespace autofill::autofill_metrics {
-
 namespace {
 
 using AddressImportRequirements = AddressProfileImportRequirementMetric;
@@ -50,8 +49,6 @@ void TestAddressProfileImportCountrySpecificFieldRequirements(
   // Test that the right bucket was populated.
   histogram_tester->ExpectBucketCount(histogram, metric, 1);
 }
-
-}  // namespace
 
 class AutofillProfileImportMetricsTest : public AutofillMetricsBaseTest,
                                          public testing::Test {
@@ -491,4 +488,67 @@ TEST_F(AutofillProfileImportMetricsTest,
           kZipStateCityRequirementViolated);
 }
 
+// Tests that the user decision for importing a new profile is emitted for
+// non-ready users, i.e. for users saving their first profile.
+TEST_F(AutofillProfileImportMetricsTest,
+       EmitsNewProfileImportDecisionNonReady) {
+  const auto kExpectedDecision =
+      AutofillClient::AddressPromptUserDecision::kAccepted;
+  AutofillProfile import_candidate = test::GetFullProfile();
+  base::HistogramTester histogram_tester;
+  LogNewProfileImportDecision(kExpectedDecision, /*existing_profiles=*/{},
+                              import_candidate, "en-US");
+  histogram_tester.ExpectUniqueSample(
+      "Autofill.ProfileImport.NewProfileDecision2.Aggregate", kExpectedDecision,
+      1);
+  histogram_tester.ExpectUniqueSample(
+      "Autofill.ProfileImport.NewProfileDecision2.UserHasNoExistingProfiles",
+      kExpectedDecision, 1);
+}
+
+// Tests that the user decision for importing a new profile is emitted for ready
+// users who already have a similar (quasi-duplicate) profile saved.
+TEST_F(AutofillProfileImportMetricsTest,
+       EmitsNewProfileImportDecisionReadyAndQuasiDuplicate) {
+  const auto kExpectedDecision =
+      AutofillClient::AddressPromptUserDecision::kAccepted;
+  AutofillProfile existing_profile = test::GetFullProfile();
+  existing_profile.SetRawInfo(FieldType::NAME_FULL, u"First Last");
+  AutofillProfile import_candidate = test::GetFullProfile();
+  base::HistogramTester histogram_tester;
+  LogNewProfileImportDecision(kExpectedDecision, {&existing_profile},
+                              import_candidate, "en-US");
+  histogram_tester.ExpectUniqueSample(
+      "Autofill.ProfileImport.NewProfileDecision2.Aggregate", kExpectedDecision,
+      1);
+  histogram_tester.ExpectUniqueSample(
+      "Autofill.ProfileImport.NewProfileDecision2.UserHasExistingProfile",
+      kExpectedDecision, 1);
+  histogram_tester.ExpectUniqueSample(
+      "Autofill.ProfileImport.NewProfileDecision2.UserHasQuasiDuplicateProfile",
+      kExpectedDecision, 1);
+}
+
+// Tests that the storage type where a new address is saved to is correctly
+// emitted.
+TEST_F(AutofillProfileImportMetricsTest, EmitsStorageNewProfileIsSavedTo) {
+  AutofillProfile import_candidate = test::GetFullProfile();
+  base::HistogramTester histogram_tester;
+
+  // Saved to local/syncable storage.
+  LogNewProfileStorageLocation(import_candidate);
+  histogram_tester.ExpectBucketCount(
+      "Autofill.ProfileImport.StorageNewAddressIsSavedTo",
+      AutofillProfile::RecordType::kLocalOrSyncable, 1);
+
+  import_candidate = import_candidate.ConvertToAccountProfile();
+
+  // Saved to account storage.
+  LogNewProfileStorageLocation(import_candidate);
+  histogram_tester.ExpectBucketCount(
+      "Autofill.ProfileImport.StorageNewAddressIsSavedTo",
+      AutofillProfile::RecordType::kAccount, 1);
+}
+
+}  // namespace
 }  // namespace autofill::autofill_metrics

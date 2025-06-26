@@ -16,17 +16,21 @@
 #include "ash/webui/projector_app/public/cpp/projector_app_constants.h"
 #include "ash/webui/projector_app/test/mock_app_client.h"
 #include "base/memory/raw_ptr.h"
+#include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "build/branding_buildflags.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/speech/cros_speech_recognition_service_factory.h"
 #include "chrome/browser/speech/fake_speech_recognition_service.h"
+#include "chrome/browser/speech/fake_speech_recognizer.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
 #include "chrome/test/base/testing_profile_manager.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/application_locale_storage/application_locale_storage.h"
 #include "components/prefs/pref_service.h"
 #include "components/soda/soda_installer.h"
 #include "components/soda/soda_installer_impl_chromeos.h"
@@ -48,7 +52,10 @@ constexpr char kS3FallbackReasonMetricName[] =
     "Ash.Projector.OnDeviceToServerSpeechRecognitionFallbackReason";
 
 inline void SetLocale(const std::string& locale) {
-  g_browser_process->SetApplicationLocale(locale);
+  TestingBrowserProcess::GetGlobal()
+      ->GetFeatures()
+      ->application_locale_storage()
+      ->Set(locale);
 }
 
 // A mocked version instance of SodaInstaller for testing purposes.
@@ -113,7 +120,8 @@ struct ProjectorClientTestScenario {
 }  // namespace
 
 class ProjectorClientImplUnitTest
-    : public testing::TestWithParam<ProjectorClientTestScenario> {
+    : public testing::TestWithParam<ProjectorClientTestScenario>,
+      public speech::FakeSpeechRecognitionService::Observer {
  public:
   ProjectorClientImplUnitTest() = default;
 
@@ -138,13 +146,6 @@ class ProjectorClientImplUnitTest
     ASSERT_TRUE(testing_profile_manager_.SetUp());
     testing_profile_ = ProfileManager::GetPrimaryUserProfile();
     ASSERT_TRUE(testing_profile_);
-
-    CrosSpeechRecognitionServiceFactory::GetInstanceForTest()
-        ->SetTestingFactoryAndUse(
-            profile(),
-            base::BindRepeating(&ProjectorClientImplUnitTest::
-                                    CreateTestSpeechRecognitionService,
-                                base::Unretained(this)));
     SetLocale(kEnglishUS);
     soda_installer_ = std::make_unique<MockSodaInstaller>();
     ON_CALL(*soda_installer_, GetAvailableLanguages)
@@ -153,8 +154,16 @@ class ProjectorClientImplUnitTest
     soda_installer_->NotifySodaInstalledForTesting(speech::LanguageCode::kEnUs);
     mock_app_client_ = std::make_unique<MockAppClient>();
     mock_locale_controller_ = std::make_unique<MockLocaleUpdateController>();
-    projector_client_ =
-        std::make_unique<ProjectorClientImpl>(&projector_controller_);
+    projector_client_ = std::make_unique<ProjectorClientImpl>(
+        TestingBrowserProcess::GetGlobal()
+            ->GetFeatures()
+            ->application_locale_storage(),
+        &projector_controller_);
+    CrosSpeechRecognitionServiceFactory::GetInstanceForTest()
+        ->SetTestingFactoryAndUse(
+            profile(), base::BindOnce(&ProjectorClientImplUnitTest::
+                                          CreateTestSpeechRecognitionService,
+                                      base::Unretained(this)));
   }
 
   void TearDown() override {
@@ -170,22 +179,31 @@ class ProjectorClientImplUnitTest
     std::unique_ptr<speech::FakeSpeechRecognitionService> fake_service =
         std::make_unique<speech::FakeSpeechRecognitionService>();
     fake_service_ = fake_service.get();
-    return std::move(fake_service);
+    fake_service_->AddObserver(this);
+    return fake_service;
   }
 
   void SendSpeechResult(const char* result, bool is_final) {
-    EXPECT_TRUE(fake_service_->is_capturing_audio());
+    EXPECT_TRUE(fake_recognizer_->is_capturing_audio());
     base::RunLoop loop;
-    fake_service_->SendSpeechRecognitionResult(
+    fake_recognizer_->SendSpeechRecognitionResult(
         media::SpeechRecognitionResult(result, is_final));
     loop.RunUntilIdle();
   }
 
   void SendTranscriptionError() {
-    EXPECT_TRUE(fake_service_->is_capturing_audio());
+    EXPECT_TRUE(fake_recognizer_->is_capturing_audio());
     base::RunLoop loop;
-    fake_service_->SendSpeechRecognitionError();
+    fake_recognizer_->SendSpeechRecognitionError();
     loop.RunUntilIdle();
+  }
+
+  void OnRecognizerBound(
+      speech::FakeSpeechRecognizer* bound_recognizer) override {
+    if (bound_recognizer->recognition_options()->recognizer_client_type ==
+        media::mojom::RecognizerClientType::kProjector) {
+      fake_recognizer_ = bound_recognizer->GetWeakPtr();
+    }
   }
 
  protected:
@@ -224,13 +242,17 @@ class ProjectorClientImplUnitTest
   std::unique_ptr<MockAppClient> mock_app_client_;
   std::unique_ptr<MockLocaleUpdateController> mock_locale_controller_;
   raw_ptr<speech::FakeSpeechRecognitionService> fake_service_;
+  base::WeakPtr<speech::FakeSpeechRecognizer> fake_recognizer_;
 
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_P(ProjectorClientImplUnitTest, SpeechRecognitionResults) {
-  client()->StartSpeechRecognition();
-  fake_service_->WaitForRecognitionStarted();
+  ProjectorClient* got_client = client();
+  ASSERT_TRUE(got_client);
+
+  got_client->StartSpeechRecognition();
+  base::RunLoop().RunUntilIdle();
 
   EXPECT_CALL(projector_controller(),
               OnTranscription(
@@ -258,11 +280,13 @@ const char kEnglishNewZealand[] = "en-NZ";
 
 bool IsEqualAvailability(const SpeechRecognitionAvailability& first,
                          const SpeechRecognitionAvailability& second) {
-  if (first.use_on_device != second.use_on_device)
+  if (first.use_on_device != second.use_on_device) {
     return false;
+  }
 
-  if (first.use_on_device)
+  if (first.use_on_device) {
     return first.on_device_availability == second.on_device_availability;
+  }
 
   return first.server_based_availability == second.server_based_availability;
 }
@@ -271,7 +295,7 @@ bool IsEqualAvailability(const SpeechRecognitionAvailability& first,
 
 TEST_P(ProjectorClientImplUnitTest, SpeechRecognitionAvailability) {
   const bool force_enable_server_based =
-      features::ShouldForceEnableServerSideSpeechRecognitionForDev();
+      features::ShouldForceEnableServerSideSpeechRecognition();
   const bool server_based_available =
       features::IsInternalServerSideSpeechRecognitionEnabled();
 
@@ -339,7 +363,7 @@ TEST_P(ProjectorClientImplUnitTest, SpeechRecognitionAvailability) {
 
 TEST_P(ProjectorClientImplUnitTest, FallbackReasonMetric) {
   const bool force_enable_server_based =
-      features::ShouldForceEnableServerSideSpeechRecognitionForDev();
+      features::ShouldForceEnableServerSideSpeechRecognition();
   const bool server_based_available =
       features::IsInternalServerSideSpeechRecognitionEnabled();
 
@@ -397,18 +421,25 @@ TEST_P(ProjectorClientImplUnitTest, FallbackReasonMetric) {
 
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
+// TODO: dorianbrandon - Remove finch flag from disabled list. The finch
+// flag currently sets the experiment to true for all languages. This isn't a
+// problem since all ChromeOS languages are covered but it affects the
+// structure of the language disabled test.
 INSTANTIATE_TEST_SUITE_P(
     ProjectorClientTestScenarios,
     ProjectorClientImplUnitTest,
     ::testing::Values(
-        ProjectorClientTestScenario({features::kOnDeviceSpeechRecognition}, {}),
+        ProjectorClientTestScenario(
+            {features::kOnDeviceSpeechRecognition},
+            {features::kInternalServerSideSpeechRecognitionUSMModelFinch}),
         ProjectorClientTestScenario(
             {features::kOnDeviceSpeechRecognition,
-             features::kForceEnableServerSideSpeechRecognitionForDev},
-            {}),
+             features::kForceEnableServerSideSpeechRecognition},
+            {features::kInternalServerSideSpeechRecognitionUSMModelFinch}),
         ProjectorClientTestScenario(
             {features::kInternalServerSideSpeechRecognition,
              features::kOnDeviceSpeechRecognition},
-            {features::kForceEnableServerSideSpeechRecognitionForDev})));
+            {features::kForceEnableServerSideSpeechRecognition,
+             features::kInternalServerSideSpeechRecognitionUSMModelFinch})));
 
 }  // namespace ash

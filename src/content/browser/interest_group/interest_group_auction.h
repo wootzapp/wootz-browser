@@ -22,19 +22,23 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/time/time.h"
 #include "content/browser/interest_group/additional_bid_result.h"
+#include "content/browser/interest_group/auction_metrics_recorder.h"
 #include "content/browser/interest_group/auction_nonce_manager.h"
-#include "content/browser/interest_group/auction_result.h"
 #include "content/browser/interest_group/auction_worklet_manager.h"
 #include "content/browser/interest_group/bidding_and_auction_response.h"
+#include "content/browser/interest_group/dwa_auction_metrics.h"
 #include "content/browser/interest_group/header_direct_from_seller_signals.h"
 #include "content/browser/interest_group/interest_group_auction_reporter.h"
 #include "content/browser/interest_group/interest_group_caching_storage.h"
 #include "content/browser/interest_group/interest_group_pa_report_util.h"
 #include "content/browser/interest_group/interest_group_storage.h"
 #include "content/browser/interest_group/subresource_url_builder.h"
+#include "content/browser/interest_group/trusted_signals_cache_impl.h"
 #include "content/common/content_export.h"
+#include "content/public/browser/auction_result.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/services/auction_worklet/public/mojom/bidder_worklet.mojom.h"
 #include "content/services/auction_worklet/public/mojom/private_aggregation_request.mojom.h"
@@ -45,6 +49,7 @@
 #include "mojo/public/cpp/bindings/receiver_set.h"
 #include "services/data_decoder/public/cpp/data_decoder.h"
 #include "services/network/public/mojom/client_security_state.mojom.h"
+#include "services/network/public/mojom/ip_address_space.mojom-forward.h"
 #include "third_party/blink/public/common/interest_group/interest_group.h"
 #include "third_party/blink/public/mojom/interest_group/ad_auction_service.mojom.h"
 #include "third_party/blink/public/mojom/interest_group/interest_group_types.mojom.h"
@@ -53,6 +58,10 @@
 
 namespace blink {
 struct AuctionConfig;
+}
+
+namespace network {
+class SharedURLLoaderFactory;
 }
 
 namespace content {
@@ -65,8 +74,6 @@ class BrowserContext;
 class InterestGroupManagerImpl;
 class PrivateAggregationManager;
 struct SignedAdditionalBidSignature;
-
-CONTENT_EXPORT BASE_DECLARE_FEATURE(kBiddingAndAuctionEncryptionMediaType);
 
 inline constexpr std::string_view kBiddingAndAuctionEncryptionRequestMediaType =
     "message/auction request";
@@ -166,49 +173,21 @@ class CONTENT_EXPORT InterestGroupAuction
       base::RepeatingCallback<data_decoder::DataDecoder*(
           const url::Origin& seller)>;
 
-  using PrivateAggregationRequests =
-      std::vector<auction_worklet::mojom::PrivateAggregationRequestPtr>;
+  using AdAuctionPageDataCallback =
+      base::RepeatingCallback<AdAuctionPageData*()>;
+
+  using FinalizedPrivateAggregationRequests = std::vector<
+      auction_worklet::mojom::FinalizedPrivateAggregationRequestPtr>;
 
   using RealTimeReportingContributions =
       std::vector<auction_worklet::mojom::RealTimeReportingContributionPtr>;
 
-  // Helps determine which level of worklet a particular PA request came from.
-  enum class PrivateAggregationPhase {
-    kBidder,
-    kNonTopLevelSeller,  // Seller for a component auction.
-    kTopLevelSeller,     // Top-level seller, either with components or
-                         // as the sole seller in a single-seller auction.
-    kNumPhases
-  };
+  using PrivateAggregationAllParticipantsDataPtrs =
+      std::array<const PrivateAggregationParticipantData*,
+                 base::checked_cast<size_t>(
+                     PrivateAggregationPhase::kNumPhases)>;
 
   struct CONTENT_EXPORT BidState {
-    // Used as a key to group Private Aggregation API requests from worklets in
-    // a map. The `reporting_origin` and `aggregation_coordinator_origin` are
-    // passed into the Private Aggregation API.
-    struct PrivateAggregationPhaseKey {
-      PrivateAggregationPhaseKey(
-          url::Origin reporting_origin,
-          PrivateAggregationPhase phase,
-          std::optional<url::Origin> aggregation_coordinator_origin);
-      PrivateAggregationPhaseKey(const PrivateAggregationPhaseKey& other);
-      PrivateAggregationPhaseKey& operator=(
-          const PrivateAggregationPhaseKey& other);
-      PrivateAggregationPhaseKey(PrivateAggregationPhaseKey&& other);
-      PrivateAggregationPhaseKey& operator=(PrivateAggregationPhaseKey&& other);
-      ~PrivateAggregationPhaseKey();
-
-      bool operator<(const PrivateAggregationPhaseKey& other) const {
-        return std::tie(reporting_origin, phase,
-                        aggregation_coordinator_origin) <
-               std::tie(other.reporting_origin, other.phase,
-                        other.aggregation_coordinator_origin);
-      }
-
-      url::Origin reporting_origin;
-      PrivateAggregationPhase phase;
-      std::optional<url::Origin> aggregation_coordinator_origin;
-    };
-
     explicit BidState(const SingleStorageInterestGroup&& bidder);
     ~BidState();
 
@@ -231,10 +210,10 @@ class CONTENT_EXPORT InterestGroupAuction
 
     const SingleStorageInterestGroup bidder;
 
-    // Set of render keys that are k-anonymous and correspond to ad or ad
-    // component render URLs for this interest group.
+    // Set of keys that are k-anonymous and correspond to ad and ad component
+    // render URLs, and to reporting ids, for this interest group.
     // (Not set if we are not configured to care).
-    base::flat_map<std::string, bool> kanon_keys;
+    base::flat_set<std::string> kanon_keys;
 
     // This starts off as the base priority of the interest group, but is
     // updated by sparse vector multiplications using first the priority vector
@@ -261,10 +240,21 @@ class CONTENT_EXPORT InterestGroupAuction
     // generateBid() is running.
     std::optional<mojo::ReceiverId> generate_bid_client_receiver_id;
 
+    // Trusted signals cache handle for the bidder signals.
+    std::unique_ptr<TrustedSignalsCacheImpl::Handle> bidding_signals_handle;
+
     // Mojo pipe to use to fill in potentially promise-provided arguments.
     // Only populated in between BeginGenerateBid and FinishGenerateBid().
     mojo::AssociatedRemote<auction_worklet::mojom::GenerateBidFinalizer>
         bid_finalizer;
+
+    // Set to true when BeginGenerateBid() has been called on the BidderWorklet,
+    // or when the BidderWorklet has failed to load. Once it's true for all
+    // BidStates, `bidding_signals_handle->StartFetch()` is invoked on all of
+    // the bidder's BidStates. This is done to only send fetches over the
+    // network once all of a bidder's requests have been passed to the
+    // TrustedSignalsCacheImpl, to maximize request batching.
+    bool begin_generate_bid_called = false;
 
     // True when OnBiddingSignalsReceived() has been invoked. Needed to
     // correctly handle the case the bidder worklet pipe is closed before
@@ -290,6 +280,10 @@ class CONTENT_EXPORT InterestGroupAuction
 
     // True if the worklet successfully made a bid.
     bool made_bid = false;
+
+    // True if the worklet execution on this IG was cancelled due to cumulative
+    // timeout.
+    bool affected_by_cumulative_timeout = false;
 
     // If this was provided as an additional bid, this is set to the origin it
     // claims to be.
@@ -320,6 +314,14 @@ class CONTENT_EXPORT InterestGroupAuction
     std::optional<GURL> top_level_seller_debug_win_report_url;
     std::optional<GURL> top_level_seller_debug_loss_report_url;
 
+    // True if the bid is created from parsing B&A server response.
+    bool is_from_server_response = false;
+
+    // forDebuggingOnly reports that have been filtered (also sampled) by the
+    // B&A server.
+    std::map<url::Origin, std::vector<GURL>>
+        server_filtered_debugging_only_reports;
+
     // Requests made to Private aggregation API in generateBid() and scoreAd().
     // Keyed by reporting origin of the associated requests, i.e., buyer origin
     // for generateBid() and seller origin for scoreAd(), an enum that
@@ -332,8 +334,17 @@ class CONTENT_EXPORT InterestGroupAuction
     // non-k-anonymous enforced bid when k-anonymity enforcement is active.
     PrivateAggregationRequests non_kanon_private_aggregation_requests;
 
-    PrivateAggregationTimings private_aggregation_timings[static_cast<int>(
-        PrivateAggregationPhase::kNumPhases)];
+    // Private aggregation requests from B&A response that have been filtered by
+    // B&A server. These can be simply be forwarded without further filtering on
+    // Chrome side.
+    std::map<PrivateAggregationKey, FinalizedPrivateAggregationRequests>
+        server_filtered_pagg_requests_reserved;
+    std::map<std::string, FinalizedPrivateAggregationRequests>
+        server_filtered_pagg_requests_non_reserved;
+
+    std::array<PrivateAggregationTimings,
+               base::checked_cast<size_t>(PrivateAggregationPhase::kNumPhases)>
+        private_aggregation_timings;
 
     PrivateAggregationTimings& pa_timings(PrivateAggregationPhase phase) {
       return private_aggregation_timings[static_cast<int>(phase)];
@@ -345,8 +356,8 @@ class CONTENT_EXPORT InterestGroupAuction
         auction_worklet::mojom::RejectReason::kNotAvailable;
 
     // Real time reporting contributions. Note that when an origin has no real
-    // time contributions, there's still an entry for it, and its value is an
-    // empty vector.
+    // time contributions, there must still be an entry for it, and its value is
+    // an empty vector.
     std::map<url::Origin, RealTimeReportingContributions>
         real_time_contributions;
   };
@@ -356,17 +367,24 @@ class CONTENT_EXPORT InterestGroupAuction
   // duplicates auction_worklet::mojom::BidderWorkletBid, with additional
   // information about the bidder.
   struct CONTENT_EXPORT Bid {
+    struct ComponentAdInfo {
+      blink::AdDescriptor ad_descriptor;
+      raw_ptr<const blink::InterestGroup::Ad> ad = nullptr;
+    };
+
     Bid(auction_worklet::mojom::BidRole bid_role,
         std::string ad_metadata,
         double bid,
         std::optional<blink::AdCurrency> bid_currency,
         std::optional<double> ad_cost,
         blink::AdDescriptor ad_descriptor,
-        std::vector<blink::AdDescriptor> ad_component_descriptors,
+        std::vector<ComponentAdInfo> selected_ad_components,
         std::optional<uint16_t> modeling_signals,
+        std::optional<std::string> aggregate_win_signals,
         base::TimeDelta bid_duration,
         std::optional<uint32_t> bidding_signals_data_version,
         const blink::InterestGroup::Ad* bid_ad,
+        std::optional<std::string> selected_buyer_and_seller_reporting_id,
         BidState* bid_state,
         InterestGroupAuction* auction);
 
@@ -382,10 +400,14 @@ class CONTENT_EXPORT InterestGroupAuction
     void BeginTracingForScoring();
     void EndTracingForScoring();
 
-    // Get a vector of ad component urls. For compatible with functions
-    // expecting a vector of `GURL` instead of a vector of
-    // `blink::AdDescriptor`.
+    // Get a vector of ad component urls.
     std::vector<GURL> GetAdComponentUrls() const;
+
+    // Gets information on ad components selected with this bid in form suitable
+    // for sending over mojo; this has all the info needed for worklet process
+    // to both pass in things to JS and request trusted scoring signals.
+    std::vector<auction_worklet::mojom::CreativeInfoWithoutOwnerPtr>
+    GetAdComponentCreativeInfo() const;
 
     // These getters are necessary for handling the replacements within the
     // interest group auction.
@@ -403,10 +425,15 @@ class CONTENT_EXPORT InterestGroupAuction
     const std::optional<blink::AdCurrency> bid_currency;
     const std::optional<double> ad_cost;
     const blink::AdDescriptor ad_descriptor;
-    const std::vector<blink::AdDescriptor> ad_component_descriptors;
+
+    // Like `bid_ad`, this points within `interest_group`.
+    const std::vector<ComponentAdInfo> selected_ad_components;
     const std::optional<uint16_t> modeling_signals;
+    const std::optional<std::string> aggregate_win_signals;
     const base::TimeDelta bid_duration;
     const std::optional<uint32_t> bidding_signals_data_version;
+
+    const std::optional<std::string> selected_buyer_and_seller_reporting_id;
 
     // InterestGroup that made the bid. Owned by the BidState of that
     // InterestGroup.
@@ -477,17 +504,25 @@ class CONTENT_EXPORT InterestGroupAuction
   // `owned_auction_config_` field. `parent` should be the parent
   // InterestGroupAuction if this is a component auction, and null, otherwise.
   //
+  // `url_loader_factory` is a trusted URLLoaderFactory configured to make
+  // requests associated with the frame running the auction. See
+  // AdAuctionServiceImpl::CreateUnderlyingTrustedURLLoaderFactory().
+  //
   // `is_interest_group_api_allowed_callback` will be used to check whether the
   // sellers of the auction and bids provided via interest groups or
   // additionalBids are permitted to participate.
   InterestGroupAuction(
       auction_worklet::mojom::KAnonymityBidMode kanon_mode,
+      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+      const url::Origin& main_frame_origin,
+      network::mojom::IPAddressSpace ip_address_space,
       const blink::AuctionConfig* config,
       const InterestGroupAuction* parent,
+      AuctionMetricsRecorder* auction_metrics_recorder,
+      DwaAuctionMetricsManager* dwa_auction_metrics_manager,
       AuctionWorkletManager* auction_worklet_manager,
       AuctionNonceManager* auction_nonce_manager,
       InterestGroupManagerImpl* interest_group_manager,
-      AuctionMetricsRecorder* auction_metrics_recorder,
       GetDataDecoderCallback get_data_decoder_callback,
       base::Time auction_start_time,
       IsInterestGroupApiAllowedCallback is_interest_group_api_allowed_callback,
@@ -513,21 +548,24 @@ class CONTENT_EXPORT InterestGroupAuction
   // completion. Passes it false if there are no interest groups that may
   // participate in the auction (possibly because sellers aren't allowed to
   // participate in the auction)
+  //
+  // Worklet processes may be created at this point for cached buyers, and for
+  // any seller whose auction has a cached buyer.
   void StartLoadInterestGroupsPhase(
       AuctionPhaseCompletionCallback load_interest_groups_phase_callback);
 
   // Starts bidding and scoring phase of the auction.
   //
-  // `on_seller_receiver_callback`, if non-null, is invoked once the seller
-  // worklet has been received, or if the seller worklet is no longer needed
-  // (e.g., if all bidders fail to bid before the seller worklet has
-  // been received). This is needed so that in the case of component auctions,
-  // the top-level seller worklet will only be requested once all component
-  // seller worklets have been received, to prevent deadlock (the top-level
-  // auction could be waiting on a bid from a seller, while the top-level
-  // seller worklet being is blocking a component seller worklet from being
-  // created, due to the process limit). Unlike other callbacks,
-  // `on_seller_receiver_callback` may be called synchronously.
+  // `on_seller_process_assigned_callback`, if non-null, is invoked once the
+  // seller process has been received, or if the seller process is no longer
+  // needed (e.g., if all bidders fail to bid before the seller process has been
+  // received). This is needed so that in the case of component auctions, the
+  // top-level seller worklet will only be requested once all component seller
+  // processes have been received, to prevent deadlock (the top-level auction
+  // could be waiting on a bid from a seller, while the top-level seller worklet
+  // being is blocking a component seller worklet from being created, due to the
+  // process limit). Unlike other callbacks,
+  // `on_seller_process_assigned_callback` may be called synchronously.
   //
   // `bidding_and_scoring_phase_callback` is invoked asynchronously when
   // either the auction has failed to produce a winner, or the auction has a
@@ -535,26 +573,33 @@ class CONTENT_EXPORT InterestGroupAuction
   void StartBiddingAndScoringPhase(
       std::optional<DebugReportLockoutAndCooldowns>
           debug_report_lockout_and_cooldowns,
-      base::OnceClosure on_seller_receiver_callback,
+      base::OnceClosure on_seller_process_assigned_callback,
       AuctionPhaseCompletionCallback bidding_and_scoring_phase_callback);
 
   // Handles the server response for an auction.
   void HandleServerResponse(mojo_base::BigBuffer response,
-                            AdAuctionPageData& ad_auction_page_data);
+                            base::RepeatingCallback<AdAuctionPageData*()>
+                                ad_auction_page_data_callback);
 
   // Handles a server response in a component auction.
-  void HandleComponentServerResponse(uint32_t pos,
-                                     mojo_base::BigBuffer response,
-                                     AdAuctionPageData& ad_auction_page_data);
+  void HandleComponentServerResponse(
+      uint32_t pos,
+      mojo_base::BigBuffer response,
+      base::RepeatingCallback<AdAuctionPageData*()>
+          ad_auction_page_data_callback);
 
   // Creates an InterestGroupAuctionReporter, after the auction has completed.
   // Takes ownership of the `auction_config`, so that the reporter can outlive
   // other auction-related classes. This also means that various method on
   // `this` that use the configuration should not be called past this point.
+  //
+  // TODO(https://crbug.com/385152122): Consider switching to using
+  // IPAddressSpace instead of ClientSecurityState here and elsewhere, to
+  // protect against leaks.
   std::unique_ptr<InterestGroupAuctionReporter> CreateReporter(
       BrowserContext* browser_context,
       PrivateAggregationManager* private_aggregation_manager,
-      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+      AdAuctionPageDataCallback ad_auction_page_data_callback,
       std::unique_ptr<blink::AuctionConfig> auction_config,
       const url::Origin& main_frame_origin,
       const url::Origin& frame_origin,
@@ -645,22 +690,18 @@ class CONTENT_EXPORT InterestGroupAuction
   // in the fenced frame config resulting from the auction.
   std::optional<blink::AdSize> RequestedAdSize() const;
 
-  // Retrieves any debug reporting URLs. May only be called once, since it takes
-  // ownership of stored reporting URLs. This is called internally by
-  // CreateReporter() so may only be called in the case an auction has no
-  // winner, and thus CreateReporter() need not be called.
+  // Collects forDebuggingOnly report URLs, private aggregation requests, and
+  // real time reporting contributions. Also calculates and fills in post
+  // auction signals.
   //
-  // Note: Temporarily, this function also fills post auction signals to private
-  // aggregation requests from generateBid() and scoreAd(), so this function
-  // must be called before TakePrivateAggregationRequests() to make sure that
-  // function gets private aggregation requests with post auction signals filled
-  // in.
-  // TODO(qingxinwu): Refactor this to fill post auction signals to private
-  // aggregation report in TakePrivateAggregationRequests(), ideally reuse the
-  // post auction signals calculated from this method.
-  void TakeDebugReportUrlsAndFillInPrivateAggregationRequests(
-      std::vector<GURL>& debug_win_report_urls,
-      std::vector<GURL>& debug_loss_report_urls);
+  // Must be called before calling the various Take***() methods below to
+  // retrieve these reports.
+  void CollectBiddingAndScoringPhaseReports();
+
+  // Retrieves any debug reporting URLs. May only be called once, since it takes
+  // ownership of stored reporting URLs.
+  std::vector<GURL> TakeDebugWinReportUrls();
+  std::vector<GURL> TakeDebugLossReportUrls();
 
   // Retrieves all requests with reserved event type to the Private Aggregation
   // API returned by GenerateBid() and ScoreAd(). The return value is keyed by
@@ -669,18 +710,21 @@ class CONTENT_EXPORT InterestGroupAuction
   // failed (on success, used internally to pass them to the
   // InterestGroupAuctionReporter). May only be called once, since it takes
   // ownership of stored reporting URLs.
-  std::map<InterestGroupAuctionReporter::PrivateAggregationKey,
-           PrivateAggregationRequests>
+  std::map<PrivateAggregationKey, FinalizedPrivateAggregationRequests>
   TakeReservedPrivateAggregationRequests();
 
   // Retrieves all requests with non-reserved event type to the Private
   // Aggregation API returned by GenerateBid(). The return value is keyed by
-  // event type of the associated requests. May only be called by external
-  // consumers after an auction has failed (on success, used internally to pass
-  // them to the InterestGroupAuctionReporter). May only be called once, since
-  // it takes ownership of stored reporting URLs.
-  std::map<std::string, PrivateAggregationRequests>
+  // event type of the associated requests. Used internally to pass them to the
+  // InterestGroupAuctionReporter. May only be called once, since it takes
+  // ownership of stored reporting URLs.
+  std::map<std::string, FinalizedPrivateAggregationRequests>
   TakeNonReservedPrivateAggregationRequests();
+
+  // Assembles per-participant metrics values relevant to the buyer and
+  // seller(s) of the winning bid.
+  InterestGroupAuctionReporter::PrivateAggregationAllParticipantsData
+  ComputePrivateAggregationParticipantData();
 
   // Retrieves all real time report contributions.
   std::map<url::Origin, InterestGroupAuction::RealTimeReportingContributions>
@@ -760,6 +804,11 @@ class CONTENT_EXPORT InterestGroupAuction
       const std::vector<auction_worklet::mojom::PrivateAggregationRequestPtr>&
           private_aggregation_requests);
 
+  // Returns true if the config is using cross-origin trusted seller signals
+  // that are disallowed by the permissions callback (and adds an appropriate
+  // error).
+  bool BlockDueToDisallowedCrossOriginTrustedSellerSignals();
+
   // Returns the top bid of whichever auction (k-anon or not, depending on the
   // configuration) is actually to be used for the user-facing results. May only
   // be invoked after the bidding and scoring phase has completed. Will be null
@@ -770,6 +819,8 @@ class CONTENT_EXPORT InterestGroupAuction
   std::optional<AuctionResult> final_auction_result() const {
     return final_auction_result_;
   }
+
+  void SetReceivedAbortSignal() { received_abort_signal_ = true; }
 
   // Gets the buyer experiment ID in `config` for buyer. Public so that
   // InterestGroupAuctionReporter can use it.
@@ -881,6 +932,25 @@ class CONTENT_EXPORT InterestGroupAuction
     std::optional<url::Origin> highest_scoring_other_bid_owner;
   };
 
+  // Per-ScoreAdClient context data that needs to be preserved during a
+  // ScoreAd() call, and that is available during ScoreAdClient callbacks.
+  struct ScoreAdClientData {
+    ScoreAdClientData(
+        std::unique_ptr<Bid> bid,
+        std::unique_ptr<TrustedSignalsCacheImpl::Handle> cache_handle);
+    ScoreAdClientData(ScoreAdClientData&&);
+    ~ScoreAdClientData();
+
+    ScoreAdClientData& operator=(ScoreAdClientData&&);
+
+    // The bid itself.
+    std::unique_ptr<Bid> bid;
+    // The cache Handle for keeping the TrustedSignalsCacheImpl request alive,
+    // if there is one. Associating it directly with the ScoreAdClient receiver
+    // means closing the pipe conveniently releases the cache entry as well.
+    std::unique_ptr<TrustedSignalsCacheImpl::Handle> cache_handle;
+  };
+
   // ---------------------------------
   // Load interest group phase methods
   // ---------------------------------
@@ -918,6 +988,9 @@ class CONTENT_EXPORT InterestGroupAuction
   // See StartBiddingAndScoringPhase() for discussion of this.
   void OnComponentSellerWorkletReceived();
 
+  // Posts a task to request a seller worklet from the AuctionWorkletManager.
+  void RequestSellerWorkletAsync();
+
   // Requests a seller worklet from the AuctionWorkletManager.
   void RequestSellerWorklet();
 
@@ -936,6 +1009,10 @@ class CONTENT_EXPORT InterestGroupAuction
            !bid_states_for_additional_bids_.empty();
   }
 
+  // Called when a seller process has been assigned to a seller worklet request.
+  // Informs parent auction the event, if needed.
+  void OnSellerProcessAssigned();
+
   // Called when RequestSellerWorklet() returns. Starts scoring bids, if there
   // are any and config has been resolved.
   void OnSellerWorkletReceived();
@@ -944,8 +1021,16 @@ class CONTENT_EXPORT InterestGroupAuction
   // are ready.
   void ScoreQueuedBidsIfReady();
 
+  // Starts any pending trusted scoring signals requests. Expected only to be
+  // called once all bids have been generated. This is used to skip the delay
+  // between queuing scoring signals requests and sending them once all bids
+  // have been generated. Works for both browser-side KVv2 signals fetches, and
+  // signals fetches managed by the seller worklet process.
+  void StartPendingScoringSignalsRequests();
+
   void HandleUpdateIfOlderThan(
-      const blink::InterestGroup& interest_group,
+      const url::Origin& owner,
+      std::string_view name,
       std::optional<base::TimeDelta> update_if_older_than);
 
   // Performs errors handling when an error is encountered while decoding an
@@ -959,17 +1044,21 @@ class CONTENT_EXPORT InterestGroupAuction
   // `num_scoring_dependencies_`.
   void DecodeAdditionalBidsIfReady();
 
-  // Processes a singled signed additional bid.
+  // Processes a single signed additional bid.
   void HandleDecodedSignedAdditionalBid(
+      std::optional<std::string> seller_nonce,
       data_decoder::DataDecoder::ValueOrError result);
 
   // Processes payload of a single additionalBids entry.
   // `signatures` are the signatures it was supposedly signed with.
   // `valid_signatures` are the indices of signatures in `signatures` that
-  // actually verify.
+  //   actually verify.
+  // `seller_nonce`, if provided in the additional bid response header, is used
+  //   to validate the bidNonce in the additional bid.
   void HandleDecodedAdditionalBid(
       const std::vector<SignedAdditionalBidSignature>& signatures,
       const std::vector<size_t>& valid_signatures,
+      std::optional<std::string> seller_nonce,
       data_decoder::DataDecoder::ValueOrError result);
 
   // Invoked by the AuctionWorkletManager on fatal errors, at any point after
@@ -987,6 +1076,15 @@ class CONTENT_EXPORT InterestGroupAuction
            unscored_bids_.empty() &&
            (!is_server_auction_ || saved_response_.has_value());
   }
+
+  // True if `owner` opted in for real time reporting.
+  bool IsBuyerOptedInToRealTimeReporting(const url::Origin& owner);
+
+  // Add a real time reporting contribution for `origin` for script load
+  // failure. If `is_buyer` is true, it's bidding script load failure.
+  // Otherwise, it's scoring script load failure.
+  void MaybeAddScriptFailureRealTimeContribution(bool is_buyer,
+                                                 const url::Origin& origin);
 
   // Invoked when a component auction completes. If `success` is true, gets
   // the Bid from `component_auction` and passes a copy of it to ScoreBid().
@@ -1041,7 +1139,7 @@ class CONTENT_EXPORT InterestGroupAuction
       const std::optional<GURL>& debug_win_report_url,
       PrivateAggregationRequests pa_requests,
       RealTimeReportingContributions real_time_contributions,
-      base::TimeDelta scoring_latency,
+      auction_worklet::mojom::SellerTimingMetricsPtr score_ad_timing_metrics,
       auction_worklet::mojom::ScoreAdDependencyLatenciesPtr
           score_ad_dependency_latencies,
       const std::vector<std::string>& errors) override;
@@ -1099,6 +1197,10 @@ class CONTENT_EXPORT InterestGroupAuction
       const url::Origin& bid_owner,
       PostAuctionSignals& signals_out,
       std::optional<PostAuctionSignals>& top_level_signals_out);
+
+  // Fills in `seller_metrics_` based on the collected state.
+  // Used by TakeDebugReportUrlsAndFillInPrivateAggregationRequests().
+  void FillInSellerParticipantDataMetrics();
 
   // Returns the multi-bid limit configured for `buyer` by `config_`,
   // ensuring that it's at least 1.
@@ -1186,30 +1288,55 @@ class CONTENT_EXPORT InterestGroupAuction
   // Returns false if we need to fail the auction instead of continuing in
   // OnDecompressedServerResponse.
   bool HandleServerResponseImpl(mojo_base::BigBuffer response,
-                                AdAuctionPageData& ad_auction_page_data);
+                                base::RepeatingCallback<AdAuctionPageData*()>
+                                    ad_auction_page_data_callback);
 
   void OnDecompressedServerResponse(
       AdAuctionRequestContext* request_context,
+      base::RepeatingCallback<AdAuctionPageData*()>
+          ad_auction_page_data_callback,
+      bool authorized,
       base::expected<mojo_base::BigBuffer, std::string> result);
 
   void OnParsedServerResponse(AdAuctionRequestContext* request_context,
+                              base::RepeatingCallback<AdAuctionPageData*()>
+                                  ad_auction_page_data_callback,
+                              bool authorized,
                               data_decoder::DataDecoder::ValueOrError result);
 
   // Returns false if we need to fail the auction instead of continuing in
   // OnLoadedWinningGroup.
   bool OnParsedServerResponseImpl(
       AdAuctionRequestContext* request_context,
+      base::RepeatingCallback<AdAuctionPageData*()>
+          ad_auction_page_data_callback,
+      bool authorized,
       data_decoder::DataDecoder::ValueOrError result);
 
   void OnLoadedWinningGroup(
       BiddingAndAuctionResponse response,
       std::optional<SingleStorageInterestGroup> maybe_group);
 
-  void OnLoadedWinningGroupImpl(
+  void OnLoadedGhostWinnerGroup(
       BiddingAndAuctionResponse response,
-      std::optional<SingleStorageInterestGroup> maybe_group);
+      std::optional<SingleStorageInterestGroup> maybe_group,
+      std::optional<SingleStorageInterestGroup> maybe_ghost_group);
+
+  void OnLoadedGhostWinnerGroupImpl(
+      BiddingAndAuctionResponse response,
+      std::optional<SingleStorageInterestGroup> maybe_group,
+      std::optional<SingleStorageInterestGroup> maybe_ghost_group);
+
+  void MaybeLoadDebugReportLockoutAndCooldowns();
+
+  void OnLoadDebugReportLockoutAndCooldownsComplete(
+      std::optional<DebugReportLockoutAndCooldowns>
+          debug_report_lockout_and_cooldowns);
 
   void CreateBidFromServerResponse();
+  std::unique_ptr<InterestGroupAuction::Bid> CreatePrimaryBidFromServerResponse(
+      auction_worklet::mojom::BidRole bid_role);
+  std::unique_ptr<InterestGroupAuction::Bid> CreateGhostBidFromServerResponse();
 
   // Completion callback for AdAuctionPageData::ParseAndFindAdAuctionSignals().
   // Sets `direct_from_seller_signals_header_ad_slot_`, and sets
@@ -1218,6 +1345,12 @@ class CONTENT_EXPORT InterestGroupAuction
   void OnDirectFromSellerSignalHeaderAdSlotResolved(
       std::string ad_slot,
       scoped_refptr<HeaderDirectFromSellerSignals::Result> signals);
+
+  // For metrics only -- update `interest_groups_bytes_for_metrics_` and
+  // `ads_and_ad_components_bytes_for_metrics_` based on the currently loaded
+  // `interest_groups`.
+  void UpdateIgSizeMetrics(
+      const std::vector<SingleStorageInterestGroup>& interest_groups);
 
   // For associating various events with a particular auction. Note that
   // component auctions have their own.
@@ -1236,10 +1369,17 @@ class CONTENT_EXPORT InterestGroupAuction
   // Whether k-anonymity enforcement or simulation (or none) are performed.
   const auction_worklet::mojom::KAnonymityBidMode kanon_mode_;
 
+  const scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
+
+  const url::Origin main_frame_origin_;
+  const network::mojom::IPAddressSpace ip_address_space_;
+
+  const raw_ptr<AuctionMetricsRecorder> auction_metrics_recorder_;
+  const raw_ptr<DwaAuctionMetricsManager> dwa_auction_metrics_manager_;
+  raw_ptr<DwaAuctionMetrics> dwa_auction_metrics_ = nullptr;
   const raw_ptr<AuctionWorkletManager> auction_worklet_manager_;
   const raw_ptr<AuctionNonceManager> auction_nonce_manager_;
   const raw_ptr<InterestGroupManagerImpl> interest_group_manager_;
-  const raw_ptr<AuctionMetricsRecorder> auction_metrics_recorder_;
 
   // Configuration of this auction.
   raw_ptr<const blink::AuctionConfig> config_;
@@ -1266,8 +1406,8 @@ class CONTENT_EXPORT InterestGroupAuction
   // finds. This is only populated when encoded_signed_additional_bids_ is.
   base::flat_set<url::Origin> interest_group_buyers_;
 
-  // Base64-encoded signed additional bid entries.
-  std::vector<std::string> encoded_signed_additional_bids_;
+  // Base64-encoded signed additional bid entries, with metadata.
+  std::vector<SignedAdditionalBidWithMetadata> encoded_signed_additional_bids_;
 
   // This needs pointer stability for the BidState*.
   std::vector<std::unique_ptr<BidState>> bid_states_for_additional_bids_;
@@ -1300,9 +1440,9 @@ class CONTENT_EXPORT InterestGroupAuction
   // Time at which we began decoding the additional bids.
   base::TimeTicks decode_additional_bids_start_time_;
 
-  // Invoked in the bidding and scoring phase, once the seller worklet has
-  // loaded. May be null.
-  base::OnceClosure on_seller_receiver_callback_;
+  // Invoked in the bidding and scoring phase, once a process has been assigned
+  // to the seller worklet request.
+  base::OnceClosure on_seller_process_assigned_callback_;
 
   // The number of buyers and component auctions with pending interest group
   // loads from storage. Decremented each time either the interest groups for
@@ -1316,6 +1456,9 @@ class CONTENT_EXPORT InterestGroupAuction
 
   enum class PhaseState { kBefore, kDuring, kAfter };
   PhaseState bidding_and_scoring_phase_state_ = PhaseState::kBefore;
+
+  // True if creating bid from server response has started.
+  bool started_creating_bid_from_response_ = false;
 
   // Number of things that are pending that are needed to score everything.
   // This includes bidders that are still attempting to generate bids ---
@@ -1341,9 +1484,14 @@ class CONTENT_EXPORT InterestGroupAuction
   bool any_bid_made_ = false;
 
   // Lockout and cooldowns for sending forDebuggingOnly reports. It's read from
-  // DB when the auction started.
+  // DB when the auction started for local auctions, or after B&A server
+  // response is parsed for server auctions.
   std::optional<DebugReportLockoutAndCooldowns>
       debug_report_lockout_and_cooldowns_;
+
+  // True if lockout and cooldowns are loaded for the server auction, to avoid
+  // reading it more than once.
+  bool server_auction_debug_report_lockout_loaded_ = false;
 
   // New lockout and cooldowns for sending forDebuggingOnly reports. It's
   // generated from this auction and updated during collecting debug reports.
@@ -1412,21 +1560,40 @@ class CONTENT_EXPORT InterestGroupAuction
   // Holds a reference to the SellerWorklet used by the auction.
   std::unique_ptr<AuctionWorkletManager::WorkletHandle> seller_worklet_handle_;
 
+  // Metrics for this auction's seller.
+  PrivateAggregationParticipantData seller_metrics_;
+  AuctionMetricsRecorder::LatencyAggregator code_fetch_time_;
+  int seller_scripts_ran_ = 0;
+  int seller_scripts_timed_out_ = 0;
+
+  // Stores all pending forDebuggingOnly reports.
+  std::vector<GURL> debug_win_report_urls_;
+  std::vector<GURL> debug_loss_report_urls_;
+
   // Stores all pending Private Aggregation API report requests of reserved
   // event type from the bidding and scoring phase. These are passed to the
   // InterestGroupAuctionReporter when it's created. Keyed by the origin of the
   // script that issued the request (i.e. the reporting origin) and the
   // aggregation coordinator origin.
-  std::map<InterestGroupAuctionReporter::PrivateAggregationKey,
-           PrivateAggregationRequests>
+  std::map<PrivateAggregationKey, FinalizedPrivateAggregationRequests>
       private_aggregation_requests_reserved_;
 
   // Stores all pending Private Aggregation API report requests of non-reserved
   // event type. Only comes from bidding phase of winning buyer. These are
   // passed to the InterestGroupAuctionReporter when it's created. Keyed by the
   // request's event type.
-  std::map<std::string, PrivateAggregationRequests>
+  std::map<std::string, FinalizedPrivateAggregationRequests>
       private_aggregation_requests_non_reserved_;
+
+  // This is used to keep track of which scoreAd execution's PA contributions on
+  // "reserved.once" to use; it's incrementally updated as the scores come in.
+  raw_ptr<BidState> seller_reserved_once_rep_ = nullptr;
+  int seller_reserved_once_rep_count_ = 0;
+
+  // A cache of feature params to avoid getting these values many times which
+  // can be slow.
+  std::optional<int> real_time_reporting_num_buckets_;
+  std::optional<double> real_time_platform_contribution_priority_weight_;
 
   // Stores all real time reporting contributions. These will go through
   // sampling and converting to histograms of 0 and 1s.
@@ -1468,13 +1635,32 @@ class CONTENT_EXPORT InterestGroupAuction
   // problem).
   bool all_bids_scored_ = false;
 
+  // Set to true inside CollectBiddingAndScoringPhaseReports(). Used to make
+  // sure the various Take***() methods that retrieve reports registered in
+  // generateBid() and scoreAd() (e.g., forDebuggingOnly, private aggregation,
+  // real time reporting) are called after
+  // CollectBiddingAndScoringPhaseReports() is called (i.e., when it's true).
+  bool bidding_and_scoring_phase_reports_collected_ = false;
+
   // Receivers for OnScoreAd() callbacks. Owns Bids, which have raw pointers to
   // other objects, so must be last, to avoid triggering tooling to check for
   // dangling pointers.
-  mojo::ReceiverSet<auction_worklet::mojom::ScoreAdClient, std::unique_ptr<Bid>>
+  mojo::ReceiverSet<auction_worklet::mojom::ScoreAdClient, ScoreAdClientData>
       score_ad_receivers_;
 
   GetDataDecoderCallback get_data_decoder_callback_;
+
+  // For metrics only -- stores the size of interest groups and their internal
+  // ads and ad components, respectively, as computed by EstimateSize(). Only
+  // stores for the current auction; if this is the parent auction of component
+  // auctions, their sizes are not included.
+  size_t interest_groups_bytes_for_metrics_ = 0u;
+  size_t ads_and_ad_components_bytes_for_metrics_ = 0u;
+
+  // If true, indicates that this auction received an abort signal. Used for UMA
+  // only, to differentiate frame destruction from receiving an abort signal in
+  // Auction.Result.
+  bool received_abort_signal_ = false;
 
   base::WeakPtrFactory<InterestGroupAuction> weak_ptr_factory_{this};
 };

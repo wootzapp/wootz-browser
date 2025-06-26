@@ -5,12 +5,15 @@
 package org.chromium.content_public.browser.test.mock;
 
 import android.annotation.SuppressLint;
+import android.graphics.Bitmap;
 import android.graphics.Rect;
 import android.os.Handler;
 import android.os.Parcel;
 
 import androidx.annotation.Nullable;
 
+import org.chromium.base.Callback;
+import org.chromium.base.UserData;
 import org.chromium.blink_public.input.SelectionGranularity;
 import org.chromium.content_public.browser.GlobalRenderFrameHostId;
 import org.chromium.content_public.browser.ImageDownloadCallback;
@@ -26,6 +29,8 @@ import org.chromium.content_public.browser.ViewEventSink;
 import org.chromium.content_public.browser.Visibility;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
+import org.chromium.content_public.browser.back_forward_transition.AnimationStage;
+import org.chromium.ui.BrowserControlsOffsetTagDefinitions;
 import org.chromium.ui.OverscrollRefreshHandler;
 import org.chromium.ui.base.EventForwarder;
 import org.chromium.ui.base.ViewAndroidDelegate;
@@ -33,12 +38,9 @@ import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.mojom.VirtualKeyboardMode;
 import org.chromium.url.GURL;
 
-import java.util.Collections;
-import java.util.List;
-
 /** Mock class for {@link WebContents}. */
 @SuppressLint("ParcelCreator")
-public class MockWebContents implements WebContents {
+public class MockWebContents implements WebContents, WebContentsObserver.Observable {
     public RenderFrameHost renderFrameHost;
     private GURL mLastCommittedUrl;
 
@@ -117,11 +119,6 @@ public class MockWebContents implements WebContents {
     }
 
     @Override
-    public List<? extends WebContents> getInnerWebContents() {
-        return Collections.emptyList();
-    }
-
-    @Override
     public @Visibility int getVisibility() {
         return Visibility.VISIBLE;
     }
@@ -172,13 +169,7 @@ public class MockWebContents implements WebContents {
     public void stop() {}
 
     @Override
-    public void onHide() {}
-
-    @Override
-    public void onShow() {}
-
-    @Override
-    public void setImportance(int importance) {}
+    public void setPrimaryMainFrameImportance(int importance) {}
 
     @Override
     public void suspendAllMediaPlayers() {}
@@ -360,6 +351,9 @@ public class MockWebContents implements WebContents {
     public void setDisplayCutoutSafeArea(Rect insets) {}
 
     @Override
+    public void setContextMenuInsets(Rect insets) {}
+
+    @Override
     public void notifyRendererPreferenceUpdate() {}
 
     @Override
@@ -372,4 +366,34 @@ public class MockWebContents implements WebContents {
     public boolean needToFireBeforeUnloadOrUnloadEvents() {
         return false;
     }
+
+    @Override
+    public void onContentForNavigationEntryShown() {}
+
+    @Override
+    public int getCurrentBackForwardTransitionStage() {
+        return AnimationStage.NONE;
+    }
+
+    @Override
+    public void captureContentAsBitmapForTesting(Callback<Bitmap> callback) {}
+
+    @Override
+    public void setLongPressLinkSelectText(boolean enabled) {}
+
+    @Override
+    public void updateOffsetTagDefinitions(
+            BrowserControlsOffsetTagDefinitions offsetTagDefinitions) {}
+
+    @Override
+    public void setSupportsForwardTransitionAnimation(boolean supports) {}
+
+    @Override
+    public <T extends UserData> @Nullable T getOrSetUserData(
+            Class<T> key, @Nullable UserDataFactory<T> userDataFactory) {
+        return null;
+    }
+
+    @Override
+    public <T extends UserData> void removeUserData(Class<T> key) {}
 }

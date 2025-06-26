@@ -29,8 +29,9 @@ android_library("java") {
     "//chrome/android:chrome_java",
     "//chrome/browser/android/content:java",
     "//chrome/browser/android/lifecycle:java",
-    "//chrome/browser/flags:java",
+    "//chrome/browser/browser_controls/android:java",
     "//chrome/browser/profiles/android:java",
+    "//chrome/browser/flags:java",
     "//chrome/browser/ui/android/appmenu:java",
     "//components/browser_ui/styles/android:java",
     "//components/browser_ui/widget/android:java",
@@ -40,8 +41,8 @@ android_library("java") {
     "//components/thin_webview:java",
     "//content/public/android:content_java",
     "//third_party/android_deps:material_design_java",
-    "//third_party/androidx:androidx_annotation_annotation_java",
     "//third_party/androidx:androidx_appcompat_appcompat_java",
+    "//third_party/androidx:androidx_annotation_annotation_java",
     "//third_party/androidx:androidx_appcompat_appcompat_resources_java",
     "//third_party/androidx:androidx_coordinatorlayout_coordinatorlayout_java",
     "//third_party/androidx:androidx_core_core_java",
@@ -53,12 +54,13 @@ android_library("java") {
 
 android_resources("java_resources") {
   sources = [
+    "java/res/color-night/menu_action_bar_bg_color.xml",
+    "java/res/color/menu_action_bar_bg_color.xml",
     "java/res/drawable/menu_action_bar_bg.xml",
     "java/res/layout/icon_row_menu_item.xml",
     "java/res/layout/menu_item.xml",
     "java/res/layout/menu_item_start_with_icon.xml",
     "java/res/layout/title_button_menu_item.xml",
-    "java/res/values-night/dimens.xml",
     "java/res/values/dimens.xml",
   ]
 
@@ -87,6 +89,7 @@ android_library("unit_device_javatests") {
     "//base:base_java",
     "//base:base_java_test_support",
     "//chrome/browser/android/lifecycle:java",
+    "//chrome/browser/browser_controls/android:java",
     "//chrome/browser/flags:java",
     "//chrome/browser/ui/android/appmenu:java",
     "//chrome/browser/ui/android/appmenu/test:test_support_java",
@@ -104,6 +107,7 @@ android_library("unit_device_javatests") {
     "//third_party/mockito:mockito_java",
     "//ui/android:ui_full_java",
     "//ui/android:ui_java_test_support",
+    "//ui/android:ui_utils_java",
   ]
 }
 

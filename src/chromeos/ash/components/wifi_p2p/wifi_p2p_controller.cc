@@ -4,7 +4,6 @@
 
 #include "chromeos/ash/components/wifi_p2p/wifi_p2p_controller.h"
 
-#include "ash/constants/ash_features.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "chromeos/ash/components/dbus/patchpanel/patchpanel_client.h"
@@ -138,8 +137,7 @@ WifiP2PController::~WifiP2PController() {
 
 void WifiP2PController::Init() {
   ShillManagerClient::Get()->SetProperty(
-      shill::kP2PAllowedProperty,
-      base::Value(ash::features::IsWifiDirectEnabled()), base::DoNothing(),
+      shill::kP2PAllowedProperty, base::Value(true), base::DoNothing(),
       base::BindOnce(&WifiP2PController::OnSetManagerPropertyFailure,
                      weak_ptr_factory_.GetWeakPtr(),
                      shill::kP2PAllowedProperty));
@@ -471,7 +469,19 @@ void WifiP2PController::TagSocket(
     base::OnceCallback<void(bool success)> callback) {
   PatchPanelClient::Get()->TagSocket(
       socket_fd.get(), network_id,
-      PatchPanelClient::VpnRoutingPolicy::kBypassVpn, std::move(callback));
+      PatchPanelClient::VpnRoutingPolicy::kBypassVpn,
+      base::BindOnce(&WifiP2PController::OnTagSocketCompleted,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback)));
+}
+
+void WifiP2PController::OnTagSocketCompleted(
+    base::OnceCallback<void(bool success)> callback,
+    bool success) {
+  if (!success) {
+    NET_LOG(ERROR) << "Tag socket operation failed.";
+  }
+  WifiP2PMetricsLogger::RecordTagSocketOperationResult(success);
+  std::move(callback).Run(success);
 }
 
 void WifiP2PController::OnPropertyChanged(const std::string& key,
@@ -539,6 +549,8 @@ void WifiP2PController::UpdateP2PCapabilities(
       capabilities.FindString(shill::kP2PCapabilitiesGroupReadinessProperty);
   const std::string* client_readiness =
       capabilities.FindString(shill::kP2PCapabilitiesClientReadinessProperty);
+  const std::optional<bool> p2p_supported =
+      capabilities.FindBool(shill::kP2PCapabilitiesP2PSupportedProperty);
 
   if (group_readiness) {
     wifi_p2p_capabilities_.is_owner_ready =
@@ -548,6 +560,10 @@ void WifiP2PController::UpdateP2PCapabilities(
   if (client_readiness) {
     wifi_p2p_capabilities_.is_client_ready =
         (*client_readiness == shill::kP2PCapabilitiesClientReadinessReady);
+  }
+
+  if (p2p_supported.has_value()) {
+    wifi_p2p_capabilities_.is_p2p_supported = p2p_supported.value();
   }
 }
 

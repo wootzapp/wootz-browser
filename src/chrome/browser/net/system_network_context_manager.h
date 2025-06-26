@@ -11,7 +11,8 @@
 
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
+#include "chrome/browser/net/cert_verifier_service_time_updater.h"
 #include "chrome/browser/net/cookie_encryption_provider_impl.h"
 #include "chrome/browser/net/proxy_config_monitor.h"
 #include "chrome/browser/net/stub_resolver_config_reader.h"
@@ -232,13 +233,6 @@ class SystemNetworkContextManager {
   // the network process.
   void UpdateExplicitlyAllowedNetworkPorts();
 
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
-  // Applies the current value of the kEnforceLocalAnchorConstraintsEnabled
-  // pref to the enforcement state.
-  void UpdateEnforceLocalAnchorConstraintsEnabled();
-#endif
-
   void UpdateIPv6ReachabilityOverrideEnabled();
 
   // The PrefService to retrieve all the pref values.
@@ -290,6 +284,8 @@ class SystemNetworkContextManager {
 #endif  // BUILDFLAG(IS_LINUX)
 
   CookieEncryptionProviderImpl cookie_encryption_provider_;
+
+  std::unique_ptr<CertVerifierServiceTimeUpdater> cert_verifier_time_updater_;
 };
 
 #endif  // CHROME_BROWSER_NET_SYSTEM_NETWORK_CONTEXT_MANAGER_H_

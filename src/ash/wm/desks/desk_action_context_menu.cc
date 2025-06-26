@@ -6,16 +6,23 @@
 
 #include <string>
 
-#include "ash/public/cpp/desk_profiles_delegate.h"
+#include "ash/public/cpp/desk_template.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "ash/shell.h"
 #include "ash/shell_delegate.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/wm/desks/desks_histogram_enums.h"
+#include "ash/wm/desks/templates/saved_desk_save_desk_button.h"
+#include "ash/wm/overview/overview_grid.h"
+#include "ash/wm/overview/overview_session.h"
+#include "ash/wm/overview/overview_utils.h"
 #include "base/metrics/histogram_functions.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/gfx/image/image_skia_operations.h"
+#include "ui/menus/simple_menu_model.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/views/controls/menu/menu_model_adapter.h"
@@ -27,16 +34,10 @@
 namespace ash {
 namespace {
 
-// The size of desk profile icon.
-constexpr int kIconProfileSize = 24;
-
-// The size for selected profile checker icon.
-constexpr int kCheckButtonSize = 20;
-
 class MenuModelAdapter : public views::MenuModelAdapter {
  public:
-  explicit MenuModelAdapter(ui::SimpleMenuModel* model)
-      : views::MenuModelAdapter(model) {}
+  MenuModelAdapter(ui::SimpleMenuModel* model, base::WeakPtr<OverviewGrid> grid)
+      : views::MenuModelAdapter(model), grid_(grid) {}
 
   views::MenuItemView* AppendMenuItem(views::MenuItemView* menu,
                                       ui::MenuModel* model,
@@ -49,11 +50,20 @@ class MenuModelAdapter : public views::MenuModelAdapter {
     const int command_id = model->GetCommandIdAt(index);
     views::MenuItemView* item_view = menu->AppendMenuItem(command_id);
 
-    if (command_id >= DeskActionContextMenu::kDynamicProfileStart) {
-      item_view->SetSecondaryTitle(model->GetMinorTextAt(index));
-    }
-
     item_view->SetIcon(model->GetIconAt(index));
+
+    // The save desk option may be disabled if there are unsupported windows.
+    if (command_id == DeskActionContextMenu::CommandId::kSaveAsTemplate ||
+        command_id == DeskActionContextMenu::CommandId::kSaveForLater) {
+      CHECK(grid_);
+      SaveDeskOptionStatus status =
+          grid_->GetEnableStateAndTooltipIDForTemplateType(
+              command_id == DeskActionContextMenu::CommandId::kSaveAsTemplate
+                  ? DeskTemplateType::kTemplate
+                  : DeskTemplateType::kSaveAndRecall);
+      menu->SetTooltip(l10n_util::GetStringUTF16(status.tooltip_id),
+                       command_id);
+    }
 
     // If the minor icon is set, then it's expected to be the checkmark used to
     // identify the currently selected desk profile. Note that simply doing
@@ -71,6 +81,10 @@ class MenuModelAdapter : public views::MenuModelAdapter {
 
     return item_view;
   }
+
+ private:
+  // Used to get the enabled/disabled status and tooltip.
+  base::WeakPtr<OverviewGrid> grid_;
 };
 
 }  // namespace
@@ -81,8 +95,11 @@ DeskActionContextMenu::Config::~Config() = default;
 DeskActionContextMenu::Config& DeskActionContextMenu::Config::operator=(
     Config&&) = default;
 
-DeskActionContextMenu::DeskActionContextMenu(Config config)
-    : config_(std::move(config)), context_menu_model_(this) {
+DeskActionContextMenu::DeskActionContextMenu(Config config,
+                                             DeskMiniView* mini_view)
+    : config_(std::move(config)),
+      mini_view_(mini_view),
+      context_menu_model_(this) {
   bool separator_needed = false;
   auto maybe_add_separator = [&] {
     if (separator_needed) {
@@ -91,51 +108,55 @@ DeskActionContextMenu::DeskActionContextMenu(Config config)
     }
   };
 
-  // Set the accessible name for menu items here and then pipe the information
-  // to the view instances during `ShowContextMenuForViewImpl()`.
+  // Accessible names should be set on each of the following menu items to
+  // ensure the labels are read properly by screen readers.
 
-  if (config_.profiles.size() > 1) {
-    for (size_t i = 0; i != config_.profiles.size(); ++i) {
-      const auto& summary = config_.profiles[i];
-
-      gfx::ImageSkia icon = gfx::ImageSkiaOperations::CreateResizedImage(
-          summary.icon, skia::ImageOperations::RESIZE_BEST,
-          gfx::Size(kIconProfileSize, kIconProfileSize));
-
-      context_menu_model_.AddItemWithIcon(
-          static_cast<int>(kDynamicProfileStart + i), summary.name,
-          ui::ImageModel::FromImageSkia(
-              gfx::ImageSkiaOperations::CreateImageWithRoundRectClip(
-                  kIconProfileSize, icon)));
-
-      auto entry_index = context_menu_model_.GetItemCount() - 1;
-      context_menu_model_.SetMinorText(entry_index, summary.email);
-
-      int profile_a11y_id = IDS_ASH_DESKS_MENU_ITEM_PROFILE_NOT_CHECKED;
-      if (summary.profile_id == config_.current_lacros_profile_id) {
-        context_menu_model_.SetMinorIcon(
-            entry_index, ui::ImageModel::FromVectorIcon(
-                             kHollowCheckCircleIcon,
-                             cros_tokens::kCrosSysPrimary, kCheckButtonSize));
-        profile_a11y_id = IDS_ASH_DESKS_MENU_ITEM_PROFILE_CHECKED;
-      }
-
-      context_menu_model_.SetAccessibleNameAt(
-          entry_index, l10n_util::GetStringFUTF16(profile_a11y_id, summary.name,
-                                                  summary.email));
-    }
-
-    context_menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
-    const std::u16string profile_manager_a11y =
-        l10n_util::GetStringUTF16(IDS_ASH_DESKS_OPEN_PROFILE_MANAGER);
+  if (config_.save_template_target_name) {
+    maybe_add_separator();
+    const std::u16string save_template_a11y = l10n_util::GetStringUTF16(
+        IDS_ASH_DESKS_TEMPLATES_SAVE_DESK_AS_TEMPLATE_BUTTON);
     context_menu_model_.AddItemWithIcon(
-        CommandId::kShowProfileManager, profile_manager_a11y,
-        ui::ImageModel::FromVectorIcon(
-            kSettingsIcon, cros_tokens::kCrosSysOnSurface, kCheckButtonSize));
+        CommandId::kSaveAsTemplate, save_template_a11y,
+        ui::ImageModel::FromVectorIcon(kSaveDeskAsTemplateIcon,
+                                       ui::kColorAshSystemUIMenuIcon));
     context_menu_model_.SetAccessibleNameAt(
-        context_menu_model_.GetItemCount() - 1, profile_manager_a11y);
+        context_menu_model_.GetItemCount() - 1, save_template_a11y);
 
-    separator_needed = true;
+    // The save desk options may be disabled if there are unsupported windows.
+    OverviewSession* session = GetOverviewSession();
+    CHECK(session);
+    OverviewGrid* grid =
+        session->GetGridWithRootWindow(mini_view_->root_window());
+    CHECK(grid);
+    context_menu_model_.SetEnabledAt(
+        context_menu_model_.GetItemCount() - 1,
+        grid->GetEnableStateAndTooltipIDForTemplateType(
+                DeskTemplateType::kTemplate)
+            .enabled);
+  }
+
+  if (config_.save_later_target_name) {
+    maybe_add_separator();
+    const std::u16string save_later_a11y = l10n_util::GetStringUTF16(
+        IDS_ASH_DESKS_TEMPLATES_SAVE_DESK_FOR_LATER_BUTTON);
+    context_menu_model_.AddItemWithIcon(
+        CommandId::kSaveForLater, save_later_a11y,
+        ui::ImageModel::FromVectorIcon(kSaveDeskForLaterIcon,
+                                       ui::kColorAshSystemUIMenuIcon));
+    context_menu_model_.SetAccessibleNameAt(
+        context_menu_model_.GetItemCount() - 1, save_later_a11y);
+
+    // The save desk options may be disabled if there are unsupported windows.
+    OverviewSession* session = GetOverviewSession();
+    CHECK(session);
+    OverviewGrid* grid =
+        session->GetGridWithRootWindow(mini_view_->root_window());
+    CHECK(grid);
+    context_menu_model_.SetEnabledAt(
+        context_menu_model_.GetItemCount() - 1,
+        grid->GetEnableStateAndTooltipIDForTemplateType(
+                DeskTemplateType::kSaveAndRecall)
+            .enabled);
   }
 
   if (config_.combine_desks_target_name) {
@@ -163,8 +184,9 @@ DeskActionContextMenu::DeskActionContextMenu(Config config)
         context_menu_model_.GetItemCount() - 1, close_all_a11y);
   }
 
-  menu_model_adapter_ =
-      std::make_unique<MenuModelAdapter>(&context_menu_model_);
+  OverviewGrid* grid = mini_view_->owner_bar()->overview_grid();
+  menu_model_adapter_ = std::make_unique<MenuModelAdapter>(
+      &context_menu_model_, grid ? grid->GetWeakPtr() : nullptr);
 }
 
 DeskActionContextMenu::~DeskActionContextMenu() = default;
@@ -176,19 +198,17 @@ void DeskActionContextMenu::MaybeCloseMenu() {
 
 void DeskActionContextMenu::ExecuteCommand(int command_id, int event_flags) {
   switch (command_id) {
+    case CommandId::kSaveAsTemplate:
+      config_.save_template_callback.Run();
+      break;
+    case CommandId::kSaveForLater:
+      config_.save_later_callback.Run();
+      break;
     case CommandId::kCombineDesks:
       config_.combine_desks_callback.Run();
       break;
     case CommandId::kCloseAll:
       config_.close_all_callback.Run();
-      break;
-    case CommandId::kShowProfileManager:
-      base::UmaHistogramBoolean(kDeskProfilesOpenProfileManagerHistogramName,
-                                true);
-      Shell::Get()->shell_delegate()->OpenProfileManager();
-      break;
-    default:
-      MaybeSetLacrosProfileId(command_id);
       break;
   }
 }
@@ -202,7 +222,7 @@ void DeskActionContextMenu::MenuClosed(ui::SimpleMenuModel* menu) {
 void DeskActionContextMenu::ShowContextMenuForViewImpl(
     views::View* source,
     const gfx::Point& point,
-    ui::MenuSourceType source_type) {
+    ui::mojom::MenuSourceType source_type) {
   const int run_types = views::MenuRunner::USE_ASH_SYS_UI_LAYOUT |
                         views::MenuRunner::CONTEXT_MENU |
                         views::MenuRunner::FIXED_ANCHOR |
@@ -228,16 +248,8 @@ void DeskActionContextMenu::ShowContextMenuForViewImpl(
        model_index++) {
     if (auto a11y_name = context_menu_model_.GetAccessibleNameAt(model_index);
         !a11y_name.empty()) {
-      item_views[view_index++]->SetAccessibleName(a11y_name);
+      item_views[view_index++]->GetViewAccessibility().SetName(a11y_name);
     }
-  }
-}
-
-void DeskActionContextMenu::MaybeSetLacrosProfileId(int command_id) {
-  size_t profile_index = static_cast<size_t>(command_id - kDynamicProfileStart);
-  if (profile_index < config_.profiles.size()) {
-    config_.set_lacros_profile_id.Run(
-        config_.profiles[profile_index].profile_id);
   }
 }
 

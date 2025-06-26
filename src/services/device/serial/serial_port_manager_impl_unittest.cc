@@ -4,6 +4,7 @@
 
 #include "services/device/serial/serial_port_manager_impl.h"
 
+#include <algorithm>
 #include <set>
 #include <string>
 #include <utility>
@@ -12,7 +13,6 @@
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/gmock_callback_support.h"
@@ -42,6 +42,7 @@ namespace device {
 
 namespace {
 
+using ::base::test::InvokeFuture;
 using ::base::test::RunOnceCallback;
 using ::base::test::TestFuture;
 using ::testing::_;
@@ -421,7 +422,7 @@ TEST_F(SerialPortManagerImplTest, BluetoothDeviceChanged) {
   TestFuture<std::vector<mojom::SerialPortInfoPtr>> get_devices_future;
   port_manager->GetDevices(get_devices_future.GetCallback());
   auto port_it =
-      base::ranges::find_if(get_devices_future.Get(), [&](const auto& port) {
+      std::ranges::find_if(get_devices_future.Get(), [&](const auto& port) {
         return port->path == base::FilePath::FromASCII(kDeviceAddress);
       });
   ASSERT_NE(port_it, get_devices_future.Get().end());
@@ -435,9 +436,7 @@ TEST_F(SerialPortManagerImplTest, BluetoothDeviceChanged) {
   updated_device->AddUUID(
       device::BluetoothUUID("25e97ff7-24ce-4c4c-8951-f764a708f7b5"));
   TestFuture<mojom::SerialPortInfoPtr> port_added_future;
-  EXPECT_CALL(client, OnPortAdded).WillOnce([&](mojom::SerialPortInfoPtr port) {
-    port_added_future.SetValue(std::move(port));
-  });
+  EXPECT_CALL(client, OnPortAdded).WillOnce(InvokeFuture(port_added_future));
   bluetooth_enumerator_->DeviceChangedForTesting(adapter_.get(),
                                                  updated_device.get());
   ASSERT_TRUE(port_added_future.Get());
@@ -463,7 +462,7 @@ TEST_F(SerialPortManagerImplTest, BluetoothDeviceConnectedStateChanged) {
   TestFuture<std::vector<mojom::SerialPortInfoPtr>> get_devices_future;
   port_manager->GetDevices(get_devices_future.GetCallback());
   auto port_it =
-      base::ranges::find_if(get_devices_future.Get(), [&](const auto& port) {
+      std::ranges::find_if(get_devices_future.Get(), [&](const auto& port) {
         return port->path == base::FilePath::FromASCII(kDeviceAddress);
       });
   ASSERT_NE(port_it, get_devices_future.Get().end());
@@ -474,9 +473,7 @@ TEST_F(SerialPortManagerImplTest, BluetoothDeviceConnectedStateChanged) {
   // Simulate the device becoming disconnected.
   TestFuture<mojom::SerialPortInfoPtr> disconnect_future;
   EXPECT_CALL(client, OnPortConnectedStateChanged)
-      .WillOnce([&disconnect_future](mojom::SerialPortInfoPtr port) {
-        disconnect_future.SetValue(std::move(port));
-      });
+      .WillOnce(InvokeFuture(disconnect_future));
   auto updated_device = CreateSerialPortProfileDevice();
   updated_device->SetConnected(false);
   bluetooth_enumerator_->DeviceChangedForTesting(adapter_.get(),

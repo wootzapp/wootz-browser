@@ -2,13 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-package chrome.android.junit.src.org.chromium.chrome.browser.compositor.scene_layer;
+package org.chromium.chrome.browser.compositor.scene_layer;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyFloat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import static org.chromium.chrome.browser.tasks.tab_management.TabUiThemeUtil.FOLIO_FOOT_LENGTH_DP;
 
 import android.content.Context;
 import android.graphics.Color;
@@ -16,32 +22,32 @@ import android.view.ContextThemeWrapper;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import com.google.android.material.color.MaterialColors;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
+import org.chromium.base.Token;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.compositor.LayerTitleCache;
 import org.chromium.chrome.browser.compositor.layouts.LayoutRenderHost;
 import org.chromium.chrome.browser.compositor.layouts.LayoutUpdateHost;
 import org.chromium.chrome.browser.compositor.layouts.components.CompositorButton;
-import org.chromium.chrome.browser.compositor.layouts.components.CompositorButton.CompositorOnClickHandler;
+import org.chromium.chrome.browser.compositor.layouts.components.CompositorButton.ButtonType;
 import org.chromium.chrome.browser.compositor.layouts.components.TintedCompositorButton;
+import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutGroupTitle;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutHelperManager;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutTab;
-import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutTab.StripLayoutTabDelegate;
+import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutView.StripLayoutViewOnClickHandler;
 import org.chromium.chrome.browser.compositor.overlays.strip.TabLoadTracker.TabLoadTrackerCallback;
-import org.chromium.chrome.browser.compositor.scene_layer.TabStripSceneLayer;
-import org.chromium.chrome.browser.compositor.scene_layer.TabStripSceneLayerJni;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.ui.resources.ResourceManager;
 
@@ -49,18 +55,19 @@ import org.chromium.ui.resources.ResourceManager;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE, qualifiers = "sw600dp")
 public class TabStripSceneLayerTest {
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
-    @Rule public JniMocker mJniMocker = new JniMocker();
+
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private TabStripSceneLayer.Natives mTabStripSceneMock;
     @Mock private StripLayoutHelperManager mStripLayoutHelperManager;
     @Mock private ResourceManager mResourceManager;
     @Mock private LayerTitleCache mLayerTitleCache;
     @Mock private SceneLayer mSceneLayer;
-    @Mock private CompositorOnClickHandler mCompositorOnClickHandler;
-    @Mock private StripLayoutTabDelegate mStripLayoutTabDelegate;
+    @Mock private StripLayoutViewOnClickHandler mOnClickHandler;
     @Mock private TabLoadTrackerCallback mTabLoadTrackerCallback;
     @Mock private LayoutRenderHost mLayoutRenderHost;
     @Mock private LayoutUpdateHost mLayoutUpdateHost;
+    @Mock private TintedCompositorButton mCloseButton;
+    @Mock private StripLayoutGroupTitle mStripGroupTitle;
 
     private final float mDpToPx = 1.f;
 
@@ -70,13 +77,13 @@ public class TabStripSceneLayerTest {
     private TabStripSceneLayer mTabStripSceneLayer;
     private StripLayoutTab mStripLayoutTab;
     private StripLayoutTab[] mStripLayoutTabs;
+    private StripLayoutGroupTitle[] mStripGroupTitles;
 
     public TabStripSceneLayerTest() {}
 
     @Before
     public void beforeTest() {
-        MockitoAnnotations.initMocks(this);
-        mJniMocker.mock(TabStripSceneLayerJni.TEST_HOOKS, mTabStripSceneMock);
+        TabStripSceneLayerJni.setInstanceForTesting(mTabStripSceneMock);
         mContext =
                 new ContextThemeWrapper(
                         ApplicationProvider.getApplicationContext(),
@@ -95,26 +102,51 @@ public class TabStripSceneLayerTest {
         when(mTabStripSceneMock.init(mTabStripSceneLayer)).thenReturn(1L);
         mModelSelectorButton =
                 new TintedCompositorButton(
-                        mContext, 32.f, 32.f, mCompositorOnClickHandler, R.drawable.ic_incognito);
+                        mContext,
+                        ButtonType.INCOGNITO_SWITCHER,
+                        null,
+                        32.f,
+                        32.f,
+                        mOnClickHandler,
+                        R.drawable.ic_incognito,
+                        12.f);
         mNewTabButton =
                 new TintedCompositorButton(
                         mContext,
+                        ButtonType.NEW_TAB,
+                        null,
                         32.f,
                         32.f,
-                        mCompositorOnClickHandler,
-                        R.drawable.ic_new_tab_button);
+                        mOnClickHandler,
+                        R.drawable.ic_new_tab_button,
+                        8.f);
         mStripLayoutTab =
-                new StripLayoutTab(
-                        mContext,
-                        1,
-                        mStripLayoutTabDelegate,
-                        mTabLoadTrackerCallback,
-                        mLayoutUpdateHost,
-                        false);
+                spy(
+                        new StripLayoutTab(
+                                mContext,
+                                1,
+                                mOnClickHandler,
+                                mTabLoadTrackerCallback,
+                                mLayoutUpdateHost,
+                                false));
         mTabStripSceneLayer.initializeNativeForTesting();
         mStripLayoutTabs = new StripLayoutTab[] {mStripLayoutTab};
+        mStripGroupTitles = new StripLayoutGroupTitle[] {mStripGroupTitle};
         when(mStripLayoutHelperManager.getNewTabButton()).thenReturn(mNewTabButton);
         when(mStripLayoutHelperManager.getModelSelectorButton()).thenReturn(mModelSelectorButton);
+        when(mStripLayoutTab.getCloseButton()).thenReturn(mCloseButton);
+        when(mStripGroupTitle.getKeyboardFocusRingColor())
+                .thenReturn(
+                        MaterialColors.getColor(
+                                mContext, R.attr.colorPrimary, /* defaultValue= */ 0));
+        when(mStripGroupTitle.getKeyboardFocusRingOffset())
+                .thenReturn(
+                        mContext.getResources()
+                                .getDimensionPixelSize(R.dimen.tabstrip_keyfocus_offset));
+        when(mStripGroupTitle.getKeyboardFocusRingWidth())
+                .thenReturn(
+                        mContext.getResources()
+                                .getDimensionPixelSize(R.dimen.tabstrip_strokewidth));
     }
 
     @Test
@@ -146,20 +178,17 @@ public class TabStripSceneLayerTest {
 
         // Verify JNI calls.
         verify(mTabStripSceneMock)
-                .updateModelSelectorButtonBackground(
+                .updateModelSelectorButton(
                         1L,
                         mTabStripSceneLayer,
                         mModelSelectorButton.getResourceId(),
                         ((TintedCompositorButton) mModelSelectorButton).getBackgroundResourceId(),
                         mModelSelectorButton.getDrawX(),
                         mModelSelectorButton.getDrawY(),
-                        mModelSelectorButton.getWidth() * mDpToPx,
-                        mModelSelectorButton.getHeight() * mDpToPx,
-                        false,
                         true,
+                        false,
                         ((TintedCompositorButton) mModelSelectorButton).getTint(),
                         ((TintedCompositorButton) mModelSelectorButton).getBackgroundTint(),
-                        false,
                         mModelSelectorButton.getOpacity(),
                         mResourceManager);
         verify(mTabStripSceneMock)
@@ -168,16 +197,15 @@ public class TabStripSceneLayerTest {
                         eq(mTabStripSceneLayer),
                         /* resourceId= */ anyInt(),
                         /* backgroundResourceId= */ anyInt(),
-                        /* isHovered= */ eq(mNewTabButton.isHovered()),
                         /* x= */ eq(mNewTabButton.getDrawX() * mDpToPx),
                         /* y= */ eq(mNewTabButton.getDrawY() * mDpToPx),
-                        /* topPadding= */ eq(topPadding),
                         /* touchTargetOffset= */ anyFloat(),
                         /* visible= */ eq(mNewTabButton.isVisible()),
+                        /* isHovered= */ eq(mNewTabButton.isHovered()),
                         /* tint= */ anyInt(),
                         /* backgroundTint= */ anyInt(),
                         /* buttonAlpha= */ anyFloat(),
-                        /* backgroundTint= */ eq(mResourceManager));
+                        /* resourceManager= */ eq(mResourceManager));
         verify(mTabStripSceneMock)
                 .updateTabStripLeftFade(
                         1L, mTabStripSceneLayer, 0, 0.f, mResourceManager, 0, leftPadding);
@@ -197,5 +225,304 @@ public class TabStripSceneLayerTest {
                         eq(leftPadding),
                         eq(rightPadding),
                         eq(topPadding));
+    }
+
+    @Test
+    public void testUpdateStrip_tabNotFocusedTabInTabGroup_keyboardFocused() {
+        when(mStripLayoutTab.isKeyboardFocused()).thenReturn(true);
+        mTabStripSceneLayer.pushStripTabs(
+                mStripLayoutHelperManager,
+                mLayerTitleCache,
+                mResourceManager,
+                new StripLayoutTab[] {mStripLayoutTab},
+                0,
+                -1);
+        verify(mTabStripSceneMock, times(1))
+                .putStripTabLayer(
+                        eq(1L),
+                        eq(mTabStripSceneLayer),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        eq(false),
+                        eq(R.drawable.close_button_keyfocus),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyBoolean(),
+                        eq(false),
+                        eq(false),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyFloat(),
+                        anyFloat(),
+                        eq(true),
+                        eq(R.drawable.tabstrip_keyfocus_8dp),
+                        eq(
+                                MaterialColors.getColor(
+                                        mContext, R.attr.colorPrimary, /* defaultValue= */ 0)),
+                        eq(
+                                mContext.getResources()
+                                        .getDimensionPixelSize(R.dimen.tabstrip_keyfocus_offset)),
+                        eq(
+                                mContext.getResources()
+                                        .getDimensionPixelSize(R.dimen.tabstrip_strokewidth)),
+                        eq(
+                                FOLIO_FOOT_LENGTH_DP
+                                        * mContext.getResources().getDisplayMetrics().density),
+                        eq(mLayerTitleCache),
+                        eq(mResourceManager));
+    }
+
+    @Test
+    public void testUpdateStrip_tabNotFocusedTabInTabGroup_keyboardFocused_incognito() {
+        when(mStripLayoutTab.isIncognito()).thenReturn(true);
+        when(mStripLayoutTab.isKeyboardFocused()).thenReturn(true);
+        mTabStripSceneLayer.pushStripTabs(
+                mStripLayoutHelperManager,
+                mLayerTitleCache,
+                mResourceManager,
+                new StripLayoutTab[] {mStripLayoutTab},
+                0,
+                -1);
+        verify(mTabStripSceneMock, times(1))
+                .putStripTabLayer(
+                        eq(1L),
+                        eq(mTabStripSceneLayer),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        eq(false),
+                        eq(R.drawable.close_button_keyfocus),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyBoolean(),
+                        eq(false),
+                        eq(false),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyFloat(),
+                        anyFloat(),
+                        eq(true),
+                        eq(R.drawable.tabstrip_keyfocus_8dp),
+                        eq(mContext.getColor(R.color.baseline_neutral_90)),
+                        eq(
+                                mContext.getResources()
+                                        .getDimensionPixelSize(R.dimen.tabstrip_keyfocus_offset)),
+                        eq(
+                                mContext.getResources()
+                                        .getDimensionPixelSize(R.dimen.tabstrip_strokewidth)),
+                        eq(
+                                FOLIO_FOOT_LENGTH_DP
+                                        * mContext.getResources().getDisplayMetrics().density),
+                        eq(mLayerTitleCache),
+                        eq(mResourceManager));
+    }
+
+    @Test
+    public void testUpdateStrip_focusedTabInTabGroup_keyboardFocused() {
+        when(mStripLayoutTab.isKeyboardFocused()).thenReturn(true);
+        when(mStripLayoutHelperManager.shouldShowTabOutline(mStripLayoutTab)).thenReturn(true);
+        mTabStripSceneLayer.pushStripTabs(
+                mStripLayoutHelperManager,
+                mLayerTitleCache,
+                mResourceManager,
+                new StripLayoutTab[] {mStripLayoutTab},
+                mStripLayoutTab.getTabId(),
+                -1);
+        verify(mTabStripSceneMock, times(1))
+                .putStripTabLayer(
+                        eq(1L),
+                        eq(mTabStripSceneLayer),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        eq(false),
+                        eq(R.drawable.close_button_keyfocus),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyBoolean(),
+                        eq(true),
+                        eq(false),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyFloat(),
+                        anyFloat(),
+                        eq(true),
+                        eq(R.drawable.tabstrip_keyfocus_10dp),
+                        eq(
+                                MaterialColors.getColor(
+                                        mContext, R.attr.colorPrimary, /* defaultValue= */ 0)),
+                        eq(
+                                mContext.getResources()
+                                        .getDimensionPixelSize(R.dimen.tabstrip_keyfocus_offset)),
+                        eq(
+                                mContext.getResources()
+                                        .getDimensionPixelSize(R.dimen.tabstrip_strokewidth)),
+                        eq(
+                                FOLIO_FOOT_LENGTH_DP
+                                        * mContext.getResources().getDisplayMetrics().density),
+                        eq(mLayerTitleCache),
+                        eq(mResourceManager));
+    }
+
+    @Test
+    public void testUpdateStrip_closeButton_keyboardFocused() {
+        when(mCloseButton.isKeyboardFocused()).thenReturn(true);
+        mTabStripSceneLayer.pushStripTabs(
+                mStripLayoutHelperManager,
+                mLayerTitleCache,
+                mResourceManager,
+                new StripLayoutTab[] {mStripLayoutTab},
+                0,
+                -1);
+        verify(mTabStripSceneMock, times(1))
+                .putStripTabLayer(
+                        eq(1L),
+                        eq(mTabStripSceneLayer),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        eq(true),
+                        eq(R.drawable.close_button_keyfocus),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyBoolean(),
+                        eq(false),
+                        eq(false),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyFloat(),
+                        anyFloat(),
+                        eq(false),
+                        eq(R.drawable.tabstrip_keyfocus_8dp),
+                        eq(
+                                MaterialColors.getColor(
+                                        mContext, R.attr.colorPrimary, /* defaultValue= */ 0)),
+                        eq(
+                                mContext.getResources()
+                                        .getDimensionPixelSize(R.dimen.tabstrip_keyfocus_offset)),
+                        eq(
+                                mContext.getResources()
+                                        .getDimensionPixelSize(R.dimen.tabstrip_strokewidth)),
+                        eq(
+                                FOLIO_FOOT_LENGTH_DP
+                                        * mContext.getResources().getDisplayMetrics().density),
+                        eq(mLayerTitleCache),
+                        eq(mResourceManager));
+    }
+
+    @Test
+    public void testUpdateStrip_tabGroup_keyboardFocused() {
+        when(mStripGroupTitle.isKeyboardFocused()).thenReturn(true);
+        mTabStripSceneLayer.pushGroupIndicators(
+                mStripGroupTitles, mLayerTitleCache, mResourceManager);
+        verify(mTabStripSceneMock, times(1))
+                .putGroupIndicatorLayer(
+                        eq(1L),
+                        eq(mTabStripSceneLayer),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        anyBoolean(),
+                        nullable(Token.class),
+                        anyInt(),
+                        anyInt(),
+                        anyInt(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        anyFloat(),
+                        eq(true),
+                        eq(R.drawable.tabstrip_keyfocus_11dp),
+                        eq(
+                                MaterialColors.getColor(
+                                        mContext, R.attr.colorPrimary, /* defaultValue= */ 0)),
+                        eq(
+                                mContext.getResources()
+                                        .getDimensionPixelSize(R.dimen.tabstrip_keyfocus_offset)),
+                        eq(
+                                mContext.getResources()
+                                        .getDimensionPixelSize(R.dimen.tabstrip_strokewidth)),
+                        eq(mLayerTitleCache),
+                        eq(mResourceManager));
     }
 }

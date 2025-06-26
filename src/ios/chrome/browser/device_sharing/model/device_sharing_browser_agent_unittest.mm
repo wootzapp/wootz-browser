@@ -11,7 +11,7 @@
 #import "ios/chrome/browser/device_sharing/model/device_sharing_manager_factory.h"
 #import "ios/chrome/browser/device_sharing/model/device_sharing_manager_impl.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
-#import "ios/chrome/browser/shared/model/browser_state/test_chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_opener.h"
 #import "ios/web/public/test/fakes/fake_web_state.h"
@@ -28,24 +28,22 @@ class DeviceSharingBrowserAgentTest : public PlatformTest {
         url_2_("http://www.test.com/2.html"),
         url_3_("http://www.test.com/3.html"),
         url_4_("http://www.test.com/4.html") {
-    TestChromeBrowserState::Builder test_browser_state_builder;
-    test_browser_state_builder.AddTestingFactory(
-        DeviceSharingManagerFactory::GetInstance(),
-        DeviceSharingManagerFactory::GetDefaultFactory());
+    TestProfileIOS::Builder builder;
+    builder.AddTestingFactory(DeviceSharingManagerFactory::GetInstance(),
+                              DeviceSharingManagerFactory::GetDefaultFactory());
 
-    chrome_browser_state_ = test_browser_state_builder.Build();
-    browser_ = std::make_unique<TestBrowser>(chrome_browser_state_.get());
+    profile_ = std::move(builder).Build();
+    browser_ = std::make_unique<TestBrowser>(profile_.get());
 
-    other_browser_ = std::make_unique<TestBrowser>(chrome_browser_state_.get());
-    incognito_browser_ = std::make_unique<TestBrowser>(
-        chrome_browser_state_->GetOffTheRecordChromeBrowserState());
+    other_browser_ = std::make_unique<TestBrowser>(profile_.get());
+    incognito_browser_ =
+        std::make_unique<TestBrowser>(profile_->GetOffTheRecordProfile());
   }
 
   NSURL* ActiveHandoffUrl() {
     DeviceSharingManagerImpl* sharing_manager =
         static_cast<DeviceSharingManagerImpl*>(
-            DeviceSharingManagerFactory::GetForBrowserState(
-                chrome_browser_state_.get()));
+            DeviceSharingManagerFactory::GetForProfile(profile_.get()));
     return [sharing_manager->handoff_manager_ userActivityWebpageURL];
   }
 
@@ -67,7 +65,7 @@ class DeviceSharingBrowserAgentTest : public PlatformTest {
   const GURL url_4_;
 
   web::WebTaskEnvironment task_environment_;
-  std::unique_ptr<TestChromeBrowserState> chrome_browser_state_;
+  std::unique_ptr<TestProfileIOS> profile_;
   std::unique_ptr<Browser> browser_;
   std::unique_ptr<Browser> other_browser_;
   std::unique_ptr<Browser> incognito_browser_;

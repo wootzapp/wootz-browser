@@ -41,7 +41,7 @@ found in the LICENSE file.
             <ImageView
                 android:id="@+id/fre_logo"
                 android:layout_width="match_parent"
-                android:layout_height="@dimen/fre_tos_image_height"
+                android:layout_height="wrap_content"
                 android:layout_marginBottom="24dp"
                 android:importantForAccessibility="no"
                 android:src="@drawable/fre_product_logo" />
@@ -62,7 +62,7 @@ found in the LICENSE file.
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:paddingHorizontal="60dp"
+                android:paddingHorizontal="24dp"
                 android:paddingTop="8dp"
                 android:text="@string/signin_fre_subtitle"
                 android:textAppearance="@style/TextAppearance.TextMedium.Secondary"
@@ -82,38 +82,6 @@ found in the LICENSE file.
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_horizontal" />
             </FrameLayout>
-
-            <androidx.cardview.widget.CardView
-                android:id="@+id/rebranding_card"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                app:cardElevation="4dp"
-                app:cardCornerRadius="12dp"
-                android:visibility="gone">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:padding="16dp">
-
-                    <ImageView
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:layout_gravity="center_vertical"
-                        android:src="@drawable/ic_info_outline_blue"
-                        android:contentDescription="@null" />
-
-                    <TextView
-                        android:id="@+id/rebranding_text"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="16dp"
-                        android:text="After clicking Get Started, WootzApp will rebrand and close. Find it in your app drawer!"
-                        android:textAppearance="@style/TextAppearance.TextMedium.Secondary" />
-                </LinearLayout>
-            </androidx.cardview.widget.CardView>
 
             <!-- Refer to the comment above @id/fre_space_above_logo -->
             <View
@@ -143,8 +111,7 @@ found in the LICENSE file.
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
-        android:layout_marginTop="12dp"
-        android:layout_marginBottom="24dp">
+        android:layout_marginBottom="16dp">
 
         <org.chromium.ui.widget.TextViewWithClickableSpans
             android:id="@+id/signin_fre_footer"
@@ -152,11 +119,46 @@ found in the LICENSE file.
             android:layout_height="wrap_content"
             android:layout_marginStart="24dp"
             android:layout_marginEnd="24dp"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="8dp"
             android:gravity="center_horizontal"
             android:textAppearance="@style/TextAppearance.TextSmall.Secondary"
             android:text="@string/signin_fre_footer"
-            app:leading="@dimen/text_size_small_leading" />
+            app:leading="@dimen/text_size_small_leading"
+            android:visibility="gone"/>
     </FrameLayout>
+    
+    <androidx.cardview.widget.CardView
+                android:id="@+id/rebranding_card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                app:cardElevation="4dp"
+                app:cardCornerRadius="12dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="16dp">
+
+                    <ImageView
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:layout_gravity="center_vertical"
+                        android:src="@drawable/ic_info_outline_blue"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/rebranding_text"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="16dp"
+                        android:text="After clicking Get Started, WootzApp will rebrand and close. Find it in your app drawer!"
+                        android:textAppearance="@style/TextAppearance.TextMedium.Secondary" />
+                </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
     <ProgressBar
         android:id="@+id/fre_signin_progress_spinner"

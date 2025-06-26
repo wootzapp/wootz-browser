@@ -45,7 +45,16 @@ enum class AccessibilityAlert {
   SAVED_DESKS_MODE_ENTERED,
 
   // When the user enters faster split screen setup session.
-  FASTER_SPLIT_SCREEN_SETUP
+  FASTER_SPLIT_SCREEN_SETUP,
+
+  // When the user resizes a snap group via arrow keys.
+  SNAP_GROUP_RESIZE_LEFT,
+  SNAP_GROUP_RESIZE_RIGHT,
+  SNAP_GROUP_RESIZE_UP,
+  SNAP_GROUP_RESIZE_DOWN,
+
+  // When the user creates a snap group.
+  SNAP_GROUP_CREATION,
 };
 
 enum class AccessibilityPanelState {
@@ -144,6 +153,8 @@ enum class MagnifierCommand {
 // dwelling. These values are written to prefs and correspond to
 // AutoclickActionType in enums.xml, so should not be changed. New values
 // should be added at the end.
+//
+// LINT.IfChange(AutoclickEventType)
 enum class AutoclickEventType {
   // Perform a left click.
   kLeftClick = 0,
@@ -167,6 +178,7 @@ enum class AutoclickEventType {
 
   kMaxValue = kScroll
 };
+// LINT.ThenChange(/tools/metrics/histograms/metadata/accessibility/enums.xml:AutoclickActionType)
 
 // Display location of the on-screen floating menus used by accessibility
 // features(e.g. the Automatic Clicks) . These values are written to prefs so
@@ -237,11 +249,18 @@ enum class DictationNotificationType {
   kOnlyPumpkinDownloaded,
 };
 
+// The types of notifications that can be shown by FaceGaze.
+enum class FaceGazeNotificationType {
+  kDlcFailed,
+  kDlcSucceeded,
+};
+
 // The types of accessibility-related toasts. This enum should be kept in sync
 // with chrome.accessibilityPrivate.ToastType.
 enum class AccessibilityToastType {
   kDictationMicMuted,
   kDictationNoFocusedTextField,
+  kTouchpadDisabled,
 };
 
 // Dominant hand for mouse keys.  This determines which keys to use for the
@@ -250,6 +269,30 @@ enum class MouseKeysDominantHand {
   kRightHandDominant = 0,
   kLeftHandDominant = 1,
   kMaxValue = kLeftHandDominant,
+};
+
+// The icon shown in the MouseKeys bubble UI.
+enum class MouseKeysBubbleIconType {
+  kHidden,
+  kButtonChanged,
+  kMouseDrag,
+};
+
+// The four directions for scrolling.
+enum class AccessibilityScrollDirection {
+  kUp,
+  kDown,
+  kLeft,
+  kRight,
+};
+
+// The different modes in which the internal touchpad can be disabled.
+// These values are written to prefs so should not be changed.
+enum class DisableTouchpadMode {
+  kNever = 0,
+  kAlways = 1,
+  kOnExternalMouseConnected = 2,
+  kMaxValue = kOnExternalMouseConnected,
 };
 
 }  // namespace ash

@@ -10,6 +10,7 @@ import contextlib
 import json
 import logging
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -43,8 +44,11 @@ def CommandParser():
       help='The script target to be run. If neither target nor script are set,'
       ' any extra args passed to this script are assumed to be the'
       ' full test command to run.')
-  parser.add_argument('--logdog-bin-cmd', required=True,
-                      help='The logdog bin cmd.')
+  parser.add_argument('--logdog-bin-cmd',
+                      help='Location of the logdog butler binary. Will attempt '
+                      'to find it on PATH if not specified. If not found, this '
+                      'script will be a no-op and simply passthrough to the '
+                      'test command.')
   return parser
 
 
@@ -107,34 +111,37 @@ def main():
 
   test_env = dict(os.environ)
   logdog_cmd = []
+  logdog_butler_bin = args.logdog_bin_cmd
+  if os.environ.get('SWARMING_TASK_ID'):
+    logdog_butler_bin = logdog_butler_bin or shutil.which('logdog_butler')
+    if not logdog_butler_bin or not os.path.exists(logdog_butler_bin):
+      parser.error('Either --logdog-bin-cmd must be specified and valid or '
+                   '"logdog_butler" must be on PATH if running on swarming.')
 
   with tempfile_ext.NamedTemporaryDirectory(
-      prefix='tmp_android_logdog_wrapper') as temp_directory:
-    if not os.path.exists(args.logdog_bin_cmd):
-      logging.error(
-          'Logdog binary %s unavailable. Unable to create logdog client',
-          args.logdog_bin_cmd)
-    else:
-      streamserver_uri = 'unix:%s' % os.path.join(temp_directory,
-                                                  'butler.sock')
-      prefix = os.path.join('android', 'swarming', 'logcats',
-                            os.environ.get('SWARMING_TASK_ID'))
-      project = GetProjectFromLuciContext()
+      prefix='tmp_logdog') as temp_directory:
+    if logdog_butler_bin:
+      if os.path.exists(logdog_butler_bin):
+        streamserver_uri = 'unix:%s' % os.path.join(temp_directory,
+                                                    'butler.sock')
+        prefix = os.path.join('android', 'swarming', 'logcats',
+                              os.environ.get('SWARMING_TASK_ID', ""))
+        project = GetProjectFromLuciContext()
 
-      logdog_cmd = [
-          args.logdog_bin_cmd,
-          '-project', project,
-          '-output', OUTPUT,
-          '-prefix', prefix,
-          '-coordinator-host', COORDINATOR_HOST,
-          'serve',
-          '-streamserver-uri', streamserver_uri]
-      test_env.update({
-          'LOGDOG_STREAM_PROJECT': project,
-          'LOGDOG_STREAM_PREFIX': prefix,
-          'LOGDOG_STREAM_SERVER_PATH': streamserver_uri,
-          'LOGDOG_COORDINATOR_HOST': COORDINATOR_HOST,
-      })
+        logdog_cmd = [
+            logdog_butler_bin, '-project', project, '-output', OUTPUT,
+            '-prefix', prefix, '-coordinator-host', COORDINATOR_HOST, 'serve',
+            '-streamserver-uri', streamserver_uri
+        ]
+        test_env.update({
+            'LOGDOG_STREAM_PROJECT': project,
+            'LOGDOG_STREAM_PREFIX': prefix,
+            'LOGDOG_STREAM_SERVER_PATH': streamserver_uri,
+            'LOGDOG_COORDINATOR_HOST': COORDINATOR_HOST,
+        })
+      else:
+        logging.warning('--logdog-bin-cmd specified, but binary was not found.'
+                        ' Will not be using logdog butler server.')
 
     logdog_proc = None
     if logdog_cmd:

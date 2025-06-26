@@ -13,7 +13,6 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/engagement_resources.h"
 #include "chrome/grit/engagement_resources_map.h"
@@ -25,6 +24,7 @@
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "services/network/public/mojom/content_security_policy.mojom.h"
+#include "ui/webui/webui_util.h"
 
 namespace {
 
@@ -48,7 +48,7 @@ class SiteEngagementDetailsProviderImpl
   SiteEngagementDetailsProviderImpl& operator=(
       const SiteEngagementDetailsProviderImpl&) = delete;
 
-  ~SiteEngagementDetailsProviderImpl() override {}
+  ~SiteEngagementDetailsProviderImpl() override = default;
 
   // site_engagement::mojom::SiteEngagementDetailsProvider overrides:
   void GetSiteEngagementDetails(
@@ -97,19 +97,23 @@ class SiteEngagementDetailsProviderImpl
 
 }  // namespace
 
+bool SiteEngagementUIConfig::IsWebUIEnabled(
+    content::BrowserContext* browser_context) {
+  return site_engagement::SiteEngagementService::IsEnabled();
+}
+
 SiteEngagementUI::SiteEngagementUI(content::WebUI* web_ui)
     : ui::MojoWebUIController(web_ui) {
   // Set up the chrome://site-engagement/ source.
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       Profile::FromWebUI(web_ui), chrome::kChromeUISiteEngagementHost);
-  webui::SetupWebUIDataSource(
-      source, base::make_span(kEngagementResources, kEngagementResourcesSize),
-      IDR_ENGAGEMENT_SITE_ENGAGEMENT_HTML);
+  webui::SetupWebUIDataSource(source, kEngagementResources,
+                              IDR_ENGAGEMENT_SITE_ENGAGEMENT_HTML);
 }
 
 WEB_UI_CONTROLLER_TYPE_IMPL(SiteEngagementUI)
 
-SiteEngagementUI::~SiteEngagementUI() {}
+SiteEngagementUI::~SiteEngagementUI() = default;
 
 void SiteEngagementUI::BindInterface(
     mojo::PendingReceiver<site_engagement::mojom::SiteEngagementDetailsProvider>

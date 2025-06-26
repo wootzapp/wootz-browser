@@ -18,6 +18,7 @@
 #include "base/types/expected.h"
 #include "chrome/browser/web_applications/isolated_web_apps/error/unusable_swbn_file_error.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_trust_checker.h"
+#include "chrome/browser/web_applications/test/signed_web_bundle_utils.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/prefs/pref_service.h"
@@ -27,6 +28,7 @@
 #include "components/web_package/signed_web_bundles/ed25519_signature.h"
 #include "components/web_package/signed_web_bundles/signed_web_bundle_id.h"
 #include "components/web_package/signed_web_bundles/signed_web_bundle_integrity_block.h"
+#include "components/web_package/test_support/signed_web_bundles/signature_verifier_test_utils.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -39,8 +41,12 @@ namespace {
 using base::test::ErrorIs;
 using base::test::HasValue;
 using testing::_;
+using testing::AllOf;
 using testing::Eq;
 using testing::HasSubstr;
+using testing::Property;
+
+using Error = UnusableSwbnFileError::Error;
 
 const char kSignedWebBundleId[] =
     "aerugqztij5biqquuk3mfwpsaibuegaqcitgfchwuosuofdjabzqaaic";
@@ -68,6 +74,12 @@ constexpr std::array<uint8_t, 32> kPublicKeyBytes2 = {
     0xb6, 0xc2, 0xd9, 0xf2, 0x02, 0x03, 0x42, 0x18, 0x10, 0x12, 0x26,
     0x62, 0x88, 0xf6, 0xa3, 0xa5, 0x47, 0x14, 0x69, 0x00, 0x73};
 
+auto UnusableSwbnErrorIs(Error type, const std::string& error) {
+  return ErrorIs(
+      AllOf(Property(&UnusableSwbnFileError::value, type),
+            Property(&UnusableSwbnFileError::message, HasSubstr(error))));
+}
+
 }  // namespace
 
 class IsolatedWebAppValidatorTest : public ::testing::Test {
@@ -91,6 +103,11 @@ class IsolatedWebAppValidatorTest : public ::testing::Test {
       return entry;
     });
 
+    auto signed_web_bundle_id =
+        web_package::SignedWebBundleId::CreateForPublicKey(public_keys[0]);
+    raw_integrity_block->attributes =
+        web_package::test::GetAttributesForSignedWebBundleId(
+            signed_web_bundle_id.id());
     auto integrity_block = web_package::SignedWebBundleIntegrityBlock::Create(
         std::move(raw_integrity_block));
     CHECK(integrity_block.has_value()) << integrity_block.error();
@@ -99,67 +116,51 @@ class IsolatedWebAppValidatorTest : public ::testing::Test {
   }
 
   static inline const web_package::Ed25519PublicKey kPublicKey1 =
-      web_package::Ed25519PublicKey::Create(base::make_span(kPublicKeyBytes1));
+      web_package::Ed25519PublicKey::Create(base::span(kPublicKeyBytes1));
   static inline const web_package::Ed25519PublicKey kPublicKey2 =
-      web_package::Ed25519PublicKey::Create(base::make_span(kPublicKeyBytes2));
+      web_package::Ed25519PublicKey::Create(base::span(kPublicKeyBytes2));
 
   static inline const web_package::SignedWebBundleId kWebBundleId1 =
-      web_package::SignedWebBundleId::CreateForEd25519PublicKey(kPublicKey1);
+      web_package::SignedWebBundleId::CreateForPublicKey(kPublicKey1);
   static inline const web_package::SignedWebBundleId kWebBundleId2 =
-      web_package::SignedWebBundleId::CreateForEd25519PublicKey(kPublicKey2);
+      web_package::SignedWebBundleId::CreateForPublicKey(kPublicKey2);
 
   content::BrowserTaskEnvironment task_environment_;
   TestingProfile profile_;
-  IsolatedWebAppValidator validator_;
-  IsolatedWebAppTrustChecker trust_checker_ =
-      IsolatedWebAppTrustChecker(profile_);
 };
 
 using IsolatedWebAppValidatorIntegrityBlockTest = IsolatedWebAppValidatorTest;
-
-TEST_F(IsolatedWebAppValidatorIntegrityBlockTest, TwoPublicKeys) {
-  auto integrity_block = MakeIntegrityBlock({kPublicKey1, kPublicKey2});
-
-  IntegrityBlockFuture future;
-  validator_.ValidateIntegrityBlock(kWebBundleId1, integrity_block,
-                                    /*dev_mode=*/false, trust_checker_,
-                                    future.GetCallback());
-  EXPECT_THAT(future.Get(), ErrorIs(HasSubstr("Expected exactly 1 signature")));
-}
 
 TEST_F(IsolatedWebAppValidatorIntegrityBlockTest,
        WebBundleIdAndPublicKeyDiffer) {
   auto integrity_block = MakeIntegrityBlock({kPublicKey2});
 
-  IntegrityBlockFuture future;
-  validator_.ValidateIntegrityBlock(kWebBundleId1, integrity_block,
-                                    /*dev_mode=*/false, trust_checker_,
-                                    future.GetCallback());
-  EXPECT_THAT(future.Get(),
-              ErrorIs(HasSubstr("does not match the expected Web Bundle ID")));
+  EXPECT_THAT(IsolatedWebAppValidator::ValidateIntegrityBlock(
+                  profile_, kWebBundleId1, integrity_block,
+                  /*dev_mode=*/false),
+              UnusableSwbnErrorIs(Error::kIntegrityBlockValidationError,
+                                  "does not match the expected Web Bundle ID"));
 }
 
 TEST_F(IsolatedWebAppValidatorIntegrityBlockTest, IWAIsTrusted) {
   auto integrity_block = MakeIntegrityBlock();
   SetTrustedWebBundleIdsForTesting({kWebBundleId1});
 
-  IntegrityBlockFuture future;
-  validator_.ValidateIntegrityBlock(kWebBundleId1, integrity_block,
-                                    /*dev_mode=*/false, trust_checker_,
-                                    future.GetCallback());
-  EXPECT_THAT(future.Get(), HasValue());
+  EXPECT_THAT(IsolatedWebAppValidator::ValidateIntegrityBlock(
+                  profile_, kWebBundleId1, integrity_block,
+                  /*dev_mode=*/false),
+              HasValue());
 }
 
 TEST_F(IsolatedWebAppValidatorIntegrityBlockTest, IWAIsUntrusted) {
   auto integrity_block = MakeIntegrityBlock();
   SetTrustedWebBundleIdsForTesting({});
 
-  IntegrityBlockFuture future;
-  validator_.ValidateIntegrityBlock(kWebBundleId1, integrity_block,
-                                    /*dev_mode=*/false, trust_checker_,
-                                    future.GetCallback());
-  EXPECT_THAT(future.Get(),
-              ErrorIs(HasSubstr("public key(s) are not trusted")));
+  EXPECT_THAT(IsolatedWebAppValidator::ValidateIntegrityBlock(
+                  profile_, kWebBundleId1, integrity_block,
+                  /*dev_mode=*/false),
+              UnusableSwbnErrorIs(Error::kIntegrityBlockValidationError,
+                                  "public key(s) are not trusted"));
 }
 
 class IsolatedWebAppValidatorMetadataTest
@@ -184,7 +185,8 @@ class IsolatedWebAppValidatorMetadataTest
 };
 
 TEST_P(IsolatedWebAppValidatorMetadataTest, Validate) {
-  EXPECT_EQ(validator_.ValidateMetadata(kWebBundleId1, primary_url_, entries_),
+  EXPECT_EQ(IsolatedWebAppValidator::ValidateMetadata(kWebBundleId1,
+                                                      primary_url_, entries_),
             status_);
 }
 

@@ -5,7 +5,8 @@
 #ifndef CHROME_BROWSER_ENTERPRISE_DATA_PROTECTION_DATA_PROTECTION_CLIPBOARD_UTILS_H_
 #define CHROME_BROWSER_ENTERPRISE_DATA_PROTECTION_DATA_PROTECTION_CLIPBOARD_UTILS_H_
 
-#include "chrome/browser/enterprise/connectors/analysis/content_analysis_delegate.h"
+#include "base/feature_list.h"
+#include "components/enterprise/buildflags/buildflags.h"
 #include "components/enterprise/common/files_scan_data.h"
 #include "content/public/browser/content_browser_client.h"
 

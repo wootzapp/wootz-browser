@@ -97,9 +97,8 @@ static CSSValuePair* BuildSerializablePositionOffset(CSSValue* offset,
     if ((side == CSSValueID::kRight || side == CSSValueID::kBottom) &&
         amount->IsPercentage()) {
       side = default_side;
-      amount = CSSNumericLiteralValue::Create(
-          100 - amount->GetFloatValue(),
-          CSSPrimitiveValue::UnitType::kPercentage);
+      amount =
+          amount->SubtractFrom(100, CSSPrimitiveValue::UnitType::kPercentage);
     }
   } else {
     amount = To<CSSPrimitiveValue>(offset);
@@ -109,7 +108,8 @@ static CSSValuePair* BuildSerializablePositionOffset(CSSValue* offset,
     side = default_side;
     amount = CSSNumericLiteralValue::Create(
         50, CSSPrimitiveValue::UnitType::kPercentage);
-  } else if (!amount || (amount->IsLength() && amount->IsZero())) {
+  } else if (!amount ||
+             (amount->IsLength() && amount->GetValueIfKnown() == 0.0)) {
     if (side == CSSValueID::kRight || side == CSSValueID::kBottom) {
       amount = CSSNumericLiteralValue::Create(
           100, CSSPrimitiveValue::UnitType::kPercentage);
@@ -659,10 +659,10 @@ void CSSBasicShapeXYWHValue::Validate() const {
   // The spec requires non-negative width and height but we can only validate
   // numeric literals here.
   if (width_->IsNumericLiteralValue()) {
-    DCHECK_GE(width_->GetFloatValue(), 0);
+    DCHECK_GE(To<CSSNumericLiteralValue>(*width_).GetDoubleValue(), 0);
   }
   if (height_->IsNumericLiteralValue()) {
-    DCHECK_GE(height_->GetFloatValue(), 0);
+    DCHECK_GE(To<CSSNumericLiteralValue>(*height_).GetDoubleValue(), 0);
   }
 }
 

@@ -4,20 +4,25 @@
 
 package org.chromium.chrome.browser.omnibox.status;
 
+import static org.chromium.build.NullUtil.assertNonNull;
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.animation.Animator;
+import android.app.Activity;
 import android.content.res.Resources;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 
 import androidx.annotation.DrawableRes;
-import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
 import org.chromium.chrome.browser.merchant_viewer.MerchantTrustSignalsCoordinator;
 import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
@@ -41,6 +46,7 @@ import java.util.List;
  * A component for displaying a status icon (e.g. security icon or navigation icon) and optional
  * verbose status text.
  */
+@NullMarked
 public class StatusCoordinator implements View.OnClickListener, LocationBarDataProvider.Observer {
     /** Interface for displaying page info popup on omnibox. */
     public interface PageInfoAction {
@@ -59,6 +65,7 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
     private final PageInfoAction mPageInfoAction;
     private LocationBarDataProvider mLocationBarDataProvider;
     private boolean mUrlHasFocus;
+    private View.@Nullable OnClickListener mOnStatusIconNavigateBackButtonPress;
 
     /**
      * Creates a new {@link StatusCoordinator}.
@@ -85,9 +92,8 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
             Supplier<Profile> profileSupplier,
             WindowAndroid windowAndroid,
             PageInfoAction pageInfoAction,
-            @Nullable
-                    Supplier<MerchantTrustSignalsCoordinator>
-                            merchantTrustSignalsCoordinatorSupplier,
+            @Nullable Supplier<MerchantTrustSignalsCoordinator>
+                    merchantTrustSignalsCoordinatorSupplier,
             BrowserStateBrowserControlsVisibilityDelegate browserControlsVisibilityDelegate) {
         mIsTablet = isTablet;
         mStatusView = statusView;
@@ -98,18 +104,17 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
 
         PropertyModelChangeProcessor.create(mModel, mStatusView, new StatusViewBinder());
 
-        PageInfoIPHController pageInfoIPHController =
-                new PageInfoIPHController(
+        Activity activity =
+                assertNonNull(ContextUtils.activityFromContext(mStatusView.getContext()));
+        PageInfoIphController pageInfoIphController =
+                new PageInfoIphController(
                         new UserEducationHelper(
-                                ContextUtils.activityFromContext(mStatusView.getContext()),
-                                profileSupplier,
-                                new Handler(Looper.getMainLooper())),
+                                activity, profileSupplier, new Handler(Looper.getMainLooper())),
                         getSecurityIconView());
 
         mMediator =
                 new StatusMediator(
                         mModel,
-                        mStatusView.getResources(),
                         mStatusView.getContext(),
                         urlBarEditingTextStateProvider,
                         isTablet,
@@ -117,7 +122,7 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
                         PermissionDialogController.getInstance(),
                         templateUrlServiceSupplier,
                         profileSupplier,
-                        pageInfoIPHController,
+                        pageInfoIphController,
                         windowAndroid,
                         merchantTrustSignalsCoordinatorSupplier);
 
@@ -145,17 +150,19 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
 
         if (isSearchEngineStatusIconVisible()) {
             setTooltipText(R.string.accessibility_menu_info);
-            setHoverHighlight(R.drawable.status_view_ripple);
         } else {
             setTooltipText(Resources.ID_NULL);
-            setHoverHighlight(Resources.ID_NULL);
         }
+        setBackground();
     }
 
     /** Signals that native initialization has completed. */
     public void onNativeInitialized() {
         mMediator.updateLocationBarIcon(StatusView.IconTransitionType.CROSSFADE);
-        mMediator.setStatusClickListener(this);
+        mMediator.setStatusClickListener(
+                mOnStatusIconNavigateBackButtonPress != null
+                        ? mOnStatusIconNavigateBackButtonPress
+                        : this);
         mMediator.updateStatusVisibility();
         mMediator.setStoreIconController();
     }
@@ -167,6 +174,14 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
         mMediator.setUrlHasFocus(urlHasFocus);
         mUrlHasFocus = urlHasFocus;
         updateVerboseStatusVisibility();
+    }
+
+    /**
+     * @param listener The custom listener that will execute when the status view is clicked.
+     */
+    public void setOnStatusIconNavigateBackButtonPress(View.OnClickListener listener) {
+        mOnStatusIconNavigateBackButtonPress = listener;
+        mMediator.setStatusClickListener(listener != null ? listener : this);
     }
 
     /**
@@ -202,9 +217,9 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
         mMediator.setTooltipText(tooltipTextResId);
     }
 
-    /** Set the hover highlight of the status view. */
-    public void setHoverHighlight(@DrawableRes int hoverHighlightResId) {
-        mMediator.setHoverHighlight(hoverHighlightResId);
+    /** Set the highlight background of the status view. */
+    public void setBackground() {
+        mMediator.setBackground();
     }
 
     /**
@@ -297,7 +312,7 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
     }
 
     /** Returns the icon identifier used for custom resources. */
-    public String getSecurityIconIdentifierForTesting() {
+    public @Nullable String getSecurityIconIdentifierForTesting() {
         return mModel.get(StatusProperties.STATUS_ICON_RESOURCE) == null
                 ? null
                 : mModel.get(StatusProperties.STATUS_ICON_RESOURCE).getIconIdentifierForTesting();
@@ -318,12 +333,8 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
     public void onClick(View view) {
         if (mUrlHasFocus) return;
 
-        // If isInOverviewAndShowingOmnibox is true, getTab isn't correct for PageInfo; if it's not
-        // null, it reflects a web page that the user isn't currently looking at.
-        // TODO(crbug.com/40732353): Add a particular page icon for start surface.
         if (!mLocationBarDataProvider.hasTab()
-                || mLocationBarDataProvider.getTab().getWebContents() == null
-                || mLocationBarDataProvider.isInOverviewAndShowingOmnibox()) {
+                || assumeNonNull(mLocationBarDataProvider.getTab()).getWebContents() == null) {
             return;
         }
 
@@ -370,6 +381,7 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
         mMediator.updateLocationBarIconForDefaultMatchCategory(defaultMatchIsSearch);
     }
 
+    @SuppressWarnings("NullAway")
     public void destroy() {
         mMediator.destroy();
         mLocationBarDataProvider.removeObserver(this);
@@ -381,13 +393,18 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
         return mStatusView.isStatusIconAnimating();
     }
 
+    /** Returns the start time (ms) of the current or most recent status icon animation. */
+    public long getAnimationStartTimeMs() {
+        return mStatusView.getAnimationStartTimeMs();
+    }
+
     /**
      * Populates an animation that fades =/unfades the entire StatusView container with the given
      * start delay and duration, adding it to the given list of animators.
      */
     public void populateFadeAnimation(
             List<Animator> animators, long startDelayMs, long durationMs, float targetAlpha) {
-        if (mLocationBarDataProvider.isIncognito()) {
+        if (mLocationBarDataProvider.isIncognitoBranded()) {
             Animator animator =
                     PropertyModelAnimatorFactory.ofFloat(
                                     mModel, StatusProperties.ALPHA, targetAlpha)
@@ -395,5 +412,13 @@ public class StatusCoordinator implements View.OnClickListener, LocationBarDataP
             animator.setStartDelay(startDelayMs);
             animators.add(animator);
         }
+    }
+
+    /**
+     * Set whether the status view should be shown. If the view is not shown, the status view will
+     * be permanently gone until it is updated through this method during the current lifecycle.
+     */
+    public void setShowStatusView(boolean show) {
+        mMediator.setShowStatusView(show);
     }
 }

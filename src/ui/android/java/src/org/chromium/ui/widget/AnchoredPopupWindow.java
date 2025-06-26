@@ -22,21 +22,24 @@ import android.widget.PopupWindow;
 import android.widget.PopupWindow.OnDismissListener;
 
 import androidx.annotation.IntDef;
-import androidx.annotation.Nullable;
 import androidx.annotation.StyleRes;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ObserverList;
 import org.chromium.base.metrics.RecordUserAction;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.ui.R;
+import org.chromium.ui.base.LocalizationUtils;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
- * UI component that handles showing a {@link PopupWindow}. Positioning this popup happens through
- * a {@link RectProvider} provided during construction.
+ * UI component that handles showing a {@link PopupWindow}. Positioning this popup happens through a
+ * {@link RectProvider} provided during construction.
  */
+@NullMarked
 public class AnchoredPopupWindow implements OnTouchListener, RectProvider.Observer {
     private static final int MINIMAL_POPUP_HEIGHT_DIP = 50; // 48dp touch target plus 1dp margin.
     private static final int MINIMAL_POPUP_WIDTH_DIP = 50; // 48dp touch target plus 1dp margin.
@@ -78,7 +81,11 @@ public class AnchoredPopupWindow implements OnTouchListener, RectProvider.Observ
     }
 
     /** HorizontalOrientation preferences for the popup */
-    @IntDef({HorizontalOrientation.MAX_AVAILABLE_SPACE, HorizontalOrientation.CENTER})
+    @IntDef({
+        HorizontalOrientation.MAX_AVAILABLE_SPACE,
+        HorizontalOrientation.CENTER,
+        HorizontalOrientation.LAYOUT_DIRECTION
+    })
     @Retention(RetentionPolicy.SOURCE)
     public @interface HorizontalOrientation {
         /**
@@ -92,6 +99,12 @@ public class AnchoredPopupWindow implements OnTouchListener, RectProvider.Observ
          * screen.
          */
         int CENTER = 1;
+
+        /**
+         * Horizontally position to side as defined by @{@link LocalizationUtils#isLayoutRtl()}. The
+         * popup will be sized to ensure it fits on screen.
+         */
+        int LAYOUT_DIRECTION = 2;
     }
 
     /**
@@ -196,8 +209,8 @@ public class AnchoredPopupWindow implements OnTouchListener, RectProvider.Observ
     // Pass through for the internal PopupWindow.  This class needs to intercept these for API
     // purposes, but they are still useful to callers.
     private ObserverList<OnDismissListener> mDismissListeners = new ObserverList<>();
-    private OnTouchListener mTouchListener;
-    private LayoutObserver mLayoutObserver;
+    private @Nullable OnTouchListener mTouchListener;
+    private @Nullable LayoutObserver mLayoutObserver;
 
     /** The margin to add to the popup so it doesn't bump against the edges of the screen. */
     private int mMarginPx;
@@ -669,6 +682,8 @@ public class AnchoredPopupWindow implements OnTouchListener, RectProvider.Observ
                 allowHorizontalOverlap = true;
                 allowVerticalOverlap = false;
             }
+        } else if (preferredHorizontalOrientation == HorizontalOrientation.LAYOUT_DIRECTION) {
+            isPositionToLeft = LocalizationUtils.isLayoutRtl();
         }
 
         // Height adjustment based on anchorRect and settings.

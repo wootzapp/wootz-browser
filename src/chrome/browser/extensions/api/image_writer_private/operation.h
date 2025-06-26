@@ -19,11 +19,10 @@
 #include "base/task/task_traits.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
-#include "chrome/browser/extensions/api/image_writer_private/image_writer_utility_client.h"
 #include "chrome/common/extensions/api/image_writer_private.h"
 #include "extensions/common/extension_id.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chromeos/ash/components/disks/disk_mount_manager.h"
 #endif
 
@@ -39,6 +38,10 @@ namespace image_writer {
 const int kProgressComplete = 100;
 
 class OperationManager;
+
+#if !BUILDFLAG(IS_CHROMEOS)
+class ImageWriterUtilityClient;
+#endif
 
 // Encapsulates an operation being run on behalf of the
 // OperationManager.  Construction of the operation does not start
@@ -166,7 +169,7 @@ class Operation : public base::RefCountedThreadSafe<Operation> {
   friend class ImageWriterUtilityClientTest;
   friend class WriteFromUrlOperationForTest;
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   // Ensures the client is started.  This may be called many times but will only
   // instantiate one client which should exist for the lifetime of the
   // Operation.
@@ -182,7 +185,7 @@ class Operation : public base::RefCountedThreadSafe<Operation> {
   scoped_refptr<ImageWriterUtilityClient> image_writer_client_;
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // Unmounts all volumes on |device_path_|.
   void UnmountVolumes(base::OnceClosure continuation);
   // Starts the write after unmounting.

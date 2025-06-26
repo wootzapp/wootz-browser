@@ -26,11 +26,13 @@ enum class Error {
 // the enums below; the order must be kept stable.
 enum class ErrorCategory {
   kNone = 0,
-  kDownload,
-  kUnpack,
-  kInstall,
-  kService,  // Runtime errors which occur in the service itself.
-  kUpdateCheck,
+  kDownload = 1,
+  kUnpack = 2,
+  kInstall = 3,
+  kService = 4,  // Runtime errors which occur in the service itself.
+  kUpdateCheck = 5,
+  // kUnknown = 6, defined in `updater_service.mojom`.
+  kInstaller = 7,
 };
 
 // These errors are returned with the `kDownload` error category. This category
@@ -42,6 +44,9 @@ enum class CrxDownloaderError {
   NO_HASH = 11,
   BAD_HASH = 12,  // The downloaded file fails the hash verification.
   DISK_FULL = 13,
+  CANCELLED = 14,
+  NO_DOWNLOAD_DIR = 15,
+
   // The Windows BITS queue contains to many update client jobs. The value is
   // chosen so that it can be reported as a custom COM error on this platform.
   BITS_TOO_MANY_JOBS = 0x0200,
@@ -80,6 +85,13 @@ enum class UnpackerError {
   kFailedToAddToCache = 19,
   kFailedToCreateCacheDir = 20,
   kCrxCacheNotProvided = 21,
+  kCrxCacheMetadataCorrupted = 22,
+  kCrxCacheFileNotCached = 23,
+  kPatchInvalidOldFile = 24,
+  kPatchInvalidPatchFile = 25,
+  kPatchInvalidNewFile = 26,
+  kXzFailed = 27,
+  kPatchOutHashMismatch = 28,
 };
 
 // These errors are returned with the |kInstall| error category and
@@ -124,7 +136,7 @@ enum class ServiceError {
 enum class ProtocolError : int {
   NONE = 0,
   RESPONSE_NOT_TRUSTED = -10000,
-  MISSING_PUBLIC_KEY = -10001,
+  // Obsolete: MISSING_PUBLIC_KEY = -10001,
   MISSING_URLS = -10002,
   PARSE_FAILED = -10003,
   UPDATE_RESPONSE_NOT_FOUND = -10004,
@@ -137,6 +149,16 @@ enum class ProtocolError : int {
   NO_HASH = -10011,
   UNSUPPORTED_PROTOCOL = -10012,
   INTERNAL = -10013,
+  UNSUPPORTED_OPERATION = -10014,
+  INEXPRESSIBLE = -10015,
+  UNKNOWN_ERROR = -10016,
+  INVALID_OPERATION_ATTRIBUTES = -10017,
+};
+
+struct CategorizedError {
+  ErrorCategory category = ErrorCategory::kNone;
+  int code = 0;
+  int extra = 0;
 };
 
 }  // namespace update_client

@@ -31,6 +31,7 @@ using CompositingReasons = uint64_t;
   V(ActiveFilterAnimation)                                                     \
   V(ActiveBackdropFilterAnimation)                                             \
   V(AffectedByOuterViewportBoundsDelta)                                        \
+  V(AffectedBySafeAreaBottom)                                                  \
   V(FixedPosition)                                                             \
   V(UndoOverscroll)                                                            \
   V(StickyPosition)                                                            \
@@ -88,7 +89,7 @@ using CompositingReasons = uint64_t;
   V(Scrollbar)                                                                 \
   V(LinkHighlight)                                                             \
   V(DevToolsOverlay)                                                           \
-  V(ViewTransitionContent)
+  V(ViewTransitionContent)                                                     \
 
 class PLATFORM_EXPORT CompositingReason {
   DISALLOW_NEW();
@@ -127,13 +128,16 @@ class PLATFORM_EXPORT CompositingReason {
         kWillChangeTransform | kWillChangeScale | kWillChangeRotate,
     kDirectReasonsForPaintOffsetTranslationProperty =
         kFixedPosition | kAffectedByOuterViewportBoundsDelta | kUndoOverscroll |
-        kVideo | kCanvas | kPlugin | kIFrame,
+        kVideo | kCanvas | kPlugin | kIFrame | kAffectedBySafeAreaBottom,
     // TODO(dbaron): kWillChangeOther probably shouldn't be in this list.
+    // TODO(vmpstr): kViewTransitionElement is needed to make sure that the
+    // capture escapes clips when view transition has a descendant that
+    // naturally escapes clips. See crbug.com/348590918 for details.
     kDirectReasonsForTransformProperty =
         k3DTransform | kTrivial3DTransform | kWillChangeTransform |
         kWillChangeOther | kPerspectiveWith3DDescendants |
         kPreserve3DWith3DDescendants | kActiveTransformAnimation |
-        kViewTransitionElementDescendantWithClipPath,
+        kViewTransitionElementDescendantWithClipPath | kViewTransitionElement,
     kDirectReasonsForScaleProperty =
         k3DScale | kWillChangeScale | kActiveScaleAnimation,
     kDirectReasonsForRotateProperty =

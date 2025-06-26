@@ -3,11 +3,15 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/device_notifications/device_pinned_notification_renderer.h"
+
+#include "ash/constants/ash_features.h"
 #include "base/i18n/message_formatter.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
+#include "build/build_config.h"
 #include "chrome/browser/device_notifications/device_connection_tracker.h"
 #include "chrome/browser/notifications/system_notification_helper.h"
+#include "components/vector_icons/vector_icons.h"
 #include "extensions/buildflags/buildflags.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -39,8 +43,9 @@ std::u16string GetMessageLabel(DeviceConnectionTracker* connection_tracker,
       l10n_util::GetStringUTF16(message_id),
       static_cast<int>(extension_names.size()), extension_names[0],
       extension_names[1], static_cast<int>(extension_names.size() - 2));
+#else
+  NOTREACHED();
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
-  NOTREACHED_NORETURN();
 }
 
 }  // namespace
@@ -48,13 +53,13 @@ std::u16string GetMessageLabel(DeviceConnectionTracker* connection_tracker,
 DevicePinnedNotificationRenderer::DevicePinnedNotificationRenderer(
     DeviceSystemTrayIcon* device_system_tray_icon,
     const std::string& notification_id_prefix,
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     const ash::NotificationCatalogName notification_catalog_name,
 #endif
     const int message_id)
     : DeviceSystemTrayIconRenderer(device_system_tray_icon),
       notification_id_prefix_(notification_id_prefix),
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
       notification_catalog_name_(notification_catalog_name),
 #endif
       message_id_(message_id) {}
@@ -87,8 +92,22 @@ std::string DevicePinnedNotificationRenderer::GetNotificationId(
 std::unique_ptr<message_center::Notification>
 DevicePinnedNotificationRenderer::CreateNotification(Profile* profile) {
   message_center::RichNotificationData data;
+#if BUILDFLAG(IS_CHROMEOS)
+  // The new pinned notification view uses a settings icon button.
+  if (ash::features::AreOngoingProcessesEnabled()) {
+    data.buttons.emplace_back(message_center::ButtonInfo(
+        /*vector_icon=*/&vector_icons::kSettingsIcon,
+        /*accessible_name=*/device_system_tray_icon_
+            ->GetContentSettingsLabel()));
+  } else {
+    data.buttons.emplace_back(
+        device_system_tray_icon_->GetContentSettingsLabel());
+  }
+#else
   data.buttons.emplace_back(
       device_system_tray_icon_->GetContentSettingsLabel());
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
   auto* device_connection_tracker =
       device_system_tray_icon_->GetConnectionTracker(profile->GetWeakPtr());
   DCHECK(device_connection_tracker);
@@ -118,7 +137,7 @@ DevicePinnedNotificationRenderer::CreateNotification(Profile* profile) {
       GetMessageLabel(device_connection_tracker, message_id_),
       /*icon=*/ui::ImageModel(),
       /*display_source=*/std::u16string(), /*origin_url=*/GURL(),
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
       message_center::NotifierId(message_center::NotifierType::SYSTEM_COMPONENT,
                                  notification_id, notification_catalog_name_),
 #else
@@ -126,7 +145,7 @@ DevicePinnedNotificationRenderer::CreateNotification(Profile* profile) {
                                  notification_id),
 #endif
       data, std::move(delegate));
-  notification->SetSmallImage(gfx::Image(device_system_tray_icon_->GetIcon()));
+  notification->set_vector_small_image(device_system_tray_icon_->GetIcon());
   notification->set_pinned(true);
   // Set to low priority so it doesn't create a popup.
   notification->set_priority(message_center::LOW_PRIORITY);

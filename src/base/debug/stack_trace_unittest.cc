@@ -2,10 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
-#endif
+#include "base/debug/stack_trace.h"
 
 #include <stddef.h>
 
@@ -13,8 +10,9 @@
 #include <sstream>
 #include <string>
 
+#include "base/allocator/buildflags.h"
+#include "base/containers/span.h"
 #include "base/debug/debugging_buildflags.h"
-#include "base/debug/stack_trace.h"
 #include "base/immediate_crash.h"
 #include "base/logging.h"
 #include "base/process/kill.h"
@@ -24,11 +22,9 @@
 #include "base/strings/cstring_view.h"
 #include "base/test/test_timeouts.h"
 #include "build/build_config.h"
+#include "partition_alloc/partition_alloc.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/multiprocess_func_list.h"
-
-#include "base/allocator/buildflags.h"
-#include "partition_alloc/partition_alloc.h"
 #if PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 #include "partition_alloc/shim/allocator_shim.h"
 #endif
@@ -37,8 +33,7 @@
 #include "base/test/multiprocess_test.h"
 #endif
 
-namespace base {
-namespace debug {
+namespace base::debug {
 
 #if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 typedef MultiProcessTest StackTraceTest;
@@ -75,10 +70,11 @@ TEST_F(StackTraceTest, OutputToStream) {
         // BUILDFLAG(IS_FUCHSIA))
 
   ASSERT_GT(addresses.size(), 5u) << "Too few frames found.";
-  ASSERT_TRUE(addresses[0]);
+  ASSERT_NE(nullptr, addresses[0]);
 
-  if (!StackTrace::WillSymbolizeToStreamForTesting())
+  if (!StackTrace::WillSymbolizeToStreamForTesting()) {
     return;
+  }
 
   // Check if the output has symbol initialization warning.  If it does, fail.
   ASSERT_EQ(backtrace_message.find("Dumping unresolved backtrace"),
@@ -177,40 +173,27 @@ namespace {
 // In an actual implementation, this could cause infinite recursion into the
 // signal handler or other problems. Because malloc() is not guaranteed to be
 // async signal safe.
-void* BadMalloc(const allocator_shim::AllocatorDispatch*, size_t, void*) {
+void* BadMalloc(size_t, void*) {
   base::ImmediateCrash();
 }
 
-void* BadCalloc(const allocator_shim::AllocatorDispatch*,
-                size_t,
-                size_t,
-                void* context) {
+void* BadCalloc(size_t, size_t, void* context) {
   base::ImmediateCrash();
 }
 
-void* BadAlignedAlloc(const allocator_shim::AllocatorDispatch*,
-                      size_t,
-                      size_t,
-                      void*) {
+void* BadAlignedAlloc(size_t, size_t, void*) {
   base::ImmediateCrash();
 }
 
-void* BadAlignedRealloc(const allocator_shim::AllocatorDispatch*,
-                        void*,
-                        size_t,
-                        size_t,
-                        void*) {
+void* BadAlignedRealloc(void*, size_t, size_t, void*) {
   base::ImmediateCrash();
 }
 
-void* BadRealloc(const allocator_shim::AllocatorDispatch*,
-                 void*,
-                 size_t,
-                 void*) {
+void* BadRealloc(void*, size_t, void*) {
   base::ImmediateCrash();
 }
 
-void BadFree(const allocator_shim::AllocatorDispatch*, void*, void*) {
+void BadFree(void*, void*) {
   base::ImmediateCrash();
 }
 
@@ -220,16 +203,21 @@ allocator_shim::AllocatorDispatch g_bad_malloc_dispatch = {
     &BadCalloc,         /* alloc_zero_initialized_function */
     &BadAlignedAlloc,   /* alloc_aligned_function */
     &BadRealloc,        /* realloc_function */
+    &BadRealloc,        /* realloc_unchecked_function */
     &BadFree,           /* free_function */
+    nullptr,            /* free_with_size_function */
+    nullptr,            /* free_with_alignment_function */
+    nullptr,            /* free_with_size_and_alignment_function */
     nullptr,            /* get_size_estimate_function */
     nullptr,            /* good_size_function */
     nullptr,            /* claimed_address_function */
     nullptr,            /* batch_malloc_function */
     nullptr,            /* batch_free_function */
-    nullptr,            /* free_definite_size_function */
     nullptr,            /* try_free_default_function */
     &BadAlignedAlloc,   /* aligned_malloc_function */
+    &BadAlignedAlloc,   /* aligned_malloc_unchecked_function */
     &BadAlignedRealloc, /* aligned_realloc_function */
+    &BadAlignedRealloc, /* aligned_realloc_unchecked_function */
     &BadFree,           /* aligned_free_function */
     nullptr,            /* next */
 };
@@ -257,12 +245,16 @@ TEST_F(StackTraceDeathTest, StackDumpSignalHandlerIsMallocFree) {
 namespace {
 
 std::string itoa_r_wrapper(intptr_t i, size_t sz, int base, size_t padding) {
-  char buffer[1024];
-  CHECK_LE(sz, sizeof(buffer));
-
-  char* result = internal::itoa_r(i, buffer, sz, base, padding);
-  EXPECT_TRUE(result);
-  return std::string(buffer);
+  std::array<char, 1024> buffer;
+  internal::itoa_r(i, base, padding, base::span(buffer).first(sz));
+  EXPECT_NE(buffer[0], '\0');
+  for (char c : buffer) {
+    if (c == '\0') {
+      return std::string(buffer.data());
+    }
+  }
+  ADD_FAILURE() << "buffer is not NUL terminated";
+  return std::string("");
 }
 
 }  // namespace
@@ -304,14 +296,21 @@ TEST_F(StackTraceTest, itoa_r) {
   EXPECT_EQ("deadbeef", itoa_r_wrapper(0xdeadbeef, 128, 16, 0));
 
   // Check that itoa_r respects passed buffer size limit.
-  char buffer[1024];
-  EXPECT_TRUE(internal::itoa_r(0xdeadbeef, buffer, 10, 16, 0));
-  EXPECT_TRUE(internal::itoa_r(0xdeadbeef, buffer, 9, 16, 0));
-  EXPECT_FALSE(internal::itoa_r(0xdeadbeef, buffer, 8, 16, 0));
-  EXPECT_FALSE(internal::itoa_r(0xdeadbeef, buffer, 7, 16, 0));
-  EXPECT_TRUE(internal::itoa_r(0xbeef, buffer, 5, 16, 4));
-  EXPECT_FALSE(internal::itoa_r(0xbeef, buffer, 5, 16, 5));
-  EXPECT_FALSE(internal::itoa_r(0xbeef, buffer, 5, 16, 6));
+  std::array<char, 1024> buffer;
+  internal::itoa_r(0xdeadbeef, 16, 0, base::span(buffer).first(10u));
+  EXPECT_NE(buffer[0u], '\0');
+  internal::itoa_r(0xdeadbeef, 16, 0, base::span(buffer).first(9u));
+  EXPECT_NE(buffer[0u], '\0');
+  internal::itoa_r(0xdeadbeef, 16, 0, base::span(buffer).first(8u));
+  EXPECT_EQ(buffer[0u], '\0');
+  internal::itoa_r(0xdeadbeef, 16, 0, base::span(buffer).first(7u));
+  EXPECT_EQ(buffer[0u], '\0');
+  internal::itoa_r(0xbeef, 16, 4, base::span(buffer).first(5u));
+  EXPECT_NE(buffer[0u], '\0');
+  internal::itoa_r(0xbeef, 16, 5, base::span(buffer).first(5u));
+  EXPECT_EQ(buffer[0u], '\0');
+  internal::itoa_r(0xbeef, 16, 6, base::span(buffer).first(5u));
+  EXPECT_EQ(buffer[0u], '\0');
 
   // Test padding.
   EXPECT_EQ("1", itoa_r_wrapper(1, 128, 10, 0));
@@ -336,33 +335,13 @@ class CopyFunction : public StackCopier {
   using StackCopier::CopyStackContentsAndRewritePointers;
 };
 
-// Copies the current stack segment, starting from the frame pointer of the
-// caller frame. Also fills in |stack_end| for the copied stack.
-NOINLINE static std::unique_ptr<StackBuffer> CopyCurrentStackAndRewritePointers(
-    uintptr_t* out_fp,
-    uintptr_t* stack_end) {
-  const uint8_t* fp =
-      reinterpret_cast<const uint8_t*>(__builtin_frame_address(0));
-  uintptr_t original_stack_end = GetStackEnd();
-  size_t stack_size = original_stack_end - reinterpret_cast<uintptr_t>(fp);
-  auto buffer = std::make_unique<StackBuffer>(stack_size);
-  *out_fp = reinterpret_cast<uintptr_t>(
-      CopyFunction::CopyStackContentsAndRewritePointers(
-          fp, reinterpret_cast<const uintptr_t*>(original_stack_end),
-          StackBuffer::kPlatformStackAlignment, buffer->buffer()));
-  *stack_end = *out_fp + stack_size;
-  return buffer;
-}
-
 template <size_t Depth>
-NOINLINE NOOPT void ExpectStackFramePointers(const void** frames,
-                                             size_t max_depth,
-                                             bool copy_stack) {
+NOINLINE NOOPT void ExpectStackFramePointers(span<const void*> frames) {
 code_start:
   // Calling __builtin_frame_address() forces compiler to emit
   // frame pointers, even if they are not enabled.
   EXPECT_NE(nullptr, __builtin_frame_address(0));
-  ExpectStackFramePointers<Depth - 1>(frames, max_depth, copy_stack);
+  ExpectStackFramePointers<Depth - 1>(frames);
 
   constexpr size_t frame_index = Depth - 1;
   const void* frame = frames[frame_index];
@@ -373,24 +352,13 @@ code_end:
 }
 
 template <>
-NOINLINE NOOPT void ExpectStackFramePointers<1>(const void** frames,
-                                                size_t max_depth,
-                                                bool copy_stack) {
+NOINLINE NOOPT void ExpectStackFramePointers<1>(span<const void*> frames) {
 code_start:
   // Calling __builtin_frame_address() forces compiler to emit
   // frame pointers, even if they are not enabled.
   EXPECT_NE(nullptr, __builtin_frame_address(0));
-  size_t count = 0;
-  if (copy_stack) {
-    uintptr_t stack_end = 0, fp = 0;
-    std::unique_ptr<StackBuffer> copy =
-        CopyCurrentStackAndRewritePointers(&fp, &stack_end);
-    count =
-        TraceStackFramePointersFromBuffer(fp, stack_end, frames, max_depth, 0);
-  } else {
-    count = TraceStackFramePointers(frames, max_depth, 0);
-  }
-  ASSERT_EQ(max_depth, count);
+  size_t count = TraceStackFramePointers(frames, 0u);
+  ASSERT_EQ(frames.size(), count);
 
   const void* frame = frames[0];
   EXPECT_GE(frame, &&code_start) << "For the top frame";
@@ -411,25 +379,7 @@ code_end:
 TEST_F(StackTraceTest, MAYBE_TraceStackFramePointers) {
   constexpr size_t kDepth = 5;
   const void* frames[kDepth];
-  ExpectStackFramePointers<kDepth>(frames, kDepth, /*copy_stack=*/false);
-}
-
-// The test triggers use-of-uninitialized-value errors on MSan bots.
-// This is expected because we're walking and reading the stack, and
-// sometimes we read fp / pc from the place that previously held
-// uninitialized value.
-// TODO(crbug.com/40150655): Enable this test on Fuchsia.
-#if defined(MEMORY_SANITIZER) || BUILDFLAG(IS_FUCHSIA)
-#define MAYBE_TraceStackFramePointersFromBuffer \
-  DISABLED_TraceStackFramePointersFromBuffer
-#else
-#define MAYBE_TraceStackFramePointersFromBuffer \
-  TraceStackFramePointersFromBuffer
-#endif
-TEST_F(StackTraceTest, MAYBE_TraceStackFramePointersFromBuffer) {
-  constexpr size_t kDepth = 5;
-  const void* frames[kDepth];
-  ExpectStackFramePointers<kDepth>(frames, kDepth, /*copy_stack=*/true);
+  ExpectStackFramePointers<kDepth>(frames);
 }
 
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_APPLE)
@@ -493,7 +443,7 @@ TEST(CheckExitCodeAfterSignalHandlerDeathTest,
 #endif  // #if !defined(ADDRESS_SANITIZER) && !defined(UNDEFINED_SANITIZER)
 
 TEST(CheckExitCodeAfterSignalHandlerDeathTest, CheckSIGILL) {
-  auto const raise_sigill = []() {
+  auto const raise_sigill = [] {
 #if defined(ARCH_CPU_X86_FAMILY)
     asm("ud2");
 #elif defined(ARCH_CPU_ARM_FAMILY)
@@ -508,5 +458,4 @@ TEST(CheckExitCodeAfterSignalHandlerDeathTest, CheckSIGILL) {
 
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_ANDROID)
 
-}  // namespace debug
-}  // namespace base
+}  // namespace base::debug

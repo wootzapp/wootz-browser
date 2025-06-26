@@ -36,6 +36,11 @@ enum ShareExtensionItemReceived {
   READINGLIST_ENTRY,
   BOOKMARK_ENTRY,
   OPEN_IN_CHROME_ENTRY,
+  OPEN_IN_CHROME_INCOGNITO_ENTRY,
+  IMAGE_SEARCH_ENTRY,
+  TEXT_SEARCH_ENTRY,
+  INCOGNITO_IMAGE_SEARCH_ENTRY,
+  INCOGNITO_TEXT_SEARCH_ENTRY,
   SHARE_EXTENSION_ITEM_RECEIVED_COUNT
 };
 
@@ -59,15 +64,30 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
                             SHARE_EXTENSION_ITEM_RECEIVED_COUNT);
 }
 
+bool IsItemReceivedURL(app_group::ShareExtensionItemType type) {
+  return type == app_group::OPEN_IN_CHROME_ITEM ||
+         type == app_group::OPEN_IN_CHROME_INCOGNITO_ITEM ||
+         type == app_group::BOOKMARK_ITEM ||
+         type == app_group::READING_LIST_ITEM;
+}
+
+// Return true if a recived item (represented by its `GURL`, `Date`, `Type` and
+// source is valid. An item is either a URL, an image or a text. Images and
+// texts have an empty URL hence the use of `IsItemReceivedURL`.
+bool IsReceivedItemValid(GURL entryGURL,
+                         NSDate* entryDate,
+                         NSNumber* entryType,
+                         NSString* entrySource) {
+  app_group::ShareExtensionItemType type =
+      static_cast<app_group::ShareExtensionItemType>([entryType integerValue]);
+  return !((!entryGURL.is_valid() && IsItemReceivedURL(type)) || !entrySource ||
+           !entryDate || !entryType ||
+           (!entryGURL.SchemeIsHTTPOrHTTPS() && IsItemReceivedURL(type)));
+}
+
 }  // namespace
 
-@interface ShareExtensionItemReceiver () <NSFilePresenter> {
-  BOOL _isObservingReadingListFolder;
-  BOOL _readingListFolderCreated;
-  raw_ptr<ReadingListModel> _readingListModel;
-  raw_ptr<bookmarks::BookmarkModel> _bookmarkModel;
-  scoped_refptr<base::SequencedTaskRunner> _taskRunner;
-}
+@interface ShareExtensionItemReceiver () <NSFilePresenter>
 
 // Checks if the reading list folder is already created and if not, create it.
 - (void)createReadingListFolder;
@@ -107,7 +127,14 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 
 @end
 
-@implementation ShareExtensionItemReceiver
+@implementation ShareExtensionItemReceiver {
+  BOOL _isObservingReadingListFolder;
+  BOOL _readingListFolderCreated;
+  BOOL _shutdownCalled;
+  raw_ptr<ReadingListModel> _readingListModel;
+  raw_ptr<bookmarks::BookmarkModel> _bookmarkModel;
+  scoped_refptr<base::SequencedTaskRunner> _taskRunner;
+}
 
 #pragma mark - NSObject lifetime
 
@@ -154,7 +181,7 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 }
 
 - (void)shutdown {
-  [[NSNotificationCenter defaultCenter] removeObserver:self];
+  _shutdownCalled = YES;
   if (_isObservingReadingListFolder) {
     [NSFileCoordinator removeFilePresenter:self];
   }
@@ -167,6 +194,9 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 
 - (void)createReadingListFolder {
   {
+    if (_shutdownCalled) {
+      return;
+    }
     base::ScopedBlockingCall scoped_blocking_call(
         FROM_HERE, base::BlockingType::WILL_BLOCK);
     NSFileManager* manager = [NSFileManager defaultManager];
@@ -186,6 +216,9 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 }
 
 - (void)readingListFolderCreated {
+  if (_shutdownCalled) {
+    return;
+  }
   UIApplication* application = [UIApplication sharedApplication];
   if ([application applicationState] == UIApplicationStateActive) {
     _readingListFolderCreated = YES;
@@ -194,6 +227,9 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 }
 
 - (BOOL)receivedData:(NSData*)data withCompletion:(ProceduralBlock)completion {
+  if (_shutdownCalled) {
+    return NO;
+  }
   NSError* error = nil;
   NSKeyedUnarchiver* unarchiver =
       [[NSKeyedUnarchiver alloc] initForReadingFromData:data error:&error];
@@ -240,8 +276,7 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
   NSString* entrySource = base::apple::ObjCCast<NSString>(
       [entry objectForKey:app_group::kShareItemSource]);
 
-  if (!entryGURL.is_valid() || !entrySource || !entryDate || !entryType ||
-      !entryGURL.SchemeIsHTTPOrHTTPS()) {
+  if (!IsReceivedItemValid(entryGURL, entryDate, entryType, entrySource)) {
     if (completion) {
       completion();
     }
@@ -271,7 +306,7 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
                        title:(NSString*)entryNSTitle
                          URL:(NSURL*)entryNSURL
                   completion:(ProceduralBlock)completion {
-  if (!_readingListModel || !_bookmarkModel) {
+  if (_shutdownCalled || !_readingListModel || !_bookmarkModel) {
     // Models may have been deleted after the file
     // processing started.
     return;
@@ -292,7 +327,7 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
     case app_group::BOOKMARK_ITEM: {
       LogHistogramReceivedItem(BOOKMARK_ENTRY);
       // TODO(crbug.com/40260909): Once feature
-      // `syncer::kEnableBookmarkFoldersForAccountStorage` is launched, this
+      // `switches::kSyncEnableBookmarksInTransportMode` is launched, this
       // may want to save bookmarks under `_bookmarkModel->mobile_node()`, if
       // it returns non-null.
       _bookmarkModel->AddNewURL(_bookmarkModel->mobile_node(), 0,
@@ -305,6 +340,26 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
       // needed here.
       break;
     }
+    case app_group::OPEN_IN_CHROME_INCOGNITO_ITEM: {
+      LogHistogramReceivedItem(OPEN_IN_CHROME_INCOGNITO_ENTRY);
+      break;
+    }
+    case app_group::IMAGE_SEARCH_ITEM: {
+      LogHistogramReceivedItem(IMAGE_SEARCH_ENTRY);
+      break;
+    }
+    case app_group::TEXT_SEARCH_ITEM: {
+      LogHistogramReceivedItem(TEXT_SEARCH_ENTRY);
+      break;
+    }
+    case app_group::INCOGNITO_IMAGE_SEARCH_ITEM: {
+      LogHistogramReceivedItem(INCOGNITO_IMAGE_SEARCH_ENTRY);
+      break;
+    }
+    case app_group::INCOGNITO_TEXT_SEARCH_ITEM: {
+      LogHistogramReceivedItem(INCOGNITO_TEXT_SEARCH_ENTRY);
+      break;
+    }
   }
 
   if (completion && _taskRunner) {
@@ -315,6 +370,9 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 }
 
 - (void)handleFileAtURL:(NSURL*)url withCompletion:(ProceduralBlock)completion {
+  if (_shutdownCalled) {
+    return;
+  }
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::WILL_BLOCK);
   if (![[NSFileManager defaultManager] fileExistsAtPath:[url path]]) {
@@ -349,6 +407,9 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 }
 
 - (void)deleteFileAtURL:(NSURL*)url withCompletion:(ProceduralBlock)completion {
+  if (_shutdownCalled) {
+    return;
+  }
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::WILL_BLOCK);
   void (^deletingAccessor)(NSURL*) = ^(NSURL* newURL) {
@@ -371,7 +432,8 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 }
 
 - (void)applicationDidBecomeActive {
-  if (!_readingListFolderCreated || _isObservingReadingListFolder) {
+  if (_shutdownCalled || !_readingListFolderCreated ||
+      _isObservingReadingListFolder) {
     return;
   }
   _isObservingReadingListFolder = YES;
@@ -389,6 +451,9 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 }
 
 - (void)processExistingFiles {
+  if (_shutdownCalled) {
+    return;
+  }
   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
                                                 base::BlockingType::WILL_BLOCK);
   NSMutableArray<NSURL*>* files = [NSMutableArray array];
@@ -418,7 +483,7 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 - (void)entriesReceived:(NSArray<NSURL*>*)files {
   UMA_HISTOGRAM_COUNTS_100("IOS.ShareExtension.ReceivedEntriesCount",
                            [files count]);
-  if (!_taskRunner) {
+  if (_shutdownCalled || !_taskRunner) {
     return;
   }
 
@@ -440,7 +505,7 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 }
 
 - (void)applicationWillResignActive {
-  if (!_isObservingReadingListFolder) {
+  if (_shutdownCalled || !_isObservingReadingListFolder) {
     return;
   }
   _isObservingReadingListFolder = NO;
@@ -450,6 +515,9 @@ void LogHistogramReceivedItem(ShareExtensionItemReceived type) {
 #pragma mark - NSFilePresenter methods
 
 - (void)presentedSubitemDidChangeAtURL:(NSURL*)url {
+  if (_shutdownCalled) {
+    return;
+  }
   if (_taskRunner) {
     __weak ShareExtensionItemReceiver* weakSelf = self;
     _taskRunner->PostTask(FROM_HERE, base::BindOnce(^{

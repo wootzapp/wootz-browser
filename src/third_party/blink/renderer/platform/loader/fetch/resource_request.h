@@ -35,18 +35,18 @@
 #include "base/time/time.h"
 #include "base/unguessable_token.h"
 #include "net/cookies/site_for_cookies.h"
-#include "net/filter/source_stream.h"
+#include "net/filter/source_stream_type.h"
+#include "net/storage_access_api/status.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
-#include "services/network/public/cpp/attribution_reporting_runtime_features.h"
 #include "services/network/public/mojom/attribution.mojom-blink.h"
 #include "services/network/public/mojom/chunked_data_pipe_getter.mojom-blink-forward.h"
 #include "services/network/public/mojom/cors.mojom-blink-forward.h"
 #include "services/network/public/mojom/fetch_api.mojom-blink.h"
 #include "services/network/public/mojom/ip_address_space.mojom-blink-forward.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink-forward.h"
 #include "services/network/public/mojom/trust_tokens.mojom-blink.h"
 #include "services/network/public/mojom/web_bundle_handle.mojom-blink.h"
 #include "third_party/blink/public/mojom/fetch/fetch_api_request.mojom-blink-forward.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink-forward.h"
 #include "third_party/blink/public/platform/resource_request_blocked_reason.h"
 #include "third_party/blink/public/platform/web_url_request_extra_data.h"
 #include "third_party/blink/renderer/platform/loader/fetch/render_blocking_behavior.h"
@@ -58,10 +58,15 @@
 #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
 #include "third_party/blink/renderer/platform/wtf/ref_counted.h"
 
+namespace network {
+class PermissionsPolicy;
+}  // namespace network
+
 namespace blink {
 
+class FeatureContext;
 class EncodedFormData;
-class PermissionsPolicy;
+struct IntegrityMetadataSet;
 
 // ResourceRequestHead represents request without request body.
 // See ResourceRequest below to see what request is.
@@ -280,7 +285,12 @@ class PLATFORM_EXPORT ResourceRequestHead {
 
   // True if the request can work after the fetch group is terminated.
   bool GetKeepalive() const { return keepalive_; }
-  void SetKeepalive(bool keepalive) { keepalive_ = keepalive; }
+  void SetKeepalive(bool keepalive) {
+    keepalive_ = keepalive;
+    keepalive_token_ =
+        keepalive_ ? std::make_optional(base::UnguessableToken::Create())
+                   : std::nullopt;
+  }
 
   // True if the request should be considered for computing and attaching the
   // topics headers.
@@ -395,8 +405,12 @@ class PLATFORM_EXPORT ResourceRequestHead {
   }
 
   const String& GetFetchIntegrity() const { return fetch_integrity_; }
-  void SetFetchIntegrity(const String& integrity) {
-    fetch_integrity_ = integrity;
+  void SetFetchIntegrity(const String& integrity, const FeatureContext*);
+
+  // This is also called as a side-effect of `SetFetchIntegrity()`.
+  void SetExpectedPublicKeys(const IntegrityMetadataSet&);
+  const WTF::Vector<String>& GetExpectedPublicKeys() const {
+    return expected_public_keys_;
   }
 
   bool CacheControlContainsNoCache() const;
@@ -448,14 +462,13 @@ class PLATFORM_EXPORT ResourceRequestHead {
   }
 
   const scoped_refptr<
-      base::RefCountedData<base::flat_set<net::SourceStream::SourceType>>>&
+      base::RefCountedData<base::flat_set<net::SourceStreamType>>>&
   GetDevToolsAcceptedStreamTypes() const {
     return devtools_accepted_stream_types_;
   }
   void SetDevToolsAcceptedStreamTypes(
       const scoped_refptr<
-          base::RefCountedData<base::flat_set<net::SourceStream::SourceType>>>&
-          types) {
+          base::RefCountedData<base::flat_set<net::SourceStreamType>>>& types) {
     devtools_accepted_stream_types_ = types;
   }
 
@@ -529,7 +542,7 @@ class PLATFORM_EXPORT ResourceRequestHead {
 
   void SetFavicon(bool enabled) { is_favicon_ = enabled; }
 
-  bool PrefetchMaybeForTopLeveNavigation() const {
+  bool PrefetchMaybeForTopLevelNavigation() const {
     return prefetch_maybe_for_top_level_navigation_;
   }
   void SetPrefetchMaybeForTopLevelNavigation(
@@ -576,10 +589,12 @@ class PLATFORM_EXPORT ResourceRequestHead {
     return render_blocking_behavior_;
   }
 
-  void SetHasStorageAccess(bool has_storage_access) {
-    has_storage_access_ = has_storage_access;
+  void SetStorageAccessApiStatus(net::StorageAccessApiStatus status) {
+    storage_access_api_status_ = status;
   }
-  bool GetHasStorageAccess() const { return has_storage_access_; }
+  net::StorageAccessApiStatus GetStorageAccessApiStatus() const {
+    return storage_access_api_status_;
+  }
 
   network::mojom::AttributionSupport GetAttributionReportingSupport() const {
     return attribution_reporting_support_;
@@ -598,16 +613,6 @@ class PLATFORM_EXPORT ResourceRequestHead {
   void SetAttributionReportingEligibility(
       network::mojom::AttributionReportingEligibility eligibility) {
     attribution_reporting_eligibility_ = eligibility;
-  }
-
-  const network::AttributionReportingRuntimeFeatures&
-  GetAttributionReportingRuntimeFeatures() const {
-    return attribution_reporting_runtime_features_;
-  }
-
-  void SetAttributionReportingRuntimeFeatures(
-      network::AttributionReportingRuntimeFeatures runtime_features) {
-    attribution_reporting_runtime_features_ = runtime_features;
   }
 
   const std::optional<base::UnguessableToken>& GetAttributionSrcToken() const {
@@ -642,6 +647,43 @@ class PLATFORM_EXPORT ResourceRequestHead {
     service_worker_race_network_request_token_ = token;
   }
 
+  void SetKnownTransparentPlaceholderImageIndex(wtf_size_t index) {
+    known_transparent_placeholder_image_index_ = index;
+  }
+
+  // TODO(crbug.com/41496436): Make the optimizations referencing the index
+  // applicable to all static resource loads.
+  wtf_size_t GetKnownTransparentPlaceholderImageIndex() const {
+    return known_transparent_placeholder_image_index_;
+  }
+
+  const std::optional<base::UnguessableToken>& GetKeepaliveToken() const {
+    return keepalive_token_;
+  }
+
+  // Indicates that both FetchContext::PrepareResourceRequestForCacheAccess()
+  // and FetchContext::UpgradeResourceRequestForLoader() must be called. See
+  // FetchContext::UpgradeResourceRequestForLoader() for details.
+  void SetRequiresUpgradeForLoader() { requires_upgrade_for_loader_ = true; }
+  bool RequiresUpgradeForLoader() const { return requires_upgrade_for_loader_; }
+
+  // See comment in SetUrl().
+  void SetCanChangeUrl(bool value) {
+#if DCHECK_IS_ON()
+    is_set_url_allowed_ = value;
+#endif
+  }
+
+  bool AllowsDeviceBoundSessionRegistration() const {
+    return allows_device_bound_session_registration_;
+  }
+
+  void SetAllowsDeviceBoundSessionRegistration(
+      bool allows_device_bound_session_registration) {
+    allows_device_bound_session_registration_ =
+        allows_device_bound_session_registration;
+  }
+
  private:
   const CacheControlHeader& GetCacheControlHeader() const;
 
@@ -671,12 +713,34 @@ class PLATFORM_EXPORT ResourceRequestHead {
   bool shared_storage_writable_opted_in_ : 1;
   bool shared_storage_writable_eligible_ : 1;
   bool allow_stale_response_ : 1;
-  mojom::blink::FetchCacheMode cache_mode_;
   bool skip_service_worker_ : 1;
   bool download_to_cache_only_ : 1;
   bool site_for_cookies_set_ : 1;
   bool is_form_submission_ : 1;
   bool priority_incremental_ : 1;
+  bool is_ad_resource_ : 1;
+  bool upgrade_if_insecure_ : 1;
+  bool is_revalidating_ : 1;
+  bool is_automatic_upgrade_ : 1;
+  bool is_from_origin_dirty_style_sheet_ : 1;
+  bool is_fetch_like_api_ : 1;
+  // Indicates that this ResourceRequest represents the requestObject for a
+  // JS fetchLater() call.
+  // https://whatpr.org/fetch/1647/094ea69...152d725.html#fetch-later-method
+  bool is_fetch_later_api_ : 1;
+  bool is_favicon_ : 1;
+  // Currently this is only used when a prefetch request has `as=document`
+  // specified. If true, and the request is cross-origin, the browser will cache
+  // the request under the cross-origin's partition. Furthermore, its reuse from
+  // the prefetch cache will be restricted to top-level-navigations.
+  bool prefetch_maybe_for_top_level_navigation_ : 1;
+  // Indicate the state of CompressionDictionaryTransport feature. When it is
+  // true, `use-as-dictionary` response HTTP header may be processed.
+  // TODO(crbug.com/1413922): Remove this flag when we launch
+  // CompressionDictionaryTransport feature.
+  bool shared_dictionary_writer_enabled_ : 1;
+  bool requires_upgrade_for_loader_ : 1;
+  mojom::blink::FetchCacheMode cache_mode_;
   ResourceLoadPriority initial_priority_;
   ResourceLoadPriority priority_;
   int intra_priority_value_;
@@ -689,6 +753,8 @@ class PLATFORM_EXPORT ResourceRequestHead {
   network::mojom::RedirectMode redirect_mode_;
   // Exposed as Request.integrity in Service Workers
   String fetch_integrity_;
+  // Public key expectations extracted from `integrity_`
+  WTF::Vector<String> expected_public_keys_;
   String referrer_string_;
   network::mojom::ReferrerPolicy referrer_policy_;
   network::mojom::CorsPreflightPolicy cors_preflight_policy_;
@@ -701,13 +767,6 @@ class PLATFORM_EXPORT ResourceRequestHead {
   mutable CacheControlHeader cache_control_header_cache_;
 
   static const base::TimeDelta default_timeout_interval_;
-
-  bool is_ad_resource_ = false;
-
-  bool upgrade_if_insecure_ = false;
-  bool is_revalidating_ = false;
-
-  bool is_automatic_upgrade_ = false;
 
   std::optional<base::UnguessableToken> devtools_token_;
   String devtools_id_;
@@ -725,23 +784,6 @@ class PLATFORM_EXPORT ResourceRequestHead {
       network::mojom::RequestDestination::kEmpty;
 
   uint64_t inspector_id_ = 0;
-
-  bool is_from_origin_dirty_style_sheet_ = false;
-
-  bool is_fetch_like_api_ = false;
-
-  // Indicates that this ResourceRequest represents the requestObject for a
-  // JS fetchLater() call.
-  // https://whatpr.org/fetch/1647/094ea69...152d725.html#fetch-later-method
-  bool is_fetch_later_api_ = false;
-
-  bool is_favicon_ = false;
-
-  // Currently this is only used when a prefetch request has `as=document`
-  // specified. If true, and the request is cross-origin, the browser will cache
-  // the request under the cross-origin's partition. Furthermore, its reuse from
-  // the prefetch cache will be restricted to top-level-navigations.
-  bool prefetch_maybe_for_top_level_navigation_ = false;
 
   // This is used when fetching preload header requests from cross-origin
   // prefetch responses. The browser process uses this token to ensure the
@@ -764,32 +806,42 @@ class PLATFORM_EXPORT ResourceRequestHead {
   // Instead of using std::optional, we use scoped_refptr to reduce
   // blink memory footprint because the attribute is only used by DevTools
   // and we should keep the footprint minimal when DevTools is closed.
-  scoped_refptr<
-      base::RefCountedData<base::flat_set<net::SourceStream::SourceType>>>
+  scoped_refptr<base::RefCountedData<base::flat_set<net::SourceStreamType>>>
       devtools_accepted_stream_types_;
 
-  bool has_storage_access_ = false;
+  net::StorageAccessApiStatus storage_access_api_status_ =
+      net::StorageAccessApiStatus::kNone;
 
   network::mojom::AttributionSupport attribution_reporting_support_ =
-      network::mojom::AttributionSupport::kWeb;
+      network::mojom::AttributionSupport::kUnset;
 
   network::mojom::AttributionReportingEligibility
       attribution_reporting_eligibility_ =
           network::mojom::AttributionReportingEligibility::kUnset;
 
-  network::AttributionReportingRuntimeFeatures
-      attribution_reporting_runtime_features_;
-
   std::optional<base::UnguessableToken> attribution_reporting_src_token_;
 
-  // Indicate the state of CompressionDictionaryTransport feature. When it is
-  // true, `use-as-dictionary` response HTTP header may be processed.
-  // TODO(crbug.com/1413922): Remove this flag when we launch
-  // CompressionDictionaryTransport feature.
-  bool shared_dictionary_writer_enabled_ = false;
+  // The request is for a known transparent placeholder image, which enables us
+  // to bypass as much processing as possible.
+  // TODO(crbug.com/41496436): Make all the optimizations referencing the flag
+  // applicable to all static resource load.
+  wtf_size_t known_transparent_placeholder_image_index_ = kNotFound;
 
   std::optional<base::UnguessableToken>
       service_worker_race_network_request_token_;
+
+  // The unique identifier set when this request's `keepalive_` is true.
+  // TODO(crbug.com/382527001): Consider merge this field with `keepalive_`.
+  std::optional<base::UnguessableToken> keepalive_token_;
+
+#if DCHECK_IS_ON()
+  bool is_set_url_allowed_ = true;
+#endif
+
+  // Whether this request is allowed to register new device bound
+  // sessions or accept challenges on device bound sessions (e.g. due to
+  // an Origin Trial)
+  bool allows_device_bound_session_registration_ = false;
 };
 
 class PLATFORM_EXPORT ResourceRequestBody {
@@ -871,8 +923,8 @@ class PLATFORM_EXPORT ResourceRequest final : public ResourceRequestHead {
   // `PermissionsPolicy::IsFeatureEnabledForSubresourceRequestAssumingOptIn()`
   // private for safety.
   bool IsFeatureEnabledForSubresourceRequestAssumingOptIn(
-      const PermissionsPolicy* policy,
-      mojom::blink::PermissionsPolicyFeature feature,
+      const network::PermissionsPolicy* policy,
+      network::mojom::PermissionsPolicyFeature feature,
       const url::Origin& origin);
 
  private:

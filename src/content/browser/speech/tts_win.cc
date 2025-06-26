@@ -28,6 +28,7 @@
 #include "base/win/scoped_co_mem.h"
 #include "base/win/sphelper.h"
 #include "content/browser/speech/tts_platform_impl.h"
+#include "content/browser/speech/tts_win_utils.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/tts_controller.h"
@@ -290,6 +291,7 @@ void TtsPlatformImplBackgroundWorker::ProcessSpeech(
   // TODO(dmazzoni): convert SSML to SAPI xml. http://crbug.com/88072
 
   std::wstring utterance = base::UTF8ToWide(parsed_utterance);
+  RemoveXml(utterance);
   std::wstring merged_utterance = prefix + utterance + suffix;
 
   utterance_id_ = utterance_id;
@@ -450,7 +452,7 @@ void TtsPlatformImplBackgroundWorker::GetVoices(
       int lcid_value;
       base::HexStringToInt(base::WideToUTF8(language.get()), &lcid_value);
       LCID lcid = MAKELCID(lcid_value, SORT_DEFAULT);
-      WCHAR locale_name[LOCALE_NAME_MAX_LENGTH] = {0};
+      WCHAR locale_name[LOCALE_NAME_MAX_LENGTH] = {};
       LCIDToLocaleName(lcid, locale_name, LOCALE_NAME_MAX_LENGTH, 0);
       voice.lang = base::WideToUTF8(locale_name);
     }

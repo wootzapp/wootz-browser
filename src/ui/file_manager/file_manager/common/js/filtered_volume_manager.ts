@@ -8,7 +8,8 @@ import {VolumeInfoList} from '../../background/js/volume_info_list.js';
 import type {ArchiveOpenEvent, DeviceConnectionChangedEvent, ExternallyUnmountedEvent, VolumeAlreadyMountedEvent} from '../../background/js/volume_manager.js';
 import {VolumeManager} from '../../background/js/volume_manager.js';
 import type {FilesAppEntry} from '../../common/js/files_app_entry_types.js';
-import {getStore, type Store} from '../../state/store.js';
+import {oneDriveFakeRootKey} from '../../state/ducks/volumes.js';
+import {getEntry, getStore, type Store} from '../../state/store.js';
 
 import {type SpliceEvent} from './array_data_model.js';
 import {isOneDrive} from './entry_utils.js';
@@ -62,12 +63,6 @@ export class FilteredVolumeManager extends VolumeManager {
   private onEventBound_ = this.onEvent_.bind(this);
 
   /**
-   * True if |volumeFilter| contains the 'fusebox-only' filter. SelectFileAsh
-   * (Lacros) file picker sets this filter.
-   */
-  private readonly isFuseBoxOnly_: boolean;
-
-  /**
    * True if |volumeFilter| contains the 'media-store-files-only' filter.
    * Android (ARC) file picker sets this filter.
    */
@@ -106,13 +101,8 @@ export class FilteredVolumeManager extends VolumeManager {
       private volumeManagerGetter_: Promise<VolumeManager>,
       volumeFilter: string[], private disabledVolumes_: VolumeType[]) {
     super();
-    this.isFuseBoxOnly_ = volumeFilter.includes('fusebox-only');
     this.isMediaStoreOnly_ = volumeFilter.includes('media-store-files-only');
     this.store_ = getStore();
-  }
-
-  override getFuseBoxOnlyFilterEnabled() {
-    return this.isFuseBoxOnly_;
   }
 
   override getMediaStoreFilesOnlyFilterEnabled() {
@@ -161,8 +151,7 @@ export class FilteredVolumeManager extends VolumeManager {
     //    by a USB cable and viewing the phone's Downloads folder on the
     //    Chromebook's file manager, via MTP (Media Transfer Protocol).
     //  - FWF (Foreign With FuseBox) volumes use FuseBox to provide
-    //    kernel-visible file paths for non-native volumes, so that
-    //    lacros-chrome's file manager can also read MTP volumes.
+    //    kernel-visible file paths for non-native volumes.
     //
     // In terms of boolean expressions:
     //
@@ -181,8 +170,7 @@ export class FilteredVolumeManager extends VolumeManager {
     // performance, FWF-MTP has higher overheads (as it indirects through the
     // kernel's FUSE protocol and other IPC). Hence, we prefer FSF-MTP when
     // feasible (i.e. when in ash-chrome) but FWF-MTP when FSF-MTP won't work
-    // at all (i.e. when in lacros-chrome). In this TypeScript code, being in
-    // lacros-chrome is represented by the isFuseBoxOnly_ field.
+    // at all.
     //
     // There's also the isFuseBoxDebugEnabled_ field, corresponding to
     // chrome://flags#fuse-box-debug. When true, we should show both FSF and
@@ -223,13 +211,9 @@ export class FilteredVolumeManager extends VolumeManager {
         if (this.isFuseBoxDebugEnabled_) {
           // chrome://flags#fuse-box-debug is enabled. Show everything.
           return true;  // Equivalent to (nat || fsf || fwf).
-        } else if (this.isFuseBoxOnly_) {
-          // We are in lacros-chrome. SelectFileAsh needs 'kernel-visible',
-          // which means nat (native) or fwf (foreign-with-fusebox) volumes.
-          return !fsf;  // Equivalent to (nat || fwf).
         } else {
-          // We are in ash-chrome. If not nat (native), prefer fsf
-          // (foreign-sans-fusebox) over fwf (foreign-with-fusebox).
+          // If not nat (native), prefer fsf (foreign-sans-fusebox) over fwf
+          // (foreign-with-fusebox).
           return nat || fsf;  // Equivalent to (!fwf).
         }
       case AllowedPaths.NATIVE_PATH:
@@ -423,6 +407,13 @@ export class FilteredVolumeManager extends VolumeManager {
         break;
       case chrome.fileManagerPrivate.DefaultLocation.ONEDRIVE:
         volumeInfo = this.getOneDriveVolumeInfo_();
+        if (!volumeInfo) {
+          // Check if the placeholder is there.
+          const entry = getEntry(this.store_.getState(), oneDriveFakeRootKey);
+          if (entry) {
+            return (entry as DirectoryEntry);
+          }
+        }
         break;
       default:
         console.warn(`Invalid default location: ${location}`);

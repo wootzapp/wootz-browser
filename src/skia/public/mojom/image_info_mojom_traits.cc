@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "skia/public/mojom/image_info_mojom_traits.h"
 
 #include <optional>
@@ -74,7 +79,7 @@ skia::mojom::AlphaType EnumTraits<skia::mojom::AlphaType, SkAlphaType>::ToMojom(
       // Unknown types should not be sent over mojo.
       break;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 // static
@@ -120,7 +125,7 @@ skia::mojom::ColorType EnumTraits<skia::mojom::ColorType, SkColorType>::ToMojom(
       // Skia has color types not used by Chrome.
       break;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 // static

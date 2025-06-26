@@ -7,9 +7,9 @@
 
 #include <string>
 
-#include "ash/components/arc/mojom/memory.mojom-forward.h"
 #include "base/functional/callback_forward.h"
 #include "base/timer/elapsed_timer.h"
+#include "chromeos/ash/experiences/arc/mojom/memory.mojom-forward.h"
 
 namespace content {
 class BrowserContext;
@@ -49,6 +49,8 @@ class ArcVmWorkingSetTrimExecutor {
   static void OnArcVmMemoryGuestReclaim(
       std::unique_ptr<base::ElapsedTimer> elapsed_timer,
       ResultCallback callback,
+      bool should_reclaim_from_host,
+      int page_limit,
       arc::mojom::ReclaimResultPtr result);
 
   static void LogErrorAndInvokeCallback(const char* error,

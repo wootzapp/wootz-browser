@@ -1,7 +1,7 @@
 // Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-//
+
 // Overview
 //
 // The main entry point is CertNetFetcherURLRequest. This is an implementation
@@ -58,17 +58,19 @@
 
 #include "net/cert_net/cert_net_fetcher_url_request.h"
 
+#include <algorithm>
 #include <memory>
 #include <tuple>
 #include <utility>
 
 #include "base/check_op.h"
+#include "base/containers/extend.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
+#include "base/not_fatal_until.h"
 #include "base/numerics/safe_math.h"
-#include "base/ranges/algorithm.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
@@ -461,8 +463,8 @@ void Job::AttachRequest(
 void Job::DetachRequest(CertNetFetcherURLRequest::RequestCore* request) {
   std::unique_ptr<Job> delete_this;
 
-  auto it = base::ranges::find(requests_, request);
-  DCHECK(it != requests_.end());
+  auto it = std::ranges::find(requests_, request);
+  CHECK(it != requests_.end(), base::NotFatalUntil::M130);
   requests_.erase(it);
 
   // If there are no longer any requests attached to the job then
@@ -624,15 +626,16 @@ bool Job::ConsumeBytesRead(URLRequest* request, int num_bytes) {
   }
 
   // Enforce maximum size bound.
-  if (num_bytes + response_body_.size() > request_params_->max_response_bytes) {
+  const auto num_bytes_s = static_cast<size_t>(num_bytes);
+  if (num_bytes_s + response_body_.size() >
+      request_params_->max_response_bytes) {
     FailRequest(ERR_FILE_TOO_BIG);
     return false;
   }
 
   // Append the data to |response_body_|.
-  response_body_.reserve(num_bytes);
-  response_body_.insert(response_body_.end(), read_buffer_->data(),
-                        read_buffer_->data() + num_bytes);
+  response_body_.reserve(response_body_.size() + num_bytes_s);
+  base::Extend(response_body_, read_buffer_->first(num_bytes_s));
   return true;
 }
 

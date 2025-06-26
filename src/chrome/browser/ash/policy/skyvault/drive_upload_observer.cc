@@ -7,6 +7,8 @@
 #include "chrome/browser/ash/file_manager/delete_io_task.h"
 #include "chrome/browser/ash/file_manager/fileapi_util.h"
 #include "chrome/browser/ash/file_manager/volume_manager.h"
+#include "chrome/browser/ash/policy/skyvault/histogram_helper.h"
+#include "chrome/browser/ash/policy/skyvault/policy_utils.h"
 #include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_util.h"
 #include "storage/browser/file_system/file_system_url.h"
 
@@ -42,10 +44,13 @@ void OnUploadDone(scoped_refptr<DriveUploadObserver> drive_upload_observer,
 void DriveUploadObserver::Observe(
     Profile* profile,
     base::FilePath file_path,
-    base::RepeatingCallback<void(int)> progress_callback,
+    UploadTrigger trigger,
+    int64_t file_bytes,
+    base::RepeatingCallback<void(int64_t)> progress_callback,
     base::OnceCallback<void(bool)> upload_callback) {
   scoped_refptr<DriveUploadObserver> drive_upload_observer =
-      new DriveUploadObserver(profile, file_path, std::move(progress_callback));
+      new DriveUploadObserver(profile, file_path, trigger, file_bytes,
+                              std::move(progress_callback));
 
   // Keep `drive_upload_observer` alive until the upload is done.
   drive_upload_observer->Run(base::BindOnce(
@@ -55,13 +60,17 @@ void DriveUploadObserver::Observe(
 DriveUploadObserver::DriveUploadObserver(
     Profile* profile,
     base::FilePath file_path,
-    base::RepeatingCallback<void(int)> progress_callback)
+    UploadTrigger trigger,
+    int64_t file_bytes,
+    base::RepeatingCallback<void(int64_t)> progress_callback)
     : profile_(profile),
       file_system_context_(
           file_manager::util::GetFileManagerFileSystemContext(profile)),
       drive_integration_service_(
           drive::DriveIntegrationServiceFactory::FindForProfile(profile)),
       observed_local_path_(file_path),
+      file_bytes_(file_bytes),
+      trigger_(trigger),
       progress_callback_(std::move(progress_callback)) {}
 
 DriveUploadObserver::~DriveUploadObserver() = default;
@@ -113,6 +122,7 @@ void DriveUploadObserver::OnEndUpload(bool success) {
     no_sync_update_timeout_.Reset();
   }
 
+  // TODO(b/343879839): Error UMA.
   // If the file sync to to Drive was unsuccessful, delete the file from the
   // Local cache.
   if (!success) {
@@ -159,17 +169,17 @@ void DriveUploadObserver::OnSyncingStatusUpdate(
         drive_integration_service_->ImmediatelyUpload(
             observed_drive_path_,
             base::BindOnce(&DriveUploadObserver::OnImmediatelyUploadDone,
-                           weak_ptr_factory_.GetWeakPtr()));
+                           weak_ptr_factory_.GetWeakPtr(),
+                           item->bytes_to_transfer));
         return;
       }
       case drivefs::mojom::ItemEvent::State::kInProgress:
         if (item->bytes_transferred > 0) {
-          progress_callback_.Run(100 * item->bytes_transferred /
-                                 item->bytes_to_transfer);
+          progress_callback_.Run(item->bytes_transferred);
         }
         return;
       case drivefs::mojom::ItemEvent::State::kCompleted:
-        progress_callback_.Run(100);
+        progress_callback_.Run(item->bytes_transferred);
         OnEndUpload(/*success=*/true);
         return;
       case drivefs::mojom::ItemEvent::State::kFailed:
@@ -207,15 +217,25 @@ void DriveUploadObserver::OnIOTaskStatus(
     return;
   }
 
+  // Only log in case of final state.
+  if (status.state == file_manager::io_task::State::kError) {
+    policy::local_user_files::SkyVaultDeleteErrorHistogram(
+        trigger_, policy::local_user_files::MigrationDestination::kGoogleDrive,
+        true);
+  }
+  if (status.state == file_manager::io_task::State::kSuccess) {
+    policy::local_user_files::SkyVaultDeleteErrorHistogram(
+        trigger_, policy::local_user_files::MigrationDestination::kGoogleDrive,
+        false);
+  }
+
   switch (status.state) {
     case file_manager::io_task::State::kCancelled:
-      NOTREACHED_IN_MIGRATION()
-          << "Deletion of source or destination file should not have "
-             "been cancelled.";
-      ABSL_FALLTHROUGH_INTENDED;
+      NOTREACHED() << "Deletion of source or destination file should not have "
+                      "been cancelled.";
     case file_manager::io_task::State::kError:
       LOG(ERROR) << "Deleting the file from the local cache failed.";
-      ABSL_FALLTHROUGH_INTENDED;
+      [[fallthrough]];
     case file_manager::io_task::State::kSuccess:
       std::move(upload_callback_).Run(false);
       return;
@@ -224,13 +244,20 @@ void DriveUploadObserver::OnIOTaskStatus(
   }
 }
 
-void DriveUploadObserver::OnImmediatelyUploadDone(drive::FileError error) {
+void DriveUploadObserver::OnImmediatelyUploadDone(int64_t bytes_transferred,
+                                                  drive::FileError error) {
   LOG_IF(ERROR, error != drive::FileError::FILE_ERROR_OK)
       << "ImmediatelyUpload failed with status: " << error;
-  if (error == drive::FileError::FILE_ERROR_OK) {
-    OnEndUpload(/*success=*/true);
-  } else {
+  if (error != drive::FileError::FILE_ERROR_OK) {
     OnEndUpload(/*success=*/false);
+  } else {
+    if (bytes_transferred == file_bytes_) {
+      // The file is successfully uploaded.
+      OnEndUpload(/*success=*/true);
+    } else if (bytes_transferred < file_bytes_) {
+      // This the first event for just creating the file.
+      progress_callback_.Run(bytes_transferred);
+    }
   }
 }
 

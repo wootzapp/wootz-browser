@@ -2,13 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "gpu/ipc/client/shared_image_interface_proxy.h"
 
 #include <bit>
 
 #include "base/logging.h"
 #include "build/build_config.h"
-#include "gpu/command_buffer/common/gpu_memory_buffer_support.h"
 #include "gpu/command_buffer/common/shared_image_usage.h"
 #include "gpu/ipc/client/gpu_channel_host.h"
 #include "gpu/ipc/common/command_buffer_id.h"
@@ -44,7 +48,7 @@ size_t GetRemainingSize(const base::MappedReadOnlyRegion& region,
   return region.mapping.size() - offset;
 }
 
-void* GetDataAddress(const base::MappedReadOnlyRegion& region,
+void* GetDataAddress(base::MappedReadOnlyRegion& region,
                      size_t offset,
                      size_t size) {
   base::CheckedNumeric<size_t> safe_end = offset;
@@ -94,14 +98,16 @@ SharedImageInterfaceProxy::SharedImageInterfaceProxy(
 SharedImageInterfaceProxy::~SharedImageInterfaceProxy() = default;
 
 Mailbox SharedImageInterfaceProxy::CreateSharedImage(
-    const SharedImageInfo& si_info) {
-  auto mailbox = Mailbox::GenerateForSharedImage();
+    const SharedImageInfo& si_info,
+    std::optional<SharedImagePoolId> pool_id) {
+  auto mailbox = Mailbox::Generate();
   auto params = mojom::CreateSharedImageParams::New();
   params->mailbox = mailbox;
   params->si_info = CreateSharedImageInfo(si_info);
+  params->pool_id = std::move(pool_id);
   {
     base::AutoLock lock(lock_);
-    AddMailbox(mailbox, si_info.meta.usage);
+    AddMailbox(mailbox);
     // Note: we enqueue the IPC under the lock to guarantee monotonicity of the
     // release ids as seen by the service.
     last_flush_id_ = host_->EnqueueDeferredMessage(
@@ -117,6 +123,7 @@ Mailbox SharedImageInterfaceProxy::CreateSharedImage(
 Mailbox SharedImageInterfaceProxy::CreateSharedImage(
     SharedImageInfo& si_info,
     gfx::BufferUsage buffer_usage,
+    std::optional<SharedImagePoolId> pool_id,
     gfx::GpuMemoryBufferHandle* handle_to_populate) {
   // Create a GMB here first on IO thread via sync IPC. Then create a mailbox
   // from it.
@@ -127,7 +134,9 @@ Mailbox SharedImageInterfaceProxy::CreateSharedImage(
   }
 
   if (handle_to_populate->is_null()) {
-    LOG(ERROR) << "Buffer handle is null. Not creating a mailbox from it.";
+    if (!host_->IsLost()) {
+      LOG(ERROR) << "Buffer handle is null. Not creating a mailbox from it.";
+    }
     return Mailbox();
   }
 
@@ -149,7 +158,8 @@ Mailbox SharedImageInterfaceProxy::CreateSharedImage(
   // GpuChannelMessageFilter::CreateGpuMemoryBuffer() call in service side can
   // itself can post a task from IO thread to gpu main thread to create a
   // mailbox from handle and then return the handle back to SIIProxy.
-  return CreateSharedImage(si_info, handle_to_populate->Clone());
+  return CreateSharedImage(si_info, handle_to_populate->Clone(),
+                           std::move(pool_id));
 }
 
 Mailbox SharedImageInterfaceProxy::CreateSharedImage(
@@ -175,7 +185,7 @@ Mailbox SharedImageInterfaceProxy::CreateSharedImage(
     return Mailbox();
   }
 
-  auto mailbox = Mailbox::GenerateForSharedImage();
+  auto mailbox = Mailbox::Generate();
   auto params = mojom::CreateSharedImageWithDataParams::New();
   params->mailbox = mailbox;
   params->si_info = CreateSharedImageInfo(si_info);
@@ -187,20 +197,22 @@ Mailbox SharedImageInterfaceProxy::CreateSharedImage(
           mojom::DeferredSharedImageRequest::NewCreateSharedImageWithData(
               std::move(params))),
       /*sync_token_fences=*/{}, ++next_release_id_);
-  AddMailbox(mailbox, si_info.meta.usage);
+  AddMailbox(mailbox);
   return mailbox;
 }
 
 Mailbox SharedImageInterfaceProxy::CreateSharedImage(
     const SharedImageInfo& si_info,
-    gfx::GpuMemoryBufferHandle buffer_handle) {
+    gfx::GpuMemoryBufferHandle buffer_handle,
+    std::optional<SharedImagePoolId> pool_id) {
   // TODO(kylechar): Verify buffer_handle works for size+format.
-  auto mailbox = Mailbox::GenerateForSharedImage();
+  auto mailbox = Mailbox::Generate();
 
   auto params = mojom::CreateSharedImageWithBufferParams::New();
   params->mailbox = mailbox;
   params->si_info = CreateSharedImageInfo(si_info);
   params->buffer_handle = std::move(buffer_handle);
+  params->pool_id = std::move(pool_id);
 
   base::AutoLock lock(lock_);
   // Note: we enqueue and send the IPC under the lock to guarantee
@@ -212,45 +224,10 @@ Mailbox SharedImageInterfaceProxy::CreateSharedImage(
       /*sync_token_fences=*/{}, ++next_release_id_);
   host_->EnsureFlush(last_flush_id_);
 
-  AddMailbox(mailbox, si_info.meta.usage);
+  AddMailbox(mailbox);
   return mailbox;
 }
 
-Mailbox SharedImageInterfaceProxy::CreateSharedImage(
-    gfx::BufferFormat format,
-    gfx::BufferPlane plane,
-    const gfx::Size& size,
-    const SharedImageInfo& si_info,
-    gfx::GpuMemoryBufferHandle buffer_handle) {
-  auto mailbox = Mailbox::GenerateForSharedImage();
-
-  auto params = mojom::CreateGMBSharedImageParams::New();
-  params->mailbox = mailbox;
-  params->buffer_handle = std::move(buffer_handle);
-  params->size = size;
-  params->format = format;
-  params->plane = plane;
-  params->si_info = CreateSharedImageInfo(si_info);
-
-  // TODO(piman): DCHECK GMB format support.
-  DCHECK(gpu::IsImageSizeValidForGpuMemoryBufferFormat(params->size,
-                                                       params->format));
-
-  base::AutoLock lock(lock_);
-  // Note: we enqueue and send the IPC under the lock to guarantee
-  // monotonicity of the release ids as seen by the service.
-  last_flush_id_ = host_->EnqueueDeferredMessage(
-      mojom::DeferredRequestParams::NewSharedImageRequest(
-          mojom::DeferredSharedImageRequest::NewCreateGmbSharedImage(
-              std::move(params))),
-      /*sync_token_fences=*/{}, ++next_release_id_);
-  host_->EnsureFlush(last_flush_id_);
-
-  AddMailbox(mailbox, si_info.meta.usage);
-  return mailbox;
-}
-
-#if BUILDFLAG(IS_WIN)
 void SharedImageInterfaceProxy::CopyToGpuMemoryBuffer(
     const SyncToken& sync_token,
     const Mailbox& mailbox) {
@@ -266,6 +243,7 @@ void SharedImageInterfaceProxy::CopyToGpuMemoryBuffer(
   }
 }
 
+#if BUILDFLAG(IS_WIN)
 void SharedImageInterfaceProxy::CopyToGpuMemoryBufferAsync(
     const SyncToken& sync_token,
     const Mailbox& mailbox,
@@ -307,6 +285,27 @@ void SharedImageInterfaceProxy::UpdateSharedImage(
                   mailbox, d3d_shared_fence->GetDXGIHandleToken(),
                   d3d_shared_fence->GetFenceValue()))),
       std::move(dependencies), /*release_count=*/0);
+}
+
+void SharedImageInterfaceProxy::CopyNativeGmbToSharedMemorySync(
+    gfx::GpuMemoryBufferHandle buffer_handle,
+    base::UnsafeSharedMemoryRegion memory_region,
+    bool* status) {
+  mojo::SyncCallRestrictions::ScopedAllowSyncCall allow_sync_call;
+  host_->CopyNativeGmbToSharedMemorySync(std::move(buffer_handle),
+                                         std::move(memory_region), status);
+}
+
+void SharedImageInterfaceProxy::CopyNativeGmbToSharedMemoryAsync(
+    gfx::GpuMemoryBufferHandle buffer_handle,
+    base::UnsafeSharedMemoryRegion memory_region,
+    base::OnceCallback<void(bool)> callback) {
+  host_->CopyNativeGmbToSharedMemoryAsync(
+      std::move(buffer_handle), std::move(memory_region), std::move(callback));
+}
+
+bool SharedImageInterfaceProxy::IsConnected() {
+  return host_->IsConnected();
 }
 #endif  // BUILDFLAG(IS_WIN)
 
@@ -362,6 +361,7 @@ void SharedImageInterfaceProxy::DestroySharedImage(const SyncToken& sync_token,
                   mailbox)),
           std::move(info.destruction_sync_tokens), /*release_count=*/0);
 
+      host_->DelayedEnsureFlush(last_flush_id_);
       mailbox_infos_.erase(it);
     } else if (!dependencies.empty()) {
       constexpr size_t kMaxSyncTokens = 4;
@@ -420,11 +420,6 @@ void SharedImageInterfaceProxy::WaitSyncToken(const SyncToken& sync_token) {
             mojom::DeferredSharedImageRequest::NewNop(0)),
         std::move(dependencies), /*release_count=*/0);
   }
-}
-
-void SharedImageInterfaceProxy::Flush() {
-  base::AutoLock lock(lock_);
-  host_->EnsureFlush(last_flush_id_);
 }
 
 bool SharedImageInterfaceProxy::GetSHMForPixelData(
@@ -499,24 +494,24 @@ SharedImageInterfaceProxy::CreateSwapChain(viz::SharedImageFormat format,
                                            const gfx::ColorSpace& color_space,
                                            GrSurfaceOrigin surface_origin,
                                            SkAlphaType alpha_type,
-                                           uint32_t usage) {
+                                           gpu::SharedImageUsageSet usage) {
 #if BUILDFLAG(IS_WIN)
-  const SwapChainMailboxes mailboxes = {Mailbox::GenerateForSharedImage(),
-                                        Mailbox::GenerateForSharedImage()};
+  const SwapChainMailboxes mailboxes = {Mailbox::Generate(),
+                                        Mailbox::Generate()};
   auto params = mojom::CreateSwapChainParams::New();
   params->front_buffer_mailbox = mailboxes.front_buffer;
   params->back_buffer_mailbox = mailboxes.back_buffer;
   params->format = format;
   params->size = size;
   params->color_space = color_space;
-  params->usage = usage;
+  params->usage = uint32_t(usage);
   params->surface_origin = surface_origin;
   params->alpha_type = alpha_type;
   {
     base::AutoLock lock(lock_);
 
-    AddMailbox(mailboxes.front_buffer, usage);
-    AddMailbox(mailboxes.back_buffer, usage);
+    AddMailbox(mailboxes.front_buffer);
+    AddMailbox(mailboxes.back_buffer);
 
     last_flush_id_ = host_->EnqueueDeferredMessage(
         mojom::DeferredRequestParams::NewSharedImageRequest(
@@ -526,8 +521,7 @@ SharedImageInterfaceProxy::CreateSwapChain(viz::SharedImageFormat format,
   }
   return mailboxes;
 #else
-  NOTREACHED_IN_MIGRATION();
-  return {};
+  NOTREACHED();
 #endif  // BUILDFLAG(IS_WIN)
 }
 
@@ -546,7 +540,7 @@ void SharedImageInterfaceProxy::PresentSwapChain(const SyncToken& sync_token,
     host_->EnsureFlush(last_flush_id_);
   }
 #else
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 #endif  // BUILDFLAG(IS_WIN)
 }
 
@@ -554,7 +548,7 @@ void SharedImageInterfaceProxy::PresentSwapChain(const SyncToken& sync_token,
 void SharedImageInterfaceProxy::RegisterSysmemBufferCollection(
     zx::eventpair service_handle,
     zx::channel sysmem_token,
-    gfx::BufferFormat format,
+    const viz::SharedImageFormat& format,
     gfx::BufferUsage usage,
     bool register_with_image_pipe) {
   host_->GetGpuChannel().RegisterSysmemBufferCollection(
@@ -564,22 +558,14 @@ void SharedImageInterfaceProxy::RegisterSysmemBufferCollection(
 }
 #endif  // BUILDFLAG(IS_FUCHSIA)
 
-scoped_refptr<gfx::NativePixmap> SharedImageInterfaceProxy::GetNativePixmap(
-    const gpu::Mailbox& mailbox) {
-  // Clients outside of the GPU process cannot obtain the backing NativePixmap
-  // for SharedImages.
-  return nullptr;
-}
-
 void SharedImageInterfaceProxy::AddReferenceToSharedImage(
     const SyncToken& sync_token,
-    const Mailbox& mailbox,
-    uint32_t usage) {
+    const Mailbox& mailbox) {
   std::vector<SyncToken> dependencies =
       GenerateDependenciesFromSyncToken(std::move(sync_token), host_);
   {
     base::AutoLock lock(lock_);
-    if (AddMailboxOrAddReference(mailbox, usage)) {
+    if (AddMailboxOrAddReference(mailbox)) {
       // Note: we enqueue the IPC under the lock to guarantee monotonicity of
       // the release ids as seen by the service.
       last_flush_id_ = host_->EnqueueDeferredMessage(
@@ -591,44 +577,59 @@ void SharedImageInterfaceProxy::AddReferenceToSharedImage(
   }
 }
 
-void SharedImageInterfaceProxy::AddMailbox(const Mailbox& mailbox,
-                                           uint32_t usage) {
-  bool added = AddMailboxOrAddReference(mailbox, usage);
+void SharedImageInterfaceProxy::AddMailbox(const Mailbox& mailbox) {
+  bool added = AddMailboxOrAddReference(mailbox);
   CHECK(added);
 }
 
-bool SharedImageInterfaceProxy::AddMailboxOrAddReference(const Mailbox& mailbox,
-                                                         uint32_t usage) {
+bool SharedImageInterfaceProxy::AddMailboxOrAddReference(
+    const Mailbox& mailbox) {
   lock_.AssertAcquired();
 
   auto& info = mailbox_infos_[mailbox];
-  if (++info.ref_count == 1) {
-    // If we just added this mailbox, initialize usage.
-    info.usage = usage;
-  }
-
-  // Usage can't be changed.
-  CHECK_EQ(info.usage, usage);
-
+  info.ref_count++;
   return info.ref_count == 1;
 }
 
-uint32_t SharedImageInterfaceProxy::UsageForMailbox(const Mailbox& mailbox) {
+void SharedImageInterfaceProxy::NotifyMailboxAdded(
+    const Mailbox& mailbox,
+    gpu::SharedImageUsageSet usage) {
   base::AutoLock lock(lock_);
-
-  // The mailbox may have been destroyed if the context on which the shared
-  // image was created is deleted.
-  auto it = mailbox_infos_.find(mailbox);
-  if (it == mailbox_infos_.end()) {
-    return 0u;
-  }
-  return it->second.usage;
+  AddMailbox(mailbox);
 }
 
-void SharedImageInterfaceProxy::NotifyMailboxAdded(const Mailbox& mailbox,
-                                                   uint32_t usage) {
-  base::AutoLock lock(lock_);
-  AddMailbox(mailbox, usage);
+void SharedImageInterfaceProxy::CreateSharedImagePool(
+    const SharedImagePoolId& pool_id,
+    mojo::PendingRemote<mojom::SharedImagePoolClientInterface> client_remote) {
+  auto params = mojom::CreateSharedImagePoolParams::New();
+  params->pool_id = pool_id;
+  params->client_remote = std::move(client_remote);
+  {
+    base::AutoLock lock(lock_);
+    // Note: we enqueue the IPC under the lock to guarantee monotonicity of the
+    // release ids as seen by the service.
+    last_flush_id_ = host_->EnqueueDeferredMessage(
+        mojom::DeferredRequestParams::NewSharedImageRequest(
+            mojom::DeferredSharedImageRequest::NewCreateSharedImagePool(
+                std::move(params))),
+        /*sync_token_fences=*/{}, ++next_release_id_);
+  }
+}
+
+void SharedImageInterfaceProxy::DestroySharedImagePool(
+    const SharedImagePoolId& pool_id) {
+  auto params = mojom::DestroySharedImagePoolParams::New();
+  params->pool_id = pool_id;
+  {
+    base::AutoLock lock(lock_);
+    // Note: we enqueue the IPC under the lock to guarantee monotonicity of the
+    // release ids as seen by the service.
+    last_flush_id_ = host_->EnqueueDeferredMessage(
+        mojom::DeferredRequestParams::NewSharedImageRequest(
+            mojom::DeferredSharedImageRequest::NewDestroySharedImagePool(
+                std::move(params))),
+        /*sync_token_fences=*/{}, ++next_release_id_);
+  }
 }
 
 SharedImageInterfaceProxy::SharedImageRefData::SharedImageRefData() = default;

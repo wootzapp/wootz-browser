@@ -17,6 +17,8 @@
 #include "device/bluetooth/bluetooth_adapter_android.h"
 #include "device/bluetooth/bluetooth_remote_gatt_descriptor_android.h"
 #include "device/bluetooth/bluetooth_remote_gatt_service_android.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "device/bluetooth/jni_headers/ChromeBluetoothRemoteGattCharacteristic_jni.h"
 
 using base::android::AttachCurrentThread;
@@ -150,7 +152,7 @@ void BluetoothRemoteGattCharacteristicAndroid::ReadRemoteCharacteristic(
 }
 
 void BluetoothRemoteGattCharacteristicAndroid::WriteRemoteCharacteristic(
-    const std::vector<uint8_t>& value,
+    base::span<const uint8_t> value,
     WriteType write_type,
     base::OnceClosure callback,
     ErrorCallback error_callback) {
@@ -189,7 +191,7 @@ void BluetoothRemoteGattCharacteristicAndroid::WriteRemoteCharacteristic(
 }
 
 void BluetoothRemoteGattCharacteristicAndroid::
-    DeprecatedWriteRemoteCharacteristic(const std::vector<uint8_t>& value,
+    DeprecatedWriteRemoteCharacteristic(base::span<const uint8_t> value,
                                         base::OnceClosure callback,
                                         ErrorCallback error_callback) {
   if (read_pending_ || write_pending_) {

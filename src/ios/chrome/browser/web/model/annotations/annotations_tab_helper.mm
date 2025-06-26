@@ -17,13 +17,11 @@
 #import "components/ukm/ios/ukm_url_recorder.h"
 #import "ios/chrome/browser/mailto_handler/model/mailto_handler_service.h"
 #import "ios/chrome/browser/mailto_handler/model/mailto_handler_service_factory.h"
-#import "ios/chrome/browser/parcel_tracking/parcel_tracking_prefs.h"
-#import "ios/chrome/browser/parcel_tracking/parcel_tracking_util.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
-#import "ios/chrome/browser/shared/public/commands/parcel_tracking_opt_in_commands.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/text_selection/model/text_classifier_model_service.h"
 #import "ios/chrome/browser/text_selection/model/text_classifier_model_service_factory.h"
+#import "ios/chrome/browser/text_selection/model/text_classifier_util.h"
 #import "ios/public/provider/chrome/browser/context_menu/context_menu_api.h"
 #import "ios/web/common/annotations_utils.h"
 #import "ios/web/common/features.h"
@@ -65,11 +63,6 @@ void AnnotationsTabHelper::SetMiniMapCommands(
   mini_map_handler_ = mini_map_handler;
 }
 
-void AnnotationsTabHelper::SetParcelTrackingOptInCommands(
-    id<ParcelTrackingOptInCommands> parcel_tracking_handler) {
-  parcel_tracking_handler_ = parcel_tracking_handler;
-}
-
 void AnnotationsTabHelper::SetUnitConversionCommands(
     id<UnitConversionCommands> unit_conversion_handler) {
   unit_conversion_handler_ = unit_conversion_handler;
@@ -102,13 +95,9 @@ void AnnotationsTabHelper::OnTextExtracted(web::WebState* web_state,
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK_EQ(web_state_, web_state);
 
-  if (!base::FeatureList::IsEnabled(web::features::kEnableViewportIntents)) {
-    // Check if this page requested "nointentdetection".
-    std::optional<bool> has_no_intent_detection =
-        metadata.FindBool("hasNoIntentDetection");
-    if (!has_no_intent_detection || has_no_intent_detection.value()) {
-      return;
-    }
+  // TODO: 367770207 - Move the checks before the text is extracted.
+  if (!IsEntitySelectionAllowedForURL(web_state)) {
+    return;
   }
 
   NSTextCheckingType handled_types =
@@ -129,13 +118,17 @@ void AnnotationsTabHelper::OnTextExtracted(web::WebState* web_state,
   if (has_no_date && has_no_date.value()) {
     handled_types = handled_types & ~NSTextCheckingTypeDate;
   }
+  std::optional<bool> has_no_unit = metadata.FindBool("wkNoUnit");
+  if (has_no_unit && has_no_unit.value()) {
+    handled_types = handled_types & ~TCTextCheckingTypeMeasurement;
+  }
 
   // Keep latest copy.
   metadata_ = std::make_unique<base::Value::Dict>(metadata.Clone());
 
   TextClassifierModelService* service =
-      TextClassifierModelServiceFactory::GetForBrowserState(
-          ChromeBrowserState::FromBrowserState(web_state->GetBrowserState()));
+      TextClassifierModelServiceFactory::GetForProfile(
+          ProfileIOS::FromBrowserState(web_state->GetBrowserState()));
   base::FilePath model_path =
       service ? service->GetModelPath() : base::FilePath();
 
@@ -201,8 +194,7 @@ void AnnotationsTabHelper::ApplyDeferredProcessing(
   auto* manager = web::AnnotationsTextManager::FromWebState(web_state_);
   DCHECK(manager);
 
-  if (!deferred &&
-      base::FeatureList::IsEnabled(web::features::kEnableViewportIntents)) {
+  if (!deferred) {
     base::Value::List decorations_list;
     base::Value decorations(std::move(decorations_list));
     manager->DecorateAnnotations(web_state_, decorations, seq_id);
@@ -215,10 +207,9 @@ void AnnotationsTabHelper::ApplyDeferredProcessing(
       web_state_->GetWebFramesManager(content_world)->GetMainWebFrame();
   if (main_frame && deferred) {
     std::vector<web::TextAnnotation> annotations(std::move(deferred.value()));
-    if ((IsIOSParcelTrackingEnabled() &&
-         !IsParcelTrackingDisabled(GetApplicationContext()->GetLocalState())) ||
-        base::FeatureList::IsEnabled(web::features::kEnableMeasurements)) {
-      AnnotationsTabHelper::ProcessAnnotations(annotations);
+
+    if (base::FeatureList::IsEnabled(web::features::kEnableMeasurements)) {
+      ProcessAnnotations(annotations);
     }
     base::Value::List decorations_list;
     BuildCacheAndDecorations(annotations, decorations_list);
@@ -240,59 +231,18 @@ void AnnotationsTabHelper::BuildCacheAndDecorations(
 
 void AnnotationsTabHelper::ProcessAnnotations(
     std::vector<web::TextAnnotation>& annotations_list) {
-  NSMutableArray<CustomTextCheckingResult*>* unique_parcels =
-      [[NSMutableArray alloc] init];
-  NSMutableSet* existing_parcel_numbers = [NSMutableSet set];
+  if (!base::FeatureList::IsEnabled(web::features::kEnableMeasurements)) {
+    return;
+  }
   int detected_measurements = 0;
   for (auto annotation = annotations_list.begin();
        annotation != annotations_list.end();) {
     NSTextCheckingResult* match = annotation->second;
-    if (!match || (match.resultType != TCTextCheckingTypeParcelTracking &&
-                   match.resultType != TCTextCheckingTypeMeasurement)) {
-      annotation++;
-      continue;
-    }
-    CustomTextCheckingResult* custom_match =
-        static_cast<CustomTextCheckingResult*>(match);
-
-    if (match.resultType == TCTextCheckingTypeParcelTracking) {
-      // Avoid adding duplicates to `unique_parcels`.
-      if (![existing_parcel_numbers
-              containsObject:[custom_match carrierNumber]]) {
-        [existing_parcel_numbers addObject:[custom_match carrierNumber]];
-        [unique_parcels addObject:custom_match];
-      }
-      // Remove the parcel from annotations_list to prevent decorating the
-      // tracking number.
-      annotation = annotations_list.erase(annotation);
-      continue;
-    } else if (match.resultType == TCTextCheckingTypeMeasurement) {
+    if (match && match.resultType == TCTextCheckingTypeMeasurement) {
       detected_measurements++;
     }
     annotation++;
   }
-
-  if (base::FeatureList::IsEnabled(web::features::kEnableMeasurements)) {
-    base::UmaHistogramCounts100("IOS.UnitConversion.DetectedMeasurements",
-                                detected_measurements);
-  }
-
-  // Show UI only if this is the currently active WebState.
-  if ([unique_parcels count] > 0 && web_state_->IsVisible()) {
-    DCHECK(IsIOSParcelTrackingEnabled() &&
-           !IsParcelTrackingDisabled(GetApplicationContext()->GetLocalState()));
-    // Call asynchronously to allow the rest of the annotations to be decorated
-    // first.
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE,
-        base::BindOnce(&AnnotationsTabHelper::MaybeShowParcelTrackingUI,
-                       weak_factory_.GetWeakPtr(), unique_parcels));
-  }
+  base::UmaHistogramCounts100("IOS.UnitConversion.DetectedMeasurements",
+                              detected_measurements);
 }
-
-void AnnotationsTabHelper::MaybeShowParcelTrackingUI(
-    NSArray<CustomTextCheckingResult*>* parcels) {
-  [parcel_tracking_handler_ showTrackingForParcels:parcels];
-}
-
-WEB_STATE_USER_DATA_KEY_IMPL(AnnotationsTabHelper)

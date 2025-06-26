@@ -136,9 +136,8 @@ void UpdateCRLSetWithTestFile(
       &crl_set_bytes));
 
   base::RunLoop update_run_loop;
-  cv_service_factory_impl->UpdateCRLSet(
-      base::as_bytes(base::make_span(crl_set_bytes)),
-      update_run_loop.QuitClosure());
+  cv_service_factory_impl->UpdateCRLSet(base::as_byte_span(crl_set_bytes),
+                                        update_run_loop.QuitClosure());
   update_run_loop.Run();
 }
 
@@ -483,7 +482,7 @@ TEST(CertVerifierServiceFactoryTest, RootStoreInfoWithUpdatedRootStore) {
   net::SHA256HashValue root_hash =
       net::X509Certificate::CalculateFingerprint256(root->GetCertBuffer());
   EXPECT_EQ(info_ptr->root_cert_info[0]->sha256hash_hex,
-            base::HexEncode(root_hash.data));
+            base::HexEncode(root_hash));
   EXPECT_TRUE(net::x509_util::CryptoBufferEqual(
       net::x509_util::CreateCryptoBuffer(info_ptr->root_cert_info[0]->cert)
           .get(),
@@ -601,8 +600,8 @@ TEST(CertVerifierServiceFactoryTest, RootStoreInfoWithVersionConstraintMet) {
 
 TEST(CertVerifierServiceFactoryTest, RootStoreInfoWithCompiledRootStore) {
   base::test::TaskEnvironment task_environment;
-  std::vector<net::ChromeRootStoreData::Anchor> anchors =
-      net::CompiledChromeRootStoreAnchors();
+  net::ChromeRootStoreData root_store_data =
+      net::ChromeRootStoreData::CreateFromCompiledRootStore();
 
   mojo::Remote<mojom::CertVerifierServiceFactory> cv_service_factory_remote;
   CertVerifierServiceFactoryImpl cv_service_factory_impl(
@@ -618,7 +617,8 @@ TEST(CertVerifierServiceFactoryTest, RootStoreInfoWithCompiledRootStore) {
   // In cases where the compiled Chrome Root Store has roots with version
   // constraints, there might be less trusted roots depending on what version #
   // the test is running at.
-  EXPECT_LE(info_ptr->root_cert_info.size(), anchors.size());
+  EXPECT_LE(info_ptr->root_cert_info.size(),
+            root_store_data.trust_anchors().size());
   EXPECT_GT(info_ptr->root_cert_info.size(), static_cast<std::size_t>(0));
 }
 
@@ -691,10 +691,12 @@ TEST(CertVerifierServiceFactoryTest, UpdateCtLogList) {
         reinterpret_cast<certificate_transparency::ChromeCTPolicyEnforcer*>(
             request_enforcer);
 
-    std::map<std::string, certificate_transparency::OperatorHistoryEntry>
-        operator_history = policy_enforcer->operator_history_for_testing();
-    EXPECT_EQ(operator_history[log1_id].current_operator_, kLog1Operator);
-    EXPECT_EQ(operator_history[log2_id].current_operator_, kLog2Operator);
+    std::map<std::string, certificate_transparency::LogInfo> log_info =
+        policy_enforcer->log_info_for_testing();
+    EXPECT_EQ(log_info[log1_id].operator_history.current_operator,
+              kLog1Operator);
+    EXPECT_EQ(log_info[log2_id].operator_history.current_operator,
+              kLog2Operator);
   }
 
   // Test a 2nd log list update.
@@ -740,10 +742,12 @@ TEST(CertVerifierServiceFactoryTest, UpdateCtLogList) {
             request_enforcer);
 
     // CTPolicyEnforcer doesn't parse the key, so it accepts both logs.
-    std::map<std::string, certificate_transparency::OperatorHistoryEntry>
-        operator_history = policy_enforcer->operator_history_for_testing();
-    EXPECT_EQ(operator_history[log1_id].current_operator_, kLog1Operator);
-    EXPECT_EQ(operator_history[log3_id].current_operator_, kLog3Operator);
+    std::map<std::string, certificate_transparency::LogInfo> log_info =
+        policy_enforcer->log_info_for_testing();
+    EXPECT_EQ(log_info[log1_id].operator_history.current_operator,
+              kLog1Operator);
+    EXPECT_EQ(log_info[log3_id].operator_history.current_operator,
+              kLog3Operator);
   }
 }
 
@@ -810,13 +814,14 @@ TEST(CertVerifierServiceFactoryTest, CTPolicyEnforcerConfig) {
                   ::testing::Pair(crypto::SHA256HashString("CCCC"),
                                   base::Time::FromTimeT(2))));
 
-  std::map<std::string, certificate_transparency::OperatorHistoryEntry>
-      operator_history = policy_enforcer->operator_history_for_testing();
+  std::map<std::string, certificate_transparency::LogInfo> log_info =
+      policy_enforcer->log_info_for_testing();
 
   for (auto log : policy_enforcer->disqualified_logs_for_testing()) {
-    EXPECT_EQ(operator_history[log.first].current_operator_,
+    EXPECT_EQ(log_info[log.first].operator_history.current_operator,
               "Not Google Either");
-    EXPECT_TRUE(operator_history[log.first].previous_operators_.empty());
+    EXPECT_TRUE(
+        log_info[log.first].operator_history.previous_operators.empty());
   }
 }
 
@@ -867,24 +872,24 @@ TEST(CertVerifierServiceFactoryTest,
       reinterpret_cast<certificate_transparency::ChromeCTPolicyEnforcer*>(
           request_enforcer);
 
-  std::map<std::string, certificate_transparency::OperatorHistoryEntry>
-      operator_history = policy_enforcer->operator_history_for_testing();
+  std::map<std::string, certificate_transparency::LogInfo> log_info_map =
+      policy_enforcer->log_info_for_testing();
 
-  EXPECT_EQ(
-      operator_history[crypto::SHA256HashString("0000")].current_operator_,
-      "Forever Operator");
-  EXPECT_TRUE(operator_history[crypto::SHA256HashString("0000")]
-                  .previous_operators_.empty());
+  EXPECT_EQ(log_info_map[crypto::SHA256HashString("0000")]
+                .operator_history.current_operator,
+            "Forever Operator");
+  EXPECT_TRUE(log_info_map[crypto::SHA256HashString("0000")]
+                  .operator_history.previous_operators.empty());
 
-  EXPECT_EQ(
-      operator_history[crypto::SHA256HashString("AAAA")].current_operator_,
-      "Changed Operator");
-  EXPECT_THAT(
-      operator_history[crypto::SHA256HashString("AAAA")].previous_operators_,
-      ::testing::ElementsAre(
-          ::testing::Pair("Operator 0", base::Time::FromTimeT(0)),
-          ::testing::Pair("Operator 1", base::Time::FromTimeT(1)),
-          ::testing::Pair("Operator 2", base::Time::FromTimeT(2))));
+  EXPECT_EQ(log_info_map[crypto::SHA256HashString("AAAA")]
+                .operator_history.current_operator,
+            "Changed Operator");
+  EXPECT_THAT(log_info_map[crypto::SHA256HashString("AAAA")]
+                  .operator_history.previous_operators,
+              ::testing::ElementsAre(
+                  ::testing::Pair("Operator 0", base::Time::FromTimeT(0)),
+                  ::testing::Pair("Operator 1", base::Time::FromTimeT(1)),
+                  ::testing::Pair("Operator 2", base::Time::FromTimeT(2))));
 }
 #endif
 
@@ -1213,9 +1218,8 @@ TEST_F(CertVerifierServiceFactoryBuiltinVerifierTest, BadCRLSetIgnored) {
     std::string crl_set_bytes(1000, '\xff');
 
     base::RunLoop update_run_loop;
-    cv_service_factory_impl.UpdateCRLSet(
-        base::as_bytes(base::make_span(crl_set_bytes)),
-        update_run_loop.QuitClosure());
+    cv_service_factory_impl.UpdateCRLSet(base::as_byte_span(crl_set_bytes),
+                                         update_run_loop.QuitClosure());
     update_run_loop.Run();
   }
 
@@ -1334,6 +1338,109 @@ TEST_F(CertVerifierServiceFactoryBuiltinVerifierTest,
     auto [net_error, result] = Verify(
         cv_service_remote, leaf2->GetX509Certificate(), "www.example.com");
     EXPECT_THAT(net_error, IsError(net::OK));
+  }
+}
+
+// Tests that UpdateNetworkTime being called causes new cert verifiers to use
+// the time tracker time for verification.
+TEST_F(CertVerifierServiceFactoryBuiltinVerifierTest,
+       UpdateNetworkTimeNewVerifier) {
+  auto [leaf, root] = net::CertBuilder::CreateSimpleChain2();
+  base::Time now = base::Time::Now();
+  base::TimeTicks ticks_now = base::TimeTicks::Now();
+  //  Configure the leaf certificate so it is no longer valid according to the
+  //  system time.
+  leaf->SetValidity(now - base::Days(3), now - base::Days(1));
+  leaf->SetSubjectAltName("host.test");
+  net::ScopedTestRoot scoped_test_root(root->GetX509Certificate());
+
+  mojo::Remote<mojom::CertVerifierServiceFactory> cv_service_factory_remote;
+  CertVerifierServiceFactoryImpl cv_service_factory_impl(
+      cv_service_factory_remote.BindNewPipeAndPassReceiver());
+  EnableChromeRootStoreIfOptional(&cv_service_factory_impl);
+
+  // Update the time tracker so the current time is within the certificate
+  // validity range.
+  cv_service_factory_impl.UpdateNetworkTime(now, ticks_now,
+                                            now - base::Days(2));
+
+  mojo::Remote<mojom::CertVerifierService> cv_service_remote;
+  DummyCVServiceClient cv_service_client;
+  mojom::CertVerifierCreationParamsPtr cv_creation_params =
+      mojom::CertVerifierCreationParams::New();
+
+  // Create the cert verifier. It should start with the time tracker set to the
+  // time passed to UpdateNetworkTime.
+  cv_service_factory_remote->GetNewCertVerifier(
+      cv_service_remote.BindNewPipeAndPassReceiver(),
+      /*updater=*/mojo::NullReceiver(),
+      cv_service_client.client_.BindNewPipeAndPassRemote(),
+      std::move(cv_creation_params));
+
+  auto [net_error, result] =
+      Verify(cv_service_remote, leaf->GetX509Certificate(), "host.test");
+  EXPECT_THAT(net_error, IsError(net::OK));
+  EXPECT_FALSE(net::IsCertStatusError(result.cert_status));
+
+  // Update happened before the CertVerifier was created, no change observers
+  // should have been notified.
+  EXPECT_EQ(cv_service_client.changed_count_, 0u);
+}
+
+// Tests that UpdateNetworkTime being called causes existing cert verifiers to
+// use the time tracker time for verification.
+TEST_F(CertVerifierServiceFactoryBuiltinVerifierTest,
+       UpdateNetworkTimeExistingVerifier) {
+  auto [leaf, root] = net::CertBuilder::CreateSimpleChain2();
+  base::Time now = base::Time::Now();
+  base::TimeTicks ticks_now = base::TimeTicks::Now();
+  //  Configure the leaf certificate so it is no longer valid according to the
+  //  system time.
+  leaf->SetValidity(now - base::Days(3), now - base::Days(1));
+  leaf->SetSubjectAltName("host.test");
+  net::ScopedTestRoot scoped_test_root(root->GetX509Certificate());
+
+  mojo::Remote<mojom::CertVerifierServiceFactory> cv_service_factory_remote;
+  CertVerifierServiceFactoryImpl cv_service_factory_impl(
+      cv_service_factory_remote.BindNewPipeAndPassReceiver());
+  EnableChromeRootStoreIfOptional(&cv_service_factory_impl);
+
+  mojo::Remote<mojom::CertVerifierService> cv_service_remote;
+  DummyCVServiceClient cv_service_client;
+  mojom::CertVerifierCreationParamsPtr cv_creation_params =
+      mojom::CertVerifierCreationParams::New();
+
+  // Create the cert verifier. Request should fail since time hasn't been
+  // updated yet.
+  cv_service_factory_remote->GetNewCertVerifier(
+      cv_service_remote.BindNewPipeAndPassReceiver(),
+      /*updater=*/mojo::NullReceiver(),
+      cv_service_client.client_.BindNewPipeAndPassRemote(),
+      std::move(cv_creation_params));
+  {
+    auto [net_error, result] =
+        Verify(cv_service_remote, leaf->GetX509Certificate(), "host.test");
+    EXPECT_THAT(net_error, IsError(net::ERR_CERT_DATE_INVALID));
+    EXPECT_TRUE(net::IsCertStatusError(result.cert_status));
+  }
+
+  // No updates should have happened yet.
+  EXPECT_EQ(cv_service_client.changed_count_, 0u);
+
+  // Update the time tracker so the current time is within the certificate
+  // validity range.
+  cv_service_factory_impl.UpdateNetworkTime(now, ticks_now,
+                                            now - base::Days(2));
+
+  // Update should have been notified.
+  EXPECT_NO_FATAL_FAILURE(cv_service_client.WaitForCertVerifierChange(1u));
+
+  // Try request again and it should succeed.
+  {
+    auto [net_error, result] =
+        Verify(cv_service_remote, leaf->GetX509Certificate(), "host.test");
+    EXPECT_THAT(net_error, IsError(net::OK));
+    EXPECT_FALSE(net::IsCertStatusError(result.cert_status));
   }
 }
 

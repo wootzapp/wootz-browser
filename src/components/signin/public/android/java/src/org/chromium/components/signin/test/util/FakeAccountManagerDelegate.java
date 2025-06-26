@@ -5,12 +5,10 @@
 package org.chromium.components.signin.test.util;
 
 import android.accounts.Account;
-import android.accounts.AuthenticatorDescription;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 
-import androidx.annotation.GuardedBy;
 import androidx.annotation.Nullable;
 
 import org.chromium.base.Callback;
@@ -18,16 +16,17 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.components.signin.AccessTokenData;
 import org.chromium.components.signin.AccountManagerDelegate;
 import org.chromium.components.signin.AccountManagerDelegateException;
-import org.chromium.components.signin.AccountUtils;
 import org.chromium.components.signin.AccountsChangeObserver;
 import org.chromium.components.signin.AuthException;
 import org.chromium.components.signin.base.AccountInfo;
 import org.chromium.components.signin.base.CoreAccountId;
+import org.chromium.components.signin.base.GaiaId;
+import org.chromium.google_apis.gaia.GoogleServiceAuthError;
+import org.chromium.google_apis.gaia.GoogleServiceAuthErrorState;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.UUID;
 
 /**
  * The FakeAccountManagerDelegate is intended for testing components that use AccountManagerFacade.
@@ -40,14 +39,11 @@ import java.util.UUID;
  */
 public class FakeAccountManagerDelegate implements AccountManagerDelegate {
     /** Converts an email to a fake gaia Id. */
-    public static String toGaiaId(String email) {
-        return "gaia-id-" + email.replace("@", "_at_");
+    public static GaiaId toGaiaId(String email) {
+        return new GaiaId("gaia-id-" + email.replace("@", "_at_"));
     }
 
-    private final Object mLock = new Object();
-
-    @GuardedBy("mLock")
-    private final Set<AccountHolder> mAccounts = new LinkedHashSet<>();
+    private final Set<AccountHolder> mAccounts = Collections.synchronizedSet(new LinkedHashSet<>());
 
     private AccountsChangeObserver mObserver;
 
@@ -57,7 +53,7 @@ public class FakeAccountManagerDelegate implements AccountManagerDelegate {
 
     @Nullable
     @Override
-    public String getAccountGaiaId(String accountEmail) {
+    public GaiaId getAccountGaiaId(String accountEmail) {
         @Nullable AccountHolder accountHolder = tryGetAccountHolder(accountEmail);
         return accountHolder != null ? accountHolder.getAccountInfo().getGaiaId() : null;
     }
@@ -69,27 +65,21 @@ public class FakeAccountManagerDelegate implements AccountManagerDelegate {
 
     @Override
     public Account[] getAccountsSynchronous() throws AccountManagerDelegateException {
-        ArrayList<Account> result = new ArrayList<>();
-        synchronized (mLock) {
-            for (AccountHolder ah : mAccounts) {
-                result.add(ah.getAccount());
-            }
+        synchronized (mAccounts) {
+            return mAccounts.stream().map((ah) -> ah.getAccount()).toArray(Account[]::new);
         }
-        return result.toArray(new Account[0]);
     }
 
     /** Adds an AccountHolder. */
     public void addAccount(AccountInfo accountInfo) {
-        synchronized (mLock) {
-            boolean added = mAccounts.add(new AccountHolder(accountInfo));
-            assert added : "Account already added";
-        }
+        boolean added = mAccounts.add(new AccountHolder(accountInfo));
+        assert added : "Account already added";
         callOnCoreAccountInfoChanged();
     }
 
     /** Removes an AccountHolder. */
     public void removeAccount(CoreAccountId accountId) {
-        synchronized (mLock) {
+        synchronized (mAccounts) {
             @Nullable AccountHolder accountHolder = tryGetAccountHolder(accountId);
             if (accountHolder == null || !mAccounts.remove(accountHolder)) {
                 throw new IllegalArgumentException(
@@ -106,41 +96,30 @@ public class FakeAccountManagerDelegate implements AccountManagerDelegate {
     }
 
     @Override
-    public AccessTokenData getAuthToken(Account account, String scope) throws AuthException {
+    public AccessTokenData getAccessToken(Account account, String scope) throws AuthException {
         AccountHolder accountHolder = tryGetAccountHolder(account.name);
         if (accountHolder == null) {
             throw new AuthException(
-                    AuthException.NONTRANSIENT,
-                    "Cannot get auth token for unknown account '" + account + "'");
+                    "Error while getting token for scope '" + scope + "'",
+                    new IllegalStateException(
+                            "Cannot get auth token for unknown account '" + account + "'"),
+                    new GoogleServiceAuthError(GoogleServiceAuthErrorState.USER_NOT_SIGNED_UP));
         }
-        synchronized (mLock) {
-            if (accountHolder.getAuthToken(scope) == null) {
-                accountHolder.updateAuthToken(scope, UUID.randomUUID().toString());
-            }
-        }
-        return accountHolder.getAuthToken(scope);
+        return accountHolder.getAccessTokenOrGenerateNew(scope);
     }
 
     @Override
-    public void invalidateAuthToken(String authToken) {
+    public void invalidateAccessToken(String authToken) {
         if (authToken == null) {
             throw new IllegalArgumentException("AuthToken can not be null");
         }
-        synchronized (mLock) {
+        synchronized (mAccounts) {
             for (AccountHolder ah : mAccounts) {
-                if (ah.removeAuthToken(authToken)) {
+                if (ah.removeAccessToken(authToken)) {
                     break;
                 }
             }
         }
-    }
-
-    @Override
-    public AuthenticatorDescription[] getAuthenticatorTypes() {
-        AuthenticatorDescription googleAuthenticator =
-                new AuthenticatorDescription(AccountUtils.GOOGLE_ACCOUNT_TYPE, "p1", 0, 0, 0, 0);
-
-        return new AuthenticatorDescription[] {googleAuthenticator};
     }
 
     @Override
@@ -175,7 +154,7 @@ public class FakeAccountManagerDelegate implements AccountManagerDelegate {
 
     // TODO(crbug.com/40274844): Remove this method after migrating the interface to CoreAccountId.
     private @Nullable AccountHolder tryGetAccountHolder(String accountEmail) {
-        synchronized (mLock) {
+        synchronized (mAccounts) {
             return mAccounts.stream()
                     .filter(
                             accountHolder ->
@@ -186,7 +165,7 @@ public class FakeAccountManagerDelegate implements AccountManagerDelegate {
     }
 
     private @Nullable AccountHolder tryGetAccountHolder(CoreAccountId accountId) {
-        synchronized (mLock) {
+        synchronized (mAccounts) {
             return mAccounts.stream()
                     .filter(
                             accountHolder ->

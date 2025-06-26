@@ -22,6 +22,7 @@
 #include "media/gpu/test/video_bitstream.h"
 #include "media/gpu/test/video_frame_helpers.h"
 #include "media/gpu/test/video_player/frame_renderer_dummy.h"
+#include "media/gpu/test/video_player/gmb_video_frame_converter.h"
 #include "media/gpu/test/video_player/test_vda_video_decoder.h"
 #include "media/gpu/test/video_test_helpers.h"
 #include "media/media_buildflags.h"
@@ -165,6 +166,7 @@ void DecoderWrapper::CreateDecoderTask(base::WaitableEvent* done) {
 #if BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
       decoder_ = VideoDecoderPipeline::CreateForTesting(
           base::SingleThreadTaskRunner::GetCurrentDefault(),
+          GmbVideoFrameConverter::CreateForTesting(),
           std::make_unique<NullMediaLog>(),
           decoder_wrapper_config_.ignore_resolution_changes_to_smaller_vp9);
 #endif  // BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
@@ -198,7 +200,7 @@ void DecoderWrapper::InitializeTask(const VideoBitstream* video,
   ASSERT_TRUE(video);
 
   encoded_data_helper_ =
-      std::make_unique<EncodedDataHelper>(video->Data(), video->Codec());
+      EncodedDataHelper::Create(video->Data(), video->Codec());
 
   // (Re-)initialize the decoder.
   VideoDecoderConfig config(
@@ -291,8 +293,7 @@ void DecoderWrapper::DecodeNextFragmentTask() {
   if (input_video_codec_ == media::VideoCodec::kH264 ||
       input_video_codec_ == media::VideoCodec::kHEVC) {
     has_config_info = media::test::EncodedDataHelper::HasConfigInfo(
-        bitstream_buffer->data(), bitstream_buffer->size(),
-        input_video_profile_);
+        *bitstream_buffer, input_video_codec_);
   }
 
   VideoDecoder::DecodeCB decode_cb = base::BindOnce(

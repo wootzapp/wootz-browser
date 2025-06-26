@@ -6,12 +6,18 @@
 
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
+#include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/supervised_user/supervised_user_service_factory.h"
+#include "chrome/common/channel_info.h"
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/supervised_user/core/browser/supervised_user_preferences.h"
 #include "components/supervised_user/core/browser/supervised_user_service.h"
+#include "components/variations/service/variations_service.h"
+#include "content/public/browser/storage_partition.h"
 
 ChromeSupervisedUserServicePlatformDelegateBase::
     ChromeSupervisedUserServicePlatformDelegateBase(Profile& profile)
@@ -21,6 +27,25 @@ ChromeSupervisedUserServicePlatformDelegateBase::
 
 ChromeSupervisedUserServicePlatformDelegateBase::
     ~ChromeSupervisedUserServicePlatformDelegateBase() = default;
+
+std::string ChromeSupervisedUserServicePlatformDelegateBase::GetCountryCode()
+    const {
+  std::string country;
+  variations::VariationsService* variations_service =
+      g_browser_process->variations_service();
+  if (variations_service) {
+    country = variations_service->GetStoredPermanentCountry();
+    if (country.empty()) {
+      country = variations_service->GetLatestCountry();
+    }
+  }
+  return country;
+}
+
+version_info::Channel
+ChromeSupervisedUserServicePlatformDelegateBase::GetChannel() const {
+  return chrome::GetChannel();
+}
 
 void ChromeSupervisedUserServicePlatformDelegateBase::
     OnOffTheRecordProfileCreated(Profile* off_the_record) {
@@ -36,6 +61,8 @@ void ChromeSupervisedUserServicePlatformDelegateBase::
       user_log_segment =
           supervised_user::FamilyLinkUserLogRecord::Create(
               IdentityManagerFactory::GetForProfile(&profile_.get()),
+              *profile_->GetPrefs(),
+              *HostContentSettingsMapFactory::GetForProfile(&profile_.get()),
               supervised_user_service ? supervised_user_service->GetURLFilter()
                                       : nullptr)
               .GetSupervisionStatusForPrimaryAccount();
@@ -73,9 +100,15 @@ void ChromeSupervisedUserServicePlatformDelegateBase::
       }
       break;
 
+    case supervised_user::FamilyLinkUserLogRecord::Segment::kParent:
     case supervised_user::FamilyLinkUserLogRecord::Segment::kUnsupervised:
     case supervised_user::FamilyLinkUserLogRecord::Segment::kMixedProfile:
       // Incognito usage is expected, so don't output any more detailed metrics.
       break;
   }
+}
+
+bool ChromeSupervisedUserServicePlatformDelegateBase::ShouldCloseIncognitoTabs()
+    const {
+  return !IncognitoModePrefs::IsIncognitoAllowed(&profile_.get());
 }

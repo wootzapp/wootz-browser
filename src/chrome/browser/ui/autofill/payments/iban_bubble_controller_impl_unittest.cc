@@ -7,9 +7,10 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "chrome/browser/ui/autofill/autofill_bubble_base.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
-#include "components/autofill/core/browser/data_model/iban.h"
+#include "components/autofill/core/browser/data_model/payments/iban.h"
 #include "components/autofill/core/browser/metrics/payments/iban_metrics.h"
+#include "components/autofill/core/browser/payments/test_legal_message_line.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -29,7 +30,10 @@ class TestIbanBubbleControllerImpl : public IbanBubbleControllerImpl {
 
 class IbanBubbleControllerImplTest : public BrowserWithTestWindowTest {
  public:
-  IbanBubbleControllerImplTest() = default;
+  explicit IbanBubbleControllerImplTest(
+      base::test::TaskEnvironment::TimeSource time_source =
+          base::test::TaskEnvironment::TimeSource::MOCK_TIME)
+      : BrowserWithTestWindowTest(time_source) {}
   IbanBubbleControllerImplTest(IbanBubbleControllerImplTest&) = delete;
   IbanBubbleControllerImplTest& operator=(IbanBubbleControllerImplTest&) =
       delete;
@@ -45,19 +49,32 @@ class IbanBubbleControllerImplTest : public BrowserWithTestWindowTest {
   void ShowLocalSaveBubble(const Iban& iban) {
     controller()->OfferLocalSave(
         iban, /*should_show_prompt=*/true,
-        base::BindOnce(&IbanBubbleControllerImplTest::LocalSaveIbanCallback,
+        base::BindOnce(&IbanBubbleControllerImplTest::SaveIbanCallback,
+                       weak_ptr_factory_.GetWeakPtr()));
+  }
+
+  void ShowUploadSaveBubble(const Iban& iban) {
+    LegalMessageLines legal_message = {
+        TestLegalMessageLine("google_test_legal_message")};
+    controller()->OfferUploadSave(
+        iban, legal_message, /*should_show_prompt=*/true,
+        base::BindOnce(&IbanBubbleControllerImplTest::SaveIbanCallback,
                        weak_ptr_factory_.GetWeakPtr()));
   }
 
   void ClickSaveButton(const std::u16string& nickname) {
     controller()->OnAcceptButton(nickname);
-    controller()->OnBubbleClosed(PaymentsBubbleClosedReason::kAccepted);
+    controller()->OnBubbleClosed(PaymentsUiClosedReason::kAccepted);
     if (controller()->ShouldShowPaymentSavedLabelAnimation()) {
       controller()->OnAnimationEnded();
     }
   }
 
-  void CloseBubble(PaymentsBubbleClosedReason closed_reason) {
+  void ShowConfirmationBubbleView(bool iban_saved, bool hit_max_strikes) {
+    controller()->ShowConfirmationBubbleView(iban_saved, hit_max_strikes);
+  }
+
+  void CloseBubble(PaymentsUiClosedReason closed_reason) {
     controller()->OnBubbleClosed(closed_reason);
   }
 
@@ -71,7 +88,7 @@ class IbanBubbleControllerImplTest : public BrowserWithTestWindowTest {
   }
 
  private:
-  void LocalSaveIbanCallback(
+  void SaveIbanCallback(
       payments::PaymentsAutofillClient::SaveIbanOfferUserDecision user_decision,
       std::u16string_view nickname) {
     saved_nickname_ = nickname;
@@ -89,6 +106,14 @@ TEST_F(IbanBubbleControllerImplTest, LocalIbanSavedSuccessfully) {
   EXPECT_EQ(nickname, saved_nickname());
 }
 
+TEST_F(IbanBubbleControllerImplTest, UploadIbanSavedSuccessfully) {
+  std::u16string nickname = u"My doctor's IBAN";
+  ShowUploadSaveBubble(autofill::test::GetServerIban());
+  ClickSaveButton(nickname);
+
+  EXPECT_EQ(nickname, saved_nickname());
+}
+
 TEST_F(IbanBubbleControllerImplTest, Metrics_LocalIbanOffered) {
   base::HistogramTester histogram_tester;
   ShowLocalSaveBubble(autofill::test::GetLocalIban());
@@ -101,41 +126,41 @@ TEST_F(IbanBubbleControllerImplTest, Metrics_LocalIbanOffered) {
 TEST_F(IbanBubbleControllerImplTest, Metrics_LocalIbanResult_Accepted) {
   base::HistogramTester histogram_tester;
   ShowLocalSaveBubble(autofill::test::GetLocalIban());
-  CloseBubble(PaymentsBubbleClosedReason::kAccepted);
+  CloseBubble(PaymentsUiClosedReason::kAccepted);
 
   histogram_tester.ExpectBucketCount(
       "Autofill.SaveIbanPromptResult.Local.FirstShow",
-      autofill_metrics::SaveIbanBubbleResult::kAccepted, 1);
+      autofill_metrics::SaveIbanPromptResult::kAccepted, 1);
 }
 
 TEST_F(IbanBubbleControllerImplTest, Metrics_LocalIbanResult_Cancelled) {
   base::HistogramTester histogram_tester;
   ShowLocalSaveBubble(autofill::test::GetLocalIban());
-  CloseBubble(PaymentsBubbleClosedReason::kCancelled);
+  CloseBubble(PaymentsUiClosedReason::kCancelled);
 
   histogram_tester.ExpectBucketCount(
       "Autofill.SaveIbanPromptResult.Local.FirstShow",
-      autofill_metrics::SaveIbanBubbleResult::kCancelled, 1);
+      autofill_metrics::SaveIbanPromptResult::kCancelled, 1);
 }
 
 TEST_F(IbanBubbleControllerImplTest, Metrics_LocalIbanResult_NotInteracted) {
   base::HistogramTester histogram_tester;
   ShowLocalSaveBubble(autofill::test::GetLocalIban());
-  CloseBubble(PaymentsBubbleClosedReason::kNotInteracted);
+  CloseBubble(PaymentsUiClosedReason::kNotInteracted);
 
   histogram_tester.ExpectBucketCount(
       "Autofill.SaveIbanPromptResult.Local.FirstShow",
-      autofill_metrics::SaveIbanBubbleResult::kNotInteracted, 1);
+      autofill_metrics::SaveIbanPromptResult::kNotInteracted, 1);
 }
 
 TEST_F(IbanBubbleControllerImplTest, Metrics_LocalIbanResult_LostFocus) {
   base::HistogramTester histogram_tester;
   ShowLocalSaveBubble(autofill::test::GetLocalIban());
-  CloseBubble(PaymentsBubbleClosedReason::kLostFocus);
+  CloseBubble(PaymentsUiClosedReason::kLostFocus);
 
   histogram_tester.ExpectBucketCount(
       "Autofill.SaveIbanPromptResult.Local.FirstShow",
-      autofill_metrics::SaveIbanBubbleResult::kLostFocus, 1);
+      autofill_metrics::SaveIbanPromptResult::kLostFocus, 1);
 }
 
 TEST_F(IbanBubbleControllerImplTest, Metrics_LocalIbanSaved_WithNickname) {
@@ -154,6 +179,91 @@ TEST_F(IbanBubbleControllerImplTest, Metrics_LocalIbanSaved_NoNickname) {
 
   histogram_tester.ExpectUniqueSample(
       "Autofill.SaveIbanPromptResult.Local.SavedWithNickname", false, 1);
+}
+
+TEST_F(IbanBubbleControllerImplTest, Metrics_UploadIbanOffered) {
+  base::HistogramTester histogram_tester;
+  ShowUploadSaveBubble(autofill::test::GetServerIban());
+
+  histogram_tester.ExpectBucketCount(
+      "Autofill.SaveIbanPromptOffer.Upload.FirstShow",
+      autofill_metrics::SaveIbanPromptOffer::kShown, 1);
+}
+
+TEST_F(IbanBubbleControllerImplTest, Metrics_UploadIbanResult_Accepted) {
+  base::HistogramTester histogram_tester;
+  ShowUploadSaveBubble(autofill::test::GetServerIban());
+  CloseBubble(PaymentsUiClosedReason::kAccepted);
+
+  histogram_tester.ExpectBucketCount(
+      "Autofill.SaveIbanPromptResult.Upload.FirstShow",
+      autofill_metrics::SaveIbanPromptResult::kAccepted, 1);
+}
+
+TEST_F(IbanBubbleControllerImplTest, Metrics_UploadIbanResult_Cancelled) {
+  base::HistogramTester histogram_tester;
+  ShowUploadSaveBubble(autofill::test::GetServerIban());
+  CloseBubble(PaymentsUiClosedReason::kCancelled);
+
+  histogram_tester.ExpectBucketCount(
+      "Autofill.SaveIbanPromptResult.Upload.FirstShow",
+      autofill_metrics::SaveIbanPromptResult::kCancelled, 1);
+}
+
+TEST_F(IbanBubbleControllerImplTest, Metrics_UploadIbanResult_NotInteracted) {
+  base::HistogramTester histogram_tester;
+  ShowUploadSaveBubble(autofill::test::GetServerIban());
+  CloseBubble(PaymentsUiClosedReason::kNotInteracted);
+
+  histogram_tester.ExpectBucketCount(
+      "Autofill.SaveIbanPromptResult.Upload.FirstShow",
+      autofill_metrics::SaveIbanPromptResult::kNotInteracted, 1);
+}
+
+TEST_F(IbanBubbleControllerImplTest, Metrics_UploadIbanResult_LostFocus) {
+  base::HistogramTester histogram_tester;
+  ShowUploadSaveBubble(autofill::test::GetServerIban());
+  CloseBubble(PaymentsUiClosedReason::kLostFocus);
+
+  histogram_tester.ExpectBucketCount(
+      "Autofill.SaveIbanPromptResult.Upload.FirstShow",
+      autofill_metrics::SaveIbanPromptResult::kLostFocus, 1);
+}
+
+TEST_F(IbanBubbleControllerImplTest, Metrics_UploadIbanSaved_WithNickname) {
+  base::HistogramTester histogram_tester;
+  ShowUploadSaveBubble(autofill::test::GetServerIban());
+  ClickSaveButton(u"My doctor's IBAN");
+
+  histogram_tester.ExpectUniqueSample(
+      "Autofill.SaveIbanPromptResult.Upload.SavedWithNickname", true, 1);
+}
+
+TEST_F(IbanBubbleControllerImplTest, Metrics_UploadIbanSaved_NoNickname) {
+  base::HistogramTester histogram_tester;
+  ShowUploadSaveBubble(autofill::test::GetServerIban());
+  ClickSaveButton(u"");
+
+  histogram_tester.ExpectUniqueSample(
+      "Autofill.SaveIbanPromptResult.Upload.SavedWithNickname", false, 1);
+}
+
+// Test that confirmation prompt is auto-closed in 3 sec if the IBAN was
+// successfully saved to the server.
+TEST_F(IbanBubbleControllerImplTest, OnConfirmationPromptAutoClosed_Success) {
+  ShowConfirmationBubbleView(/*iban_saved=*/true, /*hit_max_strikes=*/false);
+  task_environment()->FastForwardBy(
+      IbanBubbleControllerImpl::kAutoCloseConfirmationBubbleWaitSec);
+  EXPECT_EQ(controller()->GetPaymentBubbleView(), nullptr);
+}
+
+// Test that fallback as local save confirmation prompt is not auto-closed in 3
+// sec if the IBAN was not successfully saved to the server.
+TEST_F(IbanBubbleControllerImplTest, OnConfirmationPromptAutoClosed_Fail) {
+  ShowConfirmationBubbleView(/*iban_saved=*/false, /*hit_max_strikes=*/false);
+  task_environment()->FastForwardBy(
+      IbanBubbleControllerImpl::kAutoCloseConfirmationBubbleWaitSec);
+  EXPECT_TRUE(controller()->GetPaymentBubbleView());
 }
 
 }  // namespace autofill

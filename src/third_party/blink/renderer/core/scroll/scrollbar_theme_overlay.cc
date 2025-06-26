@@ -108,7 +108,7 @@ base::TimeDelta ScrollbarThemeOverlay::OverlayScrollbarFadeOutDuration() const {
   return style.fade_out_duration;
 }
 
-int ScrollbarThemeOverlay::ThumbLength(const Scrollbar& scrollbar) {
+int ScrollbarThemeOverlay::ThumbLength(const Scrollbar& scrollbar) const {
   int track_len = TrackLength(scrollbar);
 
   if (!scrollbar.TotalSize())
@@ -133,19 +133,19 @@ int ScrollbarThemeOverlay::ThumbThickness(
     return thumb_thickness_default_dip_ * scale_from_dip;
 }
 
-bool ScrollbarThemeOverlay::HasThumb(const Scrollbar& scrollbar) {
+bool ScrollbarThemeOverlay::HasThumb(const Scrollbar& scrollbar) const {
   return true;
 }
 
-gfx::Rect ScrollbarThemeOverlay::BackButtonRect(const Scrollbar&) {
+gfx::Rect ScrollbarThemeOverlay::BackButtonRect(const Scrollbar&) const {
   return gfx::Rect();
 }
 
-gfx::Rect ScrollbarThemeOverlay::ForwardButtonRect(const Scrollbar&) {
+gfx::Rect ScrollbarThemeOverlay::ForwardButtonRect(const Scrollbar&) const {
   return gfx::Rect();
 }
 
-gfx::Rect ScrollbarThemeOverlay::TrackRect(const Scrollbar& scrollbar) {
+gfx::Rect ScrollbarThemeOverlay::TrackRect(const Scrollbar& scrollbar) const {
   gfx::Rect rect = scrollbar.FrameRect();
   int scrollbar_margin =
       ScrollbarMargin(scrollbar.ScaleFromDIP(), scrollbar.CSSScrollbarWidth());
@@ -156,7 +156,7 @@ gfx::Rect ScrollbarThemeOverlay::TrackRect(const Scrollbar& scrollbar) {
   return rect;
 }
 
-gfx::Rect ScrollbarThemeOverlay::ThumbRect(const Scrollbar& scrollbar) {
+gfx::Rect ScrollbarThemeOverlay::ThumbRect(const Scrollbar& scrollbar) const {
   gfx::Rect rect = ScrollbarTheme::ThumbRect(scrollbar);
   EScrollbarWidth scrollbar_width = scrollbar.CSSScrollbarWidth();
   if (scrollbar.Orientation() == kHorizontalScrollbar) {
@@ -212,19 +212,16 @@ void ScrollbarThemeOverlay::PaintThumb(GraphicsContext& context,
   blink::WebThemeEngine::ExtraParams params(scrollbar_thumb);
 
   mojom::blink::ColorScheme color_scheme = scrollbar.UsedColorScheme();
-  const ui::ColorProvider* color_provider =
-      scrollbar.GetScrollableArea()->GetColorProvider(color_scheme);
-
   WebThemeEngineHelper::GetNativeThemeEngine()->Paint(
       canvas, part, state, rect, &params, color_scheme,
-      scrollbar.GetScrollableArea()->InForcedColorsMode(), color_provider);
+      scrollbar.InForcedColorsMode(), scrollbar.GetColorProvider(color_scheme));
 
   if (scrollbar.IsLeftSideVerticalScrollbar())
     canvas->restore();
 }
 
 ScrollbarPart ScrollbarThemeOverlay::HitTest(const Scrollbar& scrollbar,
-                                             const gfx::Point& position) {
+                                             const gfx::Point& position) const {
   ScrollbarPart part = ScrollbarTheme::HitTest(scrollbar, position);
   if (part != kThumbPart)
     return kNoPart;
@@ -262,7 +259,8 @@ gfx::Rect ScrollbarThemeOverlay::NinePatchThumbAperture(
   return WebThemeEngineHelper::GetNativeThemeEngine()->NinePatchAperture(part);
 }
 
-int ScrollbarThemeOverlay::MinimumThumbLength(const Scrollbar& scrollbar) {
+int ScrollbarThemeOverlay::MinimumThumbLength(
+    const Scrollbar& scrollbar) const {
   if (scrollbar.Orientation() == kVerticalScrollbar) {
     return WebThemeEngineHelper::GetNativeThemeEngine()
         ->GetSize(WebThemeEngine::kPartScrollbarVerticalThumb)

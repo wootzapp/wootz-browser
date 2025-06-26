@@ -10,7 +10,6 @@
 #include "chrome/browser/ui/passwords/passwords_model_delegate_mock.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/mock_password_feature_manager.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "components/signin/public/identity_manager/identity_test_utils.h"
@@ -86,8 +85,9 @@ TEST_F(MoveToAccountStoreBubbleControllerTest, CloseExplicitly) {
   controller()->OnBubbleClosing();
 }
 
-TEST_F(MoveToAccountStoreBubbleControllerTest, AcceptMoveIfOptedIn) {
-  ON_CALL(*password_feature_manager(), IsOptedInForAccountStorage)
+TEST_F(MoveToAccountStoreBubbleControllerTest,
+       AcceptMoveIfAccountStorageEnabled) {
+  ON_CALL(*password_feature_manager(), IsAccountStorageEnabled)
       .WillByDefault(Return(true));
   ON_CALL(*delegate(), GetState)
       .WillByDefault(
@@ -113,10 +113,6 @@ TEST_F(MoveToAccountStoreBubbleControllerTest, RejectMoveForSelectedPassword) {
 }
 
 TEST_F(MoveToAccountStoreBubbleControllerTest, ProvidesTitle) {
-  // TODO crbug/40943570: Remove after feature is fully rolled out.
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      password_manager::features::kButterOnDesktopFollowup);
   PasswordBubbleControllerBase* controller_ptr = controller();
   EXPECT_EQ(controller_ptr->GetTitle(),
             l10n_util::GetStringUTF16(

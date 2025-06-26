@@ -10,9 +10,8 @@
 ] interface GPUAdapter {
     [SameObject] readonly attribute GPUSupportedFeatures features;
     [SameObject] readonly attribute GPUSupportedLimits limits;
-    readonly attribute boolean isFallbackAdapter;
-    [RuntimeEnabled=WebGPUExperimentalFeatures] readonly attribute boolean isCompatibilityMode;
+    [SameObject] readonly attribute GPUAdapterInfo info;
+    [Measure] readonly attribute boolean isFallbackAdapter;
 
     [CallWith=ScriptState] Promise<GPUDevice> requestDevice(optional GPUDeviceDescriptor descriptor = {});
-    [CallWith=ScriptState] Promise<GPUAdapterInfo> requestAdapterInfo();
 };

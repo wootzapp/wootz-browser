@@ -2,13 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "android_webview/browser/gfx/aw_gl_functor.h"
 
-#include "android_webview/browser_jni_headers/AwGLFunctor_jni.h"
 #include "android_webview/public/browser/draw_gl.h"
 #include "base/trace_event/trace_event.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "android_webview/browser_jni_headers/AwGLFunctor_jni.h"
 
 using base::android::JavaParamRef;
 using base::android::ScopedJavaLocalRef;

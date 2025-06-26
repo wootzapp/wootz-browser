@@ -94,8 +94,9 @@ class ShellContentBrowserClient : public content::ContentBrowserClient {
   std::unique_ptr<content::NavigationUIData> GetNavigationUIData(
       content::NavigationHandle* navigation_handle) override;
   mojo::PendingRemote<network::mojom::URLLoaderFactory>
-  CreateNonNetworkNavigationURLLoaderFactory(const std::string& scheme,
-                                             int frame_tree_node_id) override;
+  CreateNonNetworkNavigationURLLoaderFactory(
+      const std::string& scheme,
+      content::FrameTreeNodeId frame_tree_node_id) override;
   void RegisterNonNetworkWorkerMainResourceURLLoaderFactories(
       content::BrowserContext* browser_context,
       NonNetworkURLLoaderFactoryMap* factories) override;
@@ -127,7 +128,7 @@ class ShellContentBrowserClient : public content::ContentBrowserClient {
   bool HandleExternalProtocol(
       const GURL& url,
       content::WebContents::Getter web_contents_getter,
-      int frame_tree_node_id,
+      content::FrameTreeNodeId frame_tree_node_id,
       content::NavigationUIData* navigation_data,
       bool is_primary_main_frame,
       bool is_in_fenced_frame_tree,
@@ -136,12 +137,14 @@ class ShellContentBrowserClient : public content::ContentBrowserClient {
       bool has_user_gesture,
       const std::optional<url::Origin>& initiating_origin,
       content::RenderFrameHost* initiator_document,
+      const net::IsolationInfo& isolation_info,
       mojo::PendingRemote<network::mojom::URLLoaderFactory>* out_factory)
       override;
   void OverrideURLLoaderFactoryParams(
       content::BrowserContext* browser_context,
       const url::Origin& origin,
       bool is_for_isolated_world,
+      bool is_for_service_worker,
       network::mojom::URLLoaderFactoryParams* factory_params) override;
   base::FilePath GetSandboxedStorageServiceDataDirectory() override;
   std::string GetUserAgent() override;

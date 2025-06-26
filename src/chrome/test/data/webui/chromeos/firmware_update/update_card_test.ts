@@ -5,8 +5,8 @@
 import 'chrome://accessory-update/update_card.js';
 
 import {fakeCriticalFirmwareUpdate, fakeFirmwareUpdate} from 'chrome://accessory-update/fake_data.js';
-import {FirmwareUpdate} from 'chrome://accessory-update/firmware_update.mojom-webui.js';
-import {UpdateCardElement} from 'chrome://accessory-update/update_card.js';
+import type {FirmwareUpdate} from 'chrome://accessory-update/firmware_update.mojom-webui.js';
+import type {UpdateCardElement} from 'chrome://accessory-update/update_card.js';
 import {strictQuery} from 'chrome://resources/ash/common/typescript_utils/strict_query.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {mojoString16ToString} from 'chrome://resources/js/mojo_type_util.js';
@@ -18,8 +18,7 @@ suite('UpdateCardTest', () => {
   let updateCardElement: UpdateCardElement|null = null;
 
   setup(() => {
-    // @ts-ignore
-    document.body.innerHTML = window.trustedTypes.emptyHTML;
+    document.body.innerHTML = window.trustedTypes!.emptyHTML;
   });
 
   teardown(() => {
@@ -31,8 +30,7 @@ suite('UpdateCardTest', () => {
     assertFalse(!!updateCardElement);
 
     // Add the update card to the DOM.
-    updateCardElement =
-        document.createElement('update-card') as UpdateCardElement;
+    updateCardElement = document.createElement('update-card');
     assertTrue(!!updateCardElement);
     updateCardElement.update = update;
     document.body.appendChild(updateCardElement);
@@ -45,7 +43,7 @@ suite('UpdateCardTest', () => {
     const name =
         strictQuery('#name', updateCardElement.shadowRoot, HTMLElement);
     assertTrue(!!name);
-    return name!.innerText;
+    return name.innerText;
   }
 
   function getVersionText(): string {
@@ -53,13 +51,13 @@ suite('UpdateCardTest', () => {
     const version =
         strictQuery('#version', updateCardElement.shadowRoot, HTMLElement);
     assertTrue(!!version);
-    return version!.innerText;
+    return version.innerText;
   }
 
   function getPriorityTextElement(): HTMLSpanElement {
     assert(updateCardElement);
     return strictQuery(
-        '#priorityText', updateCardElement.shadowRoot, HTMLSpanElement)!;
+        '#priorityText', updateCardElement.shadowRoot, HTMLSpanElement);
   }
 
   test('UpdateCardPopulated', () => {

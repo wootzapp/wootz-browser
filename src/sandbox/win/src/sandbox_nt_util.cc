@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "sandbox/win/src/sandbox_nt_util.h"
 
 #include <ntstatus.h>
@@ -27,6 +32,10 @@ SANDBOX_INTERCEPT NtExports g_nt;
 }  // namespace sandbox
 
 namespace {
+
+// Uses value of FILE_INFORMATION_CLASS defined in Wdm.h but not in user-mode.
+// https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_file_information_class
+constexpr uint32_t FileRenameInformation = 10;
 
 #if defined(_WIN64)
 // Align a pointer to the next allocation granularity boundary.
@@ -252,9 +261,8 @@ std::optional<base::span<const uint8_t>> GetGlobalDelegateData() {
   if (!MapGlobalMemory()) {
     return std::nullopt;
   }
-  return base::make_span(
-      reinterpret_cast<const uint8_t*>(g_shared_delegate_data),
-      g_delegate_data_size);
+  return base::span(reinterpret_cast<const uint8_t*>(g_shared_delegate_data),
+                    g_delegate_data_size);
 }
 
 const NtExports* GetNtExports() {

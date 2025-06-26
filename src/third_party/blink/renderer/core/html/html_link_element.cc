@@ -47,7 +47,6 @@
 #include "third_party/blink/renderer/core/origin_trials/origin_trial_context.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/weborigin/security_policy.h"
 #include "third_party/blink/renderer/platform/wtf/functional.h"
 
@@ -98,6 +97,11 @@ void HTMLLinkElement::ParseAttribute(
     if (rel_attribute_.IsTermsOfService()) {
       UseCounter::Count(&GetDocument(), WebFeature::kLinkRelTermsOfService);
     }
+    if (rel_attribute_.IsFacilitatedPayment() &&
+        GetDocument().IsInOutermostMainFrame()) {
+      UseCounter::Count(&GetDocument(), WebFeature::kLinkRelFacilitatedPayment);
+      MaybeHandlePaymentLink();
+    }
     rel_list_->DidUpdateAttributeValue(params.old_value, value);
     Process();
   } else if (name == html_names::kBlockingAttr) {
@@ -111,6 +115,7 @@ void HTMLLinkElement::ParseAttribute(
     // Log href attribute before logging resource fetching in process().
     LogUpdateAttributeIfIsolatedWorldAndInDocument("link", params);
     HandleExpectHrefChanges(params.old_value, value);
+    MaybeHandlePaymentLink();
     Process();
   } else if (name == html_names::kTypeAttr) {
     type_ = value;
@@ -127,7 +132,7 @@ void HTMLLinkElement::ParseAttribute(
     }
   } else if (name == html_names::kSizesAttr) {
     sizes_->DidUpdateAttributeValue(params.old_value, value);
-    WebVector<gfx::Size> web_icon_sizes =
+    std::vector<gfx::Size> web_icon_sizes =
         WebIconSizesParser::ParseIconSizes(value);
     icon_sizes_.resize(base::checked_cast<wtf_size_t>(web_icon_sizes.size()));
     for (wtf_size_t i = 0; i < icon_sizes_.size(); ++i)
@@ -253,6 +258,8 @@ Node::InsertionNotificationRequest HTMLLinkElement::InsertedInto(
     return kInsertionDone;
   DCHECK(isConnected());
 
+  MaybeHandlePaymentLink();
+
   GetDocument().GetStyleEngine().AddStyleSheetCandidateNode(*this);
 
   if (!ShouldLoadLink() && IsInShadowTree()) {
@@ -277,8 +284,10 @@ void HTMLLinkElement::RemovedFrom(ContainerNode& insertion_point) {
   // the flags.
   bool was_connected = isConnected();
   HTMLElement::RemovedFrom(insertion_point);
-  if (!insertion_point.isConnected())
+  if (!insertion_point.isConnected() ||
+      GetDocument().StatePreservingAtomicMoveInProgress()) {
     return;
+  }
 
   link_loader_->Abort();
 
@@ -422,7 +431,8 @@ void HTMLLinkElement::HandleExpectBlockingChanges() {
     return;
   }
 
-  if (blocking_attribute_->HasRenderToken()) {
+  if (blocking_attribute_->HasRenderToken() ||
+      blocking_attribute_->HasFullFrameRateToken()) {
     AddExpectRenderBlockingLinkIfNeeded();
   } else {
     RemoveExpectRenderBlockingLink();
@@ -443,8 +453,9 @@ bool HTMLLinkElement::MediaQueryMatches() const {
   if (LocalFrame* frame = GetDocument().GetFrame(); frame && !media_.empty()) {
     auto* media_queries =
         MediaQuerySet::Create(media_, GetDocument().GetExecutionContext());
-    MediaQueryEvaluator evaluator(frame);
-    return evaluator.Eval(*media_queries);
+    MediaQueryEvaluator* evaluator =
+        MakeGarbageCollected<MediaQueryEvaluator>(frame);
+    return evaluator->Eval(*media_queries);
   }
   return true;
 }
@@ -499,16 +510,28 @@ void HTMLLinkElement::AddExpectRenderBlockingLinkIfNeeded(
   }
 
   bool media_matches = media_known_to_match || MediaQueryMatches();
-  bool is_blocking_render = blocking_attribute_->HasRenderToken();
-  if (!media_matches || !is_blocking_render || !isConnected()) {
+  RenderBlockingLevel blocking_level = blocking_attribute_->GetBlockingLevel();
+  if (!media_matches || blocking_level == RenderBlockingLevel::kNone ||
+      !isConnected()) {
     return;
   }
 
   if (auto* render_blocking_resource_manager =
           GetDocument().GetRenderBlockingResourceManager()) {
     render_blocking_resource_manager->AddPendingParsingElementLink(
-        ParseSameDocumentIdFromHref(href), this);
+        ParseSameDocumentIdFromHref(href), this, blocking_level);
   }
+}
+
+void HTMLLinkElement::MaybeHandlePaymentLink() {
+#if BUILDFLAG(IS_ANDROID)
+  KURL payment_link = GetNonEmptyURLAttribute(html_names::kHrefAttr);
+  if (rel_attribute_.IsFacilitatedPayment() && !payment_link.IsEmpty() &&
+      isConnected() && GetDocument().IsInOutermostMainFrame() &&
+      RuntimeEnabledFeatures::PaymentLinkDetectionEnabled()) {
+    GetDocument().HandlePaymentLink(payment_link);
+  }
+#endif
 }
 
 }  // namespace blink

@@ -69,30 +69,27 @@ class DOMActivityLoggerContainer : public V8DOMActivityLogger {
 
   void LogMethod(ScriptState* script_state,
                  const String& api_name,
-                 int argc,
-                 const v8::Local<v8::Value>* argv) override {
+                 base::span<const v8::Local<v8::Value>> args) override {
     auto* dom_window = LocalDOMWindow::From(script_state);
-    dom_activity_logger_->LogMethod(script_state->GetIsolate(),
-                                    script_state->GetContext(),
-                                    WebString(api_name), argc, argv,
-                                    GetURL(dom_window), GetTitle(dom_window));
+    dom_activity_logger_->LogMethod(
+        script_state->GetIsolate(), script_state->GetContext(),
+        WebString(api_name), args, GetURL(dom_window), GetTitle(dom_window));
   }
 
   void LogEvent(ExecutionContext* execution_context,
                 const String& event_name,
-                int argc,
-                const String* argv) override {
+                base::span<const String> args) override {
     auto* dom_window = To<LocalDOMWindow>(execution_context);
     auto* frame = WebLocalFrameImpl::FromFrame(dom_window->GetFrame());
     if (!frame) {
       return;
     }
-    Vector<WebString> web_string_argv;
-    for (int i = 0; i < argc; i++) {
-      web_string_argv.push_back(argv[i]);
+    Vector<WebString> web_string_args;
+    for (const auto& arg : args) {
+      web_string_args.push_back(arg);
     }
-    dom_activity_logger_->LogEvent(*frame, WebString(event_name), argc,
-                                   web_string_argv.data(), GetURL(dom_window),
+    dom_activity_logger_->LogEvent(*frame, WebString(event_name),
+                                   web_string_args, GetURL(dom_window),
                                    GetTitle(dom_window));
   }
 

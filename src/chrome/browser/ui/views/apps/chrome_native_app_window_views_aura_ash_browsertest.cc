@@ -20,6 +20,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chromeos/ash/components/login/login_state/scoped_test_public_session_login_state.h"
+#include "chromeos/constants/chromeos_features.h"
 #include "chromeos/ui/base/window_properties.h"
 #include "chromeos/ui/frame/immersive/immersive_fullscreen_controller.h"
 #include "components/user_manager/user_manager.h"
@@ -27,6 +28,7 @@
 #include "extensions/browser/app_window/app_window.h"
 #include "extensions/test/extension_test_message_listener.h"
 #include "ui/aura/window.h"
+#include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/display/manager/display_manager.h"
 #include "ui/display/screen.h"
@@ -42,8 +44,9 @@ class ViewBoundsChangeWaiter : public views::ViewObserver {
   ViewBoundsChangeWaiter& operator=(const ViewBoundsChangeWaiter&) = delete;
 
   static void VerifyY(views::View* view, int y) {
-    if (y != view->bounds().y())
+    if (y != view->bounds().y()) {
       ViewBoundsChangeWaiter(view).run_loop_.Run();
+    }
 
     EXPECT_EQ(y, view->bounds().y());
   }
@@ -202,11 +205,12 @@ IN_PROC_BROWSER_TEST_F(ChromeNativeAppWindowViewsAuraAshBrowserTest,
   InitWindow();
   ASSERT_TRUE(window());
   EXPECT_FALSE(IsImmersiveActive());
-  constexpr int kFrameHeight = 32;
+  const int frame_height =
+      chromeos::features::IsRoundedWindowsEnabled() ? 40 : 32;
 
   views::ClientView* client_view =
       window()->widget()->non_client_view()->client_view();
-  EXPECT_EQ(kFrameHeight, client_view->bounds().y());
+  EXPECT_EQ(frame_height, client_view->bounds().y());
 
   // Verify that when fullscreen is toggled on, immersive mode is enabled and
   // that when fullscreen is toggled off, immersive mode is disabled.
@@ -216,7 +220,7 @@ IN_PROC_BROWSER_TEST_F(ChromeNativeAppWindowViewsAuraAshBrowserTest,
 
   app_window_->Restore();
   EXPECT_FALSE(IsImmersiveActive());
-  ViewBoundsChangeWaiter::VerifyY(client_view, kFrameHeight);
+  ViewBoundsChangeWaiter::VerifyY(client_view, frame_height);
 
   // Verify that since the auto hide title bars in tablet mode feature turned
   // on, immersive mode is enabled once tablet mode is entered, and disabled
@@ -227,7 +231,7 @@ IN_PROC_BROWSER_TEST_F(ChromeNativeAppWindowViewsAuraAshBrowserTest,
 
   ash::ShellTestApi().SetTabletModeEnabledForTest(false);
   EXPECT_FALSE(IsImmersiveActive());
-  ViewBoundsChangeWaiter::VerifyY(client_view, kFrameHeight);
+  ViewBoundsChangeWaiter::VerifyY(client_view, frame_height);
 
   // Verify that the window was fullscreened before entering tablet mode, it
   // will remain fullscreened after exiting tablet mode.
@@ -272,12 +276,12 @@ IN_PROC_BROWSER_TEST_F(ChromeNativeAppWindowViewsAuraAshBrowserTest,
   ASSERT_TRUE(window());
 
   app_window_->OSFullscreen();
-  EXPECT_EQ(ui::SHOW_STATE_NORMAL, window()->GetRestoredState());
+  EXPECT_EQ(ui::mojom::WindowShowState::kNormal, window()->GetRestoredState());
   ash::ShellTestApi().SetTabletModeEnabledForTest(true);
   EXPECT_TRUE(window()->IsFullscreen());
-  EXPECT_EQ(ui::SHOW_STATE_NORMAL, window()->GetRestoredState());
+  EXPECT_EQ(ui::mojom::WindowShowState::kNormal, window()->GetRestoredState());
   ash::ShellTestApi().SetTabletModeEnabledForTest(false);
-  EXPECT_EQ(ui::SHOW_STATE_NORMAL, window()->GetRestoredState());
+  EXPECT_EQ(ui::mojom::WindowShowState::kNormal, window()->GetRestoredState());
 
   CloseAppWindow(app_window_);
 }
@@ -338,12 +342,12 @@ IN_PROC_BROWSER_TEST_F(ChromeNativeAppWindowViewsAuraAshBrowserTest,
   // fullscreen.
   EXPECT_FALSE(window()->IsFullscreen());
   app_window_->OSFullscreen();
-  EXPECT_EQ(ui::SHOW_STATE_NORMAL, window()->GetRestoredState());
+  EXPECT_EQ(ui::mojom::WindowShowState::kNormal, window()->GetRestoredState());
   EXPECT_TRUE(window()->IsFullscreen());
   EXPECT_TRUE(IsImmersiveActive());
   ash::ShellTestApi().SetTabletModeEnabledForTest(true);
   EXPECT_TRUE(window()->IsFullscreen());
-  EXPECT_EQ(ui::SHOW_STATE_NORMAL, window()->GetRestoredState());
+  EXPECT_EQ(ui::mojom::WindowShowState::kNormal, window()->GetRestoredState());
 
   window()->Restore();
   // Restoring a window inside tablet mode should deactivate fullscreen, but not
@@ -357,7 +361,8 @@ IN_PROC_BROWSER_TEST_F(ChromeNativeAppWindowViewsAuraAshBrowserTest,
   app_window_->OSFullscreen();
   // Note that windows that are fullscreened before entering tablet mode are
   // maximized when leaving it.
-  EXPECT_EQ(ui::SHOW_STATE_MAXIMIZED, window()->GetRestoredState());
+  EXPECT_EQ(ui::mojom::WindowShowState::kMaximized,
+            window()->GetRestoredState());
   EXPECT_TRUE(window()->IsFullscreen());
 
   window()->Restore();
@@ -500,7 +505,7 @@ IN_PROC_BROWSER_TEST_F(ChromeNativeAppWindowViewsAuraAshBrowserTest,
 
   // Open a second app window that should be created maximized. It should be
   // snapped.
-  params.state = ui::SHOW_STATE_MAXIMIZED;
+  params.state = ui::mojom::WindowShowState::kMaximized;
   extensions::AppWindow* app2_window =
       CreateAppWindowFromParams(browser()->profile(), extension, params);
   ASSERT_EQ(app2_window->GetNativeWindow(),

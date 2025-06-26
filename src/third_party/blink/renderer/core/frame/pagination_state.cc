@@ -4,7 +4,7 @@
 
 #include "third_party/blink/renderer/core/frame/pagination_state.h"
 
-#include "third_party/blink/renderer/core/layout/layout_ng_block_flow.h"
+#include "third_party/blink/renderer/core/layout/layout_block_flow.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/core/layout/pagination_utils.h"
 #include "third_party/blink/renderer/core/layout/physical_box_fragment.h"
@@ -15,19 +15,19 @@
 
 namespace blink {
 
-PaginationState::PaginationState() {
-  content_area_paint_properties_ = ObjectPaintProperties::Create();
-}
+PaginationState::PaginationState()
+    : content_area_paint_properties_(
+          MakeGarbageCollected<ObjectPaintProperties>()) {}
 
 void PaginationState::Trace(Visitor* visitor) const {
   visitor->Trace(anonymous_page_objects_);
+  visitor->Trace(content_area_paint_properties_);
 }
 
 LayoutBlockFlow* PaginationState::CreateAnonymousPageLayoutObject(
     Document& document,
     const ComputedStyle& style) {
-  LayoutBlockFlow* block =
-      LayoutNGBlockFlow::CreateAnonymous(&document, &style);
+  LayoutBlockFlow* block = LayoutBlockFlow::CreateAnonymous(&document, &style);
   block->SetIsDetachedNonDomRoot(true);
   anonymous_page_objects_.push_back(block);
   return block;
@@ -63,7 +63,7 @@ ObjectPaintProperties& PaginationState::EnsureContentAreaProperties(
       parent_transform, TransformPaintPropertyNode::State());
 
   // Create clip node.
-  ClipPaintPropertyNode::State clip_state(&parent_transform, gfx::RectF(),
+  ClipPaintPropertyNode::State clip_state(parent_transform, gfx::RectF(),
                                           FloatRoundedRect());
   content_area_paint_properties_->UpdateOverflowClip(parent_clip,
                                                      std::move(clip_state));
@@ -73,10 +73,10 @@ ObjectPaintProperties& PaginationState::EnsureContentAreaProperties(
 
 void PaginationState::UpdateContentAreaPropertiesForCurrentPage(
     const LayoutView& layout_view) {
-  DCHECK(layout_view.ShouldUsePrintingLayout());
+  DCHECK(layout_view.ShouldUsePaginatedLayout());
   auto chunk_properties = layout_view.FirstFragment().ContentsProperties();
   const PhysicalBoxFragment& page_container =
-      *GetPageContainer(layout_view, current_page_number_);
+      *GetPageContainer(layout_view, current_page_index_);
   float scale = TargetScaleForPage(page_container);
   const PhysicalFragmentLink& link = GetPageBorderBoxLink(page_container);
   const auto& page_border_box = *To<PhysicalBoxFragment>(link.get());
@@ -105,7 +105,7 @@ void PaginationState::UpdateContentAreaPropertiesForCurrentPage(
   // Translate by the offset into the stitched coordinate system for the given
   // page.
   PhysicalOffset stitched_offset =
-      StitchedPageContentRect(layout_view, current_page_number_).offset;
+      StitchedPageContentRect(layout_view, current_page_index_).offset;
   matrix.Translate(-gfx::Vector2dF(stitched_offset));
 
   TransformPaintPropertyNode::State transform_state;
@@ -121,7 +121,7 @@ void PaginationState::UpdateContentAreaPropertiesForCurrentPage(
   gfx::RectF target_page_area_rect(gfx::PointF(target_content_rect.offset),
                                    gfx::SizeF(target_content_rect.size));
   ClipPaintPropertyNode::State clip_state(
-      &chunk_properties.Transform(), target_page_area_rect,
+      chunk_properties.Transform(), target_page_area_rect,
       FloatRoundedRect(target_page_area_rect));
   content_area_paint_properties_->UpdateOverflowClip(chunk_properties.Clip(),
                                                      std::move(clip_state));

@@ -27,13 +27,6 @@ bool IsFedCmMultipleIdentityProvidersEnabled() {
       features::kFedCmMultipleIdentityProviders);
 }
 
-FedCmIdpSigninStatusMode GetFedCmIdpSigninStatusFlag() {
-  if (base::FeatureList::IsEnabled(features::kFedCmIdpSigninStatusEnabled)) {
-    return FedCmIdpSigninStatusMode::ENABLED;
-  }
-  return FedCmIdpSigninStatusMode::METRICS_ONLY;
-}
-
 bool IsFedCmMetricsEndpointEnabled() {
   return base::FeatureList::IsEnabled(features::kFedCmMetricsEndpoint);
 }
@@ -42,8 +35,8 @@ bool IsFedCmSelectiveDisclosureEnabled() {
   return base::FeatureList::IsEnabled(features::kFedCmSelectiveDisclosure);
 }
 
-bool IsFedCmSameSiteNoneEnabled() {
-  return base::FeatureList::IsEnabled(features::kFedCmSameSiteNone);
+bool IsFedCmDelegationEnabled() {
+  return base::FeatureList::IsEnabled(features::kFedCmDelegation);
 }
 
 bool IsFedCmIdPRegistrationEnabled() {
@@ -59,16 +52,55 @@ bool IsWebIdentityDigitalCredentialsEnabled() {
   return base::FeatureList::IsEnabled(features::kWebIdentityDigitalCredentials);
 }
 
-bool IsFedCmUseOtherAccountEnabled(bool is_button_mode) {
-  // TODO(crbug.com/328470597): this feature is bundled with the button mode at
-  // the moment. We should decouple them when supporting the feature in the
-  // widget flow.
-  return base::FeatureList::IsEnabled(features::kFedCmUseOtherAccount) ||
-         (IsFedCmButtonModeEnabled() && is_button_mode);
+bool IsWebIdentityDigitalCredentialsCreationEnabled() {
+  return base::FeatureList::IsEnabled(
+      features::kWebIdentityDigitalCredentialsCreation);
 }
 
-bool IsFedCmButtonModeEnabled() {
+bool IsFedCmUseOtherAccountEnabled() {
+  // The active mode origin trial can also enable this feature at this moment.
+  return base::FeatureList::IsEnabled(features::kFedCmUseOtherAccount) ||
+         IsFedCmActiveModeEnabled();
+}
+
+bool IsFedCmActiveModeEnabled() {
   return base::FeatureList::IsEnabled(features::kFedCmButtonMode);
 }
 
+bool IsFedCmSameSiteLaxEnabled() {
+  return base::FeatureList::IsEnabled(features::kFedCmSameSiteLax);
+}
+
+bool IsFedCmFlexibleFieldsEnabled() {
+  return base::FeatureList::IsEnabled(features::kFedCmFlexibleFields);
+}
+
+bool IsFedCmShowFilteredAccountsEnabled() {
+  return base::FeatureList::IsEnabled(features::kFedCmShowFilteredAccounts);
+}
+
+bool IsFedCmLightweightModeEnabled() {
+  return base::FeatureList::IsEnabled(features::kFedCmLightweightMode);
+}
+
+bool IsFedCmAlternativeIdentifiersEnabled() {
+  return base::FeatureList::IsEnabled(features::kFedCmAlternativeIdentifiers);
+}
+
+bool IsFedCmCooldownOnIgnoreEnabled() {
+  return base::FeatureList::IsEnabled(features::kFedCmCooldownOnIgnore);
+}
+
+bool IsFedCmUseOtherAccountAndLabelsNewSyntaxEnabled() {
+  return base::FeatureList::IsEnabled(
+      features::kFedCmUseOtherAccountAndLabelsNewSyntax);
+}
+
+bool IsFedCmAutofillEnabled() {
+  // FedCmAutofill is a new flag extracted from FedCmDelegation. To avoid
+  // breaking existing developer testing, we consider the new flag being enabled
+  // if the old one is enabled.
+  return base::FeatureList::IsEnabled(features::kFedCmAutofill) ||
+         IsFedCmDelegationEnabled();
+}
 }  // namespace content

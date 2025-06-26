@@ -9,8 +9,8 @@
 #include "third_party/blink/renderer/platform/fonts/font_description.h"
 #include "third_party/blink/renderer/platform/fonts/font_fallback_list.h"
 #include "third_party/blink/renderer/platform/fonts/segmented_font_data.h"
+#include "third_party/blink/renderer/platform/fonts/shaping/harfbuzz_face.h"
 #include "third_party/blink/renderer/platform/fonts/simple_font_data.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
@@ -26,7 +26,6 @@ FontFallbackIterator::FontFallbackIterator(
       font_fallback_priority_(font_fallback_priority) {}
 
 void FontFallbackIterator::Reset() {
-  DCHECK(RuntimeEnabledFeatures::FontVariationSequencesEnabled());
   current_font_data_index_ = 0;
   segmented_face_index_ = 0;
   fallback_stage_ = kFontGroupFonts;
@@ -37,10 +36,10 @@ void FontFallbackIterator::Reset() {
 }
 
 bool FontFallbackIterator::AlreadyLoadingRangeForHintChar(UChar32 hint_char) {
-  for (auto* it = tracked_loading_range_sets_.begin();
-       it != tracked_loading_range_sets_.end(); ++it) {
-    if ((*it)->Contains(hint_char))
+  for (const auto& range : tracked_loading_range_sets_) {
+    if (range->Contains(hint_char)) {
       return true;
+    }
   }
   return false;
 }
@@ -48,8 +47,8 @@ bool FontFallbackIterator::AlreadyLoadingRangeForHintChar(UChar32 hint_char) {
 bool FontFallbackIterator::RangeSetContributesForHint(
     const HintCharList& hint_list,
     const FontDataForRangeSet* segmented_face) {
-  for (auto* it = hint_list.begin(); it != hint_list.end(); ++it) {
-    if (segmented_face->Contains(*it)) {
+  for (const auto& hint : hint_list) {
+    if (segmented_face->Contains(hint)) {
       // If it's a pending custom font, we need to make sure it can render any
       // new characters, otherwise we may trigger a redundant load. In other
       // cases (already loaded or not a custom font), we can use it right away.
@@ -57,8 +56,9 @@ bool FontFallbackIterator::RangeSetContributesForHint(
       // load them.
       if (!segmented_face->IsPendingCustomFont() ||
           segmented_face->IsPendingDataUrlCustomFont() ||
-          !AlreadyLoadingRangeForHintChar(*it))
+          !AlreadyLoadingRangeForHintChar(hint)) {
         return true;
+      }
     }
   }
   return false;
@@ -152,11 +152,6 @@ FontDataForRangeSet* FontFallbackIterator::Next(const HintCharList& hint_list) {
     const SimpleFontData* last_resort =
         font_cache.GetLastResortFallbackFont(font_description_);
 
-    if (FontSelector* font_selector = font_fallback_list_->GetFontSelector()) {
-      font_selector->ReportLastResortFallbackFontLookup(font_description_,
-                                                        last_resort);
-    }
-
     return UniqueOrNext(MakeGarbageCollected<FontDataForRangeSet>(last_resort),
                         hint_list);
   }
@@ -237,13 +232,9 @@ FontDataForRangeSet* FontFallbackIterator::Next(const HintCharList& hint_list) {
 const SimpleFontData* FontFallbackIterator::FallbackPriorityFont(UChar32 hint) {
   const SimpleFontData* font_data = FontCache::Get().FallbackFontForCharacter(
       font_description_, hint,
-      font_fallback_list_->PrimarySimpleFontData(font_description_),
+      font_fallback_list_->PrimarySimpleFontDataWithSpace(font_description_),
       font_fallback_priority_);
 
-  if (FontSelector* font_selector = font_fallback_list_->GetFontSelector()) {
-    font_selector->ReportFontLookupByFallbackCharacter(
-        hint, font_fallback_priority_, font_description_, font_data);
-  }
   return font_data;
 }
 
@@ -285,12 +276,8 @@ const SimpleFontData* FontFallbackIterator::UniqueSystemFontForHintList(
 
   const SimpleFontData* font_data = font_cache.FallbackFontForCharacter(
       font_description_, hint,
-      font_fallback_list_->PrimarySimpleFontData(font_description_));
+      font_fallback_list_->PrimarySimpleFontDataWithSpace(font_description_));
 
-  if (FontSelector* font_selector = font_fallback_list_->GetFontSelector()) {
-    font_selector->ReportFontLookupByFallbackCharacter(
-        hint, FontFallbackPriority::kText, font_description_, font_data);
-  }
   return font_data;
 }
 

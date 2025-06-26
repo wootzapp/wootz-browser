@@ -16,7 +16,6 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/uuid.h"
-#include "chrome/android/chrome_jni_headers/OfflinePageDownloadBridge_jni.h"
 #include "chrome/browser/android/profile_key_util.h"
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/download/android/download_controller_base.h"
@@ -25,7 +24,6 @@
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/browser/image_fetcher/image_decoder_impl.h"
 #include "chrome/browser/offline_items_collection/offline_content_aggregator_factory.h"
-#include "chrome/browser/offline_pages/android/downloads/offline_page_infobar_delegate.h"
 #include "chrome/browser/offline_pages/android/downloads/offline_page_share_helper.h"
 #include "chrome/browser/offline_pages/offline_page_mhtml_archiver.h"
 #include "chrome/browser/offline_pages/offline_page_model_factory.h"
@@ -57,6 +55,9 @@
 #include "net/base/filename_util.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "url/gurl.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/OfflinePageDownloadBridge_jni.h"
 
 using base::android::AttachCurrentThread;
 using base::android::ConvertJavaStringToUTF8;
@@ -90,7 +91,7 @@ void OnShareInfoRetrieved(std::unique_ptr<OfflinePageShareHelper>,
 
   // TODO(jianli, xingliu): When the permission request was denied by the user
   // and "Never ask again" was checked, we'd better show the permission update
-  // infobar to remind the user. Currently the infobar only works for
+  // Message to remind the user. Currently the Message only works for
   // ChromeActivities. We need to investigate how to make it work for other
   // activities.
 }
@@ -253,9 +254,9 @@ content::WebContents* GetWebContentsByFrameID(int render_process_id,
 content::WebContents::Getter GetWebContentsGetter(
     content::WebContents* web_contents) {
   // The FrameTreeNode ID should be used to access the WebContents.
-  int frame_tree_node_id =
+  content::FrameTreeNodeId frame_tree_node_id =
       web_contents->GetPrimaryMainFrame()->GetFrameTreeNodeId();
-  if (frame_tree_node_id != content::RenderFrameHost::kNoFrameTreeNodeId) {
+  if (frame_tree_node_id) {
     return base::BindRepeating(content::WebContents::FromFrameTreeNodeId,
                                frame_tree_node_id);
   }
@@ -264,7 +265,7 @@ content::WebContents::Getter GetWebContentsGetter(
   // the WebContents.
   return base::BindRepeating(
       &GetWebContentsByFrameID,
-      web_contents->GetPrimaryMainFrame()->GetProcess()->GetID(),
+      web_contents->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(),
       web_contents->GetPrimaryMainFrame()->GetRoutingID());
 }
 
@@ -314,13 +315,18 @@ void OnOfflinePageAcquireFileAccessPermissionDone(
     return;
   }
 
+  // Off the record save page are handled separately.
+  if (web_contents->GetBrowserContext()->IsOffTheRecord()) {
+    web_contents->OnSavePage();
+    return;
+  }
+
   // Otherwise, save the HTML page as archive.
   GURL original_url =
       offline_pages::OfflinePageUtils::GetOriginalURLFromWebContents(
           web_contents);
   OfflinePageUtils::CheckDuplicateDownloads(
-      chrome::GetBrowserContextRedirectedInIncognito(
-          web_contents->GetBrowserContext()),
+      GetBrowserContextRedirectedInIncognito(web_contents->GetBrowserContext()),
       url,
       base::BindOnce(&DuplicateCheckDone, url, original_url, j_tab_ref,
                      origin));
@@ -361,7 +367,7 @@ OfflinePageDownloadBridge::OfflinePageDownloadBridge(
     const JavaParamRef<jobject>& obj)
     : weak_java_ref_(env, obj) {}
 
-OfflinePageDownloadBridge::~OfflinePageDownloadBridge() {}
+OfflinePageDownloadBridge::~OfflinePageDownloadBridge() = default;
 
 void OfflinePageDownloadBridge::Destroy(JNIEnv* env,
                                         const JavaParamRef<jobject>&) {

@@ -2,15 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ash/fast_ink/fast_ink_points.h"
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <limits>
 
 #include "base/containers/adapters.h"
 #include "base/containers/circular_deque.h"
-#include "base/ranges/algorithm.h"
 #include "ui/gfx/geometry/point_f.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 
@@ -62,8 +67,8 @@ void FastInkPoints::MoveForwardToTime(const base::TimeTicks& latest_time) {
   if (!points_.empty() && !life_duration_.is_zero()) {
     // Remove obsolete points.
     const base::TimeTicks expiration = latest_time - life_duration_;
-    auto first_alive_point = base::ranges::lower_bound(
-        points_, expiration, base::ranges::less_equal(), &FastInkPoint::time);
+    auto first_alive_point = std::ranges::lower_bound(
+        points_, expiration, std::ranges::less_equal(), &FastInkPoint::time);
     points_.erase(points_.begin(), first_alive_point);
   }
 }

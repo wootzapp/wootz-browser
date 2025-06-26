@@ -114,8 +114,10 @@ struct GL_EXPORT GLWindowSystemBindingInfo {
 using GLFunctionPointerType = void (*)();
 #if BUILDFLAG(IS_WIN)
 typedef GLFunctionPointerType(WINAPI* GLGetProcAddressProc)(const char* name);
+#define STDCALL __stdcall
 #else
 typedef GLFunctionPointerType (*GLGetProcAddressProc)(const char* name);
+#define STDCALL
 #endif
 
 // Sets stub methods for drawing operations in the GL bindings. The
@@ -165,6 +167,11 @@ GL_EXPORT ANGLEImplementation GetANGLEImplementation();
 // Get the software GL implementation
 GL_EXPORT GLImplementationParts GetSoftwareGLImplementation();
 
+// Set the command line flags to request the provided GL implementation
+GL_EXPORT void SetGLImplementationCommandLineSwitches(
+    const GLImplementationParts& implementation,
+    base::CommandLine* command_line);
+
 // Set the software GL implementation on the provided command line
 GL_EXPORT void SetSoftwareGLCommandLineSwitches(
     base::CommandLine* command_line);
@@ -177,11 +184,13 @@ GL_EXPORT void SetSoftwareWebGLCommandLineSwitches(
 // gl related argument, nullopt is returned.
 GL_EXPORT std::optional<GLImplementationParts>
 GetRequestedGLImplementationFromCommandLine(
-    const base::CommandLine* command_line,
-    bool* fallback_to_software_gl);
+    const base::CommandLine* command_line);
 
 // Whether the implementation is one of the software GL implementations
 GL_EXPORT bool IsSoftwareGLImplementation(GLImplementationParts implementation);
+
+GL_EXPORT bool IsSwiftShaderGLImplementation(
+    GLImplementationParts implementation);
 
 // Get the GL implementation with a given name.
 GL_EXPORT GLImplementationParts
@@ -206,12 +215,11 @@ GL_EXPORT void SetGLGetProcAddressProc(GLGetProcAddressProc proc);
 
 // Find an entry point in the current GL implementation. Note that the function
 // may return a non-null pointer to something else than the GL function if an
-// unsupported function is queried. Spec-compliant eglGetProcAddress and
-// glxGetProcAddress are allowed to return garbage for unsupported functions,
-// and when querying functions from the EGL library supplied by Android, it may
-// return a function that prints a log message about the function being
-// unsupported.
-GL_EXPORT GLFunctionPointerType GetGLProcAddress(const char* name);
+// unsupported function is queried. Spec-compliant eglGetProcAddress is allowed
+// to return garbage for unsupported functions, and when querying functions
+// from the EGL library supplied by Android, it may return a function that
+// prints a log message about the function being unsupported.
+STDCALL GL_EXPORT GLFunctionPointerType GetGLProcAddress(const char* name);
 
 // Helper for fetching the OpenGL extensions from the current context.
 // This helper abstracts over differences between the desktop OpenGL
@@ -225,12 +233,6 @@ GL_EXPORT std::string GetGLExtensionsFromCurrentContext(GLApi* api);
 GL_EXPORT gfx::ExtensionSet GetRequestableGLExtensionsFromCurrentContext();
 GL_EXPORT gfx::ExtensionSet GetRequestableGLExtensionsFromCurrentContext(
     GLApi* api);
-
-// Helper for the GL bindings implementation to understand whether
-// glGetString(GL_EXTENSIONS) or glGetStringi(GL_EXTENSIONS, i) will
-// be used in the function above.
-GL_EXPORT bool WillUseGLGetStringForExtensions();
-GL_EXPORT bool WillUseGLGetStringForExtensions(GLApi* api);
 
 // Helpers to load a library and log error on failure.
 GL_EXPORT base::NativeLibrary LoadLibraryAndPrintError(

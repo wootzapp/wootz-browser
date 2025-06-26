@@ -36,22 +36,25 @@ class CORE_EXPORT StyleRecalcChange {
     // Recalc size container query dependent elements within this container,
     // and also in nested containers.
     kRecalcStyleContainerDescendants = 1 << 3,
-    // Recalc state container query dependent elements within this container,
-    // but not in nested containers.
-    kRecalcStateContainer = 1 << 4,
-    // Recalc state container query dependent elements within this container,
-    // and also in nested containers.
-    kRecalcDescendantStateContainers = 1 << 5,
+    // Recalc scroll-state container query dependent elements within this
+    // container, but not in nested containers.
+    kRecalcScrollStateContainer = 1 << 4,
+    // Recalc scroll-state container query dependent elements within this
+    // container, and also in nested containers.
+    kRecalcDescendantScrollStateContainers = 1 << 5,
+    // Recalc descendant content-visibility elements within a changed
+    // scroll-marker-group property elements.
+    kRecalcDescendantContentVisibility = 1 << 6,
     // If set, need to reattach layout tree.
-    kReattach = 1 << 6,
+    kReattach = 1 << 7,
     // If set, will prevent style recalc for the node passed to
     // ShouldRecalcStyleFor. This flag is lost when ForChildren is called.
-    kSuppressRecalc = 1 << 7,
+    kSuppressRecalc = 1 << 8,
     // If set, and kReattach is also set, the element should be explicitly
     // marked for re-attachment even if its style doesn't change. Used for query
     // container children to resume re-attachment that was blocked when style
     // recalc for container children was skipped.
-    kMarkReattach = 1 << 8,
+    kMarkReattach = 1 << 9,
   };
   using Flags = uint16_t;
 
@@ -61,12 +64,12 @@ class CORE_EXPORT StyleRecalcChange {
   static const Flags kRecalcStyleContainerFlags =
       kRecalcStyleContainerChildren | kRecalcStyleContainerDescendants;
 
-  static const Flags kRecalcStateContainerFlags =
-      kRecalcStateContainer | kRecalcDescendantStateContainers;
+  static const Flags kRecalcScrollStateContainerFlags =
+      kRecalcScrollStateContainer | kRecalcDescendantScrollStateContainers;
 
   static const Flags kRecalcContainerFlags = kRecalcSizeContainerFlags |
                                              kRecalcStyleContainerFlags |
-                                             kRecalcStateContainerFlags;
+                                             kRecalcScrollStateContainerFlags;
 
  public:
   enum Propagate {
@@ -134,12 +137,17 @@ class CORE_EXPORT StyleRecalcChange {
     return {propagate_,
             static_cast<Flags>(flags_ | kRecalcStyleContainerDescendants)};
   }
-  StyleRecalcChange ForceRecalcStateContainer() const {
-    return {propagate_, static_cast<Flags>(flags_ | kRecalcStateContainer)};
-  }
-  StyleRecalcChange ForceRecalcDescendantStateContainers() const {
+  StyleRecalcChange ForceRecalcScrollStateContainer() const {
     return {propagate_,
-            static_cast<Flags>(flags_ | kRecalcDescendantStateContainers)};
+            static_cast<Flags>(flags_ | kRecalcScrollStateContainer)};
+  }
+  StyleRecalcChange ForceRecalcDescendantScrollStateContainers() const {
+    return {propagate_, static_cast<Flags>(
+                            flags_ | kRecalcDescendantScrollStateContainers)};
+  }
+  StyleRecalcChange ForceRecalcDescendantContentVisibility() const {
+    return {propagate_,
+            static_cast<Flags>(flags_ | kRecalcDescendantContentVisibility)};
   }
   StyleRecalcChange SuppressRecalc() const {
     return {propagate_, static_cast<Flags>(flags_ | kSuppressRecalc)};
@@ -203,11 +211,14 @@ class CORE_EXPORT StyleRecalcChange {
   bool RecalcStyleContainerQueryDependent() const {
     return flags_ & kRecalcStyleContainerFlags;
   }
-  bool RecalcStateContainerQueryDependent() const {
-    return flags_ & kRecalcStateContainerFlags;
+  bool RecalcScrollStateContainerQueryDependent() const {
+    return flags_ & kRecalcScrollStateContainerFlags;
   }
   bool RecalcContainerQueryDependent() const {
     return flags_ & kRecalcContainerFlags;
+  }
+  bool RecalcDescendantContentVisibility() const {
+    return flags_ & kRecalcDescendantContentVisibility;
   }
   Flags FlagsForChildren(const Element&) const;
 

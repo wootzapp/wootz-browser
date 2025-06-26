@@ -25,8 +25,10 @@ class MEDIA_EXPORT HlsDataSourceProviderImpl : public HlsDataSourceProvider {
   class DataSourceFactory {
    public:
     using DataSourceCb = base::OnceCallback<void(std::unique_ptr<DataSource>)>;
-    virtual ~DataSourceFactory() = 0;
-    virtual void CreateDataSource(GURL uri, DataSourceCb cb) = 0;
+    virtual ~DataSourceFactory() = default;
+    virtual void CreateDataSource(GURL uri,
+                                  bool ignore_cache,
+                                  DataSourceCb cb) = 0;
   };
 
   ~HlsDataSourceProviderImpl() override;
@@ -68,4 +70,4 @@ class MEDIA_EXPORT HlsDataSourceProviderImpl : public HlsDataSourceProvider {
 
 }  // namespace media
 
-#endif  // #ifndef MEDIA_FILTERS_HLS_DATA_SOURCE_PROVIDER_IMPL_H_
+#endif  // MEDIA_FILTERS_HLS_DATA_SOURCE_PROVIDER_IMPL_H_

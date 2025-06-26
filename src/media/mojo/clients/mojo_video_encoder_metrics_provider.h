@@ -42,6 +42,8 @@ class MojoVideoEncoderMetricsProviderFactory
     : public base::RefCountedThreadSafe<
           MojoVideoEncoderMetricsProviderFactory> {
  public:
+  REQUIRE_ADOPTION_FOR_REFCOUNTED_TYPE();
+
   MojoVideoEncoderMetricsProviderFactory(
       mojom::VideoEncoderUseCase use_case,
       mojo::PendingRemote<mojom::VideoEncoderMetricsProvider> pending_remote);
@@ -55,7 +57,7 @@ class MojoVideoEncoderMetricsProviderFactory
       MojoVideoEncoderMetricsProviderFactory>;
   virtual ~MojoVideoEncoderMetricsProviderFactory();
 
-  // For easily mocking in RTCVideoEncoderTest.
+  // For easily mocking in unit tests.
   explicit MojoVideoEncoderMetricsProviderFactory(
       mojom::VideoEncoderUseCase use_case);
 

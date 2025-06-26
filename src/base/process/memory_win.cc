@@ -4,7 +4,7 @@
 
 #include "base/process/memory.h"
 
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 
 #if PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 #include "partition_alloc/shim/allocator_shim.h"
@@ -24,10 +24,10 @@ namespace {
 // Return a non-0 value to retry the allocation.
 int ReleaseReservationOrTerminate(size_t size) {
   constexpr int kRetryAllocation = 1;
-  if (internal::ReleaseAddressSpaceReservation())
+  if (internal::ReleaseAddressSpaceReservation()) {
     return kRetryAllocation;
+  }
   TerminateBecauseOutOfMemory(size);
-  return 0;
 }
 
 }  // namespace

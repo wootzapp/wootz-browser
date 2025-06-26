@@ -24,6 +24,7 @@
 
 #include "third_party/blink/renderer/core/svg/svg_animation_element.h"
 
+#include "base/compiler_specific.h"
 #include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/frame/web_feature.h"
 #include "third_party/blink/renderer/core/svg/animation/element_smil_animations.h"
@@ -134,7 +135,7 @@ static bool ParseKeySplinesInternal(const CharType* ptr,
     SkipOptionalSVGSpaces(ptr, end);
 
     if (ptr < end && *ptr == ';')
-      ptr++;
+      UNSAFE_TODO(ptr++);
     SkipOptionalSVGSpaces(ptr, end);
 
     // The values of cpx1 cpy1 cpx2 cpy2 must all be in the range 0 to 1.
@@ -153,10 +154,10 @@ static bool ParseKeySplines(const String& string,
   result.clear();
   if (string.empty())
     return true;
-  bool parsed =
-      WTF::VisitCharacters(string, [&](const auto* chars, unsigned length) {
-        return ParseKeySplinesInternal(chars, chars + length, result);
-      });
+  bool parsed = WTF::VisitCharacters(string, [&](auto chars) {
+    return ParseKeySplinesInternal(chars.data(), chars.data() + chars.size(),
+                                   result);
+  });
   if (!parsed) {
     result.clear();
     return false;
@@ -644,7 +645,7 @@ bool SVGAnimationElement::UpdateAnimationValues() {
     case kPathAnimation:
       break;
     case kNoAnimation:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
   return true;
 }

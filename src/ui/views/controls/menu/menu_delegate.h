@@ -11,7 +11,7 @@
 
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom-forward.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
-#include "ui/base/ui_base_types.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/controls/menu/menu_types.h"
 #include "ui/views/view.h"
@@ -93,7 +93,7 @@ class VIEWS_EXPORT MenuDelegate {
   virtual bool ShowContextMenu(MenuItemView* source,
                                int id,
                                const gfx::Point& p,
-                               ui::MenuSourceType source_type);
+                               ui::mojom::MenuSourceType source_type);
 
   // Controller
   virtual bool SupportsCommand(int id) const;
@@ -214,6 +214,12 @@ class VIEWS_EXPORT MenuDelegate {
   // rather than directly above or below it, when the menu is too tall to fit
   // within the screen.
   virtual bool ShouldTryPositioningBesideAnchor() const;
+
+  // Returns true if the delegate has started tearing down its internal state in
+  // preparation for destruction. The delegate should no longer be used once
+  // this occurs. Remove once crash root cause has been addressed
+  // (crbug.com/1283454).
+  virtual bool IsTearingDown() const;
 };
 
 }  // namespace views

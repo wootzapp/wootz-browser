@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 
@@ -14,7 +15,6 @@
 #include "base/containers/contains.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "base/time/time.h"
 #include "ui/events/event.h"
 #include "ui/events/event_constants.h"
@@ -176,7 +176,7 @@ void GestureRecognizerImpl::TransferEventsTo(
   CancelActiveTouchesExceptImpl(current_consumer);
 
   std::vector<std::unique_ptr<TouchEvent>> cancelling_touches =
-      GetEventPerPointForConsumer(current_consumer, ET_TOUCH_CANCELLED);
+      GetEventPerPointForConsumer(current_consumer, EventType::kTouchCancelled);
 
   TransferConsumer(current_consumer, new_consumer_ptr.get(), consumers_);
 
@@ -212,21 +212,6 @@ void GestureRecognizerImpl::TransferEventsTo(
     } else {
       touch_id_target_.erase(touch_id);
     }
-  }
-}
-
-std::vector<std::unique_ptr<ui::TouchEvent>>
-GestureRecognizerImpl::ExtractTouches(GestureConsumer* consumer) {
-  return GetEventPerPointForConsumer(consumer, ET_TOUCH_PRESSED);
-}
-
-void GestureRecognizerImpl::TransferTouches(
-    GestureConsumer* consumer,
-    const std::vector<std::unique_ptr<ui::TouchEvent>>& touch_events) {
-  GestureEventHelper* helper = FindDispatchHelperForConsumer(consumer);
-  DCHECK(helper);
-  for (const auto& event : touch_events) {
-    helper->DispatchSyntheticTouchEvent(event.get());
   }
 }
 
@@ -309,10 +294,10 @@ void GestureRecognizerImpl::SetupTargets(const TouchEvent& event,
                                          GestureConsumer* target) {
   event_to_gesture_provider_[event.unique_event_id()] =
       GetGestureProviderForConsumer(target);
-  if (event.type() == ui::ET_TOUCH_RELEASED ||
-      event.type() == ui::ET_TOUCH_CANCELLED) {
+  if (event.type() == ui::EventType::kTouchReleased ||
+      event.type() == ui::EventType::kTouchCancelled) {
     touch_id_target_.erase(event.pointer_details().id);
-  } else if (event.type() == ui::ET_TOUCH_PRESSED) {
+  } else if (event.type() == ui::EventType::kTouchPressed) {
     touch_id_target_[event.pointer_details().id] = target;
   }
 }
@@ -370,7 +355,7 @@ bool GestureRecognizerImpl::CancelActiveTouchesImpl(GestureConsumer* consumer) {
     return false;
 
   std::vector<std::unique_ptr<TouchEvent>> cancelling_touches =
-      GetEventPerPointForConsumer(consumer, ET_TOUCH_CANCELLED);
+      GetEventPerPointForConsumer(consumer, EventType::kTouchCancelled);
   if (cancelling_touches.empty())
     return false;
   for (const std::unique_ptr<TouchEvent>& cancelling_touch : cancelling_touches)
@@ -405,7 +390,7 @@ void GestureRecognizerImpl::AddGestureEventHelper(GestureEventHelper* helper) {
 
 void GestureRecognizerImpl::RemoveGestureEventHelper(
     GestureEventHelper* helper) {
-  auto it = base::ranges::find(helpers_, helper);
+  auto it = std::ranges::find(helpers_, helper);
   if (it != helpers_.end())
     helpers_.erase(it);
 }

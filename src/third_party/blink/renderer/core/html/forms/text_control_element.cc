@@ -32,7 +32,6 @@
 #include "third_party/blink/renderer/core/dom/element_traversal.h"
 #include "third_party/blink/renderer/core/dom/events/event.h"
 #include "third_party/blink/renderer/core/dom/focus_params.h"
-#include "third_party/blink/renderer/core/dom/node_computed_style.h"
 #include "third_party/blink/renderer/core/dom/shadow_root.h"
 #include "third_party/blink/renderer/core/dom/text.h"
 #include "third_party/blink/renderer/core/editing/editing_behavior.h"
@@ -208,8 +207,7 @@ void TextControlElement::UpdatePlaceholderVisibility() {
   bool place_holder_was_visible = IsPlaceholderVisible();
   HTMLElement* placeholder = PlaceholderElement();
   if (!placeholder) {
-    if (RuntimeEnabledFeatures::CreateInputShadowTreeDuringLayoutEnabled() &&
-        !InnerEditorElement()) {
+    if (!InnerEditorElement()) {
       // The place holder visibility needs to be updated as it may be used by
       // CSS selectors.
       SetPlaceholderVisibility(PlaceholderShouldBeVisible());
@@ -438,7 +436,7 @@ static Position PositionForIndex(HTMLElement* inner_editor, unsigned index) {
       continue;
     }
 
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
   DCHECK(last_br_or_text);
   return LastPositionInOrAfterNode(*last_br_or_text);
@@ -505,14 +503,14 @@ bool TextControlElement::SetSelectionRange(
   // we fail to ensure so in some cases. Fix it.
   if (ShouldApplySelectionCache() || !isConnected()) {
     if (did_change) {
-      ScheduleSelectionchangeEvent();
+      ScheduleSelectionchangeEventOnThisOrDocument();
     }
     return did_change;
   }
 
   if (!frame || !inner_editor) {
     if (did_change) {
-      ScheduleSelectionchangeEvent();
+      ScheduleSelectionchangeEventOnThisOrDocument();
     }
     return did_change;
   }
@@ -651,8 +649,7 @@ static const AtomicString& DirectionString(
       return backward;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return none;
+  NOTREACHED();
 }
 
 const AtomicString& TextControlElement::selectionDirection() const {
@@ -814,10 +811,13 @@ void TextControlElement::ScheduleSelectEvent() {
   GetDocument().EnqueueAnimationFrameEvent(event);
 }
 
-void TextControlElement::ScheduleSelectionchangeEvent() {
+void TextControlElement::ScheduleSelectionchangeEventOnThisOrDocument() {
   if (RuntimeEnabledFeatures::DispatchSelectionchangeEventPerElementEnabled()) {
-    EnqueueEvent(*Event::CreateBubble(event_type_names::kSelectionchange),
-                 TaskType::kMiscPlatformAPI);
+    if (!IsInShadowTree()) {
+      ScheduleSelectionchangeEvent();
+    } else {
+      GetDocument().ScheduleSelectionchangeEvent();
+    }
   }
 }
 
@@ -1096,6 +1096,19 @@ HTMLElement* TextControlElement::CreateInnerEditorElement() {
 
 const String& TextControlElement::SuggestedValue() const {
   return suggested_value_;
+}
+
+void TextControlElement::ScheduleSelectionchangeEvent() {
+  if (RuntimeEnabledFeatures::CoalesceSelectionchangeEventEnabled()) {
+    if (has_scheduled_selectionchange_event_)
+      return;
+    has_scheduled_selectionchange_event_ = true;
+    EnqueueEvent(*Event::CreateBubble(event_type_names::kSelectionchange),
+                 TaskType::kMiscPlatformAPI);
+  } else {
+    EnqueueEvent(*Event::CreateBubble(event_type_names::kSelectionchange),
+                 TaskType::kMiscPlatformAPI);
+  }
 }
 
 void TextControlElement::Trace(Visitor* visitor) const {

@@ -5,6 +5,11 @@
 // A library to manage RLZ information for access-points shared
 // across different client applications.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "rlz/lib/rlz_lib.h"
 
 #include <algorithm>
@@ -15,7 +20,6 @@
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "net/base/backoff_entry.h"
 #include "rlz/lib/assert.h"
 #include "rlz/lib/financial_ping.h"

@@ -5,15 +5,15 @@
 #include "base/process/process_metrics.h"
 
 #include <windows.h>  // Must be in front of other Windows header files.
+#include <winternl.h>
 
 #include <psapi.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <winternl.h>
 
 #include <algorithm>
 
-#include "base/debug/crash_logging.h"
+#include "base/check.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/notreached.h"
@@ -134,8 +134,7 @@ base::expected<TimeDelta, ProcessCPUUsageError> GetImpreciseCumulativeCPUUsage(
   if (!GetProcessTimes(process.get(), &creation_time, &exit_time, &kernel_time,
                        &user_time)) {
     // This should never fail when the handle is valid.
-    NOTREACHED(NotFatalUntil::M125);
-    return base::unexpected(ProcessCPUUsageError::kSystemError);
+    NOTREACHED();
   }
 
   return base::ok(TimeDelta::FromFileTime(kernel_time) +
@@ -159,6 +158,23 @@ size_t GetHandleLimit() {
 std::unique_ptr<ProcessMetrics> ProcessMetrics::CreateProcessMetrics(
     ProcessHandle process) {
   return WrapUnique(new ProcessMetrics(process));
+}
+
+base::expected<ProcessMemoryInfo, ProcessUsageError>
+ProcessMetrics::GetMemoryInfo() const {
+  if (!process_.is_valid()) {
+    return base::unexpected(ProcessUsageError::kProcessNotFound);
+  }
+  PROCESS_MEMORY_COUNTERS_EX pmc;
+  if (!::GetProcessMemoryInfo(process_.get(),
+                              reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&pmc),
+                              sizeof(pmc))) {
+    return base::unexpected(ProcessUsageError::kSystemError);
+  }
+  ProcessMemoryInfo counters;
+  counters.private_bytes = pmc.PrivateUsage;
+  counters.resident_set_bytes = pmc.WorkingSetSize;
+  return counters;
 }
 
 base::expected<TimeDelta, ProcessCPUUsageError>
@@ -188,8 +204,7 @@ ProcessMetrics::GetCumulativeCPUUsage() {
   ULONG64 process_cycle_time = 0;
   if (!QueryProcessCycleTime(process_.get(), &process_cycle_time)) {
     // This should never fail when the handle is valid.
-    NOTREACHED(NotFatalUntil::M125);
-    return base::unexpected(ProcessCPUUsageError::kSystemError);
+    NOTREACHED();
   }
 
   const double process_time_seconds = process_cycle_time / tsc_ticks_per_second;
@@ -198,8 +213,10 @@ ProcessMetrics::GetCumulativeCPUUsage() {
 }
 
 ProcessMetrics::ProcessMetrics(ProcessHandle process) {
-  if (!process) {
-    // Don't try to duplicate an invalid handle.
+  if (process == kNullProcessHandle) {
+    // Don't try to duplicate an invalid handle. However, INVALID_HANDLE_VALUE
+    // is also the pseudo-handle returned by ::GetCurrentProcess(), so DO try
+    // to duplicate that.
     return;
   }
   HANDLE duplicate_handle = INVALID_HANDLE_VALUE;
@@ -207,12 +224,11 @@ ProcessMetrics::ProcessMetrics(ProcessHandle process) {
                                   ::GetCurrentProcess(), &duplicate_handle,
                                   PROCESS_QUERY_LIMITED_INFORMATION, FALSE, 0);
   if (!result) {
-    // TODO(crbug.com/326136373): Remove this crash key and just CHECK(result)
-    // after verifying that DuplicateHandle doesn't fail for unexpected reasons
-    // in production.
+    // Even with PROCESS_QUERY_LIMITED_INFORMATION, DuplicateHandle can fail
+    // with ERROR_ACCESS_DENIED. And it's always possible to run out of handles.
     const DWORD last_error = ::GetLastError();
-    SCOPED_CRASH_KEY_NUMBER("ProcessMetrics", "dup_handle_error", last_error);
-    NOTREACHED(NotFatalUntil::M126);
+    CHECK(last_error == ERROR_ACCESS_DENIED ||
+          last_error == ERROR_NO_SYSTEM_RESOURCES);
     return;
   }
 
@@ -220,16 +236,12 @@ ProcessMetrics::ProcessMetrics(ProcessHandle process) {
 }
 
 size_t GetSystemCommitCharge() {
-  // Get the System Page Size.
-  SYSTEM_INFO system_info;
-  GetSystemInfo(&system_info);
-
   PERFORMANCE_INFORMATION info;
-  if (!GetPerformanceInfo(&info, sizeof(info))) {
+  if (!::GetPerformanceInfo(&info, sizeof(info))) {
     DLOG(ERROR) << "Failed to fetch internal performance info.";
     return 0;
   }
-  return (info.CommitTotal * system_info.dwPageSize) / 1024;
+  return (info.CommitTotal * info.PageSize) / 1024;
 }
 
 // This function uses the following mapping between MEMORYSTATUSEX and

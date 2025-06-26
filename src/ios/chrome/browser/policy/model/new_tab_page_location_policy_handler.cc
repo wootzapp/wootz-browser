@@ -41,8 +41,9 @@ bool NewTabPageLocationPolicyHandler::ValidateNewTabPageLocationURL(
     const base::Value* value) {
   if (value) {
     std::string ntp_location = value->GetString();
-    if (ntp_location.empty())
+    if (ntp_location.empty()) {
       return false;
+    }
     ntp_location = NewTabPageLocationPolicyHandler::FormatNewTabPageLocationURL(
         ntp_location);
     return GURL(ntp_location).is_valid();
@@ -53,11 +54,15 @@ bool NewTabPageLocationPolicyHandler::ValidateNewTabPageLocationURL(
 bool NewTabPageLocationPolicyHandler::CheckPolicySettings(
     const policy::PolicyMap& policies,
     policy::PolicyErrorMap* errors) {
-  if (!TypeCheckingPolicyHandler::CheckPolicySettings(policies, errors))
+  if (!TypeCheckingPolicyHandler::CheckPolicySettings(policies, errors)) {
     return false;
+  }
   // `GetValueUnsafe` is used to differentiate between the policy value being
   // unset vs being set with an incorrect type.
   const base::Value* value = policies.GetValueUnsafe(policy_name());
+  if (!value) {
+    return true;
+  }
   if (NewTabPageLocationPolicyHandler::ValidateNewTabPageLocationURL(value)) {
     return true;
   }

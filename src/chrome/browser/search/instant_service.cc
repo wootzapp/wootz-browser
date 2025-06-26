@@ -94,7 +94,7 @@ InstantService::InstantService(Profile* profile)
 InstantService::~InstantService() = default;
 
 void InstantService::AddInstantProcess(content::RenderProcessHost* host) {
-  process_ids_.insert(host->GetID());
+  process_ids_.insert(host->GetDeprecatedID());
   // The same process may be added for multiple WebContents. Only observe once.
   if (!host_observation_.IsObservingSource(host)) {
     host_observation_.AddObservation(host);
@@ -178,7 +178,7 @@ void InstantService::RenderProcessHostDestroyed(
     content::RenderProcessHost* host) {
   // Profile* renderer_profile = static_cast<Profile*>(host->GetBrowserContext());
   // if (profile_ == renderer_profile) {
-  //   process_ids_.erase(host->GetID());
+  //   process_ids_.erase(host->GetDeprecatedID());
   //   host_observation_.RemoveObservation(host);
   // }
 }
@@ -224,69 +224,69 @@ void InstantService::NotifyAboutNtpTheme() {
 
 void InstantService::BuildNtpTheme() {
   // Get theme information from theme service.
-  // theme_ = std::make_unique<NtpTheme>();
+//   theme_ = std::make_unique<NtpTheme>();
 
-  // // Get if the current theme is the default theme.
-  // ThemeService* theme_service = ThemeServiceFactory::GetForProfile(profile_);
-  // theme_->using_default_theme = theme_service->UsingDefaultTheme();
+//   // Get if the current theme is the default theme.
+//   ThemeService* theme_service = ThemeServiceFactory::GetForProfile(profile_);
+//   theme_->using_default_theme = theme_service->UsingDefaultTheme();
 
-  // SetNtpElementsNtpTheme();
+//   SetNtpElementsNtpTheme();
 
-  // if (theme_service->UsingExtensionTheme()) {
-  //   const extensions::Extension* extension =
-  //       extensions::ExtensionRegistry::Get(profile_)
-  //           ->enabled_extensions()
-  //           .GetByID(theme_service->GetThemeID());
-  //   if (extension) {
-  //     theme_->theme_id = theme_service->GetThemeID();
+//   if (theme_service->UsingExtensionTheme()) {
+//     const extensions::Extension* extension =
+//         extensions::ExtensionRegistry::Get(profile_)
+//             ->enabled_extensions()
+//             .GetByID(theme_service->GetThemeID());
+//     if (extension) {
+//       theme_->theme_id = theme_service->GetThemeID();
 
-  //     const ui::ThemeProvider& theme_provider =
-  //         ThemeService::GetThemeProviderForProfile(profile_);
-  //     if (theme_provider.HasCustomImage(IDR_THEME_NTP_BACKGROUND)) {
-  //       theme_->has_theme_image = true;
+//       const ui::ThemeProvider& theme_provider =
+//           ThemeService::GetThemeProviderForProfile(profile_);
+//       if (theme_provider.HasCustomImage(IDR_THEME_NTP_BACKGROUND)) {
+//         theme_->has_theme_image = true;
 
-  //       // Set theme background image horizontal alignment.
-  //       int alignment = theme_provider.GetDisplayProperty(
-  //           ThemeProperties::NTP_BACKGROUND_ALIGNMENT);
-  //       if (alignment & ThemeProperties::ALIGN_LEFT)
-  //         theme_->image_horizontal_alignment = THEME_BKGRND_IMAGE_ALIGN_LEFT;
-  //       else if (alignment & ThemeProperties::ALIGN_RIGHT)
-  //         theme_->image_horizontal_alignment = THEME_BKGRND_IMAGE_ALIGN_RIGHT;
-  //       else
-  //         theme_->image_horizontal_alignment = THEME_BKGRND_IMAGE_ALIGN_CENTER;
+//         // Set theme background image horizontal alignment.
+//         int alignment = theme_provider.GetDisplayProperty(
+//             ThemeProperties::NTP_BACKGROUND_ALIGNMENT);
+//         if (alignment & ThemeProperties::ALIGN_LEFT)
+//           theme_->image_horizontal_alignment = THEME_BKGRND_IMAGE_ALIGN_LEFT;
+//         else if (alignment & ThemeProperties::ALIGN_RIGHT)
+//           theme_->image_horizontal_alignment = THEME_BKGRND_IMAGE_ALIGN_RIGHT;
+//         else
+//           theme_->image_horizontal_alignment = THEME_BKGRND_IMAGE_ALIGN_CENTER;
 
-  //       // Set theme background image vertical alignment.
-  //       if (alignment & ThemeProperties::ALIGN_TOP)
-  //         theme_->image_vertical_alignment = THEME_BKGRND_IMAGE_ALIGN_TOP;
-  //       else if (alignment & ThemeProperties::ALIGN_BOTTOM)
-  //         theme_->image_vertical_alignment = THEME_BKGRND_IMAGE_ALIGN_BOTTOM;
-  //       else
-  //         theme_->image_vertical_alignment = THEME_BKGRND_IMAGE_ALIGN_CENTER;
+//         // Set theme background image vertical alignment.
+//         if (alignment & ThemeProperties::ALIGN_TOP)
+//           theme_->image_vertical_alignment = THEME_BKGRND_IMAGE_ALIGN_TOP;
+//         else if (alignment & ThemeProperties::ALIGN_BOTTOM)
+//           theme_->image_vertical_alignment = THEME_BKGRND_IMAGE_ALIGN_BOTTOM;
+//         else
+//           theme_->image_vertical_alignment = THEME_BKGRND_IMAGE_ALIGN_CENTER;
 
-  //       // Set theme background image tiling.
-  //       int tiling = theme_provider.GetDisplayProperty(
-  //           ThemeProperties::NTP_BACKGROUND_TILING);
-  //       switch (tiling) {
-  //         case ThemeProperties::NO_REPEAT:
-  //           theme_->image_tiling = THEME_BKGRND_IMAGE_NO_REPEAT;
-  //           break;
-  //         case ThemeProperties::REPEAT_X:
-  //           theme_->image_tiling = THEME_BKGRND_IMAGE_REPEAT_X;
-  //           break;
-  //         case ThemeProperties::REPEAT_Y:
-  //           theme_->image_tiling = THEME_BKGRND_IMAGE_REPEAT_Y;
-  //           break;
-  //         case ThemeProperties::REPEAT:
-  //           theme_->image_tiling = THEME_BKGRND_IMAGE_REPEAT;
-  //           break;
-  //       }
+//         // Set theme background image tiling.
+//         int tiling = theme_provider.GetDisplayProperty(
+//             ThemeProperties::NTP_BACKGROUND_TILING);
+//         switch (tiling) {
+//           case ThemeProperties::NO_REPEAT:
+//             theme_->image_tiling = THEME_BKGRND_IMAGE_NO_REPEAT;
+//             break;
+//           case ThemeProperties::REPEAT_X:
+//             theme_->image_tiling = THEME_BKGRND_IMAGE_REPEAT_X;
+//             break;
+//           case ThemeProperties::REPEAT_Y:
+//             theme_->image_tiling = THEME_BKGRND_IMAGE_REPEAT_Y;
+//             break;
+//           case ThemeProperties::REPEAT:
+//             theme_->image_tiling = THEME_BKGRND_IMAGE_REPEAT;
+//             break;
+//         }
 
-  //       theme_->has_attribution =
-  //           theme_provider.HasCustomImage(IDR_THEME_NTP_ATTRIBUTION);
-  //     }
-  //   }
-  // }
-}
+//         theme_->has_attribution =
+//             theme_provider.HasCustomImage(IDR_THEME_NTP_ATTRIBUTION);
+//       }
+//     }
+//   }
+// }
 
 // static
 bool InstantService::ShouldServiceRequest(

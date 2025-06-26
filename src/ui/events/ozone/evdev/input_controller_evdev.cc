@@ -133,6 +133,10 @@ InputControllerEvdev::DisableInputDevices() {
       weak_ptr_factory_.GetWeakPtr());
 }
 
+void InputControllerEvdev::DisableKeyboardImposterCheck() {
+  input_device_factory_->DisableKeyboardImposterCheck();
+}
+
 InputDeviceSettingsEvdev InputControllerEvdev::GetInputDeviceSettings() const {
   return input_device_settings_;
 }
@@ -182,6 +186,18 @@ void InputControllerEvdev::SetAutoRepeatRate(const base::TimeDelta& delay,
 void InputControllerEvdev::GetAutoRepeatRate(base::TimeDelta* delay,
                                              base::TimeDelta* interval) {
   keyboard_->GetAutoRepeatRate(delay, interval);
+}
+
+void InputControllerEvdev::SetSlowKeysEnabled(bool enabled) {
+  keyboard_->SetSlowKeysEnabled(enabled);
+}
+
+bool InputControllerEvdev::IsSlowKeysEnabled() const {
+  return keyboard_->IsSlowKeysEnabled();
+}
+
+void InputControllerEvdev::SetSlowKeysDelay(base::TimeDelta delay) {
+  keyboard_->SetSlowKeysDelay(delay);
 }
 
 void InputControllerEvdev::SetKeyboardKeyBitsMapping(

@@ -2,21 +2,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "components/media_router/browser/android/media_router_android.h"
+
 #include <memory>
 
 #include "base/android/jni_android.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/mock_callback.h"
-#include "components/media_router/browser/android/media_router_android.h"
 #include "components/media_router/browser/android/media_router_android_bridge.h"
-#include "components/media_router/browser/android/test_jni_headers/TestMediaRouterClient_jni.h"
 #include "components/media_router/browser/test/test_helper.h"
 #include "content/public/browser/presentation_service_delegate.h"
 #include "content/public/test/browser_task_environment.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/origin.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/media_router/browser/android/test_jni_headers/TestMediaRouterClient_jni.h"
 
 using blink::mojom::PresentationConnectionState;
 using testing::_;

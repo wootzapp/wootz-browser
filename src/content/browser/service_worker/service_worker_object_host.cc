@@ -21,7 +21,8 @@ ServiceWorkerObjectHost::ServiceWorkerObjectHost(
     scoped_refptr<ServiceWorkerVersion> version)
     : context_(context),
       container_host_(container_host),
-      container_origin_(url::Origin::Create(container_host_->url())),
+      container_origin_(
+          url::Origin::Create(container_host_->url_for_access_check())),
       version_(std::move(version)) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(context_ && container_host_ && version_);
@@ -47,36 +48,17 @@ void ServiceWorkerObjectHost::OnVersionStateChanged(
 
 blink::mojom::ServiceWorkerObjectInfoPtr
 ServiceWorkerObjectHost::CreateCompleteObjectInfoToSend() {
-  auto info = CreateIncompleteObjectInfo();
-  mojo::AssociatedRemote<blink::mojom::ServiceWorkerObject> remote_object;
-  info->receiver = remote_object.BindNewEndpointAndPassReceiver();
-  remote_objects_.Add(std::move(remote_object));
-  return info;
-}
-
-blink::mojom::ServiceWorkerObjectInfoPtr
-ServiceWorkerObjectHost::CreateIncompleteObjectInfo() {
   auto info = blink::mojom::ServiceWorkerObjectInfo::New();
   info->url = version_->script_url();
   info->state =
       mojo::ConvertTo<blink::mojom::ServiceWorkerState>(version_->status());
   info->version_id = version_->version_id();
   receivers_.Add(this, info->host_remote.InitWithNewEndpointAndPassReceiver());
-  return info;
-}
 
-void ServiceWorkerObjectHost::AddRemoteObjectPtrAndUpdateState(
-    mojo::PendingAssociatedRemote<blink::mojom::ServiceWorkerObject>
-        pending_object,
-    blink::mojom::ServiceWorkerState sent_state) {
-  DCHECK(pending_object.is_valid());
   mojo::AssociatedRemote<blink::mojom::ServiceWorkerObject> remote_object;
-  remote_object.Bind(std::move(pending_object));
-  auto state =
-      mojo::ConvertTo<blink::mojom::ServiceWorkerState>(version_->status());
-  if (sent_state != state)
-    remote_object->StateChanged(state);
+  info->receiver = remote_object.BindNewEndpointAndPassReceiver();
   remote_objects_.Add(std::move(remote_object));
+  return info;
 }
 
 base::WeakPtr<ServiceWorkerObjectHost> ServiceWorkerObjectHost::AsWeakPtr() {
@@ -107,7 +89,8 @@ void ServiceWorkerObjectHost::DispatchExtendableMessageEvent(
     std::move(callback).Run(blink::ServiceWorkerStatusCode::kErrorAbort);
     return;
   }
-  DCHECK_EQ(container_origin_, url::Origin::Create(container_host_->url()));
+  DCHECK_EQ(container_origin_,
+            url::Origin::Create(container_host_->url_for_access_check()));
 
   // As we don't track tasks between workers and renderers, we can nullify the
   // message's parent task ID.

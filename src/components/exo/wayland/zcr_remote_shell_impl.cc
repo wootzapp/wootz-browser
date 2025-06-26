@@ -10,6 +10,7 @@
 #include "ash/wm/window_resizer.h"
 #include "base/bit_cast.h"
 #include "base/command_line.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chromeos/ui/base/window_pin_type.h"
 #include "components/exo/display.h"
@@ -238,9 +239,8 @@ int SystemUiVisibility(const display::Display& display) {
     case ash::SHELF_HIDDEN:
       return ZCR_REMOTE_SURFACE_V1_SYSTEMUI_VISIBILITY_STATE_AUTOHIDE_NON_STICKY;
   }
-  NOTREACHED_IN_MIGRATION() << "Got unexpected shelf visibility state "
-                            << shelf_layout_manager->visibility_state();
-  return 0;
+  NOTREACHED() << "Got unexpected shelf visibility state "
+               << shelf_layout_manager->visibility_state();
 }
 
 int SystemUiBehavior(const display::Display& display) {
@@ -252,8 +252,7 @@ int SystemUiBehavior(const display::Display& display) {
     case ash::ShelfAutoHideBehavior::kAlwaysHidden:
       return ZCR_REMOTE_OUTPUT_V1_SYSTEMUI_BEHAVIOR_HIDDEN;
   }
-  NOTREACHED_IN_MIGRATION() << "Got unexpected shelf visibility behavior.";
-  return 0;
+  NOTREACHED() << "Got unexpected shelf visibility behavior.";
 }
 
 uint32_t ResizeDirection(int component) {
@@ -280,7 +279,7 @@ uint32_t ResizeDirection(int component) {
       LOG(ERROR) << "Unknown component:" << component;
       break;
   }
-  DUMP_WILL_BE_NOTREACHED_NORETURN();
+  DUMP_WILL_BE_NOTREACHED();
   return ZCR_REMOTE_SURFACE_V1_RESIZE_DIRECTION_NONE;
 }
 
@@ -403,11 +402,12 @@ void WaylandRemoteSurfaceDelegate::OnBoundsChanged(
     int64_t display_id,
     const gfx::Rect& bounds_in_display,
     bool is_resize,
-    int bounds_change) {
+    int bounds_change,
+    bool is_adjusted_bounds) {
   if (shell_) {
     shell_->OnRemoteSurfaceBoundsChanged(
         resource_, current_state, requested_state, display_id,
-        bounds_in_display, is_resize, bounds_change);
+        bounds_in_display, is_resize, bounds_change, is_adjusted_bounds);
   }
 }
 void WaylandRemoteSurfaceDelegate::OnDragStarted(int component) {
@@ -608,8 +608,7 @@ wl_output_transform WaylandRemoteShell::DisplayTransform(
     case display::Display::ROTATE_270:
       return WL_OUTPUT_TRANSFORM_270;
   }
-  NOTREACHED_IN_MIGRATION();
-  return WL_OUTPUT_TRANSFORM_NORMAL;
+  NOTREACHED();
 }
 
 void WaylandRemoteShell::SendDisplayMetrics() {
@@ -679,10 +678,9 @@ void WaylandRemoteShell::SendDisplayMetrics() {
             stable_insets_in_client_pixel.bottom(), systemui_visibility,
             DisplayTransform(display.rotation()), display.IsInternal(), &data);
     } else {
-      NOTREACHED_IN_MIGRATION()
-          << "The remote shell resource version being used ("
-          << wl_resource_get_version(remote_shell_resource_)
-          << ") is not supported.";
+      NOTREACHED() << "The remote shell resource version being used ("
+                   << wl_resource_get_version(remote_shell_resource_)
+                   << ") is not supported.";
     }
 
     wl_array_release(&data);
@@ -773,7 +771,8 @@ void WaylandRemoteShell::OnRemoteSurfaceBoundsChanged(
     int64_t display_id,
     const gfx::Rect& bounds_in_display,
     bool resize,
-    int bounds_change) {
+    int bounds_change,
+    bool is_adjusted_bounds) {
   uint32_t reason =
       ZCR_REMOTE_SURFACE_V1_BOUNDS_CHANGE_REASON_RESIZE;
   if (!resize)
@@ -800,6 +799,12 @@ void WaylandRemoteShell::OnRemoteSurfaceBoundsChanged(
   }
 
   if (in_display_update_ || needs_send_display_metrics_) {
+    if (is_adjusted_bounds && pending_bounds_changes_.count(resource) > 0) {
+      // If there is any ash-requested bounds for the resource, do not overwrite
+      // it with the adjusted bounds which is based on the bounds before the
+      // display update, which is to be obsolete soon.
+      return;
+    }
     // We store only the latest bounds for each |resource|.
     pending_bounds_changes_.insert_or_assign(
         std::move(resource),
@@ -1074,7 +1079,7 @@ void remote_surface_set_scale(wl_client* client,
                               wl_resource* resource,
                               wl_fixed_t scale) {
   // DEPRECATED (b/141715728) - The server updates the client's scale.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void remote_surface_set_rectangular_shadow_DEPRECATED(wl_client* client,
@@ -1083,14 +1088,14 @@ void remote_surface_set_rectangular_shadow_DEPRECATED(wl_client* client,
                                                       int32_t y,
                                                       int32_t width,
                                                       int32_t height) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void remote_surface_set_rectangular_shadow_background_opacity_DEPRECATED(
     wl_client* client,
     wl_resource* resource,
     wl_fixed_t opacity) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void remote_surface_set_title(wl_client* client,
@@ -1189,11 +1194,11 @@ void remote_surface_unset_always_on_top(wl_client* client,
 void remote_surface_ack_configure_DEPRECATED(wl_client* client,
                                              wl_resource* resource,
                                              uint32_t serial) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void remote_surface_move_DEPRECATED(wl_client* client, wl_resource* resource) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void remote_surface_set_window_type(wl_client* client,
@@ -1223,14 +1228,14 @@ void remote_surface_set_window_type(wl_client* client,
 void remote_surface_resize_DEPRECATED(wl_client* client,
                                       wl_resource* resource) {
   // DEPRECATED
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void remote_surface_set_resize_outset_DEPRECATED(wl_client* client,
                                                  wl_resource* resource,
                                                  int32_t outset) {
   // DEPRECATED
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void remote_surface_start_move(wl_client* client,
@@ -1390,7 +1395,7 @@ void remote_surface_unblock_ime(wl_client* client, wl_resource* resource) {
 void remote_surface_set_accessibility_id_DEPRECATED(wl_client* client,
                                                     wl_resource* resource,
                                                     int32_t accessibility_id) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void remote_surface_set_pip_original_window(wl_client* client,

@@ -64,31 +64,30 @@ TEST_F(MediaValuesTest, Basic) {
       {1.3, CSSPrimitiveValue::UnitType::kPicas, 16, 300, 300, true, 20.8},
       {40.0, CSSPrimitiveValue::UnitType::kUserUnits, 16, 300, 300, true, 40},
       {1.3, CSSPrimitiveValue::UnitType::kUnknown, 16, 300, 300, false, 20},
-      {0.0, CSSPrimitiveValue::UnitType::kUnknown, 0, 0, 0, false,
-       0.0}  // Do not remove the terminating line.
   };
 
-  for (unsigned i = 0; test_cases[i].viewport_width; ++i) {
+  for (MediaValuesTestCase test_case : test_cases) {
     MediaValuesCached::MediaValuesCachedData data;
-    data.em_size = test_cases[i].font_size;
-    data.viewport_width = test_cases[i].viewport_width;
-    data.viewport_height = test_cases[i].viewport_height;
+    data.em_size = test_case.font_size;
+    data.viewport_width = test_case.viewport_width;
+    data.viewport_height = test_case.viewport_height;
     data.line_height = 20;
-    MediaValuesCached media_values(data);
+    MediaValuesCached* media_values =
+        MakeGarbageCollected<MediaValuesCached>(data);
 
     double output = 0;
-    bool success = media_values.ComputeLength(test_cases[i].value,
-                                              test_cases[i].type, output);
-    EXPECT_EQ(test_cases[i].success, success);
+    bool success =
+        media_values->ComputeLength(test_case.value, test_case.type, output);
+    EXPECT_EQ(test_case.success, success);
     if (success) {
-      EXPECT_FLOAT_EQ(test_cases[i].output, output);
+      EXPECT_FLOAT_EQ(test_case.output, output);
     }
   }
 }
 
 TEST_F(MediaValuesTest, ZoomedFontUnits) {
   LoadAhem();
-  GetFrame().SetPageZoomFactor(2.0f);
+  GetFrame().SetLayoutZoomFactor(2.0f);
 
   // Set 'font:Ahem 10px' as the default font.
   Settings* settings = GetDocument().GetSettings();

@@ -93,9 +93,11 @@ action("precompile_templates") {
     "$mojom_generator_root/generators/mojolpm_templates/mojolpm_to_proto_macros.tmpl",
     "$mojom_generator_root/generators/mojolpm_templates/mojolpm_traits_specialization_macros.tmpl",
     "$mojom_generator_root/generators/rust_templates/enum.tmpl",
+    "$mojom_generator_root/generators/rust_templates/interface.tmpl",
     "$mojom_generator_root/generators/rust_templates/module.tmpl",
     "$mojom_generator_root/generators/rust_templates/struct.tmpl",
     "$mojom_generator_root/generators/rust_templates/union.tmpl",
+    "$mojom_generator_root/generators/ts_templates/converter_interface_declarations.tmpl",
     "$mojom_generator_root/generators/ts_templates/enum_definition.tmpl",
     "$mojom_generator_root/generators/ts_templates/interface_definition.tmpl",
     "$mojom_generator_root/generators/ts_templates/module_definition.tmpl",
@@ -128,7 +130,6 @@ group("tests") {
     "checks/mojom_interface_feature_check_unittest.py",
     "checks/mojom_restrictions_checks_unittest.py",
     "mojom_bindings_generator_unittest.py",
-    "//tools/diagnosis/crbug_1001171.py",
     "//third_party/markupsafe/",
   ]
   data += mojom_generator_sources

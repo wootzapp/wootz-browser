@@ -24,10 +24,15 @@ import android.widget.TextView;
 import androidx.annotation.ColorInt;
 import androidx.test.filters.MediumTest;
 
+import org.junit.After;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterSet;
 import org.chromium.base.test.params.ParameterizedRunner;
@@ -37,13 +42,12 @@ import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.R;
 import org.chromium.components.browser_ui.modaldialog.ModalDialogTestUtils;
 import org.chromium.components.browser_ui.modaldialog.ModalDialogView;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.UiUtils;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
 import org.chromium.ui.modaldialog.ModalDialogProperties.ButtonType;
 import org.chromium.ui.modaldialog.ModalDialogProperties.ModalDialogButtonSpec;
 import org.chromium.ui.modelutil.PropertyModel;
-import org.chromium.ui.test.util.BlankUiTestActivityTestCase;
+import org.chromium.ui.test.util.BlankUiTestActivity;
 import org.chromium.ui.test.util.NightModeTestUtils;
 import org.chromium.ui.test.util.RenderTestRule;
 
@@ -55,10 +59,16 @@ import java.util.List;
 @RunWith(ParameterizedRunner.class)
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @Batch(Batch.PER_CLASS)
-public class ModalDialogViewRenderTest extends BlankUiTestActivityTestCase {
+public class ModalDialogViewRenderTest {
     @ParameterAnnotations.ClassParameter
     private static final List<ParameterSet> sClassParams =
             new NightModeTestUtils.NightModeParams().getParameters();
+
+    @ClassRule
+    public static BaseActivityTestRule<BlankUiTestActivity> sActivityTestRule =
+            new BaseActivityTestRule<>(BlankUiTestActivity.class);
+
+    private static Activity sActivity;
 
     private final @ColorInt int mFakeBgColor;
 
@@ -86,16 +96,20 @@ public class ModalDialogViewRenderTest extends BlankUiTestActivityTestCase {
         mRenderTestRule.setNightModeEnabled(nightModeEnabled);
     }
 
-    @Override
-    public void tearDownTest() throws Exception {
+    @BeforeClass
+    public static void setupSuite() {
+        sActivity = sActivityTestRule.launchActivity(null);
+    }
+
+    @After
+    public void tearDown() throws Exception {
         NightModeTestUtils.tearDownNightModeForBlankUiTestActivity();
-        super.tearDownTest();
     }
 
     private void setUpViews(int style, boolean forceWrapContentHeight) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    Activity activity = getActivity();
+                    Activity activity = sActivity;
                     mResources = activity.getResources();
                     mModelBuilder = new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS);
 
@@ -141,7 +155,7 @@ public class ModalDialogViewRenderTest extends BlankUiTestActivityTestCase {
                 /* forceWrapContentHeight= */ true);
         final Drawable icon =
                 UiUtils.getTintedDrawable(
-                        getActivity(), R.drawable.ic_add, R.color.default_icon_color_tint_list);
+                        sActivity, R.drawable.ic_add, R.color.default_icon_color_tint_list);
         createModel(
                 mModelBuilder
                         .with(ModalDialogProperties.TITLE, mResources, R.string.title)
@@ -223,7 +237,7 @@ public class ModalDialogViewRenderTest extends BlankUiTestActivityTestCase {
             sb.append(i).append("\n");
         }
         sb.append(100);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mCustomTextView1.setText(sb.toString());
                     mCustomScrollView.addView(mCustomTextView1);
@@ -248,7 +262,7 @@ public class ModalDialogViewRenderTest extends BlankUiTestActivityTestCase {
             sb.append(i).append("\n");
         }
         sb.append(100);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mCustomTextView1.setText(sb.toString());
                     mCustomScrollView.addView(mCustomTextView1);
@@ -283,7 +297,7 @@ public class ModalDialogViewRenderTest extends BlankUiTestActivityTestCase {
             sb.append(i).append("\n");
         }
         sb.append(100);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mCustomTextView1.setText(sb.toString());
                     mCustomFrameLayout.addView(mCustomTextView1);

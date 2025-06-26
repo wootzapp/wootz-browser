@@ -14,17 +14,17 @@ import '../../components/common_styles/oobe_dialog_host_styles.css.js';
 import '../../components/buttons/oobe_back_button.js';
 import '../../components/buttons/oobe_next_button.js';
 import '../../components/dialogs/oobe_content_dialog.js';
-
 import '//resources/ash/common/cr_elements/cr_dialog/cr_dialog.js';
-import type {CrDialogElement} from '//resources/ash/common/cr_elements/cr_dialog/cr_dialog.js';
 import '//resources/ash/common/cr_elements/cr_input/cr_input.js';
-import type {CrInputElement} from '//resources/ash/common/cr_elements/cr_input/cr_input.js';
-import {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
-import {mixinBehaviors, PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
-import {LoginScreenBehavior, LoginScreenBehaviorInterface} from '../../components/behaviors/login_screen_behavior.js';
-import {OobeDialogHostBehavior, OobeDialogHostBehaviorInterface} from '../../components/behaviors/oobe_dialog_host_behavior.js';
-import {OobeI18nMixin, OobeI18nMixinInterface} from '../../components/mixins/oobe_i18n_mixin.js';
+import type {CrDialogElement} from '//resources/ash/common/cr_elements/cr_dialog/cr_dialog.js';
+import type {CrInputElement} from '//resources/ash/common/cr_elements/cr_input/cr_input.js';
+import type {PolymerElementProperties} from '//resources/polymer/v3_0/polymer/interfaces.js';
+import {PolymerElement} from '//resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+
+import {LoginScreenMixin} from '../../components/mixins/login_screen_mixin.js';
+import {OobeDialogHostMixin} from '../../components/mixins/oobe_dialog_host_mixin.js';
+import {OobeI18nMixin} from '../../components/mixins/oobe_i18n_mixin.js';
 
 import {getTemplate} from './offline_login.html.js';
 
@@ -38,12 +38,7 @@ enum LoginSection {
 }
 
 const OfflineLoginBase =
-    mixinBehaviors(
-        [OobeDialogHostBehavior, LoginScreenBehavior],
-        OobeI18nMixin(PolymerElement)) as {
-      new (): PolymerElement & OobeDialogHostBehaviorInterface &
-          OobeI18nMixinInterface & LoginScreenBehaviorInterface,
-    };
+    OobeDialogHostMixin(LoginScreenMixin(OobeI18nMixin(PolymerElement)));
 
 interface OfflineLoginScreenData {
   enterpriseDomainManager: string;
@@ -107,6 +102,14 @@ export class OfflineLogin extends OfflineLoginBase {
       },
 
       /**
+       * Whether the user should be authenticated by pin or password.
+       */
+      authenticateByPin: {
+        type: Boolean,
+        value: false,
+      },
+
+      /**
        * Proper e-mail with domain, displayed on password page.
        */
       fullEmail: {
@@ -132,6 +135,7 @@ export class OfflineLogin extends OfflineLoginBase {
   private displayDomain: string;
   private email: string;
   private password: string;
+  private authenticateByPin: boolean;
   private fullEmail: string;
   private activeSection: string;
   private animationInProgress: boolean;
@@ -180,6 +184,7 @@ export class OfflineLogin extends OfflineLoginBase {
   }
 
   override onBeforeShow(params: OfflineLoginScreenData): void {
+    super.onBeforeShow(params);
     this.reset();
     if ('enterpriseDomainManager' in params) {
       this.manager = params['enterpriseDomainManager'];
@@ -201,6 +206,7 @@ export class OfflineLogin extends OfflineLoginBase {
     this.manager = '';
     this.email = '';
     this.fullEmail = '';
+    this.authenticateByPin = false;
     this.shadowRoot!.querySelector<CrInputElement>('#emailInput')!.invalid =
         false;
     this.shadowRoot!.querySelector<CrInputElement>('#passwordInput')!.invalid =
@@ -208,7 +214,8 @@ export class OfflineLogin extends OfflineLoginBase {
     this.activeSection = LoginSection.EMAIL;
   }
 
-  proceedToPasswordPage(): void {
+  proceedToPasswordPage(authenticateByPin: boolean): void {
+    this.authenticateByPin = authenticateByPin;
     this.switchToPasswordCard(true /* animated */);
   }
 
@@ -346,6 +353,19 @@ export class OfflineLogin extends OfflineLoginBase {
       return;
     }
     this.onNextButtonClicked();
+  }
+
+  private passwordPlaceholderText(locale: string, authenticateByPin: boolean):
+      string {
+    const key = authenticateByPin ? 'offlineLoginPin' : 'offlineLoginPassword';
+    return this.i18nDynamic(locale, key);
+  }
+
+  private passwordErrorText(locale: string, authenticateByPin: boolean):
+      string {
+    const key = authenticateByPin ? 'offlineLoginInvalidPin' :
+                                    'offlineLoginInvalidPassword';
+    return this.i18nDynamic(locale, key);
   }
 }
 

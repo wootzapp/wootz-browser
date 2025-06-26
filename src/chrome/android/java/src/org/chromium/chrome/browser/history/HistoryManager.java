@@ -21,8 +21,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.widget.Toolbar.OnMenuItemClickListener;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
-import com.google.android.material.tabs.TabLayout;
-
 import org.chromium.base.IntentUtils;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
@@ -32,15 +30,17 @@ import org.chromium.chrome.browser.IntentHandler;
 import org.chromium.chrome.browser.document.ChromeLauncherActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.history.HistoryManagerToolbar.InfoHeaderPref;
+import org.chromium.chrome.browser.incognito.IncognitoUtils;
+import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
-import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
+import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.components.browser_ui.settings.SettingsNavigation;
 import org.chromium.components.browser_ui.widget.DateDividedAdapter.ItemViewType;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.components.browser_ui.widget.selectable_list.SelectableListLayout;
@@ -62,19 +62,8 @@ public class HistoryManager
                 SnackbarController,
                 HistoryContentManager.Observer,
                 BackPressHandler {
-    private static final String METRICS_PREFIX = "Android.HistoryPage.";
+
     static final String HISTORY_CLUSTERS_VISIBLE_PREF = "history_clusters.visible";
-
-    // Keep consistent with the UMA constants on the WebUI history page (history/constants.js).
-    private static final int UMA_MAX_BUCKET_VALUE = 1000;
-    private static final int UMA_MAX_SUBSET_BUCKET_VALUE = 100;
-
-    // TODO(msramek): The WebUI counterpart computes the bucket count by
-    // dividing by 10 until it gets under 100, reaching 10 for both
-    // UMA_MAX_BUCKET_VALUE and UMA_MAX_SUBSET_BUCKET_VALUE, and adds +1
-    // for overflow. How do we keep that in sync with this code?
-    private static final int HISTORY_TAB_INDEX = 0;
-    private static final int JOURNEYS_TAB_INDEX = 1;
 
     private final Activity mActivity;
     private final boolean mIsIncognito;
@@ -102,8 +91,6 @@ public class HistoryManager
 
     private final PrefService mPrefService;
     private final Profile mProfile;
-    private @Nullable TabLayout mHistoryTabToggle;
-    private @Nullable TabLayout mJourneysTabToggle;
 
     private boolean mIsSearching;
 
@@ -130,6 +117,8 @@ public class HistoryManager
      * @param shouldShowClearData Whether the 'Clear browsing data' button should be shown.
      * @param launchedForApp Whether history UI is launched for app-specific history.
      * @param showAppFilter Whether history page will show app filter UI.
+     * @param openHistoryItemCallback Optional callback which is run when a history item is opened
+     *     (not called when history manager is in a separate activity).
      */
     @SuppressWarnings("unchecked") // mSelectableListLayout
     public HistoryManager(
@@ -144,7 +133,8 @@ public class HistoryManager
             @Nullable String clientPackageName,
             boolean shouldShowClearData,
             boolean launchedForApp,
-            boolean showAppFilter) {
+            boolean showAppFilter,
+            @Nullable Runnable openHistoryItemCallback) {
         mActivity = activity;
         mIsSeparateActivity = isSeparateActivity;
         mSnackbarManager = snackbarManager;
@@ -201,13 +191,14 @@ public class HistoryManager
                         historyProvider,
                         clientPackageName,
                         launchedForApp,
-                        showAppFilter);
+                        showAppFilter,
+                        openHistoryItemCallback);
         mSelectableListLayout.initializeRecyclerView(
                 mContentManager.getAdapter(), mContentManager.getRecyclerView());
         if (mContentManager.showAppFilter()) {
             // Now the search mode can have a header. Let the layout ignore it to
             // return the right item count.
-            mSelectableListLayout.ignoreItemTypeForEmptyState(ItemViewType.HEADER);
+            mSelectableListLayout.ignoreItemTypeForEmptyState(ItemViewType.STANDARD_HEADER);
         }
 
         mShouldShowPrivacyDisclaimerSupplier.set(
@@ -230,10 +221,26 @@ public class HistoryManager
                                         : R.menu.history_manager_menu,
                                 launchedForApp);
         mToolbar.setManager(this);
-        mToolbar.setPrefService(UserPrefs.get(profile));
+        mToolbar.setMenuDelegate(
+                new HistoryManagerToolbar.HistoryManagerMenuDelegate() {
+                    @Override
+                    public boolean supportsDeletingHistory() {
+                        return mPrefService.getBoolean(Pref.ALLOW_DELETING_BROWSER_HISTORY);
+                    }
+
+                    @Override
+                    public boolean supportsIncognito() {
+                        return IncognitoUtils.isIncognitoModeEnabled(profile);
+                    }
+                });
         mToolbar.initializeSearchView(this, R.string.history_manager_search, R.id.search_menu_id);
         mToolbar.setInfoMenuItem(R.id.info_menu_id);
         mToolbar.updateInfoMenuItem(shouldShowInfoButton(), shouldShowInfoHeaderIfAvailable());
+
+        // Make the toolbar focusable, so that focus transitions can move out from descendents of
+        // the toolbar to the neighboring delete button, and automatically to other items on the
+        // HistoryPage such as the list of HistoryItem(s).
+        mToolbar.setFocusable(true);
 
         // 4. Width constrain the SelectableListLayout.
         mSelectableListLayout.configureWideDisplayStyle();
@@ -311,27 +318,12 @@ public class HistoryManager
         } else if (item.getItemId() == R.id.selection_mode_delete_menu_id) {
             mUmaRecorder.recordRemoveSelected(mIsSearching);
 
-            int numItemsRemoved = 0;
-            HistoryItem lastItemRemoved = null;
             for (HistoryItem historyItem : mSelectionDelegate.getSelectedItems()) {
                 mContentManager.markItemForRemoval(historyItem);
-                numItemsRemoved++;
-                lastItemRemoved = historyItem;
             }
 
             mContentManager.removeItems();
             mSelectionDelegate.clearSelection();
-
-            if (numItemsRemoved == 1) {
-                assert lastItemRemoved != null;
-                mContentManager.announceItemRemoved(lastItemRemoved);
-            } else if (numItemsRemoved > 1) {
-                mContentManager
-                        .getRecyclerView()
-                        .announceForAccessibility(
-                                mActivity.getString(
-                                        R.string.multiple_history_items_deleted, numItemsRemoved));
-            }
 
             return true;
         } else if (item.getItemId() == R.id.search_menu_id) {
@@ -380,6 +372,13 @@ public class HistoryManager
      */
     public ViewGroup getView() {
         return mRootView;
+    }
+
+    /**
+     * @return The view that shows the list content below toolbar.
+     */
+    View getListContentView() {
+        return mActivity.findViewById(R.id.list_content);
     }
 
     /**
@@ -495,10 +494,10 @@ public class HistoryManager
                 && !mSelectionDelegate.isSelectionEnabled();
     }
 
-    void showIPH() {
-        AppSpecificHistoryIPHController iphController =
-                new AppSpecificHistoryIPHController(mActivity, () -> mProfile);
-        iphController.maybeShowIPH();
+    void showIph() {
+        AppSpecificHistoryIphController iphController =
+                new AppSpecificHistoryIphController(mActivity, () -> mProfile);
+        iphController.maybeShowIph();
     }
 
     /**
@@ -559,9 +558,10 @@ public class HistoryManager
     public void onClearBrowsingDataClicked() {
         mUmaRecorder.recordClearBrowsingData(mIsIncognito);
         // Opens the clear browsing data preference.
-        SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
-        settingsLauncher.launchSettingsActivity(
-                mActivity, SettingsLauncher.SettingsFragment.CLEAR_BROWSING_DATA_ADVANCED_PAGE);
+        SettingsNavigation settingsNavigation =
+                SettingsNavigationFactory.createSettingsNavigation();
+        settingsNavigation.startSettings(
+                mActivity, SettingsNavigation.SettingsFragment.CLEAR_BROWSING_DATA);
     }
 
     // HistoryContentManager.Observer

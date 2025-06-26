@@ -16,6 +16,7 @@
 #include "base/gtest_prod_util.h"
 #include "base/values.h"
 #include "chromeos/ash/components/network/managed_state.h"
+#include "chromeos/ash/components/network/network_config.h"
 #include "chromeos/services/network_config/public/mojom/cros_network_config.mojom-forward.h"
 #include "components/onc/onc_constants.h"
 #include "third_party/cros_system_api/dbus/shill/dbus-constants.h"
@@ -60,6 +61,7 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkState : public ManagedState {
     // The network is connected and no portal is detected.
     kOnline,
     // A portal is suspected but no redirect was provided.
+    // TODO(b/336931625): Remove the kPortalSuspected field.
     kPortalSuspected,
     // The network is in a portal state with a redirect URL.
     kPortal,
@@ -120,10 +122,13 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkState : public ManagedState {
   const std::optional<base::Value::Dict>& proxy_config() const {
     return proxy_config_;
   }
+  // TODO(b/340974631): Deprecate this getter and use network_config() instead.
   const std::optional<base::Value::Dict>& ipv4_config() const {
     return ipv4_config_;
   }
+  // TODO(b/340974631): Deprecate this getter and use network_config() instead.
   std::string GetIpAddress() const;
+  // TODO(b/340974631): Deprecate this getter and use network_config() instead.
   std::string GetGateway() const;
   GURL GetWebProxyAutoDiscoveryUrl() const;
 
@@ -137,6 +142,8 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkState : public ManagedState {
   const std::optional<uint32_t> max_downlink_speed_kbps() const {
     return max_downlink_speed_kbps_;
   }
+
+  const NetworkConfig* network_config() const { return network_config_.get(); }
 
   // Wireless property accessors
   bool connectable() const { return connectable_; }
@@ -233,11 +240,8 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkState : public ManagedState {
   // service.
   bool IsNonShillCellularNetwork() const;
 
-  PortalState shill_portal_state() const { return shill_portal_state_; }
-
-  // Returns the captive portal state for the network, prioritizing Chrome
-  // portal detection results if set.
-  PortalState GetPortalState() const;
+  // Returns the state of automatic captive portal detection for the network.
+  PortalState portal_state() const { return portal_state_; }
 
   // Returns true if the security type is non-empty and not 'none'.
   bool IsSecure() const;
@@ -309,7 +313,6 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkState : public ManagedState {
   constexpr static const int kSignalStrengthChangeThreshold = 5;
 
  private:
-  friend class MobileActivatorTest;
   friend class NetworkStateHandler;
   friend class NetworkStateTest;
 
@@ -317,13 +320,10 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkState : public ManagedState {
   // exists, and validates |name_|. Returns true if |name_| changes.
   bool UpdateName(const base::Value::Dict& properties);
 
-  // Uses the Shill connection state and PortalDetectionFailedStatus to generate
-  // |shill_portal_state_|.
+  // Uses the Shill connection state to generate |portal_state_|.
   void UpdateCaptivePortalState(const base::Value::Dict& properties);
 
   void SetVpnProvider(const std::string& id, const std::string& type);
-
-  void SetChromePortalState(PortalState portal_state);
 
   // Set to true if the network is a member of Manager.Services.
   bool visible_ = false;
@@ -345,6 +345,7 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkState : public ManagedState {
   ::onc::ONCSource onc_source_ = ::onc::ONC_SOURCE_UNKNOWN;
   std::optional<uint32_t> max_uplink_speed_kbps_;
   std::optional<uint32_t> max_downlink_speed_kbps_;
+  std::unique_ptr<NetworkConfig> network_config_;
 
   // Last non empty Service.Error property. Expected to be cleared via
   // ClearError() when a connection attempt is initiated and when an associated
@@ -395,8 +396,7 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkState : public ManagedState {
   std::string tether_carrier_;
   int battery_percentage_ = 0;
 
-  PortalState shill_portal_state_ = PortalState::kUnknown;
-  PortalState chrome_portal_state_ = PortalState::kUnknown;
+  PortalState portal_state_ = PortalState::kUnknown;
 
   // Whether the current device has already connected to the tether host device
   // providing the hotspot corresponding to this NetworkState.

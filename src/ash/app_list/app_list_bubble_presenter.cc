@@ -15,12 +15,14 @@
 #include "ash/app_list/views/app_list_bubble_apps_collections_page.h"
 #include "ash/app_list/views/app_list_bubble_apps_page.h"
 #include "ash/app_list/views/app_list_bubble_view.h"
-#include "ash/app_list/views/app_list_drag_and_drop_host.h"
+#include "ash/app_list/views/search_box_view.h"
+#include "ash/capture_mode/capture_mode_controller.h"
 #include "ash/public/cpp/app_list/app_list_client.h"
 #include "ash/public/cpp/app_list/app_list_features.h"
 #include "ash/public/cpp/app_list/app_list_types.h"
 #include "ash/public/cpp/assistant/controller/assistant_ui_controller.h"
 #include "ash/public/cpp/shell_window_ids.h"
+#include "ash/scanner/scanner_metrics.h"
 #include "ash/shelf/home_button.h"
 #include "ash/shelf/shelf.h"
 #include "ash/shelf/shelf_navigation_widget.h"
@@ -148,6 +150,7 @@ gfx::Rect ComputeBubbleBounds(aura::Window* root_window,
 views::Widget* CreateBubbleWidget(aura::Window* root_window) {
   views::Widget* widget = new views::Widget();
   views::Widget::InitParams params(
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
   params.name = "AppListBubble";
   params.parent =
@@ -220,8 +223,6 @@ void AppListBubblePresenter::OnZeroStateSearchDone(int64_t display_id) {
     return;
 
   Shelf* shelf = Shelf::ForWindow(root_window);
-  ApplicationDragAndDropHost* drag_and_drop_host =
-      shelf->shelf_widget()->GetDragAndDropHostForAppList();
   HomeButton* home_button = shelf->navigation_widget()->GetHomeButton();
 
   if (!bubble_widget_) {
@@ -234,7 +235,7 @@ void AppListBubblePresenter::OnZeroStateSearchDone(int64_t display_id) {
     bubble_widget_->GetNativeWindow()->SetEventTargeter(
         std::make_unique<AppListEventTargeter>(controller_));
     bubble_view_ = bubble_widget_->SetContentsView(
-        std::make_unique<AppListBubbleView>(controller_, drag_and_drop_host));
+        std::make_unique<AppListBubbleView>(controller_));
     // Some of Assistant UIs have to be initialized explicitly. See details in
     // the comment of AppListBubbleView::InitializeUIForBubbleView.
     bubble_view_->InitializeUIForBubbleView();
@@ -256,9 +257,6 @@ void AppListBubblePresenter::OnZeroStateSearchDone(int64_t display_id) {
                       base::TimeTicks::Now() - time_shown);
   } else {
     DCHECK(bubble_view_);
-    // The bubble widget is cached, but it may change displays. Update pointers
-    // that are tied to the display.
-    bubble_view_->SetDragAndDropHostOfCurrentAppList(drag_and_drop_host);
     // Refresh suggestions now that zero-state search data is updated.
     bubble_view_->UpdateSuggestions();
     bubble_event_filter_->SetButton(home_button);
@@ -273,9 +271,6 @@ void AppListBubblePresenter::OnZeroStateSearchDone(int64_t display_id) {
   // we are coming out of tablet mode.
   controller_->SetKeyboardTraversalMode(true);
 
-  shelf_observer_.Reset();
-  shelf_observer_.Observe(shelf);
-
   bubble_widget_->Show();
   // The page must be set before triggering the show animation so the correct
   // animations are triggered.
@@ -283,6 +278,15 @@ void AppListBubblePresenter::OnZeroStateSearchDone(int64_t display_id) {
   const bool is_side_shelf = !shelf->IsHorizontalAlignment();
   bubble_view_->StartShowAnimation(is_side_shelf);
   controller_->OnVisibilityChanged(/*visible=*/true, display_id);
+
+  // Show the sunfish nudge after the widget is shown, so the anchor view is
+  // visible.
+  views::ImageButton* sunfish_button =
+      bubble_view_->search_box_view()->sunfish_button();
+  // `sunfish_button` is always initialised in `SearchBoxView`'s
+  // constructor.
+  CHECK(sunfish_button);
+  controller_->MaybeShowSunfishLauncherNudge(sunfish_button);
 }
 
 ShelfAction AppListBubblePresenter::Toggle(int64_t display_id) {
@@ -330,10 +334,6 @@ void AppListBubblePresenter::Dismiss() {
 
   // Clean up assistant if it is showing.
   controller_->ScheduleCloseAssistant();
-
-  shelf_observer_.Reset();
-  if (bubble_view_)
-    bubble_view_->SetDragAndDropHostOfCurrentAppList(nullptr);
 }
 
 aura::Window* AppListBubblePresenter::GetWindow() const {
@@ -455,12 +455,6 @@ void AppListBubblePresenter::OnDisplayMetricsChanged(
   aura::Window* root_window =
       bubble_widget_->GetNativeWindow()->GetRootWindow();
   bubble_widget_->SetBounds(ComputeBubbleBounds(root_window, bubble_view_));
-}
-
-void AppListBubblePresenter::OnShelfShuttingDown() {
-  shelf_observer_.Reset();
-  if (bubble_view_)
-    bubble_view_->SetDragAndDropHostOfCurrentAppList(nullptr);
 }
 
 void AppListBubblePresenter::OnPressOutsideBubble(

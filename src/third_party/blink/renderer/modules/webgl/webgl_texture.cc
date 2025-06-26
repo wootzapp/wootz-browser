@@ -31,16 +31,18 @@
 namespace blink {
 
 WebGLTexture::WebGLTexture(WebGLRenderingContextBase* ctx)
-    : WebGLSharedPlatform3DObject(ctx), target_(0) {
-  GLuint texture;
-  ctx->ContextGL()->GenTextures(1, &texture);
-  SetObject(texture);
+    : WebGLObject(ctx), target_(0) {
+  if (!ctx->isContextLost()) {
+    GLuint texture;
+    ctx->ContextGL()->GenTextures(1, &texture);
+    SetObject(texture);
+  }
 }
 
 WebGLTexture::WebGLTexture(WebGLRenderingContextBase* ctx,
                            GLuint texture,
                            GLenum target)
-    : WebGLSharedPlatform3DObject(ctx), target_(target) {
+    : WebGLObject(ctx), target_(target) {
   SetObject(texture);
 }
 
@@ -56,8 +58,7 @@ void WebGLTexture::SetTarget(GLenum target) {
 }
 
 void WebGLTexture::DeleteObjectImpl(gpu::gles2::GLES2Interface* gl) {
-  gl->DeleteTextures(1, &object_);
-  object_ = 0;
+  gl->DeleteTextures(1, &Object());
 }
 
 int WebGLTexture::MapTargetToIndex(GLenum target) const {

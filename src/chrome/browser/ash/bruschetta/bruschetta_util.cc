@@ -6,11 +6,13 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ash/bruschetta/bruschetta_pref_names.h"
+#include "chrome/browser/ash/bruschetta/bruschetta_service.h"
+#include "chrome/browser/ash/bruschetta/bruschetta_service_factory.h"
 #include "chrome/browser/ash/guest_os/guest_id.h"
 #include "chrome/browser/ash/guest_os/guest_os_pref_names.h"
-#include "chrome/browser/ash/guest_os/virtual_machines/virtual_machines_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/grit/generated_resources.h"
+#include "chromeos/ash/experiences/guest_os/virtual_machines/virtual_machines_util.h"
 #include "components/prefs/pref_service.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -48,19 +50,25 @@ const char kUefiDlc[] = "edk2-ovmf-dlc";
 
 const char kBruschettaVmName[] = "bru";
 
-const char* BruschettaResultString(const BruschettaResult res) {
-#define ENTRY(name)            \
-  case BruschettaResult::name: \
-    return #name
+const std::string BruschettaResultString(const BruschettaResult res) {
   switch (res) {
-    ENTRY(kUnknown);
-    ENTRY(kSuccess);
-    ENTRY(kDlcInstallError);
-    ENTRY(kStartVmFailed);
-    ENTRY(kTimeout);
-    ENTRY(kForbiddenByPolicy);
+    case BruschettaResult::kUnknown:
+      return l10n_util::GetStringUTF8(IDS_BRUSCHETTA_RESULT_UNKNOWN);
+    case BruschettaResult::kSuccess:
+      return l10n_util::GetStringUTF8(IDS_BRUSCHETTA_RESULT_SUCCESS);
+    case BruschettaResult::kDlcInstallError:
+      return l10n_util::GetStringUTF8(IDS_BRUSCHETTA_RESULT_DLC_INSTALL_ERROR);
+    case BruschettaResult::kStartVmFailed:
+      return l10n_util::GetStringUTF8(IDS_BRUSCHETTA_RESULT_START_VM_FAILED);
+    case BruschettaResult::kTimeout:
+      return l10n_util::GetStringUTF8(IDS_BRUSCHETTA_RESULT_TIMEOUT);
+    case BruschettaResult::kForbiddenByPolicy:
+      return l10n_util::GetStringUTF8(
+          IDS_BRUSCHETTA_RESULT_FORBIDDEN_BY_POLICY);
+    case BruschettaResult::kConciergeUnavailable:
+      return l10n_util::GetStringUTF8(
+          IDS_BRUSCHETTA_RESULT_CONCIERGE_UNAVAILABLE);
   }
-#undef ENTRY
   return "unknown code";
 }
 
@@ -224,6 +232,15 @@ std::string GetDisplayName(Profile* profile, guest_os::GuestId guest) {
   // <vm_name>:<container_name>, but container_name isn't meaningful for us
   // so just use the vm_name instead.
   return guest.vm_name;
+}
+
+bool IsBruschettaRunning(Profile* profile) {
+  auto* service = bruschetta::BruschettaServiceFactory::GetForProfile(profile);
+  return service && service->IsVmRunning(kBruschettaVmName);
+}
+
+std::string GetBruschettaDisplayName(Profile* profile) {
+  return GetDisplayName(profile, GetBruschettaAlphaId());
 }
 
 }  // namespace bruschetta

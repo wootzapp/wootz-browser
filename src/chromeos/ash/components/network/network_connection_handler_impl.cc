@@ -4,6 +4,7 @@
 
 #include "chromeos/ash/components/network/network_connection_handler_impl.h"
 
+#include <algorithm>
 #include <memory>
 #include <ostream>
 
@@ -15,7 +16,6 @@
 #include "base/json/json_reader.h"
 #include "base/location.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
@@ -112,8 +112,7 @@ bool IsCertificateConfigured(const client_cert::ConfigType cert_config_type,
       return !client_cert_id.empty();
     }
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 std::string VPNCheckCredentials(const std::string& service_path,
@@ -225,7 +224,7 @@ std::ostream& operator<<(std::ostream& stream, client_cert::ConfigType type) {
       stream << "EAP";
       return stream;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 }  // namespace
@@ -413,8 +412,7 @@ void NetworkConnectionHandlerImpl::ConnectToNetwork(
           // If device is carrier locked, it could be unlocked only by the
           // carrier, so notification to the user is different from the case
           // where where SIM is locked using PIN/PUK code.
-          if (features::IsCellularCarrierLockEnabled() &&
-              cellular_device->IsSimCarrierLocked()) {
+          if (cellular_device->IsSimCarrierLocked()) {
             InvokeConnectErrorCallback(service_path, std::move(error_callback),
                                        kErrorSimCarrierLocked);
             return;
@@ -607,7 +605,7 @@ NetworkConnectionHandlerImpl::GetPendingRequest(
 }
 
 bool NetworkConnectionHandlerImpl::HasPendingCellularRequest() const {
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       pending_requests_,
       [&](const std::pair<const std::string, std::unique_ptr<ConnectRequest>>&
               pair) {
@@ -1103,6 +1101,13 @@ void NetworkConnectionHandlerImpl::CheckPendingRequest(
     return;
   }
   if (NetworkState::StateIsConnected(connection_state)) {
+    if (network->type() == shill::kTypeWifi) {
+      base::Value::Dict config_properties;
+      config_properties.Set(shill::kGuidProperty, network->guid());
+      configuration_handler_->SetShillProperties(
+          service_path, config_properties, base::DoNothing(),
+          network_handler::ErrorCallback());
+    }
     if (!request->profile_path.empty()) {
       // If a profile path was specified, set it on a successful connection.
       configuration_handler_->SetNetworkProfile(

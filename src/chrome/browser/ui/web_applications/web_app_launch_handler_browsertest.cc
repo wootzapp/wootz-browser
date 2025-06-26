@@ -5,7 +5,6 @@
 #include "base/strings/strcat.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_list.h"
@@ -76,8 +75,9 @@ class WebAppLaunchHandlerBrowserTest : public WebAppBrowserTestBase {
     webapps::AppId app_id = InstallWebAppFromPage(
         browser(), embedded_test_server()->GetURL(test_file_path));
 
-    if (await_metric)
+    if (await_metric) {
       metrics_waiter.Wait();
+    }
 
     // Installing a web app will pop it out to a new window.
     // Close this to avoid it interfering with test steps.
@@ -135,10 +135,6 @@ class WebAppLaunchHandlerBrowserTest : public WebAppBrowserTestBase {
                   "window.nextLaunchParamsTargetURLPromise")
         .ExtractString();
   }
-
- private:
-  base::test::ScopedFeatureList feature_list_{
-      blink::features::kWebAppEnableLaunchHandler};
 };
 
 IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerBrowserTest, ClientModeEmpty) {
@@ -157,7 +153,9 @@ IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerBrowserTest, ClientModeAuto) {
   base::HistogramTester histogram_tester;
   webapps::AppId app_id = InstallTestWebApp(
       "/web_apps/get_manifest.html?launch_handler_client_mode_auto.json");
-  EXPECT_EQ(GetLaunchHandler(app_id), (LaunchHandler{ClientMode::kAuto}));
+  auto launch_handler = GetLaunchHandler(app_id);
+  EXPECT_EQ(ClientMode::kAuto, launch_handler->parsed_client_mode());
+  EXPECT_TRUE(launch_handler->client_mode_valid_and_specified());
 
   ExpectNavigateNewBehavior(app_id);
 
@@ -170,8 +168,9 @@ IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerBrowserTest, ClientModeNavigateNew) {
   webapps::AppId app_id = InstallTestWebApp(
       "/web_apps/get_manifest.html?"
       "launch_handler_client_mode_navigate_new.json");
-  EXPECT_EQ(GetLaunchHandler(app_id),
-            (LaunchHandler{ClientMode::kNavigateNew}));
+  auto launch_handler = GetLaunchHandler(app_id);
+  EXPECT_EQ(ClientMode::kNavigateNew, launch_handler->parsed_client_mode());
+  EXPECT_TRUE(launch_handler->client_mode_valid_and_specified());
 
   ExpectNavigateNewBehavior(app_id);
 
@@ -190,8 +189,10 @@ IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerBrowserTest,
       "client_mode=navigate-existing");
 
   base::HistogramTester histogram_tester;
-  EXPECT_EQ(GetLaunchHandler(app_id),
-            (LaunchHandler{ClientMode::kNavigateExisting}));
+  auto launch_handler = GetLaunchHandler(app_id);
+  EXPECT_EQ(ClientMode::kNavigateExisting,
+            launch_handler->parsed_client_mode());
+  EXPECT_TRUE(launch_handler->client_mode_valid_and_specified());
 
   // Create first web app browser window.
   Browser* app_browser = LaunchWebAppBrowserAndWait(app_id);
@@ -245,8 +246,9 @@ IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerBrowserTest,
       "client_mode=focus-existing");
 
   base::HistogramTester histogram_tester;
-  EXPECT_EQ(GetLaunchHandler(app_id),
-            (LaunchHandler{ClientMode::kFocusExisting}));
+  auto launch_handler = GetLaunchHandler(app_id);
+  EXPECT_EQ(ClientMode::kFocusExisting, launch_handler->parsed_client_mode());
+  EXPECT_TRUE(launch_handler->client_mode_valid_and_specified());
 
   Browser* browser_1 = LaunchWebAppBrowserAndWait(app_id);
   content::WebContents* web_contents =
@@ -316,8 +318,9 @@ IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerBrowserTest,
   webapps::AppId app_id = InstallTestWebApp(
       "/web_apps/get_manifest.html?"
       "launch_handler_client_mode_focus_existing.json");
-  EXPECT_EQ(GetLaunchHandler(app_id),
-            (LaunchHandler{ClientMode::kFocusExisting}));
+  auto launch_handler = GetLaunchHandler(app_id);
+  EXPECT_EQ(ClientMode::kFocusExisting, launch_handler->parsed_client_mode());
+  EXPECT_TRUE(launch_handler->client_mode_valid_and_specified());
 
   ui_test_utils::UrlLoadObserver url_observer(
       WebAppProvider::GetForTest(profile())->registrar_unsafe().GetAppLaunchUrl(
@@ -367,8 +370,10 @@ IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerBrowserTest,
   webapps::AppId app_id = InstallTestWebApp(
       "/web_apps/get_manifest.html?"
       "launch_handler_client_mode_navigate_existing.json");
-  EXPECT_EQ(GetLaunchHandler(app_id),
-            (LaunchHandler{ClientMode::kNavigateExisting}));
+  auto launch_handler = GetLaunchHandler(app_id);
+  EXPECT_EQ(ClientMode::kNavigateExisting,
+            launch_handler->parsed_client_mode());
+  EXPECT_TRUE(launch_handler->client_mode_valid_and_specified());
 
   // Launch the app three times in quick succession.
   Browser* browser_1 = LaunchWebAppBrowserAndWait(app_id);
@@ -406,8 +411,9 @@ IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerBrowserTest,
   webapps::AppId app_id = InstallTestWebApp(
       "/web_apps/get_manifest.html?"
       "launch_handler_client_mode_navigate_new.json");
-  EXPECT_EQ(GetLaunchHandler(app_id),
-            (LaunchHandler{ClientMode::kNavigateNew}));
+  auto launch_handler = GetLaunchHandler(app_id);
+  EXPECT_EQ(ClientMode::kNavigateNew, launch_handler->parsed_client_mode());
+  EXPECT_TRUE(launch_handler->client_mode_valid_and_specified());
 
   // Launch the web app and immediately navigate it out of scope during its
   // initial navigation.
@@ -456,7 +462,7 @@ IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerBrowserTest, GlobalLaunchQueue) {
 
 // https://crbug.com/1444959
 // TODO(crbug.com/40919435): Re-enable this test
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX)
 #define MAYBE_SelectActiveBrowser DISABLED_SelectActiveBrowser
 #else
 #define MAYBE_SelectActiveBrowser SelectActiveBrowser
@@ -482,171 +488,6 @@ IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerBrowserTest,
   Browser* browser_3 = LaunchWebAppBrowser(app_id);
   // Select the most recently opened app window.
   EXPECT_EQ(browser_3, browser_2);
-}
-
-class WebAppLaunchHandlerDisabledBrowserTest : public WebAppBrowserTestBase {
- public:
-  WebAppLaunchHandlerDisabledBrowserTest() {
-    feature_list_.InitWithFeatures(
-        {}, {blink::features::kWebAppEnableLaunchHandler});
-  }
-  ~WebAppLaunchHandlerDisabledBrowserTest() override = default;
-
-  Profile* profile() { return browser()->profile(); }
-
-  // WebAppBrowserTestBase:
-  void SetUpOnMainThread() override {
-    WebAppBrowserTestBase::SetUpOnMainThread();
-    ASSERT_TRUE(embedded_test_server()->Start());
-    web_app::test::WaitUntilReady(
-        web_app::WebAppProvider::GetForTest(profile()));
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerDisabledBrowserTest,
-                       LaunchQueueNoLaunchHandlers) {
-  base::HistogramTester histogram_tester;
-  webapps::AppId app_id = InstallWebAppFromPage(
-      browser(), embedded_test_server()->GetURL("/web_apps/basic.html"));
-
-  Browser* app_browser = LaunchWebAppBrowserAndWait(app_id);
-  content::WebContents* web_contents =
-      app_browser->tab_strip_model()->GetActiveWebContents();
-
-  EXPECT_TRUE(EvalJs(web_contents, "!!window.LaunchQueue").ExtractBool());
-  EXPECT_TRUE(EvalJs(web_contents, "!!window.launchQueue").ExtractBool());
-  EXPECT_TRUE(EvalJs(web_contents, "!!window.LaunchParams").ExtractBool());
-
-  histogram_tester.ExpectTotalCount(kLaunchHandlerHistogram, 0);
-}
-
-class WebAppLaunchHandlerOriginTrialBrowserTest : public WebAppBrowserTestBase {
- public:
-  WebAppLaunchHandlerOriginTrialBrowserTest() {
-    feature_list_.InitAndDisableFeature(
-        blink::features::kWebAppEnableLaunchHandler);
-  }
-  ~WebAppLaunchHandlerOriginTrialBrowserTest() override = default;
-
-  // WebAppBrowserTestBase:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    // Using the test public key from docs/origin_trials_integration.md#Testing.
-    command_line->AppendSwitchASCII(
-        embedder_support::kOriginTrialPublicKey,
-        "dRCs+TocuKkocNKa0AtZ4awrt9XKH2SQCI6o4FY6BNA=");
-  }
-  void SetUpOnMainThread() override {
-    WebAppBrowserTestBase::SetUpOnMainThread();
-    web_app::test::WaitUntilReady(
-        web_app::WebAppProvider::GetForTest(browser()->profile()));
-  }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
-};
-namespace {
-
-// InstallableManager requires https or localhost to load the manifest. Go with
-// localhost to avoid having to set up cert servers.
-constexpr char kTestWebAppUrl[] = "http://127.0.0.1:8000/";
-constexpr char kTestWebAppHeaders[] =
-    "HTTP/1.1 200 OK\nContent-Type: text/html; charset=utf-8\n";
-constexpr char kTestWebAppBody[] = R"(
-  <!DOCTYPE html>
-  <head>
-    <link rel="manifest" href="manifest.webmanifest">
-    <meta http-equiv="origin-trial" content="$1">
-  </head>
-)";
-
-constexpr char kTestIconUrl[] = "http://127.0.0.1:8000/icon.png";
-constexpr char kTestManifestUrl[] =
-    "http://127.0.0.1:8000/manifest.webmanifest";
-constexpr char kTestManifestHeaders[] =
-    "HTTP/1.1 200 OK\nContent-Type: application/json; charset=utf-8\n";
-constexpr char kTestManifestBody[] = R"({
-  "name": "Test app",
-  "display": "standalone",
-  "start_url": "/",
-  "scope": "/",
-  "icons": [{
-    "src": "icon.png",
-    "sizes": "192x192",
-    "type": "image/png"
-  }],
-  "launch_handler": {
-    "client_mode": "focus-existing"
-  }
-})";
-
-// Generated from script:
-// $ tools/origin_trials/generate_token.py http://127.0.0.1:8000 "Launch
-// Handler" --expire-timestamp=2000000000
-constexpr char kOriginTrialToken[] =
-    "A12ynArMVnf0OepZoKB23txoJ/"
-    "jicU25In+"
-    "UseVdaSziSYtPMfobhyEhFdVasQ90uo4LMf2G6AIyRFxALB4oQgEAAABWeyJvcmlnaW4iOiAia"
-    "HR0cDovLzEyNy4wLjAuMTo4MDAwIiwgImZlYXR1cmUiOiAiTGF1bmNoIEhhbmRsZXIiLCAiZXh"
-    "waXJ5IjogMjAwMDAwMDAwMH0=";
-
-}  // namespace
-
-IN_PROC_BROWSER_TEST_F(WebAppLaunchHandlerOriginTrialBrowserTest, OriginTrial) {
-  ManifestUpdateManager::ScopedBypassWindowCloseWaitingForTesting
-      bypass_window_close_waiting;
-
-  bool serve_token = true;
-  content::URLLoaderInterceptor interceptor(base::BindLambdaForTesting(
-      [&serve_token](
-          content::URLLoaderInterceptor::RequestParams* params) -> bool {
-        if (params->url_request.url.spec() == kTestWebAppUrl) {
-          content::URLLoaderInterceptor::WriteResponse(
-              kTestWebAppHeaders,
-              base::ReplaceStringPlaceholders(
-                  kTestWebAppBody, {serve_token ? kOriginTrialToken : ""},
-                  nullptr),
-              params->client.get());
-          return true;
-        }
-        if (params->url_request.url.spec() == kTestManifestUrl) {
-          content::URLLoaderInterceptor::WriteResponse(
-              kTestManifestHeaders, kTestManifestBody, params->client.get());
-          return true;
-        }
-        if (params->url_request.url.spec() == kTestIconUrl) {
-          content::URLLoaderInterceptor::WriteResponse(
-              "chrome/test/data/web_apps/basic-192.png", params->client.get());
-          return true;
-        }
-        return false;
-      }));
-
-  // Install web app with origin trial token.
-  webapps::AppId app_id =
-      InstallWebAppFromPage(browser(), GURL(kTestWebAppUrl));
-
-  // Origin trial should grant the app access.
-  WebAppProvider& provider = *WebAppProvider::GetForTest(browser()->profile());
-  EXPECT_EQ(provider.registrar_unsafe().GetAppById(app_id)->launch_handler(),
-            (LaunchHandler{ClientMode::kFocusExisting}));
-
-  // Open the page again with the token missing.
-  {
-    UpdateAwaiter update_awaiter(provider.install_manager());
-
-    serve_token = false;
-    EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), GURL(kTestWebAppUrl)));
-
-    update_awaiter.AwaitUpdate();
-  }
-
-  // The app should update to no longer have launch_handler defined without the
-  // origin trial.
-  EXPECT_EQ(provider.registrar_unsafe().GetAppById(app_id)->launch_handler(),
-            std::nullopt);
 }
 
 }  // namespace web_app

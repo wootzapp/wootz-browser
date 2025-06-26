@@ -11,18 +11,18 @@ import android.os.Bundle;
 import android.text.style.ClickableSpan;
 import android.view.View;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.content.res.AppCompatResources;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
-import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
+import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.night_mode.NightModeMetrics.ThemeSettingsEntry;
 import org.chromium.chrome.browser.night_mode.settings.ThemeSettingsFragment;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
+import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.components.feature_engagement.EventConstants;
 import org.chromium.components.feature_engagement.FeatureConstants;
 import org.chromium.components.feature_engagement.Tracker;
@@ -46,6 +46,7 @@ import org.chromium.ui.text.SpanApplier.SpanInfo;
  * A controller class for the messages that will educate the user about the auto-dark web contents
  * feature.
  */
+@NullMarked
 public class WebContentsDarkModeMessageController {
     @VisibleForTesting static final String FEEDBACK_DIALOG_PARAM = "feedback_dialog";
     @VisibleForTesting static final String OPT_OUT_PARAM = "opt_out";
@@ -70,11 +71,11 @@ public class WebContentsDarkModeMessageController {
                         true);
         if (optOut) {
             return featureEnabled
-                    && tracker.shouldTriggerHelpUI(
+                    && tracker.shouldTriggerHelpUi(
                             FeatureConstants.AUTO_DARK_USER_EDUCATION_MESSAGE_FEATURE);
         } else {
             return !featureEnabled
-                    && tracker.shouldTriggerHelpUI(
+                    && tracker.shouldTriggerHelpUi(
                             FeatureConstants.AUTO_DARK_USER_EDUCATION_MESSAGE_OPT_IN_FEATURE);
         }
     }
@@ -100,14 +101,12 @@ public class WebContentsDarkModeMessageController {
      * @param activity Activity for resources and to launch SettingsActivity from.
      * @param profile Profile associated with current tab.
      * @param webContents WebContents associated with current tab.
-     * @param settingsLauncher Launcher into theme settings.
      * @param messageDispatcher Dispatcher for the message we are creating.
      */
     public static void attemptToSendMessage(
             Activity activity,
             Profile profile,
             @Nullable WebContents webContents,
-            SettingsLauncher settingsLauncher,
             MessageDispatcher messageDispatcher) {
         if (!shouldSendMessage(profile, activity)) return;
 
@@ -116,16 +115,15 @@ public class WebContentsDarkModeMessageController {
                 ChromeFeatureList.DARKEN_WEBSITES_CHECKBOX_IN_THEMES_SETTING,
                 OPT_OUT_PARAM,
                 true)) {
-            sendOptOutMessage(activity, profile, settingsLauncher, messageDispatcher, null);
+            sendOptOutMessage(activity, profile, messageDispatcher, null);
         } else {
-            sendOptInMessage(activity, profile, webContents, settingsLauncher, messageDispatcher);
+            sendOptInMessage(activity, profile, webContents, messageDispatcher);
         }
     }
 
     private static void sendOptOutMessage(
             Activity activity,
             Profile profile,
-            SettingsLauncher settingsLauncher,
             MessageDispatcher messageDispatcher,
             @Nullable String description) {
         Resources resources = activity.getResources();
@@ -150,13 +148,13 @@ public class WebContentsDarkModeMessageController {
                         .with(
                                 MessageBannerProperties.ON_PRIMARY_ACTION,
                                 () -> {
-                                    onOptOutPrimaryAction(activity, settingsLauncher);
+                                    onOptOutPrimaryAction(activity);
                                     return PrimaryActionClickBehavior.DISMISS_IMMEDIATELY;
                                 })
                         .with(
                                 MessageBannerProperties.ON_DISMISSED,
                                 (dismissReason) -> {
-                                    onOptOutMessageDismissed(profile, dismissReason);
+                                    onOptOutMessageDismissed(profile);
                                 })
                         .build();
         messageDispatcher.enqueueWindowScopedMessage(message, false);
@@ -165,8 +163,7 @@ public class WebContentsDarkModeMessageController {
     private static void sendOptInMessage(
             Activity activity,
             Profile profile,
-            WebContents webContents,
-            SettingsLauncher settingsLauncher,
+            @Nullable WebContents webContents,
             MessageDispatcher messageDispatcher) {
         Resources resources = activity.getResources();
         PropertyModel message =
@@ -199,12 +196,7 @@ public class WebContentsDarkModeMessageController {
                                 MessageBannerProperties.ON_DISMISSED,
                                 (dismissReason) -> {
                                     onOptInMessageDismissed(
-                                            activity,
-                                            profile,
-                                            webContents,
-                                            settingsLauncher,
-                                            messageDispatcher,
-                                            dismissReason);
+                                            activity, profile, messageDispatcher, dismissReason);
                                 })
                         .build();
         messageDispatcher.enqueueWindowScopedMessage(message, false);
@@ -214,20 +206,20 @@ public class WebContentsDarkModeMessageController {
      * The primary action associated with the created message for the opt-out arm. In this case, the
      * settings page is opened to show users where to change the auto-dark settings.
      */
-    private static void onOptOutPrimaryAction(
-            Activity activity, SettingsLauncher settingsLauncher) {
+    private static void onOptOutPrimaryAction(Activity activity) {
         Bundle args = new Bundle();
         args.putInt(
                 ThemeSettingsFragment.KEY_THEME_SETTINGS_ENTRY,
                 ThemeSettingsEntry.AUTO_DARK_MODE_MESSAGE);
-        settingsLauncher.launchSettingsActivity(activity, ThemeSettingsFragment.class, args);
+        SettingsNavigationFactory.createSettingsNavigation()
+                .startSettings(activity, ThemeSettingsFragment.class, args);
     }
 
     /**
      * The primary action associated with the created message for the opt-in arm. In this case, the
      * global setting is enabled.
      */
-    private static void onOptInPrimaryAction(Profile profile, WebContents webContents) {
+    private static void onOptInPrimaryAction(Profile profile, @Nullable WebContents webContents) {
         WebContentsDarkModeController.setGlobalUserSettings(profile, true);
         if (webContents != null) {
             webContents.notifyRendererPreferenceUpdate();
@@ -235,8 +227,7 @@ public class WebContentsDarkModeMessageController {
     }
 
     /** Record that the opt-out message was dismissed. */
-    private static void onOptOutMessageDismissed(
-            Profile profile, @DismissReason int dismissReason) {
+    private static void onOptOutMessageDismissed(Profile profile) {
         Tracker tracker = TrackerFactory.getTrackerForProfile(profile);
         tracker.dismissed(FeatureConstants.AUTO_DARK_USER_EDUCATION_MESSAGE_FEATURE);
     }
@@ -248,8 +239,6 @@ public class WebContentsDarkModeMessageController {
     private static void onOptInMessageDismissed(
             Activity activity,
             Profile profile,
-            WebContents webContents,
-            SettingsLauncher settingsLauncher,
             MessageDispatcher messageDispatcher,
             @DismissReason int dismissReason) {
         Tracker tracker = TrackerFactory.getTrackerForProfile(profile);
@@ -259,7 +248,6 @@ public class WebContentsDarkModeMessageController {
             sendOptOutMessage(
                     activity,
                     profile,
-                    settingsLauncher,
                     messageDispatcher,
                     activity.getResources().getString(R.string.auto_dark_message_opt_in_body));
         }
@@ -276,19 +264,12 @@ public class WebContentsDarkModeMessageController {
      * @param profile The current profile.
      * @param url The url the user is currently on.
      * @param modalDialogManager Manager that triggers the dialog.
-     * @param settingsLauncher Launcher for theme settings.
-     * @param feedbackLauncher Launcher for feedback flow.
      */
     public static void attemptToShowDialog(
-            Activity activity,
-            Profile profile,
-            String url,
-            ModalDialogManager modalDialogManager,
-            SettingsLauncher settingsLauncher,
-            HelpAndFeedbackLauncher feedbackLauncher) {
+            Activity activity, Profile profile, String url, ModalDialogManager modalDialogManager) {
         Tracker tracker = TrackerFactory.getTrackerForProfile(profile);
         tracker.notifyEvent(EventConstants.AUTO_DARK_DISABLED_IN_APP_MENU);
-        if (!tracker.shouldTriggerHelpUI(FeatureConstants.AUTO_DARK_OPT_OUT_FEATURE)) return;
+        if (!tracker.shouldTriggerHelpUi(FeatureConstants.AUTO_DARK_OPT_OUT_FEATURE)) return;
 
         // Set values and click action based on whether or not the feedback flow is enabled.
         Resources resources = activity.getResources();
@@ -303,7 +284,7 @@ public class WebContentsDarkModeMessageController {
                         : R.string.auto_dark_dialog_no_feedback_title;
         CharSequence message =
                 feedbackDialogEnabled
-                        ? getFormattedMessageText(activity, settingsLauncher)
+                        ? getFormattedMessageText(activity)
                         : resources.getString(R.string.auto_dark_dialog_no_feedback_message);
         int positiveButtonId =
                 feedbackDialogEnabled
@@ -317,9 +298,9 @@ public class WebContentsDarkModeMessageController {
                         if (buttonType == ButtonType.TITLE_ICON) return;
                         if (buttonType == ButtonType.POSITIVE) {
                             if (feedbackDialogEnabled) {
-                                showFeedback(feedbackLauncher, activity, url);
+                                showFeedback(activity, profile, url);
                             } else {
-                                openSettings(settingsLauncher, activity);
+                                openSettings(activity);
                             }
                         }
 
@@ -360,47 +341,43 @@ public class WebContentsDarkModeMessageController {
     }
 
     /** Show feedback. */
-    private static void showFeedback(
-            HelpAndFeedbackLauncher launcher, Activity activity, String url) {
+    private static void showFeedback(Activity activity, Profile profile, String url) {
         // TODO(crbug.com/40201746): Import ScreenshotMode instead of hardcoding value once new
         // build
         //  target added.
-        launcher.showFeedback(activity, url, null, /* ScreenshotMode.DEFAULT */ 0, null);
+        HelpAndFeedbackLauncherFactory.getForProfile(profile)
+                .showFeedback(activity, url, null, /* ScreenshotMode.DEFAULT */ 0, null);
     }
 
     /** Open settings */
-    private static void openSettings(SettingsLauncher launcher, Context context) {
+    private static void openSettings(Context context) {
         Bundle args = new Bundle();
         args.putInt(
                 ThemeSettingsFragment.KEY_THEME_SETTINGS_ENTRY,
                 ThemeSettingsEntry.AUTO_DARK_MODE_DIALOG);
-        launcher.launchSettingsActivity(context, ThemeSettingsFragment.class, args);
+        SettingsNavigationFactory.createSettingsNavigation()
+                .startSettings(context, ThemeSettingsFragment.class, args);
     }
 
     /** Returns link-formatted message text for the auto dark dialog. */
-    private static CharSequence getFormattedMessageText(
-            Context context, SettingsLauncher settingsLauncher) {
+    private static CharSequence getFormattedMessageText(Context context) {
         Resources resources = context.getResources();
         String messageText = resources.getString(R.string.auto_dark_dialog_message);
         return SpanApplier.applySpans(
-                messageText,
-                new SpanInfo(
-                        "<link>", "</link>", new AutoDarkClickableSpan(context, settingsLauncher)));
+                messageText, new SpanInfo("<link>", "</link>", new AutoDarkClickableSpan(context)));
     }
 
     @VisibleForTesting
     static class AutoDarkClickableSpan extends ClickableSpan {
         private Context mContext;
-        private SettingsLauncher mSettingsLauncher;
 
-        AutoDarkClickableSpan(Context context, SettingsLauncher settingsLauncher) {
+        AutoDarkClickableSpan(Context context) {
             mContext = context;
-            mSettingsLauncher = settingsLauncher;
         }
 
         @Override
-        public void onClick(@NonNull View view) {
-            openSettings(mSettingsLauncher, mContext);
+        public void onClick(View view) {
+            openSettings(mContext);
         }
     }
 }

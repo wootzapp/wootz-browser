@@ -70,12 +70,14 @@ Node* DocumentFragment::Clone(Document& factory,
       << "DocumentFragment::Clone() doesn't support append_to";
   DocumentFragment* clone = Create(factory);
   DocumentPartRoot* part_root = nullptr;
+  DCHECK(!data.Has(CloneOption::kPreserveDOMPartsMinimalAPI) || !HasNodePart());
   if (data.Has(CloneOption::kPreserveDOMParts)) {
     DCHECK(RuntimeEnabledFeatures::DOMPartsAPIEnabled());
+    DCHECK(!RuntimeEnabledFeatures::DOMPartsAPIMinimalEnabled());
     part_root = &clone->getPartRoot();
     data.PushPartRoot(*part_root);
+    PartRoot::CloneParts(*this, *clone, data);
   }
-  PartRoot::CloneParts(*this, *clone, data);
   if (data.Has(CloneOption::kIncludeDescendants)) {
     clone->CloneChildNodesFrom(*this, data);
   }
@@ -95,10 +97,30 @@ void DocumentFragment::ParseHTML(const String& source,
 
 bool DocumentFragment::ParseXML(const String& source,
                                 Element* context_element,
-                                ParserContentPolicy parser_content_policy,
-                                ExceptionState* exception_state) {
+                                ExceptionState& exception_state,
+                                ParserContentPolicy parser_content_policy) {
   return XMLDocumentParser::ParseDocumentFragment(
       source, this, context_element, parser_content_policy, exception_state);
+}
+
+void DocumentFragment::ForgetChildren() {
+  DCHECK(HoldsUnnotifiedChildren());
+
+  if (!hasChildren()) {
+    return;
+  }
+
+  Node* next_child = firstChild();
+  do {
+    Node* child = next_child;
+    child->SetParentOrShadowHostNode(nullptr);
+    child->SetPreviousSibling(nullptr);
+    next_child = child->nextSibling();
+    child->SetNextSibling(nullptr);
+  } while (next_child);
+
+  SetFirstChild(nullptr);
+  SetLastChild(nullptr);
 }
 
 void DocumentFragment::Trace(Visitor* visitor) const {

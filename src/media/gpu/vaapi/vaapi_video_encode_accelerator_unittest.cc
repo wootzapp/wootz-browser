@@ -4,6 +4,7 @@
 
 #include "media/gpu/vaapi/vaapi_video_encode_accelerator.h"
 
+#include <array>
 #include <memory>
 #include <numeric>
 #include <vector>
@@ -13,8 +14,12 @@
 #include "base/run_loop.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/test/task_environment.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
+#include "components/viz/common/resources/shared_image_format_utils.h"
+#include "gpu/command_buffer/client/test_shared_image_interface.h"
 #include "media/base/media_util.h"
+#include "media/base/mock_media_log.h"
+#include "media/base/video_frame.h"
 #include "media/gpu/gpu_video_encode_accelerator_helpers.h"
 #include "media/gpu/vaapi/vaapi_utils.h"
 #include "media/gpu/vaapi/vaapi_video_encoder_delegate.h"
@@ -30,6 +35,7 @@
 using base::test::RunClosure;
 using ::testing::_;
 using ::testing::Eq;
+using ::testing::HasSubstr;
 using ::testing::Return;
 using ::testing::WithArgs;
 
@@ -43,11 +49,12 @@ constexpr Bitrate kDefaultBitrate =
 constexpr uint32_t kDefaultFramerate = 30;
 constexpr size_t kMaxNumOfRefFrames = 3u;
 
-constexpr int kSpatialLayersResolutionDenom[][3] = {
-    {1, 0, 0},  // For one spatial layer.
-    {2, 1, 0},  // For two spatial layers.
-    {4, 2, 1},  // For three spatial layers.
-};
+constexpr auto kSpatialLayersResolutionDenom =
+    std::to_array<std::array<int, 3>>({
+        {1, 0, 0},  // For one spatial layer.
+        {2, 1, 0},  // For two spatial layers.
+        {4, 2, 1},  // For three spatial layers.
+    });
 
 VideoEncodeAccelerator::Config DefaultVideoEncodeAcceleratorConfig() {
   VideoEncodeAccelerator::Config vea_config(
@@ -133,8 +140,12 @@ MATCHER_P2(MatchesEncoderInfo,
     }
   }
   return arg.implementation_name == "VaapiVideoEncodeAccelerator" &&
-         arg.supports_native_handle && !arg.has_trusted_rate_controller &&
-         arg.is_hardware_accelerated && !arg.supports_simulcast;
+         arg.supports_native_handle && arg.is_hardware_accelerated &&
+         !arg.supports_simulcast;
+}
+
+MATCHER(ContainsTooManyEncoderInstances, "") {
+  return CONTAINS_STRING(arg, "Too many encoders are allocated");
 }
 
 class MockVideoEncodeAcceleratorClient : public VideoEncodeAccelerator::Client {
@@ -189,7 +200,7 @@ class MockVaapiWrapper : public VaapiWrapper {
                    const gfx::Size& va_surface_dst_size,
                    std::optional<gfx::Rect> src_rect = std::nullopt,
                    std::optional<gfx::Rect> dest_rect = std::nullopt
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
                    ,
                    VAProtectedSessionID va_protected_session_id = VA_INVALID_ID
 #endif
@@ -199,6 +210,23 @@ class MockVaapiWrapper : public VaapiWrapper {
 
  private:
   ~MockVaapiWrapper() override = default;
+};
+
+class MockVaapiVideoEncoderDelegate : public VaapiVideoEncoderDelegate {
+ public:
+  MockVaapiVideoEncoderDelegate(scoped_refptr<VaapiWrapper> vaapi_wrapper,
+                                base::RepeatingClosure error_cb)
+      : VaapiVideoEncoderDelegate(vaapi_wrapper, error_cb) {}
+  MOCK_METHOD2(Initialize,
+               bool(const VideoEncodeAccelerator::Config&,
+                    const VaapiVideoEncoderDelegate::Config&));
+  MOCK_CONST_METHOD0(GetCodedSize, gfx::Size());
+  MOCK_CONST_METHOD0(GetMaxNumOfRefFrames, size_t());
+  MOCK_METHOD0(GetSVCLayerResolutions, std::vector<gfx::Size>());
+  MOCK_METHOD2(GetMetadata, BitstreamBufferMetadata(const EncodeJob&, size_t));
+  MOCK_METHOD1(PrepareEncodeJob, PrepareEncodeJobResult(EncodeJob&));
+  MOCK_METHOD2(UpdateRates, bool(const VideoBitrateAllocation&, uint32_t));
+  MOCK_METHOD1(BitrateControlUpdate, void(const BitstreamBufferMetadata&));
 };
 
 class MockVP9VaapiVideoEncoderDelegate : public VP9VaapiVideoEncoderDelegate {
@@ -221,6 +249,7 @@ class MockVP9VaapiVideoEncoderDelegate : public VP9VaapiVideoEncoderDelegate {
     return false;
   }
 };
+
 }  // namespace
 
 struct VaapiVideoEncodeAcceleratorTestParam;
@@ -253,6 +282,7 @@ class VaapiVideoEncodeAcceleratorTest
   void SetUp() override {
     mock_vaapi_wrapper_ = base::MakeRefCounted<MockVaapiWrapper>(
         VaapiWrapper::kEncodeConstantBitrate);
+    test_sii_ = base::MakeRefCounted<gpu::TestSharedImageInterface>();
 
     // In real usage, the VaapiWrapper expects to be constructed, used, and
     // destroyed on the same sequence. For testing, however, we create it in the
@@ -260,11 +290,11 @@ class VaapiVideoEncodeAcceleratorTest
     // where it will be used and destroyed on the encoder thread. Therefore, we
     // detach the VaapiWrapper from the construction sequence just for testing.
     mock_vaapi_wrapper_->sequence_checker_.DetachFromSequence();
-    ResetEncoder();
   }
 
   void ResetEncoder() {
     encoder_.reset(new VaapiVideoEncodeAccelerator);
+    mock_encoder_delegate_ = nullptr;
     auto* vaapi_encoder =
         reinterpret_cast<VaapiVideoEncodeAccelerator*>(encoder_.get());
     base::WaitableEvent event;
@@ -272,6 +302,43 @@ class VaapiVideoEncodeAcceleratorTest
         &VaapiVideoEncodeAcceleratorTest::OnError, base::Unretained(this));
     // Set |encoder_| and |vaapi_wrapper_| of |vaapi_encoder| in the encoder
     // sequence.
+    vaapi_encoder->encoder_task_runner_->PostTask(
+        FROM_HERE,
+        base::BindOnce(
+            [](VaapiVideoEncodeAccelerator* vaapi_encoder,
+               scoped_refptr<VaapiWrapper> vaapi_wrapper,
+               base::RepeatingClosure on_error_cb,
+               raw_ptr<MockVaapiVideoEncoderDelegate,
+                       AcrossTasksDanglingUntriaged>* mock_encoder_delegate,
+               base::WaitableEvent* event) {
+              DCHECK_CALLED_ON_VALID_SEQUENCE(
+                  vaapi_encoder->encoder_sequence_checker_);
+              vaapi_encoder->vaapi_wrapper_ = vaapi_wrapper;
+              vaapi_encoder->encoder_ =
+                  std::make_unique<MockVaapiVideoEncoderDelegate>(
+                      vaapi_wrapper, std::move(on_error_cb));
+              *mock_encoder_delegate =
+                  reinterpret_cast<MockVaapiVideoEncoderDelegate*>(
+                      vaapi_encoder->encoder_.get());
+              event->Signal();
+            },
+            base::Unretained(vaapi_encoder), mock_vaapi_wrapper_, on_error_cb,
+            base::Unretained(&mock_encoder_delegate_),
+            base::Unretained(&event)));
+    event.Wait();
+    EXPECT_CALL(*this, OnError()).Times(0);
+  }
+
+  void ResetVp9Encoder() {
+    encoder_.reset(new VaapiVideoEncodeAccelerator);
+    mock_encoder_delegate_ = nullptr;
+    auto* vaapi_encoder =
+        reinterpret_cast<VaapiVideoEncodeAccelerator*>(encoder_.get());
+    base::WaitableEvent event;
+    auto on_error_cb = base::BindRepeating(
+        &VaapiVideoEncodeAcceleratorTest::OnError, base::Unretained(this));
+    // Set |encoder_| of |vaapi_encoder| to be a
+    // MockVP9VaapiVideoEncoderDelegate in the encoder sequence.
     vaapi_encoder->encoder_task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(
@@ -333,8 +400,13 @@ class VaapiVideoEncodeAcceleratorTest
     vaapi_encoder->supported_profiles_for_testing_.push_back(profile);
     if (config.input_visible_size.IsEmpty())
       return false;
-    return encoder_->Initialize(config, &client_,
-                                std::make_unique<media::NullMediaLog>());
+    return encoder_
+        ->Initialize(config, &client_, std::make_unique<media::NullMediaLog>())
+        .is_ok();
+  }
+
+  static constexpr int GetMaxNumOfEncoderInstances() {
+    return VaapiVideoEncodeAccelerator::kMaxNumOfInstances;
   }
 
   void InitializeSequenceForVP9(const VideoEncodeAccelerator::Config& config)
@@ -501,9 +573,12 @@ class VaapiVideoEncodeAcceleratorTest
     run_loop.Run();
   }
 
-  void EncodeSequenceForVP9MultipleSpatialLayers(size_t num_spatial_layers) {
-    constexpr int32_t kBitstreamIds[] = {12, 13, 14};
-    constexpr uint64_t kEncodedChunkSizes[] = {1234, 1235, 1236};
+  void EncodeSequenceForVP9MultipleSpatialLayers(
+      size_t num_spatial_layers,
+      gpu::TestSharedImageInterface* test_sii) {
+    constexpr auto kBitstreamIds = std::to_array<int32_t>({12, 13, 14});
+    constexpr auto kEncodedChunkSizes =
+        std::to_array<uint64_t>({1234, 1235, 1236});
     ASSERT_LE(num_spatial_layers, std::size(kBitstreamIds));
     ASSERT_LE(num_spatial_layers, std::size(kEncodedChunkSizes));
     base::RunLoop run_loop;
@@ -539,7 +614,8 @@ class VaapiVideoEncodeAcceleratorTest
     std::vector<gfx::Size> svc_resolutions =
         GetDefaultSVCResolutions(num_spatial_layers);
 
-    constexpr VASurfaceID kEncodeSurfaceIds[] = {458, 459, 460};
+    constexpr auto kEncodeSurfaceIds =
+        std::to_array<VASurfaceID>({458, 459, 460});
     for (size_t i = 0; i < num_spatial_layers; i++) {
       // For reconstructed surface.
       if (va_encode_surface_ids_[i].empty()) {
@@ -575,7 +651,7 @@ class VaapiVideoEncodeAcceleratorTest
             mock_vaapi_wrapper_, kSourceSurfaceId, kDefaultEncodeSize,
             VA_RT_FORMAT_YUV420)));
 
-    constexpr VASurfaceID kVppDestSurfaceIds[] = {456, 457};
+    constexpr auto kVppDestSurfaceIds = std::to_array<VASurfaceID>({456, 457});
 
     // Create Surfaces.
     for (size_t i = 0; i < num_spatial_layers - 1; ++i) {
@@ -608,7 +684,7 @@ class VaapiVideoEncodeAcceleratorTest
     }
 
     // Create CodedBuffers in creating EncodeJobs.
-    constexpr VABufferID kCodedBufferIds[] = {123, 124, 125};
+    constexpr auto kCodedBufferIds = std::to_array<VABufferID>({123, 124, 125});
     for (size_t i = 0; i < num_spatial_layers; ++i) {
       const VABufferID kCodedBufferId = kCodedBufferIds[i];
       EXPECT_CALL(*mock_vaapi_wrapper_,
@@ -666,20 +742,31 @@ class VaapiVideoEncodeAcceleratorTest
           }));
     }
 
-    std::unique_ptr<gfx::GpuMemoryBuffer> gmb =
-        std::make_unique<FakeGpuMemoryBuffer>(
-            kDefaultEncodeSize, gfx::BufferFormat::YUV_420_BIPLANAR);
-    scoped_refptr<gpu::ClientSharedImage>
-        shared_images[media::VideoFrame::kMaxPlanes];
-    auto frame = VideoFrame::WrapExternalGpuMemoryBuffer(
-        gfx::Rect(kDefaultEncodeSize), kDefaultEncodeSize, std::move(gmb),
-        shared_images, gpu::SyncToken(), 0, base::DoNothing(),
+    // Setting some default usage in order to get a mappable shared image.
+    const auto si_usage = gpu::SHARED_IMAGE_USAGE_CPU_WRITE_ONLY |
+                          gpu::SHARED_IMAGE_USAGE_DISPLAY_READ;
+    CHECK(test_sii);
+
+    auto buffer_format = gfx::BufferFormat::YUV_420_BIPLANAR;
+    // Create a mappable shared image.
+    auto pixmap_handle =
+        CreatePixmapHandleForTesting(kDefaultEncodeSize, buffer_format);
+    auto shared_image = test_sii->CreateSharedImage(
+        {viz::GetSharedImageFormat(buffer_format), kDefaultEncodeSize,
+         gfx::ColorSpace(), gpu::SharedImageUsageSet(si_usage),
+         "VaapiVideoEncodeAcceleratorTest"},
+        gpu::kNullSurfaceHandle, gfx::BufferUsage::GPU_READ,
+        std::move(pixmap_handle));
+    auto frame = VideoFrame::WrapMappableSharedImage(
+        std::move(shared_image), test_sii->GenVerifiedSyncToken(),
+        base::NullCallback(), gfx::Rect(kDefaultEncodeSize), kDefaultEncodeSize,
         base::TimeDelta());
+
     ASSERT_TRUE(frame);
     encoder_->Encode(std::move(frame), /*force_keyframe=*/false);
     run_loop.Run();
   }
-
+  using Config = VideoEncodeAccelerator::Config;
   size_t output_buffer_size_ = 0;
   std::vector<VASurfaceID> va_vpp_dest_surface_ids_;
   std::vector<std::vector<VASurfaceID>> va_encode_surface_ids_;
@@ -689,9 +776,12 @@ class VaapiVideoEncodeAcceleratorTest
   // calls Destroy() so that destruction threading is respected.
   std::unique_ptr<VideoEncodeAccelerator> encoder_;
   scoped_refptr<MockVaapiWrapper> mock_vaapi_wrapper_;
+  scoped_refptr<gpu::TestSharedImageInterface> test_sii_;
   scoped_refptr<MockVaapiWrapper> mock_vpp_vaapi_wrapper_;
   raw_ptr<MockVP9VaapiVideoEncoderDelegate, AcrossTasksDanglingUntriaged>
       mock_encoder_ = nullptr;
+  raw_ptr<MockVaapiVideoEncoderDelegate, AcrossTasksDanglingUntriaged>
+      mock_encoder_delegate_ = nullptr;
 };
 
 struct VaapiVideoEncodeAcceleratorTestParam {
@@ -718,26 +808,25 @@ struct VaapiVideoEncodeAcceleratorTestParam {
 };
 
 TEST_P(VaapiVideoEncodeAcceleratorTest, Initialize) {
+  ResetEncoder();
   const uint8_t num_of_spatial_layers = GetParam().num_of_spatial_layers;
   const SVCInterLayerPredMode inter_layer_pred = GetParam().inter_layer_pred;
 
-  VideoEncodeAccelerator::Config config = DefaultVideoEncodeAcceleratorConfig();
+  Config config = DefaultVideoEncodeAcceleratorConfig();
   config.inter_layer_pred = inter_layer_pred;
   const uint8_t num_of_temporal_layers = GetParam().num_of_temporal_layers;
   config.spatial_layers =
       GetDefaultSVCLayers(num_of_spatial_layers, num_of_temporal_layers);
 
   for (const VideoPixelFormat format : {PIXEL_FORMAT_I420, PIXEL_FORMAT_NV12}) {
-    for (const VideoEncodeAccelerator::Config::StorageType storage_type :
-         {VideoEncodeAccelerator::Config::StorageType::kShmem,
-          VideoEncodeAccelerator::Config::StorageType::kGpuMemoryBuffer}) {
+    for (const Config::StorageType storage_type :
+         {Config::StorageType::kShmem, Config::StorageType::kGpuMemoryBuffer}) {
       for (const VideoCodecProfile profile :
            {H264PROFILE_MAIN, VP9PROFILE_PROFILE0}) {
         config.input_format = format;
         config.storage_type = storage_type;
         config.output_profile = profile;
-        if (storage_type ==
-                VideoEncodeAccelerator::Config::StorageType::kGpuMemoryBuffer &&
+        if (storage_type == Config::StorageType::kGpuMemoryBuffer &&
             format != PIXEL_FORMAT_NV12) {
           // VaapiVEA doesn't support native input mode for non-NV12 format.
           EXPECT_EQ(InitializeVideoEncodeAccelerator(config), false);
@@ -756,13 +845,14 @@ TEST_P(VaapiVideoEncodeAcceleratorTest, Initialize) {
 // This test verifies VP9 single stream and temporal layer encoding in non
 // native input mode.
 TEST_P(VaapiVideoEncodeAcceleratorTest, EncodeVP9WithSingleSpatialLayer) {
+  ResetVp9Encoder();
   if (GetParam().num_of_spatial_layers > 1u)
     GTEST_SKIP() << "Test only meant for single spatial layer";
 
-  VideoEncodeAccelerator::Config config = DefaultVideoEncodeAcceleratorConfig();
+  Config config = DefaultVideoEncodeAcceleratorConfig();
   const SVCInterLayerPredMode inter_layer_pred = GetParam().inter_layer_pred;
   config.inter_layer_pred = inter_layer_pred;
-  VideoEncodeAccelerator::Config::SpatialLayer spatial_layer;
+  Config::SpatialLayer spatial_layer;
   spatial_layer.width = kDefaultEncodeSize.width();
   spatial_layer.height = kDefaultEncodeSize.height();
   spatial_layer.bitrate_bps = kDefaultBitrateBps;
@@ -779,23 +869,143 @@ TEST_P(VaapiVideoEncodeAcceleratorTest, EncodeVP9WithSingleSpatialLayer) {
 
 // This test verifies VP9 multiple spaital layers encoding in native input mode.
 TEST_P(VaapiVideoEncodeAcceleratorTest, EncodeVP9WithMultipleSpatialLayers) {
+  ResetVp9Encoder();
   const uint8_t num_of_spatial_layers = GetParam().num_of_spatial_layers;
   if (num_of_spatial_layers <= 1)
     GTEST_SKIP() << "Test only meant for multiple spatial layers configuration";
 
   const uint8_t num_of_temporal_layers = GetParam().num_of_temporal_layers;
-  VideoEncodeAccelerator::Config config = DefaultVideoEncodeAcceleratorConfig();
+  Config config = DefaultVideoEncodeAcceleratorConfig();
   const SVCInterLayerPredMode inter_layer_pred = GetParam().inter_layer_pred;
   config.inter_layer_pred = inter_layer_pred;
   config.input_format = PIXEL_FORMAT_NV12;
-  config.storage_type =
-      VideoEncodeAccelerator::Config::StorageType::kGpuMemoryBuffer;
+  config.storage_type = Config::StorageType::kGpuMemoryBuffer;
   config.spatial_layers =
       GetDefaultSVCLayers(num_of_spatial_layers, num_of_temporal_layers);
   SetDefaultMocksBehavior(config);
 
   InitializeSequenceForVP9(config);
-  EncodeSequenceForVP9MultipleSpatialLayers(num_of_spatial_layers);
+  EncodeSequenceForVP9MultipleSpatialLayers(num_of_spatial_layers,
+                                            test_sii_.get());
+}
+
+// This test verifies Initialize() fails with correct corresponding error
+// logging when the max number of encoder instances is reached. Once it happens,
+// the encoder fails the rest of the Initialize() sequence, which requires
+// setting up new |encoder_| and |vaapi_wrapper_|s to succeed. So this test
+// creates and stores encoder instances within the threshold number without
+// initializing them.
+TEST_F(VaapiVideoEncodeAcceleratorTest, TooManyEncoderInstances) {
+  Config config = DefaultVideoEncodeAcceleratorConfig();
+  constexpr int kMaxNumOfInstances = GetMaxNumOfEncoderInstances();
+
+  std::vector<std::unique_ptr<VaapiVideoEncodeAccelerator>> encoders(
+      kMaxNumOfInstances);
+  for (int i = 0; i <= kMaxNumOfInstances; i++) {
+    auto encoder = std::make_unique<VaapiVideoEncodeAccelerator>();
+    auto media_log = std::make_unique<MockMediaLog>();
+    if (i == kMaxNumOfInstances) {
+      EXPECT_MEDIA_LOG_ON(*media_log, ContainsTooManyEncoderInstances());
+      EXPECT_FALSE(
+          encoder->Initialize(config, &client_, std::move(media_log)).is_ok());
+    } else {
+      encoders[i] = std::move(encoder);
+    }
+  }
+}
+
+// This test verifies Initialize() fails when the encoder is already
+// Initialize()d.
+TEST_F(VaapiVideoEncodeAcceleratorTest, AttemptedInitialization) {
+  ResetEncoder();
+  Config config = DefaultVideoEncodeAcceleratorConfig();
+  EXPECT_TRUE(InitializeVideoEncodeAccelerator(config));
+  task_environment_.RunUntilIdle();
+  EXPECT_FALSE(InitializeVideoEncodeAccelerator(config));
+  task_environment_.RunUntilIdle();
+}
+
+TEST_F(VaapiVideoEncodeAcceleratorTest, InitializeWithUnsupportedConfig) {
+  const Bitrate kVariableBitrate = Bitrate::VariableBitrate(0u, 123456u);
+  const Config unsupported_configs[] = {
+      // VaapiVEA does not support HEVC encoding.
+      Config(PIXEL_FORMAT_NV12, kDefaultEncodeSize, HEVCPROFILE_MAIN,
+             kDefaultBitrate, kDefaultFramerate, Config::StorageType::kShmem,
+             Config::ContentType::kCamera),
+      // VaapiVEA only supports variable bitrate with H264 encoding.
+      Config(PIXEL_FORMAT_NV12, kDefaultEncodeSize, VP9PROFILE_PROFILE0,
+             kVariableBitrate, kDefaultFramerate, Config::StorageType::kShmem,
+             Config::ContentType::kCamera),
+      // VaapiVEA does not support PIXEL_FORMAT_YV12.
+      Config(PIXEL_FORMAT_YV12, kDefaultEncodeSize, VP9PROFILE_PROFILE0,
+             kDefaultBitrate, kDefaultFramerate, Config::StorageType::kShmem,
+             Config::ContentType::kCamera)};
+
+  for (const auto& config : unsupported_configs) {
+    ResetEncoder();
+    EXPECT_FALSE(InitializeVideoEncodeAccelerator(config));
+  }
+}
+
+// This test verifies RequestEncodingParametersChange() succeeds.
+TEST_F(VaapiVideoEncodeAcceleratorTest, EncodingParametersChange) {
+  const uint32_t kNewFramerate = 60;
+  const uint32_t kNewBitrate = 123123u;
+
+  const Bitrate kConstantBitrate = Bitrate::ConstantBitrate(kNewBitrate);
+  const Bitrate kVariableBitrate =
+      Bitrate::VariableBitrate(kNewBitrate, 2 * kNewBitrate);
+
+  for (const Bitrate bitrate : {kConstantBitrate, kVariableBitrate}) {
+    ResetEncoder();
+    Config config = DefaultVideoEncodeAcceleratorConfig();
+    if (bitrate.mode() == Bitrate::Mode::kVariable) {
+      // Variable bitrate is only supported with H264 encoding.
+      config.output_profile = H264PROFILE_BASELINE;
+      const uint32_t bitrate_bps = config.bitrate.target_bps();
+      config.bitrate = Bitrate::VariableBitrate(bitrate_bps, 2u * bitrate_bps);
+    }
+    ASSERT_TRUE(InitializeVideoEncodeAccelerator(config));
+    task_environment_.RunUntilIdle();
+
+    VideoBitrateAllocation expected_bitrate_allocation(bitrate.mode());
+    expected_bitrate_allocation.SetBitrate(0, 0, bitrate.target_bps());
+    expected_bitrate_allocation.SetPeakBps(bitrate.peak_bps());
+    EXPECT_CALL(*mock_encoder_delegate_,
+                UpdateRates(expected_bitrate_allocation, kNewFramerate))
+        .WillOnce(Return(true));
+    encoder_->RequestEncodingParametersChange(bitrate, kNewFramerate,
+                                              std::nullopt);
+    task_environment_.RunUntilIdle();
+  }
+}
+
+// This test verifies RequestEncodingParametersChange() succeeds with
+// multi-dimensional bitrate allocation.
+TEST_F(VaapiVideoEncodeAcceleratorTest,
+       EncodingParametersChangeWithBitrateAllocation) {
+  ResetEncoder();
+  Config config = DefaultVideoEncodeAcceleratorConfig();
+  ASSERT_TRUE(InitializeVideoEncodeAccelerator(config));
+  task_environment_.RunUntilIdle();
+
+  const uint32_t kNewFramerate = 60;
+  // Verify translation of VideoBitrateAllocation into vector of bitrates for
+  // everything from empty array up to max number of layers.
+  VideoBitrateAllocation bitrate_allocation;
+  for (size_t si = 0; si < VideoBitrateAllocation::kMaxSpatialLayers; si++) {
+    for (size_t ti = 0; ti < VideoBitrateAllocation::kMaxTemporalLayers; ti++) {
+      uint32_t layer_bitrate =
+          std::max(si * ti * 1000, static_cast<size_t>(100));
+      bitrate_allocation.SetBitrate(si, ti, layer_bitrate);
+      EXPECT_CALL(*mock_encoder_delegate_,
+                  UpdateRates(bitrate_allocation, kNewFramerate))
+          .WillOnce(Return(true));
+      encoder_->RequestEncodingParametersChange(bitrate_allocation,
+                                                kNewFramerate, std::nullopt);
+      task_environment_.RunUntilIdle();
+    }
+  }
 }
 
 INSTANTIATE_TEST_SUITE_P(

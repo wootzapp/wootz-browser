@@ -28,6 +28,9 @@ class DocumentDownloadTabHelper
 
   ~DocumentDownloadTabHelper() override;
 
+  // Returns whether the current download task was created by this TabHelper.
+  bool IsDownloadTaskCreatedByCurrentTabHelper();
+
   // web::WebStateObserver implementation.
   void WebStateDestroyed(web::WebState* web_state) override;
   void PageLoaded(
@@ -82,8 +85,6 @@ class DocumentDownloadTabHelper
 
   // The size of the file in bytes, if reported in the response headers.
   int64_t file_size_ = -1;
-
-  WEB_STATE_USER_DATA_KEY_DECL();
 
   base::WeakPtrFactory<DocumentDownloadTabHelper> weak_ptr_factory_{this};
 };

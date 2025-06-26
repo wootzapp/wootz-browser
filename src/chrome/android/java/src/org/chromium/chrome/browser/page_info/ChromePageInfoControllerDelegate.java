@@ -4,7 +4,7 @@
 
 package org.chromium.chrome.browser.page_info;
 
-import static org.chromium.components.browser_ui.site_settings.AllSiteSettings.EXTRA_SEARCH;
+import static org.chromium.components.browser_ui.site_settings.SingleWebsiteSettings.EXTRA_SITE;
 
 import android.app.Activity;
 import android.content.Context;
@@ -23,9 +23,8 @@ import androidx.fragment.app.FragmentManager;
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.compositor.bottombar.ephemeraltab.EphemeralTabCoordinator;
+import org.chromium.chrome.browser.ephemeraltab.EphemeralTabCoordinator;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
-import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncher;
 import org.chromium.chrome.browser.feedback.HelpAndFeedbackLauncherImpl;
 import org.chromium.chrome.browser.merchant_viewer.PageInfoStoreInfoController;
 import org.chromium.chrome.browser.merchant_viewer.PageInfoStoreInfoController.StoreInfoActionHandler;
@@ -34,21 +33,24 @@ import org.chromium.chrome.browser.offlinepages.OfflinePageUtils;
 import org.chromium.chrome.browser.offlinepages.OfflinePageUtils.OfflinePageLoadUrlDelegate;
 import org.chromium.chrome.browser.omnibox.ChromeAutocompleteSchemeClassifier;
 import org.chromium.chrome.browser.paint_preview.TabbedPaintPreview;
+import org.chromium.chrome.browser.pdf.PdfUtils;
+import org.chromium.chrome.browser.pdf.PdfUtils.PdfPageType;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxReferrer;
 import org.chromium.chrome.browser.privacy_sandbox.PrivacySandboxSettingsBaseFragment;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
+import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.site_settings.ChromeSiteSettingsDelegate;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabUtils;
 import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper;
 import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
-import org.chromium.components.browser_ui.site_settings.AllSiteSettings;
+import org.chromium.components.browser_ui.settings.SettingsNavigation;
+import org.chromium.components.browser_ui.site_settings.SingleWebsiteSettings;
 import org.chromium.components.browser_ui.site_settings.SiteSettingsCategory;
 import org.chromium.components.browser_ui.site_settings.SiteSettingsDelegate;
+import org.chromium.components.browser_ui.site_settings.Website;
 import org.chromium.components.browser_ui.widget.TintedDrawable;
 import org.chromium.components.content_settings.CookieControlsBridge;
 import org.chromium.components.content_settings.CookieControlsObserver;
@@ -90,8 +92,6 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
     private String mOfflinePageCreationDate;
     private final TabCreator mTabCreator;
 
-    private HelpAndFeedbackLauncher mHelpAndFeedbackLauncher;
-
     static final String FEEDBACK_REPORT_TYPE =
             "com.google.chrome.browser.page_info.USER_INITIATED_FEEDBACK_REPORT";
 
@@ -106,10 +106,10 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
             TabCreator tabCreator) {
         super(
                 new ChromeAutocompleteSchemeClassifier(Profile.fromWebContents(webContents)),
-                /** isSiteSettingsAvailable= */
-                SiteSettingsHelper.isSiteSettingsAvailable(webContents),
-                /** cookieControlsShown= */
-                CookieControlsBridge.isCookieControlsEnabled(Profile.fromWebContents(webContents)));
+                /* isSiteSettingsAvailable= */ SiteSettingsHelper.isSiteSettingsAvailable(
+                        webContents),
+                /* cookieControlsShown= */ CookieControlsBridge.isCookieControlsEnabled(
+                        Profile.fromWebContents(webContents)));
         mContext = context;
         mWebContents = webContents;
         mModalDialogManagerSupplier = modalDialogManagerSupplier;
@@ -123,8 +123,6 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
         mOfflinePageLoadUrlDelegate = offlinePageLoadUrlDelegate;
 
         TrackerFactory.getTrackerForProfile(mProfile).notifyEvent(EventConstants.PAGE_INFO_OPENED);
-
-        mHelpAndFeedbackLauncher = HelpAndFeedbackLauncherImpl.getForProfile(mProfile);
     }
 
     private void initOfflinePageParams() {
@@ -214,6 +212,32 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
 
     /** {@inheritDoc} */
     @Override
+    public @PdfPageType int getPdfPageType() {
+        Tab tab = TabUtils.fromWebContents(mWebContents);
+        // TODO(shuyng): move this check to PdfUtils. Currently PdfUtils cannot depends on Tab.
+        if (tab == null) {
+            return PdfPageType.NONE;
+        }
+        return PdfUtils.getPdfPageType(tab.getNativePage());
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public @Nullable String getPdfPageConnectionMessage() {
+        switch (getPdfPageType()) {
+            case PdfPageType.TRANSIENT_SECURE:
+                return mContext.getString(R.string.page_info_connection_transient_pdf);
+            case PdfPageType.TRANSIENT_INSECURE:
+                return mContext.getString(R.string.page_info_connection_transient_pdf_insecure);
+            case PdfPageType.LOCAL:
+                return mContext.getString(R.string.page_info_connection_local_pdf);
+            default:
+                return null;
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public void showCookieSettings() {
         SiteSettingsHelper.showCategorySettings(
                 mContext, SiteSettingsCategory.Type.THIRD_PARTY_COOKIES);
@@ -222,18 +246,20 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
     /** {@inheritDoc} */
     @Override
     public void showTrackingProtectionSettings() {
-        SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
-        settingsLauncher.launchSettingsActivity(mContext, TrackingProtectionSettings.class);
+        SettingsNavigation settingsNavigation =
+                SettingsNavigationFactory.createSettingsNavigation();
+        settingsNavigation.startSettings(mContext, TrackingProtectionSettings.class);
     }
 
     /** {@inheritDoc} */
     @Override
-    public void showAllSettingsForRws(String rwsOwner) {
+    public void showSiteSettings(Website currentSite) {
         Bundle extras = new Bundle();
-        extras.putString(EXTRA_SEARCH, rwsOwner);
+        extras.putSerializable(EXTRA_SITE, currentSite);
 
-        SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
-        settingsLauncher.launchSettingsActivity(mContext, AllSiteSettings.class, extras);
+        SettingsNavigation settingsNavigation =
+                SettingsNavigationFactory.createSettingsNavigation();
+        settingsNavigation.startSettings(mContext, SingleWebsiteSettings.class, extras);
     }
 
     @Override
@@ -243,15 +269,14 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
         // FEEDBACK_REPORT_TYPE: Reports for Chrome mobile must have a contextTag of the form
         // com.chrome.feed.USER_INITIATED_FEEDBACK_REPORT, or they will be discarded for not
         // matching an allow list rule.
-        mHelpAndFeedbackLauncher.showFeedback(
-                activity, tab.getOriginalUrl().getHost(), FEEDBACK_REPORT_TYPE);
+        HelpAndFeedbackLauncherImpl.getForProfile(mProfile)
+                .showFeedback(activity, tab.getOriginalUrl().getHost(), FEEDBACK_REPORT_TYPE);
     }
 
     @Override
     public void showAdPersonalizationSettings() {
-        SettingsLauncher settingsLauncher = new SettingsLauncherImpl();
         PrivacySandboxSettingsBaseFragment.launchPrivacySandboxSettings(
-                mContext, settingsLauncher, PrivacySandboxReferrer.PAGE_INFO_AD_PRIVACY_SECTION);
+                mContext, PrivacySandboxReferrer.PAGE_INFO_AD_PRIVACY_SECTION);
     }
 
     @NonNull
@@ -315,7 +340,8 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
         return new CookieControlsBridge(
                 observer,
                 mWebContents,
-                mProfile.isOffTheRecord() ? mProfile.getOriginalProfile() : null);
+                mProfile.isOffTheRecord() ? mProfile.getOriginalProfile() : null,
+                mProfile.isIncognitoBranded());
     }
 
     /** {@inheritDoc} */
@@ -330,27 +356,27 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
         return new ChromeSiteSettingsDelegate(mContext, mProfile);
     }
 
-    @NonNull
     @Override
     public void getFavicon(GURL url, Callback<Drawable> callback) {
         Resources resources = mContext.getResources();
         int size = resources.getDimensionPixelSize(R.dimen.page_info_favicon_size);
-        new FaviconHelper()
-                .getLocalFaviconImageForURL(
-                        mProfile,
-                        url,
-                        size,
-                        (image, iconUrl) -> {
-                            if (image != null) {
-                                callback.onResult(new BitmapDrawable(resources, image));
-                            } else if (UrlUtilities.isInternalScheme(url)) {
-                                callback.onResult(
-                                        TintedDrawable.constructTintedDrawable(
-                                                mContext, R.drawable.chromelogo16));
-                            } else {
-                                callback.onResult(null);
-                            }
-                        });
+        FaviconHelper faviconHelper = new FaviconHelper();
+        faviconHelper.getLocalFaviconImageForURL(
+                mProfile,
+                url,
+                size,
+                (image, iconUrl) -> {
+                    if (image != null) {
+                        callback.onResult(new BitmapDrawable(resources, image));
+                    } else if (UrlUtilities.isInternalScheme(url)) {
+                        callback.onResult(
+                                TintedDrawable.constructTintedDrawable(
+                                        mContext, R.drawable.chromelogo16));
+                    } else {
+                        callback.onResult(null);
+                    }
+                    faviconHelper.destroy();
+                });
     }
 
     @Override
@@ -372,17 +398,18 @@ public class ChromePageInfoControllerDelegate extends PageInfoControllerDelegate
     }
 
     @Override
-    public boolean showTrackingProtectionUI() {
-        return getSiteSettingsDelegate().shouldShowTrackingProtectionUI();
+    public boolean showTrackingProtectionUi() {
+        return getSiteSettingsDelegate().shouldShowTrackingProtectionUi();
     }
 
     @Override
-    public boolean showTrackingProtectionLaunchUI() {
-        return getSiteSettingsDelegate().shouldShowTrackingProtectionLaunchUI();
+    public boolean showTrackingProtectionActFeaturesUi() {
+        return getSiteSettingsDelegate().shouldShowTrackingProtectionActFeaturesUi();
     }
 
     @Override
     public boolean allThirdPartyCookiesBlockedTrackingProtection() {
-        return UserPrefs.get(mProfile).getBoolean(Pref.BLOCK_ALL3PC_TOGGLE_ENABLED);
+        return UserPrefs.get(mProfile).getBoolean(Pref.BLOCK_ALL3PC_TOGGLE_ENABLED)
+                || isIncognito();
     }
 }

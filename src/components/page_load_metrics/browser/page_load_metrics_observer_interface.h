@@ -13,13 +13,15 @@
 #include "base/time/time.h"
 #include "components/page_load_metrics/browser/page_load_metrics_observer_delegate.h"
 #include "components/page_load_metrics/common/page_load_metrics.mojom.h"
+#include "content/public/browser/auction_result.h"
+#include "content/public/browser/frame_tree_node_id.h"
+#include "content/public/browser/navigation_discard_reason.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "net/base/net_errors.h"
 #include "net/cookies/canonical_cookie.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/common/use_counter/use_counter_feature.h"
 #include "third_party/blink/public/mojom/loader/resource_load_info.mojom.h"
-
 #include "url/gurl.h"
 
 namespace blink {
@@ -52,7 +54,7 @@ struct ExtraRequestCompleteInfo {
   ExtraRequestCompleteInfo(
       const url::SchemeHostPort& final_url,
       const net::IPEndPoint& remote_endpoint,
-      int frame_tree_node_id,
+      content::FrameTreeNodeId frame_tree_node_id,
       bool was_cached,
       int64_t raw_body_bytes,
       int64_t original_network_content_length,
@@ -75,7 +77,7 @@ struct ExtraRequestCompleteInfo {
   const net::IPEndPoint remote_endpoint;
 
   // The frame tree node id that initiated the request.
-  const int frame_tree_node_id;
+  const content::FrameTreeNodeId frame_tree_node_id;
 
   // True if the resource was loaded from cache.
   const bool was_cached;
@@ -104,11 +106,14 @@ struct ExtraRequestCompleteInfo {
 
 // Information related to failed provisional loads.
 struct FailedProvisionalLoadInfo {
-  FailedProvisionalLoadInfo(base::TimeDelta interval, net::Error error);
+  FailedProvisionalLoadInfo(base::TimeDelta interval,
+                            net::Error error,
+                            content::NavigationDiscardReason discard_reason);
   ~FailedProvisionalLoadInfo();
 
   base::TimeDelta time_to_failed_provisional_load;
   net::Error error;
+  content::NavigationDiscardReason discard_reason;
 };
 
 // Struct for storing per-frame memory update data.
@@ -159,8 +164,6 @@ class PageLoadMetricsObserverInterface {
     STOP_OBSERVING,
     FORWARD_OBSERVING,  // Deprecated. See the detailed comments above.
   };
-
-  using FrameTreeNodeId = int;
 
   PageLoadMetricsObserverInterface();
   virtual ~PageLoadMetricsObserverInterface();
@@ -230,6 +233,13 @@ class PageLoadMetricsObserverInterface {
   virtual ObservePolicy OnPreviewStart(
       content::NavigationHandle* navigation_handle,
       const GURL& currently_committed_url) = 0;
+
+  // Called when the NavigationHandleTiming associated with `navigation_handle`
+  // has been updated. This is called only for main frame navigations. See the
+  // comment at `WebContentsObserver::DidUpdateNavigationHandleTiming()` for
+  // more details.
+  virtual ObservePolicy OnNavigationHandleTimingUpdated(
+      content::NavigationHandle* navigation_handle) = 0;
 
   // OnRedirect is triggered when a page load redirects to another URL.
   // The navigation handle holds relevant data for the navigation, but will
@@ -390,6 +400,10 @@ class PageLoadMetricsObserverInterface {
   virtual void OnLoadEventStart(const mojom::PageLoadTiming& timing) = 0;
   virtual void OnParseStart(const mojom::PageLoadTiming& timing) = 0;
   virtual void OnParseStop(const mojom::PageLoadTiming& timing) = 0;
+  virtual void OnConnectStart(const mojom::PageLoadTiming& timing) = 0;
+  virtual void OnConnectEnd(const mojom::PageLoadTiming& timing) = 0;
+  virtual void OnDomainLookupStart(const mojom::PageLoadTiming& timing) = 0;
+  virtual void OnDomainLookupEnd(const mojom::PageLoadTiming& timing) = 0;
 
   // On*PaintInPage(...) are invoked when the first relevant paint in the
   // page, across all frames, is observed.
@@ -436,11 +450,13 @@ class PageLoadMetricsObserverInterface {
       content::RenderFrameHost* rfh,
       const std::vector<blink::UseCounterFeature>& features) = 0;
 
-  // The smoothness metrics is shared over shared-memory. The observer should
-  // create a mapping (by calling |shared_memory.Map()|) so that they are able
-  // to read from the shared memory.
-  virtual void SetUpSharedMemoryForSmoothness(
-      const base::ReadOnlySharedMemoryRegion& shared_memory) = 0;
+  // The smoothness and dropped frame count metrics are shared over
+  // shared-memory. The observer should create a mapping (by calling
+  // |shared_memory.Map()|) so that they are able to read from the shared
+  // memory.
+  virtual void SetUpSharedMemoryForUkms(
+      const base::ReadOnlySharedMemoryRegion& smoothness_memory,
+      const base::ReadOnlySharedMemoryRegion& dropped_frames_memory) = 0;
 
   // Invoked when there is data use for loading a resource on the page
   // for a given RenderFrameHost. This only contains resources that have had
@@ -553,7 +569,8 @@ class PageLoadMetricsObserverInterface {
   // to observe deletion of node, OnSubFrameDeleted is more relevant.
   virtual void OnRenderFrameDeleted(
       content::RenderFrameHost* render_frame_host) = 0;
-  virtual void OnSubFrameDeleted(int frame_tree_node_id) = 0;
+  virtual void OnSubFrameDeleted(
+      content::FrameTreeNodeId frame_tree_node_id) = 0;
 
   // Called when a cookie is read for a resource request or by document.cookie.
   virtual void OnCookiesRead(
@@ -605,6 +622,21 @@ class PageLoadMetricsObserverInterface {
   // Called when `sharedStorage.selectURL()` is called for some frame on the
   // page tracked.
   virtual void OnSharedStorageSelectURLCalled() = 0;
+
+  // Called when `performance.mark()` is emitted in the main frame except for
+  // the standard UserTiming marks `mark_fully_loaded`, `mark_fully_visible`,
+  // and `mark_interactive` occur. Those are managed in PageLoadTiming
+  // separately and tracked in in a different timing.
+  virtual void OnCustomUserTimingMarkObserved(
+      const std::vector<mojom::CustomUserTimingMarkPtr>& timings) = 0;
+
+  // Called when a Fledge auction completes.
+  virtual void OnAdAuctionComplete(bool is_server_auction,
+                                   bool is_on_device_auction,
+                                   content::AuctionResult result) = 0;
+
+  // Called when the renderer process for the primary main frame is gone.
+  virtual void OnPrimaryPageRenderProcessGone() = 0;
 
  private:
   base::WeakPtrFactory<PageLoadMetricsObserverInterface> weak_factory_{this};

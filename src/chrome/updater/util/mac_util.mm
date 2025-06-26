@@ -7,6 +7,8 @@
 #import <CoreFoundation/CoreFoundation.h>
 
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "base/apple/bridging.h"
 #include "base/apple/foundation_util.h"
@@ -145,6 +147,28 @@ std::optional<base::FilePath> GetApplicationSupportDirectory(
   return std::nullopt;
 }
 
+std::vector<base::FilePath> GetApplicationSupportDirectoriesForUsers(
+    UpdaterScope scope) {
+  std::vector<base::FilePath> app_support_dirs;
+  if (IsSystemInstall(scope)) {
+    base::FilePath user_dir;
+    if (!base::apple::GetLocalDirectory(NSUserDirectory, &user_dir)) {
+      return {};
+    }
+    base::FileEnumerator(user_dir, /*recursive=*/false,
+                         base::FileEnumerator::FileType::DIRECTORIES)
+        .ForEach([&app_support_dirs](const base::FilePath& name) {
+          app_support_dirs.push_back(
+              name.Append("Library").Append("Application Support"));
+        });
+  } else if (std::optional<base::FilePath> application_support_dir =
+                 GetApplicationSupportDirectory(UpdaterScope::kUser);
+             application_support_dir) {
+    app_support_dirs.push_back(*application_support_dir);
+  }
+  return app_support_dirs;
+}
+
 std::optional<base::FilePath> GetKSAdminPath(UpdaterScope scope) {
   const std::optional<base::FilePath> keystone_folder_path =
       GetKeystoneFolderPath(scope);
@@ -280,18 +304,9 @@ std::optional<base::FilePath> GetInstallDirectory(UpdaterScope scope) {
   std::optional<base::FilePath> path = GetLibraryFolderPath(scope);
   return path ? std::optional<base::FilePath>(
                     path->Append("Application Support")
-                        .Append(GetUpdaterFolderName()))
+                        .Append(COMPANY_SHORTNAME_STRING)
+                        .Append(PRODUCT_FULLNAME_STRING))
               : std::nullopt;
-}
-
-std::optional<base::FilePath> GetCacheBaseDirectory(UpdaterScope scope) {
-  base::FilePath caches_path;
-  if (!base::apple::GetLocalDirectory(NSCachesDirectory, &caches_path)) {
-    VLOG(1) << "Could not get Caches path";
-    return std::nullopt;
-  }
-  return std::optional<base::FilePath>(
-      caches_path.AppendASCII(MAC_BUNDLE_IDENTIFIER_STRING));
 }
 
 std::optional<base::FilePath> GetUpdateServiceLauncherPath(UpdaterScope scope) {
@@ -326,7 +341,7 @@ std::optional<base::FilePath> GetWakeTaskPlistPath(UpdaterScope scope) {
     }
     return base::apple::NSStringToFilePath(library_paths[0])
         .Append(IsSystemInstall(scope) ? "LaunchDaemons" : "LaunchAgents")
-        .AppendASCII(base::StrCat({GetWakeLaunchdName(scope), ".plist"}));
+        .Append(base::StrCat({GetWakeLaunchdName(scope), ".plist"}));
   }
 }
 
@@ -368,6 +383,22 @@ bool MigrateLegacyUpdaters(
         register_callback) {
   return MigrateKeystoneApps(GetKeystoneFolderPath(scope).value(),
                              register_callback);
+}
+
+std::optional<base::FilePath> GetBundledEnterpriseCompanionExecutablePath(
+    UpdaterScope scope) {
+  std::optional<base::FilePath> path = GetUpdaterAppBundlePath(scope);
+  if (!path) {
+    return std::nullopt;
+  }
+  return path->Append(FILE_PATH_LITERAL("Contents"))
+      .Append(FILE_PATH_LITERAL("Helpers"))
+      .Append(base::StrCat({BROWSER_NAME_STRING, "EnterpriseCompanion",
+                            kExecutableSuffix, ".app"}))
+      .Append(FILE_PATH_LITERAL("Contents"))
+      .Append(FILE_PATH_LITERAL("MacOS"))
+      .Append(base::StrCat(
+          {BROWSER_NAME_STRING, "EnterpriseCompanion", kExecutableSuffix}));
 }
 
 }  // namespace updater

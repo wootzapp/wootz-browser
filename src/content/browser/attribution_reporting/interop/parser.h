@@ -10,6 +10,7 @@
 #include <iosfwd>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "base/containers/flat_set.h"
@@ -21,7 +22,6 @@
 #include "components/attribution_reporting/suitable_origin.h"
 #include "content/browser/attribution_reporting/attribution_config.h"
 #include "services/network/public/mojom/attribution.mojom-forward.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 #include "url/gurl.h"
 
 namespace net {
@@ -72,7 +72,9 @@ struct AttributionSimulationEvent {
     int64_t request_id;
   };
 
-  using Data = absl::variant<StartRequest, Response, EndRequest>;
+  struct Navigation {};
+
+  using Data = std::variant<StartRequest, Response, EndRequest, Navigation>;
 
   base::Time time;
   Data data;
@@ -98,7 +100,9 @@ base::expected<std::vector<AttributionSimulationEvent>, std::string>
 struct AttributionInteropConfig {
   AttributionConfig attribution_config;
   double max_event_level_epsilon = 0;
+  uint32_t max_trigger_state_cardinality = 0;
   bool needs_cross_app_web = false;
+  bool needs_delivery_after_new_navigation = false;
   std::vector<url::Origin> aggregation_coordinator_origins;
 
   AttributionInteropConfig();

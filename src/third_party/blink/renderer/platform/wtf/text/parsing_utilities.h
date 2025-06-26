@@ -28,16 +28,23 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_WTF_TEXT_PARSING_UTILITIES_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_WTF_TEXT_PARSING_UTILITIES_H_
+
+#include "base/containers/span.h"
 
 namespace WTF {
 
 template <typename CharType>
-bool SkipExactly(const CharType*& position,
-                 const CharType* end,
-                 CharType delimiter) {
-  if (position < end && *position == delimiter) {
+bool SkipExactly(base::span<const CharType> chars,
+                 CharType delimiter,
+                 size_t& position) {
+  if (position < chars.size() && chars[position] == delimiter) {
     ++position;
     return true;
   }
@@ -47,6 +54,15 @@ bool SkipExactly(const CharType*& position,
 template <typename CharType, bool characterPredicate(CharType)>
 bool SkipExactly(const CharType*& position, const CharType* end) {
   if (position < end && characterPredicate(*position)) {
+    ++position;
+    return true;
+  }
+  return false;
+}
+
+template <typename CharType, bool predicate(CharType)>
+bool SkipExactly(base::span<const CharType> chars, size_t& position) {
+  if (position < chars.size() && predicate(chars[position])) {
     ++position;
     return true;
   }
@@ -85,16 +101,38 @@ void SkipUntil(const CharType*& position, const CharType* end) {
     ++position;
 }
 
-template <typename CharType, bool characterPredicate(CharType)>
-void SkipWhile(const CharType*& position, const CharType* end) {
-  while (position < end && characterPredicate(*position))
+template <typename CharType, bool predicate(CharType)>
+[[nodiscard]] size_t SkipUntil(base::span<const CharType> chars,
+                               size_t position) {
+  while (position < chars.size() && !predicate(chars[position])) {
     ++position;
+  }
+  return position;
+}
+
+template <typename CharType, bool predicate(CharType)>
+[[nodiscard]] size_t SkipWhile(base::span<const CharType> chars,
+                               size_t position) {
+  while (position < chars.size() && predicate(chars[position])) {
+    ++position;
+  }
+  return position;
 }
 
 template <typename CharType, bool characterPredicate(CharType)>
 void ReverseSkipWhile(const CharType*& position, const CharType* start) {
   while (position >= start && characterPredicate(*position))
     --position;
+}
+
+template <typename CharType, bool predicate(CharType)>
+[[nodiscard]] size_t ReverseSkipWhile(base::span<const CharType> chars,
+                                      size_t position,
+                                      size_t start) {
+  while (position >= start && predicate(chars[position])) {
+    --position;
+  }
+  return position;
 }
 
 }  // namespace WTF

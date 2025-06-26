@@ -20,18 +20,16 @@ import androidx.test.filters.SmallTest;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.UnownedUserDataHost;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CallbackHelper;
-import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ChromeShareExtras.DetailedContentType;
@@ -61,9 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ShareSheetUsageRankingHelperTest {
     private static final String MOCK_URL = JUnitTestGURLs.EXAMPLE_URL.getSpec();
 
-    @Rule public TestRule mFeatureProcessor = new Features.JUnitProcessor();
-    @Rule public JniMocker mJniMocker = new JniMocker();
-
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private DomDistillerUrlUtils.Natives mDistillerUrlUtilsJniMock;
     @Mock private BottomSheetController mBottomSheetController;
     @Mock private ShareSheetBottomSheetContent mBottomSheet;
@@ -82,8 +78,7 @@ public class ShareSheetUsageRankingHelperTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-        mJniMocker.mock(DomDistillerUrlUtilsJni.TEST_HOOKS, mDistillerUrlUtilsJniMock);
+        DomDistillerUrlUtilsJni.setInstanceForTesting(mDistillerUrlUtilsJniMock);
 
         mActivity = Robolectric.setupActivity(Activity.class);
         when(mWindow.getActivity()).thenReturn(new WeakReference<>(mActivity));
@@ -127,7 +122,7 @@ public class ShareSheetUsageRankingHelperTest {
                     resultPropertyModels.set(models);
                     helper.notifyCalled();
                 });
-        helper.waitForFirst();
+        helper.waitForOnly();
         List<PropertyModel> propertyModels = resultPropertyModels.get();
 
         assertEquals("Incorrect number of property models.", 2, propertyModels.size());
@@ -159,7 +154,7 @@ public class ShareSheetUsageRankingHelperTest {
                     resultPropertyModels.set(models);
                     helper.notifyCalled();
                 });
-        helper.waitForFirst();
+        helper.waitForOnly();
         List<PropertyModel> propertyModels = resultPropertyModels.get();
 
         View.OnClickListener onClickListener =

@@ -43,6 +43,12 @@
 #include "third_party/blink/public/mojom/file_system_access/file_system_access_file_modification_host.mojom.h"
 #include "third_party/blink/public/mojom/file_system_access/file_system_access_transfer_token.mojom.h"
 
+#if BUILDFLAG(IS_ANDROID)
+#include "base/path_service.h"
+#include "base/strings/escape.h"
+#include "content/public/common/content_paths.h"
+#endif
+
 #if BUILDFLAG(IS_WIN)
 #include <windows.h>
 #endif
@@ -71,6 +77,16 @@ std::pair<base::File, base::FileErrorOr<int64_t>> GetFileLengthOnBlockingThread(
   }
   return {std::move(file), std::move(file_length)};
 }
+
+#if BUILDFLAG(IS_ANDROID)
+void EnsureSwapDirExists(base::FilePath swap_dir) {
+  if (!base::PathExists(swap_dir)) {
+    if (!base::CreateDirectory(swap_dir)) {
+      DLOG(ERROR) << "Error creating swap dir " << swap_dir;
+    }
+  }
+}
+#endif
 
 bool HasWritePermission(const base::FilePath& path) {
   if (!base::PathExists(path)) {
@@ -126,8 +142,10 @@ FileSystemAccessFileHandleImpl::FileSystemAccessFileHandleImpl(
     FileSystemAccessManagerImpl* manager,
     const BindingContext& context,
     const storage::FileSystemURL& url,
+    const std::string& display_name,
     const SharedHandleState& handle_state)
-    : FileSystemAccessHandleBase(manager, context, url, handle_state) {}
+    : FileSystemAccessHandleBase(manager, context, url, handle_state),
+      display_name_(display_name) {}
 
 FileSystemAccessFileHandleImpl::~FileSystemAccessFileHandleImpl() = default;
 
@@ -472,17 +490,13 @@ void FileSystemAccessFileHandleImpl::DidGetMetaDataForBlob(
   std::string uuid = base::Uuid::GenerateRandomV4().AsLowercaseString();
   std::string content_type;
 
-  base::FilePath::StringType extension = url().path().Extension();
-  if (!extension.empty()) {
-    std::string mime_type;
-    // TODO(crbug.com/41458368): Using GetMimeTypeFromExtension and
-    // including platform defined mime type mappings might be nice/make sense,
-    // however that method can potentially block and thus can't be called from
-    // the IO thread.
-    if (net::GetWellKnownMimeTypeFromExtension(extension.substr(1),
-                                               &mime_type)) {
-      content_type = std::move(mime_type);
-    }
+  // TODO(crbug.com/41458368): Using GetMimeTypeFromExtension and including
+  // platform defined mime type mappings might be nice/make sense, however that
+  // method can potentially block and thus can't be called from the IO thread.
+  std::string mime_type;
+  if (net::GetWellKnownMimeTypeFromFile(
+          base::FilePath::FromUTF8Unsafe(display_name_), &mime_type)) {
+    content_type = std::move(mime_type);
   }
   // TODO(crbug.com/41458368): Consider some kind of fallback type when
   // the above mime type detection fails.
@@ -517,9 +531,17 @@ void FileSystemAccessFileHandleImpl::CreateFileWriterImpl(
 
   // TODO(crbug.com/40194651): Expand this check to all backends.
   if (url().type() == storage::kFileSystemTypeLocal) {
+    auto checks = base::BindOnce(&HasWritePermission, url().path());
+#if BUILDFLAG(IS_ANDROID)
+    if (url().path().IsContentUri()) {
+      swap_dir_ =
+          base::PathService::CheckedGet(content::DIR_FILE_SYSTEM_API_SWAP);
+      checks = base::BindOnce(&EnsureSwapDirExists, swap_dir_)
+                   .Then(std::move(checks));
+    }
+#endif
     base::ThreadPool::PostTaskAndReplyWithResult(
-        FROM_HERE, {base::MayBlock()},
-        base::BindOnce(&HasWritePermission, url().path()),
+        FROM_HERE, {base::MayBlock()}, std::move(checks),
         base::BindOnce(
             &FileSystemAccessFileHandleImpl::DidVerifyHasWritePermissions,
             weak_factory_.GetWeakPtr(), keep_existing_data, auto_close, mode,
@@ -601,7 +623,24 @@ void FileSystemAccessFileHandleImpl::StartCreateSwapFile(
     std::optional<base::SafeBaseName> opt_swap_name =
         base::SafeBaseName::Create(swap_name);
     CHECK(opt_swap_name.has_value());
+#if BUILDFLAG(IS_ANDROID)
+    //  For content-URIs (e.g. content://com.android.../doc/msf%3A123), we will
+    //  write the swap file to the local cache dir
+    //  (e.g. /data/user/0/com.chrome.dev/cache/FileSystemAPISwap) and then
+    //  copy back to the original content-URI when done.
+    storage::FileSystemURL swap_url;
+    if (url().path().IsContentUri()) {
+      // We must escape 'content://com.android...' to use it as the file name.
+      std::string file_name = base::EscapeAllExceptUnreserved(
+          url().path().DirName().Append(*opt_swap_name).value());
+      swap_url = manager()->CreateFileSystemURLFromPath(
+          PathInfo(swap_dir_.Append(file_name)));
+    } else {
+      swap_url = url().CreateSibling(*opt_swap_name);
+    }
+#else
     storage::FileSystemURL swap_url = url().CreateSibling(*opt_swap_name);
+#endif
     CHECK(swap_url.is_valid());
 
     // Check if this swap file is not in use. If it isn't, take a lock on it.

@@ -4,6 +4,7 @@
 
 import json
 import textwrap
+import unittest
 
 from blinkpy.common.host_mock import MockHost
 from blinkpy.common.system.log_testing import LoggingTestCase
@@ -41,29 +42,27 @@ class TestExporterTest(LoggingTestCase):
                         labels=[]),
         ])
         test_exporter.gerrit = MockGerritAPI()
-        test_exporter.gerrit.exportable_open_cls = [
-            MockGerritCL(
-                data={
-                    'change_id': 'I001',
-                    'subject': 'subject',
-                    '_number': 1234,
-                    'current_revision': '1',
-                    'has_review_started': True,
-                    'revisions': {
-                        '1': {
-                            'commit_with_footers': 'a commit with footers'
-                        }
-                    },
-                    'owner': {
-                        'email': 'test@chromium.org'
-                    },
+        test_exporter.gerrit.exportable_cls = [
+            MockGerritCL(data={
+                'change_id': 'I001',
+                'subject': 'subject',
+                '_number': 1234,
+                'current_revision': '1',
+                'has_review_started': True,
+                'revisions': {
+                    '1': {
+                        'commit_with_footers': 'a commit with footers'
+                    }
                 },
-                api=test_exporter.gerrit,
-                chromium_commit=MockChromiumCommit(
-                    self.host,
-                    subject='subject',
-                    body='fake body',
-                    change_id='I001'))
+                'owner': {
+                    'email': 'test@chromium.org'
+                },
+            },
+                         api=test_exporter.gerrit,
+                         chromium_commit=MockChromiumCommit(self.host,
+                                                            subject='subject',
+                                                            body='fake body',
+                                                            change_id='I001'))
         ]
         test_exporter.get_exportable_commits = lambda: ([
             MockChromiumCommit(
@@ -256,49 +255,48 @@ class TestExporterTest(LoggingTestCase):
         test_exporter.github = MockWPTGitHub(pull_requests=[])
         test_exporter.get_exportable_commits = lambda: ([], [])
         test_exporter.gerrit = MockGerritAPI()
-        test_exporter.gerrit.exportable_open_cls = [
-            MockGerritCL(
-                data={
-                    'change_id': 'I001',
-                    'subject': 'subject',
-                    '_number': 1234,
-                    'current_revision': '1',
-                    'has_review_started': True,
-                    'revisions': {
-                        '1': {
-                            'commit_with_footers': 'a commit with footers'
-                        }
-                    },
-                    'owner': {
-                        'email': 'test@chromium.org'
-                    },
+        test_exporter.gerrit.exportable_cls = [
+            MockGerritCL(data={
+                'change_id': 'I001',
+                'subject': 'subject',
+                '_number': 1234,
+                'current_revision': '1',
+                'has_review_started': True,
+                'revisions': {
+                    '1': {
+                        'commit_with_footers': 'a commit with footers'
+                    }
                 },
-                api=test_exporter.gerrit,
-                chromium_commit=MockChromiumCommit(
-                    self.host,
-                    subject='subject',
-                    body='fake body <html>',
-                    change_id='I001')),
-            MockGerritCL(
-                data={
-                    'change_id': 'I002',
-                    'subject': 'subject',
-                    '_number': 1235,
-                    'current_revision': '1',
-                    'has_review_started': True,
-                    'revisions': {
-                        '1': {
-                            'commit_with_footers': 'a commit with footers'
-                        }
-                    },
-                    'owner': {
-                        'email': 'test@chromium.org'
-                    },
+                'owner': {
+                    'email': 'test@chromium.org'
                 },
-                api=test_exporter.gerrit,
-                chromium_commit=MockChromiumCommit(
-                    self.host, subject='subject', body='body',
-                    change_id=None)),
+            },
+                         api=test_exporter.gerrit,
+                         chromium_commit=MockChromiumCommit(
+                             self.host,
+                             subject='subject',
+                             body='fake body <html>',
+                             change_id='I001')),
+            MockGerritCL(data={
+                'change_id': 'I002',
+                'subject': 'subject',
+                '_number': 1235,
+                'current_revision': '1',
+                'has_review_started': True,
+                'revisions': {
+                    '1': {
+                        'commit_with_footers': 'a commit with footers'
+                    }
+                },
+                'owner': {
+                    'email': 'test@chromium.org'
+                },
+            },
+                         api=test_exporter.gerrit,
+                         chromium_commit=MockChromiumCommit(self.host,
+                                                            subject='subject',
+                                                            body='body',
+                                                            change_id=None)),
         ]
         test_exporter.pr_cleaner.run = lambda x, y: None
         success = test_exporter.main([
@@ -350,25 +348,24 @@ class TestExporterTest(LoggingTestCase):
         ])
         test_exporter.get_exportable_commits = lambda: ([], [])
         test_exporter.gerrit = MockGerritAPI()
-        test_exporter.gerrit.exportable_open_cls = [
-            MockGerritCL(
-                data={
-                    'change_id': '1',
-                    'subject': 'subject',
-                    '_number': 1,
-                    'current_revision': '1',
-                    'has_review_started': True,
-                    'revisions': {
-                        '1': {
-                            'commit_with_footers': 'a commit with footers'
-                        }
-                    },
-                    'owner': {
-                        'email': 'test@chromium.org'
-                    },
+        test_exporter.gerrit.exportable_cls = [
+            MockGerritCL(data={
+                'change_id': '1',
+                'subject': 'subject',
+                '_number': 1,
+                'current_revision': '1',
+                'has_review_started': True,
+                'revisions': {
+                    '1': {
+                        'commit_with_footers': 'a commit with footers'
+                    }
                 },
-                api=test_exporter.gerrit,
-                chromium_commit=MockChromiumCommit(self.host))
+                'owner': {
+                    'email': 'test@chromium.org'
+                },
+            },
+                         api=test_exporter.gerrit,
+                         chromium_commit=MockChromiumCommit(self.host))
         ]
         test_exporter.pr_cleaner.run = lambda x, y: None
         success = test_exporter.main([
@@ -399,30 +396,29 @@ class TestExporterTest(LoggingTestCase):
         ])
         test_exporter.get_exportable_commits = lambda: ([], [])
         test_exporter.gerrit = MockGerritAPI()
-        test_exporter.gerrit.exportable_open_cls = [
-            MockGerritCL(
-                data={
-                    'change_id': '1',
-                    'subject': 'subject',
-                    '_number': 1,
-                    'current_revision': '2',
-                    'has_review_started': True,
-                    'revisions': {
-                        '1': {
-                            'commit_with_footers': 'a commit with footers 1',
-                            'description': 'subject 1',
-                        },
-                        '2': {
-                            'commit_with_footers': 'a commit with footers 2',
-                            'description': 'subject 2',
-                        },
+        test_exporter.gerrit.exportable_cls = [
+            MockGerritCL(data={
+                'change_id': '1',
+                'subject': 'subject',
+                '_number': 1,
+                'current_revision': '2',
+                'has_review_started': True,
+                'revisions': {
+                    '1': {
+                        'commit_with_footers': 'a commit with footers 1',
+                        'description': 'subject 1',
                     },
-                    'owner': {
-                        'email': 'test@chromium.org'
+                    '2': {
+                        'commit_with_footers': 'a commit with footers 2',
+                        'description': 'subject 2',
                     },
                 },
-                api=test_exporter.gerrit,
-                chromium_commit=MockChromiumCommit(self.host))
+                'owner': {
+                    'email': 'test@chromium.org'
+                },
+            },
+                         api=test_exporter.gerrit,
+                         chromium_commit=MockChromiumCommit(self.host))
         ]
         test_exporter.pr_cleaner.run = lambda x, y: None
         success = test_exporter.main([
@@ -527,30 +523,29 @@ class TestExporterTest(LoggingTestCase):
         test_exporter.github = MockWPTGitHub(pull_requests=[])
         test_exporter.get_exportable_commits = lambda: ([], [])
         test_exporter.gerrit = MockGerritAPI()
-        test_exporter.gerrit.exportable_open_cls = [
-            MockGerritCL(
-                data={
-                    'change_id': '1',
-                    'subject': 'subject',
-                    '_number': 1,
-                    'current_revision': '2',
-                    'has_review_started': False,
-                    'revisions': {
-                        '1': {
-                            'commit_with_footers': 'a commit with footers 1',
-                            'description': 'subject 1',
-                        },
-                        '2': {
-                            'commit_with_footers': 'a commit with footers 2',
-                            'description': 'subject 2',
-                        },
+        test_exporter.gerrit.exportable_cls = [
+            MockGerritCL(data={
+                'change_id': '1',
+                'subject': 'subject',
+                '_number': 1,
+                'current_revision': '2',
+                'has_review_started': False,
+                'revisions': {
+                    '1': {
+                        'commit_with_footers': 'a commit with footers 1',
+                        'description': 'subject 1',
                     },
-                    'owner': {
-                        'email': 'test@chromium.org'
+                    '2': {
+                        'commit_with_footers': 'a commit with footers 2',
+                        'description': 'subject 2',
                     },
                 },
-                api=test_exporter.gerrit,
-                chromium_commit=MockChromiumCommit(self.host))
+                'owner': {
+                    'email': 'test@chromium.org'
+                },
+            },
+                         api=test_exporter.gerrit,
+                         chromium_commit=MockChromiumCommit(self.host))
         ]
         test_exporter.pr_cleaner.run = lambda x, y: None
         success = test_exporter.main([
@@ -566,6 +561,7 @@ class TestExporterTest(LoggingTestCase):
             self.host.filesystem.read_text_file('/tmp/summary.md'),
             'No pull requests modified.\n')
 
+    @unittest.skip('Unskip after crbug.com/346392205 is fixed')
     def test_run_returns_false_on_gerrit_search_error(self):
         def raise_gerrit_error():
             raise GerritError('Gerrit API fails.')
@@ -575,7 +571,7 @@ class TestExporterTest(LoggingTestCase):
         test_exporter.github = MockWPTGitHub(pull_requests=[])
         test_exporter.get_exportable_commits = lambda: ([], [])
         test_exporter.gerrit = MockGerritAPI()
-        test_exporter.gerrit.query_exportable_open_cls = raise_gerrit_error
+        test_exporter.gerrit.query_exportable_cls = raise_gerrit_error
         test_exporter.pr_cleaner.run = lambda x, y: None
         success = test_exporter.main([
             '--credentials-json=/tmp/credentials.json',

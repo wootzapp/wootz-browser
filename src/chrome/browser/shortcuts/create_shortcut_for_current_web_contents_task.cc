@@ -4,16 +4,18 @@
 
 #include "chrome/browser/shortcuts/create_shortcut_for_current_web_contents_task.h"
 
+#include <optional>
+#include <string>
+
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/task/bind_post_task.h"
 #include "chrome/browser/platform_util.h"  // nogncheck (crbug.com/335727004)
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/shortcuts/document_icon_fetcher.h"
+#include "chrome/browser/shortcuts/document_icon_fetcher_task.h"
 #include "chrome/browser/shortcuts/icon_badging.h"
 #include "chrome/browser/shortcuts/shortcut_creator.h"
-#include "chrome/common/chrome_features.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/visibility.h"
 #include "content/public/browser/web_contents.h"
@@ -101,15 +103,18 @@ void CreateShortcutForCurrentWebContentsTask::FetchIcons(
   callback_ = std::move(callback);
   Observe(&web_contents);
 
-  DocumentIconFetcher::FetchIcons(
+  icon_fetcher_task_ = std::make_unique<DocumentIconFetcherTask>(
       web_contents, base::BindOnce(&CreateShortcutForCurrentWebContentsTask::
                                        OnIconsFetchedStartBadgingAndShowDialog,
                                    weak_ptr_factory_.GetWeakPtr()));
+  icon_fetcher_task_->StartIconFetching();
 }
 
 void CreateShortcutForCurrentWebContentsTask::
     OnIconsFetchedStartBadgingAndShowDialog(
         FetchIconsFromDocumentResult result) {
+  CHECK(icon_fetcher_task_);
+  icon_fetcher_task_.reset();
   if (!result.has_value()) {
     OnMetadataFetchCompleteSelfDestruct(
         base::unexpected(ShortcutCreationTaskResult::kIconFetchingFailed));
@@ -122,8 +127,6 @@ void CreateShortcutForCurrentWebContentsTask::
     return;
   }
 
-  // TODO(crbug/339459710): Update icon_badging.cc to work once site with
-  // no-icon use-case has been fixed.
   gfx::ImageFamily badged_images = ApplyProductLogoBadgeToIcons(result.value());
   CHECK(!badged_images.empty());
 
@@ -145,9 +148,8 @@ void CreateShortcutForCurrentWebContentsTask::
 void CreateShortcutForCurrentWebContentsTask::OnShortcutDialogResultObtained(
     gfx::ImageFamily images,
     GURL shortcut_url,
-    bool dialog_result,
-    std::u16string title) {
-  if (!dialog_result) {
+    std::optional<std::u16string> dialog_result) {
+  if (!dialog_result.has_value()) {
     OnMetadataFetchCompleteSelfDestruct(base::unexpected(
         ShortcutCreationTaskResult::kUserCancelledShortcutCreationFromDialog));
     return;
@@ -156,6 +158,7 @@ void CreateShortcutForCurrentWebContentsTask::OnShortcutDialogResultObtained(
   // The title returned from the dialog is expected to be non-empty if
   // dialog_result is true, which is an invariant of how the create shortcut
   // view works.
+  std::u16string title = dialog_result.value();
   CHECK(!title.empty());
 
   ShortcutMetadata metadata;
@@ -187,9 +190,7 @@ void CreateShortcutForCurrentWebContentsTask::
         base::BindOnce([](const base::FilePath& shortcut_path,
                           ShortcutCreatorResult result) {
           base::UmaHistogramEnumeration("Shortcuts.Creation.Result", result);
-          if (result != ShortcutCreatorResult::kError &&
-              base::FeatureList::IsEnabled(
-                  features::kShortcutsNotAppsRevealDesktop)) {
+          if (result != ShortcutCreatorResult::kError) {
             CHECK(!shortcut_path.empty());
             // Profile information is not needed to show the created shortcut in
             // the path on Windows, Mac and Linux.

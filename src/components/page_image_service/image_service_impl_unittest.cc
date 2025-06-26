@@ -17,6 +17,7 @@
 #include "components/omnibox/browser/test_scheme_classifier.h"
 #include "components/optimization_guide/core/optimization_guide_decision.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
+#include "components/optimization_guide/core/optimization_guide_proto_util.h"
 #include "components/optimization_guide/core/test_optimization_guide_decider.h"
 #include "components/optimization_guide/proto/common_types.pb.h"
 #include "components/optimization_guide/proto/hints.pb.h"
@@ -25,7 +26,7 @@
 #include "components/page_image_service/metrics_util.h"
 #include "components/page_image_service/mojom/page_image_service.mojom-shared.h"
 #include "components/page_image_service/mojom/page_image_service.mojom.h"
-#include "components/search_engines/template_url_service.h"
+#include "components/search_engines/search_engines_test_environment.h"
 #include "components/sync/test/test_sync_service.h"
 #include "components/variations/scoped_variations_ids_provider.h"
 #include "services/network/public/cpp/weak_wrapper_shared_url_loader_factory.h"
@@ -77,21 +78,20 @@ class ImageServiceImplTest : public testing::Test {
   void SetUp() override {
     scoped_feature_list_.InitWithFeatures(
         {kImageService, kImageServiceSuggestPoweredImages,
-         kImageServiceOptimizationGuideSalientImages,
-         kImageServiceObserveSyncDownloadStatus},
+         kImageServiceOptimizationGuideSalientImages},
         {});
 
-    template_url_service_ = std::make_unique<TemplateURLService>(nullptr, 0);
     remote_suggestions_service_ = std::make_unique<RemoteSuggestionsService>(
         /*document_suggestions_service=*/nullptr,
+        /*enterprise_search_aggregator_suggestions_service=*/nullptr,
         test_url_loader_factory_.GetSafeWeakWrapper());
     test_opt_guide_ =
         std::make_unique<optimization_guide::ImageServiceTestOptGuide>();
     test_sync_service_ = std::make_unique<syncer::TestSyncService>();
     image_service_ = std::make_unique<ImageServiceImpl>(
-        template_url_service_.get(), remote_suggestions_service_.get(),
-        test_opt_guide_.get(), test_sync_service_.get(),
-        std::make_unique<TestSchemeClassifier>());
+        search_engines_test_environment_.template_url_service(),
+        remote_suggestions_service_.get(), test_opt_guide_.get(),
+        test_sync_service_.get(), std::make_unique<TestSchemeClassifier>());
   }
 
   PageImageServiceConsentStatus GetConsentStatusToFetchImageAwaitResult(
@@ -120,7 +120,7 @@ class ImageServiceImplTest : public testing::Test {
 
   network::TestURLLoaderFactory test_url_loader_factory_;
 
-  std::unique_ptr<TemplateURLService> template_url_service_;
+  search_engines::SearchEnginesTestEnvironment search_engines_test_environment_;
   std::unique_ptr<RemoteSuggestionsService> remote_suggestions_service_;
   std::unique_ptr<optimization_guide::ImageServiceTestOptGuide> test_opt_guide_;
   std::unique_ptr<syncer::TestSyncService> test_sync_service_;
@@ -155,9 +155,9 @@ TEST_F(ImageServiceImplTest, DoesNotRegisterForNavigationRelatedMetadata) {
 
 TEST_F(ImageServiceImplTest, GetConsentToFetchImage) {
   test_sync_service_->SetDownloadStatusFor(
-      {syncer::ModelType::BOOKMARKS,
-       syncer::ModelType::HISTORY_DELETE_DIRECTIVES},
-      syncer::SyncService::ModelTypeDownloadStatus::kWaitingForUpdates);
+      {syncer::DataType::BOOKMARKS,
+       syncer::DataType::HISTORY_DELETE_DIRECTIVES},
+      syncer::SyncService::DataTypeDownloadStatus::kWaitingForUpdates);
   test_sync_service_->FireStateChanged();
 
   EXPECT_EQ(GetConsentStatusToFetchImageAwaitResult(mojom::ClientId::Journeys),
@@ -177,8 +177,8 @@ TEST_F(ImageServiceImplTest, GetConsentToFetchImage) {
             PageImageServiceConsentStatus::kTimedOut);
 
   test_sync_service_->SetDownloadStatusFor(
-      {syncer::ModelType::HISTORY_DELETE_DIRECTIVES},
-      syncer::SyncService::ModelTypeDownloadStatus::kUpToDate);
+      {syncer::DataType::HISTORY_DELETE_DIRECTIVES},
+      syncer::SyncService::DataTypeDownloadStatus::kUpToDate);
   test_sync_service_->FireStateChanged();
 
   EXPECT_EQ(GetConsentStatusToFetchImageAwaitResult(mojom::ClientId::Journeys),
@@ -202,9 +202,9 @@ TEST_F(ImageServiceImplTest, GetConsentToFetchImage) {
 TEST_F(ImageServiceImplTest, SyncInitialization) {
   // Put Sync into the initializing state.
   test_sync_service_->SetDownloadStatusFor(
-      {syncer::ModelType::BOOKMARKS,
-       syncer::ModelType::HISTORY_DELETE_DIRECTIVES},
-      syncer::SyncService::ModelTypeDownloadStatus::kWaitingForUpdates);
+      {syncer::DataType::BOOKMARKS,
+       syncer::DataType::HISTORY_DELETE_DIRECTIVES},
+      syncer::SyncService::DataTypeDownloadStatus::kWaitingForUpdates);
   test_sync_service_->FireStateChanged();
 
   mojom::Options options;
@@ -236,9 +236,9 @@ TEST_F(ImageServiceImplTest, SyncInitialization) {
 
   // Now set the test sync service to active.
   test_sync_service_->SetDownloadStatusFor(
-      {syncer::ModelType::BOOKMARKS,
-       syncer::ModelType::HISTORY_DELETE_DIRECTIVES},
-      syncer::SyncService::ModelTypeDownloadStatus::kUpToDate);
+      {syncer::DataType::BOOKMARKS,
+       syncer::DataType::HISTORY_DELETE_DIRECTIVES},
+      syncer::SyncService::DataTypeDownloadStatus::kUpToDate);
   test_sync_service_->FireStateChanged();
   task_environment.FastForwardBy(kOptimizationGuideBatchingTimeout);
   EXPECT_EQ(test_opt_guide_->requests_received_, 1U)
@@ -386,10 +386,8 @@ TEST_F(ImageServiceImplTest, OptimizationGuideSalientImagesEndToEnd) {
     auto* thumbnail = salient_image_metadata.add_thumbnails();
     thumbnail->set_image_url("https://image-url.com/foo.png");
 
-    optimization_guide::proto::Any any;
-    any.set_type_url(salient_image_metadata.GetTypeName());
-    salient_image_metadata.SerializeToString(any.mutable_value());
-    decision.metadata.set_any_metadata(any);
+    decision.metadata.set_any_metadata(
+        optimization_guide::AnyWrapProto(salient_image_metadata));
   }
 
   // Verify the decision can be parsed and sent back to the original caller.
@@ -402,10 +400,8 @@ TEST_F(ImageServiceImplTest, OptimizationGuideSalientImagesEndToEnd) {
     auto* thumbnail = salient_image_metadata.add_thumbnails();
     thumbnail->set_image_url("http://image-url.com/foo.png");
 
-    optimization_guide::proto::Any any;
-    any.set_type_url(salient_image_metadata.GetTypeName());
-    salient_image_metadata.SerializeToString(any.mutable_value());
-    http_decision.metadata.set_any_metadata(any);
+    http_decision.metadata.set_any_metadata(
+        optimization_guide::AnyWrapProto(salient_image_metadata));
   }
 
   // Verify that the repeating callback can be called twice with the two
@@ -484,17 +480,17 @@ class DisabledOptGuideImageServiceImplTest : public ImageServiceImplTest {
         /*enabled_features=*/{kImageService, kImageServiceSuggestPoweredImages},
         /*disabled_features=*/{kImageServiceOptimizationGuideSalientImages});
 
-    template_url_service_ = std::make_unique<TemplateURLService>(nullptr, 0);
     remote_suggestions_service_ = std::make_unique<RemoteSuggestionsService>(
         /*document_suggestions_service=*/nullptr,
+        /*enterprise_search_aggregator_suggestions_service=*/nullptr,
         test_url_loader_factory_.GetSafeWeakWrapper());
     test_opt_guide_ =
         std::make_unique<optimization_guide::ImageServiceTestOptGuide>();
     test_sync_service_ = std::make_unique<syncer::TestSyncService>();
     image_service_ = std::make_unique<ImageServiceImpl>(
-        template_url_service_.get(), remote_suggestions_service_.get(),
-        test_opt_guide_.get(), test_sync_service_.get(),
-        std::make_unique<TestSchemeClassifier>());
+        search_engines_test_environment_.template_url_service(),
+        remote_suggestions_service_.get(), test_opt_guide_.get(),
+        test_sync_service_.get(), std::make_unique<TestSchemeClassifier>());
   }
 };
 

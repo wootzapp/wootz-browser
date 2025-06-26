@@ -5,13 +5,13 @@
 #include "chrome/browser/ui/find_bar/find_bar_controller.h"
 
 #include <algorithm>
+#include <string_view>
 
 #include "base/check_op.h"
 #include "base/strings/string_util.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
-#include "chrome/browser/ui/find_bar/find_bar_state.h"
-#include "chrome/browser/ui/find_bar/find_bar_state_factory.h"
+#include "chrome/browser/ui/find_bar/find_bar_platform_helper.h"
 #include "components/find_in_page/find_tab_helper.h"
 #include "components/find_in_page/find_types.h"
 #include "content/public/browser/navigation_details.h"
@@ -47,14 +47,15 @@ void FindBarController::Show(bool find_next, bool forward_direction) {
   find_bar_->SetFocusAndSelection();
 
   if (find_next) {
-    find_tab_helper->StartFinding(find_bar_->GetFindText(), forward_direction,
-                                  false /* case_sensitive */,
+    find_tab_helper->StartFinding(std::u16string(find_bar_->GetFindText()),
+                                  forward_direction, false /* case_sensitive */,
                                   true /* find_match */);
     return;
   }
 
-  if (has_user_modified_text_)
+  if (has_user_modified_text_) {
     return;
+  }
 
   std::u16string selected_text = GetSelectedText();
   auto selected_length = selected_text.length();
@@ -68,10 +69,9 @@ void FindBarController::Show(bool find_next, bool forward_direction) {
   // whatever is prefilled (e.g. the selected text or the global pasteboard).
   // So we set |find_match| to false, which will set up match counts and
   // highlighting, but not jump to any matches.
-  find_tab_helper->StartFinding(find_bar_->GetFindText(),
-                                true /* forward_direction */,
-                                false /* case_sensitive */,
-                                false /* find_match */);
+  find_tab_helper->StartFinding(
+      std::u16string(find_bar_->GetFindText()), true /* forward_direction */,
+      false /* case_sensitive */, false /* find_match */);
 }
 
 void FindBarController::EndFindSession(
@@ -90,8 +90,9 @@ void FindBarController::EndFindSession(
     // tickmarks and highlighting.
     find_tab_helper->StopFinding(selection_action);
 
-    if (result_action == find_in_page::ResultAction::kClear)
+    if (result_action == find_in_page::ResultAction::kClear) {
       find_bar_->ClearResults(find_tab_helper->find_result());
+    }
 
     // When we get dismissed we restore the focus to where it belongs.
     find_bar_->RestoreSavedFocus();
@@ -114,8 +115,9 @@ void FindBarController::ChangeWebContents(WebContents* contents) {
   find_in_page::FindTabHelper* find_tab_helper =
       contents ? find_in_page::FindTabHelper::FromWebContents(contents)
                : nullptr;
-  if (find_tab_helper)
+  if (find_tab_helper) {
     find_tab_observation_.Observe(find_tab_helper);
+  }
 
   // Hide any visible find window from the previous tab if a NULL tab contents
   // is passed in or if the find UI is not active in the new tab.
@@ -146,7 +148,7 @@ void FindBarController::ChangeWebContents(WebContents* contents) {
     // update the results in the findbar. If condition is true due to the find
     // text being empty, the call to StartFinding will be a harmless no-op.
     if (find_tab_helper->find_result().number_of_matches() == -1) {
-      find_tab_helper->StartFinding(find_bar_->GetFindText(),
+      find_tab_helper->StartFinding(std::u16string(find_bar_->GetFindText()),
                                     true /* forward_direction */,
                                     false /* case_sensitive */,
                                     false /* find_match */);
@@ -164,20 +166,21 @@ void FindBarController::SetText(std::u16string text) {
   }
   find_in_page::FindTabHelper* find_tab_helper =
       find_in_page::FindTabHelper::FromWebContents(web_contents());
-  if (!find_tab_helper->find_ui_active())
+  if (!find_tab_helper->find_ui_active()) {
     return;
+  }
 
-  find_tab_helper->StartFinding(text,
-                                true /* forward_direction */,
+  find_tab_helper->StartFinding(text, true /* forward_direction */,
                                 false /* case_sensitive */,
                                 false /* find_match */);
 }
 
-void FindBarController::OnUserChangedFindText(std::u16string text) {
+void FindBarController::OnUserChangedFindText(std::u16string_view text) {
   has_user_modified_text_ = !text.empty();
 
-  if (find_bar_platform_helper_)
+  if (find_bar_platform_helper_) {
     find_bar_platform_helper_->OnUserChangedFindText(text);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,8 +213,9 @@ void FindBarController::OnFindResultAvailable(
   // we're only highlighting results (when first opening the find bar).
   // See https://crbug.com/1131780
   if (!find_tab_helper->find_result().final_update() ||
-      !find_tab_helper->should_find_match())
+      !find_tab_helper->should_find_match()) {
     return;
+  }
 
   const std::u16string& current_search = find_tab_helper->find_text();
 
@@ -259,8 +263,9 @@ void FindBarController::MaybeSetPrepopulateText() {
   // pasteboard, so we always have the same find text in all find bars. This is
   // done through the find pasteboard mechanism (see FindBarPlatformHelperMac),
   // so don't set the text here.
-  if (find_bar_->HasGlobalFindPasteboard())
+  if (find_bar_->HasGlobalFindPasteboard()) {
     return;
+  }
 
   // Find out what we should show in the find text box. Usually, this will be
   // the last search in this tab, but if no search has been issued in this tab
@@ -268,8 +273,9 @@ void FindBarController::MaybeSetPrepopulateText() {
   find_in_page::FindTabHelper* find_tab_helper =
       find_in_page::FindTabHelper::FromWebContents(web_contents());
   std::u16string find_string = find_tab_helper->find_text();
-  if (find_string.empty())
+  if (find_string.empty()) {
     find_string = find_tab_helper->GetInitialSearchText();
+  }
 
   // Update the find bar with existing results and search text, regardless of
   // whether or not the find bar is visible, so that if it's subsequently
@@ -282,8 +288,9 @@ void FindBarController::MaybeSetPrepopulateText() {
 
 std::u16string FindBarController::GetSelectedText() {
   auto* host_view = web_contents()->GetRenderWidgetHostView();
-  if (!host_view)
+  if (!host_view) {
     return std::u16string();
+  }
 
   std::u16string selected_text = host_view->GetSelectedText();
   // This should be kept in sync with what TextfieldModel::Paste() does, since

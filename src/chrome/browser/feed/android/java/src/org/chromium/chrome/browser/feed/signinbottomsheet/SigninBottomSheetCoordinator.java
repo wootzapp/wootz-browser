@@ -72,7 +72,7 @@ public class SigninBottomSheetCoordinator implements AccountPickerDelegate {
     @Override
     public void addAccount() {
         // TODO(b/326019991): Remove this exception along with the delegate implementation once
-        // all bottom sheet entry points will be started from `SigninAndHistoryOptInActivity`.
+        // all bottom sheet entry points will be started from `SigninAndHistorySyncActivity`.
         throw new UnsupportedOperationException(
                 "SigninBottomSheetCoordinator.addAccount() should never be called.");
     }
@@ -138,14 +138,15 @@ public class SigninBottomSheetCoordinator implements AccountPickerDelegate {
                         mDeviceLockActivityLauncher,
                         AccountPickerLaunchMode.DEFAULT,
                         /* isWebSignin= */ false,
-                        mSigninAccessPoint);
+                        mSigninAccessPoint,
+                        /* selectedAccountId= */ null);
     }
 
     private void makeSigninNotAllowedToast() {
         RecordHistogram.recordEnumeratedHistogram(
                 "Signin.SigninDisabledNotificationShown",
                 mSigninAccessPoint,
-                SigninAccessPoint.MAX);
+                SigninAccessPoint.MAX_VALUE);
         if (mSetTestToast) return;
         Toast.makeText(
                         mWindowAndroid.getActivity().get(),

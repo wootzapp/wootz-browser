@@ -10,11 +10,11 @@
 #import "base/memory/raw_ptr.h"
 #include "base/scoped_multi_source_observation.h"
 #include "base/scoped_observation.h"
+#import "ios/chrome/browser/dialogs/ui_bundled/overlay_java_script_dialog_presenter.h"
 #include "ios/chrome/browser/shared/model/browser/browser_observer.h"
 #include "ios/chrome/browser/shared/model/browser/browser_user_data.h"
 #include "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #include "ios/chrome/browser/shared/model/web_state_list/web_state_list_observer.h"
-#import "ios/chrome/browser/ui/dialogs/overlay_java_script_dialog_presenter.h"
 #include "ios/web/public/navigation/form_warning_type.h"
 #include "ios/web/public/web_state_delegate.h"
 #include "ios/web/public/web_state_observer.h"
@@ -56,7 +56,6 @@ class WebStateDelegateBrowserAgent
 
  private:
   friend class BrowserUserData<WebStateDelegateBrowserAgent>;
-  BROWSER_USER_DATA_KEY_DECL();
 
   WebStateDelegateBrowserAgent(Browser* browser,
                                TabInsertionBrowserAgent* tab_insertion_agent);
@@ -106,6 +105,7 @@ class WebStateDelegateBrowserAgent
       id<UIContextMenuInteractionCommitAnimating> animator) override;
   id<CRWResponderInputView> GetResponderInputView(
       web::WebState* source) override;
+  void OnNewWebViewCreated(web::WebState* source) override;
 
   // Helper methods to set/clear the WebState delegate if it is realized,
   // or to listen for the realization of the WebState.

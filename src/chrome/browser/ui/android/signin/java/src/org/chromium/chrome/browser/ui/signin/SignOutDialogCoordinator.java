@@ -21,7 +21,6 @@ import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.FragmentManager;
 
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.chrome.browser.password_manager.PasswordManagerUtilBridge;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -171,6 +170,7 @@ final class SignOutDialogCoordinator {
         // SigninManager.
         final boolean allowDeletingData =
                 UserPrefs.get(profile).getBoolean(Pref.ALLOW_DELETING_BROWSER_HISTORY);
+        // TODO(crbug.com/40066949): Remove when ConsentLevel.SYNC becomes unreachable on Android.
         final boolean hasSyncConsent =
                 IdentityServicesProvider.get()
                         .getIdentityManager(profile)
@@ -224,10 +224,6 @@ final class SignOutDialogCoordinator {
             @Override
             public void onClick(PropertyModel model, int buttonType) {
                 if (buttonType == ButtonType.POSITIVE) {
-                    if (mCheckBox.getVisibility() == View.VISIBLE) {
-                        RecordHistogram.recordBooleanHistogram(
-                                "Signin.UserRequestedWipeDataOnSignout", mCheckBox.isChecked());
-                    }
                     boolean forceWipeData =
                             mCheckBox.getVisibility() == View.VISIBLE && mCheckBox.isChecked();
                     signOut(forceWipeData);
@@ -272,16 +268,11 @@ final class SignOutDialogCoordinator {
                         IdentityServicesProvider.get().getSigninManager(mProfile);
                 signinManager.runAfterOperationInProgress(
                         () -> {
-                            // In case sign-out allowed changed while the dialog was displayed, we
-                            // return early to avoid a native crash.
-                            if (!signinManager.isSignOutAllowed()) {
-                                return;
-                            }
                             if (mSignOutReason
                                     == SignoutReason.USER_CLICKED_REVOKE_SYNC_CONSENT_SETTINGS) {
                                 signinManager.revokeSyncConsent(
                                         mSignOutReason, dataWipeCallback, forceWipeUserData);
-                            } else {
+                            } else if (signinManager.isSignOutAllowed()) {
                                 signinManager.signOut(
                                         mSignOutReason, dataWipeCallback, forceWipeUserData);
                             }

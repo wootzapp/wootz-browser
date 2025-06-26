@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "android_webview/browser/metrics/visibility_metrics_logger.h"
 
 #include "base/containers/contains.h"
@@ -48,9 +53,8 @@ const char* SchemeEnumToString(VisibilityMetricsLogger::Scheme scheme) {
     case VisibilityMetricsLogger::Scheme::kIntent:
       return "intent";
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
-  return "";
 }
 
 // Have bypassed the usual macros here because they do not support a
@@ -286,16 +290,12 @@ void VisibilityMetricsLogger::ProcessClientUpdate(Client* client,
     if (action != ClientAction::kRemoved) {
       TRACE_EVENT_BEGIN("android_webview.timeline", "WebViewVisible",
                         perfetto::Track::FromPointer(client));
-      // TODO(crbug.com/40657156): Remove this once fixed.
-      PERFETTO_INTERNAL_ADD_EMPTY_EVENT();
     }
     ++all_clients_visible_count_;
   } else if (was_visible && !is_visible) {
     if (action != ClientAction::kRemoved) {
       TRACE_EVENT_BEGIN("android_webview.timeline", "WebViewInvisible",
                         perfetto::Track::FromPointer(client));
-      // TODO(crbug.com/40657156): Remove this once fixed.
-      PERFETTO_INTERNAL_ADD_EMPTY_EVENT();
     }
     --all_clients_visible_count_;
   }

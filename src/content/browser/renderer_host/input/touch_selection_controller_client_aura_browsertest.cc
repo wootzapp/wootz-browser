@@ -16,7 +16,6 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_timeouts.h"
-#include "build/chromeos_buildflags.h"
 #include "content/browser/renderer_host/render_widget_host_view_aura.h"
 #include "content/browser/renderer_host/render_widget_host_view_child_frame.h"
 #include "content/browser/renderer_host/render_widget_host_view_event_handler.h"
@@ -38,7 +37,6 @@
 #include "third_party/blink/public/common/switches.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
-#include "ui/base/pointer/touch_editing_controller.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/display/display_switches.h"
 #include "ui/events/event_sink.h"
@@ -46,6 +44,7 @@
 #include "ui/events/gesture_detection/gesture_configuration.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/events/test/motion_event_test_utils.h"
+#include "ui/touch_selection/touch_editing_controller.h"
 #include "ui/touch_selection/touch_selection_controller_test_api.h"
 #include "ui/touch_selection/touch_selection_metrics.h"
 
@@ -396,7 +395,6 @@ class TouchSelectionControllerClientAuraTest : public ContentBrowserTest {
   }
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
-    ContentBrowserTest::SetUpCommandLine(command_line);
     command_line->AppendSwitch(blink::switches::kAllowPreCommitInput);
   }
 
@@ -698,7 +696,8 @@ IN_PROC_BROWSER_TEST_P(TouchSelectionControllerClientAuraSiteIsolationTest,
   // handles re-appear make sure they have the correct location.
   // 1) Send touch-down.
   ui::TouchEvent touch_down(
-      ui::ET_TOUCH_PRESSED, scroll_start_position, ui::EventTimeForNow(),
+      ui::EventType::kTouchPressed, scroll_start_position,
+      ui::EventTimeForNow(),
       ui::PointerDetails(ui::EventPointerType::kTouch, 0));
   parent_view->OnTouchEvent(&touch_down);
   EXPECT_EQ(ui::TouchSelectionController::SELECTION_ACTIVE,
@@ -710,7 +709,7 @@ IN_PROC_BROWSER_TEST_P(TouchSelectionControllerClientAuraSiteIsolationTest,
 
   // 2) Send touch-move.
   ui::TouchEvent touch_move(
-      ui::ET_TOUCH_MOVED, scroll_end_position, ui::EventTimeForNow(),
+      ui::EventType::kTouchMoved, scroll_end_position, ui::EventTimeForNow(),
       ui::PointerDetails(ui::EventPointerType::kTouch, 0));
   parent_view->OnTouchEvent(&touch_move);
   EXPECT_EQ(ui::TouchSelectionController::SELECTION_ACTIVE,
@@ -720,7 +719,8 @@ IN_PROC_BROWSER_TEST_P(TouchSelectionControllerClientAuraSiteIsolationTest,
 
   // Start scrolling: touch handles should get hidden, while touch selection is
   // still active.
-  ui::GestureEventDetails scroll_begin_details(ui::ET_GESTURE_SCROLL_BEGIN);
+  ui::GestureEventDetails scroll_begin_details(
+      ui::EventType::kGestureScrollBegin);
   scroll_begin_details.set_device_type(
       ui::GestureDeviceType::DEVICE_TOUCHSCREEN);
   ui::GestureEvent scroll_begin(scroll_start_position.x(),
@@ -735,7 +735,7 @@ IN_PROC_BROWSER_TEST_P(TouchSelectionControllerClientAuraSiteIsolationTest,
   // GestureScrollUpdate
   gfx::Vector2dF scroll_delta = scroll_end_position - scroll_start_position;
   ui::GestureEventDetails scroll_update_details(
-      ui::ET_GESTURE_SCROLL_UPDATE, scroll_delta.x(), scroll_delta.y());
+      ui::EventType::kGestureScrollUpdate, scroll_delta.x(), scroll_delta.y());
   scroll_update_details.set_device_type(
       ui::GestureDeviceType::DEVICE_TOUCHSCREEN);
   ui::GestureEvent scroll_update(scroll_start_position.x(),
@@ -763,7 +763,7 @@ IN_PROC_BROWSER_TEST_P(TouchSelectionControllerClientAuraSiteIsolationTest,
   }
 
   // End scrolling: touch handles should re-appear.
-  ui::GestureEventDetails scroll_end_details(ui::ET_GESTURE_SCROLL_END);
+  ui::GestureEventDetails scroll_end_details(ui::EventType::kGestureScrollEnd);
   scroll_end_details.set_device_type(ui::GestureDeviceType::DEVICE_TOUCHSCREEN);
   ui::GestureEvent scroll_end(scroll_end_position.x(), scroll_end_position.y(),
                               0, ui::EventTimeForNow(), scroll_end_details);
@@ -774,7 +774,7 @@ IN_PROC_BROWSER_TEST_P(TouchSelectionControllerClientAuraSiteIsolationTest,
   EXPECT_FALSE(ui::TouchSelectionMenuRunner::GetInstance()->IsRunning());
 
   // 3) Send touch-end.
-  ui::TouchEvent touch_up(ui::ET_TOUCH_RELEASED, scroll_end_position,
+  ui::TouchEvent touch_up(ui::EventType::kTouchReleased, scroll_end_position,
                           ui::EventTimeForNow(),
                           ui::PointerDetails(ui::EventPointerType::kTouch, 0));
   parent_view->OnTouchEvent(&touch_up);
@@ -1289,7 +1289,7 @@ IN_PROC_BROWSER_TEST_F(TouchSelectionControllerClientAuraTest,
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 // Tests that touch selection dragging records a histogram entry.
 IN_PROC_BROWSER_TEST_F(TouchSelectionControllerClientAuraTest,
                        SelectionDraggingMetrics) {
@@ -1328,13 +1328,8 @@ IN_PROC_BROWSER_TEST_F(TouchSelectionControllerClientAuraTest,
       ui::TouchSelectionDragType::kDoublePressDrag, 1);
   histogram_tester.ExpectTotalCount(ui::kTouchSelectionDragTypeHistogramName,
                                     2);
-
-  // Start typing to end the touch selection session.
-  generator.PressAndReleaseKey(ui::VKEY_A);
-  histogram_tester.ExpectUniqueSample(
-      ui::kTouchSelectionSessionTouchDownCountHistogramName, 3, 1);
 }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 // Tests that the quick menu is hidden whenever a touch point is active.
 // Flaky: https://crbug.com/803576
@@ -1356,7 +1351,7 @@ IN_PROC_BROWSER_TEST_F(TouchSelectionControllerClientAuraTest,
       ui::SELECTION_HANDLES_SHOWN);
 
   gfx::PointF point = GetPointInText(2);
-  ui::GestureEventDetails long_press_details(ui::ET_GESTURE_LONG_PRESS);
+  ui::GestureEventDetails long_press_details(ui::EventType::kGestureLongPress);
   long_press_details.set_device_type(ui::GestureDeviceType::DEVICE_TOUCHSCREEN);
   ui::GestureEvent long_press(point.x(), point.y(), 0, ui::EventTimeForNow(),
                               long_press_details);
@@ -1421,7 +1416,7 @@ IN_PROC_BROWSER_TEST_F(TouchSelectionControllerClientAuraTest, HiddenOnScroll) {
       ui::SELECTION_HANDLES_SHOWN);
 
   gfx::PointF point = GetPointInText(2);
-  ui::GestureEventDetails long_press_details(ui::ET_GESTURE_LONG_PRESS);
+  ui::GestureEventDetails long_press_details(ui::EventType::kGestureLongPress);
   long_press_details.set_device_type(ui::GestureDeviceType::DEVICE_TOUCHSCREEN);
   ui::GestureEvent long_press(point.x(), point.y(), 0, ui::EventTimeForNow(),
                               long_press_details);
@@ -1439,7 +1434,7 @@ IN_PROC_BROWSER_TEST_F(TouchSelectionControllerClientAuraTest, HiddenOnScroll) {
   // Put a finger down: the quick menu should go away, while touch handles stay
   // there.
   ui::TouchEvent touch_down(
-      ui::ET_TOUCH_PRESSED, gfx::Point(10, 10), ui::EventTimeForNow(),
+      ui::EventType::kTouchPressed, gfx::Point(10, 10), ui::EventTimeForNow(),
       ui::PointerDetails(ui::EventPointerType::kTouch, 0));
   rwhva->OnTouchEvent(&touch_down);
   EXPECT_EQ(ui::TouchSelectionController::SELECTION_ACTIVE,
@@ -1449,7 +1444,8 @@ IN_PROC_BROWSER_TEST_F(TouchSelectionControllerClientAuraTest, HiddenOnScroll) {
 
   // Start scrolling: touch handles should get hidden, while touch selection is
   // still active.
-  ui::GestureEventDetails scroll_begin_details(ui::ET_GESTURE_SCROLL_BEGIN);
+  ui::GestureEventDetails scroll_begin_details(
+      ui::EventType::kGestureScrollBegin);
   scroll_begin_details.set_device_type(
       ui::GestureDeviceType::DEVICE_TOUCHSCREEN);
   ui::GestureEvent scroll_begin(10, 10, 0, ui::EventTimeForNow(),
@@ -1461,7 +1457,7 @@ IN_PROC_BROWSER_TEST_F(TouchSelectionControllerClientAuraTest, HiddenOnScroll) {
   EXPECT_FALSE(ui::TouchSelectionMenuRunner::GetInstance()->IsRunning());
 
   // End scrolling: touch handles should re-appear.
-  ui::GestureEventDetails scroll_end_details(ui::ET_GESTURE_SCROLL_END);
+  ui::GestureEventDetails scroll_end_details(ui::EventType::kGestureScrollEnd);
   scroll_end_details.set_device_type(ui::GestureDeviceType::DEVICE_TOUCHSCREEN);
   ui::GestureEvent scroll_end(10, 10, 0, ui::EventTimeForNow(),
                               scroll_end_details);
@@ -1472,7 +1468,7 @@ IN_PROC_BROWSER_TEST_F(TouchSelectionControllerClientAuraTest, HiddenOnScroll) {
   EXPECT_FALSE(ui::TouchSelectionMenuRunner::GetInstance()->IsRunning());
 
   // Lift the finger up: the quick menu should re-appear.
-  ui::TouchEvent touch_up(ui::ET_TOUCH_RELEASED, gfx::Point(10, 10),
+  ui::TouchEvent touch_up(ui::EventType::kTouchReleased, gfx::Point(10, 10),
                           ui::EventTimeForNow(),
                           ui::PointerDetails(ui::EventPointerType::kTouch, 0));
   rwhva->OnTouchEvent(&touch_up);
@@ -1513,10 +1509,10 @@ IN_PROC_BROWSER_TEST_F(TouchSelectionControllerClientAuraTest,
       /*steps=*/5,
       base::BindLambdaForTesting([&](ui::EventType event_type,
                                      const gfx::Vector2dF& offset) {
-        if (event_type == ui::ET_GESTURE_SCROLL_BEGIN) {
+        if (event_type == ui::EventType::kGestureScrollBegin) {
           selection_controller_client()->InitWaitForSelectionEvent(
               ui::INSERTION_HANDLE_MOVED);
-        } else if (event_type == ui::ET_GESTURE_SCROLL_UPDATE) {
+        } else if (event_type == ui::EventType::kGestureScrollUpdate) {
           selection_controller_client()->Wait();
           EXPECT_TRUE(selection_controller_client()->IsMagnifierVisible());
           selection_controller_client()->InitWaitForSelectionEvent(

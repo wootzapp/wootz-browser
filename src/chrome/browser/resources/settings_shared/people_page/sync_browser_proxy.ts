@@ -19,7 +19,8 @@ export interface StoredAccount {
 
 /**
  * Equivalent to C++ counterpart.
- * @see chrome/browser/ui/webui/settings/people_handler.h
+ * @see chrome/browser/signin/signin_ui_util.h
+ * TODO(b/336510160): Look into integrating SYNC_PAUSED value.
  */
 export enum SignedInState {
   SIGNED_OUT = 0,
@@ -44,8 +45,10 @@ export interface SyncStatus {
   signedInState?: SignedInState;
   signedInUsername?: string;
   statusActionText?: string;
+  secondaryButtonActionText?: string;
   statusText?: string;
   supervisedUser?: boolean;
+  syncCookiesSupported?: boolean;
   syncSystemEnabled?: boolean;
 }
 
@@ -80,6 +83,9 @@ export interface SyncPrefs {
   bookmarksManaged: boolean;
   bookmarksRegistered: boolean;
   bookmarksSynced: boolean;
+  cookiesManaged: boolean;
+  cookiesRegistered: boolean;
+  cookiesSynced: boolean;
   customPassphraseAllowed: boolean;
   encryptAllData: boolean;
   extensionsManaged: boolean;
@@ -95,6 +101,9 @@ export interface SyncPrefs {
   preferencesManaged: boolean;
   preferencesRegistered: boolean;
   preferencesSynced: boolean;
+  productComparisonManaged: boolean;
+  productComparisonRegistered: boolean;
+  productComparisonSynced: boolean;
   readingListManaged: boolean;
   readingListRegistered: boolean;
   readingListSynced: boolean;
@@ -126,11 +135,13 @@ export const syncPrefsIndividualDataTypes: string[] = [
   'appsSynced',
   'autofillSynced',
   'bookmarksSynced',
+  'cookiesSynced',
   'extensionsSynced',
   'readingListSynced',
   'passwordsSynced',
   'paymentsSynced',
   'preferencesSynced',
+  'productComparisonSynced',
   'savedTabGroupsSynced',
   'tabsSynced',
   'themesSynced',
@@ -166,11 +177,6 @@ export interface ChromeSigninUserChoiceInfo {
   signedInEmail: string;
 }
 
-/**
- * Key to be used with localStorage.
- */
-const PROMO_IMPRESSION_COUNT_KEY: string = 'signin-promo-count';
-
 export interface SyncBrowserProxy {
   // <if expr="not chromeos_ash">
   /**
@@ -189,16 +195,6 @@ export interface SyncBrowserProxy {
    */
   pauseSync(): void;
   // </if>
-
-  /**
-   * @return the number of times the sync account promo was shown.
-   */
-  getPromoImpressionCount(): number;
-
-  /**
-   * Increment the number of times the sync account promo was shown.
-   */
-  incrementPromoImpressionCount(): void;
 
   // <if expr="chromeos_ash">
   /**
@@ -224,6 +220,12 @@ export interface SyncBrowserProxy {
   startKeyRetrieval(): void;
 
   /**
+   * Displays the sync passphrase dialog for users to enter passphrase to enable
+   * sync.
+   */
+  showSyncPassphraseDialog(): void;
+
+  /**
    * Gets the current sync status.
    */
   getSyncStatus(): Promise<SyncStatus>;
@@ -232,6 +234,11 @@ export interface SyncBrowserProxy {
    * Gets a list of stored accounts.
    */
   getStoredAccounts(): Promise<StoredAccount[]>;
+
+  /**
+   * Gets the current profile avatar.
+   */
+  getProfileAvatar(): Promise<string>;
 
   /**
    * Function to invoke when the sync page has been navigated to. This
@@ -317,18 +324,6 @@ export class SyncBrowserProxyImpl implements SyncBrowserProxy {
   }
   // </if>
 
-  getPromoImpressionCount() {
-    return parseInt(
-               window.localStorage.getItem(PROMO_IMPRESSION_COUNT_KEY)!, 10) ||
-        0;
-  }
-
-  incrementPromoImpressionCount() {
-    window.localStorage.setItem(
-        PROMO_IMPRESSION_COUNT_KEY,
-        (this.getPromoImpressionCount() + 1).toString());
-  }
-
   // <if expr="chromeos_ash">
   attemptUserExit() {
     chrome.send('AttemptUserExit');
@@ -347,12 +342,20 @@ export class SyncBrowserProxyImpl implements SyncBrowserProxy {
     chrome.send('SyncStartKeyRetrieval');
   }
 
+  showSyncPassphraseDialog() {
+    chrome.send('SyncShowSyncPassphraseDialog');
+  }
+
   getSyncStatus() {
     return sendWithPromise('SyncSetupGetSyncStatus');
   }
 
   getStoredAccounts() {
     return sendWithPromise('SyncSetupGetStoredAccounts');
+  }
+
+  getProfileAvatar() {
+    return sendWithPromise('SyncSetupGetProfileAvatar');
   }
 
   didNavigateToSyncPage() {

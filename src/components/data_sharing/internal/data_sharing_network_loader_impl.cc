@@ -5,6 +5,9 @@
 #include "components/data_sharing/internal/data_sharing_network_loader_impl.h"
 
 #include "base/time/time.h"
+#include "components/data_sharing/public/data_sharing_network_loader.h"
+#include "components/data_sharing/public/data_sharing_network_utils.h"
+#include "components/data_sharing/public/group_data.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 #include "net/http/http_request_headers.h"
 #include "net/http/http_status_code.h"
@@ -44,6 +47,16 @@ void DataSharingNetworkLoaderImpl::LoadUrl(
                      std::move(endpoint_fetcher)));
 }
 
+void DataSharingNetworkLoaderImpl::LoadUrl(
+    const GURL& url,
+    const std::vector<std::string>& scopes,
+    const std::string& post_data,
+    DataSharingRequestType requestType,
+    NetworkLoaderCallback callback) {
+  LoadUrl(url, scopes, post_data, GetNetworkTrafficAnnotationTag(requestType),
+          std::move(callback));
+}
+
 std::unique_ptr<EndpointFetcher>
 DataSharingNetworkLoaderImpl::CreateEndpointFetcher(
     const GURL& url,
@@ -61,12 +74,45 @@ void DataSharingNetworkLoaderImpl::OnDownloadComplete(
     NetworkLoaderCallback callback,
     std::unique_ptr<EndpointFetcher> fetcher,
     std::unique_ptr<EndpointResponse> response) {
+  NetworkLoaderStatus status = NetworkLoaderStatus::kSuccess;
   if (response->http_status_code != net::HTTP_OK || response->error_type) {
-    VLOG(1) << "Data sharing network request failed";
-    std::move(callback).Run(nullptr);
-  } else {
-    std::move(callback).Run(
-        std::make_unique<std::string>(std::move(response->response)));
+    VLOG(1) << "Data sharing network request failed http status: "
+            << response->http_status_code << " "
+            << (response->error_type ? static_cast<int>(*response->error_type)
+                                     : -1);
+    // TODO(ssid): Investigate whether some auth errors are permanent.
+    status = NetworkLoaderStatus::kTransientFailure;
+  }
+  std::move(callback).Run(
+      std::make_unique<DataSharingNetworkLoader::LoadResult>(
+          std::move(response->response), status, response->http_status_code));
+}
+
+const net::NetworkTrafficAnnotationTag&
+DataSharingNetworkLoaderImpl::GetNetworkTrafficAnnotationTag(
+    DataSharingRequestType request_type) {
+  switch (request_type) {
+    case DataSharingRequestType::kCreateGroup:
+      return kCreateGroupTrafficAnnotation;
+    case DataSharingRequestType::kReadGroups:
+    case DataSharingRequestType::kReadAllGroups:
+      return kReadGroupsTrafficAnnotation;
+    case DataSharingRequestType::kDeleteGroups:
+      return kDeleteGroupsTrafficAnnotation;
+    case DataSharingRequestType::kUpdateGroup:
+      return kUpdateGroupTrafficAnnotation;
+    // TODO(crbug.com/375594409): Add specific traffic annotation for request
+    // types below.
+    case DataSharingRequestType::kLookup:
+    case DataSharingRequestType::kWarmup:
+    case DataSharingRequestType::kAutocomplete:
+    case DataSharingRequestType::kMutateConnectionLabel:
+    case DataSharingRequestType::kLeaveGroup:
+    case DataSharingRequestType::kBlockPerson:
+    case DataSharingRequestType::kJoinGroup:
+    case DataSharingRequestType::kTestRequest:
+    case DataSharingRequestType::kUnknown:
+      return kReadGroupsTrafficAnnotation;
   }
 }
 

@@ -19,7 +19,9 @@
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
 #include "chrome/browser/ui/performance_controls/test_support/memory_metrics_refresh_waiter.h"
 #include "chrome/browser/ui/performance_controls/test_support/memory_saver_interactive_test_mixin.h"
+#include "chrome/browser/ui/tabs/saved_tab_groups/collaboration_messaging_tab_data.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/browser/ui/tabs/test/tab_strip_interactive_test_mixin.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/tabs/fade_footer_view.h"
 #include "chrome/browser/ui/views/tabs/fade_label_view.h"
@@ -38,10 +40,14 @@
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
+#include "components/collaboration/public/messaging/message.h"
+#include "components/data_sharing/public/group_data.h"
 #include "components/lookalikes/core/safety_tip_test_utils.h"
 #include "components/performance_manager/public/decorators/process_metrics_decorator.h"
 #include "components/performance_manager/public/performance_manager.h"
+#include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/content_features.h"
 #include "content/public/test/browser_test.h"
 #include "net/base/url_util.h"
 #include "net/dns/mock_host_resolver.h"
@@ -60,7 +66,7 @@
 #include "ui/views/test/widget_test.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/system_web_apps/test_support/test_system_web_app_installation.h"
 #endif
 
@@ -80,10 +86,30 @@ TabRendererData MakeTabRendererData() {
   return new_tab_data;
 }
 
+collaboration::messaging::PersistentMessage CreateMessage(
+    std::string given_name,
+    std::string avatar_url,
+    collaboration::messaging::CollaborationEvent event) {
+  data_sharing::GroupMember member;
+  member.given_name = given_name;
+  member.avatar_url = GURL(avatar_url);
+
+  collaboration::messaging::MessageAttribution attribution;
+  attribution.triggering_user = member;
+
+  collaboration::messaging::PersistentMessage message;
+  message.type = collaboration::messaging::PersistentNotificationType::CHIP;
+  message.attribution = attribution;
+  message.collaboration_event = event;
+
+  return message;
+}
+
 }  // namespace
 
 class TabHoverCardInteractiveUiTest
-    : public MemorySaverInteractiveTestMixin<InteractiveBrowserTest>,
+    : public TabStripInteractiveTestMixin<
+          MemorySaverInteractiveTestMixin<InteractiveBrowserTest>>,
       public test::TabHoverCardTestUtil {
  public:
   ~TabHoverCardInteractiveUiTest() override = default;
@@ -115,37 +141,8 @@ class TabHoverCardInteractiveUiTest
     MemorySaverInteractiveTestMixin::TearDownOnMainThread();
   }
 
-  auto HoverTabAt(int index) {
-#if BUILDFLAG(IS_MAC)
-    // TODO(crbug.com/40249296): Fix for mac
-    return Steps(Do(base::BindLambdaForTesting(
-        [=]() { SimulateHoverTab(browser(), index); })));
-#else
-    const char kTabToHover[] = "Tab to hover";
-    return Steps(
-        WithView(kTabStripElementId,
-                 [](TabStrip* tab_strip) { tab_strip->StopAnimating(true); }),
-        NameDescendantViewByType<Tab>(kBrowserViewElementId, kTabToHover,
-                                      index),
-        MoveMouseTo(kTabToHover));
-#endif
-  }
-
   auto UnhoverTab() {
-#if BUILDFLAG(IS_MAC)
-    // TODO(crbug.com/40249296): Fix for mac
-    return Steps(Do(base::BindLambdaForTesting([=]() {
-      TabStrip* const tab_strip = GetTabStrip(browser());
-      HoverCardDestroyedWaiter waiter(tab_strip);
-      ui::MouseEvent stop_hover_event(ui::ET_MOUSE_EXITED, gfx::Point(),
-                                      gfx::Point(), base::TimeTicks(),
-                                      ui::EF_NONE, 0);
-      static_cast<views::View*>(tab_strip)->OnMouseExited(stop_hover_event);
-      waiter.Wait();
-    })));
-#else
     return Steps(MoveMouseTo(kNewTabButtonElementId));
-#endif
   }
 
   StepBuilder CheckHovercardIsOpen() {
@@ -164,47 +161,38 @@ class TabHoverCardInteractiveUiTest
 
 // Verify that the hover card is not visible when any key is pressed.
 // Because this test depends on Aura event handling, it is not performed on Mac.
-// TODO(crbug.com/41481726):  Enable once failing test is fixed.
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_HoverCardHidesOnAnyKeyPressInSameWindow \
-  DISABLED_HoverCardHidesOnAnyKeyPressInSameWindow
-#else
-#define MAYBE_HoverCardHidesOnAnyKeyPressInSameWindow \
-  HoverCardHidesOnAnyKeyPressInSameWindow
-#endif
 IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
-                       MAYBE_HoverCardHidesOnAnyKeyPressInSameWindow) {
-  RunTestSequence(HoverTabAt(0), CheckHovercardIsOpen(),
-                  Check(base::BindLambdaForTesting([=]() {
-                    return ui_test_utils::SendKeyPressSync(
-                        browser(), ui::VKEY_DOWN, false, false, false, false);
-                  })),
-                  CheckHovercardIsClosed());
+                       HoverCardHidesOnAnyKeyPressInSameWindow) {
+  RunTestSequence(
+      InstrumentTab(kFirstTabContents, 0),
+      NavigateWebContents(kFirstTabContents, GURL(chrome::kChromeUINewTabURL)),
+      HoverTabAt(0), CheckHovercardIsOpen(),
+      Check(base::BindLambdaForTesting([=, this]() {
+        return ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_DOWN, false,
+                                               false, false, false);
+      })),
+      CheckHovercardIsClosed());
 }
 
 #endif
 
 IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
                        HoverCardHidesOnMouseExit) {
-  RunTestSequence(HoverTabAt(0), CheckHovercardIsOpen(), UnhoverTab(),
-                  CheckHovercardIsClosed());
+  RunTestSequence(
+      InstrumentTab(kFirstTabContents, 0),
+      NavigateWebContents(kFirstTabContents, GURL(chrome::kChromeUINewTabURL)),
+      HoverTabAt(0), CheckHovercardIsOpen(), UnhoverTab(),
+      CheckHovercardIsClosed());
 }
 
-// TODO(crbug.com/41481726):  Enable once failing test is fixed.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
-#define MAYBE_HoverCardShownOnTabFocus DISABLED_HoverCardShownOnTabFocus
-#else
-#define MAYBE_HoverCardShownOnTabFocus HoverCardShownOnTabFocus
-#endif
 IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
-                       MAYBE_HoverCardShownOnTabFocus) {
+                       HoverCardShownOnTabFocus) {
   TabStrip* const tab_strip = GetTabStrip(browser());
   Tab* const tab = tab_strip->tab_at(0);
   tab_strip->GetFocusManager()->SetFocusedView(tab);
   WaitForHoverCardVisible(tab_strip);
 }
 
-// TODO(crbug.com/40118199): test may be flaky on Linux and/or ChromeOS.
 IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
                        HoverCardVisibleOnTabCloseButtonFocusAfterTabFocus) {
   TabStrip* const tab_strip = GetTabStrip(browser());
@@ -223,23 +211,21 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
   tab_strip->GetFocusManager()->SetFocusedView(tab);
   WaitForHoverCardVisible(tab_strip);
 
-  ui::KeyEvent key_event(ui::ET_KEY_PRESSED, ui::VKEY_SPACE, 0);
+  ui::KeyEvent key_event(ui::EventType::kKeyPressed, ui::VKEY_SPACE, 0);
   tab->OnKeyPressed(key_event);
   EXPECT_TRUE(IsHoverCardVisible(tab_strip));
 }
 
 // Verify hover card thumbnail is not visible on active tabs.
 IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
-                       // TODO(crbug.com/325104668): Re-enable this test
-                       DISABLED_ThumbnailNotVisibileOnActiveTabs) {
+                       ThumbnailNotVisibileOnActiveTabs) {
   TabStrip* const tab_strip = GetTabStrip(browser());
   Tab* const tab = tab_strip->tab_at(0);
   tab_strip->GetFocusManager()->SetFocusedView(tab);
+  EXPECT_TRUE(tab->IsActive());
   WaitForHoverCardVisible(tab_strip);
   views::View* const thumbnail_view_ =
-      tab_strip->hover_card_controller_for_testing()
-          ->hover_card_for_testing()
-          ->GetThumbnailViewForTesting();
+      GetHoverCard(tab_strip)->GetThumbnailViewForTesting();
   CHECK(thumbnail_view_);
   EXPECT_FALSE(thumbnail_view_->GetVisible());
 }
@@ -253,37 +239,32 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
   tab_strip->GetFocusManager()->SetFocusedView(tab);
   WaitForHoverCardVisible(tab_strip);
 
-  ui::MouseEvent click_event(ui::ET_MOUSE_PRESSED, gfx::Point(), gfx::Point(),
-                             base::TimeTicks(), ui::EF_NONE, 0);
+  ui::MouseEvent click_event(ui::EventType::kMousePressed, gfx::Point(),
+                             gfx::Point(), base::TimeTicks(), ui::EF_NONE, 0);
   tab->OnMousePressed(click_event);
   EXPECT_FALSE(IsHoverCardVisible(tab_strip));
 }
 
 IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
                        WidgetNotVisibleOnMousePressAfterHover) {
-  RunTestSequence(HoverTabAt(0), CheckHovercardIsOpen(),
-                  SelectTab(kTabStripElementId, 0), CheckHovercardIsClosed());
+  RunTestSequence(
+      InstrumentTab(kFirstTabContents, 0),
+      NavigateWebContents(kFirstTabContents, GURL(chrome::kChromeUINewTabURL)),
+      HoverTabAt(0), CheckHovercardIsOpen(), SelectTab(kTabStripElementId, 0),
+      CheckHovercardIsClosed());
 }
 
-// TODO(crbug.com/41481726):  Enable once failing test is fixed.
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_HoverCardVisibleOnTabFocusFromKeyboardAccelerator \
-  DISABLED_HoverCardVisibleOnTabFocusFromKeyboardAccelerator
-#else
-#define MAYBE_HoverCardVisibleOnTabFocusFromKeyboardAccelerator \
-  HoverCardVisibleOnTabFocusFromKeyboardAccelerator
-#endif
-IN_PROC_BROWSER_TEST_F(
-    TabHoverCardInteractiveUiTest,
-    MAYBE_HoverCardVisibleOnTabFocusFromKeyboardAccelerator) {
+IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
+                       HoverCardVisibleOnTabFocusFromKeyboardAccelerator) {
   TabStrip* const tab_strip = GetTabStrip(browser());
 
   ASSERT_TRUE(
       AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
 
   // Cycle focus until it reaches a tab.
-  while (!tab_strip->IsFocusInTabs())
+  while (!tab_strip->IsFocusInTabs()) {
     browser()->command_controller()->ExecuteCommand(IDC_FOCUS_NEXT_PANE);
+  }
 
   WaitForHoverCardVisible(tab_strip);
 
@@ -293,7 +274,6 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_TRUE(IsHoverCardVisible(tab_strip));
 }
 
-// TODO(crbug.com/40118199): test may be flaky on Windows.
 IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
                        InactiveWindowStaysInactiveOnHover) {
   resource_coordinator::GetTabLifecycleUnitSource()
@@ -325,16 +305,8 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
       BrowserView::GetBrowserViewForBrowser(inactive_window)->IsActive());
 }
 
-// TODO(crbug.com/41481726):  Enable once failing test is fixed.
-#if BUILDFLAG(IS_LINUX)
-#define MAYBE_UpdatesHoverCardOnHoverDifferentTab \
-  DISABLED_UpdatesHoverCardOnHoverDifferentTab
-#else
-#define MAYBE_UpdatesHoverCardOnHoverDifferentTab \
-  UpdatesHoverCardOnHoverDifferentTab
-#endif
 IN_PROC_BROWSER_TEST_F(TabHoverCardInteractiveUiTest,
-                       MAYBE_UpdatesHoverCardOnHoverDifferentTab) {
+                       UpdatesHoverCardOnHoverDifferentTab) {
   TabStrip* const tab_strip = GetTabStrip(browser());
   ASSERT_TRUE(
       AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
@@ -481,12 +453,20 @@ class TabHoverCardFadeFooterInteractiveUiTest
         ->GetPrimaryViewForTesting();
   }
 
+  FadeCollaborationMessagingFooterRow*
+  GetPrimaryCollaborationMessagingRowFromHoverCard(
+      TabHoverCardBubbleView* bubble) {
+    return bubble->GetFooterViewForTesting()
+        ->GetCollaborationMessagingRowForTesting()
+        ->GetPrimaryViewForTesting();
+  }
+
   auto CheckAlertRowLabel(std::u16string expected_text, bool has_position) {
     return Steps(
         WaitForShow(TabHoverCardBubbleView::kHoverCardBubbleElementId),
         CheckView(
             TabHoverCardBubbleView::kHoverCardBubbleElementId,
-            [=](TabHoverCardBubbleView* bubble) {
+            [=, this](TabHoverCardBubbleView* bubble) {
               views::Label* const alert_label =
                   GetPrimaryAlertRowFromHoverCard(bubble)->footer_label();
               return alert_label->GetText().find(expected_text) !=
@@ -526,10 +506,24 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
   EXPECT_TRUE(alert_row->icon()->GetImageModel().IsEmpty());
 }
 
+class TabHoverCardFadeFooterWithDiscardInteractiveUiTest
+    : public TabHoverCardFadeFooterInteractiveUiTest,
+      public ::testing::WithParamInterface<bool> {
+ public:
+  void SetUp() override {
+    TabHoverCardFadeFooterInteractiveUiTest::SetUp();
+    scoped_feature_list_.InitWithFeatureState(features::kWebContentsDiscard,
+                                              GetParam());
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
 // Mocks that a tab is discarded and verifies that the correct string
 // for a discarded tab and discarded tab with memory usage is displayed
 // on the hover card
-IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
+IN_PROC_BROWSER_TEST_P(TabHoverCardFadeFooterWithDiscardInteractiveUiTest,
                        HoverCardFooterShowsDiscardStatus) {
   TabStrip* const tab_strip = GetTabStrip(browser());
   ASSERT_TRUE(
@@ -641,9 +635,33 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
             performance_row->footer_label()->GetText());
 }
 
+IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
+                       ActiveMemoryUsageHidesOnDiscard) {
+  const uint64_t bytes_used = 1;
+  TabResourceUsageTabHelper::FromWebContents(GetWebContentsAt(0))
+      ->SetMemoryUsageInBytes(bytes_used);
+
+  RunTestSequence(InstrumentTab(kFirstTabContents, 0),
+                  NavigateWebContents(kFirstTabContents, GetURL("a.com")),
+                  AddInstrumentedTab(kSecondTabContents, GetURL("b.com")),
+                  ForceTabDataRefreshMemoryMetrics(), TryDiscardTab(0),
+                  HoverTabAt(0),
+                  WaitForShow(FooterView::kHoverCardFooterElementId),
+                  CheckAlertRowLabel(u"Inactive tab", true),
+                  CheckView(
+                      TabHoverCardBubbleView::kHoverCardBubbleElementId,
+                      [=, this](TabHoverCardBubbleView* bubble) {
+                        return GetPrimaryPerformanceRowFromHoverCard(bubble)
+                            ->footer_label()
+                            ->GetText()
+                            .empty();
+                      },
+                      true));
+}
+
 // The discarded status in the hover card footer should disappear after a
 // discarded tab is reloaded
-IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
+IN_PROC_BROWSER_TEST_P(TabHoverCardFadeFooterWithDiscardInteractiveUiTest,
                        DiscardStatusHidesOnReload) {
   RunTestSequence(
       InstrumentTab(kFirstTabContents, 0),
@@ -654,7 +672,7 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
       CheckHovercardIsClosed(),
       // Check that the discarded tab should update its contents to show discard
       // status
-      TryDiscardTab(0), FlushEvents(), HoverTabAt(0),
+      TryDiscardTab(0), HoverTabAt(0),
       WaitForShow(FooterView::kHoverCardFooterElementId),
       CheckAlertRowLabel(u"Inactive tab", true), UnhoverTab(),
       CheckHovercardIsClosed(),
@@ -679,12 +697,12 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
       InstrumentTab(kFirstTabContents, 0), UnhoverTab(), HoverTabAt(0),
       CheckHovercardIsOpen(),
       WaitForShow(FooterView::kHoverCardFooterElementId), UnhoverTab(),
-      CheckHovercardIsClosed(), FlushEvents(),
+      CheckHovercardIsClosed(),
       NavigateWebContents(kFirstTabContents, GetURL("a.com")), HoverTabAt(0),
       CheckHovercardIsOpen(),
       CheckView(
           TabHoverCardBubbleView::kHoverCardBubbleElementId,
-          [=](TabHoverCardBubbleView* bubble) {
+          [=, this](TabHoverCardBubbleView* bubble) {
             views::Label* const performance_label =
                 GetPrimaryPerformanceRowFromHoverCard(bubble)->footer_label();
             return performance_label->GetText().find(l10n_util::GetStringFUTF16(
@@ -719,15 +737,8 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
   EXPECT_FALSE(footer_view->GetVisible());
 }
 
-#if BUILDFLAG(IS_WIN)
-// https://crbug.com/327245883
-#define MAYBE_BackgroundTabHoverCardContentsHaveCorrectDimensions DISABLED_BackgroundTabHoverCardContentsHaveCorrectDimensions
-#else
-#define MAYBE_BackgroundTabHoverCardContentsHaveCorrectDimensions BackgroundTabHoverCardContentsHaveCorrectDimensions
-#endif
-IN_PROC_BROWSER_TEST_F(
-    TabHoverCardFadeFooterInteractiveUiTest,
-    MAYBE_BackgroundTabHoverCardContentsHaveCorrectDimensions) {
+IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
+                       BackgroundTabHoverCardContentsHaveCorrectDimensions) {
   TabStrip* const tab_strip = GetTabStrip(browser());
   ASSERT_TRUE(
       AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
@@ -764,7 +775,65 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_EQ(hover_card_size.height(), total_children_height);
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+// Mocks that a tab has collaboration messaging and verifies that the correct
+// string is displayed on the hover card.
+IN_PROC_BROWSER_TEST_F(TabHoverCardFadeFooterInteractiveUiTest,
+                       HoverCardFooterShowsCollaborationMessaging) {
+  TabStrip* const tab_strip = GetTabStrip(browser());
+  ASSERT_TRUE(
+      AddTabAtIndex(1, GURL(url::kAboutBlankURL), ui::PAGE_TRANSITION_TYPED));
+  TabRendererData tab_renderer_data = MakeTabRendererData();
+
+  // Clear alert state. Alerts take precedence over all other footers.
+  tab_renderer_data.alert_state = {};
+  tab_groups::CollaborationMessagingTabData data(browser()->profile());
+  tab_renderer_data.collaboration_messaging = data.GetWeakPtr();
+
+  // Do not make a network request for the user's avatar.
+  data.set_mocked_avatar_for_testing(gfx::Image());
+
+  // Create a mock PersistentMessage
+  // Show collaboration messaging status with TAB_ADDED event.
+  std::string given_name = "User";
+  std::string avatar_url = "https://google.com/chrome/1";
+  data.SetMessage(
+      CreateMessage(given_name, avatar_url,
+                    collaboration::messaging::CollaborationEvent::TAB_ADDED));
+
+  tab_strip->SetTabData(1, tab_renderer_data);
+  FadeCollaborationMessagingFooterRow* const collaboration_messaging_row =
+      GetPrimaryCollaborationMessagingRowFromHoverCard(
+          SimulateHoverTab(browser(), 1));
+  EXPECT_EQ(u"User added this tab",
+            collaboration_messaging_row->footer_label()->GetText());
+  EXPECT_FALSE(collaboration_messaging_row->icon()->GetImageModel().IsEmpty());
+
+  // Hover card footer should update when we hover over another tab that is
+  // not discarded
+  SimulateHoverTab(browser(), 0);
+  EXPECT_TRUE(collaboration_messaging_row->footer_label()->GetText().empty());
+  EXPECT_TRUE(collaboration_messaging_row->icon()->GetImageModel().IsEmpty());
+
+  // Reset tab data by setting intermediate object. Without this, the new
+  // tab_data is ignored because it is the same object.
+  tab_strip->SetTabData(1, MakeTabRendererData());
+
+  // Change username and action to show collaboration messaging with TAB_UPDATED
+  // event.
+  std::string given_name2 = "Another User";
+  std::string avatar_url2 = "https://google.com/chrome/2";
+  data.SetMessage(
+      CreateMessage(given_name2, avatar_url2,
+                    collaboration::messaging::CollaborationEvent::TAB_UPDATED));
+
+  tab_strip->SetTabData(1, tab_renderer_data);
+  SimulateHoverTab(browser(), 1);
+  EXPECT_EQ(u"Another User changed this tab",
+            collaboration_messaging_row->footer_label()->GetText());
+  EXPECT_FALSE(collaboration_messaging_row->icon()->GetImageModel().IsEmpty());
+}
+
+#if BUILDFLAG(IS_CHROMEOS)
 class TabHoverCardSystemWebAppTest : public InteractiveBrowserTest {
  public:
   TabHoverCardSystemWebAppTest()
@@ -800,3 +869,12 @@ IN_PROC_BROWSER_TEST_F(TabHoverCardSystemWebAppTest,
       WaitForHide(TabHoverCardBubbleView::kHoverCardBubbleElementId));
 }
 #endif
+
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    TabHoverCardFadeFooterWithDiscardInteractiveUiTest,
+    ::testing::Values(false, true),
+    [](const ::testing::TestParamInfo<
+        TabHoverCardFadeFooterWithDiscardInteractiveUiTest::ParamType>& info) {
+      return info.param ? "RetainedWebContents" : "UnretainedWebContents";
+    });

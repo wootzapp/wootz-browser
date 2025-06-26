@@ -41,21 +41,14 @@ std::map<HoldingSpaceSectionId, HoldingSpaceSection> CreateSectionsById() {
           /*supported_types=*/
           std::set<HoldingSpaceItem::Type>({
               HoldingSpaceItem::Type::kArcDownload,
-              HoldingSpaceItem::Type::kCameraAppPhoto,
-              HoldingSpaceItem::Type::kCameraAppScanJpg,
-              HoldingSpaceItem::Type::kCameraAppScanPdf,
-              HoldingSpaceItem::Type::kCameraAppVideoGif,
-              HoldingSpaceItem::Type::kCameraAppVideoMp4,
               HoldingSpaceItem::Type::kDiagnosticsLog,
               HoldingSpaceItem::Type::kDownload,
-              HoldingSpaceItem::Type::kLacrosDownload,
               HoldingSpaceItem::Type::kNearbyShare,
               HoldingSpaceItem::Type::kPhotoshopWeb,
               HoldingSpaceItem::Type::kPrintedPdf,
               HoldingSpaceItem::Type::kScan,
               HoldingSpaceItem::Type::kPhoneHubCameraRoll,
           }),
-          /*max_item_count=*/std::make_optional<size_t>(50u),
           /*max_visible_item_count=*/
           std::make_optional<size_t>(4u)));
 
@@ -69,7 +62,6 @@ std::map<HoldingSpaceSectionId, HoldingSpaceSection> CreateSectionsById() {
           std::set<HoldingSpaceItem::Type>({
               HoldingSpaceItem::Type::kPinnedFile,
           }),
-          /*max_item_count=*/std::optional<size_t>(),
           /*max_visible_item_count=*/std::optional<size_t>()));
 
   // Screen captures.
@@ -84,7 +76,6 @@ std::map<HoldingSpaceSectionId, HoldingSpaceSection> CreateSectionsById() {
               HoldingSpaceItem::Type::kScreenRecordingGif,
               HoldingSpaceItem::Type::kScreenshot,
           }),
-          /*max_item_count=*/std::make_optional<size_t>(50u),
           /*max_visible_item_count=*/
           std::make_optional<size_t>(3u)));
 
@@ -99,7 +90,6 @@ std::map<HoldingSpaceSectionId, HoldingSpaceSection> CreateSectionsById() {
               HoldingSpaceItem::Type::kDriveSuggestion,
               HoldingSpaceItem::Type::kLocalSuggestion,
           }),
-          /*max_item_count=*/std::optional<size_t>(),
           /*max_visible_item_count=*/
           std::make_optional<size_t>(4u)));
 
@@ -122,11 +112,9 @@ std::map<HoldingSpaceSectionId, HoldingSpaceSection>& GetSectionsById() {
 HoldingSpaceSection::HoldingSpaceSection(
     HoldingSpaceSectionId id,
     std::set<HoldingSpaceItem::Type> supported_types,
-    std::optional<size_t> max_item_count,
     std::optional<size_t> max_visible_item_count)
     : id(id),
       supported_types(std::move(supported_types)),
-      max_item_count(max_item_count),
       max_visible_item_count(max_visible_item_count) {}
 
 HoldingSpaceSection::~HoldingSpaceSection() = default;

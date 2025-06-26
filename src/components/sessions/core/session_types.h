@@ -14,7 +14,6 @@
 
 #include "base/time/time.h"
 #include "base/token.h"
-#include "build/chromeos_buildflags.h"
 #include "components/sessions/core/serialized_navigation_entry.h"
 #include "components/sessions/core/serialized_user_agent_override.h"
 #include "components/sessions/core/session_id.h"
@@ -23,6 +22,7 @@
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "components/variations/variations_associated_data.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/base/mojom/window_show_state.mojom-forward.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/geometry/rect.h"
@@ -155,7 +155,7 @@ struct SESSIONS_EXPORT SessionWindow {
     TYPE_APP = 2,
     TYPE_DEVTOOLS = 3,
     TYPE_APP_POPUP = 4,
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     TYPE_CUSTOM_TAB = 5,
 #endif
   };
@@ -202,7 +202,7 @@ struct SESSIONS_EXPORT SessionWindow {
   std::vector<std::unique_ptr<SessionTabGroup>> tab_groups;
 
   // Is the window maximized, minimized, or normal?
-  ui::WindowShowState show_state;
+  ui::mojom::WindowShowState show_state;
 
   std::string app_name;
 

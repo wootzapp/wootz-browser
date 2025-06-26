@@ -4,6 +4,9 @@
 
 #include "content/browser/attribution_reporting/attribution_manager_impl.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -14,17 +17,15 @@
 #include <vector>
 
 #include "base/check.h"
-#include "base/containers/circular_deque.h"
-#include "base/containers/flat_set.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/functional/function_ref.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/metrics/metrics_hashes.h"
 #include "base/run_loop.h"
 #include "base/scoped_observation.h"
-#include "base/strings/strcat.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/task/updateable_sequenced_task_runner.h"
@@ -32,23 +33,29 @@
 #include "base/test/gmock_callback_support.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/test/values_test_util.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "components/attribution_reporting/aggregatable_debug_reporting_config.h"
 #include "components/attribution_reporting/aggregatable_dedup_key.h"
 #include "components/attribution_reporting/aggregatable_trigger_data.h"
 #include "components/attribution_reporting/aggregatable_values.h"
+#include "components/attribution_reporting/debug_types.mojom.h"
 #include "components/attribution_reporting/event_trigger_data.h"
+#include "components/attribution_reporting/filters.h"
 #include "components/attribution_reporting/os_registration.h"
 #include "components/attribution_reporting/privacy_math.h"
 #include "components/attribution_reporting/registrar.h"
 #include "components/attribution_reporting/registration_header_error.h"
 #include "components/attribution_reporting/source_registration_error.mojom.h"
 #include "components/attribution_reporting/suitable_origin.h"
+#include "components/metrics/dwa/dwa_recorder.h"
 #include "content/browser/aggregation_service/aggregatable_report.h"
 #include "content/browser/aggregation_service/aggregation_service.h"
 #include "content/browser/aggregation_service/aggregation_service_test_utils.h"
 #include "content/browser/attribution_reporting/aggregatable_attribution_utils.h"
-#include "content/browser/attribution_reporting/attribution_cookie_checker.h"
+#include "content/browser/attribution_reporting/aggregatable_debug_report.h"
+#include "content/browser/attribution_reporting/attribution_constants.h"
 #include "content/browser/attribution_reporting/attribution_debug_report.h"
 #include "content/browser/attribution_reporting/attribution_features.h"
 #include "content/browser/attribution_reporting/attribution_input_event.h"
@@ -57,8 +64,8 @@
 #include "content/browser/attribution_reporting/attribution_report.h"
 #include "content/browser/attribution_reporting/attribution_report_sender.h"
 #include "content/browser/attribution_reporting/attribution_reporting.mojom.h"
-#include "content/browser/attribution_reporting/attribution_storage.h"
-#include "content/browser/attribution_reporting/attribution_storage_delegate.h"
+#include "content/browser/attribution_reporting/attribution_resolver.h"
+#include "content/browser/attribution_reporting/attribution_resolver_delegate.h"
 #include "content/browser/attribution_reporting/attribution_test_utils.h"
 #include "content/browser/attribution_reporting/attribution_trigger.h"
 #include "content/browser/attribution_reporting/common_source_info.h"
@@ -74,6 +81,7 @@
 #include "content/browser/storage_partition_impl.h"
 #include "content/public/browser/attribution_data_model.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/browser_thread.h"
 #include "content/public/browser/browsing_data_filter_builder.h"
 #include "content/public/browser/content_browser_client.h"
 #include "content/public/browser/global_routing_id.h"
@@ -82,7 +90,7 @@
 #include "content/public/test/test_browser_context.h"
 #include "content/public/test/test_utils.h"
 #include "net/base/schemeful_site.h"
-#include "services/network/public/cpp/features.h"
+#include "services/network/network_service.h"
 #include "services/network/public/mojom/network_change_manager.mojom.h"
 #include "services/network/test/test_network_connection_tracker.h"
 #include "storage/browser/test/mock_special_storage_policy.h"
@@ -95,12 +103,20 @@ namespace content {
 
 namespace {
 
+using ::attribution_reporting::AggregatableDebugReportingConfig;
+using ::attribution_reporting::AggregatableValues;
+using ::attribution_reporting::AggregatableValuesValue;
 using ::attribution_reporting::OsRegistrationItem;
+using ::attribution_reporting::SourceAggregatableDebugReportingConfig;
 using ::attribution_reporting::SuitableOrigin;
+using ::attribution_reporting::mojom::DebugDataType;
 using ::attribution_reporting::mojom::OsRegistrationResult;
+
+using SentResult = ::content::SendResult::Sent::Result;
 
 using ::testing::_;
 using ::testing::AllOf;
+using ::testing::An;
 using ::testing::AnyOf;
 using ::testing::ElementsAre;
 using ::testing::Expectation;
@@ -111,7 +127,6 @@ using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::Le;
 using ::testing::Matcher;
-using ::testing::Optional;
 using ::testing::Pointee;
 using ::testing::Property;
 using ::testing::Return;
@@ -127,36 +142,27 @@ using DebugReportSentCallback =
     ::content::AttributionReportSender::DebugReportSentCallback;
 using ReportSentCallback =
     ::content::AttributionReportSender::ReportSentCallback;
-
-constexpr size_t kMaxPendingEvents = 5;
-constexpr size_t kMaxPendingReportsTimings = 50;
+using AggregatableDebugReportSentCallback =
+    ::content::AttributionReportSender::AggregatableDebugReportSentCallback;
 
 const GlobalRenderFrameHostId kFrameId = {0, 1};
 constexpr attribution_reporting::Registrar kRegistrar =
     attribution_reporting::Registrar::kWeb;
 
-constexpr AttributionStorageDelegate::OfflineReportDelayConfig
+constexpr AttributionResolverDelegate::OfflineReportDelayConfig
     kDefaultOfflineReportDelay{
         .min = base::Minutes(0),
         .max = base::Minutes(1),
     };
 
-const base::TimeDelta kPrivacySandboxAttestationsTimeout = base::Minutes(5);
-
-constexpr char kPendingAndBrowserWentOfflineTimeSinceCreation[] =
-    "Conversions.AggregatableReport.PendingAndBrowserWentOffline."
-    "TimeSinceCreation";
-constexpr char kPendingAndBrowserWentOfflineTimeUntilReportTime[] =
-    "Conversions.AggregatableReport.PendingAndBrowserWentOffline."
-    "TimeUntilReportTime";
-
 constexpr char kSentVerboseDebugReportTypeMetric[] =
     "Conversions.SentVerboseDebugReportType4";
 
-auto InvokeReportSentCallback(SendResult::Status status) {
+auto InvokeReportSentCallback(SentResult result) {
   return [=](AttributionReport report, bool is_debug_report,
              ReportSentCallback callback) {
-    std::move(callback).Run(std::move(report), SendResult(status));
+    std::move(callback).Run(std::move(report),
+                            SendResult::Sent(result, /*status=*/0));
   };
 }
 
@@ -190,8 +196,37 @@ AggregatableReport CreateExampleAggregatableReport() {
                             /*aggregation_coordinator_origin=*/std::nullopt);
 }
 
+AggregatableReport CreateExampleAggregatableDebugReport() {
+  std::vector<AggregatableReport::AggregationServicePayload> payloads;
+  payloads.emplace_back(/*payload=*/kABCD1234AsBytes,
+                        /*key_id=*/"key_1",
+                        /*debug_cleartext_payload=*/std::nullopt);
+  payloads.emplace_back(/*payload=*/kEFGH5678AsBytes,
+                        /*key_id=*/"key_2",
+                        /*debug_cleartext_payload=*/std::nullopt);
+
+  base::Value::Dict additional_fields;
+  additional_fields.Set(
+      "attribution_destination",
+      url::Origin::Create(GURL("https://example.destination")).Serialize());
+  AggregatableReportSharedInfo shared_info(
+      base::Time::FromMillisecondsSinceUnixEpoch(1234567890123),
+      DefaultExternalReportID(),
+      /*reporting_origin=*/
+      url::Origin::Create(GURL("https://example.reporting")),
+      AggregatableReportSharedInfo::DebugMode::kDisabled,
+      std::move(additional_fields),
+      /*api_version=*/"0.1",
+      /*api_identifier=*/"attribution-reporting-debug");
+
+  return AggregatableReport(std::move(payloads), shared_info.SerializeAsJson(),
+                            /*debug_key=*/std::nullopt,
+                            /*additional_fields=*/{},
+                            /*aggregation_coordinator_origin=*/std::nullopt);
+}
+
 // Time after impression that a conversion can first be sent. See
-// AttributionStorageDelegateImpl::GetReportTimeForConversion().
+// AttributionResolverDelegateImpl::GetReportTimeForConversion().
 constexpr base::TimeDelta kFirstReportingWindow = base::Days(2);
 
 // Give impressions a sufficiently long expiry.
@@ -199,6 +234,7 @@ constexpr base::TimeDelta kImpressionExpiry = base::Days(30);
 
 class MockReportSender : public AttributionReportSender {
  public:
+  MOCK_METHOD(void, SetInFirstBatch, (bool in_first_batch), (override));
   MOCK_METHOD(void,
               SendReport,
               (AttributionReport report,
@@ -210,40 +246,13 @@ class MockReportSender : public AttributionReportSender {
               SendReport,
               (AttributionDebugReport report, DebugReportSentCallback callback),
               (override));
-};
 
-class MockCookieChecker : public AttributionCookieChecker {
- public:
-  ~MockCookieChecker() override { EXPECT_THAT(callbacks_, IsEmpty()); }
-
-  void AddOriginWithDebugCookieSet(url::Origin origin) {
-    origins_with_debug_cookie_set_.insert(std::move(origin));
-  }
-
-  void DeferCallbacks(bool defer = true) { defer_callbacks_ = defer; }
-
-  void RunNextDeferredCallback(bool is_debug_cookie_set) {
-    if (!callbacks_.empty()) {
-      Callback callback = std::move(callbacks_.front());
-      callbacks_.pop_front();
-      std::move(callback).Run(is_debug_cookie_set);
-    }
-  }
-
- private:
-  // AttributionCookieChecker:
-  void IsDebugCookieSet(const url::Origin& origin, Callback callback) override {
-    if (defer_callbacks_) {
-      callbacks_.emplace_back(std::move(callback));
-    } else {
-      std::move(callback).Run(origins_with_debug_cookie_set_.contains(origin));
-    }
-  }
-
-  base::flat_set<url::Origin> origins_with_debug_cookie_set_;
-
-  bool defer_callbacks_ = false;
-  base::circular_deque<Callback> callbacks_;
+  MOCK_METHOD(void,
+              SendReport,
+              (AggregatableDebugReport,
+               base::Value::Dict report_body,
+               AggregatableDebugReportSentCallback),
+              (override));
 };
 
 class MockAttributionOsLevelManager : public AttributionOsLevelManager {
@@ -278,12 +287,12 @@ class AttributionManagerImplTest : public testing::Test {
         browser_context_(std::make_unique<TestBrowserContext>()),
         mock_storage_policy_(
             base::MakeRefCounted<storage::MockSpecialStoragePolicy>()) {
-    // This UMA records a sample every 30s via a periodic task which
-    // interacts poorly with TaskEnvironment::FastForward using day long
-    // delays (we need to run the uma update every 30s for that
-    // interval)
-    scoped_feature_list_.InitAndDisableFeature(
-        network::features::kGetCookiesStringUma);
+    GetNetworkService();
+    // Wait for the Network Service to initialize on the IO thread.
+    RunAllPendingInMessageLoop(content::BrowserThread::IO);
+    // Disable metrics updater to avoid test timeouts.
+    network::NetworkService::GetNetworkServiceForTesting()
+        ->ResetMetricsUpdaterForTesting();
   }
 
   void SetUp() override {
@@ -316,9 +325,6 @@ class AttributionManagerImplTest : public testing::Test {
     // sequence.
     storage_delegate->DetachFromSequence();
 
-    auto cookie_checker = std::make_unique<MockCookieChecker>();
-    cookie_checker_ = cookie_checker.get();
-
     auto report_sender = std::make_unique<MockReportSender>();
     report_sender_ = report_sender.get();
 
@@ -329,8 +335,7 @@ class AttributionManagerImplTest : public testing::Test {
         .WillByDefault(base::test::RunOnceCallbackRepeatedly<6>());
 
     attribution_manager_ = AttributionManagerImpl::CreateForTesting(
-        dir_.GetPath(), kMaxPendingEvents, mock_storage_policy_,
-        std::move(storage_delegate), std::move(cookie_checker),
+        dir_.GetPath(), mock_storage_policy_, std::move(storage_delegate),
         std::move(report_sender), std::move(os_level_manager),
         static_cast<StoragePartitionImpl*>(
             browser_context_->GetDefaultStoragePartition()),
@@ -338,7 +343,6 @@ class AttributionManagerImplTest : public testing::Test {
   }
 
   void ShutdownManager() {
-    cookie_checker_ = nullptr;
     report_sender_ = nullptr;
     os_level_manager_ = nullptr;
     attribution_manager_.reset();
@@ -358,22 +362,6 @@ class AttributionManagerImplTest : public testing::Test {
         browser_context_->GetDefaultStoragePartition());
     aggregation_service_ = nullptr;
     partition->OverrideAggregationServiceForTesting(nullptr);
-  }
-
-  void RegisterAggregatableSourceAndMatchingTrigger(
-      std::string_view origin_prefix) {
-    const auto origin = *SuitableOrigin::Deserialize(
-        base::StrCat({"https://", origin_prefix, ".example"}));
-
-    attribution_manager_->HandleSource(TestAggregatableSourceProvider()
-                                           .GetBuilder()
-                                           .SetExpiry(kImpressionExpiry)
-                                           .SetReportingOrigin(origin)
-                                           .Build(),
-                                       kFrameId);
-    attribution_manager_->HandleTrigger(
-        DefaultAggregatableTriggerBuilder().SetReportingOrigin(origin).Build(),
-        kFrameId);
   }
 
   std::vector<StoredSource> StoredSources() {
@@ -427,10 +415,6 @@ class AttributionManagerImplTest : public testing::Test {
         .WillOnce(Return(allowed));
   }
 
-  void NotifyAttestationsLoaded() {
-    attribution_manager_->OnAttestationsLoaded();
-  }
-
  protected:
   // Override this in order to modify the delegate before it is passed
   // irretrievably to storage.
@@ -442,7 +426,6 @@ class AttributionManagerImplTest : public testing::Test {
   std::unique_ptr<TestBrowserContext> browser_context_;
   std::unique_ptr<AttributionManagerImpl> attribution_manager_;
   scoped_refptr<storage::MockSpecialStoragePolicy> mock_storage_policy_;
-  raw_ptr<MockCookieChecker> cookie_checker_;
   raw_ptr<MockReportSender> report_sender_;
   raw_ptr<MockAttributionOsLevelManager> os_level_manager_;
   raw_ptr<MockAggregationService> aggregation_service_;
@@ -597,16 +580,13 @@ TEST_F(AttributionManagerImplTest,
     InSequence seq;
 
     EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce(
-            InvokeReportSentCallback(SendResult::Status::kTransientFailure));
+        .WillOnce(InvokeReportSentCallback(SentResult::kTransientFailure));
     EXPECT_CALL(checkpoint, Call(1));
     EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce(
-            InvokeReportSentCallback(SendResult::Status::kTransientFailure));
+        .WillOnce(InvokeReportSentCallback(SentResult::kTransientFailure));
     EXPECT_CALL(checkpoint, Call(2));
     EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce(
-            InvokeReportSentCallback(SendResult::Status::kTransientFailure));
+        .WillOnce(InvokeReportSentCallback(SentResult::kTransientFailure));
   }
 
   attribution_manager_->HandleSource(
@@ -666,8 +646,7 @@ TEST_F(AttributionManagerImplTest, RetryLogicOverridesGetReportTimer) {
     EXPECT_CALL(checkpoint, Call(1));
     EXPECT_CALL(*report_sender_,
                 SendReport(ReportURLIs(url_a), /*is_debug_report=*/false, _))
-        .WillOnce(
-            InvokeReportSentCallback(SendResult::Status::kTransientFailure));
+        .WillOnce(InvokeReportSentCallback(SentResult::kTransientFailure));
     EXPECT_CALL(checkpoint, Call(2));
     EXPECT_CALL(*report_sender_,
                 SendReport(ReportURLIs(url_a), /*is_debug_report=*/false, _));
@@ -723,7 +702,7 @@ TEST_F(AttributionManagerImplTest,
   EXPECT_CALL(observer, OnReportsChanged);
 
   EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-      .WillOnce(InvokeReportSentCallback(SendResult::Status::kFailure));
+      .WillOnce(InvokeReportSentCallback(SentResult::kFailure));
   task_environment_.FastForwardBy(kFirstReportingWindow);
 
   EXPECT_THAT(StoredReports(), IsEmpty());
@@ -746,16 +725,13 @@ TEST_F(AttributionManagerImplTest, QueuedReportAlwaysFails_StopsSending) {
         .Times(0);
     EXPECT_CALL(checkpoint, Call(1));
     EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce(
-            InvokeReportSentCallback(SendResult::Status::kTransientFailure));
+        .WillOnce(InvokeReportSentCallback(SentResult::kTransientFailure));
     EXPECT_CALL(checkpoint, Call(2));
     EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce(
-            InvokeReportSentCallback(SendResult::Status::kTransientFailure));
+        .WillOnce(InvokeReportSentCallback(SentResult::kTransientFailure));
     EXPECT_CALL(checkpoint, Call(3));
     EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce(
-            InvokeReportSentCallback(SendResult::Status::kTransientFailure));
+        .WillOnce(InvokeReportSentCallback(SentResult::kTransientFailure));
   }
 
   MockAttributionObserver observer;
@@ -765,8 +741,8 @@ TEST_F(AttributionManagerImplTest, QueuedReportAlwaysFails_StopsSending) {
 
   EXPECT_CALL(observer,
               OnReportSent(_, /*is_debug_report=*/false,
-                           Field(&SendResult::status,
-                                 SendResult::Status::kTransientFailure)));
+                           Property(&SendResult::status,
+                                    SendResult::Status::kTransientFailure)));
 
   attribution_manager_->HandleSource(
       SourceBuilder().SetExpiry(kImpressionExpiry).Build(), kFrameId);
@@ -804,23 +780,55 @@ TEST_F(AttributionManagerImplTest, QueuedReportAlwaysFails_StopsSending) {
       "Conversions.EventLevelReport.ReportRetriesTillSuccessOrFailure", 3, 1);
 }
 
-TEST_F(AttributionManagerImplTest, ReportExpiredAtStartup_Sent) {
+TEST_F(AttributionManagerImplTest, ReportExpiredAtStartup_Deleted) {
+  base::HistogramTester histograms;
+
+  EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
+      .Times(0);
+
+  attribution_manager_->HandleSource(TestAggregatableSourceProvider()
+                                         .GetBuilder()
+                                         .SetExpiry(kImpressionExpiry)
+                                         .Build(),
+                                     kFrameId);
+  attribution_manager_->HandleTrigger(
+      DefaultAggregatableTriggerBuilder().Build(), kFrameId);
+
+  ShutdownManager();
+
+  // Fast-forward past report expiry.
+  task_environment_.FastForwardBy(kImpressionExpiry + kReportExpiry);
+
+  // Simulate startup and ensure the report is deleted.
+  CreateManager();
+
+  task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
+  EXPECT_THAT(StoredReports(), IsEmpty());
+  // kExpired = 4
+  histograms.ExpectBucketCount("Conversions.ReportSendOutcome3", 4, 1);
+  histograms.ExpectBucketCount(
+      "Conversions.AggregatableReport.ReportSendOutcome2", 4, 1);
+}
+
+TEST_F(AttributionManagerImplTest, ReportSourceExpiredAtStartup_Sent) {
   attribution_manager_->HandleSource(
       SourceBuilder().SetExpiry(kImpressionExpiry).Build(), kFrameId);
+  task_environment_.FastForwardBy(base::Microseconds(1));
   attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
 
   ShutdownManager();
 
-  // Fast-forward past the reporting window and past report expiry.
-  task_environment_.FastForwardBy(kFirstReportingWindow);
-  task_environment_.FastForwardBy(base::Days(100));
+  // Fast-forward past source expiry.
+  task_environment_.FastForwardBy(kImpressionExpiry - base::Microseconds(1));
 
-  // Simulate startup and ensure the report is sent before being expired.
+  // Simulate startup and ensure the report is sent.
   // Advance by the max offline report delay, per
-  // `AttributionStorageDelegate::GetOfflineReportDelayConfig()`.
+  // `AttributionResolverDelegate::GetOfflineReportDelayConfig()`.
   CreateManager();
 
   EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _));
+  EXPECT_THAT(StoredReports(), SizeIs(1));
+  EXPECT_THAT(StoredSources(), IsEmpty());
   task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
 }
 
@@ -831,7 +839,7 @@ TEST_F(AttributionManagerImplTest, ReportSent_Deleted) {
   attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
 
   EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-      .WillOnce(InvokeReportSentCallback(SendResult::Status::kSent));
+      .WillOnce(InvokeReportSentCallback(SentResult::kSent));
 
   task_environment_.FastForwardBy(kFirstReportingWindow);
 
@@ -841,27 +849,62 @@ TEST_F(AttributionManagerImplTest, ReportSent_Deleted) {
   histograms.ExpectUniqueSample("Conversions.ReportSendOutcome3", 0, 1);
 }
 
+TEST_F(AttributionManagerImplTest, ExpiredReportSend_Deleted) {
+  base::HistogramTester histograms;
+
+  EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
+      .Times(0);
+
+  attribution_manager_->HandleSource(TestAggregatableSourceProvider()
+                                         .GetBuilder()
+                                         .SetExpiry(kImpressionExpiry)
+                                         .Build(),
+                                     kFrameId);
+  attribution_manager_->HandleTrigger(
+      DefaultAggregatableTriggerBuilder().Build(), kFrameId);
+  task_environment_.FastForwardBy(base::Microseconds(1));
+
+  // Delay report send until after report expiry.
+  task_environment_.AdvanceClock(kImpressionExpiry + kReportExpiry);
+
+  task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
+
+  EXPECT_THAT(StoredReports(), IsEmpty());
+  // kExpired = 4
+  histograms.ExpectBucketCount("Conversions.ReportSendOutcome3", 4, 1);
+  histograms.ExpectBucketCount(
+      "Conversions.AggregatableReport.ReportSendOutcome2", 4, 1);
+}
+
 TEST_F(AttributionManagerImplTest, QueuedReportSent_ObserversNotified) {
   base::HistogramTester histograms;
 
   EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-      .WillOnce(InvokeReportSentCallback(SendResult::Status::kSent))
-      .WillOnce(InvokeReportSentCallback(SendResult::Status::kDropped))
-      .WillOnce(InvokeReportSentCallback(SendResult::Status::kSent))
-      .WillOnce(
-          InvokeReportSentCallback(SendResult::Status::kTransientFailure));
+      .WillOnce(InvokeReportSentCallback(SentResult::kSent))
+      .WillOnce(InvokeReportSentCallback(SentResult::kFailure))
+      .WillOnce(InvokeReportSentCallback(SentResult::kSent))
+      .WillOnce(InvokeReportSentCallback(SentResult::kTransientFailure));
 
   MockAttributionObserver observer;
   base::ScopedObservation<AttributionManager, AttributionObserver> observation(
       &observer);
   observation.Observe(attribution_manager_.get());
 
-  EXPECT_CALL(observer, OnReportSent(ReportSourceIs(SourceEventIdIs(1u)),
-                                     /*is_debug_report=*/false, _));
-  EXPECT_CALL(observer, OnReportSent(ReportSourceIs(SourceEventIdIs(2u)),
-                                     /*is_debug_report=*/false, _));
-  EXPECT_CALL(observer, OnReportSent(ReportSourceIs(SourceEventIdIs(3u)),
-                                     /*is_debug_report=*/false, _));
+  EXPECT_CALL(observer,
+              OnReportSent(
+                  EventLevelDataIs(Field(
+                      &AttributionReport::EventLevelData::source_event_id, 1u)),
+                  /*is_debug_report=*/false, _));
+  EXPECT_CALL(observer,
+              OnReportSent(
+                  EventLevelDataIs(Field(
+                      &AttributionReport::EventLevelData::source_event_id, 2u)),
+                  /*is_debug_report=*/false, _));
+  EXPECT_CALL(observer,
+              OnReportSent(
+                  EventLevelDataIs(Field(
+                      &AttributionReport::EventLevelData::source_event_id, 3u)),
+                  /*is_debug_report=*/false, _));
 
   attribution_manager_->HandleSource(
       SourceBuilder().SetSourceEventId(1).SetExpiry(kImpressionExpiry).Build(),
@@ -869,7 +912,7 @@ TEST_F(AttributionManagerImplTest, QueuedReportSent_ObserversNotified) {
   attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
   task_environment_.FastForwardBy(kFirstReportingWindow);
 
-  // This one should be stored, as its status is `kDropped`.
+  // This one should be stored, as it won't be retried.
   attribution_manager_->HandleSource(
       SourceBuilder().SetSourceEventId(2).SetExpiry(kImpressionExpiry).Build(),
       kFrameId);
@@ -889,12 +932,9 @@ TEST_F(AttributionManagerImplTest, QueuedReportSent_ObserversNotified) {
   attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
   task_environment_.FastForwardBy(kFirstReportingWindow);
 
-  // kSent = 0.
-  histograms.ExpectBucketCount("Conversions.ReportSendOutcome3", 0, 2);
-  // kFailed = 1.
-  histograms.ExpectBucketCount("Conversions.ReportSendOutcome3", 1, 0);
-  // kDropped = 2.
-  histograms.ExpectBucketCount("Conversions.ReportSendOutcome3", 2, 1);
+  // kSent = 0, kFailed = 1.
+  EXPECT_THAT(histograms.GetAllSamples("Conversions.ReportSendOutcome3"),
+              base::BucketsAre(base::Bucket(0, 2), base::Bucket(1, 1)));
 }
 
 TEST_F(AttributionManagerImplTest, TriggerHandled_ObserversNotified) {
@@ -917,7 +957,7 @@ TEST_F(AttributionManagerImplTest, TriggerHandled_ObserversNotified) {
 
     EXPECT_CALL(
         observer,
-        OnTriggerHandled(_, AllOf(ReplacedEventLevelReportIs(Optional(
+        OnTriggerHandled(_, AllOf(ReplacedEventLevelReportIs(Pointee(
                                       EventLevelDataIs(TriggerPriorityIs(1)))),
                                   CreateReportEventLevelStatusIs(
                                       AttributionTrigger::EventLevelResult::
@@ -929,7 +969,7 @@ TEST_F(AttributionManagerImplTest, TriggerHandled_ObserversNotified) {
         observer,
         OnTriggerHandled(
             _,
-            AllOf(ReplacedEventLevelReportIs(std::nullopt),
+            AllOf(ReplacedEventLevelReportIs(IsNull()),
                   CreateReportEventLevelStatusIs(
                       AttributionTrigger::EventLevelResult::kPriorityTooLow))));
 
@@ -937,14 +977,14 @@ TEST_F(AttributionManagerImplTest, TriggerHandled_ObserversNotified) {
 
     EXPECT_CALL(
         observer,
-        OnTriggerHandled(_, AllOf(ReplacedEventLevelReportIs(Optional(
+        OnTriggerHandled(_, AllOf(ReplacedEventLevelReportIs(Pointee(
                                       EventLevelDataIs(TriggerPriorityIs(2)))),
                                   CreateReportEventLevelStatusIs(
                                       AttributionTrigger::EventLevelResult::
                                           kSuccessDroppedLowerPriority))));
     EXPECT_CALL(
         observer,
-        OnTriggerHandled(_, AllOf(ReplacedEventLevelReportIs(Optional(
+        OnTriggerHandled(_, AllOf(ReplacedEventLevelReportIs(Pointee(
                                       EventLevelDataIs(TriggerPriorityIs(3)))),
                                   CreateReportEventLevelStatusIs(
                                       AttributionTrigger::EventLevelResult::
@@ -996,7 +1036,7 @@ TEST_F(AttributionManagerImplTest, TriggerHandled_ObserversNotified) {
   }
 }
 
-// This functionality is tested more thoroughly in the AttributionStorageSql
+// This functionality is tested more thoroughly in the AttributionResolverImpl
 // unit tests. Here, just test to make sure the basic control flow is working.
 TEST_F(AttributionManagerImplTest, ClearDataFromBrowserOnly) {
   for (bool match_url : {true, false}) {
@@ -1117,9 +1157,6 @@ TEST_F(AttributionManagerImplTest, HandleOsRegistration) {
   const auto kTopLevelOrigin4 = url::Origin::Create(GURL("https://o4.test"));
   const auto kTopLevelOrigin5 = url::Origin::Create(GURL("https://o5.test"));
 
-  cookie_checker_->AddOriginWithDebugCookieSet(
-      url::Origin::Create(kRegistrationUrl1));
-
   const auto return_origin =
       [](const url::Origin& origin) -> ::testing::Matcher<const url::Origin*> {
     return Pointee(origin);
@@ -1191,7 +1228,7 @@ TEST_F(AttributionManagerImplTest, HandleOsRegistration) {
           /*is_within_fenced_frame=*/false, kFrameId, kRegistrar);
       EXPECT_CALL(*os_level_manager_,
                   Register(registration2,
-                           /*is_debug_key_allowed=*/ElementsAre(false), _))
+                           /*is_debug_key_allowed=*/ElementsAre(true), _))
           .WillOnce(base::test::RunOnceCallback<2>(registration2,
                                                    std::vector<bool>{false}));
 
@@ -1212,10 +1249,9 @@ TEST_F(AttributionManagerImplTest, HandleOsRegistration) {
            OsRegistrationItem(kRegistrationUrl2, /*debug_reporting=*/false)},
           kTopLevelOrigin5, test_case.input_event,
           /*is_within_fenced_frame=*/false, kFrameId, kRegistrar);
-      EXPECT_CALL(
-          *os_level_manager_,
-          Register(registration5,
-                   /*is_debug_key_allowed=*/ElementsAre(true, false), _))
+      EXPECT_CALL(*os_level_manager_,
+                  Register(registration5,
+                           /*is_debug_key_allowed=*/ElementsAre(true, true), _))
           .WillOnce(base::test::RunOnceCallback<2>(
               registration5, std::vector<bool>{true, true}));
 
@@ -1328,6 +1364,26 @@ TEST_F(AttributionManagerImplTest, HandleOsRegistration) {
             base::Bucket(OsRegistrationResult::kRejectedByOs, 2)));
 
     ::testing::Mock::VerifyAndClear(os_level_manager_.get());
+
+    base::RunLoop run_loop;
+    attribution_manager_->GetAllDataKeys(base::BindLambdaForTesting(
+        [&](std::set<AttributionDataModel::DataKey> data_keys) {
+          EXPECT_THAT(data_keys,
+                      UnorderedElementsAre(
+                          AttributionDataModel::DataKey(
+                              url::Origin::Create(kRegistrationUrl1)),
+                          AttributionDataModel::DataKey(
+                              url::Origin::Create(kRegistrationUrl2))));
+
+          run_loop.Quit();
+        }));
+    run_loop.Run();
+
+    attribution_manager_->ClearData(
+        /*delete_begin=*/base::Time::Min(), /*delete_end=*/base::Time::Max(),
+        /*filter=*/base::NullCallback(),
+        /*filter_builder=*/nullptr,
+        /*delete_rate_limit_data=*/true, base::DoNothing());
   }
 }
 
@@ -1340,7 +1396,7 @@ TEST_F(AttributionManagerImplTest, ConversionsSentFromUI_ReportedImmediately) {
         .Times(0);
     EXPECT_CALL(checkpoint, Call(1));
     EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce(InvokeReportSentCallback(SendResult::Status::kSent));
+        .WillOnce(InvokeReportSentCallback(SentResult::kSent));
   }
 
   attribution_manager_->HandleSource(
@@ -1378,7 +1434,7 @@ TEST_F(AttributionManagerImplTest, ExpiredReportsAtStartup_Delayed) {
 
   // Ensure that the expired report is delayed based on the time the browser
   // started and the min and max offline report delays, per
-  // `AttributionStorageDelegate::GetOfflineReportDelayConfig()`.
+  // `AttributionResolverDelegate::GetOfflineReportDelayConfig()`.
   base::Time min_new_time = base::Time::Now();
   EXPECT_THAT(StoredReports(),
               ElementsAre(ReportTimeIs(
@@ -1439,6 +1495,14 @@ TEST_F(AttributionManagerImplTest, SessionOnlyOrigins_DataDeletedAtShutdown) {
 
 TEST_F(AttributionManagerImplTest, HandleTrigger_RecordsMetric) {
   base::HistogramTester histograms;
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(metrics::dwa::kDwaFeature);
+
+  metrics::dwa::DwaRecorder::Get()->EnableRecording();
+  metrics::dwa::DwaRecorder::Get()->Purge();
+  ASSERT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
+              IsEmpty());
+
   attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
   EXPECT_THAT(StoredReports(), IsEmpty());
   histograms.ExpectUniqueSample(
@@ -1447,14 +1511,135 @@ TEST_F(AttributionManagerImplTest, HandleTrigger_RecordsMetric) {
   histograms.ExpectUniqueSample(
       "Conversions.AggregatableReport.CreateReportStatus4",
       AttributionTrigger::AggregatableResult::kNotRegistered, 1);
+  ASSERT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting().size(),
+              1);
+  EXPECT_THAT(metrics::dwa::DwaRecorder::Get()
+                  ->GetEntriesForTesting()
+                  .at(0)
+                  ->event_hash,
+              base::HashMetricName("AttributionConversionsCreateReport"));
+  // The content is set as the attribution trigger reporting origin. In unit
+  // tests, this value is set to "https://report.test". DWA content sanitization
+  // extracts the eTLD+1 from this value, yielding "report.test".
+  EXPECT_THAT(metrics::dwa::DwaRecorder::Get()
+                  ->GetEntriesForTesting()
+                  .at(0)
+                  ->content_hash,
+              base::HashMetricName("report.test"));
+  EXPECT_THAT(
+      metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting().at(0)->metrics,
+      UnorderedElementsAre(
+          testing::Pair(
+              base::HashMetricName("EventLevelStatus"),
+              static_cast<int64_t>(AttributionTrigger::EventLevelResult::
+                                       kNoMatchingImpressions)),
+          testing::Pair(
+              base::HashMetricName("AggregatableStatus"),
+              static_cast<int64_t>(
+                  AttributionTrigger::AggregatableResult::kNotRegistered))));
+  EXPECT_THAT(
+      metrics::dwa::DwaRecorder::Get()
+          ->GetEntriesForTesting()
+          .at(0)
+          ->studies_of_interest,
+      ElementsAre(testing::Pair("UMA-Uniformity-Trial-1-Percent", true)));
+}
+
+TEST_F(AttributionManagerImplTest,
+       HandleTrigger_RecordsAggregatableFilteringIdMetrics) {
+  const struct {
+    const char* name;
+    AttributionTrigger trigger;
+    bool expected_non_default_filtering_id;
+    size_t expected_max_bytes_value;
+  } kTestCases[] = {
+      {
+          "default filtering id and max bytes",
+          DefaultTrigger(),
+          /*expected_non_default_filtering_id=*/false,
+          /*expected_max_bytes_value=*/1,
+      },
+      {
+          "non-default filtering id and default max bytes",
+          TriggerBuilder()
+              .SetAggregatableValues({*AggregatableValues::Create(
+                  /*values=*/{{"a", *AggregatableValuesValue::Create(1, 1)},
+                              {"b", *AggregatableValuesValue::Create(2, 2)}},
+                  attribution_reporting::FilterPair())})
+              .Build(),
+          /*expected_non_default_filtering_id=*/true,
+          /*expected_max_bytes_value=*/1,
+      },
+      {
+          "non-default filtering id and max bytes",
+          TriggerBuilder()
+              .SetSourceRegistrationTimeConfig(
+                  attribution_reporting::mojom::SourceRegistrationTimeConfig::
+                      kExclude)
+              .SetAggregatableValues({*AggregatableValues::Create(
+                  /*values=*/{{"a", *AggregatableValuesValue::Create(2, 2)}},
+                  attribution_reporting::FilterPair())})
+              .SetAggregatableFilteringIdMaxBytes(
+                  *attribution_reporting::AggregatableFilteringIdsMaxBytes::
+                      Create(2))
+              .Build(),
+          /*expected_non_default_filtering_id=*/true,
+          /*expected_max_bytes_value=*/2,
+      },
+  };
+  for (const auto& test_case : kTestCases) {
+    SCOPED_TRACE(test_case.name);
+
+    base::HistogramTester histograms;
+    attribution_manager_->HandleTrigger(test_case.trigger, kFrameId);
+
+    histograms.ExpectUniqueSample(
+        "Conversions.NonDefaultAggregatableFilteringId",
+        /*sample=*/test_case.expected_non_default_filtering_id,
+        /*expected_bucket_count=*/1);
+    histograms.ExpectUniqueSample(
+        "Conversions.AggregatableFilteringIdMaxBytesValue",
+        /*sample=*/test_case.expected_max_bytes_value,
+        /*expected_bucket_count=*/1);
+  }
 }
 
 TEST_F(AttributionManagerImplTest, HandleSource_RecordsMetric) {
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(metrics::dwa::kDwaFeature);
+
+  metrics::dwa::DwaRecorder::Get()->EnableRecording();
+  metrics::dwa::DwaRecorder::Get()->Purge();
+  ASSERT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
+              IsEmpty());
+
   base::HistogramTester histograms;
+
   attribution_manager_->HandleSource(SourceBuilder().Build(), kFrameId);
   task_environment_.RunUntilIdle();
   histograms.ExpectUniqueSample("Conversions.SourceStoredStatus8",
                                 StorableSource::Result::kSuccess, 1);
+
+  ASSERT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting().size(),
+              1);
+  EXPECT_THAT(metrics::dwa::DwaRecorder::Get()
+                  ->GetEntriesForTesting()
+                  .at(0)
+                  ->event_hash,
+              base::HashMetricName("AttributionConversionsStoreSource"));
+  // The content is set as the attribution source reporting origin. In unit
+  // tests, this value is set to "https://report.test". DWA content sanitization
+  // extracts the eTLD+1 from this value, yielding "report.test".
+  EXPECT_THAT(metrics::dwa::DwaRecorder::Get()
+                  ->GetEntriesForTesting()
+                  .at(0)
+                  ->content_hash,
+              base::HashMetricName("report.test"));
+  EXPECT_THAT(
+      metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting().at(0)->metrics,
+      UnorderedElementsAre(testing::Pair(
+          base::HashMetricName("Status"),
+          static_cast<int64_t>(StorableSource::Result::kSuccess))));
 }
 
 TEST_F(AttributionManagerImplTest, OnReportSent_NotifiesObservers) {
@@ -1472,7 +1657,7 @@ TEST_F(AttributionManagerImplTest, OnReportSent_NotifiesObservers) {
   EXPECT_CALL(observer, OnReportsChanged);
 
   EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-      .WillOnce(InvokeReportSentCallback(SendResult::Status::kSent));
+      .WillOnce(InvokeReportSentCallback(SentResult::kSent));
   task_environment_.FastForwardBy(kFirstReportingWindow);
   EXPECT_THAT(StoredReports(), IsEmpty());
 }
@@ -1576,7 +1761,7 @@ TEST_F(AttributionManagerImplTest, HandleTrigger_NotifiesObservers) {
 
   EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
       .Times(6)
-      .WillRepeatedly(InvokeReportSentCallback(SendResult::Status::kSent));
+      .WillRepeatedly(InvokeReportSentCallback(SentResult::kSent));
 
   task_environment_.FastForwardBy(kFirstReportingWindow);
 
@@ -1739,8 +1924,8 @@ TEST_F(AttributionManagerImplTest, EmbedderDisallowsReporting_ReportNotSent) {
   observation.Observe(attribution_manager_.get());
 
   EXPECT_CALL(observer, OnReportSent(_, /*is_debug_report=*/false,
-                                     Field(&SendResult::status,
-                                           SendResult::Status::kDropped)));
+                                     Property(&SendResult::status,
+                                              SendResult::Status::kDropped)));
 
   task_environment_.FastForwardBy(kFirstReportingWindow);
 
@@ -1756,8 +1941,6 @@ TEST_F(AttributionManagerImplTest,
   const auto destination_origin =
       *SuitableOrigin::Deserialize("https://d.test");
   const auto reporting_origin = *SuitableOrigin::Deserialize("https://r.test");
-
-  cookie_checker_->AddOriginWithDebugCookieSet(reporting_origin);
 
   MockAttributionReportingContentBrowserClient browser_client;
   EXPECT_CALL(
@@ -1828,13 +2011,52 @@ TEST_F(AttributionManagerImplTest, Offline_NoReportSent) {
       network::mojom::ConnectionType::CONNECTION_UNKNOWN);
 }
 
+TEST_F(AttributionManagerImplTest, Offline_ExpiredReportDeleted) {
+  base::HistogramTester histograms;
+  Checkpoint checkpoint;
+  {
+    InSequence seq;
+
+    EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
+        .Times(0);
+    EXPECT_CALL(checkpoint, Call(1));
+    EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
+        .Times(0);
+  }
+
+  attribution_manager_->HandleSource(TestAggregatableSourceProvider()
+                                         .GetBuilder()
+                                         .SetExpiry(kImpressionExpiry)
+                                         .Build(),
+                                     kFrameId);
+  attribution_manager_->HandleTrigger(
+      DefaultAggregatableTriggerBuilder().Build(), kFrameId);
+  EXPECT_THAT(StoredReports(), SizeIs(2));
+
+  SetConnectionTypeAndWaitForObserversToBeNotified(
+      network::mojom::ConnectionType::CONNECTION_NONE);
+  task_environment_.FastForwardBy(kImpressionExpiry + kReportExpiry);
+
+  checkpoint.Call(1);
+
+  SetConnectionTypeAndWaitForObserversToBeNotified(
+      network::mojom::ConnectionType::CONNECTION_UNKNOWN);
+
+  task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
+  EXPECT_THAT(StoredReports(), IsEmpty());
+  // kExpired = 4
+  histograms.ExpectBucketCount("Conversions.ReportSendOutcome3", 4, 1);
+  histograms.ExpectBucketCount(
+      "Conversions.AggregatableReport.ReportSendOutcome2", 4, 1);
+}
+
 class AttributionManagerImplOnlineConnectionTypeTest
     : public AttributionManagerImplTest {
  protected:
   void ConfigureStorageDelegate(
       ConfigurableStorageDelegate& delegate) const override {
     delegate.set_offline_report_delay_config(
-        AttributionStorageDelegate::OfflineReportDelayConfig{
+        AttributionResolverDelegate::OfflineReportDelayConfig{
             .min = base::Minutes(1),
             .max = base::Minutes(1),
         });
@@ -1850,7 +2072,7 @@ TEST_F(AttributionManagerImplOnlineConnectionTypeTest,
 
   // Deliberately avoid running tasks so that the connection change and time
   // advance can be "atomic", which is necessary because
-  // `AttributionStorage::AdjustOfflineReportTimes()` only adjusts times for
+  // `AttributionResolver::AdjustOfflineReportTimes()` only adjusts times for
   // reports that should have been sent before now. In other words, the call to
   // `AdjustOfflineReportTimes()` would have no effect if we used
   // `FastForwardBy()` here, and we wouldn't be able to detect it below.
@@ -1893,7 +2115,8 @@ TEST_F(AttributionManagerImplTest, TimeFromConversionToReportSendHistogram) {
   ASSERT_TRUE(report_sent_callback);
   ASSERT_TRUE(sent_report);
   std::move(report_sent_callback)
-      .Run(std::move(*sent_report), SendResult(SendResult::Status::kSent));
+      .Run(*std::move(sent_report), SendResult::Sent(SentResult::kSent,
+                                                     /*status=*/0));
 
   histograms.ExpectUniqueSample(
       "Conversions.TimeFromTriggerToReportSentSuccessfully",
@@ -1913,8 +2136,7 @@ TEST_F(AttributionManagerImplTest, ReportRetriesTillSuccessHistogram) {
     InSequence seq;
 
     EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce(
-            InvokeReportSentCallback(SendResult::Status::kTransientFailure));
+        .WillOnce(InvokeReportSentCallback(SentResult::kTransientFailure));
     EXPECT_CALL(checkpoint, Call(1));
     EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
         .WillOnce([&](AttributionReport report, bool is_debug_report,
@@ -1938,74 +2160,14 @@ TEST_F(AttributionManagerImplTest, ReportRetriesTillSuccessHistogram) {
   ASSERT_TRUE(report_sent_callback);
   ASSERT_TRUE(sent_report);
   std::move(report_sent_callback)
-      .Run(std::move(*sent_report), SendResult(SendResult::Status::kSent));
+      .Run(*std::move(sent_report), SendResult::Sent(SentResult::kSent,
+                                                     /*status=*/0));
 
   // kSuccess = 0.
   histograms.ExpectUniqueSample("Conversions.ReportSendOutcome3", 0, 1);
 
   histograms.ExpectUniqueSample(
       "Conversions.EventLevelReport.ReportRetriesTillSuccessOrFailure", 1, 1);
-}
-
-TEST_F(AttributionManagerImplTest, ReportRetryDelayFeatureParams) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeaturesAndParameters(
-      {{kAttributionReportDeliveryRetryDelays,
-        {
-            {"first_retry_delay", "1m"},
-            {"second_retry_delay", "2m"},
-        }}},
-      {});
-  base::HistogramTester histograms;
-
-  bool was_report_sent = false;
-
-  Checkpoint checkpoint;
-  {
-    InSequence seq;
-
-    EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce(
-            InvokeReportSentCallback(SendResult::Status::kTransientFailure));
-
-    EXPECT_CALL(checkpoint, Call(1));
-    EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce(
-            InvokeReportSentCallback(SendResult::Status::kTransientFailure));
-
-    EXPECT_CALL(checkpoint, Call(2));
-    EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
-        .WillOnce([&](AttributionReport report, bool is_debug_report,
-                      ReportSentCallback callback) {
-          std::move(callback).Run(std::move(report),
-                                  SendResult(SendResult::Status::kSent));
-          was_report_sent = true;
-        });
-  }
-
-  attribution_manager_->HandleSource(
-      SourceBuilder().SetExpiry(kImpressionExpiry).Build(), kFrameId);
-  attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
-
-  task_environment_.FastForwardBy(kFirstReportingWindow);
-
-  checkpoint.Call(1);
-
-  // First report delay.
-  task_environment_.FastForwardBy(base::Minutes(1));
-
-  checkpoint.Call(2);
-
-  // Second report delay.
-  task_environment_.FastForwardBy(base::Minutes(2));
-
-  ASSERT_TRUE(was_report_sent);
-
-  // kSuccess = 0.
-  histograms.ExpectUniqueSample("Conversions.ReportSendOutcome3", 0, 1);
-
-  histograms.ExpectUniqueSample(
-      "Conversions.EventLevelReport.ReportRetriesTillSuccessOrFailure", 2, 1);
 }
 
 TEST_F(AttributionManagerImplTest, SendReport_RecordsExtraReportDelay2) {
@@ -2047,6 +2209,109 @@ TEST_F(AttributionManagerImplTest, SendReport_RecordsExtraReportDelay2) {
   histograms.ExpectUniqueTimeSample(
       "Conversions.AggregatableReport.ExtraReportDelay",
       base::Days(3) + kDefaultOfflineReportDelay.min, 1);
+  histograms.ExpectUniqueTimeSample(
+      "Conversions.AggregatableReport.NoContextID.ExtraReportDelay",
+      base::Days(3) + kDefaultOfflineReportDelay.min, 1);
+}
+
+TEST_F(AttributionManagerImplTest,
+       30DaysBetweenTriggerAndReportSentSuccessfully) {
+  const struct {
+    base::TimeDelta time;
+    bool sample;
+  } kTestCases[] = {
+      // Offset by `kDefaultOfflineReportDelay.max`.
+      {base::Days(30) - kDefaultOfflineReportDelay.max, /*sample=*/false},
+      {base::Days(30) - kDefaultOfflineReportDelay.max + base::Microseconds(1),
+       /*sample=*/true},
+  };
+  for (const auto& test_case : kTestCases) {
+    base::HistogramTester histograms;
+    attribution_manager_->HandleSource(
+        SourceBuilder().SetExpiry(kImpressionExpiry).Build(), kFrameId);
+    attribution_manager_->HandleTrigger(
+        DefaultAggregatableTriggerBuilder().Build(), kFrameId);
+
+    ReportSentCallback report_sent_callback;
+    std::optional<AttributionReport> sent_report;
+
+    EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
+        .WillOnce([&](AttributionReport report, bool is_debug_report,
+                      ReportSentCallback callback) {
+          report_sent_callback = std::move(callback);
+          sent_report = std::move(report);
+        });
+
+    SetConnectionTypeAndWaitForObserversToBeNotified(
+        network::mojom::ConnectionType::CONNECTION_NONE);
+
+    task_environment_.FastForwardBy(test_case.time);
+
+    SetConnectionTypeAndWaitForObserversToBeNotified(
+        network::mojom::ConnectionType::CONNECTION_UNKNOWN);
+
+    task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
+
+    ASSERT_TRUE(report_sent_callback);
+    ASSERT_TRUE(sent_report);
+    std::move(report_sent_callback)
+        .Run(*std::move(sent_report), SendResult::Sent(SentResult::kSent,
+                                                       /*status=*/0));
+
+    histograms.ExpectUniqueSample(
+        "Conversions.TimeFromTriggerToReportSentSuccessfullyExceeds30Days",
+        test_case.sample, 1);
+  }
+}
+
+TEST_F(AttributionManagerImplTest,
+       30DaysBetweenInitialReportTimeAndReportSentSuccessfully) {
+  const struct {
+    base::TimeDelta time;
+    bool sample;
+  } kTestCases[] = {
+      // Offset by `kDefaultOfflineReportDelay.max`.
+      {base::Days(30) - kDefaultOfflineReportDelay.max, /*sample=*/false},
+      {base::Days(30) - kDefaultOfflineReportDelay.max + base::Microseconds(1),
+       /*sample=*/true},
+  };
+  for (const auto& test_case : kTestCases) {
+    base::HistogramTester histograms;
+    attribution_manager_->HandleSource(
+        SourceBuilder().SetExpiry(kImpressionExpiry).Build(), kFrameId);
+    attribution_manager_->HandleTrigger(
+        DefaultAggregatableTriggerBuilder().Build(), kFrameId);
+
+    ReportSentCallback report_sent_callback;
+    std::optional<AttributionReport> sent_report;
+
+    EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
+        .WillOnce([&](AttributionReport report, bool is_debug_report,
+                      ReportSentCallback callback) {
+          report_sent_callback = std::move(callback);
+          sent_report = std::move(report);
+        });
+
+    SetConnectionTypeAndWaitForObserversToBeNotified(
+        network::mojom::ConnectionType::CONNECTION_NONE);
+
+    task_environment_.FastForwardBy(test_case.time + kFirstReportingWindow);
+
+    SetConnectionTypeAndWaitForObserversToBeNotified(
+        network::mojom::ConnectionType::CONNECTION_UNKNOWN);
+
+    task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
+
+    ASSERT_TRUE(report_sent_callback);
+    ASSERT_TRUE(sent_report);
+    std::move(report_sent_callback)
+        .Run(*std::move(sent_report), SendResult::Sent(SentResult::kSent,
+                                                       /*status=*/0));
+
+    histograms.ExpectUniqueSample(
+        "Conversions.ExtraReportDelayForSuccessfulSendExceeds30Days",
+        test_case.sample, 1);
+  }
 }
 
 TEST_F(AttributionManagerImplTest, SendReport_RecordsSchedulerReportDelay) {
@@ -2073,6 +2338,98 @@ TEST_F(AttributionManagerImplTest, SendReport_RecordsSchedulerReportDelay) {
   histograms.ExpectUniqueTimeSample(
       "Conversions.AggregatableReport.SchedulerReportDelay", base::Seconds(1),
       1);
+}
+
+TEST_F(AttributionManagerImplTest,
+       SendReport_RecordsTimeFromLastNavigation_Successful) {
+  base::HistogramTester histograms;
+
+  EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
+      .WillOnce(InvokeReportSentCallback(SentResult::kSent));
+
+  base::Time start = base::Time::Now();
+  attribution_manager_->UpdateLastNavigationTime(start);
+
+  attribution_manager_->HandleSource(
+      SourceBuilder().SetExpiry(kImpressionExpiry).Build(), kFrameId);
+  attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
+
+  task_environment_.FastForwardBy(kFirstReportingWindow + base::Minutes(20));
+
+  histograms.ExpectTotalCount(
+      "Conversions.TimeFromLastNavigationToDelivery_Succeeded.EventLevelReport",
+      1);
+  histograms.ExpectUniqueSample("Conversions.ReportSendOutcome3", 0, 1);
+}
+
+TEST_F(AttributionManagerImplTest,
+       SendReport_RecordsTimeFromLastNavigation_Failure) {
+  base::HistogramTester histograms;
+
+  EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
+      .WillRepeatedly(InvokeReportSentCallback(SentResult::kTransientFailure));
+
+  base::Time start = base::Time::Now();
+  attribution_manager_->UpdateLastNavigationTime(start);
+
+  attribution_manager_->HandleSource(
+      SourceBuilder().SetExpiry(kImpressionExpiry).Build(), kFrameId);
+  attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
+
+  // Reporting window + both retry attempts.
+  task_environment_.FastForwardBy(kFirstReportingWindow + base::Minutes(20));
+
+  histograms.ExpectTotalCount(
+      "Conversions.TimeFromLastNavigationToDelivery_Failed.EventLevelReport",
+      1);
+  histograms.ExpectUniqueSample("Conversions.ReportSendOutcome3", 1, 1);
+}
+
+class AttributionManagerImplTestDeliverOnNewNavigation
+    : public AttributionManagerImplTest {
+ public:
+  AttributionManagerImplTestDeliverOnNewNavigation() {
+    scoped_feature_list_.Reset();
+    scoped_feature_list_.InitAndEnableFeature(
+        kAttributionReportDeliveryOnNewNavigation);
+  }
+};
+
+TEST_F(AttributionManagerImplTestDeliverOnNewNavigation,
+       SendReportAfterNewNavigation) {
+  base::HistogramTester histograms;
+
+  Checkpoint checkpoint;
+  {
+    InSequence seq;
+
+    EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
+        .Times(0);
+    EXPECT_CALL(checkpoint, Call(1));
+    EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/false, _))
+        .Times(2);
+  }
+
+  base::Time start = base::Time::Now();
+  attribution_manager_->UpdateLastNavigationTime(start);
+
+  attribution_manager_->HandleSource(
+      SourceBuilder().SetExpiry(kImpressionExpiry).Build(), kFrameId);
+  attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
+  attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
+
+  EXPECT_THAT(StoredReports(), SizeIs(2));
+
+  task_environment_.FastForwardBy(base::Days(20));
+  checkpoint.Call(1);
+
+  SetConnectionTypeAndWaitForObserversToBeNotified(
+      network::mojom::ConnectionType::CONNECTION_NONE);
+
+  attribution_manager_->UpdateLastNavigationTime(base::Time::Now());
+
+  // Should call SendReport even though the connection is offline.
+  task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
 }
 
 TEST_F(AttributionManagerImplTest, SendReportsFromWebUI_DoesNotRecordMetrics) {
@@ -2165,129 +2522,52 @@ TEST_F(AttributionManagerImplNoFakeReportTest, NotNotifyObservers) {
   task_environment_.FastForwardBy(base::TimeDelta());
 }
 
-// Test that multiple source and trigger registrations, with and without debug
-// keys present, are handled in the order they are received by the manager.
-TEST_F(AttributionManagerImplTest, RegistrationsHandledInOrder) {
-  cookie_checker_->DeferCallbacks();
-
-  const auto r1 = *SuitableOrigin::Deserialize("https://r1.test");
-  const auto r2 = *SuitableOrigin::Deserialize("https://r2.test");
-
-  attribution_manager_->HandleSource(SourceBuilder()
-                                         .SetSourceEventId(1)
-                                         .SetDebugKey(11)
-                                         .SetReportingOrigin(r1)
-                                         .SetExpiry(kImpressionExpiry)
-                                         .Build(),
-                                     kFrameId);
-
-  attribution_manager_->HandleTrigger(
-      TriggerBuilder().SetTriggerData(2).SetReportingOrigin(r1).Build(),
-      kFrameId);
-
-  attribution_manager_->HandleTrigger(TriggerBuilder()
-                                          .SetTriggerData(3)
-                                          .SetDebugKey(13)
-                                          .SetReportingOrigin(r2)
-                                          .Build(),
-                                      kFrameId);
-
-  attribution_manager_->HandleSource(SourceBuilder()
-                                         .SetSourceEventId(4)
-                                         .SetDebugKey(14)
-                                         .SetReportingOrigin(r2)
-                                         .SetExpiry(kImpressionExpiry)
-                                         .Build(),
-                                     kFrameId);
-
-  attribution_manager_->HandleTrigger(
-      TriggerBuilder().SetTriggerData(5).SetReportingOrigin(r2).Build(),
-      kFrameId);
-
-  ASSERT_THAT(StoredSources(), IsEmpty());
-  ASSERT_THAT(StoredReports(), IsEmpty());
-
-  // This should cause the first 2 events to be processed.
-  cookie_checker_->RunNextDeferredCallback(/*is_debug_cookie_set=*/false);
-  ASSERT_THAT(StoredSources(), ElementsAre(SourceEventIdIs(1)));
-  ASSERT_THAT(StoredReports(), ElementsAre(EventLevelDataIs(TriggerDataIs(2))));
-
-  // This should cause the next event to be processed. There's no matching
-  // source, so the trigger should be dropped.
-  cookie_checker_->RunNextDeferredCallback(/*is_debug_cookie_set=*/false);
-  ASSERT_THAT(StoredSources(), ElementsAre(SourceEventIdIs(1)));
-  ASSERT_THAT(StoredReports(), ElementsAre(EventLevelDataIs(TriggerDataIs(2))));
-
-  // This should cause the next 2 events to be processed.
-  cookie_checker_->RunNextDeferredCallback(/*is_debug_cookie_set=*/false);
-  ASSERT_THAT(StoredSources(),
-              UnorderedElementsAre(SourceEventIdIs(1), SourceEventIdIs(4)));
-  ASSERT_THAT(StoredReports(),
-              UnorderedElementsAre(EventLevelDataIs(TriggerDataIs(2)),
-                                   EventLevelDataIs(TriggerDataIs(5))));
-}
-
 namespace {
 
 const struct {
   const char* name;
   std::optional<uint64_t> input_debug_key;
-  const char* reporting_origin;
   std::optional<uint64_t> expected_debug_key;
   std::optional<uint64_t> expected_cleared_key;
   bool cookie_access_allowed;
-  bool expected_debug_cookie_set;
+  bool expected_cookie_based_debug_allowed;
   bool can_bypass = false;
 } kDebugKeyTestCases[] = {
     {
-        "no debug key, no cookie",
-        std::nullopt,
-        "https://r2.test",
+        "no debug key, cookie not allowed",
         std::nullopt,
         std::nullopt,
-        true,
+        std::nullopt,
+        false,
         false,
     },
     {
-        "has debug key, no cookie",
+        "has debug key, cookie not allowed",
         123,
-        "https://r2.test",
-        std::nullopt,
-        123,
-        true,
-        false,
-    },
-    {
-        "no debug key, has cookie",
-        std::nullopt,
-        "https://r1.test",
-        std::nullopt,
-        std::nullopt,
-        true,
-        true,
-    },
-    {
-        "has debug key, has cookie",
-        123,
-        "https://r1.test",
-        123,
-        std::nullopt,
-        true,
-        true,
-    },
-    {
-        "has debug key, no cookie access",
-        123,
-        "https://r1.test",
         std::nullopt,
         123,
         false,
         false,
     },
     {
-        "has debug key, no cookie access, can bypass",
+        "no debug key, cookie allowed",
+        std::nullopt,
+        std::nullopt,
+        std::nullopt,
+        true,
+        true,
+    },
+    {
+        "has debug key, cookie allowed",
         123,
-        "https://r1.test",
+        123,
+        std::nullopt,
+        true,
+        true,
+    },
+    {
+        "has debug key, cookie not allowed, can bypass",
+        123,
         123,
         std::nullopt,
         false,
@@ -2299,9 +2579,6 @@ const struct {
 }  // namespace
 
 TEST_F(AttributionManagerImplTest, HandleSource_DebugKey) {
-  cookie_checker_->AddOriginWithDebugCookieSet(
-      url::Origin::Create(GURL("https://r1.test")));
-
   for (const auto& test_case : kDebugKeyTestCases) {
     SCOPED_TRACE(test_case.name);
 
@@ -2310,21 +2587,19 @@ TEST_F(AttributionManagerImplTest, HandleSource_DebugKey) {
         observation(&observer);
     observation.Observe(attribution_manager_.get());
 
-    const auto reporting_origin =
-        *SuitableOrigin::Deserialize(test_case.reporting_origin);
     MockAttributionReportingContentBrowserClient browser_client;
     EXPECT_CALL(
         browser_client,
         IsAttributionReportingOperationAllowed(
             _, ContentBrowserClient::AttributionReportingOperation::kSource, _,
-            _, IsNull(), Pointee(*reporting_origin), _))
+            _, IsNull(), _, _))
         .WillRepeatedly(Return(true));
     EXPECT_CALL(browser_client,
                 IsAttributionReportingOperationAllowed(
                     _,
                     ContentBrowserClient::AttributionReportingOperation::
                         kSourceTransitionalDebugReporting,
-                    _, _, IsNull(), Pointee(*reporting_origin), _))
+                    _, _, IsNull(), _, _))
         .WillOnce(
             [&](BrowserContext* browser_context,
                 ContentBrowserClient::AttributionReportingOperation operation,
@@ -2340,7 +2615,6 @@ TEST_F(AttributionManagerImplTest, HandleSource_DebugKey) {
                                           test_case.expected_cleared_key, _));
     attribution_manager_->HandleSource(
         SourceBuilder()
-            .SetReportingOrigin(reporting_origin)
             .SetDebugKey(test_case.input_debug_key)
             .SetExpiry(kImpressionExpiry)
             .Build(),
@@ -2348,9 +2622,9 @@ TEST_F(AttributionManagerImplTest, HandleSource_DebugKey) {
 
     EXPECT_THAT(
         StoredSources(),
-        ElementsAre(AllOf(
-            SourceDebugKeyIs(test_case.expected_debug_key),
-            SourceDebugCookieSetIs(test_case.expected_debug_cookie_set))));
+        ElementsAre(AllOf(SourceDebugKeyIs(test_case.expected_debug_key),
+                          SourceCookieBasedDebugAllowedIs(
+                              test_case.expected_cookie_based_debug_allowed))));
 
     attribution_manager_->ClearData(base::Time::Min(), base::Time::Max(),
                                     /*filter=*/base::NullCallback(),
@@ -2361,9 +2635,6 @@ TEST_F(AttributionManagerImplTest, HandleSource_DebugKey) {
 }
 
 TEST_F(AttributionManagerImplTest, HandleTrigger_DebugKey) {
-  cookie_checker_->AddOriginWithDebugCookieSet(
-      url::Origin::Create(GURL("https://r1.test")));
-
   for (const auto& test_case : kDebugKeyTestCases) {
     SCOPED_TRACE(test_case.name);
 
@@ -2371,9 +2642,6 @@ TEST_F(AttributionManagerImplTest, HandleTrigger_DebugKey) {
     base::ScopedObservation<AttributionManager, AttributionObserver>
         observation(&observer);
     observation.Observe(attribution_manager_.get());
-
-    const auto reporting_origin =
-        *SuitableOrigin::Deserialize(test_case.reporting_origin);
 
     MockAttributionReportingContentBrowserClient browser_client;
     EXPECT_CALL(
@@ -2384,7 +2652,7 @@ TEST_F(AttributionManagerImplTest, HandleTrigger_DebugKey) {
                   ContentBrowserClient::AttributionReportingOperation::kTrigger,
                   ContentBrowserClient::AttributionReportingOperation::
                       kSourceTransitionalDebugReporting),
-            _, _, _, Pointee(*reporting_origin), _))
+            _, _, _, _, _))
         .WillRepeatedly(Return(true));
     if (test_case.input_debug_key) {
       EXPECT_CALL(browser_client,
@@ -2392,7 +2660,7 @@ TEST_F(AttributionManagerImplTest, HandleTrigger_DebugKey) {
                       _,
                       ContentBrowserClient::AttributionReportingOperation::
                           kTriggerTransitionalDebugReporting,
-                      _, IsNull(), _, Pointee(*reporting_origin), _))
+                      _, IsNull(), _, _, _))
           .WillOnce(
               [&](BrowserContext* browser_context,
                   ContentBrowserClient::AttributionReportingOperation operation,
@@ -2405,23 +2673,17 @@ TEST_F(AttributionManagerImplTest, HandleTrigger_DebugKey) {
     }
     ScopedContentBrowserClientSetting setting(&browser_client);
 
-    attribution_manager_->HandleSource(SourceBuilder()
-                                           .SetReportingOrigin(reporting_origin)
-                                           .SetExpiry(kImpressionExpiry)
-                                           .Build(),
-                                       kFrameId);
+    attribution_manager_->HandleSource(
+        SourceBuilder().SetExpiry(kImpressionExpiry).Build(), kFrameId);
 
     EXPECT_THAT(StoredSources(), SizeIs(1));
     EXPECT_CALL(observer, OnTriggerHandled(test_case.expected_cleared_key, _));
     attribution_manager_->HandleTrigger(
-        TriggerBuilder()
-            .SetReportingOrigin(reporting_origin)
-            .SetDebugKey(test_case.input_debug_key)
-            .Build(),
+        TriggerBuilder().SetDebugKey(test_case.input_debug_key).Build(),
         kFrameId);
     EXPECT_THAT(
         StoredReports(),
-        ElementsAre(AllOf(ReportSourceIs(SourceDebugKeyIs(std::nullopt)),
+        ElementsAre(AllOf(ReportSourceDebugKeyIs(std::nullopt),
                           TriggerDebugKeyIs(test_case.expected_debug_key))));
 
     attribution_manager_->ClearData(base::Time::Min(), base::Time::Max(),
@@ -2433,10 +2695,6 @@ TEST_F(AttributionManagerImplTest, HandleTrigger_DebugKey) {
 }
 
 TEST_F(AttributionManagerImplTest, DebugReport_SentImmediately) {
-  const auto reporting_origin = *SuitableOrigin::Deserialize("https://r1.test");
-
-  cookie_checker_->AddOriginWithDebugCookieSet(reporting_origin);
-
   const struct {
     const char* name;
     std::optional<uint64_t> source_debug_key;
@@ -2462,7 +2720,6 @@ TEST_F(AttributionManagerImplTest, DebugReport_SentImmediately) {
     attribution_manager_->HandleSource(
         TestAggregatableSourceProvider()
             .GetBuilder()
-            .SetReportingOrigin(reporting_origin)
             .SetExpiry(kImpressionExpiry)
             .SetDebugKey(test_case.source_debug_key)
             .Build(),
@@ -2488,13 +2745,12 @@ TEST_F(AttributionManagerImplTest, DebugReport_SentImmediately) {
     if (test_case.send_expected) {
       EXPECT_CALL(
           *report_sender_,
-          SendReport(AllOf(ReportSourceIs(
-                               SourceDebugKeyIs(test_case.source_debug_key)),
+          SendReport(AllOf(ReportSourceDebugKeyIs(test_case.source_debug_key),
                            TriggerDebugKeyIs(test_case.trigger_debug_key)),
                      true, _))
           .Times(2)
           .WillRepeatedly(
-              InvokeReportSentCallback(SendResult::Status::kTransientFailure));
+              InvokeReportSentCallback(SentResult::kTransientFailure));
     } else {
       EXPECT_CALL(*report_sender_, SendReport(_, /*is_debug_report=*/true, _))
           .Times(0);
@@ -2502,7 +2758,6 @@ TEST_F(AttributionManagerImplTest, DebugReport_SentImmediately) {
 
     attribution_manager_->HandleTrigger(
         DefaultAggregatableTriggerBuilder()
-            .SetReportingOrigin(reporting_origin)
             .SetDebugKey(test_case.trigger_debug_key)
             .Build(),
         kFrameId);
@@ -2526,13 +2781,13 @@ TEST_F(AttributionManagerImplTest,
       &observer);
   observation.Observe(attribution_manager_.get());
 
-  const StorableSource source = SourceBuilder().Build();
+  EXPECT_CALL(
+      observer,
+      OnSourceHandled(SourceBuilder().SetCookieBasedDebugAllowed(true).Build(),
+                      base::Time::Now(), testing::Eq(std::nullopt),
+                      StorableSource::Result::kSuccess));
 
-  EXPECT_CALL(observer, OnSourceHandled(source, base::Time::Now(),
-                                        testing::Eq(std::nullopt),
-                                        StorableSource::Result::kSuccess));
-
-  attribution_manager_->HandleSource(source, kFrameId);
+  attribution_manager_->HandleSource(SourceBuilder().Build(), kFrameId);
   EXPECT_THAT(StoredSources(), SizeIs(1));
 }
 
@@ -2554,14 +2809,14 @@ TEST_F(AttributionManagerImplTest,
       observer,
       OnReportSent(ReportTypeIs(AttributionReport::Type::kEventLevel),
                    /*is_debug_report=*/false,
-                   Field(&SendResult::status, SendResult::Status::kSent)));
+                   Property(&SendResult::status, SendResult::Status::kSent)));
 
   EXPECT_CALL(
       observer,
       OnReportSent(
           ReportTypeIs(AttributionReport::Type::kAggregatableAttribution),
           /*is_debug_report=*/false,
-          Field(&SendResult::status, SendResult::Status::kSent)));
+          Property(&SendResult::status, SendResult::Status::kSent)));
 
   Checkpoint checkpoint;
   {
@@ -2601,9 +2856,11 @@ TEST_F(AttributionManagerImplTest,
   task_environment_.FastForwardBy(base::Minutes(1));
 
   std::move(report_sent_callbacks[0])
-      .Run(std::move(sent_reports[0]), SendResult(SendResult::Status::kSent));
+      .Run(std::move(sent_reports[0]), SendResult::Sent(SentResult::kSent,
+                                                        /*status=*/0));
   std::move(report_sent_callbacks[1])
-      .Run(std::move(sent_reports[1]), SendResult(SendResult::Status::kSent));
+      .Run(std::move(sent_reports[1]), SendResult::Sent(SentResult::kSent,
+                                                        /*status=*/0));
 
   histograms.ExpectUniqueSample(
       "Conversions.AggregatableReport.AssembleReportStatus",
@@ -2621,6 +2878,9 @@ TEST_F(AttributionManagerImplTest,
 
 TEST_F(AttributionManagerImplTest, OnReportSent_RecordReportDelay) {
   base::HistogramTester histograms;
+
+  base::test::ScopedFeatureList scoped_feature_list;
+  scoped_feature_list.InitAndEnableFeature(metrics::dwa::kDwaFeature);
 
   attribution_manager_->HandleSource(TestAggregatableSourceProvider()
                                          .GetBuilder()
@@ -2651,6 +2911,11 @@ TEST_F(AttributionManagerImplTest, OnReportSent_RecordReportDelay) {
 
   checkpoint.Call(1);
 
+  metrics::dwa::DwaRecorder::Get()->EnableRecording();
+  metrics::dwa::DwaRecorder::Get()->Purge();
+  ASSERT_THAT(metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
+              IsEmpty());
+
   std::vector<ReportSentCallback> report_sent_callbacks;
   std::vector<AttributionReport> sent_reports;
 
@@ -2670,9 +2935,11 @@ TEST_F(AttributionManagerImplTest, OnReportSent_RecordReportDelay) {
   ASSERT_THAT(sent_reports, SizeIs(2));
 
   std::move(report_sent_callbacks[0])
-      .Run(std::move(sent_reports[0]), SendResult(SendResult::Status::kSent));
+      .Run(std::move(sent_reports[0]), SendResult::Sent(SentResult::kSent,
+                                                        /*status=*/0));
   std::move(report_sent_callbacks[1])
-      .Run(std::move(sent_reports[1]), SendResult(SendResult::Status::kSent));
+      .Run(std::move(sent_reports[1]), SendResult::Sent(SentResult::kSent,
+                                                        /*status=*/0));
 
   histograms.ExpectUniqueTimeSample(
       "Conversions.ExtraReportDelayForSuccessfulSend",
@@ -2682,6 +2949,35 @@ TEST_F(AttributionManagerImplTest, OnReportSent_RecordReportDelay) {
       base::Days(3) + base::Minutes(1), 1);
   histograms.ExpectUniqueSample(
       "Conversions.AggregatableReport.ReportRetriesTillSuccessOrFailure", 0, 1);
+
+  // The content is set as the reporting origin. In unit tests, this value is
+  // set to "https://report.test". DWA content sanitization extracts the eTLD+1
+  // from this value, yielding "report.test".
+  EXPECT_THAT(
+      metrics::dwa::DwaRecorder::Get()->GetEntriesForTesting(),
+      UnorderedElementsAre(
+          Pointee(AllOf(
+              Field(&metrics::dwa::mojom::DwaEntry::event_hash,
+                    base::HashMetricName("AttributionConversionsSendReport")),
+              Field(&metrics::dwa::mojom::DwaEntry::content_hash,
+                    base::HashMetricName("report.test")),
+              Field(&metrics::dwa::mojom::DwaEntry::metrics,
+                    UnorderedElementsAre(testing::Pair(
+                        base::HashMetricName("EventLevelExtraReportDelay"),
+                        // base::Days(3) + base::Minutes(1) bucketed to 2 days.
+                        base::Days(2).InMilliseconds()))))),
+          Pointee(AllOf(
+              Field(&metrics::dwa::mojom::DwaEntry::event_hash,
+                    base::HashMetricName("AttributionConversionsSendReport")),
+              Field(&metrics::dwa::mojom::DwaEntry::content_hash,
+                    base::HashMetricName("report.test")),
+              Field(&metrics::dwa::mojom::DwaEntry::metrics,
+                    UnorderedElementsAre(
+                        testing::Pair(base::HashMetricName(
+                                          "AggregatableReportDelayFromTrigger"),
+                                      // kFirstReportingWindow + base::Days(3) +
+                                      // base::Minutes(1) bucketed to 4 days.
+                                      base::Days(4).InMilliseconds())))))));
 }
 
 TEST_F(AttributionManagerImplTest,
@@ -2705,8 +3001,8 @@ TEST_F(AttributionManagerImplTest,
       OnReportSent(
           ReportTypeIs(AttributionReport::Type::kAggregatableAttribution),
           /*is_debug_report=*/false,
-          Field(&SendResult::status,
-                SendResult::Status::kTransientAssemblyFailure)));
+          Property(&SendResult::status,
+                   SendResult::Status::kTransientAssemblyFailure)));
 
   Checkpoint checkpoint;
   {
@@ -2818,41 +3114,8 @@ TEST_F(AttributionManagerImplTest, GetFailedReportDelay) {
   }
 }
 
-TEST_F(AttributionManagerImplTest, TooManyEventsInQueue) {
-  base::HistogramTester histograms;
-
-  // Prevent sources from being removed from the queue.
-  cookie_checker_->DeferCallbacks();
-
-  for (size_t i = 0; i <= kMaxPendingEvents; i++) {
-    attribution_manager_->HandleSource(
-        SourceBuilder().SetDebugKey(i).SetExpiry(kImpressionExpiry).Build(),
-        kFrameId);
-  }
-
-  histograms.ExpectBucketCount("Conversions.EnqueueEventAllowed", true,
-                               kMaxPendingEvents);
-  histograms.ExpectBucketCount("Conversions.EnqueueEventAllowed", false, 1);
-
-  // Unblock the cookie checks. Only the first `kMaxPendingEvents` sources
-  // should be stored.
-  for (size_t i = 0; i <= kMaxPendingEvents; i++) {
-    cookie_checker_->RunNextDeferredCallback(/*is_debug_cookie_set=*/true);
-    task_environment_.RunUntilIdle();
-  }
-
-  std::vector<StoredSource> sources = StoredSources();
-  ASSERT_THAT(sources, SizeIs(kMaxPendingEvents));
-  for (size_t i = 0; i < kMaxPendingEvents; i++) {
-    EXPECT_THAT(sources[i], SourceDebugKeyIs(i));
-  }
-}
-
 TEST_F(AttributionManagerImplTest, TriggerVerboseDebugReport_ReportSent) {
   base::HistogramTester histograms;
-
-  const auto reporting_origin = *SuitableOrigin::Deserialize("https://r1.test");
-  cookie_checker_->AddOriginWithDebugCookieSet(reporting_origin);
 
   Checkpoint checkpoint;
   {
@@ -2864,64 +3127,51 @@ TEST_F(AttributionManagerImplTest, TriggerVerboseDebugReport_ReportSent) {
   }
 
   // Failed without debug reporting.
-  attribution_manager_->HandleTrigger(
-      TriggerBuilder().SetReportingOrigin(reporting_origin).Build(), kFrameId);
+  attribution_manager_->HandleTrigger(TriggerBuilder().Build(), kFrameId);
   task_environment_.RunUntilIdle();
 
   // Trigger registered within a fenced frame failed with debug reporting, but
   // no debug report is sent.
   attribution_manager_->HandleTrigger(TriggerBuilder()
-                                          .SetReportingOrigin(reporting_origin)
                                           .SetDebugReporting(true)
                                           .SetIsWithinFencedFrame(true)
                                           .Build(),
                                       kFrameId);
   task_environment_.RunUntilIdle();
 
+  MockAttributionReportingContentBrowserClient browser_client;
+  EXPECT_CALL(
+      browser_client,
+      IsAttributionReportingOperationAllowed(
+          _,
+          AnyOf(AttributionReportingOperation::kTrigger,
+                AttributionReportingOperation::kTriggerVerboseDebugReport),
+          _, _, _, _, _))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(
+      browser_client,
+      IsAttributionReportingOperationAllowed(
+          _, AttributionReportingOperation::kTriggerTransitionalDebugReporting,
+          _, _, _, _, _))
+      .WillOnce(Return(false))
+      .WillOnce(Return(true));
+  ScopedContentBrowserClientSetting setting(&browser_client);
+
   // Trigger registered outside a fenced frame tree failed with debug reporting
-  // but no debug cookie is set, therefore no debug report is sent.
+  // but debug is not allowed, therefore no debug report is sent.
   attribution_manager_->HandleTrigger(
-      TriggerBuilder()
-          .SetReportingOrigin(*SuitableOrigin::Deserialize("https://r2.test"))
-          .SetDebugReporting(true)
-          .Build(),
-      kFrameId);
+      TriggerBuilder().SetDebugReporting(true).Build(), kFrameId);
   task_environment_.RunUntilIdle();
-
-  {
-    // Trigger registered outside a fenced frame tree failed with debug
-    // reporting and debug cookie is set, but feature off.
-    base::test::ScopedFeatureList scoped_feature_list;
-    scoped_feature_list.InitAndDisableFeature(
-        kAttributionVerboseDebugReporting);
-
-    attribution_manager_->HandleTrigger(
-        TriggerBuilder()
-            .SetReportingOrigin(reporting_origin)
-            .SetDebugReporting(true)
-            .Build(),
-        kFrameId);
-    task_environment_.RunUntilIdle();
-  }
 
   checkpoint.Call(1);
 
   histograms.ExpectTotalCount(kSentVerboseDebugReportTypeMetric, 0);
 
-  {
-    // Trigger registered outside a fenced frame tree failed with debug
-    // reporting and debug cookie is set, and feature on.
-    base::test::ScopedFeatureList scoped_feature_list{
-        kAttributionVerboseDebugReporting};
-
-    attribution_manager_->HandleTrigger(
-        TriggerBuilder()
-            .SetReportingOrigin(reporting_origin)
-            .SetDebugReporting(true)
-            .Build(),
-        kFrameId);
-    task_environment_.RunUntilIdle();
-  }
+  // Trigger registered outside a fenced frame tree failed with debug
+  // reporting and debug cookie is set.
+  attribution_manager_->HandleTrigger(
+      TriggerBuilder().SetDebugReporting(true).Build(), kFrameId);
+  task_environment_.RunUntilIdle();
 
   // kTriggerNoMatchingSource = 6
   histograms.ExpectUniqueSample(kSentVerboseDebugReportTypeMetric, 6, 1);
@@ -2930,7 +3180,6 @@ TEST_F(AttributionManagerImplTest, TriggerVerboseDebugReport_ReportSent) {
 TEST_F(AttributionManagerImplTest,
        EmbedderDisallowsTriggerVerboseDebugReport_NoReportSent) {
   const auto reporting_origin = *SuitableOrigin::Deserialize("https://r1.test");
-  cookie_checker_->AddOriginWithDebugCookieSet(reporting_origin);
 
   EXPECT_CALL(*report_sender_, SendReport(_, _)).Times(0);
 
@@ -2956,107 +3205,6 @@ TEST_F(AttributionManagerImplTest,
                                           .Build(),
                                       kFrameId);
   task_environment_.RunUntilIdle();
-}
-
-TEST_F(AttributionManagerImplTest, PendingReportsMetrics) {
-  base::HistogramTester histograms;
-
-  RegisterAggregatableSourceAndMatchingTrigger("a");
-  task_environment_.FastForwardBy(base::Seconds(10));
-
-  RegisterAggregatableSourceAndMatchingTrigger("b");
-  task_environment_.FastForwardBy(base::Seconds(20));
-
-  RegisterAggregatableSourceAndMatchingTrigger("c");
-  task_environment_.FastForwardBy(base::Seconds(40));
-
-  ShutdownManager();
-
-  histograms.ExpectTotalCount(kPendingAndBrowserWentOfflineTimeSinceCreation,
-                              3);
-  EXPECT_EQ(
-      histograms.GetTotalSum(kPendingAndBrowserWentOfflineTimeSinceCreation),
-      base::Seconds(70 + 60 + 40).InMilliseconds());
-
-  histograms.ExpectTotalCount(kPendingAndBrowserWentOfflineTimeUntilReportTime,
-                              3);
-  EXPECT_EQ(
-      histograms.GetTotalSum(kPendingAndBrowserWentOfflineTimeUntilReportTime),
-      ((kFirstReportingWindow - base::Seconds(70)) +
-       (kFirstReportingWindow - base::Seconds(60)) +
-       (kFirstReportingWindow - base::Seconds(40)))
-          .InMilliseconds());
-}
-
-TEST_F(AttributionManagerImplTest,
-       PendingReportsMetrics_WithoutPendingReports) {
-  base::HistogramTester histograms;
-
-  RegisterAggregatableSourceAndMatchingTrigger("a");
-  task_environment_.FastForwardBy(base::Seconds(10));
-
-  // Advancing time enough for reports to send
-  task_environment_.FastForwardBy(kFirstReportingWindow);
-
-  ShutdownManager();
-
-  // Expect no histograms on shutdown as the reports have already been sent.
-  histograms.ExpectTotalCount(kPendingAndBrowserWentOfflineTimeSinceCreation,
-                              0);
-  histograms.ExpectTotalCount(kPendingAndBrowserWentOfflineTimeUntilReportTime,
-                              0);
-}
-
-TEST_F(AttributionManagerImplTest, PendingReportsMetrics_Offline) {
-  base::HistogramTester histograms;
-
-  RegisterAggregatableSourceAndMatchingTrigger("a");
-  task_environment_.FastForwardBy(base::Seconds(10));
-
-  SetConnectionTypeAndWaitForObserversToBeNotified(
-      network::mojom::ConnectionType::CONNECTION_NONE);
-  SetConnectionTypeAndWaitForObserversToBeNotified(
-      network::mojom::ConnectionType::CONNECTION_WIFI);
-
-  RegisterAggregatableSourceAndMatchingTrigger("b");
-  task_environment_.FastForwardBy(base::Seconds(20));
-
-  RegisterAggregatableSourceAndMatchingTrigger("c");
-  task_environment_.FastForwardBy(base::Seconds(40));
-
-  task_environment_.FastForwardBy(kFirstReportingWindow);
-
-  ShutdownManager();
-
-  // Expect only one histogram as there was only one pending report when it
-  // first went offline.
-  histograms.ExpectTotalCount(kPendingAndBrowserWentOfflineTimeSinceCreation,
-                              1);
-  histograms.ExpectTotalCount(kPendingAndBrowserWentOfflineTimeUntilReportTime,
-                              1);
-}
-
-TEST_F(AttributionManagerImplTest, PendingReportsMetrics_OverLimits) {
-  base::HistogramTester histograms;
-
-  for (size_t i = 0; i < (kMaxPendingReportsTimings + 5); i++) {
-    RegisterAggregatableSourceAndMatchingTrigger(base::NumberToString(i));
-  }
-
-  task_environment_.FastForwardBy(base::Seconds(10));
-  RegisterAggregatableSourceAndMatchingTrigger("a");
-
-  ShutdownManager();
-
-  // Expect that events registered past the limit should be dropped.
-  histograms.ExpectTotalCount(kPendingAndBrowserWentOfflineTimeSinceCreation,
-                              kMaxPendingReportsTimings);
-  histograms.ExpectTotalCount(kPendingAndBrowserWentOfflineTimeUntilReportTime,
-                              kMaxPendingReportsTimings);
-
-  EXPECT_EQ(
-      histograms.GetTotalSum(kPendingAndBrowserWentOfflineTimeSinceCreation),
-      (base::Seconds(10) * kMaxPendingReportsTimings).InMilliseconds());
 }
 
 TEST_F(AttributionManagerImplTest,
@@ -3096,9 +3244,6 @@ TEST_F(AttributionManagerImplCookieBasedDebugReportTest,
   const int kExpectedStatus = 200;
   EXPECT_CALL(observer, OnDebugReportSent(_, kExpectedStatus, _));
 
-  const auto reporting_origin = *SuitableOrigin::Deserialize("https://r1.test");
-  cookie_checker_->AddOriginWithDebugCookieSet(reporting_origin);
-
   Checkpoint checkpoint;
   {
     InSequence seq;
@@ -3115,46 +3260,51 @@ TEST_F(AttributionManagerImplCookieBasedDebugReportTest,
   attribution_manager_->HandleSource(SourceBuilder().Build(), kFrameId);
 
   // Failed without debug reporting.
-  attribution_manager_->HandleSource(
-      SourceBuilder().SetReportingOrigin(reporting_origin).Build(), kFrameId);
-  task_environment_.RunUntilIdle();
+  attribution_manager_->HandleSource(SourceBuilder().Build(), kFrameId);
 
   // Source registered within a fenced frame failed with debug reporting, but
   // no debug report is sent.
   attribution_manager_->HandleSource(SourceBuilder()
-                                         .SetReportingOrigin(reporting_origin)
                                          .SetDebugReporting(true)
                                          .SetIsWithinFencedFrame(true)
                                          .Build(),
                                      kFrameId);
-  task_environment_.RunUntilIdle();
 
-  // Source registered outside a fenced frame failed with debug reporting but no
-  // debug cookie is set, therefore no debug report is sent.
+  MockAttributionReportingContentBrowserClient browser_client;
+  EXPECT_CALL(
+      browser_client,
+      IsAttributionReportingOperationAllowed(
+          _,
+          AnyOf(AttributionReportingOperation::kSource,
+                AttributionReportingOperation::kSourceVerboseDebugReport),
+          _, _, _, _, _))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(
+      browser_client,
+      IsAttributionReportingOperationAllowed(
+          _, AttributionReportingOperation::kSourceTransitionalDebugReporting,
+          _, _, _, _, _))
+      .WillOnce(Return(false))
+      .WillOnce(Return(true));
+  ScopedContentBrowserClientSetting setting(&browser_client);
+
+  // Source registered outside a fenced frame failed with debug reporting but
+  // debug is not allowed, therefore no debug report is sent.
   attribution_manager_->HandleSource(
-      SourceBuilder()
-          .SetReportingOrigin(*SuitableOrigin::Deserialize("https://r2.test"))
-          .SetDebugReporting(true)
-          .Build(),
-      kFrameId);
+      SourceBuilder().SetDebugReporting(true).Build(), kFrameId);
   task_environment_.RunUntilIdle();
 
   checkpoint.Call(1);
 
-  // Source registered outside a fenced frame with debug reporting and debug
-  // cookie is set.
-  attribution_manager_->HandleSource(SourceBuilder()
-                                         .SetReportingOrigin(reporting_origin)
-                                         .SetDebugReporting(true)
-                                         .Build(),
-                                     kFrameId);
+  // Source registered outside a fenced frame with debug reporting and debug is
+  // allowed.
+  attribution_manager_->HandleSource(
+      SourceBuilder().SetDebugReporting(true).Build(), kFrameId);
   task_environment_.RunUntilIdle();
 }
 
 TEST_F(AttributionManagerImplCookieBasedDebugReportTest,
        EmbedderDisallowsVerboseDebugReport_NoReportSent) {
-  const auto reporting_origin = *SuitableOrigin::Deserialize("https://r1.test");
-
   MockAttributionReportingContentBrowserClient browser_client;
   EXPECT_CALL(
       browser_client,
@@ -3170,22 +3320,18 @@ TEST_F(AttributionManagerImplCookieBasedDebugReportTest,
       IsAttributionReportingOperationAllowed(
           _, AttributionReportingOperation::kSourceVerboseDebugReport, _,
           Pointee(url::Origin::Create(GURL("https://impression.test/"))),
-          IsNull(), Pointee(reporting_origin), _))
+          IsNull(), Pointee(url::Origin::Create(GURL("https://report.test/"))),
+          _))
       .WillRepeatedly(Return(false));
   ScopedContentBrowserClientSetting setting(&browser_client);
 
   EXPECT_CALL(*report_sender_, SendReport(_, _)).Times(0);
 
-  cookie_checker_->AddOriginWithDebugCookieSet(reporting_origin);
-
   attribution_manager_->HandleSource(SourceBuilder().Build(), kFrameId);
   EXPECT_THAT(StoredSources(), SizeIs(1));
 
-  attribution_manager_->HandleSource(SourceBuilder()
-                                         .SetReportingOrigin(reporting_origin)
-                                         .SetDebugReporting(true)
-                                         .Build(),
-                                     kFrameId);
+  attribution_manager_->HandleSource(
+      SourceBuilder().SetDebugReporting(true).Build(), kFrameId);
   EXPECT_THAT(StoredSources(), SizeIs(1));
 
   task_environment_.RunUntilIdle();
@@ -3261,11 +3407,11 @@ TEST_F(AttributionManagerImplNullAggregatableReportTest,
       &observer);
   observation.Observe(attribution_manager_.get());
 
-  EXPECT_CALL(
-      observer,
-      OnReportSent(ReportTypeIs(AttributionReport::Type::kNullAggregatable),
-                   /*is_debug_report=*/false,
-                   Field(&SendResult::status, SendResult::Status::kDropped)));
+  EXPECT_CALL(observer,
+              OnReportSent(
+                  ReportTypeIs(AttributionReport::Type::kNullAggregatable),
+                  /*is_debug_report=*/false,
+                  Property(&SendResult::status, SendResult::Status::kDropped)));
 
   attribution_manager_->HandleTrigger(
       DefaultAggregatableTriggerBuilder().Build(), kFrameId);
@@ -3370,157 +3516,6 @@ TEST_F(AttributionManagerImplTest,
   }
 }
 
-TEST_F(AttributionManagerImplTest,
-       SourceRegistrationDelayedByAttestationsLoading) {
-  ShutdownManager();
-
-  MockAttributionReportingContentBrowserClient browser_client;
-  EXPECT_CALL(browser_client, AddPrivacySandboxAttestationsObserver)
-      .WillOnce(Return(false));
-  EXPECT_CALL(
-      browser_client,
-      IsAttributionReportingOperationAllowed(
-          _,
-          AnyOf(
-              AttributionReportingOperation::kSource,
-              AttributionReportingOperation::kSourceTransitionalDebugReporting),
-          _, _, _, _, _))
-      .WillRepeatedly(Return(true));
-  ScopedContentBrowserClientSetting setting(&browser_client);
-
-  base::HistogramTester histograms;
-
-  CreateManager();
-
-  attribution_manager_->HandleSource(SourceBuilder().Build(), kFrameId);
-  EXPECT_THAT(StoredSources(), IsEmpty());
-
-  NotifyAttestationsLoaded();
-  EXPECT_THAT(StoredSources(), SizeIs(1));
-
-  histograms.ExpectTotalCount("Conversions.DelayOnAttestationsLoaded", 1);
-}
-
-TEST_F(AttributionManagerImplTest,
-       SourceRegistrationDelayedByAttestationsLoadingAtTimeout) {
-  ShutdownManager();
-
-  MockAttributionReportingContentBrowserClient browser_client;
-  EXPECT_CALL(browser_client, AddPrivacySandboxAttestationsObserver)
-      .WillOnce(Return(false));
-  EXPECT_CALL(
-      browser_client,
-      IsAttributionReportingOperationAllowed(
-          _,
-          AnyOf(
-              AttributionReportingOperation::kSource,
-              AttributionReportingOperation::kSourceTransitionalDebugReporting),
-          _, _, _, _, _))
-      .WillRepeatedly(Return(true));
-  ScopedContentBrowserClientSetting setting(&browser_client);
-
-  base::HistogramTester histograms;
-
-  CreateManager();
-
-  attribution_manager_->HandleSource(SourceBuilder().Build(), kFrameId);
-  EXPECT_THAT(StoredSources(), IsEmpty());
-
-  task_environment_.FastForwardBy(kPrivacySandboxAttestationsTimeout);
-  EXPECT_THAT(StoredSources(), SizeIs(1));
-
-  histograms.ExpectTotalCount("Conversions.DelayOnAttestationsLoaded", 1);
-}
-
-TEST_F(AttributionManagerImplTest,
-       ReportAtStartupDelayedByAttestationsLoading) {
-  attribution_manager_->HandleSource(SourceBuilder().Build(), kFrameId);
-  attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
-
-  ShutdownManager();
-
-  // Fast-forward past the reporting window.
-  task_environment_.FastForwardBy(kFirstReportingWindow);
-
-  MockAttributionReportingContentBrowserClient browser_client;
-  EXPECT_CALL(browser_client, AddPrivacySandboxAttestationsObserver)
-      .WillOnce(Return(false));
-  EXPECT_CALL(browser_client,
-              IsAttributionReportingOperationAllowed(
-                  _, AttributionReportingOperation::kReport, _, _, _, _, _))
-      .WillOnce(Return(true));
-  ScopedContentBrowserClientSetting setting(&browser_client);
-
-  base::HistogramTester histograms;
-
-  CreateManager();
-
-  Checkpoint checkpoint;
-  {
-    InSequence seq;
-
-    EXPECT_CALL(*report_sender_, SendReport(_, _, _)).Times(0);
-    EXPECT_CALL(checkpoint, Call(1));
-    EXPECT_CALL(*report_sender_, SendReport(_, _, _));
-  }
-
-  task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
-
-  // The report is not sent until the attestations are loaded.
-  NotifyAttestationsLoaded();
-
-  checkpoint.Call(1);
-
-  task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
-
-  histograms.ExpectTotalCount("Conversions.DelayOnAttestationsLoaded", 1);
-}
-
-TEST_F(AttributionManagerImplTest,
-       ReportAtStartupDelayedByAttestationsLoadingAtTimeout) {
-  attribution_manager_->HandleSource(SourceBuilder().Build(), kFrameId);
-  attribution_manager_->HandleTrigger(DefaultTrigger(), kFrameId);
-
-  ShutdownManager();
-
-  // Fast-forward past the reporting window.
-  task_environment_.FastForwardBy(kFirstReportingWindow);
-
-  MockAttributionReportingContentBrowserClient browser_client;
-  EXPECT_CALL(browser_client, AddPrivacySandboxAttestationsObserver)
-      .WillOnce(Return(false));
-  EXPECT_CALL(browser_client,
-              IsAttributionReportingOperationAllowed(
-                  _, AttributionReportingOperation::kReport, _, _, _, _, _))
-      .WillOnce(Return(true));
-  ScopedContentBrowserClientSetting setting(&browser_client);
-
-  base::HistogramTester histograms;
-
-  CreateManager();
-
-  Checkpoint checkpoint;
-  {
-    InSequence seq;
-
-    EXPECT_CALL(*report_sender_, SendReport(_, _, _)).Times(0);
-    EXPECT_CALL(checkpoint, Call(1));
-    EXPECT_CALL(*report_sender_, SendReport(_, _, _));
-  }
-
-  task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
-
-  // The report is not sent until attestations timeout.
-  task_environment_.FastForwardBy(kPrivacySandboxAttestationsTimeout -
-                                  kDefaultOfflineReportDelay.max);
-
-  checkpoint.Call(1);
-
-  task_environment_.FastForwardBy(kDefaultOfflineReportDelay.max);
-
-  histograms.ExpectTotalCount("Conversions.DelayOnAttestationsLoaded", 1);
-}
-
 TEST_F(AttributionManagerImplTest, RegistrationHeaderErrorDebugReport) {
   for (const bool allowed : {false, true}) {
     SCOPED_TRACE(allowed);
@@ -3548,28 +3543,257 @@ TEST_F(AttributionManagerImplTest, RegistrationHeaderErrorDebugReport) {
   }
 }
 
-// Regression test for http://crbug.com/331915077. This test will fail flakily
-// if the manager's queue processing uses reentrant calls.
-TEST_F(AttributionManagerImplTest, OsQueueNotReentrant) {
-  AttributionOsLevelManager::ScopedApiStateForTesting scoped_api_state(
-      AttributionOsLevelManager::ApiState::kEnabled);
+TEST_F(AttributionManagerImplTest,
+       AggregatableReportWithTriggerContextId_MetricsRecorded) {
+  base::HistogramTester histograms;
 
-  const GURL kRegistrationUrl1("https://r1.test/x");
+  attribution_manager_->HandleSource(TestAggregatableSourceProvider()
+                                         .GetBuilder()
+                                         .SetExpiry(kImpressionExpiry)
+                                         .Build(),
+                                     kFrameId);
+  attribution_manager_->HandleTrigger(
+      DefaultAggregatableTriggerBuilder()
+          .SetTriggerContextId("example")
+          .SetSourceRegistrationTimeConfig(
+              attribution_reporting::mojom::SourceRegistrationTimeConfig::
+                  kExclude)
+          .Build(/*generate_event_trigger_data=*/false),
+      kFrameId);
 
-  const auto kTopLevelOrigin1 = url::Origin::Create(GURL("https://o1.test"));
+  task_environment_.FastForwardBy(base::TimeDelta());
 
-  cookie_checker_->DeferCallbacks();
+  histograms.ExpectTotalCount("Conversions.AggregatableReport.ExtraReportDelay",
+                              1);
+  histograms.ExpectTotalCount(
+      "Conversions.AggregatableReport.ContextID.ExtraReportDelay", 1);
+}
 
-  for (int i = 0; i < 5; ++i) {
-    attribution_manager_->HandleOsRegistration(OsRegistration(
-        {OsRegistrationItem(kRegistrationUrl1, /*debug_reporting=*/false)},
-        kTopLevelOrigin1, AttributionInputEvent(),
-        /*is_within_fenced_frame=*/false, kFrameId, kRegistrar));
-    cookie_checker_->DeferCallbacks(false);
+TEST_F(AttributionManagerImplTest, AggregatableDebugReport_ReportSent) {
+  MockAttributionObserver observer;
+  base::ScopedObservation<AttributionManager, AttributionObserver> observation(
+      &observer);
+  observation.Observe(attribution_manager_.get());
+
+  const AggregatableReport assembled_report =
+      CreateExampleAggregatableDebugReport();
+
+  const int kExpectedStatus = 200;
+  EXPECT_CALL(
+      observer,
+      OnAggregatableDebugReportSent(
+          _, _, _,
+          Field(&SendAggregatableDebugReportResult::result,
+                ::testing::VariantWith<SendAggregatableDebugReportResult::Sent>(
+                    Field(&SendAggregatableDebugReportResult::Sent::status,
+                          kExpectedStatus)))))
+      .Times(3);
+
+  EXPECT_CALL(*aggregation_service_, AssembleReport)
+      .WillOnce([&](AggregatableReportRequest request,
+                    AggregationService::AssemblyCallback callback) {
+        EXPECT_THAT(request.payload_contents().contributions,
+                    UnorderedElementsAre(
+                        blink::mojom::AggregatableReportHistogramContribution(
+                            /*bucket=*/3,
+                            /*value=*/123, /*filtering_id=*/std::nullopt)));
+        std::move(callback).Run(std::move(request), assembled_report,
+                                AggregationService::AssemblyStatus::kOk);
+      })
+      .WillOnce([&](AggregatableReportRequest request,
+                    AggregationService::AssemblyCallback callback) {
+        EXPECT_THAT(request.payload_contents().contributions,
+                    UnorderedElementsAre(
+                        blink::mojom::AggregatableReportHistogramContribution(
+                            /*bucket=*/7,
+                            /*value=*/900, /*filtering_id=*/std::nullopt)));
+        std::move(callback).Run(std::move(request), assembled_report,
+                                AggregationService::AssemblyStatus::kOk);
+      })
+      .WillOnce([&](AggregatableReportRequest request,
+                    AggregationService::AssemblyCallback callback) {
+        EXPECT_THAT(request.payload_contents().contributions, IsEmpty());
+        std::move(callback).Run(std::move(request), assembled_report,
+                                AggregationService::AssemblyStatus::kOk);
+      });
+
+  EXPECT_CALL(*report_sender_, SendReport(An<AggregatableDebugReport>(), _, _))
+      .Times(3)
+      .WillRepeatedly([&](AggregatableDebugReport report,
+                          base::Value::Dict report_body,
+                          AggregatableDebugReportSentCallback callback) {
+        EXPECT_THAT(report_body,
+                    base::test::IsJson(assembled_report.GetAsJson()));
+        std::move(callback).Run(std::move(report), std::move(report_body),
+                                kExpectedStatus);
+      });
+
+  attribution_manager_->HandleSource(
+      SourceBuilder()
+          .SetFilterData(
+              *attribution_reporting::FilterData::Create({{"x", {"a"}}}))
+          .SetAggregatableDebugReportingConfig(
+              *SourceAggregatableDebugReportingConfig::Create(
+                  /*budget=*/1024,
+                  AggregatableDebugReportingConfig(
+                      /*key_piece=*/1,
+                      /*debug_data=*/
+                      {{DebugDataType::kSourceSuccess,
+                        *attribution_reporting::
+                            AggregatableDebugReportingContribution::Create(
+                                /*key_piece=*/2, /*value=*/123)}},
+                      /*aggregation_coordinator_origin=*/std::nullopt)))
+          .Build(),
+      kFrameId);
+
+  const auto trigger =
+      TriggerBuilder()
+          .SetFilterPair(attribution_reporting::FilterPair(
+              /*positive=*/{*attribution_reporting::FilterConfig::Create(
+                  {{"x", {"b"}}})},
+              /*negative=*/{}))
+          .SetAggregatableDebugReportingConfig(AggregatableDebugReportingConfig(
+              /*key_piece=*/3,
+              /*debug_data=*/
+              {{DebugDataType::kTriggerNoMatchingFilterData,
+                *attribution_reporting::AggregatableDebugReportingContribution::
+                    Create(
+                        /*key_piece=*/4,
+                        /*value=*/900)}},
+              /*aggregation_coordinator_origin=*/std::nullopt))
+          .Build();
+
+  attribution_manager_->HandleTrigger(trigger, kFrameId);
+
+  // Insufficient budget, null report.
+  attribution_manager_->HandleTrigger(trigger, kFrameId);
+
+  task_environment_.RunUntilIdle();
+}
+
+TEST_F(AttributionManagerImplTest,
+       EmbedderDisallowsSourceAggregatableDebugReport_ReportNotSent) {
+  const auto source_origin = *SuitableOrigin::Deserialize("https://s.test");
+  const auto reporting_origin = *SuitableOrigin::Deserialize("https://r.test");
+
+  MockAttributionReportingContentBrowserClient browser_client;
+  EXPECT_CALL(
+      browser_client,
+      IsAttributionReportingOperationAllowed(
+          _,
+          AnyOf(
+              AttributionReportingOperation::kSource,
+              AttributionReportingOperation::kSourceTransitionalDebugReporting),
+          _, _, _, _, _))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(
+      browser_client,
+      IsAttributionReportingOperationAllowed(
+          _, AttributionReportingOperation::kSourceAggregatableDebugReport, _,
+          Pointee(source_origin), IsNull(), Pointee(reporting_origin), _))
+      .WillOnce(Return(false));
+
+  ScopedContentBrowserClientSetting setting(&browser_client);
+
+  EXPECT_CALL(*aggregation_service_, AssembleReport).Times(0);
+
+  attribution_manager_->HandleSource(
+      SourceBuilder()
+          .SetSourceOrigin(source_origin)
+          .SetReportingOrigin(reporting_origin)
+          .SetDebugReporting(false)
+          .SetAggregatableDebugReportingConfig(
+              *SourceAggregatableDebugReportingConfig::Create(
+                  /*budget=*/1024,
+                  AggregatableDebugReportingConfig(
+                      /*key_piece=*/1,
+                      /*debug_data=*/
+                      {{DebugDataType::kSourceSuccess,
+                        *attribution_reporting::
+                            AggregatableDebugReportingContribution::Create(
+                                /*key_piece=*/2, /*value=*/123)}},
+                      /*aggregation_coordinator_origin=*/std::nullopt)))
+          .Build(),
+      kFrameId);
+
+  task_environment_.RunUntilIdle();
+}
+
+TEST_F(AttributionManagerImplTest,
+       EmbedderDisallowsTriggerAggregatableDebugReport_ReportNotSent) {
+  const auto destination_origin =
+      *SuitableOrigin::Deserialize("https://s.test");
+  const auto reporting_origin = *SuitableOrigin::Deserialize("https://r.test");
+
+  MockAttributionReportingContentBrowserClient browser_client;
+  EXPECT_CALL(browser_client, IsAttributionReportingOperationAllowed(
+                                  _,
+                                  AnyOf(AttributionReportingOperation::kTrigger,
+                                        AttributionReportingOperation::
+                                            kTriggerTransitionalDebugReporting),
+                                  _, _, _, _, _))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(
+      browser_client,
+      IsAttributionReportingOperationAllowed(
+          _, AttributionReportingOperation::kTriggerAggregatableDebugReport, _,
+          IsNull(), Pointee(destination_origin), Pointee(reporting_origin), _))
+      .WillOnce(Return(false));
+
+  ScopedContentBrowserClientSetting setting(&browser_client);
+
+  EXPECT_CALL(*aggregation_service_, AssembleReport).Times(0);
+
+  attribution_manager_->HandleTrigger(
+      TriggerBuilder()
+          .SetDestinationOrigin(destination_origin)
+          .SetReportingOrigin(reporting_origin)
+          .SetAggregatableDebugReportingConfig(AggregatableDebugReportingConfig(
+              /*key_piece=*/1,
+              /*debug_data=*/
+              {{DebugDataType::kTriggerNoMatchingSource,
+                *attribution_reporting::AggregatableDebugReportingContribution::
+                    Create(
+                        /*key_piece=*/2,
+                        /*value=*/123)}},
+              /*aggregation_coordinator_origin=*/std::nullopt))
+          .Build(),
+      kFrameId);
+
+  task_environment_.RunUntilIdle();
+}
+
+TEST_F(AttributionManagerImplTest, SetDebugMode_NotifiesObservers) {
+  MockAttributionObserver observer;
+
+  Checkpoint checkpoint;
+  {
+    InSequence seq;
+
+    // Called with the initial value upon observation.
+    EXPECT_CALL(observer, OnDebugModeChanged(false));
+    EXPECT_CALL(checkpoint, Call(1));
+    // Called with the new value via `SetDebugMode()`.
+    EXPECT_CALL(observer, OnDebugModeChanged(true));
+    EXPECT_CALL(checkpoint, Call(2));
+    // Called with the new value upon observation.
+    EXPECT_CALL(observer, OnDebugModeChanged(true));
   }
 
-  cookie_checker_->RunNextDeferredCallback(true);
-  task_environment_.RunUntilIdle();
+  base::ScopedObservation<AttributionManager, AttributionObserver> observation(
+      &observer);
+  observation.Observe(attribution_manager_.get());
+
+  checkpoint.Call(1);
+
+  base::RunLoop run_loop;
+  attribution_manager_->SetDebugMode(true, run_loop.QuitClosure());
+  run_loop.Run();
+
+  checkpoint.Call(2);
+
+  observation.Reset();
+  observation.Observe(attribution_manager_.get());
 }
 
 }  // namespace content

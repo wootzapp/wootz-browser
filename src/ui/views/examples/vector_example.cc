@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "ui/views/examples/vector_example.h"
 
 #include <algorithm>
@@ -25,6 +30,7 @@
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/editable_combobox/editable_combobox.h"
@@ -94,7 +100,7 @@ class VectorIconGallery : public View, public TextfieldController {
                                                    icon_dir.end())));
     editable_combobox->SetPlaceholderText(
         GetStringUTF16(IDS_VECTOR_FILE_SELECT_LABEL));
-    editable_combobox->SetAccessibleName(u"Editable Combobox");
+    editable_combobox->GetViewAccessibility().SetName(u"Editable Combobox");
 
     auto file_container = std::make_unique<View>();
     BoxLayout* file_box =
@@ -128,17 +134,19 @@ class VectorIconGallery : public View, public TextfieldController {
   void ContentsChanged(Textfield* sender,
                        const std::u16string& new_contents) override {
     if (sender == size_input_) {
-      if (base::StringToInt(new_contents, &size_) && (size_ > 0))
+      if (base::StringToInt(new_contents, &size_) && (size_ > 0)) {
         Update();
-      else
+      } else {
         size_input_->SetText(std::u16string());
+      }
 
       return;
     }
 
     DCHECK_EQ(color_input_, sender);
-    if (new_contents.size() != 8u)
+    if (new_contents.size() != 8u) {
       return;
+    }
     unsigned new_color =
         strtoul(base::UTF16ToASCII(new_contents).c_str(), nullptr, 16);
     if (new_color <= 0xffffffff) {
@@ -167,8 +175,8 @@ class VectorIconGallery : public View, public TextfieldController {
     image_view_container_->RemoveAllChildViews();
     image_view_ =
         image_view_container_->AddChildView(std::make_unique<ImageView>());
-    image_view_->SetBorder(CreateThemedSolidBorder(
-        1, ExamplesColorIds::kColorVectorExampleImageBorder));
+    image_view_->SetBorder(
+        CreateSolidBorder(1, ExamplesColorIds::kColorVectorExampleImageBorder));
 
     auto image_layout =
         std::make_unique<BoxLayout>(BoxLayout::Orientation::kHorizontal);

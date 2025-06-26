@@ -7,6 +7,7 @@
 #include "ash/style/combobox.h"
 #include "ash/style/style_viewer/system_ui_components_grid_view.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #include "ui/base/models/combobox_model.h"
 #include "ui/views/controls/label.h"
 
@@ -33,13 +34,8 @@ class ComboboxModelExample : public ui::ComboboxModel {
 
   std::u16string GetItemAt(size_t index) const override {
     CHECK_LT(index, item_num_);
-    return base::UTF8ToUTF16(
-        base::StringPrintf("%c item", static_cast<char>('A' + index)));
-  }
-
-  std::u16string GetDropDownTextAt(size_t index) const override {
-    CHECK_LT(index, item_num_);
-    return base::NumberToString16(index) + u". " + GetItemAt(index);
+    return base::UTF8ToUTF16(base::StringPrintf(
+        "%zu. %c item", index, static_cast<char>('A' + index)));
   }
 
   const size_t item_num_;

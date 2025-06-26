@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/base/l10n/l10n_util.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iterator>
 #include <memory>
@@ -13,6 +19,7 @@
 #include "base/check_op.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
+#include "base/containers/fixed_flat_set.h"
 #include "base/files/file_util.h"
 #include "base/i18n/file_util_icu.h"
 #include "base/i18n/message_formatter.h"
@@ -23,16 +30,15 @@
 #include "base/logging.h"
 #include "base/no_destructor.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "third_party/icu/source/common/unicode/rbbi.h"
 #include "third_party/icu/source/common/unicode/uloc.h"
+#include "ui/base/buildflags.h"
 #include "ui/base/l10n/l10n_util_collator.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_paths.h"
@@ -57,15 +63,15 @@
 
 namespace {
 
-static const char* const kAcceptLanguageList[] = {
+constexpr auto kAcceptLanguageList = base::MakeFixedFlatSet<std::string_view>({
     "af",  // Afrikaans
     "ak",  // Twi
     "am",  // Amharic
     "an",  // Aragonese
     "ar",  // Arabic
-#if defined(ENABLE_PSEUDOLOCALES)
+#if BUILDFLAG(ENABLE_PSEUDOLOCALES)
     "ar-XB",           // RTL Pseudolocale
-#endif                 // defined(ENABLE_PSEUDOLOCALES)
+#endif                 // BUILDFLAG(ENABLE_PSEUDOLOCALES)
     "as",              // Assamese
     "ast",             // Asturian
     "ay",              // Aymara
@@ -103,9 +109,9 @@ static const char* const kAcceptLanguageList[] = {
     "en-IN",           // English (India)
     "en-NZ",           // English (New Zealand)
     "en-US",           // English (US)
-#if defined(ENABLE_PSEUDOLOCALES)
+#if BUILDFLAG(ENABLE_PSEUDOLOCALES)
     "en-XA",  // Long strings Pseudolocale
-#endif        // defined(ENABLE_PSEUDOLOCALES)
+#endif        // BUILDFLAG(ENABLE_PSEUDOLOCALES)
     "en-ZA",  // English (South Africa)
     "eo",     // Esperanto
     "es",     // Spanish
@@ -248,7 +254,7 @@ static const char* const kAcceptLanguageList[] = {
     "zh-HK",     // Chinese (Hong Kong)
     "zh-TW",     // Chinese (Taiwan)
     "zu",        // Zulu
-};
+});
 
 // The list of locales that expected on the current platform, generated from the
 // |locales| variable in GN (defined in build/config/locales.gni). This is
@@ -296,7 +302,7 @@ bool IsDuplicateName(const std::string& locale_name) {
   // Skip all the es_Foo other than es_419 for now.
   if (base::StartsWith(locale_name, "es_",
                        base::CompareCase::INSENSITIVE_ASCII)) {
-    return !base::EndsWith(locale_name, "419", base::CompareCase::SENSITIVE);
+    return !locale_name.ends_with("419");
   }
   for (const char* duplicate_name : kDuplicateNames) {
     if (base::EqualsCaseInsensitiveASCII(duplicate_name, locale_name))
@@ -394,17 +400,15 @@ base::LazyInstance<std::vector<std::string>, AvailableLocalesTraits>
 
 namespace l10n_util {
 
-std::string GetLanguage(const std::string& locale) {
-  const std::string::size_type hyphen_pos = locale.find('-');
-  return std::string(locale, 0, hyphen_pos);
+std::string GetLanguage(std::string_view locale) {
+  return std::string(locale, 0, locale.find('-'));
 }
 
-std::string GetCountry(const std::string& locale) {
-  const std::string::size_type hyphen_pos = locale.find('-');
-  if (hyphen_pos == std::string::npos)
-    return std::string();
-
-  return std::string(locale, hyphen_pos + 1);
+std::string GetCountry(std::string_view locale) {
+  size_t hyphen_pos = locale.find('-');
+  return (hyphen_pos == std::string::npos)
+             ? std::string()
+             : std::string(locale).substr(hyphen_pos + 1);
 }
 
 // TODO(jshin): revamp this function completely to use a more systematic
@@ -538,8 +542,8 @@ std::string GetApplicationLocaleInternalNonMac(const std::string& pref_locale) {
   const std::vector<std::string>& languages = l10n_util::GetLocaleOverrides();
   if (!languages.empty()) {
     candidates.reserve(candidates.size() + languages.size());
-    base::ranges::transform(languages, std::back_inserter(candidates),
-                            &base::i18n::GetCanonicalLocale);
+    std::ranges::transform(languages, std::back_inserter(candidates),
+                           &base::i18n::GetCanonicalLocale);
   } else {
     // If no override was set, defer to ICU
     candidates.push_back(base::i18n::GetConfiguredLocale());
@@ -551,7 +555,7 @@ std::string GetApplicationLocaleInternalNonMac(const std::string& pref_locale) {
 
   // On Android, query java.util.Locale for the default locale.
   candidates.push_back(base::android::GetDefaultLocaleString());
-#elif defined(USE_GLIB) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#elif defined(USE_GLIB) && !BUILDFLAG(IS_CHROMEOS)
   // GLib implements correct environment variable parsing with
   // the precedence order: LANGUAGE, LC_ALL, LC_MESSAGES and LANG.
   // We used to use our custom parsing code along with ICU for this purpose.
@@ -607,8 +611,8 @@ std::string GetApplicationLocale(const std::string& pref_locale) {
   return GetApplicationLocale(pref_locale, true /* set_icu_locale */);
 }
 
-bool IsLocaleNameTranslated(const char* locale,
-                            const std::string& display_locale) {
+bool IsLocaleNameTranslated(std::string_view locale,
+                            std::string_view display_locale) {
   std::u16string display_name =
       l10n_util::GetDisplayNameForLocale(locale, display_locale, false);
   // Because ICU sets the error code to U_USING_DEFAULT_WARNING whether or not
@@ -622,19 +626,20 @@ bool IsLocaleNameTranslated(const char* locale,
 }
 
 std::u16string GetDisplayNameForLocaleWithoutCountry(
-    const std::string& locale,
-    const std::string& display_locale,
+    std::string_view locale,
+    std::string_view display_locale,
     bool is_for_ui,
     bool disallow_default) {
   return GetDisplayNameForLocale(GetLanguage(locale), display_locale, is_for_ui,
                                  disallow_default);
 }
 
-std::u16string GetDisplayNameForLocale(const std::string& locale,
-                                       const std::string& display_locale,
+std::u16string GetDisplayNameForLocale(std::string_view locale,
+                                       std::string_view display_locale,
                                        bool is_for_ui,
                                        bool disallow_default) {
-  std::string locale_code = locale;
+  std::string locale_code = std::string(locale);
+  std::string display_locale_code = std::string(display_locale);
   // Internally, we use the language code of zh-CN and zh-TW, but we want the
   // display names to be Chinese (Simplified) and Chinese (Traditional) instead
   // of Chinese (China) and Chinese (Taiwan).
@@ -655,18 +660,18 @@ std::u16string GetDisplayNameForLocale(const std::string& locale,
 
   std::u16string display_name;
 
-#if defined(ENABLE_PSEUDOLOCALES)
+#if BUILDFLAG(ENABLE_PSEUDOLOCALES)
   if (locale_code == "en-XA") {
     return u"Long strings pseudolocale (en-XA)";
   } else if (locale_code == "ar-XB") {
     return u"RTL pseudolocale (ar-XB)";
   }
-#endif  // defined(ENABLE_PSEUDOLOCALES)
+#endif  // BUILDFLAG(ENABLE_PSEUDOLOCALES)
 
 #if BUILDFLAG(IS_IOS)
   // Use the Foundation API to get the localized display name, removing the need
   // for the ICU data file to include this data.
-  display_name = GetDisplayNameForLocale(locale_code, display_locale);
+  display_name = GetDisplayNameForLocale(locale_code, display_locale_code);
 #else
 #if BUILDFLAG(IS_ANDROID)
   // Use Java API to get locale display name so that we can remove most of
@@ -674,8 +679,8 @@ std::u16string GetDisplayNameForLocale(const std::string& locale,
   // zh-Hant because the current Android Java API doesn't support scripts.
   // TODO(wangxianzhu): remove the special handling of zh-Hans and zh-Hant once
   // Android Java API supports scripts.
-  if (!base::StartsWith(locale_code, "zh-Han", base::CompareCase::SENSITIVE)) {
-    display_name = GetDisplayNameForLocale(locale_code, display_locale);
+  if (!locale_code.starts_with("zh-Han")) {
+    display_name = GetDisplayNameForLocale(locale_code, display_locale_code);
   } else
 #endif  // BUILDFLAG(IS_ANDROID)
   {
@@ -686,11 +691,11 @@ std::u16string GetDisplayNameForLocale(const std::string& locale,
     // For Country code in ICU64 we need to call uloc_getDisplayCountry
     if (locale_code[0] == '-' || locale_code[0] == '_') {
       actual_size = uloc_getDisplayCountry(
-          locale_code.c_str(), display_locale.c_str(),
+          locale_code.c_str(), display_locale_code.c_str(),
           base::WriteInto(&display_name, kBufferSize), kBufferSize - 1, &error);
     } else {
       actual_size = uloc_getDisplayName(
-          locale_code.c_str(), display_locale.c_str(),
+          locale_code.c_str(), display_locale_code.c_str(),
           base::WriteInto(&display_name, kBufferSize), kBufferSize - 1, &error);
     }
     if (disallow_default && U_USING_DEFAULT_WARNING == error)
@@ -1009,7 +1014,7 @@ bool IsUserFacingUILocale(const std::string& locale) {
 const std::vector<std::string>& GetUserFacingUILocaleList() {
   static base::NoDestructor<std::vector<std::string>> available_locales([] {
     std::vector<std::string> locales;
-    for (const char* accept_language : kAcceptLanguageList) {
+    for (std::string_view accept_language : kAcceptLanguageList) {
       std::string locale(accept_language);
       if (IsUserFacingUILocale(locale)) {
         locales.push_back(locale);
@@ -1023,29 +1028,38 @@ const std::vector<std::string>& GetUserFacingUILocaleList() {
 
 void GetAcceptLanguagesForLocale(const std::string& display_locale,
                                  std::vector<std::string>* locale_codes) {
-  for (const char* accept_language : kAcceptLanguageList) {
+  for (std::string_view accept_language : kAcceptLanguageList) {
     if (!l10n_util::IsLocaleNameTranslated(accept_language, display_locale)) {
       // TODO(jungshik) : Put them at the end of the list with language codes
       // enclosed by brackets instead of skipping.
       continue;
     }
-    locale_codes->push_back(accept_language);
+    locale_codes->emplace_back(accept_language);
   }
 }
 
 void GetAcceptLanguages(std::vector<std::string>* locale_codes) {
-  for (const char* accept_language : kAcceptLanguageList) {
-    locale_codes->push_back(accept_language);
+  for (std::string_view accept_language : kAcceptLanguageList) {
+    locale_codes->emplace_back(accept_language);
   }
 }
 
-bool IsLanguageAccepted(const std::string& display_locale,
-                        const std::string& locale) {
-  if (std::binary_search(std::begin(kAcceptLanguageList),
-                         std::end(kAcceptLanguageList), locale)) {
-    return l10n_util::IsLocaleNameTranslated(locale.c_str(), display_locale);
-  }
-  return false;
+bool IsPossibleAcceptLanguage(std::string_view locale) {
+  return kAcceptLanguageList.contains(locale);
+}
+
+bool IsAcceptLanguageDisplayable(const std::string& display_locale,
+                                 const std::string& locale) {
+  return IsPossibleAcceptLanguage(locale) &&
+         l10n_util::IsLocaleNameTranslated(locale.c_str(), display_locale);
+}
+
+std::vector<std::string> KeepAcceptedLanguages(
+    base::span<const std::string> languages) {
+  std::vector<std::string> filtered_languages;
+  std::ranges::copy_if(languages, std::back_inserter(filtered_languages),
+                       IsPossibleAcceptLanguage);
+  return filtered_languages;
 }
 
 int GetLocalizedContentsWidthInPixels(int pixel_resource_id) {
@@ -1055,12 +1069,9 @@ int GetLocalizedContentsWidthInPixels(int pixel_resource_id) {
   return width;
 }
 
-const char* const* GetAcceptLanguageListForTesting() {
-  return kAcceptLanguageList;
-}
-
-size_t GetAcceptLanguageListSizeForTesting() {
-  return std::size(kAcceptLanguageList);
+std::vector<std::string_view> GetAcceptLanguageListForTesting() {
+  return std::vector<std::string_view>(kAcceptLanguageList.begin(),
+                                       kAcceptLanguageList.end());
 }
 
 const char* const* GetPlatformLocalesForTesting() {

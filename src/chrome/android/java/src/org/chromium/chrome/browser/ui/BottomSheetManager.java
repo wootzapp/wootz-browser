@@ -143,14 +143,25 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
                     public void onControlsOffsetChanged(
                             int topOffset,
                             int topControlsMinHeightOffset,
+                            boolean topControlsMinHeightChanged,
                             int bottomOffset,
                             int bottomControlsMinHeightOffset,
-                            boolean needsAnimate) {
+                            boolean bottomControlsMinHeightChanged,
+                            boolean requestNewFrame,
+                            boolean isVisibilityForced) {
                         controller.setBrowserControlsHiddenRatio(
                                 mBrowserControlsVisibilityManager.getBrowserControlHiddenRatio());
                     }
+
+                    @Override
+                    public void onBottomControlsHeightChanged(
+                            int bottomControlsHeight, int bottomControlsMinHeight) {
+                        mSheetController.setBottomControlsHeight(bottomControlsHeight);
+                    }
                 };
         mBrowserControlsVisibilityManager.addObserver(mBrowserControlsObserver);
+        mSheetController.setBottomControlsHeight(
+                controlsVisibilityManager.getBottomControlsHeight());
 
         mOmniboxFocusObserver =
                 new Callback<Boolean>() {
@@ -247,7 +258,6 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
                     .releasePersistentShowingToken(mPersistentControlsToken);
         }
 
-        BottomSheetContent content = mSheetController.getCurrentSheetContent();
         // If the content has a custom scrim, it wasn't obscuring tabs.
         if (mContentHasCustomScrimLifecycle) {
             mContentHasCustomScrimLifecycle = false;

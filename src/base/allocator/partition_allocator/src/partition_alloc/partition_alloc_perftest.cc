@@ -26,7 +26,8 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/perf/perf_result_reporter.h"
 
-#if BUILDFLAG(IS_ANDROID) || defined(ARCH_CPU_32_BITS) || BUILDFLAG(IS_FUCHSIA)
+#if PA_BUILDFLAG(IS_ANDROID) || PA_BUILDFLAG(PA_ARCH_CPU_32_BITS) || \
+    PA_BUILDFLAG(IS_FUCHSIA)
 // Some tests allocate many GB of memory, which can cause issues on Android and
 // address-space exhaustion for any 32-bit process.
 #define MEMORY_CONSTRAINED
@@ -114,10 +115,10 @@ class PartitionAllocator : public Allocator {
 
 class PartitionAllocatorWithThreadCache : public Allocator {
  public:
-  explicit PartitionAllocatorWithThreadCache(bool use_alternate_bucket_dist)
+  explicit PartitionAllocatorWithThreadCache(bool use_denser_bucket_dist)
       : scope_(allocator_.root()) {
     ThreadCacheRegistry::Instance().PurgeAll();
-    if (!use_alternate_bucket_dist) {
+    if (use_denser_bucket_dist) {
       allocator_.root()->SwitchToDenserBucketDistribution();
     } else {
       allocator_.root()->ResetBucketDistributionForTesting();
@@ -137,7 +138,7 @@ class PartitionAllocatorWithThreadCache : public Allocator {
   }
 
  private:
-  static constexpr partition_alloc::PartitionOptions kOpts = []() {
+  static constexpr partition_alloc::PartitionOptions kOpts = [] {
     partition_alloc::PartitionOptions opts;
 #if !PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
     opts.thread_cache = PartitionOptions::kEnabled;
@@ -362,7 +363,7 @@ float DirectMapped(Allocator* allocator) {
 }
 
 std::unique_ptr<Allocator> CreateAllocator(AllocatorType type,
-                                           bool use_alternate_bucket_dist) {
+                                           bool use_denser_bucket_dist) {
   switch (type) {
     case AllocatorType::kSystem:
       return std::make_unique<SystemAllocator>();
@@ -370,7 +371,7 @@ std::unique_ptr<Allocator> CreateAllocator(AllocatorType type,
       return std::make_unique<PartitionAllocator>();
     case AllocatorType::kPartitionAllocWithThreadCache:
       return std::make_unique<PartitionAllocatorWithThreadCache>(
-          use_alternate_bucket_dist);
+          use_denser_bucket_dist);
 #if BUILDFLAG(ENABLE_ALLOCATION_STACK_TRACE_RECORDER)
     case AllocatorType::kPartitionAllocWithAllocationStackTraceRecorder:
       return std::make_unique<
@@ -389,12 +390,12 @@ void LogResults(int thread_count,
 }
 
 void RunTest(int thread_count,
-             bool use_alternate_bucket_dist,
+             bool use_denser_bucket_dist,
              AllocatorType alloc_type,
              float (*test_fn)(Allocator*),
              float (*noisy_neighbor_fn)(Allocator*),
              const char* story_base_name) {
-  auto alloc = CreateAllocator(alloc_type, use_alternate_bucket_dist);
+  auto alloc = CreateAllocator(alloc_type, use_denser_bucket_dist);
 
   std::unique_ptr<TestLoopThread> noisy_neighbor_thread = nullptr;
   if (noisy_neighbor_fn) {
@@ -448,7 +449,15 @@ void RunTest(int thread_count,
 }
 
 class PartitionAllocMemoryAllocationPerfTest
-    : public testing::TestWithParam<std::tuple<int, bool, AllocatorType>> {};
+    : public testing::TestWithParam<std::tuple<int, bool, AllocatorType>> {
+#if PA_CONFIG(ENABLE_SHADOW_METADATA)
+  void SetUp() override {
+    PartitionRoot::EnableShadowMetadata(
+        partition_alloc::internal::PoolHandleMask::kRegular |
+        partition_alloc::internal::PoolHandleMask::kBRP);
+  }
+#endif
+};
 
 // Only one partition with a thread cache: cannot use the thread cache when
 // PartitionAlloc is malloc().

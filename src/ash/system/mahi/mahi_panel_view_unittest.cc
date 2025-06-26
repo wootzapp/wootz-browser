@@ -6,20 +6,26 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "ash/constants/ash_pref_names.h"
+#include "ash/constants/url_constants.h"
 #include "ash/public/cpp/image_util.h"
 #include "ash/public/cpp/new_window_delegate.h"
 #include "ash/public/cpp/test/test_new_window_delegate.h"
+#include "ash/session/session_controller_impl.h"
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/style/icon_button.h"
 #include "ash/style/system_textfield.h"
 #include "ash/system/mahi/mahi_constants.h"
 #include "ash/system/mahi/mahi_content_source_button.h"
+#include "ash/system/mahi/mahi_question_answer_view.h"
 #include "ash/system/mahi/mahi_ui_controller.h"
 #include "ash/system/mahi/mahi_utils.h"
+#include "ash/system/mahi/summary_outlines_elucidation_section.h"
 #include "ash/system/mahi/test/mahi_test_util.h"
 #include "ash/system/mahi/test/mock_mahi_manager.h"
 #include "ash/test/ash_test_base.h"
@@ -31,8 +37,10 @@
 #include "base/time/time.h"
 #include "chromeos/components/mahi/public/cpp/mahi_manager.h"
 #include "chromeos/constants/chromeos_features.h"
+#include "chromeos/strings/grit/chromeos_strings.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/compositor/layer.h"
 #include "ui/events/test/event_generator.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
@@ -41,7 +49,9 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/scrollbar/scroll_bar.h"
+#include "ui/views/controls/styled_label.h"
 #include "ui/views/controls/textfield/textfield.h"
+#include "ui/views/highlight_border.h"
 #include "ui/views/test/views_test_utils.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
@@ -77,7 +87,7 @@ class MockNewWindowDelegate : public NiceMock<TestNewWindowDelegate> {
 std::vector<MahiResponseStatus> GetMahiErrors() {
   std::vector<MahiResponseStatus> errors;
   for (size_t status_value = 0;
-       status_value <= static_cast<size_t>(MahiResponseStatus::kMax);
+       status_value <= static_cast<size_t>(MahiResponseStatus::kMaxValue);
        ++status_value) {
     MahiResponseStatus status = static_cast<MahiResponseStatus>(status_value);
     if (status != MahiResponseStatus::kSuccess &&
@@ -156,7 +166,7 @@ void ReturnLongSummary(chromeos::MahiManager::MahiSummaryCallback callback) {
       MahiResponseStatus::kSuccess);
 }
 
-const std::u16string& GetContentSourceTitle(views::View* mahi_view) {
+std::u16string_view GetContentSourceTitle(views::View* mahi_view) {
   return views::AsViewClass<MahiContentSourceButton>(
              mahi_view->GetViewByID(
                  mahi_constants::ViewId::kContentSourceButton))
@@ -205,7 +215,7 @@ class MahiPanelViewTest : public AshTestBase {
 
   MahiUiController* ui_controller() { return &ui_controller_; }
 
-  MockNewWindowDelegate& new_window_delegate() { return *new_window_delegate_; }
+  MockNewWindowDelegate& new_window_delegate() { return new_window_delegate_; }
 
   MahiPanelView* panel_view() { return panel_view_; }
 
@@ -214,12 +224,10 @@ class MahiPanelViewTest : public AshTestBase {
  protected:
   // AshTestBase:
   void SetUp() override {
-    scoped_feature_list_.InitAndEnableFeature(chromeos::features::kMahi);
-
-    auto delegate = std::make_unique<MockNewWindowDelegate>();
-    new_window_delegate_ = delegate.get();
-    delegate_provider_ =
-        std::make_unique<TestNewWindowDelegateProvider>(std::move(delegate));
+    scoped_feature_list_.InitWithFeatures(
+        /*enabled_features=*/{chromeos::features::kMahi,
+                              chromeos::features::kFeatureManagementMahi},
+        /*disabled_features=*/{});
 
     AshTestBase::SetUp();
 
@@ -235,8 +243,6 @@ class MahiPanelViewTest : public AshTestBase {
     scoped_setter_.reset();
 
     AshTestBase::TearDown();
-
-    new_window_delegate_ = nullptr;
   }
 
   // Creates a widget hosting `MahiPanelView`. Recreates if there is one.
@@ -279,12 +285,12 @@ class MahiPanelViewTest : public AshTestBase {
   MahiUiController ui_controller_;
   raw_ptr<MahiPanelView> panel_view_ = nullptr;
   std::unique_ptr<views::Widget> widget_;
-  raw_ptr<MockNewWindowDelegate> new_window_delegate_;
-  std::unique_ptr<TestNewWindowDelegateProvider> delegate_provider_;
+  MockNewWindowDelegate new_window_delegate_;
 };
 
-// Checks that the summary text is set correctly in ctor with different texts.
-TEST_F(MahiPanelViewTest, SummaryText) {
+// Checks that the summary text is set correctly in ctor with different texts,
+// and the indicator label is set to properly, too.
+TEST_F(MahiPanelViewTest, SummaryTextAndIndicatorLabel) {
   const std::u16string summary_text1(u"test summary text 1");
   ON_CALL(mock_mahi_manager(), GetSummary)
       .WillByDefault([&summary_text1](
@@ -295,7 +301,13 @@ TEST_F(MahiPanelViewTest, SummaryText) {
   MahiPanelView mahi_view1(ui_controller());
   const auto* const summary_label1 = views::AsViewClass<views::Label>(
       mahi_view1.GetViewByID(mahi_constants::ViewId::kSummaryLabel));
+  const auto* const indicator_label =
+      views::AsViewClass<views::Label>(mahi_view1.GetViewByID(
+          mahi_constants::ViewId::kSummaryElucidationIndicator));
   EXPECT_EQ(summary_text1, summary_label1->GetText());
+  EXPECT_TRUE(indicator_label->GetVisible());
+  EXPECT_EQ(indicator_label->GetText(),
+            l10n_util::GetStringUTF16(IDS_MAHI_SUMMARIZE_INDICATOR_LABEL));
 
   const std::u16string summary_text2(u"test summary text 2");
   ON_CALL(mock_mahi_manager(), GetSummary)
@@ -313,6 +325,32 @@ TEST_F(MahiPanelViewTest, SummaryText) {
   EXPECT_TRUE(summary_label2->GetMultiLine());
   EXPECT_EQ(summary_label2->GetHorizontalAlignment(),
             gfx::HorizontalAlignment::ALIGN_LEFT);
+}
+
+// Checks that the text is set correctly in ctor with elucidation result when
+// the ui controller has `elucidation_in_use_ = true`, and the indicator label
+// is set properly, too.
+TEST_F(MahiPanelViewTest, SimplifiedTextAndIndicatorLabel) {
+  const std::u16string simplified_text(u"test simplified text");
+  ON_CALL(mock_mahi_manager(), GetElucidation)
+      .WillByDefault(
+          [&simplified_text](
+              chromeos::MahiManager::MahiElucidationCallback callback) {
+            std::move(callback).Run(simplified_text,
+                                    MahiResponseStatus::kSuccess);
+          });
+
+  ui_controller()->set_elucidation_in_use_for_testing(true);
+  MahiPanelView mahi_view(ui_controller());
+  const auto* const result_label = views::AsViewClass<views::Label>(
+      mahi_view.GetViewByID(mahi_constants::ViewId::kSummaryLabel));
+  const auto* const indicator_label =
+      views::AsViewClass<views::Label>(mahi_view.GetViewByID(
+          mahi_constants::ViewId::kSummaryElucidationIndicator));
+  EXPECT_EQ(simplified_text, result_label->GetText());
+  EXPECT_TRUE(indicator_label->GetVisible());
+  EXPECT_EQ(indicator_label->GetText(),
+            l10n_util::GetStringUTF16(IDS_MAHI_SIMPLIFY_INDICATOR_LABEL));
 }
 
 TEST_F(MahiPanelViewTest, ThumbsUpFeedbackButton) {
@@ -406,18 +444,16 @@ TEST_F(MahiPanelViewTest, CloseButton) {
 }
 
 TEST_F(MahiPanelViewTest, LearnMoreLink) {
-  auto* learn_more_link =
-      panel_view()->GetViewByID(mahi_constants::ViewId::kLearnMoreLink);
-  // TODO(b/333111220): Remove this when the link is visible by default.
-  learn_more_link->SetVisible(true);
+  auto* disclaimer_text = views::AsViewClass<views::StyledLabel>(
+      panel_view()->GetViewByID(mahi_constants::ViewId::kFooterLabel));
   // Run layout so the link updates its size and becomes clickable.
   views::test::RunScheduledLayout(widget());
 
   EXPECT_CALL(new_window_delegate(),
-              OpenUrl(GURL(mahi_constants::kLearnMorePage),
+              OpenUrl(GURL(chrome::kHelpMeReadWriteLearnMoreURL),
                       NewWindowDelegate::OpenUrlFrom::kUserInteraction,
                       NewWindowDelegate::Disposition::kNewForegroundTab));
-  LeftClickOn(learn_more_link);
+  disclaimer_text->ClickFirstLinkForTesting();
   Mock::VerifyAndClearExpectations(&new_window_delegate());
 }
 
@@ -532,6 +568,7 @@ TEST_F(MahiPanelViewTest, PanelContentsViewBoundsStayConstant) {
 }
 
 TEST_F(MahiPanelViewTest, LoadingAnimations) {
+  ResetPanelWidget();
   // Config the mock mahi manager to return a summary asyncly.
   base::test::TestFuture<void> summary_waiter;
   ON_CALL(mock_mahi_manager(), GetSummary)
@@ -650,6 +687,35 @@ TEST_F(MahiPanelViewTest, AnswerLoadingAnimationsMetricsRecord) {
   ASSERT_TRUE(answer_waiter.Wait());
   histogram_tester.ExpectTimeBucketCount(
       mahi_constants::kAnswerLoadingTimeHistogramName, delay_time, 1);
+}
+
+// Tests that the correct behaviour occurs when the panel is resized.
+TEST_F(MahiPanelViewTest, ResizePanel) {
+  MahiPanelView mahi_view(ui_controller());
+
+  const gfx::Rect resized_bounds = gfx::Rect(20, 20, 150, 140);
+  panel_view()->SetBounds(resized_bounds.x(), resized_bounds.y(),
+                          resized_bounds.width(), resized_bounds.height());
+
+  // Check that the panel clip rect has been resized.
+  // X and Y positions should be 0 as they are relative to the panel.
+  EXPECT_EQ(panel_view()->layer()->GetTargetClipRect(),
+            gfx::Rect(0, 0, resized_bounds.width(), resized_bounds.height()));
+
+  // Check that the text in the summary outlines elucidation section bounds has
+  // been resized.
+  const SummaryOutlinesElucidationSection*
+      summary_outlines_elucidation_section =
+          views::AsViewClass<SummaryOutlinesElucidationSection>(
+              panel_view()->GetViewByID(
+                  mahi_constants::ViewId::kSummaryOutlinesSection));
+  const views::Label* summary_text = views::AsViewClass<views::Label>(
+      summary_outlines_elucidation_section->GetViewByID(
+          mahi_constants::ViewId::kSummaryLabel));
+  EXPECT_EQ(
+      summary_text->GetMaximumWidth(),
+      resized_bounds.width() - mahi_constants::kPanelBorderAndPadding -
+          mahi_constants::kSummaryOutlinesElucidationSectionPadding.width());
 }
 
 // Tests that pressing on the send button with a valid textfield takes the user
@@ -1151,13 +1217,7 @@ TEST_F(MahiPanelViewTest, ScrollViewScrollsAfterLayout) {
 // iterating all possible errors.
 TEST_F(MahiPanelViewTest, FailToGetAnswer) {
   for (MahiResponseStatus error : GetMahiErrors()) {
-    // `kInappropriate` introduced by a question is presented in the Q&A view,
-    // verified in its own test.
-    if (error == MahiResponseStatus::kInappropriate) {
-      continue;
-    }
-
-    // Config the mock mahi manager to return answer with an `error` asyncly.
+    // Configs the mock mahi manager to return answer with an `error` asyncly.
     base::test::TestFuture<void> answer_waiter;
     EXPECT_CALL(mock_mahi_manager(), AnswerQuestion)
         .WillOnce(
@@ -1190,56 +1250,103 @@ TEST_F(MahiPanelViewTest, FailToGetAnswer) {
     CHECK(summary_outlines_section);
     EXPECT_FALSE(summary_outlines_section->GetVisible());
 
-    const auto* const error_status_view =
-        panel_view()->GetViewByID(mahi_constants::ViewId::kErrorStatusView);
-    CHECK(error_status_view);
-    EXPECT_FALSE(error_status_view->GetVisible());
+    auto* error_label_view =
+        views::AsViewClass<views::Label>(panel_view()->GetViewByID(
+            mahi_constants::ViewId::kQuestionAnswerErrorLabel));
+    EXPECT_EQ(nullptr, error_label_view);
 
-    const auto* const error_status_label = views::AsViewClass<views::Label>(
-        panel_view()->GetViewByID(mahi_constants::ViewId::kErrorStatusLabel));
-    CHECK(error_status_label);
-    EXPECT_TRUE(error_status_label->GetText().empty());
+    // Waits until an answer is loaded with an error.
+    ASSERT_TRUE(answer_waiter.WaitAndClear());
 
-    // Wait until an answer is loaded with an error.
-    ASSERT_TRUE(answer_waiter.Wait());
-
-    EXPECT_TRUE(error_status_view->GetVisible());
-    EXPECT_FALSE(question_answer_view->GetVisible());
-    EXPECT_FALSE(question_answer_view->GetViewByID(
-        mahi_constants::ViewId::kAnswerLoadingAnimatedImage));
+    EXPECT_TRUE(question_answer_view->GetVisible());
     EXPECT_FALSE(summary_outlines_section->GetVisible());
 
-    // Check the contents of `error_status_label`.
+    // Checks the contents of `error_status_label`. The error should show
+    // inline.
+    error_label_view =
+        views::AsViewClass<views::Label>(panel_view()->GetViewByID(
+            mahi_constants::ViewId::kQuestionAnswerErrorLabel));
+    EXPECT_TRUE(error_label_view->GetVisible());
     EXPECT_EQ(
-        error_status_label->GetText(),
+        error_label_view->GetText(),
         l10n_util::GetStringUTF16(mahi_utils::GetErrorStatusViewTextId(error)));
 
-    const auto* const retry_link =
-        panel_view()->GetViewByID(mahi_constants::kErrorStatusRetryLink);
-    ASSERT_TRUE(retry_link);
-    EXPECT_EQ(retry_link->GetVisible(),
-              mahi_utils::CalculateRetryLinkVisible(error));
+    auto* const send_button = panel_view()->GetViewByID(
+        mahi_constants::ViewId::kAskQuestionSendButton);
+    EXPECT_TRUE(send_button->GetEnabled());
 
-    if (retry_link->GetVisible()) {
-      // Click the `retry_link`. The mock mahi manager should be asked about the
-      // same question.
-      views::test::RunScheduledLayout(widget());
-      GetEventGenerator()->MoveMouseTo(
-          retry_link->GetBoundsInScreen().CenterPoint());
-      EXPECT_CALL(mock_mahi_manager(),
-                  AnswerQuestion(question, /*current_panel_content=*/true,
-                                 /*callback=*/_));
-      EXPECT_CALL(mock_mahi_manager(), GetOutlines).Times(0);
-      EXPECT_CALL(mock_mahi_manager(), GetSummary).Times(0);
-      histogram_tester.ExpectBucketCount(
-          mahi_constants::kMahiQuestionSourceHistogramName,
-          MahiUiController::QuestionSource::kRetry, 0);
-      GetEventGenerator()->ClickLeftButton();
-      histogram_tester.ExpectBucketCount(
-          mahi_constants::kMahiQuestionSourceHistogramName,
-          MahiUiController::QuestionSource::kRetry, 1);
-      Mock::VerifyAndClear(&mock_mahi_manager());
-    }
+    EXPECT_FALSE(question_answer_view->GetViewByID(
+        mahi_constants::ViewId::kAnswerLoadingAnimatedImage));
+
+    // Configs the mock mahi manager to return an answer in success.
+    EXPECT_CALL(mock_mahi_manager(), AnswerQuestion)
+        .WillOnce(
+            [&answer_waiter](
+                const std::u16string& question, bool current_panel_content,
+                chromeos::MahiManager::MahiAnswerQuestionCallback callback) {
+              ReturnDefaultAnswerAsyncly(answer_waiter,
+                                         MahiResponseStatus::kSuccess,
+                                         std::move(callback));
+            });
+
+    // Asks another question.
+    auto* const question_textfield = views::AsViewClass<views::Textfield>(
+        panel_view()->GetViewByID(mahi_constants::ViewId::kQuestionTextfield));
+    question_textfield->SetText(u"A new question");
+    LeftClickOn(send_button);
+    Mock::VerifyAndClearExpectations(&mock_mahi_manager());
+
+    // Loading animated image should show again.
+    EXPECT_TRUE(question_answer_view->GetViewByID(
+        mahi_constants::ViewId::kAnswerLoadingAnimatedImage));
+
+    // The error image view and the error label view should still exist.
+    EXPECT_TRUE(panel_view()->GetViewByID(
+        mahi_constants::ViewId::kQuestionAnswerErrorImage));
+    EXPECT_TRUE(panel_view()->GetViewByID(
+        mahi_constants::ViewId::kQuestionAnswerErrorLabel));
+
+    // Waits for the answer to load. Both the error image view and the error
+    // label view should still exist.
+    ASSERT_TRUE(answer_waiter.WaitAndClear());
+    EXPECT_TRUE(question_answer_view->GetVisible());
+    EXPECT_TRUE(panel_view()->GetViewByID(
+        mahi_constants::ViewId::kQuestionAnswerErrorImage));
+    EXPECT_TRUE(panel_view()->GetViewByID(
+        mahi_constants::ViewId::kQuestionAnswerErrorLabel));
+    EXPECT_EQ(question_answer_view->children().size(), 4u);
+    EXPECT_EQ(views::AsViewClass<views::Label>(
+                  question_answer_view->children()[3]->GetViewByID(
+                      mahi_constants::ViewId::kQuestionAnswerTextBubbleLabel))
+                  ->GetText(),
+              u"fake answer");
+
+    // Configs the mock mahi manager to return answer with an `error` again.
+    EXPECT_CALL(mock_mahi_manager(), AnswerQuestion)
+        .WillOnce(
+            [&answer_waiter, error](
+                const std::u16string& question, bool current_panel_content,
+                chromeos::MahiManager::MahiAnswerQuestionCallback callback) {
+              ReturnDefaultAnswerAsyncly(answer_waiter, error,
+                                         std::move(callback));
+            });
+    const std::u16string question2(u"A new question that brings errors");
+    SubmitTestQuestion(question2);
+    Mock::VerifyAndClearExpectations(&mock_mahi_manager());
+
+    // Shows the new error message inline.
+    ASSERT_TRUE(answer_waiter.WaitAndClear());
+    EXPECT_EQ(question_answer_view->children().size(), 6u);
+    EXPECT_EQ(question_answer_view->children()[5]->children()[0]->GetID(),
+              mahi_constants::ViewId::kQuestionAnswerErrorImage);
+    EXPECT_EQ(question_answer_view->children()[5]->children()[1]->GetID(),
+              mahi_constants::ViewId::kQuestionAnswerErrorLabel);
+    EXPECT_EQ(
+        views::AsViewClass<views::Label>(
+            question_answer_view->children()[5]->GetViewByID(
+                mahi_constants::ViewId::kQuestionAnswerErrorLabel))
+            ->GetText(),
+        l10n_util::GetStringUTF16(mahi_utils::GetErrorStatusViewTextId(error)));
 
     CreatePanelWidget();
   }
@@ -1637,115 +1744,6 @@ TEST_F(MahiPanelViewTest, RefreshSummaryContents_TransitionToSummaryView) {
   EXPECT_TRUE(question_answer_view->children().empty());
 }
 
-// Verifies that the error introduced by an inappropriate question is presented
-// as expected.
-TEST_F(MahiPanelViewTest, InappropriateQuestionError) {
-  // Config the mock mahi manager to return `MahiResponseStatus::kInappropriate`
-  // when handling a question.
-  base::test::TestFuture<void> answer_waiter;
-  EXPECT_CALL(mock_mahi_manager(), AnswerQuestion)
-      .WillOnce(
-          [&answer_waiter](
-              const std::u16string& question, bool current_panel_content,
-              chromeos::MahiManager::MahiAnswerQuestionCallback callback) {
-            ReturnDefaultAnswerAsyncly(answer_waiter,
-                                       MahiResponseStatus::kInappropriate,
-                                       std::move(callback));
-          });
-
-  auto* const question_textfield = views::AsViewClass<views::Textfield>(
-      panel_view()->GetViewByID(mahi_constants::ViewId::kQuestionTextfield));
-  ASSERT_TRUE(question_textfield);
-  question_textfield->SetText(u"fake question");
-
-  const auto* const send_button =
-      panel_view()->GetViewByID(mahi_constants::ViewId::kAskQuestionSendButton);
-  ASSERT_TRUE(send_button);
-  LeftClickOn(send_button);
-  EXPECT_FALSE(send_button->GetEnabled());
-  Mock::VerifyAndClearExpectations(&mock_mahi_manager());
-
-  // After a question is posted and before an answer is loaded:
-  // 1. The Q&A view should show. Loading animated image should also show.
-  // 2. The error image/label should not exist.
-  const auto* const question_answer_view =
-      panel_view()->GetViewByID(mahi_constants::ViewId::kQuestionAnswerView);
-  CHECK(question_answer_view);
-  EXPECT_TRUE(question_answer_view->GetVisible());
-  EXPECT_TRUE(question_answer_view->GetViewByID(
-      mahi_constants::ViewId::kAnswerLoadingAnimatedImage));
-  EXPECT_FALSE(panel_view()->GetViewByID(
-      mahi_constants::ViewId::kQuestionAnswerErrorImage));
-  EXPECT_FALSE(panel_view()->GetViewByID(
-      mahi_constants::ViewId::kQuestionAnswerErrorLabel));
-
-  // Wait for the answer to be loaded. Verify:
-  // 1. `question_answer_view` shows.
-  // 2. `error_image_view` shows.
-  // 3. `error_label_view` shows with the expected label.
-  // 4. `send_button` is re-enabled.
-  // 5. Loading animated image should be removed.
-
-  ASSERT_TRUE(answer_waiter.WaitAndClear());
-  EXPECT_TRUE(question_answer_view->GetVisible());
-
-  const auto* const error_image_view = panel_view()->GetViewByID(
-      mahi_constants::ViewId::kQuestionAnswerErrorImage);
-  ASSERT_TRUE(error_image_view);
-  EXPECT_TRUE(error_image_view->GetVisible());
-
-  const auto* const error_label_view =
-      views::AsViewClass<views::Label>(panel_view()->GetViewByID(
-          mahi_constants::ViewId::kQuestionAnswerErrorLabel));
-  ASSERT_TRUE(error_label_view);
-  EXPECT_TRUE(error_label_view->GetVisible());
-  EXPECT_EQ(error_label_view->GetText(),
-            l10n_util::GetStringUTF16(
-                IDS_ASH_MAHI_RESPONSE_STATUS_INAPPROPRIATE_LABEL_TEXT));
-
-  EXPECT_TRUE(send_button->GetEnabled());
-
-  EXPECT_FALSE(question_answer_view->GetViewByID(
-      mahi_constants::ViewId::kAnswerLoadingAnimatedImage));
-
-  // Config the mock mahi manager to return an answer in success.
-  EXPECT_CALL(mock_mahi_manager(), AnswerQuestion)
-      .WillOnce(
-          [&answer_waiter](
-              const std::u16string& question, bool current_panel_content,
-              chromeos::MahiManager::MahiAnswerQuestionCallback callback) {
-            ReturnDefaultAnswerAsyncly(answer_waiter,
-                                       MahiResponseStatus::kSuccess,
-                                       std::move(callback));
-          });
-
-  // Ask another question.
-  question_textfield->SetText(u"A new question");
-  LeftClickOn(send_button);
-  Mock::VerifyAndClearExpectations(&mock_mahi_manager());
-
-  // Loading animated image should show again.
-  EXPECT_TRUE(question_answer_view->GetViewByID(
-      mahi_constants::ViewId::kAnswerLoadingAnimatedImage));
-
-  // Before the answer loaded, both the error image view and the error label
-  // view should not exist since asking a new question should remove the error
-  // introduced by the previous question.
-  EXPECT_FALSE(panel_view()->GetViewByID(
-      mahi_constants::ViewId::kQuestionAnswerErrorImage));
-  EXPECT_FALSE(panel_view()->GetViewByID(
-      mahi_constants::ViewId::kQuestionAnswerErrorLabel));
-
-  // Wait for the answer to load. Both the error image view and the error label
-  // view should not exist since the answer is loaded in success.
-  ASSERT_TRUE(answer_waiter.Wait());
-  EXPECT_TRUE(question_answer_view->GetVisible());
-  EXPECT_FALSE(panel_view()->GetViewByID(
-      mahi_constants::ViewId::kQuestionAnswerErrorImage));
-  EXPECT_FALSE(panel_view()->GetViewByID(
-      mahi_constants::ViewId::kQuestionAnswerErrorLabel));
-}
-
 // TODO(crbug.com/333800096): Re-enable this test
 TEST_F(MahiPanelViewTest, DISABLED_ClickMetrics) {
   base::HistogramTester histogram;
@@ -2003,6 +2001,141 @@ TEST_F(MahiPanelViewTest, RandomizedTextQuestionAnswerLabels) {
   EXPECT_LE(answer_label->width(), scroll_view->GetVisibleRect().width())
       << "Answer label width surpasses scroll view visible width: "
       << random_answer;
+}
+
+TEST_F(MahiPanelViewTest, OnlyOneFeedbackButtonCanKeepToggled) {
+  IconButton* thumbs_up_button = views::AsViewClass<IconButton>(
+      panel_view()->GetViewByID(mahi_constants::ViewId::kThumbsUpButton));
+  IconButton* thumbs_down_button = views::AsViewClass<IconButton>(
+      panel_view()->GetViewByID(mahi_constants::ViewId::kThumbsDownButton));
+  EXPECT_FALSE(thumbs_up_button->toggled());
+  EXPECT_FALSE(thumbs_down_button->toggled());
+
+  // Pressing thumbs up should toggle the button.
+  LeftClickOn(thumbs_up_button);
+  EXPECT_TRUE(thumbs_up_button->toggled());
+  EXPECT_FALSE(thumbs_down_button->toggled());
+
+  // Pressing thumbs down should just toggle down button on and up button off.
+  LeftClickOn(thumbs_down_button);
+  EXPECT_TRUE(thumbs_down_button->toggled());
+  EXPECT_FALSE(thumbs_up_button->toggled());
+
+  // Pressing thumbs up should just toggle up button on and down button off.
+  LeftClickOn(thumbs_up_button);
+  EXPECT_TRUE(thumbs_up_button->toggled());
+  EXPECT_FALSE(thumbs_down_button->toggled());
+}
+
+TEST_F(MahiPanelViewTest, FeedbackButtonsAllowed) {
+  PrefService* prefs =
+      Shell::Get()->session_controller()->GetActivePrefService();
+
+  prefs->SetInteger(
+      prefs::kHmrManagedSettings,
+      static_cast<int>(
+          mahi_utils::HmrEnterprisePolicy::kAllowedWithoutModelImprovement));
+  CreatePanelWidget();
+  EXPECT_FALSE(
+      panel_view()
+          ->GetViewByID(mahi_constants::ViewId::kFeedbackButtonsContainer)
+          ->GetVisible());
+  EXPECT_EQ(
+      l10n_util::GetStringFUTF16(
+          IDS_ASH_MAHI_PANEL_DISCLAIMER_FEEDBACK_DISABLED,
+          l10n_util::GetStringUTF16(IDS_ASH_MAHI_LEARN_MORE_LINK_LABEL_TEXT)),
+      static_cast<views::StyledLabel*>(
+          panel_view()->GetViewByID(mahi_constants::ViewId::kFooterLabel))
+          ->GetText());
+
+  prefs->SetInteger(
+      prefs::kHmrManagedSettings,
+      static_cast<int>(
+          mahi_utils::HmrEnterprisePolicy::kAllowedWithModelImprovement));
+  CreatePanelWidget();
+  EXPECT_TRUE(
+      panel_view()
+          ->GetViewByID(mahi_constants::ViewId::kFeedbackButtonsContainer)
+          ->GetVisible());
+  EXPECT_EQ(
+      l10n_util::GetStringFUTF16(
+          IDS_ASH_MAHI_PANEL_DISCLAIMER,
+          l10n_util::GetStringUTF16(IDS_ASH_MAHI_LEARN_MORE_LINK_LABEL_TEXT)),
+      static_cast<views::StyledLabel*>(
+          panel_view()->GetViewByID(mahi_constants::ViewId::kFooterLabel))
+          ->GetText());
+}
+
+TEST_F(MahiPanelViewTest, FeedbackButtonResetWhenRefresh) {
+  IconButton* thumbs_up_button = views::AsViewClass<IconButton>(
+      panel_view()->GetViewByID(mahi_constants::ViewId::kThumbsUpButton));
+  IconButton* thumbs_down_button = views::AsViewClass<IconButton>(
+      panel_view()->GetViewByID(mahi_constants::ViewId::kThumbsDownButton));
+  EXPECT_FALSE(thumbs_up_button->toggled());
+  EXPECT_FALSE(thumbs_down_button->toggled());
+
+  LeftClickOn(thumbs_up_button);
+  EXPECT_TRUE(thumbs_up_button->toggled());
+  EXPECT_FALSE(thumbs_down_button->toggled());
+
+  // Test that the feedback button is reset when content is refreshed.
+  ui_controller()->RefreshContents();
+  EXPECT_FALSE(thumbs_up_button->toggled());
+  EXPECT_FALSE(thumbs_down_button->toggled());
+
+  LeftClickOn(thumbs_down_button);
+  EXPECT_FALSE(thumbs_up_button->toggled());
+  EXPECT_TRUE(thumbs_down_button->toggled());
+
+  ui_controller()->RefreshContents();
+  EXPECT_FALSE(thumbs_up_button->toggled());
+  EXPECT_FALSE(thumbs_down_button->toggled());
+}
+
+TEST_F(MahiPanelViewTest, FeedbackButtonsOnError) {
+  base::HistogramTester histogram_tester;
+
+  base::test::TestFuture<void> summary_waiter;
+  EXPECT_CALL(mock_mahi_manager(), GetSummary)
+      .WillOnce([&summary_waiter](
+                    chromeos::MahiManager::MahiSummaryCallback callback) {
+        ReturnDefaultSummaryAsyncly(summary_waiter,
+                                    MahiResponseStatus::kUnknownError,
+                                    std::move(callback));
+      });
+
+  CreatePanelWidget();
+
+  // Wait until the summary is loaded with an error.
+  ASSERT_TRUE(summary_waiter.Wait());
+
+  // Pressing thumbs up should toggle the button on and update the feedback
+  // histogram.
+  EXPECT_CALL(mock_mahi_manager(), OpenFeedbackDialog).Times(0);
+  IconButton* thumbs_up_button = views::AsViewClass<IconButton>(
+      panel_view()->GetViewByID(mahi_constants::ViewId::kThumbsUpButton));
+  LeftClickOn(thumbs_up_button);
+  Mock::VerifyAndClearExpectations(&mock_mahi_manager());
+
+  EXPECT_TRUE(thumbs_up_button->toggled());
+  histogram_tester.ExpectBucketCount(mahi_constants::kMahiFeedbackHistogramName,
+                                     true, 1);
+  histogram_tester.ExpectBucketCount(mahi_constants::kMahiFeedbackHistogramName,
+                                     false, 0);
+
+  // Pressing thumbs down the first time should open the feedback dialog, toggle
+  // the button off and update the feedback histogram.
+  EXPECT_CALL(mock_mahi_manager(), OpenFeedbackDialog).Times(1);
+  IconButton* thumbs_down_button = views::AsViewClass<IconButton>(
+      panel_view()->GetViewByID(mahi_constants::ViewId::kThumbsDownButton));
+  LeftClickOn(thumbs_down_button);
+  Mock::VerifyAndClearExpectations(&mock_mahi_manager());
+
+  EXPECT_TRUE(thumbs_down_button->toggled());
+  histogram_tester.ExpectBucketCount(mahi_constants::kMahiFeedbackHistogramName,
+                                     true, 1);
+  histogram_tester.ExpectBucketCount(mahi_constants::kMahiFeedbackHistogramName,
+                                     false, 1);
 }
 
 }  // namespace ash

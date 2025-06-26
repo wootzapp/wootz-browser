@@ -55,6 +55,8 @@ used when committed.
 
 ## Document Index
 
+**Note**: this is not an exhaustive list of all documents.
+
 ### Checking Out and Building
 *   [Linux Build Instructions](linux/build_instructions.md) - Linux
 *   [Mac Build Instructions](mac_build_instructions.md) - MacOS
@@ -69,8 +71,8 @@ used when committed.
     Fuchsia target (on a Linux host)
 *   [iOS Build Instructions](ios/build_instructions.md) - iOS target (on a MacOS
     host)
+*   [Gerrit Guide](gerrit_guide.md) - Setup Gerrit access
 *   [Chrome OS Build Instructions](chromeos_build_instructions.md) - Chrome OS
-*   [Lacros Build Instructions](lacros/build_instructions.md) - Lacros
 *   [Linux Chromium ARM Recipes](linux/chromium_arm.md) - Recipes for building
     Chromium for ARM on Linux.
 *   [Chrome Component Build](component_build.md) - Faster builds using more
@@ -163,13 +165,9 @@ used when committed.
     Docs for the subsystem that allows one to sync data across devices.
 *   [Ozone Overview](ozone_overview.md) - Ozone is an abstraction layer between
     the window system and low level input and graphics.
-*   [Optimizing Chrome Web UIs](optimizing_web_uis.md) - Notes on making webuis
-    more performant*   [Guidelines for considering branch dates in project planning](release_branch_guidance.md) -
+*   [Guidelines for considering branch dates in project planning](release_branch_guidance.md) -
     What to do (and not to do) around branch dates when scheduling your project
     work.
-*   [WebUI Explainer](webui_explainer.md) - An explanation of C++ and JavaScript
-    infrastructural code for Chrome UIs implemented with web technologies (i.e.
-    chrome:// URLs).
 *   [Watchlists](infra/watchlists.md) - Use watchlists to get notified of CLs
     you are interested in.
 *   [Shutdown](shutdown.md) - Explains the steps of Chrome shutdown, to make it
@@ -333,13 +331,18 @@ used when committed.
 *   [Debugging UI in OOBE/login/lock](login/ui_debugging.md)
 *   [Chrome Logging on Chrome OS](chrome_os_logging.md)
 *   [Debugging tips](testing/chromeos_debugging_tips.md)
-*   [What is Lacros](lacros.md)
 
 ### Misc WebUI-Specific Docs
-*   [Creating WebUI Interfaces in components/](webui_in_components.md) How to
-    create a new WebUI component in the `components/` directory.
-*   [Trusted Types on WebUI](trusted_types_on_webui.md) Tips for coding in WebUI
-    with Trusted Types in mind.
+*   [WebUI Explainer](webui/webui_explainer.md) - An explanation of C++ and
+    TypeScript infrastructural code for Chrome UIs implemented with web
+    technologies (i.e. chrome:// URLs).
+*   [Optimizing Chrome Web UIs](webui/optimizing_web_uis.md) - Notes on making
+    WebUIs more performant
+*   [Trusted Types on WebUI](webui/trusted_types_on_webui.md) - Tips for coding
+    in WebUI with Trusted Types in mind.
+*   [chrome-untrusted:// FAQ](webui/chrome_untrusted.md) - Explainer on the
+    usage of the `chrome-untrusted://` scheme for hosting WebUIs that handle
+    untrustworthy content.
 
 ### Media
 *   [Audio Focus Handling](media/audio_focus.md) - How multiple MediaSession
@@ -432,6 +435,10 @@ used when committed.
 *   [D-Bus Mojo Connection Service](dbus_mojo_connection_service.md) - A service
     in Chrome to bootstrap CrOS services' Mojo connection.
 
+### Security
+*   [The Rule Of 2](security/rule-of-2.md) - An imoportant security rule when
+    handling untrustworthy contents (like anything downloaded from the web).
+
 ### Speed
 *   [Chrome Speed](speed/README.md) - Documentation for performance measurements and regressions in Chrome.
 *   [Chrome Speed Metrics](speed_metrics/README.md) - Documentation about user experience metrics on the web and their JavaScript APIs.
@@ -455,6 +462,8 @@ a video series of interviews with Chromium software engineers.
 *   [What's Up With Processes - Episode 8](transcripts/wuwt-e08-processes.md)
 *   [What's Up With Site Isolation - Episode 9](transcripts/wuwt-e09-site-isolation.md)
 *   [What's Up With Web Platform - Episode 10](transcripts/wuwt-e10-web-platform.md)
+*   [What's Up With Web Standards - Episode 11](transcripts/wuwt-e11-web-standards.md)
+*   [What's Up With Base - Episode 12](transcripts/wuwt-e12-base.md)
 
 ### Probably Obsolete
 *   [TPM Quick Reference](tpm_quick_ref.md) - Trusted Platform Module notes.

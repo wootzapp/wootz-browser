@@ -7,8 +7,9 @@
 
 #include <vector>
 
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/thread_safe_browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 
 namespace blink {
 
@@ -19,6 +20,7 @@ class RendererFuzzingSupport {
       const blink::BrowserInterfaceBrokerProxy* context_interface_broker_proxy,
       blink::ThreadSafeBrowserInterfaceBrokerProxy*
           process_interface_broker_proxy,
+      blink::AssociatedInterfaceProvider* associated_interface_provider,
       const std::string& fuzzer_id,
       std::vector<uint8_t>&& input,
       base::OnceClosure done_closure);

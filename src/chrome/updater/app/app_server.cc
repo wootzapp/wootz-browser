@@ -41,7 +41,7 @@
 namespace updater {
 
 bool IsInternalService() {
-  return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+  return base::CommandLine::ForCurrentProcess()->GetSwitchValueUTF8(
              kServerServiceSwitch) == kServerUpdateServiceInternalSwitchValue;
 }
 
@@ -128,7 +128,9 @@ base::OnceClosure AppServer::ModeCheck() {
 
   server_starts_ = global_prefs->CountServerStarts();
   prefs_ = global_prefs;
-  config_ = base::MakeRefCounted<Configurator>(prefs_, external_constants_);
+  config_ = base::MakeRefCounted<Configurator>(
+      prefs_, external_constants_,
+      CreateLocalPrefs(updater_scope())->GetCecaExperimentEnabled());
   return base::BindOnce(
       &AppServer::ActiveDuty, this,
       base::MakeRefCounted<UpdateServiceImpl>(updater_scope(), config_));

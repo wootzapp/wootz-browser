@@ -24,6 +24,7 @@
 #include "chrome/updater/update_service.h"
 #include "chrome/updater/updater_scope.h"
 #include "chrome/updater/updater_version.h"
+#include "components/policy/core/common/policy_types.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -64,12 +65,14 @@ TEST(KSAdminTest, PrintVersion) {
 }
 
 TEST(KSAdminTest, ParseCommandLine) {
-  static const char* argv[] = {
-      "ksadmin",  "--register",
-      "-P",       "com.google.kipple",
-      "-v",       "1.2.3.4",
-      "--xcpath", "/Applications/GoogleKipple.app",
-      "-u",       "https://tools.google.com/service/update2"};
+  static const char* argv[] = {"ksadmin",
+                               "--register",
+                               "-P",
+                               "com.google.kipple",
+                               "-v=1.2.3.4",
+                               "--xcpath",
+                               "/Applications/GoogleKipple.app",
+                               "--tag=abcd"};
 
   std::map<std::string, std::string> arg_map =
       ParseCommandLine(std::size(argv), argv);
@@ -79,7 +82,7 @@ TEST(KSAdminTest, ParseCommandLine) {
   EXPECT_EQ(arg_map["P"], "com.google.kipple");
   EXPECT_EQ(arg_map["v"], "1.2.3.4");
   EXPECT_EQ(arg_map["xcpath"], "/Applications/GoogleKipple.app");
-  EXPECT_EQ(arg_map["u"], "https://tools.google.com/service/update2");
+  EXPECT_EQ(arg_map["tag"], "abcd");
 }
 
 TEST(KSAdminTest, ParseCommandLine_DiffByCase) {
@@ -94,14 +97,16 @@ TEST(KSAdminTest, ParseCommandLine_DiffByCase) {
 }
 
 TEST(KSAdminTest, ParseCommandLine_CombinedShortOptions) {
-  const char* argv[] = {"ksadmin", "-pP", "com.google.Chrome"};
+  const char* argv[] = {"ksadmin", "-pP", "com.google.Chrome", "-Uv=1.2.3.4"};
 
   std::map<std::string, std::string> arg_map =
       ParseCommandLine(std::size(argv), argv);
-  EXPECT_EQ(arg_map.size(), size_t{2});
+  EXPECT_EQ(arg_map.size(), size_t{4});
   EXPECT_EQ(arg_map.count("p"), size_t{1});
   EXPECT_EQ(arg_map["p"], "");
   EXPECT_EQ(arg_map["P"], "com.google.Chrome");
+  EXPECT_EQ(arg_map["U"], "");
+  EXPECT_EQ(arg_map["v"], "1.2.3.4");
 }
 
 TEST(KSAdminTest, Register) {
@@ -116,7 +121,8 @@ TEST(KSAdminTest, Register) {
                 (override));
     MOCK_METHOD(void,
                 FetchPolicies,
-                (base::OnceCallback<void(int)> callback),
+                (policy::PolicyFetchReason reason,
+                 base::OnceCallback<void(int)> callback),
                 (override));
     MOCK_METHOD(void,
                 RegisterApp,
@@ -137,8 +143,9 @@ TEST(KSAdminTest, Register) {
                 (const std::string& app_id,
                  Priority priority,
                  PolicySameVersionUpdate policy_same_version_update,
-                 StateChangeCallback state_update,
-                 Callback callback),
+                 const std::string& language,
+                 base::RepeatingCallback<void(const UpdateState&)> state_update,
+                 base::OnceCallback<void(Result)> callback),
                 (override));
     MOCK_METHOD(void,
                 Update,
@@ -146,12 +153,14 @@ TEST(KSAdminTest, Register) {
                  const std::string& install_data_index,
                  Priority priority,
                  PolicySameVersionUpdate policy_same_version_update,
-                 StateChangeCallback state_update,
-                 Callback callback),
+                 const std::string& language,
+                 base::RepeatingCallback<void(const UpdateState&)> state_update,
+                 base::OnceCallback<void(Result)> callback),
                 (override));
     MOCK_METHOD(void,
                 UpdateAll,
-                (StateChangeCallback state_update, Callback callback),
+                (base::RepeatingCallback<void(const UpdateState&)> state_update,
+                 base::OnceCallback<void(Result)> callback),
                 (override));
     MOCK_METHOD(void,
                 Install,
@@ -159,8 +168,9 @@ TEST(KSAdminTest, Register) {
                  const std::string& client_install_data,
                  const std::string& install_data_index,
                  Priority priority,
-                 StateChangeCallback state_update,
-                 Callback callback),
+                 const std::string& language,
+                 base::RepeatingCallback<void(const UpdateState&)> state_update,
+                 base::OnceCallback<void(Result)> callback),
                 (override));
     MOCK_METHOD(void, CancelInstalls, (const std::string& app_id), (override));
     MOCK_METHOD(void,
@@ -170,8 +180,9 @@ TEST(KSAdminTest, Register) {
                  const std::string& install_args,
                  const std::string& install_data,
                  const std::string& install_settings,
-                 StateChangeCallback state_update,
-                 Callback callback),
+                 const std::string& language,
+                 base::RepeatingCallback<void(const UpdateState&)> state_update,
+                 base::OnceCallback<void(Result)> callback),
                 (override));
 
    protected:

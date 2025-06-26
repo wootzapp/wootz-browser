@@ -2,11 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/354829279): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/gfx/geometry/transform.h"
 
 #include <stddef.h>
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <numbers>
 #include <optional>
@@ -1964,13 +1970,13 @@ TEST(XFormTest, verifyCopyConstructor) {
 TEST(XFormTest, GetColMajor) {
   auto transform = GetTestMatrix1();
 
-  double data[16];
-  transform.GetColMajor(data);
+  std::array<double, 16> data;
+  transform.GetColMajor(data.data());
   for (int i = 0; i < 16; i++) {
     EXPECT_EQ(i + 10.0, data[i]);
     EXPECT_EQ(data[i], transform.ColMajorData(i));
   }
-  EXPECT_EQ(transform, Transform::ColMajor(data));
+  EXPECT_EQ(transform, Transform::ColMajor(data.data()));
 }
 
 TEST(XFormTest, Affine) {
@@ -3602,6 +3608,43 @@ TEST(XFormTest, Round2dTranslationComponents) {
   translation.Translate3d(0.f, 0.f, 0.5f);
   expected.Translate3d(0.f, 0.f, 0.5f);
   translation.Round2dTranslationComponents();
+  EXPECT_EQ(expected.ToString(), translation.ToString());
+}
+
+TEST(XFormTest, Floor2dTranslationComponents) {
+  Transform translation;
+  Transform expected;
+
+  translation.Floor2dTranslationComponents();
+  EXPECT_EQ(expected.ToString(), translation.ToString());
+
+  translation.Translate(1.0f, 1.0f);
+  expected.Translate(1.0f, 1.0f);
+  translation.Floor2dTranslationComponents();
+  EXPECT_EQ(expected.ToString(), translation.ToString());
+
+  translation.Translate(0.5f, 0.4f);
+  expected.Translate(0.0f, 0.0f);
+  translation.Floor2dTranslationComponents();
+  EXPECT_EQ(expected.ToString(), translation.ToString());
+
+  // Flooring should only affect 2d translation components.
+  translation.Translate3d(0.f, 0.f, 0.5f);
+  expected.Translate3d(0.f, 0.f, 0.5f);
+  translation.Floor2dTranslationComponents();
+  EXPECT_EQ(expected.ToString(), translation.ToString());
+
+  translation.Translate(3.9f, 4.4f);
+  expected.Translate(3.0f, 4.0f);
+  translation.Floor2dTranslationComponents();
+  EXPECT_EQ(expected.ToString(), translation.ToString());
+
+  translation.Translate(3.9f, 4.4f);
+  translation.EnsureFullMatrixForTesting();
+  expected.Translate(3.0f, 4.0f);
+  translation.EnsureFullMatrixForTesting();
+
+  translation.Floor2dTranslationComponents();
   EXPECT_EQ(expected.ToString(), translation.ToString());
 }
 

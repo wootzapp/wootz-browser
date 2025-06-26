@@ -9,12 +9,12 @@ import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ThreadUtils;
+import org.chromium.build.annotations.NullMarked;
 
 /** See {@link android.webkit.HttpAuthHandler}. */
 @JNINamespace("android_webview")
+@NullMarked
 public class AwHttpAuthHandler {
-    private static final String TAG = "AwHttpAuthHandler";
-
     private long mNativeAwHttpAuthHandler;
     private final boolean mFirstAttempt;
 

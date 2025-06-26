@@ -42,17 +42,16 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.RequiresRestart;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.omnibox.UrlBar;
 import org.chromium.chrome.browser.omnibox.UrlFocusChangeListener;
@@ -65,14 +64,13 @@ import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.OmniboxTestUtils;
 import org.chromium.components.browser_ui.modaldialog.ModalDialogTestUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
 import org.chromium.ui.modelutil.PropertyModel;
-import org.chromium.ui.test.util.UiRestriction;
 
 /** Tests for {@link ChromeTabModalPresenter}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -121,10 +119,9 @@ public class ChromeTabModalPresenterTest {
     public void setUp() {
         mActivity = sActivityTestRule.getActivity();
         mOmnibox = new OmniboxTestUtils(mActivity);
-        mManager =
-                TestThreadUtils.runOnUiThreadBlockingNoException(mActivity::getModalDialogManager);
+        mManager = ThreadUtils.runOnUiThreadBlocking(mActivity::getModalDialogManager);
         mTestObserver = new TestObserver();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mActivity
                             .getToolbarManager()
@@ -139,7 +136,7 @@ public class ChromeTabModalPresenterTest {
 
     @After
     public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mManager.dismissAllDialogs(DialogDismissalCause.UNKNOWN);
                 });
@@ -159,7 +156,7 @@ public class ChromeTabModalPresenterTest {
 
         ensureDialogContainerVisible();
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     assertThat(
                             containerParent.indexOfChild(dialogContainer),
@@ -171,7 +168,7 @@ public class ChromeTabModalPresenterTest {
         int callCount = mTestObserver.onUrlFocusChangedCallback.getCallCount();
         mOmnibox.requestFocus();
         mTestObserver.onUrlFocusChangedCallback.waitForCallback(callCount);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     assertThat(
                             containerParent.indexOfChild(dialogContainer),
@@ -182,7 +179,7 @@ public class ChromeTabModalPresenterTest {
         callCount = mTestObserver.onUrlFocusChangedCallback.getCallCount();
         mOmnibox.clearFocus();
         mTestObserver.onUrlFocusChangedCallback.waitForCallback(callCount);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     assertThat(
                             containerParent.indexOfChild(dialogContainer),
@@ -196,10 +193,10 @@ public class ChromeTabModalPresenterTest {
     @Test
     @SmallTest
     @Feature({"ModalDialog"})
-    @Restriction(UiRestriction.RESTRICTION_TYPE_PHONE)
+    @Restriction(DeviceFormFactor.PHONE)
     @DisabledTest(message = "https://crbug.com/1420186")
     public void testSuspend_ToggleOverview() throws Exception {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mActivity.getActivityTab().addObserver(mTestObserver));
         PropertyModel dialog1 = createDialog(mActivity, mManager, "1", null);
         PropertyModel dialog2 = createDialog(mActivity, mManager, "2", null);
@@ -277,14 +274,14 @@ public class ChromeTabModalPresenterTest {
         checkCurrentPresenter(mManager, ModalDialogType.TAB);
 
         // Reset states.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> mActivity.getActivityTab().removeObserver(mTestObserver));
     }
 
     @Test
     @SmallTest
     @Feature({"ModalDialog"})
-    @Restriction(UiRestriction.RESTRICTION_TYPE_PHONE)
+    @Restriction(DeviceFormFactor.PHONE)
     public void testSuspend_LastTabClosed() throws Exception {
         PropertyModel dialog1 = createDialog(mActivity, mManager, "1", null);
 
@@ -325,7 +322,7 @@ public class ChromeTabModalPresenterTest {
     @SmallTest
     @Feature({"ModalDialog"})
     @DisabledTest(message = "https://crbug.com/1382221")
-    @Restriction(UiRestriction.RESTRICTION_TYPE_PHONE)
+    @Restriction(DeviceFormFactor.PHONE)
     public void testSuspend_TabClosed() throws Exception {
         PropertyModel dialog1 = createDialog(mActivity, mManager, "1", null);
         PropertyModel dialog2 = createDialog(mActivity, mManager, "2", null);
@@ -421,7 +418,6 @@ public class ChromeTabModalPresenterTest {
     @Test
     @SmallTest
     @Feature({"ModalDialog"})
-    @Features.DisableFeatures({ChromeFeatureList.BACK_GESTURE_REFACTOR})
     public void testDismiss_BackPressed() {
         PropertyModel dialog1 = createDialog(mActivity, mManager, "1", null);
         PropertyModel dialog2 = createDialog(mActivity, mManager, "2", null);
@@ -468,14 +464,6 @@ public class ChromeTabModalPresenterTest {
     @Test
     @SmallTest
     @Feature({"ModalDialog"})
-    @Features.EnableFeatures({ChromeFeatureList.BACK_GESTURE_REFACTOR})
-    public void testDismiss_BackPressed_BackPressRefactor() {
-        testDismiss_BackPressed();
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"ModalDialog"})
     public void testDismiss_CancelOnTouchOutside() throws Exception {
         PropertyModel dialog1 = createDialog(mActivity, mManager, "1", null);
 
@@ -488,16 +476,16 @@ public class ChromeTabModalPresenterTest {
         // Click dialog container and verify the dialog is not dismissed.
         final View dialogContainer = mTabModalPresenter.getDialogContainerForTest();
         assertTrue(dialogContainer.isClickable());
-        TestThreadUtils.runOnUiThreadBlocking(dialogContainer::performClick);
+        ThreadUtils.runOnUiThreadBlocking(dialogContainer::performClick);
         onView(withId(R.id.tab_modal_dialog_container))
                 .check(matches(hasDescendant(withText("1"))));
         checkCurrentPresenter(mManager, ModalDialogType.TAB);
 
         // Enable cancel on touch outside and verify the dialog is dismissed.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> dialog1.set(ModalDialogProperties.CANCEL_ON_TOUCH_OUTSIDE, true));
         assertTrue(dialogContainer.isClickable());
-        TestThreadUtils.runOnUiThreadBlocking(dialogContainer::performClick);
+        ThreadUtils.runOnUiThreadBlocking(dialogContainer::performClick);
         onView(withId(R.id.tab_modal_dialog_container))
                 .check(matches(not(hasDescendant(withText("1")))));
         checkCurrentPresenter(mManager, null);
@@ -506,7 +494,6 @@ public class ChromeTabModalPresenterTest {
     @Test
     @SmallTest
     @Feature({"ModalDialog"})
-    @Features.DisableFeatures({ChromeFeatureList.BACK_GESTURE_REFACTOR})
     public void testDismiss_DismissalCause_BackPressed() throws Exception {
         PropertyModel dialog1 = createDialog(mActivity, mManager, "1", mTestObserver);
         mExpectedDismissalCause = DialogDismissalCause.NAVIGATE_BACK;
@@ -519,14 +506,6 @@ public class ChromeTabModalPresenterTest {
         mTestObserver.onDialogDismissedCallback.waitForCallback(callCount);
 
         mExpectedDismissalCause = null;
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"ModalDialog"})
-    @Features.EnableFeatures({ChromeFeatureList.BACK_GESTURE_REFACTOR})
-    public void testDismiss_DismissalCause_BackPressed_BackPressRefactor() throws Exception {
-        testDismiss_DismissalCause_BackPressed();
     }
 
     @Test
@@ -592,7 +571,7 @@ public class ChromeTabModalPresenterTest {
         Assert.assertEquals(BrowserControlsState.BOTH, getBrowserControlsConstraints());
         showDialog(mManager, dialog1, ModalDialogType.TAB);
         Assert.assertEquals(BrowserControlsState.SHOWN, getBrowserControlsConstraints());
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mManager.dismissDialog(
                                 dialog1, DialogDismissalCause.NEGATIVE_BUTTON_CLICKED));
@@ -607,7 +586,7 @@ public class ChromeTabModalPresenterTest {
     // attached to a Window. See https://crbug.com/1127254 for the specifics.
     public void testDismissAfterRemovingView() throws Throwable {
         PropertyModel dialog1 = createDialog(mActivity, mManager, "1", null);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mManager.showDialog(dialog1, ModalDialogType.TAB);
                     ViewGroup containerParent =
@@ -620,7 +599,7 @@ public class ChromeTabModalPresenterTest {
     }
 
     private @BrowserControlsState int getBrowserControlsConstraints() {
-        return TestThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> mTabModalPresenter.getBrowserControlsVisibilityDelegate().get());
     }
 
@@ -630,7 +609,6 @@ public class ChromeTabModalPresenterTest {
     }
 
     private void pressBack() {
-        TestThreadUtils.runOnUiThreadBlocking(
-                mActivity.getOnBackPressedDispatcher()::onBackPressed);
+        ThreadUtils.runOnUiThreadBlocking(mActivity.getOnBackPressedDispatcher()::onBackPressed);
     }
 }

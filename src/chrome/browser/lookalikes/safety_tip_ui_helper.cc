@@ -5,9 +5,9 @@
 #include "chrome/browser/lookalikes/safety_tip_ui_helper.h"
 
 #include "build/build_config.h"
-#include "chrome/browser/ssl/security_state_tab_helper.h"
 #include "chrome/common/url_constants.h"
 #include "components/security_interstitials/core/common_string_util.h"
+#include "components/security_state/content/security_state_tab_helper.h"
 #include "components/security_state/core/security_state.h"
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
@@ -82,11 +82,10 @@ std::u16string GetSafetyTipTitle(
     case security_state::SafetyTipStatus::kLookalikeIgnored:
     case security_state::SafetyTipStatus::kUnknown:
     case security_state::SafetyTipStatus::kNone:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return std::u16string();
+  NOTREACHED();
 }
 
 std::u16string GetSafetyTipDescription(
@@ -98,10 +97,9 @@ std::u16string GetSafetyTipDescription(
     case security_state::SafetyTipStatus::kLookalikeIgnored:
     case security_state::SafetyTipStatus::kNone:
     case security_state::SafetyTipStatus::kUnknown:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::u16string();
+  NOTREACHED();
 }
 
 int GetSafetyTipLeaveButtonId(security_state::SafetyTipStatus warning_type) {
@@ -111,9 +109,7 @@ int GetSafetyTipLeaveButtonId(security_state::SafetyTipStatus warning_type) {
     case security_state::SafetyTipStatus::kLookalikeIgnored:
     case security_state::SafetyTipStatus::kUnknown:
     case security_state::SafetyTipStatus::kNone:
-      NOTREACHED_IN_MIGRATION();
-      return 0;
+      NOTREACHED();
   }
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }

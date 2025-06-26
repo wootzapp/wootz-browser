@@ -7,6 +7,7 @@
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
+#include "chrome/browser/ui/ui_features.h"
 #include "components/dbus/thread_linux/dbus_thread_linux.h"
 #include "dbus/bus.h"
 #include "dbus/message.h"
@@ -17,21 +18,9 @@
 
 namespace ui {
 
-namespace {
-
-scoped_refptr<dbus::Bus> CreateBus() {
-  dbus::Bus::Options options;
-  options.bus_type = dbus::Bus::SESSION;
-  options.connection_type = dbus::Bus::PRIVATE;
-  options.dbus_task_runner = dbus_thread_linux::GetTaskRunner();
-  return base::MakeRefCounted<dbus::Bus>(options);
-}
-
-}  // namespace
-
 DarkModeManagerLinux::DarkModeManagerLinux()
     : DarkModeManagerLinux(
-          CreateBus(),
+          dbus_thread_linux::GetSharedSessionBus(),
           ui::GetDefaultLinuxUiTheme(),
           &ui::GetLinuxUiThemes(),
           std::vector<raw_ptr<ui::NativeTheme, VectorExperimental>>{
@@ -59,16 +48,32 @@ DarkModeManagerLinux::DarkModeManagerLinux(
                      weak_ptr_factory_.GetWeakPtr()));
 
   // Read initial color scheme preference.
-  dbus::MethodCall method_call(kFreedesktopSettingsInterface, kReadMethod);
-  dbus::MessageWriter writer(&method_call);
-  writer.AppendString(kSettingsNamespace);
-  writer.AppendString(kColorSchemeKey);
-  settings_proxy_->CallMethodWithErrorCallback(
-      &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
-      base::BindOnce(&DarkModeManagerLinux::OnReadColorSchemeResponse,
-                     weak_ptr_factory_.GetWeakPtr()),
-      base::BindOnce(&DarkModeManagerLinux::OnReadColorSchemeError,
-                     weak_ptr_factory_.GetWeakPtr()));
+  {
+    dbus::MethodCall method_call(kFreedesktopSettingsInterface, kReadMethod);
+    dbus::MessageWriter writer(&method_call);
+    writer.AppendString(kSettingsNamespace);
+    writer.AppendString(kColorSchemeKey);
+    settings_proxy_->CallMethodWithErrorCallback(
+        &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
+        base::BindOnce(&DarkModeManagerLinux::OnReadColorSchemeResponse,
+                       weak_ptr_factory_.GetWeakPtr()),
+        base::BindOnce(&DarkModeManagerLinux::OnReadError,
+                       weak_ptr_factory_.GetWeakPtr()));
+  }
+
+  // Read initial accent color preference.
+  if (base::FeatureList::IsEnabled(features::kUsePortalAccentColor)) {
+    dbus::MethodCall method_call(kFreedesktopSettingsInterface, kReadMethod);
+    dbus::MessageWriter writer(&method_call);
+    writer.AppendString(kSettingsNamespace);
+    writer.AppendString(kAccentColorKey);
+    settings_proxy_->CallMethodWithErrorCallback(
+        &method_call, dbus::ObjectProxy::TIMEOUT_USE_DEFAULT,
+        base::BindOnce(&DarkModeManagerLinux::OnReadAccentColorResponse,
+                       weak_ptr_factory_.GetWeakPtr()),
+        base::BindOnce(&DarkModeManagerLinux::OnReadError,
+                       weak_ptr_factory_.GetWeakPtr()));
+  }
 
   // Read the toolkit preference while asynchronously fetching the
   // portal preference.
@@ -79,16 +84,7 @@ DarkModeManagerLinux::DarkModeManagerLinux(
   }
 }
 
-DarkModeManagerLinux::~DarkModeManagerLinux() {
-  settings_proxy_ = nullptr;
-  dbus::Bus* const bus_ptr = bus_.get();
-  // `task_runner` may be nullptr in testing.
-  if (auto* task_runner = bus_ptr->GetDBusTaskRunner()) {
-    task_runner->PostTask(
-        FROM_HERE,
-        base::BindOnce(&dbus::Bus::ShutdownAndBlock, std::move(bus_)));
-  }
-}
+DarkModeManagerLinux::~DarkModeManagerLinux() = default;
 
 void DarkModeManagerLinux::OnNativeThemeUpdated(
     ui::NativeTheme* observed_theme) {
@@ -114,19 +110,23 @@ void DarkModeManagerLinux::OnPortalSettingChanged(dbus::Signal* signal) {
     return;
   }
 
-  if (namespace_changed != kSettingsNamespace ||
-      key_changed != kColorSchemeKey) {
+  if (namespace_changed != kSettingsNamespace) {
     return;
   }
 
-  uint32_t new_color_scheme;
-  if (!variant_reader.PopUint32(&new_color_scheme)) {
-    LOG(ERROR)
-        << "Failed to read color-scheme value from SettingChanged signal";
-    return;
-  }
+  if (key_changed == kColorSchemeKey) {
+    uint32_t new_color_scheme;
+    if (!variant_reader.PopUint32(&new_color_scheme)) {
+      LOG(ERROR)
+          << "Failed to read color-scheme value from SettingChanged signal";
+      return;
+    }
 
-  SetColorScheme(new_color_scheme == kFreedesktopColorSchemeDark, false);
+    SetColorScheme(new_color_scheme == kFreedesktopColorSchemeDark, false);
+  } else if (key_changed == kAccentColorKey &&
+             base::FeatureList::IsEnabled(features::kUsePortalAccentColor)) {
+    SetAccentColor(&variant_reader);
+  }
 }
 
 void DarkModeManagerLinux::OnReadColorSchemeResponse(dbus::Response* response) {
@@ -157,7 +157,29 @@ void DarkModeManagerLinux::OnReadColorSchemeResponse(dbus::Response* response) {
   SetColorScheme(new_color_scheme == kFreedesktopColorSchemeDark, false);
 }
 
-void DarkModeManagerLinux::OnReadColorSchemeError(dbus::ErrorResponse* error) {
+void DarkModeManagerLinux::OnReadAccentColorResponse(dbus::Response* response) {
+  if (!response) {
+    // Continue using the toolkit setting.
+    return;
+  }
+
+  dbus::MessageReader reader(response);
+  dbus::MessageReader outer_variant_reader(nullptr);
+  if (!reader.PopVariant(&outer_variant_reader)) {
+    LOG(ERROR) << "Failed to read variant from Read method response";
+    return;
+  }
+
+  dbus::MessageReader inner_variant_reader(nullptr);
+  if (!outer_variant_reader.PopVariant(&inner_variant_reader)) {
+    LOG(ERROR) << "Failed to read variant from Read method response";
+    return;
+  }
+
+  SetAccentColor(&inner_variant_reader);
+}
+
+void DarkModeManagerLinux::OnReadError(dbus::ErrorResponse* error) {
   // Ignore errors.  It's expected that the settings portal may not exist.
 }
 
@@ -182,6 +204,40 @@ void DarkModeManagerLinux::SetColorScheme(bool prefer_dark_theme,
         prefer_dark_theme_ ? NativeTheme::PreferredColorScheme::kDark
                            : NativeTheme::PreferredColorScheme::kLight);
     theme->NotifyOnNativeThemeUpdated();
+  }
+}
+
+void DarkModeManagerLinux::SetAccentColor(dbus::MessageReader* reader) {
+  dbus::MessageReader struct_reader(nullptr);
+  if (!reader->PopStruct(&struct_reader)) {
+    LOG(ERROR) << "Failed to read struct";
+    return;
+  }
+
+  bool valid = true;
+  int color[3] = {0, 0, 0};
+  for (int& channel : color) {
+    double d;
+    if (!struct_reader.PopDouble(&d)) {
+      LOG(ERROR) << "Failed to read double";
+      return;
+    }
+    if (d >= 0.0 && d <= 1.0) {
+      channel = d * 255;
+    } else {
+      // The org.freedesktop.impl.portal.Settings spec requires out-of-range RGB
+      // values to be treated as unset.
+      valid = false;
+    }
+  }
+
+  std::optional<SkColor> accent_color;
+  if (valid) {
+    accent_color = SkColorSetRGB(color[0], color[1], color[2]);
+  }
+
+  for (ui::LinuxUiTheme* linux_ui_theme : *linux_ui_themes_) {
+    linux_ui_theme->SetAccentColor(accent_color);
   }
 }
 

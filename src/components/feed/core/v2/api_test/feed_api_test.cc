@@ -17,6 +17,7 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/strings/to_string.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "base/time/time.h"
@@ -369,8 +370,6 @@ TestSingleWebFeedSurface::TestSingleWebFeedSurface(
           StreamType(StreamKind::kSingleWebFeed, web_feed_id, entry_point),
           stream,
           entry_point) {}
-TestSupervisedFeedSurface::TestSupervisedFeedSurface(FeedStream* stream)
-    : TestSurfaceBase(StreamType(StreamKind::kSupervisedUser), stream) {}
 
 TestReliabilityLoggingBridge::TestReliabilityLoggingBridge() = default;
 TestReliabilityLoggingBridge::~TestReliabilityLoggingBridge() = default;
@@ -508,8 +507,11 @@ void TestReliabilityLoggingBridge::LogLoadMoreRequestFinished(
 
 void TestReliabilityLoggingBridge::LogLoadMoreEnded(bool success) {
   events_.push_back(
-      base::StrCat({"LogLoadMoreEnded success=", success ? "true" : "false"}));
+      base::StrCat({"LogLoadMoreEnded success=", base::ToString(success)}));
 }
+
+void TestReliabilityLoggingBridge::ReportExperiments(
+    const std::vector<int32_t>& experiment_ids) {}
 
 TestImageFetcher::TestImageFetcher(
     scoped_refptr<::network::SharedURLLoaderFactory> url_loader_factory)
@@ -541,10 +543,11 @@ void TestFeedNetwork::SendQueryRequest(
   query_request_sent = request;
   QueryRequestResult result;
 
-  if (error != net::Error::OK)
+  if (error != net::Error::OK) {
     result.response_info.status_code = error;
-  else
+  } else {
     result.response_info.status_code = http_status_code;
+  }
 
   result.response_info.response_body_bytes = 100;
   result.response_info.fetch_duration = base::Milliseconds(42);
@@ -646,7 +649,8 @@ void TestFeedNetwork::SendDiscoverApiRequest(
         break;
       }
 
-        // For FeedQuery requests, emulate a successful response.
+        // For FeedQuery requests, emulate a response. The status code of the
+        // response is controlled by `error` and `http_status_code` fields.
         // The response body is currently an empty message, because most of
         // the time we want to inject a translated response for ease of
         // test-writing.
@@ -834,7 +838,8 @@ TestWireResponseTranslator::TranslateStreamSource(
         result.model_update_request->stream_data.clear_email();
       } else {
         result.model_update_request->stream_data.set_signed_in(true);
-        result.model_update_request->stream_data.set_gaia(account_info.gaia);
+        result.model_update_request->stream_data.set_gaia(
+            account_info.gaia.ToString());
         result.model_update_request->stream_data.set_email(account_info.email);
       }
     }
@@ -964,10 +969,6 @@ void FeedApiTest::SetUp() {
   image_fetcher_ =
       std::make_unique<TestImageFetcher>(shared_url_loader_factory_);
 
-  // Test initialization of TemplateURLService that defaults to Google as
-  // the default search engine.
-  template_url_service_ = std::make_unique<TemplateURLService>(nullptr, 0);
-
   CreateStream();
 }
 
@@ -996,14 +997,14 @@ bool FeedApiTest::IsOffline() {
 std::string FeedApiTest::GetCountry() {
   return country_;
 }
+void FeedApiTest::SetFeedLaunchCuiMetadata(const std::string& metadata) {
+  feed_launch_cui_metadata_ = metadata;
+}
 AccountInfo FeedApiTest::GetAccountInfo() {
   return account_info_;
 }
 bool FeedApiTest::IsSigninAllowed() {
   return is_signin_allowed_;
-}
-bool FeedApiTest::IsSupervisedAccount() {
-  return is_supervised_account_;
 }
 void FeedApiTest::RegisterFollowingFeedFollowCountFieldTrial(
     size_t follow_count) {
@@ -1041,19 +1042,17 @@ void FeedApiTest::PrefetchImage(const GURL& url) {
 
 void FeedApiTest::CreateStream(
     bool wait_for_initialization,
-    bool start_surface,
     bool is_new_tab_search_engine_url_android_enabled) {
   ChromeInfo chrome_info;
   chrome_info.channel = version_info::Channel::STABLE;
   chrome_info.version = base::Version({99, 1, 9911, 2});
-  chrome_info.start_surface = start_surface;
   chrome_info.is_new_tab_search_engine_url_android_enabled =
       is_new_tab_search_engine_url_android_enabled;
   stream_ = std::make_unique<FeedStream>(
       &refresh_scheduler_, metrics_reporter_.get(), this, &profile_prefs_,
       &network_, image_fetcher_.get(), store_.get(),
-      persistent_key_value_store_.get(), template_url_service_.get(),
-      chrome_info);
+      persistent_key_value_store_.get(),
+      search_engines_test_environment_.template_url_service(), chrome_info);
   stream_->SetWireResponseTranslatorForTesting(&response_translator_);
 
   if (wait_for_initialization)

@@ -20,7 +20,6 @@ import android.view.ViewTreeObserver;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
@@ -29,14 +28,11 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.OmniboxSuggestionsDropdownEmbedder.OmniboxAlignment;
-import org.chromium.components.browser_ui.widget.InsetObserver;
-import org.chromium.components.browser_ui.widget.InsetObserverSupplier;
+import org.chromium.ui.InsetObserver;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.WindowAndroid;
-import org.chromium.ui.base.WindowDelegate;
 import org.chromium.ui.display.DisplayAndroid;
 
 import java.lang.ref.WeakReference;
@@ -62,11 +58,9 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
     // being inadvertently converted to px.
     private static final float DIP_SCALE = 10.0f;
 
-    public @Rule TestRule mProcessor = new Features.JUnitProcessor();
     public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     private @Mock WindowAndroid mWindowAndroid;
-    private @Mock WindowDelegate mWindowDelegate;
     private @Mock ViewTreeObserver mViewTreeObserver;
     private @Mock ViewGroup mContentView;
     private @Mock ViewGroup mAnchorView;
@@ -77,11 +71,12 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
 
     private OmniboxSuggestionsDropdownEmbedderImpl mImpl;
     private WeakReference<Context> mContextWeakRef;
+    private int mBottomWindowPadding;
 
     @Before
     public void setUp() {
         mContextWeakRef = new WeakReference<>(ContextUtils.getApplicationContext());
-        InsetObserverSupplier.setInstanceForTesting(mInsetObserver);
+        doReturn(mInsetObserver).when(mWindowAndroid).getInsetObserver();
         doReturn(mContextWeakRef).when(mWindowAndroid).getContext();
         doReturn(mContextWeakRef.get()).when(mAnchorView).getContext();
         doReturn(mViewTreeObserver).when(mAnchorView).getViewTreeObserver();
@@ -100,11 +95,12 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
         mImpl =
                 new OmniboxSuggestionsDropdownEmbedderImpl(
                         mWindowAndroid,
-                        mWindowDelegate,
                         mAnchorView,
                         mHorizontalAlignmentView,
                         false,
-                        null);
+                        mContentView,
+                        () -> 0,
+                        () -> mBottomWindowPadding);
     }
 
     @Test
@@ -138,6 +134,40 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         ANCHOR_WIDTH,
                         getExpectedHeight(ANCHOR_HEIGHT + ANCHOR_TOP),
                         0,
+                        0,
+                        0),
+                alignment);
+    }
+
+    @Test
+    public void testRecalculateOmniboxAlignment_bottomWindowPadding() {
+        mBottomWindowPadding = 40;
+        doReturn(mAnchorView).when(mHorizontalAlignmentView).getParent();
+        doReturn(60).when(mHorizontalAlignmentView).getTop();
+        mImpl.recalculateOmniboxAlignment();
+        OmniboxAlignment alignment = mImpl.getCurrentAlignment();
+        assertEquals(
+                new OmniboxAlignment(
+                        0,
+                        ANCHOR_HEIGHT + ANCHOR_TOP,
+                        ANCHOR_WIDTH,
+                        getExpectedHeight(ANCHOR_HEIGHT + ANCHOR_TOP) + 40,
+                        0,
+                        0,
+                        40),
+                alignment);
+
+        mBottomWindowPadding = 0;
+        mImpl.recalculateOmniboxAlignment();
+        alignment = mImpl.getCurrentAlignment();
+        assertEquals(
+                new OmniboxAlignment(
+                        0,
+                        ANCHOR_HEIGHT + ANCHOR_TOP,
+                        ANCHOR_WIDTH,
+                        getExpectedHeight(ANCHOR_HEIGHT + ANCHOR_TOP),
+                        0,
+                        0,
                         0),
                 alignment);
     }
@@ -148,6 +178,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
         doReturn(mIntermediateView).when(mAnchorView).getParent();
         doReturn(mContentView).when(mIntermediateView).getParent();
         doReturn(INTERMEDIATE_VIEW_TOP).when(mIntermediateView).getTop();
+        doReturn(Integer.MAX_VALUE).when(mIntermediateView).getMeasuredHeight();
 
         doReturn(mAnchorView).when(mHorizontalAlignmentView).getParent();
         doReturn(60).when(mHorizontalAlignmentView).getTop();
@@ -155,11 +186,12 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
         OmniboxSuggestionsDropdownEmbedderImpl impl =
                 new OmniboxSuggestionsDropdownEmbedderImpl(
                         mWindowAndroid,
-                        mWindowDelegate,
                         mAnchorView,
                         mHorizontalAlignmentView,
                         false,
-                        mIntermediateView);
+                        mIntermediateView,
+                        () -> 0,
+                        () -> 0);
         impl.recalculateOmniboxAlignment();
         OmniboxAlignment alignment = impl.getCurrentAlignment();
         assertEquals(
@@ -168,6 +200,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         ANCHOR_HEIGHT + ANCHOR_TOP,
                         ANCHOR_WIDTH,
                         getExpectedHeight(ANCHOR_HEIGHT + ANCHOR_TOP),
+                        0,
                         0,
                         0),
                 alignment);
@@ -187,6 +220,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         ANCHOR_WIDTH,
                         getExpectedHeight(ANCHOR_HEIGHT + ANCHOR_TOP - 13),
                         0,
+                        0,
                         0),
                 alignment);
     }
@@ -203,6 +237,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         ANCHOR_HEIGHT + ANCHOR_TOP,
                         ANCHOR_WIDTH,
                         getExpectedHeight(ANCHOR_HEIGHT + ANCHOR_TOP),
+                        0,
                         0,
                         0),
                 alignment);
@@ -224,6 +259,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         ALIGNMENT_WIDTH + 2 * sideSpacing,
                         getExpectedHeight(expectedTop),
                         0,
+                        0,
                         0),
                 alignment);
 
@@ -238,6 +274,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         ANCHOR_HEIGHT + ANCHOR_TOP,
                         ANCHOR_WIDTH,
                         getExpectedHeight(ANCHOR_HEIGHT + ANCHOR_TOP),
+                        0,
                         0,
                         0),
                 newAlignment);
@@ -260,6 +297,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         ANCHOR_WIDTH,
                         getExpectedHeight(ANCHOR_HEIGHT + ANCHOR_TOP),
                         0,
+                        0,
                         0),
                 alignment);
 
@@ -275,6 +313,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         expectedTop,
                         ALIGNMENT_WIDTH + 2 * sideSpacing,
                         getExpectedHeight(expectedTop),
+                        0,
                         0,
                         0),
                 newAlignment);
@@ -308,6 +347,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         ALIGNMENT_WIDTH + 2 * sideSpacing,
                         getExpectedHeight(expectedTop),
                         0,
+                        0,
                         0),
                 alignment);
     }
@@ -329,6 +369,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         expectedTop,
                         expectedWidth,
                         getExpectedHeight(expectedTop),
+                        0,
                         0,
                         0),
                 alignment);
@@ -355,6 +396,7 @@ public class OmniboxSuggestionsDropdownEmbedderImplTest {
                         top,
                         ALIGNMENT_WIDTH + 2 * sideSpacing,
                         getExpectedHeight(top),
+                        0,
                         0,
                         0),
                 alignment);

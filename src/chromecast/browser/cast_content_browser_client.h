@@ -20,6 +20,7 @@
 #include "chromecast/metrics/cast_metrics_service_client.h"
 #include "content/public/browser/certificate_request_result_type.h"
 #include "content/public/browser/content_browser_client.h"
+#include "content/public/browser/frame_tree_node_id.h"
 #include "media/mojo/buildflags.h"
 #include "media/mojo/mojom/media_service.mojom.h"
 #include "media/mojo/mojom/renderer.mojom.h"
@@ -181,8 +182,9 @@ class CastContentBrowserClient
                                       int child_process_id) override;
   std::string GetAcceptLangs(content::BrowserContext* context) override;
   network::mojom::NetworkContext* GetSystemNetworkContext() override;
-  void OverrideWebkitPrefs(content::WebContents* web_contents,
-                           blink::web_pref::WebPreferences* prefs) override;
+  void OverrideWebPreferences(content::WebContents* web_contents,
+                              content::SiteInstance& main_frame_site,
+                              blink::web_pref::WebPreferences* prefs) override;
   std::string GetApplicationLocale() override;
   void AllowCertificateError(
       content::WebContents* web_contents,
@@ -195,6 +197,7 @@ class CastContentBrowserClient
       override;
   base::OnceClosure SelectClientCertificate(
       content::BrowserContext* browser_context,
+      int process_id,
       content::WebContents* web_contents,
       net::SSLCertRequestInfo* cert_request_info,
       net::ClientCertIdentityList client_certs,
@@ -260,14 +263,6 @@ class CastContentBrowserClient
   PrivateNetworkRequestPolicyOverride ShouldOverridePrivateNetworkRequestPolicy(
       content::BrowserContext* browser_context,
       const url::Origin& origin) override;
-  std::vector<std::unique_ptr<blink::URLLoaderThrottle>>
-  CreateURLLoaderThrottles(
-      const network::ResourceRequest& request,
-      content::BrowserContext* browser_context,
-      const base::RepeatingCallback<content::WebContents*()>& wc_getter,
-      content::NavigationUIData* navigation_ui_data,
-      int frame_tree_node_id,
-      std::optional<int64_t> navigation_id) override;
 
   CastFeatureListCreator* GetCastFeatureListCreator() {
     return cast_feature_list_creator_;

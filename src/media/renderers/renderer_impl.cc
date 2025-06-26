@@ -203,14 +203,23 @@ void RendererImpl::SetPreservesPitch(bool preserves_pitch) {
     audio_renderer_->SetPreservesPitch(preserves_pitch);
 }
 
-void RendererImpl::SetWasPlayedWithUserActivation(
-    bool was_played_with_user_activation) {
+void RendererImpl::SetRenderMutedAudio(bool render_muted_audio) {
+  DVLOG(1) << __func__;
+  DCHECK(task_runner_->RunsTasksInCurrentSequence());
+
+  if (audio_renderer_) {
+    audio_renderer_->SetRenderMutedAudio(render_muted_audio);
+  }
+}
+
+void RendererImpl::SetWasPlayedWithUserActivationAndHighMediaEngagement(
+    bool was_played_with_user_activation_and_high_media_engagement) {
   DVLOG(1) << __func__;
   DCHECK(task_runner_->RunsTasksInCurrentSequence());
 
   if (audio_renderer_)
-    audio_renderer_->SetWasPlayedWithUserActivation(
-        was_played_with_user_activation);
+    audio_renderer_->SetWasPlayedWithUserActivationAndHighMediaEngagement(
+        was_played_with_user_activation_and_high_media_engagement);
 }
 
 void RendererImpl::Flush(base::OnceClosure flush_cb) {
@@ -833,8 +842,7 @@ void RendererImpl::PausePlayback() {
     case STATE_UNINITIALIZED:
     case STATE_INIT_PENDING_CDM:
     case STATE_INITIALIZING:
-      NOTREACHED_IN_MIGRATION() << "Invalid state: " << state_;
-      break;
+      NOTREACHED() << "Invalid state: " << state_;
 
     case STATE_ERROR:
       // An error state may occur at any time.

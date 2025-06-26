@@ -4,6 +4,8 @@
 
 package org.chromium.android_webview.test;
 
+import static org.chromium.android_webview.test.OnlyRunIn.ProcessMode.EITHER_PROCESS;
+
 import android.os.Looper;
 
 import androidx.test.InstrumentationRegistry;
@@ -21,18 +23,19 @@ import org.junit.runners.Parameterized.UseParametersRunnerFactory;
 import org.chromium.android_webview.AwBrowserProcess;
 import org.chromium.android_webview.AwContents;
 import org.chromium.android_webview.AwCookieManager;
-import org.chromium.android_webview.test.util.CommonResources;
+import org.chromium.android_webview.AwWebResourceRequest;
 import org.chromium.android_webview.test.util.CookieUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.components.embedder_support.util.WebResourceResponseInfo;
-import org.chromium.net.test.util.TestWebServer;
+import org.chromium.net.test.EmbeddedTestServer;
+import org.chromium.net.test.ServerCertificate;
 
 /**
  * Tests for CookieManager/Chromium startup ordering weirdness.
  *
- * This tests various cases around ordering of calls to CookieManager at startup, and thus is
+ * <p>This tests various cases around ordering of calls to CookieManager at startup, and thus is
  * separate from the normal CookieManager tests so it can control call ordering carefully.
  */
 @RunWith(Parameterized.class)
@@ -44,7 +47,9 @@ public class CookieManagerStartupTest extends AwParameterizedTest {
         mActivityTestRule =
                 new AwActivityTestRule(param.getMutation()) {
                     @Override
-                    public boolean needsAwBrowserContextCreated() {
+                    public boolean needsNativeInitialized() {
+                        // We don't want native to be initialized by default, as some CookieManager
+                        // tests here rely on it not being initialized by default.
                         return false;
                     }
 
@@ -76,12 +81,10 @@ public class CookieManagerStartupTest extends AwParameterizedTest {
     }
 
     /**
-     * Called when a test wants to initiate normal Chromium process startup, after
-     * doing any CookieManager calls that are supposed to happen before the UI thread
-     * is committed.
+     * Called when a test wants to initiate normal Chromium process startup, after doing any
+     * CookieManager calls that are supposed to happen before the UI thread is committed.
      */
     private void startChromiumWithClient(TestAwContentsClient contentsClient) {
-        mActivityTestRule.createAwBrowserContext();
         mActivityTestRule.startBrowserProcess();
         mContentsClient = contentsClient;
         final AwTestContainerView testContainerView =
@@ -96,10 +99,11 @@ public class CookieManagerStartupTest extends AwParameterizedTest {
     @CommandLineFlags.Add("disable-partitioned-cookies")
     public void testStartup() throws Throwable {
         ThreadUtils.setWillOverrideUiThread();
-        TestWebServer webServer = TestWebServer.start();
+        EmbeddedTestServer webServer =
+                EmbeddedTestServer.createAndStartHTTPSServer(
+                        InstrumentationRegistry.getContext(), ServerCertificate.CERT_OK);
         try {
-            String path = "/cookie_test.html";
-            String url = webServer.setResponse(path, CommonResources.ABOUT_HTML, null);
+            String url = webServer.getURL("/android_webview/test/data/hello_world.html");
 
             // Verify that we can use AwCookieManager successfully before having started Chromium.
             AwCookieManager cookieManager = new AwCookieManager();
@@ -129,12 +133,13 @@ public class CookieManagerStartupTest extends AwParameterizedTest {
             // Mojo store.
             Assert.assertEquals("partitioned_cookie=123; count=42", cookieManager.getCookie(url));
         } finally {
-            webServer.shutdown();
+            webServer.stopAndDestroyServer();
         }
     }
 
     @Test
     @SmallTest
+    @OnlyRunIn(EITHER_PROCESS) // This test doesn't use the renderer process
     @Feature({"AndroidWebView", "Privacy"})
     public void testAllowFileSchemeCookies() {
         AwCookieManager cookieManager = new AwCookieManager();
@@ -147,6 +152,7 @@ public class CookieManagerStartupTest extends AwParameterizedTest {
 
     @Test
     @SmallTest
+    @OnlyRunIn(EITHER_PROCESS) // This test doesn't use the renderer process
     @Feature({"AndroidWebView", "Privacy"})
     public void testAllowCookies() {
         AwCookieManager cookieManager = new AwCookieManager();
@@ -170,7 +176,7 @@ public class CookieManagerStartupTest extends AwParameterizedTest {
                     @Override
                     public WebResourceResponseInfo shouldInterceptRequest(
                             AwWebResourceRequest request) {
-                        (new AwCookieManager()).getCookie("www.example.com");
+                        new AwCookieManager().getCookie("www.example.com");
                         return null;
                     }
                 };

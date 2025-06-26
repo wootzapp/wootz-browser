@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.price_change;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.chrome.browser.preferences.ChromePreferenceKeys.PRICE_TRACKING_IDS_FOR_TABS_WITH_PRICE_DROP;
 
 import android.content.Context;
@@ -15,6 +16,7 @@ import android.graphics.drawable.Drawable;
 import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.magic_stack.ModuleDelegate;
 import org.chromium.chrome.browser.magic_stack.ModuleDelegate.ModuleType;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
@@ -23,10 +25,10 @@ import org.chromium.chrome.browser.price_tracking.PriceTrackingUtilities;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.state.ShoppingPersistedTabData;
+import org.chromium.chrome.browser.tab.state.ShoppingPersistedTabData.PriceDrop;
 import org.chromium.chrome.browser.tab.state.ShoppingPersistedTabDataService;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
-import org.chromium.chrome.browser.tabmodel.TabModelUtils;
 import org.chromium.chrome.browser.ui.favicon.FaviconHelper;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.image_fetcher.ImageFetcher;
@@ -38,6 +40,7 @@ import java.util.Set;
 /**
  * Mediator for the price change module which can be embedded by surfaces like NTP or Start surface.
  */
+@NullMarked
 public class PriceChangeModuleMediator implements TabModelSelectorObserver {
 
     private final Context mContext;
@@ -78,7 +81,7 @@ public class PriceChangeModuleMediator implements TabModelSelectorObserver {
                     if (!PriceTrackingUtilities.TRACK_PRICES_ON_TABS.equals(key)) return;
                     if (!sharedPrefs.getBoolean(
                             PriceTrackingUtilities.TRACK_PRICES_ON_TABS,
-                            PriceTrackingFeatures.isPriceTrackingEnabled(profile))) {
+                            PriceTrackingFeatures.isPriceAnnotationsEnabled(profile))) {
                         mModuleDelegate.removeModule(getModuleType());
                     }
                 };
@@ -98,8 +101,7 @@ public class PriceChangeModuleMediator implements TabModelSelectorObserver {
             for (String tabIdString :
                     manager.readStringSet(PRICE_TRACKING_IDS_FOR_TABS_WITH_PRICE_DROP)) {
                 tabList.add(
-                        TabModelUtils.getTabById(
-                                mTabModelSelector.getModel(false), Integer.valueOf(tabIdString)));
+                        mTabModelSelector.getModel(false).getTabById(Integer.valueOf(tabIdString)));
             }
 
             mShoppingPersistedTabDataService.initialize(tabList);
@@ -114,13 +116,12 @@ public class PriceChangeModuleMediator implements TabModelSelectorObserver {
                     Tab tab = res.get(0).getTab();
                     // Check if tab is in the current tab model for multi-window case.
                     if (tab == null
-                            || TabModelUtils.getTabById(
-                                            mTabModelSelector.getModel(false), tab.getId())
-                                    == null) {
+                            || mTabModelSelector.getModel(false).getTabById(tab.getId()) == null) {
                         mModuleDelegate.onDataFetchFailed(mModuleType);
                         return;
                     }
                     ShoppingPersistedTabData data = res.get(0).getData();
+                    PriceDrop priceDrop = assumeNonNull(data.getPriceDrop());
                     mModel.set(
                             PriceChangeModuleProperties.MODULE_TITLE,
                             mContext.getResources()
@@ -133,10 +134,10 @@ public class PriceChangeModuleMediator implements TabModelSelectorObserver {
                             data.getProductTitle());
                     mModel.set(
                             PriceChangeModuleProperties.MODULE_CURRENT_PRICE_STRING,
-                            data.getPriceDrop().price);
+                            priceDrop.price);
                     mModel.set(
                             PriceChangeModuleProperties.MODULE_PREVIOUS_PRICE_STRING,
-                            data.getPriceDrop().previousPrice);
+                            priceDrop.previousPrice);
                     String domain =
                             UrlUtilities.getDomainAndRegistry(
                                     res.get(0).getTab().getUrl().getSpec(), false);
@@ -185,7 +186,7 @@ public class PriceChangeModuleMediator implements TabModelSelectorObserver {
 
                     ImageFetcher.Params params =
                             ImageFetcher.Params.create(
-                                    data.getProductImageUrl(),
+                                    assumeNonNull(data.getProductImageUrl()),
                                     ImageFetcher.PRICE_CHANGE_MODULE_NAME);
                     mImageFetcher.fetchImage(
                             params,
@@ -201,6 +202,7 @@ public class PriceChangeModuleMediator implements TabModelSelectorObserver {
         mSharedPreferences.unregisterOnSharedPreferenceChangeListener(
                 mPriceAnnotationsPrefListener);
         mTabModelSelector.removeObserver(this);
+        mFaviconHelper.destroy();
     }
 
     int getModuleType() {

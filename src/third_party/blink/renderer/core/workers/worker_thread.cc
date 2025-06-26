@@ -26,8 +26,10 @@
 
 #include "third_party/blink/renderer/core/workers/worker_thread.h"
 
+#include <atomic>
 #include <limits>
 #include <memory>
+#include <thread>
 #include <utility>
 
 #include "base/metrics/histogram_functions.h"
@@ -171,23 +173,6 @@ void WorkerThread::Start(
     std::unique_ptr<WorkerDevToolsParams> devtools_params) {
   DCHECK_CALLED_ON_VALID_THREAD(parent_thread_checker_);
   devtools_worker_token_ = devtools_params->devtools_worker_token;
-
-  // Synchronously initialize the per-global-scope scheduler to prevent someone
-  // from posting a task to the thread before the scheduler is ready.
-  base::WaitableEvent waitable_event;
-  PostCrossThreadTask(
-      *GetWorkerBackingThread().BackingThread().GetTaskRunner(), FROM_HERE,
-      CrossThreadBindOnce(&WorkerThread::InitializeSchedulerOnWorkerThread,
-                          CrossThreadUnretained(this),
-                          CrossThreadUnretained(&waitable_event)));
-  {
-    base::ScopedAllowBaseSyncPrimitives allow_wait;
-    waitable_event.Wait();
-  }
-
-  inspector_task_runner_ =
-      InspectorTaskRunner::Create(GetTaskRunner(TaskType::kInternalInspector));
-
   PostCrossThreadTask(
       *GetWorkerBackingThread().BackingThread().GetTaskRunner(), FROM_HERE,
       CrossThreadBindOnce(&WorkerThread::InitializeOnWorkerThread,
@@ -240,8 +225,7 @@ void WorkerThread::FetchAndRunModuleScript(
     std::unique_ptr<CrossThreadFetchClientSettingsObjectData>
         outside_settings_object_data,
     WorkerResourceTimingNotifier* outside_resource_timing_notifier,
-    network::mojom::CredentialsMode credentials_mode,
-    RejectCoepUnsafeNone reject_coep_unsafe_none) {
+    network::mojom::CredentialsMode credentials_mode) {
   DCHECK_CALLED_ON_VALID_THREAD(parent_thread_checker_);
   PostCrossThreadTask(
       *GetTaskRunner(TaskType::kDOMManipulation), FROM_HERE,
@@ -251,7 +235,7 @@ void WorkerThread::FetchAndRunModuleScript(
           std::move(worker_main_script_load_params),
           std::move(policy_container), std::move(outside_settings_object_data),
           WrapCrossThreadPersistent(outside_resource_timing_notifier),
-          credentials_mode, reject_coep_unsafe_none.value()));
+          credentials_mode));
 }
 
 void WorkerThread::Pause() {
@@ -288,7 +272,7 @@ void WorkerThread::Terminate() {
   // shutdown sequence does not start on the worker thread in a certain time
   // period.
   ScheduleToTerminateScriptExecution();
-
+  MakeSureTaskRunnersAreInitialized();
   inspector_task_runner_->Dispose();
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner =
@@ -409,8 +393,7 @@ bool WorkerThread::IsForciblyTerminated() {
     case ExitCode::kAsyncForciblyTerminated:
       return true;
   }
-  NOTREACHED_IN_MIGRATION() << static_cast<int>(exit_code_);
-  return false;
+  NOTREACHED() << static_cast<int>(exit_code_);
 }
 
 void WorkerThread::WaitForShutdownForTesting() {
@@ -431,8 +414,7 @@ scheduler::WorkerScheduler* WorkerThread::GetScheduler() {
 
 scoped_refptr<base::SingleThreadTaskRunner> WorkerThread::GetTaskRunner(
     TaskType type) {
-  // Task runners must be captured when the worker scheduler is initialized. See
-  // comments in InitializeSchedulerOnWorkerThread().
+  MakeSureTaskRunnersAreInitialized();
   CHECK(worker_task_runners_.Contains(type)) << static_cast<int>(type);
   return worker_task_runners_.at(type);
 }
@@ -507,8 +489,7 @@ WorkerThread::TerminationState WorkerThread::ShouldTerminateScriptExecution() {
                  ? TerminationState::kTerminate
                  : TerminationState::kTerminationUnnecessary;
   }
-  NOTREACHED_IN_MIGRATION();
-  return TerminationState::kTerminationUnnecessary;
+  NOTREACHED();
 }
 
 void WorkerThread::EnsureScriptExecutionTerminates(ExitCode exit_code) {
@@ -532,8 +513,17 @@ void WorkerThread::EnsureScriptExecutionTerminates(ExitCode exit_code) {
   forcible_termination_task_handle_.Cancel();
 }
 
-void WorkerThread::InitializeSchedulerOnWorkerThread(
-    base::WaitableEvent* waitable_event) {
+void WorkerThread::MakeSureTaskRunnersAreInitialized() {
+  while (!worker_task_runners_initialized_.load(std::memory_order_acquire))
+      [[unlikely]] {
+    std::this_thread::yield();
+  }
+}
+
+void WorkerThread::InitializeOnWorkerThread(
+    std::unique_ptr<GlobalScopeCreationParams> global_scope_creation_params,
+    const std::optional<WorkerBackingThreadStartupData>& thread_startup_data,
+    std::unique_ptr<WorkerDevToolsParams> devtools_params) {
   DCHECK(IsCurrentThread());
   DCHECK(!worker_scheduler_);
 
@@ -570,6 +560,7 @@ void WorkerThread::InitializeSchedulerOnWorkerThread(
       TaskType::kJavascriptTimerDelayedLowNesting,
       TaskType::kJavascriptTimerDelayedHighNesting,
       TaskType::kMediaElementEvent,
+      TaskType::kMachineLearning,
       TaskType::kMicrotask,
       TaskType::kMiscPlatformAPI,
       TaskType::kNetworking,
@@ -592,14 +583,11 @@ void WorkerThread::InitializeSchedulerOnWorkerThread(
     auto result = worker_task_runners_.insert(type, std::move(task_runner));
     DCHECK(result.is_new_entry);
   }
+  inspector_task_runner_ = InspectorTaskRunner::Create(
+      worker_task_runners_.at(TaskType::kInternalInspector));
+  worker_task_runners_initialized_.store(true, std::memory_order_release);
 
-  waitable_event->Signal();
-}
-
-void WorkerThread::InitializeOnWorkerThread(
-    std::unique_ptr<GlobalScopeCreationParams> global_scope_creation_params,
-    const std::optional<WorkerBackingThreadStartupData>& thread_startup_data,
-    std::unique_ptr<WorkerDevToolsParams> devtools_params) {
+  base::ElapsedTimer timer;
   DCHECK(IsCurrentThread());
   backing_thread_weak_factory_.emplace(this);
   worker_reporting_proxy_.WillInitializeWorkerContext();
@@ -623,6 +611,12 @@ void WorkerThread::InitializeOnWorkerThread(
     const KURL url_for_debugger = global_scope_creation_params->script_url;
 
     console_message_storage_ = MakeGarbageCollected<ConsoleMessageStorage>();
+    // Record this only for the DedicatedWorker.
+    if (global_scope_creation_params->dedicated_worker_start_time.has_value()) {
+      base::UmaHistogramTimes(
+          "Worker.TopLevelScript.Initialization2GlobalScopeCreation",
+          timer.Elapsed());
+    }
     global_scope_ =
         CreateWorkerGlobalScope(std::move(global_scope_creation_params));
     worker_scheduler_->InitializeOnWorkerThread(global_scope_);
@@ -719,8 +713,7 @@ void WorkerThread::FetchAndRunModuleScriptOnWorkerThread(
     std::unique_ptr<CrossThreadFetchClientSettingsObjectData>
         outside_settings_object,
     WorkerResourceTimingNotifier* outside_resource_timing_notifier,
-    network::mojom::CredentialsMode credentials_mode,
-    bool reject_coep_unsafe_none) {
+    network::mojom::CredentialsMode credentials_mode) {
   if (!outside_resource_timing_notifier) {
     outside_resource_timing_notifier =
         MakeGarbageCollected<NullWorkerResourceTimingNotifier>();
@@ -735,8 +728,7 @@ void WorkerThread::FetchAndRunModuleScriptOnWorkerThread(
               std::move(policy_container)),
           *MakeGarbageCollected<FetchClientSettingsObjectSnapshot>(
               std::move(outside_settings_object)),
-          *outside_resource_timing_notifier, credentials_mode,
-          RejectCoepUnsafeNone(reject_coep_unsafe_none));
+          *outside_resource_timing_notifier, credentials_mode);
 }
 
 void WorkerThread::PrepareForShutdownOnWorkerThread() {
@@ -768,6 +760,7 @@ void WorkerThread::PrepareForShutdownOnWorkerThread() {
   // are observer of the |GlobalScope()| (see the DedicatedWorker class) and
   // they initiate thread termination on destruction of the parent context.
   GlobalScope()->NotifyContextDestroyed();
+  GetIsolate()->ContextDisposedNotification(/*dependant_context=*/false);
 
   worker_scheduler_->Dispose();
 
@@ -827,8 +820,7 @@ void WorkerThread::PerformShutdownOnWorkerThread() {
 void WorkerThread::SetThreadState(ThreadState next_thread_state) {
   switch (next_thread_state) {
     case ThreadState::kNotStarted:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     case ThreadState::kRunning:
       DCHECK_EQ(ThreadState::kNotStarted, thread_state_);
       thread_state_ = next_thread_state;

@@ -53,8 +53,9 @@ constexpr char kSnapWindowDeviceOrientationHistogramName[] =
     "Ash.Window.Snap.DeviceOrientation";
 
 gfx::Size GetWindowMaximumSize(aura::Window* window) {
-  return window->delegate() ? window->delegate()->GetMaximumSize()
-                            : gfx::Size();
+  return window->delegate()
+             ? window->delegate()->GetMaximumSize().value_or(gfx::Size())
+             : gfx::Size();
 }
 
 // Moves the window to the specified display if necessary.
@@ -270,7 +271,7 @@ void DefaultState::HandleWorkspaceEvents(WindowState* window_state,
       return;
     }
     default:
-      NOTREACHED_IN_MIGRATION() << "Unknown event:" << event->type();
+      NOTREACHED() << "Unknown event:" << event->type();
   }
 }
 
@@ -289,10 +290,16 @@ void DefaultState::HandleCompoundEvents(WindowState* window_state,
       gfx::Rect work_area =
           screen_util::GetDisplayWorkAreaBoundsInParent(window);
       // Maximize vertically if:
+      // - The window is resizable and maximizable
       // - The window does not have a max height defined.
       // - The window is floated or has the normal state type. Snapped windows
       //   are excluded because they are already maximized vertically and
       //   reverting to the restored bounds looks weird.
+      if (!window_state->CanResize() || !window_state->CanMaximize()) {
+        wm::AnimateWindow(window_state->window(),
+                          wm::WINDOW_ANIMATION_TYPE_BOUNCE);
+        return;
+      }
       if (GetWindowMaximumSize(window).height() != 0)
         return;
       if (!window_state->IsNormalStateType() && !window_state->IsFloated())
@@ -310,8 +317,14 @@ void DefaultState::HandleCompoundEvents(WindowState* window_state,
     }
     case WM_EVENT_TOGGLE_HORIZONTAL_MAXIMIZE: {
       // Maximize horizontally if:
+      // - The window is resizable and maximizable
       // - The window does not have a max width defined.
       // - The window is snapped or floated or has the normal state type.
+      if (!window_state->CanResize() || !window_state->CanMaximize()) {
+        wm::AnimateWindow(window_state->window(),
+                          wm::WINDOW_ANIMATION_TYPE_BOUNCE);
+        return;
+      }
       if (GetWindowMaximumSize(window).width() != 0)
         return;
       if (!window_state->IsNormalOrSnapped() && !window_state->IsFloated())
@@ -344,8 +357,7 @@ void DefaultState::HandleCompoundEvents(WindowState* window_state,
       CycleSnap(window_state, event->type());
       return;
     default:
-      NOTREACHED_IN_MIGRATION() << "Unknown event:" << event->type();
-      break;
+      NOTREACHED() << "Unknown event:" << event->type();
   }
 }
 
@@ -358,8 +370,7 @@ void DefaultState::HandleBoundsEvents(WindowState* window_state,
       SetBounds(window_state, set_bounds_event);
     } break;
     default:
-      NOTREACHED_IN_MIGRATION() << "Unknown event:" << event->type();
-      break;
+      NOTREACHED() << "Unknown event:" << event->type();
   }
 }
 
@@ -387,7 +398,8 @@ void DefaultState::HandleTransitionEvents(WindowState* window_state,
     return;
   }
 
-  if (type == WM_EVENT_SNAP_PRIMARY || type == WM_EVENT_SNAP_SECONDARY) {
+  if ((type == WM_EVENT_SNAP_PRIMARY || type == WM_EVENT_SNAP_SECONDARY) &&
+      window_state->CanSnap()) {
     HandleWindowSnapping(window_state, type,
                          event->AsSnapEvent()->snap_action_source());
   }

@@ -2,15 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <utility>
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
 
 #include "net/filter/brotli_source_stream.h"
+
+#include <utility>
 
 #include "base/check_op.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "net/base/io_buffer.h"
+#include "net/filter/source_stream_type.h"
 #include "third_party/brotli/include/brotli/decode.h"
 #include "third_party/brotli/include/brotli/shared_dictionary.h"
 
@@ -27,7 +33,7 @@ class BrotliSourceStream : public FilterSourceStream {
   explicit BrotliSourceStream(std::unique_ptr<SourceStream> upstream,
                               scoped_refptr<IOBuffer> dictionary = nullptr,
                               size_t dictionary_size = 0u)
-      : FilterSourceStream(SourceStream::TYPE_BROTLI, std::move(upstream)),
+      : FilterSourceStream(SourceStreamType::kBrotli, std::move(upstream)),
         dictionary_(std::move(dictionary)),
         dictionary_size_(dictionary_size) {
     brotli_state_ =

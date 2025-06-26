@@ -5,7 +5,6 @@
 #ifndef MEDIA_GPU_WINDOWS_SUPPORTED_PROFILE_HELPERS_H_
 #define MEDIA_GPU_WINDOWS_SUPPORTED_PROFILE_HELPERS_H_
 
-#include <d3d12.h>
 #include <initguid.h>
 
 #include "base/containers/flat_map.h"
@@ -13,7 +12,7 @@
 #include "media/base/video_codecs.h"
 #include "media/base/video_types.h"
 #include "media/gpu/media_gpu_export.h"
-#include "media/gpu/windows/d3d11_com_defs.h"
+#include "media/gpu/windows/d3d_com_defs.h"
 #include "media/media_buildflags.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -119,11 +118,22 @@ DEFINE_GUID(DXVA_ModeHEVC_VLD_Main444_12_Intel,
             0xc1,
             0x97);
 
-// Get the private GUID for HEVC range extension profile supported by Intel.
+// Get the GUID for HEVC range extension profile. If
+// `use_dxva_device_for_hevc_rext` is false, return the Intel specific GUIDs.
+// Otherwise return the GUID defined in Windows SDK.
 MEDIA_GPU_EXPORT GUID
-GetHEVCRangeExtensionPrivateGUID(uint8_t bitdepth,
-                                 VideoChromaSampling chroma_sampling);
+GetHEVCRangeExtensionGUID(uint8_t bitdepth,
+                          VideoChromaSampling chroma_sampling,
+                          bool use_dxva_device_for_hevc_rext);
+
+// Check if the device supports HEVC range extension profiles through standard
+// DXVA devices.
+MEDIA_GPU_EXPORT bool SupportsHEVCRangeExtensionDXVAProfile(
+    ComD3D11Device device);
 #endif  // BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
+
+// Get the GPU vendor ID from the DXGI device.
+MEDIA_GPU_EXPORT UINT GetGPUVendorID(ComDXGIDevice device);
 
 // Get the DXGI_FORMAT for the video decoder output texture, according to the
 // bit depth and chroma sampling format.
@@ -153,7 +163,7 @@ SupportedResolutionRangeMap GetSupportedD3D11VideoDecoderResolutions(
 
 MEDIA_GPU_EXPORT
 SupportedResolutionRangeMap GetSupportedD3D12VideoDecoderResolutions(
-    Microsoft::WRL::ComPtr<ID3D12Device> device,
+    ComD3D12Device device,
     const gpu::GpuDriverBugWorkarounds& workarounds);
 
 }  // namespace media

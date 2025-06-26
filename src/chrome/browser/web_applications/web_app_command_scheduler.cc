@@ -26,6 +26,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_applications/commands/clear_browsing_data_command.h"
 #include "chrome/browser/web_applications/commands/compute_app_size_command.h"
+#include "chrome/browser/web_applications/commands/computed_app_size.h"
 #include "chrome/browser/web_applications/commands/dedupe_install_urls_command.h"
 #include "chrome/browser/web_applications/commands/external_app_resolution_command.h"
 #include "chrome/browser/web_applications/commands/fetch_install_info_from_install_url_command.h"
@@ -42,18 +43,21 @@
 #include "chrome/browser/web_applications/commands/os_integration_synchronize_command.h"
 #include "chrome/browser/web_applications/commands/run_on_os_login_command.h"
 #include "chrome/browser/web_applications/commands/set_user_display_mode_command.h"
+#include "chrome/browser/web_applications/commands/uninstall_all_user_installed_web_apps_command.h"
 #include "chrome/browser/web_applications/commands/update_file_handler_command.h"
 #include "chrome/browser/web_applications/commands/update_protocol_handler_approval_command.h"
 #include "chrome/browser/web_applications/commands/web_app_icon_diagnostic_command.h"
 #include "chrome/browser/web_applications/commands/web_app_uninstall_command.h"
-#include "chrome/browser/web_applications/isolated_web_apps/check_isolated_web_app_bundle_installability_command.h"
-#include "chrome/browser/web_applications/isolated_web_apps/get_controlled_frame_partition_command.h"
-#include "chrome/browser/web_applications/isolated_web_apps/get_isolated_web_app_browsing_data_command.h"
-#include "chrome/browser/web_applications/isolated_web_apps/install_isolated_web_app_command.h"
-#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_apply_update_command.h"
-#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_install_command_helper.h"
+#include "chrome/browser/web_applications/commands/web_install_from_url_command.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/check_isolated_web_app_bundle_installability_command.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/cleanup_orphaned_isolated_web_apps_command.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/get_controlled_frame_partition_command.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/get_isolated_web_app_browsing_data_command.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/install_isolated_web_app_command.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/isolated_web_app_apply_update_command.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/isolated_web_app_install_command_helper.h"
+#include "chrome/browser/web_applications/isolated_web_apps/commands/isolated_web_app_prepare_and_store_update_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_install_source.h"
-#include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_prepare_and_store_update_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/signed_web_bundle_metadata.h"
 #include "chrome/browser/web_applications/locks/all_apps_lock.h"
@@ -62,8 +66,11 @@
 #include "chrome/browser/web_applications/locks/shared_web_contents_lock.h"
 #include "chrome/browser/web_applications/locks/shared_web_contents_with_app_lock.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_sub_manager.h"
+#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/web_app_command_manager.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
+#include "chrome/browser/web_applications/web_app_install_params.h"
+#include "chrome/browser/web_applications/web_app_management_type.h"
 #include "chrome/browser/web_applications/web_app_proto_utils.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_sync_bridge.h"
@@ -79,7 +86,9 @@
 #include "content/public/browser/storage_partition_config.h"
 #include "content/public/browser/web_contents.h"
 
-#if !BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/web_applications/isolated_web_apps/commands/cleanup_cache_for_managed_guest_session_command.h"
+#else  // !BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/web_applications/jobs/link_capturing.h"
 #endif
 
@@ -141,11 +150,16 @@ void WebAppCommandScheduler::InstallFromInfoNoIntegrationForTesting(
     OnceInstallCallback install_callback,
     const base::Location& location) {
   CHECK_IS_TEST();
+  WebAppInstallParams params;
+  params.install_state = proto::InstallState::INSTALLED_WITHOUT_OS_INTEGRATION;
+  params.add_to_applications_menu = false;
+  params.add_to_desktop = false;
+  params.add_to_quick_launch_bar = false;
   provider_->command_manager().ScheduleCommand(
       std::make_unique<InstallFromInfoCommand>(
           &profile_.get(), std::move(install_info),
           overwrite_existing_manifest_fields, install_surface,
-          std::move(install_callback), /*install_params=*/std::nullopt),
+          std::move(install_callback), params),
       location);
 }
 
@@ -240,10 +254,13 @@ void WebAppCommandScheduler::ScheduleNavigateAndTriggerInstallDialog(
     bool is_renderer_initiated,
     NavigateAndTriggerInstallDialogCommandCallback callback,
     const base::Location& location) {
+  // TODO(issuetracker.google.com/283034487): Pass the source in to this
+  // function.
   provider_->command_manager().ScheduleCommand(
       std::make_unique<NavigateAndTriggerInstallDialogCommand>(
-          install_url, origin, is_renderer_initiated, std::move(callback),
-          provider_->ui_manager().GetWeakPtr(),
+          install_url, origin, is_renderer_initiated,
+          /*source=*/webapps::WebappInstallSource::CHROMEOS_HELP_APP,
+          std::move(callback), provider_->ui_manager().GetWeakPtr(),
           std::make_unique<webapps::WebAppUrlLoader>(),
           std::make_unique<WebAppDataRetriever>(), &*profile_),
       location);
@@ -273,6 +290,15 @@ void WebAppCommandScheduler::InstallIsolatedWebApp(
       call_location);
 }
 
+void WebAppCommandScheduler::CleanupOrphanedIsolatedApps(
+    CleanupOrphanedIsolatedWebAppsCallback callback,
+    const base::Location& call_location) {
+  provider_->command_manager().ScheduleCommand(
+      std::make_unique<CleanupOrphanedIsolatedWebAppsCommand>(
+          *profile_, std::move(callback)),
+      call_location);
+}
+
 void WebAppCommandScheduler::PrepareAndStoreIsolatedWebAppUpdate(
     const IsolatedWebAppUpdatePrepareAndStoreCommand::UpdateInfo& update_info,
     const IsolatedWebAppUrlInfo& url_info,
@@ -299,8 +325,9 @@ void WebAppCommandScheduler::ApplyPendingIsolatedWebAppUpdate(
     const IsolatedWebAppUrlInfo& url_info,
     std::unique_ptr<ScopedKeepAlive> optional_keep_alive,
     std::unique_ptr<ScopedProfileKeepAlive> optional_profile_keep_alive,
-    base::OnceCallback<void(
-        base::expected<void, IsolatedWebAppApplyUpdateCommandError>)> callback,
+    base::OnceCallback<
+        void(base::expected<IsolatedWebAppApplyUpdateCommandSuccess,
+                            IsolatedWebAppApplyUpdateCommandError>)> callback,
     const base::Location& call_location) {
   provider_->command_manager().ScheduleCommand(
       std::make_unique<IsolatedWebAppApplyUpdateCommand>(
@@ -329,8 +356,21 @@ void WebAppCommandScheduler::CheckIsolatedWebAppBundleInstallability(
       call_location);
 }
 
+#if BUILDFLAG(IS_CHROMEOS)
+void WebAppCommandScheduler::CleanupIsolatedWebAppCacheForManagedGuestSession(
+    const std::vector<web_package::SignedWebBundleId>& iwas_to_keep_in_cache,
+    base::OnceCallback<void(CleanupCacheForManagedGuestSessionResult)> callback,
+    const base::Location& call_location) {
+  CHECK(ShouldCleanupManagedGuestSessionCache());
+  provider_->command_manager().ScheduleCommand(
+      std::make_unique<CleanupCacheForManagedGuestSessionCommand>(
+          iwas_to_keep_in_cache, std::move(callback)),
+      call_location);
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
 void WebAppCommandScheduler::GetIsolatedWebAppBrowsingData(
-    base::OnceCallback<void(base::flat_map<url::Origin, int64_t>)> callback,
+    base::OnceCallback<void(base::flat_map<url::Origin, uint64_t>)> callback,
     const base::Location& call_location) {
   provider_->command_manager().ScheduleCommand(
       std::make_unique<GetIsolatedWebAppBrowsingDataCommand>(
@@ -428,7 +468,7 @@ void WebAppCommandScheduler::RemoveAllManagementTypesAndUninstall(
 
 void WebAppCommandScheduler::UninstallAllUserInstalledWebApps(
     webapps::WebappUninstallSource uninstall_source,
-    UninstallAllUserInstalledWebAppsCommand::Callback callback,
+    UninstallAllUserInstalledWebAppsCallback callback,
     const base::Location& location) {
   provider_->command_manager().ScheduleCommand(
       std::make_unique<UninstallAllUserInstalledWebAppsCommand>(
@@ -496,7 +536,8 @@ void WebAppCommandScheduler::SetAppIsDisabled(const webapps::AppId& app_id,
 
 void WebAppCommandScheduler::ComputeAppSize(
     const webapps::AppId& app_id,
-    base::OnceCallback<void(std::optional<ComputedAppSize>)> callback) {
+    base::OnceCallback<void(std::optional<ComputedAppSizeWithOrigin>)>
+        callback) {
   provider_->command_manager().ScheduleCommand(
       std::make_unique<ComputeAppSizeCommand>(app_id, &profile_.get(),
                                               std::move(callback)));
@@ -558,10 +599,12 @@ void WebAppCommandScheduler::SynchronizeOsIntegration(
     const webapps::AppId& app_id,
     base::OnceClosure synchronize_callback,
     std::optional<SynchronizeOsOptions> synchronize_options,
+    bool upgrade_to_fully_installed_if_installed,
     const base::Location& location) {
   provider_->command_manager().ScheduleCommand(
       std::make_unique<OsIntegrationSynchronizeCommand>(
-          app_id, synchronize_options, std::move(synchronize_callback)),
+          app_id, synchronize_options, upgrade_to_fully_installed_if_installed,
+          std::move(synchronize_callback)),
       location);
 }
 
@@ -579,8 +622,6 @@ void WebAppCommandScheduler::SetUserDisplayMode(
 void WebAppCommandScheduler::ScheduleDedupeInstallUrls(
     base::OnceClosure callback,
     const base::Location& location) {
-  CHECK(base::FeatureList::IsEnabled(features::kWebAppDedupeInstallUrls));
-
   base::UmaHistogramCounts100("WebApp.DedupeInstallUrls.SessionRunCount",
                               ++dedupe_install_urls_run_count_);
 
@@ -596,8 +637,7 @@ void WebAppCommandScheduler::SetAppCapturesSupportedLinksDisableOverlapping(
     base::OnceClosure done,
     const base::Location& location) {
 #if BUILDFLAG(IS_CHROMEOS)
-  NOTREACHED_IN_MIGRATION()
-      << "Preferred apps in ChromeOS are implemented in AppService";
+  NOTREACHED() << "Preferred apps in ChromeOS are implemented in AppService";
 #else
   ScheduleCallback(
       "SetAppCapturesSupporedLinks", AllAppsLockDescription(),
@@ -614,6 +654,18 @@ void WebAppCommandScheduler::RunIconDiagnosticsForApp(
   provider_->command_manager().ScheduleCommand(
       std::make_unique<WebAppIconDiagnosticCommand>(&profile_.get(), app_id,
                                                     std::move(result_callback)),
+      location);
+}
+
+void WebAppCommandScheduler::InstallAppFromUrl(
+    const GURL& install_url,
+    const std::optional<GURL>& manifest_id,
+    WebInstallFromUrlCommandCallback installed_callback,
+    const base::Location& location) {
+  provider_->command_manager().ScheduleCommand(
+      std::make_unique<WebInstallFromUrlCommand>(profile_.get(), install_url,
+                                                 manifest_id,
+                                                 std::move(installed_callback)),
       location);
 }
 

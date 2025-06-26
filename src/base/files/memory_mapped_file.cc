@@ -23,8 +23,9 @@ MemoryMappedFile::~MemoryMappedFile() {
 
 #if !BUILDFLAG(IS_NACL)
 bool MemoryMappedFile::Initialize(const FilePath& file_name, Access access) {
-  if (IsValid())
+  if (IsValid()) {
     return false;
+  }
 
   uint32_t flags = 0;
   switch (access) {
@@ -44,8 +45,7 @@ bool MemoryMappedFile::Initialize(const FilePath& file_name, Access access) {
       break;
     case READ_WRITE_EXTEND:
       // Can't open with "extend" because no maximum size is known.
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
 #if BUILDFLAG(IS_WIN)
     case READ_CODE_IMAGE:
       flags |= File::FLAG_OPEN | File::FLAG_READ |
@@ -99,18 +99,18 @@ bool MemoryMappedFile::Initialize(File file,
       break;
 #if BUILDFLAG(IS_WIN)
     case READ_CODE_IMAGE:
-      // Can't open with "READ_CODE_IMAGE", not supported outside Windows
-      // or with a |region|.
-      NOTREACHED_IN_MIGRATION();
+      DCHECK(Region::kWholeFile == region);
       break;
 #endif
   }
 
-  if (IsValid())
+  if (IsValid()) {
     return false;
+  }
 
-  if (region != Region::kWholeFile)
+  if (region != Region::kWholeFile) {
     DCHECK_GE(region.offset, 0);
+  }
 
   file_ = std::move(file);
 

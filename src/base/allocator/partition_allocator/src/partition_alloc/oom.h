@@ -12,7 +12,7 @@
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/component_export.h"
 
-#if BUILDFLAG(IS_WIN)
+#if PA_BUILDFLAG(IS_WIN)
 #include "partition_alloc/partition_alloc_base/win/windows_types.h"
 #endif
 
@@ -22,15 +22,15 @@ namespace partition_alloc {
 // |size| is the size of the failed allocation, or 0 if not known.
 // Crash reporting classifies such crashes as OOM.
 // Must be allocation-safe.
-PA_COMPONENT_EXPORT(PARTITION_ALLOC)
-void TerminateBecauseOutOfMemory(size_t size);
+[[noreturn]] PA_NOT_TAIL_CALLED PA_COMPONENT_EXPORT(
+    PARTITION_ALLOC) void TerminateBecauseOutOfMemory(size_t size);
 
 // Records the size of the allocation that caused the current OOM crash, for
 // consumption by Breakpad.
 // TODO: this can be removed when Breakpad is no longer supported.
 PA_COMPONENT_EXPORT(PARTITION_ALLOC) extern size_t g_oom_size;
 
-#if BUILDFLAG(IS_WIN)
+#if PA_BUILDFLAG(IS_WIN)
 namespace win {
 
 // Custom Windows exception code chosen to indicate an out of memory error.
@@ -51,6 +51,16 @@ namespace internal {
 // PA_NOT_TAIL_CALLED to ensure that its parent function stays on the stack.
 [[noreturn]] PA_NOT_TAIL_CALLED PA_COMPONENT_EXPORT(
     PARTITION_ALLOC) void OnNoMemory(size_t size);
+
+#if PA_BUILDFLAG(IS_POSIX)
+// See above for annotations.
+//
+// THis is used to identify cases where the kernel return ENOMEM for memory
+// management calls. This can indicate several things, but in particular on
+// Linux that the current process has exceeded the per-process VMA limit.
+[[noreturn]] PA_NOT_TAIL_CALLED PA_COMPONENT_EXPORT(
+    PARTITION_ALLOC) void OnErrnoNoMem();
+#endif
 
 // OOM_CRASH(size) - Specialization of IMMEDIATE_CRASH which will raise a custom
 // exception on Windows to signal this is OOM and not a normal assert.

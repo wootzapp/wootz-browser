@@ -2,13 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
+#include "gpu/command_buffer/client/program_info_manager.h"
+
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
 #include <string_view>
 
-#include "gpu/command_buffer/client/program_info_manager.h"
+#include "base/memory/raw_span.h"
 
 namespace {
 
@@ -48,7 +55,7 @@ class DataIterator {
   }
 
  private:
-  base::span<const int8_t> data_;
+  base::raw_span<const int8_t> data_;
 };
 
 // Writes the string pointed by name and of maximum size buffsize. If length is
@@ -282,10 +289,8 @@ bool ProgramInfoManager::Program::GetProgramiv(
       *params = static_cast<GLint>(transform_feedback_buffer_mode_);
       return true;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
-  return false;
 }
 
 GLuint ProgramInfoManager::Program::GetUniformBlockIndex(
@@ -385,10 +390,8 @@ bool ProgramInfoManager::Program::GetUniformsiv(
       }
       return true;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
-  return false;
 }
 
 void ProgramInfoManager::Program::UpdateES2(base::span<const int8_t> result) {
@@ -595,8 +598,7 @@ bool ProgramInfoManager::Program::IsCached(ProgramInfoType type) const {
     case kNone:
       return true;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return true;
+      NOTREACHED();
   }
 }
 
@@ -655,8 +657,7 @@ ProgramInfoManager::Program* ProgramInfoManager::GetProgramInfo(
       info->UpdateES3Uniformsiv(result);
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return nullptr;
+      NOTREACHED();
   }
   return info;
 }
@@ -944,7 +945,7 @@ bool ProgramInfoManager::GetActiveUniformBlockiv(
                 uniform_block->referenced_by_fragment_shader);
             break;
           default:
-            NOTREACHED_IN_MIGRATION();
+            NOTREACHED();
         }
         return true;
       }
@@ -1081,7 +1082,7 @@ void ProgramInfoManager::UpdateProgramInfo(GLuint program,
       info->UpdateES3Uniformsiv(data);
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 

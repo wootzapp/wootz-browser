@@ -10,15 +10,14 @@
 
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/syslog_logging.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_blocking_call.h"
-#include "chrome/browser/enterprise/connectors/analysis/analysis_settings.h"
 #include "chrome/browser/enterprise/connectors/common.h"
 #include "chrome/browser/enterprise/signals/system_signals_service_host_factory.h"
 #include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_utils.h"
 #include "components/device_signals/core/browser/system_signals_service_host.h"
+#include "components/enterprise/connectors/core/analysis_settings.h"
 #include "content/public/browser/browser_thread.h"
 #include "third_party/content_analysis_sdk/src/browser/include/content_analysis/sdk/analysis_client.h"
 
@@ -482,7 +481,7 @@ void LocalBinaryUploadService::DoLocalContentAnalysis(Request::Id id,
                                                mapping.size());
 #endif
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   base::ThreadPool::PostTaskAndReplyWithResult(
@@ -659,7 +658,7 @@ void LocalBinaryUploadService::FinishRequest(Request::Id id,
     DVLOG(1) << __func__ << ": id=" << id << " not active";
   }
 
-  auto it2 = base::ranges::find(
+  auto it2 = std::ranges::find(
       pending_requests_, id,
       [](const RequestInfo& info) { return info.request->id(); });
   if (it2 != pending_requests_.end()) {

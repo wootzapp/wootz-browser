@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "services/network/p2p/socket_manager.h"
 
 #include <stddef.h>
@@ -11,6 +16,7 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "base/not_fatal_until.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "net/base/address_family.h"
@@ -234,7 +240,7 @@ void P2PSocketManager::AddAcceptedConnection(
 
 void P2PSocketManager::DestroySocket(P2PSocket* socket) {
   auto iter = sockets_.find(socket);
-  DCHECK(iter != sockets_.end());
+  CHECK(iter != sockets_.end(), base::NotFatalUntil::M130);
   sockets_.erase(iter);
 }
 
@@ -250,19 +256,18 @@ void P2PSocketManager::DumpPacket(base::span<const uint8_t> packet,
 
   size_t rtp_packet_pos = 0;
   size_t rtp_packet_size = packet.size();
-  if (!cricket::UnwrapTurnPacket(packet.data(), packet.size(), &rtp_packet_pos,
-                                 &rtp_packet_size)) {
+  if (!webrtc::UnwrapTurnPacket(packet.data(), packet.size(), &rtp_packet_pos,
+                                &rtp_packet_size)) {
     return;
   }
 
   auto rtp_packet = packet.subspan(rtp_packet_pos, rtp_packet_size);
 
   size_t header_size = 0;
-  bool valid = cricket::ValidateRtpHeader(rtp_packet.data(), rtp_packet.size(),
-                                          &header_size);
+  bool valid = webrtc::ValidateRtpHeader(rtp_packet.data(), rtp_packet.size(),
+                                         &header_size);
   if (!valid) {
-    NOTREACHED_IN_MIGRATION();
-    return;
+    NOTREACHED();
   }
 
   std::vector<uint8_t> header_buffer(rtp_packet.data(),

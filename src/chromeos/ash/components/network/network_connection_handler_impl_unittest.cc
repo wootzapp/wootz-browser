@@ -13,7 +13,6 @@
 #include "base/json/json_reader.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "chromeos/ash/components/dbus/shill/shill_profile_client.h"
 #include "chromeos/ash/components/network/auto_connect_handler.h"
@@ -593,7 +592,7 @@ class NetworkConnectionHandlerImplTest : public testing::Test {
 
   base::test::TaskEnvironment task_environment_{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
-  NetworkStateTestHelper helper_{false /* use_default_devices_and_services */};
+  NetworkStateTestHelper helper_{/*use_default_devices_and_services=*/false};
   std::unique_ptr<NetworkConfigurationHandler> network_config_handler_;
   std::unique_ptr<NetworkConnectionHandler> network_connection_handler_;
   std::unique_ptr<TestNetworkConnectionObserver> network_connection_observer_;
@@ -651,6 +650,8 @@ TEST_F(NetworkConnectionHandlerImplTest,
   EXPECT_TRUE(network_connection_observer()->GetRequested(wifi0_service_path));
   EXPECT_EQ(kSuccessResult,
             network_connection_observer()->GetResult(wifi0_service_path));
+  EXPECT_EQ("wifi0",
+            GetServiceStringProperty(wifi0_service_path, shill::kGuidProperty));
 }
 
 TEST_F(NetworkConnectionHandlerImplTest,
@@ -1251,8 +1252,6 @@ TEST_F(NetworkConnectionHandlerImplTest, SimLocked) {
 }
 
 TEST_F(NetworkConnectionHandlerImplTest, SimCarrierLocked) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(features::kCellularCarrierLock);
   Init();
   AddNonConnectablePSimService();
   SetCellularSimCarrierLocked();

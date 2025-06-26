@@ -23,32 +23,47 @@ class Color;
 class CSSProperty;
 class Document;
 class ComputedStyle;
+class LayoutObject;
 class Node;
+class Text;
 struct PaintInfo;
+
+enum class SearchTextIsActiveMatch : bool {
+  kNo,
+  kYes,
+};
 
 class CORE_EXPORT HighlightStyleUtils {
   STATIC_ONLY(HighlightStyleUtils);
 
  public:
+  // A property that may need to be resolved by ResolveColorsFromPreviousLayer.
+  //
+  // Note that ‘text-shadow’ is excluded here, because we already have a way to
+  // resolve ‘currentColor’ at highlight painting time for it: TextPainter uses
+  // TextPaintStyle.current_color to resolve each StyleColor in its ShadowList,
+  // and we can wrap any ShadowList in a temporary TextPaintStyle for painting.
+  //
+  // When adding another property, update HighlightColorPropertySet below.
   enum class HighlightColorProperty : unsigned {
     kCurrentColor,
     kFillColor,
-    kStrokeColor,
     kEmphasisColor,
     kSelectionDecorationColor,
     kTextDecorationColor,
-    // When adding another, update HighlightColorPropertySet below.
+    kBackgroundColor,
   };
   using HighlightColorPropertySet =
       base::EnumSet<HighlightColorProperty,
                     HighlightColorProperty::kCurrentColor,
-                    HighlightColorProperty::kTextDecorationColor>;
+                    HighlightColorProperty::kBackgroundColor>;
   struct HighlightTextPaintStyle {
     DISALLOW_NEW();
 
    public:
     TextPaintStyle style;
     Color text_decoration_color;
+    Color background_color;
     HighlightColorPropertySet properties_using_current_color;
 
     void Trace(Visitor* visitor) const { visitor->Trace(style); }
@@ -59,32 +74,34 @@ class CORE_EXPORT HighlightStyleUtils {
                             const ComputedStyle* pseudo_style,
                             PseudoId pseudo,
                             const CSSProperty& property,
-                            std::optional<Color> current_color);
+                            std::optional<Color> current_color,
+                            SearchTextIsActiveMatch);
   static std::optional<Color> MaybeResolveColor(
       const Document&,
       const ComputedStyle& originating_style,
       const ComputedStyle* pseudo_style,
       PseudoId pseudo,
-      const CSSProperty& property);
+      const CSSProperty& property,
+      SearchTextIsActiveMatch);
   static std::optional<AppliedTextDecoration> SelectionTextDecoration(
       const Document& document,
       const ComputedStyle& style,
       const ComputedStyle& pseudo_style);
-  static Color HighlightBackgroundColor(
-      const Document&,
-      const ComputedStyle&,
-      Node*,
-      std::optional<Color>,
-      PseudoId,
-      const AtomicString& pseudo_argument = g_null_atom);
+  static Color HighlightBackgroundColor(const Document&,
+                                        const ComputedStyle&,
+                                        Node*,
+                                        std::optional<Color>,
+                                        PseudoId,
+                                        SearchTextIsActiveMatch);
   static HighlightTextPaintStyle HighlightPaintingStyle(
       const Document&,
-      const ComputedStyle&,
+      const ComputedStyle& originating_style,
+      const ComputedStyle* pseudo_style,
       Node*,
       PseudoId,
       const TextPaintStyle&,
       const PaintInfo&,
-      const AtomicString& pseudo_argument = g_null_atom);
+      SearchTextIsActiveMatch);
   static const ComputedStyle* HighlightPseudoStyle(
       Node* node,
       const ComputedStyle& style,
@@ -95,11 +112,11 @@ class CORE_EXPORT HighlightStyleUtils {
       HighlightTextPaintStyle& text_style,
       const HighlightTextPaintStyle& previous_layer_style);
 
-  static bool ShouldInvalidateVisualOverflow(const Node& node,
+  static bool ShouldInvalidateVisualOverflow(const LayoutObject& layout_object,
                                              DocumentMarker::MarkerType type);
 
   static bool CustomHighlightHasVisualOverflow(
-      const Node& node,
+      const Text& text_node,
       const AtomicString& pseudo_argument = g_null_atom);
 };
 

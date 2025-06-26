@@ -11,28 +11,31 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/autofill/chrome_autofill_client.h"
 #include "components/autofill/content/browser/content_autofill_driver.h"
-#include "components/autofill/core/browser/autofill_external_delegate.h"
-#include "components/autofill/core/browser/autofill_manager.h"
-#include "components/autofill/core/browser/browser_autofill_manager.h"
-#include "components/autofill/core/browser/browser_autofill_manager_test_api.h"
-#include "components/autofill/core/browser/data_model/autofill_i18n_api.h"
-#include "components/autofill/core/browser/data_model/autofill_profile.h"
-#include "components/autofill/core/browser/data_model/credit_card.h"
-#include "components/autofill/core/browser/payments_data_manager_test_api.h"
-#include "components/autofill/core/browser/personal_data_manager.h"
-#include "components/autofill/core/browser/personal_data_manager_observer.h"
-#include "components/autofill/core/browser/personal_data_manager_test_utils.h"
-#include "components/autofill/core/browser/test_autofill_external_delegate.h"
-#include "components/autofill/core/browser/test_autofill_manager_waiter.h"
+#include "components/autofill/core/browser/data_manager/payments/payments_data_manager_test_api.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager_observer.h"
+#include "components/autofill/core/browser/data_manager/personal_data_manager_test_utils.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_i18n_api.h"
+#include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
+#include "components/autofill/core/browser/data_model/payments/credit_card.h"
+#include "components/autofill/core/browser/foundations/autofill_manager.h"
+#include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
+#include "components/autofill/core/browser/foundations/browser_autofill_manager_test_api.h"
+#include "components/autofill/core/browser/foundations/test_autofill_manager_waiter.h"
+#include "components/autofill/core/browser/ui/autofill_external_delegate.h"
+#include "components/autofill/core/browser/ui/test_autofill_external_delegate.h"
 #include "components/autofill/core/common/autofill_test_utils.h"
+#include "components/autofill/core/common/form_data_test_api.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "content/public/test/test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace autofill {
 
+using ::testing::AssertionResult;
+
 static PersonalDataManager* GetPersonalDataManager(Profile* profile) {
-  return PersonalDataManagerFactory::GetForProfile(profile);
+  return PersonalDataManagerFactory::GetForBrowserContext(profile);
 }
 
 void AddTestProfile(Profile* base_profile, const AutofillProfile& profile) {
@@ -69,12 +72,12 @@ void WaitForPersonalDataChange(Profile* base_profile) {
 
 void WaitForPersonalDataManagerToBeLoaded(Profile* base_profile) {
   PersonalDataManager* pdm =
-      PersonalDataManagerFactory::GetForProfile(base_profile);
+      PersonalDataManagerFactory::GetForBrowserContext(base_profile);
   while (!pdm->IsDataLoaded())
     WaitForPersonalDataChange(base_profile);
 }
 
-[[nodiscard]] testing::AssertionResult GenerateTestAutofillPopup(
+[[nodiscard]] AssertionResult GenerateTestAutofillPopup(
     ContentAutofillDriver& driver,
     Profile* profile,
     bool expect_popup_to_be_shown,
@@ -89,13 +92,14 @@ void WaitForPersonalDataManagerToBeLoaded(Profile* base_profile) {
   // flakiness.
   client.SetKeepPopupOpenForTesting(true);
 
+  FormFieldData field = test::CreateTestFormField(
+      "Full name", "name", "", FormControlType::kInputText, "name");
+  field.set_is_focusable(true);
+  field.set_should_autocomplete(true);
+  field.set_bounds(element_bounds);
   FormData form;
-  form.url = GURL("https://foo.com/bar");
-  form.fields = {test::CreateTestFormField(
-      "Full name", "name", "", FormControlType::kInputText, "name")};
-  form.fields.front().set_is_focusable(true);
-  form.fields.front().set_should_autocomplete(true);
-  form.fields.front().set_bounds(element_bounds);
+  form.set_url(GURL("https://foo.com/bar"));
+  form.set_fields({field});
 
   // Not adding a profile would result in `AskForValuesToFill()` not finding any
   // suggestions and hiding the Autofill Popup.
@@ -109,18 +113,18 @@ void WaitForPersonalDataManagerToBeLoaded(Profile* base_profile) {
   autofill_profile.SetRawInfo(NAME_FULL, u"John Doe");
   AddTestProfile(profile, autofill_profile);
 
-  TestAutofillManagerWaiter waiter(driver.GetAutofillManager(),
-                                   {AutofillManagerEvent::kAskForValuesToFill});
+  TestAutofillManagerSingleEventWaiter wait_for_ask_for_values_to_fill(
+      driver.GetAutofillManager(),
+      &AutofillManager::Observer::OnAfterAskForValuesToFill);
   gfx::PointF p = element_bounds.origin();
   driver.renderer_events().AskForValuesToFill(
-      form, form.fields.front(),
+      form, form.fields().front().renderer_id(),
       /*caret_bounds=*/gfx::Rect(gfx::Point(p.x(), p.y()), gfx::Size(0, 10)),
       AutofillSuggestionTriggerSource::kFormControlElementClicked);
-  testing::AssertionResult waiter_assertion_result = waiter.Wait();
-  if (!waiter_assertion_result) {
-    return waiter_assertion_result
-           << " " << __func__
-           << "(): TestAutofillManagerWaiter assertion failed";
+  if (AssertionResult a = std::move(wait_for_ask_for_values_to_fill).Wait();
+      !a) {
+    return a << " " << __func__ << "(): "
+             << "TestAutofillManagerSingleEventWaiter assertion failed";
   }
   if (driver.GetAutofillManager().form_structures().size() != 1u) {
     return testing::AssertionFailure()
@@ -146,7 +150,7 @@ void WaitForPersonalDataManagerToBeLoaded(Profile* base_profile) {
   if (expect_popup_to_be_shown) {
     // `base::RunLoop().RunUntilIdle()` can cause flakiness when waiting for the
     // popup to be shown.
-    if (!base::test::RunUntil([&]() { return !delegate->popup_hidden(); })) {
+    if (!base::test::RunUntil([&] { return !delegate->popup_hidden(); })) {
       return testing::AssertionFailure()
              << " " << __func__ << "(): Showing the autofill popup timed out.";
     }

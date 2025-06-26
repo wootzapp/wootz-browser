@@ -67,13 +67,11 @@ CommandBufferTaskExecutor* InProcessGpuThreadHolder::GetTaskExecutor() {
 void InProcessGpuThreadHolder::InitializeOnGpuThread(
     base::WaitableEvent* completion) {
   sync_point_manager_ = std::make_unique<SyncPointManager>();
-  scheduler_ =
-      std::make_unique<Scheduler>(sync_point_manager_.get(), gpu_preferences_);
+  scheduler_ = std::make_unique<Scheduler>(sync_point_manager_.get());
   shared_image_manager_ = std::make_unique<SharedImageManager>();
 
   bool use_passthrough_cmd_decoder =
-      gpu_preferences_.use_passthrough_cmd_decoder &&
-      gles2::PassthroughCommandDecoderSupported();
+      gpu_preferences_.use_passthrough_cmd_decoder;
 
   share_group_ = new gl::GLShareGroup();
   surface_ =

@@ -29,6 +29,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/browser/lazy_context_task_queue.h"
+#include "extensions/browser/process_manager_observer.h"
 #include "extensions/browser/service_worker/worker_id.h"
 #include "extensions/common/constants.h"
 #include "extensions/common/extension_id.h"
@@ -50,11 +51,9 @@ class BrowserContext;
 class RenderProcessHost;
 }  // namespace content
 
-namespace ash {
-namespace file_system_provider {
+namespace ash::file_system_provider {
 class FileSystemProviderProvidedFileSystemTest;
-}  // namespace file_system_provider
-}  // namespace ash
+}  // namespace ash::file_system_provider
 
 namespace extensions {
 class Extension;
@@ -75,7 +74,7 @@ enum class EventDispatchSource : int {
 // The upper bound of time allowed for event dispatch histograms. Also used in
 // histograms for determining when an event is "late" (it has not been acked by
 // the renderer to the browser by this time).
-inline base::TimeDelta kEventAckMetricTimeLimit = base::Minutes(5);
+extern base::TimeDelta kEventAckMetricTimeLimit;
 
 // TODO(lazyboy): Document how extension events work, including how listeners
 // are registered and how listeners are tracked in renderer and browser process.
@@ -83,14 +82,15 @@ class EventRouter : public KeyedService,
                     public ExtensionRegistryObserver,
                     public EventListenerMap::Delegate,
                     public content::RenderProcessHostObserver,
+                    public ProcessManagerObserver,
                     public mojom::EventRouter {
  public:
   // These constants convey the state of our knowledge of whether we're in
   // a user-caused gesture as part of DispatchEvent.
-  enum UserGestureState {
-    USER_GESTURE_UNKNOWN = 0,
-    USER_GESTURE_ENABLED = 1,
-    USER_GESTURE_NOT_ENABLED = 2,
+  enum class UserGestureState {
+    kUnknown = 0,
+    kEnabled = 1,
+    kNotEnabled = 2,
   };
 
   // The pref key for the list of event names for which an extension has
@@ -122,6 +122,7 @@ class EventRouter : public KeyedService,
     virtual void OnWillDispatchEvent(const Event& event) = 0;
     virtual void OnDidDispatchEventToProcess(const Event& event,
                                              int process_id) = 0;
+    virtual void OnNonExtensionEventDispatched(const std::string& event_name) {}
   };
 
   // Gets the EventRouter for |browser_context|.
@@ -159,6 +160,9 @@ class EventRouter : public KeyedService,
   static void BindForRenderer(
       int process_id,
       mojo::PendingAssociatedReceiver<mojom::EventRouter> receiver);
+
+  void SwapReceiverForTesting(int render_process_id,
+                              mojom::EventRouter* new_impl);
 
   // An EventRouter is shared between |browser_context| and its associated
   // incognito context. |extension_prefs| may be NULL in tests.
@@ -347,6 +351,7 @@ class EventRouter : public KeyedService,
   }
 
  private:
+  friend class BookmarksApiEventsTest;
   friend class EventRouterFilterTest;
   friend class EventRouterTest;
   friend class ash::file_system_provider::
@@ -442,6 +447,10 @@ class EventRouter : public KeyedService,
                            const Extension* extension,
                            UnloadedExtensionReason reason) override;
 
+  // ProcessManagerObserver:
+  void OnStoppedTrackingServiceWorkerInstance(
+      const WorkerId& worker_id) override;
+
   void AddLazyEventListenerImpl(std::unique_ptr<EventListener> listener,
                                 RegisteredEventType type);
   void RemoveLazyEventListenerImpl(std::unique_ptr<EventListener> listener,
@@ -536,6 +545,8 @@ class EventRouter : public KeyedService,
 
   base::ScopedObservation<ExtensionRegistry, ExtensionRegistryObserver>
       extension_registry_observation_{this};
+  base::ScopedObservation<ProcessManager, ProcessManagerObserver>
+      process_manager_observation_{this};
 
   EventListenerMap listeners_{this};
 
@@ -709,5 +720,22 @@ struct EventListenerInfo {
 };
 
 }  // namespace extensions
+
+namespace base {
+
+template <>
+struct ScopedObservationTraits<extensions::EventRouter,
+                               extensions::EventRouter::TestObserver> {
+  static void AddObserver(extensions::EventRouter* source,
+                          extensions::EventRouter::TestObserver* observer) {
+    source->AddObserverForTesting(observer);
+  }
+  static void RemoveObserver(extensions::EventRouter* source,
+                             extensions::EventRouter::TestObserver* observer) {
+    source->RemoveObserverForTesting(observer);
+  }
+};
+
+}  // namespace base
 
 #endif  // EXTENSIONS_BROWSER_EVENT_ROUTER_H_

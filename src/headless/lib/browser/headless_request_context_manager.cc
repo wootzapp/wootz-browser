@@ -4,12 +4,13 @@
 
 #include "headless/lib/browser/headless_request_context_manager.h"
 
+#include "base/check_deref.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
+#include "components/embedder_support/switches.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/network_service_instance.h"
 #include "headless/lib/browser/headless_browser_context_options.h"
@@ -24,11 +25,6 @@
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "services/network/url_request_context_builder_mojo.h"
-
-#if defined(HEADLESS_USE_PREFS)
-#include "components/os_crypt/sync/os_crypt.h"  // nogncheck
-#include "content/public/browser/network_service_util.h"
-#endif
 
 namespace headless {
 
@@ -58,26 +54,6 @@ net::NetworkTrafficAnnotationTag GetProxyConfigTrafficAnnotationTag() {
         "This config is only used for headless mode and provided by user."
     })");
   return traffic_annotation;
-}
-
-void SetCryptKeyOnce(const base::FilePath& user_data_path) {
-  static bool done_once = false;
-  if (done_once)
-    return;
-  done_once = true;
-
-#if (BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)) && defined(HEADLESS_USE_PREFS)
-  // The OSCrypt keys are process bound, so if network service is out of
-  // process, send it the required key if it is available.
-  if (content::IsOutOfProcessNetworkService()
-#if BUILDFLAG(IS_WIN)
-      && OSCrypt::IsEncryptionAvailable()
-#endif
-  ) {
-    content::GetNetworkService()->SetEncryptionKey(
-        OSCrypt::GetRawEncryptionKey());
-  }
-#endif
 }
 
 }  // namespace
@@ -156,8 +132,7 @@ class HeadlessProxyConfigMonitor
             net::ProxyConfigWithAnnotation::CreateDirect());
         break;
       case net::ProxyConfigService::CONFIG_PENDING:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
 
@@ -234,8 +209,6 @@ HeadlessRequestContextManager::HeadlessRequestContextManager(
           base::SingleThreadTaskRunner::GetCurrentDefault());
     }
   }
-
-  SetCryptKeyOnce(user_data_path_);
 }
 
 HeadlessRequestContextManager::~HeadlessRequestContextManager() {
@@ -260,8 +233,13 @@ void HeadlessRequestContextManager::ConfigureNetworkContextParamsInternal(
         cert_verifier_creation_params) {
   context_params->user_agent = user_agent_;
   context_params->accept_language = accept_language_;
-  context_params->enable_zstd =
-      base::FeatureList::IsEnabled(net::features::kZstdContentEncoding);
+  context_params->enable_zstd = true;
+
+  const base::CommandLine& command_line =
+      CHECK_DEREF(base::CommandLine::ForCurrentProcess());
+  if (command_line.HasSwitch(embedder_support::kShortReportingDelay)) {
+    context_params->reporting_delivery_interval = base::Milliseconds(100);
+  }
 
   // TODO(crbug.com/40405715): Allow
   // context_params->http_auth_static_network_context_params->allow_default_credentials

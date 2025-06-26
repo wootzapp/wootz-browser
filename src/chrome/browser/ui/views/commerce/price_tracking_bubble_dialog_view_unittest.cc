@@ -20,6 +20,7 @@
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/controls/styled_label.h"
@@ -39,7 +40,8 @@ class PriceTrackingBubbleDialogViewUnitTest : public BrowserWithTestWindowTest {
 
     anchor_widget_ =
         views::UniqueWidgetPtr(std::make_unique<ChromeTestWidget>());
-    views::Widget::InitParams widget_params;
+    views::Widget::InitParams widget_params(
+        views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
     widget_params.context = GetContext();
     anchor_widget_->Init(std::move(widget_params));
 
@@ -64,12 +66,11 @@ class PriceTrackingBubbleDialogViewUnitTest : public BrowserWithTestWindowTest {
   }
 
   TestingProfile::TestingFactories GetTestingFactories() override {
-    TestingProfile::TestingFactories factories = {
-        {BookmarkModelFactory::GetInstance(),
-         BookmarkModelFactory::GetDefaultFactory()}};
-    IdentityTestEnvironmentProfileAdaptor::
-        AppendIdentityTestEnvironmentFactories(&factories);
-    return factories;
+    return IdentityTestEnvironmentProfileAdaptor::
+        GetIdentityTestEnvironmentFactoriesWithAppendedFactories(
+            {TestingProfile::TestingFactory{
+                BookmarkModelFactory::GetInstance(),
+                BookmarkModelFactory::GetDefaultFactory()}});
   }
 
   void CreateBubbleViewAndShow(PriceTrackingBubbleDialogView::Type type) {
@@ -177,10 +178,10 @@ TEST_P(PriceTrackingBubbleDialogViewLayoutUnitTest, FUEBubble) {
                 GetFolderName()));
 
   EXPECT_EQ(
-      bubble->GetDialogButtonLabel(ui::DIALOG_BUTTON_OK),
+      bubble->GetDialogButtonLabel(ui::mojom::DialogButton::kOk),
       l10n_util::GetStringUTF16(IDS_OMNIBOX_TRACK_PRICE_DIALOG_ACTION_BUTTON));
   EXPECT_EQ(
-      bubble->GetDialogButtonLabel(ui::DIALOG_BUTTON_CANCEL),
+      bubble->GetDialogButtonLabel(ui::mojom::DialogButton::kCancel),
       l10n_util::GetStringUTF16(IDS_OMNIBOX_TRACK_PRICE_DIALOG_CANCEL_BUTTON));
 }
 
@@ -209,10 +210,10 @@ TEST_P(PriceTrackingBubbleDialogViewLayoutUnitTest, NormalBubble) {
                   expected_save_label) != std::u16string::npos);
   EXPECT_TRUE(bubble->GetBodyLabelForTesting()->GetFirstLinkForTesting());
 
-  EXPECT_EQ(bubble->GetDialogButtonLabel(ui::DIALOG_BUTTON_OK),
+  EXPECT_EQ(bubble->GetDialogButtonLabel(ui::mojom::DialogButton::kOk),
             l10n_util::GetStringUTF16(
                 IDS_OMNIBOX_TRACKING_PRICE_DIALOG_ACTION_BUTTON));
-  EXPECT_EQ(bubble->GetDialogButtonLabel(ui::DIALOG_BUTTON_CANCEL),
+  EXPECT_EQ(bubble->GetDialogButtonLabel(ui::mojom::DialogButton::kCancel),
             l10n_util::GetStringUTF16(
                 IDS_OMNIBOX_TRACKING_PRICE_DIALOG_UNTRACK_BUTTON));
 }

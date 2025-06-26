@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
 
 #include <math.h>
@@ -44,6 +49,7 @@
 #include "base/test/simple_test_tick_clock.h"
 #include "chromeos/dbus/power/fake_power_manager_client.h"
 #include "chromeos/ui/frame/caption_buttons/snap_controller.h"
+#include "device/bluetooth/bluetooth_adapter_factory.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/test/test_window_delegate.h"
 #include "ui/base/hit_test.h"
@@ -112,12 +118,7 @@ extern const size_t kAccelerometerVerticalHingeUnstableAnglesTestDataLength;
 
 class TabletModeControllerTest : public AshTestBase {
  public:
-  TabletModeControllerTest() {
-    scoped_feature_list_.InitWithFeatures(
-        /*enabled_features=*/{features::kFasterSplitScreenSetup,
-                              features::kOsSettingsRevampWayfinding},
-        /*disabled_features=*/{});
-  }
+  TabletModeControllerTest() = default;
 
   TabletModeControllerTest(const TabletModeControllerTest&) = delete;
   TabletModeControllerTest& operator=(const TabletModeControllerTest&) = delete;
@@ -127,6 +128,14 @@ class TabletModeControllerTest : public AshTestBase {
   void SetUp() override {
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
         switches::kAshEnableTabletMode);
+    bluetooth_adapter_ =
+        base::MakeRefCounted<testing::NiceMock<device::MockBluetoothAdapter>>();
+    device::BluetoothAdapterFactory::SetAdapterForTesting(bluetooth_adapter_);
+    ON_CALL(*bluetooth_adapter_, IsPowered)
+        .WillByDefault(testing::Return(true));
+    ON_CALL(*bluetooth_adapter_, IsPresent)
+        .WillByDefault(testing::Return(true));
+
     AshTestBase::SetUp();
     AccelerometerReader::GetInstance()->RemoveObserver(
         tablet_mode_controller());
@@ -162,7 +171,13 @@ class TabletModeControllerTest : public AshTestBase {
   }
 
   void AttachExternalMouse() { test_api_->AttachExternalMouse(); }
+  void AttachBluetoothMouse() {
+    test_api_->AttachBluetoothMouse(bluetooth_adapter_.get());
+  }
   void AttachExternalTouchpad() { test_api_->AttachExternalTouchpad(); }
+  void ClearBluetoothAdapter() {
+    testing::Mock::VerifyAndClear(bluetooth_adapter_.get());
+  }
   void DetachAllMice() { test_api_->DetachAllMice(); }
   void DetachAllTouchpads() { test_api_->DetachAllTouchpads(); }
 
@@ -232,8 +247,9 @@ class TabletModeControllerTest : public AshTestBase {
   void WaitForWindowAnimation(aura::Window* window) {
     auto* compositor = window->layer()->GetCompositor();
 
-    while (window->layer()->GetAnimator()->is_animating())
+    while (window->layer()->GetAnimator()->is_animating()) {
       EXPECT_TRUE(ui::WaitForNextFrameToBePresented(compositor));
+    }
   }
 
   // Wait one more frame presented for the metrics to get recorded.
@@ -246,11 +262,12 @@ class TabletModeControllerTest : public AshTestBase {
   }
 
  private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-
   std::unique_ptr<TabletModeControllerTestApi> test_api_;
 
   base::SimpleTestTickClock test_tick_clock_;
+
+  scoped_refptr<testing::NiceMock<device::MockBluetoothAdapter>>
+      bluetooth_adapter_;
 
   // Tracks user action counts.
   base::UserActionTester user_action_tester_;
@@ -871,7 +888,7 @@ TEST_F(TabletModeControllerTest, CannotEnterTabletModeWithExternalMouse) {
   EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
 }
 
-// Tests that when we plug in a external mouse the device will
+// Tests that when we plug in an external mouse the device will
 // leave tablet mode.
 TEST_F(TabletModeControllerTest, LeaveTabletModeWhenExternalMouseConnected) {
   // Start in tablet mode.
@@ -886,6 +903,46 @@ TEST_F(TabletModeControllerTest, LeaveTabletModeWhenExternalMouseConnected) {
   EXPECT_TRUE(AreEventsBlocked());
 
   // Verify that after unplugging the mouse, tablet mode will resume.
+  DetachAllMice();
+  EXPECT_TRUE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_TRUE(AreEventsBlocked());
+}
+
+// Tests that when we connect a bluetooth mouse the device will
+// leave tablet mode.
+TEST_F(TabletModeControllerTest, LeaveTabletModeWhenBluetoothMouseConnected) {
+  // Start in tablet mode.
+  OpenLidToAngle(300.0f);
+  EXPECT_TRUE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_TRUE(AreEventsBlocked());
+
+  // Connect bluetooth mouse and verify that tablet mode has ended, but events
+  // are still blocked because the keyboard is still facing the bottom.
+  AttachBluetoothMouse();
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_TRUE(AreEventsBlocked());
+
+  // Verify that after disconnecting mouse, tablet mode will resume.
+  ClearBluetoothAdapter();
+  DetachAllMice();
+  EXPECT_TRUE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_TRUE(AreEventsBlocked());
+}
+
+// Tests that when bluetooth mouse is connected device will not start
+// in tablet mode.
+TEST_F(TabletModeControllerTest, StartInLaptopModeWhenBluetoothMouseConnected) {
+  // Have a bluetooth mouse connected in the beginning.
+  AttachBluetoothMouse();
+
+  // Start with device folded back and verify that it is not in tablet mode and
+  // events are blocked
+  OpenLidToAngle(300.0f);
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_TRUE(AreEventsBlocked());
+
+  // Verify that after unplugging the mouse, tablet mode will resume.
+  ClearBluetoothAdapter();
   DetachAllMice();
   EXPECT_TRUE(display::Screen::GetScreen()->InTabletMode());
   EXPECT_TRUE(AreEventsBlocked());
@@ -1115,6 +1172,63 @@ TEST_F(TabletModeControllerTest, ShowAndHideMouseCursorTest) {
   EXPECT_TRUE(cursor_manager->IsCursorVisible());
 }
 
+TEST_F(TabletModeControllerTest, StartingKioskSwitchesToUiClamshellMode) {
+  SetTabletMode(true);
+  EXPECT_TRUE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_TRUE(AreEventsBlocked());
+
+  SimulateKioskMode(user_manager::UserType::kKioskApp);
+
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  // When the device is in the physical tablet state, the internal events should
+  // still be blocked even when the device is in the UI clamshell mode.
+  EXPECT_TRUE(AreEventsBlocked());
+}
+
+TEST_F(TabletModeControllerTest, KioskBlocksEnteringTabletMode) {
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_FALSE(AreEventsBlocked());
+  SimulateKioskMode(user_manager::UserType::kKioskApp);
+
+  SetTabletMode(true);
+
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_TRUE(AreEventsBlocked());
+  EXPECT_TRUE(IsInPhysicalTabletState());
+}
+
+TEST_F(TabletModeControllerTest, DeviceReactsOnLidChangeInKioskSession) {
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_FALSE(AreEventsBlocked());
+  SimulateKioskMode(user_manager::UserType::kKioskApp);
+
+  // Opening the lid to 270 degrees should start tablet mode if not blocked.
+  OpenLidToAngle(270.0f);
+
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_TRUE(AreEventsBlocked());
+  EXPECT_TRUE(IsInPhysicalTabletState());
+}
+
+TEST_F(TabletModeControllerTest,
+       KioskBlocksUiTabletModeEvenAfterMultipleLidChange) {
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_FALSE(AreEventsBlocked());
+  SimulateKioskMode(user_manager::UserType::kKioskApp);
+
+  OpenLidToAngle(270.0f);
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_TRUE(AreEventsBlocked());
+
+  OpenLidToAngle(30.0f);
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_FALSE(AreEventsBlocked());
+
+  OpenLidToAngle(270.0f);
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
+  EXPECT_TRUE(AreEventsBlocked());
+}
+
 class TabletModeControllerForceTabletModeTest
     : public TabletModeControllerTest {
  public:
@@ -1155,6 +1269,15 @@ TEST_F(TabletModeControllerForceTabletModeTest, ForceTabletModeTest) {
   AttachExternalMouse();
   EXPECT_TRUE(display::Screen::GetScreen()->InTabletMode());
   EXPECT_FALSE(AreEventsBlocked());
+}
+
+TEST_F(TabletModeControllerForceTabletModeTest,
+       ForceTabletModeOverridenInKiosk) {
+  EXPECT_TRUE(display::Screen::GetScreen()->InTabletMode());
+
+  SimulateKioskMode(user_manager::UserType::kKioskApp);
+
+  EXPECT_FALSE(display::Screen::GetScreen()->InTabletMode());
 }
 
 TEST_F(TabletModeControllerForceTabletModeTest, DockInForcedTabletMode) {
@@ -1886,8 +2009,9 @@ class TabletModeControllerScreenshotTest : public TabletModeControllerTest {
     for (int id :
          {kShellWindowId_FloatContainer, kShellWindowId_ShelfContainer}) {
       const aura::Window* container = root->GetChildById(id);
-      if (container->layer()->opacity() != 1.0f)
+      if (container->layer()->opacity() != 1.0f) {
         return false;
+      }
     }
     return true;
   }

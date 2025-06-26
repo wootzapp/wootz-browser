@@ -129,11 +129,16 @@ class VIEWS_EXPORT RootView : public View,
   bool OnMouseWheel(const ui::MouseWheelEvent& event) override;
   void SetMouseAndGestureHandler(View* new_handler) override;
   void SetMouseHandler(View* new_mouse_handler) override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   void UpdateParentLayer() override;
+
+  void UpdateAccessibleName();
+  void UpdateAccessibleURL(const GURL& url);
 
   const views::View* gesture_handler_for_testing() const {
     return gesture_handler_;
+  }
+  const views::View* mouse_pressed_handler_for_testing() const {
+    return mouse_pressed_handler_.get();
   }
 
  protected:
@@ -172,8 +177,9 @@ class VIEWS_EXPORT RootView : public View,
   // screen reader via an alert or live region update.
   AnnounceTextView* GetOrCreateAnnounceView();
 
-  // ET_MOUSE_ENTERED events require the same handling as ET_MOUSE_MOVED, except
-  // that for the former we don't send ET_MOUSE_MOVED to |mouse_move_handler_|.
+  // EventType::kMouseEntered events require the same handling as
+  // EventType::kMouseMoved, except that for the former we don't send
+  // EventType::kMouseMoved to |mouse_move_handler_|.
   void HandleMouseEnteredOrMoved(const ui::MouseEvent& event);
 
   // |view| is the view receiving |event|. This function sends the event to all
@@ -208,7 +214,7 @@ class VIEWS_EXPORT RootView : public View,
   //                   ViewTargeter / RootViewTargeter.
 
   // The view currently handing down - drag - up
-  raw_ptr<View, AcrossTasksDanglingUntriaged> mouse_pressed_handler_ = nullptr;
+  raw_ptr<View> mouse_pressed_handler_ = nullptr;
 
   // The view currently handling enter / exit
   raw_ptr<View, AcrossTasksDanglingUntriaged> mouse_move_handler_ = nullptr;
@@ -271,6 +277,8 @@ class VIEWS_EXPORT RootView : public View,
   // live region update.
   raw_ptr<AnnounceTextView, AcrossTasksDanglingUntriaged> announce_view_ =
       nullptr;
+
+  base::WeakPtrFactory<RootView> weak_factory_{this};
 };
 
 }  // namespace internal

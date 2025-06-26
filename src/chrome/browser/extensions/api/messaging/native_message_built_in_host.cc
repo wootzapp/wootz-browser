@@ -21,8 +21,8 @@ namespace {
 bool MatchesSecurityOrigin(const NativeMessageBuiltInHost& host,
                            const ExtensionId& extension_id) {
   GURL origin(std::string(kExtensionScheme) + "://" + extension_id);
-  for (size_t i = 0; i < host.allowed_origins_count; i++) {
-    URLPattern allowed_origin(URLPattern::SCHEME_ALL, host.allowed_origins[i]);
+  for (const char* host_allowed_origin : host.allowed_origins) {
+    URLPattern allowed_origin(URLPattern::SCHEME_ALL, host_allowed_origin);
     if (allowed_origin.MatchesSecurityOrigin(origin)) {
       return true;
     }
@@ -39,8 +39,7 @@ std::unique_ptr<NativeMessageHost> NativeMessageHost::Create(
     const std::string& native_host_name,
     bool allow_user_level,
     std::string* error) {
-  for (size_t i = 0; i < kBuiltInHostsCount; i++) {
-    const auto& host = kBuiltInHosts[i];
+  for (const auto& host : kBuiltInHosts) {
     if (host.name == native_host_name) {
       if (MatchesSecurityOrigin(host, source_extension_id)) {
         return (*host.create_function)(browser_context);

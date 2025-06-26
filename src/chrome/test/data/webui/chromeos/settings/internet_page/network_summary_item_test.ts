@@ -4,8 +4,8 @@
 
 import 'chrome://os-settings/os_settings.js';
 
-import {CrToggleElement, NetworkSummaryItemElement} from 'chrome://os-settings/os_settings.js';
-import {OncMojo} from 'chrome://resources/ash/common/network/onc_mojo.js';
+import type {CrToggleElement, NetworkSummaryItemElement} from 'chrome://os-settings/os_settings.js';
+import type {OncMojo} from 'chrome://resources/ash/common/network/onc_mojo.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {InhibitReason} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
 import {ConnectionStateType, DeviceStateType, NetworkType, PortalState} from 'chrome://resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
@@ -191,6 +191,72 @@ suite('<network-summary-item>', () => {
     assertFalse(
         netSummaryItem.shadowRoot!
             .querySelector<CrToggleElement>('#deviceEnabledButton')!.disabled);
+  });
+
+  test('Cellular modem flashing operation', () => {
+    netSummaryItem.setProperties({
+      deviceState: {
+        inhibitReason: InhibitReason.kNotInhibited,
+        deviceState: DeviceStateType.kDisabled,
+        isFlashing: true,
+        type: NetworkType.kCellular,
+        simAbsent: false,
+      },
+      activeNetworkState: {
+        connectionState: ConnectionStateType.kNotConnected,
+        guid: '',
+        type: NetworkType.kCellular,
+        typeState: {cellular: {networkTechnology: ''}},
+      },
+    });
+
+    flush();
+    assertFalse(
+        netSummaryItem.shadowRoot!
+            .querySelector<CrToggleElement>('#deviceEnabledButton')!.checked);
+    assertTrue(
+        netSummaryItem.shadowRoot!
+            .querySelector<CrToggleElement>('#deviceEnabledButton')!.disabled);
+
+    const networkStateText =
+        netSummaryItem.shadowRoot!.querySelector<HTMLElement>('#networkState');
+    assertTrue(!!networkStateText);
+    assertEquals(
+        netSummaryItem.i18n('internetDeviceFlashing'),
+        networkStateText.textContent!.trim());
+
+
+    netSummaryItem.setProperties({
+      deviceState: {
+        inhibitReason: InhibitReason.kNotInhibited,
+        deviceState: DeviceStateType.kDisabled,
+        isFlashing: false,
+        type: NetworkType.kCellular,
+        simAbsent: false,
+      },
+      activeNetworkState: {
+        connectionState: ConnectionStateType.kNotConnected,
+        guid: '',
+        type: NetworkType.kCellular,
+        typeState: {cellular: {networkTechnology: ''}},
+      },
+    });
+
+    flush();
+
+    assertFalse(
+        netSummaryItem.shadowRoot!
+            .querySelector<CrToggleElement>('#deviceEnabledButton')!.checked);
+    assertFalse(
+        netSummaryItem.shadowRoot!
+            .querySelector<CrToggleElement>('#deviceEnabledButton')!.disabled);
+
+    const newNetworkStateText =
+        netSummaryItem.shadowRoot!.querySelector<HTMLElement>('#networkState');
+    assertTrue(!!newNetworkStateText);
+    assertEquals(
+        netSummaryItem.i18n('deviceOff'),
+        newNetworkStateText.textContent!.trim());
   });
 
   test('Toggle should be disabled when device state is unavailable', () => {

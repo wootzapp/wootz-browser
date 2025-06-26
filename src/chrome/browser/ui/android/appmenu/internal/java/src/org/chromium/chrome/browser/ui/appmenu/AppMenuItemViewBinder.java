@@ -4,18 +4,12 @@
 
 package org.chromium.chrome.browser.ui.appmenu;
 
-import android.content.Context;
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.res.ColorStateList;
-import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffXfermode;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.TextView;
 
@@ -24,11 +18,13 @@ import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.core.widget.ImageViewCompat;
 
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.ui.appmenu.internal.R;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter.HighlightParams;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter.HighlightShape;
 import org.chromium.components.browser_ui.widget.text.TextViewWithCompoundDrawables;
+import org.chromium.ui.UiUtils;
 import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -36,6 +32,7 @@ import org.chromium.ui.widget.ChromeImageButton;
 import org.chromium.ui.widget.ChromeImageView;
 
 /** The binder to bind the app menu {@link PropertyModel} with the view. */
+@NullMarked
 class AppMenuItemViewBinder {
     /** IDs of all of the buttons in icon_row_menu_item.xml. */
     private static final int[] BUTTON_IDS = {
@@ -77,7 +74,14 @@ class AppMenuItemViewBinder {
 
             if (model.get(AppMenuItemProperties.ICON_SHOW_BADGE)) {
                 // Draw the icon with a red badge on top.
-                icon = drawIconWithBadge(imageView.getContext(), icon, colorResId);
+                icon =
+                        UiUtils.drawIconWithBadge(
+                                imageView.getContext(),
+                                icon,
+                                colorResId,
+                                R.dimen.menu_item_icon_badge_size,
+                                R.dimen.menu_item_icon_badge_border_size,
+                                R.color.default_red);
                 // `colorResId` has already been applied by `drawIconWithBadge` and thus, passing
                 // `tintList` is not required.
                 // Note that tint is set to null to clear any tint previously set via XML.
@@ -140,6 +144,7 @@ class AppMenuItemViewBinder {
             }
 
             if (checkable) {
+                assumeNonNull(buttonModel);
                 // Display a checkbox for the MenuItem.
                 button.setVisibility(View.GONE);
                 checkbox.setVisibility(View.VISIBLE);
@@ -150,6 +155,7 @@ class AppMenuItemViewBinder {
                                 checkbox.getContext(), R.color.selection_control_button_tint_list));
                 setupMenuButton(checkbox, buttonModel, appMenuClickHandler);
             } else if (subIcon != null) {
+                assumeNonNull(buttonModel);
                 // Display an icon alongside the MenuItem.
                 checkbox.setVisibility(View.GONE);
                 button.setVisibility(View.VISIBLE);
@@ -184,22 +190,21 @@ class AppMenuItemViewBinder {
         if (key == AppMenuItemProperties.SUBMENU) {
             ModelList iconList = model.get(AppMenuItemProperties.SUBMENU);
 
-            int numItems = iconList.size();
-            ImageButton[] buttons = new ImageButton[numItems];
-            // Save references to all the buttons.
-            for (int i = 0; i < numItems; i++) {
-                buttons[i] = (ImageButton) view.findViewById(BUTTON_IDS[i]);
-            }
-
-            // Remove unused menu items.
-            for (int i = numItems; i < 5; i++) {
-                ((ViewGroup) view).removeView(view.findViewById(BUTTON_IDS[i]));
-            }
-
             AppMenuClickHandler appMenuClickHandler =
                     model.get(AppMenuItemProperties.CLICK_HANDLER);
-            for (int i = 0; i < numItems; i++) {
-                setupImageButton(buttons[i], iconList.get(i).model, appMenuClickHandler);
+
+            int numItems = iconList.size();
+            ImageButton[] buttons = new ImageButton[numItems];
+            for (int i = 0; i < 5; i++) {
+                ImageButton button = view.findViewById(BUTTON_IDS[i]);
+                if (i < numItems) {
+                    buttons[i] = button;
+                    button.setVisibility(View.VISIBLE);
+                    setupImageButton(button, iconList.get(i).model, appMenuClickHandler);
+                } else {
+                    button.setVisibility(View.GONE);
+                    button.setImageDrawable(null);
+                }
             }
 
             boolean isMenuIconAtStart = model.get(AppMenuItemProperties.MENU_ICON_AT_START);
@@ -271,60 +276,5 @@ class AppMenuItemViewBinder {
 
         // Menu items may be hidden by command line flags before they get to this point.
         button.setVisibility(View.VISIBLE);
-    }
-
-    /**
-     * Draws a badge (a red dot) on icon.
-     *
-     * @param context The activity context.
-     * @param icon The icon to draw the badge on.
-     * @param iconColorResId The resounce id of the color to color the icon with.
-     * @return A new drawable that portrays a badge on the passed icon.
-     */
-    // TODO(crbug.com/40944114): Consider moving the following to UiUtils or somewhere re-usable.
-    private static Drawable drawIconWithBadge(
-            Context context, Drawable icon, @ColorRes int iconColorResId) {
-        if (icon == null || icon.getIntrinsicWidth() <= 0 || icon.getIntrinsicHeight() <= 0) {
-            return icon;
-        }
-
-        int width = icon.getIntrinsicWidth();
-        int height = icon.getIntrinsicHeight();
-
-        // Create new drawable.
-        Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-
-        Canvas canvas = new Canvas(bitmap);
-        icon.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-        icon.draw(canvas);
-
-        // Color the icon.
-        canvas.drawColor(context.getColor(iconColorResId), PorterDuff.Mode.SRC_IN);
-
-        int badgeRadius =
-                context.getResources().getDimensionPixelSize(R.dimen.menu_item_icon_badge_size) / 2;
-        int badgeCenterX = width - badgeRadius;
-        int badgeCenterY = height / 2 - badgeRadius;
-
-        // Cut a transparent hole through the background icon. This will serve as a border to
-        // the badge being overlaid.
-        Paint hole = new Paint();
-        hole.setAntiAlias(true);
-        hole.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
-        canvas.drawCircle(
-                badgeCenterX,
-                badgeCenterY,
-                badgeRadius
-                        + context.getResources()
-                                .getDimensionPixelSize(R.dimen.menu_item_icon_badge_border_size),
-                hole);
-
-        // Draw the red badge.
-        Paint badge = new Paint();
-        hole.setAntiAlias(true);
-        badge.setColor(context.getColor(R.color.default_red));
-        canvas.drawCircle(badgeCenterX, badgeCenterY, badgeRadius, badge);
-
-        return new BitmapDrawable(context.getResources(), bitmap);
     }
 }

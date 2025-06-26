@@ -4,7 +4,6 @@
 
 #include "content/renderer/agent_scheduling_group.h"
 
-#include <map>
 #include <utility>
 
 #include "base/containers/map_util.h"
@@ -23,10 +22,11 @@
 #include "ipc/ipc_channel_mojo.h"
 #include "ipc/ipc_listener.h"
 #include "ipc/ipc_sync_channel.h"
-#include "third_party/blink/public/common/features.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "third_party/blink/public/common/page/browsing_context_group_info.h"
 #include "third_party/blink/public/mojom/frame/frame.mojom.h"
 #include "third_party/blink/public/mojom/page/page.mojom.h"
+#include "third_party/blink/public/mojom/page/prerender_page_param.mojom.h"
 #include "third_party/blink/public/mojom/shared_storage/shared_storage_worklet_service.mojom.h"
 #include "third_party/blink/public/mojom/worker/worklet_global_scope_creation_params.mojom.h"
 #include "third_party/blink/public/platform/scheduler/web_thread_scheduler.h"
@@ -113,8 +113,7 @@ AgentSchedulingGroup::ReceiverData::~ReceiverData() = default;
 // AgentSchedulingGroup:
 AgentSchedulingGroup::AgentSchedulingGroup(
     RenderThread& render_thread,
-    mojo::PendingReceiver<IPC::mojom::ChannelBootstrap> bootstrap,
-    mojo::PendingRemote<blink::mojom::BrowserInterfaceBroker> broker_remote)
+    mojo::PendingReceiver<IPC::mojom::ChannelBootstrap> bootstrap)
     : agent_group_scheduler_(
           blink::scheduler::WebThreadScheduler::MainThreadScheduler()
               .CreateWebAgentGroupScheduler()),
@@ -124,12 +123,12 @@ AgentSchedulingGroup::AgentSchedulingGroup(
   DCHECK(agent_group_scheduler_);
   DCHECK_NE(GetMBIMode(), features::MBIMode::kLegacy);
 
-  agent_group_scheduler_->BindInterfaceBroker(std::move(broker_remote));
-
   channel_ = SyncChannel::Create(
       /*listener=*/this, /*ipc_task_runner=*/render_thread_->GetIOTaskRunner(),
       /*listener_task_runner=*/agent_group_scheduler_->DefaultTaskRunner(),
       render_thread_->GetShutdownEvent());
+
+  channel_->SetUrgentMessageObserver(agent_group_scheduler_.get());
 
   // TODO(crbug.com/40142495): Add necessary filters.
   // Currently, the renderer process has these filters:
@@ -147,8 +146,7 @@ AgentSchedulingGroup::AgentSchedulingGroup(
 
 AgentSchedulingGroup::AgentSchedulingGroup(
     RenderThread& render_thread,
-    PendingAssociatedReceiver<mojom::AgentSchedulingGroup> receiver,
-    mojo::PendingRemote<blink::mojom::BrowserInterfaceBroker> broker_remote)
+    PendingAssociatedReceiver<mojom::AgentSchedulingGroup> receiver)
     : agent_group_scheduler_(
           blink::scheduler::WebThreadScheduler::MainThreadScheduler()
               .CreateWebAgentGroupScheduler()),
@@ -158,7 +156,6 @@ AgentSchedulingGroup::AgentSchedulingGroup(
                 agent_group_scheduler_->DefaultTaskRunner()) {
   DCHECK(agent_group_scheduler_);
   DCHECK_EQ(GetMBIMode(), features::MBIMode::kLegacy);
-  agent_group_scheduler_->BindInterfaceBroker(std::move(broker_remote));
 }
 
 AgentSchedulingGroup::~AgentSchedulingGroup() = default;
@@ -280,6 +277,9 @@ blink::WebView* AgentSchedulingGroup::CreateWebView(
     mojom::CreateViewParamsPtr params,
     bool was_created_by_renderer,
     const blink::WebURL& base_url) {
+  TRACE_EVENT0("navigation", "AgentSchedulingGroup::CreateWebView");
+  base::ScopedUmaHistogramTimer histogram_timer(
+      "Navigation.AgentSchedulingGroup.CreateWebView");
   DCHECK(RenderThread::IsMainThread());
 
   blink::WebFrame* opener_frame = nullptr;
@@ -288,8 +288,8 @@ blink::WebView* AgentSchedulingGroup::CreateWebView(
         blink::WebFrame::FromFrameToken(params->opener_frame_token.value());
 
   blink::WebView* web_view = blink::WebView::Create(
-      new SelfOwnedWebViewClient(), params->hidden, params->is_prerendering,
-      /*is_inside_portal=*/false,
+      new SelfOwnedWebViewClient(), params->hidden,
+      std::move(params->prerender_param),
       params->type == mojom::ViewWidgetType::kFencedFrame
           ? std::make_optional(params->fenced_frame_mode)
           : std::nullopt,
@@ -297,9 +297,8 @@ blink::WebView* AgentSchedulingGroup::CreateWebView(
       opener_frame ? opener_frame->View() : nullptr,
       std::move(params->blink_page_broadcast), agent_group_scheduler(),
       params->session_storage_namespace_id, params->base_background_color,
-      params->browsing_context_group_info, &params->color_provider_colors);
-
-  bool local_main_frame = params->main_frame->is_local_params();
+      params->browsing_context_group_info, &params->color_provider_colors,
+      std::move(params->partitioned_popin_params));
 
   web_view->SetRendererPreferences(params->renderer_preferences);
   web_view->SetWebPreferences(params->web_preferences);
@@ -308,90 +307,104 @@ blink::WebView* AgentSchedulingGroup::CreateWebView(
   const bool is_for_nested_main_frame =
       params->type != mojom::ViewWidgetType::kTopLevel;
 
-  if (!local_main_frame) {
-    // Create a remote main frame.
-    auto remote_params = std::move(params->main_frame->get_remote_params());
-    CreateRemoteMainFrame(
-        remote_params->token,
-        std::move(remote_params->frame_interfaces->frame_host),
-        std::move(remote_params->frame_interfaces->frame_receiver),
-        std::move(remote_params->main_frame_interfaces->main_frame_host),
-        std::move(remote_params->main_frame_interfaces->main_frame),
-        params->devtools_main_frame_token, std::move(params->replication_state),
-        opener_frame, web_view);
-  } else {
-    auto local_params = std::move(params->main_frame->get_local_params());
-
-    if (!local_params->previous_frame_token) {
-      // Create a local non-provisional main frame.
+  switch (params->main_frame->which()) {
+    case mojom::CreateMainFrameUnion::Tag::kRemoteParams: {
+      auto& remote_params = params->main_frame->get_remote_params();
+      CreateRemoteMainFrame(
+          remote_params->token,
+          std::move(remote_params->frame_interfaces->frame_host),
+          std::move(remote_params->frame_interfaces->frame_receiver),
+          std::move(remote_params->main_frame_interfaces->main_frame_host),
+          std::move(remote_params->main_frame_interfaces->main_frame),
+          params->devtools_main_frame_token,
+          std::move(params->replication_state), opener_frame, web_view);
+      break;
+    }
+    case mojom::CreateMainFrameUnion::Tag::kLocalParams: {
       RenderFrameImpl::CreateMainFrame(
           *this, web_view, opener_frame, is_for_nested_main_frame,
           /*is_for_scalable_page=*/params->type !=
               mojom::ViewWidgetType::kFencedFrame,
           std::move(params->replication_state),
-          params->devtools_main_frame_token, std::move(local_params), base_url);
-    } else {
-      // Create a local provisional main frame and a placeholder RemoteFrame as
-      // a placeholder main frame for the new WebView. This can only happen for
-      // provisional frames for main frame navigations that will do a
-      // LocalFrame <-> LocalFrame swap with the previous main frame, which
-      // belongs to a different WebView and blink::Page. For other main
-      // frame navigations, the WebView will be created with a real main
-      // RemoteFrame, and the provisional frame will be created separately
-      // through AgentSchedulingGroup::CreateFrame().
+          params->devtools_main_frame_token,
+          std::move(params->main_frame->get_local_params()), base_url);
+      break;
+    }
+    case mojom::CreateMainFrameUnion::Tag::kProvisionalLocalParams: {
+      // Create a provisional local main frame and a placeholder RemoteFrame as
+      // the main frame for the new WebView. This is used in two instances:
       //
-      // The new provisional main frame will use the newly created WebView,
-      // but will not be attached to the blink::Page associated with the WebView
-      // yet. Instead, a placeholder main RemoteFrame that is not connected to
-      // any RenderFrameProxyHost on the browser side will be the placeholder
-      // main frame for the new WebView's blink::Page. This is needed because
-      // the WebView needs to have a main frame, but the provisional LocalFrame
-      // can't be attached to the Page yet (as it is still provisional), so
-      // the placeholder main RemoteFrame is used instead. We can't create a
-      // real RemoteFrame, because the navigation is a same-SiteInstanceGroup
-      // navigation (as the previous Page's LocalFrame is in the same renderer
-      // process as the new provisional LocalFrame), which means we can't have a
-      // RenderFrameProxyHost on the browser side for the RemoteFrame to point
-      // to (because the main frame shouldn't have a proxy for the
-      // SiteInstanceGroup it's currently on).
+      // 1. A main frame navigation with RenderDocument that commits in the same
+      //    renderer process as the current RenderFrame, which will result in a
+      //    local -> local frame swap if the navigation commits. Note that the
+      //    current RenderFrame and the new RenderFrame are in separate
+      //    blink::WebViews, so a local -> local main frame swap must also
+      //    handle swapping the state on the blink::WebView/blink::Page.
       //
-      // The provisional LocalFrame will be appointed as the provisional frame
-      // for the placeholder RemoteFrame, while also retaining a pointer to the
-      // previous page's local main frame. When the provisional frame commits,
-      // both the placeholder main RemoteFrame and the previous page's local
-      // frame will be swapped out, and the provisional frame will be swapped in
-      // to become the main frame for the new WebView's blink::Page.
+      //  2. A main frame navigation in a prerendered page. Unlike local ->
+      //     local frame swaps for RenderDocument, there is never a current
+      //     RenderFrame, so there is no additional complexity to swap the state
+      //     on the blink::WebView/blink::Page.
       //
-      // In summary, the steps involved in main frame LocalFrame <-> LocalFrame
-      // swaps are:
-      // 1. Create a new WebView with a placeholder main RemoteFrame, and a
-      // provisional main LocalFrame for the RemoteFrame (see code below).
-      // 2. Wait for the navigation to either commit or get canceled.
-      // 2a. If the navigation gets canceled, the provisional main LocalFrame
-      // will get deleted. Separately, the new WebView will also get deleted,
-      // which will delete the placeholder main RemoteFrame along with it.
-      // 2b. If the navigation gets committed:
-      // - The new WebView will swap out the placeholder main RemoteFrame, and
-      // swap in the provisional main LocalFrame, and commit the navigation to
-      // that LocalFrame.
-      // - The old WebView will swap out its main LocalFrame, and we will swap
-      // in a newly created placeholder main RemoteFrame, so that the old
-      // WebView still have a valid main frame.
+      // Note: a potential remote -> local swap does not go through this path at
+      // all; instead, the browser creates a new view with a RemoteFrame as the
+      // main frame, and then creates a provisional main LocalFrame with a
+      // second IPC.
+      //
+      // Additional background for local -> local main frame swap:
+      // The placeholder RemoteFrame is needed because:
+      // - a blink::WebView/blink::Page must have a main frame
+      // - but the provisional LocalFrame must not be set as the main frame of
+      //   the page yet, as it is still provisional
+      //
+      // Unlike a potential remote -> local swap, the main RemoteFrame does not
+      // have a corresponding RenderFrameProxyHost on the browser side. This is
+      // because the potential navigation is within the same SiteInstanceGroup,
+      // and a single frame tree node should not have both a RenderFrameHost and
+      // a RenderFrameProxyHost.
+      //
+      // If the potential remote -> local swap is cancelled, the provisional
+      // LocalFrame is deleted first, with a separate IPC to delete the
+      // blink::WebView (and its corresponding placeholder RemoteFrame).
+      //
+      // Finally, if the remote -> local swap commits, the frame swapping logic
+      // has additional logic to swap a similar placeholder RemoteFrame in the
+      // previous blink::WebView to unload the previous RenderFrame.
+      //
+      // Note: we create the placeholder RemoteFrame with no opener, even if we
+      // have an opener_frame. This ensures that the placeholder RemoteFrame is
+      // not retained beyond the navigation by the opener's OpenedFrameTracker.
 
       // Create the placeholder RemoteFrame.
+      blink::RemoteFrameToken remote_frame_token;
       CreateRemoteMainFrame(
-          blink::RemoteFrameToken(), mojo::NullAssociatedRemote(),
+          remote_frame_token, mojo::NullAssociatedRemote(),
           mojo::NullAssociatedReceiver(), mojo::NullAssociatedRemote(),
           mojo::NullAssociatedReceiver(), params->devtools_main_frame_token,
-          params->replication_state.Clone(), opener_frame, web_view);
+          params->replication_state.Clone(), nullptr, web_view);
+
+      auto& provisional_local_params =
+          params->main_frame->get_provisional_local_params();
+      auto& local_params = provisional_local_params->local_params;
+
+      // It does not make swense to reuse the compositor if there is no previous
+      // RenderFrame to take it from.
+      if (local_params->widget_params->reuse_compositor) {
+        DCHECK(provisional_local_params->previous_frame_token);
+      }
 
       // Create the provisional main LocalFrame.
+      // TODO(dcheng): RenderFrameImpl::CreateFrame() should probably be split
+      // for clarity, but this is left as an exercise for another day.
       RenderFrameImpl::CreateFrame(
           *this, local_params->frame_token, local_params->routing_id,
           std::move(local_params->frame),
           std::move(local_params->interface_broker),
           std::move(local_params->associated_interface_provider_remote),
-          web_view, local_params->previous_frame_token,
+          provisional_local_params->previous_frame_token ? web_view : nullptr,
+          provisional_local_params->previous_frame_token
+              ? provisional_local_params->previous_frame_token
+              : remote_frame_token,
           params->opener_frame_token,
           /*parent_frame_token=*/std::nullopt,
           /*previous_sibling_frame_token=*/std::nullopt,
@@ -403,6 +416,7 @@ blink::WebView* AgentSchedulingGroup::CreateWebView(
           local_params->is_on_initial_empty_document,
           local_params->document_token,
           std::move(local_params->policy_container), is_for_nested_main_frame);
+      break;
     }
   }
 
@@ -417,6 +431,9 @@ blink::WebView* AgentSchedulingGroup::CreateWebView(
 }
 
 void AgentSchedulingGroup::CreateFrame(mojom::CreateFrameParamsPtr params) {
+  TRACE_EVENT0("navigation", "AgentSchedulingGroup::CreateFrame");
+  base::ScopedUmaHistogramTimer histogram_timer(
+      "Navigation.AgentSchedulingGroup.CreateFrame");
   RenderFrameImpl::CreateFrame(
       *this, params->frame_token, params->routing_id, std::move(params->frame),
       std::move(params->interface_broker),

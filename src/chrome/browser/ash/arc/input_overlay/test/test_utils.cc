@@ -6,13 +6,13 @@
 
 #include <cstddef>
 
-#include "ash/components/arc/test/fake_app_instance.h"
 #include "ash/public/cpp/window_properties.h"
 #include "base/test/task_environment.h"
 #include "chrome/browser/ash/app_list/arc/arc_app_test.h"
 #include "chrome/browser/ash/arc/input_overlay/actions/action.h"
 #include "chrome/browser/ash/arc/input_overlay/arc_input_overlay_metrics.h"
 #include "chrome/browser/ash/arc/input_overlay/touch_injector.h"
+#include "chromeos/ash/experiences/arc/test/fake_app_instance.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
 #include "chromeos/ui/base/app_types.h"
 #include "chromeos/ui/base/window_properties.h"
@@ -31,10 +31,11 @@ std::unique_ptr<views::Widget> CreateArcWindow(
     aura::Window* root_window,
     const gfx::Rect& bounds,
     const std::string& package_name) {
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_WINDOW);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+      views::Widget::InitParams::TYPE_WINDOW);
   params.bounds = bounds;
   params.context = root_window;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   // `chromeos::kAppTypeKey` property should be assigned before widget init.
   // It simulates the situation that
   // `AppServiceAppWindowShelfController::OnWindowInitialized()` is called
@@ -112,7 +113,7 @@ std::u16string GetControlName(ActionType action_type,
       control_type_id = IDS_INPUT_OVERLAY_BUTTON_TYPE_JOYSTICK_BUTTON_LABEL;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   if (key_string.empty()) {

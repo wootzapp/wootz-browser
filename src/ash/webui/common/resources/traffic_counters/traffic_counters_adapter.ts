@@ -6,9 +6,10 @@
  * Class that provides the functionality for interacting with traffic counters.
  */
 
-import {CrosNetworkConfigInterface, FilterType, NO_LIMIT, TrafficCounter, UInt32Value} from '//resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
+import type {CrosNetworkConfigInterface, TrafficCounter, UInt32Value} from '//resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
+import {FilterType, NO_LIMIT} from '//resources/mojo/chromeos/services/network_config/public/mojom/cros_network_config.mojom-webui.js';
 import {NetworkType} from '//resources/mojo/chromeos/services/network_config/public/mojom/network_types.mojom-webui.js';
-import {Time} from '//resources/mojo/mojo/public/mojom/base/time.mojom-webui.js';
+import type {Time} from '//resources/mojo/mojo/public/mojom/base/time.mojom-webui.js';
 
 import {MojoInterfaceProviderImpl} from '../network/mojo_interface_provider.js';
 
@@ -113,13 +114,20 @@ export class TrafficCountersAdapter {
   async requestLastResetTimeForNetwork(guid: string): Promise<Time|null> {
     const managedPropertiesPromise =
         await this.networkConfig_.getManagedProperties(guid);
+
     if (!managedPropertiesPromise || !managedPropertiesPromise.result) {
       return null;
     }
-    return managedPropertiesPromise.result.trafficCounterProperties
-               .lastResetTime ||
-        null;
+
+    const trafficCounterProperties =
+        managedPropertiesPromise.result.trafficCounterProperties;
+    if (!trafficCounterProperties) {
+      return null;
+    }
+
+    return trafficCounterProperties.lastResetTime || null;
   }
+
 
   /**
    * Requests a reader friendly date, corresponding to the last reset time,
@@ -128,12 +136,18 @@ export class TrafficCountersAdapter {
   async requestFriendlyDateForNetwork(guid: string): Promise<string|null> {
     const managedPropertiesPromise =
         await this.networkConfig_.getManagedProperties(guid);
+
     if (!managedPropertiesPromise || !managedPropertiesPromise.result) {
       return null;
     }
-    return managedPropertiesPromise.result.trafficCounterProperties
-               .friendlyDate ||
-        null;
+
+    const trafficCounterProperties =
+        managedPropertiesPromise.result.trafficCounterProperties;
+    if (!trafficCounterProperties) {
+      return null;
+    }
+
+    return trafficCounterProperties.friendlyDate || null;
   }
 
   /**
@@ -142,11 +156,18 @@ export class TrafficCountersAdapter {
   async requestUserSpecifiedResetDayForNetwork(guid: string): Promise<number> {
     const managedPropertiesPromise =
         await this.networkConfig_.getManagedProperties(guid);
+
     if (!managedPropertiesPromise || !managedPropertiesPromise.result) {
       return kDefaultResetDay;
     }
-    return managedPropertiesPromise.result.trafficCounterProperties
-        .userSpecifiedResetDay;
+
+    const trafficCounterProperties =
+        managedPropertiesPromise.result.trafficCounterProperties;
+    if (!trafficCounterProperties) {
+      return kDefaultResetDay;
+    }
+
+    return trafficCounterProperties.userSpecifiedResetDay;
   }
 
   /**

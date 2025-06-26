@@ -6,10 +6,11 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_DOM_POPOVER_DATA_H_
 
 #include "base/check_op.h"
+#include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/dom/element.h"
 #include "third_party/blink/renderer/core/dom/element_rare_data_field.h"
 #include "third_party/blink/renderer/core/html/closewatcher/close_watcher.h"
-#include "third_party/blink/renderer/core/html/forms/html_select_list_element.h"
+#include "third_party/blink/renderer/core/html/forms/html_form_control_element.h"
 #include "third_party/blink/renderer/core/html_element_type_helpers.h"
 #include "third_party/blink/renderer/core/inspector/console_message.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
@@ -111,12 +112,8 @@ class PopoverData final : public GarbageCollected<PopoverData>,
     hover_hide_task_ = std::move(task);
   }
 
-  HTMLSelectListElement* ownerSelectListElement() const {
-    return owner_select_list_element_.Get();
-  }
-  void setOwnerSelectListElement(HTMLSelectListElement* element) {
-    owner_select_list_element_ = element;
-  }
+  Element* implicitAnchor() const { return implicit_anchor_.Get(); }
+  void setImplicitAnchor(Element* element) { implicit_anchor_ = element; }
 
   CloseWatcher* closeWatcher() { return close_watcher_.Get(); }
   void setCloseWatcher(CloseWatcher* close_watcher) {
@@ -127,7 +124,7 @@ class PopoverData final : public GarbageCollected<PopoverData>,
     visitor->Trace(invoker_);
     visitor->Trace(previously_focused_element_);
     visitor->Trace(hover_show_tasks_);
-    visitor->Trace(owner_select_list_element_);
+    visitor->Trace(implicit_anchor_);
     visitor->Trace(close_watcher_);
     ElementRareDataField::Trace(visitor);
   }
@@ -153,7 +150,9 @@ class PopoverData final : public GarbageCollected<PopoverData>,
   // A task that hides the popover after a delay.
   TaskHandle hover_hide_task_;
 
-  WeakMember<HTMLSelectListElement> owner_select_list_element_;
+  // Used to set up an anchor relationship separately from CSS `anchor`
+  // references.
+  WeakMember<Element> implicit_anchor_;
 
   Member<CloseWatcher> close_watcher_;
 };

@@ -12,16 +12,20 @@
 #include "base/strings/strcat.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/extensions/api/extension_action/extension_action_api.h"
-#include "chrome/browser/extensions/api/extension_action/test_extension_action_api_observer.h"
 #include "chrome/browser/extensions/api/extension_action/test_icon_image_observer.h"
 #include "chrome/browser/extensions/extension_apitest.h"
+#include "chrome/browser/extensions/test_extension_action_dispatcher_observer.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/extensions/extension_action_test_helper.h"
+#include "chrome/browser/ui/extensions/extensions_container.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/toolbar/toolbar_action_view_controller.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -42,8 +46,8 @@
 #include "extensions/common/api/extension_action/action_info.h"
 #include "extensions/common/api/extension_action/action_info_test_util.h"
 #include "extensions/common/extension.h"
+#include "extensions/common/extension_features.h"
 #include "extensions/common/extension_id.h"
-#include "extensions/common/features/feature_channel.h"
 #include "extensions/common/manifest_constants.h"
 #include "extensions/test/extension_test_message_listener.h"
 #include "extensions/test/result_catcher.h"
@@ -97,7 +101,7 @@ class TestStateStoreObserver : public StateStore::TestObserver {
   TestStateStoreObserver(const TestStateStoreObserver&) = delete;
   TestStateStoreObserver& operator=(const TestStateStoreObserver&) = delete;
 
-  ~TestStateStoreObserver() override {}
+  ~TestStateStoreObserver() override = default;
 
   void WillSetExtensionValue(const ExtensionId& extension_id,
                              const std::string& key) override {
@@ -250,9 +254,9 @@ class MultiActionAPITest
     action->SetIsVisible(tab_id, true);
     // Just setting the state on the action doesn't update the UI. Ensure
     // observers are notified.
-    extensions::ExtensionActionAPI* extension_action_api =
-        extensions::ExtensionActionAPI::Get(profile());
-    extension_action_api->NotifyChange(action, GetActiveTab(), profile());
+    ExtensionActionDispatcher* dispatcher =
+        ExtensionActionDispatcher::Get(profile());
+    dispatcher->NotifyChange(action, GetActiveTab(), profile());
   }
 
   // Ensures the |action| is enabled on the currently-active tab.
@@ -321,18 +325,18 @@ IN_PROC_BROWSER_TEST_F(BrowserActionAPITest, TestNoUnnecessaryIO) {
   TestStateStoreObserver test_state_store_observer(profile(), extension->id());
 
   {
-    TestExtensionActionAPIObserver test_api_observer(profile(),
-                                                     extension->id());
+    TestExtensionActionDispatcherObserver test_observer(profile(),
+                                                        extension->id());
     // First, update a specific tab.
     std::string update_options =
         base::StringPrintf("{text: 'New Text', tabId: %d}", tab_id.id());
     EXPECT_EQ("pass", ExecuteScriptInBackgroundPage(
                           extension->id(),
                           base::StringPrintf(kUpdate, update_options.c_str())));
-    test_api_observer.Wait();
+    test_observer.Wait();
 
     // The action update should be associated with the specific tab.
-    EXPECT_EQ(web_contents, test_api_observer.last_web_contents());
+    EXPECT_EQ(web_contents, test_observer.last_web_contents());
     // Since this was only updating a specific tab, this should *not* result in
     // a StateStore write. We should only write to the StateStore with new
     // default values.
@@ -340,16 +344,16 @@ IN_PROC_BROWSER_TEST_F(BrowserActionAPITest, TestNoUnnecessaryIO) {
   }
 
   {
-    TestExtensionActionAPIObserver test_api_observer(profile(),
-                                                     extension->id());
+    TestExtensionActionDispatcherObserver test_observer(profile(),
+                                                        extension->id());
     // Next, update the default badge text.
     EXPECT_EQ("pass",
               ExecuteScriptInBackgroundPage(
                   extension->id(),
                   base::StringPrintf(kUpdate, "{text: 'Default Text'}")));
-    test_api_observer.Wait();
+    test_observer.Wait();
     // The action update should not be associated with a specific tab.
-    EXPECT_EQ(nullptr, test_api_observer.last_web_contents());
+    EXPECT_EQ(nullptr, test_observer.last_web_contents());
 
     // This *should* result in a StateStore write, since we persist the default
     // state of the extension action.
@@ -622,8 +626,12 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPITest,
   const Extension* extension = LoadExtension(test_dir.UnpackedPath());
   ASSERT_TRUE(extension);
 
-  std::unique_ptr<ExtensionActionTestHelper> toolbar_helper =
-      ExtensionActionTestHelper::Create(browser());
+  ExtensionsContainer* extensions_container =
+      browser()->window()->GetExtensionsContainer();
+  ASSERT_TRUE(extensions_container);
+  ToolbarActionViewController* action_controller =
+      extensions_container->GetActionForId(extension->id());
+  ASSERT_TRUE(action_controller);
 
   ExtensionAction* action = GetExtensionAction(*extension);
   ASSERT_TRUE(action);
@@ -633,7 +641,8 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPITest,
   EXPECT_TRUE(action->HasPopup(tab_id));
 
   ResultCatcher result_catcher;
-  toolbar_helper->Press(extension->id());
+  action_controller->ExecuteUserAction(
+      ToolbarActionViewController::InvocationSource::kToolbarButton);
   EXPECT_TRUE(result_catcher.GetNextResult()) << result_catcher.message();
 
   ProcessManager* process_manager = ProcessManager::Get(profile());
@@ -660,7 +669,8 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPITest,
   EXPECT_EQ(0u, frames.size());
 
   // Open the popup again.
-  toolbar_helper->Press(extension->id());
+  action_controller->ExecuteUserAction(
+      ToolbarActionViewController::InvocationSource::kToolbarButton);
   EXPECT_TRUE(result_catcher.GetNextResult()) << result_catcher.message();
 
   frames = process_manager->GetRenderFrameHostsForExtension(extension->id());
@@ -692,8 +702,7 @@ IN_PROC_BROWSER_TEST_P(ActionAndBrowserActionAPITest, PRE_ValuesArePersisted) {
       dir_name = "extension_action/browser_action_persistence";
       break;
     case ActionInfo::Type::kPage:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
   // Load up an extension, which then modifies the popup, title, and badge text
   // of the action. We need to use a "real" extension on disk here (rather than
@@ -819,7 +828,7 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPICanvasTest, DISABLED_DynamicSetIcon) {
 
   // Create a new tab.
   ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL("wootzapp://newtab"),
+      browser(), GURL("chrome://newtab"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 
@@ -1276,7 +1285,7 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPITest, GettersAndSetters) {
 
   // And a second new tab.
   ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL("wootzapp://newtab"),
+      browser(), GURL("chrome://newtab"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
   int second_tab_id = GetActiveTabId();
@@ -1493,7 +1502,7 @@ IN_PROC_BROWSER_TEST_P(MultiActionAPITest, EnableAndDisable) {
       browser()->tab_strip_model()->GetActiveWebContents();
 
   ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL("wootzapp://newtab"),
+      browser(), GURL("chrome://newtab"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 
@@ -1644,8 +1653,8 @@ IN_PROC_BROWSER_TEST_F(ExtensionActionAPITest, IsEnabledIgnoreDeclarative) {
       browser()->tab_strip_model()->GetActiveWebContents();
   GURL url(embedded_test_server()->GetURL("google.com", "/title1.html"));
 
-  EXPECT_TRUE(NavigateToURL(web_contents, url));
-  EXPECT_TRUE(WaitForLoadStop(web_contents));
+  EXPECT_TRUE(content::NavigateToURL(web_contents, url));
+  EXPECT_TRUE(content::WaitForLoadStop(web_contents));
   const int tab_id = sessions::SessionTabHelper::IdForTab(web_contents).id();
 
   // Confirm that the tab is only visible for declarativeContent.
@@ -1716,6 +1725,49 @@ IN_PROC_BROWSER_TEST_F(ActionAPITest, TestGetUserSettings) {
   EXPECT_TRUE(toolbar_model->IsActionPinned(extension->id()));
 
   EXPECT_EQ(R"({"isOnToolbar":true})", get_response());
+}
+
+// Tests dispatching the onUserSettingsChanged event to listeners when the user
+// pins or unpins the extension action.
+IN_PROC_BROWSER_TEST_F(ActionAPITest, OnUserSettingsChanged) {
+  constexpr char kManifest[] =
+      R"({
+           "name": "onUserSettingsChanged Test",
+           "manifest_version": 3,
+           "version": "1",
+           "background": {"service_worker": "worker.js"},
+           "action": {}
+         })";
+  constexpr char kWorker[] =
+      R"(chrome.action.onUserSettingsChanged.addListener(change => {
+           chrome.test.sendMessage(JSON.stringify(change));
+         });)";
+
+  TestExtensionDir test_dir;
+  test_dir.WriteManifest(kManifest);
+  test_dir.WriteFile(FILE_PATH_LITERAL("worker.js"), kWorker);
+
+  const Extension* extension = LoadExtension(test_dir.UnpackedPath());
+  ASSERT_TRUE(extension);
+
+  ToolbarActionsModel* const toolbar_model =
+      ToolbarActionsModel::Get(profile());
+  ASSERT_FALSE(toolbar_model->IsActionPinned(extension->id()));
+
+  auto change_visibility_and_get_response = [extension,
+                                             toolbar_model](bool pinned_state) {
+    ExtensionTestMessageListener listener;
+    listener.set_extension_id(extension->id());
+    toolbar_model->SetActionVisibility(extension->id(), pinned_state);
+    EXPECT_TRUE(listener.WaitUntilSatisfied());
+    return listener.message();
+  };
+
+  EXPECT_EQ(R"({"isOnToolbar":true})",
+            change_visibility_and_get_response(/*pinned_state=*/true));
+
+  EXPECT_EQ(R"({"isOnToolbar":false})",
+            change_visibility_and_get_response(/*pinned_state=*/false));
 }
 
 // Tests that invalid badge text colors return an API error to the caller.
@@ -1798,7 +1850,7 @@ IN_PROC_BROWSER_TEST_P(ActionAndBrowserActionAPITest,
   EnsureActionIsEnabledOnTab(action, tab_id1);
 
   ui_test_utils::NavigateToURLWithDisposition(
-      browser(), GURL("wootzapp://newtab"),
+      browser(), GURL("chrome://newtab"),
       WindowOpenDisposition::NEW_FOREGROUND_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP);
 
@@ -1878,22 +1930,26 @@ IN_PROC_BROWSER_TEST_P(ActionAndBrowserActionAPITest,
   EXPECT_EQ("", action->GetExplicitlySetBadgeText(tab_id2));
 }
 
-class ExtensionActionStableChannelApiTest : public ExtensionActionAPITest {
+class ExtensionActionWithOpenPopupFeatureDisabledTest
+    : public ExtensionActionAPITest {
  public:
-  ExtensionActionStableChannelApiTest() = default;
-  ~ExtensionActionStableChannelApiTest() override = default;
+  ExtensionActionWithOpenPopupFeatureDisabledTest() {
+    feature_list_.InitAndDisableFeature(
+        extensions_features::kApiActionOpenPopup);
+  }
+  ~ExtensionActionWithOpenPopupFeatureDisabledTest() override = default;
 
  private:
-  ScopedCurrentChannel scoped_current_channel_{version_info::Channel::STABLE};
+  base::test::ScopedFeatureList feature_list_;
 };
 
 // Tests that the action.openPopup() API is available to policy-installed
-// extensions on stable. Since this is controlled through our features files
-// (which are tested separately), this is more of a smoke test than an
-// end-to-end test.
+// extensions on even if the feature flag is disabled. Since this is controlled
+// through our features files (which are tested separately), this is more of a
+// smoke test than an end-to-end test.
 // TODO(crbug.com/40057101): Remove this test when the API is available
-// for all extensions on stable.
-IN_PROC_BROWSER_TEST_F(ExtensionActionStableChannelApiTest,
+// for all extensions on stable without a feature flag.
+IN_PROC_BROWSER_TEST_F(ExtensionActionWithOpenPopupFeatureDisabledTest,
                        OpenPopupAvailabilityOnStableChannel) {
   TestExtensionDir test_dir;
   static constexpr char kManifest[] =

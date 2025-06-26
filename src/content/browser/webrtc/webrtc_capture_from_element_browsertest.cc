@@ -70,15 +70,14 @@ class WebRtcCaptureFromElementBrowserTest
     WebRtcContentBrowserTestBase::SetUpCommandLine(command_line);
 
     // Allow <video>/<audio>.play() when not initiated by user gesture.
-    base::CommandLine::ForCurrentProcess()->AppendSwitchASCII(
+    command_line->AppendSwitchASCII(
         switches::kAutoplayPolicy,
         switches::autoplay::kNoUserGestureRequiredPolicy);
     // Allow experimental canvas features.
-    base::CommandLine::ForCurrentProcess()->AppendSwitch(
+    command_line->AppendSwitch(
         switches::kEnableExperimentalWebPlatformFeatures);
     // Allow window.internals for simulating context loss.
-    base::CommandLine::ForCurrentProcess()->AppendSwitch(
-        switches::kExposeInternalsForTesting);
+    command_line->AppendSwitch(switches::kExposeInternalsForTesting);
   }
 };
 
@@ -125,15 +124,10 @@ IN_PROC_BROWSER_TEST_F(WebRtcCaptureFromElementBrowserTest,
   MakeTypicalCall("testCanvasCapture(draw2d);", kCanvasCaptureTestHtmlFile);
 }
 
-// TODO(crbug.com/40846825): Flaky.
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-#define MAYBE_VerifyCanvasCaptureWebGLFrames \
-  DISABLED_VerifyCanvasCaptureWebGLFrames
-#else
-#define MAYBE_VerifyCanvasCaptureWebGLFrames VerifyCanvasCaptureWebGLFrames
-#endif
+// TODO(crbug.com/40846825): Flaky on mac, windows, and linux.
+// TODO(crbug.com/362833242): Flaky on Android.
 IN_PROC_BROWSER_TEST_F(WebRtcCaptureFromElementBrowserTest,
-                       MAYBE_VerifyCanvasCaptureWebGLFrames) {
+                       DISABLED_VerifyCanvasCaptureWebGLFrames) {
   MakeTypicalCall("testCanvasCapture(drawWebGL);", kCanvasCaptureTestHtmlFile);
 }
 

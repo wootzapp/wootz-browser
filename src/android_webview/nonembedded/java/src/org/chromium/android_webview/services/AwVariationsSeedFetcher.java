@@ -344,7 +344,7 @@ public class AwVariationsSeedFetcher extends JobService {
             return null;
         }
 
-        private void saveMetrics(long startTime, long endTime) {
+        private void saveMetrics(long startTime) {
             Context context = ContextUtils.getApplicationContext();
             VariationsServiceMetricsHelper metrics =
                     VariationsServiceMetricsHelper.fromVariationsSharedPreferences(context);
@@ -385,7 +385,7 @@ public class AwVariationsSeedFetcher extends JobService {
                             .build();
             SeedFetchInfo fetchInfo = downloader.downloadContent(params, info);
 
-            saveMetrics(startTime, /* endTime= */ currentTimeMillis());
+            saveMetrics(startTime);
 
             if (isCancelled()) {
                 return new FetchSeedOutput(
@@ -408,22 +408,18 @@ public class AwVariationsSeedFetcher extends JobService {
                 needsReschedule = (requestCount <= JOB_MAX_REQUEST_COUNT);
             }
             if (fetchInfo.seedInfo != null) {
-                if (fastMode) {
-                    VariationsSeedHolder.getInstance()
-                            .updateSeedFilesSynchronously(fetchInfo.seedInfo);
-                } else {
-                    VariationsSeedHolder.getInstance()
-                            .updateSeed(
-                                    fetchInfo.seedInfo,
-                                    /* onFinished= */ () ->
-                                            onFinished(mParams, /* needsReschedule= */ false));
-                    shouldFinish = false; // jobFinished will be deferred until updateSeed is done.
-                }
+                VariationsSeedHolder.getInstance()
+                        .updateSeed(
+                                fetchInfo.seedInfo,
+                                /* onFinished= */ () -> {
+                                    onFinished(mParams, /* needsReschedule= */ false);
+                                });
+                shouldFinish = false; // jobFinished will be deferred until updateSeed is done.
             }
             return new FetchSeedOutput(shouldFinish, needsReschedule, /* cancelled= */ false);
         }
 
-        private class FetchSeedOutput {
+        private static class FetchSeedOutput {
             private boolean mShouldFinish;
             private boolean mNeedsReschedule;
             private boolean mCancelled;
@@ -508,10 +504,6 @@ public class AwVariationsSeedFetcher extends JobService {
     public static void setDateForTesting(Date date) {
         sDateForTesting = date;
         ResettersForTesting.register(() -> sDateForTesting = null);
-    }
-
-    private static long getCurrentTimestamp() {
-        return sDateForTesting != null ? sDateForTesting.getTime() : new Date().getTime();
     }
 
     /** Determines whether the currently scheduled job is in Fast Mode and periodic. */

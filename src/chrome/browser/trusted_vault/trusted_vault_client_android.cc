@@ -5,14 +5,19 @@
 #include "chrome/browser/trusted_vault/trusted_vault_client_android.h"
 
 #include <utility>
+#include <variant>
 
 #include "base/android/jni_android.h"
 #include "base/check_op.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
-#include "chrome/android/chrome_jni_headers/TrustedVaultClient_jni.h"
 #include "components/sync/service/sync_service_utils.h"
 #include "content/public/browser/browser_thread.h"
+#include "google_apis/gaia/gaia_id.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/TrustedVaultClient_jni.h"
 
 TrustedVaultClientAndroid::OngoingFetchKeys::OngoingFetchKeys(
     const CoreAccountInfo& account_info,
@@ -72,16 +77,15 @@ TrustedVaultClientAndroid::~TrustedVaultClientAndroid() {
 void TrustedVaultClientAndroid::FetchKeysCompleted(
     JNIEnv* env,
     jint request_id,
-    const base::android::JavaParamRef<jstring>& gaia_id,
+    std::string& gaia_id,
     const base::android::JavaParamRef<jobjectArray>& keys) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   OngoingRequest ongoing_request = GetAndUnregisterOngoingRequest(request_id);
   OngoingFetchKeys& ongoing_fetch_keys =
-      absl::get<OngoingFetchKeys>(ongoing_request);
+      std::get<OngoingFetchKeys>(ongoing_request);
 
-  DCHECK_EQ(ongoing_fetch_keys.account_info.gaia,
-            base::android::ConvertJavaStringToUTF8(env, gaia_id))
+  DCHECK_EQ(ongoing_fetch_keys.account_info.gaia, GaiaId(gaia_id))
       << "User mismatch in FetchKeys() response";
 
   std::vector<std::vector<uint8_t>> converted_keys;
@@ -97,7 +101,7 @@ void TrustedVaultClientAndroid::MarkLocalKeysAsStaleCompleted(
 
   OngoingRequest ongoing_request = GetAndUnregisterOngoingRequest(request_id);
 
-  std::move(absl::get<OngoingMarkLocalKeysAsStale>(ongoing_request).callback)
+  std::move(std::get<OngoingMarkLocalKeysAsStale>(ongoing_request).callback)
       .Run(!!succeeded);
 }
 
@@ -110,7 +114,7 @@ void TrustedVaultClientAndroid::GetIsRecoverabilityDegradedCompleted(
   OngoingRequest ongoing_request = GetAndUnregisterOngoingRequest(request_id);
 
   std::move(
-      absl::get<OngoingGetIsRecoverabilityDegraded>(ongoing_request).callback)
+      std::get<OngoingGetIsRecoverabilityDegraded>(ongoing_request).callback)
       .Run(!!is_degraded);
 }
 
@@ -121,8 +125,7 @@ void TrustedVaultClientAndroid::AddTrustedRecoveryMethodCompleted(
 
   OngoingRequest ongoing_request = GetAndUnregisterOngoingRequest(request_id);
 
-  std::move(
-      absl::get<OngoingAddTrustedRecoveryMethod>(ongoing_request).callback)
+  std::move(std::get<OngoingAddTrustedRecoveryMethod>(ongoing_request).callback)
       .Run();
 }
 
@@ -155,22 +158,19 @@ void TrustedVaultClientAndroid::FetchKeys(
   const RequestId request_id =
       RegisterNewOngoingRequest(OngoingFetchKeys(account_info, std::move(cb)));
 
-  JNIEnv* const env = base::android::AttachCurrentThread();
-  const base::android::ScopedJavaLocalRef<jobject> java_account_info =
-      ConvertToJavaCoreAccountInfo(env, account_info);
-
   // Trigger the fetching keys from the implementation in Java, which will
   // eventually call FetchKeysCompleted().
-  Java_TrustedVaultClient_fetchKeys(env, reinterpret_cast<intptr_t>(this),
-                                    request_id, java_account_info);
+  Java_TrustedVaultClient_fetchKeys(base::android::AttachCurrentThread(),
+                                    reinterpret_cast<intptr_t>(this),
+                                    request_id, account_info);
 }
 
 void TrustedVaultClientAndroid::StoreKeys(
-    const std::string& gaia_id,
+    const GaiaId& gaia_id,
     const std::vector<std::vector<uint8_t>>& keys,
     int last_key_version) {
   // Not supported on Android, where keys are fetched outside the browser.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void TrustedVaultClientAndroid::MarkLocalKeysAsStale(
@@ -184,14 +184,11 @@ void TrustedVaultClientAndroid::MarkLocalKeysAsStale(
   const RequestId request_id =
       RegisterNewOngoingRequest(OngoingMarkLocalKeysAsStale(std::move(cb)));
 
-  JNIEnv* const env = base::android::AttachCurrentThread();
-  const base::android::ScopedJavaLocalRef<jobject> java_account_info =
-      ConvertToJavaCoreAccountInfo(env, account_info);
-
   // The Java implementation will eventually call
   // MarkLocalKeysAsStaleCompleted().
   Java_TrustedVaultClient_markLocalKeysAsStale(
-      env, reinterpret_cast<intptr_t>(this), request_id, java_account_info);
+      base::android::AttachCurrentThread(), reinterpret_cast<intptr_t>(this),
+      request_id, account_info);
 }
 
 void TrustedVaultClientAndroid::GetIsRecoverabilityDegraded(
@@ -205,18 +202,15 @@ void TrustedVaultClientAndroid::GetIsRecoverabilityDegraded(
   const RequestId request_id = RegisterNewOngoingRequest(
       OngoingGetIsRecoverabilityDegraded(std::move(cb)));
 
-  JNIEnv* const env = base::android::AttachCurrentThread();
-  const base::android::ScopedJavaLocalRef<jobject> java_account_info =
-      ConvertToJavaCoreAccountInfo(env, account_info);
-
   // The Java implementation will eventually call
   // MarkLocalKeysAsStaleCompleted().
   Java_TrustedVaultClient_getIsRecoverabilityDegraded(
-      env, reinterpret_cast<intptr_t>(this), request_id, java_account_info);
+      base::android::AttachCurrentThread(), reinterpret_cast<intptr_t>(this),
+      request_id, account_info);
 }
 
 void TrustedVaultClientAndroid::AddTrustedRecoveryMethod(
-    const std::string& gaia_id,
+    const GaiaId& gaia_id,
     const std::vector<uint8_t>& public_key,
     int method_type_hint,
     base::OnceClosure cb) {
@@ -241,16 +235,13 @@ void TrustedVaultClientAndroid::AddTrustedRecoveryMethod(
       RegisterNewOngoingRequest(OngoingAddTrustedRecoveryMethod(std::move(cb)));
 
   JNIEnv* const env = base::android::AttachCurrentThread();
-  const base::android::ScopedJavaLocalRef<jobject> java_account_info =
-      ConvertToJavaCoreAccountInfo(env, account_info);
-
   const base::android::ScopedJavaLocalRef<jbyteArray> java_public_key =
       base::android::ToJavaByteArray(env, public_key);
 
   // The Java implementation will eventually call
   // AddTrustedRecoveryMethodCompleted().
   Java_TrustedVaultClient_addTrustedRecoveryMethod(
-      env, reinterpret_cast<intptr_t>(this), request_id, java_account_info,
+      env, reinterpret_cast<intptr_t>(this), request_id, account_info,
       java_public_key, method_type_hint);
 }
 
@@ -270,7 +261,7 @@ TrustedVaultClientAndroid::GetAndUnregisterOngoingRequest(RequestId id) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   auto it = ongoing_requests_.find(id);
-  DCHECK(it != ongoing_requests_.end());
+  CHECK(it != ongoing_requests_.end(), base::NotFatalUntil::M130);
 
   OngoingRequest request = std::move(it->second);
   ongoing_requests_.erase(it);

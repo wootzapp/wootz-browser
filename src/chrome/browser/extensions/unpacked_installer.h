@@ -11,16 +11,26 @@
 #include <utility>
 #include <vector>
 
+#include "base/callback_list.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
-#include "base/memory/weak_ptr.h"
-#include "extensions/browser/api/declarative_net_request/ruleset_install_pref.h"
+#include "base/scoped_observation.h"
+#include "base/values.h"
+#include "chrome/browser/profiles/profile_observer.h"
+#include "content/public/browser/browser_context.h"
 #include "extensions/browser/preload_check.h"
+#include "extensions/buildflags/buildflags.h"
 #include "extensions/common/manifest.h"
 
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
+
 class Profile;
+
+namespace content {
+class BrowserContext;
+}
 
 namespace extensions {
 
@@ -33,9 +43,28 @@ class PreloadCheckGroup;
 // per UnpackedInstaller.
 // TODO(erikkay): It might be useful to be able to load a packed extension
 // (presumably into memory) without installing it.
-class UnpackedInstaller
-    : public base::RefCountedThreadSafe<UnpackedInstaller> {
+class UnpackedInstaller : public base::RefCountedThreadSafe<UnpackedInstaller>,
+                          public ProfileObserver {
  public:
+  // Manifest settings override types.
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  //
+  // LINT.IfChange(ManifestSettingsOverrideType)
+  enum ManifestSettingsOverrideType {
+    // No overrides.
+    kNoOverride = 0,
+    // Overrides the default search engine.
+    kSearchEngine = 1,
+    // Overrides the new tab page.
+    kNewTabPage = 2,
+    // Overrides the default search engine and new tab page.
+    kSearchEngineAndNewTabPage = 3,
+
+    kMaxValue = kSearchEngineAndNewTabPage,
+  };
+  // LINT.ThenChange(/tools/metrics/histograms/metadata/extensions/enums.xml:ManifestSettingsOverrideType)
+
   using CompletionCallback = base::OnceCallback<void(const Extension* extension,
                                                      const base::FilePath&,
                                                      const std::string&)>;
@@ -44,7 +73,7 @@ class UnpackedInstaller
   UnpackedInstaller& operator=(const UnpackedInstaller&) = delete;
 
   static scoped_refptr<UnpackedInstaller> Create(
-      ExtensionService* extension_service);
+      content::BrowserContext* context);
 
   // Loads the extension from the directory |extension_path|, which is
   // the top directory of a specific extension where its manifest file lives.
@@ -92,8 +121,8 @@ class UnpackedInstaller
  private:
   friend class base::RefCountedThreadSafe<UnpackedInstaller>;
 
-  explicit UnpackedInstaller(ExtensionService* extension_service);
-  virtual ~UnpackedInstaller();
+  explicit UnpackedInstaller(content::BrowserContext* context);
+  ~UnpackedInstaller() override;
 
   // Must be called from the UI thread. Begin management policy and requirements
   // checks.
@@ -142,17 +171,26 @@ class UnpackedInstaller
   // file IO is allowed.
   bool IndexAndPersistRulesIfNeeded(std::string* error);
 
-  // Records command-line extension metrics organized by developer mode, emitted
-  // when a command line extension is loaded.
-  void RecordCommandLineDeveloperModeMetrics();
+  // Records command-line extension metrics, emitted when a command line
+  // extension is installed.
+  void RecordCommandLineMetrics();
+
+  // ProfileObserver
+  void OnProfileWillBeDestroyed(Profile* profile) override;
+
+  // Called when the browser is terminating.
+  void OnBrowserTerminating();
 
   const Extension* extension() { return extension_.get(); }
 
   // The service we will report results back to.
-  base::WeakPtr<ExtensionService> service_weak_;
+  raw_ptr<ExtensionService> service_ = nullptr;
 
   // The Profile the extension is being installed in.
   raw_ptr<Profile, DanglingUntriaged> profile_;
+
+  // Observes profile destruction.
+  base::ScopedObservation<Profile, ProfileObserver> profile_observation_{this};
 
   // The pathname of the directory to load from, which is an absolute path
   // after GetAbsolutePath has been called.
@@ -176,7 +214,7 @@ class UnpackedInstaller
   std::unique_ptr<PreloadCheckGroup> check_group_;
 
   // Install prefs needed for the Declarative Net Request API.
-  declarative_net_request::RulesetInstallPrefs ruleset_install_prefs_;
+  base::Value::Dict ruleset_install_prefs_;
 
   CompletionCallback callback_;
 
@@ -188,6 +226,12 @@ class UnpackedInstaller
 
   // Specify an install param.
   std::optional<std::string> install_param_;
+
+  // True if the browser is terminating.
+  bool browser_terminating_ = false;
+
+  // Subscription to browser termination.
+  base::CallbackListSubscription on_browser_terminating_subscription_;
 };
 
 }  // namespace extensions

@@ -20,8 +20,15 @@ class ExclusiveAccessPermissionPromptView : public PermissionPromptBaseView {
   METADATA_HEADER(ExclusiveAccessPermissionPromptView, PermissionPromptBaseView)
 
  public:
-  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kAllowId);
-  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kDontAllowId);
+  enum class ButtonType {
+    kAlwaysAllow = 0,
+    kAllowThisTime = 1,
+    kNeverAllow = 2,
+  };
+
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kAlwaysAllowId);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kAllowThisTimeId);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kNeverAllowId);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kMainViewId);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kLabelViewId1);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kLabelViewId2);
@@ -50,11 +57,6 @@ class ExclusiveAccessPermissionPromptView : public PermissionPromptBaseView {
  private:
   friend class ExclusiveAccessPermissionPromptInteractiveTest;
 
-  enum class ButtonType {
-    kAllow = 0,
-    kDontAllow = 1,
-  };
-
   static int GetViewId(ButtonType button) { return static_cast<int>(button); }
   static ButtonType GetButtonType(int button_id) {
     return static_cast<ButtonType>(button_id);
@@ -71,6 +73,8 @@ class ExclusiveAccessPermissionPromptView : public PermissionPromptBaseView {
                  ButtonType type,
                  ui::ButtonStyle style,
                  ui::ElementIdentifier identifier);
+  void AddAlwaysAllowButton(views::View& buttons_container);
+  void AddAllowThisTimeButton(views::View& buttons_container);
   void ClosingPermission();
 
   const raw_ptr<Browser> browser_;

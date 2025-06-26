@@ -13,28 +13,29 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.UserDataHost;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.test.BaseJUnit4ClassRunner;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
-import org.chromium.components.data_sharing.DataSharingNetworkLoader;
 import org.chromium.components.data_sharing.DataSharingService;
+import org.chromium.components.data_sharing.PeopleGroupActionFailure;
+import org.chromium.components.data_sharing.PeopleGroupActionOutcome;
+import org.chromium.components.data_sharing.TestDataSharingService;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeoutException;
 
 @RunWith(BaseJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @Batch(value = PER_CLASS)
 public class DataSharingServiceFactoryTest {
-    @Rule public Features.JUnitProcessor mFeaturesProcessor = new Features.JUnitProcessor();
 
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
@@ -42,58 +43,110 @@ public class DataSharingServiceFactoryTest {
     @Test
     @MediumTest
     public void testSettingTestFactory() throws TimeoutException {
-        DataSharingService testService =
-                new DataSharingService() {
-                    @Override
-                    public boolean isEmptyService() {
-                        return true;
-                    }
-
-                    @Override
-                    public DataSharingNetworkLoader getNetworkLoader() {
-                        return null;
-                    }
-
-                    @Override
-                    public UserDataHost getUserDataHost() {
-                        return null;
-                    }
-                };
-
-        DataSharingServiceFactory.setForTesting(testService);
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    DataSharingService testService = new TestDataSharingService();
+                    DataSharingServiceFactory.setForTesting(testService);
+                });
         LibraryLoader.getInstance().ensureInitialized();
         mActivityTestRule.startMainActivityOnBlankPage();
 
-        mActivityTestRule.runOnUiThread(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        DataSharingService dataSharingService =
-                                DataSharingServiceFactory.getForProfile(
-                                        ProfileManager.getLastUsedRegularProfile());
-                        Assert.assertTrue(dataSharingService.isEmptyService());
-                        Assert.assertEquals(dataSharingService, testService);
-                    }
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    DataSharingService dataSharingService =
+                            DataSharingServiceFactory.getForProfile(
+                                    ProfileManager.getLastUsedRegularProfile());
+                    Assert.assertTrue(dataSharingService.isEmptyService());
                 });
     }
 
     @Test
     @MediumTest
     @EnableFeatures(ChromeFeatureList.DATA_SHARING)
+    // TODO(b/343541441) : Fix this test with `chrome_internal_flag`.
     public void testServiceCreation_RealService() throws TimeoutException {
         LibraryLoader.getInstance().ensureInitialized();
         mActivityTestRule.startMainActivityOnBlankPage();
 
-        mActivityTestRule.runOnUiThread(
+        CountDownLatch countDownLatch = new CountDownLatch(6); // 6 method calls to wait for.
+
+        ThreadUtils.runOnUiThreadBlocking(
                 new Runnable() {
+                    void callbackReceived() {
+                        countDownLatch.countDown();
+                    }
+
                     @Override
                     public void run() {
                         DataSharingService dataSharingService =
                                 DataSharingServiceFactory.getForProfile(
                                         ProfileManager.getLastUsedRegularProfile());
                         Assert.assertFalse(dataSharingService.isEmptyService());
+
+                        // TODO(ssid): Add tests with SDK delegate once available.
+                        dataSharingService.readGroup(
+                                "bad_id",
+                                result -> {
+                                    Assert.assertTrue(result.groupData == null);
+                                    Assert.assertEquals(
+                                            PeopleGroupActionFailure.TRANSIENT_FAILURE,
+                                            result.actionFailure);
+                                    callbackReceived();
+                                });
+                        dataSharingService.createGroup(
+                                "bad_name",
+                                result -> {
+                                    Assert.assertTrue(result.groupData == null);
+                                    Assert.assertEquals(
+                                            PeopleGroupActionFailure.TRANSIENT_FAILURE,
+                                            result.actionFailure);
+                                    callbackReceived();
+                                });
+                        dataSharingService.inviteMember(
+                                "bad_id",
+                                "bad_email",
+                                result -> {
+                                    Assert.assertEquals(
+                                            PeopleGroupActionOutcome.TRANSIENT_FAILURE,
+                                            result.intValue());
+                                    callbackReceived();
+                                });
+                        dataSharingService.addMember(
+                                "bad_id",
+                                "bad_token",
+                                result -> {
+                                    Assert.assertEquals(
+                                            PeopleGroupActionOutcome.TRANSIENT_FAILURE,
+                                            result.intValue());
+                                    callbackReceived();
+                                });
+                        dataSharingService.removeMember(
+                                "bad_id",
+                                "bad_email",
+                                result -> {
+                                    Assert.assertEquals(
+                                            PeopleGroupActionOutcome.TRANSIENT_FAILURE,
+                                            result.intValue());
+                                    callbackReceived();
+                                });
+                        dataSharingService.ensureGroupVisibility(
+                                "bad_id",
+                                result -> {
+                                    Assert.assertTrue(result.groupData == null);
+                                    Assert.assertEquals(
+                                            PeopleGroupActionFailure.TRANSIENT_FAILURE,
+                                            result.actionFailure);
+                                    callbackReceived();
+                                });
                     }
                 });
+
+        // Wait for all the callbacks to return.
+        try {
+            countDownLatch.await();
+        } catch (InterruptedException e) {
+            Assert.assertTrue(false);
+        }
     }
 
     @Test
@@ -103,7 +156,7 @@ public class DataSharingServiceFactoryTest {
         LibraryLoader.getInstance().ensureInitialized();
         mActivityTestRule.startMainActivityOnBlankPage();
 
-        mActivityTestRule.runOnUiThread(
+        ThreadUtils.runOnUiThreadBlocking(
                 new Runnable() {
                     @Override
                     public void run() {

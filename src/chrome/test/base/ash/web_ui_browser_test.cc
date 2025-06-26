@@ -23,19 +23,16 @@
 #include "base/test/test_switches.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/values.h"
-#include "chrome/browser/ash/crosapi/browser_util.h"
 #include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/ui/webui/ash/web_ui_test_handler.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/test/base/ash/js_test_api.h"
+#include "chrome/test/base/ash/web_ui_test_handler.h"
 #include "chrome/test/base/test_chrome_web_ui_controller_factory.h"
 #include "chrome/test/base/test_switches.h"
 #include "chrome/test/base/web_ui_test_data_source.h"
@@ -338,7 +335,7 @@ class MockWebUIDataSource : public content::URLDataSource {
   std::string GetContentSecurityPolicy(
       const network::mojom::CSPDirectiveName directive) override {
     if (directive == network::mojom::CSPDirectiveName::ScriptSrc) {
-      return "script-src chrome://resources 'self';";
+      return "script-src chrome://resources chrome://webui-test 'self';";
     } else if (directive ==
                    network::mojom::CSPDirectiveName::RequireTrustedTypesFor ||
                directive == network::mojom::CSPDirectiveName::TrustedTypes) {
@@ -391,14 +388,6 @@ void BaseWebUIBrowserTest::SetUpOnMainThread() {
   }
 
   logging::SetLogMessageHandler(&LogHandler);
-
-  if (crosapi::browser_util::IsLacrosEnabled() && browser() == nullptr) {
-    // Create a new Ash browser window so test code using browser() can work
-    // even when Lacros is the only browser.
-    // TODO(crbug.com/40270051): Remove uses of browser() from such tests.
-    chrome::NewEmptyWindow(ProfileManager::GetActiveUserProfile());
-    SelectFirstBrowser();
-  }
 
   // For tests that run on the login screen, there is no Browser during
   // SetUpOnMainThread() so skip adding the chrome://webui-test data source.

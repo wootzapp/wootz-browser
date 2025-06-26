@@ -15,13 +15,13 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import androidx.annotation.DimenRes;
+import androidx.annotation.ColorInt;
 import androidx.annotation.IdRes;
 import androidx.annotation.Nullable;
 import androidx.constraintlayout.widget.ConstraintLayout;
 
 import org.chromium.chrome.tab_ui.R;
-import org.chromium.components.browser_ui.styles.ChromeColors;
+import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 
 import java.util.Arrays;
 
@@ -44,40 +44,42 @@ public class TabGroupFaviconQuarter extends FrameLayout {
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
-        mBackground = (GradientDrawable) getBackground();
+        // Mutable drawable so corner modifications (e.g. radii) don't get applied to all corners.
+        mBackground = (GradientDrawable) getBackground().mutate();
         mImageView = findViewById(R.id.favicon_image);
         mTextView = findViewById(R.id.hidden_tab_count);
         mInnerRadius = getResources().getDimension(R.dimen.tab_group_quarter_inner_radius);
         mOuterRadius = getResources().getDimension(R.dimen.tab_group_quarter_outer_radius);
     }
 
-    void setCorner(@Corner int corner, @IdRes int parentId) {
+    void adjustPositionForCorner(@Corner int corner, @IdRes int parentId) {
         mBackground.setCornerRadii(buildCornerRadii(corner));
         ConstraintLayout.LayoutParams params = (ConstraintLayout.LayoutParams) getLayoutParams();
         setConstraintForCorner(params, corner, parentId);
         setLayoutParams(params);
     }
 
-    /** Can only display one or neither. Favicon takes precedence. */
-    void setIconOrText(Drawable favicon, int plusCount) {
-        final @DimenRes int elevation;
-        if (favicon != null) {
-            elevation = R.dimen.default_elevation_0;
-            mImageView.setVisibility(View.VISIBLE);
-            mImageView.setImageDrawable(favicon);
-            hideText();
-        } else if (plusCount > 0) {
-            elevation = R.dimen.default_elevation_1;
-            hideImage();
-            mTextView.setVisibility(View.VISIBLE);
-            String text = getResources().getString(R.string.plus_hidden_tab_count, plusCount);
-            mTextView.setText(text);
-        } else {
-            elevation = R.dimen.default_elevation_1;
-            hideImage();
-            hideText();
-        }
-        mBackground.setColor(ChromeColors.getSurfaceColor(getContext(), elevation));
+    /** The displayed image is exclusive with the plus count. */
+    void setImage(Drawable image) {
+        mImageView.setVisibility(View.VISIBLE);
+        mImageView.setImageDrawable(image);
+        hideText();
+        mBackground.setColor(SemanticColorUtils.getColorSurface(getContext()));
+    }
+
+    /** The displayed plus count is exclusive with the image. */
+    void setPlusCount(int plusCount) {
+        hideImage();
+        mTextView.setVisibility(View.VISIBLE);
+        String text = getResources().getString(R.string.plus_hidden_tab_count, plusCount);
+        mTextView.setText(text);
+        updateBackgroundColor(SemanticColorUtils.getColorSurfaceContainerLow(getContext()));
+    }
+
+    void clear() {
+        hideImage();
+        hideText();
+        updateBackgroundColor(SemanticColorUtils.getColorSurfaceContainerLow(getContext()));
     }
 
     private void hideImage() {
@@ -128,5 +130,9 @@ public class TabGroupFaviconQuarter extends FrameLayout {
         radii[cornerStartIndex] = mOuterRadius;
         radii[cornerStartIndex + 1] = mOuterRadius;
         return radii;
+    }
+
+    private void updateBackgroundColor(@ColorInt int color) {
+        mBackground.setColor(color);
     }
 }

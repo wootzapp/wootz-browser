@@ -10,6 +10,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/test/test_future.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_applications/os_integration/web_app_shortcut.h"
 #include "chrome/browser/web_applications/os_integration/web_app_shortcut_linux.h"
@@ -56,7 +57,7 @@ class WebAppRunOnOsLoginLinuxTest : public WebAppTest {
         OsIntegrationTestOverrideImpl::Get()->startup();
 
     base::FilePath shortcut_filename =
-        GetAppShortcutFilename(profile()->GetPath(), kAppId);
+        GetAppDesktopShortcutFilename(profile()->GetPath(), kAppId);
     EXPECT_FALSE(shortcut_filename.empty());
 
     return autostart_path.Append(shortcut_filename);
@@ -69,15 +70,17 @@ class WebAppRunOnOsLoginLinuxTest : public WebAppTest {
 
 TEST_F(WebAppRunOnOsLoginLinuxTest, Register) {
   std::unique_ptr<ShortcutInfo> shortcut_info = GetShortcutInfo();
-  bool result = internals::RegisterRunOnOsLogin(*shortcut_info);
-  EXPECT_TRUE(result);
+  base::test::TestFuture<Result> result;
+  internals::RegisterRunOnOsLogin(*shortcut_info, result.GetCallback());
+  EXPECT_EQ(result.Get(), Result::kOk);
   EXPECT_TRUE(base::PathExists(GetPathToAutoStartFile()));
 }
 
 TEST_F(WebAppRunOnOsLoginLinuxTest, Unregister) {
   std::unique_ptr<ShortcutInfo> shortcut_info = GetShortcutInfo();
-  bool result = internals::RegisterRunOnOsLogin(*shortcut_info);
-  EXPECT_TRUE(result);
+  base::test::TestFuture<Result> result;
+  internals::RegisterRunOnOsLogin(*shortcut_info, result.GetCallback());
+  EXPECT_EQ(result.Get(), Result::kOk);
   EXPECT_TRUE(base::PathExists(GetPathToAutoStartFile()));
 
   EXPECT_EQ(Result::kOk,

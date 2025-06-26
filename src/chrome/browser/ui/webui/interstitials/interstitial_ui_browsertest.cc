@@ -4,6 +4,7 @@
 
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/devtools/devtools_window_testing.h"
 #include "chrome/browser/ui/browser.h"
@@ -12,8 +13,10 @@
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/prefs/pref_service.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "components/strings/grit/components_strings.h"
+#include "components/webui/chrome_urls/pref_names.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -22,8 +25,8 @@
 
 class InterstitialUITest : public InProcessBrowserTest {
  public:
-  InterstitialUITest() {}
-  ~InterstitialUITest() override {}
+  InterstitialUITest() = default;
+  ~InterstitialUITest() override = default;
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
     InProcessBrowserTest::SetUpCommandLine(command_line);
@@ -35,6 +38,12 @@ class InterstitialUITest : public InProcessBrowserTest {
     // kForceDevToolsAvailable switch set.
     command_line->AppendSwitch(switches::kForceDevToolsAvailable);
 #endif
+  }
+
+  void SetUpOnMainThread() override {
+    g_browser_process->local_state()->SetBoolean(
+        chrome_urls::kInternalOnlyUisEnabled, true);
+    InProcessBrowserTest::SetUpOnMainThread();
   }
 
  protected:
@@ -202,6 +211,39 @@ IN_PROC_BROWSER_TEST_F(InterstitialUITest, BlockedInterceptionInterstitial) {
                    "Your activity on example.com is being monitored",
                    u"Anything you type");
 }
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+// Tests that the interstitials have the expected title and content.
+IN_PROC_BROWSER_TEST_F(InterstitialUITest,
+                       SupervisedUserVerificationInterstitial) {
+  TestInterstitial(GURL("chrome://interstitials/supervised-user-verify"),
+                   "YouTube", IDS_SUPERVISED_USER_VERIFY_PAGE_PRIMARY_HEADING);
+}
+
+IN_PROC_BROWSER_TEST_F(InterstitialUITest,
+                       SupervisedUserVerificationBlockedSiteInterstitial) {
+  TestInterstitial(
+      GURL("chrome://interstitials/supervised-user-verify-blocked-site"),
+      "Site blocked", IDS_CHILD_BLOCK_INTERSTITIAL_MESSAGE_NOT_SIGNED_IN);
+}
+
+IN_PROC_BROWSER_TEST_F(InterstitialUITest,
+                       SupervisedUserVerificationSubframeInterstitial) {
+  TestInterstitial(
+      GURL("chrome://interstitials/supervised-user-verify-subframe"), "YouTube",
+      IDS_SUPERVISED_USER_VERIFY_PAGE_SUBFRAME_YOUTUBE_HEADING);
+}
+
+IN_PROC_BROWSER_TEST_F(
+    InterstitialUITest,
+    SupervisedUserVerificationBlockedSiteSubframeInterstitial) {
+  TestInterstitial(
+      GURL("chrome://interstitials/"
+           "supervised-user-verify-blocked-site-subframe"),
+      "Site blocked",
+      IDS_SUPERVISED_USER_VERIFY_PAGE_SUBFRAME_BLOCKED_SITE_HEADING);
+}
+#endif
 
 // Tests that back button works after opening an interstitial from
 // chrome://interstitials.

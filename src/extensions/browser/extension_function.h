@@ -34,6 +34,7 @@
 #include "extensions/common/features/feature.h"
 #include "extensions/common/mojom/context_type.mojom.h"
 #include "extensions/common/mojom/extra_response_data.mojom.h"
+#include "extensions/common/stack_frame.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom-forward.h"
 #include "third_party/blink/public/mojom/devtools/inspector_issue.mojom-forward.h"
 #include "third_party/blink/public/mojom/service_worker/service_worker_database.mojom-forward.h"
@@ -62,7 +63,17 @@ class ExtensionFunctionDispatcher;
     }                                     \
   } while (0)
 #else   // NDEBUG
-#define EXTENSION_FUNCTION_VALIDATE(test) CHECK(test)
+// TODO(pbos): This works around that CHECK(false) is [[noreturn]]. Instead we
+// should try to not build any functions that should never be called. See
+// ChromeOS-only LanguageSettingsPrivateGetInputMethodListsFunction and other
+// instances of EXTENSION_FUNCTION_VALIDATE(false).
+namespace extensions {
+inline bool FunctionValidateInternalReturnParam(bool param) {
+  return param;
+}
+}  // namespace extensions
+#define EXTENSION_FUNCTION_VALIDATE(test) \
+  CHECK(extensions::FunctionValidateInternalReturnParam((test) ? true : false))
 #endif  // NDEBUG
 
 #ifdef NDEBUG
@@ -98,6 +109,24 @@ class ExtensionFunctionDispatcher;
     return extensions::functions::histogramvalue;                      \
   }
 
+// Declares/defines an empty extension function. This is useful for APIs that
+// are not yet implemented, but are defined in the IDL/JSON schema.
+#define DECLARE_UNIMPLEMENTED_EXTENSION_FUNCTION(class_name,     \
+                                                 api_name,       \
+                                                 histogramvalue) \
+  class class_name : public ExtensionFunction {                  \
+   public:                                                       \
+    DECLARE_EXTENSION_FUNCTION(api_name, histogramvalue)         \
+   protected:                                                    \
+    ~class_name() override;                                      \
+    ResponseAction Run() override;                               \
+  }
+#define DEFINE_UNIMPLEMENTED_EXTENSION_FUNCTION(class_name, api_name) \
+  class_name::~class_name() = default;                                \
+  ExtensionFunction::ResponseAction class_name::Run() {               \
+    return RespondNow(Error(api_name " not implemented"));            \
+  }
+
 // Abstract base class for extension functions the ExtensionFunctionDispatcher
 // knows how to dispatch to.
 // NOTE: If you see a crash in an ExtensionFunction implementation and want to
@@ -107,13 +136,13 @@ class ExtensionFunction : public base::RefCountedThreadSafe<
                               ExtensionFunction,
                               content::BrowserThread::DeleteOnUIThread> {
  public:
-  enum ResponseType {
+  enum class ResponseType {
     // The function has succeeded.
-    SUCCEEDED,
+    kSucceeded,
     // The function has failed.
-    FAILED,
+    kFailed,
     // The input message is malformed.
-    BAD_MESSAGE
+    kBadMessage,
   };
 
   using ResponseCallback = base::OnceCallback<void(
@@ -373,7 +402,10 @@ class ExtensionFunction : public base::RefCountedThreadSafe<
 
   ResponseType* response_type() const { return response_type_.get(); }
 
-  bool did_respond() const { return did_respond_; }
+  // Whether this function has responded.
+  bool did_respond() const {
+    return response_type_ != nullptr || should_ignore_did_respond_for_testing;
+  }
 
   // Set the browser context which contains the extension that has originated
   // this function call. Only meant for testing; if unset, uses the
@@ -418,12 +450,23 @@ class ExtensionFunction : public base::RefCountedThreadSafe<
   // sends a response. Typically, this shouldn't be used, even in testing. It's
   // only for when you want to test functionality that doesn't exercise the
   // Run() aspect of an extension function.
-  void ignore_did_respond_for_testing() { did_respond_ = true; }
+  void ignore_did_respond_for_testing() {
+    should_ignore_did_respond_for_testing = true;
+  }
+  bool should_ignore_did_respond_for_testing = false;
 
   void preserve_results_for_testing() { preserve_results_for_testing_ = true; }
 
   // Same as above, but global. Yuck. Do not add any more uses of this.
   static bool ignore_all_did_respond_for_testing_do_not_use;
+
+  void set_js_callstack(extensions::StackTrace js_callstack) {
+    js_callstack_ = std::move(js_callstack);
+  }
+
+  const std::optional<extensions::StackTrace>& js_callstack() const {
+    return js_callstack_;
+  }
 
  protected:
   // ResponseValues.
@@ -457,11 +500,13 @@ class ExtensionFunction : public base::RefCountedThreadSafe<
         extensions::ErrorUtils::FormatErrorMessage(format, args...));
   }
   // Error with a list of arguments |args| to pass to caller.
-  // Using this ResponseValue indicates something is wrong with the API.
-  // It shouldn't be possible to have both an error *and* some arguments.
-  // Some legacy APIs do rely on it though, like webstorePrivate.
-  ResponseValue ErrorWithArguments(base::Value::List args,
-                                   const std::string& error);
+  // Using this ResponseValue is incompatible with promise based returns and
+  // indicates something is wrong with the API. If you are trying to use this,
+  // you likely instead want to be returning a value indicating if the API call
+  // was a "success" and/or an enum indicating what may have gone wrong.
+  // Some legacy APIs do still rely on this though.
+  ResponseValue ErrorWithArgumentsDoNotUse(base::Value::List args,
+                                           const std::string& error);
   // Bad message. A ResponseValue equivalent to EXTENSION_FUNCTION_VALIDATE(),
   // so this will actually kill the renderer and not respond at all.
   ResponseValue BadMessage();
@@ -659,10 +704,6 @@ class ExtensionFunction : public base::RefCountedThreadSafe<
   // The response type of the function, if the response has been sent.
   std::unique_ptr<ResponseType> response_type_;
 
-  // Whether this function has responded.
-  // TODO(devlin): Replace this with response_type_ != null.
-  bool did_respond_ = false;
-
   // If set to true, preserves |results_|, even after SendResponseImpl() was
   // called.
   //
@@ -694,6 +735,9 @@ class ExtensionFunction : public base::RefCountedThreadSafe<
 
   // The blobs transferred to the renderer process.
   std::vector<blink::mojom::SerializedBlobPtr> transferred_blobs_;
+
+  // The JS call stack snapshot captured at function invocation time.
+  std::optional<extensions::StackTrace> js_callstack_;
 };
 
 #endif  // EXTENSIONS_BROWSER_EXTENSION_FUNCTION_H_

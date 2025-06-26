@@ -17,10 +17,11 @@
 #include "ash/system/toast/anchored_nudge_manager_impl.h"
 #include "base/check_is_test.h"
 #include "base/logging.h"
-#include "base/notreached.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ash/growth/campaigns_manager_session.h"
 #include "chrome/browser/ash/growth/metrics.h"
 #include "chromeos/ash/components/growth/campaigns_constants.h"
+#include "chromeos/ash/components/growth/campaigns_logger.h"
 #include "chromeos/ash/components/growth/campaigns_manager.h"
 #include "chromeos/ash/components/growth/campaigns_model.h"
 #include "chromeos/ash/components/growth/growth_metrics.h"
@@ -32,12 +33,16 @@
 
 namespace {
 
+// Anchored view for test.
+std::optional<views::View*> anchored_view_for_testing = std::nullopt;
+
 // Nudge payload paths.
 constexpr char kNudgeTitlePath[] = "title";
 constexpr char kNudgeBodyPath[] = "body";
 constexpr char kImagePath[] = "image";
 constexpr char kDurationPath[] = "duration";
-constexpr char kClearAppOpenedEventPath[] = "clearAppOpenedEvent";
+constexpr char kClearEventsPath[] = "clearEvents";
+constexpr char kLogCrOSEventsPath[] = "shouldLogCrOSEvents";
 constexpr char kPrimaryButtonPath[] = "primaryButton";
 constexpr char kSecondaryButtonPath[] = "secondaryButton";
 constexpr char kLabelPath[] = "label";
@@ -53,7 +58,12 @@ constexpr base::TimeDelta kCancelDelay = base::Milliseconds(100);
 
 // These values are deserialized from Growth Campaign, so entries should not
 // be renumbered and numeric values should never be reused.
-enum class NudgeDuration { kDefaultDuration, kMediumDuration, kLongDuration };
+enum class NudgeDuration {
+  kDefaultDuration,
+  kMediumDuration,
+  kLongDuration,
+  kMaxValue = kLongDuration
+};
 
 ash::NudgeDuration ConvertDuration(NudgeDuration duration) {
   switch (duration) {
@@ -82,7 +92,8 @@ enum class Arrow {
   kLeftCenter,
   kRightCenter,
   kNone,
-  kFloat
+  kFloat,
+  kMaxValue = kFloat
 };
 
 views::BubbleBorder::Arrow ConvertArrow(Arrow arrow) {
@@ -134,7 +145,7 @@ void MaybeSetImageData(const base::Value::Dict* image_value,
     return;
   }
 
-  auto image_model = growth::Image(image_value).GetImage();
+  auto image_model = growth::ImageModel(image_value).GetImageModel();
   if (!image_model) {
     // No image model matched the image payload.
     growth::RecordCampaignsManagerError(
@@ -158,7 +169,7 @@ views::Widget* GetTriggeringWindowWidget() {
   if (!window) {
     growth::RecordCampaignsManagerError(
         growth::CampaignsManagerError::kNoOpendedWindowToAnchor);
-    LOG(ERROR) << "Error: No app window";
+    CAMPAIGNS_LOG(ERROR) << "Error: No app window";
     return nullptr;
   }
 
@@ -167,18 +178,33 @@ views::Widget* GetTriggeringWindowWidget() {
   if (!widget) {
     growth::RecordCampaignsManagerError(
         growth::CampaignsManagerError::kNoOpendedWindowWidgetToAnchor);
-    LOG(ERROR) << "Error: widget not found";
+    CAMPAIGNS_LOG(ERROR) << "Error: widget not found";
     return nullptr;
   }
 
   return widget;
 }
 
+views::Widget* GetAnchoringWindowWidget() {
+  // Currently, for all of our use cases, triggering window is same as
+  // anchoring window, so we use trigger window for now.
+  // In the future, if the triggering window is different the anchoring window,
+  // we will use the anchoring window.
+  //
+  // TODO: b/370055198 - Return the top level window widget for anchoring
+  // window.
+  return GetTriggeringWindowWidget();
+}
+
 views::View* GetWindowCaptionButtonContainer() {
+  if (anchored_view_for_testing) {
+    return anchored_view_for_testing.value();
+  }
+
   // Currently, nudge can only be triggered by app opened, so it is safe to
   // assume that the triggering window is the window to anchor on. If we adding
   // other triggering UI element, we need to revisit this decision.
-  auto* targeting_window_widget = GetTriggeringWindowWidget();
+  auto* targeting_window_widget = GetAnchoringWindowWidget();
   if (!targeting_window_widget) {
     return nullptr;
   }
@@ -187,7 +213,7 @@ views::View* GetWindowCaptionButtonContainer() {
   if (!root_view) {
     growth::RecordCampaignsManagerError(
         growth::CampaignsManagerError::kNoRootViewToGetAnchorView);
-    LOG(ERROR) << "Error: root view not found";
+    CAMPAIGNS_LOG(ERROR) << "Error: root view not found";
     return nullptr;
   }
 
@@ -195,11 +221,60 @@ views::View* GetWindowCaptionButtonContainer() {
       chromeos::ViewID::VIEW_ID_CAPTION_BUTTON_CONTAINER);
 }
 
-bool IsCaptionButtonContainer(
+views::Widget* GetAnchorWidgetForWindowBoundAnchor(
+    const views::BubbleBorder::Arrow& arrow) {
+  // Currently the anchor widget is the triggering window widget.
+  auto* anchor_widget = GetAnchoringWindowWidget();
+  if (!anchor_widget) {
+    // No targeted anchor widget found. Skip showing nudge.
+    growth::RecordCampaignsManagerError(
+        growth::CampaignsManagerError::kNudgeAnchorWidgetNotFound);
+    CAMPAIGNS_LOG(ERROR)
+        << "Targeted anchor widget is not found. Skip showing nudge.";
+    return nullptr;
+  }
+
+  // The arrow type will determine the nudge position in the widget, although
+  // we do not draw the arrow. Only the two bottom corners are supported.
+  switch (arrow) {
+    case views::BubbleBorder::Arrow::BOTTOM_LEFT:
+    case views::BubbleBorder::Arrow::LEFT_BOTTOM:
+    case views::BubbleBorder::Arrow::BOTTOM_RIGHT:
+    case views::BubbleBorder::Arrow::RIGHT_BOTTOM:
+      break;
+    default:
+      // Other arrows are not supported. Skip showing nudge.
+      growth::RecordCampaignsManagerError(
+          growth::CampaignsManagerError::kNudgeAnchorPositionNotSupported);
+      CAMPAIGNS_LOG(ERROR) << "Position is not supported. Skip showing nudge.";
+      return nullptr;
+  }
+  return anchor_widget;
+}
+
+views::View* GetShelfAppButton(const std::string& app_id) {
+  if (anchored_view_for_testing) {
+    return anchored_view_for_testing.value();
+  }
+
+  return ash::Shell::GetPrimaryRootWindowController()
+      ->shelf()
+      ->hotseat_widget()
+      ->GetShelfView()
+      ->GetShelfAppButton(ash::ShelfID(app_id));
+}
+
+bool IsAnchorOnCaptionButtonContainer(
     std::optional<growth::WindowAnchorType> app_window_anchor_type) {
   return app_window_anchor_type &&
          app_window_anchor_type.value() ==
              growth::WindowAnchorType::kCaptionButtonContainer;
+}
+
+bool IsAnchorOnWindowBounds(
+    std::optional<growth::WindowAnchorType> app_window_anchor_type) {
+  return app_window_anchor_type && app_window_anchor_type.value() ==
+                                       growth::WindowAnchorType::kWindowBounds;
 }
 
 }  // namespace
@@ -210,11 +285,11 @@ ShowNudgeActionPerformer::~ShowNudgeActionPerformer() {
   triggering_widget_ = nullptr;
 }
 
-void ShowNudgeActionPerformer::Run(
-  int campaign_id,
-  const base::Value::Dict* action_params,
-  growth::ActionPerformer::Callback callback) {
-  if (!ShowNudge(campaign_id, action_params)) {
+void ShowNudgeActionPerformer::Run(int campaign_id,
+                                   std::optional<int> group_id,
+                                   const base::Value::Dict* action_params,
+                                   growth::ActionPerformer::Callback callback) {
+  if (!ShowNudge(campaign_id, group_id, action_params)) {
     // TODO: b/331953307 - callback with concrete failure result reason.
     std::move(callback).Run(growth::ActionResult::kFailure,
                             growth::ActionResultReason::kParsingActionFailed);
@@ -224,66 +299,17 @@ void ShowNudgeActionPerformer::Run(
                           /*action_result_reason=*/std::nullopt);
 }
 
+void ShowNudgeActionPerformer::SetAnchoredViewForTesting(
+    std::optional<views::View*> anchored_view) {
+  anchored_view_for_testing = anchored_view;
+}
+
 growth::ActionType ShowNudgeActionPerformer::ActionType() const {
   return growth::ActionType::kShowNudge;
 }
 
-std::optional<growth::Anchor> GetAnchorConfig(
-    const base::Value::Dict* nudge_payload) {
-  const auto* anchor_dict = nudge_payload->FindDict(kAnchorPath);
-  if (!anchor_dict) {
-    // No anchor specified. Anchor on the default position.
-    return std::nullopt;
-  }
-
-  return std::make_optional<growth::Anchor>(anchor_dict);
-}
-
-// Get the anchor view.
-// Returns:
-// 1. nullptr if no anchor payload specified. Nudge will anchor at the default
-//    position.
-// 2. The targeted anchor view if available.
-// 3. nullopt if the anchor view is not found. Skip showing nudge in this case.
-std::optional<views::View*> GetAnchor(const NudgePayload* nudge_payload) {
-  auto anchor = GetAnchorConfig(nudge_payload);
-  if (!anchor) {
-    return nullptr;
-  }
-
-  auto app_window_anchor_type = anchor->GetActiveAppWindowAnchorType();
-  if (app_window_anchor_type &&
-      IsCaptionButtonContainer(app_window_anchor_type)) {
-    auto* anchor_view = GetWindowCaptionButtonContainer();
-    if (!anchor_view) {
-      // Can't find the targeted view. Return nullopt and skip showing nudge.
-      return std::nullopt;
-    }
-
-    return anchor_view;
-  }
-
-  auto* shelf_app_button_id = anchor->GetShelfAppButtonId();
-  if (shelf_app_button_id) {
-    auto* anchor_view =
-        ash::Shell::GetPrimaryRootWindowController()
-            ->shelf()
-            ->hotseat_widget()
-            ->GetShelfView()
-            ->GetShelfAppButton(ash::ShelfID(*shelf_app_button_id));
-    if (!anchor_view) {
-      // Can't find the targeted view. Return nullopt and skip showing nudge.
-      return std::nullopt;
-    }
-
-    return anchor_view;
-  }
-
-  // No anchor specified. Anchor on the default position.
-  return nullptr;
-}
-
 bool ShowNudgeActionPerformer::ShowNudge(int campaign_id,
+                                         std::optional<int> group_id,
                                          const NudgePayload* nudge_payload) {
   if (!nudge_payload) {
     return false;
@@ -298,26 +324,21 @@ bool ShowNudgeActionPerformer::ShowNudge(int campaign_id,
 
   std::u16string nudge_body = base::UTF8ToUTF16(*body_text);
 
-  auto anchor_view = GetAnchor(nudge_payload);
-  if (!anchor_view) {
-    // No targeted anchor view found. Skip showing nudge.
-    growth::RecordCampaignsManagerError(
-        growth::CampaignsManagerError::kNudgeAnchorViewNotFound);
-    LOG(ERROR) << "Targeted anchor view is not found. Skip showing nudge.";
-    return false;
-  }
-
   auto nudge_data = ash::AnchoredNudgeData(
       kGrowthNudgeId, ash::NudgeCatalogName::kGrowthCampaignNudge, nudge_body,
-      /*anchor_view=*/anchor_view.value());
+      /*anchor_view=*/nullptr);
 
-  if (!ash::features::IsGrowthCampaignsShowNudgeInDefaultParentEnabled() &&
-      anchor_view.value()) {
-    auto anchor = GetAnchorConfig(nudge_payload);
-    if (anchor &&
-        IsCaptionButtonContainer(anchor->GetActiveAppWindowAnchorType())) {
-      nudge_data.set_anchor_view_as_parent = true;
-    }
+  // Set arrow.
+  auto arrow_value =
+      nudge_payload->FindInt(kArrowPath).value_or(int(Arrow::kBottomRight));
+  if (arrow_value >= 0 && arrow_value <= static_cast<int>(Arrow::kMaxValue)) {
+    nudge_data.arrow = ConvertArrow(static_cast<Arrow>(arrow_value));
+  }
+
+  auto is_set_anchor_success =
+      MaybeSetAnchorView(nudge_payload->FindDict(kAnchorPath), nudge_data);
+  if (!is_set_anchor_success) {
+    return false;
   }
 
   auto* title = GetNudgeTitle(nudge_payload);
@@ -328,72 +349,126 @@ bool ShowNudgeActionPerformer::ShowNudge(int campaign_id,
   // Set duration.
   auto duration_value = nudge_payload->FindInt(kDurationPath)
                             .value_or(int(NudgeDuration::kDefaultDuration));
-  nudge_data.duration =
-      ConvertDuration(static_cast<NudgeDuration>(duration_value));
+
+  if (duration_value >= 0 &&
+      duration_value <= static_cast<int>(NudgeDuration::kMaxValue)) {
+    nudge_data.duration =
+        ConvertDuration(static_cast<NudgeDuration>(duration_value));
+  }
+
+  // Default value of `should_log_cros_events` is false if this is not
+  // configurated.
+  const auto log_cros_events = nudge_payload->FindBool(kLogCrOSEventsPath);
+  bool should_log_cros_events = log_cros_events.value_or(false);
 
   // Add buttons if available.
-  MaybeSetButtonData(campaign_id, nudge_payload->FindDict(kPrimaryButtonPath),
-                     nudge_data,
-                     /*is_primary=*/true);
-  MaybeSetButtonData(campaign_id, nudge_payload->FindDict(kSecondaryButtonPath),
-                     nudge_data,
-                     /*is_primary=*/false);
+  MaybeSetButtonData(campaign_id, group_id,
+                     nudge_payload->FindDict(kPrimaryButtonPath), nudge_data,
+                     /*is_primary=*/true, should_log_cros_events);
+  MaybeSetButtonData(campaign_id, group_id,
+                     nudge_payload->FindDict(kSecondaryButtonPath), nudge_data,
+                     /*is_primary=*/false, should_log_cros_events);
 
   // Set image data if available.
   MaybeSetImageData(nudge_payload->FindDict(kImagePath), nudge_data);
 
-  // Set arrow.
-  auto arrow_value =
-      nudge_payload->FindInt(kArrowPath).value_or(int(Arrow::kBottomRight));
-  nudge_data.arrow = ConvertArrow(static_cast<Arrow>(arrow_value));
-
   // Set nudge dismiss callback.
   nudge_data.dismiss_callback =
       base::BindRepeating(&ShowNudgeActionPerformer::OnNudgeDismissed,
-                          weak_ptr_factory_.GetWeakPtr(), campaign_id);
+                          weak_ptr_factory_.GetWeakPtr(), campaign_id, group_id,
+                          should_log_cros_events);
 
   // Shell may not be initialized in test.
   if (ash::Shell::HasInstance()) {
     ash::Shell::Get()->anchored_nudge_manager()->Show(nudge_data);
-
-    if (ash::features::IsGrowthCampaignsCloseNudgeWhenTargetInactivated()) {
-      auto* nudge =
-          ash::Shell::Get()->anchored_nudge_manager()->GetNudgeIfShown(
-              kGrowthNudgeId);
-      if (nudge) {
-        auto* nudge_widget = nudge->GetWidget();
-        if (nudge_widget) {
-          nudge_widget_scoped_observation_.Observe(nudge_widget);
-        }
-      }
-
-      triggering_widget_ = GetTriggeringWindowWidget();
-      if (triggering_widget_) {
-        scoped_observation_.Observe(triggering_widget_);
-      }
+    if (ash::features::
+            IsGrowthCampaignsObserveTriggeringWidgetChangeEnabled()) {
+      MaybeSetWidgetObservers();
     }
   }
 
   // TODO: b/331045558 - Add close button callback.
-  NotifyReadyToLogImpression(campaign_id);
+  NotifyReadyToLogImpression(campaign_id, group_id, should_log_cros_events);
 
-  const std::string* clear_app_opened_event =
-      nudge_payload->FindString(kClearAppOpenedEventPath);
-  if (clear_app_opened_event) {
+  const base::Value::List* clear_events =
+      nudge_payload->FindList(kClearEventsPath);
+  if (clear_events) {
     auto* campaigns_manager = growth::CampaignsManager::Get();
     CHECK(campaigns_manager);
-    campaigns_manager->ClearEvent(growth::CampaignEvent::kAppOpened,
-                                  *clear_app_opened_event);
+
+    for (const auto& clear_event : *clear_events) {
+      if (clear_event.is_string()) {
+        campaigns_manager->ClearEvent(clear_event.GetString());
+      }
+    }
   }
 
   return true;
 }
 
+bool ShowNudgeActionPerformer::MaybeSetAnchorView(
+    const base::Value::Dict* anchor_dict,
+    ash::AnchoredNudgeData& nudge_data) {
+  if (!anchor_dict) {
+    // No anchor option provided. Set to default position.
+    return true;
+  }
+
+  auto anchor = growth::Anchor(anchor_dict);
+  auto window_anchor_type = anchor.GetActiveAppWindowAnchorType();
+  if (window_anchor_type) {
+    if (IsAnchorOnWindowBounds(window_anchor_type)) {
+      if (!ash::features::
+              IsGrowthCampaignsShowNudgeInsideWindowBoundsEnabled()) {
+        return false;
+      }
+
+      auto* anchor_widget =
+          GetAnchorWidgetForWindowBoundAnchor(nudge_data.arrow);
+      if (!anchor_widget) {
+        return false;
+      }
+      nudge_data.anchor_widget = anchor_widget;
+    } else if (IsAnchorOnCaptionButtonContainer(window_anchor_type)) {
+      auto* anchor_view = GetWindowCaptionButtonContainer();
+      if (!anchor_view) {
+        // No targeted anchor view found. Skip showing nudge.
+        growth::RecordCampaignsManagerError(
+            growth::CampaignsManagerError::kNudgeAnchorViewNotFound);
+        CAMPAIGNS_LOG(ERROR)
+            << "Targeted anchor view is not found. Skip showing nudge.";
+        return false;
+      }
+      nudge_data.SetAnchorView(anchor_view);
+    }
+
+    nudge_data.set_anchor_view_as_parent = true;
+  } else {
+    auto* shelf_app_button_id = anchor.GetShelfAppButtonId();
+    if (shelf_app_button_id) {
+      auto* anchor_view = GetShelfAppButton(*shelf_app_button_id);
+      if (!anchor_view) {
+        // No targeted anchor view found. Skip showing nudge.
+        growth::RecordCampaignsManagerError(
+            growth::CampaignsManagerError::kNudgeSheflIconAnchorViewNotFound);
+        CAMPAIGNS_LOG(ERROR) << "Targeted shelf icon anchor view is not found. "
+                                "Skip showing nudge.";
+        return false;
+      }
+      nudge_data.SetAnchorView(anchor_view);
+      nudge_data.anchored_to_shelf = true;
+    }
+  }
+  return true;
+}
+
 void ShowNudgeActionPerformer::MaybeSetButtonData(
     int campaign_id,
+    std::optional<int> group_id,
     const base::Value::Dict* button_dict,
     ash::AnchoredNudgeData& nudge_data,
-    bool is_primary) {
+    bool is_primary,
+    bool should_log_cros_events) {
   if (!button_dict) {
     return;
   }
@@ -412,9 +487,9 @@ void ShowNudgeActionPerformer::MaybeSetButtonData(
   auto button_text = base::UTF8ToUTF16(*button_text_value);
   auto callback = base::BindRepeating(
       &ShowNudgeActionPerformer::OnNudgeButtonClicked,
-      weak_ptr_factory_.GetWeakPtr(), campaign_id,
+      weak_ptr_factory_.GetWeakPtr(), campaign_id, group_id,
       is_primary ? CampaignButtonId::kPrimary : CampaignButtonId::kSecondary,
-      action, should_mark_dismissed);
+      action, should_mark_dismissed, should_log_cros_events);
   if (is_primary) {
     nudge_data.primary_button_text = button_text;
     nudge_data.primary_button_callback = callback;
@@ -426,10 +501,13 @@ void ShowNudgeActionPerformer::MaybeSetButtonData(
 
 void ShowNudgeActionPerformer::OnNudgeButtonClicked(
     int campaign_id,
+    std::optional<int> group_id,
     CampaignButtonId button_id,
     const base::Value::Dict* action_dict,
-    bool should_mark_dismissed) {
-  NotifyButtonPressed(campaign_id, button_id, should_mark_dismissed);
+    bool should_mark_dismissed,
+    bool should_log_cros_events) {
+  NotifyButtonPressed(campaign_id, group_id, button_id, should_mark_dismissed,
+                      should_log_cros_events);
 
   if (!action_dict) {
     return;
@@ -451,11 +529,17 @@ void ShowNudgeActionPerformer::OnNudgeButtonClicked(
   auto* campaigns_manager = growth::CampaignsManager::Get();
   CHECK(campaigns_manager);
 
-  campaigns_manager->PerformAction(campaign_id, &action);
+  campaigns_manager->PerformAction(campaign_id, group_id, &action);
 }
 
-void ShowNudgeActionPerformer::OnNudgeDismissed(int campaign_id) {
-  NotifyDismissed(campaign_id);
+void ShowNudgeActionPerformer::OnNudgeDismissed(int campaign_id,
+                                                std::optional<int> group_id,
+                                                bool should_log_cros_events) {
+  // Dismissed automatically or by clicking on the X button. In this case, we
+  // don't mark the nudge as dismissed and will resurface if impression
+  // conditions met.
+  NotifyDismissed(campaign_id, group_id, /*should_mark_dismissed=*/false,
+                  should_log_cros_events);
 }
 
 void ShowNudgeActionPerformer::OnWidgetVisibilityChanged(views::Widget* widget,
@@ -491,6 +575,35 @@ void ShowNudgeActionPerformer::OnWidgetActivationChanged(views::Widget* widget,
   }
 }
 
+void ShowNudgeActionPerformer::MaybeSetWidgetObservers() {
+  triggering_widget_ = GetTriggeringWindowWidget();
+  if (triggering_widget_ == GetAnchoringWindowWidget()) {
+    // The triggering widget is the same as anchoring widget, which is parent to
+    // the nudge so the nudge won't show on top of other window if the
+    // triggering widget becomes inactive or invisible.
+    return;
+  }
+
+  // If the triggering and anchoring widget are not the same, we'll observe when
+  // the triggering widget becomes inactive or invisible and close the nudge
+  // accordingly to prevent it from showing on top of other window.
+  //
+  // TODO: b/370055198 - handle case of nudge closed by another nudge delayed
+  // close event.
+  if (triggering_widget_) {
+    scoped_observation_.Observe(triggering_widget_);
+  }
+
+  auto* nudge = ash::Shell::Get()->anchored_nudge_manager()->GetNudgeIfShown(
+      kGrowthNudgeId);
+  if (nudge) {
+    auto* nudge_widget = nudge->GetWidget();
+    if (nudge_widget) {
+      nudge_widget_scoped_observation_.Observe(nudge_widget);
+    }
+  }
+}
+
 void ShowNudgeActionPerformer::MaybeCancelNudge() {
   if (is_nudge_active_) {
     // The active widget is nudge. Skip canceling nudge.
@@ -501,14 +614,12 @@ void ShowNudgeActionPerformer::MaybeCancelNudge() {
 }
 
 void ShowNudgeActionPerformer::CancelNudge() {
-  if (ash::features::IsGrowthCampaignsCloseNudgeWhenTargetInactivated()) {
-    if (triggering_widget_) {
-      scoped_observation_.Reset();
-      triggering_widget_ = nullptr;
-    }
-    is_nudge_active_ = false;
-    nudge_widget_scoped_observation_.Reset();
+  if (triggering_widget_) {
+    scoped_observation_.Reset();
+    triggering_widget_ = nullptr;
   }
+  is_nudge_active_ = false;
+  nudge_widget_scoped_observation_.Reset();
 
   ash::Shell::Get()->anchored_nudge_manager()->Cancel(kGrowthNudgeId);
 }

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "ipc/ipc_channel_mojo.h"
 
 #include <stddef.h>
@@ -15,6 +20,7 @@
 
 #include "base/base_paths.h"
 #include "base/containers/queue.h"
+#include "base/containers/span.h"
 #include "base/files/file.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/bind.h"
@@ -49,7 +55,7 @@
 #include "ipc/ipc_mojo_param_traits.h"
 #include "ipc/ipc_sync_channel.h"
 #include "ipc/ipc_sync_message.h"
-#include "ipc/ipc_test.mojom.h"
+#include "ipc/ipc_test.test-mojom.h"
 #include "ipc/ipc_test_base.h"
 #include "ipc/ipc_test_channel_listener.h"
 #include "ipc/urgent_message_observer.h"
@@ -275,7 +281,7 @@ class ListenerThatBindsATestStructPasser : public IPC::Listener,
 
   void OnChannelConnected(int32_t peer_pid) override {}
 
-  void OnChannelError() override { NOTREACHED_IN_MIGRATION(); }
+  void OnChannelError() override { NOTREACHED(); }
 
   void OnAssociatedInterfaceRequest(
       const std::string& interface_name,
@@ -288,7 +294,7 @@ class ListenerThatBindsATestStructPasser : public IPC::Listener,
 
  private:
   // IPC::mojom::TestStructPasser:
-  void Pass(IPC::mojom::TestStructPtr) override { NOTREACHED_IN_MIGRATION(); }
+  void Pass(IPC::mojom::TestStructPtr) override { NOTREACHED(); }
 
   mojo::AssociatedReceiver<IPC::mojom::TestStructPasser> receiver_{this};
 };
@@ -313,7 +319,7 @@ class ListenerThatExpectsNoError : public IPC::Listener {
     std::move(connect_closure_).Run();
   }
 
-  void OnChannelError() override { NOTREACHED_IN_MIGRATION(); }
+  void OnChannelError() override { NOTREACHED(); }
 
  private:
   base::OnceClosure connect_closure_;
@@ -433,8 +439,7 @@ class HandleSendingHelper {
   }
 
   static void WriteFile(IPC::Message* message, base::File& file) {
-    std::string content = GetSendingFileContent();
-    file.WriteAtCurrentPos(content.data(), content.size());
+    file.WriteAtCurrentPos(base::as_byte_span(GetSendingFileContent()));
     file.Flush();
     message->WriteAttachment(new IPC::internal::PlatformFileAttachment(
         base::ScopedFD(file.TakePlatformFile())));
@@ -468,7 +473,7 @@ class HandleSendingHelper {
         static_cast<IPC::internal::PlatformFileAttachment*>(attachment.get())
             ->TakePlatformFile());
     std::string content(GetSendingFileContent().size(), ' ');
-    file.Read(0, &content[0], content.size());
+    file.Read(0, base::as_writable_byte_span(content));
     EXPECT_EQ(content, GetSendingFileContent());
   }
 #endif
@@ -797,9 +802,7 @@ class ListenerWithSimpleProxyAssociatedInterface
     std::move(callback).Run(next_expected_value_);
   }
 
-  void RequestValue(RequestValueCallback callback) override {
-    NOTREACHED_IN_MIGRATION();
-  }
+  void RequestValue(RequestValueCallback callback) override { NOTREACHED(); }
 
   void RequestQuit(RequestQuitCallback callback) override {
     std::move(callback).Run();
@@ -1176,7 +1179,7 @@ class SimpleTestClientImpl : public IPC::mojom::SimpleTestClient,
   void BindSync(
       mojo::PendingAssociatedReceiver<IPC::mojom::SimpleTestClient> receiver,
       BindSyncCallback callback) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   void GetReceiverWithQueuedSyncMessage(
@@ -1307,10 +1310,6 @@ TEST_F(IPCChannelProxyMojoTest, DropAssociatedReceiverWithSyncCallInFlight) {
 DEFINE_IPC_CHANNEL_MOJO_TEST_CLIENT_WITH_CUSTOM_FIXTURE(
     SyncCallToDroppedReceiver,
     ChannelProxyClient) {
-  // Force-enable the fix, since ipc_tests doesn't initialize FeatureList.
-  const base::test::ScopedFeatureList kFeatures(
-      mojo::features::kMojoFixAssociatedHandleLeak);
-
   DummyListener listener;
   CreateProxy(&listener);
   RunProxy();
@@ -1814,10 +1813,7 @@ class ListenerThatVerifiesPeerPid : public TestListenerBase {
     RunQuitClosure();
   }
 
-  bool OnMessageReceived(const IPC::Message& message) override {
-    NOTREACHED_IN_MIGRATION();
-    return true;
-  }
+  bool OnMessageReceived(const IPC::Message& message) override { NOTREACHED(); }
 };
 
 // The global PID is only used on systems that use the zygote. Hence, this

@@ -5,13 +5,23 @@
 #ifndef CHROME_BROWSER_ASH_GROWTH_CAMPAIGNS_MANAGER_SESSION_H_
 #define CHROME_BROWSER_ASH_GROWTH_CAMPAIGNS_MANAGER_SESSION_H_
 
+#include <string_view>
+
+#include "ash/shell.h"
+#include "ash/shell_observer.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/timer/timer.h"
+#include "chromeos/dbus/power/power_manager_client.h"
 #include "components/services/app_service/public/cpp/instance_registry.h"
 #include "components/session_manager/core/session_manager.h"
 #include "components/session_manager/core/session_manager_observer.h"
 #include "ui/aura/window.h"
 #include "url/gurl.h"
+
+namespace content {
+class WebContents;
+}
 
 class Profile;
 
@@ -19,6 +29,8 @@ class Profile;
 // observe related components changes to conditionally trigger proactive growth
 // slots.
 class CampaignsManagerSession : public session_manager::SessionManagerObserver,
+                                public ash::ShellObserver,
+                                public chromeos::PowerManagerClient::Observer,
                                 public apps::InstanceRegistry::Observer {
  public:
   CampaignsManagerSession();
@@ -36,26 +48,59 @@ class CampaignsManagerSession : public session_manager::SessionManagerObserver,
   void OnInstanceRegistryWillBeDestroyed(
       apps::InstanceRegistry* cache) override;
 
-  void PrimaryPageChanged(const GURL& url);
+  // ShellObserver:
+  void OnShellDestroying() override;
+
+  // chromeos::PowerManagerClient::Observer:
+  void SuspendDone(base::TimeDelta sleep_duration) override;
+
+  void PrimaryPageChanged(const content::WebContents* web_contents);
+
+  void MaybeTriggerCampaignsOnEvent(std::string_view event);
+
   aura::Window* GetOpenedWindow() { return opened_window_; }
 
   void SetProfileForTesting(Profile* profile);
 
  private:
-  Profile* GetProfile();
-  bool IsEligible();
   void SetupWindowObserver();
   void OnOwnershipDetermined(bool is_user_owner);
   void OnLoadCampaignsCompleted();
-  void HandleAppInstanceCreation(const apps::InstanceUpdate& update);
+  void StartDelayedTimer();
+
+  void CacheAppOpenContext(const apps::InstanceUpdate& update, const GURL& url);
+  void ClearAppOpenContext();
+
+  // Handles instance update of app other than web browser/pwa/swa and Arc app.
+  void HandleAppInstanceUpdate(const apps::InstanceUpdate& update);
+
+  // Handles Arc instance update.
+  void HandleArcInstanceUpdate(const apps::InstanceUpdate& update);
+
+  // Handles Chrome browser instance update. It caches current web browser
+  // context but defers campaign trigger to PrimaryPageChanged when page
+  // navigations happens.
+  void HandleWebBrowserInstanceUpdate(const apps::InstanceUpdate& update);
+
+  // Handles Pwa or Swa instance update.
+  void HandlePwaInstanceUpdate(const apps::InstanceUpdate& update);
+
+  // Handles app destruction update.
   void HandleAppInstanceDestruction(const apps::InstanceUpdate& update);
+
+  void MaybeTriggerCampaignsWhenAppOpened();
+
+  void RecordSessionUnlockEvent();
 
   base::ScopedObservation<session_manager::SessionManager,
                           session_manager::SessionManagerObserver>
       session_manager_observation_{this};
 
-  raw_ptr<Profile, DanglingUntriaged> profile_for_testing_ = nullptr;
-  GURL active_url_;
+  base::ScopedObservation<ash::Shell, ash::ShellObserver> shell_observer_{this};
+
+  base::ScopedObservation<chromeos::PowerManagerClient,
+                          chromeos::PowerManagerClient::Observer>
+      power_manager_client_observer_{this};
 
   base::ScopedObservation<apps::InstanceRegistry,
                           apps::InstanceRegistry::Observer>
@@ -64,6 +109,9 @@ class CampaignsManagerSession : public session_manager::SessionManagerObserver,
   // Dangling when executing
   // AudioSettingsInteractiveUiTest.LaunchAudioSettingDisabledOnLockScreen:
   raw_ptr<aura::Window, DanglingUntriaged> opened_window_ = nullptr;
+
+  // A timer to trigger campaigns after the campaigns loaded.
+  base::OneShotTimer delayed_timer_;
 
   base::WeakPtrFactory<CampaignsManagerSession> weak_ptr_factory_{this};
 };

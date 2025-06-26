@@ -24,6 +24,7 @@
 #include "net/base/net_export.h"
 #include "net/base/privacy_mode.h"
 #include "net/cookies/cookie_inclusion_status.h"
+#include "net/cookies/cookie_util.h"
 #include "net/first_party_sets/first_party_set_metadata.h"
 #include "net/first_party_sets/first_party_sets_cache_filter.h"
 #include "net/http/http_request_info.h"
@@ -39,6 +40,7 @@ class HttpTransaction;
 class HttpUserAgentSettings;
 class SSLPrivateKey;
 struct TransportInfo;
+struct LoadTimingInternalInfo;
 class UploadDataStream;
 
 // A URLRequestJob subclass that is built on top of HttpTransaction. It
@@ -60,6 +62,20 @@ class NET_EXPORT_PRIVATE URLRequestHttpJob : public URLRequestJob {
   void SetResponseHeadersCallback(ResponseHeadersCallback callback) override;
   void SetIsSharedDictionaryReadAllowedCallback(
       base::RepeatingCallback<bool()> callback) override;
+
+  // An enumeration of the results of a request with respect to IP Protection.
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  enum class IpProtectionJobResult {
+    // Request was not IP Protected.
+    kProtectionNotAttempted = 0,
+    // Request was IP Protected and carried via IP Protection proxies or, if
+    // the direct-only parameter is true, made directly.
+    kProtectionSuccess = 1,
+    // Request was IP Protected, but fell back to direct.
+    kDirectFallback = 2,
+    kMaxValue = kDirectFallback,
+  };
 
  protected:
   URLRequestHttpJob(URLRequest* request,
@@ -146,6 +162,8 @@ class NET_EXPORT_PRIVATE URLRequestHttpJob : public URLRequestJob {
   int NotifyConnectedCallback(const TransportInfo& info,
                               CompletionOnceCallback callback);
 
+  void RestartTransaction();
+  void RestartTransactionForRefresh();
   void RestartTransactionWithAuth(const AuthCredentials& credentials);
 
   // Overridden from URLRequestJob:
@@ -154,8 +172,12 @@ class NET_EXPORT_PRIVATE URLRequestHttpJob : public URLRequestJob {
   LoadState GetLoadState() const override;
   bool GetMimeType(std::string* mime_type) const override;
   bool GetCharset(std::string* charset) override;
+  void GetClientSideContentDecodingTypes(
+      std::vector<net::SourceStreamType>* types) const override;
   void GetResponseInfo(HttpResponseInfo* info) override;
   void GetLoadTimingInfo(LoadTimingInfo* load_timing_info) const override;
+  void PopulateLoadTimingInternalInfo(
+      LoadTimingInternalInfo* load_timing_internal_info) const override;
   bool GetTransactionRemoteEndpoint(IPEndPoint* endpoint) const override;
   int GetResponseCode() const override;
   void PopulateNetErrorDetails(NetErrorDetails* details) const override;
@@ -172,8 +194,13 @@ class NET_EXPORT_PRIVATE URLRequestHttpJob : public URLRequestJob {
   int ReadRawData(IOBuffer* buf, int buf_size) override;
   int64_t GetTotalReceivedBytes() const override;
   int64_t GetTotalSentBytes() const override;
+  int64_t GetReceivedBodyBytes() const override;
   void DoneReading() override;
   void DoneReadingRedirectResponse() override;
+  void DoneReadingRetryResponse() override;
+  bool NeedsRetryWithStorageAccess() override;
+  void SetSharedDictionaryGetter(
+      SharedDictionaryGetter shared_dictionary_getter) override;
 
   IPEndPoint GetResponseRemoteEndpoint() const override;
   void NotifyURLRequestDestroyed() override;
@@ -306,6 +333,18 @@ class NET_EXPORT_PRIVATE URLRequestHttpJob : public URLRequestJob {
   // The First-Party Set metadata associated with this job. Set when the job is
   // started.
   FirstPartySetMetadata first_party_set_metadata_;
+
+  // The number of times this request was deferred due to a Device Bound
+  // Session.
+  size_t device_bound_session_deferral_count_ = 0;
+
+  // The time of the first deferral due to Device Bound Sessions. This
+  // is used to measure the total delay of Device Bound Session
+  // Deferral.
+  base::TimeTicks device_bound_session_first_deferral_;
+
+  // The content encoding types that need to be handled in the client side.
+  std::vector<net::SourceStreamType> client_side_content_decoding_types_;
 
   base::WeakPtrFactory<URLRequestHttpJob> weak_factory_{this};
 };

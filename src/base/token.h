@@ -2,23 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
-#endif
-
 #ifndef BASE_TOKEN_H_
 #define BASE_TOKEN_H_
 
 #include <stdint.h>
 
+#include <array>
 #include <compare>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 
 #include "base/base_export.h"
 #include "base/containers/span.h"
-#include "base/strings/string_piece.h"
 
 namespace base {
 
@@ -52,28 +49,32 @@ class BASE_EXPORT Token {
 
   constexpr bool is_zero() const { return words_[0] == 0 && words_[1] == 0; }
 
-  span<const uint8_t, 16> AsBytes() const {
-    return as_bytes(make_span(words_));
-  }
+  span<const uint8_t, 16> AsBytes() const { return as_byte_span(words_); }
 
   friend constexpr auto operator<=>(const Token& lhs,
                                     const Token& rhs) = default;
   friend constexpr bool operator==(const Token& lhs,
                                    const Token& rhs) = default;
 
+  template <typename H>
+  friend H AbslHashValue(H h, const Token& token) {
+    return H::combine(std::move(h), token.words_);
+  }
+
   // Generates a string representation of this Token useful for e.g. logging.
   std::string ToString() const;
 
   // FromString is the opposite of ToString. It returns std::nullopt if the
   // |string_representation| is invalid.
-  static std::optional<Token> FromString(StringPiece string_representation);
+  static std::optional<Token> FromString(
+      std::string_view string_representation);
 
  private:
   // Note: Two uint64_t are used instead of uint8_t[16] in order to have a
-  // simpler implementation, paricularly for |ToString()|, |is_zero()|, and
+  // simpler implementation, particularly for |ToString()|, |is_zero()|, and
   // constexpr value construction.
 
-  uint64_t words_[2] = {0, 0};
+  std::array<uint64_t, 2> words_ = {0, 0};
 };
 
 // For use in std::unordered_map.

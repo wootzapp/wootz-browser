@@ -8,19 +8,19 @@ import androidx.test.InstrumentationRegistry;
 import androidx.test.filters.SmallTest;
 
 import org.hamcrest.Matchers;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
-import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
+import org.chromium.base.test.util.Features;
 import org.chromium.content_public.browser.ContactsPicker;
 import org.chromium.content_public.browser.ContactsPickerListener;
 import org.chromium.content_public.browser.RenderFrameHost;
@@ -28,7 +28,6 @@ import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.test.ContentJUnit4ClassRunner;
 import org.chromium.content_public.browser.test.RenderFrameHostTestExt;
 import org.chromium.content_public.browser.test.util.FencedFrameUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_shell_apk.ContentShellActivityTestRule;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.net.test.ServerCertificate;
@@ -65,21 +64,17 @@ public class ContactsProviderTest {
         try {
             mActivityTestRule.launchContentShellWithUrlSync(TEST_URL);
         } catch (Throwable t) {
-            Assert.fail("Couldn't load test page.");
+            throw new AssertionError("Couldn't load test page.", t);
         }
     }
-
-    @After
-    public void tearDown() {}
 
     private static String executeJavaScript(
             final RenderFrameHost frame, String js, boolean userGesture) {
         RenderFrameHostTestExt rfh =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
-                        () -> new RenderFrameHostTestExt(frame));
+                ThreadUtils.runOnUiThreadBlocking(() -> new RenderFrameHostTestExt(frame));
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<String> result = new AtomicReference<String>();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     if (userGesture) {
                         rfh.executeJavaScriptWithUserGesture(js);
@@ -127,7 +122,7 @@ public class ContactsProviderTest {
     @Test
     @SmallTest
     public void testGetContactsInPrimaryPageWithUserGesture() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     ContactsPicker.setContactsPickerDelegate(
                             (WebContents webContents,
@@ -162,7 +157,7 @@ public class ContactsProviderTest {
                 });
 
         RenderFrameHost frame =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> mActivityTestRule.getWebContents().getMainFrame());
         executeJavaScript(frame, CONTACTS_SCRIPT, true);
         waitUntilHasValue(frame);
@@ -176,7 +171,7 @@ public class ContactsProviderTest {
     @SmallTest
     public void testGetContactsInPrimaryPageWithoutUserGesture() throws Exception {
         RenderFrameHost frame =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> mActivityTestRule.getWebContents().getMainFrame());
         executeJavaScript(frame, CONTACTS_SCRIPT, false);
         waitUntilHasValue(frame);
@@ -189,10 +184,11 @@ public class ContactsProviderTest {
     /** Tests that Contacts API fails to get contacts with the user gesture in the fenced frame. */
     @Test
     @SmallTest
-    @CommandLineFlags.Add({
-        "enable-features=FencedFrames<Study,PrivacySandboxAdsAPIsOverride,FencedFramesAPIChanges,FencedFramesDefaultMode",
-        "force-fieldtrials=Study/Group",
-        "force-fieldtrial-params=Study.Group:implementation_type/mparch"
+    @Features.EnableFeatures({
+        "FencedFrames:implementation_type/mparch",
+        "PrivacySandboxAdsAPIsOverride",
+        "FencedFramesAPIChanges",
+        "FencedFramesDefaultMode"
     })
     public void testDontGetContactsInFencedFrame() throws TimeoutException {
         EmbeddedTestServer testServer =
@@ -201,7 +197,7 @@ public class ContactsProviderTest {
                         ServerCertificate.CERT_OK);
         String url = testServer.getURL(FENCED_FRAME_URL);
         RenderFrameHost frame =
-                TestThreadUtils.runOnUiThreadBlockingNoException(
+                ThreadUtils.runOnUiThreadBlocking(
                         () -> mActivityTestRule.getWebContents().getMainFrame());
         RenderFrameHost fencedFrame =
                 FencedFrameUtils.createFencedFrame(mActivityTestRule.getWebContents(), frame, url);

@@ -107,6 +107,10 @@ struct GL_EXPORT GLContextAttribs {
   int client_minor_es_version = 0;
   bool can_skip_validation = false;
 
+  // Use EXT_ANGLE_create_context_passthrough_shaders if it is available to tell
+  // ANGLE to not translate shaders and pass them unaltered to the driver.
+  bool passthrough_shaders = false;
+
   // If true, and if supported (for EGL, this requires the robustness
   // extension), set the reset notification strategy to lose context on reset.
   // This setting can be changed independently of robust_buffer_access.
@@ -117,8 +121,8 @@ struct GL_EXPORT GLContextAttribs {
   // create ANGLE context from the current native EGL context.
   bool angle_create_from_external_context = false;
 
-  // If true, ANGLE will support the creation of client arrays.
-  bool angle_create_context_client_arrays = false;
+  // Allow the usage of client arrays in the created context
+  bool allow_client_arrays = true;
 
   AngleContextVirtualizationGroup angle_context_virtualization_group_number =
       AngleContextVirtualizationGroup::kDefault;
@@ -127,8 +131,8 @@ struct GL_EXPORT GLContextAttribs {
 };
 
 // Encapsulates an OpenGL context, hiding platform specific management.
-class GL_EXPORT GLContext : public base::RefCounted<GLContext>,
-                            public base::SupportsWeakPtr<GLContext> {
+// TODO(344606399): Consider folding GLContextEGL into this class.
+class GL_EXPORT GLContext : public base::RefCounted<GLContext> {
  public:
   class GL_EXPORT GLContextObserver : public base::CheckedObserver {
    public:
@@ -156,10 +160,12 @@ class GL_EXPORT GLContext : public base::RefCounted<GLContext>,
 
   // Initializes the GL context to be compatible with the given surface. The GL
   // context can be made with other surface's of the same type. The compatible
-  // surface is only needed for certain platforms like WGL and GLX. It
-  // should be specific for all platforms though. If the compatible surface is
-  // an offscreen one, it is stored by the context and can be accessed via
+  // surface is only needed for certain platforms. It should be
+  // specific for all platforms though. If the compatible surface is an
+  // offscreen one, it is stored by the context and can be accessed via
   // |default_surface|.
+  // TODO(344606399): Consider removing the compatible_surface if it is not
+  // needed for EGL.
   bool Initialize(GLSurface* compatible_surface,
                   const GLContextAttribs& attribs);
 
@@ -167,6 +173,10 @@ class GL_EXPORT GLContext : public base::RefCounted<GLContext>,
   bool MakeCurrent(GLSurface* surface);
   // Same as above, but uses the stored offscreen surface (named as default).
   bool MakeCurrentDefault();
+
+  // Returns a weak ptr. This ptr is invalidate in the `OnContextDestroyed`
+  // call.
+  base::WeakPtr<GLContext> AsWeakPtr();
 
   // Releases this GL context and surface as current on the current thread.
   virtual void ReleaseCurrent(GLSurface* surface) = 0;
@@ -263,13 +273,11 @@ class GL_EXPORT GLContext : public base::RefCounted<GLContext>,
   // context is made current.
   void DirtyVirtualContextState();
 
-#if defined(USE_EGL)
   // Returns GLDisplayEGL this context belongs to if this context is a
   // GLContextEGL; returns nullptr otherwise.
   virtual GLDisplayEGL* GetGLDisplayEGL();
 
   virtual GLContextEGL* AsGLContextEGL();
-#endif  // USE_EGL
 
 #if BUILDFLAG(IS_APPLE)
   virtual void AddMetalSharedEventsForBackpressure(
@@ -400,6 +408,7 @@ class GL_EXPORT GLContext : public base::RefCounted<GLContext>,
   bool has_called_on_destory_ = false;
 
   base::ObserverList<GLContextObserver> observer_list_;
+  base::WeakPtrFactory<GLContext> weak_ptr_factory_{this};
 };
 
 class GL_EXPORT GLContextReal : public GLContext {

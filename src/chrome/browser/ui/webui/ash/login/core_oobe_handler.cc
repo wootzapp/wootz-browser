@@ -13,9 +13,8 @@
 #include "chrome/browser/ash/login/configuration_keys.h"
 #include "chrome/browser/ash/login/demo_mode/demo_setup_controller.h"
 #include "chrome/browser/ash/login/oobe_screen.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
 #include "chrome/browser/ash/policy/enrollment/enrollment_requisition_manager.h"
-#include "chrome/browser/ui/ash/ash_util.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
 #include "chrome/browser/ui/webui/ash/login/oobe_ui.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/grit/branded_strings.h"
@@ -42,7 +41,6 @@ void CoreOobeHandler::DeclareLocalizedValues(
   builder->Add("title", IDS_SHORT_PRODUCT_NAME);
   builder->Add("productName", IDS_SHORT_PRODUCT_NAME);
   builder->Add("learnMore", IDS_LEARN_MORE);
-
 
   // Strings for Asset Identifier shown in version string.
   builder->Add("assetIdLabel", IDS_OOBE_ASSET_ID_LABEL);
@@ -227,7 +225,7 @@ void CoreOobeHandler::HandleUpdateOobeUIState(int state) {
 }
 
 void CoreOobeHandler::HandleRaiseTabKeyEvent(bool reverse) {
-  ui::KeyEvent event(ui::ET_KEY_PRESSED, ui::VKEY_TAB, ui::EF_NONE);
+  ui::KeyEvent event(ui::EventType::kKeyPressed, ui::VKEY_TAB, ui::EF_NONE);
   if (reverse) {
     event.SetFlags(ui::EF_SHIFT_DOWN);
   }

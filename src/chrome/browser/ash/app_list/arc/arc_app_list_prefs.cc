@@ -9,19 +9,9 @@
 #include <string>
 #include <utility>
 
-#include "ash/components/arc/arc_features.h"
-#include "ash/components/arc/arc_prefs.h"
-#include "ash/components/arc/arc_util.h"
-#include "ash/components/arc/compat_mode/arc_resize_lock_manager.h"
-#include "ash/components/arc/mojom/compatibility_mode.mojom.h"
-#include "ash/components/arc/net/arc_net_host_impl.h"
-#include "ash/components/arc/session/arc_bridge_service.h"
-#include "ash/components/arc/session/arc_service_manager.h"
-#include "ash/components/arc/session/connection_holder.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_pref_names.h"
 #include "ash/constants/ash_switches.h"
-#include "ash/metrics/login_unlock_throughput_recorder.h"
 #include "ash/shell.h"
 #include "base/check.h"
 #include "base/containers/contains.h"
@@ -47,6 +37,8 @@
 #include "chrome/browser/ash/app_list/arc/arc_pai_starter.h"
 #include "chrome/browser/ash/arc/arc_util.h"
 #include "chrome/browser/ash/arc/policy/arc_policy_util.h"
+#include "chrome/browser/ash/arc/session/arc_initial_optin_metrics_recorder.h"
+#include "chrome/browser/ash/arc/session/arc_initial_optin_metrics_recorder_factory.h"
 #include "chrome/browser/ash/arc/session/arc_session_manager.h"
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
 #include "chrome/browser/ash/login/session/user_session_manager.h"
@@ -56,6 +48,16 @@
 #include "chrome/browser/ui/ash/shelf/chrome_shelf_controller.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/grit/generated_resources.h"
+#include "chromeos/ash/experiences/arc/app/arc_app_constants.h"
+#include "chromeos/ash/experiences/arc/arc_features.h"
+#include "chromeos/ash/experiences/arc/arc_prefs.h"
+#include "chromeos/ash/experiences/arc/arc_util.h"
+#include "chromeos/ash/experiences/arc/compat_mode/arc_resize_lock_manager.h"
+#include "chromeos/ash/experiences/arc/mojom/compatibility_mode.mojom.h"
+#include "chromeos/ash/experiences/arc/net/arc_net_host_impl.h"
+#include "chromeos/ash/experiences/arc/session/arc_bridge_service.h"
+#include "chromeos/ash/experiences/arc/session/arc_service_manager.h"
+#include "chromeos/ash/experiences/arc/session/connection_holder.h"
 #include "components/crx_file/id_util.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -66,6 +68,8 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_scale_factor.h"
 #include "ui/gfx/codec/png_codec.h"
+
+using arc::mojom::AppCategory;
 
 namespace {
 
@@ -144,6 +148,11 @@ constexpr const char kAppCountUmaPrefix[] = "Arc.AppCount.";
 constexpr int kAppCountUmaExclusiveMax = 101;
 // A smaller bucket size for apps with a lower count.
 constexpr int kAppCountUmaExclusiveMaxLower = 20;
+
+// Constants for "Arc.Data.AppCategory.{Target}.DataSize" UMA metric.
+constexpr int kUmaDataSizeNumBuckets = 50;
+constexpr int kUmaDataSizeInMBMin = 1;
+constexpr int kUmaDataSizeInMBMax = 1000000;  // 1 TB.
 
 // Accessor for deferred set notifications enabled requests in prefs.
 class NotificationsEnabledDeferred {
@@ -393,12 +402,6 @@ void MaybeRemoveDeprecatedPackagePrefs(arc::ArcAppScopedPrefUpdate&& update) {
   update.Get().Remove(kDeprecatePackagePrefsSystem);
 }
 
-ash::LoginUnlockThroughputRecorder* GetLoginRecorder() {
-  return ash::Shell::HasInstance()
-             ? ash::Shell::Get()->login_unlock_throughput_recorder()
-             : nullptr;
-}
-
 // Validate |locale_tag| based on IETF BCP 47 language tag.
 bool IsLocaleTagValid(const std::string& locale_tag) {
   UErrorCode error = U_ZERO_ERROR;
@@ -437,9 +440,10 @@ void OnArcAppListRefreshed(Profile* profile) {
   if (!arc::IsArcPlayStoreEnabledForProfile(profile))
     return;
 
-  ash::LoginUnlockThroughputRecorder* throughput_recorder = GetLoginRecorder();
-  if (!throughput_recorder || !throughput_recorder->NeedReportArcAppListReady())
+  if (!arc::ArcInitialOptInMetricsRecorderFactory::GetForBrowserContext(profile)
+           ->NeedReportArcAppListReady()) {
     return;
+  }
 
   DCHECK_EQ(ProfileManager::GetPrimaryUserProfile(), profile);
   auto* prefs = ArcAppListPrefs::Get(profile);
@@ -462,23 +466,36 @@ void OnArcAppListRefreshed(Profile* profile) {
       ++error;
     }
   }
-  if (ready + error >= launchable)
-    throughput_recorder->OnArcAppListReady();
+  if (ready + error >= launchable) {
+    arc::ArcInitialOptInMetricsRecorderFactory::GetForBrowserContext(profile)
+        ->OnArcAppListReady();
+  }
 }
+
+void RecordAppCategoryDataSizeUma(const std::string& category,
+                                  uint64_t data_size_in_bytes) {
+  const std::string metrics =
+      base::StringPrintf("Arc.Data.AppCategory.%s.DataSize", category);
+  base::UmaHistogramCustomCounts(metrics, data_size_in_bytes / 1000000,
+                                 kUmaDataSizeInMBMin, kUmaDataSizeInMBMax,
+                                 kUmaDataSizeNumBuckets);
+}
+
 }  // namespace
 
 // static
-ArcAppListPrefs* ArcAppListPrefs::Create(Profile* profile) {
-  return new ArcAppListPrefs(profile, nullptr);
+std::unique_ptr<ArcAppListPrefs> ArcAppListPrefs::Create(Profile* profile) {
+  return std::make_unique<ArcAppListPrefs>(profile, nullptr);
 }
 
 // static
-ArcAppListPrefs* ArcAppListPrefs::Create(
+std::unique_ptr<ArcAppListPrefs> ArcAppListPrefs::Create(
     Profile* profile,
     arc::ConnectionHolder<arc::mojom::AppInstance, arc::mojom::AppHost>*
         app_connection_holder_for_testing) {
   DCHECK(app_connection_holder_for_testing);
-  return new ArcAppListPrefs(profile, app_connection_holder_for_testing);
+  return std::make_unique<ArcAppListPrefs>(profile,
+                                           app_connection_holder_for_testing);
 }
 
 // static
@@ -1154,8 +1171,7 @@ void ArcAppListPrefs::SetLaunchRequestTimeForTesting(const std::string& app_id,
 }
 void ArcAppListPrefs::SetLastLaunchTime(const std::string& app_id) {
   if (!IsRegistered(app_id)) {
-    NOTREACHED_IN_MIGRATION();
-    return;
+    NOTREACHED();
   }
 
   launch_request_times_[app_id] = base::Time::Now();
@@ -1183,7 +1199,6 @@ void ArcAppListPrefs::SetLastLaunchTimeInternal(const std::string& app_id) {
         user_manager::UserManager::Get();
     if (arc::ArcSessionManager::Get()->skipped_terms_of_service_negotiation() &&
         !user_manager->IsLoggedInAsKioskApp() &&
-        !user_manager->IsLoggedInAsArcKioskApp() &&
         !ash::UserSessionManager::GetInstance()->ui_shown_time().is_null()) {
       UMA_HISTOGRAM_CUSTOM_TIMES(
           "Arc.FirstAppLaunchRequest.TimeDelta",
@@ -1191,6 +1206,15 @@ void ArcAppListPrefs::SetLastLaunchTimeInternal(const std::string& app_id) {
           base::Seconds(1), base::Minutes(2), 20);
     }
   }
+}
+
+void ArcAppListPrefs::SetLastLaunchTimeForTesting(const std::string& app_id,
+                                                  base::Time timestamp) {
+  arc::ArcAppScopedPrefUpdate update(prefs_, app_id, arc::prefs::kArcApps);
+  base::Value::Dict& app_dict = update.Get();
+  const std::string string_value =
+      base::NumberToString(timestamp.ToInternalValue());
+  app_dict.Set(kLastLaunchTime, string_value);
 }
 
 void ArcAppListPrefs::DisableAllApps() {
@@ -1209,8 +1233,7 @@ void ArcAppListPrefs::NotifyRegisteredApps() {
   for (const auto& app_id : app_ids) {
     std::unique_ptr<AppInfo> app_info = GetApp(app_id);
     if (!app_info) {
-      NOTREACHED_IN_MIGRATION();
-      continue;
+      NOTREACHED();
     }
 
     // Default apps are reported earlier.
@@ -1372,6 +1395,40 @@ void ArcAppListPrefs::RecordAppIdsUma() {
   base::UmaHistogramBoolean(
       base::StrCat({kAppCountUmaPrefix, "HasInstalledOrUnknownApp"}),
       has_installed_apps);
+}
+
+void ArcAppListPrefs::RecordAppCategoryDataSizeListUma(
+    std::vector<arc::mojom::AppInfoPtr> apps) {
+  if (app_category_data_size_uma_recorded_) {
+    // "Arc.Data.AppCategory.{Target}.DataSize" should be recorded only once
+    // per session.
+    return;
+  }
+
+  // Calculate combined data bytes for each app category.
+  std::map<arc::mojom::AppCategory, uint64_t> data_bytes_map;
+  for (const auto& app : apps) {
+    if (app->app_storage.is_null()) {
+      continue;
+    }
+    data_bytes_map[app->app_category] += app->app_storage->data_size_in_bytes;
+  }
+
+  VLOG(1) << "Recording Arc.Data.AppCategory.{Target}.DataSize UMA";
+  RecordAppCategoryDataSizeUma("Game", data_bytes_map[AppCategory::kGame]);
+  RecordAppCategoryDataSizeUma("Audio", data_bytes_map[AppCategory::kAudio]);
+  RecordAppCategoryDataSizeUma("Video", data_bytes_map[AppCategory::kVideo]);
+  RecordAppCategoryDataSizeUma("Image", data_bytes_map[AppCategory::kImage]);
+  RecordAppCategoryDataSizeUma("Social", data_bytes_map[AppCategory::kSocial]);
+  RecordAppCategoryDataSizeUma("Productivity",
+                               data_bytes_map[AppCategory::kProductivity]);
+  const uint64_t data_bytes_for_other_category =
+      data_bytes_map[AppCategory::kUndefined] +
+      data_bytes_map[AppCategory::kNews] + data_bytes_map[AppCategory::kMaps] +
+      data_bytes_map[AppCategory::kAccessibility];
+  RecordAppCategoryDataSizeUma("Other", data_bytes_for_other_category);
+
+  app_category_data_size_uma_recorded_ = true;
 }
 
 void ArcAppListPrefs::OnPolicySent(const std::string& policy) {
@@ -1670,13 +1727,18 @@ void ArcAppListPrefs::AddAppAndShortcut(
 
   // Do not add Play Store in certain conditions.
   if (app_id == arc::kPlayStoreAppId) {
+    // Users can only use admin-approved and installed apps on the
+    // reven board, not from the Play Store.
+    if (ash::switches::IsRevenBranding()) {
+      return;
+    }
+
     // TODO(khmel): Use show_in_launcher flag to hide the Play Store app.
     // Display Play Store if we are in Demo Mode.
     // TODO(b/154290639): Remove check for |IsDemoModeOfflineEnrolled| when
     //                    fixed in Play Store.
     if (arc::IsRobotOrOfflineDemoAccountMode() &&
-        !(ash::DemoSession::IsDeviceInDemoMode() &&
-          ash::features::ShouldShowPlayStoreInDemoMode())) {
+        !ash::DemoSession::IsDeviceInDemoMode()) {
       return;
     }
   }
@@ -2059,6 +2121,9 @@ void ArcAppListPrefs::OnAppListRefreshed(
       MaybeSetDefaultAppLoadingTimeout();
     }
   }
+
+  RecordAppCategoryDataSizeListUma(std::move(apps));
+
   OnArcAppListRefreshed(profile_);
 }
 
@@ -2257,8 +2322,7 @@ std::unordered_set<std::string> ArcAppListPrefs::GetAppsAndShortcutsForPackage(
       continue;
 
     if (!app.second.is_dict()) {
-      NOTREACHED_IN_MIGRATION();
-      continue;
+      NOTREACHED();
     }
 
     const std::string* app_package =
@@ -2385,8 +2449,7 @@ void ArcAppListPrefs::OnNotificationsEnabledChanged(
   const base::Value::Dict& apps = prefs_->GetDict(arc::prefs::kArcApps);
   for (const auto app : apps) {
     if (!app.second.is_dict()) {
-      NOTREACHED_IN_MIGRATION();
-      continue;
+      NOTREACHED();
     }
     const std::string* app_package_name =
         app.second.GetDict().FindString(kPackageName);
@@ -2491,8 +2554,7 @@ std::vector<std::string> ArcAppListPrefs::GetPackagesFromPrefs(
       prefs_->GetDict(arc::prefs::kArcPackages);
   for (const auto package : package_prefs) {
     if (!package.second.is_dict()) {
-      NOTREACHED_IN_MIGRATION();
-      continue;
+      NOTREACHED();
     }
 
     const bool uninstalled =

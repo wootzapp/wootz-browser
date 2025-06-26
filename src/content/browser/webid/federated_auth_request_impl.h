@@ -12,15 +12,19 @@
 #include "base/containers/queue.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/time/time.h"
 #include "content/browser/webid/fedcm_metrics.h"
 #include "content/browser/webid/federated_provider_fetcher.h"
 #include "content/browser/webid/identity_registry.h"
+#include "content/browser/webid/identity_registry_delegate.h"
 #include "content/browser/webid/idp_network_request_manager.h"
+#include "content/browser/webid/jwt_signer.h"
+#include "content/browser/webid/sd_jwt.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/document_service.h"
+#include "content/public/browser/federated_auth_autofill_source.h"
 #include "content/public/browser/federated_identity_api_permission_context_delegate.h"
-#include "content/public/browser/federated_identity_modal_dialog_view_delegate.h"
 #include "content/public/browser/federated_identity_permission_context_delegate.h"
 #include "content/public/browser/identity_request_dialog_controller.h"
 #include "content/public/browser/web_contents.h"
@@ -28,6 +32,14 @@
 #include "third_party/blink/public/mojom/devtools/inspector_issue.mojom.h"
 #include "third_party/blink/public/mojom/webid/federated_auth_request.mojom.h"
 #include "url/gurl.h"
+
+namespace gfx {
+class Image;
+}
+
+namespace blink::common::webid {
+struct LoginStatusOptions;
+}  // namespace blink::common::webid
 
 namespace content {
 
@@ -38,9 +50,12 @@ class FederatedIdentityAutoReauthnPermissionContextDelegate;
 class FederatedIdentityPermissionContextDelegate;
 class RenderFrameHost;
 
+using IdentityProviderDataPtr = scoped_refptr<content::IdentityProviderData>;
+using IdentityRequestAccountPtr =
+    scoped_refptr<content::IdentityRequestAccount>;
 using MediationRequirement = ::password_manager::CredentialMediationRequirement;
-using TokenError = IdentityCredentialTokenError;
 using RpMode = blink::mojom::RpMode;
+using TokenError = IdentityCredentialTokenError;
 
 // FederatedAuthRequestImpl handles mojo connections from the renderer to
 // fulfill WebID-related requests.
@@ -54,7 +69,8 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
     : public DocumentService<blink::mojom::FederatedAuthRequest>,
       public FederatedIdentityPermissionContextDelegate::
           IdpSigninStatusObserver,
-      public content::FederatedIdentityModalDialogViewDelegate {
+      public IdentityRegistryDelegate,
+      public FederatedAuthAutofillSource {
  public:
   static constexpr char kWildcardDomainHint[] = "any";
 
@@ -84,10 +100,14 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   void ResolveTokenRequest(const std::optional<std::string>& account_id,
                            const std::string& token,
                            ResolveTokenRequestCallback callback) override;
-  void SetIdpSigninStatus(const url::Origin& origin,
-                          blink::mojom::IdpSigninStatus status) override;
+  void SetIdpSigninStatus(
+      const url::Origin& origin,
+      blink::mojom::IdpSigninStatus status,
+      const std::optional<::blink::common::webid::LoginStatusOptions>& options)
+      override;
   void RegisterIdP(const ::GURL& idp, RegisterIdPCallback) override;
   void UnregisterIdP(const ::GURL& idp, UnregisterIdPCallback) override;
+
   void CloseModalDialogView() override;
   void PreventSilentAccess(PreventSilentAccessCallback callback) override;
   void Disconnect(blink::mojom::IdentityCredentialDisconnectOptionsPtr options,
@@ -107,6 +127,26 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   bool OnResolve(GURL idp_config_url,
                  const std::optional<std::string>& account_id,
                  const std::string& token) override;
+  void OnOriginMismatch(Method method,
+                        const url::Origin& expected,
+                        const url::Origin& actual) override;
+
+  // content::FederatedAuthAutofillSource
+  const std::optional<std::vector<IdentityRequestAccountPtr>>
+  GetAutofillSuggestions() const override;
+  void NotifyAutofillSuggestionAccepted(
+      const GURL& idp,
+      const std::string& account_id,
+      OnFederatedTokenReceivedCallback callback) override;
+
+  // To be called on the FederatedAuthRequest object corresponding to a
+  // popup opened by ShowModalDialog, specifically for the case when
+  // ShowModalDialog returned null (particularly Android). In that case,
+  // we can only set up the IdentityRegistry object when we get a call
+  // from the popup context.
+  // Returns false when no identity registry could be created (e.g. this
+  // is not in a context created by ShowModalDialog).
+  bool SetupIdentityRegistryFromPopup();
 
   // Rejects the pending request if it has not been resolved naturally yet.
   void OnRejectRequest();
@@ -125,7 +165,7 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
 
     blink::mojom::IdentityProviderRequestOptionsPtr provider;
     blink::mojom::RpContext rp_context{blink::mojom::RpContext::kSignIn};
-    blink::mojom::RpMode rp_mode{blink::mojom::RpMode::kWidget};
+    blink::mojom::RpMode rp_mode{blink::mojom::RpMode::kPassive};
   };
 
   struct IdentityProviderInfo {
@@ -142,8 +182,9 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
     IdentityProviderMetadata metadata;
     bool has_failing_idp_signin_status{false};
     blink::mojom::RpContext rp_context{blink::mojom::RpContext::kSignIn};
-    blink::mojom::RpMode rp_mode{blink::mojom::RpMode::kWidget};
-    std::optional<IdentityProviderData> data;
+    blink::mojom::RpMode rp_mode{blink::mojom::RpMode::kPassive};
+    IdentityProviderDataPtr data;
+    gfx::Image decoded_idp_brand_icon;
   };
 
   struct IdentityProviderLoginUrlInfo {
@@ -156,26 +197,39 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
     return request_dialog_controller_.get();
   }
 
-  const std::vector<IdentityProviderData>& GetSortedIdpData() const {
+  const std::vector<IdentityProviderDataPtr>& GetSortedIdpData() const {
     return idp_data_for_display_;
   }
 
+  const std::vector<IdentityRequestAccountPtr>& GetAccounts() const {
+    return accounts_;
+  }
+
+  MediationRequirement GetMediationRequirement() const {
+    return mediation_requirement_;
+  }
+
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
   enum DialogType {
-    kNone,
-    kSelectAccount,
-    kAutoReauth,
-    kConfirmIdpLogin,
-    kError,
+    kNone = 0,
+    kSelectAccount = 1,
+    kAutoReauth = 2,
+    kConfirmIdpLogin = 3,
+    kError = 4,
     // Popups are not technically dialogs in the strict sense, but because they
     // are mutually exclusive with browser UI dialogs we use this enum for them
     // as well.
-    kLoginToIdpPopup,
-    kContinueOnPopup,
-    kErrorUrlPopup
+    kLoginToIdpPopup = 5,
+    kContinueOnPopup = 6,
+    kErrorUrlPopup = 7,
+
+    kMaxValue = kErrorUrlPopup
   };
+
   DialogType GetDialogType() const { return dialog_type_; }
 
-  enum IdentitySelectionType { kExplicit, kAutoWidget, kAutoButton };
+  enum IdentitySelectionType { kExplicit, kAutoPassive, kAutoActive };
 
   bool ShouldNotifyDevtoolsForDialogType(DialogType type);
 
@@ -190,14 +244,22 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   void ClickErrorDialogMoreDetailsForDevtools();
   void DismissErrorDialogForDevtools();
 
-  // Check if the scope of the request allows the browser to mediate
-  // or delegate (to the IdP) the authorization.
-  bool ShouldMediateAuthzFor(
+  // Returns a list of fields that we should mediate authorization for. If
+  // empty, we should not show a permission request dialog.
+  std::vector<IdentityRequestDialogDisclosureField> GetDisclosureFields(
       const blink::mojom::IdentityProviderRequestOptions& provider);
 
   // Whether we can show the continue_on popup (not using mediation: silent,
   // etc.)
   bool CanShowContinueOnPopup() const;
+
+  bool HasUserTriedToSignInToIdp(const GURL& idp_config_url) {
+    return idps_user_tried_to_signin_to_.contains(idp_config_url);
+  }
+
+  FedCmUseOtherAccountResult ComputeUseOtherAccountResult(
+      blink::mojom::FederatedAuthRequestResult result,
+      const std::optional<GURL>& selected_idp_config_url);
 
  private:
   friend class FederatedAuthRequestImplTest;
@@ -211,9 +273,6 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
 
     // Whether accounts endpoint fetch succeeded for at least one IdP.
     bool did_succeed_for_at_least_one_idp{false};
-
-    // Whether the fetch was triggered by an IdP sign-in status update.
-    bool for_idp_signin{false};
   };
 
   FederatedAuthRequestImpl(
@@ -228,16 +287,13 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
 
   // Fetch well-known, config, accounts and client metadata endpoints for
   // passed-in IdPs. Uses parameters from `token_request_get_infos_`.
-  // `for_idp_signin` indicates whether the fetch is as a result of an IdP
-  // sign-in status update.
-  void FetchEndpointsForIdps(const std::set<GURL>& idp_config_urls,
-                             bool for_idp_signin);
+  void FetchEndpointsForIdps(const std::set<GURL>& idp_config_urls);
 
   void OnAllConfigAndWellKnownFetched(
       std::vector<FederatedProviderFetcher::FetchResult> fetch_results);
   void OnClientMetadataResponseReceived(
       std::unique_ptr<IdentityProviderInfo> idp_info,
-      const IdpNetworkRequestManager::AccountList& accounts,
+      std::vector<IdentityRequestAccountPtr>&& accounts,
       IdpNetworkRequestManager::FetchStatus status,
       IdpNetworkRequestManager::ClientMetadata client_metadata);
 
@@ -245,8 +301,9 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   // fetched for `idp_info`.
   void OnFetchDataForIdpSucceeded(
       std::unique_ptr<IdentityProviderInfo> idp_info,
-      const IdpNetworkRequestManager::AccountList& accounts,
-      const IdpNetworkRequestManager::ClientMetadata& client_metadata);
+      std::vector<IdentityRequestAccountPtr>&& accounts,
+      const IdpNetworkRequestManager::ClientMetadata& client_metadata,
+      const gfx::Image& rp_brand_icon);
 
   // Called when there is an error in fetching information to show the prompt
   // for a given IDP - `idp_info`, but we do not need to show failure UI for the
@@ -289,7 +346,25 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   void OnAccountsResponseReceived(
       std::unique_ptr<IdentityProviderInfo> idp_info,
       IdpNetworkRequestManager::FetchStatus status,
-      IdpNetworkRequestManager::AccountList accounts);
+      std::vector<IdentityRequestAccountPtr> accounts);
+  // Fetches the account pictures for |accounts| and calls
+  // OnFetchDataForIdpSucceeded when done.
+  void FetchAccountPicturesAndBrandIcons(
+      std::unique_ptr<IdentityProviderInfo> idp_info,
+      const std::vector<IdentityRequestAccountPtr>& accounts,
+      IdpNetworkRequestManager::ClientMetadata&& client_metadata);
+  // Fetches the given `url` and stores the result in `downloaded_images_`. Runs
+  // the `callback` exactly once regardless of whether the GURL is valid or the
+  // fetch result.
+  void FetchImage(const GURL& url, base::OnceClosure callback);
+  void OnImageReceived(base::OnceClosure callback,
+                       GURL url,
+                       const gfx::Image& image);
+  void OnAllAccountPicturesAndBrandIconUrlReceived(
+      std::unique_ptr<IdentityProviderInfo> idp_info,
+      std::vector<IdentityRequestAccountPtr>&& accounts,
+      const IdpNetworkRequestManager::ClientMetadata& client_metadata);
+
   void OnAccountSelected(const GURL& idp_config_url,
                          const std::string& account_id,
                          bool is_sign_in);
@@ -298,7 +373,6 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   void OnDismissErrorDialog(
       const GURL& idp_config_url,
       IdpNetworkRequestManager::FetchStatus status,
-      std::optional<TokenError> token_error,
       IdentityRequestDialogController::DismissReason dismiss_reason);
   void OnDialogDismissed(
       IdentityRequestDialogController::DismissReason dismiss_reason);
@@ -316,10 +390,14 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
       IdpNetworkRequestManager::FetchStatus status,
       const GURL& url);
 
+  // Called after we get at token (either from the ID assertion endpoint or
+  // from IdentityProvider.resolve) to update our various permissions.
+  void MarkUserAsSignedIn(const GURL& idp_config_url,
+                          const std::string& account_id);
+
   void CompleteRequestWithError(
       blink::mojom::FederatedAuthRequestResult result,
       std::optional<content::FedCmRequestIdTokenStatus> token_status,
-      std::optional<TokenError> token_error,
       bool should_delay_callback);
 
   // Completes request. Displays a dialog if there is an error and the error is
@@ -331,6 +409,13 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
       const std::optional<GURL>& selected_idp_config_url,
       const std::string& token,
       bool should_delay_callback);
+  void ProcessSdJwt(const GURL& selected_idp_config_url,
+                    const std::string& token);
+  void OnDisclosureParsed(base::RepeatingClosure cb,
+                          const std::string& json,
+                          data_decoder::DataDecoder::ValueOrError result);
+  void OnSdJwtParsed(const GURL& selected_idp_config_url,
+                     const sdjwt::Jwt& token);
   void CompleteUserInfoRequest(
       FederatedAuthUserInfoRequest* request,
       RequestUserInfoCallback callback,
@@ -342,6 +427,7 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   void SendFailedTokenRequestMetrics(
       const GURL& metrics_endpoint,
       blink::mojom::FederatedAuthRequestResult result);
+  void SendSuccessfulTokenRequestMetrics(const GURL& idp_config_url);
 
   void CleanUp();
 
@@ -355,9 +441,6 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   // Adds a console error message related to a federated authentication request
   // issue. The Issues panel is preferred, but for now we also surface console
   // error messages since it is much simpler to add.
-  // TODO(crbug.com/40820517): When the FedCM API is more stable, we should
-  // ensure that the Issues panel contains all of the needed debugging
-  // information and then we can remove the console error messages.
   void AddConsoleErrorMessage(blink::mojom::FederatedAuthRequestResult result);
 
   void MaybeAddResponseCodeToConsole(const char* fetch_description,
@@ -365,20 +448,17 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
 
   // Computes the login state of accounts. It uses the IDP-provided signal, if
   // it had been populated. Otherwise, it uses the browser knowledge on which
-  // accounts are returning and which are not. In either case, this method also
-  // reorders accounts so that those that are considered returning users are
-  // before users that are not returning.
-  void ComputeLoginStateAndReorderAccounts(
-      const GURL& idp_config_url,
-      IdpNetworkRequestManager::AccountList& accounts);
+  // accounts are returning and which are not.
+  void ComputeLoginStates(const GURL& idp_config_url,
+                          std::vector<IdentityRequestAccountPtr>& accounts);
 
   url::Origin GetEmbeddingOrigin() const;
 
   // Returns true and the `IdentityProviderData` + `IdentityRequestAccount` for
   // the only returning account. Returns false if there are multiple returning
   // accounts or no returning account.
-  bool GetAccountForAutoReauthn(const IdentityProviderData** out_idp_data,
-                                const IdentityRequestAccount** out_account);
+  bool GetAccountForAutoReauthn(IdentityProviderDataPtr* out_idp_data,
+                                IdentityRequestAccountPtr* out_account);
 
   // Check if auto re-authn is available so we can skip fetching accounts if the
   // auto re-authn flow is guaranteed to fail.
@@ -397,7 +477,7 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
                   const GURL& idp_config_url,
                   GURL login_url);
 
-  void MaybeShowButtonModeModalDialog(const GURL& idp_config_url,
+  void MaybeShowActiveModeModalDialog(const GURL& idp_config_url,
                                       const GURL& idp_login_url);
 
   void CompleteDisconnectRequest(DisconnectCallback callback,
@@ -415,6 +495,24 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
                                        const GURL& idp,
                                        bool accepted);
   void MaybeCreateFedCmMetrics();
+
+  bool IsNewlyLoggedIn(const IdentityRequestAccount& account);
+
+  // Returns whether the algorithm should terminate after applying the account
+  // label filter.
+  bool FilterAccountsWithLabel(
+      const std::string& label,
+      std::vector<IdentityRequestAccountPtr>& accounts);
+  // Returns whether the algorithm should terminate after applying the login
+  // hint filter.
+  bool FilterAccountsWithLoginHint(
+      const std::string& login_hint,
+      std::vector<IdentityRequestAccountPtr>& accounts);
+  // Returns whether the algorithm should terminate after applying the domain
+  // hint filter.
+  bool FilterAccountsWithDomainHint(
+      const std::string& domain_hint,
+      std::vector<IdentityRequestAccountPtr>& accounts);
 
   RpMode GetRpMode() const { return rp_mode_; }
 
@@ -435,7 +533,17 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   // Populated by OnFetchDataForIdpSucceeded() and OnIdpMismatch().
   base::flat_map<GURL, std::unique_ptr<IdentityProviderInfo>> idp_infos_;
   // Populated by MaybeShowAccountsDialog().
-  std::vector<IdentityProviderData> idp_data_for_display_;
+  std::vector<IdentityProviderDataPtr> idp_data_for_display_;
+
+  // Populated by OnFetchDataForIdpSucceeded(). Contains the accounts of each
+  // IDP. Used to later set accounts_ in the order in which the IDPs are
+  // requested.
+  base::flat_map<GURL, std::vector<IdentityRequestAccountPtr>> idp_accounts_;
+  // The accounts to be displayed by the UI.
+  std::vector<IdentityRequestAccountPtr> accounts_;
+  // The newly logged in accounts, to be prioritized by the UI. Subset of
+  // `accounts_`.
+  std::vector<IdentityRequestAccountPtr> new_accounts_;
 
   // Contains the set of account IDs of an IDP before a login URL is displayed
   // to the user. Used to compute the account ID of the account that the user
@@ -445,6 +553,9 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   // Maps the login URL to the info that may be added as query parameters to
   // that URL. Populated by OnAllConfigAndWellKnownFetched().
   base::flat_map<GURL, IdentityProviderLoginUrlInfo> idp_login_infos_;
+
+  // The downloaded image data.
+  std::map<GURL, gfx::Image> downloaded_images_;
 
   raw_ptr<FederatedIdentityApiPermissionContextDelegate>
       api_permission_delegate_ = nullptr;
@@ -484,6 +595,8 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   // simultaneously.
   RequestTokenCallback auth_request_token_callback_;
 
+  OnFederatedTokenReceivedCallback token_received_callback_for_autofill_;
+
   std::unique_ptr<FederatedProviderFetcher> provider_fetcher_;
 
   // Set of pending user info requests.
@@ -502,17 +615,21 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   // Data related to in-progress FetchEndpointsForIdps() fetch.
   FetchData fetch_data_;
 
+  // The set of IDPs that the user has tried to sign in to since the start of
+  // the current request.
+  base::flat_set<GURL> idps_user_tried_to_signin_to_;
+
   // List of config URLs of IDPs in the same order as the providers specified in
-  // the navigator.credentials.get call. This vector is reset to a single IDP
-  // when the user logins to an IDP, so as to only show the newly logged in
-  // account.
+  // the navigator.credentials.get call.
   std::vector<GURL> idp_order_;
 
   // If dialog_type_ is kConfirmIdpLogin, this is the login URL for the IDP. If
-  // LoginToIdp() is called, this is the login URL for the IDP.
+  // LoginToIdp() is called, this is the login URL for the IDP. Does not include
+  // the filters as query parameters, if any.
   GURL login_url_;
 
-  // If dialog_type_ is kError, this is the config URL for the IDP.
+  // If dialog_type_ is kError or a popup is open, this is the config URL for
+  // the IDP.
   GURL config_url_;
 
   // If dialog_type_ is kError, this is the fetch status of the token request.
@@ -524,7 +641,7 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   DialogType dialog_type_ = kNone;
   MediationRequirement mediation_requirement_;
   IdentitySelectionType identity_selection_type_ = kExplicit;
-  RpMode rp_mode_{RpMode::kWidget};
+  RpMode rp_mode_{RpMode::kPassive};
 
   // Time when the accounts dialog is last shown for metrics purposes.
   std::optional<base::TimeTicks> accounts_dialog_shown_time_;
@@ -542,13 +659,35 @@ class CONTENT_EXPORT FederatedAuthRequestImpl
   // Wallets or multi-IDP are not counted.
   int num_requests_{0};
 
-  // The button flow requires user activation to be kicked off. We'd also need
+  // The active flow requires user activation to be kicked off. We'd also need
   // this information along the way. e.g. showing pop-up window when accounts
   // fetch is failed. However, the function `HasTransientUserActivation` may
   // return false at that time because the network requests may be very slow
   // such that the previous user gesture is expired. Therefore we store the
-  // information to use it during the entire the button flow.
+  // information to use it during the entire the active flow.
   bool had_transient_user_activation_{false};
+
+  // Whether we have shown any UI during this flow.
+  bool did_show_ui_{false};
+
+  // Keeps track of the state of the use other account flow. Is std::nullopt
+  // when the flow is not active.
+  std::optional<FedCmUseOtherAccountResult> use_other_account_account_result_;
+
+  // Whether a token request has been sent.
+  bool has_sent_token_request_{false};
+
+  // Keeps track of the state of the verifying dialog. Is std::nullopt when the
+  // verifying dialog has not been shown.
+  std::optional<FedCmVerifyingDialogResult> verifying_dialog_result_;
+
+  // A private key that is used to bind the token when the token "format" is
+  // "vc+sd-jwt".
+  std::unique_ptr<crypto::ECPrivateKey> private_key_;
+
+  // A list of discloures that were parsed in the token response, when
+  // the token's format is "vc+sd-jwt".
+  std::vector<std::pair<std::string, std::string>> disclosures_;
 
   base::WeakPtrFactory<FederatedAuthRequestImpl> weak_ptr_factory_{this};
 };

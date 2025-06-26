@@ -56,12 +56,10 @@ import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.chrome.browser.toolbar.ButtonData;
-import org.chromium.chrome.browser.toolbar.ButtonData.ButtonSpec;
-import org.chromium.chrome.browser.toolbar.ButtonDataImpl;
 import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarFeatures;
+import org.chromium.chrome.browser.toolbar.optional_button.ButtonData.ButtonSpec;
 import org.chromium.chrome.browser.toolbar.optional_button.OptionalButtonConstants.TransitionType;
 import org.chromium.ui.listmenu.ListMenuButton;
 
@@ -146,7 +144,8 @@ public class OptionalButtonViewTest {
                         /* buttonVariant= */ AdaptiveToolbarButtonVariant.NEW_TAB,
                         /* actionChipLabelResId= */ Resources.ID_NULL,
                         /* tooltipTextResId= */ R.string.new_tab_title,
-                        /* showHoverHighlight= */ true);
+                        /* showBackgroundHighlight= */ true,
+                        /* hasErrorBadge= */ false);
         ButtonDataImpl buttonData = new ButtonDataImpl();
         buttonData.setButtonSpec(buttonSpec);
         buttonData.setCanShow(true);
@@ -174,7 +173,8 @@ public class OptionalButtonViewTest {
                         /* buttonVariant= */ AdaptiveToolbarButtonVariant.READER_MODE,
                         /* actionChipLabelResId= */ Resources.ID_NULL,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false,
+                        /* hasErrorBadge= */ false);
         ButtonDataImpl buttonData = new ButtonDataImpl();
         buttonData.setButtonSpec(buttonSpec);
         buttonData.setCanShow(true);
@@ -201,7 +201,8 @@ public class OptionalButtonViewTest {
                         /* buttonVariant= */ AdaptiveToolbarButtonVariant.READER_MODE,
                         /* actionChipLabelResId= */ actionChipLabelResId,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false,
+                        /* hasErrorBadge= */ false);
         ButtonDataImpl buttonData = new ButtonDataImpl();
         buttonData.setButtonSpec(buttonSpec);
         buttonData.setCanShow(true);
@@ -227,7 +228,8 @@ public class OptionalButtonViewTest {
                         /* buttonVariant= */ buttonVariant,
                         0,
                         tooltipTextIdRes,
-                        true);
+                        /* showBackgroundHighlight= */ true,
+                        /* hasErrorBadge= */ false);
         ButtonDataImpl buttonData = new ButtonDataImpl();
         buttonData.setButtonSpec(buttonSpec);
         buttonData.setCanShow(true);
@@ -252,7 +254,8 @@ public class OptionalButtonViewTest {
                         /* buttonVariant= */ AdaptiveToolbarButtonVariant.UNKNOWN,
                         /* actionChipLabelResId= */ Resources.ID_NULL,
                         /* tooltipTextResId= */ Resources.ID_NULL,
-                        /* showHoverHighlight= */ false);
+                        /* showBackgroundHighlight= */ false,
+                        /* hasErrorBadge= */ false);
         ButtonDataImpl buttonData = new ButtonDataImpl();
         buttonData.setButtonSpec(buttonSpec);
         buttonData.setCanShow(true);
@@ -806,11 +809,12 @@ public class OptionalButtonViewTest {
                         originalButtonSpec.getOnLongClickListener(),
                         originalButtonSpec.getContentDescription(),
                         originalButtonSpec.getSupportsTinting(),
-                        originalButtonSpec.getIPHCommandBuilder(),
+                        originalButtonSpec.getIphCommandBuilder(),
                         originalButtonSpec.getButtonVariant(),
                         originalButtonSpec.getActionChipLabelResId(),
                         originalButtonSpec.getHoverTooltipTextId(),
-                        originalButtonSpec.getShouldShowHoverHighlight()));
+                        originalButtonSpec.shouldShowBackgroundHighlight(),
+                        originalButtonSpec.hasErrorBadge()));
 
         mOptionalButtonView.updateButtonWithAnimation(readerModeButtonData);
         mOptionalButtonView.onTransitionStart(null);
@@ -863,7 +867,7 @@ public class OptionalButtonViewTest {
         // Set a string that's too long as an action chip label. Real code measures the number of
         // pixels this will take on screen, but robolectric just uses the character count, so use
         // any string with more than 150 characters.
-        buttonData.updateActionChipResourceId(R.string.sign_in_managed_account_description);
+        buttonData.updateActionChipResourceId(R.string.sync_encryption_create_passphrase);
 
         int maxActionChipWidth =
                 mOptionalButtonView

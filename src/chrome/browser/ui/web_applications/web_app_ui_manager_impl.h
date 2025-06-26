@@ -25,6 +25,7 @@
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
 #include "chrome/browser/web_applications/web_app_uninstall_dialog_user_options.h"
+#include "components/user_education/common/feature_promo/feature_promo_result.h"
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/gfx/native_widget_types.h"
@@ -79,18 +80,18 @@ class WebAppUiManagerImpl : public BrowserListObserver,
   bool CanAddAppToQuickLaunchBar() const override;
   void AddAppToQuickLaunchBar(const webapps::AppId& app_id) override;
   bool IsAppInQuickLaunchBar(const webapps::AppId& app_id) const override;
-  bool IsInAppWindow(content::WebContents* web_contents) const override;
-  const webapps::AppId* GetAppIdForWindow(
-      const content::WebContents* web_contents) const override;
-  void NotifyOnAssociatedAppChanged(
-      content::WebContents* web_contents,
-      const std::optional<webapps::AppId>& previous_app_id,
-      const std::optional<webapps::AppId>& new_app_id) const override;
-  bool CanReparentAppTabToWindow(const webapps::AppId& app_id,
-                                 bool shortcut_created) const override;
-  void ReparentAppTabToWindow(content::WebContents* contents,
-                              const webapps::AppId& app_id,
-                              bool shortcut_created) override;
+  bool CanReparentAppTabToWindow(
+      const webapps::AppId& app_id,
+      bool shortcut_created,
+      content::WebContents* web_contents) const override;
+  Browser* ReparentAppTabToWindow(content::WebContents* contents,
+                                  const webapps::AppId& app_id,
+                                  bool shortcut_created) override;
+  Browser* ReparentAppTabToWindow(
+      content::WebContents* contents,
+      const webapps::AppId& app_id,
+      base::OnceCallback<void(content::WebContents*)> completion_callback)
+      override;
   void ShowWebAppFileLaunchDialog(
       const std::vector<base::FilePath>& file_paths,
       const webapps::AppId& app_id,
@@ -133,7 +134,9 @@ class WebAppUiManagerImpl : public BrowserListObserver,
   content::WebContents* CreateNewTab() override;
   bool IsWebContentsActiveTabInBrowser(
       content::WebContents* web_contents) override;
-  void TriggerInstallDialog(content::WebContents* web_contents) override;
+  void TriggerInstallDialog(content::WebContents* web_contents,
+                            webapps::WebappInstallSource source,
+                            InstallCallback callback) override;
 
   void PresentUserUninstallDialog(
       const webapps::AppId& app_id,
@@ -162,7 +165,7 @@ class WebAppUiManagerImpl : public BrowserListObserver,
       const std::string& launch_name) override;
 
   void MaybeShowIPHPromoForAppsLaunchedViaLinkCapturing(
-      content::WebContents* web_contents,
+      Browser* browser,
       Profile* profile,
       const std::string& app_id) override;
 
@@ -226,9 +229,11 @@ class WebAppUiManagerImpl : public BrowserListObserver,
   void ShowIPHPromoForAppsLaunchedViaLinkCapturing(const Browser* browser,
                                                    const webapps::AppId& app_id,
                                                    bool is_activated);
-
   void OnIPHPromoResponseForLinkCapturing(const Browser* browser,
                                           const webapps::AppId& app_id);
+
+  void OnTabChangedDuringIph(const Browser* browser);
+
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
   const raw_ptr<Profile> profile_;

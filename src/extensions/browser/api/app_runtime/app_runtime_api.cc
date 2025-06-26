@@ -152,6 +152,7 @@ app_runtime::LaunchSource GetLaunchSourceEnum(AppLaunchSource source) {
     // three to remain in sync with LaunchSource.
     case AppLaunchSource::kSourceAppHomePage:
     case AppLaunchSource::kSourceFocusMode:
+    case AppLaunchSource::kSourceSparky:
       return static_cast<app_runtime::LaunchSource>(
           base::to_underlying(source) - 3);
   }
@@ -204,8 +205,7 @@ void AppRuntimeEventRouter::DispatchOnLaunchedEventWithFileEntries(
     extensions::AppLaunchSource source,
     const std::string& handler_id,
     const std::vector<EntryInfo>& entries,
-    const std::vector<GrantedFileEntry>& file_entries,
-    std::optional<app_runtime::ActionData> action_data) {
+    const std::vector<GrantedFileEntry>& file_entries) {
   app_runtime::LaunchSource source_enum = GetLaunchSourceEnum(source);
 
   // TODO(sergeygs): Use the same way of creating an event (using the generated
@@ -215,10 +215,6 @@ void AppRuntimeEventRouter::DispatchOnLaunchedEventWithFileEntries(
 
   if (extensions::FeatureSwitch::trace_app_source()->IsEnabled()) {
     launch_data.Set("source", app_runtime::ToString(source_enum));
-  }
-
-  if (action_data) {
-    launch_data.Set("actionData", action_data->ToValue());
   }
 
   base::Value::List items;

@@ -7,7 +7,7 @@
 
 #include "components/autofill/core/browser/webdata/autofill_change.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_backend.h"
-#include "components/sync/base/model_type.h"
+#include "components/sync/base/data_type.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 class WebDatabase;
@@ -35,6 +35,14 @@ class MockAutofillWebDataBackend : public AutofillWebDataBackend {
               RemoveObserver,
               (AutofillWebDataServiceObserverOnDBSequence * observer),
               (override));
+  MOCK_METHOD(void,
+              AddObserver,
+              (AutofillWebDataServiceObserverOnUISequence * observer),
+              (override));
+  MOCK_METHOD(void,
+              RemoveObserver,
+              (AutofillWebDataServiceObserverOnUISequence * observer),
+              (override));
   MOCK_METHOD(void, CommitChanges, (), (override));
   MOCK_METHOD(void,
               NotifyOfAutofillProfileChanged,
@@ -50,7 +58,7 @@ class MockAutofillWebDataBackend : public AutofillWebDataBackend {
               (override));
   MOCK_METHOD(void,
               NotifyOnAutofillChangedBySync,
-              (syncer::ModelType model_type),
+              (syncer::DataType data_type),
               (override));
   MOCK_METHOD(void,
               NotifyOnServerCvcChanged,

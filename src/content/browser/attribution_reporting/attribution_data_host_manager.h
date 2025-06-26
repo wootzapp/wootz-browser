@@ -10,26 +10,21 @@
 
 #include <optional>
 #include <string>
-#include <vector>
 
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "components/attribution_reporting/data_host.mojom-forward.h"
 #include "components/attribution_reporting/registration_eligibility.mojom-forward.h"
 #include "content/browser/attribution_reporting/attribution_background_registrations_id.h"
 #include "content/browser/attribution_reporting/attribution_beacon_id.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
-#include "services/network/public/cpp/attribution_reporting_runtime_features.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
-#include "third_party/blink/public/mojom/conversions/attribution_data_host.mojom-forward.h"
 
 class GURL;
 
 namespace net {
 class HttpResponseHeaders;
 }  // namespace net
-
-namespace network {
-class TriggerVerification;
-}  // namespace network
 
 namespace content {
 
@@ -45,7 +40,7 @@ class AttributionDataHostManager {
   // origin. This is only called for events which are not associated with a
   // navigation.
   virtual void RegisterDataHost(
-      mojo::PendingReceiver<blink::mojom::AttributionDataHost> data_host,
+      mojo::PendingReceiver<attribution_reporting::mojom::DataHost> data_host,
       AttributionSuitableContext,
       attribution_reporting::mojom::RegistrationEligibility,
       bool is_for_background_requests) = 0;
@@ -56,7 +51,7 @@ class AttributionDataHostManager {
   // `attribution_src_token`. Returns `false` if `attribution_src_token` was
   // already registered.
   virtual bool RegisterNavigationDataHost(
-      mojo::PendingReceiver<blink::mojom::AttributionDataHost> data_host,
+      mojo::PendingReceiver<attribution_reporting::mojom::DataHost> data_host,
       const blink::AttributionSrcToken& attribution_src_token) = 0;
 
   // Notifies the manager that an attribution-enabled navigation associated to
@@ -94,8 +89,7 @@ class AttributionDataHostManager {
   virtual bool NotifyNavigationRegistrationData(
       const blink::AttributionSrcToken& attribution_src_token,
       const net::HttpResponseHeaders* headers,
-      GURL reporting_url,
-      network::AttributionReportingRuntimeFeatures) = 0;
+      const GURL& reporting_url) = 0;
 
   // Notifies the manager whenever an attribution-enabled navigation request
   // completes. Should be called even for navigations when
@@ -126,10 +120,8 @@ class AttributionDataHostManager {
   // processed.
   virtual bool NotifyBackgroundRegistrationData(
       BackgroundRegistrationsId id,
-      const net::HttpResponseHeaders* headers,
-      GURL reporting_url,
-      network::AttributionReportingRuntimeFeatures,
-      const std::vector<network::TriggerVerification>&) = 0;
+      scoped_refptr<net::HttpResponseHeaders> headers,
+      GURL reporting_url) = 0;
 
   // Notifies the manager that a background attribution request has completed.
   virtual void NotifyBackgroundRegistrationCompleted(
@@ -156,7 +148,6 @@ class AttributionDataHostManager {
   // be sent.
   virtual void NotifyFencedFrameReportingBeaconData(
       BeaconId beacon_id,
-      network::AttributionReportingRuntimeFeatures,
       GURL reporting_url,
       const net::HttpResponseHeaders* headers,
       bool is_final_response) = 0;

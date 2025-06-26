@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "remoting/protocol/webrtc_audio_source_adapter.h"
 
 #include <numeric>
@@ -59,8 +64,9 @@ class FakeAudioSink : public webrtc::AudioTrackSinkInterface {
 class WebrtcAudioSourceAdapterTest : public testing::Test {
  public:
   void SetUp() override {
-    audio_source_adapter_ = new rtc::RefCountedObject<WebrtcAudioSourceAdapter>(
-        task_environment_.GetMainThreadTaskRunner());
+    audio_source_adapter_ =
+        new webrtc::RefCountedObject<WebrtcAudioSourceAdapter>(
+            task_environment_.GetMainThreadTaskRunner());
     audio_source_ = new FakeAudioSource();
     audio_source_adapter_->Start(base::WrapUnique(audio_source_.get()));
     audio_source_adapter_->AddSink(&sink_);

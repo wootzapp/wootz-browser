@@ -68,6 +68,14 @@ class ChromeBrowserAppMacBrowserTest : public InProcessBrowserTest {
     SetVoiceOverEnabled(VoiceOverEnabledAtStartUp());
   }
 
+  void SetUpOnMainThread() override {
+    // Enable platform activation since that is what is begin tested here.
+    content::BrowserAccessibilityState::GetInstance()
+        ->SetActivationFromPlatformEnabled(
+            /*enabled=*/true);
+    InProcessBrowserTest::SetUpOnMainThread();
+  }
+
   // Whether or not we simulate VoiceOver active before the test runs.
   virtual BOOL VoiceOverEnabledAtStartUp() { return NO; }
 
@@ -274,15 +282,16 @@ IN_PROC_BROWSER_TEST_F(ChromeBrowserAppMacBrowserTest,
 
   // The user activates VoiceOver.
   SetVoiceOverEnabled(YES);
-
   // Requests for AccessibilityRole when VoiceOver is active should not
   // downgrade the AX level.
   RequestAppAccessibilityRole();
   EXPECT_TRUE(BrowserIsInCompleteAccessibilityMode());
 
+  // After VoiceOver is deactivated, the AXMode is returned to its
+  // previous value.
   SetVoiceOverEnabled(NO);
   WaitThreeSeconds();
-  EXPECT_TRUE(BrowserAccessibilityDisabled());
+  EXPECT_TRUE(BrowserIsInNativeAPIAccessibilityMode());
 
   EnableEnhancedUserInterface(YES);
   WaitThreeSeconds();

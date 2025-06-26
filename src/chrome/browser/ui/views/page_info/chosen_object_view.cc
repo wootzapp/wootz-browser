@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/views/page_info/chosen_object_view.h"
 
 #include <memory>
+#include <string_view>
 #include <utility>
 
 #include "base/functional/bind.h"
@@ -114,14 +115,21 @@ void ChosenObjectView::ExecuteDeleteCommand() {
   // Hide the row after revoking access.
   SetVisible(false);
 
-  for (ChosenObjectViewObserver& observer : observer_list_) {
-    observer.OnChosenObjectDeleted(*info_);
-  }
+  observer_list_.Notify(&ChosenObjectViewObserver::OnChosenObjectDeleted,
+                        *info_);
 }
 
 void ChosenObjectView::UpdateIconImage(bool is_deleted) const {
   row_view_->SetIcon(
       PageInfoViewFactory::GetChosenObjectIcon(*info_, is_deleted));
+}
+
+std::u16string_view ChosenObjectView::GetObjectNameForTesting() const {
+  return row_view_->GetTitleForTesting();  // IN-TEST
+}
+
+views::ImageButton* ChosenObjectView::GetDeleteButtonForTesting() const {
+  return delete_button_;
 }
 
 BEGIN_METADATA(ChosenObjectView)

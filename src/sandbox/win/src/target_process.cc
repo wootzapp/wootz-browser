@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "sandbox/win/src/target_process.h"
 
 #include <windows.h>
@@ -155,6 +160,7 @@ ResultCode TargetProcess::Create(
   if (startup_info_helper->IsEnvironmentFiltered()) {
     wchar_t* old_environment = ::GetEnvironmentStringsW();
     if (!old_environment) {
+      *win_error = ::GetLastError();
       return SBOX_ERROR_CANNOT_OBTAIN_ENVIRONMENT;
     }
 

@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.toolbar.top;
 
+import org.chromium.cc.input.OffsetTag;
 import org.chromium.components.browser_ui.widget.ClipDrawableProgressBar.DrawingInfo;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.ReadableIntPropertyKey;
@@ -45,11 +46,15 @@ public class TopToolbarOverlayProperties {
 
     /** The current y offset of the top toolbar. */
     public static final WritableFloatPropertyKey CONTENT_OFFSET = new WritableFloatPropertyKey();
-    /** The current height of the main visible view. */
-    public static final WritableFloatPropertyKey VIEWPORT_HEIGHT = new WritableFloatPropertyKey();
+/** The current height of the main visible view. */
+         public static final WritableFloatPropertyKey VIEWPORT_HEIGHT = new WritableFloatPropertyKey();
+ /** The current height of the top toolbar. */
+ public static final WritableFloatPropertyKey TOOLBAR_HEIGHT = new WritableFloatPropertyKey();
 
-    /** The current height of the top toolbar. */
-    public static final WritableFloatPropertyKey TOOLBAR_HEIGHT = new WritableFloatPropertyKey();
+    /** The OffsetTag indicating that this layer should be moved by viz. */
+    public static final WritableObjectPropertyKey<OffsetTag> TOOLBAR_OFFSET_TAG =
+            new WritableObjectPropertyKey<>();
+
     public static final PropertyKey[] ALL_KEYS =
             new PropertyKey[] {
                 ANONYMIZE,
@@ -63,6 +68,7 @@ public class TopToolbarOverlayProperties {
                 X_OFFSET,
                 CONTENT_OFFSET, 
                 VIEWPORT_HEIGHT, 
-                TOOLBAR_HEIGHT
+                TOOLBAR_HEIGHT,
+                TOOLBAR_OFFSET_TAG
             };
 }

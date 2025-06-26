@@ -30,10 +30,10 @@ struct FirstPartySetEntry {
 // This struct must match the class fields defined in
 // //net/first_party_sets/first_party_set_metadata.h.
 struct FirstPartySetMetadata {
-  // absl::nullopt indicates that the frame's site is not associated with any
+  // std::nullopt indicates that the frame's site is not associated with any
   // First-Party Set.
   FirstPartySetEntry? frame_entry;
-  // absl::nullopt indicates that the top frame's site is not associated with
+  // std::nullopt indicates that the top frame's site is not associated with
   // any First-Party Set.
   FirstPartySetEntry? top_frame_entry;
 };
@@ -53,6 +53,9 @@ struct FirstPartySetsContextConfig {
   // keys are member sites and the values are the ultimate entries of the final
   // First-Party Sets combining the public sets and the modifications.
   map<SchemefulSite, FirstPartySetEntryOverride> customizations;
+
+  // The aliases that are found in customizations.
+  map<SchemefulSite, SchemefulSite> aliases;
 };
 
 // This struct must match the class fields defined in
@@ -86,8 +89,4 @@ struct GlobalFirstPartySets {
   // The config induced by the manually-supplied set. This config contains all
   // relevant ccTLD aliases.
   FirstPartySetsContextConfig manual_config;
-
-  // The aliases contained in the manually-supplied set.
-  map<SchemefulSite, SchemefulSite> manual_aliases;
 };
-

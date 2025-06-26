@@ -120,12 +120,12 @@ class InstallLimiterTest : public extensions::ExtensionServiceTestBase {
 
     ExtensionServiceInitParams params;
     params.enable_install_limiter = true;
-    InitializeExtensionService(params);
+    InitializeExtensionService(std::move(params));
 
     install_limiter_ = InstallLimiter::Get(profile());
 
     mock_installer_ =
-        base::MakeRefCounted<extensions::MockCrxInstaller>(service());
+        base::MakeRefCounted<extensions::MockCrxInstaller>(profile());
   }
 
   extensions::CRXFileInfo CreateTestExtensionCrx(const base::FilePath& path,

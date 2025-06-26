@@ -50,7 +50,7 @@ std::string InstallHostedAppForAllProfiles(int index);
 // Installs the web app for the given WebAppInstallInfo and profile. This does
 // not download icons or run OS integration installs.
 webapps::AppId InstallWebApp(Profile* profile,
-                             const web_app::WebAppInstallInfo& info);
+                             std::unique_ptr<web_app::WebAppInstallInfo> info);
 
 // Uninstalls the app for the given index from |profile|. Assumes that it was
 // previously installed.
@@ -144,8 +144,9 @@ class AppsStatusChangeChecker : public StatusChangeChecker,
                               extensions::UninstallReason reason) override;
 
   // extensions::ExtensionPrefsObserver implementation.
-  void OnExtensionDisableReasonsChanged(const std::string& extension_id,
-                                        int disabled_reasons) override;
+  void OnExtensionDisableReasonsChanged(
+      const std::string& extension_id,
+      extensions::DisableReasonSet disabled_reasons) override;
   void OnExtensionRegistered(const std::string& extension_id,
                              const base::Time& install_time,
                              bool is_enabled) override;

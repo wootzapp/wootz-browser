@@ -5,6 +5,7 @@
 #include "chrome/browser/performance_manager/policies/userspace_swap_policy_chromeos.h"
 
 #include "base/allocator/buildflags.h"
+#include "base/compiler_specific.h"
 #include "base/memory/raw_ptr.h"
 #include "base/system/sys_info.h"
 #include "chrome/browser/performance_manager/policies/policy_features.h"
@@ -40,7 +41,7 @@ class MockUserspaceSwapPolicy : public UserspaceSwapPolicy {
   MockUserspaceSwapPolicy(const MockUserspaceSwapPolicy&) = delete;
   MockUserspaceSwapPolicy& operator=(const MockUserspaceSwapPolicy&) = delete;
 
-  ~MockUserspaceSwapPolicy() override {}
+  ~MockUserspaceSwapPolicy() override = default;
 
   MOCK_METHOD0(SwapNodesOnGraph, void(void));
   MOCK_METHOD1(InitializeProcessNode, bool(const ProcessNode*));
@@ -80,7 +81,7 @@ class MockUserspaceSwapPolicy : public UserspaceSwapPolicy {
     // Create a simple starting config that can be modified as needed for tests.
     // NOTE: We only initialize the configuration options which are used by the
     // policy.
-    memset(&test_config_, 0, sizeof(test_config_));
+    UNSAFE_TODO(memset(&test_config_, 0, sizeof(test_config_)));
 
     test_config_.enabled = true;
     test_config_.graph_walk_frequency = base::Seconds(10);
@@ -102,7 +103,7 @@ class UserspaceSwapPolicyTest : public ::testing::Test {
   UserspaceSwapPolicyTest(const UserspaceSwapPolicyTest&) = delete;
   UserspaceSwapPolicyTest& operator=(const UserspaceSwapPolicyTest&) = delete;
 
-  ~UserspaceSwapPolicyTest() override {}
+  ~UserspaceSwapPolicyTest() override = default;
 
   void SetUp() override {
     if (!base::SysInfo::IsRunningOnChromeOS()) {

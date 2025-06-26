@@ -8,11 +8,9 @@
 
 #include "base/strings/strcat.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "net/base/ip_address.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/transport_info.h"
-#include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/mojom/client_security_state.mojom-shared.h"
 #include "services/network/public/mojom/client_security_state.mojom.h"
@@ -57,26 +55,26 @@ net::IPEndPoint PublicEndpoint() {
 net::TransportInfo DirectTransport(const net::IPEndPoint& endpoint) {
   return net::TransportInfo(
       net::TransportType::kDirect, endpoint, kNoAcceptChFrame,
-      /*cert_is_issued_by_known_root=*/false, net::kProtoUnknown);
+      /*cert_is_issued_by_known_root=*/false, net::NextProto::kProtoUnknown);
 }
 
 net::TransportInfo ProxiedTransport(const net::IPEndPoint& endpoint) {
   return net::TransportInfo(
       net::TransportType::kProxied, endpoint, kNoAcceptChFrame,
-      /*cert_is_issued_by_known_root=*/false, net::kProtoUnknown);
+      /*cert_is_issued_by_known_root=*/false, net::NextProto::kProtoUnknown);
 }
 
 net::TransportInfo CachedTransport(const net::IPEndPoint& endpoint) {
   return net::TransportInfo(
       net::TransportType::kCached, endpoint, kNoAcceptChFrame,
-      /*cert_is_issued_by_known_root=*/false, net::kProtoUnknown);
+      /*cert_is_issued_by_known_root=*/false, net::NextProto::kProtoUnknown);
 }
 
 net::TransportInfo MakeTransport(net::TransportType type,
                                  const net::IPEndPoint& endpoint) {
   return net::TransportInfo(type, endpoint, kNoAcceptChFrame,
                             /*cert_is_issued_by_known_root=*/false,
-                            net::kProtoUnknown);
+                            net::NextProto::kProtoUnknown);
 }
 
 TEST(PrivateNetworkAccessCheckerTest, ClientSecurityStateNull) {
@@ -98,19 +96,29 @@ TEST(PrivateNetworkAccessCheckerTest, ClientSecurityStateFromFactory) {
   EXPECT_EQ(checker.ClientAddressSpace(), mojom::IPAddressSpace::kPublic);
 }
 
-TEST(PrivateNetworkAccessCheckerTest, ClientSecurityStateFromRequest) {
-  ResourceRequest request;
-  request.trusted_params.emplace();
-  request.trusted_params->client_security_state =
-      mojom::ClientSecurityState::New();
-  request.trusted_params->client_security_state->ip_address_space =
-      mojom::IPAddressSpace::kPrivate;
+// Check that the ClientSecurityState in the ResourceRequest is ignored. When
+// present, it should match the value passed to the PrivateNetworkAccessChecker,
+// anyways, but safest to make sure of that.
+TEST(PrivateNetworkAccessCheckerTest, ClientSecurityStateFromRequestIgnored) {
+  // Test a case with a TrustedParams but no ClientSecurityState, and also a
+  // case with a TrustedParams and populated ClientSecurityState.
+  for (bool populate_client_security_state : {false, true}) {
+    SCOPED_TRACE(populate_client_security_state);
 
-  PrivateNetworkAccessChecker checker(request, kNullClientSecurityState,
-                                      mojom::kURLLoadOptionNone);
+    ResourceRequest request;
+    request.trusted_params.emplace();
+    if (populate_client_security_state) {
+      request.trusted_params->client_security_state =
+          mojom::ClientSecurityState::New();
+      request.trusted_params->client_security_state->ip_address_space =
+          mojom::IPAddressSpace::kPrivate;
+    }
+    PrivateNetworkAccessChecker checker(request, kNullClientSecurityState,
+                                        mojom::kURLLoadOptionNone);
 
-  EXPECT_NE(checker.client_security_state(), nullptr);
-  EXPECT_EQ(checker.ClientAddressSpace(), mojom::IPAddressSpace::kPrivate);
+    EXPECT_EQ(checker.client_security_state(), nullptr);
+    EXPECT_EQ(checker.ClientAddressSpace(), mojom::IPAddressSpace::kUnknown);
+  }
 }
 
 TEST(PrivateNetworkAccessCheckerTest, CheckLoadOptionUnknown) {
@@ -165,10 +173,6 @@ TEST(PrivateNetworkAccessCheckerTest, CheckLoadOptionLocal) {
 
 TEST(PrivateNetworkAccessCheckerTest,
      CheckAllowedPotentiallyTrustworthySameOrigin) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      features::kLocalNetworkAccessAllowPotentiallyTrustworthySameOrigin);
-
   base::HistogramTester histogram_tester;
 
   ResourceRequest request;
@@ -193,10 +197,6 @@ TEST(PrivateNetworkAccessCheckerTest,
 
 TEST(PrivateNetworkAccessCheckerTest,
      CheckDisallowedPotentiallyTrustworthyCrossOrigin) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      features::kLocalNetworkAccessAllowPotentiallyTrustworthySameOrigin);
-
   base::HistogramTester histogram_tester;
 
   ResourceRequest request;
@@ -220,10 +220,6 @@ TEST(PrivateNetworkAccessCheckerTest,
 }
 
 TEST(PrivateNetworkAccessCheckerTest, CheckDisallowedUntrustworthySameOrigin) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      features::kLocalNetworkAccessAllowPotentiallyTrustworthySameOrigin);
-
   base::HistogramTester histogram_tester;
 
   ResourceRequest request;
@@ -247,10 +243,6 @@ TEST(PrivateNetworkAccessCheckerTest, CheckDisallowedUntrustworthySameOrigin) {
 
 TEST(PrivateNetworkAccessCheckerTest,
      CheckDisallowedPotentiallyTrustworthyCrossOriginAfterResetForRedirect) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      features::kLocalNetworkAccessAllowPotentiallyTrustworthySameOrigin);
-
   base::HistogramTester histogram_tester;
 
   ResourceRequest request;
@@ -275,10 +267,6 @@ TEST(PrivateNetworkAccessCheckerTest,
 
 TEST(PrivateNetworkAccessCheckerTest,
      CheckAllowedPotentiallyTrustworthySameOriginAfterResetForRedirect) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(
-      features::kLocalNetworkAccessAllowPotentiallyTrustworthySameOrigin);
-
   base::HistogramTester histogram_tester;
 
   ResourceRequest request;

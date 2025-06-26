@@ -13,6 +13,7 @@
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
+#include "base/time/time.h"
 #include "chrome/browser/ash/app_list/search/local_image_search/annotation_storage.h"
 #include "chrome/browser/ash/app_list/search/local_image_search/local_image_search_test_util.h"
 #include "chrome/browser/ash/app_list/search/search_features.h"
@@ -66,6 +67,8 @@ class ImageAnnotationWorkerTest : public testing::Test {
         /*use_file_watchers=*/false,
         /*use_ocr=*/false,
         /*use_ica=*/false);
+    annotation_worker_->set_image_processing_delay_for_testing(
+        base::Seconds(0));
     bar_image_path_ = test_directory_.AppendASCII("bar.jpg");
     const base::FilePath test_db = test_directory_.AppendASCII("test.db");
     storage_ =
@@ -288,6 +291,8 @@ TEST_F(ImageAnnotationWorkerTest, ProcessDirectoryTest) {
                                                     /*error=*/false);
   }
 
+  task_environment_.RunUntilIdle();
+
   ImageInfo jpg_image({"bar"}, jpg_path, image_time, /*file_size=*/16);
   ImageInfo jpeg_image({"bar1"}, jpeg_path, image_time, 16);
   ImageInfo jpeg_image1({"bar1"}, jpeg_path1, image_time, 16);
@@ -306,6 +311,8 @@ TEST_F(ImageAnnotationWorkerTest, ProcessDirectoryTest) {
   annotation_worker_->TriggerOnFileChangeForTests(test_images1,
                                                   /*error=*/false);
 
+  task_environment_.RunUntilIdle();
+
   EXPECT_THAT(
       storage_->GetAllAnnotationsForTest(),
       testing::UnorderedElementsAreArray({jpg_image, jpeg_image1, png_image1}));
@@ -313,6 +320,8 @@ TEST_F(ImageAnnotationWorkerTest, ProcessDirectoryTest) {
   base::DeletePathRecursively(test_images1);
   annotation_worker_->TriggerOnFileChangeForTests(test_images1,
                                                   /*error=*/false);
+
+  task_environment_.RunUntilIdle();
 
   EXPECT_THAT(storage_->GetAllAnnotationsForTest(),
               testing::UnorderedElementsAreArray({jpg_image}));
@@ -333,6 +342,7 @@ TEST_F(ImageAnnotationWorkerTest, IgnoreWhenLimitReachedTest) {
       /*use_file_watchers=*/false,
       /*use_ocr=*/false,
       /*use_ica=*/false);
+  annotation_worker_->set_image_processing_delay_for_testing(base::Seconds(0));
 
   storage_->Initialize();
   annotation_worker_->Initialize(storage_.get());

@@ -7,9 +7,10 @@
 #include <cstring>
 #include <utility>
 
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc.h"
+#include "base/containers/heap_array.h"
 #include "base/numerics/safe_conversions.h"
 #include "mojo/public/cpp/system/simple_watcher.h"
+#include "partition_alloc/partition_alloc.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
@@ -18,7 +19,6 @@
 #include "third_party/blink/renderer/bindings/modules/v8/v8_web_transport_error.h"
 #include "third_party/blink/renderer/core/dom/abort_signal.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
-#include "third_party/blink/renderer/core/streams/promise_handler.h"
 #include "third_party/blink/renderer/core/streams/underlying_sink_base.h"
 #include "third_party/blink/renderer/core/streams/writable_stream.h"
 #include "third_party/blink/renderer/core/streams/writable_stream_default_controller.h"
@@ -28,6 +28,7 @@
 #include "third_party/blink/renderer/platform/bindings/exception_code.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/script_state.h"
+#include "third_party/blink/renderer/platform/bindings/v8_external_memory_accounter.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/heap/persistent.h"
 #include "third_party/blink/renderer/platform/heap/visitor.h"
@@ -51,6 +52,12 @@ class SendStreamAbortAlgorithm final : public AbortSignal::Algorithm {
 
  private:
   Member<OutgoingStream> stream_;
+};
+
+struct CachedDataBufferDeleter {
+  void operator()(void* buffer) {
+    WTF::Partitions::BufferPartition()->Free(buffer);
+  }
 };
 
 }  // namespace
@@ -145,26 +152,40 @@ class OutgoingStream::UnderlyingSink final : public UnderlyingSinkBase {
   const Member<OutgoingStream> outgoing_stream_;
 };
 
-OutgoingStream::CachedDataBuffer::CachedDataBuffer(v8::Isolate* isolate,
-                                                   const uint8_t* data,
-                                                   size_t length)
-    : isolate_(isolate), length_(length) {
-  // We use the BufferPartition() allocator here to allow big enough
-  // allocations, and to do proper accounting of the used memory. If
-  // BufferPartition() will ever not be able to provide big enough allocations,
-  // e.g. because bigger ArrayBuffers get supported, then we have to switch to
-  // another allocator, e.g. the ArrayBuffer allocator.
-  buffer_ = reinterpret_cast<uint8_t*>(
-      WTF::Partitions::BufferPartition()->Alloc(length, "OutgoingStream"));
-  memcpy(buffer_, data, length);
-  isolate_->AdjustAmountOfExternalAllocatedMemory(static_cast<int64_t>(length));
-}
+class OutgoingStream::CachedDataBuffer {
+ public:
+  using HeapBuffer = base::HeapArray<uint8_t, CachedDataBufferDeleter>;
 
-OutgoingStream::CachedDataBuffer::~CachedDataBuffer() {
-  WTF::Partitions::BufferPartition()->Free(buffer_.ExtractAsDangling());
-  isolate_->AdjustAmountOfExternalAllocatedMemory(
-      -static_cast<int64_t>(length_));
-}
+  CachedDataBuffer(v8::Isolate* isolate, base::span<const uint8_t> data)
+      : isolate_(isolate) {
+    // We use the BufferPartition() allocator here to allow big enough
+    // allocations, and to do proper accounting of the used memory. If
+    // BufferPartition() will ever not be able to provide big enough
+    // allocations, e.g. because bigger ArrayBuffers get supported, then we
+    // have to switch to another allocator, e.g. the ArrayBuffer allocator.
+    void* memory_buffer = WTF::Partitions::BufferPartition()->Alloc(
+        data.size(), "OutgoingStream");
+    // SAFETY: WTF::Partitions::BufferPartition()->Alloc() returns a valid
+    // pointer to at least data.size() bytes.
+    buffer_ = UNSAFE_BUFFERS(HeapBuffer::FromOwningPointer(
+        reinterpret_cast<uint8_t*>(memory_buffer), data.size()));
+    buffer_.copy_from(data);
+    external_memory_accounter_.Increase(isolate_.get(), buffer_.size());
+  }
+
+  ~CachedDataBuffer() {
+    external_memory_accounter_.Decrease(isolate_.get(), buffer_.size());
+  }
+
+  base::span<const uint8_t> span() const { return buffer_; }
+
+ private:
+  // We need the isolate to report memory to
+  // |external_memory_accounter_| for the memory stored in |buffer_|.
+  raw_ptr<v8::Isolate> isolate_;
+  HeapBuffer buffer_;
+  NO_UNIQUE_ADDRESS V8ExternalMemoryAccounterBase external_memory_accounter_;
+};
 
 OutgoingStream::OutgoingStream(ScriptState* script_state,
                                Client* client,
@@ -225,34 +246,31 @@ void OutgoingStream::AbortAlgorithm(OutgoingStream* stream) {
   // does not throw an exception, and hence a proper ExceptionState does not
   // have to be passed since it is not used.
   auto* underlying_sink = MakeGarbageCollected<UnderlyingSink>(stream);
-  ScriptPromiseUntyped abort_promise =
+  ScriptPromise<IDLUndefined> abort_promise =
       underlying_sink->abort(script_state_, reason, ASSERT_NO_EXCEPTION);
 
   // 6. Upon fulfillment of promise, reject pendingOperation with reason.
-  class ResolveFunction final : public PromiseHandler {
+  class ResolveFunction final
+      : public ThenCallable<IDLUndefined, ResolveFunction> {
    public:
     ResolveFunction(ScriptValue reason,
                     ScriptPromiseResolver<IDLUndefined>* resolver)
         : reason_(reason), resolver_(resolver) {}
 
-    void CallWithLocal(ScriptState*, v8::Local<v8::Value>) override {
-      resolver_->Reject(reason_);
-    }
+    void React(ScriptState*) { resolver_->Reject(reason_); }
 
     void Trace(Visitor* visitor) const override {
       visitor->Trace(reason_);
       visitor->Trace(resolver_);
-      PromiseHandler::Trace(visitor);
+      ThenCallable<IDLUndefined, ResolveFunction>::Trace(visitor);
     }
 
    private:
     ScriptValue reason_;
     Member<ScriptPromiseResolver<IDLUndefined>> resolver_;
   };
-  StreamThenPromise(script_state_->GetContext(), abort_promise.V8Promise(),
-                    MakeGarbageCollected<ScriptFunction>(
-                        script_state_, MakeGarbageCollected<ResolveFunction>(
-                                           reason, pending_operation)));
+  abort_promise.Then(script_state_, MakeGarbageCollected<ResolveFunction>(
+                                        reason, pending_operation));
 }
 
 void OutgoingStream::OnOutgoingStreamClosed() {
@@ -300,7 +318,7 @@ void OutgoingStream::OnHandleReady(MojoResult result,
       HandlePipeClosed();
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -314,7 +332,7 @@ void OutgoingStream::OnPeerClosed(MojoResult result,
       HandlePipeClosed();
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -338,7 +356,7 @@ ScriptPromise<IDLUndefined> OutgoingStream::SinkWrite(
   auto* buffer_source = V8BufferSource::Create(
       script_state_->GetIsolate(), chunk.V8Value(), exception_state);
   if (exception_state.HadException())
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   DCHECK(buffer_source);
 
   if (!data_pipe_) {
@@ -347,8 +365,7 @@ ScriptPromise<IDLUndefined> OutgoingStream::SinkWrite(
   }
 
   DOMArrayPiece array_piece(buffer_source);
-  return WriteOrCacheData(script_state,
-                          {array_piece.Bytes(), array_piece.ByteLength()});
+  return WriteOrCacheData(script_state, array_piece.ByteSpan());
 }
 
 // Attempt to write |data|. Cache anything that could not be written
@@ -357,7 +374,8 @@ ScriptPromise<IDLUndefined> OutgoingStream::WriteOrCacheData(
     ScriptState* script_state,
     base::span<const uint8_t> data) {
   DVLOG(1) << "OutgoingStream::WriteOrCacheData() this=" << this << " data=("
-           << data.data() << ", " << data.size() << ")";
+           << static_cast<const void*>(data.data()) << ", " << data.size()
+           << ")";
   size_t written = WriteDataSynchronously(data);
 
   if (written == data.size())
@@ -371,8 +389,8 @@ ScriptPromise<IDLUndefined> OutgoingStream::WriteOrCacheData(
   }
 
   DCHECK(!cached_data_);
-  cached_data_ = std::make_unique<CachedDataBuffer>(
-      script_state->GetIsolate(), data.data() + written, data.size() - written);
+  cached_data_ = std::make_unique<CachedDataBuffer>(script_state->GetIsolate(),
+                                                    data.subspan(written));
   DCHECK_EQ(offset_, 0u);
   write_watcher_.ArmOrNotify();
   write_promise_resolver_ =
@@ -387,9 +405,7 @@ ScriptPromise<IDLUndefined> OutgoingStream::WriteOrCacheData(
 void OutgoingStream::WriteCachedData() {
   DVLOG(1) << "OutgoingStream::WriteCachedData() this=" << this;
 
-  auto data = base::make_span(static_cast<uint8_t*>(cached_data_->data()),
-                              cached_data_->length())
-                  .subspan(offset_);
+  auto data = cached_data_->span().subspan(offset_);
   size_t written = WriteDataSynchronously(data);
 
   if (written == data.size()) {
@@ -419,27 +435,26 @@ void OutgoingStream::WriteCachedData() {
 // bytes written. May close |data_pipe_| as a side-effect on error.
 size_t OutgoingStream::WriteDataSynchronously(base::span<const uint8_t> data) {
   DVLOG(1) << "OutgoingStream::WriteDataSynchronously() this=" << this
-           << " data=(" << data.data() << ", " << data.size() << ")";
+           << " data=(" << static_cast<const void*>(data.data()) << ", "
+           << data.size() << ")";
   DCHECK(data_pipe_);
 
-  // This use of saturated cast means that we will fallback to asynchronous
-  // sending if |data| is larger than 4GB. In practice we'd never be able to
-  // send 4GB synchronously anyway.
-  size_t num_bytes = data.size();
-  MojoResult result =
-      data_pipe_->WriteData(data.data(), &num_bytes, MOJO_WRITE_DATA_FLAG_NONE);
+  size_t actually_written_bytes = 0;
+  MojoResult result = data_pipe_->WriteData(data, MOJO_WRITE_DATA_FLAG_NONE,
+                                            actually_written_bytes);
   switch (result) {
     case MOJO_RESULT_OK:
+      return actually_written_bytes;
+
     case MOJO_RESULT_SHOULD_WAIT:
-      return num_bytes;
+      return 0;
 
     case MOJO_RESULT_FAILED_PRECONDITION:
       HandlePipeClosed();
       return 0;
 
     default:
-      NOTREACHED_IN_MIGRATION();
-      return 0;
+      NOTREACHED();
   }
 }
 

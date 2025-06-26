@@ -7,10 +7,10 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "base/feature_list.h"
 #include "base/memory/ref_counted.h"
-#include "base/strings/string_piece.h"
 #include "components/reporting/proto/synced/record.pb.h"
 #include "components/reporting/resources/resource_manager.h"
 #include "components/reporting/util/statusor.h"
@@ -43,9 +43,6 @@ class CompressionModule : public base::RefCountedThreadSafe<CompressionModule> {
       scoped_refptr<ResourceManager> memory_resource,
       base::OnceCallback<void(std::string,
                               std::optional<CompressionInformation>)> cb) const;
-
-  // Returns 'true' if |kCompressReportingPipeline| feature is enabled.
-  static bool is_enabled();
 
   // Variable which defines which compression type to use
   const CompressionInformation::CompressionAlgorithm compression_type_;

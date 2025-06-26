@@ -10,9 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "ash/components/arc/mojom/app.mojom.h"
-#include "ash/components/arc/mojom/app_permissions.mojom.h"
-#include "ash/components/arc/test/fake_app_instance.h"
 #include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/containers/flat_map.h"
@@ -37,16 +34,20 @@
 #include "chrome/browser/web_applications/web_app_constants.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_install_finalizer.h"
+#include "chrome/browser/web_applications/web_app_management_type.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
-#include "chrome/browser/web_applications/web_app_sync_bridge.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/testing_profile.h"
+#include "chromeos/ash/experiences/arc/mojom/app.mojom.h"
+#include "chromeos/ash/experiences/arc/mojom/app_permissions.mojom.h"
+#include "chromeos/ash/experiences/arc/test/fake_app_instance.h"
 #include "components/app_constants/constants.h"
 #include "components/services/app_service/public/cpp/app_types.h"
 #include "components/services/app_service/public/cpp/app_update.h"
 #include "components/webapps/browser/installable/installable_metrics.h"
 #include "components/webapps/browser/uninstall_result_code.h"
 #include "content/public/test/browser_task_environment.h"
+#include "extensions/browser/extension_registrar.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
@@ -112,6 +113,7 @@ class AppServiceWrapperTest : public ::testing::Test {
     extension_service_ = extension_system->CreateExtensionService(
         base::CommandLine::ForCurrentProcess(), base::FilePath(), false);
     extension_service_->Init();
+    extension_registrar_ = extensions::ExtensionRegistrar::Get(&profile_);
 
     web_app::test::AwaitStartWebAppProviderAndSubsystems(&profile_);
 
@@ -124,7 +126,7 @@ class AppServiceWrapperTest : public ::testing::Test {
     // Install Chrome.
     scoped_refptr<extensions::Extension> chrome = CreateExtension(
         app_constants::kChromeAppId, kExtensionNameChrome, kExtensionAppUrl);
-    extension_service_->AddComponentExtension(chrome.get());
+    extension_registrar_->AddComponentExtension(chrome.get());
     task_environment_.RunUntilIdle();
   }
 
@@ -153,7 +155,7 @@ class AppServiceWrapperTest : public ::testing::Test {
     if (app_id.app_type() == apps::AppType::kChromeApp) {
       scoped_refptr<extensions::Extension> ext =
           CreateExtension(app_id.app_id(), app_name, url.value());
-      extension_service_->AddExtension(ext.get());
+      extensions::ExtensionRegistrar::Get(&profile_)->AddExtension(ext.get());
       task_environment_.RunUntilIdle();
       return;
     }
@@ -186,7 +188,7 @@ class AppServiceWrapperTest : public ::testing::Test {
               webapps::WebappUninstallSource::kExternalPreinstalled,
               base::BindLambdaForTesting(
                   [&](webapps::UninstallResultCode code) {
-                    EXPECT_EQ(code, webapps::UninstallResultCode::kSuccess);
+                    EXPECT_EQ(code, webapps::UninstallResultCode::kAppRemoved);
                     run_loop.Quit();
                   }));
       run_loop.Run();
@@ -196,7 +198,7 @@ class AppServiceWrapperTest : public ::testing::Test {
 
     if (app_id.app_type() == apps::AppType::kChromeApp ||
         app_id.app_type() == apps::AppType::kWeb) {
-      extension_service_->UnloadExtension(
+      extension_registrar_->RemoveExtension(
           app_id.app_id(), extensions::UnloadedExtensionReason::UNINSTALL);
       task_environment_.RunUntilIdle();
       return;
@@ -246,6 +248,7 @@ class AppServiceWrapperTest : public ::testing::Test {
   ArcAppTest arc_test_;
 
   raw_ptr<extensions::ExtensionService> extension_service_ = nullptr;
+  raw_ptr<extensions::ExtensionRegistrar> extension_registrar_ = nullptr;
 
   AppServiceWrapper tested_wrapper_{&profile_};
   MockListener test_listener_;

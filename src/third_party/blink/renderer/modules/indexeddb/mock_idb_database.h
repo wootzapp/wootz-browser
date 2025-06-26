@@ -75,8 +75,9 @@ class MockIDBDatabase : public testing::StrictMock<mojom::blink::IDBDatabase>,
                int64_t object_store_id,
                int64_t index_id,
                mojom::blink::IDBKeyRangePtr,
-               bool key_only,
+               mojom::blink::IDBGetAllResultType result_type,
                int64_t max_count,
+               mojom::blink::IDBCursorDirection direction,
                GetAllCallback),
               (override));
   MOCK_METHOD(void,
@@ -129,6 +130,7 @@ class MockIDBDatabase : public testing::StrictMock<mojom::blink::IDBDatabase>,
               (int64_t transaction_id, int64_t object_store_id, ClearCallback),
               (override));
   MOCK_METHOD(void, DidBecomeInactive, (), (override));
+  MOCK_METHOD(void, UpdatePriority, (int new_priority), (override));
 
   // AbstrackMockIDBDatabase::OnDisconnect()
   MOCK_METHOD(void, OnDisconnect, (), (override));

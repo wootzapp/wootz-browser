@@ -25,6 +25,8 @@
 
 #include "third_party/blink/renderer/bindings/modules/v8/v8_binding_for_modules.h"
 
+#include "base/containers/span.h"
+#include "base/memory/scoped_refptr.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/mojom/indexeddb/indexeddb.mojom-shared.h"
 #include "third_party/blink/public/platform/web_blob_info.h"
@@ -46,7 +48,6 @@
 #include "third_party/blink/renderer/modules/indexeddb/idb_value.h"
 #include "third_party/blink/renderer/platform/bindings/v8_per_isolate_data.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
-#include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_view.h"
 
 namespace blink {
@@ -185,39 +186,33 @@ void SerializeV8Value(v8::Local<v8::Value> value,
   scoped_refptr<SerializedScriptValue> serialized_value =
       SerializedScriptValue::Serialize(isolate, value, options,
                                        non_throwable_exception_state);
-  base::span<const uint8_t> ssv_wire_data = serialized_value->GetWireData();
+
   DCHECK(wire_bytes->empty());
-  wire_bytes->Append(ssv_wire_data.data(),
-                     static_cast<wtf_size_t>(ssv_wire_data.size()));
+  wire_bytes->AppendSpan(serialized_value->GetWireData());
 
   // Sanity check that the serialization header has not changed, as the tests
   // that use this method rely on the header format.
   //
-  // The cast from char* to unsigned char* is necessary to avoid VS2015 warning
-  // C4309 (truncation of constant value). This happens because VersionTag is
-  // 0xFF.
-  const unsigned char* wire_data =
-      reinterpret_cast<unsigned char*>(wire_bytes->data());
-  ASSERT_EQ(static_cast<unsigned char>(kVersionTag),
-            wire_data[kSSVHeaderBlinkVersionTagOffset]);
-  ASSERT_EQ(
-      static_cast<unsigned char>(SerializedScriptValue::kWireFormatVersion),
-      wire_data[kSSVHeaderBlinkVersionOffset]);
+  // The cast from Vector<char> to base::span<const uint8_t> is necessary
+  // to avoid VS2015 warning C4309 (truncation of constant value). This happens
+  // because VersionTag is 0xFF.
+  base::span<const uint8_t> wire_data_span = base::as_byte_span(*wire_bytes);
+  ASSERT_EQ(kVersionTag, wire_data_span[kSSVHeaderBlinkVersionTagOffset]);
+  ASSERT_EQ(SerializedScriptValue::kWireFormatVersion,
+            wire_data_span[kSSVHeaderBlinkVersionOffset]);
 
-  ASSERT_EQ(static_cast<unsigned char>(kVersionTag),
-            wire_data[kSSVHeaderV8VersionTagOffset]);
+  ASSERT_EQ(kVersionTag, wire_data_span[kSSVHeaderV8VersionTagOffset]);
   // TODO(jbroman): Use the compile-time constant for V8 data format version.
   // ASSERT_EQ(v8::ValueSerializer::GetCurrentDataFormatVersion(),
-  //           wire_data[kSSVHeaderV8VersionOffset]);
+  //           wire_data_span[kSSVHeaderV8VersionOffset]);
 }
 
 std::unique_ptr<IDBValue> CreateIDBValue(v8::Isolate* isolate,
-                                         Vector<char>& wire_bytes,
+                                         Vector<char>&& wire_bytes,
                                          double primary_key,
                                          const String& key_path) {
-  WebData web_data(SharedBuffer::AdoptVector(wire_bytes));
-  scoped_refptr<SharedBuffer> data(web_data);
-  auto value = std::make_unique<IDBValue>(data, Vector<WebBlobInfo>());
+  auto value = std::make_unique<IDBValue>();
+  value->SetData(std::move(wire_bytes));
   value->SetInjectedPrimaryKey(IDBKey::CreateNumber(primary_key),
                                IDBKeyPath(key_path));
 
@@ -231,9 +226,9 @@ TEST(IDBKeyFromValueAndKeyPathTest, TopLevelPropertyStringValue) {
   v8::Isolate* isolate = scope.GetIsolate();
 
   // object = { foo: "zoo" }
-  ScriptValue script_value = V8ObjectBuilder(scope.GetScriptState())
-                                 .AddString("foo", "zoo")
-                                 .GetScriptValue();
+  ScriptObject script_value = V8ObjectBuilder(scope.GetScriptState())
+                                  .AddString("foo", "zoo")
+                                  .ToScriptObject();
   CheckKeyPathStringValue(isolate, script_value, "foo", "zoo");
   CheckKeyPathNullValue(isolate, script_value, "bar");
 }
@@ -246,9 +241,9 @@ TEST(IDBKeyFromValueAndKeyPathTest, TopLevelPropertyNumberValue) {
   v8::Isolate* isolate = scope.GetIsolate();
 
   // object = { foo: 456 }
-  ScriptValue script_value = V8ObjectBuilder(scope.GetScriptState())
-                                 .AddNumber("foo", 456)
-                                 .GetScriptValue();
+  ScriptObject script_value = V8ObjectBuilder(scope.GetScriptState())
+                                  .AddNumber("foo", 456)
+                                  .ToScriptObject();
   CheckKeyPathNumberValue(isolate, script_value, "foo", 456);
   CheckKeyPathNullValue(isolate, script_value, "bar");
 }
@@ -282,10 +277,10 @@ TEST(IDBKeyFromValueAndKeyPathTest, SubProperty) {
   v8::Isolate* isolate = scope.GetIsolate();
 
   // object = { foo: { bar: "zee" } }
-  ScriptValue script_value =
+  ScriptObject script_value =
       V8ObjectBuilder(script_state)
           .Add("foo", V8ObjectBuilder(script_state).AddString("bar", "zee"))
-          .GetScriptValue();
+          .ToScriptObject();
   CheckKeyPathStringValue(isolate, script_value, "foo.bar", "zee");
   CheckKeyPathNullValue(isolate, script_value, "bar");
 }
@@ -330,14 +325,14 @@ TEST(IDBKeyFromValue, Binary) {
   {
     auto key = ScriptToKey(scope, "new ArrayBuffer(3)");
     EXPECT_EQ(key->GetType(), mojom::IDBKeyType::Binary);
-    EXPECT_EQ(key->Binary()->size(), 3UL);
+    EXPECT_EQ(key->Binary()->data.size(), 3UL);
   }
 
   // Key which is a TypedArray view on an ArrayBuffer.
   {
     auto key = ScriptToKey(scope, "new Uint8Array([0,1,2])");
     EXPECT_EQ(key->GetType(), mojom::IDBKeyType::Binary);
-    EXPECT_EQ(key->Binary()->size(), 3UL);
+    EXPECT_EQ(key->Binary()->data.size(), 3UL);
   }
 }
 
@@ -485,7 +480,7 @@ TEST(IDBKeyFromValue, Exceptions) {
   };
 
   for (const char* source : cases) {
-    DummyExceptionStateForTesting exception_state;
+    ExceptionState exception_state(scope.GetIsolate());
     auto key = CreateIDBKeyFromValue(scope.GetIsolate(),
                                      EvaluateScriptAsObject(scope, source),
                                      exception_state);
@@ -536,15 +531,15 @@ TEST(IDBKeyFromValueAndKeyPathsTest, IndexKeys) {
   NonThrowableExceptionState exception_state;
 
   // object = { foo: { bar: "zee" }, bad: null }
-  v8::Local<v8::Value> value =
+  v8::Local<v8::Object> object =
       V8ObjectBuilder(script_state)
           .Add("foo", V8ObjectBuilder(script_state).AddString("bar", "zee"))
           .AddNull("bad")
-          .V8Value();
+          .V8Object();
 
   // Index key path member matches store key path.
   std::unique_ptr<IDBKey> key = CreateIDBKeyFromValueAndKeyPaths(
-      isolate, value,
+      isolate, object,
       /*store_key_path=*/IDBKeyPath("id"),
       /*index_key_path=*/IDBKeyPath(Vector<String>{"id", "foo.bar"}),
       exception_state);
@@ -555,7 +550,7 @@ TEST(IDBKeyFromValueAndKeyPathsTest, IndexKeys) {
 
   // Index key path member matches, but there are unmatched members too.
   EXPECT_FALSE(CreateIDBKeyFromValueAndKeyPaths(
-      isolate, value,
+      isolate, object,
       /*store_key_path=*/IDBKeyPath("id"),
       /*index_key_path=*/IDBKeyPath(Vector<String>{"id", "foo.bar", "nope"}),
       exception_state));
@@ -563,7 +558,7 @@ TEST(IDBKeyFromValueAndKeyPathsTest, IndexKeys) {
   // Index key path member matches, but there are invalid subkeys too.
   EXPECT_FALSE(
       CreateIDBKeyFromValueAndKeyPaths(
-          isolate, value,
+          isolate, object,
           /*store_key_path=*/IDBKeyPath("id"),
           /*index_key_path=*/IDBKeyPath(Vector<String>{"id", "foo.bar", "bad"}),
           exception_state)
@@ -571,14 +566,14 @@ TEST(IDBKeyFromValueAndKeyPathsTest, IndexKeys) {
 
   // Index key path member does not match store key path.
   EXPECT_FALSE(CreateIDBKeyFromValueAndKeyPaths(
-      isolate, value,
+      isolate, object,
       /*store_key_path=*/IDBKeyPath("id"),
       /*index_key_path=*/IDBKeyPath(Vector<String>{"id2", "foo.bar"}),
       exception_state));
 
   // Index key path is not array, matches store key path.
   EXPECT_FALSE(CreateIDBKeyFromValueAndKeyPaths(
-      isolate, value,
+      isolate, object,
       /*store_key_path=*/IDBKeyPath("id"),
       /*index_key_path=*/IDBKeyPath("id"), exception_state));
 }
@@ -608,9 +603,9 @@ TEST(InjectIDBKeyTest, TopLevelPropertyStringValue) {
   V8TestingScope scope;
 
   // object = { foo: "zoo" }
-  ScriptValue script_object = V8ObjectBuilder(scope.GetScriptState())
-                                  .AddString("foo", "zoo")
-                                  .GetScriptValue();
+  ScriptObject script_object = V8ObjectBuilder(scope.GetScriptState())
+                                   .AddString("foo", "zoo")
+                                   .ToScriptObject();
   std::unique_ptr<IDBKey> idb_string_key = IDBKey::CreateString("myNewKey");
   CheckInjection(scope.GetScriptState(), idb_string_key.get(), script_object,
                  "bar");
@@ -627,10 +622,10 @@ TEST(InjectIDBKeyTest, SubProperty) {
   ScriptState* script_state = scope.GetScriptState();
 
   // object = { foo: { bar: "zee" } }
-  ScriptValue script_object =
+  ScriptObject script_object =
       V8ObjectBuilder(script_state)
           .Add("foo", V8ObjectBuilder(script_state).AddString("bar", "zee"))
-          .GetScriptValue();
+          .ToScriptObject();
 
   std::unique_ptr<IDBKey> idb_string_key = IDBKey::CreateString("myNewKey");
   CheckInjection(scope.GetScriptState(), idb_string_key.get(), script_object,
@@ -666,7 +661,7 @@ TEST(DeserializeIDBValueTest, CurrentVersions) {
   v8::Local<v8::Object> empty_object = v8::Object::New(isolate);
   SerializeV8Value(empty_object, isolate, &object_bytes);
   std::unique_ptr<IDBValue> idb_value =
-      CreateIDBValue(isolate, object_bytes, 42.0, "foo");
+      CreateIDBValue(isolate, std::move(object_bytes), 42.0, "foo");
 
   v8::Local<v8::Value> v8_value =
       DeserializeIDBValue(scope.GetScriptState(), idb_value.get());
@@ -699,7 +694,7 @@ TEST(DeserializeIDBValueTest, FutureV8Version) {
   //
   // http://crbug.com/703704 has a reproduction for this test's circumstances.
   std::unique_ptr<IDBValue> idb_value =
-      CreateIDBValue(isolate, object_bytes, 42.0, "foo");
+      CreateIDBValue(isolate, std::move(object_bytes), 42.0, "foo");
 
   v8::Local<v8::Value> v8_value =
       DeserializeIDBValue(scope.GetScriptState(), idb_value.get());
@@ -718,7 +713,7 @@ TEST(DeserializeIDBValueTest, InjectionIntoNonObject) {
   v8::Local<v8::Number> number = v8::Number::New(isolate, 42.0);
   SerializeV8Value(number, isolate, &object_bytes);
   std::unique_ptr<IDBValue> idb_value =
-      CreateIDBValue(isolate, object_bytes, 42.0, "foo");
+      CreateIDBValue(isolate, std::move(object_bytes), 42.0, "foo");
 
   v8::Local<v8::Value> v8_value =
       DeserializeIDBValue(scope.GetScriptState(), idb_value.get());
@@ -739,7 +734,7 @@ TEST(DeserializeIDBValueTest, NestedInjectionIntoNonObject) {
   v8::Local<v8::Number> number = v8::Number::New(isolate, 42.0);
   SerializeV8Value(number, isolate, &object_bytes);
   std::unique_ptr<IDBValue> idb_value =
-      CreateIDBValue(isolate, object_bytes, 42.0, "foo.bar");
+      CreateIDBValue(isolate, std::move(object_bytes), 42.0, "foo.bar");
 
   v8::Local<v8::Value> v8_value =
       DeserializeIDBValue(scope.GetScriptState(), idb_value.get());

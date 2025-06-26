@@ -62,7 +62,7 @@ public class PaymentRequestHeader extends FrameLayout {
     public void setTitleAndOrigin(String title, String origin, int securityLevel, Profile profile) {
         ((TextView) findViewById(R.id.page_title)).setText(title);
 
-        TextView hostName = (TextView) findViewById(R.id.hostname);
+        TextView hostName = findViewById(R.id.hostname);
         Spannable url = new SpannableStringBuilder(origin);
         final boolean useDarkColors =
                 !ColorUtils.shouldUseLightForegroundOnBackground(mBackgroundColor);
@@ -74,7 +74,7 @@ public class PaymentRequestHeader extends FrameLayout {
                 chromeAutocompleteSchemeClassifier,
                 securityLevel,
                 useDarkColors,
-                /* emphasizeHttpsScheme= */ true);
+                /* emphasizeScheme= */ true);
         chromeAutocompleteSchemeClassifier.destroy();
         hostName.setText(url);
 
@@ -82,7 +82,7 @@ public class PaymentRequestHeader extends FrameLayout {
             // Add a lock icon.
             hostName.setCompoundDrawablesRelativeWithIntrinsicBounds(
                     TintedDrawable.constructTintedDrawable(
-                            mContext, R.drawable.omnibox_https_valid, R.color.default_green),
+                            mContext, R.drawable.omnibox_https_valid_lock, R.color.default_green),
                     null,
                     null,
                     null);

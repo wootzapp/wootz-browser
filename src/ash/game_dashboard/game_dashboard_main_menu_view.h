@@ -20,10 +20,13 @@ class BoxLayoutView;
 namespace ash {
 
 class AnchoredNudge;
+class GameDashboardBatteryView;
 class GameDashboardContext;
+class GameDashboardNetworkView;
 class IconButton;
 class PillButton;
 class Switch;
+class TimeView;
 
 // GameDashboardMainMenuView is the expanded menu view attached to the game
 // dashboard button.
@@ -59,6 +62,7 @@ class ASH_EXPORT GameDashboardMainMenuView
  private:
   friend class GameDashboardContextTestApi;
 
+  class ScreenSizeRow;
   class GameControlsDetailsRow;
 
   // Callbacks for the tiles and buttons in the main menu view.
@@ -106,7 +110,8 @@ class ASH_EXPORT GameDashboardMainMenuView
                            FeatureTile::TileType tile_type);
 
   // Adds menu controls row for Game Controls.
-  void AddGameControlsDetailsRow(views::View* container);
+  void AddGameControlsDetailsRow(views::View* container,
+                                 const gfx::RoundedCornersF& row_corners);
 
   // Adds Record Game feature tile of type `tile_type` to a specified
   // `container`.
@@ -120,6 +125,9 @@ class ASH_EXPORT GameDashboardMainMenuView
   // Adds the dashboard cluster (containing feedback, settings, and help
   // buttons) to the `main_menu_container_`.
   void AddUtilityClusterRow();
+
+  // Adds utility features to the utility `container` in the Main Menu.
+  void AddUtilityFeatureViews(views::View* container);
 
   // views::View:
   void VisibilityChanged(views::View* starting_from, bool is_visible) override;
@@ -149,8 +157,9 @@ class ASH_EXPORT GameDashboardMainMenuView
   // For test to access the nudge ID in the anonymous namespace.
   AnchoredNudge* GetGameControlsSetupNudgeForTesting();
 
-  // views::Views:
-  void OnThemeChanged() override;
+  // Returns the screen size row sub-label. If the screen size row or the
+  // sub-label aren't available, returns null. Visible for testing.
+  const views::Label* GetScreenSizeRowSubtitle();
 
   // Allows this class to access `GameDashboardContext` owned functions/objects.
   const raw_ptr<GameDashboardContext> context_;
@@ -172,6 +181,9 @@ class ASH_EXPORT GameDashboardMainMenuView
   // screen capture tool, allowing the user to select recording options.
   raw_ptr<FeatureTile> record_game_tile_ = nullptr;
 
+  // Screen Size Settings detail row. Visible for testing.
+  raw_ptr<ScreenSizeRow> screen_size_row_ = nullptr;
+
   // Game Controls details row to configure Game Controls.
   raw_ptr<GameControlsDetailsRow> game_controls_details_ = nullptr;
 
@@ -180,6 +192,15 @@ class ASH_EXPORT GameDashboardMainMenuView
 
   // Back button in the `settings_view_container_`. Visible for testing.
   raw_ptr<IconButton> settings_view_back_button_ = nullptr;
+
+  // The clock displayed in the utility cluster row. Visible for testing.
+  raw_ptr<TimeView> clock_view_ = nullptr;
+
+  // The battery displayed in the utility cluster row. Visible for testing.
+  raw_ptr<GameDashboardBatteryView> battery_view_ = nullptr;
+
+  // The network icon displayed in the utility cluster row. Visible for testing.
+  raw_ptr<GameDashboardNetworkView> network_view_ = nullptr;
 };
 
 }  // namespace ash

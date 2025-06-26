@@ -4,9 +4,9 @@
 
 #include "chrome/browser/password_manager/android/all_passwords_bottom_sheet_helper.h"
 
+#include <algorithm>
 #include <functional>
 
-#include "base/ranges/algorithm.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_store/password_store_interface.h"
 
@@ -42,14 +42,17 @@ void AllPasswordsBottomSheetHelper::ClearUpdateCallback() {
 
 void AllPasswordsBottomSheetHelper::OnGetPasswordStoreResults(
     std::vector<std::unique_ptr<password_manager::PasswordForm>> results) {
-  int results_count = base::ranges::count_if(
+  int results_count = std::ranges::count_if(
       results, std::not_fn(&password_manager::PasswordForm::blocked_by_user));
   available_credentials_ = available_credentials_.value_or(0) + results_count;
-  if (available_credentials_.value() == 0)
+  if (available_credentials_.value() == 0) {
     return;  // Don't update if sheet still wouldn't be available.
-  if (update_callback_.is_null())
+  }
+  if (update_callback_.is_null()) {
     return;  // No update if cannot be triggered right now.
-  if (last_focused_field_type_ == autofill::mojom::FocusedFieldType::kUnknown)
+  }
+  if (last_focused_field_type_ == autofill::mojom::FocusedFieldType::kUnknown) {
     return;  // Don't update if no valid field was focused.
+  }
   std::move(update_callback_).Run();
 }

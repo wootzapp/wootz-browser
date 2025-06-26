@@ -12,7 +12,6 @@ import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.BuildInfo;
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
@@ -97,7 +96,6 @@ public class ShareSheetCoordinator
      * @param lifecycleDispatcher Dispatcher for activity lifecycle events, e.g. configuration
      *     changes.
      * @param tabProvider Supplier for the current activity tab.
-     * @param modelBuilder The {@link ShareSheetPropertyModelBuilder} for the share sheet.
      * @param isIncognito Whether the share sheet was opened in incognito mode or not.
      * @param profile The current profile of the User.
      * @param deviceLockActivityLauncher The launcher to start up the device lock page.
@@ -130,13 +128,11 @@ public class ShareSheetCoordinator
                         if (bottomSheet == mBottomSheet) {
                             mBottomSheet
                                     .getContentView()
-                                    .addOnLayoutChangeListener(
-                                            ShareSheetCoordinator.this::onLayoutChange);
+                                    .addOnLayoutChangeListener(ShareSheetCoordinator.this);
                         } else {
                             mBottomSheet
                                     .getContentView()
-                                    .removeOnLayoutChangeListener(
-                                            ShareSheetCoordinator.this::onLayoutChange);
+                                    .removeOnLayoutChangeListener(ShareSheetCoordinator.this);
                         }
                     }
                 };
@@ -280,7 +276,7 @@ public class ShareSheetCoordinator
         boolean shown = mBottomSheetController.requestShowContent(mBottomSheet, true);
         if (shown) {
             long delta = System.currentTimeMillis() - mShareStartTime;
-            RecordHistogram.recordMediumTimesHistogram(
+            RecordHistogram.deprecatedRecordMediumTimesHistogram(
                     "Sharing.SharingHubAndroid.TimeToShowShareSheet", delta);
         }
     }
@@ -356,7 +352,7 @@ public class ShareSheetCoordinator
                         mLinkToggleMetricsDetails,
                         mProfile,
                         mDeviceLockActivityLauncher);
-        mIsMultiWindow = ApiCompatibilityUtils.isInMultiWindowMode(activity);
+        mIsMultiWindow = activity.isInMultiWindowMode();
 
         return mChromeProvidedSharingOptionsProvider.getPropertyModels(
                 contentTypes, chromeShareExtras.getDetailedContentType(), mIsMultiWindow);
@@ -400,7 +396,6 @@ public class ShareSheetCoordinator
             long shareStartTime,
             Profile profile) {
         recordShareMetrics(featureName, linkGenerationStatus, linkToggleMetricsDetails, profile);
-        recordTimeToShare(shareStartTime);
         if (shareActionType != ShareCustomAction.INVALID) {
             ShareMetricsUtils.recordShareUserAction(shareActionType, shareStartTime);
         }
@@ -427,12 +422,6 @@ public class ShareSheetCoordinator
 
         ShareSheetLinkToggleMetricsHelper.recordLinkToggleSharedStateMetric(
                 linkToggleMetricsDetails);
-    }
-
-    private static void recordTimeToShare(long shareStartTime) {
-        RecordHistogram.recordMediumTimesHistogram(
-                "Sharing.SharingHubAndroid.TimeToShare",
-                System.currentTimeMillis() - shareStartTime);
     }
 
     protected void disableFirstPartyFeaturesForTesting() {
@@ -480,7 +469,7 @@ public class ShareSheetCoordinator
         if (mActivity == null) {
             return;
         }
-        boolean isMultiWindow = ApiCompatibilityUtils.isInMultiWindowMode(mActivity);
+        boolean isMultiWindow = mActivity.isInMultiWindowMode();
         // mContentTypes is null if Chrome features should not be shown.
         if (mIsMultiWindow == isMultiWindow || mContentTypes == null) {
             return;

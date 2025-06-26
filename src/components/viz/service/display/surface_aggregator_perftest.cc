@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "components/viz/service/display/surface_aggregator.h"
+
 #include <map>
 #include <memory>
 #include <string>
@@ -18,18 +20,18 @@
 #include "components/viz/common/quads/render_pass_io.h"
 #include "components/viz/common/quads/surface_draw_quad.h"
 #include "components/viz/common/quads/texture_draw_quad.h"
+#include "components/viz/common/resources/resource_id.h"
 #include "components/viz/common/resources/transferable_resource.h"
 #include "components/viz/common/surfaces/frame_sink_id.h"
 #include "components/viz/common/surfaces/local_surface_id.h"
 #include "components/viz/service/display/aggregated_frame.h"
 #include "components/viz/service/display/display_resource_provider_software.h"
-#include "components/viz/service/display/surface_aggregator.h"
 #include "components/viz/service/display/viz_perftest.h"
-#include "components/viz/service/display_embedder/server_shared_bitmap_manager.h"
 #include "components/viz/service/frame_sinks/compositor_frame_sink_support.h"
 #include "components/viz/service/frame_sinks/frame_sink_manager_impl.h"
 #include "components/viz/service/surfaces/surface_manager.h"
 #include "components/viz/test/compositor_frame_helpers.h"
+#include "components/viz/test/test_shared_image_interface_provider.h"
 #include "components/viz/test/test_surface_id_allocator.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/perf/perf_result_reporter.h"
@@ -77,17 +79,14 @@ class ExpectedOutput {
 
 class SurfaceAggregatorPerfTest : public VizPerfTest {
  public:
-  SurfaceAggregatorPerfTest()
-      : manager_(FrameSinkManagerImpl::InitParams(&shared_bitmap_manager_)) {
+  SurfaceAggregatorPerfTest() : manager_(FrameSinkManagerImpl::InitParams()) {
     resource_provider_ = std::make_unique<DisplayResourceProviderSoftware>(
-        &shared_bitmap_manager_, /*shared_image_manager=*/nullptr,
-        /*sync_point_manager=*/nullptr);
+        /*shared_image_manager=*/nullptr, /*gpu_scheduler=*/nullptr);
   }
 
   void RunTest(int num_surfaces,
                int num_textures,
                float opacity,
-               bool optimize_damage,
                bool full_damage,
                const std::string& story,
                ExpectedOutput expected_output) {
@@ -100,8 +99,7 @@ class SurfaceAggregatorPerfTest : public VizPerfTest {
       child_tokens[i] = base::UnguessableToken::Create();
     }
     aggregator_ = std::make_unique<SurfaceAggregator>(
-        manager_.surface_manager(), resource_provider_.get(), optimize_damage,
-        true);
+        manager_.surface_manager(), resource_provider_.get(), true);
     for (int i = 0; i < num_surfaces; i++) {
       LocalSurfaceId local_surface_id(i + 1, child_tokens[i]);
 
@@ -113,10 +111,20 @@ class SurfaceAggregatorPerfTest : public VizPerfTest {
       auto* sqs = pass->CreateAndAppendSharedQuadState();
       for (int j = 0; j < num_textures; j++) {
         const gfx::Size size(1, 2);
+
+        gpu::SharedImageInterface* shared_image_interface =
+            shared_image_interface_provider_.GetSharedImageInterface();
+        auto shared_image =
+            shared_image_interface->CreateSharedImageForSoftwareCompositor(
+                {SinglePlaneFormat::kBGRA_8888, size, gfx::ColorSpace(),
+                 gpu::SHARED_IMAGE_USAGE_CPU_WRITE_ONLY,
+                 "SurfaceAggregatorPerfTest"});
+        auto sync_token = shared_image_interface->GenVerifiedSyncToken();
         TransferableResource resource =
-            TransferableResource::MakeSoftwareSharedBitmap(
-                SharedBitmap::GenerateId(), gpu::SyncToken(), size,
-                SinglePlaneFormat::kRGBA_8888);
+            TransferableResource::MakeSoftwareSharedImage(
+                shared_image, sync_token, size, SinglePlaneFormat::kBGRA_8888,
+                TransferableResource::ResourceSource::kTileRasterTask);
+
         resource.id = ResourceId(j);
         frame_builder.AddTransferableResource(resource);
 
@@ -130,13 +138,11 @@ class SurfaceAggregatorPerfTest : public VizPerfTest {
         const gfx::PointF uv_top_left;
         const gfx::PointF uv_bottom_right;
         SkColor4f background_color = SkColors::kGreen;
-        bool flipped = false;
         bool nearest_neighbor = false;
         quad->SetAll(sqs, rect, visible_rect, needs_blending, ResourceId(j),
-                     gfx::Size(), premultiplied_alpha, uv_top_left,
-                     uv_bottom_right, background_color, flipped,
-                     nearest_neighbor, /*secure_output_only=*/false,
-                     gfx::ProtectedVideoType::kClear);
+                     premultiplied_alpha, uv_top_left, uv_bottom_right,
+                     background_color, nearest_neighbor,
+                     /*secure_output=*/false, gfx::ProtectedVideoType::kClear);
       }
       sqs = pass->CreateAndAppendSharedQuadState();
       sqs->opacity = opacity;
@@ -223,7 +229,8 @@ class SurfaceAggregatorPerfTest : public VizPerfTest {
     std::set<ResourceId> resources_added;
     for (auto& render_pass : *render_pass_list) {
       for (auto* quad : render_pass->quad_list) {
-        for (ResourceId resource_id : quad->resources) {
+        if (auto resource_id = quad->resource_id;
+            quad->resource_id != kInvalidResourceId) {
           // Only add resources to the resource list once.
           if (resources_added.find(resource_id) != resources_added.end()) {
             continue;
@@ -232,10 +239,21 @@ class SurfaceAggregatorPerfTest : public VizPerfTest {
               resource_data_map_[frame_sink_id].created_resources;
           // Create the resource if we haven't yet.
           if (created_resources.find(resource_id) == created_resources.end()) {
+            gpu::SharedImageInterface* shared_image_interface =
+                shared_image_interface_provider_.GetSharedImageInterface();
+            auto shared_image =
+                shared_image_interface->CreateSharedImageForSoftwareCompositor(
+                    {SinglePlaneFormat::kBGRA_8888, quad->rect.size(),
+                     gfx::ColorSpace(), gpu::SHARED_IMAGE_USAGE_CPU_WRITE_ONLY,
+                     "SurfaceAggregatorPerfTest"});
+            auto sync_token = shared_image_interface->GenVerifiedSyncToken();
+
             created_resources[resource_id] =
-                TransferableResource::MakeSoftwareSharedBitmap(
-                    SharedBitmap::GenerateId(), gpu::SyncToken(),
-                    quad->rect.size(), SinglePlaneFormat::kRGBA_8888);
+                TransferableResource::MakeSoftwareSharedImage(
+                    shared_image, sync_token, quad->rect.size(),
+                    SinglePlaneFormat::kBGRA_8888,
+                    TransferableResource::ResourceSource::kTileRasterTask);
+
             created_resources[resource_id].id = resource_id;
           }
           resource_data_map_[frame_sink_id]
@@ -286,7 +304,7 @@ class SurfaceAggregatorPerfTest : public VizPerfTest {
                                        &render_pass_list);
 
     aggregator_ = std::make_unique<SurfaceAggregator>(
-        manager_.surface_manager(), resource_provider_.get(), true, true);
+        manager_.surface_manager(), resource_provider_.get(), true);
 
     auto root_support = std::make_unique<CompositorFrameSinkSupport>(
         nullptr, &manager_, root_frame_sink_id, /*is_root=*/true);
@@ -390,7 +408,7 @@ class SurfaceAggregatorPerfTest : public VizPerfTest {
     }
 
     aggregator_ = std::make_unique<SurfaceAggregator>(
-        manager_.surface_manager(), resource_provider_.get(), true, true);
+        manager_.surface_manager(), resource_provider_.get(), true);
 
     base::HistogramBase* aggregate_histogram =
         base::Histogram::FactoryMicrosecondsTimeGet(
@@ -500,64 +518,63 @@ class SurfaceAggregatorPerfTest : public VizPerfTest {
     std::map<ResourceId, TransferableResource> created_resources;
   };
 
-  ServerSharedBitmapManager shared_bitmap_manager_;
   FrameSinkManagerImpl manager_;
   std::unique_ptr<DisplayResourceProvider> resource_provider_;
   std::unique_ptr<SurfaceAggregator> aggregator_;
   std::map<FrameSinkId, ResourceData> resource_data_map_;
+  TestSharedImageInterfaceProvider shared_image_interface_provider_;
 };
 
 TEST_F(SurfaceAggregatorPerfTest, ManySurfacesOpaque) {
-  RunTest(20, 100, 1.f, false, true, "many_surfaces_opaque",
-          ExpectedOutput(1, 2000));
+  RunTest(20, 100, 1.f, true, "many_surfaces_opaque", ExpectedOutput(1, 2000));
 }
 
 TEST_F(SurfaceAggregatorPerfTest, ManySurfacesOpaque_100) {
-  RunTest(100, 1, 1.f, true, false, "100_surfaces_1_quad_each",
+  RunTest(100, 1, 1.f, false, "100_surfaces_1_quad_each",
           ExpectedOutput(1, 100));
 }
 
 TEST_F(SurfaceAggregatorPerfTest, ManySurfacesOpaque_300) {
-  RunTest(300, 1, 1.f, true, false, "300_surfaces_1_quad_each",
+  RunTest(300, 1, 1.f, false, "300_surfaces_1_quad_each",
           ExpectedOutput(1, 300));
 }
 
 TEST_F(SurfaceAggregatorPerfTest, ManySurfacesManyQuadsOpaque_100) {
-  RunTest(100, 100, 1.f, true, false, "100_surfaces_100_quads_each",
+  RunTest(100, 100, 1.f, false, "100_surfaces_100_quads_each",
           ExpectedOutput(1, 5000));
 }
 
 TEST_F(SurfaceAggregatorPerfTest, ManySurfacesManyQuadsOpaque_300) {
-  RunTest(300, 100, 1.f, true, false, "300_surfaces_100_quads_each",
+  RunTest(300, 100, 1.f, false, "300_surfaces_100_quads_each",
           ExpectedOutput(1, 15000));
 }
 
 TEST_F(SurfaceAggregatorPerfTest, ManySurfacesTransparent) {
-  RunTest(20, 100, .5f, false, true, "many_surfaces_transparent",
+  RunTest(20, 100, .5f, true, "many_surfaces_transparent",
           ExpectedOutput(20, 2019));
 }
 
 TEST_F(SurfaceAggregatorPerfTest, FewSurfaces) {
-  RunTest(3, 20, 1.f, false, true, "few_surfaces", ExpectedOutput(1, 60));
+  RunTest(3, 20, 1.f, true, "few_surfaces", ExpectedOutput(1, 60));
 }
 
 TEST_F(SurfaceAggregatorPerfTest, ManySurfacesOpaqueDamageCalc) {
-  RunTest(20, 100, 1.f, true, true, "many_surfaces_opaque_damage_calc",
+  RunTest(20, 100, 1.f, true, "many_surfaces_opaque_damage_calc",
           ExpectedOutput(1, 2000));
 }
 
 TEST_F(SurfaceAggregatorPerfTest, ManySurfacesTransparentDamageCalc) {
-  RunTest(20, 100, .5f, true, true, "many_surfaces_transparent_damage_calc",
+  RunTest(20, 100, .5f, true, "many_surfaces_transparent_damage_calc",
           ExpectedOutput(20, 2019));
 }
 
 TEST_F(SurfaceAggregatorPerfTest, FewSurfacesDamageCalc) {
-  RunTest(3, 1000, 1.f, true, true, "few_surfaces_damage_calc",
+  RunTest(3, 1000, 1.f, true, "few_surfaces_damage_calc",
           ExpectedOutput(1, 3000));
 }
 
 TEST_F(SurfaceAggregatorPerfTest, FewSurfacesAggregateDamaged) {
-  RunTest(3, 1000, 1.f, true, false, "few_surfaces_aggregate_damaged",
+  RunTest(3, 1000, 1.f, false, "few_surfaces_aggregate_damaged",
           ExpectedOutput(1, 1500));
 }
 

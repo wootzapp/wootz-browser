@@ -19,14 +19,12 @@
 
 namespace content {
 
-TraceReportInternalsUI::TraceReportInternalsUI(WebUI* web_ui)
+TraceReportInternalsUI::TraceReportInternalsUI(WebUI* web_ui, const GURL& url)
     : WebUIController(web_ui) {
   WebUIDataSource* source = WebUIDataSource::CreateAndAdd(
-      web_ui->GetWebContents()->GetBrowserContext(),
-      kChromeUITracesInternalsHost);
+      web_ui->GetWebContents()->GetBrowserContext(), url.host());
 
-  source->AddResourcePaths(base::make_span(kTracesInternalsResources,
-                                           kTracesInternalsResourcesSize));
+  source->AddResourcePaths(kTracesInternalsResources);
   source->AddResourcePath("", IDR_TRACES_INTERNALS_TRACE_REPORT_INTERNALS_HTML);
 
   // Add TrustedTypes policies necessary for using Polymer.

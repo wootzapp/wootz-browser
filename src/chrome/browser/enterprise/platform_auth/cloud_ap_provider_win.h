@@ -6,6 +6,7 @@
 #define CHROME_BROWSER_ENTERPRISE_PLATFORM_AUTH_CLOUD_AP_PROVIDER_WIN_H_
 
 #include <optional>
+#include <vector>
 
 #include "base/callback_list.h"
 #include "base/gtest_prod_util.h"
@@ -37,6 +38,7 @@ class CloudApProviderWin : public PlatformAuthProvider {
   ~CloudApProviderWin() override;
 
   // enterprise_auth::PlatformAuthProvider:
+  bool SupportsOriginFiltering() override;
   void FetchOrigins(FetchOriginsCallback on_fetch_complete) override;
   void GetData(const GURL& url,
                PlatformAuthProviderManager::GetDataCallback callback) override;
@@ -67,9 +69,9 @@ class CloudApProviderWin : public PlatformAuthProvider {
       base::OnceCallbackList<void(net::HttpRequestHeaders)>;
   GetDataCallbackList on_get_data_callback_list_;
 
-  // Subscription for auth data requests. Guarantees that the corresponding
+  // Subscriptions for auth data requests. Guarantees that the corresponding
   // callbacks are run on destruction.
-  base::CallbackListSubscription get_data_subscription_;
+  std::vector<base::CallbackListSubscription> get_data_subscriptions_;
 };
 
 }  // namespace enterprise_auth

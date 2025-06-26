@@ -7,7 +7,7 @@
 
 #import "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
-#include "ios/chrome/browser/sessions/session_restoration_observer.h"
+#include "ios/chrome/browser/sessions/model/session_restoration_observer.h"
 #include "ios/chrome/browser/shared/model/browser/browser_user_data.h"
 
 class SessionRestorationService;
@@ -36,8 +36,6 @@ class FaviconBrowserAgent final : public BrowserUserData<FaviconBrowserAgent>,
   // Observation for SessionRestorationService events.
   base::ScopedObservation<SessionRestorationService, SessionRestorationObserver>
       session_restoration_service_observation_{this};
-
-  BROWSER_USER_DATA_KEY_DECL();
 };
 
 #endif  // IOS_CHROME_BROWSER_FAVICON_MODEL_FAVICON_BROWSER_AGENT_H_

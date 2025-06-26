@@ -4,8 +4,6 @@
 
 #include "chrome/browser/ash/arc/tracing/overview_tracing_handler.h"
 
-#include "ash/components/arc/arc_prefs.h"
-#include "ash/components/arc/test/arc_task_window_builder.h"
 #include "ash/constants/ash_switches.h"
 #include "base/test/test_file_util.h"
 #include "chrome/browser/ash/app_list/arc/arc_app_test.h"
@@ -15,6 +13,8 @@
 #include "chrome/test/base/chrome_ash_test_base.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
+#include "chromeos/ash/experiences/arc/arc_prefs.h"
+#include "chromeos/ash/experiences/arc/test/arc_task_window_builder.h"
 #include "third_party/icu/source/i18n/unicode/timezone.h"
 
 namespace arc {
@@ -330,20 +330,7 @@ TEST_F(OverviewTracingHandlerTest, CommitAndPresentTimestampsInModel) {
 
   FastForwardClockAndTaskQueue(handler_.get(), base::Seconds(1));
 
-  for (int i = 0; i < 5; i++) {
-    s.Commit();
-    std::list<exo::Surface::FrameCallback> frame_callbacks;
-    std::list<exo::Surface::PresentationCallback> presentation_callbacks;
-    s.AppendSurfaceHierarchyCallbacks(&frame_callbacks,
-                                      &presentation_callbacks);
-    gfx::PresentationFeedback feedback(handler_->SystemTicksNow(),
-                                       base::TimeDelta() /* interval */,
-                                       0 /* flags */);
-    for (auto& cb : presentation_callbacks) {
-      cb.Run(feedback);
-    }
-    FastForwardClockAndTaskQueue(handler_.get(), base::Milliseconds(42));
-  }
+  CommitAndPresentFrames(handler_.get(), &s, 5, base::Milliseconds(42));
 
   FastForwardClockAndTaskQueue(handler_.get(), base::Seconds(5));
 

@@ -2,29 +2,40 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "third_party/blink/renderer/platform/widget/input/main_thread_event_queue.h"
 
 #include <stddef.h>
 
+#include <array>
 #include <new>
 #include <tuple>
 #include <utility>
 
 #include "base/auto_reset.h"
 #include "base/containers/adapters.h"
+#include "base/feature_list.h"
 #include "base/functional/bind.h"
+#include "base/memory/raw_ref.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/strings/string_util.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/test_simple_task_runner.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
+#include "cc/base/features.h"
 #include "cc/metrics/event_metrics.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/input/synthetic_web_input_event_builders.h"
 #include "third_party/blink/public/common/input/web_input_event_attribution.h"
 #include "third_party/blink/public/common/input/web_mouse_wheel_event.h"
 #include "third_party/blink/public/platform/scheduler/test/web_mock_thread_scheduler.h"
 #include "third_party/blink/renderer/platform/scheduler/test/fake_widget_scheduler.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/vector.h"
 
 namespace blink {
@@ -99,10 +110,7 @@ class HandledEvent : public HandledTask {
   ~HandledEvent() override = default;
 
   blink::WebCoalescedInputEvent* taskAsEvent() override { return &event_; }
-  unsigned taskAsClosure() const override {
-    NOTREACHED_IN_MIGRATION();
-    return 0;
-  }
+  unsigned taskAsClosure() const override { NOTREACHED(); }
 
   void Print(std::ostream* os) const override {
     *os << "event_type: " << event_.Event().GetType();
@@ -122,12 +130,9 @@ class HandledClosure : public HandledTask {
   explicit HandledClosure(unsigned closure_id) : closure_id_(closure_id) {}
   ~HandledClosure() override = default;
 
-  blink::WebCoalescedInputEvent* taskAsEvent() override {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
-  }
+  blink::WebCoalescedInputEvent* taskAsEvent() override { NOTREACHED(); }
   unsigned taskAsClosure() const override { return closure_id_; }
-  void Print(std::ostream* os) const override { NOTREACHED_IN_MIGRATION(); }
+  void Print(std::ostream* os) const override { NOTREACHED(); }
 
  private:
   unsigned closure_id_;
@@ -140,8 +145,11 @@ enum class CallbackReceivedState {
 };
 
 void PrintTo(CallbackReceivedState state, std::ostream* os) {
-  const char* kCallbackReceivedStateToString[] = {
-      "Pending", "CalledWhileHandlingEvent", "CalledAfterHandleEvent"};
+  auto kCallbackReceivedStateToString = std::to_array<const char*>({
+      "Pending",
+      "CalledWhileHandlingEvent",
+      "CalledAfterHandleEvent",
+  });
   *os << kCallbackReceivedStateToString[static_cast<int>(state)];
 }
 
@@ -201,7 +209,7 @@ class HandledEventCallbackTracker {
     callbacks_received_[index] = ReceivedCallback(
         handling_event_ ? CallbackReceivedState::kCalledWhileHandlingEvent
                         : CallbackReceivedState::kCalledAfterHandleEvent,
-        latency.coalesced(), handled_tasks_.size());
+        latency.coalesced(), handled_tasks_->size());
   }
 
   const Vector<ReceivedCallback>& GetReceivedCallbacks() const {
@@ -212,7 +220,7 @@ class HandledEventCallbackTracker {
 
  private:
   Vector<ReceivedCallback> callbacks_received_;
-  const Vector<std::unique_ptr<HandledTask>>& handled_tasks_;
+  const raw_ref<const Vector<std::unique_ptr<HandledTask>>> handled_tasks_;
   base::WeakPtr<HandledEventCallbackTracker> weak_this_;
   base::WeakPtrFactory<HandledEventCallbackTracker> weak_ptr_factory_{this};
 };
@@ -229,27 +237,25 @@ class MockWidgetScheduler : public scheduler::FakeWidgetScheduler {
  public:
   MockWidgetScheduler() = default;
 
-  MOCK_METHOD2(DidHandleInputEventOnMainThread,
-               void(const WebInputEvent&, WebInputEventResult));
+  MOCK_METHOD3(DidHandleInputEventOnMainThread,
+               void(const WebInputEvent&, WebInputEventResult, bool));
 };
 
 class MainThreadEventQueueTest : public testing::Test,
-                                 public testing::WithParamInterface<bool>,
-                                 public MainThreadEventQueueClient,
-                                 private ScopedUnblockTouchMoveEarlierForTest {
+                                 public MainThreadEventQueueClient {
  public:
   MainThreadEventQueueTest()
-      : ScopedUnblockTouchMoveEarlierForTest(GetParam()),
-        main_task_runner_(new base::TestSimpleTaskRunner()) {
+      : main_task_runner_(new base::TestSimpleTaskRunner()) {
     widget_scheduler_ = base::MakeRefCounted<MockWidgetScheduler>();
     handler_callback_ =
         std::make_unique<HandledEventCallbackTracker>(handled_tasks_);
   }
 
   void SetUp() override {
-    queue_ = new MainThreadEventQueue(this, main_task_runner_,
-                                      widget_scheduler_, true);
+    queue_ = base::MakeRefCounted<MainThreadEventQueue>(
+        this, main_task_runner_, main_task_runner_, widget_scheduler_, true);
     queue_->ClearRafFallbackTimerForTesting();
+    ::features::SetIsEligibleForThrottleMainFrameTo60Hz(true);
   }
 
   void HandleEvent(const WebInputEvent& event,
@@ -279,17 +285,20 @@ class MainThreadEventQueueTest : public testing::Test,
   }
 
   bool needs_low_latency_until_pointer_up() {
-    return queue_->needs_low_latency_until_pointer_up_;
+    return queue_->needs_low_latency_until_pointer_up_.load(
+        std::memory_order_relaxed);
   }
 
   bool last_touch_start_forced_nonblocking_due_to_fling() {
-    return queue_->last_touch_start_forced_nonblocking_due_to_fling_;
+    return queue_->compositor_thread_only_
+        .last_touch_start_forced_nonblocking_due_to_fling;
   }
 
   void RunPendingTasksWithSimulatedRaf() {
     while (needs_main_frame_ || main_task_runner_->HasPendingTask()) {
       main_task_runner_->RunUntilIdle();
       needs_main_frame_ = false;
+      urgent_main_frame_ = false;
       frame_time_ += kFrameInterval;
       queue_->DispatchRafAlignedInput(frame_time_);
     }
@@ -298,6 +307,7 @@ class MainThreadEventQueueTest : public testing::Test,
   void RunSimulatedRafOnce() {
     if (needs_main_frame_) {
       needs_main_frame_ = false;
+      urgent_main_frame_ = false;
       frame_time_ += kFrameInterval;
       queue_->DispatchRafAlignedInput(frame_time_);
     }
@@ -327,7 +337,12 @@ class MainThreadEventQueueTest : public testing::Test,
     else
       non_raf_aligned_events_dispatched_ = true;
   }
-  void SetNeedsMainFrame() override { needs_main_frame_ = true; }
+  void SetNeedsMainFrame(bool urgent) override {
+    needs_main_frame_ = true;
+    urgent_main_frame_ = urgent;
+  }
+
+  bool RequestedMainFramePending() override { return needs_main_frame_; }
 
   Vector<ReceivedCallback> GetAndResetCallbackResults() {
     std::unique_ptr<HandledEventCallbackTracker> callback =
@@ -349,7 +364,9 @@ class MainThreadEventQueueTest : public testing::Test,
   Vector<std::unique_ptr<HandledTask>> handled_tasks_;
   std::unique_ptr<HandledEventCallbackTracker> handler_callback_;
 
+  bool requested_main_frames_are_urgent_ = false;
   bool needs_main_frame_ = false;
+  bool urgent_main_frame_ = false;
   bool handle_input_event_ = true;
   bool raf_aligned_events_dispatched_ = false;
   bool non_raf_aligned_events_dispatched_ = false;
@@ -364,17 +381,15 @@ class MainThreadEventQueueTest : public testing::Test,
       will_handle_input_event_callback_;
 };
 
-INSTANTIATE_TEST_SUITE_P(All, MainThreadEventQueueTest, ::testing::Bool());
-
-TEST_P(MainThreadEventQueueTest, ClientDoesntHandleInputEvent) {
+TEST_F(MainThreadEventQueueTest, ClientDoesntHandleInputEvent) {
   // Prevent MainThreadEventQueueClient::HandleInputEvent() from handling the
   // event, and have it return false. Then the MainThreadEventQueue should
   // call the handled callback.
   set_handle_input_event(false);
 
   // The blocking event used in this test is reported to the scheduler.
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(1);
 
   // Inject and try to dispatch an input event. This event is not considered
@@ -402,7 +417,7 @@ TEST_P(MainThreadEventQueueTest, ClientDoesntHandleInputEvent) {
                   CallbackReceivedState::kCalledAfterHandleEvent, false, 0)));
 }
 
-TEST_P(MainThreadEventQueueTest, NonBlockingWheel) {
+TEST_F(MainThreadEventQueueTest, NonBlockingWheel) {
   WebMouseWheelEvent kEvents[4] = {
       SyntheticWebMouseWheelEventBuilder::Build(
           10, 10, 0, 53, 0, ui::ScrollGranularity::kScrollByPixel),
@@ -417,8 +432,8 @@ TEST_P(MainThreadEventQueueTest, NonBlockingWheel) {
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(0);
 
   for (WebMouseWheelEvent& event : kEvents)
@@ -496,9 +511,9 @@ TEST_P(MainThreadEventQueueTest, NonBlockingWheel) {
   }
 }
 
-TEST_P(MainThreadEventQueueTest, NonBlockingTouch) {
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+TEST_F(MainThreadEventQueueTest, NonBlockingTouch) {
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(0);
 
   SyntheticWebTouchEvent kEvents[4];
@@ -592,7 +607,7 @@ TEST_P(MainThreadEventQueueTest, NonBlockingTouch) {
   }
 }
 
-TEST_P(MainThreadEventQueueTest, BlockingTouch) {
+TEST_F(MainThreadEventQueueTest, BlockingTouch) {
   SyntheticWebTouchEvent kEvents[4];
   kEvents[0].PressPoint(10, 10);
   kEvents[1].PressPoint(10, 10);
@@ -602,8 +617,8 @@ TEST_P(MainThreadEventQueueTest, BlockingTouch) {
   kEvents[3].PressPoint(10, 10);
   kEvents[3].MovePoint(0, 35, 35);
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(3);
   {
     // Ensure that coalescing takes place.
@@ -646,7 +661,7 @@ TEST_P(MainThreadEventQueueTest, BlockingTouch) {
                   CallbackReceivedState::kCalledWhileHandlingEvent, false, 2)));
 }
 
-TEST_P(MainThreadEventQueueTest, InterleavedEvents) {
+TEST_F(MainThreadEventQueueTest, InterleavedEvents) {
   WebMouseWheelEvent kWheelEvents[2] = {
       SyntheticWebMouseWheelEventBuilder::Build(
           10, 10, 0, 53, 0, ui::ScrollGranularity::kScrollByPixel),
@@ -659,8 +674,8 @@ TEST_P(MainThreadEventQueueTest, InterleavedEvents) {
   kTouchEvents[1].PressPoint(10, 10);
   kTouchEvents[1].MovePoint(0, 30, 30);
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(0);
 
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
@@ -711,7 +726,7 @@ TEST_P(MainThreadEventQueueTest, InterleavedEvents) {
   }
 }
 
-TEST_P(MainThreadEventQueueTest, RafAlignedMouseInput) {
+TEST_F(MainThreadEventQueueTest, RafAlignedMouseInput) {
   WebMouseEvent mouseDown = SyntheticWebMouseEventBuilder::Build(
       WebInputEvent::Type::kMouseDown, 10, 10, 0);
 
@@ -733,8 +748,8 @@ TEST_P(MainThreadEventQueueTest, RafAlignedMouseInput) {
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(0);
 
   // Simulate enqueing a discrete event, followed by continuous events and
@@ -800,7 +815,7 @@ TEST_P(MainThreadEventQueueTest, RafAlignedMouseInput) {
             handled_tasks_.at(4)->taskAsEvent()->Event().GetModifiers());
 }
 
-TEST_P(MainThreadEventQueueTest, RafAlignedTouchInput) {
+TEST_F(MainThreadEventQueueTest, RafAlignedTouchInput) {
   SyntheticWebTouchEvent kEvents[3];
   kEvents[0].PressPoint(10, 10);
   kEvents[1].PressPoint(10, 10);
@@ -811,8 +826,8 @@ TEST_P(MainThreadEventQueueTest, RafAlignedTouchInput) {
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(3);
 
   // Simulate enqueing a discrete event, followed by continuous events and
@@ -821,6 +836,10 @@ TEST_P(MainThreadEventQueueTest, RafAlignedTouchInput) {
   // immediately.
   for (SyntheticWebTouchEvent& event : kEvents)
     HandleEvent(event, blink::mojom::InputEventResultState::kSetNonBlocking);
+
+  EXPECT_TRUE(RequestedMainFramePending());
+  EXPECT_EQ(urgent_main_frame_, base::FeatureList::IsEnabled(
+                                    blink::features::kUrgentMainFrameForInput));
 
   EXPECT_EQ(3u, event_queue().size());
   EXPECT_TRUE(main_task_runner_->HasPendingTask());
@@ -831,6 +850,8 @@ TEST_P(MainThreadEventQueueTest, RafAlignedTouchInput) {
   EXPECT_THAT(GetAndResetCallbackResults(),
               testing::Each(ReceivedCallback(
                   CallbackReceivedState::kCalledWhileHandlingEvent, false, 0)));
+  EXPECT_FALSE(RequestedMainFramePending());
+  EXPECT_FALSE(urgent_main_frame_);
 
   // Simulate the rAF running before the PostTask occurs. The rAF
   // will consume everything.
@@ -883,7 +904,35 @@ TEST_P(MainThreadEventQueueTest, RafAlignedTouchInput) {
                            false, 5)));
 }
 
-TEST_P(MainThreadEventQueueTest, RafAlignedTouchInputCoalescedMoves) {
+TEST_F(MainThreadEventQueueTest, RafAlignedTouchInputUrgentMainFrame) {
+  base::test::ScopedFeatureList feature_list{
+      blink::features::kUrgentMainFrameForInput};
+  SyntheticWebTouchEvent event;
+  event.MovePoint(0, 20, 20);
+
+  EXPECT_FALSE(main_task_runner_->HasPendingTask());
+  EXPECT_EQ(0u, event_queue().size());
+
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_));
+
+  HandleEvent(event, blink::mojom::InputEventResultState::kNotConsumed);
+
+  // Main frame requests from a rAF-aligned input are urgent, and sent from the
+  // impl thread.
+  EXPECT_TRUE(RequestedMainFramePending());
+  EXPECT_TRUE(urgent_main_frame_);
+
+  EXPECT_EQ(1u, event_queue().size());
+  EXPECT_TRUE(needs_main_frame_);
+  main_task_runner_->RunUntilIdle();
+
+  RunPendingTasksWithSimulatedRaf();
+  EXPECT_FALSE(RequestedMainFramePending());
+  EXPECT_FALSE(urgent_main_frame_);
+}
+
+TEST_F(MainThreadEventQueueTest, RafAlignedTouchInputCoalescedMoves) {
   SyntheticWebTouchEvent kEvents[2];
   kEvents[0].PressPoint(10, 10);
   kEvents[0].MovePoint(0, 50, 50);
@@ -891,8 +940,8 @@ TEST_P(MainThreadEventQueueTest, RafAlignedTouchInputCoalescedMoves) {
   kEvents[1].MovePoint(0, 20, 20);
   kEvents[0].dispatch_type = WebInputEvent::DispatchType::kEventNonBlocking;
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(4);
 
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
@@ -953,9 +1002,9 @@ TEST_P(MainThreadEventQueueTest, RafAlignedTouchInputCoalescedMoves) {
                   CallbackReceivedState::kCalledWhileHandlingEvent, false, 2)));
 }
 
-TEST_P(MainThreadEventQueueTest, RafAlignedTouchInputThrottlingMoves) {
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+TEST_F(MainThreadEventQueueTest, RafAlignedTouchInputThrottlingMoves) {
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(3);
 
   SyntheticWebTouchEvent kEvents[2];
@@ -999,7 +1048,7 @@ TEST_P(MainThreadEventQueueTest, RafAlignedTouchInputThrottlingMoves) {
   EXPECT_EQ(0u, event_queue().size());
 }
 
-TEST_P(MainThreadEventQueueTest, LowLatency) {
+TEST_F(MainThreadEventQueueTest, LowLatency) {
   SyntheticWebTouchEvent kEvents[2];
   kEvents[0].PressPoint(10, 10);
   kEvents[1].PressPoint(10, 10);
@@ -1009,8 +1058,8 @@ TEST_P(MainThreadEventQueueTest, LowLatency) {
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(0);
 
   for (SyntheticWebTouchEvent& event : kEvents)
@@ -1073,13 +1122,13 @@ TEST_P(MainThreadEventQueueTest, LowLatency) {
   EXPECT_EQ(0u, event_queue().size());
 }
 
-TEST_P(MainThreadEventQueueTest, BlockingTouchesDuringFling) {
+TEST_F(MainThreadEventQueueTest, BlockingTouchesDuringFling) {
   SyntheticWebTouchEvent kEvents;
   kEvents.PressPoint(10, 10);
   kEvents.touch_start_or_first_touch_move = true;
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(4);
 
   EXPECT_FALSE(last_touch_start_forced_nonblocking_due_to_fling());
@@ -1158,13 +1207,13 @@ TEST_P(MainThreadEventQueueTest, BlockingTouchesDuringFling) {
   EXPECT_TRUE(Equal(kEvents, *last_touch_event));
 }
 
-TEST_P(MainThreadEventQueueTest, BlockingTouchesOutsideFling) {
+TEST_F(MainThreadEventQueueTest, BlockingTouchesOutsideFling) {
   SyntheticWebTouchEvent kEvents;
   kEvents.PressPoint(10, 10);
   kEvents.touch_start_or_first_touch_move = true;
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(4);
 
   HandleEvent(kEvents, blink::mojom::InputEventResultState::kNotConsumed);
@@ -1233,7 +1282,7 @@ TEST_P(MainThreadEventQueueTest, BlockingTouchesOutsideFling) {
   EXPECT_TRUE(Equal(kEvents, *last_touch_event));
 }
 
-TEST_P(MainThreadEventQueueTest, QueueingEventTimestampRecorded) {
+TEST_F(MainThreadEventQueueTest, QueueingEventTimestampRecorded) {
   WebMouseEvent kEvent = SyntheticWebMouseEventBuilder::Build(
       blink::WebInputEvent::Type::kMouseDown);
   // Set event timestamp to be in the past to simulate actual event
@@ -1256,7 +1305,7 @@ TEST_P(MainThreadEventQueueTest, QueueingEventTimestampRecorded) {
   EXPECT_LT(kHandledEvent->TimeStamp(), kHandledEvent->QueuedTimeStamp());
 }
 
-TEST_P(MainThreadEventQueueTest, QueuingTwoClosures) {
+TEST_F(MainThreadEventQueueTest, QueuingTwoClosures) {
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
@@ -1270,7 +1319,7 @@ TEST_P(MainThreadEventQueueTest, QueuingTwoClosures) {
   EXPECT_EQ(2u, handled_tasks_.at(1)->taskAsClosure());
 }
 
-TEST_P(MainThreadEventQueueTest, QueuingClosureWithRafEvent) {
+TEST_F(MainThreadEventQueueTest, QueuingClosureWithRafEvent) {
   SyntheticWebTouchEvent kEvents[2];
   kEvents[0].PressPoint(10, 10);
   kEvents[1].PressPoint(10, 10);
@@ -1284,8 +1333,8 @@ TEST_P(MainThreadEventQueueTest, QueuingClosureWithRafEvent) {
   EXPECT_TRUE(main_task_runner_->HasPendingTask());
   EXPECT_FALSE(needs_main_frame_);
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(2);
 
   HandleEvent(kEvents[0], blink::mojom::InputEventResultState::kNotConsumed);
@@ -1323,7 +1372,7 @@ TEST_P(MainThreadEventQueueTest, QueuingClosureWithRafEvent) {
             handled_tasks_.at(3)->taskAsEvent()->Event().GetType());
 }
 
-TEST_P(MainThreadEventQueueTest, QueuingClosuresBetweenEvents) {
+TEST_F(MainThreadEventQueueTest, QueuingClosuresBetweenEvents) {
   SyntheticWebTouchEvent kEvents[2];
   kEvents[0].PressPoint(10, 10);
   kEvents[1].PressPoint(10, 10);
@@ -1332,8 +1381,8 @@ TEST_P(MainThreadEventQueueTest, QueuingClosuresBetweenEvents) {
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(2);
 
   HandleEvent(kEvents[0], blink::mojom::InputEventResultState::kNotConsumed);
@@ -1362,7 +1411,7 @@ TEST_P(MainThreadEventQueueTest, QueuingClosuresBetweenEvents) {
             handled_tasks_.at(3)->taskAsEvent()->Event().GetType());
 }
 
-TEST_P(MainThreadEventQueueTest, BlockingTouchMoveBecomesNonBlocking) {
+TEST_F(MainThreadEventQueueTest, BlockingTouchMoveBecomesNonBlocking) {
   SyntheticWebTouchEvent kEvents[2];
   kEvents[0].PressPoint(10, 10);
   kEvents[0].MovePoint(0, 20, 20);
@@ -1377,8 +1426,8 @@ TEST_P(MainThreadEventQueueTest, BlockingTouchMoveBecomesNonBlocking) {
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(3);
   EXPECT_EQ(WebInputEvent::DispatchType::kBlocking, kEvents[0].dispatch_type);
   EXPECT_EQ(WebInputEvent::DispatchType::kEventNonBlocking,
@@ -1391,9 +1440,8 @@ TEST_P(MainThreadEventQueueTest, BlockingTouchMoveBecomesNonBlocking) {
   EXPECT_THAT(
       GetAndResetCallbackResults(),
       testing::ElementsAre(
-          ReceivedCallback(
-              CallbackReceivedState::kCalledAfterHandleEvent, false,
-              RuntimeEnabledFeatures::UnblockTouchMoveEarlierEnabled() ? 0 : 1),
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
+                           false, 0),
           ReceivedCallback(CallbackReceivedState::kCalledWhileHandlingEvent,
                            false, 0),
           ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
@@ -1415,7 +1463,7 @@ TEST_P(MainThreadEventQueueTest, BlockingTouchMoveBecomesNonBlocking) {
   EXPECT_FALSE(needs_main_frame_);
 }
 
-TEST_P(MainThreadEventQueueTest, BlockingTouchMoveWithTouchEnd) {
+TEST_F(MainThreadEventQueueTest, BlockingTouchMoveWithTouchEnd) {
   SyntheticWebTouchEvent kEvents[2];
   kEvents[0].PressPoint(10, 10);
   kEvents[0].MovePoint(0, 20, 20);
@@ -1428,8 +1476,8 @@ TEST_P(MainThreadEventQueueTest, BlockingTouchMoveWithTouchEnd) {
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(3);
   EXPECT_EQ(WebInputEvent::DispatchType::kBlocking, kEvents[0].dispatch_type);
   EXPECT_EQ(WebInputEvent::DispatchType::kBlocking, kEvents[1].dispatch_type);
@@ -1463,7 +1511,7 @@ TEST_P(MainThreadEventQueueTest, BlockingTouchMoveWithTouchEnd) {
   EXPECT_FALSE(needs_main_frame_);
 }
 
-TEST_P(MainThreadEventQueueTest,
+TEST_F(MainThreadEventQueueTest,
        UnblockTouchMoveAfterTouchStartAndFirstTouchMoveNotConsumed) {
   SyntheticWebTouchEvent touch_start;
   touch_start.PressPoint(10, 10);
@@ -1480,6 +1528,9 @@ TEST_P(MainThreadEventQueueTest,
   touch_moves[0].touch_start_or_first_touch_move = true;
 
   struct WillHandleInputEventCallback {
+    STACK_ALLOCATED();
+
+   public:
     void Run(const WebCoalescedInputEvent& event) {
       test.set_main_thread_ack_state(
           blink::mojom::InputEventResultState::kNotConsumed);
@@ -1525,8 +1576,8 @@ TEST_P(MainThreadEventQueueTest,
 
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(6);
   HandleEvent(touch_start, blink::mojom::InputEventResultState::kNotConsumed);
   HandleEvent(touch_moves[0],
@@ -1536,87 +1587,53 @@ TEST_P(MainThreadEventQueueTest,
   EXPECT_EQ(0u, event_queue().size());
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_FALSE(needs_main_frame_);
-  if (RuntimeEnabledFeatures::UnblockTouchMoveEarlierEnabled()) {
-    EXPECT_THAT(
-        GetAndResetCallbackResults(),
-        testing::ElementsAre(
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 1),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 2),
-            // These callbacks were run just after handling the first touchmove.
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 2),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             true, 2),
-            // These callbacks were run just after handling the second
-            // touchmove.
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 3),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             true, 3)));
-    EXPECT_THAT(
-        handled_tasks_,
-        ::testing::ElementsAre(
-            // touch_start should remain blocking.
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchStart,
-                                touch_start.unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking),
-            // touch_moves[0] should remain blocking.
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
-                                touch_moves[0].unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking),
-            // touch_moves[1] was unblocked while it was in the queue.
-            // touch_moves[2] was coalesced into touch_moves[1].
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
-                                touch_moves[1].unique_touch_event_id,
-                                WebInputEvent::DispatchType::kEventNonBlocking),
-            // touch_moves[3] was unblocked while it was in the queue.
-            // touch_moves[4] was coalesced into touch_moves[3].
-            IsHandledTouchEvent(
-                WebInputEvent::Type::kTouchMove,
-                touch_moves[3].unique_touch_event_id,
-                WebInputEvent::DispatchType::kEventNonBlocking)));
-  } else {
-    EXPECT_THAT(
-        GetAndResetCallbackResults(),
-        testing::ElementsAre(
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 1),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 2),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 3),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             true, 3),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 4),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             true, 4)));
-    EXPECT_THAT(
-        handled_tasks_,
-        ::testing::ElementsAre(
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchStart,
-                                touch_start.unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking),
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
-                                touch_moves[0].unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking),
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
-                                touch_moves[1].unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking),
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
-                                touch_moves[3].unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking)));
-  }
+  EXPECT_THAT(
+      GetAndResetCallbackResults(),
+      testing::ElementsAre(
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
+                           false, 1),
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
+                           false, 2),
+          // These callbacks were run just after handling the first touchmove.
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
+                           false, 2),
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent, true,
+                           2),
+          // These callbacks were run just after handling the second
+          // touchmove.
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
+                           false, 3),
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent, true,
+                           3)));
+  EXPECT_THAT(
+      handled_tasks_,
+      ::testing::ElementsAre(
+          // touch_start should remain blocking.
+          IsHandledTouchEvent(WebInputEvent::Type::kTouchStart,
+                              touch_start.unique_touch_event_id,
+                              WebInputEvent::DispatchType::kBlocking),
+          // touch_moves[0] should remain blocking.
+          IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
+                              touch_moves[0].unique_touch_event_id,
+                              WebInputEvent::DispatchType::kBlocking),
+          // touch_moves[1] was unblocked while it was in the queue.
+          // touch_moves[2] was coalesced into touch_moves[1].
+          IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
+                              touch_moves[1].unique_touch_event_id,
+                              WebInputEvent::DispatchType::kEventNonBlocking),
+          // touch_moves[3] was unblocked while it was in the queue.
+          // touch_moves[4] was coalesced into touch_moves[3].
+          IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
+                              touch_moves[3].unique_touch_event_id,
+                              WebInputEvent::DispatchType::kEventNonBlocking)));
 
   // Start another touch sequence, with the first touch_move consumed. This
   // is not in a standalone test case to test the last unblocking status won't
   // leak into this sequence.
   handled_tasks_.clear();
   will_handle_input_event_callback.consume_first_touch_move = true;
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(6);
   HandleEvent(touch_start, blink::mojom::InputEventResultState::kNotConsumed);
   HandleEvent(touch_moves[0],
@@ -1656,8 +1673,8 @@ TEST_P(MainThreadEventQueueTest,
   handled_tasks_.clear();
   will_handle_input_event_callback.consume_touch_start = true;
   will_handle_input_event_callback.consume_first_touch_move = false;
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(6);
   HandleEvent(touch_start, blink::mojom::InputEventResultState::kNotConsumed);
   HandleEvent(touch_moves[0],
@@ -1697,80 +1714,46 @@ TEST_P(MainThreadEventQueueTest,
   // move are consumed, like the first touch sequence.
   handled_tasks_.clear();
   will_handle_input_event_callback.consume_touch_start = false;
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(6);
   HandleEvent(touch_start, blink::mojom::InputEventResultState::kNotConsumed);
   HandleEvent(touch_moves[0],
               blink::mojom::InputEventResultState::kNotConsumed);
   RunPendingTasksWithSimulatedRaf();
-  if (RuntimeEnabledFeatures::UnblockTouchMoveEarlierEnabled()) {
-    EXPECT_THAT(
-        GetAndResetCallbackResults(),
-        testing::ElementsAre(
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 1),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 2),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 2),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             true, 2),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 3),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             true, 3)));
-    EXPECT_THAT(
-        handled_tasks_,
-        ::testing::ElementsAre(
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchStart,
-                                touch_start.unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking),
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
-                                touch_moves[0].unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking),
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
-                                touch_moves[1].unique_touch_event_id,
-                                WebInputEvent::DispatchType::kEventNonBlocking),
-            IsHandledTouchEvent(
-                WebInputEvent::Type::kTouchMove,
-                touch_moves[3].unique_touch_event_id,
-                WebInputEvent::DispatchType::kEventNonBlocking)));
-  } else {
-    EXPECT_THAT(
-        GetAndResetCallbackResults(),
-        testing::ElementsAre(
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 1),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 2),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 3),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             true, 3),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             false, 4),
-            ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
-                             true, 4)));
-    EXPECT_THAT(
-        handled_tasks_,
-        ::testing::ElementsAre(
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchStart,
-                                touch_start.unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking),
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
-                                touch_moves[0].unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking),
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
-                                touch_moves[1].unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking),
-            IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
-                                touch_moves[3].unique_touch_event_id,
-                                WebInputEvent::DispatchType::kBlocking)));
-  }
+  EXPECT_THAT(
+      GetAndResetCallbackResults(),
+      testing::ElementsAre(
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
+                           false, 1),
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
+                           false, 2),
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
+                           false, 2),
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent, true,
+                           2),
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent,
+                           false, 3),
+          ReceivedCallback(CallbackReceivedState::kCalledAfterHandleEvent, true,
+                           3)));
+  EXPECT_THAT(
+      handled_tasks_,
+      ::testing::ElementsAre(
+          IsHandledTouchEvent(WebInputEvent::Type::kTouchStart,
+                              touch_start.unique_touch_event_id,
+                              WebInputEvent::DispatchType::kBlocking),
+          IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
+                              touch_moves[0].unique_touch_event_id,
+                              WebInputEvent::DispatchType::kBlocking),
+          IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
+                              touch_moves[1].unique_touch_event_id,
+                              WebInputEvent::DispatchType::kEventNonBlocking),
+          IsHandledTouchEvent(WebInputEvent::Type::kTouchMove,
+                              touch_moves[3].unique_touch_event_id,
+                              WebInputEvent::DispatchType::kEventNonBlocking)));
 }
 
-TEST_P(MainThreadEventQueueTest, UnbufferedDispatchTouchEvent) {
+TEST_F(MainThreadEventQueueTest, UnbufferedDispatchTouchEvent) {
   SyntheticWebTouchEvent kEvents[3];
   kEvents[0].PressPoint(10, 10);
   kEvents[1].PressPoint(10, 10);
@@ -1781,8 +1764,8 @@ TEST_P(MainThreadEventQueueTest, UnbufferedDispatchTouchEvent) {
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(3);
 
   EXPECT_EQ(WebInputEvent::DispatchType::kBlocking, kEvents[0].dispatch_type);
@@ -1807,8 +1790,8 @@ TEST_P(MainThreadEventQueueTest, UnbufferedDispatchTouchEvent) {
   EXPECT_FALSE(needs_main_frame_);
 }
 
-TEST_P(MainThreadEventQueueTest, PointerEventsCoalescing) {
-  queue_->HasPointerRawUpdateEventHandlers(true);
+TEST_F(MainThreadEventQueueTest, PointerEventsCoalescing) {
+  queue_->SetHasPointerRawUpdateEventHandlers(true);
   WebMouseEvent mouse_move = SyntheticWebMouseEventBuilder::Build(
       WebInputEvent::Type::kMouseMove, 10, 10, 0);
   SyntheticWebTouchEvent touch_move;
@@ -1836,15 +1819,15 @@ TEST_P(MainThreadEventQueueTest, PointerEventsCoalescing) {
   EXPECT_FALSE(needs_main_frame_);
 }
 
-TEST_P(MainThreadEventQueueTest, PointerRawUpdateEvents) {
+TEST_F(MainThreadEventQueueTest, PointerRawUpdateEvents) {
   WebMouseEvent mouse_move = SyntheticWebMouseEventBuilder::Build(
       WebInputEvent::Type::kMouseMove, 10, 10, 0);
 
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(0);
 
   HandleEvent(mouse_move, blink::mojom::InputEventResultState::kSetNonBlocking);
@@ -1853,14 +1836,14 @@ TEST_P(MainThreadEventQueueTest, PointerRawUpdateEvents) {
   EXPECT_EQ(0u, event_queue().size());
   EXPECT_FALSE(needs_main_frame_);
 
-  queue_->HasPointerRawUpdateEventHandlers(true);
+  queue_->SetHasPointerRawUpdateEventHandlers(true);
   HandleEvent(mouse_move, blink::mojom::InputEventResultState::kSetNonBlocking);
   EXPECT_EQ(2u, event_queue().size());
   RunPendingTasksWithSimulatedRaf();
   EXPECT_EQ(0u, event_queue().size());
   EXPECT_FALSE(needs_main_frame_);
 
-  queue_->HasPointerRawUpdateEventHandlers(false);
+  queue_->SetHasPointerRawUpdateEventHandlers(false);
   SyntheticWebTouchEvent touch_move;
   touch_move.PressPoint(10, 10);
   touch_move.MovePoint(0, 50, 50);
@@ -1870,7 +1853,7 @@ TEST_P(MainThreadEventQueueTest, PointerRawUpdateEvents) {
   EXPECT_EQ(0u, event_queue().size());
   EXPECT_FALSE(needs_main_frame_);
 
-  queue_->HasPointerRawUpdateEventHandlers(true);
+  queue_->SetHasPointerRawUpdateEventHandlers(true);
   HandleEvent(touch_move, blink::mojom::InputEventResultState::kSetNonBlocking);
   EXPECT_EQ(2u, event_queue().size());
   RunPendingTasksWithSimulatedRaf();
@@ -1878,7 +1861,7 @@ TEST_P(MainThreadEventQueueTest, PointerRawUpdateEvents) {
   EXPECT_FALSE(needs_main_frame_);
 }
 
-TEST_P(MainThreadEventQueueTest, UnbufferedDispatchMouseEvent) {
+TEST_F(MainThreadEventQueueTest, UnbufferedDispatchMouseEvent) {
   WebMouseEvent mouse_down = SyntheticWebMouseEventBuilder::Build(
       WebInputEvent::Type::kMouseDown, 10, 10, 0);
   WebMouseEvent mouse_move = SyntheticWebMouseEventBuilder::Build(
@@ -1889,8 +1872,8 @@ TEST_P(MainThreadEventQueueTest, UnbufferedDispatchMouseEvent) {
   EXPECT_FALSE(main_task_runner_->HasPendingTask());
   EXPECT_EQ(0u, event_queue().size());
 
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(0);
 
   HandleEvent(mouse_down, blink::mojom::InputEventResultState::kSetNonBlocking);
@@ -1919,7 +1902,7 @@ TEST_P(MainThreadEventQueueTest, UnbufferedDispatchMouseEvent) {
 // are not coalesced with other events. During pointer lock,
 // kRelativeMotionEvent is sent to the Renderer only to update the new screen
 // position. Events of this kind shouldn't be dispatched or coalesced.
-TEST_P(MainThreadEventQueueTest, PointerEventsWithRelativeMotionCoalescing) {
+TEST_F(MainThreadEventQueueTest, PointerEventsWithRelativeMotionCoalescing) {
   WebMouseEvent mouse_move = SyntheticWebMouseEventBuilder::Build(
       WebInputEvent::Type::kMouseMove, 10, 10, 0);
 
@@ -1927,11 +1910,11 @@ TEST_P(MainThreadEventQueueTest, PointerEventsWithRelativeMotionCoalescing) {
   EXPECT_EQ(0u, event_queue().size());
 
   // Non blocking events are not reported to the scheduler.
-  EXPECT_CALL(*widget_scheduler_,
-              DidHandleInputEventOnMainThread(testing::_, testing::_))
+  EXPECT_CALL(*widget_scheduler_, DidHandleInputEventOnMainThread(
+                                      testing::_, testing::_, testing::_))
       .Times(0);
 
-  queue_->HasPointerRawUpdateEventHandlers(true);
+  queue_->SetHasPointerRawUpdateEventHandlers(true);
 
   // Inject two mouse move events. For each event injected, there will be two
   // events in the queue. One for kPointerRawUpdate and another kMouseMove
@@ -2016,7 +1999,7 @@ TEST_P(MainThreadEventQueueTest, PointerEventsWithRelativeMotionCoalescing) {
 
 // Verifies that after rAF-aligned or non-rAF-aligned events are dispatched,
 // clients are notified that the dispatch is done.
-TEST_P(MainThreadEventQueueTest, InputEventsDispatchedNotified) {
+TEST_F(MainThreadEventQueueTest, InputEventsDispatchedNotified) {
   WebKeyboardEvent key_down(WebInputEvent::Type::kRawKeyDown, 0,
                             base::TimeTicks::Now());
   WebKeyboardEvent key_up(WebInputEvent::Type::kKeyUp, 0,

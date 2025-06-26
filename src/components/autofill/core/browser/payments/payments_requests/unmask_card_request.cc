@@ -56,10 +56,26 @@ void ParseAs3dsChallengeOption(
         CardUnmaskChallengeOption::ChallengeOptionId(*challenge_id);
   }
 
-  const auto* url_to_open = defined_challenge_option.FindString("redirect_url");
-  if (url_to_open) {
-    parsed_challenge_option.url_to_open = GURL(*url_to_open);
+  Vcn3dsChallengeOptionMetadata metadata;
+  if (const auto* url_to_open =
+          defined_challenge_option.FindString("popup_url")) {
+    metadata.url_to_open = GURL(*url_to_open);
   }
+
+  if (const auto* query_params =
+          defined_challenge_option.FindDict("query_params_for_popup_close")) {
+    if (const auto* success_query_param_name =
+            query_params->FindString("success_query_param_name")) {
+      metadata.success_query_param_name = *success_query_param_name;
+    }
+
+    if (const auto* failure_query_param_name =
+            query_params->FindString("failure_query_param_name")) {
+      metadata.failure_query_param_name = *failure_query_param_name;
+    }
+  }
+
+  parsed_challenge_option.vcn_3ds_metadata = std::move(metadata);
 
   parsed_challenge_option.challenge_info = l10n_util::GetStringUTF16(
       IDS_AUTOFILL_CARD_UNMASK_AUTHENTICATION_SELECTION_DIALOG_THREE_DOMAIN_SECURE_CHALLENGE_INFO);
@@ -144,8 +160,7 @@ void ParseAsCvcChallengeOption(
       challenge_info_position_string = l10n_util::GetStringUTF16(
           IDS_AUTOFILL_CARD_UNMASK_PROMPT_SECURITY_CODE_POSITION_BACK_OF_CARD);
     } else {
-      NOTREACHED_IN_MIGRATION();
-      parsed_challenge_option.cvc_position = CvcPosition::kUnknown;
+      NOTREACHED();
     }
   }
 
@@ -196,7 +211,7 @@ CardUnmaskChallengeOption ParseCardUnmaskChallengeOption(
   // `defined_challenge_option` to the defined challenge option found, parse the
   // challenge option, and return it.
   else if ((defined_challenge_option =
-                challenge_option.FindDict("redirect_challenge_option")) &&
+                challenge_option.FindDict("popup_challenge_option")) &&
            IsVcn3dsEnabled()) {
     ParseAs3dsChallengeOption(*defined_challenge_option,
                               parsed_challenge_option);
@@ -209,11 +224,10 @@ CardUnmaskChallengeOption ParseCardUnmaskChallengeOption(
 }  // namespace
 
 UnmaskCardRequest::UnmaskCardRequest(
-    const PaymentsNetworkInterface::UnmaskRequestDetails& request_details,
+    const UnmaskRequestDetails& request_details,
     const bool full_sync_enabled,
-    base::OnceCallback<
-        void(AutofillClient::PaymentsRpcResult,
-             const PaymentsNetworkInterface::UnmaskResponseDetails&)> callback)
+    base::OnceCallback<void(PaymentsAutofillClient::PaymentsRpcResult,
+                            const UnmaskResponseDetails&)> callback)
     : request_details_(request_details),
       full_sync_enabled_(full_sync_enabled),
       callback_(std::move(callback)) {
@@ -273,7 +287,9 @@ std::string UnmaskCardRequest::GetRequestContent() {
                    request_details_.user_response.enable_fido_auth);
 
   if (request_details_.selected_challenge_option) {
+    base::Value::Dict selected_idv_challenge_option;
     base::Value::Dict challenge_option;
+    // TODO(crbug.com/356665737): fix selected challenge option for cvc and otp
     if (request_details_.selected_challenge_option->type ==
         CardUnmaskChallengeOptionType::kCvc) {
       challenge_option.Set(
@@ -286,32 +302,34 @@ std::string UnmaskCardRequest::GetRequestContent() {
 
       std::string_view cvc_position = "CVC_POSITION_UNKNOWN";
       switch (request_details_.selected_challenge_option->cvc_position) {
-        case autofill::CvcPosition::kFrontOfCard:
+        case CvcPosition::kFrontOfCard:
           cvc_position = "CVC_POSITION_FRONT";
           break;
-        case autofill::CvcPosition::kBackOfCard:
+        case CvcPosition::kBackOfCard:
           cvc_position = "CVC_POSITION_BACK";
           break;
-        case autofill::CvcPosition::kUnknown:
-          NOTREACHED_IN_MIGRATION();
-          break;
+        case CvcPosition::kUnknown:
+          NOTREACHED();
       }
       challenge_option.Set("cvc_position", cvc_position);
 
-      request_dict.Set("cvc_challenge_option", std::move(challenge_option));
+      selected_idv_challenge_option.Set("cvc_challenge_option",
+                                        std::move(challenge_option));
     } else if (request_details_.selected_challenge_option->type ==
                CardUnmaskChallengeOptionType::kThreeDomainSecure) {
       challenge_option.Set(
           "challenge_id",
           request_details_.selected_challenge_option->id.value());
-      challenge_option.Set(
-          "redirect_url",
-          request_details_.selected_challenge_option->url_to_open.spec());
-      challenge_option.Set("redirect_completion_proof",
-                           request_details_.redirect_completion_proof.value());
-      request_dict.Set("redirect_challenge_option",
-                       std::move(challenge_option));
+      challenge_option.Set("popup_url",
+                           request_details_.selected_challenge_option
+                               ->vcn_3ds_metadata->url_to_open.spec());
+      challenge_option.Set("redirect_completion_result",
+                           request_details_.redirect_completion_result.value());
+      selected_idv_challenge_option.Set("popup_challenge_option",
+                                        std::move(challenge_option));
     }
+    request_dict.Set("selected_idv_challenge_option",
+                     std::move(selected_idv_challenge_option));
   }
 
   bool is_cvc_auth = !request_details_.user_response.cvc.empty();
@@ -330,21 +348,23 @@ std::string UnmaskCardRequest::GetRequestContent() {
   }
 
   if (request_details_.last_committed_primary_main_frame_origin.has_value()) {
-    base::Value::Dict virtual_card_request_info;
-    virtual_card_request_info.Set(
-        "merchant_domain",
+    std::string merchant_domain =
         request_details_.last_committed_primary_main_frame_origin.value()
-            .spec());
-    request_dict.Set("virtual_card_request_info",
-                     std::move(virtual_card_request_info));
-  }
-
-  if (base::FeatureList::IsEnabled(
-          features::kAutofillEnableMerchantDomainInUnmaskCardRequest) &&
-      request_details_.merchant_domain_for_footprints.has_value()) {
-    request_dict.Set(
-        "merchant_domain",
-        request_details_.merchant_domain_for_footprints->Serialize());
+            .spec();
+    if (request_details_.card.record_type() ==
+        CreditCard::RecordType::kVirtualCard) {
+      base::Value::Dict virtual_card_request_info;
+      virtual_card_request_info.Set("merchant_domain", merchant_domain);
+      request_dict.Set("virtual_card_request_info",
+                       std::move(virtual_card_request_info));
+    } else if (request_details_.card.card_info_retrieval_enrollment_state() ==
+               CreditCard::CardInfoRetrievalEnrollmentState::
+                   kRetrievalEnrolled) {
+      base::Value::Dict card_retrieval_request_info;
+      card_retrieval_request_info.Set("merchant_domain", merchant_domain);
+      request_dict.Set("card_retrieval_request_info",
+                       std::move(card_retrieval_request_info));
+    }
   }
 
   std::string json_request;
@@ -371,7 +391,7 @@ std::string UnmaskCardRequest::GetRequestContent() {
         base::EscapeUrlEncodedData(json_request, true).c_str());
   }
 
-  VLOG(3) << "getrealpan request body: " << request_content;
+  DVLOG(3) << "getrealpan request body: " << request_content;
   return request_content;
 }
 
@@ -430,13 +450,13 @@ void UnmaskCardRequest::ParseResponse(const base::Value::Dict& response) {
   if (request_details_.card.record_type() ==
       CreditCard::RecordType::kVirtualCard) {
     response_details_.card_type =
-        AutofillClient::PaymentsRpcCardType::kVirtualCard;
+        PaymentsAutofillClient::PaymentsRpcCardType::kVirtualCard;
   } else if (request_details_.card.record_type() ==
              CreditCard::RecordType::kMaskedServerCard) {
     response_details_.card_type =
-        AutofillClient::PaymentsRpcCardType::kServerCard;
+        PaymentsAutofillClient::PaymentsRpcCardType::kServerCard;
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   const base::Value::Dict* decline_details =
@@ -469,15 +489,15 @@ void UnmaskCardRequest::ParseResponse(const base::Value::Dict& response) {
 
 bool UnmaskCardRequest::IsResponseComplete() {
   switch (response_details_.card_type) {
-    case AutofillClient::PaymentsRpcCardType::kUnknown:
+    case PaymentsAutofillClient::PaymentsRpcCardType::kUnknown:
       return false;
-    case AutofillClient::PaymentsRpcCardType::kServerCard:
+    case PaymentsAutofillClient::PaymentsRpcCardType::kServerCard:
       // When PAN is returned, the response is complete and no further
       // authentication is needed. When PAN is not returned, the response has to
       // contain context token in order to be considered a success.
       return !response_details_.real_pan.empty() ||
              !response_details_.context_token.empty();
-    case AutofillClient::PaymentsRpcCardType::kVirtualCard:
+    case PaymentsAutofillClient::PaymentsRpcCardType::kVirtualCard:
       // When the response contains a PAN, it must also contain expiration and
       // CVV to be considered a success. When the response does not contain PAN,
       // it must contain a context token instead.
@@ -487,7 +507,7 @@ bool UnmaskCardRequest::IsResponseComplete() {
 }
 
 void UnmaskCardRequest::RespondToDelegate(
-    AutofillClient::PaymentsRpcResult result) {
+    PaymentsAutofillClient::PaymentsRpcResult result) {
   std::move(callback_).Run(result, response_details_);
 }
 
@@ -523,6 +543,19 @@ bool UnmaskCardRequest::IsRetryableFailure(const std::string& error_code) {
   return !response_details_.flow_status.empty();
 }
 
+std::string UnmaskCardRequest::GetHistogramName() const {
+  return "UnmaskCardRequest";
+}
+
+std::optional<base::TimeDelta> UnmaskCardRequest::GetTimeout() const {
+  if (!base::FeatureList::IsEnabled(
+          features::kAutofillUnmaskCardRequestTimeout)) {
+    return std::nullopt;
+  }
+  // Hardcode 30s to be consistent with the server side timeout.
+  return base::Seconds(30);
+}
+
 bool UnmaskCardRequest::IsAllCardInformationValidIncludingDcvv() {
   return !response_details_.real_pan.empty() &&
          !response_details_.expiration_month.empty() &&
@@ -532,7 +565,7 @@ bool UnmaskCardRequest::IsAllCardInformationValidIncludingDcvv() {
 
 bool UnmaskCardRequest::CanPerformVirtualCardAuth() {
   return !response_details_.context_token.empty() &&
-         (response_details_.fido_request_options.has_value() ||
+         (!response_details_.fido_request_options.empty() ||
           !response_details_.card_unmask_challenge_options.empty() ||
           !response_details_.flow_status.empty());
 }

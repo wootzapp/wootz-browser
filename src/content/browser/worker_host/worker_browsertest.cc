@@ -52,9 +52,10 @@
 #include "net/test/embedded_test_server/http_response.h"
 #include "net/test/spawned_test_server/spawned_test_server.h"
 #include "net/test/test_data_directory.h"
+#include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 #include "services/network/public/mojom/cookie_manager.mojom.h"
 #include "services/network/public/mojom/network_context.mojom.h"
-#include "third_party/blink/public/common/features.h"
+#include "services/network/public/mojom/reconnect_event_observer.mojom.h"
 #include "third_party/blink/public/common/storage_key/storage_key.h"
 #include "url/gurl.h"
 
@@ -81,44 +82,22 @@ bool SupportsSharedWorker() {
 #endif
 }
 
+std::string ParamToTestSuffix(const testing::TestParamInfo<bool>& info) {
+  if (info.param) {
+    return "PrivateNetworkAccessForWorkersEnabled";
+  } else {
+    return "PrivateNetworkAccessForWorkersDisabled";
+  }
+}
+
 }  // namespace
 
-// These tests are parameterized on following options:
-// 0 => Base
-// 1 => kPlzDedicatedWorker enabled
-// 2 => kPrivateNetworkAccessForWorkers enabled
 class WorkerTest : public ContentBrowserTest,
-                   public testing::WithParamInterface<int> {
+                   public testing::WithParamInterface<bool> {
  public:
   WorkerTest() : select_certificate_count_(0) {
-    switch (GetParam()) {
-      case 0:  // Base case.
-        feature_list_.InitWithFeatures({},
-                                       {
-                                           blink::features::kPlzDedicatedWorker,
-                                       });
-        break;
-      case 1:  // PlzDedicatedWorker
-        feature_list_.InitWithFeatures(
-            {
-                blink::features::kPlzDedicatedWorker,
-            },
-            {
-                features::kPrivateNetworkAccessForWorkers,
-            });
-        break;
-      case 2:  // PrivateNetworkAccessForWorkers
-        feature_list_.InitWithFeatures(
-            {
-                blink::features::kPlzDedicatedWorker,
-                features::kPrivateNetworkAccessForWorkers,
-            },
-            {});
-        break;
-      default:
-        NOTREACHED_IN_MIGRATION();
-        break;
-    }
+    feature_list_.InitWithFeatureState(
+      features::kPrivateNetworkAccessForWorkers, GetParam());
   }
 
   void SetUpOnMainThread() override {
@@ -167,8 +146,10 @@ class WorkerTest : public ContentBrowserTest,
     RunTest(shell(), url, expect_failure);
   }
 
-  static void QuitUIMessageLoop(base::OnceClosure callback,
-                                bool is_primary_main_frame /* unused */) {
+  static void QuitUIMessageLoop(
+      base::OnceClosure callback,
+      bool is_primary_main_frame_navigation /* unused */,
+      bool is_navigation /* unused */) {
     GetUIThreadTaskRunner({})->PostTask(FROM_HERE, std::move(callback));
   }
 
@@ -320,7 +301,7 @@ class WorkerTest : public ContentBrowserTest,
   base::test::ScopedFeatureList feature_list_;
 };
 
-INSTANTIATE_TEST_SUITE_P(All, WorkerTest, testing::Range(0, 3));
+INSTANTIATE_TEST_SUITE_P(All, WorkerTest, testing::Bool(), ParamToTestSuffix);
 
 IN_PROC_BROWSER_TEST_P(WorkerTest, SingleWorker) {
   RunTest(GetTestURL("single_worker.html", std::string()));
@@ -340,7 +321,8 @@ class WorkerTestWithAllowFileAccessFromFiles : public WorkerTest {
 
 INSTANTIATE_TEST_SUITE_P(All,
                          WorkerTestWithAllowFileAccessFromFiles,
-                         testing::Range(0, 3));
+                         testing::Bool(),
+                         ParamToTestSuffix);
 
 IN_PROC_BROWSER_TEST_P(WorkerTestWithAllowFileAccessFromFiles,
                        SingleWorkerFromFile) {
@@ -920,7 +902,7 @@ class WorkerFromCredentiallessIframeNikBrowserTest : public WorkerTest {
 
 INSTANTIATE_TEST_SUITE_P(All,
                          WorkerFromCredentiallessIframeNikBrowserTest,
-                         testing::Range(0, 3));
+                         testing::Bool(), ParamToTestSuffix);
 
 IN_PROC_BROWSER_TEST_P(WorkerFromCredentiallessIframeNikBrowserTest,
                        SharedWorkerRequestIsDoneWithPartitionedNetworkState) {
@@ -961,7 +943,10 @@ IN_PROC_BROWSER_TEST_P(WorkerFromCredentiallessIframeNikBrowserTest,
         ->PreconnectSockets(1, worker_url.DeprecatedGetOriginAsURL(),
                             network::mojom::CredentialsMode::kInclude,
                             main_rfh->GetIsolationInfoForSubresources()
-                                .network_anonymization_key());
+                                .network_anonymization_key(),
+                            net::MutableNetworkTrafficAnnotationTag(
+                                TRAFFIC_ANNOTATION_FOR_TESTS),
+                            std::nullopt, mojo::NullRemote());
 
     connection_tracker_->WaitForAcceptedConnections(1);
     EXPECT_EQ(1u, connection_tracker_->GetAcceptedSocketCount());

@@ -44,10 +44,12 @@ class ElementInternals;
 class ExceptionState;
 class FormAssociated;
 class HTMLFormElement;
-class HTMLSelectListElement;
 class KeyboardEvent;
+class PointerEvent;
 class TextControlElement;
 class V8UnionStringLegacyNullToEmptyStringOrTrustedScript;
+class V8UnionBooleanOrTogglePopoverOptions;
+class ShowPopoverOptions;
 
 enum TranslateAttributeMode {
   kTranslateAttributeYes,
@@ -74,7 +76,6 @@ enum class PopoverTriggerAction {
   kToggle,
   kShow,
   kHide,
-  kHover,
 };
 
 enum class HidePopoverFocusBehavior {
@@ -106,12 +107,14 @@ class CORE_EXPORT HTMLElement : public Element {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-
   HTMLElement(const QualifiedName& tag_name, Document&, ConstructionType);
 
   bool HasTagName(const HTMLQualifiedName& name) const {
+    DCHECK_EQ(name.NamespaceURI(), namespaceURI());
     return HasLocalName(name.LocalName());
   }
+
+  const char* NameInHeapSnapshot() const override;
 
   String title() const final;
 
@@ -155,6 +158,7 @@ class CORE_EXPORT HTMLElement : public Element {
   bool ShouldSerializeEndTag() const;
 
   virtual HTMLFormElement* formOwner() const;
+  virtual HTMLElement* formForBinding() const;
 
   HTMLFormElement* FindFormAncestor() const;
 
@@ -188,6 +192,7 @@ class CORE_EXPORT HTMLElement : public Element {
   virtual bool IsLabelable() const;
   // |labels| IDL attribute implementation for IsLabelable()==true elements.
   LabelsNodeList* labels();
+  bool HasActiveLabel() const;
 
   // https://html.spec.whatwg.org/C/#interactive-content
   virtual bool IsInteractiveContent() const;
@@ -229,7 +234,7 @@ class CORE_EXPORT HTMLElement : public Element {
   void UpdateDirectionalityAfterInputTypeChange(const AtomicString& old_value,
                                                 const AtomicString& new_value);
   void AdjustDirectionAutoAfterRecalcAssignedNodes();
-  bool CalculateAndAdjustAutoDirectionality();
+  virtual bool CalculateAndAdjustAutoDirectionality();
 
   V8UnionBooleanOrStringOrUnrestrictedDouble* hidden() const;
   void setHidden(const V8UnionBooleanOrStringOrUnrestrictedDouble*);
@@ -240,9 +245,6 @@ class CORE_EXPORT HTMLElement : public Element {
   // Popover API related functions.
   void UpdatePopoverAttribute(const AtomicString&);
   bool HasPopoverAttribute() const;
-  // The IDL reflections:
-  AtomicString popover() const;
-  void setPopover(const AtomicString& value);
   PopoverValueType PopoverType() const;
   bool popoverOpen() const;
   // IsPopoverReady returns true if the popover is in a state where it can be
@@ -257,8 +259,11 @@ class CORE_EXPORT HTMLElement : public Element {
                       bool include_event_handler_text,
                       Document* expected_document) const;
   bool togglePopover(ExceptionState& exception_state);
-  bool togglePopover(bool force, ExceptionState& exception_state);
+  bool togglePopover(V8UnionBooleanOrTogglePopoverOptions* options_or_force,
+                     ExceptionState& exception_state);
   void showPopover(ExceptionState& exception_state);
+  void showPopover(ShowPopoverOptions* options,
+                   ExceptionState& exception_state);
   void hidePopover(ExceptionState& exception_state);
   // |exception_state| can be nullptr when exceptions can't be thrown, such as
   // when the browser hides a popover during light dismiss or shows a popover in
@@ -279,7 +284,8 @@ class CORE_EXPORT HTMLElement : public Element {
       Element& top_layer_element,
       TopLayerElementType top_layer_element_type);
 
-  static void HandlePopoverLightDismiss(const Event& event, const Node& node);
+  static void HandlePopoverLightDismiss(const PointerEvent& event,
+                                        const Node& node);
   void InvokePopover(Element& invoker);
   void SetPopoverFocusOnShow();
   // This hides all visible popovers up to, but not including,
@@ -288,32 +294,32 @@ class CORE_EXPORT HTMLElement : public Element {
                                    Document&,
                                    HidePopoverFocusBehavior,
                                    HidePopoverTransitionBehavior);
-  // Popover hover triggering behavior.
-  bool IsNodePopoverDescendant(const Node& node) const;
-  void MaybeQueuePopoverHideEvent();
-  static void HoveredElementChanged(Element* old_element, Element* new_element);
 
-  void SetPopoverOwnerSelectListElement(HTMLSelectListElement* element);
-  HTMLSelectListElement* popoverOwnerSelectListElement() const;
+  void SetImplicitAnchor(Element* element);
+  Element* implicitAnchor() const;
 
   bool DispatchFocusEvent(
       Element* old_focused_element,
       mojom::blink::FocusType,
       InputDeviceCapabilities* source_capabilities) override;
 
-  // This allows customization of how Invokes are handled, per element.
-  // The default HTMLElement behavior handles popovers, and specific
+  // This allows customization of how Invoker Commands are handled, per
+  // element. The default HTMLElement behavior handles popovers, and specific
   // element subclasses - such as HTMLDialogElement - can handle
-  // other invocation actions such as showModal. Implementations should return
+  // other commands such as showModal. Implementations should return
   // `true` if they have handled, so that overrides can exit early.
   // Additionally, override implementations should not execute their own
-  // behavior before calling `HTMLElement::HandleInvokeInternal` as that
+  // behavior before calling `HTMLElement::HandleCommandInternal` as that
   // override governs the logic for global attributes such as `popover`;
   // for example a `<dialog popover>` should run `popover` invocation steps
   // before `<dialog>` invocation steps.
   // See: crbug.com/1490919, https://open-ui.org/components/invokers.explainer/
-  bool IsValidInvokeAction(HTMLElement& invoker, InvokeAction action) override;
-  bool HandleInvokeInternal(HTMLElement& invoker, InvokeAction action) override;
+  bool IsValidBuiltinCommand(HTMLElement& invoker,
+                             CommandEventType command) override;
+  bool IsValidBuiltinPopoverCommand(HTMLElement& invoker,
+                                    CommandEventType command);
+  bool HandleCommandInternal(HTMLElement& invoker,
+                             CommandEventType command) override;
 
   // This allows developers to enable or disable browser-provided writing
   // suggestions. If the attribute is not explicitly set on an element, it
@@ -323,21 +329,20 @@ class CORE_EXPORT HTMLElement : public Element {
   void setWritingSuggestions(const AtomicString& value);
 
  protected:
-  bool SupportsFocus(UpdateBehavior update_behavior =
-                         UpdateBehavior::kStyleAndLayout) const override;
+  FocusableState SupportsFocus(UpdateBehavior update_behavior) const override;
 
   enum AllowPercentage { kDontAllowPercentageValues, kAllowPercentageValues };
   enum AllowZero { kDontAllowZeroValues, kAllowZeroValues };
-  void AddHTMLLengthToStyle(MutableCSSPropertyValueSet*,
+  void AddHTMLLengthToStyle(HeapVector<CSSPropertyValue, 8>&,
                             CSSPropertyID,
                             const String& value,
                             AllowPercentage = kAllowPercentageValues,
                             AllowZero = kAllowZeroValues);
-  void AddHTMLColorToStyle(MutableCSSPropertyValueSet*,
+  void AddHTMLColorToStyle(HeapVector<CSSPropertyValue, 8>&,
                            CSSPropertyID,
                            const String& color);
   void AddHTMLBackgroundImageToStyle(
-      MutableCSSPropertyValueSet*,
+      HeapVector<CSSPropertyValue, 8>&,
       const String& url_value,
       const AtomicString& initiator_name = g_null_atom);
 
@@ -347,18 +352,18 @@ class CORE_EXPORT HTMLElement : public Element {
   // https://html.spec.whatwg.org/multipage/rendering.html#map-to-the-aspect-ratio-property-(using-dimension-rules)
   void ApplyAspectRatioToStyle(const AtomicString& width,
                                const AtomicString& height,
-                               MutableCSSPropertyValueSet*);
+                               HeapVector<CSSPropertyValue, 8>&);
   // This corresponds to:
   //  'map to the aspect-ratio property'
   // described by:
   // https://html.spec.whatwg.org/multipage/rendering.html#map-to-the-aspect-ratio-property
   void ApplyIntegerAspectRatioToStyle(const AtomicString& width,
                                       const AtomicString& height,
-                                      MutableCSSPropertyValueSet*);
+                                      HeapVector<CSSPropertyValue, 8>&);
   void ApplyAlignmentAttributeToStyle(const AtomicString&,
-                                      MutableCSSPropertyValueSet*);
+                                      HeapVector<CSSPropertyValue, 8>&);
   void ApplyBorderAttributeToStyle(const AtomicString&,
-                                   MutableCSSPropertyValueSet*);
+                                   HeapVector<CSSPropertyValue, 8>&);
 
   void AttributeChanged(const AttributeModificationParams&) override;
   void ParseAttribute(const AttributeModificationParams&) override;
@@ -368,7 +373,7 @@ class CORE_EXPORT HTMLElement : public Element {
   void CollectStyleForPresentationAttribute(
       const QualifiedName&,
       const AtomicString&,
-      MutableCSSPropertyValueSet*) override;
+      HeapVector<CSSPropertyValue, 8>&) override;
   unsigned ParseBorderWidthAttribute(const AtomicString&) const;
 
   InsertionNotificationRequest InsertedInto(ContainerNode&) override;
@@ -386,7 +391,7 @@ class CORE_EXPORT HTMLElement : public Element {
 
   void ApplyAspectRatioToStyle(double width,
                                double height,
-                               MutableCSSPropertyValueSet* style);
+                               HeapVector<CSSPropertyValue, 8>& style);
 
   DocumentFragment* TextToFragment(const String&, ExceptionState&);
 
@@ -394,12 +399,14 @@ class CORE_EXPORT HTMLElement : public Element {
 
   void HandleKeypressEvent(KeyboardEvent&);
 
+  void SetPopoverInvoker(Element* invoker);
+
   static void CloseEntirePopoverStack(
       HeapVector<Member<HTMLElement>>& stack,
       HidePopoverFocusBehavior focus_behavior,
       HidePopoverTransitionBehavior transition_behavior);
 
-  static AttributeTriggers* TriggersForAttributeName(
+  static const AttributeTriggers* TriggersForAttributeName(
       const QualifiedName& attr_name);
 
   void OnDirAttrChanged(const AttributeModificationParams&);
@@ -407,6 +414,8 @@ class CORE_EXPORT HTMLElement : public Element {
   void OnLangAttrChanged(const AttributeModificationParams&);
   void OnNonceAttrChanged(const AttributeModificationParams&);
   void OnPopoverChanged(const AttributeModificationParams&);
+  void OnContainerTimingAttrChanged(const AttributeModificationParams&);
+  void OnRoleAttrChanged(const AttributeModificationParams&);
 
   int AdjustedOffsetForZoom(LayoutUnit);
   int OffsetTopOrLeft(bool top);

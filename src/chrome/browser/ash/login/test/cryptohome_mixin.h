@@ -35,6 +35,8 @@ class CryptohomeMixin : public InProcessBrowserTestMixin,
 
   void ApplyAuthConfig(const AccountId& user,
                        const test::UserAuthConfig& config);
+  void ApplyAuthConfigIfUserExists(const AccountId& user,
+                                   const test::UserAuthConfig& config);
 
   void MarkUserAsExisting(const AccountId& user);
   // Returns {authsession_id, broadcast_id} pair.
@@ -46,6 +48,7 @@ class CryptohomeMixin : public InProcessBrowserTestMixin,
                         const std::string& pin,
                         const std::string& pin_salt);
   void SetPinLocked(const AccountId& user, bool locked);
+  void SetPinType(const AccountId& user, bool legacy);
   bool HasPinFactor(const AccountId& user);
   void AddRecoveryFactor(const AccountId& user);
   bool HasRecoveryFactor(const AccountId& user);
@@ -53,6 +56,8 @@ class CryptohomeMixin : public InProcessBrowserTestMixin,
   void SendLegacyFingerprintSuccessScan();
   void SendLegacyFingerprintFailureScan();
   void SendLegacyFingerprintFailureLockoutScan();
+
+  bool IsAuthenticated(const AccountId& user);
 };
 
 }  // namespace ash

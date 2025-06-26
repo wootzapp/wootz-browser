@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
+
 #include "ash/accessibility/accessibility_controller.h"
 #include "ash/accessibility/autoclick/autoclick_controller.h"
 #include "ash/capture_mode/capture_mode_bar_view.h"
@@ -24,7 +26,6 @@
 #include "ash/capture_mode/fake_folder_selection_dialog_factory.h"
 #include "ash/capture_mode/fake_video_source_provider.h"
 #include "ash/capture_mode/test_capture_mode_delegate.h"
-#include "ash/constants/ash_features.h"
 #include "ash/display/window_tree_host_manager.h"
 #include "ash/public/cpp/capture_mode/capture_mode_test_api.h"
 #include "ash/public/cpp/holding_space/holding_space_controller.h"
@@ -50,13 +51,11 @@
 #include "ash/test/ash_test_base.h"
 #include "ash/test/ash_test_util.h"
 #include "ash/wm/window_state.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/system/system_monitor.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/timer/timer.h"
 #include "cc/paint/skia_paint_canvas.h"
 #include "chromeos/ui/frame/frame_header.h"
@@ -77,6 +76,7 @@
 #include "ui/gfx/image/image_unittest_util.h"
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/message_center/message_center.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
@@ -124,7 +124,7 @@ bool IsWindowStackedRightBelow(aura::Window* window, aura::Window* sibling) {
   DCHECK_EQ(window->parent(), sibling->parent());
   const auto& children = window->parent()->children();
   const int sibling_index =
-      base::ranges::find(children, sibling) - children.begin();
+      std::ranges::find(children, sibling) - children.begin();
   return sibling_index > 0 && children[sibling_index - 1] == window;
 }
 
@@ -138,7 +138,8 @@ gfx::Rect GetTooSmallToFitCameraRegion() {
 
 class CaptureModeCameraTest : public AshTestBase {
  public:
-  CaptureModeCameraTest() = default;
+  CaptureModeCameraTest()
+      : AshTestBase(base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
   CaptureModeCameraTest(const CaptureModeCameraTest&) = delete;
   CaptureModeCameraTest& operator=(const CaptureModeCameraTest&) = delete;
   ~CaptureModeCameraTest() override = default;
@@ -1790,10 +1791,7 @@ TEST_F(CaptureModeCameraTest, FocusableCameraPreviewInRegion) {
   // capture button.
   SendKey(ui::VKEY_TAB, event_generator, ui::EF_SHIFT_DOWN);
   EXPECT_EQ(FocusGroup::kCaptureButton, test_api.GetCurrentFocusGroup());
-  // The index of the focused item depends on whether the recording type drop
-  // down button exists or not.
-  const size_t expected_index = features::IsGifRecordingEnabled() ? 1u : 0u;
-  EXPECT_EQ(expected_index, test_api.GetCurrentFocusIndex());
+  EXPECT_EQ(1u, test_api.GetCurrentFocusIndex());
 
   // Shift tab again until the focus is moved from the capture button back to
   // the resize button inside the camera preview.
@@ -2448,18 +2446,12 @@ TEST_F(CaptureModeCameraTest, RecordNumberOfConnectedCamerasHistogramTest) {
   histogram_tester.ExpectBucketCount(histogram_name, 2, 2);
 }
 
-// Flaky on LSAN / ASAN: https://crbug.com/331316079.
-#if defined(LEAK_SANITIZER) || defined(ADDRESS_SANITIZER)
-#define MAYBE_RecordCameraReconnectDurationHistogramTest \
-  DISABLED_RecordCameraReconnectDurationHistogramTest
-#else
-#define MAYBE_RecordCameraReconnectDurationHistogramTest \
-  RecordCameraReconnectDurationHistogramTest
-#endif
+// TODO(crbug.com/331316079): Flaky on LSAN / ASAN.
+// TODO(crbug.com/350946974): Flaky in general.
 // Tests that the duration for disconnected camera to become available again is
 // recorded correctly both in clamshell and tablet mode.
 TEST_F(CaptureModeCameraTest,
-       MAYBE_RecordCameraReconnectDurationHistogramTest) {
+       DISABLED_RecordCameraReconnectDurationHistogramTest) {
   constexpr char kHistogramNameBase[] = "CameraReconnectDuration";
   base::HistogramTester histogram_tester;
 
@@ -4242,7 +4234,7 @@ TEST_F(CameraPreviewWithNotificationTest,
 
 class CameraPreviewWithHoldingSpaceTest : public CaptureModeCameraTest {
  public:
-  CameraPreviewWithHoldingSpaceTest() = default;
+  CameraPreviewWithHoldingSpaceTest() { set_start_session(false); }
   CameraPreviewWithHoldingSpaceTest(const CameraPreviewWithHoldingSpaceTest&) =
       delete;
   CameraPreviewWithHoldingSpaceTest& operator=(
@@ -4268,13 +4260,10 @@ class CameraPreviewWithHoldingSpaceTest : public CaptureModeCameraTest {
     HoldingSpaceController::Get()->RegisterClientAndModelForUser(
         user_account, client(), model());
 
-    TestSessionControllerClient* session = GetSessionControllerClient();
-    session->AddUserSession(kTestUser);
-    holding_space_prefs::MarkTimeOfFirstAvailability(
-        session->GetUserPrefService(user_account));
-    holding_space_prefs::MarkTimeOfFirstAdd(
-        session->GetUserPrefService(user_account));
-    session->SwitchActiveUser(user_account);
+    auto pref_service = TestPrefServiceProvider::CreateUserPrefServiceSimple();
+    holding_space_prefs::MarkTimeOfFirstAvailability(pref_service.get());
+    holding_space_prefs::MarkTimeOfFirstAdd(pref_service.get());
+    SimulateUserLogin({}, user_account, std::move(pref_service));
   }
 
   void TearDown() override {
@@ -4387,6 +4376,35 @@ TEST_F(ProjectorCaptureModeCameraTest, FirstCamSelectedByDefault) {
   // Starting a projector session should result in selecting the first available
   // camera by default, and its preview should be visible.
   StartProjectorModeSession();
+  EXPECT_TRUE(camera_controller->selected_camera().is_valid());
+  EXPECT_TRUE(camera_controller->camera_preview_widget());
+}
+
+// Regression test for http://b/353883311. Tests that starting a default capture
+// mode session and dismissing it during an active Projector recording should
+// not revert the automatically selected camera for the on-going recording.
+TEST_F(ProjectorCaptureModeCameraTest,
+       DefaultCaptureSessionWhileProjectorRecording) {
+  AddDefaultCamera();
+
+  // Start a Projector-initiated session and start recording. The first
+  // available camera will be selected by default.
+  StartProjectorModeSession();
+  auto* camera_controller = GetCameraController();
+  EXPECT_TRUE(camera_controller->selected_camera().is_valid());
+  EXPECT_TRUE(camera_controller->camera_preview_widget());
+  CaptureModeTestApi test_api;
+  test_api.PerformCapture();
+  WaitForRecordingToStart();
+  auto* controller = CaptureModeController::Get();
+  EXPECT_TRUE(controller->is_recording_in_progress());
+  EXPECT_TRUE(camera_controller->camera_preview_widget());
+
+  // Start a new default screenshot session while the projector recording is in
+  // progress. Ending this session should not revert the auto-selected camera.
+  test_api.StartForFullscreen(/*for_video=*/false);
+  controller->Stop();
+  EXPECT_TRUE(controller->is_recording_in_progress());
   EXPECT_TRUE(camera_controller->selected_camera().is_valid());
   EXPECT_TRUE(camera_controller->camera_preview_widget());
 }
@@ -4675,8 +4693,7 @@ TEST_P(CaptureModeCameraFramesTest, SelectAnotherCameraWhileRendering) {
 }
 
 // Regression test for https://crbug.com/1316230.
-// Flaky (b/323909190)
-TEST_P(CaptureModeCameraFramesTest, DISABLED_CameraFatalErrors) {
+TEST_P(CaptureModeCameraFramesTest, CameraFatalErrors) {
   CaptureModeTestApi().StartForFullscreen(/*for_video=*/true);
   auto* camera_controller = GetCameraController();
   EXPECT_TRUE(camera_controller->selected_camera().is_valid());
@@ -4719,7 +4736,7 @@ TEST_F(NoSessionCaptureModeCameraTest, RequestCameraInfoAfterUserLogsIn) {
   {
     base::RunLoop loop;
     camera_controller->SetOnCameraListReceivedForTesting(loop.QuitClosure());
-    SimulateUserLogin("example@gmail.com", user_manager::UserType::kRegular);
+    SimulateUserLogin({"example@gmail.com"});
     loop.Run();
   }
 
@@ -4762,6 +4779,9 @@ TEST_F(CaptureModeCameraTest, CameraPrivacyIndicators) {
   EXPECT_FALSE(camera_controller->camera_preview_widget());
   // The widget closes its window asynchronously, run a loop to finish that.
   base::RunLoop().RunUntilIdle();
+  // Fast forward by the minimum duration the privacy indicator should be held.
+  task_environment()->FastForwardBy(
+      PrivacyIndicatorsController::kPrivacyIndicatorsMinimumHoldDuration);
   EXPECT_FALSE(IsCameraIndicatorIconVisible());
   EXPECT_FALSE(IsMicrophoneIndicatorIconVisible());
   EXPECT_FALSE(message_center->FindNotificationById(
@@ -4816,10 +4836,39 @@ TEST_F(CaptureModeCameraTest, DuringRecordingPrivacyIndicators) {
   capture_controller->EndVideoRecording(
       EndRecordingReason::kStopRecordingButton);
   WaitForCaptureFileToBeSaved();
+  // Fast forward by the minimum duration the privacy indicator should be held.
+  task_environment()->FastForwardBy(
+      PrivacyIndicatorsController::kPrivacyIndicatorsMinimumHoldDuration);
   EXPECT_FALSE(IsCameraIndicatorIconVisible());
   EXPECT_FALSE(IsMicrophoneIndicatorIconVisible());
   EXPECT_FALSE(message_center->FindNotificationById(
       capture_mode_privacy_notification_id));
+}
+
+TEST_F(CaptureModeCameraTest, CameraPreviewViewAccessibleProperties) {
+  StartCaptureSession(CaptureModeSource::kRegion, CaptureModeType::kVideo);
+  AddDefaultCamera();
+  GetCameraController()->SetSelectedCamera(CameraId(kDefaultCameraModelId, 1));
+  auto* camera_preview_view = GetCameraController()->camera_preview_view();
+
+  ui::AXNodeData data;
+  camera_preview_view->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.role, ax::mojom::Role::kVideo);
+  EXPECT_EQ(
+      data.GetString16Attribute(ax::mojom::StringAttribute::kName),
+      l10n_util::GetStringUTF16(IDS_ASH_SCREEN_CAPTURE_CAMERA_PREVIEW_FOCUSED));
+}
+
+TEST_F(CaptureModeCameraTest, CaptureModeMenuHeaderAccessibleProperties) {
+  StartCaptureSession(CaptureModeSource::kFullscreen, CaptureModeType::kVideo);
+  OpenSettingsView();
+  CaptureModeSettingsTestApi test_api;
+  AddDefaultCamera();
+  auto* menu_header = test_api.GetCameraMenuHeader();
+  ui::AXNodeData data;
+
+  menu_header->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.role, ax::mojom::Role::kHeader);
 }
 
 }  // namespace ash

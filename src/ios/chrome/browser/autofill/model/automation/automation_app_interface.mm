@@ -13,11 +13,12 @@
 #import "base/strings/utf_string_conversions.h"
 #import "base/uuid.h"
 #import "base/values.h"
-#import "components/autofill/core/browser/address_data_manager.h"
-#import "components/autofill/core/browser/payments_data_manager.h"
-#import "components/autofill/core/browser/personal_data_manager.h"
+#import "components/autofill/core/browser/data_manager/addresses/address_data_manager.h"
+#import "components/autofill/core/browser/data_manager/payments/payments_data_manager.h"
+#import "components/autofill/core/browser/data_manager/personal_data_manager.h"
+#import "components/autofill/core/browser/field_types.h"
 #import "ios/chrome/browser/autofill/model/personal_data_manager_factory.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/test/app/chrome_test_util.h"
 #import "ios/chrome/test/app/tab_test_util.h"
 #import "ios/testing/nserror_util.h"
@@ -42,9 +43,9 @@ autofill::FieldType FieldTypeFromString(std::string_view str, NSError** error) {
   if (string_to_field_type_map.empty()) {
     for (size_t i = autofill::NO_SERVER_DATA;
          i < autofill::MAX_VALID_FIELD_TYPE; ++i) {
-      autofill::AutofillType autofill_type(static_cast<autofill::FieldType>(i));
-      string_to_field_type_map[autofill_type.ToStringView()] =
-          autofill_type.GetStorableType();
+      autofill::FieldType field_type(static_cast<autofill::FieldType>(i));
+      string_to_field_type_map[autofill::FieldTypeToStringView(field_type)] =
+          field_type;
     }
 
     for (size_t i = static_cast<size_t>(autofill::HtmlFieldType::kUnspecified);
@@ -131,21 +132,21 @@ NSError* PrepareAutofillProfileWithValues(
 
   // Clear all existing local data and save the profile and credit card
   // generated to the personal data manager.
-  ChromeBrowserState* browser_state =
-      chrome_test_util::GetOriginalBrowserState();
-  PersonalDataManager* personal_data_manager =
-      PersonalDataManagerFactory::GetForBrowserState(browser_state);
-  for (const autofill::CreditCard* local_card :
-       personal_data_manager->payments_data_manager().GetLocalCreditCards()) {
-    personal_data_manager->RemoveByGUID(local_card->guid());
+  ProfileIOS* profileIOS = chrome_test_util::GetOriginalProfile();
+  PersonalDataManager* pdm =
+      PersonalDataManagerFactory::GetForProfile(profileIOS);
+  autofill::PaymentsDataManager& paydm = pdm->payments_data_manager();
+  for (const autofill::CreditCard* local_card : paydm.GetLocalCreditCards()) {
+    paydm.RemoveByGUID(local_card->guid());
   }
+  autofill::AddressDataManager& adm = pdm->address_data_manager();
   for (const autofill::AutofillProfile* local_profile :
-       personal_data_manager->address_data_manager().GetProfilesFromSource(
-           autofill::AutofillProfile::Source::kLocalOrSyncable)) {
-    personal_data_manager->RemoveByGUID(local_profile->guid());
+       adm.GetProfilesByRecordType(
+           autofill::AutofillProfile::RecordType::kLocalOrSyncable)) {
+    adm.RemoveProfile(local_profile->guid());
   }
-  personal_data_manager->payments_data_manager().AddCreditCard(credit_card);
-  personal_data_manager->address_data_manager().AddProfile(profile);
+  paydm.AddCreditCard(credit_card);
+  adm.AddProfile(profile);
 
   return nil;
 }

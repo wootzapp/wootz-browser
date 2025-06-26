@@ -4,7 +4,7 @@
 
 package org.chromium.chrome.browser.keyboard_accessory;
 
-import static org.chromium.content_public.browser.test.util.TestThreadUtils.runOnUiThreadBlocking;
+import static org.chromium.base.ThreadUtils.runOnUiThreadBlocking;
 
 import android.app.Activity;
 import android.content.Context;
@@ -44,21 +44,12 @@ public class FakeKeyboard extends ChromeKeyboardVisibilityDelegate {
     }
 
     protected int getStaticKeyboardHeight() {
-        return (int) getActivity().getResources().getDisplayMetrics().density * KEYBOARD_HEIGHT_DP;
-    }
-
-    @Override
-    public boolean hideSoftKeyboardOnly(View view) {
-        return hideAndroidSoftKeyboard(view);
+        return (int)
+                (getActivity().getResources().getDisplayMetrics().density * KEYBOARD_HEIGHT_DP);
     }
 
     @Override
     public boolean isSoftKeyboardShowing(Context context, View view) {
-        return mIsShowing;
-    }
-
-    @Override
-    protected boolean isAndroidSoftKeyboardShowing(Context context, View view) {
         return mIsShowing;
     }
 
@@ -84,7 +75,7 @@ public class FakeKeyboard extends ChromeKeyboardVisibilityDelegate {
     }
 
     @Override
-    protected boolean hideAndroidSoftKeyboard(View view) {
+    public boolean hideSoftKeyboardOnly(View view) {
         boolean keyboardWasVisible = mIsShowing;
         mIsShowing = false;
         runOnUiThreadBlocking(
@@ -103,7 +94,7 @@ public class FakeKeyboard extends ChromeKeyboardVisibilityDelegate {
     }
 
     @Override
-    public int calculateKeyboardHeight(View rootView) {
+    public int calculateTotalKeyboardHeight(View rootView) {
         return mIsShowing ? getStaticKeyboardHeight() : 0;
     }
 }

@@ -4,17 +4,32 @@
 
 #include "net/base/proxy_chain.h"
 
+#include <algorithm>
 #include <ostream>
 #include <vector>
 
 #include "base/check.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
+#include "base/pickle.h"
 #include "base/strings/stringprintf.h"
+#include "build/buildflag.h"
 #include "net/base/proxy_server.h"
 #include "net/base/proxy_string_util.h"
+#include "net/net_buildflags.h"
 
 namespace net {
+
+namespace {
+bool ShouldAllowQuicForAllChains() {
+  bool should_allow = false;
+
+#if BUILDFLAG(ENABLE_QUIC_PROXY_SUPPORT)
+  should_allow = true;
+#endif  // BUILDFLAG(ENABLE_QUIC_PROXY_SUPPORT)
+
+  return should_allow;
+}
+}  // namespace
 
 ProxyChain::ProxyChain() {
   proxy_server_list_ = std::nullopt;
@@ -38,6 +53,40 @@ ProxyChain::ProxyChain(std::vector<ProxyServer> proxy_server_list)
     : proxy_server_list_(std::move(proxy_server_list)) {
   if (!IsValidInternal()) {
     proxy_server_list_ = std::nullopt;
+  }
+}
+
+bool ProxyChain::InitFromPickle(base::PickleIterator* pickle_iter) {
+  if (!pickle_iter->ReadInt(&ip_protection_chain_id_)) {
+    return false;
+  }
+  size_t chain_length = 0;
+  if (!pickle_iter->ReadLength(&chain_length)) {
+    return false;
+  }
+
+  std::vector<ProxyServer> proxy_server_list;
+  for (size_t i = 0; i < chain_length; ++i) {
+    proxy_server_list.push_back(ProxyServer::CreateFromPickle(pickle_iter));
+  }
+  proxy_server_list_ = std::move(proxy_server_list);
+  if (!IsValidInternal()) {
+    proxy_server_list_ = std::nullopt;
+    return false;
+  }
+  return true;
+}
+
+void ProxyChain::Persist(base::Pickle* pickle) const {
+  DCHECK(IsValid());
+  pickle->WriteInt(ip_protection_chain_id_);
+  if (length() > static_cast<size_t>(INT_MAX) - 1) {
+    pickle->WriteInt(0);
+    return;
+  }
+  pickle->WriteInt(static_cast<int>(length()));
+  for (const auto& proxy_server : proxy_server_list_.value()) {
+    proxy_server.Persist(pickle);
   }
 }
 
@@ -117,14 +166,24 @@ bool ProxyChain::IsValidInternal() const {
   if (is_direct()) {
     return true;
   }
+  bool should_allow_quic =
+      is_for_ip_protection() || ShouldAllowQuicForAllChains();
   if (is_single_proxy()) {
     bool is_valid = proxy_server_list_.value().at(0).is_valid();
     if (proxy_server_list_.value().at(0).is_quic()) {
-      is_valid = is_valid && is_for_ip_protection();
+      is_valid = is_valid && should_allow_quic;
     }
     return is_valid;
   }
   DCHECK(is_multi_proxy());
+
+#if !BUILDFLAG(ENABLE_BRACKETED_PROXY_URIS)
+  // A chain can only be multi-proxy in release builds if it is for ip
+  // protection.
+  if (!is_for_ip_protection() && is_multi_proxy()) {
+    return false;
+  }
+#endif  // !BUILDFLAG(ENABLE_BRACKETED_PROXY_URIS)
 
   // Verify that the chain is zero or more SCHEME_QUIC servers followed by zero
   // or more SCHEME_HTTPS servers.
@@ -144,8 +203,9 @@ bool ProxyChain::IsValidInternal() const {
     }
   }
 
-  // QUIC is only allowed for IP protection.
-  return !seen_quic || is_for_ip_protection();
+  // QUIC is only allowed for IP protection unless in debug builds where it is
+  // generally available.
+  return !seen_quic || should_allow_quic;
 }
 
 std::ostream& operator<<(std::ostream& os, const ProxyChain& proxy_chain) {

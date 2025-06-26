@@ -16,8 +16,7 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "components/country_codes/country_codes.h"
-#include "components/search_engines/choice_made_location.h"
-#include "components/search_engines/default_search_manager.h"
+#include "components/regional_capabilities/regional_capabilities_switches.h"
 #include "components/search_engines/search_engine_choice/search_engine_choice_utils.h"
 #include "components/search_engines/search_engines_switches.h"
 #include "components/search_engines/template_url_service.h"
@@ -86,6 +85,9 @@ class SearchEngineChoiceDialogInteractiveUiTest
     // the profile country.
     command_line->AppendSwitchASCII(
         variations::switches::kVariationsOverrideCountry, "be");
+
+    command_line->AppendSwitch(
+        switches::kIgnoreNoFirstRunForSearchEngineChoiceScreen);
   }
 
   void SetUpInProcessBrowserTestFixture() override {
@@ -109,8 +111,6 @@ class SearchEngineChoiceDialogInteractiveUiTest
               /*force_chrome_build=*/true);
   base::HistogramTester histogram_tester_;
   base::UserActionTester user_action_tester_;
-  base::test::ScopedFeatureList scoped_feature_list_{
-      switches::kSearchEngineChoiceTrigger};
 };
 
 IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogInteractiveUiTest,
@@ -121,7 +121,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogInteractiveUiTest,
   int first_search_engine_id =
       search_engine_choice_service->GetSearchEngines().at(0)->prepopulate_id();
 
-  RunTestSequence(InAnyContext(Steps(
+  RunTestSequence(InAnyContext(
       WaitForShow(kSearchEngineChoiceDialogId),
       InstrumentNonTabWebView(kWebContentsId, kSearchEngineChoiceDialogId),
       Do([&] {
@@ -143,14 +143,14 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogInteractiveUiTest,
       PressJsButton(kWebContentsId, kRadioButton),
       WaitForButtonEnabled(kWebContentsId, kActionButton),
       PressJsButton(kWebContentsId, kActionButton),
-      WaitForHide(kSearchEngineChoiceDialogId))));
+      WaitForHide(kSearchEngineChoiceDialogId)));
 
   HistogramTester().ExpectBucketCount(
       search_engines::kSearchEngineChoiceScreenEventsHistogram,
       search_engines::SearchEngineChoiceScreenEvents::kLearnMoreWasDisplayed,
       1);
 
-  EXPECT_FALSE(search_engine_choice_service->IsShowingDialog(browser()));
+  EXPECT_FALSE(search_engine_choice_service->IsShowingDialog(*browser()));
   TemplateURLService* template_url_service =
       TemplateURLServiceFactory::GetForProfile(browser()->profile());
   const TemplateURL* default_search_engine =
@@ -178,14 +178,7 @@ IN_PROC_BROWSER_TEST_F(SearchEngineChoiceDialogInteractiveUiTest,
       WindowOpenDisposition::CURRENT_TAB,
       ui_test_utils::BROWSER_TEST_WAIT_FOR_LOAD_STOP));
 
-  EXPECT_FALSE(search_engine_choice_service->IsShowingDialog(browser()));
-
-  PrefService* pref_service = browser()->profile()->GetPrefs();
-  const base::Value::Dict& template_url_dict = pref_service->GetDict(
-      DefaultSearchManager::kDefaultSearchProviderDataPrefName);
-  EXPECT_EQ(
-      template_url_dict.FindInt(DefaultSearchManager::kChoiceLocation),
-      static_cast<int>(search_engines::ChoiceMadeLocation::kChoiceScreen));
+  EXPECT_FALSE(search_engine_choice_service->IsShowingDialog(*browser()));
 
   // We expect that the value was recorded at least once because more than one
   // navigation could happen in the background.

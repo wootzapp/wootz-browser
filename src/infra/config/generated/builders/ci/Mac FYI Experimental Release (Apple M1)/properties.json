@@ -71,7 +71,8 @@
           "builder": "gpu-fyi-try-mac-arm64-apple-m1-exp",
           "group": "tryserver.chromium.mac"
         }
-      ]
+      ],
+      "targets_spec_directory": "src/infra/config/generated/builders/ci/Mac FYI Experimental Release (Apple M1)/targets"
     }
   },
   "$recipe_engine/resultdb/test_presentation": {
@@ -82,6 +83,9 @@
     ]
   },
   "builder_group": "chromium.gpu.fyi",
+  "gardener_rotations": [
+    "chromium.gpu"
+  ],
   "perf_dashboard_machine_group": "ChromiumGPUFYI",
   "recipe": "chromium",
   "sheriff_rotations": [

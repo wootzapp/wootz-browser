@@ -12,6 +12,7 @@
 #include "base/types/optional_ref.h"
 #include "base/unguessable_token.h"
 #include "components/safe_browsing/core/browser/db/v4_protocol_manager_util.h"
+#include "components/safe_browsing/core/common/proto/csd.pb.h"
 
 namespace content {
 class WebContents;
@@ -49,14 +50,12 @@ class UrlCheckerDelegate
       const security_interstitials::UnsafeResource& resource,
       const std::string& method,
       const net::HttpRequestHeaders& headers,
-      bool is_main_frame,
       bool has_user_gesture) = 0;
 
   // Starts observing user input events to display a SafeBrowsing interstitial
   // page when an event is received.
   virtual void StartObservingInteractionsForDelayedBlockingPageHelper(
-      const security_interstitials::UnsafeResource& resource,
-      bool is_main_frame) = 0;
+      const security_interstitials::UnsafeResource& resource) = 0;
 
   // An allowlisted URL is considered safe and therefore won't be checked with
   // the SafeBrowsing database.
@@ -92,13 +91,26 @@ class UrlCheckerDelegate
       const base::RepeatingCallback<content::WebContents*()>&
           web_contents_getter) = 0;
 
+  // Send a CSBRR through UI manager to report the discrepancy info from URL
+  // real-time and hash real-time lookups.
+  virtual void SendUrlRealTimeAndHashRealTimeDiscrepancyReport(
+      std::unique_ptr<ClientSafeBrowsingReportRequest> report,
+      const base::RepeatingCallback<content::WebContents*()>&
+          web_contents_getter) = 0;
+
+  // Returns if the user has enhanced protection enabled to help determine if
+  // the background HPRT lookups can be sent.
+  virtual bool AreBackgroundHashRealTimeSampleLookupsAllowed(
+      const base::RepeatingCallback<content::WebContents*()>&
+          web_contents_getter) = 0;
+
   virtual const SBThreatTypeSet& GetThreatTypes() = 0;
   virtual SafeBrowsingDatabaseManager* GetDatabaseManager() = 0;
   virtual BaseUIManager* GetUIManager() = 0;
 
  protected:
   friend class base::RefCountedThreadSafe<UrlCheckerDelegate>;
-  virtual ~UrlCheckerDelegate() {}
+  virtual ~UrlCheckerDelegate() = default;
 };
 
 }  // namespace safe_browsing

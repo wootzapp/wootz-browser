@@ -122,7 +122,7 @@ WrappedSkImageBacking::WrappedSkImageBacking(
     const gfx::ColorSpace& color_space,
     GrSurfaceOrigin surface_origin,
     SkAlphaType alpha_type,
-    uint32_t usage,
+    gpu::SharedImageUsageSet usage,
     std::string debug_label,
     scoped_refptr<SharedContextState> context_state,
     const bool thread_safe)
@@ -203,8 +203,8 @@ bool WrappedSkImageBacking::Initialize(const std::string& debug_label) {
   }
   context_state_->set_need_context_state_reset(true);
 
-  auto mipmap = usage() & SHARED_IMAGE_USAGE_MIPMAP ? skgpu::Mipmapped::kYes
-                                                    : skgpu::Mipmapped::kNo;
+  auto mipmap = usage().Has(SHARED_IMAGE_USAGE_MIPMAP) ? skgpu::Mipmapped::kYes
+                                                       : skgpu::Mipmapped::kNo;
 
   int num_planes = format().NumberOfPlanes();
   textures_.resize(num_planes);
@@ -335,7 +335,7 @@ SharedImageBackingType WrappedSkImageBacking::GetType() const {
 }
 
 void WrappedSkImageBacking::Update(std::unique_ptr<gfx::GpuFence> in_fence) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 bool WrappedSkImageBacking::UploadFromMemory(
@@ -370,8 +370,7 @@ WrappedSkImageBacking::GetPromiseTextures() {
 }
 
 SkColorType WrappedSkImageBacking::GetSkColorType(int plane_index) {
-  return viz::ToClosestSkColorType(/*gpu_compositing=*/true, format(),
-                                   plane_index);
+  return viz::ToClosestSkColorType(format(), plane_index);
 }
 
 std::vector<sk_sp<SkSurface>> WrappedSkImageBacking::GetSkSurfaces(

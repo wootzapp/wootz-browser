@@ -24,11 +24,13 @@ import org.chromium.android_webview.WebMessageListener;
 import org.chromium.android_webview.common.AwFeatures;
 import org.chromium.android_webview.common.MediaIntegrityApiStatus;
 import org.chromium.android_webview.common.MediaIntegrityErrorCode;
+import org.chromium.android_webview.common.MediaIntegrityErrorWrapper;
 import org.chromium.android_webview.common.MediaIntegrityProvider;
 import org.chromium.android_webview.common.PlatformServiceBridge;
 import org.chromium.android_webview.common.PlatformServiceBridgeImpl;
 import org.chromium.android_webview.common.ValueOrErrorCallback;
 import org.chromium.android_webview.test.AwActivityTestRule.TestDependencyFactory;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
@@ -58,7 +60,6 @@ import java.util.concurrent.TimeoutException;
 @RunWith(Parameterized.class)
 @UseParametersRunnerFactory(AwJUnit4ClassRunnerWithParameters.Factory.class)
 @Batch(Batch.PER_CLASS)
-@CommandLineFlags.Add("disable-features=" + AwFeatures.WEBVIEW_MEDIA_INTEGRITY_API)
 public class AwMediaIntegrityApiTest extends AwParameterizedTest {
 
     private static final long CLOUD_PROJECT_NUMBER = 123;
@@ -92,7 +93,7 @@ public class AwMediaIntegrityApiTest extends AwParameterizedTest {
         mAwContents = mTestContainerView.getAwContents();
         AwActivityTestRule.enableJavaScriptOnUiThread(mAwContents);
 
-        mRule.runOnUiThread(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mAwContents.addWebMessageListener(
                                 "testListener", new String[] {"*"}, mMessageListener));
@@ -268,6 +269,7 @@ public class AwMediaIntegrityApiTest extends AwParameterizedTest {
                 "<!DOCTYPE html><html><body>Hello. I'm from a content-provider.</body></html>";
         TestContentProvider.register(
                 testHtmlContentPath, "text/html", testHtmlContent.getBytes(StandardCharsets.UTF_8));
+        mAwContents.getSettings().setAllowContentAccess(true);
         mRule.loadUrlSync(
                 mAwContents,
                 mContentsClient.getOnPageFinishedHelper(),
@@ -300,7 +302,10 @@ public class AwMediaIntegrityApiTest extends AwParameterizedTest {
 
         String result =
                 mRule.executeJavaScriptAndWaitForResult(mAwContents, mContentsClient, script);
-        Assert.assertEquals("\"TypeError: Illegal constructor\"", result);
+        Assert.assertEquals(
+                "\"TypeError: Failed to construct 'MediaIntegrityTokenProvider': Illegal"
+                        + " constructor\"",
+                result);
     }
 
     @Test
@@ -1032,13 +1037,15 @@ public class AwMediaIntegrityApiTest extends AwParameterizedTest {
 
         public void addRequestError(
                 @Nullable String contentBinding, @MediaIntegrityErrorCode int errorCode) {
-            mResponses.computeIfAbsent(contentBinding, s -> new LinkedList<>()).offer(errorCode);
+            mResponses
+                    .computeIfAbsent(contentBinding, s -> new LinkedList<>())
+                    .offer(new MediaIntegrityErrorWrapper(errorCode));
         }
 
         @Override
-        public void requestToken(
+        public void requestToken2(
                 @Nullable String contentBinding,
-                @NonNull ValueOrErrorCallback<String, Integer> callback) {
+                @NonNull ValueOrErrorCallback<String, MediaIntegrityErrorWrapper> callback) {
             mCallCount++;
             Queue<Object> responseQueue = mResponses.get(contentBinding);
             mCallCounts.compute(contentBinding, (s, count) -> count == null ? 1 : count + 1);
@@ -1048,8 +1055,8 @@ public class AwMediaIntegrityApiTest extends AwParameterizedTest {
                     callback.onResult(token);
                     return;
                 }
-                if (response instanceof Integer errorCode) {
-                    callback.onError(errorCode);
+                if (response instanceof MediaIntegrityErrorWrapper error) {
+                    callback.onError(error);
                     return;
                 }
             }
@@ -1102,7 +1109,9 @@ public class AwMediaIntegrityApiTest extends AwParameterizedTest {
                 @MediaIntegrityApiStatus int apiStatus,
                 @MediaIntegrityErrorCode int errorCode) {
             CallKey key = new CallKey(cloudProjectNumber, apiStatus);
-            mResponses.computeIfAbsent(key, k -> new LinkedList<>()).offer(errorCode);
+            mResponses
+                    .computeIfAbsent(key, k -> new LinkedList<>())
+                    .offer(new MediaIntegrityErrorWrapper(errorCode));
         }
 
         public int getProviderCallCount(
@@ -1116,10 +1125,10 @@ public class AwMediaIntegrityApiTest extends AwParameterizedTest {
         }
 
         @Override
-        public void getMediaIntegrityProvider(
+        public void getMediaIntegrityProvider2(
                 long cloudProjectNumber,
                 @MediaIntegrityApiStatus int apiStatus,
-                ValueOrErrorCallback<MediaIntegrityProvider, Integer> callback) {
+                ValueOrErrorCallback<MediaIntegrityProvider, MediaIntegrityErrorWrapper> callback) {
             CallKey key = new CallKey(cloudProjectNumber, apiStatus);
             Queue<Object> responseQueue = mResponses.get(key);
             mCallCounts.compute(key, (callKey, counts) -> counts == null ? 1 : counts + 1);
@@ -1131,8 +1140,8 @@ public class AwMediaIntegrityApiTest extends AwParameterizedTest {
                     callback.onResult(provider);
                     return;
                 }
-                if (response instanceof Integer errorCode) {
-                    callback.onError(errorCode);
+                if (response instanceof MediaIntegrityErrorWrapper error) {
+                    callback.onError(error);
                     return;
                 }
             }

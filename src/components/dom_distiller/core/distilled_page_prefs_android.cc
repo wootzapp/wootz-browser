@@ -4,9 +4,11 @@
 
 #include "components/dom_distiller/core/distilled_page_prefs_android.h"
 
-#include "components/dom_distiller/core/android/jni_headers/DistilledPagePrefs_jni.h"
 #include "components/dom_distiller/core/distilled_page_prefs.h"
 #include "components/dom_distiller/core/dom_distiller_service.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/dom_distiller/core/android/jni_headers/DistilledPagePrefs_jni.h"
 
 using base::android::JavaParamRef;
 
@@ -20,7 +22,7 @@ DistilledPagePrefsAndroid::DistilledPagePrefsAndroid(
     DistilledPagePrefs* distilled_page_prefs_ptr)
     : distilled_page_prefs_(distilled_page_prefs_ptr) {}
 
-DistilledPagePrefsAndroid::~DistilledPagePrefsAndroid() {}
+DistilledPagePrefsAndroid::~DistilledPagePrefsAndroid() = default;
 
 void DistilledPagePrefsAndroid::SetFontFamily(JNIEnv* env,
                                               const JavaParamRef<jobject>& obj,
@@ -90,7 +92,8 @@ DistilledPagePrefsObserverAndroid::DistilledPagePrefsObserverAndroid(
   java_ref_.Reset(env, obj);
 }
 
-DistilledPagePrefsObserverAndroid::~DistilledPagePrefsObserverAndroid() {}
+DistilledPagePrefsObserverAndroid::~DistilledPagePrefsObserverAndroid() =
+    default;
 
 void DistilledPagePrefsObserverAndroid::DestroyObserverAndroid(JNIEnv* env) {
   delete this;

@@ -4,6 +4,9 @@
 
 #include "chrome/browser/ui/android/autofill/autofill_save_card_delegate_android.h"
 
+#include <variant>
+
+#include "components/autofill/core/browser/payments/payments_autofill_client.h"
 #include "components/browser_ui/device_lock/android/device_lock_bridge.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/android/window_android.h"
@@ -11,9 +14,10 @@
 namespace autofill {
 
 AutofillSaveCardDelegateAndroid::AutofillSaveCardDelegateAndroid(
-    absl::variant<AutofillClient::LocalSaveCardPromptCallback,
-                  AutofillClient::UploadSaveCardPromptCallback> callback,
-    AutofillClient::SaveCreditCardOptions options,
+    std::variant<payments::PaymentsAutofillClient::LocalSaveCardPromptCallback,
+                 payments::PaymentsAutofillClient::UploadSaveCardPromptCallback>
+        callback,
+    payments::PaymentsAutofillClient::SaveCreditCardOptions options,
     content::WebContents* web_contents)
     : AutofillSaveCardDelegate(std::move(callback), options) {
   device_lock_bridge_ = std::make_unique<DeviceLockBridge>();
@@ -28,7 +32,8 @@ void AutofillSaveCardDelegateAndroid::SetDeviceLockBridgeForTesting(
 AutofillSaveCardDelegateAndroid::~AutofillSaveCardDelegateAndroid() = default;
 
 void AutofillSaveCardDelegateAndroid::GatherAdditionalConsentIfApplicable(
-    AutofillClient::UserProvidedCardDetails user_provided_details) {
+    payments::PaymentsAutofillClient::UserProvidedCardDetails
+        user_provided_details) {
   device_lock_bridge_->LaunchDeviceLockUiIfNeededBeforeRunningCallback(
       web_contents_->GetNativeView()->GetWindowAndroid(),
       base::BindOnce(&AutofillSaveCardDelegateAndroid::OnAfterDeviceLockUi,
@@ -36,15 +41,18 @@ void AutofillSaveCardDelegateAndroid::GatherAdditionalConsentIfApplicable(
 }
 
 void AutofillSaveCardDelegateAndroid::OnAfterDeviceLockUi(
-    AutofillClient::UserProvidedCardDetails user_provided_details,
+    payments::PaymentsAutofillClient::UserProvidedCardDetails
+        user_provided_details,
     bool is_device_lock_requirement_met) {
   OnFinishedGatheringConsent(
       /*user_decision=*/is_device_lock_requirement_met
-          ? AutofillClient::SaveCardOfferUserDecision::kAccepted
-          : AutofillClient::SaveCardOfferUserDecision::kIgnored,
+          ? payments::PaymentsAutofillClient::SaveCardOfferUserDecision::
+                kAccepted
+          : payments::PaymentsAutofillClient::SaveCardOfferUserDecision::
+                kIgnored,
       is_device_lock_requirement_met
           ? user_provided_details
-          : AutofillClient::UserProvidedCardDetails());
+          : payments::PaymentsAutofillClient::UserProvidedCardDetails());
 }
 
 }  // namespace autofill

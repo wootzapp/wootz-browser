@@ -84,7 +84,8 @@ class PermissionPromptBubbleBaseView : public PermissionPromptBaseView {
   std::u16string GetPermissionFragmentForTesting() const;
 
  protected:
-  void CreatePermissionButtons(const std::u16string& allow_always_text);
+  void CreatePermissionButtons(const std::u16string& allow_always_text,
+                               const std::u16string& block_text);
   void CreateExtraTextLabel(const std::u16string& extra_text);
 
   void CreateWidget();
@@ -102,8 +103,6 @@ class PermissionPromptBubbleBaseView : public PermissionPromptBaseView {
   PermissionDialogButton GetPermissionDialogButton(int button_id) {
     return static_cast<PermissionDialogButton>(button_id);
   }
-
-  const raw_ptr<Browser> browser_;
 
  private:
   void SetPromptStyle(PermissionPromptStyle prompt_style);

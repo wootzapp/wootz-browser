@@ -2,33 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-
-// Jai - Starts
-#ifndef WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
-#define WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
-
-#include "base/functional/callback.h"
-
-namespace permissions {
-class PermissionContextBase;
-using PermissionContextBase_WootzImpl = PermissionContextBase;
-class PermissionLifetimeManager;
-}  // namespace permissions
-
-#define PermissionContextBase PermissionContextBase_ChromiumImpl
-#define PermissionDecided virtual PermissionDecided
-#define WOOTZ_PERMISSION_CONTEXT_BASE_H_              \
-  friend PermissionContextBase_WootzImpl;             \
-                                                      \
- protected:                                           \
-  base::RepeatingCallback<PermissionLifetimeManager*( \
-      content::BrowserContext*)>                      \
-      permission_lifetime_manager_factory_;
-#define CleanUpRequest virtual CleanUpRequest
-
-// Jai - ends
-
-
 #ifndef COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
 #define COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
 
@@ -47,7 +20,7 @@ class PermissionLifetimeManager;
 #include "components/permissions/permission_request.h"
 #include "components/permissions/permission_request_data.h"
 #include "content/public/browser/permission_result.h"
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy_feature.mojom-forward.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-forward.h"
 
 class GURL;
 
@@ -74,6 +47,9 @@ class Observer : public base::CheckedObserver {
       const ContentSettingsPattern& secondary_pattern,
       ContentSettingsTypeSet content_type_set) = 0;
 };
+
+// Default one time permission expiration time.
+static constexpr base::TimeDelta kOneTimePermissionTimeout = base::Minutes(5);
 
 // A one time grant will never last longer than this value.
 static constexpr base::TimeDelta kOneTimePermissionMaximumLifetime =
@@ -111,7 +87,7 @@ class PermissionContextBase : public content_settings::Observer {
   PermissionContextBase(
       content::BrowserContext* browser_context,
       ContentSettingsType content_settings_type,
-      blink::mojom::PermissionsPolicyFeature permissions_policy_feature);
+      network::mojom::PermissionsPolicyFeature permissions_policy_feature);
   ~PermissionContextBase() override;
 
   // A field trial used to enable the global permissions kill switch.
@@ -147,6 +123,7 @@ class PermissionContextBase : public content_settings::Observer {
   // This function updates the cached device permission status which can result
   // in the permission status changing and observers being notified.
   virtual content::PermissionResult UpdatePermissionStatusWithDeviceStatus(
+      content::WebContents* web_contents,
       content::PermissionResult result,
       const GURL& requesting_origin,
       const GURL& embedding_origin);
@@ -167,14 +144,17 @@ class PermissionContextBase : public content_settings::Observer {
   void AddObserver(permissions::Observer* permission_observer);
   void RemoveObserver(permissions::Observer* permission_observer);
 
-  void MaybeUpdatePermissionStatusWithDeviceStatus();
+  // Update the value of `last_has_device_permission_result_` and notify
+  // observers if it changes.
+  void MaybeUpdateCachedHasDevicePermission(content::WebContents* web_contents);
 
   ContentSettingsType content_settings_type() const {
     return content_settings_type_;
   }
 
-// Jai
-WOOTZ_PERMISSION_CONTEXT_BASE_H_
+  void set_has_device_permission_for_test(std::optional<bool> has_permission) {
+    has_device_permission_for_test_ = has_permission;
+  }
 
  protected:
   virtual ContentSetting GetPermissionStatusInternal(
@@ -243,6 +223,15 @@ WOOTZ_PERMISSION_CONTEXT_BASE_H_
   // Implementors can override this method to avoid using automatic embargo.
   virtual bool UsesAutomaticEmbargo() const;
 
+  // Derived classes can use this function to find some particular permission
+  // request.
+  const PermissionRequest* FindPermissionRequest(
+      const PermissionRequestID& id) const;
+
+  // Implementors can override this method to use a different embedding origin.
+  // TODO(crbug.com/40220500): This should return a url::Origin instead.
+  virtual GURL GetEffectiveEmbedderOrigin(content::RenderFrameHost* rfh) const;
+
   base::ObserverList<permissions::Observer> permission_observers_;
 
   // Set by subclasses to inform the base class that they will handle adding
@@ -256,7 +245,9 @@ WOOTZ_PERMISSION_CONTEXT_BASE_H_
       content::RenderFrameHost* rfh) const;
 
   // Called when a request is no longer used so it can be cleaned up.
-  void CleanUpRequest(const PermissionRequestID& id);
+  void CleanUpRequest(content::WebContents* web_contents,
+                      const PermissionRequestID& id,
+                      bool embedded_permission_element_initiated);
 
   // This is the callback for PermissionRequest and is called once the user
   // allows/blocks/dismisses a permission prompt.
@@ -273,13 +264,15 @@ WOOTZ_PERMISSION_CONTEXT_BASE_H_
 
   raw_ptr<content::BrowserContext> browser_context_;
   const ContentSettingsType content_settings_type_;
-  const blink::mojom::PermissionsPolicyFeature permissions_policy_feature_;
+  const network::mojom::PermissionsPolicyFeature permissions_policy_feature_;
   std::unordered_map<
       std::string,
       std::pair<std::unique_ptr<PermissionRequest>, BrowserPermissionCallback>>
       pending_requests_;
 
   mutable std::optional<bool> last_has_device_permission_result_ = std::nullopt;
+
+  std::optional<bool> has_device_permission_for_test_;
 
   // Must be the last member, to ensure that it will be
   // destroyed first, which will invalidate weak pointers
@@ -289,82 +282,3 @@ WOOTZ_PERMISSION_CONTEXT_BASE_H_
 }  // namespace permissions
 
 #endif  // COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
-
-// Jai - Starts
-
-#undef WOOTZ_PERMISSION_CONTEXT_BASE_H_
-#undef CleanUpRequest
-#undef PermissionDecided
-#undef PermissionContextBase
-
-#include <map>
-
-namespace permissions {
-
-class PermissionContextBase : public PermissionContextBase_ChromiumImpl {
- public:
-  PermissionContextBase(
-      content::BrowserContext* browser_context,
-      ContentSettingsType content_settings_type,
-      blink::mojom::PermissionsPolicyFeature permissions_policy_feature);
-
-  ~PermissionContextBase() override;
-
-  void SetPermissionLifetimeManagerFactory(
-      const base::RepeatingCallback<
-          PermissionLifetimeManager*(content::BrowserContext*)>& factory);
-
-  void DecidePermission(permissions::PermissionRequestData request_data,
-                        BrowserPermissionCallback callback) override;
-
-  bool IsPendingGroupedRequestsEmptyForTesting();
-
- private:
-  /**
-   * This class is map to one PermissionManager::RequestPermissions request,
-   * sub-requests will be kept in requests_.
-   * Chromium does not expect multiple sub-requests for a same permission type,
-   * this class is created to support tracking multiple sub-requests
-   * for each RequestPermissions request. It will clear all pending
-   * sub-requests for one RequestPermissions request after all of its
-   * sub-requests are finished.
-   */
-  class GroupedPermissionRequests {
-   public:
-    GroupedPermissionRequests();
-    ~GroupedPermissionRequests();
-
-    using GroupedRequests =
-        std::vector<std::pair<std::unique_ptr<PermissionRequest>,
-                              BrowserPermissionCallback>>;
-
-    bool IsDone() const;
-    void AddRequest(std::pair<std::unique_ptr<PermissionRequest>,
-                              BrowserPermissionCallback> request);
-    BrowserPermissionCallback GetNextCallback();
-    void RequestFinished();
-
-    const GroupedRequests& Requests() const { return requests_; }
-
-   private:
-    GroupedRequests requests_;
-    size_t finished_request_count_ = 0;
-    size_t next_callback_index_ = 0;
-  };
-
-  void PermissionDecided(const PermissionRequestID& id,
-                         const GURL& requesting_origin,
-                         const GURL& embedding_origin,
-                         ContentSetting content_setting,
-                         bool is_one_time,
-                         bool is_final_decision) override;
-  void CleanUpRequest(const PermissionRequestID& id) override; // Note: Latest Chromium have addtional param |embedded_permission_element_initiated|.
-
-  std::map<std::string, std::unique_ptr<GroupedPermissionRequests>>
-      pending_grouped_requests_;
-};
-
-}  // namespace permissions
-
-#endif // WOOTZ_OVERRIDE_COMPONENTS_PERMISSIONS_PERMISSION_CONTEXT_BASE_H_
-// Jai - ends

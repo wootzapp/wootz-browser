@@ -18,7 +18,6 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/extension_ui_util.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/web_applications/os_integration/web_app_shortcut_mac.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/common/extensions/manifest_handlers/app_launch_info.h"
@@ -148,7 +147,8 @@ void ShowCreateChromeAppShortcutsDialog(
   provider->scheduler().SynchronizeOsIntegration(
       app_id, base::BindOnce(std::move(close_callback), true),
       web_app::ConvertShortcutLocationsToSynchronizeOptions(
-          web_app::ShortcutLocations(), web_app::SHORTCUT_CREATION_BY_USER));
+          web_app::ShortcutLocations(), web_app::SHORTCUT_CREATION_BY_USER),
+      /*upgrade_to_fully_installed_if_installed=*/true);
 }
 
 }  // namespace chrome

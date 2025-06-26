@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "storage/browser/blob/blob_reader.h"
 
 #include <stddef.h>
@@ -9,12 +14,14 @@
 #include <string.h>
 
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/containers/heap_array.h"
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -543,11 +550,11 @@ TEST_F(BlobReaderTest, SegmentedBufferAndMemory) {
   const size_t kTotalSize = kNumItems * kItemSize;
   char current_value = 0;
   for (size_t i = 0; i < kNumItems; i++) {
-    char buf[kItemSize];
+    std::array<char, kItemSize> buf;
     for (size_t j = 0; j < kItemSize; j++) {
       buf[j] = current_value++;
     }
-    b->AppendData(std::string(buf, kItemSize));
+    b->AppendData(std::string(buf.data(), kItemSize));
   }
   this->InitializeReader(std::move(b));
 
@@ -677,22 +684,24 @@ TEST_F(BlobReaderTest, ReadableDataHandleSingle) {
   MojoResult pipe_result = mojo::CreateDataPipe(nullptr, producer, consumer);
   ASSERT_EQ(MOJO_RESULT_OK, pipe_result);
 
-  int bytes_read = net::ERR_UNEXPECTED;
-  reader_->ReadSingleMojoDataItem(
-      std::move(producer),
-      base::BindLambdaForTesting([&](int result) { bytes_read = result; }));
-  base::RunLoop().RunUntilIdle();
+  std::optional<int> read_result;
+  base::RunLoop read_loop;
+  reader_->ReadSingleMojoDataItem(std::move(producer),
+                                  base::BindLambdaForTesting([&](int result) {
+                                    read_result = result;
+                                    read_loop.Quit();
+                                  }));
+  read_loop.Run();
 
-  ASSERT_EQ(kData.size(), static_cast<size_t>(bytes_read));
+  ASSERT_TRUE(read_result.has_value());
+  EXPECT_EQ(*read_result, net::OK);
 
-  size_t num_bytes = base::checked_cast<size_t>(bytes_read);
+  size_t num_bytes = kData.size();
   std::vector<uint8_t> buffer(num_bytes);
   MojoReadDataFlags flags = MOJO_READ_DATA_FLAG_ALL_OR_NONE;
-  MojoResult read_result = consumer->ReadData(buffer.data(), &num_bytes, flags);
-  ASSERT_EQ(MOJO_RESULT_OK, read_result);
-  ASSERT_EQ(kData.size(), num_bytes);
+  EXPECT_EQ(MOJO_RESULT_OK, consumer->ReadData(flags, buffer, num_bytes));
 
-  EXPECT_EQ(0, memcmp(buffer.data(), kData.c_str(), kData.size()));
+  EXPECT_EQ(base::as_string_view(base::as_byte_span(buffer)), kData);
 }
 
 // This test is the same as ReadableDataHandleSingle, but adds the
@@ -724,23 +733,26 @@ TEST_F(BlobReaderTest, ReadableDataHandleSingleRange) {
   MojoResult pipe_result = mojo::CreateDataPipe(nullptr, producer, consumer);
   ASSERT_EQ(MOJO_RESULT_OK, pipe_result);
 
-  int bytes_read = net::ERR_UNEXPECTED;
-  reader_->ReadSingleMojoDataItem(
-      std::move(producer),
-      base::BindLambdaForTesting([&](int result) { bytes_read = result; }));
-  base::RunLoop().RunUntilIdle();
+  std::optional<int> read_result;
+  base::RunLoop read_loop;
+  reader_->ReadSingleMojoDataItem(std::move(producer),
+                                  base::BindLambdaForTesting([&](int result) {
+                                    read_result = result;
+                                    read_loop.Quit();
+                                  }));
+  read_loop.Run();
 
-  ASSERT_EQ(range_length, static_cast<uint64_t>(bytes_read));
+  ASSERT_TRUE(read_result.has_value());
+  EXPECT_EQ(*read_result, net::OK);
 
-  size_t num_bytes = base::checked_cast<size_t>(bytes_read);
+  size_t num_bytes = range_length;
   std::vector<uint8_t> buffer(num_bytes);
   MojoReadDataFlags flags = MOJO_READ_DATA_FLAG_ALL_OR_NONE;
-  MojoResult read_result = consumer->ReadData(buffer.data(), &num_bytes, flags);
-  ASSERT_EQ(MOJO_RESULT_OK, read_result);
-  ASSERT_EQ(range_length, num_bytes);
+  EXPECT_EQ(MOJO_RESULT_OK, consumer->ReadData(flags, buffer, num_bytes));
 
-  EXPECT_EQ(0,
-            memcmp(buffer.data(), kData.c_str() + range_start, range_length));
+  EXPECT_EQ(
+      base::as_string_view(base::as_byte_span(buffer)).substr(0, num_bytes),
+      kData.substr(range_start, range_length));
 }
 
 TEST_F(BlobReaderTest, ReadableDataHandleMultipleSlices) {
@@ -1191,8 +1203,7 @@ TEST_F(BlobReaderTest, ReadFromIncompleteBlob) {
       BlobReader::Status::IO_PENDING,
       reader_->CalculateSize(base::BindOnce(&SetValue<int>, &size_result)));
   EXPECT_FALSE(reader_->IsInMemory());
-  future_data.Populate(base::as_bytes(base::make_span(kData.data(), kDataSize)),
-                       0);
+  future_data.Populate(base::as_bytes(base::span(kData.data(), kDataSize)), 0);
   context_.NotifyTransportComplete(kUuid);
   base::RunLoop().RunUntilIdle();
   CheckSizeCalculatedAsynchronously(kDataSize, size_result);

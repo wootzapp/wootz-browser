@@ -5,6 +5,8 @@
 #ifndef THIRD_PARTY_BLINK_PUBLIC_COMMON_SERVICE_WORKER_SERVICE_WORKER_SUBRESOURCE_LOAD_METRICS_H_
 #define THIRD_PARTY_BLINK_PUBLIC_COMMON_SERVICE_WORKER_SERVICE_WORKER_SUBRESOURCE_LOAD_METRICS_H_
 
+#include "base/time/time.h"
+
 namespace blink {
 
 // Metrics on subresource load handled by service workers.
@@ -134,6 +136,14 @@ struct ServiceWorkerSubresourceLoadMetrics {
   // Routing API, from navigation start till onload event.
   uint32_t matched_race_network_and_fetch_router_source_count = 0;
 
+  // Total router evaluation time of ServiceWorker Static Routing API
+  // for sub-resources.
+  base::TimeDelta total_router_evaluation_time_for_subresources;
+
+  // Total cache lookup time of ServiceWorker Static Routing API
+  // for sub-resources.
+  base::TimeDelta total_cache_lookup_time_for_subresources;
+
   bool operator==(const ServiceWorkerSubresourceLoadMetrics& other) const {
     return image_handled == other.image_handled &&
            image_fallback == other.image_fallback &&
@@ -172,7 +182,11 @@ struct ServiceWorkerSubresourceLoadMetrics {
            matched_cache_router_source_count ==
                other.matched_cache_router_source_count &&
            matched_race_network_and_fetch_router_source_count ==
-               other.matched_race_network_and_fetch_router_source_count;
+               other.matched_race_network_and_fetch_router_source_count &&
+           total_router_evaluation_time_for_subresources ==
+               other.total_router_evaluation_time_for_subresources &&
+           total_cache_lookup_time_for_subresources ==
+               other.total_cache_lookup_time_for_subresources;
   }
 };
 

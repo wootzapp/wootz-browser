@@ -7,30 +7,17 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <algorithm>
-#include <set>
 #include <string>
 #include <utility>
 
-#include "base/command_line.h"
-#include "base/containers/queue.h"
 #include "base/debug/crash_logging.h"
 #include "base/functional/bind.h"
-#include "base/location.h"
-#include "base/memory/ptr_util.h"
-#include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/strings/string_split.h"
-#include "base/strings/utf_string_conversions.h"
-#include "base/task/single_thread_task_runner.h"
-#include "base/time/time.h"
 #include "base/timer/elapsed_timer.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "content/public/renderer/render_thread.h"
 #include "content/renderer/accessibility/annotations/ax_annotators_manager.h"
 #include "content/renderer/accessibility/ax_action_target_factory.h"
-#include "content/renderer/accessibility/ax_tree_snapshotter_impl.h"
 #include "content/renderer/accessibility/blink_ax_action_target.h"
 #include "content/renderer/accessibility/render_accessibility_manager.h"
 #include "content/renderer/render_frame_impl.h"
@@ -39,25 +26,17 @@
 #include "third_party/blink/public/platform/task_type.h"
 #include "third_party/blink/public/web/web_disallow_transition_scope.h"
 #include "third_party/blink/public/web/web_document.h"
-#include "third_party/blink/public/web/web_input_element.h"
 #include "third_party/blink/public/web/web_page_popup.h"
-#include "third_party/blink/public/web/web_plugin_container.h"
 #include "third_party/blink/public/web/web_settings.h"
 #include "third_party/blink/public/web/web_view.h"
-#include "ui/accessibility/ax_enum_util.h"
 #include "ui/accessibility/ax_event_intent.h"
 #include "ui/accessibility/ax_mode_histogram_logger.h"
-#include "ui/accessibility/ax_node.h"
-#include "ui/accessibility/ax_role_properties.h"
 #include "ui/accessibility/ax_tree_id.h"
 #include "ui/gfx/geometry/vector2d_conversions.h"
 
 using blink::WebAXContext;
 using blink::WebAXObject;
 using blink::WebDocument;
-using blink::WebElement;
-using blink::WebNode;
-using blink::WebSettings;
 using blink::WebView;
 
 namespace {
@@ -108,21 +87,35 @@ RenderAccessibilityImpl::RenderAccessibilityImpl(
   render_frame_->GetWebView()
       ->GetSettings()
       ->SetAccessibilityPasswordValuesEnabled(true);
-#elif BUILDFLAG(IS_MAC)
-  // aria-modal currently prunes the accessibility tree on Mac only.
+#endif  // BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID)
+  // aria-modal currently prunes the accessibility tree on Mac and Android only.
   render_frame_->GetWebView()->GetSettings()->SetAriaModalPrunesAXTree(true);
-#elif BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(IS_CHROMEOS)
   // Do not ignore SVG grouping (<g>) elements on ChromeOS, which is needed so
   // Select-to-Speak can read SVG text nodes in natural reading order.
   render_frame_->GetWebView()
       ->GetSettings()
       ->SetAccessibilityIncludeSvgGElement(true);
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   ax_annotators_manager_ = std::make_unique<AXAnnotatorsManager>(this);
 }
 
-RenderAccessibilityImpl::~RenderAccessibilityImpl() = default;
+RenderAccessibilityImpl::~RenderAccessibilityImpl() {
+  if (ax_context_) {
+    // Accessibility has been turned off for this frame. Destruction of this
+    // instance's WebAXContext will destroy the document's AXObjectCache if
+    // there are no other active contexts on the document. If there are other
+    // active contexts, the serializer must be reset to ensure that the full
+    // tree is serialized should accessibility be once again turned on for this
+    // frame.
+    ax_context_->ResetSerializer();
+  }
+}
 
 void RenderAccessibilityImpl::DidCreateNewDocument() {
   const WebDocument& document = GetMainDocument();
@@ -150,6 +143,8 @@ void RenderAccessibilityImpl::DidCommitProvisionalLoad(
   // serialization sent by the old document.
   ax_context_->OnSerializationCancelled();
   weak_factory_for_pending_events_.InvalidateWeakPtrs();
+
+  loading_stage_ = LoadingStage::kPreload;
 }
 
 void RenderAccessibilityImpl::NotifyAccessibilityModeChange(
@@ -162,9 +157,7 @@ void RenderAccessibilityImpl::NotifyAccessibilityModeChange(
 
   if (old_mode == mode) {
     DCHECK(ax_context_);
-    NOTREACHED_IN_MIGRATION()
-        << "Do not call AccessibilityModeChanged unless it changes.";
-    return;
+    NOTREACHED() << "Do not call AccessibilityModeChanged unless it changes.";
   }
 
   accessibility_mode_ = mode;
@@ -212,6 +205,16 @@ void RenderAccessibilityImpl::set_reset_token(uint32_t reset_token) {
   }
 }
 
+#if BUILDFLAG(IS_CHROMEOS)
+void RenderAccessibilityImpl::FireLayoutComplete() {
+  if (ax_context_) {
+    ax_context_->AddEventToSerializationQueue(
+        ui::AXEvent(ComputeRoot().AxID(), ax::mojom::Event::kLayoutComplete),
+        true);
+  }
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
 void RenderAccessibilityImpl::FireLoadCompleteIfLoaded() {
   if (GetMainDocument().IsLoaded() &&
       GetMainDocument().GetFrame()->GetEmbeddingToken()) {
@@ -243,10 +246,52 @@ void RenderAccessibilityImpl::HitTest(
     return;
   }
 
+  DCHECK(ax_object.IsIncludedInTree());
+
   // If the result was in the same frame, return the result.
   ui::AXNodeData data;
   ax_object.Serialize(&data, ax_context_->GetAXMode());
-  if (!data.HasStringAttribute(ax::mojom::StringAttribute::kChildTreeId)) {
+  std::optional<ui::AXTreeID> child_tree_id = data.GetChildTreeID();
+  gfx::Point transformed_point = point;
+  if (child_tree_id) {
+    // The result may be in a child frame. Reply so that the.
+    // The client can do a hit test on the child frame recursively.
+    // If it's a remote frame or a stitched child tree, also transform the point
+    // into the child frame's coordinate system. (See
+    // ax::mojom::Action::kStitchedChildTree for more information on the latter
+    // case.)
+    blink::WebFrame* child_frame =
+        blink::WebFrame::FromFrameOwnerElement(ax_object.GetNode());
+
+    if (!child_frame || child_frame->IsWebRemoteFrame()) {
+      // Remote frames and stitched child trees don't have access to the
+      // information from the visual viewport regarding the visual viewport
+      // offset, so we adjust the coordinates before sending them to the remote
+      // renderer.
+      gfx::Rect rect = ax_object.GetBoundsInFrameCoordinates();
+      // The following transformation of the input point is naive, but works
+      // fairly well. It will fail with CSS transforms that rotate or shear.
+      // https://crbug.com/981959.
+      WebView* web_view = render_frame_->GetWebView();
+      gfx::PointF viewport_offset = web_view->VisualViewportOffset();
+      transformed_point +=
+          gfx::Vector2d(viewport_offset.x(), viewport_offset.y()) -
+          rect.OffsetFromOrigin();
+    }
+
+    if (child_frame) {
+      std::move(callback).Run(blink::mojom::HitTestResponse::New(
+          ui::AXTreeIDUnknown(), child_frame->GetFrameToken(),
+          transformed_point, ax_object.AxID()));
+      return;
+    }
+
+    // The tree is not coming from Web content. It has been stitched in on the
+    // browser side from other sources, e.g. OCR results. Fall through so that
+    // we would respond with the hosting node and the browser will handle the
+    // hit test in the stitched child tree.
+
+  } else {
     // Optionally fire an event, if requested to. This is a good fit for
     // features like touch exploration on Android, Chrome OS, and
     // possibly other platforms - if the user explore a particular point,
@@ -263,40 +308,13 @@ void RenderAccessibilityImpl::HitTest(
           ax_object.AxID(), event_to_fire, ax::mojom::EventFrom::kAction,
           ax::mojom::Action::kHitTest, intents, request_id));
     }
+  }
 
     // Reply with the result.
     const auto& frame_token = render_frame_->GetWebFrame()->GetFrameToken();
     std::move(callback).Run(blink::mojom::HitTestResponse::New(
-        frame_token, point, ax_object.AxID()));
-    return;
-  }
-
-  // The result was in a child frame. Reply so that the
-  // client can do a hit test on the child frame recursively.
-  // If it's a remote frame, transform the point into the child frame's
-  // coordinate system.
-  gfx::Point transformed_point = point;
-  blink::WebFrame* child_frame =
-      blink::WebFrame::FromFrameOwnerElement(ax_object.GetNode());
-  DCHECK(child_frame);
-
-  if (child_frame->IsWebRemoteFrame()) {
-    // Remote frames don't have access to the information from the visual
-    // viewport regarding the visual viewport offset, so we adjust the
-    // coordinates before sending them to the remote renderer.
-    gfx::Rect rect = ax_object.GetBoundsInFrameCoordinates();
-    // The following transformation of the input point is naive, but works
-    // fairly well. It will fail with CSS transforms that rotate or shear.
-    // https://crbug.com/981959.
-    WebView* web_view = render_frame_->GetWebView();
-    gfx::PointF viewport_offset = web_view->VisualViewportOffset();
-    transformed_point +=
-        gfx::Vector2d(viewport_offset.x(), viewport_offset.y()) -
-        rect.OffsetFromOrigin();
-  }
-
-  std::move(callback).Run(blink::mojom::HitTestResponse::New(
-      child_frame->GetFrameToken(), transformed_point, ax_object.AxID()));
+        child_tree_id.value_or(ui::AXTreeIDUnknown()), frame_token,
+        transformed_point, ax_object.AxID()));
 }
 
 void RenderAccessibilityImpl::PerformAction(const ui::AXActionData& data) {
@@ -310,6 +328,13 @@ void RenderAccessibilityImpl::PerformAction(const ui::AXActionData& data) {
   if (document.IsNull()) {
     return;
   }
+
+  // Schedule the next serialization to come immediately after the action is
+  // complete, even if the document is still loading.
+  // Do this scheduling now, because in some cases performing the action
+  // could cause script to run that destroys the frame, which destroys |this|,
+  // and ax_context_ is no longer at a valid memory address.
+  ScheduleImmediateAXUpdate();
 
   // TODO: think about how to handle this without holding onto a plugin tree
   // source.
@@ -372,8 +397,7 @@ void RenderAccessibilityImpl::PerformAction(const ui::AXActionData& data) {
     case ax::mojom::Action::kHitTest:
     case ax::mojom::Action::kReplaceSelectedText:
     case ax::mojom::Action::kNone:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     case ax::mojom::Action::kGetTextLocation:
       break;
     case ax::mojom::Action::kAnnotatePageImages:
@@ -393,10 +417,6 @@ void RenderAccessibilityImpl::PerformAction(const ui::AXActionData& data) {
     case ax::mojom::Action::kLongClick:
       break;
   }
-
-  // Ensure the next serialization comes immediately after the action is
-  // complete, even if the document is still loading.
-  ScheduleImmediateAXUpdate();
 }
 
 void RenderAccessibilityImpl::Reset(uint32_t reset_token) {
@@ -420,21 +440,11 @@ void RenderAccessibilityImpl::MarkWebAXObjectDirty(
                                          event_intents);
 }
 
-// TODO(accessibility): Replace all instances of HandleAXEvent with
-// ax_context_->AddEventToSerializationQueue(event, true);. But we'll need to
-// make sure to handle the loading_stage_ variable below.
 void RenderAccessibilityImpl::HandleAXEvent(const ui::AXEvent& event) {
   DCHECK(ax_context_);
 
-  if (event.event_type == ax::mojom::Event::kLoadStart) {
-    loading_stage_ = LoadingStage::kPreload;
-  } else if (event.event_type == ax::mojom::Event::kLoadComplete) {
-    loading_stage_ = LoadingStage::kLoadCompleted;
-  }
-
-  ax_context_->AddEventToSerializationQueue(
-      event, true);  // All events sent to AXObjectCache from RAI need
-  // immediate serialization!
+  // All events sent to AXObjectCache from RAI need immediate serialization.
+  ax_context_->AddEventToSerializationQueue(event, /* immediate */ true);
 }
 
 // TODO(accessibility): When legacy mode is deleted, calls to this function may
@@ -466,9 +476,17 @@ std::string RenderAccessibilityImpl::GetLanguage() {
 bool RenderAccessibilityImpl::SendAccessibilitySerialization(
     std::vector<ui::AXTreeUpdate> updates,
     std::vector<ui::AXEvent> events,
+    ui::AXLocationAndScrollUpdates location_and_scroll_updates,
     bool had_load_complete_messages) {
-  TRACE_EVENT0("accessibility",
-               "RenderAccessibilityImpl::SendPendingAccessibilityEvents");
+  if (had_load_complete_messages) {
+    loading_stage_ = LoadingStage::kLoadCompleted;
+  }
+
+  TRACE_EVENT0(
+      "accessibility",
+      loading_stage_ == LoadingStage::kPostLoad
+          ? "RenderAccessibilityImpl::SendPendingAccessibilityEvents"
+          : "RenderAccessibilityImpl::SendPendingAccessibilityEventsLoading");
   base::ElapsedTimer timer;
 
   DCHECK(!accessibility_mode_.is_mode_off());
@@ -525,22 +543,21 @@ bool RenderAccessibilityImpl::SendAccessibilitySerialization(
   }
 #endif
 
-  blink::mojom::AXUpdatesAndEventsPtr updates_and_events =
-      blink::mojom::AXUpdatesAndEvents::New();
-  updates_and_events->updates = std::move(updates);
-  updates_and_events->events = std::move(events);
+  ui::AXUpdatesAndEvents updates_and_events;
+  updates_and_events.updates = std::move(updates);
+  updates_and_events.events = std::move(events);
 
-  for (auto& update : updates_and_events->updates) {
+  for (auto& update : updates_and_events.updates) {
     ax_annotators_manager_->Annotate(document, &update,
                                      had_load_complete_messages);
   }
 
-  ax_annotators_manager_->AddDebuggingAttributes(updates_and_events->updates);
+  ax_annotators_manager_->AddDebuggingAttributes(updates_and_events.updates);
 
   CHECK(!weak_factory_for_pending_events_.HasWeakPtrs());
   CHECK(reset_token_);
-  render_accessibility_manager_->HandleAccessibilityEvents(
-      std::move(updates_and_events), *reset_token_,
+  render_accessibility_manager_->HandleAXEvents(
+      updates_and_events, location_and_scroll_updates, *reset_token_,
       base::BindOnce(&RenderAccessibilityImpl::OnSerializationReceived,
                      weak_factory_for_pending_events_.GetWeakPtr()));
 
@@ -640,13 +657,6 @@ void RenderAccessibilityImpl::ConnectionClosed() {
   // This can happen when a navigation occurs with a serialization is in flight.
   // There is nothing special to do here.
   ax_context_->OnSerializationCancelled();
-}
-
-void RenderAccessibilityImpl::RecordInaccessiblePdfUkm() {
-  ukm::builders::Accessibility_InaccessiblePDFs(
-      GetMainDocument().GetUkmSourceId())
-      .SetSeen(true)
-      .Record(ukm_recorder_.get());
 }
 
 void RenderAccessibilityImpl::SetPluginAXTreeActionTargetAdapter(

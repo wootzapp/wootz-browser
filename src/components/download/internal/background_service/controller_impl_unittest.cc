@@ -229,10 +229,10 @@ class DownloadServiceControllerImplTest : public testing::Test {
   scoped_refptr<base::TestMockTimeTaskRunner> task_runner_;
   base::SingleThreadTaskRunner::CurrentDefaultHandle current_default_handle_;
 
-  std::unique_ptr<ControllerImpl> controller_;
-  raw_ptr<Configuration> config_;
   std::unique_ptr<LogSink> log_sink_;
   NavigationMonitorImpl navigation_monitor;
+  std::unique_ptr<ControllerImpl> controller_;
+  raw_ptr<Configuration> config_;
   raw_ptr<test::MockClient> client_;
   raw_ptr<UploadClient> client3_;
   raw_ptr<test::TestDownloadDriver> driver_;
@@ -274,7 +274,7 @@ TEST_F(DownloadServiceControllerImplTest, SuccessfulInitModelFirst) {
 
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Initialization",
-      static_cast<base::HistogramBase::Sample>(stats::StartUpResult::SUCCESS),
+      static_cast<base::HistogramBase::Sample32>(stats::StartUpResult::SUCCESS),
       1);
 }
 
@@ -302,7 +302,7 @@ TEST_F(DownloadServiceControllerImplTest, SuccessfulInitDriverFirst) {
 
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Initialization",
-      static_cast<base::HistogramBase::Sample>(stats::StartUpResult::SUCCESS),
+      static_cast<base::HistogramBase::Sample32>(stats::StartUpResult::SUCCESS),
       1);
 }
 
@@ -325,16 +325,16 @@ TEST_F(DownloadServiceControllerImplTest, HardRecoveryAfterFailedModel) {
   task_runner_->RunUntilIdle();
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Initialization",
-      static_cast<base::HistogramBase::Sample>(stats::StartUpResult::FAILURE),
+      static_cast<base::HistogramBase::Sample32>(stats::StartUpResult::FAILURE),
       1);
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Initialization",
-      static_cast<base::HistogramBase::Sample>(
+      static_cast<base::HistogramBase::Sample32>(
           stats::StartUpResult::FAILURE_REASON_MODEL),
       1);
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Recovery",
-      static_cast<base::HistogramBase::Sample>(stats::StartUpResult::SUCCESS),
+      static_cast<base::HistogramBase::Sample32>(stats::StartUpResult::SUCCESS),
       1);
 }
 
@@ -357,16 +357,16 @@ TEST_F(DownloadServiceControllerImplTest, HardRecoveryAfterFailedFileMonitor) {
   task_runner_->RunUntilIdle();
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Initialization",
-      static_cast<base::HistogramBase::Sample>(stats::StartUpResult::FAILURE),
+      static_cast<base::HistogramBase::Sample32>(stats::StartUpResult::FAILURE),
       1);
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Initialization",
-      static_cast<base::HistogramBase::Sample>(
+      static_cast<base::HistogramBase::Sample32>(
           stats::StartUpResult::FAILURE_REASON_FILE_MONITOR),
       1);
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Recovery",
-      static_cast<base::HistogramBase::Sample>(stats::StartUpResult::SUCCESS),
+      static_cast<base::HistogramBase::Sample32>(stats::StartUpResult::SUCCESS),
       1);
 }
 
@@ -389,20 +389,20 @@ TEST_F(DownloadServiceControllerImplTest, HardRecoveryFails) {
   task_runner_->RunUntilIdle();
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Initialization",
-      static_cast<base::HistogramBase::Sample>(stats::StartUpResult::FAILURE),
+      static_cast<base::HistogramBase::Sample32>(stats::StartUpResult::FAILURE),
       1);
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Initialization",
-      static_cast<base::HistogramBase::Sample>(
+      static_cast<base::HistogramBase::Sample32>(
           stats::StartUpResult::FAILURE_REASON_MODEL),
       1);
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Recovery",
-      static_cast<base::HistogramBase::Sample>(stats::StartUpResult::FAILURE),
+      static_cast<base::HistogramBase::Sample32>(stats::StartUpResult::FAILURE),
       1);
   histogram_tester.ExpectBucketCount(
       "Download.Service.StartUpStatus.Recovery",
-      static_cast<base::HistogramBase::Sample>(
+      static_cast<base::HistogramBase::Sample32>(
           stats::StartUpResult::FAILURE_REASON_FILE_MONITOR),
       1);
 }

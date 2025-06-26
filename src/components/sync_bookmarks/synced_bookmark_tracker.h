@@ -17,7 +17,7 @@
 #include "base/time/time.h"
 #include "base/uuid.h"
 #include "components/sync/base/client_tag_hash.h"
-#include "components/sync/protocol/model_type_state.pb.h"
+#include "components/sync/protocol/data_type_state.pb.h"
 
 namespace sync_pb {
 class BookmarkModelMetadata;
@@ -44,7 +44,7 @@ class SyncedBookmarkTracker {
 
   // Creates an empty instance with no entities. Never returns null.
   static std::unique_ptr<SyncedBookmarkTracker> CreateEmpty(
-      sync_pb::ModelTypeState model_type_state);
+      sync_pb::DataTypeState data_type_state);
 
   // Loads a tracker from a proto (usually from disk) after enforcing the
   // consistency of the metadata against the BookmarkModel. Returns null if the
@@ -127,12 +127,15 @@ class SyncedBookmarkTracker {
   // Returns true if there are any local entities to be committed.
   bool HasLocalChanges() const;
 
-  const sync_pb::ModelTypeState& model_type_state() const {
-    return model_type_state_;
+  // Gets the number of unsynced bookmarks.
+  size_t GetUnsyncedDataCount() const;
+
+  const sync_pb::DataTypeState& data_type_state() const {
+    return data_type_state_;
   }
 
-  void set_model_type_state(sync_pb::ModelTypeState model_type_state) {
-    model_type_state_ = std::move(model_type_state);
+  void set_data_type_state(sync_pb::DataTypeState data_type_state) {
+    data_type_state_ = std::move(data_type_state);
   }
 
   std::vector<const SyncedBookmarkTrackerEntity*> GetAllEntities() const;
@@ -238,7 +241,7 @@ class SyncedBookmarkTracker {
   // LINT.ThenChange(/tools/metrics/histograms/metadata/sync/enums.xml:SyncBookmarkModelMetadataCorruptionReason)
 
   SyncedBookmarkTracker(
-      sync_pb::ModelTypeState model_type_state,
+      sync_pb::DataTypeState data_type_state,
       bool bookmarks_reuploaded,
       std::optional<int64_t> num_ignored_updates_due_to_missing_parent,
       std::optional<int64_t>
@@ -275,16 +278,17 @@ class SyncedBookmarkTracker {
       sync_id_to_entities_map_;
 
   // Index for efficient lookups by client tag hash.
-  std::unordered_map<syncer::ClientTagHash,
-                     const SyncedBookmarkTrackerEntity*,
-                     syncer::ClientTagHash::Hash>
+  std::unordered_map<
+      syncer::ClientTagHash,
+      raw_ptr<const SyncedBookmarkTrackerEntity, CtnExperimental>,
+      syncer::ClientTagHash::Hash>
       client_tag_hash_to_entities_map_;
 
   // A map of bookmark nodes to sync entities. It's keyed by the bookmark node
   // pointers which get assigned when loading the bookmark model. This map is
   // first initialized in the constructor.
   std::unordered_map<const bookmarks::BookmarkNode*,
-                     SyncedBookmarkTrackerEntity*>
+                     raw_ptr<SyncedBookmarkTrackerEntity, CtnExperimental>>
       bookmark_node_to_entities_map_;
 
   // A list of pending local bookmark deletions. They should be sent to the
@@ -295,7 +299,7 @@ class SyncedBookmarkTracker {
       ordered_local_tombstones_;
 
   // The model metadata (progress marker, initial sync done, etc).
-  sync_pb::ModelTypeState model_type_state_;
+  sync_pb::DataTypeState data_type_state_;
 
   // This field contains the value of
   // BookmarksMetadata::bookmarks_hierarchy_fields_reuploaded.

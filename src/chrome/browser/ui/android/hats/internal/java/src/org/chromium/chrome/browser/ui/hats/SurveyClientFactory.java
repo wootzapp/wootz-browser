@@ -6,38 +6,45 @@ package org.chromium.chrome.browser.ui.hats;
 
 import android.text.TextUtils;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.ServiceLoaderUtil;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.privacy.settings.PrivacyPreferencesManager;
 import org.chromium.chrome.browser.profiles.Profile;
 
 /** Factory class used to create SurveyClient. */
+@NullMarked
 public class SurveyClientFactory {
-    private static SurveyClientFactory sInstance;
+    private static @Nullable SurveyClientFactory sInstance;
     private static boolean sHasInstanceForTesting;
 
-    private final ObservableSupplier<Boolean> mCrashUploadPermissionSupplier;
+    protected final ObservableSupplierImpl<Boolean> mCrashUploadPermissionSupplier;
 
-    protected SurveyClientFactory(ObservableSupplier<Boolean> crashUploadPermissionSupplier) {
-        mCrashUploadPermissionSupplier =
-                crashUploadPermissionSupplier != null
-                        ? crashUploadPermissionSupplier
-                        : new ObservableSupplierImpl<>();
+    protected SurveyClientFactory(PrivacyPreferencesManager privacyPreferencesManager) {
+        mCrashUploadPermissionSupplier = new ObservableSupplierImpl<>(false);
+
+        if (privacyPreferencesManager != null) {
+            mCrashUploadPermissionSupplier.set(
+                    privacyPreferencesManager.isUsageAndCrashReportingPermitted());
+            privacyPreferencesManager
+                    .getUsageAndCrashReportingPermittedObservableSupplier()
+                    .addObserver(mCrashUploadPermissionSupplier::set);
+        }
     }
 
     /**
      * Initialize the survey factory instance.
-     * @param crashUploadPermissionSupplier Supplier for UMA upload permission.
+     *
+     * @param privacyPreferencesManager Supplier for UMA upload permission.
      */
-    public static void initialize(ObservableSupplier<Boolean> crashUploadPermissionSupplier) {
+    public static void initialize(PrivacyPreferencesManager privacyPreferencesManager) {
         if (sHasInstanceForTesting) return;
 
         assert sInstance == null : "Instance is already #initialized.";
-        sInstance = new SurveyClientFactory(crashUploadPermissionSupplier);
+        sInstance = new SurveyClientFactory(privacyPreferencesManager);
         SurveyMetadata.initializeInBackground();
         ResettersForTesting.register(() -> sInstance = null);
     }
@@ -70,15 +77,19 @@ public class SurveyClientFactory {
      * @return SurveyClient to display the given survey matching the config.
      */
     public @Nullable SurveyClient createClient(
-            @NonNull SurveyConfig config, @NonNull SurveyUiDelegate uiDelegate, Profile profile) {
+            SurveyConfig config, SurveyUiDelegate uiDelegate, Profile profile) {
         if (config.mProbability == 0f || TextUtils.isEmpty(config.mTriggerId)) return null;
 
+        SurveyController surveyController;
+        SurveyControllerFactory surveyControllerFactory =
+                ServiceLoaderUtil.maybeCreate(SurveyControllerFactory.class);
+        if (surveyControllerFactory != null) {
+            surveyController = surveyControllerFactory.create(profile);
+        } else {
+            surveyController = new SurveyController() {};
+        }
         return new SurveyClientImpl(
-                config,
-                uiDelegate,
-                SurveyControllerProvider.create(profile),
-                mCrashUploadPermissionSupplier,
-                profile);
+                config, uiDelegate, surveyController, mCrashUploadPermissionSupplier, profile);
     }
 
     /** Get the crash upload supplier initialized in this factory. */

@@ -127,7 +127,7 @@ class PendingTaskWaiter : public content::WebContentsObserver {
   PendingTaskWaiter(const PendingTaskWaiter&) = delete;
   PendingTaskWaiter& operator=(const PendingTaskWaiter&) = delete;
 
-  ~PendingTaskWaiter() override {}
+  ~PendingTaskWaiter() override = default;
 
   void AlsoRequireUrl(const GURL& url) { required_url_ = url; }
 
@@ -203,7 +203,7 @@ class PageLoadStopper : public content::WebContentsObserver {
   PageLoadStopper(const PageLoadStopper&) = delete;
   PageLoadStopper& operator=(const PageLoadStopper&) = delete;
 
-  ~PageLoadStopper() override {}
+  ~PageLoadStopper() override = default;
 
   void StopOnDidFinishNavigation() { stop_on_finish_ = true; }
 
@@ -323,7 +323,8 @@ IN_PROC_BROWSER_TEST_F(ContentFaviconDriverTest,
   prerender_helper().WaitForRequest(prerender_url, 1);
   EXPECT_EQ(prerender_helper().GetRequestCount(icon_url), 0);
 
-  int host_id = prerender_helper().GetHostForUrl(prerender_url);
+  content::FrameTreeNodeId host_id =
+      prerender_helper().GetHostForUrl(prerender_url);
   auto* prerendered = prerender_helper().GetPrerenderedMainFrameHost(host_id);
   EXPECT_CALL(observer, DidUpdateFaviconURL(prerendered, testing::_));
   prerender_helper().NavigatePrimaryPage(prerender_url);

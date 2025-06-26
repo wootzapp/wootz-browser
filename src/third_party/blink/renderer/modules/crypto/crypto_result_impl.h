@@ -34,6 +34,7 @@
 #include "third_party/blink/public/platform/web_crypto.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context_lifecycle_observer.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/exception_code.h"
@@ -77,8 +78,8 @@ class MODULES_EXPORT CryptoResultImpl final
   ~CryptoResultImpl() override;
 
   void CompleteWithError(WebCryptoErrorType, const WebString&) override;
-  void CompleteWithBuffer(const void* bytes, unsigned bytes_size) override;
-  void CompleteWithJson(const char* utf8_data, unsigned length) override;
+  void CompleteWithBuffer(base::span<const uint8_t> bytes) override;
+  void CompleteWithJson(std::string_view utf8_data) override;
   void CompleteWithBoolean(bool) override;
   void CompleteWithKey(const WebCryptoKey&) override;
   void CompleteWithKeyPair(const WebCryptoKey& public_key,
@@ -88,8 +89,6 @@ class MODULES_EXPORT CryptoResultImpl final
   ExecutionContext* GetExecutionContext() const override {
     return resolver_ ? resolver_->GetExecutionContext() : nullptr;
   }
-
-  void CompleteWithError(ExceptionState&);
 
   WebCryptoResult Result() { return WebCryptoResult(this, cancel_.get()); }
 

@@ -18,7 +18,7 @@
 #include "chromeos/ash/components/tether/fake_host_scan_cache.h"
 #include "chromeos/ash/components/tether/host_scan_test_util.h"
 #include "chromeos/ash/components/tether/persistent_host_scan_cache.h"
-#include "components/cross_device/timer_factory/timer_factory.h"
+#include "chromeos/ash/components/timer_factory/timer_factory.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -53,12 +53,12 @@ class ExtendedMockTimer : public base::MockOneShotTimer {
   base::OnceClosure destructor_callback_;
 };
 
-class TestTimerFactory : public cross_device::TimerFactory {
+class TestTimerFactory : public ash::timer_factory::TimerFactory {
  public:
   TestTimerFactory() = default;
   ~TestTimerFactory() override = default;
 
-  std::unordered_map<std::string, ExtendedMockTimer*>&
+  std::unordered_map<std::string, raw_ptr<ExtendedMockTimer, CtnExperimental>>&
   tether_network_guid_to_timer_map() {
     return tether_network_guid_to_timer_map_;
   }
@@ -95,7 +95,7 @@ class TestTimerFactory : public cross_device::TimerFactory {
   }
 
   std::vector<std::string> tether_network_guids_for_upcoming_timers_;
-  std::unordered_map<std::string, ExtendedMockTimer*>
+  std::unordered_map<std::string, raw_ptr<ExtendedMockTimer, CtnExperimental>>
       tether_network_guid_to_timer_map_;
 };
 

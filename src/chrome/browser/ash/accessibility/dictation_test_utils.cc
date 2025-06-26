@@ -58,9 +58,10 @@ constexpr char kTextAreaUrl[] = R"(
         class='editableForDictation' autofocus></textarea>
 )";
 constexpr char kPumpkinTestFilePath[] =
-    "resources/chromeos/accessibility/accessibility_common/third_party/pumpkin";
+    "resources/chromeos/accessibility/accessibility_common/mv2/third_party/"
+    "pumpkin";
 constexpr char kTestSupportPath[] =
-    "chrome/browser/resources/chromeos/accessibility/accessibility_common/"
+    "chrome/browser/resources/chromeos/accessibility/accessibility_common/mv2/"
     "dictation/dictation_test_support.js";
 
 // Listens for changes to the clipboard. This class only allows `Wait()` to be
@@ -123,8 +124,8 @@ DictationTestUtils::DictationTestUtils(
       editable_type_(editable_type) {
   automation_test_utils_ = std::make_unique<AutomationTestUtils>(
       extension_misc::kAccessibilityCommonExtensionId);
-  test_helper_ =
-      std::make_unique<SpeechRecognitionTestHelper>(speech_recognition_type);
+  test_helper_ = std::make_unique<SpeechRecognitionTestHelper>(
+      speech_recognition_type, media::mojom::RecognizerClientType::kDictation);
 }
 
 DictationTestUtils::~DictationTestUtils() {

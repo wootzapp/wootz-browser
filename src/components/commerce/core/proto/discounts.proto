@@ -19,6 +19,7 @@ message DiscountCluster {
   enum ClusterType {
     TYPE_UNSPECIFIED = 0;
     OFFER_LEVEL = 1;
+    PAGE_LEVEL = 2;
   }
   optional ClusterType cluster_type = 1;
   repeated Discount discounts = 2;
@@ -31,6 +32,7 @@ message Discount {
   enum Type {
     TYPE_UNSPECIFIED = 0;
     FREE_LISTING_WITH_CODE = 1;
+    CRAWLED_PROMOTION = 2;
   }
   // Type of the discount.
   optional Type type = 2;

@@ -8,6 +8,7 @@
 #include "base/logging.h"
 #include "base/observer_list.h"
 #include "base/strings/stringprintf.h"
+#include "base/types/cxx23_to_underlying.h"
 #include "build/build_config.h"
 #include "ui/base/user_activity/user_activity_observer.h"
 #include "ui/events/event_utils.h"
@@ -20,8 +21,8 @@ namespace {
 // Returns a string describing |event|.
 std::string GetEventDebugString(const ui::Event* event) {
   std::string details = base::StringPrintf(
-      "type=%d name=%s flags=%d time=%" PRId64, event->type(), event->GetName(),
-      event->flags(),
+      "type=%d name=%s flags=%d time=%" PRId64,
+      base::to_underlying(event->type()), event->GetName(), event->flags(),
       (event->time_stamp() - base::TimeTicks()).InMilliseconds());
 
   if (event->IsKeyEvent()) {
@@ -140,8 +141,7 @@ void UserActivityDetector::HandleActivity(const ui::Event* event) {
       kNotifyIntervalMs) {
     if (VLOG_IS_ON(1) && event)
       VLOG(1) << "Reporting user activity: " << GetEventDebugString(event);
-    for (UserActivityObserver& observer : observers_)
-      observer.OnUserActivity(event);
+    observers_.Notify(&UserActivityObserver::OnUserActivity, event);
     last_observer_notification_time_ = now;
   }
 }

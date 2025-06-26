@@ -70,7 +70,10 @@ class PermissionServiceImpl : public blink::mojom::PermissionService {
   void AddPermissionObserver(
       blink::mojom::PermissionDescriptorPtr permission,
       blink::mojom::PermissionStatus last_known_status,
-      bool should_include_device_status,
+      mojo::PendingRemote<blink::mojom::PermissionObserver> observer) override;
+  void AddPageEmbeddedPermissionObserver(
+      blink::mojom::PermissionDescriptorPtr permission,
+      blink::mojom::PermissionStatus last_known_status,
       mojo::PendingRemote<blink::mojom::PermissionObserver> observer) override;
   void NotifyEventListener(blink::mojom::PermissionDescriptorPtr permission,
                            const std::string& event_type,
@@ -78,7 +81,6 @@ class PermissionServiceImpl : public blink::mojom::PermissionService {
 
   void RequestPermissionsInternal(
       BrowserContext* browser_context,
-      const std::vector<blink::mojom::PermissionDescriptorPtr>& permissions,
       PermissionRequestDescription request_description,
       RequestPermissionsCallback callback);
 
@@ -94,8 +96,10 @@ class PermissionServiceImpl : public blink::mojom::PermissionService {
 
   blink::mojom::PermissionStatus GetPermissionStatus(
       const blink::mojom::PermissionDescriptorPtr& permission);
-  blink::mojom::PermissionStatus GetPermissionStatusFromType(
-      blink::PermissionType type);
+  blink::mojom::PermissionStatus GetPermissionStatusForCurrentContext(
+      const blink::mojom::PermissionDescriptorPtr& permission);
+  blink::mojom::PermissionStatus GetCombinedPermissionAndDeviceStatus(
+      const blink::mojom::PermissionDescriptorPtr& permission);
   void ResetPermissionStatus(blink::PermissionType type);
   void ReceivedBadMessage();
 

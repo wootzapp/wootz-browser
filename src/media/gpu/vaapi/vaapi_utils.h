@@ -10,7 +10,6 @@
 #include "base/functional/callback_forward.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/raw_ptr_exclusion.h"
 #include "base/thread_annotations.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -23,7 +22,6 @@ class VaapiWrapper;
 class Vp8ReferenceFrameVector;
 struct VAContextAndScopedVASurfaceDeleter;
 struct Vp8FrameHeader;
-class VASurface;
 
 // Class to map a given VABuffer, identified by |buffer_id|, for its lifetime.
 // The |lock_| might be null depending on the user of this class. If |lock_| is
@@ -58,9 +56,7 @@ class ScopedVABufferMapping {
 
   base::SequenceCheckerImpl sequence_checker_;
 
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #addr-of
-  RAW_PTR_EXCLUSION void* const va_buffer_data_ = nullptr;
+  const raw_ptr<void> va_buffer_data_ = nullptr;
 };
 
 // This class tracks the VABuffer life cycle from vaCreateBuffer() to
@@ -166,9 +162,6 @@ class ScopedVASurface {
   ScopedVASurface& operator=(const ScopedVASurface&) = delete;
   ~ScopedVASurface();
 
-  // Empties the current object into a ref-counted VASurface.
-  scoped_refptr<VASurface> AsVASurface();
-
   bool IsValid() const;
   VASurfaceID id() const { return va_surface_id_; }
   const gfx::Size& size() const { return size_; }
@@ -177,7 +170,7 @@ class ScopedVASurface {
  private:
   friend struct VAContextAndScopedVASurfaceDeleter;
   const scoped_refptr<VaapiWrapper> vaapi_wrapper_;
-  VASurfaceID va_surface_id_;
+  const VASurfaceID va_surface_id_;
   const gfx::Size size_;
   const unsigned int va_rt_format_;
 };
@@ -209,6 +202,9 @@ class ScopedID {
   const T id_;
   ReleaseCB release_cb_;
 };
+
+// Shortcut for a VASurfaceID with tracked lifetime.
+using VASurfaceHandle = ScopedID<VASurfaceID>;
 
 // Adapts |frame_header| to the Vaapi data types.
 void FillVP8DataStructures(const Vp8FrameHeader& frame_header,

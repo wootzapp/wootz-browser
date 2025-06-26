@@ -50,6 +50,7 @@ class UI_ANDROID_EXPORT EventForwarder {
       const base::android::JavaParamRef<jobject>& motion_event,
       jlong oldest_event_time_ns,
       jlong latest_event_time_ns,
+      jlong down_time_ms,
       jint android_action,
       jint pointer_count,
       jint history_size,
@@ -100,7 +101,11 @@ class UI_ANDROID_EXPORT EventForwarder {
                    jfloat screen_x,
                    jfloat screen_y,
                    const base::android::JavaParamRef<jobjectArray>& j_mimeTypes,
-                   const base::android::JavaParamRef<jstring>& j_content);
+                   const base::android::JavaParamRef<jstring>& j_content,
+                   const base::android::JavaParamRef<jobjectArray>& j_filenames,
+                   const base::android::JavaParamRef<jstring>& j_text,
+                   const base::android::JavaParamRef<jstring>& j_html,
+                   const base::android::JavaParamRef<jstring>& j_url);
 
   jboolean OnGestureEvent(JNIEnv* env,
                           const base::android::JavaParamRef<jobject>& jobj,
@@ -112,7 +117,8 @@ class UI_ANDROID_EXPORT EventForwarder {
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jobject>& motion_event,
-      jlong time_ns);
+      jlong event_time_ns,
+      jlong down_time_ms);
 
   jboolean OnKeyUp(JNIEnv* env,
                    const base::android::JavaParamRef<jobject>& obj,
@@ -156,6 +162,8 @@ class UI_ANDROID_EXPORT EventForwarder {
   void AddObserver(Observer* observer);
 
   void RemoveObserver(Observer* observer);
+
+  float GetCurrentTouchSequenceYOffset();
 
  private:
   friend class ViewAndroid;

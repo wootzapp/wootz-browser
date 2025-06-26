@@ -8,8 +8,10 @@
 #include "base/no_destructor.h"
 #include "base/synchronization/lock.h"
 #include "base/types/optional_ref.h"
+#include "content/public/browser/frame_tree_node_id.h"
 #include "content/public/browser/global_routing_id.h"
 #include "net/base/network_delegate.h"
+#include "net/storage_access_api/status.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
 
 class GURL;
@@ -25,7 +27,8 @@ namespace android_webview {
 // or between reading vs. writing cookies.
 class AwCookieAccessPolicy {
  public:
-  static AwCookieAccessPolicy* GetInstance();
+  AwCookieAccessPolicy();
+  ~AwCookieAccessPolicy();
 
   AwCookieAccessPolicy(const AwCookieAccessPolicy&) = delete;
   AwCookieAccessPolicy& operator=(const AwCookieAccessPolicy&) = delete;
@@ -35,14 +38,10 @@ class AwCookieAccessPolicy {
   void SetShouldAcceptCookies(bool allow);
 
   // Can we read/write third party cookies?
-  // `frame_tree_node_id` or `global_frame_token` must be valid.
-  // Navigation requests are not associated with a renderer process. In this
-  // case, `frame_tree_node_id` must be valid instead. Can only be called from
-  // the IO thread.
+  // `global_frame_token` must be valid. Can only be called from the IO thread.
   bool GetShouldAcceptThirdPartyCookies(
       base::optional_ref<const content::GlobalRenderFrameHostToken>
-          global_frame_token,
-      int frame_tree_node_id);
+          global_frame_token);
 
   // Whether or not to allow cookies for requests with these parameters.
   net::NetworkDelegate::PrivacySetting AllowCookies(
@@ -50,20 +49,16 @@ class AwCookieAccessPolicy {
       const net::SiteForCookies& site_for_cookies,
       base::optional_ref<const content::GlobalRenderFrameHostToken>
           global_frame_token,
-      bool has_storage_access);
-
- private:
-  friend class base::NoDestructor<AwCookieAccessPolicy>;
-  friend class AwCookieAccessPolicyTest;
-
-  AwCookieAccessPolicy();
-  ~AwCookieAccessPolicy();
+      net::StorageAccessApiStatus storage_access_api_status);
 
   net::NetworkDelegate::PrivacySetting CanAccessCookies(
       const GURL& url,
       const net::SiteForCookies& site_for_cookies,
       bool accept_third_party_cookies,
-      bool has_storage_access);
+      net::StorageAccessApiStatus storage_access_api_status);
+
+ private:
+  friend class AwCookieAccessPolicyTest;
 
   bool accept_cookies_ = true;
   base::Lock lock_;

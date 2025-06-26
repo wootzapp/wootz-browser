@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #include "partition_alloc/address_pool_manager.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_constants.h"
 #include "partition_alloc/partition_root.h"
 #include "partition_alloc/thread_isolation/thread_isolation.h"
@@ -111,7 +111,7 @@ class PkeyTest : public testing::Test {
     }
     isolated_globals.pkey = pkey;
 
-    isolated_globals.allocator->init([]() {
+    isolated_globals.allocator->init([] {
       partition_alloc::PartitionOptions opts;
       opts.thread_isolation = ThreadIsolationOption(isolated_globals.pkey);
       return opts;

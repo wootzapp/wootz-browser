@@ -4,49 +4,29 @@
 
 #include "content/browser/navigation_transitions/back_forward_transition_animation_manager_android.h"
 
+#include "content/browser/navigation_transitions/back_forward_transition_animator.h"
 #include "content/browser/renderer_host/navigation_controller_impl.h"
 #include "content/browser/renderer_host/navigation_transitions/navigation_entry_screenshot.h"
+#include "content/browser/renderer_host/navigation_transitions/navigation_transition_config.h"
+#include "content/browser/renderer_host/navigation_transitions/navigation_transition_utils.h"
+#include "content/browser/web_contents/web_contents_impl.h"
 #include "content/browser/web_contents/web_contents_view_android.h"
+#include "content/public/browser/back_forward_transition_animation_manager.h"
 #include "content/public/browser/navigation_entry.h"
+#include "content/public/browser/web_contents_delegate.h"
 
 namespace content {
 
 namespace {
 
+// TODO(crbug.com/353766658): Move these shorthands to a proper header file.
 using NavigationDirection =
     BackForwardTransitionAnimationManager::NavigationDirection;
+
+using AnimationStage = BackForwardTransitionAnimationManager::AnimationStage;
 using SwipeEdge = ui::BackGestureEventSwipeEdge;
-
-bool ShouldSkipDefaultNavTransitionForPendingUX(
-    NavigationDirection nav_direction,
-    SwipeEdge edge) {
-  // Currently we only have approved UX for the history back navigation on the
-  // left edge, in both gesture mode and 3-button mode.
-  if (nav_direction == NavigationDirection::kBackward &&
-      edge == SwipeEdge::LEFT) {
-    return false;
-  }
-  return true;
-}
-
-// TODO(crbug.com/40260440): We shouldn't skip any transitions. Use a
-// fallback UX instead.
-bool ShouldSkipDefaultNavTransition(const gfx::Size& physical_backing_size,
-                                    NavigationEntry* destination_entry) {
-  auto* data =
-      destination_entry->GetUserData(NavigationEntryScreenshot::kUserDataKey);
-  if (!data) {
-    // No screenshot at the destination.
-    //
-    // TODO(crbug.com/40260440): We should show the animation using the
-    // favicon and the background color of the destination page.
-    return true;
-  }
-  // TODO(crbug.com/41482490): We should skip if `physical_backing_size`
-  // != screenshot's dimension (except for Clank native views).
-
-  return false;
-}
+using AnimationAbortReason =
+    BackForwardTransitionAnimator::AnimationAbortReason;
 
 }  // namespace
 
@@ -60,7 +40,14 @@ BackForwardTransitionAnimationManagerAndroid::
           std::make_unique<BackForwardTransitionAnimator::Factory>()) {}
 
 BackForwardTransitionAnimationManagerAndroid::
-    ~BackForwardTransitionAnimationManagerAndroid() = default;
+    ~BackForwardTransitionAnimationManagerAndroid() {
+  // `this` must be destroyed before the `NavigationController`.
+  CHECK(navigation_controller_);
+  if (animator_) {
+    animator_->AbortAnimation(AnimationAbortReason::kAnimationManagerDestroyed);
+    DestroyAnimator();
+  }
+}
 
 void BackForwardTransitionAnimationManagerAndroid::OnGestureStarted(
     const ui::BackGestureEvent& gesture,
@@ -78,10 +65,11 @@ void BackForwardTransitionAnimationManagerAndroid::OnGestureStarted(
          "to this manager if there is a destination entry.";
 
   // Each previous gesture should finished with `OnGestureCancelled()` or
-  // `OnGestureInvoked()`. In both cases we reset `destination_entry_index_` to
+  // `OnGestureInvoked()`. In both cases we reset `destination_entry_id_` to
   // -1.
-  CHECK_EQ(destination_entry_index_, -1);
-  destination_entry_index_ = *index;
+  CHECK_EQ(destination_entry_id_, NavigationTransitionData::kInvalidId);
+  destination_entry_id_ =
+      destination_entry->navigation_transition_data().unique_id();
 
   if (animator_) {
     // It's possible for a user to start a second gesture when the first gesture
@@ -90,20 +78,35 @@ void BackForwardTransitionAnimationManagerAndroid::OnGestureStarted(
     // reclaim all the resources).
     //
     // TODO(crbug.com/40261105): We need a proper UX to support this.
-    animator_.reset();
+    animator_->AbortAnimation(AnimationAbortReason::kChainedBack);
+    DestroyAnimator();
   }
 
-  if (ShouldSkipDefaultNavTransitionForPendingUX(navigation_direction, edge) ||
-      ShouldSkipDefaultNavTransition(
-          web_contents_view_android_->GetNativeView()->GetPhysicalBackingSize(),
-          destination_entry)) {
+  if (!ShouldAnimateNavigationTransition(navigation_direction, edge)) {
+    TRACE_EVENT(
+        "browser,navigation",
+        "BackForwardTransitionAnimationManagerAndroid::OnGestureStarted");
     return;
   }
 
   CHECK(animator_factory_);
   animator_ = animator_factory_->Create(
       web_contents_view_android_.get(), navigation_controller_.get(), gesture,
-      navigation_direction, destination_entry->GetUniqueID(), this);
+      navigation_direction, edge, destination_entry,
+      MaybeCopyContentAreaAsBitmapSync(), this);
+
+  // Become a WCO as soon as this class is created, because we want to
+  // observe all navigations while this class is controlling the UI. This
+  // allows us to ensure the visuals displayed align with the active page
+  // and URL in the URL bar.
+  WebContentsObserver::Observe(
+      this->web_contents_view_android()->web_contents());
+  auto* window = web_contents_view_android()->GetTopLevelNativeWindow();
+  CHECK(window);
+  window->AddObserver(this);
+  web_contents_view_android()->GetNativeView()->AddObserver(this);
+
+  OnAnimationStageChanged();
 }
 
 void BackForwardTransitionAnimationManagerAndroid::OnGestureProgressed(
@@ -114,21 +117,121 @@ void BackForwardTransitionAnimationManagerAndroid::OnGestureProgressed(
 }
 
 void BackForwardTransitionAnimationManagerAndroid::OnGestureCancelled() {
-  CHECK_NE(destination_entry_index_, -1);
+  CHECK_NE(destination_entry_id_, NavigationTransitionData::kInvalidId);
   if (animator_) {
     animator_->OnGestureCancelled();
+    MaybeDestroyAnimator();
   }
-  destination_entry_index_ = -1;
+  destination_entry_id_ = NavigationTransitionData::kInvalidId;
 }
 
 void BackForwardTransitionAnimationManagerAndroid::OnGestureInvoked() {
-  CHECK_NE(destination_entry_index_, -1);
+  CHECK_NE(destination_entry_id_, NavigationTransitionData::kInvalidId);
   if (animator_) {
     animator_->OnGestureInvoked();
+    MaybeDestroyAnimator();
   } else {
-    navigation_controller_->GoToIndex(destination_entry_index_);
+    int index =
+        NavigationTransitionUtils::FindEntryIndexForNavigationTransitionID(
+            navigation_controller_, destination_entry_id_);
+    if (index != -1) {
+      navigation_controller_->GoToIndex(index);
+    }
   }
-  destination_entry_index_ = -1;
+  destination_entry_id_ = NavigationTransitionData::kInvalidId;
+}
+
+void BackForwardTransitionAnimationManagerAndroid::
+    OnContentForNavigationEntryShown() {
+  if (animator_) {
+    animator_->OnContentForNavigationEntryShown();
+    MaybeDestroyAnimator();
+  }
+}
+
+AnimationStage
+BackForwardTransitionAnimationManagerAndroid::GetCurrentAnimationStage() {
+  return animator_ ? animator_->GetCurrentAnimationStage()
+                   : AnimationStage::kNone;
+}
+
+void BackForwardTransitionAnimationManagerAndroid::SetFavicon(
+    const SkBitmap& favicon) {
+  CHECK(NavigationTransitionConfig::AreBackForwardTransitionsEnabled());
+  auto* entry = web_contents_view_android_->web_contents()
+                    ->GetController()
+                    .GetLastCommittedEntry();
+  CHECK(entry);
+  entry->navigation_transition_data().set_favicon(favicon);
+}
+
+void BackForwardTransitionAnimationManagerAndroid::OnDetachedFromWindow() {
+  // The WebContentsViewAndroid's native view is detached from the top level
+  // window. We must abort the transition.
+  CHECK(animator_);
+  animator_->AbortAnimation(AnimationAbortReason::kDetachedFromWindow);
+  DestroyAnimator();
+}
+
+void BackForwardTransitionAnimationManagerAndroid::
+    OnRootWindowVisibilityChanged(bool visible) {
+  CHECK(animator_);
+  if (!visible) {
+    animator_->AbortAnimation(
+        AnimationAbortReason::kRootWindowVisibilityChanged);
+    DestroyAnimator();
+  }
+}
+
+void BackForwardTransitionAnimationManagerAndroid::OnDetachCompositor() {
+  CHECK(animator_);
+  animator_->AbortAnimation(AnimationAbortReason::kCompositorDetached);
+  DestroyAnimator();
+}
+
+void BackForwardTransitionAnimationManagerAndroid::OnAnimate(
+    base::TimeTicks frame_begin_time) {
+  animator_->OnAnimate(frame_begin_time);
+  MaybeDestroyAnimator();
+}
+
+void BackForwardTransitionAnimationManagerAndroid::RenderWidgetHostDestroyed(
+    RenderWidgetHost* widget_host) {
+  animator_->OnRenderWidgetHostDestroyed(widget_host);
+  MaybeDestroyAnimator();
+}
+
+void BackForwardTransitionAnimationManagerAndroid::
+    OnRenderFrameMetadataChangedAfterActivation(
+        base::TimeTicks activation_time) {
+  animator_->OnRenderFrameMetadataChangedAfterActivation(activation_time);
+  MaybeDestroyAnimator();
+}
+
+void BackForwardTransitionAnimationManagerAndroid::DidStartNavigation(
+    NavigationHandle* navigation_handle) {
+  animator_->DidStartNavigation(navigation_handle);
+  MaybeDestroyAnimator();
+}
+
+void BackForwardTransitionAnimationManagerAndroid::ReadyToCommitNavigation(
+    NavigationHandle* navigation_handle) {
+  animator_->ReadyToCommitNavigation(navigation_handle);
+  MaybeDestroyAnimator();
+}
+
+void BackForwardTransitionAnimationManagerAndroid::DidFinishNavigation(
+    NavigationHandle* navigation_handle) {
+  animator_->DidFinishNavigation(navigation_handle);
+  MaybeDestroyAnimator();
+}
+
+void BackForwardTransitionAnimationManagerAndroid::
+    PrimaryMainFrameRenderProcessGone(base::TerminationStatus status) {
+  CHECK(animator_);
+  animator_->AbortAnimation(
+      AnimationAbortReason::kPrimaryMainFrameRenderProcessDestroyed);
+  DestroyAnimator();
 }
 
 void BackForwardTransitionAnimationManagerAndroid::
@@ -139,6 +242,7 @@ void BackForwardTransitionAnimationManagerAndroid::
   if (animator_) {
     animator_->OnDidNavigatePrimaryMainFramePreCommit(navigation_request,
                                                       old_host, new_host);
+    MaybeDestroyAnimator();
   }
 }
 
@@ -146,13 +250,74 @@ void BackForwardTransitionAnimationManagerAndroid::
     OnNavigationCancelledBeforeStart(NavigationHandle* navigation_handle) {
   if (animator_) {
     animator_->OnNavigationCancelledBeforeStart(navigation_handle);
+    MaybeDestroyAnimator();
+  }
+}
+
+void BackForwardTransitionAnimationManagerAndroid::OnAnimationStageChanged() {
+  if (auto* delegate =
+          web_contents_view_android()->web_contents()->GetDelegate()) {
+    delegate->DidBackForwardTransitionAnimationChange();
   }
 }
 
 void BackForwardTransitionAnimationManagerAndroid::
-    SynchronouslyDestroyAnimator() {
+    OnPhysicalBackingSizeChanged() {
+  if (!animator_) {
+    return;
+  }
+  animator_->AbortAnimation(AnimationAbortReason::kPhysicalSizeChanged);
+  DestroyAnimator();
+}
+
+void BackForwardTransitionAnimationManagerAndroid::OnBeforeUnloadDialogShown(
+    int64_t navigation_id) {
+  if (!animator_) {
+    return;
+  }
+  animator_->OnBeforeUnloadDialogShown(navigation_id);
+  MaybeDestroyAnimator();
+}
+
+SkBitmap BackForwardTransitionAnimationManagerAndroid::
+    MaybeCopyContentAreaAsBitmapSync() {
+  return web_contents_view_android()
+      ->web_contents()
+      ->GetDelegate()
+      ->MaybeCopyContentAreaAsBitmapSync();
+}
+
+SkBitmap BackForwardTransitionAnimationManagerAndroid::
+    GetBackForwardTransitionFallbackUXInternalPageIcon() {
+  return web_contents_view_android()
+      ->web_contents()
+      ->GetDelegate()
+      ->GetBackForwardTransitionFallbackUXInternalPageIcon();
+}
+
+void BackForwardTransitionAnimationManagerAndroid::MaybeRecordIgnoredInput(
+    const blink::WebInputEvent& event) {
+  if (animator_) {
+    animator_->MaybeRecordIgnoredInput(event);
+  }
+}
+
+void BackForwardTransitionAnimationManagerAndroid::MaybeDestroyAnimator() {
   CHECK(animator_);
+  if (animator_->IsTerminalState()) {
+    DestroyAnimator();
+  }
+}
+
+void BackForwardTransitionAnimationManagerAndroid::DestroyAnimator() {
+  CHECK(animator_);
+  WebContentsObserver::Observe(nullptr);
+  auto* window = web_contents_view_android()->GetTopLevelNativeWindow();
+  CHECK(window);
+  window->RemoveObserver(this);
+  web_contents_view_android()->GetNativeView()->RemoveObserver(this);
   animator_.reset();
+  OnAnimationStageChanged();
 }
 
 }  // namespace content

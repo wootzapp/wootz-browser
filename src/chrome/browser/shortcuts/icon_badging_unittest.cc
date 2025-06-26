@@ -83,15 +83,12 @@ void WriteTestIconsToDiskOrDie(const gfx::ImageFamily& family) {
   base::FilePath shortcuts_path(shortcuts_test_path.value());
 
   for (const gfx::Image& image : family) {
-    std::vector<uint8_t> png_output;
     const SkBitmap image_bitmap = image.AsBitmap();
-    const bool png_encode_status = gfx::PNGCodec::Encode(
+    std::optional<std::vector<uint8_t>> png_output = gfx::PNGCodec::Encode(
         reinterpret_cast<const unsigned char*>(image_bitmap.getPixels()),
         gfx::PNGCodec::FORMAT_SkBitmap, image.Size(),
         static_cast<int>(image_bitmap.rowBytes()),
-        /*discard_transparency=*/true, std::vector<gfx::PNGCodec::Comment>(),
-        &png_output);
-    CHECK(png_encode_status);
+        /*discard_transparency=*/true, std::vector<gfx::PNGCodec::Comment>());
 
     std::string width = base::ToString(image.Width());
     base::FilePath out_filename;
@@ -103,7 +100,7 @@ void WriteTestIconsToDiskOrDie(const gfx::ImageFamily& family) {
 #endif  // BUILDFLAG(IS_WIN)
 
     out_filename = out_filename.AddExtension(FILE_PATH_LITERAL(".png"));
-    const bool success = base::WriteFile(out_filename, png_output);
+    const bool success = base::WriteFile(out_filename, png_output.value());
     CHECK(success) << base::StrCat({"Failed to write icon of size ", width});
   }
 }
@@ -129,8 +126,7 @@ int GetOsSpecificSizes() {
 // If badging behavior changes, the icons in the listed folders would need to be
 // updated. That can be done manually, or can be done automatically by using the
 // `rebaseline-shortcuts-icon-testing` command line flag. Example usage:
-// out/Default/unit_tests
-// --gtest_filter=*ImageManipulationUtilsTest*
+// out/Default/unit_tests --gtest_filter=*IconBadgingTest*
 // --rebaseline-shortcuts-icon-testing
 
 TEST(IconBadgingTest, VerifyFromDisk) {

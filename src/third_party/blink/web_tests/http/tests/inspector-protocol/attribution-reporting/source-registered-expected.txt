@@ -1,6 +1,19 @@
 Test that the Storage.attributionReportingSourceRegistered event is fired.
 {
     registration : {
+        aggregatableDebugReportingConfig : {
+            budget : 123
+            debugData : [
+                [0] : {
+                    keyPiece : 0x10
+                    types : [
+                        [0] : source-success
+                    ]
+                    value : 12
+                }
+            ]
+            keyPiece : 0x1
+        }
         aggregatableReportWindow : 2592000
         aggregationKeys : [
             [0] : {
@@ -8,10 +21,13 @@ Test that the Storage.attributionReportingSourceRegistered event is fired.
                 value : 0xef
             }
         ]
+        debugReporting : false
+        destinationLimitPriority : 0
         destinationSites : [
             [0] : https://a.example
         ]
         eventId : 123
+        eventLevelEpsilon : 14
         expiry : 2592000
         filterData : [
             [0] : {
@@ -22,8 +38,22 @@ Test that the Storage.attributionReportingSourceRegistered event is fired.
                 ]
             }
         ]
+        maxEventLevelReports : 1
+        namedBudgets : [
+            [0] : {
+                budget : 456
+                name : x
+            }
+        ]
         priority : 0
         reportingOrigin : https://devtools.test:8443
+        scopesData : {
+            limit : 1
+            maxEventStates : 3
+            values : [
+                [0] : a
+            ]
+        }
         sourceOrigin : <string>
         time : <number>
         triggerDataMatching : modulus

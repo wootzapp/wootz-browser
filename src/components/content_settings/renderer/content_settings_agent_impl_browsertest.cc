@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "components/content_settings/renderer/content_settings_agent_impl.h"
+
 #include <stddef.h>
 
 #include "base/functional/bind.h"
@@ -12,7 +14,6 @@
 #include "base/values.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_utils.h"
-#include "components/content_settings/renderer/content_settings_agent_impl.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/renderer/render_frame.h"
 #include "content/public/test/render_view_test.h"
@@ -20,10 +21,10 @@
 #include "net/cookies/site_for_cookies.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/navigation/navigation_params.h"
 #include "third_party/blink/public/mojom/loader/code_cache.mojom.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/public/platform/web_url.h"
 #include "third_party/blink/public/test/test_web_frame_content_dumper.h"
 #include "third_party/blink/public/web/web_view.h"
@@ -34,7 +35,6 @@ namespace content_settings {
 namespace {
 
 constexpr char kAllowlistScheme[] = "foo";
-constexpr char kEndUrl[] = ":something";
 
 class MockContentSettingsManagerImpl : public mojom::ContentSettingsManager {
  public:
@@ -114,7 +114,6 @@ MockContentSettingsAgentImpl::MockContentSettingsAgentImpl(
     content::RenderFrame* render_frame)
     : ContentSettingsAgentImpl(
           render_frame,
-          false,
           std::make_unique<MockContentSettingsAgentDelegate>()),
       image_url_("http://www.foo.com/image.jpg"),
       image_origin_("http://www.foo.com") {}
@@ -191,7 +190,7 @@ class ContentSettingsAgentImplBrowserTest
     // Bind a FakeCodeCacheHost which handles FetchCachedCode() method, because
     // script loading is blocked until the callback of FetchCachedCode() is
     // called.
-    GetMainRenderFrame()->GetBrowserInterfaceBroker()->SetBinderForTesting(
+    GetMainRenderFrame()->GetBrowserInterfaceBroker().SetBinderForTesting(
         blink::mojom::CodeCacheHost::Name_,
         base::BindRepeating(
             &ContentSettingsAgentImplBrowserTest::OnCodeCacheHostRequest,
@@ -213,7 +212,7 @@ class ContentSettingsAgentImplBrowserTest
     void FetchCachedCode(blink::mojom::CodeCacheType cache_type,
                          const GURL& url,
                          FetchCachedCodeCallback callback) override {
-      std::move(callback).Run(base::Time(), std::vector<uint8_t>());
+      std::move(callback).Run(base::Time(), {});
     }
     void ClearCodeCacheEntry(blink::mojom::CodeCacheType cache_type,
                              const GURL& url) override {}
@@ -256,34 +255,6 @@ INSTANTIATE_TEST_SUITE_P(
           return "BackgroundResourceFetchDisabled";
       }
     });
-
-TEST_P(ContentSettingsAgentImplBrowserTest, AllowlistedSchemes) {
-  url::ScopedSchemeRegistryForTests scoped_registry;
-  url::AddStandardScheme(kAllowlistScheme, url::SCHEME_WITH_HOST);
-
-  MockContentSettingsAgentImpl mock_agent(GetMainRenderFrame());
-  GURL chrome_ui_url =
-      GURL(std::string(content::kChromeUIScheme).append(kEndUrl));
-  LoadHTMLWithUrlOverride("<html></html>", chrome_ui_url.spec().c_str());
-  EXPECT_TRUE(mock_agent.IsAllowlistedForContentSettings());
-
-  GURL chrome_dev_tools_url =
-      GURL(std::string(content::kChromeDevToolsScheme).append(kEndUrl));
-  LoadHTMLWithUrlOverride("<html></html>", chrome_dev_tools_url.spec().c_str());
-  EXPECT_TRUE(mock_agent.IsAllowlistedForContentSettings());
-
-  GURL allowlist_url = GURL(std::string(kAllowlistScheme).append(kEndUrl));
-  LoadHTMLWithUrlOverride("<html></html>", allowlist_url.spec().c_str());
-  EXPECT_TRUE(mock_agent.IsAllowlistedForContentSettings());
-
-  LoadHTMLWithUrlOverride("<html></html>", "file:///dir/");
-  EXPECT_TRUE(mock_agent.IsAllowlistedForContentSettings());
-  LoadHTMLWithUrlOverride("<html></html>", "file:///dir/file");
-  EXPECT_FALSE(mock_agent.IsAllowlistedForContentSettings());
-
-  LoadHTMLWithUrlOverride("<html></html>", "http://server.com/path");
-  EXPECT_FALSE(mock_agent.IsAllowlistedForContentSettings());
-}
 
 TEST_P(ContentSettingsAgentImplBrowserTest, DidBlockContentType) {
   MockContentSettingsAgentImpl mock_agent(GetMainRenderFrame());

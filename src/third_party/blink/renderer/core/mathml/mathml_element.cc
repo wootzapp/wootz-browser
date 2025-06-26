@@ -61,14 +61,13 @@ bool ParseScriptLevel(const AtomicString& attributeValue,
     value = value.Right(1);
   }
 
-  return WTF::VisitCharacters(
-      value, [&](const auto* position, unsigned length) {
-        WTF::NumberParsingResult result;
-        constexpr auto kOptions =
-            WTF::NumberParsingOptions().SetAcceptMinusZeroForUnsigned();
-        scriptLevel = CharactersToUInt(position, length, kOptions, &result);
-        return result == WTF::NumberParsingResult::kSuccess;
-      });
+  return WTF::VisitCharacters(value, [&](auto chars) {
+    WTF::NumberParsingResult result;
+    constexpr auto kOptions =
+        WTF::NumberParsingOptions().SetAcceptMinusZeroForUnsigned();
+    scriptLevel = CharactersToUInt(chars, kOptions, &result);
+    return result == WTF::NumberParsingResult::kSuccess;
+  });
 }
 
 }  // namespace
@@ -76,7 +75,7 @@ bool ParseScriptLevel(const AtomicString& attributeValue,
 void MathMLElement::CollectStyleForPresentationAttribute(
     const QualifiedName& name,
     const AtomicString& value,
-    MutableCSSPropertyValueSet* style) {
+    HeapVector<CSSPropertyValue, 8>& style) {
   if (name == html_names::kDirAttr) {
     if (IsValidDirAttribute(value)) {
       AddPropertyToPresentationAttributeStyle(style, CSSPropertyID::kDirection,

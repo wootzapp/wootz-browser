@@ -38,9 +38,9 @@
 #include "extensions/browser/api/declarative_net_request/composite_matcher.h"
 #include "extensions/browser/api/declarative_net_request/constants.h"
 #include "extensions/browser/api/declarative_net_request/declarative_net_request_api.h"
-#include "extensions/browser/api/declarative_net_request/declarative_net_request_prefs_helper.h"
 #include "extensions/browser/api/declarative_net_request/file_backed_ruleset_source.h"
 #include "extensions/browser/api/declarative_net_request/parse_info.h"
+#include "extensions/browser/api/declarative_net_request/prefs_helper.h"
 #include "extensions/browser/api/declarative_net_request/rule_counts.h"
 #include "extensions/browser/api/declarative_net_request/rules_monitor_service.h"
 #include "extensions/browser/api/declarative_net_request/ruleset_manager.h"
@@ -504,7 +504,7 @@ class DeclarativeNetRequestUnittest : public DNRTestBase {
   }
 
   size_t GetDisabledStaticRuleCount() const {
-    const DeclarativeNetRequestPrefsHelper helper(*extension_prefs_);
+    const PrefsHelper helper(*extension_prefs_);
     return helper.GetDisabledStaticRuleCount(extension()->id());
   }
 
@@ -529,12 +529,12 @@ class DeclarativeNetRequestUnittest : public DNRTestBase {
 
   void CheckExtensionAllocationInPrefs(
       const ExtensionId& extension_id,
-      std::optional<size_t> expected_rules_count) {
-    size_t actual_rules_count = 0;
+      std::optional<int> expected_rules_count) {
+    int actual_rules_count = 0;
 
+    const PrefsHelper helper(*extension_prefs_);
     bool has_allocated_rules_count =
-        extension_prefs_->GetDNRAllocatedGlobalRuleCount(extension_id,
-                                                         &actual_rules_count);
+        helper.GetAllocatedGlobalRuleCount(extension_id, actual_rules_count);
 
     EXPECT_EQ(expected_rules_count.has_value(), has_allocated_rules_count);
     if (expected_rules_count.has_value())
@@ -558,7 +558,7 @@ class DeclarativeNetRequestUnittest : public DNRTestBase {
               static_cast<size_t>(result->GetInt()));
   }
 
-  const ExtensionPrefs* extension_prefs() { return extension_prefs_; }
+  ExtensionPrefs* extension_prefs() { return extension_prefs_; }
 
   ChromeTestExtensionLoader* extension_loader() { return loader_.get(); }
 
@@ -1009,7 +1009,8 @@ TEST_P(SingleRulesetTest, InvalidJSONRules_Parsed) {
         "priority": 1,
         "condition" : {"urlFilter" : "google"},
         "action" : {"type" : "block" }
-      }
+      },
+      []
     ]
   )";
   SetRules(*base::JSONReader::Read(kRules));
@@ -1027,7 +1028,7 @@ TEST_P(SingleRulesetTest, InvalidJSONRules_Parsed) {
   if (GetParam() != ExtensionLoadType::PACKED) {
     std::vector<InstallWarning> install_warnings =
         GetFilteredInstallWarnings(*extension());
-    ASSERT_EQ(2u, install_warnings.size());
+    ASSERT_EQ(3u, install_warnings.size());
     std::vector<InstallWarning> expected_warnings;
 
     expected_warnings.emplace_back(
@@ -1040,6 +1041,12 @@ TEST_P(SingleRulesetTest, InvalidJSONRules_Parsed) {
         ErrorUtils::FormatErrorMessage(
             GetErrorWithFilename(kRuleNotParsedWarning), "index 4",
             "'id': expected id, got string"),
+        dnr_api::ManifestKeys::kDeclarativeNetRequest,
+        dnr_api::DNRInfo::kRuleResources);
+    expected_warnings.emplace_back(
+        ErrorUtils::FormatErrorMessage(
+            GetErrorWithFilename(kRuleNotParsedWarning), "index 5",
+            "expected dictionary, got list"),
         dnr_api::ManifestKeys::kDeclarativeNetRequest,
         dnr_api::DNRInfo::kRuleResources);
     EXPECT_EQ(expected_warnings, install_warnings);
@@ -1390,13 +1397,15 @@ TEST_P(SingleRulesetTest, RuleCountLimitMatched) {
   ASSERT_EQ(1u, static_sources.size());
   EXPECT_TRUE(base::PathExists(static_sources[0].indexed_path()));
 
+  const PrefsHelper helper(*extension_prefs());
   // The ruleset's ID should not be marked as ignored in prefs.
-  EXPECT_FALSE(extension_prefs()->ShouldIgnoreDNRRuleset(
-      extension()->id(), static_sources[0].id()));
+  EXPECT_FALSE(
+      helper.ShouldIgnoreRuleset(extension()->id(), static_sources[0].id()));
 }
 
-// Ensure that an extension's allocation will be kept when it is disabled.
-TEST_P(SingleRulesetTest, AllocationKeptWhenDisabled) {
+// Ensure that an extension's allocation will be kept or released when it is
+// disabled based on the reason.
+TEST_P(SingleRulesetTest, AllocationWhenDisabled) {
   TestRule rule = CreateGenericRule();
   for (int i = 0; i < GetMaximumRulesPerRuleset(); ++i) {
     rule.id = kMinValidID + i;
@@ -1420,7 +1429,7 @@ TEST_P(SingleRulesetTest, AllocationKeptWhenDisabled) {
   CheckExtensionAllocationInPrefs(extension()->id(), 200);
 
   service()->DisableExtension(extension()->id(),
-                              disable_reason::DISABLE_USER_ACTION);
+                              disable_reason::DISABLE_GREYLIST);
   ruleset_waiter.WaitForExtensionsWithRulesetsCount(0);
 
   // The extension's last known extra rule count should be persisted after it is
@@ -1435,6 +1444,14 @@ TEST_P(SingleRulesetTest, AllocationKeptWhenDisabled) {
 
   EXPECT_EQ(200u, global_rules_tracker.GetAllocatedGlobalRuleCountForTesting());
   CheckExtensionAllocationInPrefs(extension()->id(), 200);
+
+  // Disable the extension via user action. This should release its allocation.
+  service()->DisableExtension(extension()->id(),
+                              disable_reason::DISABLE_USER_ACTION);
+  ruleset_waiter.WaitForExtensionsWithRulesetsCount(0);
+
+  EXPECT_EQ(0u, global_rules_tracker.GetAllocatedGlobalRuleCountForTesting());
+  CheckExtensionAllocationInPrefs(extension()->id(), std::nullopt);
 }
 
 // Ensure that we get an install warning on exceeding the rule count limit and
@@ -1476,9 +1493,11 @@ TEST_P(SingleRulesetTest, RuleCountLimitExceeded) {
     EXPECT_EQ(expected_warning, install_warnings[0]);
   }
 
+  const PrefsHelper helper(*extension_prefs());
+
   // The ruleset's ID should be persisted in the ignored rulesets pref.
-  EXPECT_TRUE(extension_prefs()->ShouldIgnoreDNRRuleset(
-      extension()->id(), static_sources[0].id()));
+  EXPECT_TRUE(
+      helper.ShouldIgnoreRuleset(extension()->id(), static_sources[0].id()));
 
   // Since the ruleset was not indexed, no rules should contribute to the extra
   // static rule count.
@@ -2273,13 +2292,15 @@ TEST_P(MultipleRulesetsTest, StaticRuleCountExceeded) {
   // The second ruleset was indexed and it should be persisted.
   EXPECT_TRUE(base::PathExists(static_sources[1].indexed_path()));
 
+  const PrefsHelper helper(*extension_prefs());
+
   // The first ruleset's ID should be persisted in the ignored rulesets pref.
-  EXPECT_TRUE(extension_prefs()->ShouldIgnoreDNRRuleset(
-      extension()->id(), static_sources[0].id()));
+  EXPECT_TRUE(
+      helper.ShouldIgnoreRuleset(extension()->id(), static_sources[0].id()));
 
   // The second ruleset's ID should not be marked as ignored in prefs.
-  EXPECT_FALSE(extension_prefs()->ShouldIgnoreDNRRuleset(
-      extension()->id(), static_sources[1].id()));
+  EXPECT_FALSE(
+      helper.ShouldIgnoreRuleset(extension()->id(), static_sources[1].id()));
 }
 
 // Ensure that a ruleset which causes the extension to go over the global rule
@@ -2446,8 +2467,8 @@ TEST_P(MultipleRulesetsTest, MultipleExtensionsRuleLimitExceeded) {
       warning_service->GetWarningTypesAffectingExtension(second_extension_id),
       ::testing::ElementsAre(Warning::kEnabledRuleCountExceeded));
 
-  service()->UninstallExtension(first_extension_id,
-                                UNINSTALL_REASON_FOR_TESTING, nullptr);
+  registrar()->UninstallExtension(first_extension_id,
+                                  UNINSTALL_REASON_FOR_TESTING, nullptr);
   ruleset_waiter.WaitForExtensionsWithRulesetsCount(1);
 
   service()->DisableExtension(second_extension_id,
@@ -2970,7 +2991,7 @@ TEST_P(MultipleRulesetsTest, ReclaimAllocationOnUnload) {
 
   auto disable_extension_and_check_allocation =
       [this, &ext_1_allocation, &global_rules_tracker, &ruleset_waiter,
-       &first_extension_id](int disable_reasons,
+       &first_extension_id](const DisableReasonSet& disable_reasons,
                             bool expect_allocation_released) {
         service()->DisableExtension(first_extension_id, disable_reasons);
         ruleset_waiter.WaitForExtensionsWithRulesetsCount(0);
@@ -2996,21 +3017,21 @@ TEST_P(MultipleRulesetsTest, ReclaimAllocationOnUnload) {
 
   // Test some DisableReasons that shouldn't cause the allocation to be
   // released.
-  disable_extension_and_check_allocation(disable_reason::DISABLE_USER_ACTION,
-                                         false);
-
   disable_extension_and_check_allocation(
-      disable_reason::DISABLE_PERMISSIONS_INCREASE |
-          disable_reason::DISABLE_GREYLIST,
+      {disable_reason::DISABLE_PERMISSIONS_INCREASE,
+       disable_reason::DISABLE_GREYLIST},
       false);
 
   // Test the DisableReasons that should cause the allocation to be released.
-  disable_extension_and_check_allocation(
-      disable_reason::DISABLE_BLOCKED_BY_POLICY, true);
+  disable_extension_and_check_allocation({disable_reason::DISABLE_USER_ACTION},
+                                         true);
 
   disable_extension_and_check_allocation(
-      disable_reason::DISABLE_BLOCKED_BY_POLICY |
-          disable_reason::DISABLE_USER_ACTION,
+      {disable_reason::DISABLE_BLOCKED_BY_POLICY}, true);
+
+  disable_extension_and_check_allocation(
+      {disable_reason::DISABLE_BLOCKED_BY_POLICY,
+       disable_reason::DISABLE_GREYLIST},
       true);
 
   // We should reclaim the extension's allocation if it is blocklisted.
@@ -3034,7 +3055,7 @@ TEST_P(MultipleRulesetsTest, ReclaimAllocationOnUnload) {
   ExtensionId second_extension_id = extension()->id();
 
   // The extension should have its allocation kept when it is terminated.
-  service()->TerminateExtension(second_extension_id);
+  registrar()->TerminateExtension(second_extension_id);
   ruleset_waiter.WaitForExtensionsWithRulesetsCount(0);
   EXPECT_EQ(ext_2_allocation,
             global_rules_tracker.GetAllocatedGlobalRuleCountForTesting());
@@ -3073,7 +3094,7 @@ TEST_P(MultipleRulesetsTest_Unpacked, UpdateAllocationOnReload) {
   // Reload the extension. For unpacked extensions this is functionally
   // equivalent to uninstalling the extension then installing it again based on
   // the contents of the extension's directory.
-  service()->ReloadExtension(extension_id);
+  registrar()->ReloadExtension(extension_id);
   ruleset_waiter.WaitForExtensionsWithRulesetsCount(1);
 
   // File changes to the extension's ruleset should take effect after it is

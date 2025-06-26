@@ -2,12 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#import "ios/public/provider/chrome/browser/signin/signin_identity_api.h"
-
 #import "base/functional/bind.h"
 #import "base/functional/callback_helpers.h"
 #import "base/notreached.h"
 #import "base/task/sequenced_task_runner.h"
+#import "ios/public/provider/chrome/browser/signin/signin_identity_api.h"
 
 namespace ios {
 namespace provider {
@@ -35,21 +34,16 @@ class ChromiumSystemIdentityManager final : public SystemIdentityManager {
       NSSet<UISceneSession*>* scene_sessions) final;
   void DismissDialogs() final;
   DismissViewCallback PresentAccountDetailsController(
-      id<SystemIdentity> identity,
-      UIViewController* view_controller,
-      bool animated) final;
+      PresentDialogConfiguration configuration) final;
   DismissViewCallback PresentWebAndAppSettingDetailsController(
-      id<SystemIdentity> identity,
-      UIViewController* view_controller,
-      bool animated) final;
+      PresentDialogConfiguration configuration) final;
   DismissViewCallback PresentLinkedServicesSettingsDetailsController(
-      id<SystemIdentity> identity,
-      UIViewController* view_controller,
-      bool animated) final;
+      PresentDialogConfiguration configuration) final;
   id<SystemIdentityInteractionManager> CreateInteractionManager() final;
   void IterateOverIdentities(IdentityIteratorCallback callback) final;
   void ForgetIdentity(id<SystemIdentity> identity,
                       ForgetIdentityCallback callback) final;
+  bool IdentityRemovedByUser(NSString* gaia_id) final;
   void GetAccessToken(id<SystemIdentity> identity,
                       const std::set<std::string>& scopes,
                       AccessTokenCallback callback) final;
@@ -63,12 +57,16 @@ class ChromiumSystemIdentityManager final : public SystemIdentityManager {
                        HostedDomainCallback callback) final;
   NSString* GetCachedHostedDomainForIdentity(id<SystemIdentity> identity) final;
   void FetchCapabilities(id<SystemIdentity> identity,
-                         const std::set<std::string>& names,
+                         const std::vector<std::string>& names,
                          FetchCapabilitiesCallback callback) final;
   bool HandleMDMNotification(id<SystemIdentity> identity,
+                             NSArray<id<SystemIdentity>>* active_identities,
                              id<RefreshAccessTokenError> error,
                              HandleMDMCallback callback) final;
   bool IsMDMError(id<SystemIdentity> identity, NSError* error) final;
+  void FetchTokenAuthURL(id<SystemIdentity> identity,
+                         NSURL* target_url,
+                         AuthenticatedURLCallback callback) final;
 };
 
 ChromiumSystemIdentityManager::ChromiumSystemIdentityManager() = default;
@@ -101,29 +99,20 @@ void ChromiumSystemIdentityManager::DismissDialogs() {
 
 SystemIdentityManager::DismissViewCallback
 ChromiumSystemIdentityManager::PresentAccountDetailsController(
-    id<SystemIdentity> identity,
-    UIViewController* view_controller,
-    bool animated) {
-  NOTREACHED_IN_MIGRATION();
-  return {};
+    PresentDialogConfiguration configuration) {
+  NOTREACHED();
 }
 
 SystemIdentityManager::DismissViewCallback
 ChromiumSystemIdentityManager::PresentWebAndAppSettingDetailsController(
-    id<SystemIdentity> identity,
-    UIViewController* view_controller,
-    bool animated) {
-  NOTREACHED_IN_MIGRATION();
-  return {};
+    PresentDialogConfiguration configuration) {
+  NOTREACHED();
 }
 
 SystemIdentityManager::DismissViewCallback
 ChromiumSystemIdentityManager::PresentLinkedServicesSettingsDetailsController(
-    id<SystemIdentity> identity,
-    UIViewController* view_controller,
-    bool animated) {
-  NOTREACHED_IN_MIGRATION();
-  return {};
+    PresentDialogConfiguration configuration) {
+  NOTREACHED();
 }
 
 id<SystemIdentityInteractionManager>
@@ -141,14 +130,18 @@ void ChromiumSystemIdentityManager::IterateOverIdentities(
 void ChromiumSystemIdentityManager::ForgetIdentity(
     id<SystemIdentity> identity,
     ForgetIdentityCallback callback) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
+}
+
+bool ChromiumSystemIdentityManager::IdentityRemovedByUser(NSString* gaia_id) {
+  NOTREACHED();
 }
 
 void ChromiumSystemIdentityManager::GetAccessToken(
     id<SystemIdentity> identity,
     const std::set<std::string>& scopes,
     AccessTokenCallback callback) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void ChromiumSystemIdentityManager::GetAccessToken(
@@ -156,51 +149,55 @@ void ChromiumSystemIdentityManager::GetAccessToken(
     const std::string& client_id,
     const std::set<std::string>& scopes,
     AccessTokenCallback callback) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void ChromiumSystemIdentityManager::FetchAvatarForIdentity(
     id<SystemIdentity> identity) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 UIImage* ChromiumSystemIdentityManager::GetCachedAvatarForIdentity(
     id<SystemIdentity> identity) {
-  NOTREACHED_IN_MIGRATION();
-  return nil;
+  NOTREACHED();
 }
 
 void ChromiumSystemIdentityManager::GetHostedDomain(
     id<SystemIdentity> identity,
     HostedDomainCallback callback) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 NSString* ChromiumSystemIdentityManager::GetCachedHostedDomainForIdentity(
     id<SystemIdentity> identity) {
-  NOTREACHED_IN_MIGRATION();
-  return @"";
+  NOTREACHED();
 }
 
 void ChromiumSystemIdentityManager::FetchCapabilities(
     id<SystemIdentity> identity,
-    const std::set<std::string>& names,
+    const std::vector<std::string>& names,
     FetchCapabilitiesCallback callback) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 bool ChromiumSystemIdentityManager::HandleMDMNotification(
     id<SystemIdentity> identity,
+    NSArray<id<SystemIdentity>>* active_identities,
     id<RefreshAccessTokenError> error,
     HandleMDMCallback callback) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 bool ChromiumSystemIdentityManager::IsMDMError(id<SystemIdentity> identity,
                                                NSError* error) {
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
+}
+
+void ChromiumSystemIdentityManager::FetchTokenAuthURL(
+    id<SystemIdentity> identity,
+    NSURL* target_url,
+    AuthenticatedURLCallback callback) {
+  NOTREACHED();
 }
 
 }  // anonymous namespace

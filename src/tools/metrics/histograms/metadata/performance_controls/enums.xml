@@ -38,6 +38,32 @@ chromium-metrics-reviews@google.com.
   <int value="3" label="Enabled"/>
 </enum>
 
+<enum name="InterventionBubbleActionType">
+  <int value="0" label="Unknown"/>
+  <int value="1" label="Ignore"/>
+  <int value="2" label="Accept"/>
+  <int value="3" label="Dismiss"/>
+  <int value="4" label="Close"/>
+</enum>
+
+<enum name="InterventionHealthChange">
+  <int value="0" label="Healthy to Healthy"/>
+  <int value="1" label="Healthy to Degraded"/>
+  <int value="2" label="Healthy to Unhealthy"/>
+  <int value="3" label="Degraded to Healthy"/>
+  <int value="4" label="Degraded to Degraded"/>
+  <int value="5" label="Degraded to Unhealthy"/>
+  <int value="6" label="Unhealthy to Healthy"/>
+  <int value="7" label="Unhealthy to Degraded"/>
+  <int value="8" label="Unhealthy to Unhealthy"/>
+</enum>
+
+<enum name="InterventionMessageTriggerResult">
+  <int value="0" label="Shown"/>
+  <int value="1" label="Rate Limited"/>
+  <int value="2" label="Mixed Profile Suggestion"/>
+</enum>
+
 <enum name="MemorySaverBubbleActionType">
   <int value="0" label="Open settings"/>
   <int value="1" label="Dismiss dialog"/>
@@ -67,6 +93,12 @@ chromium-metrics-reviews@google.com.
   <int value="0" label="Disabled"/>
   <int value="1" label="Enabled"/>
   <int value="2" label="Enabled on timer"/>
+</enum>
+
+<enum name="PerformanceDetectionManagerHealthLevel">
+  <int value="0" label="Healthy"/>
+  <int value="1" label="Degraded"/>
+  <int value="2" label="Unhealthy"/>
 </enum>
 
 </enums>

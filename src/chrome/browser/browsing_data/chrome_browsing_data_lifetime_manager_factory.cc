@@ -33,6 +33,9 @@ ChromeBrowsingDataLifetimeManagerFactory::
           ProfileSelections::Builder()
               .WithRegular(ProfileSelection::kOwnInstance)
               .WithGuest(ProfileSelection::kOffTheRecordOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
               .Build()) {
   DependsOn(ChromeBrowsingDataRemoverDelegateFactory::GetInstance());
   DependsOn(SyncServiceFactory::GetInstance());
@@ -44,15 +47,15 @@ ChromeBrowsingDataLifetimeManagerFactory::
 std::unique_ptr<KeyedService>
 ChromeBrowsingDataLifetimeManagerFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS)
   Profile* profile = Profile::FromBrowserContext(context);
   // This condition still needs to be explicitly stated here despite having
   // ProfileKeyedService logic implemented because `IsGuestSession()` and
-  // `IsRegularProfile()` are not yet mutually exclusive in ASH and Lacros.
+  // `IsRegularProfile()` are not yet mutually exclusive.
   // TODO(rsult): remove this condition when `IsGuestSession() is fixed.
   if (profile->IsGuestSession() && !profile->IsOffTheRecord())
     return nullptr;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#endif  // BUILDFLAG(IS_CHROMEOS)
   return std::make_unique<ChromeBrowsingDataLifetimeManager>(context);
 }
 

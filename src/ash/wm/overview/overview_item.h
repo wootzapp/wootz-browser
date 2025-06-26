@@ -70,18 +70,20 @@ class ASH_EXPORT OverviewItem : public OverviewItemBase,
 
   ~OverviewItem() override;
 
+  // May be null. Use `GetOrCreateOverviewItemView()` if a non-null return value
+  // is needed.
   OverviewItemView* overview_item_view() { return overview_item_view_; }
 
   void set_eligible_for_shadow_config(bool eligible_for_shadow_config) {
     eligible_for_shadow_config_ = eligible_for_shadow_config;
   }
 
+  // Closes window hosted by `this`.
+  void CloseWindow();
+
   // Handles events forwarded from the contents view.
   void OnFocusedViewActivated();
   void OnFocusedViewClosed();
-
-  // If the window item represents a minimized window, update its contents view.
-  void UpdateItemContentViewForMinimizedWindow();
 
   // Updates the rounded corners on `this` only.
   void UpdateRoundedCorners();
@@ -115,7 +117,7 @@ class ASH_EXPORT OverviewItem : public OverviewItemBase,
   gfx::RectF GetWindowsUnionScreenBounds() const override;
   gfx::RectF GetTargetBoundsWithInsets() const override;
   gfx::RectF GetTransformedBounds() const override;
-  std::vector<OverviewFocusableView*> GetFocusableViews() const override;
+  std::vector<views::Widget*> GetFocusableWidgets() override;
   views::View* GetBackDropView() const override;
   bool ShouldHaveShadow() const override;
   void UpdateRoundedCornersAndShadow() override;
@@ -123,7 +125,6 @@ class ASH_EXPORT OverviewItem : public OverviewItemBase,
   void PrepareForOverview() override;
   void SetShouldUseSpawnAnimation(bool value) override;
   void OnStartingAnimationComplete() override;
-  void CloseWindows() override;
   void Restack() override;
   void StartDrag() override;
   void OnOverviewItemDragStarted() override;
@@ -136,9 +137,8 @@ class ASH_EXPORT OverviewItem : public OverviewItemBase,
   void Shutdown() override;
   void AnimateAndCloseItem(bool up) override;
   void StopWidgetAnimation() override;
-  OverviewGridWindowFillMode GetWindowDimensionsType() const override;
-  void UpdateWindowDimensionsType() override;
-  gfx::Point GetMagnifierFocusPointInScreen() const override;
+  OverviewItemFillMode GetOverviewItemFillMode() const override;
+  void UpdateOverviewItemFillMode() override;
   const gfx::RoundedCornersF GetRoundedCorners() const override;
 
   // aura::WindowObserver:
@@ -151,6 +151,7 @@ class ASH_EXPORT OverviewItem : public OverviewItemBase,
                              const gfx::Rect& old_bounds,
                              const gfx::Rect& new_bounds,
                              ui::PropertyChangeReason reason) override;
+  void OnWindowStackingChanged(aura::Window* window) override;
   void OnWindowDestroying(aura::Window* window) override;
 
   // WindowStateObserver:
@@ -217,6 +218,14 @@ class ASH_EXPORT OverviewItem : public OverviewItemBase,
 
   void CloseButtonPressed();
 
+  // Creates the `OverviewItemView` and sets it as the widget's contents view.
+  // This is a no-op if the `OverviewItemView` already exists.
+  //
+  // Use this if the item widget should definitely be visible at the callsite
+  // (or will be very soon). Otherwise, use `overview_item_view()` and
+  // gracefully handle if it's null.
+  OverviewItemView& GetOrCreateOverviewItemView();
+
   // The root window this item is being displayed on.
   raw_ptr<aura::Window> root_window_;
 
@@ -226,6 +235,8 @@ class ASH_EXPORT OverviewItem : public OverviewItemBase,
   // The delegate to handle window destruction which is `OverviewGrid` for
   // single item or `OverviewGroupItem` for group item.
   const raw_ptr<WindowDestructionDelegate> window_destruction_delegate_;
+
+  const raw_ptr<EventHandlerDelegate> event_handler_delegate_ = nullptr;
 
   // True if running SetItemBounds. This prevents recursive calls resulting from
   // the bounds update when calling ::wm::RecreateWindowLayers to copy
@@ -241,14 +252,12 @@ class ASH_EXPORT OverviewItem : public OverviewItemBase,
   bool eligible_for_shadow_config_;
 
   // The view associated with |item_widget_|. Contains a title, close button and
-  // maybe a backdrop. Forwards certain events to |this|.
+  // maybe a backdrop. Forwards certain events to |this|. May be null (see
+  // `ScheduleOverviewItemViewInitialization()` for details).
   raw_ptr<OverviewItemView, DanglingUntriaged> overview_item_view_ = nullptr;
 
   // Responsible for mirrors that look like the window on all displays during
   // dragging.
-  // TODO(sammiequon): We need two, one for the `item_widget_` and one for the
-  // source window (if not minimized). If DragWindowController supports multiple
-  // windows in the future, combine these.
   std::unique_ptr<DragWindowController> window_mirror_for_dragging_;
 
   // Disable animations on the contained window while it is being managed by the

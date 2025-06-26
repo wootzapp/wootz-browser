@@ -4,6 +4,7 @@
 # found in the LICENSE file.
 
 import base64
+from email.message import EmailMessage
 import os
 from typing import Any
 import unittest
@@ -70,7 +71,7 @@ mode type hash bar_tests.txt"""
       elif url.endswith('bar_tests.txt?format=TEXT'):
         text = 'bar_tests.txt content'
       else:
-        self.fail('Given unhandled URL %s' % url)
+        self.fail(f'Given unhandled URL {url}')
       request_result.text = base64.b64encode(text.encode('utf-8'))
       return request_result
 
@@ -92,7 +93,8 @@ mode type hash bar_tests.txt"""
     """Tests that getting a non-200 status code back results in a failure."""
 
     def SideEffect(_: Any) -> None:
-      raise urllib.error.HTTPError('url', 404, 'No exist :(', {}, None)
+      raise urllib.error.HTTPError('url', 404, 'No exist :(', EmailMessage(),
+                                   None)
 
     self._get_mock.side_effect = SideEffect
     with self.assertRaises(urllib.error.HTTPError):

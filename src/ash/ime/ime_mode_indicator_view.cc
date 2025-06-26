@@ -9,6 +9,7 @@
 #include "ash/wm/window_util.h"
 #include "base/logging.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/display/display.h"
 #include "ui/display/screen.h"
 #include "ui/views/bubble/bubble_frame_view.h"
@@ -54,7 +55,7 @@ END_METADATA
 ImeModeIndicatorView::ImeModeIndicatorView(const gfx::Rect& cursor_bounds,
                                            const std::u16string& label)
     : cursor_bounds_(cursor_bounds), label_view_(new views::Label(label)) {
-  SetButtons(ui::DIALOG_BUTTON_NONE);
+  SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   SetCanActivate(false);
   set_accept_events(false);
   set_shadow(views::BubbleBorder::STANDARD_SHADOW);
@@ -94,7 +95,7 @@ gfx::Size ImeModeIndicatorView::CalculatePreferredSize(
 
 void ImeModeIndicatorView::Init() {
   SetLayoutManager(std::make_unique<views::FillLayout>());
-  AddChildView(label_view_.get());
+  AddChildViewRaw(label_view_.get());
 
   SetAnchorRect(cursor_bounds_);
 }
@@ -105,7 +106,7 @@ ImeModeIndicatorView::CreateNonClientFrameView(views::Widget* widget) {
   // arrow adjustment in BubbleDialogDelegateView is unnecessary because arrow
   // of this bubble is always center.
   auto border = std::make_unique<views::BubbleBorder>(arrow(), GetShadow());
-  border->SetColor(color());
+  border->SetColor(background_color());
   frame->SetBubbleBorder(std::move(border));
   return frame;
 }

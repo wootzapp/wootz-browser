@@ -35,6 +35,7 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
+#include "base/not_fatal_until.h"
 #include "base/observer_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/download/download_crx_util.h"
@@ -113,7 +114,7 @@ class DownloadHistoryData : public base::SupportsUserData::Data {
   DownloadHistoryData(const DownloadHistoryData&) = delete;
   DownloadHistoryData& operator=(const DownloadHistoryData&) = delete;
 
-  ~DownloadHistoryData() override {}
+  ~DownloadHistoryData() override = default;
 
   PersistenceState state() const { return state_; }
   void SetState(PersistenceState s) { state_ = s; }
@@ -277,7 +278,7 @@ bool ShouldSkipLoadingDownload(const history::DownloadRow& row,
   if (file_path.empty())
     return false;
   auto iter = file_path_count->find(file_path);
-  DCHECK(iter != file_path_count->end());
+  CHECK(iter != file_path_count->end(), base::NotFatalUntil::M130);
   --iter->second;
   if (iter->second < 1)
     return false;
@@ -291,7 +292,7 @@ DownloadHistory::HistoryAdapter::HistoryAdapter(
     history::HistoryService* history)
     : history_(history) {
 }
-DownloadHistory::HistoryAdapter::~HistoryAdapter() {}
+DownloadHistory::HistoryAdapter::~HistoryAdapter() = default;
 
 void DownloadHistory::HistoryAdapter::QueryDownloads(
     history::HistoryService::DownloadQueryCallback callback) {
@@ -314,8 +315,8 @@ void DownloadHistory::HistoryAdapter::RemoveDownloads(
   history_->RemoveDownloads(ids);
 }
 
-DownloadHistory::Observer::Observer() {}
-DownloadHistory::Observer::~Observer() {}
+DownloadHistory::Observer::Observer() = default;
+DownloadHistory::Observer::~Observer() = default;
 
 // static
 bool DownloadHistory::IsPersisted(const download::DownloadItem* item) {

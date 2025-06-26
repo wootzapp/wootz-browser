@@ -8,6 +8,8 @@ import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.supplier.Supplier;
+import org.chromium.cc.input.OffsetTag;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.components.browser_ui.widget.ClipDrawableProgressBar.DrawingInfo;
@@ -39,8 +41,43 @@ class TopToolbarSceneLayer extends SceneOverlayLayer {
     /** Push all information about the texture to native at once. */
     private void pushProperties(PropertyModel model) {
         if (mResourceManagerSupplier.get() == null) return;
+        // TopToolbarSceneLayerJni.get()
+        //         .updateToolbarLayer(
+        //                 mNativePtr,
+        //                 TopToolbarSceneLayer.this,
+        //                 mResourceManagerSupplier.get(),
+        //                 model.get(TopToolbarOverlayProperties.RESOURCE_ID),
+        //                 model.get(TopToolbarOverlayProperties.TOOLBAR_BACKGROUND_COLOR),
+        //                 model.get(TopToolbarOverlayProperties.URL_BAR_RESOURCE_ID),
+        //                 model.get(TopToolbarOverlayProperties.URL_BAR_COLOR),
+        //                 model.get(TopToolbarOverlayProperties.X_OFFSET),
+        //                 model.get(TopToolbarOverlayProperties.CONTENT_OFFSET),
+        //                 model.get(TopToolbarOverlayProperties.SHOW_SHADOW),
+        //                 model.get(TopToolbarOverlayProperties.VISIBLE),
+        //                 model.get(TopToolbarOverlayProperties.ANONYMIZE),
+        //                 model.get(TopToolbarOverlayProperties.TOOLBAR_OFFSET_TAG));
+
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.DISABLE_COMPOSITED_PROGRESS_BAR)) {
+            return;
+        }
+
         DrawingInfo progressInfo = model.get(TopToolbarOverlayProperties.PROGRESS_BAR_INFO);
         if (progressInfo == null) return;
+
+        // TopToolbarSceneLayerJni.get()
+        //         .updateProgressBar(
+        //                 mNativePtr,
+        //                 TopToolbarSceneLayer.this,
+        //                 progressInfo.progressBarRect.left,
+        //                 progressInfo.progressBarRect.top,
+        //                 progressInfo.progressBarRect.width(),
+        //                 progressInfo.progressBarRect.height(),
+        //                 progressInfo.progressBarColor,
+        //                 progressInfo.progressBarBackgroundRect.left,
+        //                 progressInfo.progressBarBackgroundRect.top,
+        //                 progressInfo.progressBarBackgroundRect.width(),
+        //                 progressInfo.progressBarBackgroundRect.height(),
+        //                 progressInfo.progressBarBackgroundColor);
     }
 
     @Override
@@ -84,7 +121,8 @@ class TopToolbarSceneLayer extends SceneOverlayLayer {
                 float contentOffset,
                 boolean showShadow,
                 boolean visible,
-                boolean anonymize);
+                boolean anonymize,
+                OffsetTag offsetTag);
 
         void updateProgressBar(
                 long nativeTopToolbarSceneLayer,

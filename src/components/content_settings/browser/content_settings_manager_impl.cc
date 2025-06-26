@@ -58,7 +58,6 @@ void NotifyStorageAccess(const content::GlobalRenderFrameHostToken& frame_token,
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   bool should_notify_pscs = ([storage_type]() {
     switch (storage_type) {
-      case StorageType::DATABASE:
       case StorageType::LOCAL_STORAGE:
       case StorageType::SESSION_STORAGE:
       case StorageType::FILE_SYSTEM:
@@ -90,7 +89,6 @@ void NotifyStorageAccess(const content::GlobalRenderFrameHostToken& frame_token,
             return page_load_metrics::StorageType::kIndexedDb;
           case StorageType::CACHE:
             return page_load_metrics::StorageType::kCacheStorage;
-          case StorageType::DATABASE:
           case StorageType::WEB_LOCKS:
             return std::nullopt;
         }
@@ -128,13 +126,13 @@ void ContentSettingsManagerImpl::Create(
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   base::ThreadPool::CreateSingleThreadTaskRunner(
       {base::TaskPriority::USER_BLOCKING})
-      ->PostTask(
-          FROM_HERE,
-          base::BindOnce(&ContentSettingsManagerImpl::CreateOnThread,
-                         render_process_host->GetID(), std::move(receiver),
-                         delegate->GetCookieSettings(
-                             render_process_host->GetBrowserContext()),
-                         std::move(delegate)));
+      ->PostTask(FROM_HERE,
+                 base::BindOnce(&ContentSettingsManagerImpl::CreateOnThread,
+                                render_process_host->GetDeprecatedID(),
+                                std::move(receiver),
+                                delegate->GetCookieSettings(
+                                    render_process_host->GetBrowserContext()),
+                                std::move(delegate)));
 }
 
 void ContentSettingsManagerImpl::Clone(
@@ -184,6 +182,17 @@ void ContentSettingsManagerImpl::AllowStorageAccess(
   if (!allowed && net::cookie_util::IsForceThirdPartyCookieBlockingEnabled()) {
     allowed = true;
   }
+
+  // Allow unpartitioned storage access when the
+  // kNativeUnpartitionedStoragePermittedWhen3PCOff feature is enabled. This
+  // developer flag is used to simulate Chrome's unpartitioned storage behavior
+  // that is otherwise unreachable through command line flags. (Fixes
+  // crbug.com/357784801)
+  if (!allowed &&
+      base::FeatureList::IsEnabled(
+          features::kNativeUnpartitionedStoragePermittedWhen3PCOff)) {
+    allowed = true;
+  }
   if (delegate_->AllowStorageAccess(
           content::GlobalRenderFrameHostToken(render_process_id_, frame_token),
           storage_type, url, allowed, &callback)) {
@@ -217,7 +226,9 @@ ContentSettingsManagerImpl::ContentSettingsManagerImpl(
     scoped_refptr<CookieSettings> cookie_settings)
     : delegate_(std::move(delegate)),
       render_process_id_(render_process_id),
-      cookie_settings_(cookie_settings) {}
+      cookie_settings_(cookie_settings) {
+  CHECK(cookie_settings_);
+}
 
 ContentSettingsManagerImpl::ContentSettingsManagerImpl(
     const ContentSettingsManagerImpl& other)

@@ -2,11 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <GLES2/gl2extchromium.h>
 #include <GLES3/gl3.h>
 #include <stdint.h>
+
+#include <array>
 
 #include "build/build_config.h"
 #include "gpu/command_buffer/service/context_group.h"
@@ -577,8 +584,8 @@ TEST_F(ES3MapBufferRangeTest, Delete) {
   const int kNumBuffers = 3;
   const int kSize = sizeof(GLuint);
 
-  GLuint buffers[kNumBuffers];
-  glGenBuffers(kNumBuffers, buffers);
+  std::array<GLuint, kNumBuffers> buffers;
+  glGenBuffers(kNumBuffers, buffers.data());
   // Set each buffer to contain its name.
   for (int i = 0; i < kNumBuffers; ++i) {
     EXPECT_NE(0u, buffers[i]);

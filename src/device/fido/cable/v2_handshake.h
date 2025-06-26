@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <string_view>
+#include <variant>
 
 #include "base/component_export.h"
 #include "base/containers/span.h"
@@ -25,8 +26,11 @@ class GURL;
 
 namespace device::cablev2 {
 
-namespace tunnelserver {
+// The different types of digital credential requests.
+enum CredentialRequestType { kPresentation, kIssuance };
+using RequestType = std::variant<FidoRequestType, CredentialRequestType>;
 
+namespace tunnelserver {
 // ToKnownDomainID creates a KnownDomainID from a raw 16-bit value, or returns
 // |nullopt| if the value maps to an assigned, but unknown, domain.
 COMPONENT_EXPORT(DEVICE_FIDO)
@@ -42,16 +46,16 @@ std::string DecodeDomain(KnownDomainID domain);
 COMPONENT_EXPORT(DEVICE_FIDO)
 GURL GetNewTunnelURL(KnownDomainID domain, base::span<const uint8_t, 16> id);
 
-// GetConnectURL converts a tunnel server domain, a routing-ID, and a tunnel ID,
-// into a WebSockets-based URL for connecting to an existing tunnel.
+// GetConnectURL converts a tunnel server domain, a routing-ID, and a tunnel
+// ID, into a WebSockets-based URL for connecting to an existing tunnel.
 COMPONENT_EXPORT(DEVICE_FIDO)
 GURL GetConnectURL(KnownDomainID domain,
                    std::array<uint8_t, kRoutingIdSize> routing_id,
                    base::span<const uint8_t, 16> id);
 
 // GetContactURL gets a URL for contacting a previously-paired authenticator.
-// The |tunnel_server| is assumed to be a valid domain name and should have been
-// taken from a previous call to |DecodeDomain|.
+// The |tunnel_server| is assumed to be a valid domain name and should have
+// been taken from a previous call to |DecodeDomain|.
 COMPONENT_EXPORT(DEVICE_FIDO)
 GURL GetContactURL(KnownDomainID tunnel_server,
                    base::span<const uint8_t> contact_id);
@@ -122,7 +126,7 @@ struct COMPONENT_EXPORT(DEVICE_FIDO) Components {
   // request_type contains the hinted type of the request. This can
   // be used to guide UI ahead of receiving the actual request. This defaults to
   // `kGetAssertion` if not present or if the value in the QR code is unknown.
-  FidoRequestType request_type = FidoRequestType::kGetAssertion;
+  RequestType request_type = FidoRequestType::kGetAssertion;
 };
 
 COMPONENT_EXPORT(DEVICE_FIDO)
@@ -131,7 +135,7 @@ std::optional<Components> Parse(const std::string& qr_url);
 // Encode returns the contents of a QR code that represents |qr_key|.
 COMPONENT_EXPORT(DEVICE_FIDO)
 std::string Encode(base::span<const uint8_t, kQRKeySize> qr_key,
-                   FidoRequestType request_type);
+                   RequestType request_type);
 
 // BytesToDigits returns a base-10 encoding of |in|.
 COMPONENT_EXPORT(DEVICE_FIDO)
@@ -178,17 +182,21 @@ void Derive(uint8_t* out,
             DerivedValueType type);
 }  // namespace internal
 
-// RequestTypeToString maps |request_type| to either "ga" (for getAssertion) or
-// "mc" (for makeCredential). These strings are encoded in the QR code and
-// client payload to give the phone an early hint about the type of request.
-// This lets it craft better UI.
+// RequestTypeToString maps |request_type| to either "ga" (for getAssertion),
+// "mc" (for makeCredential), or "dcp" (for digital credentials). These strings
+// are encoded in the QR code and client payload to give the phone an early
+// hint about the type of request. This lets it craft better UI.
 COMPONENT_EXPORT(DEVICE_FIDO)
-const char* RequestTypeToString(FidoRequestType request_type);
+const char* RequestTypeToString(RequestType request_type);
+
+// Whether the generated QR Code for hybrid flows should offer linking.
+COMPONENT_EXPORT(DEVICE_FIDO)
+bool ShouldOfferLinking(RequestType request_type);
 
 // RequestTypeFromString performs the inverse of `RequestTypeToString`. If the
 // value of `s` is unknown, `kGetAssertion` is returned.
 COMPONENT_EXPORT(DEVICE_FIDO)
-FidoRequestType RequestTypeFromString(const std::string& s);
+RequestType RequestTypeFromString(const std::string& s);
 
 // Derive derives a sub-secret from a secret and nonce. It is not possible to
 // learn anything about |secret| from the value of the sub-secret, assuming that

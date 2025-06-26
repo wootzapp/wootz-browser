@@ -2,21 +2,26 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/vaapi/vaapi_dmabuf_video_frame_mapper.h"
 
 #include <sys/mman.h>
+
+#include <array>
 
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "build/build_config.h"
 #include "media/base/color_plane_layout.h"
-#include "media/gpu/chromeos/chromeos_compressed_gpu_memory_buffer_video_frame_utils.h"
 #include "media/gpu/chromeos/platform_video_frame_utils.h"
 #include "media/gpu/macros.h"
 #include "media/gpu/vaapi/vaapi_utils.h"
 #include "media/gpu/vaapi/vaapi_wrapper.h"
-#include "ui/gfx/switches.h"
 
 namespace media {
 
@@ -55,7 +60,7 @@ scoped_refptr<VideoFrame> CreateMappedVideoFrame(
 
   // All the planes are stored in the same buffer, VAImage.va_buffer.
   std::vector<ColorPlaneLayout> planes(kNumPlanes);
-  uint8_t* addrs[VideoFrame::kMaxPlanes] = {};
+  std::array<uint8_t*, VideoFrame::kMaxPlanes> addrs = {};
   for (size_t i = 0; i < kNumPlanes; i++) {
     planes[i].stride = va_image->image()->pitches[i];
     planes[i].offset = va_image->image()->offsets[i];
@@ -96,7 +101,7 @@ scoped_refptr<VideoFrame> CreateMappedVideoFrame(
 }
 
 bool IsFormatSupported(VideoPixelFormat format) {
-  return format == PIXEL_FORMAT_NV12 || format == PIXEL_FORMAT_P016LE;
+  return format == PIXEL_FORMAT_NV12 || format == PIXEL_FORMAT_P010LE;
 }
 
 }  // namespace
@@ -157,25 +162,6 @@ scoped_refptr<VideoFrame> VaapiDmaBufVideoFrameMapper::MapFrame(
     return nullptr;
   }
 
-  bool is_intel_media_compression_enabled = false;
-#if BUILDFLAG(IS_CHROMEOS)
-  is_intel_media_compression_enabled =
-      base::FeatureList::IsEnabled(features::kEnableIntelMediaCompression);
-#endif  // BUILDFLAG(IS_CHROMEOS)
-
-  if (IsIntelMediaCompressedModifier(video_frame->layout().modifier()) &&
-      (!is_intel_media_compression_enabled ||
-       video_frame->storage_type() != VideoFrame::STORAGE_GPU_MEMORY_BUFFER)) {
-    // We currently only support Intel media compressed VideoFrames if they are
-    // backed by a GpuMemoryBuffer.
-    VLOGF(1) << "Can't map an Intel media compressed VideoFrame";
-    return nullptr;
-  } else if (!IsIntelMediaCompressedModifier(
-                 video_frame->layout().modifier()) &&
-             !video_frame->HasDmaBufs()) {
-    return nullptr;
-  }
-
   scoped_refptr<const gfx::NativePixmap> pixmap =
       video_frame->GetNativePixmapDmaBuf();
   if (!pixmap) {
@@ -192,7 +178,7 @@ scoped_refptr<VideoFrame> VaapiDmaBufVideoFrameMapper::MapFrame(
   }
 
   // Map tiled NV12 or P010 buffer by CreateVaImage so that mapped buffers can
-  // be accessed as non-tiled NV12 or P016LE buffer.
+  // be accessed as non-tiled NV12 or P010LE buffer.
   const VAImageFormat va_image_format =
       video_frame->format() == PIXEL_FORMAT_NV12 ? kImageFormatNV12
                                                  : kImageFormatP010;

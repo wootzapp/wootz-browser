@@ -18,10 +18,6 @@ namespace segmentation_platform {
 const char kAdaptiveToolbarSegmentationKey[] = "adaptive_toolbar";
 const char kAdaptiveToolbarUmaName[] = "AdaptiveToolbar";
 
-// The key is used to decide how long to wait before showing Chrome Start.
-const char kChromeStartAndroidV2SegmentationKey[] = "chrome_start_android_v2";
-const char kChromeStartAndroidV2UmaName[] = "ChromeStartAndroidV2";
-
 // The key is used to decide whether a user has low user engagement with chrome.
 // This is a generic model that can be used by multiple features targeting
 // low-engaged users. Typically low engaged users are active in chrome below a
@@ -92,6 +88,11 @@ const char kDeviceTierUmaName[] = "DeviceTier";
 const char kTabResumptionClassifierKey[] = "tab_resupmtion_classifier";
 const char kTabResumptionClassifierUmaName[] = "TabResumptionClassifier";
 
+// The key is used to rank `URLVisitAggregate` objects leveraged by UI tab
+// resumption features.
+const char kURLVisitResumptionRankerKey[] = "url_visit_resumption_ranker";
+const char kURLVisitResumptionRankerUmaName[] = "URLVisitResumptionRanker";
+
 const char kIosModuleRankerKey[] = "ios_module_ranker";
 const char kIosModuleRankerUmaName[] = "IosModuleRanker";
 
@@ -108,6 +109,12 @@ const char kOptimizationTargetSegmentationDummyUmaName[] = "SegmentationDummy";
 
 const char kComposePromotionKey[] = "compose_promotion";
 const char kComposePromotionUmaName[] = "ComposePromotion";
+
+const char kEphemeralHomeModuleBackendKey[] = "ephemeral_home_module_backend";
+
+// The key is used to decide whether the user would use FedCM.
+const char kFedCmUserKey[] = "fedcm_user";
+const char kFedCmUserUmaName[] = "FedCmUser";
 
 // SEGMENTATION_CLIENT_KEYS_END
 
@@ -155,8 +162,10 @@ const char kAdaptiveToolbarModelLabelAddToBookmarks[] = "AddToBookmarks";
 const char kAdaptiveToolbarModelLabelReadAloud[] = "ReadAloud";
 
 // Labels for contextual page actions model.
+const char kContextualPageActionModelLabelDiscounts[] = "discounts";
 const char kContextualPageActionModelLabelPriceTracking[] = "price_tracking";
 const char kContextualPageActionModelLabelReaderMode[] = "reader_mode";
+const char kContextualPageActionModelLabelPriceInsights[] = "price_insights";
 
 // Labels for cross device segment.
 const char kNoCrossDeviceUsage[] = "NoCrossDeviceUsage";
@@ -177,15 +186,6 @@ const char kSearchUserModelLabelLow[] = "Low";
 const char kSearchUserModelLabelMedium[] = "Medium";
 const char kSearchUserModelLabelHigh[] = "High";
 
-// Labels for  user ChromeStartAndroidV2 model.
-// Any updates to these strings need to also update the field trials allowlist
-// in go/segmentation-field-trials-map.
-const char kChromeStartAndroidV2Label1HourInMs[] = "3600";
-const char kChromeStartAndroidV2Label2HourInMs[] = "7200";
-const char kChromeStartAndroidV2Label4HourInMs[] = "14400";
-const char kChromeStartAndroidV2Label8HourInMs[] = "28800";
-const char kChromeStartAndroidV2LabelNone[] = "0";
-
 // Labels for device tier model.
 // Any updates to these strings need to also update the field trials allowlist
 // in go/segmentation-field-trials-map.
@@ -204,12 +204,14 @@ const char kTabletProductivityUserModelLabelHigh[] = "High";
 // Labels for Android Home modules for ranking.
 const char kSingleTab[] = "SingleTab";
 const char kPriceChange[] = "PriceChange";
-const char kTabResumptionForAndroidHome[] = "TabResumption";
+const char kSafetyHub[] = "SafetyHub";
+const char kAuxiliarySearch[] = "AuxiliarySearch";
 
 // Input Context keys for freshness for Android Home modules.
 const char kSingleTabFreshness[] = "single_tab_freshness";
 const char kPriceChangeFreshness[] = "price_change_freshness";
-const char kTabResumptionForAndroidHomeFreshness[] = "tab_resumption_freshness";
+const char kSafetyHubFreshness[] = "safety_hub_freshness";
+const char kAuxiliarySearchFreshness[] = "auxiliary_search_freshness";
 
 // Labels for IOS modules for ranking.
 const char kMostVisitedTiles[] = "MostVisitedTiles";
@@ -217,6 +219,8 @@ const char kShortcuts[] = "Shortcuts";
 const char kSafetyCheck[] = "SafetyCheck";
 const char kTabResumption[] = "TabResumption";
 const char kParcelTracking[] = "ParcelTracking";
+const char kPriceTrackingPromo[] = "PriceTrackingPromo";
+const char kShopCard[] = "ShopCard";
 
 // Input Context keys for freshness for IOS modules.
 const char kMostVisitedTilesFreshness[] = "most_visited_tiles_freshness";
@@ -225,6 +229,7 @@ const char kSafetyCheckFreshness[] = "safety_check_freshness";
 const char kTabResumptionFreshness[] = "tab_resumption_freshness";
 const char kParcelTrackingFreshness[] = "parcel_tracking_freshness";
 const char kIsShowingStartSurface[] = "is_showing_start_surface";
+const char kShopCardFreshness[] = "shop_card_freshness";
 
 // Labels for desktop new tab page drive module model.
 // Any updates to these strings need to also update the field trials allowlist
@@ -235,6 +240,9 @@ const char kDesktopNtpDriveModuleLabelDontShow[] = "dont_show_drive";
 // Custom inputs for contextual page actions model.
 const char kContextualPageActionModelInputPriceTracking[] = "can_track_price";
 const char kContextualPageActionModelInputReaderMode[] = "has_reader_mode";
+const char kContextualPageActionModelInputPriceInsights[] =
+    "has_price_insights";
+const char kContextualPageActionModelInputDiscounts[] = "has_discounts";
 
 const char kComposePrmotionLabelShow[] = "Show";
 const char kComposePrmotionLabelDontShow[] = "DontShow";
@@ -246,6 +254,13 @@ constexpr char kModelExecutionSamplingRateKey[] =
 // Finch parameter key for introducing delay(in ms) in model initialization at
 // startup.
 constexpr char kModelInitializationDelay[] = "model_initialization_delay";
+
+// Input Context keys for FedCM clickthrough rates.
+const char kPerPageLoadClickthroughRate[] = "per_page_load_clickthrough_rate";
+const char kPerClientClickthroughRate[] = "per_client_clickthrough_rate";
+const char kPerImpressionClickthroughRate[] =
+    "per_impression_clickthrough_rate";
+const char kLikelyToSignin[] = "likely_to_signin";
 
 }  // namespace segmentation_platform
 

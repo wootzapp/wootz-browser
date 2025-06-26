@@ -19,7 +19,6 @@
 #include "base/memory/raw_ptr.h"
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/test/scoped_feature_list.h"
 #include "chromeos/ash/services/bluetooth_config/public/mojom/cros_bluetooth_config.mojom.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "chromeos/strings/grit/chromeos_strings.h"
@@ -30,6 +29,7 @@
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_unittest_util.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/view_utils.h"
@@ -329,8 +329,9 @@ TEST_F(BluetoothDeviceListItemViewTest, HasExpectedA11yText) {
               IDS_BLUETOOTH_A11Y_DEVICE_NAMED_BATTERY_INFO_RIGHT_BUD);
         }
 
-        EXPECT_EQ(expected_a11y_text,
-                  bluetooth_device_list_item()->GetAccessibleName());
+        EXPECT_EQ(expected_a11y_text, bluetooth_device_list_item()
+                                          ->GetViewAccessibility()
+                                          .GetCachedName());
       }
     }
   }

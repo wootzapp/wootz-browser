@@ -11,9 +11,11 @@
 #include "base/fuchsia/mem_buffer_util.h"
 #include "base/fuchsia/scoped_service_binding.h"
 #include "base/fuchsia/test_component_context_for_process.h"
+#include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
+#include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "fuchsia_web/common/test/frame_for_test.h"
@@ -95,6 +97,11 @@ class FuchsiaFrameAccessibilityTest : public WebEngineBrowserTest {
   }
 
   void SetUpOnMainThread() override {
+    // Enable platform activation since that is what is begin tested here.
+    content::BrowserAccessibilityState::GetInstance()
+        ->SetActivationFromPlatformEnabled(
+            /*enabled=*/true);
+
     test_context_.emplace(
         base::TestComponentContextForProcess::InitialState::kCloneAll);
     WebEngineBrowserTest::SetUpOnMainThread();
@@ -151,7 +158,7 @@ class FuchsiaFrameAccessibilityTest : public WebEngineBrowserTest {
   std::optional<base::TestComponentContextForProcess> test_context_;
 
   FrameForTest frame_;
-  FrameImpl* frame_impl_;
+  raw_ptr<FrameImpl> frame_impl_;
   FakeSemanticsManager semantics_manager_;
 
   // Binding to the fake semantics manager.

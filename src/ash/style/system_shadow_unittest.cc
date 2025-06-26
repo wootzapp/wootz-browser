@@ -7,8 +7,6 @@
 #include "ash/public/cpp/style/dark_light_mode_controller.h"
 #include "ash/style/system_shadow.h"
 #include "ash/test/ash_test_base.h"
-#include "base/test/scoped_feature_list.h"
-#include "chromeos/constants/chromeos_features.h"
 #include "ui/aura/window.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/color/color_id.h"
@@ -63,11 +61,9 @@ class SystemShadowColorTest
   // AshTestBase:
   void SetUp() override {
     AshTestBase::SetUp();
-    // Enable Jelly and Jellyroll features.
-    scoped_feature_list_.InitWithFeatures(
-        {chromeos::features::kJelly, chromeos::features::kJellyroll}, {});
     // Create a test widget as the owner of the shadow instances.
     widget_ = CreateTestWidget(
+        views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
         /*delegate=*/nullptr,
         /*container_id=*/desks_util::GetActiveDeskContainerId(),
         /*bounds=*/gfx::Rect(100, 100, 320, 200));
@@ -130,7 +126,6 @@ class SystemShadowColorTest
     return shadow;
   }
 
-  base::test::ScopedFeatureList scoped_feature_list_;
   // The test widget used as a shadow owner.
   std::unique_ptr<views::Widget> widget_;
 };

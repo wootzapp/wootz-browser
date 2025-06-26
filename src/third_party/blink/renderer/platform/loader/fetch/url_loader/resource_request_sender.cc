@@ -4,10 +4,13 @@
 
 #include "third_party/blink/renderer/platform/loader/fetch/url_loader/resource_request_sender.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "base/compiler_specific.h"
+#include "base/containers/to_vector.h"
 #include "base/debug/alias.h"
+#include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_forward.h"
@@ -18,7 +21,6 @@
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/single_thread_task_runner.h"
@@ -39,6 +41,7 @@
 #include "services/network/public/mojom/fetch_api.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "third_party/blink/public/common/client_hints/client_hints.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/loader/inter_process_time_ticks_converter.h"
 #include "third_party/blink/public/common/loader/referrer_utils.h"
 #include "third_party/blink/public/common/loader/resource_type_util.h"
@@ -53,6 +56,8 @@
 #include "third_party/blink/public/platform/web_url_request_util.h"
 #include "third_party/blink/renderer/platform/loader/fetch/code_cache_host.h"
 #include "third_party/blink/renderer/platform/loader/fetch/fetch_utils.h"
+#include "third_party/blink/renderer/platform/loader/fetch/url_loader/code_cache_fetcher.h"
+#include "third_party/blink/renderer/platform/loader/fetch/url_loader/content_decoding_url_loader_throttle.h"
 #include "third_party/blink/renderer/platform/loader/fetch/url_loader/mojo_url_loader_client.h"
 #include "third_party/blink/renderer/platform/loader/fetch/url_loader/resource_request_client.h"
 #include "third_party/blink/renderer/platform/loader/fetch/url_loader/sync_load_context.h"
@@ -69,9 +74,9 @@ namespace WTF {
 
 template <>
 struct CrossThreadCopier<
-    blink::WebVector<std::unique_ptr<blink::URLLoaderThrottle>>> {
+    std::vector<std::unique_ptr<blink::URLLoaderThrottle>>> {
   STATIC_ONLY(CrossThreadCopier);
-  using Type = blink::WebVector<std::unique_ptr<blink::URLLoaderThrottle>>;
+  using Type = std::vector<std::unique_ptr<blink::URLLoaderThrottle>>;
   static Type Copy(Type&& value) { return std::move(value); }
 };
 
@@ -86,8 +91,8 @@ struct CrossThreadCopier<net::NetworkTrafficAnnotationTag>
 };
 
 template <>
-struct CrossThreadCopier<blink::WebVector<blink::WebString>>
-    : public CrossThreadCopierPassThrough<blink::WebVector<blink::WebString>> {
+struct CrossThreadCopier<std::vector<blink::WebString>>
+    : public CrossThreadCopierPassThrough<std::vector<blink::WebString>> {
   STATIC_ONLY(CrossThreadCopier);
 };
 
@@ -138,237 +143,7 @@ bool RedirectRequiresLoaderRestart(const GURL& original_url,
   return original_url.scheme_piece() != redirect_url.scheme_piece();
 }
 
-bool ShouldFetchCodeCache(const network::ResourceRequest& request) {
-  // Since code cache requests use a per-frame interface, don't fetch cached
-  // code for keep-alive requests. These are only used for beaconing and we
-  // don't expect code cache to help there.
-  if (request.keepalive) {
-    return false;
-  }
-
-  // Aside from http and https, the only other supported protocols are those
-  // listed in the SchemeRegistry as requiring a content equality check.
-  bool should_use_source_hash =
-      SchemeRegistry::SchemeSupportsCodeCacheWithHashing(
-          String(request.url.scheme()));
-  if (!request.url.SchemeIsHTTPOrHTTPS() && !should_use_source_hash) {
-    return false;
-  }
-
-  // Supports script resource requests.
-  // TODO(crbug.com/964467): Currently Chrome doesn't support code cache for
-  // dedicated worker, shared worker, audio worklet and paint worklet. For
-  // the service worker scripts, Blink receives the code cache via
-  // URLLoaderClient::OnReceiveResponse() IPC.
-  if (request.destination == network::mojom::RequestDestination::kScript) {
-    return true;
-  }
-
-  // WebAssembly module request have RequestDestination::kEmpty. Note that
-  // we always perform a code fetch for all of these requests because:
-  //
-  // * It is not easy to distinguish WebAssembly modules from other kEmpty
-  //   requests
-  // * The fetch might be handled by Service Workers, but we can't still know
-  //   if the response comes from the CacheStorage (in such cases its own
-  //   code cache will be used) or not.
-  //
-  // These fetches should be cheap, however, requiring one additional IPC and
-  // no browser process disk IO since the cache index is in memory and the
-  // resource key should not be present.
-  //
-  // The only case where it's easy to skip a kEmpty request is when a content
-  // equality check is required, because only ScriptResource supports that
-  // requirement.
-  if (request.destination == network::mojom::RequestDestination::kEmpty) {
-    return true;
-  }
-  return false;
-}
-
-mojom::blink::CodeCacheType GetCodeCacheType(
-    network::mojom::RequestDestination destination) {
-  if (destination == network::mojom::RequestDestination::kEmpty) {
-    // For requests initiated by the fetch function, we use code cache for
-    // WASM compiled code.
-    return mojom::blink::CodeCacheType::kWebAssembly;
-  } else {
-    // Otherwise, we use code cache for scripting.
-    return mojom::blink::CodeCacheType::kJavascript;
-  }
-}
-
-bool ShouldUseIsolatedCodeCache(
-    const network::mojom::URLResponseHead& response_head,
-    const KURL& initial_url,
-    const KURL& current_url,
-    base::Time code_cache_response_time) {
-  // We only support code cache for other service worker provided
-  // resources when a direct pass-through fetch handler is used. If the service
-  // worker synthesizes a new Response or provides a Response fetched from a
-  // different URL, then do not use the code cache.
-  // Also, responses coming from cache storage use a separate code cache
-  // mechanism.
-  if (response_head.was_fetched_via_service_worker) {
-    // Do the same check as !ResourceResponse::IsServiceWorkerPassThrough().
-    if (!response_head.cache_storage_cache_name.empty()) {
-      // Responses was produced by cache_storage
-      return false;
-    }
-    if (response_head.url_list_via_service_worker.empty()) {
-      // Response was synthetically constructed.
-      return false;
-    }
-    if (KURL(response_head.url_list_via_service_worker.back()) != current_url) {
-      // Response was fetched from different URLs.
-      return false;
-    }
-  }
-  if (SchemeRegistry::SchemeSupportsCodeCacheWithHashing(
-          initial_url.Protocol())) {
-    // This resource should use a source text hash rather than a response time
-    // comparison.
-    if (!SchemeRegistry::SchemeSupportsCodeCacheWithHashing(
-            current_url.Protocol())) {
-      // This kind of Resource doesn't support requiring a hash, so we can't
-      // send cached code to it.
-      return false;
-    }
-  } else if (!response_head.should_use_source_hash_for_js_code_cache) {
-    // If the timestamps don't match or are null, the code cache data may be
-    // for a different response. See https://crbug.com/1099587.
-    if (code_cache_response_time.is_null() ||
-        response_head.response_time.is_null() ||
-        code_cache_response_time != response_head.response_time) {
-      return false;
-    }
-  }
-  return true;
-}
-
 }  // namespace
-
-class ResourceRequestSender::CodeCacheFetcher
-    : public WTF::RefCounted<ResourceRequestSender::CodeCacheFetcher> {
- public:
-  static scoped_refptr<CodeCacheFetcher> TryCreateAndStart(
-      const network::ResourceRequest& request,
-      CodeCacheHost& code_cache_host,
-      base::OnceClosure done_closure);
-
-  CodeCacheFetcher(CodeCacheHost& code_cache_host,
-                   mojom::blink::CodeCacheType code_cache_type,
-                   const GURL& url,
-                   base::OnceClosure done_closure);
-
-  CodeCacheFetcher(const CodeCacheFetcher&) = delete;
-  CodeCacheFetcher& operator=(const CodeCacheFetcher&) = delete;
-
-  bool is_waiting() const { return is_waiting_; }
-
-  void SetCurrentUrl(const GURL& new_url) { current_url_ = KURL(new_url); }
-  void DidReceiveCachedMetadataFromUrlLoader();
-  std::optional<mojo_base::BigBuffer> TakeCodeCacheForResponse(
-      const network::mojom::URLResponseHead& response_head);
-
- private:
-  friend class WTF::RefCounted<CodeCacheFetcher>;
-  ~CodeCacheFetcher() = default;
-
-  void Start();
-
-  void DidReceiveCachedCode(base::Time response_time,
-                            mojo_base::BigBuffer data);
-
-  void ClearCodeCacheEntryIfPresent();
-
-  base::WeakPtr<CodeCacheHost> code_cache_host_;
-  mojom::blink::CodeCacheType code_cache_type_;
-  const KURL initial_url_;
-  KURL current_url_;
-  base::OnceClosure done_closure_;
-
-  bool is_waiting_ = true;
-  bool did_receive_cached_metadata_from_url_loader_ = false;
-  std::optional<mojo_base::BigBuffer> code_cache_data_;
-  base::Time code_cache_response_time_;
-};
-
-// static
-scoped_refptr<ResourceRequestSender::CodeCacheFetcher>
-ResourceRequestSender::CodeCacheFetcher::TryCreateAndStart(
-    const network::ResourceRequest& request,
-    CodeCacheHost& code_cache_host,
-    base::OnceClosure done_closure) {
-  if (!ShouldFetchCodeCache(request)) {
-    return nullptr;
-  }
-  auto fetcher = base::MakeRefCounted<ResourceRequestSender::CodeCacheFetcher>(
-      code_cache_host, GetCodeCacheType(request.destination), request.url,
-      std::move(done_closure));
-  fetcher->Start();
-  return fetcher;
-}
-
-ResourceRequestSender::CodeCacheFetcher::CodeCacheFetcher(
-    CodeCacheHost& code_cache_host,
-    mojom::blink::CodeCacheType code_cache_type,
-    const GURL& url,
-    base::OnceClosure done_closure)
-    : code_cache_host_(code_cache_host.GetWeakPtr()),
-      code_cache_type_(code_cache_type),
-      initial_url_(url),
-      current_url_(url),
-      done_closure_(std::move(done_closure)) {}
-
-void ResourceRequestSender::CodeCacheFetcher::Start() {
-  CHECK(code_cache_host_);
-  (*code_cache_host_)
-      ->FetchCachedCode(code_cache_type_, KURL(initial_url_),
-                        WTF::BindOnce(&CodeCacheFetcher::DidReceiveCachedCode,
-                                      base::WrapRefCounted(this)));
-}
-
-void ResourceRequestSender::CodeCacheFetcher::
-    DidReceiveCachedMetadataFromUrlLoader() {
-  did_receive_cached_metadata_from_url_loader_ = true;
-  if (!is_waiting_) {
-    ClearCodeCacheEntryIfPresent();
-  }
-}
-
-std::optional<mojo_base::BigBuffer>
-ResourceRequestSender::CodeCacheFetcher::TakeCodeCacheForResponse(
-    const network::mojom::URLResponseHead& response_head) {
-  CHECK(!is_waiting_);
-  if (!ShouldUseIsolatedCodeCache(response_head, initial_url_, current_url_,
-                                  code_cache_response_time_)) {
-    ClearCodeCacheEntryIfPresent();
-    return std::nullopt;
-  }
-  return std::move(code_cache_data_);
-}
-
-void ResourceRequestSender::CodeCacheFetcher::DidReceiveCachedCode(
-    base::Time response_time,
-    mojo_base::BigBuffer data) {
-  is_waiting_ = false;
-  code_cache_data_ = std::move(data);
-  if (did_receive_cached_metadata_from_url_loader_) {
-    ClearCodeCacheEntryIfPresent();
-    return;
-  }
-  code_cache_response_time_ = response_time;
-  std::move(done_closure_).Run();
-}
-
-void ResourceRequestSender::CodeCacheFetcher::ClearCodeCacheEntryIfPresent() {
-  if (code_cache_host_ && code_cache_data_ && (code_cache_data_->size() > 0)) {
-    (*code_cache_host_)
-        ->ClearCodeCacheEntry(code_cache_type_, KURL(initial_url_));
-  }
-  code_cache_data_.reset();
-}
 
 ResourceRequestSender::ResourceRequestSender() = default;
 
@@ -380,7 +155,7 @@ void ResourceRequestSender::SendSync(
     uint32_t loader_options,
     SyncLoadResponse* response,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-    WebVector<std::unique_ptr<URLLoaderThrottle>> throttles,
+    std::vector<std::unique_ptr<URLLoaderThrottle>> throttles,
     base::TimeDelta timeout,
     const Vector<String>& cors_exempt_header_list,
     base::WaitableEvent* terminate_sync_load_event,
@@ -482,7 +257,7 @@ int ResourceRequestSender::SendAsync(
     const Vector<String>& cors_exempt_header_list,
     scoped_refptr<ResourceRequestClient> client,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-    WebVector<std::unique_ptr<URLLoaderThrottle>> throttles,
+    std::vector<std::unique_ptr<URLLoaderThrottle>> throttles,
     std::unique_ptr<ResourceLoadInfoNotifierWrapper>
         resource_load_info_notifier_wrapper,
     CodeCacheHost* code_cache_host,
@@ -493,6 +268,19 @@ int ResourceRequestSender::SendAsync(
   loading_task_runner_ = loading_task_runner;
   CheckSchemeForReferrerPolicy(*request);
 
+  if (base::FeatureList::IsEnabled(
+          network::features::kRendererSideContentDecoding)) {
+    // When RendererSideContentDecoding is enabled, set the
+    // `client_side_content_decoding_enabled` flag on the ResourceRequest to
+    // prevent the network service from performing decoding, and add a
+    // ContentDecodingURLLoaderThrottle to the beginning of the throttle chain
+    // to handle decoding of the response before other throttles process it.
+    // The cost of inserting entry in the top of vector is O(n). But size of
+    // `throttles` is not so large. So the cost should be acceptable.
+    request->client_side_content_decoding_enabled = true;
+    throttles.insert(throttles.begin(),
+                     std::make_unique<ContentDecodingURLLoaderThrottle>());
+  }
 #if BUILDFLAG(IS_ANDROID)
   // TODO(crbug.com/1286053): This used to be a DCHECK asserting "Main frame
   // shouldn't come here", but after removing and re-landing the DCHECK later it
@@ -500,18 +288,20 @@ int ResourceRequestSender::SendAsync(
   // somewhere?
   if (!(request->is_outermost_main_frame &&
         IsRequestDestinationFrame(request->destination))) {
-    if (request->has_user_gesture) {
+    // Having the favicon request extend user gesture carryover doesn't make
+    // sense and causes flakiness in tests when the async favicon request
+    // unexpectedly extends the navigation chain.
+    if (request->has_user_gesture && !request->is_favicon) {
       resource_load_info_notifier_wrapper
           ->NotifyUpdateUserGestureCarryoverInfo();
     }
   }
 #endif
-  if (code_cache_host) {
-    code_cache_fetcher_ = CodeCacheFetcher::TryCreateAndStart(
-        *request, *code_cache_host,
-        WTF::BindOnce(&ResourceRequestSender::DidReceiveCachedCode,
-                      weak_factory_.GetWeakPtr()));
-  }
+  code_cache_fetcher_ = CodeCacheFetcher::TryCreateAndStart(
+      *request, code_cache_host, loading_task_runner_,
+      WTF::BindOnce(&ResourceRequestSender::DidReceiveCachedCode,
+                    weak_factory_.GetWeakPtr()));
+  used_code_cache_fetcher_ = !!code_cache_fetcher_;
 
   // Compute a unique request_id for this renderer process.
   int request_id = GenerateRequestId();
@@ -530,17 +320,15 @@ int ResourceRequestSender::SendAsync(
       request->url, std::move(evict_from_bfcache_callback),
       std::move(did_buffer_load_while_in_bfcache_callback));
 
-  std::vector<std::string> std_cors_exempt_header_list(
-      cors_exempt_header_list.size());
-  base::ranges::transform(cors_exempt_header_list,
-                          std_cors_exempt_header_list.begin(),
-                          [](const WebString& h) { return h.Latin1(); });
+  std::vector<std::string> std_cors_exempt_header_list =
+      base::ToVector(cors_exempt_header_list,
+                     [](const String& s) { return WebString(s).Latin1(); });
   std::unique_ptr<ThrottlingURLLoader> url_loader =
       ThrottlingURLLoader::CreateLoaderAndStart(
-          std::move(url_loader_factory), throttles.ReleaseVector(), request_id,
+          std::move(url_loader_factory), std::move(throttles), request_id,
           loader_options, request.get(), url_loader_client.get(),
           traffic_annotation, std::move(loading_task_runner),
-          std::make_optional(std_cors_exempt_header_list));
+          std::make_optional(std::move(std_cors_exempt_header_list)));
 
   // The request may be canceled by `ThrottlingURLLoader::CreateAndStart()`, in
   // which case `DeletePendingRequest()` has reset the `request_info_` to
@@ -645,12 +433,8 @@ void ResourceRequestSender::FollowPendingRedirect(
       request_info->modified_headers.Clear();
       request_info->url_loader->FollowRedirectForcingRestart();
     } else {
-      std::vector<std::string> removed_headers(
-          request_info_->removed_headers.size());
-      base::ranges::transform(request_info_->removed_headers,
-                              removed_headers.begin(), &WebString::Ascii);
       request_info->url_loader->FollowRedirect(
-          removed_headers, request_info->modified_headers,
+          request_info_->removed_headers, request_info->modified_headers,
           {} /* modified_cors_exempt_headers */);
       request_info->modified_headers.Clear();
     }
@@ -706,6 +490,7 @@ void ResourceRequestSender::OnReceivedResponse(
   }
 
   if (ShouldDeferTask()) {
+    latency_critical_operation_deferred_ = true;
     pending_tasks_.push_back(WTF::BindOnce(
         &ResourceRequestSender::OnReceivedResponse, weak_factory_.GetWeakPtr(),
         std::move(response_head), std::move(body), std::move(cached_metadata),
@@ -751,6 +536,7 @@ void ResourceRequestSender::OnReceivedRedirect(
     network::mojom::URLResponseHeadPtr response_head,
     base::TimeTicks redirect_ipc_arrival_time) {
   if (ShouldDeferTask()) {
+    latency_critical_operation_deferred_ = true;
     pending_tasks_.emplace_back(WTF::BindOnce(
         &ResourceRequestSender::OnReceivedRedirect, weak_factory_.GetWeakPtr(),
         redirect_info, std::move(response_head), redirect_ipc_arrival_time));
@@ -763,7 +549,7 @@ void ResourceRequestSender::OnReceivedRedirect(
   CHECK(request_info_->url_loader);
 
   if (code_cache_fetcher_) {
-    code_cache_fetcher_->SetCurrentUrl(redirect_info.new_url);
+    code_cache_fetcher_->OnReceivedRedirect(KURL(redirect_info.new_url));
   }
 
   request_info_->local_response_start = redirect_ipc_arrival_time;
@@ -803,12 +589,7 @@ void ResourceRequestSender::OnFollowRedirectCallback(
     return;
   }
 
-  // TODO(yoav): If request_info doesn't change above, we could avoid this
-  // copy.
-  WebVector<WebString> vector(removed_headers.size());
-  base::ranges::transform(removed_headers, vector.begin(),
-                          &WebString::FromASCII);
-  request_info_->removed_headers = vector;
+  request_info_->removed_headers = std::move(removed_headers);
   request_info_->response_url = KURL(redirect_info.new_url);
   request_info_->has_pending_redirect = true;
   request_info_->resource_load_info_notifier_wrapper
@@ -824,6 +605,7 @@ void ResourceRequestSender::OnRequestComplete(
     const network::URLLoaderCompletionStatus& status,
     base::TimeTicks complete_ipc_arrival_time) {
   if (ShouldDeferTask()) {
+    latency_critical_operation_deferred_ = true;
     pending_tasks_.emplace_back(WTF::BindOnce(
         &ResourceRequestSender::OnRequestComplete, weak_factory_.GetWeakPtr(),
         status, complete_ipc_arrival_time));
@@ -876,6 +658,12 @@ void ResourceRequestSender::OnRequestComplete(
           "Blink.ResourceRequest.CompletionDelay2",
           complete_ipc_arrival_time - renderer_status.completion_time);
     }
+  }
+
+  if (used_code_cache_fetcher_) {
+    base::UmaHistogramBoolean(
+        "Blink.ResourceRequest.DeferedRequestWaitingOnCodeCache",
+        latency_critical_operation_deferred_);
   }
   // The request ID will be removed from our pending list in the destructor.
   // Normally, dispatching this message causes the reference-counted request to
@@ -942,13 +730,13 @@ void ResourceRequestSender::DidReceiveCachedCode() {
 }
 
 bool ResourceRequestSender::ShouldDeferTask() const {
-  return (code_cache_fetcher_ && code_cache_fetcher_->is_waiting()) ||
+  return (code_cache_fetcher_ && code_cache_fetcher_->IsWaiting()) ||
          !pending_tasks_.empty();
 }
 
 void ResourceRequestSender::MaybeRunPendingTasks() {
   if (!request_info_ ||
-      (code_cache_fetcher_ && code_cache_fetcher_->is_waiting()) ||
+      (code_cache_fetcher_ && code_cache_fetcher_->IsWaiting()) ||
       (request_info_->freeze_mode != LoaderFreezeMode::kNone)) {
     return;
   }

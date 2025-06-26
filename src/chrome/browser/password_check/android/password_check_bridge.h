@@ -49,17 +49,14 @@ class PasswordCheckBridge : public PasswordCheckManager::Observer {
 
   // Called by Java to update a single compromised credential in the password
   // store.
-  void UpdateCredential(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& credential,
-      const base::android::JavaParamRef<jstring>& new_password);
+  void UpdateCredential(JNIEnv* env,
+                        const base::android::JavaParamRef<jobject>& credential,
+                        std::string& new_password);
 
   // Called by Java to launch the edit credential UI.
-  void OnEditCredential(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& credential,
-      const base::android::JavaParamRef<jobject>& context,
-      const base::android::JavaParamRef<jobject>& settings_launcher);
+  void OnEditCredential(JNIEnv* env,
+                        const base::android::JavaParamRef<jobject>& credential,
+                        const base::android::JavaParamRef<jobject>& context);
 
   // Called by Java to remove a single compromised credentials from the password
   // store.

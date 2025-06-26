@@ -22,14 +22,19 @@
 #include "chrome/browser/ui/webui/ash/cloud_upload/cloud_upload_util.h"
 #include "chrome/browser/ui/webui/ash/cloud_upload/drive_upload_handler.h"
 #include "chrome/browser/ui/webui/ash/cloud_upload/one_drive_upload_handler.h"
-#include "chrome/browser/ui/webui/ash/system_web_dialog_delegate.h"
+#include "chrome/browser/ui/webui/ash/system_web_dialog/system_web_dialog_delegate.h"
 #include "chromeos/ash/components/drivefs/mojom/drivefs.mojom-forward.h"
 #include "components/drive/file_errors.h"
 #include "storage/browser/file_system/file_system_url.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/native_widget_types.h"
 
 class Profile;
+
+namespace ash {
+class BrowserDelegate;
+}  // namespace ash
 
 namespace extensions::app_file_handler_util {
 class MimeTypeCollector;
@@ -51,6 +56,7 @@ FORWARD_DECLARE_TEST(OneDriveTest, FailToOpenFileFromAndroidOneDriveNotOnODFS);
 FORWARD_DECLARE_TEST(
     OneDriveTest,
     FailToOpenFileFromAndroidOneDriveDirectoryNotAccessibleToODFS);
+FORWARD_DECLARE_TEST(OneDriveTest, FailToOpenFileFromODFSWhenMS365NotInstalled);
 }  // namespace file_manager::file_tasks
 
 namespace ash::cloud_upload {
@@ -154,6 +160,8 @@ class CloudOpenTask : public BrowserListObserver,
   FRIEND_TEST_ALL_PREFIXES(
       ::file_manager::file_tasks::OneDriveTest,
       FailToOpenFileFromAndroidOneDriveDirectoryNotAccessibleToODFS);
+  FRIEND_TEST_ALL_PREFIXES(::file_manager::file_tasks::OneDriveTest,
+                           FailToOpenFileFromODFSWhenMS365NotInstalled);
 
  private:
   friend class RefCounted<CloudOpenTask>;  // Allow destruction by RefCounted<>.
@@ -254,7 +262,7 @@ class CloudOpenTask : public BrowserListObserver,
   OfficeFilesTransferRequired transfer_required_ =
       OfficeFilesTransferRequired::kNotRequired;
   bool need_new_files_app_ = false;
-  raw_ptr<Browser> files_app_browser_;
+  raw_ptr<BrowserDelegate> files_app_browser_;
   bool files_app_closed_ = false;
 };
 
@@ -308,7 +316,7 @@ class CloudUploadDialog : public SystemWebDialogDelegate {
 
  protected:
   ~CloudUploadDialog() override;
-  ui::ModalType GetDialogModalType() const override;
+  ui::mojom::ModalType GetDialogModalType() const override;
   bool ShouldCloseDialogOnEscape() const override;
   bool ShouldShowCloseButton() const override;
   void GetDialogSize(gfx::Size* size) const override;

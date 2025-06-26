@@ -102,9 +102,6 @@ Domain SpotlightDomainFromString(NSString* domain) {
   } else if ([domain hasPrefix:kSpotlightOpenTabsPrefix]) {
     return DOMAIN_OPEN_TABS;
   }
-  // On normal flow, it is not possible to reach this point. When testing the
-  // app, it may be possible though if the app is downgraded.
-  DUMP_WILL_BE_NOTREACHED_NORETURN();
   return DOMAIN_UNKNOWN;
 }
 
@@ -124,8 +121,7 @@ NSString* StringFromSpotlightDomain(Domain domain) {
     default:
       // On normal flow, it is not possible to reach this point. When testing
       // the app, it may be possible though if the app is downgraded.
-      NOTREACHED_IN_MIGRATION();
-      return nil;
+      NOTREACHED();
   }
 }
 
@@ -146,8 +142,7 @@ NSString* SpotlightItemSourceLabelFromDomain(Domain domain) {
     default:
       // On normal flow, it is not possible to reach this point. When testing
       // the app, it may be possible though if the app is downgraded.
-      NOTREACHED_IN_MIGRATION();
-      return nil;
+      NOTREACHED();
   }
 }
 
@@ -182,9 +177,10 @@ void GetURLForSpotlightItemID(NSString* itemID, BlockWithNSURL completion) {
       [NSString stringWithFormat:@"%@ == \"%@\"",
                                  GetSpotlightCustomAttributeItemID(), itemID];
 
-  CSSearchQuery* query =
-      [[CSSearchQuery alloc] initWithQueryString:queryString
-                                      attributes:@[ @"contentURL" ]];
+  CSSearchQueryContext* context = [[CSSearchQueryContext alloc] init];
+  context.fetchAttributes = @[ @"contentURL" ];
+  CSSearchQuery* query = [[CSSearchQuery alloc] initWithQueryString:queryString
+                                                       queryContext:context];
 
   [query setFoundItemsHandler:^(NSArray<CSSearchableItem*>* items) {
     if ([items count] == 1) {
@@ -195,7 +191,6 @@ void GetURLForSpotlightItemID(NSString* itemID, BlockWithNSURL completion) {
       }
     }
     completion(nil);
-
   }];
 
   [query start];

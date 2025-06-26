@@ -33,14 +33,16 @@ export class CrChipElement extends CrChipElementBase {
   static override get properties() {
     return {
       disabled: {type: Boolean},
+      chipAriaLabel: {type: String},
       chipRole: {type: String},
-      selected: {type: Boolean},
+      selected: {type: Boolean, reflect: true},
     };
   }
 
-  disabled: boolean = false;
-  chipRole: string = '';
-  selected: boolean = false;
+  accessor disabled: boolean = false;
+  accessor chipAriaLabel: string = '';
+  accessor chipRole: string = '';
+  accessor selected: boolean = false;
 
   constructor() {
     super();
@@ -49,7 +51,7 @@ export class CrChipElement extends CrChipElementBase {
 
   // Overridden from CrRippleMixin
   override createRipple() {
-    this.rippleContainer = this.shadowRoot!.querySelector('button');
+    this.rippleContainer = this.shadowRoot.querySelector('button');
     return super.createRipple();
   }
 }

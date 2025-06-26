@@ -17,7 +17,6 @@ include_rules = [
   "+chrome/browser/apps/app_service",
   "+chrome/browser/ash/attestation",
   "+chrome/browser/ash/cert_provisioning",
-  "+chrome/browser/ash/crosapi",
   "+chrome/browser/ash/extensions",
   "+chrome/browser/ash/login",
   "+chrome/browser/ash/notifications",
@@ -45,7 +44,7 @@ include_rules = [
   "+chrome/browser/ash/session_length_limiter.h",
   "+chrome/browser/ash/settings",
   "+chrome/browser/ash/system",
-  "+chrome/browser/ash/tpm_firmware_update.h",
+  "+chrome/browser/ash/tpm",
   "+chrome/browser/browser_process.h",
   "+chrome/browser/browser_process_platform_part_ash.h",
   "+chrome/browser/browser_process_platform_part.h",
@@ -58,6 +57,7 @@ include_rules = [
   "+chrome/browser/extensions/external_loader.h",
   "+chrome/browser/extensions/external_provider_impl.h",
   "+chrome/browser/extensions/policy_handlers.h",
+  "+chrome/browser/extensions/scoped_test_mv2_enabler.h",
   "+chrome/browser/extensions/updater",
   "+chrome/browser/invalidation",
   "+chrome/browser/lifetime",
@@ -67,6 +67,7 @@ include_rules = [
   "+chrome/browser/prefs",
   "+chrome/browser/profiles",
   "+chrome/browser/signin",
+  "+chrome/browser/ui/ash/login",
   "+chrome/browser/ui/browser_commands.h",
   "+chrome/browser/ui/browser.h",
   "+chrome/browser/ui/browser_list.h",
@@ -87,3 +88,10 @@ include_rules = [
   "+chrome/grit",
   "+chrome/test/base",
 ]
+
+specific_include_rules = {
+  "browser_policy_connector_ash_unittest.cc": [
+    "+chrome/browser/ash/wallpaper_handlers/test_wallpaper_fetcher_delegate.h",
+    "+chrome/browser/ui/ash/wallpaper",
+  ],
+}

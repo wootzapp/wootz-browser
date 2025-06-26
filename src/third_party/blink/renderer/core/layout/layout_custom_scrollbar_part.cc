@@ -41,7 +41,7 @@ LayoutCustomScrollbarPart::LayoutCustomScrollbarPart(
     CustomScrollbar* scrollbar,
     ScrollbarPart part,
     bool suppress_use_counters)
-    : LayoutReplaced(nullptr, PhysicalSize()),
+    : LayoutReplaced(nullptr),
       scrollable_area_(scrollable_area),
       scrollbar_(scrollbar),
       part_(part),
@@ -106,10 +106,13 @@ void LayoutCustomScrollbarPart::Trace(Visitor* visitor) const {
 
 // TODO(crbug.com/1020913): Support subpixel layout of scrollbars and remove
 // ToInt() in the following functions.
+// TODO(crbug.com/40339056): This could handle intrinsic sizing keywords
+// and calc-size() a bit better than it does.
 int LayoutCustomScrollbarPart::ComputeSize(const Length& length,
                                            int container_size) const {
   NOT_DESTROYED();
-  if (length.IsSpecified()) {
+  if (!length.HasAutoOrContentOrIntrinsic() && !length.HasStretch()) {
+    CHECK(length.HasOnlyFixedAndPercent());
     return MinimumValueForLength(length, LayoutUnit(container_size)).ToInt();
   }
   return CustomScrollbarTheme::GetCustomScrollbarTheme()->ScrollbarThickness(
@@ -165,11 +168,10 @@ int LayoutCustomScrollbarPart::ComputeLength() const {
   NOT_DESTROYED();
   DCHECK_NE(kScrollbarBGPart, part_);
 
-  gfx::Rect visible_content_rect =
-      scrollbar_->GetScrollableArea()->VisibleContentRect(kIncludeScrollbars);
-  if (scrollbar_->Orientation() == kHorizontalScrollbar)
-    return ComputeWidth(visible_content_rect.width());
-  return ComputeHeight(visible_content_rect.height());
+  if (scrollbar_->Orientation() == kHorizontalScrollbar) {
+    return ComputeWidth(scrollbar_->FrameRect().width());
+  }
+  return ComputeHeight(scrollbar_->FrameRect().height());
 }
 
 void LayoutCustomScrollbarPart::SetOverriddenSize(const PhysicalSize& size) {
@@ -177,14 +179,26 @@ void LayoutCustomScrollbarPart::SetOverriddenSize(const PhysicalSize& size) {
   overridden_size_ = size;
 }
 
-LayoutPoint LayoutCustomScrollbarPart::LocationInternal() const {
+DeprecatedLayoutPoint LayoutCustomScrollbarPart::LocationInternal() const {
   NOT_DESTROYED();
-  NOTREACHED_NORETURN();
+  NOTREACHED();
 }
 
 PhysicalSize LayoutCustomScrollbarPart::Size() const {
   NOT_DESTROYED();
   return overridden_size_;
+}
+
+PhysicalNaturalSizingInfo LayoutCustomScrollbarPart::GetNaturalDimensions()
+    const {
+  NOT_DESTROYED();
+  // 300x150, no aspect ratio. (Should probably be none.)
+  PhysicalSize natural_size{LayoutUnit(kDefaultWidth),
+                            LayoutUnit(kDefaultHeight)};
+  natural_size.Scale(StyleRef().EffectiveZoom());
+  PhysicalNaturalSizingInfo sizing_info;
+  sizing_info.size = natural_size;
+  return sizing_info;
 }
 
 static LayoutUnit ComputeMargin(const Length& style_margin) {

@@ -8,6 +8,7 @@
 #include <msctf.h>
 #include <wrl/client.h>
 
+#include "base/component_export.h"
 #include "base/memory/raw_ptr.h"
 #include "ui/base/ime/ime_key_event_dispatcher.h"
 #include "ui/base/ime/text_input_type.h"
@@ -34,7 +35,8 @@ class COMPONENT_EXPORT(UI_BASE_IME_WIN) MockTSFBridge : public TSFBridge {
   void RemoveFocusedClient(TextInputClient* client) override;
   void SetImeKeyEventDispatcher(
       ImeKeyEventDispatcher* ime_key_event_dispatcher) override;
-  void RemoveImeKeyEventDispatcher() override;
+  void RemoveImeKeyEventDispatcher(
+      ImeKeyEventDispatcher* ime_key_event_dispatcher) override;
   Microsoft::WRL::ComPtr<ITfThreadMgr> GetThreadManager() override;
   TextInputClient* GetFocusedTextInputClient() const override;
   bool IsInputLanguageCJK() override;

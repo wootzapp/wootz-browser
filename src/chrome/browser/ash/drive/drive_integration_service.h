@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "base/files/file_path.h"
@@ -24,10 +25,11 @@
 #include "chrome/browser/profiles/profile_keyed_service_factory.h"
 #include "chromeos/ash/components/drivefs/drivefs_host.h"
 #include "chromeos/ash/components/drivefs/drivefs_pinning_manager.h"
+#include "chromeos/ash/components/drivefs/mojom/drivefs.mojom.h"
+#include "chromeos/ash/components/drivefs/mojom/notifications.mojom.h"
 #include "chromeos/ash/components/network/network_state.h"
 #include "chromeos/ash/components/network/network_state_handler.h"
 #include "chromeos/ash/components/network/network_state_handler_observer.h"
-#include "chromeos/crosapi/mojom/drive_integration_service.mojom.h"
 #include "components/drive/event_logger.h"
 #include "components/drive/file_errors.h"
 #include "components/drive/file_system_core_util.h"
@@ -35,7 +37,6 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "google_apis/common/api_error_codes.h"
 #include "google_apis/common/auth_service_interface.h"
-#include "mojo/public/cpp/bindings/pending_remote.h"
 
 class PrefService;
 
@@ -45,6 +46,7 @@ class SequencedTaskRunner;
 
 namespace drivefs {
 class DriveFsHost;
+class DriveFsSearchQuery;
 
 namespace mojom {
 class DriveFs;
@@ -78,6 +80,26 @@ struct QuickAccessItem {
   double confidence;
 };
 
+// Notifications/Errors coming from DriveFs side which we need to persist in
+// the Chrome side.
+struct PersistedMessage {
+  // Where does the message come from in DriveFs.
+  enum Source {
+    kNotification = 0,
+    kError = 1,
+  };
+  Source source;
+
+  // DriveFs Notification/Error types which require persistence.
+  using Type = std::variant<drivefs::mojom::DriveFsNotification::Tag,
+                            drivefs::mojom::MirrorSyncError::Type>;
+  Type type;
+
+  base::FilePath path;
+
+  int64_t stable_id;
+};
+
 // DriveIntegrationService is used to integrate Drive to Chrome. This class
 // exposes the file system representation built on top of Drive and some
 // other Drive related objects to the file manager, and some other sub
@@ -96,8 +118,7 @@ class DriveIntegrationService : public KeyedService,
   using GetQuickAccessItemsCallback =
       base::OnceCallback<void(FileError, std::vector<QuickAccessItem>)>;
   using SearchDriveByFileNameCallback =
-      base::OnceCallback<void(FileError,
-                              std::vector<drivefs::mojom::QueryItemPtr>)>;
+      drivefs::mojom::SearchQuery::GetNextPageCallback;
   using GetThumbnailCallback =
       base::OnceCallback<void(const std::optional<std::vector<uint8_t>>&)>;
   using GetReadOnlyAuthenticationTokenCallback =
@@ -239,6 +260,13 @@ class DriveIntegrationService : public KeyedService,
       drivefs::mojom::QueryParameters::SortDirection sort_direction,
       drivefs::mojom::QueryParameters::QuerySource query_source,
       SearchDriveByFileNameCallback callback) const;
+  // Returns nullptr if DriveFS is not mounted.
+  std::unique_ptr<drivefs::DriveFsSearchQuery> CreateSearchQueryByFileName(
+      std::string query,
+      int max_results,
+      drivefs::mojom::QueryParameters::SortField sort_field,
+      drivefs::mojom::QueryParameters::SortDirection sort_direction,
+      drivefs::mojom::QueryParameters::QuerySource query_source) const;
 
   // Returns the metadata for Drive file at |local_path|.
   void GetMetadata(const base::FilePath& local_path,
@@ -344,12 +372,6 @@ class DriveIntegrationService : public KeyedService,
   void ImmediatelyUpload(
       const base::FilePath& path,
       drivefs::mojom::DriveFs::ImmediatelyUploadCallback callback);
-
-  // Called by lacros to register a bridge that this service can call into when
-  // DriveFS wants to initiate a connection to an extension in lacros.
-  void RegisterDriveFsNativeMessageHostBridge(
-      mojo::PendingRemote<crosapi::mojom::DriveFsNativeMessageHostBridge>
-          bridge);
 
   // Gets counts of files in docs offline extension.
   void GetDocsOfflineStats(
@@ -479,13 +501,17 @@ class DriveIntegrationService : public KeyedService,
       std::optional<std::vector<drivefs::mojom::QueryItemPtr>> items);
 
   void OnEnableMirroringStatusUpdate(drivefs::mojom::MirrorSyncStatus status);
-  void OnMyFilesSyncRootAdded(drive::FileError status);
+  void OnMyFilesSyncPathAdded(drive::FileError status);
 
-  void OnGetSyncPathsForRemovingAllRoots(
-      drive::FileError status,
-      const std::vector<::base::FilePath>& paths);
-  void OnSyncRootRemoved(const base::FilePath& path, drive::FileError status);
   void OnDisableMirroringStatusUpdate(drivefs::mojom::MirrorSyncStatus status);
+
+  // Before adding a new root, get all existing roots first to see if it exists
+  // or not. If it exists, do nothing.
+  void OnGetSyncPathsForAddingPath(
+      const base::FilePath& path_to_add,
+      drivefs::mojom::DriveFs::ToggleSyncForPathCallback callback,
+      drive::FileError status,
+      const std::vector<base::FilePath>& paths);
 
   // Toggle syncing for |path| if the the directory exists.
   void ToggleSyncForPathIfDirectoryExists(
@@ -525,9 +551,6 @@ class DriveIntegrationService : public KeyedService,
   bool mirroring_enabled_ = false;
   bool is_online_ = true;
   bool remount_when_online_ = false;
-
-  // -1 means no sync roots to remove.
-  int number_of_sync_roots_to_remove_ = -1;
 
   // Custom mount point name that can be injected for testing in constructor.
   std::string mount_point_name_;
@@ -607,8 +630,8 @@ class DriveIntegrationServiceFactory : public ProfileKeyedServiceFactory {
   // This is static so it can be set without instantiating the factory. This
   // allows factory creation to be delayed until it normally happens (on profile
   // creation) rather than when tests are set up. DriveIntegrationServiceFactory
-  // transitively depends on ExtensionSystemFactory which crashes if created too
-  // soon (i.e. before the BrowserProcess exists).
+  // transitively depends on ChromeExtensionSystemFactory which crashes if
+  // created too soon (i.e. before the BrowserProcess exists).
   static FactoryCallback* factory_for_test_;
 };
 

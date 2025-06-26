@@ -23,7 +23,8 @@ TEST(InlineStylePropertyMapTest, PendingSubstitutionValueCrash) {
   Document* document =
       Document::CreateForTest(execution_context.GetExecutionContext());
   Element* div = document->CreateRawElement(html_names::kDivTag);
-  InlineStylePropertyMap map(div);
+  InlineStylePropertyMap* map =
+      MakeGarbageCollected<InlineStylePropertyMap>(div);
 
   // For each shorthand, create a declaration with a var() reference and try
   // reifying all longhands.
@@ -37,10 +38,10 @@ TEST(InlineStylePropertyMapTest, PendingSubstitutionValueCrash) {
     }
     div->SetInlineStyleProperty(property_id, "var(--dummy)");
     const StylePropertyShorthand& longhands = shorthandForProperty(property_id);
-    for (unsigned i = 0; i < longhands.length(); i++) {
-      map.get(document->GetExecutionContext(),
-              longhands.properties()[i]->GetCSSPropertyName().ToAtomicString(),
-              ASSERT_NO_EXCEPTION);
+    for (const CSSProperty* longhand : longhands.properties()) {
+      map->get(document->GetExecutionContext(),
+               longhand->GetCSSPropertyName().ToAtomicString(),
+               ASSERT_NO_EXCEPTION);
     }
   }
 }

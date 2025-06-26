@@ -12,14 +12,14 @@
 
 #include "partition_alloc/address_pool_manager_types.h"
 #include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/flags.h"
 #include "partition_alloc/page_allocator_constants.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_forward.h"
 
-#if BUILDFLAG(IS_APPLE) && defined(ARCH_CPU_64_BITS)
+#if PA_BUILDFLAG(IS_APPLE) && PA_BUILDFLAG(PA_ARCH_CPU_64_BITS)
 #include <mach/vm_page_size.h>
 #endif
 
@@ -63,9 +63,7 @@ enum class FreeFlags {
   kNoHooks = 1 << 1,  // Internal.
   // Quarantine for a while to ensure no UaF from on-stack pointers.
   kSchedulerLoopQuarantine = 1 << 2,
-  // Zap the object region on `Free()`.
-  kZap = 1 << 3,
-  kMaxValue = kZap,
+  kMaxValue = kSchedulerLoopQuarantine,
 };
 PA_DEFINE_OPERATORS_FOR_FLAGS(FreeFlags);
 }  // namespace internal
@@ -100,21 +98,21 @@ constexpr size_t kPartitionCachelineSize = 64;
 // other constant values, we pack _all_ `PartitionRoot::Alloc` sizes perfectly
 // up against the end of a system page.
 
-#if defined(_MIPS_ARCH_LOONGSON) || defined(ARCH_CPU_LOONGARCH64)
-PA_ALWAYS_INLINE PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR size_t
-PartitionPageShift() {
-  return 16;  // 64 KiB
-}
-#elif defined(ARCH_CPU_PPC64)
-PA_ALWAYS_INLINE PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR size_t
-PartitionPageShift() {
-  return 18;  // 256 KiB
-}
-#elif (BUILDFLAG(IS_APPLE) && defined(ARCH_CPU_64_BITS)) || \
+#if (PA_BUILDFLAG(IS_APPLE) && PA_BUILDFLAG(PA_ARCH_CPU_64_BITS)) || \
     defined(PARTITION_ALLOCATOR_CONSTANTS_POSIX_NONCONST_PAGE_SIZE)
 PA_ALWAYS_INLINE PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR size_t
 PartitionPageShift() {
   return PageAllocationGranularityShift() + 2;
+}
+#elif defined(_MIPS_ARCH_LOONGSON) || PA_BUILDFLAG(PA_ARCH_CPU_LOONGARCH64)
+PA_ALWAYS_INLINE PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR size_t
+PartitionPageShift() {
+  return 16;  // 64 KiB
+}
+#elif PA_BUILDFLAG(PA_ARCH_CPU_PPC64)
+PA_ALWAYS_INLINE PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR size_t
+PartitionPageShift() {
+  return 18;  // 256 KiB
 }
 #else
 PA_ALWAYS_INLINE PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR size_t
@@ -165,21 +163,6 @@ PA_ALWAYS_INLINE PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR size_t
 MaxRegularSlotSpanSize() {
   return kMaxPartitionPagesPerRegularSlotSpan << PartitionPageShift();
 }
-
-// The maximum size that is used in an alternate bucket distribution. After this
-// threshold, we only have 1 slot per slot-span, so external fragmentation
-// doesn't matter. So, using the alternate bucket distribution after this
-// threshold has no benefit, and only increases internal fragmentation.
-//
-// We would like this to be |MaxRegularSlotSpanSize()| on all platforms, but
-// this is not constexpr on all platforms, so on other platforms we hardcode it,
-// even though this may be too low, e.g. on systems with a page size >4KiB.
-constexpr size_t kHighThresholdForAlternateDistribution =
-#if PAGE_ALLOCATOR_CONSTANTS_ARE_CONSTEXPR
-    MaxRegularSlotSpanSize();
-#else
-    1 << 16;
-#endif
 
 // We reserve virtual address space in 2 MiB chunks (aligned to 2 MiB as well).
 // These chunks are called *super pages*. We do this so that we can store
@@ -303,6 +286,19 @@ enum pool_handle : unsigned {
 // kNullPoolHandle doesn't have metadata, hence - 1
 constexpr size_t kNumPools = kMaxPoolHandle - 1;
 
+enum class PoolHandleMask {
+  kNone = 0u,
+  kRegular = 1u << (kRegularPoolHandle - 1),
+  kBRP = 1u << (kBRPPoolHandle - 1),
+#if PA_BUILDFLAG(HAS_64_BIT_POINTERS)
+  kConfigurable = 1u << (kConfigurablePoolHandle - 1),
+  kMaxValue = kConfigurable
+#else
+  kMaxValue = kBRP
+#endif
+};
+PA_DEFINE_OPERATORS_FOR_FLAGS(PoolHandleMask);
+
 // Maximum pool size. With exception of Configurable Pool, it is also
 // the actual size, unless PA_DYNAMICALLY_SELECT_POOL_SIZE is set, which
 // allows to choose a different size at initialization time for certain
@@ -315,7 +311,7 @@ constexpr size_t kNumPools = kMaxPoolHandle - 1;
 // When pointer compression is enabled, we cannot use large pools (at most
 // 8GB for each of the glued pools).
 #if PA_BUILDFLAG(HAS_64_BIT_POINTERS)
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS) || \
+#if PA_BUILDFLAG(IS_ANDROID) || PA_BUILDFLAG(IS_IOS) || \
     PA_BUILDFLAG(ENABLE_POINTER_COMPRESSION)
 constexpr size_t kPoolMaxSize = 8 * kGiB;
 #else
@@ -337,18 +333,6 @@ static_assert(kThreadIsolatedPoolHandle == kNumPools,
 // (which saves shadow tag memory). We also save CPU cycles by skipping tagging
 // of large areas which are less likely to benefit from MTE protection.
 constexpr size_t kMaxMemoryTaggingSize = 1024;
-
-#if PA_BUILDFLAG(HAS_MEMORY_TAGGING)
-// Returns whether the tag of |object| overflowed, meaning the containing slot
-// needs to be moved to quarantine.
-PA_ALWAYS_INLINE bool HasOverflowTag(void* object) {
-  // The tag with which the slot is put to quarantine.
-  constexpr uintptr_t kOverflowTag = 0x0f00000000000000uLL;
-  static_assert((kOverflowTag & kPtrTagMask) != 0,
-                "Overflow tag must be in tag bits");
-  return (reinterpret_cast<uintptr_t>(object) & kPtrTagMask) == kOverflowTag;
-}
-#endif  // PA_BUILDFLAG(HAS_MEMORY_TAGGING)
 
 PA_ALWAYS_INLINE PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR size_t
 NumPartitionPagesPerSuperPage() {
@@ -442,7 +426,14 @@ PA_ALWAYS_INLINE constexpr size_t MaxDirectMapped() {
 // Max alignment supported by AlignedAlloc().
 // kSuperPageSize alignment can't be easily supported, because each super page
 // starts with guard pages & metadata.
+// TODO(casey.smalley@arm.com): under 64k pages we can end up in a situation
+// where a normal slot span will be large enough to contain multiple items,
+// but the address will go over the final partition page after being aligned.
+#if PA_BUILDFLAG(IS_LINUX) && PA_BUILDFLAG(PA_ARCH_CPU_ARM64)
+constexpr size_t kMaxSupportedAlignment = kSuperPageSize / 4;
+#else
 constexpr size_t kMaxSupportedAlignment = kSuperPageSize / 2;
+#endif
 
 constexpr size_t kBitsPerSizeT = sizeof(void*) * CHAR_BIT;
 
@@ -459,7 +450,7 @@ constexpr size_t kBitsPerSizeT = sizeof(void*) * CHAR_BIT;
 // the place used by a previous one will lead the previous SlotSpan to be
 // decommitted immediately, provided that it is still empty.
 //
-// Setting this value higher means giving more time for reuse to happen, at the
+// Increasing the ring size means giving more time for reuse to happen, at the
 // cost of possibly increasing peak committed memory usage (and increasing the
 // size of PartitionRoot a bit, since the ring buffer is there). Note that the
 // ring buffer doesn't necessarily contain an empty SlotSpan, as SlotSpans are
@@ -470,23 +461,27 @@ constexpr size_t kBitsPerSizeT = sizeof(void*) * CHAR_BIT;
 // PurgeFlags::kDecommitEmptySlotSpans flag will eagerly decommit all entries
 // in the ring buffer, so with periodic purge enabled, this typically happens
 // every few seconds.
+//
+// The constants below define the empty ring size:
+// - In foreground mode (see `PartitionRoot::AdjustForForeground`).
+constexpr size_t kForegroundEmptySlotSpanRingSize =
 #if PA_BUILDFLAG(USE_LARGE_EMPTY_SLOT_SPAN_RING)
-// USE_LARGE_EMPTY_SLOT_SPAN_RING results in two size. kMaxEmptyCacheIndexBits,
-// which is used when the renderer is in the foreground, and
-// kMinEmptyCacheIndexBits which is used when the renderer is in the background.
-constexpr size_t kMaxEmptyCacheIndexBits = 10;
-constexpr size_t kMinEmptyCacheIndexBits = 7;
+    1 << 10;
 #else
-constexpr size_t kMaxEmptyCacheIndexBits = 7;
-constexpr size_t kMinEmptyCacheIndexBits = 7;
+    1 << 7;
 #endif
-static_assert(kMinEmptyCacheIndexBits <= kMaxEmptyCacheIndexBits,
-              "min size must be <= max size");
-// kMaxFreeableSpans is the buffer size, but is never used as an index value,
-// hence <= is appropriate.
-constexpr size_t kMaxFreeableSpans = 1 << kMaxEmptyCacheIndexBits;
-constexpr size_t kMinFreeableSpans = 1 << kMinEmptyCacheIndexBits;
+// - In background mode or large empty slot span ring mode (see
+//   `PartitionRoot::AdjustForBackground` and
+//   `PartitionRoot::EnableLargeEmptySlotSpanRing`).
+constexpr size_t kBackgroundEmptySlotSpanRingSize = 1 << 7;
+// - By default.
 constexpr size_t kDefaultEmptySlotSpanRingSize = 16;
+
+// This is the maximum ring size supported across all modes:
+constexpr size_t kMaxEmptySlotSpanRingSize = kForegroundEmptySlotSpanRingSize;
+static_assert(kMaxEmptySlotSpanRingSize >= kForegroundEmptySlotSpanRingSize);
+static_assert(kMaxEmptySlotSpanRingSize >= kBackgroundEmptySlotSpanRingSize);
+static_assert(kMaxEmptySlotSpanRingSize >= kDefaultEmptySlotSpanRingSize);
 
 // If the total size in bytes of allocated but not committed pages exceeds this
 // value (probably it is a "out of virtual address space" crash), a special

@@ -8,7 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
-import static org.chromium.android_webview.test.OnlyRunIn.ProcessMode.SINGLE_PROCESS;
+import static org.chromium.android_webview.test.OnlyRunIn.ProcessMode.EITHER_PROCESS;
 
 import android.annotation.SuppressLint;
 import android.app.job.JobInfo;
@@ -55,7 +55,7 @@ import java.util.concurrent.TimeoutException;
 
 /** Test AwVariationsSeedFetcher. */
 @RunWith(AwJUnit4ClassRunner.class)
-@OnlyRunIn(SINGLE_PROCESS)
+@OnlyRunIn(EITHER_PROCESS) // These tests don't use the renderer process
 public class AwVariationsSeedFetcherTest {
     private static final int HTTP_OK = 200;
     private static final int HTTP_NOT_FOUND = 404;
@@ -66,7 +66,7 @@ public class AwVariationsSeedFetcherTest {
     private static final long START_TIME = 100;
 
     // A test JobScheduler which only holds one job, and never does anything with it.
-    private class TestJobScheduler extends JobScheduler {
+    private static class TestJobScheduler extends JobScheduler {
         public JobInfo mJob;
 
         public void clear() {
@@ -155,7 +155,7 @@ public class AwVariationsSeedFetcherTest {
     }
 
     // A test VariationsSeedFetcher that fails all seed requests.
-    private class FailingVariationsSeedFetcher extends VariationsSeedFetcher {
+    private static class FailingVariationsSeedFetcher extends VariationsSeedFetcher {
         @Override
         public SeedFetchInfo downloadContent(
                 VariationsSeedFetcher.SeedFetchParameters params, SeedInfo currInfo) {
@@ -166,7 +166,7 @@ public class AwVariationsSeedFetcherTest {
     }
 
     // A fake clock instance with a controllable timestamp.
-    private class TestClock implements AwVariationsSeedFetcher.Clock {
+    private static class TestClock implements AwVariationsSeedFetcher.Clock {
         public long timestamp;
 
         @Override
@@ -176,7 +176,7 @@ public class AwVariationsSeedFetcherTest {
     }
 
     // A test AwVariationsSeedFetcher that doesn't call JobFinished.
-    private class TestAwVariationsSeedFetcher extends AwVariationsSeedFetcher {
+    private static class TestAwVariationsSeedFetcher extends AwVariationsSeedFetcher {
         public CallbackHelper helper = new CallbackHelper();
         private JobParameters mJobParameters;
         private boolean mNeededReschedule;
@@ -258,8 +258,8 @@ public class AwVariationsSeedFetcherTest {
             Assert.assertTrue("Fast mode jobs should be persisted", pendingJob.isPersisted());
             Assert.assertEquals(
                     "Fast Mode backoff policy should be linear.",
-                    pendingJob.getBackoffPolicy(),
-                    JobInfo.BACKOFF_POLICY_LINEAR);
+                    JobInfo.BACKOFF_POLICY_LINEAR,
+                    pendingJob.getBackoffPolicy());
         } finally {
             mScheduler.clear();
         }
@@ -515,7 +515,7 @@ public class AwVariationsSeedFetcherTest {
                     fetcher.getFinishedJobParameters()
                             .getExtras()
                             .getInt(AwVariationsSeedFetcher.JOB_REQUEST_COUNT_KEY);
-            Assert.assertEquals("Request count should have increased", requestCount, 1);
+            Assert.assertEquals("Request count should have increased", 1, requestCount);
 
         } finally {
             VariationsTestUtils.deleteSeeds(); // Remove the stamp file.

@@ -4,19 +4,25 @@
 
 #include "ash/style/icon_button.h"
 
+#include <variant>
+
 #include "ash/public/cpp/style/color_provider.h"
 #include "ash/style/blurred_background_shield.h"
 #include "ash/style/style_util.h"
+#include "ash/style/text_image.h"
 #include "base/notreached.h"
+#include "base/strings/utf_string_conversion_utils.h"
 #include "chromeos/utils/haptics_util.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/color/color_id.h"
+#include "ui/color/color_variant.h"
 #include "ui/events/devices/haptic_touchpad_effects.h"
 #include "ui/events/event.h"
 #include "ui/gfx/canvas.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_operations.h"
@@ -95,9 +101,7 @@ std::optional<ui::ColorId> GetDefaultBackgroundColorId(IconButton::Type type) {
     case IconButton::Type::kXLargeProminent:
       return cros_tokens::kCrosSysSystemPrimaryContainer;
     default:
-      NOTREACHED_IN_MIGRATION()
-          << "Floating type button does not have a background";
-      return std::nullopt;
+      NOTREACHED() << "Floating type button does not have a background";
   }
 }
 
@@ -179,23 +183,38 @@ bool IsProminentFloatingType(IconButton::Type type) {
 std::unique_ptr<views::Background> CreateThemedBackground(
     ui::ColorId color_id,
     IconButton::Type type) {
-  return views::CreateThemedRoundedRectBackground(
-      color_id, GetButtonSizeOnType(type) / 2);
+  return views::CreateRoundedRectBackground(color_id,
+                                            GetButtonSizeOnType(type) / 2);
 }
 
 // Create a solid color fully rounded rect background for icon button.
 std::unique_ptr<views::Background> CreateSolidBackground(
-    SkColor color,
+    ui::ColorVariant color,
     IconButton::Type type) {
-  return views::CreateRoundedRectBackground(color,
-                                            GetButtonSizeOnType(type) / 2);
+  return views::CreateRoundedRectBackground(
+      color, gfx::RoundedCornersF(GetButtonSizeOnType(type) / 2));
+}
+
+// Returns a normal and disabled image model for `symbol`. `is_toggled` and
+// `color` control styling. The returned model dimensions wil be `icon_size`
+// x `icon_size` in pixels.
+std::pair<ui::ImageModel, ui::ImageModel> SymbolImages(
+    const bool is_toggled,
+    ui::ColorVariant color,
+    const int icon_size,
+    base_icu::UChar32 symbol) {
+  const gfx::Size size(icon_size, icon_size);
+  ui::ImageModel normal_model = TextImage::AsImageModel(size, symbol, color);
+  ui::ImageModel disabled_model =
+      TextImage::AsImageModel(size, symbol, cros_tokens::kCrosSysDisabled);
+
+  return {normal_model, disabled_model};
 }
 
 }  // namespace
 
 IconButton::Builder::Builder()
-    : callback_(),
-      type_(IconButton::Type::kSmall),
+    : type_(IconButton::Type::kSmall),
       icon_(nullptr),
       accessible_name_(u""),
       is_togglable_(false),
@@ -204,15 +223,17 @@ IconButton::Builder::Builder()
 IconButton::Builder::~Builder() = default;
 
 std::unique_ptr<IconButton> IconButton::Builder::Build() {
-  // `icon_` must be non-null.
-  CHECK(icon_);
+  if (!character_) {
+    // `icon_` must be non-null if there is no character.
+    CHECK(icon_);
+  }
 
   std::u16string accessible_name;
-  if (absl::holds_alternative<int>(accessible_name_)) {
+  if (std::holds_alternative<int>(accessible_name_)) {
     accessible_name =
-        l10n_util::GetStringUTF16(absl::get<int>(accessible_name_));
+        l10n_util::GetStringUTF16(std::get<int>(accessible_name_));
   } else {
-    accessible_name = absl::get<std::u16string>(accessible_name_);
+    accessible_name = std::get<std::u16string>(accessible_name_);
   }
 
   auto button = std::make_unique<IconButton>(
@@ -233,6 +254,9 @@ std::unique_ptr<IconButton> IconButton::Builder::Build() {
   if (background_color_.has_value()) {
     button->SetBackgroundColor(*background_color_);
   }
+  if (character_.has_value()) {
+    button->SetSymbol(*character_);
+  }
 
   return button;
 }
@@ -250,6 +274,11 @@ IconButton::Builder& IconButton::Builder::SetVectorIcon(
     const gfx::VectorIcon* icon) {
   CHECK(icon);
   icon_ = icon;
+  return *this;
+}
+IconButton::Builder& IconButton::Builder::SetSymbol(
+    base_icu::UChar32 character) {
+  character_ = character;
   return *this;
 }
 IconButton::Builder& IconButton::Builder::SetAccessibleNameId(
@@ -330,7 +359,9 @@ IconButton::IconButton(PressedCallback callback,
   }
 
   UpdateBackground();
-  UpdateVectorIcon();
+  if (icon_) {
+    UpdateVectorIcon();
+  }
   UpdateAccessibilityProperties();
 
   auto* focus_ring = views::FocusRing::Get(this);
@@ -394,6 +425,12 @@ void IconButton::SetVectorIcon(const gfx::VectorIcon& icon) {
   }
 }
 
+void IconButton::SetSymbol(base_icu::UChar32 character) {
+  CHECK(base::IsValidCodepoint(character));
+  character_ = character;
+  UpdateVectorIcon();
+}
+
 void IconButton::SetToggledVectorIcon(const gfx::VectorIcon& icon) {
   toggled_icon_ = &icon;
   if (IsToggledOn()) {
@@ -401,7 +438,7 @@ void IconButton::SetToggledVectorIcon(const gfx::VectorIcon& icon) {
   }
 }
 
-void IconButton::SetBackgroundColor(ColorVariant background_color) {
+void IconButton::SetBackgroundColor(ui::ColorVariant background_color) {
   if (background_color_ == background_color) {
     return;
   }
@@ -413,7 +450,7 @@ void IconButton::SetBackgroundColor(ColorVariant background_color) {
 }
 
 void IconButton::SetBackgroundToggledColor(
-    ColorVariant background_toggled_color) {
+    ui::ColorVariant background_toggled_color) {
   if (!is_togglable_ || background_toggled_color == background_toggled_color_) {
     return;
   }
@@ -430,7 +467,7 @@ void IconButton::SetBackgroundImage(const gfx::ImageSkia& background_image) {
   SchedulePaint();
 }
 
-void IconButton::SetIconColor(ColorVariant icon_color) {
+void IconButton::SetIconColor(ui::ColorVariant icon_color) {
   if (icon_color_ == icon_color) {
     return;
   }
@@ -441,7 +478,7 @@ void IconButton::SetIconColor(ColorVariant icon_color) {
   }
 }
 
-void IconButton::SetIconToggledColor(ColorVariant icon_toggled_color) {
+void IconButton::SetIconToggledColor(ui::ColorVariant icon_toggled_color) {
   if (!is_togglable_ || icon_toggled_color == icon_toggled_color_) {
     return;
   }
@@ -500,9 +537,7 @@ void IconButton::OnFocus() {
   if (IsProminentFloatingType(type_) && !IsToggledOn()) {
     // If prominent floating button is still using default colors, updates its
     // icon color on focus.
-    if (absl::holds_alternative<ui::ColorId>(icon_color_) &&
-        absl::get<ui::ColorId>(icon_color_) ==
-            GetDefaultIconColorId(type_, /*focused=*/false)) {
+    if (icon_color_ == GetDefaultIconColorId(type_, /*focused=*/false)) {
       icon_color_ = GetDefaultIconColorId(type_, /*focused=*/true);
       UpdateVectorIcon(/*color_changes_only=*/true);
     }
@@ -514,9 +549,7 @@ void IconButton::OnBlur() {
   if (IsProminentFloatingType(type_) && !IsToggledOn()) {
     // If prominent floating button is still using default colors, updates its
     // icon color on focus.
-    if (absl::holds_alternative<ui::ColorId>(icon_color_) &&
-        absl::get<ui::ColorId>(icon_color_) ==
-            GetDefaultIconColorId(type_, /*focused=*/true)) {
+    if (icon_color_ == GetDefaultIconColorId(type_, /*focused=*/true)) {
       icon_color_ = GetDefaultIconColorId(type_, /*focused=*/false);
       UpdateVectorIcon(/*color_changes_only=*/true);
     }
@@ -539,17 +572,6 @@ void IconButton::PaintButtonContents(gfx::Canvas* canvas) {
   }
 
   views::ImageButton::PaintButtonContents(canvas);
-}
-
-void IconButton::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  views::ImageButton::GetAccessibleNodeData(node_data);
-  if (is_togglable_) {
-    node_data->role = ax::mojom::Role::kToggleButton;
-    node_data->SetCheckedState(toggled_ ? ax::mojom::CheckedState::kTrue
-                                        : ax::mojom::CheckedState::kFalse);
-  } else {
-    node_data->role = ax::mojom::Role::kButton;
-  }
 }
 
 void IconButton::NotifyClick(const ui::Event& event) {
@@ -582,15 +604,9 @@ void IconButton::UpdateBackground() {
   }
 
   // Create a background according to the toggled state.
-  ColorVariant color_variant =
+  ui::ColorVariant color =
       is_toggled ? background_toggled_color_ : background_color_;
-  if (absl::holds_alternative<SkColor>(color_variant)) {
-    SetBackground(
-        CreateSolidBackground(absl::get<SkColor>(color_variant), type_));
-  } else {
-    SetBackground(
-        CreateThemedBackground(absl::get<ui::ColorId>(color_variant), type_));
-  }
+  SetBackground(CreateSolidBackground(color, type_));
 }
 
 void IconButton::UpdateBlurredBackgroundShield() {
@@ -608,39 +624,31 @@ void IconButton::UpdateBlurredBackgroundShield() {
         gfx::RoundedCornersF(GetButtonSizeOnType(type_) / 2));
   }
 
-  ColorVariant color_variant =
+  ui::ColorVariant color =
       GetEnabled()
           ? (is_toggled ? background_toggled_color_ : background_color_)
-          : ColorVariant(cros_tokens::kCrosSysDisabledContainer);
-
-  if (absl::holds_alternative<SkColor>(color_variant)) {
-    blurred_background_shield_->SetColor(absl::get<SkColor>(color_variant));
-  } else {
-    blurred_background_shield_->SetColorId(
-        absl::get<ui::ColorId>(color_variant));
-  }
+          : cros_tokens::kCrosSysDisabledContainer;
+  blurred_background_shield_->SetColor(color);
 }
 
 void IconButton::UpdateVectorIcon(bool color_changes_only) {
-  const bool is_toggled = IsToggledOn();
-  const gfx::VectorIcon* icon =
-      is_toggled && toggled_icon_ ? toggled_icon_.get() : icon_.get();
+  std::pair<ui::ImageModel, ui::ImageModel> images;
 
-  if (!icon) {
+  const int icon_size = icon_size_.value_or(GetIconSizeOnType(type_));
+  const bool is_toggled = IsToggledOn();
+  ui::ColorVariant color = is_toggled ? icon_toggled_color_ : icon_color_;
+
+  if (character_.has_value()) {
+    images = SymbolImages(is_toggled, color, icon_size, *character_);
+  } else {
+    images = VectorImages(is_toggled, color, icon_size);
+  }
+
+  if (images.first.IsEmpty()) {
     return;
   }
 
-  const int icon_size = icon_size_.value_or(GetIconSizeOnType(type_));
-
-  ui::ImageModel new_normal_image_model;
-  ColorVariant color_variant = is_toggled ? icon_toggled_color_ : icon_color_;
-  if (absl::holds_alternative<SkColor>(color_variant)) {
-    new_normal_image_model = ui::ImageModel::FromVectorIcon(
-        *icon, absl::get<SkColor>(color_variant), icon_size);
-  } else {
-    new_normal_image_model = ui::ImageModel::FromVectorIcon(
-        *icon, absl::get<ui::ColorId>(color_variant), icon_size);
-  }
+  ui::ImageModel new_normal_image_model = images.first;
 
   if (GetWidget()) {
     // Skip repainting if the incoming icon is the same as the current icon. If
@@ -660,9 +668,7 @@ void IconButton::UpdateVectorIcon(bool color_changes_only) {
 
   SetImageModel(views::Button::STATE_NORMAL, new_normal_image_model);
   if (!color_changes_only) {
-    SetImageModel(views::Button::STATE_DISABLED,
-                  ui::ImageModel::FromVectorIcon(
-                      *icon, cros_tokens::kCrosSysDisabled, icon_size));
+    SetImageModel(views::Button::STATE_DISABLED, images.second);
   }
 }
 
@@ -673,11 +679,6 @@ void IconButton::OnEnabledStateChanged() {
     UpdateVectorIcon();
   }
   UpdateBackground();
-}
-
-SkColor IconButton::GetBackgroundColor() const {
-  DCHECK(background());
-  return background()->get_color();
 }
 
 bool IconButton::IsToggledOn() const {
@@ -697,6 +698,26 @@ void IconButton::UpdateAccessibilityProperties() {
     GetViewAccessibility().SetRole(ax::mojom::Role::kButton);
     GetViewAccessibility().RemoveCheckedState();
   }
+}
+
+std::pair<ui::ImageModel, ui::ImageModel> IconButton::VectorImages(
+    const bool is_toggled,
+    const ui::ColorVariant color,
+    const int icon_size) {
+  const gfx::VectorIcon* icon =
+      is_toggled && toggled_icon_ ? toggled_icon_.get() : icon_.get();
+
+  if (!icon) {
+    return {ui::ImageModel(), ui::ImageModel()};
+  }
+
+  ui::ImageModel new_normal_image_model =
+      ui::ImageModel::FromVectorIcon(*icon, color, icon_size);
+
+  ui::ImageModel disabled_image_model = ui::ImageModel::FromVectorIcon(
+      *icon, cros_tokens::kCrosSysDisabled, icon_size);
+
+  return {std::move(new_normal_image_model), std::move(disabled_image_model)};
 }
 
 BEGIN_METADATA(IconButton)

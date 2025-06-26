@@ -11,13 +11,14 @@
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_functions.h"
+#include "base/trace_event/trace_event.h"
 #include "build/blink_buildflags.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/content_settings/core/browser/content_settings_info.h"
 #include "components/content_settings/core/browser/content_settings_registry.h"
 #include "components/content_settings/core/browser/content_settings_rule.h"
 #include "components/content_settings/core/browser/content_settings_utils.h"
+#include "components/content_settings/core/browser/single_value_wildcard_rule_iterator.h"
 #include "components/content_settings/core/browser/website_settings_info.h"
 #include "components/content_settings/core/browser/website_settings_registry.h"
 #include "components/content_settings/core/common/content_settings.h"
@@ -61,6 +62,18 @@ const char kObsoletePpapiBrokerDefaultPref[] =
 constexpr char kObsoleteFederatedIdentityDefaultPref[] =
     "profile.default_content_setting_values.fedcm_active_session";
 
+#if !BUILDFLAG(IS_IOS)
+// This setting was accidentally bound to a UI surface intended for a different
+// setting (https://crbug.com/364820109). It should not have been settable
+// except via enterprise policy, so it is temporarily cleaned up here to revert
+// it to its default value.
+// TODO(https://crbug.com/367181093): clean this up.
+constexpr char kBug364820109DefaultSettingToClear[] =
+    "profile.default_content_setting_values.javascript_jit";
+constexpr char kBug364820109AlreadyWorkedAroundPref[] =
+    "profile.did_work_around_bug_364820109_default";
+#endif  // !BUILDFLAG(IS_IOS)
+
 ContentSetting GetDefaultValue(const WebsiteSettingsInfo* info) {
   const base::Value& initial_default = info->initial_default_value();
   if (initial_default.is_none())
@@ -77,33 +90,6 @@ const std::string& GetPrefName(ContentSettingsType type) {
       ->Get(type)
       ->default_value_pref_name();
 }
-
-class DefaultRuleIterator : public RuleIterator {
- public:
-  explicit DefaultRuleIterator(base::Value value) {
-    if (!value.is_none())
-      value_ = std::move(value);
-    else
-      is_done_ = true;
-  }
-
-  DefaultRuleIterator(const DefaultRuleIterator&) = delete;
-  DefaultRuleIterator& operator=(const DefaultRuleIterator&) = delete;
-
-  bool HasNext() const override { return !is_done_; }
-
-  std::unique_ptr<Rule> Next() override {
-    DCHECK(HasNext());
-    is_done_ = true;
-    return std::make_unique<Rule>(ContentSettingsPattern::Wildcard(),
-                                  ContentSettingsPattern::Wildcard(),
-                                  std::move(value_), RuleMetaData{});
-  }
-
- private:
-  bool is_done_ = false;
-  base::Value value_;
-};
 
 }  // namespace
 
@@ -138,6 +124,11 @@ void DefaultProvider::RegisterProfilePrefs(
 #endif  // !BUILDFLAG(IS_ANDROID)
 #endif  // !BUILDFLAG(IS_IOS)
   registry->RegisterIntegerPref(kObsoleteFederatedIdentityDefaultPref, 0);
+
+#if !BUILDFLAG(IS_IOS)
+  // TODO(https://crbug.com/367181093): clean this up.
+  registry->RegisterBooleanPref(kBug364820109AlreadyWorkedAroundPref, false);
+#endif  // !BUILDFLAG(IS_IOS)
 }
 
 DefaultProvider::DefaultProvider(PrefService* prefs,
@@ -146,6 +137,7 @@ DefaultProvider::DefaultProvider(PrefService* prefs,
     : prefs_(prefs),
       is_off_the_record_(off_the_record),
       updating_preferences_(false) {
+  TRACE_EVENT_BEGIN("startup", "DefaultProvider::DefaultProvider");
   DCHECK(prefs_);
 
   // Remove the obsolete preferences from the pref file.
@@ -164,6 +156,7 @@ DefaultProvider::DefaultProvider(PrefService* prefs,
       WebsiteSettingsRegistry::GetInstance();
   for (const WebsiteSettingsInfo* info : *website_settings)
     pref_change_registrar_.Add(info->default_value_pref_name(), callback);
+  TRACE_EVENT_END("startup");
 }
 
 DefaultProvider::~DefaultProvider() = default;
@@ -226,10 +219,9 @@ std::unique_ptr<RuleIterator> DefaultProvider::GetRuleIterator(
   base::AutoLock lock(lock_);
   const auto it = default_settings_.find(content_type);
   if (it == default_settings_.end()) {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
-  return std::make_unique<DefaultRuleIterator>(it->second.Clone());
+  return std::make_unique<SingleValueWildcardRuleIterator>(it->second.Clone());
 }
 
 std::unique_ptr<Rule> DefaultProvider::GetRule(
@@ -246,8 +238,7 @@ std::unique_ptr<Rule> DefaultProvider::GetRule(
   base::AutoLock lock(lock_);
   const auto it = default_settings_.find(content_type);
   if (it == default_settings_.end()) {
-    NOTREACHED_IN_MIGRATION();
-    return nullptr;
+    NOTREACHED();
   }
 
   if (it->second.is_none()) {
@@ -329,10 +320,9 @@ void DefaultProvider::OnPreferenceChanged(const std::string& name) {
   }
 
   if (content_type == ContentSettingsType::DEFAULT) {
-    NOTREACHED_IN_MIGRATION() << "A change of the preference " << name
-                              << " was observed, but the preference could not "
-                                 "be mapped to a content settings type.";
-    return;
+    NOTREACHED() << "A change of the preference " << name
+                 << " was observed, but the preference could not be mapped to "
+                    "a content settings type.";
   }
 
   {
@@ -375,6 +365,14 @@ void DefaultProvider::DiscardOrMigrateObsoletePreferences() {
 #endif  // !BUILDFLAG(IS_ANDROID)
 #endif  // !BUILDFLAG(IS_IOS)
   prefs_->ClearPref(kObsoleteFederatedIdentityDefaultPref);
+
+#if !BUILDFLAG(IS_IOS)
+  // TODO(https://crbug.com/367181093): clean this up.
+  if (!prefs_->GetBoolean(kBug364820109AlreadyWorkedAroundPref)) {
+    prefs_->ClearPref(kBug364820109DefaultSettingToClear);
+    prefs_->SetBoolean(kBug364820109AlreadyWorkedAroundPref, true);
+  }
+#endif  // !BUILDFLAG(IS_IOS)
 }
 
 void DefaultProvider::RecordHistogramMetrics() {
@@ -397,15 +395,13 @@ void DefaultProvider::RecordHistogramMetrics() {
       CONTENT_SETTING_NUM_SETTINGS);
 #endif
 
-#if !BUILDFLAG(IS_IOS) && !BUILDFLAG(IS_ANDROID)
+#if !BUILDFLAG(IS_IOS)
   base::UmaHistogramEnumeration(
       "ContentSettings.RegularProfile.DefaultImagesSetting",
       IntToContentSetting(
           prefs_->GetInteger(GetPrefName(ContentSettingsType::IMAGES))),
       CONTENT_SETTING_NUM_SETTINGS);
-#endif
 
-#if !BUILDFLAG(IS_IOS)
   base::UmaHistogramEnumeration(
       "ContentSettings.RegularProfile.DefaultJavaScriptSetting",
       IntToContentSetting(
@@ -477,6 +473,11 @@ void DefaultProvider::RecordHistogramMetrics() {
       "ContentSettings.RegularProfile.DefaultAutoVerifySetting",
       IntToContentSetting(
           prefs_->GetInteger(GetPrefName(ContentSettingsType::ANTI_ABUSE))),
+      CONTENT_SETTING_NUM_SETTINGS);
+  base::UmaHistogramEnumeration(
+      "ContentSettings.RegularProfile.DefaultJavaScriptOptimizationSetting",
+      IntToContentSetting(prefs_->GetInteger(
+          GetPrefName(ContentSettingsType::JAVASCRIPT_OPTIMIZER))),
       CONTENT_SETTING_NUM_SETTINGS);
 #endif
 

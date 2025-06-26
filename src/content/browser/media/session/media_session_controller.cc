@@ -160,6 +160,15 @@ void MediaSessionController::OnRequestMediaRemoting(int player_id) {
       ->RequestMediaRemoting();
 }
 
+void MediaSessionController::OnRequestVisibility(
+    int player_id,
+    RequestVisibilityCallback request_visibility_callback) {
+  DCHECK_EQ(player_id_, player_id);
+  web_contents_->media_web_contents_observer()
+      ->GetMediaPlayerRemote(id_)
+      ->RequestVisibility(std::move(request_visibility_callback));
+}
+
 RenderFrameHost* MediaSessionController::render_frame_host() const {
   return RenderFrameHost::FromID(id_.frame_routing_id);
 }
@@ -316,6 +325,21 @@ bool MediaSessionController::SupportsAudioOutputDeviceSwitching(
 
 media::MediaContentType MediaSessionController::GetMediaContentType() const {
   return media_content_type_;
+}
+
+void MediaSessionController::OnAutoPictureInPictureInfoChanged(
+    int player_id,
+    const media::PictureInPictureEventsInfo::AutoPipInfo&
+        auto_picture_in_picture_info) {
+  DCHECK_EQ(player_id_, player_id);
+
+  auto* observer = web_contents_->media_web_contents_observer();
+  if (!observer->IsMediaPlayerRemoteAvailable(id_)) {
+    return;
+  }
+
+  observer->GetMediaPlayerRemote(id_)->RecordAutoPictureInPictureInfo(
+      auto_picture_in_picture_info);
 }
 
 }  // namespace content

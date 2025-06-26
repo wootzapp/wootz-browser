@@ -32,6 +32,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/public/common/loader/url_loader_throttle.h"
+#include "url/origin.h"
 
 namespace content {
 
@@ -106,8 +107,6 @@ class MockURLLoader final : public network::mojom::URLLoader {
   MOCK_METHOD2(SetPriority,
                void(net::RequestPriority priority,
                     int32_t intra_priority_value));
-  MOCK_METHOD0(PauseReadingBodyFromNet, void());
-  MOCK_METHOD0(ResumeReadingBodyFromNet, void());
 
  private:
   mojo::Receiver<network::mojom::URLLoader> receiver_;
@@ -140,7 +139,7 @@ class URLLoaderFactoryForMockLoader final
 
   void Clone(mojo::PendingReceiver<network::mojom::URLLoaderFactory> factory)
       override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   mojo::Remote<network::mojom::URLLoaderClient>& client_remote() {
@@ -173,7 +172,8 @@ void ForwardCertificateCallback(
 class SignedExchangeCertFetcherTest : public testing::Test {
  public:
   SignedExchangeCertFetcherTest()
-      : url_(GURL("https://www.example.com/cert")) {}
+      : url_(GURL("https://www.example.com/cert")),
+        origin_(url::Origin::Create(GURL("https://www.example.com/"))) {}
 
   SignedExchangeCertFetcherTest(const SignedExchangeCertFetcherTest&) = delete;
   SignedExchangeCertFetcherTest& operator=(
@@ -241,12 +241,16 @@ class SignedExchangeCertFetcherTest : public testing::Test {
         &ForwardCertificateCallback, base::Unretained(&callback_called_),
         base::Unretained(&result_), base::Unretained(&cert_result_));
 
+    auto isolation_info = net::IsolationInfo::Create(
+        net::IsolationInfo::RequestType::kOther, origin_, origin_,
+        net::SiteForCookies::FromOrigin(origin_));
+
     return SignedExchangeCertFetcher::CreateAndStart(
         base::MakeRefCounted<network::WeakWrapperSharedURLLoaderFactory>(
             &mock_loader_factory_),
         std::move(throttles_), url, force_fetch, std::move(callback),
-        nullptr /* devtools_proxy */, std::nullopt /* throttling_profile_id */,
-        net::IsolationInfo());
+        /*devtools_proxy=*/nullptr, /*throttling_profile_id=*/std::nullopt,
+        isolation_info, origin_);
   }
 
   void CallOnReceiveResponse(
@@ -272,6 +276,7 @@ class SignedExchangeCertFetcherTest : public testing::Test {
   void CloseClientPipe() { mock_loader_factory_.CloseClientPipe(); }
 
   const GURL url_;
+  const url::Origin origin_;
   bool callback_called_ = false;
   SignedExchangeLoadResult result_;
   std::unique_ptr<SignedExchangeCertificateChain> cert_result_;
@@ -285,7 +290,7 @@ class SignedExchangeCertFetcherTest : public testing::Test {
 
 TEST_F(SignedExchangeCertFetcherTest, Simple) {
   std::unique_ptr<SignedExchangeCertFetcher> fetcher =
-      CreateFetcherAndStart(url_, false /* force_fetch */);
+      CreateFetcherAndStart(url_, /*force_fetch=*/false);
 
   ASSERT_TRUE(mock_loader_factory_.client_remote());
   ASSERT_TRUE(mock_loader_factory_.url_request());
@@ -294,11 +299,9 @@ TEST_F(SignedExchangeCertFetcherTest, Simple) {
             mock_loader_factory_.url_request()->destination);
   EXPECT_EQ(mock_loader_factory_.url_request()->credentials_mode,
             network::mojom::CredentialsMode::kOmit);
-  EXPECT_TRUE(mock_loader_factory_.url_request()->request_initiator->opaque());
-  std::string accept;
-  EXPECT_TRUE(
-      mock_loader_factory_.url_request()->headers.GetHeader("Accept", &accept));
-  EXPECT_EQ("application/cert-chain+cbor", accept);
+  EXPECT_EQ(*mock_loader_factory_.url_request()->request_initiator, origin_);
+  EXPECT_THAT(mock_loader_factory_.url_request()->headers.GetHeader("Accept"),
+              testing::Optional(std::string("application/cert-chain+cbor")));
 
   CallOnReceiveResponse(CreateTestDataFilledDataPipe());
   mock_loader_factory_.client_remote()->OnComplete(

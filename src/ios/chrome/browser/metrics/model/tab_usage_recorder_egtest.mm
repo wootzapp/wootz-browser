@@ -143,15 +143,15 @@ void SwitchToNormalMode() {
 
 - (void)setUp {
   [super setUp];
-  GREYAssertNil([MetricsAppInterface setupHistogramTester],
-                @"Cannot setup histogram tester.");
+  chrome_test_util::GREYAssertErrorNil(
+      [MetricsAppInterface setupHistogramTester]);
   [ChromeEarlGrey removeBrowsingCache];
 }
 
-- (void)tearDown {
-  GREYAssertNil([MetricsAppInterface releaseHistogramTester],
-                @"Cannot reset histogram tester.");
-  [super tearDown];
+- (void)tearDownHelper {
+  chrome_test_util::GREYAssertErrorNil(
+      [MetricsAppInterface releaseHistogramTester]);
+  [super tearDownHelper];
 }
 
 // Tests that the recorder actual recorde tab state.
@@ -488,7 +488,15 @@ void SwitchToNormalMode() {
 
 // Test that the USER_DID_NOT_WAIT metric is not logged when the user opens
 // and closes the settings UI while the evicted tab is still reloading.
-- (void)testEvictedTabReloadSettingsAndBack {
+// TODO(crbug.com/369787152): The test is flaky on simulator.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testEvictedTabReloadSettingsAndBack \
+  FLAKY_testEvictedTabReloadSettingsAndBack
+#else
+#define MAYBE_testEvictedTabReloadSettingsAndBack \
+  testEvictedTabReloadSettingsAndBack
+#endif
+- (void)MAYBE_testEvictedTabReloadSettingsAndBack {
   std::map<GURL, std::string> responses;
   const GURL slowURL = web::test::HttpServer::MakeUrl("http://slow");
   responses[slowURL] = "Slow Page";
@@ -776,10 +784,10 @@ void SwitchToNormalMode() {
     const GURL url1 = web::test::HttpServer::MakeUrl(kTestUrl1);
     NewMainTabWithURL(url1, kURL1FirstWord);
 
-    GREYAssertEqual([ChromeEarlGrey mainTabCount], 3,
+    GREYAssertEqual([ChromeEarlGrey mainTabCount], 3UL,
                     @"Check number of normal tabs");
     // The cold start tab which was not active will still be evicted.
-    GREYAssertEqual([ChromeEarlGrey evictedMainTabCount], 1,
+    GREYAssertEqual([ChromeEarlGrey evictedMainTabCount], 1UL,
                     @"Check number of evicted tabs");
 
     // Close two of the three open tabs without selecting them first.
@@ -787,10 +795,10 @@ void SwitchToNormalMode() {
     // tracked by the tab usage recorder in its `evicted_tabs_` map.
     CloseTabAtIndexAndSync(1);
 
-    GREYAssertEqual([ChromeEarlGrey mainTabCount], 2,
+    GREYAssertEqual([ChromeEarlGrey mainTabCount], 2UL,
                     @"Check number of normal tabs");
     CloseTabAtIndexAndSync(0);
-    GREYAssertEqual([ChromeEarlGrey mainTabCount], 1,
+    GREYAssertEqual([ChromeEarlGrey mainTabCount], 1UL,
                     @"Check number of normal tabs");
     [ChromeEarlGreyUI waitForAppToIdle];
   }

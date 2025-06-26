@@ -39,7 +39,7 @@ import org.robolectric.shadows.ShadowPackageManager;
 
 import org.chromium.components.webapk.lib.common.WebApkMetaDataKeys;
 import org.chromium.webapk.shell_apk.CustomAndroidOsShadowAsyncTask;
-import org.chromium.webapk.shell_apk.HostBrowserUtils;
+import org.chromium.webapk.shell_apk.HostBrowserUtils.PackageNameAndComponentName;
 import org.chromium.webapk.shell_apk.LaunchHostBrowserSelector;
 import org.chromium.webapk.test.WebApkTestHelper;
 
@@ -57,6 +57,8 @@ import java.util.Arrays;
 public final class SplashActivityTest {
     public static final String BROWSER_PACKAGE_NAME = "com.google.android.apps.chrome";
 
+    private static final int MODERN_BROWSER_VERSION = 10000;
+
     /** Mock {@link LaunchHostBrowserSelector} which enables calling the callback manually. */
     @Implements(LaunchHostBrowserSelector.class)
     public static class MockLaunchHostBrowserSelector {
@@ -68,7 +70,9 @@ public final class SplashActivityTest {
         @Implementation
         public void selectHostBrowser(LaunchHostBrowserSelector.Callback callback) {
             if (!sDialogNeeded) {
-                callback.onBrowserSelected(BROWSER_PACKAGE_NAME, /* dialogShown= */ false);
+                callback.onBrowserSelected(
+                        new PackageNameAndComponentName(BROWSER_PACKAGE_NAME),
+                        /* dialogShown= */ false);
                 return;
             }
             sCallback = callback;
@@ -80,7 +84,8 @@ public final class SplashActivityTest {
 
         public static void dialogDismissed() {
             assertNotNull(sCallback);
-            sCallback.onBrowserSelected(BROWSER_PACKAGE_NAME, /* dialogShown= */ true);
+            sCallback.onBrowserSelected(
+                    new PackageNameAndComponentName(BROWSER_PACKAGE_NAME), /* dialogShown= */ true);
             sCallback = null;
         }
     }
@@ -102,14 +107,12 @@ public final class SplashActivityTest {
 
         Bundle metadata = new Bundle();
         metadata.putString(WebApkMetaDataKeys.START_URL, "https://pwa.rocks/");
-        metadata.putBoolean(WebApkMetaDataKeys.IS_NEW_STYLE_WEBAPK, true);
+        metadata.putBoolean(WebApkMetaDataKeys.IS_ARC_CHROMEOS, false);
         WebApkTestHelper.registerWebApkWithMetaData(appContext.getPackageName(), metadata, null);
 
         // Install browser.
         mShadowPackageManager.addPackage(
-                newPackageInfo(
-                        BROWSER_PACKAGE_NAME,
-                        HostBrowserUtils.MINIMUM_REQUIRED_CHROMIUM_VERSION_NEW_SPLASH));
+                newPackageInfo(BROWSER_PACKAGE_NAME, MODERN_BROWSER_VERSION));
     }
 
     // Test common cases that SplashActivity:

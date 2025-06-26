@@ -24,13 +24,10 @@ import '../cr_icon_button/cr_icon_button.js';
 import {assert} from '//resources/js/assert.js';
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 
-import {CrContainerShadowMixinLit} from '../cr_container_shadow_mixin_lit.js';
 import type {CrInputElement} from '../cr_input/cr_input.js';
 
 import {getCss} from './cr_dialog.css.js';
 import {getHtml} from './cr_dialog.html.js';
-
-const CrDialogElementBase = CrContainerShadowMixinLit(CrLitElement);
 
 export interface CrDialogElement {
   $: {
@@ -38,7 +35,7 @@ export interface CrDialogElement {
   };
 }
 
-export class CrDialogElement extends CrDialogElementBase {
+export class CrDialogElement extends CrLitElement {
   static get is() {
     return 'cr-dialog';
   }
@@ -99,15 +96,15 @@ export class CrDialogElement extends CrDialogElementBase {
     };
   }
 
-  closeText?: string;
-  consumeKeydownEvent: boolean = false;
-  ignoreEnterKey: boolean = false;
-  ignorePopstate: boolean = false;
-  noCancel: boolean = false;
-  open: boolean = false;
-  showCloseButton: boolean = false;
-  showOnAttach: boolean = false;
-  ariaDescriptionText?: string;
+  accessor closeText: string|undefined;
+  accessor consumeKeydownEvent: boolean = false;
+  accessor ignoreEnterKey: boolean = false;
+  accessor ignorePopstate: boolean = false;
+  accessor noCancel: boolean = false;
+  accessor open: boolean = false;
+  accessor showCloseButton: boolean = false;
+  accessor showOnAttach: boolean = false;
+  accessor ariaDescriptionText: string|undefined;
 
   private mutationObserver_: MutationObserver|null = null;
   private boundKeydown_: ((e: KeyboardEvent) => void)|null = null;
@@ -131,10 +128,8 @@ export class CrDialogElement extends CrDialogElementBase {
     super.connectedCallback();
     const mutationObserverCallback = () => {
       if (this.$.dialog.open) {
-        this.enableShadowBehavior(true);
         this.addKeydownListener_();
       } else {
-        this.enableShadowBehavior(false);
         this.removeKeydownListener_();
       }
     };
@@ -188,6 +183,15 @@ export class CrDialogElement extends CrDialogElementBase {
   }
 
   async showModal() {
+    if (this.showOnAttach) {
+      const element = this.querySelector('[autofocus]');
+      if (element && element instanceof CrLitElement && !element.shadowRoot) {
+        // Force initial render, so that any inner elements with [autofocus] are
+        // picked up by the browser.
+        element.ensureInitialRender();
+      }
+    }
+
     this.$.dialog.showModal();
     assert(this.$.dialog.open);
     this.open = true;
@@ -333,7 +337,7 @@ export class CrDialogElement extends CrDialogElementBase {
 
   override focus() {
     const titleContainer =
-        this.shadowRoot!.querySelector<HTMLElement>('.title-container');
+        this.shadowRoot.querySelector<HTMLElement>('.title-container');
     assert(titleContainer);
     titleContainer.focus();
   }

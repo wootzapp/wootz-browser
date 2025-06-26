@@ -49,7 +49,7 @@
 #include "services/viz/public/cpp/gpu/command_buffer_metrics.h"
 #include "skia/buildflags.h"
 #include "third_party/skia/include/core/SkTraceMemoryDump.h"
-#include "third_party/skia/include/gpu/GrDirectContext.h"
+#include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
 #include "ui/gl/trace_util.h"
 
 class SkDiscardableMemory;
@@ -60,7 +60,6 @@ ContextProviderCommandBuffer::ContextProviderCommandBuffer(
     scoped_refptr<gpu::GpuChannelHost> channel,
     int32_t stream_id,
     gpu::SchedulingPriority stream_priority,
-    gpu::SurfaceHandle surface_handle,
     const GURL& active_url,
     bool automatic_flushes,
     bool support_locking,
@@ -72,7 +71,6 @@ ContextProviderCommandBuffer::ContextProviderCommandBuffer(
           base::subtle::GetRefCountPreference<ContextProviderCommandBuffer>()),
       stream_id_(stream_id),
       stream_priority_(stream_priority),
-      surface_handle_(surface_handle),
       active_url_(active_url),
       automatic_flushes_(automatic_flushes),
       support_locking_(support_locking),
@@ -151,8 +149,8 @@ gpu::ContextResult ContextProviderCommandBuffer::BindToCurrentSequence() {
   command_buffer_ = std::make_unique<gpu::CommandBufferProxyImpl>(
       channel_, stream_id_, default_task_runner_, buffer_mapper_);
   bind_result_ = command_buffer_->Initialize(
-      surface_handle_, /*shared_command_buffer=*/nullptr, stream_priority_,
-      attributes_, active_url_);
+      /*shared_command_buffer=*/nullptr, stream_priority_, attributes_,
+      active_url_, command_buffer_metrics::ContextTypeToString(context_type_));
   if (bind_result_ != gpu::ContextResult::kSuccess) {
     DLOG(ERROR) << "GpuChannelHost failed to create command buffer.";
     command_buffer_metrics::UmaRecordContextInitFailed(context_type_);
@@ -385,13 +383,9 @@ gpu::raster::RasterInterface* ContextProviderCommandBuffer::RasterInterface() {
   }
 
 #if BUILDFLAG(IS_ANDROID)
-  // The last few usages of RasterImplementationGLES are removed from Android
-  // with switching to use RasterInterface in VideoResourceUpdater. Thus,
-  // Android should never need a RasterImplementationGLES through
-  // ContextProviderCommandBuffer. This DUMP_WILL_BE_CHECK helps validate it.
-  DUMP_WILL_BE_CHECK(false);
-#endif
-
+  // Android uses RasterDecoder exclusively.
+  NOTREACHED();
+#else
   if (!gles2_impl_.get()) {
     return nullptr;
   }
@@ -399,6 +393,7 @@ gpu::raster::RasterInterface* ContextProviderCommandBuffer::RasterInterface() {
   raster_interface_ = std::make_unique<gpu::raster::RasterImplementationGLES>(
       gles2_impl_.get(), gles2_impl_.get(), ContextCapabilities());
   return raster_interface_.get();
+#endif
 }
 
 gpu::ContextSupport* ContextProviderCommandBuffer::ContextSupport() {
@@ -418,7 +413,7 @@ class GrDirectContext* ContextProviderCommandBuffer::GrContext() {
     return gr_context_->get();
   }
 
-  if (attributes_.enable_oop_rasterization) {
+  if (attributes_.enable_gpu_rasterization) {
     return nullptr;
   }
 

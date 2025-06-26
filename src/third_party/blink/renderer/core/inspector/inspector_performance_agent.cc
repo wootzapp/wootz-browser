@@ -27,16 +27,15 @@ namespace blink {
 namespace TimeDomain = protocol::Performance::SetTimeDomain::TimeDomainEnum;
 
 namespace {
-constexpr bool isPlural(const char* str, int len) {
-  return len > 1 && str[len - 2] == 's';
+constexpr bool IsPlural(std::string_view str) {
+  return !str.empty() && str.back() == 's';
 }
 
-static constexpr const char* kInstanceCounterNames[] = {
-#define INSTANCE_COUNTER_NAME(name) \
-  (isPlural(#name, sizeof(#name)) ? #name : #name "s"),
+static constexpr auto kInstanceCounterNames = std::to_array<const char*>({
+#define INSTANCE_COUNTER_NAME(name) (IsPlural(#name) ? #name : #name "s"),
     INSTANCE_COUNTERS_LIST(INSTANCE_COUNTER_NAME)
 #undef INSTANCE_COUNTER_NAME
-};
+});
 
 std::unique_ptr<base::ProcessMetrics> GetCurrentProcessMetrics() {
   base::ProcessHandle handle = base::Process::Current().Handle();
@@ -82,7 +81,7 @@ void InspectorPerformanceAgent::InnerEnable() {
 }
 
 protocol::Response InspectorPerformanceAgent::enable(
-    Maybe<String> optional_time_domain) {
+    std::optional<String> optional_time_domain) {
   String time_domain = optional_time_domain.value_or(TimeDomain::TimeTicks);
   if (enabled_.Get()) {
     if (!HasTimeDomain(time_domain)) {
@@ -275,12 +274,13 @@ protocol::Response InspectorPerformanceAgent::getMetrics(
   return protocol::Response::Success();
 }
 
-void InspectorPerformanceAgent::ConsoleTimeStamp(const String& title) {
+void InspectorPerformanceAgent::ConsoleTimeStamp(v8::Isolate* isolate,
+                                                 v8::Local<v8::String> label) {
   if (!enabled_.Get())
     return;
   std::unique_ptr<protocol::Array<protocol::Performance::Metric>> metrics;
   getMetrics(&metrics);
-  GetFrontend()->metrics(std::move(metrics), title);
+  GetFrontend()->metrics(std::move(metrics), ToCoreString(isolate, label));
 }
 
 void InspectorPerformanceAgent::ScriptStarts() {

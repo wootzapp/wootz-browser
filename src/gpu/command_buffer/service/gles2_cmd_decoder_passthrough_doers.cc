@@ -2,7 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <algorithm>
+#include <array>
 #include <memory>
 
 #include "base/bits.h"
@@ -12,6 +18,8 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/numerics/checked_math.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/stringprintf.h"
+#include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "components/viz/common/resources/shared_image_format_utils.h"
 #include "gpu/command_buffer/common/discardable_handle.h"
@@ -27,7 +35,7 @@
 #include "gpu/command_buffer/service/shared_image/shared_image_representation.h"
 #include "third_party/skia/include/core/SkYUVAInfo.h"
 #include "third_party/skia/include/core/SkYUVAPixmaps.h"
-#include "third_party/skia/include/gpu/GrBackendSemaphore.h"
+#include "third_party/skia/include/gpu/ganesh/GrBackendSemaphore.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/overlay_plane_data.h"
 #include "ui/gfx/overlay_priority_hint.h"
@@ -358,7 +366,26 @@ SkYUVAPixmapInfo::DataType ToSkYUVADataType(viz::SharedImageFormat format) {
     case viz::SharedImageFormat::ChannelFormat::k16F:
       return SkYUVAPixmapInfo::DataType::kFloat16;
   }
-  NOTREACHED_NORETURN();
+  NOTREACHED();
+}
+
+bool IsGLFormatAndTypeSupported(GLenum format, GLenum type) {
+  switch (format) {
+    case GL_RGBA:
+      return type == GL_UNSIGNED_BYTE || type == GL_UNSIGNED_SHORT_4_4_4_4;
+    case GL_RGB:
+      return type == GL_UNSIGNED_BYTE || type == GL_UNSIGNED_SHORT_5_6_5;
+    case GL_RGBA8:
+    case GL_RGB565:
+    case GL_RGBA16F:
+    case GL_RGB8:
+    case GL_RGB10_A2:
+    case GL_RGBA4:
+    case GL_SRGB8_ALPHA8:
+      return true;
+    default:
+      return false;
+  }
 }
 
 }  // anonymous namespace
@@ -481,8 +508,7 @@ error::Error GLES2DecoderPassthroughImpl::DoBindFramebuffer(
       break;
 
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   return error::kNoError;
@@ -532,7 +558,8 @@ error::Error GLES2DecoderPassthroughImpl::DoBindTexture(GLenum target,
   }
 
   // Track the currently bound textures
-  DCHECK(GLenumToTextureTarget(target) != TextureTarget::kUnkown);
+  TextureTarget texture_target = GLenumToTextureTarget(target);
+  CHECK_NE(texture_target, TextureTarget::kUnkown);
   scoped_refptr<TexturePassthrough> texture_passthrough;
 
   if (service_id != 0) {
@@ -554,7 +581,7 @@ error::Error GLES2DecoderPassthroughImpl::DoBindTexture(GLenum target,
   }
 
   BoundTexture* bound_texture =
-      &bound_textures_[static_cast<size_t>(GLenumToTextureTarget(target))]
+      &bound_textures_[static_cast<size_t>(texture_target)]
                       [active_texture_unit_];
   bound_texture->client_id = texture;
   bound_texture->texture = std::move(texture_passthrough);
@@ -2345,7 +2372,6 @@ error::Error GLES2DecoderPassthroughImpl::DoLineWidth(GLfloat width) {
 
 error::Error GLES2DecoderPassthroughImpl::DoLinkProgram(GLuint program) {
   TRACE_EVENT0("gpu", "GLES2DecoderPassthroughImpl::DoLinkProgram");
-  SCOPED_UMA_HISTOGRAM_TIMER("GPU.PassthroughDoLinkProgramTime");
   GLuint program_service_id = GetProgramServiceID(program, resources_);
 
   // Call report progress to delay GPU Watchdog timeout.
@@ -2428,8 +2454,7 @@ error::Error GLES2DecoderPassthroughImpl::DoMultiDrawEndCHROMIUM() {
           result.baseinstances.data(), result.drawcount);
       return error::kNoError;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return error::kLostContext;
+      NOTREACHED();
   }
 }
 
@@ -2589,13 +2614,13 @@ error::Error GLES2DecoderPassthroughImpl::DoWritePixelsYUVINTERNAL(
     CHECK(result);
   }
 
-  size_t row_bytes[SkYUVAInfo::kMaxPlanes];
+  std::array<size_t, SkYUVAInfo::kMaxPlanes> row_bytes;
   row_bytes[0] = src_row_bytes_plane1;
   row_bytes[1] = src_row_bytes_plane2;
   row_bytes[2] = src_row_bytes_plane3;
   row_bytes[3] = src_row_bytes_plane4;
 
-  size_t plane_offsets[SkYUVAInfo::kMaxPlanes];
+  std::array<size_t, SkYUVAInfo::kMaxPlanes> plane_offsets;
   plane_offsets[0] = pixels_offset_plane1;
   plane_offsets[1] = pixels_offset_plane2;
   plane_offsets[2] = pixels_offset_plane3;
@@ -2605,7 +2630,7 @@ error::Error GLES2DecoderPassthroughImpl::DoWritePixelsYUVINTERNAL(
 
   size_t prev_byte_size = 0;
   for (int plane = 0; plane < yuv_info.numPlanes(); plane++) {
-    auto color_type = viz::ToClosestSkColorType(true, dest_format, plane);
+    auto color_type = viz::ToClosestSkColorType(dest_format, plane);
     auto plane_size =
         dest_format.GetPlaneSize(plane, gfx::Size(src_width, src_height));
     SkImageInfo src_info =
@@ -3801,8 +3826,10 @@ error::Error GLES2DecoderPassthroughImpl::DoDeleteQueriesEXT(
       continue;
     }
 
-    if (base::Contains(active_queries_, query_info.type)) {
-      active_queries_.erase(query_info.type);
+    auto active_query_iter = active_queries_.find(query_info.type);
+    if (active_query_iter != active_queries_.end() &&
+        active_query_iter->second.service_id == query_service_id) {
+      active_queries_.erase(active_query_iter);
     }
 
     RemovePendingQuery(query_service_id);
@@ -3988,7 +4015,7 @@ error::Error GLES2DecoderPassthroughImpl::DoEndQueryEXT(GLenum target,
     }
   }
 
-  DCHECK(active_queries_.find(target) != active_queries_.end());
+  CHECK(base::Contains(active_queries_, target));
   ActiveQuery active_query = std::move(active_queries_[target]);
   active_queries_.erase(target);
 
@@ -4102,32 +4129,6 @@ error::Error GLES2DecoderPassthroughImpl::DoBindVertexArrayOES(GLuint array) {
       GetVertexArrayServiceID(array, &vertex_array_id_map_));
   bound_element_array_buffer_dirty_ = true;
   return error::kNoError;
-}
-
-error::Error GLES2DecoderPassthroughImpl::DoSwapBuffers(uint64_t swap_id,
-                                                        GLbitfield flags) {
-  if (offscreen_) {
-    // We don't support SwapBuffers on the offscreen contexts.
-    LOG(ERROR) << "SwapBuffers called for the offscreen context";
-    return error::kUnknownCommand;
-  }
-
-  client()->OnSwapBuffers(swap_id, flags);
-  if (surface_->SupportsAsyncSwap()) {
-    TRACE_EVENT_NESTABLE_ASYNC_BEGIN0(
-        "gpu", "AsyncSwapBuffers",
-        TRACE_ID_WITH_SCOPE("AsyncSwapBuffers", swap_id));
-    surface_->SwapBuffersAsync(
-        base::BindOnce(
-            &GLES2DecoderPassthroughImpl::CheckSwapBuffersAsyncResult,
-            weak_ptr_factory_.GetWeakPtr(), "SwapBuffers", swap_id),
-        base::DoNothing(), gfx::FrameData());
-    return error::kNoError;
-  } else {
-    return CheckSwapBuffersResult(
-        surface_->SwapBuffers(base::DoNothing(), gfx::FrameData()),
-        "SwapBuffers");
-  }
 }
 
 error::Error GLES2DecoderPassthroughImpl::DoGetMaxValueInBufferCHROMIUM(
@@ -4252,38 +4253,6 @@ error::Error GLES2DecoderPassthroughImpl::DoUnmapBuffer(GLenum target) {
 
   resources_->mapped_buffer_map.erase(mapped_buffer_info_iter);
 
-  return error::kNoError;
-}
-
-error::Error GLES2DecoderPassthroughImpl::DoResizeCHROMIUM(
-    GLuint width,
-    GLuint height,
-    GLfloat scale_factor,
-    gfx::ColorSpace color_space,
-    GLboolean alpha) {
-  // gfx::Size uses integers, make sure width and height do not overflow
-  static_assert(sizeof(GLuint) >= sizeof(int), "Unexpected GLuint size.");
-  static const GLuint kMaxDimension =
-      static_cast<GLuint>(std::numeric_limits<int>::max());
-  gfx::Size safe_size(std::clamp(width, 1U, kMaxDimension),
-                      std::clamp(height, 1U, kMaxDimension));
-  if (offscreen_) {
-    // We don't support resize of offscreen contexts.
-    LOG(ERROR) << "Resize called for the offscreen context";
-    return error::kUnknownCommand;
-  } else {
-    if (!surface_->Resize(safe_size, scale_factor, color_space, !!alpha)) {
-      LOG(ERROR)
-          << "GLES2DecoderPassthroughImpl: Context lost because resize failed.";
-      return error::kLostContext;
-    }
-    DCHECK(context_->IsCurrent(surface_.get()));
-    if (!context_->IsCurrent(surface_.get())) {
-      LOG(ERROR) << "GLES2DecoderPassthroughImpl: Context lost because context "
-                    "no longer current after resize callback.";
-      return error::kLostContext;
-    }
-  }
   return error::kNoError;
 }
 
@@ -4891,11 +4860,6 @@ error::Error GLES2DecoderPassthroughImpl::DoDrawBuffersEXT(
   return error::kNoError;
 }
 
-error::Error GLES2DecoderPassthroughImpl::DoDiscardBackbufferCHROMIUM() {
-  NOTIMPLEMENTED();
-  return error::kNoError;
-}
-
 error::Error GLES2DecoderPassthroughImpl::DoFlushDriverCachesCHROMIUM() {
   // On Adreno Android devices we need to use a workaround to force caches to
   // clear.
@@ -5141,107 +5105,6 @@ error::Error GLES2DecoderPassthroughImpl::DoEndSharedImageAccessDirectCHROMIUM(
   return error::kNoError;
 }
 
-error::Error GLES2DecoderPassthroughImpl::DoConvertRGBAToYUVAMailboxesINTERNAL(
-    GLenum yuv_color_space,
-    GLenum plane_config,
-    GLenum subsampling,
-    const volatile GLbyte* mailboxes_in) {
-  if (!lazy_context_) {
-    lazy_context_ = LazySharedContextState::Create(this);
-    if (!lazy_context_) {
-      return error::kNoError;
-    }
-  }
-  ScopedPixelLocalStorageInterrupt scoped_pls_interrupt(this);
-  ui::ScopedMakeCurrent smc(lazy_context_->shared_context_state()->context(),
-                            lazy_context_->shared_context_state()->surface());
-  CopySharedImageHelper helper(group_->shared_image_representation_factory(),
-                               lazy_context_->shared_context_state());
-  auto result = helper.ConvertRGBAToYUVAMailboxes(yuv_color_space, plane_config,
-                                                  subsampling, mailboxes_in);
-  if (!result.has_value()) {
-    InsertError(result.error().gl_error, result.error().msg);
-  }
-  return error::kNoError;
-}
-
-error::Error GLES2DecoderPassthroughImpl::DoConvertYUVAMailboxesToRGBINTERNAL(
-    GLint src_x,
-    GLint src_y,
-    GLsizei width,
-    GLsizei height,
-    GLenum yuv_color_space,
-    GLenum plane_config,
-    GLenum subsampling,
-    const volatile GLbyte* mailboxes_in) {
-  if (!lazy_context_) {
-    lazy_context_ = LazySharedContextState::Create(this);
-    if (!lazy_context_) {
-      return error::kNoError;
-    }
-  }
-  ScopedPixelLocalStorageInterrupt scoped_pls_interrupt(this);
-  ui::ScopedMakeCurrent smc(lazy_context_->shared_context_state()->context(),
-                            lazy_context_->shared_context_state()->surface());
-  CopySharedImageHelper helper(group_->shared_image_representation_factory(),
-                               lazy_context_->shared_context_state());
-  auto result = helper.ConvertYUVAMailboxesToRGB(src_x, src_y, width, height,
-                                                 yuv_color_space, plane_config,
-                                                 subsampling, mailboxes_in);
-  if (!result.has_value()) {
-    InsertError(result.error().gl_error, result.error().msg);
-  }
-  return error::kNoError;
-}
-
-error::Error
-GLES2DecoderPassthroughImpl::DoConvertYUVAMailboxesToTextureINTERNAL(
-    GLuint texture,
-    GLenum target,
-    GLuint internal_format,
-    GLenum type,
-    GLint src_x,
-    GLint src_y,
-    GLsizei width,
-    GLsizei height,
-    GLboolean flip_y,
-    GLenum yuv_color_space,
-    GLenum plane_config,
-    GLenum subsampling,
-    const volatile GLbyte* mailboxes_in) {
-  if (!lazy_context_) {
-    lazy_context_ = LazySharedContextState::Create(this);
-    if (!lazy_context_) {
-      return error::kNoError;
-    }
-  }
-  ScopedPixelLocalStorageInterrupt scoped_pls_interrupt(this);
-  ui::ScopedMakeCurrent smc(lazy_context_->shared_context_state()->context(),
-                            lazy_context_->shared_context_state()->surface());
-
-  if (GLenumToTextureTarget(target) == TextureTarget::kUnkown) {
-    InsertError(GL_INVALID_VALUE, "Invalid texture target");
-    return error::kNoError;
-  }
-
-  GLuint gl_texture_service_id = GetTextureServiceID(
-      api(), texture, resources_, /*create_if_missing=*/false);
-  if (gl_texture_service_id == 0) {
-    InsertError(GL_INVALID_OPERATION, "Cannot get texture service id");
-    return error::kNoError;
-  }
-
-  CopySharedImageHelper helper(group_->shared_image_representation_factory(),
-                               lazy_context_->shared_context_state());
-  auto result = helper.ConvertYUVAMailboxesToGLTexture(
-      gl_texture_service_id, target, internal_format, type, src_x, src_y, width,
-      height, flip_y, yuv_color_space, plane_config, subsampling, mailboxes_in);
-  if (!result.has_value()) {
-    InsertError(result.error().gl_error, result.error().msg);
-  }
-  return error::kNoError;
-}
-
 error::Error GLES2DecoderPassthroughImpl::DoCopySharedImageINTERNAL(
     GLint xoffset,
     GLint yoffset,
@@ -5249,7 +5112,6 @@ error::Error GLES2DecoderPassthroughImpl::DoCopySharedImageINTERNAL(
     GLint y,
     GLsizei width,
     GLsizei height,
-    GLboolean unpack_flip_y,
     const volatile GLbyte* mailboxes) {
   if (!lazy_context_) {
     lazy_context_ = LazySharedContextState::Create(this);
@@ -5262,8 +5124,8 @@ error::Error GLES2DecoderPassthroughImpl::DoCopySharedImageINTERNAL(
                             lazy_context_->shared_context_state()->surface());
   CopySharedImageHelper helper(group_->shared_image_representation_factory(),
                                lazy_context_->shared_context_state());
-  auto result = helper.CopySharedImage(xoffset, yoffset, x, y, width, height,
-                                       unpack_flip_y, mailboxes);
+  auto result =
+      helper.CopySharedImage(xoffset, yoffset, x, y, width, height, mailboxes);
   if (!result.has_value()) {
     InsertError(result.error().gl_error, result.error().msg);
   }
@@ -5279,7 +5141,7 @@ error::Error GLES2DecoderPassthroughImpl::DoCopySharedImageToTextureINTERNAL(
     GLint src_y,
     GLsizei width,
     GLsizei height,
-    GLboolean flip_y,
+    GLboolean is_dst_origin_top_left,
     const volatile GLbyte* src_mailbox) {
   if (!lazy_context_) {
     lazy_context_ = LazySharedContextState::Create(this);
@@ -5291,8 +5153,12 @@ error::Error GLES2DecoderPassthroughImpl::DoCopySharedImageToTextureINTERNAL(
   ui::ScopedMakeCurrent smc(lazy_context_->shared_context_state()->context(),
                             lazy_context_->shared_context_state()->surface());
 
-  if (GLenumToTextureTarget(target) == TextureTarget::kUnkown) {
+  if (target != GL_TEXTURE_2D && target != GL_TEXTURE_RECTANGLE) {
     InsertError(GL_INVALID_VALUE, "Invalid texture target");
+    return error::kNoError;
+  }
+  if (!IsGLFormatAndTypeSupported(internal_format, type)) {
+    InsertError(GL_INVALID_VALUE, "Invalid GL format");
     return error::kNoError;
   }
 
@@ -5307,7 +5173,10 @@ error::Error GLES2DecoderPassthroughImpl::DoCopySharedImageToTextureINTERNAL(
                                lazy_context_->shared_context_state());
   auto result = helper.CopySharedImageToGLTexture(
       gl_texture_service_id, target, internal_format, type, src_x, src_y, width,
-      height, flip_y, src_mailbox);
+      height,
+      is_dst_origin_top_left ? kTopLeft_GrSurfaceOrigin
+                             : kBottomLeft_GrSurfaceOrigin,
+      src_mailbox);
   if (!result.has_value()) {
     InsertError(result.error().gl_error, result.error().msg);
   }

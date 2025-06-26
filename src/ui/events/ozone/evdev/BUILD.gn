@@ -63,6 +63,8 @@ component("evdev") {
     "heatmap_palm_detector.h",
     "imposter_checker_evdev.cc",
     "imposter_checker_evdev.h",
+    "imposter_checker_evdev_state.cc",
+    "imposter_checker_evdev_state.h",
     "input_controller_evdev.cc",
     "input_controller_evdev.h",
     "input_device_factory_evdev.cc",
@@ -98,6 +100,8 @@ component("evdev") {
     "touch_filter/edge_touch_filter.h",
     "touch_filter/false_touch_finder.cc",
     "touch_filter/false_touch_finder.h",
+    "touch_filter/heatmap_palm_detection_filter.cc",
+    "touch_filter/heatmap_palm_detection_filter.h",
     "touch_filter/heuristic_stylus_palm_detection_filter.cc",
     "touch_filter/heuristic_stylus_palm_detection_filter.h",
     "touch_filter/neural_stylus_palm_detection_filter.cc",
@@ -129,7 +133,6 @@ component("evdev") {
     ":keyboard_mouse_combo_metrics",
     ":mouse_button_property",
     "//base",
-    "//build:chromeos_buildflags",
     "//third_party/re2:re2",
     "//ui/display",
     "//ui/events",
@@ -143,10 +146,12 @@ component("evdev") {
     "//ui/ozone:ozone_base",
   ]
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     sources += [
       "fake_keyboard_heuristic_metrics.cc",
       "fake_keyboard_heuristic_metrics.h",
+      "microphone_mute_key_metrics.cc",
+      "microphone_mute_key_metrics.h",
       "numberpad_metrics.cc",
       "numberpad_metrics.h",
     ]
@@ -155,7 +160,8 @@ component("evdev") {
       "//chromeos/ash/components/feature_usage",
     ]
     visibility += [
-      "//chrome/browser/ui:ui",
+      "//chrome/browser/ui",
+      "//chrome/browser/ui/ash/main_extra_parts",
       "//chromeos/ash/components/heatmap/*",
     ]
   }
@@ -256,6 +262,7 @@ source_set("event_device_info") {
     "//ash:ash_unittests",
     "//ash/webui/diagnostics_ui/backend:*",
     "//chrome/browser/ash:unit_tests",
+    "//chrome/browser/ash/system_logs:unit_tests",
     "//chromeos/ash/services/cros_healthd/*",
     "//ui/chromeos/*",
     "//ui/events/ash/*",
@@ -279,6 +286,7 @@ source_set("event_device_info_test_utils") {
   visibility += [
     "//ash/webui/diagnostics_ui/backend:unit_tests",
     "//chrome/browser/ash:unit_tests",
+    "//chrome/browser/ash/system_logs:unit_tests",
     "//ui/events/ash:unit_tests",
   ]
 }
@@ -295,6 +303,7 @@ source_set("unittests") {
     "gamepad_event_converter_evdev_unittest.cc",
     "input_controller_evdev_unittest.cc",
     "input_injector_evdev_unittest.cc",
+    "keyboard_evdev_unittest.cc",
     "libgestures_glue/haptic_touchpad_handler.cc",
     "libgestures_glue/haptic_touchpad_handler.h",
     "libgestures_glue/haptic_touchpad_handler_unittest.cc",
@@ -304,6 +313,7 @@ source_set("unittests") {
     "testing/fake_cursor_delegate_evdev.h",
     "touch_event_converter_evdev_unittest.cc",
     "touch_filter/false_touch_finder_unittest.cc",
+    "touch_filter/heatmap_palm_detection_filter_unittest.cc",
     "touch_filter/heuristic_stylus_palm_detection_filter_unittest.cc",
     "touch_filter/neural_stylus_palm_detection_filter_unittest.cc",
     "touch_filter/neural_stylus_palm_detection_filter_util_unittest.cc",
@@ -318,7 +328,6 @@ source_set("unittests") {
     ":mouse_button_property",
     "//base",
     "//base/test:test_support",
-    "//build:chromeos_buildflags",
     "//testing/gmock",
     "//testing/gtest",
     "//third_party/re2:re2",
@@ -330,7 +339,7 @@ source_set("unittests") {
     "//ui/gfx/geometry",
   ]
 
-  if (is_chromeos_ash) {
+  if (is_chromeos) {
     sources += [
       "input_device_factory_evdev_unittest.cc",
       "mouse_button_map_evdev_unittest.cc",

@@ -25,13 +25,14 @@ import static org.chromium.chrome.browser.preferences.ChromePreferenceKeys.SEARC
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
-import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
 import org.robolectric.shadows.ShadowLooper;
 
@@ -60,11 +61,11 @@ import java.util.function.Consumer;
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(
         shadows = {
-            SearchActivityPreferencesManagerTest.ShadowIncognitoUtils.class,
             SearchActivityPreferencesManagerTest.ShadowLensController.class,
             SearchActivityPreferencesManagerTest.ShadowVoiceRecognitionUtil.class,
         })
 public class SearchActivityPreferencesManagerTest {
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private TemplateUrlService mTemplateUrlServiceMock;
     @Mock private LibraryLoader mLibraryLoaderMock;
     @Mock private TemplateUrl mTemplateUrlMock;
@@ -72,16 +73,6 @@ public class SearchActivityPreferencesManagerTest {
 
     private LoadListener mTemplateUrlServiceLoadListener;
     private TemplateUrlServiceObserver mTemplateUrlServiceObserver;
-
-    @Implements(IncognitoUtils.class)
-    public static class ShadowIncognitoUtils {
-        public static boolean sIsAvailable = true;
-
-        @Implementation
-        public static boolean isIncognitoModeEnabled() {
-            return sIsAvailable;
-        }
-    }
 
     @Implements(LensController.class)
     public static class ShadowLensController {
@@ -105,7 +96,6 @@ public class SearchActivityPreferencesManagerTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         TemplateUrlServiceFactory.setInstanceForTesting(mTemplateUrlServiceMock);
         ProfileManager.setLastUsedProfileForTesting(mProfile);
 
@@ -156,8 +146,6 @@ public class SearchActivityPreferencesManagerTest {
         SearchActivityPreferences p2 =
                 new SearchActivityPreferences(
                         "test", new GURL("https://test.url"), true, true, true);
-        Assert.assertEquals(p1, p1);
-        Assert.assertEquals(p2, p2);
         Assert.assertEquals(p1, p2);
         Assert.assertEquals(p1.hashCode(), p2.hashCode());
 
@@ -489,7 +477,7 @@ public class SearchActivityPreferencesManagerTest {
     public void updateFeatureAvailability() {
         ShadowLensController.sIsAvailable = true;
         ShadowVoiceRecognitionUtil.sIsAvailable = true;
-        ShadowIncognitoUtils.sIsAvailable = true;
+        IncognitoUtils.setEnabledForTesting(true);
 
         SearchActivityPreferencesManager.updateFeatureAvailability(
                 ContextUtils.getApplicationContext(), null);
@@ -517,7 +505,7 @@ public class SearchActivityPreferencesManagerTest {
         Assert.assertTrue(data.incognitoAvailable);
 
         // Disable Incognito.
-        ShadowIncognitoUtils.sIsAvailable = false;
+        IncognitoUtils.setEnabledForTesting(false);
         SearchActivityPreferencesManager.updateFeatureAvailability(
                 ContextUtils.getApplicationContext(), null);
         data = SearchActivityPreferencesManager.getCurrent();

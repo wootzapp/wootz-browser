@@ -16,8 +16,8 @@
 #include "gpu/config/gpu_feature_info.h"
 #include "third_party/blink/public/platform/web_graphics_context_3d_provider.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
-#include "third_party/skia/include/gpu/GrDirectContext.h"
-#include "third_party/skia/include/gpu/mock/GrMockTypes.h"
+#include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
+#include "third_party/skia/include/gpu/ganesh/mock/GrMockTypes.h"
 
 namespace blink {
 
@@ -120,7 +120,10 @@ class FakeWebGraphicsContext3DProvider : public WebGraphicsContext3DProvider {
   gpu::webgpu::WebGPUInterface* WebGPUInterface() override {
     return webgpu_interface_.get();
   }
-  gpu::ContextSupport* ContextSupport() override { return nullptr; }
+  gpu::ContextSupport* ContextSupport() override {
+    return raster_context_provider_ ? raster_context_provider_->ContextSupport()
+                                    : nullptr;
+  }
 
   bool BindToCurrentSequence() override { return false; }
   void SetLostContextCallback(base::RepeatingClosure) override {}
@@ -134,9 +137,6 @@ class FakeWebGraphicsContext3DProvider : public WebGraphicsContext3DProvider {
                ? raster_context_provider_->SharedImageInterface()
                : test_shared_image_interface_.get();
   }
-  void CopyVideoFrame(media::PaintCanvasVideoRenderer* video_render,
-                      media::VideoFrame* video_frame,
-                      cc::PaintCanvas* canvas) override {}
   viz::RasterContextProvider* RasterContextProvider() const override {
     return raster_context_provider_;
   }
@@ -157,8 +157,9 @@ class FakeWebGraphicsContext3DProvider : public WebGraphicsContext3DProvider {
   gpu::Capabilities capabilities_;
   gpu::GpuFeatureInfo gpu_feature_info_;
   WebglPreferences webgl_preferences_;
-  raw_ptr<cc::ImageDecodeCache, DanglingUntriaged> image_decode_cache_ =
-      nullptr;
+  // RAW_PTR_EXCLUSION: ImageDecodeCache is marked as not supported by
+  // raw_ptr. See raw_ptr.h for more information.
+  RAW_PTR_EXCLUSION cc::ImageDecodeCache* image_decode_cache_ = nullptr;
   raw_ptr<viz::TestContextProvider, DanglingUntriaged>
       raster_context_provider_ = nullptr;
 };

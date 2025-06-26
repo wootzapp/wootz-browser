@@ -46,11 +46,13 @@ ImportDataHandler::ImportDataHandler() : importer_host_(nullptr) {
 ImportDataHandler::~ImportDataHandler() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  if (importer_host_)
+  if (importer_host_) {
     importer_host_->set_observer(nullptr);
+  }
 
-  if (select_file_dialog_.get())
+  if (select_file_dialog_.get()) {
     select_file_dialog_->ListenerDestroyed();
+  }
 }
 
 void ImportDataHandler::RegisterMessages() {
@@ -88,12 +90,14 @@ void ImportDataHandler::StartImport(
     uint16_t imported_items) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  if (!imported_items)
+  if (!imported_items) {
     return;
+  }
 
   // If another import is already ongoing, let it finish silently.
-  if (importer_host_)
+  if (importer_host_) {
     importer_host_->set_observer(nullptr);
+  }
 
   FireWebUIListener("import-data-status-changed",
                     base::Value(kImportStatusInProgress));
@@ -175,8 +179,9 @@ void ImportDataHandler::HandleImportFromBookmarksFile(
     const base::Value::List& args) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
-  if (select_file_dialog_)
+  if (select_file_dialog_) {
     return;
+  }
 
   DCHECK(args.empty());
   select_file_dialog_ = ui::SelectFileDialog::Create(
@@ -254,8 +259,7 @@ void ImportDataHandler::ImportEnded() {
 }
 
 void ImportDataHandler::FileSelected(const ui::SelectedFileInfo& file,
-                                     int /*index*/,
-                                     void* /*params*/) {
+                                     int /*index*/) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   select_file_dialog_ = nullptr;
@@ -267,7 +271,7 @@ void ImportDataHandler::FileSelected(const ui::SelectedFileInfo& file,
   StartImport(source_profile, importer::FAVORITES);
 }
 
-void ImportDataHandler::FileSelectionCanceled(void* params) {
+void ImportDataHandler::FileSelectionCanceled() {
   select_file_dialog_ = nullptr;
 }
 

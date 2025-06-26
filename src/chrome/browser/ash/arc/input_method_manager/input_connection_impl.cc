@@ -5,10 +5,10 @@
 #include "chrome/browser/ash/arc/input_method_manager/input_connection_impl.h"
 
 #include <tuple>
+#include <utility>
 
 #include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
-#include "third_party/abseil-cpp/absl/utility/utility.h"
 #include "ui/base/ime/ash/ime_bridge.h"
 #include "ui/base/ime/ash/ime_keymap.h"
 #include "ui/events/base_event_utils.h"
@@ -327,11 +327,13 @@ void InputConnectionImpl::SendControlKeyEvent(const std::u16string& text) {
 
   for (const auto& t : kControlCharToKeyEvent) {
     if (std::get<0>(t) == str[0]) {
-      ui::KeyEvent press = CreateKeyEvent(ui::ET_KEY_PRESSED, std::get<1>(t),
-                                          std::get<2>(t), std::get<3>(t));
+      ui::KeyEvent press =
+          CreateKeyEvent(ui::EventType::kKeyPressed, std::get<1>(t),
+                         std::get<2>(t), std::get<3>(t));
 
-      ui::KeyEvent release = CreateKeyEvent(ui::ET_KEY_RELEASED, std::get<1>(t),
-                                            std::get<2>(t), std::get<3>(t));
+      ui::KeyEvent release =
+          CreateKeyEvent(ui::EventType::kKeyReleased, std::get<1>(t),
+                         std::get<2>(t), std::get<3>(t));
 
       std::string error;
       if (!ime_engine_->SendKeyEvents(input_context_id_, {press, release},

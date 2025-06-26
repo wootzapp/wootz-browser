@@ -8,7 +8,9 @@
 #import <LocalAuthenticationEmbeddedUI/LocalAuthenticationEmbeddedUI.h>
 
 #include "base/logging.h"
+#include "base/strings/sys_string_conversions.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/webauthn/local_authentication_token.h"
 #include "components/device_event_log/device_event_log.h"
 #include "content/public/browser/browser_thread.h"
 #include "crypto/scoped_lacontext.h"
@@ -34,9 +36,11 @@ struct API_AVAILABLE(macos(12.0)) MacAuthenticationView::ObjCStorage {
   LAAuthenticationView* __strong auth_view;
 };
 
-MacAuthenticationView::MacAuthenticationView(Callback callback)
+MacAuthenticationView::MacAuthenticationView(Callback callback,
+                                             std::u16string touch_id_reason)
     : callback_(std::move(callback)),
-      storage_(std::make_unique<ObjCStorage>()) {
+      storage_(std::make_unique<ObjCStorage>()),
+      touch_id_reason_(std::move(touch_id_reason)) {
   storage_->context = [[LAContext alloc] init];
   storage_->auth_view =
       [[LAAuthenticationView alloc] initWithContext:storage_->context];
@@ -118,7 +122,7 @@ void MacAuthenticationView::OnPaint(gfx::Canvas* canvas) {
                        weak_factory_.GetWeakPtr());
     [storage_->context
          evaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
-        localizedReason:@"NOT USED"
+        localizedReason:base::SysUTF16ToNSString(touch_id_reason_)
                   reply:^(BOOL success, NSError* error) {
                     if (error) {
                       FIDO_LOG(ERROR) << "Touch ID failed with error: "
@@ -152,12 +156,12 @@ void MacAuthenticationView::OnAuthenticationComplete(bool success) {
 }
 
 void MacAuthenticationView::OnTouchIDAnimationComplete(bool success) {
-  std::optional<crypto::ScopedLAContext> lacontext;
+  std::optional<webauthn::LocalAuthenticationToken> local_auth_token;
   if (success) {
-    lacontext.emplace(storage_->context);
+    local_auth_token.emplace(storage_->context);
   }
   storage_->context = nil;
-  std::move(callback_).Run(std::move(lacontext));
+  std::move(callback_).Run(std::move(local_auth_token));
 }
 
 BEGIN_METADATA(MacAuthenticationView)

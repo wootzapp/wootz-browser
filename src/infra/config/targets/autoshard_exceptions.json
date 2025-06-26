@@ -1,130 +1,199 @@
 {
     "chromium.android": {
         "android-12-x64-rel": {
-            "android_sync_integration_tests": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 113,
-                    "estimated_bot_hour_delta": -4.27,
-                    "prev_avg_pending_time_sec": 15.9,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 46.0,
-                    "prev_percentile_duration_minutes": 5.79,
-                    "prev_shard_count": 4,
-                    "simulated_max_shard_duration": 10.45,
-                    "test_overhead_min": 1.1333333333333333,
-                    "try_builder": "android-12-x64-rel"
-                },
-                "shards": 2
-            },
-            "services_unittests": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": "85.0",
-                    "estimated_bot_hour_delta": "-3.1",
-                    "prev_avg_pending_time_sec": "20.0",
-                    "prev_p50_pending_time_sec": "1.0",
-                    "prev_p90_pending_time_sec": "75.0",
-                    "prev_percentile_duration_minutes": "8.04",
-                    "prev_shard_count": "3",
-                    "simulated_max_shard_duration": "12.06",
-                    "try_builder": "android-12-x64-rel"
-                },
-                "shards": "2"
-            },
             "webview_instrumentation_test_apk": {
                 "debug": {
                     "avg_num_builds_per_peak_hour": 105,
                     "estimated_bot_hour_delta": 3.56,
                     "prev_avg_pending_time_sec": 18.8,
-                    "prev_p50_pending_time_sec": 2.0,
-                    "prev_p90_pending_time_sec": 61.0,
+                    "prev_p50_pending_time_sec": 2,
+                    "prev_p90_pending_time_sec": 61,
                     "prev_percentile_duration_minutes": 16.15,
                     "prev_shard_count": 10,
                     "simulated_max_shard_duration": 14.87,
-                    "test_overhead_min": 2.033333333333333,
-                    "try_builder": "android-x64-rel"
+                    "test_overhead_min": 2.033333333333333
                 },
-                "shards": 11
-            },
-            "webview_trichrome_64_cts_tests full_mode": {
+                "shards": 11,
+                "try_builder": "android-x64-rel"
+            }
+        },
+        "android-13-x64-rel": {
+            "android_browsertests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": "75.0",
-                    "estimated_bot_hour_delta": "-2.83",
-                    "prev_avg_pending_time_sec": "15.1",
-                    "prev_p50_pending_time_sec": "1.0",
-                    "prev_p90_pending_time_sec": "46.0",
-                    "prev_percentile_duration_minutes": "8.96",
-                    "prev_shard_count": "3",
-                    "simulated_max_shard_duration": "13.44",
-                    "try_builder": "android-12-x64-rel"
+                    "avg_num_builds_per_peak_hour": 103,
+                    "estimated_bot_hour_delta": -2.8,
+                    "prev_avg_pending_time_sec": 14.8,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 49,
+                    "prev_percentile_duration_minutes": 13.26,
+                    "prev_shard_count": 18,
+                    "simulated_max_shard_duration": 14.82,
+                    "test_overhead_min": 0.8166666666666667
                 },
-                "shards": "2"
+                "shards": 16,
+                "try_builder": "android-x64-rel"
+            },
+            "components_browsertests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 94,
+                    "estimated_bot_hour_delta": 3.13,
+                    "prev_avg_pending_time_sec": 10.9,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 37,
+                    "prev_percentile_duration_minutes": 16.27,
+                    "prev_shard_count": 1,
+                    "simulated_max_shard_duration": 9.13,
+                    "test_overhead_min": 2
+                },
+                "shards": 2,
+                "try_builder": "android-x64-rel"
+            }
+        },
+        "android-15-x64-rel": {
+            "android_browsertests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 107,
+                    "estimated_bot_hour_delta": -28.53,
+                    "prev_avg_pending_time_sec": 10.7,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 25,
+                    "prev_percentile_duration_minutes": 11.44,
+                    "prev_shard_count": 14,
+                    "simulated_max_shard_duration": 14.42,
+                    "test_overhead_min": 4
+                },
+                "shards": 10,
+                "try_builder": "android-x64-rel"
+            },
+            "components_browsertests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 41,
+                    "estimated_bot_hour_delta": 1.37,
+                    "prev_avg_pending_time_sec": 17.4,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 61,
+                    "prev_percentile_duration_minutes": 16.52,
+                    "prev_shard_count": 1,
+                    "simulated_max_shard_duration": 9.26,
+                    "test_overhead_min": 2
+                },
+                "shards": 2,
+                "try_builder": "android-x64-rel"
             }
         },
         "android-oreo-x86-rel": {
+            "content_browsertests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 98,
+                    "estimated_bot_hour_delta": -29.54,
+                    "prev_avg_pending_time_sec": 16.9,
+                    "prev_p50_pending_time_sec": 3,
+                    "prev_p90_pending_time_sec": 62,
+                    "prev_percentile_duration_minutes": 13.91,
+                    "prev_shard_count": 87,
+                    "simulated_max_shard_duration": 14.9,
+                    "test_overhead_min": 2.5833333333333335
+                },
+                "shards": 80,
+                "try_builder": "android-x86-rel"
+            },
+            "content_unittests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 103,
+                    "estimated_bot_hour_delta": -3,
+                    "prev_avg_pending_time_sec": 19.1,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 57,
+                    "prev_percentile_duration_minutes": 9.76,
+                    "prev_shard_count": 3,
+                    "simulated_max_shard_duration": 13.77,
+                    "test_overhead_min": 1.75
+                },
+                "shards": 2,
+                "try_builder": "android-x86-rel"
+            },
             "unit_tests": {
                 "debug": {
                     "avg_num_builds_per_peak_hour": 99,
                     "estimated_bot_hour_delta": -5.53,
                     "prev_avg_pending_time_sec": 23.7,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 82.0,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 82,
                     "prev_percentile_duration_minutes": 9.91,
                     "prev_shard_count": 3,
                     "simulated_max_shard_duration": 14.87,
-                    "test_overhead_min": 3.35,
-                    "try_builder": "android-x86-rel"
+                    "test_overhead_min": 3.35
                 },
-                "shards": 2
+                "shards": 2,
+                "try_builder": "android-x86-rel"
+            },
+            "webkit_unit_tests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 98,
+                    "estimated_bot_hour_delta": -1.44,
+                    "prev_avg_pending_time_sec": 23.2,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 74,
+                    "prev_percentile_duration_minutes": 12.06,
+                    "prev_shard_count": 6,
+                    "simulated_max_shard_duration": 14.3,
+                    "test_overhead_min": 0.8833333333333333
+                },
+                "shards": 5,
+                "try_builder": "android-x86-rel"
             },
             "webview_instrumentation_test_apk": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 99,
-                    "estimated_bot_hour_delta": 18.04,
-                    "prev_avg_pending_time_sec": 41.6,
-                    "prev_p50_pending_time_sec": 4.0,
-                    "prev_p90_pending_time_sec": 158.0,
-                    "prev_percentile_duration_minutes": 16.39,
-                    "prev_shard_count": 29,
+                    "avg_num_builds_per_peak_hour": 89,
+                    "estimated_bot_hour_delta": -10.16,
+                    "prev_avg_pending_time_sec": 30.5,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 120,
+                    "prev_percentile_duration_minutes": 12.24,
+                    "prev_shard_count": 15,
                     "simulated_max_shard_duration": 14.73,
-                    "test_overhead_min": 2.7333333333333334,
-                    "try_builder": "android-x86-rel"
+                    "test_overhead_min": 2.283333333333333
                 },
-                "shards": 33
+                "shards": 12,
+                "try_builder": "android-x86-rel"
+            }
+        }
+    },
+    "chromium.android.desktop": {
+        "android-desktop-x64-rel-15-tests": {
+            "android_browsertests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 98,
+                    "estimated_bot_hour_delta": 26.13,
+                    "prev_avg_pending_time_sec": 10.8,
+                    "prev_p50_pending_time_sec": 1.0,
+                    "prev_p90_pending_time_sec": 15.0,
+                    "prev_percentile_duration_minutes": 18.26,
+                    "prev_shard_count": 31,
+                    "simulated_max_shard_duration": 14.92,
+                    "test_overhead_min": 2.0
+                },
+                "shards": 39,
+                "try_builder": "android-desktop-x64-rel"
             }
         }
     },
     "chromium.chromiumos": {
-        "chromeos-amd64-generic-rel": {
-            "chrome_all_tast_tests": {
+        "chromeos-amd64-generic-rel-gtest": {
+            "net_unittests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": "79.0",
-                    "estimated_bot_hour_delta": "3.45",
-                    "prev_avg_pending_time_sec": "96.1",
-                    "prev_p50_pending_time_sec": "4.0",
-                    "prev_p90_pending_time_sec": "361.0",
-                    "prev_percentile_duration_minutes": "15.83",
-                    "prev_shard_count": "15",
-                    "simulated_max_shard_duration": "14.84",
-                    "try_builder": "chromeos-amd64-generic-rel"
+                    "avg_num_builds_per_peak_hour": 97,
+                    "estimated_bot_hour_delta": -3.23,
+                    "prev_avg_pending_time_sec": 23,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 70,
+                    "prev_percentile_duration_minutes": 9.32,
+                    "prev_shard_count": 6,
+                    "simulated_max_shard_duration": 13.48,
+                    "test_overhead_min": 1
                 },
-                "shards": "16"
-            }
-        },
-        "chromeos-amd64-generic-rel-renamed": {
-            "chrome_all_tast_tests": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 92,
-                    "estimated_bot_hour_delta": 43.11,
-                    "prev_avg_pending_time_sec": 53.6,
-                    "prev_p50_pending_time_sec": 2.0,
-                    "prev_p90_pending_time_sec": 212.0,
-                    "prev_percentile_duration_minutes": 18.21,
-                    "prev_shard_count": 22,
-                    "simulated_max_shard_duration": 13.81,
-                    "test_overhead_min": 4.016666666666667,
-                    "try_builder": "chromeos-amd64-generic-rel-renamed"
-                },
-                "shards": 29
+                "shards": 4,
+                "try_builder": "chromeos-amd64-generic-rel-gtest"
             }
         },
         "linux-chromeos-rel": {
@@ -137,252 +206,100 @@
                     "prev_p90_pending_time_sec": "414.0",
                     "prev_percentile_duration_minutes": "16.63",
                     "prev_shard_count": "1",
-                    "simulated_max_shard_duration": "8.31",
-                    "try_builder": "linux-chromeos-rel"
+                    "simulated_max_shard_duration": "8.31"
                 },
-                "shards": "2"
+                "shards": "2",
+                "try_builder": "linux-chromeos-rel"
             },
             "ash_unittests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 102,
-                    "estimated_bot_hour_delta": -1.19,
-                    "prev_avg_pending_time_sec": 30.2,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 96.0,
-                    "prev_percentile_duration_minutes": 8.6,
-                    "prev_shard_count": 5,
-                    "simulated_max_shard_duration": 14.1,
-                    "test_overhead_min": 0.35,
-                    "try_builder": "linux-chromeos-rel"
+                    "avg_num_builds_per_peak_hour": 104,
+                    "estimated_bot_hour_delta": 1.24,
+                    "prev_avg_pending_time_sec": 20.2,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 65,
+                    "prev_percentile_duration_minutes": 17.92,
+                    "prev_shard_count": 3,
+                    "simulated_max_shard_duration": 13.62,
+                    "test_overhead_min": 0.7166666666666667
                 },
-                "shards": 3
+                "shards": 4,
+                "try_builder": "linux-chromeos-rel"
             },
             "browser_tests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 99,
-                    "estimated_bot_hour_delta": -17.55,
-                    "prev_avg_pending_time_sec": 34.4,
-                    "prev_p50_pending_time_sec": 5.0,
-                    "prev_p90_pending_time_sec": 110.0,
-                    "prev_percentile_duration_minutes": 13.55,
-                    "prev_shard_count": 107,
-                    "simulated_max_shard_duration": 14.99,
-                    "test_overhead_min": 0.9666666666666667,
-                    "try_builder": "linux-chromeos-rel"
+                    "avg_num_builds_per_peak_hour": 96,
+                    "estimated_bot_hour_delta": 32.8,
+                    "prev_avg_pending_time_sec": 23.2,
+                    "prev_p50_pending_time_sec": 2,
+                    "prev_p90_pending_time_sec": 76,
+                    "prev_percentile_duration_minutes": 16.11,
+                    "prev_shard_count": 112,
+                    "simulated_max_shard_duration": 14.96,
+                    "test_overhead_min": 2.05
                 },
-                "shards": 96
+                "shards": 122,
+                "try_builder": "linux-chromeos-rel"
             },
-            "browser_tests_require_lacros": {
+            "components_unittests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 92,
-                    "estimated_bot_hour_delta": -1.51,
-                    "prev_avg_pending_time_sec": 21.4,
-                    "prev_p50_pending_time_sec": 2.0,
-                    "prev_p90_pending_time_sec": 74.0,
-                    "prev_percentile_duration_minutes": 13.61,
-                    "prev_shard_count": 11,
+                    "avg_num_builds_per_peak_hour": 85,
+                    "estimated_bot_hour_delta": 1.42,
+                    "prev_avg_pending_time_sec": 16.4,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 63,
+                    "prev_percentile_duration_minutes": 28.73,
+                    "prev_shard_count": 1,
                     "simulated_max_shard_duration": 14.87,
-                    "test_overhead_min": 0.9833333333333333,
-                    "try_builder": "linux-chromeos-rel"
+                    "test_overhead_min": 1
                 },
-                "shards": 10
+                "shards": 2,
+                "try_builder": "linux-chromeos-rel"
             },
             "content_browsertests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 103,
-                    "estimated_bot_hour_delta": -1.26,
-                    "prev_avg_pending_time_sec": 53.3,
-                    "prev_p50_pending_time_sec": 2.0,
-                    "prev_p90_pending_time_sec": 174.0,
-                    "prev_percentile_duration_minutes": 12.93,
+                    "avg_num_builds_per_peak_hour": 90,
+                    "estimated_bot_hour_delta": 1.03,
+                    "prev_avg_pending_time_sec": 17.3,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 57,
+                    "prev_percentile_duration_minutes": 16.09,
                     "prev_shard_count": 7,
-                    "simulated_max_shard_duration": 14.96,
-                    "test_overhead_min": 0.7333333333333333,
-                    "try_builder": "linux-chromeos-rel"
+                    "simulated_max_shard_duration": 14.16,
+                    "test_overhead_min": 0.6833333333333333
                 },
-                "shards": 6
+                "shards": 8,
+                "try_builder": "linux-chromeos-rel"
+            },
+            "interactive_ui_tests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 97,
+                    "estimated_bot_hour_delta": 1.48,
+                    "prev_avg_pending_time_sec": 20.3,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 71,
+                    "prev_percentile_duration_minutes": 16.13,
+                    "prev_shard_count": 6,
+                    "simulated_max_shard_duration": 13.96,
+                    "test_overhead_min": 0.9166666666666666
+                },
+                "shards": 7,
+                "try_builder": "linux-chromeos-rel"
             },
             "unit_tests": {
                 "debug": {
                     "avg_num_builds_per_peak_hour": 104,
                     "estimated_bot_hour_delta": 2.08,
                     "prev_avg_pending_time_sec": 126.2,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 344.0,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 344,
                     "prev_percentile_duration_minutes": 16.12,
                     "prev_shard_count": 2,
                     "simulated_max_shard_duration": 10.75,
-                    "test_overhead_min": 1.2,
-                    "try_builder": "linux-chromeos-rel"
+                    "test_overhead_min": 1.2
                 },
-                "shards": 3
-            }
-        },
-        "linux-lacros-tester-rel": {
-            "browser_tests": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 108,
-                    "estimated_bot_hour_delta": -4.92,
-                    "prev_avg_pending_time_sec": 51.3,
-                    "prev_p50_pending_time_sec": 4.0,
-                    "prev_p90_pending_time_sec": 160.0,
-                    "prev_percentile_duration_minutes": 13.28,
-                    "prev_shard_count": 34,
-                    "simulated_max_shard_duration": 14.96,
-                    "test_overhead_min": 0.6833333333333333,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 30
-            },
-            "interactive_ui_tests": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 101,
-                    "estimated_bot_hour_delta": -2.36,
-                    "prev_avg_pending_time_sec": 23.7,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 76.0,
-                    "prev_percentile_duration_minutes": 12.98,
-                    "prev_shard_count": 7,
-                    "simulated_max_shard_duration": 14.91,
-                    "test_overhead_min": 1.4,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 6
-            },
-            "interactive_ui_tests Lacros version skew testing ash beta": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 94,
-                    "estimated_bot_hour_delta": -2.04,
-                    "prev_avg_pending_time_sec": 51.1,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 163.0,
-                    "prev_percentile_duration_minutes": 11.48,
-                    "prev_shard_count": 7,
-                    "simulated_max_shard_duration": 13.39,
-                    "test_overhead_min": 1.3,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 6
-            },
-            "interactive_ui_tests Lacros version skew testing ash canary": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 94,
-                    "estimated_bot_hour_delta": -1.78,
-                    "prev_avg_pending_time_sec": 51.6,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 164.0,
-                    "prev_percentile_duration_minutes": 11.51,
-                    "prev_shard_count": 7,
-                    "simulated_max_shard_duration": 13.43,
-                    "test_overhead_min": 1.1333333333333333,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 6
-            },
-            "interactive_ui_tests Lacros version skew testing ash dev": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 94,
-                    "estimated_bot_hour_delta": -2.14,
-                    "prev_avg_pending_time_sec": 51.9,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 165.0,
-                    "prev_percentile_duration_minutes": 11.47,
-                    "prev_shard_count": 7,
-                    "simulated_max_shard_duration": 13.38,
-                    "test_overhead_min": 1.3666666666666667,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 6
-            },
-            "interactive_ui_tests Lacros version skew testing ash stable": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 94,
-                    "estimated_bot_hour_delta": -1.8,
-                    "prev_avg_pending_time_sec": 51.5,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 163.0,
-                    "prev_percentile_duration_minutes": 11.47,
-                    "prev_shard_count": 7,
-                    "simulated_max_shard_duration": 13.38,
-                    "test_overhead_min": 1.15,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 6
-            },
-            "lacros_chrome_browsertests": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 97,
-                    "estimated_bot_hour_delta": 0.94,
-                    "prev_avg_pending_time_sec": 51.7,
-                    "prev_p50_pending_time_sec": 2.0,
-                    "prev_p90_pending_time_sec": 138.0,
-                    "prev_percentile_duration_minutes": 16.05,
-                    "prev_shard_count": 6,
-                    "simulated_max_shard_duration": 13.84,
-                    "test_overhead_min": 0.5833333333333334,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 7
-            },
-            "lacros_chrome_browsertests Lacros version skew testing ash beta": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 101,
-                    "estimated_bot_hour_delta": 1.43,
-                    "prev_avg_pending_time_sec": 45.7,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 146.0,
-                    "prev_percentile_duration_minutes": 16.48,
-                    "prev_shard_count": 5,
-                    "simulated_max_shard_duration": 13.88,
-                    "test_overhead_min": 0.85,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 6
-            },
-            "lacros_chrome_browsertests Lacros version skew testing ash canary": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 101,
-                    "estimated_bot_hour_delta": 1.29,
-                    "prev_avg_pending_time_sec": 45.3,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 144.0,
-                    "prev_percentile_duration_minutes": 16.54,
-                    "prev_shard_count": 5,
-                    "simulated_max_shard_duration": 13.91,
-                    "test_overhead_min": 0.7666666666666667,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 6
-            },
-            "lacros_chrome_browsertests Lacros version skew testing ash dev": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 101,
-                    "estimated_bot_hour_delta": 1.4,
-                    "prev_avg_pending_time_sec": 45.2,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 143.0,
-                    "prev_percentile_duration_minutes": 16.51,
-                    "prev_shard_count": 5,
-                    "simulated_max_shard_duration": 13.9,
-                    "test_overhead_min": 0.8333333333333334,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 6
-            },
-            "lacros_chrome_browsertests Lacros version skew testing ash stable": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": 101,
-                    "estimated_bot_hour_delta": 1.46,
-                    "prev_avg_pending_time_sec": 45.2,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 143.0,
-                    "prev_percentile_duration_minutes": 16.44,
-                    "prev_shard_count": 5,
-                    "simulated_max_shard_duration": 13.84,
-                    "test_overhead_min": 0.8666666666666667,
-                    "try_builder": "linux-lacros-rel"
-                },
-                "shards": 6
+                "shards": 3,
+                "try_builder": "linux-chromeos-rel"
             }
         }
     },
@@ -393,30 +310,45 @@
                     "avg_num_builds_per_peak_hour": 96,
                     "estimated_bot_hour_delta": 1.6,
                     "prev_avg_pending_time_sec": 49.6,
-                    "prev_p50_pending_time_sec": 0.0,
-                    "prev_p90_pending_time_sec": 167.0,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 167,
                     "prev_percentile_duration_minutes": 16.76,
                     "prev_shard_count": 1,
                     "simulated_max_shard_duration": 8.38,
-                    "test_overhead_min": 1.0,
-                    "try_builder": "fuchsia-x64-cast-receiver-rel"
+                    "test_overhead_min": 1
                 },
-                "shards": 2
+                "shards": 2,
+                "try_builder": "fuchsia-x64-cast-receiver-rel"
             },
             "blink_unittests_v2": {
                 "debug": {
                     "avg_num_builds_per_peak_hour": 100,
                     "estimated_bot_hour_delta": 1.67,
                     "prev_avg_pending_time_sec": 53.1,
-                    "prev_p50_pending_time_sec": 0.0,
-                    "prev_p90_pending_time_sec": 170.0,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 170,
                     "prev_percentile_duration_minutes": 16.06,
                     "prev_shard_count": 1,
                     "simulated_max_shard_duration": 8.03,
-                    "test_overhead_min": 1.0,
-                    "try_builder": "fuchsia-x64-cast-receiver-rel"
+                    "test_overhead_min": 1
                 },
-                "shards": 2
+                "shards": 2,
+                "try_builder": "fuchsia-x64-cast-receiver-rel"
+            },
+            "components_unittests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 98,
+                    "estimated_bot_hour_delta": -5.04,
+                    "prev_avg_pending_time_sec": 20.1,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 70,
+                    "prev_percentile_duration_minutes": 11.09,
+                    "prev_shard_count": 4,
+                    "simulated_max_shard_duration": 13.76,
+                    "test_overhead_min": 3.0833333333333335
+                },
+                "shards": 3,
+                "try_builder": "fuchsia-x64-cast-receiver-rel"
             },
             "content_unittests": {
                 "debug": {
@@ -427,10 +359,29 @@
                     "prev_p90_pending_time_sec": "155.0",
                     "prev_percentile_duration_minutes": "15.36",
                     "prev_shard_count": "1",
-                    "simulated_max_shard_duration": "7.68",
-                    "try_builder": "fuchsia-x64-cast-receiver-rel"
+                    "simulated_max_shard_duration": "7.68"
                 },
-                "shards": "2"
+                "shards": "2",
+                "try_builder": "fuchsia-x64-cast-receiver-rel"
+            }
+        }
+    },
+    "chromium.gpu": {
+        "Win10 x64 Release (NVIDIA)": {
+            "trace_test": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 102,
+                    "estimated_bot_hour_delta": 1.7,
+                    "prev_avg_pending_time_sec": 1.2,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 1,
+                    "prev_percentile_duration_minutes": 16.74,
+                    "prev_shard_count": 1,
+                    "simulated_max_shard_duration": 8.87,
+                    "test_overhead_min": 1
+                },
+                "shards": 2,
+                "try_builder": "win-rel"
             }
         }
     },
@@ -438,277 +389,339 @@
         "Linux Tests": {
             "blink_web_tests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 103,
-                    "estimated_bot_hour_delta": -5.32,
-                    "prev_avg_pending_time_sec": 82.2,
-                    "prev_p50_pending_time_sec": 2.0,
-                    "prev_p90_pending_time_sec": 214.0,
-                    "prev_percentile_duration_minutes": 10.19,
-                    "prev_shard_count": 10,
-                    "simulated_max_shard_duration": 14.56,
-                    "test_overhead_min": 1.0333333333333334,
-                    "try_builder": "linux-rel"
+                    "avg_num_builds_per_peak_hour": 102,
+                    "estimated_bot_hour_delta": -2.61,
+                    "prev_avg_pending_time_sec": 27.3,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 94,
+                    "prev_percentile_duration_minutes": 12.52,
+                    "prev_shard_count": 8,
+                    "simulated_max_shard_duration": 14.09,
+                    "test_overhead_min": 1.5333333333333334
                 },
-                "shards": 7
+                "shards": 7,
+                "try_builder": "linux-rel"
             },
             "blink_wpt_tests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 94,
-                    "estimated_bot_hour_delta": -0.99,
-                    "prev_avg_pending_time_sec": 24.6,
-                    "prev_p50_pending_time_sec": 3.0,
-                    "prev_p90_pending_time_sec": 89.0,
-                    "prev_percentile_duration_minutes": 13.96,
-                    "prev_shard_count": 15,
-                    "simulated_max_shard_duration": 14.91,
-                    "test_overhead_min": 0.6333333333333333,
-                    "try_builder": "linux-rel"
+                    "avg_num_builds_per_peak_hour": 40,
+                    "estimated_bot_hour_delta": -2.38,
+                    "prev_avg_pending_time_sec": 28.4,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 112,
+                    "prev_percentile_duration_minutes": 8.11,
+                    "prev_shard_count": 4,
+                    "simulated_max_shard_duration": 14.44,
+                    "test_overhead_min": 1.7833333333333334
                 },
-                "shards": 14
+                "shards": 2,
+                "try_builder": "linux-rel"
             },
             "browser_tests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 99,
-                    "estimated_bot_hour_delta": -2.31,
-                    "prev_avg_pending_time_sec": 28.6,
-                    "prev_p50_pending_time_sec": 3.0,
-                    "prev_p90_pending_time_sec": 90.0,
-                    "prev_percentile_duration_minutes": 13.58,
-                    "prev_shard_count": 29,
-                    "simulated_max_shard_duration": 14.53,
-                    "test_overhead_min": 0.7,
-                    "try_builder": "linux-rel"
+                    "avg_num_builds_per_peak_hour": 102,
+                    "estimated_bot_hour_delta": 7.23,
+                    "prev_avg_pending_time_sec": 41.1,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 128,
+                    "prev_percentile_duration_minutes": 16.11,
+                    "prev_shard_count": 33,
+                    "simulated_max_shard_duration": 14.89,
+                    "test_overhead_min": 1.4166666666666667
                 },
-                "shards": 27
+                "shards": 36,
+                "try_builder": "linux-rel"
+            },
+            "components_unittests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 93,
+                    "estimated_bot_hour_delta": 1.71,
+                    "prev_avg_pending_time_sec": 20.9,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 81,
+                    "prev_percentile_duration_minutes": 16.16,
+                    "prev_shard_count": 2,
+                    "simulated_max_shard_duration": 11.14,
+                    "test_overhead_min": 1.1
+                },
+                "shards": 3,
+                "try_builder": "linux-rel"
+            },
+            "headless_shell_wpt_tests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 90,
+                    "estimated_bot_hour_delta": -2.9,
+                    "prev_avg_pending_time_sec": 23.7,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 87,
+                    "prev_percentile_duration_minutes": 13.93,
+                    "prev_shard_count": 20,
+                    "simulated_max_shard_duration": 14.56,
+                    "test_overhead_min": 1.9333333333333333
+                },
+                "shards": 19,
+                "try_builder": "linux-rel"
             },
             "interactive_ui_tests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 99,
-                    "estimated_bot_hour_delta": -1.07,
-                    "prev_avg_pending_time_sec": 24.9,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 80.0,
-                    "prev_percentile_duration_minutes": 12.6,
-                    "prev_shard_count": 7,
-                    "simulated_max_shard_duration": 14.59,
-                    "test_overhead_min": 0.65,
-                    "try_builder": "linux-rel"
+                    "avg_num_builds_per_peak_hour": 101,
+                    "estimated_bot_hour_delta": 1.4,
+                    "prev_avg_pending_time_sec": 31.8,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 125,
+                    "prev_percentile_duration_minutes": 16.17,
+                    "prev_shard_count": 8,
+                    "simulated_max_shard_duration": 14.47,
+                    "test_overhead_min": 0.8333333333333334
                 },
-                "shards": 6
+                "shards": 9,
+                "try_builder": "linux-rel"
             },
             "not_site_per_process_blink_wpt_tests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 103,
-                    "estimated_bot_hour_delta": -3.0,
-                    "prev_avg_pending_time_sec": 82.0,
-                    "prev_p50_pending_time_sec": 2.0,
-                    "prev_p90_pending_time_sec": 213.0,
-                    "prev_percentile_duration_minutes": 11.42,
-                    "prev_shard_count": 13,
-                    "simulated_max_shard_duration": 14.85,
-                    "test_overhead_min": 0.5833333333333334,
-                    "try_builder": "linux-rel"
+                    "avg_num_builds_per_peak_hour": 40,
+                    "estimated_bot_hour_delta": -0.71,
+                    "prev_avg_pending_time_sec": 27.6,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 105,
+                    "prev_percentile_duration_minutes": 8.35,
+                    "prev_shard_count": 3,
+                    "simulated_max_shard_duration": 11.99,
+                    "test_overhead_min": 1.0666666666666667
                 },
-                "shards": 10
-            }
-        },
-        "Linux Tests (Wayland)": {
-            "browser_tests": {
-                "debug": {
-                    "avg_num_builds_per_peak_hour": "87.0",
-                    "estimated_bot_hour_delta": "2.37",
-                    "prev_avg_pending_time_sec": "507.9",
-                    "prev_p50_pending_time_sec": "191.0",
-                    "prev_p90_pending_time_sec": "1325.0",
-                    "prev_percentile_duration_minutes": "15.3",
-                    "prev_shard_count": "26",
-                    "simulated_max_shard_duration": "14.73",
-                    "try_builder": "linux-wayland-rel"
-                },
-                "shards": "27"
+                "shards": 2,
+                "try_builder": "linux-rel"
             },
-            "interactive_ui_tests": {
+            "not_site_per_process_headless_shell_wpt_tests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": "71.0",
-                    "estimated_bot_hour_delta": "1.67",
-                    "prev_avg_pending_time_sec": "172.4",
-                    "prev_p50_pending_time_sec": "5.0",
-                    "prev_p90_pending_time_sec": "554.0",
-                    "prev_percentile_duration_minutes": "17.69",
-                    "prev_shard_count": "4",
-                    "simulated_max_shard_duration": "14.15",
-                    "try_builder": "linux-wayland-rel"
+                    "avg_num_builds_per_peak_hour": 40,
+                    "estimated_bot_hour_delta": -0.51,
+                    "prev_avg_pending_time_sec": 33.1,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 130,
+                    "prev_percentile_duration_minutes": 13.67,
+                    "prev_shard_count": 14,
+                    "simulated_max_shard_duration": 14.66,
+                    "test_overhead_min": 0.7666666666666667
                 },
-                "shards": "5"
+                "shards": 13,
+                "try_builder": "linux-rel"
             }
         }
     },
     "chromium.memory": {
         "Linux ASan LSan Tests (1)": {
+            "components_unittests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 99,
+                    "estimated_bot_hour_delta": -1.81,
+                    "prev_avg_pending_time_sec": 23,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 86,
+                    "prev_percentile_duration_minutes": 10.2,
+                    "prev_shard_count": 5,
+                    "simulated_max_shard_duration": 12.47,
+                    "test_overhead_min": 1.1
+                },
+                "shards": 4,
+                "try_builder": "linux_chromium_asan_rel_ng"
+            },
             "content_browsertests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 48,
-                    "estimated_bot_hour_delta": -4.96,
-                    "prev_avg_pending_time_sec": 35.8,
-                    "prev_p50_pending_time_sec": 3.0,
-                    "prev_p90_pending_time_sec": 129.0,
-                    "prev_percentile_duration_minutes": 13.61,
-                    "prev_shard_count": 44,
-                    "simulated_max_shard_duration": 14.97,
-                    "test_overhead_min": 1.55,
-                    "try_builder": "linux_chromium_asan_rel_ng"
+                    "avg_num_builds_per_peak_hour": 95,
+                    "estimated_bot_hour_delta": 7.13,
+                    "prev_avg_pending_time_sec": 29.4,
+                    "prev_p50_pending_time_sec": 1.0,
+                    "prev_p90_pending_time_sec": 109.0,
+                    "prev_percentile_duration_minutes": 16.12,
+                    "prev_shard_count": 52,
+                    "simulated_max_shard_duration": 14.78,
+                    "test_overhead_min": 0.9
                 },
-                "shards": 40
+                "shards": 57,
+                "try_builder": "linux_chromium_asan_rel_ng"
             },
             "interactive_ui_tests": {
                 "debug": {
                     "avg_num_builds_per_peak_hour": 95,
-                    "estimated_bot_hour_delta": 5.86,
-                    "prev_avg_pending_time_sec": 50.1,
-                    "prev_p50_pending_time_sec": 3.0,
-                    "prev_p90_pending_time_sec": 163.0,
-                    "prev_percentile_duration_minutes": 16.04,
-                    "prev_shard_count": 28,
-                    "simulated_max_shard_duration": 14.61,
-                    "test_overhead_min": 1.2333333333333334,
-                    "try_builder": "linux_chromium_asan_rel_ng"
+                    "estimated_bot_hour_delta": 11.4,
+                    "prev_avg_pending_time_sec": 27.5,
+                    "prev_p50_pending_time_sec": 1.0,
+                    "prev_p90_pending_time_sec": 104.0,
+                    "prev_percentile_duration_minutes": 16.57,
+                    "prev_shard_count": 44,
+                    "simulated_max_shard_duration": 14.73,
+                    "test_overhead_min": 1.2
                 },
-                "shards": 31
+                "shards": 50,
+                "try_builder": "linux_chromium_asan_rel_ng"
             },
             "sync_integration_tests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": "76.0",
-                    "estimated_bot_hour_delta": "2.61",
-                    "prev_avg_pending_time_sec": "137.7",
-                    "prev_p50_pending_time_sec": "16.0",
-                    "prev_p90_pending_time_sec": "379.0",
-                    "prev_percentile_duration_minutes": "15.72",
-                    "prev_shard_count": "4",
-                    "simulated_max_shard_duration": "12.58",
-                    "try_builder": "linux_chromium_asan_rel_ng"
+                    "avg_num_builds_per_peak_hour": 95,
+                    "estimated_bot_hour_delta": 1.79,
+                    "prev_avg_pending_time_sec": 23.7,
+                    "prev_p50_pending_time_sec": 0.0,
+                    "prev_p90_pending_time_sec": 92.0,
+                    "prev_percentile_duration_minutes": 16.14,
+                    "prev_shard_count": 6,
+                    "simulated_max_shard_duration": 14.0,
+                    "test_overhead_min": 1.1333333333333333
                 },
-                "shards": "5"
+                "shards": 7,
+                "try_builder": "linux_chromium_asan_rel_ng"
+            },
+            "unit_tests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 95,
+                    "estimated_bot_hour_delta": 2.8,
+                    "prev_avg_pending_time_sec": 24.7,
+                    "prev_p50_pending_time_sec": 0.0,
+                    "prev_p90_pending_time_sec": 96.0,
+                    "prev_percentile_duration_minutes": 16.22,
+                    "prev_shard_count": 5,
+                    "simulated_max_shard_duration": 13.81,
+                    "test_overhead_min": 1.7666666666666666
+                },
+                "shards": 6,
+                "try_builder": "linux_chromium_asan_rel_ng"
             },
             "webkit_unit_tests_v2": {
                 "debug": {
                     "avg_num_builds_per_peak_hour": 44,
                     "estimated_bot_hour_delta": 0.73,
                     "prev_avg_pending_time_sec": 23.2,
-                    "prev_p50_pending_time_sec": 0.0,
-                    "prev_p90_pending_time_sec": 92.0,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 92,
                     "prev_percentile_duration_minutes": 22.08,
                     "prev_shard_count": 1,
                     "simulated_max_shard_duration": 11.04,
-                    "test_overhead_min": 1.0,
-                    "try_builder": "linux_chromium_asan_rel_ng"
+                    "test_overhead_min": 1
                 },
-                "shards": 2
+                "shards": 2,
+                "try_builder": "linux_chromium_asan_rel_ng"
             }
         },
         "Linux TSan Tests": {
             "components_unittests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": "84.0",
-                    "estimated_bot_hour_delta": "2.32",
-                    "prev_avg_pending_time_sec": "82.3",
-                    "prev_p50_pending_time_sec": "4.0",
-                    "prev_p90_pending_time_sec": "262.0",
-                    "prev_percentile_duration_minutes": "15.64",
-                    "prev_shard_count": "2",
-                    "simulated_max_shard_duration": "10.43",
-                    "try_builder": "linux_chromium_tsan_rel_ng"
+                    "avg_num_builds_per_peak_hour": 97,
+                    "estimated_bot_hour_delta": -1.83,
+                    "prev_avg_pending_time_sec": 24.3,
+                    "prev_p50_pending_time_sec": 0.0,
+                    "prev_p90_pending_time_sec": 92.0,
+                    "prev_percentile_duration_minutes": 10.46,
+                    "prev_shard_count": 5,
+                    "simulated_max_shard_duration": 12.79,
+                    "test_overhead_min": 1.1333333333333333
                 },
-                "shards": "3"
+                "shards": 4,
+                "try_builder": "linux_chromium_tsan_rel_ng"
             },
             "content_browsertests": {
                 "debug": {
                     "avg_num_builds_per_peak_hour": 103,
                     "estimated_bot_hour_delta": 21.63,
                     "prev_avg_pending_time_sec": 445.8,
-                    "prev_p50_pending_time_sec": 82.0,
-                    "prev_p90_pending_time_sec": 1465.0,
+                    "prev_p50_pending_time_sec": 82,
+                    "prev_p90_pending_time_sec": 1465,
                     "prev_percentile_duration_minutes": 21.88,
                     "prev_shard_count": 42,
                     "simulated_max_shard_duration": 14.59,
-                    "test_overhead_min": 0.6,
-                    "try_builder": "linux_chromium_tsan_rel_ng"
+                    "test_overhead_min": 0.6
                 },
-                "shards": 63
+                "shards": 63,
+                "try_builder": "linux_chromium_tsan_rel_ng"
+            },
+            "content_unittests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 101,
+                    "estimated_bot_hour_delta": 1.68,
+                    "prev_avg_pending_time_sec": 27.3,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 99,
+                    "prev_percentile_duration_minutes": 16.01,
+                    "prev_shard_count": 1,
+                    "simulated_max_shard_duration": 8.51,
+                    "test_overhead_min": 1
+                },
+                "shards": 2,
+                "try_builder": "linux_chromium_tsan_rel_ng"
             },
             "interactive_ui_tests": {
                 "debug": {
                     "avg_num_builds_per_peak_hour": 103,
                     "estimated_bot_hour_delta": 9.61,
                     "prev_avg_pending_time_sec": 449.5,
-                    "prev_p50_pending_time_sec": 82.0,
-                    "prev_p90_pending_time_sec": 1467.0,
+                    "prev_p50_pending_time_sec": 82,
+                    "prev_p90_pending_time_sec": 1467,
                     "prev_percentile_duration_minutes": 17.76,
                     "prev_shard_count": 41,
                     "simulated_max_shard_duration": 14.86,
-                    "test_overhead_min": 0.7,
-                    "try_builder": "linux_chromium_tsan_rel_ng"
+                    "test_overhead_min": 0.7
                 },
-                "shards": 49
+                "shards": 49,
+                "try_builder": "linux_chromium_tsan_rel_ng"
             },
             "sync_integration_tests": {
                 "debug": {
                     "avg_num_builds_per_peak_hour": 103,
                     "estimated_bot_hour_delta": 1.09,
                     "prev_avg_pending_time_sec": 438.5,
-                    "prev_p50_pending_time_sec": 66.0,
-                    "prev_p90_pending_time_sec": 1455.0,
+                    "prev_p50_pending_time_sec": 66,
+                    "prev_p90_pending_time_sec": 1455,
                     "prev_percentile_duration_minutes": 17.27,
                     "prev_shard_count": 6,
                     "simulated_max_shard_duration": 14.8,
-                    "test_overhead_min": 0.6333333333333333,
-                    "try_builder": "linux_chromium_tsan_rel_ng"
+                    "test_overhead_min": 0.6333333333333333
                 },
-                "shards": 7
+                "shards": 7,
+                "try_builder": "linux_chromium_tsan_rel_ng"
             },
             "unit_tests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 111,
-                    "estimated_bot_hour_delta": -2.16,
-                    "prev_avg_pending_time_sec": 53.5,
-                    "prev_p50_pending_time_sec": 2.0,
-                    "prev_p90_pending_time_sec": 171.0,
-                    "prev_percentile_duration_minutes": 11.06,
+                    "avg_num_builds_per_peak_hour": 41,
+                    "estimated_bot_hour_delta": 0.57,
+                    "prev_avg_pending_time_sec": 26.8,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 98,
+                    "prev_percentile_duration_minutes": 16.44,
                     "prev_shard_count": 4,
-                    "simulated_max_shard_duration": 14.36,
-                    "test_overhead_min": 1.1666666666666667,
-                    "try_builder": "linux_chromium_tsan_rel_ng"
+                    "simulated_max_shard_duration": 13.32,
+                    "test_overhead_min": 0.8333333333333334
                 },
-                "shards": 3
+                "shards": 5,
+                "try_builder": "linux_chromium_tsan_rel_ng"
             },
             "webkit_unit_tests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 91,
-                    "estimated_bot_hour_delta": 1.57,
-                    "prev_avg_pending_time_sec": 51.5,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 175.0,
-                    "prev_percentile_duration_minutes": 17.15,
-                    "prev_shard_count": 3,
-                    "simulated_max_shard_duration": 12.86,
-                    "test_overhead_min": 1.0333333333333334,
-                    "try_builder": "linux_chromium_tsan_rel_ng"
+                    "avg_num_builds_per_peak_hour": 94,
+                    "estimated_bot_hour_delta": 1.38,
+                    "prev_avg_pending_time_sec": 18.7,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 63,
+                    "prev_percentile_duration_minutes": 16.1,
+                    "prev_shard_count": 5,
+                    "simulated_max_shard_duration": 13.56,
+                    "test_overhead_min": 0.8833333333333333
                 },
-                "shards": 4
+                "shards": 6,
+                "try_builder": "linux_chromium_tsan_rel_ng"
             },
             "webkit_unit_tests_v2": {
                 "debug": {
                     "avg_num_builds_per_peak_hour": 97,
                     "estimated_bot_hour_delta": 1.59,
                     "prev_avg_pending_time_sec": 50.7,
-                    "prev_p50_pending_time_sec": 1.0,
-                    "prev_p90_pending_time_sec": 161.0,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 161,
                     "prev_percentile_duration_minutes": 16.47,
                     "prev_shard_count": 3,
                     "simulated_max_shard_duration": 12.35,
-                    "test_overhead_min": 0.9833333333333333,
-                    "try_builder": "linux_chromium_tsan_rel_ng"
+                    "test_overhead_min": 0.9833333333333333
                 },
-                "shards": 4
+                "shards": 4,
+                "try_builder": "linux_chromium_tsan_rel_ng"
             }
         }
     },
@@ -716,32 +729,93 @@
         "Win10 Tests x64": {
             "content_browsertests": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": 98,
-                    "estimated_bot_hour_delta": 7.43,
-                    "prev_avg_pending_time_sec": 68.2,
-                    "prev_p50_pending_time_sec": 2.0,
-                    "prev_p90_pending_time_sec": 188.0,
-                    "prev_percentile_duration_minutes": 18.87,
-                    "prev_shard_count": 8,
-                    "simulated_max_shard_duration": 14.14,
-                    "test_overhead_min": 1.5166666666666666,
-                    "try_builder": "win-rel"
+                    "avg_num_builds_per_peak_hour": 81,
+                    "estimated_bot_hour_delta": -2.18,
+                    "prev_avg_pending_time_sec": 30.2,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 117,
+                    "prev_percentile_duration_minutes": 13.72,
+                    "prev_shard_count": 11,
+                    "simulated_max_shard_duration": 14.93,
+                    "test_overhead_min": 1.6166666666666667
                 },
-                "shards": 11
+                "shards": 10,
+                "try_builder": "win-rel"
+            },
+            "headless_shell_wpt_tests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 90,
+                    "estimated_bot_hour_delta": 11.9,
+                    "prev_avg_pending_time_sec": 49.1,
+                    "prev_p50_pending_time_sec": 1,
+                    "prev_p90_pending_time_sec": 185,
+                    "prev_percentile_duration_minutes": 16.04,
+                    "prev_shard_count": 15,
+                    "simulated_max_shard_duration": 14.62,
+                    "test_overhead_min": 3.966666666666667
+                },
+                "shards": 17,
+                "try_builder": "win-rel"
+            },
+            "interactive_ui_tests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 100,
+                    "estimated_bot_hour_delta": 13.33,
+                    "prev_avg_pending_time_sec": 146.9,
+                    "prev_p50_pending_time_sec": 3,
+                    "prev_p90_pending_time_sec": 497,
+                    "prev_percentile_duration_minutes": 16.56,
+                    "prev_shard_count": 9,
+                    "simulated_max_shard_duration": 14.28,
+                    "test_overhead_min": 4
+                },
+                "shards": 11,
+                "try_builder": "win-rel"
+            },
+            "pixel_browser_tests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 98,
+                    "estimated_bot_hour_delta": 1.55,
+                    "prev_avg_pending_time_sec": 51.5,
+                    "prev_p50_pending_time_sec": 0,
+                    "prev_p90_pending_time_sec": 199,
+                    "prev_percentile_duration_minutes": 16.1,
+                    "prev_shard_count": 3,
+                    "simulated_max_shard_duration": 12.31,
+                    "test_overhead_min": 0.95
+                },
+                "shards": 4,
+                "try_builder": "win-rel"
+            },
+            "updater_tests": {
+                "debug": {
+                    "avg_num_builds_per_peak_hour": 101,
+                    "estimated_bot_hour_delta": 1.29,
+                    "prev_avg_pending_time_sec": 146.2,
+                    "prev_p50_pending_time_sec": 2,
+                    "prev_p90_pending_time_sec": 418,
+                    "prev_percentile_duration_minutes": 17.49,
+                    "prev_shard_count": 2,
+                    "simulated_max_shard_duration": 11.92,
+                    "test_overhead_min": 0.7666666666666667
+                },
+                "shards": 3,
+                "try_builder": "win-rel"
             },
             "updater_tests_system": {
                 "debug": {
-                    "avg_num_builds_per_peak_hour": "69.0",
-                    "estimated_bot_hour_delta": "1.52",
-                    "prev_avg_pending_time_sec": "181.8",
-                    "prev_p50_pending_time_sec": "41.0",
-                    "prev_p90_pending_time_sec": "571.0",
-                    "prev_percentile_duration_minutes": "15.34",
-                    "prev_shard_count": "1",
-                    "simulated_max_shard_duration": "7.67",
-                    "try_builder": "win-rel"
+                    "avg_num_builds_per_peak_hour": 102,
+                    "estimated_bot_hour_delta": 1.39,
+                    "prev_avg_pending_time_sec": 202.7,
+                    "prev_p50_pending_time_sec": 21,
+                    "prev_p90_pending_time_sec": 669,
+                    "prev_percentile_duration_minutes": 16.16,
+                    "prev_shard_count": 4,
+                    "simulated_max_shard_duration": 13.09,
+                    "test_overhead_min": 0.8166666666666667
                 },
-                "shards": "2"
+                "shards": 5,
+                "try_builder": "win-rel"
             }
         }
     }

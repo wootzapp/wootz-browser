@@ -40,9 +40,11 @@ class FakeWidgetScheduler : public WidgetScheduler {
       WebInputEvent::Type web_input_event_type,
       const WebInputEventAttribution& web_input_event_attribution) override {}
   void DidHandleInputEventOnMainThread(const WebInputEvent& web_input_event,
-                                       WebInputEventResult result) override {}
+                                       WebInputEventResult result,
+                                       bool frame_requested) override {}
   void DidRunBeginMainFrame() override {}
   void SetHidden(bool hidden) override {}
+  void WillShutdown() override {}
 
  private:
   scoped_refptr<FakeTaskRunner> input_task_runner_;

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "net/base/address_tracker_linux.h"
 
 #include <errno.h>
@@ -31,7 +36,7 @@
 #include "net/base/network_interfaces_linux.h"
 
 #if BUILDFLAG(IS_ANDROID)
-#include "base/android/build_info.h"
+#include "base/android/android_info.h"
 #endif
 
 namespace net::internal {
@@ -42,8 +47,8 @@ namespace {
 // may send spurious messages over rtnetlink. RTM_NEWLINK messages where
 // ifi_change == 0 and rta_type == IFLA_WIRELESS should be ignored.
 bool IgnoreWirelessChange(const struct ifinfomsg* msg, int length) {
-  for (const struct rtattr* attr = IFLA_RTA(msg); RTA_OK(attr, length);
-       attr = RTA_NEXT(attr, length)) {
+  for (const struct rtattr* attr = UNSAFE_TODO(IFLA_RTA(msg));
+       RTA_OK(attr, length); attr = UNSAFE_TODO(RTA_NEXT(attr, length))) {
     if (attr->rta_type == IFLA_WIRELESS && msg->ifi_change == 0)
       return true;
   }
@@ -62,8 +67,8 @@ bool GetAddress(const struct nlmsghdr* header,
 
   // Extract the message and update |header_length| to be the number of
   // remaining bytes.
-  const struct ifaddrmsg* msg =
-      reinterpret_cast<const struct ifaddrmsg*>(NLMSG_DATA(header));
+  const struct ifaddrmsg* msg = reinterpret_cast<const struct ifaddrmsg*>(
+      UNSAFE_TODO(NLMSG_DATA(header)));
   header_length -= NLMSG_HDRLEN;
 
   size_t address_length = 0;
@@ -90,22 +95,22 @@ bool GetAddress(const struct nlmsghdr* header,
     return false;
   }
   for (const struct rtattr* attr =
-           reinterpret_cast<const struct rtattr*>(IFA_RTA(msg));
-       RTA_OK(attr, length); attr = RTA_NEXT(attr, length)) {
+           reinterpret_cast<const struct rtattr*>(UNSAFE_TODO(IFA_RTA(msg)));
+       RTA_OK(attr, length); attr = UNSAFE_TODO(RTA_NEXT(attr, length))) {
     switch (attr->rta_type) {
       case IFA_ADDRESS:
         if (RTA_PAYLOAD(attr) < address_length) {
           LOG(ERROR) << "attr does not have enough bytes to read an address";
           return false;
         }
-        address = reinterpret_cast<uint8_t*>(RTA_DATA(attr));
+        address = reinterpret_cast<uint8_t*>(UNSAFE_TODO(RTA_DATA(attr)));
         break;
       case IFA_LOCAL:
         if (RTA_PAYLOAD(attr) < address_length) {
           LOG(ERROR) << "attr does not have enough bytes to read an address";
           return false;
         }
-        local = reinterpret_cast<uint8_t*>(RTA_DATA(attr));
+        local = reinterpret_cast<uint8_t*>(UNSAFE_TODO(RTA_DATA(attr)));
         break;
       case IFA_CACHEINFO: {
         if (RTA_PAYLOAD(attr) < sizeof(struct ifa_cacheinfo)) {
@@ -114,7 +119,8 @@ bool GetAddress(const struct nlmsghdr* header,
           return false;
         }
         const struct ifa_cacheinfo* cache_info =
-            reinterpret_cast<const struct ifa_cacheinfo*>(RTA_DATA(attr));
+            reinterpret_cast<const struct ifa_cacheinfo*>(
+                UNSAFE_TODO(RTA_DATA(attr)));
         if (really_deprecated)
           *really_deprecated = (cache_info->ifa_prefered == 0);
       } break;
@@ -139,7 +145,7 @@ T* SafelyCastNetlinkMsgData(const struct nlmsghdr* header, int length) {
   DCHECK(NLMSG_OK(header, static_cast<__u32>(length)));
   if (length <= 0 || static_cast<size_t>(length) < NLMSG_HDRLEN + sizeof(T))
     return nullptr;
-  return reinterpret_cast<const T*>(NLMSG_DATA(header));
+  return reinterpret_cast<const T*>(UNSAFE_TODO(NLMSG_DATA(header)));
 }
 
 }  // namespace
@@ -203,8 +209,8 @@ void AddressTrackerLinux::Init() {
   // https://developer.android.com/preview/privacy/mac-address),
   // so AddressTrackerLinux should not be used in later versions
   // of Android.  Chromium code doesn't need it past Android P.
-  DCHECK_LT(base::android::BuildInfo::GetInstance()->sdk_int(),
-            base::android::SDK_VERSION_P);
+  DCHECK_LT(base::android::android_info::sdk_int(),
+            base::android::android_info::SDK_VERSION_P);
 #endif
   netlink_fd_.reset(socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE));
   if (!netlink_fd_.is_valid()) {
@@ -308,7 +314,7 @@ bool AddressTrackerLinux::IsInterfaceIgnored(int interface_index) const {
   if (ignored_interfaces_.empty())
     return false;
 
-  char buf[IFNAMSIZ] = {0};
+  char buf[IFNAMSIZ] = {};
   const char* interface_name = get_interface_name_(interface_index, buf);
   return ignored_interfaces_.find(interface_name) != ignored_interfaces_.end();
 }
@@ -467,7 +473,7 @@ void AddressTrackerLinux::HandleMessage(const char* buffer,
   for (const struct nlmsghdr* header =
            reinterpret_cast<const struct nlmsghdr*>(buffer);
        length >= 0 && NLMSG_OK(header, static_cast<__u32>(length));
-       header = NLMSG_NEXT(header, length)) {
+       header = UNSAFE_TODO(NLMSG_NEXT(header, length))) {
     // The |header| pointer should never precede |buffer|.
     DCHECK_LE(buffer, reinterpret_cast<const char*>(header));
     switch (header->nlmsg_type) {
@@ -612,7 +618,7 @@ void AddressTrackerLinux::OnFileCanReadWithoutBlocking() {
 }
 
 bool AddressTrackerLinux::IsTunnelInterface(int interface_index) const {
-  char buf[IFNAMSIZ] = {0};
+  char buf[IFNAMSIZ] = {};
   return IsTunnelInterfaceName(get_interface_name_(interface_index, buf));
 }
 

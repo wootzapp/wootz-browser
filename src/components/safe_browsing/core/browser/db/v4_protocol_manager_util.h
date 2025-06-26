@@ -125,8 +125,9 @@ enum class SBThreatType {
   // The download URL is malware.
   SB_THREAT_TYPE_URL_BINARY_MALWARE = 5,
 
-  // Url detected by the client-side phishing model.  Note that unlike the
-  // above values, this does not correspond to a downloaded list.
+  // Url detected by the client-side phishing model or the on-device model. Note
+  // that unlike the above values, this does not correspond to a downloaded
+  // list.
   SB_THREAT_TYPE_URL_CLIENT_SIDE_PHISHING = 6,
 
   // The Chrome extension or app (given by its ID) is malware.
@@ -138,7 +139,7 @@ enum class SBThreatType {
 
   // Url leads to a blocklisted resource script. Note that no warnings should be
   // shown on this threat type, but an incident report might be sent.
-  SB_THREAT_TYPE_BLOCKLISTED_RESOURCE = 9,
+  // DEPRECATED: SB_THREAT_TYPE_BLOCKLISTED_RESOURCE = 9,
 
   // Url abuses a permission API.
   SB_THREAT_TYPE_API_ABUSE = 10,
@@ -247,7 +248,6 @@ std::ostream& operator<<(std::ostream& os, const ListIdentifier& id);
 PlatformType GetCurrentPlatformType();
 ListIdentifier GetChromeExtMalwareId();
 ListIdentifier GetChromeUrlApiId();
-ListIdentifier GetChromeUrlClientIncidentId();
 ListIdentifier GetUrlBillingId();
 ListIdentifier GetUrlCsdDownloadAllowlistId();
 ListIdentifier GetUrlCsdAllowlistId();
@@ -409,7 +409,7 @@ class V4ProtocolManagerUtil {
       std::vector<std::string>* list_client_states);
 
  private:
-  V4ProtocolManagerUtil() {}
+  V4ProtocolManagerUtil() = default;
 
   FRIEND_TEST_ALL_PREFIXES(V4ProtocolManagerUtilTest, TestBackOffLogic);
   FRIEND_TEST_ALL_PREFIXES(V4ProtocolManagerUtilTest,

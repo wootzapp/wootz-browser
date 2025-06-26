@@ -157,9 +157,6 @@ TEST_F(PointerEventManagerTest, HasPointerCapture) {
   ASSERT_FALSE(
       GetDocument().body()->hasPointerCapture(PointerEventFactory::kMouseId));
 
-  ExceptionState exception(nullptr, ExceptionContextType::kOperationInvoke, "",
-                           "");
-
   GetEventHandler().HandleMousePressEvent(CreateTestMouseEvent(
       WebInputEvent::Type::kMouseDown, gfx::PointF(100, 100)));
 
@@ -167,7 +164,7 @@ TEST_F(PointerEventManagerTest, HasPointerCapture) {
       GetDocument().body()->hasPointerCapture(PointerEventFactory::kMouseId));
 
   GetDocument().body()->setPointerCapture(PointerEventFactory::kMouseId,
-                                          exception);
+                                          IGNORE_EXCEPTION_FOR_TESTING);
   ASSERT_TRUE(
       GetDocument().body()->hasPointerCapture(PointerEventFactory::kMouseId));
 
@@ -180,7 +177,7 @@ TEST_F(PointerEventManagerTest, HasPointerCapture) {
       GetDocument().body()->hasPointerCapture(PointerEventFactory::kMouseId));
 
   GetDocument().body()->releasePointerCapture(PointerEventFactory::kMouseId,
-                                              exception);
+                                              IGNORE_EXCEPTION_FOR_TESTING);
   ASSERT_FALSE(
       GetDocument().body()->hasPointerCapture(PointerEventFactory::kMouseId));
 }
@@ -622,10 +619,7 @@ class PanActionTrackingWebFrameWidget
 
 class PanActionPointerEventTest : public PointerEventManagerTest {
  public:
-  PanActionPointerEventTest() {
-    feature_list_.InitWithFeatures({blink::features::kStylusPointerAdjustment},
-                                   {});
-  }
+  PanActionPointerEventTest() = default;
 
   frame_test_helpers::TestWebFrameWidget* CreateWebFrameWidget(
       base::PassKey<WebLocalFrame> pass_key,
@@ -674,9 +668,6 @@ class PanActionPointerEventTest : public PointerEventManagerTest {
     event.pointer_type = pointer_type;
     return event;
   }
-
- private:
-  base::test::ScopedFeatureList feature_list_;
 };
 
 TEST_F(PanActionPointerEventTest, PanActionStylusWritable) {

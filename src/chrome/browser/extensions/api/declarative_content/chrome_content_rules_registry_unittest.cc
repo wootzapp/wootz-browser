@@ -111,8 +111,9 @@ class TestPredicateEvaluator : public ContentPredicateEvaluator {
 
  private:
   void RequestEvaluationIfSpecified() {
-    if (contents_for_next_operation_evaluation_)
+    if (contents_for_next_operation_evaluation_) {
       delegate_->RequestEvaluation(contents_for_next_operation_evaluation_);
+    }
     contents_for_next_operation_evaluation_ = nullptr;
   }
 
@@ -135,7 +136,7 @@ std::vector<std::unique_ptr<ContentPredicateEvaluator>> CreateTestEvaluator(
 
 class DeclarativeChromeContentRulesRegistryTest : public testing::Test {
  public:
-  DeclarativeChromeContentRulesRegistryTest() {}
+  DeclarativeChromeContentRulesRegistryTest() = default;
 
   DeclarativeChromeContentRulesRegistryTest(
       const DeclarativeChromeContentRulesRegistryTest&) = delete;

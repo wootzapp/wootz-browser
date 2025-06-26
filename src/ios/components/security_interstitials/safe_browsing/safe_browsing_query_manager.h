@@ -12,6 +12,7 @@
 #include "base/containers/flat_map.h"
 #include "base/containers/unique_ptr_adapters.h"
 #import "base/memory/raw_ptr.h"
+#import "base/memory/raw_ref.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "components/safe_browsing/core/browser/db/database_manager.h"
@@ -23,6 +24,13 @@
 #include "url/gurl.h"
 
 class SafeBrowsingClient;
+
+// Used to identify the type of check a query is. For example, `kSync` is used
+// to trigger logic related to sync checks.
+enum class QueryType {
+  kSync = 0,
+  kAsync = 1,
+};
 
 // A helper object that manages the Safe Browsing URL queries for a single
 // WebState.
@@ -61,8 +69,37 @@ class SafeBrowsingQueryManager
     bool proceed = false;
     // Whether an error page should be shown for the URL.
     bool show_error_page = false;
+    // Checks if sync check was completed.
+    bool sync_check_complete = false;
+    // Checks if async check was completed.
+    bool async_check_complete = false;
     // The UnsafeResource created for the URL check, if any.
     std::optional<security_interstitials::UnsafeResource> resource;
+  };
+
+  // Struct used to store objects that need to be used in query observer calls.
+  struct QueryData {
+    explicit QueryData(SafeBrowsingQueryManager* manager,
+                       const SafeBrowsingQueryManager::Query& query,
+                       const QueryType query_type,
+                       const SafeBrowsingQueryManager::Result& result,
+                       safe_browsing::SafeBrowsingUrlCheckerImpl::PerformedCheck
+                           performed_check);
+
+    QueryData(const QueryData&);
+    QueryData& operator=(const QueryData&);
+    ~QueryData();
+
+    // The SafeBrowsingQueryManager related to the query.
+    raw_ptr<SafeBrowsingQueryManager> manager;
+    // The underlying query.
+    raw_ref<const SafeBrowsingQueryManager::Query> query;
+    // The type of query.
+    const QueryType type;
+    // The result of the query.
+    raw_ref<const SafeBrowsingQueryManager::Result> result;
+    // The PerformedCheck for a query.
+    safe_browsing::SafeBrowsingUrlCheckerImpl::PerformedCheck performed_check;
   };
 
   // Observer class for the query manager.
@@ -76,6 +113,14 @@ class SafeBrowsingQueryManager
         const Result& result,
         safe_browsing::SafeBrowsingUrlCheckerImpl::PerformedCheck
             performed_check) {}
+
+    // Notifies observers that a sync `query` check has completed with `result`
+    // after performing a check of type `performed_check`.
+    virtual void SafeBrowsingSyncQueryFinished(
+        const SafeBrowsingQueryManager::QueryData& query_data) {}
+
+    virtual void SafeBrowsingAsyncQueryFinished(
+        const SafeBrowsingQueryManager::QueryData& query_data) {}
 
     // Called when `manager` is about to be destroyed.
     virtual void SafeBrowsingQueryManagerDestroyed(
@@ -106,10 +151,8 @@ class SafeBrowsingQueryManager
                            SafeBrowsingClient* client);
 
   // Queries the Safe Browsing database using SafeBrowsingUrlCheckerImpls. This
-  // class may be constructed on the UI thread but otherwise must only be used
-  // and destroyed on the IO thread. If kSafeBrowsingOnUIThread is enabled this
-  // is used and destroyed on the UI thread.
-  class UrlCheckerClient : public base::SupportsWeakPtr<UrlCheckerClient> {
+  // class must be constructed and used on the UI thread.
+  class UrlCheckerClient final {
    public:
     UrlCheckerClient();
     ~UrlCheckerClient();
@@ -129,27 +172,15 @@ class SafeBrowsingQueryManager
                                 bool show_error_page,
                                 safe_browsing::SafeBrowsingUrlCheckerImpl::
                                     PerformedCheck performed_check)> callback);
+    base::WeakPtr<UrlCheckerClient> AsWeakPtr() {
+      return weak_ptr_factory_.GetWeakPtr();
+    }
 
    private:
     // Called by `url_checker` with the initial result of performing a url
     // check. `url_checker` must be non-null. This is an implementation of
-    // SafeBrowsingUrlCheckerImpl::NativeUrlCheckCallBack. `slow_check_notifier`
-    // is an out-parameter; when a non-null value is passed in, it is set to a
-    // callback that receives the final result of the url check.
+    // SafeBrowsingUrlCheckerImpl::NativeUrlCheckCallBack.
     void OnCheckUrlResult(
-        safe_browsing::SafeBrowsingUrlCheckerImpl* url_checker,
-        safe_browsing::SafeBrowsingUrlCheckerImpl::NativeUrlCheckNotifier*
-            slow_check_notifier,
-        bool proceed,
-        bool showed_interstitial,
-        bool has_post_commit_interstitial_skipped,
-        safe_browsing::SafeBrowsingUrlCheckerImpl::PerformedCheck
-            performed_check);
-
-    // Called by `url_checker` with the final result of performing a url check.
-    // `url_checker` must be non-null. This is an implementation of
-    // SafeBrowsingUrlCheckerImpl::NativeUrlCheckNotifier.
-    void OnCheckComplete(
         safe_browsing::SafeBrowsingUrlCheckerImpl* url_checker,
         bool proceed,
         bool showed_interstitial,
@@ -168,13 +199,14 @@ class SafeBrowsingQueryManager
                            performed_check)>,
                    base::UniquePtrComparator>
         active_url_checkers_;
+    base::WeakPtrFactory<UrlCheckerClient> weak_ptr_factory_{this};
   };
 
   // Used as the completion callback for URL queries executed by
   // `url_checker_client_`.
   void UrlCheckFinished(
       const Query query,
-      bool is_async_check,
+      const QueryType query_type,
       bool proceed,
       bool show_error_page,
       safe_browsing::SafeBrowsingUrlCheckerImpl::PerformedCheck
@@ -184,8 +216,7 @@ class SafeBrowsingQueryManager
   raw_ptr<web::WebState> web_state_ = nullptr;
   // The safe browsing client.
   raw_ptr<SafeBrowsingClient> client_ = nullptr;
-  // The checker client.  Used to communicate with the database on the IO
-  // thread. If kSafeBrowsingOnUIThread is enabled it'll be used on the UI
+  // The checker client.  Used to communicate with the database on the UI
   // thread.
   std::unique_ptr<UrlCheckerClient> url_checker_client_;
   // The results for each active query.
@@ -194,8 +225,6 @@ class SafeBrowsingQueryManager
   base::ObserverList<Observer, /*check_empty=*/true> observers_;
   // The weak pointer factory.
   base::WeakPtrFactory<SafeBrowsingQueryManager> weak_factory_{this};
-
-  WEB_STATE_USER_DATA_KEY_DECL();
 };
 
 #endif  // IOS_COMPONENTS_SECURITY_INTERSTITIALS_SAFE_BROWSING_SAFE_BROWSING_QUERY_MANAGER_H_

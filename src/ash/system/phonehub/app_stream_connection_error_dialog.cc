@@ -17,9 +17,11 @@
 #include "ash/style/typography.h"
 #include "base/memory/raw_ptr.h"
 #include "chromeos/ash/components/phonehub/url_constants.h"
+#include "chromeos/constants/chromeos_features.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/color/color_provider.h"
 #include "ui/compositor/layer.h"
@@ -65,6 +67,8 @@ constexpr int kMarginBetweenTitleAndBody = 15;
 constexpr int kMarginBetweenBodyAndButtons = 20;
 constexpr int kMarginBetweenButtons = 8;
 
+}  // namespace
+
 // The real error dialog with content.
 class ConnectionErrorDialogDelegateView : public views::WidgetDelegateView {
   METADATA_HEADER(ConnectionErrorDialogDelegateView, views::WidgetDelegateView)
@@ -74,15 +78,18 @@ class ConnectionErrorDialogDelegateView : public views::WidgetDelegateView {
       bool is_on_different_network,
       bool is_phone_on_cellular)
       : start_tethering_callback_(std::move(start_tethering_callback)) {
-    SetModalType(ui::MODAL_TYPE_WINDOW);
+    SetModalType(ui::mojom::ModalType::kWindow);
 
     SetPaintToLayer();
-    layer()->SetBackgroundBlur(ColorProvider::kBackgroundBlurSigma);
-    layer()->SetBackdropFilterQuality(ColorProvider::kBackgroundBlurQuality);
+    if (chromeos::features::IsSystemBlurEnabled()) {
+      layer()->SetBackgroundBlur(ColorProvider::kBackgroundBlurSigma);
+      layer()->SetBackdropFilterQuality(ColorProvider::kBackgroundBlurQuality);
+    }
+
     layer()->SetRoundedCornerRadius(
         gfx::RoundedCornersF(kDialogRoundedCornerRadius));
 
-    SetBackground(views::CreateThemedRoundedRectBackground(
+    SetBackground(views::CreateRoundedRectBackground(
         static_cast<ui::ColorId>(cros_tokens::kCrosSysBaseElevated),
         kDialogRoundedCornerRadius));
     SetBorder(std::make_unique<views::HighlightBorder>(
@@ -266,8 +273,6 @@ class ConnectionErrorDialogDelegateView : public views::WidgetDelegateView {
 BEGIN_METADATA(ConnectionErrorDialogDelegateView)
 END_METADATA
 
-}  // namespace
-
 AppStreamConnectionErrorDialog::AppStreamConnectionErrorDialog(
     views::View* host_view,
     base::OnceClosure on_close_callback,
@@ -280,9 +285,9 @@ AppStreamConnectionErrorDialog::AppStreamConnectionErrorDialog(
   views::Widget* const parent = host_view_->GetWidget();
 
   widget_ = new views::Widget();
-  views::Widget::InitParams params;
-
-  params.type = views::Widget::InitParams::TYPE_WINDOW_FRAMELESS;
+  views::Widget::InitParams params(
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+      views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
   params.layer_type = ui::LAYER_NOT_DRAWN;
   params.parent = parent->GetNativeWindow();
   params.delegate = dialog.release();

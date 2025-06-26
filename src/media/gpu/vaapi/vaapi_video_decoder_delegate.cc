@@ -11,15 +11,14 @@
 #include "base/task/bind_post_task.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/default_tick_clock.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "media/base/cdm_context.h"
-#include "media/gpu/decode_surface_handler.h"
-#include "media/gpu/vaapi/va_surface.h"
+#include "media/gpu/vaapi/vaapi_decode_surface_handler.h"
 #include "media/gpu/vaapi/vaapi_wrapper.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 // gn check does not account for BUILDFLAG(), so including these headers will
-// make gn check fail for builds other than ash-chrome. See gn help nogncheck
+// make gn check fail for builds other than ChromeOS. See gn help nogncheck
 // for more information.
 #include "chromeos/components/cdm_factory_daemon/chromeos_cdm_context.h"  // nogncheck
 #include "chromeos/components/cdm_factory_daemon/chromeos_cdm_factory.h"  // nogncheck
@@ -35,12 +34,12 @@ void ctr128_inc64(uint8_t* counter) {
 }
 
 }  // namespace
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace media {
 
 VaapiVideoDecoderDelegate::VaapiVideoDecoderDelegate(
-    DecodeSurfaceHandler<VASurface>* const vaapi_dec,
+    VaapiDecodeSurfaceHandler* const vaapi_dec,
     scoped_refptr<VaapiWrapper> vaapi_wrapper,
     ProtectedSessionUpdateCB on_protected_session_update_cb,
     CdmContext* cdm_context,
@@ -55,10 +54,10 @@ VaapiVideoDecoderDelegate::VaapiVideoDecoderDelegate(
   DCHECK(vaapi_wrapper_);
   DCHECK(vaapi_dec_);
   DETACH_FROM_SEQUENCE(sequence_checker_);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   if (cdm_context)
     chromeos_cdm_context_ = cdm_context->GetChromeOsCdmContext();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
   transcryption_ = cdm_context && VaapiWrapper::GetImplementationType() ==
                                       VAImplementation::kMesaGallium;
 }
@@ -102,7 +101,7 @@ bool VaapiVideoDecoderDelegate::SetDecryptConfig(
   return true;
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 VaapiVideoDecoderDelegate::ProtectedSessionState
 VaapiVideoDecoderDelegate::SetupDecryptDecode(
     bool full_sample,
@@ -246,7 +245,7 @@ VaapiVideoDecoderDelegate::SetupDecryptDecode(
   crypto_params->segment_info = &segments->front();
   return protected_session_state_;
 }
-#endif  // if BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // if BUILDFLAG(IS_CHROMEOS)
 
 bool VaapiVideoDecoderDelegate::NeedsProtectedSessionRecovery() {
   if (!IsEncryptedSession() || !vaapi_wrapper_->IsProtectedSessionDead() ||
@@ -335,7 +334,7 @@ void VaapiVideoDecoderDelegate::RecoverProtectedSession() {
   protected_session_state_ = ProtectedSessionState::kNeedsRecovery;
   hw_key_data_map_.clear();
   hw_identifier_.clear();
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   CHECK(chromeos_cdm_context_);
   // ARC will not re-seek, so we cannot do the VAContext recreation for it.
   if (!chromeos_cdm_context_->UsingArcCdm()) {
@@ -350,7 +349,7 @@ void VaapiVideoDecoderDelegate::RecoverProtectedSession() {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindRepeating(on_protected_session_update_cb_, true));
   }
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
 }  // namespace media

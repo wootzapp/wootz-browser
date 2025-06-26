@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/350788890): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <limits.h>
 
 #include <optional>
@@ -239,7 +244,8 @@ bool DoPartialPathInternal(const CHAR* spec,
           }
 
         } else if (out_ch == '\\') {
-          if (canon_mode == CanonMode::kSpecialURL) {
+          if (canon_mode == CanonMode::kSpecialURL ||
+              canon_mode == CanonMode::kFileURL) {
             // Backslashes are path separators in special URLs.
             //
             // URL Standard: https://url.spec.whatwg.org/#path-state
@@ -319,7 +325,8 @@ bool DoPath(const CHAR* spec,
 
     success = DoPartialPathInternal<CHAR, UCHAR>(spec, path, out_path->begin,
                                                  canon_mode, output);
-  } else if (canon_mode == CanonMode::kSpecialURL) {
+  } else if (canon_mode == CanonMode::kSpecialURL ||
+             canon_mode == CanonMode::kFileURL) {
     // No input, canonical path is a slash for special URLs, but it is empty for
     // non-special URLs.
     //

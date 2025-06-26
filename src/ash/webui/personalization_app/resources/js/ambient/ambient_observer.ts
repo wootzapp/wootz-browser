@@ -3,17 +3,19 @@
 // found in the LICENSE file.
 
 import {isNonEmptyArray} from 'chrome://resources/ash/common/sea_pen/sea_pen_utils.js';
-import {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
+import type {Url} from 'chrome://resources/mojo/url/mojom/url.mojom-webui.js';
 
-import {AmbientModeAlbum, AmbientObserverInterface, AmbientObserverReceiver, AmbientProviderInterface, AmbientTheme, AmbientUiVisibility, TemperatureUnit, TopicSource} from '../../personalization_app.mojom-webui.js';
-import {isAmbientModeAllowed, isPersonalizationJellyEnabled} from '../load_time_booleans.js';
+import type {AmbientModeAlbum, AmbientObserverInterface, AmbientProviderInterface, AmbientTheme, AmbientUiVisibility, TemperatureUnit, TopicSource} from '../../personalization_app.mojom-webui.js';
+import {AmbientObserverReceiver} from '../../personalization_app.mojom-webui.js';
+import {isAmbientModeAllowed} from '../load_time_booleans.js';
 import {logGooglePhotosPreviewsLoadTime} from '../personalization_metrics_logger.js';
 import {Paths} from '../personalization_router_element.js';
 import {PersonalizationStore} from '../personalization_store.js';
 import {isRecentHighlightsAlbum} from '../utils.js';
 
-import {setAlbumsAction, setAmbientModeEnabledAction, setAmbientThemeAction, setAmbientUiVisibilityAction, setGeolocationPermissionEnabledAction, setPreviewsAction, setScreenSaverDurationAction, setTemperatureUnitAction, setTopicSourceAction} from './ambient_actions.js';
+import {setAlbumsAction, setAmbientModeEnabledAction, setAmbientThemeAction, setAmbientThemePreviewsAction, setAmbientUiVisibilityAction, setGeolocationIsUserModifiableAction, setGeolocationPermissionEnabledAction, setPreviewsAction, setScreenSaverDurationAction, setTemperatureUnitAction, setTopicSourceAction} from './ambient_actions.js';
 import {getAmbientProvider} from './ambient_interface_provider.js';
+import {AmbientThemePreviewMap} from './utils.js';
 
 /** @fileoverview listens for updates on ambient mode changes. */
 
@@ -66,6 +68,11 @@ export class AmbientObserver implements AmbientObserverInterface {
     store.dispatch(setAmbientModeEnabledAction(ambientModeEnabled));
   }
 
+  onAmbientThemePreviewImagesChanged(previews: AmbientThemePreviewMap): void {
+    const store = PersonalizationStore.getInstance();
+    store.dispatch(setAmbientThemePreviewsAction(previews));
+  }
+
   onAmbientThemeChanged(ambientTheme: AmbientTheme): void {
     const store = PersonalizationStore.getInstance();
     store.dispatch(setAmbientThemeAction(ambientTheme));
@@ -82,9 +89,7 @@ export class AmbientObserver implements AmbientObserverInterface {
     // performance.
     AmbientObserver.shouldLogPreviewsLoadPerformance =
         AmbientObserver.shouldLogPreviewsLoadPerformance &&
-        store.data.ambient.topicSource === null &&
-        (topicSource === TopicSource.kGooglePhotos ||
-         isPersonalizationJellyEnabled());
+        store.data.ambient.topicSource === null;
     store.dispatch(setTopicSourceAction(topicSource));
   }
 
@@ -116,10 +121,8 @@ export class AmbientObserver implements AmbientObserverInterface {
   onPreviewsFetched(previews: Url[]) {
     const store = PersonalizationStore.getInstance();
 
-    // Only log performance metrics if this is the first time receiving google
-    // photos previews.
-    // When Jelly disabled: log google photos albums only.
-    // When Jelly enabled: log both art galleries and google photos albums.
+    // Only log performance metrics if this is the first time receiving
+    // thumbnails.
     AmbientObserver.shouldLogPreviewsLoadPerformance =
         AmbientObserver.shouldLogPreviewsLoadPerformance &&
         (!store.data.ambient.previews ||
@@ -139,8 +142,12 @@ export class AmbientObserver implements AmbientObserverInterface {
     store.dispatch(setAmbientUiVisibilityAction(ambientUiVisibility));
   }
 
-  onGeolocationPermissionForSystemServicesChanged(enabled: boolean): void {
+  onGeolocationPermissionForSystemServicesChanged(
+      enabled: boolean, isUserModifiable: boolean): void {
     const store = PersonalizationStore.getInstance();
+    store.beginBatchUpdate();
     store.dispatch(setGeolocationPermissionEnabledAction(enabled));
+    store.dispatch(setGeolocationIsUserModifiableAction(isUserModifiable));
+    store.endBatchUpdate();
   }
 }

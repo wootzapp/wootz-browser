@@ -13,6 +13,7 @@
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
 #include "media/mojo/mojom/speech_recognition.mojom.h"
+#include "media/mojo/mojom/speech_recognition_audio_forwarder.mojom.h"
 #include "media/mojo/mojom/speech_recognition_service.mojom.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -54,7 +55,7 @@ class SpeechRecognitionServiceImpl
   void SetSodaPaths(
       const base::FilePath& binary_path,
       const base::flat_map<std::string, base::FilePath>& config_paths,
-      const std::string& primary_language_name) override;
+      const std::string& default_live_caption_language) override;
   void SetSodaParams(const bool mask_offensive_words) override;
   void SetSodaConfigPaths(
       const base::flat_map<std::string, base::FilePath>& config_paths) override;
@@ -66,6 +67,17 @@ class SpeechRecognitionServiceImpl
           client,
       media::mojom::SpeechRecognitionOptionsPtr options,
       BindRecognizerCallback callback) override;
+  void BindWebSpeechRecognizer(
+      mojo::PendingReceiver<media::mojom::SpeechRecognitionSession>
+          session_receiver,
+      mojo::PendingRemote<media::mojom::SpeechRecognitionSessionClient>
+          session_client,
+      mojo::PendingReceiver<media::mojom::SpeechRecognitionAudioForwarder>
+          audio_forwarder,
+      int channel_count,
+      int sample_rate,
+      media::mojom::SpeechRecognitionOptionsPtr options,
+      bool continuous) override;
 
   // media::mojom::AudioSourceSpeechRecognitionContext:
   void BindAudioSourceFetcher(
@@ -85,6 +97,13 @@ class SpeechRecognitionServiceImpl
   // Returns whether the binary and config paths exist.
   bool FilePathsExist();
 
+  // Returns whether the recognizer was successfully created.
+  bool CreateRecognizer(
+      mojo::PendingReceiver<media::mojom::SpeechRecognitionRecognizer> receiver,
+      mojo::PendingRemote<media::mojom::SpeechRecognitionRecognizerClient>
+          client,
+      media::mojom::SpeechRecognitionOptionsPtr options);
+
   mojo::Receiver<media::mojom::SpeechRecognitionService> receiver_;
 
   // The sets of receivers used to receive messages from the clients.
@@ -95,7 +114,7 @@ class SpeechRecognitionServiceImpl
 
   base::FilePath binary_path_ = base::FilePath();
   base::flat_map<std::string, base::FilePath> config_paths_;
-  std::string primary_language_name_;
+  std::string default_live_caption_language_;
   bool mask_offensive_words_ = false;
 
   base::ObserverList<Observer> observers_;

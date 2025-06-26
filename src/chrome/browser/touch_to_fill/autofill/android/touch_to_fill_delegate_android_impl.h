@@ -5,13 +5,16 @@
 #ifndef CHROME_BROWSER_TOUCH_TO_FILL_AUTOFILL_ANDROID_TOUCH_TO_FILL_DELEGATE_ANDROID_IMPL_H_
 #define CHROME_BROWSER_TOUCH_TO_FILL_AUTOFILL_ANDROID_TOUCH_TO_FILL_DELEGATE_ANDROID_IMPL_H_
 
+#include <variant>
+#include <vector>
+
 #include "base/memory/weak_ptr.h"
-#include "components/autofill/core/browser/autofill_manager.h"
-#include "components/autofill/core/browser/data_model/credit_card.h"
-#include "components/autofill/core/browser/data_model/iban.h"
+#include "components/autofill/core/browser/data_model/payments/credit_card.h"
+#include "components/autofill/core/browser/data_model/payments/iban.h"
 #include "components/autofill/core/browser/form_structure.h"
-#include "components/autofill/core/browser/ui/fast_checkout_client.h"
-#include "components/autofill/core/browser/ui/touch_to_fill_delegate.h"
+#include "components/autofill/core/browser/foundations/autofill_manager.h"
+#include "components/autofill/core/browser/integrators/fast_checkout/fast_checkout_client.h"
+#include "components/autofill/core/browser/integrators/touch_to_fill/touch_to_fill_delegate.h"
 #include "components/autofill/core/common/form_data.h"
 #include "components/autofill/core/common/form_field_data.h"
 
@@ -129,7 +132,7 @@ class TouchToFillDelegateAndroidImpl : public TouchToFillDelegate {
   void CreditCardSuggestionSelected(std::string unique_id,
                                     bool is_virtual) override;
   void IbanSuggestionSelected(
-      absl::variant<Iban::Guid, Iban::InstrumentId> backend_id) override;
+      std::variant<Iban::Guid, Iban::InstrumentId> backend_id) override;
   void OnDismissed(bool dismissed_by_user) override;
 
   void LogMetricsAfterSubmission(const FormStructure& submitted_form) override;
@@ -147,18 +150,18 @@ class TouchToFillDelegateAndroidImpl : public TouchToFillDelegate {
 
   struct DryRunResult {
     DryRunResult(TriggerOutcome outcome,
-                 absl::variant<std::vector<CreditCard>, std::vector<Iban>>
+                 std::variant<std::vector<CreditCard>, std::vector<Iban>>
                      items_to_suggest);
     DryRunResult(DryRunResult&&);
     DryRunResult& operator=(DryRunResult&&);
     ~DryRunResult();
 
     TriggerOutcome outcome;
-    absl::variant<std::vector<CreditCard>, std::vector<Iban>> items_to_suggest;
+    std::variant<std::vector<CreditCard>, std::vector<Iban>> items_to_suggest;
   };
 
   // Checks all preconditions for showing the TTF, that is, for calling
-  // AutofillClient::ShowTouchToFillCreditCard().
+  // PaymentsAutofillClient::ShowTouchToFillCreditCard().
   //
   // If the DryRunResult::outcome is TriggerOutcome::kShow, the
   // DryRun::cards_to_suggest contains the cards; otherwise it is empty.
@@ -196,6 +199,13 @@ class TouchToFillDelegateAndroidImpl : public TouchToFillDelegate {
   // TODO(crbug.com/40227496): FormData is used here to ensure that we check the
   // most recent form values. FormStructure knows only about the initial values.
   bool IsFormPrefilled(const FormData& form);
+
+  // Creates a list of booleans which denotes if credit cards are acceptable by
+  // the merchant. The list will be the same size as `credit_cards`, and the
+  // indices will match (the acceptability of credit_cards[i] ==
+  // card_acceptability[i]).
+  std::vector<bool> GetCardAcceptabilities(
+      base::span<const CreditCard> credit_cards);
 
   TouchToFillState ttf_payment_method_state_ = TouchToFillState::kShouldShow;
 

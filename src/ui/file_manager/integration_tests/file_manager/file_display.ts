@@ -570,10 +570,11 @@ export async function fileDisplayWithoutVolumesThenMountDrive() {
   const directoryTree = await DirectoryTreePageObject.create(appId);
   await directoryTree.selectGroupRootItemByType('drive');
 
-  // The fake Google Drive should be empty.
+  // The fake Google Drive should be empty and read only label should show.
   await remoteCall.waitForFiles(appId, []);
+  await remoteCall.waitForElement(appId, '#read-only-indicator:not([hidden])');
 
-  // Remount Drive. The curent directory should be changed from the Google
+  // Remount Drive. The current directory should be changed from the Google
   // Drive FakeItem to My Drive.
   await sendTestMessage({name: 'mountDrive'});
 
@@ -583,8 +584,11 @@ export async function fileDisplayWithoutVolumesThenMountDrive() {
   // Add an entry to Drive.
   await addEntries(['drive'], [ENTRIES.newlyAdded]);
 
-  // Wait for "My Drive" files to display in the file list.
+  // Wait for "My Drive" files to display in the file list and read only label
+  // should hide.
+  await remoteCall.waitUntilCurrentDirectoryIsChanged(appId, '/My Drive');
   await remoteCall.waitForFiles(appId, [ENTRIES.newlyAdded.getExpectedRow()]);
+  await remoteCall.waitForElement(appId, '#read-only-indicator[hidden]');
 }
 
 /**
@@ -971,103 +975,4 @@ export async function fileDisplayCheckNoReadOnlyIconOnGuestOs() {
 
   // Check: the toolbar read-only indicator should not be visible.
   await remoteCall.waitForElement(appId, '#read-only-indicator[hidden]');
-}
-
-/**
- * Tests that when local files are disabled, we navigate to default set by the
- * policy, e.g. Drive after unmounting a USB.
- */
-export async function fileDisplayLocalFilesDisabledUnmountRemovable() {
-  // Mount Drive and Downloads.
-  await sendTestMessage({name: 'mountDrive'});
-  await sendTestMessage({name: 'mountDownloads'});
-  // Ensure two volumes are mounted.
-  await remoteCall.waitForVolumesCount(2);
-
-  // Enable SkyVault, this should unmount Downloads.
-  await sendTestMessage(
-      {name: 'setupSkyVault', defaultLocation: 'google_drive'});
-  await remoteCall.waitForVolumesCount(1);
-
-  // Open Files app without specifying the initial directory/root.
-  const appId = await remoteCall.openNewWindow(null, null);
-  chrome.test.assertTrue(!!appId, 'failed to open new window');
-
-  // Confirm that the Files App opened in Google Drive, as set by the policy.
-  await remoteCall.waitUntilCurrentDirectoryIsChanged(appId, '/My Drive');
-
-  // Mount USB volume in the Downloads window.
-  await sendTestMessage({name: 'mountFakeUsb'});
-
-  // Wait for the USB mount and click to open the USB volume.
-  const directoryTree = await DirectoryTreePageObject.create(appId);
-  await directoryTree.selectItemByType('removable');
-  await remoteCall.waitUntilCurrentDirectoryIsChanged(appId, '/fake-usb');
-
-  // Unmount the USB.
-  await sendTestMessage({name: 'unmountUsb'});
-
-  // We should navigate to My Drive.
-  await remoteCall.waitUntilCurrentDirectoryIsChanged(appId, '/My Drive');
-}
-
-/**
- * Tests that disabling local storage while in a local folder navigates away to
- * the default set by the policy, e.g. Drive.
- */
-export async function fileDisplayLocalFilesDisableInMyFiles() {
-  // Mount Drive and Downloads.
-  await sendTestMessage({name: 'mountDrive'});
-  await sendTestMessage({name: 'mountDownloads'});
-
-  // Open Files app without specifying the initial directory/root.
-  const appId = await remoteCall.openNewWindow(null, null);
-  chrome.test.assertTrue(!!appId, 'failed to open new window');
-
-  // Confirm that the Files App opened in MyFiles.
-  await remoteCall.waitUntilCurrentDirectoryIsChanged(appId, '/My files');
-
-  // Disable local storage.
-  await sendTestMessage(
-      {name: 'setupSkyVault', defaultLocation: 'google_drive'});
-
-  // We should navigate to Drive.
-  await remoteCall.waitUntilCurrentDirectoryIsChanged(appId, '/My Drive');
-}
-
-/**
- * Tests that disabling local storage while in a local folder navigates away to
- * the default set by the policy, e.g. Drive.
- */
-export async function fileDisplayOneDrivePlaceholder() {
-  // Mount Downloads.
-  await sendTestMessage({name: 'mountDownloads'});
-
-  // Open Files app without specifying the initial directory/root.
-  const appId = await remoteCall.openNewWindow(null, null);
-  chrome.test.assertTrue(!!appId, 'failed to open new window');
-
-  // Confirm that the Files App opened in MyFiles.
-  await remoteCall.waitUntilCurrentDirectoryIsChanged(appId, '/My files');
-
-  // Confirm that OneDrive isn't shown yet.
-  const directoryTree = await DirectoryTreePageObject.create(appId);
-  const oneDriveLabel = 'Microsoft OneDrive';
-  directoryTree.waitForSelectedItemLostByLabel(oneDriveLabel);
-
-  // Disable local storage.
-  await sendTestMessage(
-      {name: 'setupSkyVault', defaultLocation: 'microsoft_onedrive'});
-
-  // Check that the placeholder is added.
-  await directoryTree.waitForItemByLabel(oneDriveLabel);
-
-  // TODO(b/340170015): this should happen automatically.
-  // We should navigate to OneDrive.
-  await directoryTree.selectItemByLabel(oneDriveLabel);
-  await remoteCall.waitUntilCurrentDirectoryIsChanged(
-      appId, `/${oneDriveLabel}`);
-
-  // Check: the empty folder should be visible.
-  await remoteCall.waitForElement(appId, '#empty-folder:not([hidden])');
 }

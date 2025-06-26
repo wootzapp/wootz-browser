@@ -8,6 +8,7 @@
 #include <string>
 
 #include "ash/ash_export.h"
+#include "ash/constants/ambient_video.h"
 #include "base/files/file_path.h"
 #include "base/functional/callback_forward.h"
 #include "base/time/time.h"
@@ -33,16 +34,14 @@ enum class DlcError {
 // The returned path will be empty if an error occurred and the html is
 // temporarily unavailable.
 //
-// `dlc_metrics_label` is only used if the `kTimeOfDayDlc` feature is enabled.
-// It's part of the UMA metric name
+// `dlc_metrics_label` is part of the UMA metric name
 // ("Ash.AmbientMode.VideoDlcInstall.<dlc_metrics_label>.Error") that tracks the
 // success/failure of the DLC installation performed within this function.
 ASH_EXPORT void GetAmbientVideoHtmlPath(
     std::string dlc_metrics_label,
     base::OnceCallback<void(base::FilePath)> on_done);
 
-// Installs the ambient video DLC package silently in the background. This is
-// a no-op if the `kTimeOfDayDlc` feature is disabled.
+// Installs the ambient video DLC package silently in the background.
 //
 // The background install increases the probability of a successful DLC install
 // happening before the video screen saver is launched. If it fails, another
@@ -52,11 +51,17 @@ ASH_EXPORT void GetAmbientVideoHtmlPath(
 // downloaded and persisted on device.
 ASH_EXPORT void InstallAmbientVideoDlcInBackground();
 
+// Before the user explicitly selects anything, the hub automatically selects
+// this default for the user when the video theme is active.
+ASH_EXPORT AmbientVideo GetDefaultAmbientVideo();
+
+// Checks whether jupiter video can be shown as a screen saver option.
+ASH_EXPORT bool ShouldShowJupiterVideo();
+
 // TimeOfDay video file names.
 ASH_EXPORT extern const base::FilePath::CharType kTimeOfDayCloudsVideo[];
 ASH_EXPORT extern const base::FilePath::CharType kTimeOfDayNewMexicoVideo[];
-ASH_EXPORT extern const base::FilePath::CharType
-    kTimeOfDayAssetsRootfsRootDir[];
+ASH_EXPORT extern const base::FilePath::CharType kTimeOfDayJupiterVideo[];
 ASH_EXPORT extern const base::FilePath::CharType kTimeOfDayVideoHtmlSubPath[];
 
 }  // namespace ash

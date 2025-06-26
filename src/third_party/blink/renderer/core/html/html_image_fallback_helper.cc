@@ -41,10 +41,10 @@ static bool ImageSmallerThanAltImage(const Length& width,
   if (!width.IsFixed() && !height.IsFixed()) {
     return false;
   }
-  if (height.IsFixed() && height.Value() < kPixelsForAltImage) {
+  if (height.IsFixed() && height.Pixels() < kPixelsForAltImage) {
     return true;
   }
-  return width.IsFixed() && width.Value() < kPixelsForAltImage;
+  return width.IsFixed() && width.Pixels() < kPixelsForAltImage;
 }
 
 static bool TreatImageAsReplaced(const Document& document,
@@ -189,6 +189,13 @@ class HTMLAltTextImageElement : public HTMLImageElement {
 
  private:
   void ShowBrokenImageIcon(ComputedStyleBuilder& builder) {
+    // See AdjustStyleForDisplay() in style_adjuster.cc.
+    if (builder.IsInInlinifyingDisplay()) {
+      builder.SetDisplay(EDisplay::kInline);
+      builder.SetFloating(EFloat::kNone);
+      return;
+    }
+
     // Note that floating elements are blockified by StyleAdjuster.
     builder.SetDisplay(EDisplay::kBlock);
 
@@ -260,7 +267,7 @@ void HTMLImageFallbackHelper::AdjustHostStyle(HTMLElement& element,
   builder.SetUAShadowHostData(std::make_unique<StyleUAShadowHostData>(
       builder.Width(), builder.Height(), builder.AspectRatio(),
       element.AltText(), element.getAttribute(html_names::kAltAttr),
-      element.getAttribute(html_names::kSrcAttr)));
+      element.getAttribute(html_names::kSrcAttr), /* has_appearance */ false));
 
   if (!TreatImageAsReplaced(element.GetDocument(),
                             *builder.UAShadowHostData())) {

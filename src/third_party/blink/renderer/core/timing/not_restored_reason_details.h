@@ -22,7 +22,7 @@ class CORE_EXPORT NotRestoredReasonDetails : public ScriptWrappable {
 
   const String reason() { return reason_; }
 
-  ScriptValue toJSON(ScriptState* script_state) const;
+  ScriptObject toJSON(ScriptState* script_state) const;
 
  private:
   String reason_;
@@ -30,5 +30,4 @@ class CORE_EXPORT NotRestoredReasonDetails : public ScriptWrappable {
 
 }  // namespace blink
 
-#endif  // #define
-        // THIRD_PARTY_BLINK_RENDERER_CORE_TIMING_NOT_RESTORED_REASON_DETAILS_H_
+#endif  // THIRD_PARTY_BLINK_RENDERER_CORE_TIMING_NOT_RESTORED_REASON_DETAILS_H_

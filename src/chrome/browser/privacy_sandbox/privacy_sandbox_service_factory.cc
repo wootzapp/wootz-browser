@@ -5,10 +5,12 @@
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_service_factory.h"
 
 #include "base/no_destructor.h"
+#include "build/build_config.h"
 #include "chrome/browser/browsing_topics/browsing_topics_service_factory.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/first_party_sets/first_party_sets_policy_service_factory.h"
+#include "chrome/browser/privacy_sandbox/privacy_sandbox_countries.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_service_impl.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_settings_factory.h"
 #include "chrome/browser/privacy_sandbox/tracking_protection_settings_factory.h"
@@ -20,18 +22,14 @@
 #include "components/profile_metrics/browser_profile_type.h"
 #include "content/public/browser/storage_partition.h"
 
-#if !BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/ui/hats/trust_safety_sentiment_service_factory.h"
-#endif
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chromeos/ash/components/browser_context_helper/browser_context_types.h"
 #endif
 
 namespace {
 
 profile_metrics::BrowserProfileType GetProfileType(Profile* profile) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   // Alias the "system" profiles which present as regular profiles for metrics
   // purposes (e.g. signin screen), to system metrics profiles. This is done
   // here as, due to dependency injection, the service itself does not hold a
@@ -68,15 +66,15 @@ PrivacySandboxServiceFactory::PrivacySandboxServiceFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOwnInstance)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOwnInstance)
               .Build()) {
   DependsOn(PrivacySandboxSettingsFactory::GetInstance());
   DependsOn(CookieSettingsFactory::GetInstance());
   DependsOn(HostContentSettingsMapFactory::GetInstance());
   DependsOn(browsing_topics::BrowsingTopicsServiceFactory::GetInstance());
   DependsOn(TrackingProtectionSettingsFactory::GetInstance());
-#if !BUILDFLAG(IS_ANDROID)
-  DependsOn(TrustSafetySentimentServiceFactory::GetInstance());
-#endif
   DependsOn(
       first_party_sets::FirstPartySetsPolicyServiceFactory::GetInstance());
 
@@ -91,7 +89,7 @@ PrivacySandboxServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   Profile* profile = Profile::FromBrowserContext(context);
   return std::make_unique<PrivacySandboxServiceImpl>(
-      PrivacySandboxSettingsFactory::GetForProfile(profile),
+      profile, PrivacySandboxSettingsFactory::GetForProfile(profile),
       TrackingProtectionSettingsFactory::GetForProfile(profile),
       CookieSettingsFactory::GetForProfile(profile), profile->GetPrefs(),
       profile->GetDefaultStoragePartition()->GetInterestGroupManager(),
@@ -100,10 +98,8 @@ PrivacySandboxServiceFactory::BuildServiceInstanceForBrowserContext(
           ? profile->GetBrowsingDataRemover()
           : nullptr,
       HostContentSettingsMapFactory::GetForProfile(profile),
-#if !BUILDFLAG(IS_ANDROID)
-      TrustSafetySentimentServiceFactory::GetForProfile(profile),
-#endif
       browsing_topics::BrowsingTopicsServiceFactory::GetForProfile(profile),
       first_party_sets::FirstPartySetsPolicyServiceFactory::
-          GetForBrowserContext(context));
+          GetForBrowserContext(context),
+      GetSingletonPrivacySandboxCountries());
 }

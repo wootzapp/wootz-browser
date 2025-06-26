@@ -11,76 +11,54 @@
 namespace privacy_sandbox::tracking_protection {
 
 void RegisterProfilePrefs(PrefRegistrySimple* registry) {
-  // Tracking protection Onboarding Prefs
-  registry->RegisterIntegerPref(
-      prefs::kTrackingProtectionOnboardingStatus,
-      static_cast<int>(TrackingProtectionOnboardingStatus::kIneligible));
+  registry->RegisterBooleanPref(
+      prefs::kEnableDoNotTrack, false,
+      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+  registry->RegisterBooleanPref(
+      prefs::kFingerprintingProtectionEnabled, true,
+      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+  registry->RegisterBooleanPref(
+      prefs::kIpProtectionEnabled, false,
+      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
 
-  registry->RegisterTimePref(prefs::kTrackingProtectionEligibleSince,
-                             base::Time());
-
-  registry->RegisterTimePref(prefs::kTrackingProtectionOnboardedSince,
-                             base::Time());
-
-  registry->RegisterTimePref(prefs::kTrackingProtectionNoticeLastShown,
-                             base::Time());
-
-  registry->RegisterTimePref(prefs::kTrackingProtectionOnboardingAckedSince,
-                             base::Time());
-
-  registry->RegisterBooleanPref(prefs::kTrackingProtectionOnboardingAcked,
-                                false);
-
-  registry->RegisterIntegerPref(
-      prefs::kTrackingProtectionOnboardingAckAction,
-      static_cast<int>(TrackingProtectionOnboardingAckAction::kNotSet));
-
-  registry->RegisterTimePref(
-      prefs::kTrackingProtectionOnboardingNoticeFirstRequested, base::Time());
-
-  registry->RegisterTimePref(
-      prefs::kTrackingProtectionOnboardingNoticeLastRequested, base::Time());
-
-  // Offboarding
-  registry->RegisterBooleanPref(prefs::kTrackingProtectionOffboarded, false);
-
-  registry->RegisterTimePref(prefs::kTrackingProtectionOffboardedSince,
-                             base::Time());
-
-  registry->RegisterIntegerPref(
-      prefs::kTrackingProtectionOffboardingAckAction,
-      static_cast<int>(TrackingProtectionOnboardingAckAction::kNotSet));
-
-  // Silent onboarding
-  registry->RegisterIntegerPref(
-      prefs::kTrackingProtectionSilentOnboardingStatus,
-      static_cast<int>(TrackingProtectionOnboardingStatus::kIneligible));
-
-  registry->RegisterTimePref(prefs::kTrackingProtectionSilentEligibleSince,
-                             base::Time());
-
-  registry->RegisterTimePref(prefs::kTrackingProtectionSilentOnboardedSince,
-                             base::Time());
-
-  // Tracking Protection Settings Prefs
+  // TODO(https://b/333527273): The following prefs should be deprecated.
+  // Still in use for Mode B.
   registry->RegisterBooleanPref(
       prefs::kBlockAll3pcToggleEnabled, false,
       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+  registry->RegisterBooleanPref(prefs::kTrackingProtection3pcdEnabled, false);
+  registry->RegisterIntegerPref(
+      prefs::kTrackingProtectionOnboardingStatus,
+      static_cast<int>(TrackingProtectionOnboardingStatus::kIneligible));
+  registry->RegisterIntegerPref(
+      prefs::kTrackingProtectionSilentOnboardingStatus,
+      static_cast<int>(TrackingProtectionOnboardingStatus::kIneligible));
+  // Not in use.
   registry->RegisterBooleanPref(prefs::kAllowAll3pcToggleEnabled, false);
+  registry->RegisterBooleanPref(prefs::kUserBypass3pcExceptionsMigrated, false);
   registry->RegisterIntegerPref(
       prefs::kTrackingProtectionLevel,
       static_cast<int>(TrackingProtectionLevel::kStandard),
       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
-  registry->RegisterBooleanPref(prefs::kTrackingProtection3pcdEnabled, false);
-  registry->RegisterBooleanPref(
-      prefs::kIpProtectionEnabled, false,
-      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
-  registry->RegisterBooleanPref(
-      prefs::kFingerprintingProtectionEnabled, false,
-      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
-  registry->RegisterBooleanPref(
-      prefs::kEnableDoNotTrack, false,
-      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+  registry->RegisterTimePref(prefs::kTrackingProtectionSilentOnboardedSince,
+                             base::Time());
+  registry->RegisterTimePref(prefs::kTrackingProtectionSilentEligibleSince,
+                             base::Time());
+  registry->RegisterTimePref(prefs::kTrackingProtectionEligibleSince,
+                             base::Time());
+  registry->RegisterTimePref(prefs::kTrackingProtectionOnboardedSince,
+                             base::Time());
+  registry->RegisterTimePref(prefs::kTrackingProtectionNoticeLastShown,
+                             base::Time());
+  registry->RegisterTimePref(prefs::kTrackingProtectionOnboardingAckedSince,
+                             base::Time());
+  registry->RegisterBooleanPref(prefs::kTrackingProtectionOnboardingAcked,
+                                false);
+  registry->RegisterIntegerPref(
+      prefs::kTrackingProtectionOnboardingAckAction,
+      static_cast<int>(TrackingProtectionOnboardingAckAction::kNotSet));
+  registry->RegisterBooleanPref(prefs::kIpProtectionInitializedByDogfood,
+                                false);
 }
 
 }  // namespace privacy_sandbox::tracking_protection

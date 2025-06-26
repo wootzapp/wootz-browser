@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/ozone/platform/drm/gpu/drm_framebuffer.h"
 
 #include <utility>
@@ -48,7 +53,7 @@ DrmFramebuffer::AddFramebufferParams::~AddFramebufferParams() = default;
 scoped_refptr<DrmFramebuffer> DrmFramebuffer::AddFramebuffer(
     scoped_refptr<DrmDevice> drm_device,
     DrmFramebuffer::AddFramebufferParams params) {
-  uint64_t modifiers[4] = {0};
+  uint64_t modifiers[4] = {};
   if (params.modifier != DRM_FORMAT_MOD_INVALID) {
     for (size_t i = 0; i < params.num_planes; ++i)
       modifiers[i] = params.modifier;

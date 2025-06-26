@@ -8,12 +8,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.doAnswer;
 
-import static org.chromium.chrome.browser.desktop_windowing.AppHeaderCoordinator.INSTANCE_STATE_KEY_IS_APP_IN_UNFOCUSED_DW;
+import static org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderCoordinator.INSTANCE_STATE_KEY_IS_APP_IN_UNFOCUSED_DW;
 
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Rect;
 import android.os.Build;
+import android.view.ViewGroup.MarginLayoutParams;
 import android.widget.FrameLayout.LayoutParams;
 import android.widget.ImageButton;
 
@@ -24,6 +25,7 @@ import androidx.test.filters.MediumTest;
 import androidx.test.runner.lifecycle.Stage;
 
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -33,46 +35,64 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ContextUtils;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.DisabledTest;
+import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.compositor.layouts.LayoutManagerChromeTablet;
+import org.chromium.chrome.browser.compositor.layouts.eventfilter.AreaMotionEventFilter;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutHelperManager;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.hub.HubLayout;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
-import org.chromium.chrome.browser.tasks.tab_management.TabSwitcherLayout;
+import org.chromium.chrome.browser.omnibox.OmniboxFocusReason;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper;
 import org.chromium.chrome.browser.theme.ThemeUtils;
 import org.chromium.chrome.browser.toolbar.ToolbarFeatures;
 import org.chromium.chrome.browser.toolbar.top.ToolbarTablet;
-import org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderState;
+import org.chromium.chrome.browser.toolbar.top.tab_strip.TabStripTransitionCoordinator;
+import org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderCoordinator;
 import org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderUtils;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
-import org.chromium.components.browser_ui.widget.InsetObserver;
-import org.chromium.components.browser_ui.widget.InsetsRectProvider;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
-import org.chromium.ui.test.util.UiRestriction;
+import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent.ContentPriority;
+import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
+import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvider;
+import org.chromium.components.browser_ui.bottomsheet.ManagedBottomSheetController;
+import org.chromium.components.browser_ui.bottomsheet.TestBottomSheetContent;
+import org.chromium.components.browser_ui.desktop_windowing.AppHeaderState;
+import org.chromium.content_public.browser.test.util.DOMUtils;
+import org.chromium.content_public.browser.test.util.JavaScriptUtils;
+import org.chromium.ui.InsetObserver;
+import org.chromium.ui.InsetsRectProvider;
+import org.chromium.ui.base.DeviceFormFactor;
+import org.chromium.ui.base.ViewUtils;
+import org.chromium.ui.test.util.DeviceRestriction;
+
+import java.util.concurrent.TimeoutException;
 
 /** Browser test for {@link AppHeaderCoordinator} */
 @RequiresApi(Build.VERSION_CODES.R)
-@Restriction(UiRestriction.RESTRICTION_TYPE_TABLET)
+@Restriction({DeviceFormFactor.TABLET, DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
 @CommandLineFlags.Add(ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE)
+@Features.DisableFeatures(ChromeFeatureList.EDGE_TO_EDGE_EVERYWHERE)
 @Batch(Batch.PER_CLASS)
 @RunWith(ChromeJUnit4ClassRunner.class)
 public class AppHeaderCoordinatorBrowserTest {
     private static final int APP_HEADER_LEFT_PADDING = 10;
     private static final int APP_HEADER_RIGHT_PADDING = 20;
+    private static final String TEXTFIELD_DOM_ID = "inputElement";
+    private static final int KEYBOARD_TIMEOUT = 10000;
 
     private static final WindowInsetsCompat BOTTOM_NAV_BAR_INSETS =
             new WindowInsetsCompat.Builder()
@@ -86,10 +106,10 @@ public class AppHeaderCoordinatorBrowserTest {
 
     @Rule public MockitoRule mockitoRule = MockitoJUnit.rule();
 
-    private @Mock InsetsRectProvider mInsetsRectProvider;
+    @Mock private InsetsRectProvider mInsetsRectProvider;
 
-    private Rect mWidestUnoccludedRect = new Rect();
-    private Rect mWindowRect = new Rect();
+    private final Rect mWidestUnoccludedRect = new Rect();
+    private final Rect mWindowRect = new Rect();
     private int mTestAppHeaderHeight;
 
     @Before
@@ -139,6 +159,57 @@ public class AppHeaderCoordinatorBrowserTest {
 
     @Test
     @MediumTest
+    @EnableFeatures(ChromeFeatureList.TAB_STRIP_TRANSITION_IN_DESKTOP_WINDOW)
+    public void testToggleTabStripVisibilityInDesktopWindow() {
+        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
+        triggerDesktopWindowingModeChange(activity, true);
+
+        TabStripTransitionCoordinator tabStripTransitionCoordinator =
+                activity.getToolbarManager().getTabStripTransitionCoordinator();
+        Assert.assertNotNull(
+                "Tab strip transition coordinator is null.", tabStripTransitionCoordinator);
+
+        // A small strip width should hide the strip by adding the strip fade transition scrim.
+        int smallStripWidth =
+                ViewUtils.dpToPx(
+                        activity, TabStripTransitionCoordinator.getFadeTransitionThresholdDp() - 1);
+        ThreadUtils.runOnUiThreadBlocking(() -> simulateResizeDesktopWindow(smallStripWidth));
+
+        var stripLayoutHelperManager = activity.getLayoutManager().getStripLayoutHelperManager();
+        var stripAreaMotionEventFilter =
+                (AreaMotionEventFilter) stripLayoutHelperManager.getEventFilter();
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    Criteria.checkThat(
+                            "Tab strip scrim should be visible.",
+                            stripLayoutHelperManager.isStripScrimVisibleForTesting(),
+                            Matchers.equalTo(true));
+                    Criteria.checkThat(
+                            "Motion event filter area should be empty on an invisible strip.",
+                            stripAreaMotionEventFilter.getEventAreaForTesting().isEmpty(),
+                            Matchers.equalTo(true));
+                });
+
+        // A large strip width should show the strip by removing the strip transition scrim.
+        int largeStripWidth =
+                ViewUtils.dpToPx(
+                        activity, TabStripTransitionCoordinator.getFadeTransitionThresholdDp());
+        ThreadUtils.runOnUiThreadBlocking(() -> simulateResizeDesktopWindow(largeStripWidth));
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    Criteria.checkThat(
+                            "Tab strip scrim should not be visible.",
+                            stripLayoutHelperManager.isStripScrimVisibleForTesting(),
+                            Matchers.equalTo(false));
+                    Criteria.checkThat(
+                            "Motion event filter area should be non-empty on a visible strip.",
+                            stripAreaMotionEventFilter.getEventAreaForTesting().isEmpty(),
+                            Matchers.equalTo(false));
+                });
+    }
+
+    @Test
+    @MediumTest
     public void testOnTopResumedActivityChanged_UnfocusedInDesktopWindow() {
         // TODO (crbug/330213938): Also test other scenarios for different values of desktop
         // windowing mode / activity focus states; tests for other input combinations are currently
@@ -149,93 +220,7 @@ public class AppHeaderCoordinatorBrowserTest {
 
     @Test
     @MediumTest
-    @DisableFeatures(ChromeFeatureList.ANDROID_HUB)
-    public void testEnterTabSwitcherInDesktopWindow() {
-        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
-
-        // Enter desktop windowing mode.
-        triggerDesktopWindowingModeChange(activity, true);
-        // Enter the tab switcher.
-        TabUiTestHelper.enterTabSwitcher(activity);
-
-        var layoutManager = (LayoutManagerChromeTablet) activity.getLayoutManager();
-        var tabSwitcherLayout =
-                ((TabSwitcherLayout) layoutManager.getTabSwitcherLayoutForTesting());
-        var tabSwitcherContainerView =
-                tabSwitcherLayout
-                        .getTabSwitcherForTesting()
-                        .getController()
-                        .getTabSwitcherContainer();
-
-        assertTrue(
-                "Tab switcher container view y-offset should be non-zero.",
-                tabSwitcherContainerView.getY() != 0);
-        assertEquals(
-                "Tab switcher container view y-offset should match the app header height.",
-                mTestAppHeaderHeight,
-                tabSwitcherContainerView.getY(),
-                0f);
-
-        // Exit desktop windowing mode.
-        triggerDesktopWindowingModeChange(activity, false);
-        assertEquals(
-                "Tab switcher container view y-offset should be zero.",
-                0,
-                tabSwitcherContainerView.getY(),
-                0f);
-        // Exit tab switcher.
-        TabUiTestHelper.clickFirstCardFromTabSwitcher(activity);
-    }
-
-    @Test
-    @MediumTest
-    @DisableFeatures(ChromeFeatureList.ANDROID_HUB)
-    public void testEnterDesktopWindowWithTabSwitcherActive() {
-        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
-
-        // Enter the tab switcher. Desktop windowing mode is not active initially.
-        TabUiTestHelper.enterTabSwitcher(activity);
-
-        var layoutManager = (LayoutManagerChromeTablet) activity.getLayoutManager();
-        var tabSwitcherLayout =
-                ((TabSwitcherLayout) layoutManager.getTabSwitcherLayoutForTesting());
-        var tabSwitcherContainerView =
-                tabSwitcherLayout
-                        .getTabSwitcherForTesting()
-                        .getController()
-                        .getTabSwitcherContainer();
-        assertEquals(
-                "Tab switcher container view y-offset should be zero.",
-                0,
-                tabSwitcherContainerView.getY(),
-                0.0);
-
-        // Enter desktop windowing mode while the tab switcher is visible.
-        triggerDesktopWindowingModeChange(activity, true);
-
-        assertTrue(
-                "Tab switcher container view y-offset should be non-zero.",
-                tabSwitcherContainerView.getY() != 0);
-        assertEquals(
-                "Tab switcher container view y-offset should match the app header height.",
-                mTestAppHeaderHeight,
-                tabSwitcherContainerView.getY(),
-                0f);
-
-        // Exit desktop windowing mode.
-        triggerDesktopWindowingModeChange(activity, false);
-        assertEquals(
-                "Tab switcher container view y-offset should be zero.",
-                0,
-                tabSwitcherContainerView.getY(),
-                0f);
-        // Exit tab switcher.
-        TabUiTestHelper.clickFirstCardFromTabSwitcher(activity);
-    }
-
-    @Test
-    @MediumTest
-    @EnableFeatures(ChromeFeatureList.ANDROID_HUB)
+    @DisabledTest(message = "Flaky, crbug.com/339854841")
     public void testEnterTabSwitcherInDesktopWindow_HubLayout() {
         ChromeTabbedActivity activity = mActivityTestRule.getActivity();
 
@@ -245,7 +230,7 @@ public class AppHeaderCoordinatorBrowserTest {
         TabUiTestHelper.enterTabSwitcher(activity);
 
         var layoutManager = (LayoutManagerChromeTablet) activity.getLayoutManager();
-        var hubLayout = ((HubLayout) layoutManager.getTabSwitcherLayoutForTesting());
+        var hubLayout = ((HubLayout) layoutManager.getHubLayoutForTesting());
         var hubContainerView = hubLayout.getHubControllerForTesting().getContainerView();
         var params = (LayoutParams) hubContainerView.getLayoutParams();
 
@@ -277,7 +262,7 @@ public class AppHeaderCoordinatorBrowserTest {
 
     @Test
     @MediumTest
-    @EnableFeatures(ChromeFeatureList.ANDROID_HUB)
+    @DisabledTest(message = "Flaky, crbug.com/339854841")
     public void testEnterDesktopWindowWithTabSwitcherActive_HubLayout() {
         ChromeTabbedActivity activity = mActivityTestRule.getActivity();
 
@@ -285,7 +270,7 @@ public class AppHeaderCoordinatorBrowserTest {
         TabUiTestHelper.enterTabSwitcher(activity);
 
         var layoutManager = (LayoutManagerChromeTablet) activity.getLayoutManager();
-        var hubLayout = ((HubLayout) layoutManager.getTabSwitcherLayoutForTesting());
+        var hubLayout = ((HubLayout) layoutManager.getHubLayoutForTesting());
         var hubContainerView = hubLayout.getHubControllerForTesting().getContainerView();
         var params = (LayoutParams) hubContainerView.getLayoutParams();
 
@@ -327,6 +312,7 @@ public class AppHeaderCoordinatorBrowserTest {
 
     @Test
     @MediumTest
+    @DisabledTest(message = "Flaky, crbug.com/340589545")
     public void testRecreateActivitiesInDesktopWindow() {
         // Assume that the current activity enters desktop windowing mode.
         ChromeTabbedActivity firstActivity = mActivityTestRule.getActivity();
@@ -384,6 +370,164 @@ public class AppHeaderCoordinatorBrowserTest {
         secondActivity.finish();
     }
 
+    @Test
+    @MediumTest
+    public void testKeyboardInDesktopWindow_RootViewPadded() throws TimeoutException {
+        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
+        triggerDesktopWindowingModeChange(activity, true);
+        var insetObserver = activity.getWindowAndroid().getInsetObserver();
+
+        // Navigate to a URL with an input field. Clicking on it should trigger the OSK.
+        mActivityTestRule.loadUrl(
+                mActivityTestRule
+                        .getTestServer()
+                        .getURL("/chrome/test/data/android/page_with_editable.html"));
+        DOMUtils.clickNode(activity.getActivityTab().getWebContents(), TEXTFIELD_DOM_ID);
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    boolean isKeyboardShowing =
+                            mActivityTestRule
+                                    .getKeyboardDelegate()
+                                    .isKeyboardShowing(activity, activity.getTabsView());
+                    Criteria.checkThat(isKeyboardShowing, Matchers.is(true));
+                },
+                KEYBOARD_TIMEOUT,
+                CriteriaHelper.DEFAULT_POLLING_INTERVAL);
+
+        // Verify that the root view is padded at the bottom to account for the OSK inset.
+        var rootView = activity.getWindow().getDecorView().getRootView();
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    var keyboardInset =
+                            insetObserver
+                                    .getLastRawWindowInsets()
+                                    .getInsets(WindowInsetsCompat.Type.ime())
+                                    .bottom;
+                    Criteria.checkThat(rootView.getPaddingBottom(), Matchers.is(keyboardInset));
+                });
+
+        // Remove input field focus to hide the keyboard.
+        JavaScriptUtils.executeJavaScript(
+                activity.getActivityTab().getWebContents(),
+                "document.querySelector('input').blur()");
+
+        // Verify that the root view bottom padding uses the nav bar bottom inset.
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    var navBarBottomInset =
+                            insetObserver
+                                    .getLastRawWindowInsets()
+                                    .getInsets(WindowInsetsCompat.Type.navigationBars())
+                                    .bottom;
+                    Criteria.checkThat(rootView.getPaddingBottom(), Matchers.is(navBarBottomInset));
+                });
+
+        // Dispatch window insets to simulate no overlap of the app window with the nav bar.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    insetObserver.onApplyWindowInsets(
+                            rootView,
+                            new WindowInsetsCompat.Builder()
+                                    .setInsets(
+                                            WindowInsetsCompat.Type.navigationBars(),
+                                            Insets.of(0, 0, 0, 0))
+                                    .build());
+                });
+
+        // Verify that the root view bottom padding is reset.
+        CriteriaHelper.pollUiThread(
+                () -> Criteria.checkThat(rootView.getPaddingBottom(), Matchers.is(0)));
+    }
+
+    @Test
+    @MediumTest
+    public void testKeyboardInDesktopWindow_RootViewNotPaddedOnOmniboxFocus() {
+        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
+        triggerDesktopWindowingModeChange(activity, true);
+
+        // Focus on the omnibox, this should trigger the OSK.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    activity.getToolbarManager()
+                            .setUrlBarFocus(true, OmniboxFocusReason.OMNIBOX_TAP);
+                });
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    boolean isKeyboardShowing =
+                            mActivityTestRule
+                                    .getKeyboardDelegate()
+                                    .isKeyboardShowing(activity, activity.getTabsView());
+                    Criteria.checkThat(isKeyboardShowing, Matchers.is(true));
+                },
+                KEYBOARD_TIMEOUT,
+                CriteriaHelper.DEFAULT_POLLING_INTERVAL);
+
+        // Verify that the root view is not bottom-padded even when the OSK is visible.
+        var rootView = activity.getWindow().getDecorView().getRootView();
+        CriteriaHelper.pollUiThread(
+                () -> Criteria.checkThat(rootView.getPaddingBottom(), Matchers.is(0)));
+
+        // Remove omnibox focus and restore state.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    activity.getToolbarManager().setUrlBarFocus(false, OmniboxFocusReason.UNFOCUS);
+                });
+    }
+
+    @Test
+    @MediumTest
+    public void testBottomSheet() {
+        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
+        // Switch to desktop windowing mode.
+        triggerDesktopWindowingModeChange(activity, true);
+
+        // Trigger a bottom sheet, verify that the sheet container's top margin is updated to
+        // account for the app header height.
+        var bottomSheetContent = new TestBottomSheetContent(activity, ContentPriority.HIGH, false);
+        var bottomSheetController =
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> {
+                            var controller =
+                                    (ManagedBottomSheetController)
+                                            BottomSheetControllerProvider.from(
+                                                    activity.getWindowAndroid());
+                            controller.requestShowContent(bottomSheetContent, false);
+                            return controller;
+                        });
+
+        var sheetContainer = activity.findViewById(R.id.sheet_container);
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    Criteria.checkThat(
+                            "Bottom sheet should be visible.",
+                            bottomSheetController.getSheetState(),
+                            Matchers.not(SheetState.HIDDEN));
+                    Criteria.checkThat(
+                            "Sheet container top margin should account for app header height.",
+                            ((MarginLayoutParams) sheetContainer.getLayoutParams()).topMargin,
+                            Matchers.is(mTestAppHeaderHeight));
+                });
+
+        // Switch out of desktop windowing mode, verify that the sheet container's top margin is
+        // reset.
+        triggerDesktopWindowingModeChange(activity, false);
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    Criteria.checkThat(
+                            "Bottom sheet should be visible.",
+                            bottomSheetController.getSheetState(),
+                            Matchers.not(SheetState.HIDDEN));
+                    Criteria.checkThat(
+                            "Sheet container top margin should be reset.",
+                            ((MarginLayoutParams) sheetContainer.getLayoutParams()).topMargin,
+                            Matchers.is(0));
+                });
+
+        // Hide bottom sheet.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> bottomSheetController.hideContent(bottomSheetContent, false));
+    }
+
     private void doTestOnTopResumedActivityChanged(
             boolean isInDesktopWindow, boolean isActivityFocused) {
         ToolbarFeatures.setIsTabStripLayoutOptimizationEnabledForTesting(true);
@@ -393,13 +537,13 @@ public class AppHeaderCoordinatorBrowserTest {
                 () -> {
                     var appHeaderCoordinator =
                             activity.getRootUiCoordinatorForTesting()
-                                    .getDesktopWindowStateProvider();
+                                    .getDesktopWindowStateManager();
                     Criteria.checkThat(appHeaderCoordinator, Matchers.notNullValue());
                 });
 
         // Assume that the current activity lost focus in desktop windowing mode.
         triggerDesktopWindowingModeChange(activity, true);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> activity.onTopResumedActivityChanged(isActivityFocused));
 
         // Verify the toolbar icon tints.
@@ -429,8 +573,10 @@ public class AppHeaderCoordinatorBrowserTest {
                             Matchers.is(nonOmniboxIconTint));
                     Criteria.checkThat(
                             "Tab switcher icon tint is incorrect.",
-                            toolbarTablet
-                                    .getTabSwitcherButton()
+                            ((ImageButton)
+                                            activity.getToolbarManager()
+                                                    .getTabSwitcherButtonCoordinatorForTesting()
+                                                    .getContainerView())
                                     .getImageTintList()
                                     .getDefaultColor(),
                             Matchers.is(nonOmniboxIconTint));
@@ -452,11 +598,11 @@ public class AppHeaderCoordinatorBrowserTest {
 
     private void triggerDesktopWindowingModeChange(
             ChromeTabbedActivity activity, boolean isInDesktopWindow) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     var appHeaderStateProvider =
                             activity.getRootUiCoordinatorForTesting()
-                                    .getDesktopWindowStateProvider();
+                                    .getDesktopWindowStateManager();
                     setupAppHeaderRects(isInDesktopWindow);
                     var appHeaderState =
                             new AppHeaderState(
@@ -480,5 +626,19 @@ public class AppHeaderCoordinatorBrowserTest {
         } else {
             mWidestUnoccludedRect.setEmpty();
         }
+    }
+
+    private void simulateResizeDesktopWindow(int stripWidthPx) {
+        var activity = mActivityTestRule.getActivity();
+        var tabStripTransitionCoordinator =
+                activity.getToolbarManager().getTabStripTransitionCoordinator();
+        activity.getWindow().getDecorView().getGlobalVisibleRect(mWindowRect);
+        mWidestUnoccludedRect.set(
+                APP_HEADER_LEFT_PADDING,
+                0,
+                APP_HEADER_LEFT_PADDING + stripWidthPx,
+                mTestAppHeaderHeight);
+        tabStripTransitionCoordinator.onAppHeaderStateChanged(
+                new AppHeaderState(mWindowRect, mWidestUnoccludedRect, true));
     }
 }

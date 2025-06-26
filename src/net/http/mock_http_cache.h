@@ -12,6 +12,7 @@
 
 #include <stdint.h>
 
+#include <array>
 #include <map>
 #include <memory>
 #include <string>
@@ -59,7 +60,6 @@ class MockDiskEntry : public disk_cache::Entry,
   void Close() override;
   std::string GetKey() const override;
   base::Time GetLastUsed() const override;
-  base::Time GetLastModified() const override;
   int32_t GetDataSize(int index) const override;
   int ReadData(int index,
                int offset,
@@ -85,8 +85,7 @@ class MockDiskEntry : public disk_cache::Entry,
                                 RangeResultCallback callback) override;
   bool CouldBeSparse() const override;
   void CancelSparseIO() override;
-  net::Error ReadyForSparseIO(
-      CompletionOnceCallback completion_callback) override;
+  Error ReadyForSparseIO(CompletionOnceCallback completion_callback) override;
   void SetLastUsedTimeForTest(base::Time time) override;
 
   uint8_t in_memory_data() const { return in_memory_data_; }
@@ -136,7 +135,7 @@ class MockDiskEntry : public disk_cache::Entry,
   static const int kNumCacheEntryDataIndices = 3;
 
   std::string key_;
-  std::vector<char> data_[kNumCacheEntryDataIndices];
+  std::array<std::vector<char>, kNumCacheEntryDataIndices> data_;
   uint8_t in_memory_data_ = 0;
   int test_mode_;
   int max_file_size_;
@@ -163,23 +162,23 @@ class MockDiskCache : public disk_cache::Backend {
 
   int32_t GetEntryCount() const override;
   EntryResult OpenOrCreateEntry(const std::string& key,
-                                net::RequestPriority request_priority,
+                                RequestPriority request_priority,
                                 EntryResultCallback callback) override;
   EntryResult OpenEntry(const std::string& key,
-                        net::RequestPriority request_priority,
+                        RequestPriority request_priority,
                         EntryResultCallback callback) override;
   EntryResult CreateEntry(const std::string& key,
-                          net::RequestPriority request_priority,
+                          RequestPriority request_priority,
                           EntryResultCallback callback) override;
-  net::Error DoomEntry(const std::string& key,
-                       net::RequestPriority request_priority,
-                       CompletionOnceCallback callback) override;
-  net::Error DoomAllEntries(CompletionOnceCallback callback) override;
-  net::Error DoomEntriesBetween(base::Time initial_time,
-                                base::Time end_time,
-                                CompletionOnceCallback callback) override;
-  net::Error DoomEntriesSince(base::Time initial_time,
-                              CompletionOnceCallback callback) override;
+  Error DoomEntry(const std::string& key,
+                  RequestPriority request_priority,
+                  CompletionOnceCallback callback) override;
+  Error DoomAllEntries(CompletionOnceCallback callback) override;
+  Error DoomEntriesBetween(base::Time initial_time,
+                           base::Time end_time,
+                           CompletionOnceCallback callback) override;
+  Error DoomEntriesSince(base::Time initial_time,
+                         CompletionOnceCallback callback) override;
   int64_t CalculateSizeOfAllEntries(
       Int64CompletionOnceCallback callback) override;
   std::unique_ptr<Iterator> CreateIterator() override;
@@ -254,7 +253,8 @@ class MockDiskCache : public disk_cache::Backend {
   const std::vector<std::string>& GetExternalCacheHits() const;
 
  private:
-  using EntryMap = std::map<std::string, MockDiskEntry*>;
+  using EntryMap =
+      std::map<std::string, raw_ptr<MockDiskEntry, CtnExperimental>>;
   class NotImplementedIterator;
 
   void CallbackLater(base::OnceClosure callback);
@@ -354,7 +354,7 @@ class MockHttpCache {
 // This version of the disk cache doesn't invoke CreateEntry callbacks.
 class MockDiskCacheNoCB : public MockDiskCache {
   EntryResult CreateEntry(const std::string& key,
-                          net::RequestPriority request_priority,
+                          RequestPriority request_priority,
                           EntryResultCallback callback) override;
 };
 
@@ -391,6 +391,27 @@ class MockBlockingBackendFactory : public HttpCache::BackendFactory {
   disk_cache::BackendResultCallback callback_;
   bool block_ = true;
   bool fail_ = false;
+};
+
+struct GetBackendResultIsPendingHelper {
+  bool operator()(const HttpCache::GetBackendResult& result) const {
+    return result.first == net::ERR_IO_PENDING;
+  }
+};
+using TestGetBackendCompletionCallbackBase =
+    net::internal::TestCompletionCallbackTemplate<
+        HttpCache::GetBackendResult,
+        GetBackendResultIsPendingHelper>;
+
+class TestGetBackendCompletionCallback
+    : public TestGetBackendCompletionCallbackBase {
+ public:
+  TestGetBackendCompletionCallback() = default;
+
+  HttpCache::GetBackendCallback callback() {
+    return base::BindOnce(&TestGetBackendCompletionCallback::SetResult,
+                          base::Unretained(this));
+  }
 };
 
 }  // namespace net

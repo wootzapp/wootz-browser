@@ -18,16 +18,18 @@
 #include "chrome/browser/ash/login/test/js_checker.h"
 #include "chrome/browser/ash/login/test/oobe_base_test.h"
 #include "chrome/browser/ash/login/test/oobe_screen_waiter.h"
-#include "chrome/browser/ash/login/ui/login_display_host.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
 #include "chrome/browser/ash/policy/enrollment/enrollment_status.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/ui/ash/login/login_display_host.h"
+#include "chrome/browser/ui/webui/ash/login/online_login_utils.h"
 #include "chromeos/ash/components/dbus/dbus_thread_manager.h"
 #include "chromeos/ash/components/dbus/upstart/upstart_client.h"
 #include "chromeos/dbus/constants/dbus_switches.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_utils.h"
+#include "google_apis/gaia/gaia_id.h"
 
 namespace ash {
 namespace {
@@ -37,6 +39,10 @@ constexpr char kPartitionAttribute[] = ".partition";
 constexpr char kEnrollmentUI[] = "enterprise-enrollment";
 
 const test::UIPath kWebview = {kEnrollmentUI, "step-signin", "signin-frame"};
+
+constexpr char kTestUserEmail[] = "testuser@test.com";
+constexpr GaiaId::Literal kTestUserGaiaId("test_user_gaia_id");
+constexpr char kTestUserPassword[] = "test_user_password";
 
 }  // namespace
 
@@ -50,8 +56,15 @@ class EnterpriseEnrollmentTestBase : public OobeBaseTest {
 
   // Submits regular enrollment credentials.
   void SubmitEnrollmentCredentials() {
+    login::OnlineSigninArtifacts signin_artifacts;
+    signin_artifacts.email = kTestUserEmail;
+    signin_artifacts.gaia_id = kTestUserGaiaId;
+    signin_artifacts.password = kTestUserPassword;
+    signin_artifacts.using_saml = false;
+
     enrollment_screen()->OnLoginDone(
-        "testuser@test.com", static_cast<int>(policy::LicenseType::kEnterprise),
+        std::move(signin_artifacts),
+        static_cast<int>(policy::LicenseType::kEnterprise),
         test::EnrollmentHelperMixin::kTestAuthCode);
     ExecutePendingJavaScript();
   }

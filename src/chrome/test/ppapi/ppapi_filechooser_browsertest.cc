@@ -9,7 +9,6 @@
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/bind.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
@@ -25,7 +24,7 @@
 #include "content/public/test/browser_test.h"
 #include "ppapi/shared_impl/test_utils.h"
 
-#if BUILDFLAG(FULL_SAFE_BROWSING)
+#if BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION)
 #include "chrome/browser/safe_browsing/download_protection/download_protection_service.h"
 #include "chrome/browser/safe_browsing/safe_browsing_service.h"
 #include "chrome/browser/safe_browsing/test_safe_browsing_service.h"
@@ -39,7 +38,7 @@ namespace {
 
 class PPAPIFileChooserTest : public OutOfProcessPPAPITest {};
 
-#if BUILDFLAG(FULL_SAFE_BROWSING)
+#if BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION)
 
 struct SafeBrowsingTestConfiguration {
   std::map<base::FilePath::StringType, safe_browsing::DownloadCheckResult>
@@ -259,7 +258,7 @@ IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTest, FileChooser_Quarantine) {
 }
 #endif  // BUILDFLAG(IS_WIN)
 
-#if BUILDFLAG(FULL_SAFE_BROWSING)
+#if BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION)
 // These tests only make sense when SafeBrowsing is enabled. They verify
 // that files written via the FileChooser_Trusted API are properly passed
 // through Safe Browsing.
@@ -340,4 +339,4 @@ IN_PROC_BROWSER_TEST_F(PPAPIFileChooserTestWithSBService,
   RunTestViaHTTP("FileChooser_OpenSimple");
 }
 
-#endif  // FULL_SAFE_BROWSING
+#endif  // SAFE_BROWSING_DOWNLOAD_PROTECTION

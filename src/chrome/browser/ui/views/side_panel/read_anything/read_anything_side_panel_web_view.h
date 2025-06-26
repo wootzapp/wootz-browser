@@ -19,7 +19,7 @@ class ReadAnythingSidePanelWebView
   METADATA_HEADER(ReadAnythingSidePanelWebView,
                   SidePanelWebUIViewT_ReadAnythingUntrustedUI)
  public:
-  explicit ReadAnythingSidePanelWebView(Profile* profile);
+  ReadAnythingSidePanelWebView(Profile* profile, SidePanelEntryScope& scope);
   ReadAnythingSidePanelWebView(const ReadAnythingSidePanelWebView&) = delete;
   ReadAnythingSidePanelWebView& operator=(const ReadAnythingSidePanelWebView&) =
       delete;
@@ -32,6 +32,8 @@ class ReadAnythingSidePanelWebView
           navigation_handle_callback) override;
   bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
                          const content::ContextMenuParams& params) override;
+
+  base::WeakPtr<ReadAnythingSidePanelWebView> GetWeakPtr();
 
  private:
   base::WeakPtrFactory<ReadAnythingSidePanelWebView> weak_factory_{this};

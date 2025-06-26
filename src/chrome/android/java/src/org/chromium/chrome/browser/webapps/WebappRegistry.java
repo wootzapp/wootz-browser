@@ -18,6 +18,7 @@ import org.jni_zero.CalledByNative;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.PackageUtils;
+import org.chromium.base.ResettersForTesting;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.base.task.PostTask;
@@ -47,18 +48,17 @@ import java.util.Set;
  * WebappDataStorage class). This class must be used on the main thread, except when warming
  * SharedPreferences.
  *
- * Aside from web app registration, which is asynchronous as a new SharedPreferences file must be
+ * <p>Aside from web app registration, which is asynchronous as a new SharedPreferences file must be
  * opened, all methods in this class are synchronous. All web app SharedPreferences known to
  * WebappRegistry are pre-warmed on browser startup when creating the singleton WebappRegistry
  * instance, whilst registering a new web app will automatically cache the new SharedPreferences
  * after it is created.
  *
- * This class is not a comprehensive list of installed web apps because it is impossible to know
+ * <p>This class is not a comprehensive list of installed web apps because it is impossible to know
  * when the user removes a web app from the home screen. The WebappDataStorage.wasUsedRecently()
  * heuristic attempts to compensate for this.
  */
 public class WebappRegistry {
-
     static final String REGISTRY_FILE_NAME = "webapp_registry";
     static final String KEY_WEBAPP_SET = "webapp_set";
     static final String KEY_LAST_CLEANUP = "last_cleanup";
@@ -128,9 +128,9 @@ public class WebappRegistry {
     /**
      * Registers the existence of a web app, creates a SharedPreference entry for it, and runs the
      * supplied callback (if not null) on the UI thread with the resulting WebappDataStorage object.
+     *
      * @param webappId The id of the web app to register.
      * @param callback The callback to run with the WebappDataStorage argument.
-     * @return The storage object for the web app.
      */
     public void register(final String webappId, final FetchWebappDataStorageCallback callback) {
         new AsyncTask<WebappDataStorage>() {
@@ -216,7 +216,10 @@ public class WebappRegistry {
             String scope = getWebApkScopeFromStorage(storage);
             if (scope.isEmpty()) continue;
 
-            if (scope.startsWith(origin)) return true;
+            if (scope.startsWith(origin)
+                    && PackageUtils.isPackageInstalled(storage.getWebApkPackageName())) {
+                return true;
+            }
         }
         return false;
     }
@@ -352,11 +355,12 @@ public class WebappRegistry {
     }
 
     /**
-     * Returns the WebAPK PackageName whose manifestId matches the provided one. Returns null
-     * if no matches.
+     * Returns the WebAPK PackageName whose manifestId matches the provided one. Returns null if no
+     * matches.
+     *
      * @param manifestId The manifestId to search for.
      * @return The package name for the WebAPK, or null if one cannot be found.
-     **/
+     */
     public @Nullable String findWebApkWithManifestId(String manifestId) {
         WebappDataStorage storage = getWebappDataStorageForManifestId(manifestId);
         if (storage != null) {
@@ -464,8 +468,15 @@ public class WebappRegistry {
         return mPermissionStore;
     }
 
+    public void setPermissionStoreForTesting(InstalledWebappPermissionStore store) {
+        var oldValue = mPermissionStore;
+        mPermissionStore = store;
+        ResettersForTesting.register(() -> mPermissionStore = oldValue);
+    }
+
     /**
      * Deletes the data of all web apps whose url matches |urlFilter|.
+     *
      * @param urlFilter The filter object to check URLs.
      */
     @VisibleForTesting

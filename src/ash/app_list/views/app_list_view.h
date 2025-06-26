@@ -39,9 +39,9 @@ class ImplicitAnimationObserver;
 namespace ash {
 class AppListA11yAnnouncer;
 class AppsContainerView;
-class ApplicationDragAndDropHost;
 class AppListMainView;
 class AppsGridView;
+class ButtonFocusSkipper;
 class PagedAppsGridView;
 class PaginationModel;
 class SearchBoxView;
@@ -127,13 +127,6 @@ class ASH_EXPORT AppListView : public views::WidgetDelegateView,
   // Sets the state of all child views to be re-shown, then shows the view.
   // |preferred_state| - The initial app list view state.
   void Show(AppListViewState preferred_state);
-
-  // If |drag_and_drop_host| is not nullptr it will be called upon drag and drop
-  // operations outside the application list. This has to be called after
-  // Initialize was called since the app list object needs to exist so that
-  // it can set the host.
-  void SetDragAndDropHostOfCurrentAppList(
-      ApplicationDragAndDropHost* drag_and_drop_host);
 
   // Resets the child views before showing the AppListView.
   void ResetForShow();
@@ -349,6 +342,8 @@ class ASH_EXPORT AppListView : public views::WidgetDelegateView,
   // A timer which will reset the app list to the initial page. This timer only
   // goes off when the app list is not visible after a set amount of time.
   base::OneShotTimer page_reset_timer_;
+
+  std::unique_ptr<ButtonFocusSkipper> button_focus_skipper_;
 
   // Used to cancel in progress `SetState()` request if `SetState()` gets called
   // again. Updating children state during app list view state update may cause

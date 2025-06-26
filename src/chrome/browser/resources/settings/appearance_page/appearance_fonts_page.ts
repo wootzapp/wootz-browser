@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import 'chrome://resources/cr_elements/cr_shared_style.css.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
 import '../controls/settings_slider.js';
 import '../settings_shared.css.js';
 import '../controls/settings_dropdown_menu.js';
@@ -88,10 +87,10 @@ export class SettingsAppearanceFontsPageElement extends PolymerElement {
     ];
   }
 
-  prefs: Object;
-  private fontOptions_: DropdownMenuOptionList;
-  private fontSizeRange_: SliderTick[];
-  private minimumFontSizeRange_: SliderTick[];
+  declare prefs: Object;
+  declare private fontOptions_: DropdownMenuOptionList;
+  declare private fontSizeRange_: SliderTick[];
+  declare private minimumFontSizeRange_: SliderTick[];
   private browserProxy_: FontsBrowserProxy =
       FontsBrowserProxyImpl.getInstance();
 
@@ -119,6 +118,19 @@ export class SettingsAppearanceFontsPageElement extends PolymerElement {
 
   private onMinimumSizeChange_() {
     this.$.minimumSizeFontPreview.hidden = this.computeMinimumFontSize_() <= 0;
+  }
+
+  private fontFamilyValueForFixed_(prefValue: string) {
+    // <if expr="is_macosx">
+    // Osaka font family, which is bundled with macOS, contains a proportional
+    // and a fixed-width fonts. The CSS `font-family` property distinguishes
+    // them by assuming 'Osaka' for the proportional font and 'Osaka-Mono' for
+    // the fixed-width font. See crbug.com/40535332.
+    if (prefValue === 'Osaka') {
+      return 'Osaka-Mono';
+    }
+    // </if>
+    return prefValue;
   }
 }
 

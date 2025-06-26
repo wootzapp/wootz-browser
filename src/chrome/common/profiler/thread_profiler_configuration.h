@@ -8,11 +8,11 @@
 #include <initializer_list>
 #include <optional>
 #include <string>
+#include <variant>
 
 #include "base/no_destructor.h"
 #include "base/profiler/stack_sampling_profiler.h"
-#include "components/metrics/call_stacks/call_stack_profile_params.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
+#include "components/sampling_profiler/process_type.h"
 
 namespace base {
 class CommandLine;
@@ -42,7 +42,7 @@ class ThreadProfilerConfiguration {
 
   // True if the profiler should be started for |thread| in the current process.
   bool IsProfilerEnabledForCurrentProcessAndThread(
-      metrics::CallStackProfileParams::Thread thread) const;
+      sampling_profiler::ProfilerThreadType thread) const;
 
   // Get the synthetic field trial configuration. Returns true if a synthetic
   // field trial should be registered. This should only be called from the
@@ -53,22 +53,15 @@ class ThreadProfilerConfiguration {
 
   // True if profiler should be enabled for the child process.
   bool IsProfilerEnabledForChildProcess(
-      metrics::CallStackProfileParams::Process child_process) const;
+      sampling_profiler::ProfilerProcessType child_process) const;
 
   // Add a command line switch that instructs the child process to run the
   // profiler. This should only be called from the browser process.
   void AppendCommandLineSwitchForChildProcess(
       base::CommandLine* command_line) const;
 
-#if BUILDFLAG(IS_ANDROID)
-  bool IsJavaNameHashingEnabled() const;
-#endif  // BUILDFLAG(IS_ANDROID)
-
- private:
-  friend base::NoDestructor<ThreadProfilerConfiguration>;
-
   // The variation groups that represent the Chrome-wide profiling
-  // configurations.
+  // configurations. Exposed for testing.
   enum VariationGroup {
     // Disabled within the experiment.
     kProfileDisabled,
@@ -81,19 +74,30 @@ class ThreadProfilerConfiguration {
     // kProfileDisabled group).
     kProfileControl,
 
-#if BUILDFLAG(IS_ANDROID)
-    // Enabled within the experiment (and paired with equal-sized
-    // kProfileDisabled and kProfileControl groups). Java names will be
-    // hashed within this group.
-    kProfileEnabledWithJavaNameHashing,
-#endif  // BUILDFLAG(IS_ANDROID)
-
     // Enabled outside of the experiment.
     kProfileEnabled,
 
     // Disabled outside of the experiment.
     kProfileDisabledOutsideOfExperiment,
   };
+
+  // Configuration variations, along with weights to use when randomly choosing
+  // one of a set of variations. Exposed for testing.
+  struct Variation {
+    VariationGroup group;
+    double weight;
+  };
+
+  // Randomly chooses a variation from the weighted variations. Weights are
+  // expected to sum to 100 as a sanity check. Exposed for testing.
+  // randValue is a random value in the interval [0, 1) and is used to
+  // determine the variation group.
+  static VariationGroup ChooseVariationGroup(
+      std::initializer_list<Variation> variations,
+      double randValue);
+
+ private:
+  friend base::NoDestructor<ThreadProfilerConfiguration>;
 
   struct BrowserProcessConfiguration {
     // The configuration state for the browser process. If !has_value()
@@ -105,7 +109,7 @@ class ThreadProfilerConfiguration {
     // In pick-single-type-of-process-to-sample mode, only a single process
     // type will be profiled when profiling is enabled. If !has_value(), the
     // profiling will be enabled for as many processes as possible.
-    std::optional<metrics::CallStackProfileParams::Process>
+    std::optional<sampling_profiler::ProfilerProcessType>
         process_type_to_sample;
   };
 
@@ -117,14 +121,7 @@ class ThreadProfilerConfiguration {
 
   // The configuration state for the current process, browser or child.
   using Configuration =
-      absl::variant<BrowserProcessConfiguration, ChildProcessConfiguration>;
-
-  // Configuration variations, along with weights to use when randomly choosing
-  // one of a set of variations.
-  struct Variation {
-    VariationGroup group;
-    int weight;
-  };
+      std::variant<BrowserProcessConfiguration, ChildProcessConfiguration>;
 
   ThreadProfilerConfiguration();
 
@@ -137,12 +134,7 @@ class ThreadProfilerConfiguration {
   // have profiling enabled so that the user impact can be minimized.
   static bool IsProcessGloballyEnabled(
       const ThreadProfilerConfiguration::BrowserProcessConfiguration& config,
-      metrics::CallStackProfileParams::Process process);
-
-  // Randomly chooses a variation from the weighted variations. Weights are
-  // expected to sum to 100 as a sanity check.
-  static VariationGroup ChooseVariationGroup(
-      std::initializer_list<Variation> variations);
+      sampling_profiler::ProfilerProcessType process);
 
   // Generates a configuration for the browser process.
   static BrowserProcessConfiguration GenerateBrowserProcessConfiguration(
@@ -154,7 +146,7 @@ class ThreadProfilerConfiguration {
 
   // Generates a configuration for the current process.
   static Configuration GenerateConfiguration(
-      metrics::CallStackProfileParams::Process process,
+      sampling_profiler::ProfilerProcessType process,
       const ThreadProfilerPlatformConfiguration& platform_configuration);
 
   // NOTE: all state in this class must be const and initialized at construction

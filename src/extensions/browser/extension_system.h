@@ -17,9 +17,8 @@
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_id.h"
 
-#if !BUILDFLAG(ENABLE_EXTENSIONS)
-#error "Extensions must be enabled"
-#endif
+static_assert(BUILDFLAG(ENABLE_EXTENSIONS) ||
+              BUILDFLAG(ENABLE_DESKTOP_ANDROID_EXTENSIONS));
 
 namespace base {
 class OneShotEvent;
@@ -135,14 +134,6 @@ class ExtensionSystem : public KeyedService {
   virtual void PerformActionBasedOnOmahaAttributes(
       const ExtensionId& extension_id,
       const base::Value::Dict& attributes) = 0;
-
-  // Attempts finishing installation of an update for an extension with the
-  // specified id, when installation of that extension was previously delayed.
-  // |install_immediately| - Install the extension should be installed if it is
-  // currently in use.
-  // Returns whether the extension installation was finished.
-  virtual bool FinishDelayedInstallationIfReady(const ExtensionId& extension_id,
-                                                bool install_immediately) = 0;
 };
 
 }  // namespace extensions

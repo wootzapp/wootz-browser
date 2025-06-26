@@ -8,16 +8,15 @@
 #include <string>
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX)
 #include "ui/base/ui_base_types.h"
 #endif
 
 namespace gfx {
 class Size;
 class Rect;
-}
+}  // namespace gfx
 
 // Delegate interface to control layout decisions without having to depend on
 // Browser{,Frame,View}.
@@ -88,8 +87,7 @@ class OpaqueBrowserFrameViewLayoutDelegate {
   // Indicates the type of the frame buttons.
   virtual FrameButtonStyle GetFrameButtonStyle() const;
 
-  virtual void UpdateWindowControlsOverlay(
-      const gfx::Rect& bounding_rect) const = 0;
+  virtual void UpdateWindowControlsOverlay(const gfx::Rect& bounding_rect) = 0;
 
   // Returns true if a client-side shadow should be drawn for restored windows.
   virtual bool ShouldDrawRestoredFrameShadow() const = 0;

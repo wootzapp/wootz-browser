@@ -22,7 +22,6 @@
 #include "ipc/ipc_sender.h"
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
-#include "third_party/blink/public/common/metrics/post_message_counter.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/mojom/frame/frame.mojom.h"
 #include "third_party/blink/public/mojom/input/focus_type.mojom-forward.h"
@@ -132,7 +131,7 @@ class CONTENT_EXPORT RenderFrameProxyHost
 
   int GetRoutingID() const { return routing_id_; }
   GlobalRoutingID GetGlobalID() const {
-    return GlobalRoutingID(GetProcess()->GetID(), routing_id_);
+    return GlobalRoutingID(GetProcess()->GetDeprecatedID(), routing_id_);
   }
 
   // Each RenderFrameProxyHost belongs to a SiteInstanceGroup, where it is a
@@ -228,7 +227,7 @@ class CONTENT_EXPORT RenderFrameProxyHost
                     const blink::LocalFrameToken& source_frame_token) override;
   void RouteMessageEvent(
       const std::optional<blink::LocalFrameToken>& source_frame_token,
-      const std::u16string& source_origin,
+      const url::Origin& source_origin,
       const std::u16string& target_origin,
       blink::TransferableMessage message) override;
   void PrintCrossProcessSubframe(const gfx::Rect& rect,
@@ -314,6 +313,12 @@ class CONTENT_EXPORT RenderFrameProxyHost
   // with.
   AgentSchedulingGroupHost& GetAgentSchedulingGroup();
 
+  // Helper to compute the serialized source origin from an actual source origin
+  // for postMessage. This will ultimately be exposed to JavaScript via the
+  // message's event.origin field.
+  std::u16string SerializePostMessageSourceOrigin(
+      const url::Origin& source_origin);
+
   // Needed for tests to be able to swap the implementation and intercept calls.
   mojo::AssociatedReceiver<blink::mojom::RemoteFrameHost>&
   frame_host_receiver_for_testing() {
@@ -327,6 +332,8 @@ class CONTENT_EXPORT RenderFrameProxyHost
   // placeholder for a frame in a different SiteInstanceGroup.
   scoped_refptr<SiteInstanceGroup> site_instance_group_;
 
+  // TODO(crbug.com/388998723): Remove the comment about the side effect
+  // of GetProcess() after the full migration to GetOrCreateProcess().
   // The renderer process this RenderFrameProxyHost is associated with. It is
   // equivalent to the result of site_instance_group_->GetProcess(), but that
   // method has the side effect of creating the process if it doesn't exist.
@@ -354,9 +361,6 @@ class CONTENT_EXPORT RenderFrameProxyHost
   // some form of page context.
   scoped_refptr<RenderViewHostImpl> render_view_host_;
 
-  std::unique_ptr<blink::AssociatedInterfaceProvider>
-      remote_associated_interfaces_;
-
   // Holder of Mojo connection with the Frame service in Blink.
   mojo::AssociatedRemote<blink::mojom::RemoteFrame> remote_frame_;
 
@@ -371,10 +375,6 @@ class CONTENT_EXPORT RenderFrameProxyHost
       remote_main_frame_host_receiver_{this};
 
   blink::RemoteFrameToken frame_token_;
-
-  // Tracks metrics related to postMessage usage.
-  // TODO(crbug.com/40737536): Remove when no longer needed.
-  blink::PostMessageCounter post_message_counter_;
 
   base::WeakPtrFactory<RenderFrameProxyHost> weak_factory_{this};
 };

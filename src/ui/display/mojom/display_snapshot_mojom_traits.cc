@@ -30,8 +30,7 @@ static uint64_t GetModeIndex(
         modes[i].get()->refresh_rate() == mode->refresh_rate())
       return i;
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::numeric_limits<uint64_t>::max();
+  NOTREACHED();
 }
 
 }  // namespace
@@ -170,10 +169,6 @@ bool StructTraits<display::mojom::DisplaySnapshotDataView,
   if (!data.ReadVariableRefreshRateState(&variable_refresh_rate_state))
     return false;
 
-  const std::optional<uint16_t> vsync_rate_min =
-      data.vsync_rate_min() > 0 ? std::make_optional(data.vsync_rate_min())
-                                : std::nullopt;
-
   display::DrmFormatsAndModifiers drm_formats_and_modifiers;
 #if BUILDFLAG(IS_CHROMEOS)
   if (!data.ReadDrmFormatsAndModifiers(&drm_formats_and_modifiers)) {
@@ -190,7 +185,7 @@ bool StructTraits<display::mojom::DisplaySnapshotDataView,
       display_name, file_path, std::move(modes), panel_orientation,
       std::move(edid), current_mode, native_mode, data.product_code(),
       data.year_of_manufacture(), maximum_cursor_size,
-      variable_refresh_rate_state, vsync_rate_min, drm_formats_and_modifiers);
+      variable_refresh_rate_state, drm_formats_and_modifiers);
   return true;
 }
 

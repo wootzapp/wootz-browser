@@ -34,6 +34,7 @@
 #include <memory>
 #include <set>
 #include <utility>
+#include <vector>
 
 #include "base/dcheck_is_on.h"
 #include "base/observer_list.h"
@@ -44,6 +45,7 @@
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "services/network/public/mojom/web_sandbox_flags.mojom-blink.h"
 #include "third_party/blink/public/common/context_menu_data/context_menu_data.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/tokens/tokens.h"
 #include "third_party/blink/public/mojom/back_forward_cache_not_restored_reasons.mojom.h"
 #include "third_party/blink/public/mojom/blob/blob_url_store.mojom-blink-forward.h"
@@ -105,16 +107,13 @@ struct ContextMenuData;
 struct WebAssociatedURLLoaderOptions;
 struct WebPrintParams;
 
-template <typename T>
-class WebVector;
-
 // Implementation of WebFrame, note that this is a reference counted object.
 class CORE_EXPORT WebLocalFrameImpl final
     : public GarbageCollected<WebLocalFrameImpl>,
       public WebNavigationControl {
  public:
   // WebFrame overrides:
-  void Close() override;
+  void Close(DetachReason detach_reason) override;
   WebView* View() const override;
   v8::Local<v8::Object> GlobalProxy(v8::Isolate* isolate) const override;
   bool IsLoading() const override;
@@ -130,6 +129,7 @@ class CORE_EXPORT WebLocalFrameImpl final
   WebAutofillClient* AutofillClient() override;
   void SetContentCaptureClient(WebContentCaptureClient*) override;
   WebContentCaptureClient* ContentCaptureClient() const override;
+  BrowserInterfaceBrokerProxy& GetBrowserInterfaceBroker() override;
   WebDocument GetDocument() const override;
   WebString AssignedName() const override;
   ui::AXTreeID GetAXTreeID() const override;
@@ -144,6 +144,8 @@ class CORE_EXPORT WebLocalFrameImpl final
       const override;
   bool IsInFencedFrameTree() const override;
   void SendPings(const WebURL& destination_url) override;
+  void SendAttributionSrc(const std::optional<Impression>&,
+                          bool did_navigate) override;
   void StartReload(WebFrameLoadType) override;
   void ClearActiveFindMatchForTesting() override;
   void EnableViewSourceMode(bool enable) override;
@@ -197,6 +199,7 @@ class CORE_EXPORT WebLocalFrameImpl final
                             BackForwardCacheAware back_forward_cache_aware,
                             mojom::blink::WantResultOption,
                             mojom::blink::PromiseResultOption) override;
+  bool IsInspectorConnected() override;
   void Alert(const WebString& message) override;
   bool Confirm(const WebString& message) override;
   WebString Prompt(const WebString& message,
@@ -238,9 +241,15 @@ class CORE_EXPORT WebLocalFrameImpl final
       const gfx::Point& extent,
       WebFrame::TextGranularity = kCharacterGranularity) override;
   void MoveCaretSelection(const gfx::Point&) override;
+
+#if BUILDFLAG(IS_IOS)
+  void StartAutoscrollForSelectionToPoint(const gfx::PointF&);
+  void StopAutoscroll();
+#endif  // BUILDFLAG(IS_IOS)
+
   bool SetEditableSelectionOffsets(int start, int end) override;
   bool AddImeTextSpansToExistingText(
-      const WebVector<ui::ImeTextSpan>& ime_text_spans,
+      const std::vector<ui::ImeTextSpan>& ime_text_spans,
       unsigned text_start,
       unsigned text_end) override;
   bool ClearImeTextSpansByType(ui::ImeTextSpan::Type type,
@@ -249,7 +258,7 @@ class CORE_EXPORT WebLocalFrameImpl final
   bool SetCompositionFromExistingText(
       int composition_start,
       int composition_end,
-      const WebVector<ui::ImeTextSpan>& ime_text_spans) override;
+      const std::vector<ui::ImeTextSpan>& ime_text_spans) override;
   void ExtendSelectionAndDelete(int before, int after) override;
   void ExtendSelectionAndReplace(int before,
                                  int after,
@@ -266,9 +275,10 @@ class CORE_EXPORT WebLocalFrameImpl final
   void ReplaceMisspelledRange(const WebString&) override;
   void RemoveSpellingMarkers() override;
   void RemoveSpellingMarkersUnderWords(
-      const WebVector<WebString>& words) override;
+      const std::vector<WebString>& words) override;
   WebContentSettingsClient* GetContentSettingsClient() const override;
   void SetContentSettingsClient(WebContentSettingsClient*) override;
+  const mojom::RendererContentSettingsPtr& GetContentSettings() const override;
   void ReloadImage(const WebNode&) override;
   bool IsAllowedToDownload() const override;
   bool IsCrossOriginToOutermostMainFrame() const override;
@@ -281,7 +291,7 @@ class CORE_EXPORT WebLocalFrameImpl final
                       bool wrap_within_frame,
                       bool async) override;
   void SetTickmarks(const WebElement& target,
-                    const WebVector<gfx::Rect>& tickmarks) override;
+                    const std::vector<gfx::Rect>& tickmarks) override;
   WebNode ContextMenuImageNode() const override;
   WebNode ContextMenuNode() const override;
   void CopyImageAtForTesting(const gfx::Point&) override;
@@ -301,7 +311,7 @@ class CORE_EXPORT WebLocalFrameImpl final
       const WebAssociatedURLLoaderOptions&) override;
   void DeprecatedStopLoading() override;
   gfx::PointF GetScrollOffset() const override;
-  void SetScrollOffset(const gfx::PointF&) override;
+  bool SetScrollOffset(const gfx::PointF&) override;
   gfx::Size DocumentSize() const override;
   bool HasVisibleContent() const override;
   gfx::Rect VisibleContentRect() const override;
@@ -320,7 +330,6 @@ class CORE_EXPORT WebLocalFrameImpl final
                            cc::PaintCanvas* canvas,
                            bool include_linked_destinations,
                            bool skip_accelerated_content) override;
-  bool ShouldSuppressKeyboardForFocusedElement() override;
   WebPerformanceMetricsForReporting PerformanceMetricsForReporting()
       const override;
   WebPerformanceMetricsForNestedContexts PerformanceMetricsForNestedContexts()
@@ -331,12 +340,12 @@ class CORE_EXPORT WebLocalFrameImpl final
   const std::optional<blink::FrameAdEvidence>& AdEvidence() override;
   bool IsFrameCreatedByAdScript() override;
   gfx::Size SpoolSizeInPixelsForTesting(
-      const WebVector<uint32_t>& pages) override;
+      const std::vector<uint32_t>& pages) override;
   gfx::Size SpoolSizeInPixelsForTesting(uint32_t page_count) override;
   void PrintPagesForTesting(
       cc::PaintCanvas*,
       const gfx::Size& spool_size_in_pixels,
-      const WebVector<uint32_t>* pages = nullptr) override;
+      const std::vector<uint32_t>* pages = nullptr) override;
   gfx::Rect GetSelectionBoundsRectForTesting() const override;
   gfx::Point GetPositionInViewportForTesting() const override;
   void WasHidden() override;
@@ -382,12 +391,14 @@ class CORE_EXPORT WebLocalFrameImpl final
       bool has_transient_user_activation,
       const WebSecurityOrigin& initiator_origin,
       bool is_browser_initiated,
+      bool has_ua_visual_transition,
       std::optional<scheduler::TaskAttributionId>
-          soft_navigation_heuristics_task_id) override;
+          soft_navigation_heuristics_task_id,
+      bool should_skip_screenshot) override;
   void SetIsNotOnInitialEmptyDocument() override;
   bool IsOnInitialEmptyDocument() override;
   void MaybeStartOutermostMainFrameNavigation(
-      const WebVector<WebURL>& urls) const override;
+      const std::vector<WebURL>& urls) const override;
   bool WillStartNavigation(const WebNavigationInfo&) override;
   void DidDropNavigation() override;
   void DownloadURL(
@@ -395,6 +406,7 @@ class CORE_EXPORT WebLocalFrameImpl final
       network::mojom::blink::RedirectMode cross_origin_redirect_behavior,
       CrossVariantMojoRemote<mojom::blink::BlobURLTokenInterfaceBase>
           blob_url_token) override;
+  WebFrame* GetProvisionalOwnerFrame() override;
 
   void SetNotRestoredReasons(
       const mojom::BackForwardCacheNotRestoredReasonsPtr&) override;
@@ -404,6 +416,9 @@ class CORE_EXPORT WebLocalFrameImpl final
 
   void SetLCPPHint(
       const mojom::LCPCriticalPathPredictorNavigationTimeHintPtr&) override;
+
+  bool IsFeatureEnabled(
+      const network::mojom::PermissionsPolicyFeature&) const override;
 
   void InitializeCoreFrame(
       Page&,
@@ -415,6 +430,8 @@ class CORE_EXPORT WebLocalFrameImpl final
       WindowAgentFactory*,
       WebFrame* opener,
       const DocumentToken& document_token,
+      mojo::PendingRemote<mojom::blink::BrowserInterfaceBroker>
+          interface_broker,
       std::unique_ptr<blink::WebPolicyContainer> policy_container,
       const StorageKey& storage_key,
       const KURL& creator_base_url,
@@ -430,6 +447,7 @@ class CORE_EXPORT WebLocalFrameImpl final
       WebView*,
       WebLocalFrameClient*,
       InterfaceRegistry*,
+      mojo::PendingRemote<mojom::blink::BrowserInterfaceBroker>,
       const LocalFrameToken& frame_token,
       WebFrame* opener,
       const WebString& name,
@@ -440,6 +458,7 @@ class CORE_EXPORT WebLocalFrameImpl final
   static WebLocalFrameImpl* CreateProvisional(
       WebLocalFrameClient*,
       InterfaceRegistry*,
+      mojo::PendingRemote<mojom::blink::BrowserInterfaceBroker>,
       const LocalFrameToken& frame_token,
       WebFrame* previous_frame,
       const FramePolicy&,
@@ -490,8 +509,8 @@ class CORE_EXPORT WebLocalFrameImpl final
 
   void SendOrientationChangeEvent();
 
-  void SetDevToolsAgentImpl(WebDevToolsAgentImpl*);
-  WebDevToolsAgentImpl* DevToolsAgentImpl();
+  WebDevToolsAgentImpl* DevToolsAgentImpl(bool create_if_necessary);
+  void OnDevToolsSessionConnectionChanged(bool attached);
 
   // Instructs devtools to pause loading of the frame as soon as it's shown
   // until explicit command from the devtools client. May only be called on a
@@ -506,6 +525,8 @@ class CORE_EXPORT WebLocalFrameImpl final
   // allows us to navigate by pressing Enter after closing the Find box.
   void SetFindEndstateFocusAndSelection();
 
+  void DidCommitLoad();
+  void DidDispatchDOMContentLoadedEvent();
   void DidFailLoad(const ResourceError&, WebHistoryCommitType);
   void DidFinish();
   void DidFinishLoadForPrinting();
@@ -536,9 +557,6 @@ class CORE_EXPORT WebLocalFrameImpl final
   // Returns true if the frame is focused.
   bool IsFocused() const;
 
-  // Returns true if our print context suggests using printing layout.
-  bool UsePrintingLayout() const;
-
   // Copy the current selection to the pboard.
   void CopyToFindPboard();
 
@@ -552,7 +570,7 @@ class CORE_EXPORT WebLocalFrameImpl final
       const ContextMenuData& data,
       const std::optional<gfx::Point>& host_context_menu_location);
 
-  virtual void Trace(Visitor*) const;
+  void Trace(Visitor*) const;
 
   // Functions to add and remove observers for this object.
   void AddObserver(WebLocalFrameObserver* observer);
@@ -625,6 +643,8 @@ class CORE_EXPORT WebLocalFrameImpl final
       WindowAgentFactory*,
       WebFrame* opener,
       const DocumentToken& document_token,
+      mojo::PendingRemote<mojom::blink::BrowserInterfaceBroker>
+          interface_broker,
       std::unique_ptr<PolicyContainer> policy_container,
       const StorageKey& storage_key,
       ukm::SourceId document_ukm_source_id,
@@ -636,6 +656,11 @@ class CORE_EXPORT WebLocalFrameImpl final
   // mojom::blink::BackForwardCacheNotRestoredReasonsPtr.
   mojom::blink::BackForwardCacheNotRestoredReasonsPtr ConvertNotRestoredReasons(
       const mojom::BackForwardCacheNotRestoredReasonsPtr& reasons_struct);
+
+  // If true, requests compositor warm-up when the page is under prerendering.
+  // Please see crbug.com/41496019 for more details.
+  bool ShouldWarmUpCompositorOnPrerenderFromThisPoint(
+      features::Prerender2WarmUpCompositorTriggerPoint trigger_point);
 
   WebLocalFrameClient* client_;
 

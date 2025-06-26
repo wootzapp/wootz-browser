@@ -2,17 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#import <algorithm>
 #import <optional>
 #import <set>
 
-#import "base/ranges/algorithm.h"
 #import "base/test/metrics/histogram_tester.h"
 #import "base/test/scoped_feature_list.h"
 #import "base/test/task_environment.h"
 #import "base/time/time.h"
-#import "components/autofill/core/browser/browser_autofill_manager.h"
-#import "components/autofill/core/browser/test_autofill_client.h"
-#import "components/autofill/core/common/autofill_features.h"
+#import "components/autofill/core/browser/foundations/browser_autofill_manager.h"
+#import "components/autofill/core/browser/foundations/test_autofill_client.h"
 #import "components/autofill/core/common/field_data_manager.h"
 #import "components/autofill/core/common/form_data.h"
 #import "components/autofill/core/common/form_field_data.h"
@@ -21,6 +20,7 @@
 #import "components/autofill/ios/browser/autofill_driver_ios.h"
 #import "components/autofill/ios/browser/autofill_driver_ios_factory.h"
 #import "components/autofill/ios/browser/autofill_java_script_feature.h"
+#import "components/autofill/ios/browser/test_autofill_client_ios.h"
 #import "components/autofill/ios/browser/test_autofill_manager_injector.h"
 #import "components/autofill/ios/common/field_data_manager_factory_ios.h"
 #import "ios/web/public/test/fakes/fake_web_frame.h"
@@ -37,13 +37,12 @@ namespace autofill {
 class TestingAutofillManager : public BrowserAutofillManager {
  public:
   explicit TestingAutofillManager(AutofillDriverIOS* driver)
-      : BrowserAutofillManager(driver, "en-US") {}
+      : BrowserAutofillManager(driver) {}
 
   void OnFormSubmitted(const FormData& form,
-                       const bool known_success,
                        const mojom::SubmissionSource source) override {
     submitted_form_ = form;
-    BrowserAutofillManager::OnFormSubmitted(form, known_success, source);
+    BrowserAutofillManager::OnFormSubmitted(form, source);
   }
 
   const std::optional<FormData>& submitted_form() const {
@@ -58,10 +57,6 @@ class TestingAutofillManager : public BrowserAutofillManager {
 // AutofillDriverIOS.
 class AutofillXHRSubmissionDetectionTest : public PlatformTest {
  public:
-  AutofillXHRSubmissionDetectionTest()
-      : PlatformTest(),
-        feature_list_(features::kAutofillEnableXHRSubmissionDetectionIOS) {}
-
   void SetUp() override {
     PlatformTest::SetUp();
 
@@ -76,16 +71,15 @@ class AutofillXHRSubmissionDetectionTest : public PlatformTest {
     web_state_.SetWebFramesManager(content_world,
                                    std::move(web_frames_manager));
 
+    // Driver factory needs to exist before any call to
+    // `AutofillDriverIOS::FromWebStateAndWebFrame`, or we crash.
+    autofill_client_ =
+        std::make_unique<TestAutofillClientIOS>(&web_state_, /*bridge=*/nil);
+
     // Replace AutofillManager with the test implementation.
     autofill_manager_injector_ =
         std::make_unique<TestAutofillManagerInjector<TestingAutofillManager>>(
             &web_state_);
-
-    // Driver factory needs to exist before any call to
-    // `AutofillDriverIOS::FromWebStateAndWebFrame`, or we crash.
-    autofill::AutofillDriverIOSFactory::CreateForWebState(
-        &web_state_, &autofill_client_, /*bridge=*/nil,
-        /*locale=*/"en");
 
     // Inject a fake main frame.
     auto main_frame =
@@ -106,9 +100,8 @@ class AutofillXHRSubmissionDetectionTest : public PlatformTest {
         main_frame_driver()->GetAutofillManager());
   }
 
-  base::test::ScopedFeatureList feature_list_;
   base::test::TaskEnvironment task_environment_;
-  autofill::TestAutofillClient autofill_client_;
+  std::unique_ptr<TestAutofillClientIOS> autofill_client_;
   web::FakeWebState web_state_;
   raw_ptr<web::FakeWebFramesManager> web_frames_manager_;
   std::unique_ptr<TestAutofillManagerInjector<TestingAutofillManager>>
@@ -122,40 +115,40 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
        SubmissionDetectedAfterLastInteractedFormRemoved) {
   // Create two dummy FormData to simulate interaction and removal.
   FormData form_data1;
-  form_data1.renderer_id = FormRendererId(1);
+  form_data1.set_renderer_id(FormRendererId(1));
   FormFieldData form_field_data1;
   form_field_data1.set_renderer_id(FieldRendererId(2));
-  form_field_data1.set_host_form_id(form_data1.renderer_id);
-  form_data1.fields = {form_field_data1};
+  form_field_data1.set_host_form_id(form_data1.renderer_id());
+  form_data1.set_fields({form_field_data1});
 
   FormData form_data2;
-  form_data2.renderer_id = FormRendererId(3);
+  form_data2.set_renderer_id(FormRendererId(3));
   FormFieldData form_field_data2;
   form_field_data2.set_renderer_id(FieldRendererId(4));
-  form_field_data2.set_host_form_id(form_data2.renderer_id);
+  form_field_data2.set_host_form_id(form_data2.renderer_id());
   FormFieldData form_field_data3;
   form_field_data3.set_renderer_id(FieldRendererId(5));
-  form_field_data3.set_host_form_id(form_data2.renderer_id);
+  form_field_data3.set_host_form_id(form_data2.renderer_id());
 
   // Simulate typing in the first form.
   auto* autofill_driver = main_frame_driver();
   ASSERT_TRUE(autofill_driver);
-  autofill_driver->TextFieldDidChange(form_data1, form_field_data1,
-                                      base::TimeTicks::Now());
+  autofill_driver->TextFieldValueChanged(
+      form_data1, form_field_data1.global_id(), base::TimeTicks::Now());
   // Simulate typing in the first field of the second form.
   form_field_data2.set_value(u"value2");
-  form_data2.fields = {form_field_data2, form_field_data3};
-  autofill_driver->TextFieldDidChange(form_data2, form_field_data2,
-                                      base::TimeTicks::Now());
+  form_data2.set_fields({form_field_data2, form_field_data3});
+  autofill_driver->TextFieldValueChanged(
+      form_data2, form_field_data2.global_id(), base::TimeTicks::Now());
 
   // Simulate typing on the other field of the second form.
   form_field_data3.set_value(u"value3");
-  form_data2.fields = {form_field_data2, form_field_data3};
-  autofill_driver->TextFieldDidChange(form_data2, form_field_data3,
-                                      base::TimeTicks::Now());
+  form_data2.set_fields({form_field_data2, form_field_data3});
+  autofill_driver->TextFieldValueChanged(
+      form_data2, form_field_data3.global_id(), base::TimeTicks::Now());
   // Simulate forms removal.
   autofill_driver->FormsRemoved(
-      /*removed_forms=*/{form_data1.renderer_id, form_data2.renderer_id},
+      /*removed_forms=*/{form_data1.renderer_id(), form_data2.renderer_id()},
       /*removed_unowned_fields=*/{});
 
   // Validate that last interacted form was detected as submitted and sent to
@@ -165,7 +158,7 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
   // Check that the submitted form has the values "typed" in each field.
   EXPECT_TRUE(
       FormData::DeepEqual(*autofill_manager.submitted_form(), form_data2));
-  EXPECT_THAT(autofill_manager.submitted_form()->fields,
+  EXPECT_THAT(autofill_manager.submitted_form()->fields(),
               ElementsAre(Property(&FormFieldData::value, u"value2"),
                           Property(&FormFieldData::value, u"value3")));
 
@@ -175,12 +168,6 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
       /*expected_bucket_count=*/1);
   histogram_tester_->ExpectUniqueSample(
       /*name=*/kFormSubmissionAfterFormRemovalHistogram, /*sample=*/true,
-      /*expected_bucket_count=*/1);
-  histogram_tester_->ExpectUniqueSample(
-      /*name=*/kFormlessSubmissionAfterFormRemovalHistogram, /*sample=*/false,
-      /*expected_bucket_count=*/1);
-  histogram_tester_->ExpectUniqueSample(
-      /*name=*/kFormRemovalRemovedFormsHistogram, /*sample=*/2,
       /*expected_bucket_count=*/1);
   histogram_tester_->ExpectUniqueSample(
       /*name=*/kFormRemovalRemovedUnownedFieldsHistogram, /*sample=*/0,
@@ -193,12 +180,12 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
        SubmissionDetectedAfterLastAutofilledFormRemoved) {
   // Create a dummy FormData to simulate interaction and removal.
   FormData form_data;
-  form_data.renderer_id = FormRendererId(1);
+  form_data.set_renderer_id(FormRendererId(1));
   FormFieldData form_field_data;
   form_field_data.set_renderer_id(FieldRendererId(2));
-  form_field_data.set_host_form_id(form_data.renderer_id);
+  form_field_data.set_host_form_id(form_data.renderer_id());
   form_field_data.set_value(u"value");
-  form_data.fields = {form_field_data};
+  form_data.set_fields({form_field_data});
 
   // Simulate autofilling the form.
   auto* autofill_driver = main_frame_driver();
@@ -206,7 +193,7 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
   autofill_driver->DidFillAutofillFormData(form_data, base::TimeTicks::Now());
 
   // Simulate form removal.
-  autofill_driver->FormsRemoved(/*removed_forms=*/{form_data.renderer_id},
+  autofill_driver->FormsRemoved(/*removed_forms=*/{form_data.renderer_id()},
                                 /*removed_unowned_fields=*/{});
 
   // Validate that the form was detected as submitted and sent to
@@ -215,7 +202,7 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
   ASSERT_TRUE(autofill_manager.submitted_form());
   EXPECT_TRUE(
       FormData::DeepEqual(*autofill_manager.submitted_form(), form_data));
-  EXPECT_THAT(autofill_manager.submitted_form()->fields,
+  EXPECT_THAT(autofill_manager.submitted_form()->fields(),
               ElementsAre(Property(&FormFieldData::value, u"value")));
 
   histogram_tester_->ExpectUniqueSample(
@@ -224,12 +211,6 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
       /*expected_count=*/1);
   histogram_tester_->ExpectUniqueSample(
       /*name=*/kFormSubmissionAfterFormRemovalHistogram, /*sample=*/true,
-      /*expected_bucket_count=*/1);
-  histogram_tester_->ExpectUniqueSample(
-      /*name=*/kFormlessSubmissionAfterFormRemovalHistogram, /*sample=*/false,
-      /*expected_bucket_count=*/1);
-  histogram_tester_->ExpectUniqueSample(
-      /*name=*/kFormRemovalRemovedFormsHistogram, /*sample=*/1,
       /*expected_bucket_count=*/1);
   histogram_tester_->ExpectUniqueSample(
       /*name=*/kFormRemovalRemovedUnownedFieldsHistogram, /*sample=*/0,
@@ -243,29 +224,29 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
   // Create a dummy formless FormData to simulate interaction and removal.
   FormData form_data;
   // Explicitly setting "formless form" renderer id for clarity.
-  form_data.renderer_id = FormRendererId(0);
+  form_data.set_renderer_id(FormRendererId(0));
   // Create two fields.
   FormFieldData form_field_data1;
   form_field_data1.set_renderer_id(FieldRendererId(1));
-  form_field_data1.set_host_form_id(form_data.renderer_id);
+  form_field_data1.set_host_form_id(form_data.renderer_id());
   FormFieldData form_field_data2;
   form_field_data2.set_renderer_id(FieldRendererId(2));
-  form_field_data2.set_host_form_id(form_data.renderer_id);
-  form_data.fields = {form_field_data1, form_field_data2};
+  form_field_data2.set_host_form_id(form_data.renderer_id());
+  form_data.set_fields({form_field_data1, form_field_data2});
 
   // Simulate the user updating the first field.
   auto* autofill_driver = main_frame_driver();
   ASSERT_TRUE(autofill_driver);
   form_field_data1.set_value(u"value1");
-  form_data.fields = {form_field_data1, form_field_data2};
-  autofill_driver->TextFieldDidChange(form_data, form_field_data1,
-                                      base::TimeTicks::Now());
+  form_data.set_fields({form_field_data1, form_field_data2});
+  autofill_driver->TextFieldValueChanged(
+      form_data, form_field_data1.global_id(), base::TimeTicks::Now());
 
   // Simulate the user updating the second field.
   form_field_data2.set_value(u"value2");
-  form_data.fields = {form_field_data1, form_field_data2};
-  autofill_driver->TextFieldDidChange(form_data, form_field_data2,
-                                      base::TimeTicks::Now());
+  form_data.set_fields({form_field_data1, form_field_data2});
+  autofill_driver->TextFieldValueChanged(
+      form_data, form_field_data2.global_id(), base::TimeTicks::Now());
 
   // Simulate the removal of the first formless field.
   autofill_driver->FormsRemoved(
@@ -282,12 +263,6 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
       /*expected_count=*/0);
   histogram_tester_->ExpectUniqueSample(
       /*name=*/kFormSubmissionAfterFormRemovalHistogram, /*sample=*/false,
-      /*expected_bucket_count=*/1);
-  histogram_tester_->ExpectTotalCount(
-      /*name=*/kFormlessSubmissionAfterFormRemovalHistogram,
-      /*expected_count=*/0);
-  histogram_tester_->ExpectUniqueSample(
-      /*name=*/kFormRemovalRemovedFormsHistogram, /*sample=*/0,
       /*expected_bucket_count=*/1);
   histogram_tester_->ExpectUniqueSample(
       /*name=*/kFormRemovalRemovedUnownedFieldsHistogram, /*sample=*/1,
@@ -306,7 +281,7 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
   ASSERT_TRUE(autofill_manager.submitted_form());
   EXPECT_TRUE(
       FormData::DeepEqual(*autofill_manager.submitted_form(), form_data));
-  EXPECT_THAT(autofill_manager.submitted_form()->fields,
+  EXPECT_THAT(autofill_manager.submitted_form()->fields(),
               ElementsAre(Property(&FormFieldData::value, u"value1"),
                           Property(&FormFieldData::value, u"value2")));
 
@@ -316,12 +291,6 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
       /*expected_count=*/1);
   histogram_tester_->ExpectUniqueSample(
       /*name=*/kFormSubmissionAfterFormRemovalHistogram, /*sample=*/true,
-      /*expected_bucket_count=*/1);
-  histogram_tester_->ExpectUniqueSample(
-      /*name=*/kFormlessSubmissionAfterFormRemovalHistogram, /*sample=*/true,
-      /*expected_bucket_count=*/1);
-  histogram_tester_->ExpectUniqueSample(
-      /*name=*/kFormRemovalRemovedFormsHistogram, /*sample=*/0,
       /*expected_bucket_count=*/1);
   histogram_tester_->ExpectUniqueSample(
       /*name=*/kFormRemovalRemovedUnownedFieldsHistogram, /*sample=*/1,
@@ -334,16 +303,16 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
        NoSubmissionDetectedAfterFormRemovedWithoutInteractions) {
   // Create a dummy FormData to simulate removal.
   FormData form_data;
-  form_data.renderer_id = FormRendererId(1);
+  form_data.set_renderer_id(FormRendererId(1));
   FormFieldData form_field_data;
   form_field_data.set_renderer_id(FieldRendererId(2));
-  form_field_data.set_host_form_id(form_data.renderer_id);
-  form_data.fields = {form_field_data};
+  form_field_data.set_host_form_id(form_data.renderer_id());
+  form_data.set_fields({form_field_data});
 
   auto* autofill_driver = main_frame_driver();
   ASSERT_TRUE(autofill_driver);
   // Simulate form removal without interactions.
-  autofill_driver->FormsRemoved(/*removed_forms=*/{form_data.renderer_id},
+  autofill_driver->FormsRemoved(/*removed_forms=*/{form_data.renderer_id()},
                                 /*removed_unowned_fields=*/{});
 
   // Validate that no form was sent to AutfillManager as submitted.
@@ -356,12 +325,6 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
   histogram_tester_->ExpectUniqueSample(
       /*name=*/kFormSubmissionAfterFormRemovalHistogram, /*sample=*/false,
       /*expected_bucket_count=*/1);
-  histogram_tester_->ExpectTotalCount(
-      /*name=*/kFormlessSubmissionAfterFormRemovalHistogram,
-      /*expected_count=*/0);
-  histogram_tester_->ExpectUniqueSample(
-      /*name=*/kFormRemovalRemovedFormsHistogram, /*sample=*/1,
-      /*expected_bucket_count=*/1);
   histogram_tester_->ExpectUniqueSample(
       /*name=*/kFormRemovalRemovedUnownedFieldsHistogram, /*sample=*/0,
       /*expected_bucket_count=*/1);
@@ -373,18 +336,18 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
        SubmittedFormUpdatedFromFieldDataManager) {
   // Create a dummy FormData to simulate interaction and removal.
   FormData form_data;
-  form_data.renderer_id = FormRendererId(1);
+  form_data.set_renderer_id(FormRendererId(1));
   FormFieldData form_field_data;
   form_field_data.set_renderer_id(FieldRendererId(2));
-  form_field_data.set_host_form_id(form_data.renderer_id);
+  form_field_data.set_host_form_id(form_data.renderer_id());
   form_field_data.set_value(u"value1");
-  form_data.fields = {form_field_data};
+  form_data.set_fields({form_field_data});
 
   // Simulate the user updating the form field.
   auto* autofill_driver = main_frame_driver();
   ASSERT_TRUE(autofill_driver);
-  autofill_driver->TextFieldDidChange(form_data, form_field_data,
-                                      base::TimeTicks::Now());
+  autofill_driver->TextFieldValueChanged(form_data, form_field_data.global_id(),
+                                         base::TimeTicks::Now());
 
   // Update the form field in FieldDataManager.
   std::u16string data_manager_value = u"value2";
@@ -395,7 +358,7 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
                                        data_manager_value, data_manager_mask);
 
   // Simulate form removal.
-  autofill_driver->FormsRemoved(/*removed_forms=*/{form_data.renderer_id},
+  autofill_driver->FormsRemoved(/*removed_forms=*/{form_data.renderer_id()},
                                 /*removed_unowned_fields=*/{});
 
   // Validate that form was detected as submitted and sent to
@@ -405,7 +368,7 @@ TEST_F(AutofillXHRSubmissionDetectionTest,
   ASSERT_TRUE(autofill_manager.submitted_form());
   EXPECT_TRUE(
       FormData::DeepEqual(form_data, *autofill_manager.submitted_form()));
-  EXPECT_THAT(autofill_manager.submitted_form()->fields,
+  EXPECT_THAT(autofill_manager.submitted_form()->fields(),
               ElementsAre(Property(&FormFieldData::value, u"value2")));
 }
 

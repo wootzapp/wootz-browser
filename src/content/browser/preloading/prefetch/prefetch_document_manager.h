@@ -12,11 +12,13 @@
 #include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "content/browser/preloading/prefetch/prefetch_type.h"
-#include "content/browser/preloading/speculation_host_devtools_observer.h"
+#include "content/browser/preloading/speculation_rules/speculation_rules_tags.h"
 #include "content/common/content_export.h"
 #include "content/common/features.h"
 #include "content/public/browser/document_user_data.h"
 #include "content/public/browser/prefetch_metrics.h"
+#include "content/public/browser/preload_pipeline_info.h"
+#include "content/public/browser/preloading.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "net/http/http_no_vary_search_data.h"
 #include "third_party/blink/public/mojom/speculation_rules/speculation_rules.mojom.h"
@@ -25,6 +27,7 @@
 namespace content {
 
 class PrefetchContainer;
+class PrefetchHandle;
 class PrefetchService;
 class PreloadingPredictor;
 
@@ -52,37 +55,32 @@ class CONTENT_EXPORT PrefetchDocumentManager
   // prefetched. Any candidates that can be prefetched are removed from
   // |candidates|, and a prefetch for the URL of the candidate is started.
   void ProcessCandidates(
-      std::vector<blink::mojom::SpeculationCandidatePtr>& candidates,
-      base::WeakPtr<SpeculationHostDevToolsObserver> devtools_observer);
+      std::vector<blink::mojom::SpeculationCandidatePtr>& candidates);
 
   // Attempts to prefetch the given candidate. Returns true if a new prefetch
   // for the candidate's URL is started.
-  bool MaybePrefetch(
+  bool MaybePrefetch(blink::mojom::SpeculationCandidatePtr candidate,
+                     const PreloadingPredictor& enacting_predictor);
+
+  void PrefetchAheadOfPrerender(
+      scoped_refptr<PreloadPipelineInfo> preload_pipeline_info,
       blink::mojom::SpeculationCandidatePtr candidate,
-      const PreloadingPredictor& enacting_predictor,
-      base::WeakPtr<SpeculationHostDevToolsObserver> devtools_observer);
+      const PreloadingPredictor& enacting_predictor);
 
   // Starts the process to prefetch |url| with the given |prefetch_type|.
-  void PrefetchUrl(
-      const GURL& url,
-      const PrefetchType& prefetch_type,
-      const PreloadingPredictor& enacting_predictor,
-      const blink::mojom::Referrer& referrer,
-      const network::mojom::NoVarySearchPtr& no_vary_search_expected,
-      base::WeakPtr<SpeculationHostDevToolsObserver> devtools_observer);
+  void PrefetchUrl(const GURL& url,
+                   const PrefetchType& prefetch_type,
+                   const PreloadingPredictor& enacting_predictor,
+                   const blink::mojom::Referrer& referrer,
+                   std::optional<SpeculationRulesTags> speculation_rules_tags,
+                   const network::mojom::NoVarySearchPtr& no_vary_search_hint,
+                   scoped_refptr<PreloadPipelineInfo> preload_pipeline_info);
 
   // Checking the canary cache can be a slow and blocking operation (see
   // crbug.com/1266018), so we only do this for the first non-decoy prefetch we
   // make on the page.
   bool HaveCanaryChecksStarted() const { return have_canary_checks_started_; }
   void OnCanaryChecksStarted() { have_canary_checks_started_ = true; }
-
-  // A page can only start |PrefetchServiceMaximumNumberOfPrefetchesPerPage|
-  // number of prefetch requests.
-  int GetNumberOfPrefetchRequestAttempted() const {
-    return number_prefetch_request_attempted_;
-  }
-  void OnPrefetchRequestAttempted() { number_prefetch_request_attempted_++; }
 
   // Returns metrics for prefetches requested by the associated page load.
   PrefetchReferringPageMetrics& GetReferringPageMetrics() {
@@ -99,9 +97,6 @@ class CONTENT_EXPORT PrefetchDocumentManager
 
   // Whether the prefetch attempt for target |url| failed or discarded
   bool IsPrefetchAttemptFailedOrDiscarded(const GURL& url);
-
-  void EnableNoVarySearchSupportFromOriginTrial();
-  bool NoVarySearchSupportEnabled() const;
 
   // Returns a tuple: (can_prefetch_now, prefetch_to_evict). 'can_prefetch_now'
   // is true if we can prefetch |next_prefetch| based on the state of the
@@ -126,6 +121,8 @@ class CONTENT_EXPORT PrefetchDocumentManager
 
   static void SetPrefetchServiceForTesting(PrefetchService* prefetch_service);
 
+  void ResetPrefetchAheadOfPrerenderIfExist(const GURL& url);
+
  private:
   explicit PrefetchDocumentManager(RenderFrameHost* rfh);
   friend DocumentUserData;
@@ -133,18 +130,26 @@ class CONTENT_EXPORT PrefetchDocumentManager
   // Helper function to get the |PrefetchService| associated with |this|.
   PrefetchService* GetPrefetchService() const;
 
+  bool IsPrefetchAttemptFailedOrDiscardedInternal(
+      const GURL& url,
+      PreloadingType planned_max_preloading_type);
+
   blink::DocumentToken document_token_;
 
   // This map holds references to all |PrefetchContainer| associated with
   // |this|.
-  std::map<GURL, base::WeakPtr<PrefetchContainer>> all_prefetches_;
+  //
+  // Keyed with `(url, planned_max_preloading_type)`.
+  // `planned_max_preloading_type == kPrerender` indicates it's ahead of
+  // prerender.
+  //
+  // We allow normal prefetch and prefetch ahead of prerender with the same key
+  // here, to handle and merge them in `PrefetchService`.
+  std::map<std::pair<GURL, PreloadingType>, std::unique_ptr<PrefetchHandle>>
+      all_prefetches_;
 
   // Stores whether or not canary checks have been started for this page.
   bool have_canary_checks_started_{false};
-
-  // The number of prefetch requests that have been attempted for prefetches
-  // requested by this page.
-  int number_prefetch_request_attempted_{0};
 
   // A list of eager prefetch requests (from this page) that have completed
   // (oldest to newest).
@@ -155,8 +160,6 @@ class CONTENT_EXPORT PrefetchDocumentManager
 
   // Metrics related to the prefetches requested by this page load.
   PrefetchReferringPageMetrics referring_page_metrics_;
-
-  bool no_vary_search_support_enabled_ = false;
 
   // Callback that is run when a prefetch started by |this| is being destroyed.
   PrefetchDestructionCallback prefetch_destruction_callback_;

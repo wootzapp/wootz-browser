@@ -13,6 +13,7 @@
 #include "third_party/blink/renderer/core/streams/count_queuing_strategy.h"
 #include "third_party/blink/renderer/core/streams/writable_stream_default_controller.h"
 #include "third_party/blink/renderer/core/streams/writable_stream_default_writer.h"
+#include "third_party/blink/renderer/core/streams/writable_stream_transferring_optimizer.h"
 #include "third_party/blink/renderer/modules/file_system_access/file_system_underlying_sink.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 
@@ -33,26 +34,16 @@ FileSystemWritableFileStream* FileSystemWritableFileStream::Create(
   auto* underlying_sink = MakeGarbageCollected<FileSystemUnderlyingSink>(
       context, std::move(writer_pending_remote));
   stream->underlying_sink_ = underlying_sink;
-  auto underlying_sink_value = ScriptValue::From(script_state, underlying_sink);
-
-  auto* init = QueuingStrategyInit::Create();
-  // HighWaterMark set to 1 here. This allows the stream to appear available
-  // without adding additional buffering.
-  init->setHighWaterMark(1);
-  auto* strategy = CountQueuingStrategy::Create(script_state, init);
-  ScriptValue strategy_value = ScriptValue::From(script_state, strategy);
 
   v8::Isolate* isolate = script_state->GetIsolate();
-  ExceptionState exception_state(
-      isolate, ExceptionContextType::kConstructorOperationInvoke,
-      "FileSystemWritableFileStream");
   v8::MicrotasksScope microtasks_scope(
       isolate, ToMicrotaskQueue(script_state),
       v8::MicrotasksScope::kDoNotRunMicrotasks);
-  stream->InitInternal(script_state, underlying_sink_value, strategy_value,
-                       exception_state);
+  stream->InitWithCountQueueingStrategy(script_state, underlying_sink,
+                                        /*high_water_mark=*/1, nullptr,
+                                        PassThroughException(isolate));
 
-  if (exception_state.HadException()) {
+  if (isolate->HasPendingException()) {
     return nullptr;
   }
 
@@ -70,7 +61,7 @@ ScriptPromise<IDLUndefined> FileSystemWritableFileStream::write(
   WritableStreamDefaultWriter* writer =
       WritableStream::AcquireDefaultWriter(script_state, this, exception_state);
   if (exception_state.HadException()) {
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   v8::Local<v8::Value> v8_data =
@@ -91,7 +82,7 @@ ScriptPromise<IDLUndefined> FileSystemWritableFileStream::truncate(
   WritableStreamDefaultWriter* writer =
       WritableStream::AcquireDefaultWriter(script_state, this, exception_state);
   if (exception_state.HadException()) {
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* options = WriteParams::Create();
@@ -112,7 +103,7 @@ ScriptPromise<IDLUndefined> FileSystemWritableFileStream::seek(
   WritableStreamDefaultWriter* writer =
       WritableStream::AcquireDefaultWriter(script_state, this, exception_state);
   if (exception_state.HadException()) {
-    return ScriptPromise<IDLUndefined>();
+    return EmptyPromise();
   }
 
   auto* options = WriteParams::Create();
@@ -131,8 +122,8 @@ void FileSystemWritableFileStream::Trace(Visitor* visitor) const {
   visitor->Trace(underlying_sink_);
 }
 
-const char* FileSystemWritableFileStream::mode() const {
-  return lock_mode_.AsCStr();
+String FileSystemWritableFileStream::mode() const {
+  return lock_mode_.AsString();
 }
 
 }  // namespace blink

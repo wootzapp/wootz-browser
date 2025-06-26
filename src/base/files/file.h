@@ -11,6 +11,7 @@
 #include <string>
 
 #include "base/base_export.h"
+#include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/files/file_tracing.h"
@@ -108,11 +109,7 @@ class BASE_EXPORT File {
   };
 
   // This explicit mapping matches both FILE_ on Windows and SEEK_ on Linux.
-  enum Whence {
-    FROM_BEGIN   = 0,
-    FROM_CURRENT = 1,
-    FROM_END     = 2
-  };
+  enum Whence { FROM_BEGIN = 0, FROM_CURRENT = 1, FROM_END = 2 };
 
   // Used to hold information about a given file.
   // If you add more fields to this structure (platform-specific fields are OK),
@@ -206,13 +203,11 @@ class BASE_EXPORT File {
   // (relative to the start) or -1 in case of error.
   int64_t Seek(Whence whence, int64_t offset);
 
-  // Simplified versions of Read() and friends (see below) that check the int
+  // Simplified versions of Read() and friends (see below) that check the
   // return value and just return a boolean. They return true if and only if
-  // the function read in / wrote out exactly |data.size()| bytes of data.
+  // the function read in exactly |data.size()| bytes of data.
   bool ReadAndCheck(int64_t offset, span<uint8_t> data);
   bool ReadAtCurrentPosAndCheck(span<uint8_t> data);
-  bool WriteAndCheck(int64_t offset, span<const uint8_t> data);
-  bool WriteAtCurrentPosAndCheck(span<const uint8_t> data);
 
   // Reads the given number of bytes (or until EOF is reached) starting with the
   // given offset. Returns the number of bytes read, or -1 on error. Note that
@@ -220,20 +215,31 @@ class BASE_EXPORT File {
   // is not intended for stream oriented files but instead for cases when the
   // normal expectation is that actually |size| bytes are read unless there is
   // an error.
-  int Read(int64_t offset, char* data, int size);
+  UNSAFE_BUFFER_USAGE int Read(int64_t offset, char* data, int size);
   std::optional<size_t> Read(int64_t offset, base::span<uint8_t> data);
 
   // Same as above but without seek.
-  int ReadAtCurrentPos(char* data, int size);
+  UNSAFE_BUFFER_USAGE int ReadAtCurrentPos(char* data, int size);
   std::optional<size_t> ReadAtCurrentPos(base::span<uint8_t> data);
 
   // Reads the given number of bytes (or until EOF is reached) starting with the
   // given offset, but does not make any effort to read all data on all
-  // platforms. Returns the number of bytes read, or -1 on error.
-  int ReadNoBestEffort(int64_t offset, char* data, int size);
+  // platforms. Returns the number of bytes read, or -1/std::nullopt on error.
+  UNSAFE_BUFFER_USAGE int ReadNoBestEffort(int64_t offset,
+                                           char* data,
+                                           int size);
+  std::optional<size_t> ReadNoBestEffort(int64_t offset,
+                                         base::span<uint8_t> data);
 
   // Same as above but without seek.
-  int ReadAtCurrentPosNoBestEffort(char* data, int size);
+  UNSAFE_BUFFER_USAGE int ReadAtCurrentPosNoBestEffort(char* data, int size);
+  std::optional<size_t> ReadAtCurrentPosNoBestEffort(base::span<uint8_t> data);
+
+  // Simplified versions of Write() and friends (see below) that check the
+  // return value and just return a boolean. They return true if and only if
+  // the function wrote out exactly |data.size()| bytes of data.
+  bool WriteAndCheck(int64_t offset, span<const uint8_t> data);
+  bool WriteAtCurrentPosAndCheck(span<const uint8_t> data);
 
   // Writes the given buffer into the file at the given offset, overwritting any
   // data that was previously there. Returns the number of bytes written, or -1
@@ -241,16 +247,20 @@ class BASE_EXPORT File {
   // all platforms. |data| can be nullptr when |size| is 0.
   // Ignores the offset and writes to the end of the file if the file was opened
   // with FLAG_APPEND.
-  int Write(int64_t offset, const char* data, int size);
+  UNSAFE_BUFFER_USAGE int Write(int64_t offset, const char* data, int size);
   std::optional<size_t> Write(int64_t offset, base::span<const uint8_t> data);
 
   // Save as above but without seek.
-  int WriteAtCurrentPos(const char* data, int size);
+  UNSAFE_BUFFER_USAGE int WriteAtCurrentPos(const char* data, int size);
   std::optional<size_t> WriteAtCurrentPos(base::span<const uint8_t> data);
 
   // Save as above but does not make any effort to write all data on all
-  // platforms. Returns the number of bytes written, or -1 on error.
-  int WriteAtCurrentPosNoBestEffort(const char* data, int size);
+  // platforms. Returns the number of bytes written, or -1/std::nullopt
+  // on error.
+  UNSAFE_BUFFER_USAGE int WriteAtCurrentPosNoBestEffort(const char* data,
+                                                        int size);
+  std::optional<size_t> WriteAtCurrentPosNoBestEffort(
+      base::span<const uint8_t> data);
 
   // Returns the current size of this file, or a negative number on failure.
   int64_t GetLength() const;
@@ -278,7 +288,7 @@ class BASE_EXPORT File {
   bool SetTimes(Time last_access_time, Time last_modified_time);
 
   // Returns some basic information for the given file.
-  bool GetInfo(Info* info);
+  bool GetInfo(Info* info) const;
 
 #if !BUILDFLAG( \
     IS_FUCHSIA)  // Fuchsia's POSIX API does not support file locking.
@@ -416,9 +426,10 @@ class BASE_EXPORT File {
 
   ScopedPlatformFile file_;
 
-  // A path to use for tracing purposes. Set if file tracing is enabled during
-  // |Initialize()|.
-  FilePath tracing_path_;
+  // Platform path to `file_`. Set if `this` wraps a file from an Android
+  // content provider (i.e. a content URI) or if tracing is enabled in
+  // `Initialize()`.
+  FilePath path_;
 
   // Object tied to the lifetime of |this| that enables/disables tracing.
   FileTracing::ScopedEnabler trace_enabler_;

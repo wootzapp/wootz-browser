@@ -6,17 +6,12 @@
 
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <vector>
 
 #include "ash/app_list/app_list_model_provider.h"
 #include "ash/app_list/model/app_list_item.h"
-#include "ash/components/arc/arc_features.h"
-#include "ash/components/arc/mojom/app.mojom.h"
-#include "ash/components/arc/session/connection_holder.h"
-#include "ash/components/arc/test/arc_util_test_support.h"
-#include "ash/components/arc/test/connection_holder_util.h"
-#include "ash/components/arc/test/fake_app_instance.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/app_list/app_list_types.h"
@@ -54,6 +49,12 @@
 #include "chrome/browser/ui/ash/shelf/shelf_controller_helper.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/generated_resources.h"
+#include "chromeos/ash/experiences/arc/arc_features.h"
+#include "chromeos/ash/experiences/arc/mojom/app.mojom.h"
+#include "chromeos/ash/experiences/arc/session/connection_holder.h"
+#include "chromeos/ash/experiences/arc/test/arc_util_test_support.h"
+#include "chromeos/ash/experiences/arc/test/connection_holder_util.h"
+#include "chromeos/ash/experiences/arc/test/fake_app_instance.h"
 #include "components/services/app_service/public/cpp/app_types.h"
 #include "components/services/app_service/public/cpp/package_id.h"
 #include "components/sync/model/string_ordinal.h"
@@ -76,10 +77,10 @@ ash::AppListItem* GetAppListItem(const std::string& id) {
 bool IsItemPinned(const std::string& item_id) {
   const auto& shelf_items = ash::ShelfModel::Get()->items();
   auto pinned_item =
-      base::ranges::find_if(shelf_items, [&item_id](const auto& shelf_item) {
+      std::ranges::find_if(shelf_items, [&item_id](const auto& shelf_item) {
         return shelf_item.id.app_id == item_id;
       });
-  return pinned_item != base::ranges::end(shelf_items);
+  return pinned_item != std::ranges::end(shelf_items);
 }
 
 class AppServicePromiseAppItemBrowserTest
@@ -439,7 +440,6 @@ IN_PROC_BROWSER_TEST_F(AppServicePromiseAppItemBrowserTest, SetToSyncPosition) {
       app_id, "App Name", /*parent_id=*/std::string(),
       ordinal.ToInternalValue(), /*item_pin_ordinal=*/std::string(),
       /*item_type=*/sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-      /*is_user_pinned=*/std::nullopt,
       /*promise_package_id=*/kTestPackageId.ToString())));
   app_list_syncable_service()->MergeDataAndStartSyncing(
       syncer::APP_LIST, sync_list,
@@ -463,7 +463,7 @@ IN_PROC_BROWSER_TEST_F(AppServicePromiseAppItemBrowserTest, SetToSyncPosition) {
       FROM_HERE, syncer::SyncChange::ACTION_ADD,
       app_list::CreateAppRemoteData(
           app_id, "Test App", "", ordinal_after_sync.ToInternalValue(), "",
-          sync_pb::AppListSpecifics_AppListItemType_TYPE_APP, std::nullopt,
+          sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
           kTestPackageId.ToString())));
   app_list_syncable_service()->ProcessSyncChanges(base::Location(),
                                                   change_list);
@@ -549,7 +549,6 @@ IN_PROC_BROWSER_TEST_F(AppServicePromiseAppItemBrowserTest, SetToSyncParent) {
       app_id, "App name", kFolderItemId, item_ordinal.ToInternalValue(),
       /*item_pin_ordinal=*/std::string(),
       /*item_type=*/sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-      /*is_user_pinned=*/std::nullopt,
       /*promise_package_id=*/kTestPackageId.ToString()));
 
   app_list_syncable_service()->MergeDataAndStartSyncing(
@@ -574,7 +573,7 @@ IN_PROC_BROWSER_TEST_F(AppServicePromiseAppItemBrowserTest, SetToSyncParent) {
       FROM_HERE, syncer::SyncChange::ACTION_ADD,
       app_list::CreateAppRemoteData(
           app_id, "App name", "", item_ordinal.ToInternalValue(), "",
-          sync_pb::AppListSpecifics_AppListItemType_TYPE_APP, std::nullopt,
+          sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
           kTestPackageId.ToString())));
   app_list_syncable_service()->ProcessSyncChanges(base::Location(),
                                                   change_list);
@@ -734,7 +733,6 @@ IN_PROC_BROWSER_TEST_F(AppServicePromiseAppItemBrowserTest,
       app_id, "App Name", /*parent_id=*/std::string(),
       ordinal.ToInternalValue(), pin_ordinal.ToInternalValue(),
       /*item_type=*/sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-      /*is_user_pinned=*/std::nullopt,
       /*promise_package_id=*/kTestPackageId.ToString())));
   app_list_syncable_service()->MergeDataAndStartSyncing(
       syncer::APP_LIST, sync_list,
@@ -788,7 +786,6 @@ IN_PROC_BROWSER_TEST_F(AppServicePromiseAppItemBrowserTest,
       app_id_in_sync, "App Name", /*parent_id=*/std::string(),
       ordinal.ToInternalValue(), std::string(),
       /*item_type=*/sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-      /*is_user_pinned=*/std::nullopt,
       /*promise_package_id=*/kTestPackageId.ToString())));
   app_list_syncable_service()->MergeDataAndStartSyncing(
       syncer::APP_LIST, sync_list,
@@ -882,7 +879,7 @@ IN_PROC_BROWSER_TEST_F(AppServicePromiseAppItemBrowserTest,
       FROM_HERE, syncer::SyncChange::ACTION_ADD,
       app_list::CreateAppRemoteData(
           app_id, "Test App", "", app_ordinal.ToInternalValue(), "",
-          sync_pb::AppListSpecifics_AppListItemType_TYPE_APP, std::nullopt,
+          sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
           kTestPackageId.ToString())));
   app_list_syncable_service()->ProcessSyncChanges(base::Location(),
                                                   change_list);
@@ -991,7 +988,6 @@ IN_PROC_BROWSER_TEST_F(AppServicePromiseAppItemBrowserTest,
       ordinal.ToInternalValue(), pin_ordinal.ToInternalValue(),
       /*item_type=*/
       sync_pb::AppListSpecifics_AppListItemType_TYPE_REMOVE_DEFAULT_APP,
-      /*is_user_pinned=*/std::nullopt,
       /*promise_package_id=*/kTestPackageId.ToString())));
   app_list_syncable_service()->MergeDataAndStartSyncing(
       syncer::APP_LIST, sync_list,
@@ -1066,7 +1062,6 @@ IN_PROC_BROWSER_TEST_F(AppServicePromiseAppItemBrowserTest,
       app_id, app_name, /*parent_id=*/std::string(),
       launcher_ordinal.ToInternalValue(), shelf_ordinal.ToInternalValue(),
       /*item_type=*/sync_pb::AppListSpecifics_AppListItemType_TYPE_APP,
-      /*is_user_pinned=*/true,
       /*promise_package_id=*/package_id.ToString())));
   app_list_syncable_service()->MergeDataAndStartSyncing(
       syncer::APP_LIST, sync_list,

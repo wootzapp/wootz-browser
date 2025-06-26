@@ -23,7 +23,7 @@
 #include "ui/base/window_open_disposition.h"
 #include "url/android/gurl_android.h"
 
-// Must come after other includes, because FromJniType() uses Profile.
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/android/chrome_jni_headers/TabModelJniBridge_jni.h"
 
 using base::android::AttachCurrentThread;
@@ -34,13 +34,18 @@ using chrome::android::ActivityType;
 using content::WebContents;
 
 TabModelJniBridge::TabModelJniBridge(JNIEnv* env,
-                                     jobject jobj,
+                                     const jni_zero::JavaRef<jobject>& jobj,
                                      Profile* profile,
                                      ActivityType activity_type,
-                                     bool track_in_native_model_list)
+                                     bool is_archived_tab_model)
     : TabModel(profile, activity_type),
-      java_object_(env, env->NewWeakGlobalRef(jobj)) {
-  if (track_in_native_model_list) {
+      java_object_(env, jobj),
+      is_archived_tab_model_(is_archived_tab_model) {
+  // The archived tab model isn't tracked in native, except to comply with clear
+  // browsing data.
+  if (is_archived_tab_model_) {
+    TabModelList::SetArchivedTabModel(this);
+  } else {
     TabModelList::AddTabModel(this);
   }
 }
@@ -77,32 +82,31 @@ int TabModelJniBridge::GetActiveIndex() const {
 }
 
 void TabModelJniBridge::CreateTab(TabAndroid* parent,
-                                  WebContents* web_contents) {
+                                  WebContents* web_contents,
+                                  bool select) {
   JNIEnv* env = AttachCurrentThread();
   Profile* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
 
   Java_TabModelJniBridge_createTabWithWebContents(
       env, java_object_.get(env), (parent ? parent->GetJavaObject() : nullptr),
-      profile->GetJavaObject(), web_contents->GetJavaWebContents());
+      profile->GetJavaObject(), web_contents->GetJavaWebContents(), select);
 }
-
 void TabModelJniBridge::CreateTabActive(TabAndroid* parent,
-                                 WebContents* web_contents,
-                                 WindowOpenDisposition disposition) {
-  JNIEnv* env = AttachCurrentThread();
-  Profile* profile = Profile::FromBrowserContext(web_contents->GetBrowserContext());
-  
-  // First ensure WebContents is properly initialized
-  web_contents->WasHidden(); 
-  web_contents->WasShown();
+  WebContents* web_contents,
+  WindowOpenDisposition disposition) {
+JNIEnv* env = AttachCurrentThread();
+Profile* profile = Profile::FromBrowserContext(web_contents->GetBrowserContext());
 
-  Java_TabModelJniBridge_createTabActiveWithWebContents(
-      env, java_object_.get(env),(parent ? parent->GetJavaObject() : nullptr),
-      profile->GetJavaObject(), web_contents->GetJavaWebContents(),
-      static_cast<int>(disposition));
+// First ensure WebContents is properly initialized
+web_contents->WasHidden(); 
+web_contents->WasShown();
+
+Java_TabModelJniBridge_createTabActiveWithWebContents(
+env, java_object_.get(env),(parent ? parent->GetJavaObject() : nullptr),
+profile->GetJavaObject(), web_contents->GetJavaWebContents(),
+static_cast<int>(disposition));
 }
-
 void TabModelJniBridge::HandlePopupNavigation(TabAndroid* parent,
                                               NavigateParams* params) {
   DCHECK_EQ(params->source_contents, parent->web_contents());
@@ -125,7 +129,7 @@ void TabModelJniBridge::HandlePopupNavigation(TabAndroid* parent,
   ScopedJavaLocalRef<jobject> jobj = java_object_.get(env);
   ScopedJavaLocalRef<jobject> jurl = url::GURLAndroid::FromNativeGURL(env, url);
   ScopedJavaLocalRef<jobject> jinitiator_origin =
-      params->initiator_origin ? params->initiator_origin->ToJavaObject()
+      params->initiator_origin ? params->initiator_origin->ToJavaObject(env)
                                : nullptr;
   ScopedJavaLocalRef<jobject> jpost_data =
       content::ConvertResourceRequestBodyToJavaObject(env, params->post_data);
@@ -158,19 +162,25 @@ void TabModelJniBridge::SetActiveIndex(int index) {
   Java_TabModelJniBridge_setIndex(env, java_object_.get(env), index);
 }
 
+void TabModelJniBridge::ForceCloseAllTabs() {
+  JNIEnv* env = AttachCurrentThread();
+  Java_TabModelJniBridge_forceCloseAllTabs(env, java_object_.get(env));
+}
+
 void TabModelJniBridge::CloseTabAt(int index) {
   JNIEnv* env = AttachCurrentThread();
   Java_TabModelJniBridge_closeTabAt(env, java_object_.get(env), index);
 }
 
-WebContents* TabModelJniBridge::CreateNewTabForDevTools(const GURL& url) {
+WebContents* TabModelJniBridge::CreateNewTabForDevTools(const GURL& url,
+                                                        bool new_window) {
   // TODO(dfalcantara): Change the Java side so that it creates and returns the
   //                    WebContents, which we can load the URL on and return.
   JNIEnv* env = AttachCurrentThread();
   ScopedJavaLocalRef<jobject> obj =
       Java_TabModelJniBridge_createNewTabForDevTools(
           env, java_object_.get(env),
-          url::GURLAndroid::FromNativeGURL(env, url));
+          url::GURLAndroid::FromNativeGURL(env, url), new_window);
   if (obj.is_null()) {
     VLOG(0) << "Failed to create java tab";
     return NULL;
@@ -192,16 +202,6 @@ bool TabModelJniBridge::IsSessionRestoreInProgress() const {
 bool TabModelJniBridge::IsActiveModel() const {
   JNIEnv* env = AttachCurrentThread();
   return Java_TabModelJniBridge_isActiveModel(env, java_object_.get(env));
-}
-
-// static
-bool TabModelJniBridge::IsTabInTabGroup(TabAndroid* tab) {
-  // Terminate early if tab is in the process of being destroyed.
-  if (!tab || !tab->web_contents() || !tab->web_contents()->GetDelegate()) {
-    return false;
-  }
-  JNIEnv* env = base::android::AttachCurrentThread();
-  return Java_TabModelJniBridge_isTabInTabGroup(env, tab->GetJavaObject());
 }
 
 void TabModelJniBridge::AddObserver(TabModelObserver* observer) {
@@ -226,7 +226,9 @@ void TabModelJniBridge::RemoveObserver(TabModelObserver* observer) {
 void TabModelJniBridge::BroadcastSessionRestoreComplete(
     JNIEnv* env,
     const JavaParamRef<jobject>& obj) {
-  TabModel::BroadcastSessionRestoreComplete();
+  if (!is_archived_tab_model_) {
+    TabModel::BroadcastSessionRestoreComplete();
+  }
 }
 
 int TabModelJniBridge::GetTabCountNavigatedInTimeWindow(
@@ -255,17 +257,20 @@ jclass TabModelJniBridge::GetClazz(JNIEnv* env) {
 }
 
 TabModelJniBridge::~TabModelJniBridge() {
-  TabModelList::RemoveTabModel(this);
+  if (is_archived_tab_model_) {
+    TabModelList::SetArchivedTabModel(nullptr);
+  } else {
+    TabModelList::RemoveTabModel(this);
+  }
 }
 
-static jlong JNI_TabModelJniBridge_Init(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
-    Profile* profile,
-    jint j_activity_type,
-    unsigned char track_in_native_model_list) {
+static jlong JNI_TabModelJniBridge_Init(JNIEnv* env,
+                                        const JavaParamRef<jobject>& obj,
+                                        Profile* profile,
+                                        jint j_activity_type,
+                                        unsigned char is_archived_tab_model) {
   TabModel* tab_model = new TabModelJniBridge(
       env, obj, profile, static_cast<ActivityType>(j_activity_type),
-      track_in_native_model_list);
+      is_archived_tab_model);
   return reinterpret_cast<intptr_t>(tab_model);
 }

@@ -29,16 +29,15 @@ void ReadingListSidePanelCoordinator::CreateAndRegisterEntry(
     SidePanelRegistry* global_registry) {
   global_registry->Register(std::make_unique<SidePanelEntry>(
       SidePanelEntry::Id::kReadingList,
-      l10n_util::GetStringUTF16(IDS_READ_LATER_TITLE),
-      ui::ImageModel::FromVectorIcon(kReadingListIcon, ui::kColorIcon),
       base::BindRepeating(
           &ReadingListSidePanelCoordinator::CreateReadingListWebView,
           base::Unretained(this))));
 }
 
 std::unique_ptr<views::View>
-ReadingListSidePanelCoordinator::CreateReadingListWebView() {
-  return std::make_unique<ReadLaterSidePanelWebView>(&GetBrowser(),
+ReadingListSidePanelCoordinator::CreateReadingListWebView(
+    SidePanelEntryScope& scope) {
+  return std::make_unique<ReadLaterSidePanelWebView>(&GetBrowser(), scope,
                                                      base::RepeatingClosure());
 }
 

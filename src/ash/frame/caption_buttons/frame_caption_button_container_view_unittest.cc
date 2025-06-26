@@ -60,14 +60,15 @@ class FrameCaptionButtonContainerViewTest : public AshTestBase {
       CloseButtonVisible close_button_visible) {
     views::Widget* widget = new views::Widget;
     views::Widget::InitParams params(
+        views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
         views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
-    auto delegate = std::make_unique<views::WidgetDelegateView>();
+    auto delegate = std::make_unique<views::WidgetDelegateView>(
+        views::WidgetDelegateView::CreatePassKey());
     delegate->SetCanMaximize(maximize_allowed == MAXIMIZE_ALLOWED);
     delegate->SetCanMinimize(minimize_allowed == MINIMIZE_ALLOWED);
     delegate->SetCanResize(true);
     delegate->SetShowCloseButton(close_button_visible == CLOSE_BUTTON_VISIBLE);
     params.delegate = delegate.release();
-    params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
     params.bounds = gfx::Rect(10, 10, 100, 100);
     params.context = GetContext();
     widget->Init(std::move(params));
@@ -313,7 +314,7 @@ TEST_F(FrameCaptionButtonContainerViewTest, TestSizeButtonBehaviorOverride) {
 
   FrameCaptionButtonContainerView container(widget);
   InitContainer(&container);
-  widget->GetContentsView()->AddChildView(&container);
+  widget->GetContentsView()->AddChildViewRaw(&container);
   views::test::RunScheduledLayout(&container);
   FrameCaptionButtonContainerView::TestApi testApi(&container);
 
@@ -372,7 +373,7 @@ TEST_F(FrameCaptionButtonContainerViewTest, ResizeButtonRestoreBehavior) {
 
   FrameCaptionButtonContainerView container(widget);
   InitContainer(&container);
-  widget->GetContentsView()->AddChildView(&container);
+  widget->GetContentsView()->AddChildViewRaw(&container);
   views::test::RunScheduledLayout(&container);
   FrameCaptionButtonContainerView::TestApi testApi(&container);
 
@@ -466,7 +467,7 @@ TEST_F(FrameCaptionButtonContainerViewTest, TestFloatButtonBehavior) {
 
   FrameCaptionButtonContainerView container(widget);
   InitContainer(&container);
-  widget->GetContentsView()->AddChildView(&container);
+  widget->GetContentsView()->AddChildViewRaw(&container);
   views::test::RunScheduledLayout(&container);
   FrameCaptionButtonContainerView::TestApi test_api(&container);
 

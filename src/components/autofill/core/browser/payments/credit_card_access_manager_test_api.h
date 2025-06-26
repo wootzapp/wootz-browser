@@ -7,6 +7,7 @@
 
 #include "base/check_deref.h"
 #include "components/autofill/core/browser/payments/credit_card_access_manager.h"
+#include "components/autofill/core/browser/payments/payments_autofill_client.h"
 #include "components/autofill/core/browser/payments/wait_for_signal_or_timeout.h"
 
 namespace autofill {
@@ -94,8 +95,8 @@ class CreditCardAccessManagerTestApi {
   }
 
   void OnDidGetUnmaskDetails(
-      AutofillClient::PaymentsRpcResult result,
-      payments::PaymentsNetworkInterface::UnmaskDetails& unmask_details) {
+      payments::PaymentsAutofillClient::PaymentsRpcResult result,
+      payments::UnmaskDetails& unmask_details) {
     credit_card_access_manager_->OnDidGetUnmaskDetails(result, unmask_details);
   }
 
@@ -105,6 +106,10 @@ class CreditCardAccessManagerTestApi {
 
   UnmaskAuthFlowType unmask_auth_flow_type() {
     return credit_card_access_manager_->unmask_auth_flow_type_;
+  }
+
+  void set_unmask_auth_flow_type(UnmaskAuthFlowType unmask_auth_flow_type) {
+    credit_card_access_manager_->unmask_auth_flow_type_ = unmask_auth_flow_type;
   }
 
   void OnUserAcceptedAuthenticationSelectionDialog(

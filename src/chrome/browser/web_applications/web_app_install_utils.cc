@@ -4,6 +4,7 @@
 
 #include "chrome/browser/web_applications/web_app_install_utils.h"
 
+#include <algorithm>
 #include <array>
 #include <iterator>
 #include <map>
@@ -14,6 +15,7 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "base/check.h"
@@ -31,18 +33,19 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/not_fatal_until.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/shortcuts/shortcut_icon_generator.h"
-#include "chrome/browser/ssl/security_state_tab_helper.h"
+#include "chrome/browser/ssl/chrome_security_state_tab_helper.h"
+#include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
 #include "chrome/browser/web_applications/os_integration/web_app_file_handler_manager.h"
 #include "chrome/browser/web_applications/policy/pre_redirection_url_observer.h"
 #include "chrome/browser/web_applications/scope_extension_info.h"
+#include "chrome/browser/web_applications/user_display_mode.h"
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/browser/web_applications/web_app_chromeos_data.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
@@ -50,6 +53,7 @@
 #include "chrome/browser/web_applications/web_app_icon_generator.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_install_params.h"
+#include "chrome/browser/web_applications/web_app_management_type.h"
 #include "chrome/browser/web_applications/web_app_proto_utils.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/chrome_features.h"
@@ -57,8 +61,9 @@
 #include "components/services/app_service/public/cpp/icon_info.h"
 #include "components/services/app_service/public/cpp/protocol_handler_info.h"
 #include "components/services/app_service/public/cpp/share_target.h"
-#include "components/services/app_service/public/cpp/url_handler_info.h"
 #include "components/sync/protocol/web_app_specifics.pb.h"
+#include "components/sync/service/sync_service.h"
+#include "components/sync/service/sync_user_settings.h"
 #include "components/webapps/browser/banners/app_banner_settings_helper.h"
 #include "components/webapps/browser/installable/installable_evaluator.h"
 #include "components/webapps/browser/installable/installable_manager.h"
@@ -66,9 +71,9 @@
 #include "content/public/common/content_features.h"
 #include "mojo/public/cpp/bindings/struct_ptr.h"
 #include "net/http/http_util.h"
+#include "services/network/public/cpp/permissions_policy/permissions_policy_declaration.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/manifest/manifest.h"
-#include "third_party/blink/public/common/permissions_policy/permissions_policy.h"
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom-shared.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom-shared.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom.h"
@@ -78,8 +83,8 @@
 #include "url/gurl.h"
 #include "url/origin.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/system_web_apps/types/system_web_app_data.h"
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chromeos/ash/experiences/system_web_apps/types/system_web_app_data.h"
 #endif
 
 namespace web_app {
@@ -171,7 +176,7 @@ void PopulateWebAppShortcutsMenuItemInfos(
 
         // Filter out non-square or too large icons.
         auto valid_size_it =
-            base::ranges::find_if(icon.sizes, [](const gfx::Size& size) {
+            std::ranges::find_if(icon.sizes, [](const gfx::Size& size) {
               return size.width() == size.height() &&
                      size.width() <= kMaxIconSize;
             });
@@ -278,7 +283,7 @@ apps::ShareTarget::Method ToAppsShareTargetMethod(
     case blink::mojom::ManifestShareTarget_Method::kPost:
       return apps::ShareTarget::Method::kPost;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 apps::ShareTarget::Enctype ToAppsShareTargetEnctype(
@@ -289,7 +294,7 @@ apps::ShareTarget::Enctype ToAppsShareTargetEnctype(
     case blink::mojom::ManifestShareTarget_Enctype::kMultipartFormData:
       return apps::ShareTarget::Enctype::kMultipartFormData;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 std::optional<apps::ShareTarget> ToWebAppShareTarget(
@@ -329,27 +334,14 @@ std::optional<apps::ShareTarget> ToWebAppShareTarget(
   return std::move(apps_share_target);
 }
 
-apps::UrlHandlers ToWebAppUrlHandlers(
-    const std::vector<blink::mojom::ManifestUrlHandlerPtr>& url_handlers) {
-  apps::UrlHandlers apps_url_handlers;
-  for (const auto& url_handler : url_handlers) {
-    DCHECK(url_handler);
-    apps_url_handlers.emplace_back(url_handler->origin,
-                                   url_handler->has_origin_wildcard);
-  }
-  return apps_url_handlers;
-}
-
 ScopeExtensions ToWebAppScopeExtensions(
     const std::vector<blink::mojom::ManifestScopeExtensionPtr>&
         scope_extensions) {
   ScopeExtensions apps_scope_extensions;
   for (const auto& scope_extension : scope_extensions) {
     DCHECK(scope_extension);
-    ScopeExtensionInfo new_scope_extension;
-    new_scope_extension.origin = scope_extension->origin;
-    new_scope_extension.has_origin_wildcard =
-        scope_extension->has_origin_wildcard;
+    auto new_scope_extension = ScopeExtensionInfo::CreateForOrigin(
+        scope_extension->origin, scope_extension->has_origin_wildcard);
     apps_scope_extensions.insert(std::move(new_scope_extension));
   }
   return apps_scope_extensions;
@@ -471,7 +463,7 @@ void PopulateHomeTabIcons(WebAppInstallInfo* web_app_info,
     return;
   }
 
-  const auto& home_tab = absl::get<blink::Manifest::HomeTabParams>(
+  const auto& home_tab = std::get<blink::Manifest::HomeTabParams>(
       web_app_info->tab_strip.value().home_tab);
 
   for (const auto& icon : home_tab.icons) {
@@ -600,7 +592,7 @@ void PopulateFileHandlerInfoFromManifest(
 // If any icons are correctly specified in the manifest, they take precedence
 // over any we picked up from web page metadata.
 void UpdateWebAppInstallInfoIconsFromManifestIfNeeded(
-    const std::vector<blink::Manifest::ImageResource> icons,
+    const std::vector<blink::Manifest::ImageResource>& icons,
     WebAppInstallInfo* web_app_info) {
   std::vector<apps::IconInfo> web_app_icons;
   for (const auto& icon : icons) {
@@ -619,7 +611,7 @@ void UpdateWebAppInstallInfoIconsFromManifestIfNeeded(
 
         // Filter out non-square or too large icons.
         auto valid_size =
-            base::ranges::find_if(icon.sizes, [](const gfx::Size& size) {
+            std::ranges::find_if(icon.sizes, [](const gfx::Size& size) {
               return size.width() == size.height() &&
                      size.width() <= kMaxIconSize;
             });
@@ -677,7 +669,7 @@ void UpdateWebAppInstallInfoIconsFromManifestIfNeeded(
 // which limits the number of icons.
 void PopulateHomeTabIconsFromHomeTabManifestParams(
     WebAppInstallInfo* web_app_info) {
-  auto& home_tab = absl::get<blink::Manifest::HomeTabParams>(
+  auto& home_tab = std::get<blink::Manifest::HomeTabParams>(
       web_app_info->tab_strip->home_tab);
   std::vector<blink::Manifest::ImageResource> home_tab_icons;
   for (const auto& icon : home_tab.icons) {
@@ -694,7 +686,7 @@ void PopulateHomeTabIconsFromHomeTabManifestParams(
       }
       // Filter out non-square or too large icons.
       auto valid_size =
-          base::ranges::find_if(icon.sizes, [](const gfx::Size& size) {
+          std::ranges::find_if(icon.sizes, [](const gfx::Size& size) {
             return size.width() == size.height() &&
                    size.width() <= kMaxIconSize;
           });
@@ -729,25 +721,28 @@ void PopulateHomeTabIconsFromHomeTabManifestParams(
 }
 
 void UpdateWebAppInfoFromManifest(const blink::mojom::Manifest& manifest,
-                                  const GURL& manifest_url,
                                   WebAppInstallInfo* web_app_info) {
-  // Give the full length name priority if it's not empty.
-  std::u16string name = manifest.name.value_or(std::u16string());
-  if (!name.empty())
-    web_app_info->title = name;
-  else if (manifest.short_name)
-    web_app_info->title = *manifest.short_name;
-
-  if (manifest.id.is_valid()) {
-    web_app_info->manifest_id = manifest.id;
+  // The manifest parser guarantees these are valid/invalid together and
+  // same-origin.
+  if (manifest.id.is_valid() && manifest.start_url.is_valid()) {
+    web_app_info->SetManifestIdAndStartUrl(manifest.id, manifest.start_url);
   }
 
-  // Set the url based on the manifest value, if any.
-  if (manifest.start_url.is_valid())
-    web_app_info->start_url = manifest.start_url;
+  // Give the full length name priority if it's not empty.
+  std::u16string name = manifest.name.value_or(std::u16string());
+  if (!name.empty()) {
+    web_app_info->title = name;
+  } else if (manifest.short_name) {
+    web_app_info->title = *manifest.short_name;
+  }
 
   if (manifest.scope.is_valid())
     web_app_info->scope = manifest.scope;
+  // Ensure scope is derived if empty after processing manifest.
+  if (web_app_info->scope.is_empty()) {
+    web_app_info->scope = web_app_info->start_url().GetWithoutFilename();
+  }
+  CHECK(!web_app_info->scope.is_empty());
 
   if (manifest.has_theme_color) {
     web_app_info->theme_color =
@@ -757,31 +752,6 @@ void UpdateWebAppInfoFromManifest(const blink::mojom::Manifest& manifest,
   if (manifest.has_background_color) {
     web_app_info->background_color = SkColorSetA(
         static_cast<SkColor>(manifest.background_color), SK_AlphaOPAQUE);
-  }
-
-  if (manifest.has_dark_theme_color) {
-    web_app_info->dark_mode_theme_color = SkColorSetA(
-        static_cast<SkColor>(manifest.dark_theme_color), SK_AlphaOPAQUE);
-  } else if (manifest.user_preferences &&
-             manifest.user_preferences->color_scheme_dark &&
-             manifest.user_preferences->color_scheme_dark->has_theme_color) {
-    web_app_info->dark_mode_theme_color = SkColorSetA(
-        static_cast<SkColor>(
-            manifest.user_preferences->color_scheme_dark->theme_color),
-        SK_AlphaOPAQUE);
-  }
-
-  if (manifest.has_dark_background_color) {
-    web_app_info->dark_mode_background_color = SkColorSetA(
-        static_cast<SkColor>(manifest.dark_background_color), SK_AlphaOPAQUE);
-  } else if (manifest.user_preferences &&
-             manifest.user_preferences->color_scheme_dark &&
-             manifest.user_preferences->color_scheme_dark
-                 ->has_background_color) {
-    web_app_info->dark_mode_background_color = SkColorSetA(
-        static_cast<SkColor>(
-            manifest.user_preferences->color_scheme_dark->background_color),
-        SK_AlphaOPAQUE);
   }
 
   if (manifest.display != DisplayMode::kUndefined)
@@ -802,15 +772,12 @@ void UpdateWebAppInfoFromManifest(const blink::mojom::Manifest& manifest,
   web_app_info->protocol_handlers =
       ToWebAppProtocolHandlers(manifest.protocol_handlers);
 
-  web_app_info->url_handlers = ToWebAppUrlHandlers(manifest.url_handlers);
-
   web_app_info->scope_extensions =
       ToWebAppScopeExtensions(manifest.scope_extensions);
 
-  GURL inferred_scope = web_app_info->scope.is_valid() ? web_app_info->scope
-                        : web_app_info->start_url.is_valid()
-                            ? web_app_info->start_url.GetWithoutFilename()
-                            : GURL();
+  GURL inferred_scope = web_app_info->scope.is_valid()
+                            ? web_app_info->scope
+                            : web_app_info->start_url().GetWithoutFilename();
   if (base::FeatureList::IsEnabled(
           blink::features::kWebAppManifestLockScreen) &&
       manifest.lock_screen && manifest.lock_screen->start_url.is_valid() &&
@@ -828,8 +795,9 @@ void UpdateWebAppInfoFromManifest(const blink::mojom::Manifest& manifest,
 
   web_app_info->capture_links = manifest.capture_links;
 
-  if (manifest_url.is_valid())
-    web_app_info->manifest_url = manifest_url;
+  if (manifest.manifest_url.is_valid()) {
+    web_app_info->manifest_url = manifest.manifest_url;
+  }
 
   web_app_info->launch_handler = manifest.launch_handler;
   if (manifest.description.has_value()) {
@@ -840,7 +808,7 @@ void UpdateWebAppInfoFromManifest(const blink::mojom::Manifest& manifest,
 
   web_app_info->permissions_policy.clear();
   for (const auto& decl : manifest.permissions_policy) {
-    blink::ParsedPermissionsPolicyDeclaration copy;
+    network::ParsedPermissionsPolicyDeclaration copy;
     copy.feature = decl.feature;
     copy.self_if_matches = decl.self_if_matches;
     for (const auto& origin : decl.allowed_origins)
@@ -855,13 +823,14 @@ void UpdateWebAppInfoFromManifest(const blink::mojom::Manifest& manifest,
   if (HomeTabIconsExistInTabStrip(*web_app_info)) {
     PopulateHomeTabIconsFromHomeTabManifestParams(web_app_info);
   }
+
+  web_app_info->related_applications = manifest.related_applications;
 }
 
 WebAppInstallInfo CreateWebAppInfoFromManifest(
-    const blink::mojom::Manifest& manifest,
-    const GURL& manifest_url) {
-  WebAppInstallInfo info(manifest.id);
-  UpdateWebAppInfoFromManifest(manifest, manifest_url, &info);
+    const blink::mojom::Manifest& manifest) {
+  WebAppInstallInfo info(manifest.id, manifest.start_url);
+  UpdateWebAppInfoFromManifest(manifest, &info);
   return info;
 }
 
@@ -923,7 +892,7 @@ void PopulateProductIcons(WebAppInstallInfo* web_app_info,
 
   char32_t icon_letter =
       web_app_info->title.empty()
-          ? shortcuts::GenerateIconLetterFromUrl(web_app_info->start_url)
+          ? shortcuts::GenerateIconLetterFromUrl(web_app_info->start_url())
           : shortcuts::GenerateIconLetterFromName(web_app_info->title);
 
   // Ensure that all top-level icons that are in web_app_info with  Purpose::ANY
@@ -1036,20 +1005,20 @@ webapps::WebappUninstallSource ConvertExternalInstallSourceToUninstallSource(
     case ExternalInstallSource::kSystemInstalled:
       return webapps::WebappUninstallSource::kSystemPreinstalled;
     case ExternalInstallSource::kKiosk:
-      NOTREACHED_IN_MIGRATION() << "Kiosk apps should not be uninstalled";
-      return webapps::WebappUninstallSource::kUnknown;
+      NOTREACHED() << "Kiosk apps should not be uninstalled";
     case ExternalInstallSource::kExternalLockScreen:
       return webapps::WebappUninstallSource::kExternalLockScreen;
     case ExternalInstallSource::kInternalMicrosoft365Setup:
-      NOTREACHED_IN_MIGRATION()
-          << "Microsoft 365 apps should not be uninstalled externally";
-      return webapps::WebappUninstallSource::kUnknown;
+      NOTREACHED() << "Microsoft 365 apps should not be uninstalled externally";
   }
 }
 
 WebAppManagement::Type ConvertInstallSurfaceToWebAppSource(
     webapps::WebappInstallSource install_source) {
   switch (install_source) {
+    case webapps::WebappInstallSource::SYNC:
+      return WebAppManagement::kSync;
+
     case webapps::WebappInstallSource::MENU_BROWSER_TAB:
     case webapps::WebappInstallSource::MENU_CUSTOM_TAB:
     case webapps::WebappInstallSource::AUTOMATIC_PROMPT_BROWSER_TAB:
@@ -1063,14 +1032,15 @@ WebAppManagement::Type ConvertInstallSurfaceToWebAppSource(
     case webapps::WebappInstallSource::RICH_INSTALL_UI_WEBLAYER:
     case webapps::WebappInstallSource::ML_PROMOTION:
     case webapps::WebappInstallSource::OMNIBOX_INSTALL_ICON:
-    case webapps::WebappInstallSource::SYNC:
     case webapps::WebappInstallSource::MENU_CREATE_SHORTCUT:
     case webapps::WebappInstallSource::CHROME_SERVICE:
     case webapps::WebappInstallSource::PROFILE_MENU:
     case webapps::WebappInstallSource::ALMANAC_INSTALL_APP_URI:
     case webapps::WebappInstallSource::WEBAPK_RESTORE:
     case webapps::WebappInstallSource::OOBE_APP_RECOMMENDATIONS:
-      return WebAppManagement::kSync;
+    case webapps::WebappInstallSource::WEB_INSTALL:
+    case webapps::WebappInstallSource::CHROMEOS_HELP_APP:
+      return WebAppManagement::kUserInstalled;
 
     case webapps::WebappInstallSource::IWA_GRAPHICAL_INSTALLER:
     case webapps::WebappInstallSource::IWA_DEV_UI:
@@ -1111,16 +1081,12 @@ WebAppManagement::Type ConvertInstallSurfaceToWebAppSource(
 
     case webapps::WebappInstallSource::MICROSOFT_365_SETUP:
       return WebAppManagement::kOneDriveIntegration;
-
-    case webapps::WebappInstallSource::COUNT:
-      NOTREACHED_IN_MIGRATION();
-      return WebAppManagement::kSync;
   }
 }
 
 void CreateWebAppInstallTabHelpers(content::WebContents* web_contents) {
   webapps::InstallableManager::CreateForWebContents(web_contents);
-  SecurityStateTabHelper::CreateForWebContents(web_contents);
+  ChromeSecurityStateTabHelper::CreateForWebContents(web_contents);
   favicon::CreateContentFaviconDriverForWebContents(web_contents);
   webapps::PreRedirectionURLObserver::CreateForWebContents(web_contents);
 }
@@ -1128,24 +1094,28 @@ void CreateWebAppInstallTabHelpers(content::WebContents* web_contents) {
 void SetWebAppManifestFields(const WebAppInstallInfo& web_app_info,
                              WebApp& web_app,
                              bool skip_icons_on_download_failure) {
+  // TODO(crbug.com/344718166): ManifestId should already be set the same,
+  // otherwise setting it here would be changing the app's ID. This should be a
+  // CHECK_EQ instead of a set.
+  web_app.SetManifestId(web_app_info.manifest_id());
+
   DCHECK(!web_app_info.title.empty());
   web_app.SetName(base::UTF16ToUTF8(web_app_info.title));
 
-  web_app.SetStartUrl(web_app_info.start_url);
-
-  // TODO(b/280862254): CHECK that the manifest_id isn't empty after the empty
-  // constructor is removed. Currently, `SetStartUrl` sets a default manifest_id
-  // based on the start_url.
-  if (web_app_info.manifest_id.is_valid()) {
-    web_app.SetManifestId(web_app_info.manifest_id);
-  }
+  web_app.SetStartUrl(web_app_info.start_url());
 
   web_app.SetDisplayMode(web_app_info.display_mode);
   web_app.SetDisplayModeOverride(web_app_info.display_override);
 
   web_app.SetDescription(base::UTF16ToUTF8(web_app_info.description));
   web_app.SetLaunchQueryParams(web_app_info.launch_query_params);
-  web_app.SetScope(web_app_info.scope);
+  if (web_app_info.scope.is_valid()) {
+    web_app.SetScope(web_app_info.scope);
+  } else {
+    web_app.SetScope(web_app_info.start_url().GetWithoutFilename());
+  }
+  CHECK(!web_app.scope().is_empty());
+
   DCHECK(!web_app_info.theme_color.has_value() ||
          SkColorGetA(*web_app_info.theme_color) == SK_AlphaOPAQUE);
   web_app.SetThemeColor(web_app_info.theme_color);
@@ -1200,7 +1170,6 @@ void SetWebAppManifestFields(const WebAppInstallInfo& web_app_info,
   web_app.SetFileHandlers(web_app_info.file_handlers);
   web_app.SetShareTarget(web_app_info.share_target);
   web_app.SetProtocolHandlers(web_app_info.protocol_handlers);
-  web_app.SetUrlHandlers(web_app_info.url_handlers);
   web_app.SetScopeExtensions(web_app_info.scope_extensions);
 
   if (base::FeatureList::IsEnabled(features::kWebLockScreenApi))
@@ -1222,6 +1191,8 @@ void SetWebAppManifestFields(const WebAppInstallInfo& web_app_info,
   }
 
   web_app.SetIsDiyApp(web_app_info.is_diy_app);
+
+  web_app.SetRelatedApplications(web_app_info.related_applications);
 }
 
 void SetWebAppProductIconFields(const WebAppInstallInfo& web_app_info,
@@ -1289,14 +1260,13 @@ void ApplyParamsToFinalizeOptions(
     options.chromeos_data->handles_file_open_intents =
         install_params.handles_file_open_intents;
   }
-  options.locally_installed = install_params.locally_installed;
-  options.bypass_os_hooks = install_params.bypass_os_hooks;
+  options.install_state = install_params.install_state;
   options.add_to_applications_menu = install_params.add_to_applications_menu;
   options.add_to_desktop = install_params.add_to_desktop;
   options.add_to_quick_launch_bar = install_params.add_to_quick_launch_bar;
   options.skip_origin_association_validation =
       install_params.skip_origin_association_validation;
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   if (install_params.system_app_type.has_value()) {
     options.system_web_app_data.emplace();
     options.system_web_app_data->system_app_type =
@@ -1310,12 +1280,12 @@ bool HomeTabIconsExistInTabStrip(const WebAppInstallInfo& web_app_info) {
     return false;
   }
 
-  if (!absl::holds_alternative<blink::Manifest::HomeTabParams>(
+  if (!std::holds_alternative<blink::Manifest::HomeTabParams>(
           web_app_info.tab_strip.value().home_tab)) {
     return false;
   }
 
-  const auto& home_tab = absl::get<blink::Manifest::HomeTabParams>(
+  const auto& home_tab = std::get<blink::Manifest::HomeTabParams>(
       web_app_info.tab_strip.value().home_tab);
 
   if (home_tab.icons.empty()) {
@@ -1323,6 +1293,21 @@ bool HomeTabIconsExistInTabStrip(const WebAppInstallInfo& web_app_info) {
   }
 
   return true;
+}
+
+bool IsSyncEnabledForApps(Profile* profile) {
+  if (!SyncServiceFactory::HasSyncService(profile)) {
+    return false;
+  }
+  syncer::SyncService* sync_service =
+      SyncServiceFactory::GetForProfile(profile);
+#if BUILDFLAG(IS_CHROMEOS)
+  return sync_service->GetUserSettings()->GetSelectedOsTypes().Has(
+      syncer::UserSelectableOsType::kOsApps);
+#else
+  return sync_service->GetUserSettings()->GetSelectedTypes().Has(
+      syncer::UserSelectableType::kApps);
+#endif
 }
 
 }  // namespace web_app

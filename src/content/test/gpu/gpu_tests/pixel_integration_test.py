@@ -7,7 +7,7 @@ import os
 import posixpath
 import sys
 import time
-from typing import Any, List, Set
+from typing import Any
 import unittest
 
 from gpu_tests import common_typing as ct
@@ -42,7 +42,7 @@ class PixelIntegrationTest(sghitb.SkiaGoldHeartbeatIntegrationTestBase):
   def _SuiteSupportsParallelTests(cls) -> bool:
     return True
 
-  def _GetSerialGlobs(self) -> Set[str]:
+  def _GetSerialGlobs(self) -> set[str]:
     serial_globs = set()
     if host_information.IsMac():
       serial_globs |= {
@@ -59,7 +59,7 @@ class PixelIntegrationTest(sghitb.SkiaGoldHeartbeatIntegrationTestBase):
       }
     return serial_globs
 
-  def _GetSerialTests(self) -> Set[str]:
+  def _GetSerialTests(self) -> set[str]:
     serial_tests = {
         # High/low power tests don't work properly with multiple browsers
         # active.
@@ -97,12 +97,10 @@ class PixelIntegrationTest(sghitb.SkiaGoldHeartbeatIntegrationTestBase):
     pages += namespace.LowLatencyPages(cls.test_base_name)
     pages += namespace.WebGPUPages(cls.test_base_name)
     pages += namespace.WebGPUCanvasCapturePages(cls.test_base_name)
+    pages += namespace.WebGPUDeviceDestroyPages(cls.test_base_name)
     pages += namespace.PaintWorkletPages(cls.test_base_name)
     pages += namespace.VideoFromCanvasPages(cls.test_base_name)
-    # pages += namespace.NoGpuProcessPages(cls.test_base_name)
-    # The following pages should run only on platforms where SwiftShader is
-    # enabled. They are skipped on other platforms through test expectations.
-    # pages += namespace.SwiftShaderPages(cls.test_base_name)
+    pages += namespace.NoGpuProcessPages(cls.test_base_name)
     if host_information.IsMac():
       pages += namespace.MacSpecificPages(cls.test_base_name)
       # Unfortunately we don't have a browser instance here so can't tell
@@ -112,6 +110,12 @@ class PixelIntegrationTest(sghitb.SkiaGoldHeartbeatIntegrationTestBase):
     if host_information.IsWindows():
       pages += namespace.DirectCompositionPages(cls.test_base_name)
       pages += namespace.HdrTestPages(cls.test_base_name)
+    # Only run SwiftShader tests on platforms that support it.
+    if host_information.IsLinux() or (host_information.IsWindows()
+                                      and not host_information.IsArmCpu()):
+      pages += namespace.SwiftShaderPages(cls.test_base_name)
+    if host_information.IsWindows():
+      pages += namespace.WARPPages(cls.test_base_name)
     for p in pages:
       yield (p.name, posixpath.join(gpu_path_util.GPU_DATA_RELATIVE_PATH,
                                     p.url), [p])
@@ -133,6 +137,17 @@ class PixelIntegrationTest(sghitb.SkiaGoldHeartbeatIntegrationTestBase):
       action.Run(test_case, tab_data, loop_state, self)
     self._RunSkiaGoldBasedPixelTest(test_case)
 
+  def _OnAfterTest(self, args: ct.TestArgs) -> None:
+    """Conditionally restarts the browser after the test is finished.
+
+    This must be done as a post-test hook instead of at the end of the test
+    method because restarting wipes crash data, but expected crash checks are
+    performed after RunActualGpuTest finishes.
+
+    Args:
+      args: The same arguments that the test was run with.
+    """
+    test_case = args[0]
     if (test_case.used_custom_test_actions
         or test_case.restart_browser_after_test):
       self._RestartBrowser(
@@ -156,7 +171,14 @@ class PixelIntegrationTest(sghitb.SkiaGoldHeartbeatIntegrationTestBase):
       process.
     """
     # args[0] is the PixelTestPage for the current test.
-    return args[0].expected_per_process_crashes
+    crashes_by_platform = args[0].expected_per_process_crashes
+    os_name = self.platform.GetOSName()
+    # Get any platform-specific crashes counts, falling back to the one for all
+    # platforms.
+    return crashes_by_platform.get(
+        os_name,
+        crashes_by_platform.get(
+            pixel_test_pages.EXPECTED_CRASHES_PLATFORM_DEFAULT, {}))
 
   def _RunSkiaGoldBasedPixelTest(
       self, test_case: pixel_test_pages.PixelTestPage) -> None:
@@ -189,19 +211,9 @@ class PixelIntegrationTest(sghitb.SkiaGoldHeartbeatIntegrationTestBase):
       self.fail('Could not capture screenshot')
 
     dpr = tab.EvaluateJavaScript('window.devicePixelRatio')
-    if test_case.test_rect:
-      start_x = int(test_case.test_rect[0] * dpr)
-      start_y = int(test_case.test_rect[1] * dpr)
-      # When actually clamping the value, it's possible we'll catch the
-      # scrollbar, so account for its width in the clamp.
-      end_x = min(int(test_case.test_rect[2] * dpr),
-                  image_util.Width(screen_shot) - SCROLLBAR_WIDTH)
-      end_y = min(int(test_case.test_rect[3] * dpr),
-                  image_util.Height(screen_shot))
-      crop_width = end_x - start_x
-      crop_height = end_y - start_y
-      screen_shot = image_util.Crop(screen_shot, start_x, start_y, crop_width,
-                                    crop_height)
+    screen_shot = test_case.crop_action.CropScreenshot(
+        screen_shot, dpr, self.browser.platform.GetDeviceTypeName(),
+        self.browser.platform.GetOSName())
 
     image_name = self._UrlToImageName(test_case.name)
     self._UploadTestResultToSkiaGold(image_name, screen_shot, test_case)
@@ -216,7 +228,7 @@ class PixelIntegrationTest(sghitb.SkiaGoldHeartbeatIntegrationTestBase):
     return DEFAULT_SCREENSHOT_TIMEOUT * multiplier
 
   @classmethod
-  def ExpectationsFiles(cls) -> List[str]:
+  def ExpectationsFiles(cls) -> list[str]:
     return [
         os.path.join(
             os.path.dirname(os.path.abspath(__file__)), 'test_expectations',

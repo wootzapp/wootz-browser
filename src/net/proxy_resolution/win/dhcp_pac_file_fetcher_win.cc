@@ -276,8 +276,7 @@ int DhcpPacFileFetcherWin::Fetch(
     const NetworkTrafficAnnotationTag traffic_annotation) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   if (state_ != STATE_START && state_ != STATE_DONE) {
-    NOTREACHED_IN_MIGRATION();
-    return ERR_UNEXPECTED;
+    NOTREACHED();
   }
 
   net_log_ = net_log;
@@ -304,7 +303,8 @@ int DhcpPacFileFetcherWin::Fetch(
           &DhcpPacFileFetcherWin::AdapterQuery::GetCandidateAdapterNames,
           last_query_.get()),
       base::BindOnce(&DhcpPacFileFetcherWin::OnGetCandidateAdapterNamesDone,
-                     AsWeakPtr(), last_query_, traffic_annotation));
+                     weak_ptr_factory_.GetWeakPtr(), last_query_,
+                     traffic_annotation));
 
   return ERR_IO_PENDING;
 }
@@ -341,6 +341,7 @@ void DhcpPacFileFetcherWin::CancelImpl() {
 
     fetchers_.clear();
   }
+  destination_string_ = nullptr;
 }
 
 void DhcpPacFileFetcherWin::OnGetCandidateAdapterNamesDone(

@@ -9,15 +9,10 @@
 #include "ash/birch/birch_data_provider.h"
 #include "ash/birch/birch_item.h"
 #include "base/memory/weak_ptr.h"
-#include "components/favicon/core/favicon_service.h"
 #include "components/favicon_base/favicon_types.h"
 #include "components/send_tab_to_self/send_tab_to_self_sync_service.h"
 
 class Profile;
-
-namespace favicon_base {
-struct FaviconImageResult;
-}
 
 namespace ash {
 
@@ -33,19 +28,16 @@ class ASH_EXPORT BirchSelfShareProvider : public BirchDataProvider {
   // BirchDataProvider:
   void RequestBirchDataFetch() override;
 
+ protected:
+  // Marks the entry as opened when the suggestion is pressed.
+  void OnItemPressed(const std::string& guid);
+
  private:
-  void OnFavIconDataAvailable(
-      const std::string& guid,
-      const favicon_base::FaviconImageResult& image_result);
+  friend class BirchKeyedServiceTest;
 
   const raw_ptr<Profile> profile_;
 
   const raw_ptr<send_tab_to_self::SendTabToSelfSyncService> sync_service_;
-
-  // Used for loading favicons.
-  base::CancelableTaskTracker cancelable_task_tracker_;
-
-  int active_tasks_;
 
   // Cached self share items are used when no new changes have been detected
   // from ChromeSync.

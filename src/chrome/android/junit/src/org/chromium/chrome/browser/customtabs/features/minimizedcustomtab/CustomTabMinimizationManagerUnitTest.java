@@ -20,7 +20,6 @@ import static org.mockito.Mockito.when;
 
 import static org.chromium.chrome.browser.customtabs.features.minimizedcustomtab.CustomTabMinimizationManager.KEY_CCT_MINIMIZATION_SYSTEM_TIME;
 import static org.chromium.chrome.browser.customtabs.features.minimizedcustomtab.CustomTabMinimizationManager.KEY_IS_CCT_MINIMIZED;
-import static org.chromium.chrome.browser.customtabs.features.minimizedcustomtab.MinimizedCardProperties.TITLE;
 import static org.chromium.chrome.browser.tab.TabLoadIfNeededCaller.ON_ACTIVITY_SHOWN_THEN_SHOW;
 import static org.chromium.chrome.browser.tab.TabSelectionType.FROM_USER;
 
@@ -28,6 +27,7 @@ import android.app.PictureInPictureParams;
 import android.os.Build;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -39,7 +39,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -51,20 +50,21 @@ import org.robolectric.annotation.Config;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.CommandLineFlags;
-import org.chromium.base.test.util.Features;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.customtabs.CustomTabsConnection;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.InflationObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtilsJni;
+import org.chromium.components.url_formatter.UrlFormatter;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.url.GURL;
 import org.chromium.url.JUnitTestGURLs;
@@ -78,17 +78,18 @@ import java.lang.ref.WeakReference;
     ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE,
     ChromeSwitches.DISABLE_NATIVE_INITIALIZATION
 })
+@EnableFeatures(ChromeFeatureList.CCT_REPORT_PRERENDER_EVENTS)
 public class CustomTabMinimizationManagerUnitTest {
     @Rule
     public ActivityScenarioRule<CustomTabActivity> mActivityScenarioRule =
             new ActivityScenarioRule<>(CustomTabActivity.class);
 
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
-    @Rule public JniMocker mJniMocker = new JniMocker();
 
     private static final String TITLE = "Google";
-    private static final String HOST = JUnitTestGURLs.GOOGLE_URL.getHost();
+    private static final String HOST =
+            UrlFormatter.formatUrlForDisplayOmitSchemePathAndTrivialSubdomains(
+                    JUnitTestGURLs.SEARCH_URL);
 
     @Spy private AppCompatActivity mActivity;
     @Mock private ActivityTabProvider mTabProvider;
@@ -109,11 +110,11 @@ public class CustomTabMinimizationManagerUnitTest {
     @Before
     public void setUp() {
         mActivityScenarioRule.getScenario().onActivity(activity -> mActivity = spy(activity));
-        mJniMocker.mock(DomDistillerUrlUtilsJni.TEST_HOOKS, mDomDistillerUrlUtilsJni);
+        DomDistillerUrlUtilsJni.setInstanceForTesting(mDomDistillerUrlUtilsJni);
 
         CustomTabsConnection.setInstanceForTesting(mConnection);
         when(mTab.getWebContents()).thenReturn(mWebContents);
-        when(mTab.getUrl()).thenReturn(JUnitTestGURLs.GOOGLE_URL);
+        when(mTab.getUrl()).thenReturn(JUnitTestGURLs.SEARCH_URL);
         when(mTab.getTitle()).thenReturn(TITLE);
         when(mTabProvider.hasValue()).thenReturn(true);
         when(mTabProvider.get()).thenReturn(mTab);
@@ -219,12 +220,42 @@ public class CustomTabMinimizationManagerUnitTest {
         // Simulate having a distiller URL in the tab.
         when(mTab.getUrl()).thenReturn(new GURL(distillerUrl));
         when(mDomDistillerUrlUtilsJni.isDistilledPage(distillerUrl)).thenReturn(true);
-        when(mTab.getOriginalUrl()).thenReturn(JUnitTestGURLs.GOOGLE_URL);
+        when(mTab.getOriginalUrl()).thenReturn(JUnitTestGURLs.SEARCH_URL);
 
         mManager.minimize();
         mManager.accept(new PictureInPictureModeChangedInfo(true));
 
         assertEquals(HOST, ((TextView) mActivity.findViewById(R.id.url)).getText());
+    }
+
+    @Test
+    public void testAboutBlank() {
+        // Simulate having about:blank URL in the tab.
+        when(mTab.getUrl()).thenReturn(JUnitTestGURLs.ABOUT_BLANK);
+        when(mTab.getTitle()).thenReturn("google.com");
+
+        mManager.minimize();
+        mManager.accept(new PictureInPictureModeChangedInfo(true));
+
+        assertEquals(View.GONE, mActivity.findViewById(R.id.title).getVisibility());
+        assertEquals(
+                JUnitTestGURLs.ABOUT_BLANK.getSpec(),
+                ((TextView) mActivity.findViewById(R.id.url)).getText());
+    }
+
+    @Test
+    public void testAboutBlank_fragment() {
+        // Simulate having about:blank#google.com URL in the tab.
+        when(mTab.getUrl()).thenReturn(new GURL("about:blank#google.com"));
+        when(mTab.getTitle()).thenReturn("google.com");
+
+        mManager.minimize();
+        mManager.accept(new PictureInPictureModeChangedInfo(true));
+
+        assertEquals(View.GONE, mActivity.findViewById(R.id.title).getVisibility());
+        assertEquals(
+                JUnitTestGURLs.ABOUT_BLANK.getSpec(),
+                ((TextView) mActivity.findViewById(R.id.url)).getText());
     }
 
     @Test

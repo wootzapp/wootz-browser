@@ -6,8 +6,9 @@
 
 #include <jni.h>
 
+#include <algorithm>
+
 #include "base/android/jni_android.h"
-#include "base/ranges/algorithm.h"
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list_observer.h"
@@ -19,6 +20,8 @@ base::LazyInstance<TabModelList>::Leaky tab_model_list_ =
     LAZY_INSTANCE_INITIALIZER;
 }  // namespace
 
+static TabModel* archived_tab_model_ = nullptr;
+
 TabModelList::TabModelList() = default;
 TabModelList::~TabModelList() = default;
 
@@ -26,8 +29,9 @@ void TabModelList::AddTabModel(TabModel* tab_model) {
   DCHECK(tab_model);
   tab_model_list_.Get().models_.push_back(tab_model);
 
-  for (TabModelListObserver& observer : tab_model_list_.Get().observers_)
-    observer.OnTabModelAdded();
+  for (TabModelListObserver& observer : tab_model_list_.Get().observers_) {
+    observer.OnTabModelAdded(tab_model);
+  }
 }
 
 void TabModelList::RemoveTabModel(TabModel* tab_model) {
@@ -35,13 +39,15 @@ void TabModelList::RemoveTabModel(TabModel* tab_model) {
   auto& tab_models = tab_model_list_.Get().models_;
 
   TabModelList::iterator remove_tab_model =
-      base::ranges::find(tab_models, tab_model);
+      std::ranges::find(tab_models, tab_model);
 
-  if (remove_tab_model != tab_models.end())
+  if (remove_tab_model != tab_models.end()) {
     tab_models.erase(remove_tab_model);
+  }
 
-  for (TabModelListObserver& observer : tab_model_list_.Get().observers_)
-    observer.OnTabModelRemoved();
+  for (TabModelListObserver& observer : tab_model_list_.Get().observers_) {
+    observer.OnTabModelRemoved(tab_model);
+  }
 }
 
 void TabModelList::AddObserver(TabModelListObserver* observer) {
@@ -57,21 +63,24 @@ void TabModelList::HandlePopupNavigation(NavigateParams* params) {
 
   // NOTE: If this fails contact dtrainor@.
   DCHECK(tab);
-  TabModel* model = FindTabModelWithId(tab->window_id());
-  if (model)
+  TabModel* model = FindTabModelWithId(tab->GetWindowId());
+  if (model) {
     model->HandlePopupNavigation(tab, params);
+  }
 }
 
 TabModel* TabModelList::GetTabModelForWebContents(
     content::WebContents* web_contents) {
-  if (!web_contents)
+  if (!web_contents) {
     return nullptr;
+  }
 
   for (TabModel* model : models()) {
     const size_t tab_count = model->GetTabCount();
     for (size_t index = 0; index < tab_count; index++) {
-      if (web_contents == model->GetWebContentsAt(index))
+      if (web_contents == model->GetWebContentsAt(index)) {
         return model;
+      }
     }
   }
 
@@ -79,14 +88,16 @@ TabModel* TabModelList::GetTabModelForWebContents(
 }
 
 TabModel* TabModelList::GetTabModelForTabAndroid(TabAndroid* tab_android) {
-  if (!tab_android)
+  if (!tab_android) {
     return nullptr;
+  }
 
   for (TabModel* model : models()) {
     const size_t tab_count = model->GetTabCount();
     for (size_t index = 0; index < tab_count; index++) {
-      if (tab_android == model->GetTabAt(index))
+      if (tab_android == model->GetTabAt(index)) {
         return model;
+      }
     }
   }
 
@@ -95,8 +106,9 @@ TabModel* TabModelList::GetTabModelForTabAndroid(TabAndroid* tab_android) {
 
 TabModel* TabModelList::FindTabModelWithId(SessionID desired_id) {
   for (TabModel* model : models()) {
-    if (model->GetSessionId() == desired_id)
+    if (model->GetSessionId() == desired_id) {
       return model;
+    }
   }
 
   return nullptr;
@@ -111,6 +123,13 @@ TabModel* TabModelList::FindNativeTabModelForJavaObject(
     }
   }
 
+  TabModel* archived_tab_model = GetArchivedTabModel();
+  if (archived_tab_model != nullptr &&
+      env->IsSameObject(jtab_model.obj(),
+                        archived_tab_model->GetJavaObject().obj())) {
+    return archived_tab_model;
+  }
+
   return nullptr;
 }
 
@@ -118,8 +137,9 @@ bool TabModelList::IsOffTheRecordSessionActive() {
   // TODO(crbug.com/40107157): This function should return true for
   // incognito CCTs.
   for (TabModel* model : models()) {
-    if (model->IsOffTheRecord() && model->GetTabCount() > 0)
+    if (model->IsOffTheRecord() && model->GetTabCount() > 0) {
       return true;
+    }
   }
 
   return false;
@@ -129,7 +149,6 @@ bool TabModelList::IsOffTheRecordSessionActive() {
 const TabModelList::TabModelVector& TabModelList::models() {
   return tab_model_list_.Get().models_;
 }
-
 TabModel* TabModelList::GetCurrentTabModel() {
   for (TabModel* tab_model : TabModelList::models()) {
     if (tab_model->IsActiveModel())
@@ -137,4 +156,14 @@ TabModel* TabModelList::GetCurrentTabModel() {
   }
   
   return nullptr;
+}
+
+// static
+void TabModelList::SetArchivedTabModel(TabModel* archived_tab_model) {
+  archived_tab_model_ = archived_tab_model;
+}
+
+// static
+TabModel* TabModelList::GetArchivedTabModel() {
+  return archived_tab_model_;
 }

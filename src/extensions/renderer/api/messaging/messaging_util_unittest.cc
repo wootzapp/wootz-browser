@@ -4,7 +4,9 @@
 
 #include "extensions/renderer/api/messaging/messaging_util.h"
 
+#include <array>
 #include <memory>
+#include <string>
 #include <string_view>
 
 #include "base/strings/stringprintf.h"
@@ -21,6 +23,16 @@
 #include "v8/include/v8.h"
 
 namespace extensions {
+
+namespace {
+
+struct TestCase {
+  v8::Local<v8::Value> passed_id;
+  std::string_view expected_id;
+  bool should_pass;
+};
+
+}  // anonymous namespace
 
 using MessagingUtilTest = APIBindingTest;
 
@@ -44,7 +56,7 @@ TEST_F(MessagingUtilTest, TestParseMessageOptionsFrameId) {
   v8::HandleScope handle_scope(isolate());
   v8::Local<v8::Context> context = MainContext();
 
-  struct {
+  static constexpr struct {
     int expected_frame_id;
     const char* string_options;
   } test_cases[] = {
@@ -199,11 +211,7 @@ TEST_F(MessagingUtilWithSystemTest, TestGetTargetIdFromExtensionContext) {
   script_context->set_url(extension->url());
 
   std::string other_id(32, 'a');
-  struct {
-    v8::Local<v8::Value> passed_id;
-    std::string_view expected_id;
-    bool should_pass;
-  } test_cases[] = {
+  const auto test_cases = std::to_array<TestCase>({
       // If the extension ID is not provided, the bindings use the calling
       // extension's.
       {v8::Null(isolate()), extension->id(), true},
@@ -214,7 +222,7 @@ TEST_F(MessagingUtilWithSystemTest, TestGetTargetIdFromExtensionContext) {
       {gin::StringToV8(isolate(), extension->id()), extension->id(), true},
       {gin::StringToV8(isolate(), other_id), other_id, true},
       {gin::StringToV8(isolate(), "invalid id"), std::string_view(), false},
-  };
+  });
 
   for (size_t i = 0; i < std::size(test_cases); ++i) {
     SCOPED_TRACE(base::StringPrintf("Test Case: %d", static_cast<int>(i)));
@@ -239,17 +247,13 @@ TEST_F(MessagingUtilWithSystemTest, TestGetTargetIdFromWebContext) {
   script_context->set_url(GURL("https://example.com"));
 
   std::string other_id(32, 'a');
-  struct {
-    v8::Local<v8::Value> passed_id;
-    std::string_view expected_id;
-    bool should_pass;
-  } test_cases[] = {
+  const auto test_cases = std::to_array<TestCase>({
       // A web page should always have to specify the extension id.
       {gin::StringToV8(isolate(), other_id), other_id, true},
       {v8::Null(isolate()), std::string_view(), false},
       {gin::StringToV8(isolate(), ""), std::string_view(), false},
       {gin::StringToV8(isolate(), "invalid id"), std::string_view(), false},
-  };
+  });
 
   for (size_t i = 0; i < std::size(test_cases); ++i) {
     SCOPED_TRACE(base::StringPrintf("Test Case: %d", static_cast<int>(i)));
@@ -277,11 +281,7 @@ TEST_F(MessagingUtilWithSystemTest, TestGetTargetIdFromUserScriptContext) {
   script_context->set_url(extension->url());
 
   std::string other_id(32, 'a');
-  struct {
-    v8::Local<v8::Value> passed_id;
-    std::string_view expected_id;
-    bool should_pass;
-  } test_cases[] = {
+  const auto test_cases = std::to_array<TestCase>({
       // If the extension ID is not provided, the bindings use the calling
       // extension's.
       {v8::Null(isolate()), extension->id(), true},
@@ -292,7 +292,7 @@ TEST_F(MessagingUtilWithSystemTest, TestGetTargetIdFromUserScriptContext) {
       {gin::StringToV8(isolate(), extension->id()), extension->id(), true},
       // User scripts may not target other extensions.
       {gin::StringToV8(isolate(), other_id), std::string_view(), false},
-  };
+  });
 
   for (size_t i = 0; i < std::size(test_cases); ++i) {
     SCOPED_TRACE(base::StringPrintf("Test Case: %d", static_cast<int>(i)));

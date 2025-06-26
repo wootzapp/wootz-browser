@@ -12,10 +12,12 @@
 
 #include "base/numerics/checked_math.h"
 #include "components/attribution_reporting/source_type.mojom-forward.h"
+#include "content/browser/attribution_reporting/stored_source.h"
 #include "content/common/content_export.h"
 #include "third_party/blink/public/mojom/aggregation_service/aggregatable_report.mojom-forward.h"
 
 namespace attribution_reporting {
+class AggregatableNamedBudgetDefs;
 class AggregatableTriggerData;
 class AggregatableValues;
 class AggregationKeys;
@@ -23,8 +25,13 @@ class FilterData;
 }  // namespace attribution_reporting
 
 namespace base {
+class DictValue;
 class Time;
 }  // namespace base
+
+namespace net {
+class SchemefulSite;
+}  // namespace net
 
 namespace content {
 
@@ -37,14 +44,16 @@ std::vector<blink::mojom::AggregatableReportHistogramContribution>
 CreateAggregatableHistogram(
     const attribution_reporting::FilterData& source_filter_data,
     attribution_reporting::mojom::SourceType,
-    const base::Time& source_time,
-    const base::Time& trigger_time,
+    base::Time source_time,
+    base::Time trigger_time,
     const attribution_reporting::AggregationKeys& keys,
     const std::vector<attribution_reporting::AggregatableTriggerData>&,
     const std::vector<attribution_reporting::AggregatableValues>&);
 
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
+//
+// LINT.IfChange(AssembleAggregatableReportStatus)
 enum class AssembleAggregatableReportStatus {
   kSuccess = 0,
   kAggregationServiceUnavailable = 1,
@@ -52,12 +61,19 @@ enum class AssembleAggregatableReportStatus {
   kAssembleReportFailed = 3,
   kMaxValue = kAssembleReportFailed,
 };
+// LINT.ThenChange(//tools/metrics/histograms/metadata/attribution_reporting/enums.xml:ConversionAssembleAggregatableReportStatus)
 
 CONTENT_EXPORT std::optional<AggregatableReportRequest>
 CreateAggregatableReportRequest(const AttributionReport& report);
 
 base::CheckedNumeric<int64_t> GetTotalAggregatableValues(
     const std::vector<blink::mojom::AggregatableReportHistogramContribution>&);
+
+void SetAttributionDestination(base::DictValue&,
+                               const net::SchemefulSite& destination);
+
+CONTENT_EXPORT StoredSource::AggregatableNamedBudgets ConvertNamedBudgetsMap(
+    const attribution_reporting::AggregatableNamedBudgetDefs&);
 
 }  // namespace content
 

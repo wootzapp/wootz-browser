@@ -31,7 +31,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/notreached.h"
 #include "third_party/blink/public/mojom/webpreferences/web_preferences.mojom-blink-forward.h"
-#include "third_party/blink/renderer/platform/graphics/graphics_types.h"
+#include "third_party/blink/renderer/platform/graphics/graphics_context_types.h"
 #include "third_party/blink/renderer/platform/graphics/image_observer.h"
 #include "third_party/blink/renderer/platform/graphics/image_orientation.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_image.h"
@@ -104,7 +104,6 @@ class PLATFORM_EXPORT Image : public ThreadSafeRefCounted<Image> {
   virtual bool IsSVGImage() const { return false; }
   virtual bool IsBitmapImage() const { return false; }
   virtual bool IsStaticBitmapImage() const { return false; }
-  virtual bool IsPlaceholderImage() const { return false; }
 
   virtual bool CurrentFrameKnownToBeOpaque() = 0;
 
@@ -118,7 +117,7 @@ class PLATFORM_EXPORT Image : public ThreadSafeRefCounted<Image> {
   virtual bool CurrentFrameHasSingleSecurityOrigin() const { return false; }
 
   static Image* NullImage();
-  bool IsNull() const { return Size().IsEmpty(); }
+  bool IsNull() const { return this == NullImage(); }
 
   virtual bool HasIntrinsicSize() const { return true; }
 
@@ -278,8 +277,7 @@ class PLATFORM_EXPORT Image : public ThreadSafeRefCounted<Image> {
         return PaintImage::DecodingMode::kAsync;
     }
 
-    NOTREACHED_IN_MIGRATION();
-    return PaintImage::DecodingMode::kUnspecified;
+    NOTREACHED();
   }
 
   virtual PaintImage PaintImageForCurrentFrame() = 0;
@@ -305,6 +303,13 @@ class PLATFORM_EXPORT Image : public ThreadSafeRefCounted<Image> {
     kClampImageToSourceRect,
     kDoNotClampImageToSourceRect
   };
+
+  static SkCanvas::SrcRectConstraint ToSkiaRectConstraint(
+      Image::ImageClampingMode clamp_mode) {
+    return clamp_mode == Image::kClampImageToSourceRect
+               ? SkCanvas::kStrict_SrcRectConstraint
+               : SkCanvas::kFast_SrcRectConstraint;
+  }
 
   virtual void Draw(cc::PaintCanvas*,
                     const cc::PaintFlags&,

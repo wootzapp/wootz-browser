@@ -15,14 +15,15 @@
 #include "base/functional/callback.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/path_service.h"
 #include "base/task/thread_pool.h"
 #include "base/version.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/common/chrome_features.h"
 #include "components/component_updater/component_updater_paths.h"
-#include "components/fingerprinting_protection_filter/browser/fingerprinting_protection_filter_constants.h"
-#include "components/fingerprinting_protection_filter/browser/fingerprinting_protection_filter_features.h"
+#include "components/fingerprinting_protection_filter/common/fingerprinting_protection_filter_constants.h"
+#include "components/fingerprinting_protection_filter/common/fingerprinting_protection_filter_features.h"
 #include "components/subresource_filter/content/shared/browser/ruleset_service.h"
 #include "components/subresource_filter/core/browser/subresource_filter_constants.h"
 
@@ -98,6 +99,12 @@ void AntiFingerprintingBlockedDomainListComponentInstallerPolicy::
   }
 }
 
+void WriteMetrics(InstallationResult result) {
+  base::UmaHistogramEnumeration(
+      "FingerprintingProtection.BlockedDomainListComponent.InstallationResult",
+      result);
+}
+
 // Called during startup and installation before ComponentReady().
 bool AntiFingerprintingBlockedDomainListComponentInstallerPolicy::
     VerifyInstallation(const base::Value::Dict& manifest,
@@ -105,12 +112,18 @@ bool AntiFingerprintingBlockedDomainListComponentInstallerPolicy::
   std::optional<int> ruleset_format =
       manifest.FindInt(kManifestRulesetFormatKey);
   if (!ruleset_format.has_value() || *ruleset_format != kCurrentRulesetFormat) {
+    WriteMetrics(InstallationResult::kRulesetFormatError);
     DVLOG(1) << "Ruleset formats don't match.";
     DVLOG_IF(1, ruleset_format)
         << "Future ruleset version: " << *ruleset_format;
     return false;
   }
-  return base::PathExists(install_dir);
+  if (!base::PathExists(install_dir)) {
+    WriteMetrics(InstallationResult::kMissingBlocklistFileError);
+    return false;
+  }
+  WriteMetrics(InstallationResult::kSuccess);
+  return true;
 }
 
 base::FilePath AntiFingerprintingBlockedDomainListComponentInstallerPolicy::
@@ -135,14 +148,32 @@ AntiFingerprintingBlockedDomainListComponentInstallerPolicy::GetName() const {
 update_client::InstallerAttributes
 AntiFingerprintingBlockedDomainListComponentInstallerPolicy::
     GetInstallerAttributes() const {
-  return update_client::InstallerAttributes();
+  std::string experimental_version = "";
+
+  if (fingerprinting_protection_filter::features::
+          IsFingerprintingProtectionEnabledForIncognitoState(
+              /*is_incognito=*/true)) {
+    experimental_version =
+        fingerprinting_protection_filter::features::kExperimentVersionIncognito
+            .Get();
+  } else if (fingerprinting_protection_filter::features::
+                 IsFingerprintingProtectionEnabledForIncognitoState(
+                     /*is_incognito=*/false)) {
+    experimental_version = fingerprinting_protection_filter::features::
+                               kExperimentVersionNonIncognito.Get();
+  }
+  return {
+      {
+          kExperimentalVersionAttributeName,
+          experimental_version,
+      },
+  };
 }
 
 void RegisterAntiFingerprintingBlockedDomainListComponent(
     ComponentUpdateService* cus) {
-  if (!base::FeatureList::IsEnabled(
-          fingerprinting_protection_filter::features::
-              kEnableFingerprintingProtectionFilter)) {
+  if (!fingerprinting_protection_filter::features::
+          IsFingerprintingProtectionFeatureEnabled()) {
     return;
   }
 

@@ -2,12 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/354829279): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/gfx/color_utils.h"
 
 #include <stdint.h>
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <numeric>
 #include <ostream>
 #include <vector>
@@ -15,7 +21,6 @@
 #include "base/check_op.h"
 #include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "build/build_config.h"
@@ -154,15 +159,14 @@ SkColor PickGoogleColor(const SkColor (&colors)[kNumGoogleColors],
   // `colors`.  These could be precomputed and recorded next to `kGrey` etc. for
   // some runtime speedup at the cost of maintenance pain.
   float lum_colors[kNumGoogleColors];
-  base::ranges::transform(colors, std::begin(lum_colors),
-                          &GetRelativeLuminance);
+  std::ranges::transform(colors, std::begin(lum_colors), &GetRelativeLuminance);
 
   // This function returns an iterator to the least-contrasting luminance (in
   // `lum_colors`) to `lum`.
   const auto find_nearest_lum_it = [&lum_colors](float lum) {
     // Find the first luminance (since they're sorted decreasing) <= `lum`.
     const float* it =
-        base::ranges::lower_bound(lum_colors, lum, base::ranges::greater());
+        std::ranges::lower_bound(lum_colors, lum, std::ranges::greater());
     // If applicable, check against the next greater luminance for whichever is
     // lower-contrast.
     if (it == std::cend(lum_colors) ||
@@ -203,9 +207,9 @@ SkColor PickGoogleColor(const SkColor (&colors)[kNumGoogleColors],
                                           float threshold, auto comp,
                                           auto proj) {
     if (end >= begin) {
-      return base::ranges::lower_bound(begin, end, threshold, comp, proj);
+      return std::ranges::lower_bound(begin, end, threshold, comp, proj);
     }
-    const auto res_it_reversed = base::ranges::lower_bound(
+    const auto res_it_reversed = std::ranges::lower_bound(
         std::make_reverse_iterator(begin + 1),
         std::make_reverse_iterator(end + 1), threshold, comp, proj);
     return res_it_reversed.base() - 1;
@@ -277,7 +281,7 @@ SkColor PickGoogleColor(const SkColor (&colors)[kNumGoogleColors],
 
       // Now keep moving towards `targ_it` until contrast is sufficient.
       res_it = first_across_threshold(src_it, targ_it, min_contrast,
-                                      base::ranges::less(), proj);
+                                      std::ranges::less(), proj);
     }
   } else if (src_contrast_with_near > max_contrast_with_nearer) {
     // Need to reduce contrast if possible by moving toward the nearer
@@ -299,11 +303,11 @@ SkColor PickGoogleColor(const SkColor (&colors)[kNumGoogleColors],
       return GetContrastRatio(lum, nearer_bg_lum);
     };
     targ_it = first_across_threshold(targ_it, src_it, min_contrast,
-                                     base::ranges::less(), proj);
+                                     std::ranges::less(), proj);
 
     // Now move `res_it` towards `targ_it` until contrast is sufficiently low.
     res_it = first_across_threshold(src_it, targ_it, max_contrast_with_nearer,
-                                    base::ranges::greater(), proj);
+                                    std::ranges::greater(), proj);
   }
 
   // Convert `res_it` back to a color.

@@ -31,6 +31,7 @@
 #include "content/public/test/navigation_simulator.h"
 #include "content/public/test/web_contents_tester.h"
 #include "extensions/browser/disable_reason.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_util.h"
 #include "extensions/browser/test_extension_registry_observer.h"
@@ -54,10 +55,10 @@ scoped_refptr<const Extension> CreateTestExtension(
     bool has_tab_capture_permission) {
   ExtensionBuilder builder(name);
   if (has_active_tab_permission) {
-    builder.AddPermission("activeTab");
+    builder.AddAPIPermission("activeTab");
   }
   if (has_tab_capture_permission) {
-    builder.AddPermission("tabCapture");
+    builder.AddAPIPermission("tabCapture");
   }
 
   return builder.Build();
@@ -87,14 +88,15 @@ class ActiveTabTest : public ChromeRenderViewHostTestHarness {
 
     // We need to add extensions to the ExtensionService; else trying to commit
     // any of their URLs fails and redirects to about:blank.
-    ExtensionService* service =
-        static_cast<TestExtensionSystem*>(ExtensionSystem::Get(profile()))
-            ->CreateExtensionService(base::CommandLine::ForCurrentProcess(),
-                                     base::FilePath(), false);
-    service->AddExtension(extension.get());
-    service->AddExtension(another_extension.get());
-    service->AddExtension(extension_without_active_tab.get());
-    service->AddExtension(extension_with_tab_capture.get());
+    static_cast<TestExtensionSystem*>(ExtensionSystem::Get(profile()))
+        ->CreateExtensionService(base::CommandLine::ForCurrentProcess(),
+                                 base::FilePath(), false);
+    ExtensionRegistrar::Get(profile())->AddExtension(extension);
+    ExtensionRegistrar::Get(profile())->AddExtension(another_extension);
+    ExtensionRegistrar::Get(profile())->AddExtension(
+        extension_without_active_tab);
+    ExtensionRegistrar::Get(profile())->AddExtension(
+        extension_with_tab_capture);
   }
 
   int tab_id() {
@@ -138,8 +140,7 @@ class ActiveTabTest : public ChromeRenderViewHostTestHarness {
       case PERMITTED_NONE:
         return !script && !capture;
     }
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
 
   bool IsBlocked(const scoped_refptr<const Extension>& extension_refptr,
@@ -474,7 +475,7 @@ TEST_F(ActiveTabTest, ClearAllActiveExtensionsAndNotify) {
 // An active tab test that includes an ExtensionService.
 class ActiveTabWithServiceTest : public ExtensionServiceTestBase {
  public:
-  ActiveTabWithServiceTest() {}
+  ActiveTabWithServiceTest() = default;
 
   ActiveTabWithServiceTest(const ActiveTabWithServiceTest&) = delete;
   ActiveTabWithServiceTest& operator=(const ActiveTabWithServiceTest&) = delete;

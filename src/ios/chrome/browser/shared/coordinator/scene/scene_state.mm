@@ -12,6 +12,7 @@
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/app/application_delegate/app_state.h"
 #import "ios/chrome/app/chrome_overlay_window.h"
+#import "ios/chrome/app/profile/profile_state.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_controller.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_util.h"
 
@@ -47,16 +48,26 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
 
 @interface SceneState ()
 
-// Container for this object's observers.
-@property(nonatomic, strong) SceneStateObserverList* observers;
-
-// Agents attached to this scene.
-@property(nonatomic, strong) NSMutableArray<id<SceneAgent>>* agents;
-
 @end
 
 @implementation SceneState {
+  // Cache the session identifier.
+  std::string _sceneSessionID;
+
+  // The AppState passed to the initializer.
+  AppState* _appState;
+
+  // Container for this object's observers.
+  SceneStateObserverList* _observers;
+
+  // Agents attached to this scene.
+  NSMutableArray<id<SceneAgent>>* _agents;
+
+  // The state of the -incognitoContentVisible property.
   ContentVisibility _contentVisibility;
+
+  // The current value of -activationLevel.
+  SceneActivationLevel _activationLevel;
 }
 
 - (instancetype)initWithAppState:(AppState*)appState {
@@ -79,21 +90,38 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
 #pragma mark - public
 
 - (void)addObserver:(id<SceneStateObserver>)observer {
-  [self.observers addObserver:observer];
+  [_observers addObserver:observer];
 }
 
 - (void)removeObserver:(id<SceneStateObserver>)observer {
-  [self.observers removeObserver:observer];
+  [_observers removeObserver:observer];
 }
 
 - (void)addAgent:(id<SceneAgent>)agent {
   DCHECK(agent);
-  [self.agents addObject:agent];
+  [_agents addObject:agent];
   [agent setSceneState:self];
 }
 
 - (NSArray*)connectedAgents {
-  return self.agents;
+  return _agents;
+}
+
+- (void)setRootViewController:(UIViewController*)rootViewController
+            makeKeyAndVisible:(BOOL)makeKeyAndVisible {
+  [self.window setRootViewController:rootViewController];
+  if (makeKeyAndVisible) {
+    [self.window makeKeyAndVisible];
+  }
+}
+
+- (void)setRootViewControllerKeyAndVisible {
+  [self.window makeKeyAndVisible];
+}
+
+- (void)setWindowUserInterfaceStyle:
+    (UIUserInterfaceStyle)windowUserInterfaceStyle {
+  self.window.overrideUserInterfaceStyle = windowUserInterfaceStyle;
 }
 
 #pragma mark - Setters & Getters.
@@ -108,8 +136,29 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
   return mainWindow;
 }
 
-- (NSString*)sceneSessionID {
-  return SessionIdentifierForScene(_scene);
+- (NSString*)windowAccessibilityIdentifier {
+  return self.window.accessibilityIdentifier;
+}
+
+- (UIViewController*)rootViewController {
+  return [self.window rootViewController];
+}
+
+- (UIView*)rootView {
+  return self.rootViewController.view;
+}
+
+- (const std::string&)sceneSessionID {
+  return _sceneSessionID;
+}
+
+- (void)setScene:(UIWindowScene*)scene {
+  _scene = scene;
+  if (_scene) {
+    _sceneSessionID = SessionIdentifierForScene(_scene);
+  } else {
+    _sceneSessionID.clear();
+  }
 }
 
 - (void)setActivationLevel:(SceneActivationLevel)newLevel {
@@ -118,7 +167,7 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
   }
   _activationLevel = newLevel;
 
-  [self.observers sceneState:self transitionedToActivationLevel:newLevel];
+  [_observers sceneState:self transitionedToActivationLevel:newLevel];
 }
 
 - (void)setUIEnabled:(BOOL)UIEnabled {
@@ -128,9 +177,9 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
 
   _UIEnabled = UIEnabled;
   if (UIEnabled) {
-    [self.observers sceneStateDidEnableUI:self];
+    [_observers sceneStateDidEnableUI:self];
   } else {
-    [self.observers sceneStateDidDisableUI:self];
+    [_observers sceneStateDidDisableUI:self];
   }
 }
 
@@ -143,15 +192,15 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
     return;
   }
   if (presentingModalOverlay) {
-    [self.observers sceneStateWillShowModalOverlay:self];
+    [_observers sceneStateWillShowModalOverlay:self];
   } else {
-    [self.observers sceneStateWillHideModalOverlay:self];
+    [_observers sceneStateWillHideModalOverlay:self];
   }
 
   _presentingModalOverlay = presentingModalOverlay;
 
   if (!presentingModalOverlay) {
-    [self.observers sceneStateDidHideModalOverlay:self];
+    [_observers sceneStateDidHideModalOverlay:self];
   }
 }
 
@@ -163,7 +212,7 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
         [_URLContextsToOpen setByAddingObjectsFromSet:URLContextsToOpen];
   }
   if (_URLContextsToOpen) {
-    [self.observers sceneState:self hasPendingURLs:_URLContextsToOpen];
+    [_observers sceneState:self hasPendingURLs:_URLContextsToOpen];
   }
 }
 
@@ -200,13 +249,13 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
   [self setSessionObject:@(incognitoContentVisible)
                   forKey:kIncognitoCurrentKey];
 
-  [self.observers sceneState:self
+  [_observers sceneState:self
       isDisplayingIncognitoContent:incognitoContentVisible];
 }
 
 - (void)setPendingUserActivity:(NSUserActivity*)pendingUserActivity {
   _pendingUserActivity = pendingUserActivity;
-  [self.observers sceneState:self receivedUserActivity:pendingUserActivity];
+  [_observers sceneState:self receivedUserActivity:pendingUserActivity];
 }
 
 - (void)setSigninInProgress:(BOOL)signinInProgress {
@@ -214,16 +263,30 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
 
   _signinInProgress = signinInProgress;
   if (signinInProgress) {
-    [self.observers signinDidStart:self];
+    [_observers signinDidStart:self];
   } else {
-    [self.observers signinDidEnd:self];
+    [_observers signinDidEnd:self];
   }
+}
+
+- (void)setProfileState:(ProfileState*)profileState {
+  _profileState = profileState;
+  [_observers sceneState:self profileStateConnected:_profileState];
 }
 
 #pragma mark - UIBlockerTarget
 
-- (id<UIBlockerManager>)uiBlockerManager {
-  return _appState;
+- (BOOL)isUIBlocked {
+  return _presentingModalOverlay;
+}
+
+- (id<UIBlockerManager>)uiBlockerManagerForExtent:(UIBlockerExtent)extent {
+  switch (extent) {
+    case UIBlockerExtent::kProfile:
+      return _profileState;
+    case UIBlockerExtent::kApplication:
+      return _appState;
+  }
 }
 
 - (void)bringBlockerToFront:(UIScene*)requestingScene {
@@ -241,7 +304,7 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
                        errorHandler:^(NSError* error) {
                          LOG(ERROR) << base::SysNSStringToUTF8(
                              error.localizedDescription);
-                         NOTREACHED_IN_MIGRATION();
+                         NOTREACHED();
                        }];
 }
 
@@ -249,7 +312,7 @@ ContentVisibility ContentVisibilityForIncognito(BOOL isIncognito) {
 
 - (NSString*)description {
   NSString* activityString = nil;
-  switch (self.activationLevel) {
+  switch (_activationLevel) {
     case SceneActivationLevelUnattached: {
       activityString = @"Unattached";
       break;

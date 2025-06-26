@@ -19,16 +19,19 @@
 // bulk, via checkFormsIssues command and FormIssuesAdded event.
 namespace autofill {
 
+using testing::Eq;
+using testing::Pointee;
+
 namespace {
 class AutofillFormDevtoolsProtocolTest : public DevToolsProtocolTestBase {
  public:
   void NavigateToFormPageAndEnableAudits() {
+    Attach();
     GURL test_url = content::GetTestUrl(
         "autofill", "autofill_form_devtools_issues_test.html");
     EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), test_url));
     EXPECT_TRUE(content::WaitForLoadStop(web_contents()));
 
-    Attach();
     SendCommandSync("Audits.enable");
   }
 
@@ -83,9 +86,9 @@ IN_PROC_BROWSER_TEST_F(AutofillFormDevtoolsProtocolTest,
                   .FindIntByDottedPath(
                       "issue.details.genericIssueDetails.violatingNodeId")
                   .has_value());
-  base::ExpectDictStringValue(
-      "id", notification,
-      "issue.details.genericIssueDetails.violatingNodeAttribute");
+  EXPECT_THAT(notification.FindByDottedPath(
+                  "issue.details.genericIssueDetails.violatingNodeAttribute"),
+              Pointee(Eq("id")));
 }
 
 IN_PROC_BROWSER_TEST_F(AutofillFormDevtoolsProtocolTest,
@@ -97,9 +100,9 @@ IN_PROC_BROWSER_TEST_F(AutofillFormDevtoolsProtocolTest,
                   .FindIntByDottedPath(
                       "issue.details.genericIssueDetails.violatingNodeId")
                   .has_value());
-  base::ExpectDictStringValue(
-      "autocomplete", notification,
-      "issue.details.genericIssueDetails.violatingNodeAttribute");
+  EXPECT_THAT(notification.FindByDottedPath(
+                  "issue.details.genericIssueDetails.violatingNodeAttribute"),
+              Pointee(Eq("autocomplete")));
 }
 
 IN_PROC_BROWSER_TEST_F(AutofillFormDevtoolsProtocolTest,
@@ -135,9 +138,9 @@ IN_PROC_BROWSER_TEST_F(
                   .FindIntByDottedPath(
                       "issue.details.genericIssueDetails.violatingNodeId")
                   .has_value());
-  base::ExpectDictStringValue(
-      "id", notification,
-      "issue.details.genericIssueDetails.violatingNodeAttribute");
+  EXPECT_THAT(notification.FindByDottedPath(
+                  "issue.details.genericIssueDetails.violatingNodeAttribute"),
+              Pointee(Eq("id")));
 }
 
 IN_PROC_BROWSER_TEST_F(AutofillFormDevtoolsProtocolTest,
@@ -160,9 +163,9 @@ IN_PROC_BROWSER_TEST_F(AutofillFormDevtoolsProtocolTest,
                   .FindIntByDottedPath(
                       "issue.details.genericIssueDetails.violatingNodeId")
                   .has_value());
-  base::ExpectDictStringValue(
-      "for", notification,
-      "issue.details.genericIssueDetails.violatingNodeAttribute");
+  EXPECT_THAT(notification.FindByDottedPath(
+                  "issue.details.genericIssueDetails.violatingNodeAttribute"),
+              Pointee(Eq("for")));
 }
 
 IN_PROC_BROWSER_TEST_F(AutofillFormDevtoolsProtocolTest,
@@ -174,9 +177,9 @@ IN_PROC_BROWSER_TEST_F(AutofillFormDevtoolsProtocolTest,
                   .FindIntByDottedPath(
                       "issue.details.genericIssueDetails.violatingNodeId")
                   .has_value());
-  base::ExpectDictStringValue(
-      "autocomplete", notification,
-      "issue.details.genericIssueDetails.violatingNodeAttribute");
+  EXPECT_THAT(notification.FindByDottedPath(
+                  "issue.details.genericIssueDetails.violatingNodeAttribute"),
+              Pointee(Eq("autocomplete")));
 }
 
 }  // namespace autofill

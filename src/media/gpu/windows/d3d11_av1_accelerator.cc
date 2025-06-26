@@ -2,9 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/windows/d3d11_av1_accelerator.h"
 
 #include <numeric>
+#include <tuple>
 #include <utility>
 
 #include "base/memory/ptr_util.h"
@@ -13,6 +19,7 @@
 #include "media/gpu/av1_picture.h"
 #include "media/gpu/codec_picture.h"
 #include "media/gpu/windows/d3d11_picture_buffer.h"
+#include "third_party/libgav1/src/src/utils/common.h"
 
 namespace media {
 
@@ -51,8 +58,13 @@ class D3D11AV1Picture : public AV1Picture {
 };
 
 D3D11AV1Accelerator::D3D11AV1Accelerator(D3D11VideoDecoderClient* client,
-                                         MediaLog* media_log)
-    : D3DAccelerator(client, media_log) {}
+                                         MediaLog* media_log,
+                                         bool disable_invalid_ref)
+    : media_log_(media_log->Clone()),
+      client_(client),
+      disable_invalid_ref_(disable_invalid_ref) {
+  DCHECK(client_);
+}
 
 D3D11AV1Accelerator::~D3D11AV1Accelerator() {}
 
@@ -69,10 +81,10 @@ bool D3D11AV1Accelerator::SubmitDecoderBuffer(
     const libgav1::Vector<libgav1::TileBuffer>& tile_buffers) {
   // Buffer #1 - AV1 specific picture parameters.
   auto params_buffer =
-      video_decoder_wrapper_->GetPictureParametersBuffer(sizeof(pic_params));
+      client_->GetWrapper()->GetPictureParametersBuffer(sizeof(pic_params));
   if (params_buffer.size() < sizeof(pic_params)) {
-    RecordFailure("Insufficient picture parameter buffer size",
-                  D3D11Status::Codes::kGetPicParamBufferFailed);
+    MEDIA_LOG(ERROR, media_log_)
+        << "Insufficient picture parameter buffer size";
     return false;
   }
 
@@ -80,10 +92,9 @@ bool D3D11AV1Accelerator::SubmitDecoderBuffer(
 
   // Buffer #2 - Slice control data.
   const auto tile_size = sizeof(DXVA_Tile_AV1) * tile_buffers.size();
-  auto tile_buffer = video_decoder_wrapper_->GetSliceControlBuffer(tile_size);
+  auto tile_buffer = client_->GetWrapper()->GetSliceControlBuffer(tile_size);
   if (tile_buffer.size() < tile_size) {
-    RecordFailure("Insufficient slice control buffer size",
-                  D3D11Status::Codes::kGetSliceControlBufferFailed);
+    MEDIA_LOG(ERROR, media_log_) << "Insufficient slice control buffer size";
     return false;
   }
 
@@ -94,10 +105,9 @@ bool D3D11AV1Accelerator::SubmitDecoderBuffer(
       tile_buffers.begin(), tile_buffers.end(), 0,
       [](size_t acc, const auto& buffer) { return acc + buffer.size; });
   auto& bitstream_buffer =
-      video_decoder_wrapper_->GetBitstreamBuffer(bitstream_size);
+      client_->GetWrapper()->GetBitstreamBuffer(bitstream_size);
   if (bitstream_buffer.size() < bitstream_size) {
-    RecordFailure("Insufficient bitstream buffer size",
-                  D3D11Status::Codes::kGetBitstreamBufferFailed);
+    MEDIA_LOG(ERROR, media_log_) << "Insufficient bitstream buffer size";
     return false;
   }
 
@@ -117,7 +127,7 @@ bool D3D11AV1Accelerator::SubmitDecoderBuffer(
   // Commit the buffers we prepared above. Bitstream buffer will be committed
   // by SubmitSlice() so we don't explicitly commit here.
   return params_buffer.Commit() && tile_buffer.Commit() &&
-         video_decoder_wrapper_->SubmitSlice();
+         client_->GetWrapper()->SubmitSlice();
 }
 
 DecodeStatus D3D11AV1Accelerator::SubmitDecode(
@@ -127,20 +137,25 @@ DecodeStatus D3D11AV1Accelerator::SubmitDecode(
     const libgav1::Vector<libgav1::TileBuffer>& tile_buffers,
     base::span<const uint8_t> data) {
   const D3D11AV1Picture* pic_ptr = static_cast<const D3D11AV1Picture*>(&pic);
-  if (!video_decoder_wrapper_->WaitForFrameBegins(pic_ptr->picture_buffer())) {
+  if (!client_->GetWrapper()->WaitForFrameBegins(pic_ptr->picture_buffer())) {
     return DecodeStatus::kFail;
   }
 
   DXVA_PicParams_AV1 pic_params = {0};
-  FillPicParams(pic_ptr->picture_buffer()->picture_index(),
-                pic_ptr->apply_grain(), pic.frame_header, seq_header,
-                ref_frames, &pic_params);
-
-  if (!SubmitDecoderBuffer(pic_params, tile_buffers))
+  if (!FillPicParams(pic_ptr->picture_buffer()->picture_index(),
+                     pic_ptr->apply_grain(), pic.frame_header, seq_header,
+                     ref_frames, &pic_params)) {
+    MEDIA_LOG(ERROR, media_log_) << "Failed to fill picture parameters";
     return DecodeStatus::kFail;
+  }
 
-  return video_decoder_wrapper_->SubmitDecode() ? DecodeStatus::kOk
-                                                : DecodeStatus::kFail;
+  if (!SubmitDecoderBuffer(pic_params, tile_buffers)) {
+    // Errors are logged during SubmitDecoderBuffer.
+    return DecodeStatus::kFail;
+  }
+
+  return client_->GetWrapper()->SubmitDecode() ? DecodeStatus::kOk
+                                               : DecodeStatus::kFail;
 }
 
 bool D3D11AV1Accelerator::OutputPicture(const AV1Picture& pic) {
@@ -148,7 +163,7 @@ bool D3D11AV1Accelerator::OutputPicture(const AV1Picture& pic) {
   return client_->OutputResult(pic_ptr, pic_ptr->picture_buffer());
 }
 
-void D3D11AV1Accelerator::FillPicParams(
+bool D3D11AV1Accelerator::FillPicParams(
     size_t picture_index,
     bool apply_grain,
     const libgav1::ObuFrameHeader& frame_header,
@@ -262,8 +277,41 @@ void D3D11AV1Accelerator::FillPicParams(
   pp->order_hint = frame_header.order_hint;
   pp->order_hint_bits = seq_header.order_hint_bits;
 
+  auto set_frame_ref_params = [&](size_t i, size_t ref_idx, int32_t width,
+                                  int32_t height,
+                                  const libgav1::GlobalMotion& gm) {
+    pp->frame_refs[i].Index = ref_idx;
+    pp->frame_refs[i].width = width;
+    pp->frame_refs[i].height = height;
+    for (size_t j = 0; j < 6; ++j) {
+      pp->frame_refs[i].wmmat[j] = gm.params[j];
+    }
+    pp->frame_refs[i].wmtype = gm.type;
+    pp->frame_refs[i].wminvalid =
+        gm.type == libgav1::kGlobalMotionTransformationTypeIdentity;
+  };
+
+  auto first_valid_ref =
+      std::make_tuple(0xFF, 0, 0, 0);  // {ref_idx, ref_type, width, height}
+  D3D11AV1Picture* first_valid_rp = nullptr;
+  const bool is_intra_frame = libgav1::IsIntraFrame(frame_header.frame_type);
+
+  // Find the first ref_frame_idx[i] that points to a valid AV1 picture in DPB.
+  if (!is_intra_frame && disable_invalid_ref_) {
+    for (size_t j = 0; j < libgav1::kNumReferenceFrameTypes - 1; ++j) {
+      const auto ref_idx = frame_header.reference_frame_index[j];
+      first_valid_rp = static_cast<D3D11AV1Picture*>(ref_frames[ref_idx].get());
+      if (first_valid_rp) {
+        first_valid_ref =
+            std::make_tuple(ref_idx, j, first_valid_rp->frame_header.width,
+                            first_valid_rp->frame_header.height);
+        break;
+      }
+    }
+  }
+
   for (size_t i = 0; i < libgav1::kNumReferenceFrameTypes - 1; ++i) {
-    if (libgav1::IsIntraFrame(frame_header.frame_type)) {
+    if (is_intra_frame) {
       pp->frame_refs[i].Index = 0xFF;
       continue;
     }
@@ -271,23 +319,36 @@ void D3D11AV1Accelerator::FillPicParams(
     const auto ref_idx = frame_header.reference_frame_index[i];
     const auto* rp =
         static_cast<const D3D11AV1Picture*>(ref_frames[ref_idx].get());
+
     if (!rp) {
-      pp->frame_refs[i].Index = 0xFF;
-      continue;
+      // Some Intel drivers crash on Index value 0xFF for non-intra frames,
+      // though AV1 DXVA spec section 3.2 mandates 0xFF for invalid reference.
+      // For these drivers, replace 0xFF with the first valid `ref_idx` that
+      // maps to a valid reference picture in `ref_frames`, according to the
+      // implementation of those drivers.
+      if (disable_invalid_ref_) {
+        if (std::get<0>(first_valid_ref) == 0xFF) {
+          MEDIA_LOG(ERROR, media_log_) << "Current frame is not intra, but no "
+                                          "valid reference frame found";
+          return false;
+        }
+        DCHECK(first_valid_rp);
+        const auto& gm =
+            first_valid_rp->frame_header
+                .global_motion[libgav1::kReferenceFrameLast +
+                               /*ref_type=*/std::get<1>(first_valid_ref)];
+        set_frame_ref_params(i, /*ref_idx=*/std::get<0>(first_valid_ref),
+                             /*width=*/std::get<2>(first_valid_ref),
+                             /*height=*/std::get<3>(first_valid_ref), gm);
+      } else {
+        pp->frame_refs[i].Index = 0xFF;
+      }
+    } else {
+      const auto& gm =
+          frame_header.global_motion[libgav1::kReferenceFrameLast + i];
+      set_frame_ref_params(i, ref_idx, rp->frame_header.width,
+                           rp->frame_header.height, gm);
     }
-
-    pp->frame_refs[i].width = rp->frame_header.width;
-    pp->frame_refs[i].height = rp->frame_header.height;
-
-    const auto& gm =
-        frame_header.global_motion[libgav1::kReferenceFrameLast + i];
-    for (size_t j = 0; j < 6; ++j)
-      pp->frame_refs[i].wmmat[j] = gm.params[j];
-    pp->frame_refs[i].wminvalid =
-        gm.type == libgav1::kGlobalMotionTransformationTypeIdentity;
-
-    pp->frame_refs[i].wmtype = gm.type;
-    pp->frame_refs[i].Index = ref_idx;
   }
 
   for (size_t i = 0; i < libgav1::kNumReferenceFrameTypes; ++i) {
@@ -435,6 +496,8 @@ void D3D11AV1Accelerator::FillPicParams(
 
   // StatusReportFeedbackNumber "should not be equal to 0"... but it crashes :|
   // pp->StatusReportFeedbackNumber = ++status_feedback_;
+
+  return true;
 }
 
 }  // namespace media

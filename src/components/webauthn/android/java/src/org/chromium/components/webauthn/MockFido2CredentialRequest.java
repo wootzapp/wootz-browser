@@ -5,6 +5,7 @@
 package org.chromium.components.webauthn;
 
 import android.content.Context;
+import android.os.Bundle;
 
 import org.chromium.blink.mojom.AuthenticatorStatus;
 import org.chromium.blink.mojom.PaymentOptions;
@@ -47,22 +48,25 @@ public class MockFido2CredentialRequest extends Fido2CredentialRequest {
     @Override
     public void handleMakeCredentialRequest(
             PublicKeyCredentialCreationOptions options,
-            byte[] maybeClientDataHash,
+            Bundle browserOptions,
             Origin origin,
+            Origin topOrigin,
+            PaymentOptions paymentOptions,
             MakeCredentialResponseCallback callback,
-            FidoErrorResponseCallback errorCallback) {
+            FidoErrorResponseCallback errorCallback,
+            RecordOutcomeCallback recordingCallback) {
         errorCallback.onError(AuthenticatorStatus.NOT_IMPLEMENTED);
     }
 
     @Override
     public void handleGetAssertionRequest(
             PublicKeyCredentialRequestOptions options,
-            byte[] maybeClientDataHash,
             Origin callerOrigin,
             Origin topOrigin,
             PaymentOptions payment,
             GetAssertionResponseCallback callback,
-            FidoErrorResponseCallback errorCallback) {
+            FidoErrorResponseCallback errorCallback,
+            RecordOutcomeCallback recordingCallback) {
         errorCallback.onError(AuthenticatorStatus.NOT_IMPLEMENTED);
     }
 

@@ -12,7 +12,6 @@
 
 #include "base/check.h"
 #include "base/feature_list.h"
-#include "base/ranges/algorithm.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_regexes.h"
 
@@ -43,7 +42,7 @@ bool IsValidParseableName(std::u16string_view parseable_name) {
 void MaybeRemoveAffix(base::span<std::u16string_view> strings,
                       size_t len,
                       bool prefix) {
-  DCHECK(base::ranges::all_of(
+  DCHECK(std::ranges::all_of(
       strings, [&](std::u16string_view s) { return s.size() >= len; }));
   auto RemoveAffix = [&](std::u16string_view s) {
     if (prefix) {
@@ -53,10 +52,10 @@ void MaybeRemoveAffix(base::span<std::u16string_view> strings,
     }
     return s;
   };
-  if (base::ranges::all_of(strings, [&](std::u16string_view s) {
+  if (std::ranges::all_of(strings, [&](std::u16string_view s) {
         return IsValidParseableName(RemoveAffix(s));
       })) {
-    base::ranges::transform(strings, strings.begin(), RemoveAffix);
+    std::ranges::transform(strings, strings.begin(), RemoveAffix);
   }
 }
 
@@ -74,8 +73,9 @@ size_t FindLongestCommonAffixLength(base::span<std::u16string_view> strings,
     return prefix ? strings[0][affix_len] == other[affix_len]
                   : strings[0].rbegin()[affix_len] == other.rbegin()[affix_len];
   };
-  while (base::ranges::all_of(strings, AgreeOnNextChar))
+  while (std::ranges::all_of(strings, AgreeOnNextChar)) {
     ++affix_len;
+  }
   return affix_len;
 }
 

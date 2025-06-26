@@ -138,8 +138,6 @@ class StreamingSearchPrefetchURLLoader
         const std::optional<GURL>& new_url) override;
     void SetPriority(net::RequestPriority priority,
                      int32_t intra_priority_value) override;
-    void PauseReadingBodyFromNet() override;
-    void ResumeReadingBodyFromNet() override;
 
     // Sets date pipe up between this instance and its client.
     void StartReadingResponseFromData(
@@ -243,10 +241,6 @@ class StreamingSearchPrefetchURLLoader
   // on mojo channels closing or other errors occurring.
   void ClearOwnerPointer();
 
-  // Record whether the navigation url and the |prefetch_url_| match. Only
-  // recorded when |navigation_prefetch_| is true.
-  void RecordNavigationURLHistogram(const GURL& navigation_url);
-
   void set_on_destruction_callback_for_testing(
       base::OnceClosure on_destruction_callback_for_testing) {
     on_destruction_callback_for_testing_ =
@@ -260,7 +254,7 @@ class StreamingSearchPrefetchURLLoader
   ~StreamingSearchPrefetchURLLoader() override;
 
   // mojo::DataPipeDrainer::Client:
-  void OnDataAvailable(const void* data, size_t num_bytes) override;
+  void OnDataAvailable(base::span<const uint8_t> data) override;
   void OnDataComplete() override;
 
   // network::mojom::URLLoader:
@@ -271,8 +265,6 @@ class StreamingSearchPrefetchURLLoader
       const std::optional<GURL>& new_url) override;
   void SetPriority(net::RequestPriority priority,
                    int32_t intra_priority_value) override;
-  void PauseReadingBodyFromNet() override;
-  void ResumeReadingBodyFromNet() override;
 
   // network::mojom::URLLoaderClient
   void OnReceiveEarlyHints(network::mojom::EarlyHintsPtr early_hints) override;
@@ -357,9 +349,6 @@ class StreamingSearchPrefetchURLLoader
   // Forwards all queued events to |forwarding_client_|.
   void RunEventQueue();
 
-  // Marks the parent prefetch request as servable. Called as delayed task.
-  void MarkPrefetchAsServable();
-
   // Called on `this` receives servable response.
   void OnServableResponseCodeReceived();
 
@@ -386,8 +375,6 @@ class StreamingSearchPrefetchURLLoader
   // The status returned from |network_url_loader_|.
   std::optional<network::URLLoaderCompletionStatus> status_;
 
-  // Total amount of bytes to transfer.
-  size_t bytes_of_raw_data_to_transfer_ = 0;
   // Bytes sent to |producer_handle_| already.
   size_t write_position_ = 0;
   // The request body.
@@ -439,17 +426,9 @@ class StreamingSearchPrefetchURLLoader
   // Whether fallback has started.
   bool is_in_fallback_ = false;
 
-  // If the navigation path paused the url loader. Used to pause the network url
-  // loader on fallback.
-  bool paused_ = false;
-
   // Whenever an error is reported, it needs to be reported to the service via
   // this callback.
   base::OnceCallback<void(bool)> report_error_callback_;
-
-  // Track if the request has already been marked as servable, and if so, don't
-  // report it again.
-  bool marked_as_servable_ = false;
 
   scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
 
@@ -457,10 +436,6 @@ class StreamingSearchPrefetchURLLoader
 
   // Whether this loader is created specifically for a navigation prefetch.
   bool navigation_prefetch_;
-
-  // The prefetch URL, used to record whether the prefetch and navigation URLs
-  // match when this is a navigation prefetch.
-  GURL prefetch_url_;
 
   // Whether this url loader was activated via the navigation stack.
   bool is_activated_ = false;

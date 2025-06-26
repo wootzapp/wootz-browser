@@ -12,95 +12,40 @@ namespace password_manager::features {
 // NOTE: It is strongly recommended to use UpperCamelCase style for feature
 //       names, e.g. "MyGreatFeature".
 
-// Enables the overwriting of prefilled username fields if the server predicted
-// the field to contain a placeholder value.
-BASE_FEATURE(kEnableOverwritingPlaceholderUsernames,
-             "EnableOverwritingPlaceholderUsernames",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
-// When enabled, initial sync will be forced during startup if the password
-// store has encryption service failures.
-BASE_FEATURE(kForceInitialSyncWhenDecryptionFails,
-             "ForceInitialSyncWhenDecryptionFails",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-#endif
-
-// When enabled, username fields for forgot password flows are recognized
-// and filled.
-BASE_FEATURE(kForgotPasswordFormSupport,
-             "ForgotPasswordFormSupport",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 #if BUILDFLAG(IS_IOS)
-// Enables password bottom sheet to be displayed (on iOS) when a user is
-// signed-in and taps on a username or password field on a website that has at
-// least one credential saved in their password manager.
-BASE_FEATURE(kIOSPasswordBottomSheet,
-             "IOSPasswordBottomSheet",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 // Enables password bottom sheet to be triggered on autofocus events (on iOS).
 BASE_FEATURE(kIOSPasswordBottomSheetAutofocus,
              "kIOSPasswordBottomSheetAutofocus",
              base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // IS_IOS
 
-// Killswitch for changes regarding password issues in
-// `PasswordSpcificsMetadata`. Guards writing issues to metadata and preserving
-// the new notification field.
-BASE_FEATURE(kPasswordIssuesInSpecificsMetadata,
-             "PasswordIssuesInSpecificsMetadata",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Enables sending credentials from the settings UI.
-BASE_FEATURE(kSendPasswords,
-             "SendPasswords",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables filling and saving for forms in shadow DOM.
-BASE_FEATURE(kShadowDomSupport,
-             "ShadowDomSupport",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables .well-known based password change flow from leaked password dialog.
-BASE_FEATURE(kPasswordChangeWellKnown,
-             "PasswordChangeWellKnown",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables password reuse detection.
-BASE_FEATURE(kPasswordReuseDetectionEnabled,
-             "PasswordReuseDetectionEnabled",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 // Removes password suggestion filtering by username.
 BASE_FEATURE(kNoPasswordSuggestionFiltering,
              "NoPasswordSuggestionFiltering",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// Allows to show suggestions automatically when forms accepting webauthn are
-// autofocused on pageload.
-BASE_FEATURE(kShowWebauthnSuggestionsOnAutofocus,
-             "ShowWebauthnSuggestionsOnAutofocus",
+// Allows to show suggestions automatically when password forms are autofocused
+// on pageload.
+BASE_FEATURE(kShowSuggestionsOnAutofocus,
+             "ShowSuggestionsOnAutofocus",
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+// Only relevant when `kShowSuggestionsOnAutofocus` is on. This prevents
+// suggestions from being shown while waiting for passkeys to become available,
+// if the popup was triggered by autofocus without user interaction. It is
+// enabled by default and can be turned off if it is found to cause any
+// problems.
+BASE_FEATURE(kDelaySuggestionsOnAutofocusWaitingForPasskeys,
+             "DelaysSuggestionsOnAutofocusWaitingForPasskeys",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 #if BUILDFLAG(IS_ANDROID)
-// Enables the refactored Password Suggestion bottom sheet (Touch-To-Fill).
-// The goal of the refactoring is to transfer the knowledge about the
-// Touch-To-Fill feature to the browser code completely and so to simplify the
-// renderer code. In the refactored version it will be decided inside the the
-// `ContentPasswordManagerDriver::ShowPasswordSuggestions` whether to show the
-// TTF to the user.
-BASE_FEATURE(kPasswordSuggestionBottomSheetV2,
-             "PasswordSuggestionBottomSheetV2",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 // Enables showing the warning about UPM migrating local passwords.
 // The feature is limited to Canary/Dev/Beta by a check in
 // local_passwords_migration_warning_util::ShouldShowWarning.
 BASE_FEATURE(kUnifiedPasswordManagerLocalPasswordsMigrationWarning,
              "UnifiedPasswordManagerLocalPasswordsMigrationWarning",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+             base::FEATURE_DISABLED_BY_DEFAULT);
 #endif
 
 #if BUILDFLAG(IS_ANDROID)

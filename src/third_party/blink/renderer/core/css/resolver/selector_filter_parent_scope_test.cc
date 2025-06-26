@@ -10,6 +10,7 @@
 #include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
+#include "third_party/blink/renderer/platform/heap/thread_state.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
 
 namespace blink {
@@ -19,6 +20,11 @@ class SelectorFilterParentScopeTest : public testing::Test {
   void SetUp() override {
     dummy_page_holder_ = std::make_unique<DummyPageHolder>(gfx::Size(800, 600));
     GetDocument().SetCompatibilityMode(Document::kNoQuirksMode);
+  }
+
+  void TearDown() override {
+    dummy_page_holder_ = nullptr;
+    ThreadState::Current()->CollectAllGarbageForTesting();
   }
 
   Document& GetDocument() { return dummy_page_holder_->GetDocument(); }
@@ -38,27 +44,29 @@ TEST_F(SelectorFilterParentScopeTest, ParentScope) {
   SelectorFilter& filter = GetDocument().GetStyleResolver().GetSelectorFilter();
   GetDocument().Lifecycle().AdvanceTo(DocumentLifecycle::kInStyleRecalc);
 
-  SelectorFilterRootScope root_scope(nullptr);
-  SelectorFilterParentScope html_scope(*GetDocument().documentElement());
+  SelectorFilterParentScope root_scope(
+      nullptr, SelectorFilterParentScope::ScopeType::kRoot);
+  SelectorFilterParentScope html_scope(
+      GetDocument().documentElement(),
+      SelectorFilterParentScope::ScopeType::kParent);
   {
-    SelectorFilterParentScope body_scope(*GetDocument().body());
-    SelectorFilterParentScope::EnsureParentStackIsPushed();
+    SelectorFilterParentScope body_scope(
+        GetDocument().body(), SelectorFilterParentScope::ScopeType::kParent);
     {
-      SelectorFilterParentScope div_scope(*div);
-      SelectorFilterParentScope::EnsureParentStackIsPushed();
+      SelectorFilterParentScope div_scope(
+          div, SelectorFilterParentScope::ScopeType::kParent);
 
       base::span<CSSSelector> selector_vector = CSSParser::ParseSelector(
           MakeGarbageCollected<CSSParserContext>(
               kHTMLStandardMode, SecureContextMode::kInsecureContext),
-          CSSNestingType::kNone, /*parent_rule_for_nesting=*/nullptr,
-          /*is_within_scope=*/false, nullptr,
+          CSSNestingType::kNone, /*parent_rule_for_nesting=*/nullptr, nullptr,
           "html *, body *, .match *, #myId *", arena);
       CSSSelectorList* selectors =
           CSSSelectorList::AdoptSelectorVector(selector_vector);
 
       for (const CSSSelector* selector = selectors->First(); selector;
            selector = CSSSelectorList::Next(*selector)) {
-        Vector<unsigned> selector_hashes;
+        Vector<uint16_t> selector_hashes;
         filter.CollectIdentifierHashes(*selector, /* style_scope */ nullptr,
                                        selector_hashes);
         EXPECT_NE(selector_hashes.size(), 0u);
@@ -77,23 +85,22 @@ TEST_F(SelectorFilterParentScopeTest, RootScope) {
   SelectorFilter& filter = GetDocument().GetStyleResolver().GetSelectorFilter();
   GetDocument().Lifecycle().AdvanceTo(DocumentLifecycle::kInStyleRecalc);
 
-  SelectorFilterRootScope span_scope(
-      GetDocument().getElementById(AtomicString("y")));
-  SelectorFilterParentScope::EnsureParentStackIsPushed();
+  SelectorFilterParentScope span_scope(
+      GetDocument().getElementById(AtomicString("y")),
+      SelectorFilterParentScope::ScopeType::kRoot);
 
   HeapVector<CSSSelector> arena;
   base::span<CSSSelector> selector_vector = CSSParser::ParseSelector(
       MakeGarbageCollected<CSSParserContext>(
           kHTMLStandardMode, SecureContextMode::kInsecureContext),
-      CSSNestingType::kNone, /*parent_rule_for_nesting=*/nullptr,
-      /*is_within_scope=*/false, nullptr,
+      CSSNestingType::kNone, /*parent_rule_for_nesting=*/nullptr, nullptr,
       "html *, body *, div *, span *, .x *, #y *", arena);
   CSSSelectorList* selectors =
       CSSSelectorList::AdoptSelectorVector(selector_vector);
 
   for (const CSSSelector* selector = selectors->First(); selector;
        selector = CSSSelectorList::Next(*selector)) {
-    Vector<unsigned> selector_hashes;
+    Vector<uint16_t> selector_hashes;
     filter.CollectIdentifierHashes(*selector, /* style_scope */ nullptr,
                                    selector_hashes);
     EXPECT_NE(selector_hashes.size(), 0u);
@@ -116,6 +123,24 @@ TEST_F(SelectorFilterParentScopeTest, ReentrantSVGImageLoading) {
   // SelectorFilterParentScope with a SelectorFilterRootScope, this update may
   // cause DCHECKs to fail.
   GetDocument().UpdateStyleAndLayoutTree();
+
+  // Drop the reference to the SVG, which is an `IsolatedSVGDDocument`, and is
+  // not destroyed during GC, instead using a separate lifetime system. Without
+  // this, something keeps it alive until the next GC after test teardown. This
+  // is all the information available at the time of writing.
+  //
+  // This is a problem because it refers to a `blink::PerformanceMonitor`, which
+  // is a `CheckedObserver`, and which must be destroyed before resetting
+  // `blink::MainThread` during test teardown, because at that point, it is no
+  // longer possible to remove it from `ObserverList`s.
+  //
+  // TODO(crbug.com/337200890): Update this comment with more information and
+  // see whether removing this code is possible once this crashbug's root cause
+  // has been determined.
+  GetDocument().body()->setInnerHTML(R"HTML(
+    <div></div>
+  )HTML");
+  GetDocument().UpdateStyleAndLayoutTree();
 }
 
 TEST_F(SelectorFilterParentScopeTest, AttributeFilter) {
@@ -135,22 +160,21 @@ TEST_F(SelectorFilterParentScopeTest, AttributeFilter) {
   SelectorFilter& filter = GetDocument().GetStyleResolver().GetSelectorFilter();
   GetDocument().Lifecycle().AdvanceTo(DocumentLifecycle::kInStyleRecalc);
 
-  SelectorFilterRootScope span_scope(inner);
-  SelectorFilterParentScope::EnsureParentStackIsPushed();
+  SelectorFilterParentScope span_scope(
+      inner, SelectorFilterParentScope::ScopeType::kRoot);
 
   HeapVector<CSSSelector> arena;
   base::span<CSSSelector> selector_vector = CSSParser::ParseSelector(
       MakeGarbageCollected<CSSParserContext>(
           kHTMLStandardMode, SecureContextMode::kInsecureContext),
-      CSSNestingType::kNone, /*parent_rule_for_nesting=*/nullptr,
-      /*is_within_scope=*/false, nullptr,
+      CSSNestingType::kNone, /*parent_rule_for_nesting=*/nullptr, nullptr,
       "[Attr] *, [attr] *, [viewbox] *, [VIEWBOX] *", arena);
   CSSSelectorList* selectors =
       CSSSelectorList::AdoptSelectorVector(selector_vector);
 
   for (const CSSSelector* selector = selectors->First(); selector;
        selector = CSSSelectorList::Next(*selector)) {
-    Vector<unsigned> selector_hashes;
+    Vector<uint16_t> selector_hashes;
     filter.CollectIdentifierHashes(*selector, /* style_scope */ nullptr,
                                    selector_hashes);
     EXPECT_NE(selector_hashes.size(), 0u);

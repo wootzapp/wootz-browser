@@ -60,7 +60,7 @@
 #include "net/test/embedded_test_server/controllable_http_response.h"
 #include "net/test/embedded_test_server/default_handlers.h"
 #include "net/test/url_request/url_request_failed_job.h"
-#include "services/network/public/cpp/features.h"
+#include "services/network/public/cpp/loading_params.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/blink/public/common/chrome_debug_urls.h"
 #include "third_party/blink/public/common/runtime_feature_state/runtime_feature_state_context.h"
@@ -570,6 +570,19 @@ class NavigationRequestBrowserTest : public ContentBrowserTest {
     content::RenderFrameHost* rfh =
         shell()->web_contents()->GetPrimaryMainFrame();
     EXPECT_EQ(kBodyTextContent, EvalJs(rfh, "document.body.textContent"));
+  }
+};
+
+// A test class that calls IsolateAllSitesForTesting() early enough in the setup
+// that we get consistent results for AreOriginKeyedProcessesEnabledByDefault()
+// if kOriginKeyedProcessesByDefault is enabled. Specifically, make sure the
+// initial shell's main frame's BrowsingInstance gets the correct default
+// isolation state, which depends on AreOriginKeyedProcessesEnabledByDefault().
+class NavigationRequestBrowserTest_IsolateAllSites
+    : public NavigationRequestBrowserTest {
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    NavigationRequestBrowserTest::SetUpCommandLine(command_line);
+    IsolateAllSitesForTesting(command_line);
   }
 };
 
@@ -1140,6 +1153,54 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest, ThrottleCancelFailure) {
     EXPECT_FALSE(installer.will_fail_called());
     EXPECT_FALSE(observer.is_error());
   }
+}
+
+// Ensure that a NavigationThrottle can cancel a redirected navigation that is
+// blocked by CSP.
+IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest,
+                       ThrottleCancelFailureRedirectBlockedByCSP) {
+  // Navigate to a URL with an iframe that will be later redirected to a
+  // URL blocked by CSP.
+  GURL main_url(
+      embedded_test_server()->GetURL("a.com", "/page_with_iframe.html"));
+  EXPECT_TRUE(NavigateToURL(shell(), main_url));
+
+  // Add frame-src CSP via a new <meta> element.
+  EXPECT_TRUE(
+      ExecJs(shell(),
+             "var meta = document.createElement('meta');"
+             "meta.httpEquiv = 'Content-Security-Policy';"
+             "meta.content = 'frame-src http://a.com:*';"
+             "document.getElementsByTagName('head')[0].appendChild(meta);"));
+
+  // Create a cross-origin redirect URL that doesn't honour above specified CSP.
+  GURL subframe_url(embedded_test_server()->GetURL("b.com", "/title2.html"));
+  GURL redirecting_subframe_url(embedded_test_server()->GetURL(
+      "a.com", "/server-redirect?" + subframe_url.spec()));
+
+  NavigationHandleObserver subframe_observer(shell()->web_contents(),
+                                             redirecting_subframe_url);
+  TestNavigationThrottleInstaller installer(
+      shell()->web_contents(), NavigationThrottle::PROCEED,
+      NavigationThrottle::PROCEED, NavigationThrottle::CANCEL_AND_IGNORE,
+      NavigationThrottle::PROCEED, NavigationThrottle::PROCEED);
+
+  FrameTreeNode* child = static_cast<WebContentsImpl*>(shell()->web_contents())
+                             ->GetPrimaryFrameTree()
+                             .root()
+                             ->child_at(0);
+
+  // Navigate the subframe to a location that is not allowed by CSP.
+  EXPECT_FALSE(NavigateToURLFromRenderer(child, redirecting_subframe_url));
+
+  // Wait for WillFailRequest.
+  installer.WaitForThrottleWillFail();
+  // Make sure that throttle WillFailRequest() was called.
+  EXPECT_TRUE(installer.will_fail_called());
+  EXPECT_TRUE(subframe_observer.is_error());
+  // The redirected navigation is cancelled and the old net error code
+  // `net::BLOCKED_BY_CSP` is replaced with `net::ERR_ABORTED`.
+  EXPECT_EQ(net::ERR_ABORTED, subframe_observer.net_error_code());
 }
 
 // Ensure that a NavigationThrottle can cancel the navigation when the response
@@ -1881,12 +1942,12 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest,
   EXPECT_TRUE(starting_site_instance->HasProcess());
 
   // In https://crbug.com/949977, we used the a.com SiteInstance here and didn't
-  // have a process, and an observer called GetProcess, creating a process. This
-  // RPH never went away, even after the SiteInstance was gone. Simulate this
-  // by creating a new RPH for site_instance_a directly. Note that the actual
-  // process may not get created (only if the spare process is in use), so wait
-  // for RPH destruction rather than process exit.
-  RenderProcessHost* rph_2 = site_instance_a->GetProcess();
+  // have a process, and an observer called GetOrCreateProcess, creating a
+  // process. This RPH never went away, even after the SiteInstance was gone.
+  // Simulate this by creating a new RPH for site_instance_a directly. Note that
+  // the actual process may not get created (only if the spare process is in
+  // use), so wait for RPH destruction rather than process exit.
+  RenderProcessHost* rph_2 = site_instance_a->GetOrCreateProcess();
   RenderProcessHostWatcher process_exit_observer_2(
       rph_2, content::RenderProcessHostWatcher::WATCH_FOR_HOST_DESTRUCTION);
   ASSERT_TRUE(navigation_b.WaitForNavigationFinished());
@@ -1900,8 +1961,8 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest,
   // finish in the case that the starting SiteInstance is b.com, since b.com's
   // process goes away with this navigation.
   // TODO(creis): There's still a slight risk that other buggy code could find
-  // site_instance_a and call GetProcess() on it, causing a leak. We'll add a
-  // backup fix and test for that in a followup CL.
+  // site_instance_a and call GetOrCreateProcess() on it, causing a leak. We'll
+  // add a backup fix and test for that in a followup CL.
   GURL url_c = embedded_test_server()->GetURL("c.com", "/title1.html");
   EXPECT_TRUE(NavigateToURL(shell()->web_contents(), url_c));
 
@@ -2093,7 +2154,8 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest,
     EXPECT_TRUE(observer.is_same_document());
   }
 
-  // 4) Redo the last navigation, but this time it should trigger a reload.
+  // 4) Redo the last navigation, and it should be treated as fragment
+  //    navigation.
   {
     TestNavigationThrottleInstaller installer(
         shell()->web_contents(), NavigationThrottle::PROCEED,
@@ -2101,10 +2163,10 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest,
         NavigationThrottle::PROCEED, NavigationThrottle::PROCEED);
     NavigationHandleObserver observer(shell()->web_contents(), url_fragment_2);
     EXPECT_TRUE(NavigateToURL(shell(), url_fragment_2));
-    EXPECT_EQ(1, installer.will_start_called());
-    EXPECT_EQ(1, installer.will_process_called());
-    EXPECT_EQ(0, installer.will_commit_without_url_loader_called());
-    EXPECT_FALSE(observer.is_same_document());
+    EXPECT_EQ(0, installer.will_start_called());
+    EXPECT_EQ(0, installer.will_process_called());
+    EXPECT_EQ(1, installer.will_commit_without_url_loader_called());
+    EXPECT_TRUE(observer.is_same_document());
   }
 
   // 5) Perform a new-document navigation by removing the fragment.
@@ -2295,8 +2357,11 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest,
   {
     // Reloading the blocked document from the browser process still ends up
     // in the error page process.
-    int process_id =
-        shell()->web_contents()->GetPrimaryMainFrame()->GetProcess()->GetID();
+    int process_id = shell()
+                         ->web_contents()
+                         ->GetPrimaryMainFrame()
+                         ->GetProcess()
+                         ->GetDeprecatedID();
     NavigationHandleObserver observer(shell()->web_contents(), blocked_url);
     TestNavigationObserver navigation_observer(shell()->web_contents(), 1);
 
@@ -2314,7 +2379,7 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest,
                                 ->web_contents()
                                 ->GetPrimaryMainFrame()
                                 ->GetProcess()
-                                ->GetID());
+                                ->GetDeprecatedID());
     } else if (AreAllSitesIsolatedForTesting()) {
       EXPECT_NE(
           site_instance,
@@ -2656,11 +2721,11 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest, BlockedRequestAfterWebUI) {
   WebContents* web_contents = shell()->web_contents();
 
   // Navigate to the initial page.
-  EXPECT_FALSE(web_contents->GetPrimaryMainFrame()->GetEnabledBindings() &
-               BINDINGS_POLICY_WEB_UI);
+  EXPECT_FALSE(web_contents->GetPrimaryMainFrame()->GetEnabledBindings().Has(
+      BindingsPolicyValue::kWebUi));
   EXPECT_TRUE(NavigateToURL(shell(), web_ui_url));
-  EXPECT_TRUE(web_contents->GetPrimaryMainFrame()->GetEnabledBindings() &
-              BINDINGS_POLICY_WEB_UI);
+  EXPECT_TRUE(web_contents->GetPrimaryMainFrame()->GetEnabledBindings().Has(
+      BindingsPolicyValue::kWebUi));
   scoped_refptr<SiteInstance> web_ui_process = web_contents->GetSiteInstance();
 
   // Start a new, non-webUI navigation that will be blocked by a
@@ -2834,7 +2899,8 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest,
   }
 }
 
-IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest, StartToCommitMetrics) {
+IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest_IsolateAllSites,
+                       StartToCommitMetrics) {
   enum class FrameType {
     kMain,
     kSub,
@@ -2898,7 +2964,6 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest, StartToCommitMetrics) {
   };
 
   // Main frame tests.
-  IsolateAllSitesForTesting(base::CommandLine::ForCurrentProcess());
   EXPECT_TRUE(
       NavigateToURL(shell(), embedded_test_server()->GetURL("/hello.html")));
   {
@@ -2939,12 +3004,17 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBrowserTest, StartToCommitMetrics) {
   }
   {
     base::HistogramTester histograms;
-    int previous_process_id =
-        shell()->web_contents()->GetPrimaryMainFrame()->GetProcess()->GetID();
+    int previous_process_id = shell()
+                                  ->web_contents()
+                                  ->GetPrimaryMainFrame()
+                                  ->GetProcess()
+                                  ->GetDeprecatedID();
     EXPECT_TRUE(NavigateToURL(shell(), GURL(url::kAboutBlankURL)));
-    bool process_changed =
-        (previous_process_id !=
-         shell()->web_contents()->GetPrimaryMainFrame()->GetProcess()->GetID());
+    bool process_changed = (previous_process_id != shell()
+                                                       ->web_contents()
+                                                       ->GetPrimaryMainFrame()
+                                                       ->GetProcess()
+                                                       ->GetDeprecatedID());
     check_navigation(histograms,
                      process_changed ? ProcessType::kCross : ProcessType::kSame,
                      FrameType::kMain, TransitionType::kNew);
@@ -3544,6 +3614,25 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestBackForwardBrowserTest,
 
   // Expect that the offsets are still 1 even when we hit the entry count limit.
   EXPECT_THAT(offsets_, testing::ElementsAre(1, 1, 1, 1, 1));
+}
+
+IN_PROC_BROWSER_TEST_F(NavigationRequestBackForwardBrowserTest,
+                       SameUrlNavigationFromAddressBar) {
+  const GURL url1(embedded_test_server()->GetURL("/title1.html"));
+
+  // NavigateToURL is treated like an address bar navigation because it uses
+  // NavigateToURLBlockUntilNavigationsComplete, which sets that transition
+  // type.
+  EXPECT_TRUE(NavigateToURL(shell(), url1));
+  EXPECT_TRUE(NavigateToURL(shell(), url1));
+
+  // The second navigation has an offset of 1 because the estimated
+  // offset is calculated at the time when the navigation request is created and
+  // it is created as a regular navigation without should_replace_current_entry
+  // set. The estimated offset is not updated when should_replace_current_entry
+  // is updated to true later on in NavigationRequest::StartNavigation.
+  // We should consider fixing this to report an offset of 0 instead.
+  EXPECT_THAT(offsets_, testing::ElementsAre(1, 1));
 }
 
 IN_PROC_BROWSER_TEST_F(NavigationRequestBackForwardBrowserTest,
@@ -4325,7 +4414,7 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestPrerenderBrowserTest,
             primary_main_frame->cross_origin_embedder_policy().value);
 
   // Add a prerender.
-  int host_id = prerender_helper().AddPrerender(
+  FrameTreeNodeId host_id = prerender_helper().AddPrerender(
       https_server()->GetURL("a.test", "/title1.html?prerendering"));
   content::RenderFrameHostImpl* prerender_main_frame =
       static_cast<content::RenderFrameHostImpl*>(
@@ -4709,10 +4798,9 @@ IN_PROC_BROWSER_TEST_F(NavigationRequestResponseBodyBrowserTest,
             client_throttle->response_body().find(
                 "Test page with a long response body"));
   // The initial response body chunk may be smaller than the max data pipe size.
-  EXPECT_LE(
-      client_throttle->response_body().length(),
-      network::features::GetDataPipeDefaultAllocationSize(
-          network::features::DataPipeAllocationSize::kLargerSizeIfPossible));
+  EXPECT_LE(client_throttle->response_body().length(),
+            network::GetDataPipeDefaultAllocationSize(
+                network::DataPipeAllocationSize::kLargerSizeIfPossible));
 
   // Finish the navigation.
   ASSERT_TRUE(manager.WaitForNavigationFinished());

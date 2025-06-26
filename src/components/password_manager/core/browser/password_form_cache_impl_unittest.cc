@@ -6,6 +6,7 @@
 
 #include "base/test/task_environment.h"
 #include "components/autofill/core/common/autofill_test_utils.h"
+#include "components/autofill/core/common/form_data_test_api.h"
 #include "components/password_manager/core/browser/fake_form_fetcher.h"
 #include "components/password_manager/core/browser/password_form_digest.h"
 #include "components/password_manager/core/browser/password_manager_test_utils.h"
@@ -21,6 +22,11 @@
 #include "components/os_crypt/sync/os_crypt_mocker.h"
 #endif
 
+#if BUILDFLAG(IS_ANDROID)
+#include "components/webauthn/android/cred_man_support.h"
+#include "components/webauthn/android/webauthn_cred_man_delegate.h"
+#endif  // BUILDFLAG(IS_ANDROID)
+
 namespace password_manager {
 using autofill::FormData;
 using autofill::FormFieldData;
@@ -32,12 +38,32 @@ using testing::IsEmpty;
 using testing::IsNull;
 using testing::NotNull;
 
+class MockPasswordFormManagerObserver : public PasswordFormManagerObserver {
+ public:
+  MOCK_METHOD(void,
+              OnPasswordFormParsed,
+              (PasswordFormManager * form_manager),
+              (override));
+
+  base::WeakPtr<MockPasswordFormManagerObserver> GetWeakPtr() {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
+
+ private:
+  base::WeakPtrFactory<MockPasswordFormManagerObserver> weak_ptr_factory_{this};
+};
+
 class PasswordFormCacheTest : public testing::Test {
  public:
   PasswordFormCacheTest() {
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
     OSCryptMocker::SetUp();
 #endif
+
+#if BUILDFLAG(IS_ANDROID)
+    webauthn::WebAuthnCredManDelegate::override_cred_man_support_for_testing(
+        webauthn::CredManSupport::DISABLED);
+#endif  // BUILDFLAG(IS_ANDROID)
   }
 
   StubPasswordManagerClient& client() { return client_; }
@@ -57,9 +83,9 @@ class PasswordFormCacheTest : public testing::Test {
 
     // Fill values into the fields to save the form.
     FormData filled_form = form;
-    EXPECT_EQ(filled_form.fields.size(), 2u);
-    filled_form.fields[0].set_value(u"username");
-    filled_form.fields[1].set_value(u"password");
+    EXPECT_EQ(filled_form.fields().size(), 2u);
+    test_api(filled_form).field(0).set_value(u"username");
+    test_api(filled_form).field(1).set_value(u"password");
     form_manager->ProvisionallySave(
         filled_form, &driver(),
         base::LRUCache<PossibleUsernameFieldIdentifier, PossibleUsernameData>(
@@ -68,8 +94,13 @@ class PasswordFormCacheTest : public testing::Test {
     return form_manager;
   }
 
+  void FastForwardUntilNoTasksRemain() {
+    task_environment_.FastForwardUntilNoTasksRemain();
+  }
+
  private:
-  base::test::SingleThreadTaskEnvironment task_environment_;
+  base::test::SingleThreadTaskEnvironment task_environment_{
+      base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   AutofillUnitTestEnvironment autofill_test_environment_;
   StubPasswordManagerClient client_;
   StubPasswordManagerDriver driver_;
@@ -105,10 +136,10 @@ TEST_F(PasswordFormCacheTest, GetMatchedManager) {
       /*metrics_recorder=*/nullptr);
   cache().AddFormManager(std::move(form_manager));
   PasswordFormManager* matched_manager =
-      cache().GetMatchedManager(&driver(), form.renderer_id);
+      cache().GetMatchedManager(&driver(), form.renderer_id());
 
-  ASSERT_TRUE(matched_manager->DoesManage(form.renderer_id, &driver()));
-  for (const FormFieldData& field : form.fields) {
+  ASSERT_TRUE(matched_manager->DoesManage(form.renderer_id(), &driver()));
+  for (const FormFieldData& field : form.fields()) {
     ASSERT_TRUE(matched_manager->DoesManage(field.renderer_id(), &driver()));
     ASSERT_EQ(matched_manager,
               cache().GetMatchedManager(&driver(), field.renderer_id()));
@@ -158,13 +189,14 @@ TEST_F(PasswordFormCacheTest, MoveOwnedSubmittedManager) {
 
   PasswordFormManager* submitted_manager = cache().GetSubmittedManager();
   ASSERT_TRUE(submitted_manager->is_submitted());
-  ASSERT_TRUE(submitted_manager->DoesManage(form.renderer_id, &driver()));
+  ASSERT_TRUE(submitted_manager->DoesManage(form.renderer_id(), &driver()));
   ASSERT_FALSE(cache().IsEmpty());
 
   std::unique_ptr<PasswordFormManager> moved_submitted_manager =
       cache().MoveOwnedSubmittedManager();
   ASSERT_TRUE(moved_submitted_manager->is_submitted());
-  ASSERT_TRUE(moved_submitted_manager->DoesManage(form.renderer_id, &driver()));
+  ASSERT_TRUE(
+      moved_submitted_manager->DoesManage(form.renderer_id(), &driver()));
   ASSERT_TRUE(cache().IsEmpty());
 }
 
@@ -198,7 +230,7 @@ TEST_F(PasswordFormCacheTest, ResetSubmittedManager_NoSubmittedManager) {
 
   cache().ResetSubmittedManager();
   EXPECT_FALSE(cache().IsEmpty());
-  EXPECT_THAT(cache().GetMatchedManager(&driver(), form.renderer_id),
+  EXPECT_THAT(cache().GetMatchedManager(&driver(), form.renderer_id()),
               NotNull());
 }
 
@@ -220,9 +252,28 @@ TEST_F(PasswordFormCacheTest, GetFormManagers) {
 
   // Check that iterators point to the expected password form managers.
   PasswordFormManager* matched_manager =
-      cache().GetMatchedManager(&driver(), form.renderer_id);
+      cache().GetMatchedManager(&driver(), form.renderer_id());
   EXPECT_THAT(matched_manager, NotNull());
   EXPECT_EQ(matched_manager, cache().GetFormManagers()[0].get());
+}
+
+// Test that the cache adds observers to newly added managers.
+TEST_F(PasswordFormCacheTest, ObservationOnFormManager) {
+  MockPasswordFormManagerObserver observer;
+  static_cast<PasswordFormCache*>(&cache())->SetObserver(observer.GetWeakPtr());
+
+  auto form_manager = std::make_unique<PasswordFormManager>(
+      &client(), driver().AsWeakPtr(), CreateTestPasswordFormData(),
+      &form_fetcher(), std::make_unique<PasswordSaveManagerImpl>(&client()),
+      /*metrics_recorder=*/nullptr);
+  auto* form_manager_ptr = form_manager.get();
+
+  cache().AddFormManager(std::move(form_manager));
+
+  EXPECT_CALL(observer, OnPasswordFormParsed(form_manager_ptr));
+
+  form_fetcher().NotifyFetchCompleted();
+  FastForwardUntilNoTasksRemain();
 }
 
 }  // namespace password_manager

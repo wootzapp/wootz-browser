@@ -44,7 +44,6 @@
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
 #include "third_party/blink/renderer/platform/graphics/accelerated_static_bitmap_image.h"
 #include "third_party/blink/renderer/platform/graphics/canvas_resource_provider.h"
-#include "third_party/blink/renderer/platform/graphics/color_correction_test_utils.h"
 #include "third_party/blink/renderer/platform/graphics/gpu/shared_gpu_context.h"
 #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
 #include "third_party/blink/renderer/platform/graphics/test/fake_gles2_interface.h"
@@ -56,7 +55,6 @@
 #include "third_party/blink/renderer/platform/image-decoders/image_decoder.h"
 #include "third_party/blink/renderer/platform/loader/fetch/memory_cache.h"
 #include "third_party/blink/renderer/platform/loader/fetch/resource_request.h"
-#include "third_party/blink/renderer/platform/testing/runtime_enabled_features_test_helpers.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkImage.h"
@@ -97,7 +95,7 @@ class ImageBitmapTest : public testing::Test {
         ThreadState::StackState::kNoHeapPointers);
 
     ReplaceMemoryCacheForTesting(global_memory_cache_.Release());
-    SharedGpuContext::ResetForTesting();
+    SharedGpuContext::Reset();
   }
 
  protected:
@@ -260,9 +258,10 @@ TEST_F(ImageBitmapTest, AvoidGPUReadback) {
   base::WeakPtr<WebGraphicsContext3DProviderWrapper> context_provider_wrapper =
       SharedGpuContext::ContextProviderWrapper();
   auto resource_provider = CanvasResourceProvider::CreateSharedImageProvider(
-      SkImageInfo::MakeN32Premul(100, 100), cc::PaintFlags::FilterQuality::kLow,
+      gfx::Size(100, 100), GetN32FormatForCanvas(), kPremul_SkAlphaType,
+      gfx::ColorSpace::CreateSRGB(),
       CanvasResourceProvider::ShouldInitialize::kNo, context_provider_wrapper,
-      RasterMode::kGPU, /*shared_image_usage_flags=*/0u);
+      RasterMode::kGPU, gpu::SharedImageUsageSet());
 
   scoped_refptr<StaticBitmapImage> bitmap =
       resource_provider->Snapshot(FlushReason::kTesting);
@@ -397,8 +396,7 @@ TEST_F(ImageBitmapTest, ImageAlphaState) {
           SkColorSetARGB(/* a */ 0, /* r */ 255, /* g */ 102, /* b */ 153);
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 
   ASSERT_EQ(pixels[0], expected);

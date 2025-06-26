@@ -16,6 +16,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.background_sync.BackgroundSyncBackgroundTaskScheduler.BackgroundSyncTask;
@@ -28,7 +29,6 @@ import org.chromium.chrome.test.util.browser.signin.AccountManagerTestRule;
 import org.chromium.components.externalauth.ExternalAuthUtils;
 import org.chromium.content_public.browser.test.NativeLibraryTestUtils;
 import org.chromium.content_public.browser.test.util.BackgroundSyncNetworkUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.ConnectionType;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.net.test.ServerCertificate;
@@ -55,8 +55,6 @@ public final class BackgroundSyncTest {
             "/chrome/test/data/background_sync/background_sync_test.html";
     private static final int TITLE_UPDATE_TIMEOUT_SECONDS = (int) scaleTimeout(10);
     private static final long WAIT_TIME_MS = scaleTimeout(5000);
-    private static final String DISABLE_ANDROID_NETWORK_DETECTION =
-            "BackgroundSync.RelyOnAndroidNetworkDetection:rely_on_android_network_detection/false";
 
     private CountDownLatch mScheduleLatch;
     private CountDownLatch mCancelLatch;
@@ -88,7 +86,7 @@ public final class BackgroundSyncTest {
 
     @After
     public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     BackgroundSyncBackgroundTaskScheduler.getInstance()
                             .removeObserver(mSchedulerObserver);
@@ -98,7 +96,6 @@ public final class BackgroundSyncTest {
     @Test
     @MediumTest
     @Feature({"BackgroundSync"})
-    @CommandLineFlags.Add({"force-fieldtrial-params=" + DISABLE_ANDROID_NETWORK_DETECTION})
     public void onSyncCalledWithNetworkConnectivity() throws Exception {
         forceConnectionType(ConnectionType.CONNECTION_NONE);
 
@@ -154,14 +151,14 @@ public final class BackgroundSyncTest {
     }
 
     private void forceConnectionType(int connectionType) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     BackgroundSyncNetworkUtils.setConnectionTypeForTesting(connectionType);
                 });
     }
 
     private void disableGooglePlayServicesVersionCheck() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     BackgroundSyncBackgroundTaskSchedulerJni.get()
                             .setPlayServicesVersionCheckDisabledForTests(/* disabled= */ true);
@@ -189,7 +186,7 @@ public final class BackgroundSyncTest {
                     }
                 };
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     BackgroundSyncBackgroundTaskScheduler.getInstance()
                             .addObserver(mSchedulerObserver);

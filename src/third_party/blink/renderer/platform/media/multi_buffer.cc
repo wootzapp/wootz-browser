@@ -2,16 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "third_party/blink/public/platform/media/multi_buffer.h"
+#include "third_party/blink/renderer/platform/media/multi_buffer.h"
 
 #include <utility>
 
 #include "base/containers/contains.h"
-#include "base/functional/bind.h"
+#include "base/feature_list.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
+#include "base/not_fatal_until.h"
 #include "base/task/single_thread_task_runner.h"
+#include "media/base/media_switches.h"
+#include "third_party/blink/renderer/platform/scheduler/public/post_cross_thread_task.h"
+#include "third_party/blink/renderer/platform/wtf/cross_thread_functional.h"
+#include "third_party/blink/renderer/platform/wtf/functional.h"
 
 namespace blink {
 
@@ -25,7 +30,7 @@ enum {
 // Returns the block ID closest to (but less or equal than) |pos| from |index|.
 template <class T>
 static MultiBuffer::BlockId ClosestPreviousEntry(
-    const std::map<MultiBuffer::BlockId, T>& index,
+    const base::flat_map<MultiBuffer::BlockId, T>& index,
     MultiBuffer::BlockId pos) {
   auto i = index.upper_bound(pos);
   DCHECK(i == index.end() || i->first > pos);
@@ -41,7 +46,7 @@ static MultiBuffer::BlockId ClosestPreviousEntry(
 // from |index|.
 template <class T>
 static MultiBuffer::BlockId ClosestNextEntry(
-    const std::map<MultiBuffer::BlockId, T>& index,
+    const base::flat_map<MultiBuffer::BlockId, T>& index,
     MultiBuffer::BlockId pos) {
   auto i = index.lower_bound(pos);
   if (i == index.end()) {
@@ -114,8 +119,10 @@ bool MultiBuffer::GlobalLRU::Pruneable() const {
 
 void MultiBuffer::GlobalLRU::SchedulePrune() {
   if (Pruneable() && !background_pruning_pending_) {
-    task_runner_->PostDelayedTask(
-        FROM_HERE, base::BindOnce(&MultiBuffer::GlobalLRU::PruneTask, this),
+    PostDelayedCrossThreadTask(
+        *task_runner_, FROM_HERE,
+        CrossThreadBindOnce(&MultiBuffer::GlobalLRU::PruneTask,
+                            WTF::RetainedRef(this)),
         base::Seconds(kBlockPruneInterval));
     background_pruning_pending_ = true;
   }
@@ -205,8 +212,7 @@ void MultiBuffer::AddReader(const BlockId& pos, Reader* reader) {
     BlockId closest_block;
     if (i.value()) {
       // Shouldn't happen, we already tested that Contains(pos) is true.
-      NOTREACHED_IN_MIGRATION();
-      closest_block = pos;
+      NOTREACHED();
     } else if (i == present_.begin()) {
       closest_block = -1;
     } else {
@@ -338,7 +344,7 @@ std::unique_ptr<MultiBuffer::DataProvider> MultiBuffer::RemoveProvider(
     DataProvider* provider) {
   BlockId pos = provider->Tell();
   auto iter = writer_index_.find(pos);
-  DCHECK(iter != writer_index_.end());
+  CHECK(iter != writer_index_.end(), base::NotFatalUntil::M130);
   DCHECK_EQ(iter->second.get(), provider);
   std::unique_ptr<DataProvider> ret = std::move(iter->second);
   writer_index_.erase(iter);
@@ -346,7 +352,8 @@ std::unique_ptr<MultiBuffer::DataProvider> MultiBuffer::RemoveProvider(
 }
 
 MultiBuffer::ProviderState MultiBuffer::SuggestProviderState(
-    const BlockId& pos) const {
+    const BlockId& pos,
+    bool is_stale) const {
   MultiBufferBlockId next_reader_pos = ClosestNextEntry(readers_, pos);
   if (next_reader_pos != std::numeric_limits<MultiBufferBlockId>::max() &&
       (next_reader_pos - pos <= kMaxWaitForWriterOffset || !RangeSupported())) {
@@ -366,7 +373,15 @@ MultiBuffer::ProviderState MultiBuffer::SuggestProviderState(
     MultiBufferBlockId previous_writer_pos =
         ClosestPreviousEntry(writer_index_, pos - 1);
     if (previous_writer_pos < previous_reader_pos) {
-      return ProviderStateDefer;
+      // When kMultiBufferNeverDefer is enabled, providers will submit
+      // themselves for cleanup after being deferred for too long.
+      //
+      // See https://crbug.com/409117400 for notes on why we don't also include
+      // the ProviderStateDead case below in this feature.
+      return is_stale &&
+                     base::FeatureList::IsEnabled(media::kMultiBufferNeverDefer)
+                 ? ProviderStateDead
+                 : ProviderStateDefer;
     }
   }
 
@@ -436,7 +451,7 @@ void MultiBuffer::OnDataProviderEvent(DataProvider* provider_tmp) {
   // readers to seek or self-destruct and clean up any associated writers.
   auto i = writer_index_.find(pos);
   if (i != writer_index_.end() && i->second.get() == provider_tmp) {
-    switch (SuggestProviderState(pos)) {
+    switch (SuggestProviderState(pos, provider_tmp->IsStale())) {
       case ProviderStateLoad:
         // Not sure we actually need to do this
         provider_tmp->SetDeferred(false);

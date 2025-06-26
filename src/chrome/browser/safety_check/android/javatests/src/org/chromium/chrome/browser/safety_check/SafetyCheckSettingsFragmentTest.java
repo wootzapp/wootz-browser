@@ -6,9 +6,11 @@ package org.chromium.chrome.browser.safety_check;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
+import android.os.Build;
 
 import androidx.preference.Preference;
 import androidx.test.core.app.ApplicationProvider;
@@ -23,14 +25,26 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import org.chromium.base.CollectionUtil;
+import org.chromium.base.FeatureOverrides;
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.params.ParameterAnnotations;
+import org.chromium.base.test.params.ParameterAnnotations.UseRunnerDelegate;
+import org.chromium.base.test.params.ParameterProvider;
+import org.chromium.base.test.params.ParameterSet;
+import org.chromium.base.test.params.ParameterizedRunner;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DoNotBatch;
-import org.chromium.base.test.util.JniMocker;
+import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.password_check.PasswordCheck;
 import org.chromium.chrome.browser.password_check.PasswordCheckFactory;
+import org.chromium.chrome.browser.password_manager.PasswordManagerBackendSupportHelper;
+import org.chromium.chrome.browser.password_manager.PasswordManagerHelper;
+import org.chromium.chrome.browser.password_manager.PasswordManagerHelperJni;
+import org.chromium.chrome.browser.password_manager.PasswordManagerTestHelper;
 import org.chromium.chrome.browser.password_manager.PasswordManagerUtilBridge;
 import org.chromium.chrome.browser.password_manager.PasswordManagerUtilBridgeJni;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
@@ -39,15 +53,21 @@ import org.chromium.chrome.browser.safety_check.SafetyCheckProperties.SafeBrowsi
 import org.chromium.chrome.browser.safety_check.SafetyCheckProperties.UpdatesState;
 import org.chromium.chrome.browser.settings.SettingsActivityTestRule;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
-import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
+import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
+import org.chromium.components.prefs.PrefService;
 import org.chromium.components.signin.base.CoreAccountInfo;
+import org.chromium.components.signin.base.GaiaId;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.sync.UserSelectableType;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modelutil.PropertyModel;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Set;
+
 /** Tests {@link SafetyCheckSettingsFragment} together with {@link SafetyCheckViewBinder}. */
-@RunWith(ChromeJUnit4ClassRunner.class)
+@RunWith(ParameterizedRunner.class)
+@UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @DoNotBatch(
         reason =
                 "The activity should be restarted for each test to not share saved user preferences"
@@ -67,28 +87,45 @@ public class SafetyCheckSettingsFragmentTest {
     public SettingsActivityTestRule<SafetyCheckSettingsFragment> mSettingsActivityTestRule =
             new SettingsActivityTestRule<>(SafetyCheckSettingsFragment.class);
 
-    @Rule public JniMocker mJniMocker = new JniMocker();
-
     @Mock private PasswordCheck mPasswordCheck;
-    @Mock protected SyncService mSyncService;
-    @Mock protected PasswordManagerUtilBridge.Natives mPasswordManagerUtilBridgeNativeMock;
+    @Mock private SyncService mSyncService;
+    @Mock private PasswordManagerUtilBridge.Natives mPasswordManagerUtilBridgeNativeMock;
+    @Mock private PasswordManagerBackendSupportHelper mBackendSupportHelperMock;
+    @Mock private PasswordManagerHelper.Natives mPasswordManagerHelperNativeMock;
 
-    protected PropertyModel mSafetyCheckModel;
+    private PropertyModel mSafetyCheckModel;
     private PropertyModel mPasswordCheckPreferenceLocalModel;
-    protected SafetyCheckSettingsFragment mFragment;
+    private SafetyCheckSettingsFragment mFragment;
+
+    // Set only if the test is parameterized.
+    private Boolean mIsLoginDbDeprecationEnabled;
+
+    public static class LoginDbDeprecationParams implements ParameterProvider {
+        @Override
+        public Iterable<ParameterSet> getParameters() {
+            return Arrays.asList(
+                    new ParameterSet().value(true).name("LoginDbDeprecationEnabled"),
+                    new ParameterSet().value(false).name("LoginDbDeprecationDisabled"));
+        }
+    }
 
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
         PasswordCheckFactory.setPasswordCheckForTesting(mPasswordCheck);
         SyncServiceFactory.setInstanceForTesting(mSyncService);
-        mJniMocker.mock(
-                PasswordManagerUtilBridgeJni.TEST_HOOKS, mPasswordManagerUtilBridgeNativeMock);
+        PasswordManagerUtilBridgeJni.setInstanceForTesting(mPasswordManagerUtilBridgeNativeMock);
+        PasswordManagerHelperJni.setInstanceForTesting(mPasswordManagerHelperNativeMock);
+        PasswordManagerBackendSupportHelper.setInstanceForTesting(mBackendSupportHelperMock);
+        // Make sure that if requests to the UPM backends are made, they hit the fake backends.
+        PasswordManagerTestHelper.setUpGmsCoreFakeBackends();
     }
 
     @Test
     @SmallTest
-    public void testLastRunTimestampStrings() {
+    @ParameterAnnotations.UseMethodParameter(LoginDbDeprecationParams.class)
+    public void testLastRunTimestampStrings(boolean loginDbDeprecationEnabled) {
+        setUpLoginDbDeprecation(loginDbDeprecationEnabled);
         long t0 = 12345;
         Context context = ApplicationProvider.getApplicationContext();
         // Start time not set - returns an empty string.
@@ -122,10 +159,10 @@ public class SafetyCheckSettingsFragmentTest {
                 SafetyCheckViewBinder.getLastRunTimestampText(context, t0, t0 + 315 * DAY_TO_MS));
     }
 
-    protected void createFragmentAndModel() {
+    private void createFragmentAndModel() {
         mSettingsActivityTestRule.startSettingsActivity();
         mFragment = (SafetyCheckSettingsFragment) mSettingsActivityTestRule.getFragment();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mSafetyCheckModel =
                             SafetyCheckCoordinator.createSafetyCheckModelAndBind(mFragment);
@@ -142,7 +179,7 @@ public class SafetyCheckSettingsFragmentTest {
         mSettingsActivityTestRule.startSettingsActivity(
                 SafetyCheckSettingsFragment.createBundle(safetyCheckImmediateRun));
         mFragment = (SafetyCheckSettingsFragment) mSettingsActivityTestRule.getFragment();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mSafetyCheckModel =
                             SafetyCheckCoordinator.createSafetyCheckModelAndBind(mFragment);
@@ -155,25 +192,40 @@ public class SafetyCheckSettingsFragmentTest {
                 });
     }
 
-    private void configureMockSyncService(boolean isSyncFeatureEnabled) {
-        when(mSyncService.isSyncFeatureEnabled()).thenReturn(isSyncFeatureEnabled);
-        when(mSyncService.getSelectedTypes())
-                .thenReturn(CollectionUtil.newHashSet(UserSelectableType.PASSWORDS));
+    private void configureMockSyncService(boolean isPasswordSyncEnabled) {
+        when(mSyncService.isSyncFeatureEnabled()).thenReturn(true);
+        Set<Integer> selectedTypes;
+        selectedTypes =
+                isPasswordSyncEnabled
+                        ? Set.of(UserSelectableType.PASSWORDS)
+                        : Collections.EMPTY_SET;
+        when(mSyncService.getSelectedTypes()).thenReturn(selectedTypes);
         when(mSyncService.getAccountInfo())
-                .thenReturn(CoreAccountInfo.createFromEmailAndGaiaId(TEST_EMAIL_ADDRESS, "0"));
+                .thenReturn(
+                        CoreAccountInfo.createFromEmailAndGaiaId(
+                                TEST_EMAIL_ADDRESS, new GaiaId("0")));
+        when(mPasswordManagerHelperNativeMock.hasChosenToSyncPasswords(mSyncService))
+                .thenReturn(isPasswordSyncEnabled);
     }
 
     private void configurePasswordManagerUtilBridge(boolean usesSplitStores) {
-        when(mPasswordManagerUtilBridgeNativeMock.usesSplitStoresAndUPMForLocal(any()))
-                .thenReturn(usesSplitStores);
+        if (mIsLoginDbDeprecationEnabled == null || !mIsLoginDbDeprecationEnabled) {
+            when(mPasswordManagerUtilBridgeNativeMock.usesSplitStoresAndUPMForLocal(any()))
+                    .thenReturn(usesSplitStores);
+        } else {
+            when(mPasswordManagerUtilBridgeNativeMock.isPasswordManagerAvailable(
+                            any(PrefService.class), eq(true)))
+                    .thenReturn(usesSplitStores);
+        }
     }
 
-    private void verifyNullStateDisplayedCorrectly(boolean isSyncEnabled, boolean usesSplitStores) {
-        configureMockSyncService(isSyncEnabled);
+    private void verifyNullStateDisplayedCorrectly(
+            boolean isPasswordSyncEnabled, boolean usesSplitStores) {
+        configureMockSyncService(isPasswordSyncEnabled);
         configurePasswordManagerUtilBridge(usesSplitStores);
         createFragmentAndModel();
         // Binds the account model.
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     SafetyCheckCoordinator.createPasswordCheckPreferenceModelAndBind(
                             mFragment,
@@ -187,41 +239,57 @@ public class SafetyCheckSettingsFragmentTest {
         Preference safeBrowsing = mFragment.findPreference(SAFE_BROWSING);
         Preference updates = mFragment.findPreference(UPDATES);
 
-        assertEquals(!isSyncEnabled || usesSplitStores, passwordsLocal.isVisible());
-        assertEquals(isSyncEnabled, passwordsAccount.isVisible());
+        assertEquals(!isPasswordSyncEnabled || usesSplitStores, passwordsLocal.isVisible());
+        assertEquals(isPasswordSyncEnabled, passwordsAccount.isVisible());
         assertEquals("", passwordsLocal.getSummary());
         assertEquals("", passwordsAccount.getSummary());
         assertEquals("", safeBrowsing.getSummary());
         assertEquals("", updates.getSummary());
     }
 
+    // After login db deprecation, safety check is only displayed if split stores are used.
     @Test
     @MediumTest
+    @DisableFeatures(ChromeFeatureList.LOGIN_DB_DEPRECATION_ANDROID)
     public void testNullStateDisplayedCorrectlySyncOffNoUsingSplitStores() {
-        verifyNullStateDisplayedCorrectly(/* isSyncEnabled= */ false, /* usesSplitStores= */ false);
+        verifyNullStateDisplayedCorrectly(
+                /* isPasswordSyncEnabled= */ false, /* usesSplitStores= */ false);
     }
 
     @Test
     @MediumTest
-    public void testNullStateDisplayedCorrectlySyncOffUsingSplitStores() {
-        verifyNullStateDisplayedCorrectly(/* isSyncEnabled= */ false, /* usesSplitStores= */ true);
+    @ParameterAnnotations.UseMethodParameter(LoginDbDeprecationParams.class)
+    public void testNullStateDisplayedCorrectlySyncOffUsingSplitStores(
+            boolean isLoginDbDeprecationEnabled) {
+        setUpLoginDbDeprecation(isLoginDbDeprecationEnabled);
+        verifyNullStateDisplayedCorrectly(
+                /* isPasswordSyncEnabled= */ false, /* usesSplitStores= */ true);
     }
 
+    // After login db deprecation, safety check is only displayed if split stores are used.
     @Test
     @MediumTest
+    @DisableIf.Build(sdk_equals = Build.VERSION_CODES.S_V2, message = "crbug.com/41496704")
+    @DisableFeatures(ChromeFeatureList.LOGIN_DB_DEPRECATION_ANDROID)
     public void testNullStateDisplayedCorrectlySyncOnNoUsingSplitStores() {
-        verifyNullStateDisplayedCorrectly(/* isSyncEnabled= */ true, /* usesSplitStores= */ false);
+        verifyNullStateDisplayedCorrectly(
+                /* isPasswordSyncEnabled= */ true, /* usesSplitStores= */ false);
     }
 
     @Test
     @MediumTest
-    public void testNullStateDisplayedCorrectlySyncOnUsingSplitStores() {
+    @ParameterAnnotations.UseMethodParameter(LoginDbDeprecationParams.class)
+    public void testNullStateDisplayedCorrectlySyncOnUsingSplitStores(
+            boolean isLoginDbDeprecationEnabled) {
+        setUpLoginDbDeprecation(isLoginDbDeprecationEnabled);
         verifyNullStateDisplayedCorrectly(true, true);
     }
 
     @Test
     @MediumTest
-    public void testPasswordsCheckTitlesAreCorrect() {
+    @ParameterAnnotations.UseMethodParameter(LoginDbDeprecationParams.class)
+    public void testPasswordsCheckTitlesAreCorrect(boolean isLoginDbDeprecationEnabled) {
+        setUpLoginDbDeprecation(isLoginDbDeprecationEnabled);
         configureMockSyncService(true);
         configurePasswordManagerUtilBridge(true);
         mSettingsActivityTestRule.startSettingsActivity();
@@ -241,13 +309,15 @@ public class SafetyCheckSettingsFragmentTest {
 
     @Test
     @MediumTest
-    public void testStateChangeDisplayedCorrectly() {
+    @ParameterAnnotations.UseMethodParameter(LoginDbDeprecationParams.class)
+    public void testStateChangeDisplayedCorrectly(boolean isLoginDbDeprecationEnabled) {
+        setUpLoginDbDeprecation(isLoginDbDeprecationEnabled);
         createFragmentAndModel();
 
         Preference passwordsLocal = mFragment.findPreference(PASSWORDS_LOCAL);
         Preference safeBrowsing = mFragment.findPreference(SAFE_BROWSING);
         Preference updates = mFragment.findPreference(UPDATES);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     // Passwords state remains unchanged.
                     // Safe browsing is in "checking".
@@ -271,13 +341,15 @@ public class SafetyCheckSettingsFragmentTest {
 
     @Test
     @MediumTest
-    public void testSafetyCheckElementsOnClick() {
+    @ParameterAnnotations.UseMethodParameter(LoginDbDeprecationParams.class)
+    public void testSafetyCheckElementsOnClick(boolean isLoginDbDeprecationEnabled) {
+        setUpLoginDbDeprecation(isLoginDbDeprecationEnabled);
         createFragmentAndModel();
         CallbackHelper passwordsLocalClicked = new CallbackHelper();
         CallbackHelper safeBrowsingClicked = new CallbackHelper();
         CallbackHelper updatesClicked = new CallbackHelper();
         // Set the listeners
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mPasswordCheckPreferenceLocalModel.set(
                             PasswordsCheckPreferenceProperties.PASSWORDS_CLICK_LISTENER,
@@ -304,7 +376,7 @@ public class SafetyCheckSettingsFragmentTest {
         Preference passwordsLocal = mFragment.findPreference(PASSWORDS_LOCAL);
         Preference safeBrowsing = mFragment.findPreference(SAFE_BROWSING);
         Preference updates = mFragment.findPreference(UPDATES);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     // If local password storage is available, should be clickable.
                     passwordsLocal.performClick();
@@ -328,7 +400,9 @@ public class SafetyCheckSettingsFragmentTest {
 
     @Test
     @MediumTest
-    public void testSafetyCheckDoNotImmediatelyRunByDefault() {
+    @ParameterAnnotations.UseMethodParameter(LoginDbDeprecationParams.class)
+    public void testSafetyCheckDoNotImmediatelyRunByDefault(boolean isLoginDbDeprecationEnabled) {
+        setUpLoginDbDeprecation(isLoginDbDeprecationEnabled);
         createFragmentAndModelByBundle(/* safetyCheckImmediateRun= */ false);
         assertEquals(false, mFragment.shouldRunSafetyCheckImmediately());
         assertEquals(
@@ -340,7 +414,9 @@ public class SafetyCheckSettingsFragmentTest {
 
     @Test
     @MediumTest
-    public void testSafetyCheckImmediatelyRunByBundle() {
+    @ParameterAnnotations.UseMethodParameter(LoginDbDeprecationParams.class)
+    public void testSafetyCheckImmediatelyRunByBundle(boolean isLoginDbDeprecationEnabled) {
+        setUpLoginDbDeprecation(isLoginDbDeprecationEnabled);
         createFragmentAndModelByBundle(/* safetyCheckImmediateRun= */ true);
 
         // Make sure the safety check was ran.
@@ -354,5 +430,17 @@ public class SafetyCheckSettingsFragmentTest {
                                             0),
                             Matchers.not(0));
                 });
+    }
+
+    private void setUpLoginDbDeprecation(boolean isLoginDbDeprecationEnabled) {
+        mIsLoginDbDeprecationEnabled = isLoginDbDeprecationEnabled;
+        if (isLoginDbDeprecationEnabled) {
+            FeatureOverrides.enable(ChromeFeatureList.LOGIN_DB_DEPRECATION_ANDROID);
+            when(mBackendSupportHelperMock.isBackendPresent()).thenReturn(true);
+            // The password manger is always available in Safety Check after login db deprecation.
+            configurePasswordManagerUtilBridge(true);
+        } else {
+            FeatureOverrides.disable(ChromeFeatureList.LOGIN_DB_DEPRECATION_ANDROID);
+        }
     }
 }

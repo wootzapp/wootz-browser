@@ -6,22 +6,16 @@
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
-#include "base/android/scoped_java_ref.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/lazy_instance.h"
 #include "base/logging.h"
-#include "build/robolectric_buildflags.h"
 
-#if BUILDFLAG(IS_ROBOLECTRIC)
-#include "base/base_robolectric_jni/JavaExceptionReporter_jni.h"  // nogncheck
-#else
-#include "base/base_jni/JavaExceptionReporter_jni.h"
-#endif
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "base/base_minimal_jni/JavaExceptionReporter_jni.h"
 
-using base::android::JavaParamRef;
-using base::android::JavaRef;
+using jni_zero::JavaRef;
 
 namespace base {
 namespace android {
@@ -39,7 +33,7 @@ LazyInstance<JavaExceptionFilter>::Leaky g_java_exception_filter =
 }  // namespace
 
 void InitJavaExceptionReporter() {
-  JNIEnv* env = base::android::AttachCurrentThread();
+  JNIEnv* env = jni_zero::AttachCurrentThread();
   // Since JavaExceptionReporter#installHandler will chain through to the
   // default handler, the default handler should cause a crash as if it's a
   // normal java exception. Prefer to crash the browser process in java rather
@@ -52,7 +46,7 @@ void InitJavaExceptionReporter() {
 }
 
 void InitJavaExceptionReporterForChildProcess() {
-  JNIEnv* env = base::android::AttachCurrentThread();
+  JNIEnv* env = jni_zero::AttachCurrentThread();
   constexpr bool crash_after_report = true;
   SetJavaExceptionFilter(
       base::BindRepeating([](const JavaRef<jthrowable>&) { return true; }));
@@ -83,7 +77,7 @@ void SetJavaException(const char* exception) {
 void JNI_JavaExceptionReporter_ReportJavaException(
     JNIEnv* env,
     jboolean crash_after_report,
-    const JavaParamRef<jthrowable>& e) {
+    const JavaRef<jthrowable>& e) {
   std::string exception_info = base::android::GetJavaExceptionInfo(env, e);
   bool should_report_exception = g_java_exception_filter.Get().Run(e);
   if (should_report_exception) {
@@ -108,3 +102,5 @@ void JNI_JavaExceptionReporter_ReportJavaStackTrace(JNIEnv* env,
 
 }  // namespace android
 }  // namespace base
+
+DEFINE_JNI_FOR_JavaExceptionReporter()

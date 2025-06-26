@@ -26,6 +26,8 @@
 
 #include "third_party/blink/renderer/platform/weborigin/scheme_registry.h"
 
+#include <algorithm>
+
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/web/blink.h"
 #include "third_party/blink/renderer/platform/wtf/allocator/allocator.h"
@@ -103,6 +105,7 @@ class URLSchemesRegistry final {
   URLSchemesSet allowing_shared_array_buffer_schemes;
   URLSchemesSet web_ui_schemes;
   URLSchemesSet code_cache_with_hashing_schemes;
+  URLSchemesSet webui_bundled_bytecode_schemes;
 
  private:
   friend const URLSchemesRegistry& GetURLSchemesRegistry();
@@ -226,9 +229,15 @@ bool SchemeRegistry::ShouldTreatURLSchemeAsCorsEnabled(const String& scheme) {
 }
 
 String SchemeRegistry::ListOfCorsEnabledURLSchemes() {
+  Vector<String> sorted_schemes(GetURLSchemesRegistry().cors_enabled_schemes);
+  std::sort(sorted_schemes.begin(), sorted_schemes.end(),
+            [](const String& a, const String& b) {
+              return CodeUnitCompareLessThan(a, b);
+            });
+
   StringBuilder builder;
   bool add_separator = false;
-  for (const auto& scheme : GetURLSchemesRegistry().cors_enabled_schemes) {
+  for (const auto& scheme : sorted_schemes) {
     if (add_separator)
       builder.Append(", ");
     else
@@ -483,6 +492,26 @@ bool SchemeRegistry::SchemeSupportsCodeCacheWithHashing(const String& scheme) {
     return false;
   DCHECK_EQ(scheme, scheme.LowerASCII());
   return GetURLSchemesRegistry().code_cache_with_hashing_schemes.Contains(
+      scheme);
+}
+
+void SchemeRegistry::RegisterURLSchemeAsWebUIBundledBytecode(
+    const String& scheme) {
+  DCHECK_EQ(scheme, scheme.LowerASCII());
+  GetMutableURLSchemesRegistry().webui_bundled_bytecode_schemes.insert(scheme);
+}
+
+void SchemeRegistry::RemoveURLSchemeAsWebUIBundledBytecodeForTesting(
+    const String& scheme) {
+  GetMutableURLSchemesRegistry().webui_bundled_bytecode_schemes.erase(scheme);
+}
+
+bool SchemeRegistry::SchemeSupportsWebUIBundledBytecode(const String& scheme) {
+  if (scheme.empty()) {
+    return false;
+  }
+  DCHECK_EQ(scheme, scheme.LowerASCII());
+  return GetURLSchemesRegistry().webui_bundled_bytecode_schemes.Contains(
       scheme);
 }
 

@@ -7,11 +7,13 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/functional/bind.h"
 #include "base/memory/ref_counted_memory.h"
-#include "chrome/android/chrome_jni_headers/EditorScreenshotTask_jni.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/android/window_android.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/snapshot/snapshot.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/EditorScreenshotTask_jni.h"
 
 using base::android::JavaParamRef;
 using base::android::JavaRef;
@@ -20,7 +22,6 @@ using base::android::ScopedJavaLocalRef;
 using jni_zero::AttachCurrentThread;
 using ui::WindowAndroid;
 
-namespace chrome {
 namespace android {
 
 /**
@@ -57,4 +58,3 @@ void JNI_EditorScreenshotTask_GrabWindowSnapshotAsync(
 }
 
 }  // namespace android
-}  // namespace chrome

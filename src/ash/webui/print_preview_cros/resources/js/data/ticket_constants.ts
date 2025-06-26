@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {ColorModel, DuplexMode, MarginType, MediaSize, PrinterStatusReason, type PrintTicket, ScalingType} from '../utils/print_preview_cros_app_types.js';
+import type {MediaSize} from '../utils/print_preview_cros_app_types.js';
+import {ColorModel, DuplexMode, MarginType, PrinterStatusReason, type PrintTicket, ScalingType} from '../utils/print_preview_cros_app_types.js';
 
 /**
  * @fileoverview
@@ -42,6 +43,7 @@ export const DEFAULT_PARTIAL_PRINT_TICKET: Partial<PrintTicket> = {
   pagesPerSheet: 1,
   pageHeight: 0,
   pageWidth: 0,
+  printerManuallySelected: false,
   printerStatusReason: PrinterStatusReason.UNKNOWN_REASON,
   rasterizePDF: false,
   scaleFactor: 100,

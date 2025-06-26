@@ -12,6 +12,7 @@
 #include <fstream>
 #include <list>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <vector>
 
@@ -44,8 +45,6 @@ const char kCrashServerProduction[] = "https://clients2.google.com/cr/report";
 
 const char kVirtualChannel[] = "virtual-channel";
 
-const char kLatestUiVersion[] = "latest-ui-version";
-
 typedef std::vector<std::unique_ptr<DumpInfo>> DumpList;
 
 std::unique_ptr<PrefService> CreatePrefService() {
@@ -57,7 +56,6 @@ std::unique_ptr<PrefService> CreatePrefService() {
   registry->RegisterBooleanPref(prefs::kOptInStats, true);
   registry->RegisterStringPref(::metrics::prefs::kMetricsClientID, "");
   registry->RegisterStringPref(kVirtualChannel, "");
-  registry->RegisterForeignPref(kLatestUiVersion);
 
   PrefServiceFactory prefServiceFactory;
   prefServiceFactory.SetUserPrefsFile(
@@ -147,9 +145,7 @@ bool MinidumpUploader::DoWork() {
       LOG(INFO) << "OptInStats is false, removing crash dump";
       ignore_and_erase_dump = true;
     } else if (IsDumpObsolete(dump)) {
-      NOTREACHED_IN_MIGRATION();
-      LOG(INFO) << "DumpInfo belongs to older version, removing crash dump";
-      ignore_and_erase_dump = true;
+      NOTREACHED();
     }
 
     // Ratelimiting persists across reboots.
@@ -182,30 +178,35 @@ bool MinidumpUploader::DoWork() {
 
     LOG(INFO) << "OptInStats is true, uploading crash dump";
 
-    int64_t size;
-    if (!dump_path.empty() && !base::GetFileSize(dump_path, &size)) {
-      // either the file does not exist, or there was an error logging its
-      // path, or settings its permission; regardless, we can't upload it.
-      for (const auto& attachment : attachments) {
-        base::FilePath attachment_path(attachment);
-        if (attachment_path.DirName() == dump_path.DirName()) {
-          base::DeleteFile(attachment_path);
+    if (!dump_path.empty()) {
+      std::optional<int64_t> size = base::GetFileSize(dump_path);
+      if (!size.has_value()) {
+        // either the file does not exist, or there was an error logging its
+        // path, or settings its permission; regardless, we can't upload it.
+        for (const auto& attachment : attachments) {
+          base::FilePath attachment_path(attachment);
+          if (attachment_path.DirName() == dump_path.DirName()) {
+            base::DeleteFile(attachment_path);
+          }
         }
+        dumps.erase(dumps.begin());
+        continue;
       }
-      dumps.erase(dumps.begin());
-      continue;
     }
 
     std::stringstream comment;
     if (log_path.empty()) {
       comment << "Log file not specified. ";
-    } else if (!base::GetFileSize(log_path, &size)) {
-      comment << "Can't get size of " << log_path.value() << ": "
-              << strerror(errno);
-      // if we can't find the log file, don't upload the log
-      log_path.clear();
     } else {
-      comment << "Log size is " << size << ". ";
+      std::optional<int64_t> size = base::GetFileSize(log_path);
+      if (!size.has_value()) {
+        comment << "Can't get size of " << log_path.value() << ": "
+                << strerror(errno);
+        // if we can't find the log file, don't upload the log
+        log_path.clear();
+      } else {
+        comment << "Log size is " << size.value() << ". ";
+      }
     }
 
     std::stringstream uptime_stream;
@@ -261,10 +262,6 @@ bool MinidumpUploader::DoWork() {
     g.SetParameter("ro.system.version", system_version_);
     g.SetParameter("release.virtual-channel", virtual_channel);
     g.SetParameter("ro.build.type", GetBuildVariant());
-    if (pref_service->HasPrefPath(kLatestUiVersion)) {
-      g.SetParameter("ui.version",
-                     pref_service->GetString(kLatestUiVersion));
-    }
     // Add app state information
     if (!dump.params().previous_app_name.empty()) {
       g.SetParameter("previous_app", dump.params().previous_app_name);

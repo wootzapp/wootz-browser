@@ -65,14 +65,22 @@ enum PseudoId : uint8_t {
   kPseudoIdNone,
   kPseudoIdFirstLine,
   kPseudoIdFirstLetter,
+  kPseudoIdCheckMark,
   kPseudoIdBefore,
   kPseudoIdAfter,
+  kPseudoIdPickerIcon,
   kPseudoIdMarker,
   kPseudoIdBackdrop,
   kPseudoIdSelection,
   kPseudoIdScrollbar,
   kPseudoIdScrollMarker,
   kPseudoIdScrollMarkerGroup,
+  kPseudoIdScrollButton,
+  kPseudoIdScrollButtonBlockStart,
+  kPseudoIdScrollButtonInlineStart,
+  kPseudoIdScrollButtonInlineEnd,
+  kPseudoIdScrollButtonBlockEnd,
+  kPseudoIdColumn,
   kPseudoIdSearchText,
   kPseudoIdTargetText,
   kPseudoIdHighlight,
@@ -91,13 +99,20 @@ enum PseudoId : uint8_t {
   kPseudoIdScrollbarTrack,
   kPseudoIdScrollbarTrackPiece,
   kPseudoIdScrollbarCorner,
+  kPseudoIdScrollMarkerGroupAfter,
+  kPseudoIdScrollMarkerGroupBefore,
   kPseudoIdResizer,
   kPseudoIdInputListButton,
+  kPseudoIdPlaceholder,
+  kPseudoIdFileSelectorButton,
+  kPseudoIdDetailsContent,
+  kPseudoIdPickerSelect,
   // Special values follow:
   kAfterLastInternalPseudoId,
   kPseudoIdInvalid,
   kFirstPublicPseudoId = kPseudoIdFirstLine,
   kLastTrackedPublicPseudoId = kPseudoIdGrammarError,
+  kLastPublicPseudoId = kPseudoIdViewTransitionNew,
   kFirstInternalPseudoId = kPseudoIdFirstLineInherited,
 };
 
@@ -387,6 +402,7 @@ enum class TextEmphasisPosition : unsigned {
   kOverLeft,
   kUnderRight,
   kUnderLeft,
+  kAuto,
 };
 
 inline bool IsOver(TextEmphasisPosition position) {
@@ -497,12 +513,19 @@ enum class CompositingOperator : unsigned {
   kPlusLighter
 };
 
-// https://drafts.csswg.org/css-anchor-position-1/#typedef-position-try-options-try-tactic
+// https://drafts.csswg.org/css-anchor-position-1/#typedef-position-try-fallbacks-try-tactic
 enum class TryTactic : uint8_t {
   kNone,
   kFlipBlock,
   kFlipInline,
   kFlipStart,
+};
+
+enum class EAnimationTriggerType : uint8_t {
+  kOnce,
+  kRepeat,
+  kAlternate,
+  kState,
 };
 
 // TODO(crbug.com/332933527): Support anchors-valid.

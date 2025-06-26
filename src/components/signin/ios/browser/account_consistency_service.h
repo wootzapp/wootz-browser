@@ -18,13 +18,12 @@
 #include "net/cookies/canonical_cookie.h"
 #include "net/cookies/cookie_access_result.h"
 
-namespace content_settings {
-class CookieSettings;
+namespace web {
+class WebState;
 }
 
-namespace web {
-class BrowserState;
-class WebState;
+namespace network::mojom {
+class CookieManager;
 }
 
 class AccountReconcilor;
@@ -37,11 +36,13 @@ class AccountReconcilor;
 class AccountConsistencyService : public KeyedService,
                                   public signin::IdentityManager::Observer {
  public:
-  AccountConsistencyService(
-      web::BrowserState* browser_state,
-      AccountReconcilor* account_reconcilor,
-      scoped_refptr<content_settings::CookieSettings> cookie_settings,
-      signin::IdentityManager* identity_manager);
+  // Callback used to get a CookieManager.
+  using CookieManagerCallback =
+      base::RepeatingCallback<network::mojom::CookieManager*()>;
+
+  AccountConsistencyService(CookieManagerCallback cookie_manager_cb,
+                            AccountReconcilor* account_reconcilor,
+                            signin::IdentityManager* identity_manager);
 
   AccountConsistencyService(const AccountConsistencyService&) = delete;
   AccountConsistencyService& operator=(const AccountConsistencyService&) =
@@ -115,14 +116,11 @@ class AccountConsistencyService : public KeyedService,
       const signin::AccountsInCookieJarInfo& accounts_in_cookie_jar_info,
       const GoogleServiceAuthError& error) override;
 
-  // Browser state associated with the service.
-  raw_ptr<web::BrowserState> browser_state_;
+  // Callback used to get CookieManager.
+  CookieManagerCallback cookie_manager_cb_;
   // Service managing accounts reconciliation, notified of GAIA responses with
   // the X-Chrome-Manage-Accounts header
   raw_ptr<AccountReconcilor> account_reconcilor_;
-  // Cookie settings currently in use for |browser_state_|, used to check if
-  // setting CHROME_CONNECTED cookies is valid.
-  scoped_refptr<content_settings::CookieSettings> cookie_settings_;
   // Identity manager, observed to be notified of primary account signin and
   // signout events.
   raw_ptr<signin::IdentityManager> identity_manager_;

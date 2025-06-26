@@ -2,17 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/gpu/chromeos/generic_dmabuf_video_frame_mapper.h"
 
 #include <sys/mman.h>
 
+#include <array>
 #include <utility>
 #include <vector>
 
 #include "base/containers/contains.h"
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
-#include "media/gpu/chromeos/chromeos_compressed_gpu_memory_buffer_video_frame_utils.h"
 #include "media/gpu/macros.h"
 
 namespace media {
@@ -43,7 +49,7 @@ void MunmapBuffers(const std::vector<std::pair<uint8_t*, size_t>>& chunks,
 // |src_video_frame| is the video frame that owns dmabufs to the mapped planes.
 scoped_refptr<VideoFrame> CreateMappedVideoFrame(
     scoped_refptr<const FrameResource> src_video_frame,
-    uint8_t* plane_addrs[VideoFrame::kMaxPlanes],
+    base::span<uint8_t*, VideoFrame::kMaxPlanes> plane_addrs,
     const std::vector<std::pair<uint8_t*, size_t>>& chunks) {
   scoped_refptr<VideoFrame> video_frame;
 
@@ -63,6 +69,8 @@ scoped_refptr<VideoFrame> CreateMappedVideoFrame(
     return nullptr;
   }
 
+  video_frame->set_color_space(src_video_frame->ColorSpace());
+
   // Pass org_video_frame so that it outlives video_frame.
   video_frame->AddDestructionObserver(
       base::BindOnce(MunmapBuffers, chunks, std::move(src_video_frame)));
@@ -80,7 +88,7 @@ bool IsFormatSupported(VideoPixelFormat format) {
       PIXEL_FORMAT_I420,
       PIXEL_FORMAT_NV12,
       PIXEL_FORMAT_YV12,
-      PIXEL_FORMAT_P016LE,
+      PIXEL_FORMAT_P010LE,
 
       // Compressed format.
       PIXEL_FORMAT_MJPEG,
@@ -118,12 +126,6 @@ scoped_refptr<VideoFrame> GenericDmaBufVideoFrameMapper::MapFrame(
     return nullptr;
   }
 
-  if (IsIntelMediaCompressedModifier(video_frame->layout().modifier())) {
-    VLOGF(1)
-        << "This mapper doesn't support Intel media compressed VideoFrames";
-    return nullptr;
-  }
-
   if (video_frame->format() != format_) {
     VLOGF(1) << "Unexpected format: " << video_frame->format()
              << ", expected: " << format_;
@@ -140,7 +142,7 @@ scoped_refptr<VideoFrame> GenericDmaBufVideoFrameMapper::MapFrame(
   // Always prepare VideoFrame::kMaxPlanes addresses for planes initialized by
   // nullptr. This enables to specify nullptr to redundant plane, for pixel
   // format whose number of planes are less than VideoFrame::kMaxPlanes.
-  uint8_t* plane_addrs[VideoFrame::kMaxPlanes] = {};
+  std::array<uint8_t*, VideoFrame::kMaxPlanes> plane_addrs = {};
   const size_t num_planes = planes.size();
   std::vector<std::pair<uint8_t*, size_t>> chunks;
   DCHECK_EQ(video_frame->NumDmabufFds(), num_planes);

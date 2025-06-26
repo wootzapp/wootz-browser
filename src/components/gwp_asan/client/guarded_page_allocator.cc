@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/gwp_asan/client/guarded_page_allocator.h"
 
 #include <algorithm>
@@ -11,8 +16,6 @@
 #include <utility>
 
 #include "base/allocator/buildflags.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/gwp_asan_support.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_buildflags.h"
 #include "base/bits.h"
 #include "base/logging.h"
 #include "base/memory/page_size.h"
@@ -27,9 +30,11 @@
 #include "components/gwp_asan/common/allocator_state.h"
 #include "components/gwp_asan/common/crash_key_name.h"
 #include "components/gwp_asan/common/pack_stack_trace.h"
+#include "partition_alloc/buildflags.h"
+#include "partition_alloc/gwp_asan_support.h"
 #include "third_party/boringssl/src/include/openssl/rand.h"
 
-#if BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
 #include "components/crash/core/app/crashpad.h"  // nogncheck
 #endif
 
@@ -140,7 +145,7 @@ void GuardedPageAllocator::PartitionAllocSlotFreeList::Free(
   free_list_[type_mapping_[entry]].push_back(entry);
 }
 
-GuardedPageAllocator::GuardedPageAllocator() {}
+GuardedPageAllocator::GuardedPageAllocator() = default;
 
 void GuardedPageAllocator::Init(const AllocatorSettings& settings,
                                 OutOfMemoryCallback oom_callback,
@@ -216,7 +221,28 @@ void GuardedPageAllocator::Init(const AllocatorSettings& settings,
   // on what it reads from the crashing process.
   for (auto& memory_region : GetInternalMemoryRegions())
     crash_reporter::AllowMemoryRange(memory_region.first, memory_region.second);
+#elif BUILDFLAG(IS_IOS)
+  // Explicitly add internal memory regions to Crashpad's iOS intermediate dump
+  // handler.
+  crashpad::SimpleAddressRangeBag* ios_extra_ranges =
+      crash_reporter::IntermediateDumpExtraMemoryRanges();
+  if (ios_extra_ranges) {
+    for (auto& memory_region : GetInternalMemoryRegions()) {
+      if (!ios_extra_ranges->Insert(memory_region.first,
+                                    memory_region.second)) {
+        PLOG(INFO) << "Failed to add InternalMemoryRegions to Crashpad.";
+      }
+    }
+  }
 #endif
+}
+
+void GuardedPageAllocator::DestructForTesting() {
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_GWP_ASAN_STORE)
+  partition_alloc::GwpAsanSupport::DestructForTesting();
+#else   // BUILDFLAG(USE_PARTITION_ALLOC_AS_GWP_ASAN_STORE)
+  // No need to call UnmapRegion() as ~GuardedPageAllocator does this.
+#endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_GWP_ASAN_STORE)
 }
 
 std::vector<std::pair<void*, size_t>>
@@ -431,13 +457,12 @@ void GuardedPageAllocator::RecordAllocationMetadata(
   metadata_[metadata_idx].alloc_ptr = reinterpret_cast<uintptr_t>(ptr);
 
   const void* trace[AllocatorState::kMaxStackFrames];
-  size_t len =
-      AllocationInfo::GetStackTrace(trace, AllocatorState::kMaxStackFrames);
+  size_t len = AllocationInfo::GetStackTrace(trace);
   metadata_[metadata_idx].alloc.trace_len =
       Pack(reinterpret_cast<uintptr_t*>(trace), len,
            metadata_[metadata_idx].stack_trace_pool,
            sizeof(metadata_[metadata_idx].stack_trace_pool) / 2);
-  metadata_[metadata_idx].alloc.tid = AllocationInfo::GetCurrentTid();
+  metadata_[metadata_idx].alloc.tid = base::PlatformThread::CurrentId();
   metadata_[metadata_idx].alloc.trace_collected = true;
 
   metadata_[metadata_idx].dealloc.tid = base::kInvalidThreadId;
@@ -449,15 +474,14 @@ void GuardedPageAllocator::RecordAllocationMetadata(
 void GuardedPageAllocator::RecordDeallocationMetadata(
     AllocatorState::MetadataIdx metadata_idx) {
   const void* trace[AllocatorState::kMaxStackFrames];
-  size_t len =
-      AllocationInfo::GetStackTrace(trace, AllocatorState::kMaxStackFrames);
+  size_t len = AllocationInfo::GetStackTrace(trace);
   metadata_[metadata_idx].dealloc.trace_len =
       Pack(reinterpret_cast<uintptr_t*>(trace), len,
            metadata_[metadata_idx].stack_trace_pool +
                metadata_[metadata_idx].alloc.trace_len,
            sizeof(metadata_[metadata_idx].stack_trace_pool) -
                metadata_[metadata_idx].alloc.trace_len);
-  metadata_[metadata_idx].dealloc.tid = AllocationInfo::GetCurrentTid();
+  metadata_[metadata_idx].dealloc.tid = base::PlatformThread::CurrentId();
   metadata_[metadata_idx].dealloc.trace_collected = true;
 }
 

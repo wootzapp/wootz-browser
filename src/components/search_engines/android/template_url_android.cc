@@ -8,6 +8,7 @@
 #include "base/android/jni_string.h"
 #include "components/search_engines/template_url.h"
 
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "components/search_engines/android/jni_headers/TemplateUrl_jni.h"
 
 using base::android::JavaParamRef;
@@ -36,9 +37,8 @@ jboolean JNI_TemplateUrl_IsPrepopulatedOrDefaultProviderByPolicy(
     jlong template_url_ptr) {
   TemplateURL* template_url = ToTemplateURL(template_url_ptr);
   return template_url->prepopulate_id() > 0 ||
-         template_url->created_by_policy() !=
-             TemplateURLData::CreatedByPolicy::kNoPolicy ||
-         template_url->created_from_play_api();
+         template_url->CreatedByPolicy() ||
+         template_url->CreatedByRegulatoryProgram();
 }
 
 jlong JNI_TemplateUrl_GetLastVisitedTime(JNIEnv* env, jlong template_url_ptr) {

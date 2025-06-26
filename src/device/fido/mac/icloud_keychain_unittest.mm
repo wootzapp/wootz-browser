@@ -4,21 +4,35 @@
 
 #include "device/fido/mac/icloud_keychain.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <memory>
 #include <optional>
+#include <tuple>
+#include <utility>
+#include <vector>
 
-#include "base/logging.h"
+#include "base/check.h"
+#include "base/check_op.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/metrics/histogram_base.h"
 #include "base/metrics/histogram_samples.h"
 #include "base/metrics/statistics_recorder.h"
-#include "base/ranges/algorithm.h"
+#include "base/notreached.h"
 #include "base/test/task_environment.h"
-#include "device/fido/discoverable_credential_metadata.h"
+#include "base/test/test_future.h"
+#include "device/fido/authenticator_get_assertion_response.h"
+#include "device/fido/authenticator_make_credential_response.h"
 #include "device/fido/fido_authenticator.h"
+#include "device/fido/fido_constants.h"
 #include "device/fido/fido_discovery_base.h"
+#include "device/fido/fido_request_handler_base.h"
 #include "device/fido/fido_transport_protocol.h"
+#include "device/fido/fido_types.h"
 #include "device/fido/mac/fake_icloud_keychain_sys.h"
-#include "device/fido/test_callback_receiver.h"
+#include "device/fido/mac/icloud_keychain_sys.h"
+#include "device/fido/public_key_credential_params.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace device::fido::icloud_keychain {
@@ -134,7 +148,7 @@ class iCloudKeychainTest : public testing::Test, FidoDiscoveryBase::Observer {
       fake_ = base::MakeRefCounted<FakeSystemInterface>();
       SetSystemInterfaceForTesting(fake_);
 
-      discovery_ = NewDiscovery(kFakeNSWindowForTesting);
+      discovery_ = NewDiscovery(base::apple::WeakNSWindow());
       discovery_->set_observer(this);
       discovery_->Start();
       task_environment_.RunUntilIdle();
@@ -161,12 +175,12 @@ class iCloudKeychainTest : public testing::Test, FidoDiscoveryBase::Observer {
 
   void AuthenticatorAdded(FidoDiscoveryBase* discovery,
                           FidoAuthenticator* authenticator) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   void AuthenticatorRemoved(FidoDiscoveryBase* discovery,
                             FidoAuthenticator* authenticator) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
  protected:
@@ -202,23 +216,22 @@ TEST_F(iCloudKeychainTest, RequestAuthorization) {
         }
 
         if (is_make_credential) {
-          test::TestCallbackReceiver<
-              CtapDeviceResponseCode,
+          base::test::TestFuture<
+              MakeCredentialStatus,
               std::optional<AuthenticatorMakeCredentialResponse>>
-              callback;
+              future;
           authenticator_->MakeCredential(make_credential_request,
                                          make_credential_options,
-                                         callback.callback());
-          callback.WaitForCallback();
+                                         future.GetCallback());
+          EXPECT_TRUE(future.Wait());
         } else {
-          test::TestCallbackReceiver<
-              CtapDeviceResponseCode,
-              std::vector<AuthenticatorGetAssertionResponse>>
-              callback;
+          base::test::TestFuture<GetAssertionStatus,
+                                 std::vector<AuthenticatorGetAssertionResponse>>
+              future;
           authenticator_->GetAssertion(get_assertion_request,
                                        get_assertion_options,
-                                       callback.callback());
-          callback.WaitForCallback();
+                                       future.GetCallback());
+          EXPECT_TRUE(future.Wait());
         }
 
         // If the auth state was SystemInterface::kAuthNotAuthorized then
@@ -242,22 +255,20 @@ TEST_F(iCloudKeychainTest, MakeCredential) {
     MakeCredentialOptions options;
 
     auto make_credential = [this, &request, &options]()
-        -> std::tuple<CtapDeviceResponseCode,
+        -> std::tuple<MakeCredentialStatus,
                       std::optional<AuthenticatorMakeCredentialResponse>> {
-      test::TestCallbackReceiver<
-          CtapDeviceResponseCode,
-          std::optional<AuthenticatorMakeCredentialResponse>>
-          callback;
-      authenticator_->MakeCredential(request, options, callback.callback());
-      callback.WaitForCallback();
-      return callback.TakeResult();
+      base::test::TestFuture<MakeCredentialStatus,
+                             std::optional<AuthenticatorMakeCredentialResponse>>
+          future;
+      authenticator_->MakeCredential(request, options, future.GetCallback());
+      EXPECT_TRUE(future.Wait());
+      return future.Take();
     };
 
     {
       // Without `SetMakeCredentialResult` being called, an error is returned.
       auto result = make_credential();
-      EXPECT_EQ(std::get<0>(result),
-                CtapDeviceResponseCode::kCtap2ErrOperationDenied);
+      EXPECT_EQ(std::get<0>(result), MakeCredentialStatus::kUserConsentDenied);
       EXPECT_FALSE(std::get<1>(result).has_value());
     }
 
@@ -265,7 +276,7 @@ TEST_F(iCloudKeychainTest, MakeCredential) {
       fake_->SetMakeCredentialError(8 /* exclude list match */);
       auto result = make_credential();
       EXPECT_EQ(std::get<0>(result),
-                CtapDeviceResponseCode::kCtap2ErrCredentialExcluded);
+                MakeCredentialStatus::kUserConsentButCredentialExcluded);
       EXPECT_FALSE(std::get<1>(result).has_value());
     }
 
@@ -279,7 +290,7 @@ TEST_F(iCloudKeychainTest, MakeCredential) {
       EXPECT_EQ(fake_->cancel_count(), 1u);
       auto result = make_credential();
       EXPECT_EQ(std::get<0>(result),
-                CtapDeviceResponseCode::kCtap2ErrKeepAliveCancel);
+                MakeCredentialStatus::kAuthenticatorResponseInvalid);
       EXPECT_FALSE(std::get<1>(result).has_value());
     }
 
@@ -288,7 +299,8 @@ TEST_F(iCloudKeychainTest, MakeCredential) {
       fake_->SetMakeCredentialResult(kAttestationObjectBytes,
                                      kWrongCredentialID);
       auto result = make_credential();
-      EXPECT_EQ(std::get<0>(result), CtapDeviceResponseCode::kCtap2ErrOther);
+      EXPECT_EQ(std::get<0>(result),
+                MakeCredentialStatus::kAuthenticatorResponseInvalid);
       ASSERT_FALSE(std::get<1>(result).has_value());
     }
 
@@ -296,7 +308,8 @@ TEST_F(iCloudKeychainTest, MakeCredential) {
       static const uint8_t kInvalidCBOR[] = {1, 2, 3, 4};
       fake_->SetMakeCredentialResult(kInvalidCBOR, kCredentialID);
       auto result = make_credential();
-      EXPECT_EQ(std::get<0>(result), CtapDeviceResponseCode::kCtap2ErrOther);
+      EXPECT_EQ(std::get<0>(result),
+                MakeCredentialStatus::kAuthenticatorResponseInvalid);
       ASSERT_FALSE(std::get<1>(result).has_value());
     }
 
@@ -307,21 +320,22 @@ TEST_F(iCloudKeychainTest, MakeCredential) {
       fake_->SetMakeCredentialResult(kInvalidAttestationStatement,
                                      kCredentialID);
       auto result = make_credential();
-      EXPECT_EQ(std::get<0>(result), CtapDeviceResponseCode::kCtap2ErrOther);
+      EXPECT_EQ(std::get<0>(result),
+                MakeCredentialStatus::kAuthenticatorResponseInvalid);
       ASSERT_FALSE(std::get<1>(result).has_value());
     }
 
     {
       fake_->SetMakeCredentialResult(kAttestationObjectBytes, kCredentialID);
       auto result = make_credential();
-      EXPECT_EQ(std::get<0>(result), CtapDeviceResponseCode::kSuccess);
+      EXPECT_EQ(std::get<0>(result), MakeCredentialStatus::kSuccess);
       ASSERT_TRUE(std::get<1>(result).has_value());
       const AuthenticatorMakeCredentialResponse response =
           std::move(*std::get<1>(result));
 
       const std::vector<uint8_t> returned_credential_id =
           response.attestation_object.authenticator_data().GetCredentialId();
-      EXPECT_TRUE(base::ranges::equal(returned_credential_id, kCredentialID));
+      EXPECT_TRUE(std::ranges::equal(returned_credential_id, kCredentialID));
       EXPECT_FALSE(response.enterprise_attestation_returned);
       EXPECT_TRUE(response.is_resident_key.value_or(false));
       EXPECT_FALSE(response.enterprise_attestation_returned);
@@ -386,21 +400,20 @@ TEST_F(iCloudKeychainTest, GetAssertion) {
     CtapGetAssertionOptions options;
 
     auto get_assertion = [this, &request, &options]()
-        -> std::tuple<CtapDeviceResponseCode,
+        -> std::tuple<GetAssertionStatus,
                       std::vector<AuthenticatorGetAssertionResponse>> {
-      test::TestCallbackReceiver<CtapDeviceResponseCode,
-                                 std::vector<AuthenticatorGetAssertionResponse>>
-          callback;
-      authenticator_->GetAssertion(request, options, callback.callback());
-      callback.WaitForCallback();
-      return callback.TakeResult();
+      base::test::TestFuture<GetAssertionStatus,
+                             std::vector<AuthenticatorGetAssertionResponse>>
+          future;
+      authenticator_->GetAssertion(request, options, future.GetCallback());
+      EXPECT_TRUE(future.Wait());
+      return future.Take();
     };
 
     {
       // Without `SetGetAssertionResult` being called, an error is returned.
       auto result = get_assertion();
-      EXPECT_EQ(std::get<0>(result),
-                CtapDeviceResponseCode::kCtap2ErrOperationDenied);
+      EXPECT_EQ(std::get<0>(result), GetAssertionStatus::kUserConsentDenied);
       EXPECT_TRUE(std::get<1>(result).empty());
     }
 
@@ -414,7 +427,7 @@ TEST_F(iCloudKeychainTest, GetAssertion) {
       EXPECT_EQ(fake_->cancel_count(), 1u);
       auto result = get_assertion();
       EXPECT_EQ(std::get<0>(result),
-                CtapDeviceResponseCode::kCtap2ErrKeepAliveCancel);
+                GetAssertionStatus::kAuthenticatorResponseInvalid);
       EXPECT_TRUE(std::get<1>(result).empty());
     }
 
@@ -423,7 +436,8 @@ TEST_F(iCloudKeychainTest, GetAssertion) {
       fake_->SetGetAssertionResult(kInvalidAuthenticatorData, kSignature,
                                    kUserID, kCredentialID);
       auto result = get_assertion();
-      EXPECT_EQ(std::get<0>(result), CtapDeviceResponseCode::kCtap2ErrOther);
+      EXPECT_EQ(std::get<0>(result),
+                GetAssertionStatus::kAuthenticatorResponseInvalid);
       EXPECT_TRUE(std::get<1>(result).empty());
     }
 
@@ -431,14 +445,14 @@ TEST_F(iCloudKeychainTest, GetAssertion) {
       fake_->SetGetAssertionResult(kAuthenticatorData, kSignature, kUserID,
                                    kCredentialID);
       auto result = get_assertion();
-      EXPECT_EQ(std::get<0>(result), CtapDeviceResponseCode::kSuccess);
+      EXPECT_EQ(std::get<0>(result), GetAssertionStatus::kSuccess);
       EXPECT_EQ(std::get<1>(result).size(), 1u);
 
       AuthenticatorGetAssertionResponse response =
           std::move(std::get<1>(result)[0]);
-      EXPECT_TRUE(base::ranges::equal(response.signature, kSignature));
-      EXPECT_TRUE(base::ranges::equal(response.user_entity->id, kUserID));
-      EXPECT_TRUE(base::ranges::equal(response.credential->id, kCredentialID));
+      EXPECT_TRUE(std::ranges::equal(response.signature, kSignature));
+      EXPECT_TRUE(std::ranges::equal(response.user_entity->id, kUserID));
+      EXPECT_TRUE(std::ranges::equal(response.credential->id, kCredentialID));
       EXPECT_TRUE(response.user_selected);
       EXPECT_EQ(response.transport_used, FidoTransportProtocol::kInternal);
     }
@@ -448,7 +462,7 @@ TEST_F(iCloudKeychainTest, GetAssertion) {
                                   "... No credentials available for login ...");
       auto result = get_assertion();
       EXPECT_EQ(std::get<0>(result),
-                CtapDeviceResponseCode::kCtap2ErrNoCredentials);
+                GetAssertionStatus::kICloudKeychainNoCredentials);
     }
 
     {
@@ -497,19 +511,20 @@ TEST_F(iCloudKeychainTest, FetchCredentialMetadata) {
         {AuthenticatorType::kICloudKeychain,
          "example.com",
          {1, 2, 3, 4},
-         {{4, 3, 2, 1}, "name", std::nullopt}}};
+         {{4, 3, 2, 1}, "name", std::nullopt},
+         "Example provider"}};
     fake_->SetCredentials(creds);
-    test::TestCallbackReceiver<std::vector<DiscoverableCredentialMetadata>,
-                               FidoRequestHandlerBase::RecognizedCredential>
-        callback;
+    base::test::TestFuture<std::vector<DiscoverableCredentialMetadata>,
+                           FidoRequestHandlerBase::RecognizedCredential>
+        future;
     CtapGetAssertionRequest request("example.com", "{}");
     CtapGetAssertionOptions options;
 
     CHECK(authenticator_);
     authenticator_->GetPlatformCredentialInfoForRequest(request, options,
-                                                        callback.callback());
-    callback.WaitForCallback();
-    auto result = callback.TakeResult();
+                                                        future.GetCallback());
+    EXPECT_TRUE(future.Wait());
+    auto result = future.Take();
     std::vector<DiscoverableCredentialMetadata> creds_out =
         std::move(std::get<0>(result));
 
@@ -524,25 +539,27 @@ TEST_F(iCloudKeychainTest, FetchCredentialMetadataWithAllowlist) {
         {AuthenticatorType::kICloudKeychain,
          "example.com",
          {1, 2, 3, 4},
-         {{4, 3, 2, 1}, "name", std::nullopt}},
+         {{4, 3, 2, 1}, "name", std::nullopt},
+         "Example provider"},
         {AuthenticatorType::kICloudKeychain,
          "example.com",
          {1, 2, 3, 5},
-         {{4, 3, 2, 2}, "name", std::nullopt}},
+         {{4, 3, 2, 2}, "name", std::nullopt},
+         "Example provider"},
     };
     fake_->SetCredentials(creds);
-    test::TestCallbackReceiver<std::vector<DiscoverableCredentialMetadata>,
-                               FidoRequestHandlerBase::RecognizedCredential>
-        callback;
+    base::test::TestFuture<std::vector<DiscoverableCredentialMetadata>,
+                           FidoRequestHandlerBase::RecognizedCredential>
+        future;
     CtapGetAssertionRequest request("example.com", "{}");
     request.allow_list = {{CredentialType::kPublicKey, {1, 2, 3, 4}}};
     CtapGetAssertionOptions options;
 
     CHECK(authenticator_);
     authenticator_->GetPlatformCredentialInfoForRequest(request, options,
-                                                        callback.callback());
-    callback.WaitForCallback();
-    auto result = callback.TakeResult();
+                                                        future.GetCallback());
+    EXPECT_TRUE(future.Wait());
+    auto result = future.Take();
     std::vector<DiscoverableCredentialMetadata> creds_out =
         std::move(std::get<0>(result));
 
@@ -556,17 +573,17 @@ TEST_F(iCloudKeychainTest, FetchCredentialMetadataNoPermission) {
   if (@available(macOS 13.5, *)) {
     fake_->set_auth_state(FakeSystemInterface::kAuthNotAuthorized);
 
-    test::TestCallbackReceiver<std::vector<DiscoverableCredentialMetadata>,
-                               FidoRequestHandlerBase::RecognizedCredential>
-        callback;
+    base::test::TestFuture<std::vector<DiscoverableCredentialMetadata>,
+                           FidoRequestHandlerBase::RecognizedCredential>
+        future;
     CtapGetAssertionRequest request("example.com", "{}");
     CtapGetAssertionOptions options;
 
     CHECK(authenticator_);
     authenticator_->GetPlatformCredentialInfoForRequest(request, options,
-                                                        callback.callback());
-    callback.WaitForCallback();
-    auto result = callback.TakeResult();
+                                                        future.GetCallback());
+    EXPECT_TRUE(future.Wait());
+    auto result = future.Take();
     EXPECT_EQ(std::get<1>(result),
               FidoRequestHandlerBase::RecognizedCredential::kUnknown);
   }

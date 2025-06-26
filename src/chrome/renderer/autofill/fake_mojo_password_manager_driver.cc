@@ -44,16 +44,12 @@ void FakeMojoPasswordManagerDriver::PasswordFormSubmitted(
 void FakeMojoPasswordManagerDriver::DynamicFormSubmission(
     autofill::mojom::SubmissionIndicatorEvent submission_indication_event) {
   called_dynamic_form_submission_ = true;
-  form_data_maybe_submitted_->submission_event = submission_indication_event;
+  form_data_maybe_submitted_->set_submission_event(submission_indication_event);
 }
 
 void FakeMojoPasswordManagerDriver::RecordSavePasswordProgress(
     const std::string& log) {
   called_record_save_progress_ = true;
-}
-
-void FakeMojoPasswordManagerDriver::UserModifiedPasswordField() {
-  called_user_modified_password_field_ = true;
 }
 
 void FakeMojoPasswordManagerDriver::CheckSafeBrowsingReputation(

@@ -10,12 +10,16 @@ import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionUtil;
 import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
 import org.chromium.chrome.browser.toolbar.R;
+import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarFeatures;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarPrefs;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarStatePredictor;
+import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarStatePredictor.UiState;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarStats;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
@@ -34,12 +38,20 @@ public class AdaptiveToolbarSettingsFragment extends ChromeBaseSettingsFragment 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     public static final String PREF_ADAPTIVE_RADIO_GROUP = "adaptive_toolbar_radio_group";
 
+    /** Bundle arguments to pass {@link UiState} to this settings fragment. */
+    public static final String ARG_UI_STATE_CAN_SHOW_UI = "can_show_ui";
+
+    public static final String ARG_UI_STATE_TOOLBAR_BUTTON_STATE = "toolbar_button_state";
+    public static final String ARG_UI_STATE_PREFERENCE_SELECTION = "preference_selection";
+    public static final String ARG_UI_STATE_AUTO_BUTTON_CAPTION = "auto_button_caption";
+
     private @NonNull ChromeSwitchPreference mToolbarShortcutSwitch;
     private @NonNull RadioButtonGroupAdaptiveToolbarPreference mRadioButtonGroup;
+    private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
 
     @Override
     public void onCreatePreferences(Bundle bundle, String s) {
-        getActivity().setTitle(R.string.toolbar_shortcut);
+        mPageTitle.set(getString(R.string.toolbar_shortcut));
         SettingsUtils.addPreferencesFromResource(this, R.xml.adaptive_toolbar_preference);
 
         mToolbarShortcutSwitch =
@@ -55,16 +67,17 @@ public class AdaptiveToolbarSettingsFragment extends ChromeBaseSettingsFragment 
                 (RadioButtonGroupAdaptiveToolbarPreference)
                         findPreference(PREF_ADAPTIVE_RADIO_GROUP);
         mRadioButtonGroup.setCanUseVoiceSearch(getCanUseVoiceSearch());
-        mRadioButtonGroup.setCanUseTranslate(
-                AdaptiveToolbarFeatures.isAdaptiveToolbarTranslateEnabled());
-        mRadioButtonGroup.setCanUseAddToBookmarks(
-                AdaptiveToolbarFeatures.isAdaptiveToolbarAddToBookmarksEnabled());
         mRadioButtonGroup.setCanUseReadAloud(
                 AdaptiveToolbarFeatures.isAdaptiveToolbarReadAloudEnabled(getProfile()));
+        mRadioButtonGroup.setCanUsePageSummary(
+                AdaptiveToolbarFeatures.isAdaptiveToolbarPageSummaryEnabled());
+        maybeSetUiStateFromBundleArgs();
         mRadioButtonGroup.setStatePredictor(
                 new AdaptiveToolbarStatePredictor(
+                        getContext(),
                         getProfile(),
-                        new ActivityAndroidPermissionDelegate(new WeakReference(getActivity()))));
+                        new ActivityAndroidPermissionDelegate(new WeakReference(getActivity())),
+                        /* behavior= */ null));
         mRadioButtonGroup.setOnPreferenceChangeListener(
                 (preference, newValue) -> {
                     AdaptiveToolbarPrefs.saveToolbarButtonManualOverride((int) newValue);
@@ -72,6 +85,25 @@ public class AdaptiveToolbarSettingsFragment extends ChromeBaseSettingsFragment 
                 });
         mRadioButtonGroup.setEnabled(AdaptiveToolbarPrefs.isCustomizationPreferenceEnabled());
         AdaptiveToolbarStats.recordToolbarShortcutToggleState(/* onStartup= */ true);
+    }
+
+    private void maybeSetUiStateFromBundleArgs() {
+        Bundle args = getArguments();
+        if (!args.containsKey(ARG_UI_STATE_CAN_SHOW_UI)) return;
+
+        boolean defaultCanShow = AdaptiveToolbarFeatures.isCustomizationEnabled();
+        int defaultVariant = AdaptiveToolbarButtonVariant.UNKNOWN;
+        mRadioButtonGroup.initButtonsFromUiState(
+                new UiState(
+                        args.getBoolean(ARG_UI_STATE_CAN_SHOW_UI, defaultCanShow),
+                        args.getInt(ARG_UI_STATE_TOOLBAR_BUTTON_STATE, defaultVariant),
+                        args.getInt(ARG_UI_STATE_PREFERENCE_SELECTION, defaultVariant),
+                        args.getInt(ARG_UI_STATE_AUTO_BUTTON_CAPTION, defaultVariant)));
+    }
+
+    @Override
+    public ObservableSupplier<String> getPageTitle() {
+        return mPageTitle;
     }
 
     /**

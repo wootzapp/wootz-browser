@@ -11,7 +11,9 @@ If this script is given the argument --auto-update, it will also:
 """
 
 import argparse
+import collections
 import contextlib
+import itertools
 import json
 import logging
 import textwrap
@@ -33,7 +35,6 @@ from blinkpy.w3c.chromium_commit import ChromiumCommit
 from blinkpy.w3c.chromium_exportable_commits import exportable_commits_over_last_n_commits
 from blinkpy.w3c.common import (
     read_credentials,
-    is_testharness_baseline,
     is_file_exportable,
     WPT_GH_URL,
     WPT_GH_RANGE_URL_TEMPLATE,
@@ -47,7 +48,7 @@ from blinkpy.w3c.wpt_expectations_updater import WPTExpectationsUpdater
 from blinkpy.w3c.wpt_github import WPTGitHub
 from blinkpy.w3c.wpt_manifest import WPTManifest, BASE_MANIFEST_NAME
 from blinkpy.web_tests.models import typ_types
-from blinkpy.web_tests.models.test_expectations import TestExpectations
+from blinkpy.web_tests.models.test_expectations import ParseError, TestExpectations
 from blinkpy.web_tests.port.base import Port
 
 # Settings for how often to check try job results and how long to wait.
@@ -188,11 +189,8 @@ class TestImporter:
         # expectations for renamed tests. This requires the old WPT manifest, so
         # must happen before we regenerate it.
         self.expectations_updater.cleanup_test_expectations_files()
-
         self._generate_manifest()
-
-        # TODO(crbug.com/800570 robertma): Re-enable it once we fix the bug.
-        # self._delete_orphaned_baselines()
+        self.delete_orphaned_baselines()
 
         if not self.project_git.has_working_directory_changes():
             _log.info('Done: no changes to import.')
@@ -203,7 +201,12 @@ class TestImporter:
             return 0
         testlist_path = self.finder.path_from_web_tests(
             "TestLists", "android.filter")
-        _log.info('Updating testlist based on file changes.')
+        _log.info('Updating android.filter based on file changes.')
+        self.update_testlist_with_idlharness_changes(testlist_path)
+
+        testlist_path = self.finder.path_from_web_tests(
+            "TestLists", "webview.filter")
+        _log.info('Updating webview.filter based on file changes.')
         self.update_testlist_with_idlharness_changes(testlist_path)
 
         self._commit_changes(commit_message)
@@ -268,21 +271,26 @@ class TestImporter:
         try_results = cl_status.try_job_results
 
         if try_results and self.git_cl.some_failed(try_results):
-            self.fetch_new_expectations_and_baselines()
-            # Skip slow and timeout tests so that presubmit check passes
-            port = self.host.port_factory.get()
-            if self.expectations_updater.skip_slow_timeout_tests(port):
-                path = port.path_to_generic_test_expectations_file()
-                self.project_git.add_list([path])
+            try:
+                self.fetch_new_expectations_and_baselines()
+                # Skip slow and timeout tests so that presubmit check passes
+                port = self.host.port_factory.get()
+                if self.expectations_updater.skip_slow_timeout_tests(port):
+                    path = port.path_to_generic_test_expectations_file()
+                    self.project_git.add_list([path])
 
-            self._generate_manifest()
-            message = 'Update test expectations and baselines.'
-            if self.project_git.has_working_directory_changes():
-                self._commit_changes(message)
-            # Even if we didn't commit anything here, we may still upload
-            # `TestExpectations`, which are committed earlier (before
-            # rebaselining).
-            self._upload_patchset(message)
+                self._generate_manifest()
+            except ParseError as e:
+                raise
+            finally:
+                message = 'Update test expectations and baselines.'
+                if self.project_git.has_working_directory_changes():
+                    self._commit_changes(message)
+                # Even if we didn't commit anything here, we may still upload
+                # `TestExpectations`, which are committed earlier (before
+                # rebaselining).
+                self._upload_patchset(message)
+
         return True
 
     def _trigger_try_jobs(self):
@@ -489,11 +497,12 @@ class TestImporter:
         self.project_git.commit_locally_with_message(commit_message)
 
     def _has_wpt_changes(self):
+        port = self.host.port_factory.get()
         changed_files = self.project_git.changed_files()
         test_roots = [
             self.fs.relpath(self.finder.path_from_web_tests(subdir),
                             self.finder.chromium_base())
-            for subdir in Port.WPT_DIRS
+            for subdir in port.wpt_dirs()
         ]
         for changed_file in changed_files:
             if any(changed_file.startswith(root) for root in test_roots):
@@ -531,42 +540,49 @@ class TestImporter:
                                  for commit in locally_applied_commits) + '\n'
         return message
 
-    def _delete_orphaned_baselines(self):
-        _log.info('Deleting any orphaned baselines.')
+    def delete_orphaned_baselines(self):
+        """Delete baselines that don't correspond to any external WPTs.
 
-        is_baseline_filter = lambda fs, dirname, basename: is_testharness_baseline(basename)
+        Notes:
+          * This method should be called after importing the new tests and
+            regenerating the manifest.
+          * There's no need to handle renames explicitly because any failures
+            in the renamed tests will be rebaselined later.
+        """
+        port = self.host.port_factory.get()
 
-        baselines = self.fs.files_under(
-            self.dest_path, file_filter=is_baseline_filter)
+        # Find which baselines should be deleted for each deleted test. Because
+        # baseline paths are lossily sanitized, it's not easy to determine what
+        # test corresponds to a baseline path. Therefore, this map is keyed on
+        # the generic baseline as a proxy for the test URL instead.
+        baselines_by_generic_path = collections.defaultdict(set)
+        baseline_glob = self.fs.join(port.web_tests_dir(), '**', 'external',
+                                     'wpt', '**', '*-expected.txt')
+        for baseline in self.fs.glob(baseline_glob):
+            _, generic_baseline = port.parse_output_filename(baseline)
+            baselines_by_generic_path[generic_baseline].add(baseline)
 
         # Note about possible refactoring:
         #  - the manifest path could be factored out to a common location, and
         #  - the logic for reading the manifest could be factored out from here
         # and the Port class.
-        manifest_path = self.finder.path_from_web_tests(
-            'external', 'wpt', 'MANIFEST.json')
-        manifest = WPTManifest.from_file(self.host.port_factory.get(),
-                                         manifest_path)
-        wpt_urls = manifest.all_urls()
+        manifest_path = self.finder.path_from_wpt_tests('MANIFEST.json')
+        # Exclude test types `(print-)reftest` and `crashtest`, which can't
+        # have `*-expected.txt`.
+        manifest = WPTManifest.from_file(port, manifest_path,
+                                         ['testharness', 'wdspec', 'manual'])
+        for url_from_test_root in manifest.all_urls():
+            test = self.finder.wpt_prefix() + url_from_test_root
+            generic_baseline = port.output_filename(test, Port.BASELINE_SUFFIX,
+                                                    '.txt')
+            baselines_by_generic_path.pop(generic_baseline, None)
 
-        # Currently baselines for tests with query strings are merged,
-        # so that the tests foo.html?r=1 and foo.html?r=2 both have the same
-        # baseline, foo-expected.txt.
-        # TODO(qyearsley): Remove this when this behavior is fixed.
-        wpt_urls = [url.split('?')[0] for url in wpt_urls]
-
-        wpt_dir = self.finder.path_from_web_tests('external', 'wpt')
-        for full_path in baselines:
-            rel_path = self.fs.relpath(full_path, wpt_dir)
-            if not self._has_corresponding_test(rel_path, wpt_urls):
-                self.fs.remove(full_path)
-
-    def _has_corresponding_test(self, rel_path, wpt_urls):
-        # TODO(qyearsley): Ensure that this works with platform baselines and
-        # virtual baselines, and add unit tests.
-        base = '/' + rel_path.replace('-expected.txt', '')
-        return any(
-            (base + ext) in wpt_urls for ext in Port.supported_file_extensions)
+        orphan_count = 0
+        for baseline_to_delete in itertools.chain.from_iterable(
+                baselines_by_generic_path.values()):
+            self.remove(baseline_to_delete)
+            orphan_count += 1
+        _log.info(f'Deleted {orphan_count} orphaned baseline(s).')
 
     def copyfile(self, source, destination):
         _log.debug('cp %s %s', source, destination)
@@ -629,7 +645,6 @@ class TestImporter:
         # Prevent FindIt from auto-reverting import CLs.
         description += 'NOAUTOREVERT=true\n'
         description += 'No-Export: true\n'
-        description += 'Validate-Test-Flakiness: skip\n'
 
         # If this starts blocking the importer unnecessarily, revert
         # https://chromium-review.googlesource.com/c/chromium/src/+/2451504
@@ -799,8 +814,8 @@ class TestImporter:
         expectations: TestExpectations,
         bug: BuganizerIssue,
         path: str,
-        target_line: typ_types.Expectation,
-    ) -> Optional[typ_types.Expectation]:
+        target_line: typ_types.ExpectationType,
+    ) -> Optional[typ_types.ExpectationType]:
         """Add a bug for a matching line, if any, in a given file.
 
         Returns:

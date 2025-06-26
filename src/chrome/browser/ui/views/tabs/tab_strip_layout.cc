@@ -7,9 +7,11 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <optional>
+#include <set>
 
-#include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
+#include "components/tabs/public/split_tab_id.h"
 #include "ui/gfx/animation/tween.h"
 #include "ui/gfx/geometry/rect.h"
 
@@ -18,11 +20,13 @@ namespace {
 // Solve layout constraints to determine how much space is available for tabs
 // to use relative to how much they want to use.
 TabSizer CalculateSpaceFractionAvailable(
-    const TabLayoutConstants& layout_constants,
     const std::vector<TabWidthConstraints>& tabs,
     std::optional<int> width) {
-  if (!width.has_value())
+  if (!width.has_value()) {
     return TabSizer(LayoutDomain::kInactiveWidthEqualsActiveWidth, 1);
+  }
+
+  const int tab_overlap = TabStyle::Get()->GetTabOverlap();
 
   float minimum_width = 0;
   float crossover_width = 0;
@@ -30,22 +34,21 @@ TabSizer CalculateSpaceFractionAvailable(
   for (const TabWidthConstraints& tab : tabs) {
     // Add the tab's width, less the width of its trailing foot (which would
     // be double counting).
-    minimum_width += tab.GetMinimumWidth() - layout_constants.tab_overlap;
-    crossover_width +=
-        tab.GetLayoutCrossoverWidth() - layout_constants.tab_overlap;
-    preferred_width += tab.GetPreferredWidth() - layout_constants.tab_overlap;
+    minimum_width += tab.GetMinimumWidth() - tab_overlap;
+    crossover_width += tab.GetLayoutCrossoverWidth() - tab_overlap;
+    preferred_width += tab.GetPreferredWidth() - tab_overlap;
   }
 
   // Add back the width of the trailing foot of the last tab.
-  minimum_width += layout_constants.tab_overlap;
-  crossover_width += layout_constants.tab_overlap;
-  preferred_width += layout_constants.tab_overlap;
+  minimum_width += tab_overlap;
+  crossover_width += tab_overlap;
+  preferred_width += tab_overlap;
 
   LayoutDomain domain;
   float space_fraction_available;
   if (width < crossover_width) {
     domain = LayoutDomain::kInactiveWidthBelowActiveWidth;
-    // |minimum_width| may equal |crossover_width| when there is only one tab,
+    // `minimum_width` may equal `crossover_width` when there is only one tab,
     // that tab is active, and the tabstrip width is smaller than that width,
     // which will generally happen during startup of a new window. In this case
     // the layout will always be replaced before we paint, so our return value
@@ -56,7 +59,7 @@ TabSizer CalculateSpaceFractionAvailable(
                                          (crossover_width - minimum_width);
   } else {
     domain = LayoutDomain::kInactiveWidthEqualsActiveWidth;
-    // |preferred_width| may equal |crossover_width| when all tabs are pinned.
+    // `preferred_width` may equal `crossover_width` when all tabs are pinned.
     // In this case tabs will have the same width regardless of the space
     // available to them, so our return value is irrelevant.
     space_fraction_available = preferred_width == crossover_width
@@ -88,8 +91,9 @@ int TabSizer::CalculateTabWidth(const TabWidthConstraints& tab) const {
 }
 
 bool TabSizer::TabAcceptsExtraSpace(const TabWidthConstraints& tab) const {
-  if (space_fraction_available_ == 0.0f || space_fraction_available_ == 1.0f)
+  if (space_fraction_available_ == 0.0f || space_fraction_available_ == 1.0f) {
     return false;
+  }
   switch (domain_) {
     case LayoutDomain::kInactiveWidthBelowActiveWidth:
       return tab.GetMinimumWidth() < tab.GetLayoutCrossoverWidth();
@@ -111,37 +115,49 @@ void AllocateExtraSpace(std::vector<gfx::Rect>* bounds,
                         std::optional<int> extra_space,
                         TabSizer tab_sizer) {
   // Don't expand tabs if they are already at their preferred width.
-  if (tab_sizer.IsAlreadyPreferredWidth() || !extra_space.has_value())
+  if (tab_sizer.IsAlreadyPreferredWidth() || !extra_space.has_value() ||
+      extra_space.value() <= 0) {
     return;
+  }
+
+  // Extra space will only be given to the first tab in a split encountered.
+  std::set<split_tabs::SplitTabId> splits_with_extra_space;
 
   int allocated_extra_space = 0;
   for (size_t i = 0; i < tabs.size(); i++) {
     const TabWidthConstraints& tab = tabs[i];
     bounds->at(i).set_x(bounds->at(i).x() + allocated_extra_space);
+    std::optional<split_tabs::SplitTabId> split_id = tab.get_state().split();
     if (allocated_extra_space < extra_space &&
-        tab_sizer.TabAcceptsExtraSpace(tab)) {
+        tab_sizer.TabAcceptsExtraSpace(tab) &&
+        (!split_id.has_value() ||
+         !splits_with_extra_space.contains(split_id.value()))) {
       allocated_extra_space++;
       bounds->at(i).set_width(bounds->at(i).width() + 1);
+
+      if (split_id.has_value()) {
+        splits_with_extra_space.emplace(split_id.value());
+      }
     }
   }
 }
 
 std::vector<gfx::Rect> CalculateTabBounds(
-    const TabLayoutConstants& layout_constants,
     const std::vector<TabWidthConstraints>& tabs,
     std::optional<int> width) {
-  if (tabs.empty())
+  if (tabs.empty()) {
     return std::vector<gfx::Rect>();
+  }
 
-  TabSizer tab_sizer =
-      CalculateSpaceFractionAvailable(layout_constants, tabs, width);
+  TabSizer tab_sizer = CalculateSpaceFractionAvailable(tabs, width);
 
   int next_x = 0;
   std::vector<gfx::Rect> bounds;
   for (const TabWidthConstraints& tab : tabs) {
     const int tab_width = tab_sizer.CalculateTabWidth(tab);
-    bounds.emplace_back(next_x, 0, tab_width, layout_constants.tab_height);
-    next_x += tab_width - layout_constants.tab_overlap;
+    bounds.emplace_back(next_x, 0, tab_width,
+                        TabStyle::Get()->GetStandardHeight());
+    next_x += tab_width - TabStyle::Get()->GetTabOverlap();
   }
 
   const std::optional<int> calculated_extra_space =

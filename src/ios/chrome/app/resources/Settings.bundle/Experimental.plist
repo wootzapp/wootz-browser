@@ -200,15 +200,27 @@
 			<key>Values</key>
 			<array>
 				<string></string>
+				<string>Desktop</string>
 				<string>AndroidPhone</string>
 				<string>SyncedAndFirstDevice</string>
 			</array>
 			<key>Titles</key>
 			<array>
 				<string>Disabled</string>
+				<string>Desktop</string>
 				<string>Android Phone</string>
 				<string>Synced And First Device</string>
 			</array>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+			<key>Title</key>
+			<string>Force Shopper Experience</string>
+			<key>Key</key>
+			<string>ForceExperienceForShopper</string>
+			<key>DefaultValue</key>
+			<false/>
 		</dict>
 		<dict>
 			<key>Type</key>
@@ -362,6 +374,30 @@
 		</dict>
 		<dict>
 			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Title</key>
+			<string>Safety Check Notifications (Inactivity Threshold)</string>
+			<key>Key</key>
+			<string>SafetyCheckNotificationsInactivityThreshold</string>
+			<key>DefaultValue</key>
+			<integer>0</integer>
+			<key>Values</key>
+			<array>
+				<integer>0</integer>
+				<integer>30</integer>
+				<integer>300</integer>
+				<integer>3600</integer>
+			</array>
+			<key>Titles</key>
+			<array>
+				<string>Unset</string>
+				<string>30 seconds</string>
+				<string>5 minutes</string>
+				<string>1 hour</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key>
 			<string>PSToggleSwitchSpecifier</string>
 			<key>Title</key>
 			<string>WidgetKit refresh 5 minutes</string>
@@ -369,6 +405,84 @@
 			<string>WidgetKitRefreshFiveMinutes</string>
 			<key>DefaultValue</key>
 			<false/>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Title</key>
+			<string>Tips (Magic Stack) State</string>
+			<key>Key</key>
+			<string>TipsMagicStackStateOverride</string>
+			<key>DefaultValue</key>
+			<integer>0</integer>
+			<key>Values</key>
+			<array>
+				<integer>0</integer>
+				<integer>1</integer>
+				<integer>2</integer>
+				<integer>3</integer>
+				<integer>4</integer>
+				<integer>5</integer>
+				<integer>6</integer>
+				<integer>7</integer>
+			</array>
+			<key>Titles</key>
+			<array>
+				<string>None</string>
+				<string>Lens Search</string>
+				<string>Lens Shop</string>
+				<string>Lens Translate</string>
+				<string>Address Bar Position</string>
+				<string>Save Passwords</string>
+				<string>Autofill Passwords</string>
+				<string>Enhanced Safe Browsing</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+			<key>Title</key>
+			<string>Force product image in Lens Shop Tip</string>
+			<key>Key</key>
+			<string>TipsMagicStackLensShopWithImage</string>
+			<key>DefaultValue</key>
+			<false/>
+		</dict>
+		<dict>
+			<key>DefaultValue</key>
+			<false/>
+			<key>Key</key>
+			<string>InactiveTabsDemoMode</string>
+			<key>Title</key>
+			<string>Force inactive tabs threshold (1min)</string>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+		</dict>
+		<dict>
+			<key>DefaultValue</key>
+			<string></string>
+			<key>Key</key>
+			<string>AsyncStartupOverrideResponse</string>
+			<key>Title</key>
+			<string>Asynchronous startup</string>
+			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Values</key>
+			<array>
+				<string></string>
+				<string>500ms</string>
+				<string>FirstPartyIncognitoNoDelay</string>
+				<string>FirstPartyIncognito500Delay</string>
+				<string>AlwaysShowTheUI</string>
+			</array>
+			<key>Titles</key>
+			<array>
+				<string>Unset</string>
+				<string>500ms delay</string>
+				<string>With first party incognito</string>
+				<string>With 500ms delayed first party incognito</string>
+				<string>Always show the UI</string>
+			</array>
 		</dict>
 		<dict>
 			<key>Type</key>
@@ -451,12 +565,22 @@
 			</array>
 		</dict>
 		<dict>
-		    <key>Type</key>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+			<key>Title</key>
+			<string>Enable AI Prototyping Menu</string>
+			<key>Key</key>
+			<string>EnableAIPrototypingMenu</string>
+			<key>DefaultValue</key>
+			<false/>
+		</dict>
+		<dict>
+			<key>Type</key>
 			<string>PSMultiValueSpecifier</string>
 			<key>Title</key>
-			<string>Switch Profile Debugging</string>
+			<string>Forced Tips Notification</string>
 			<key>Key</key>
-			<string>DisplaySwitchProfile</string>
+			<string>ForcedTipsNotificationType</string>
 			<key>DefaultValue</key>
 			<integer>0</integer>
 			<key>Values</key>
@@ -465,13 +589,23 @@
 				<integer>1</integer>
 				<integer>2</integer>
 				<integer>3</integer>
+				<integer>5</integer>
+				<integer>6</integer>
+				<integer>7</integer>
+				<integer>8</integer>
+				<integer>9</integer>
 			</array>
 			<key>Titles</key>
 			<array>
-				<string>Disabled</string>
-				<string>Enabled (creates 1 test profile)</string>
-				<string>Enabled (creates 2 test profiles)</string>
-				<string>Enabled (creates 3 test profiles)</string>
+				<string>Unset</string>
+				<string>Default Browser</string>
+				<string>Whats New</string>
+				<string>Sign In</string>
+				<string>Set Up List</string>
+				<string>Docking</string>
+				<string>Omnibox Position</string>
+				<string>Lens</string>
+				<string>Enhanced Safe Browsing</string>
 			</array>
 		</dict>
 		<dict>

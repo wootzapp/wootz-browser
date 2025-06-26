@@ -5,6 +5,7 @@
 #ifndef UI_OZONE_PLATFORM_WAYLAND_HOST_WAYLAND_BUBBLE_H_
 #define UI_OZONE_PLATFORM_WAYLAND_HOST_WAYLAND_BUBBLE_H_
 
+#include "base/memory/weak_ptr.h"
 #include "ui/ozone/platform/wayland/host/wayland_window.h"
 #include "ui/platform_window/platform_window_init_properties.h"
 
@@ -12,7 +13,7 @@ namespace ui {
 
 // A WaylandWindow implementation to show kBubble and kPopup widgets.
 // Implemented using a wl_subsurface object.
-class WaylandBubble : public WaylandWindow {
+class WaylandBubble final : public WaylandWindow {
  public:
   WaylandBubble(PlatformWindowDelegate* delegate,
                 WaylandConnection* connection,
@@ -31,21 +32,14 @@ class WaylandBubble : public WaylandWindow {
   void SetInputRegion(std::optional<std::vector<gfx::Rect>> region_px) override;
   void Activate() override;
   void Deactivate() override;
-  void ShowTooltip(const std::u16string& text,
-                   const gfx::Point& position,
-                   const PlatformWindowTooltipTrigger trigger,
-                   const base::TimeDelta show_delay,
-                   const base::TimeDelta hide_delay) override;
-  void HideTooltip() override;
 
   // WaylandWindow overrides:
   void UpdateWindowScale(bool update_bounds) override;
-  void PropagateBufferScale(float new_scale) override {}
   void OnSequencePoint(int64_t seq) override;
   // TODO(crbug.com/329145822): this needs to apply the offset that is requested
   // by SetBoundsInDIP.
   void AckConfigure(uint32_t serial) override {}
-  bool IsScreenCoordinatesEnabled() const override;
+  base::WeakPtr<WaylandWindow> AsWeakPtr() override;
   bool IsActive() const override;
   WaylandBubble* AsWaylandBubble() override;
 
@@ -69,6 +63,8 @@ class WaylandBubble : public WaylandWindow {
   // Copied from Widget::InitParams::accept_events, indicates whether this
   // bubble traps inputs.
   bool accept_events_ = true;
+
+  base::WeakPtrFactory<WaylandBubble> weak_ptr_factory_{this};
 };
 
 }  // namespace ui

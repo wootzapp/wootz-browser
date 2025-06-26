@@ -16,15 +16,13 @@
 //
 //  Operating System:
 //    IS_AIX / IS_ANDROID / IS_ASMJS / IS_CHROMEOS / IS_FREEBSD / IS_FUCHSIA /
-//    IS_IOS / IS_IOS_MACCATALYST / IS_IOS_VISION / IS_IOS_WATCH / IS_LINUX /
-//    IS_MAC / IS_NACL / IS_NETBSD / IS_OPENBSD / IS_QNX / IS_SOLARIS / IS_WIN
+//    IS_IOS / IS_IOS_MACCATALYST / IS_IOS_TVOS / IS_LINUX / IS_MAC / IS_NACL /
+//    IS_NETBSD / IS_OPENBSD / IS_QNX / IS_SOLARIS / IS_WATCHOS / IS_WIN
 //  Operating System family:
-//    IS_APPLE: MAC or IOS or IOS_MACCATALYST or IOS_VISION or IOS_WATCH
-//    IS_IOS: IOS or IOS_MACCATALYST or IOS_VISION or IOS_WATCH
+//    IS_APPLE: IOS or MAC or IOS_MACCATALYST or IOS_TVOS or WATCHOS
 //    IS_BSD: FREEBSD or NETBSD or OPENBSD
-//    IS_POSIX: AIX or ANDROID or ASMJS or CHROMEOS or FREEBSD or IOS
-//              or IOS_MACCATALYST or IOS_VISION or IOS_WATCH or LINUX or MAC
-//              or NACL or NETBSD or OPENBSD or QNX or SOLARIS
+//    IS_POSIX: AIX or ANDROID or ASMJS or CHROMEOS or FREEBSD or IOS or LINUX
+//              or MAC or NACL or NETBSD or OPENBSD or QNX or SOLARIS
 
 // This file also adds defines specific to the platform, architecture etc.
 //
@@ -56,6 +54,11 @@
 
 #include "build/buildflag.h"  // IWYU pragma: export
 
+// Clangd does not detect BUILDFLAG_INTERNAL_* indirect usage, so mark the
+// header as "always_keep" to avoid "unused include" warning.
+//
+// IWYU pragma: always_keep
+
 // A set of macros to use for platform detection.
 #if defined(__native_client__)
 // __native_client__ must be first, so that other OS_ defines are not set.
@@ -74,11 +77,11 @@
 #if defined(TARGET_OS_MACCATALYST) && TARGET_OS_MACCATALYST
 #define OS_IOS_MACCATALYST
 #endif  // defined(TARGET_OS_MACCATALYST) && TARGET_OS_MACCATALYST
-#if defined(TARGET_OS_VISION) && TARGET_OS_VISION
-#define OS_IOS_VISION 1
-#endif  // defined(TARGET_OS_VISION) && TARGET_OS_VISION
+#if defined(TARGET_OS_TV) && TARGET_OS_TV
+#define OS_IOS_TVOS 1
+#endif  // defined(TARGET_OS_TV) && TARGET_OS_TV
 #if defined(TARGET_OS_WATCH) && TARGET_OS_WATCH
-#define OS_IOS_WATCH 1
+#define OS_WATCHOS 1
 #endif  // defined(TARGET_OS_WATCH) && TARGET_OS_WATCH
 #else
 #define OS_MAC 1
@@ -202,16 +205,10 @@
 #define BUILDFLAG_INTERNAL_IS_IOS_MACCATALYST() (0)
 #endif
 
-#if defined(OS_IOS_VISION)
-#define BUILDFLAG_INTERNAL_IS_IOS_VISION() (1)
+#if defined(OS_IOS_TVOS)
+#define BUILDFLAG_INTERNAL_IS_IOS_TVOS() (1)
 #else
-#define BUILDFLAG_INTERNAL_IS_IOS_VISION() (0)
-#endif
-
-#if defined(OS_IOS_WATCH)
-#define BUILDFLAG_INTERNAL_IS_IOS_WATCH() (1)
-#else
-#define BUILDFLAG_INTERNAL_IS_IOS_WATCH() (0)
+#define BUILDFLAG_INTERNAL_IS_IOS_TVOS() (0)
 #endif
 
 #if defined(OS_LINUX)
@@ -260,6 +257,12 @@
 #define BUILDFLAG_INTERNAL_IS_SOLARIS() (1)
 #else
 #define BUILDFLAG_INTERNAL_IS_SOLARIS() (0)
+#endif
+
+#if defined(OS_WATCHOS)
+#define BUILDFLAG_INTERNAL_IS_WATCHOS() (1)
+#else
+#define BUILDFLAG_INTERNAL_IS_WATCHOS() (0)
 #endif
 
 #if defined(OS_WIN)
@@ -400,6 +403,26 @@
 // The compiler thinks std::u16string::const_iterator and "char16*" are
 // equivalent types.
 #define BASE_STRING16_ITERATOR_IS_CHAR16_POINTER
+#endif
+
+// Architecture-specific feature detection.
+
+#if !defined(CPU_ARM_NEON)
+#if defined(ARCH_CPU_ARM_FAMILY) && \
+    (defined(__ARM_NEON__) || defined(__ARM_NEON))
+#define CPU_ARM_NEON 1
+#endif
+#endif  // !defined(CPU_ARM_NEON)
+
+// Sanity check.
+#if defined(ARCH_CPU_ARM64) && !defined(CPU_ARM_NEON)
+#error "AArch64 mandates NEON, should be detected"
+#endif
+
+#if !defined(HAVE_MIPS_MSA_INTRINSICS)
+#if defined(__mips_msa) && defined(__mips_isa_rev) && (__mips_isa_rev >= 5)
+#define HAVE_MIPS_MSA_INTRINSICS 1
+#endif
 #endif
 
 #endif  // BUILD_BUILD_CONFIG_H_

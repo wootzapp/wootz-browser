@@ -10,7 +10,7 @@
 #include "ash/accessibility/accessibility_controller.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/tray_background_view_catalog.h"
-#include "ash/focus_cycler.h"
+#include "ash/focus/focus_cycler.h"
 #include "ash/multi_device_setup/multi_device_notification_presenter.h"
 #include "ash/public/cpp/system/anchored_nudge_manager.h"
 #include "ash/public/cpp/system_tray_client.h"
@@ -41,21 +41,25 @@
 #include "base/functional/callback_helpers.h"
 #include "base/notreached.h"
 #include "base/power_monitor/power_monitor.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/default_clock.h"
 #include "chromeos/ash/components/multidevice/logging/logging.h"
 #include "chromeos/ash/components/phonehub/icon_decoder.h"
 #include "chromeos/ash/components/phonehub/phone_hub_manager.h"
 #include "chromeos/ash/components/phonehub/phone_model.h"
+#include "components/vector_icons/vector_icons.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
 #include "ui/color/color_id.h"
+#include "ui/display/manager/display_manager.h"
 #include "ui/events/event.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/button_controller.h"
 #include "ui/views/controls/image_view.h"
@@ -155,7 +159,10 @@ PhoneHubTray::PhoneHubTray(Shelf* shelf)
                 base::DefaultClock::GetInstance())
           : nullptr;
 
-  Shell::Get()->window_tree_host_manager()->AddObserver(this);
+  Shell::Get()->display_manager()->AddDisplayManagerObserver(this);
+
+  GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_ASH_PHONE_HUB_TRAY_ACCESSIBLE_NAME));
 }
 
 PhoneHubTray::~PhoneHubTray() {
@@ -169,7 +176,7 @@ PhoneHubTray::~PhoneHubTray() {
     phone_hub_manager_->GetFeatureStatusProvider()->RemoveObserver(
         onboarding_nudge_controller_.get());
   }
-  Shell::Get()->window_tree_host_manager()->RemoveObserver(this);
+  Shell::Get()->display_manager()->RemoveDisplayManagerObserver(this);
 }
 
 void PhoneHubTray::SetPhoneHubManager(
@@ -202,10 +209,6 @@ void PhoneHubTray::UpdateTrayItemColor(bool is_active) {
                     : cros_tokens::kCrosSysOnSurface));
 }
 
-std::u16string PhoneHubTray::GetAccessibleNameForTray() {
-  return l10n_util::GetStringUTF16(IDS_ASH_PHONE_HUB_TRAY_ACCESSIBLE_NAME);
-}
-
 void PhoneHubTray::HandleLocaleChange() {
   icon_->SetTooltipText(
       l10n_util::GetStringUTF16(IDS_ASH_PHONE_HUB_TRAY_ACCESSIBLE_NAME));
@@ -217,7 +220,7 @@ void PhoneHubTray::HideBubbleWithView(const TrayBubbleView* bubble_view) {
 }
 
 std::u16string PhoneHubTray::GetAccessibleNameForBubble() {
-  return GetAccessibleNameForTray();
+  return l10n_util::GetStringUTF16(IDS_ASH_PHONE_HUB_TRAY_ACCESSIBLE_NAME);
 }
 
 bool PhoneHubTray::ShouldEnableExtraKeyboardAccessibility() {
@@ -290,7 +293,7 @@ void PhoneHubTray::OnVisibilityAnimationFinished(
   }
 }
 
-void PhoneHubTray::OnDisplayConfigurationChanged() {
+void PhoneHubTray::OnDidApplyDisplayChanges() {
   if (!bubble_ || !bubble_->GetBubbleView())
     return;
   bubble_->GetBubbleView()->ChangeAnchorRect(
@@ -319,6 +322,7 @@ void PhoneHubTray::ShowBubble() {
       std::make_unique<TrayBubbleView>(CreateInitParamsForTrayBubble(
           /*tray=*/this, /*anchor_to_shelf_corner=*/true));
   bubble_view->SetBorder(views::CreateEmptyBorder(kBubblePadding));
+  bubble_view->box_layout()->SetDefaultFlex(0);
 
   // Creates header view on top for displaying phone status and settings icon.
   auto phone_status = ui_controller_->CreateStatusHeaderView(this);
@@ -426,7 +430,7 @@ void PhoneHubTray::SetEcheIconActivationCallback(
   eche_icon_callback_ = std::move(callback);
 }
 
-void PhoneHubTray::CloseBubble() {
+void PhoneHubTray::CloseBubbleInternal() {
   if (!bubble_)
     return;
 
@@ -486,7 +490,7 @@ std::unique_ptr<ui::SimpleMenuModel> PhoneHubTray::CreateContextMenuModel() {
   context_menu_model->AddItemWithIcon(
       kHidePhoneHubIconCommandId,
       l10n_util::GetStringUTF16(IDS_ASH_PHONE_HUB_TRAY_ICON_DISMISS_TEXT),
-      ui::ImageModel::FromVectorIcon(kVisibilityOffIcon,
+      ui::ImageModel::FromVectorIcon(vector_icons::kVisibilityOffIcon,
                                      ui::kColorAshSystemUIMenuIcon,
                                      kHidePhoneHubContexMenuIconSize));
 
@@ -498,7 +502,7 @@ void PhoneHubTray::ExecuteCommand(int command_id, int event_flags) {
     phone_hub_manager_->GetOnboardingUiTracker()->DismissSetupUi();
     return;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void PhoneHubTray::UpdateHeaderVisibility() {

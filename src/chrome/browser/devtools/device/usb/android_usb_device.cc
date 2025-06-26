@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/devtools/device/usb/android_usb_device.h"
 
+#include <algorithm>
 #include <set>
 #include <utility>
 #include <vector>
@@ -14,7 +20,6 @@
 #include "base/functional/bind.h"
 #include "base/lazy_instance.h"
 #include "base/memory/ref_counted_memory.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
@@ -194,7 +199,7 @@ AdbMessage::AdbMessage(uint32_t command,
                        const std::string& body)
     : command(command), arg0(arg0), arg1(arg1), body(body) {}
 
-AdbMessage::~AdbMessage() {}
+AdbMessage::~AdbMessage() = default;
 
 // static
 void AndroidUsbDevice::Enumerate(crypto::RSAPrivateKey* rsa_key,
@@ -277,10 +282,12 @@ void AndroidUsbDevice::Queue(std::unique_ptr<AdbMessage> message) {
   header.push_back(body_length);
   header.push_back(Checksum(message->body));
   header.push_back(message->command ^ 0xffffffff);
+  DCHECK_EQ(kHeaderSize, base::as_byte_span(header).size());
+
   // TODO(donna.wu@intel.com): eliminate the buffer copy here, needs to change
   // type BulkMessage.
-  auto header_buffer = base::MakeRefCounted<base::RefCountedBytes>(
-      reinterpret_cast<uint8_t*>(header.data()), kHeaderSize);
+  auto header_buffer =
+      base::MakeRefCounted<base::RefCountedBytes>(base::as_byte_span(header));
   outgoing_queue_.push(header_buffer);
 
   // Queue body.
@@ -482,7 +489,7 @@ void AndroidUsbDevice::Terminate() {
   DCHECK(task_runner_->BelongsToCurrentThread());
 
   // Remove this AndroidUsbDevice from |g_devices|.
-  auto it = base::ranges::find(g_devices.Get(), this);
+  auto it = std::ranges::find(g_devices.Get(), this);
   if (it != g_devices.Get().end())
     g_devices.Get().erase(it);
 

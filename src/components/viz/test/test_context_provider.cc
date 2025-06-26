@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <limits>
 #include <memory>
 #include <set>
@@ -24,8 +25,8 @@
 #include "gpu/command_buffer/common/shared_image_capabilities.h"
 #include "gpu/config/skia_limits.h"
 #include "gpu/skia_bindings/grcontext_for_gles2_interface.h"
-#include "third_party/skia/include/gpu/GrDirectContext.h"
-#include "third_party/skia/include/gpu/gl/GrGLInterface.h"
+#include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
+#include "third_party/skia/include/gpu/ganesh/gl/GrGLInterface.h"
 
 namespace viz {
 
@@ -33,16 +34,18 @@ namespace {
 
 // Various tests rely on functionality (capabilities) enabled by these extension
 // strings.
-const char* const kExtensions[] = {"GL_ARB_texture_rectangle",
-                                   "GL_EXT_stencil_wrap",
-                                   "GL_EXT_texture_format_BGRA8888",
-                                   "GL_OES_rgb8_rgba8",
-                                   "GL_EXT_texture_norm16",
-                                   "GL_CHROMIUM_framebuffer_multisample",
-                                   "GL_CHROMIUM_renderbuffer_format_BGRA8888",
-                                   "GL_OES_texture_half_float",
-                                   "GL_OES_texture_half_float_linear",
-                                   "GL_EXT_color_buffer_half_float"};
+constexpr auto kExtensions = std::to_array<const char*>({
+    "GL_ARB_texture_rectangle",
+    "GL_EXT_stencil_wrap",
+    "GL_EXT_texture_format_BGRA8888",
+    "GL_OES_rgb8_rgba8",
+    "GL_EXT_texture_norm16",
+    "GL_CHROMIUM_framebuffer_multisample",
+    "GL_CHROMIUM_renderbuffer_format_BGRA8888",
+    "GL_OES_texture_half_float",
+    "GL_OES_texture_half_float_linear",
+    "GL_EXT_color_buffer_half_float",
+});
 
 class TestGLES2InterfaceForContextProvider : public TestGLES2Interface {
  public:
@@ -199,17 +202,6 @@ scoped_refptr<TestContextProvider> TestContextProvider::Create(
       std::make_unique<TestContextSupport>(),
       std::make_unique<TestGLES2InterfaceForContextProvider>(),
       /*raster=*/nullptr, std::move(sii), support_locking);
-}
-
-// static
-scoped_refptr<TestContextProvider> TestContextProvider::Create(
-    std::unique_ptr<TestContextSupport> support) {
-  DCHECK(support);
-  constexpr bool support_locking = false;
-  return new TestContextProvider(
-      std::move(support),
-      std::make_unique<TestGLES2InterfaceForContextProvider>(),
-      /*raster=*/nullptr, /*sii=*/nullptr, support_locking);
 }
 
 TestContextProvider::TestContextProvider(

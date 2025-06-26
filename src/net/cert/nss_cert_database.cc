@@ -23,7 +23,6 @@
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "crypto/nss_util_internal.h"
 #include "crypto/scoped_nss_types.h"
 #include "net/base/net_errors.h"
@@ -34,7 +33,7 @@
 #include "net/third_party/mozilla_security_manager/nsNSSCertificateDB.h"
 #include "net/third_party/mozilla_security_manager/nsPKCS12Blob.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "crypto/chaps_support.h"
 #endif
 
@@ -274,7 +273,7 @@ CERTCertificate* NSSCertDatabase::FindRootInList(
 int NSSCertDatabase::ImportUserCert(const std::string& data) {
   ScopedCERTCertificateList certificates =
       x509_util::CreateCERTCertificateListFromBytes(
-          data.c_str(), data.size(), net::X509Certificate::FORMAT_AUTO);
+          base::as_byte_span(data), net::X509Certificate::FORMAT_AUTO);
   if (certificates.empty())
     return ERR_CERT_INVALID;
 
@@ -487,7 +486,7 @@ bool NSSCertDatabase::IsHardwareBacked(const CERTCertificate* cert) {
   if (!slot)
     return false;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_CHROMEOS)
   // For keys in Chaps, it's possible that they are truly hardware backed, or
   // they can be software-backed, such as if the creator requested it, or if the
   // TPM does not support the key algorithm. Chaps sets a kKeyInSoftware

@@ -141,8 +141,9 @@ class COMPONENT_EXPORT(URL) GURL {
   }
 
   // Allows GURL to used as a key in STL (for example, a std::set or std::map).
-  bool operator<(const GURL& other) const;
-  bool operator>(const GURL& other) const;
+  constexpr friend auto operator<=>(const GURL& lhs, const GURL& rhs) {
+    return lhs.spec_ <=> rhs.spec_;
+  }
 
   // Resolves a URL that's possibly relative to this object's URL, and returns
   // it. Absolute URLs are also handled according to the rules of URLs on web
@@ -158,8 +159,8 @@ class COMPONENT_EXPORT(URL) GURL {
   //
   // It is an error to resolve a URL relative to an invalid URL. The result
   // will be the empty URL.
-  GURL Resolve(std::string_view relative) const;
-  GURL Resolve(std::u16string_view relative) const;
+  [[nodiscard]] GURL Resolve(std::string_view relative) const;
+  [[nodiscard]] GURL Resolve(std::u16string_view relative) const;
 
   // Creates a new GURL by replacing the current URL's components with the
   // supplied versions. See the Replacements class in url_canon.h for more.
@@ -172,8 +173,8 @@ class COMPONENT_EXPORT(URL) GURL {
   //
   // Note that this intentionally disallows direct use of url::Replacements,
   // which is harder to use correctly.
-  GURL ReplaceComponents(const Replacements& replacements) const;
-  GURL ReplaceComponents(const ReplacementsW& replacements) const;
+  [[nodiscard]] GURL ReplaceComponents(const Replacements& replacements) const;
+  [[nodiscard]] GURL ReplaceComponents(const ReplacementsW& replacements) const;
 
   // A helper function that is equivalent to replacing the path with a slash
   // and clearing out everything after that. We sometimes need to know just the
@@ -184,7 +185,7 @@ class COMPONENT_EXPORT(URL) GURL {
   //
   // It is an error to get an empty path on an invalid URL. The result
   // will be the empty URL.
-  GURL GetWithEmptyPath() const;
+  [[nodiscard]] GURL GetWithEmptyPath() const;
 
   // A helper function to return a GURL without the filename, query values, and
   // fragment. For example,
@@ -193,7 +194,7 @@ class COMPONENT_EXPORT(URL) GURL {
   // GURL("https://www.foo.com/bar/").GetWithoutFilename().spec()
   // will return "https://www.foo.com/bar/". If the GURL is invalid or missing a
   // scheme, authority or path, it will return an empty, invalid GURL.
-  GURL GetWithoutFilename() const;
+  [[nodiscard]] GURL GetWithoutFilename() const;
 
   // A helper function to return a GURL without the Ref (also named Fragment
   // Identifier). For example,
@@ -201,7 +202,7 @@ class COMPONENT_EXPORT(URL) GURL {
   // will return "https://www.foo.com/index.html".
   // If the GURL is invalid or missing a
   // scheme, authority or path, it will return an empty, invalid GURL.
-  GURL GetWithoutRef() const;
+  [[nodiscard]] GURL GetWithoutRef() const;
 
   // A helper function to return a GURL containing just the scheme, host,
   // and port from a URL. Equivalent to clearing any username and password,
@@ -218,13 +219,13 @@ class COMPONENT_EXPORT(URL) GURL {
   // conversions will likely return a wrong result for about:blank and/or
   // in the presence of iframe.sandbox attribute. Prefer to get origins directly
   // from the source (e.g. RenderFrameHost::GetLastCommittedOrigin).
-  GURL DeprecatedGetOriginAsURL() const;
+  [[nodiscard]] GURL DeprecatedGetOriginAsURL() const;
 
   // A helper function to return a GURL stripped from the elements that are not
   // supposed to be sent as HTTP referrer: username, password and ref fragment.
   // For invalid URLs or URLs that no valid referrers, an empty URL will be
   // returned.
-  GURL GetAsReferrer() const;
+  [[nodiscard]] GURL GetAsReferrer() const;
 
   // Returns true if the scheme for the current URL is a known "standard-format"
   // scheme. A standard-format scheme adheres to what RFC 3986 calls "generic
@@ -510,19 +511,12 @@ COMPONENT_EXPORT(URL)
 std::ostream& operator<<(std::ostream& out, const GURL& url);
 
 COMPONENT_EXPORT(URL) bool operator==(const GURL& x, const GURL& y);
-COMPONENT_EXPORT(URL) bool operator!=(const GURL& x, const GURL& y);
 
 // Equality operator for comparing raw spec_. This should be used in place of
 // url == GURL(spec) where |spec| is known (i.e. constants). This is to prevent
 // needlessly re-parsing |spec| into a temporary GURL.
 COMPONENT_EXPORT(URL)
 bool operator==(const GURL& x, std::string_view spec);
-COMPONENT_EXPORT(URL)
-bool operator==(std::string_view spec, const GURL& x);
-COMPONENT_EXPORT(URL)
-bool operator!=(const GURL& x, std::string_view spec);
-COMPONENT_EXPORT(URL)
-bool operator!=(std::string_view spec, const GURL& x);
 
 // DEBUG_ALIAS_FOR_GURL(var_name, url) copies |url| into a new stack-allocated
 // variable named |<var_name>|.  This helps ensure that the value of |url| gets

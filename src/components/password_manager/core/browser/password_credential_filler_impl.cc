@@ -5,7 +5,11 @@
 #include "components/password_manager/core/browser/password_credential_filler_impl.h"
 
 #include <string>
+#include <utility>
+
 #include "base/check.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "components/autofill/core/common/mojom/autofill_types.mojom-shared.h"
 #include "components/password_manager/core/browser/password_manager_client.h"
 #include "components/password_manager/core/common/password_manager_features.h"
@@ -24,6 +28,7 @@ bool CalculateTriggerSubmission(SubmissionReadinessState submission_readiness) {
     case SubmissionReadinessState::kNoPasswordField:
     case SubmissionReadinessState::kFieldBetweenUsernameAndPassword:
     case SubmissionReadinessState::kFieldAfterPasswordField:
+    case SubmissionReadinessState::kLikelyHasCaptcha:
       return false;
 
     case SubmissionReadinessState::kEmptyFields:
@@ -40,19 +45,15 @@ bool CalculateTriggerSubmission(SubmissionReadinessState submission_readiness) {
 // password_autofill_agent.cc. Remove the logic in the agent when
 // PasswordSuggestionBottomSheetV2 is launched.
 SubmissionReadinessState CalculateSubmissionReadiness(
-    const password_manager::PasswordFillingParams& params) {
-  if (!base::FeatureList::IsEnabled(
-          password_manager::features::kPasswordSuggestionBottomSheetV2)) {
-    return params.submission_readiness;
-  }
-  const autofill::FormData& form_data = params.form;
-  uint64_t username_index = params.username_field_index;
-  uint64_t password_index = params.password_field_index;
-  size_t number_of_elements = form_data.fields.size();
+    const autofill::PasswordSuggestionRequest& request) {
+  const autofill::FormData& form_data = request.form_data;
+  uint64_t username_index = request.username_field_index;
+  uint64_t password_index = request.password_field_index;
+  size_t number_of_elements = form_data.fields().size();
   CHECK(username_index <= number_of_elements &&
         password_index <= number_of_elements);
-  if (form_data.fields.empty() || ((username_index == number_of_elements) &&
-                                   (password_index == number_of_elements))) {
+  if (form_data.fields().empty() || ((username_index == number_of_elements) &&
+                                     (password_index == number_of_elements))) {
     // This is unexpected. |form| is supposed to contain username or
     // password elements.
     return SubmissionReadinessState::kError;
@@ -78,25 +79,30 @@ SubmissionReadinessState CalculateSubmissionReadiness(
   };
 
   for (size_t i = username_index + 1; i < password_index; ++i) {
-    if (!ShouldIgnoreField(form_data.fields[i])) {
+    if (!ShouldIgnoreField(form_data.fields()[i])) {
       return SubmissionReadinessState::kFieldBetweenUsernameAndPassword;
     }
   }
 
   for (size_t i = password_index + 1; i < number_of_elements; ++i) {
-    if (!ShouldIgnoreField(form_data.fields[i])) {
+    if (!ShouldIgnoreField(form_data.fields()[i])) {
       return SubmissionReadinessState::kFieldAfterPasswordField;
     }
   }
 
+  // There is likely a CAPTCHA in the child frame.
+  if (form_data.likely_contains_captcha()) {
+    return SubmissionReadinessState::kLikelyHasCaptcha;
+  }
+
   size_t number_of_visible_elements = 0;
   for (size_t i = 0; i < number_of_elements; ++i) {
-    if (ShouldIgnoreField(form_data.fields[i])) {
+    if (ShouldIgnoreField(form_data.fields()[i])) {
       continue;
     }
 
     if (username_index != i && password_index != i &&
-        form_data.fields[i].value().empty()) {
+        form_data.fields()[i].value().empty()) {
       return SubmissionReadinessState::kEmptyFields;
     }
     number_of_visible_elements++;
@@ -115,26 +121,42 @@ namespace password_manager {
 
 PasswordCredentialFillerImpl::PasswordCredentialFillerImpl(
     base::WeakPtr<PasswordManagerDriver> driver,
-    const PasswordFillingParams& password_filling_params)
+    const autofill::PasswordSuggestionRequest& request)
     : driver_(driver),
-      submission_readiness_(
-          CalculateSubmissionReadiness(password_filling_params)),
+      submission_readiness_(CalculateSubmissionReadiness(request)),
       trigger_submission_(CalculateTriggerSubmission(submission_readiness_)) {}
 
 PasswordCredentialFillerImpl::~PasswordCredentialFillerImpl() = default;
 
 void PasswordCredentialFillerImpl::FillUsernameAndPassword(
     const std::u16string& username,
-    const std::u16string& password) {
-  CHECK(driver_);
-  if (!base::FeatureList::IsEnabled(
-          features::kPasswordSuggestionBottomSheetV2)) {
-    driver_->KeyboardReplacingSurfaceClosed(ToShowVirtualKeyboard(false));
+    const std::u16string& password,
+    base::OnceCallback<void(bool)> callback) {
+  if (!driver_) {
+    // If `driver_` (per frame) was destroyed, it means a navigation happened
+    // and the filling data doesn't apply to the new page. The correct behavior
+    // in this case is to hide the filling UI, meaning this code path is
+    // unreachable. *However*, if the UI wasn't hidden due to a bug, simply
+    // ignore the click here. That's better than:
+    //   a) Proceeding, which will cause a nullptr deref below.
+    //   b) CHECK(driver_), which would crash.
+    // Supposedly, the user can still dismiss the UI to get out of the broken
+    // state. See crbug.com/349073346.
+    return;
   }
 
-  driver_->FillSuggestion(username, password);
+  driver_->FillSuggestion(
+      username, password,
+      base::BindOnce(&PasswordCredentialFillerImpl::TryTriggerSubmission,
+                     weak_ptr_factory_.GetWeakPtr(), std::move(callback),
+                     username));
+}
 
-  trigger_submission_ &= !username.empty();
+void PasswordCredentialFillerImpl::TryTriggerSubmission(
+    base::OnceCallback<void(bool)> callback,
+    const std::u16string& username,
+    bool was_filling_successful) {
+  trigger_submission_ &= !username.empty() && was_filling_successful;
 
   if (trigger_submission_) {
     // TODO(crbug.com/40209736): As auto-submission has been launched, measuring
@@ -143,6 +165,7 @@ void PasswordCredentialFillerImpl::FillUsernameAndPassword(
     // all that for new launches, e.g. crbug.com/1393043.
     driver_->TriggerFormSubmission();
   }
+  std::move(callback).Run(trigger_submission_);
 }
 
 void PasswordCredentialFillerImpl::UpdateTriggerSubmission(bool new_value) {
@@ -160,17 +183,6 @@ PasswordCredentialFillerImpl::GetSubmissionReadinessState() const {
 
 GURL PasswordCredentialFillerImpl::GetFrameUrl() const {
   return driver_ ? driver_->GetLastCommittedURL() : GURL();
-}
-
-void PasswordCredentialFillerImpl::Dismiss(ToShowVirtualKeyboard should_show) {
-  // TODO(crbug.com/40274966): Remove this function once the feature is enabled.
-  if (base::FeatureList::IsEnabled(
-          features::kPasswordSuggestionBottomSheetV2) ||
-      !driver_) {
-    return;
-  }
-  // TODO(crbug.com/40264656): Avoid using KeyboardReplacingSurfaceClosed.
-  driver_->KeyboardReplacingSurfaceClosed(should_show);
 }
 
 base::WeakPtr<PasswordCredentialFiller>

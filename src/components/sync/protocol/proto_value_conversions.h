@@ -26,17 +26,18 @@ class ClientConfigParams;
 class ClientToServerMessage;
 class ClientToServerResponse;
 class CollaborationGroupSpecifics;
-class CompareSpecifics;
 class ContactInfoSpecifics;
 class CookieSpecifics;
 class CrossUserSharingPublicKey;
 class DebugEventInfo;
 class DebugInfo;
+class DeviceDetails;
 class DeviceInfoSpecifics;
 class DictionarySpecifics;
 class EncryptedData;
 class EntityMetadata;
 class EntitySpecifics;
+class EwalletDetails;
 class ExtensionSettingSpecifics;
 class ExtensionSpecifics;
 class HistoryDeleteDirectiveSpecifics;
@@ -53,6 +54,7 @@ class PasswordSpecifics;
 class PasswordSpecificsData;
 class PaymentInstrument;
 class PaymentsCustomerData;
+class PlusAddressSettingSpecifics;
 class PlusAddressSpecifics;
 class PowerBookmarkSpecifics;
 class PreferenceSpecifics;
@@ -60,10 +62,12 @@ class PrinterPPDReference;
 class PrinterSpecifics;
 class PrintersAuthorizationServerSpecifics;
 class PriorityPreferenceSpecifics;
+class ProductComparisonSpecifics;
 class ReadingListSpecifics;
 class SavedTabGroupSpecifics;
 class SearchEngineSpecifics;
 class SecurityEventSpecifics;
+class SendTabToSelfPush;
 class SendTabToSelfSpecifics;
 class SessionHeader;
 class SessionSpecifics;
@@ -76,6 +80,7 @@ class TabNavigation;
 class ThemeSpecifics;
 class TimeRangeDirective;
 class TypedUrlSpecifics;
+class UnencryptedSharingMessage;
 class UrlDirective;
 class UserConsentSpecifics;
 class UserEventSpecifics;
@@ -140,9 +145,6 @@ base::Value ClientConfigParamsToValue(const sync_pb::ClientConfigParams& proto);
 base::Value CollaborationGroupSpecificsToValue(
     const sync_pb::CollaborationGroupSpecifics& proto);
 
-base::Value CompareSpecificsToValue(
-    const sync_pb::CompareSpecifics& compare_specifics);
-
 base::Value ContactInfoSpecificsToValue(
     const sync_pb::ContactInfoSpecifics& proto);
 
@@ -151,6 +153,8 @@ base::Value CookieSpecificsToValue(const sync_pb::CookieSpecifics& proto);
 base::Value DebugEventInfoToValue(const sync_pb::DebugEventInfo& proto);
 
 base::Value DebugInfoToValue(const sync_pb::DebugInfo& proto);
+
+base::Value DeviceDetailsToValue(const sync_pb::DeviceDetails& device_details);
 
 base::Value DeviceInfoSpecificsToValue(
     const sync_pb::DeviceInfoSpecifics& device_info_specifics);
@@ -163,6 +167,9 @@ base::Value EncryptedDataToValue(const sync_pb::EncryptedData& encrypted_data);
 base::Value EntityMetadataToValue(const sync_pb::EntityMetadata& metadata);
 
 base::Value EntitySpecificsToValue(const sync_pb::EntitySpecifics& specifics);
+
+base::Value EwalletDetailsToValue(
+    const sync_pb::EwalletDetails& ewallet_details);
 
 base::Value ExtensionSettingSpecificsToValue(
     const sync_pb::ExtensionSettingSpecifics& extension_setting_specifics);
@@ -213,6 +220,9 @@ base::Value PaymentInstrumentToValue(
 base::Value PaymentsCustomerDataToValue(
     const sync_pb::PaymentsCustomerData& payments_customer_data);
 
+base::Value PlusAddressSettingSpecificsToValue(
+    const sync_pb::PlusAddressSettingSpecifics& plus_address_setting_specifics);
+
 base::Value PlusAddressSpecificsToValue(
     const sync_pb::PlusAddressSpecifics& plus_address_specifics);
 
@@ -235,6 +245,9 @@ base::Value PrintersAuthorizationServerSpecificsToValue(
 base::Value PriorityPreferenceSpecificsToValue(
     const sync_pb::PriorityPreferenceSpecifics& proto);
 
+base::Value ProductComparisonSpecificsToValue(
+    const sync_pb::ProductComparisonSpecifics& product_comparison_specifics);
+
 base::Value CrossUserSharingPublicKeyToValue(
     const sync_pb::CrossUserSharingPublicKey& proto);
 
@@ -246,6 +259,9 @@ base::Value SavedTabGroupSpecificsToValue(
 
 base::Value SearchEngineSpecificsToValue(
     const sync_pb::SearchEngineSpecifics& search_engine_specifics);
+
+base::Value SendTabToSelfPushToValue(
+    const sync_pb::SendTabToSelfPush& send_tab_push);
 
 base::Value SendTabToSelfSpecificsToValue(
     const sync_pb::SendTabToSelfSpecifics& send_tab_specifics);
@@ -278,6 +294,9 @@ base::Value TimeRangeDirectiveToValue(
 
 base::Value TypedUrlSpecificsToValue(
     const sync_pb::TypedUrlSpecifics& typed_url_specifics);
+
+base::Value UnencryptedSharingMessageToValue(
+    const sync_pb::UnencryptedSharingMessage& proto);
 
 base::Value UrlDirectiveToValue(
     const sync_pb::UrlDirective& time_range_directive);

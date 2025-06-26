@@ -2,8 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
+
 #include <vector>
 
 #include "base/at_exit.h"
@@ -19,6 +25,7 @@
 #include "media/base/media.h"
 #include "media/base/media_switches.h"
 #include "media/base/pipeline_status.h"
+#include "media/base/test_data_util.h"
 #include "media/media_buildflags.h"
 #include "media/test/pipeline_integration_test_base.h"
 #include "media/test/test_media_source.h"
@@ -105,11 +112,8 @@ std::string MseFuzzerVariantEnumToMimeTypeString(FuzzerVariant variant) {
 #endif  // BUILDFLAG(USE_PROPRIETARY_CODECS)
 
     case SRC:
-      NOTREACHED_IN_MIGRATION() << "SRC is an invalid MSE fuzzer variant";
-      break;
+      NOTREACHED() << "SRC is an invalid MSE fuzzer variant";
   }
-
-  return "";
 }
 
 }  // namespace
@@ -190,8 +194,8 @@ class MediaSourcePipelineIntegrationFuzzerTest
       return;
 
     auto external_memory =
-        std::make_unique<media::DecoderBuffer::ExternalMemory>(
-            base::make_span(data, size));
+        std::make_unique<media::ExternalMemoryAdapterForTesting>(
+            base::span(data, size));
     scoped_refptr<media::DecoderBuffer> buffer =
         media::DecoderBuffer::FromExternalMemory(std::move(external_memory));
 

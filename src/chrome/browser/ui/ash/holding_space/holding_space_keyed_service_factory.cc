@@ -19,8 +19,9 @@
 namespace ash {
 namespace {
 
-BrowserContextKeyedServiceFactory::TestingFactory* GetTestingFactory() {
-  static base::NoDestructor<BrowserContextKeyedServiceFactory::TestingFactory>
+HoldingSpaceKeyedServiceFactory::GlobalTestingFactory* GetTestingFactory() {
+  static base::NoDestructor<
+      HoldingSpaceKeyedServiceFactory::GlobalTestingFactory>
       testing_factory_;
   return testing_factory_.get();
 }
@@ -44,7 +45,7 @@ HoldingSpaceKeyedServiceFactory::GetDefaultTestingFactory() {
 
 // static
 void HoldingSpaceKeyedServiceFactory::SetTestingFactory(
-    BrowserContextKeyedServiceFactory::TestingFactory testing_factory) {
+    GlobalTestingFactory testing_factory) {
   *GetTestingFactory() = std::move(testing_factory);
 }
 
@@ -70,8 +71,9 @@ HoldingSpaceKeyedServiceFactory::GetBrowserContextToUse(
   Profile* const profile = Profile::FromBrowserContext(context);
 
   // Guest sessions are supported but redirect to the primary OTR profile.
-  if (profile->IsGuestSession())
+  if (profile->IsGuestSession()) {
     return profile->GetPrimaryOTRProfile(/*create_if_needed=*/true);
+  }
 
   // Don't create the service for OTR profiles outside of guest sessions.
   return profile->IsOffTheRecord() ? nullptr : context;
@@ -80,7 +82,7 @@ HoldingSpaceKeyedServiceFactory::GetBrowserContextToUse(
 std::unique_ptr<KeyedService>
 HoldingSpaceKeyedServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  TestingFactory* testing_factory = GetTestingFactory();
+  GlobalTestingFactory* testing_factory = GetTestingFactory();
   return testing_factory->is_null() ? BuildServiceInstanceForInternal(context)
                                     : testing_factory->Run(context);
 }
@@ -93,8 +95,9 @@ HoldingSpaceKeyedServiceFactory::BuildServiceInstanceForInternal(
   DCHECK_EQ(profile->IsGuestSession(), profile->IsOffTheRecord());
 
   user_manager::User* user = ProfileHelper::Get()->GetUserByProfile(profile);
-  if (!user)
+  if (!user) {
     return nullptr;
+  }
 
   if (user->GetType() == user_manager::UserType::kKioskApp) {
     return nullptr;

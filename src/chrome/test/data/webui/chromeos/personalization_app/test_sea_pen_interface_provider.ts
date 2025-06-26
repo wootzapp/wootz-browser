@@ -2,8 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {SeaPenImageId} from 'chrome://resources/ash/common/sea_pen/constants.js';
-import {MantaStatusCode, RecentSeaPenImageInfo, RecentSeaPenThumbnailData, SeaPenFeedbackMetadata, SeaPenProviderInterface, SeaPenQuery, SeaPenThumbnail} from 'chrome://resources/ash/common/sea_pen/sea_pen.mojom-webui.js';
+import type {SeaPenImageId} from 'chrome://resources/ash/common/sea_pen/constants.js';
+import type {RecentSeaPenImageInfo, RecentSeaPenThumbnailData, SeaPenFeedbackMetadata, SeaPenObserverInterface, SeaPenObserverRemote, SeaPenProviderInterface, SeaPenQuery, SeaPenThumbnail} from 'chrome://resources/ash/common/sea_pen/sea_pen.mojom-webui.js';
+import {MantaStatusCode} from 'chrome://resources/ash/common/sea_pen/sea_pen.mojom-webui.js';
 import {SeaPenTemplateChip, SeaPenTemplateId, SeaPenTemplateOption} from 'chrome://resources/ash/common/sea_pen/sea_pen_generated.mojom-webui.js';
 import {isSeaPenImageId} from 'chrome://resources/ash/common/sea_pen/sea_pen_utils.js';
 import {stringToMojoString16} from 'chrome://resources/js/mojo_type_util.js';
@@ -12,7 +13,9 @@ import {TestBrowserProxy} from 'chrome://webui-test/test_browser_proxy.js';
 
 export class TestSeaPenProvider extends TestBrowserProxy implements
     SeaPenProviderInterface {
-  images: SeaPenThumbnail[] = [
+  seaPenObserverRemote: SeaPenObserverInterface|null = null;
+
+  thumbnails: SeaPenThumbnail[] = [
     {
       id: 1,
       image: {url: 'https://sea-pen-images.googleusercontent.com/1'},
@@ -37,26 +40,32 @@ export class TestSeaPenProvider extends TestBrowserProxy implements
     333,
   ];
 
-  recentImageInfo2: RecentSeaPenImageInfo = {
-    query: {
-      templateQuery: {
-        id: SeaPenTemplateId.kGlowscapes,
-        options: Object.fromEntries([
-          [
-            SeaPenTemplateChip.kGlowscapesLandscape,
-            SeaPenTemplateOption.kGlowscapesLandscapeCoralReef,
-          ],
-          [
-            SeaPenTemplateChip.kGlowscapesFeature,
-            SeaPenTemplateOption.kGlowscapesFeatureFlower,
-          ],
-        ]),
-        userVisibleQuery: {
-          text: 'test template query',
-          templateTitle: 'test template title',
-        },
+  seaPenQuery: SeaPenQuery = {
+    templateQuery: {
+      id: SeaPenTemplateId.kGlowscapes,
+      options: Object.fromEntries([
+        [
+          SeaPenTemplateChip.kGlowscapesLandscape,
+          SeaPenTemplateOption.kGlowscapesLandscapeCoralReef,
+        ],
+        [
+          SeaPenTemplateChip.kGlowscapesFeature,
+          SeaPenTemplateOption.kGlowscapesFeatureFlower,
+        ],
+      ]),
+      userVisibleQuery: {
+        text: 'test template query',
+        templateTitle: 'test template title',
       },
     },
+  };
+
+  seaPenFreeformQuery: SeaPenQuery = {
+    textQuery: 'test freeform query',
+  };
+
+  recentImageInfo2: RecentSeaPenImageInfo = {
+    query: this.seaPenQuery,
     creationTime: stringToMojoString16('Dec 15, 2023'),
   };
 
@@ -92,23 +101,37 @@ export class TestSeaPenProvider extends TestBrowserProxy implements
 
   shouldShowSeaPenIntroductionDialogResponse = true;
 
+  shouldShowSeaPenFreeformIntroductionDialogResponse = true;
+
+  isInTabletModeResponse = false;
+
   constructor() {
     super([
-      'searchWallpaper',
+      'setSeaPenObserver',
+      'getSeaPenThumbnails',
       'selectSeaPenThumbnail',
       'selectRecentSeaPenImage',
-      'getRecentSeaPenImages',
+      'getRecentSeaPenImageIds',
       'getRecentSeaPenImageThumbnail',
       'deleteRecentSeaPenImage',
       'shouldShowSeaPenIntroductionDialog',
       'handleSeaPenIntroductionDialogClosed',
+      'shouldShowSeaPenFreeformIntroductionDialog',
+      'handleSeaPenFreeformIntroductionDialogClosed',
+      'isInTabletMode',
+      'makeTransparent',
     ]);
   }
 
-  searchWallpaper(query: SeaPenQuery) {
-    this.methodCalled('searchWallpaper', query);
+  setSeaPenObserver(observer: SeaPenObserverRemote) {
+    this.methodCalled('setSeaPenObserver', observer);
+    this.seaPenObserverRemote = observer;
+  }
+
+  getSeaPenThumbnails(query: SeaPenQuery) {
+    this.methodCalled('getSeaPenThumbnails', query);
     return Promise.resolve({
-      images: this.images,
+      thumbnails: this.thumbnails,
       statusCode: MantaStatusCode.kOk,
     });
   }
@@ -127,8 +150,8 @@ export class TestSeaPenProvider extends TestBrowserProxy implements
     return this.selectSeaPenRecentImageResponse;
   }
 
-  getRecentSeaPenImages() {
-    this.methodCalled('getRecentSeaPenImages');
+  getRecentSeaPenImageIds() {
+    this.methodCalled('getRecentSeaPenImageIds');
     return Promise.resolve({ids: this.recentImageIds});
   }
 
@@ -143,7 +166,7 @@ export class TestSeaPenProvider extends TestBrowserProxy implements
 
   deleteRecentSeaPenImage(id: SeaPenImageId) {
     assertTrue(
-        isSeaPenImageId(id), `id must be SeaPenImageId but received: ${id}`);
+        isSeaPenImageId(id), `id must rbe SeaPenImageId but received: ${id}`);
     this.methodCalled('deleteRecentSeaPenImage', id);
     this.recentImageIds = this.recentImageIds.filter(x => x !== id);
     return Promise.resolve({success: true});
@@ -163,5 +186,27 @@ export class TestSeaPenProvider extends TestBrowserProxy implements
   handleSeaPenIntroductionDialogClosed() {
     this.methodCalled('handleSeaPenIntroductionDialogClosed');
     this.shouldShowSeaPenIntroductionDialogResponse = false;
+  }
+
+  shouldShowSeaPenFreeformIntroductionDialog() {
+    this.methodCalled('shouldShowSeaPenFreeformIntroductionDialog');
+    return Promise.resolve({
+      shouldShowFreeformDialog:
+          this.shouldShowSeaPenFreeformIntroductionDialogResponse,
+    });
+  }
+
+  handleSeaPenFreeformIntroductionDialogClosed() {
+    this.methodCalled('handleSeaPenFreeformIntroductionDialogClosed');
+    this.shouldShowSeaPenFreeformIntroductionDialogResponse = false;
+  }
+
+  isInTabletMode() {
+    this.methodCalled('isInTabletMode');
+    return Promise.resolve({tabletMode: this.isInTabletModeResponse});
+  }
+
+  makeTransparent() {
+    this.methodCalled('makeTransparent');
   }
 }

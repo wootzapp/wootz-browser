@@ -30,7 +30,7 @@
 
 #include "third_party/blink/renderer/modules/webmidi/navigator_web_midi.h"
 
-#include "third_party/blink/public/mojom/permissions_policy/permissions_policy.mojom-blink.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-blink.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_midi_options.h"
@@ -92,7 +92,7 @@ ScriptPromise<MIDIAccess> NavigatorWebMIDI::requestMIDIAccess(
   if (!script_state->ContextIsValid()) {
     exception_state.ThrowDOMException(DOMExceptionCode::kAbortError,
                                       "The frame is not working.");
-    return ScriptPromise<MIDIAccess>();
+    return EmptyPromise();
   }
 
   LocalDOMWindow* window = LocalDOMWindow::From(script_state);
@@ -117,11 +117,11 @@ ScriptPromise<MIDIAccess> NavigatorWebMIDI::requestMIDIAccess(
       WebFeature::kRequestMIDIAccessIframe_ObscuredByFootprinting);
 
   if (!window->IsFeatureEnabled(
-          mojom::blink::PermissionsPolicyFeature::kMidiFeature,
+          network::mojom::PermissionsPolicyFeature::kMidiFeature,
           ReportOptions::kReportOnFailure, kFeaturePolicyConsoleWarning)) {
     UseCounter::Count(window, WebFeature::kMidiDisabledByFeaturePolicy);
     exception_state.ThrowSecurityError(kFeaturePolicyErrorMessage);
-    return ScriptPromise<MIDIAccess>();
+    return EmptyPromise();
   }
 
   MIDIAccessInitializer* initializer =

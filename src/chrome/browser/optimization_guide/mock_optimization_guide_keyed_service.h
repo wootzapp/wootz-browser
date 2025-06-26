@@ -8,6 +8,7 @@
 #include "base/test/gmock_callback_support.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "components/optimization_guide/core/model_execution/feature_keys.h"
+#include "components/optimization_guide/proto/model_quality_service.pb.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
 class TestingPrefServiceSimple;
@@ -69,15 +70,39 @@ class MockOptimizationGuideKeyedService : public OptimizationGuideKeyedService {
       ExecuteModel,
       (optimization_guide::ModelBasedCapabilityKey,
        const google::protobuf::MessageLite&,
+       const std::optional<base::TimeDelta>&,
        optimization_guide::OptimizationGuideModelExecutionResultCallback));
+  MOCK_METHOD(void,
+              AddOnDeviceModelAvailabilityChangeObserver,
+              (optimization_guide::ModelBasedCapabilityKey feature,
+               optimization_guide::OnDeviceModelAvailabilityObserver* observer),
+              (override));
+  MOCK_METHOD(void,
+              RemoveOnDeviceModelAvailabilityChangeObserver,
+              (optimization_guide::ModelBasedCapabilityKey feature,
+               optimization_guide::OnDeviceModelAvailabilityObserver* observer),
+              (override));
+  MOCK_METHOD(on_device_model::Capabilities,
+              GetOnDeviceCapabilities,
+              (),
+              (override));
   MOCK_METHOD(bool,
               ShouldFeatureBeCurrentlyEnabledForUser,
               (optimization_guide::UserVisibleFeatureKey),
-              (const));
+              (const, override));
   MOCK_METHOD(bool,
-              ShouldFeatureBeCurrentlyAllowedForFeedback,
-              (optimization_guide::UserVisibleFeatureKey feature),
-              (const));
+              ShouldFeatureAllowModelExecutionForSignedInUser,
+              (optimization_guide::UserVisibleFeatureKey),
+              (const, override));
+  MOCK_METHOD(bool,
+              ShouldModelExecutionBeAllowedForUser,
+              (),
+              (const, override));
+  MOCK_METHOD(
+      bool,
+      ShouldFeatureBeCurrentlyAllowedForFeedback,
+      (optimization_guide::proto::LogAiDataRequest::FeatureCase feature),
+      (const));
   MOCK_METHOD(void,
               UploadModelQualityLogs,
               (std::unique_ptr<optimization_guide::ModelQualityLogEntry>));
@@ -99,6 +124,21 @@ class MockOptimizationGuideKeyedService : public OptimizationGuideKeyedService {
               (override));
 
   MOCK_METHOD(void, OnNavigationFinish, (const std::vector<GURL>&), (override));
+
+  MOCK_METHOD(optimization_guide::OnDeviceModelEligibilityReason,
+              GetOnDeviceModelEligibility,
+              (optimization_guide::ModelBasedCapabilityKey),
+              (override));
+
+  MOCK_METHOD(std::optional<optimization_guide::SamplingParamsConfig>,
+              GetSamplingParamsConfig,
+              (optimization_guide::ModelBasedCapabilityKey),
+              (override));
+
+  MOCK_METHOD(std::optional<const optimization_guide::proto::Any>,
+              GetFeatureMetadata,
+              (optimization_guide::ModelBasedCapabilityKey),
+              (override));
 };
 
 #endif  // CHROME_BROWSER_OPTIMIZATION_GUIDE_MOCK_OPTIMIZATION_GUIDE_KEYED_SERVICE_H_

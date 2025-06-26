@@ -5,6 +5,7 @@
 #include "chrome/test/chromedriver/chrome/web_view_info.h"
 
 #include <memory>
+#include <unordered_map>
 #include <utility>
 
 #include "base/functional/bind.h"
@@ -32,34 +33,39 @@ bool WebViewInfo::IsInactiveBackgroundPage() const {
   return type == WebViewInfo::kBackgroundPage && debugger_url.empty();
 }
 
+bool WebViewInfo::IsExtensionTarget() const {
+  return (type == WebViewInfo::kBackgroundPage) ||
+         (type == WebViewInfo::kTab && url.starts_with("chrome-extension://"));
+}
+
 Status WebViewInfo::ParseType(const std::string& type_as_string,
-                              WebViewInfo::Type* type) {
-  if (type_as_string == "app") {
-    *type = WebViewInfo::kApp;
-  } else if (type_as_string == "background_page") {
-    *type = WebViewInfo::kBackgroundPage;
-  } else if (type_as_string == "page") {
-    *type = WebViewInfo::kPage;
-  } else if (type_as_string == "worker") {
-    *type = WebViewInfo::kWorker;
-  } else if (type_as_string == "webview") {
-    *type = WebViewInfo::kWebView;
-  } else if (type_as_string == "iframe") {
-    *type = WebViewInfo::kIFrame;
-  } else if (type_as_string == "other") {
-    *type = WebViewInfo::kOther;
-  } else if (type_as_string == "service_worker") {
-    *type = WebViewInfo::kServiceWorker;
-  } else if (type_as_string == "shared_worker") {
-    *type = WebViewInfo::kSharedWorker;
-  } else if (type_as_string == "external") {
-    *type = WebViewInfo::kExternal;
-  } else if (type_as_string == "browser") {
-    *type = WebViewInfo::kBrowser;
-  } else {
-    return Status(kUnknownError,
-                  "DevTools returned unknown type:" + type_as_string);
+                              WebViewInfo::Type& type) {
+  static const std::unordered_map<std::string, WebViewInfo::Type> mapping = {
+      {"app", WebViewInfo::kApp},
+      {"background_page", WebViewInfo::kBackgroundPage},
+      {"browser", WebViewInfo::kBrowser},
+      {"external", WebViewInfo::kExternal},
+      {"iframe", WebViewInfo::kIFrame},
+      {"page", WebViewInfo::kPage},
+      {"service_worker", WebViewInfo::kServiceWorker},
+      {"shared_worker", WebViewInfo::kSharedWorker},
+      {"webview", WebViewInfo::kWebView},
+      {"worker", WebViewInfo::kWorker},
+      {"tab", WebViewInfo::kTab},
+  };
+
+  if (type_as_string.empty()) {
+    return Status{kUnknownError,
+                  "DevTools returned empty string as a target type"};
   }
+
+  auto it = mapping.find(type_as_string);
+  if (it == mapping.end()) {
+    type = WebViewInfo::kOther;
+  } else {
+    type = it->second;
+  }
+
   return Status(kOk);
 }
 
@@ -79,7 +85,7 @@ size_t WebViewsInfo::GetSize() const {
 }
 
 const WebViewInfo* WebViewsInfo::GetForId(const std::string& id) const {
-  auto it = base::ranges::find(views_info, id, &WebViewInfo::id);
+  auto it = std::ranges::find(views_info, id, &WebViewInfo::id);
   if (it == views_info.end()) {
     return nullptr;
   }
@@ -112,7 +118,7 @@ Status WebViewsInfo::FillFromTargetsInfo(
     }
     const std::string* debugger_url = info.FindString("webSocketDebuggerUrl");
     WebViewInfo::Type type;
-    Status status = WebViewInfo::ParseType(*type_as_string, &type);
+    Status status = WebViewInfo::ParseType(*type_as_string, type);
     if (status.IsError()) {
       return status;
     }
@@ -124,7 +130,7 @@ Status WebViewsInfo::FillFromTargetsInfo(
 }
 
 bool WebViewsInfo::ContainsTargetType(WebViewInfo::Type type) const {
-  return base::ranges::any_of(
+  return std::ranges::any_of(
       views_info,
       [searched_type = type](WebViewInfo::Type current_type) {
         return searched_type == current_type;
@@ -133,6 +139,6 @@ bool WebViewsInfo::ContainsTargetType(WebViewInfo::Type type) const {
 }
 
 const WebViewInfo* WebViewsInfo::FindFirst(WebViewInfo::Type type) const {
-  auto it = base::ranges::find(views_info, type, &WebViewInfo::type);
+  auto it = std::ranges::find(views_info, type, &WebViewInfo::type);
   return it == views_info.end() ? nullptr : &(*it);
 }

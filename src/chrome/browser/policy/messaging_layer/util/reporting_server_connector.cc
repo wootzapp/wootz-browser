@@ -16,6 +16,7 @@
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/singleton.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
 #include "base/task/bind_post_task.h"
 #include "base/time/time.h"
@@ -23,7 +24,6 @@
 #include "base/types/expected_macros.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/enterprise/browser_management/management_service_factory.h"
@@ -46,6 +46,7 @@
 #include "components/reporting/proto/synced/record_constants.pb.h"
 #include "components/reporting/resources/resource_manager.h"
 #include "components/reporting/util/encrypted_reporting_json_keys.h"
+#include "components/reporting/util/reporting_errors.h"
 #include "components/reporting/util/status.h"
 #include "components/reporting/util/status_macros.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -53,10 +54,10 @@
 #include "content/public/browser/browser_thread.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/policy/core/browser_policy_connector_ash.h"
 #include "chromeos/ash/components/install_attributes/install_attributes.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 using ::policy::CloudPolicyClient;
 using ::policy::CloudPolicyCore;
@@ -87,9 +88,9 @@ ReportingServerConnector::ReportingServerConnector()
   // Initialize `ReportingServerConnector` instance. For non-Ash configurations
   // it is initialized on the first use, but for Ash we need it to be prepared
   // for encryption key delivery early after enrollment.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   base::IgnoreResult(EnsureUsableClient());
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
 ReportingServerConnector::~ReportingServerConnector() {
@@ -206,6 +207,10 @@ void ReportingServerConnector::UploadEncryptedReportInternal(
       Status no_dm_token_status{error::UNAVAILABLE, "Device DM token not set"};
       std::move(enqueued_cb).Run(base::unexpected(no_dm_token_status));
       std::move(callback).Run(base::unexpected(std::move(no_dm_token_status)));
+      base::UmaHistogramEnumeration(
+          reporting::kUmaUnavailableErrorReason,
+          UnavailableErrorReason::DEVICE_DM_TOKEN_NOT_SET,
+          UnavailableErrorReason::MAX_VALUE);
       return;
     }
     context.Set(json_keys::kDevice,
@@ -240,8 +245,8 @@ StatusOr<::policy::CloudPolicyManager*>
 ReportingServerConnector::GetUserCloudPolicyManager() {
   DCHECK_CURRENTLY_ON(::content::BrowserThread::UI);
   // Pointer to `policy::CloudPolicyManager` is retrieved differently
-  // for ChromeOS-Ash, for Android and for all other cases.
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+  // for ChromeOS, for Android and for all other cases.
+#if BUILDFLAG(IS_CHROMEOS)
   if (!ash::InstallAttributes::IsInitialized()) {
     CHECK_IS_TEST();
     return base::unexpected(
@@ -249,6 +254,10 @@ ReportingServerConnector::GetUserCloudPolicyManager() {
   }
   if (!g_browser_process || !g_browser_process->platform_part() ||
       !g_browser_process->platform_part()->browser_policy_connector_ash()) {
+    base::UmaHistogramEnumeration(
+        reporting::kUmaUnavailableErrorReason,
+        UnavailableErrorReason::CANNOT_GET_CLOUD_POLICY_MANAGER_FOR_BROWSER,
+        UnavailableErrorReason::MAX_VALUE);
     return base::unexpected(
         Status(error::UNAVAILABLE,
                "Browser process not fit to retrieve CloudPolicyManager"));
@@ -260,6 +269,10 @@ ReportingServerConnector::GetUserCloudPolicyManager() {
   // Android doesn't have access to a device level CloudPolicyClient, so get
   // the PrimaryUserProfile CloudPolicyClient.
   if (!ProfileManager::GetPrimaryUserProfile()) {
+    base::UmaHistogramEnumeration(
+        reporting::kUmaUnavailableErrorReason,
+        UnavailableErrorReason::CANNOT_GET_CLOUD_POLICY_MANAGER_FOR_PROFILE,
+        UnavailableErrorReason::MAX_VALUE);
     return base::unexpected(Status(error::UNAVAILABLE,
                                    "PrimaryUserProfile not fit to retrieve "
                                    "CloudPolicyManager"));
@@ -267,6 +280,10 @@ ReportingServerConnector::GetUserCloudPolicyManager() {
   return ProfileManager::GetPrimaryUserProfile()->GetUserCloudPolicyManager();
 #else
   if (!g_browser_process || !g_browser_process->browser_policy_connector()) {
+    base::UmaHistogramEnumeration(
+        reporting::kUmaUnavailableErrorReason,
+        UnavailableErrorReason::CANNOT_GET_CLOUD_POLICY_MANAGER_FOR_BROWSER,
+        UnavailableErrorReason::MAX_VALUE);
     return base::unexpected(Status(error::UNAVAILABLE,
                                    "Browser process not fit to retrieve "
                                    "CloudPolicyManager"));

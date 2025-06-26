@@ -54,7 +54,7 @@ class WebEngineContentRendererClient : public content::ContentRendererClient {
   std::unique_ptr<media::KeySystemSupportRegistration> GetSupportedKeySystems(
       content::RenderFrame* render_frame,
       media::GetSupportedKeySystemsCB cb) override;
-  bool IsSupportedVideoType(const media::VideoType& type) override;
+  bool IsDecoderSupportedVideoType(const media::VideoType& type) override;
   std::unique_ptr<blink::URLLoaderThrottleProvider>
   CreateURLLoaderThrottleProvider(
       blink::URLLoaderThrottleProviderType type) override;
@@ -66,7 +66,8 @@ class WebEngineContentRendererClient : public content::ContentRendererClient {
       media::MediaLog* media_log,
       media::DecoderFactory* decoder_factory,
       base::RepeatingCallback<media::GpuVideoAcceleratorFactories*()>
-          get_gpu_factories_cb) override;
+          get_gpu_factories_cb,
+      int element_id) override;
 
 #if BUILDFLAG(ENABLE_CAST_RECEIVER)
   std::unique_ptr<cast_streaming::ResourceProvider>

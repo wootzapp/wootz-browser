@@ -4,14 +4,17 @@
 
 #include "ui/gl/init/create_gr_gl_interface.h"
 
+#include "base/feature_list.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/no_destructor.h"
+#include "base/threading/platform_thread.h"
 #include "base/trace_event/trace_event.h"
 #include "base/traits_bag.h"
 #include "build/build_config.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_context.h"
 #include "ui/gl/gl_display.h"
+#include "ui/gl/gl_features.h"
 #include "ui/gl/gl_implementation.h"
 #include "ui/gl/gl_utils.h"
 #include "ui/gl/gl_version_info.h"
@@ -27,6 +30,16 @@ namespace gl::init {
 // EGL_KHR_fence_sync extension. It's used to provide Skia ways of
 // synchronization on platforms that does not have GL fences but support EGL
 namespace {
+
+// If enabled, adds a delay to GL program link whose value is given by the
+// feature param. Used for an ablation study.
+BASE_FEATURE(kAddDelayToGLProgramLink,
+             "AddDelayToGLProgramLink",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+constexpr base::FeatureParam<int> kGLProgramLinkDelayMicroseconds{
+    &kAddDelayToGLProgramLink, /*name=*/"GLProgramLinkDelayMicroseconds",
+    /*default_value=*/1000};
+
 struct EGLFenceData {
   EGLSync sync;
   EGLDisplay display;
@@ -81,8 +94,7 @@ GLenum glClientWaitSyncEmulateEGL(GLsync sync,
       return GL_WAIT_FAILED;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }
 
 void glWaitSyncEmulateEGL(GLsync sync, GLbitfield flags, GLuint64 timeout) {
@@ -101,8 +113,7 @@ void glWaitSyncEmulateEGL(GLsync sync, GLbitfield flags, GLuint64 timeout) {
 }
 
 GLboolean glIsSyncEmulateEGL(GLsync sync) {
-  NOTREACHED_IN_MIGRATION();
-  return true;
+  NOTREACHED();
 }
 
 }  // namespace
@@ -179,6 +190,11 @@ bind_timed_compile_function(R(GL_BINDING_CALL* func)(GLuint shader, Args...),
     gl::ScopedProgressReporter scoped_reporter(progress_reporter);
     SCOPED_UMA_HISTOGRAM_TIMER_MICROS("Gpu.GrCompileShaderUs");
 
+    base::TimeDelta delay = features::GetGLCompileShaderDelay();
+    if (delay.is_positive()) {
+      base::PlatformThread::Sleep(delay);
+    }
+
     func(shader, args...);
 
     GLint compile_result = 0;
@@ -200,6 +216,11 @@ GrGLFunction<R GR_GL_FUNCTION_TYPE(GLuint, Args...)> bind_timed_link_function(
                                                    Args... args) -> R {
     gl::ScopedProgressReporter scoped_reporter(progress_reporter);
     SCOPED_UMA_HISTOGRAM_TIMER_MICROS("Gpu.GrLinkProgramUs");
+
+    if (base::FeatureList::IsEnabled(kAddDelayToGLProgramLink)) {
+      base::PlatformThread::Sleep(
+          base::Microseconds(kGLProgramLinkDelayMicroseconds.Get()));
+    }
 
     func(program, args...);
 
@@ -293,29 +314,20 @@ sk_sp<GrGLInterface> CreateGrGLInterface(
   gl::ProcsGL* gl = &gl::g_current_gl_driver->fn;
   gl::GLApi* api = gl::g_current_gl_context;
 
-  GrGLStandard standard =
-      version_info.is_es ? kGLES_GrGLStandard : kGL_GrGLStandard;
+  GrGLStandard standard = kGLES_GrGLStandard;
 
   // Depending on the advertised version and extensions, skia checks for
   // existence of entrypoints. However some of those we don't yet handle in
   // gl_bindings, so we need to fake the version to the maximum fully supported
-  // by the bindings (GL 4.1 or ES 3.0), and blocklist extensions that skia
-  // handles but bindings don't.
+  // by the bindings (ES 3.0), and blocklist extensions that skia handles but
+  // bindings don't.
   // TODO(piman): add bindings for missing entrypoints.
   GrGLFunction<GrGLGetStringFn> get_string;
-  const bool apply_version_override =
-      version_info.IsAtLeastGL(4, 2) || version_info.IsAtLeastGLES(3, 1);
+  const bool apply_version_override = version_info.IsAtLeastGLES(3, 1);
 
-  if (apply_version_override || version_info.IsVersionSubstituted()) {
+  if (apply_version_override) {
     GLVersionInfo::VersionStrings version;
-    if (version_info.IsVersionSubstituted()) {
-      version = version_info.GetFakeVersionStrings(version_info.major_version,
-                                                   version_info.minor_version);
-    } else if (version_info.is_es) {
-      version = version_info.GetFakeVersionStrings(3, 0);
-    } else {
-      version = version_info.GetFakeVersionStrings(4, 1);
-    }
+    version = version_info.GetFakeVersionStrings(3, 0);
 
     get_string = [version](GLenum name) {
       return GetStringHook(version.gl_version, version.glsl_version, name);
@@ -424,7 +436,6 @@ sk_sp<GrGLInterface> CreateGrGLInterface(
   BIND(GetFloatv);
   BIND(GetIntegerv);
   BIND(GetMultisamplefv);
-  BIND(GetQueryObjectiv);
   BIND(GetQueryObjectuiv);
   BIND(GetQueryObjecti64v);
   BIND(GetQueryObjectui64v);
@@ -730,28 +741,15 @@ sk_sp<GrGLInterface> CreateGrGLInterface(
   BIND(WaitSync);
   BIND(DeleteSync);
 
-  if (!gl->glFenceSyncFn) {
-    // NOTE: Skia uses the same function pointers without APPLE suffix
-#if !defined(USE_EGL)
-    if (extensions.has("GL_APPLE_sync")) {
-      BIND_EXTENSION(FenceSync, FenceSyncAPPLE);
-      BIND_EXTENSION(IsSync, IsSyncAPPLE);
-      BIND_EXTENSION(ClientWaitSync, ClientWaitSyncAPPLE);
-      BIND_EXTENSION(WaitSync, WaitSyncAPPLE);
-      BIND_EXTENSION(DeleteSync, DeleteSyncAPPLE);
-    }
-#else
-    if (GetDefaultDisplayEGL()->ext->b_EGL_KHR_fence_sync) {
-      // Emulate APPLE_sync via egl
-      extensions.add("GL_APPLE_sync");
+  if (!gl->glFenceSyncFn && GetDefaultDisplayEGL()->ext->b_EGL_KHR_fence_sync) {
+    // Emulate APPLE_sync via egl
+    extensions.add("GL_APPLE_sync");
 
-      functions->fFenceSync = glFenceSyncEmulateEGL;
-      functions->fIsSync = glIsSyncEmulateEGL;
-      functions->fClientWaitSync = glClientWaitSyncEmulateEGL;
-      functions->fWaitSync = glWaitSyncEmulateEGL;
-      functions->fDeleteSync = glDeleteSyncEmulateEGL;
-    }
-#endif  // USE_EGL
+    functions->fFenceSync = glFenceSyncEmulateEGL;
+    functions->fIsSync = glIsSyncEmulateEGL;
+    functions->fClientWaitSync = glClientWaitSyncEmulateEGL;
+    functions->fWaitSync = glWaitSyncEmulateEGL;
+    functions->fDeleteSync = glDeleteSyncEmulateEGL;
   }
 
   // Skia can fall back to GL_NV_fence if GLsync objects are not available.

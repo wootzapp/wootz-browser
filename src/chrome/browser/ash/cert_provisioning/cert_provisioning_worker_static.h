@@ -35,6 +35,7 @@ namespace ash::cert_provisioning {
 class CertProvisioningWorkerStatic : public CertProvisioningWorker {
  public:
   CertProvisioningWorkerStatic(
+      std::string cert_provisioning_process_id,
       CertScope cert_scope,
       Profile* profile,
       PrefService* pref_service,
@@ -52,6 +53,7 @@ class CertProvisioningWorkerStatic : public CertProvisioningWorker {
   void MarkWorkerForReset() override;
   bool IsWaiting() const override;
   bool IsWorkerMarkedForReset() const override;
+  const std::string& GetProcessId() const override;
   const CertProfile& GetCertProfile() const override;
   const std::vector<uint8_t>& GetPublicKey() const override;
   CertProvisioningWorkerState GetState() const override;
@@ -59,7 +61,7 @@ class CertProvisioningWorkerStatic : public CertProvisioningWorker {
   base::Time GetLastUpdateTime() const override;
   const std::optional<BackendServerError>& GetLastBackendServerError()
       const override;
-  std::string GetFailureMessage() const override;
+  std::string GetFailureMessageWithPii() const override;
 
  private:
   friend class CertProvisioningSerializer;
@@ -71,8 +73,7 @@ class CertProvisioningWorkerStatic : public CertProvisioningWorker {
                                 chromeos::platform_keys::Status status);
 
   void GenerateKeyForVa();
-  void OnGenerateKeyForVaDone(base::TimeTicks start_time,
-                              const attestation::TpmChallengeKeyResult& result);
+  void OnGenerateKeyForVaDone(const attestation::TpmChallengeKeyResult& result);
 
   void StartCsr();
   void OnStartCsrDone(policy::DeviceManagementStatus status,
@@ -87,18 +88,18 @@ class CertProvisioningWorkerStatic : public CertProvisioningWorker {
 
   void BuildVaChallengeResponse();
   void OnBuildVaChallengeResponseDone(
-      base::TimeTicks start_time,
       const attestation::TpmChallengeKeyResult& result);
 
   void RegisterKey();
   void OnRegisterKeyDone(const attestation::TpmChallengeKeyResult& result);
 
   void MarkKey();
+  void MarkKeyAsCorporate();
+  void OnAllowKeyForUsageDone(chromeos::platform_keys::Status status);
   void OnMarkKeyDone(chromeos::platform_keys::Status status);
 
   void SignCsr();
-  void OnSignCsrDone(base::TimeTicks start_time,
-                     std::vector<uint8_t> signature,
+  void OnSignCsrDone(std::vector<uint8_t> signature,
                      chromeos::platform_keys::Status status);
 
   void FinishCsr();
@@ -116,7 +117,12 @@ class CertProvisioningWorkerStatic : public CertProvisioningWorker {
   void ImportCert(const std::string& pem_encoded_certificate);
   void OnImportCertDone(chromeos::platform_keys::Status status);
 
-  void ScheduleNextStep(base::TimeDelta delay);
+  // Schedule the next step after the `delay`. If `try_provisioning_on_timeout`
+  // is true, the worker will automatically try contacting the server-side after
+  // it doesn't receive an invalidation for long enough. If it's false, it will
+  // require an invalidation to continue.
+  void ScheduleNextStep(base::TimeDelta delay,
+                        bool try_provisioning_on_timeout);
   void CancelScheduledTasks();
 
   enum class ContinueReason {
@@ -170,6 +176,11 @@ class CertProvisioningWorkerStatic : public CertProvisioningWorker {
       std::optional<CertProvisioningResponseErrorType> error,
       std::optional<int64_t> try_later);
 
+  // A convenience method to generate a string that contains some additional
+  // info and should be included in all logs.
+  std::string GetLogInfoBlock();
+
+  std::string process_id_;
   CertScope cert_scope_ = CertScope::kUser;
   raw_ptr<Profile> profile_ = nullptr;
   raw_ptr<PrefService> pref_service_ = nullptr;
@@ -233,7 +244,7 @@ class CertProvisioningWorkerStatic : public CertProvisioningWorker {
   // Increment this when you add/change any member in
   // CertProvisioningWorkerStatic that affects serialization (and update all
   // functions that fail to compile because of it).
-  static constexpr int kVersion = 1;
+  static constexpr int kVersion = 2;
 
   // Unowned PlatformKeysService. Note that the CertProvisioningWorker does not
   // observe the PlatformKeysService for shutdown events. Instead, it relies on

@@ -6,6 +6,7 @@
 
 #include "base/containers/contains.h"
 #include "chromeos/ash/components/audio/audio_device.h"
+#include "chromeos/ash/components/audio/audio_device_id.h"
 
 namespace ash {
 
@@ -118,22 +119,40 @@ void AudioDevicesPrefHandlerStub::DropLeastRecentlySeenDevices(
     const std::vector<AudioDevice>& connected_devices,
     size_t keep_devices) {}
 
+bool AudioDevicesPrefHandlerStub::GetVoiceIsolationState() const {
+  return voice_isolation_state_;
+}
+
+void AudioDevicesPrefHandlerStub::SetVoiceIsolationState(
+    bool voice_isolation_state) {
+  voice_isolation_state_ = voice_isolation_state;
+}
+
+uint32_t AudioDevicesPrefHandlerStub::GetVoiceIsolationPreferredEffect() const {
+  return voice_isolation_preferred_effect_;
+}
+
+void AudioDevicesPrefHandlerStub::SetVoiceIsolationPreferredEffect(
+    uint32_t effect) {
+  voice_isolation_preferred_effect_ = effect;
+}
+
 bool AudioDevicesPrefHandlerStub::GetNoiseCancellationState() {
-  return noise_cancellation_state_;
+  return GetVoiceIsolationState();
 }
 
 void AudioDevicesPrefHandlerStub::SetNoiseCancellationState(
     bool noise_cancellation_state) {
-  noise_cancellation_state_ = noise_cancellation_state;
+  SetVoiceIsolationState(noise_cancellation_state);
 }
 
 bool AudioDevicesPrefHandlerStub::GetStyleTransferState() const {
-  return style_transfer_state_;
+  return GetVoiceIsolationState();
 }
 
 void AudioDevicesPrefHandlerStub::SetStyleTransferState(
     bool style_transfer_state) {
-  style_transfer_state_ = style_transfer_state;
+  SetVoiceIsolationState(style_transfer_state);
 }
 
 bool AudioDevicesPrefHandlerStub::GetAudioOutputAllowedValue() const {
@@ -173,6 +192,60 @@ bool AudioDevicesPrefHandlerStub::GetHfpMicSrState() {
 
 void AudioDevicesPrefHandlerStub::SetHfpMicSrState(bool hfp_mic_sr_state) {
   hfp_mic_sr_ = hfp_mic_sr_state;
+}
+
+const std::optional<uint64_t>
+AudioDevicesPrefHandlerStub::GetPreferredDeviceFromPreferenceSet(
+    bool is_input,
+    const AudioDeviceList& devices) {
+  const std::string ids = GetDeviceSetIdString(devices);
+  const auto iter = device_preference_set_map_.find(ids);
+  if (iter == device_preference_set_map_.end()) {
+    return std::nullopt;
+  }
+
+  return ParseDeviceId(iter->second);
+}
+
+void AudioDevicesPrefHandlerStub::UpdateDevicePreferenceSet(
+    const AudioDeviceList& devices,
+    const AudioDevice& preferred_device) {
+  const std::string ids = GetDeviceSetIdString(devices);
+  device_preference_set_map_[ids] = GetDeviceIdString(preferred_device);
+}
+
+const AudioDevicesPrefHandlerStub::AudioDevicePreferenceSetMap&
+AudioDevicesPrefHandlerStub::GetDevicePreferenceSetMap() {
+  return device_preference_set_map_;
+}
+
+const base::Value::List&
+AudioDevicesPrefHandlerStub::GetMostRecentActivatedDeviceIdList(bool is_input) {
+  return most_recent_activated_device_id_list;
+}
+
+void AudioDevicesPrefHandlerStub::UpdateMostRecentActivatedDeviceIdList(
+    const AudioDevice& device) {
+  std::string target_device_id = GetDeviceIdString(device);
+  // Find if this device is already in the list, remove it if so.
+  for (auto it = most_recent_activated_device_id_list.begin();
+       it != most_recent_activated_device_id_list.end(); it++) {
+    if (target_device_id == *it) {
+      most_recent_activated_device_id_list.erase(it);
+      break;
+    }
+  }
+
+  // Add this device to the end of the list.
+  most_recent_activated_device_id_list.Append(target_device_id);
+}
+
+bool AudioDevicesPrefHandlerStub::GetSpatialAudioState() {
+  return spatial_audio_;
+}
+
+void AudioDevicesPrefHandlerStub::SetSpatialAudioState(bool spatial_audio) {
+  spatial_audio_ = spatial_audio;
 }
 
 }  // namespace ash

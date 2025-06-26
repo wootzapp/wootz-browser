@@ -4,9 +4,20 @@
 
 module media.mojom;
 
+import "media/mojo/mojom/speech_recognition_audio_forwarder.mojom";
+import "media/mojo/mojom/speech_recognition_error.mojom";
 import "media/mojo/mojom/speech_recognition_grammar.mojom";
 import "media/mojo/mojom/speech_recognition_result.mojom";
-import "media/mojo/mojom/speech_recognition_error.mojom";
+import "media/mojo/mojom/speech_recognition_recognition_context.mojom";
+
+// Next MinVersion: 2
+
+enum AvailabilityStatus {
+  kUnavailable,
+  kDownloadable,
+  kDownloading,
+  kAvailable,
+};
 
 // Created by the renderer and sent to the browser to start a speech recognition
 // session.
@@ -25,6 +36,9 @@ struct StartSpeechRecognitionRequestParams {
   // Speech grammars to use.
   array<SpeechRecognitionGrammar> grammars;
 
+  // The optional recognition context for speech recognition biasing.
+  SpeechRecognitionRecognitionContext? recognition_context;
+
   // Maximum number of hypotheses allowed for each results.
   uint32 max_hypotheses;
 
@@ -33,13 +47,47 @@ struct StartSpeechRecognitionRequestParams {
 
   // Whether the user requested interim results.
   bool interim_results;
+
+  // Whether the speech recognition may happen on-device.
+  bool on_device;
+
+  // Whether the speech recognition is allowed to fallback to a Cloud-based
+  // speech recognition service.
+  bool allow_cloud_fallback;
+
+  // Used to pass audio from the renderer to the browser.
+  pending_receiver<media.mojom.SpeechRecognitionAudioForwarder>?
+      audio_forwarder;
+
+  // The channel count of the forwarded audio.
+  int32 channel_count;
+
+  // The sample rate of the forwarded audio.
+  int32 sample_rate;
 };
 
-// API for the renderer process to start a speech recognition session in the
-// browser process.
+// API for the renderer process to manage speech recognition in the browser
+// process. The remote lives in the renderer process and the receiver lives in
+// the browser process.
 interface SpeechRecognizer {
   // Requests the speech recognition service to start speech recognition.
   Start(StartSpeechRecognitionRequestParams params);
+};
+
+// API for the renderer process to manage on-device speech recognition in the
+// browser process. The remote lives in the renderer process and the receiver
+// lives in
+// the browser process.
+interface OnDeviceSpeechRecognition {
+  // Returns the availability status for whether on-device speech recognition
+  // is available for a given language. Takes in a BCP 47 language tag (e.g.
+  // "en-US").
+  OnDeviceWebSpeechAvailable(string language) => (AvailabilityStatus status);
+
+  // Returns whether on-device speech recognition installation was successfully
+  // initiated for the given language.  Takes in a BCP 47 language tag (e.g.
+  // "en-US").
+  InstallOnDeviceSpeechRecognition(string language) => (bool success);
 };
 
 // API for the renderer process to stop or abort an existing speech recognition
@@ -47,14 +95,20 @@ interface SpeechRecognizer {
 // SpeechRecognizer::Start, and is bound to an implementation there.
 // SpeechRecognitionSession and SpeechRecognitionSessionClient are 1:1 with each
 // other and with WebSpeechRecognitionHandle.
+[Stable]
 interface SpeechRecognitionSession {
   // Requests the speech recognition service to abort speech recognition for the
   // associated session.
-  Abort();
+  Abort@0();
 
   // Requests the speech recognition service to stop audio capture for the
   // associated session.
-  StopCapture();
+  StopCapture@1();
+
+  // Requests the speech recognition service to update the recognition context.
+  [MinVersion=1]
+  UpdateRecognitionContext@2(
+      SpeechRecognitionRecognitionContext recognition_context);
 };
 
 // API for the browser process to communicate speech recognition related updates
@@ -63,29 +117,30 @@ interface SpeechRecognitionSession {
 // process via SpeechRecognizer::Start. SpeechRecognitionSession and
 // SpeechRecognitionSessionClient are 1:1 with each other and with
 // WebSpeechRecognitionHandle.
+[Stable]
 interface SpeechRecognitionSessionClient {
   // Called to dispatch the "result" event.
-  ResultRetrieved(array<WebSpeechRecognitionResult> results);
+  ResultRetrieved@0(array<WebSpeechRecognitionResult> results);
 
   // Called to dispatch the "nomatch" event if the error code passed is of types
   // kNoMatch, otherwise dispatchers an "error" event.
-  ErrorOccurred(SpeechRecognitionError error);
+  ErrorOccurred@1(SpeechRecognitionError error);
 
   // Called to dispatch the "start" event.
-  Started();
+  Started@2();
 
   // Called to dispatch the "audiostart" event.
-  AudioStarted();
+  AudioStarted@3();
 
   // Called to  dispatch the "soundstart" and "speechstart" events.
-  SoundStarted();
+  SoundStarted@4();
 
   // Called to dispatch "soundend" and "speechend" events.
-  SoundEnded();
+  SoundEnded@5();
 
   // Called to dispatch the "audioend" event.
-  AudioEnded();
+  AudioEnded@6();
 
   // Called to dispatch the "end" event.
-  Ended();
+  Ended@7();
 };

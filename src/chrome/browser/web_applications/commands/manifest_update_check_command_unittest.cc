@@ -29,7 +29,6 @@
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
 #include "chrome/browser/web_applications/web_contents/web_app_icon_downloader.h"
-#include "components/services/app_service/public/cpp/url_handler_info.h"
 #include "components/webapps/browser/installable/installable_logging.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/web_contents_tester.h"
@@ -45,9 +44,14 @@ namespace {
 apps::FileHandlers CreateFileHandlersFromManifest(
     const std::vector<blink::mojom::ManifestFileHandlerPtr>& file_handler,
     const GURL& app_scope) {
-  WebAppInstallInfo web_app_info;
-  PopulateFileHandlerInfoFromManifest(file_handler, app_scope, &web_app_info);
-  return web_app_info.file_handlers;
+  // Make a fake WebAppInstallInfo to extract file_handlers data.
+  // TODO(b:341617121): Ideally `PopulateFileHandlerInfoFromManifest` would
+  // return the file handlers directly.
+  auto web_app_info =
+      WebAppInstallInfo::CreateWithStartUrlForTesting(app_scope);
+  PopulateFileHandlerInfoFromManifest(file_handler, app_scope,
+                                      web_app_info.get());
+  return web_app_info->file_handlers;
 }
 }  // namespace
 
@@ -413,8 +417,8 @@ class ManifestUpdateCheckCommandTest : public WebAppTest {
  private:
   blink::mojom::ManifestPtr GetManifestFromInfo(const WebAppInstallInfo& info) {
     auto manifest = blink::mojom::Manifest::New();
-    manifest->start_url = info.start_url;
-    manifest->id = GenerateManifestIdFromStartUrlOnly(info.start_url);
+    manifest->start_url = info.start_url();
+    manifest->id = GenerateManifestIdFromStartUrlOnly(info.start_url());
     manifest->scope = info.scope;
     manifest->display = info.display_mode;
     manifest->name = info.title;

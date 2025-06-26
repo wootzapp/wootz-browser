@@ -170,13 +170,21 @@ CellularNetworkMetricsLogger::~CellularNetworkMetricsLogger() = default;
 
 // static
 void CellularNetworkMetricsLogger::LogCreateCustomApnResult(
-    bool success,
-    chromeos::network_config::mojom::ApnPropertiesPtr apn) {
-  base::UmaHistogramBoolean(kCreateCustomApnResultHistogram, success);
+    CreateCustomApnResult result,
+    chromeos::network_config::mojom::ApnPropertiesPtr apn,
+    const std::optional<std::string>& shill_error) {
+  base::UmaHistogramEnumeration(kCreateCustomApnResultHistogram, result);
 
   // Only emit APN property metrics if the APN was successfully added.
-  if (!success)
+  if (result != CreateCustomApnResult::kSuccess) {
+    if (shill_error) {
+      ShillConnectResult connect_result =
+          ShillErrorToConnectResult(*shill_error);
+      base::UmaHistogramEnumeration(kCreateCustomApnShillErrorHistogram,
+                                    connect_result);
+    }
     return;
+  }
 
   base::UmaHistogramEnumeration(kCreateCustomApnAuthenticationTypeHistogram,
                                 apn->authentication);
@@ -303,8 +311,17 @@ void CellularNetworkMetricsLogger::LogManagedCustomApnMigrationType(
 }
 
 // static
-void CellularNetworkMetricsLogger::LogSmdsScanProfileCount(size_t count) {
-  base::UmaHistogramCounts100(kSmdsScanProfileCount, count);
+void CellularNetworkMetricsLogger::LogSmdsScanProfileCount(
+    size_t count,
+    SmdsScanMethod method) {
+  switch (method) {
+    case SmdsScanMethod::kViaPolicy:
+      base::UmaHistogramCounts100(kSmdsScanViaPolicyProfileCount, count);
+      break;
+    case SmdsScanMethod::kViaUser:
+      base::UmaHistogramCounts100(kSmdsScanViaUserProfileCount, count);
+      break;
+  }
 }
 
 // static
@@ -338,6 +355,12 @@ void CellularNetworkMetricsLogger::LogESimUserInstallMethod(
 void CellularNetworkMetricsLogger::LogESimPolicyInstallMethod(
     ESimPolicyInstallMethod method) {
   base::UmaHistogramEnumeration(kESimPolicyInstallMethod, method);
+}
+
+// static
+void CellularNetworkMetricsLogger::LogESimPolicyInstallNoAvailableProfiles(
+    ESimPolicyInstallMethod method) {
+  base::UmaHistogramEnumeration(kESimPolicyInstallNoAvailableProfiles, method);
 }
 
 // static

@@ -18,16 +18,15 @@
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
-#include "ui/views/controls/styled_label.h"
+#include "ui/views/controls/label.h"
 
 namespace {
 
 constexpr int kDeviceIconSize = 20;
 constexpr auto kDeviceIconBorder = gfx::Insets(6);
-constexpr gfx::Size kDeviceEntryViewSize{400, 30};
 
 void ChangeEntryColor(views::ImageView* image_view,
-                      views::StyledLabel* title_view,
+                      views::Label* title_view,
                       views::Label* subtitle_view,
                       const gfx::VectorIcon* icon,
                       SkColor foreground_color,
@@ -37,15 +36,12 @@ void ChangeEntryColor(views::ImageView* image_view,
                                                         kDeviceIconSize));
   }
 
-  title_view->SetDisplayedOnBackgroundColor(background_color);
+  title_view->SetBackgroundColor(background_color);
   if (!title_view->GetText().empty()) {
-    views::StyledLabel::RangeStyleInfo style_info;
-    style_info.text_style = views::style::STYLE_PRIMARY;
-    style_info.override_color = foreground_color;
-    title_view->ClearStyleRanges();
-    title_view->AddStyleRange(gfx::Range(0, title_view->GetText().length()),
-                              style_info);
-    title_view->SizeToFit(0);
+    title_view->SetTextStyleRange(
+        views::style::STYLE_PRIMARY,
+        gfx::Range(0, title_view->GetText().length()));
+    title_view->SetEnabledColor(foreground_color);
   }
 
   if (subtitle_view) {
@@ -109,9 +105,7 @@ AudioDeviceEntryView::AudioDeviceEntryView(PressedCallback callback,
 
   SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
   views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
-  views::InkDrop::Get(this)->SetBaseColor(foreground_color);
   SetHasInkDropActionOnClick(true);
-  SetPreferredSize(kDeviceEntryViewSize);
 }
 
 void AudioDeviceEntryView::SetHighlighted(bool highlighted) {
@@ -138,8 +132,6 @@ bool AudioDeviceEntryView::GetHighlighted() const {
 
 void AudioDeviceEntryView::OnColorsChanged(SkColor foreground_color,
                                            SkColor background_color) {
-  views::InkDrop::Get(this)->SetBaseColor(foreground_color);
-
   ChangeEntryColor(static_cast<views::ImageView*>(icon_view()), title(),
                    subtitle(), &icon(), foreground_color, background_color);
 
@@ -169,16 +161,13 @@ CastDeviceEntryView::CastDeviceEntryView(
 
   SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
   views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
-  views::InkDrop::Get(this)->SetBaseColor(foreground_color);
   SetHasInkDropActionOnClick(true);
-  SetPreferredSize(kDeviceEntryViewSize);
 }
 
 CastDeviceEntryView::~CastDeviceEntryView() = default;
 
 void CastDeviceEntryView::OnColorsChanged(SkColor foreground_color,
                                           SkColor background_color) {
-  views::InkDrop::Get(this)->SetBaseColor(foreground_color);
   ChangeCastEntryColor(foreground_color, background_color);
 }
 
@@ -218,9 +207,7 @@ CastDeviceEntryViewAsh::CastDeviceEntryViewAsh(
       device_(device->Clone()) {
   SetFocusBehavior(views::View::FocusBehavior::ALWAYS);
   views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
-  views::InkDrop::Get(this)->SetBaseColorId(background_color_id);
   SetHasInkDropActionOnClick(true);
-  SetPreferredSize(kDeviceEntryViewSize);
 }
 
 CastDeviceEntryViewAsh::~CastDeviceEntryViewAsh() = default;

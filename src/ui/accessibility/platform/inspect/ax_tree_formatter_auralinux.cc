@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/accessibility/platform/inspect/ax_tree_formatter_auralinux.h"
 
 #include <dbus/dbus.h>
@@ -13,6 +18,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
+#include "base/strings/to_string.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "ui/accessibility/platform/ax_platform_node_auralinux.h"
@@ -121,7 +127,6 @@ void AXTreeFormatterAuraLinux::RecursiveBuildTree(
   DCHECK(platform_node);
 
   AXPlatformNodeDelegate* node = platform_node->GetDelegate();
-  DCHECK(node);
 
   if (!ShouldDumpNode(*node))
     return;
@@ -434,7 +439,7 @@ void AXTreeFormatterAuraLinux::AddTableProperties(
   // Caption details.
   AtkObject* caption = atk_table_get_caption(table);
   table_properties.Append(
-      base::StringPrintf("caption=%s;", caption ? "true" : "false"));
+      base::StringPrintf("caption=%s;", base::ToString<bool>(caption)));
 
   // Summarize information about the cells from the table's perspective here.
   std::vector<std::string> span_info;
@@ -469,34 +474,18 @@ void AXTreeFormatterAuraLinux::AddTableCellProperties(
   int row = 0, col = 0, row_span = 0, col_span = 0;
   int n_row_headers = 0, n_column_headers = 0;
 
-  // Properties obtained via AtkTableCell, if possible. If we do not have at
-  // least ATK 2.12, use the same logic in our AtkTableCell implementation so
-  // that tests can still be run.
-  if (AtkTableCellInterface::Exists()) {
-    AtkTableCell* cell = G_TYPE_CHECK_INSTANCE_CAST(
-        (atk_object), AtkTableCellInterface::GetType(), AtkTableCell);
+  AtkTableCell* cell = G_TYPE_CHECK_INSTANCE_CAST(
+      (atk_object), atk_table_cell_get_type(), AtkTableCell);
 
-    AtkTableCellInterface::GetRowColumnSpan(cell, &row, &col, &row_span,
-                                            &col_span);
+  atk_table_cell_get_row_column_span(cell, &row, &col, &row_span, &col_span);
 
-    GPtrArray* column_headers =
-        AtkTableCellInterface::GetColumnHeaderCells(cell);
-    n_column_headers = column_headers->len;
-    g_ptr_array_unref(column_headers);
+  GPtrArray* column_headers = atk_table_cell_get_column_header_cells(cell);
+  n_column_headers = column_headers->len;
+  g_ptr_array_unref(column_headers);
 
-    GPtrArray* row_headers = AtkTableCellInterface::GetRowHeaderCells(cell);
-    n_row_headers = row_headers->len;
-    g_ptr_array_unref(row_headers);
-  } else {
-    row = node->GetTableRow().value_or(-1);
-    col = node->GetTableColumn().value_or(-1);
-    row_span = node->GetTableRowSpan().value_or(0);
-    col_span = node->GetTableColumnSpan().value_or(0);
-    if (role == ATK_ROLE_TABLE_CELL) {
-      n_column_headers = node->GetDelegate()->GetColHeaderNodeIds(col).size();
-      n_row_headers = node->GetDelegate()->GetRowHeaderNodeIds(row).size();
-    }
-  }
+  GPtrArray* row_headers = atk_table_cell_get_row_header_cells(cell);
+  n_row_headers = row_headers->len;
+  g_ptr_array_unref(row_headers);
 
   std::vector<std::string> cell_info;
   cell_info.push_back(base::StringPrintf("row=%i", row));
@@ -519,7 +508,6 @@ void AXTreeFormatterAuraLinux::AddProperties(AtkObject* atk_object,
   DCHECK(platform_node);
 
   AXPlatformNodeDelegate* node = platform_node->GetDelegate();
-  DCHECK(node);
 
   dict->Set("id", node->GetId());
 
@@ -623,31 +611,39 @@ const char* const ATK_OBJECT_ATTRIBUTES[] = {
     "colindex",
     "colspan",
     "coltext",
+    "colindextext",
     "container-atomic",
     "container-busy",
     "container-live",
     "container-relevant",
     "current",
+    "datetime",
     "description",
     "description-from",
+    "details-from",
     "details-roles",
     "display",
     "dropeffect",
     "explicit-name",
     "grabbed",
     "haspopup",
+    "has-interest-target",
     "hidden",
+    "html-input-name",
     "id",
     "keyshortcuts",
     "level",
     "link-target",
     "live",
+    "maxlength",
+    "name-from",
     "placeholder",
     "posinset",
     "relevant",
     "roledescription",
     "rowcount",
     "rowindex",
+    "rowindextext",
     "rowspan",
     "rowtext",
     "setsize",

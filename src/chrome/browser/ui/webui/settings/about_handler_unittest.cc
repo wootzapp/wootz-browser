@@ -12,6 +12,8 @@
 #include "chrome/browser/ash/extended_updates/extended_updates_controller.h"
 #include "chrome/browser/ash/extended_updates/test/mock_extended_updates_controller.h"
 #include "chrome/browser/ash/extended_updates/test/scoped_extended_updates_controller.h"
+#include "chrome/browser/ash/ownership/fake_owner_settings_service.h"
+#include "chrome/browser/ash/ownership/owner_settings_service_ash_factory.h"
 #include "chrome/browser/ash/settings/scoped_testing_cros_settings.h"
 #include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
@@ -32,6 +34,9 @@ namespace chromeos {
 namespace settings {
 
 namespace {
+
+constexpr std::string_view kExtendedUpdatesSettingChangedMessage =
+    "extended-updates-setting-changed";
 
 class TestAboutHandler : public ::settings::AboutHandler {
  public:
@@ -57,7 +62,13 @@ class AboutHandlerTest : public testing::Test {
         ash::UpdateEngineClient::InitializeFakeForTest();
     ash::ConciergeClient::InitializeFake(/*fake_cicerone_client=*/nullptr);
 
-    handler_ = std::make_unique<TestAboutHandler>(&profile_);
+    subscription_ = ash::FakeOwnerSettingsService::SetUpTestingFactory(
+        test_cros_settings_.device_settings(),
+        ash::OwnerSettingsServiceAshFactory::GetInstance()->GetOwnerKeyUtil());
+
+    profile_ = std::make_unique<TestingProfile>();
+
+    handler_ = std::make_unique<TestAboutHandler>(profile_.get());
     handler_->set_web_ui(&web_ui_);
     handler_->RegisterMessages();
     handler_->AllowJavascriptForTesting();
@@ -69,7 +80,10 @@ class AboutHandlerTest : public testing::Test {
   void TearDown() override {
     handler_.reset();
     fake_update_engine_client_ = nullptr;
-    TestingBrowserProcess::GetGlobal()->SetLocalState(nullptr);
+
+    profile_.reset();
+    subscription_ = {};
+
     ash::ConciergeClient::Shutdown();
     ash::UpdateEngineClient::Shutdown();
   }
@@ -113,11 +127,17 @@ class AboutHandlerTest : public testing::Test {
     fake_update_engine_client_->set_eol_date(utc_date);
   }
 
+  void RestartJavascript() {
+    handler_->DisallowJavascript();
+    handler_->AllowJavascriptForTesting();
+  }
+
  protected:
   content::BrowserTaskEnvironment task_environment_;
   ash::ScopedTestingCrosSettings test_cros_settings_;
   ash::ScopedStubInstallAttributes test_install_attributes_;
-  TestingProfile profile_;
+  base::CallbackListSubscription subscription_;
+  std::unique_ptr<TestingProfile> profile_;
   content::TestWebUI web_ui_;
   std::unique_ptr<TestAboutHandler> handler_;
   raw_ptr<ash::FakeUpdateEngineClient> fake_update_engine_client_;
@@ -255,13 +275,33 @@ TEST_F(AboutHandlerTest, ObservesExtendedUpdatesSettingChanges) {
       .WillOnce(Return(true));
 
   EXPECT_EQ(web_ui_.call_data().size(), 0u);
-  EXPECT_TRUE(mock_controller.OptIn(&profile_));
+  EXPECT_TRUE(mock_controller.OptIn(profile_.get()));
 
   ASSERT_EQ(web_ui_.call_data().size(), 1u);
   const auto& call_data = web_ui_.call_data()[0];
   ASSERT_EQ(call_data->args().size(), 1u);
   EXPECT_EQ(call_data->args()[0].GetString(),
-            "extended-updates-setting-changed");
+            kExtendedUpdatesSettingChangedMessage);
+}
+
+TEST_F(AboutHandlerTest, ObservesExtendedUpdatesSettingChangesAfterRefresh) {
+  // Simulate the disallowing and allowing of Javascript during a page refresh.
+  RestartJavascript();
+
+  ash::MockExtendedUpdatesController mock_controller;
+  ash::ScopedExtendedUpdatesController scoped_controller(&mock_controller);
+
+  EXPECT_CALL(mock_controller, HasOptInAbility(NotNull()))
+      .WillOnce(Return(true));
+
+  EXPECT_EQ(web_ui_.call_data().size(), 0u);
+  EXPECT_TRUE(mock_controller.OptIn(profile_.get()));
+
+  ASSERT_EQ(web_ui_.call_data().size(), 1u);
+  const auto& call_data = web_ui_.call_data()[0];
+  ASSERT_EQ(call_data->args().size(), 1u);
+  EXPECT_EQ(call_data->args()[0].GetString(),
+            kExtendedUpdatesSettingChangedMessage);
 }
 
 }  // namespace

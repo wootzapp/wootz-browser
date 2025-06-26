@@ -83,8 +83,7 @@ const char* TypeToString(DevicePermissionEntry::Type type) {
     case DevicePermissionEntry::Type::HID:
       return kDeviceTypeHid;
   }
-  NOTREACHED_IN_MIGRATION();
-  return "";
+  NOTREACHED();
 }
 
 // Persists a DevicePermissionEntry in ExtensionPrefs.
@@ -572,9 +571,9 @@ void DevicePermissionsManager::AllowHidDevice(
     // Make sure the HidDeviceManager is active. HidDeviceManager is
     // responsible for removing the permission entry for an ephemeral hid
     // device. Only do this when an ephemeral device has been added.
-    // HidDeviceManager* device_manager = HidDeviceManager::Get(context_);
-    // DCHECK(device_manager);
-    // device_manager->LazyInitialize();
+    HidDeviceManager* device_manager = HidDeviceManager::Get(context_);
+    DCHECK(device_manager);
+    device_manager->LazyInitialize();
   }
 }
 
@@ -603,7 +602,7 @@ void DevicePermissionsManager::RemoveEntry(
   } else if (entry->type_ == DevicePermissionEntry::Type::HID) {
     device_permissions->ephemeral_hid_devices_.erase(entry->device_guid_);
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -690,9 +689,8 @@ BrowserContext* DevicePermissionsManagerFactory::GetBrowserContextToUse(
     BrowserContext* context) const {
   // Return the original (possibly off-the-record) browser context so that a
   // separate instance of the DevicePermissionsManager is used in incognito
-  // mode. The parent class's implemenation returns NULL.
-  return ExtensionsBrowserClient::Get()->GetContextOwnInstance(
-      context, /*force_guest_profile=*/true);
+  // mode. The parent class's implementation returns null.
+  return ExtensionsBrowserClient::Get()->GetContextOwnInstance(context);
 }
 
 }  // namespace extensions

@@ -2,33 +2,34 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "gpu/command_buffer/service/passthrough_program_cache.h"
 
 #include <stddef.h>
 
 #include <string_view>
+#include <utility>
 
 #include "base/base64.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "ui/gl/gl_bindings.h"
-
-#if defined(USE_EGL)
 #include "ui/gl/gl_display.h"
 #include "ui/gl/gl_surface_egl.h"
-#endif  // defined(USE_EGL)
 
 namespace gpu {
 namespace gles2 {
 
 namespace {
 
-#if defined(USE_EGL)
 bool BlobCacheExtensionAvailable(gl::GLDisplayEGL* gl_display) {
   // The display should be initialized if the extension is available.
   return gl_display->ext->b_EGL_ANDROID_blob_cache;
 }
-#endif  // defined(USE_EGL)
 
 // EGL_ANDROID_blob_cache doesn't give user pointer to the callbacks so we are
 // forced to have this be global.
@@ -43,14 +44,11 @@ bool g_blob_cache_funcs_set = false;
 
 PassthroughProgramCache::PassthroughProgramCache(
     size_t max_cache_size_bytes,
-    bool disable_gpu_shader_disk_cache,
-    ValueAddedHook* value_added_hook)
+    bool disable_gpu_shader_disk_cache)
     : ProgramCache(max_cache_size_bytes),
       disable_gpu_shader_disk_cache_(disable_gpu_shader_disk_cache),
       curr_size_bytes_(0),
-      store_(ProgramLRUCache::NO_AUTO_EVICT),
-      value_added_hook_(value_added_hook) {
-#if defined(USE_EGL)
+      store_(ProgramLRUCache::NO_AUTO_EVICT) {
   gl::GLDisplayEGL* gl_display = gl::GLSurfaceEGL::GetGLDisplayEGL();
   EGLDisplay egl_display = gl_display->GetDisplay();
 
@@ -64,17 +62,14 @@ PassthroughProgramCache::PassthroughProgramCache(
     eglSetBlobCacheFuncsANDROID(egl_display, BlobCacheSet, BlobCacheGet);
     g_blob_cache_funcs_set = true;
   }
-#endif  // defined(USE_EGL)
 }
 
 PassthroughProgramCache::~PassthroughProgramCache() {
-#if defined(USE_EGL)
   // Clear up the blob cache callbacks.  Note that this not allowed by the
   // EGL_ANDROID_blob_cache spec, so we just set the pointer to this object to
   // nullptr as a workaround.  The callbacks don't work with this pointer
   // missing.
   g_program_cache = nullptr;
-#endif  // defined(USE_EGL)
 }
 
 void PassthroughProgramCache::ClearBackend() {
@@ -91,8 +86,7 @@ ProgramCache::ProgramLoadResult PassthroughProgramCache::LoadLinkedProgram(
     const std::vector<std::string>& transform_feedback_varyings,
     GLenum transform_feedback_buffer_mode,
     DecoderClient* client) {
-  NOTREACHED_IN_MIGRATION();
-  return PROGRAM_LOAD_FAILURE;
+  NOTREACHED();
 }
 
 void PassthroughProgramCache::SaveLinkedProgram(
@@ -103,7 +97,7 @@ void PassthroughProgramCache::SaveLinkedProgram(
     const std::vector<std::string>& transform_feedback_varyings,
     GLenum transform_feedback_buffer_mode,
     DecoderClient* client) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void PassthroughProgramCache::LoadProgram(const std::string& key,
@@ -138,7 +132,9 @@ bool PassthroughProgramCache::CacheEnabled() const {
   return !disable_gpu_shader_disk_cache_;
 }
 
-void PassthroughProgramCache::Set(Key&& key, Value&& value) {
+void PassthroughProgramCache::Set(Key&& key,
+                                  Value&& value,
+                                  CacheProgramCallback callback) {
   {
     base::AutoLock auto_lock(lock_);
     // If the value is so big it will never fit in the cache, throw it away.
@@ -156,13 +152,18 @@ void PassthroughProgramCache::Set(Key&& key, Value&& value) {
     // If the cache is overflowing, remove some old entries.
     DCHECK(max_size_bytes() >= value.size());
   }
+
   Trim(max_size_bytes() - value.size());
+
   {
     base::AutoLock auto_lock(lock_);
+
     // If callback is set, notify that there was a new/updated blob entry so it
     // can be stored in disk.  Note that this is done before the Put() call as
     // that consumes `value`.
-    if (cache_program_callback_) {
+    CacheProgramCallback callback_with_fallback =
+        callback ? callback : cache_program_callback_;
+    if (callback_with_fallback) {
       // Convert the key and binary to string form.
       std::string_view key_string(reinterpret_cast<const char*>(key.data()),
                                   key.size());
@@ -170,22 +171,38 @@ void PassthroughProgramCache::Set(Key&& key, Value&& value) {
                                     value.size());
       std::string key_string_64 = base::Base64Encode(key_string);
       std::string value_string_64 = base::Base64Encode(value_string);
-      cache_program_callback_.Run(key_string_64, value_string_64);
-    }
-
-    if (value_added_hook_) {
-      value_added_hook_->OnValueAddedToCache(key, value);
+      callback_with_fallback.Run(key_string_64, value_string_64);
     }
 
     store_.Put(key, ProgramCacheValue(std::move(value), this));
   }
 }
 
-const PassthroughProgramCache::ProgramCacheValue* PassthroughProgramCache::Get(
-    const Key& key) {
-  lock_.AssertAcquired();
+size_t PassthroughProgramCache::Get(const Key& key,
+                                    void* out_value,
+                                    size_t value_size) {
+  // Note that the |lock_| should be held during whole time ProgramCacheValue is
+  // being accessed below.
+  base::AutoLock auto_lock(lock_);
+
   ProgramLRUCache::iterator found = store_.Get(key);
-  return found == store_.end() ? nullptr : &found->second;
+
+  UMA_HISTOGRAM_BOOLEAN("Gpu.PassthroughProgramCacheLoadHitInCache",
+                        found != store_.end());
+
+  if (found == store_.end()) {
+    return 0;
+  }
+
+  const PassthroughProgramCache::Value& entry_value = found->second.data();
+
+  if (value_size > 0) {
+    if (static_cast<size_t>(value_size) >= entry_value.size()) {
+      memcpy(out_value, entry_value.data(), entry_value.size());
+    }
+  }
+
+  return entry_value.size();
 }
 
 EGLsizeiANDROID PassthroughProgramCache::BlobCacheGetImpl(
@@ -200,28 +217,26 @@ EGLsizeiANDROID PassthroughProgramCache::BlobCacheGetImpl(
   const uint8_t* key_begin = reinterpret_cast<const uint8_t*>(key);
   PassthroughProgramCache::Key entry_key(key_begin, key_begin + key_size);
 
-  // Note that the |lock_| should be held during whole time ProgramCacheValue is
-  // being accessed below.
-  base::AutoLock auto_lock(lock_);
-  const PassthroughProgramCache::ProgramCacheValue* cache_value =
-      g_program_cache->Get(std::move(entry_key));
+  return Get(entry_key, value, value_size);
+}
 
-  UMA_HISTOGRAM_BOOLEAN("Gpu.PassthroughProgramCacheLoadHitInCache",
-                        cache_value != nullptr);
-
-  if (!cache_value) {
-    return 0;
+void PassthroughProgramCache::BlobCacheSetImpl(const void* key,
+                                               EGLsizeiANDROID key_size,
+                                               const void* value,
+                                               EGLsizeiANDROID value_size) {
+  if (key_size < 0 || value_size < 0) {
+    return;
   }
 
-  const PassthroughProgramCache::Value& entry_value = cache_value->data();
+  const uint8_t* key_begin = reinterpret_cast<const uint8_t*>(key);
+  PassthroughProgramCache::Key entry_key(key_begin, key_begin + key_size);
 
-  if (value_size > 0) {
-    if (static_cast<size_t>(value_size) >= entry_value.size()) {
-      memcpy(value, entry_value.data(), entry_value.size());
-    }
-  }
+  const uint8_t* value_begin = reinterpret_cast<const uint8_t*>(value);
+  PassthroughProgramCache::Value entry_value(value_begin,
+                                             value_begin + value_size);
 
-  return entry_value.size();
+  // Pass a null callback to use the default cache_program_callback_
+  Set(std::move(entry_key), std::move(entry_value), CacheProgramCallback());
 }
 
 void PassthroughProgramCache::BlobCacheSet(const void* key,
@@ -231,17 +246,7 @@ void PassthroughProgramCache::BlobCacheSet(const void* key,
   if (!g_program_cache)
     return;
 
-  if (key_size < 0 || value_size < 0)
-    return;
-
-  const uint8_t* key_begin = reinterpret_cast<const uint8_t*>(key);
-  PassthroughProgramCache::Key entry_key(key_begin, key_begin + key_size);
-
-  const uint8_t* value_begin = reinterpret_cast<const uint8_t*>(value);
-  PassthroughProgramCache::Value entry_value(value_begin,
-                                             value_begin + value_size);
-
-  g_program_cache->Set(std::move(entry_key), std::move(entry_value));
+  g_program_cache->BlobCacheSetImpl(key, key_size, value, value_size);
 }
 
 EGLsizeiANDROID PassthroughProgramCache::BlobCacheGet(
@@ -263,15 +268,23 @@ PassthroughProgramCache::ProgramCacheValue::ProgramCacheValue(
 }
 
 PassthroughProgramCache::ProgramCacheValue::~ProgramCacheValue() {
-  program_cache_->curr_size_bytes_ -= program_blob_.size();
+  if (program_cache_) {
+    program_cache_->curr_size_bytes_ -= program_blob_.size();
+  }
 }
 
 PassthroughProgramCache::ProgramCacheValue::ProgramCacheValue(
-    ProgramCacheValue&& other) = default;
+    ProgramCacheValue&& other)
+    : program_blob_(std::move(other.program_blob_)),
+      program_cache_(std::exchange(other.program_cache_, nullptr)) {}
 
 PassthroughProgramCache::ProgramCacheValue&
 PassthroughProgramCache::ProgramCacheValue::operator=(
-    ProgramCacheValue&& other) = default;
+    ProgramCacheValue&& other) {
+  program_blob_ = std::move(other.program_blob_);
+  program_cache_ = std::exchange(other.program_cache_, nullptr);
+  return *this;
+}
 
 }  // namespace gles2
 }  // namespace gpu

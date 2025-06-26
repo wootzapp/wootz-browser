@@ -19,7 +19,6 @@
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/metrics/persistent_system_profile.h"
 
 namespace {
@@ -83,8 +82,15 @@ constexpr base::TimeDelta kDeleteOldWindowsTempFilesDelay = base::Minutes(2);
 // percentile around 3MiB as of 2018-10-22.
 // Please update ServicificationBackgroundServiceTest.java if the |kAllocSize|
 // is changed.
+// LINT.IfChange
 const size_t kAllocSize = 4 << 20;     // 4 MiB
 const uint32_t kAllocId = 0x935DDD43;  // SHA1(BrowserMetrics)
+
+base::FilePath GetSpareFilePath(const base::FilePath& metrics_dir) {
+  return base::GlobalHistogramAllocator::ConstructFilePath(
+      metrics_dir, kBrowserMetricsName + std::string("-spare"));
+}
+// LINT.ThenChange(/chrome/android/java/src/org/chromium/chrome/browser/backup/ChromeBackupAgentImpl.java)
 
 // Logged to UMA - keep in sync with enums.xml.
 enum InitResult {
@@ -97,11 +103,6 @@ enum InitResult {
   kNoUploadDir,
   kMaxValue = kNoUploadDir
 };
-
-base::FilePath GetSpareFilePath(const base::FilePath& metrics_dir) {
-  return base::GlobalHistogramAllocator::ConstructFilePath(
-      metrics_dir, kBrowserMetricsName + std::string("-spare"));
-}
 
 // Initializes persistent histograms with a memory-mapped file.
 InitResult InitWithMappedFile(const base::FilePath& metrics_dir,
@@ -248,9 +249,7 @@ void InstantiatePersistentHistograms(const base::FilePath& metrics_dir,
     }
   }
 
-// TODO(crbug.com/40118868): Revisit the macro expression once build flag switch
-// of lacros-chrome is complete.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS_LACROS)
+#if BUILDFLAG(IS_LINUX)
   // Linux kernel 4.4.0.* shows a huge number of SIGBUS crashes with persistent
   // histograms enabled using a mapped file.  Change this to use local memory.
   // https://bugs.chromium.org/p/chromium/issues/detail?id=753741

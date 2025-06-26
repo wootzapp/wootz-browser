@@ -158,14 +158,16 @@ public class PartnerBrowserCustomizationsUnitTest {
                 PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome-native://newtab")));
         Assert.assertTrue(
                 PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp://newtab")));
-        Assert.assertTrue(PartnerBrowserCustomizations.isValidHomepage(new GURL("wootzapp:newtab")));
+        Assert.assertTrue(PartnerBrowserCustomizations.isValidHomepage(new GURL("chrome:newtab")));
         Assert.assertTrue(
                 PartnerBrowserCustomizations.isValidHomepage(new GURL("http://example.com")));
         Assert.assertTrue(
                 PartnerBrowserCustomizations.isValidHomepage(new GURL("https:example.com")));
 
-        Assert.assertFalse(
-                PartnerBrowserCustomizations.isValidHomepage(new GURL("about://newtab")));
+        // TODO(crbug.com/40063064): Enable this test after the feature is
+        // shipped. See https://crrev.com/c/5595374 for details.
+        // Assert.assertTrue(
+        //         PartnerBrowserCustomizations.isValidHomepage(new GURL("about://newtab")));
         Assert.assertFalse(PartnerBrowserCustomizations.isValidHomepage(new GURL("about:newtab")));
         Assert.assertFalse(
                 PartnerBrowserCustomizations.isValidHomepage(

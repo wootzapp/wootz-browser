@@ -46,6 +46,7 @@ const char kSessionModelKey[] = "model";
 const char kSettingKey[] = "setting";
 const char kLastModifiedKey[] = "last_modified";
 const char kLifetimeKey[] = "lifetime";
+const char kDecidedByRelatedWebsiteSets[] = "decided_by_related_website_sets";
 
 const base::TimeDelta kLastUsedPermissionExpiration = base::Hours(24);
 
@@ -109,6 +110,12 @@ base::TimeDelta GetLifetime(const base::Value::Dict& dictionary) {
   return GetTimeDeltaFromDictKey(dictionary, kLifetimeKey);
 }
 
+// Extract a bool from `dictionary[kDecidedByRelatedWebsiteSets]`.
+// Will return false if no value exists for that key.
+bool GetDecidedByRelatedWebsiteSets(const base::Value::Dict& dictionary) {
+  return dictionary.FindBool(kDecidedByRelatedWebsiteSets).value_or(false);
+}
+
 // Extract a SessionModel from |dictionary[kSessionModelKey]|. Will return
 // SessionModel::DURABLE if no model exists.
 content_settings::mojom::SessionModel GetSessionModel(
@@ -123,36 +130,6 @@ content_settings::mojom::SessionModel GetSessionModel(
   content_settings::mojom::SessionModel session_model =
       static_cast<content_settings::mojom::SessionModel>(model_int);
   return session_model;
-}
-
-bool ShouldRemoveSetting(bool off_the_record,
-                         base::Time expiration,
-                         bool restore_session,
-                         content_settings::mojom::SessionModel session_model,
-                         base::Clock* clock) {
-  if (!base::FeatureList::IsEnabled(
-          content_settings::features::kActiveContentSettingExpiry) &&
-      !expiration.is_null() && expiration < clock->Now()) {
-    // Delete if an expiration date is set and in the past.
-    return true;
-  }
-
-  // Off the Record preferences are inherited from the parent profile, which
-  // has already been culled.
-  if (off_the_record)
-    return false;
-
-  // Clear non-restorable user session settings, or non-Durable settings when no
-  // restoring a previous session.
-  switch (session_model) {
-    case content_settings::mojom::SessionModel::DURABLE:
-      return false;
-    case content_settings::mojom::SessionModel::NON_RESTORABLE_USER_SESSION:
-      return true;
-    case content_settings::mojom::SessionModel::USER_SESSION:
-    case content_settings::mojom::SessionModel::ONE_TIME:
-      return !restore_session;
-  }
 }
 
 }  // namespace
@@ -218,7 +195,7 @@ void ContentSettingsPref::SetWebsiteSetting(
     const ContentSettingsPattern& primary_pattern,
     const ContentSettingsPattern& secondary_pattern,
     base::Value value,
-    const RuleMetaData& metadata,
+    RuleMetaData metadata,
     const PartitionKey& partition_key) {
   DCHECK(value.is_none() || IsValueAllowedForType(value, content_type_));
   DCHECK(thread_checker_.CalledOnValidThread());
@@ -235,8 +212,8 @@ void ContentSettingsPref::SetWebsiteSetting(
     base::AutoLock auto_lock(map_to_modify->GetLock());
     if (!value.is_none()) {
       if (!map_to_modify->SetValue(primary_pattern, secondary_pattern,
-                                   content_type_, value.Clone(), metadata,
-                                   partition_key)) {
+                                   content_type_, value.Clone(),
+                                   metadata.Clone(), partition_key)) {
         return;
       }
     } else {
@@ -248,8 +225,8 @@ void ContentSettingsPref::SetWebsiteSetting(
   }
   // Update the content settings preference.
   if (!off_the_record_ && !partition_key.in_memory()) {
-    UpdatePref(primary_pattern, secondary_pattern, std::move(value), metadata,
-               partition_key);
+    UpdatePref(primary_pattern, secondary_pattern, std::move(value),
+               std::move(metadata), partition_key);
   }
 
   notify_callback_.Run(primary_pattern, secondary_pattern, content_type_,
@@ -424,15 +401,18 @@ void ContentSettingsPref::ReadContentSettingsFromPrefForPartition(
 
     // Get settings dictionary for the current pattern string, and read
     // settings from the dictionary.
-    DCHECK(i.second.is_dict());
+    if(!i.second.is_dict()) {
+      LOG(ERROR) << "Invalid settings dictionary for pattern string: "
+                 << pattern_str << " with value: " << i.second.DebugString();
+      continue;
+    }
     const base::Value::Dict& settings_dictionary = i.second.GetDict();
 
     // Check to see if the setting is expired or not. This may be due to a past
     // expiration date or a SessionModel of UserSession.
     base::Time expiration = GetExpiration(settings_dictionary);
     mojom::SessionModel session_model = GetSessionModel(settings_dictionary);
-    if (ShouldRemoveSetting(off_the_record_, expiration, restore_session_,
-                            session_model, clock_)) {
+    if (ShouldRemoveSetting(expiration, session_model)) {
       expired_patterns_to_remove.push_back(pattern_str);
       continue;
     }
@@ -467,10 +447,12 @@ void ContentSettingsPref::ReadContentSettingsFromPrefForPartition(
       metadata.set_last_visited(last_visited);
       metadata.SetExpirationAndLifetime(expiration, lifetime);
       metadata.set_session_model(session_model);
+      metadata.set_decided_by_related_website_sets(
+          GetDecidedByRelatedWebsiteSets(settings_dictionary));
 
       value_map_.SetValue(std::move(pattern_pair.first),
                           std::move(pattern_pair.second), content_type_,
-                          value->Clone(), metadata, partition_key);
+                          value->Clone(), std::move(metadata), partition_key);
     }
   }
 
@@ -504,6 +486,32 @@ void ContentSettingsPref::ReadContentSettingsFromPrefForPartition(
       mutable_partition->SetWithoutPathExpansion(
           old_to_new_pattern.second, std::move(pattern_settings_dictionary));
     }
+  }
+}
+
+bool ContentSettingsPref::ShouldRemoveSetting(
+    base::Time expiration,
+    content_settings::mojom::SessionModel session_model) {
+  if (!content_settings::ShouldTypeExpireActively(content_type_) &&
+      !expiration.is_null() && expiration < clock_->Now()) {
+    // Delete if an expiration date is set and in the past.
+    return true;
+  }
+
+  // Off the Record preferences are inherited from the parent profile, which
+  // has already been culled.
+  if (off_the_record_) {
+    return false;
+  }
+
+  // Clear non-restorable user session settings, or non-Durable settings when no
+  // restoring a previous session.
+  switch (session_model) {
+    case content_settings::mojom::SessionModel::DURABLE:
+      return false;
+    case content_settings::mojom::SessionModel::USER_SESSION:
+    case content_settings::mojom::SessionModel::ONE_TIME:
+      return !restore_session_;
   }
 }
 
@@ -585,6 +593,8 @@ void ContentSettingsPref::UpdatePref(
       settings_dictionary->RemoveWithoutPathExpansion(kSessionModelKey,
                                                       nullptr);
       settings_dictionary->RemoveWithoutPathExpansion(kLifetimeKey, nullptr);
+      settings_dictionary->RemoveWithoutPathExpansion(
+          kDecidedByRelatedWebsiteSets, nullptr);
     } else {
       settings_dictionary->SetKey(kSettingKey, std::move(value));
       if (metadata.last_modified() != base::Time()) {
@@ -612,6 +622,11 @@ void ContentSettingsPref::UpdatePref(
         settings_dictionary->SetKey(
             kLifetimeKey, base::TimeDeltaToValue(metadata.lifetime()));
       }
+      if (metadata.decided_by_related_website_sets()) {
+        settings_dictionary->SetKey(
+            kDecidedByRelatedWebsiteSets,
+            base::Value(metadata.decided_by_related_website_sets()));
+      }
     }
 
     // Remove the settings dictionary if it is empty.
@@ -632,7 +647,7 @@ void ContentSettingsPref::AssertLockNotHeld() const {
 #endif
 }
 
-void ContentSettingsPref::SetClockForTesting(base::Clock* clock) {
+void ContentSettingsPref::SetClockForTesting(const base::Clock* clock) {
   clock_ = clock;
   value_map_.SetClockForTesting(clock);                 // IN-TEST
   off_the_record_value_map_.SetClockForTesting(clock);  // IN-TEST

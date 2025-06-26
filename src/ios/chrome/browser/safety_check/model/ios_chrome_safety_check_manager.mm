@@ -8,6 +8,7 @@
 
 #import "base/functional/bind.h"
 #import "base/location.h"
+#import "base/metrics/histogram_functions.h"
 #import "base/time/time.h"
 #import "base/values.h"
 #import "components/password_manager/core/browser/leak_detection/leak_detection_request_utils.h"
@@ -16,11 +17,14 @@
 #import "components/prefs/scoped_user_pref_update.h"
 #import "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #import "components/version_info/version_info.h"
-#import "ios/chrome/browser/omaha/model/omaha_service.h"
+#import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_constants.h"
+#import "ios/chrome/browser/ntp/shared/metrics/home_metrics.h"
 #import "ios/chrome/browser/safety_check/model/ios_chrome_safety_check_manager_utils.h"
+#import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
-#import "ios/chrome/browser/ui/content_suggestions/content_suggestions_constants.h"
-#import "ios/chrome/browser/ui/ntp/metrics/home_metrics.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/chrome/browser/shared/model/profile/profile_manager_ios.h"
+#import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/upgrade/model/upgrade_recommended_details.h"
 #import "ios/chrome/browser/upgrade/model/upgrade_utils.h"
 #import "ios/chrome/common/channel_info.h"
@@ -29,7 +33,7 @@ IOSChromeSafetyCheckManager::IOSChromeSafetyCheckManager(
     PrefService* pref_service,
     PrefService* local_pref_service,
     scoped_refptr<IOSChromePasswordCheckManager> password_check_manager,
-    const scoped_refptr<base::SequencedTaskRunner> task_runner)
+    scoped_refptr<base::SequencedTaskRunner> task_runner)
     : pref_service_(pref_service),
       local_pref_service_(local_pref_service),
       password_check_manager_(password_check_manager),
@@ -39,7 +43,11 @@ IOSChromeSafetyCheckManager::IOSChromeSafetyCheckManager(
   CHECK(password_check_manager_);
   CHECK(task_runner_);
 
-  password_check_manager_observation_.Observe(password_check_manager.get());
+  password_check_manager_->AddObserver(this);
+
+  if (IsOmahaServiceRefactorEnabled()) {
+    OmahaService::AddObserver(this);
+  }
 
   pref_change_registrar_.Init(pref_service);
 
@@ -56,6 +64,26 @@ IOSChromeSafetyCheckManager::IOSChromeSafetyCheckManager(
           weak_ptr_factory_.GetWeakPtr()));
 
   RestorePreviousSafetyCheckState();
+
+  // Run the Safety Check automatically, if eligible.
+  //
+  // TODO(crbug.com/354706390): Re-evaluate autorun eligibility during scene
+  // state changes for better accuracy and to support future increased autorun
+  // frequency.
+  //
+  // TODO(crbug.com/354707092): Replace
+  // `GetLastSafetyCheckRunTimeAcrossAllEntrypoints()` with
+  // `GetLastSafetyCheckRunTime()` once the Safety Check (via Settings) is
+  // refactored to use `IOSChromeSafetyCheckManager`. For now
+  // `GetLastSafetyCheckRunTimeAcrossAllEntrypoints()` returns the last run
+  // time, across both entry points.
+  if (IsSafetyCheckAutorunByManagerEnabled()) {
+    if (CanAutomaticallyRunSafetyCheck(
+            GetLatestSafetyCheckRunTimeAcrossAllEntrypoints(
+                local_pref_service))) {
+      StartSafetyCheck();
+    }
+  }
 }
 
 IOSChromeSafetyCheckManager::~IOSChromeSafetyCheckManager() {
@@ -64,6 +92,14 @@ IOSChromeSafetyCheckManager::~IOSChromeSafetyCheckManager() {
 
 void IOSChromeSafetyCheckManager::Shutdown() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  // `OmahaService` instances are not currently destroyed due to the
+  // `NoDestructor` implementation. This prevents `OmahaServiceObserver`'s
+  // `ServiceWillShutdown()` from being called as intended. As a workaround,
+  // manually remove the observation here to ensure proper cleanup.
+  if (IsOmahaServiceRefactorEnabled()) {
+    OmahaService::RemoveObserver(this);
+  }
 
   for (auto& observer : observers_) {
     observer.ManagerWillShutdown(this);
@@ -74,7 +110,15 @@ void IOSChromeSafetyCheckManager::Shutdown() {
   pref_change_registrar_.RemoveAll();
   pref_service_ = nullptr;
   local_pref_service_ = nullptr;
-  password_check_manager_observation_.Reset();
+
+  if (password_check_manager_) {
+    password_check_manager_->RemoveObserver(this);
+    password_check_manager_ = nullptr;
+  }
+
+  if (IsOmahaServiceRefactorEnabled()) {
+    CHECK(!OmahaServiceObserver::IsInObserverList());
+  }
 }
 
 void IOSChromeSafetyCheckManager::StartSafetyCheck() {
@@ -124,13 +168,13 @@ void IOSChromeSafetyCheckManager::RestorePreviousSafetyCheckState() {
   }
 
   password_manager::InsecurePasswordCounts insecure_password_counts =
-      DictToInsecurePasswordCounts(local_pref_service_->GetDict(
+      DictToInsecurePasswordCounts(pref_service_->GetDict(
           prefs::kIosSafetyCheckManagerInsecurePasswordCounts));
   insecure_password_counts_ = insecure_password_counts;
   previous_insecure_password_counts_ = insecure_password_counts;
 
   std::optional<PasswordSafetyCheckState> password_check_state =
-      PasswordSafetyCheckStateForName(local_pref_service_->GetString(
+      PasswordSafetyCheckStateForName(pref_service_->GetString(
           prefs::kIosSafetyCheckManagerPasswordCheckResult));
 
   if (password_check_state.has_value() &&
@@ -236,6 +280,40 @@ void IOSChromeSafetyCheckManager::InsecureCredentialsChanged() {
           weak_ptr_factory_.GetWeakPtr()));
 }
 
+void IOSChromeSafetyCheckManager::ManagerWillShutdown(
+    IOSChromePasswordCheckManager* password_check_manager) {
+  CHECK_EQ(password_check_manager, password_check_manager_);
+  password_check_manager_->RemoveObserver(this);
+  password_check_manager_ = nullptr;
+}
+
+void IOSChromeSafetyCheckManager::OnServiceStarted(
+    OmahaService* omaha_service) {
+  CHECK(IsOmahaServiceRefactorEnabled());
+
+  if (omaha_check_queued_) {
+    omaha_check_queued_ = false;
+    StartOmahaCheck();
+  }
+}
+
+void IOSChromeSafetyCheckManager::UpgradeRecommendedDetailsChanged(
+    UpgradeRecommendedDetails details) {
+  CHECK(IsOmahaServiceRefactorEnabled());
+
+  task_runner_->PostTask(
+      FROM_HERE,
+      base::BindOnce(&IOSChromeSafetyCheckManager::HandleOmahaResponse,
+                     weak_ptr_factory_.GetWeakPtr(), details));
+}
+
+void IOSChromeSafetyCheckManager::ServiceWillShutdown(
+    OmahaService* omaha_service) {
+  CHECK(IsOmahaServiceRefactorEnabled());
+
+  omaha_service->RemoveObserver(this);
+}
+
 SafeBrowsingSafetyCheckState
 IOSChromeSafetyCheckManager::GetSafeBrowsingCheckState() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
@@ -293,13 +371,6 @@ void IOSChromeSafetyCheckManager::SetSafeBrowsingCheckState(
   }
 
   safe_browsing_check_state_ = state;
-
-  // The safe browsing state changed, log a freshness signal for Safety Check.
-  bool should_log_freshness = state != SafeBrowsingSafetyCheckState::kDefault;
-
-  if (should_log_freshness) {
-    RecordModuleFreshnessSignal(ContentSuggestionsModuleType::kSafetyCheck);
-  }
 
   local_pref_service_->SetString(
       prefs::kIosSafetyCheckManagerSafeBrowsingCheckResult,
@@ -383,17 +454,21 @@ void IOSChromeSafetyCheckManager::SetPasswordCheckState(
        state == PasswordSafetyCheckState::kSafe);
 
   if (should_log_freshness) {
-    RecordModuleFreshnessSignal(ContentSuggestionsModuleType::kSafetyCheck);
+    RecordModuleFreshnessSignal(ContentSuggestionsModuleType::kSafetyCheck,
+                                pref_service_);
+    base::UmaHistogramEnumeration(
+        "IOS.SafetyCheck.FreshnessTrigger",
+        IOSSafetyCheckFreshnessTrigger::kPasswordCheckStateChanged);
   }
 
   password_check_state_ = state;
 
-  local_pref_service_->SetString(
-      prefs::kIosSafetyCheckManagerPasswordCheckResult,
-      NameForSafetyCheckState(state));
+  pref_service_->SetString(prefs::kIosSafetyCheckManagerPasswordCheckResult,
+                           NameForSafetyCheckState(state));
 
   for (auto& observer : observers_) {
-    observer.PasswordCheckStateChanged(password_check_state_);
+    observer.PasswordCheckStateChanged(password_check_state_,
+                                       insecure_password_counts_);
   }
 
   RefreshSafetyCheckRunningState();
@@ -410,7 +485,7 @@ void IOSChromeSafetyCheckManager::SetInsecurePasswordCounts(
   insecure_password_counts_ = counts;
 
   ScopedDictPrefUpdate insecure_password_counts_update(
-      local_pref_service_, prefs::kIosSafetyCheckManagerInsecurePasswordCounts);
+      pref_service_, prefs::kIosSafetyCheckManagerInsecurePasswordCounts);
 
   insecure_password_counts_update->Set(kSafetyCheckCompromisedPasswordsCountKey,
                                        counts.compromised_count);
@@ -440,7 +515,11 @@ void IOSChromeSafetyCheckManager::SetUpdateChromeCheckState(
        state == UpdateChromeSafetyCheckState::kUpToDate);
 
   if (should_log_freshness) {
-    RecordModuleFreshnessSignal(ContentSuggestionsModuleType::kSafetyCheck);
+    RecordModuleFreshnessSignal(ContentSuggestionsModuleType::kSafetyCheck,
+                                pref_service_);
+    base::UmaHistogramEnumeration(
+        "IOS.SafetyCheck.FreshnessTrigger",
+        IOSSafetyCheckFreshnessTrigger::kUpdateChromeCheckStateChanged);
   }
 
   update_chrome_check_state_ = state;
@@ -486,6 +565,17 @@ void IOSChromeSafetyCheckManager::UpdateSafeBrowsingCheckState() {
 void IOSChromeSafetyCheckManager::StartOmahaCheck() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
+  if (IsOmahaServiceRefactorEnabled() && !OmahaService::HasStarted()) {
+    omaha_check_queued_ = true;
+    return;
+  }
+
+  StartOmahaCheckInternal();
+}
+
+void IOSChromeSafetyCheckManager::StartOmahaCheckInternal() {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
   SetUpdateChromeCheckState(UpdateChromeSafetyCheckState::kRunning);
 
   // Only make Omaha requests on the proper channels.
@@ -503,7 +593,7 @@ void IOSChromeSafetyCheckManager::StartOmahaCheck() {
       break;
   }
 
-  // If the Omaha response isn't recieved after `kOmahaNetworkWaitTime`,
+  // If the Omaha response isn't received after `kOmahaNetworkWaitTime`,
   // consider this an Omaha failure.
   task_runner_->PostDelayedTask(
       FROM_HERE,
@@ -607,13 +697,12 @@ void IOSChromeSafetyCheckManager::RemoveObserver(
 
 void IOSChromeSafetyCheckManager::StartOmahaCheckForTesting() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  StartOmahaCheck();
+  StartOmahaCheckInternal();
 }
 
-void IOSChromeSafetyCheckManager::HandleOmahaResponseForTesting(
-    UpgradeRecommendedDetails details) {
+bool IOSChromeSafetyCheckManager::IsOmahaCheckQueuedForTesting() const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  HandleOmahaResponse(details);
+  return omaha_check_queued_;
 }
 
 RunningSafetyCheckState

@@ -31,12 +31,12 @@ namespace {
 
 class TestSyncService : public syncer::TestSyncService {
  public:
-  TestSyncService() {}
+  TestSyncService() = default;
 
   TestSyncService(const TestSyncService&) = delete;
   TestSyncService& operator=(const TestSyncService&) = delete;
 
-  ~TestSyncService() override {}
+  ~TestSyncService() override = default;
 
   // syncer::SyncService:
   void AddObserver(syncer::SyncServiceObserver* observer) override {
@@ -84,7 +84,7 @@ class TestExternalPrefLoader : public ExternalPrefLoader {
   }
 
  private:
-  ~TestExternalPrefLoader() override {}
+  ~TestExternalPrefLoader() override = default;
   base::OnceClosure load_callback_;
 };
 
@@ -135,7 +135,7 @@ TEST_F(ExternalPrefLoaderTest, PrefReadInitiatesCorrectly) {
 
   // Initially CanSyncFeatureStart() returns true, returning false will let
   // |loader| proceed.
-  sync_service()->SetHasSyncConsent(false);
+  sync_service()->SetSignedIn(signin::ConsentLevel::kSignin);
   ASSERT_FALSE(sync_service()->CanSyncFeatureStart());
   sync_service()->FireOnStateChanged();
   run_loop.Run();

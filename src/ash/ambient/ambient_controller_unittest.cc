@@ -26,7 +26,6 @@
 #include "ash/assistant/assistant_interaction_controller_impl.h"
 #include "ash/constants/ambient_time_of_day_constants.h"
 #include "ash/constants/ambient_video.h"
-#include "ash/constants/ash_features.h"
 #include "ash/constants/ash_paths.h"
 #include "ash/login/login_screen_controller.h"
 #include "ash/login/ui/lock_screen.h"
@@ -55,7 +54,6 @@
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/metrics/user_action_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/scoped_path_override.h"
 #include "base/test/scoped_run_loop_timeout.h"
 #include "base/test/test_future.h"
@@ -64,6 +62,7 @@
 #include "chromeos/ash/components/assistant/buildflags.h"
 #include "chromeos/ash/components/dbus/dlcservice/dlcservice.pb.h"
 #include "chromeos/ash/components/dbus/dlcservice/fake_dlcservice_client.h"
+#include "chromeos/ash/services/assistant/public/cpp/features.h"
 #include "chromeos/ash/services/libassistant/public/cpp/assistant_interaction_metadata.h"
 #include "chromeos/dbus/power_manager/suspend.pb.h"
 #include "net/base/url_util.h"
@@ -198,9 +197,7 @@ class AmbientControllerTest : public AmbientAshTestBase {
   // AmbientAshTestBase:
   void SetUp() override {
     std::vector<base::test::FeatureRef> features_to_enable =
-        personalization_app::GetTimeOfDayEnabledFeatures();
-    features_to_enable.emplace_back(features::kTimeOfDayDlc);
-    features_to_enable.emplace_back(features::kAmbientModeThrottleAnimation);
+        personalization_app::GetTimeOfDayFeatures();
     feature_list_.InitWithFeatures(features_to_enable, {});
     AmbientAshTestBase::SetUp();
     GetSessionControllerClient()->set_show_lock_screen_views(true);
@@ -387,7 +384,7 @@ TEST_P(AmbientControllerTestForAnyUiSettings,
             AmbientUiVisibility::kShouldShow);
   EXPECT_TRUE(ambient_controller()->ShouldShowAmbientUi());
 
-  SimulateUserLogin(kUser2);
+  SimulateUserLogin({kUser2});
   EXPECT_EQ(AmbientUiModel::Get()->ui_visibility(),
             AmbientUiVisibility::kClosed);
   EXPECT_FALSE(ambient_controller()->ShouldShowAmbientUi());
@@ -430,15 +427,6 @@ TEST_F(AmbientControllerTest, ConsumerShouldNotRecordManagedMetrics) {
 
   SetAmbientModeEnabled(false);
 
-  {
-    base::test::ScopedFeatureList scoped_feature_list(
-        ash::features::kAmbientModeManagedScreensaver);
-
-    SetAmbientModeEnabled(true);
-
-    SetAmbientModeEnabled(false);
-  }
-
   histogram_tester.ExpectTotalCount(
       GetManagedScreensaverHistogram(kManagedScreensaverEnabledUMA),
       /*expected_count=*/0);
@@ -447,7 +435,7 @@ TEST_F(AmbientControllerTest, ConsumerShouldNotRecordManagedMetrics) {
 TEST_F(AmbientControllerTest, NotShowAmbientWhenLockSecondaryUser) {
   // Simulate the login screen.
   ClearLogin();
-  SimulateUserLogin(kUser1);
+  SimulateUserLogin({kUser1});
   SetAmbientModeEnabled(true);
 
   LockScreen();
@@ -459,7 +447,7 @@ TEST_F(AmbientControllerTest, NotShowAmbientWhenLockSecondaryUser) {
             AmbientUiVisibility::kShouldShow);
   EXPECT_TRUE(ambient_controller()->ShouldShowAmbientUi());
 
-  SimulateUserLogin(kUser2);
+  SimulateUserLogin({kUser2});
   SetAmbientModeEnabled(true);
 
   // Ambient mode should not show for second user even if that user has the pref
@@ -524,7 +512,7 @@ TEST_P(AmbientControllerTestForAnyUiSettings, ShouldReturnCachedAccessToken) {
   base::OnceClosure closure = base::MakeExpectedRunClosure(FROM_HERE);
   base::RunLoop run_loop;
   ambient_controller()->RequestAccessToken(base::BindLambdaForTesting(
-      [&](const std::string& gaia_id, const std::string& access_token_fetched) {
+      [&](const GaiaId& gaia_id, const std::string& access_token_fetched) {
         EXPECT_EQ(access_token_fetched, TestAmbientClient::kTestAccessToken);
 
         std::move(closure).Run();
@@ -565,7 +553,7 @@ TEST_F(AmbientControllerTest, ShouldReturnEmptyAccessToken) {
   base::OnceClosure closure = base::MakeExpectedRunClosure(FROM_HERE);
   base::RunLoop run_loop_1;
   ambient_controller()->RequestAccessToken(base::BindLambdaForTesting(
-      [&](const std::string& gaia_id, const std::string& access_token_fetched) {
+      [&](const GaiaId& gaia_id, const std::string& access_token_fetched) {
         EXPECT_EQ(access_token_fetched, TestAmbientClient::kTestAccessToken);
 
         std::move(closure).Run();
@@ -581,7 +569,7 @@ TEST_F(AmbientControllerTest, ShouldReturnEmptyAccessToken) {
 
   closure = base::MakeExpectedRunClosure(FROM_HERE);
   ambient_controller()->RequestAccessToken(base::BindLambdaForTesting(
-      [&](const std::string& gaia_id, const std::string& access_token_fetched) {
+      [&](const GaiaId& gaia_id, const std::string& access_token_fetched) {
         EXPECT_TRUE(access_token_fetched.empty());
 
         std::move(closure).Run();
@@ -874,7 +862,7 @@ TEST_F(AmbientControllerTest, ShouldResetLockScreenInactivityTimerOnEvent) {
   // not hooked up to `UserActivityDetector` in this test environment, so
   // manually trigger `UserActivityDetector` ourselves.
   auto* user_activity_detector = ui::UserActivityDetector::Get();
-  ui::KeyEvent event(ui::ET_KEY_PRESSED, ui::VKEY_A, ui::EF_NONE);
+  ui::KeyEvent event(ui::EventType::kKeyPressed, ui::VKEY_A, ui::EF_NONE);
   user_activity_detector->DidProcessEvent(&event);
   EXPECT_EQ(AmbientUiVisibility::kShouldShow, ambient_ui_model->ui_visibility())
       << "Still shown because waiting for `OnKeyEvent` to be called";
@@ -1458,27 +1446,25 @@ TEST_F(AmbientControllerTest, BindsObserversWhenAmbientEnabled) {
 
 TEST_F(AmbientControllerTest, SwitchActiveUsersDoesNotDoubleBindObservers) {
   ClearLogin();
-  SimulateUserLogin(kUser1);
+  SimulateUserLogin({kUser1});
   SetAmbientModeEnabled(true);
-
-  TestSessionControllerClient* session = GetSessionControllerClient();
 
   // Observers are bound for primary user with Ambient mode enabled.
   EXPECT_TRUE(AreSessionSpecificObserversBound());
   EXPECT_TRUE(IsPrefObserved(ambient::prefs::kAmbientModeEnabled));
 
   // Observers are still bound when secondary user logs in.
-  SimulateUserLogin(kUser2);
+  SimulateUserLogin({kUser2});
   EXPECT_TRUE(AreSessionSpecificObserversBound());
   EXPECT_TRUE(IsPrefObserved(ambient::prefs::kAmbientModeEnabled));
 
   // Observers are not re-bound for primary user when session is active.
-  session->SwitchActiveUser(AccountId::FromUserEmail(kUser1));
+  SwitchActiveUser(AccountId::FromUserEmail(kUser1));
   EXPECT_TRUE(AreSessionSpecificObserversBound());
   EXPECT_TRUE(IsPrefObserved(ambient::prefs::kAmbientModeEnabled));
 
   //  Switch back to secondary user.
-  session->SwitchActiveUser(AccountId::FromUserEmail(kUser2));
+  SwitchActiveUser(AccountId::FromUserEmail(kUser2));
 }
 
 TEST_F(AmbientControllerTest, BindsObserversWhenAmbientOn) {
@@ -1504,6 +1490,11 @@ TEST_F(AmbientControllerTest, BindsObserversWhenAmbientOn) {
 
 TEST_P(AmbientControllerTestForAnyUiSettings,
        ShowDismissAmbientScreenUponAssistantQuery) {
+  if (ash::assistant::features::IsNewEntryPointEnabled()) {
+    GTEST_SKIP() << "Assistant is not available if new entry point is enabled. "
+                    "crbug.com/388361414";
+  }
+
   // Without user interaction, should show ambient mode.
   SetAmbientShownAndWaitForWidgets();
   EXPECT_TRUE(ambient_controller()->ShouldShowAmbientUi());
@@ -1646,8 +1637,9 @@ TEST_F(AmbientControllerTest,
   ambient_controller()->SetUiVisibilityPreview();
   EXPECT_TRUE(ambient_controller()->ShouldShowAmbientUi());
 
-  ui::MouseEvent mouse_event(ui::ET_MOUSE_RELEASED, gfx::Point(), gfx::Point(),
-                             base::TimeTicks(), ui::EF_NONE, ui::EF_NONE);
+  ui::MouseEvent mouse_event(ui::EventType::kMouseReleased, gfx::Point(),
+                             gfx::Point(), base::TimeTicks(), ui::EF_NONE,
+                             ui::EF_NONE);
   ui::UserActivityDetector::Get()->DidProcessEvent(&mouse_event);
   FastForwardTiny();
 
@@ -1743,8 +1735,6 @@ class AmbientControllerForManagedScreensaverTest : public AmbientAshTestBase {
             ash::DIR_DEVICE_POLICY_SCREENSAVER_DATA, temp_dir_.GetPath());
   }
   void SetUp() override {
-    scoped_feature_list_.InitAndEnableFeature(
-        ash::features::kAmbientModeManagedScreensaver);
     AmbientAshTestBase::SetUp();
     // Disable consumer ambient mode
     SetAmbientModeEnabled(false);
@@ -1778,7 +1768,6 @@ class AmbientControllerForManagedScreensaverTest : public AmbientAshTestBase {
     EXPECT_TRUE(ambient_controller()->ShouldShowAmbientUi());
   }
 
-  base::test::ScopedFeatureList scoped_feature_list_;
   InProcessDataDecoder decoder_;
   std::vector<base::FilePath> image_file_paths_;
   base::ScopedTempDir temp_dir_;
@@ -2058,7 +2047,7 @@ TEST_F(AmbientControllerForManagedScreensaverLoginScreenTest,
   ASSERT_TRUE(GetContainerView());
 
   // Simulate user session start (e.g. user login)
-  CreateUserSessions(/*session_count=*/1);
+  SimulateUserLogin(kRegularUserLoginInfo);
 
   // Confirm that ambient mode is not shown if disabled. (disabled by default)
   FastForwardByLockScreenInactivityTimeout();
@@ -2108,7 +2097,7 @@ TEST_F(AmbientControllerForManagedScreensaverLoginScreenTest,
   EXPECT_FALSE(ambient_controller()->ShouldShowAmbientUi());
 
   // Simulate login
-  CreateUserSessions(/*session_count=*/1);
+  SimulateUserLogin(kRegularUserLoginInfo);
   EXPECT_FALSE(ambient_controller()->ShouldShowAmbientUi());
 
   SetAmbientModeManagedScreensaverEnabled(true);
@@ -2141,7 +2130,7 @@ TEST_F(AmbientControllerForManagedScreensaverLoginScreenTest,
   EXPECT_FALSE(ambient_controller()->ShouldShowAmbientUi());
 
   // Simulate login
-  CreateUserSessions(/*session_count=*/1);
+  SimulateUserLogin(kRegularUserLoginInfo);
   EXPECT_FALSE(ambient_controller()->ShouldShowAmbientUi());
 
   SetAmbientModeManagedScreensaverEnabled(true);
@@ -2342,9 +2331,6 @@ class AmbientControllerDurationTest : public AmbientAshTestBase {
     AmbientAshTestBase::SetUp();
     GetSessionControllerClient()->set_show_lock_screen_views(true);
   }
-
- protected:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_F(AmbientControllerDurationTest, SetScreenSaverDuration) {
@@ -2366,7 +2352,7 @@ TEST_F(AmbientControllerDurationTest, SetScreenSaverDuration) {
 TEST_F(AmbientControllerDurationTest, AcquireWakeLockAfterScreenSaverStarts) {
   // Simulate User logged in.
   ClearLogin();
-  SimulateUserLogin(kUser1);
+  SimulateUserLogin({kUser1});
 
   // Set screen saver duration to forever.
   SetAmbientModeEnabled(true);
@@ -2407,7 +2393,7 @@ TEST_F(AmbientControllerDurationTest, AcquireWakeLockAfterScreenSaverStarts) {
 TEST_F(AmbientControllerDurationTest, ReleaseWakeLockWhenDurationIsReached) {
   // Simulate User logged in.
   ClearLogin();
-  SimulateUserLogin(kUser1);
+  SimulateUserLogin({kUser1});
 
   // Simulate a device being connected to a charger initially.
   SetPowerStateCharging();
@@ -2438,7 +2424,7 @@ TEST_F(AmbientControllerDurationTest, ReleaseWakeLockWhenDurationIsReached) {
 TEST_F(AmbientControllerDurationTest, HoldWakeLockIfDurationIsSetToForever) {
   // Simulate User logged in.
   ClearLogin();
-  SimulateUserLogin(kUser1);
+  SimulateUserLogin({kUser1});
 
   // Simulate a device being connected to a charger initially.
   SetPowerStateCharging();
@@ -2471,7 +2457,7 @@ TEST_F(AmbientControllerDurationTest, HoldWakeLockIfDurationIsSetToForever) {
 
 TEST_F(AmbientControllerDurationTest, DoNotAcquireWakeLockOnBatteryMode) {
   ClearLogin();
-  SimulateUserLogin(kUser1);
+  SimulateUserLogin({kUser1});
 
   // Set power to battery mode.
   SetPowerStateDischarging();
@@ -2491,7 +2477,7 @@ TEST_F(AmbientControllerDurationTest, DoNotAcquireWakeLockOnBatteryMode) {
 
 TEST_F(AmbientControllerDurationTest, AcquireWakeLockWhileOnAcMode) {
   ClearLogin();
-  SimulateUserLogin(kUser1);
+  SimulateUserLogin({kUser1});
 
   // Set power to AC mode, charging.
   SetPowerStateCharging();
@@ -2511,7 +2497,7 @@ TEST_F(AmbientControllerDurationTest, AcquireWakeLockWhileOnAcMode) {
 
 TEST_F(AmbientControllerDurationTest, ReleaseWakeLockWhenUnplugged) {
   ClearLogin();
-  SimulateUserLogin(kUser1);
+  SimulateUserLogin({kUser1});
 
   // Set power to AC mode. Verify that wake lock is acquired.
   SetPowerStateCharging();

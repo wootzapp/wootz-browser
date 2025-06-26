@@ -10,8 +10,9 @@
 
 #import "base/strings/string_split.h"
 #import "base/strings/string_util.h"
+#import "components/tab_groups/tab_group_id.h"
 #import "components/tab_groups/tab_group_visual_data.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/web_state_list/tab_group.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
@@ -79,8 +80,7 @@ std::vector<Token> TokenizeWebStateListDescription(
 }
 
 // Creates a fake WebState with navigation items.
-std::unique_ptr<web::WebState> CreateWebState(
-    ChromeBrowserState* browser_state) {
+std::unique_ptr<web::WebState> CreateWebState(ProfileIOS* profile) {
   const GURL url = GURL(kChromeUIVersionURL);
   auto navigation_manager = std::make_unique<web::FakeNavigationManager>();
   navigation_manager->AddItem(url, ui::PAGE_TRANSITION_TYPED);
@@ -90,7 +90,7 @@ std::unique_ptr<web::WebState> CreateWebState(
   web_state->SetNavigationManager(std::move(navigation_manager));
   web_state->SetNavigationItemCount(1);
   web_state->SetVisibleURL(url);
-  web_state->SetBrowserState(browser_state);
+  web_state->SetBrowserState(profile);
   web_state->SetWebFramesManager(web::ContentWorld::kAllContentWorlds,
                                  std::make_unique<web::FakeWebFramesManager>());
   web_state->SetWebFramesManager(web::ContentWorld::kPageContentWorld,
@@ -116,10 +116,10 @@ WebStateListBuilderFromDescription::~WebStateListBuilderFromDescription() {
 
 bool WebStateListBuilderFromDescription::BuildWebStateListFromDescription(
     std::string_view description,
-    ChromeBrowserState* browser_state) {
+    ProfileIOS* profile) {
   return BuildWebStateListFromDescription(
       description,
-      base::BindRepeating(CreateWebState, base::Unretained(browser_state)));
+      base::BindRepeating(CreateWebState, base::Unretained(profile)));
 }
 
 bool WebStateListBuilderFromDescription::BuildWebStateListFromDescription(
@@ -203,7 +203,8 @@ bool WebStateListBuilderFromDescription::BuildWebStateListFromDescription(
         }
         const TabGroup* created_group = web_state_list_->CreateGroup(
             std::move(indices_for_current_tab_group),
-            tab_groups::TabGroupVisualData());
+            tab_groups::TabGroupVisualData(),
+            tab_groups::TabGroupId::GenerateNew());
         SetTabGroupIdentifier(created_group, identifier_for_current_tab_group);
         identifier_for_current_tab_group = 0;
         break;
@@ -464,7 +465,6 @@ void WebStateListBuilderFromDescription::WebStateListDidChange(
 
 void WebStateListBuilderFromDescription::WebStateListDestroyed(
     WebStateList* web_state_list) {
-  NOTREACHED_IN_MIGRATION()
-      << "WebStateListBuilderFromDescription shouldn’t outlive its "
-         "WebStateList";
+  NOTREACHED() << "WebStateListBuilderFromDescription shouldn’t outlive its "
+                  "WebStateList";
 }

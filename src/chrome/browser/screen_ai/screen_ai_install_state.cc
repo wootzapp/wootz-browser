@@ -7,44 +7,37 @@
 #include <memory>
 
 #include "base/check_is_test.h"
+#include "base/cpu.h"
 #include "base/files/file_path.h"
-#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
-#include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "chrome/browser/browser_process.h"
 #include "chrome/browser/screen_ai/pref_names.h"
 #include "components/prefs/pref_service.h"
-#include "content/public/browser/browser_thread.h"
 #include "services/screen_ai/public/cpp/utilities.h"
 #include "ui/accessibility/accessibility_features.h"
 
-#if BUILDFLAG(IS_LINUX)
-#include "base/cpu.h"
-#include "base/files/file_util.h"
-#endif
-
 namespace {
+// crbug.com/406145318 and crbug.com/381000306
+const char kMinExpectedVersion[] = "136.00";
 const int kScreenAICleanUpDelayInDays = 30;
-const char kMinExpectedVersion[] = "123.1";
 
 bool IsDeviceCompatible() {
-#if BUILDFLAG(IS_LINUX)
 #if defined(ARCH_CPU_X86_FAMILY)
   // Check if the CPU has the required instruction set to run the Screen AI
   // library.
-  static const bool has_sse41 = base::CPU().has_sse41();
+  // TODO(crbug.com/381256355): Update when ScreenAI library is compatible with
+  // older CPUs.
+  static const bool device_compatible = base::CPU().has_sse42();
+#elif BUILDFLAG(IS_LINUX)
+  // On Linux, the library is only built for X86 CPUs.
+  static constexpr bool device_compatible = false;
 #else
-  static constexpr bool has_sse41 = false;
-#endif  // defined(ARCH_CPU_X86_FAMILY)
-  if (!has_sse41) {
-    return false;
-  }
-#endif  // BUILDFLAG(IS_LINUX)
-  return true;
+  static constexpr bool device_compatible = true;
+#endif
+
+  return device_compatible;
 }
 
 }  // namespace
@@ -97,7 +90,10 @@ ScreenAIInstallState::~ScreenAIInstallState() {
 
 // static
 bool ScreenAIInstallState::ShouldInstall(PrefService* local_state) {
-  if (!IsDeviceCompatible()) {
+  bool device_compatible = IsDeviceCompatible();
+  base::UmaHistogramBoolean("Accessibility.ScreenAI.DeviceCompatible",
+                            device_compatible);
+  if (!device_compatible) {
     return false;
   }
 
@@ -115,18 +111,6 @@ bool ScreenAIInstallState::ShouldInstall(PrefService* local_state) {
   }
 
   return true;
-}
-
-// static
-void ScreenAIInstallState::RecordComponentInstallationResult(bool install,
-                                                             bool successful) {
-  if (install) {
-    base::UmaHistogramBoolean("Accessibility.ScreenAI.Component.Install",
-                              successful);
-  } else {
-    base::UmaHistogramBoolean("Accessibility.ScreenAI.Component.Uninstall",
-                              successful);
-  }
 }
 
 void ScreenAIInstallState::AddObserver(
@@ -188,7 +172,6 @@ void ScreenAIInstallState::SetState(State state) {
 }
 
 void ScreenAIInstallState::SetDownloadProgress(double progress) {
-  DCHECK_EQ(state_, State::kDownloading);
   for (ScreenAIInstallState::Observer& observer : observers_) {
     observer.DownloadProgressChanged(progress);
   }

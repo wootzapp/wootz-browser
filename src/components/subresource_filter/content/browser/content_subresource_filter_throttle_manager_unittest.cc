@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
 
 #include <map>
@@ -23,9 +28,6 @@
 #include "build/build_config.h"
 #include "components/content_settings/browser/page_specific_content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
-#include "components/infobars/content/content_infobar_manager.h"
-#include "components/infobars/core/confirm_infobar_delegate.h"
-#include "components/infobars/core/infobar.h"
 #include "components/subresource_filter/content/browser/content_subresource_filter_web_contents_helper.h"
 #include "components/subresource_filter/content/browser/fake_safe_browsing_database_manager.h"
 #include "components/subresource_filter/content/browser/profile_interaction_manager.h"
@@ -36,6 +38,7 @@
 #include "components/subresource_filter/core/browser/async_document_subresource_filter.h"
 #include "components/subresource_filter/core/browser/subresource_filter_features.h"
 #include "components/subresource_filter/core/common/common_features.h"
+#include "components/subresource_filter/core/common/constants.h"
 #include "components/subresource_filter/core/common/test_ruleset_creator.h"
 #include "components/subresource_filter/core/common/test_ruleset_utils.h"
 #include "components/subresource_filter/core/mojom/subresource_filter.mojom.h"
@@ -72,12 +75,6 @@ const char kTestURLWithDryRun[] = "https://www.page-with-dryrun.com/";
 const char kTestURLWithNoActivation[] =
     "https://www.page-without-activation.com/";
 
-const char kReadyToCommitResultsInCommitHistogram[] =
-    "SubresourceFilter.Experimental.ReadyToCommitResultsInCommit2";
-const char kReadyToCommitResultsInCommitRestrictedAdFrameNavigationHistogram[] =
-    "SubresourceFilter.Experimental.ReadyToCommitResultsInCommit2."
-    "RestrictedAdFrameNavigation";
-
 // Enum determining when the mock page state throttle notifies the throttle
 // manager of page level activation state.
 enum PageActivationNotificationTiming {
@@ -113,8 +110,9 @@ class FakeSubresourceFilterAgent : public mojom::SubresourceFilterAgent {
     return is_ad_frame;
   }
   std::optional<bool> LastActivated() {
-    if (!last_activation_)
+    if (!last_activation_) {
       return std::nullopt;
+    }
     bool activated =
         last_activation_->activation_level != mojom::ActivationLevel::kDisabled;
     last_activation_.reset();
@@ -155,7 +153,7 @@ class MockPageStateActivationThrottle : public content::NavigationThrottle {
   MockPageStateActivationThrottle& operator=(
       const MockPageStateActivationThrottle&) = delete;
 
-  ~MockPageStateActivationThrottle() override {}
+  ~MockPageStateActivationThrottle() override = default;
 
   // content::NavigationThrottle:
   content::NavigationThrottle::ThrottleCheckResult WillStartRequest() override {
@@ -194,20 +192,14 @@ class ContentSubresourceFilterThrottleManagerTest
       public content::WebContentsObserver,
       public ::testing::WithParamInterface<PageActivationNotificationTiming> {
  public:
-  ContentSubresourceFilterThrottleManagerTest()
-      // We need the task environment to use a separate IO thread so that the
-      // ChildProcessSecurityPolicy checks which perform different logic
-      // based on whether they are called on the UI thread or the IO thread do
-      // the right thing.
-      : content::RenderViewHostTestHarness(
-            content::BrowserTaskEnvironment::REAL_IO_THREAD) {}
+  ContentSubresourceFilterThrottleManagerTest() = default;
 
   ContentSubresourceFilterThrottleManagerTest(
       const ContentSubresourceFilterThrottleManagerTest&) = delete;
   ContentSubresourceFilterThrottleManagerTest& operator=(
       const ContentSubresourceFilterThrottleManagerTest&) = delete;
 
-  ~ContentSubresourceFilterThrottleManagerTest() override {}
+  ~ContentSubresourceFilterThrottleManagerTest() override = default;
 
   // content::RenderViewHostTestHarness:
   void SetUp() override {
@@ -235,7 +227,8 @@ class ContentSubresourceFilterThrottleManagerTest
     // tests, to ensure that the NavigationSimulator properly runs all necessary
     // tasks while waiting for throttle checks to finish.
     dealer_handle_ = std::make_unique<VerifiedRulesetDealer::Handle>(
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        base::SingleThreadTaskRunner::GetCurrentDefault(),
+        kSafeBrowsingRulesetConfig);
     dealer_handle_->TryOpenAndSetRulesetFile(test_ruleset_pair_.indexed.path,
                                              /*expected_checksum=*/0,
                                              base::DoNothing());
@@ -263,8 +256,11 @@ class ContentSubresourceFilterThrottleManagerTest
   }
 
   void TearDown() override {
-    throttle_manager_test_support_.reset();
+    // Delete `WebContents` before deleting the dealer handle.
+    DeleteContents();
     dealer_handle_.reset();
+
+    throttle_manager_test_support_.reset();
     base::RunLoop().RunUntilIdle();
     content::RenderViewHostTestHarness::TearDown();
 #if BUILDFLAG(IS_ANDROID)
@@ -363,8 +359,9 @@ class ContentSubresourceFilterThrottleManagerTest
 
   void DidStartNavigation(
       content::NavigationHandle* navigation_handle) override {
-    if (navigation_handle->IsSameDocument())
+    if (navigation_handle->IsSameDocument()) {
       return;
+    }
 
     // Inject the proper throttles at this time.
     std::vector<std::unique_ptr<content::NavigationThrottle>> throttles;
@@ -1349,101 +1346,6 @@ TEST_P(ContentSubresourceFilterThrottleManagerTest,
 #endif
 }
 
-TEST_P(ContentSubresourceFilterThrottleManagerTest,
-       NavigationIsReadyToCommitThenFinishes_HistogramIssued) {
-  for (bool does_commit : {true, false}) {
-    base::HistogramTester tester;
-    NavigateAndCommitMainFrame(GURL(kTestURLWithDryRun));
-    ExpectActivationSignalForFrame(main_rfh(), true /* expect_activation */);
-
-    // Make sure main frames are excluded.
-    tester.ExpectTotalCount(kReadyToCommitResultsInCommitHistogram, 0);
-    tester.ExpectTotalCount(
-        kReadyToCommitResultsInCommitRestrictedAdFrameNavigationHistogram, 0);
-
-    CreateSubframeWithTestNavigation(GURL("https://www.example.com/test.html"),
-                                     main_rfh());
-
-    navigation_simulator()->ReadyToCommit();
-
-    if (does_commit) {
-      navigation_simulator()->Commit();
-    } else {
-      navigation_simulator()->AbortFromRenderer();
-    }
-
-    tester.ExpectUniqueSample(kReadyToCommitResultsInCommitHistogram,
-                              does_commit, 1);
-    tester.ExpectTotalCount(
-        kReadyToCommitResultsInCommitRestrictedAdFrameNavigationHistogram, 0);
-  }
-}
-
-TEST_P(
-    ContentSubresourceFilterThrottleManagerTest,
-    RestrictedAdFrameNavigationIsReadyToCommitThenFinishes_HistogramsIssued) {
-  for (bool does_commit : {true, false}) {
-    NavigateAndCommitMainFrame(GURL(kTestURLWithDryRun));
-    ExpectActivationSignalForFrame(main_rfh(), true /* expect_activation */);
-
-    // Ensure frame is tagged as an ad.
-    content::RenderFrameHost* subframe = CreateSubframeWithTestNavigation(
-        GURL("https://www.example.com/disallowed.html"), main_rfh());
-    navigation_simulator()->Commit();
-    subframe = navigation_simulator()->GetFinalRenderFrameHost();
-    EXPECT_TRUE(subframe);
-    EXPECT_TRUE(throttle_manager()->IsRenderFrameHostTaggedAsAd(subframe));
-
-    // Navigate to an allowlisted URL to make it a 'restricted' navigation.
-    base::HistogramTester tester;
-    CreateTestNavigation(GURL("https://www.example.com/not_disallowed.html"),
-                         subframe);
-
-    navigation_simulator()->ReadyToCommit();
-
-    if (does_commit) {
-      navigation_simulator()->Commit();
-    } else {
-      navigation_simulator()->AbortFromRenderer();
-    }
-
-    tester.ExpectUniqueSample(kReadyToCommitResultsInCommitHistogram,
-                              does_commit, 1);
-    tester.ExpectUniqueSample(
-        kReadyToCommitResultsInCommitRestrictedAdFrameNavigationHistogram,
-        does_commit, 1);
-  }
-}
-
-TEST_P(ContentSubresourceFilterThrottleManagerTest,
-       ReadyToCommitNavigationThenRenderFrameDeletes_MetricsNotRecorded) {
-  NavigateAndCommitMainFrame(GURL(kTestURLWithDryRun));
-  ExpectActivationSignalForFrame(main_rfh(), true /* expect_activation */);
-
-  // Ensure frame is tagged as an ad.
-  content::RenderFrameHost* subframe = CreateSubframeWithTestNavigation(
-      GURL("https://www.example.com/disallowed.html"), main_rfh());
-  navigation_simulator()->Commit();
-  subframe = navigation_simulator()->GetFinalRenderFrameHost();
-  EXPECT_TRUE(subframe);
-  EXPECT_TRUE(throttle_manager()->IsRenderFrameHostTaggedAsAd(subframe));
-
-  // Navigate to an allowlisted URL to make it a 'restricted' navigation.
-  base::HistogramTester tester;
-  CreateTestNavigation(GURL("https://www.example.com/not_disallowed.html"),
-                       subframe);
-
-  navigation_simulator()->ReadyToCommit();
-
-  static_cast<content::MockRenderProcessHost*>(
-      navigation_simulator()->GetFinalRenderFrameHost()->GetProcess())
-      ->SimulateCrash();
-
-  tester.ExpectTotalCount(kReadyToCommitResultsInCommitHistogram, 0);
-  tester.ExpectTotalCount(
-      kReadyToCommitResultsInCommitRestrictedAdFrameNavigationHistogram, 0);
-}
-
 // Basic test of throttle manager lifetime and getter methods. Ensure a new
 // page creating navigation creates a new throttle manager and it's reachable
 // using FromNavigationHandle until commit time. Once committed that same
@@ -1779,222 +1681,6 @@ TEST_P(ContentSubresourceFilterThrottleManagerFencedFrameTest,
   EXPECT_EQ(ContentSubresourceFilterThrottleManager::FromPage(
                 fenced_frame_root->GetPage()),
             throttle_manager);
-}
-
-class ContentSubresourceFilterThrottleManagerInfoBarUiTest
-    : public ContentSubresourceFilterThrottleManagerTest {
- public:
-  void SetUp() override {
-    ContentSubresourceFilterThrottleManagerTest::SetUp();
-#if BUILDFLAG(IS_ANDROID)
-    message_dispatcher_bridge_.SetMessagesEnabledForEmbedder(false);
-    messages::MessageDispatcherBridge::SetInstanceForTesting(
-        &message_dispatcher_bridge_);
-#endif
-  }
-
-  bool presenting_ads_blocked_infobar() {
-    auto* infobar_manager = infobars::ContentInfoBarManager::FromWebContents(
-        content::RenderViewHostTestHarness::web_contents());
-    if (infobar_manager->infobars().empty()) {
-      return false;
-    }
-
-    // No infobars other than the ads blocked infobar should be displayed in the
-    // context of these tests.
-    EXPECT_EQ(infobar_manager->infobars().size(), 1u);
-    auto* infobar = infobar_manager->infobars()[0].get();
-    EXPECT_EQ(infobar->GetIdentifier(),
-              infobars::InfoBarDelegate::ADS_BLOCKED_INFOBAR_DELEGATE_ANDROID);
-
-    return true;
-  }
-
- protected:
-#if BUILDFLAG(IS_ANDROID)
-  messages::MockMessageDispatcherBridge message_dispatcher_bridge_;
-#endif
-};
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         ContentSubresourceFilterThrottleManagerInfoBarUiTest,
-                         ::testing::Values(WILL_START_REQUEST,
-                                           WILL_PROCESS_RESPONSE));
-
-#if BUILDFLAG(IS_ANDROID)
-TEST_P(ContentSubresourceFilterThrottleManagerInfoBarUiTest,
-       NoCrashWhenInfoBarManagerIsNotPresent) {
-  auto* web_contents = RenderViewHostTestHarness::web_contents();
-  web_contents->RemoveUserData(infobars::ContentInfoBarManager::UserDataKey());
-
-  // Commit a navigation that triggers page level activation.
-  NavigateAndCommitMainFrame(GURL(kTestURLWithActivation));
-  ExpectActivationSignalForFrame(main_rfh(), true /* expect_activation */);
-
-  // A disallowed subframe navigation should be successfully filtered, and the
-  // lack of infobar manager should not cause a crash.
-  CreateSubframeWithTestNavigation(
-      GURL("https://www.example.com/disallowed.html"), main_rfh());
-  EXPECT_EQ(content::NavigationThrottle::BLOCK_REQUEST_AND_COLLAPSE,
-            SimulateStartAndGetResult(navigation_simulator()));
-
-  EXPECT_TRUE(ads_blocked_in_content_settings());
-}
-#endif
-
-// Test that once presented, the ads blocked infobar will remain present after a
-// same-document navigation.
-TEST_P(ContentSubresourceFilterThrottleManagerInfoBarUiTest,
-       InfoBarStaysPresentAfterSameDocumentNav) {
-  // Commit a navigation that triggers page level activation.
-  NavigateAndCommitMainFrame(GURL(kTestURLWithActivation));
-  ExpectActivationSignalForFrame(main_rfh(), true /* expect_activation */);
-
-  // A disallowed subframe navigation should be successfully filtered.
-  CreateSubframeWithTestNavigation(
-      GURL("https://www.example.com/1/disallowed.html"), main_rfh());
-  EXPECT_EQ(content::NavigationThrottle::BLOCK_REQUEST_AND_COLLAPSE,
-            SimulateStartAndGetResult(navigation_simulator()));
-
-  EXPECT_TRUE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_TRUE(presenting_ads_blocked_infobar());
-#endif
-
-  // Commit another navigation that triggers page level activation.
-  GURL url2 = GURL(base::StringPrintf("%s#ref", kTestURLWithActivation));
-  CreateTestNavigation(url2, main_rfh());
-  navigation_simulator()->CommitSameDocument();
-
-  // Same-document navigations do not pass through ReadyToCommitNavigation so no
-  // ActivateForNextCommittedLoad mojo call is expected.
-  ExpectActivationSignalForFrame(main_rfh(), false /* expect_activation */,
-                                 false /* expect_is_ad_frame */,
-                                 false /* expect_activation_sent_to_agent */);
-
-  EXPECT_TRUE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_TRUE(presenting_ads_blocked_infobar());
-#endif
-
-  CreateSubframeWithTestNavigation(
-      GURL("https://www.example.com/2/disallowed.html"), main_rfh());
-  EXPECT_EQ(content::NavigationThrottle::BLOCK_REQUEST_AND_COLLAPSE,
-            SimulateStartAndGetResult(navigation_simulator()));
-
-  EXPECT_TRUE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_TRUE(presenting_ads_blocked_infobar());
-#endif
-}
-
-// This should fail if the throttle manager notifies the delegate twice of a
-// disallowed load for the same page load.
-TEST_P(ContentSubresourceFilterThrottleManagerInfoBarUiTest,
-       ActivateMainFrameAndFilterTwoSubframeNavigations) {
-  // Commit a navigation that triggers page level activation.
-  NavigateAndCommitMainFrame(GURL(kTestURLWithActivation));
-  ExpectActivationSignalForFrame(main_rfh(), true /* expect_activation */);
-
-  // A disallowed subframe navigation should be successfully filtered.
-  CreateSubframeWithTestNavigation(
-      GURL("https://www.example.com/1/disallowed.html"), main_rfh());
-  EXPECT_EQ(content::NavigationThrottle::BLOCK_REQUEST_AND_COLLAPSE,
-            SimulateStartAndGetResult(navigation_simulator()));
-
-  EXPECT_TRUE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_TRUE(presenting_ads_blocked_infobar());
-#endif
-
-  CreateSubframeWithTestNavigation(
-      GURL("https://www.example.com/2/disallowed.html"), main_rfh());
-  EXPECT_EQ(content::NavigationThrottle::BLOCK_REQUEST_AND_COLLAPSE,
-            SimulateStartAndGetResult(navigation_simulator()));
-
-  EXPECT_TRUE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_TRUE(presenting_ads_blocked_infobar());
-#endif
-}
-
-TEST_P(ContentSubresourceFilterThrottleManagerInfoBarUiTest,
-       ActivateTwoMainFramesAndFilterTwoSubframeNavigations) {
-  // Commit a navigation that triggers page level activation.
-  NavigateAndCommitMainFrame(GURL(kTestURLWithActivation));
-  ExpectActivationSignalForFrame(main_rfh(), true /* expect_activation */);
-
-  // A disallowed subframe navigation should be successfully filtered.
-  CreateSubframeWithTestNavigation(
-      GURL("https://www.example.com/1/disallowed.html"), main_rfh());
-  EXPECT_EQ(content::NavigationThrottle::BLOCK_REQUEST_AND_COLLAPSE,
-            SimulateStartAndGetResult(navigation_simulator()));
-
-  EXPECT_TRUE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_TRUE(presenting_ads_blocked_infobar());
-#endif
-
-  // Commit another navigation that triggers page level activation.
-  NavigateAndCommitMainFrame(GURL(kTestURLWithActivation2));
-  ExpectActivationSignalForFrame(main_rfh(), true /* expect_activation */);
-
-  EXPECT_FALSE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_FALSE(presenting_ads_blocked_infobar());
-#endif
-
-  CreateSubframeWithTestNavigation(
-      GURL("https://www.example.com/2/disallowed.html"), main_rfh());
-  EXPECT_EQ(content::NavigationThrottle::BLOCK_REQUEST_AND_COLLAPSE,
-            SimulateStartAndGetResult(navigation_simulator()));
-
-  EXPECT_TRUE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_TRUE(presenting_ads_blocked_infobar());
-#endif
-}
-
-// Once there are no activated frames, the manager drops its ruleset handle. If
-// another frame is activated, make sure the handle is regenerated.
-TEST_P(ContentSubresourceFilterThrottleManagerInfoBarUiTest,
-       RulesetHandleRegeneration) {
-  NavigateAndCommitMainFrame(GURL(kTestURLWithActivation));
-  ExpectActivationSignalForFrame(main_rfh(), true /* expect_activation */);
-
-  CreateSubframeWithTestNavigation(
-      GURL("https://www.example.com/disallowed.html"), main_rfh());
-  EXPECT_EQ(content::NavigationThrottle::BLOCK_REQUEST_AND_COLLAPSE,
-            SimulateStartAndGetResult(navigation_simulator()));
-
-  EXPECT_TRUE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_TRUE(presenting_ads_blocked_infobar());
-#endif
-
-  // Simulate a renderer crash which should delete the frame.
-  EXPECT_TRUE(ManagerHasRulesetHandle());
-  process()->SimulateCrash();
-  EXPECT_FALSE(ManagerHasRulesetHandle());
-
-  NavigateAndCommit(GURL("https://example.reset"));
-  NavigateAndCommitMainFrame(GURL(kTestURLWithActivation));
-  ExpectActivationSignalForFrame(main_rfh(), true /* expect_activation */);
-
-  EXPECT_FALSE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_FALSE(presenting_ads_blocked_infobar());
-#endif
-
-  CreateSubframeWithTestNavigation(
-      GURL("https://www.example.com/disallowed.html"), main_rfh());
-  EXPECT_EQ(content::NavigationThrottle::BLOCK_REQUEST_AND_COLLAPSE,
-            SimulateStartAndGetResult(navigation_simulator()));
-
-  EXPECT_TRUE(ads_blocked_in_content_settings());
-#if BUILDFLAG(IS_ANDROID)
-  EXPECT_TRUE(presenting_ads_blocked_infobar());
-#endif
 }
 
 // TODO(csharrison): Make sure the following conditions are exercised in tests:

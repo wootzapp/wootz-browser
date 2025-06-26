@@ -4,6 +4,7 @@
 
 #include "third_party/blink/public/common/web_package/web_package_request_matcher.h"
 
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -13,7 +14,7 @@
 #include "base/containers/contains.h"
 #include "base/containers/span.h"
 #include "base/numerics/checked_math.h"
-#include "base/ranges/algorithm.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "net/base/mime_util.h"
@@ -60,11 +61,11 @@ class ContentNegotiationAlgorithm {
 
     // Value can start with '*', so it cannot be parsed by
     // net::structured_headers::ParseParameterisedList.
-    net::HttpUtil::ValuesIterator values(request_header_value->begin(),
-                                         request_header_value->end(), ',');
+    net::HttpUtil::ValuesIterator values(*request_header_value,
+                                         /*delimiter=*/',');
     while (values.GetNext()) {
       net::HttpUtil::NameValuePairsIterator name_value_pairs(
-          values.value_begin(), values.value_end(), ';',
+          values.value(), /*delimiter=*/';',
           net::HttpUtil::NameValuePairsIterator::Values::NOT_REQUIRED,
           net::HttpUtil::NameValuePairsIterator::Quotes::STRICT_QUOTES);
       if (!name_value_pairs.GetNext())
@@ -73,14 +74,14 @@ class ContentNegotiationAlgorithm {
       item.value = name_value_pairs.name();
       item.weight = 1.0;
       while (name_value_pairs.GetNext()) {
-        if (base::EqualsCaseInsensitiveASCII(name_value_pairs.name_piece(),
-                                             "q")) {
-          if (auto value = GetQValue(name_value_pairs.value()))
+        if (base::EqualsCaseInsensitiveASCII(name_value_pairs.name(), "q")) {
+          if (auto value = GetQValue(name_value_pairs.value())) {
             item.weight = *value;
+          }
         } else {
           // Parameters except for "q" are included in the output.
-          item.value +=
-              ';' + name_value_pairs.name() + '=' + name_value_pairs.value();
+          base::StrAppend(&item.value, {";", name_value_pairs.name(), "=",
+                                        name_value_pairs.value()});
         }
       }
       if (item.weight != 0.0)
@@ -91,7 +92,7 @@ class ContentNegotiationAlgorithm {
   }
 
  private:
-  std::optional<double> GetQValue(const std::string& str) {
+  std::optional<double> GetQValue(std::string_view str) {
     // TODO(ksakamoto): Validate the syntax per Section 5.3.1 of [RFC7231],
     // by factoring out the logic in HttpUtil::ParseAcceptEncoding().
     double val;
@@ -236,7 +237,7 @@ class AcceptLanguageNegotiation final : public ContentNegotiationAlgorithm {
                               const std::string& preferred_lang,
                               std::vector<std::string>* output) {
     if (preferred_lang == "*") {
-      base::ranges::copy(available_values, std::back_inserter(*output));
+      std::ranges::copy(available_values, std::back_inserter(*output));
       return;
     }
 
@@ -370,7 +371,7 @@ std::optional<size_t> GetPossibleKeysIndex(
   DCHECK_EQ(variant_key.size(), sorted_variants.size());
   size_t index = 0;
   for (size_t i = 0; i < sorted_variants.size(); ++i) {
-    auto found = base::ranges::find(sorted_variants[i], variant_key[i]);
+    auto found = std::ranges::find(sorted_variants[i], variant_key[i]);
     if (found == sorted_variants[i].end())
       return std::nullopt;
 
@@ -456,10 +457,8 @@ std::vector<std::vector<std::string>> WebPackageRequestMatcher::CacheBehavior(
       // field-name in incoming-request (after being combined as allowed by
       // Section 3.2.2 of [RFC7230]), or null if field-name is not in
       // incoming-request. [spec text]
-      std::optional<std::string> request_value;
-      std::string header_value;
-      if (request_headers.GetHeader(field_name, &header_value))
-        request_value = header_value;
+      std::optional<std::string> request_value =
+          request_headers.GetHeader(field_name);
       // Step 4.2.1.2. Let sorted-values be the result of running the algorithm
       // defined by the content negotiation mechanism with request-value and
       // variant-axis' available-values. [spec text]
@@ -625,16 +624,14 @@ std::optional<size_t> WebPackageRequestMatcher::FindBestMatchingIndex(
         GetContentNegotiationAlgorithm(field_name);
     if (!negotiation_algorithm)
       return std::nullopt;
-    std::optional<std::string> request_value;
-    std::string header_value;
-    if (request_headers.GetHeader(field_name, &header_value))
-      request_value = header_value;
+    std::optional<std::string> request_value =
+        request_headers.GetHeader(field_name);
 
     std::vector<std::string> sorted_values =
         negotiation_algorithm->run(variant_axis.second, request_value);
     if (sorted_values.empty())
       return std::nullopt;
-    auto it = base::ranges::find(variant_axis.second, sorted_values.front());
+    auto it = std::ranges::find(variant_axis.second, sorted_values.front());
     if (it == variant_axis.second.end())
       return std::nullopt;
     size_t best_value_index = it - variant_axis.second.begin();

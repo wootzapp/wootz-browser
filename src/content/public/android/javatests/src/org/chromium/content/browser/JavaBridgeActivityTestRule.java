@@ -7,8 +7,6 @@ package org.chromium.content.browser;
 import android.webkit.JavascriptInterface;
 
 import org.junit.Assert;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
 import org.chromium.base.Log;
 import org.chromium.base.test.util.UrlUtils;
@@ -20,6 +18,7 @@ import org.chromium.content_shell_apk.ContentShellActivity;
 import org.chromium.content_shell_apk.ContentShellActivityTestRule;
 
 import java.lang.annotation.Annotation;
+import java.util.List;
 
 /** ActivityTestRule with common functionality for testing the Java Bridge. */
 public class JavaBridgeActivityTestRule extends ContentShellActivityTestRule {
@@ -127,10 +126,11 @@ public class JavaBridgeActivityTestRule extends ContentShellActivityTestRule {
                             WebContents webContents = getWebContents();
                             JavascriptInjector injector =
                                     JavascriptInjector.fromWebContents(webContents);
-                            injector.addPossiblyUnsafeInterface(object1, name1, requiredAnnotation);
+                            injector.addPossiblyUnsafeInterface(
+                                    object1, name1, requiredAnnotation, List.of("*"));
                             if (object2 != null && name2 != null) {
                                 injector.addPossiblyUnsafeInterface(
-                                        object2, name2, requiredAnnotation);
+                                        object2, name2, requiredAnnotation, List.of("*"));
                             }
                             webContents.getNavigationController().reload(true);
                         }
@@ -157,15 +157,8 @@ public class JavaBridgeActivityTestRule extends ContentShellActivityTestRule {
     }
 
     @Override
-    public Statement apply(Statement base, Description desc) {
-        return super.apply(
-                new Statement() {
-                    @Override
-                    public void evaluate() throws Throwable {
-                        setUpContentView();
-                        base.evaluate();
-                    }
-                },
-                desc);
+    protected void before() throws Throwable {
+        super.before();
+        setUpContentView();
     }
 }

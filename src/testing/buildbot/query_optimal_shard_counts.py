@@ -10,6 +10,7 @@ duration below the desired max runtime.
 """
 
 import argparse
+import copy
 import datetime
 import json
 import os
@@ -35,6 +36,7 @@ ANDROID_OVERHEAD_SEC = 60 * 2
 # All suites triggered by the builder will not be autosharded.
 BUILDER_EXCLUDE_SET = set([
     'mac-rel',
+    'mac14-arm64-rel',
     'ios-simulator',
     'ios-simulator-full-configs',
     'android-arm64-rel',
@@ -42,8 +44,10 @@ BUILDER_EXCLUDE_SET = set([
 
 # Test suites will not be autosharded on all builders that run the test suite.
 # Example: 'browser_tests' -> turns of browser_tests on linux-rel and win-rel
-# 'chrome_all_tast_tests': crbug.com/1516971
-TEST_SUITE_EXCLUDE_SET = set(['chrome_all_tast_tests'])
+TEST_SUITE_EXCLUDE_SET = set([
+    # 'chrome_all_tast_tests': crbug.com/1516971
+    'chrome_all_tast_tests',
+])
 
 # Test suite and try builder dicts that should not be autosharded any further.
 # Maps try builder to set of test suite
@@ -69,47 +73,60 @@ If this is the first time you run the script, do the following steps:
 
 def _query_overheads(lookback_start_date, lookback_end_date):
   query_file = os.path.join(os.path.dirname(__file__), 'autosharder_sql',
-                            'query_test_overheads.sql')
+                            'query_test_overheads.sql.tmpl')
   with open(query_file, 'r') as f:
     query_str = f.read()
   query = query_str.format(
+      builds_project='cr-buildbucket',
+      builds_dataset='chromium',
+      tasks_project='chromium-swarm',
+      tasks_dataset='swarming',
       lookback_start_date=lookback_start_date,
       lookback_end_date=lookback_end_date,
   )
   return _run_query([
-      "bq", "query", "--project_id=" + _CLOUD_PROJECT_ID, "--format=json",
-      "--max_rows=100000", "--nouse_legacy_sql", query
+      'bq', 'query', '--project_id=' + _CLOUD_PROJECT_ID, '--format=json',
+      '--max_rows=100000', '--nouse_legacy_sql', query
   ])
 
 
-def _query_suite_durations(lookback_start_date, lookback_end_date, percentile):
+def _query_suite_durations(lookback_start_date, lookback_end_date, percentile,
+                           ignore_cl_owner):
   query_file = os.path.join(os.path.dirname(__file__), 'autosharder_sql',
-                            'query_suite_durations.sql')
+                            'query_suite_durations.sql.tmpl')
   with open(query_file, 'r') as f:
     query_str = f.read()
   query = query_str.format(
+      builds_project='cr-buildbucket',
+      builds_dataset='chromium',
+      tasks_project='chromium-swarm',
+      tasks_dataset='swarming',
       lookback_start_date=lookback_start_date,
       lookback_end_date=lookback_end_date,
       percentile=percentile,
+      ignore_cl_owner=','.join(
+          [f'"{u}"' for u in ignore_cl_owner] if ignore_cl_owner else '""'),
   )
   return _run_query([
-      "bq", "query", "--project_id=" + _CLOUD_PROJECT_ID, "--format=json",
-      "--max_rows=100000", "--nouse_legacy_sql", query
+      'bq', 'query', '--project_id=' + _CLOUD_PROJECT_ID, '--format=json',
+      '--max_rows=100000', '--nouse_legacy_sql', query
   ])
 
 
 def _query_avg_num_builds_per_hour(lookback_start_date, lookback_end_date):
   query_file = os.path.join(os.path.dirname(__file__), 'autosharder_sql',
-                            'query_average_number_builds_per_hour.sql')
+                            'query_average_number_builds_per_hour.sql.tmpl')
   with open(query_file, 'r') as f:
     query_str = f.read()
   query = query_str.format(
+      builds_project='cr-buildbucket',
+      builds_dataset='chromium',
       lookback_start_date=lookback_start_date,
       lookback_end_date=lookback_end_date,
   )
   return _run_query([
-      "bq", "query", "--project_id=" + _CLOUD_PROJECT_ID, "--format=json",
-      "--max_rows=100000", "--nouse_legacy_sql", query
+      'bq', 'query', '--project_id=' + _CLOUD_PROJECT_ID, '--format=json',
+      '--max_rows=100000', '--nouse_legacy_sql', query
   ])
 
 
@@ -123,7 +140,7 @@ def _run_query(args):
     output = subprocess.check_output(args)
   except subprocess.CalledProcessError as e:
     print(e.output)
-    raise (e)
+    raise e
   return json.loads(output)
 
 
@@ -158,7 +175,14 @@ def _calculate_and_filter_optimal_shard_counts(overhead_dict, durations,
 
     overhead = overhead_dict.get(try_builder, {}).get(test_suite,
                                                       {}).get(shard_count)
-    if not overhead:
+    if overhead:
+      # Suites can be in a bad sharding. Since we only use one set of shards
+      # (n and n+1) this can create a bad value for the overhead so clamp it
+      # to reasonable values. At the time of writing this the min and max are
+      # around 0.21 and 4.01. Ideally we could use more than one set of
+      # shardings to determine this overhead.
+      overhead = max(min(overhead, 4.0), 0.2)
+    else:
       if 'android' in try_builder:
         overhead = ANDROID_OVERHEAD_SEC / 60
       else:
@@ -206,6 +230,7 @@ def _calculate_estimated_bot_hour_cost(durations, lookback_start_date,
     updated_durations.append(r)
   return updated_durations
 
+
 def _meets_optimal_shard_count_and_simulated_duration_requirements(
     row, data, desired_runtime):
   builder_group = row['waterfall_builder_group']
@@ -228,7 +253,7 @@ def _meets_optimal_shard_count_and_simulated_duration_requirements(
 
   # Don't bother resharding if the simulated runtime is greater than the
   # desired runtime.
-  if (float(row['simulated_max_shard_duration']) > desired_runtime):
+  if float(row['simulated_max_shard_duration']) > desired_runtime:
     return False
 
   # Shard values may have changed over the lookback period, so the query
@@ -260,6 +285,34 @@ def _meets_optimal_shard_count_and_simulated_duration_requirements(
   return True
 
 
+def _prune_builders(data):
+  query_file = os.path.join(os.path.dirname(__file__), 'autosharder_sql',
+                            'query_cq_builders.sql.tmpl')
+  with open(query_file, 'r') as f:
+    query = f.read().format(
+        builders_project='chrome-trooper-analytics',
+        builders_dataset='metrics',
+    )
+
+  rows = _run_query([
+      'bq', 'query', '--project_id=' + _CLOUD_PROJECT_ID, '--format=json',
+      '--max_rows=100000', '--nouse_legacy_sql', query
+  ])
+
+  cq_builders = set(row['builder'] for row in rows)
+  data_copy = copy.deepcopy(data)
+  for builder_group_name, builder_group in data_copy.items():
+    for ci_builder_name, ci_builder in builder_group.items():
+      for test_suite_name, test_suite in ci_builder.items():
+        try_builder = test_suite['try_builder']
+        if try_builder not in cq_builders:
+          del data[builder_group_name][ci_builder_name][test_suite_name]
+      if len(data[builder_group_name][ci_builder_name]) == 0:
+        del data[builder_group_name][ci_builder_name]
+    if len(data[builder_group_name]) == 0:
+      del data[builder_group_name]
+
+
 def main(args):
   parser = argparse.ArgumentParser(
       description=('Calculate optimal shard counts from bigquery.\n\n'
@@ -276,6 +329,11 @@ def main(args):
                       '-o',
                       action='store',
                       help='The filename to store bigquery results.')
+  parser.add_argument('--prune',
+                      '-x',
+                      action='store_true',
+                      help='Remove non cq required builders and warn if a '
+                      'required builder is now path based.')
   parser.add_argument('--overwrite-output-file',
                       action='store_true',
                       help='If there is already an output-file written, '
@@ -310,11 +368,11 @@ def main(args):
                       help=('The percentile of suite durations to use to '
                             'calculate the current suite runtime.'))
   parser.add_argument('--min-sample-size',
-                      default=2000,
+                      default=1500,
                       type=int,
                       help=('The minimum number of times a suite must run '
                             'longer than the desired runtime, in order to be'
-                            ' resharded. 2000 is an appropriate default for '
+                            ' resharded. 1500 is an appropriate default for '
                             'a 14 day window. For something smaller like a '
                             'couple of days, the sample size should be much '
                             'smaller.'))
@@ -323,6 +381,10 @@ def main(args):
                       action='store_true',
                       help=('Output more info like max shard duration, '
                             'overheads, estimated bot_cost, and more.'))
+  parser.add_argument('--ignore-cl-owner',
+                      action='append',
+                      help=('CL owners to ignore builds from (e.g. the '
+                            'service account of the builder'))
   opts = parser.parse_args(args)
 
   if opts.desired_runtime < 5:
@@ -343,6 +405,7 @@ def main(args):
       lookback_start_date=lookback_start_date,
       lookback_end_date=lookback_end_date,
       percentile=opts.percentile,
+      ignore_cl_owner=opts.ignore_cl_owner,
   )
 
   data = {}
@@ -404,6 +467,7 @@ def main(args):
     shard_dict = {
         test_suite: {
             'shards': r['optimal_shard_count'],
+            'try_builder': r['try_builder'],
         },
     }
     if opts.verbose:
@@ -424,8 +488,6 @@ def main(args):
           int(r['shard_count']),
           'simulated_max_shard_duration':
           r['simulated_max_shard_duration'],
-          'try_builder':
-          r['try_builder'],
           'test_overhead_min':
           r['test_overhead_min'],
       }
@@ -434,6 +496,9 @@ def main(args):
                                                   {}).update(shard_dict)
     new_data.setdefault(builder_group, {}).setdefault(builder_name,
                                                       {}).update(shard_dict)
+
+  if opts.prune:
+    _prune_builders(data)
 
   output_data = json.dumps(data,
                            indent=4,

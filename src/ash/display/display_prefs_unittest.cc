@@ -30,6 +30,7 @@
 #include "base/numerics/math_constants.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/values.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -138,12 +139,12 @@ class DisplayPrefsTest : public AshTestBase {
     AshTestBase::TearDown();
   }
 
-  void LoggedInAsUser() { SimulateUserLogin("user1@test.com"); }
+  void LoggedInAsUser() { SimulateUserLogin({"user1@test.com"}); }
 
   void LoggedInAsGuest() { SimulateGuestLogin(); }
 
   void LoggedInAsPublicAccount() {
-    SimulateUserLogin("pa@test.com", user_manager::UserType::kPublicAccount);
+    SimulateUserLogin({"pa@test.com", user_manager::UserType::kPublicAccount});
   }
 
   void LoadDisplayPreferences() { display_prefs()->LoadDisplayPreferences(); }
@@ -307,7 +308,7 @@ class DisplayPrefsTest : public AshTestBase {
   DisplayPrefs* display_prefs() { return Shell::Get()->display_prefs(); }
 
  private:
-  std::unique_ptr<WindowTreeHostManager::Observer> observer_;
+  std::unique_ptr<display::DisplayManagerObserver> observer_;
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
@@ -443,12 +444,15 @@ TEST_F(DisplayPrefsTest, BasicStores) {
                                       gfx::Size(231, 416), 1);
   touchdevice_3.phys = "1357";
 
-  display_manager()->SetTouchCalibrationData(id2, point_pair_quad_1,
-                                             touch_size_1, touchdevice);
-  display_manager()->SetTouchCalibrationData(id2, point_pair_quad_2,
-                                             touch_size_2, touchdevice_2);
-  display_manager()->SetTouchCalibrationData(id2, point_pair_quad_2,
-                                             touch_size_1, touchdevice_3);
+  display_manager()->SetTouchCalibrationData(
+      id2, point_pair_quad_1, touch_size_1, touchdevice,
+      /*apply_spatial_calibration=*/true);
+  display_manager()->SetTouchCalibrationData(
+      id2, point_pair_quad_2, touch_size_2, touchdevice_2,
+      /*apply_spatial_calibration=*/true);
+  display_manager()->SetTouchCalibrationData(
+      id2, point_pair_quad_2, touch_size_1, touchdevice_3,
+      /*apply_spatial_calibration=*/true);
 
   const base::Value::Dict& displays =
       local_state()->GetDict(prefs::kSecondaryDisplays);
@@ -633,7 +637,8 @@ TEST_F(DisplayPrefsTest, BasicStores) {
       /*device_scale_factor=*/1.0f, /*display_zoom_factor=*/1.0f,
       /*display_zoom_factor_map=*/{}, /*refresh_rate=*/60.f,
       /*is_interlaced=*/false,
-      /*variable_refresh_rate_state=*/display::kVrrNotCapable,
+      /*variable_refresh_rate_state=*/
+      display::VariableRefreshRateState::kVrrNotCapable,
       /*vsync_rate_min=*/std::nullopt);
 
   UpdateDisplay("300x200*2, 600x500#600x500|500x400");
@@ -667,7 +672,8 @@ TEST_F(DisplayPrefsTest, BasicStores) {
       /*device_scale_factor=*/1.0f, /*display_zoom_factor=*/1.0f,
       /*display_zoom_factor_map=*/{}, /*refresh_rate=*/60.f,
       /*is_interlaced=*/false,
-      /*variable_refresh_rate_state=*/display::kVrrNotCapable,
+      /*variable_refresh_rate_state=*/
+      display::VariableRefreshRateState::kVrrNotCapable,
       /*vsync_rate_min=*/std::nullopt);
   // Disconnect 2nd display first to generate new id for external display.
   UpdateDisplay("300x200*2");
@@ -1388,8 +1394,9 @@ TEST_F(DisplayPrefsTest, LegacyTouchCalibrationDataSupport) {
       std::string("test touch device 4"), gfx::Size(231, 416), 1);
   display::TouchDeviceIdentifier identifier =
       display::TouchDeviceIdentifier::FromDevice(touchdevice_4);
-  display_manager()->SetTouchCalibrationData(id_2, point_pair_quad,
-                                             touch_size_2, touchdevice_4);
+  display_manager()->SetTouchCalibrationData(
+      id_2, point_pair_quad, touch_size_2, touchdevice_4,
+      /*apply_spatial_calibration=*/true);
 
   EXPECT_TRUE(tdm->touch_associations().count(identifier));
   EXPECT_TRUE(tdm->touch_associations().at(identifier).count(id_2));
@@ -1871,6 +1878,44 @@ TEST_F(DisplayPrefsTest, IsDisplayAvailableInPref) {
   // Display is available in prefs after adding the display.
   UpdateDisplay("300x200");
   EXPECT_TRUE(display_prefs()->IsDisplayAvailableInPref(id));
+}
+
+class DisplayPrefsStartupTest : public DisplayPrefsTest {
+ public:
+  void SetUp() override {
+    base::CommandLine::ForCurrentProcess()->AppendSwitch(
+        ::switches::kUseFirstDisplayAsInternal);
+    ScopedDictPrefUpdate update(local_state(), prefs::kDisplayRotationLock);
+    update->Set("lock", true);
+    update->Set("orientation",
+                static_cast<int>(display::Display::Rotation::ROTATE_90));
+    DisplayPrefsTest::SetUp();
+  }
+};
+
+// Make sure that the orientation lock information is correctly preserved
+// during the startup in Tablet Mode, so that it'll be locked to the correct,
+// same orientation in next startup time. crbug.com/391763863.
+TEST_F(DisplayPrefsStartupTest, RotationLockInfoDuringStartupInTabletMode) {
+  ash::TabletModeControllerTestApi().EnterTabletMode();
+
+  ASSERT_TRUE(base::test::RunUntil(
+      []() -> bool { return display::Screen::GetScreen()->InTabletMode(); }));
+
+  auto display = display::Screen::GetScreen()->GetPrimaryDisplay();
+  ScreenOrientationController* screen_orientation_controller =
+      Shell::Get()->screen_orientation_controller();
+
+  EXPECT_EQ(display::Display::Rotation::ROTATE_90, display.rotation());
+  EXPECT_TRUE(screen_orientation_controller->rotation_locked());
+
+  const base::Value::Dict& properties =
+      local_state()->GetDict(prefs::kDisplayRotationLock);
+  const std::optional<bool> rotation_lock = properties.FindBool("lock");
+  EXPECT_TRUE(rotation_lock.value_or(false));
+
+  const std::optional<int> rotation = properties.FindInt("orientation");
+  EXPECT_EQ(display::Display::Rotation::ROTATE_90, rotation.value_or(-1));
 }
 
 }  // namespace ash

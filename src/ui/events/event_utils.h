@@ -7,10 +7,13 @@
 
 #include <stdint.h>
 
+#include <cstring>
 #include <memory>
 #include <string_view>
 #include <vector>
 
+#include "base/bits.h"
+#include "base/compiler_specific.h"
 #include "build/build_config.h"
 #include "ui/display/display.h"
 #include "ui/events/base_event_utils.h"
@@ -51,8 +54,8 @@ constexpr char kPropertyKeyboardGroup[] = "_keyevent_kbd_group_";
 // Key used to store 'hardware key code' values in Event::Properties.
 constexpr char kPropertyKeyboardHwKeyCode[] = "_keyevent_kbd_hw_keycode_";
 
-// Key used to store mouse event flag telling ET_MOUSE_EXITED must actually be
-// interpreted as "crossing intermediate window" in blink context.
+// Key used to store mouse event flag telling EventType::kMouseExited must
+// actually be interpreted as "crossing intermediate window" in blink context.
 constexpr char kPropertyMouseCrossedIntermediateWindow[] =
     "_mouseevent_cros_window_";
 
@@ -215,6 +218,16 @@ EVENTS_EXPORT void ConvertEventLocationToTargetWindowLocation(
     const gfx::Point& target_window_origin,
     const gfx::Point& current_window_origin,
     ui::LocatedEvent* located_event);
+
+// Converts a value of an unsigned integer type to an Event::PropertyValue.
+template <base::bits::UnsignedInteger T>
+Event::PropertyValue ConvertToEventPropertyValue(const T& value) {
+  Event::PropertyValue property_value;
+  property_value.resize(sizeof(T));
+  UNSAFE_TODO(
+      std::memcpy(property_value.data(), &value, property_value.size()));
+  return property_value;
+}
 
 // The following utilities are useful for debugging and tracing.
 

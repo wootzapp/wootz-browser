@@ -18,6 +18,8 @@
 #include "components/security_interstitials/content/ssl_blocking_page_base.h"
 #include "components/security_interstitials/core/https_only_mode_metrics.h"
 
+class Profile;
+
 // //chrome's implementation of the SecurityBlockingPageFactory interface.
 class ChromeSecurityBlockingPageFactory : public SecurityBlockingPageFactory {
  public:
@@ -70,8 +72,12 @@ class ChromeSecurityBlockingPageFactory : public SecurityBlockingPageFactory {
       content::WebContents* web_contents,
       const GURL& request_url,
       security_interstitials::https_only_mode::HttpInterstitialState
-          interstitial_state) override;
+          interstitial_state,
+      security_interstitials::HttpsOnlyModeBlockingPage::MetricsCallback
+          metrics_callback) override;
 
+  // Returns true if the device or the profile is enterprise-managed.
+  static bool IsEnterpriseManaged(Profile* profile);
   // Overrides the calculation of whether the app is enterprise-managed for
   // tests.
   static void SetEnterpriseManagedForTesting(bool enterprise_managed);

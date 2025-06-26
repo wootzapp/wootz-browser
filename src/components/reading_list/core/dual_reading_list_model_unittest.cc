@@ -14,7 +14,7 @@
 #include "components/reading_list/core/reading_list_entry.h"
 #include "components/reading_list/core/reading_list_model_impl.h"
 #include "components/sync/base/storage_type.h"
-#include "components/sync/model/client_tag_based_model_type_processor.h"
+#include "components/sync/model/client_tag_based_data_type_processor.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
@@ -195,11 +195,11 @@ class DualReadingListModelTest : public testing::Test {
   bool TriggerAccountStorageLoadCompletionSignedInSyncDisabled(
       std::vector<TestEntryBuilder> initial_account_entries_builders = {}) {
     auto metadata_batch = std::make_unique<syncer::MetadataBatch>();
-    sync_pb::ModelTypeState state;
+    sync_pb::DataTypeState state;
     state.set_initial_sync_state(
-        sync_pb::ModelTypeState_InitialSyncState_INITIAL_SYNC_DONE);
-    state.set_authenticated_account_id(kTestAccountId);
-    metadata_batch->SetModelTypeState(state);
+        sync_pb::DataTypeState_InitialSyncState_INITIAL_SYNC_DONE);
+    state.set_authenticated_obfuscated_gaia_id(kTestGaiaId.ToString());
+    metadata_batch->SetDataTypeState(state);
 
     std::vector<scoped_refptr<ReadingListEntry>> initial_account_entries;
     for (auto entry_builder : initial_account_entries_builders) {
@@ -214,11 +214,11 @@ class DualReadingListModelTest : public testing::Test {
       std::vector<TestEntryBuilder> initial_local_entries_builders = {},
       std::vector<TestEntryBuilder> initial_account_entries_builders = {}) {
     auto metadata_batch = std::make_unique<syncer::MetadataBatch>();
-    sync_pb::ModelTypeState state;
+    sync_pb::DataTypeState state;
     state.set_initial_sync_state(
-        sync_pb::ModelTypeState_InitialSyncState_INITIAL_SYNC_DONE);
-    state.set_authenticated_account_id(kTestAccountId);
-    metadata_batch->SetModelTypeState(state);
+        sync_pb::DataTypeState_InitialSyncState_INITIAL_SYNC_DONE);
+    state.set_authenticated_obfuscated_gaia_id(kTestGaiaId.ToString());
+    metadata_batch->SetDataTypeState(state);
 
     std::vector<scoped_refptr<ReadingListEntry>> initial_local_entries;
     for (auto entry_builder : initial_local_entries_builders) {
@@ -249,11 +249,11 @@ class DualReadingListModelTest : public testing::Test {
     ResetStorage();
 
     auto metadata_batch = std::make_unique<syncer::MetadataBatch>();
-    sync_pb::ModelTypeState state;
+    sync_pb::DataTypeState state;
     state.set_initial_sync_state(
-        sync_pb::ModelTypeState_InitialSyncState_INITIAL_SYNC_DONE);
-    state.set_authenticated_account_id(kTestAccountId);
-    metadata_batch->SetModelTypeState(state);
+        sync_pb::DataTypeState_InitialSyncState_INITIAL_SYNC_DONE);
+    state.set_authenticated_obfuscated_gaia_id(kTestGaiaId.ToString());
+    metadata_batch->SetDataTypeState(state);
 
     std::vector<scoped_refptr<ReadingListEntry>> initial_syncable_entries;
     for (auto entry_builder : initial_syncable_entries_builders) {
@@ -268,7 +268,7 @@ class DualReadingListModelTest : public testing::Test {
 
  protected:
   const GURL kUrl = GURL("http://url.com/");
-  const std::string kTestAccountId = "TestAccountId";
+  const GaiaId kTestGaiaId = GaiaId("TestGaiaId");
   base::SimpleTestClock clock_;
   testing::NiceMock<MockReadingListModelObserver> observer_;
   base::WeakPtr<FakeReadingListModelStorage>
@@ -305,7 +305,7 @@ TEST_F(DualReadingListModelTest, ModelLoadFailure) {
 
 TEST_F(DualReadingListModelTest, MetaDataClearedBeforeModelLoaded) {
   ResetStorage();
-  static_cast<syncer::ClientTagBasedModelTypeProcessor*>(
+  static_cast<syncer::ClientTagBasedDataTypeProcessor*>(
       account_model_ptr_->GetSyncBridgeForTest()->change_processor())
       ->ClearMetadataIfStopped();
 
@@ -696,10 +696,10 @@ TEST_F(DualReadingListModelTest,
             StorageStateForTesting::kExistsInBothModels);
 
   EXPECT_TRUE(dual_model_->GetAccountWhereEntryIsSavedTo(kLocalUrl).empty());
-  EXPECT_EQ(dual_model_->GetAccountWhereEntryIsSavedTo(kAccountUrl).ToString(),
-            kTestAccountId);
-  EXPECT_EQ(dual_model_->GetAccountWhereEntryIsSavedTo(kCommonUrl).ToString(),
-            kTestAccountId);
+  EXPECT_EQ(dual_model_->GetAccountWhereEntryIsSavedTo(kAccountUrl),
+            kTestGaiaId);
+  EXPECT_EQ(dual_model_->GetAccountWhereEntryIsSavedTo(kCommonUrl),
+            kTestGaiaId);
   EXPECT_TRUE(
       dual_model_
           ->GetAccountWhereEntryIsSavedTo(GURL("http://non_existing_url.com/"))
@@ -713,8 +713,8 @@ TEST_F(DualReadingListModelTest, GetAccountWhereEntryIsSavedToWhenSyncEnabled) {
   ASSERT_EQ(dual_model_->GetStorageStateForURLForTesting(kUrl),
             StorageStateForTesting::kExistsInLocalOrSyncableModelOnly);
 
-  EXPECT_EQ(dual_model_->GetAccountWhereEntryIsSavedTo(kUrl).ToString(),
-            kTestAccountId);
+  EXPECT_EQ(dual_model_->GetAccountWhereEntryIsSavedTo(kUrl),
+            kTestGaiaId);
   EXPECT_TRUE(
       dual_model_
           ->GetAccountWhereEntryIsSavedTo(GURL("http://non_existing_url.com/"))

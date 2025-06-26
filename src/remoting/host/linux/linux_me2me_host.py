@@ -285,12 +285,10 @@ def is_supported_platform():
   return os.path.isfile(DEBIAN_XSESSION_PATH);
 
 
-def is_googler_owned(config):
-  try:
-    host_owner = config["host_owner"]
-    return host_owner.endswith("@google.com")
-  except KeyError:
-    return False
+def is_crash_reporting_enabled(config):
+  # Enable crash reporting for Google hosts or when usage_stats_consent is true.
+  return (config.get("host_owner", "").endswith("@google.com") or
+          config.get("usage_stats_consent", False))
 
 
 def get_pipewire_session_manager():
@@ -340,6 +338,31 @@ def get_pipewire_session_manager():
     return None
 
   return session_manager
+
+
+def get_wireplumber_version():
+  """Returns the WirePlumber version installed on this system, or None if the
+  version could not be obtained."""
+
+  try:
+    version_output = subprocess.check_output(["wireplumber", "--version"],
+                                             universal_newlines=True)
+  except subprocess.CalledProcessError as e:
+    logging.warning("Failed to execute wireplumber: "  + str(e))
+    return None
+
+  match = re.search(r"wireplumber (\S+)$", version_output, re.MULTILINE)
+  if not match:
+    logging.warning("Failed to determine wireplumber version.")
+    return None
+
+  try:
+    wireplumber_version = version.parse(match[1])
+  except version.InvalidVersion as e:
+    logging.warning("Failed to parse wireplumber version: " + str(e))
+    return None
+
+  return wireplumber_version
 
 
 def terminate_process(pid, name):
@@ -445,8 +468,8 @@ class Config:
     except (IOError, TypeError) as e:
       logging.error("Failed to save config: " + str(e))
 
-  def get(self, key):
-    return self.data.get(key)
+  def get(self, key, default = None):
+    return self.data.get(key, default)
 
   def __getitem__(self, key):
     return self.data[key]
@@ -681,6 +704,20 @@ class Desktop(abc.ABC):
           self.pipewire_session_manager, "-c",
           os.path.join(runtime_path, self.pipewire_session_manager + ".conf")]
 
+      # The WirePlumber config template does not work with versions 0.5 or
+      # later. Instead, launch it with the system config, and use the
+      # customized "chrome-remote-desktop" profile from the installed config
+      # fragment.
+      if self.pipewire_session_manager.endswith("wireplumber"):
+        wireplumber_version = get_wireplumber_version()
+        if wireplumber_version is None:
+          logging.error("Failed to get WirePlumber version.")
+          return False
+        if wireplumber_version >= version.parse("0.5"):
+          session_manager_cmd = [
+              self.pipewire_session_manager,
+              "--profile", "chrome-remote-desktop"]
+
       # Terminate any stale processes before relaunching.
       for command in [pipewire_cmd, pipewire_pulse_cmd, session_manager_cmd]:
         terminate_command_if_running(command)
@@ -688,13 +725,14 @@ class Desktop(abc.ABC):
       self.pipewire_proc = subprocess.Popen(pipewire_cmd, env=self.child_env)
       self.pipewire_pulse_proc = subprocess.Popen(pipewire_pulse_cmd,
                                                   env=self.child_env)
+
+      # Directs native PipeWire clients to the correct instance.
+      self.child_env["PIPEWIRE_REMOTE"] = instance_name
+
       # MEDIA_SESSION_CONFIG_DIR is needed to use an absolute path with
       # pipewire-media-session.
       self.pipewire_session_manager_proc = subprocess.Popen(session_manager_cmd,
           env={**self.child_env, "MEDIA_SESSION_CONFIG_DIR": "/"})
-
-      # Directs native PipeWire clients to the correct instance
-      self.child_env["PIPEWIRE_REMOTE"] = instance_name
 
       return True
     except (IOError, OSError) as e:
@@ -815,6 +853,9 @@ class Desktop(abc.ABC):
 
   def launch_crash_uploader(self, backoff_time):
     if not self.crash_reporting_enabled:
+      return
+
+    if not os.path.exists(CRASH_UPLOADER_PATH):
       return
 
     logging.info("Launching crash uploader")
@@ -1452,9 +1493,8 @@ class XDesktop(Desktop):
       self.randr_add_sizes = True
 
   def _launch_xorg(self, display, x_auth_file, extra_x_args):
-    with tempfile.NamedTemporaryFile(
-        prefix="chrome_remote_desktop_",
-        suffix=".conf", delete=False) as config_file:
+    config_dir = tempfile.mkdtemp(prefix="chrome_remote_desktop_")
+    with open(os.path.join(config_dir, "xorg.conf"), "wb") as config_file:
       config_file.write(gen_xorg_config().encode())
 
     self.server_supports_randr = True
@@ -1480,7 +1520,10 @@ class XDesktop(Desktop):
          # so the equivalent information gets logged in our main log file.
          "-logfile", "/dev/null",
          "-verbose", "3",
-         "-config", config_file.name
+         "-configdir", config_dir,
+         # Pass a non-existent file, to prevent Xorg from reading the default
+         # config file: /etc/X11/xorg.conf
+         "-config", os.path.join(config_dir, "none")
         ] + extra_x_args, env=self._x_env())
     if not self.server_proc.pid:
       raise Exception("Could not start Xorg.")
@@ -2043,6 +2086,7 @@ def cleanup():
     g_desktop.cleanup()
     if getattr(g_desktop, 'xorg_conf', None) is not None:
       os.remove(g_desktop.xorg_conf)
+      os.rmdir(os.path.dirname(g_desktop.xorg_conf))
 
   g_desktop = None
   ParentProcessLogger.release_parent_if_connected(False)
@@ -2523,14 +2567,14 @@ def main():
   extra_start_host_args = []
   if HOST_EXTRA_PARAMS_ENV_VAR in os.environ:
       extra_start_host_args = \
-          re.split('\s+', os.environ[HOST_EXTRA_PARAMS_ENV_VAR].strip())
+          re.split(r"\s+", os.environ[HOST_EXTRA_PARAMS_ENV_VAR].strip())
   is_wayland = any([opt == '--enable-wayland' for opt in extra_start_host_args])
   if is_wayland:
     desktop = WaylandDesktop(sizes, host_config)
   else:
     desktop = XDesktop(sizes, host_config)
 
-  if is_googler_owned(host_config):
+  if is_crash_reporting_enabled(host_config):
     desktop.enable_crash_reporting()
 
   # Whether we are tearing down because the display server and/or session

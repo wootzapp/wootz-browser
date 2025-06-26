@@ -17,7 +17,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/notreached.h"
 #include "base/task/single_thread_task_runner.h"
-#include "chrome/browser/ash/crosapi/window_util.h"
+#include "chrome/browser/ash/policy/dlp/window_util.h"
 #include "chrome/browser/chromeos/policy/dlp/dialogs/dlp_warn_notifier.h"
 #include "chrome/browser/chromeos/policy/dlp/dlp_confidential_contents.h"
 #include "chrome/browser/chromeos/policy/dlp/dlp_content_restriction_set.h"
@@ -26,7 +26,7 @@
 #include "chrome/browser/chromeos/policy/dlp/dlp_rules_manager_factory.h"
 #include "chrome/browser/enterprise/data_controls/dlp_reporting_manager.h"
 #include "chrome/browser/ui/ash/capture_mode/chrome_capture_mode_delegate.h"
-#include "components/enterprise/data_controls/dlp_histogram_helper.h"
+#include "components/enterprise/data_controls/core/browser/dlp_histogram_helper.h"
 #include "components/exo/shell_surface_util.h"
 #include "components/exo/surface.h"
 #include "content/public/browser/browser_thread.h"
@@ -285,7 +285,7 @@ void DlpContentManagerAsh::OnWindowRestrictionChanged(
     mojo::ReceiverId receiver_id,
     const std::string& window_id,
     const DlpContentRestrictionSet& restrictions) {
-  aura::Window* window = crosapi::GetShellSurfaceWindow(window_id);
+  aura::Window* window = ash::GetShellSurfaceWindow(window_id);
   if (window) {
     pending_restrictions_.erase(window_id);
     confidential_windows_[window] = restrictions;

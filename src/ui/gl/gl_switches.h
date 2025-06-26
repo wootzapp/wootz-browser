@@ -16,8 +16,6 @@
 namespace gl {
 
 // The GL implementation names that can be passed to --use-gl.
-GL_EXPORT extern const char kGLImplementationDesktopName[];
-GL_EXPORT extern const char kGLImplementationAppleName[];
 GL_EXPORT extern const char kGLImplementationEGLName[];
 GL_EXPORT extern const char kGLImplementationANGLEName[];
 GL_EXPORT extern const char kGLImplementationMockName[];
@@ -28,6 +26,8 @@ GL_EXPORT extern const char kANGLEImplementationDefaultName[];
 GL_EXPORT extern const char kANGLEImplementationD3D9Name[];
 GL_EXPORT extern const char kANGLEImplementationD3D11Name[];
 GL_EXPORT extern const char kANGLEImplementationD3D11on12Name[];
+GL_EXPORT extern const char kANGLEImplementationD3D11WarpName[];
+GL_EXPORT extern const char kANGLEImplementationD3D11WarpForWebGLName[];
 GL_EXPORT extern const char kANGLEImplementationOpenGLName[];
 GL_EXPORT extern const char kANGLEImplementationOpenGLEGLName[];
 GL_EXPORT extern const char kANGLEImplementationOpenGLESName[];
@@ -51,6 +51,7 @@ GL_EXPORT extern const char kCmdDecoderPassthroughName[];
 GL_EXPORT extern const char kSwapChainFormatNV12[];
 GL_EXPORT extern const char kSwapChainFormatYUY2[];
 GL_EXPORT extern const char kSwapChainFormatBGRA[];
+GL_EXPORT extern const char kSwapChainFormatP010[];
 
 }  // namespace gl
 
@@ -72,8 +73,10 @@ GL_EXPORT extern const char kUseGpuInTests[];
 GL_EXPORT extern const char kEnableSgiVideoSync[];
 GL_EXPORT extern const char kDisableGLExtensions[];
 GL_EXPORT extern const char kEnableSwapBuffersWithBounds[];
+GL_EXPORT extern const char kDisableDirectComposition[];
 GL_EXPORT extern const char kEnableDirectCompositionVideoOverlays[];
 GL_EXPORT extern const char kUseAdapterLuid[];
+GL_EXPORT extern const char kEnableUnsafeSwiftShader[];
 
 GL_EXPORT extern const char kDirectCompositionVideoSwapChainFormat[];
 
@@ -98,7 +101,6 @@ GL_EXPORT BASE_DECLARE_FEATURE(kDCompTripleBufferVideoSwapChain);
 GL_EXPORT BASE_DECLARE_FEATURE(kDirectCompositionSoftwareOverlays);
 GL_EXPORT BASE_DECLARE_FEATURE(kDirectCompositionLetterboxVideoOptimization);
 GL_EXPORT BASE_DECLARE_FEATURE(kDirectCompositionUnlimitedOverlays);
-GL_EXPORT BASE_DECLARE_FEATURE(kCopyNonOverlayResourcesToDCompSurfaces);
 GL_EXPORT BASE_DECLARE_FEATURE(kEGLDualGPURendering);
 GL_EXPORT BASE_DECLARE_FEATURE(kIntelVpSuperResolution);
 GL_EXPORT BASE_DECLARE_FEATURE(kNvidiaVpSuperResolution);
@@ -109,10 +111,10 @@ GL_EXPORT BASE_DECLARE_FEATURE(kDefaultANGLEVulkan);
 GL_EXPORT BASE_DECLARE_FEATURE(kTrackCurrentShaders);
 GL_EXPORT BASE_DECLARE_FEATURE(kVulkanFromANGLE);
 GL_EXPORT BASE_DECLARE_FEATURE(kDXGIWaitableSwapChain);
+GL_EXPORT BASE_DECLARE_FEATURE(kGpuVsync);
 GL_EXPORT extern const base::FeatureParam<int>
     kDXGIWaitableSwapChainMaxQueuedFrames;
 GL_EXPORT BASE_DECLARE_FEATURE(kDXGISwapChainPresentInterval0);
-GL_EXPORT BASE_DECLARE_FEATURE(kUseSwapChainPresenterFloatingPointAdjustments);
 
 GL_EXPORT bool IsDefaultANGLEVulkan();
 

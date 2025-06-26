@@ -80,6 +80,10 @@ crosapi::mojom::WebAppInstallResultCode EnumTraits<
           kCancelledDueToMainFrameNavigation;
     case webapps::InstallResultCode::kNoValidIconsInManifest:
       return crosapi::mojom::WebAppInstallResultCode::kNoValidIconsInManifest;
+    case webapps::InstallResultCode::kNoCustomManifestId:
+      return crosapi::mojom::WebAppInstallResultCode::kNoCustomManifestId;
+    case webapps::InstallResultCode::kManifestIdMismatch:
+      return crosapi::mojom::WebAppInstallResultCode::kManifestIdMismatch;
   };
 }
 
@@ -179,18 +183,23 @@ bool EnumTraits<crosapi::mojom::WebAppInstallResultCode,
     case crosapi::mojom::WebAppInstallResultCode::kNoValidIconsInManifest:
       *output = webapps::InstallResultCode::kNoValidIconsInManifest;
       return true;
+    case crosapi::mojom::WebAppInstallResultCode::kNoCustomManifestId:
+      *output = webapps::InstallResultCode::kNoCustomManifestId;
+      return true;
+    case crosapi::mojom::WebAppInstallResultCode::kManifestIdMismatch:
+      *output = webapps::InstallResultCode::kManifestIdMismatch;
+      return true;
   };
 
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 crosapi::mojom::WebAppUninstallResultCode EnumTraits<
     crosapi::mojom::WebAppUninstallResultCode,
     webapps::UninstallResultCode>::ToMojom(webapps::UninstallResultCode input) {
   switch (input) {
-    case webapps::UninstallResultCode::kSuccess:
-      return crosapi::mojom::WebAppUninstallResultCode::kSuccess;
+    case webapps::UninstallResultCode::kAppRemoved:
+      return crosapi::mojom::WebAppUninstallResultCode::kAppRemoved;
     case webapps::UninstallResultCode::kNoAppToUninstall:
       return crosapi::mojom::WebAppUninstallResultCode::kNoAppToUninstall;
     case webapps::UninstallResultCode::kCancelled:
@@ -199,6 +208,10 @@ crosapi::mojom::WebAppUninstallResultCode EnumTraits<
       return crosapi::mojom::WebAppUninstallResultCode::kError;
     case webapps::UninstallResultCode::kShutdown:
       return crosapi::mojom::WebAppUninstallResultCode::kShutdown;
+    case webapps::UninstallResultCode::kInstallSourceRemoved:
+      return crosapi::mojom::WebAppUninstallResultCode::kInstallSourceRemoved;
+    case webapps::UninstallResultCode::kInstallUrlRemoved:
+      return crosapi::mojom::WebAppUninstallResultCode::kInstallUrlRemoved;
   };
 }
 
@@ -207,8 +220,8 @@ bool EnumTraits<crosapi::mojom::WebAppUninstallResultCode,
     FromMojom(crosapi::mojom::WebAppUninstallResultCode input,
               webapps::UninstallResultCode* output) {
   switch (input) {
-    case crosapi::mojom::WebAppUninstallResultCode::kSuccess:
-      *output = webapps::UninstallResultCode::kSuccess;
+    case crosapi::mojom::WebAppUninstallResultCode::kAppRemoved:
+      *output = webapps::UninstallResultCode::kAppRemoved;
       return true;
     case crosapi::mojom::WebAppUninstallResultCode::kNoAppToUninstall:
       *output = webapps::UninstallResultCode::kNoAppToUninstall;
@@ -222,10 +235,15 @@ bool EnumTraits<crosapi::mojom::WebAppUninstallResultCode,
     case crosapi::mojom::WebAppUninstallResultCode::kShutdown:
       *output = webapps::UninstallResultCode::kShutdown;
       return true;
+    case crosapi::mojom::WebAppUninstallResultCode::kInstallSourceRemoved:
+      *output = webapps::UninstallResultCode::kInstallSourceRemoved;
+      return true;
+    case crosapi::mojom::WebAppUninstallResultCode::kInstallUrlRemoved:
+      *output = webapps::UninstallResultCode::kInstallUrlRemoved;
+      return true;
   };
 
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 }  // namespace mojo

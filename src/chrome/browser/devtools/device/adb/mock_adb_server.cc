@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/devtools/device/adb/mock_adb_server.h"
 
 #include <stddef.h>
@@ -9,6 +14,7 @@
 
 #include <string_view>
 
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/weak_ptr.h"
@@ -199,17 +205,17 @@ char kSampleNodePage[] = "[ {\n"
     "148b8b92-8ca0-43fd-b8c8-a351864644f8\""
     "} ]";
 
-static const int kBufferSize = 16*1024;
-static const uint16_t kAdbPort = 5037;
+static constexpr int kBufferSize = 16 * 1024;
+static constexpr uint16_t kAdbPort = 5037;
 
-static const int kAdbMessageHeaderSize = 4;
+static constexpr size_t kAdbMessageHeaderSize = 4;
 
 class SimpleHttpServer {
  public:
   class Parser {
    public:
-    virtual int Consume(const char* data, int size) = 0;
-    virtual ~Parser() {}
+    virtual size_t Consume(const char* data, size_t size) = 0;
+    virtual ~Parser() = default;
   };
 
   using SendCallback = base::RepeatingCallback<void(const std::string&)>;
@@ -241,10 +247,12 @@ class SimpleHttpServer {
 
     std::unique_ptr<net::StreamSocket> socket_;
     std::unique_ptr<Parser> parser_;
-    scoped_refptr<net::GrowableIOBuffer> input_buffer_;
-    scoped_refptr<net::GrowableIOBuffer> output_buffer_;
-    int bytes_to_write_;
-    bool read_closed_;
+    scoped_refptr<net::GrowableIOBuffer> input_buffer_ =
+        base::MakeRefCounted<net::GrowableIOBuffer>();
+    scoped_refptr<net::GrowableIOBuffer> output_buffer_ =
+        base::MakeRefCounted<net::GrowableIOBuffer>();
+    size_t bytes_to_write_ = 0;
+    bool read_closed_ = false;
 
     SEQUENCE_CHECKER(sequence_checker_);
 
@@ -255,7 +263,8 @@ class SimpleHttpServer {
   void OnAccepted(int result);
 
   ParserFactory factory_;
-  std::unique_ptr<net::TCPServerSocket> socket_;
+  std::unique_ptr<net::TCPServerSocket> socket_ =
+      std::make_unique<net::TCPServerSocket>(nullptr, net::NetLogSource());
   std::unique_ptr<net::StreamSocket> client_socket_;
 
   SEQUENCE_CHECKER(sequence_checker_);
@@ -265,8 +274,7 @@ class SimpleHttpServer {
 
 SimpleHttpServer::SimpleHttpServer(const ParserFactory& factory,
                                    net::IPEndPoint endpoint)
-    : factory_(factory),
-      socket_(new net::TCPServerSocket(nullptr, net::NetLogSource())) {
+    : factory_(factory) {
   socket_->Listen(endpoint, 5, /*ipv6_only=*/std::nullopt);
   OnConnect();
 }
@@ -279,11 +287,7 @@ SimpleHttpServer::Connection::Connection(net::StreamSocket* socket,
                                          const ParserFactory& factory)
     : socket_(socket),
       parser_(factory.Run(
-          base::BindRepeating(&Connection::Send, base::Unretained(this)))),
-      input_buffer_(base::MakeRefCounted<net::GrowableIOBuffer>()),
-      output_buffer_(base::MakeRefCounted<net::GrowableIOBuffer>()),
-      bytes_to_write_(0),
-      read_closed_(false) {
+          base::BindRepeating(&Connection::Send, base::Unretained(this)))) {
   input_buffer_->SetCapacity(kBufferSize);
   ReadData();
 }
@@ -294,29 +298,32 @@ SimpleHttpServer::Connection::~Connection() {
 
 void SimpleHttpServer::Connection::Send(const std::string& message) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  const char* data = message.c_str();
-  int size = message.size();
-
-  if ((output_buffer_->offset() + bytes_to_write_ + size) >
-      output_buffer_->capacity()) {
+  const size_t size = message.size();
+  const size_t total_size = bytes_to_write_ + size;
+  const auto old_offset = base::checked_cast<size_t>(output_buffer_->offset());
+  const auto old_capacity =
+      base::checked_cast<size_t>(output_buffer_->capacity());
+  if ((old_offset + total_size) > old_capacity) {
     // If not enough space without relocation
-    if (output_buffer_->capacity() < (bytes_to_write_ + size)) {
+    if (old_capacity < total_size) {
       // If even buffer is not enough
-      int new_size = std::max(output_buffer_->capacity() * 2, size * 2);
-      output_buffer_->SetCapacity(new_size);
+      output_buffer_->SetCapacity(
+          base::checked_cast<int>(std::max(old_capacity * 2, size * 2)));
     }
-    memmove(output_buffer_->StartOfBuffer(),
-            output_buffer_->data(),
-            bytes_to_write_);
     output_buffer_->set_offset(0);
+    output_buffer_->span().copy_prefix_from(
+        output_buffer_->span().subspan(old_offset, bytes_to_write_));
   }
 
-  memcpy(output_buffer_->data() + bytes_to_write_, data, size);
-  bytes_to_write_ += size;
+  output_buffer_->span()
+      .subspan(bytes_to_write_, size)
+      .copy_from(base::as_byte_span(message));
+  bytes_to_write_ = total_size;
 
-  if (bytes_to_write_ == size)
+  if (total_size == size) {
     // If write loop wasn't yet started, then start it
     WriteData();
+  }
 }
 
 void SimpleHttpServer::Connection::ReadData() {
@@ -343,16 +350,18 @@ void SimpleHttpServer::Connection::OnDataRead(int count) {
     return;
   }
   input_buffer_->set_offset(input_buffer_->offset() + count);
-  int bytes_processed;
+  size_t bytes_processed;
 
   do {
-    char* data = input_buffer_->StartOfBuffer();
-    int data_size = input_buffer_->offset();
-    bytes_processed = parser_->Consume(data, data_size);
+    base::span<uint8_t> data_buffer = input_buffer_->span_before_offset();
+    base::span<char> data_chars = base::as_writable_chars(data_buffer);
+    bytes_processed = parser_->Consume(data_chars.data(), data_chars.size());
 
     if (bytes_processed) {
-      memmove(data, data + bytes_processed, data_size - bytes_processed);
-      input_buffer_->set_offset(data_size - bytes_processed);
+      const size_t unprocessed_size = data_buffer.size() - bytes_processed;
+      input_buffer_->everything().copy_prefix_from(
+          data_buffer.subspan(bytes_processed));
+      input_buffer_->set_offset(unprocessed_size);
     }
   } while (bytes_processed);
   // Posting to avoid deep recursion in case of synchronous IO
@@ -363,11 +372,13 @@ void SimpleHttpServer::Connection::OnDataRead(int count) {
 
 void SimpleHttpServer::Connection::WriteData() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+  const auto bytes_to_write_i = base::checked_cast<int>(bytes_to_write_);
   CHECK_GE(output_buffer_->capacity(),
-           output_buffer_->offset() + bytes_to_write_) << "Overflow";
+           output_buffer_->offset() + bytes_to_write_i)
+      << "Overflow";
 
   int write_result = socket_->Write(
-      output_buffer_.get(), bytes_to_write_,
+      output_buffer_.get(), bytes_to_write_i,
       base::BindOnce(&Connection::OnDataWritten, base::Unretained(this)),
       TRAFFIC_ANNOTATION_FOR_TESTS);
 
@@ -382,19 +393,23 @@ void SimpleHttpServer::Connection::OnDataWritten(int count) {
     return;
   }
   CHECK_GT(count, 0);
+  const auto bytes_to_write_i = base::checked_cast<int>(bytes_to_write_);
+  CHECK_LE(count, bytes_to_write_i);
   CHECK_GE(output_buffer_->capacity(),
-           output_buffer_->offset() + bytes_to_write_) << "Overflow";
+           output_buffer_->offset() + bytes_to_write_i)
+      << "Overflow";
 
   bytes_to_write_ -= count;
   output_buffer_->set_offset(output_buffer_->offset() + count);
 
-  if (bytes_to_write_ != 0)
+  if (bytes_to_write_ != 0) {
     // Posting to avoid deep recursion in case of synchronous IO
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE,
         base::BindOnce(&Connection::WriteData, weak_factory_.GetWeakPtr()));
-  else if (read_closed_)
+  } else if (read_closed_) {
     delete this;
+  }
 }
 
 void SimpleHttpServer::OnConnect() {
@@ -434,7 +449,7 @@ class AdbParser : public SimpleHttpServer::Parser,
         callback_(callback) {
   }
 
-  int Consume(const char* data, int size) override {
+  size_t Consume(const char* data, size_t size) override {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     if (mock_connection_) {
       mock_connection_->Receive(std::string(data, size));
@@ -442,9 +457,9 @@ class AdbParser : public SimpleHttpServer::Parser,
     }
     if (size >= kAdbMessageHeaderSize) {
       std::string message_header(data, kAdbMessageHeaderSize);
-      int message_size;
+      uint32_t message_size;
 
-      EXPECT_TRUE(base::HexStringToInt(message_header, &message_size));
+      EXPECT_TRUE(base::HexStringToUInt(message_header, &message_size));
 
       if (size >= message_size + kAdbMessageHeaderSize) {
         std::string message_body(data + kAdbMessageHeaderSize, message_size);
@@ -541,8 +556,7 @@ MockAndroidConnection::MockAndroidConnection(
   ProcessCommand(command);
 }
 
-MockAndroidConnection::~MockAndroidConnection() {
-}
+MockAndroidConnection::~MockAndroidConnection() = default;
 
 void MockAndroidConnection::Receive(const std::string& data) {
   request_ += data;
@@ -570,14 +584,14 @@ void MockAndroidConnection::Receive(const std::string& data) {
     else if (base::StartsWith(path, kJsonListPath))
       SendHTTPResponse(kSampleChromePages);
     else
-      NOTREACHED_IN_MIGRATION() << "Unknown command " << request;
+      NOTREACHED() << "Unknown command " << request;
   } else if (socket_name_ == "chrome_devtools_remote_1002") {
     if (path == kJsonVersionPath)
       SendHTTPResponse(kSampleChromeBetaVersion);
     else if (base::StartsWith(path, kJsonListPath))
       SendHTTPResponse(kSampleChromeBetaPages);
     else
-      NOTREACHED_IN_MIGRATION() << "Unknown command " << request;
+      NOTREACHED() << "Unknown command " << request;
   } else if (base::StartsWith(socket_name_, "noprocess_devtools_remote",
                               base::CompareCase::SENSITIVE)) {
     if (path == kJsonVersionPath)
@@ -585,23 +599,23 @@ void MockAndroidConnection::Receive(const std::string& data) {
     else if (base::StartsWith(path, kJsonListPath))
       SendHTTPResponse("[]");
     else
-      NOTREACHED_IN_MIGRATION() << "Unknown command " << request;
+      NOTREACHED() << "Unknown command " << request;
   } else if (socket_name_ == "webview_devtools_remote_2425") {
     if (path == kJsonVersionPath)
       SendHTTPResponse(kSampleWebViewVersion);
     else if (base::StartsWith(path, kJsonListPath))
       SendHTTPResponse(kSampleWebViewPages);
     else
-      NOTREACHED_IN_MIGRATION() << "Unknown command " << request;
+      NOTREACHED() << "Unknown command " << request;
   } else if (socket_name_ == "node_devtools_remote") {
     if (path == kJsonVersionPath)
       SendHTTPResponse(kSampleNodeVersion);
     else if (base::StartsWith(path, kJsonListPath))
       SendHTTPResponse(kSampleNodePage);
     else
-      NOTREACHED_IN_MIGRATION() << "Unknown command " << request;
+      NOTREACHED() << "Unknown command " << request;
   } else {
-    NOTREACHED_IN_MIGRATION() << "Unknown socket " << socket_name_;
+    NOTREACHED() << "Unknown socket " << socket_name_;
   }
 }
 
@@ -634,12 +648,12 @@ void MockAndroidConnection::ProcessCommand(const std::string& command) {
         result += line.substr(sizeof(kEchoCommandPrefix) - 1);
         result += "\r\n";
       } else {
-        NOTREACHED_IN_MIGRATION() << "Unknown shell command - " << command;
+        NOTREACHED() << "Unknown shell command - " << command;
       }
     }
     delegate_->SendSuccess(result);
   } else {
-    NOTREACHED_IN_MIGRATION() << "Unknown command - " << command;
+    NOTREACHED() << "Unknown command - " << command;
   }
   delegate_->Close();
 }

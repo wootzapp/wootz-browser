@@ -4,9 +4,10 @@
 
 #include "services/network/shared_dictionary/shared_dictionary_data_pipe_writer.h"
 
+#include "base/containers/span.h"
 #include "base/memory/ptr_util.h"
 #include "net/base/net_errors.h"
-#include "services/network/public/cpp/features.h"
+#include "services/network/public/cpp/loading_params.h"
 #include "services/network/shared_dictionary/shared_dictionary_writer.h"
 
 namespace network {
@@ -14,8 +15,8 @@ namespace network {
 // static
 
 uint32_t SharedDictionaryDataPipeWriter::GetDataPipeBufferSize() {
-  return network::features::GetDataPipeDefaultAllocationSize(
-      features::DataPipeAllocationSize::kLargerSizeIfPossible);
+  return GetDataPipeDefaultAllocationSize(
+      DataPipeAllocationSize::kLargerSizeIfPossible);
 }
 
 // static
@@ -90,10 +91,9 @@ void SharedDictionaryDataPipeWriter::OnComplete(bool success) {
 void SharedDictionaryDataPipeWriter::ContinueReadWrite(
     MojoResult,
     const mojo::HandleSignalsState& state) {
-  const void* buffer;
-  size_t buffer_size = 0;
-  MojoResult result = consumer_handle_->BeginReadData(
-      &buffer, &buffer_size, MOJO_BEGIN_READ_DATA_FLAG_NONE);
+  base::span<const uint8_t> buffer;
+  MojoResult result =
+      consumer_handle_->BeginReadData(MOJO_BEGIN_READ_DATA_FLAG_NONE, buffer);
   switch (result) {
     case MOJO_RESULT_OK:
       break;
@@ -103,15 +103,15 @@ void SharedDictionaryDataPipeWriter::ContinueReadWrite(
       return;
     case MOJO_RESULT_SHOULD_WAIT:
       // `consumer_handle_` must be readable or closed here.
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     default:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
 
-  result = producer_handle_->WriteData(buffer, &buffer_size,
-                                       MOJO_WRITE_DATA_FLAG_NONE);
+  size_t actually_written_bytes = 0;
+  result = producer_handle_->WriteData(buffer, MOJO_WRITE_DATA_FLAG_NONE,
+                                       actually_written_bytes);
+  buffer = buffer.first(actually_written_bytes);
   switch (result) {
     case MOJO_RESULT_OK:
       break;
@@ -124,11 +124,10 @@ void SharedDictionaryDataPipeWriter::ContinueReadWrite(
       FinishDataPipeOperation(/*success=*/false);
       return;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
-  writer_->Append(reinterpret_cast<const char*>(buffer), buffer_size);
-  consumer_handle_->EndReadData(buffer_size);
+  writer_->Append(buffer);
+  consumer_handle_->EndReadData(buffer.size());
   consumer_watcher_.ArmOrNotify();
 }
 

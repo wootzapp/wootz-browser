@@ -8,15 +8,21 @@
 
 #include "base/hash/hash.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/protobuf_matchers.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "components/sync/base/client_tag_hash.h"
+#include "components/sync/base/collaboration_id.h"
+#include "components/sync/base/data_type.h"
+#include "components/sync/base/deletion_origin.h"
 #include "components/sync/base/features.h"
-#include "components/sync/base/model_type.h"
 #include "components/sync/base/time.h"
+#include "components/sync/base/unique_position.h"
 #include "components/sync/engine/commit_and_get_updates_types.h"
+#include "components/sync/protocol/collaboration_metadata.h"
 #include "components/sync/protocol/entity_metadata.pb.h"
 #include "components/sync/protocol/entity_specifics.pb.h"
+#include "components/sync/protocol/unique_position.pb.h"
 #include "components/version_info/version_info.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -24,6 +30,9 @@
 namespace syncer {
 
 namespace {
+
+using base::test::EqualsProto;
+using testing::Not;
 
 const char kKey[] = "key";
 const ClientTagHash kHash = ClientTagHash::FromHashed("hash");
@@ -61,11 +70,11 @@ sync_pb::EntitySpecifics GenerateSharedTabGroupDataSpecifics(
 std::unique_ptr<EntityData> GenerateSharedTabGroupDataEntityData(
     const ClientTagHash& hash,
     const std::string& guid,
-    const std::string& collaboration_id) {
+    CollaborationMetadata collaboration_metadata) {
   std::unique_ptr<EntityData> entity_data(new EntityData());
   entity_data->client_tag_hash = hash;
   entity_data->specifics = GenerateSharedTabGroupDataSpecifics(guid);
-  entity_data->collaboration_id = collaboration_id;
+  entity_data->collaboration_metadata = std::move(collaboration_metadata);
   return entity_data;
 }
 
@@ -76,9 +85,9 @@ UpdateResponseData GenerateSharedTabGroupDataUpdate(
     const std::string& guid,
     const base::Time& mtime,
     int64_t version,
-    const std::string& collaboration_id) {
-  std::unique_ptr<EntityData> data =
-      GenerateSharedTabGroupDataEntityData(hash, guid, collaboration_id);
+    CollaborationMetadata collaboration_metadata) {
+  std::unique_ptr<EntityData> data = GenerateSharedTabGroupDataEntityData(
+      hash, guid, std::move(collaboration_metadata));
   data->id = server_id;
   data->modification_time = mtime;
   UpdateResponseData update;
@@ -132,17 +141,22 @@ CommitResponseData GenerateAckData(const CommitRequestData& request,
   return response;
 }
 
+sync_pb::UniquePosition GenerateUniquePosition(const ClientTagHash& hash) {
+  return UniquePosition::InitialPosition(UniquePosition::GenerateSuffix(hash))
+      .ToProto();
+}
+
 }  // namespace
 
 // Some simple sanity tests for the ProcessorEntity.
 //
 // A lot of the more complicated sync logic is implemented in the
-// ClientTagBasedModelTypeProcessor that owns the ProcessorEntity.  We
+// ClientTagBasedDataTypeProcessor that owns the ProcessorEntity.  We
 // can't unit test it here.
 //
 // Instead, we focus on simple tests to make sure that variables are getting
 // properly intialized and flags properly set.  Anything more complicated would
-// be a redundant and incomplete version of the ClientTagBasedModelTypeProcessor
+// be a redundant and incomplete version of the ClientTagBasedDataTypeProcessor
 // tests.
 class ProcessorEntityTest : public ::testing::Test {
  public:
@@ -160,8 +174,20 @@ class ProcessorEntityTest : public ::testing::Test {
     std::unique_ptr<ProcessorEntity> entity = CreateNew();
     UpdateResponseData update =
         GenerateUpdate(*entity, kHash, kId, kName, kValue1, ctime_, 1);
-    entity->RecordAcceptedRemoteUpdate(update, /*trimmed_specifics=*/{});
+    entity->RecordAcceptedRemoteUpdate(update, /*trimmed_specifics=*/{},
+                                       /*unique_position=*/std::nullopt);
     DCHECK(!entity->IsUnsynced());
+    return entity;
+  }
+
+  std::unique_ptr<ProcessorEntity> CreateSyncedWithUniquePosition() {
+    std::unique_ptr<ProcessorEntity> entity = CreateNew();
+    UpdateResponseData update =
+        GenerateUpdate(*entity, kHash, kId, kName, kValue1, ctime_, 1);
+    entity->RecordAcceptedRemoteUpdate(
+        update, /*trimmed_specifics=*/{},
+        /*unique_position=*/GenerateUniquePosition(kHash));
+    CHECK(!entity->IsUnsynced());
     return entity;
   }
 
@@ -202,7 +228,8 @@ TEST_F(ProcessorEntityTest, DefaultEntity) {
 TEST_F(ProcessorEntityTest, NewLocalItem) {
   std::unique_ptr<ProcessorEntity> entity = CreateNew();
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue1),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
 
   EXPECT_EQ("", entity->metadata().server_id());
   EXPECT_FALSE(entity->metadata().is_deleted());
@@ -212,6 +239,7 @@ TEST_F(ProcessorEntityTest, NewLocalItem) {
   EXPECT_NE(0, entity->metadata().modification_time());
   EXPECT_FALSE(entity->metadata().specifics_hash().empty());
   EXPECT_TRUE(entity->metadata().base_specifics_hash().empty());
+  EXPECT_FALSE(entity->metadata().has_unique_position());
 
   EXPECT_TRUE(entity->IsUnsynced());
   EXPECT_TRUE(entity->RequiresCommitRequest());
@@ -220,7 +248,8 @@ TEST_F(ProcessorEntityTest, NewLocalItem) {
   EXPECT_FALSE(entity->IsVersionAlreadyKnown(1));
   EXPECT_TRUE(entity->HasCommitData());
 
-  EXPECT_EQ(kValue1, entity->commit_data().specifics.preference().value());
+  EXPECT_EQ(kValue1,
+            entity->GetCommitDataForTesting().specifics.preference().value());
 
   // Generate a commit request. The metadata should not change.
   const sync_pb::EntityMetadata metadata_v1 = entity->metadata();
@@ -261,6 +290,7 @@ TEST_F(ProcessorEntityTest, NewLocalItem) {
             entity->metadata().modification_time());
   EXPECT_FALSE(entity->metadata().specifics_hash().empty());
   EXPECT_TRUE(entity->metadata().base_specifics_hash().empty());
+  EXPECT_FALSE(entity->metadata().has_unique_position());
 
   EXPECT_FALSE(entity->IsUnsynced());
   EXPECT_FALSE(entity->RequiresCommitRequest());
@@ -270,12 +300,34 @@ TEST_F(ProcessorEntityTest, NewLocalItem) {
   EXPECT_FALSE(entity->HasCommitData());
 }
 
+TEST_F(ProcessorEntityTest, ShouldStoreUniquePositionForNewLocalItem) {
+  const sync_pb::UniquePosition unique_position = GenerateUniquePosition(kHash);
+  std::unique_ptr<ProcessorEntity> entity = CreateNew();
+  entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue1),
+                            /*trimmed_specifics=*/{}, unique_position);
+  EXPECT_TRUE(entity->metadata().has_unique_position());
+  EXPECT_THAT(entity->metadata().unique_position(),
+              EqualsProto(unique_position));
+
+  // Generate a commit request. The metadata should not change.
+  CommitRequestData request;
+  entity->InitializeCommitRequestData(&request);
+  EXPECT_THAT(entity->metadata().unique_position(),
+              EqualsProto(unique_position));
+
+  // Ack the commit.
+  entity->ReceiveCommitResponse(GenerateAckData(request, kId, 1), false);
+  EXPECT_THAT(entity->metadata().unique_position(),
+              EqualsProto(unique_position));
+}
+
 // Test handling of invalid server version.
 TEST_F(ProcessorEntityTest,
        ShouldIgnoreCommitResponseWithInvalidServerVersion) {
   std::unique_ptr<ProcessorEntity> entity = CreateNew();
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue1),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
 
   CommitRequestData request;
 
@@ -284,7 +336,8 @@ TEST_F(ProcessorEntityTest,
   entity->ReceiveCommitResponse(GenerateAckData(request, kId, 2), false);
 
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue2),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
   ASSERT_EQ(2, entity->metadata().server_version());
   ASSERT_EQ(2, entity->metadata().sequence_number());
   ASSERT_EQ(1, entity->metadata().acked_sequence_number());
@@ -303,7 +356,8 @@ TEST_F(ProcessorEntityTest, NewServerItem) {
   const base::Time mtime = base::Time::Now();
   UpdateResponseData update =
       GenerateUpdate(*entity, kHash, kId, kName, kValue1, mtime, 10);
-  entity->RecordAcceptedRemoteUpdate(update, /*trimmed_specifics=*/{});
+  entity->RecordAcceptedRemoteUpdate(update, /*trimmed_specifics=*/{},
+                                     /*unique_position=*/std::nullopt);
 
   EXPECT_EQ(kId, entity->metadata().server_id());
   EXPECT_FALSE(entity->metadata().is_deleted());
@@ -324,6 +378,19 @@ TEST_F(ProcessorEntityTest, NewServerItem) {
   EXPECT_FALSE(entity->HasCommitData());
 }
 
+TEST_F(ProcessorEntityTest, ShouldStoreUniquePositionForNewServerItem) {
+  const sync_pb::UniquePosition unique_position = GenerateUniquePosition(kHash);
+
+  std::unique_ptr<ProcessorEntity> entity = CreateNew();
+  UpdateResponseData update = GenerateUpdate(
+      *entity, kHash, kId, kName, kValue1, /*mtime=*/base::Time::Now(), 10);
+  entity->RecordAcceptedRemoteUpdate(update, /*trimmed_specifics=*/{},
+                                     unique_position);
+
+  EXPECT_THAT(entity->metadata().unique_position(),
+              EqualsProto(unique_position));
+}
+
 // Test creating an entity for new server item with empty storage key, applying
 // update and updating storage key.
 TEST_F(ProcessorEntityTest, NewServerItem_EmptyStorageKey) {
@@ -334,7 +401,8 @@ TEST_F(ProcessorEntityTest, NewServerItem_EmptyStorageKey) {
   const base::Time mtime = base::Time::Now();
   UpdateResponseData update =
       GenerateUpdate(*entity, kHash, kId, kName, kValue1, mtime, 10);
-  entity->RecordAcceptedRemoteUpdate(update, /*trimmed_specifics=*/{});
+  entity->RecordAcceptedRemoteUpdate(update, /*trimmed_specifics=*/{},
+                                     /*unique_position=*/std::nullopt);
   entity->SetStorageKey(kKey);
   EXPECT_EQ(kKey, entity->storage_key());
 }
@@ -346,7 +414,8 @@ TEST_F(ProcessorEntityTest, NewServerTombstone) {
   const base::Time mtime = base::Time::Now();
   UpdateResponseData tombstone =
       GenerateTombstone(*entity, kHash, kId, kName, mtime, 1);
-  entity->RecordAcceptedRemoteUpdate(tombstone, /*trimmed_specifics=*/{});
+  entity->RecordAcceptedRemoteUpdate(tombstone, /*trimmed_specifics=*/{},
+                                     /*unique_position=*/std::nullopt);
 
   EXPECT_EQ(kId, entity->metadata().server_id());
   EXPECT_TRUE(entity->metadata().is_deleted());
@@ -374,7 +443,8 @@ TEST_F(ProcessorEntityTest, ServerTombstone) {
   const base::Time mtime = base::Time::Now();
   UpdateResponseData tombstone =
       GenerateTombstone(*entity, kHash, kId, kName, mtime, 2);
-  entity->RecordAcceptedRemoteUpdate(tombstone, /*trimmed_specifics=*/{});
+  entity->RecordAcceptedRemoteUpdate(tombstone, /*trimmed_specifics=*/{},
+                                     /*unique_position=*/std::nullopt);
 
   EXPECT_TRUE(entity->metadata().is_deleted());
   EXPECT_EQ(0, entity->metadata().sequence_number());
@@ -393,6 +463,18 @@ TEST_F(ProcessorEntityTest, ServerTombstone) {
   EXPECT_FALSE(entity->HasCommitData());
 }
 
+TEST_F(ProcessorEntityTest, ShouldResetUniquePositionOnServerUpdate) {
+  std::unique_ptr<ProcessorEntity> entity = CreateSyncedWithUniquePosition();
+  ASSERT_TRUE(entity->metadata().has_unique_position());
+
+  UpdateResponseData update = GenerateUpdate(
+      *entity, kHash, kId, kName, kValue1, /*mtime=*/base::Time::Now(), 10);
+  entity->RecordAcceptedRemoteUpdate(update, /*trimmed_specifics=*/{},
+                                     /*unique_position=*/std::nullopt);
+
+  EXPECT_FALSE(entity->metadata().has_unique_position());
+}
+
 // Test a local change of a synced item.
 TEST_F(ProcessorEntityTest, LocalChange) {
   std::unique_ptr<ProcessorEntity> entity = CreateSynced();
@@ -401,7 +483,8 @@ TEST_F(ProcessorEntityTest, LocalChange) {
 
   // Make a local change with different specifics.
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue2),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
 
   const int64_t mtime_v1 = entity->metadata().modification_time();
   const std::string specifics_hash_v1 = entity->metadata().specifics_hash();
@@ -442,6 +525,30 @@ TEST_F(ProcessorEntityTest, LocalChange) {
   EXPECT_FALSE(entity->RequiresCommitData());
   EXPECT_FALSE(entity->CanClearMetadata());
   EXPECT_FALSE(entity->HasCommitData());
+}
+
+TEST_F(ProcessorEntityTest, ShouldStoreNewUniquePositionOnLocalUpdate) {
+  const sync_pb::UniquePosition new_unique_position =
+      GenerateUniquePosition(ClientTagHash::FromHashed("new_hash"));
+  std::unique_ptr<ProcessorEntity> entity = CreateSyncedWithUniquePosition();
+  ASSERT_TRUE(entity->metadata().has_unique_position());
+  ASSERT_THAT(entity->metadata().unique_position(),
+              Not(EqualsProto(new_unique_position)));
+
+  entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue2),
+                            /*trimmed_specifics=*/{}, new_unique_position);
+  EXPECT_THAT(entity->metadata().unique_position(),
+              EqualsProto(new_unique_position));
+}
+
+TEST_F(ProcessorEntityTest, ShouldResetUniquePositionOnLocalUpdate) {
+  std::unique_ptr<ProcessorEntity> entity = CreateSyncedWithUniquePosition();
+  ASSERT_TRUE(entity->metadata().has_unique_position());
+
+  entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue1),
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
+  EXPECT_FALSE(entity->metadata().has_unique_position());
 }
 
 // Test a local deletion of a synced item.
@@ -512,6 +619,15 @@ TEST_F(ProcessorEntityTest, LocalDeletion) {
   EXPECT_FALSE(entity->HasCommitData());
 }
 
+TEST_F(ProcessorEntityTest, ShouldResetUniquePositionOnLocalDeletion) {
+  std::unique_ptr<ProcessorEntity> entity = CreateSyncedWithUniquePosition();
+  ASSERT_TRUE(entity->metadata().has_unique_position());
+
+  entity->RecordLocalDeletion(DeletionOrigin::Unspecified());
+
+  EXPECT_FALSE(entity->metadata().has_unique_position());
+}
+
 TEST_F(ProcessorEntityTest, LocalDeletionWithSpecifiedOrigin) {
   std::unique_ptr<ProcessorEntity> entity = CreateSynced();
   const std::string specifics_hash = entity->metadata().specifics_hash();
@@ -551,7 +667,8 @@ TEST_F(ProcessorEntityTest, LocalUndeletion) {
 
   // Undelete the entity with different specifics.
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue2),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
 
   const std::string specifics_hash_v1 = entity->metadata().specifics_hash();
   ASSERT_NE(specifics_hash_v1, specifics_hash);
@@ -590,6 +707,21 @@ TEST_F(ProcessorEntityTest, LocalUndeletion) {
   EXPECT_FALSE(entity->HasCommitData());
 }
 
+TEST_F(ProcessorEntityTest, ShouldStoreUniquePositionForLocalUndeletion) {
+  std::unique_ptr<ProcessorEntity> entity = CreateSyncedWithUniquePosition();
+  entity->RecordLocalDeletion(DeletionOrigin::Unspecified());
+  ASSERT_FALSE(entity->metadata().has_unique_position());
+
+  // Undelete the entity with unique position.
+  const sync_pb::UniquePosition unique_position =
+      GenerateUniquePosition(ClientTagHash::FromHashed("new_hash"));
+  entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue2),
+                            /*trimmed_specifics=*/{}, unique_position);
+
+  EXPECT_THAT(entity->metadata().unique_position(),
+              EqualsProto(unique_position));
+}
+
 // Test that hashes and sequence numbers are handled correctly for the "commit
 // commit, ack ack" case.
 TEST_F(ProcessorEntityTest, LocalChangesInterleaved) {
@@ -598,7 +730,8 @@ TEST_F(ProcessorEntityTest, LocalChangesInterleaved) {
 
   // Make the first change.
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue2),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
   const std::string specifics_hash_v1 = entity->metadata().specifics_hash();
 
   EXPECT_EQ(1, entity->metadata().sequence_number());
@@ -612,7 +745,8 @@ TEST_F(ProcessorEntityTest, LocalChangesInterleaved) {
 
   // Make the second change.
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue3),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
   const std::string specifics_hash_v2 = entity->metadata().specifics_hash();
 
   EXPECT_EQ(2, entity->metadata().sequence_number());
@@ -667,7 +801,8 @@ TEST_F(ProcessorEntityTest, NewLocalChangeUpdatedId) {
   std::unique_ptr<ProcessorEntity> entity = CreateNew();
   // Create new local change. Make sure initial id is empty.
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue1),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
 
   CommitRequestData request;
   entity->InitializeCommitRequestData(&request);
@@ -675,7 +810,8 @@ TEST_F(ProcessorEntityTest, NewLocalChangeUpdatedId) {
 
   // Before receiving commit response make local modification to the entity.
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue2),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
   entity->ReceiveCommitResponse(GenerateAckData(request, kId, 1), false);
 
   // Receiving commit response with valid id should update
@@ -692,7 +828,8 @@ TEST_F(ProcessorEntityTest, RestoredLocalChangeWithUpdatedSpecifics) {
   // Create new entity and preserver its metadata.
   std::unique_ptr<ProcessorEntity> entity = CreateNew();
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue1),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
   sync_pb::EntityMetadata entity_metadata = entity->metadata();
 
   // Restore entity from metadata and emulate bridge passing different specifics
@@ -711,7 +848,8 @@ TEST_F(ProcessorEntityTest, RestoredLocalChangeWithUpdatedSpecifics) {
 TEST_F(ProcessorEntityTest, LocalCreationConflictsWithServerTombstone) {
   std::unique_ptr<ProcessorEntity> entity = CreateNew();
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue1),
-                            /*trimmed_specifics=*/{});
+                            /*trimmed_specifics=*/{},
+                            /*unique_position=*/std::nullopt);
 
   ASSERT_TRUE(entity->IsUnsynced());
   ASSERT_TRUE(entity->RequiresCommitRequest());
@@ -748,7 +886,8 @@ TEST_F(ProcessorEntityTest, UpdatesSpecificsCacheOnRemoteUpdates) {
       GenerateUpdate(*entity, kHash, kId, kName, kValue1, mtime, 10);
   sync_pb::EntitySpecifics specifics_for_caching =
       GenerateSpecifics(kName, kValue2);
-  entity->RecordAcceptedRemoteUpdate(update, specifics_for_caching);
+  entity->RecordAcceptedRemoteUpdate(update, specifics_for_caching,
+                                     /*unique_position=*/std::nullopt);
   EXPECT_EQ(
       specifics_for_caching.SerializeAsString(),
       entity->metadata().possibly_trimmed_base_specifics().SerializeAsString());
@@ -759,29 +898,14 @@ TEST_F(ProcessorEntityTest, UpdatesSpecificsCacheOnLocalUpdates) {
   sync_pb::EntitySpecifics specifics_for_caching =
       GenerateSpecifics(kName, kValue2);
   entity->RecordLocalUpdate(GenerateEntityData(kHash, kName, kValue1),
-                            specifics_for_caching);
+                            specifics_for_caching,
+                            /*unique_position=*/std::nullopt);
   EXPECT_EQ(
       specifics_for_caching.SerializeAsString(),
       entity->metadata().possibly_trimmed_base_specifics().SerializeAsString());
 }
 
-TEST_F(ProcessorEntityTest,
-       LocalDeletionDoesNotRecordVersionInfoIfFeatureIsDisabled) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      {/* enabled_features */},
-      {syncer::kSyncEntityMetadataRecordDeletedByVersionOnLocalDeletion});
-
-  std::unique_ptr<ProcessorEntity> entity = CreateNew();
-  entity->RecordLocalDeletion(DeletionOrigin::FromLocation(FROM_HERE));
-  EXPECT_FALSE(entity->metadata().has_deleted_by_version());
-}
-
-TEST_F(ProcessorEntityTest, LocalDeletionRecordsVersionInfoIfFeatureIsEnabled) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      {syncer::kSyncEntityMetadataRecordDeletedByVersionOnLocalDeletion},
-      {/* disabled_features */});
+TEST_F(ProcessorEntityTest, LocalDeletionRecordsVersionInfo) {
   std::unique_ptr<ProcessorEntity> entity = CreateNew();
   entity->RecordLocalDeletion(DeletionOrigin::FromLocation(FROM_HERE));
   std::string expected_version = std::string(version_info::GetVersionNumber());
@@ -789,49 +913,119 @@ TEST_F(ProcessorEntityTest, LocalDeletionRecordsVersionInfoIfFeatureIsEnabled) {
 }
 
 TEST_F(ProcessorEntityTest, ShouldCreateAndCommitNewLocalSharedItem) {
+  const GaiaId kCreatorUserId("creator_user_id");
+  const GaiaId kUpdaterUserId("updater_user_id");
+
   std::unique_ptr<ProcessorEntity> entity = CreateNew();
   entity->RecordLocalUpdate(
-      GenerateSharedTabGroupDataEntityData(kHash, "guid", "collaboration"),
-      /*trimmed_specifics=*/{});
+      GenerateSharedTabGroupDataEntityData(
+          kHash, "guid",
+          CollaborationMetadata::ForLocalChange(
+              /*changed_by=*/kCreatorUserId, CollaborationId("collaboration"))),
+      /*trimmed_specifics=*/{},
+      /*unique_position=*/std::nullopt);
   EXPECT_EQ("", entity->metadata().server_id());
   EXPECT_EQ(kUncommittedVersion, entity->metadata().server_version());
   EXPECT_EQ("collaboration",
             entity->metadata().collaboration().collaboration_id());
+  EXPECT_EQ(kCreatorUserId.ToString(), entity->metadata()
+                                           .collaboration()
+                                           .last_update_attribution()
+                                           .obfuscated_gaia_id());
+
+  // The same user ID is used as a creator for the first time.
+  EXPECT_EQ(kCreatorUserId.ToString(), entity->metadata()
+                                           .collaboration()
+                                           .creation_attribution()
+                                           .obfuscated_gaia_id());
   EXPECT_TRUE(entity->IsUnsynced());
 
   // Generate a commit request.
   CommitRequestData request;
   entity->InitializeCommitRequestData(&request);
   const EntityData& data = *request.entity;
-  EXPECT_EQ("collaboration", data.collaboration_id);
+  ASSERT_TRUE(data.collaboration_metadata.has_value());
+  EXPECT_EQ(CollaborationId("collaboration"),
+            data.collaboration_metadata->collaboration_id());
+
+  // Verify that creator is not updated on the next local update.
+  entity->RecordLocalUpdate(
+      GenerateSharedTabGroupDataEntityData(
+          kHash, "guid",
+          CollaborationMetadata::ForLocalChange(
+              /*changed_by=*/kUpdaterUserId, CollaborationId("collaboration"))),
+      /*trimmed_specifics=*/{},
+      /*unique_position=*/std::nullopt);
+  EXPECT_EQ(kUpdaterUserId.ToString(), entity->metadata()
+                                           .collaboration()
+                                           .last_update_attribution()
+                                           .obfuscated_gaia_id());
+  EXPECT_EQ(kCreatorUserId.ToString(), entity->metadata()
+                                           .collaboration()
+                                           .creation_attribution()
+                                           .obfuscated_gaia_id());
+  EXPECT_NE(entity->metadata()
+                .collaboration()
+                .last_update_attribution()
+                .obfuscated_gaia_id(),
+            entity->metadata()
+                .collaboration()
+                .creation_attribution()
+                .obfuscated_gaia_id());
 }
 
 TEST_F(ProcessorEntityTest, ShouldCreateNewRemoteSharedItem) {
+  const std::string kCreatorUserId = "creator_user_id";
+  const std::string kUpdaterUserId = "updater_user_id";
+
   std::unique_ptr<ProcessorEntity> entity = CreateNew();
   const base::Time mtime = base::Time::Now();
+
+  sync_pb::SyncEntity::CollaborationMetadata collaboration_remote_proto;
+  collaboration_remote_proto.set_collaboration_id("collaboration");
+  collaboration_remote_proto.mutable_creation_attribution()
+      ->set_obfuscated_gaia_id(kCreatorUserId);
+  collaboration_remote_proto.mutable_last_update_attribution()
+      ->set_obfuscated_gaia_id(kUpdaterUserId);
+
   UpdateResponseData update = GenerateSharedTabGroupDataUpdate(
-      *entity, kHash, kId, "guid", mtime, /*version=*/10, "collaboration");
-  entity->RecordAcceptedRemoteUpdate(update, /*trimmed_specifics=*/{});
+      *entity, kHash, kId, "guid", mtime, /*version=*/10,
+      CollaborationMetadata::FromRemoteProto(collaboration_remote_proto));
+  entity->RecordAcceptedRemoteUpdate(update, /*trimmed_specifics=*/{},
+                                     /*unique_position=*/std::nullopt);
 
   EXPECT_EQ(kId, entity->metadata().server_id());
   EXPECT_EQ("collaboration",
             entity->metadata().collaboration().collaboration_id());
+  EXPECT_EQ(entity->metadata()
+                .collaboration()
+                .creation_attribution()
+                .obfuscated_gaia_id(),
+            kCreatorUserId);
+  EXPECT_EQ(entity->metadata()
+                .collaboration()
+                .last_update_attribution()
+                .obfuscated_gaia_id(),
+            kUpdaterUserId);
 }
 
-TEST_F(ProcessorEntityTest, ShouldMatchEntitiesByCollaborations) {
+TEST_F(ProcessorEntityTest, ShouldPopulateCollaborationForTombstones) {
   std::unique_ptr<ProcessorEntity> entity = CreateNew();
   entity->RecordLocalUpdate(
-      GenerateSharedTabGroupDataEntityData(kHash, "guid", "collaboration"),
-      /*trimmed_specifics=*/{});
+      GenerateSharedTabGroupDataEntityData(
+          kHash, "guid",
+          CollaborationMetadata::ForLocalChange(
+              /*changed_by=*/GaiaId(), CollaborationId("collaboration"))),
+      /*trimmed_specifics=*/{},
+      /*unique_position=*/std::nullopt);
+  entity->RecordLocalDeletion(DeletionOrigin::Unspecified());
 
-  std::unique_ptr<EntityData> matching_entity_data =
-      GenerateSharedTabGroupDataEntityData(kHash, "guid", "collaboration");
-  std::unique_ptr<EntityData> different_collaboration_entity_data =
-      GenerateSharedTabGroupDataEntityData(kHash, "guid",
-                                           "different_collaboration");
+  CommitRequestData request;
+  entity->InitializeCommitRequestData(&request);
 
-  EXPECT_TRUE(entity->MatchesData(*matching_entity_data));
-  EXPECT_FALSE(entity->MatchesData(*different_collaboration_entity_data));
+  ASSERT_TRUE(request.entity->collaboration_metadata.has_value());
+  EXPECT_EQ(request.entity->collaboration_metadata->collaboration_id(),
+            CollaborationId("collaboration"));
 }
 
 }  // namespace syncer

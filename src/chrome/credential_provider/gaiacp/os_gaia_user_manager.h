@@ -27,7 +27,7 @@ class OSGaiaUserManager {
   void SetFakesForTesting(FakesForTesting* fakes);
 
  protected:
-  OSGaiaUserManager() {}
+  OSGaiaUserManager() = default;
 
   // Returns the storage used for the instance pointer.
   static OSGaiaUserManager** GetInstanceStorage();
@@ -35,4 +35,4 @@ class OSGaiaUserManager {
 
 }  // namespace credential_provider
 
-#endif
+#endif  // CHROME_CREDENTIAL_PROVIDER_GAIACP_OS_GAIA_USER_MANAGER_H_

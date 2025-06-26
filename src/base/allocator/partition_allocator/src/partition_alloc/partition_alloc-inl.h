@@ -5,23 +5,29 @@
 #ifndef PARTITION_ALLOC_PARTITION_ALLOC_INL_H_
 #define PARTITION_ALLOC_PARTITION_ALLOC_INL_H_
 
-#include <algorithm>
 #include <cstring>
 
 #include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/in_slot_metadata.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
+#include "partition_alloc/partition_alloc_base/cxx_wrapper/algorithm.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/random.h"
 #include "partition_alloc/tagging.h"
 #include "partition_alloc/thread_isolation/thread_isolation.h"
 
 // Prefetch *x into memory.
-#if defined(__clang__) || defined(COMPILER_GCC)
-#define PA_PREFETCH(x) __builtin_prefetch(x)
+#if defined(__clang__) || PA_BUILDFLAG(PA_COMPILER_GCC)
+#define PA_PREFETCH(x) __builtin_prefetch(x, 0)
 #else
 #define PA_PREFETCH(x)
+#endif
+
+#if defined(__clang__) || PA_BUILDFLAG(PA_COMPILER_GCC)
+#define PA_PREFETCH_FOR_WRITE(x) __builtin_prefetch(x, 1)
+#else
+#define PA_PREFETCH_FOR_WRITE(x)
 #endif
 
 namespace partition_alloc::internal {
@@ -51,7 +57,7 @@ PA_ALWAYS_INLINE void SecureMemset(void* ptr, uint8_t value, size_t size) {
 #pragma optimize("", on)
 #endif
 
-#if PA_BUILDFLAG(PA_EXPENSIVE_DCHECKS_ARE_ON)
+#if PA_BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
 // Used to memset() memory for debugging purposes only.
 PA_ALWAYS_INLINE void DebugMemset(void* ptr, int value, size_t size) {
   // Only set the first 512kiB of the allocation. This is enough to detect uses
@@ -59,21 +65,21 @@ PA_ALWAYS_INLINE void DebugMemset(void* ptr, int value, size_t size) {
   // faster. Note that for direct-mapped allocations, memory is decomitted at
   // free() time, so freed memory usage cannot happen.
 
-#if PA_BUILDFLAG(ENABLE_THREAD_ISOLATION)
+#if PA_BUILDFLAG(ENABLE_THREAD_ISOLATION) && PA_BUILDFLAG(ENABLE_PKEYS)
   LiftThreadIsolationScope lift_thread_isolation_restrictions;
 #endif
   size_t size_to_memset = std::min(size, size_t{1} << 19);
   memset(ptr, value, size_to_memset);
 }
-#endif  // PA_BUILDFLAG(PA_EXPENSIVE_DCHECKS_ARE_ON)
+#endif  // PA_BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
 
 // Returns true if we've hit the end of a random-length period. We don't want to
 // invoke `RandomValue` too often, because we call this function in a hot spot
 // (`Free`), and `RandomValue` incurs the cost of atomics.
-#if !PA_BUILDFLAG(PA_DCHECK_IS_ON)
+#if !PA_BUILDFLAG(DCHECKS_ARE_ON)
 PA_ALWAYS_INLINE bool RandomPeriod() {
   static thread_local uint8_t counter = 0;
-  if (PA_UNLIKELY(counter == 0)) {
+  if (counter == 0) [[unlikely]] {
     // It's OK to truncate this value.
     counter = static_cast<uint8_t>(RandomValue());
   }
@@ -81,7 +87,7 @@ PA_ALWAYS_INLINE bool RandomPeriod() {
   counter--;
   return counter == 0;
 }
-#endif  // !PA_BUILDFLAG(PA_DCHECK_IS_ON)
+#endif  // !PA_BUILDFLAG(DCHECKS_ARE_ON)
 
 PA_ALWAYS_INLINE uintptr_t ObjectInnerPtr2Addr(const void* ptr) {
   return UntagPtr(ptr);

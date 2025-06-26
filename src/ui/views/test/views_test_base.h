@@ -48,6 +48,7 @@ class ViewsTestBase : public PlatformTest {
   struct WidgetCloser {
     void operator()(Widget* widget) const;
   };
+  // DEPRECATED. Use std::unique_ptr<Widget> with CLIENT_OWNS_WIDGET instead.
   using WidgetAutoclosePtr = std::unique_ptr<Widget, WidgetCloser>;
 
   // Constructs a ViewsTestBase with |traits| being forwarded to its
@@ -92,6 +93,7 @@ class ViewsTestBase : public PlatformTest {
   Widget::InitParams CreateParams(Widget::InitParams::Type type);
 
   virtual std::unique_ptr<Widget> CreateTestWidget(
+      Widget::InitParams::Ownership ownership,
       Widget::InitParams::Type type =
           Widget::InitParams::TYPE_WINDOW_FRAMELESS);
 
@@ -161,7 +163,8 @@ class ViewsTestBase : public PlatformTest {
   // Constructs the params for CreateTestWidget().
   Widget::InitParams CreateParamsForTestWidget(
       views::Widget::InitParams::Ownership ownership,
-      views::Widget::InitParams::Type type);
+      views::Widget::InitParams::Type type =
+          views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
 
   // TODO(crbug.com/339619005): Remove once all uses are explicitly specifying
   // Widget ownership.

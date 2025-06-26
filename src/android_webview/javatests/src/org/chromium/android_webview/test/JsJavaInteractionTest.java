@@ -25,12 +25,13 @@ import org.chromium.android_webview.ScriptHandler;
 import org.chromium.android_webview.WebMessageListener;
 import org.chromium.android_webview.test.TestAwContentsClient.OnReceivedTitleHelper;
 import org.chromium.android_webview.test.util.CommonResources;
-import org.chromium.base.test.util.Batch;
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.util.DisabledTest;
+import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.content_public.browser.MessagePayload;
 import org.chromium.content_public.browser.MessagePort;
 import org.chromium.content_public.browser.test.util.TestCallbackHelperContainer.OnPageFinishedHelper;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.net.test.EmbeddedTestServerRule;
 import org.chromium.net.test.util.TestWebServer;
@@ -42,7 +43,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 /** Test suite for JavaScript Java interaction. */
 @RunWith(Parameterized.class)
 @UseParametersRunnerFactory(AwJUnit4ClassRunnerWithParameters.Factory.class)
-@Batch(Batch.PER_CLASS)
+@DoNotBatch(reason = "https://crbug.com/383517164")
 public class JsJavaInteractionTest extends AwParameterizedTest {
     @Rule public AwActivityTestRule mActivityTestRule;
 
@@ -297,7 +298,7 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
         final String url = mTestServer.getURL(POST_MESSAGE_SIMPLE_HTML);
         final OnPageFinishedHelper onPageFinishedHelper = mContentsClient.getOnPageFinishedHelper();
         final int currentCallCount = onPageFinishedHelper.getCallCount();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () ->
                         mAwContents.evaluateJavaScriptForTests(
                                 "window.location.href = '" + url + "';", null));
@@ -527,17 +528,17 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
 
         // Pass an URI instead of origin shouldn't work.
         final String jsObjectName5 = JS_OBJECT_NAME + "5";
-        try {
-            addWebMessageListenerOnUiThread(
-                    mAwContents,
-                    jsObjectName5,
-                    new String[] {"https://www.example.com/index.html"},
-                    mListener);
-            Assert.fail("allowedOriginRules shouldn't be url like");
-        } catch (RuntimeException e) {
-            // Should catch IllegalArgumentException in the end of the re-throw chain.
-            Assert.assertTrue(getRootCauseException(e) instanceof IllegalArgumentException);
-        }
+        RuntimeException exception =
+                Assert.assertThrows(
+                        RuntimeException.class,
+                        () ->
+                                addWebMessageListenerOnUiThread(
+                                        mAwContents,
+                                        jsObjectName5,
+                                        new String[] {"https://www.example.com/index.html"},
+                                        mListener));
+        // Should catch IllegalArgumentException in the end of the re-throw chain.
+        Assert.assertTrue(exception.getCause() instanceof IllegalArgumentException);
         Assert.assertFalse(
                 isJsObjectInjectedWhenLoadingUrl("https://www.example.com", jsObjectName5));
     }
@@ -547,14 +548,16 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
     @Feature({"AndroidWebView", "JsJavaInteraction"})
     public void testDontAllowAddWebMessageLitenerWithTheSameJsObjectName() throws Throwable {
         addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[] {"*"}, mListener);
-        try {
-            addWebMessageListenerOnUiThread(
-                    mAwContents, JS_OBJECT_NAME, new String[] {"*"}, new TestWebMessageListener());
-            Assert.fail("Shouldn't allow the same Js object name be added more than once.");
-        } catch (RuntimeException e) {
-            // Should catch IllegalArgumentException in the end of the re-throw chain.
-            Assert.assertTrue(getRootCauseException(e) instanceof IllegalArgumentException);
-        }
+        RuntimeException exception =
+                Assert.assertThrows(
+                        RuntimeException.class,
+                        () ->
+                                addWebMessageListenerOnUiThread(
+                                        mAwContents,
+                                        JS_OBJECT_NAME,
+                                        new String[] {"*"},
+                                        new TestWebMessageListener()));
+        Assert.assertTrue(exception.getCause() instanceof IllegalArgumentException);
     }
 
     @Test
@@ -937,6 +940,7 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
     @Test
     @MediumTest
     @Feature({"AndroidWebView", "JsJavaInteraction"})
+    @DisabledTest(message = "The test was very flaky, see https://crbug.com/383517164")
     public void testJsObjectRemoveOnMessage() throws Throwable {
         addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[] {"*"}, mListener);
 
@@ -983,7 +987,7 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
     @MediumTest
     @Feature({"AndroidWebView", "JsJavaInteraction"})
     public void testFileSchemeUrl_setAllowFileAccessFromFile_true() throws Throwable {
-        mAwContents.getSettings().setAllowFileAccessFromFileURLs(true);
+        mAwContents.getSettings().setAllowFileAccessFromFileUrls(true);
         addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[] {"*"}, mListener);
         mActivityTestRule.loadUrlSync(
                 mAwContents, mContentsClient.getOnPageFinishedHelper(), FILE_URI);
@@ -1003,7 +1007,7 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
     public void testFileSchemeUrl_setAllowFileAccessFromFile_false() throws Throwable {
         // The default value is false on JELLY_BEAN and above, but we explicitly set this to
         // false to readability.
-        mAwContents.getSettings().setAllowFileAccessFromFileURLs(false);
+        mAwContents.getSettings().setAllowFileAccessFromFileUrls(false);
         addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[] {"*"}, mListener);
         mActivityTestRule.loadUrlSync(
                 mAwContents, mContentsClient.getOnPageFinishedHelper(), FILE_URI);
@@ -1018,9 +1022,9 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
     @Test
     @MediumTest
     @Feature({"AndroidWebView", "JsJavaInteraction"})
-    public void testContentSchemeUrl_setAllowFileAccessFromFileURLs_true() throws Throwable {
+    public void testContentSchemeUrl_setAllowFileAccessFromFileUrls_true() throws Throwable {
         mAwContents.getSettings().setAllowContentAccess(true);
-        mAwContents.getSettings().setAllowFileAccessFromFileURLs(true);
+        mAwContents.getSettings().setAllowFileAccessFromFileUrls(true);
         addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[] {"*"}, mListener);
         mActivityTestRule.loadUrlSync(
                 mAwContents,
@@ -1039,11 +1043,11 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
     @Feature({"AndroidWebView", "JsJavaInteraction"})
     @SkipMutations(
             reason = "This test depends on AwSettings.setAllowUniversalAccessFromFileURLs(false)")
-    public void testContentSchemeUrl_setAllowFileAccessFromFileURLs_false() throws Throwable {
+    public void testContentSchemeUrl_setAllowFileAccessFromFileUrls_false() throws Throwable {
         mAwContents.getSettings().setAllowContentAccess(true);
         // The default value is false on JELLY_BEAN and above, but we explicitly set this to
         // false to readability.
-        mAwContents.getSettings().setAllowFileAccessFromFileURLs(false);
+        mAwContents.getSettings().setAllowFileAccessFromFileUrls(false);
         addWebMessageListenerOnUiThread(mAwContents, JS_OBJECT_NAME, new String[] {"*"}, mListener);
         mActivityTestRule.loadUrlSync(
                 mAwContents,
@@ -1308,18 +1312,17 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
 
         // Wrong origin rule.
         final String testObjectName5 = testObjectName + "5";
-        try {
-            addDocumentStartJavaScriptOnUiThread(
-                    mAwContents,
-                    "let " + testObjectName5 + " = {};",
-                    new String[] {"https://www.example.com/index.html"});
-            Assert.fail("You cannot use a full URL for allowedOriginRules.");
-        } catch (RuntimeException e) {
-            // Should catch IllegalArgumentException in the end of the re-throw chain.
-            Assert.assertTrue(
-                    "The exception should be an IllegalArgumentException",
-                    getRootCauseException(e) instanceof IllegalArgumentException);
-        }
+        RuntimeException exception =
+                Assert.assertThrows(
+                        RuntimeException.class,
+                        () ->
+                                addDocumentStartJavaScriptOnUiThread(
+                                        mAwContents,
+                                        "let " + testObjectName5 + " = {};",
+                                        new String[] {"https://www.example.com/index.html"}));
+        Assert.assertTrue(
+                "The exception should be an IllegalArgumentException",
+                exception.getCause() instanceof IllegalArgumentException);
         Assert.assertFalse(didScriptRunWhenLoading("https://www.example.com", testObjectName5));
     }
 
@@ -1388,14 +1391,14 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
             Assert.assertEquals(HELLO + Integer.toString(i), data.getAsString());
         }
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> handlers[0].remove());
+        ThreadUtils.runOnUiThreadBlocking(() -> handlers[0].remove());
         // Load the page again.
         loadUrlFromPath(HELLO_WORLD_HTML);
 
         TestWebMessageListener.Data data = mListener.waitForOnPostMessage();
         Assert.assertEquals(HELLO + "1", data.getAsString());
 
-        TestThreadUtils.runOnUiThreadBlocking(() -> handlers[1].remove());
+        ThreadUtils.runOnUiThreadBlocking(() -> handlers[1].remove());
         // Load the page again.
         loadUrlFromPath(HELLO_WORLD_HTML);
 
@@ -1420,16 +1423,16 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
         Assert.assertEquals(HELLO, data.getAsString());
 
         // Remove twice, the second time should take no effect.
-        TestThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
-        TestThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
+        ThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
+        ThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
         // Load the page again.
         loadUrlFromPath(HELLO_WORLD_HTML);
 
         Assert.assertTrue(mListener.hasNoMoreOnPostMessage());
 
         // Remove twice again, should have no effect.
-        TestThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
-        TestThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
+        ThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
+        ThreadUtils.runOnUiThreadBlocking(() -> handler.remove());
         // Load the page again.
         loadUrlFromPath(HELLO_WORLD_HTML);
 
@@ -1516,7 +1519,7 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
             final AwContents awContents, final String script, final String[] allowedOriginRules)
             throws Exception {
         AwActivityTestRule.checkJavaScriptEnabled(awContents);
-        return TestThreadUtils.runOnUiThreadBlockingNoException(
+        return ThreadUtils.runOnUiThreadBlocking(
                 () -> awContents.addDocumentStartJavaScript(script, allowedOriginRules));
     }
 
@@ -1587,12 +1590,5 @@ public class JsJavaInteractionTest extends AwParameterizedTest {
             sb.append(port);
         }
         return sb.toString();
-    }
-
-    private static Throwable getRootCauseException(Throwable exception) {
-        while (exception.getCause() != null) {
-            exception = exception.getCause();
-        }
-        return exception;
     }
 }

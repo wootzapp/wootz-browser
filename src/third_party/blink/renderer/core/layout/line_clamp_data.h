@@ -7,6 +7,7 @@
 
 #include <optional>
 
+#include "third_party/blink/renderer/platform/geometry/layout_unit.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
@@ -14,30 +15,30 @@ namespace blink {
 struct LineClampData {
   DISALLOW_NEW();
 
+  LineClampData() {}
+
   enum State {
     kDisabled,
-    kEnabled,
-    // The line-clamp context is enabled, but no forced truncation will happen.
-    // This is different from kDisabled in that `text-overflow: ellipsis` will
-    // not take effect inside it.
-    kDontTruncate,
+    kClampByLines,
+    kMeasureLinesUntilBfcOffset,
   };
 
   bool IsLineClampContext() const { return state != kDisabled; }
 
-  std::optional<int> LinesUntilClamp() const {
-    if (state == kEnabled) {
+  std::optional<int> LinesUntilClamp(bool show_measured_lines = false) const {
+    if (state == kClampByLines ||
+        (show_measured_lines && state == kMeasureLinesUntilBfcOffset)) {
       return lines_until_clamp;
     }
     return std::optional<int>();
   }
 
   bool IsAtClampPoint() const {
-    return state == kEnabled && lines_until_clamp == 1;
+    return state == kClampByLines && lines_until_clamp == 1;
   }
 
   bool IsPastClampPoint() const {
-    return state == kEnabled && lines_until_clamp <= 0;
+    return state == kClampByLines && lines_until_clamp <= 0;
   }
 
   bool ShouldHideForPaint() const {
@@ -48,15 +49,28 @@ struct LineClampData {
     if (state != other.state) {
       return false;
     }
-    if (state == kEnabled) {
-      return lines_until_clamp == other.lines_until_clamp;
+    switch (state) {
+      case kClampByLines:
+        return lines_until_clamp == other.lines_until_clamp;
+      case kMeasureLinesUntilBfcOffset:
+        return lines_until_clamp == other.lines_until_clamp &&
+               clamp_bfc_offset == other.clamp_bfc_offset;
+      default:
+        return true;
     }
-    return true;
   }
 
-  // If state == kEnabled, the number of lines until a clamp. A value of 1
-  // indicates the current line should be clamped. This may go negative.
-  int lines_until_clamp;
+  // The BFC offset where the current block container should clamp.
+  // (Might not be the same BFC offset as other block containers in the same
+  // BFC, depending on the bottom bmp).
+  // Only valid if state == kClampByBfcOffset
+  LayoutUnit clamp_bfc_offset;
+
+  // If state == kClampByLines, the number of lines until the clamp point.
+  // A value of 1 indicates the current line should be clamped. May go negative.
+  // With state == kMeasureLinesUntilBfcOffset, the number of lines found in the
+  // BFC so far.
+  int lines_until_clamp = 0;
 
   State state = kDisabled;
 };

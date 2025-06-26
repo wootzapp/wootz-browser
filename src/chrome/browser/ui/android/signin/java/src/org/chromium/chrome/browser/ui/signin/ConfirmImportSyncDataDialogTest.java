@@ -39,18 +39,16 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.modaldialog.AppModalPresenter;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
 import org.chromium.ui.test.util.BlankUiTestActivity;
-
-import java.util.function.Predicate;
 
 /** Instrumentation tests for {@link ConfirmImportSyncDataDialogCoordinator}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -97,7 +95,7 @@ public class ConfirmImportSyncDataDialogTest {
 
     @Before
     public void setUp() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mDialogManager =
                             new ModalDialogManager(
@@ -138,7 +136,7 @@ public class ConfirmImportSyncDataDialogTest {
     @MediumTest
     public void testListenerOnCancelNotCalledWhenDialogDismissedInternally() {
         showConfirmImportSyncDataDialog(false);
-        TestThreadUtils.runOnUiThreadBlocking(mDialogCoordinator::dismissDialog);
+        ThreadUtils.runOnUiThreadBlocking(mDialogCoordinator::dismissDialog);
         verify(mListenerMock, never()).onCancel();
     }
 
@@ -163,7 +161,7 @@ public class ConfirmImportSyncDataDialogTest {
     @Test
     @MediumTest
     public void testForNonDisplayableAccountEmail_noSplitStoresAndUPMForLocal() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mDialogCoordinator =
                             new ConfirmImportSyncDataDialogCoordinator(
@@ -191,7 +189,7 @@ public class ConfirmImportSyncDataDialogTest {
     @Test
     @MediumTest
     public void testForNonDisplayableAccountEmail_usesSplitStoresAndUPMForLocal() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mDialogCoordinator =
                             new ConfirmImportSyncDataDialogCoordinator(
@@ -222,7 +220,7 @@ public class ConfirmImportSyncDataDialogTest {
     @Test
     @MediumTest
     public void testTextForNonManagedAccount_noSplitStoresAndUPMForLocal() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mDialogCoordinator =
                             new ConfirmImportSyncDataDialogCoordinator(
@@ -245,7 +243,7 @@ public class ConfirmImportSyncDataDialogTest {
     @Test
     @MediumTest
     public void testTextForNonManagedAccount_withSplitStoresAndUPMForLocal() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mDialogCoordinator =
                             new ConfirmImportSyncDataDialogCoordinator(
@@ -268,7 +266,7 @@ public class ConfirmImportSyncDataDialogTest {
     }
 
     private void showConfirmImportSyncDataDialog(boolean isCurrentAccountManaged) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mDialogCoordinator =
                             new ConfirmImportSyncDataDialogCoordinator(
@@ -278,22 +276,6 @@ public class ConfirmImportSyncDataDialogTest {
                                     "old.testaccount@gmail.com",
                                     "new.testaccount@gmail.com",
                                     isCurrentAccountManaged,
-                                    /* usesSplitStoresAndUPMForLocal= */ false);
-                });
-    }
-
-    private void showConfirmImportSyncDataDialog(Predicate<String> checkIfDisplayableEmailAddress) {
-        TestThreadUtils.runOnUiThreadBlocking(
-                () -> {
-                    mDialogCoordinator =
-                            new ConfirmImportSyncDataDialogCoordinator(
-                                    sActivityTestRule.getActivity(),
-                                    mDialogManager,
-                                    mListenerMock,
-                                    "old.testaccount@gmail.com",
-                                    "new.testaccount@gmail.com",
-                                    checkIfDisplayableEmailAddress,
-                                    /* isCurrentAccountManaged= */ false,
                                     /* usesSplitStoresAndUPMForLocal= */ false);
                 });
     }

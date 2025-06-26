@@ -4,9 +4,9 @@
 
 package org.chromium.chrome.browser.ui.signin.fullscreen_signin;
 
-import android.text.SpannableString;
 import android.view.View.OnClickListener;
 
+import androidx.annotation.DrawableRes;
 import androidx.annotation.StringRes;
 
 import org.chromium.chrome.browser.signin.services.DisplayableProfileData;
@@ -14,6 +14,7 @@ import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModel.ReadableObjectPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
+import org.chromium.ui.modelutil.PropertyModel.WritableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableObjectPropertyKey;
 
 class FullscreenSigninProperties {
@@ -51,8 +52,17 @@ class FullscreenSigninProperties {
     static final WritableBooleanPropertyKey IS_SIGNIN_SUPPORTED =
             new WritableBooleanPropertyKey("is_signin_supported");
 
-    static final PropertyModel.WritableIntPropertyKey TITLE_STRING_ID =
-            new PropertyModel.WritableIntPropertyKey("title_string");
+    static final WritableIntPropertyKey LOGO_DRAWABLE_ID =
+            new WritableIntPropertyKey("logo_drawable_id");
+
+    static final WritableIntPropertyKey TITLE_STRING_ID =
+            new WritableIntPropertyKey("title_string_id");
+
+    static final WritableIntPropertyKey SUBTITLE_STRING_ID =
+            new WritableIntPropertyKey("subtitle_string_id");
+
+    static final WritableIntPropertyKey DISMISS_BUTTON_STRING_ID =
+            new WritableIntPropertyKey("dismiss_button_string_id");
 
     static final WritableObjectPropertyKey<CharSequence> FOOTER_STRING =
             new WritableObjectPropertyKey<>("footer_string");
@@ -69,7 +79,10 @@ class FullscreenSigninProperties {
                 SHOW_INITIAL_LOAD_PROGRESS_SPINNER,
                 SHOW_ENTERPRISE_MANAGEMENT_NOTICE,
                 IS_SIGNIN_SUPPORTED,
+                LOGO_DRAWABLE_ID,
                 TITLE_STRING_ID,
+                SUBTITLE_STRING_ID,
+                DISMISS_BUTTON_STRING_ID,
                 FOOTER_STRING,
             };
 
@@ -79,8 +92,10 @@ class FullscreenSigninProperties {
             Runnable onContinueAsClicked,
             Runnable onDismissClicked,
             boolean isSigninSupported,
+            @DrawableRes int logoDrawableId,
             @StringRes int titleStringId,
-            SpannableString footerString) {
+            @StringRes int subtitleStringId,
+            @StringRes int dismissStringId) {
         return new PropertyModel.Builder(ALL_KEYS)
                 .with(ON_SELECTED_ACCOUNT_CLICKED, v -> onSelectedAccountClicked.run())
                 .with(SELECTED_ACCOUNT_DATA, null)
@@ -90,8 +105,11 @@ class FullscreenSigninProperties {
                 .with(SHOW_INITIAL_LOAD_PROGRESS_SPINNER, true)
                 .with(SHOW_ENTERPRISE_MANAGEMENT_NOTICE, false)
                 .with(IS_SIGNIN_SUPPORTED, isSigninSupported)
+                .with(LOGO_DRAWABLE_ID, logoDrawableId)
                 .with(TITLE_STRING_ID, titleStringId)
-                .with(FOOTER_STRING, footerString)
+                .with(SUBTITLE_STRING_ID, subtitleStringId)
+                .with(DISMISS_BUTTON_STRING_ID, dismissStringId)
+                .with(FOOTER_STRING, null)
                 .build();
     }
 

@@ -7,58 +7,57 @@
 
 #include <memory>
 
+#include "base/files/file_path.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
-#include "chrome/browser/sync/glue/extensions_activity_monitor.h"
-#include "components/browser_sync/browser_sync_client.h"
+#include "components/browser_sync/sync_engine_factory_impl.h"
 #include "components/prefs/pref_change_registrar.h"
+#include "components/sync/service/sync_client.h"
 #include "extensions/buildflags/buildflags.h"
 
-class Profile;
+namespace supervised_user {
+class SupervisedUserSettingsService;
+}  // namespace supervised_user
 
 namespace syncer {
-class ModelTypeController;
-class SyncService;
-class SyncableService;
+class DataTypeStoreService;
+class DeviceInfoSyncService;
 }  // namespace syncer
+
+namespace trusted_vault {
+class TrustedVaultService;
+}  // namespace trusted_vault
 
 namespace browser_sync {
 
-class SyncApiComponentFactoryImpl;
+class ExtensionsActivityMonitor;
 
-class ChromeSyncClient : public browser_sync::BrowserSyncClient {
+class ChromeSyncClient : public syncer::SyncClient {
  public:
-  explicit ChromeSyncClient(Profile* profile);
+  ChromeSyncClient(
+      const base::FilePath& profile_base_name,
+      PrefService* pref_service,
+      signin::IdentityManager* identity_manager,
+      trusted_vault::TrustedVaultService* trusted_vault_service,
+      syncer::SyncInvalidationsService* sync_invalidations_service,
+      syncer::DeviceInfoSyncService* device_info_sync_service,
+      syncer::DataTypeStoreService* data_type_store_service,
+      supervised_user::SupervisedUserSettingsService*
+          supervised_user_settings_service,
+      std::unique_ptr<ExtensionsActivityMonitor> extensions_activity_monitor);
 
   ChromeSyncClient(const ChromeSyncClient&) = delete;
   ChromeSyncClient& operator=(const ChromeSyncClient&) = delete;
 
   ~ChromeSyncClient() override;
 
-  // BrowserSyncClient implementation.
+  // SyncClient implementation.
   PrefService* GetPrefService() override;
   signin::IdentityManager* GetIdentityManager() override;
   base::FilePath GetLocalSyncBackendFolder() override;
-  syncer::ModelTypeStoreService* GetModelTypeStoreService() override;
-  syncer::DeviceInfoSyncService* GetDeviceInfoSyncService() override;
-  favicon::FaviconService* GetFaviconService() override;
-  history::HistoryService* GetHistoryService() override;
-  ReadingListModel* GetReadingListModel() override;
-  send_tab_to_self::SendTabToSelfSyncService* GetSendTabToSelfSyncService()
-      override;
-  sync_sessions::SessionSyncService* GetSessionSyncService() override;
-  password_manager::PasswordReceiverService* GetPasswordReceiverService()
-      override;
-  password_manager::PasswordSenderService* GetPasswordSenderService() override;
-  sync_preferences::PrefServiceSyncable* GetPrefServiceSyncable() override;
-  syncer::ModelTypeController::TypeVector CreateModelTypeControllers(
-      syncer::SyncService* sync_service) override;
   trusted_vault::TrustedVaultClient* GetTrustedVaultClient() override;
   syncer::SyncInvalidationsService* GetSyncInvalidationsService() override;
   scoped_refptr<syncer::ExtensionsActivity> GetExtensionsActivity() override;
-  base::WeakPtr<syncer::ModelTypeControllerDelegate>
-  GetControllerDelegateForModelType(syncer::ModelType type) override;
-  syncer::SyncApiComponentFactory* GetSyncApiComponentFactory() override;
+  syncer::SyncEngineFactory* GetSyncEngineFactory() override;
   bool IsCustomPassphraseAllowed() override;
   bool IsPasswordSyncAllowed() override;
   void SetPasswordSyncAllowedChangeCb(
@@ -68,30 +67,15 @@ class ChromeSyncClient : public browser_sync::BrowserSyncClient {
       override;
 
  private:
-  // Convenience function used during controller creation.
-  base::WeakPtr<syncer::SyncableService> GetSyncableServiceForType(
-      syncer::ModelType type);
-
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-  // Creates the ModelTypeController for syncer::APPS.
-  std::unique_ptr<syncer::ModelTypeController> CreateAppsModelTypeController();
-
-  // Creates the ModelTypeController for syncer::APP_SETTINGS.
-  std::unique_ptr<syncer::ModelTypeController>
-  CreateAppSettingsModelTypeController(syncer::SyncService* sync_service);
-
-  // Creates the ModelTypeController for syncer::WEB_APPS.
-  std::unique_ptr<syncer::ModelTypeController>
-  CreateWebAppsModelTypeController();
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
-
-  const raw_ptr<Profile> profile_;
-
-  // The sync api component factory in use by this client.
-  std::unique_ptr<browser_sync::SyncApiComponentFactoryImpl> component_factory_;
-
-  // Generates and monitors the ExtensionsActivity object used by sync.
-  ExtensionsActivityMonitor extensions_activity_monitor_;
+  const base::FilePath profile_base_name_;
+  const raw_ptr<PrefService> pref_service_;
+  const raw_ptr<signin::IdentityManager> identity_manager_;
+  const raw_ptr<trusted_vault::TrustedVaultService> trusted_vault_service_;
+  const raw_ptr<syncer::SyncInvalidationsService> sync_invalidations_service_;
+  const raw_ptr<supervised_user::SupervisedUserSettingsService>
+      supervised_user_settings_service_;
+  const std::unique_ptr<ExtensionsActivityMonitor> extensions_activity_monitor_;
+  SyncEngineFactoryImpl engine_factory_;
 
 #if BUILDFLAG(IS_ANDROID)
   // Watches password_manager::prefs::kPasswordsUseUPMLocalAndSeparateStores.

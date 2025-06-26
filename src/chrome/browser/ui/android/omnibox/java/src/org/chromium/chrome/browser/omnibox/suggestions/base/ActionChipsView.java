@@ -7,13 +7,13 @@ package org.chromium.chrome.browser.omnibox.suggestions.base;
 import android.content.Context;
 import android.view.KeyEvent;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Px;
 import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.build.annotations.CheckDiscard;
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.RecyclerViewSelectionController;
@@ -24,8 +24,9 @@ import org.chromium.components.browser_ui.widget.chips.ChipView;
  * Container view for the {@link ChipView}. Chips should be initially horizontally aligned with the
  * Content view and stretch to the end of the encompassing BaseSuggestionView.
  */
+@NullMarked
 public class ActionChipsView extends RecyclerView {
-    private @NonNull RecyclerViewSelectionController mSelectionController;
+    private RecyclerViewSelectionController mSelectionController;
 
     /**
      * Constructs a new pedal view.
@@ -65,11 +66,10 @@ public class ActionChipsView extends RecyclerView {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (event.getKeyCode() == KeyEvent.KEYCODE_TAB) {
             if (event.isShiftPressed()) {
-                mSelectionController.selectPreviousItem();
+                return mSelectionController.selectPreviousItem();
             } else {
-                mSelectionController.selectNextItem();
+                return mSelectionController.selectNextItem();
             }
-            return true;
         } else if (KeyNavigationUtil.isEnter(event)) {
             var chip = mSelectionController.getSelectedView();
             if (chip != null) return chip.performClick();
@@ -96,5 +96,17 @@ public class ActionChipsView extends RecyclerView {
     @VisibleForTesting(otherwise = VisibleForTesting.NONE)
     void setSelectionControllerForTesting(RecyclerViewSelectionController controller) {
         mSelectionController = controller;
+    }
+
+    public void setLeadInSpacing(int spacing) {
+        if (getItemDecorationCount() > 0) {
+            assert getItemDecorationCount() == 1 : "Expected at most 1 decoration";
+            removeItemDecorationAt(0);
+        }
+
+        addItemDecoration(
+                new SpacingRecyclerViewItemDecoration(
+                        spacing,
+                        getResources().getDimensionPixelSize(R.dimen.omnibox_action_chip_spacing)));
     }
 }

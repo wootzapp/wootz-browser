@@ -9,6 +9,7 @@
 #include <optional>
 
 #include "ash/shell_observer.h"
+#include "ash/wm/desks/desks_controller.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/unguessable_token.h"
@@ -54,7 +55,8 @@ class Pointer : public SurfaceTreeHost,
                 public aura::client::DragDropClientObserver,
                 public aura::client::CursorClientObserver,
                 public aura::client::FocusChangeObserver,
-                public ash::ShellObserver {
+                public ash::ShellObserver,
+                public ash::DesksController::Observer {
  public:
   Pointer(PointerDelegate* delegate,
           Seat* seat,
@@ -108,6 +110,9 @@ class Pointer : public SurfaceTreeHost,
   void OnRootWindowAdded(aura::Window* root_window) override;
   void OnRootWindowWillShutdown(aura::Window* root_window) override;
 
+  // ash::DesksController::Observer:
+  void OnDeskSwitchAnimationFinished() override;
+
   // Relative motion registration.
   void RegisterRelativePointerDelegate(RelativePointerDelegate* delegate);
   void UnregisterRelativePointerDelegate(RelativePointerDelegate* delegate);
@@ -141,7 +146,14 @@ class Pointer : public SurfaceTreeHost,
   void SetStylusDelegate(PointerStylusDelegate* delegate);
   bool HasStylusDelegate() const;
 
+  // Pointer capture is enabled if and only if `capture_window_` is not null.
+  bool GetIsPointerConstrainedForTesting() {
+    return capture_window_ != nullptr;
+  }
+
  private:
+  class ScopedCursorLocker;
+
   // Remove |delegate| from |constraints_|.
   void RemoveConstraintDelegate(PointerConstraintDelegate* delegate);
 
@@ -234,7 +246,8 @@ class Pointer : public SurfaceTreeHost,
 
   // All delegates currently requesting a pointer locks, whether granted or
   // not. Only one such request may exist per surface; others will be denied.
-  base::flat_map<Surface*, PointerConstraintDelegate*> constraints_;
+  base::flat_map<Surface*, raw_ptr<PointerConstraintDelegate, CtnExperimental>>
+      constraints_;
 
   // The delegate instance that stylus/pen events are dispatched to.
   raw_ptr<PointerStylusDelegate> stylus_delegate_ = nullptr;
@@ -284,7 +297,7 @@ class Pointer : public SurfaceTreeHost,
   const base::UnguessableToken cursor_capture_source_id_;
 
   // Last received event type.
-  ui::EventType last_event_type_ = ui::ET_UNKNOWN;
+  ui::EventType last_event_type_ = ui::EventType::kUnknown;
 
   // Last reported stylus values.
   ui::EventPointerType last_pointer_type_ = ui::EventPointerType::kUnknown;
@@ -294,6 +307,8 @@ class Pointer : public SurfaceTreeHost,
   // Bitmask of the button event flags that started the drag and drop operation.
   // Used to send the release events upon drop.
   int button_flags_on_drag_drop_start_ = 0;
+
+  std::unique_ptr<ScopedCursorLocker> cursor_locker_;
 
   // Weak pointer factory used for cursor capture callbacks.
   base::WeakPtrFactory<Pointer> cursor_capture_weak_ptr_factory_{this};

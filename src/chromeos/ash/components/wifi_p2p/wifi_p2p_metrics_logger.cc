@@ -33,6 +33,22 @@ const char WifiP2PMetricsLogger::kDestroyP2PGroupHistogram[] =
     "Network.Ash.WiFiDirect.DestroyP2PGroup.OperationResult";
 
 // static
+const char WifiP2PMetricsLogger::kTagSocketHistogram[] =
+    "Network.Ash.WiFiDirect.TagSocket.OperationResult";
+
+// static
+const char WifiP2PMetricsLogger::kWifiP2PConnectionDurationHistogram[] =
+    "Network.Ash.WiFiDirect.Connection.Duration";
+
+// static
+const char WifiP2PMetricsLogger::kGroupOwnerDisconnectReasonHistogram[] =
+    "Network.Ash.WiFiDirect.GroupOwner.DisconnectReason";
+
+// static
+const char WifiP2PMetricsLogger::kGroupClientDisconnectReasonHistogram[] =
+    "Network.Ash.WiFiDirect.GroupClient.DisconnectReason";
+
+// static
 void WifiP2PMetricsLogger::RecordWifiP2PCapabilities(
     const WifiP2PCapabilities& capablities) {
   base::UmaHistogramEnumeration(kWifiP2PCapabilitiesHistogram,
@@ -57,7 +73,25 @@ void WifiP2PMetricsLogger::RecordWifiP2POperationResult(
       base::UmaHistogramEnumeration(kDisconnectP2PGroupHistogram, result);
       return;
   }
-  NOTREACHED_IN_MIGRATION() << "Unknown WiFi P2P operation type: " << type;
+  NOTREACHED() << "Unknown WiFi P2P operation type: " << type;
+}
+
+void WifiP2PMetricsLogger::RecordTagSocketOperationResult(bool success) {
+  base::UmaHistogramBoolean(kTagSocketHistogram, success);
+}
+
+void WifiP2PMetricsLogger::RecordWifiP2PConnectionDuration(
+    const base::TimeDelta& duration) {
+  base::UmaHistogramLongTimes(kWifiP2PConnectionDurationHistogram, duration);
+}
+
+void WifiP2PMetricsLogger::RecordWifiP2PDisconnectReason(
+    DisconnectReason reason,
+    bool is_owner) {
+  base::UmaHistogramEnumeration(is_owner
+                                    ? kGroupOwnerDisconnectReasonHistogram
+                                    : kGroupClientDisconnectReasonHistogram,
+                                reason);
 }
 
 // static

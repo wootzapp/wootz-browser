@@ -16,10 +16,11 @@
 #include "chrome/browser/user_education/user_education_service.h"
 #include "chrome/browser/user_education/user_education_service_factory.h"
 #include "chrome/test/base/in_process_browser_test.h"
-#include "components/user_education/common/help_bubble.h"
-#include "components/user_education/common/help_bubble_factory_registry.h"
-#include "components/user_education/common/help_bubble_params.h"
-#include "components/user_education/views/help_bubble_factory_views.h"
+#include "components/user_education/common/help_bubble/help_bubble.h"
+#include "components/user_education/common/help_bubble/help_bubble_factory_registry.h"
+#include "components/user_education/common/help_bubble/help_bubble_params.h"
+#include "components/user_education/views/help_bubble_view.h"
+#include "components/user_education/views/help_bubble_views.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/views/interaction/element_tracker_views.h"
@@ -92,7 +93,8 @@ IN_PROC_BROWSER_TEST_P(HelpBubbleFactoryViewsAshBrowserTest, CreateBubble) {
 
   // Show the anchor `view` in a `widget`.
   views::UniqueWidgetPtr widget(std::make_unique<views::Widget>());
-  widget->Init(views::Widget::InitParams());
+  widget->Init(views::Widget::InitParams(
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET));
   auto* view_ptr = widget->GetContentsView()->AddChildView(std::move(view));
   widget->ShowInactive();
 

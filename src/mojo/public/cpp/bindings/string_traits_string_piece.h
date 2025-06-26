@@ -15,9 +15,9 @@ template <>
 struct StringTraits<std::string_view> {
   static bool IsNull(std::string_view input) {
     // std::string_view is always converted to non-null mojom string. We could
-    // have let StringPiece containing a null data pointer map to null mojom
-    // string, but StringPiece::empty() returns true in this case. It seems
-    // confusing to mix the concept of empty and null strings, especially
+    // have let std::string_view containing a null data pointer map to null
+    // mojom string, but StringPiece::empty() returns true in this case. It
+    // seems confusing to mix the concept of empty and null strings, especially
     // because they mean different things in mojom.
     return false;
   }
@@ -30,7 +30,7 @@ struct StringTraits<std::string_view> {
   static std::string_view GetUTF8(std::string_view input) { return input; }
 
   static bool Read(StringDataView input, std::string_view* output) {
-    *output = std::string_view(input.storage(), input.size());
+    *output = input.value();
     return true;
   }
 };

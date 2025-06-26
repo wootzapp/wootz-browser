@@ -2,11 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "net/quic/quic_proxy_datagram_client_socket.h"
 
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
+#include "base/notreached.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
@@ -28,6 +34,7 @@
 #include "net/test/gtest_util.h"
 #include "net/test/test_data_directory.h"
 #include "net/test/test_with_task_environment.h"
+#include "net/third_party/quiche/src/quiche/common/http/http_header_block.h"
 #include "net/third_party/quiche/src/quiche/quic/test_tools/qpack/qpack_test_utils.h"
 #include "net/third_party/quiche/src/quiche/quic/test_tools/quic_spdy_session_peer.h"
 #include "net/third_party/quiche/src/quiche/quic/test_tools/quic_test_utils.h"
@@ -72,7 +79,7 @@ class QuicProxyDatagramClientSocketTest : public QuicProxyClientSocketTestBase {
   }
 
   void PopulateConnectRequestIR(
-      spdy::Http2HeaderBlock* block,
+      quiche::HttpHeaderBlock* block,
       std::optional<const HttpRequestHeaders> extra_headers) override {
     DCHECK(destination_endpoint_.scheme() == url::kHttpsScheme);
 
@@ -140,7 +147,7 @@ class QuicProxyDatagramClientSocketTest : public QuicProxyClientSocketTestBase {
   }
 
   void AssertAsyncReadEquals(const char* data, int len) override {
-    CHECK(false);
+    NOTREACHED();
   }
 
   void AssertReadStarts(const char* data, int len) override {

@@ -4,9 +4,10 @@
 
 #include "ui/views/controls/button/radio_button.h"
 
+#include <algorithm>
+
 #include "base/auto_reset.h"
 #include "base/check.h"
-#include "base/ranges/algorithm.h"
 #include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/accessibility/ax_node_data.h"
@@ -29,7 +30,6 @@ namespace views {
 
 namespace {
 constexpr int kFocusRingRadius = 16;
-constexpr int kRadioButtonIconDipSize = 16;
 constexpr int kRadioButtonIconDipSizeCr2023 = 20;
 }  // namespace
 
@@ -37,19 +37,16 @@ RadioButton::RadioButton(const std::u16string& label, int group_id)
     : Checkbox(label) {
   SetGroup(group_id);
   views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
+
+  GetViewAccessibility().SetRole(ax::mojom::Role::kRadioButton);
 }
 
 RadioButton::~RadioButton() = default;
 
-void RadioButton::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  Checkbox::GetAccessibleNodeData(node_data);
-  node_data->role = ax::mojom::Role::kRadioButton;
-}
-
 View* RadioButton::GetSelectedViewForGroup(int group) {
   Views views;
   GetViewsInGroupFromParent(group, &views);
-  const auto i = base::ranges::find_if(views, [](const views::View* view) {
+  const auto i = std::ranges::find_if(views, [](const views::View* view) {
     // Why don't we check the runtime type like is done in SetChecked()?
     return static_cast<const RadioButton*>(view)->GetChecked();
   });
@@ -90,8 +87,9 @@ void RadioButton::RequestFocusFromEvent() {
   // Take focus only if another radio button in the group has focus.
   Views views;
   GetViewsInGroupFromParent(GetGroup(), &views);
-  if (base::ranges::any_of(views, [](View* v) { return v->HasFocus(); }))
+  if (std::ranges::any_of(views, [](View* v) { return v->HasFocus(); })) {
     RequestFocus();
+  }
 }
 
 void RadioButton::NotifyClick(const ui::Event& event) {
@@ -133,10 +131,7 @@ const gfx::VectorIcon& RadioButton::GetVectorIcon() const {
 }
 
 gfx::ImageSkia RadioButton::GetImage(ButtonState for_state) const {
-  return gfx::CreateVectorIcon(GetVectorIcon(),
-                               features::IsChromeRefresh2023()
-                                   ? kRadioButtonIconDipSizeCr2023
-                                   : kRadioButtonIconDipSize,
+  return gfx::CreateVectorIcon(GetVectorIcon(), kRadioButtonIconDipSizeCr2023,
                                GetIconImageColor(GetIconState(for_state)));
 }
 

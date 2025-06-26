@@ -4,17 +4,18 @@
 
 package org.chromium.chrome.browser.incognito.reauth;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 import android.content.Intent;
 
 import androidx.activity.OnBackPressedCallback;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.OneshotSupplierImpl;
-import org.chromium.chrome.browser.hub.HubFieldTrial;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.hub.HubManager;
 import org.chromium.chrome.browser.hub.PaneId;
 import org.chromium.chrome.browser.incognito.reauth.IncognitoReauthManager.IncognitoReauthCallback;
@@ -23,28 +24,25 @@ import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.tab_ui.TabSwitcherCustomViewManager;
 import org.chromium.chrome.browser.tabmodel.IncognitoTabHostUtils;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 
 /** A factory to create an {@link IncognitoReauthCoordinator} instance. */
+@NullMarked
 public class IncognitoReauthCoordinatorFactory {
     /** The context to use in order to inflate the re-auth view and fetch the resources. */
-    private final @NonNull Context mContext;
+    private final Context mContext;
 
     /**
      * The {@link TabModelSelector} instance used for providing functionality to toggle between tab
      * models and to close Incognito tabs.
      */
-    private final @NonNull TabModelSelector mTabModelSelector;
+    private final TabModelSelector mTabModelSelector;
 
     /** The manager responsible for showing the full screen Incognito re-auth dialog. */
-    private final @NonNull ModalDialogManager mModalDialogManager;
+    private final ModalDialogManager mModalDialogManager;
 
     /** The manager responsible for invoking the underlying native re-authentication. */
-    private final @NonNull IncognitoReauthManager mIncognitoReauthManager;
-
-    /** The launcher to show the SettingsActivity. */
-    private final @NonNull SettingsLauncher mSettingsLauncher;
+    private final IncognitoReauthManager mIncognitoReauthManager;
 
     /**
      * A boolean to distinguish between tabbedActivity or CCT, during coordinator creation.
@@ -53,12 +51,6 @@ public class IncognitoReauthCoordinatorFactory {
      * Runnable} that we create here at the client site directly.
      */
     private final boolean mIsTabbedActivity;
-
-    /**
-     * This allows to disable/enable top toolbar elements.
-     * Non-null for {@link TabSwitcherIncognitoReauthCoordinator} instance.
-     */
-    private final @Nullable IncognitoReauthTopToolbarDelegate mIncognitoReauthTopToolbarDelegate;
 
     /**
      * This allows to pass the re-auth view to the tab switcher. Non-null contents for {@link
@@ -80,7 +72,7 @@ public class IncognitoReauthCoordinatorFactory {
     private @Nullable Intent mShowRegularOverviewIntent;
 
     /** A test-only variable used to mock the menu delegate instead of creating one. */
-    @VisibleForTesting IncognitoReauthMenuDelegate mIncognitoReauthMenuDelegateForTesting;
+    @VisibleForTesting @Nullable IncognitoReauthMenuDelegate mIncognitoReauthMenuDelegateForTesting;
 
     /**
      * @param context The {@link Context} to use for fetching the re-auth resources.
@@ -90,22 +82,16 @@ public class IncognitoReauthCoordinatorFactory {
      *     containing the Incognito re-auth view.
      * @param incognitoReauthManager The {@link IncognitoReauthManager} instance which would be used
      *     to initiate re-authentication.
-     * @param settingsLauncher A {@link SettingsLauncher} to use for launching {@link
-     *     SettingsActivity} from 3 dots menu inside full-screen re-auth.
-     * @param incognitoReauthTopToolbarDelegate A {@link IncognitoReauthTopToolbarDelegate} to use
-     *     for disabling/enabling few top toolbar elements inside tab switcher.
      * @param layoutManager {@link LayoutManager} to use for showing the regular overview mode.
      * @param hubManagerSupplier The supplier of the {@link HubManager}.
      * @param showRegularOverviewIntent An {@link Intent} to show the regular overview mode.
      * @param isTabbedActivity A boolean to indicate if the re-auth screen being fired from
      */
     public IncognitoReauthCoordinatorFactory(
-            @NonNull Context context,
-            @NonNull TabModelSelector tabModelSelector,
-            @NonNull ModalDialogManager modalDialogManager,
-            @NonNull IncognitoReauthManager incognitoReauthManager,
-            @NonNull SettingsLauncher settingsLauncher,
-            @Nullable IncognitoReauthTopToolbarDelegate incognitoReauthTopToolbarDelegate,
+            Context context,
+            TabModelSelector tabModelSelector,
+            ModalDialogManager modalDialogManager,
+            IncognitoReauthManager incognitoReauthManager,
             @Nullable LayoutManager layoutManager,
             @Nullable OneshotSupplier<HubManager> hubManagerSupplier,
             @Nullable Intent showRegularOverviewIntent,
@@ -114,8 +100,6 @@ public class IncognitoReauthCoordinatorFactory {
         mTabModelSelector = tabModelSelector;
         mModalDialogManager = modalDialogManager;
         mIncognitoReauthManager = incognitoReauthManager;
-        mSettingsLauncher = settingsLauncher;
-        mIncognitoReauthTopToolbarDelegate = incognitoReauthTopToolbarDelegate;
         mLayoutManager = layoutManager;
         mHubManagerSupplier = hubManagerSupplier;
         mShowRegularOverviewIntent = showRegularOverviewIntent;
@@ -128,10 +112,10 @@ public class IncognitoReauthCoordinatorFactory {
 
     /**
      * @param tabSwitcherCustomViewManager {@link TabSwitcherCustomViewManager} to use for
-     *         communicating with tab switcher to show the re-auth screen.
+     *     communicating with tab switcher to show the re-auth screen.
      */
     public void setTabSwitcherCustomViewManager(
-            @NonNull TabSwitcherCustomViewManager tabSwitcherCustomViewManager) {
+            TabSwitcherCustomViewManager tabSwitcherCustomViewManager) {
         mTabSwitcherCustomViewManagerSupplier.set(tabSwitcherCustomViewManager);
     }
 
@@ -147,15 +131,16 @@ public class IncognitoReauthCoordinatorFactory {
      * This method is responsible for clean-up work. Typically, called when the Activity is being
      * destroyed.
      */
-    void destroy() {}
+    void destroy() {
+        mIncognitoReauthManager.destroy();
+    }
 
     private IncognitoReauthMenuDelegate getIncognitoReauthMenuDelegate() {
         if (mIncognitoReauthMenuDelegateForTesting != null) {
             return mIncognitoReauthMenuDelegateForTesting;
         }
 
-        return new IncognitoReauthMenuDelegate(
-                mContext, getCloseAllIncognitoTabsRunnable(), mSettingsLauncher);
+        return new IncognitoReauthMenuDelegate(mContext, getCloseAllIncognitoTabsRunnable());
     }
 
     /**
@@ -166,9 +151,12 @@ public class IncognitoReauthCoordinatorFactory {
         if (mIsTabbedActivity) {
             return () -> {
                 mTabModelSelector.selectModel(/* incognito= */ false);
-                if (HubFieldTrial.isHubEnabled()
-                        && mLayoutManager.isLayoutVisible(LayoutType.TAB_SWITCHER)) {
-                    mHubManagerSupplier.get().getPaneManager().focusPane(PaneId.TAB_SWITCHER);
+                assumeNonNull(mLayoutManager);
+                if (mLayoutManager.isLayoutVisible(LayoutType.TAB_SWITCHER)) {
+                    assumeNonNull(mHubManagerSupplier);
+                    mHubManagerSupplier.runSyncOrOnAvailable(
+                            hubManager ->
+                                    hubManager.getPaneManager().focusPane(PaneId.TAB_SWITCHER));
                     return;
                 }
                 mLayoutManager.showLayout(LayoutType.TAB_SWITCHER, /* animate= */ false);
@@ -211,24 +199,22 @@ public class IncognitoReauthCoordinatorFactory {
     }
 
     /**
-     * @param incognitoReauthCallback The {@link IncognitoReauthCallback}
-     *                               which would be executed after an authentication attempt.
+     * @param incognitoReauthCallback The {@link IncognitoReauthCallback} which would be executed
+     *     after an authentication attempt.
      * @param showFullScreen A boolean indicating whether to show a fullscreen or tab switcher
-     *                      Incognito reauth.
-     *
+     *     Incognito reauth.
      * @param backPressedCallback {@link OnBackPressedCallback} which would be called when a user
-     *         presses back while the fullscreen re-auth is shown.
-     *
+     *     presses back while the fullscreen re-auth is shown.
      * @return {@link IncognitoReauthCoordinator} instance spliced on fullscreen/tab-switcher and
-     * tabbedActivity/CCT.
+     *     tabbedActivity/CCT.
      */
     IncognitoReauthCoordinator createIncognitoReauthCoordinator(
-            @NonNull IncognitoReauthCallback incognitoReauthCallback,
+            IncognitoReauthCallback incognitoReauthCallback,
             boolean showFullScreen,
-            @NonNull OnBackPressedCallback backPressedCallback) {
+            OnBackPressedCallback backPressedCallback) {
         assert areDependenciesReadyFor(showFullScreen)
                 : "Dependencies for the IncognitoReauthCoordinator were not ready.";
-        return (showFullScreen)
+        return showFullScreen
                 ? new FullScreenIncognitoReauthCoordinator(
                         mContext,
                         mIncognitoReauthManager,
@@ -243,7 +229,6 @@ public class IncognitoReauthCoordinatorFactory {
                         incognitoReauthCallback,
                         getSeeOtherTabsRunnable(),
                         getBackPressRunnable(),
-                        mTabSwitcherCustomViewManagerSupplier.get(),
-                        mIncognitoReauthTopToolbarDelegate);
+                        assumeNonNull(mTabSwitcherCustomViewManagerSupplier.get()));
     }
 }

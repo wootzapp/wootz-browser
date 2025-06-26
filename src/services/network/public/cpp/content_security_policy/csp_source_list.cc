@@ -4,10 +4,11 @@
 
 #include "services/network/public/cpp/content_security_policy/csp_source_list.h"
 
+#include <algorithm>
+
 #include "base/check_op.h"
 #include "base/containers/flat_set.h"
 #include "base/feature_list.h"
-#include "base/ranges/algorithm.h"
 #include "services/network/public/cpp/content_security_policy/content_security_policy.h"
 #include "services/network/public/cpp/content_security_policy/csp_source.h"
 #include "services/network/public/cpp/features.h"
@@ -186,8 +187,8 @@ bool UrlSourceListSubsumes(
 
   // Every item in |source_list_b| must be subsumed by at least one item in
   // |source_list_a|.
-  return base::ranges::all_of(source_list_b, [&](const auto& source_b) {
-    return base::ranges::any_of(source_list_a, [&](const auto& source_a) {
+  return std::ranges::all_of(source_list_b, [&](const auto& source_b) {
+    return std::ranges::any_of(source_list_a, [&](const auto& source_a) {
       return CSPSourceSubsumes(*source_a, *source_b);
     });
   });
@@ -200,17 +201,9 @@ CSPCheckResult CheckCSPSourceList(mojom::CSPDirectiveName directive_name,
                                   const GURL& url,
                                   const mojom::CSPSource& self_source,
                                   bool has_followed_redirect,
-                                  bool is_response_check,
                                   bool is_opaque_fenced_frame) {
   if (is_opaque_fenced_frame)
     DCHECK_EQ(directive_name, mojom::CSPDirectiveName::FencedFrameSrc);
-
-  // If the source list allows all redirects, the decision can't be made until
-  // the response is received.
-  if (directive_name == mojom::CSPDirectiveName::NavigateTo &&
-      source_list.allow_response_redirects && !is_response_check) {
-    return CSPCheckResult::Allowed();
-  }
 
   // Wildcards match network schemes ('http', 'https', 'ftp', 'ws', 'wss'), and
   // the scheme of the protected resource:
@@ -247,10 +240,7 @@ CSPCheckResult CheckCSPSourceList(mojom::CSPDirectiveName directive_name,
       return CSPCheckResult::AllowedOnlyIfWildcardMatchesWs();
     }
     if (url.SchemeIs("ftp")) {
-      return base::FeatureList::IsEnabled(
-                 features::kCspStopMatchingWildcardDirectivesToFtp)
-                 ? CSPCheckResult::Blocked()
-                 : CSPCheckResult::AllowedOnlyIfWildcardMatchesFtp();
+      return CSPCheckResult::Blocked();
     }
   }
 

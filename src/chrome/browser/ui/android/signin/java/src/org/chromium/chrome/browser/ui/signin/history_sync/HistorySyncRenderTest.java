@@ -8,7 +8,8 @@ import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 
 import static org.hamcrest.Matchers.allOf;
-import static org.mockito.Mockito.when;
+
+import static org.chromium.ui.test.util.ViewUtils.onViewWaiting;
 
 import android.content.res.Configuration;
 
@@ -24,6 +25,7 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.mockito.quality.Strictness;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterProvider;
@@ -32,7 +34,10 @@ import org.chromium.base.test.params.ParameterizedRunner;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
+import org.chromium.base.test.util.Features.DisableFeatures;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
@@ -40,9 +45,9 @@ import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.util.ActivityTestUtils;
 import org.chromium.chrome.test.util.browser.signin.SigninTestRule;
 import org.chromium.components.signin.metrics.SigninAccessPoint;
+import org.chromium.components.signin.test.util.TestAccounts;
 import org.chromium.components.sync.SyncService;
 import org.chromium.content_public.browser.test.NativeLibraryTestUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 import org.chromium.ui.test.util.RenderTestRule;
 import org.chromium.ui.test.util.ViewUtils;
@@ -55,6 +60,7 @@ import java.util.List;
 @RunWith(ParameterizedRunner.class)
 @ParameterAnnotations.UseRunnerDelegate(ChromeJUnit4RunnerDelegate.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@DisableFeatures({ChromeFeatureList.USE_ALTERNATE_HISTORY_SYNC_ILLUSTRATION})
 @DoNotBatch(reason = "This test relies on native initialization")
 public class HistorySyncRenderTest {
     /** Parameter provider for night mode state and device orientation. */
@@ -62,24 +68,16 @@ public class HistorySyncRenderTest {
         private static List<ParameterSet> sParams =
                 Arrays.asList(
                         new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled= */ false,
-                                        Configuration.ORIENTATION_PORTRAIT)
+                                .value(/* firstArg= */ false, Configuration.ORIENTATION_PORTRAIT)
                                 .name("NightModeDisabled_Portrait"),
                         new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled= */ false,
-                                        Configuration.ORIENTATION_LANDSCAPE)
+                                .value(/* firstArg= */ false, Configuration.ORIENTATION_LANDSCAPE)
                                 .name("NightModeDisabled_Landscape"),
                         new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled= */ true,
-                                        Configuration.ORIENTATION_PORTRAIT)
+                                .value(/* firstArg= */ true, Configuration.ORIENTATION_PORTRAIT)
                                 .name("NightModeEnabled_Portrait"),
                         new ParameterSet()
-                                .value(
-                                        /* nightModeEnabled= */ true,
-                                        Configuration.ORIENTATION_LANDSCAPE)
+                                .value(/* firstArg= */ true, Configuration.ORIENTATION_LANDSCAPE)
                                 .name("NightModeEnabled_Landscape"));
 
         @Override
@@ -101,7 +99,7 @@ public class HistorySyncRenderTest {
     public final RenderTestRule mRenderTestRule =
             RenderTestRule.Builder.withPublicCorpus()
                     .setBugComponent(RenderTestRule.Component.SERVICES_SIGN_IN)
-                    .setRevision(2)
+                    .setRevision(3)
                     .setDescription("Update button stacking")
                     .build();
 
@@ -113,7 +111,7 @@ public class HistorySyncRenderTest {
     @ParameterAnnotations.UseMethodParameterBefore(
             HistorySyncRenderTest.NightModeAndOrientationParameterProvider.class)
     public void setupNightModeAndDeviceOrientation(boolean nightModeEnabled, int orientation) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     AppCompatDelegate.setDefaultNightMode(
                             nightModeEnabled
@@ -128,9 +126,7 @@ public class HistorySyncRenderTest {
     @Before
     public void setUp() {
         NativeLibraryTestUtils.loadNativeLibraryAndInitBrowserProcess();
-        when(mHistorySyncDelegateMock.isLargeScreen()).thenReturn(false);
         mActivityTestRule.launchActivity(null);
-        mSigninTestRule.addTestAccountThenSignin();
         SyncServiceFactory.setInstanceForTesting(mSyncServiceMock);
     }
 
@@ -140,27 +136,63 @@ public class HistorySyncRenderTest {
     @ParameterAnnotations.UseMethodParameter(
             HistorySyncRenderTest.NightModeAndOrientationParameterProvider.class)
     public void testHistorySyncView(boolean nightModeEnabled, int orientation) throws IOException {
+        mSigninTestRule.addAccountThenSignin(TestAccounts.AADC_ADULT_ACCOUNT);
+
         buildHistorySyncCoordinator(orientation);
 
+        onViewWaiting(withId(R.id.button_primary));
         mRenderTestRule.render(mHistorySyncCoordinator.getView(), "history_sync");
+    }
+
+    @Test
+    @MediumTest
+    @Feature("RenderTest")
+    @ParameterAnnotations.UseMethodParameter(
+            HistorySyncRenderTest.NightModeAndOrientationParameterProvider.class)
+    public void testHistorySyncViewWithMinorModeRestrictions(
+            boolean nightModeEnabled, int orientation) throws IOException {
+        mSigninTestRule.addAccountThenSignin(TestAccounts.AADC_MINOR_ACCOUNT);
+        buildHistorySyncCoordinator(orientation);
+
+        onViewWaiting(withId(R.id.button_primary));
+        mRenderTestRule.render(
+                mHistorySyncCoordinator.getView(), "history_sync_with_minor_mode_enabled");
+    }
+
+    @Test
+    @MediumTest
+    @Feature("RenderTest")
+    @ParameterAnnotations.UseMethodParameter(
+            HistorySyncRenderTest.NightModeAndOrientationParameterProvider.class)
+    @EnableFeatures({ChromeFeatureList.USE_ALTERNATE_HISTORY_SYNC_ILLUSTRATION})
+    public void testHistorySyncViewWithAlternateIllustration(
+            boolean nightModeEnabled, int orientation) throws IOException {
+        mSigninTestRule.addAccountThenSignin(TestAccounts.AADC_ADULT_ACCOUNT);
+
+        buildHistorySyncCoordinator(orientation);
+
+        onViewWaiting(withId(R.id.button_primary));
+        mRenderTestRule.render(
+                mHistorySyncCoordinator.getView(), "history_sync_alternate_illustration");
     }
 
     private void buildHistorySyncCoordinator(int orientation) {
         ActivityTestUtils.rotateActivityToOrientation(mActivityTestRule.getActivity(), orientation);
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mHistorySyncCoordinator =
                             new HistorySyncCoordinator(
                                     mActivityTestRule.getActivity(),
                                     mHistorySyncDelegateMock,
                                     ProfileManager.getLastUsedRegularProfile(),
+                                    new HistorySyncConfig(),
                                     SigninAccessPoint.UNKNOWN,
                                     /* showEmailInFooter= */ false,
-                                    /* signOutOnDecline= */ false,
+                                    /* shouldSignOutOnDecline= */ false,
                                     null);
                     mActivityTestRule
                             .getActivity()
-                            .setContentView(mHistorySyncCoordinator.getView());
+                            .setContentView(mHistorySyncCoordinator.maybeRecreateView());
                 });
         ViewUtils.waitForVisibleView(allOf(withId(R.id.history_sync_illustration), isDisplayed()));
     }

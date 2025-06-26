@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/accessibility/ax_tree_fuzzer_util.h"
 
 #include <vector>
@@ -267,18 +272,18 @@ AXTreeFuzzerGenerator::DetermineTreeUpdateOperation(const ui::AXNode* node,
       // text children.
       if (ax::mojom::Role::kRootWebArea != node->GetRole())
         return kRemoveNode;
-      ABSL_FALLTHROUGH_INTENDED;
+      [[fallthrough]];
     case 1:
       // Check to ensure this node can have children. Also consider that we
       // shouldn't add children to static text, as these nodes only expect to
       // have a inline text single child.
       if (CanHaveChildren(node->GetRole()) && !ui::IsText(node->GetRole()))
         return kAddChild;
-      ABSL_FALLTHROUGH_INTENDED;
+      [[fallthrough]];
     case 2:
       if (ax::mojom::Role::kStaticText == node->GetRole())
         return kTextChange;
-      ABSL_FALLTHROUGH_INTENDED;
+      [[fallthrough]];
     default:
       return kNoOperation;
   }

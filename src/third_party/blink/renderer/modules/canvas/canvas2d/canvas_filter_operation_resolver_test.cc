@@ -2,44 +2,51 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <string>
-#include <tuple>
-
 #include "third_party/blink/renderer/modules/canvas/canvas2d/canvas_filter_operation_resolver.h"
 
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+#include "base/check.h"
 #include "base/check_deref.h"
+#include "base/functional/callback.h"  // IWYU pragma: keep (needed by GarbageCollectedIs)
 #include "base/strings/stringprintf.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_value.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_union_object_objectarray_string.h"
+#include "third_party/blink/renderer/core/css/css_property_value_set.h"  // IWYU pragma: keep (https://github.com/clangd/clangd/issues/2044)
 #include "third_party/blink/renderer/core/css/parser/css_parser.h"
 #include "third_party/blink/renderer/core/css/resolver/font_style_resolver.h"
 #include "third_party/blink/renderer/core/css/style_color.h"
-#include "third_party/blink/renderer/core/html/canvas/canvas_font_cache.h"
+#include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/html/canvas/html_canvas_element.h"
+#include "third_party/blink/renderer/core/html/canvas/unique_font_selector.h"
 #include "third_party/blink/renderer/core/style/filter_operation.h"
 #include "third_party/blink/renderer/core/style/shadow_data.h"
 #include "third_party/blink/renderer/modules/canvas/canvas2d/canvas_filter_test_utils.h"
 #include "third_party/blink/renderer/platform/bindings/exception_code.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/fonts/font.h"
-#include "third_party/blink/renderer/platform/fonts/font_description.h"
+#include "third_party/blink/renderer/platform/geometry/length.h"
 #include "third_party/blink/renderer/platform/graphics/color.h"
+#include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
 #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
+#include "ui/gfx/geometry/point_f.h"
+#include "ui/gfx/geometry/vector2d_f.h"
 
 namespace blink {
 namespace {
 
 using ::blink_testing::GarbageCollectedIs;
 using ::blink_testing::ParseFilter;
-using ::testing::ByRef;
 using ::testing::Combine;
 using ::testing::ElementsAreArray;
-using ::testing::Eq;
 using ::testing::Matcher;
 using ::testing::SizeIs;
 using ::testing::TestParamInfo;
@@ -58,7 +65,7 @@ using FilterTest = TestWithParam<FilterTestParams>;
 TEST_P(FilterTest, CreatesFilterOperationsFromObject) {
   test::TaskEnvironment task_environment;
   V8TestingScope scope;
-  HeapVector<ScriptValue> filters = {
+  HeapVector<ScriptObject> filters = {
       CHECK_DEREF(ParseFilter(scope, GetParam().filter)).GetAsObject()};
   EXPECT_THAT(CanvasFilterOperationResolver::CreateFilterOperationsFromList(
                   filters, CHECK_DEREF(scope.GetExecutionContext()),
@@ -193,10 +200,9 @@ using FilterArrayTest = TestWithParam<FilterTestParams>;
 TEST_P(FilterArrayTest, CreatesFilterOperationsFromObjectArray) {
   test::TaskEnvironment task_environment;
   V8TestingScope scope;
-  CHECK_DEREF(scope.GetExecutionContext());
-  HeapVector<ScriptValue> filters =
+  CHECK(scope.GetExecutionContext());
+  HeapVector<ScriptObject> filters =
       CHECK_DEREF(ParseFilter(scope, GetParam().filter)).GetAsObjectArray();
-  CHECK_DEREF(scope.GetExecutionContext());
   EXPECT_THAT(CanvasFilterOperationResolver::CreateFilterOperationsFromList(
                   filters, CHECK_DEREF(scope.GetExecutionContext()),
                   scope.GetExceptionState())
@@ -278,10 +284,11 @@ using CSSFilterTest = TestWithParam<FilterTestParams>;
 TEST_P(CSSFilterTest, CreatesFilterOperationsFromCSSFilter) {
   test::TaskEnvironment task_environment;
   V8TestingScope scope;
+  Font* font = MakeGarbageCollected<Font>();
   EXPECT_THAT(
       CanvasFilterOperationResolver::CreateFilterOperationsFromCSSFilter(
           String(GetParam().filter), CHECK_DEREF(scope.GetExecutionContext()),
-          /*style_resolution_host=*/nullptr, Font())
+          /*style_resolution_host=*/nullptr, font)
           .Operations(),
       ElementsAreArray(GetParam().expected_ops));
   EXPECT_FALSE(scope.GetExceptionState().HadException());
@@ -319,9 +326,9 @@ TEST(CSSResolutionTest,
       MakeGarbageCollected<HTMLCanvasElement>(scope.GetDocument());
   // Pre-condition for using style resolution for fonts.
   ASSERT_NE(canvas->GetDocument().GetFrame(), nullptr);
-  Font font(FontStyleResolver::ComputeFont(
+  Font* font = MakeGarbageCollected<Font>(FontStyleResolver::ComputeFont(
       *CSSParser::ParseFont("10px sans-serif", scope.GetExecutionContext()),
-      canvas->GetFontSelector()));
+      canvas->GetFontSelector()->BaseFontSelector()));
   EXPECT_THAT(
       CanvasFilterOperationResolver::CreateFilterOperationsFromCSSFilter(
           String("drop-shadow(1em 1em 0 black)"),
@@ -344,7 +351,7 @@ TEST(CSSResolutionTest,
       CanvasFilterOperationResolver::CreateFilterOperationsFromCSSFilter(
           String("drop-shadow(1em 1em 0 black)"),
           CHECK_DEREF(scope.GetExecutionContext()),
-          /*style_resolution_host=*/nullptr, Font())
+          /*style_resolution_host=*/nullptr, MakeGarbageCollected<Font>())
           .Operations(),
       // Font sized is assumed to be 16px when no style resolution is available.
       ElementsAreArray(
@@ -364,7 +371,7 @@ TEST_P(FilterApiTest, RaisesExceptionForInvalidType) {
   V8TestingScope scope;
   const auto& [filter_name, param_key, param_value, expected_error] =
       GetParam();
-  HeapVector<ScriptValue> filters = {
+  HeapVector<ScriptObject> filters = {
       CHECK_DEREF(
           ParseFilter(scope, base::StringPrintf(
                                  "({name: '%s', %s: %s})", filter_name.c_str(),

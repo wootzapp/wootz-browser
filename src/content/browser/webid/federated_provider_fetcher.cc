@@ -7,6 +7,7 @@
 #include "base/check.h"
 #include "content/browser/webid/flags.h"
 #include "content/browser/webid/webid_utils.h"
+#include "net/base/schemeful_site.h"
 
 namespace content {
 
@@ -56,21 +57,23 @@ FederatedProviderFetcher::FederatedProviderFetcher(
 FederatedProviderFetcher::~FederatedProviderFetcher() = default;
 
 void FederatedProviderFetcher::Start(
-    const std::set<GURL>& identity_provider_config_urls,
+    const std::vector<FetchRequest>& requested_providers,
     blink::mojom::RpMode rp_mode,
     int icon_ideal_size,
     int icon_minimum_size,
     RequesterCallback callback) {
   callback_ = std::move(callback);
 
-  for (const GURL& identity_provider_config_url :
-       identity_provider_config_urls) {
+  for (const auto& request : requested_providers) {
     FetchResult fetch_result;
-    fetch_result.identity_provider_config_url = identity_provider_config_url;
+    fetch_result.identity_provider_config_url =
+        request.identity_provider_config_url;
+    fetch_result.force_skip_well_known_enforcement =
+        request.force_skip_well_known_enforcement;
     fetch_results_.push_back(std::move(fetch_result));
 
-    pending_well_known_fetches_.insert(identity_provider_config_url);
-    pending_config_fetches_.insert(identity_provider_config_url);
+    pending_well_known_fetches_.insert(request.identity_provider_config_url);
+    pending_config_fetches_.insert(request.identity_provider_config_url);
   }
 
   // In a separate loop to avoid invalidating references when adding elements to
@@ -97,8 +100,7 @@ void FederatedProviderFetcher::OnWellKnownFetched(
   constexpr char kWellKnownFileStr[] = "well-known file";
 
   if (status.parse_status != IdpNetworkRequestManager::ParseStatus::kSuccess &&
-      !ShouldSkipWellKnownEnforcementForIdp(
-          fetch_result.identity_provider_config_url)) {
+      !ShouldSkipWellKnownEnforcementForIdp(fetch_result)) {
     std::optional<std::string> additional_console_error_message =
         webid::ComputeConsoleMessageForHttpResponseCode(kWellKnownFileStr,
                                                         status.response_code);
@@ -106,43 +108,39 @@ void FederatedProviderFetcher::OnWellKnownFetched(
     switch (status.parse_status) {
       case IdpNetworkRequestManager::ParseStatus::kHttpNotFoundError: {
         OnError(fetch_result,
-                FederatedAuthRequestResult::kErrorFetchingWellKnownHttpNotFound,
+                FederatedAuthRequestResult::kWellKnownHttpNotFound,
                 TokenStatus::kWellKnownHttpNotFound,
                 additional_console_error_message);
         return;
       }
       case IdpNetworkRequestManager::ParseStatus::kNoResponseError: {
-        OnError(fetch_result,
-                FederatedAuthRequestResult::kErrorFetchingWellKnownNoResponse,
+        OnError(fetch_result, FederatedAuthRequestResult::kWellKnownNoResponse,
                 TokenStatus::kWellKnownNoResponse,
                 additional_console_error_message);
         return;
       }
       case IdpNetworkRequestManager::ParseStatus::kInvalidResponseError: {
-        OnError(
-            fetch_result,
-            FederatedAuthRequestResult::kErrorFetchingWellKnownInvalidResponse,
-            TokenStatus::kWellKnownInvalidResponse,
-            additional_console_error_message);
+        OnError(fetch_result,
+                FederatedAuthRequestResult::kWellKnownInvalidResponse,
+                TokenStatus::kWellKnownInvalidResponse,
+                additional_console_error_message);
         return;
       }
       case IdpNetworkRequestManager::ParseStatus::kEmptyListError: {
-        OnError(fetch_result,
-                FederatedAuthRequestResult::kErrorFetchingWellKnownListEmpty,
+        OnError(fetch_result, FederatedAuthRequestResult::kWellKnownListEmpty,
                 TokenStatus::kWellKnownListEmpty,
                 additional_console_error_message);
         return;
       }
       case IdpNetworkRequestManager::ParseStatus::kInvalidContentTypeError: {
         OnError(fetch_result,
-                FederatedAuthRequestResult::
-                    kErrorFetchingWellKnownInvalidContentType,
+                FederatedAuthRequestResult::kWellKnownInvalidContentType,
                 TokenStatus::kWellKnownInvalidContentType,
                 additional_console_error_message);
         return;
       }
       case IdpNetworkRequestManager::ParseStatus::kSuccess: {
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
       }
     }
   }
@@ -168,41 +166,36 @@ void FederatedProviderFetcher::OnConfigFetched(
 
     switch (status.parse_status) {
       case IdpNetworkRequestManager::ParseStatus::kHttpNotFoundError: {
-        OnError(fetch_result,
-                FederatedAuthRequestResult::kErrorFetchingConfigHttpNotFound,
+        OnError(fetch_result, FederatedAuthRequestResult::kConfigHttpNotFound,
                 TokenStatus::kConfigHttpNotFound,
                 additional_console_error_message);
         return;
       }
       case IdpNetworkRequestManager::ParseStatus::kNoResponseError: {
-        OnError(fetch_result,
-                FederatedAuthRequestResult::kErrorFetchingConfigNoResponse,
+        OnError(fetch_result, FederatedAuthRequestResult::kConfigNoResponse,
                 TokenStatus::kConfigNoResponse,
                 additional_console_error_message);
         return;
       }
       case IdpNetworkRequestManager::ParseStatus::kInvalidResponseError: {
         OnError(fetch_result,
-                FederatedAuthRequestResult::kErrorFetchingConfigInvalidResponse,
+                FederatedAuthRequestResult::kConfigInvalidResponse,
                 TokenStatus::kConfigInvalidResponse,
                 additional_console_error_message);
         return;
       }
       case IdpNetworkRequestManager::ParseStatus::kInvalidContentTypeError: {
-        OnError(
-            fetch_result,
-            FederatedAuthRequestResult::kErrorFetchingConfigInvalidContentType,
-            TokenStatus::kConfigInvalidContentType,
-            additional_console_error_message);
+        OnError(fetch_result,
+                FederatedAuthRequestResult::kConfigInvalidContentType,
+                TokenStatus::kConfigInvalidContentType,
+                additional_console_error_message);
         return;
       }
       case IdpNetworkRequestManager::ParseStatus::kEmptyListError: {
-        NOTREACHED_IN_MIGRATION()
-            << "kEmptyListError is undefined for OnConfigFetched";
-        return;
+        NOTREACHED() << "kEmptyListError is undefined for OnConfigFetched";
       }
       case IdpNetworkRequestManager::ParseStatus::kSuccess: {
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
       }
     }
   }
@@ -245,17 +238,15 @@ void FederatedProviderFetcher::ValidateAndMaybeSetError(FetchResult& result) {
 
   bool is_token_valid = webid::IsEndpointSameOrigin(
       result.identity_provider_config_url, result.endpoints.token);
-  bool is_accounts_valid = webid::IsEndpointSameOrigin(
-      result.identity_provider_config_url, result.endpoints.accounts);
-  url::Origin idp_origin =
-      url::Origin::Create(result.identity_provider_config_url);
+  bool is_accounts_valid =
+      webid::IsEndpointSameOrigin(result.identity_provider_config_url,
+                                  result.endpoints.accounts) ||
+      (IsFedCmLightweightModeEnabled() && result.endpoints.accounts.is_empty());
 
   bool is_login_url_valid =
-      webid::GetIdpSigninStatusMode(render_frame_host_.get(), idp_origin) !=
-          FedCmIdpSigninStatusMode::ENABLED ||
-      (result.metadata &&
-       webid::IsEndpointSameOrigin(result.identity_provider_config_url,
-                                   result.metadata->idp_login_url));
+      result.metadata &&
+      webid::IsEndpointSameOrigin(result.identity_provider_config_url,
+                                  result.metadata->idp_login_url);
 
   if (!is_token_valid || !is_accounts_valid || !is_login_url_valid) {
     std::string console_message =
@@ -270,8 +261,7 @@ void FederatedProviderFetcher::ValidateAndMaybeSetError(FetchResult& result) {
       console_message += "\"login_url\"\n";
     }
 
-    SetError(result,
-             FederatedAuthRequestResult::kErrorFetchingConfigInvalidResponse,
+    SetError(result, FederatedAuthRequestResult::kConfigInvalidResponse,
              TokenStatus::kConfigInvalidResponse, console_message);
     return;
   }
@@ -287,14 +277,16 @@ void FederatedProviderFetcher::ValidateAndMaybeSetError(FetchResult& result) {
   //     contains the config url passed in the JS call
 
   // (a)
-  if (ShouldSkipWellKnownEnforcementForIdp(
-          result.identity_provider_config_url)) {
+  if (ShouldSkipWellKnownEnforcementForIdp(result)) {
     return;
   }
 
   // (b)
-  if (webid::IsFedCmAuthzEnabled(*render_frame_host_, idp_origin) &&
-      result.wellknown.accounts.is_valid() &&
+  bool is_wellknown_accounts_valid =
+      result.wellknown.accounts.is_valid() ||
+      (IsFedCmLightweightModeEnabled() && result.wellknown.accounts.is_empty());
+
+  if (webid::IsFedCmAuthzEnabled() && is_wellknown_accounts_valid &&
       result.wellknown.login_url.is_valid() && result.metadata &&
       result.metadata->idp_login_url.is_valid()) {
     // Behind the AuthZ flag, it is valid for IdPs to have valid configURLs
@@ -305,8 +297,7 @@ void FederatedProviderFetcher::ValidateAndMaybeSetError(FetchResult& result) {
     // configURL without checking for its presence in the provider_urls array.
     if (result.endpoints.accounts != result.wellknown.accounts ||
         result.metadata->idp_login_url != result.wellknown.login_url) {
-      SetError(result,
-               FederatedAuthRequestResult::kErrorFetchingConfigInvalidResponse,
+      SetError(result, FederatedAuthRequestResult::kConfigInvalidResponse,
                TokenStatus::kConfigInvalidResponse,
                "The well-known file contains an accounts endpoint or login_url "
                "that doesn't match the one in the configURL");
@@ -335,7 +326,7 @@ void FederatedProviderFetcher::ValidateAndMaybeSetError(FetchResult& result) {
   // }
 
   if (result.wellknown.provider_urls.size() > kMaxProvidersInWellKnownFile) {
-    SetError(result, FederatedAuthRequestResult::kErrorWellKnownTooBig,
+    SetError(result, FederatedAuthRequestResult::kWellKnownTooBig,
              TokenStatus::kWellKnownTooBig,
              /*additional_console_error_message=*/std::nullopt);
     return;
@@ -345,7 +336,7 @@ void FederatedProviderFetcher::ValidateAndMaybeSetError(FetchResult& result) {
                                     result.identity_provider_config_url) != 0);
 
   if (!provider_url_is_valid) {
-    SetError(result, FederatedAuthRequestResult::kErrorConfigNotInWellKnown,
+    SetError(result, FederatedAuthRequestResult::kConfigNotInWellKnown,
              TokenStatus::kConfigNotInWellKnown,
              /*additional_console_error_message=*/std::nullopt);
     return;
@@ -366,14 +357,18 @@ void FederatedProviderFetcher::RunCallbackIfDone() {
 }
 
 bool FederatedProviderFetcher::ShouldSkipWellKnownEnforcementForIdp(
-    const GURL& idp_url) {
+    const FetchResult& fetch_result) {
   if (IsFedCmWithoutWellKnownEnforcementEnabled()) {
+    return true;
+  }
+  if (fetch_result.force_skip_well_known_enforcement) {
     return true;
   }
 
   // Skip if RP and IDP are same-site.
-  return webid::IsSameSite(render_frame_host_->GetLastCommittedOrigin(),
-                           url::Origin::Create(idp_url));
+  return net::SchemefulSite::IsSameSite(
+      render_frame_host_->GetLastCommittedOrigin(),
+      url::Origin::Create(fetch_result.identity_provider_config_url));
 }
 
 }  // namespace content

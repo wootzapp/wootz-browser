@@ -3,9 +3,10 @@
 // found in the LICENSE file.
 
 import {stringToMojoString16} from 'chrome://resources/js/mojo_type_util.js';
-import {TimeTicks} from 'chrome://resources/mojo/mojo/public/mojom/base/time.mojom-webui.js';
+import type {TimeTicks} from 'chrome://resources/mojo/mojo/public/mojom/base/time.mojom-webui.js';
 
-import {Accelerator, AcceleratorCategory, AcceleratorKeyState, AcceleratorSource, AcceleratorState, AcceleratorSubcategory, AcceleratorType, LayoutStyle, Modifier, MojoAcceleratorConfig, MojoAcceleratorInfo, MojoLayoutInfo, MojoSearchResult, TextAcceleratorPartType} from './shortcut_types.js';
+import type {Accelerator, MojoAcceleratorConfig, MojoAcceleratorInfo, MojoLayoutInfo, MojoSearchResult} from './shortcut_types.js';
+import {AcceleratorCategory, AcceleratorKeyState, AcceleratorSource, AcceleratorState, AcceleratorSubcategory, AcceleratorType, LayoutStyle, Modifier, TextAcceleratorPartType} from './shortcut_types.js';
 import {keyToIconNameMap} from './shortcut_utils.js';
 
 const fakeTimestamp: TimeTicks = {
@@ -15,6 +16,7 @@ const fakeTimestamp: TimeTicks = {
 const newTabAcceleratorInfo: MojoAcceleratorInfo = {
   type: AcceleratorType.kDefault,
   state: AcceleratorState.kEnabled,
+  acceleratorLocked: false,
   locked: true,
   layoutProperties: {
     standardAccelerator: {
@@ -35,6 +37,7 @@ const newTabAcceleratorInfo: MojoAcceleratorInfo = {
 const cycleTabsAcceleratorInfo: MojoAcceleratorInfo = {
   type: AcceleratorType.kDefault,
   state: AcceleratorState.kEnabled,
+  acceleratorLocked: false,
   locked: true,
   layoutProperties: {
     textAccelerator: {
@@ -71,6 +74,7 @@ export const fakeAcceleratorConfig: MojoAcceleratorConfig = {
     [0]: [{
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kEnabled,
+      acceleratorLocked: false,
       locked: true,
       layoutProperties: {
         standardAccelerator: {
@@ -90,6 +94,7 @@ export const fakeAcceleratorConfig: MojoAcceleratorConfig = {
     [1]: [{
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kEnabled,
+      acceleratorLocked: false,
       locked: false,
       layoutProperties: {
         standardAccelerator: {
@@ -109,6 +114,7 @@ export const fakeAcceleratorConfig: MojoAcceleratorConfig = {
     [2]: [{
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kEnabled,
+      acceleratorLocked: false,
       locked: false,
       layoutProperties: {
         standardAccelerator: {
@@ -128,6 +134,7 @@ export const fakeAcceleratorConfig: MojoAcceleratorConfig = {
     [3]: [{
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kEnabled,
+      acceleratorLocked: false,
       locked: false,
       layoutProperties: {
         standardAccelerator: {
@@ -147,6 +154,7 @@ export const fakeAcceleratorConfig: MojoAcceleratorConfig = {
     [4]: [{
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kDisabledByUnavailableKeys,
+      acceleratorLocked: false,
       locked: false,
       layoutProperties: {
         standardAccelerator: {
@@ -166,6 +174,7 @@ export const fakeAcceleratorConfig: MojoAcceleratorConfig = {
     [5]: [{
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kEnabled,
+      acceleratorLocked: false,
       locked: false,
       layoutProperties: {
         standardAccelerator: {
@@ -186,6 +195,7 @@ export const fakeAcceleratorConfig: MojoAcceleratorConfig = {
       {
         type: AcceleratorType.kDefault,
         state: AcceleratorState.kEnabled,
+        acceleratorLocked: false,
         locked: false,
         layoutProperties: {
           standardAccelerator: {
@@ -204,6 +214,7 @@ export const fakeAcceleratorConfig: MojoAcceleratorConfig = {
       {
         type: AcceleratorType.kDefault,
         state: AcceleratorState.kDisabledByUnavailableKeys,
+        acceleratorLocked: false,
         locked: false,
         layoutProperties: {
           standardAccelerator: {
@@ -324,6 +335,7 @@ export const fakeSearchResults: MojoSearchResult[] = [
     acceleratorInfos: [{
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kEnabled,
+      acceleratorLocked: false,
       locked: true,
       layoutProperties: {
         standardAccelerator: {
@@ -353,6 +365,7 @@ export const fakeSearchResults: MojoSearchResult[] = [
     acceleratorInfos: [{
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kEnabled,
+      acceleratorLocked: false,
       locked: false,
       layoutProperties: {
         standardAccelerator: {
@@ -382,6 +395,7 @@ export const fakeSearchResults: MojoSearchResult[] = [
     acceleratorInfos: [{
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kEnabled,
+      acceleratorLocked: false,
       locked: false,
       layoutProperties: {
         standardAccelerator: {
@@ -418,6 +432,7 @@ export const TakeScreenshotSearchResult: MojoSearchResult = {
     {
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kEnabled,
+      acceleratorLocked: false,
       locked: false,
       layoutProperties: {
         standardAccelerator: {
@@ -436,6 +451,7 @@ export const TakeScreenshotSearchResult: MojoSearchResult = {
     {
       type: AcceleratorType.kDefault,
       state: AcceleratorState.kEnabled,
+      acceleratorLocked: false,
       locked: false,
       layoutProperties: {
         standardAccelerator: {
@@ -486,6 +502,7 @@ export const createFakeMojoAccelInfo =
       return {
         type: AcceleratorType.kDefault,
         state: AcceleratorState.kEnabled,
+        acceleratorLocked: false,
         locked: true,
         layoutProperties: {
           standardAccelerator: {

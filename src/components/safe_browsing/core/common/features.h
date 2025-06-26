@@ -12,14 +12,52 @@
 #include "base/values.h"
 
 namespace safe_browsing {
-// Features list, in alphabetical order.
+// Features list
+//
+// sticky_prefixes attach to the lines after them, and group_prefixes
+// attach to the lines before them. These prefixes were chosen to sort
+// by feature name. See https://github.com/google/keep-sorted for
+// detailed semantics.
+//
+// keep-sorted start sticky_prefixes=["#if"] group_prefixes=["#else", "#endif", "extern const base::FeatureParam"] newline_separated=yes
 
 // Controls various parameters related to occasionally collecting ad samples,
 // for example to control how often collection should occur.
 BASE_DECLARE_FEATURE(kAdSamplerTriggerFeature);
 
+#if BUILDFLAG(IS_ANDROID)
+// Enables adding an Android app referrer to Protego pings.
+BASE_DECLARE_FEATURE(kAddReferringAppInfoToProtegoPings);
+
+// Enables adding a WebAPK referrer to Protego pings. (This is a no-op if
+// `kAddReferringAppInfoToProtegoPings` is not enabled.)
+BASE_DECLARE_FEATURE(kAddReferringWebApkToProtegoPings);
+#endif
+
+// Enables Bundled Security Settings UI on chrome://settings/security
+BASE_DECLARE_FEATURE(kBundledSecuritySettings);
+
 // Enables adding warning shown timestamp to client safe browsing report.
 BASE_DECLARE_FEATURE(kAddWarningShownTSToClientSafeBrowsingReport);
+
+// Expand allowlist usage beyond CSPP allowlist by using the high confidence
+// allowlist as well.
+BASE_DECLARE_FEATURE(kClientSideDetectionAcceptHCAllowlist);
+
+// Create a response containing the brand and the intent of the page using the
+// on-device model LLM.
+BASE_DECLARE_FEATURE(kClientSideDetectionBrandAndIntentForScamDetection);
+
+BASE_DECLARE_FEATURE(kClientSideDetectionDebuggingMetadataCache);
+
+// Pass the LlamaTriggerRuleInfo from RTLookupResponse to ClientPhishingRequest
+// if it exists and the force request mechanism occurs.
+BASE_DECLARE_FEATURE(kClientSideDetectionSendLlamaForcedTriggerInfo);
+
+// Inquire the on device model when the forced llama trigger info in
+// RTLookupResponse asks to scan the page.
+BASE_DECLARE_FEATURE(
+    kClientSideDetectionLlamaForcedTriggerInfoForScamDetection);
 
 // Killswitch for client side phishing detection. Since client side models are
 // run on a large fraction of navigations, crashes due to the model are very
@@ -29,6 +67,9 @@ BASE_DECLARE_FEATURE(kAddWarningShownTSToClientSafeBrowsingReport);
 // OptimizationGuide.
 BASE_DECLARE_FEATURE(kClientSideDetectionKillswitch);
 
+// Killswitch for Llama forced trigger info redirect chain check.
+BASE_DECLARE_FEATURE(kClientSideDetectionForcedLlamaRedirectChainKillswitch);
+
 // Expand CSPP beyond phishing and trigger when keyboard or pointer lock request
 // occurs on the page.
 BASE_DECLARE_FEATURE(kClientSideDetectionKeyboardPointerLockRequest);
@@ -37,9 +78,30 @@ BASE_DECLARE_FEATURE(kClientSideDetectionKeyboardPointerLockRequest);
 // occurs on the page.
 BASE_DECLARE_FEATURE(kClientSideDetectionNotificationPrompt);
 
+// Killswitch for force request redirect chain check.
+BASE_DECLARE_FEATURE(kClientSideDetectionRedirectChainKillswitch);
+
 // Send a sample CSPP ping when a URL matches the CSD allowlist and all other
 // preclassification check conditions pass.
 BASE_DECLARE_FEATURE(kClientSideDetectionSamplePing);
+
+// Show a warning to the user based on the
+// IntelligentScanVerdict::SCAM_EXPERIMENT_VERDICT_2.
+BASE_DECLARE_FEATURE(kClientSideDetectionShowLlamaScamVerdictWarning);
+
+// Show a warning to the user that factors in the IntelligentScanVerdict from
+// ClientPhishingResponse.
+BASE_DECLARE_FEATURE(kClientSideDetectionShowScamVerdictWarning);
+
+// Expand CSPP beyond phishing and trigger when vibration API is called on the
+// web page.
+BASE_DECLARE_FEATURE(kClientSideDetectionVibrationApi);
+
+// Set a RESIZE_BEST preference for image resizing algorithm in Client Side
+// Detection renderer processes for both image classification and image
+// embedding. This experiment is done to see if the resizing algorithm
+// preference will send clearer screenshots for server side evaluation.
+BASE_DECLARE_FEATURE(kConditionalImageResize);
 
 // Creates and sends CSBRRs when notification permissions are accepted for an
 // abusive site whose interstitial has been bypassed.
@@ -47,12 +109,6 @@ BASE_DECLARE_FEATURE(kCreateNotificationsAcceptedClientSafeBrowsingReports);
 
 // Creates and sends CSBRRs when warnings are first shown to users.
 BASE_DECLARE_FEATURE(kCreateWarningShownClientSafeBrowsingReports);
-
-// Controls whether we prompt the user on unencrypted deep scans.
-BASE_DECLARE_FEATURE(kDeepScanningPromptRemoval);
-
-// Controls whether we use new broader criteria for deep scans.
-BASE_DECLARE_FEATURE(kDeepScanningCriteria);
 
 // Controls whether the delayed warning experiment is enabled.
 BASE_DECLARE_FEATURE(kDelayedWarnings);
@@ -64,14 +120,9 @@ extern const base::FeatureParam<bool> kDelayedWarningsEnableMouseClicks;
 // DLP endpoint based on ChromeDataRegionSetting policy.
 BASE_DECLARE_FEATURE(kDlpRegionalizedEndpoints);
 
-// Sends download report without explicit user decision. This can be either the
-// download is automatically discarded 1 hour after the warning is shown, or
-// the profile is closed while the warning is still showing.
-BASE_DECLARE_FEATURE(kDownloadReportWithoutUserDecision);
-
-// The kill switch for download tailored warnings. The main control is on the
-// server-side.
-BASE_DECLARE_FEATURE(kDownloadTailoredWarnings);
+// Show referrer URL on download item on chrome://downloads page. This will
+// replace the downloads url.
+BASE_DECLARE_FEATURE(kDownloadsPageReferrerUrl);
 
 // Enables HaTS surveys for users encountering desktop download warnings on the
 // download bubble or the downloads page.
@@ -88,9 +139,28 @@ extern const base::FeatureParam<int> kDownloadWarningSurveyType;
 // potentially show the survey for ignoring a download bubble warning.
 extern const base::FeatureParam<int> kDownloadWarningSurveyIgnoreDelaySeconds;
 
-// Controls whether Standard Safe Browsing users are permitted to provide
-// passwords for local decryption on encrypted archives.
-BASE_DECLARE_FEATURE(kEncryptedArchivesMetadata);
+// Enabled additional device and network information to RealTimeUrlCheck
+// requests, WP scan requests, and reporting events. These will be visible from
+// the chrome://safe-browsing page.
+BASE_DECLARE_FEATURE(kEnhancedFieldsForSecOps);
+
+// Enables Enhanced Safe Browsing promos for iOS.
+BASE_DECLARE_FEATURE(kEnhancedSafeBrowsingPromo);
+
+// Adds support for enterprise deep scans initiated through the file system
+// access API.
+BASE_DECLARE_FEATURE(kEnterpriseFileSystemAccessDeepScan);
+
+// Enables showing an updated Password Reuse UI for enterprise users.
+BASE_DECLARE_FEATURE(kEnterprisePasswordReuseUiRefresh);
+
+// When on, enterprise policy EnterpriseRealTimeUrlCheckMode on Android is
+// supported.
+BASE_DECLARE_FEATURE(kEnterpriseRealTimeUrlCheckOnAndroid);
+
+// Makes the Enhanced Protection a syncable setting.
+// Check the design doc (go/esb-as-a-synced-setting-dd) for further details.
+BASE_DECLARE_FEATURE(kEsbAsASyncedSetting);
 
 // Controls whether Safe Browsing Extended Reporting (SBER) is deprecated.
 // When this feature flag is enabled:
@@ -112,45 +182,27 @@ BASE_DECLARE_FEATURE(kExtensionTelemetryDeclarativeNetRequestActionSignal);
 // specified in the --load-extension commandline switch in telemetry reports.
 BASE_DECLARE_FEATURE(kExtensionTelemetryFileDataForCommandLineExtensions);
 
-// Enables collection of telemetry signal whenever an extension invokes the
-// chrome.tabs API methods.
-BASE_DECLARE_FEATURE(kExtensionTelemetryTabsApiSignal);
+// Enables the telemetry service to collect signals and generate reports to send
+// for enterprise.
+BASE_DECLARE_FEATURE(kExtensionTelemetryForEnterprise);
 
-// Enables collection of telemetry signal whenever an extension invokes the
-// chrome.tabs.captureVisibleTab API method.
-BASE_DECLARE_FEATURE(kExtensionTelemetryTabsApiSignalCaptureVisibleTab);
+// Specifies the reporting interval for enterprise telemetry reports.
+extern const base::FeatureParam<int>
+    kExtensionTelemetryEnterpriseReportingIntervalSeconds;
 
-// Enables collection of telemetry signal whenever an extension invokes the
-// tabs.executeScript API call.
-BASE_DECLARE_FEATURE(kExtensionTelemetryTabsExecuteScriptSignal);
+// Enables reporting of external app redirects
+BASE_DECLARE_FEATURE(kExternalAppRedirectTelemetry);
 
-// Enables reporting of remote hosts contacted by extensions in telemetry.
-BASE_DECLARE_FEATURE(kExtensionTelemetryReportContactedHosts);
+// Communicated to the server to determine DBSC on google.com. This
+// allows us to slice metrics by google.com DBSC state without any
+// Google-specific code in the net stack.
+BASE_DECLARE_FEATURE(kGoogleStandardDeviceBoundSessionCredentials);
 
-// Enables reporting of remote hosts contacted by extensions via websockets;
-BASE_DECLARE_FEATURE(kExtensionTelemetryReportHostsContactedViaWebSocket);
+// Whether to provide Google Play Protect status in APK telemetry pings
+BASE_DECLARE_FEATURE(kGooglePlayProtectInApkTelemetry);
 
-// Enables intercepting remote hosts contacted by extensions in renderer
-// throttles.
-BASE_DECLARE_FEATURE(
-    kExtensionTelemetryInterceptRemoteHostsContactedInRenderer);
-
-// Enables collection of potential password theft data and uploads
-// telemetry reports to SB servers.
-BASE_DECLARE_FEATURE(kExtensionTelemetryPotentialPasswordTheft);
-
-// Enables remotely disabling of malicious off-store extensions identified in
-// Extension Telemetry service reports.
-BASE_DECLARE_FEATURE(kExtensionTelemetryDisableOffstoreExtensions);
-
-// Enables the new text, layout, links, and icons on both the privacy guide
-// and on the security settings page for the enhanced protection security
-// option.
-BASE_DECLARE_FEATURE(kFriendlierSafeBrowsingSettingsEnhancedProtection);
-
-// Enables the new text and layout on both the privacy guide and on the
-// security settings page for the standard protection security option.
-BASE_DECLARE_FEATURE(kFriendlierSafeBrowsingSettingsStandardProtection);
+// Whether Google Play Protect should supercede file-type warnings
+BASE_DECLARE_FEATURE(kGooglePlayProtectReducesWarnings);
 
 // Sends hash-prefix real-time lookup requests on navigations for Standard Safe
 // Browsing users instead of hash-prefix database lookups.
@@ -160,105 +212,146 @@ BASE_DECLARE_FEATURE(kHashPrefixRealTimeLookups);
 // to the Safe Browsing server.
 extern const base::FeatureParam<std::string> kHashPrefixRealTimeLookupsRelayUrl;
 
-// UX improvements to download warnings on chrome://downloads page.
-BASE_DECLARE_FEATURE(kImprovedDownloadPageWarnings);
+// Send sample hash-prefix real-time lookups for real-time lookups to catch
+// "false positives" where real-time lookup says safe but hash-prefix lookup
+// says unsafe.
+// Check the design doc (go/sample-esb-ping-send-hprt) for further
+// details.
+BASE_DECLARE_FEATURE(kHashPrefixRealTimeLookupsSamplePing);
+// Determines the percentage of ESB lookups that we sample to send a background
+// HPRT lookup. The value should be between 0 and 100.
+extern const base::FeatureParam<int> kHashPrefixRealTimeLookupsSampleRate;
 
-// Enable logging of the account enhanced protection setting in Protego pings.
-BASE_DECLARE_FEATURE(kLogAccountEnhancedProtectionStateInProtegoPings);
+// Adds local IP address field to security-sensitive events reported to
+// chrome://safe-browsing. These events are triggered when the reporting policy
+// is enabled for managed devices or profiles.
+BASE_DECLARE_FEATURE(kLocalIpAddressInEvents);
 
-// If enabled, the Safe Browsing database will be stored in a separate file and
-// mapped into memory.
-BASE_DECLARE_FEATURE(kMmapSafeBrowsingDatabase);
-
-// Whether hash prefix lookups are done on a background thread when
-// kMmapSafeBrowsingDatabase is enabled.
-extern const base::FeatureParam<bool> kMmapSafeBrowsingDatabaseAsync;
-
-// Enables unpacking of nested archives during downloads.
-BASE_DECLARE_FEATURE(kNestedArchives);
-
-// Controls whether custom messages from admin are shown for warn and block
-// enterprise interstitials.
-BASE_DECLARE_FEATURE(kRealTimeUrlFilteringCustomMessage);
-
-// Enables modifying key parameters on the navigation event collection used to
-// populate referrer chains.
-BASE_DECLARE_FEATURE(kReferrerChainParameters);
-
-// The maximum age entry we keep in memory. Older entries are cleaned up. This
-// is independent of the maximum age entry we send to Safe Browsing, which is
-// fixed for privacy reasons.
-extern const base::FeatureParam<int> kReferrerChainEventMaximumAgeSeconds;
-
-// The maximum number of navigation events we keep in memory.
-extern const base::FeatureParam<int> kReferrerChainEventMaximumCount;
-
-// Controls whether asynchronous real-time check is enabled. When enabled, the
-// navigation can be committed before real-time Safe Browsing check is
-// completed.
-BASE_DECLARE_FEATURE(kSafeBrowsingAsyncRealTimeCheck);
+// If enabled, fetching lists from Safe Browsing and performing checks on those
+// lists uses the v5 APIs instead of the v4 Update API. There is no change to
+// how often the checks are triggered (they are still not in real time).
+BASE_DECLARE_FEATURE(kLocalListsUseSBv5);
 
 #if BUILDFLAG(IS_ANDROID)
-// Whether to call the new API on startup to reduce latency.
-BASE_DECLARE_FEATURE(kSafeBrowsingCallNewGmsApiOnStartup);
+// Enables ClientDownloadRequests for APK downloads on Android.
+BASE_DECLARE_FEATURE(kMaliciousApkDownloadCheck);
 
-// Use new GMSCore API for hash database check on browser URLs.
-BASE_DECLARE_FEATURE(kSafeBrowsingNewGmsApiForBrowseUrlDatabaseCheck);
+// If true, then ClientDownloadRequests for APK downloads on Android are
+// telemetry-only, and only for Enhanced Protection users. If false (default),
+// then ClientDownloadRequests for APK downloads on Android are active for all
+// Safe Browsing-enabled users, and may show warnings.
+BASE_DECLARE_FEATURE_PARAM(bool, kMaliciousApkDownloadCheckTelemetryOnly);
 
-// Use new GMSCore API for subresource filter checks.
-BASE_DECLARE_FEATURE(kSafeBrowsingNewGmsApiForSubresourceFilterCheck);
+// Sampling percentage for ClientDownloadRequests for APK downloads on Android.
+// If this parameter is N, then a given (supported) download has a N% chance of
+// sending a ClientDownloadRequest. The value should be between 0 and 100, and
+// defaults to 100 (i.e. no downsampling).
+BASE_DECLARE_FEATURE_PARAM(int, kMaliciousApkDownloadCheckSamplePercentage);
+
+// Allows a fieldtrial config to override the APK download check service URL. If
+// empty (default), the default hardcoded URL will be used.
+extern const base::FeatureParam<std::string>
+    kMaliciousApkDownloadCheckServiceUrlOverride;
 #endif
 
-// Run Safe Browsing code on UI thread.
-BASE_DECLARE_FEATURE(kSafeBrowsingOnUIThread);
+// Killswitch for fetching and executing the notification content detection
+// model. This also gates logging metrics related to this model.
+BASE_DECLARE_FEATURE(kOnDeviceNotificationContentDetectionModel);
+// Determines the percentage of notifications from allowlisted sites that we
+// will check the model for. The value should be between 0 and 100.
+extern const base::FeatureParam<int>
+    kOnDeviceNotificationContentDetectionModelAllowlistSamplingRate;
 
-// Enable adding copy/paste navigation to the referrer chain.
-BASE_DECLARE_FEATURE(kSafeBrowsingReferrerChainWithCopyPasteNavigation);
+// Enable the collection of Notification Telemetry to track potentially abusive
+// notifications.
+BASE_DECLARE_FEATURE(kNotificationTelemetry);
+
+// Enable movement of password leak toggle out of standard protection and into
+// its own section.
+BASE_DECLARE_FEATURE(kPasswordLeakToggleMove);
+
+// Enables HaTS surveys for users encountering red warnings.
+BASE_DECLARE_FEATURE(kRedWarningSurvey);
+
+// Specifies whether we want to show HaTS surveys based on if the user bypassed
+// the warning or not. Note: specifying any combination of TRUE and FALSE
+// corresponds to "don't care."
+extern const base::FeatureParam<std::string> kRedWarningSurveyDidProceedFilter;
+
+// Specifies which CSBRR report types (and thus, red warning types) we want to
+// show HaTS surveys for.
+extern const base::FeatureParam<std::string> kRedWarningSurveyReportTypeFilter;
+
+// Specifies the HaTS survey's identifier.
+extern const base::FeatureParam<std::string> kRedWarningSurveyTriggerId;
+
+// Enables reporting notification contents and metadata to the server, upon user
+// consent.
+BASE_DECLARE_FEATURE(kReportNotificationContentDetectionData);
+
+// Enables client side phishing daily reports limit to be configured via Finch
+// for ESB and SBER users
+BASE_DECLARE_FEATURE(kSafeBrowsingDailyPhishingReportsLimit);
+
+// Specifies the CSD-Phishing daily reports limit for ESB users
+extern const base::FeatureParam<int> kSafeBrowsingDailyPhishingReportsLimitESB;
 
 // Controls whether cookies are removed when the access token is present.
 BASE_DECLARE_FEATURE(kSafeBrowsingRemoveCookiesInAuthRequests);
 
-// Controls whether to skip Safe Browsing checks for WebSockets and Web API
-// handshakes.
-BASE_DECLARE_FEATURE(kSafeBrowsingSkipSubresources2);
+#if BUILDFLAG(IS_ANDROID)
+// Enables sync checker to check allowlist first on Chrome on Android. This is
+// an optimization to improve the speed of Safe Browsing checks.
+// See go/skip-sync-hpd-allowlist-android for details.
+BASE_DECLARE_FEATURE(kSafeBrowsingSyncCheckerCheckAllowlist);
+#endif
 
 // Automatically revoke abusive notifications in Safety Hub.
 BASE_DECLARE_FEATURE(kSafetyHubAbusiveNotificationRevocation);
 
-// Controls whether the new 7z evaluation is performed on downloads.
-BASE_DECLARE_FEATURE(kSevenZipEvaluationEnabled);
+// Automatically revoke disruptive notifications in Safety Hub.
+BASE_DECLARE_FEATURE(kSafetyHubDisruptiveNotificationRevocation);
 
-// Status of the SimplifiedUrlDisplay experiments. This does not control the
-// individual experiments, those are controlled by their own feature flags.
-// The feature is only set by Finch so that we can differentiate between
-// default and control groups of the experiment.
-BASE_DECLARE_FEATURE(kSimplifiedUrlDisplay);
+// Whether the disruptive notification revocation will be performed as a shadow
+// run (without actually revoking permissions). Used to collect metrics and
+// evaluate the conditions for autorevocation.
+extern const base::FeatureParam<bool>
+    kSafetyHubDisruptiveNotificationRevocationShadowRun;
 
-// Controls whether the download inspection timeout is applied over the entire
-// request, or just the network communication.
-BASE_DECLARE_FEATURE(kStrictDownloadTimeout);
+// The minimum number of average daily notifications over last 7 days for a
+// website to classify for disruptive notification revocation. Used in a
+// combination with
+// `kSafetyHubDisruptiveNotificationRevocationMaxEngagementScore`.
+extern const base::FeatureParam<int>
+    kSafetyHubDisruptiveNotificationRevocationMinNotificationCount;
 
-// Specifies the duration of the timeout, in milliseconds.
-extern const base::FeatureParam<int> kStrictDownloadTimeoutMilliseconds;
+// The maximum site engagement score for a website to classify for disruptive
+// notification revocation. Used in a combination with
+// `kSafetyHubDisruptiveNotificationRevocationMinNotificationCount`,
+extern const base::FeatureParam<double>
+    kSafetyHubDisruptiveNotificationRevocationMaxEngagementScore;
 
-// Enables suspicious site detection for real time URL lookups.
-BASE_DECLARE_FEATURE(kSuspiciousSiteDetectionRTLookups);
+// Enables saving gaia password hash from the Profile Picker sign-in flow.
+BASE_DECLARE_FEATURE(kSavePasswordHashFromProfilePicker);
+
+// Enables replacing notification contents with a Chrome warning when the
+// on-device model returns a sufficiently suspicious verdict.
+BASE_DECLARE_FEATURE(kShowWarningsForSuspiciousNotifications);
+// Determines the minimum "suspicious" score returned from the notification
+// content LiteRT model that warrants showing a warning. If the score is higher
+// than this threshold, then the notification contents will be replaced with a
+// warning. By default, no notifications will be replaced by a warning.
+extern const base::FeatureParam<int>
+    kShowWarningsForSuspiciousNotificationsScoreThreshold;
+// The default button order when showing notification warnings is that the
+// "Show notification" and "Always allow" buttons are secondary buttons and
+// "Unsubscribe" is the primary button. If this parameter is true, the order of
+// the buttons should be swapped where "Unsubscribe" is the secondary button.
+extern const base::FeatureParam<bool>
+    kShowWarningsForSuspiciousNotificationsShouldSwapButtons;
 
 // Controls the daily quota for the suspicious site trigger.
 BASE_DECLARE_FEATURE(kSuspiciousSiteTriggerQuotaFeature);
-
-// Enable a retry for the tailored security dialogs when the dialog fails to
-// show for a user whose google account has sync turned on. This feature helps
-// run the tailored security logic for users where the integration failed in the
-// past.
-BASE_DECLARE_FEATURE(kTailoredSecurityRetryForSyncUsers);
-
-#if BUILDFLAG(IS_ANDROID)
-// Enable an observer-based retry mechanism for the tailored security dialogs.
-// When enabled, the tailored security integration will use tab observers to
-// retry the tailored security logic when a WebContents becomes available.
-BASE_DECLARE_FEATURE(kTailoredSecurityObserverRetries);
-#endif
 
 // Controls whether the integration of tailored security settings is enabled.
 BASE_DECLARE_FEATURE(kTailoredSecurityIntegration);
@@ -276,41 +369,9 @@ BASE_DECLARE_FEATURE(kThreatDomDetailsTagAndAttributeFeature);
 // the screen.
 BASE_DECLARE_FEATURE(kVisualFeaturesSizes);
 
+// keep-sorted end
+
 base::Value::List GetFeatureStatusList();
-
-// Enables new ESB specific threshold fields in Visual TF Lite model files
-BASE_DECLARE_FEATURE(kSafeBrowsingPhishingClassificationESBThreshold);
-
-// Enables client side phishing daily reports limit to be configured via Finch
-// for ESB and SBER users
-BASE_DECLARE_FEATURE(kSafeBrowsingDailyPhishingReportsLimit);
-
-// Specifies the CSD-Phishing daily reports limit for ESB users
-extern const base::FeatureParam<int> kSafeBrowsingDailyPhishingReportsLimitESB;
-
-BASE_DECLARE_FEATURE(kClientSideDetectionModelImageEmbedder);
-
-// Enables HaTS surveys for users encountering red warnings.
-BASE_DECLARE_FEATURE(kRedWarningSurvey);
-
-// Specifies the HaTS survey's identifier.
-extern const base::FeatureParam<std::string> kRedWarningSurveyTriggerId;
-
-// Specifies which CSBRR report types (and thus, red warning types) we want to
-// show HaTS surveys for.
-extern const base::FeatureParam<std::string> kRedWarningSurveyReportTypeFilter;
-
-// Specifies whether we want to show HaTS surveys based on if the user bypassed
-// the warning or not. Note: specifying any combination of TRUE and FALSE
-// corresponds to "don't care."
-extern const base::FeatureParam<std::string> kRedWarningSurveyDidProceedFilter;
-
-BASE_DECLARE_FEATURE(kClientSideDetectionImagesCache);
-
-BASE_DECLARE_FEATURE(kClientSideDetectionDebuggingMetadataCache);
-
-// Enables Enhanced Safe Browsing promos for iOS.
-BASE_DECLARE_FEATURE(kEnhancedSafeBrowsingPromo);
 
 }  // namespace safe_browsing
 #endif  // COMPONENTS_SAFE_BROWSING_CORE_COMMON_FEATURES_H_

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/test/chromedriver/net/adb_client_socket.h"
 
 #include <stddef.h>
@@ -9,6 +14,7 @@
 #include <utility>
 
 #include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/strings/string_number_conversions.h"
@@ -71,7 +77,7 @@ class AdbTransportSocket : public AdbClientSocket {
   }
 
  private:
-  ~AdbTransportSocket() {}
+  ~AdbTransportSocket() = default;
 
   void OnConnected(int result) {
     if (!CheckNetResultOrDie(result))
@@ -136,8 +142,7 @@ class HttpOverAdbSocket {
   }
 
  private:
-  ~HttpOverAdbSocket() {
-  }
+  ~HttpOverAdbSocket() = default;
 
   void Connect(int port,
                const std::string& serial,
@@ -270,8 +275,7 @@ class AdbQuerySocket : AdbClientSocket {
   }
 
  private:
-  ~AdbQuerySocket() {
-  }
+  ~AdbQuerySocket() = default;
 
   void SendNextQuery(int result) {
     if (!CheckNetResultOrDie(result))
@@ -341,7 +345,7 @@ class AdbSendFileSocket : AdbClientSocket {
   }
 
  private:
-  ~AdbSendFileSocket() {}
+  ~AdbSendFileSocket() = default;
 
   void SendTransport(int result) {
     if (!CheckNetResultOrDie(result))
@@ -489,8 +493,7 @@ void AdbClientSocket::HttpQuery(int port,
 
 AdbClientSocket::AdbClientSocket(int port) : port_(port) {}
 
-AdbClientSocket::~AdbClientSocket() {
-}
+AdbClientSocket::~AdbClientSocket() = default;
 
 void AdbClientSocket::Connect(net::CompletionOnceCallback callback) {
   // In a IPv4/IPv6 dual stack environment, getaddrinfo for localhost could
@@ -602,9 +605,8 @@ void AdbClientSocket::ReadUntilEOF(
     }
   } else if (socket_result == 0) {
     // We hit EOF. The socket is closed on the other side.
-    std::string adb_output(socket_buffer->StartOfBuffer(),
-                           socket_buffer->offset());
-    parse_output_callback.Run(adb_output);
+    parse_output_callback.Run(
+        std::string(base::as_string_view(socket_buffer->span_before_offset())));
   }
 }
 

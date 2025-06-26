@@ -9,10 +9,10 @@
 #include "ash/constants/ash_features.h"
 #include "base/types/expected.h"
 #include "chrome/browser/ash/login/signin_partition_manager.h"
-#include "chrome/browser/ash/login/ui/login_display_host_webui.h"
-#include "chrome/browser/ash/login/ui/signin_ui.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
+#include "chrome/browser/ui/ash/login/login_display_host_webui.h"
+#include "chrome/browser/ui/ash/login/signin_ui.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/installer/util/google_update_settings.h"
@@ -24,6 +24,7 @@
 #include "chromeos/version/version_loader.h"
 #include "components/user_manager/known_user.h"
 #include "content/public/browser/storage_partition.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -38,7 +39,7 @@ constexpr base::TimeDelta kCookieDelay = base::Seconds(20);
 
 }  // namespace
 
-GaiaContext::GaiaContext() {}
+GaiaContext::GaiaContext() = default;
 GaiaContext::GaiaContext(GaiaContext const&) = default;
 
 GaiaCookiesData::GaiaCookiesData() = default;
@@ -97,8 +98,9 @@ void SetCookieForPartition(
     OnSetCookieForLoadGaiaWithPartition callback) {
   content::StoragePartition* partition =
       signin_partition_manager->GetCurrentStoragePartition();
-  if (!partition)
+  if (!partition) {
     return;
+  }
 
   // Note: The CanonicalCookie created here is not Secure. This is fine because
   // it's being set into a different StoragePartition than the user's actual
@@ -116,8 +118,9 @@ void SetCookieForPartition(
       std::nullopt /* server_time */, std::nullopt /* cookie_partition_key */,
       net::CookieSourceType::kOther,
       /*status=*/nullptr));
-  if (!cc)
+  if (!cc) {
     return;
+  }
 
   const net::CookieOptions options = net::CookieOptions::MakeAllInclusive();
   partition->GetCookieManagerForBrowserProcess()->SetCanonicalCookie(
@@ -127,11 +130,7 @@ void SetCookieForPartition(
 user_manager::UserType GetUsertypeFromServicesString(
     const ::login::StringList& services) {
   bool is_child = false;
-  const bool support_usm =
-      base::FeatureList::IsEnabled(::features::kCrOSEnableUSMUserService);
-  using KnownFlags = base::flat_set<std::string>;
-  const KnownFlags known_flags =
-      support_usm ? KnownFlags({"uca", "usm"}) : KnownFlags({"uca"});
+  const base::flat_set<std::string> known_flags({"uca", "usm"});
 
   for (const std::string& item : services) {
     if (known_flags.find(item) != known_flags.end()) {
@@ -189,8 +188,7 @@ std::unique_ptr<UserContext> BuildUserContextForGaiaSignIn(
     if (using_saml) {
       user_context->SetSamlPassword(SamlPassword{password});
     } else {
-      if (!features::AreLocalPasswordsEnabledForConsumers() ||
-          !password.empty()) {
+      if (!password.empty()) {
         user_context->SetGaiaPassword(GaiaPassword{password});
       }
     }
@@ -214,14 +212,14 @@ std::unique_ptr<UserContext> BuildUserContextForGaiaSignIn(
 }
 
 AccountId GetAccountId(const std::string& authenticated_email,
-                       const std::string& gaia_id,
+                       const std::string& id,
                        const AccountType& account_type) {
   const std::string canonicalized_email =
       gaia::CanonicalizeEmail(gaia::SanitizeEmail(authenticated_email));
 
   user_manager::KnownUser known_user(g_browser_process->local_state());
   const AccountId account_id =
-      known_user.GetAccountId(authenticated_email, gaia_id, account_type);
+      known_user.GetAccountId(authenticated_email, id, account_type);
 
   if (account_id.GetUserEmail() != canonicalized_email) {
     LOG(WARNING) << "Existing user '" << account_id.GetUserEmail()
@@ -249,10 +247,12 @@ bool IsFamilyLinkAllowed() {
 GaiaCookieRetriever::GaiaCookieRetriever(
     std::string signin_partition_name,
     login::SigninPartitionManager* signin_partition_manager,
-    OnCookieTimeoutCallback on_cookie_timeout_callback)
+    OnCookieTimeoutCallback on_cookie_timeout_callback,
+    bool allow_empty_auth_code_for_testing)
     : signin_partition_name_(signin_partition_name),
       signin_partition_manager_(signin_partition_manager),
-      on_cookie_timeout_callback_(std::move(on_cookie_timeout_callback)) {}
+      on_cookie_timeout_callback_(std::move(on_cookie_timeout_callback)),
+      allow_empty_auth_code_for_testing_(allow_empty_auth_code_for_testing) {}
 
 GaiaCookieRetriever::~GaiaCookieRetriever() = default;
 
@@ -262,8 +262,9 @@ void GaiaCookieRetriever::RetrieveCookies(
 
   content::StoragePartition* partition =
       signin_partition_manager_->GetCurrentStoragePartition();
-  if (!partition)
+  if (!partition) {
     return;
+  }
 
   // Validity check that partition did not change during login flow.
   DCHECK_EQ(signin_partition_manager_->GetCurrentStoragePartitionName(),
@@ -311,16 +312,21 @@ void GaiaCookieRetriever::OnGetCookieListResponse(
   login::GaiaCookiesData cookie_data;
   for (const auto& cookie_with_access_result : cookies) {
     const auto& cookie = cookie_with_access_result.cookie;
-    if (cookie.Name() == login::kOAUTHCodeCookie)
+    if (cookie.Name() == login::kOAUTHCodeCookie) {
       cookie_data.auth_code = cookie.Value();
-    else if (cookie.Name() == login::kGAPSCookie)
+    } else if (cookie.Name() == login::kGAPSCookie) {
       cookie_data.gaps_cookie = cookie.Value();
-    else if (cookie.Name() == login::kRAPTCookie)
+    } else if (cookie.Name() == login::kRAPTCookie) {
       cookie_data.rapt = cookie.Value();
+    }
   }
 
-  if (cookie_data.auth_code.empty()) {
+  if (cookie_data.auth_code.empty() && !allow_empty_auth_code_for_testing_) {
     // Will try again from onCookieChange.
+
+    // TODO(crbug.com/40805389): Logging as "WARNING" to make sure it's
+    // preserved in the logs.
+    LOG(WARNING) << "OAuth cookie empty, still waiting";
     return;
   }
 

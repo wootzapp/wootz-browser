@@ -4,26 +4,29 @@
 
 package org.chromium.chrome.browser.profiles;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.NativeMethods;
 
-import org.chromium.chrome.browser.cookies.CookiesFetcher;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.profile_metrics.BrowserProfileType;
 import org.chromium.content_public.browser.BrowserContextHandle;
 import org.chromium.content_public.browser.WebContents;
 
 /** Wrapper that allows passing a Profile reference around in the Java layer. */
+@NullMarked
 public class Profile implements BrowserContextHandle {
+    private final @Nullable OtrProfileId mOtrProfileId;
+
     /** Pointer to the Native-side Profile. */
     private long mNativeProfile;
 
-    private final @Nullable OTRProfileID mOtrProfileId;
+    private boolean mDestroyNotified;
 
     @CalledByNative
-    private Profile(long nativeProfile, @Nullable OTRProfileID otrProfileId) {
+    private Profile(long nativeProfile, @Nullable OtrProfileId otrProfileId) {
         mNativeProfile = nativeProfile;
         mOtrProfileId = otrProfileId;
     }
@@ -32,7 +35,7 @@ public class Profile implements BrowserContextHandle {
      * @param webContents {@link WebContents} object.
      * @return {@link Profile} object associated with the given WebContents.
      */
-    public static Profile fromWebContents(WebContents webContents) {
+    public static @Nullable Profile fromWebContents(@Nullable WebContents webContents) {
         return ProfileJni.get().fromWebContents(webContents);
     }
 
@@ -56,7 +59,7 @@ public class Profile implements BrowserContextHandle {
         assert profile != null;
 
         if (!profile.isOffTheRecord()) return BrowserProfileType.REGULAR;
-        if (profile.isPrimaryOTRProfile()) return BrowserProfileType.INCOGNITO;
+        if (profile.isPrimaryOtrProfile()) return BrowserProfileType.INCOGNITO;
         return BrowserProfileType.OTHER_OFF_THE_RECORD_PROFILE;
     }
 
@@ -64,16 +67,22 @@ public class Profile implements BrowserContextHandle {
         return ProfileJni.get().getOriginalProfile(mNativeProfile);
     }
 
+    /** Return whether this Profile represents the initially created "Default" Profile. */
+    public boolean isInitialProfile() {
+        return ProfileJni.get().isInitialProfile(mNativeProfile);
+    }
+
     /**
-     * Returns the OffTheRecord profile with given OTRProfileiD. If the profile does not exist and
+     * Returns the OffTheRecord profile with given OtrProfileiD. If the profile does not exist and
      * createIfNeeded is true, a new profile is created, otherwise returns null.
      *
-     * @param profileID {@link OTRProfileID} object.
+     * @param profileId {@link OtrProfileId} object.
      * @param createIfNeeded Boolean indicating the profile should be created if doesn't exist.
      */
-    public Profile getOffTheRecordProfile(OTRProfileID profileID, boolean createIfNeeded) {
-        assert profileID != null;
-        return ProfileJni.get().getOffTheRecordProfile(mNativeProfile, profileID, createIfNeeded);
+    public @Nullable Profile getOffTheRecordProfile(
+            OtrProfileId profileId, boolean createIfNeeded) {
+        assert profileId != null;
+        return ProfileJni.get().getOffTheRecordProfile(mNativeProfile, profileId, createIfNeeded);
     }
 
     /**
@@ -82,43 +91,63 @@ public class Profile implements BrowserContextHandle {
      *
      * @param createIfNeeded Boolean indicating the profile should be created if doesn't exist.
      */
-    public Profile getPrimaryOTRProfile(boolean createIfNeeded) {
-        return ProfileJni.get().getPrimaryOTRProfile(mNativeProfile, createIfNeeded);
+    public @Nullable Profile getPrimaryOtrProfile(boolean createIfNeeded) {
+        return ProfileJni.get().getPrimaryOtrProfile(mNativeProfile, createIfNeeded);
     }
 
     /**
      * Returns the OffTheRecord profile id for OffTheRecord profiles, and null for regular profiles.
      */
-    public @Nullable OTRProfileID getOTRProfileID() {
+    public @Nullable OtrProfileId getOtrProfileId() {
         return mOtrProfileId;
     }
 
     /**
-     * Returns if OffTheRecord profile with given OTRProfileID exists.
+     * Returns if OffTheRecord profile with given OtrProfileId exists.
      *
-     * @param profileID {@link OTRProfileID} object.
+     * @param profileId {@link OtrProfileId} object.
      */
-    public boolean hasOffTheRecordProfile(OTRProfileID profileID) {
-        assert profileID != null;
-        return ProfileJni.get().hasOffTheRecordProfile(mNativeProfile, profileID);
+    public boolean hasOffTheRecordProfile(OtrProfileId profileId) {
+        assert profileId != null;
+        return ProfileJni.get().hasOffTheRecordProfile(mNativeProfile, profileId);
     }
 
     /** Returns if primary OffTheRecord profile exists. */
-    public boolean hasPrimaryOTRProfile() {
-        return ProfileJni.get().hasPrimaryOTRProfile(mNativeProfile);
+    public boolean hasPrimaryOtrProfile() {
+        return ProfileJni.get().hasPrimaryOtrProfile(mNativeProfile);
     }
 
     /** Returns if the profile is a primary OTR Profile. */
-    public boolean isPrimaryOTRProfile() {
-        return mOtrProfileId != null && mOtrProfileId.isPrimaryOTRId();
+    public boolean isPrimaryOtrProfile() {
+        return mOtrProfileId != null && mOtrProfileId.isPrimaryOtrId();
+    }
+
+    /**
+     * Returns if the profile is a primary OTR Profile or an Incognito CCT. The primary OTR profile
+     * is the OffTheRecord profile for incognito tabs in the main Chrome App. All Incognito branded
+     * profiles return true for {@link #isOffTheRecord()} but not all OffTheRecord profiles are
+     * Incognito themed. Use this to evaluate features that should appear exclusively for Incognito
+     * themed profiles (Incognito lock, Incognito snapshot controller..) or for usages that force
+     * the Incognito theme (Dark colors, Incognito logo..). If you are unsure whether this fits your
+     * usage, reach out to incognito/OWNERS.
+     */
+    public boolean isIncognitoBranded() {
+        boolean isIncognitoCct = mOtrProfileId != null && mOtrProfileId.isIncognitoCCId();
+        return isPrimaryOtrProfile() || isIncognitoCct;
+    }
+
+    /**
+     * Returns if the profile is off the record. Off the record sessions are not persistent and
+     * browsing data generated within this profile is cleared after the session ends. Note that this
+     * does not imply Incognito as other OTR sessions (e.g. Ephemeral CCT) are not Incognito
+     * branded.
+     */
+    public boolean isOffTheRecord() {
+        return mOtrProfileId != null;
     }
 
     public ProfileKey getProfileKey() {
         return ProfileJni.get().getProfileKey(mNativeProfile);
-    }
-
-    public boolean isOffTheRecord() {
-        return mOtrProfileId != null;
     }
 
     /**
@@ -160,15 +189,34 @@ public class Profile implements BrowserContextHandle {
         return mNativeProfile;
     }
 
+    /**
+     * Returns whether shutdown has been initiated. This is a signal that the object will be
+     * destroyed soon and no new references to this object should be created.
+     */
+    public boolean shutdownStarted() {
+        return mDestroyNotified;
+    }
+
+    private void notifyWillBeDestroyed() {
+        assert !mDestroyNotified;
+        mDestroyNotified = true;
+
+        ProfileManager.onProfileDestroyed(this);
+    }
+
+    @CalledByNative
+    private void onProfileWillBeDestroyed() {
+        notifyWillBeDestroyed();
+    }
+
     @CalledByNative
     private void onNativeDestroyed() {
         mNativeProfile = 0;
 
-        if (isPrimaryOTRProfile()) {
-            CookiesFetcher.scheduleDeleteCookies();
+        if (!mDestroyNotified) {
+            assert false : "Destroy should have been notified previously.";
+            notifyWillBeDestroyed();
         }
-
-        ProfileManager.onProfileDestroyed(this);
     }
 
     @CalledByNative
@@ -178,17 +226,20 @@ public class Profile implements BrowserContextHandle {
 
     @NativeMethods
     public interface Natives {
-        Profile fromWebContents(WebContents webContents);
+        @Nullable Profile fromWebContents(@Nullable WebContents webContents);
 
         Profile getOriginalProfile(long ptr);
 
-        Profile getOffTheRecordProfile(long ptr, OTRProfileID otrProfileID, boolean createIfNeeded);
+        boolean isInitialProfile(long ptr);
 
-        Profile getPrimaryOTRProfile(long ptr, boolean createIfNeeded);
+        @Nullable Profile getOffTheRecordProfile(
+                long ptr, OtrProfileId otrProfileId, boolean createIfNeeded);
 
-        boolean hasOffTheRecordProfile(long ptr, OTRProfileID otrProfileID);
+        @Nullable Profile getPrimaryOtrProfile(long ptr, boolean createIfNeeded);
 
-        boolean hasPrimaryOTRProfile(long ptr);
+        boolean hasOffTheRecordProfile(long ptr, OtrProfileId otrProfileId);
+
+        boolean hasPrimaryOtrProfile(long ptr);
 
         boolean isChild(long ptr);
 

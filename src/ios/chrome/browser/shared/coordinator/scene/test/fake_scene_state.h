@@ -8,23 +8,21 @@
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "url/gurl.h"
 
-class ChromeBrowserState;
+class ProfileIOS;
 
 // Test double for SceneState, created with appropriate interface objects backed
 // by a browser. No incognito interface is created by default.
 // Any test using objects of this class must include a TaskEnvironment member
-// because of the embedded test browser state.
+// because of the embedded test profile.
 @interface FakeSceneState : SceneState
 
 // Creates an array of `count` instances, without any associated AppState.
 + (NSArray<FakeSceneState*>*)sceneArrayWithCount:(int)count
-                                    browserState:
-                                        (ChromeBrowserState*)browserState;
+                                         profile:(ProfileIOS*)profile;
 
 // Initializer.
 - (instancetype)initWithAppState:(AppState*)appState
-                    browserState:(ChromeBrowserState*)browserState
-    NS_DESIGNATED_INITIALIZER;
+                         profile:(ProfileIOS*)profile NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)initWithAppState:(AppState*)appState NS_UNAVAILABLE;
 

@@ -10,7 +10,7 @@
 #include <set>
 #include <string>
 
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/values.h"
 #include "components/sync/model/syncable_service.h"
@@ -39,7 +39,7 @@ class SyncStorageBackend final : public syncer::SyncableService {
       scoped_refptr<value_store::ValueStoreFactory> storage_factory,
       const SettingsStorageQuotaEnforcer::Limits& quota,
       SequenceBoundSettingsChangedCallback observer,
-      syncer::ModelType sync_type,
+      syncer::DataType sync_type,
       const syncer::SyncableService::StartSyncFlare& flare);
 
   SyncStorageBackend(const SyncStorageBackend&) = delete;
@@ -47,20 +47,20 @@ class SyncStorageBackend final : public syncer::SyncableService {
 
   ~SyncStorageBackend() override;
 
-  virtual value_store::ValueStore* GetStorage(const ExtensionId& extension_id);
-  virtual void DeleteStorage(const ExtensionId& extension_id);
+  value_store::ValueStore* GetStorage(const ExtensionId& extension_id);
+  void DeleteStorage(const ExtensionId& extension_id);
 
   // syncer::SyncableService implementation.
   void WaitUntilReadyToSync(base::OnceClosure done) override;
-  syncer::SyncDataList GetAllSyncDataForTesting(syncer::ModelType type) const;
+  syncer::SyncDataList GetAllSyncDataForTesting(syncer::DataType type) const;
   std::optional<syncer::ModelError> MergeDataAndStartSyncing(
-      syncer::ModelType type,
+      syncer::DataType type,
       const syncer::SyncDataList& initial_sync_data,
       std::unique_ptr<syncer::SyncChangeProcessor> sync_processor) override;
   std::optional<syncer::ModelError> ProcessSyncChanges(
       const base::Location& from_here,
       const syncer::SyncChangeList& change_list) override;
-  void StopSyncing(syncer::ModelType type) override;
+  void StopSyncing(syncer::DataType type) override;
   base::WeakPtr<SyncableService> AsWeakPtr() override;
 
  private:
@@ -89,8 +89,8 @@ class SyncStorageBackend final : public syncer::SyncableService {
       std::map<ExtensionId, std::unique_ptr<SyncableSettingsStorage>>;
   mutable StorageObjMap storage_objs_;
 
-  // Current sync model type. Either EXTENSION_SETTINGS or APP_SETTINGS.
-  syncer::ModelType sync_type_;
+  // Current sync data type. Either EXTENSION_SETTINGS or APP_SETTINGS.
+  syncer::DataType sync_type_;
 
   // Current sync processor, if any.
   std::unique_ptr<syncer::SyncChangeProcessor> sync_processor_;

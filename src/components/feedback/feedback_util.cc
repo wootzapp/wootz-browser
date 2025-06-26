@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/feedback/feedback_util.h"
 
 #include <optional>
@@ -111,7 +116,7 @@ void RemoveUrlsFromAutofillData(std::string& autofill_metadata) {
 
 // Note: This function is excluded from win build because its unit tests do
 // not pass on OS_WIN.
-// This function is only called on ChromeOS and Lacros build.
+// This function is only called on ChromeOS.
 // See https://crbug.com/1119560.
 #if !BUILDFLAG(IS_WIN)
 std::optional<std::string> ReadEndOfFile(const base::FilePath& path,

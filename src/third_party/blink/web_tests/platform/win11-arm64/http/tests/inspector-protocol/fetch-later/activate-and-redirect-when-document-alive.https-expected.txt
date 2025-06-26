@@ -12,7 +12,7 @@ Network.requestWillBeSent{
     request : {
         headers : {
             Accept : */*
-            Accept-Language : en-us
+            Accept-Language : en-us,en;q=0.9
             Referer : https://127.0.0.1:8443/inspector-protocol/resources/inspector-protocol-page.html
             User-Agent : <string>
             sec-ch-ua : "content_shell";v="999"
@@ -64,7 +64,7 @@ Network.requestWillBeSent{
         remoteIPAddress : <string>
         remotePort : 8443
         responseTime : <number>
-        securityState : insecure
+        securityState : secure
         status : 302
         statusText : Found
         timing : <object>
@@ -73,7 +73,7 @@ Network.requestWillBeSent{
     request : {
         headers : {
             Accept : */*
-            Accept-Language : en-us
+            Accept-Language : en-us,en;q=0.9
             Referer : https://127.0.0.1:8443/inspector-protocol/resources/inspector-protocol-page.html
             User-Agent : <string>
             sec-ch-ua : "content_shell";v="999"
@@ -121,7 +121,7 @@ Network.responseReceived{
         remoteIPAddress : <string>
         remotePort : 8443
         responseTime : <number>
-        securityState : insecure
+        securityState : secure
         status : 200
         statusText : OK
         timing : <object>

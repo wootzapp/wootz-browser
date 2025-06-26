@@ -7,15 +7,13 @@
 
 #include "ash/ash_export.h"
 #include "ash/style/system_textfield.h"
-#include "ash/wm/overview/overview_focusable_view.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 
 namespace ash {
 
 // Defines a textfield styled so when it's not focused, it looks like a normal
-// label. It can be focused and activated by the `OverviewFocusCyclerOld`.
-class ASH_EXPORT DeskTextfield : public SystemTextfield,
-                                 public OverviewFocusableView {
+// label.
+class ASH_EXPORT DeskTextfield : public SystemTextfield {
   METADATA_HEADER(DeskTextfield, SystemTextfield)
 
  public:
@@ -33,32 +31,22 @@ class ASH_EXPORT DeskTextfield : public SystemTextfield,
   // widget or the desk bar widget.
   static void CommitChanges(views::Widget* widget);
 
-  void set_use_default_focus_manager(bool use_default_focus_manager) {
-    use_default_focus_manager_ = use_default_focus_manager;
-  }
-
   // views::View:
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override;
   bool SkipDefaultKeyEventProcessing(const ui::KeyEvent& event) override;
-  std::u16string GetTooltipText(const gfx::Point& p) const override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   ui::Cursor GetCursor(const ui::MouseEvent& event) override;
   void OnFocus() override;
   void OnBlur() override;
   void OnDragEntered(const ui::DropTargetEvent& event) override;
   void OnDragExited() override;
+  void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
+  void PreferredSizeChanged() override;
 
-  // OverviewFocusableView:
-  views::View* GetView() override;
-  void MaybeActivateFocusedView() override;
-  void MaybeCloseFocusedView(bool primary_action) override;
-  void MaybeSwapFocusedView(bool right) override;
-  void OnFocusableViewFocused() override;
-  void OnFocusableViewBlurred() override;
+  void UpdateTooltipText();
 
  private:
-  bool use_default_focus_manager_ = false;
+  base::CallbackListSubscription text_changed_subscription_;
 };
 
 BEGIN_VIEW_BUILDER(/* no export */, DeskTextfield, views::Textfield)

@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "gpu/command_buffer/service/shared_image/dxgi_swap_chain_image_representation.h"
+
 #include <memory>
 
 #include "base/memory/ptr_util.h"
@@ -13,8 +14,8 @@
 #include "gpu/command_buffer/service/shared_image/shared_image_representation.h"
 #include "gpu/command_buffer/service/skia_utils.h"
 #include "gpu/command_buffer/service/texture_manager.h"
-#include "third_party/skia/include/gpu/GrBackendSurface.h"
-#include "third_party/skia/include/gpu/GrContextThreadSafeProxy.h"
+#include "third_party/skia/include/gpu/ganesh/GrBackendSurface.h"
+#include "third_party/skia/include/gpu/ganesh/GrContextThreadSafeProxy.h"
 #include "third_party/skia/include/private/chromium/GrPromiseImageTexture.h"
 #include "ui/gl/scoped_restore_texture.h"
 
@@ -177,15 +178,18 @@ DawnRepresentationDXGISwapChain::~DawnRepresentationDXGISwapChain() {
 
 wgpu::Texture DawnRepresentationDXGISwapChain::BeginAccess(
     wgpu::TextureUsage usage,
+    wgpu::TextureUsage internal_usage,
     const gfx::Rect& update_rect) {
   auto* swapchain_backing = static_cast<DXGISwapChainImageBacking*>(backing());
-  texture_ = swapchain_backing->BeginAccessDawn(device_, usage, update_rect);
+  texture_ = swapchain_backing->BeginAccessDawn(device_, usage, internal_usage,
+                                                update_rect);
   return texture_;
 }
 
 wgpu::Texture DawnRepresentationDXGISwapChain::BeginAccess(
-    wgpu::TextureUsage usage) {
-  NOTREACHED_NORETURN();
+    wgpu::TextureUsage usage,
+    wgpu::TextureUsage internal_usage) {
+  NOTREACHED();
 }
 
 void DawnRepresentationDXGISwapChain::EndAccess() {

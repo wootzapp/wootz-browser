@@ -31,11 +31,15 @@ StrikeDatabaseFactory::StrikeDatabaseFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
               .Build()) {}
 
 StrikeDatabaseFactory::~StrikeDatabaseFactory() = default;
 
-KeyedService* StrikeDatabaseFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+StrikeDatabaseFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   Profile* profile = Profile::FromBrowserContext(context);
 
@@ -45,7 +49,7 @@ KeyedService* StrikeDatabaseFactory::BuildServiceInstanceFor(
   // Note: This instance becomes owned by an object that never gets destroyed,
   // effectively leaking it until browser close. Only one is created per
   // profile, and closing-then-opening a profile returns the same instance.
-  return new StrikeDatabase(db_provider, profile->GetPath());
+  return std::make_unique<StrikeDatabase>(db_provider, profile->GetPath());
 }
 
 }  // namespace autofill

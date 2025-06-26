@@ -14,6 +14,7 @@
 #include <utility>
 #include <vector>
 
+#include "ash/app_list/apps_collections_controller.h"
 #include "ash/public/cpp/app_list/app_list_client.h"
 #include "ash/public/cpp/app_list/app_list_metrics.h"
 #include "base/gtest_prod_util.h"
@@ -23,16 +24,19 @@
 #include "base/time/time.h"
 #include "chrome/browser/ash/app_list/app_list_controller_delegate.h"
 #include "chrome/browser/profiles/profile_manager_observer.h"
+#include "chromeos/ash/services/assistant/public/cpp/assistant_browser_delegate.h"
 #include "components/feature_engagement/public/tracker.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/search_engines/template_url_service_observer.h"
 #include "components/session_manager/core/session_manager_observer.h"
 #include "components/user_manager/user_manager.h"
+#include "ui/base/models/image_model.h"
 #include "ui/display/types/display_constants.h"
 
 class ProfileManager;
 
 namespace app_list {
+class AppListSurveyHandler;
 class SearchController;
 }  // namespace app_list
 
@@ -121,6 +125,11 @@ class AppListClientImpl
       const std::vector<std::string>& apps_above_the_fold,
       const std::vector<std::string>& apps_below_the_fold,
       bool is_apps_collections_page) override;
+  bool HasReordered() override;
+  void GetAssistantNewEntryPointEligibility(
+      GetAssistantNewEntryPointEligibilityCallback callback) override;
+  std::optional<std::string> GetAssistantNewEntryPointName() override;
+  ui::ImageModel GetGeminiIcon() override;
 
   // user_manager::UserManager::UserSessionStateObserver:
   void ActiveUserChanged(user_manager::User* active_user) override;
@@ -172,7 +181,11 @@ class AppListClientImpl
   // Initializes as if a new user logged in for testing.
   void InitializeAsIfNewUserLoginForTest();
 
+  // Recalculate the default position of apps with a modified order.
+  void MaybeRecalculateAppsGridDefaultOrder();
+
  private:
+  friend class AppListSurveyTriggerTest;
   FRIEND_TEST_ALL_PREFIXES(AppListClientWithProfileTest, CheckDataRace);
 
   struct StateForNewUser {
@@ -222,6 +235,20 @@ class AppListClientImpl
       ash::AppListLaunchedFrom launched_from,
       bool is_app_above_the_fold);
 
+  // Called when Assistant new entry point eligibility value is ready to read.
+  // `profile` is used to check if a profile has been switched during the async
+  // call.
+  void OnAssistantNewEntryPointEligibilityReady(
+      Profile* profile,
+      GetAssistantNewEntryPointEligibilityCallback callback);
+
+  // Returns `AssistantBrowserDelegate` for the purpose of new entry point. This
+  // checks if the current profile is a primary profile or not as the new entry
+  // point is available only for a primary profile. `nullptr` is returned if
+  // it's not available, e.g., non-primary profile.
+  ash::assistant::AssistantBrowserDelegate*
+  GetAssistantBrowserDelegateForNewEntryPoint();
+
   // Unowned pointer to the associated profile. May change if SetProfile is
   // called.
   raw_ptr<Profile> profile_ = nullptr;
@@ -237,7 +264,8 @@ class AppListClientImpl
   // (https://crbug.com/939755).
   // TODO: Replace the mojo interface functions provided by AppListClient with
   // callbacks.
-  std::map<int, AppListModelUpdater*> profile_model_mappings_;
+  std::map<int, raw_ptr<AppListModelUpdater, CtnExperimental>>
+      profile_model_mappings_;
 
   std::unique_ptr<app_list::SearchController> search_controller_;
   std::unique_ptr<AppSyncUIStateWatcher> app_sync_ui_state_watcher_;
@@ -269,6 +297,8 @@ class AppListClientImpl
   // sessions for the given user. As such, this value is absent until the first
   // app list sync of the session is completed.
   std::optional<bool> is_primary_profile_new_user_;
+
+  std::unique_ptr<app_list::AppListSurveyHandler> survey_handler_;
 
   // The profile manager is observed in order to ensure that the AppList has the
   // necessary dependencies to identify new users.

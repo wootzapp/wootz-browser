@@ -35,6 +35,9 @@
 // The headline below the image. Must be set before the view is loaded.
 @property(nonatomic, copy) NSString* titleString;
 
+// Label displaying the `titleString`. Nil if `titleString` is not set.
+@property(nonatomic, strong) UILabel* titleLabel;
+
 // Text style for the title. If nil, will default to UIFontTextStyleTitle1.
 @property(nonatomic, copy) UIFontTextStyle titleTextStyle;
 
@@ -47,6 +50,10 @@
 
 // Text style for the subtitle. If nil, will default to UIFontTextStyleBody.
 @property(nonatomic, copy) UIFontTextStyle subtitleTextStyle;
+
+// The color of the text for the subtitle. If nil, will default to
+// kTextSecondaryColor.
+@property(nonatomic, copy) UIColor* subtitleTextColor;
 
 // The text for the primary action. Must be set before the view is loaded.
 @property(nonatomic, copy) NSString* primaryActionString;
@@ -67,6 +74,11 @@
 
 // The image. May be updated after the view is loaded.
 @property(nonatomic, strong) UIImage* image;
+
+// Color used for the image frame background when using
+// `imageEnclosedWithShadowAndBadge` or `imageEnclosedWithShadowWithoutBadge`.
+// Defaults to `kBackgroundColor`. Must be set before the view is loaded.
+@property(nonatomic, strong) UIColor* imageBackgroundColor;
 
 // When set, this value will be set as the accessibility label for the image
 // view.
@@ -155,6 +167,27 @@
 
 // Button for the primary action string.
 @property(nonatomic, readonly) UIButton* primaryActionButton;
+
+// Color used for the activity indicator on the primary button when in the
+// loading state. Defaults to kSolidWhiteColor.
+@property(nonatomic, strong) UIColor* activityIndicatorColor;
+
+// Color used for the confirmation checkmark on the primary button when in the
+// confirmation state. Defaults to kBlue700Color.
+@property(nonatomic, strong) UIColor* confirmationCheckmarkColor;
+
+// Color used for the background on the primary button when in the confirmation
+// state. Defaults to kBlue100Color.
+@property(nonatomic, strong) UIColor* confirmationButtonColor;
+
+// Indicates whether this view shows itself in a loading state: The primary
+// button is disabled and shows an activity indicator instead of the primary
+// action string; and other action buttons are disabled.
+@property(nonatomic, assign) BOOL isLoading;
+
+// Shows a checkmark on the primary action button instead of the primary action
+// text, and shows the primary action button in a disabled state.
+@property(nonatomic, assign) BOOL isConfirmed;
 
 // Designated initializer.
 - (instancetype)init NS_DESIGNATED_INITIALIZER;

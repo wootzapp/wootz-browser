@@ -3,8 +3,18 @@
 # found in the LICENSE file.
 
 import("//build/config/c++/c++.gni")
-import("//build/config/chromeos/ui_mode.gni")
 import("//remoting/build/config/remoting_build.gni")
+
+source_set("crash_tools") {
+  if (enable_chromoting_crashpad) {
+    public_deps = [ ":remoting_crashpad_handler" ]
+    if (is_linux) {
+      public_deps += [ ":remoting_crashpad_db" ]
+    }
+  } else {
+    public_deps = [ ":remoting_crash_uploader" ]
+  }
+}
 
 source_set("crash_uploader") {
   sources = [
@@ -12,13 +22,17 @@ source_set("crash_uploader") {
     "crash_directory_watcher.h",
     "crash_file_uploader.cc",
     "crash_file_uploader.h",
+    "minidump_handler.cc",
+    "minidump_handler.h",
   ]
   deps = [
     "//base",
     "//remoting/base",
-    "//remoting/base:breakpad",
+    "//remoting/base/crash",
+    "//remoting/base/crash:breakpad_utils",
     "//remoting/host:common_headers",
     "//remoting/host/base",
+    "//services/network:network_service",
     "//services/network/public/cpp",
   ]
 }
@@ -38,19 +52,41 @@ source_set("crash_uploader_main") {
     "//base",
     "//mojo/core/embedder:embedder",
     "//remoting/base",
-    "//remoting/base:breakpad",
+    "//remoting/base/crash",
     "//remoting/host:common_headers",
     "//remoting/host/base",
-    "//services/network:network_service",
-    "//services/network/public/cpp",
   ]
 }
 
-executable("remoting_crash_uploader") {
-  sources = [ "crash_uploader_entry_point.cc" ]
+if (enable_chromoting_crashpad) {
+  executable("remoting_crashpad_handler") {
+    sources = [ "crashpad_handler.cc" ]
 
-  deps = [
-    ":crash_uploader_main_headers",
-    "//remoting/host:remoting_core",
-  ]
+    deps = [
+      "//components/stability_report",
+      "//third_party/crashpad/crashpad/handler",
+    ]
+  }
+
+  executable("remoting_crashpad_db") {
+    sources = [ "crashpad_db_tool.cc" ]
+
+    deps = [
+      "//base",
+      "//remoting/base",
+      "//remoting/base/crash",
+      "//remoting/base/crash:crashpad_db_mgr",
+      "//third_party/crashpad/crashpad/client",
+      "//third_party/crashpad/crashpad/util",
+    ]
+  }
+} else {
+  executable("remoting_crash_uploader") {
+    sources = [ "crash_uploader_entry_point.cc" ]
+
+    deps = [
+      ":crash_uploader_main_headers",
+      "//remoting/host:remoting_core",
+    ]
+  }
 }

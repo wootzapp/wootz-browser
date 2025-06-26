@@ -9,10 +9,12 @@
 #include <utility>
 #include <vector>
 
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/trace_event/trace_event.h"
 #include "cc/paint/clear_for_opaque_raster.h"
 #include "cc/paint/display_item_list.h"
+#include "cc/paint/paint_op.h"
 #include "cc/paint/paint_op_buffer_iterator.h"
 #include "cc/paint/paint_op_writer.h"
 #include "cc/paint/scoped_raster_flags.h"
@@ -224,6 +226,19 @@ bool PaintOpBufferSerializer::SerializeOpWithFlags<float>(
   return SerializeOp(canvas, flags_op, flags_to_serialize, params);
 }
 
+namespace {
+bool IsDeferredPaintRecordImage(const PaintOp& op) {
+  PaintImage image;
+  if (op.GetType() == PaintOpType::kDrawImage) {
+    image = static_cast<const DrawImageOp&>(op).image;
+  } else if (op.GetType() == PaintOpType::kDrawImageRect) {
+    image = static_cast<const DrawImageRectOp&>(op).image;
+  }
+
+  return image.IsDeferredPaintRecord();
+}
+}  // namespace
+
 template <>
 bool PaintOpBufferSerializer::WillSerializeNextOp<float>(
     const PaintOp& op,
@@ -234,6 +249,7 @@ bool PaintOpBufferSerializer::WillSerializeNextOp<float>(
   // performing an unnecessary expensive decode.
   bool skip_op = PaintOp::OpHasDiscardableImages(op) &&
                  PaintOp::QuickRejectDraw(op, canvas);
+
   // Skip text ops if there is no SkStrikeServer.
   skip_op |=
       op.GetType() == PaintOpType::kDrawTextBlob && !options_.strike_server;
@@ -244,7 +260,7 @@ bool PaintOpBufferSerializer::WillSerializeNextOp<float>(
     const auto& draw_record_op = static_cast<const DrawRecordOp&>(op);
     int save_count = canvas->getSaveCount();
     const PaintOpBuffer& buffer = draw_record_op.record.buffer();
-    if (LIKELY(draw_record_op.local_ctm)) {
+    if (draw_record_op.local_ctm) [[likely]] {
       // This record has a local CTM, meaning that any transforms in `buffer`
       // must be isolated from the parent record. Saving ensures that transforms
       // won't leak out. Then, `SerializeBuffer` will set `original_ctm` to the
@@ -265,7 +281,9 @@ bool PaintOpBufferSerializer::WillSerializeNextOp<float>(
   if (op.GetType() == PaintOpType::kDrawScrollingContents) {
     auto& scrolling_contents_op =
         static_cast<const DrawScrollingContentsOp&>(op);
-    gfx::PointF scroll_offset = scrolling_contents_op.GetScrollOffset(params);
+    CHECK(params.raster_inducing_scroll_offsets);
+    gfx::PointF scroll_offset = params.raster_inducing_scroll_offsets->at(
+        scrolling_contents_op.scroll_element_id);
     int save_count = canvas->getSaveCount();
     if (!scroll_offset.IsOrigin()) {
       Save(canvas, params);
@@ -275,18 +293,35 @@ bool PaintOpBufferSerializer::WillSerializeNextOp<float>(
     std::vector<size_t> offsets =
         scrolling_contents_op.display_item_list->OffsetsOfOpsToRaster(canvas);
     SerializeBuffer(canvas,
-                    scrolling_contents_op.display_item_list->paint_op_buffer_,
+                    scrolling_contents_op.display_item_list->paint_op_buffer(),
                     &offsets);
     RestoreToCount(canvas, save_count, params);
     return true;
   }
 
-  if (op.GetType() == PaintOpType::kDrawImageRect &&
-      static_cast<const DrawImageRectOp&>(op).image.IsPaintWorklet()) {
+  if (IsDeferredPaintRecordImage(op)) {
+    // Note: This check must be kept in sync with the check in
+    // DrawImageRectOp::RasterWithFlags.
     DCHECK(options_.image_provider);
-    const DrawImageRectOp& draw_op = static_cast<const DrawImageRectOp&>(op);
+    SkRect src;
+    SkRect dst;
+    PaintImage paint_image;
+
+    if (op.GetType() == PaintOpType::kDrawImageRect) {
+      const DrawImageRectOp& draw_op = static_cast<const DrawImageRectOp&>(op);
+      src = draw_op.src;
+      dst = draw_op.dst;
+      paint_image = draw_op.image;
+    } else {
+      const DrawImageOp& draw_op = static_cast<const DrawImageOp&>(op);
+      paint_image = draw_op.image;
+      src = SkRect::MakeWH(paint_image.width(), paint_image.height());
+      dst = SkRect::MakeXYWH(draw_op.left, draw_op.top, paint_image.width(),
+                             paint_image.height());
+    }
+
     ImageProvider::ScopedResult result =
-        options_.image_provider->GetRasterContent(DrawImage(draw_op.image));
+        options_.image_provider->GetRasterContent(DrawImage(paint_image));
     if (!result || !result.has_paint_record()) {
       return true;
     }
@@ -295,25 +330,30 @@ bool PaintOpBufferSerializer::WillSerializeNextOp<float>(
     Save(canvas, params);
     // The following ops are copying the canvas's ops from
     // DrawImageRectOp::RasterWithFlags.
-    SkM44 trans = SkM44(SkMatrix::RectToRect(draw_op.src, draw_op.dst));
+    SkM44 trans = SkM44(SkMatrix::RectToRect(src, dst));
     ConcatOp concat_op(trans);
     bool success = SerializeOp(canvas, concat_op, nullptr, params);
 
     if (!success)
       return false;
 
-    ClipRectOp clip_rect_op(draw_op.src, SkClipOp::kIntersect, false);
+    ClipRectOp clip_rect_op(src, SkClipOp::kIntersect, false);
     success = SerializeOp(canvas, clip_rect_op, nullptr, params);
     if (!success)
       return false;
 
-    // In DrawImageRectOp::RasterWithFlags, the save layer uses the
-    // flags_to_serialize or default (PaintFlags()) flags. At this point in the
-    // serialization, flags_to_serialize is always null as well.
-    SaveLayerOp save_layer_op(draw_op.src, PaintFlags());
-    success = SerializeOpWithFlags(canvas, save_layer_op, params, 1.0f);
-    if (!success)
-      return false;
+    if (paint_image.NeedsLayer()) {
+      // In DrawImageRectOp::RasterWithFlags, the save layer uses the
+      // flags_to_serialize or default (PaintFlags()) flags. At this point in
+      // the serialization, flags_to_serialize is always null as well.
+      // TODO(crbug.com/343439032): See if we can be less aggressive about use
+      // of a save layer operation for CSS paint worklets since expensive.
+      SaveLayerOp save_layer_op(src, PaintFlags());
+      success = SerializeOpWithFlags(canvas, save_layer_op, params, 1.0f);
+      if (!success) {
+        return false;
+      }
+    }
 
     SerializeBuffer(canvas, result.ReleaseAsRecord().buffer(), nullptr);
     RestoreToCount(canvas, save_count, params);
@@ -437,9 +477,9 @@ size_t SimpleBufferSerializer::SerializeToMemoryImpl(
   if (written_ == total_)
     return 0u;
 
-  size_t bytes =
-      op.Serialize(static_cast<char*>(memory_) + written_, total_ - written_,
-                   options, flags_to_serialize, current_ctm, original_ctm);
+  size_t bytes = op.Serialize(
+      UNSAFE_TODO(static_cast<char*>(memory_) + written_), total_ - written_,
+      options, flags_to_serialize, current_ctm, original_ctm);
   if (!bytes)
     return 0u;
 

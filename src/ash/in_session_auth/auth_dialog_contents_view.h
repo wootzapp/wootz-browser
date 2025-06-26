@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include "ash/ash_export.h"
 #include "ash/public/cpp/login_types.h"
@@ -71,6 +72,8 @@ class AuthDialogContentsView : public views::View {
 
     raw_ptr<LoginPasswordView> GetPinTextInputView() const;
 
+    views::Label* GetDialogFingerprintLabel() const;
+
    private:
     const raw_ptr<AuthDialogContentsView> view_;
   };
@@ -84,7 +87,6 @@ class AuthDialogContentsView : public views::View {
   ~AuthDialogContentsView() override;
 
   // views::Views:
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
   void RequestFocus() override;
 
   uint32_t auth_methods() const { return auth_methods_; }
@@ -140,7 +142,7 @@ class AuthDialogContentsView : public views::View {
 
   // Called when the user submits password or PIN. If authenticated_by_pin is
   // false, the user authenticated by password.
-  void OnAuthSubmit(bool authenticated_by_pin, const std::u16string& password);
+  void OnAuthSubmit(bool authenticated_by_pin, std::u16string_view password);
 
   // Called when password or PIN authentication of the user completes. If
   // authenticated_by_pin is false, the user authenticated by password.
@@ -159,6 +161,8 @@ class AuthDialogContentsView : public views::View {
 
   // Called when the "Need help?" button is pressed.
   void OnNeedHelpButtonPressed(const ui::Event& event);
+
+  views::Label* GetFingerprintLabel() const;
 
   // Debug container which holds the entire debug UI.
   raw_ptr<views::View> container_ = nullptr;

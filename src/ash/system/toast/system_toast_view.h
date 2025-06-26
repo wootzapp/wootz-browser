@@ -5,68 +5,70 @@
 #ifndef ASH_SYSTEM_TOAST_SYSTEM_TOAST_VIEW_H_
 #define ASH_SYSTEM_TOAST_SYSTEM_TOAST_VIEW_H_
 
+#include <string_view>
+
 #include "ash/ash_export.h"
 #include "base/memory/raw_ptr.h"
+#include "ui/base/interaction/element_identifier.h"
 #include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/gfx/paint_vector_icon.h"
+#include "ui/gfx/vector_icon_types.h"
 #include "ui/views/layout/flex_layout_view.h"
 
 namespace views {
+class Button;
 class Label;
-class LabelButton;
 }  // namespace views
 
 namespace ash {
 
-class ScopedA11yOverrideWindowSetter;
 class SystemShadow;
 
 // The System Toast view. (go/toast-style-spec)
 // This view supports different configurations depending on the provided
 // toast data parameters. It will always have a body text, and may have a
-// leading icon and a trailing button.
+// leading icon and a button containing text or an icon.
 class ASH_EXPORT SystemToastView : public views::FlexLayoutView {
   METADATA_HEADER(SystemToastView, views::FlexLayoutView)
 
  public:
-  SystemToastView(const std::u16string& text,
-                  const std::u16string& dismiss_text = std::u16string(),
-                  base::RepeatingClosure dismiss_callback = base::DoNothing(),
-                  const gfx::VectorIcon* leading_icon = &gfx::kNoneIcon);
+  DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kSystemToastViewElementId);
+
+  // Type of button to show next to the toast's body text.
+  enum class ButtonType {
+    kNone,
+    kTextButton,
+    kIconButton,
+  };
+
+  SystemToastView(
+      const std::u16string& text,
+      ButtonType button_type = ButtonType::kNone,
+      const std::u16string& button_text = std::u16string(),
+      const gfx::VectorIcon* button_icon = &gfx::VectorIcon::EmptyIcon(),
+      base::RepeatingClosure button_callback = base::DoNothing(),
+      const gfx::VectorIcon* leading_icon = &gfx::VectorIcon::EmptyIcon());
   SystemToastView(const SystemToastView&) = delete;
   SystemToastView& operator=(const SystemToastView&) = delete;
   ~SystemToastView() override;
 
-  bool is_dismiss_button_highlighted() const {
-    return is_dismiss_button_highlighted_;
-  }
-
-  views::LabelButton* dismiss_button() const { return dismiss_button_; }
+  views::Button* button() { return button_; }
 
   // Updates the toast label text.
-  void SetText(const std::u16string& text);
-
-  // Toggles the dismiss button's focus. This function is necessary since toasts
-  // are not directly focus accessible by tab traversal.
-  void ToggleButtonA11yFocus();
+  void SetText(std::u16string_view text);
+  std::u16string_view GetText() const;
 
  private:
-  // Owned by the views hierarchy.
-  raw_ptr<views::Label> label_ = nullptr;
-  raw_ptr<views::LabelButton> dismiss_button_ = nullptr;
-  std::unique_ptr<SystemShadow> shadow_;
-
   // views::View:
   void AddedToWidget() override;
   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
 
-  // Used to a11y focus and draw a focus ring on the dismiss button directly
-  // through `scoped_a11y_overrider_`.
-  bool is_dismiss_button_highlighted_ = false;
+  // Owned by the views hierarchy.
+  raw_ptr<views::Label> label_ = nullptr;
+  // Button which either contains text or an icon depending on the toast's
+  // `ButtonType`.
+  raw_ptr<views::Button> button_ = nullptr;
 
-  // Updates the current a11y override window when the dismiss button is being
-  // highlighted.
-  std::unique_ptr<ScopedA11yOverrideWindowSetter> scoped_a11y_overrider_;
+  std::unique_ptr<SystemShadow> shadow_;
 };
 
 }  // namespace ash

@@ -138,14 +138,15 @@ void HUDDisplayView::Toggle() {
   delegate->SetClientViewFactory(base::BindOnce(&MakeClientView));
   delegate->RegisterWidgetInitializedCallback(
       base::BindOnce(&InitializeFrameView, base::Unretained(delegate.get())));
-  delegate->SetOwnedByWidget(true);
+  delegate->SetOwnedByWidget(views::WidgetDelegate::OwnedByWidgetPassKey());
 
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_WINDOW);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
+      views::Widget::InitParams::TYPE_WINDOW);
   params.delegate = delegate.release();
   params.name = "HUDDisplay";
   params.parent = Shell::GetContainer(Shell::GetPrimaryRootWindow(),
                                       kShellWindowId_OverlayContainer);
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.bounds = gfx::Rect(kHUDWidth, kHUDHeightWithGraph);
   auto* widget = CreateViewTreeHostWidget(std::move(params));
   widget->GetLayer()->SetName("HUDDisplayView");

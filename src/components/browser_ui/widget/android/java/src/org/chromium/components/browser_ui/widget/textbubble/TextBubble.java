@@ -20,15 +20,15 @@ import android.widget.PopupWindow.OnDismissListener;
 import android.widget.TextView;
 
 import androidx.annotation.DrawableRes;
-import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.appcompat.content.res.AppCompatResources;
 
-import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.MathUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.R;
 import org.chromium.ui.widget.AnchoredPopupWindow;
@@ -39,6 +39,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /** UI component that handles showing a text callout bubble. */
+@NullMarked
 public class TextBubble implements AnchoredPopupWindow.LayoutObserver {
     /**
      * Specifies no limit to the popup duration.
@@ -67,15 +68,15 @@ public class TextBubble implements AnchoredPopupWindow.LayoutObserver {
     private final AnchoredPopupWindow mPopupWindow;
 
     /** The {@link Drawable} that is responsible for drawing the bubble and the arrow. */
-    @Nullable private ArrowBubbleDrawable mBubbleDrawable;
+    private @Nullable ArrowBubbleDrawable mBubbleDrawable;
 
     /** The {@link Drawable} that precedes the text in the bubble. */
-    protected final Drawable mImageDrawable;
+    protected final @Nullable Drawable mImageDrawable;
 
     /** Runnables for snoozable text bubble option. */
-    private final Runnable mSnoozeRunnable;
+    private final @Nullable Runnable mSnoozeRunnable;
 
-    private final Runnable mSnoozeDismissRunnable;
+    private final @Nullable Runnable mSnoozeDismissRunnable;
 
     /** Time tracking for histograms. */
     private long mBubbleShowStartTime;
@@ -98,10 +99,12 @@ public class TextBubble implements AnchoredPopupWindow.LayoutObserver {
             };
 
     /**
-     * How long to wait before automatically dismissing the bubble.  {@link #NO_TIMEOUT} is the
+     * How long to wait before automatically dismissing the bubble. {@link #NO_TIMEOUT} is the
      * default and means the bubble will stay visible indefinitely.
      */
     private long mAutoDismissTimeoutMs = NO_TIMEOUT;
+
+    private boolean mDismissOnTouchInteraction;
 
     // Content specific variables.
     /** The string to show in the bubble. */
@@ -505,7 +508,7 @@ public class TextBubble implements AnchoredPopupWindow.LayoutObserver {
 
     /**
      * @return A supplier which notifies of changes of text bubbles count.
-     * */
+     */
     public static ObservableSupplier<Integer> getCountSupplier() {
         return sCountSupplier;
     }
@@ -568,7 +571,12 @@ public class TextBubble implements AnchoredPopupWindow.LayoutObserver {
     public void setDismissOnTouchInteraction(boolean dismiss) {
         // For accessibility mode, since there is no timeout value, the bubble can be dismissed
         // only on touch interaction.
-        mPopupWindow.setDismissOnTouchInteraction(mIsAccessibilityEnabled || dismiss);
+        mDismissOnTouchInteraction = mIsAccessibilityEnabled || dismiss;
+        mPopupWindow.setDismissOnTouchInteraction(mDismissOnTouchInteraction);
+    }
+
+    public boolean getDismissOnTouchInteractionForTesting() {
+        return mDismissOnTouchInteraction;
     }
 
     /**
@@ -665,8 +673,7 @@ public class TextBubble implements AnchoredPopupWindow.LayoutObserver {
      */
     protected void updateTextStyle(TextView view, boolean isInverse) {
         if (isInverse) {
-            ApiCompatibilityUtils.setTextAppearance(
-                    view, R.style.TextAppearance_TextMediumThick_Accent1);
+            view.setTextAppearance(R.style.TextAppearance_TextMediumThick_Accent1);
         }
     }
 

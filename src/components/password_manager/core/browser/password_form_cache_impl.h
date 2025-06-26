@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "base/containers/span.h"
+#include "base/observer_list.h"
 #include "components/autofill/core/common/unique_ids.h"
 #include "components/password_manager/core/browser/password_form_cache.h"
 #include "components/password_manager/core/browser/password_form_manager.h"
@@ -32,7 +33,7 @@ class PasswordFormCacheImpl : public PasswordFormCache {
 
   void AddFormManager(std::unique_ptr<PasswordFormManager> manager);
   void ResetSubmittedManager();
-  PasswordFormManager* GetSubmittedManager();
+  PasswordFormManager* GetSubmittedManager() const;
   std::unique_ptr<PasswordFormManager> MoveOwnedSubmittedManager();
   void Clear();
   bool IsEmpty() const;
@@ -42,13 +43,20 @@ class PasswordFormCacheImpl : public PasswordFormCache {
 
  private:
   // PasswordFormCache:
-  bool HasPasswordForm(PasswordManagerDriver* driver,
-                       autofill::FormRendererId form_id) const override;
-  bool HasPasswordForm(PasswordManagerDriver* driver,
-                       autofill::FieldRendererId field_id) const override;
+  const PasswordForm* GetPasswordForm(
+      PasswordManagerDriver* driver,
+      autofill::FormRendererId form_id) const override;
+  const PasswordForm* GetPasswordForm(
+      PasswordManagerDriver* driver,
+      autofill::FieldRendererId field_id) const override;
+  void SetObserver(
+      base::WeakPtr<PasswordFormManagerObserver> observer) override;
+  void ResetObserver() override;
 
   // TODO(b/330313855): Check if `unique_ptr` can be removed here.
   std::vector<std::unique_ptr<PasswordFormManager>> form_managers_;
+
+  base::WeakPtr<PasswordFormManagerObserver> form_manager_observer_;
 };
 
 }  // namespace password_manager

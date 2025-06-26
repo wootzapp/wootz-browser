@@ -21,17 +21,15 @@ class CC_EXPORT AppendQuadsData {
   AppendQuadsData();
   ~AppendQuadsData();
 
-  int64_t num_incomplete_tiles = 0;
-  int64_t num_missing_tiles = 0;
-  int64_t visible_layer_area = 0;
-  int64_t approximated_visible_content_area = 0;
+  int num_missing_tiles = 0;
 
-  // This is total of the following two areas.
-  int64_t checkerboarded_visible_content_area = 0;
-  // This is the area outside interest rect.
-  int64_t checkerboarded_no_recording_content_area = 0;
-  // This is the area within interest rect.
-  int64_t checkerboarded_needs_raster_content_area = 0;
+  bool checkerboarded_needs_raster = false;
+  bool checkerboarded_needs_record = false;
+
+  int64_t visible_layer_area = 0;
+
+  // The visible content area of tiles that are of low or non-ideal resolution.
+  int64_t approximated_visible_content_area = 0;
 
   // The non-default number of BeginFrames to wait before forcibly activating
   // this CompositorFrame.

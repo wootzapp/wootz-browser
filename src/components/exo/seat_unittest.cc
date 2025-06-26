@@ -128,90 +128,6 @@ TEST_F(SeatTest, SetSelection) {
   EXPECT_EQ(clipboard, std::string("TestData"));
 }
 
-TEST_F(SeatTest, SetSelectionReadDteFromLacros) {
-  std::unique_ptr<TestDataExchangeDelegate> data_exchange_delegate(
-      std::make_unique<TestDataExchangeDelegate>());
-  data_exchange_delegate->set_endpoint_type(ui::EndpointType::kLacros);
-  TestSeat seat(std::move(data_exchange_delegate));
-  Surface focused_surface;
-  seat.set_focused_surface(&focused_surface);
-
-  const std::string kTestText = "TestData";
-  const std::string kEncodedTestDte =
-      R"({"endpoint_type":"url","url":"https://www.google.com"})";
-
-  const std::string kTextMimeType = "text/plain;charset=utf-8";
-  const std::string kDteMimeType = "chromium/x-data-transfer-endpoint";
-
-  TestDataSourceDelegate delegate;
-  DataSource source(&delegate);
-
-  source.Offer(kTextMimeType);
-  delegate.SetData(kTextMimeType, kTestText);
-  source.Offer(kDteMimeType);
-  delegate.SetData(kDteMimeType, kEncodedTestDte);
-  seat.SetSelection(&source);
-
-  RunReadingTask();
-
-  std::string clipboard;
-  ui::Clipboard::GetForCurrentThread()->ReadAsciiText(
-      ui::ClipboardBuffer::kCopyPaste, /*data_dst=*/nullptr, &clipboard);
-
-  EXPECT_EQ(clipboard, kTestText);
-
-  std::optional<ui::DataTransferEndpoint> source_dte =
-      ui::Clipboard::GetForCurrentThread()->GetSource(
-          ui::ClipboardBuffer::kCopyPaste);
-
-  ASSERT_TRUE(source_dte);
-  EXPECT_EQ(ui::EndpointType::kUrl, source_dte->type());
-
-  const ui::DataTransferEndpoint expected_dte =
-      ui::DataTransferEndpoint((GURL("https://www.google.com")));
-  EXPECT_EQ(*expected_dte.GetURL(), *source_dte->GetURL());
-}
-
-TEST_F(SeatTest, SetSelectionIgnoreDteFromNonLacros) {
-  std::unique_ptr<TestDataExchangeDelegate> data_exchange_delegate(
-      std::make_unique<TestDataExchangeDelegate>());
-  data_exchange_delegate->set_endpoint_type(ui::EndpointType::kCrostini);
-  TestSeat seat(std::move(data_exchange_delegate));
-  Surface focused_surface;
-  seat.set_focused_surface(&focused_surface);
-
-  const std::string kTestText = "TestData";
-  const std::string kEncodedTestDte =
-      R"({"endpoint_type":"url","url":"https://www.google.com"})";
-
-  const std::string kTextMimeType = "text/plain;charset=utf-8";
-  const std::string kDteMimeType = "chromium/x-data-transfer-endpoint";
-
-  TestDataSourceDelegate delegate;
-  DataSource source(&delegate);
-
-  source.Offer(kTextMimeType);
-  delegate.SetData(kTextMimeType, kTestText);
-  source.Offer(kDteMimeType);
-  delegate.SetData(kDteMimeType, kEncodedTestDte);
-  seat.SetSelection(&source);
-
-  RunReadingTask();
-
-  std::string clipboard;
-  ui::Clipboard::GetForCurrentThread()->ReadAsciiText(
-      ui::ClipboardBuffer::kCopyPaste, /*data_dst=*/nullptr, &clipboard);
-
-  EXPECT_EQ(clipboard, kTestText);
-
-  std::optional<ui::DataTransferEndpoint> source_dte =
-      ui::Clipboard::GetForCurrentThread()->GetSource(
-          ui::ClipboardBuffer::kCopyPaste);
-
-  ASSERT_TRUE(source_dte);
-  EXPECT_EQ(ui::EndpointType::kCrostini, source_dte->type());
-}
-
 TEST_F(SeatTest, SetSelectionTextUTF8) {
   TestSeat seat;
   Surface focused_surface;
@@ -450,7 +366,7 @@ TEST_F(SeatTest, SetSelectionWebCustomData) {
   RunReadingTask();
 
   std::u16string result;
-  ui::Clipboard::GetForCurrentThread()->ReadCustomData(
+  ui::Clipboard::GetForCurrentThread()->ReadDataTransferCustomData(
       ui::ClipboardBuffer::kCopyPaste, u"text/uri-list", /*data_dst=*/nullptr,
       &result);
   EXPECT_EQ(result, u"data");
@@ -651,10 +567,14 @@ TEST_F(SeatTest, SetSelection_ClientOutOfFocus) {
 
 TEST_F(SeatTest, PressedKeys) {
   TestSeat seat;
-  ui::KeyEvent press_a(ui::ET_KEY_PRESSED, ui::VKEY_A, ui::DomCode::US_A, 0);
-  ui::KeyEvent release_a(ui::ET_KEY_RELEASED, ui::VKEY_A, ui::DomCode::US_A, 0);
-  ui::KeyEvent press_b(ui::ET_KEY_PRESSED, ui::VKEY_B, ui::DomCode::US_B, 0);
-  ui::KeyEvent release_b(ui::ET_KEY_RELEASED, ui::VKEY_B, ui::DomCode::US_B, 0);
+  ui::KeyEvent press_a(ui::EventType::kKeyPressed, ui::VKEY_A,
+                       ui::DomCode::US_A, 0);
+  ui::KeyEvent release_a(ui::EventType::kKeyReleased, ui::VKEY_A,
+                         ui::DomCode::US_A, 0);
+  ui::KeyEvent press_b(ui::EventType::kKeyPressed, ui::VKEY_B,
+                       ui::DomCode::US_B, 0);
+  ui::KeyEvent release_b(ui::EventType::kKeyReleased, ui::VKEY_B,
+                         ui::DomCode::US_B, 0);
 
   // Press A, it should be in the map.
   seat.WillProcessEvent(&press_a);
@@ -709,10 +629,14 @@ TEST_F(SeatTest, DragDropAbort) {
 TEST_F(SeatTest, MultiRewriteEventsFromInvalidSource) {
   TestSeat seat;
 
-  ui::KeyEvent press_a(ui::ET_KEY_PRESSED, ui::VKEY_A, ui::DomCode::US_A, 0);
-  ui::KeyEvent release_a(ui::ET_KEY_RELEASED, ui::VKEY_A, ui::DomCode::US_A, 0);
-  ui::KeyEvent press_b(ui::ET_KEY_PRESSED, ui::VKEY_B, ui::DomCode::US_B, 0);
-  ui::KeyEvent release_b(ui::ET_KEY_RELEASED, ui::VKEY_B, ui::DomCode::US_B, 0);
+  ui::KeyEvent press_a(ui::EventType::kKeyPressed, ui::VKEY_A,
+                       ui::DomCode::US_A, 0);
+  ui::KeyEvent release_a(ui::EventType::kKeyReleased, ui::VKEY_A,
+                         ui::DomCode::US_A, 0);
+  ui::KeyEvent press_b(ui::EventType::kKeyPressed, ui::VKEY_B,
+                       ui::DomCode::US_B, 0);
+  ui::KeyEvent release_b(ui::EventType::kKeyReleased, ui::VKEY_B,
+                         ui::DomCode::US_B, 0);
 
   // Press A, it should be in the map.
   seat.WillProcessEvent(&press_a);
@@ -741,14 +665,14 @@ TEST_F(SeatTest, MultiRewriteEventsFromInvalidSource) {
 TEST_F(SeatTest, MultiRewriteEventsFromValidSource) {
   TestSeat seat;
 
-  ui::KeyEvent press_a(ui::ET_KEY_PRESSED, ui::VKEY_A, ui::DomCode::US_A,
-                       ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
-  ui::KeyEvent release_a(ui::ET_KEY_RELEASED, ui::VKEY_A, ui::DomCode::US_A,
-                         ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
-  ui::KeyEvent press_b(ui::ET_KEY_PRESSED, ui::VKEY_B, ui::DomCode::US_B,
-                       ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
-  ui::KeyEvent release_b(ui::ET_KEY_RELEASED, ui::VKEY_B, ui::DomCode::US_B,
-                         ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
+  ui::KeyEvent press_a(ui::EventType::kKeyPressed, ui::VKEY_A,
+                       ui::DomCode::US_A, ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
+  ui::KeyEvent release_a(ui::EventType::kKeyReleased, ui::VKEY_A,
+                         ui::DomCode::US_A, ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
+  ui::KeyEvent press_b(ui::EventType::kKeyPressed, ui::VKEY_B,
+                       ui::DomCode::US_B, ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
+  ui::KeyEvent release_b(ui::EventType::kKeyReleased, ui::VKEY_B,
+                         ui::DomCode::US_B, ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
 
   // Press A, it should be in the map.
   seat.WillProcessEvent(&press_a);
@@ -780,21 +704,21 @@ TEST_F(SeatTest, MultiRewriteEventsFromValidSource) {
 TEST_F(SeatTest, MouseMultiRewriteEventsFromValidSource) {
   TestSeat seat;
 
-  ui::MouseEvent press_back(ui::ET_MOUSE_PRESSED, gfx::PointF{}, gfx::PointF{},
-                            base::TimeTicks(), ui::EF_BACK_MOUSE_BUTTON,
-                            ui::EF_BACK_MOUSE_BUTTON);
+  ui::MouseEvent press_back(ui::EventType::kMousePressed, gfx::PointF{},
+                            gfx::PointF{}, base::TimeTicks(),
+                            ui::EF_BACK_MOUSE_BUTTON, ui::EF_BACK_MOUSE_BUTTON);
   ui::MouseEvent release_back(
-      ui::ET_MOUSE_RELEASED, gfx::PointF{}, gfx::PointF{}, base::TimeTicks(),
-      ui::EF_BACK_MOUSE_BUTTON, ui::EF_BACK_MOUSE_BUTTON);
+      ui::EventType::kMouseReleased, gfx::PointF{}, gfx::PointF{},
+      base::TimeTicks(), ui::EF_BACK_MOUSE_BUTTON, ui::EF_BACK_MOUSE_BUTTON);
 
-  ui::KeyEvent press_a(ui::ET_KEY_PRESSED, ui::VKEY_A, ui::DomCode::US_A,
-                       ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
-  ui::KeyEvent release_a(ui::ET_KEY_RELEASED, ui::VKEY_A, ui::DomCode::US_A,
-                         ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
-  ui::KeyEvent press_b(ui::ET_KEY_PRESSED, ui::VKEY_B, ui::DomCode::US_B,
-                       ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
-  ui::KeyEvent release_b(ui::ET_KEY_RELEASED, ui::VKEY_B, ui::DomCode::US_B,
-                         ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
+  ui::KeyEvent press_a(ui::EventType::kKeyPressed, ui::VKEY_A,
+                       ui::DomCode::US_A, ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
+  ui::KeyEvent release_a(ui::EventType::kKeyReleased, ui::VKEY_A,
+                         ui::DomCode::US_A, ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
+  ui::KeyEvent press_b(ui::EventType::kKeyPressed, ui::VKEY_B,
+                       ui::DomCode::US_B, ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
+  ui::KeyEvent release_b(ui::EventType::kKeyReleased, ui::VKEY_B,
+                         ui::DomCode::US_B, ui::EF_IS_CUSTOMIZED_FROM_BUTTON);
 
   // Press Back remapped to "A", it should be in the map.
   seat.WillProcessEvent(&press_back);

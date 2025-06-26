@@ -2,12 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <array>
+#include <optional>
+#include <string>
+
 #include "base/files/file_path.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/metrics/user_action_tester.h"
 #include "base/test/test_future.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/picture_in_picture/document_picture_in_picture_mixin_test_base.h"
+#include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.h"
+#include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_test_util.h"
@@ -22,6 +29,7 @@
 #include "chrome/browser/ui/views/shortcuts/create_desktop_shortcut.h"
 #include "chrome/browser/ui/views/shortcuts/create_desktop_shortcut_delegate.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "content/public/browser/document_picture_in_picture_window_controller.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -50,7 +58,7 @@ class CreateDesktopShortcutDialogViewBrowserTest : public DialogBrowserTest {
 
  protected:
   void OverrideShortcutShownCallback(CreateShortcutDialogCallback callback) {
-    shortcut_callback = std::move(callback);
+    shortcut_callback_ = std::move(callback);
   }
 
   void ShowDialogInBrowser(Browser* browser, const std::string& name) {
@@ -60,11 +68,11 @@ class CreateDesktopShortcutDialogViewBrowserTest : public DialogBrowserTest {
     std::u16string title = base::UTF8ToUTF16(name);
     ShowCreateDesktopShortcutDialogForTesting(
         browser->tab_strip_model()->GetActiveWebContents(), gfx::ImageSkia(),
-        title, std::move(shortcut_callback));
+        title, std::move(shortcut_callback_));
   }
 
  private:
-  CreateShortcutDialogCallback shortcut_callback = base::DoNothing();
+  CreateShortcutDialogCallback shortcut_callback_ = base::DoNothing();
 };
 
 IN_PROC_BROWSER_TEST_F(CreateDesktopShortcutDialogViewBrowserTest,
@@ -164,7 +172,7 @@ IN_PROC_BROWSER_TEST_F(CreateDesktopShortcutDialogViewBrowserTest,
   base::UserActionTester action_tester;
   views::NamedWidgetShownWaiter widget_waiter(
       views::test::AnyWidgetTestPasskey{}, "CreateDesktopShortcutDialog");
-  ShowUi(base::EmptyString());
+  ShowUi(std::string());
   views::Widget* widget = widget_waiter.WaitIfNeededAndGet();
 
   views::test::WidgetDestroyedWaiter destroy_waiter(widget);
@@ -180,7 +188,7 @@ IN_PROC_BROWSER_TEST_F(CreateDesktopShortcutDialogViewBrowserTest,
   views::NamedWidgetShownWaiter widget_waiter(
       views::test::AnyWidgetTestPasskey{}, "CreateDesktopShortcutDialog");
 
-  base::test::TestFuture<bool, std::u16string> test_future;
+  base::test::TestFuture<std::optional<std::u16string>> test_future;
   OverrideShortcutShownCallback(test_future.GetCallback());
 
   ShowUi("ABC");
@@ -191,8 +199,9 @@ IN_PROC_BROWSER_TEST_F(CreateDesktopShortcutDialogViewBrowserTest,
   destroy_waiter.Wait();
   EXPECT_TRUE(test_future.Wait());
 
-  EXPECT_TRUE(test_future.Get<bool>());
-  EXPECT_EQ(test_future.Get<std::u16string>(), u"ABC");
+  std::optional<std::u16string> dialog_result = test_future.Get();
+  EXPECT_TRUE(dialog_result.has_value());
+  EXPECT_EQ(dialog_result.value(), u"ABC");
 }
 
 IN_PROC_BROWSER_TEST_F(CreateDesktopShortcutDialogViewBrowserTest,
@@ -217,7 +226,7 @@ IN_PROC_BROWSER_TEST_F(CreateDesktopShortcutDialogViewBrowserTest,
   views::NamedWidgetShownWaiter widget_waiter(
       views::test::AnyWidgetTestPasskey{}, "CreateDesktopShortcutDialog");
 
-  base::test::TestFuture<bool, std::u16string> test_future;
+  base::test::TestFuture<std::optional<std::u16string>> test_future;
   OverrideShortcutShownCallback(test_future.GetCallback());
 
   ShowDialogInBrowser(new_browser, "ABC");
@@ -228,15 +237,17 @@ IN_PROC_BROWSER_TEST_F(CreateDesktopShortcutDialogViewBrowserTest,
   destroy_waiter.Wait();
   EXPECT_TRUE(test_future.Wait());
 
-  EXPECT_TRUE(test_future.Get<bool>());
-  EXPECT_EQ(test_future.Get<std::u16string>(), u"ABC (Person 2)");
+  std::optional<std::u16string> dialog_result = test_future.Get();
+  EXPECT_TRUE(dialog_result.has_value());
+  EXPECT_EQ(dialog_result.value(), u"ABC (Person 1)");
 }
 
 IN_PROC_BROWSER_TEST_F(CreateDesktopShortcutDialogViewBrowserTest,
                        DontShowMultipleDialogsIfAlreadyShown) {
   base::UserActionTester action_tester;
-  std::u16string titles[] = {u"title1", u"title2"};
-  base::test::TestFuture<bool, std::u16string> test_future1, test_future2;
+  auto titles = std::to_array<std::u16string>({u"title1", u"title2"});
+  base::test::TestFuture<std::optional<std::u16string>> test_future1,
+      test_future2;
 
   views::NamedWidgetShownWaiter widget_waiter(
       views::test::AnyWidgetTestPasskey{}, "CreateDesktopShortcutDialog");
@@ -250,16 +261,17 @@ IN_PROC_BROWSER_TEST_F(CreateDesktopShortcutDialogViewBrowserTest,
       browser()->tab_strip_model()->GetActiveWebContents(), gfx::ImageSkia(),
       titles[1], test_future2.GetCallback());
   EXPECT_TRUE(test_future2.Wait());
-  EXPECT_EQ(test_future2.Get<std::u16string>(), titles[1]);
-  EXPECT_FALSE(test_future2.Get<bool>());
+  auto dialog_result2 = test_future2.Get();
+  EXPECT_FALSE(dialog_result2.has_value());
   EXPECT_FALSE(test_future1.IsReady());
   EXPECT_FALSE(widget->IsClosed());
 
   // The original dialog can still be accepted.
   views::test::AcceptDialog(widget);
   EXPECT_TRUE(test_future1.Wait());
-  EXPECT_EQ(test_future1.Get<std::u16string>(), titles[0]);
-  EXPECT_TRUE(test_future1.Get<bool>());
+  auto dialog_result1 = test_future1.Get();
+  EXPECT_TRUE(dialog_result1.has_value());
+  EXPECT_EQ(dialog_result1.value(), titles[0]);
   EXPECT_EQ(
       1, action_tester.GetActionCount("CreateDesktopShortcutDialogAccepted"));
 
@@ -294,6 +306,45 @@ IN_PROC_BROWSER_TEST_F(CreateDesktopShortcutDialogViewBrowserTest,
       shortcuts::ShortcutCreationTaskResult::
           kUserCancelledShortcutCreationFromDialog,
       1);
+}
+
+class PictureInPictureCreateShortcutDialogOcclusionTest
+    : public MixinBasedInProcessBrowserTest {
+ protected:
+  void ShowDialogUi() {
+    ShowCreateDesktopShortcutDialogForTesting(
+        browser()->tab_strip_model()->GetActiveWebContents(), gfx::ImageSkia(),
+        u"DialogTitle", base::DoNothing());
+  }
+  DocumentPictureInPictureMixinTestBase picture_in_picture_test_base_{
+      &mixin_host_};
+};
+
+IN_PROC_BROWSER_TEST_F(PictureInPictureCreateShortcutDialogOcclusionTest,
+                       PipWindowCloses) {
+  picture_in_picture_test_base_.NavigateToURLAndEnterPictureInPicture(
+      browser());
+  auto* pip_web_contents =
+      picture_in_picture_test_base_.window_controller()->GetChildWebContents();
+  ASSERT_NE(nullptr, pip_web_contents);
+  picture_in_picture_test_base_.WaitForPageLoad(pip_web_contents);
+
+  // Show dialog.
+  base::UserActionTester action_tester;
+  views::NamedWidgetShownWaiter widget_waiter(
+      views::test::AnyWidgetTestPasskey{}, "CreateDesktopShortcutDialog");
+  ShowDialogUi();
+  views::Widget* dialog_widget = widget_waiter.WaitIfNeededAndGet();
+  EXPECT_NE(nullptr, dialog_widget);
+
+  // Occlude dialog with picture in picture web contents, verify window is
+  // closed but dialog stays open.
+  PictureInPictureWindowManager::GetInstance()
+      ->GetOcclusionTracker()
+      ->SetWidgetOcclusionStateForTesting(dialog_widget, /*occluded=*/true);
+  EXPECT_TRUE(picture_in_picture_test_base_.AwaitPipWindowClosedSuccessfully());
+  EXPECT_NE(nullptr, dialog_widget);
+  EXPECT_TRUE(dialog_widget->IsVisible());
 }
 
 }  // namespace

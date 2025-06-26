@@ -5,11 +5,13 @@
 #include "components/safe_browsing/core/browser/hashprefix_realtime/ohttp_key_service.h"
 
 #include "base/base64.h"
+#include "base/feature_list.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/rand_util.h"
 #include "base/strings/escape.h"
 #include "components/prefs/pref_service.h"
 #include "components/safe_browsing/core/browser/utils/backoff_operator.h"
+#include "components/safe_browsing/core/common/features.h"
 #include "components/safe_browsing/core/common/hashprefix_realtime/hash_realtime_utils.h"
 #include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 #include "components/safe_browsing/core/common/utils.h"
@@ -28,8 +30,8 @@ constexpr base::TimeDelta kKeyFetchTimeout = base::Seconds(3);
 
 constexpr char kKeyFetchServerUrl[] =
     "https://safebrowsingohttpgateway.googleapis.com/v1/ohttp/hpkekeyconfig";
-// Key older than 7 days is considered expired and should be refetched.
-constexpr base::TimeDelta kKeyExpirationDuration = base::Days(7);
+// Key older than 3 days is considered expired and should be refetched.
+constexpr base::TimeDelta kKeyExpirationDuration = base::Days(3);
 
 // Async fetch will kick in if the key is close to the expiration threshold.
 constexpr base::TimeDelta kKeyCloseToExpirationThreshold = base::Days(1);
@@ -109,14 +111,24 @@ constexpr net::NetworkTrafficAnnotationTag kOhttpKeyTrafficAnnotation =
       "default."
   )");
 
-bool IsEnabled(PrefService* pref_service, std::optional<std::string> country) {
+bool IsEnabled(PrefService* pref_service,
+               std::optional<std::string> country,
+               bool are_background_lookups_allowed) {
   // If this class has been created, it is already known that the session is not
   // off-the-record, so |is_off_the_record| is passed through as false.
-  return safe_browsing::hash_realtime_utils::DetermineHashRealTimeSelection(
-             /*is_off_the_record=*/false, pref_service,
-             /*latest_country=*/country) ==
-         safe_browsing::hash_realtime_utils::HashRealTimeSelection::
-             kHashRealTimeService;
+  safe_browsing::hash_realtime_utils::HashRealTimeSelection
+      hash_realtime_selection =
+          safe_browsing::hash_realtime_utils::DetermineHashRealTimeSelection(
+              /*is_off_the_record=*/false, pref_service,
+              /*latest_country=*/country, /*log_usage_histograms=*/false,
+              /*are_background_lookups_allowed=*/
+              are_background_lookups_allowed);
+  return hash_realtime_selection ==
+             safe_browsing::hash_realtime_utils::HashRealTimeSelection::
+                 kHashRealTimeService ||
+         hash_realtime_selection ==
+             safe_browsing::hash_realtime_utils::HashRealTimeSelection::
+                 kHashRealTimeServiceBackgroundOnly;
 }
 
 GURL GetKeyFetchingUrl() {
@@ -136,7 +148,8 @@ OhttpKeyService::OhttpKeyService(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
     PrefService* pref_service,
     PrefService* local_state,
-    base::RepeatingCallback<std::optional<std::string>()> country_getter)
+    base::RepeatingCallback<std::optional<std::string>()> country_getter,
+    bool are_background_lookups_allowed)
     : url_loader_factory_(url_loader_factory),
       pref_service_(pref_service),
       backoff_operator_(std::make_unique<BackoffOperator>(
@@ -145,7 +158,8 @@ OhttpKeyService::OhttpKeyService(
           kMinBackOffResetDurationInSeconds,
           /*max_backoff_reset_duration_in_seconds=*/
           kMaxBackOffResetDurationInSeconds)),
-      country_getter_(country_getter) {
+      country_getter_(country_getter),
+      are_background_lookups_allowed_(are_background_lookups_allowed) {
   // |pref_service_| can be null in tests.
   if (!pref_service_) {
     return;
@@ -170,13 +184,15 @@ OhttpKeyService::OhttpKeyService(
                                   weak_factory_.GetWeakPtr()));
   }
 
-  SetEnabled(IsEnabled(pref_service_, country_getter_.Run()));
+  SetEnabled(IsEnabled(pref_service_, country_getter_.Run(),
+                       are_background_lookups_allowed_));
 }
 
 OhttpKeyService::~OhttpKeyService() = default;
 
 void OhttpKeyService::OnConfiguringPrefsChanged() {
-  SetEnabled(IsEnabled(pref_service_, country_getter_.Run()));
+  SetEnabled(IsEnabled(pref_service_, country_getter_.Run(),
+                       are_background_lookups_allowed_));
 }
 
 void OhttpKeyService::SetEnabled(bool enable) {
@@ -197,9 +213,6 @@ void OhttpKeyService::SetEnabled(bool enable) {
 }
 
 void OhttpKeyService::GetOhttpKey(Callback callback) {
-  base::UmaHistogramBoolean(
-      "SafeBrowsing.HPRT.OhttpKeyService.IsEnabledFreshnessOnKeyFetch",
-      enabled_ == IsEnabled(pref_service_, country_getter_.Run()));
   if (!enabled_) {
     std::move(callback).Run(std::nullopt);
     return;
@@ -232,6 +245,14 @@ void OhttpKeyService::NotifyLookupResponse(
   if (!enabled_ || server_triggered_fetch_scheduled_ || !ohttp_key_ ||
       ohttp_key_->key != key) {
     return;
+  }
+
+  if (!has_received_lookup_response_from_current_key_) {
+    base::UmaHistogramSparse(
+        "SafeBrowsing.HPRT.OhttpKeyService."
+        "FirstLookupResponseCodeFromCurrentKey",
+        response_code);
+    has_received_lookup_response_from_current_key_ = true;
   }
 
   if (response_code == kKeyRelatedHttpErrorCode) {
@@ -287,6 +308,7 @@ void OhttpKeyService::StartFetch(Callback callback,
   auto resource_request = std::make_unique<network::ResourceRequest>();
   resource_request->url = GetKeyFetchingUrl();
   resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
+  resource_request->headers.SetHeader("X-OhttpPublickey-Fst", "true");
   url_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
                                                  kOhttpKeyTrafficAnnotation);
   url_loader_->SetTimeoutDuration(kKeyFetchTimeout);
@@ -318,6 +340,7 @@ void OhttpKeyService::OnURLLoaderComplete(
   if (is_key_fetch_successful) {
     ohttp_key_ = {*response_body, base::Time::Now() + kKeyExpirationDuration};
     StoreKeyToPref();
+    has_received_lookup_response_from_current_key_ = false;
     backoff_operator_->ReportSuccess();
   } else {
     backoff_operator_->ReportError();

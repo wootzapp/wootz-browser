@@ -4,9 +4,13 @@
 
 #include "extensions/browser/json_file_sanitizer.h"
 
+#include <optional>
+#include <string>
+
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
-#include "base/json/json_string_value_serializer.h"
+#include "base/json/json_reader.h"
+#include "base/json/json_writer.h"
 #include "base/task/sequenced_task_runner.h"
 #include "extensions/browser/extension_file_task_runner.h"
 #include "services/data_decoder/public/cpp/data_decoder.h"
@@ -26,10 +30,9 @@ std::tuple<std::string, bool, bool> ReadAndDeleteTextFile(
   return std::make_tuple(contents, read_success, delete_success);
 }
 
-int WriteStringToFile(const std::string& contents,
-                      const base::FilePath& file_path) {
-  int size = static_cast<int>(contents.length());
-  return base::WriteFile(file_path, contents.data(), size);
+bool WriteStringToFile(const std::string& contents,
+                       const base::FilePath& file_path) {
+  return base::WriteFile(file_path, contents);
 }
 
 }  // namespace
@@ -104,26 +107,23 @@ void JsonFileSanitizer::JsonParsingDone(
   }
 
   // Reserialize the JSON and write it back to the original file.
-  std::string json_string;
-  JSONStringValueSerializer serializer(&json_string);
-  serializer.set_pretty_print(true);
-  if (!serializer.Serialize(*json_value)) {
+  std::optional<std::string> json_string = base::WriteJsonWithOptions(
+      *json_value, base::JSONWriter::OPTIONS_PRETTY_PRINT);
+  if (!json_string) {
     ReportError(Status::kSerializingError, std::string());
     return;
   }
 
-  int size = static_cast<int>(json_string.length());
   io_task_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,
-      base::BindOnce(&WriteStringToFile, std::move(json_string), file_path),
+      base::BindOnce(&WriteStringToFile, std::move(*json_string), file_path),
       base::BindOnce(&JsonFileSanitizer::JsonFileWritten,
-                     weak_factory_.GetWeakPtr(), file_path, size));
+                     weak_factory_.GetWeakPtr(), file_path));
 }
 
 void JsonFileSanitizer::JsonFileWritten(const base::FilePath& file_path,
-                                        int expected_size,
-                                        int actual_size) {
-  if (expected_size != actual_size) {
+                                        bool success) {
+  if (!success) {
     ReportError(Status::kFileWriteError, std::string());
     return;
   }

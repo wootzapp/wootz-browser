@@ -2,12 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/display/util/edid_parser.h"
 
 #include <stddef.h>
 
 #include <algorithm>
+#include <array>
 #include <bitset>
+#include <utility>
 
 #include "base/check.h"
 #include "base/containers/span.h"
@@ -100,8 +107,9 @@ BlockZeroSerialNumberType GetSerialNumberType(
 }
 }  // namespace
 
-EdidParser::EdidParser(const std::vector<uint8_t>& edid_blob, bool is_external)
-    : is_external_display_(is_external),
+EdidParser::EdidParser(std::vector<uint8_t> edid_blob, bool is_external)
+    : edid_blob_(std::move(edid_blob)),
+      is_external_display_(is_external),
       manufacturer_id_(0),
       product_id_(0),
       year_of_manufacture_(display::kInvalidYearOfManufacture),
@@ -109,9 +117,11 @@ EdidParser::EdidParser(const std::vector<uint8_t>& edid_blob, bool is_external)
       bits_per_channel_(-1),
       primaries_({0}),
       audio_formats_(0) {
-  ParseEdid(edid_blob);
+  ParseEdid(edid_blob_);
 }
 
+EdidParser::EdidParser(EdidParser&& other) = default;
+EdidParser& EdidParser::operator=(EdidParser&& other) = default;
 EdidParser::~EdidParser() = default;
 
 uint32_t EdidParser::GetProductCode() const {
@@ -201,7 +211,7 @@ void EdidParser::ParseEdid(const std::vector<uint8_t>& edid) {
   }
   // ICC filename is generated based on these ids. We always read this as big
   // endian so that the file name matches bytes 8-11 as they appear in EDID.
-  manufacturer_id_ = base::numerics::U16FromBigEndian(
+  manufacturer_id_ = base::U16FromBigEndian(
       base::span(edid).subspan<kManufacturerOffset, kManufacturerLength>());
 
   if (edid.size() < kProductIdOffset + kProductIdLength) {
@@ -216,7 +226,7 @@ void EdidParser::ParseEdid(const std::vector<uint8_t>& edid) {
   // used to produce display IDs and we need these to stay consistent. We'll
   // have to keep parsing it incorrectly until we migrate to EDID-based display
   // IDs. See also (googlers-only) http://b/193019614.
-  product_id_ = base::numerics::U16FromBigEndian(
+  product_id_ = base::U16FromBigEndian(
       base::span(edid).subspan<kProductIdOffset, kProductIdLength>());
 
   //   Bytes 12-15: display serial number, in little-endian (LSB). This field is
@@ -242,8 +252,7 @@ void EdidParser::ParseEdid(const std::vector<uint8_t>& edid) {
                                   GetSerialNumberType(serial_number_bytes));
   }
 
-  const uint32_t serial_number =
-      base::numerics::U32FromLittleEndian(serial_number_bytes);
+  const uint32_t serial_number = base::U32FromLittleEndian(serial_number_bytes);
   if (serial_number) {
     block_zero_serial_number_hash_ =
         base::MD5String(base::NumberToString(serial_number));
@@ -288,7 +297,8 @@ void EdidParser::ParseEdid(const std::vector<uint8_t>& edid) {
 
   // Constants are taken from "VESA Enhanced EDID Standard" Release A, Revision
   // 1, Feb 2000, Sec 3.6 "Basic Display Parameters and Features: 5 bytes"
-  static constexpr int kBitsPerChannelTable[] = {0, 6, 8, 10, 12, 14, 16, 0};
+  constexpr static auto kBitsPerChannelTable =
+      std::to_array<int>({0, 6, 8, 10, 12, 14, 16, 0});
 
   constexpr size_t kEDIDRevisionNumberOffset = 19;
   constexpr uint8_t kEDIDRevision4Value = 4;
@@ -568,39 +578,54 @@ void EdidParser::ParseEdid(const std::vector<uint8_t>& edid) {
   constexpr uint8_t kCEOverscanFlagPosition = 0;
   // See CTA-861-F, particularly Table 56 "Colorimetry Data Block".
   constexpr uint8_t kColorimetryDataBlockCapabilityTag = 0x05;
-  constexpr std::pair<gfx::ColorSpace::PrimaryID, gfx::ColorSpace::MatrixID>
-      kPrimaryMatrixIDMap[] = {
-          // xvYCC601. Standard Definition Colorimetry based on IEC 61966-2-4.
-          {gfx::ColorSpace::PrimaryID::SMPTE170M,
-           gfx::ColorSpace::MatrixID::SMPTE170M},
-          // xvYCC709. High Definition Colorimetry based on IEC 61966-2-4.
-          {gfx::ColorSpace::PrimaryID::BT709, gfx::ColorSpace::MatrixID::BT709},
-          // sYCC601. Colorimetry based on IEC 61966-2-1/Amendment 1.
-          {gfx::ColorSpace::PrimaryID::SMPTE170M,
-           gfx::ColorSpace::MatrixID::SMPTE170M},
-          // opYCC601. Colorimetry based on IEC 61966-2-5, Annex A.
-          {gfx::ColorSpace::PrimaryID::SMPTE170M,
-           gfx::ColorSpace::MatrixID::SMPTE170M},
-          // opRGB, Colorimetry based on IEC 61966-2-5.
-          {gfx::ColorSpace::PrimaryID::SMPTE170M,
-           gfx::ColorSpace::MatrixID::RGB},
-          // BT2020YCC. Colorimetry based on ITU-R BT.2020 Y’C’BC’R.
-          {gfx::ColorSpace::PrimaryID::INVALID,
-           gfx::ColorSpace::MatrixID::INVALID},
-          // BT2020YCC. Colorimetry based on ITU-R BT.2020 Y’C’BC’R.
-          {gfx::ColorSpace::PrimaryID::BT2020,
-           gfx::ColorSpace::MatrixID::BT2020_NCL},
-          // BT2020RGB. Colorimetry based on ITU-R BT.2020 R’G’B’.
-          {gfx::ColorSpace::PrimaryID::BT2020, gfx::ColorSpace::MatrixID::RGB}};
+  constexpr auto kPrimaryMatrixIDMap = std::to_array<
+      std::pair<gfx::ColorSpace::PrimaryID, gfx::ColorSpace::MatrixID>>({
+      // xvYCC601. Standard Definition Colorimetry based on IEC 61966-2-4.
+      {gfx::ColorSpace::PrimaryID::SMPTE170M,
+       gfx::ColorSpace::MatrixID::SMPTE170M},
+      // xvYCC709. High Definition Colorimetry based on IEC 61966-2-4.
+      {gfx::ColorSpace::PrimaryID::BT709, gfx::ColorSpace::MatrixID::BT709},
+      // sYCC601. Colorimetry based on IEC 61966-2-1/Amendment 1.
+      {gfx::ColorSpace::PrimaryID::SMPTE170M,
+       gfx::ColorSpace::MatrixID::SMPTE170M},
+      // opYCC601. Colorimetry based on IEC 61966-2-5, Annex A.
+      {gfx::ColorSpace::PrimaryID::SMPTE170M,
+       gfx::ColorSpace::MatrixID::SMPTE170M},
+      // opRGB, Colorimetry based on IEC 61966-2-5.
+      {gfx::ColorSpace::PrimaryID::SMPTE170M, gfx::ColorSpace::MatrixID::RGB},
+      // BT2020YCC. Colorimetry based on ITU-R BT.2020 Y’C’BC’R.
+      {gfx::ColorSpace::PrimaryID::INVALID, gfx::ColorSpace::MatrixID::INVALID},
+      // BT2020YCC. Colorimetry based on ITU-R BT.2020 Y’C’BC’R.
+      {gfx::ColorSpace::PrimaryID::BT2020,
+       gfx::ColorSpace::MatrixID::BT2020_NCL},
+      // BT2020RGB. Colorimetry based on ITU-R BT.2020 R’G’B’.
+      {gfx::ColorSpace::PrimaryID::BT2020, gfx::ColorSpace::MatrixID::RGB},
+      // MD0. Metadata bit.
+      {gfx::ColorSpace::PrimaryID::INVALID, gfx::ColorSpace::MatrixID::INVALID},
+      // MD1. Metadata bit.
+      {gfx::ColorSpace::PrimaryID::INVALID, gfx::ColorSpace::MatrixID::INVALID},
+      // MD2. Metadata bit.
+      {gfx::ColorSpace::PrimaryID::INVALID, gfx::ColorSpace::MatrixID::INVALID},
+      // MD3. Metadata bit.
+      {gfx::ColorSpace::PrimaryID::INVALID, gfx::ColorSpace::MatrixID::INVALID},
+      // F44=0.
+      {gfx::ColorSpace::PrimaryID::INVALID, gfx::ColorSpace::MatrixID::INVALID},
+      // F45=0.
+      {gfx::ColorSpace::PrimaryID::INVALID, gfx::ColorSpace::MatrixID::INVALID},
+      // F46=0.
+      {gfx::ColorSpace::PrimaryID::INVALID, gfx::ColorSpace::MatrixID::INVALID},
+      // DCI-P3. Colorimetry based on DCI-P3.
+      {gfx::ColorSpace::PrimaryID::P3, gfx::ColorSpace::MatrixID::RGB},
+  });
   // See CEA 861.G-2018, Sec.7.5.13, "HDR Static Metadata Data Block" for these.
   constexpr uint8_t kHDRStaticMetadataCapabilityTag = 0x6;
-  constexpr gfx::ColorSpace::TransferID kTransferIDMap[] = {
+  constexpr auto kTransferIDMap = std::to_array<gfx::ColorSpace::TransferID>({
       gfx::ColorSpace::TransferID::BT709,
       gfx::ColorSpace::TransferID::GAMMA24,
       gfx::ColorSpace::TransferID::PQ,
       // STD B67 is also known as Hybrid-log Gamma (HLG).
       gfx::ColorSpace::TransferID::HLG,
-  };
+  });
   constexpr uint8_t kHDRStaticMetadataDataBlockLengthMask = 0x1F;
 
   if (edid.size() < kNumExtensionsOffset + 1) {
@@ -691,9 +716,17 @@ void EdidParser::ParseEdid(const std::vector<uint8_t>& edid) {
           break;
 
         case kColorimetryDataBlockCapabilityTag: {
-          constexpr size_t kMaxNumColorimetryEntries = 8;
+          constexpr size_t kMaxNumColorimetryEntries = 16;
+          // The Colorimetry Data Block bitfield is 2 bytes long, the second
+          // byte containing the most significant bit (MSB), so it needs to be
+          // shifted to the left to create a 16 bit long value that can be
+          // passed to the bitset constructor.
+          long cdb_bits = edid[data_offset + 2];
+          if (edid.size() > data_offset + 3) {
+            cdb_bits += edid[data_offset + 3] << 8;
+          }
           const std::bitset<kMaxNumColorimetryEntries>
-              supported_primaries_bitfield(edid[data_offset + 2]);
+              supported_primaries_bitfield(cdb_bits);
           static_assert(
               kMaxNumColorimetryEntries == std::size(kPrimaryMatrixIDMap),
               "kPrimaryIDMap should describe all possible colorimetry entries");

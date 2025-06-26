@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/events/ozone/evdev/touch_event_converter_evdev.h"
 
 #include <errno.h>
@@ -11,6 +16,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include <array>
 #include <cmath>
 #include <limits>
 #include <optional>
@@ -30,7 +36,6 @@
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
-
 #include "ui/events/devices/device_data_manager.h"
 #include "ui/events/devices/device_util_linux.h"
 #include "ui/events/event.h"
@@ -40,6 +45,7 @@
 #include "ui/events/ozone/evdev/device_event_dispatcher_evdev.h"
 #include "ui/events/ozone/evdev/touch_evdev_types.h"
 #include "ui/events/ozone/evdev/touch_filter/false_touch_finder.h"
+#include "ui/events/ozone/evdev/touch_filter/heatmap_palm_detection_filter.h"
 #include "ui/events/ozone/evdev/touch_filter/neural_stylus_palm_detection_filter.h"
 #include "ui/events/ozone/evdev/touch_filter/palm_detection_filter.h"
 #include "ui/events/ozone/evdev/touch_filter/palm_detection_filter_factory.h"
@@ -131,6 +137,13 @@ std::vector<SupportedHidrawDevice> GetSupportedHidrawDevices() {
           .crop_heatmap = std::nullopt,
       },
       {
+          .name = "quickspi-hid 04F3:4222",
+          .vendor_id = 0x04F3,
+          .product_id = 0x4222,
+          .model_id = ui::HeatmapPalmDetector::ModelId::kRex,
+          .crop_heatmap = std::nullopt,
+      },
+      {
           .name = "hid-hxtp 4858:1002",
           .vendor_id = 0x4858,
           .product_id = 0x1002,
@@ -148,23 +161,6 @@ std::vector<SupportedHidrawDevice> GetSupportedHidrawDevices() {
           }),
       },
   };
-}
-
-ui::HeatmapPalmDetector::ModelId GetHidrawModelId(
-    const ui::EventDeviceInfo& info) {
-  // Do not initialize hidraw device for stylus devices.
-  if (info.HasKeyEvent(BTN_TOOL_PEN)) {
-    return ui::HeatmapPalmDetector::ModelId::kNotSupported;
-  }
-  std::vector<SupportedHidrawDevice> supported_hidraw_devices =
-      GetSupportedHidrawDevices();
-  for (const SupportedHidrawDevice& device : GetSupportedHidrawDevices()) {
-    if (info.name() == device.name && info.vendor_id() == device.vendor_id &&
-        info.product_id() == device.product_id) {
-      return device.model_id;
-    }
-  }
-  return ui::HeatmapPalmDetector::ModelId::kNotSupported;
 }
 
 base::FilePath GetHidrawPath(const base::FilePath& root_path) {
@@ -218,6 +214,8 @@ TouchEventConverterEvdev::TouchEventConverterEvdev(
       dispatcher_(dispatcher),
       palm_detection_filter_(
           CreatePalmDetectionFilter(devinfo, shared_palm_state)),
+      heatmap_palm_detection_filter_(
+          CreateHeatmapPalmDetectionFilter(devinfo, shared_palm_state)),
       palm_on_touch_major_max_(
           base::FeatureList::IsEnabled(kEnablePalmOnMaxTouchMajor)),
       palm_on_tool_type_palm_(
@@ -249,6 +247,24 @@ std::unique_ptr<TouchEventConverterEvdev> TouchEventConverterEvdev::Create(
       dispatcher);
   converter->Initialize(devinfo);
   return converter;
+}
+
+// static
+HeatmapPalmDetector::ModelId TouchEventConverterEvdev::GetHidrawModelId(
+    const EventDeviceInfo& info) {
+  // Do not initialize hidraw device for stylus devices.
+  if (info.HasKeyEvent(BTN_TOOL_PEN)) {
+    return HeatmapPalmDetector::ModelId::kNotSupported;
+  }
+  std::vector<SupportedHidrawDevice> supported_hidraw_devices =
+      GetSupportedHidrawDevices();
+  for (const SupportedHidrawDevice& device : GetSupportedHidrawDevices()) {
+    if (info.name() == device.name && info.vendor_id() == device.vendor_id &&
+        info.product_id() == device.product_id) {
+      return device.model_id;
+    }
+  }
+  return HeatmapPalmDetector::ModelId::kNotSupported;
 }
 
 void TouchEventConverterEvdev::Initialize(const EventDeviceInfo& info) {
@@ -441,8 +457,10 @@ void TouchEventConverterEvdev::OnFileCanReadWithoutBlocking(int fd) {
                "TouchEventConverterEvdev::OnFileCanReadWithoutBlocking", "fd",
                fd);
 
-  input_event inputs[kNumTouchEvdevSlots * 6 + 1];
-  ssize_t read_size = read(fd, inputs, sizeof(inputs));
+  std::array<input_event, kNumTouchEvdevSlots * 6 + 1> inputs;
+  ssize_t read_size =
+      read(fd, inputs.data(),
+           (inputs.size() * sizeof(decltype(inputs)::value_type)));
   if (read_size < 0) {
     if (errno == EINTR || errno == EAGAIN)
       return;
@@ -452,7 +470,7 @@ void TouchEventConverterEvdev::OnFileCanReadWithoutBlocking(int fd) {
     return;
   }
 
-  for (unsigned i = 0; i < read_size / sizeof(*inputs); i++) {
+  for (unsigned i = 0; i < read_size / sizeof(inputs[0]); i++) {
     if (!has_mt_) {
       // Emulate the device as an MT device with only 1 slot by inserting extra
       // MT protocol events in the stream.
@@ -644,22 +662,23 @@ EventType TouchEventConverterEvdev::GetEventTypeForTouch(
 
   if ((!touch_was_alive && !touch_is_alive) || touch.was_cancelled) {
     // Ignore this touch; it was never born or has already died.
-    return ET_UNKNOWN;
+    return EventType::kUnknown;
   }
 
   if (!touch_was_alive) {
     // This touch has just been born.
-    return ET_TOUCH_PRESSED;
+    return EventType::kTouchPressed;
   }
 
   if (!touch_is_alive) {
     // This touch was alive but is now dead.
     if (touch.cancelled)
-      return ET_TOUCH_CANCELLED;  // Cancelled by driver or noise filter.
-    return ET_TOUCH_RELEASED;     // Finger lifted.
+      return EventType::kTouchCancelled;  // Cancelled by driver or noise
+                                          // filter.
+    return EventType::kTouchReleased;     // Finger lifted.
   }
 
-  return ET_TOUCH_MOVED;
+  return EventType::kTouchMoved;
 }
 
 void TouchEventConverterEvdev::ReportTouchEvent(
@@ -671,8 +690,9 @@ void TouchEventConverterEvdev::ReportTouchEvent(
                              /* twist */ 0, event.tilt_x, event.tilt_y);
   int flags = event.stylus_button ? ui::EF_LEFT_MOUSE_BUTTON : 0;
   dispatcher_->DispatchTouchEvent(TouchEventParams(
-      input_device_.id, event.slot, event_type, gfx::PointF(event.x, event.y),
-      details, timestamp, flags));
+      input_device_.id, event.slot, event_type,
+      gfx::PointF(event.x - x_min_tuxels_, event.y - y_min_tuxels_), details,
+      timestamp, flags));
 }
 
 bool TouchEventConverterEvdev::MaybeCancelAllTouches() {
@@ -696,7 +716,16 @@ bool TouchEventConverterEvdev::MaybeCancelAllTouches() {
 bool TouchEventConverterEvdev::IsPalm(const InProgressTouchEvdev& touch) {
   if (support_heatmap_palm_detection_) {
     auto* palm_detector = HeatmapPalmDetector::GetInstance();
-    if (palm_detector && palm_detector->IsReady()) {
+    bool should_run = true;
+    if (heatmap_palm_detection_filter_) {
+      auto* heatmap_palm_detection_filter =
+          static_cast<HeatmapPalmDetectionFilter*>(
+              heatmap_palm_detection_filter_.get());
+      should_run =
+          heatmap_palm_detection_filter->ShouldRunModel(touch.tracking_id);
+    }
+
+    if (palm_detector && palm_detector->IsReady() && should_run) {
       return palm_detector->IsPalm(touch.tracking_id);
     }
   }
@@ -986,9 +1015,10 @@ void TouchEventConverterEvdev::ProcessTouchEvent(InProgressTouchEvdev* event,
   EventType event_type = GetEventTypeForTouch(*event);
 
   // The tool type is fixed with the touch pressed event and does not change.
-  if (event_type == ET_TOUCH_PRESSED)
+  if (event_type == EventType::kTouchPressed) {
     event->reported_tool_type = GetEventPointerType(event->tool_code);
-  if (event_type != ET_UNKNOWN) {
+  }
+  if (event_type != EventType::kUnknown) {
     UpdateRadiusFromTouchWithOrientation(event);
     ReportTouchEvent(*event, event_type, timestamp);
   }

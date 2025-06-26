@@ -4,11 +4,12 @@
 
 import {assert} from 'chrome://resources/js/assert.js';
 
-import {AcceleratorConfigurationProvider, AcceleratorConfigurationProviderRemote, AcceleratorResultData, AcceleratorsUpdatedObserverRemote, EditDialogCompletedActions, PolicyUpdatedObserverRemote, Subactions, UserAction} from '../mojom-webui/shortcut_customization.mojom-webui.js';
+import type {AcceleratorConfigurationProviderRemote, AcceleratorResultData, AcceleratorsUpdatedObserverRemote, EditDialogCompletedActions, PolicyUpdatedObserverRemote, Subactions, UserAction} from '../mojom-webui/shortcut_customization.mojom-webui.js';
+import {AcceleratorConfigurationProvider} from '../mojom-webui/shortcut_customization.mojom-webui.js';
 
 import {fakeAcceleratorConfig, fakeLayoutInfo} from './fake_data.js';
 import {FakeShortcutProvider} from './fake_shortcut_provider.js';
-import {Accelerator, AcceleratorCategory, AcceleratorSource, MojoAcceleratorConfig, MojoLayoutInfo, ShortcutProviderInterface} from './shortcut_types.js';
+import type {Accelerator, AcceleratorCategory, AcceleratorSource, MetaKey, MojoAcceleratorConfig, MojoLayoutInfo, ShortcutProviderInterface} from './shortcut_types.js';
 
 /**
  * @fileoverview
@@ -78,13 +79,17 @@ export class ShortcutProviderWrapper implements ShortcutProviderInterface {
     return this.remote.isMutable(source);
   }
 
+  hasCustomAccelerators(): Promise<{hasCustomAccelerators: boolean}> {
+    return this.remote.hasCustomAccelerators();
+  }
+
   isCustomizationAllowedByPolicy():
       Promise<{isCustomizationAllowedByPolicy: boolean}> {
     return this.remote.isCustomizationAllowedByPolicy();
   }
 
-  hasLauncherButton(): Promise<{hasLauncherButton: boolean}> {
-    return this.remote.hasLauncherButton();
+  getMetaKeyToDisplay(): Promise<{metaKey: MetaKey}> {
+    return this.remote.getMetaKeyToDisplay();
   }
 
   addAccelerator(

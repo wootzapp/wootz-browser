@@ -10,8 +10,14 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/commerce/commerce_ui_tab_helper.h"
+#include "chrome/browser/ui/commerce/ui_utils.h"
+#include "chrome/browser/ui/tabs/public/tab_features.h"
+#include "chrome/browser/ui/toasts/api/toast_id.h"
+#include "chrome/browser/ui/toasts/toast_controller.h"
+#include "chrome/browser/ui/toasts/toast_features.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_view.h"
@@ -25,11 +31,13 @@
 #include "components/omnibox/browser/vector_icons.h"
 #include "components/prefs/pref_service.h"
 #include "components/strings/grit/components_strings.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/gfx/vector_icon_types.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/view_class_properties.h"
 
 ProductSpecificationsIconView::ProductSpecificationsIconView(
@@ -46,10 +54,8 @@ ProductSpecificationsIconView::ProductSpecificationsIconView(
   SetUpForInOutAnimation();
   SetProperty(views::kElementIdentifierKey,
               kProductSpecificationsChipElementId);
-  SetAccessibilityProperties(
-      /*role*/ std::nullopt,
-      l10n_util::GetStringUTF16(
-          IDS_PRODUCT_SPECIFICATIONS_PAGE_ACTION_ADD_DEFAULT));
+  GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_COMPARE_PAGE_ACTION_ADD_DEFAULT));
 }
 
 ProductSpecificationsIconView::~ProductSpecificationsIconView() = default;
@@ -60,8 +66,17 @@ views::BubbleDialogDelegate* ProductSpecificationsIconView::GetBubble() const {
 
 void ProductSpecificationsIconView::OnExecuting(
     PageActionIconView::ExecuteSource execute_source) {
-  NOTIMPLEMENTED();
-  // TODO(b/325660810): Add implementation for execution.
+  auto* web_contents = GetWebContents();
+  CHECK(web_contents);
+  auto* tab_helper = tabs::TabInterface::GetFromContents(web_contents)
+                         ->GetTabFeatures()
+                         ->commerce_ui_tab_helper();
+  CHECK(tab_helper);
+
+  tab_helper->OnProductSpecificationsIconClicked();
+
+  commerce::ShowProductSpecsConfirmationToast(
+      tab_helper->GetComparisonSetName(), browser_);
 }
 
 void ProductSpecificationsIconView::ForceVisibleForTesting(bool is_added) {
@@ -76,12 +91,12 @@ const gfx::VectorIcon& ProductSpecificationsIconView::GetVectorIcon() const {
 void ProductSpecificationsIconView::UpdateImpl() {
   bool should_show = ShouldShow();
   if (should_show) {
-    // TODO(b/325660810): Add logics to flip button visual state.
-    SetVisualState(false);
-    SetLabel(l10n_util::GetStringUTF16(
-        IDS_PRODUCT_SPECIFICATIONS_PAGE_ACTION_ADD_DEFAULT));
+    // TODO(b/369238920): Delete the SetVisualState after the add to comparison
+    // table toast is launched.
+    SetVisualState(IsInProductSpecificationsSet());
     MaybeShowPageActionLabel();
   } else {
+    scoped_window_call_to_action_ptr_.reset();
     HidePageActionLabel();
   }
   SetVisible(should_show);
@@ -112,8 +127,9 @@ bool ProductSpecificationsIconView::ShouldShow() {
   if (!web_contents) {
     return false;
   }
-  auto* tab_helper =
-      commerce::CommerceUiTabHelper::FromWebContents(web_contents);
+  auto* tab_helper = tabs::TabInterface::GetFromContents(web_contents)
+                         ->GetTabFeatures()
+                         ->commerce_ui_tab_helper();
 
   return tab_helper && tab_helper->ShouldShowProductSpecificationsIconView();
 }
@@ -121,21 +137,37 @@ bool ProductSpecificationsIconView::ShouldShow() {
 void ProductSpecificationsIconView::SetVisualState(bool is_added) {
   icon_ = is_added ? &omnibox::kProductSpecificationsAddedIcon
                    : &omnibox::kProductSpecificationsAddIcon;
+  if (GetWebContents()) {
+    auto* tab_helper = tabs::TabInterface::GetFromContents(GetWebContents())
+                           ->GetTabFeatures()
+                           ->commerce_ui_tab_helper();
+    CHECK(tab_helper);
 
-  SetPaintLabelOverSolidBackground(true);
+    SetLabel(tab_helper->GetProductSpecificationsLabel(is_added));
+  }
+  SetBackgroundVisibility(BackgroundVisibility::kWithLabel);
   UpdateIconImage();
 }
 
 void ProductSpecificationsIconView::MaybeShowPageActionLabel() {
-  if (!base::FeatureList::IsEnabled(commerce::kCommerceAllowChipExpansion)) {
-    return;
-  }
-  auto* tab_helper =
-      commerce::CommerceUiTabHelper::FromWebContents(GetWebContents());
+  auto* tab_helper = tabs::TabInterface::GetFromContents(GetWebContents())
+                         ->GetTabFeatures()
+                         ->commerce_ui_tab_helper();
   if (!tab_helper || !tab_helper->ShouldExpandPageActionIcon(
                          PageActionIconType::kProductSpecifications)) {
     return;
   }
+  if (!tabs::TabInterface::GetFromContents(GetWebContents())
+           ->GetBrowserWindowInterface()
+           ->CanShowCallToAction()) {
+    return;
+  }
+
+  scoped_window_call_to_action_ptr_ =
+      tabs::TabInterface::GetFromContents(GetWebContents())
+          ->GetBrowserWindowInterface()
+          ->ShowCallToAction();
+
   should_extend_label_shown_duration_ = true;
   AnimateIn(std::nullopt);
 }
@@ -143,6 +175,19 @@ void ProductSpecificationsIconView::MaybeShowPageActionLabel() {
 void ProductSpecificationsIconView::HidePageActionLabel() {
   UnpauseAnimation();
   ResetSlideAnimation(false);
+}
+
+bool ProductSpecificationsIconView::IsInProductSpecificationsSet() const {
+  if (!GetWebContents()) {
+    return false;
+  }
+
+  auto* tab_helper = tabs::TabInterface::GetFromContents(GetWebContents())
+                         ->GetTabFeatures()
+                         ->commerce_ui_tab_helper();
+  CHECK(tab_helper);
+
+  return tab_helper->IsInRecommendedSet();
 }
 
 BEGIN_METADATA(ProductSpecificationsIconView)

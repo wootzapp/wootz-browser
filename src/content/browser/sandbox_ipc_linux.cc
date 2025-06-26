@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/341324165): Fix and remove.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/browser/sandbox_ipc_linux.h"
 
 #include <fcntl.h>
@@ -95,13 +100,13 @@ void SandboxIPCHandler::HandleRequestFromChild(int fd) {
   if (len == -1) {
     // TODO: should send an error reply, or the sender might block forever.
     if (errno == EMSGSIZE) {
-      NOTREACHED_IN_MIGRATION() << "Sandbox host message is larger than "
-                                   "kMaxSandboxIPCMessagePayloadSize";
+      NOTREACHED() << "Sandbox host message is larger than "
+                      "kMaxSandboxIPCMessagePayloadSize";
     } else {
-      PLOG(ERROR) << "Recvmsg failed";
-      NOTREACHED_IN_MIGRATION();
+      // TODO(pbos): Consider implementing PNOTREACHED() instead of using PCHECK
+      // here.
+      PCHECK(false) << "Recvmsg failed";
     }
-    return;
   }
   if (fds.empty())
     return;
@@ -124,7 +129,7 @@ void SandboxIPCHandler::HandleRequestFromChild(int fd) {
     HandleMakeSharedMemorySegment(fd, iter, fds);
     return;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void SandboxIPCHandler::HandleMakeSharedMemorySegment(

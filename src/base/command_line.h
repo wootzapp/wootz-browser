@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "base/base_export.h"
+#include "base/compiler_specific.h"
 #include "base/containers/span.h"
 #include "base/debug/debugging_buildflags.h"
 #include "build/build_config.h"
@@ -49,8 +50,8 @@ class BASE_EXPORT CommandLine {
 #endif
 
   using CharType = StringType::value_type;
-  using StringPieceType = std::basic_string_view<CharType>;
   using StringVector = std::vector<StringType>;
+  using StringViewType = std::basic_string_view<CharType>;
   using SwitchMap = std::map<std::string, StringType, std::less<>>;
 
   // Returns CommandLine object constructed with switches and keys alone.
@@ -59,7 +60,7 @@ class BASE_EXPORT CommandLine {
   static CommandLine FromArgvWithoutProgram(const StringVector& argv);
 
 #if BUILDFLAG(IS_WIN)
-  static CommandLine FromString(StringPieceType command_line);
+  static CommandLine FromString(StringViewType command_line);
 #endif
 
   // A constructor for CommandLines that only carry switches and arguments.
@@ -70,6 +71,7 @@ class BASE_EXPORT CommandLine {
   explicit CommandLine(const FilePath& program);
 
   // Construct a new command line from an argument list.
+  // TODO(tsepez): two-arg form should be UNSAFE_BUFFER_USAGE.
   CommandLine(int argc, const CharType* const* argv);
   explicit CommandLine(const StringVector& argv);
 
@@ -100,6 +102,7 @@ class BASE_EXPORT CommandLine {
   // CommandLineToArgvW to parse the command line and convert it back to
   // argc and argv. Tests who don't want this dependency on shell32 and need
   // to honor the arguments passed in should use this function.
+  // TODO(tsepez): should be UNSAFE_BUFFER_USAGE.
   static void InitUsingArgvForTesting(int argc, const char* const* argv);
 #endif
 
@@ -108,7 +111,8 @@ class BASE_EXPORT CommandLine {
   // don't trust the CRT's parsing of the command line, but it still must be
   // called to set up the command line. Returns false if initialization has
   // already occurred, and true otherwise. Only the caller receiving a 'true'
-  // return value should take responsibility for calling Reset.
+  // return value should take responsibility for calling Reset().
+  // TODO(tsepez): should be UNSAFE_BUFFER_USAGE.
   static bool Init(int argc, const char* const* argv);
 
   // Destroys the current process CommandLine singleton. This is necessary if
@@ -127,6 +131,7 @@ class BASE_EXPORT CommandLine {
   static bool InitializedForCurrentProcess();
 
   // Initialize from an argv vector.
+  // TODO(tsepez): two-arg form should be UNSAFE_BUFFER_USAGE.
   void InitFromArgv(int argc, const CharType* const* argv);
   void InitFromArgv(const StringVector& argv);
 
@@ -178,7 +183,7 @@ class BASE_EXPORT CommandLine {
   StringType GetArgumentsString() const;
 
   // Returns the original command line string as a vector of strings.
-  const StringVector& argv() const { return argv_; }
+  const StringVector& argv() const LIFETIME_BOUND { return argv_; }
 
   // Get and Set the program part of the command line string (the first item).
   FilePath GetProgram() const;
@@ -196,20 +201,21 @@ class BASE_EXPORT CommandLine {
   // value or isn't present, this method returns the empty string.
   // Switch names must be lowercase.
   std::string GetSwitchValueASCII(std::string_view switch_string) const;
+  std::string GetSwitchValueUTF8(std::string_view switch_string) const;
   FilePath GetSwitchValuePath(std::string_view switch_string) const;
   StringType GetSwitchValueNative(std::string_view switch_string) const;
 
   // Get a copy of all switches, along with their values.
-  const SwitchMap& GetSwitches() const { return switches_; }
+  const SwitchMap& GetSwitches() const LIFETIME_BOUND { return switches_; }
 
   // Append a switch [with optional value] to the command line.
   // Note: Switches will precede arguments regardless of appending order.
   void AppendSwitch(std::string_view switch_string);
   void AppendSwitchPath(std::string_view switch_string, const FilePath& path);
-  void AppendSwitchNative(std::string_view switch_string,
-                          StringPieceType value);
+  void AppendSwitchNative(std::string_view switch_string, StringViewType value);
   void AppendSwitchASCII(std::string_view switch_string,
                          std::string_view value);
+  void AppendSwitchUTF8(std::string_view switch_string, std::string_view value);
 
   // Removes the switch that matches |switch_key_without_prefix|, regardless of
   // prefix and value. If no such switch is present, this has no effect.
@@ -230,7 +236,7 @@ class BASE_EXPORT CommandLine {
   // Note: Switches will precede arguments regardless of appending order.
   void AppendArg(std::string_view value);
   void AppendArgPath(const FilePath& value);
-  void AppendArgNative(StringPieceType value);
+  void AppendArgNative(StringViewType value);
 
   // Append the switches and arguments from another command line to this one.
   // If `include_program` is true, program will be overwritten by other's.
@@ -238,12 +244,12 @@ class BASE_EXPORT CommandLine {
 
   // Insert a command before the current command.
   // Common for debuggers, like "gdb --args".
-  void PrependWrapper(StringPieceType wrapper);
+  void PrependWrapper(StringViewType wrapper);
 
 #if BUILDFLAG(IS_WIN)
   // Initialize by parsing the given command line string.
   // The program name is assumed to be the first item in the string.
-  void ParseFromString(StringPieceType command_line);
+  void ParseFromString(StringViewType command_line);
 
   // Returns true if the command line had the --single-argument switch, and
   // thus likely came from a Windows shell registration. This is only set if the
@@ -315,7 +321,7 @@ class BASE_EXPORT CommandLine {
   // The string returned by GetCommandLineW(), to be parsed via
   // ParseFromString(). Empty if this command line was not parsed from a string,
   // or if ParseFromString() has finished executing.
-  StringPieceType raw_command_line_string_;
+  StringViewType raw_command_line_string_;
 
   // Set to true if the command line had --single-argument when initially
   // parsed. It does not change if the command line mutates after initial
@@ -344,7 +350,7 @@ class BASE_EXPORT DuplicateSwitchHandler {
  public:
   // out_value contains the existing value of the switch
   virtual void ResolveDuplicate(std::string_view key,
-                                CommandLine::StringPieceType new_value,
+                                CommandLine::StringViewType new_value,
                                 CommandLine::StringType& out_value) = 0;
   virtual ~DuplicateSwitchHandler() = default;
 };

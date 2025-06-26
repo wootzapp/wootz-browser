@@ -4,24 +4,35 @@
 
 package org.chromium.chrome.browser.password_entry_edit;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-import androidx.annotation.Nullable;
+import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 /**
- * This class is responsible for rendering a fragment containing details about a site that
- * the user blocked from saving.
+ * This class is responsible for rendering a fragment containing details about a site that the user
+ * blocked from saving.
  */
+@NullMarked
 public class BlockedCredentialFragmentView extends CredentialEntryFragmentViewBase {
-    private Runnable mDeleteDelegate;
+    private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
 
     @Override
-    public void onCreatePreferences(Bundle bundle, String s) {
-        getActivity().setTitle(R.string.section_saved_passwords_exceptions);
+    public void onCreatePreferences(@Nullable Bundle bundle, @Nullable String s) {
+        mPageTitle.set(getString(R.string.section_saved_passwords_exceptions));
+    }
+
+    @Override
+    public ObservableSupplier<String> getPageTitle() {
+        return mPageTitle;
     }
 
     @Override
@@ -34,7 +45,7 @@ public class BlockedCredentialFragmentView extends CredentialEntryFragmentViewBa
     }
 
     void setUrlOrApp(String urlOrApp) {
-        TextView urlOrAppText = getView().findViewById(R.id.url_or_app);
+        TextView urlOrAppText = assumeNonNull(getView()).findViewById(R.id.url_or_app);
         urlOrAppText.setText(urlOrApp);
     }
 }

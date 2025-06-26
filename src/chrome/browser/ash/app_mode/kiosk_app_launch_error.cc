@@ -44,8 +44,6 @@ std::string KioskAppLaunchError::GetErrorMessage(Error error) {
     case Error::kUnableToRetrieveHash:
     case Error::kPolicyLoadFailed:
     case Error::kUserNotAllowlisted:
-    case Error::kLacrosDataMigrationStarted:
-    case Error::kLacrosBackwardDataMigrationStarted:
       return l10n_util::GetStringUTF8(IDS_KIOSK_APP_FAILED_TO_LAUNCH);
 
     case Error::kCryptohomedNotRunning:
@@ -75,18 +73,24 @@ std::string KioskAppLaunchError::GetErrorMessage(Error error) {
           IDS_KIOSK_APP_ERROR_EXTENSIONS_POLICY_INVALID);
   }
 
-  NOTREACHED_IN_MIGRATION()
-      << "Unknown kiosk app launch error, error=" << static_cast<int>(error);
-  return l10n_util::GetStringUTF8(IDS_KIOSK_APP_FAILED_TO_LAUNCH);
+  NOTREACHED() << "Unknown kiosk app launch error, error="
+               << static_cast<int>(error);
 }
 
 // static
 void KioskAppLaunchError::Save(KioskAppLaunchError::Error error) {
-  PrefService* local_state = g_browser_process->local_state();
-  ScopedDictPrefUpdate dict_update(local_state,
-                                   KioskChromeAppManager::kKioskDictionaryName);
-  dict_update->SetByDottedPath(kKeyLaunchError, static_cast<int>(error));
   s_last_error = error;
+
+  PrefService* local_state = g_browser_process->local_state();
+  {
+    ScopedDictPrefUpdate dict_update(
+        local_state, KioskChromeAppManager::kKioskDictionaryName);
+    dict_update->SetByDottedPath(kKeyLaunchError, static_cast<int>(error));
+  }
+
+  // Make sure that the kiosk launch error gets written to disk before the
+  // browser is killed.
+  local_state->CommitPendingWrite();
 }
 
 // static

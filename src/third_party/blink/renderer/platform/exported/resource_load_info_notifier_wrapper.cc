@@ -125,6 +125,8 @@ void ResourceLoadInfoNotifierWrapper::NotifyResourceResponseReceived(
       network_utils::AlwaysAccessNetwork(response_head->headers);
   resource_load_info_->network_info->remote_endpoint =
       response_head->remote_endpoint;
+  // TODO: crbug.com/398226457 - Investigate request failure scenarios.
+  resource_load_info_->proxy_chain = response_head->proxy_chain;
   if (response_head->headers) {
     resource_load_info_->http_status_code =
         response_head->headers->response_code();
@@ -184,8 +186,6 @@ void ResourceLoadInfoNotifierWrapper::NotifyResourceLoadCompleted(
                        status.error_code);
 
   resource_load_info_->was_cached = status.exists_in_cache;
-  resource_load_info_->was_in_network_service_memory_cache =
-      status.exists_in_memory_cache;
   resource_load_info_->net_error = status.error_code;
   resource_load_info_->total_received_bytes = status.encoded_data_length;
   resource_load_info_->raw_body_bytes = status.encoded_body_length;

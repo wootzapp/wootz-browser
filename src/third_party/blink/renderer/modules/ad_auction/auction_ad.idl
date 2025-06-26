@@ -13,7 +13,11 @@ dictionary AuctionAd {
   USVString sizeGroup;
   USVString buyerReportingId;
   USVString buyerAndSellerReportingId;
+  [RuntimeEnabled=FledgeAuctionDealSupport]
+  sequence<USVString> selectableBuyerAndSellerReportingIds;
   any metadata;
   DOMString adRenderId;
   sequence<USVString> allowedReportingOrigins;
+  [RuntimeEnabled=FledgeTrustedSignalsKVv1CreativeScanning]
+  USVString creativeScanningMetadata;
 };

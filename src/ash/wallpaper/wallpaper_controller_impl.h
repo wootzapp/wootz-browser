@@ -6,12 +6,12 @@
 #define ASH_WALLPAPER_WALLPAPER_CONTROLLER_IMPL_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "ash/ash_export.h"
-#include "ash/display/window_tree_host_manager.h"
 #include "ash/login/login_screen_controller.h"
 #include "ash/login/ui/login_data_dispatcher.h"
 #include "ash/public/cpp/image_downloader.h"
@@ -50,6 +50,7 @@
 #include "components/user_manager/user_type.h"
 #include "ui/compositor/compositor_lock.h"
 #include "ui/display/display_observer.h"
+#include "ui/display/manager/display_manager_observer.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/native_theme/native_theme.h"
 #include "ui/native_theme/native_theme_observer.h"
@@ -89,7 +90,7 @@ using CustomWallpaperMap = std::map<AccountId, CustomWallpaperElement>;
 //     state is ACTIVE;
 class ASH_EXPORT WallpaperControllerImpl
     : public WallpaperController,
-      public WindowTreeHostManager::Observer,
+      public display::DisplayManagerObserver,
       public ShellObserver,
       public LoginDataDispatcher::Observer,
       public SessionObserver,
@@ -112,7 +113,6 @@ class ASH_EXPORT WallpaperControllerImpl
   // non-production members i.e. in tests.
   explicit WallpaperControllerImpl(
       std::unique_ptr<WallpaperPrefManager> pref_manager,
-      std::unique_ptr<OnlineWallpaperVariantInfoFetcher> fetcher,
       std::unique_ptr<WallpaperImageDownloader> image_downloader);
 
   WallpaperControllerImpl(const WallpaperControllerImpl&) = delete;
@@ -236,9 +236,6 @@ class ASH_EXPORT WallpaperControllerImpl
 
   // WallpaperController:
   void SetClient(WallpaperControllerClient* client) override;
-  WallpaperDragDropDelegate* GetDragDropDelegate() override;
-  void SetDragDropDelegate(
-      std::unique_ptr<WallpaperDragDropDelegate> delegate) override;
   void SetDriveFsDelegate(
       std::unique_ptr<WallpaperDriveFsDelegate> drivefs_delegate) override;
   void Init(const base::FilePath& user_data,
@@ -276,7 +273,7 @@ class ASH_EXPORT WallpaperControllerImpl
       DailyGooglePhotosIdCache& ids_out) const override;
 
   void SetTimeOfDayWallpaper(const AccountId& account_id,
-                             SetWallpaperCallback callback) override;
+                             SetTimeOfDayWallpaperCallback callback) override;
   bool IsTimeOfDayWallpaper() const;
   void SetDefaultWallpaper(const AccountId& account_id,
                            bool show_wallpaper,
@@ -297,6 +294,7 @@ class ASH_EXPORT WallpaperControllerImpl
                               const gfx::ImageSkia& image) override;
   void SetSeaPenWallpaper(const AccountId& account_id,
                           uint32_t image_id,
+                          bool preview_mode,
                           SetWallpaperCallback callback) override;
   void ConfirmPreviewWallpaper() override;
   void CancelPreviewWallpaper() override;
@@ -326,6 +324,8 @@ class ASH_EXPORT WallpaperControllerImpl
   bool IsWallpaperControlledByPolicy(
       const AccountId& account_id) const override;
   std::optional<WallpaperInfo> GetActiveUserWallpaperInfo() const override;
+  std::optional<WallpaperInfo> GetWallpaperInfoForAccountId(
+      const AccountId& account_id) const override;
   void SetDailyRefreshCollectionId(const AccountId& account_id,
                                    const std::string& collection_id) override;
   std::string GetDailyRefreshCollectionId(
@@ -333,9 +333,10 @@ class ASH_EXPORT WallpaperControllerImpl
   void UpdateDailyRefreshWallpaper(
       RefreshWallpaperCallback callback = base::DoNothing()) override;
   void SyncLocalAndRemotePrefs(const AccountId& account_id) override;
+  const AccountId& CurrentAccountId() const override;
 
-  // WindowTreeHostManager::Observer:
-  void OnDisplayConfigurationChanged() override;
+  // display::DisplayManagerObserver:
+  void OnDidApplyDisplayChanges() override;
 
   // ShellObserver:
   void OnRootWindowAdded(aura::Window* root_window) override;
@@ -504,6 +505,9 @@ class ASH_EXPORT WallpaperControllerImpl
                                 SetWallpaperCallback callback,
                                 const gfx::ImageSkia& image);
 
+  void OnGetCustomizationIdForOobe(
+      std::optional<std::string_view> customization_id);
+
   // Used as the callback as soon as the OOBE wallpaper is loaded and decoded
   // from file system.
   void OnOobeWallpaperDecoded(const base::FilePath& path,
@@ -562,16 +566,16 @@ class ASH_EXPORT WallpaperControllerImpl
   // immediately if `account_id` is for the active user.
   void OnSeaPenWallpaperDecoded(const AccountId& account_id,
                                 uint32_t sea_pen_image_id,
+                                bool preview_mode,
                                 SetWallpaperCallback callback,
                                 const gfx::ImageSkia& image_skia);
 
   void OnSeaPenWallpaperSavedToPublic(const AccountId& account_id,
                                       const gfx::ImageSkia& image_skia,
                                       uint32_t sea_pen_image_id,
+                                      bool preview_mode,
                                       SetWallpaperCallback callback,
                                       const base::FilePath& file_path);
-
-  void OnSeaPenFilesMigrated(const AccountId& account_id, bool success);
 
   // Saves |image| to disk if the user's data is not ephemeral, or if it is a
   // policy wallpaper for public accounts. Shows the wallpaper immediately if
@@ -693,8 +697,13 @@ class ASH_EXPORT WallpaperControllerImpl
   void HandleWallpaperInfoSyncedIn(const AccountId& account_id,
                                    const WallpaperInfo& info);
 
+  void OnGetCustomizationIdForTimeOfDayWallpaper(
+      const AccountId& account_id,
+      SetTimeOfDayWallpaperCallback set_time_of_day_wallpaper_callback,
+      std::optional<std::string_view> customization_id);
+
   // Called as a callback for `SetTimeOfDayWallpaper`.
-  void OnTimeOfDayWallpaperSetAfterOobe(bool success);
+  void OnTimeOfDayWallpaperSetAfterOobe(uint64_t unit_id, bool success);
 
   // Called as a callback for `UpdateDailyRefreshWallpaper`.
   void OnDailyRefreshWallpaperUpdated(RefreshWallpaperCallback callback,
@@ -774,10 +783,6 @@ class ASH_EXPORT WallpaperControllerImpl
   // Manages interactions with relevant preferences.
   std::unique_ptr<WallpaperPrefManager> pref_manager_;
 
-  // The delegate for drag-and-drop events over the wallpaper.
-  // NOTE: May be `nullptr` when drag-and-drop related features are disabled.
-  std::unique_ptr<WallpaperDragDropDelegate> drag_drop_delegate_;
-
   std::unique_ptr<WallpaperDriveFsDelegate> drivefs_delegate_;
 
   // Asynchronous task to extract colors from the wallpaper.
@@ -788,7 +793,7 @@ class ASH_EXPORT WallpaperControllerImpl
   std::unique_ptr<WallpaperWindowStateManager> window_state_manager_;
 
   // Delegate to resolve online wallpaper variants.
-  std::unique_ptr<OnlineWallpaperVariantInfoFetcher> variant_info_fetcher_;
+  OnlineWallpaperVariantInfoFetcher variant_info_fetcher_;
 
   // Manages the state of wallpaper blur.
   const std::unique_ptr<WallpaperBlurManager> blur_manager_;
@@ -798,7 +803,7 @@ class ASH_EXPORT WallpaperControllerImpl
   std::optional<WallpaperCalculatedColors> calculated_colors_;
 
   // Account id of the current user.
-  AccountId current_user_;
+  AccountId current_account_id_;
 
   // Cached wallpapers of users.
   CustomWallpaperMap wallpaper_cache_map_;

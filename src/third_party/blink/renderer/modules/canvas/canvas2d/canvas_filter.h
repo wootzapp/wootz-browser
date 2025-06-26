@@ -9,7 +9,9 @@
 #include "third_party/blink/renderer/core/style/filter_operations.h"
 #include "third_party/blink/renderer/modules/modules_export.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable.h"
-#include "third_party/blink/renderer/platform/heap/forward.h"
+#include "third_party/blink/renderer/platform/heap/forward.h"  // IWYU pragma: keep (blink::Visitor)
+
+// IWYU pragma: no_include "third_party/blink/renderer/platform/heap/visitor.h"
 
 namespace blink {
 
@@ -36,7 +38,7 @@ class MODULES_EXPORT CanvasFilter final : public ScriptWrappable {
   // computed without using style resolution.
   static FilterOperations CreateFilterOperations(
       const V8CanvasFilterInput& filter_input,
-      const Font& font,
+      const Font* font,
       Element* style_resolution_host,
       ExecutionContext& execution_context,
       ExceptionState& exception_state);

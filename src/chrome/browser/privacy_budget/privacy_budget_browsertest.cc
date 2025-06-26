@@ -30,6 +30,7 @@
 #include "chrome/common/privacy_budget/privacy_budget_features.h"
 #include "chrome/common/privacy_budget/scoped_privacy_budget_config.h"
 #include "chrome/common/privacy_budget/types.h"
+#include "chrome/test/base/platform_browser_test.h"
 #include "components/prefs/pref_service.h"
 #include "components/ukm/test_ukm_recorder.h"
 #include "components/ukm/ukm_recorder_observer.h"
@@ -47,12 +48,6 @@
 #include "third_party/blink/public/common/privacy_budget/identifiable_token.h"
 #include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-shared.h"
 #include "url/gurl.h"
-
-#if BUILDFLAG(IS_ANDROID)
-#include "chrome/test/base/android/android_browser_test.h"
-#else
-#include "chrome/test/base/in_process_browser_test.h"
-#endif
 
 class Profile;
 
@@ -527,7 +522,7 @@ IN_PROC_BROWSER_TEST_F(PrivacyBudgetBrowserTestWithTestRecorder,
       ukm::builders::Identifiability::kEntryName,
       base::BindLambdaForTesting([this, &run_loop]() {
         // Key of the entry metric to look for.
-        constexpr uint64_t input_digest = UINT64_C(3701609392929341475);
+        constexpr uint64_t input_digest = UINT64_C(10266206452287635496);
         const uint64_t canvas_key =
             blink::IdentifiableSurface::FromTypeAndToken(
                 blink::IdentifiableSurface::Type::kCanvasReadback,
@@ -683,7 +678,7 @@ class PrivacyBudgetAssignedBlockSamplingConfigTest
     scoped_feature_list_.InitWithFeaturesAndParameters(
         {{features::kIdentifiabilityStudy,
           {{features::kIdentifiabilityStudyBlockedMetrics.name, "44033,44289"},
-           {features::kIdentifiabilityStudyBlockedTypes.name, "13,25,28"},
+           {features::kIdentifiabilityStudyBlockedTypes.name, "11,25,28"},
            {features::kIdentifiabilityStudyBlockWeights.name,
             "5202,37515,34582"},
            {features::kIdentifiabilityStudyBlocks.name,
@@ -730,7 +725,7 @@ IN_PROC_BROWSER_TEST_F(PrivacyBudgetAssignedBlockSamplingConfigTest,
 
   // Blocked types
   EXPECT_FALSE(settings->ShouldSampleType(
-      blink::IdentifiableSurface::Type::kLocalFontLookupByFallbackCharacter));
+      blink::IdentifiableSurface::Type::kHTMLMediaElement_CanPlayType));
   EXPECT_FALSE(settings->ShouldSampleType(
       blink::IdentifiableSurface::Type::kMediaCapabilities_DecodingInfo));
 }

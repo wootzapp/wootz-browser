@@ -8,10 +8,15 @@
 #include "ash/system/mahi/mahi_ui_controller.h"
 #include "ui/views/layout/flex_layout_view.h"
 #include "ui/views/metadata/view_factory.h"
+#include "ui/views/view_targeter_delegate.h"
 
 namespace chromeos {
 enum class MahiResponseStatus;
 }  // namespace chromeos
+
+namespace gfx {
+class Rect;
+}  // namespace gfx
 
 namespace views {
 class View;
@@ -24,9 +29,12 @@ enum class VisibilityState;
 // Presents the current Mahi error if any. It should show when the UI controller
 // is in the error state. NOTE:
 // 1. This class is created only when the Mahi feature is enabled.
-// 2. `chromeos::MahiResponseStatus::kLowQuota` is presented in a toast view
-//    instead of this class.
+// 2. `chromeos::MahiResponseStatus::kLowQuota` is treated as a warning, so we
+//    will not handle it in this class.
+// 3. Some error statuses can be displayed inside the Q&A view instead of using
+//    this class.
 class MahiErrorStatusView : public views::FlexLayoutView,
+                            public views::ViewTargeterDelegate,
                             public MahiUiController::Delegate {
   METADATA_HEADER(MahiErrorStatusView, views::View)
 
@@ -40,6 +48,13 @@ class MahiErrorStatusView : public views::FlexLayoutView,
   // MahiUiController::Delegate:
   views::View* GetView() override;
   bool GetViewVisibility(VisibilityState state) const override;
+
+  // views::FlexLayoutView:
+  void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
+
+  // views::ViewTargeterDelegate:
+  bool DoesIntersectRect(const views::View* target,
+                         const gfx::Rect& rect) const override;
 };
 
 BEGIN_VIEW_BUILDER(/*no export*/, MahiErrorStatusView, views::FlexLayoutView)

@@ -2,11 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ui/events/ash/event_rewriter_ash.h"
 
 #include <fcntl.h>
 #include <stddef.h>
 
+#include <algorithm>
 #include <cstdint>
 
 #include "ash/constants/ash_features.h"
@@ -16,13 +22,12 @@
 #include "base/logging.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "device/udev_linux/scoped_udev.h"
-#include "ui/base/accelerators/ash/right_alt_event_property.h"
+#include "ui/base/accelerators/ash/quick_insert_event_property.h"
 #include "ui/base/ime/ash/extension_ime_util.h"
 #include "ui/base/ime/ash/ime_keyboard.h"
 #include "ui/base/ime/ash/input_method_manager.h"
@@ -113,7 +118,7 @@ void RecordAutoRepeatUsageMetric(
 
   // Only want to record metrics if its a repeated keypressed event.
   if (!(auto_repeat_event->flags() & EF_IS_REPEAT) ||
-      !(auto_repeat_event->type() & ET_KEY_PRESSED)) {
+      auto_repeat_event->type() != EventType::kKeyPressed) {
     return;
   }
 
@@ -195,10 +200,10 @@ constexpr struct ModifierRemapping {
      {EF_NONE, DomCode::LAUNCH_ASSISTANT, DomKey::LAUNCH_ASSISTANT,
       VKEY_ASSISTANT}},
     {EF_NONE,
-     ui::mojom::ModifierKey::kRightAlt,
+     ui::mojom::ModifierKey::kQuickInsert,
      nullptr,
      {EF_NONE, DomCode::LAUNCH_ASSISTANT, DomKey::LAUNCH_ASSISTANT,
-      VKEY_RIGHT_ALT}},
+      VKEY_QUICK_INSERT}},
     {EF_FUNCTION_DOWN,
      ui::mojom::ModifierKey::kFunction,
      nullptr,
@@ -534,7 +539,7 @@ bool AreFlagsSet(int flags, int flag_mask) {
 // generate an F-key.
 void RecordSearchPlusDigitFKeyRewrite(ui::EventType event_type,
                                       ui::KeyboardCode key_code) {
-  if (event_type != ET_KEY_PRESSED) {
+  if (event_type != EventType::kKeyPressed) {
     return;
   }
 
@@ -576,8 +581,7 @@ void RecordSearchPlusDigitFKeyRewrite(ui::EventType event_type,
       base::RecordAction(base::UserMetricsAction("SearchPlusDigitRewrite_F12"));
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 
@@ -587,7 +591,7 @@ void RecordSixPackEventRewrites(EventRewriterAsh::Delegate* delegate,
                                 ui::EventType event_type,
                                 ui::KeyboardCode key_code,
                                 bool legacy_variant) {
-  if (event_type != ET_KEY_PRESSED) {
+  if (event_type != EventType::kKeyPressed) {
     return;
   }
 
@@ -624,8 +628,7 @@ void RecordSixPackEventRewrites(EventRewriterAsh::Delegate* delegate,
             base::UserMetricsAction("SearchBasedKeyRewrite_PageDown"));
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   } else {
     switch (key_code) {
@@ -652,8 +655,7 @@ void RecordSixPackEventRewrites(EventRewriterAsh::Delegate* delegate,
             base::UserMetricsAction("AltBasedKeyRewrite_PageDown"));
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
 }
@@ -725,8 +727,7 @@ void RecordFunctionKeyFromKeyCode(ui::KeyboardCode key_code,
                                 event_enum);
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 
@@ -734,7 +735,7 @@ void RecordFunctionKeyFromKeyCode(ui::KeyboardCode key_code,
 void RecordRewritingToFunctionKeys(
     const KeyEvent& key_event,
     const EventRewriterAsh::MutableKeyState* rewritten_state) {
-  if (key_event.type() != ET_KEY_PRESSED && !key_event.is_repeat()) {
+  if (key_event.type() != EventType::kKeyPressed && !key_event.is_repeat()) {
     return;
   }
 
@@ -1001,6 +1002,7 @@ void NotifySixPackRewriteBlockedByFnKey(
           map.result.key_code, (map.condition.flags & ui::EF_COMMAND_DOWN)
                                    ? mojom::SixPackShortcutModifier::kSearch
                                    : mojom::SixPackShortcutModifier::kAlt);
+      return;
     }
   }
 }
@@ -1025,7 +1027,7 @@ bool MaybeNotifyTopRowKeyBlockedByFnKey(
   }
   const auto& scan_code_vector = *scan_code_vector_ptr;
   const auto& key_iter =
-      base::ranges::find(scan_code_vector, key_event.scan_code());
+      std::ranges::find(scan_code_vector, key_event.scan_code());
 
   // If the scan code appears in the top row mapping it is an action key then
   // notify the user the key has been blocked.
@@ -1186,7 +1188,8 @@ void EventRewriterAsh::RewriteMouseButtonEventForTesting(
 EventDispatchDetails EventRewriterAsh::RewriteEvent(
     const Event& event,
     const Continuation continuation) {
-  if ((event.type() == ET_KEY_PRESSED) || (event.type() == ET_KEY_RELEASED)) {
+  if ((event.type() == EventType::kKeyPressed) ||
+      (event.type() == EventType::kKeyReleased)) {
     std::unique_ptr<Event> rewritten_event;
     const base::Time key_rewrite_start_time = base::Time::Now();
     DCHECK((&event)->AsKeyEvent());
@@ -1201,17 +1204,17 @@ EventDispatchDetails EventRewriterAsh::RewriteEvent(
                                     std::move(rewritten_event), status,
                                     continuation);
   }
-  if ((event.type() == ET_MOUSE_PRESSED) ||
-      (event.type() == ET_MOUSE_RELEASED)) {
+  if ((event.type() == EventType::kMousePressed) ||
+      (event.type() == EventType::kMouseReleased)) {
     return RewriteMouseButtonEvent(static_cast<const MouseEvent&>(event),
                                    continuation);
   }
-  if (event.type() == ET_MOUSEWHEEL) {
+  if (event.type() == EventType::kMousewheel) {
     return RewriteMouseWheelEvent(static_cast<const MouseWheelEvent&>(event),
                                   continuation);
   }
-  if ((event.type() == ET_TOUCH_PRESSED) ||
-      (event.type() == ET_TOUCH_RELEASED)) {
+  if ((event.type() == EventType::kTouchPressed) ||
+      (event.type() == EventType::kTouchReleased)) {
     return RewriteTouchEvent(static_cast<const TouchEvent&>(event),
                              continuation);
   }
@@ -1235,11 +1238,11 @@ void EventRewriterAsh::BuildRewrittenKeyEvent(
   if (key_event.properties()) {
     key_event_ptr->SetProperties(*key_event.properties());
   }
-  // Rewrite to VKEY_RIGHT_ALT and set the property on the event to mark it as
-  // being VKEY_RIGHT_ALT.
-  if (state.key_code == VKEY_RIGHT_ALT) {
+  // Rewrite to VKEY_QUICK_INSERT and set the property on the event to mark it
+  // as being VKEY_QUICK_INSERT.
+  if (state.key_code == VKEY_QUICK_INSERT) {
     key_event_ptr->set_key_code(VKEY_ASSISTANT);
-    SetRightAltProperty(key_event_ptr.get());
+    SetQuickInsertProperty(key_event_ptr.get());
   }
   *rewritten_event = std::move(key_event_ptr);
 }
@@ -1261,8 +1264,8 @@ bool EventRewriterAsh::HasAssistantKeyOnKeyboard(
 bool EventRewriterAsh::RewriteModifierKeys(const KeyEvent& key_event,
                                            int device_id,
                                            MutableKeyState* state) {
-  DCHECK(key_event.type() == ET_KEY_PRESSED ||
-         key_event.type() == ET_KEY_RELEASED);
+  DCHECK(key_event.type() == EventType::kKeyPressed ||
+         key_event.type() == EventType::kKeyReleased);
 
   if (!delegate_ || !delegate_->RewriteModifierKeys()) {
     return false;
@@ -1302,7 +1305,7 @@ bool EventRewriterAsh::RewriteModifierKeys(const KeyEvent& key_event,
       }
       break;
     case DomKey::ALT_GRAPH_LATCH:
-      if (key_event.type() == ET_KEY_PRESSED) {
+      if (key_event.type() == EventType::kKeyPressed) {
         pressed_modifier_latches_ |= EF_ALTGR_DOWN;
       } else {
         pressed_modifier_latches_ &= ~EF_ALTGR_DOWN;
@@ -1391,9 +1394,9 @@ bool EventRewriterAsh::RewriteModifierKeys(const KeyEvent& key_event,
                          prefs::kLanguageRemapBackspaceKeyTo, delegate_);
       break;
     case DomCode::LAUNCH_ASSISTANT:
-      if (keyboard_capability_->HasRightAltKey(device_id)) {
-        remapped_key = GetRemappedKey(device_id, mojom::ModifierKey::kRightAlt,
-                                      "", delegate_);
+      if (keyboard_capability_->HasQuickInsertKey(device_id)) {
+        remapped_key = GetRemappedKey(
+            device_id, mojom::ModifierKey::kQuickInsert, "", delegate_);
         break;
       }
       remapped_key =
@@ -1429,7 +1432,7 @@ bool EventRewriterAsh::RewriteModifierKeys(const KeyEvent& key_event,
   bool non_modifier_to_modifier =
       !KeycodeConverter::IsDomKeyForModifier(incoming.key) &&
       KeycodeConverter::IsDomKeyForModifier(state->key);
-  if (key_event.type() == ET_KEY_PRESSED) {
+  if (key_event.type() == EventType::kKeyPressed) {
     state->flags |= characteristic_flag;
     if (non_modifier_to_modifier) {
       // Edge case: User remaps key while still holding it. Remove the
@@ -1453,7 +1456,7 @@ bool EventRewriterAsh::RewriteModifierKeys(const KeyEvent& key_event,
     }
   }
 
-  if (key_event.type() == ET_KEY_PRESSED) {
+  if (key_event.type() == EventType::kKeyPressed) {
     if (!KeycodeConverter::IsDomKeyForModifier(state->key)) {
       used_modifier_latches_ |= pressed_modifier_latches_;
       latched_modifier_latches_ = EF_NONE;
@@ -1464,16 +1467,18 @@ bool EventRewriterAsh::RewriteModifierKeys(const KeyEvent& key_event,
   // AcceleratorController, so that the event is visible to apps (see
   // crbug.com/775743).
   if (!ash::features::IsModifierSplitEnabled() &&
-      key_event.type() == ET_KEY_PRESSED && state->key_code == VKEY_CAPITAL) {
+      key_event.type() == EventType::kKeyPressed &&
+      state->key_code == VKEY_CAPITAL) {
     // Toggle the EF_CAPS_LOCK_ON only when the key is pressed, so here it
     // checks whether the key is auto-repeat event. Unfortunately, EF_IS_REPEAT
     // for CapsLock is not reliable, because it checks whether flags are the
     // same, too, but actually CapsLock will trigger to change the
     // EF_CAPS_LOCK_ON flag of the original event. Instead, check whether the
     // current key is already pressed or not.
-    bool is_repeat = base::ranges::find(
+    bool is_repeat = std::ranges::find(
                          pressed_key_states_,
-                         std::tuple(key_event.code(), key_event.GetDomKey(),
+                         std::tuple(key_event.code(),
+                                    DomKey::Base{key_event.GetDomKey()},
                                     key_event.key_code()),
                          [](auto entry) {
                            return std::tuple(entry.first.code, entry.first.key,
@@ -1568,7 +1573,7 @@ bool EventRewriterAsh::ShouldRemapToRightClick(
       AreFlagsSet(flags, EF_LEFT_MOUSE_BUTTON) &&
       pressed_as_right_button_device_ids_.count(
           mouse_event.source_device_id()) &&
-      mouse_event.type() == ET_MOUSE_RELEASED;
+      mouse_event.type() == EventType::kMouseReleased;
   // TODO(crbug.com/1179893): When enabling the deprecate alt click flag by
   // default, decide whether kUseSearchClickForRightClick being disabled
   // should be able to override it.
@@ -1621,10 +1626,11 @@ bool EventRewriterAsh::ShouldRemapToRightClick(
       *matched_mask = kSearchLeftButton;
     } else if (alt_click_down && use_alt_key) {
       // When the alt variant is deprecated, report when it would have matched.
-      *matched_alt_deprecation = ((mouse_event.type() == ET_MOUSE_PRESSED) ||
-                                  pressed_as_right_button_device_ids_.count(
-                                      mouse_event.source_device_id())) &&
-                                 IsFromTouchpadDevice(mouse_event);
+      *matched_alt_deprecation =
+          ((mouse_event.type() == EventType::kMousePressed) ||
+           pressed_as_right_button_device_ids_.count(
+               mouse_event.source_device_id())) &&
+          IsFromTouchpadDevice(mouse_event);
     }
   } else if (use_alt_key) {
     // If currently both Alt key and mouse left button are still pressed,
@@ -1642,7 +1648,7 @@ bool EventRewriterAsh::ShouldRemapToRightClick(
   DCHECK(*matched_mask == 0 || !*matched_alt_deprecation);
 
   return (*matched_mask != 0) &&
-         ((mouse_event.type() == ET_MOUSE_PRESSED) ||
+         ((mouse_event.type() == EventType::kMousePressed) ||
           pressed_as_right_button_device_ids_.count(
               mouse_event.source_device_id())) &&
          IsFromTouchpadDevice(mouse_event);
@@ -1660,15 +1666,15 @@ EventRewriteStatus EventRewriterAsh::RewriteKeyEvent(
 
   // Drop repeated keys from Hotrod remote.
   if ((key_event.flags() & EF_IS_REPEAT) &&
-      (key_event.type() == ET_KEY_PRESSED) && IsHotrodRemote(device_id) &&
-      key_event.key_code() != VKEY_BACK) {
+      (key_event.type() == EventType::kKeyPressed) &&
+      IsHotrodRemote(device_id) && key_event.key_code() != VKEY_BACK) {
     return EVENT_REWRITE_DISCARD;
   }
 
   // Records metric if the `key_event` is for a modifier key press event.
   const bool should_record_modifier_key_press_metrics =
       !(key_event.flags() & EF_IS_REPEAT) &&
-      key_event.type() == ET_KEY_PRESSED &&
+      key_event.type() == EventType::kKeyPressed &&
       !ash::features::IsKeyboardRewriterFixEnabled();
   if (should_record_modifier_key_press_metrics) {
     RecordModifierKeyPressedBeforeRemapping(*keyboard_capability_, device_id,
@@ -1687,8 +1693,9 @@ EventRewriteStatus EventRewriterAsh::RewriteKeyEvent(
       // event is rewritten to ALTGR. A false return is not an error.
       if (RewriteModifierKeys(key_event, device_id, &state)) {
         if (should_record_modifier_key_press_metrics) {
-          RecordModifierKeyPressedAfterRemapping(*keyboard_capability_,
-                                                 device_id, state.code);
+          RecordModifierKeyPressedAfterRemapping(
+              *keyboard_capability_, device_id, state.code, key_event.code(),
+              state.key_code == VKEY_QUICK_INSERT);
         }
         // Early exit with completed event.
         BuildRewrittenKeyEvent(key_event, state, rewritten_event);
@@ -1700,7 +1707,8 @@ EventRewriteStatus EventRewriterAsh::RewriteKeyEvent(
 
   if (should_record_modifier_key_press_metrics) {
     RecordModifierKeyPressedAfterRemapping(*keyboard_capability_, device_id,
-                                           state.code);
+                                           state.code, key_event.code(),
+                                           state.key_code == VKEY_QUICK_INSERT);
   }
 
   if (delegate_ &&
@@ -1791,8 +1799,8 @@ EventDispatchDetails EventRewriterAsh::RewriteMouseButtonEvent(
     }
   }
   int changed_button = EF_NONE;
-  if ((mouse_event.type() == ET_MOUSE_PRESSED) ||
-      (mouse_event.type() == ET_MOUSE_RELEASED)) {
+  if ((mouse_event.type() == EventType::kMousePressed) ||
+      (mouse_event.type() == EventType::kMouseReleased)) {
     changed_button = RewriteModifierClick(mouse_event, &flags);
   }
   if ((mouse_event.flags() == flags) && (status == EVENT_REWRITE_CONTINUE)) {
@@ -1854,44 +1862,34 @@ EventDispatchDetails EventRewriterAsh::RewriteScrollEvent(
 
 void EventRewriterAsh::RewriteNumPadKeys(const KeyEvent& key_event,
                                          MutableKeyState* state) {
-  DCHECK(key_event.type() == ET_KEY_PRESSED ||
-         key_event.type() == ET_KEY_RELEASED);
+  DCHECK(key_event.type() == EventType::kKeyPressed ||
+         key_event.type() == EventType::kKeyReleased);
   static const struct NumPadRemapping {
     KeyboardCode input_key_code;
     MutableKeyState result;
-  } kNumPadRemappings[] = {{VKEY_DELETE,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'.'>::Character, VKEY_DECIMAL}},
-                           {VKEY_INSERT,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'0'>::Character, VKEY_NUMPAD0}},
-                           {VKEY_END,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'1'>::Character, VKEY_NUMPAD1}},
-                           {VKEY_DOWN,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'2'>::Character, VKEY_NUMPAD2}},
-                           {VKEY_NEXT,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'3'>::Character, VKEY_NUMPAD3}},
-                           {VKEY_LEFT,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'4'>::Character, VKEY_NUMPAD4}},
-                           {VKEY_CLEAR,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'5'>::Character, VKEY_NUMPAD5}},
-                           {VKEY_RIGHT,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'6'>::Character, VKEY_NUMPAD6}},
-                           {VKEY_HOME,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'7'>::Character, VKEY_NUMPAD7}},
-                           {VKEY_UP,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'8'>::Character, VKEY_NUMPAD8}},
-                           {VKEY_PRIOR,
-                            {EF_NONE, DomCode::NONE,
-                             DomKey::Constant<'9'>::Character, VKEY_NUMPAD9}}};
+  } kNumPadRemappings[] = {
+      {VKEY_DELETE,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('.'), VKEY_DECIMAL}},
+      {VKEY_INSERT,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('0'), VKEY_NUMPAD0}},
+      {VKEY_END,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('1'), VKEY_NUMPAD1}},
+      {VKEY_DOWN,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('2'), VKEY_NUMPAD2}},
+      {VKEY_NEXT,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('3'), VKEY_NUMPAD3}},
+      {VKEY_LEFT,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('4'), VKEY_NUMPAD4}},
+      {VKEY_CLEAR,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('5'), VKEY_NUMPAD5}},
+      {VKEY_RIGHT,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('6'), VKEY_NUMPAD6}},
+      {VKEY_HOME,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('7'), VKEY_NUMPAD7}},
+      {VKEY_UP,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('8'), VKEY_NUMPAD8}},
+      {VKEY_PRIOR,
+       {EF_NONE, DomCode::NONE, DomKey::FromCharacter('9'), VKEY_NUMPAD9}}};
   for (const auto& map : kNumPadRemappings) {
     if (state->key_code == map.input_key_code) {
       if (KeycodeConverter::DomCodeToLocation(state->code) ==
@@ -1905,8 +1903,8 @@ void EventRewriterAsh::RewriteNumPadKeys(const KeyEvent& key_event,
 
 void EventRewriterAsh::RewriteExtendedKeys(const KeyEvent& key_event,
                                            MutableKeyState* state) {
-  DCHECK(key_event.type() == ET_KEY_PRESSED ||
-         key_event.type() == ET_KEY_RELEASED);
+  DCHECK(key_event.type() == EventType::kKeyPressed ||
+         key_event.type() == EventType::kKeyReleased);
   MutableKeyState incoming = *state;
 
   // TODO(crbug.com/1179893): This workaround isn't needed once Alt rewrites
@@ -1967,8 +1965,8 @@ void EventRewriterAsh::RewriteExtendedKeys(const KeyEvent& key_event,
 void EventRewriterAsh::RewriteFunctionKeys(const KeyEvent& key_event,
                                            int device_id,
                                            MutableKeyState* state) {
-  CHECK(key_event.type() == ET_KEY_PRESSED ||
-        key_event.type() == ET_KEY_RELEASED);
+  CHECK(key_event.type() == EventType::kKeyPressed ||
+        key_event.type() == EventType::kKeyReleased);
 
   // Some key codes have a Dom code but no VKEY value assigned. They're mapped
   // to VKEY values here.
@@ -2096,7 +2094,7 @@ int EventRewriterAsh::RewriteModifierClick(const MouseEvent& mouse_event,
 
     *flags &= ~matched_mask;
     *flags |= EF_RIGHT_MOUSE_BUTTON;
-    if (mouse_event.type() == ET_MOUSE_PRESSED) {
+    if (mouse_event.type() == EventType::kMousePressed) {
       pressed_as_right_button_device_ids_.insert(
           mouse_event.source_device_id());
       if (matched_mask == kSearchLeftButton) {
@@ -2143,14 +2141,14 @@ EventDispatchDetails EventRewriterAsh::RewriteKeyEventInContext(
         (it->second.code != key_state.code || it->second.key != key_state.key ||
          it->second.key_code != key_state.key_code);
 
-    if (key_event.type() == ET_KEY_PRESSED) {
+    if (key_event.type() == EventType::kKeyPressed) {
       // If a key press event for an already pressed key is rewritten in
       // a different way, we send an release event, just before dispatching
       // the (newly) rewritten pressed key, so that following stage can
       // make pairs of key-pressed/-released events or rewritten ones.
       if (is_rewritten_differently) {
         auto dispatched_event = std::make_unique<KeyEvent>(
-            ui::ET_KEY_RELEASED, it->second.key_code, it->second.code,
+            ui::EventType::kKeyReleased, it->second.key_code, it->second.code,
             key_event.flags() & ~it->second.flags, it->second.key,
             key_event.time_stamp());
         dispatched_event->set_source_device_id(key_event.source_device_id());
@@ -2166,7 +2164,7 @@ EventDispatchDetails EventRewriterAsh::RewriteKeyEventInContext(
         // key is rewritten differently), so here as a best effort just
         // mask the consumed key from the current key event flags.
         auto rewritten_key_event = std::make_unique<KeyEvent>(
-            ui::ET_KEY_RELEASED, it->second.key_code, it->second.code,
+            ui::EventType::kKeyReleased, it->second.key_code, it->second.code,
             key_event.flags() & ~key_state.flags, it->second.key,
             key_event.time_stamp());
         rewritten_key_event->set_source_device_id(key_event.source_device_id());
@@ -2202,13 +2200,12 @@ EventDispatchDetails EventRewriterAsh::RewriteKeyEventInContext(
 
   const int mapped_flag = ModifierDomKeyToEventFlag(key_event.GetDomKey());
 
-  if (key_event.type() == ET_KEY_PRESSED) {
+  if (key_event.type() == EventType::kKeyPressed) {
     current_key_state = MutableKeyState(
         rewritten_event ? static_cast<const KeyEvent*>(rewritten_event.get())
                         : &key_event);
     MutableKeyState original_key_state(&key_event);
-    auto iter =
-        base::ranges::find_if(pressed_key_states_, key_state_comparator);
+    auto iter = std::ranges::find_if(pressed_key_states_, key_state_comparator);
 
     // When a key is pressed, store |current_key_state| if it is not stored
     // before.
@@ -2230,7 +2227,7 @@ EventDispatchDetails EventRewriterAsh::RewriteKeyEventInContext(
     return details;
   }
 
-  DCHECK_EQ(key_event.type(), ET_KEY_RELEASED);
+  DCHECK_EQ(key_event.type(), EventType::kKeyReleased);
 
   if (mapped_flag != EF_NONE) {
     // The released key is a modifier
@@ -2291,7 +2288,7 @@ EventDispatchDetails EventRewriterAsh::RewriteKeyEventInContext(
   current_key_state = MutableKeyState(
       rewritten_event ? static_cast<const KeyEvent*>(rewritten_event.get())
                       : &key_event);
-  auto iter = base::ranges::find_if(pressed_key_states_, key_state_comparator);
+  auto iter = std::ranges::find_if(pressed_key_states_, key_state_comparator);
   if (iter != pressed_key_states_.end()) {
     pressed_key_states_.erase(iter);
 
@@ -2367,7 +2364,7 @@ bool EventRewriterAsh::RewriteTopRowKeysForCustomLayout(
 
   const auto& scan_code_vector = *scan_code_vector_ptr;
   const auto& key_iter =
-      base::ranges::find(scan_code_vector, key_event.scan_code());
+      std::ranges::find(scan_code_vector, key_event.scan_code());
 
   // If the scan code appears in the top row mapping it is an action key.
   const bool is_action_key = (key_iter != scan_code_vector.end());

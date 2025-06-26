@@ -23,21 +23,16 @@
 
 #include "third_party/blink/renderer/core/style/style_fetched_image.h"
 
-#include "third_party/blink/public/web/web_local_frame_client.h"
 #include "third_party/blink/renderer/core/css/css_image_value.h"
 #include "third_party/blink/renderer/core/css/style_engine.h"
 #include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/core/frame/local_frame.h"
-#include "third_party/blink/renderer/core/frame/local_frame_client.h"
 #include "third_party/blink/renderer/core/frame/settings.h"
 #include "third_party/blink/renderer/core/loader/resource/image_resource_content.h"
 #include "third_party/blink/renderer/core/paint/timing/image_element_timing.h"
 #include "third_party/blink/renderer/core/paint/timing/paint_timing.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
-#include "third_party/blink/renderer/core/svg/graphics/svg_image.h"
 #include "third_party/blink/renderer/core/svg/graphics/svg_image_for_container.h"
 #include "third_party/blink/renderer/platform/graphics/bitmap_image.h"
-#include "third_party/blink/renderer/platform/graphics/placeholder_image.h"
 
 namespace blink {
 
@@ -56,15 +51,8 @@ StyleFetchedImage::StyleFetchedImage(ImageResourceContent* image,
   is_image_resource_ = true;
   is_lazyload_possibly_deferred_ = is_lazyload_possibly_deferred;
 
-  const PaintTiming* paint_timing = PaintTiming::From(document);
-  is_loaded_after_mouseover_ =
-      paint_timing && paint_timing->IsLCPMouseoverDispatchedRecently();
-
   image_ = image;
   image_->AddObserver(this);
-  // ResourceFetcher is not determined from StyleFetchedImage and it is
-  // impossible to send a request for refetching.
-  image_->SetNotRefetchableDataFromDiskCache();
 }
 
 StyleFetchedImage::~StyleFetchedImage() = default;
@@ -126,7 +114,7 @@ CSSValue* StyleFetchedImage::ComputedCSSValue(const ComputedStyle&,
 }
 
 bool StyleFetchedImage::CanRender() const {
-  return !image_->ErrorOccurred() && !image_->GetImage()->IsNull();
+  return image_->HasImage() && !image_->ErrorOccurred();
 }
 
 bool StyleFetchedImage::IsLoaded() const {
@@ -166,12 +154,15 @@ gfx::SizeF StyleFetchedImage::ImageSize(
     RespectImageOrientationEnum respect_orientation) const {
   multiplier = ApplyImageResolution(multiplier);
 
-  const Image& image = *image_->GetImage();
+  Image& image = *image_->GetImage();
   gfx::SizeF size;
   if (auto* svg_image = DynamicTo<SVGImage>(image)) {
+    const SVGImageViewInfo* view_info =
+        SVGImageForContainer::CreateViewInfo(*svg_image, url_);
     const gfx::SizeF unzoomed_default_object_size =
         gfx::ScaleSize(default_object_size, 1 / multiplier);
-    size = svg_image->ConcreteObjectSize(unzoomed_default_object_size);
+    size = SVGImageForContainer::ConcreteObjectSize(
+        *svg_image, view_info, unzoomed_default_object_size);
   } else {
     size = gfx::SizeF(
         image.Size(ForceOrientationIfNecessary(respect_orientation)));
@@ -179,34 +170,36 @@ gfx::SizeF StyleFetchedImage::ImageSize(
   return ApplyZoom(size, multiplier);
 }
 
-IntrinsicSizingInfo StyleFetchedImage::GetNaturalSizingInfo(
+NaturalSizingInfo StyleFetchedImage::GetNaturalSizingInfo(
     float multiplier,
     RespectImageOrientationEnum respect_orientation) const {
-  const Image& image = *image_->GetImage();
-  IntrinsicSizingInfo intrinsic_sizing_info;
+  Image& image = *image_->GetImage();
+  NaturalSizingInfo sizing_info;
   if (auto* svg_image = DynamicTo<SVGImage>(image)) {
-    svg_image->GetIntrinsicSizingInfo(intrinsic_sizing_info);
+    const SVGImageViewInfo* view_info =
+        SVGImageForContainer::CreateViewInfo(*svg_image, url_);
+    sizing_info =
+        SVGImageForContainer::GetNaturalDimensions(*svg_image, view_info)
+            .value_or(NaturalSizingInfo::None());
   } else {
     gfx::SizeF size(
         image.Size(ForceOrientationIfNecessary(respect_orientation)));
-    intrinsic_sizing_info.size = size;
-    intrinsic_sizing_info.aspect_ratio = size;
+    sizing_info = NaturalSizingInfo::MakeFixed(size);
   }
 
   multiplier = ApplyImageResolution(multiplier);
-  intrinsic_sizing_info.size =
-      ApplyZoom(intrinsic_sizing_info.size, multiplier);
-  return intrinsic_sizing_info;
+  sizing_info.size = ApplyZoom(sizing_info.size, multiplier);
+  return sizing_info;
 }
 
 bool StyleFetchedImage::HasIntrinsicSize() const {
-  const Image& image = *image_->GetImage();
+  Image& image = *image_->GetImage();
   if (auto* svg_image = DynamicTo<SVGImage>(image)) {
-    IntrinsicSizingInfo intrinsic_sizing_info;
-    if (!svg_image->GetIntrinsicSizingInfo(intrinsic_sizing_info)) {
-      return false;
-    }
-    return !intrinsic_sizing_info.IsNone();
+    const SVGImageViewInfo* view_info =
+        SVGImageForContainer::CreateViewInfo(*svg_image, url_);
+    std::optional<NaturalSizingInfo> natural_sizing_info =
+        SVGImageForContainer::GetNaturalDimensions(*svg_image, view_info);
+    return natural_sizing_info && !natural_sizing_info->IsNone();
   }
   return image.HasIntrinsicSize();
 }
@@ -228,13 +221,11 @@ void StyleFetchedImage::ImageNotifyFinished(ImageResourceContent*) {
     Image& image = *image_->GetImage();
 
     if (auto* svg_image = DynamicTo<SVGImage>(image)) {
-      // SVG's document should be completely loaded before access control
-      // checks, which can occur anytime after ImageNotifyFinished()
-      // (See SVGImage::CurrentFrameHasSingleSecurityOrigin()).
-      // We check the document is loaded here to catch violation of the
-      // assumption reliably.
+      // Check that the SVGImage has completed loading (i.e the 'load' event
+      // has been dispatched in the SVG document).
       svg_image->CheckLoaded();
-      svg_image->UpdateUseCounters(*document_);
+      svg_image->UpdateUseCountersAfterLoad(*document_);
+      svg_image->MaybeRecordSvgImageProcessingTime(*document_);
     }
     image_->RecordDecodedImageType(document_->GetExecutionContext());
   }
@@ -253,17 +244,14 @@ scoped_refptr<Image> StyleFetchedImage::GetImage(
     const ComputedStyle& style,
     const gfx::SizeF& target_size) const {
   Image* image = image_->GetImage();
-  if (image->IsPlaceholderImage()) {
-    static_cast<PlaceholderImage*>(image)->SetIconAndTextScaleFactor(
-        style.EffectiveZoom());
-  }
-
   auto* svg_image = DynamicTo<SVGImage>(image);
   if (!svg_image) {
     return image;
   }
+  const SVGImageViewInfo* view_info =
+      SVGImageForContainer::CreateViewInfo(*svg_image, url_);
   return SVGImageForContainer::Create(
-      svg_image, target_size, style.EffectiveZoom(), url_,
+      *svg_image, target_size, style.EffectiveZoom(), view_info,
       document.GetStyleEngine().ResolveColorSchemeForEmbedding(&style));
 }
 
@@ -301,6 +289,10 @@ bool StyleFetchedImage::GetImageAnimationPolicy(
   }
   policy = document_->GetSettings()->GetImageAnimationPolicy();
   return true;
+}
+
+bool StyleFetchedImage::CanBeSpeculativelyDecoded() const {
+  return false;
 }
 
 void StyleFetchedImage::Trace(Visitor* visitor) const {

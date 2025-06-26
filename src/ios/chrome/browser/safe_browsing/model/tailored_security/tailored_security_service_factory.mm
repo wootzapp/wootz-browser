@@ -4,19 +4,18 @@
 
 #import "ios/chrome/browser/safe_browsing/model/tailored_security/tailored_security_service_factory.h"
 
-#import "components/keyed_service/ios/browser_state_dependency_manager.h"
 #import "components/safe_browsing/core/browser/tailored_security_service/tailored_security_service.h"
 #import "ios/chrome/browser/safe_browsing/model/tailored_security/chrome_tailored_security_service.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 
 // static
 safe_browsing::TailoredSecurityService*
-TailoredSecurityServiceFactory::GetForBrowserState(
-    ChromeBrowserState* browser_state) {
-  return static_cast<safe_browsing::TailoredSecurityService*>(
-      GetInstance()->GetServiceForBrowserState(browser_state, /*create=*/true));
+TailoredSecurityServiceFactory::GetForProfile(ProfileIOS* profile) {
+  return GetInstance()
+      ->GetServiceForProfileAs<safe_browsing::TailoredSecurityService>(
+          profile, /*create=*/true);
 }
 
 // static
@@ -26,9 +25,7 @@ TailoredSecurityServiceFactory* TailoredSecurityServiceFactory::GetInstance() {
 }
 
 TailoredSecurityServiceFactory::TailoredSecurityServiceFactory()
-    : BrowserStateKeyedServiceFactory(
-          "TailoredSecurityService",
-          BrowserStateDependencyManager::GetInstance()) {
+    : ProfileKeyedServiceFactoryIOS("TailoredSecurityService") {
   DependsOn(IdentityManagerFactory::GetInstance());
   DependsOn(SyncServiceFactory::GetInstance());
 }
@@ -36,10 +33,8 @@ TailoredSecurityServiceFactory::TailoredSecurityServiceFactory()
 std::unique_ptr<KeyedService>
 TailoredSecurityServiceFactory::BuildServiceInstanceFor(
     web::BrowserState* browser_state) const {
-  ChromeBrowserState* chrome_browser_state =
-      ChromeBrowserState::FromBrowserState(browser_state);
+  ProfileIOS* profile = ProfileIOS::FromBrowserState(browser_state);
   return std::make_unique<safe_browsing::ChromeTailoredSecurityService>(
-      chrome_browser_state,
-      IdentityManagerFactory::GetForBrowserState(chrome_browser_state),
-      SyncServiceFactory::GetForBrowserState(chrome_browser_state));
+      profile, IdentityManagerFactory::GetForProfile(profile),
+      SyncServiceFactory::GetForProfile(profile));
 }

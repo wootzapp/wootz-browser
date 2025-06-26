@@ -4,21 +4,21 @@
 
 package org.chromium.chrome.browser.autofill.save_card;
 
-import com.google.common.collect.ImmutableList;
-
 import org.chromium.components.autofill.payments.LegalMessageLine;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.ReadableIntPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.ReadableObjectPropertyKey;
 import org.chromium.ui.modelutil.PropertyModel.WritableBooleanPropertyKey;
 
+import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /*package*/ class AutofillSaveCardBottomSheetProperties {
     /** Legal messages. */
     static class LegalMessage {
         /** Legal message lines. */
-        final ImmutableList<LegalMessageLine> mLines;
+        final List<LegalMessageLine> mLines;
 
         /** The link for the legal message. */
         final Consumer<String> mLink;
@@ -26,12 +26,12 @@ import java.util.function.Consumer;
         /**
          * Constructs legal messages.
          *
-         * @param lines The legal message lines.
-         * @param link The link for the legal message.
+         * @param lines The legal message lines. Must not be {@code null}.
+         * @param link The link for the legal message. Must not be {@code null}.
          */
-        LegalMessage(ImmutableList<LegalMessageLine> lines, Consumer<String> link) {
-            mLines = lines;
-            mLink = link;
+        LegalMessage(List<LegalMessageLine> lines, Consumer<String> link) {
+            mLines = Objects.requireNonNull(lines, "List of legal message lines can't be null");
+            mLink = Objects.requireNonNull(link, "Link consumer can't be null");
         }
     }
 
@@ -70,7 +70,12 @@ import java.util.function.Consumer;
     static final ReadableObjectPropertyKey<String> CANCEL_BUTTON_LABEL =
             new ReadableObjectPropertyKey<>();
 
+    /** Indicates whether the bottom sheet is in a loading state. */
     static final WritableBooleanPropertyKey SHOW_LOADING_STATE = new WritableBooleanPropertyKey();
+
+    /** The description for the loading view. */
+    static final ReadableObjectPropertyKey<String> LOADING_DESCRIPTION =
+            new ReadableObjectPropertyKey<>();
 
     static final PropertyKey[] ALL_KEYS = {
         TITLE,
@@ -83,7 +88,8 @@ import java.util.function.Consumer;
         LEGAL_MESSAGE,
         ACCEPT_BUTTON_LABEL,
         CANCEL_BUTTON_LABEL,
-        SHOW_LOADING_STATE
+        SHOW_LOADING_STATE,
+        LOADING_DESCRIPTION
     };
 
     /** Do not instantiate. */

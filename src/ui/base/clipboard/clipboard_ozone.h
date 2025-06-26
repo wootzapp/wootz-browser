@@ -10,14 +10,13 @@
 #include <string_view>
 #include <vector>
 
-#include "build/chromeos_buildflags.h"
 #include "ui/base/clipboard/clipboard.h"
 
 namespace ui {
 
 // Clipboard implementation for Ozone-based ports. It delegates the platform
 // specifics to the PlatformClipboard instance provided by the Ozone platform.
-// Currently, used on Linux Desktop, i.e: X11 and Wayland, and Lacros platforms.
+// Currently, used on Linux Desktop, i.e: X11 and Wayland platforms.
 class ClipboardOzone : public Clipboard {
  public:
   ClipboardOzone(const ClipboardOzone&) = delete;
@@ -66,10 +65,10 @@ class ClipboardOzone : public Clipboard {
   void ReadPng(ClipboardBuffer buffer,
                const DataTransferEndpoint* data_dst,
                ReadPngCallback callback) const override;
-  void ReadCustomData(ClipboardBuffer buffer,
-                      const std::u16string& type,
-                      const DataTransferEndpoint* data_dst,
-                      std::u16string* result) const override;
+  void ReadDataTransferCustomData(ClipboardBuffer buffer,
+                                  const std::u16string& type,
+                                  const DataTransferEndpoint* data_dst,
+                                  std::u16string* result) const override;
   void ReadFilenames(ClipboardBuffer buffer,
                      const DataTransferEndpoint* data_dst,
                      std::vector<ui::FileInfo>* result) const override;
@@ -85,6 +84,7 @@ class ClipboardOzone : public Clipboard {
   void WritePortableAndPlatformRepresentations(
       ClipboardBuffer buffer,
       const ObjectMap& objects,
+      const std::vector<RawData>& raw_objects,
       std::vector<Clipboard::PlatformRepresentation> platform_representations,
       std::unique_ptr<DataTransferEndpoint> data_src,
       uint32_t privacy_types) override;
@@ -103,22 +103,13 @@ class ClipboardOzone : public Clipboard {
   void WriteUploadCloudClipboard() override;
   void WriteConfidentialDataForPassword() override;
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  // Used for syncing clipboard sources between Lacros and Ash in ChromeOS.
-  void AddClipboardSourceToDataOffer(const ClipboardBuffer buffer);
-
-  // Updates the source for the given buffer. It is used by
-  // `async_clipboard_ozone_` whenever some text is copied from Ash and pasted
-  // to Lacros.
-  void SetSource(ClipboardBuffer buffer,
-                 std::unique_ptr<DataTransferEndpoint> data_src);
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
+  // Used to put a source URL in the clipboard on other Ozone platforms.
+  void AddSourceToClipboard(const ClipboardBuffer buffer,
+                            std::unique_ptr<DataTransferEndpoint> data_src);
 
   class AsyncClipboardOzone;
 
   std::unique_ptr<AsyncClipboardOzone> async_clipboard_ozone_;
-  base::flat_map<ClipboardBuffer, std::unique_ptr<DataTransferEndpoint>>
-      data_src_;
 };
 
 }  // namespace ui

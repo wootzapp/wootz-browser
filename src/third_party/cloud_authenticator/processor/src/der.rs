@@ -19,7 +19,7 @@ pub const CONTEXT_SPECIFIC: u8 = 0x80;
 pub const OCTET_STRING: u8 = 4;
 pub const INTEGER: u8 = 2;
 pub const NONE: u8 = 5;
-pub const OBJECT_IDENTIFER: u8 = 6;
+pub const OBJECT_IDENTIFIER: u8 = 6;
 pub const SEQUENCE: u8 = 0x30;
 pub const UTC_TIME: u8 = 0x17;
 pub const GENERALIZED_TIME: u8 = 0x18;
@@ -104,7 +104,11 @@ pub fn next(input: &[u8]) -> Option<(u8, &[u8], &[u8])> {
 /// remaining input, if the element has the expected tag. Otherwise `None`.
 pub fn next_tagged(input: &[u8], expected_tag: u8) -> Option<(&[u8], &[u8])> {
     let (tag, element, rest) = next(input)?;
-    if tag == expected_tag { Some((element, rest)) } else { None }
+    if tag == expected_tag {
+        Some((element, rest))
+    } else {
+        None
+    }
 }
 
 /// Returns the body of the next ASN.1 DER element, and the remainder, from
@@ -115,5 +119,9 @@ pub fn next_optional(input: &[u8], expected_tag: u8) -> Option<(Option<&[u8]>, &
         return Some((None, input));
     }
     let (tag, body, rest) = next(input)?;
-    if expected_tag == tag { Some((Some(body), rest)) } else { Some((None, input)) }
+    if expected_tag == tag {
+        Some((Some(body), rest))
+    } else {
+        Some((None, input))
+    }
 }

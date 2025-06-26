@@ -20,7 +20,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/chromeos/styles/cros_tokens_color_mappings.h"
-#include "ui/gfx/paint_vector_icon.h"
+#include "ui/gfx/vector_icon_types.h"
 
 namespace ash {
 
@@ -146,7 +146,8 @@ TEST_P(HoldingSpaceItemTest, InProgressCommands) {
   // It should be possible to update commands to a new value.
   std::vector<HoldingSpaceItem::InProgressCommand> in_progress_commands;
   in_progress_commands.push_back(HoldingSpaceItem::InProgressCommand(
-      HoldingSpaceCommandId::kCancelItem, /*label_id=*/-1, &gfx::kNoneIcon,
+      HoldingSpaceCommandId::kCancelItem, /*label_id=*/-1,
+      &gfx::VectorIcon::EmptyIcon(),
       /*handler=*/base::DoNothing()));
   EXPECT_TRUE(holding_space_item->SetInProgressCommands(in_progress_commands));
   EXPECT_EQ(holding_space_item->in_progress_commands(), in_progress_commands);
@@ -167,37 +168,6 @@ TEST_P(HoldingSpaceItemTest, InProgressCommands) {
   EXPECT_TRUE(holding_space_item->in_progress_commands().empty());
 }
 
-// Tests identification of Camera app holding space item types.
-TEST_P(HoldingSpaceItemTest, IsCameraAppType) {
-  const HoldingSpaceItem::Type type = GetParam();
-  switch (type) {
-    case HoldingSpaceItem::Type::kCameraAppPhoto:
-    case HoldingSpaceItem::Type::kCameraAppScanJpg:
-    case HoldingSpaceItem::Type::kCameraAppScanPdf:
-    case HoldingSpaceItem::Type::kCameraAppVideoGif:
-    case HoldingSpaceItem::Type::kCameraAppVideoMp4:
-      EXPECT_TRUE(HoldingSpaceItem::IsCameraAppType(type));
-      return;
-    case HoldingSpaceItem::Type::kArcDownload:
-    case HoldingSpaceItem::Type::kDiagnosticsLog:
-    case HoldingSpaceItem::Type::kDownload:
-    case HoldingSpaceItem::Type::kDriveSuggestion:
-    case HoldingSpaceItem::Type::kLacrosDownload:
-    case HoldingSpaceItem::Type::kLocalSuggestion:
-    case HoldingSpaceItem::Type::kNearbyShare:
-    case HoldingSpaceItem::Type::kPhoneHubCameraRoll:
-    case HoldingSpaceItem::Type::kPhotoshopWeb:
-    case HoldingSpaceItem::Type::kPinnedFile:
-    case HoldingSpaceItem::Type::kPrintedPdf:
-    case HoldingSpaceItem::Type::kScan:
-    case HoldingSpaceItem::Type::kScreenRecording:
-    case HoldingSpaceItem::Type::kScreenRecordingGif:
-    case HoldingSpaceItem::Type::kScreenshot:
-      EXPECT_FALSE(HoldingSpaceItem::IsCameraAppType(type));
-      return;
-  }
-}
-
 // Tests identification of screen capture holding space item types.
 TEST_P(HoldingSpaceItemTest, IsScreenCapture) {
   const HoldingSpaceItem::Type type = GetParam();
@@ -208,15 +178,9 @@ TEST_P(HoldingSpaceItemTest, IsScreenCapture) {
       EXPECT_TRUE(HoldingSpaceItem::IsScreenCaptureType(type));
       return;
     case HoldingSpaceItem::Type::kArcDownload:
-    case HoldingSpaceItem::Type::kCameraAppPhoto:
-    case HoldingSpaceItem::Type::kCameraAppScanJpg:
-    case HoldingSpaceItem::Type::kCameraAppScanPdf:
-    case HoldingSpaceItem::Type::kCameraAppVideoGif:
-    case HoldingSpaceItem::Type::kCameraAppVideoMp4:
     case HoldingSpaceItem::Type::kDiagnosticsLog:
     case HoldingSpaceItem::Type::kDownload:
     case HoldingSpaceItem::Type::kDriveSuggestion:
-    case HoldingSpaceItem::Type::kLacrosDownload:
     case HoldingSpaceItem::Type::kLocalSuggestion:
     case HoldingSpaceItem::Type::kNearbyShare:
     case HoldingSpaceItem::Type::kPhoneHubCameraRoll:

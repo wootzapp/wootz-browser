@@ -54,12 +54,11 @@ class WaylandTestBase {
   // The 'no_nested_runloops' parameter can be used to not use runloops for
   // testing code that posts delayed tasks and the delay can be controlled in
   // the test without them being executed unexpectedly during this call.
-  // TODO(https://crbug.com/328783999): Avoid nested runloops by default.
   void PostToServerAndWait(
       base::OnceCallback<void(wl::TestWaylandServerThread* server)> callback,
-      bool no_nested_runloops = false);
+      bool no_nested_runloops = true);
   void PostToServerAndWait(base::OnceClosure closure,
-                           bool no_nested_runloops = false);
+                           bool no_nested_runloops = true);
 
   // Similar to the two methods above, but provides the convenience of using a
   // capturing lambda directly.
@@ -68,10 +67,13 @@ class WaylandTestBase {
       typename = std::enable_if_t<
           std::is_invocable_r_v<void, Lambda, wl::TestWaylandServerThread*> ||
           std::is_invocable_r_v<void, Lambda>>>
-  void PostToServerAndWait(Lambda&& lambda, bool no_nested_runloops = false) {
+  void PostToServerAndWait(Lambda&& lambda, bool no_nested_runloops = true) {
     PostToServerAndWait(base::BindLambdaForTesting(std::move(lambda)),
                         no_nested_runloops);
   }
+
+  // Convenience wrapper function for WaylandConnectionTestApi::SyncDisplay.
+  void SyncDisplay();
 
  protected:
   // Disables client-server sync during the teardown.  Used by tests that
@@ -88,15 +90,18 @@ class WaylandTestBase {
                           const wl::ScopedWlArray& states,
                           std::optional<uint32_t> serial = std::nullopt);
 
-  // Sends XDG_TOPLEVEL_STATE_ACTIVATED to the surface that has |surface_id| and
+  // Sends XDG_TOPLEVEL_STATE_ACTIVATED to associated with `window_deletate` and
   // has xdg surface role with width and height set to 0, which results in
   // asking the client to set the width and height of the surface. The client
   // test may pass |serial| that will be used to activate the surface.
-  void ActivateSurface(uint32_t surface_id,
+  void ActivateSurface(MockWaylandPlatformWindowDelegate& window_delegate,
                        std::optional<uint32_t> serial = std::nullopt);
 
-  // Initializes SurfaceAugmenter in |server_|.
-  void InitializeSurfaceAugmenter();
+  // Assuming that the window associated with `window_delegate` has just
+  // received the first configure sequence and is waiting for a non-null buffer
+  // to be attached, this emulates such buffer attachment and verifies the
+  // expectations.
+  void MapSurface(MockWaylandPlatformWindowDelegate& window_delegate);
 
   // A helper method that sets up the XKB configuration for tests that require
   // it.
@@ -118,6 +123,10 @@ class WaylandTestBase {
 
   wl::TestWaylandServerThread server_;
 
+#if BUILDFLAG(USE_XKBCOMMON)
+  XkbEvdevCodes xkb_evdev_code_converter_;
+#endif
+
   ::testing::NiceMock<MockWaylandPlatformWindowDelegate> delegate_;
   std::unique_ptr<ScopedKeyboardLayoutEngine> scoped_keyboard_layout_engine_;
   std::unique_ptr<WaylandSurfaceFactory> surface_factory_;
@@ -127,16 +136,11 @@ class WaylandTestBase {
   std::unique_ptr<WaylandWindow> window_;
   gfx::AcceleratedWidget widget_ = gfx::kNullAcceleratedWidget;
   std::vector<base::test::FeatureRef> enabled_features_{
-      features::kLacrosColorManagement, ui::kWaylandOverlayDelegation};
+      ui::kWaylandOverlayDelegation};
   std::vector<base::test::FeatureRef> disabled_features_;
 
  private:
   bool initialized_ = false;
-
-#if BUILDFLAG(USE_XKBCOMMON)
-  XkbEvdevCodes xkb_evdev_code_converter_;
-#endif
-
   std::unique_ptr<KeyboardLayoutEngine> keyboard_layout_engine_;
   base::test::ScopedFeatureList feature_list_;
 };
@@ -152,8 +156,6 @@ class WaylandTest : public WaylandTestBase,
 
   void SetUp() override;
   void TearDown() override;
-
-  bool IsAuraShellEnabled();
 };
 
 // Version of WaylandTest that uses simple test fixtures (TEST_F).
@@ -164,20 +166,6 @@ class WaylandTestSimple : public WaylandTestBase, public ::testing::Test {
   WaylandTestSimple(const WaylandTestSimple&) = delete;
   WaylandTestSimple& operator=(const WaylandTestSimple&) = delete;
   ~WaylandTestSimple() override;
-
-  void SetUp() override;
-  void TearDown() override;
-};
-
-// Version of WaylandTest that uses simple test fixtures (TEST_F) and
-// aura_shell enabled.
-class WaylandTestSimpleWithAuraShell : public WaylandTestBase,
-                                       public ::testing::Test {
- public:
-  WaylandTestSimpleWithAuraShell();
-  WaylandTestSimpleWithAuraShell(const WaylandTestSimple&) = delete;
-  WaylandTestSimpleWithAuraShell& operator=(const WaylandTestSimple&) = delete;
-  ~WaylandTestSimpleWithAuraShell() override;
 
   void SetUp() override;
   void TearDown() override;

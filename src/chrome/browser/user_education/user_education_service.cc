@@ -13,39 +13,34 @@
 #include "chrome/browser/user_education/recent_session_tracker.h"
 #include "chrome/browser/user_education/user_education_service_factory.h"
 #include "components/feature_engagement/public/tracker.h"
-#include "components/user_education/common/feature_promo_registry.h"
-#include "components/user_education/common/feature_promo_session_policy.h"
-#include "components/user_education/common/feature_promo_storage_service.h"
-#include "components/user_education/common/new_badge_controller.h"
-#include "components/user_education/common/new_badge_policy.h"
+#include "components/user_education/common/feature_promo/feature_promo_registry.h"
+#include "components/user_education/common/feature_promo/feature_promo_session_policy.h"
+#include "components/user_education/common/new_badge/new_badge_controller.h"
+#include "components/user_education/common/new_badge/new_badge_policy.h"
 #include "components/user_education/common/user_education_features.h"
+#include "components/user_education/common/user_education_storage_service.h"
 
 BASE_FEATURE(kAllowRecentSessionTracking,
              "AllowRecentSessionTracking",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-const char kSidePanelCustomizeChromeTutorialId[] =
-    "Side Panel Customize Chrome Tutorial";
-const char kTabGroupTutorialId[] = "Tab Group Tutorial";
-const char kSavedTabGroupTutorialId[] = "Saved Tab Group Tutorial";
-const char kPasswordManagerTutorialId[] = "Password Manager Tutorial";
-
 UserEducationService::UserEducationService(
-    std::unique_ptr<BrowserFeaturePromoStorageService> storage_service,
+    std::unique_ptr<BrowserUserEducationStorageService> storage_service,
     bool allows_promos)
     : tutorial_service_(&tutorial_registry_, &help_bubble_factory_registry_),
-      feature_promo_storage_service_(std::move(storage_service)),
+      user_education_storage_service_(std::move(storage_service)),
       feature_promo_session_policy_(
-          user_education::features::IsUserEducationV2()
-              ? std::make_unique<user_education::FeaturePromoSessionPolicyV2>()
-              : std::make_unique<user_education::FeaturePromoSessionPolicy>()) {
-  feature_promo_session_policy_->Init(&feature_promo_session_manager_,
-                                      feature_promo_storage_service_.get());
+          std::make_unique<user_education::FeaturePromoSessionPolicyV2>()) {
+  feature_promo_session_policy_->Init(&user_education_session_manager_,
+                                      user_education_storage_service_.get());
+  product_messaging_controller_.Init(user_education_session_manager_,
+                                     *user_education_storage_service_);
+
   if (allows_promos) {
     new_badge_registry_ = std::make_unique<user_education::NewBadgeRegistry>();
     new_badge_controller_ =
         std::make_unique<user_education::NewBadgeController>(
-            *new_badge_registry_, *feature_promo_storage_service_,
+            *new_badge_registry_, *user_education_storage_service_,
             std::make_unique<user_education::NewBadgePolicy>());
   }
 
@@ -53,21 +48,22 @@ UserEducationService::UserEducationService(
     // Only create the recent session tracker if recent session tracking is
     // allowed (default).
     recent_session_tracker_ = std::make_unique<RecentSessionTracker>(
-        feature_promo_session_manager_, *feature_promo_storage_service_,
-        *feature_promo_storage_service_);
+        user_education_session_manager_, *user_education_storage_service_,
+        *user_education_storage_service_);
   } else {
     // If the feature is disabled, ensure that we clear any old data.
-    feature_promo_storage_service_->ResetRecentSessionData();
+    user_education_storage_service_->ResetRecentSessionData();
   }
 }
 
 // static
-bool UserEducationService::MaybeShowNewBadge(content::BrowserContext* context,
-                                             const base::Feature& feature) {
+user_education::DisplayNewBadge UserEducationService::MaybeShowNewBadge(
+    content::BrowserContext* context,
+    const base::Feature& feature) {
   auto* const service =
       UserEducationServiceFactory::GetForBrowserContext(context);
   if (!service || !service->new_badge_controller()) {
-    return false;
+    return user_education::DisplayNewBadge();
   }
 
   // For some tests, browser initialization is never done so there are no
@@ -76,14 +72,14 @@ bool UserEducationService::MaybeShowNewBadge(content::BrowserContext* context,
           user_education::features::kNewBadgeTestFeature)) {
     // Verify that this is actually a testing situation, and then fail.
     CHECK(Profile::FromBrowserContext(context)->AsTestingProfile());
-    return false;
+    return user_education::DisplayNewBadge();
   }
 
   return service->new_badge_controller()->MaybeShowNewBadge(feature);
 }
 
 // static
-void UserEducationService::MaybeNotifyPromoFeatureUsed(
+void UserEducationService::MaybeNotifyNewBadgeFeatureUsed(
     content::BrowserContext* context,
     const base::Feature& feature) {
   // Do not register events for disabled features.
@@ -100,16 +96,6 @@ void UserEducationService::MaybeNotifyPromoFeatureUsed(
 
   // Notify the "New" Badge controller.
   service->new_badge_controller()->NotifyFeatureUsedIfValid(feature);
-
-  // Notify the Feature Engagement Tracker if there is a corresponding IPH.
-  // This mirrors logic in FeaturePromoController without having to actually
-  // retrieve a controller from a browser window.
-  if (service->feature_promo_registry().IsFeatureRegistered(feature)) {
-    if (auto* const tracker =
-            feature_engagement::TrackerFactory::GetForBrowserContext(context)) {
-      tracker->NotifyUsedEvent(feature);
-    }
-  }
 }
 
 UserEducationService::~UserEducationService() = default;

@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {EventTracker} from '//resources/js/event_tracker.js';
+import {assert} from '//resources/js/assert.js';
 import type {PropertyValues} from '//resources/lit/v3_0/lit.rollup.js';
 import {CrLitElement} from '//resources/lit/v3_0/lit.rollup.js';
 
 import {getCss} from './cr_icon.css.js';
+import type {CrIconsetElement} from './cr_iconset.js';
 import {IconsetMap} from './iconset_map.js';
-import type {Iconset} from './iconset_map.js';
 
 export class CrIconElement extends CrLitElement {
   static get is() {
@@ -29,11 +29,10 @@ export class CrIconElement extends CrLitElement {
     };
   }
 
-  icon: string = '';
+  accessor icon: string = '';
   private iconsetName_: string = '';
   private iconName_: string = '';
-  private iconset_: Iconset|null = null;
-  private tracker_: EventTracker = new EventTracker();
+  private iconset_: CrIconsetElement|null = null;
 
   override updated(changedProperties: PropertyValues<this>) {
     super.updated(changedProperties);
@@ -42,23 +41,21 @@ export class CrIconElement extends CrLitElement {
       const [iconsetName, iconName] = this.icon.split(':');
       this.iconName_ = iconName || '';
       this.iconsetName_ = iconsetName || '';
-      this.updateIcon();
+      this.updateIcon_();
     }
   }
 
-  updateIcon() {
+  private updateIcon_() {
     if (this.iconName_ === '' && this.iconset_) {
       this.iconset_.removeIcon(this);
     } else if (this.iconsetName_) {
       const iconsetMap = IconsetMap.getInstance();
       this.iconset_ = iconsetMap.get(this.iconsetName_);
-      if (this.iconset_) {
-        this.iconset_.applyIcon(this, this.iconName_);
-        this.tracker_.remove(iconsetMap, 'cr-iconset-added');
-      } else {
-        this.tracker_.add(
-            iconsetMap, 'cr-iconset-added', () => this.updateIcon());
-      }
+      assert(
+          this.iconset_,
+          `Could not find iconset for: '${this.iconsetName_}:${
+              this.iconName_}'`);
+      this.iconset_.applyIcon(this, this.iconName_);
     }
   }
 }

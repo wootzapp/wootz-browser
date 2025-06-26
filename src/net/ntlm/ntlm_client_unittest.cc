@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/ntlm/ntlm_client.h"
 
 #include <string>
@@ -131,8 +136,8 @@ TEST(NtlmClientTest, MinimalStructurallyValidChallenge) {
   NtlmClient client(NtlmFeatures(false));
 
   NtlmBufferWriter writer(kMinChallengeHeaderLen);
-  ASSERT_TRUE(writer.WriteBytes(base::make_span(test::kMinChallengeMessage)
-                                    .subspan<0, kMinChallengeHeaderLen>()));
+  ASSERT_TRUE(writer.WriteBytes(
+      base::span(test::kMinChallengeMessage).first<kMinChallengeHeaderLen>()));
 
   ASSERT_TRUE(GetAuthMsgResult(client, writer));
 }
@@ -162,8 +167,8 @@ TEST(NtlmClientTest, ChallengeMsgTooShort) {
 
   // Fail because the minimum size valid message is 32 bytes.
   NtlmBufferWriter writer(kMinChallengeHeaderLen - 1);
-  ASSERT_TRUE(writer.WriteBytes(base::make_span(test::kMinChallengeMessage)
-                                    .subspan<0, kMinChallengeHeaderLen - 1>()));
+  ASSERT_TRUE(writer.WriteBytes(base::span(test::kMinChallengeMessage)
+                                    .first<kMinChallengeHeaderLen - 1>()));
   ASSERT_FALSE(GetAuthMsgResult(client, writer));
 }
 
@@ -308,9 +313,9 @@ TEST(NtlmClientTest, Type3UnicodeWithSessionSecuritySpecTest) {
 TEST(NtlmClientTest, Type3WithoutUnicode) {
   NtlmClient client(NtlmFeatures(false));
 
-  std::vector<uint8_t> result = GenerateAuthMsg(
-      client, base::make_span(test::kMinChallengeMessageNoUnicode)
-                  .subspan<0, kMinChallengeHeaderLen>());
+  std::vector<uint8_t> result =
+      GenerateAuthMsg(client, base::span(test::kMinChallengeMessageNoUnicode)
+                                  .first<kMinChallengeHeaderLen>());
   ASSERT_FALSE(result.empty());
 
   NtlmBufferReader reader(result);
@@ -353,8 +358,8 @@ TEST(NtlmClientTest, ClientDoesNotDowngradeSessionSecurity) {
   NtlmClient client(NtlmFeatures(false));
 
   std::vector<uint8_t> result =
-      GenerateAuthMsg(client, base::make_span(test::kMinChallengeMessageNoSS)
-                                  .subspan<0, kMinChallengeHeaderLen>());
+      GenerateAuthMsg(client, base::span(test::kMinChallengeMessageNoSS)
+                                  .first<kMinChallengeHeaderLen>());
   ASSERT_FALSE(result.empty());
 
   NtlmBufferReader reader(result);

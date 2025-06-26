@@ -6,6 +6,7 @@
 
 #include "base/no_destructor.h"
 #include "base/test/scoped_feature_list.h"
+#include "cc/test/pixel_test_utils.h"
 #include "components/viz/common/resources/shared_image_format.h"
 #include "gpu/command_buffer/common/mailbox.h"
 #include "gpu/command_buffer/common/shared_image_usage.h"
@@ -23,7 +24,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkColor.h"
-#include "third_party/skia/include/gpu/GrBackendSemaphore.h"
+#include "third_party/skia/include/gpu/ganesh/GrBackendSemaphore.h"
 #include "third_party/skia/include/private/chromium/GrPromiseImageTexture.h"
 #include "ui/gl/gl_implementation.h"
 #include "ui/gl/gl_switches.h"
@@ -40,9 +41,9 @@ constexpr auto kColorSpace = gfx::ColorSpace::CreateSRGB();
 // is GL-Vulkan interop, so it's necessary to specify *some* GLES2 usage here
 // even though the tests don't actually use the GLES2 interface. The tests do
 // exercise Skia read and write accesses, so include RASTER_{READ, WRITE} usage.
-constexpr uint32_t kUsage = SHARED_IMAGE_USAGE_RASTER_READ |
-                            SHARED_IMAGE_USAGE_RASTER_WRITE |
-                            SHARED_IMAGE_USAGE_GLES2_READ;
+constexpr gpu::SharedImageUsageSet kUsage = SHARED_IMAGE_USAGE_RASTER_READ |
+                                            SHARED_IMAGE_USAGE_RASTER_WRITE |
+                                            SHARED_IMAGE_USAGE_GLES2_READ;
 
 base::NoDestructor<base::test::ScopedFeatureList> g_scoped_feature_list;
 
@@ -89,7 +90,7 @@ class AngleVulkanImageBackingFactoryTest
 // Verify creation and Skia access works as expected.
 TEST_P(AngleVulkanImageBackingFactoryTest, Basic) {
   auto format = GetFormat();
-  auto mailbox = Mailbox::GenerateForSharedImage();
+  auto mailbox = Mailbox::Generate();
   gfx::Size size(100, 100);
 
   bool supported = backing_factory_->CanCreateSharedImage(
@@ -160,7 +161,7 @@ TEST_P(AngleVulkanImageBackingFactoryTest, Basic) {
 // Verify that pixel upload works as expected.
 TEST_P(AngleVulkanImageBackingFactoryTest, Upload) {
   auto format = GetFormat();
-  auto mailbox = Mailbox::GenerateForSharedImage();
+  auto mailbox = Mailbox::Generate();
   gfx::Size size(100, 100);
 
   auto backing = backing_factory_->CreateSharedImage(
@@ -180,6 +181,54 @@ TEST_P(AngleVulkanImageBackingFactoryTest, Upload) {
   ASSERT_TRUE(shared_image_ref);
 
   VerifyPixelsWithReadbackGanesh(mailbox, bitmaps);
+}
+
+TEST_P(AngleVulkanImageBackingFactoryTest, ReadbackToMemory) {
+  viz::SharedImageFormat format = GetFormat();
+
+  auto mailbox = Mailbox::Generate();
+  gfx::Size size(9, 9);
+  auto color_space = gfx::ColorSpace::CreateSRGB();
+  GrSurfaceOrigin surface_origin = kTopLeft_GrSurfaceOrigin;
+  SkAlphaType alpha_type = kPremul_SkAlphaType;
+  gpu::SharedImageUsageSet usage = kUsage;
+  gpu::SurfaceHandle surface_handle = gpu::kNullSurfaceHandle;
+
+  bool supported = backing_factory_->CanCreateSharedImage(
+      usage, format, size, /*thread_safe=*/false, gfx::EMPTY_BUFFER,
+      GrContextType::kVulkan, {});
+  ASSERT_TRUE(supported);
+
+  auto backing = backing_factory_->CreateSharedImage(
+      mailbox, format, surface_handle, size, color_space, surface_origin,
+      alpha_type, usage, "TestLabel", /*is_thread_safe=*/false);
+  ASSERT_TRUE(backing);
+
+  std::vector<SkBitmap> src_bitmaps =
+      AllocateRedBitmaps(format, size, /*added_stride=*/0);
+
+  // Upload from bitmap with expected stride.
+  ASSERT_TRUE(backing->UploadFromMemory(GetSkPixmaps(src_bitmaps)));
+
+  const int num_planes = format.NumberOfPlanes();
+
+  // Do readback into bitmap with same stride and validate pixels match what
+  // was uploaded.
+  std::vector<SkBitmap> readback_bitmaps(num_planes);
+  for (int plane = 0; plane < num_planes; ++plane) {
+    auto& info = src_bitmaps[plane].info();
+    size_t stride = info.minRowBytes();
+    readback_bitmaps[plane].allocPixels(info, stride);
+  }
+
+  std::vector<SkPixmap> pixmaps = GetSkPixmaps(readback_bitmaps);
+  ASSERT_TRUE(backing->ReadbackToMemory(pixmaps));
+
+  for (int plane = 0; plane < num_planes; ++plane) {
+    EXPECT_TRUE(cc::MatchesBitmap(readback_bitmaps[plane], src_bitmaps[plane],
+                                  cc::ExactPixelComparator()))
+        << "plane_index=" << plane;
+  }
 }
 
 std::string TestParamToString(

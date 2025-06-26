@@ -216,27 +216,22 @@ inline void TreeScopeAdopter::MoveNodeToNewDocument(
     }
 
     if (auto* element = DynamicTo<Element>(node)) {
-      if (old_document.HasExplicitlySetAttrElements()) {
-        old_document.MoveElementExplicitlySetAttrElementsMapToNewDocument(
-            element, new_document);
-      }
       if (old_document.HasCachedAttrAssociatedElements()) {
         old_document.MoveElementCachedAttrAssociatedElementsMapToNewDocument(
             element, new_document);
       }
     }
 
-    if (old_document.HasAnyListenerTypes()) {
+    if (old_document.HasAnyNodeWithEventListeners()) {
       node.MoveEventListenersToNewDocument(old_document, new_document);
     }
   } else {
     // DCHECK all the fast adoption conditions
     DCHECK(!old_document.HasNodeIterators());
     DCHECK(!old_document.HasRanges());
-    DCHECK(!old_document.HasAnyListenerTypes());
+    DCHECK(!old_document.HasAnyNodeWithEventListeners());
     DCHECK(!old_document.HasMutationObservers());
     DCHECK(!old_document.ShouldInvalidateNodeListCaches());
-    DCHECK(!old_document.HasExplicitlySetAttrElements());
     DCHECK(!old_document.HasCachedAttrAssociatedElements());
   }
 
@@ -259,10 +254,9 @@ inline void TreeScopeAdopter::MoveNodeToNewDocument(
 inline bool TreeScopeAdopter::IsDocumentEligibleForFastAdoption(
     Document& old_document) const {
   return !old_document.HasNodeIterators() && !old_document.HasRanges() &&
-         !old_document.HasAnyListenerTypes() &&
+         !old_document.HasAnyNodeWithEventListeners() &&
          !old_document.HasMutationObservers() &&
          !old_document.ShouldInvalidateNodeListCaches() &&
-         !old_document.HasExplicitlySetAttrElements() &&
          !old_document.HasCachedAttrAssociatedElements();
 }
 

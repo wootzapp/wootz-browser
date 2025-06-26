@@ -6,8 +6,8 @@
 #define THIRD_PARTY_BLINK_RENDERER_CORE_PAINT_DECORATING_BOX_H_
 
 #include "third_party/blink/renderer/core/core_export.h"
-#include "third_party/blink/renderer/core/layout/geometry/physical_offset.h"
 #include "third_party/blink/renderer/core/layout/inline/fragment_item.h"
+#include "third_party/blink/renderer/platform/geometry/physical_offset.h"
 
 namespace blink {
 
@@ -26,7 +26,6 @@ class CORE_EXPORT DecoratingBox {
         style_(&style),
         decorations_(decorations ? decorations
                                  : &style.AppliedTextDecorations()) {
-    DCHECK_EQ(&style.AppliedTextDecorations(), decorations_);
   }
   DecoratingBox(const FragmentItem& item,
                 const ComputedStyle& style,

@@ -4,6 +4,8 @@
 
 #include "chrome/browser/android/locale/locale_manager.h"
 
+#include <jni.h>
+
 #include "base/android/jni_android.h"
 #include "base/android/jni_string.h"
 #include "chrome/browser/locale/jni_headers/LocaleManager_jni.h"
@@ -15,8 +17,7 @@ std::string LocaleManager::GetYandexReferralID() {
       Java_LocaleManager_getInstance(env);
   if (jlocale_manager.is_null())
     return "";
-  return base::android::ConvertJavaStringToUTF8(
-      env, Java_LocaleManager_getYandexReferralId(env, jlocale_manager));
+  return Java_LocaleManager_getYandexReferralId(env, jlocale_manager);
 }
 
 // static
@@ -26,6 +27,5 @@ std::string LocaleManager::GetMailRUReferralID() {
       Java_LocaleManager_getInstance(env);
   if (jlocale_manager.is_null())
     return "";
-  return base::android::ConvertJavaStringToUTF8(
-      env, Java_LocaleManager_getMailRUReferralId(env, jlocale_manager));
+  return Java_LocaleManager_getMailRUReferralId(env, jlocale_manager);
 }

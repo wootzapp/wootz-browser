@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/page_load_metrics/observers/core/ukm_page_load_metrics_observer.h"
 
 #include <cmath>
@@ -18,6 +23,8 @@
 #include "base/trace_event/trace_event.h"
 #include "base/trace_event/trace_id_helper.h"
 #include "base/trace_event/typed_macros.h"
+#include "cc/base/features.h"
+#include "cc/metrics/ukm_dropped_frames_data.h"
 #include "cc/metrics/ukm_smoothness_data.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/content_settings/cookie_settings_factory.h"
@@ -72,6 +79,19 @@
 
 using page_load_metrics::PageVisitFinalStatus;
 
+namespace internal {
+
+const char
+    kHistogramLayoutInstabilityMaxCumulativeShiftScoreSessionWindowGap1000msMax5000ms2
+        [] = "PageLoad.LayoutInstability.MaxCumulativeShiftScore.SessionWindow."
+             "Gap1000ms.Max5000ms2";
+const char
+    kHistogramLayoutInstabilityMaxCumulativeShiftScoreSessionWindowGap1000msMax5000ms2Incognito
+        [] = "PageLoad.LayoutInstability.MaxCumulativeShiftScore.SessionWindow."
+             "Gap1000ms.Max5000ms2.Incognito";
+
+}  // namespace internal
+
 namespace {
 
 const char kOfflinePreviewsMimeType[] = "multipart/related";
@@ -93,9 +113,9 @@ uint64_t PackBytes(base::span<const uint8_t, N> bytes) {
 }
 
 uint64_t StrToHash64Bit(std::string_view str) {
-  auto bytes = base::as_bytes(base::make_span(str));
-  const base::SHA1Digest digest = base::SHA1HashSpan(bytes);
-  return PackBytes(base::make_span(digest).subspan<0, 8>());
+  auto bytes = base::as_byte_span(str);
+  const base::SHA1Digest digest = base::SHA1Hash(bytes);
+  return PackBytes(base::span(digest).first<8>());
 }
 
 bool IsSupportedProtocol(page_load_metrics::NetworkProtocol protocol) {
@@ -207,17 +227,19 @@ int64_t CalculateLCPEntropyBucket(double bpp) {
 
 // static
 std::unique_ptr<page_load_metrics::PageLoadMetricsObserver>
-UkmPageLoadMetricsObserver::CreateIfNeeded() {
+UkmPageLoadMetricsObserver::CreateIfNeeded(bool is_incognito) {
   if (!ukm::UkmRecorder::Get()) {
     return nullptr;
   }
   return std::make_unique<UkmPageLoadMetricsObserver>(
-      g_browser_process->network_quality_tracker());
+      g_browser_process->network_quality_tracker(), is_incognito);
 }
 
 UkmPageLoadMetricsObserver::UkmPageLoadMetricsObserver(
-    network::NetworkQualityTracker* network_quality_tracker)
-    : network_quality_tracker_(network_quality_tracker) {
+    network::NetworkQualityTracker* network_quality_tracker,
+    bool is_incognito)
+    : network_quality_tracker_(network_quality_tracker),
+      is_incognito_(is_incognito) {
   DCHECK(network_quality_tracker_);
 }
 
@@ -356,6 +378,16 @@ UkmPageLoadMetricsObserver::ObservePolicy UkmPageLoadMetricsObserver::OnCommit(
     main_frame_resource_has_no_store_ =
         response_headers->HasHeaderValue("cache-control", "no-store");
   }
+
+  navigation_trigger_type_ =
+      page_load_metrics::NavigationHandleUserData::InitiatorLocation::kOther;
+  auto* navigation_userdata =
+      page_load_metrics::NavigationHandleUserData::GetForNavigationHandle(
+          *navigation_handle);
+  if (navigation_userdata) {
+    navigation_trigger_type_ = navigation_userdata->navigation_type();
+  }
+
   // The PageTransition for the navigation may be updated on commit.
   page_transition_ = navigation_handle->GetPageTransition();
   was_cached_ = navigation_handle->WasResponseCached();
@@ -395,6 +427,7 @@ UkmPageLoadMetricsObserver::FlushMetricsOnAppEnterBackground(
   if (GetDelegate().StartedInForeground())
     RecordTimingMetrics(timing);
   ReportLayoutStability();
+  RecordDroppedFramesMetrics();
   RecordSmoothnessMetrics();
   RecordResponsivenessMetrics();
   // Assume that page ends on this method, as the app could be evicted right
@@ -474,6 +507,7 @@ void UkmPageLoadMetricsObserver::OnComplete(
   if (GetDelegate().StartedInForeground())
     RecordTimingMetrics(timing);
   ReportLayoutStability();
+  RecordDroppedFramesMetrics();
   RecordSmoothnessMetrics();
   RecordResponsivenessMetrics();
   RecordPageEndMetrics(&timing, current_time,
@@ -639,6 +673,8 @@ void UkmPageLoadMetricsObserver::RecordSoftNavigationMetrics(
           largest_contentful_paint.Time(), GetDelegate())) {
     builder.SetPaintTiming_LargestContentfulPaint(
         largest_contentful_paint.Time().value().InMilliseconds());
+    PAGE_LOAD_HISTOGRAM("PageLoad.SoftNavigation.LargestContentfulPaint",
+                        largest_contentful_paint.Time().value());
 
     builder.SetPaintTiming_LargestContentfulPaintType(
         LargestContentfulPaintTypeToUKMFlags(largest_contentful_paint.Type()));
@@ -686,6 +722,10 @@ void UkmPageLoadMetricsObserver::RecordSoftNavigationMetrics(
         .SetInteractiveTiming_UserInteractionLatency_HighPercentile2_MaxEventDuration(
             inp->interaction_latency.InMilliseconds());
 
+    UmaHistogramCustomTimes("PageLoad.SoftNavigation.InteractionToNextPaint",
+                            inp->interaction_latency, base::Milliseconds(1),
+                            base::Seconds(60), 50);
+
     // For soft navigations, the interaction offset is the offset _after_ the
     // soft navigation occurred. So we want to start the offset at the number
     // of interactions which had occurred before this soft navigation.
@@ -721,6 +761,13 @@ void UkmPageLoadMetricsObserver::RecordSoftNavigationMetrics(
       builder
           .SetLayoutInstability_MaxCumulativeShiftScore_SessionWindow_Gap1000ms_Max5000ms(
               page_load_metrics::LayoutShiftUkmValue(*cwv_cls_value));
+      // Report UMA using same binning as all WebVitals.CumulativeLayoutShift
+      // histograms; the binning ensures changes close to zero can accurately
+      // be measured.
+      base::UmaHistogramCustomCounts(
+          "PageLoad.SoftNavigation.CumulativeLayoutShift",
+          page_load_metrics::LayoutShiftUmaValue10000(*cwv_cls_value), 1, 24000,
+          50);
     }
   }
 
@@ -741,6 +788,9 @@ void UkmPageLoadMetricsObserver::
     builder
         .SetInteractiveTimingBeforeSoftNavigation_UserInteractionLatency_HighPercentile2_MaxEventDuration(
             inp->interaction_latency.InMilliseconds());
+    UmaHistogramCustomTimes(
+        "PageLoad.BeforeSoftNavigation.InteractionToNextPaint",
+        inp->interaction_latency, base::Milliseconds(1), base::Seconds(60), 50);
     builder.SetInteractiveTimingBeforeSoftNavigation_INPOffset(
         inp->interaction_offset);
     base::TimeDelta interaction_time =
@@ -771,6 +821,13 @@ void UkmPageLoadMetricsObserver::
     builder
         .SetLayoutInstabilityBeforeSoftNavigation_MaxCumulativeShiftScore_MainFrame_SessionWindow_Gap1000ms_Max5000ms(
             page_load_metrics::LayoutShiftUkmValue(*cwv_cls_value));
+    // Report UMA using same binning as all WebVitals.CumulativeLayoutShift
+    // histograms; the binning ensures changes close to zero can accurately
+    // be measured.
+    base::UmaHistogramCustomCounts(
+        "PageLoad.BeforeSoftNavigation.CumulativeLayoutShift",
+        page_load_metrics::LayoutShiftUmaValue10000(*cwv_cls_value), 1, 24000,
+        50);
   }
   builder.Record(ukm::UkmRecorder::Get());
 }
@@ -1273,15 +1330,19 @@ void UkmPageLoadMetricsObserver::ReportLayoutStability() {
     builder
         .SetLayoutInstability_MaxCumulativeShiftScore_SessionWindow_Gap1000ms_Max5000ms(
             page_load_metrics::LayoutShiftUkmValue(*cwv_cls_value));
-    base::UmaHistogramCounts100(
-        "PageLoad.LayoutInstability.MaxCumulativeShiftScore.SessionWindow."
-        "Gap1000ms.Max5000ms",
-        page_load_metrics::LayoutShiftUmaValue(*cwv_cls_value));
+    auto sample = page_load_metrics::LayoutShiftUmaValue10000(*cwv_cls_value);
     base::UmaHistogramCustomCounts(
-        "PageLoad.LayoutInstability.MaxCumulativeShiftScore.SessionWindow."
-        "Gap1000ms.Max5000ms2",
-        page_load_metrics::LayoutShiftUmaValue10000(*cwv_cls_value), 1, 24000,
-        50);
+        internal::
+            kHistogramLayoutInstabilityMaxCumulativeShiftScoreSessionWindowGap1000msMax5000ms2,
+        sample, 1, 24000, 50);
+
+    if (is_incognito_) {
+      base::UmaHistogramCustomCounts(
+          internal::
+              kHistogramLayoutInstabilityMaxCumulativeShiftScoreSessionWindowGap1000msMax5000ms2Incognito,
+          sample, 1, 24000, 50);
+    }
+
     // The pseudo metric of PageLoad.LayoutInstability.MaxCumulativeShiftScore.
     // SessionWindow.Gap1000ms.Max5000ms2.
     // Only used to assess field trial data quality.
@@ -1465,6 +1526,25 @@ void UkmPageLoadMetricsObserver::RecordPageLoadTimestampMetrics(
   builder.SetHourOfDay(exploded.hour);
 }
 
+void UkmPageLoadMetricsObserver::RecordDroppedFramesMetrics() {
+  auto* dropped_frames =
+      ukm_dropped_frames_data_.GetMemoryAs<cc::UkmDroppedFramesDataShared>();
+  if (!dropped_frames) {
+    return;
+  }
+
+  cc::UkmDroppedFramesData dropped_frames_data;
+  bool success = dropped_frames->Read(dropped_frames_data);
+  if (!success) {
+    return;
+  }
+
+  ukm::builders::Graphics_Smoothness_FrameSequence builder(
+      GetDelegate().GetPageUkmSourceId());
+  builder.SetPercentDroppedFrames(dropped_frames_data.percent_dropped_frames);
+  builder.Record(ukm::UkmRecorder::Get());
+}
+
 void UkmPageLoadMetricsObserver::RecordSmoothnessMetrics() {
   auto* smoothness =
       ukm_smoothness_data_.GetMemoryAs<cc::UkmSmoothnessDataShared>();
@@ -1480,36 +1560,46 @@ void UkmPageLoadMetricsObserver::RecordSmoothnessMetrics() {
 
   ukm::builders::Graphics_Smoothness_NormalizedPercentDroppedFrames builder(
       GetDelegate().GetPageUkmSourceId());
-  builder.SetAverage(smoothness_data.avg_smoothness)
-      .SetMedian(smoothness_data.median_smoothness)
-      .SetPercentile95(smoothness_data.percentile_95)
-      .SetAboveThreshold(smoothness_data.above_threshold)
-      .SetWorstCase(smoothness_data.worst_smoothness)
-      .SetVariance(smoothness_data.variance)
-      .SetSmoothnessVeryGood(smoothness_data.buckets[0])
-      .SetSmoothnessGood(smoothness_data.buckets[1])
-      .SetSmoothnessOkay(smoothness_data.buckets[2])
-      .SetSmoothnessBad(smoothness_data.buckets[3])
-      .SetSmoothnessVeryBad25to50(smoothness_data.buckets[4])
-      .SetSmoothnessVeryBad50to75(smoothness_data.buckets[5])
-      .SetSmoothnessVeryBad75to100(smoothness_data.buckets[6])
-      .SetMainFocusedMedian(smoothness_data.main_focused_median)
-      .SetMainFocusedPercentile95(smoothness_data.main_focused_percentile_95)
-      .SetMainFocusedVariance(smoothness_data.main_focused_variance)
-      .SetCompositorFocusedMedian(smoothness_data.compositor_focused_median)
-      .SetCompositorFocusedPercentile95(
-          smoothness_data.compositor_focused_percentile_95)
-      .SetCompositorFocusedVariance(smoothness_data.compositor_focused_variance)
-      .SetScrollFocusedMedian(smoothness_data.scroll_focused_median)
-      .SetScrollFocusedPercentile95(
-          smoothness_data.scroll_focused_percentile_95)
-      .SetScrollFocusedVariance(smoothness_data.scroll_focused_variance);
-  if (smoothness_data.worst_smoothness_after1sec >= 0)
-    builder.SetWorstCaseAfter1Sec(smoothness_data.worst_smoothness_after1sec);
-  if (smoothness_data.worst_smoothness_after2sec >= 0)
-    builder.SetWorstCaseAfter2Sec(smoothness_data.worst_smoothness_after2sec);
-  if (smoothness_data.worst_smoothness_after5sec >= 0)
-    builder.SetWorstCaseAfter5Sec(smoothness_data.worst_smoothness_after5sec);
+  if (features::StopExportDFCMetrics()) {
+    builder.SetAverage(smoothness_data.avg_smoothness)
+        .SetMedian(smoothness_data.median_smoothness)
+        .SetCompositorFocusedMedian(smoothness_data.compositor_focused_median);
+  } else {
+    builder.SetAverage(smoothness_data.avg_smoothness)
+        .SetMedian(smoothness_data.median_smoothness)
+        .SetPercentile95(smoothness_data.percentile_95)
+        .SetAboveThreshold(smoothness_data.above_threshold)
+        .SetWorstCase(smoothness_data.worst_smoothness)
+        .SetVariance(smoothness_data.variance)
+        .SetSmoothnessVeryGood(smoothness_data.buckets[0])
+        .SetSmoothnessGood(smoothness_data.buckets[1])
+        .SetSmoothnessOkay(smoothness_data.buckets[2])
+        .SetSmoothnessBad(smoothness_data.buckets[3])
+        .SetSmoothnessVeryBad25to50(smoothness_data.buckets[4])
+        .SetSmoothnessVeryBad50to75(smoothness_data.buckets[5])
+        .SetSmoothnessVeryBad75to100(smoothness_data.buckets[6])
+        .SetMainFocusedMedian(smoothness_data.main_focused_median)
+        .SetMainFocusedPercentile95(smoothness_data.main_focused_percentile_95)
+        .SetMainFocusedVariance(smoothness_data.main_focused_variance)
+        .SetCompositorFocusedMedian(smoothness_data.compositor_focused_median)
+        .SetCompositorFocusedPercentile95(
+            smoothness_data.compositor_focused_percentile_95)
+        .SetCompositorFocusedVariance(
+            smoothness_data.compositor_focused_variance)
+        .SetScrollFocusedMedian(smoothness_data.scroll_focused_median)
+        .SetScrollFocusedPercentile95(
+            smoothness_data.scroll_focused_percentile_95)
+        .SetScrollFocusedVariance(smoothness_data.scroll_focused_variance);
+    if (smoothness_data.worst_smoothness_after1sec >= 0) {
+      builder.SetWorstCaseAfter1Sec(smoothness_data.worst_smoothness_after1sec);
+    }
+    if (smoothness_data.worst_smoothness_after2sec >= 0) {
+      builder.SetWorstCaseAfter2Sec(smoothness_data.worst_smoothness_after2sec);
+    }
+    if (smoothness_data.worst_smoothness_after5sec >= 0) {
+      builder.SetWorstCaseAfter5Sec(smoothness_data.worst_smoothness_after5sec);
+    }
+  }
   builder.Record(ukm::UkmRecorder::Get());
 }
 
@@ -1520,6 +1610,9 @@ void UkmPageLoadMetricsObserver::RecordPageEndMetrics(
   ukm::builders::PageLoad builder(GetDelegate().GetPageUkmSourceId());
   // page_transition_ fits in a uint32_t, so we can safely cast to int64_t.
   builder.SetNavigation_PageTransition(static_cast<int64_t>(page_transition_));
+
+  builder.SetNavigation_InitiatorLocation(
+      static_cast<int64_t>(navigation_trigger_type_));
 
   // GetDelegate().GetPageEndReason() fits in a uint32_t, so we can safely cast
   // to int64_t.
@@ -1703,9 +1796,11 @@ void UkmPageLoadMetricsObserver::OnTimingUpdate(
   }
 }
 
-void UkmPageLoadMetricsObserver::SetUpSharedMemoryForSmoothness(
-    const base::ReadOnlySharedMemoryRegion& shared_memory) {
-  ukm_smoothness_data_ = shared_memory.Map();
+void UkmPageLoadMetricsObserver::SetUpSharedMemoryForUkms(
+    const base::ReadOnlySharedMemoryRegion& smoothness_memory,
+    const base::ReadOnlySharedMemoryRegion& dropped_frames_memory) {
+  ukm_smoothness_data_ = smoothness_memory.Map();
+  ukm_dropped_frames_data_ = dropped_frames_memory.Map();
 }
 
 void UkmPageLoadMetricsObserver::OnCpuTimingUpdate(

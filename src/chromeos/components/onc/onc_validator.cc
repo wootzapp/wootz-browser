@@ -537,9 +537,7 @@ bool Validator::ValidateRecommendedField(
   for (const auto& entry : recommended_value->GetList()) {
     const std::string* field_name = entry.GetIfString();
     if (!field_name) {
-      NOTREACHED_IN_MIGRATION();  // The types of field values are already
-                                  // verified.
-      continue;
+      NOTREACHED();  // The types of field values are already verified.
     }
 
     const OncFieldSignature* field_signature =
@@ -701,8 +699,7 @@ bool Validator::FieldExistsAndIsEmpty(const base::Value::Dict& dict,
       return false;
     }
   } else {
-    NOTREACHED_IN_MIGRATION();
-    return false;
+    NOTREACHED();
   }
 
   path_.push_back(field_name);
@@ -750,9 +747,7 @@ bool Validator::ListFieldContainsValidValues(
   for (const auto& entry : *list) {
     const std::string* value = entry.GetIfString();
     if (!value) {
-      NOTREACHED_IN_MIGRATION();  // The types of field values are already
-                                  // verified.
-      continue;
+      NOTREACHED();  // The types of field values are already verified.
     }
     if (!IsValidValue(*value, valid_values)) {
       path_.pop_back();
@@ -1087,6 +1082,11 @@ bool Validator::ValidateIPConfig(base::Value::Dict* result,
     return false;
   }
 
+  if (FieldExistsAndIsNotInRange(*result, ::onc::ipconfig::kMTU, 0,
+                                 std::numeric_limits<int>::max())) {
+    return false;
+  }
+
   bool all_required_exist = true;
   if (require_fields) {
     all_required_exist &= RequireField(*result, ::onc::ipconfig::kIPAddress);
@@ -1383,7 +1383,8 @@ bool Validator::ValidateGlobalNetworkConfiguration(base::Value::Dict* result) {
       ::onc::global_network_config::kBlockedHexSSIDs,
       ::onc::global_network_config::kRecommendedValuesAreEphemeral,
       ::onc::global_network_config::
-          kUserCreatedNetworkConfigurationsAreEphemeral};
+          kUserCreatedNetworkConfigurationsAreEphemeral,
+      ::onc::global_network_config::kDisconnectWiFiOnEthernet};
   for (std::string_view key : kDevicePolicyOnlyKeys) {
     if (!IsInDevicePolicy(result, key)) {
       return false;

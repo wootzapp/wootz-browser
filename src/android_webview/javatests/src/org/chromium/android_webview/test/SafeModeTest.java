@@ -8,6 +8,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import static org.chromium.android_webview.test.OnlyRunIn.ProcessMode.EITHER_PROCESS;
+
 import android.app.job.JobInfo;
 import android.app.job.JobScheduler;
 import android.app.job.JobWorkItem;
@@ -31,13 +33,13 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.UseParametersRunnerFactory;
 
-import org.chromium.android_webview.BrowserSafeModeActionList;
 import org.chromium.android_webview.common.SafeModeAction;
 import org.chromium.android_webview.common.SafeModeActionIds;
 import org.chromium.android_webview.common.SafeModeController;
 import org.chromium.android_webview.common.VariationsFastFetchModeUtils;
 import org.chromium.android_webview.common.services.ISafeModeService;
 import org.chromium.android_webview.common.variations.VariationsUtils;
+import org.chromium.android_webview.safe_mode.BrowserSafeModeActionList;
 import org.chromium.android_webview.services.AwVariationsSeedFetcher;
 import org.chromium.android_webview.services.NonEmbeddedFastVariationsSeedSafeModeAction;
 import org.chromium.android_webview.services.NonEmbeddedSafeModeAction;
@@ -73,6 +75,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Test WebView SafeMode. */
 @RunWith(Parameterized.class)
 @UseParametersRunnerFactory(AwJUnit4ClassRunnerWithParameters.Factory.class)
+@OnlyRunIn(EITHER_PROCESS) // These tests don't use the renderer process
 public class SafeModeTest extends AwParameterizedTest {
     // The package name of the test shell. This is acting both as the client app and the WebView
     // provider.
@@ -165,17 +168,9 @@ public class SafeModeTest extends AwParameterizedTest {
     private static final int JOB_ID = TaskIds.WEBVIEW_VARIATIONS_SEED_FETCH_JOB_ID;
 
     // A test JobScheduler which only holds one job, and never does anything with it.
-    private class TestJobScheduler extends JobScheduler {
+    private static class TestJobScheduler extends JobScheduler {
         public JobInfo mJob;
         public QueueContainer mQueueContainer = new QueueContainer();
-
-        public void clear() {
-            mJob = null;
-        }
-
-        public void assertScheduled() {
-            Assert.assertNotNull("No job scheduled", mJob);
-        }
 
         public void assertNotScheduled() {
             Assert.assertNull("Job should not have been scheduled", mJob);
@@ -242,15 +237,11 @@ public class SafeModeTest extends AwParameterizedTest {
         public JobInfo waitForMessageCallback() throws Exception {
             return AwActivityTestRule.waitForNextQueueElement(mQueue);
         }
-
-        public boolean isQueueEmpty() {
-            return mQueue.isEmpty();
-        }
     }
 
     // A test VariationsSeedFetcher which doesn't actually download seeds, but verifies the request
     // parameters.
-    private class TestVariationsSeedFetcher extends VariationsSeedFetcher {
+    private static class TestVariationsSeedFetcher extends VariationsSeedFetcher {
         private static final String SAVED_VARIATIONS_SEED_SERIAL_NUMBER = "savedSerialNumber";
 
         public int fetchResult;
@@ -605,6 +596,21 @@ public class SafeModeTest extends AwParameterizedTest {
                 SafeModeController.getInstance().isSafeModeEnabled(TEST_WEBVIEW_PACKAGE_NAME));
     }
 
+    @Test
+    @MediumTest
+    @Feature({"AndroidWebView"})
+    public void testQueryActions_emptyAction() throws Throwable {
+        final String invalidWebViewPackageName = "org.chromium.android_webview.test";
+
+        Assert.assertFalse(
+                "SafeMode should be disabled",
+                SafeModeController.getInstance().isSafeModeEnabled(invalidWebViewPackageName));
+        Assert.assertEquals(
+                "ContentProvider should return empty set when cursor is null",
+                asSet(),
+                SafeModeController.getInstance().queryActions(invalidWebViewPackageName));
+    }
+
     private class TestSafeModeAction implements SafeModeAction {
         private int mCallCount;
         private int mExecutionOrder;
@@ -642,7 +648,7 @@ public class SafeModeTest extends AwParameterizedTest {
         }
     }
 
-    private class TestNonEmbeddedSafeModeAction implements NonEmbeddedSafeModeAction {
+    private static class TestNonEmbeddedSafeModeAction implements NonEmbeddedSafeModeAction {
         private int mActivatedCount;
         private int mDeactivatedCount;
         private final String mId;
@@ -779,8 +785,8 @@ public class SafeModeTest extends AwParameterizedTest {
         Assert.assertEquals(
                 "Overall status should be unknown if at least one action is unrecognized and no"
                         + " actions failed",
-                success,
-                SafeModeController.SafeModeExecutionResult.ACTION_UNKNOWN);
+                SafeModeController.SafeModeExecutionResult.ACTION_UNKNOWN,
+                success);
         histogramExpectation.assertExpected("Unregistered safemode actions should be logged");
         // If we got this far without crashing, we assume SafeModeController correctly ignored the
         // unregistered actions.
@@ -820,8 +826,8 @@ public class SafeModeTest extends AwParameterizedTest {
         Assert.assertEquals(
                 "Overall status should be failure if at least one"
                         + " action is unrecognized and at least one action is a failure",
-                success,
-                SafeModeController.SafeModeExecutionResult.ACTION_FAILED);
+                SafeModeController.SafeModeExecutionResult.ACTION_FAILED,
+                success);
         histogramExpectation.assertExpected("Failed safemode actions should be logged");
         // If we got this far without crashing, we assume SafeModeController correctly ignored the
         // unregistered actions.
@@ -903,8 +909,8 @@ public class SafeModeTest extends AwParameterizedTest {
         int success = SafeModeController.getInstance().executeActions(allSuccessful);
         Assert.assertEquals(
                 "Overall status should be successful if all actions are successful",
-                success,
-                SafeModeController.SafeModeExecutionResult.SUCCESS);
+                SafeModeController.SafeModeExecutionResult.SUCCESS,
+                success);
         histogramExpectation.assertExpected(
                 "Overall status should be successful if all actions are successful");
         Assert.assertEquals(
@@ -930,8 +936,8 @@ public class SafeModeTest extends AwParameterizedTest {
         success = SafeModeController.getInstance().executeActions(oneFailure);
         Assert.assertEquals(
                 "Overall status should be failure if at least one action fails",
-                success,
-                SafeModeController.SafeModeExecutionResult.ACTION_FAILED);
+                SafeModeController.SafeModeExecutionResult.ACTION_FAILED,
+                success);
         histogramExpectation.assertExpected(
                 "Overall status should be failure if at least one action fails");
         Assert.assertEquals(
@@ -1150,6 +1156,10 @@ public class SafeModeTest extends AwParameterizedTest {
         FastVariationsSeedSafeModeAction.setAlternateSeedFilePath(embeddedSeedFile);
 
         try {
+            File oldFile = VariationsUtils.getSeedFile();
+            File newFile = VariationsUtils.getNewSeedFile();
+            VariationsTestUtils.writeMockSeed(oldFile);
+            VariationsTestUtils.writeMockSeed(newFile);
             setSafeMode(Arrays.asList(action.getId()));
 
             boolean success = action.execute();

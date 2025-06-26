@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 
+#include "base/auto_reset.h"
 #include "base/callback_list.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
@@ -15,11 +16,13 @@
 #include "base/time/time.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "ui/base/models/image_model.h"
 
 class Browser;
 class Profile;
 class AvatarToolbarButton;
+enum class AvatarDelayType;
 
 namespace ui {
 class ColorProvider;
@@ -62,23 +65,30 @@ class AvatarToolbarButtonDelegate : public signin::IdentityManager::Observer {
 
   // These info are based on the `ButtonState`.
   std::pair<std::u16string, std::optional<SkColor>> GetTextAndColor(
-      const ui::ColorProvider* const color_provider) const;
-  SkColor GetHighlightTextColor(
-      const ui::ColorProvider* const color_provider) const;
+      const ui::ColorProvider* color_provider) const;
+  SkColor GetHighlightTextColor(const ui::ColorProvider* color_provider) const;
+  std::optional<std::u16string> GetAccessibilityLabel() const;
   std::u16string GetAvatarTooltipText() const;
   std::pair<ChromeColorIds, ChromeColorIds> GetInkdropColors() const;
-  ui::ImageModel GetAvatarIcon(int icon_size, SkColor icon_color) const;
+  ui::ImageModel GetAvatarIcon(int icon_size,
+                               SkColor icon_color,
+                               const ui::ColorProvider* color_provider) const;
   bool ShouldPaintBorder() const;
+  std::optional<base::RepeatingClosure> GetButtonAction();
 
   [[nodiscard]] base::ScopedClosureRunner ShowExplicitText(
-      const std::u16string& text);
+      const std::u16string& text,
+      std::optional<std::u16string> accessibility_label);
 
   // Called by the AvatarToolbarButton to notify the delegate about events.
   void OnThemeChanged(const ui::ColorProvider* color_provider);
 
-  // Overrides the duration of the avatar toolbar button text that is displayed
-  // for a specific amount of time.
-  static void SetTextDurationForTesting(base::TimeDelta duration);
+  // Testing functions: check `AvatarToolbarButton` equivalent functions.
+  [[nodiscard]] static base::AutoReset<std::optional<base::TimeDelta>>
+  CreateScopedInfiniteDelayOverrideForTesting(AvatarDelayType delay_type);
+  void TriggerTimeoutForTesting(AvatarDelayType delay_type);
+  [[nodiscard]] static base::AutoReset<std::optional<base::TimeDelta>>
+  CreateScopedZeroDelayOverrideSigninPendingTextForTesting();
 
  private:
   std::u16string GetProfileName() const;
@@ -91,6 +101,9 @@ class AvatarToolbarButtonDelegate : public signin::IdentityManager::Observer {
   gfx::Image GetGaiaAccountImage() const;
 
   // signin::IdentityManager::Observer:
+  void OnPrimaryAccountChanged(
+      const signin::PrimaryAccountChangeEvent& event_details) override;
+  void OnExtendedAccountInfoUpdated(const AccountInfo& info) override;
   void OnErrorStateOfRefreshTokenUpdatedForAccount(
       const CoreAccountInfo& account_info,
       const GoogleServiceAuthError& error,
@@ -101,6 +114,11 @@ class AvatarToolbarButtonDelegate : public signin::IdentityManager::Observer {
   const raw_ptr<Browser> browser_;
   const raw_ptr<Profile> profile_;
   const raw_ptr<signin::IdentityManager> identity_manager_;
+
+  // Gaia Id of the account that was signed in from having it's choice
+  // remembered following a web sign-in event but waiting for the available
+  // account information to be fetched in order to show the sign in IPH.
+  GaiaId gaia_id_for_signin_choice_remembered_;
 
   // Initialized in `InitializeStates()`.
   std::unique_ptr<internal::StateManager> state_manager_;

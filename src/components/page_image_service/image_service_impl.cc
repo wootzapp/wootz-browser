@@ -75,9 +75,10 @@ class ImageServiceImpl::SuggestEntityImageURLFetcher {
         metrics::OmniboxEventProto::JOURNEYS;
     search_terms_args.search_terms = search_query_;
 
+    // ImageServiceFactory does not create a service instance for OTR profiles.
     loader_ = remote_suggestions_service->StartSuggestionsRequest(
-        RemoteRequestType::kImages, template_url, search_terms_args,
-        search_terms_data,
+        RemoteRequestType::kImages, /*is_off_the_record=*/false, template_url,
+        search_terms_args, search_terms_data,
         base::BindOnce(&SuggestEntityImageURLFetcher::OnURLLoadComplete,
                        weak_factory_.GetWeakPtr()));
   }
@@ -178,10 +179,10 @@ ImageServiceImpl::ImageServiceImpl(
       remote_suggestions_service_(remote_suggestions_service),
       history_consent_helper_(std::make_unique<ImageServiceConsentHelper>(
           sync_service,
-          syncer::ModelType::HISTORY_DELETE_DIRECTIVES)),
+          syncer::DataType::HISTORY_DELETE_DIRECTIVES)),
       bookmarks_consent_helper_(std::make_unique<ImageServiceConsentHelper>(
           sync_service,
-          syncer::ModelType::BOOKMARKS)),
+          syncer::DataType::BOOKMARKS)),
       autocomplete_scheme_classifier_(
           std::move(autocomplete_scheme_classifier)) {
   if (opt_guide && base::FeatureList::IsEnabled(
@@ -223,6 +224,7 @@ void ImageServiceImpl::GetConsentToFetchImage(
   switch (client_id) {
     case mojom::ClientId::Journeys:
     case mojom::ClientId::JourneysSidePanel:
+    case mojom::ClientId::HistoryEmbeddings:
     case mojom::ClientId::NtpQuests:
     case mojom::ClientId::NtpTabResumption: {
       return history_consent_helper_->EnqueueRequest(std::move(callback),
@@ -353,7 +355,8 @@ void ImageServiceImpl::ProcessAllBatchedOptimizationGuideRequests(
   optimization_guide::proto::RequestContext request_context;
   switch (client_id) {
     case mojom::ClientId::Journeys:
-    case mojom::ClientId::JourneysSidePanel: {
+    case mojom::ClientId::JourneysSidePanel:
+    case mojom::ClientId::HistoryEmbeddings: {
       request_context = optimization_guide::proto::CONTEXT_JOURNEYS;
       break;
     }

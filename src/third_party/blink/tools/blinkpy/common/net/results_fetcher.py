@@ -52,7 +52,7 @@ class TestResultsFetcher:
     """
 
     _test_id_pattern = re.compile(
-        r'ninja://\S*(blink|chrome)_(web|wpt)_tests/(?P<name>\S+)')
+        r'ninja://\S+_(web_tests|wpt(|_\w+))/(?P<name>\S+)')
 
     def __init__(self, web, luci_auth):
         self.web = web
@@ -105,11 +105,10 @@ class TestResultsFetcher:
                 'artifactIdRegexp': 'actual_.*'
             })
         artifacts_by_run = self._group_artifacts_by_test_run(artifacts)
-        return WebTestResults.from_rdb_responses(
-            test_results_by_name,
-            artifacts_by_run,
-            step_name=suite,
-            builder_name=build.builder_name)
+        return WebTestResults.from_rdb_responses(test_results_by_name,
+                                                 artifacts_by_run,
+                                                 step_name=suite,
+                                                 build=build)
 
     def _group_test_results_by_test_name(self, test_results):
         test_results_by_name = collections.defaultdict(list)

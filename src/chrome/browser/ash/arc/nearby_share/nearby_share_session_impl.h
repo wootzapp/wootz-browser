@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_ASH_ARC_NEARBY_SHARE_NEARBY_SHARE_SESSION_IMPL_H_
 #define CHROME_BROWSER_ASH_ARC_NEARBY_SHARE_NEARBY_SHARE_SESSION_IMPL_H_
 
-#include "ash/components/arc/mojom/nearby_share.mojom.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -13,8 +12,8 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ash/arc/nearby_share/share_info_file_handler.h"
-#include "chrome/browser/ash/fusebox/fusebox_moniker.h"
 #include "chrome/browser/sharesheet/sharesheet_types.h"
+#include "chromeos/ash/experiences/arc/mojom/nearby_share.mojom.h"
 #include "chromeos/components/sharesheet/constants.h"
 #include "components/services/app_service/public/cpp/intent.h"
 #include "mojo/public/cpp/bindings/receiver.h"
@@ -85,10 +84,6 @@ class NearbyShareSessionImpl : public mojom::NearbyShareSessionHost,
 
   // Converts |share_info_| to |apps::IntentPtr| type.
   apps::IntentPtr ConvertShareIntentInfoToIntent();
-
-  // Converts |share_info_| to |apps::IntentPtr| type, using fusebox::Monikers
-  // to share files.
-  apps::IntentPtr ConvertShareIntentInfoToMonikerFileIntent();
 
   void OnNearbyShareBubbleShown(sharesheet::SharesheetResult result);
 
@@ -178,10 +173,6 @@ class NearbyShareSessionImpl : public mojom::NearbyShareSessionHost,
 
   // Callback when the Nearby Share Session is finished and no longer needed.
   SessionFinishedCallback session_finished_callback_;
-
-  // Monikers which have been created for sharing files from ARC. These should
-  // be destroyed once sharing is complete.
-  std::vector<fusebox::Moniker> shared_monikers_;
 
   // Test callback to override the sharesheet bubble in test environments.
   SharesheetCallback test_sharesheet_callback_;

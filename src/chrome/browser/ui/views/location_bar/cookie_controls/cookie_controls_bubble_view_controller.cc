@@ -8,9 +8,9 @@
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
+#include "chrome/browser/feedback/show_feedback_page.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/url_identity.h"
 #include "chrome/browser/ui/views/accessibility/non_accessible_image_view.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
@@ -19,8 +19,11 @@
 #include "chrome/grit/generated_resources.h"
 #include "components/content_settings/browser/ui/cookie_controls_util.h"
 #include "components/content_settings/core/common/cookie_blocking_3pcd_status.h"
+#include "components/content_settings/core/common/cookie_controls_enforcement.h"
 #include "components/content_settings/core/common/features.h"
 #include "components/favicon/core/favicon_service.h"
+#include "components/privacy_sandbox/privacy_sandbox_features.h"
+#include "components/strings/grit/privacy_sandbox_strings.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/web_contents.h"
@@ -48,13 +51,7 @@ constexpr UrlIdentity::FormatOptions kUrlIdentityOptions{
                             kOmitSchemePathAndTrivialSubdomains}};
 
 const gfx::VectorIcon& GetToggleIcon(bool enabled) {
-  if (enabled) {
-    return features::IsChromeRefresh2023() ? views::kEyeRefreshIcon
-                                           : views::kEyeIcon;
-  } else {
-    return features::IsChromeRefresh2023() ? views::kEyeCrossedRefreshIcon
-                                           : views::kEyeCrossedIcon;
-  }
+  return enabled ? views::kEyeRefreshIcon : views::kEyeCrossedRefreshIcon;
 }
 
 }  // namespace
@@ -77,10 +74,11 @@ CookieControlsBubbleViewController::CookieControlsBubbleViewController(
 
   bubble_view_->GetReloadingView()->SetVisible(false);
   bubble_view_->GetContentView()->SetVisible(true);
-  bubble_view_->GetContentView()->SetAccessibleRole(ax::mojom::Role::kAlert);
+  bubble_view_->GetContentView()->GetViewAccessibility().SetRole(
+      ax::mojom::Role::kAlert);
 }
 
-void CookieControlsBubbleViewController::OnUserClosedContentView() {
+void CookieControlsBubbleViewController::OnUserTriggeredReloadingAction() {
   if (!controller_->HasUserChangedCookieBlockingForSite()) {
     controller_observation_.Reset();
     bubble_view_->CloseWidget();
@@ -97,18 +95,18 @@ void CookieControlsBubbleViewController::OnUserClosedContentView() {
 }
 
 void CookieControlsBubbleViewController::SwitchToReloadingView() {
-  bubble_view_->SwitchToReloadingView();
-  bubble_view_->GetReloadingView()->GetViewAccessibility().AnnounceText(
-      l10n_util::GetStringFUTF16(IDS_COOKIE_CONTROLS_BUBBLE_RELOADING_LABEL,
-                                 GetSubjectUrlName(web_contents_.get())));
-  bubble_view_->GetReloadingView()->RequestFocus();
-
-  // Set a timeout for how long the reloading view is shown for.
+  if (!controller_->ShowActFeatures()) {
+    bubble_view_->SwitchToReloadingView();
+    bubble_view_->GetReloadingView()->GetViewAccessibility().AnnounceText(
+        l10n_util::GetStringFUTF16(IDS_COOKIE_CONTROLS_BUBBLE_RELOADING_LABEL,
+                                   GetSubjectUrlName(web_contents_.get())));
+    bubble_view_->GetReloadingView()->RequestFocus();
+  }
+  // Set a timeout for how long the reloading UI is shown for.
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
-      base::BindOnce(
-          &CookieControlsBubbleViewController::OnReloadingViewTimeout,
-          weak_factory_.GetWeakPtr()),
+      base::BindOnce(&CookieControlsBubbleViewController::OnReloadingUiTimeout,
+                     weak_factory_.GetWeakPtr()),
       content_settings::features::kUserBypassUIReloadBubbleTimeout.Get());
 }
 
@@ -122,7 +120,7 @@ void CookieControlsBubbleViewController::ApplyThirdPartyCookiesAllowedState(
     base::Time expiration) {
   bool is_permanent_exception = expiration == base::Time();
   std::u16string label_title;
-  int bubble_title, label_description;
+  int label_description;
   if (is_permanent_exception ||
       enforcement == CookieControlsEnforcement::kEnforcedByCookieSetting) {
     label_title = l10n_util::GetStringUTF16(
@@ -138,62 +136,41 @@ void CookieControlsBubbleViewController::ApplyThirdPartyCookiesAllowedState(
     label_description =
         IDS_TRACKING_PROTECTION_BUBBLE_BLOCKING_RESTART_DESCRIPTION;
   }
-  if (blocking_status_ == CookieBlocking3pcdStatus::kNotIn3pcd) {
-    bubble_title = IDS_COOKIE_CONTROLS_BUBBLE_COOKIES_ALLOWED_TITLE;
-  } else {
-    bubble_title = IDS_TRACKING_PROTECTION_BUBBLE_TITLE;
-  }
-
-  bubble_view_->UpdateTitle(l10n_util::GetStringUTF16(bubble_title));
+  bubble_view_->UpdateTitle(l10n_util::GetStringUTF16(
+      IDS_COOKIE_CONTROLS_BUBBLE_COOKIES_ALLOWED_TITLE));
   bubble_view_->GetContentView()->UpdateContentLabels(
       label_title, l10n_util::GetStringUTF16(label_description));
-  bubble_view_->GetContentView()->SetToggleIsOn(true);
-  bubble_view_->GetContentView()->SetToggleIcon(GetToggleIcon(true));
-  bubble_view_->GetContentView()->SetToggleLabel(l10n_util::GetStringUTF16(
-      IDS_TRACKING_PROTECTION_BUBBLE_COOKIES_ALLOWED_LABEL));
+  bubble_view_->GetContentView()->SetCookiesLabel(l10n_util::GetStringUTF16(
+      IDS_TRACKING_PROTECTION_BUBBLE_3PC_ALLOWED_SUBTITLE));
 }
 
 void CookieControlsBubbleViewController::ApplyThirdPartyCookiesBlockedState() {
-  int label_title = blocking_status_ == CookieBlocking3pcdStatus::kNotIn3pcd
-                        ? IDS_COOKIE_CONTROLS_BUBBLE_COOKIES_BLOCKED_TITLE
-                        : IDS_TRACKING_PROTECTION_BUBBLE_TITLE;
-  bubble_view_->UpdateTitle(l10n_util::GetStringUTF16(label_title));
+  bubble_view_->UpdateTitle(l10n_util::GetStringUTF16(
+      blocking_status_ == CookieBlocking3pcdStatus::kLimited
+          ? IDS_COOKIE_CONTROLS_BUBBLE_COOKIES_LIMITED_TITLE
+          : IDS_COOKIE_CONTROLS_BUBBLE_COOKIES_BLOCKED_TITLE));
   bubble_view_->GetContentView()->UpdateContentLabels(
       l10n_util::GetStringUTF16(
           IDS_COOKIE_CONTROLS_BUBBLE_SITE_NOT_WORKING_TITLE),
       l10n_util::GetStringUTF16(
           IDS_TRACKING_PROTECTION_BUBBLE_SITE_NOT_WORKING_DESCRIPTION));
-  bubble_view_->GetContentView()->SetToggleIsOn(false);
-  bubble_view_->GetContentView()->SetToggleIcon(GetToggleIcon(false));
-  bubble_view_->GetContentView()->SetToggleLabel(l10n_util::GetStringUTF16(
+  bubble_view_->GetContentView()->SetCookiesLabel(l10n_util::GetStringUTF16(
       blocking_status_ == CookieBlocking3pcdStatus::kLimited
-          ? IDS_TRACKING_PROTECTION_BUBBLE_COOKIES_LIMITED_LABEL
-          : IDS_TRACKING_PROTECTION_BUBBLE_COOKIES_BLOCKED_LABEL));
+          ? IDS_TRACKING_PROTECTION_BUBBLE_3PC_LIMITED_SUBTITLE
+          : IDS_TRACKING_PROTECTION_BUBBLE_3PC_BLOCKED_SUBTITLE));
 }
 
-CookieControlsBubbleViewController::~CookieControlsBubbleViewController() =
-    default;
-
-void CookieControlsBubbleViewController::OnStatusChanged(
-    bool controls_visible,
-    bool protections_on,
+void CookieControlsBubbleViewController::FillViewForThirdPartyCookies(
     CookieControlsEnforcement enforcement,
-    CookieBlocking3pcdStatus blocking_status,
     base::Time expiration) {
-  protections_on_ = protections_on;
-  blocking_status_ = blocking_status;
-
-  if (!controls_visible) {
-    bubble_view_->CloseWidget();
-    return;
-  }
-
   if (protections_on_) {
     ApplyThirdPartyCookiesBlockedState();
   } else {
     ApplyThirdPartyCookiesAllowedState(enforcement, expiration);
   }
-
+  bubble_view_->GetContentView()->SetToggleIsOn(!protections_on_);
+  bubble_view_->GetContentView()->SetToggleIcon(
+      GetToggleIcon(!protections_on_));
   switch (enforcement) {
     case CookieControlsEnforcement::kNoEnforcement:
       bubble_view_->GetContentView()->SetContentLabelsVisible(true);
@@ -208,19 +185,41 @@ void CookieControlsBubbleViewController::OnStatusChanged(
     case CookieControlsEnforcement::kEnforcedByPolicy:
     case CookieControlsEnforcement::kEnforcedByExtension:
     case CookieControlsEnforcement::kEnforcedByCookieSetting:
-      // In 3PCD, tell the user if they allowed the current site in settings.
       bubble_view_->GetContentView()->SetContentLabelsVisible(
           enforcement == CookieControlsEnforcement::kEnforcedByCookieSetting);
       bubble_view_->GetContentView()->SetFeedbackSectionVisibility(false);
       bubble_view_->GetContentView()->SetToggleVisible(false);
       bubble_view_->GetContentView()->SetEnforcedIcon(
           content_settings::CookieControlsUtil::GetEnforcedIcon(enforcement),
-          l10n_util::GetStringUTF16(
-              content_settings::CookieControlsUtil::GetEnforcedTooltipTextId(
-                  enforcement))),
+          content_settings::CookieControlsUtil::GetEnforcedTooltip(
+              enforcement)),
           bubble_view_->GetContentView()->SetEnforcedIconVisible(true);
       break;
   }
+  bubble_view_->GetContentView()->PreferredSizeChanged();
+}
+
+CookieControlsBubbleViewController::~CookieControlsBubbleViewController() =
+    default;
+
+void CookieControlsBubbleViewController::OnStatusChanged(
+    bool controls_visible,
+    bool protections_on,
+    CookieControlsEnforcement enforcement,
+    CookieBlocking3pcdStatus blocking_status,
+    base::Time expiration) {
+  // Leave the UI unchanged during reloading; it will update after the page
+  // loads.
+  if (is_reloading_state_) {
+    return;
+  }
+  protections_on_ = protections_on;
+  blocking_status_ = blocking_status;
+  if (!controls_visible) {
+    bubble_view_->CloseWidget();
+    return;
+  }
+  FillViewForThirdPartyCookies(enforcement, expiration);
 }
 
 void CookieControlsBubbleViewController::
@@ -231,7 +230,7 @@ void CookieControlsBubbleViewController::
   CloseBubble();
 }
 
-void CookieControlsBubbleViewController::OnReloadingViewTimeout() {
+void CookieControlsBubbleViewController::OnReloadingUiTimeout() {
   base::RecordAction(
       base::UserMetricsAction("CookieControls.Bubble.ReloadingTimeout"));
   CloseBubble();
@@ -247,10 +246,11 @@ void CookieControlsBubbleViewController::CloseBubble() {
 }
 
 void CookieControlsBubbleViewController::SetCallbacks() {
-  on_user_closed_content_view_callback_ =
-      bubble_view_->RegisterOnUserClosedContentViewCallback(base::BindRepeating(
-          &CookieControlsBubbleViewController::OnUserClosedContentView,
-          base::Unretained(this)));
+  on_user_triggered_reloading_action_callback_ =
+      bubble_view_->RegisterOnUserTriggeredReloadingActionCallback(
+          base::BindRepeating(&CookieControlsBubbleViewController::
+                                  OnUserTriggeredReloadingAction,
+                              base::Unretained(this)));
 
   toggle_button_callback_ =
       bubble_view_->GetContentView()->RegisterToggleButtonPressedCallback(
@@ -266,17 +266,19 @@ void CookieControlsBubbleViewController::SetCallbacks() {
 }
 
 void CookieControlsBubbleViewController::OnToggleButtonPressed(
-    bool allow_third_party_cookies) {
-  if (allow_third_party_cookies) {
-    base::RecordAction(base::UserMetricsAction(
-        "CookieControls.Bubble.AllowThirdPartyCookies"));
-  } else {
-    base::RecordAction(base::UserMetricsAction(
-        "CookieControls.Bubble.BlockThirdPartyCookies"));
-  }
+    bool toggled_on) {
+  base::RecordAction(base::UserMetricsAction(
+      toggled_on ? "CookieControls.Bubble.AllowThirdPartyCookies"
+                 : "CookieControls.Bubble.BlockThirdPartyCookies"));
+
   controller_->SetUserChangedCookieBlockingForSite(true);
-  controller_->OnCookieBlockingEnabledForSite(!allow_third_party_cookies);
-  bubble_view_->GetContentView()->NotifyAccessibilityEvent(
+  // We should only enter the reloading state in the Incognito ACT UI.
+  if (controller_->ShowActFeatures()) {
+    is_reloading_state_ = true;
+    OnUserTriggeredReloadingAction();
+  }
+  controller_->OnCookieBlockingEnabledForSite(!toggled_on);
+  bubble_view_->GetContentView()->NotifyAccessibilityEventDeprecated(
       ax::mojom::Event::kAlert, true);
 }
 

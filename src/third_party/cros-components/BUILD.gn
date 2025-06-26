@@ -9,6 +9,8 @@ import("//tools/typescript/ts_library.gni")
 import("//ui/webui/resources/tools/generate_grd.gni")
 
 _cros_components_ts_files = [
+  "accordion/accordion.ts",
+  "accordion/accordion_item.ts",
   "async_helpers/async_helpers.ts",
   "badge/badge.ts",
   "button/button.ts",
@@ -19,6 +21,8 @@ _cros_components_ts_files = [
   "dropdown/dropdown_option.ts",
   "helpers/helpers.ts",
   "icon_button/icon-button.ts",
+  "icon_dropdown/icon-dropdown.ts",
+  "icon_dropdown/icon-dropdown-option.ts",
   "lottie_renderer/event_binders.ts",
   "lottie_renderer/lottie-renderer.ts",
   "lottie_renderer/worker.ts",
@@ -46,6 +50,7 @@ _cros_components_ts_files = [
   "tabs/tabs.ts",
   "tag/tag.ts",
   "textfield/textfield.ts",
+  "tooltip/tooltip.ts",
 ]
 
 ts_library("cros_components__ts_library") {
@@ -108,7 +113,7 @@ rewrite_imports("cros_components_ts") {
     "lit|//resources/mwc/lit/index.js",
     "@lit/task|//resources/mwc/lit/index.js",
 
-    "@material/|chrome://resources/mwc/@material/",
+    "@material/|//resources/mwc/@material/",
 
     # Add js prefix's to any internal imports so they work at runtime.
     "(?P<filepath>\.\.?/[\w\-/]+)\$|\g<filepath>.js",
@@ -116,9 +121,9 @@ rewrite_imports("cros_components_ts") {
 
   deps = [
     ":cros_components__ts_library",
-    ":rename_tsconfig",
     "//third_party/material_web_components:mwc_rewrite",
   ]
+  public_deps = [ ":rename_tsconfig" ]
 }
 
 generate_grd("cros_components_grdp") {

@@ -4,7 +4,6 @@
 
 #include "content/browser/webid/webid_utils.h"
 
-#include "base/rand_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/url_formatter/elide_url.h"
@@ -40,10 +39,8 @@ constexpr net::registry_controlled_domains::PrivateRegistryFilter
 bool IsSameSiteWithAncestors(const url::Origin& origin,
                              RenderFrameHost* render_frame_host) {
   while (render_frame_host) {
-    // Many cases are same-origin, so check that first to speed up the cases
-    // where the check passes, as IsSameSite() is slower.
-    if (!origin.IsSameOriginWith(render_frame_host->GetLastCommittedOrigin()) &&
-        !IsSameSite(origin, render_frame_host->GetLastCommittedOrigin())) {
+    if (!net::SchemefulSite::IsSameSite(
+            origin, render_frame_host->GetLastCommittedOrigin())) {
       return false;
     }
     render_frame_host = render_frame_host->GetParent();
@@ -52,16 +49,16 @@ bool IsSameSiteWithAncestors(const url::Origin& origin,
 }
 
 void SetIdpSigninStatus(content::BrowserContext* context,
-                        int frame_tree_node_id,
+                        FrameTreeNodeId frame_tree_node_id,
                         const url::Origin& origin,
                         blink::mojom::IdpSigninStatus status) {
   FrameTreeNode* frame_tree_node = nullptr;
   // frame_tree_node_id may be invalid if we are loading the first frame
   // of the tab.
-  if (frame_tree_node_id != FrameTreeNode::kFrameTreeNodeInvalidId) {
+  if (frame_tree_node_id) {
     frame_tree_node = FrameTreeNode::GloballyFindByID(frame_tree_node_id);
-    // If the id was not kFrameTreeNodeInvalidId, but the lookup failed, we
-    // ignore the load because we cannot do same-origin checks.
+    // If the id was valid, but the lookup failed, we ignore the load because we
+    // cannot do same-origin checks.
     if (!frame_tree_node) {
       RecordSetLoginStatusIgnoredReason(
           FedCmSetLoginStatusIgnoredReason::kFrameTreeLookupFailed);
@@ -89,7 +86,7 @@ void SetIdpSigninStatus(content::BrowserContext* context,
     return;
   }
   delegate->SetIdpSigninStatus(
-      origin, status == blink::mojom::IdpSigninStatus::kSignedIn);
+      origin, status == blink::mojom::IdpSigninStatus::kSignedIn, std::nullopt);
 }
 
 std::optional<std::string> ComputeConsoleMessageForHttpResponseCode(
@@ -117,10 +114,6 @@ bool IsEndpointSameOrigin(const GURL& identity_provider_config_url,
                           const GURL& endpoint_url) {
   return url::Origin::Create(identity_provider_config_url)
       .IsSameOriginWith(endpoint_url);
-}
-
-bool IsSameSite(const url::Origin& origin1, const url::Origin& origin2) {
-  return net::SchemefulSite(origin1) == net::SchemefulSite(origin2);
 }
 
 bool ShouldFailAccountsEndpointRequestBecauseNotSignedInWithIdp(
@@ -157,12 +150,12 @@ void UpdateIdpSigninStatusForAccountsEndpointResponse(
     // FedCmIdpSigninStatusMode::METRICS_ONLY mode in order to better emulate
     // FedCmIdpSigninStatusMode::ENABLED behavior.
     if (!does_idp_have_failing_signin_status) {
-      permission_delegate->SetIdpSigninStatus(idp_origin, true);
+      permission_delegate->SetIdpSigninStatus(idp_origin, true, std::nullopt);
     }
   } else {
     RecordIdpSignOutNetError(fetch_status.response_code);
     // Ensures that we only fetch accounts unconditionally once.
-    permission_delegate->SetIdpSigninStatus(idp_origin, false);
+    permission_delegate->SetIdpSigninStatus(idp_origin, false, std::nullopt);
   }
 }
 
@@ -173,144 +166,169 @@ std::string GetConsoleErrorMessageFromResult(
       return "User declined or dismissed prompt. API exponential cool down "
              "triggered.";
     }
-    case FederatedAuthRequestResult::kErrorDisabledInSettings: {
-      return "Third-party sign in was disabled in browser Site Settings.";
+    case FederatedAuthRequestResult::kIdpNotPotentiallyTrustworthy: {
+      return "The IdP is not potentially trustworthy (are you using HTTP?)";
     }
-    case FederatedAuthRequestResult::kErrorTooManyRequests: {
+    case FederatedAuthRequestResult::kDisabledInSettings: {
+      return "FedCM was disabled either temporarily based on previous user "
+             "action or permanently via site settings. Try manage third-party "
+             "sign-in via the icon to the left of the URL bar or via site "
+             "settings.";
+    }
+    case FederatedAuthRequestResult::kDisabledInFlags: {
+      return "FedCM was disabled in flags.";
+    }
+    case FederatedAuthRequestResult::kTooManyRequests: {
       return "Only one navigator.credentials.get request may be outstanding at "
              "one time.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingWellKnownHttpNotFound: {
+    case FederatedAuthRequestResult::kWellKnownHttpNotFound: {
       return "The provider's FedCM well-known file cannot be found.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingWellKnownNoResponse: {
+    case FederatedAuthRequestResult::kWellKnownNoResponse: {
       return "The provider's FedCM well-known file fetch resulted in an "
              "error response code.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingWellKnownInvalidResponse: {
+    case FederatedAuthRequestResult::kWellKnownInvalidResponse: {
       return "Provider's FedCM well-known file is invalid.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingWellKnownListEmpty: {
+    case FederatedAuthRequestResult::kWellKnownListEmpty: {
       return "Provider's FedCM well-known file has no config URLs.";
     }
-    case FederatedAuthRequestResult::
-        kErrorFetchingWellKnownInvalidContentType: {
+    case FederatedAuthRequestResult::kWellKnownInvalidContentType: {
       return "Provider's FedCM well-known content type must be a JSON content "
              "type.";
     }
-    case FederatedAuthRequestResult::kErrorConfigNotInWellKnown: {
+    case FederatedAuthRequestResult::kConfigNotInWellKnown: {
       return "Provider's FedCM config file not listed in its well-known file.";
     }
-    case FederatedAuthRequestResult::kErrorWellKnownTooBig: {
+    case FederatedAuthRequestResult::kWellKnownTooBig: {
       return "Provider's FedCM well-known file contains too many config URLs.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingConfigHttpNotFound: {
+    case FederatedAuthRequestResult::kConfigHttpNotFound: {
       return "The provider's FedCM config file cannot be found.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingConfigNoResponse: {
+    case FederatedAuthRequestResult::kConfigNoResponse: {
       return "The provider's FedCM config file fetch resulted in an "
              "error response code.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingConfigInvalidResponse: {
+    case FederatedAuthRequestResult::kConfigInvalidResponse: {
       return "Provider's FedCM config file is invalid.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingConfigInvalidContentType: {
+    case FederatedAuthRequestResult::kConfigInvalidContentType: {
       return "Provider's FedCM config file content type must be a JSON content "
              "type.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingClientMetadataHttpNotFound: {
+    case FederatedAuthRequestResult::kClientMetadataHttpNotFound: {
       return "The provider's client metadata endpoint cannot be found.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingClientMetadataNoResponse: {
+    case FederatedAuthRequestResult::kClientMetadataNoResponse: {
       return "The provider's client metadata fetch resulted in an error "
              "response code.";
     }
-    case FederatedAuthRequestResult::
-        kErrorFetchingClientMetadataInvalidResponse: {
+    case FederatedAuthRequestResult::kClientMetadataInvalidResponse: {
       return "Provider's client metadata is invalid.";
     }
-    case FederatedAuthRequestResult::
-        kErrorFetchingClientMetadataInvalidContentType: {
+    case FederatedAuthRequestResult::kClientMetadataInvalidContentType: {
       return "Provider's client metadata content type must be a JSON content "
              "type.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingAccountsHttpNotFound: {
+    case FederatedAuthRequestResult::kAccountsHttpNotFound: {
       return "The provider's accounts list endpoint cannot be found.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingAccountsNoResponse: {
+    case FederatedAuthRequestResult::kAccountsNoResponse: {
       return "The provider's accounts list fetch resulted in an error response "
              "code.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingAccountsInvalidResponse: {
+    case FederatedAuthRequestResult::kAccountsInvalidResponse: {
       return "Provider's accounts list is invalid. Should have received an "
              "\"accounts\" list, where each account must have at least \"id\", "
              "\"name\", and \"email\".";
     }
-    case FederatedAuthRequestResult::kErrorFetchingAccountsListEmpty: {
+    case FederatedAuthRequestResult::kAccountsListEmpty: {
       return "Provider's accounts list is empty.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingAccountsInvalidContentType: {
+    case FederatedAuthRequestResult::kAccountsInvalidContentType: {
       return "Provider's accounts list endpoint content type must be a JSON "
              "content type.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingIdTokenHttpNotFound: {
+    case FederatedAuthRequestResult::kIdTokenHttpNotFound: {
       return "The provider's id token endpoint cannot be found.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingIdTokenNoResponse: {
+    case FederatedAuthRequestResult::kIdTokenNoResponse: {
       return "The provider's token fetch resulted in an error response "
              "code.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingIdTokenInvalidResponse: {
+    case FederatedAuthRequestResult::kIdTokenInvalidResponse: {
       return "Provider's token is invalid.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingIdTokenIdpErrorResponse: {
+    case FederatedAuthRequestResult::kIdTokenIdpErrorResponse: {
       return "Provider is unable to issue a token, but provided details on the "
              "error that occurred.";
     }
-    case FederatedAuthRequestResult::
-        kErrorFetchingIdTokenCrossSiteIdpErrorResponse: {
+    case FederatedAuthRequestResult::kIdTokenCrossSiteIdpErrorResponse: {
       return "Provider is unable to issue a token, but provided details on the "
              "error that occurred. The error URL must be same-site with the "
              "config URL.";
     }
-    case FederatedAuthRequestResult::kErrorFetchingIdTokenInvalidContentType: {
+    case FederatedAuthRequestResult::kIdTokenInvalidContentType: {
       return "Provider's token endpoint content type must be a JSON content "
              "type.";
     }
-    case FederatedAuthRequestResult::kErrorCanceled: {
+    case FederatedAuthRequestResult::kCanceled: {
       return "The request has been aborted.";
     }
-    case FederatedAuthRequestResult::kErrorRpPageNotVisible: {
+    case FederatedAuthRequestResult::kRpPageNotVisible: {
       return "RP page is not visible.";
     }
-    case FederatedAuthRequestResult::kErrorSilentMediationFailure: {
+    case FederatedAuthRequestResult::kSilentMediationFailure: {
       return "Silent mediation was requested, but the conditions to achieve it "
              "were not met.";
     }
-    case FederatedAuthRequestResult::kErrorThirdPartyCookiesBlocked: {
+    case FederatedAuthRequestResult::kThirdPartyCookiesBlocked: {
       return "Third party cookies are blocked. Right now the Chromium "
              "implementation of FedCM API requires third party cookies and "
              "this restriction will be removed soon. In the interim, to test "
              "FedCM without third-party cookies, enable the "
              "#fedcm-without-third-party-cookies flag.";
     }
-    case FederatedAuthRequestResult::kErrorMissingTransientUserActivation: {
-      return "FedCM button mode requires transient user activation.";
+    case FederatedAuthRequestResult::kMissingTransientUserActivation: {
+      return "FedCM active mode requires transient user activation.";
     }
-    case FederatedAuthRequestResult::kErrorReplacedByButtonMode: {
-      return "The request is replaced by a new one with button mode.";
+    case FederatedAuthRequestResult::kReplacedByActiveMode: {
+      return "The request is replaced by a new one with active mode.";
     }
-    case FederatedAuthRequestResult::kErrorNotSignedInWithIdp: {
+    case FederatedAuthRequestResult::kNotSignedInWithIdp: {
       return "Not signed in with the identity provider.";
+    }
+    case FederatedAuthRequestResult::kInvalidFieldsSpecified: {
+      return "Invalid 'fields' were specified in the FedCM call.";
+    }
+    case FederatedAuthRequestResult::kRelyingPartyOriginIsOpaque: {
+      return "FedCM is not supported on an opaque origin.";
+    }
+    case FederatedAuthRequestResult::kTypeNotMatching: {
+      return "The requested IdP type did not match the registered IdP.";
+    }
+    case FederatedAuthRequestResult::kUiDismissedNoEmbargo: {
+      return "Prompt dismissed. API exponential cool down not "
+             "triggered.";
     }
     case FederatedAuthRequestResult::kError: {
       return "Error retrieving a token.";
     }
+    case FederatedAuthRequestResult::kCorsError: {
+      return "Server did not send the correct CORS headers.";
+    }
+    case FederatedAuthRequestResult::kSuppressedBySegmentationPlatform: {
+      return "Dialog is suppressed because historical data shows that the user "
+             "is not interested in FedCM on this RP. For testing purposes, "
+             "disable the #fedcm-segmentation-platform flag.";
+    }
     case FederatedAuthRequestResult::kSuccess: {
       // Should not be called with success, as we should not add a console
       // message for success.
-      DCHECK(false);
-      return "";
+      NOTREACHED();
     }
   }
 }
@@ -319,8 +337,7 @@ std::string GetDisconnectConsoleErrorMessage(
     FedCmDisconnectStatus disconnect_status_for_metrics) {
   switch (disconnect_status_for_metrics) {
     case FedCmDisconnectStatus::kSuccess: {
-      NOTREACHED_IN_MIGRATION();
-      return "";
+      NOTREACHED();
     }
     case FedCmDisconnectStatus::kTooManyRequests: {
       return "There is a pending disconnect() call.";
@@ -384,13 +401,6 @@ std::string GetDisconnectConsoleErrorMessage(
   }
 }
 
-FedCmIdpSigninStatusMode GetIdpSigninStatusMode(RenderFrameHost& host,
-                                                const url::Origin& idp_origin) {
-  // TODO(crbug.com/40283354): Remove this function in favor of
-  // GetFedCmIdpSigninStatusFlag.
-  return GetFedCmIdpSigninStatusFlag();
-}
-
 std::string FormatUrlForDisplay(const GURL& url) {
   // We do not use url_formatter::FormatUrlForSecurityDisplay() directly because
   // our UI intentionally shows only the eTLD+1, as it makes for a shorter text
@@ -415,45 +425,45 @@ bool HasSharingPermissionOrIdpHasThirdPartyCookiesAccess(
     const std::optional<std::string>& account_id,
     FederatedIdentityPermissionContextDelegate* sharing_permission_delegate,
     FederatedIdentityApiPermissionContextDelegate* api_permission_delegate) {
-  bool has_access = api_permission_delegate->HasThirdPartyCookiesAccess(
-      host, provider_url, embedder_origin);
+  if (api_permission_delegate->HasThirdPartyCookiesAccess(host, provider_url,
+                                                          embedder_origin)) {
+    return true;
+  }
+  if (account_id) {
+    return sharing_permission_delegate
+        ->GetLastUsedTimestamp(requester_origin, embedder_origin,
+                               url::Origin::Create(provider_url), *account_id)
+        .has_value();
+  }
   return sharing_permission_delegate->HasSharingPermission(
-             requester_origin, embedder_origin,
-             url::Origin::Create(provider_url), account_id) ||
-         has_access;
+      requester_origin, embedder_origin, url::Origin::Create(provider_url));
 }
 
-bool IsFedCmAuthzEnabled(RenderFrameHost& host, const url::Origin& idp_origin) {
-  RuntimeFeatureStateDocumentData* rfs_document_data =
-      RuntimeFeatureStateDocumentData::GetForCurrentDocument(&host);
+bool IsFedCmAuthzEnabled() {
   // If field trials or an explicit user selection disables authz, we should
   // respect that.
   std::optional<bool> is_overridden = IsFedCmAuthzOverridden();
   if (is_overridden) {
     return *is_overridden;
   }
-
-  // Should not be null as this gets initialized when the host gets created.
-  DCHECK(rfs_document_data);
-  std::vector<url::Origin> third_party_origins = {idp_origin};
-  // This includes origin trials.
-  bool runtime_enabled =
-      rfs_document_data->runtime_feature_state_read_context()
-          .IsFedCmAuthzEnabled() ||
-      rfs_document_data->runtime_feature_state_read_context()
-          .IsFedCmAuthzEnabledForThirdParty(third_party_origins);
-
-  bool flag_enabled = IsFedCmAuthzFlagEnabled();
-  return runtime_enabled || flag_enabled;
+  return true;
 }
 
-FederatedAuthRequestPageData* GetPageData(RenderFrameHost* render_frame_host) {
-  return FederatedAuthRequestPageData::GetOrCreateForPage(
-      render_frame_host->GetPage());
+FederatedAuthRequestPageData* GetPageData(Page& page) {
+  return FederatedAuthRequestPageData::GetOrCreateForPage(page);
 }
 
-int GetNewSessionID() {
-  return base::RandInt(1, 1 << 30);
+FedCmRequesterFrameType ComputeRequesterFrameType(const RenderFrameHost& rfh,
+                                                  const url::Origin& requester,
+                                                  const url::Origin& embedder) {
+  // Since FedCM methods are not supported in FencedFrames, we can know whether
+  // this is a main frame by calling GetParent().
+  if (!rfh.GetParent()) {
+    return FedCmRequesterFrameType::kMainFrame;
+  }
+  return net::SchemefulSite::IsSameSite(requester, embedder)
+             ? FedCmRequesterFrameType::kSameSiteIframe
+             : FedCmRequesterFrameType::kCrossSiteIframe;
 }
 
 }  // namespace content::webid

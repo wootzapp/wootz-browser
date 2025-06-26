@@ -41,7 +41,6 @@ class ASH_PUBLIC_EXPORT FakeAmbientBackendControllerImpl
       int num_albums,
       OnSettingsAndAlbumsFetchedCallback callback) override;
   void FetchWeather(std::optional<std::string> weather_client_id,
-                    bool prefer_aplha_endpoint,
                     FetchWeatherCallback callback) override;
   const std::array<const char*, 2>& GetBackupPhotoUrls() const override;
   std::array<const char*, 2> GetTimeOfDayVideoPreviewImageUrls(
@@ -107,6 +106,11 @@ class ASH_PUBLIC_EXPORT FakeAmbientBackendControllerImpl
     run_fetch_weather_callback_ = value;
   }
 
+  // The latest `weather_client_id` passed to `FetchWeather()`.
+  std::optional<std::string> weather_client_id() const {
+    return weather_client_id_;
+  }
+
  private:
   OnSettingsAndAlbumsFetchedCallback pending_fetch_settings_albums_callback_;
 
@@ -133,6 +137,7 @@ class ASH_PUBLIC_EXPORT FakeAmbientBackendControllerImpl
 
   int fetch_weather_count_ = 0;
   bool run_fetch_weather_callback_ = true;
+  std::optional<std::string> weather_client_id_;
 };
 
 }  // namespace ash

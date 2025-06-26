@@ -8,10 +8,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <array>
 #include <memory>
 #include <vector>
 
 #include "base/containers/span.h"
+#include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "media/base/decrypt_config.h"
 #include "media/base/subsample_entry.h"
@@ -19,7 +21,7 @@
 #include "media/gpu/accelerated_video_decoder.h"
 #include "media/gpu/h265_dpb.h"
 #include "media/gpu/media_gpu_export.h"
-#include "media/video/h265_parser.h"
+#include "media/parsers/h265_parser.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -305,7 +307,7 @@ class MEDIA_GPU_EXPORT H265Decoder final : public AcceleratedVideoDecoder {
   H265Parser parser_;
 
   // Most recent call to SetStream().
-  const uint8_t* current_stream_ = nullptr;
+  raw_ptr<const uint8_t, DanglingUntriaged> current_stream_ = nullptr;
   size_t current_stream_size_ = 0;
 
   // Decrypting config for the most recent data passed to SetStream().
@@ -339,18 +341,18 @@ class MEDIA_GPU_EXPORT H265Decoder final : public AcceleratedVideoDecoder {
   // Global state values, needed in decoding. See spec.
   scoped_refptr<H265Picture> prev_tid0_pic_;
   int max_pic_order_cnt_lsb_;
-  bool curr_delta_poc_msb_present_flag_[kMaxDpbSize];
-  bool foll_delta_poc_msb_present_flag_[kMaxDpbSize];
+  std::array<bool, kMaxDpbSize> curr_delta_poc_msb_present_flag_;
+  std::array<bool, kMaxDpbSize> foll_delta_poc_msb_present_flag_;
   int num_poc_st_curr_before_;
   int num_poc_st_curr_after_;
   int num_poc_st_foll_;
   int num_poc_lt_curr_;
   int num_poc_lt_foll_;
-  int poc_st_curr_before_[kMaxDpbSize];
-  int poc_st_curr_after_[kMaxDpbSize];
-  int poc_st_foll_[kMaxDpbSize];
-  int poc_lt_curr_[kMaxDpbSize];
-  int poc_lt_foll_[kMaxDpbSize];
+  std::array<int, kMaxDpbSize> poc_st_curr_before_;
+  std::array<int, kMaxDpbSize> poc_st_curr_after_;
+  std::array<int, kMaxDpbSize> poc_st_foll_;
+  std::array<int, kMaxDpbSize> poc_lt_curr_;
+  std::array<int, kMaxDpbSize> poc_lt_foll_;
   H265Picture::Vector ref_pic_list0_;
   H265Picture::Vector ref_pic_list1_;
   H265Picture::Vector ref_pic_set_lt_curr_;

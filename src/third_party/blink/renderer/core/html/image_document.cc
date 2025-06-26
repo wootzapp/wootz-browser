@@ -110,7 +110,7 @@ class ImageDocumentParser : public RawDataDocumentParser {
   }
 
  private:
-  void AppendBytes(const char*, size_t) override;
+  void AppendBytes(base::span<const uint8_t>) override;
   void Finish() override;
 
   Member<ImageResource> image_resource_;
@@ -132,9 +132,10 @@ static String ImageTitle(const String& filename, const gfx::Size& size) {
   return result.ToString();
 }
 
-void ImageDocumentParser::AppendBytes(const char* data, size_t length) {
-  if (!length)
+void ImageDocumentParser::AppendBytes(base::span<const uint8_t> data) {
+  if (data.empty()) {
     return;
+  }
 
   if (IsDetached())
     return;
@@ -164,14 +165,11 @@ void ImageDocumentParser::AppendBytes(const char* data, size_t length) {
       image_resource_->ResponseReceived(loader->GetResponse());
   }
 
-  CHECK_LE(length, std::numeric_limits<unsigned>::max());
+  CHECK_LE(data.size(), std::numeric_limits<unsigned>::max());
   // If decoding has already failed, there's no point in sending additional
   // data to the ImageResource.
   if (image_resource_->GetStatus() != ResourceStatus::kDecodeError) {
-    image_resource_->AppendData(
-        // SAFETY: The caller must ensure `data` points to `length` bytes.
-        // TODO(crbug.com/40284755): Spanify this method.
-        UNSAFE_BUFFERS(base::span(data, length)));
+    image_resource_->AppendData(base::as_chars(data));
   }
 
   if (!IsDetached())
@@ -332,8 +330,9 @@ void ImageDocument::UpdateTitle() {
   // back on the (decoded) hostname if there is no path.
   String file_name = DecodeURLEscapeSequences(Url().LastPathComponent(),
                                               DecodeURLMode::kUTF8OrIsomorphic);
-  if (file_name.empty())
-    file_name = Url().Host();
+  if (file_name.empty()) {
+    file_name = Url().Host().ToString();
+  }
   setTitle(ImageTitle(file_name, size));
 }
 
@@ -507,7 +506,7 @@ int ImageDocument::CalculateDivWidth() {
   // * Images smaller in either dimension are centered along that axis.
   int viewport_width =
       GetFrame()->GetPage()->GetVisualViewport().Size().width() /
-      GetFrame()->PageZoomFactor();
+      GetFrame()->LayoutZoomFactor();
 
   // For huge images, minimum-scale=0.1 is still too big on small screens.
   // Set the <div> width so that the image will shrink to fit the width of the
@@ -580,7 +579,7 @@ bool ImageDocument::ShouldShrinkToFit() const {
   // loop as the contents then resize to match the window. To prevent this,
   // disallow images from shrinking to fit for WebViews.
   bool is_wrap_content_web_view =
-      GetPage() ? GetPage()->GetSettings().GetForceZeroLayoutHeight() : false;
+      GetPage() && GetPage()->GetSettings().GetForceZeroLayoutHeight();
   return GetFrame()->IsOutermostMainFrame() && !is_wrap_content_web_view;
 }
 

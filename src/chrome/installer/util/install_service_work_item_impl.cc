@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/installer/util/install_service_work_item_impl.h"
 
 #include <cguid.h>
@@ -123,6 +128,7 @@ bool operator==(const InstallServiceWorkItemImpl::ServiceConfig& lhs,
 InstallServiceWorkItemImpl::InstallServiceWorkItemImpl(
     const std::wstring& service_name,
     const std::wstring& display_name,
+    const std::wstring& description,
     uint32_t start_type,
     const base::CommandLine& service_cmd_line,
     const base::CommandLine& com_service_cmd_line_args,
@@ -132,6 +138,7 @@ InstallServiceWorkItemImpl::InstallServiceWorkItemImpl(
     : com_registration_work_items_(WorkItem::CreateWorkItemList()),
       service_name_(service_name),
       display_name_(display_name),
+      description_(description),
       start_type_(start_type),
       service_cmd_line_(service_cmd_line),
       com_service_cmd_line_args_(com_service_cmd_line_args),
@@ -499,17 +506,7 @@ bool InstallServiceWorkItemImpl::SetServiceName(
 }
 
 std::wstring InstallServiceWorkItemImpl::GetCurrentServiceName() const {
-  base::win::RegKey key;
-
-  auto result = key.Open(HKEY_LOCAL_MACHINE, registry_path_.c_str(),
-                         KEY_QUERY_VALUE | KEY_WOW64_32KEY);
-  if (result != ERROR_SUCCESS)
-    return service_name_;
-
-  std::wstring versioned_service_name;
-  key.ReadValue(service_name_.c_str(), &versioned_service_name);
-  return versioned_service_name.empty() ? service_name_
-                                        : versioned_service_name;
+  return GetCurrentServiceName(service_name_, registry_path_);
 }
 
 std::wstring InstallServiceWorkItemImpl::GetCurrentServiceDisplayName() const {
@@ -534,6 +531,69 @@ std::vector<wchar_t> InstallServiceWorkItemImpl::MultiSzToVector(
   return std::vector<wchar_t>(multi_sz, scan + 1);
 }
 
+// static
+bool InstallServiceWorkItemImpl::IsComServiceInstalled(const GUID& clsid) {
+  std::wstring appid_reg_path = GetComAppidRegistryPath(clsid);
+  return base::win::RegKey(HKEY_LOCAL_MACHINE, appid_reg_path.c_str(),
+                           KEY_QUERY_VALUE)
+      .HasValue(L"LocalService");
+}
+
+// static
+std::wstring InstallServiceWorkItemImpl::GetCurrentServiceName(
+    base::wcstring_view service_name,
+    base::wcstring_view registry_path) {
+  if (std::wstring versioned_service_name;
+      base::win::RegKey(HKEY_LOCAL_MACHINE, registry_path.c_str(),
+                        KEY_QUERY_VALUE | KEY_WOW64_32KEY)
+              .ReadValue(service_name.c_str(), &versioned_service_name) ==
+          ERROR_SUCCESS &&
+      !versioned_service_name.empty()) {
+    return versioned_service_name;
+  }
+
+  return std::wstring(service_name);
+}
+
+std::wstring InstallServiceWorkItemImpl::GetCurrentServiceDescription() const {
+  DCHECK(service_.IsValid());
+
+  constexpr uint32_t kMaxQueryConfigBufferBytes = 8 * 1024;
+
+  // ::QueryServiceConfig2 expects a buffer of at most 8K bytes, according to
+  // documentation. While the size of the buffer can be dynamically computed,
+  // we just assume the maximum size for simplicity.
+  auto buffer = std::make_unique<uint8_t[]>(kMaxQueryConfigBufferBytes);
+  DWORD bytes_needed_ignored = 0;
+  SERVICE_DESCRIPTION* description =
+      reinterpret_cast<SERVICE_DESCRIPTION*>(buffer.get());
+  if (!::QueryServiceConfig2(service_.Get(), SERVICE_CONFIG_DESCRIPTION,
+                             buffer.get(), kMaxQueryConfigBufferBytes,
+                             &bytes_needed_ignored)) {
+    PLOG(ERROR) << "QueryServiceConfig2 failed "
+                << GetCurrentServiceName().c_str();
+    return {};
+  }
+
+  return description->lpDescription ? description->lpDescription : L"";
+}
+
+void InstallServiceWorkItemImpl::SetDescription() {
+  DCHECK(service_.IsValid());
+
+  if (description_.empty()) {
+    return;
+  }
+
+  std::wstring desc = description_;
+  SERVICE_DESCRIPTION description = {desc.data()};
+  if (!::ChangeServiceConfig2(service_.Get(), SERVICE_CONFIG_DESCRIPTION,
+                              &description)) {
+    PLOG(WARNING) << "Failed to set service description: "
+                  << GetCurrentServiceName().c_str() << ": " << description_;
+  }
+}
+
 bool InstallServiceWorkItemImpl::InstallNewService() {
   DCHECK(!service_.IsValid());
   bool success = InstallService(
@@ -542,6 +602,8 @@ bool InstallServiceWorkItemImpl::InstallNewService() {
                     kServiceDependencies, GetCurrentServiceDisplayName()));
   if (success)
     rollback_new_service_ = true;
+
+  SetDescription();
   return success;
 }
 
@@ -570,6 +632,7 @@ bool InstallServiceWorkItemImpl::UpgradeService() {
   if (success && upgrade_needed)
     rollback_existing_service_ = true;
 
+  SetDescription();
   return success;
 }
 

@@ -65,7 +65,7 @@ class MockSessionSyncService : public sync_sessions::SessionSyncService {
               SubscribeToForeignSessionsChanged,
               (const base::RepeatingClosure& cb),
               (override));
-  MOCK_METHOD(base::WeakPtr<syncer::ModelTypeControllerDelegate>,
+  MOCK_METHOD(base::WeakPtr<syncer::DataTypeControllerDelegate>,
               GetControllerDelegate,
               ());
 };
@@ -87,10 +87,10 @@ class MockOpenTabsUIDelegate : public sync_sessions::OpenTabsUIDelegate {
       std::vector<raw_ptr<const sync_sessions::SyncedSession,
                           VectorExperimental>>* sessions) override {
     *sessions = foreign_sessions_;
-    base::ranges::sort(*sessions, std::greater(),
-                       [](const sync_sessions::SyncedSession* session) {
-                         return session->GetModifiedTime();
-                       });
+    std::ranges::sort(*sessions, std::greater(),
+                      [](const sync_sessions::SyncedSession* session) {
+                        return session->GetModifiedTime();
+                      });
 
     return !sessions->empty();
   }
@@ -240,8 +240,6 @@ TEST_F(TabSessionSourceTest, ProcessLocal) {
               0.001);
   EXPECT_NEAR(result[TabSessionSource::kInputLastTransitionType].float_val,
               static_cast<int>(ui::PAGE_TRANSITION_AUTO_SUBFRAME), 0.001);
-  EXPECT_NEAR(result[TabSessionSource::kInputPasswordFieldCount].float_val, 0,
-              0.001);
   EXPECT_NEAR(result[TabSessionSource::kInputTabRankInSession].float_val, 0,
               0.001);
   EXPECT_NEAR(result[TabSessionSource::kInputSessionRank].float_val, 1, 0.001);
@@ -260,8 +258,6 @@ TEST_F(TabSessionSourceTest, ProcessForeign) {
   picked_tab->navigations.emplace_back();
   picked_tab->navigations.back().set_timestamp(base::Time::Now() - kNavTime1);
   picked_tab->current_navigation_index = 1;
-  picked_tab->navigations.back().set_password_state(
-      sessions::SerializedNavigationEntry::HAS_PASSWORD_FIELD);
   SessionID id = picked_tab->tab_id;
 
   EXPECT_CALL(open_tabs_delegate_, GetForeignTab(_, _, _))
@@ -290,8 +286,6 @@ TEST_F(TabSessionSourceTest, ProcessForeign) {
               0.001);
   EXPECT_NEAR(result[TabSessionSource::kInputLastTransitionType].float_val,
               static_cast<int>(ui::PAGE_TRANSITION_TYPED), 0.001);
-  EXPECT_NEAR(result[TabSessionSource::kInputPasswordFieldCount].float_val, 1,
-              0.001);
   EXPECT_NEAR(result[TabSessionSource::kInputTabRankInSession].float_val, 0,
               0.001);
   EXPECT_NEAR(result[TabSessionSource::kInputSessionRank].float_val, 0, 0.001);

@@ -21,11 +21,13 @@ import androidx.test.filters.SmallTest;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
@@ -35,7 +37,6 @@ import org.chromium.base.task.TaskTraits;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.base.MimeTypeUtils;
 import org.chromium.ui.display.DisplayAndroid;
 
@@ -50,6 +51,7 @@ public class ScreenshotMonitorTest {
     private static final String TAG = "ScreenshotTest";
     private static final Uri TEST_URI = Uri.parse("content://media/external/images/media/101");
 
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     private ScreenshotMonitorImpl mTestScreenshotMonitor;
     private TestScreenshotMonitorDelegate mTestScreenshotMonitorDelegate;
     private ContentObserver mContentObserver;
@@ -94,10 +96,9 @@ public class ScreenshotMonitorTest {
                                         MimeTypeUtils.Type.IMAGE))
                         == PackageManager.PERMISSION_GRANTED);
 
-        MockitoAnnotations.initMocks(this);
         mTestScreenshotMonitorDelegate = new TestScreenshotMonitorDelegate();
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mTestScreenshotMonitor =
                             new ScreenshotMonitorImpl(
@@ -145,8 +146,6 @@ public class ScreenshotMonitorTest {
         Mockito.doReturn(width).when(mDisplayAndroid).getDisplayWidth();
         Mockito.doReturn(height).when(mDisplayAndroid).getDisplayHeight();
     }
-
-    private void mockValidScreenshot() {}
 
     /**
      * Verify that if monitoring starts, the delegate should be called. Also verify that the inner

@@ -17,6 +17,9 @@ TrustSafetySentimentServiceFactory::TrustSafetySentimentServiceFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kOriginalOnly)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kOriginalOnly)
               .Build()) {
   DependsOn(HatsServiceFactory::GetInstance());
   DependsOn(HostContentSettingsMapFactory::GetInstance());
@@ -34,7 +37,8 @@ TrustSafetySentimentService* TrustSafetySentimentServiceFactory::GetForProfile(
       GetInstance()->GetServiceForBrowserContext(profile, /*create=*/true));
 }
 
-KeyedService* TrustSafetySentimentServiceFactory::BuildServiceInstanceFor(
+std::unique_ptr<KeyedService>
+TrustSafetySentimentServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   if (context->IsOffTheRecord() ||
       (!base::FeatureList::IsEnabled(features::kTrustSafetySentimentSurvey) &&
@@ -56,5 +60,5 @@ KeyedService* TrustSafetySentimentServiceFactory::BuildServiceInstanceFor(
     return nullptr;
   }
 
-  return new TrustSafetySentimentService(profile);
+  return std::make_unique<TrustSafetySentimentService>(profile);
 }

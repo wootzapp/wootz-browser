@@ -4,26 +4,35 @@
 
 package org.chromium.chrome.browser.permissions;
 
+import android.content.Context;
+import android.content.Intent;
+import android.content.res.Configuration;
+import android.net.Uri;
+
+import androidx.annotation.CallSuper;
 import androidx.test.filters.MediumTest;
+import androidx.test.runner.lifecycle.Stage;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ContextUtils;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterSet;
 import org.chromium.base.test.params.ParameterizedRunner;
+import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features;
+import org.chromium.base.test.util.HistogramWatcher;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
 import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.browser.LocationSettingsTestUtil;
-import org.chromium.components.permissions.PermissionsAndroidFeatureList;
 import org.chromium.content_public.common.ContentSwitches;
 import org.chromium.device.geolocation.LocationProviderOverrider;
 import org.chromium.device.geolocation.MockLocationProvider;
@@ -42,7 +51,6 @@ import java.util.concurrent.TimeoutException;
     "ignore-certificate-errors"
 })
 public class PermissionPromptRenderTest {
-
     @ParameterAnnotations.ClassParameter
     private static List<ParameterSet> sClassParams =
             new NightModeTestUtils.NightModeParams().getParameters();
@@ -60,7 +68,21 @@ public class PermissionPromptRenderTest {
                     .setBugComponent(RenderTestRule.Component.UI_BROWSER_MOBILE_MESSAGES)
                     .build();
 
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
+    /**
+     * An activity that we can override configuration on it's creation. We need this for some tests
+     * that require specific setups, like tests with small screens.
+     */
+    public static class PermissionTestActivity extends ChromeTabbedActivity {
+        @Override
+        @CallSuper
+        protected boolean applyOverrides(Context baseContext, Configuration overrideConfig) {
+            super.applyOverrides(baseContext, overrideConfig);
+            overrideConfig.densityDpi = 1300;
+            overrideConfig.screenWidthDp = 80;
+            overrideConfig.screenHeightDp = 80;
+            return true;
+        }
+    }
 
     public PermissionPromptRenderTest(boolean nightModeEnabled) {
         mNightModeEnabled = nightModeEnabled;
@@ -93,20 +115,6 @@ public class PermissionPromptRenderTest {
     @Test
     @MediumTest
     @Feature({"Prompt", "RenderTest"})
-    @Features.DisableFeatures(PermissionsAndroidFeatureList.ONE_TIME_PERMISSION)
-    public void testGeolocationRegularPrompt() throws Exception {
-        LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
-        LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
-
-        mPermissionRule.loadUrl(mPermissionRule.getURL(TEST_FILE));
-
-        testPrompt(/* goldenViewId= */ "regularPrompt");
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"Prompt", "RenderTest"})
-    @Features.EnableFeatures(PermissionsAndroidFeatureList.ONE_TIME_PERMISSION)
     public void testGeolocationOneTimePrompt() throws Exception {
         LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
         LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
@@ -117,11 +125,6 @@ public class PermissionPromptRenderTest {
     @Test
     @MediumTest
     @Feature({"Prompt", "RenderTest"})
-    @CommandLineFlags.Add({
-        "enable-features=" + PermissionsAndroidFeatureList.ONE_TIME_PERMISSION + "<Study",
-        "force-fieldtrials=Study/Group",
-        "force-fieldtrial-params=Study.Group:show_allow_always_as_first_button/true"
-    })
     public void testGeolocationOneTimePromptWithAllowAlwaysFirst() throws Exception {
         LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
         LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
@@ -132,12 +135,6 @@ public class PermissionPromptRenderTest {
     @Test
     @MediumTest
     @Feature({"Prompt", "RenderTest"})
-    @CommandLineFlags.Add({
-        "enable-features=" + PermissionsAndroidFeatureList.ONE_TIME_PERMISSION + "<Study",
-        "force-fieldtrials=Study/Group",
-        "force-fieldtrial-params=Study.Group:show_allow_always_as_first_button/true/"
-                + "use_stronger_prompt_language/true/use_while_visiting_language/true"
-    })
     public void testGeolocationOneTimePromptWithAllowWhileVisitingFirst() throws Exception {
         LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
         LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
@@ -148,7 +145,6 @@ public class PermissionPromptRenderTest {
     @Test
     @MediumTest
     @Feature({"Prompt", "RenderTest"})
-    @Features.EnableFeatures(PermissionsAndroidFeatureList.ONE_TIME_PERMISSION)
     public void testGeolocationOneTimePromptLongOriginWrapsToNextLineAndIsNotElided()
             throws Exception {
         LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
@@ -158,5 +154,33 @@ public class PermissionPromptRenderTest {
                 "unelided.long.wrapping.hostname.with.subdomains.com", TEST_FILE);
 
         testPrompt(/* goldenViewId= */ "oneTimePromptLongOrigin");
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"Prompt", "RenderTest"})
+    @DisabledTest(message = "crbug.com/385114151")
+    public void testNegativeButtonOutOfScreen() throws Exception {
+        LocationSettingsTestUtil.setSystemLocationSettingEnabled(true);
+        LocationProviderOverrider.setLocationProviderImpl(new MockLocationProvider());
+        Intent intent = new Intent();
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.setClass(ContextUtils.getApplicationContext(), PermissionTestActivity.class);
+        intent.setData(Uri.parse("about:blank"));
+        mPermissionRule.setActivity(
+                ApplicationTestUtils.waitForActivityWithClass(
+                        PermissionTestActivity.class,
+                        Stage.RESUMED,
+                        () -> ContextUtils.getApplicationContext().startActivity(intent)));
+        mPermissionRule.setUpUrl(TEST_FILE);
+        var histogramExpectation =
+                HistogramWatcher.newBuilder()
+                        .expectBooleanRecord(
+                                "Permissions.OneTimePermission.Android.NegativeButtonOutOfScreen",
+                                true)
+                        .build();
+
+        testPrompt(/* goldenViewId= */ "oneTimePromptNegativeButtonOutOfScreen");
+        histogramExpectation.assertExpected("Should record negative button out of screen");
     }
 }

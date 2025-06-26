@@ -8,7 +8,6 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 
 class PrefService;
@@ -31,6 +30,7 @@ enum class PromoCardType {
   kRelauchChrome = 4,
   // Move passwords stored only on this device to the account.
   kMovePasswords = 5,
+  // kScreenlockReauth = 6, Obsolete
   kMaxValue = kMovePasswords,
 };
 

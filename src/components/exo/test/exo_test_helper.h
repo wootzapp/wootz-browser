@@ -52,7 +52,8 @@ class ClientControlledShellSurfaceDelegate
                        int64_t display_id,
                        const gfx::Rect& bounds_in_display,
                        bool is_resize,
-                       int bounds_change) override;
+                       int bounds_change,
+                       bool is_adjusted_bounds) override;
   void OnDragStarted(int component) override;
   void OnDragFinished(int x, int y, bool canceled) override;
   void OnZoomLevelChanged(ZoomChange zoom_change) override;
@@ -71,11 +72,6 @@ class ExoTestHelper {
   ExoTestHelper& operator=(const ExoTestHelper&) = delete;
 
   ~ExoTestHelper();
-
-  // Creates a GpuMemoryBuffer instance that can be used for tests.
-  static std::unique_ptr<gfx::GpuMemoryBuffer> CreateGpuMemoryBuffer(
-      const gfx::Size& size,
-      gfx::BufferFormat format = gfx::BufferFormat::RGBA_8888);
 
   // Creates an exo::Buffer that has the size of the given
   // shell surface.

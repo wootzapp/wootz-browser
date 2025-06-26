@@ -51,8 +51,7 @@ EnumTraits<content_settings::mojom::ContentSetting, ContentSetting>::ToMojom(
       // CONTENT_SETTING_NUM_SETTINGS is a dummy enum value.
       break;
   }
-  NOTREACHED_IN_MIGRATION();
-  return content_settings::mojom::ContentSetting::DEFAULT;
+  NOTREACHED();
 }
 
 // static
@@ -97,13 +96,16 @@ bool StructTraits<content_settings::mojom::RuleMetaDataDataView,
     return false;
   }
   out->SetExpirationAndLifetime(expiration, lifetime);
+  out->set_decided_by_related_website_sets(
+      data.decided_by_related_website_sets());
 
   return data.ReadLastModified(&out->last_modified_) &&
          data.ReadLastUsed(&out->last_used_) &&
          data.ReadLastVisited(&out->last_visited_) &&
          data.ReadSessionModel(&out->session_model_) &&
          data.ReadTpcdMetadataRuleSource(&out->tpcd_metadata_rule_source_) &&
-         data.ReadTpcdMetadataCohort(&out->tpcd_metadata_cohort_);
+         data.ReadTpcdMetadataCohort(&out->tpcd_metadata_cohort_) &&
+         data.ReadRuleOptions(&out->rule_options_);
 }
 
 // static

@@ -6,7 +6,6 @@
 
 #include "base/feature_list.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "sandbox/features.h"
 
 #if BUILDFLAG(IS_WIN)
@@ -49,32 +48,16 @@ BASE_FEATURE(kWinSboxDisableExtensionPoints,
              "WinSboxDisableExtensionPoint",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-// Enables GPU AppContainer sandbox on Windows.
-BASE_FEATURE(kGpuAppContainer,
-             "GpuAppContainer",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables GPU Low Privilege AppContainer when combined with kGpuAppContainer.
-BASE_FEATURE(kGpuLPAC,
-             "GpuLPAC",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Enables Print Compositor Low Privilege AppContainer.
+// Enables Print Compositor Low Privilege AppContainer. Note, this might be
+// overridden and disabled by policy.
 BASE_FEATURE(kPrintCompositorLPAC,
              "PrintCompositorLPAC",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Enables Renderer AppContainer
 BASE_FEATURE(kRendererAppContainer,
              "RendererAppContainer",
              base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables very high job memory limits for sandboxed renderer processes. This
-// sets a limit of 1Tb, effectively removing the Job memory limits, except in
-// egregious cases.
-BASE_FEATURE(kWinSboxHighRendererJobMemoryLimits,
-             "WinSboxHighRendererJobMemoryLimits",
-             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // If enabled, launch the network service within an LPAC sandbox. If disabled,
 // the network service will run inside an App Container.
@@ -92,10 +75,10 @@ BASE_FEATURE(kWinSboxForceRendererCodeIntegrity,
 
 // If enabled, modifies the child's PEB to stop further application of
 // appcompat in the child. Does not affect the browser or unsandboxed
-// processes.
+// processes. The feature has no effect for WOW (32bit on 64bit) installs.
 BASE_FEATURE(kWinSboxZeroAppShim,
              "WinSboxZeroAppShim",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables pre-launch Code Integrity Guard (CIG) for Chrome network service
 // process, when running on Windows 10 1511 and above. This has no effect if
@@ -113,37 +96,45 @@ BASE_FEATURE(kNetworkServiceCodeIntegrity,
 BASE_FEATURE(kWinSboxNoFakeGdiInit,
              "WinSboxNoFakeGdiInit",
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+// Enables Restrict Core Sharing mitigation for the renderer process, when
+// running Windows 11 Build 26100 (24H2) and above. See param definition of
+// RestrictCoreSharing in
+// https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-
+// process_mitigation_side_channel_isolation_policy
+BASE_FEATURE(kWinSboxRestrictCoreSharingOnRenderer,
+             "WinSboxRestrictCoreSharingOnRenderer",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+// Enables parallel process launching using the thread pool. Flag retained
+// as a kill-switch.
+BASE_FEATURE(kWinSboxParallelProcessLaunch,
+             "WinSboxParallelProcessLaunch",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+// Enables Csrss lockdown in supported processes by closing all ALPC
+// ports before sandbox lockdown. See crbug.com/40408399 for details.
+BASE_FEATURE(kEnableCsrssLockdown,
+             "EnableCsrssLockdown",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+// Filters most environment variables out for kService and kServiceWithJit
+// sandboxed processes. Flag retained as a kill-switch.
+BASE_FEATURE(kWinSboxFilterServiceEnvironment,
+             "WinSboxFilterServiceEnvironment",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_WIN)
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 // Controls whether the Spectre variant 2 mitigation is enabled. We use a USE
 // flag on some Chrome OS boards to disable the mitigation by disabling this
 // feature in exchange for system performance.
 BASE_FEATURE(kSpectreVariant2Mitigation,
              "SpectreVariant2Mitigation",
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-// An override for the Spectre variant 2 default behavior. Security sensitive
-// users can enable this feature to ensure that the mitigation is always
-// enabled.
-BASE_FEATURE(kForceSpectreVariant2Mitigation,
-             "ForceSpectreVariant2Mitigation",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-// Enabling the kNetworkServiceSandbox feature automatically enables Spectre
-// variant 2 mitigations in the network service. This can lead to performance
-// regressions, so enabling this feature will turn off the Spectre Variant 2
-// mitigations.
-//
-// On ChromeOS Ash, this overrides the system-wide kSpectreVariant2Mitigation
-// feature above, but not the user-controlled kForceSpectreVariant2Mitigation
-// feature.
-BASE_FEATURE(kForceDisableSpectreVariant2MitigationInNetworkService,
-             "kForceDisableSpectreVariant2MitigationInNetworkService",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 // Increase the renderer sandbox memory limit. As of 2023, there are no limits
 // on macOS, and a 1TiB limit on Windows. There are reports of users bumping
 // into the limit. This increases the limit by 2x compared to the default
@@ -183,6 +174,15 @@ BASE_FEATURE(kRestrictCloneParameters,
 
 #if BUILDFLAG(IS_WIN)
 bool IsNetworkSandboxSupported() {
+  // Temporary fix to avoid using network sandbox on ARM64 until root cause for
+  // https://crbug.com/40223285 is diagnosed.
+  if (base::win::OSInfo::GetInstance()->GetArchitecture() ==
+          base::win::OSInfo::ARM64_ARCHITECTURE ||
+      base::win::OSInfo::GetInstance()->IsWowX86OnARM64() ||
+      base::win::OSInfo::GetInstance()->IsWowAMD64OnARM64()) {
+    return false;
+  }
+
   // Network service sandbox uses GetNetworkConnectivityHint which is only
   // supported on Windows 10 Build 19041 (20H1) so versions before that wouldn't
   // have a working network change notifier when running in the sandbox.
@@ -215,4 +215,9 @@ bool IsNetworkSandboxEnabled() {
 #endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_FUCHSIA)
 }
 
+#if BUILDFLAG(IS_WIN)
+bool IsParallelLaunchEnabled() {
+  return base::FeatureList::IsEnabled(kWinSboxParallelProcessLaunch);
+}
+#endif  // BUILDFLAG(IS_WIN)
 }  // namespace sandbox::policy::features

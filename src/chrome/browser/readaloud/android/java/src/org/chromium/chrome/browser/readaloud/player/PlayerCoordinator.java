@@ -6,11 +6,12 @@ package org.chromium.chrome.browser.readaloud.player;
 
 import android.content.Context;
 import android.view.ViewStub;
-
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.BundleUtils;
 import org.chromium.base.ObserverList;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.readaloud.ReadAloudPrefs;
 import org.chromium.chrome.browser.readaloud.player.expanded.ExpandedPlayerCoordinator;
@@ -30,6 +31,7 @@ import org.chromium.ui.modelutil.PropertyModel;
  * <p>States: A. no players shown B. mini player visible C. expanded player open and mini player
  * visible (behind expanded player)
  */
+@NullMarked
 public class PlayerCoordinator implements Player {
     private static final String TAG = "ReadAloudPlayer";
     private final ObserverList<Observer> mObserverList;
@@ -37,7 +39,6 @@ public class PlayerCoordinator implements Player {
     private final Delegate mDelegate;
     private final MiniPlayerCoordinator mMiniPlayer;
     private final ExpandedPlayerCoordinator mExpandedPlayer;
-    private Playback mPlayback;
     private boolean mRestoreMiniPlayer;
     private boolean mRestoreExpandedPlayer;
     private final ActivityLifecycleDispatcher mActivityLifecycleDispatcher;
@@ -59,18 +60,18 @@ public class PlayerCoordinator implements Player {
                         .build();
         // This Context can be used to inflate views from the split.
         Context contextForInflation =
-                BundleUtils.createContextForInflation(
-                        delegate.getActivity(), "read_aloud_playback");
+                BundleUtils.createContextForInflation(delegate.getActivity(), "google3");
         mMiniPlayer =
                 new MiniPlayerCoordinator(
                         delegate.getActivity(),
                         contextForInflation,
                         model,
-                        delegate.getBrowserControlsSizer(),
+                        delegate.getBottomControlsStacker(),
                         delegate.getLayoutManager(),
-                        this);
-        mExpandedPlayer = new ExpandedPlayerCoordinator(contextForInflation, delegate, model);
+                        this,
+                        delegate.getUserEducationHelper());
         mMediator = new PlayerMediator(/* coordinator= */ this, delegate, model);
+        mExpandedPlayer = new ExpandedPlayerCoordinator(contextForInflation, delegate, model);
         mDelegate = delegate;
         mActivityLifecycleDispatcher = delegate.getActivityLifecycleDispatcher();
         if (mActivityLifecycleDispatcher != null) {
@@ -128,7 +129,6 @@ public class PlayerCoordinator implements Player {
     public void playbackReady(Playback playback, @PlaybackListener.State int currentPlaybackState) {
         mMediator.setPlayback(playback);
         mMediator.setPlaybackState(currentPlaybackState);
-        mPlayback = playback;
     }
 
     @Override
@@ -144,6 +144,10 @@ public class PlayerCoordinator implements Player {
 
     /** Show expanded player. */
     void expand() {
+        if (mDelegate.getProfile() != null) {
+            TrackerFactory.getTrackerForProfile(mDelegate.getProfile())
+                    .notifyEvent("read_aloud_expanded_player_shown");
+        }
         mExpandedPlayer.show();
         mMiniPlayer.dismiss(/* animate= */ false);
     }
@@ -160,8 +164,10 @@ public class PlayerCoordinator implements Player {
         // dismissed when stopping the playback.
         mMediator.setPlayback(null);
         mMediator.setPlaybackState(PlaybackListener.State.STOPPED);
-        mMiniPlayer.dismiss(/* animate= */ true);
-        mExpandedPlayer.dismiss();
+        if (!mMediator.isPlayerRestorable()) {
+            mMiniPlayer.dismiss(/* animate= */ true);
+            mExpandedPlayer.dismiss();
+        }
         mMediator.setHiddenAndPlaying(false);
     }
 
@@ -214,6 +220,11 @@ public class PlayerCoordinator implements Player {
     @Override
     public void onScreenStatusChanged(boolean isScreenLocked) {
         mMediator.onScreenStatusChanged(isScreenLocked);
+    }
+
+    @Override
+    public void setPlayerRestorable(boolean isPlayerRestorable) {
+        mMediator.setPlayerRestorable(isPlayerRestorable);
     }
 
     /** To be called when the close button is clicked. */

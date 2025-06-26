@@ -196,6 +196,10 @@ class MockFrameSinkVideoCapturer : public viz::mojom::FrameSinkVideoCapturer {
   MOCK_METHOD(void, SetAutoThrottlingEnabled, (bool enabled));
 
   MOCK_METHOD(void,
+              SetAnimationFpsLockIn,
+              (bool enabled, float majority_damaged_pixel_min_ratio));
+
+  MOCK_METHOD(void,
               SetResolutionConstraints,
               (const Size& min_size,
                const Size& max_size,
@@ -614,6 +618,11 @@ TEST_F(FrameSinkDesktopCapturerTest,
 TEST_F(FrameSinkDesktopCapturerTest, ShouldNotCrashIfStartIsNeverCalled) {
   auto my_capturer = std::make_unique<FrameSinkDesktopCapturer>();
   my_capturer = nullptr;
+}
+
+TEST_F(FrameSinkDesktopCapturerTest, ShouldNotCrashIfSelectSourceBeforeStart) {
+  capturer_.SelectSource(kPrimarySourceId);
+  StartCapturerForTesting();
 }
 
 }  // namespace remoting

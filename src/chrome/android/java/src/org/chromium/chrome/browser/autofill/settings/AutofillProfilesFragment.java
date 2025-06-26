@@ -21,15 +21,20 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
 import org.chromium.base.ApiCompatibilityUtils;
+import org.chromium.base.ResettersForTesting;
+import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.autofill.AutofillAddress;
 import org.chromium.chrome.browser.autofill.AutofillEditorBase;
 import org.chromium.chrome.browser.autofill.PersonalDataManager;
 import org.chromium.chrome.browser.autofill.PersonalDataManagerFactory;
+import org.chromium.chrome.browser.autofill.PlusAddressesHelper;
 import org.chromium.chrome.browser.autofill.editors.AddressEditorCoordinator;
 import org.chromium.chrome.browser.autofill.editors.AddressEditorCoordinator.Delegate;
 import org.chromium.chrome.browser.autofill.editors.EditorDialogView;
 import org.chromium.chrome.browser.autofill.editors.EditorObserverForTest;
+import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.payments.SettingsAutofillAndPaymentsObserver;
 import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
@@ -37,9 +42,11 @@ import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.components.autofill.AutofillProfile;
-import org.chromium.components.autofill.Source;
+import org.chromium.components.autofill.FieldType;
+import org.chromium.components.autofill.RecordType;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
+import org.chromium.components.plus_addresses.PlusAddressesUserActions;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.sync.UserSelectableType;
@@ -85,11 +92,19 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
             };
     private static EditorObserverForTest sObserverForTest;
     static final String PREF_NEW_PROFILE = "new_profile";
+    static final String MANAGE_PLUS_ADDRESSES = "manage_plus_addresses";
+
+    public static final String GOOGLE_ACCOUNT_HOME_ADDRESS_EDIT_URL =
+            "https://myaccount.google.com/address/home?utm_source=chrome&utm_campaign=manage_addresses";
+    public static final String GOOGLE_ACCOUNT_WORK_ADDRESS_EDIT_URL =
+            "https://myaccount.google.com/address/work?utm_source=chrome&utm_campaign=manage_addresses";
+
     private @Nullable AddressEditorCoordinator mAddressEditor;
+    private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
 
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
-        getActivity().setTitle(R.string.autofill_addresses_settings_title);
+        mPageTitle.set(getString(R.string.autofill_addresses_settings_title));
         setHasOptionsMenu(true);
         PreferenceScreen screen = getPreferenceManager().createPreferenceScreen(getStyledContext());
         // Suppresses unwanted animations while Preferences are removed from and re-added to the
@@ -97,6 +112,11 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
         screen.setShouldUseGeneratedIds(false);
 
         setPreferenceScreen(screen);
+    }
+
+    @Override
+    public ObservableSupplier<String> getPageTitle() {
+        return mPageTitle;
     }
 
     @Override
@@ -171,14 +191,20 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
 
         for (AutofillProfile profile : personalDataManager.getProfilesForSettings()) {
             // Add a preference for the profile.
-            Preference pref = new AutofillProfileEditorPreference(getStyledContext());
-            pref.setTitle(profile.getFullName());
+            AutofillProfileEditorPreference pref =
+                    new AutofillProfileEditorPreference(getStyledContext());
+            pref.setTitle(profile.getInfo(FieldType.NAME_FULL));
             pref.setSummary(profile.getLabel());
             pref.setKey(pref.getTitle().toString()); // For testing.
-            if (shouldShowLocalProfileIcon(profile)) {
-                // Conditionally set local profile icon for address profiles that are neither
-                // synced, nor saved in the account.
-                pref.setWidgetLayoutResource(R.layout.autofill_local_profile_icon);
+
+            // Conditionally show local profile icon for address profiles that are neither synced,
+            // nor saved in the account.
+            pref.setShouldShowLocalProfileIcon(shouldShowLocalProfileIcon(profile));
+            pref.setRecordType(profile.getRecordType());
+            pref.setWidgetLayoutResource(R.layout.autofill_settings_profile_icons);
+            if (ChromeFeatureList.isEnabled(
+                    ChromeFeatureList.AUTOFILL_ENABLE_SUPPORT_FOR_HOME_AND_WORK)) {
+                pref.setIcon(getIconIdForProfile(profile));
             }
             Bundle args = pref.getExtras();
             args.putString(AutofillEditorBase.AUTOFILL_GUID, profile.getGUID());
@@ -198,6 +224,16 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
             pref.setIcon(plusIcon);
             pref.setTitle(R.string.autofill_create_profile);
             pref.setKey(PREF_NEW_PROFILE); // For testing.
+
+            getPreferenceScreen().addPreference(pref);
+        }
+
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.PLUS_ADDRESSES_ENABLED)) {
+            AutofillProfileEditorPreference pref =
+                    new AutofillProfileEditorPreference(getStyledContext());
+            pref.setTitle(R.string.plus_address_settings_entry_title);
+            pref.setSummary(R.string.plus_address_settings_entry_summary);
+            pref.setKey(MANAGE_PLUS_ADDRESSES);
 
             getPreferenceScreen().addPreference(pref);
         }
@@ -224,6 +260,7 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
     public static void setObserverForTest(EditorObserverForTest observerForTest) {
         sObserverForTest = observerForTest;
         EditorDialogView.setEditorObserverForTest(sObserverForTest);
+        ResettersForTesting.register(() -> sObserverForTest = null);
     }
 
     @Override
@@ -233,13 +270,32 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
             return;
         }
 
-        AutofillAddress autofillAddress =
-                getAutofillAddress((AutofillProfileEditorPreference) preference);
+        AutofillProfileEditorPreference editorPreference =
+                (AutofillProfileEditorPreference) preference;
+
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.AUTOFILL_ENABLE_SUPPORT_FOR_HOME_AND_WORK)
+                && editorPreference.getRecordType().isPresent()) {
+            if (editorPreference.getRecordType().getAsInt() == RecordType.ACCOUNT_HOME) {
+                openHomeAndWorkLink(GOOGLE_ACCOUNT_HOME_ADDRESS_EDIT_URL);
+                return;
+            }
+            if (editorPreference.getRecordType().getAsInt() == RecordType.ACCOUNT_WORK) {
+                openHomeAndWorkLink(GOOGLE_ACCOUNT_WORK_ADDRESS_EDIT_URL);
+                return;
+            }
+        }
+
+        if (editorPreference.getKey().equals(MANAGE_PLUS_ADDRESSES)) {
+            PlusAddressesHelper.openManagePlusAddresses(getActivity(), getProfile());
+            PlusAddressesUserActions.MANAGE_OPTION_ON_SETTINGS_SELECTED.log();
+            return;
+        }
+
+        AutofillAddress autofillAddress = getAutofillAddress(editorPreference);
         if (autofillAddress == null) {
             mAddressEditor =
                     new AddressEditorCoordinator(
                             getActivity(),
-                            getHelpAndFeedbackLauncher(),
                             mAddressEditorDelegate,
                             getProfile(),
                             /* saveToDisk= */ true);
@@ -248,7 +304,6 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
             mAddressEditor =
                     new AddressEditorCoordinator(
                             getActivity(),
-                            getHelpAndFeedbackLauncher(),
                             mAddressEditorDelegate,
                             getProfile(),
                             autofillAddress,
@@ -280,16 +335,11 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
                 .hasPrimaryAccount(ConsentLevel.SIGNIN)) {
             return false;
         }
-        if (profile.getSource() == Source.ACCOUNT) {
-            return false;
-        }
-        if (!ChromeFeatureList.isEnabled(
-                ChromeFeatureList.SYNC_ENABLE_CONTACT_INFO_DATA_TYPE_IN_TRANSPORT_MODE)) {
+        if (profile.getRecordType() == RecordType.ACCOUNT) {
             return false;
         }
         SyncService syncService = SyncServiceFactory.getForProfile(getProfile());
         return syncService == null
-                || !syncService.isSyncFeatureEnabled()
                 || !syncService.getSelectedTypes().contains(UserSelectableType.AUTOFILL);
     }
 
@@ -299,5 +349,20 @@ public class AutofillProfilesFragment extends ChromeBaseSettingsFragment
 
     EditorDialogView getEditorDialogForTest() {
         return mAddressEditor.getEditorDialogForTesting();
+    }
+
+    private void openHomeAndWorkLink(String url) {
+        CustomTabActivity.showInfoPage(getActivity(), url);
+    }
+
+    private int getIconIdForProfile(AutofillProfile profile) {
+        switch (profile.getRecordType()) {
+            case RecordType.ACCOUNT_HOME:
+                return R.drawable.home_logo;
+            case RecordType.ACCOUNT_WORK:
+                return R.drawable.work_logo;
+            default:
+                return R.drawable.location_on_logo;
+        }
     }
 }

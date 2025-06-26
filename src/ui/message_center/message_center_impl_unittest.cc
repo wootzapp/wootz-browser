@@ -5,9 +5,9 @@
 #include "ui/message_center/message_center_impl.h"
 
 #include <memory>
+#include <string>
 #include <utility>
 
-#include "ash/constants/ash_features.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
@@ -17,11 +17,9 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/current_thread.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_mock_time_task_runner.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/geometry/size.h"
@@ -32,8 +30,6 @@
 #include "ui/message_center/public/cpp/message_center_constants.h"
 #include "ui/message_center/public/cpp/notification_types.h"
 #include "ui/message_center/public/cpp/notifier_id.h"
-
-#include "base/logging.h"
 
 using base::UTF8ToUTF16;
 
@@ -524,7 +520,7 @@ TEST_F(MessageCenterImplTest, PopupTimersControllerRestartOnUpdate) {
   popup_timers_controller->OnNotificationDisplayed("id1", DISPLAY_SOURCE_POPUP);
   ASSERT_EQ(popup_timers_controller->timer_finished(), 0);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   const int dismiss_time =
       popup_timers_controller->GetNotificationTimeoutDefault();
 #else
@@ -1099,7 +1095,7 @@ TEST_F(MessageCenterImplTest, RemoveAllNotifications) {
   EXPECT_TRUE(NotificationsContain(notifications, "id2"));
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 TEST_F(MessageCenterImplTest, RemoveAllNotificationsWithPinned) {
   NotifierId notifier_id1(NotifierType::APPLICATION, "app1");
   NotifierId notifier_id2(NotifierType::APPLICATION, "app2");
@@ -1605,6 +1601,23 @@ TEST_F(MessageCenterImplTest, ClickAndCancelOnLockScreen) {
   EXPECT_FALSE(lock_screen_controller()->IsScreenLocked());
 }
 
+TEST_F(MessageCenterImplTest,
+       AllowClickOnLockScreenIfNotificationAllowedOnLockScreen) {
+  lock_screen_controller()->set_is_screen_locked(true);
+  lock_screen_controller()->set_is_notification_allowed_on_lock_screen(true);
+
+  TestAddObserver observer(message_center());
+  std::string id("n");
+
+  std::unique_ptr<Notification> notification = CreateSimpleNotification(id);
+  message_center()->AddNotification(std::move(notification));
+  message_center()->ClickOnNotification(id);
+
+  EXPECT_EQ("Click_", GetDelegate(id)->log());
+  EXPECT_FALSE(lock_screen_controller()->HasPendingCallback());
+  EXPECT_TRUE(lock_screen_controller()->IsScreenLocked());
+}
+
 TEST_F(MessageCenterImplTest, ButtonClickOnLockScreen) {
   lock_screen_controller()->set_is_screen_locked(true);
 
@@ -1624,6 +1637,23 @@ TEST_F(MessageCenterImplTest, ButtonClickOnLockScreen) {
   EXPECT_EQ("ButtonClick_1_", GetDelegate(id)->log());
   EXPECT_FALSE(lock_screen_controller()->HasPendingCallback());
   EXPECT_FALSE(lock_screen_controller()->IsScreenLocked());
+}
+
+TEST_F(MessageCenterImplTest,
+       ButtonClickOnLockScreenIfNotificationAllowedOnLockScreen) {
+  lock_screen_controller()->set_is_screen_locked(true);
+  lock_screen_controller()->set_is_notification_allowed_on_lock_screen(true);
+
+  TestAddObserver observer(message_center());
+  std::string id("n");
+
+  std::unique_ptr<Notification> notification = CreateSimpleNotification(id);
+  message_center()->AddNotification(std::move(notification));
+  message_center()->ClickOnNotificationButton(id, 1);
+
+  EXPECT_EQ("ButtonClick_1_", GetDelegate(id)->log());
+  EXPECT_FALSE(lock_screen_controller()->HasPendingCallback());
+  EXPECT_TRUE(lock_screen_controller()->IsScreenLocked());
 }
 
 TEST_F(MessageCenterImplTest, ButtonClickWithReplyOnLockScreen) {
@@ -1647,176 +1677,22 @@ TEST_F(MessageCenterImplTest, ButtonClickWithReplyOnLockScreen) {
   EXPECT_FALSE(lock_screen_controller()->IsScreenLocked());
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-class NotificationLimitMessageCenterImplTest : public MessageCenterImplTest {
- public:
-  NotificationLimitMessageCenterImplTest() = default;
+TEST_F(MessageCenterImplTest,
+       ButtonClickWithReplyOnLockIfNotificationAllowedOnLockScreen) {
+  lock_screen_controller()->set_is_screen_locked(true);
+  lock_screen_controller()->set_is_notification_allowed_on_lock_screen(true);
 
-  NotificationLimitMessageCenterImplTest(
-      const NotificationLimitMessageCenterImplTest&) = delete;
-  NotificationLimitMessageCenterImplTest& operator=(
-      const NotificationLimitMessageCenterImplTest&) = delete;
+  TestAddObserver observer(message_center());
+  std::string id("n");
 
-  ~NotificationLimitMessageCenterImplTest() override = default;
+  std::unique_ptr<Notification> notification = CreateSimpleNotification(id);
+  message_center()->AddNotification(std::move(notification));
+  message_center()->ClickOnNotificationButtonWithReply(id, 1, u"REPLYTEXT");
 
-  // MessageCenterImplTest:
-  void SetUp() override {
-    scoped_feature_list_.InitAndEnableFeature(
-        ash::features::kNotificationLimit);
-    MessageCenterImplTest::SetUp();
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-// Tests that the notification limit is respected, and the oldest notification
-// (when priorities are equal) is removed first.
-TEST_F(NotificationLimitMessageCenterImplTest, NotificationLimit) {
-  // Add to notifications until the limit is met.
-  size_t notifications_submitted = 0;
-  while (notifications_submitted <=
-         message_center()->GetNotifications().size()) {
-    message_center()->AddNotification(CreateSimpleNotification(
-        base::NumberToString(notifications_submitted++)));
-  }
-
-  // The oldest notification should have been removed, so the last notification
-  // will be the second one submitted.
-  EXPECT_EQ(base::NumberToString(1),
-            (*message_center()->GetNotifications().rbegin())->id());
-
-  size_t number_of_notifications = message_center()->GetNotifications().size();
-
-  // Add one more, the limit should be respected.
-  message_center()->AddNotification(CreateSimpleNotification(
-      base::NumberToString(notifications_submitted++)));
-
-  EXPECT_EQ(number_of_notifications,
-            message_center()->GetNotifications().size());
-
-  auto notifications = message_center()->GetNotifications();
+  EXPECT_EQ("ReplyButtonClick_1_REPLYTEXT_", GetDelegate(id)->log());
+  EXPECT_FALSE(lock_screen_controller()->HasPendingCallback());
+  EXPECT_TRUE(lock_screen_controller()->IsScreenLocked());
 }
-
-// Tests that the oldest, lowest priority notification is removed first.
-TEST_F(NotificationLimitMessageCenterImplTest,
-       NotificationLimitWithPriorities) {
-  // Add notifications so that the first few are chronologically in this order.
-  // {`SYSTEM_PRIORITY`, `SYSTEM_PRIORITY`, `MIN_PRIORITY`, `MAX_PRIORITY`,
-  // `DEFAULT_PRIORITY`}
-
-  std::string fourth_removed_notification_id = "oldest_system_priority";
-  auto oldest_system_priority_notification =
-      CreateSimpleNotification(fourth_removed_notification_id);
-  oldest_system_priority_notification->set_priority(
-      NotificationPriority ::SYSTEM_PRIORITY);
-  message_center()->AddNotification(
-      std::move(oldest_system_priority_notification));
-
-  std::string last_removed_notification_id = "second_oldest_system_priority";
-  auto second_oldest_system_priority_notification =
-      CreateSimpleNotification(last_removed_notification_id);
-  second_oldest_system_priority_notification->set_priority(
-      NotificationPriority ::SYSTEM_PRIORITY);
-  message_center()->AddNotification(
-      std::move(second_oldest_system_priority_notification));
-
-  std::string first_removed_notification_id =
-      "oldest_min_priority_notification";
-  auto oldest_min_priority_notification =
-      CreateSimpleNotification(first_removed_notification_id);
-  oldest_min_priority_notification->set_priority(
-      NotificationPriority ::MIN_PRIORITY);
-  message_center()->AddNotification(
-      std::move(oldest_min_priority_notification));
-
-  std::string third_removed_notification_id =
-      "oldest_max_priority_notification";
-  auto oldest_max_priority_notification =
-      CreateSimpleNotification(third_removed_notification_id);
-  oldest_max_priority_notification->set_priority(
-      NotificationPriority ::MAX_PRIORITY);
-  message_center()->AddNotification(
-      std::move(oldest_max_priority_notification));
-
-  std::string second_removed_notification_id =
-      "oldest_default_priority_notification";
-  auto oldest_default_priority_notification =
-      CreateSimpleNotification(second_removed_notification_id);
-  oldest_default_priority_notification->set_priority(
-      NotificationPriority ::DEFAULT_PRIORITY);
-  message_center()->AddNotification(
-      std::move(oldest_default_priority_notification));
-
-  size_t notifications_submitted = 5;
-  // Start adding more `SYSTEM_PRIORITY` notifications until the max is hit,
-  // then incrementally add more and ensure the notifications are deleted as
-  // expected.
-  while (notifications_submitted <=
-         message_center()->GetNotifications().size()) {
-    auto notification = CreateSimpleNotification(
-        base::NumberToString(notifications_submitted++));
-    notification->set_priority(NotificationPriority::SYSTEM_PRIORITY);
-    message_center()->AddNotification(std::move(notification));
-  }
-
-  EXPECT_FALSE(
-      message_center()->FindNotificationById(first_removed_notification_id));
-  EXPECT_TRUE(
-      message_center()->FindNotificationById(second_removed_notification_id));
-  EXPECT_TRUE(
-      message_center()->FindNotificationById(fourth_removed_notification_id));
-  EXPECT_TRUE(
-      message_center()->FindNotificationById(last_removed_notification_id));
-  EXPECT_TRUE(
-      message_center()->FindNotificationById(third_removed_notification_id));
-
-  auto notification =
-      CreateSimpleNotification(base::NumberToString(notifications_submitted++));
-  notification->set_priority(NotificationPriority::SYSTEM_PRIORITY);
-  message_center()->AddNotification(std::move(notification));
-
-  EXPECT_FALSE(
-      message_center()->FindNotificationById(second_removed_notification_id));
-  EXPECT_TRUE(
-      message_center()->FindNotificationById(last_removed_notification_id));
-  EXPECT_TRUE(
-      message_center()->FindNotificationById(third_removed_notification_id));
-  EXPECT_TRUE(
-      message_center()->FindNotificationById(fourth_removed_notification_id));
-
-  notification =
-      CreateSimpleNotification(base::NumberToString(notifications_submitted++));
-  notification->set_priority(NotificationPriority::SYSTEM_PRIORITY);
-  message_center()->AddNotification(std::move(notification));
-
-  EXPECT_FALSE(
-      message_center()->FindNotificationById(third_removed_notification_id));
-  EXPECT_TRUE(
-      message_center()->FindNotificationById(last_removed_notification_id));
-  EXPECT_TRUE(
-      message_center()->FindNotificationById(fourth_removed_notification_id));
-
-  notification =
-      CreateSimpleNotification(base::NumberToString(notifications_submitted++));
-  notification->set_priority(NotificationPriority::SYSTEM_PRIORITY);
-  message_center()->AddNotification(std::move(notification));
-
-  EXPECT_FALSE(
-      message_center()->FindNotificationById(fourth_removed_notification_id));
-  EXPECT_TRUE(
-      message_center()->FindNotificationById(last_removed_notification_id));
-
-  notification =
-      CreateSimpleNotification(base::NumberToString(notifications_submitted++));
-  notification->set_priority(NotificationPriority::SYSTEM_PRIORITY);
-  message_center()->AddNotification(std::move(notification));
-
-  EXPECT_FALSE(
-      message_center()->FindNotificationById(last_removed_notification_id));
-}
-
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 }  // namespace internal
 }  // namespace message_center

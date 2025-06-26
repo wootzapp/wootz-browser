@@ -13,12 +13,12 @@
 #include "base/android/jni_android.h"
 #include "base/android/scoped_hardware_buffer_fence_sync.h"
 #include "base/debug/dump_without_crashing.h"
-#include "base/feature_list.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/not_fatal_until.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/bind_post_task.h"
@@ -34,8 +34,8 @@ namespace gpu {
 
 namespace {
 
-BASE_FEATURE(kAlwaysUsePrivateFormatForImageReader,
-             "AlwaysUsePrivateFormatForImageReader",
+BASE_FEATURE(kDiscardDroppedEarlyRenderedFrames,
+             "DiscardDroppedEarlyRenderedFrames",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 bool IsSurfaceControl(TextureOwner::Mode mode) {
@@ -46,11 +46,9 @@ bool IsSurfaceControl(TextureOwner::Mode mode) {
     case TextureOwner::Mode::kAImageReaderInsecure:
       return false;
     case TextureOwner::Mode::kSurfaceTextureInsecure:
-      NOTREACHED_IN_MIGRATION();
-      return false;
+      NOTREACHED();
   }
-  NOTREACHED_IN_MIGRATION();
-  return false;
+  NOTREACHED();
 }
 
 // This should be as small as possible to limit the memory usage.
@@ -148,13 +146,6 @@ ImageReaderGLOwner::ImageReaderGLOwner(
   // Surface.
   int32_t width = 1, height = 1;
   max_images_ = NumRequiredMaxImages(mode);
-  AIMAGE_FORMATS format = mode == Mode::kAImageReaderSecureSurfaceControl
-                              ? AIMAGE_FORMAT_PRIVATE
-                              : AIMAGE_FORMAT_YUV_420_888;
-
-  if (base::FeatureList::IsEnabled(kAlwaysUsePrivateFormatForImageReader)) {
-    format = AIMAGE_FORMAT_PRIVATE;
-  }
 
   AImageReader* reader = nullptr;
 
@@ -168,7 +159,7 @@ ImageReaderGLOwner::ImageReaderGLOwner(
 
   // Create a new reader for images of the desired size and format.
   media_status_t return_code = AImageReader_newWithUsage(
-      width, height, format, usage, max_images_, &reader);
+      width, height, AIMAGE_FORMAT_PRIVATE, usage, max_images_, &reader);
   if (return_code != AMEDIA_OK) {
     LOG(ERROR) << " Image reader creation failed on device model : "
                << base::android::BuildInfo::GetInstance()->model()
@@ -268,12 +259,12 @@ gl::ScopedJavaSurface ImageReaderGLOwner::CreateJavaSurface() const {
   return gl::ScopedJavaSurface(j_surface, /*auto_release=*/true);
 }
 
-void ImageReaderGLOwner::UpdateTexImage() {
+bool ImageReaderGLOwner::UpdateTexImage(bool discard) {
   base::AutoLock auto_lock(lock_);
 
   // If we've lost the texture, then do nothing.
   if (!texture())
-    return;
+    return false;
 
   DCHECK(image_reader_);
 
@@ -311,25 +302,24 @@ void ImageReaderGLOwner::UpdateTexImage() {
   switch (return_code) {
     case AMEDIA_ERROR_INVALID_PARAMETER:
       LOG(ERROR) << "AImageReader: Invalid parameter";
-      return;
+      return false;
     case AMEDIA_IMGREADER_MAX_IMAGES_ACQUIRED:
       LOG(ERROR)
           << "number of concurrently acquired images has reached the limit";
-      return;
+      return false;
     case AMEDIA_IMGREADER_NO_BUFFER_AVAILABLE:
       LOG(ERROR) << "no buffers currently available in the reader queue";
-      return;
+      return false;
     case AMEDIA_ERROR_UNKNOWN:
       LOG(ERROR) << "method fails for some other reasons";
-      return;
+      return false;
     case AMEDIA_OK:
       // Method call succeeded.
       break;
     default:
       LOG(ERROR) << "AImageReader: Unknown error: " << return_code;
       // No other error code should be returned.
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
   base::ScopedFD scoped_acquire_fence_fd(acquire_fence_fd);
 
@@ -337,14 +327,25 @@ void ImageReaderGLOwner::UpdateTexImage() {
   // still be bound to the texture.
   if (!image) {
     LOG(ERROR) << "AImageReader: image is nullptr: " << return_code;
-    return;
+    return false;
   }
 
   UMA_HISTOGRAM_BOOLEAN("Media.AImageReaderGLOwner.HasFence",
                         scoped_acquire_fence_fd.is_valid());
 
+  if (discard && current_image_ref_ &&
+      base::FeatureList::IsEnabled(kDiscardDroppedEarlyRenderedFrames)) {
+    if (scoped_acquire_fence_fd.is_valid()) {
+      AImage_deleteAsync(image, scoped_acquire_fence_fd.release());
+    } else {
+      AImage_delete(image);
+    }
+    return true;
+  }
+
   // Make the newly acquired image as current image.
   current_image_ref_.emplace(this, image, std::move(scoped_acquire_fence_fd));
+  return true;
 }
 
 std::unique_ptr<base::android::ScopedHardwareBufferFenceSync>
@@ -435,7 +436,7 @@ void ImageReaderGLOwner::ReleaseRefOnImageLocked(AImage* image,
   AssertAcquiredDrDcLock();
 
   auto it = image_refs_.find(image);
-  DCHECK(it != image_refs_.end());
+  CHECK(it != image_refs_.end(), base::NotFatalUntil::M130);
 
   auto& image_ref = it->second;
   DCHECK_GT(image_ref.count, 0u);
@@ -570,8 +571,7 @@ bool ImageReaderGLOwner::OnMemoryDump(
     base::trace_event::ProcessMemoryDump* pmd) {
   if (args.level_of_detail ==
       base::trace_event::MemoryDumpLevelOfDetail::kBackground) {
-    auto dump_name =
-        base::StringPrintf("gpu/media_texture_owner_%d/", tracing_id());
+    auto dump_name = base::StringPrintf(kMemoryDumpPrefix, tracing_id());
 
     base::trace_event::MemoryAllocatorDump* dump =
         pmd->CreateAllocatorDump(dump_name);
@@ -586,7 +586,7 @@ bool ImageReaderGLOwner::OnMemoryDump(
   base::AutoLock auto_lock(lock_);
   for (const auto& image : image_refs_) {
     std::string dump_name = base::StringPrintf(
-        "gpu/media_texture_owner_%d/image_%d", tracing_id(), i++);
+        "gpu/media_texture_owner_0x%x/image_%d", tracing_id(), i++);
 
     // If we fail to get AImage size for any reason, we still report the image
     // as a empty size, so it can be diagnosed in necessary.

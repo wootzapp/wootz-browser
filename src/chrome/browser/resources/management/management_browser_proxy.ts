@@ -23,6 +23,7 @@ export enum ReportingType {
   USER_ACTIVITY = 'user-activity',
   EXTENSIONS = 'extensions',
   LEGACY_TECH = 'legacy-tech',
+  URL = 'url',
 }
 
 export interface BrowserReportingResponse {
@@ -44,6 +45,8 @@ interface ManagedDataResponse {
   eolMessage: string;
   eolAdminMessage: string;
   showMonitoredNetworkPrivacyDisclosure: boolean;
+  showWindowsNoticeForDeskSync: boolean;
+  showCookiesNoticeForDeskSync: boolean;
 }
 
 interface ThreatProtectionPermission {
@@ -81,6 +84,7 @@ export enum DeviceReportingType {
   PERIPHERALS = 'peripherals',
   LEGACY_TECH = 'legacy-tech',
   WEBSITE_INFO_AND_ACTIVITY = 'website info and activity',
+  FILE_EVENTS = 'file events',
 }
 
 
@@ -104,6 +108,12 @@ export interface ManagementBrowserProxy {
    * @return Whether trust root configured or not.
    */
   getLocalTrustRootsInfo(): Promise<boolean>;
+
+  /**
+   * @return Whether uploading of downloads or screenshots to cloud storages is
+   *     configured.
+   */
+  getFilesUploadToCloudInfo(): Promise<string>;
 
   /**
    * @return List of items to display in device reporting section.
@@ -147,6 +157,10 @@ export class ManagementBrowserProxyImpl implements ManagementBrowserProxy {
   // <if expr="is_chromeos">
   getLocalTrustRootsInfo() {
     return sendWithPromise('getLocalTrustRootsInfo');
+  }
+
+  getFilesUploadToCloudInfo() {
+    return sendWithPromise('getFilesUploadToCloudInfo');
   }
 
   getDeviceReportingInfo() {

@@ -12,23 +12,26 @@
 #include "base/power_monitor/battery_state_sampler.h"
 #include "base/power_monitor/power_monitor.h"
 #include "base/power_monitor/power_monitor_source.h"
+#include "base/power_monitor/power_observer.h"
 #include "base/run_loop.h"
 #include "base/test/power_monitor_test_utils.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "build/build_config.h"
+#include "chrome/browser/performance_manager/test_support/fake_child_process_tuning_delegate.h"
 #include "chrome/browser/performance_manager/test_support/fake_frame_throttling_delegate.h"
 #include "chrome/browser/performance_manager/test_support/fake_freezing_delegate.h"
 #include "chrome/browser/performance_manager/test_support/fake_power_monitor_source.h"
-#include "chrome/browser/performance_manager/test_support/fake_render_tuning_delegate.h"
 #include "components/performance_manager/public/features.h"
 #include "components/performance_manager/public/user_tuning/prefs.h"
 #include "components/prefs/testing_pref_service.h"
+#include "content/public/common/content_features.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
 #include "chromeos/dbus/power/power_manager_client.h"
 #include "dbus/mock_bus.h"
@@ -83,6 +86,8 @@ class MockObserver : public performance_manager::user_tuning::
   MOCK_METHOD1(OnDeviceHasBatteryChanged, void(bool));
 };
 
+#if !BUILDFLAG(IS_CHROMEOS)
+
 base::BatteryLevelProvider::BatteryState CreateBatteryState(
     bool under_threshold) {
   return {
@@ -94,7 +99,8 @@ base::BatteryLevelProvider::BatteryState CreateBatteryState(
       .capture_time = base::TimeTicks::Now()};
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#else  // BUILDFLAG(IS_CHROMEOS)
+
 class ScopedFakePowerManagerClientLifetime {
  public:
   ScopedFakePowerManagerClientLifetime() {
@@ -105,18 +111,17 @@ class ScopedFakePowerManagerClientLifetime {
     chromeos::PowerManagerClient::Shutdown();
   }
 };
-#endif
+
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace
 
 class BatterySaverModeManagerTest : public ::testing::Test {
  public:
   void SetUp() override {
-    feature_list_.InitAndEnableFeature(features::kBatterySaverModeRenderTuning);
-
     auto source = std::make_unique<FakePowerMonitorSource>();
     power_monitor_source_ = source.get();
-    base::PowerMonitor::Initialize(std::move(source));
+    base::PowerMonitor::GetInstance()->Initialize(std::move(source));
 
     performance_manager::user_tuning::prefs::RegisterLocalStatePrefs(
         local_state_.registry());
@@ -138,18 +143,23 @@ class BatterySaverModeManagerTest : public ::testing::Test {
     manager_.reset(new BatterySaverModeManager(
         &local_state_,
         std::make_unique<FakeFrameThrottlingDelegate>(&throttling_enabled_),
-        std::make_unique<FakeRenderTuningDelegate>(&render_tuning_enabled_),
+        std::make_unique<FakeChildProcessTuningDelegate>(
+            &child_process_tuning_enabled_),
         std::make_unique<FakeFreezingDelegate>(&freezing_enabled_)));
     manager()->Start();
   }
 
-  void TearDown() override { base::PowerMonitor::ShutdownForTesting(); }
+  void TearDown() override {
+    base::PowerMonitor::GetInstance()->ShutdownForTesting();
+  }
 
   BatterySaverModeManager* manager() {
     return BatterySaverModeManager::GetInstance();
   }
   bool throttling_enabled() const { return throttling_enabled_; }
-  bool render_tuning_enabled() const { return render_tuning_enabled_; }
+  bool child_process_tuning_enabled() const {
+    return child_process_tuning_enabled_;
+  }
   bool freezing_enabled() const { return freezing_enabled_; }
 
   base::test::TaskEnvironment task_environment_{
@@ -163,23 +173,24 @@ class BatterySaverModeManagerTest : public ::testing::Test {
       battery_level_provider_;
   std::unique_ptr<base::BatteryStateSampler> battery_sampler_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   ScopedFakePowerManagerClientLifetime fake_power_manager_client_lifetime_;
 #endif
   raw_ptr<FakePowerMonitorSource, DanglingUntriaged> power_monitor_source_;
   bool throttling_enabled_ = false;
-  bool render_tuning_enabled_ = false;
+  bool child_process_tuning_enabled_ = false;
   bool freezing_enabled_ = false;
   std::unique_ptr<BatterySaverModeManager> manager_;
-
-  base::test::ScopedFeatureList feature_list_;
 };
+
+// Battery Saver is controlled by the OS on ChromeOS
+#if !BUILDFLAG(IS_CHROMEOS)
 
 TEST_F(BatterySaverModeManagerTest, TemporaryBatterySaver) {
   StartManager();
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   local_state_.SetInteger(
@@ -190,21 +201,21 @@ TEST_F(BatterySaverModeManagerTest, TemporaryBatterySaver) {
   EXPECT_TRUE(manager()->IsBatterySaverModeEnabled());
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 
   manager()->SetTemporaryBatterySaverDisabledForSession(true);
   EXPECT_TRUE(manager()->IsBatterySaverModeEnabled());
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   manager()->SetTemporaryBatterySaverDisabledForSession(false);
   EXPECT_TRUE(manager()->IsBatterySaverModeEnabled());
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 
   // Changing the pref resets the "disabled for session" flag.
@@ -220,7 +231,7 @@ TEST_F(BatterySaverModeManagerTest, TemporaryBatterySaverTurnsOffWhenPlugged) {
   StartManager();
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   // Test the flag is cleared when the device is plugged in.
@@ -230,7 +241,8 @@ TEST_F(BatterySaverModeManagerTest, TemporaryBatterySaverTurnsOffWhenPlugged) {
         std::make_unique<QuitRunLoopOnPowerStateChangeObserver>(
             run_loop.QuitClosure());
     manager()->AddObserver(observer.get());
-    power_monitor_source_->SetOnBatteryPower(true);
+    power_monitor_source_->SetBatteryPowerStatus(
+        base::PowerStateObserver::BatteryPowerStatus::kBatteryPower);
     run_loop.Run();
     manager()->RemoveObserver(observer.get());
   }
@@ -240,13 +252,13 @@ TEST_F(BatterySaverModeManagerTest, TemporaryBatterySaverTurnsOffWhenPlugged) {
                            BatterySaverModeState::kEnabled));
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 
   manager()->SetTemporaryBatterySaverDisabledForSession(true);
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   {
@@ -255,14 +267,15 @@ TEST_F(BatterySaverModeManagerTest, TemporaryBatterySaverTurnsOffWhenPlugged) {
         std::make_unique<QuitRunLoopOnPowerStateChangeObserver>(
             run_loop.QuitClosure());
     manager()->AddObserver(observer.get());
-    power_monitor_source_->SetOnBatteryPower(false);
+    power_monitor_source_->SetBatteryPowerStatus(
+        base::PowerStateObserver::BatteryPowerStatus::kExternalPower);
     run_loop.Run();
     manager()->RemoveObserver(observer.get());
   }
   EXPECT_FALSE(manager()->IsBatterySaverModeDisabledForSession());
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 }
 
@@ -270,7 +283,7 @@ TEST_F(BatterySaverModeManagerTest, BatterySaverModePref) {
   StartManager();
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   local_state_.SetInteger(
@@ -280,7 +293,7 @@ TEST_F(BatterySaverModeManagerTest, BatterySaverModePref) {
   EXPECT_TRUE(manager()->IsBatterySaverModeEnabled());
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 
   local_state_.SetInteger(
@@ -290,7 +303,7 @@ TEST_F(BatterySaverModeManagerTest, BatterySaverModePref) {
   EXPECT_FALSE(manager()->IsBatterySaverModeEnabled());
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 }
 
@@ -302,14 +315,14 @@ TEST_F(BatterySaverModeManagerTest, InvalidPrefInStore) {
                            BatterySaverModeState::kEnabled));
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 
   local_state_.SetInteger(
       performance_manager::user_tuning::prefs::kBatterySaverModeState, -1);
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   local_state_.SetInteger(
@@ -319,7 +332,7 @@ TEST_F(BatterySaverModeManagerTest, InvalidPrefInStore) {
           1);
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 }
 
@@ -327,7 +340,7 @@ TEST_F(BatterySaverModeManagerTest, EnabledOnBatteryPower) {
   StartManager();
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   local_state_.SetInteger(
@@ -336,7 +349,7 @@ TEST_F(BatterySaverModeManagerTest, EnabledOnBatteryPower) {
                            BatterySaverModeState::kEnabledOnBattery));
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   {
@@ -345,14 +358,15 @@ TEST_F(BatterySaverModeManagerTest, EnabledOnBatteryPower) {
         std::make_unique<QuitRunLoopOnBSMChangeObserver>(
             run_loop.QuitClosure());
     manager()->AddObserver(observer.get());
-    power_monitor_source_->SetOnBatteryPower(true);
+    power_monitor_source_->SetBatteryPowerStatus(
+        base::PowerStateObserver::BatteryPowerStatus::kBatteryPower);
     run_loop.Run();
     manager()->RemoveObserver(observer.get());
   }
 
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 
   {
@@ -361,14 +375,15 @@ TEST_F(BatterySaverModeManagerTest, EnabledOnBatteryPower) {
         std::make_unique<QuitRunLoopOnBSMChangeObserver>(
             run_loop.QuitClosure());
     manager()->AddObserver(observer.get());
-    power_monitor_source_->SetOnBatteryPower(false);
+    power_monitor_source_->SetBatteryPowerStatus(
+        base::PowerStateObserver::BatteryPowerStatus::kExternalPower);
     run_loop.Run();
     manager()->RemoveObserver(observer.get());
   }
 
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
 
   // Change mode, go back on battery power, then reswitch to kEnabledOnBattery.
   // BSM should activate right away.
@@ -378,7 +393,7 @@ TEST_F(BatterySaverModeManagerTest, EnabledOnBatteryPower) {
                            BatterySaverModeState::kDisabled));
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   {
@@ -387,7 +402,8 @@ TEST_F(BatterySaverModeManagerTest, EnabledOnBatteryPower) {
         std::make_unique<QuitRunLoopOnPowerStateChangeObserver>(
             run_loop.QuitClosure());
     manager()->AddObserver(observer.get());
-    power_monitor_source_->SetOnBatteryPower(true);
+    power_monitor_source_->SetBatteryPowerStatus(
+        base::PowerStateObserver::BatteryPowerStatus::kBatteryPower);
     run_loop.Run();
     manager()->RemoveObserver(observer.get());
   }
@@ -398,7 +414,7 @@ TEST_F(BatterySaverModeManagerTest, EnabledOnBatteryPower) {
                            BatterySaverModeState::kEnabledOnBattery));
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 }
 
@@ -410,7 +426,7 @@ TEST_F(BatterySaverModeManagerTest, LowBatteryThresholdRaised) {
   StartManager();
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   MockObserver obs;
@@ -433,7 +449,7 @@ TEST_F(BatterySaverModeManagerTest, BSMEnabledUnderThreshold) {
   StartManager();
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   // If the device is not on battery, getting a "below threshold" sample doesn't
@@ -443,7 +459,7 @@ TEST_F(BatterySaverModeManagerTest, BSMEnabledUnderThreshold) {
   sampling_source_->SimulateEvent();
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   // We're below threshold and the device goes on battery, BSM is enabled
@@ -453,14 +469,15 @@ TEST_F(BatterySaverModeManagerTest, BSMEnabledUnderThreshold) {
         std::make_unique<QuitRunLoopOnPowerStateChangeObserver>(
             run_loop.QuitClosure());
     manager()->AddObserver(observer.get());
-    power_monitor_source_->SetOnBatteryPower(true);
+    power_monitor_source_->SetBatteryPowerStatus(
+        base::PowerStateObserver::BatteryPowerStatus::kBatteryPower);
     run_loop.Run();
     manager()->RemoveObserver(observer.get());
   }
 
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 
   // The device is plugged in, BSM deactivates. Then it's charged above
@@ -472,13 +489,14 @@ TEST_F(BatterySaverModeManagerTest, BSMEnabledUnderThreshold) {
         std::make_unique<QuitRunLoopOnPowerStateChangeObserver>(
             run_loop.QuitClosure());
     manager()->AddObserver(observer.get());
-    power_monitor_source_->SetOnBatteryPower(false);
+    power_monitor_source_->SetBatteryPowerStatus(
+        base::PowerStateObserver::BatteryPowerStatus::kExternalPower);
     run_loop.Run();
     manager()->RemoveObserver(observer.get());
   }
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   battery_level_provider_->SetBatteryState(
@@ -491,14 +509,15 @@ TEST_F(BatterySaverModeManagerTest, BSMEnabledUnderThreshold) {
         std::make_unique<QuitRunLoopOnPowerStateChangeObserver>(
             run_loop.QuitClosure());
     manager()->AddObserver(observer.get());
-    power_monitor_source_->SetOnBatteryPower(true);
+    power_monitor_source_->SetBatteryPowerStatus(
+        base::PowerStateObserver::BatteryPowerStatus::kBatteryPower);
     run_loop.Run();
     manager()->RemoveObserver(observer.get());
   }
 
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   battery_level_provider_->SetBatteryState(
@@ -507,7 +526,7 @@ TEST_F(BatterySaverModeManagerTest, BSMEnabledUnderThreshold) {
 
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 }
 
@@ -569,7 +588,8 @@ TEST_F(BatterySaverModeManagerTest,
   EXPECT_EQ(100, manager()->SampledBatteryPercentage());
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#else   // BUILDFLAG(IS_CHROMEOS)
+
 TEST_F(BatterySaverModeManagerTest, ManagedFromPowerManager) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitAndEnableFeature(ash::features::kBatterySaver);
@@ -577,7 +597,7 @@ TEST_F(BatterySaverModeManagerTest, ManagedFromPowerManager) {
   StartManager();
   EXPECT_FALSE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(throttling_enabled());
-  EXPECT_FALSE(render_tuning_enabled());
+  EXPECT_FALSE(child_process_tuning_enabled());
   EXPECT_FALSE(freezing_enabled());
 
   base::RunLoop run_loop;
@@ -596,7 +616,7 @@ TEST_F(BatterySaverModeManagerTest, ManagedFromPowerManager) {
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_FALSE(manager()->IsBatterySaverModeEnabled());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 }
 
@@ -624,9 +644,9 @@ TEST_F(BatterySaverModeManagerTest,
 
   EXPECT_TRUE(manager()->IsBatterySaverActive());
   EXPECT_TRUE(throttling_enabled());
-  EXPECT_TRUE(render_tuning_enabled());
+  EXPECT_TRUE(child_process_tuning_enabled());
   EXPECT_TRUE(freezing_enabled());
 }
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace performance_manager::user_tuning

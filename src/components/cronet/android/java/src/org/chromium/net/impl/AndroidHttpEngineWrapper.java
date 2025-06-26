@@ -9,11 +9,11 @@ import static org.chromium.net.impl.HttpEngineNativeProvider.EXT_VERSION;
 
 import android.net.Network;
 import android.net.http.HttpEngine;
-import android.os.Process;
+import android.util.Log;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresExtension;
-import androidx.annotation.VisibleForTesting;
 
 import org.chromium.net.BidirectionalStream;
 import org.chromium.net.CronetEngine;
@@ -26,24 +26,31 @@ import java.net.Proxy;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandlerFactory;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 @RequiresExtension(extension = EXT_API_LEVEL, version = EXT_VERSION)
 class AndroidHttpEngineWrapper extends CronetEngineBase {
-    private final HttpEngine mBackend;
-    private final int mThreadPriority;
-    // The thread that priority has been set on.
-    private Thread mPriorityThread;
+    private static final String TAG = "HttpEngineWrapper";
 
-    public AndroidHttpEngineWrapper(HttpEngine backend, int threadPriority) {
+    private static boolean sNetlogUnsupportedLogged;
+    private static boolean sGlobalMetricsUnsupportedLogged;
+
+    private final HttpEngine mBackend;
+    private final Map<
+                    RequestFinishedInfo.Listener, VersionSafeCallbacks.RequestFinishedInfoListener>
+            mFinishedListenerMap = Collections.synchronizedMap(new HashMap<>());
+
+    public AndroidHttpEngineWrapper(HttpEngine backend) {
         mBackend = backend;
-        mThreadPriority = threadPriority;
     }
 
     @Override
@@ -58,17 +65,28 @@ class AndroidHttpEngineWrapper extends CronetEngineBase {
 
     @Override
     public void startNetLogToFile(String fileName, boolean logAll) {
-        // TODO(danstahr): Hidden API access
+        // TODO: Hidden API access
+        if (!sNetlogUnsupportedLogged) {
+            Log.i(TAG, "Netlog is unsupported when HttpEngineNativeProvider is used.");
+            sNetlogUnsupportedLogged = true;
+        }
     }
 
     @Override
     public void stopNetLog() {
-        // TODO(danstahr): Hidden API access
+        // TODO: Hidden API access
     }
 
     @Override
     public byte[] getGlobalMetricsDeltas() {
-        // TODO(danstahr): Hidden API access
+        // TODO: Hidden API access
+        if (!sGlobalMetricsUnsupportedLogged) {
+            Log.i(
+                    TAG,
+                    "GlobalMetricsDelta is unsupported when HttpEngineNativeProvider is used. An"
+                            + " empty protobuf is returned.");
+            sGlobalMetricsUnsupportedLogged = true;
+        }
         return new byte[0];
     }
 
@@ -105,15 +123,46 @@ class AndroidHttpEngineWrapper extends CronetEngineBase {
     @Override
     public org.chromium.net.ExperimentalBidirectionalStream.Builder newBidirectionalStreamBuilder(
             String url, org.chromium.net.BidirectionalStream.Callback callback, Executor executor) {
-        return new BidirectionalStreamBuilderImpl(
-                url, callback, maybeWrapWithPrioritySettingExecutor(executor), this);
+        return new BidirectionalStreamBuilderImpl(url, callback, executor, this);
     }
 
     @Override
-    public org.chromium.net.ExperimentalUrlRequest.Builder newUrlRequestBuilder(
-            String url, org.chromium.net.UrlRequest.Callback callback, Executor executor) {
-        return super.newUrlRequestBuilder(
-                url, callback, maybeWrapWithPrioritySettingExecutor(executor));
+    public void addRequestFinishedListener(RequestFinishedInfo.Listener listener) {
+        mFinishedListenerMap.put(
+                listener, new VersionSafeCallbacks.RequestFinishedInfoListener(listener));
+    }
+
+    @Override
+    public void removeRequestFinishedListener(RequestFinishedInfo.Listener listener) {
+        mFinishedListenerMap.remove(listener);
+    }
+
+    void reportRequestFinished(
+            RequestFinishedInfo requestInfo,
+            VersionSafeCallbacks.RequestFinishedInfoListener extraRequestListener) {
+        ArrayList<VersionSafeCallbacks.RequestFinishedInfoListener> currentListeners =
+                new ArrayList<>();
+        synchronized (mFinishedListenerMap) {
+            currentListeners.addAll(mFinishedListenerMap.values());
+        }
+        if (extraRequestListener != null) {
+            currentListeners.add(extraRequestListener);
+        }
+        for (final VersionSafeCallbacks.RequestFinishedInfoListener listener : currentListeners) {
+            try {
+                listener.getExecutor()
+                        .execute(
+                                () -> {
+                                    try {
+                                        listener.onRequestFinished(requestInfo);
+                                    } catch (Exception e) {
+                                        Log.e(TAG, "Exception thrown from observation task", e);
+                                    }
+                                });
+            } catch (RejectedExecutionException failException) {
+                Log.e(TAG, "Exception posting task to executor", failException);
+            }
+        }
     }
 
     @Override
@@ -125,7 +174,7 @@ class AndroidHttpEngineWrapper extends CronetEngineBase {
             List<Entry<String, String>> requestHeaders,
             @StreamPriority int priority,
             boolean delayRequestHeadersUntilFirstFlush,
-            Collection<Object> requestAnnotations /* not in HttpEngine */,
+            Collection<Object> requestAnnotations,
             boolean trafficStatsTagSet,
             int trafficStatsTag,
             boolean trafficStatsUidSet,
@@ -151,7 +200,7 @@ class AndroidHttpEngineWrapper extends CronetEngineBase {
         }
 
         return AndroidBidirectionalStreamWrapper.createAndAddToCallback(
-                streamBuilder.build(), wrappedCallback);
+                streamBuilder.build(), wrappedCallback, this, url, requestAnnotations);
     }
 
     @Override
@@ -160,7 +209,7 @@ class AndroidHttpEngineWrapper extends CronetEngineBase {
             UrlRequest.Callback callback,
             Executor executor,
             @RequestPriority int priority,
-            Collection<Object> requestAnnotations /* not in HttpEngine */,
+            Collection<Object> requestAnnotations,
             boolean disableCache,
             boolean disableConnectionMigration /* not in HttpEngine */,
             boolean allowDirectExecutor,
@@ -168,21 +217,34 @@ class AndroidHttpEngineWrapper extends CronetEngineBase {
             int trafficStatsTag,
             boolean trafficStatsUidSet,
             int trafficStatsUid,
-            @Nullable RequestFinishedInfo.Listener requestFinishedListener /* not in HttpEngine */,
+            @Nullable RequestFinishedInfo.Listener requestFinishedListener,
             @Idempotency int idempotency /* not in HttpEngine */,
             long networkHandle,
             String method,
             ArrayList<Map.Entry<String, String>> requestHeaders,
             UploadDataProvider uploadDataProvider,
-            Executor uploadDataProviderExecutor) {
+            Executor uploadDataProviderExecutor,
+            byte[] dictionarySha256Hash,
+            ByteBuffer sharedDictionary,
+            @NonNull String sharedDictionaryId) {
         AndroidUrlRequestCallbackWrapper wrappedCallback =
                 new AndroidUrlRequestCallbackWrapper(callback);
         android.net.http.UrlRequest.Builder requestBuilder =
                 mBackend.newUrlRequestBuilder(url, executor, wrappedCallback);
 
         requestBuilder.setPriority(priority);
-        requestBuilder.setCacheDisabled(disableCache);
-        requestBuilder.setDirectExecutorAllowed(allowDirectExecutor);
+        // Note we only call `setCacheDisabled()` if `disableCache` is true because some versions
+        // of HttpEngine suffer from a bug where `setCacheDisabled(false)` will disable the cache.
+        // See https://crbug.com/372653292.
+        if (disableCache) {
+            requestBuilder.setCacheDisabled(disableCache);
+        }
+        // Note we only call `setDirectExecutorAllowed()` if `allowDirectExecutor` is true because
+        // some versions of HttpEngine suffer from a bug where `setDirectExecutorAllowed(false)`
+        // will end up *allowing* direct execution. See https://crbug.com/372852416.
+        if (allowDirectExecutor) {
+            requestBuilder.setDirectExecutorAllowed(allowDirectExecutor);
+        }
         if (trafficStatsTagSet) {
             requestBuilder.setTrafficStatsTag(trafficStatsTag);
         }
@@ -201,7 +263,12 @@ class AndroidHttpEngineWrapper extends CronetEngineBase {
         }
 
         return AndroidUrlRequestWrapper.createAndAddToCallback(
-                requestBuilder.build(), wrappedCallback);
+                requestBuilder.build(),
+                wrappedCallback,
+                this,
+                url,
+                requestAnnotations,
+                requestFinishedListener);
     }
 
     private Network getNetwork(long networkHandle) {
@@ -211,56 +278,5 @@ class AndroidHttpEngineWrapper extends CronetEngineBase {
         return networkHandle == CronetEngine.UNBIND_NETWORK_HANDLE
                 ? null
                 : Network.fromNetworkHandle(networkHandle);
-    }
-
-    /**
-     * Wrap executor if user set the thread priority via {@link
-     * CronetEngine.Builder#setThreadPriority(int)}. All requests/streams in an engine are either
-     * wrapped or not wrapped depending on if thread priority is set.
-     */
-    private Executor maybeWrapWithPrioritySettingExecutor(Executor executor) {
-        return mThreadPriority == Integer.MIN_VALUE
-                ? executor
-                : new PrioritySettingExecutor(executor);
-    }
-
-    /**
-     * Set the thread priority if it has not been set before.
-     *
-     * @return True iff the thread priority was set.
-     */
-    @VisibleForTesting
-    boolean setThreadPriority() {
-        // Double-check that we always get called from the same thread. If this assertion fails,
-        // it means we were called from a thread that is not the Cronet internal thread, which
-        // is a problem because it means we could end up changing the priority of some random
-        // thread we don't own.
-        assert mPriorityThread == null || mPriorityThread == Thread.currentThread();
-        if (mPriorityThread != null) {
-            return false;
-        }
-        Process.setThreadPriority(mThreadPriority);
-        mPriorityThread = Thread.currentThread();
-        return true;
-    }
-
-    /**
-     * HttpEngine does not support {@link CronetEngine.Builder#setThreadPriority). To preserve
-     * compatibility with Cronet users who use this method, we reimplement the functionality using a
-     * workaround where we set the priority of the first thread to call execute() which is the
-     * network thread for Cronet.
-     */
-    private class PrioritySettingExecutor implements Executor {
-        private final Executor mExecutor;
-
-        public PrioritySettingExecutor(Executor executor) {
-            mExecutor = Objects.requireNonNull(executor, "Executor is required.");
-        }
-
-        @Override
-        public void execute(Runnable command) {
-            setThreadPriority();
-            mExecutor.execute(command);
-        }
     }
 }

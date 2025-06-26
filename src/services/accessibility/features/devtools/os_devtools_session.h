@@ -63,6 +63,7 @@ class OSDevToolsSession : public blink::mojom::DevToolsSession,
   void DispatchProtocolCommand(int32_t call_id,
                                const std::string& method,
                                base::span<const uint8_t> message) override;
+  void UnpauseAndTerminate() override;
 
   // V8Inspector::Channel
   void sendResponse(
@@ -110,4 +111,4 @@ class OSDevToolsSession : public blink::mojom::DevToolsSession,
 };
 }  // namespace ax
 
-#endif
+#endif  // SERVICES_ACCESSIBILITY_FEATURES_DEVTOOLS_OS_DEVTOOLS_SESSION_H_

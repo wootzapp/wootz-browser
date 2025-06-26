@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "base/files/file_enumerator.h"
@@ -16,10 +17,10 @@
 #include "components/web_package/test_support/signed_web_bundles/web_bundle_signer.h"
 #include "components/web_package/web_bundle_builder.h"
 #include "net/base/mime_util.h"
+#include "skia/ext/codec_utils.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkColor.h"
-#include "third_party/skia/include/core/SkStream.h"
-#include "third_party/skia/include/encode/SkPngEncoder.h"
+#include "third_party/skia/include/core/SkData.h"
 
 namespace web_app {
 
@@ -39,18 +40,32 @@ constexpr std::string_view kTestManifest = R"({
         }
       ]
     })";
+
+// Returns the value of `web_bundle_id` if specified, or generates a fallback ID
+// from `key_pair`'s public key.
+web_package::SignedWebBundleId GetWebBundleIdWithFallback(
+    const std::optional<web_package::SignedWebBundleId>& web_bundle_id,
+    const web_package::test::KeyPair& key_pair) {
+  if (web_bundle_id) {
+    return *web_bundle_id;
+  }
+  return std::visit(
+      [](const auto& key_pair) {
+        return web_package::SignedWebBundleId::CreateForPublicKey(
+            key_pair.public_key);
+      },
+      key_pair);
+}
 }  // namespace
 
 namespace test {
 
 std::string EncodeAsPng(const SkBitmap& bitmap) {
-  SkDynamicMemoryWStream stream;
-  CHECK(SkPngEncoder::Encode(&stream, bitmap.pixmap(), {}));
-  sk_sp<SkData> icon_skdata = stream.detachAsData();
+  sk_sp<SkData> icon_skdata = skia::EncodePngAsSkData(bitmap.pixmap());
+  CHECK(icon_skdata);
   return std::string(static_cast<const char*>(icon_skdata->data()),
                      icon_skdata->size());
 }
-
 }  // namespace test
 
 TestSignedWebBundle::TestSignedWebBundle(
@@ -65,14 +80,26 @@ TestSignedWebBundle::TestSignedWebBundle(TestSignedWebBundle&&) = default;
 TestSignedWebBundle::~TestSignedWebBundle() = default;
 
 TestSignedWebBundleBuilder::TestSignedWebBundleBuilder(
-    web_package::WebBundleSigner::Ed25519KeyPair key_pair,
-    web_package::WebBundleSigner::ErrorsForTesting errors_for_testing)
-    : key_pair_(key_pair), errors_for_testing_(errors_for_testing) {}
+    web_package::test::KeyPair key_pair,
+    web_package::test::WebBundleSigner::ErrorsForTesting errors_for_testing)
+    : key_pairs_({std::move(key_pair)}),
+      errors_for_testing_(errors_for_testing) {}
+
+TestSignedWebBundleBuilder::TestSignedWebBundleBuilder(
+    web_package::test::KeyPairs key_pairs,
+    const web_package::SignedWebBundleId& web_bundle_id,
+    web_package::test::WebBundleSigner::ErrorsForTesting errors_for_testing)
+    : key_pairs_(std::move(key_pairs)),
+      web_bundle_id_(web_bundle_id),
+      errors_for_testing_(std::move(errors_for_testing)) {
+  CHECK_GE(key_pairs_.size(), 1U)
+      << "At least 1 key has to be specified for signing.";
+}
+
+TestSignedWebBundleBuilder::~TestSignedWebBundleBuilder() = default;
 
 TestSignedWebBundleBuilder::BuildOptions::BuildOptions()
-    : key_pair_(web_package::WebBundleSigner::Ed25519KeyPair(kTestPublicKey,
-                                                             kTestPrivateKey)),
-      version_(base::Version("1.0.0")),
+    : version_(base::Version("1.0.0")),
       app_name_("Simple Isolated App"),
       errors_for_testing_(
           {/*integrity_block_errors=*/{}, /*signatures_errors=*/{}}) {}
@@ -123,8 +150,7 @@ void TestSignedWebBundleBuilder::AddFilesFromFolder(
     std::string mime_type;
     if (file_path.MatchesExtension(FILE_PATH_LITERAL(".webmanifest"))) {
       mime_type = "application/manifest+json";
-    } else if (!net::GetWellKnownMimeTypeFromExtension(
-                   file_path.Extension().substr(1), &mime_type)) {
+    } else if (!net::GetWellKnownMimeTypeFromFile(file_path, &mime_type)) {
       LOG(ERROR) << "Unable to deduce mime type from extension: "
                  << file_path.Extension();
       continue;
@@ -148,17 +174,31 @@ void TestSignedWebBundleBuilder::AddPrimaryUrl(GURL url) {
 }
 
 TestSignedWebBundle TestSignedWebBundleBuilder::Build() {
+  web_package::SignedWebBundleId web_bundle_id =
+      GetWebBundleIdWithFallback(web_bundle_id_, key_pairs_[0]);
+
   return TestSignedWebBundle(
-      web_package::WebBundleSigner::SignBundle(
-          builder_.CreateBundle(), {key_pair_}, errors_for_testing_),
-      web_package::SignedWebBundleId::CreateForEd25519PublicKey(
-          key_pair_.public_key));
+      web_package::test::WebBundleSigner::SignBundle(
+          builder_.CreateBundle(), key_pairs_,
+          /*ib_attributes=*/{{.web_bundle_id = web_bundle_id.id()}},
+          errors_for_testing_),
+      web_bundle_id);
 }
 
 TestSignedWebBundle TestSignedWebBundleBuilder::BuildDefault(
     BuildOptions build_options) {
-  TestSignedWebBundleBuilder builder = TestSignedWebBundleBuilder(
-      build_options.key_pair_, build_options.errors_for_testing_);
+  if (build_options.key_pairs_.empty()) {
+    build_options.AddKeyPair(test::GetDefaultEd25519KeyPair());
+  }
+  CHECK(build_options.key_pairs_.size() == 1 || build_options.web_bundle_id_)
+      << "`web_bundle_id` must always be set if there's more than 1 key "
+         "involved.";
+
+  web_package::SignedWebBundleId web_bundle_id = GetWebBundleIdWithFallback(
+      build_options.web_bundle_id_, build_options.key_pairs_[0]);
+  auto builder = TestSignedWebBundleBuilder(
+      std::move(build_options.key_pairs_), std::move(web_bundle_id),
+      std::move(build_options.errors_for_testing_));
 
   if (build_options.primary_url_.has_value()) {
     builder.AddPrimaryUrl(build_options.primary_url_.value());

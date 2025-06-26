@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/media_router/common/providers/cast/certificate/net_trust_store.h"
 
 #include <string_view>
@@ -20,6 +25,7 @@
 #include "third_party/boringssl/src/pki/pem.h"
 #include "third_party/boringssl/src/pki/simple_path_builder_delegate.h"
 #include "third_party/openscreen/src/cast/common/public/trust_store.h"
+#include "third_party/openscreen/src/platform/base/span.h"
 
 namespace {
 
@@ -55,11 +61,12 @@ namespace openscreen::cast {
 
 // static
 std::unique_ptr<openscreen::cast::TrustStore> TrustStore::CreateInstanceForTest(
-    const std::vector<uint8_t>& trust_anchor_der) {
+    openscreen::ByteView trust_anchor_der) {
   // TODO(issuetracker.google.com/222145200): We need to allow linking this
   // implementation into `openscreen_unittests` when in the chromium waterfall.
   auto result = std::make_unique<cast_certificate::NetTrustStore>();
-  result->AddAnchor(trust_anchor_der);
+  result->AddAnchor(
+      base::span(trust_anchor_der.cbegin(), trust_anchor_der.cend()));
   return result;
 }
 

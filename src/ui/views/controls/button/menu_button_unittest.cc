@@ -12,9 +12,12 @@
 #include "base/memory/raw_ptr.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
+#include "ui/accessibility/ax_enums.mojom.h"
+#include "ui/accessibility/ax_node_data.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/events/keycodes/dom/dom_code.h"
 #include "ui/events/test/event_generator.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/animation/test/ink_drop_host_test_api.h"
 #include "ui/views/animation/test/test_ink_drop.h"
@@ -56,7 +59,7 @@ class TestMenuButton : public MenuButton {
   void Reset() {
     clicked_ = false;
     last_state_ = Button::STATE_NORMAL;
-    last_event_type_ = ui::ET_UNKNOWN;
+    last_event_type_ = ui::EventType::kUnknown;
   }
 
  private:
@@ -68,7 +71,7 @@ class TestMenuButton : public MenuButton {
 
   bool clicked_ = false;
   Button::ButtonState last_state_ = Button::STATE_NORMAL;
-  ui::EventType last_event_type_ = ui::ET_UNKNOWN;
+  ui::EventType last_event_type_ = ui::EventType::kUnknown;
 };
 
 class MenuButtonTest : public ViewsTestBase {
@@ -104,8 +107,8 @@ class MenuButtonTest : public ViewsTestBase {
 
     widget_ = std::make_unique<Widget>();
     Widget::InitParams params =
-        CreateParams(Widget::InitParams::TYPE_WINDOW_FRAMELESS);
-    params.ownership = Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+        CreateParams(Widget::InitParams::CLIENT_OWNS_WIDGET,
+                     Widget::InitParams::TYPE_WINDOW_FRAMELESS);
     params.bounds = gfx::Rect(0, 0, 200, 200);
     widget_->Init(std::move(params));
     widget_->Show();
@@ -148,8 +151,9 @@ class PressStateButton : public TestMenuButton {
  private:
   void ButtonPressed() {
     pressed_lock_ = button_controller()->TakeLock();
-    if (release_lock_)
+    if (release_lock_) {
       ReleasePressedLock();
+    }
   }
 
   bool release_lock_;
@@ -231,8 +235,9 @@ DragOperation TestDragDropClient::StartDragAndDrop(
     const gfx::Point& screen_location,
     int allowed_operations,
     ui::mojom::DragEventSource source) {
-  if (IsDragDropInProgress())
+  if (IsDragDropInProgress()) {
     return DragOperation::kNone;
+  }
   drag_in_progress_ = true;
   target_ = root_window;
   return ui::PreferredDragOperation(allowed_operations);
@@ -247,13 +252,14 @@ bool TestDragDropClient::IsDragDropInProgress() {
 }
 
 void TestDragDropClient::OnMouseEvent(ui::MouseEvent* event) {
-  if (!IsDragDropInProgress())
+  if (!IsDragDropInProgress()) {
     return;
+  }
   switch (event->type()) {
-    case ui::ET_MOUSE_DRAGGED:
+    case ui::EventType::kMouseDragged:
       event->StopPropagation();
       break;
-    case ui::ET_MOUSE_RELEASED:
+    case ui::EventType::kMouseReleased:
       drag_in_progress_ = false;
       event->StopPropagation();
       break;
@@ -279,14 +285,15 @@ TEST_F(MenuButtonTest, ActivateOnKeyPress) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
 
   EXPECT_FALSE(button()->clicked());
-  button()->OnKeyPressed(ui::KeyEvent(
-      ui::ET_KEY_PRESSED, ui::KeyboardCode::VKEY_SPACE, ui::DomCode::SPACE, 0));
+  button()->OnKeyPressed(ui::KeyEvent(ui::EventType::kKeyPressed,
+                                      ui::KeyboardCode::VKEY_SPACE,
+                                      ui::DomCode::SPACE, 0));
   EXPECT_TRUE(button()->clicked());
 
   button()->Reset();
   EXPECT_FALSE(button()->clicked());
 
-  button()->OnKeyPressed(ui::KeyEvent(ui::ET_KEY_PRESSED,
+  button()->OnKeyPressed(ui::KeyEvent(ui::EventType::kKeyPressed,
                                       ui::KeyboardCode::VKEY_RETURN,
                                       ui::DomCode::ENTER, 0));
   EXPECT_EQ(PlatformStyle::kReturnClicksFocusedControl, button()->clicked());
@@ -315,12 +322,12 @@ TEST_F(MenuButtonTest, InkDropCenterSetFromClick) {
 #else
 #define MAYBE_InkDropCenterSetFromClickWithPressedLock \
   InkDropCenterSetFromClickWithPressedLock
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#endif  // BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
 TEST_F(MenuButtonTest, MAYBE_InkDropCenterSetFromClickWithPressedLock) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
 
   gfx::Point click_point(11, 7);
-  ui::MouseEvent click_event(ui::EventType::ET_MOUSE_PRESSED, click_point,
+  ui::MouseEvent click_event(ui::EventType::kMousePressed, click_point,
                              click_point, base::TimeTicks(), 0, 0);
   MenuButtonController::PressedLock pressed_lock(button()->button_controller(),
                                                  false, &click_event);
@@ -338,7 +345,7 @@ TEST_F(MenuButtonTest, MAYBE_InkDropCenterSetFromClickWithPressedLock) {
 #else
 #define MAYBE_ButtonStateForMenuButtonsWithPressedLocks \
   ButtonStateForMenuButtonsWithPressedLocks
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#endif  // BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
 TEST_F(MenuButtonTest, MAYBE_ButtonStateForMenuButtonsWithPressedLocks) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
   const gfx::Rect button_bounds = button()->GetBoundsInScreen();
@@ -408,7 +415,7 @@ TEST_F(MenuButtonTest, MAYBE_ButtonStateForMenuButtonsWithPressedLocks) {
 #else
 #define MAYBE_DraggableMenuButtonActivatesOnRelease \
   DraggableMenuButtonActivatesOnRelease
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#endif  // BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
 TEST_F(MenuButtonTest, MAYBE_DraggableMenuButtonActivatesOnRelease) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
   TestDragController drag_controller;
@@ -430,7 +437,7 @@ TEST_F(MenuButtonTest, MAYBE_DraggableMenuButtonActivatesOnRelease) {
 #else
 #define MAYBE_InkDropStateForMenuButtonActivationsWithoutCallback \
   InkDropStateForMenuButtonActivationsWithoutCallback
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#endif  // BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
 TEST_F(MenuButtonTest,
        MAYBE_InkDropStateForMenuButtonActivationsWithoutCallback) {
   ConfigureMenuButton(
@@ -448,7 +455,7 @@ TEST_F(MenuButtonTest,
 #else
 #define MAYBE_InkDropStateForMenuButtonActivationsWithCallbackThatDoesntAcquireALock \
   InkDropStateForMenuButtonActivationsWithCallbackThatDoesntAcquireALock
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#endif  // BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
 TEST_F(
     MenuButtonTest,
     MAYBE_InkDropStateForMenuButtonActivationsWithCallbackThatDoesntAcquireALock) {
@@ -483,7 +490,7 @@ TEST_F(MenuButtonTest,
 #else
 #define MAYBE_InkDropStateForMenuButtonsWithPressedLocks \
   InkDropStateForMenuButtonsWithPressedLocks
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#endif  // BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
 TEST_F(MenuButtonTest, MAYBE_InkDropStateForMenuButtonsWithPressedLocks) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
 
@@ -512,7 +519,7 @@ TEST_F(MenuButtonTest, MAYBE_InkDropStateForMenuButtonsWithPressedLocks) {
 #else
 #define MAYBE_OneInkDropAnimationForReentrantPressedLocks \
   OneInkDropAnimationForReentrantPressedLocks
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#endif  // BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
 TEST_F(MenuButtonTest, MAYBE_OneInkDropAnimationForReentrantPressedLocks) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
 
@@ -537,7 +544,7 @@ TEST_F(MenuButtonTest, MAYBE_OneInkDropAnimationForReentrantPressedLocks) {
 #else
 #define MAYBE_InkDropStateForMenuButtonWithPressedLockBeforeActivation \
   InkDropStateForMenuButtonWithPressedLockBeforeActivation
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#endif  // BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
 TEST_F(MenuButtonTest,
        MAYBE_InkDropStateForMenuButtonWithPressedLockBeforeActivation) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
@@ -559,7 +566,7 @@ TEST_F(MenuButtonTest,
 #else
 #define MAYBE_DraggableMenuButtonDoesNotActivateOnDrag \
   DraggableMenuButtonDoesNotActivateOnDrag
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH) && defined(MEMORY_SANITIZER)
+#endif  // BUILDFLAG(IS_CHROMEOS) && defined(MEMORY_SANITIZER)
 TEST_F(MenuButtonTest, MAYBE_DraggableMenuButtonDoesNotActivateOnDrag) {
   ConfigureMenuButton(std::make_unique<TestMenuButton>());
   TestDragController drag_controller;
@@ -677,9 +684,29 @@ TEST_F(MenuButtonTest, DestroyButtonInGesture) {
           &test_menu_button));
   ConfigureMenuButton(std::move(test_menu_button));
 
-  ui::GestureEvent gesture_event(0, 0, 0, base::TimeTicks::Now(),
-                                 ui::GestureEventDetails(ui::ET_GESTURE_TAP));
+  ui::GestureEvent gesture_event(
+      0, 0, 0, base::TimeTicks::Now(),
+      ui::GestureEventDetails(ui::EventType::kGestureTap));
   button()->OnGestureEvent(&gesture_event);
+}
+
+TEST_F(MenuButtonTest, AccessibleDefaultActionVerb) {
+  ConfigureMenuButton(std::make_unique<TestMenuButton>());
+  ui::AXNodeData data;
+
+  button()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetDefaultActionVerb(), ax::mojom::DefaultActionVerb::kOpen);
+
+  data = ui::AXNodeData();
+  button()->SetEnabled(false);
+  button()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_FALSE(
+      data.HasIntAttribute(ax::mojom::IntAttribute::kDefaultActionVerb));
+
+  data = ui::AXNodeData();
+  button()->SetEnabled(true);
+  button()->GetViewAccessibility().GetAccessibleNodeData(&data);
+  EXPECT_EQ(data.GetDefaultActionVerb(), ax::mojom::DefaultActionVerb::kOpen);
 }
 
 }  // namespace views

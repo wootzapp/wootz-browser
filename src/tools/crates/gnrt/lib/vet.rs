@@ -2,7 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use crate::config::BuildConfig;
+// TODO(https://crbug.com/405980483): Evaluate whether to keep generating `cargo vet`'s
+// `config.toml`.  Note that we have removed `cargo vet` presubmits (as tracked
+// in https://crbug.com/405980483).
+
 use crate::group::Group;
 use anyhow::Result;
 
@@ -24,7 +27,7 @@ fn group_vet_criteria(group: Group, shipped: Option<bool>) -> Vec<AuditCriteria>
         // We currently consider ub-risk-2 as satisfying the Rule of Two, though there seems to be
         // some spot in between risk 1 and 2 that fits better and this could be improved.
         (Some(true), Group::Safe) | (None, Group::Safe) => {
-            vec![DoesNotImplementCrypto, SafeToDeploy, UbRisk2]
+            vec![CryptoSafe, SafeToDeploy, UbRisk2]
         }
         // Sandbox crates are used in a sandbox, so we have a weaker tolerance. There may be a bunch
         // of ASM code in there for example. Adversarial inputs may have a way to break things,
@@ -33,16 +36,16 @@ fn group_vet_criteria(group: Group, shipped: Option<bool>) -> Vec<AuditCriteria>
         // This type of crate is not well described in the UB risk guidelines for now, so we use
         // "ub-risk-3" for this category.
         (Some(true), Group::Sandbox) | (None, Group::Sandbox) => {
-            vec![DoesNotImplementCrypto, SafeToDeploy, UbRisk3]
+            vec![CryptoSafe, SafeToDeploy, UbRisk3]
         }
         // Code in tests is not run on user machines and does not interact with adversarial inputs.
         // Thus it does not need to be safe-to-deploy, but it needs to not be malicious against
         // developers and CI bots which is covered by "safe-to-run".
-        (_, Group::Test) => vec![DoesNotImplementCrypto, SafeToRun],
+        (_, Group::Test) => vec![CryptoSafe, SafeToRun],
         // Crates that contribute to the shipped binary but are not themselves shipped (code
         // generators for example) do not get deployed themselves and do not interact with
         // adversarial inputs. Thus they need to be "safe-to-run" by developers and CI only.
-        (Some(false), _) => vec![DoesNotImplementCrypto, SafeToRun],
+        (Some(false), _) => vec![CryptoSafe, SafeToRun],
     }
 }
 
@@ -66,7 +69,7 @@ pub struct Policy {
 #[derive(serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AuditCriteria {
-    DoesNotImplementCrypto,
+    CryptoSafe,
     SafeToDeploy,
     SafeToRun,
     #[serde(rename = "ub-risk-2")]
@@ -78,25 +81,28 @@ pub enum AuditCriteria {
 /// Generate the config.toml for `cargo vet` with policies that match the groups
 /// specified for each crate through gnrt_config.toml.
 pub fn create_vet_config<'a>(
-    packages: impl IntoIterator<Item = &'a cargo_metadata::Package>,
-    config: &BuildConfig,
-    mut find_group: impl FnMut(&'a cargo_metadata::PackageId) -> Group,
-    mut find_shipped: impl FnMut(&'a cargo_metadata::PackageId) -> Option<bool>,
+    packages: impl IntoIterator<Item = guppy::graph::PackageMetadata<'a>>,
+    is_removed: impl Fn(&'a guppy::PackageId) -> bool,
+    mut find_group: impl FnMut(&'a guppy::PackageId) -> Group,
+    mut find_shipped: impl FnMut(&'a guppy::PackageId) -> Option<bool>,
 ) -> Result<VetConfigToml> {
     let mut vet_config_toml = VetConfigToml { policies: Vec::new() };
     for package in packages {
-        let group = find_group(&package.id);
-        let shipped = find_shipped(&package.id);
+        // Skip if it's the workspace package, since this only exists to have a
+        // cargo context.
+        if package.in_workspace() {
+            continue;
+        }
 
-        let mut crate_name = package.name.clone();
+        let group = find_group(package.id());
+        let shipped = find_shipped(package.id());
+
+        let mut crate_name = package.name().to_string();
         crate_name.push(':');
-        crate_name.push_str(&package.version.to_string());
+        crate_name.push_str(&package.version().to_string());
 
-        let criteria = if config.resolve.remove_crates.contains(&package.name) {
-            vec![]
-        } else {
-            group_vet_criteria(group, shipped)
-        };
+        let criteria =
+            if is_removed(package.id()) { vec![] } else { group_vet_criteria(group, shipped) };
 
         vet_config_toml.policies.push(Policy { crate_name, criteria });
     }

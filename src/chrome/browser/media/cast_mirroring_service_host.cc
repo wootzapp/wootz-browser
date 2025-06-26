@@ -12,12 +12,11 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
-#include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/ref_counted.h"
 #include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
-#include "cast_mirroring_service_host.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/media/cast_remoting_connector.h"
 #include "chrome/browser/media/router/discovery/access_code/access_code_cast_feature.h"
@@ -239,7 +238,8 @@ void CastMirroringServiceHost::Start(
   ShowCaptureIndicator();
 }
 
-std::optional<int> CastMirroringServiceHost::GetTabSourceId() const {
+std::optional<content::FrameTreeNodeId>
+CastMirroringServiceHost::GetTabSourceId() const {
   if (web_contents()) {
     return web_contents()->GetPrimaryMainFrame()->GetFrameTreeNodeId();
   }
@@ -255,7 +255,7 @@ content::DesktopMediaID CastMirroringServiceHost::BuildMediaIdForWebContents(
   }
   media_id.type = content::DesktopMediaID::TYPE_WEB_CONTENTS;
   media_id.web_contents_id = content::WebContentsMediaCaptureId(
-      contents->GetPrimaryMainFrame()->GetProcess()->GetID(),
+      contents->GetPrimaryMainFrame()->GetProcess()->GetDeprecatedID(),
       contents->GetPrimaryMainFrame()->GetRoutingID(),
       true /* disable_local_echo */);
   return media_id;
@@ -302,8 +302,7 @@ gfx::Size CastMirroringServiceHost::GetClampedResolution(
 
 void CastMirroringServiceHost::BindGpu(
     mojo::PendingReceiver<viz::mojom::Gpu> receiver) {
-  gpu_client_ =
-      content::CreateGpuClient(std::move(receiver), base::DoNothing());
+  gpu_client_ = content::CreateGpuClient(std::move(receiver));
 }
 
 void CastMirroringServiceHost::GetVideoCaptureHost(
@@ -423,7 +422,7 @@ void CastMirroringServiceHost::CreateAudioStreamForTab(
           [](mojo::PendingRemote<mojom::AudioStreamCreatorClient> requestor,
              mojo::PendingRemote<AudioInputStream> stream,
              mojo::PendingReceiver<AudioInputStreamClient> client,
-             media::mojom::ReadOnlyAudioDataPipePtr data_pipe) {
+             media::mojom::ReadWriteAudioDataPipePtr data_pipe) {
             mojo::Remote<mojom::AudioStreamCreatorClient>(std::move(requestor))
                 ->StreamCreated(std::move(stream), std::move(client),
                                 std::move(data_pipe));
@@ -460,12 +459,12 @@ void CastMirroringServiceHost::CreateAudioStreamForDesktop(
           std::move(pipe_to_mirroring_service.handle0), 0),
       mojo::NullRemote(), mojo::NullRemote(),
       media::AudioDeviceDescription::kLoopbackWithMuteDeviceId, params,
-      total_segments, false, base::ReadOnlySharedMemoryRegion(), nullptr,
+      total_segments, false, nullptr,
       base::BindOnce(
           [](mojo::PendingRemote<mojom::AudioStreamCreatorClient> requestor,
              mojo::PendingRemote<AudioInputStream> stream,
              mojo::PendingReceiver<AudioInputStreamClient> client,
-             media::mojom::ReadOnlyAudioDataPipePtr data_pipe, bool,
+             media::mojom::ReadWriteAudioDataPipePtr data_pipe, bool,
              const std::optional<base::UnguessableToken>&) {
             mojo::Remote<mojom::AudioStreamCreatorClient>(std::move(requestor))
                 ->StreamCreated(std::move(stream), std::move(client),
@@ -525,7 +524,8 @@ void CastMirroringServiceHost::ShowCaptureIndicator() {
                          ->GetMediaStreamCaptureIndicator()
                          ->RegisterMediaStream(web_contents(), devices);
   media_stream_ui_->OnStarted(
-      base::RepeatingClosure(), content::MediaStreamUI::SourceCallback(),
+      /*stop_callback=*/base::DoNothing(),
+      content::MediaStreamUI::SourceCallback(),
       /*label=*/std::string(), /*screen_capture_ids=*/{},
       content::MediaStreamUI::StateChangeCallback());
 }

@@ -36,18 +36,7 @@ bool IsRichTextEditable(const AXNode* node) {
 }
 
 bool IsAtomicTextField(const AXNode* node) {
-  const std::string& html_tag =
-      node->GetStringAttribute(ax::mojom::StringAttribute::kHtmlTag);
-  if (html_tag == "input") {
-    std::string input_type;
-    if (!node->GetHtmlAttribute("type", &input_type))
-      return true;
-    return input_type.empty() || input_type == "email" ||
-           input_type == "password" || input_type == "search" ||
-           input_type == "tel" || input_type == "text" || input_type == "url" ||
-           input_type == "number";
-  }
-  return html_tag == "textarea";
+  return node->data().IsAtomicTextField();
 }
 
 bool IsLeaf(const AXNode* node) {
@@ -111,7 +100,7 @@ std::u16string GetText(const AXNode* node) {
 
   ax::mojom::NameFrom name_from = node->GetNameFrom();
 
-  if (!ui::IsLeaf(node) && name_from == ax::mojom::NameFrom::kContents) {
+  if (!IsLeaf(node) && name_from == ax::mojom::NameFrom::kContents) {
     return std::u16string();
   }
 
@@ -168,8 +157,8 @@ std::u16string GetText(const AXNode* node) {
     }
   }
 
-  if (text.empty() && (ui::IsLink(node->GetRole()) ||
-                       node->GetRole() == ax::mojom::Role::kImage)) {
+  if (text.empty() &&
+      (IsLink(node->GetRole()) || node->GetRole() == ax::mojom::Role::kImage)) {
     std::u16string url =
         node->GetString16Attribute(ax::mojom::StringAttribute::kUrl);
     text = AXUrlBaseText(url);
@@ -370,9 +359,8 @@ std::unique_ptr<AssistantTree> CreateAssistantTree(const AXTreeUpdate& update) {
       false,         // should_select_leaf
   };
 
-  int root_scroll_y = 0;
-  tree->root()->GetIntAttribute(ax::mojom::IntAttribute::kScrollY,
-                                &root_scroll_y);
+  int root_scroll_y =
+      tree->root()->GetIntAttribute(ax::mojom::IntAttribute::kScrollY);
 
   WalkAXTreeDepthFirst(tree->root(), gfx::Rect(), gfx::Rect(), root_scroll_y,
                        update, tree.get(), &config, assistant_tree.get(), root);
@@ -445,6 +433,8 @@ const char* AXRoleToAndroidClassName(ax::mojom::Role role, bool has_parent) {
       return kAXListViewClassname;
     case ax::mojom::Role::kDialog:
       return kAXDialogClassname;
+    case ax::mojom::Role::kAlertDialog:
+      return kAXAlertDialogClassname;
     case ax::mojom::Role::kRootWebArea:
       return has_parent ? kAXViewClassname : kAXWebViewClassname;
     case ax::mojom::Role::kMenuItem:
@@ -455,7 +445,7 @@ const char* AXRoleToAndroidClassName(ax::mojom::Role role, bool has_parent) {
       return kAXTextViewClassname;
     case ax::mojom::Role::kDirectoryDeprecated:
     case ax::mojom::Role::kPreDeprecated:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
     default:
       return kAXViewClassname;
   }

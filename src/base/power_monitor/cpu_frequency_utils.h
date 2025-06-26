@@ -8,6 +8,7 @@
 #include <optional>
 
 #include "base/base_export.h"
+#include "base/time/time.h"
 #include "base/values.h"
 
 namespace base {
@@ -31,6 +32,9 @@ struct BASE_EXPORT CpuFrequencyInfo {
   // A best effort guess at whether the associated CPU core is a performance
   // core, an efficiency core, or something in between (balanced).
   CoreType type;
+
+  // The number of CPU cores that are in the C0 state (active).
+  size_t num_active_cpus;
 };
 
 struct BASE_EXPORT CpuThroughputEstimationResult {
@@ -39,6 +43,10 @@ struct BASE_EXPORT CpuThroughputEstimationResult {
   // True if the current core is different after the estimation loop than
   // before.
   bool migrated;
+
+  // The wall time and thread time of the CPU estimation task's assembly loop.
+  base::TimeDelta wall_time;
+  base::TimeDelta thread_time;
 };
 
 // Returns the estimated CPU frequency of the current core by executing a tight

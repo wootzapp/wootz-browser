@@ -61,16 +61,24 @@ class CORE_EXPORT CSSParser {
       const CSSParserContext*,
       CSSNestingType,
       StyleRule* parent_rule_for_nesting,
-      bool is_within_scope,
       StyleSheetContents*,
       const String&,
       HeapVector<CSSSelector>& arena);
   static CSSSelectorList* ParsePageSelector(const CSSParserContext&,
                                             StyleSheetContents*,
                                             const String&);
+  static StyleRuleBase* ParseMarginRule(const CSSParserContext*,
+                                        StyleSheetContents*,
+                                        const String&);
   static bool ParseDeclarationList(const CSSParserContext*,
                                    MutableCSSPropertyValueSet*,
                                    const String&);
+
+  static StyleRuleBase* ParseNestedDeclarationsRule(
+      const CSSParserContext*,
+      CSSNestingType,
+      StyleRule* parent_rule_for_nesting,
+      StringView);
 
   static MutableCSSPropertyValueSet::SetResult ParseValue(
       MutableCSSPropertyValueSet*,
@@ -86,6 +94,18 @@ class CORE_EXPORT CSSParser {
       SecureContextMode,
       StyleSheetContents*,
       const ExecutionContext* execution_context = nullptr);
+
+  // Appends to a vector instead of to a property value set (so no deduplication
+  // etc.). Also note that this takes in the resolved property; there's no
+  // reason for internal code to ever use an alias here. Returns the number of
+  // properties that were added (0 for parse error).
+  static unsigned ParseForPresentationStyle(
+      HeapVector<CSSPropertyValue, 8>& result,
+      CSSPropertyID resolved_property,
+      StringView value,
+      CSSParserMode parser_mode,
+      StyleSheetContents* context_sheet,  // Used for URL references.
+      const ExecutionContext* execution_context);
 
   static MutableCSSPropertyValueSet::SetResult ParseValueForCustomProperty(
       MutableCSSPropertyValueSet*,
@@ -125,11 +145,12 @@ class CORE_EXPORT CSSParser {
 
   // The color will only be changed when string contains a valid CSS color, so
   // callers can set it to a default color and ignore the boolean result.
-  static bool ParseColor(Color&, const String&, bool strict = false);
+  static bool ParseColor(Color&, const String&, bool strict = true);
   static bool ParseSystemColor(Color&,
                                const String&,
                                mojom::blink::ColorScheme color_scheme,
-                               const ui::ColorProvider* color_provider);
+                               const ui::ColorProvider* color_provider,
+                               bool is_in_web_app_scope);
 
   static void ParseSheetForInspector(const CSSParserContext*,
                                      StyleSheetContents*,

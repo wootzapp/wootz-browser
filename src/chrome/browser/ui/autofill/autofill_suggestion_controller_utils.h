@@ -8,10 +8,9 @@
 #include <vector>
 
 #include "base/containers/span.h"
-#include "components/autofill/core/browser/ui/suggestion_type.h"
+#include "components/autofill/core/browser/suggestions/suggestion_type.h"
 
 namespace content {
-class BrowserContext;
 class RenderFrameHost;
 class WebContents;
 }  // namespace content
@@ -53,10 +52,10 @@ bool IsAncestorOf(content::RenderFrameHost* ancestor,
 // Returns whether the pointer is locked in `web_contents`.
 bool IsPointerLocked(content::WebContents* web_contents);
 
-// Informs the IPH trackers about an accepted suggestion if the suggestion had
-// relevance for IPH.
-void NotifyIphAboutAcceptedSuggestion(content::BrowserContext* browser_context,
-                                      const Suggestion& suggestion);
+// Informs the user education trackers about an accepted suggestion if the
+// suggestion had relevance for in-product-help or for "new" badges.
+void NotifyUserEducationAboutAcceptedSuggestion(content::WebContents* contents,
+                                                const Suggestion& suggestion);
 
 std::vector<Suggestion> UpdateSuggestionsFromDataList(
     base::span<const SelectOption> options,

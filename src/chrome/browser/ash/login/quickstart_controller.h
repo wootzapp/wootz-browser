@@ -130,9 +130,8 @@ class QuickStartController
 
   // Accessors methods to be used by the UI for retrieving data. It is an error
   // to retrieve these values when they do not exist.
-  QRCode::PixelData GetQrCode() { return qr_code_data_.value(); }
+  QRCode GetQrCode() { return qr_code_.value(); }
   std::string GetPin() { return pin_.value(); }
-  std::string GetDiscoverableName() { return discoverable_name_.value(); }
   UserInfo GetUserInfo() { return user_info_; }
   std::string GetWiFiName() { return wifi_name_.value(); }
   std::string GetFallbackUrl() { return fallback_url_.value(); }
@@ -243,11 +242,8 @@ class QuickStartController
   // Bookkeeping where the quick start flow started and ended.
   std::optional<EntryPoint> entry_point_, exit_point_;
 
-  // Discoverable name to be used on the UI. e.g.: Chromebook (123)
-  std::optional<std::string> discoverable_name_;
-
   // QR Code to be shown on the UI when requested.
-  std::optional<QRCode::PixelData> qr_code_data_;
+  std::optional<QRCode> qr_code_;
 
   // PIN to be shown on the UI when requested.
   std::optional<std::string> pin_;
@@ -291,6 +287,12 @@ class QuickStartController
   bool is_transitioning_to_quick_start_screen_ = false;
 
   bool should_resume_quick_start_after_update_ = false;
+
+  // Used for sanity checks in order to discard unrequested data from the phone.
+  // Similar checks exist on the TargetDeviceBootstrapController level.
+  bool did_request_wifi_credentials_ = false;
+  bool did_request_account_info_ = false;
+  bool did_request_account_transfer_ = false;
 
   base::ScopedObservation<OobeUI, OobeUI::Observer> observation_{this};
   base::WeakPtrFactory<QuickStartController> weak_ptr_factory_{this};

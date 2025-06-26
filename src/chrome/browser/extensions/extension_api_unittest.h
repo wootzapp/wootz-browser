@@ -10,7 +10,7 @@
 #include <string>
 #include <utility>
 
-#include "base/memory/ref_counted.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/values.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 
@@ -23,9 +23,6 @@ namespace extensions {
 // which will be used in all API function calls. This extension can be
 // overridden using set_extension().
 // By default, this class does not create a WebContents for the API functions.
-// If a WebContents is needed, calling CreateBackgroundPage() will create a
-// background page for the extension and use it in API function calls. (If
-// needed, this could be expanded to allow for alternate WebContents).
 // When calling RunFunction[AndReturn*], |args| should be in JSON format,
 // wrapped in a list. See also RunFunction* in api_test_utils.h.
 // TODO(yoz): Move users of this base class to use the equivalent base class

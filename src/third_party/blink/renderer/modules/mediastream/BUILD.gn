@@ -42,6 +42,7 @@ blink_modules_sources("mediastream") {
     "media_stream.h",
     "media_stream_audio_processor.cc",
     "media_stream_audio_processor.h",
+    "media_stream_audio_renderer.h",
     "media_stream_constraints_util.cc",
     "media_stream_constraints_util.h",
     "media_stream_constraints_util_audio.cc",
@@ -77,6 +78,7 @@ blink_modules_sources("mediastream") {
     "media_stream_utils.h",
     "media_stream_video_capturer_source.cc",
     "media_stream_video_capturer_source.h",
+    "media_stream_video_renderer.h",
     "media_stream_video_renderer_sink.cc",
     "media_stream_video_renderer_sink.h",
     "media_stream_video_sink.cc",
@@ -93,8 +95,12 @@ blink_modules_sources("mediastream") {
     "remote_media_stream_track_adapter.h",
     "restriction_target.cc",
     "restriction_target.h",
+    "scoped_media_stream_tracer.cc",
+    "scoped_media_stream_tracer.h",
     "screen_capture_media_stream_track.cc",
     "screen_capture_media_stream_track.h",
+    "speech_recognition_media_stream_audio_sink.cc",
+    "speech_recognition_media_stream_audio_sink.h",
     "sub_capture_target.cc",
     "sub_capture_target.h",
     "track_audio_renderer.cc",
@@ -123,7 +129,6 @@ blink_modules_sources("mediastream") {
   ]
   deps = [
     "//build:chromecast_buildflags",
-    "//build:chromeos_buildflags",
     "//media/capture/mojom:image_capture_blink",
     "//media/webrtc",
     "//services/viz/public/cpp/gpu:gpu",
@@ -142,6 +147,8 @@ source_set("test_support") {
   testonly = true
 
   sources = [
+    "media_permission_testing_platform.cc",
+    "media_permission_testing_platform.h",
     "mock_constraint_factory.cc",
     "mock_constraint_factory.h",
     "mock_encoded_video_frame.h",

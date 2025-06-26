@@ -2,9 +2,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
-
-assert(is_chromeos_ash, "Non-ChromeOS builds cannot depend on //chromeos/ash")
+assert(is_chromeos, "Non-ChromeOS builds cannot depend on //chromeos/ash")
 
 static_library("sync_wifi") {
   sources = [
@@ -37,9 +35,9 @@ static_library("sync_wifi") {
     "//base",
     "//chromeos/ash/components/dbus/shill",
     "//chromeos/ash/components/network",
+    "//chromeos/ash/components/timer_factory",
     "//chromeos/services/network_config/public/cpp",
     "//chromeos/services/network_config/public/mojom",
-    "//components/cross_device/timer_factory",
     "//components/device_event_log",
     "//components/keyed_service/core",
     "//components/prefs",
@@ -80,11 +78,12 @@ source_set("test_support") {
     "//chromeos/ash/components/browser_context_helper:test_support",
     "//chromeos/ash/components/login/login_state",
     "//chromeos/ash/components/network:test_support",
+    "//chromeos/ash/components/timer_factory:timer_factory",
     "//chromeos/ash/services/network_config",
     "//chromeos/ash/services/network_config:in_process_instance",
     "//chromeos/ash/services/network_config/public/cpp:test_support",
-    "//components/cross_device/timer_factory:timer_factory",
     "//components/onc",
+    "//components/prefs:test_support",
     "//components/proxy_config",
     "//components/sync:test_support",
     "//components/sync_preferences:test_support",
@@ -112,11 +111,11 @@ source_set("unit_tests") {
     "//chromeos/ash/components/login/login_state",
     "//chromeos/ash/components/login/login_state:test_support",
     "//chromeos/ash/components/network:test_support",
+    "//chromeos/ash/components/timer_factory:test_support",
     "//chromeos/ash/services/network_config",
     "//chromeos/ash/services/network_config:in_process_instance",
     "//chromeos/ash/services/network_config/public/cpp:test_support",
     "//chromeos/services/network_config/public/mojom",
-    "//components/cross_device/timer_factory:test_support",
     "//components/prefs:test_support",
     "//components/sync:test_support",
     "//components/sync_preferences:test_support",

@@ -6,37 +6,38 @@
 
 #include <memory>
 
+#include "content/public/browser/isolated_context_util.h"
 #include "content/public/browser/isolated_web_apps_policy.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "extensions/browser/extensions_browser_client.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-forward.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom-shared.h"
 
 namespace extensions {
-
-std::unique_ptr<ContextData> BrowserFrameContextData::Clone() const {
-  return CloneFrameContextData();
-}
 
 std::unique_ptr<FrameContextData>
 BrowserFrameContextData::CloneFrameContextData() const {
   return std::make_unique<BrowserFrameContextData>(frame_);
 }
 
-bool BrowserFrameContextData::IsIsolatedApplication() const {
+bool BrowserFrameContextData::HasControlledFrameCapability() const {
   return frame_ &&
-         content::IsolatedWebAppsPolicy::AreIsolatedWebAppsEnabled(
-             frame_->GetBrowserContext()) &&
-         frame_->GetWebExposedIsolationLevel() ==
-             content::WebExposedIsolationLevel::kIsolatedApplication;
+         frame_->IsFeatureEnabled(
+             network::mojom::PermissionsPolicyFeature::kControlledFrame) &&
+         content::HasIsolatedContextCapability(frame_) &&
+         ExtensionsBrowserClient::Get()->HasControlledFrameCapability(
+             frame_->GetBrowserContext(), GetUrl());
 }
 
 std::unique_ptr<FrameContextData>
 BrowserFrameContextData::GetLocalParentOrOpener() const {
   CHECK(frame_);
   content::RenderFrameHost* parent_or_opener = frame_->GetParent();
-  // Non primary pages(e.g. fenced frame, prerendered page, bfcache, and
-  // portals) can't look at the opener, and WebContents::GetOpener returns the
-  // opener on the primary frame tree. Thus, GetOpener should be called when
-  // |frame_| is a primary main frame.
+  // Non primary pages (e.g. fenced frame, prerendered page, bfcache) can't look
+  // at the opener, and WebContents::GetOpener returns the opener on the primary
+  // frame tree. Thus, GetOpener should be called when `frame_` is a primary
+  // main frame.
   if (!parent_or_opener && frame_->IsInPrimaryMainFrame()) {
     parent_or_opener =
         content::WebContents::FromRenderFrameHost(frame_)->GetOpener();
@@ -77,13 +78,11 @@ url::Origin BrowserFrameContextData::GetOrigin() const {
 // BrowserFrameContextData::CanAccess is unable to replicate all of the
 // WebSecurityOrigin::CanAccess checks, so these methods should not be called.
 bool BrowserFrameContextData::CanAccess(const url::Origin& target) const {
-  NOTREACHED_IN_MIGRATION();
-  return true;
+  NOTREACHED();
 }
 
 bool BrowserFrameContextData::CanAccess(const FrameContextData& target) const {
-  NOTREACHED_IN_MIGRATION();
-  return true;
+  NOTREACHED();
 }
 
 uintptr_t BrowserFrameContextData::GetId() const {

@@ -14,6 +14,7 @@
 #include "content/browser/renderer_host/frame_tree.h"
 #include "content/browser/renderer_host/navigation_request.h"
 #include "content/browser/web_contents/web_contents_impl.h"
+#include "content/public/common/content_features.h"
 
 namespace content {
 
@@ -131,7 +132,6 @@ void FrameAutoAttacher::SetRenderFrameHost(
   if (!auto_attach())
     return;
   UpdateFrames();
-  UpdatePages();
   ReattachServiceWorkers();
 }
 
@@ -168,36 +168,6 @@ void FrameAutoAttacher::DidFinishNavigation(
     DispatchAutoAttach(agent_host.get(), wait_for_debugger_on_start);
 }
 
-void FrameAutoAttacher::UpdatePages() {
-  if (!auto_attach())
-    return;
-
-  Hosts new_hosts;
-  if (render_frame_host_) {
-    render_frame_host_->ForEachRenderFrameHostWithAction(
-        [root = render_frame_host_, &new_hosts](RenderFrameHostImpl* rfh) {
-          if (rfh == root)
-            return RenderFrameHost::FrameIterationAction::kContinue;
-
-          FrameTreeNode* frame_tree_node = rfh->frame_tree_node();
-          if (frame_tree_node->IsMainFrame() &&
-              WebContentsImpl::FromFrameTreeNode(frame_tree_node)->IsPortal()) {
-            scoped_refptr<DevToolsAgentHost> new_host =
-                RenderFrameDevToolsAgentHost::GetOrCreateFor(frame_tree_node);
-            new_hosts.insert(new_host);
-            return RenderFrameHost::FrameIterationAction::kSkipChildren;
-          }
-
-          if (rfh->is_local_root())
-            return RenderFrameHost::FrameIterationAction::kSkipChildren;
-
-          return RenderFrameHost::FrameIterationAction::kContinue;
-        });
-  }
-
-  DispatchSetAttachedTargetsOfType(new_hosts, DevToolsAgentHost::kTypePage);
-}
-
 void FrameAutoAttacher::AutoAttachToPage(FrameTree* frame_tree,
                                          bool wait_for_debugger_on_start) {
   if (!auto_attach())
@@ -210,7 +180,6 @@ void FrameAutoAttacher::AutoAttachToPage(FrameTree* frame_tree,
 void FrameAutoAttacher::UpdateAutoAttach(base::OnceClosure callback) {
   if (auto_attach()) {
     UpdateFrames();
-    UpdatePages();
     if (render_frame_host_ && !render_frame_host_->GetParent() &&
         !observing_service_workers_) {
       observing_service_workers_ = true;
@@ -327,7 +296,7 @@ void FrameAutoAttacher::UpdateFrames() {
   DevToolsAgentHost::List new_auction_worklet_hosts;
   DevToolsAgentHost::List new_shared_storage_worklet_hosts;
   if (render_frame_host_) {
-    render_frame_host_->ForEachRenderFrameHostWithAction(
+    render_frame_host_->ForEachRenderFrameHostImplWithAction(
         [root = render_frame_host_, &new_hosts](RenderFrameHostImpl* rfh) {
           if (rfh == root || !rfh->is_local_root())
             return RenderFrameHost::FrameIterationAction::kContinue;
@@ -336,7 +305,9 @@ void FrameAutoAttacher::UpdateFrames() {
           // |root|.
           FrameTreeNode* node = rfh->frame_tree_node();
           bool should_create =
-              !node->IsMainFrame() || node->IsFencedFrameRoot();
+              !node->IsMainFrame() || node->IsFencedFrameRoot() ||
+              (base::FeatureList::IsEnabled(features::kGuestViewMPArch) &&
+               node->GetFrameType() == FrameType::kGuestMainFrame);
           if (should_create) {
             scoped_refptr<DevToolsAgentHost> new_host =
                 RenderFrameDevToolsAgentHost::GetOrCreateFor(node);

@@ -20,6 +20,8 @@ extern const char kDefaultBrowserItemState[];
 extern const char kAutofillItemState[];
 extern const char kFollowItemState[];
 extern const char kNotificationsItemState[];
+extern const char kDockingItemState[];
+extern const char kAddressBarItemState[];
 extern const char kAllItemsComplete[];
 extern const char kDisabled[];
 
@@ -56,6 +58,9 @@ void MarkItemComplete(PrefService* prefs, SetUpListItemType type);
 
 // Records that all items are complete.
 void MarkAllItemsComplete(PrefService* prefs);
+
+// Returns true if all items are complete.
+bool AllItemsComplete(PrefService* prefs);
 
 // Returns `true` if the Set Up List has been disabled.
 bool IsSetUpListDisabled(PrefService* prefs);

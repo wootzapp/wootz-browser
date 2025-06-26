@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // On Linux, when the user tries to launch a second copy of chrome, we check
 // for a socket in the user's profile directory.  If the socket file is open we
 // send a message to the first chrome browser process with the current
@@ -362,10 +367,9 @@ bool DisplayProfileInUseError(const base::FilePath& lock_path,
 #elif BUILDFLAG(IS_MAC)
   // On Mac, always usurp the lock.
   return true;
+#else
+  NOTREACHED();
 #endif
-
-  NOTREACHED_IN_MIGRATION();
-  return false;
 }
 
 bool IsChromeProcess(pid_t pid) {
@@ -935,9 +939,7 @@ ProcessSingleton::NotifyResult ProcessSingleton::NotifyOtherProcessWithTimeout(
     return PROCESS_NOTIFIED;
   }
 
-  NOTREACHED_IN_MIGRATION()
-      << "The other process returned unknown message: " << buf;
-  return PROCESS_NOTIFIED;
+  NOTREACHED() << "The other process returned unknown message: " << buf;
 }
 
 ProcessSingleton::NotifyResult ProcessSingleton::NotifyOtherProcessOrCreate() {
@@ -956,18 +958,21 @@ ProcessSingleton::NotifyOtherProcessWithTimeoutOrCreate(
       command_line, retry_attempts, timeout, true);
   if (result != PROCESS_NONE) {
     if (result == PROCESS_NOTIFIED) {
-      UMA_HISTOGRAM_MEDIUM_TIMES("Chrome.ProcessSingleton.TimeToNotify",
-                                 base::TimeTicks::Now() - begin_ticks);
+      DEPRECATED_UMA_HISTOGRAM_MEDIUM_TIMES(
+          "Chrome.ProcessSingleton.TimeToNotify",
+          base::TimeTicks::Now() - begin_ticks);
     } else {
-      UMA_HISTOGRAM_MEDIUM_TIMES("Chrome.ProcessSingleton.TimeToFailure",
-                                 base::TimeTicks::Now() - begin_ticks);
+      DEPRECATED_UMA_HISTOGRAM_MEDIUM_TIMES(
+          "Chrome.ProcessSingleton.TimeToFailure",
+          base::TimeTicks::Now() - begin_ticks);
     }
     return result;
   }
 
   if (Create()) {
-    UMA_HISTOGRAM_MEDIUM_TIMES("Chrome.ProcessSingleton.TimeToCreate",
-                               base::TimeTicks::Now() - begin_ticks);
+    DEPRECATED_UMA_HISTOGRAM_MEDIUM_TIMES(
+        "Chrome.ProcessSingleton.TimeToCreate",
+        base::TimeTicks::Now() - begin_ticks);
     return PROCESS_NONE;
   }
 
@@ -980,11 +985,13 @@ ProcessSingleton::NotifyOtherProcessWithTimeoutOrCreate(
       command_line, retry_attempts, timeout, false);
 
   if (result == PROCESS_NOTIFIED) {
-    UMA_HISTOGRAM_MEDIUM_TIMES("Chrome.ProcessSingleton.TimeToNotify",
-                               base::TimeTicks::Now() - begin_ticks);
+    DEPRECATED_UMA_HISTOGRAM_MEDIUM_TIMES(
+        "Chrome.ProcessSingleton.TimeToNotify",
+        base::TimeTicks::Now() - begin_ticks);
   } else {
-    UMA_HISTOGRAM_MEDIUM_TIMES("Chrome.ProcessSingleton.TimeToFailure",
-                               base::TimeTicks::Now() - begin_ticks);
+    DEPRECATED_UMA_HISTOGRAM_MEDIUM_TIMES(
+        "Chrome.ProcessSingleton.TimeToFailure",
+        base::TimeTicks::Now() - begin_ticks);
   }
 
   if (result != PROCESS_NONE)
@@ -1091,9 +1098,9 @@ bool ProcessSingleton::Create() {
     return false;
   }
 
-  if (listen(sock_, 5) < 0)
-    NOTREACHED_IN_MIGRATION()
-        << "listen failed: " << base::safe_strerror(errno);
+  if (listen(sock_, 5) < 0) {
+    NOTREACHED() << "listen failed: " << base::safe_strerror(errno);
+  }
 
   return true;
 }

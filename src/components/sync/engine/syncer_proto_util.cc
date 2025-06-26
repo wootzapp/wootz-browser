@@ -14,8 +14,7 @@
 #include "base/notreached.h"
 #include "base/strings/stringprintf.h"
 #include "base/time/time.h"
-#include "components/sync/base/features.h"
-#include "components/sync/base/model_type.h"
+#include "components/sync/base/data_type.h"
 #include "components/sync/base/time.h"
 #include "components/sync/engine/cycle/sync_cycle_context.h"
 #include "components/sync/engine/net/server_connection_manager.h"
@@ -52,8 +51,7 @@ SyncerError ServerConnectionErrorAsSyncerError(
           static_cast<net::HttpStatusCode>(http_status_code));
     case HttpResponse::SERVER_CONNECTION_OK:
     case HttpResponse::NONE:
-      NOTREACHED_IN_MIGRATION();
-      return SyncerError::Success();
+      NOTREACHED();
   }
 }
 
@@ -82,8 +80,7 @@ SyncProtocolErrorType PBErrorTypeToSyncProtocolErrorType(
       return ENCRYPTION_OBSOLETE;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return UNKNOWN_ERROR;
+  NOTREACHED();
 }
 
 ClientAction PBActionToClientAction(const sync_pb::SyncEnums::Action& action) {
@@ -94,30 +91,34 @@ ClientAction PBActionToClientAction(const sync_pb::SyncEnums::Action& action) {
       return UNKNOWN_ACTION;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return UNKNOWN_ACTION;
+  NOTREACHED();
 }
 
-// Returns true iff |message| is an initial GetUpdates request.
+// Returns true iff `message` is an initial GetUpdates request.
 bool IsVeryFirstGetUpdates(const ClientToServerMessage& message) {
-  if (!message.has_get_updates())
+  if (!message.has_get_updates()) {
     return false;
+  }
   DCHECK_LT(0, message.get_updates().from_progress_marker_size());
   for (int i = 0; i < message.get_updates().from_progress_marker_size(); ++i) {
-    if (!message.get_updates().from_progress_marker(i).token().empty())
+    if (!message.get_updates().from_progress_marker(i).token().empty()) {
       return false;
+    }
   }
   return true;
 }
 
-// Returns true iff |message| should contain a store birthday.
+// Returns true iff `message` should contain a store birthday.
 bool IsBirthdayRequired(const ClientToServerMessage& message) {
-  if (message.has_clear_server_data())
+  if (message.has_clear_server_data()) {
     return false;
-  if (message.has_commit())
+  }
+  if (message.has_commit()) {
     return true;
-  if (message.has_get_updates())
+  }
+  if (message.has_get_updates()) {
     return !IsVeryFirstGetUpdates(message);
+  }
   NOTIMPLEMENTED();
   return true;
 }
@@ -170,11 +171,13 @@ bool ProcessResponseBirthday(const ClientToServerResponse& response,
 
 void SaveBagOfChipsFromResponse(const sync_pb::ClientToServerResponse& response,
                                 SyncCycleContext* context) {
-  if (!response.has_new_bag_of_chips())
+  if (!response.has_new_bag_of_chips()) {
     return;
+  }
   std::string bag_of_chips;
-  if (response.new_bag_of_chips().SerializeToString(&bag_of_chips))
+  if (response.new_bag_of_chips().SerializeToString(&bag_of_chips)) {
     context->set_bag_of_chips(bag_of_chips);
+  }
 }
 
 // Handle client commands returned by the server.
@@ -198,16 +201,17 @@ void ProcessClientCommand(const sync_pb::ClientCommand& command,
     }
   }
 
-  if (command.has_gu_retry_delay_seconds() &&
-      !base::FeatureList::IsEnabled(syncer::kSyncIgnoreGetUpdatesRetryDelay)) {
+  if (command.has_gu_retry_delay_seconds()) {
+    // TODO(crbug.com/40252048): The server no longer supports retry GU this
+    // field. Clean up client-side code.
     cycle->delegate()->OnReceivedGuRetryDelay(
         base::Seconds(command.gu_retry_delay_seconds()));
   }
 
   if (command.custom_nudge_delays_size() > 0) {
-    std::map<ModelType, base::TimeDelta> delay_map;
+    std::map<DataType, base::TimeDelta> delay_map;
     for (int i = 0; i < command.custom_nudge_delays_size(); ++i) {
-      ModelType type = GetModelTypeFromSpecificsFieldNumber(
+      DataType type = GetDataTypeFromSpecificsFieldNumber(
           command.custom_nudge_delays(i).datatype_id());
       if (type != UNSPECIFIED) {
         delay_map[type] =
@@ -239,8 +243,8 @@ void ProcessClientCommand(const sync_pb::ClientCommand& command,
 
 }  // namespace
 
-ModelTypeSet GetTypesToMigrate(const ClientToServerResponse& response) {
-  return GetModelTypeSetFromSpecificsFieldNumberList(
+DataTypeSet GetTypesToMigrate(const ClientToServerResponse& response) {
+  return GetDataTypeSetFromSpecificsFieldNumberList(
       response.migrated_data_type_id());
 }
 
@@ -252,16 +256,16 @@ SyncProtocolError ConvertErrorPBToSyncProtocolError(
           // THROTTLED and PARTIAL_FAILURE are currently the only error codes
           // using `error_data_types`. In both cases, the types are throttled.
           .error_data_types = error.error_data_type_ids_size() > 0
-                                  ? GetModelTypeSetFromSpecificsFieldNumberList(
+                                  ? GetDataTypeSetFromSpecificsFieldNumberList(
                                         error.error_data_type_ids())
-                                  : ModelTypeSet()};
+                                  : DataTypeSet()};
 }
 
 // static
 SyncerError SyncerProtoUtil::HandleClientToServerMessageResponse(
     const sync_pb::ClientToServerResponse& response,
     SyncCycle* cycle,
-    ModelTypeSet* partial_failure_data_types) {
+    DataTypeSet* partial_failure_data_types) {
   LogClientToServerResponse(response);
 
   // Remember a bag of chips if it has been sent by the server.
@@ -334,7 +338,7 @@ SyncerError SyncerProtoUtil::HandleClientToServerMessageResponse(
     case CONFLICT:
     case INVALID_MESSAGE:
       // These error types should not be used at this stage.
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   if (should_report_success) {
@@ -374,7 +378,7 @@ SyncProtocolError SyncerProtoUtil::GetProtocolErrorFromResponse(
       sync_protocol_error.action = DISABLE_SYNC_ON_CLIENT;
     }
   } else {
-    // Legacy server implementation. Compute the error based on |error_code|.
+    // Legacy server implementation. Compute the error based on `error_code`.
     sync_protocol_error = ErrorCodeToSyncProtocolError(response.error_code());
   }
 
@@ -417,7 +421,7 @@ bool SyncerProtoUtil::PostAndProcessHeaders(ServerConnectionManager* scm,
          msg.get_updates().from_progress_marker()) {
       UMA_HISTOGRAM_ENUMERATION(
           "Sync.PostedDataTypeGetUpdatesRequest",
-          ModelTypeHistogramValue(GetModelTypeFromSpecificsFieldNumber(
+          DataTypeHistogramValue(GetDataTypeFromSpecificsFieldNumber(
               progress_marker.data_type_id())));
     }
   }
@@ -438,8 +442,9 @@ bool SyncerProtoUtil::PostAndProcessHeaders(ServerConnectionManager* scm,
     return false;
   }
 
-  UMA_HISTOGRAM_MEDIUM_TIMES("Sync.PostedClientToServerMessageLatency",
-                             base::Time::Now() - start_time);
+  DEPRECATED_UMA_HISTOGRAM_MEDIUM_TIMES(
+      "Sync.PostedClientToServerMessageLatency",
+      base::Time::Now() - start_time);
 
   // The error can be specified in 2 different fields, so consider both of them.
   sync_pb::SyncEnums::ErrorType error_type =
@@ -448,6 +453,16 @@ bool SyncerProtoUtil::PostAndProcessHeaders(ServerConnectionManager* scm,
   if (error_type != sync_pb::SyncEnums::SUCCESS) {
     base::UmaHistogramSparse("Sync.PostedClientToServerMessageError2",
                              error_type);
+  }
+  if (response->has_error() &&
+      response->error().error_type() == sync_pb::SyncEnums::PARTIAL_FAILURE) {
+    DataTypeSet error_data_types = GetDataTypeSetFromSpecificsFieldNumberList(
+        response->error().error_data_type_ids());
+    for (DataType data_type : error_data_types) {
+      base::UmaHistogramEnumeration(
+          "Sync.PostedClientToServerMessagePartialErrorDataType",
+          DataTypeHistogramValue(data_type));
+    }
   }
 
   return true;
@@ -472,8 +487,9 @@ void SyncerProtoUtil::AddRequiredFieldsToClientToServerMessage(
   DCHECK(msg);
   SetProtocolVersion(msg);
   const std::string birthday = cycle->context()->birthday();
-  if (!birthday.empty())
+  if (!birthday.empty()) {
     msg->set_store_birthday(birthday);
+  }
   DCHECK(msg->has_store_birthday() || !IsBirthdayRequired(*msg));
   msg->mutable_bag_of_chips()->ParseFromString(
       cycle->context()->bag_of_chips());
@@ -486,7 +502,7 @@ SyncerError SyncerProtoUtil::PostClientToServerMessage(
     const ClientToServerMessage& msg,
     ClientToServerResponse* response,
     SyncCycle* cycle,
-    ModelTypeSet* partial_failure_data_types) {
+    DataTypeSet* partial_failure_data_types) {
   DCHECK(response);
   DCHECK(msg.has_protocol_version());
   DCHECK(msg.has_store_birthday() || !IsBirthdayRequired(msg));
@@ -524,7 +540,7 @@ bool SyncerProtoUtil::ShouldMaintainPosition(
     const sync_pb::SyncEntity& sync_entity) {
   // Maintain positions for bookmarks that are not server-defined top-level
   // folders.
-  return GetModelTypeFromSpecifics(sync_entity.specifics()) == BOOKMARKS &&
+  return GetDataTypeFromSpecifics(sync_entity.specifics()) == BOOKMARKS &&
          !(sync_entity.folder() &&
            !sync_entity.server_defined_unique_tag().empty());
 }
@@ -533,7 +549,7 @@ bool SyncerProtoUtil::ShouldMaintainPosition(
 bool SyncerProtoUtil::ShouldMaintainHierarchy(
     const sync_pb::SyncEntity& sync_entity) {
   // Maintain hierarchy for bookmarks or top-level items.
-  return GetModelTypeFromSpecifics(sync_entity.specifics()) == BOOKMARKS ||
+  return GetDataTypeFromSpecifics(sync_entity.specifics()) == BOOKMARKS ||
          sync_entity.parent_id_string() == "0";
 }
 
@@ -577,8 +593,9 @@ std::string SyncerProtoUtil::ClientToServerResponseDebugString(
     const ClientToServerResponse& response) {
   // Add more handlers as needed.
   std::string output;
-  if (response.has_get_updates())
+  if (response.has_get_updates()) {
     output.append(GetUpdatesResponseString(response.get_updates()));
+  }
   return output;
 }
 

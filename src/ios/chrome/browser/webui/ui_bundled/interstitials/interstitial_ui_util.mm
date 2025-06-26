@@ -14,9 +14,10 @@
 #import "components/security_interstitials/core/ssl_error_options_mask.h"
 #import "components/security_interstitials/core/unsafe_resource.h"
 #import "crypto/rsa_private_key.h"
+#import "ios/chrome/browser/enterprise/connectors/ios_enterprise_interstitial.h"
 #import "ios/chrome/browser/safe_browsing/model/safe_browsing_blocking_page.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/ssl/model/ios_captive_portal_blocking_page.h"
 #import "ios/chrome/browser/ssl/model/ios_ssl_blocking_page.h"
@@ -51,11 +52,10 @@ scoped_refptr<net::X509Certificate> CreateFakeCert() {
     return nullptr;
   }
 
-  return net::X509Certificate::CreateFromBytes(
-      base::as_bytes(base::make_span(cert_der)));
+  return net::X509Certificate::CreateFromBytes(base::as_byte_span(cert_der));
 }
 
-}
+}  // namespace
 
 std::unique_ptr<security_interstitials::IOSSecurityInterstitialPage>
 CreateSslBlockingPage(web::WebState* web_state, const GURL& url) {
@@ -66,8 +66,9 @@ CreateSslBlockingPage(web::WebState* web_state, const GURL& url) {
   if (net::GetValueForKeyInQuery(url, kChromeInterstitialSslUrlQueryKey,
                                  &url_param)) {
     GURL query_url_param(url_param);
-    if (query_url_param.is_valid())
+    if (query_url_param.is_valid()) {
       request_url = query_url_param;
+    }
   }
 
   bool overridable = false;
@@ -148,7 +149,6 @@ CreateSafeBrowsingBlockingPage(web::WebState* web_state, const GURL& url) {
 
   safe_browsing::SBThreatType threat_type = SB_THREAT_TYPE_URL_MALWARE;
   GURL request_url("http://example.com");
-  GURL main_frame_url(request_url);
 
   // The SafeBrowsingBlockingPage requires the allow list to be instantiated.
   SafeBrowsingUrlAllowList::CreateForWebState(web_state);
@@ -157,8 +157,9 @@ CreateSafeBrowsingBlockingPage(web::WebState* web_state, const GURL& url) {
   if (net::GetValueForKeyInQuery(
           url, kChromeInterstitialSafeBrowsingUrlQueryKey, &url_param)) {
     GURL query_url_param(url_param);
-    if (query_url_param.is_valid())
+    if (query_url_param.is_valid()) {
       request_url = query_url_param;
+    }
   }
 
   std::string type_param;
@@ -180,12 +181,36 @@ CreateSafeBrowsingBlockingPage(web::WebState* web_state, const GURL& url) {
 
   security_interstitials::UnsafeResource resource;
   resource.url = request_url;
-  resource.is_subresource = request_url != main_frame_url;
-  resource.is_subframe = false;
   resource.threat_type = threat_type;
   resource.weak_web_state = web_state->GetWeakPtr();
   // Added to ensure that `threat_source` isn't considered UNKNOWN in this case.
   resource.threat_source = safe_browsing::ThreatSource::LOCAL_PVER4;
 
   return SafeBrowsingBlockingPage::Create(resource);
+}
+
+std::unique_ptr<security_interstitials::IOSSecurityInterstitialPage>
+CreateEnterpriseBlockPage(web::WebState* web_state, const GURL& url) {
+  security_interstitials::UnsafeResource resource;
+  resource.url = url;
+  resource.threat_type =
+      safe_browsing::SBThreatType::SB_THREAT_TYPE_MANAGED_POLICY_BLOCK;
+  resource.weak_web_state = web_state->GetWeakPtr();
+  // Added to ensure that `threat_source` isn't considered UNKNOWN in this case.
+  resource.threat_source = safe_browsing::ThreatSource::LOCAL_PVER4;
+  return enterprise_connectors::IOSEnterpriseInterstitial::CreateBlockingPage(
+      resource);
+}
+
+std::unique_ptr<security_interstitials::IOSSecurityInterstitialPage>
+CreateEnterpriseWarnPage(web::WebState* web_state, const GURL& url) {
+  security_interstitials::UnsafeResource resource;
+  resource.url = url;
+  resource.threat_type =
+      safe_browsing::SBThreatType::SB_THREAT_TYPE_MANAGED_POLICY_WARN;
+  resource.weak_web_state = web_state->GetWeakPtr();
+  // Added to ensure that `threat_source` isn't considered UNKNOWN in this case.
+  resource.threat_source = safe_browsing::ThreatSource::LOCAL_PVER4;
+  return enterprise_connectors::IOSEnterpriseInterstitial::CreateWarningPage(
+      resource);
 }

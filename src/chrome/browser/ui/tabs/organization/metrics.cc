@@ -20,7 +20,7 @@ namespace {
 
 // Max number of tabs within 3 std deviations of mean.
 int kMaxLoggedTabs = 115;
-}
+}  // namespace
 
 void LogTabStripOrganizationUKM(
     const TabStripModel* tab_strip_model,
@@ -63,7 +63,7 @@ void LogTabStripOrganizationUKM(
                            : 0)
         .SetIsActiveTab(tab_index == tab_strip_model->active_index())
         .SetMinutesSinceLastActive(ukm::GetExponentialBucketMin(
-            (base::TimeTicks::Now() - contents->GetLastActiveTime())
+            (base::TimeTicks::Now() - contents->GetLastActiveTimeTicks())
                 .InMinutes(),
             /*bucket_spacing=*/1.3))
         .SetSuggestedTabStripOrganizationReason(

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/354829279): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef UI_GFX_X_XPROTO_TYPES_H_
 #define UI_GFX_X_XPROTO_TYPES_H_
 
@@ -15,10 +20,9 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/scoped_refptr.h"
+#include "ui/gfx/x/error.h"
 
 namespace x11 {
-
-class Error;
 
 // A memory buffer where the size of the memory buffer is unknown because its
 // given as `void*` from a C api which expects us to dynamically cast it to
@@ -80,7 +84,7 @@ class COMPONENT_EXPORT(X11) ThrowAwaySizeRefCountedMemory final
 class COMPONENT_EXPORT(X11) SizedRefCountedMemory final
     : public base::RefCountedMemory {
  public:
-  // Safety: The caller must ensure that the `mem` buffer points to at least
+  // SAFETY: The caller must ensure that the `mem` buffer points to at least
   // `size` many bytes or Undefined Behaviour can result.
   UNSAFE_BUFFER_USAGE static scoped_refptr<SizedRefCountedMemory> From(
       scoped_refptr<UnsizedRefCountedMemory> mem,
@@ -114,6 +118,11 @@ using ResponseCallback =
 using SequenceType = unsigned int;
 
 constexpr uint8_t kSendEventMask = 0x80;
+
+// Constants from the X11 protocol documentation:
+// https://www.x.org/releases/X11R7.5/doc/x11proto/proto.html
+inline constexpr size_t kMinimumErrorSize = 32;
+inline constexpr size_t kMinimumEventSize = 32;
 
 namespace detail {
 
@@ -186,7 +195,8 @@ class COMPONENT_EXPORT(X11) WriteBuffer {
   void AppendCurrentBuffer();
 
   std::vector<scoped_refptr<UnsizedRefCountedMemory>> owned_buffers_;
-  std::vector<base::span<uint8_t>> sized_buffers_;
+  // TODO(367764863) Rewrite to base::raw_span
+  RAW_PTR_EXCLUSION std::vector<base::span<uint8_t>> sized_buffers_;
   std::vector<uint8_t> current_buffer_;
   size_t offset_ = 0;
   std::vector<int> fds_;
@@ -236,4 +246,4 @@ struct Response<void> {
 
 }  // namespace x11
 
-#endif  //  UI_GFX_X_XPROTO_TYPES_H_
+#endif  // UI_GFX_X_XPROTO_TYPES_H_

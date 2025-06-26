@@ -7,6 +7,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_core.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_binding_for_testing.h"
+#include "third_party/blink/renderer/platform/heap/garbage_collected.h"
 #include "third_party/blink/renderer/platform/testing/task_environment.h"
 
 namespace blink {
@@ -15,18 +16,16 @@ namespace {
 
 TEST(DeprecationReportBodyJSONTest, noAnticipatedRemoval) {
   test::TaskEnvironment task_environment;
-  DeprecationReportBody body("test_id", std::nullopt, "test_message");
+  DeprecationReportBody* body = MakeGarbageCollected<DeprecationReportBody>(
+      "test_id", std::nullopt, "test_message");
   V8TestingScope scope;
   ScriptState* script_state = scope.GetScriptState();
   V8ObjectBuilder builder(script_state);
-  body.BuildJSONValue(builder);
-  ScriptValue json_object = builder.GetScriptValue();
-  EXPECT_TRUE(json_object.IsObject());
+  body->BuildJSONValue(builder);
 
   String json_string = ToBlinkString<String>(
       scope.GetIsolate(),
-      v8::JSON::Stringify(scope.GetContext(),
-                          json_object.V8Value().As<v8::Object>())
+      v8::JSON::Stringify(scope.GetContext(), builder.V8Object())
           .ToLocalChecked(),
       kDoNotExternalize);
 
@@ -38,20 +37,17 @@ TEST(DeprecationReportBodyJSONTest, noAnticipatedRemoval) {
 
 TEST(DeprecationReportBodyJSONTest, actualAnticipatedRemoval) {
   test::TaskEnvironment task_environment;
-  DeprecationReportBody body(
+  DeprecationReportBody* body = MakeGarbageCollected<DeprecationReportBody>(
       "test_id", base::Time::FromMillisecondsSinceUnixEpoch(1575950400000),
       "test_message");
   V8TestingScope scope;
   ScriptState* script_state = scope.GetScriptState();
   V8ObjectBuilder builder(script_state);
-  body.BuildJSONValue(builder);
-  ScriptValue json_object = builder.GetScriptValue();
-  EXPECT_TRUE(json_object.IsObject());
+  body->BuildJSONValue(builder);
 
   String json_string = ToBlinkString<String>(
       scope.GetIsolate(),
-      v8::JSON::Stringify(scope.GetContext(),
-                          json_object.V8Value().As<v8::Object>())
+      v8::JSON::Stringify(scope.GetContext(), builder.V8Object())
           .ToLocalChecked(),
       kDoNotExternalize);
 

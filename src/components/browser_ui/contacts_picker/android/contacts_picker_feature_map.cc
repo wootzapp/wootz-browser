@@ -4,8 +4,10 @@
 
 #include "base/android/feature_map.h"
 #include "base/no_destructor.h"
-#include "components/browser_ui/contacts_picker/android/contacts_picker_jni_headers/ContactsPickerFeatureMap_jni.h"
 #include "components/browser_ui/contacts_picker/android/features.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "components/browser_ui/contacts_picker/android/contacts_picker_jni_headers/ContactsPickerFeatureMap_jni.h"
 
 namespace browser_ui {
 
@@ -21,8 +23,8 @@ const base::Feature* const kFeaturesExposedToJava[] = {
 
 // static
 base::android::FeatureMap* GetFeatureMap() {
-  static base::NoDestructor<base::android::FeatureMap> kFeatureMap(std::vector(
-      std::begin(kFeaturesExposedToJava), std::end(kFeaturesExposedToJava)));
+  static base::NoDestructor<base::android::FeatureMap> kFeatureMap(
+      kFeaturesExposedToJava);
   return kFeatureMap.get();
 }
 

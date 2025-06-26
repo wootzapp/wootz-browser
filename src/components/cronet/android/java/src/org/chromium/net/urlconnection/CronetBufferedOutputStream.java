@@ -4,6 +4,7 @@
 
 package org.chromium.net.urlconnection;
 
+import org.chromium.base.metrics.ScopedSysTraceEvent;
 import org.chromium.net.UploadDataProvider;
 import org.chromium.net.UploadDataSink;
 
@@ -28,6 +29,7 @@ final class CronetBufferedOutputStream extends CronetOutputStream {
     private final UploadDataProvider mUploadDataProvider = new UploadDataProviderImpl();
     // Internal buffer that is used to buffer the request body.
     private ByteBuffer mBuffer;
+    private boolean mConnectRequested;
     private boolean mConnected;
 
     /**
@@ -86,11 +88,6 @@ final class CronetBufferedOutputStream extends CronetOutputStream {
             throw new ProtocolException(
                     "exceeded content-length limit of " + mInitialContentLength + " bytes");
         }
-        if (mConnected) {
-            throw new IllegalStateException(
-                    "Use setFixedLengthStreamingMode() or "
-                            + "setChunkedStreamingMode() for writing after connect");
-        }
         if (mInitialContentLength != -1) {
             // If mInitialContentLength is known, the buffer should not grow.
             return;
@@ -108,15 +105,36 @@ final class CronetBufferedOutputStream extends CronetOutputStream {
 
     // Below are CronetOutputStream implementations:
 
-    /** Sets {@link #mConnected} to {@code true}. */
     @Override
-    void setConnected() throws IOException {
+    boolean connectRequested() throws IOException {
+        assert !mConnected;
+
+        if (!isClosed()) {
+            // Before we can send the request we need to know the size of the request body in order
+            // to populate the `Content-Length` buffer, so defer connection until the stream is
+            // closed.
+            mConnectRequested = true;
+            return false;
+        }
+
         mConnected = true;
         if (mBuffer.position() < mInitialContentLength) {
             throw new ProtocolException("Content received is less than Content-Length");
         }
         // Flip the buffer to prepare it for UploadDataProvider read calls.
         mBuffer.flip();
+        return true;
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        // Now we know the size of the request body, so we can send the request with the correct
+        // `Content-Length` header.
+        if (mConnectRequested) {
+            mConnection.connect();
+            mConnectRequested = false;
+        }
     }
 
     @Override
@@ -147,20 +165,28 @@ final class CronetBufferedOutputStream extends CronetOutputStream {
 
         @Override
         public void read(UploadDataSink uploadDataSink, ByteBuffer byteBuffer) {
-            final int availableSpace = byteBuffer.remaining();
-            if (availableSpace < mBuffer.remaining()) {
-                byteBuffer.put(mBuffer.array(), mBuffer.position(), availableSpace);
-                mBuffer.position(mBuffer.position() + availableSpace);
-            } else {
-                byteBuffer.put(mBuffer);
+            try (var traceEvent =
+                    ScopedSysTraceEvent.scoped(
+                            "CronetBufferedOutputStream.UploadDataProviderImpl#read")) {
+                final int availableSpace = byteBuffer.remaining();
+                if (availableSpace < mBuffer.remaining()) {
+                    byteBuffer.put(mBuffer.array(), mBuffer.position(), availableSpace);
+                    mBuffer.position(mBuffer.position() + availableSpace);
+                } else {
+                    byteBuffer.put(mBuffer);
+                }
+                uploadDataSink.onReadSucceeded(false);
             }
-            uploadDataSink.onReadSucceeded(false);
         }
 
         @Override
         public void rewind(UploadDataSink uploadDataSink) {
-            mBuffer.position(0);
-            uploadDataSink.onRewindSucceeded();
+            try (var traceEvent =
+                    ScopedSysTraceEvent.scoped(
+                            "CronetBufferedOutputStream.UploadDataProviderImpl#rewind")) {
+                mBuffer.position(0);
+                uploadDataSink.onRewindSucceeded();
+            }
         }
     }
 }

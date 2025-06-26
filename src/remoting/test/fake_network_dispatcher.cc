@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "remoting/test/fake_network_dispatcher.h"
 
 #include <stddef.h>
@@ -21,7 +26,7 @@ FakeNetworkDispatcher::~FakeNetworkDispatcher() {
   CHECK(nodes_.empty());
 }
 
-rtc::IPAddress FakeNetworkDispatcher::AllocateAddress() {
+webrtc::IPAddress FakeNetworkDispatcher::AllocateAddress() {
   in6_addr addr;
   memset(&addr, 0, sizeof(addr));
 
@@ -34,7 +39,7 @@ rtc::IPAddress FakeNetworkDispatcher::AllocateAddress() {
     addr.s6_addr[15 - i] = (allocated_address_ >> (8 * i)) & 0xff;
   }
 
-  return rtc::IPAddress(addr);
+  return webrtc::IPAddress(addr);
 }
 
 void FakeNetworkDispatcher::AddNode(Node* node) {
@@ -54,8 +59,8 @@ void FakeNetworkDispatcher::RemoveNode(Node* node) {
 }
 
 void FakeNetworkDispatcher::DeliverPacket(
-    const rtc::SocketAddress& from,
-    const rtc::SocketAddress& to,
+    const webrtc::SocketAddress& from,
+    const webrtc::SocketAddress& to,
     const scoped_refptr<net::IOBuffer>& data,
     int data_size) {
   Node* node;

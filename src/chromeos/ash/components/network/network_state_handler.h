@@ -129,10 +129,10 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkStateHandler
   using Observer = NetworkStateHandlerObserver;
 
   void AddObserver(Observer* observer, const base::Location& from_here);
-  void AddObserver(Observer* observer);
+  virtual void AddObserver(Observer* observer);
 
   void RemoveObserver(Observer* observer, const base::Location& from_here);
-  void RemoveObserver(Observer* observer);
+  virtual void RemoveObserver(Observer* observer);
 
   bool HasObserver(Observer* observer) {
     return observers_.HasObserver(observer);
@@ -221,11 +221,6 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkStateHandler
   // Calls NetworkState::set_shill_connect_error_ for |service_path|.
   void SetShillConnectError(const std::string& service_path,
                             const std::string& shill_connect_error);
-
-  // Called from Chrome's network portal detector when Chrome has detected
-  // that a network is in a captive portal state.
-  void SetNetworkChromePortalState(const std::string& service_path,
-                                   NetworkState::PortalState portal_state);
 
   // Returns the aa:bb formatted hardware (MAC) address for the first connected
   // network matching |type|, or an empty string if none is connected.
@@ -532,6 +527,9 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkStateHandler
   // test observers.
   void InitShillPropertyHandler();
 
+  // Observer list
+  base::ObserverList<Observer, true>::Unchecked observers_;
+
  private:
   typedef std::map<std::string, std::string> SpecifierGuidMap;
   friend class DeviceStateTest;
@@ -754,9 +752,6 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkStateHandler
   // Shill property handler instance, owned by this class.
   std::unique_ptr<internal::ShillPropertyHandler> shill_property_handler_;
 
-  // Observer list
-  base::ObserverList<Observer, true>::Unchecked observers_;
-
   // List of managed network states
   ManagedStateList network_list_;
 
@@ -834,13 +829,14 @@ class COMPONENT_EXPORT(CHROMEOS_NETWORK) NetworkStateHandler
   bool is_profile_networks_loaded_ = false;
   bool is_user_logged_in_ = false;
 
-  // A set of device path that need to request another GetProperties to get
-  // latest properties. Shill may send a device property update after Chrome
-  // sends a GetProperties request to Shill and before completing Shill's
-  // response. If this occurs, the initial response may not include the changed
-  // property value and we will need to store the device paths to issue another
-  // round of GetProperties.
+  // A set of device or network service paths that need to request another
+  // GetProperties to get latest properties. Shill may send a device property
+  // update after Chrome sends a GetProperties request to Shill and before
+  // completing Shill's response. If this occurs, the initial response may not
+  // include the latest changed property value and we will need to store the
+  // device or service paths to issue another round of GetProperties.
   std::set<std::string> device_paths_with_stale_properties_;
+  std::set<std::string> network_service_paths_with_stale_properties_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 };

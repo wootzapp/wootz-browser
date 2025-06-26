@@ -13,15 +13,17 @@ import org.jni_zero.NativeMethods;
 import org.chromium.base.ObserverList;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.ThreadUtils;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
-import java.util.Arrays;
 import java.util.List;
 
 /** Java interface to the C++ ProfileManager. */
+@NullMarked
 public class ProfileManager {
-    private static Profile sLastUsedProfileForTesting;
+    private static @Nullable Profile sLastUsedProfileForTesting;
 
-    private static ObserverList<Observer> sObservers;
+    private static @Nullable ObserverList<Observer> sObservers;
     private static boolean sInitialized;
 
     /** Observer for Profile creation. */
@@ -103,7 +105,11 @@ public class ProfileManager {
 
     /** Return the fully loaded and initialized Profiles (excluding off the record Profiles). */
     public static List<Profile> getLoadedProfiles() {
-        return (List<Profile>) (List<?>) Arrays.asList(ProfileManagerJni.get().getLoadedProfiles());
+        return ProfileManagerJni.get().getLoadedProfiles();
+    }
+
+    public static void onProfileActivated(Profile profile) {
+        ProfileManagerJni.get().onProfileActivated(profile);
     }
 
     /**
@@ -128,11 +134,13 @@ public class ProfileManager {
 
     @NativeMethods
     public interface Natives {
-        Object getLastUsedRegularProfile();
+        Profile getLastUsedRegularProfile();
+
+        void onProfileActivated(@JniType("Profile*") Profile profile);
 
         void destroyWhenAppropriate(@JniType("Profile*") Profile caller);
 
         @JniType("std::vector<Profile*>")
-        Object[] getLoadedProfiles();
+        List<Profile> getLoadedProfiles();
     }
 }

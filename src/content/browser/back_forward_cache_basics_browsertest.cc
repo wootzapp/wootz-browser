@@ -2,8 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "content/browser/back_forward_cache_browsertest.h"
+#include <array>
 
+#include "base/test/bind.h"
+#include "content/browser/back_forward_cache_browsertest.h"
 #include "content/browser/web_contents/web_contents_impl.h"
 #include "content/common/content_navigation_policy.h"
 #include "content/public/browser/render_frame_host.h"
@@ -17,6 +19,7 @@
 #include "content/public/test/test_navigation_observer.h"
 #include "content/public/test/url_loader_interceptor.h"
 #include "content/shell/browser/shell.h"
+#include "content/test/content_browser_test_utils_internal.h"
 #include "net/test/embedded_test_server/controllable_http_response.h"
 
 // This file contains back/forward-cache tests that test basic functionality,
@@ -190,6 +193,93 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest,
   ExpectRestored(FROM_HERE);
 }
 
+// Navigate from A to B, go back and forward.
+IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest, StartAndStopLoading) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url_a(embedded_test_server()->GetURL("a.com", "/title1.html"));
+  GURL url_b(embedded_test_server()->GetURL("b.com", "/title2.html"));
+
+  int start_loading_count = 0;
+  int stop_loading_a_count = 0;
+  int stop_loading_b_count = 0;
+
+  // 1) Navigate to A.
+  EXPECT_TRUE(NavigateToURL(shell(), url_a));
+
+  // 2) Navigate to B.
+  EXPECT_TRUE(NavigateToURL(shell(), url_b));
+
+  // Add LoadingStartObserver to check the the DidStartLoading in step 3) and 4)
+  // will be fired.
+  LoadingStartObserver start_observer(
+      shell()->web_contents(),
+      base::BindLambdaForTesting([&]() { start_loading_count++; }));
+
+  // Add LoadingStopObserver to check the the DidStopLoading in step 3) and 4)
+  // will be fired. The loading URL can be captured at this point to validate
+  // url_a loading or url_b loading.
+  LoadingStopObserver stop_observer(
+      shell()->web_contents(), base::BindLambdaForTesting([&]() {
+        GURL url = shell()->web_contents()->GetLastCommittedURL();
+        if (url == url_a) {
+          stop_loading_a_count++;
+        } else if (url == url_b) {
+          stop_loading_b_count++;
+        }
+      }));
+
+  // 3) Go back to A.
+  ASSERT_TRUE(HistoryGoBack(web_contents()));
+  EXPECT_EQ(start_loading_count, 1);
+  EXPECT_EQ(stop_loading_a_count, 1);
+  EXPECT_EQ(stop_loading_b_count, 0);
+  ExpectRestored(FROM_HERE);
+
+  // 4) Go forward to B.
+  ASSERT_TRUE(HistoryGoForward(web_contents()));
+  EXPECT_EQ(start_loading_count, 2);
+  EXPECT_EQ(stop_loading_a_count, 1);
+  EXPECT_EQ(stop_loading_b_count, 1);
+  ExpectRestored(FROM_HERE);
+}
+
+IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest, DidFinishLoadNotCalled) {
+  ASSERT_TRUE(embedded_test_server()->Start());
+  GURL url_a(embedded_test_server()->GetURL("a.com", "/title1.html"));
+  GURL url_b(embedded_test_server()->GetURL("b.com", "/page_with_iframe.html"));
+
+  int did_finish_load_count = 0;
+
+  // Set up a LoadFinishObserver to observe the DidFinishLoad event.
+  LoadFinishObserver load_finish_observer(
+      shell()->web_contents(),
+      base::BindLambdaForTesting(
+          [&](RenderFrameHost* render_frame_host, const GURL& validated_url) {
+            did_finish_load_count++;
+          }));
+
+  // 1) Navigate to A. DidFinishLoad will be called once.
+  EXPECT_TRUE(NavigateToURL(shell(), url_a));
+  EXPECT_EQ(did_finish_load_count, 1);
+
+  // 2) Navigate to B. DidFinishLoad will be called once for the main frame and
+  // once for iframe.
+  EXPECT_TRUE(NavigateToURL(shell(), url_b));
+  EXPECT_EQ(did_finish_load_count, 3);
+
+  // 3) Go back to A. DidFinishLoad should not be called in the back forward
+  // cache navigation.
+  ASSERT_TRUE(HistoryGoBack(web_contents()));
+  EXPECT_EQ(did_finish_load_count, 3);
+  ExpectRestored(FROM_HERE);
+
+  // 4) Go forward to B. DidFinishLoad should not be called in the back forward
+  // cache navigation.
+  ASSERT_TRUE(HistoryGoForward(web_contents()));
+  EXPECT_EQ(did_finish_load_count, 3);
+  ExpectRestored(FROM_HERE);
+}
+
 // The current page can't enter the BackForwardCache if another page can script
 // it. This can happen when one document opens a popup using window.open() for
 // instance. It prevents the BackForwardCache from being used.
@@ -315,9 +405,10 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest, WindowOpenCrossSite) {
   RenderFrameHostImplWrapper rfh_b(popup_root->current_frame_host());
   EXPECT_EQ(2u, rfh_a->GetSiteInstance()->GetRelatedActiveContentsCount());
   EXPECT_EQ(2u, rfh_b->GetSiteInstance()->GetRelatedActiveContentsCount());
-  // A and B use different SiteInstances if site isolation is turned on, and
-  // shares the same SiteInstance otherwise.
-  if (SiteIsolationPolicy::UseDedicatedProcessesForAllSites()) {
+  // A and B use different SiteInstances if site isolation or default
+  // SiteInstanceGroups are turned on, and share the same SiteInstance
+  // otherwise.
+  if (AreStrictSiteInstancesEnabled()) {
     EXPECT_NE(rfh_a->GetSiteInstance(), rfh_b->GetSiteInstance());
   } else {
     EXPECT_EQ(rfh_a->GetSiteInstance(), rfh_b->GetSiteInstance());
@@ -333,8 +424,7 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest, WindowOpenCrossSite) {
   // BackForwardCache, because of the opener.
   ASSERT_TRUE(NavigateToURLFromRenderer(rfh_b.get(), url_c));
 
-  if (SiteIsolationPolicy::UseDedicatedProcessesForAllSites() ||
-      ShouldCreateNewHostForAllFrames()) {
+  if (AreStrictSiteInstancesEnabled() || ShouldCreateNewHostForAllFrames()) {
     ASSERT_TRUE(rfh_b.WaitUntilRenderFrameDeleted());
   } else {
     ASSERT_FALSE(rfh_b->IsInBackForwardCache());
@@ -389,9 +479,10 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest,
   RenderFrameHostImplWrapper rfh_b1(popup_root->current_frame_host());
   EXPECT_EQ(2u, rfh_a->GetSiteInstance()->GetRelatedActiveContentsCount());
   EXPECT_EQ(2u, rfh_b1->GetSiteInstance()->GetRelatedActiveContentsCount());
-  // A and B use different SiteInstances if site isolation is turned on, and
-  // shares the same SiteInstance otherwise.
-  if (SiteIsolationPolicy::UseDedicatedProcessesForAllSites()) {
+  // A and B use different SiteInstances if site isolation or default
+  // SiteInstanceGroups are turned on, and share the same SiteInstance
+  // otherwise.
+  if (AreStrictSiteInstancesEnabled()) {
     EXPECT_NE(rfh_a->GetSiteInstance(), rfh_b1->GetSiteInstance());
   } else {
     EXPECT_EQ(rfh_a->GetSiteInstance(), rfh_b1->GetSiteInstance());
@@ -469,12 +560,13 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest,
   EXPECT_EQ(2u, rfh_b->GetSiteInstance()->GetRelatedActiveContentsCount());
 
   // The opener A and the iframe A uses the same SiteInstance. Meanwhile, A and
-  // B use different SiteInstances if site isolation is turned on, and shares
-  // the same SiteInstance otherwise.
+  // B use different SiteInstances if site isolation or default
+  // SiteInstanceGroups are turned on, and share the same SiteInstance
+  // otherwise.
   RenderFrameHostImplWrapper rfh_a_iframe(
       rfh_b->child_at(0)->current_frame_host());
   EXPECT_EQ(rfh_a->GetSiteInstance(), rfh_a_iframe->GetSiteInstance());
-  if (SiteIsolationPolicy::UseDedicatedProcessesForAllSites()) {
+  if (AreStrictSiteInstancesEnabled()) {
     EXPECT_NE(rfh_a->GetSiteInstance(), rfh_b->GetSiteInstance());
   } else {
     EXPECT_EQ(rfh_a->GetSiteInstance(), rfh_b->GetSiteInstance());
@@ -492,8 +584,7 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest,
   // BackForwardCache, because of the opener.
   ASSERT_TRUE(NavigateToURLFromRenderer(rfh_b.get(), url_c));
 
-  if (SiteIsolationPolicy::UseDedicatedProcessesForAllSites() ||
-      ShouldCreateNewHostForAllFrames()) {
+  if (AreStrictSiteInstancesEnabled() || ShouldCreateNewHostForAllFrames()) {
     ASSERT_TRUE(rfh_b.WaitUntilRenderFrameDeleted());
   } else {
     ASSERT_FALSE(rfh_b->IsInBackForwardCache());
@@ -761,8 +852,7 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest,
   // 2) Navigate to B in the opener.  A1 can't enter the BackForwardCache,
   // because of the popup.
   ASSERT_TRUE(NavigateToURLFromRenderer(rfh_a1.get(), url_b));
-  if (ShouldCreateNewHostForAllFrames() ||
-      SiteIsolationPolicy::UseDedicatedProcessesForAllSites()) {
+  if (ShouldCreateNewHostForAllFrames() || AreStrictSiteInstancesEnabled()) {
     ASSERT_TRUE(rfh_a1.WaitUntilRenderFrameDeleted());
   } else {
     ASSERT_FALSE(rfh_a1->IsInBackForwardCache());
@@ -855,7 +945,7 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest,
   EXPECT_EQ(1u, rfh_a2->GetSiteInstance()->GetRelatedActiveContentsCount());
   EXPECT_FALSE(rfh_a2->GetSiteInstance()->IsRelatedSiteInstance(
       rfh_a1->GetSiteInstance()));
-  if (!SiteIsolationPolicy::UseDedicatedProcessesForAllSites()) {
+  if (!AreStrictSiteInstancesEnabled()) {
     EXPECT_EQ(rfh_a1->GetProcess(), rfh_a2->GetProcess());
   }
 
@@ -890,8 +980,7 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest,
   // 5) Navigate to B again from A1, now A1 can't enter BackForwardCache because
   // it has related active contents.
   ASSERT_TRUE(NavigateToURLFromRenderer(rfh_a1.get(), url_b));
-  if (ShouldCreateNewHostForAllFrames() ||
-      SiteIsolationPolicy::UseDedicatedProcessesForAllSites()) {
+  if (ShouldCreateNewHostForAllFrames() || AreStrictSiteInstancesEnabled()) {
     ASSERT_TRUE(rfh_a1.WaitUntilRenderFrameDeleted());
   } else {
     ASSERT_FALSE(rfh_a1->IsInBackForwardCache());
@@ -1271,8 +1360,7 @@ class BackForwardCacheStillNavigatingBrowserTest
   std::string GetMainFramePath() {
     switch (GetParam()) {
       case TestFrameType::kMainFrame:
-        NOTREACHED_IN_MIGRATION();
-        return "";
+        NOTREACHED();
       case TestFrameType::kSubFrame:
         return "/back_forward_cache/controllable_subframe.html";
       case TestFrameType::kSubFrameOfSubframe:
@@ -1574,18 +1662,17 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest,
 IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest,
                        EventsForPageIneligibleAfterPagehidePersisted) {
   ASSERT_TRUE(CreateHttpsServer()->Start());
-  GURL url_1(https_server()->GetURL("a.com", "/title1.html"));
+  GURL url_1(https_server()->GetURL("a.com", kBlockingPagePath));
   GURL url_2(https_server()->GetURL("a.com", "/title2.html"));
 
   // 1) Navigate to |url_1|.
   EXPECT_TRUE(NavigateToURL(shell(), url_1));
   RenderFrameHostImpl* rfh_1 = current_frame_host();
   RenderFrameDeletedObserver delete_observer_rfh_1(rfh_1);
-  // 2) Use BroadcastChannel (a non-sticky blocklisted feature), so that we
+  // 2) The page uses a non-sticky blocklisted feature, so that we
   // would still do a RFH swap on same-site navigation and fire the 'pagehide'
   // event during commit of the new page with 'persisted' set to true, but the
   // page will not be eligible for back-forward cache after commit.
-  EXPECT_TRUE(ExecJs(rfh_1, "window.foo = new BroadcastChannel('foo');"));
 
   EXPECT_TRUE(ExecJs(rfh_1, R"(
     window.onpagehide = (e) => {
@@ -1649,8 +1736,10 @@ IN_PROC_BROWSER_TEST_F(BackForwardCacheBrowserTest,
 
   // "pagehide", "visibilitychange", and "unload" events will be dispatched.
   int num_messages_received = 0;
-  std::string expected_messages[] = {"\"pagehide.not_persisted\"",
-                                     "\"visibilitychange.hidden\""};
+  const auto expected_messages = std::to_array<std::string>({
+      "\"pagehide.not_persisted\"",
+      "\"visibilitychange.hidden\"",
+  });
   std::string message;
   while (dom_message_queue.PopMessage(&message)) {
     EXPECT_EQ(expected_messages[num_messages_received], message);

@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/safety_hub/notification_permission_review_service.h"
 
+#include <array>
 #include <memory>
 
 #include "base/run_loop.h"
@@ -22,6 +23,7 @@
 #include "components/content_settings/core/common/content_settings_utils.h"
 #include "components/site_engagement/content/site_engagement_score.h"
 #include "content/public/test/browser_task_environment.h"
+#include "notification_permission_review_service.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
 
@@ -30,9 +32,11 @@ class NotificationPermissionReviewServiceTest : public testing::Test {
   void CreateMockNotificationPermissionsForReview() {
     // Add a couple of notification permission and check they appear in review
     // list.
-    GURL urls[] = {GURL("https://google.com:443"),
-                   GURL("https://www.youtube.com:443"),
-                   GURL("https://www.example.com:443")};
+    auto urls = std::to_array<GURL>({
+        GURL("https://google.com:443"),
+        GURL("https://www.youtube.com:443"),
+        GURL("https://www.example.com:443"),
+    });
 
     auto* site_engagement_service =
         site_engagement::SiteEngagementServiceFactory::GetForProfile(profile());
@@ -64,7 +68,7 @@ class NotificationPermissionReviewServiceTest : public testing::Test {
               site_engagement_service->GetEngagementLevel(urls[2]));
   }
 
-  std::vector<std::pair<ContentSettingsPattern, int>> GetUpdatedReviewList(
+  std::vector<NotificationPermissions> GetUpdatedReviewList(
       NotificationPermissionsReviewService* service) {
     safety_hub_test_util::UpdateSafetyHubServiceAsync(service);
     std::optional<std::unique_ptr<SafetyHubService::Result>> result_opt =
@@ -73,7 +77,7 @@ class NotificationPermissionReviewServiceTest : public testing::Test {
     auto* result = static_cast<
         NotificationPermissionsReviewService::NotificationPermissionsResult*>(
         result_opt.value().get());
-    return result->GetNotificationPermissions();
+    return result->GetSortedNotificationPermissions();
   }
 
   void SetNotificationPermissionAndRecordEngagement(GURL url,
@@ -88,7 +92,7 @@ class NotificationPermissionReviewServiceTest : public testing::Test {
         url, daily_average_count * 7);
   }
 
-  const std::vector<std::pair<ContentSettingsPattern, int>>
+  const std::vector<NotificationPermissions>
   GetNotificationPermissionsFromService() {
     auto* service =
         NotificationPermissionsReviewServiceFactory::GetForProfile(profile());
@@ -98,7 +102,7 @@ class NotificationPermissionReviewServiceTest : public testing::Test {
     return static_cast<NotificationPermissionsReviewService::
                            NotificationPermissionsResult*>(
                std::move(sh_result)->get())
-        ->GetNotificationPermissions();
+        ->GetSortedNotificationPermissions();
   }
 
   TestingProfile* profile() { return &profile_; }
@@ -113,8 +117,11 @@ class NotificationPermissionReviewServiceTest : public testing::Test {
 
 TEST_F(NotificationPermissionReviewServiceTest,
        IgnoreOriginForNotificationPermissionReview) {
-  std::string urls[] = {"https://google.com:443", "https://www.youtube.com:443",
-                        "https://www.example.com:443"};
+  auto urls = std::to_array<std::string>({
+      "https://google.com:443",
+      "https://www.youtube.com:443",
+      "https://www.example.com:443",
+  });
   SetNotificationPermissionAndRecordEngagement(GURL(urls[0]),
                                                CONTENT_SETTING_ALLOW, 1);
   SetNotificationPermissionAndRecordEngagement(GURL(urls[1]),
@@ -129,10 +136,10 @@ TEST_F(NotificationPermissionReviewServiceTest,
   service->AddPatternToNotificationPermissionReviewBlocklist(
       pattern_to_ignore, ContentSettingsPattern::Wildcard());
 
-  std::vector<std::pair<ContentSettingsPattern, int>> notification_permissions =
+  std::vector<NotificationPermissions> notification_permissions =
       GetUpdatedReviewList(service);
   EXPECT_EQ(1UL, notification_permissions.size());
-  EXPECT_EQ(notification_permissions[0].first,
+  EXPECT_EQ(notification_permissions[0].primary_pattern,
             ContentSettingsPattern::FromString(urls[1]));
 
   ContentSettingsForOneType ignored_patterns = hcsm()->GetSettingsForOneType(
@@ -195,16 +202,19 @@ TEST_F(NotificationPermissionReviewServiceTest, SingleOriginTest) {
   // Assert the review list only has the URL with single origin.
   auto* service =
       NotificationPermissionsReviewServiceFactory::GetForProfile(profile());
-  std::vector<std::pair<ContentSettingsPattern, int>> notification_permissions =
+  std::vector<NotificationPermissions> notification_permissions =
       GetUpdatedReviewList(service);
   EXPECT_EQ(1UL, notification_permissions.size());
-  EXPECT_EQ(pattern_2, notification_permissions[0].first);
+  EXPECT_EQ(pattern_2, notification_permissions[0].primary_pattern);
 }
 
 TEST_F(NotificationPermissionReviewServiceTest,
        ShowOnlyGrantedNotificationPermissions) {
-  GURL urls[] = {GURL("https://google.com/"), GURL("https://www.youtube.com/"),
-                 GURL("https://www.example.com/")};
+  auto urls = std::to_array<GURL>({
+      GURL("https://google.com/"),
+      GURL("https://www.youtube.com/"),
+      GURL("https://www.example.com/"),
+  });
   SetNotificationPermissionAndRecordEngagement(urls[0], CONTENT_SETTING_ALLOW,
                                                1);
   SetNotificationPermissionAndRecordEngagement(urls[1], CONTENT_SETTING_BLOCK,
@@ -214,10 +224,11 @@ TEST_F(NotificationPermissionReviewServiceTest,
   // Assert the review list only has the URL with granted permission.
   auto* service =
       NotificationPermissionsReviewServiceFactory::GetForProfile(profile());
-  std::vector<std::pair<ContentSettingsPattern, int>> notification_permissions =
+  std::vector<NotificationPermissions> notification_permissions =
       GetUpdatedReviewList(service);
   EXPECT_EQ(1UL, notification_permissions.size());
-  EXPECT_EQ(GURL(notification_permissions[0].first.ToString()), urls[0]);
+  EXPECT_EQ(GURL(notification_permissions[0].primary_pattern.ToString()),
+            urls[0]);
 }
 
 TEST_F(NotificationPermissionReviewServiceTest,
@@ -274,7 +285,8 @@ TEST_F(NotificationPermissionReviewServiceTest, ResultToDict) {
 
   auto result = std::make_unique<
       NotificationPermissionsReviewService::NotificationPermissionsResult>();
-  result->AddNotificationPermission(origin, notification_count);
+  result->AddNotificationPermission(NotificationPermissions(
+      origin, ContentSettingsPattern::Wildcard(), notification_count));
   EXPECT_THAT(result->GetOrigins(), testing::ElementsAre(origin));
 
   // When converting to dict, the values of the notification permissions should
@@ -296,14 +308,17 @@ TEST_F(NotificationPermissionReviewServiceTest, ResultGetOrigins) {
   auto result = std::make_unique<
       NotificationPermissionsReviewService::NotificationPermissionsResult>();
   EXPECT_EQ(0U, result->GetOrigins().size());
-  result->AddNotificationPermission(origin1, 42);
+  result->AddNotificationPermission(
+      NotificationPermissions(origin1, ContentSettingsPattern::Wildcard(), 42));
   EXPECT_EQ(1U, result->GetOrigins().size());
   EXPECT_EQ(origin1, *result->GetOrigins().begin());
-  result->AddNotificationPermission(origin2, 123);
+  result->AddNotificationPermission(NotificationPermissions(
+      origin2, ContentSettingsPattern::Wildcard(), 123));
   EXPECT_EQ(2U, result->GetOrigins().size());
   EXPECT_TRUE(result->GetOrigins().contains(origin1));
   EXPECT_TRUE(result->GetOrigins().contains(origin2));
-  result->AddNotificationPermission(origin2, 456);
+  result->AddNotificationPermission(NotificationPermissions(
+      origin2, ContentSettingsPattern::Wildcard(), 456));
   EXPECT_EQ(2U, result->GetOrigins().size());
 }
 
@@ -311,8 +326,9 @@ TEST_F(NotificationPermissionReviewServiceTest, ResultIsTrigger) {
   auto result = std::make_unique<
       NotificationPermissionsReviewService::NotificationPermissionsResult>();
   EXPECT_FALSE(result->IsTriggerForMenuNotification());
-  result->AddNotificationPermission(
-      ContentSettingsPattern::FromString("https://example1.com:443"), 100);
+  result->AddNotificationPermission(NotificationPermissions(
+      ContentSettingsPattern::FromString("https://example1.com:443"),
+      ContentSettingsPattern::Wildcard(), 100));
   EXPECT_TRUE(result->IsTriggerForMenuNotification());
 }
 
@@ -326,28 +342,29 @@ TEST_F(NotificationPermissionReviewServiceTest, ResultWarrantsNewNotification) {
   EXPECT_FALSE(
       new_result->WarrantsNewMenuNotification(old_result.get()->ToDictValue()));
   // origin1 revoked in new, but not in old -> warrants notification
-  new_result->AddNotificationPermission(origin1, 12);
+  new_result->AddNotificationPermission(
+      NotificationPermissions(origin1, ContentSettingsPattern::Wildcard(), 12));
   EXPECT_TRUE(
       new_result->WarrantsNewMenuNotification(old_result->ToDictValue()));
   // origin1 in both new and old -> no notification
-  old_result->AddNotificationPermission(origin1, 34);
+  old_result->AddNotificationPermission(
+      NotificationPermissions(origin1, ContentSettingsPattern::Wildcard(), 34));
   ;
   EXPECT_FALSE(
       new_result->WarrantsNewMenuNotification(old_result->ToDictValue()));
   // origin1 in both, origin2 in new -> warrants notification
-  new_result->AddNotificationPermission(origin2, 56);
+  new_result->AddNotificationPermission(
+      NotificationPermissions(origin2, ContentSettingsPattern::Wildcard(), 56));
   EXPECT_TRUE(
       new_result->WarrantsNewMenuNotification(old_result->ToDictValue()));
   // origin1 and origin2 in both new and old -> no notification
-  old_result->AddNotificationPermission(origin2, 78);
+  old_result->AddNotificationPermission(
+      NotificationPermissions(origin2, ContentSettingsPattern::Wildcard(), 78));
   EXPECT_FALSE(
       new_result->WarrantsNewMenuNotification(old_result->ToDictValue()));
 }
 
 TEST_F(NotificationPermissionReviewServiceTest, UpdateAsync) {
-  base::test::ScopedFeatureList scoped_feature;
-  scoped_feature.InitAndEnableFeature(features::kSafetyHub);
-
   auto* service =
       NotificationPermissionsReviewServiceFactory::GetForProfile(profile());
 
@@ -362,27 +379,24 @@ TEST_F(NotificationPermissionReviewServiceTest, UpdateAsync) {
   safety_hub_test_util::UpdateSafetyHubServiceAsync(service);
 
   // The result should be non empty after we update the service.
-  std::vector<std::pair<ContentSettingsPattern, int>> notification_permissions =
+  std::vector<NotificationPermissions> notification_permissions =
       GetNotificationPermissionsFromService();
   EXPECT_EQ(2U, notification_permissions.size());
 
   // Sort notification permissions by number of notifications.
   std::sort(notification_permissions.begin(), notification_permissions.end(),
             [](const auto& left, const auto& right) {
-              return left.second > right.second;
+              return left.notification_count > right.notification_count;
             });
   EXPECT_EQ("https://www.youtube.com:443",
-            notification_permissions.front().first.ToString());
-  EXPECT_EQ(5, notification_permissions.front().second);
+            notification_permissions.front().primary_pattern.ToString());
+  EXPECT_EQ(5, notification_permissions.front().notification_count);
   EXPECT_EQ("https://google.com:443",
-            notification_permissions.back().first.ToString());
-  EXPECT_EQ(1, notification_permissions.back().second);
+            notification_permissions.back().primary_pattern.ToString());
+  EXPECT_EQ(1, notification_permissions.back().notification_count);
 }
 
 TEST_F(NotificationPermissionReviewServiceTest, LatestResultInSync) {
-  base::test::ScopedFeatureList scoped_feature;
-  scoped_feature.InitAndEnableFeature(features::kSafetyHub);
-
   // Create mock notifications before the service is started.
   CreateMockNotificationPermissionsForReview();
 
@@ -419,4 +433,79 @@ TEST_F(NotificationPermissionReviewServiceTest, LatestResultInSync) {
       GURL("https://www.youtube.com:443"), GURL(),
       ContentSettingsType::NOTIFICATIONS, CONTENT_SETTING_BLOCK);
   EXPECT_EQ(0U, GetNotificationPermissionsFromService().size());
+}
+
+TEST_F(NotificationPermissionReviewServiceTest,
+       SetNotificationPermissionForOrigin) {
+  auto pattern = ContentSettingsPattern::FromString("https://example1.com:443");
+
+  // Check the permission for the origins is block.
+  auto* service =
+      NotificationPermissionsReviewServiceFactory::GetForProfile(profile());
+  service->SetNotificationPermissionsForOrigin(pattern.ToString(),
+                                               CONTENT_SETTING_BLOCK);
+
+  auto type = hcsm()->GetContentSetting(GURL(pattern.ToString()), GURL(),
+                                        ContentSettingsType::NOTIFICATIONS);
+  ASSERT_EQ(CONTENT_SETTING_BLOCK, type);
+
+  // Check the permission for the origins is allow.
+  service =
+      NotificationPermissionsReviewServiceFactory::GetForProfile(profile());
+  service->SetNotificationPermissionsForOrigin(pattern.ToString(),
+                                               CONTENT_SETTING_ALLOW);
+
+  type = hcsm()->GetContentSetting(GURL(pattern.ToString()), GURL(),
+                                   ContentSettingsType::NOTIFICATIONS);
+
+  // Check the permission for the origins is reset.
+  service =
+      NotificationPermissionsReviewServiceFactory::GetForProfile(profile());
+  service->SetNotificationPermissionsForOrigin(pattern.ToString(),
+                                               CONTENT_SETTING_DEFAULT);
+
+  type = hcsm()->GetContentSetting(GURL(pattern.ToString()), GURL(),
+                                   ContentSettingsType::NOTIFICATIONS);
+  ASSERT_EQ(CONTENT_SETTING_ASK, type);
+}
+
+TEST_F(NotificationPermissionReviewServiceTest,
+       DisruptiveNotificationRevocationShadowRun) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeatureWithParameters(
+      safe_browsing::kSafetyHubDisruptiveNotificationRevocation,
+      {
+          {safe_browsing::kSafetyHubDisruptiveNotificationRevocationShadowRun
+               .name,
+           "true"},
+      });
+
+  CreateMockNotificationPermissionsForReview();
+
+  auto* service =
+      NotificationPermissionsReviewServiceFactory::GetForProfile(profile());
+  const auto& notification_permissions =
+      service->PopulateNotificationPermissionReviewData();
+  // Check if the results are returned.
+  EXPECT_EQ(2UL, notification_permissions.size());
+}
+
+TEST_F(NotificationPermissionReviewServiceTest,
+       DisruptiveNotificationRevocation) {
+  base::test::ScopedFeatureList feature_list;
+  feature_list.InitAndEnableFeatureWithParameters(
+      safe_browsing::kSafetyHubDisruptiveNotificationRevocation,
+      {
+          {safe_browsing::kSafetyHubDisruptiveNotificationRevocationShadowRun
+               .name,
+           "false"},
+      });
+
+  CreateMockNotificationPermissionsForReview();
+  auto* service =
+      NotificationPermissionsReviewServiceFactory::GetForProfile(profile());
+  const auto& notification_permissions =
+      service->PopulateNotificationPermissionReviewData();
+  // Check that no permissions are returned.
+  EXPECT_EQ(0UL, notification_permissions.size());
 }

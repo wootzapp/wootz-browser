@@ -10,11 +10,11 @@
 namespace desks_storage {
 
 FakeDeskSyncService::FakeDeskSyncService(bool skip_engine_connection)
-    : fake_model_type_controller_delegate_(syncer::ModelType::WORKSPACE_DESK) {
+    : fake_data_type_controller_delegate_(syncer::DataType::WORKSPACE_DESK) {
   fake_bridge_ = std::make_unique<FakeDeskSyncBridge>();
   fake_bridge_->SetCacheGuid("test_guid");
   if (skip_engine_connection) {
-    fake_model_type_controller_delegate_
+    fake_data_type_controller_delegate_
         .EnableSkipEngineConnectionForActivationResponse();
   }
 }
@@ -28,9 +28,16 @@ FakeDeskSyncBridge* FakeDeskSyncService::GetDeskSyncBridge() {
   return fake_bridge_.get();
 }
 
-base::WeakPtr<syncer::ModelTypeControllerDelegate>
+base::WeakPtr<syncer::DataTypeControllerDelegate>
 FakeDeskSyncService::GetControllerDelegate() {
-  return fake_model_type_controller_delegate_.GetWeakPtr();
+  return fake_data_type_controller_delegate_.GetWeakPtr();
+}
+
+void FakeDeskSyncService::RunWhenDesksTemplatesAreReadyOnFirstSync(
+    base::OnceClosure callback) {
+  if (!skip_on_first_sync_callback_) {
+    std::move(callback).Run();
+  }
 }
 
 }  // namespace desks_storage

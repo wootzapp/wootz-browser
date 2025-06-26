@@ -4,8 +4,11 @@
 
 #include "chrome/browser/enterprise/signin/oidc_authentication_signin_interceptor_factory.h"
 
+#include "chrome/browser/enterprise/identifiers/profile_id_service_factory.h"
 #include "chrome/browser/enterprise/profile_management/profile_management_features.h"
 #include "chrome/browser/enterprise/signin/oidc_authentication_signin_interceptor.h"
+#include "chrome/browser/enterprise/signin/user_policy_oidc_signin_service_factory.h"
+#include "chrome/browser/policy/cloud/user_policy_signin_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/signin/dice_web_signin_interceptor_delegate.h"
 
@@ -29,7 +32,11 @@ OidcAuthenticationSigninInterceptorFactory::GetInstance() {
 
 OidcAuthenticationSigninInterceptorFactory::
     OidcAuthenticationSigninInterceptorFactory()
-    : ProfileKeyedServiceFactory("OidcAuthenticationSigninInterceptor") {}
+    : ProfileKeyedServiceFactory("OidcAuthenticationSigninInterceptor") {
+  DependsOn(enterprise::ProfileIdServiceFactory::GetInstance());
+  DependsOn(policy::UserPolicySigninServiceFactory::GetInstance());
+  DependsOn(policy::UserPolicyOidcSigninServiceFactory::GetInstance());
+}
 
 OidcAuthenticationSigninInterceptorFactory::
     ~OidcAuthenticationSigninInterceptorFactory() = default;

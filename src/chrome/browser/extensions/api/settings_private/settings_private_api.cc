@@ -10,7 +10,6 @@
 #include "chrome/browser/extensions/api/settings_private/settings_private_delegate.h"
 #include "chrome/browser/extensions/api/settings_private/settings_private_delegate_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/zoom/chrome_zoom_level_prefs.h"
 #include "chrome/common/extensions/api/settings_private.h"
 #include "content/public/common/page_zoom.h"
 #include "extensions/browser/extension_function_registry.h"
@@ -21,8 +20,7 @@ namespace extensions {
 // SettingsPrivateSetPrefFunction
 ////////////////////////////////////////////////////////////////////////////////
 
-SettingsPrivateSetPrefFunction::~SettingsPrivateSetPrefFunction() {
-}
+SettingsPrivateSetPrefFunction::~SettingsPrivateSetPrefFunction() = default;
 
 ExtensionFunction::ResponseAction SettingsPrivateSetPrefFunction::Run() {
   std::optional<api::settings_private::SetPref::Params> parameters =
@@ -50,16 +48,15 @@ ExtensionFunction::ResponseAction SettingsPrivateSetPrefFunction::Run() {
       return RespondNow(Error("Unsupported type used for value of pref *",
                               parameters->name));
   }
-  NOTREACHED_IN_MIGRATION();
-  return RespondNow(WithArguments(false));
+  NOTREACHED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // SettingsPrivateGetAllPrefsFunction
 ////////////////////////////////////////////////////////////////////////////////
 
-SettingsPrivateGetAllPrefsFunction::~SettingsPrivateGetAllPrefsFunction() {
-}
+SettingsPrivateGetAllPrefsFunction::~SettingsPrivateGetAllPrefsFunction() =
+    default;
 
 ExtensionFunction::ResponseAction SettingsPrivateGetAllPrefsFunction::Run() {
   SettingsPrivateDelegate* delegate =
@@ -72,8 +69,7 @@ ExtensionFunction::ResponseAction SettingsPrivateGetAllPrefsFunction::Run() {
 // SettingsPrivateGetPrefFunction
 ////////////////////////////////////////////////////////////////////////////////
 
-SettingsPrivateGetPrefFunction::~SettingsPrivateGetPrefFunction() {
-}
+SettingsPrivateGetPrefFunction::~SettingsPrivateGetPrefFunction() = default;
 
 ExtensionFunction::ResponseAction SettingsPrivateGetPrefFunction::Run() {
   std::optional<api::settings_private::GetPref::Params> parameters =
@@ -97,8 +93,7 @@ ExtensionFunction::ResponseAction SettingsPrivateGetPrefFunction::Run() {
 ////////////////////////////////////////////////////////////////////////////////
 
 SettingsPrivateGetDefaultZoomFunction::
-    ~SettingsPrivateGetDefaultZoomFunction() {
-}
+    ~SettingsPrivateGetDefaultZoomFunction() = default;
 
 ExtensionFunction::ResponseAction
     SettingsPrivateGetDefaultZoomFunction::Run() {
@@ -113,8 +108,7 @@ ExtensionFunction::ResponseAction
 ////////////////////////////////////////////////////////////////////////////////
 
 SettingsPrivateSetDefaultZoomFunction::
-    ~SettingsPrivateSetDefaultZoomFunction() {
-}
+    ~SettingsPrivateSetDefaultZoomFunction() = default;
 
 ExtensionFunction::ResponseAction
     SettingsPrivateSetDefaultZoomFunction::Run() {

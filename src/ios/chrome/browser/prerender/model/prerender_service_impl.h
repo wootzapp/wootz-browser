@@ -5,19 +5,19 @@
 #ifndef IOS_CHROME_BROWSER_PRERENDER_MODEL_PRERENDER_SERVICE_IMPL_H_
 #define IOS_CHROME_BROWSER_PRERENDER_MODEL_PRERENDER_SERVICE_IMPL_H_
 
-#import "ios/chrome/browser/prerender/model/prerender_service.h"
-
 #import <Foundation/Foundation.h>
 
-class ChromeBrowserState;
+#import "ios/chrome/browser/prerender/model/prerender_service.h"
+
+class ProfileIOS;
 
 // Implementation of PrerenderService.
 class PrerenderServiceImpl : public PrerenderService {
  public:
   // TODO(crbug.com/40534385): Convert this constructor to take lower-level
-  // objects instead of the entire ChromeBrowserState.  This will make unit
+  // objects instead of the entire ProfileIOS. This will make unit
   // testing much simpler.
-  PrerenderServiceImpl(ChromeBrowserState* browser_state);
+  PrerenderServiceImpl(ProfileIOS* profile);
   ~PrerenderServiceImpl() override;
 
  private:

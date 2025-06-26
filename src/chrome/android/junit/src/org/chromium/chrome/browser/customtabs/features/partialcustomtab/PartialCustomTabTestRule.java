@@ -53,12 +53,12 @@ import org.robolectric.annotation.Implements;
 import org.robolectric.shadows.ShadowLog;
 import org.robolectric.shadows.ShadowLooper;
 
-import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.browserservices.intents.BrowserServicesIntentDataProvider;
 import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbar;
+import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbarButtonsCoordinator;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
@@ -136,6 +136,7 @@ public class PartialCustomTabTestRule implements TestRule {
     @Mock ViewGroup mCompositorViewHolder;
     @Mock PackageManager mPackageManager;
     @Mock ActivityManager mActivityManager;
+    @Mock CustomTabToolbarButtonsCoordinator mToolbarButtonsCoordinator;
     @Captor ArgumentCaptor<View.OnAttachStateChangeListener> mAttachStateChangeListener;
 
     Context mContext;
@@ -201,8 +202,7 @@ public class PartialCustomTabTestRule implements TestRule {
                         any(Context.class),
                         any(BooleanSupplier.class),
                         any(Supplier.class),
-                        any(PartialCustomTabHandleStrategy.DragEventCallback.class),
-                        any(Callback.class)))
+                        any(PartialCustomTabHandleStrategy.DragEventCallback.class)))
                 .thenReturn(null);
         mConfiguration.orientation = Configuration.ORIENTATION_PORTRAIT;
 
@@ -245,6 +245,7 @@ public class PartialCustomTabTestRule implements TestRule {
         mContext = ApplicationProvider.getApplicationContext();
         ContextUtils.initApplicationContextForTests(mContext);
         when(mActivity.getSystemService(Context.ACTIVITY_SERVICE)).thenReturn(mActivityManager);
+        when(mActivity.getSystemService(Context.WINDOW_SERVICE)).thenReturn(mWindowManager);
         when(mActivity.getPackageManager()).thenReturn(mPackageManager);
     }
 

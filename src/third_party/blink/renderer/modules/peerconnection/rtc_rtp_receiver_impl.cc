@@ -9,7 +9,6 @@
 #include "base/functional/bind.h"
 #include "base/notreached.h"
 #include "base/task/single_thread_task_runner.h"
-#include "third_party/blink/renderer/modules/peerconnection/peer_connection_features.h"
 #include "third_party/blink/renderer/platform/peerconnection/rtc_encoded_audio_stream_transformer.h"
 #include "third_party/blink/renderer/platform/peerconnection/rtc_encoded_video_stream_transformer.h"
 #include "third_party/blink/renderer/platform/peerconnection/rtc_rtp_sender_platform.h"
@@ -114,7 +113,7 @@ scoped_refptr<webrtc::RtpReceiverInterface> RtpReceiverState::webrtc_receiver()
   return webrtc_receiver_;
 }
 
-rtc::scoped_refptr<webrtc::DtlsTransportInterface>
+webrtc::scoped_refptr<webrtc::DtlsTransportInterface>
 RtpReceiverState::webrtc_dtls_transport() const {
   DCHECK(main_task_runner_->BelongsToCurrentThread());
   return webrtc_dtls_transport_;
@@ -142,7 +141,7 @@ class RTCRtpReceiverImpl::RTCRtpReceiverInternal
           RTCRtpReceiverImpl::RTCRtpReceiverInternal,
           RTCRtpReceiverImpl::RTCRtpReceiverInternalTraits> {
  public:
-  RTCRtpReceiverInternal(rtc::scoped_refptr<webrtc::PeerConnectionInterface>
+  RTCRtpReceiverInternal(webrtc::scoped_refptr<webrtc::PeerConnectionInterface>
                              native_peer_connection,
                          RtpReceiverState state,
                          bool require_encoded_insertable_streams,
@@ -154,26 +153,21 @@ class RTCRtpReceiverImpl::RTCRtpReceiverInternal
         state_(std::move(state)) {
     DCHECK(native_peer_connection_);
     DCHECK(state_.is_initialized());
-    if (require_encoded_insertable_streams ||
-        base::FeatureList::IsEnabled(
-            kWebRtcEncodedTransformsPerStreamCreation)) {
-      if (webrtc_receiver_->media_type() == cricket::MEDIA_TYPE_AUDIO) {
-        encoded_audio_transformer_ =
-            std::make_unique<RTCEncodedAudioStreamTransformer>(
-                main_task_runner_);
-        webrtc_receiver_->SetDepacketizerToDecoderFrameTransformer(
-            encoded_audio_transformer_->Delegate());
-      }
-      if (webrtc_receiver_->media_type() == cricket::MEDIA_TYPE_VIDEO) {
-        encoded_video_transformer_ =
-            std::make_unique<RTCEncodedVideoStreamTransformer>(
-                main_task_runner_, base::FeatureList::IsEnabled(
-                                       kRTCAlignReceivedEncodedVideoTransforms)
-                                       ? std::move(decode_metronome)
-                                       : nullptr);
-        webrtc_receiver_->SetDepacketizerToDecoderFrameTransformer(
-            encoded_video_transformer_->Delegate());
-      }
+    if (webrtc_receiver_->media_type() == webrtc::MediaType::AUDIO) {
+      encoded_audio_transformer_ =
+          std::make_unique<RTCEncodedAudioStreamTransformer>(main_task_runner_);
+      webrtc_receiver_->SetDepacketizerToDecoderFrameTransformer(
+          encoded_audio_transformer_->Delegate());
+    } else {
+      CHECK(webrtc_receiver_->media_type() == webrtc::MediaType::VIDEO);
+      encoded_video_transformer_ =
+          std::make_unique<RTCEncodedVideoStreamTransformer>(
+              main_task_runner_, base::FeatureList::IsEnabled(
+                                     kRTCAlignReceivedEncodedVideoTransforms)
+                                     ? std::move(decode_metronome)
+                                     : nullptr);
+      webrtc_receiver_->SetDepacketizerToDecoderFrameTransformer(
+          encoded_video_transformer_->Delegate());
     }
     DCHECK(!encoded_audio_transformer_ || !encoded_video_transformer_);
   }
@@ -239,13 +233,13 @@ class RTCRtpReceiverImpl::RTCRtpReceiverInternal
 
   void GetStatsOnSignalingThread(RTCStatsReportCallback callback) {
     native_peer_connection_->GetStats(
-        rtc::scoped_refptr<webrtc::RtpReceiverInterface>(
+        webrtc::scoped_refptr<webrtc::RtpReceiverInterface>(
             webrtc_receiver_.get()),
         CreateRTCStatsCollectorCallback(main_task_runner_,
                                         std::move(callback)));
   }
 
-  const rtc::scoped_refptr<webrtc::PeerConnectionInterface>
+  const webrtc::scoped_refptr<webrtc::PeerConnectionInterface>
       native_peer_connection_;
   // Task runners and webrtc receiver: Same information as stored in
   // |state_| but const and safe to touch on the signaling thread to
@@ -280,7 +274,8 @@ uintptr_t RTCRtpReceiverImpl::getId(
 }
 
 RTCRtpReceiverImpl::RTCRtpReceiverImpl(
-    rtc::scoped_refptr<webrtc::PeerConnectionInterface> native_peer_connection,
+    webrtc::scoped_refptr<webrtc::PeerConnectionInterface>
+        native_peer_connection,
     RtpReceiverState state,
     bool require_encoded_insertable_streams,
     std::unique_ptr<webrtc::Metronome> decode_metronome)
@@ -318,7 +313,7 @@ uintptr_t RTCRtpReceiverImpl::Id() const {
   return getId(internal_->state().webrtc_receiver().get());
 }
 
-rtc::scoped_refptr<webrtc::DtlsTransportInterface>
+webrtc::scoped_refptr<webrtc::DtlsTransportInterface>
 RTCRtpReceiverImpl::DtlsTransport() {
   return internal_->state().webrtc_dtls_transport();
 }

@@ -89,15 +89,6 @@ const char kBackForwardCacheEnabled[] = "policy.back_forward_cache_enabled";
 const char kReadAloudEnabled[] = "policy.read_aloud_enabled";
 #endif  // BUILDFLAG(IS_ANDROID)
 
-// Boolean policy preference to disable the User-Agent Client Hints
-// updated GREASE algorithm feature.
-const char kUserAgentClientHintsGREASEUpdateEnabled[] =
-    "policy.user_agent_client_hints_grease_update_enabled";
-
-// Boolean policy to allow isolated apps developer mode.
-const char kIsolatedAppsDeveloperModeAllowed[] =
-    "policy.isolated_apps_developer_mode_allowed";
-
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
 // Last time that a check for cloud policy management was done. This time is
 // recorded on Android and iOS so that retries aren't attempted on every
@@ -109,6 +100,10 @@ const char kLastPolicyCheckTime[] = "policy.last_policy_check_time";
 #if BUILDFLAG(IS_IOS)
 const char kUserPolicyNotificationWasShown[] =
     "policy.user_policy_notification_was_shown";
+
+// A bool for storing whether the user has seen the sync disabled alert since
+// sync was disabled.
+const char kSyncDisabledAlertShown[] = "sync.disabled_alert_shown";
 #endif
 
 // Boolean controlling whether SafeSearch is mandatory for Google Web Searches.
@@ -128,23 +123,26 @@ const char kHideWebStoreIcon[] = "hide_web_store_icon";
 // 2 - Forced. All pages/sessions are forced into Incognito.
 const char kIncognitoModeAvailability[] = "incognito.mode_availability";
 
-// A boolean indicating whether the new behavior for beforeunload show cancel
-// dialog is in effect. If true, then
-// 1. If event.preventDefault() is called, prompt cancel dialog.
-// 2. If event.returnValue is the empty string, do not prompt cancel dialog.
-const char kBeforeunloadEventCancelByPreventDefaultEnabled[] =
-    "policy.beforeunload_event_cancel_by_prevent_default_enabled";
-
 // A boolean indicating whether scrollers should be focusable. If true, then
-// 1. Scrollers are click-focusable and programmatically-focusable by default.
-// 2. Scrollers without focusable children are keyboard-focusable by default.
+// scrollers without focusable children are keyboard-focusable by default.
 const char kKeyboardFocusableScrollersEnabled[] =
     "policy.keyboard_focusable_scrollers_enabled";
+
+// Enables the newly-specified behavior of the CSS "zoom" property.
+const char kStandardizedBrowserZoomEnabled[] =
+    "policy.standardized_browser_zoom_enabled";
 
 // Boolean indicating whether Policy Test Page is Enabled.
 // The value is controlled by the PolicyTestPageEnabled policy.
 // If this is set to True, the page will be accessible.
 const char kPolicyTestPageEnabled[] = "policy_test_page_enabled";
+
+// Boolean indicating if the user has permanently dismissed the promotion
+// banner on the chrome://policy page. If it's true, it means the user
+// has clicked the "dismiss" button and has the banner turned off, if the
+// value is false, the user has taken no action to turn off the banner.
+const char kHasDismissedPolicyPagePromotionBanner[] =
+    "has_dismissed_policy_page_promotion_banner";
 
 // A boolean pref indicating whether the new the page with "Cache-Control:
 // no-store" header is allowed to be stored in back/forward cache.
@@ -154,16 +152,31 @@ const char kAllowBackForwardCacheForCacheControlNoStorePageEnabled[] =
 const char kLocalTestPoliciesForNextStartup[] =
     "local_test_policies_for_next_startup";
 
-// A boolean pref indicating whether to fire deprecated/removed mutation events.
-// If false, mutation events might not be fired.
-const char kMutationEventsEnabled[] =
-    "policy.deprecated_mutation_events_enabled";
+// Enables the deprecated :--foo syntax of CSS custom state. The :--foo syntax
+// was deprecated and replaced by :state(foo).
+const char kCSSCustomStateDeprecatedSyntaxEnabled[] =
+    "policy.css_custom_state_deprecated_syntax_enabled";
+
+// A boolean pref indicating whether the new HTML parser for the <select>
+// element is enabled. When enabled, the HTML parser allows more tags to be used
+// inside <select> instead of removing them.
+const char kSelectParserRelaxationEnabled[] =
+    "policy.select_parser_relaxation_enabled";
 
 // A boolean pref indicating whether to allow deprecation of the "unload"
 // event.
 // If false, the deprecation rollout will be ignored.
 const char kForcePermissionPolicyUnloadDefaultEnabled[] =
     "policy.force_permission_policy_unload_default_enabled";
+
+// Prevents certain types of downloads based on integer value, which corresponds
+// to policy::DownloadRestriction.
+// 0 - No special restrictions (default)
+// 1 - Block dangerous downloads
+// 2 - Block potentially dangerous downloads
+// 3 - Block all downloads
+// 4 - Block malicious downloads
+const char kDownloadRestrictions[] = "download_restrictions";
 
 #if BUILDFLAG(IS_CHROMEOS)
 // Allows user browser navigation access to the listed host patterns. Only
@@ -174,5 +187,9 @@ const char kAlwaysOnVpnPreConnectUrlAllowlist[] =
 // Boolean value for the FloatingWorkspaceEnabled policy
 const char kFloatingWorkspaceEnabled[] = "ash.floating_workspace_enabled";
 #endif
+
+// A boolean value indicating whether the built-in AI APIs are enabled.
+const char kBuiltInAIAPIsEnabled[] = "policy.built_in_ai_apis_enabled";
+
 }  // namespace policy_prefs
 }  // namespace policy

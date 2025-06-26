@@ -2,20 +2,27 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/342213636): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "content/browser/child_process_launcher_helper.h"
 
 #import <BrowserEngineKit/BrowserEngineKit.h>
 
 #include <list>
 
-#include "base/mac/mach_port_rendezvous.h"
+#include "base/apple/mach_port_rendezvous_ios.h"
 #include "base/no_destructor.h"
 #include "base/threading/platform_thread.h"
 #include "content/browser/child_process_launcher.h"
 #include "content/browser/child_process_launcher_helper_posix.h"
 #include "content/public/browser/child_process_launcher_utils.h"
 #include "content/public/common/content_switches.h"
+#include "gpu/ipc/common/surface_handle.h"
 #include "services/network/public/mojom/network_service.mojom.h"
+#include "ui/accelerated_widget_mac/ca_layer_frame_sink_provider.h"
 
 namespace content {
 namespace internal {
@@ -189,7 +196,7 @@ ChildProcessLauncherHelper::LaunchProcessOnLauncherThread(
     int* launch_result) {
   DCHECK(options);
   *is_synchronous_launch = false;
-  rendezvous_server_ = std::make_unique<base::MachPortRendezvousServer>(
+  rendezvous_server_ = std::make_unique<base::MachPortRendezvousServerIOS>(
       options->mach_ports_for_rendezvous);
 
   // We need to hand out unique "process ids" just use a static counter
@@ -210,8 +217,7 @@ ChildProcessLauncherHelper::LaunchProcessOnLauncherThread(
   std::string process_type = GetProcessType();
   std::string utility_sub_type =
       command_line()->GetSwitchValueASCII(switches::kUtilitySubType);
-  if (process_type == switches::kUtilityProcess &&
-      utility_sub_type == network::mojom::NetworkService::Name_) {
+  if (process_type == switches::kUtilityProcess) {
     void (^process_launch_complete)(BENetworkingProcess* process,
                                     NSError* error) =
         ^void(BENetworkingProcess* process, NSError* error) {
@@ -280,9 +286,50 @@ void ChildProcessLauncherHelper::OnChildProcessStarted(
     xpc_connection_t xpc_connection =
         launch_result->CreateXPCConnection(&error);
     if (xpc_connection) {
+      scoped_refptr<base::SequencedTaskRunner> client_task_runner =
+          client_task_runner_;
+      bool is_gpu_process = GetProcessType() == switches::kGpuProcess;
+
       xpc_connection_set_event_handler(xpc_connection, ^(xpc_object_t event) {
-        if (event == XPC_ERROR_CONNECTION_INTERRUPTED) {
+        if (event == XPC_ERROR_CONNECTION_INTERRUPTED ||
+            event == XPC_ERROR_CONNECTION_INVALID) {
           OnChildProcessTerminatedOnAnyThread(process_id);
+        }
+
+        const char* message_type = xpc_dictionary_get_string(event, "message");
+        if (message_type && strcmp(message_type, "layerHandle") == 0) {
+          // We only expect this message from the GPU process.
+          if (!is_gpu_process) {
+            xpc_connection_cancel(xpc_connection);
+            return;
+          }
+          xpc_object_t ca_layer_handle =
+              xpc_dictionary_get_value(event, "layer");
+          gpu::SurfaceHandle view_handle =
+              xpc_dictionary_get_uint64(event, "handle");
+
+          // Validate arguments.
+          if (!ca_layer_handle || !view_handle) {
+            xpc_connection_cancel(xpc_connection);
+            return;
+          }
+
+          client_task_runner->PostTask(
+              FROM_HERE,
+              base::BindOnce(
+                  [](gpu::SurfaceHandle view_handle,
+                     xpc_object_t ca_layer_handle) {
+                    NSError* error = nullptr;
+                    BELayerHierarchyHandle* be_handle = [BELayerHierarchyHandle
+                        handleWithXPCRepresentation:ca_layer_handle
+                                              error:&error];
+                    CALayerFrameSinkProvider* sink =
+                        [CALayerFrameSinkProvider lookupByHandle:view_handle];
+                    if (sink) {
+                      sink.handle = be_handle;
+                    }
+                  },
+                  view_handle, ca_layer_handle));
         }
       });
       xpc_connection_resume(xpc_connection);
@@ -293,6 +340,8 @@ void ChildProcessLauncherHelper::OnChildProcessStarted(
         xpc_array_append_value(args_array, value);
       }
       xpc_dictionary_set_value(message, "args", args_array);
+      xpc_dictionary_set_fd(message, "stdout", STDOUT_FILENO);
+      xpc_dictionary_set_fd(message, "stderr", STDERR_FILENO);
       xpc_dictionary_set_mach_send(
           message, "port", rendezvous_server_->GetMachSendRight().get());
       xpc_connection_send_message(xpc_connection, message);
@@ -387,8 +436,7 @@ base::File OpenFileToShare(const base::FilePath& path,
                            base::MemoryMappedFile::Region* region) {
   // Not used yet (until required files are described in the service manifest on
   // iOS).
-  NOTREACHED_IN_MIGRATION();
-  return base::File();
+  NOTREACHED();
 }
 
 }  //  namespace internal

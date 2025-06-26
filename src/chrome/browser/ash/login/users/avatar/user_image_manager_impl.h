@@ -32,6 +32,7 @@ class UserManager;
 
 namespace ash {
 
+class UserImageLoaderDelegate;
 class UserImageSyncObserver;
 
 // Provides a mechanism for updating user images. There is an instance of this
@@ -41,6 +42,10 @@ class UserImageManagerImpl : public ProfileDownloaderDelegate {
   // The name of the histogram that records when a user changes a device image.
   inline static constexpr char kUserImageChangedHistogramName[] =
       "UserImage.Changed2";
+
+  // The name of the histogram that records the user's chosen image at login.
+  inline static constexpr char kUserImageLoggedInHistogramName[] =
+      "UserImage.LoggedIn3";
 
   // Converts `image_index` to UMA histogram value.
   static int ImageIndexToHistogramIndex(int image_index);
@@ -52,7 +57,8 @@ class UserImageManagerImpl : public ProfileDownloaderDelegate {
   static void RegisterPrefs(PrefRegistrySimple* registry);
 
   UserImageManagerImpl(const AccountId& account_id,
-                       user_manager::UserManager* user_manager);
+                       user_manager::UserManager* user_manager,
+                       UserImageLoaderDelegate* user_image_loader_delegate);
 
   UserImageManagerImpl(const UserImageManagerImpl&) = delete;
   UserImageManagerImpl& operator=(const UserImageManagerImpl&) = delete;
@@ -61,6 +67,11 @@ class UserImageManagerImpl : public ProfileDownloaderDelegate {
 
   // Loads user image data from Local State.
   void LoadUserImage();
+
+  // Starts downloading the profile image for the user.  If user's image
+  // index is `USER_IMAGE_PROFILE`, newly downloaded image is immediately
+  // set as user's current picture.
+  void DownloadProfileImage();
 
   // Indicates that a user has just logged in.
   void UserLoggedIn(bool user_is_new, bool user_is_local);
@@ -139,6 +150,7 @@ class UserImageManagerImpl : public ProfileDownloaderDelegate {
 
  private:
   friend class UserImageManagerTestBase;
+  friend class UserImageManagerImplTest;
 
   // ID of user which images are managed by current instance of
   // UserImageManager.
@@ -225,6 +237,10 @@ class UserImageManagerImpl : public ProfileDownloaderDelegate {
   // The user manager.
   raw_ptr<user_manager::UserManager> user_manager_;
 
+  // A delegate to retrieve user images from disk and network. Allows injecting
+  // a mock for testing.
+  raw_ptr<UserImageLoaderDelegate> user_image_loader_delegate_;
+
   // Whether the `profile_downloader_` is downloading the profile image for the
   // currently logged-in user (and not just the full name). Only valid when a
   // download is currently in progress.
@@ -245,6 +261,11 @@ class UserImageManagerImpl : public ProfileDownloaderDelegate {
   // URL from which `downloaded_profile_image_` was downloaded. Empty if no
   // `downloaded_profile_image_` is currently available.
   GURL profile_image_url_;
+
+  // Whether a download of the currently logged-in user's profile image has been
+  // explicitly requested by a call to DownloadProfileImage() and has not been
+  // satisfied by a successful download yet.
+  bool profile_image_requested_;
 
   // Timer used to start a profile data download shortly after login and to
   // restart the download after network errors.

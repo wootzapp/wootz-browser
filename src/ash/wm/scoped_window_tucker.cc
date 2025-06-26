@@ -78,7 +78,7 @@ void ScopedWindowTucker::TuckHandleView::PaintButtonContents(
 
 void ScopedWindowTucker::TuckHandleView::OnGestureEvent(
     ui::GestureEvent* event) {
-  if (event->type() != ui::ET_GESTURE_SCROLL_BEGIN) {
+  if (event->type() != ui::EventType::kGestureScrollBegin) {
     views::Button::OnGestureEvent(event);
     return;
   }
@@ -182,8 +182,6 @@ void ScopedWindowTucker::AnimateUntuck(base::OnceClosure callback) {
   tuck_handle->SetBounds(delegate_->GetTuckHandleBounds(left_, final_bounds));
 
   views::AnimationBuilder()
-      // TODO(sammiequon|sophiewen): Should we handle the case where the
-      // animation gets aborted?
       .OnEnded(std::move(callback))
       .SetPreemptionStrategy(
           ui::LayerAnimator::IMMEDIATELY_ANIMATE_TO_NEW_TARGET)
@@ -235,7 +233,9 @@ void ScopedWindowTucker::OnWindowBoundsChanged(
 }
 
 void ScopedWindowTucker::InitializeTuckHandleWidget() {
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_POPUP);
+  views::Widget::InitParams params(
+      views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+      views::Widget::InitParams::TYPE_POPUP);
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
   params.parent =
       window()->GetRootWindow()->GetChildById(delegate_->ParentContainerId());
@@ -262,7 +262,7 @@ void ScopedWindowTucker::InitializeTuckHandleWidget() {
   auto mru_windows =
       Shell::Get()->mru_window_tracker()->BuildMruWindowList(kActiveDesk);
   auto app_window_it =
-      base::ranges::find_if(mru_windows, [this](aura::Window* w) {
+      std::ranges::find_if(mru_windows, [this](aura::Window* w) {
         CHECK(WindowState::Get(w));
         return w != window() && !WindowState::Get(w)->IsMinimized();
       });

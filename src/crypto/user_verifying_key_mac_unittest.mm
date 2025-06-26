@@ -13,10 +13,8 @@
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
 #include "crypto/fake_apple_keychain_v2.h"
-#include "crypto/features.h"
 #include "crypto/scoped_fake_apple_keychain_v2.h"
 #include "crypto/scoped_lacontext.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -43,8 +41,11 @@ class UserVerifyingKeyMacTest : public testing::Test {
     provider_->GenerateUserVerifyingSigningKey(
         kAcceptableAlgos,
         base::BindLambdaForTesting(
-            [&](std::unique_ptr<UserVerifyingSigningKey> result) {
-              key = std::move(result);
+            [&](base::expected<std::unique_ptr<UserVerifyingSigningKey>,
+                               UserVerifyingKeyCreationError> result) {
+              if (result.has_value()) {
+                key = std::move(result.value());
+              }
               run_loop.Quit();
             }));
     run_loop.Run();
@@ -56,11 +57,15 @@ class UserVerifyingKeyMacTest : public testing::Test {
     std::unique_ptr<UserVerifyingSigningKey> key;
     base::RunLoop run_loop;
     provider_->GetUserVerifyingSigningKey(
-        key_label, base::BindLambdaForTesting(
-                       [&](std::unique_ptr<UserVerifyingSigningKey> result) {
-                         key = std::move(result);
-                         run_loop.Quit();
-                       }));
+        key_label,
+        base::BindLambdaForTesting(
+            [&](base::expected<std::unique_ptr<UserVerifyingSigningKey>,
+                               UserVerifyingKeyCreationError> result) {
+              if (result.has_value()) {
+                key = std::move(result.value());
+              }
+              run_loop.Quit();
+            }));
     run_loop.Run();
     return key;
   }
@@ -81,11 +86,15 @@ class UserVerifyingKeyMacTest : public testing::Test {
                                            base::span<const uint8_t> message) {
     std::optional<std::vector<uint8_t>> signature;
     base::RunLoop run_loop;
-    key->Sign(message, base::BindLambdaForTesting(
-                           [&](std::optional<std::vector<uint8_t>> result) {
-                             signature = std::move(result);
-                             run_loop.Quit();
-                           }));
+    key->Sign(message,
+              base::BindLambdaForTesting(
+                  [&](base::expected<std::vector<uint8_t>,
+                                     UserVerifyingKeySigningError> result) {
+                    if (result.has_value()) {
+                      signature = std::move(result.value());
+                    }
+                    run_loop.Quit();
+                  }));
     run_loop.Run();
     return signature;
   }
@@ -95,9 +104,6 @@ class UserVerifyingKeyMacTest : public testing::Test {
       kTestKeychainAccessGroup};
 
   base::test::TaskEnvironment task_environment_;
-
-  base::test::ScopedFeatureList scoped_feature_list_{
-      kEnableMacUnexportableKeys};
 
   std::unique_ptr<UserVerifyingKeyProvider> provider_ =
       crypto::GetUserVerifyingKeyProvider(MakeConfig());

@@ -173,9 +173,9 @@ TEST(ExtensionProxyApiHelpers, GetProxyRulesStringFromExtensionPref) {
   EXPECT_EQ(std::string(), error);
 
   base::Value::Dict proxy_rules;
-  proxy_rules.Set(proxy_api_helpers::field_name[1],
+  proxy_rules.Set(proxy_api_helpers::kFieldNames[1],
                   CreateTestProxyServerDict("proxy1"));
-  proxy_rules.Set(proxy_api_helpers::field_name[2],
+  proxy_rules.Set(proxy_api_helpers::kFieldNames[2],
                   CreateTestProxyServerDict("proxy2"));
   proxy_config.Set(keys::kProxyConfigRules, std::move(proxy_rules));
 

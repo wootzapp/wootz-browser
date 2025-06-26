@@ -502,7 +502,7 @@ void MultipleFieldsTemporalInputTypeView::HandleKeydownEvent(
   if (!GetElement().IsFocused())
     return;
   if (picker_indicator_is_visible_ &&
-      ((event.key() == "ArrowDown" && event.getModifierState("Alt")) ||
+      ((event.key() == keywords::kArrowDown && event.getModifierState("Alt")) ||
        event.key() == "F4" || event.key() == " ")) {
     OpenPopupView();
     event.SetDefaultHandled();
@@ -615,8 +615,8 @@ void MultipleFieldsTemporalInputTypeView::UpdateView() {
   UpdateClearButtonVisibility();
 }
 
-ControlPart MultipleFieldsTemporalInputTypeView::AutoAppearance() const {
-  return kTextFieldPart;
+AppearanceValue MultipleFieldsTemporalInputTypeView::AutoAppearance() const {
+  return AppearanceValue::kTextField;
 }
 
 void MultipleFieldsTemporalInputTypeView::OpenPopupView() {
@@ -636,6 +636,13 @@ bool MultipleFieldsTemporalInputTypeView::HasOpenedPopup() const {
   if (PickerIndicatorElement* picker = GetPickerIndicatorElement())
     return picker->HasOpenedPopup();
 
+  return false;
+}
+
+bool MultipleFieldsTemporalInputTypeView::IsPickerVisible() const {
+  if (PickerIndicatorElement* picker = GetPickerIndicatorElement()) {
+    return picker->IsPickerVisible();
+  }
   return false;
 }
 

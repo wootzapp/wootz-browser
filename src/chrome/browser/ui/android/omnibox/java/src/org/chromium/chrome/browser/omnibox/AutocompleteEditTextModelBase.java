@@ -11,11 +11,15 @@ import android.view.inputmethod.InputConnection;
 import android.widget.EditText;
 import android.widget.TextView;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+
+import java.util.Optional;
+
 /** An abstraction of the text model to show, keep track of, and update autocomplete. */
+@NullMarked
 public interface AutocompleteEditTextModelBase {
     /** An embedder should implement this. */
     public interface Delegate {
@@ -117,7 +121,7 @@ public interface AutocompleteEditTextModelBase {
      * @param inputConnection An {@link InputConnection} created by EditText.
      * @return A wrapper @{link InputConnection} created by the model.
      */
-    InputConnection onCreateInputConnection(InputConnection inputConnection);
+    @Nullable InputConnection onCreateInputConnection(@Nullable InputConnection inputConnection);
 
     /**
      * Called when View#dispatchKeyEvent(KeyEvent event) is called.
@@ -173,10 +177,17 @@ public interface AutocompleteEditTextModelBase {
     String getTextWithoutAutocomplete();
 
     /**
-     * Returns the length of the autocomplete text currently displayed, zero if none is currently
-     * displayed.
+     * @return The length of the autocomplete text currently displayed, zero if none is currently
+     *     displayed.
      */
     int getAutocompleteTextLength();
+
+    /**
+     * @return The additional text presented in the omnibox, indicating the destination of the
+     *     default match.
+     */
+    @VisibleForTesting
+    Optional<String> getAdditionalText();
 
     /**
      * Sets whether text changes should trigger autocomplete.
@@ -191,9 +202,13 @@ public interface AutocompleteEditTextModelBase {
      *
      * @param userText user The text entered by the user.
      * @param inlineAutocompleteText The suggested autocompletion for the user's text.
+     * @param additionalText This string is displayed adjacent to the omnibox if this match is the
+     *     default. Will usually be URL when autocompleting a title, and empty otherwise.
      */
     void setAutocompleteText(
-            @NonNull CharSequence userText, @Nullable CharSequence inlineAutocompleteText);
+            CharSequence userText,
+            @Nullable CharSequence inlineAutocompleteText,
+            Optional<String> additionalText);
 
     /**
      * Whether we want to be showing inline autocomplete results. We don't want to show them as the
@@ -214,13 +229,10 @@ public interface AutocompleteEditTextModelBase {
      * @return The current {@link InputConnection} object.
      */
     @VisibleForTesting
-    InputConnection getInputConnection();
+    @Nullable InputConnection getInputConnection();
 
     /**
      * @return Whether accessibility event should be ignored.
      */
     boolean shouldIgnoreAccessibilityEvent();
-
-    /** Set whether layout (and text) direction is Left-To-Right. */
-    void setLayoutDirectionIsLtr(boolean isLtr);
 }

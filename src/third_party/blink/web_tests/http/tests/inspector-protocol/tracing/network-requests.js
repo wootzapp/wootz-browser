@@ -14,41 +14,39 @@
   dp.Page.navigate(
       {url: 'http://127.0.0.1:8000/inspector-protocol/resources/basic.html'});
 
-  await new Promise(resolve => {
-    let count = 0;
-    dp.Network.onResponseReceived(() => {
-        ++count;
-        if (count === 4) resolve();
-    });
+  // Get the ID of the request for the HTML page
+  const htmlRequest = await dp.Network.onceRequestWillBeSent(e => {
+    return e.params.request.url.includes('basic.html');
+  });
+
+  // Wait for the HTML request so we can assert on the trace events.
+  // Note: we used to wait for all 4 requests in the URL above to complete, but
+  // it caused regular flakes and timeouts across bots.
+  // See crbug.com/40268741 for the various attempts to make this test stable.
+  await dp.Network.onceLoadingFinished(e => {
+    return e.params.requestId === htmlRequest.params.requestId;
   });
 
   const timelineEvents = await tracingHelper.stopTracing(/devtools.timeline/);
-
   const eventNames = new Set(['ResourceSendRequest', 'ResourceWillSendRequest', 'ResourceReceiveResponse', 'ResourceReceivedData', 'ResourceFinish']);
-  const eventsByRequestId = new Map();
-  const requestIdToUrl = new Map();
 
+  const matchingEventsForRequest = []
   for (const event of timelineEvents) {
     if (!eventNames.has(event.name)) {
         continue;
-    };
-    if (!event.args.data.requestId) continue;
-    const events = eventsByRequestId.get(event.args.data.requestId) || [];
-    events.push(event);
-    eventsByRequestId.set(event.args.data.requestId, events);
-
-    if (event.args.data.url) {
-        requestIdToUrl.set(event.args.data.requestId, event.args.data.url);
-    };
+    }
+    if (event.args.data.requestId === htmlRequest.params.requestId) {
+      matchingEventsForRequest.push(event)
+    }
   }
 
-  const orderedKeys = Array.from(requestIdToUrl.entries())
-    .sort((a, b) => a[1].localeCompare(b[1]))
-    .map(r => r[0]);
-  for (const key of orderedKeys) {
-    const events = eventsByRequestId.get(key);
-    for (const event of events) {
-      tracingHelper.logEventShape(event, [], ['name', 'resourceType', 'isLinkPreload', 'fetchPriorityHint', 'fetchType', 'protocol'])
+  testRunner.log(`\nTrace events for index.html request`);
+  for (const event of matchingEventsForRequest) {
+    testRunner.log(`\n======= ${event.name} ======`)
+      tracingHelper.logEventShape(event, ['headers'], ['name', 'resourceType', 'isLinkPreload', 'fetchPriorityHint', 'fetchType', 'protocol']);
+    if (event.args.data.headers && event.args.data.headers.length) {
+      // We found the exact list of headers was flakey, so we just instead check that we got some headers.
+      testRunner.log(`${event.name} has args.data.headers`)
     }
   }
 

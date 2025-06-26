@@ -13,6 +13,7 @@ import org.chromium.chrome.browser.tab.TabBuilder;
 import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabState;
+import org.chromium.chrome.browser.tabmodel.TabCreator.NeedsTabModel;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
@@ -21,7 +22,7 @@ import org.chromium.url.GURL;
 /**
  * Creates tabs for the archived tab model selector during restore. This only creates frozen tabs.
  */
-public class ArchivedTabCreator extends TabCreator {
+public class ArchivedTabCreator extends TabCreator implements NeedsTabModel {
     private final WindowAndroid mWindow;
     private TabModel mTabModel;
 
@@ -32,9 +33,7 @@ public class ArchivedTabCreator extends TabCreator {
         mWindow = window;
     }
 
-    /**
-     * @param tabModel The {@link TabModel} to add tabs to.
-     */
+    @Override
     public void setTabModel(TabModel tabModel) {
         mTabModel = tabModel;
     }
@@ -65,7 +64,7 @@ public class ArchivedTabCreator extends TabCreator {
                 TabBuilder.createForLazyLoad(mTabModel.getProfile(), loadUrlParams, title)
                         .setWindow(mWindow)
                         .setLaunchType(TabLaunchType.FROM_RESTORE)
-                        .setTabResolver((tabId) -> TabModelUtils.getTabById(mTabModel, tabId))
+                        .setTabResolver((tabId) -> mTabModel.getTabById(tabId))
                         .setInitiallyHidden(true)
                         .setDelegateFactory(CustomTabDelegateFactory.createEmpty())
                         .build();
@@ -82,7 +81,7 @@ public class ArchivedTabCreator extends TabCreator {
                         .setWindow(mWindow)
                         .setId(id)
                         .setLaunchType(TabLaunchType.FROM_RESTORE)
-                        .setTabResolver((tabId) -> TabModelUtils.getTabById(mTabModel, tabId))
+                        .setTabResolver((tabId) -> mTabModel.getTabById(tabId))
                         .setInitiallyHidden(true)
                         .setTabState(state)
                         .setDelegateFactory(CustomTabDelegateFactory.createEmpty())
@@ -99,12 +98,13 @@ public class ArchivedTabCreator extends TabCreator {
     }
 
     @Override
-    public boolean createTabWithWebContents(
+    public Tab createTabWithWebContents(
             @Nullable Tab parent,
             WebContents webContents,
             @TabLaunchType int type,
-            @NonNull GURL url) {
+            @NonNull GURL url,
+            boolean addTabToModel) {
         assert false : "Not reached.";
-        return false;
+        return null;
     }
 }

@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -22,19 +23,18 @@
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/message_loop/message_pump_type.h"
-#include "base/ranges/algorithm.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_executor.h"
 #include "base/task/thread_pool.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
+#include "chrome/enterprise_companion/device_management_storage/dm_storage.h"
 #include "chrome/updater/app/app.h"
 #include "chrome/updater/configurator.h"
 #include "chrome/updater/constants.h"
-#include "chrome/updater/device_management/dm_cached_policy_info.h"
 #include "chrome/updater/device_management/dm_message.h"
 #include "chrome/updater/device_management/dm_response_validator.h"
-#include "chrome/updater/device_management/dm_storage.h"
 #include "chrome/updater/external_constants_default.h"
 #include "chrome/updater/ipc/ipc_support.h"
 #include "chrome/updater/policy/service.h"
@@ -146,22 +146,24 @@ std::ostream& operator<<(std::ostream& os,
   }
 }
 
-scoped_refptr<DMStorage> GetDMStorage() {
+scoped_refptr<device_management_storage::DMStorage> GetDMStorage() {
   const base::FilePath storage_path =
       base::CommandLine::ForCurrentProcess()->GetSwitchValuePath(
           kCBCMPolicyPathSwitch);
-  return storage_path.empty() ? GetDefaultDMStorage()
-                              : base::MakeRefCounted<DMStorage>(storage_path);
+  return storage_path.empty()
+             ? device_management_storage::GetDefaultDMStorage()
+             : device_management_storage::CreateDMStorage(storage_path);
 }
 
-std::unique_ptr<CachedPolicyInfo> GetCachedPolicyInfo(
-    scoped_refptr<DMStorage> dm_storage) {
+std::unique_ptr<device_management_storage::CachedPolicyInfo>
+GetCachedPolicyInfo(
+    scoped_refptr<device_management_storage::DMStorage> dm_storage) {
   const base::FilePath policy_info_file =
-      dm_storage->policy_cache_folder().AppendASCII("CachedPolicyInfo");
-  auto cached_info = std::make_unique<CachedPolicyInfo>();
+      dm_storage->policy_cache_folder().AppendUTF8("CachedPolicyInfo");
+  auto cached_info =
+      std::make_unique<device_management_storage::CachedPolicyInfo>();
   std::string policy_info_data;
-  if (base::PathExists(policy_info_file) &&
-      base::ReadFileToString(policy_info_file, &policy_info_data)) {
+  if (base::ReadFileToString(policy_info_file, &policy_info_data)) {
     cached_info->Populate(policy_info_data);
   }
   return cached_info;
@@ -173,14 +175,13 @@ std::unique_ptr<edm::OmahaSettingsClientProto> GetOmahaPolicySettings() {
 
   base::FilePath omaha_policy_file = GetDMStorage()
                                          ->policy_cache_folder()
-                                         .AppendASCII(encoded_omaha_policy_type)
-                                         .AppendASCII("PolicyFetchResponse");
+                                         .AppendUTF8(encoded_omaha_policy_type)
+                                         .AppendUTF8("PolicyFetchResponse");
   std::string response_data;
   ::enterprise_management::PolicyFetchResponse response;
   ::enterprise_management::PolicyData policy_data;
   auto omaha_settings = std::make_unique<edm::OmahaSettingsClientProto>();
-  if (!base::PathExists(omaha_policy_file) ||
-      !base::ReadFileToString(omaha_policy_file, &response_data) ||
+  if (!base::ReadFileToString(omaha_policy_file, &response_data) ||
       response_data.empty() || !response.ParseFromString(response_data) ||
       !policy_data.ParseFromString(response.policy_data()) ||
       !policy_data.has_policy_value() ||
@@ -194,24 +195,23 @@ std::unique_ptr<edm::OmahaSettingsClientProto> GetOmahaPolicySettings() {
 
 void PrintCachedPolicy(const base::FilePath& policy_path) {
   std::string policy_type;
-  if (!base::Base64Decode(policy_path.BaseName().MaybeAsASCII(),
+  if (!base::Base64Decode(policy_path.BaseName().AsUTF8Unsafe(),
                           &policy_type)) {
     std::cout << "Directory not base64 encoded: [" << policy_path << "]";
     return;
   }
 
-  base::FilePath policy_file = policy_path.AppendASCII("PolicyFetchResponse");
+  base::FilePath policy_file = policy_path.AppendUTF8("PolicyFetchResponse");
   std::string response_data;
   ::enterprise_management::PolicyFetchResponse response;
   auto omaha_settings = std::make_unique<edm::OmahaSettingsClientProto>();
-  if (!base::PathExists(policy_file) ||
-      !base::ReadFileToString(policy_file, &response_data) ||
+  if (!base::ReadFileToString(policy_file, &response_data) ||
       response_data.empty() || !response.ParseFromString(response_data)) {
     std::cout << "  [" << policy_type << "] <not parseable>";
     return;
   }
 
-  scoped_refptr<DMStorage> storage = GetDMStorage();
+  scoped_refptr<device_management_storage::DMStorage> storage = GetDMStorage();
   PolicyValidationResult status;
   DMResponseValidator validator(*GetCachedPolicyInfo(storage),
                                 storage->GetDmToken(), storage->GetDeviceID());
@@ -238,7 +238,8 @@ void PrintCachedPolicy(const base::FilePath& policy_path) {
             << std::endl;
 }
 
-void PrintCachedPolicyInfo(const CachedPolicyInfo& cached_info) {
+void PrintCachedPolicyInfo(
+    const device_management_storage::CachedPolicyInfo& cached_info) {
   constexpr size_t kPrintWidth = 16;
 
   std::cout << "Cached policy info:" << std::endl;
@@ -258,7 +259,7 @@ void PrintCachedPolicyInfo(const CachedPolicyInfo& cached_info) {
 }
 
 void PrintCBCMPolicies() {
-  scoped_refptr<DMStorage> storage = GetDMStorage();
+  scoped_refptr<device_management_storage::DMStorage> storage = GetDMStorage();
   if (!storage) {
     std::cerr << "Failed to instantiate DM storage instance." << std::endl;
     return;
@@ -271,7 +272,8 @@ void PrintCBCMPolicies() {
   std::cout << "DM token: " << storage->GetDmToken() << std::endl;
   std::cout << "-------------------------------------------------" << std::endl;
 
-  std::unique_ptr<CachedPolicyInfo> cached_info = GetCachedPolicyInfo(storage);
+  std::unique_ptr<device_management_storage::CachedPolicyInfo> cached_info =
+      GetCachedPolicyInfo(storage);
   if (cached_info) {
     PrintCachedPolicyInfo(*cached_info);
     std::cout << "-------------------------------------------------"
@@ -410,7 +412,7 @@ UpdateService::Priority Priority() {
 }
 
 std::string Quoted(const std::string& value) {
-  return "\"" + value + "\"";
+  return base::StrCat({"\"", value, "\""});
 }
 
 bool OutputInJSONFormat() {
@@ -587,7 +589,7 @@ void UpdaterUtilApp::FindApp(
       [](const std::string& app_id,
          base::OnceCallback<void(scoped_refptr<AppState>)> callback,
          const std::vector<updater::UpdateService::AppState>& states) {
-        auto it = base::ranges::find_if(
+        auto it = std::ranges::find_if(
             states, [&app_id](const updater::UpdateService::AppState& state) {
               return base::EqualsCaseInsensitiveASCII(state.app_id, app_id);
             });
@@ -604,7 +606,7 @@ void UpdaterUtilApp::FindApp(
 void UpdaterUtilApp::ListUpdate() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 
-  const std::string app_id = command_line->GetSwitchValueASCII(kProductSwitch);
+  const std::string app_id = command_line->GetSwitchValueUTF8(kProductSwitch);
   if (app_id.empty()) {
     PrintUsage("Must specify a product to list update.");
     return;
@@ -622,6 +624,7 @@ void UpdaterUtilApp::DoListUpdate(scoped_refptr<AppState> app_state) {
   service_proxy_->CheckForUpdate(
       app_state->app_id(), Priority(),
       UpdateService::PolicySameVersionUpdate::kNotAllowed,
+      /*language=*/{},
       base::BindRepeating(
           [](scoped_refptr<AppState> app_state,
              const UpdateService::UpdateState& update_state) {
@@ -662,7 +665,7 @@ void UpdaterUtilApp::DoListUpdate(scoped_refptr<AppState> app_state) {
 
 void UpdaterUtilApp::Update() {
   const std::string app_id =
-      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+      base::CommandLine::ForCurrentProcess()->GetSwitchValueUTF8(
           kProductSwitch);
   if (app_id.empty()) {
     service_proxy_->UpdateAll(
@@ -686,7 +689,7 @@ void UpdaterUtilApp::DoUpdateApp(scoped_refptr<AppState> app_state) {
   service_proxy_->Update(
       app_state->app_id(), /*install_data_index=*/"", Priority(),
       UpdateService::PolicySameVersionUpdate::kNotAllowed,
-      base::BindRepeating(OnAppStateChanged),
+      /*language=*/{}, base::BindRepeating(OnAppStateChanged),
       base::BindOnce(
           [](base::OnceCallback<void(int)> cb, UpdateService::Result result) {
             OnUpdateComplete(std::move(cb), result);

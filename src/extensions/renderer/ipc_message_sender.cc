@@ -184,7 +184,6 @@ class MainThreadIPCMessageSender : public IPCMessageSender {
           switch (script_context->context_type()) {
             case mojom::ContextType::kPrivilegedExtension:
             case mojom::ContextType::kUnprivilegedExtension:
-            case mojom::ContextType::kLockscreenExtension:
             case mojom::ContextType::kOffscreenExtension:
               info->source_endpoint =
                   MessagingEndpoint::ForExtension(extension->id());
@@ -202,8 +201,8 @@ class MainThreadIPCMessageSender : public IPCMessageSender {
             case mojom::ContextType::kPrivilegedWebPage:
             case mojom::ContextType::kWebUi:
             case mojom::ContextType::kUntrustedWebUi:
-              NOTREACHED_NORETURN() << "Unexpected Context Encountered: "
-                                    << script_context->GetDebugString();
+              NOTREACHED() << "Unexpected Context Encountered: "
+                           << script_context->GetDebugString();
           }
         } else {
           info->source_endpoint = MessagingEndpoint::ForWebPage();
@@ -268,7 +267,7 @@ class MainThreadIPCMessageSender : public IPCMessageSender {
                   const std::string& error,
                   mojom::ExtraResponseDataPtr response_data) {
     ExtensionsRendererClient::Get()
-        ->GetDispatcher()
+        ->dispatcher()
         ->bindings_system()
         ->HandleResponse(request_id, success, std::move(response), error,
                          std::move(response_data));
@@ -550,11 +549,6 @@ class WorkerThreadIPCMessageSender : public IPCMessageSender {
     if (!extension_id_)
       extension_id_ = dispatcher_->GetScriptContext()->extension()->id();
     return *extension_id_;
-  }
-
-  PortContext PortContextForCurrentWorker() {
-    return PortContext::ForWorker(content::WorkerThread::GetCurrentId(),
-                                  service_worker_version_id_, GetExtensionId());
   }
 
   mojom::RendererHost* GetRendererHost() {

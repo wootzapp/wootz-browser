@@ -15,15 +15,12 @@ class TimeDelta;
 
 namespace content {
 
-CONTENT_EXPORT BASE_DECLARE_FEATURE(kAttributionVerboseDebugReporting);
+CONTENT_EXPORT BASE_DECLARE_FEATURE(kAttributionReportDeliveryOnNewNavigation);
 
-CONTENT_EXPORT BASE_DECLARE_FEATURE(kAttributionHeaderErrorDetails);
+CONTENT_EXPORT extern const base::FeatureParam<base::TimeDelta>
+    kAttributionReportingNavigationForReportDeliveryWindow;
 
-CONTENT_EXPORT BASE_DECLARE_FEATURE(kAttributionReportDeliveryRetryDelays);
-CONTENT_EXPORT extern const base::FeatureParam<base::TimeDelta>
-    kAttributionReportDeliveryFirstRetryDelay;
-CONTENT_EXPORT extern const base::FeatureParam<base::TimeDelta>
-    kAttributionReportDeliverySecondRetryDelay;
+CONTENT_EXPORT BASE_DECLARE_FEATURE(kAttributionReportExpiry);
 
 }  // namespace content
 

@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.ui.hats;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.app.Activity;
 
 import androidx.annotation.VisibleForTesting;
@@ -11,6 +13,9 @@ import androidx.annotation.VisibleForTesting;
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
 
+import org.chromium.base.Log;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcherProvider;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -24,33 +29,36 @@ import java.util.Map;
  * initialized from Java.
  */
 @JNINamespace("hats")
+@NullMarked
 class SurveyClientBridge implements SurveyClient {
+    private static final String TAG = "SurveyClient";
 
     private final SurveyClient mDelegate;
-    private final long mNativeSurveyClient;
 
-    private SurveyClientBridge(long nativeSurveyClient, SurveyClient delegate) {
-        mNativeSurveyClient = nativeSurveyClient;
+    private SurveyClientBridge(SurveyClient delegate) {
         mDelegate = delegate;
     }
 
     @CalledByNative
     @VisibleForTesting
-    static SurveyClientBridge create(
-            long nativeSurveyClient,
+    static @Nullable SurveyClientBridge create(
             String trigger,
             SurveyUiDelegate uiDelegate,
             Profile profile,
             String suppliedTriggerId) {
         assert SurveyClientFactory.getInstance() != null;
-        SurveyConfig config = SurveyConfig.get(trigger, suppliedTriggerId);
+        SurveyConfig config = SurveyConfig.get(profile, trigger, suppliedTriggerId);
         if (config == null) {
             return null;
         }
 
-        return new SurveyClientBridge(
-                nativeSurveyClient,
-                SurveyClientFactory.getInstance().createClient(config, uiDelegate, profile));
+        SurveyClient client =
+                SurveyClientFactory.getInstance().createClient(config, uiDelegate, profile);
+        if (client == null) {
+            Log.d(TAG, "SurveyClient is null. config: " + SurveyConfig.toString(config));
+            return null;
+        }
+        return new SurveyClientBridge(client);
     }
 
     /**
@@ -65,7 +73,7 @@ class SurveyClientBridge implements SurveyClient {
     @Override
     public void showSurvey(
             Activity activity,
-            ActivityLifecycleDispatcher lifecycleDispatcher,
+            @Nullable ActivityLifecycleDispatcher lifecycleDispatcher,
             Map<String, Boolean> surveyPsdBitValues,
             Map<String, String> surveyPsdStringValues) {
         mDelegate.showSurvey(
@@ -99,6 +107,6 @@ class SurveyClientBridge implements SurveyClient {
             lifecycleDispatcher =
                     ((ActivityLifecycleDispatcherProvider) activity).getLifecycleDispatcher();
         }
-        showSurvey(activity, lifecycleDispatcher, bitsValues, stringValues);
+        showSurvey(assumeNonNull(activity), lifecycleDispatcher, bitsValues, stringValues);
     }
 }

@@ -128,10 +128,10 @@ template("mojolpm_fuzzer_test") {
         args = [
           "--encode=${invoker.testcase_proto_kind}",
           "-I",
-          rebase_path(root_gen_dir),
+          rebase_path(root_gen_dir, root_build_dir),
           "-I",
-          rebase_path("//"),
-          rebase_path(inputs[0]),
+          rebase_path("//", root_build_dir),
+          rebase_path(inputs[0], root_build_dir),
         ]
 
         deps = []
@@ -196,6 +196,17 @@ template("mojolpm_fuzzer_test") {
 #       lists.
 #       The remote type must be either "Remote" or "AssociatedRemote".
 #
+#   interface_file
+#       JSON file containing the list of interfaces to generate.
+#       Format:
+#       {
+#         "interfaces": {
+#           ["InterfaceName", "//path/to/interface.mojom", "Remote"],
+#           ["AnotherInterface", "//path/to/another.mojom", "AssociatedRemote" ],
+#            ...
+#         }
+#       }
+#
 #   deps
 #       List of dependencies to compile this target.
 #
@@ -204,6 +215,11 @@ template("mojolpm_fuzzer_test") {
 #
 #   seed_corpus_sources (optional)
 #       List of source .textproto files used to build a seed corpus.
+#
+#   ensure_remote (optional)
+#       Ensures that for ever listed remotes, the "new" action is called before
+#       any other actions related to this remote. This ensures the remote
+#       always exists.
 #
 # Example:
 #  mojolpm_generated_fuzzer("foo_mojolpm_fuzzer") {
@@ -236,19 +252,22 @@ template("mojolpm_fuzzer_test") {
 template("mojolpm_generated_fuzzer") {
   assert(defined(invoker.sources),
          "\"sources\" must be defined for $target_name")
-  assert(defined(invoker.interfaces),
-         "\"interfaces\" must be defined for $target_name")
+  assert(
+      defined(invoker.interfaces) || defined(invoker.interface_file),
+      "\"interfaces\" or \"interface_file\" must be defined for $target_name")
 
   if (enable_mojom_fuzzer) {
     _target_name = target_name
     _generate_target_name = _target_name + "_mojolpm_generator_generate"
 
-    # Generates the correct argument format give invoker.interfaces.
-    _script_inputs = []
-    foreach(elt, invoker.interfaces) {
-      _script_inputs +=
-          [ rebase_path("$root_gen_dir/" + elt[0] + "-module", root_build_dir) +
-            ":" + elt[1] + ":" + elt[2] ]
+    if (defined(invoker.interfaces)) {
+      # Generates the correct argument format give invoker.interfaces.
+      _script_inputs = []
+      foreach(elt, invoker.interfaces) {
+        _script_inputs +=
+            [ rebase_path("$root_gen_dir/" + elt[0] + "-module",
+                          root_build_dir) + ":" + elt[1] + ":" + elt[2] ]
+      }
     }
 
     action(_generate_target_name) {
@@ -261,12 +280,24 @@ template("mojolpm_generated_fuzzer") {
         deps += invoker.proto_deps
       }
 
-      args = [ "--input" ]
-      args += _script_inputs
+      args = []
+      if (defined(invoker.interfaces)) {
+        args += [ "--input" ]
+        args += _script_inputs
+      } else if (defined(invoker.interface_file)) {
+        args += [
+          "-f",
+          rebase_path(invoker.interface_file, root_build_dir),
+        ]
+      }
       args += [
         "--output_file_format",
         rebase_path("${target_gen_dir}/${_target_name}", root_build_dir),
       ]
+
+      if (defined(invoker.ensure_remote) && invoker.ensure_remote) {
+        args += [ "--ensure-remote" ]
+      }
 
       outputs = [
         "${target_gen_dir}/${_target_name}.h",

@@ -178,13 +178,14 @@ class PLATFORM_EXPORT JSONObject : public JSONValue {
 
   wtf_size_t size() const { return data_.size(); }
 
-  void SetBoolean(const String& name, bool);
-  void SetInteger(const String& name, int);
-  void SetDouble(const String& name, double);
-  void SetString(const String& name, const String&);
-  void SetValue(const String& name, std::unique_ptr<JSONValue>);
-  void SetObject(const String& name, std::unique_ptr<JSONObject>);
-  void SetArray(const String& name, std::unique_ptr<JSONArray>);
+  // Return true if the key was newly added (it did not already exist).
+  bool SetBoolean(const String& name, bool);
+  bool SetInteger(const String& name, int);
+  bool SetDouble(const String& name, double);
+  bool SetString(const String& name, const String&);
+  bool SetValue(const String& name, std::unique_ptr<JSONValue>);
+  bool SetObject(const String& name, std::unique_ptr<JSONObject>);
+  bool SetArray(const String& name, std::unique_ptr<JSONArray>);
 
   bool GetBoolean(const String& name, bool* output) const;
   bool GetInteger(const String& name, int* output) const;
@@ -211,10 +212,13 @@ class PLATFORM_EXPORT JSONObject : public JSONValue {
 
  private:
   template <typename T>
-  void Set(const String& key, std::unique_ptr<T>& value) {
+  bool Set(const String& key, std::unique_ptr<T>& value) {
     DCHECK(value);
-    if (data_.Set(key, std::move(value)).is_new_entry)
+    if (data_.Set(key, std::move(value)).is_new_entry) {
       order_.push_back(key);
+      return true;
+    }
+    return false;
   }
 
   using Dictionary = HashMap<String, std::unique_ptr<JSONValue>>;
@@ -272,9 +276,9 @@ class PLATFORM_EXPORT JSONArray : public JSONValue {
   Vector<std::unique_ptr<JSONValue>> data_;
 };
 
-extern const char kJSONNullString[];
-extern const char kJSONTrueString[];
-extern const char kJSONFalseString[];
+inline constexpr char kJSONNullString[] = "null";
+inline constexpr char kJSONTrueString[] = "true";
+inline constexpr char kJSONFalseString[] = "false";
 
 PLATFORM_EXPORT void EscapeStringForJSON(const String&, WTF::StringBuilder*);
 void DoubleQuoteStringForJSON(const String&, WTF::StringBuilder*);

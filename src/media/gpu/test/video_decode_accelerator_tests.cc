@@ -25,7 +25,6 @@
 #include "media/base/video_decoder_config.h"
 #include "media/base/video_transformation.h"
 #include "media/filters/dav1d_video_decoder.h"
-#include "media/gpu/chromeos/platform_video_frame_pool.h"
 #include "media/gpu/test/video_bitstream.h"
 #include "media/gpu/test/video_decode_accelerator_test_suite.h"
 #include "media/gpu/test/video_frame_file_writer.h"
@@ -33,6 +32,7 @@
 #include "media/gpu/test/video_player/decoder_listener.h"
 #include "media/gpu/test/video_player/decoder_wrapper.h"
 #include "media/gpu/test/video_player/frame_renderer_dummy.h"
+#include "media/gpu/test/video_player/gmb_video_frame_converter.h"
 #include "media/gpu/test/video_player/video_player_test_environment.h"
 #include "media/gpu/test/video_test_helpers.h"
 #include "media/media_buildflags.h"
@@ -41,6 +41,14 @@
 #if BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
 #include "media/gpu/chromeos/video_decoder_pipeline.h"
 #endif  // BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
+
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
+#include "media/gpu/chromeos/platform_video_frame_pool.h"
+#endif  // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
+
+#if BUILDFLAG(USE_V4L2_CODEC)
+#include "media/gpu/v4l2/v4l2_utils.h"
+#endif  // BUILDFLAG(USE_V4L2_CODEC)
 
 namespace media {
 namespace test {
@@ -112,10 +120,14 @@ class VideoDecoderTest : public ::testing::Test {
       }
     }
 
+// Set the frame rate for the decoder. This is required for the
+// VideoDecoderPipeline to work.
+#if BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
     base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
     command_line.AppendSwitchASCII(
         switches::kHardwareVideoDecodeFrameRate,
         base::NumberToString(g_env->Video()->FrameRate()));
+#endif  // BUILDFLAG(USE_CHROMEOS_MEDIA_ACCELERATION)
 
     config.implementation = g_env->GetDecoderImplementation();
     config.linear_output = g_env->ShouldOutputLinearBuffers();
@@ -134,22 +146,26 @@ class VideoDecoderTest : public ::testing::Test {
 
     // Increase the time out if
     // (1) video frames are output, or
-    // (2) on Intel GLK, where mapping is very slow.
+    // (2) on Intel GLK, where mapping is very slow, or
+    // (3) with V4L2 VISL driver where execution is very slow on ARM64 VM.
     if (g_env->GetFrameOutputMode() != FrameOutputMode::kNone ||
-        IsSlowMappingDevice()) {
+        IsSlowMappingDevice() || g_env->IsV4L2VirtualDriver()) {
       video_player->SetEventWaitTimeout(
           std::max(kDefaultEventWaitTimeout, g_env->Video()->Duration() * 10));
     }
+
     return video_player;
   }
 
   bool InitializeDecoderWithConfig(VideoDecoderConfig& decoder_config) {
+    // TODO(https://crbugs.com/350994517): Enable this test for Windows once
+    // PlatformVideoFramePool is implemented for that.
+#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
     auto frame_pool = std::make_unique<PlatformVideoFramePool>();
     std::unique_ptr<VideoDecoder> decoder = VideoDecoderPipeline::Create(
         gpu::GpuDriverBugWorkarounds(),
         base::SingleThreadTaskRunner::GetCurrentDefault(),
-        std::move(frame_pool),
-        /*frame_converter=*/nullptr,
+        std::move(frame_pool), GmbVideoFrameConverter::CreateForTesting(),
         VideoDecoderPipeline::DefaultPreferredRenderableFourccs(),
         std::make_unique<NullMediaLog>(),
         /*oop_video_decoder=*/{},
@@ -164,6 +180,9 @@ class VideoDecoderTest : public ::testing::Test {
                                             base::Unretained(this)),
                         /*waiting_cb=*/base::NullCallback());
     return init_result;
+#else
+    return false;
+#endif  // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
   }
 
  private:
@@ -214,7 +233,7 @@ class VideoDecoderTest : public ::testing::Test {
     if (!init_success)
       return false;
     auto encoded_data_helper =
-        std::make_unique<EncodedDataHelper>(video->Data(), video->Codec());
+        EncodedDataHelper::Create(video->Data(), video->Codec());
     DCHECK(encoded_data_helper);
     while (!encoded_data_helper->ReachEndOfStream()) {
       bool decode_success = false;
@@ -413,10 +432,6 @@ TEST_F(VideoDecoderTest, FlushAtEndOfStream) {
 // Flush the decoder somewhere mid-stream, then continue as normal. This is a
 // contrived use case to exercise important V4L2 stateful areas.
 TEST_F(VideoDecoderTest, DISABLED_FlushMidStream) {
-  if (!base::FeatureList::IsEnabled(kV4L2FlatStatefulVideoDecoder)) {
-    GTEST_SKIP();
-  }
-
   auto tvp = CreateDecoderListener(g_env->Video());
 
   tvp->Play();
@@ -547,10 +562,6 @@ TEST_F(VideoDecoderTest, ResetAfterFirstConfigInfo) {
   if (g_env->Video()->Codec() != media::VideoCodec::kH264 &&
       g_env->Video()->Codec() != media::VideoCodec::kHEVC)
     GTEST_SKIP();
-
-  if (base::FeatureList::IsEnabled(kV4L2FlatStatefulVideoDecoder)) {
-    GTEST_SKIP() << "Temporarily disabled due to b/298073737";
-  }
 
   auto tvp = CreateDecoderListener(g_env->Video());
 

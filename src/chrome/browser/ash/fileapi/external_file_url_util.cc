@@ -10,7 +10,6 @@
 #include "base/strings/escape.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
-#include "chrome/browser/ash/file_manager/app_id.h"
 #include "chrome/browser/ash/file_manager/fileapi_util.h"
 #include "chrome/browser/ash/file_manager/path_util.h"
 #include "chrome/browser/ash/fusebox/fusebox_server.h"
@@ -83,8 +82,7 @@ GURL ExternalFileURLToFuseboxMonikerFileURL(
     content::BrowserContext* browser_context,
     const GURL& url,
     bool read_only,
-    base::TimeDelta lifetime,
-    bool keep_extension) {
+    base::TimeDelta lifetime) {
   const base::FilePath virtual_path = ExternalFileURLToVirtualPath(url);
 
   const storage::FileSystemURL fs_url =
@@ -120,10 +118,8 @@ GURL ExternalFileURLToFuseboxMonikerFileURL(
       lifetime);
 
   base::FilePath moniker_path(fusebox::MonikerMap::GetFilename(moniker));
-  if (keep_extension) {
-    moniker_path = moniker_path.AddExtension(virtual_path.Extension());
-  }
-  return net::FilePathToFileURL(moniker_path);
+  return net::FilePathToFileURL(
+      moniker_path.AddExtension(virtual_path.Extension()));
 }
 
 }  // namespace ash

@@ -9,6 +9,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "build/config/chromebox_for_meetings/buildflags.h"  // PLATFORM_CFM
+#include "chrome/browser/ui/views/desktop_capture/desktop_media_delegated_source_list_view.h"
 #include "chrome/browser/ui/views/desktop_capture/desktop_media_list_view.h"
 #include "chrome/browser/ui/views/desktop_capture/desktop_media_picker_views.h"
 #include "chrome/browser/ui/views/desktop_capture/desktop_media_tab_list.h"
@@ -60,8 +61,20 @@ DesktopMediaListController::~DesktopMediaListController() = default;
 std::unique_ptr<views::View> DesktopMediaListController::CreateView(
     DesktopMediaSourceViewStyle generic_style,
     DesktopMediaSourceViewStyle single_style,
-    const std::u16string& accessible_name) {
+    const std::u16string& accessible_name,
+    DesktopMediaList::Type type) {
   DCHECK(!view_);
+
+#if BUILDFLAG(IS_MAC)
+  if (media_list_->IsSourceListDelegated()) {
+    DCHECK(!view_);
+    auto view = std::make_unique<DesktopMediaDelegatedSourceListView>(
+        weak_factory_.GetWeakPtr(), accessible_name, type);
+    view_ = view.get();
+    view_observations_.AddObservation(view_.get());
+    return view;
+  }
+#endif
 
   auto view = std::make_unique<DesktopMediaListView>(
       this, generic_style, single_style, accessible_name);
@@ -85,8 +98,9 @@ void DesktopMediaListController::StartUpdating(
   dialog_window_id_ = dialog_window_id;
   // Defer calling StartUpdating on media lists with a delegated source list
   // until the first time they are focused.
-  if (!media_list_->IsSourceListDelegated())
+  if (!media_list_->IsSourceListDelegated()) {
     StartUpdatingInternal();
+  }
 }
 
 void DesktopMediaListController::StartUpdatingInternal() {
@@ -96,13 +110,20 @@ void DesktopMediaListController::StartUpdatingInternal() {
 }
 
 void DesktopMediaListController::FocusView() {
-  if (view_)
+  if (view_) {
     view_->RequestFocus();
+  }
 
-  if (media_list_->IsSourceListDelegated() && !is_updating_)
+  if (media_list_->IsSourceListDelegated() && !is_updating_) {
     StartUpdatingInternal();
+  }
 
   media_list_->FocusList();
+}
+
+void DesktopMediaListController::ShowDelegatedList() {
+  media_list_->ShowDelegatedList();
+  dialog_->GetWidget()->Hide();
 }
 
 void DesktopMediaListController::HideView() {
@@ -110,13 +131,18 @@ void DesktopMediaListController::HideView() {
 }
 
 bool DesktopMediaListController::SupportsReselectButton() const {
+#if BUILDFLAG(IS_MAC)
+  return false;
+#else
   // Only DelegatedSourceLists support the notion of reslecting.
   return media_list_->IsSourceListDelegated();
+#endif
 }
 
 void DesktopMediaListController::SetCanReselect(bool can_reselect) {
-  if (can_reselect_ == can_reselect)
+  if (can_reselect_ == can_reselect) {
     return;
+  }
   can_reselect_ = can_reselect;
   dialog_->OnCanReselectChanged(this);
 }
@@ -141,8 +167,9 @@ DesktopMediaListController::GetSelection() const {
 }
 
 void DesktopMediaListController::ClearSelection() {
-  if (view_)
+  if (view_) {
     view_->ClearSelection();
+  }
 }
 
 void DesktopMediaListController::OnSourceListLayoutChanged() {
@@ -154,8 +181,9 @@ void DesktopMediaListController::OnSourceSelectionChanged() {
 }
 
 void DesktopMediaListController::AcceptSource() {
-  if (GetSelection())
+  if (GetSelection()) {
     dialog_->AcceptSource();
+  }
 }
 
 void DesktopMediaListController::AcceptSpecificSource(
@@ -197,6 +225,8 @@ void DesktopMediaListController::OnSourceAdded(int index) {
   }
 
   const DesktopMediaList::Source& source = GetSource(index);
+
+  VLOG(1) << "DMLC::OnSourceAdded: source_id = " << source.id.id;
 
   if (ShouldAutoAccept(source)) {
     content::GetUIThreadTaskRunner({})->PostTask(
@@ -264,6 +294,14 @@ void DesktopMediaListController::OnViewIsDeleting(views::View* view) {
 
 bool DesktopMediaListController::ShouldAutoAccept(
     const DesktopMediaList::Source& source) const {
+#if BUILDFLAG(IS_MAC)
+  if (media_list_->IsSourceListDelegated() &&
+      (media_list_->GetMediaListType() == DesktopMediaList::Type::kScreen ||
+       media_list_->GetMediaListType() == DesktopMediaList::Type::kWindow)) {
+    return true;
+  }
+#endif
+
   if (media_list_->GetMediaListType() == DesktopMediaList::Type::kCurrentTab) {
     return auto_accept_this_tab_capture_;
   } else if (media_list_->GetMediaListType() ==

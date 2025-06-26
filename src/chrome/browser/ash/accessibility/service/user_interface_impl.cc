@@ -6,6 +6,7 @@
 
 #include "ash/accessibility/accessibility_controller.h"
 #include "ash/public/cpp/accessibility_focus_ring_info.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ash/accessibility/accessibility_manager.h"
 #include "content/public/common/color_parser.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
@@ -50,6 +51,7 @@ void UserInterfaceImpl::ShowConfirmationDialog(
   show_confirmation_dialog_callback_ = std::move(callback);
   ash::AccessibilityController::Get()->ShowConfirmationDialog(
       base::UTF8ToUTF16(title), base::UTF8ToUTF16(description),
+      l10n_util::GetStringUTF16(IDS_APP_CONTINUE),
       cancel_name ? base::UTF8ToUTF16(cancel_name.value())
                   : l10n_util::GetStringUTF16(IDS_APP_CANCEL),
       base::BindOnce(&UserInterfaceImpl::OnDialogResult,

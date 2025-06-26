@@ -14,7 +14,7 @@
 #include "base/functional/bind.h"
 #include "base/notreached.h"
 #include "chrome/browser/ash/net/delay_network_call.h"
-#include "chrome/browser/ash/preferences.h"
+#include "chrome/browser/ash/preferences/preferences.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/ash/system/input_device_settings.h"
 #include "chrome/browser/ash/system/timezone_util.h"
@@ -68,8 +68,7 @@ ServiceConfiguration GetServiceConfigurationFromAutomaticDetectionPolicy() {
       return SHOULD_START;
   }
   // Default for unknown policy value.
-  NOTREACHED_IN_MIGRATION() << "Unrecognized policy value: " << policy_value;
-  return SHOULD_STOP;
+  NOTREACHED() << "Unrecognized policy value: " << policy_value;
 }
 
 // Stops TimezoneResolver if SystemTimezonePolicy is applied.
@@ -425,8 +424,7 @@ TimeZoneResolverManager::GetEffectiveUserTimeZoneResolveMethod(
       case enterprise_management::SystemTimezoneProto::SEND_ALL_LOCATION_INFO:
         return TimeZoneResolveMethod::SEND_ALL_LOCATION_INFO;
       default:
-        NOTREACHED_IN_MIGRATION();
-        return TimeZoneResolveMethod::DISABLED;
+        NOTREACHED();
     }
   }
   if (user_prefs->GetBoolean(

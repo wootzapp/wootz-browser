@@ -146,19 +146,6 @@ gfx::Size FloatingMenuButton::CalculatePreferredSize(
   return gfx::Size(size_, size_);
 }
 
-void FloatingMenuButton::GetAccessibleNodeData(ui::AXNodeData* node_data) {
-  if (!GetEnabled()) {
-    return;
-  }
-  views::ImageButton::GetAccessibleNodeData(node_data);
-  if (!is_a11y_togglable_) {
-    return;
-  }
-  node_data->role = ax::mojom::Role::kToggleButton;
-  node_data->SetCheckedState(toggled_ ? ax::mojom::CheckedState::kTrue
-                                      : ax::mojom::CheckedState::kFalse);
-}
-
 void FloatingMenuButton::UpdateImage() {
   DCHECK(icon_);
   const ui::ColorId icon_color_id =

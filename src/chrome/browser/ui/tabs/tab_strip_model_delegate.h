@@ -47,12 +47,9 @@ class TabGroupId;
 ///////////////////////////////////////////////////////////////////////////////
 class TabStripModelDelegate {
  public:
-  enum {
-    TAB_MOVE_ACTION = 1,
-    TAB_TEAROFF_ACTION = 2
-  };
+  enum { TAB_MOVE_ACTION = 1, TAB_TEAROFF_ACTION = 2 };
 
-  virtual ~TabStripModelDelegate() {}
+  virtual ~TabStripModelDelegate() = default;
 
   // Adds a tab to the model and loads |url| in the tab. If |url| is an empty
   // URL, then the new tab-page is loaded instead. An |index| value of -1
@@ -162,8 +159,9 @@ class TabStripModelDelegate {
   // Returns whether the delegate allows reloading of WebContents.
   virtual bool CanReload() const = 0;
 
-  // Adds the specified WebContents to read later.
-  virtual void AddToReadLater(content::WebContents* web_contents) = 0;
+  // Adds the vector of WebContents to read later.
+  virtual void AddToReadLater(
+      std::vector<content::WebContents*> web_contentses) = 0;
 
   // Returns whether the tabstrip supports the read later feature.
   virtual bool SupportsReadLater() = 0;
@@ -186,18 +184,24 @@ class TabStripModelDelegate {
   // Returns the BrowserWindow that owns the TabStripModel. Never changes.
   virtual BrowserWindowInterface* GetBrowserWindowInterface() = 0;
 
-  // When performing actions to groups, some features may need to show
-  // interstitials before allowing deletion. |groups| is a list of all of the
-  // groups that would be Closed by the |callback| which may be called by the
-  // implementation. A return value of true means that deletion can continue
-  // synchronously. A return value of false means that an asynchronous action is
-  // taking place, and whatever process of destroying groups should be stopped.
-  // The callback will not be called if the process returns true.
-  virtual bool ConfirmDestroyingGroups(
-      const std::vector<tab_groups::TabGroupId>& group_ids,
-      base::OnceCallback<void()> callback) = 0;
+  // Creates a split view with the active tab and the tabs at `indices`. If
+  // `indices` is empty, a new tab navigated to the split tab empty state page
+  // will be used for the split view instead.
+  virtual void NewSplitTab(std::vector<int> indices) = 0;
 
-  virtual bool ConfirmRemovingAllTabsFromGroups(
+  // When performing actions to groups, some features may need to show
+  // interstitials before allowing deletion. `groups` is a list of all of the
+  // groups that would be Closed by the `close_callback` which may be called by
+  // the implementation. This should be called with a non empty `group_ids`.
+  // callback will either be executed by the delegate or asynchronously handled.
+  // When true `delete_groups` also deletes any saved groups that are closing.
+  // When false, groups will close normally but continue to be saved.
+  virtual void OnGroupsDestruction(
+      const std::vector<tab_groups::TabGroupId>& group_ids,
+      base::OnceCallback<void()> close_callback,
+      bool delete_groups) = 0;
+
+  virtual void OnRemovingAllTabsFromGroups(
       const std::vector<tab_groups::TabGroupId>& group_ids,
       base::OnceCallback<void()> callback) = 0;
 };

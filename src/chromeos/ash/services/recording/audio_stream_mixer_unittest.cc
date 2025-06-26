@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <algorithm>
 #include <memory>
 
@@ -231,7 +236,6 @@ TEST_F(AudioStreamMixerTest, StreamWithLaterTimestampsArrivesFirst) {
   audio_capture_util::AccumulateBusTo(
       /*source=*/*stream2_bus2,
       /*destination=*/expected_bus.get(),
-      /*source_start_frame=*/0,
       /*destination_start_frame=*/
       audio_capture_util::NumberOfAudioFramesInDuration(
           base::Milliseconds(45 - 40)),
@@ -326,7 +330,6 @@ TEST_F(AudioStreamMixerTest, FlushingTheMixer) {
   audio_capture_util::AccumulateBusTo(
       /*source=*/*stream2_bus,
       /*destination=*/expected_bus.get(),
-      /*source_start_frame=*/0,
       /*destination_start_frame=*/
       audio_capture_util::NumberOfAudioFramesInDuration(
           base::Milliseconds(40 - 10)),

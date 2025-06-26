@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/browser.h"
@@ -122,7 +121,7 @@ void WebAppNavigationButtonContainer::EnabledStateChangedForCommand(
       reload_button_->SetEnabled(enabled);
       break;
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 

@@ -9,9 +9,9 @@
 #define BASE_TEST_TEST_TRACE_PROCESSOR_IMPL_H_
 
 #include <memory>
+
 #include "test_trace_processor_export.h"
 #include "third_party/abseil-cpp/absl/status/status.h"
-#include "third_party/abseil-cpp/absl/types/variant.h"
 
 namespace perfetto::trace_processor {
 struct Config;
@@ -75,8 +75,6 @@ class TEST_TRACE_PROCESSOR_EXPORT TestTraceProcessorImpl {
                                  const PerfettoSQLModule& module);
 
  private:
-  absl::Status ParseTrace(std::unique_ptr<uint8_t[]> buf, size_t size);
-
   std::unique_ptr<perfetto::trace_processor::Config> config_;
   std::unique_ptr<perfetto::trace_processor::TraceProcessor> trace_processor_;
 };

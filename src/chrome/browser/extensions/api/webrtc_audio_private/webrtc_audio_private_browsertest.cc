@@ -95,12 +95,14 @@ class AudioWaitingExtensionTest : public ExtensionApiTest {
       auto* audible_helper = RecentlyAudibleHelper::FromWebContents(tab);
       audio_playing = audible_helper->WasRecentlyAudible();
       base::RunLoop().RunUntilIdle();
-      if (audio_playing)
+      if (audio_playing) {
         break;
+      }
       base::PlatformThread::Sleep(base::Milliseconds(100));
     }
-    if (!audio_playing)
+    if (!audio_playing) {
       FAIL() << "Audio did not start playing within ~5 seconds.";
+    }
   }
 };
 
@@ -297,7 +299,7 @@ IN_PROC_BROWSER_TEST_F(HangoutServicesBrowserTest,
   // others.
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(),
-      https_server().GetURL("any-subdomain.google.com",
+      https_server().GetURL("meet.google.com",
                             "/extensions/hangout_services_test.html")));
 
   WebContents* tab = browser()->tab_strip_model()->GetActiveWebContents();
@@ -305,7 +307,7 @@ IN_PROC_BROWSER_TEST_F(HangoutServicesBrowserTest,
 
   // Use a test server URL for uploading.
   g_browser_process->webrtc_log_uploader()->SetUploadUrlForTesting(
-      https_server().GetURL("any-subdomain.google.com", kLogUploadUrlPath));
+      https_server().GetURL("meet.google.com", kLogUploadUrlPath));
 
   ASSERT_TRUE(content::ExecJs(tab, "browsertestRunAllTests();"));
 

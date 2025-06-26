@@ -29,8 +29,9 @@ const size_t kAlertBlockButtonIndex = 1;
 std::unique_ptr<OverlayResponse> CreateDialogResponse(
     std::unique_ptr<OverlayResponse> response) {
   AlertResponse* alert_response = response->GetInfo<AlertResponse>();
-  if (!alert_response)
+  if (!alert_response) {
     return nullptr;
+  }
 
   JavaScriptAlertDialogResponse::Action action =
       JavaScriptAlertDialogResponse::Action::kConfirm;
@@ -45,8 +46,6 @@ std::unique_ptr<OverlayResponse> CreateDialogResponse(
 }  // namespace
 
 #pragma mark - JavaScriptAlertDialogRequest
-
-OVERLAY_USER_DATA_SETUP_IMPL(JavaScriptAlertDialogRequest);
 
 JavaScriptAlertDialogRequest::JavaScriptAlertDialogRequest(
     web::WebState* web_state,
@@ -79,8 +78,6 @@ void JavaScriptAlertDialogRequest::CreateAuxiliaryData(
 }
 
 #pragma mark - JavaScriptAlertDialogResponse
-
-OVERLAY_USER_DATA_SETUP_IMPL(JavaScriptAlertDialogResponse);
 
 JavaScriptAlertDialogResponse::JavaScriptAlertDialogResponse(Action action)
     : action_(action) {}

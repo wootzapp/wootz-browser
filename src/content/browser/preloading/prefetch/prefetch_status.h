@@ -18,6 +18,12 @@ namespace content {
 // https://docs.google.com/document/d/1PnrfowsZMt62PX1EvvTp2Nqs3ji1zrklrAEe1JYbkTk
 // to ensure failure reasons are correctly shown in the DevTools
 // frontend.
+//
+// If you change this, please follow the process in
+// go/preloading-dashboard-updates to update the mapping reflected in dashboard,
+// or if you are not a Googler, please file an FYI bug on https://crbug.new with
+// component Internals>Preload.
+// LINT.IfChange
 enum class PrefetchStatus {
   // Deprecated. Replaced by `kPrefetchResponseUsed`.
   //
@@ -50,6 +56,11 @@ enum class PrefetchStatus {
 
   // The url was not eligible to be prefetched because there was a registered
   // service worker for that origin.
+  // Some other ServiceWorker-related `PrefetchStatus`/`PreloadingEligibility`
+  // values (e.g. `kPrefetchIneligibleUserHasServiceWorkerNoFetchHandler`) are
+  // used for some subcases.
+  // Even after the initial ServiceWorker support (https://crbug.com/40947546),
+  // this will still used for ServiceWorker-ineligible prefetches.
   kPrefetchIneligibleUserHasServiceWorker = 6,
 
   // The url was not eligible to be prefetched because its scheme was not
@@ -171,11 +182,13 @@ enum class PrefetchStatus {
   kPrefetchIneligibleExistingProxy = 38,
 
   // Prefetch not supported in Guest or Incognito mode.
-  kPrefetchIneligibleBrowserContextOffTheRecord = 39,
+  // OBSOLETE: kPrefetchIneligibleBrowserContextOffTheRecord = 39,
 
   // Whether this prefetch is heldback for counterfactual logging.
   kPrefetchHeldback = 40,
-  kPrefetchAllowed = 41,
+
+  // DEPRECATED
+  // kPrefetchAllowed = 41,
 
   // The response of the prefetch is used for the next navigation. This is the
   // final successful state.
@@ -188,9 +201,12 @@ enum class PrefetchStatus {
   // prefetch.
   kPrefetchFailedIneligibleRedirect = 44,
 
+  // Deprecated; prefetches are now queued until other prefetches are evicted
+  // when the limit is reached.
+  //
   // The prefetch was not made because prefetches exceeded the limit per
   // page.
-  kPrefetchFailedPerPageLimitExceeded = 45,
+  // kPrefetchFailedPerPageLimitExceeded = 45,
 
   // The prefetch needed to fetch a same-site cross-origin URL and required the
   // use of the prefetch proxy. These prefetches are blocked since the default
@@ -212,9 +228,32 @@ enum class PrefetchStatus {
   kPrefetchEvictedAfterCandidateRemoved = 50,
   kPrefetchEvictedForNewerPrefetch = 51,
 
+  // The initial URL is controlled by a ServiceWorker and then redirected
+  // (https://crbug.com/399819894).
+  kPrefetchIneligibleRedirectFromServiceWorker = 52,
+
+  // The initial URL is redirected to a URL controlled by a ServiceWorker
+  // (https://crbug.com/399819894).
+  // This case was previously counted as
+  // `kPrefetchIneligibleUserHasServiceWorker`.
+  kPrefetchIneligibleRedirectToServiceWorker = 53,
+
+  // The url was not eligible to be prefetched because there was a registered
+  // service worker with no fetch handler (when
+  // `kPrefetchServiceWorkerNoFetchHandlerFix` is enabled).
+  // This case was previously counted as
+  // `kPrefetchIneligibleUserHasServiceWorker`.
+  // Even after the initial ServiceWorker support (https://crbug.com/40947546),
+  // this will be still used for ServiceWorker-ineligible prefetches.
+  kPrefetchIneligibleUserHasServiceWorkerNoFetchHandler = 54,
+
+  // The prefetch canceled by clearing cache from browsing data removal.
+  kPrefetchEvictedAfterBrowsingDataRemoved = 55,
+
   // The max value of the PrefetchStatus. Update this when new enums are added.
-  kMaxValue = kPrefetchEvictedForNewerPrefetch,
+  kMaxValue = kPrefetchEvictedAfterBrowsingDataRemoved,
 };
+// LINT.ThenChange(/tools/metrics/histograms/enums.xml)
 
 // Mapping from `PrefetchStatus` to `PreloadingFailureReason`.
 static_assert(

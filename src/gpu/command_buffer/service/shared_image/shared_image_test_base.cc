@@ -10,11 +10,12 @@
 #include "cc/test/pixel_comparator.h"
 #include "cc/test/pixel_test_utils.h"
 #include "components/viz/common/resources/shared_image_format_utils.h"
+#include "gpu/command_buffer/service/graphite_shared_context.h"
 #include "gpu/command_buffer/service/service_utils.h"
+#include "gpu/command_buffer/service/shared_image/copy_image_plane.h"
 #include "gpu/command_buffer/service/shared_image/shared_image_representation.h"
-#include "third_party/libyuv/include/libyuv/planar_functions.h"
 #include "third_party/skia/include/core/SkImage.h"
-#include "third_party/skia/include/gpu/GrBackendSemaphore.h"
+#include "third_party/skia/include/gpu/ganesh/GrBackendSemaphore.h"
 #include "third_party/skia/include/gpu/ganesh/SkImageGanesh.h"
 #include "third_party/skia/include/gpu/graphite/Context.h"
 #include "third_party/skia/include/gpu/graphite/Image.h"
@@ -23,6 +24,10 @@
 #include "ui/gl/gl_surface.h"
 #include "ui/gl/gl_utils.h"
 #include "ui/gl/init/gl_factory.h"
+
+#if BUILDFLAG(IS_ANDROID)
+#include "base/android/build_info.h"
+#endif
 
 #if BUILDFLAG(ENABLE_VULKAN)
 #include "components/viz/common/gpu/vulkan_in_process_context_provider.h"
@@ -60,16 +65,16 @@ void OnReadPixelsDone(
 
 void InsertRecordingAndSubmit(gpu::SharedContextState* context,
                               bool sync_cpu = false) {
-  CHECK(context->graphite_context());
+  CHECK(context->graphite_shared_context());
   auto recording = context->gpu_main_graphite_recorder()->snap();
   if (recording) {
     skgpu::graphite::InsertRecordingInfo info = {};
     info.fRecording = recording.get();
-    context->graphite_context()->insertRecording(info);
+    context->graphite_shared_context()->insertRecording(info);
   }
-  context->graphite_context()->submit(sync_cpu
-                                          ? skgpu::graphite::SyncToCpu::kYes
-                                          : skgpu::graphite::SyncToCpu::kNo);
+  context->graphite_shared_context()->submit(
+      sync_cpu ? skgpu::graphite::SyncToCpu::kYes
+               : skgpu::graphite::SyncToCpu::kNo);
 }
 
 }  // namespace
@@ -100,7 +105,7 @@ std::vector<SkBitmap> SharedImageTestBase::AllocateRedBitmaps(
   std::vector<SkBitmap> bitmaps(num_planes);
 
   for (int plane = 0; plane < num_planes; ++plane) {
-    SkColorType color_type = ToClosestSkColorType(true, format, plane);
+    SkColorType color_type = ToClosestSkColorType(format, plane);
     gfx::Size plane_size = format.GetPlaneSize(plane, size);
     bitmaps[plane] = MakeRedBitmap(color_type, plane_size, added_stride);
   }
@@ -120,8 +125,7 @@ std::vector<SkPixmap> SharedImageTestBase::GetSkPixmaps(
 SharedImageTestBase::SharedImageTestBase() {
   gpu_preferences_.use_passthrough_cmd_decoder =
       gles2::UsePassthroughCommandDecoder(
-          base::CommandLine::ForCurrentProcess()) &&
-      gles2::PassthroughCommandDecoderSupported();
+          base::CommandLine::ForCurrentProcess());
 }
 
 SharedImageTestBase::~SharedImageTestBase() {
@@ -143,6 +147,18 @@ GrContextType SharedImageTestBase::gr_context_type() {
   return context_state_->gr_context_type();
 }
 
+bool SharedImageTestBase::IsGraphiteDawnSupported() {
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+  return true;
+#elif BUILDFLAG(IS_ANDROID) && BUILDFLAG(SKIA_USE_DAWN)
+  // Any Android Q+ devices where we have compiled Graphite/Dawn should work.
+  return base::android::BuildInfo::GetInstance()->sdk_int() >=
+         base::android::SDK_VERSION_Q;
+#else
+  return false;
+#endif
+}
+
 void SharedImageTestBase::InitializeContext(GrContextType context_type) {
   gpu_preferences_.gr_context_type = context_type;
 #if BUILDFLAG(SKIA_USE_DAWN) || BUILDFLAG(USE_DAWN)
@@ -152,7 +168,8 @@ void SharedImageTestBase::InitializeContext(GrContextType context_type) {
   if (context_type == GrContextType::kGraphiteDawn) {
 #if BUILDFLAG(SKIA_USE_DAWN)
     dawn_context_provider_ = DawnContextProvider::CreateWithBackend(
-        GetDawnBackendType(), DawnForceFallbackAdapter());
+        GetDawnBackendType(), DawnForceFallbackAdapter(), gpu_preferences_,
+        DawnContextProvider::DefaultValidateAdapterFn);
     ASSERT_TRUE(dawn_context_provider_);
 #else
     FAIL() << "Graphite-Dawn not available";
@@ -216,6 +233,17 @@ void SharedImageTestBase::InitializeContext(GrContextType context_type) {
   ASSERT_TRUE(initialize_skia);
 }
 
+void SharedImageTestBase::VerifyPixelsWithReadback(
+    const Mailbox& mailbox,
+    const std::vector<SkBitmap>& expected_bitmaps) {
+  if (gr_context()) {
+    VerifyPixelsWithReadbackGanesh(mailbox, expected_bitmaps);
+  } else {
+    CHECK(context_state_->graphite_shared_context());
+    VerifyPixelsWithReadbackGraphite(mailbox, expected_bitmaps);
+  }
+}
+
 void SharedImageTestBase::VerifyPixelsWithReadbackGanesh(
     const Mailbox& mailbox,
     const std::vector<SkBitmap>& expected_bitmaps) {
@@ -240,12 +268,11 @@ void SharedImageTestBase::VerifyPixelsWithReadbackGanesh(
 
   int num_planes = format.NumberOfPlanes();
   for (int plane = 0; plane < num_planes; ++plane) {
-    SkColorType plane_color_type =
-        viz::ToClosestSkColorType(true, format, plane);
+    SkColorType plane_color_type = viz::ToClosestSkColorType(format, plane);
     gfx::Size plane_size = format.GetPlaneSize(plane, size);
-    SkImageInfo dst_info =
-        SkImageInfo::Make(plane_size.width(), plane_size.height(),
-                          plane_color_type, kOpaque_SkAlphaType);
+    SkImageInfo dst_info = SkImageInfo::Make(
+        plane_size.width(), plane_size.height(), plane_color_type,
+        expected_bitmaps[plane].alphaType());
     SkBitmap dst_bitmap;
     dst_bitmap.allocPixels(dst_info);
 
@@ -287,12 +314,11 @@ void SharedImageTestBase::VerifyPixelsWithReadbackGraphite(
 
   int num_planes = format.NumberOfPlanes();
   for (int plane = 0; plane < num_planes; ++plane) {
-    SkColorType plane_color_type =
-        viz::ToClosestSkColorType(true, format, plane);
+    SkColorType plane_color_type = viz::ToClosestSkColorType(format, plane);
     gfx::Size plane_size = format.GetPlaneSize(plane, size);
-    SkImageInfo dst_info =
-        SkImageInfo::Make(plane_size.width(), plane_size.height(),
-                          plane_color_type, kOpaque_SkAlphaType);
+    SkImageInfo dst_info = SkImageInfo::Make(
+        plane_size.width(), plane_size.height(), plane_color_type,
+        expected_bitmaps[plane].alphaType());
     SkBitmap dst_bitmap;
     dst_bitmap.allocPixels(dst_info);
 
@@ -300,21 +326,21 @@ void SharedImageTestBase::VerifyPixelsWithReadbackGraphite(
     ASSERT_TRUE(graphite_texture.isValid()) << "plane_index=" << plane;
 
     ASSERT_TRUE(context_state_->gpu_main_graphite_recorder());
-    auto sk_image = SkImages::AdoptTextureFrom(
+    auto sk_image = SkImages::WrapTexture(
         context_state_->gpu_main_graphite_recorder(), graphite_texture,
         plane_color_type, skia_representation->alpha_type(), nullptr);
     ASSERT_TRUE(sk_image) << "plane_index=" << plane;
 
-    ASSERT_TRUE(context_state_->graphite_context());
+    ASSERT_TRUE(context_state_->graphite_shared_context());
     ReadPixelsContext context;
     const SkIRect src_rect = dst_info.bounds();
-    context_state_->graphite_context()->asyncRescaleAndReadPixels(
+    context_state_->graphite_shared_context()->asyncRescaleAndReadPixels(
         sk_image.get(), dst_info, src_rect, SkImage::RescaleGamma::kSrc,
         SkImage::RescaleMode::kRepeatedLinear, &OnReadPixelsDone, &context);
     InsertRecordingAndSubmit(context_state_.get(), /*sync_cpu=*/true);
     ASSERT_TRUE(context.finished) << "plane_index=" << plane;
     if (context.async_result) {
-      libyuv::CopyPlane(
+      CopyImagePlane(
           static_cast<const uint8_t*>(context.async_result->data(0)),
           context.async_result->rowBytes(0),
           static_cast<uint8_t*>(dst_bitmap.getPixels()), dst_bitmap.rowBytes(),
@@ -335,5 +361,9 @@ bool SharedImageTestBase::DawnForceFallbackAdapter() const {
   return DawnContextProvider::DefaultForceFallbackAdapter();
 }
 #endif
+
+void PrintTo(GrContextType type, std::ostream* os) {
+  *os << GrContextTypeToString(type);
+}
 
 }  // namespace gpu

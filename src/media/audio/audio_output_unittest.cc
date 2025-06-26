@@ -18,7 +18,6 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "media/audio/audio_device_info_accessor_for_tests.h"
-#include "media/audio/audio_features.h"
 #include "media/audio/audio_io.h"
 #include "media/audio/audio_manager.h"
 #include "media/audio/audio_unittest_util.h"
@@ -46,8 +45,6 @@ class AudioOutputTest : public testing::TestWithParam<bool> {
     // The only parameter is used to enable/disable AAudio.
     should_use_aaudio_ = GetParam();
     if (should_use_aaudio_) {
-      features_.InitAndEnableFeature(features::kUseAAudioDriver);
-
       if (__builtin_available(android AAUDIO_MIN_API, *)) {
         aaudio_is_supported_ = true;
       }
@@ -62,8 +59,10 @@ class AudioOutputTest : public testing::TestWithParam<bool> {
   }
 
   void CreateWithDefaultParameters() {
-    stream_params_ =
-        audio_manager_device_info_->GetDefaultOutputStreamParameters();
+    std::string default_device_id =
+        audio_manager_device_info_->GetDefaultOutputDeviceID();
+    stream_params_ = audio_manager_device_info_->GetOutputStreamParameters(
+        default_device_id);
     stream_ = audio_manager_->MakeAudioOutputStream(
         stream_params_, std::string(), AudioManager::LogCallback());
   }
@@ -85,9 +84,6 @@ class AudioOutputTest : public testing::TestWithParam<bool> {
   raw_ptr<AudioOutputStream, DanglingUntriaged> stream_ = nullptr;
   bool should_use_aaudio_ = false;
   bool aaudio_is_supported_ = false;
-#if BUILDFLAG(IS_ANDROID)
-  base::test::ScopedFeatureList features_;
-#endif
 };
 
 // Test that can it be created and closed.
@@ -152,8 +148,10 @@ TEST_P(AudioOutputTest, MAYBE_Play200HzTone) {
 
   ABORT_AUDIO_TEST_IF_NOT(audio_manager_device_info_->HasAudioOutputDevices());
 
+  std::string default_device_id =
+      audio_manager_device_info_->GetDefaultOutputDeviceID();
   stream_params_ =
-      audio_manager_device_info_->GetDefaultOutputStreamParameters();
+      audio_manager_device_info_->GetOutputStreamParameters(default_device_id);
   stream_ = audio_manager_->MakeAudioOutputStream(stream_params_, std::string(),
                                                   AudioManager::LogCallback());
   ASSERT_TRUE(stream_);

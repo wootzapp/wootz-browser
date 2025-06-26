@@ -26,6 +26,7 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/system/sys_info.h"
 #include "base/task/single_thread_task_executor.h"
 #include "base/task/single_thread_task_runner.h"
@@ -37,6 +38,7 @@
 #include "base/threading/thread_checker.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "testing/libfuzzer/fuzztest_init_helper.h"
 
 #if BUILDFLAG(IS_POSIX)
 #include "base/files/file_descriptor_watcher_posix.h"
@@ -137,8 +139,9 @@ void PrintUsage() {
 }
 
 bool GetSwitchValueAsInt(const std::string& switch_name, int* result) {
-  if (!CommandLine::ForCurrentProcess()->HasSwitch(switch_name))
+  if (!CommandLine::ForCurrentProcess()->HasSwitch(switch_name)) {
     return true;
+  }
 
   std::string switch_value =
       CommandLine::ForCurrentProcess()->GetSwitchValueASCII(switch_name);
@@ -179,6 +182,9 @@ int RunTestSuite(RunTestSuiteCallback run_test_suite,
           switches::kSingleProcessTests) ||
       CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kTestChildProcess) ||
+      CommandLine::ForCurrentProcess()->HasSwitch(switches::kFuzz) ||
+      CommandLine::ForCurrentProcess()->HasSwitch(switches::kFuzzFor) ||
+      CommandLine::ForCurrentProcess()->HasSwitch(switches::kListFuzzTests) ||
       force_single_process) {
     return std::move(run_test_suite).Run();
   }
@@ -197,8 +203,9 @@ int RunTestSuite(RunTestSuiteCallback run_test_suite,
   TestTimeouts::Initialize();
 
   int batch_limit = default_batch_limit;
-  if (!GetSwitchValueAsInt(switches::kTestLauncherBatchLimit, &batch_limit))
+  if (!GetSwitchValueAsInt(switches::kTestLauncherBatchLimit, &batch_limit)) {
     return 1;
+  }
 
   fprintf(stdout,
           "IMPORTANT DEBUGGING NOTE: batches of tests are run inside their\n"
@@ -246,11 +253,13 @@ int LaunchUnitTestsInternal(RunTestSuiteCallback run_test_suite,
 #else
   ScopedBlockTestsWritingToSpecialDirs scoped_blocker(
       {
-        // Please keep these in alphabetic order within each platform type.
-        base::DIR_SRC_TEST_DATA_ROOT, base::DIR_USER_DESKTOP,
+          // Please keep these in alphabetic order within each platform type.
+          base::DIR_SRC_TEST_DATA_ROOT,
+          base::DIR_USER_DESKTOP,
 #if BUILDFLAG(IS_WIN)
-            base::DIR_COMMON_DESKTOP, base::DIR_START_MENU,
-            base::DIR_USER_STARTUP,
+          base::DIR_COMMON_DESKTOP,
+          base::DIR_START_MENU,
+          base::DIR_USER_STARTUP,
 
 #endif  // BUILDFLAG(IS_WIN)
       },
@@ -268,11 +277,28 @@ int LaunchUnitTestsInternal(RunTestSuiteCallback run_test_suite,
 
 void InitGoogleTestChar(int* argc, char** argv) {
   testing::InitGoogleTest(argc, argv);
+  MaybeInitFuzztest(*argc, argv);
 }
 
 #if BUILDFLAG(IS_WIN)
-void InitGoogleTestWChar(int* argc, wchar_t** argv) {
+
+// Safety: as is normal in command lines, argc and argv must correspond
+// to one another. Otherwise there will be out-of-bounds accesses.
+UNSAFE_BUFFER_USAGE void InitGoogleTestWChar(int* argc, wchar_t** argv) {
   testing::InitGoogleTest(argc, argv);
+  // Fuzztest requires a narrow command-line.
+  CHECK(*argc >= 0);
+  const auto argc_s = static_cast<size_t>(*argc);
+  span<wchar_t*> wide_command_line = UNSAFE_BUFFERS(span(argv, argc_s));
+  std::vector<std::string> narrow_command_line;
+  std::vector<char*> narrow_command_line_pointers;
+  narrow_command_line.reserve(argc_s);
+  narrow_command_line_pointers.reserve(argc_s);
+  for (size_t i = 0; i < argc_s; ++i) {
+    narrow_command_line.push_back(WideToUTF8(wide_command_line[i]));
+    narrow_command_line_pointers.push_back(narrow_command_line[i].data());
+  }
+  MaybeInitFuzztest(*argc, narrow_command_line_pointers.data());
 }
 #endif  // BUILDFLAG(IS_WIN)
 
@@ -281,7 +307,7 @@ void InitGoogleTestWChar(int* argc, wchar_t** argv) {
 MergeTestFilterSwitchHandler::~MergeTestFilterSwitchHandler() = default;
 void MergeTestFilterSwitchHandler::ResolveDuplicate(
     std::string_view key,
-    CommandLine::StringPieceType new_value,
+    CommandLine::StringViewType new_value,
     CommandLine::StringType& out_value) {
   if (key != switches::kTestLauncherFilterFile) {
     out_value = CommandLine::StringType(new_value);
@@ -366,8 +392,9 @@ bool DefaultUnitTestPlatformDelegate::GetTests(
 bool DefaultUnitTestPlatformDelegate::CreateResultsFile(
     const base::FilePath& temp_dir,
     base::FilePath* path) {
-  if (!CreateTemporaryDirInDir(temp_dir, FilePath::StringType(), path))
+  if (!CreateTemporaryDirInDir(temp_dir, FilePath::StringType(), path)) {
     return false;
+  }
   *path = path->AppendASCII("test_results.xml");
   return true;
 }
@@ -375,8 +402,9 @@ bool DefaultUnitTestPlatformDelegate::CreateResultsFile(
 bool DefaultUnitTestPlatformDelegate::CreateTemporaryFile(
     const base::FilePath& temp_dir,
     base::FilePath* path) {
-  if (temp_dir.empty())
+  if (temp_dir.empty()) {
     return false;
+  }
   return CreateTemporaryFileInDir(temp_dir, path);
 }
 

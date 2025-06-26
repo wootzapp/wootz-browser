@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/filters/media_file_checker.h"
 
 #include <stddef.h>
@@ -55,8 +60,9 @@ bool MediaFileChecker::Start(base::TimeDelta check_time) {
   if (!glue.OpenContext())
     return false;
 
-  if (avformat_find_stream_info(format_context, NULL) < 0)
+  if (avformat_find_stream_info(format_context, nullptr) < 0) {
     return false;
+  }
 
   // Remember the codec context for any decodable audio or video streams.
   bool found_streams = false;

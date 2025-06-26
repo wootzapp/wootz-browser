@@ -6,13 +6,12 @@
 
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/location_internals/location_internals_handler.h"
-#include "chrome/browser/ui/webui/webui_util.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/location_internals_resources.h"
 #include "chrome/grit/location_internals_resources_map.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "services/network/public/mojom/content_security_policy.mojom.h"
-#include "ui/resources/grit/webui_resources.h"
+#include "ui/webui/webui_util.h"
 
 LocationInternalsUI::LocationInternalsUI(content::WebUI* web_ui)
     : ui::MojoWebUIController(web_ui) {
@@ -20,9 +19,7 @@ LocationInternalsUI::LocationInternalsUI(content::WebUI* web_ui)
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       Profile::FromWebUI(web_ui), chrome::kChromeUILocationInternalsHost);
 
-  webui::SetupWebUIDataSource(source,
-                              base::make_span(kLocationInternalsResources,
-                                              kLocationInternalsResourcesSize),
+  webui::SetupWebUIDataSource(source, kLocationInternalsResources,
                               IDR_LOCATION_INTERNALS_LOCATION_INTERNALS_HTML);
 }
 

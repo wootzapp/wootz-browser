@@ -5,7 +5,7 @@
 #import "ios/chrome/browser/overlays/model/public/web_content_area/java_script_dialog_overlay_utils.h"
 
 #import "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/ui/dialogs/java_script_dialog_blocking_state.h"
+#import "ios/chrome/browser/dialogs/ui_bundled/java_script_dialog_blocking_state.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/web/public/web_state.h"
 #import "ui/base/l10n/l10n_util.h"
@@ -15,8 +15,9 @@ using alert_overlays::ButtonConfig;
 namespace java_script_dialog_overlay {
 
 bool ShouldAddBlockDialogsButton(web::WebState* web_state) {
-  if (!web_state)
+  if (!web_state) {
     return false;
+  }
   JavaScriptDialogBlockingState* blocking_state =
       JavaScriptDialogBlockingState::FromWebState(web_state);
   return blocking_state && blocking_state->show_blocking_option();

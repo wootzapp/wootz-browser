@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/browser_list.h"
 
+#include <algorithm>
+
 #include "base/auto_reset.h"
 #include "base/check.h"
 #include "base/containers/contains.h"
@@ -11,7 +13,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/buildflags.h"
 #include "chrome/browser/lifetime/application_lifetime_desktop.h"
@@ -22,6 +23,7 @@
 #include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
+#include "chrome/browser/ui/browser_list_enumerator.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/browser_window.h"
 
@@ -30,21 +32,23 @@ using content::WebContents;
 
 namespace {
 
-BrowserList::BrowserVector GetBrowsersToClose(Profile* profile) {
-  BrowserList::BrowserVector browsers_to_close;
+BrowserList::BrowserWeakVector GetBrowsersToClose(Profile* profile) {
+  BrowserList::BrowserWeakVector browsers_to_close;
   for (Browser* browser : *BrowserList::GetInstance()) {
     if (browser->profile()->GetOriginalProfile() ==
-        profile->GetOriginalProfile())
-      browsers_to_close.push_back(browser);
+        profile->GetOriginalProfile()) {
+      browsers_to_close.push_back(browser->AsWeakPtr());
+    }
   }
   return browsers_to_close;
 }
 
-BrowserList::BrowserVector GetIncognitoBrowsersToClose(Profile* profile) {
-  BrowserList::BrowserVector browsers_to_close;
+BrowserList::BrowserWeakVector GetIncognitoBrowsersToClose(Profile* profile) {
+  BrowserList::BrowserWeakVector browsers_to_close;
   for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->profile() == profile)
-      browsers_to_close.push_back(browser);
+    if (browser->profile() == profile) {
+      browsers_to_close.push_back(browser->AsWeakPtr());
+    }
   }
   return browsers_to_close;
 }
@@ -63,16 +67,40 @@ BrowserList* BrowserList::instance_ = nullptr;
 // BrowserList, public:
 
 Browser* BrowserList::GetLastActive() const {
-  if (!browsers_ordered_by_activation_.empty())
+  if (!browsers_ordered_by_activation_.empty()) {
     return *(browsers_ordered_by_activation_.rbegin());
+  }
   return nullptr;
+}
+
+void BrowserList::ForEachCurrentBrowser(
+    base::FunctionRef<void(Browser*)> on_browser) {
+  // Make a copy of the BrowserList to simplify the case where we need to
+  // add or remove a Browser during the loop.
+  constexpr bool kEnumerateNewBrowser = false;
+  BrowserListEnumerator browser_list_copy(kEnumerateNewBrowser);
+  while (!browser_list_copy.empty()) {
+    on_browser(browser_list_copy.Next());
+  }
+}
+
+void BrowserList::ForEachCurrentAndNewBrowser(
+    base::FunctionRef<void(Browser*)> on_browser) {
+  // Make a copy of the BrowserList to simplify the case where we need to
+  // add or remove a Browser during the loop.
+  constexpr bool kEnumerateNewBrowser = true;
+  BrowserListEnumerator browser_list_copy(kEnumerateNewBrowser);
+  while (!browser_list_copy.empty()) {
+    on_browser(browser_list_copy.Next());
+  }
 }
 
 // static
 BrowserList* BrowserList::GetInstance() {
   BrowserList** list = &instance_;
-  if (!*list)
+  if (!*list) {
     *list = new BrowserList;
+  }
   return *list;
 }
 
@@ -85,8 +113,9 @@ void BrowserList::AddBrowser(Browser* browser) {
 
   browser->RegisterKeepAlive();
 
-  for (BrowserListObserver& observer : observers_.Get())
+  for (BrowserListObserver& observer : observers_.Get()) {
     observer.OnBrowserAdded(browser);
+  }
 
   AddBrowserToActiveList(browser);
 
@@ -109,8 +138,9 @@ void BrowserList::RemoveBrowser(Browser* browser) {
 
   RemoveBrowserFrom(browser, &browser_list->browsers_);
 
-  for (BrowserListObserver& observer : observers_.Get())
+  for (BrowserListObserver& observer : observers_.Get()) {
     observer.OnBrowserRemoved(browser);
+  }
 
   browser->UnregisterKeepAlive();
 
@@ -131,7 +161,7 @@ void BrowserList::RemoveBrowser(Browser* browser) {
 
 // static
 void BrowserList::AddBrowserToActiveList(Browser* browser) {
-  if (browser->window()->IsActive()) {
+  if (browser->IsActive()) {
     SetLastActive(browser);
     return;
   }
@@ -159,13 +189,13 @@ void BrowserList::CloseAllBrowsersWithProfile(Profile* profile) {
   BrowserVector browsers_to_close;
   for (Browser* browser : *BrowserList::GetInstance()) {
     if (browser->profile()->GetOriginalProfile() ==
-        profile->GetOriginalProfile())
+        profile->GetOriginalProfile()) {
       browsers_to_close.push_back(browser);
+    }
   }
 
-  for (BrowserVector::const_iterator it = browsers_to_close.begin();
-       it != browsers_to_close.end(); ++it) {
-    (*it)->window()->Close();
+  for (const auto& it : browsers_to_close) {
+    it->window()->Close();
   }
 }
 
@@ -190,27 +220,27 @@ void BrowserList::CloseAllBrowsersWithIncognitoProfile(
     const CloseCallback& on_close_aborted,
     bool skip_beforeunload) {
   DCHECK(profile->IsOffTheRecord());
-  BrowserList::BrowserVector browsers_to_close =
-      GetIncognitoBrowsersToClose(profile);
+  auto browsers_to_close = GetIncognitoBrowsersToClose(profile);
 
   // When closing devtools browser related to incognito browser, do not skip
   // calling before unload handlers.
   skip_beforeunload =
       skip_beforeunload &&
-      base::ranges::none_of(browsers_to_close, &Browser::is_type_devtools);
+      std::ranges::none_of(browsers_to_close, &Browser::is_type_devtools);
   TryToCloseBrowserList(browsers_to_close, on_close_success, on_close_aborted,
                         profile->GetPath(), skip_beforeunload);
 }
 
 // static
-void BrowserList::TryToCloseBrowserList(const BrowserVector& browsers_to_close,
-                                        const CloseCallback& on_close_success,
-                                        const CloseCallback& on_close_aborted,
-                                        const base::FilePath& profile_path,
-                                        const bool skip_beforeunload) {
-  for (auto it = browsers_to_close.begin(); it != browsers_to_close.end();
-       ++it) {
-    if ((*it)->TryToCloseWindow(
+void BrowserList::TryToCloseBrowserList(
+    const BrowserWeakVector& browsers_to_close,
+    const CloseCallback& on_close_success,
+    const CloseCallback& on_close_aborted,
+    const base::FilePath& profile_path,
+    const bool skip_beforeunload) {
+  for (auto& weak_browser : browsers_to_close) {
+    if (weak_browser &&
+        weak_browser->TryToCloseWindow(
             skip_beforeunload,
             base::BindRepeating(&BrowserList::PostTryToCloseBrowserWindow,
                                 browsers_to_close, on_close_success,
@@ -220,20 +250,22 @@ void BrowserList::TryToCloseBrowserList(const BrowserVector& browsers_to_close,
     }
   }
 
-  if (on_close_success)
+  if (on_close_success) {
     on_close_success.Run(profile_path);
+  }
 
-  for (Browser* b : browsers_to_close) {
+  for (auto& weak_b : browsers_to_close) {
     // BeforeUnload handlers may close browser windows, so we need to explicitly
     // check whether they still exist.
-    if (b->window())
-      b->window()->Close();
+    if (weak_b && weak_b->window()) {
+      weak_b->window()->Close();
+    }
   }
 }
 
 // static
 void BrowserList::PostTryToCloseBrowserWindow(
-    const BrowserVector& browsers_to_close,
+    const BrowserWeakVector& browsers_to_close,
     const CloseCallback& on_close_success,
     const CloseCallback& on_close_aborted,
     const base::FilePath& profile_path,
@@ -249,12 +281,16 @@ void BrowserList::PostTryToCloseBrowserWindow(
                           profile_path, skip_beforeunload);
   } else if (!resetting_handlers) {
     base::AutoReset<bool> resetting_handlers_scoper(&resetting_handlers, true);
-    for (auto it = browsers_to_close.begin(); it != browsers_to_close.end();
-         ++it) {
-      (*it)->ResetTryToCloseWindow();
+    for (auto& weak_browser : browsers_to_close) {
+      // This function is called asynchronously, so that the Browser may have
+      // been destroyed by the time we get here.
+      if (weak_browser) {
+        weak_browser->ResetTryToCloseWindow();
+      }
     }
-    if (on_close_aborted)
+    if (on_close_aborted) {
       on_close_aborted.Run(profile_path);
+    }
   }
 }
 
@@ -285,8 +321,9 @@ void BrowserList::MoveBrowsersInWorkspaceToFront(
 
   Browser* new_last_active = instance->GetLastActive();
   if (old_last_active != new_last_active) {
-    for (BrowserListObserver& observer : observers_.Get())
+    for (BrowserListObserver& observer : observers_.Get()) {
       observer.OnBrowserSetLastActive(new_last_active);
+    }
   }
 }
 
@@ -304,8 +341,9 @@ void BrowserList::SetLastActive(Browser* browser) {
   RemoveBrowserFrom(browser, &instance->browsers_ordered_by_activation_);
   instance->browsers_ordered_by_activation_.push_back(browser);
 
-  for (BrowserListObserver& observer : observers_.Get())
+  for (BrowserListObserver& observer : observers_.Get()) {
     observer.OnBrowserSetLastActive(browser);
+  }
 }
 
 // static
@@ -317,8 +355,9 @@ void BrowserList::NotifyBrowserNoLongerActive(Browser* browser) {
   DCHECK(browser->window())
       << "NotifyBrowserNoLongerActive called for a browser with no window set.";
 
-  for (BrowserListObserver& observer : observers_.Get())
+  for (BrowserListObserver& observer : observers_.Get()) {
     observer.OnBrowserNoLongerActive(browser);
+  }
 }
 
 // static
@@ -333,15 +372,17 @@ void BrowserList::NotifyBrowserCloseCancelled(Browser* browser,
 void BrowserList::NotifyBrowserCloseStarted(Browser* browser) {
   GetInstance()->currently_closing_browsers_.insert(browser);
 
-  for (BrowserListObserver& observer : observers_.Get())
+  for (BrowserListObserver& observer : observers_.Get()) {
     observer.OnBrowserClosing(browser);
+  }
 }
 
 // static
 bool BrowserList::IsOffTheRecordBrowserActive() {
   for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->profile()->IsOffTheRecord())
+    if (browser->profile()->IsOffTheRecord()) {
       return true;
+    }
   }
   return false;
 }
@@ -349,7 +390,7 @@ bool BrowserList::IsOffTheRecordBrowserActive() {
 // static
 int BrowserList::GetOffTheRecordBrowsersActiveForProfile(Profile* profile) {
   BrowserList* list = BrowserList::GetInstance();
-  return base::ranges::count_if(*list, [profile](Browser* browser) {
+  return std::ranges::count_if(*list, [profile](Browser* browser) {
     return browser->profile()->IsSameOrParent(profile) &&
            browser->profile()->IsOffTheRecord() && !browser->is_type_devtools();
   });
@@ -358,7 +399,7 @@ int BrowserList::GetOffTheRecordBrowsersActiveForProfile(Profile* profile) {
 // static
 size_t BrowserList::GetIncognitoBrowserCount() {
   BrowserList* list = BrowserList::GetInstance();
-  return base::ranges::count_if(*list, [](Browser* browser) {
+  return std::ranges::count_if(*list, [](Browser* browser) {
     return browser->profile()->IsIncognitoProfile() &&
            !browser->is_type_devtools();
   });
@@ -367,7 +408,7 @@ size_t BrowserList::GetIncognitoBrowserCount() {
 // static
 size_t BrowserList::GetGuestBrowserCount() {
   BrowserList* list = BrowserList::GetInstance();
-  return base::ranges::count_if(*list, [](Browser* browser) {
+  return std::ranges::count_if(*list, [](Browser* browser) {
     return browser->profile()->IsGuestSession() && !browser->is_type_devtools();
   });
 }
@@ -375,7 +416,7 @@ size_t BrowserList::GetGuestBrowserCount() {
 // static
 bool BrowserList::IsOffTheRecordBrowserInUse(Profile* profile) {
   BrowserList* list = BrowserList::GetInstance();
-  return base::ranges::any_of(*list, [profile](Browser* browser) {
+  return std::ranges::any_of(*list, [profile](Browser* browser) {
     return browser->profile()->IsSameOrParent(profile) &&
            browser->profile()->IsOffTheRecord();
   });
@@ -384,14 +425,15 @@ bool BrowserList::IsOffTheRecordBrowserInUse(Profile* profile) {
 ////////////////////////////////////////////////////////////////////////////////
 // BrowserList, private:
 
-BrowserList::BrowserList() {}
+BrowserList::BrowserList() = default;
 
-BrowserList::~BrowserList() {}
+BrowserList::~BrowserList() = default;
 
 // static
 void BrowserList::RemoveBrowserFrom(Browser* browser,
                                     BrowserVector* browser_list) {
-  auto remove_browser = base::ranges::find(*browser_list, browser);
-  if (remove_browser != browser_list->end())
+  auto remove_browser = std::ranges::find(*browser_list, browser);
+  if (remove_browser != browser_list->end()) {
     browser_list->erase(remove_browser);
+  }
 }

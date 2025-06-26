@@ -15,7 +15,6 @@
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
-#include "chrome/browser/ash/accessibility/accessibility_manager.h"
 #include "chrome/browser/ash/login/screens/base_screen.h"
 #include "chrome/browser/ash/login/screens/error_screen.h"
 #include "chrome/browser/ash/login/screens/oobe_mojo_binder.h"
@@ -27,6 +26,7 @@ namespace ash {
 
 class ConsumerUpdateScreenView;
 class ErrorScreensHistogramHelper;
+struct AccessibilityStatusEventDetails;
 
 // Controller for the Consumer update screen.
 class ConsumerUpdateScreen
@@ -218,7 +218,7 @@ class ConsumerUpdateScreen
   base::TimeDelta delay_skip_button_time_ = base::Seconds(15);
 
   // Maximum time estimate to force update
-  base::TimeDelta maximum_time_force_update_ = base::Minutes(5);
+  base::TimeDelta maximum_time_force_update_ = base::Minutes(8);
 
   base::TimeTicks screen_shown_time_;
 
@@ -228,6 +228,9 @@ class ConsumerUpdateScreen
 
   // Timer for the interval to wait to exit screen when no update.
   base::OneShotTimer wait_exit_timer_;
+
+  // Time estimated to finish the updating.
+  base::TimeDelta estimate_update_time_left_;
 
   // PowerManagerClient::Observer is used only when screen is shown.
   base::ScopedObservation<chromeos::PowerManagerClient,

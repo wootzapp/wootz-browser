@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ash/system/power/battery_saver_controller.h"
 
 #include <memory>
@@ -19,7 +24,6 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
-#include "base/strings/string_piece.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "chromeos/dbus/power/fake_power_manager_client.h"
@@ -240,7 +244,7 @@ TEST_F(BatterySaverControllerTest, USBCharging) {
 
 // Metrics always logged on enable.
 void ExpectEnabledMetrics(base::HistogramTester& histogram_tester,
-                          base::HistogramBase::Count enabled_count) {
+                          base::HistogramBase::Count32 enabled_count) {
   histogram_tester.ExpectTotalCount("Ash.BatterySaver.BatteryPercent.Enabled",
                                     enabled_count);
   histogram_tester.ExpectTotalCount("Ash.BatterySaver.TimeToEmpty.Enabled",
@@ -250,7 +254,7 @@ void ExpectEnabledMetrics(base::HistogramTester& histogram_tester,
 // Metrics logged on enable when enabled via settings.
 void ExpectSettingsEnabledMetrics(
     base::HistogramTester& histogram_tester,
-    base::HistogramBase::Count settings_enabled_count) {
+    base::HistogramBase::Count32 settings_enabled_count) {
   histogram_tester.ExpectTotalCount(
       "Ash.BatterySaver.BatteryPercent.EnabledSettings",
       settings_enabled_count);
@@ -260,7 +264,7 @@ void ExpectSettingsEnabledMetrics(
 
 // Metrics always logged on disable.
 void ExpectDisabledMetrics(base::HistogramTester& histogram_tester,
-                           base::HistogramBase::Count disabled_count) {
+                           base::HistogramBase::Count32 disabled_count) {
   histogram_tester.ExpectTotalCount("Ash.BatterySaver.BatteryPercent.Disabled",
                                     disabled_count);
   histogram_tester.ExpectTotalCount("Ash.BatterySaver.TimeToEmpty.Disabled",
@@ -272,7 +276,7 @@ void ExpectDisabledMetrics(base::HistogramTester& histogram_tester,
 // Metrics logged on disable when enabled via notification.
 void ExpectNotificationEnabledMetricsOnDisable(
     base::HistogramTester& histogram_tester,
-    base::HistogramBase::Count notification_enabled_count) {
+    base::HistogramBase::Count32 notification_enabled_count) {
   histogram_tester.ExpectTotalCount(
       "Ash.BatterySaver.Duration.EnabledNotification",
       notification_enabled_count);
@@ -281,7 +285,7 @@ void ExpectNotificationEnabledMetricsOnDisable(
 // Metrics logged on disable when enabled via settings.
 void ExpectSettingsEnabledMetricsOnDisable(
     base::HistogramTester& histogram_tester,
-    base::HistogramBase::Count settings_enabled_count) {
+    base::HistogramBase::Count32 settings_enabled_count) {
   histogram_tester.ExpectTotalCount("Ash.BatterySaver.Duration.EnabledSettings",
                                     settings_enabled_count);
 }
@@ -289,7 +293,7 @@ void ExpectSettingsEnabledMetricsOnDisable(
 // Metrics logged on disable when disabled via charging.
 void ExpectChargingDisabledMetrics(
     base::HistogramTester& histogram_tester,
-    base::HistogramBase::Count charging_disabled_count) {
+    base::HistogramBase::Count32 charging_disabled_count) {
   histogram_tester.ExpectTotalCount(
       "Ash.BatterySaver.Duration.DisabledCharging", charging_disabled_count);
 }
@@ -297,7 +301,7 @@ void ExpectChargingDisabledMetrics(
 // Metrics logged on disable when disabled via notification.
 void ExpectNotificationDisabledMetrics(
     base::HistogramTester& histogram_tester,
-    base::HistogramBase::Count notification_disabled_count) {
+    base::HistogramBase::Count32 notification_disabled_count) {
   histogram_tester.ExpectTotalCount(
       "Ash.BatterySaver.Duration.DisabledNotification",
       notification_disabled_count);
@@ -306,7 +310,7 @@ void ExpectNotificationDisabledMetrics(
 // Metrics logged on disable when disabled via settings.
 void ExpectSettingsDisabledMetrics(
     base::HistogramTester& histogram_tester,
-    base::HistogramBase::Count settings_disabled_count) {
+    base::HistogramBase::Count32 settings_disabled_count) {
   histogram_tester.ExpectTotalCount(
       "Ash.BatterySaver.BatteryPercent.DisabledSettings",
       settings_disabled_count);
@@ -453,7 +457,8 @@ TEST_F(BatterySaverControllerTest, Allowed) {
   local_state()->RemoveManagedPref(prefs::kPowerBatterySaver);
 
   // If the experiment is off, Battery Saver is not allowed.
-  scoped_feature_list_.reset();
+  scoped_feature_list_->Reset();
+  scoped_feature_list_->InitAndDisableFeature(features::kBatterySaver);
   EXPECT_FALSE(IsBatterySaverAllowed());
 }
 

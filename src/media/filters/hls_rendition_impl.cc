@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "media/filters/hls_rendition_impl.h"
 
 #include "base/task/bind_post_task.h"
@@ -9,6 +14,15 @@
 #include "media/filters/hls_manifest_demuxer_engine.h"
 
 namespace media {
+
+namespace {
+
+bool KeyIsValidSize(const std::vector<uint8_t>& key) {
+  // HLS allows 128- and 256-bit keys, but not 192-bit.
+  return key.size() == 16 || key.size() == 32;
+}
+
+}  // namespace
 
 constexpr base::TimeDelta kBufferDuration = base::Seconds(10);
 
@@ -21,7 +35,8 @@ HlsRenditionImpl::HlsRenditionImpl(ManifestDemuxerEngineHost* engine_host,
                                    std::string role,
                                    scoped_refptr<hls::MediaPlaylist> playlist,
                                    std::optional<base::TimeDelta> duration,
-                                   GURL media_playlist_uri)
+                                   GURL media_playlist_uri,
+                                   MediaLog* media_log)
     : engine_host_(engine_host),
       rendition_host_(rendition_host),
       segments_(std::make_unique<hls::SegmentStream>(
@@ -30,7 +45,8 @@ HlsRenditionImpl::HlsRenditionImpl(ManifestDemuxerEngineHost* engine_host,
       role_(std::move(role)),
       duration_(duration),
       media_playlist_uri_(std::move(media_playlist_uri)),
-      last_download_time_(base::TimeTicks::Now()) {}
+      last_download_time_(base::TimeTicks::Now()),
+      media_log_(media_log->Clone()) {}
 
 std::optional<base::TimeDelta> HlsRenditionImpl::GetDuration() {
   return duration_;
@@ -51,7 +67,7 @@ void HlsRenditionImpl::CheckState(
     // non-real-time playback? Anything above 1 would hit the end and constantly
     // be in a state of demuxer underflow, and anything slower than 1 would
     // eventually have so much data buffered that it would OOM.
-    engine_host_->OnError(DEMUXER_ERROR_COULD_NOT_PARSE);
+    rendition_host_->Quit(HlsDemuxerStatus::Codes::kInvalidLivePlaybackRate);
     return;
   }
 
@@ -103,6 +119,14 @@ void HlsRenditionImpl::CheckState(
 
   // Nothing loaded, nothing left, and not live. Time to stop.
   if (segments_->Exhausted() && duration_.has_value()) {
+    if (!has_ever_played_ && ranges.empty()) {
+      // If we've never loaded any content, and never played anything, then
+      // we can only get into this state if the media content is super messed
+      // up and chunk demuxer loads a bunch of it without ever initializing.
+      // This is an error.
+      rendition_host_->Quit(HlsDemuxerStatus::Codes::kNoDataEverAppended);
+      return;
+    }
     if (!set_stream_end_) {
       set_stream_end_ = true;
       rendition_host_->SetEndOfStream(true);
@@ -127,8 +151,8 @@ void HlsRenditionImpl::CheckState(
   // If media time comes before the last loaded range, then a seek probably
   // failed, and we should raise an error.
   if (std::get<0>(ranges.back()) > media_time) {
-    PipelineStatus error = DEMUXER_ERROR_COULD_NOT_PARSE;
-    engine_host_->OnError(std::move(error)
+    HlsDemuxerStatus error = HlsDemuxerStatus::Codes::kInvalidLoadedRanges;
+    rendition_host_->Quit(std::move(error)
                               .WithData("timestamp", media_time)
                               .WithData("range_start", ranges.back().first)
                               .WithData("range_end", ranges.back().second));
@@ -207,7 +231,7 @@ void HlsRenditionImpl::FetchManifestUpdates(ManifestDemuxer::DelayCallback cb,
 
 void HlsRenditionImpl::OnManifestUpdate(ManifestDemuxer::DelayCallback cb,
                                         base::TimeDelta delay,
-                                        bool success) {
+                                        HlsDemuxerStatus success) {
   TRACE_EVENT_NESTABLE_ASYNC_END0("media", "HLS::FetchManifestUpdates", this);
   auto update_duration = base::TimeTicks::Now() - last_download_time_;
   if (update_duration > delay) {
@@ -265,6 +289,9 @@ ManifestDemuxer::SeekResponse HlsRenditionImpl::Seek(
     return ManifestDemuxer::SeekState::kIsReady;
   }
 
+  key_.clear();
+  last_discontinuity_sequence_num_ = std::nullopt;
+
   if (IsLive()) {
     return ManifestDemuxer::SeekState::kNeedsData;
   }
@@ -299,36 +326,36 @@ void HlsRenditionImpl::Stop() {
 }
 
 void HlsRenditionImpl::UpdatePlaylist(
-    scoped_refptr<hls::MediaPlaylist> playlist,
-    std::optional<GURL> new_playlist_uri) {
+    scoped_refptr<hls::MediaPlaylist> playlist) {
   segments_->SetNewPlaylist(std::move(playlist));
-  if (new_playlist_uri.has_value()) {
-    media_playlist_uri_ = new_playlist_uri.value();
-  }
+}
+
+void HlsRenditionImpl::UpdatePlaylistURI(const GURL& playlist_uri) {
+  media_playlist_uri_ = playlist_uri;
+}
+
+const GURL& HlsRenditionImpl::MediaPlaylistUri() const {
+  return media_playlist_uri_;
 }
 
 base::TimeDelta HlsRenditionImpl::ClearOldSegments(base::TimeDelta media_time) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK(!is_stopped_for_shutdown_);
   base::TimeTicks removal_start = base::TimeTicks::Now();
-  // Keep 10 seconds of content before the current media time. On mobile, a very
-  // common pattern is to make double tapping the left side of the player
-  // trigger a 10 second seek backwards. Keeping 10 seconds of time prior to the
-  // current media time allows for a ten second rewind seek without triggering
-  // new data loads. For live content, we keep 2 seconds instead, since seeking
-  // is disallowed. Some content needs to be kept in the buffer to make sure
-  // that bounds checking stays clean.
-  base::TimeDelta remove_until;
-  if (IsLive()) {
-    remove_until = media_time - base::Seconds(2);
-  } else {
-    remove_until = media_time - kBufferDuration - segments_->GetMaxDuration();
+  // A common pattern on the mobile player is a 10 second rewind triggered by a
+  // double tap on the left side of the player, so we want to keep at least 10
+  // seconds of older content so a seek won't require a re-fetch. We also need
+  // to keep at least enough data for there to be some keyframes, which we can
+  // get from the segment max duration.
+  base::TimeDelta required_buffer =
+      std::max(kBufferDuration, segments_->GetMaxDuration() * 2);
+  if (media_time > required_buffer) {
+    engine_host_->Remove(role_, base::TimeDelta(),
+                         media_time - required_buffer);
   }
 
-  if ((IsLive() && remove_until > base::Seconds(0)) ||
-      remove_until > kBufferDuration) {
-    engine_host_->Remove(role_, base::TimeDelta(), remove_until);
-  }
+  auto ranges = engine_host_->GetBufferedRanges(role_);
+  media_log_->SetProperty<MediaLogProperty::kHlsBufferedRanges>(ranges);
 
   return base::TimeTicks::Now() - removal_start;
 }
@@ -352,17 +379,26 @@ void HlsRenditionImpl::FetchNext(base::OnceClosure cb, base::TimeDelta time) {
   TRACE_EVENT_NESTABLE_ASYNC_BEGIN2("media", "HLS::FetchSegment", this, "start",
                                     segment_start, "include init",
                                     include_init);
+
+  bool is_fetching_new_key = false;
+  if (auto enc = segment->GetEncryptionData()) {
+    is_fetching_new_key = enc->NeedsKeyFetch();
+  }
+  media_log_->AddEvent<MediaLogEvent::kHlsSegmentFetch>(
+      segment->GetUri().PathForRequest());
   rendition_host_->ReadMediaSegment(
       *segment, /*read_chunked=*/false, include_init,
       base::BindOnce(&HlsRenditionImpl::OnSegmentData,
-                     weak_factory_.GetWeakPtr(), std::move(cb), time,
-                     segment_end, base::TimeTicks::Now()));
+                     weak_factory_.GetWeakPtr(), segment, std::move(cb), time,
+                     segment_end, base::TimeTicks::Now(), is_fetching_new_key));
 }
 
-void HlsRenditionImpl::OnSegmentData(base::OnceClosure cb,
+void HlsRenditionImpl::OnSegmentData(scoped_refptr<hls::MediaSegment> segment,
+                                     base::OnceClosure cb,
                                      base::TimeDelta required_time,
                                      base::TimeDelta parse_end,
                                      base::TimeTicks net_req_start,
+                                     bool fetched_new_key,
                                      HlsDataSourceProvider::ReadResult result) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   TRACE_EVENT_NESTABLE_ASYNC_END0("media", "HLS::FetchSegment", this);
@@ -375,18 +411,90 @@ void HlsRenditionImpl::OnSegmentData(base::OnceClosure cb,
     // Drop |cb| here, and let the abort handler pick up the pieces.
     // TODO(crbug.com/40057824): If a seek abort interrupts us, we want to not
     // bubble the error upwards.
-    return engine_host_->OnError(
-        {DEMUXER_ERROR_COULD_NOT_PARSE, std::move(result).error()});
+    rendition_host_->Quit(HlsDemuxerStatusTraits::FromReadStatus(
+        std::move(result).error().AddHere()));
+    return;
   }
 
   std::unique_ptr<HlsDataSourceStream> stream = std::move(result).value();
   DCHECK(!stream->CanReadMore());
 
-  if (!engine_host_->AppendAndParseData(
-          role_, base::TimeDelta(), parse_end + base::Seconds(1),
-          &parse_offset_, stream->raw_data(), stream->buffer_size())) {
-    return engine_host_->OnError(DEMUXER_ERROR_COULD_NOT_PARSE);
+  // This plaintext vector needs to be declared in the same scope as the
+  // `AppendAndParseData` call, as it will be the memory backing for the span
+  // which that function consumes. Declaring it elsewhere would lead to a
+  // potential use-after-free or stack smash.
+  std::vector<uint8_t> plaintext;
+  base::span<const uint8_t> stream_data =
+      base::span(stream->raw_data(), stream->buffer_size());
+
+  if (auto enc_data = segment->GetEncryptionData()) {
+    switch (enc_data->GetMethod()) {
+      case hls::XKeyTagMethod::kAES128:
+      case hls::XKeyTagMethod::kAES256: {
+        if (key_.empty() || !segment->HasNewEncryptionData() ||
+            fetched_new_key) {
+          // Hold on to the segment - this is likely the last reference to it,
+          // and it contains our aes key.
+          segment_with_key_ = segment;
+
+          auto maybe_iv = enc_data->GetIVStr(segment->GetMediaSequenceNumber());
+          if (!maybe_iv.has_value()) {
+            // TODO: if no key is present in enc_data, it seems like
+            // kInsufficientCryptoMetadata is a better error code than
+            // kFailedToDecryptSegment. Maybe the check for maybe_key below
+            // should be moved to this block?
+            rendition_host_->Quit(
+                HlsDemuxerStatus::Codes::kInsufficientCryptoMetadata);
+            return;
+          }
+
+          auto key = enc_data->GetKey();
+          if (maybe_iv->size() != std::size(iv_) || !KeyIsValidSize(key)) {
+            rendition_host_->Quit(
+                HlsDemuxerStatus::Codes::kFailedToDecryptSegment);
+            return;
+          }
+
+          base::span(iv_).copy_from(base::as_byte_span(*maybe_iv));
+          key_ = key;
+        }
+
+        // Decrypt the ciphertext, and re-assign the data span to point to the
+        // cleartext memory in `plaintext`.
+        auto maybe_plaintext = crypto::aes_cbc::Decrypt(key_, iv_, stream_data);
+        if (!maybe_plaintext) {
+          rendition_host_->Quit(
+              HlsDemuxerStatus::Codes::kFailedToDecryptSegment);
+          return;
+        }
+
+        plaintext = std::move(maybe_plaintext).value();
+        stream_data = plaintext;
+        if (plaintext.size() == 0) {
+          FetchNext(std::move(cb), required_time);
+          return;
+        }
+        break;
+      }
+      default:
+        break;
+    }
   }
+
+  if (last_discontinuity_sequence_num_.value_or(
+          segment->GetDiscontinuitySequenceNumber()) !=
+      segment->GetDiscontinuitySequenceNumber()) {
+    engine_host_->ResetParserState(role_, parse_end + base::Seconds(1),
+                                   &parse_offset_);
+  }
+
+  if (!engine_host_->AppendAndParseData(role_, parse_end + base::Seconds(1),
+                                        &parse_offset_, stream_data)) {
+    rendition_host_->Quit(HlsDemuxerStatus::Codes::kCouldNotAppendData);
+    return;
+  }
+
+  last_discontinuity_sequence_num_ = segment->GetDiscontinuitySequenceNumber();
 
   // Wince we've successfully parsed our data, we can mark that an init segment
   // is not required due to seeking.
@@ -402,6 +510,8 @@ void HlsRenditionImpl::OnSegmentData(base::OnceClosure cb,
   // for the seek to complete. In this case, we just keep fetching until
   // the seek time is loaded.
   auto ranges = engine_host_->GetBufferedRanges(role_);
+  media_log_->SetProperty<MediaLogProperty::kHlsBufferedRanges>(ranges);
+
   if (ranges.size() && ranges.contains(ranges.size() - 1, required_time)) {
     std::move(cb).Run();
     return;

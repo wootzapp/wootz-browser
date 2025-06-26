@@ -49,8 +49,7 @@ std::string GetSourceHistogramName(TileSource source) {
     case TileSource::CUSTOM_LINKS:
       return kHistogramCustomLinksName;
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::string();
+  NOTREACHED();
 }
 
 const char* GetTileTypeSuffix(TileVisualType type) {
@@ -61,7 +60,7 @@ const char* GetTileTypeSuffix(TileVisualType type) {
       return kTileTypeSuffixIconGray;
     case TileVisualType::ICON_REAL:
       return kTileTypeSuffixIconReal;
-    case TileVisualType::NONE:                     // Fall through.
+    case TileVisualType::NONE:  // Fall through.
     case TileVisualType::UNKNOWN_TILE_TYPE:
       break;
   }

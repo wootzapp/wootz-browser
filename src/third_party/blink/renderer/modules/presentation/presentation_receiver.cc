@@ -5,7 +5,7 @@
 #include "third_party/blink/renderer/modules/presentation/presentation_receiver.h"
 
 #include "base/task/single_thread_task_runner.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise.h"
 #include "third_party/blink/renderer/core/execution_context/execution_context.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
@@ -62,7 +62,7 @@ void PresentationReceiver::OnReceiverConnectionAvailable(
     mojom::blink::PresentationConnectionResultPtr result) {
   // Take() will call PresentationReceiver::registerConnection()
   // and register the connection.
-  auto* connection = ReceiverPresentationConnection::Take(
+  auto* connection = ReceiverPresentationConnection::Create(
       this, *result->presentation_info, std::move(result->connection_remote),
       std::move(result->connection_receiver));
 

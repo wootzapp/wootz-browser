@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/media/webrtc/tab_desktop_media_list.h"
 
 #include <memory>
@@ -18,8 +23,9 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/gmock_callback_support.h"
 #include "base/values.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/media/webrtc/desktop_media_list.h"
+#include "chrome/browser/media/webrtc/tab_desktop_media_list_mock_observer.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/apps/chrome_app_delegate.h"
 #include "chrome/browser/ui/browser_list.h"
@@ -47,11 +53,13 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
-#include "chrome/browser/ash/login/users/chrome_user_manager_impl.h"
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/ash/login/users/user_manager_delegate_impl.h"
 #include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
+#include "chromeos/ash/components/settings/cros_settings.h"
 #include "components/user_manager/scoped_user_manager.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#include "components/user_manager/user_manager_impl.h"
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 using content::WebContents;
 using content::WebContentsTester;
@@ -84,22 +92,6 @@ gfx::Image CreateGrayscaleImage(gfx::Size size, uint8_t greyscale_value) {
 
   return gfx::Image::CreateFrom1xBitmap(result);
 }
-
-class MockObserver : public DesktopMediaListObserver {
- public:
-  MOCK_METHOD1(OnSourceAdded, void(int index));
-  MOCK_METHOD1(OnSourceRemoved, void(int index));
-  MOCK_METHOD2(OnSourceMoved, void(int old_index, int new_index));
-  MOCK_METHOD1(OnSourceNameChanged, void(int index));
-  MOCK_METHOD1(OnSourceThumbnailChanged, void(int index));
-  MOCK_METHOD1(OnSourcePreviewChanged, void(size_t index));
-  MOCK_METHOD0(OnDelegatedSourceListSelection, void());
-  MOCK_METHOD0(OnDelegatedSourceListDismissed, void());
-
-  void VerifyAndClearExpectations() {
-    testing::Mock::VerifyAndClearExpectations(this);
-  }
-};
 
 ACTION_P2(CheckListSize, list, expected_list_size) {
   EXPECT_EQ(expected_list_size, list->GetSourceCount());
@@ -169,7 +161,7 @@ class TabDesktopMediaListTest : public testing::Test,
       return nullptr;
 
     WebContentsTester::For(contents.get())
-        ->SetLastActiveTime(base::TimeTicks::Now());
+        ->SetLastActiveTimeTicks(base::TimeTicks::Now());
 
     // Get or create a NavigationEntry and add a title and a favicon to it.
     content::NavigationEntry* entry =
@@ -228,7 +220,7 @@ class TabDesktopMediaListTest : public testing::Test,
 
     base::CommandLine* cl = base::CommandLine::ForCurrentProcess();
     cl->AppendSwitch(switches::kNoFirstRun);
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
     cl->AppendSwitch(switches::kTestType);
 #endif
 
@@ -335,7 +327,7 @@ class TabDesktopMediaListTest : public testing::Test,
   std::unique_ptr<Browser> browser_;
 
   // Must be listed before |list_|, so it's destroyed last.
-  MockObserver observer_;
+  DesktopMediaListMockObserver observer_;
   std::unique_ptr<TabDesktopMediaList> list_;
   std::vector<raw_ptr<WebContents, VectorExperimental>>
       manually_added_web_contents_;
@@ -345,10 +337,13 @@ class TabDesktopMediaListTest : public testing::Test,
 
   scoped_refptr<const extensions::Extension> extension_;
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   ash::ScopedCrosSettingsTestHelper cros_settings_test_helper_;
-  user_manager::ScopedUserManager test_user_manager_{
-      ash::ChromeUserManagerImpl::CreateChromeUserManager()};
+  user_manager::ScopedUserManager user_manager_{
+      std::make_unique<user_manager::UserManagerImpl>(
+          std::make_unique<ash::UserManagerDelegateImpl>(),
+          local_state_.Get(),
+          ash::CrosSettings::Get())};
 #endif
 };
 
@@ -391,7 +386,7 @@ TEST_P(TabDesktopMediaListTest, RemoveTab) {
   ASSERT_TRUE(tab_strip_model);
   std::unique_ptr<tabs::TabModel> detached_tab =
       tab_strip_model->DetachTabAtForInsertion(kDefaultSourceCount - 1);
-  std::erase(manually_added_web_contents_, detached_tab.get()->contents());
+  std::erase(manually_added_web_contents_, detached_tab.get()->GetContents());
 
   EXPECT_CALL(observer_, OnSourceRemoved(0))
       .WillOnce(
@@ -410,13 +405,13 @@ TEST_P(TabDesktopMediaListTest, MoveTab) {
 
   WebContents* contents0 = tab_strip_model->GetWebContentsAt(0);
   ASSERT_TRUE(contents0);
-  base::TimeTicks t0 = contents0->GetLastActiveTime();
+  base::TimeTicks t0 = contents0->GetLastActiveTimeTicks();
   WebContents* contents1 = tab_strip_model->GetWebContentsAt(1);
   ASSERT_TRUE(contents1);
-  base::TimeTicks t1 = contents1->GetLastActiveTime();
+  base::TimeTicks t1 = contents1->GetLastActiveTimeTicks();
 
-  WebContentsTester::For(contents0)->SetLastActiveTime(t1);
-  WebContentsTester::For(contents1)->SetLastActiveTime(t0);
+  WebContentsTester::For(contents0)->SetLastActiveTimeTicks(t1);
+  WebContentsTester::For(contents1)->SetLastActiveTimeTicks(t0);
 
   EXPECT_CALL(observer_, OnSourceMoved(1, 0))
       .WillOnce(testing::DoAll(CheckListSize(list_.get(), kDefaultSourceCount),

@@ -40,6 +40,7 @@ interface mixin GlobalEventHandlers {
   attribute EventHandler onchange;
   attribute EventHandler onclick;
   attribute EventHandler onclose;
+  [RuntimeEnabled=HTMLCommandAttributes] attribute EventHandler oncommand;
   attribute EventHandler oncontentvisibilityautostatechange;
   attribute EventHandler oncontextlost;
   attribute EventHandler oncontextmenu;
@@ -93,8 +94,8 @@ interface mixin GlobalEventHandlers {
   attribute EventHandler onseeking;
   attribute EventHandler onselect;
   attribute EventHandler onslotchange;
-  [RuntimeEnabled=CSSSnapChangedEvent] attribute EventHandler onsnapchanged;
-  [RuntimeEnabled=CSSSnapChangingEvent] attribute EventHandler onsnapchanging;
+  [RuntimeEnabled=CSSScrollSnapChangeEvent] attribute EventHandler onscrollsnapchange;
+  [RuntimeEnabled=CSSScrollSnapChangingEvent] attribute EventHandler onscrollsnapchanging;
   //attribute EventHandler onsort;
   attribute EventHandler onstalled;
   attribute EventHandler onsubmit;

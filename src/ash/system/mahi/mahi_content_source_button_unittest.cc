@@ -5,6 +5,7 @@
 #include "ash/system/mahi/mahi_content_source_button.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "ash/public/cpp/image_util.h"
@@ -12,7 +13,9 @@
 #include "ash/public/cpp/test/test_new_window_delegate.h"
 #include "ash/system/mahi/mahi_constants.h"
 #include "ash/system/mahi/test/mock_mahi_manager.h"
+#include "ash/system/mahi/test/mock_mahi_media_app_content_manager.h"
 #include "ash/test/ash_test_base.h"
+#include "base/unguessable_token.h"
 #include "chromeos/components/mahi/public/cpp/mahi_manager.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -27,6 +30,7 @@ namespace ash {
 
 namespace {
 
+using ::testing::_;
 using ::testing::Mock;
 using ::testing::NiceMock;
 using ::testing::Return;
@@ -42,26 +46,31 @@ class MockNewWindowDelegate : public NiceMock<TestNewWindowDelegate> {
 
 class MahiContentSourceButtonTest : public AshTestBase {
  public:
-  MahiContentSourceButtonTest() {
-    new_window_delegate_provider_ =
-        std::make_unique<TestNewWindowDelegateProvider>(
-            std::make_unique<MockNewWindowDelegate>());
-  }
+  MahiContentSourceButtonTest() = default;
 
   ~MahiContentSourceButtonTest() override = default;
 
   MockMahiManager& mock_mahi_manager() { return mock_mahi_manager_; }
 
-  MockNewWindowDelegate* GetMockNewWindowDelegate() {
-    return static_cast<MockNewWindowDelegate*>(
-        new_window_delegate_provider_->GetPrimary());
+  MockMahiMediaAppContentManager& mock_mahi_media_app_content_manager() {
+    return mock_mahi_media_app_content_manager_;
+  }
+
+  MockNewWindowDelegate& GetMockNewWindowDelegate() {
+    return new_window_delegate_;
   }
 
  private:
   NiceMock<MockMahiManager> mock_mahi_manager_;
   chromeos::ScopedMahiManagerSetter scoped_mahi_manager_setter_{
       &mock_mahi_manager_};
-  std::unique_ptr<TestNewWindowDelegateProvider> new_window_delegate_provider_;
+
+  NiceMock<MockMahiMediaAppContentManager> mock_mahi_media_app_content_manager_;
+  chromeos::ScopedMahiMediaAppContentManagerSetter
+      scoped_mahi_media_app_content_manager_{
+          &mock_mahi_media_app_content_manager_};
+
+  MockNewWindowDelegate new_window_delegate_;
 };
 
 TEST_F(MahiContentSourceButtonTest, InitialContentSourceTitle) {
@@ -84,6 +93,21 @@ TEST_F(MahiContentSourceButtonTest, ContentSourceTitleAfterRefresh) {
   content_source_button.RefreshContentSourceInfo();
 
   EXPECT_EQ(content_source_button.GetText(), kRefreshedTitle);
+}
+
+// Tests that when mahi manager `GetSelectedText()` returns non empty value, the
+// content source button should use it as the text.
+TEST_F(MahiContentSourceButtonTest, ContentSourceTitleSelectedText) {
+  ON_CALL(mock_mahi_manager(), GetContentTitle)
+      .WillByDefault(Return(u"Initial content title"));
+  MahiContentSourceButton content_source_button;
+
+  const std::u16string kSelectedText(u"web selected text");
+  ON_CALL(mock_mahi_manager(), GetSelectedText)
+      .WillByDefault(Return(kSelectedText));
+  content_source_button.RefreshContentSourceInfo();
+
+  EXPECT_EQ(content_source_button.GetText(), kSelectedText);
 }
 
 TEST_F(MahiContentSourceButtonTest, InitialContentSourceIcon) {
@@ -129,11 +153,11 @@ TEST_F(MahiContentSourceButtonTest, InitialContentSourceButtonUrl) {
       widget->SetContentsView(std::make_unique<MahiContentSourceButton>());
 
   EXPECT_CALL(
-      *GetMockNewWindowDelegate(),
+      GetMockNewWindowDelegate(),
       OpenUrl(kInitialUrl, NewWindowDelegate::OpenUrlFrom::kUserInteraction,
               NewWindowDelegate::Disposition::kSwitchToTab));
   LeftClickOn(content_source_button);
-  Mock::VerifyAndClearExpectations(GetMockNewWindowDelegate());
+  Mock::VerifyAndClearExpectations(&GetMockNewWindowDelegate());
 }
 
 TEST_F(MahiContentSourceButtonTest, ContentSourceButtonUrlAfterRefresh) {
@@ -150,11 +174,31 @@ TEST_F(MahiContentSourceButtonTest, ContentSourceButtonUrlAfterRefresh) {
   content_source_button->RefreshContentSourceInfo();
 
   EXPECT_CALL(
-      *GetMockNewWindowDelegate(),
+      GetMockNewWindowDelegate(),
       OpenUrl(kRefreshedUrl, NewWindowDelegate::OpenUrlFrom::kUserInteraction,
               NewWindowDelegate::Disposition::kSwitchToTab));
   LeftClickOn(content_source_button);
-  Mock::VerifyAndClearExpectations(GetMockNewWindowDelegate());
+  Mock::VerifyAndClearExpectations(&GetMockNewWindowDelegate());
+}
+
+TEST_F(MahiContentSourceButtonTest, ContentSourceButtonActivateMediaAppWindow) {
+  ON_CALL(mock_mahi_manager(), GetContentUrl)
+      .WillByDefault(Return(GURL("https://www.google.com")));
+  const base::UnguessableToken media_app_client_id =
+      base::UnguessableToken::Create();
+  ON_CALL(mock_mahi_manager(), GetMediaAppPDFClientId)
+      .WillByDefault(Return(std::make_optional(media_app_client_id)));
+  auto widget = CreateFramelessTestWidget();
+  widget->SetFullscreen(true);
+  auto* content_source_button =
+      widget->SetContentsView(std::make_unique<MahiContentSourceButton>());
+
+  EXPECT_CALL(mock_mahi_media_app_content_manager(),
+              ActivateClientWindow(media_app_client_id))
+      .Times(1);
+  EXPECT_CALL(GetMockNewWindowDelegate(), OpenUrl(_, _, _)).Times(0);
+  LeftClickOn(content_source_button);
+  Mock::VerifyAndClearExpectations(&GetMockNewWindowDelegate());
 }
 
 }  // namespace

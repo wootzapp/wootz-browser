@@ -6,6 +6,7 @@
 
 #include "base/functional/callback_helpers.h"
 #include "base/memory/weak_ptr.h"
+#include "base/notimplemented.h"
 #include "base/task/thread_pool.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
@@ -14,6 +15,7 @@
 #include "components/viz/common/resources/shared_image_format_utils.h"
 #include "components/viz/test/test_context_provider.h"
 #include "gpu/command_buffer/client/client_shared_image.h"
+#include "gpu/command_buffer/common/shared_image_usage.h"
 #include "gpu/config/gpu_finch_features.h"
 #include "media/base/format_utils.h"
 #include "media/base/media_switches.h"
@@ -36,7 +38,7 @@ gfx::ColorSpace GetColorSpaceForPixelFormat(media::VideoPixelFormat format) {
     case media::PIXEL_FORMAT_ABGR:
       return gfx::ColorSpace::CreateSRGB();
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 
@@ -47,62 +49,35 @@ class FakeContext : public RenderableGpuMemoryBufferVideoFramePool::Context {
         weak_factory_(this) {}
   ~FakeContext() override = default;
 
-  std::unique_ptr<gfx::GpuMemoryBuffer> CreateGpuMemoryBuffer(
-      const gfx::Size& size,
-      gfx::BufferFormat format,
-      gfx::BufferUsage usage) override {
-    DoCreateGpuMemoryBuffer(size, format);
-    return std::make_unique<FakeGpuMemoryBuffer>(size, format);
-  }
   scoped_refptr<gpu::ClientSharedImage> CreateSharedImage(
-      gfx::GpuMemoryBuffer* gpu_memory_buffer,
+      const gfx::Size& size,
+      gfx::BufferUsage buffer_usage,
       const viz::SharedImageFormat& si_format,
       const gfx::ColorSpace& color_space,
-      GrSurfaceOrigin surface_origin,
-      SkAlphaType alpha_type,
-      uint32_t usage,
+      gpu::SharedImageUsageSet usage,
       gpu::SyncToken& sync_token) override {
-    DoCreateSharedImage(si_format, gpu_memory_buffer->GetSize(), color_space,
-                        surface_origin, alpha_type, usage,
-                        gpu_memory_buffer->CloneHandle());
+    DoCreateMappableSharedImage(size, buffer_usage, si_format, color_space,
+                                usage, sync_token);
+    context_provider_->SharedImageInterface()
+        ->UseTestGMBInSharedImageCreationWithBufferUsage();
     return context_provider_->SharedImageInterface()->CreateSharedImage(
-        {si_format, gpu_memory_buffer->GetSize(), color_space, surface_origin,
-         alpha_type, usage, "RenderableGpuMemoryBufferVideoFramePoolTest"},
-        gpu_memory_buffer->CloneHandle());
-  }
-  scoped_refptr<gpu::ClientSharedImage> CreateSharedImage(
-      gfx::GpuMemoryBuffer* gpu_memory_buffer,
-      gfx::BufferPlane plane,
-      const gfx::ColorSpace& color_space,
-      GrSurfaceOrigin surface_origin,
-      SkAlphaType alpha_type,
-      uint32_t usage,
-      gpu::SyncToken& sync_token) override {
-    DoCreateSharedImage(gpu_memory_buffer, plane, color_space, surface_origin,
-                        alpha_type, usage);
-    return context_provider_->SharedImageInterface()->CreateSharedImage(
-        gpu_memory_buffer, /*gpu_memory_buffer_manager=*/nullptr, plane,
-        {color_space, surface_origin, alpha_type, usage,
-         "RenderableGpuMemoryBufferVideoFramePoolTest"});
+        {si_format, size, color_space, usage,
+         "RenderableGpuMemoryBufferVideoFramePoolTest"},
+        gpu::kNullSurfaceHandle, buffer_usage);
   }
 
-  MOCK_METHOD2(DoCreateGpuMemoryBuffer,
-               void(const gfx::Size& size, gfx::BufferFormat format));
-  MOCK_METHOD7(DoCreateSharedImage,
-               void(viz::SharedImageFormat format,
-                    const gfx::Size& size,
+  const gpu::SharedImageCapabilities& GetCapabilities() override {
+    return context_provider_->SharedImageInterface()->GetCapabilities();
+  }
+
+  MOCK_METHOD6(DoCreateMappableSharedImage,
+               void(const gfx::Size& size,
+                    gfx::BufferUsage buffer_usage,
+                    const viz::SharedImageFormat& si_format,
                     const gfx::ColorSpace& color_space,
-                    GrSurfaceOrigin surface_origin,
-                    SkAlphaType alpha_type,
-                    uint32_t usage,
-                    gfx::GpuMemoryBufferHandle buffer_handle));
-  MOCK_METHOD6(DoCreateSharedImage,
-               void(gfx::GpuMemoryBuffer* gpu_memory_buffer,
-                    gfx::BufferPlane plane,
-                    const gfx::ColorSpace& color_space,
-                    GrSurfaceOrigin surface_origin,
-                    SkAlphaType alpha_type,
-                    uint32_t usage));
+                    gpu::SharedImageUsageSet usage,
+                    gpu::SyncToken& sync_token));
+
   MOCK_METHOD2(DestroySharedImage,
                void(const gpu::SyncToken& sync_token,
                     scoped_refptr<gpu::ClientSharedImage> shared_image));
@@ -115,82 +90,37 @@ class FakeContext : public RenderableGpuMemoryBufferVideoFramePool::Context {
 };
 
 class RenderableGpuMemoryBufferVideoFramePoolTest
-    : public testing::TestWithParam<std::tuple<bool, VideoPixelFormat>> {
+    : public testing::TestWithParam<VideoPixelFormat> {
  public:
-  RenderableGpuMemoryBufferVideoFramePoolTest()
-      : nv12_multi_plane_(std::get<0>(GetParam())),
-        format_(std::get<1>(GetParam())) {
-    if (format_ == PIXEL_FORMAT_NV12) {
-      if (nv12_multi_plane_) {
-        scoped_feature_list_.InitAndEnableFeature(
-            {kUseMultiPlaneFormatForHardwareVideo});
-      } else {
-        scoped_feature_list_.InitAndDisableFeature(
-            {kUseMultiPlaneFormatForHardwareVideo});
-      }
-    }
-  }
+  RenderableGpuMemoryBufferVideoFramePoolTest() : format_(GetParam()) {}
 
  protected:
   void VerifySharedImageCreation(FakeContext* context) {
+    viz::SharedImageFormat si_format;
     switch (format_) {
-      case PIXEL_FORMAT_NV12: {
-        if (nv12_multi_plane_) {
-          EXPECT_CALL(*context,
-                      DoCreateSharedImage(viz::MultiPlaneFormat::kNV12, _, _, _,
-                                          _, _, _));
-        } else {
-          EXPECT_CALL(*context,
-                      DoCreateSharedImage(_, gfx::BufferPlane::Y, _, _, _, _));
-          EXPECT_CALL(*context,
-                      DoCreateSharedImage(_, gfx::BufferPlane::UV, _, _, _, _));
-        }
+      case PIXEL_FORMAT_NV12:
+        si_format = viz::MultiPlaneFormat::kNV12;
         break;
-      }
-      case PIXEL_FORMAT_ARGB: {
-        EXPECT_CALL(*context,
-                    DoCreateSharedImage(viz::SinglePlaneFormat::kBGRA_8888, _,
-                                        _, _, _, _, _));
+      case PIXEL_FORMAT_ARGB:
+        si_format = viz::SinglePlaneFormat::kBGRA_8888;
         break;
-      }
-      case PIXEL_FORMAT_ABGR: {
-        EXPECT_CALL(*context,
-                    DoCreateSharedImage(viz::SinglePlaneFormat::kRGBA_8888, _,
-                                        _, _, _, _, _));
-        break;
-      }
-      default: {
-        NOTREACHED_NORETURN();
-      }
-    }
-  }
-
-  int NumSharedImagesPerFrame() {
-    switch (format_) {
-      case PIXEL_FORMAT_NV12: {
-        return nv12_multi_plane_ ? 1 : 2;
-      }
       case PIXEL_FORMAT_ABGR:
-      case PIXEL_FORMAT_ARGB: {
-        return 1;
-      }
-      default: {
-        NOTREACHED_NORETURN();
-      }
+        si_format = viz::SinglePlaneFormat::kRGBA_8888;
+        break;
+      default:
+        NOTREACHED();
     }
+    EXPECT_CALL(*context,
+                DoCreateMappableSharedImage(_, _, si_format, _, _, _));
   }
 
-  bool nv12_multi_plane_;
   VideoPixelFormat format_;
-
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, SimpleLifetimes) {
   base::test::SingleThreadTaskEnvironment task_environment;
   const gfx::Size size0(128, 256);
-  const gfx::BufferFormat format =
-      VideoPixelFormatToGfxBufferFormat(format_).value();
   const gfx::ColorSpace color_space0 = GetColorSpaceForPixelFormat(format_);
 
   base::WeakPtr<FakeContext> context;
@@ -203,25 +133,21 @@ TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, SimpleLifetimes) {
   }
 
   // Create a new frame.
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(size0, format));
   VerifySharedImageCreation(context.get());
   auto video_frame0 = pool->MaybeCreateVideoFrame(size0, color_space0);
   video_frame0 = nullptr;
   task_environment.RunUntilIdle();
 
   // Expect the frame to be reused.
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(size0, format)).Times(0);
-  EXPECT_CALL(*context, DoCreateSharedImage(_, _, _, _, _, _)).Times(0);
-  EXPECT_CALL(*context, DoCreateSharedImage(_, _, _, _, _, _, _)).Times(0);
+  EXPECT_CALL(*context, DoCreateMappableSharedImage(_, _, _, _, _, _)).Times(0);
+
   auto video_frame1 = pool->MaybeCreateVideoFrame(size0, color_space0);
 
   // Expect a new frame to be created.
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(size0, format));
   VerifySharedImageCreation(context.get());
   auto video_frame2 = pool->MaybeCreateVideoFrame(size0, color_space0);
 
   // Expect a new frame to be created.
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(size0, format));
   VerifySharedImageCreation(context.get());
   auto video_frame3 = pool->MaybeCreateVideoFrame(size0, color_space0);
 
@@ -232,16 +158,14 @@ TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, SimpleLifetimes) {
   task_environment.RunUntilIdle();
 
   // Freeing the third frame will result in one of the frames being destroyed.
-  EXPECT_CALL(*context, DestroySharedImage(_, _))
-      .Times(NumSharedImagesPerFrame());
+  EXPECT_CALL(*context, DestroySharedImage(_, _));
   video_frame3 = nullptr;
   task_environment.RunUntilIdle();
 
   // Destroying the pool will result in the remaining two frames being
   // destroyed.
   EXPECT_TRUE(!!context);
-  EXPECT_CALL(*context, DestroySharedImage(_, _))
-      .Times(NumSharedImagesPerFrame() * 2);
+  EXPECT_CALL(*context, DestroySharedImage(_, _)).Times(2);
   pool.reset();
   task_environment.RunUntilIdle();
   EXPECT_FALSE(!!context);
@@ -250,8 +174,6 @@ TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, SimpleLifetimes) {
 TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, FrameFreedAfterPool) {
   base::test::SingleThreadTaskEnvironment task_environment;
   const gfx::Size size0(128, 256);
-  const gfx::BufferFormat format =
-      VideoPixelFormatToGfxBufferFormat(format_).value();
   const gfx::ColorSpace color_space0 = GetColorSpaceForPixelFormat(format_);
 
   base::WeakPtr<FakeContext> context;
@@ -262,9 +184,7 @@ TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, FrameFreedAfterPool) {
     pool = RenderableGpuMemoryBufferVideoFramePool::Create(
         std::move(context_strong), format_);
   }
-
   // Create a new frame.
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(size0, format));
   VerifySharedImageCreation(context.get());
   auto video_frame0 = pool->MaybeCreateVideoFrame(size0, color_space0);
   task_environment.RunUntilIdle();
@@ -280,8 +200,7 @@ TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, FrameFreedAfterPool) {
   video_frame0 = nullptr;
 
   // The shared images will be destroyed once the posted task is run.
-  EXPECT_CALL(*context, DestroySharedImage(_, _))
-      .Times(NumSharedImagesPerFrame());
+  EXPECT_CALL(*context, DestroySharedImage(_, _));
   task_environment.RunUntilIdle();
   EXPECT_FALSE(!!context);
 }
@@ -316,8 +235,6 @@ TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest,
   base::test::TaskEnvironment task_environment{
       base::test::TaskEnvironment::TimeSource::MOCK_TIME};
   const gfx::Size size0(128, 256);
-  const gfx::BufferFormat format =
-      VideoPixelFormatToGfxBufferFormat(format_).value();
   const gfx::ColorSpace color_space0 = GetColorSpaceForPixelFormat(format_);
 
   // Create a pool and several frames on the main thread.
@@ -333,15 +250,13 @@ TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest,
   std::vector<scoped_refptr<VideoFrame>> frames;
   static constexpr int kNumFrames = 3;
   for (int i = 0; i < kNumFrames; i++) {
-    EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(size0, format));
     VerifySharedImageCreation(context.get());
     frames.emplace_back(pool->MaybeCreateVideoFrame(size0, color_space0));
   }
   task_environment.RunUntilIdle();
 
   // Expect all frames to be destroyed eventually.
-  EXPECT_CALL(*context, DestroySharedImage(_, _))
-      .Times(kNumFrames * NumSharedImagesPerFrame());
+  EXPECT_CALL(*context, DestroySharedImage(_, _)).Times(kNumFrames);
 
   // Destroy frames on separate threads. TSAN will tell us if there's a problem.
   for (int i = 0; i < kNumFrames; i++) {
@@ -384,8 +299,6 @@ TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, ConcurrentCreateDestroy) {
 
 TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, RespectSizeAndColorSpace) {
   base::test::SingleThreadTaskEnvironment task_environment;
-  const gfx::BufferFormat format =
-      VideoPixelFormatToGfxBufferFormat(format_).value();
   const gfx::Size size0(128, 256);
   const gfx::ColorSpace color_space0 = GetColorSpaceForPixelFormat(format_);
   const gfx::Size size1(256, 256);
@@ -401,58 +314,49 @@ TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, RespectSizeAndColorSpace) {
   }
 
   // Create a new frame.
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(size0, format)).Times(1);
   VerifySharedImageCreation(context.get());
   auto video_frame0 = pool->MaybeCreateVideoFrame(size0, color_space0);
   video_frame0 = nullptr;
   task_environment.RunUntilIdle();
 
   // Expect the frame to be reused.
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(_, _)).Times(0);
-  EXPECT_CALL(*context, DoCreateSharedImage(_, _, _, _, _, _)).Times(0);
-  EXPECT_CALL(*context, DoCreateSharedImage(_, _, _, _, _, _, _)).Times(0);
+  EXPECT_CALL(*context, DoCreateMappableSharedImage(_, _, _, _, _, _)).Times(0);
+
   video_frame0 = pool->MaybeCreateVideoFrame(size0, color_space0);
   video_frame0 = nullptr;
   task_environment.RunUntilIdle();
 
   // Change the size, expect a new frame to be created (and the previous frame
   // to be destroyed).
-  EXPECT_CALL(*context, DestroySharedImage(_, _))
-      .Times(NumSharedImagesPerFrame());
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(size1, format));
+  EXPECT_CALL(*context, DestroySharedImage(_, _));
   VerifySharedImageCreation(context.get());
   video_frame0 = pool->MaybeCreateVideoFrame(size1, color_space0);
   video_frame0 = nullptr;
   task_environment.RunUntilIdle();
 
   // Expect that frame to be reused.
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(_, _)).Times(0);
-  EXPECT_CALL(*context, DoCreateSharedImage(_, _, _, _, _, _)).Times(0);
-  EXPECT_CALL(*context, DoCreateSharedImage(_, _, _, _, _, _, _)).Times(0);
+  EXPECT_CALL(*context, DoCreateMappableSharedImage(_, _, _, _, _, _)).Times(0);
+
   video_frame0 = pool->MaybeCreateVideoFrame(size1, color_space0);
   video_frame0 = nullptr;
   task_environment.RunUntilIdle();
 
   // Change the color space, expect a new frame to be created (and the previous
   // frame to be destroyed).
-  EXPECT_CALL(*context, DestroySharedImage(_, _))
-      .Times(NumSharedImagesPerFrame());
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(size1, format));
+  EXPECT_CALL(*context, DestroySharedImage(_, _));
   VerifySharedImageCreation(context.get());
   video_frame0 = pool->MaybeCreateVideoFrame(size1, color_space1);
   video_frame0 = nullptr;
   task_environment.RunUntilIdle();
 
   // Expect that frame to be reused.
-  EXPECT_CALL(*context, DoCreateGpuMemoryBuffer(_, _)).Times(0);
-  EXPECT_CALL(*context, DoCreateSharedImage(_, _, _, _, _, _)).Times(0);
-  EXPECT_CALL(*context, DoCreateSharedImage(_, _, _, _, _, _, _)).Times(0);
+  EXPECT_CALL(*context, DoCreateMappableSharedImage(_, _, _, _, _, _)).Times(0);
+
   video_frame0 = pool->MaybeCreateVideoFrame(size1, color_space1);
   video_frame0 = nullptr;
   task_environment.RunUntilIdle();
 
-  EXPECT_CALL(*context, DestroySharedImage(_, _))
-      .Times(NumSharedImagesPerFrame());
+  EXPECT_CALL(*context, DestroySharedImage(_, _));
   pool.reset();
   task_environment.RunUntilIdle();
   EXPECT_FALSE(!!context);
@@ -461,18 +365,9 @@ TEST_P(RenderableGpuMemoryBufferVideoFramePoolTest, RespectSizeAndColorSpace) {
 INSTANTIATE_TEST_SUITE_P(
     All,
     RenderableGpuMemoryBufferVideoFramePoolTest,
-    testing::Combine(
-#if BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_LINUX) || \
-    BUILDFLAG(IS_CHROMEOS)
-        // kUseMultiPlaneFormatForHardwareVideo experiment has been enabled on
-        // Fuchsia and Mac fully and codepath is deleted.
-        testing::Values(true),
-#else
-        testing::Bool(),
-#endif
-        testing::Values(media::VideoPixelFormat::PIXEL_FORMAT_NV12,
-                        media::VideoPixelFormat::PIXEL_FORMAT_ARGB,
-                        media::VideoPixelFormat::PIXEL_FORMAT_ABGR)));
+    testing::Values(media::VideoPixelFormat::PIXEL_FORMAT_NV12,
+                    media::VideoPixelFormat::PIXEL_FORMAT_ARGB,
+                    media::VideoPixelFormat::PIXEL_FORMAT_ABGR));
 
 }  // namespace
 

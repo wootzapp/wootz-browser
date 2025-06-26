@@ -6,56 +6,50 @@
 
 #import <memory>
 
-#import "base/no_destructor.h"
 #import "components/keyed_service/core/service_access_type.h"
-#import "components/keyed_service/ios/browser_state_dependency_manager.h"
 #import "components/omnibox/browser/shortcuts_backend.h"
 #import "components/omnibox/browser/shortcuts_constants.h"
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/history/model/history_service_factory.h"
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
 #import "ios/chrome/browser/search_engines/model/ui_thread_search_terms_data.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 
 namespace ios {
 namespace {
 
-scoped_refptr<ShortcutsBackend> CreateShortcutsBackend(
-    ChromeBrowserState* browser_state,
-    bool suppress_db) {
+scoped_refptr<ShortcutsBackend> CreateShortcutsBackend(ProfileIOS* profile,
+                                                       bool suppress_db) {
   scoped_refptr<ShortcutsBackend> shortcuts_backend(new ShortcutsBackend(
-      ios::TemplateURLServiceFactory::GetForBrowserState(browser_state),
+      ios::TemplateURLServiceFactory::GetForProfile(profile),
       std::make_unique<ios::UIThreadSearchTermsData>(),
-      ios::HistoryServiceFactory::GetForBrowserState(
-          browser_state, ServiceAccessType::EXPLICIT_ACCESS),
-      browser_state->GetStatePath().Append(kShortcutsDatabaseName),
-      suppress_db));
+      ios::HistoryServiceFactory::GetForProfile(
+          profile, ServiceAccessType::EXPLICIT_ACCESS),
+      profile->GetStatePath().Append(kShortcutsDatabaseName), suppress_db));
   return shortcuts_backend->Init() ? shortcuts_backend : nullptr;
 }
 
 scoped_refptr<RefcountedKeyedService> BuildShortcutsBackend(
     web::BrowserState* context) {
-  ChromeBrowserState* browser_state =
-      ChromeBrowserState::FromBrowserState(context);
-  return CreateShortcutsBackend(browser_state, false /* suppress_db */);
+  ProfileIOS* profile = ProfileIOS::FromBrowserState(context);
+  return CreateShortcutsBackend(profile, /*suppress_db=*/false);
 }
 
 }  // namespace
 
 // static
-scoped_refptr<ShortcutsBackend> ShortcutsBackendFactory::GetForBrowserState(
-    ChromeBrowserState* browser_state) {
-  return base::WrapRefCounted(static_cast<ShortcutsBackend*>(
-      GetInstance()->GetServiceForBrowserState(browser_state, true).get()));
+scoped_refptr<ShortcutsBackend> ShortcutsBackendFactory::GetForProfile(
+    ProfileIOS* profile) {
+  return GetInstance()->GetServiceForProfileAs<ShortcutsBackend>(
+      profile, /*create=*/true);
 }
 
 // static
-scoped_refptr<ShortcutsBackend>
-ShortcutsBackendFactory::GetForBrowserStateIfExists(
-    ChromeBrowserState* browser_state) {
-  return base::WrapRefCounted(static_cast<ShortcutsBackend*>(
-      GetInstance()->GetServiceForBrowserState(browser_state, false).get()));
+scoped_refptr<ShortcutsBackend> ShortcutsBackendFactory::GetForProfileIfExists(
+    ProfileIOS* profile) {
+  return GetInstance()->GetServiceForProfileAs<ShortcutsBackend>(
+      profile, /*create=*/false);
 }
 
 // static
@@ -71,9 +65,9 @@ ShortcutsBackendFactory::GetDefaultFactory() {
 }
 
 ShortcutsBackendFactory::ShortcutsBackendFactory()
-    : RefcountedBrowserStateKeyedServiceFactory(
+    : RefcountedProfileKeyedServiceFactoryIOS(
           "ShortcutsBackend",
-          BrowserStateDependencyManager::GetInstance()) {
+          TestingCreation::kNoServiceForTests) {
   DependsOn(ios::HistoryServiceFactory::GetInstance());
   DependsOn(ios::TemplateURLServiceFactory::GetInstance());
 }
@@ -84,10 +78,6 @@ scoped_refptr<RefcountedKeyedService>
 ShortcutsBackendFactory::BuildServiceInstanceFor(
     web::BrowserState* context) const {
   return BuildShortcutsBackend(context);
-}
-
-bool ShortcutsBackendFactory::ServiceIsNULLWhileTesting() const {
-  return true;
 }
 
 }  // namespace ios

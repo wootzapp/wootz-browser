@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/ownership/owner_key_loader.h"
 
 #include <string>
@@ -220,8 +225,8 @@ bool UserCanBecomeOwner(const user_manager::User* user) {
     case user_manager::UserType::kGuest:
     case user_manager::UserType::kPublicAccount:
     case user_manager::UserType::kKioskApp:
-    case user_manager::UserType::kArcKioskApp:
     case user_manager::UserType::kWebKioskApp:
+    case user_manager::UserType::kKioskIWA:
       return false;
   }
 }

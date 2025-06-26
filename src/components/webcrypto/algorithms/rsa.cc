@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "components/webcrypto/algorithms/rsa.h"
 
 #include <utility>
@@ -136,8 +141,7 @@ Status CreateRsaHashedKeyAlgorithm(
   }
 
   *key_algorithm = blink::WebCryptoKeyAlgorithm::CreateRsaHashed(
-      rsa_algorithm, modulus_length_bits, e.data(),
-      static_cast<unsigned int>(e.size()), hash_algorithm);
+      rsa_algorithm, modulus_length_bits, e, hash_algorithm);
 
   return Status::Success();
 }
@@ -289,13 +293,17 @@ Status RsaHashedAlgorithm::GenerateKey(
     return Status::ErrorGenerateRsaUnsupportedModulus();
   }
 
-  unsigned int public_exponent = 0;
-  if (!params->ConvertPublicExponentToUnsigned(public_exponent))
+  std::optional<uint32_t> public_exponent = params->PublicExponentAsU32();
+  if (!public_exponent) {
     return Status::ErrorGenerateKeyPublicExponent();
+  }
 
-  // OpenSSL hangs when given bad public exponents. Use a whitelist.
-  if (public_exponent != 3 && public_exponent != 65537)
+  // The canonical RSA exponent is 65537, but 3 is also common. Use an allowlist
+  // because RSA key generation is a probabilistic process and may hang on
+  // invalid exponents.
+  if (*public_exponent != 3 && *public_exponent != 65537) {
     return Status::ErrorGenerateKeyPublicExponent();
+  }
 
   crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
 
@@ -303,7 +311,7 @@ Status RsaHashedAlgorithm::GenerateKey(
   bssl::UniquePtr<RSA> rsa_private_key(RSA_new());
   bssl::UniquePtr<BIGNUM> bn(BN_new());
   if (!rsa_private_key.get() || !bn.get() ||
-      !BN_set_word(bn.get(), public_exponent)) {
+      !BN_set_word(bn.get(), *public_exponent)) {
     return Status::OperationError();
   }
 

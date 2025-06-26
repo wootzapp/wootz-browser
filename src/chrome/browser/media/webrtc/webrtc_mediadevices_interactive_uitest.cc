@@ -33,6 +33,7 @@
 #include "content/public/browser/browsing_data_remover.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/browsing_data_remover_test_util.h"
@@ -61,28 +62,14 @@ const char kDeviceKindAudioOutput[] = "audiooutput";
 // It needs to be a browser test (and not content browser test) to be able to
 // test that labels are cleared or not depending on if access to devices has
 // been granted.
-class WebRtcMediaDevicesInteractiveUITest
-    : public WebRtcTestBase,
-      public testing::WithParamInterface<bool> {
+class WebRtcMediaDevicesInteractiveUITest : public WebRtcTestBase {
  public:
   WebRtcMediaDevicesInteractiveUITest()
       : has_audio_output_devices_initialized_(false),
         has_audio_output_devices_(false) {
-    if (IsMediaDeviceIdRandomSaltsPerStorageKeyEnabled()) {
-      scoped_feature_list_.InitWithFeatures(
-          {features::kUserMediaCaptureOnFocus,
-           media_device_salt::kMediaDeviceIdPartitioning,
-           media_device_salt::kMediaDeviceIdRandomSaltsPerStorageKey},
-          {});
-    } else {
-      scoped_feature_list_.InitWithFeatures(
-          {features::kUserMediaCaptureOnFocus},
-          {media_device_salt::kMediaDeviceIdPartitioning,
-           media_device_salt::kMediaDeviceIdRandomSaltsPerStorageKey});
-    }
+    scoped_feature_list_.InitWithFeatures({features::kUserMediaCaptureOnFocus},
+                                          {});
   }
-
-  bool IsMediaDeviceIdRandomSaltsPerStorageKeyEnabled() { return GetParam(); }
 
   void SetUpInProcessBrowserTestFixture() override {
     DetectErrorsInJavaScript();  // Look for errors in our rather complex js.
@@ -183,7 +170,7 @@ class WebRtcMediaDevicesInteractiveUITest
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        EnumerateDevicesWithoutAccess) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage));
@@ -202,7 +189,7 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
   }
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        EnumerateDevicesWithAccess) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage));
@@ -224,7 +211,7 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
   }
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        GetUserMediaOnUnFocusedTab) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage));
@@ -247,7 +234,7 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
 #else
 #define MAYBE_GetUserMediaTabRegainsFocus GetUserMediaTabRegainsFocus
 #endif
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        MAYBE_GetUserMediaTabRegainsFocus) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage));
@@ -263,7 +250,7 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
       tab, kAudioVideoCallConstraints));
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        DeviceIdSameGroupIdDiffersAcrossTabs) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage));
@@ -294,7 +281,7 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
   }
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        DeviceIdDiffersAfterClearingCookies) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage));
@@ -323,7 +310,7 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
   CheckEnumerationsAreDifferent(devices, devices2);
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        DeviceIdDiffersAcrossTabsWithCookiesDisabled) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage));
@@ -354,7 +341,7 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
   CheckEnumerationsAreDifferent(devices, devices2);
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        DeviceIdDiffersSameTabAfterReloadWithCookiesDisabled) {
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage));
@@ -382,11 +369,8 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
   CheckEnumerationsAreDifferent(devices, devices2);
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        DeviceIdDiffersAfterClearSiteDataHeader) {
-  if (!IsMediaDeviceIdRandomSaltsPerStorageKeyEnabled()) {
-    return;
-  }
   embedded_test_server()->RegisterRequestHandler(base::BindRepeating(
       [](const net::test_server::HttpRequest& request)
           -> std::unique_ptr<net::test_server::HttpResponse> {
@@ -426,11 +410,8 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
   CheckEnumerationsAreDifferent(devices, devices2);
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        PRE_SaltsDeletedForSessionOnlyCookies) {
-  if (!IsMediaDeviceIdRandomSaltsPerStorageKeyEnabled()) {
-    return;
-  }
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
@@ -448,11 +429,8 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
   EXPECT_FALSE(keys_future.Get().empty());
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        SaltsDeletedForSessionOnlyCookies) {
-  if (!IsMediaDeviceIdRandomSaltsPerStorageKeyEnabled()) {
-    return;
-  }
   media_device_salt::MediaDeviceSaltService* salt_service =
       MediaDeviceSaltServiceFactory::GetForBrowserContext(browser()->profile());
   base::test::TestFuture<std::vector<blink::StorageKey>> keys_future;
@@ -460,11 +438,8 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
   EXPECT_TRUE(keys_future.Get().empty());
 }
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesInteractiveUITest,
                        NoPersistentSaltStoredWithCookiesDisabled) {
-  if (!IsMediaDeviceIdRandomSaltsPerStorageKeyEnabled()) {
-    return;
-  }
   ASSERT_TRUE(embedded_test_server()->Start());
   GURL url(embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage));
   ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
@@ -483,10 +458,6 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesInteractiveUITest,
   salt_service->GetAllStorageKeys(keys_future.GetCallback());
   EXPECT_TRUE(keys_future.Get().empty());
 }
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         WebRtcMediaDevicesInteractiveUITest,
-                         testing::Bool());
 
 class WebRtcMediaDevicesPrerenderingBrowserTest
     : public WebRtcMediaDevicesInteractiveUITest {
@@ -509,7 +480,7 @@ class WebRtcMediaDevicesPrerenderingBrowserTest
   content::test::PrerenderTestHelper prerender_helper_;
 };
 
-IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesPrerenderingBrowserTest,
+IN_PROC_BROWSER_TEST_F(WebRtcMediaDevicesPrerenderingBrowserTest,
                        EnumerateDevicesInPrerendering) {
 #if BUILDFLAG(IS_MAC)
   // Test will fail if the window it's running in contains the mouse pointer.
@@ -524,7 +495,8 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesPrerenderingBrowserTest,
 
   // Loads a page in the prerender.
   auto prerender_url = embedded_test_server()->GetURL(kMainWebrtcTestHtmlPage);
-  int host_id = prerender_helper()->AddPrerender(prerender_url);
+  content::FrameTreeNodeId host_id =
+      prerender_helper()->AddPrerender(prerender_url);
   content::test::PrerenderHostObserver host_observer(*web_contents(), host_id);
   content::RenderFrameHost* prerender_rfh =
       prerender_helper()->GetPrerenderedMainFrameHost(host_id);
@@ -535,7 +507,8 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesPrerenderingBrowserTest,
   base::RunLoop run_loop;
   permissions::PermissionRequestObserver observer(web_contents());
   prerender_rfh->ExecuteJavaScriptForTests(
-      u"doGetUserMedia({audio: true, video: true});", base::NullCallback());
+      u"doGetUserMedia({audio: true, video: true});", base::NullCallback(),
+      content::ISOLATED_WORLD_ID_GLOBAL);
 
   // The prerendering page should not show a permission request's bubble UI.
   EXPECT_FALSE(observer.request_shown());
@@ -550,7 +523,3 @@ IN_PROC_BROWSER_TEST_P(WebRtcMediaDevicesPrerenderingBrowserTest,
   // The prerendered page should show the permission request's bubble UI.
   EXPECT_TRUE(observer.request_shown());
 }
-
-INSTANTIATE_TEST_SUITE_P(All,
-                         WebRtcMediaDevicesPrerenderingBrowserTest,
-                         testing::Bool());

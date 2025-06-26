@@ -10,6 +10,8 @@
 #include "ash/shell.h"
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/wm/overview/overview_controller.h"
+#include "ash/wm/snap_group/snap_group.h"
+#include "ash/wm/snap_group/snap_group_controller.h"
 #include "ash/wm/splitview/split_view_controller.h"
 #include "ash/wm/splitview/split_view_types.h"
 #include "ash/wm/splitview/split_view_utils.h"
@@ -96,14 +98,11 @@ WindowStateType BaseState::GetStateForTransitionEvent(WindowState* window_state,
   }
 #if !defined(NDEBUG)
   if (event->IsWorkspaceEvent())
-    NOTREACHED_IN_MIGRATION()
-        << "Can't get the state for Workspace event" << event->type();
+    NOTREACHED() << "Can't get the state for Workspace event" << event->type();
   if (event->IsCompoundEvent())
-    NOTREACHED_IN_MIGRATION()
-        << "Can't get the state for Compound event:" << event->type();
+    NOTREACHED() << "Can't get the state for Compound event:" << event->type();
   if (event->IsBoundsEvent())
-    NOTREACHED_IN_MIGRATION()
-        << "Can't get the state for Bounds event:" << event->type();
+    NOTREACHED() << "Can't get the state for Bounds event:" << event->type();
 #endif
   return WindowStateType::kNormal;
 }
@@ -192,6 +191,16 @@ gfx::Rect BaseState::GetSnappedWindowBoundsInParent(
     const WindowStateType state_type,
     float snap_ratio) {
   CHECK(chromeos::IsSnappedWindowStateType(state_type));
+  if (auto* snap_group_controller = SnapGroupController::Get()) {
+    if (auto* snap_group =
+            snap_group_controller->GetSnapGroupForGivenWindow(window)) {
+      // If `window` belongs to a snap group, the snap group should manage its
+      // bounds. Bounds in root are the same as in parent for snapped windows.
+      return snap_group->GetSnappedWindowBoundsInRoot(window, state_type,
+                                                      snap_ratio);
+    }
+  }
+
   if (auto* split_view_controller = SplitViewController::Get(window);
       split_view_controller->IsWindowInSplitView(window) ||
       Shell::Get()->IsInTabletMode()) {
@@ -203,6 +212,7 @@ gfx::Rect BaseState::GetSnappedWindowBoundsInParent(
             : SnapPosition::kSecondary,
         window, snap_ratio);
   }
+
   return ash::GetSnappedWindowBoundsInParent(
       window,
       state_type == WindowStateType::kPrimarySnapped ? SnapViewType::kPrimary

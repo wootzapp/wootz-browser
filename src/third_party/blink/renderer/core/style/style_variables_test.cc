@@ -23,7 +23,7 @@ TEST_F(StyleVariablesTest, EmptyEqual) {
 }
 
 TEST_F(StyleVariablesTest, Copy) {
-  auto foo_data = css_test_helpers::CreateVariableData("foo");
+  auto* foo_data = css_test_helpers::CreateVariableData("foo");
   const CSSValue* foo_value = css_test_helpers::CreateCustomIdent("foo");
   AtomicString x_string("--x");
 
@@ -38,7 +38,7 @@ TEST_F(StyleVariablesTest, Copy) {
 }
 
 TEST_F(StyleVariablesTest, Assignment) {
-  auto foo_data = css_test_helpers::CreateVariableData("foo");
+  auto* foo_data = css_test_helpers::CreateVariableData("foo");
   const CSSValue* foo_value = css_test_helpers::CreateCustomIdent("foo");
   AtomicString x_string("--x");
   AtomicString y_string("--y");
@@ -106,8 +106,8 @@ TEST_F(StyleVariablesTest, SetData) {
   AtomicString x_string("--x");
   StyleVariables vars;
 
-  auto foo = css_test_helpers::CreateVariableData("foo");
-  auto bar = css_test_helpers::CreateVariableData("bar");
+  auto* foo = css_test_helpers::CreateVariableData("foo");
+  auto* bar = css_test_helpers::CreateVariableData("bar");
 
   EXPECT_FALSE(vars.GetData(x_string).has_value());
 
@@ -130,7 +130,7 @@ TEST_F(StyleVariablesTest, SetNullData) {
 
 TEST_F(StyleVariablesTest, SingleDataSamePointer) {
   AtomicString x_string("--x");
-  auto data = css_test_helpers::CreateVariableData("foo");
+  auto* data = css_test_helpers::CreateVariableData("foo");
   StyleVariables vars1;
   StyleVariables vars2;
   vars1.SetData(x_string, data);
@@ -165,6 +165,41 @@ TEST_F(StyleVariablesTest, DifferentDataSize) {
   vars2.SetData(x_string, css_test_helpers::CreateVariableData("bar"));
   vars2.SetData(y_string, css_test_helpers::CreateVariableData("foz"));
   EXPECT_NE(vars1, vars2);
+}
+
+// Add enough values that we cannot keep all of them in the root trie node.
+TEST_F(StyleVariablesTest, ManyValues) {
+  StyleVariables vars1;
+  for (int i = 0; i < 100; ++i) {
+    char key[64], value[64];
+    snprintf(key, sizeof(key), "--prop-%d", i);
+    snprintf(value, sizeof(value), "value%d", i);
+    vars1.SetData(AtomicString(key),
+                  css_test_helpers::CreateVariableData(value));
+  }
+  StyleVariables vars2(vars1);
+  for (int i = 100; i < 200; ++i) {
+    char key[64], value[64];
+    snprintf(key, sizeof(key), "--prop-%d", i);
+    snprintf(value, sizeof(value), "value%d", i);
+    vars2.SetData(AtomicString(key),
+                  css_test_helpers::CreateVariableData(value));
+  }
+  EXPECT_NE(vars1, vars2);
+
+  for (int i = 0; i < 200; ++i) {
+    char key[64], value[64];
+    snprintf(key, sizeof(key), "--prop-%d", i);
+    snprintf(value, sizeof(value), "value%d", i);
+    if (i < 100) {
+      ASSERT_TRUE(vars1.GetData(AtomicString(key)).has_value());
+      EXPECT_EQ((*vars1.GetData(AtomicString(key)))->OriginalText(), value);
+    } else {
+      EXPECT_FALSE(vars1.GetData(AtomicString(key)).has_value());
+    }
+    ASSERT_TRUE(vars2.GetData(AtomicString(key)).has_value());
+    EXPECT_EQ((*vars2.GetData(AtomicString(key)))->OriginalText(), value);
+  }
 }
 
 // CSSValue
@@ -239,6 +274,39 @@ TEST_F(StyleVariablesTest, DifferentValueSize) {
   vars1.SetValue(x_string, css_test_helpers::CreateCustomIdent("foo"));
   vars2.SetValue(x_string, css_test_helpers::CreateCustomIdent("bar"));
   vars2.SetValue(y_string, css_test_helpers::CreateCustomIdent("foz"));
+  EXPECT_NE(vars1, vars2);
+}
+
+TEST_F(StyleVariablesTest, CollisionComparison) {
+  // Generate strings until we find two that go into the same slot
+  // (this will always happen in at most n+1 tries). (This test
+  // presupposes 64-bit, and will generally be a no-op on 32-bit.)
+  AtomicString s1, s2;
+  std::array<AtomicString, 16> strings;
+  for (unsigned i = 0; i < 17; ++i) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "--s-%u", i);
+    AtomicString s(buf);
+    unsigned slot = (reinterpret_cast<uintptr_t>(s.Impl()) >> 4) & 15;
+    if (strings[slot].IsNull()) {
+      strings[slot] = s;
+    } else {
+      s1 = strings[slot];
+      s2 = s;
+      break;
+    }
+  }
+  ASSERT_FALSE(s1.IsNull());
+  ASSERT_FALSE(s2.IsNull());
+
+  // Due to the collision, vars1 will have a child. vars2 will not.
+  StyleVariables vars1;
+  vars1.SetData(s1, nullptr);
+  vars1.SetData(s2, nullptr);
+
+  StyleVariables vars2;
+
+  // This will crash if we don't deal with nullptr comparisons properly.
   EXPECT_NE(vars1, vars2);
 }
 

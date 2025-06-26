@@ -4,6 +4,7 @@
 
 #include "components/url_pattern_index/url_pattern_index.h"
 
+#include <algorithm>
 #include <limits>
 #include <string>
 #include <string_view>
@@ -15,9 +16,9 @@
 #include "base/functional/callback.h"
 #include "base/memory/raw_ref.h"
 #include "base/no_destructor.h"
+#include "base/not_fatal_until.h"
 #include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/trace_event/trace_event.h"
 #include "components/url_pattern_index/ngram_extractor.h"
@@ -83,23 +84,23 @@ const ElementTypeMap& GetElementTypeMap() {
 
 flat::ActivationType ProtoToFlatActivationType(proto::ActivationType type) {
   const auto it = GetActivationTypeMap().find(type);
-  DCHECK(it != GetActivationTypeMap().end());
+  CHECK(it != GetActivationTypeMap().end(), base::NotFatalUntil::M130);
   return it->second;
 }
 
 flat::ElementType ProtoToFlatElementType(proto::ElementType type) {
   const auto it = GetElementTypeMap().find(type);
-  DCHECK(it != GetElementTypeMap().end());
+  CHECK(it != GetElementTypeMap().end(), base::NotFatalUntil::M130);
   return it->second;
 }
 
-std::string_view ToStringPiece(const flatbuffers::String* string) {
+std::string_view ToStringView(const flatbuffers::String* string) {
   DCHECK(string);
   return std::string_view(string->c_str(), string->size());
 }
 
 bool HasNoUpperAscii(std::string_view string) {
-  return base::ranges::none_of(string, base::IsAsciiUpper<char>);
+  return std::ranges::none_of(string, base::IsAsciiUpper<char>);
 }
 
 // Comparator to sort UrlRule. Sorts rules by descending order of rule priority.
@@ -190,8 +191,8 @@ class UrlRuleFlatBufferConverter {
     // The comparator ensuring the domains order necessary for fast matching.
     auto precedes = [&builder](FlatStringOffset lhs, FlatStringOffset rhs) {
       return CompareDomains(
-                 ToStringPiece(flatbuffers::GetTemporaryPointer(*builder, lhs)),
-                 ToStringPiece(
+                 ToStringView(flatbuffers::GetTemporaryPointer(*builder, lhs)),
+                 ToStringView(
                      flatbuffers::GetTemporaryPointer(*builder, rhs))) < 0;
     };
     if (domains.empty())
@@ -457,30 +458,30 @@ void UrlPatternIndexBuilder::IndexUrlRule(UrlRuleOffset offset) {
 
 #if DCHECK_IS_ON()
   // Sanity check that the rule does not have fields with non-ascii characters.
-  DCHECK(base::IsStringASCII(ToStringPiece(rule->url_pattern())));
+  DCHECK(base::IsStringASCII(ToStringView(rule->url_pattern())));
   if (rule->initiator_domains_included()) {
     for (auto* domain : *rule->initiator_domains_included())
-      DCHECK(base::IsStringASCII(ToStringPiece(domain)));
+      DCHECK(base::IsStringASCII(ToStringView(domain)));
   }
   if (rule->initiator_domains_excluded()) {
     for (auto* domain : *rule->initiator_domains_excluded())
-      DCHECK(base::IsStringASCII(ToStringPiece(domain)));
+      DCHECK(base::IsStringASCII(ToStringView(domain)));
   }
   if (rule->request_domains_included()) {
     for (auto* domain : *rule->request_domains_included())
-      DCHECK(base::IsStringASCII(ToStringPiece(domain)));
+      DCHECK(base::IsStringASCII(ToStringView(domain)));
   }
   if (rule->request_domains_excluded()) {
     for (auto* domain : *rule->request_domains_excluded())
-      DCHECK(base::IsStringASCII(ToStringPiece(domain)));
+      DCHECK(base::IsStringASCII(ToStringView(domain)));
   }
 
   // Case-insensitive patterns should be lower-cased.
   if (rule->options() & flat::OptionFlag_IS_CASE_INSENSITIVE)
-    DCHECK(HasNoUpperAscii(ToStringPiece(rule->url_pattern())));
+    DCHECK(HasNoUpperAscii(ToStringView(rule->url_pattern())));
 #endif
 
-  NGram ngram = GetMostDistinctiveNGram(ToStringPiece(rule->url_pattern()));
+  NGram ngram = GetMostDistinctiveNGram(ToStringView(rule->url_pattern()));
 
   if (ngram) {
     ngram_index_[ngram].push_back(offset);
@@ -578,7 +579,7 @@ size_t GetLongestMatchingSubdomain(std::string_view host,
   // If the |domains| list is short, then the simple strategy is usually faster.
   if (domains.size() <= 5) {
     for (auto* domain : domains) {
-      const std::string_view domain_piece = ToStringPiece(domain);
+      const std::string_view domain_piece = ToStringView(domain);
       if (url::DomainIs(host, domain_piece))
         return domain_piece.size();
     }
@@ -602,15 +603,16 @@ size_t GetLongestMatchingSubdomain(std::string_view host,
     while (left + 1 < right) {
       auto middle = left + (right - left) / 2;
       DCHECK_LT(middle, domains.size());
-      if (CompareDomains(ToStringPiece(domains[middle]), subdomain) <= 0)
+      if (CompareDomains(ToStringView(domains[middle]), subdomain) <= 0) {
         left = middle;
-      else
+      } else
         right = middle;
     }
 
     DCHECK_LT(left, domains.size());
-    if (ToStringPiece(domains[left]) == subdomain)
+    if (ToStringView(domains[left]) == subdomain) {
       return subdomain.size();
+    }
 
     position = host.find('.', position);
     if (position == std::string_view::npos) {
@@ -772,8 +774,7 @@ const flat::UrlRule* FindMatchInFlatUrlPatternIndex(
       return nullptr;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return nullptr;
+  NOTREACHED();
 }
 
 }  // namespace

@@ -5,6 +5,7 @@
 #include "extensions/browser/api/declarative_net_request/request_params.h"
 
 #include <algorithm>
+#include <optional>
 #include <string_view>
 
 #include "base/check.h"
@@ -12,7 +13,8 @@
 #include "base/dcheck_is_on.h"
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
-#include "base/ranges/algorithm.h"
+#include "base/strings/pattern.h"
+#include "base/strings/string_util.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
@@ -36,8 +38,9 @@ namespace flat_rule = url_pattern_index::flat;
 // Returns whether the request to `url` is third party to its `document_origin`.
 // TODO(crbug.com/40508457): Look into caching this.
 bool IsThirdPartyRequest(const GURL& url, const url::Origin& document_origin) {
-  if (document_origin.opaque())
+  if (document_origin.opaque()) {
     return true;
+  }
 
   return !net::registry_controlled_domains::SameDomainOrHost(
       url, document_origin,
@@ -46,8 +49,9 @@ bool IsThirdPartyRequest(const GURL& url, const url::Origin& document_origin) {
 
 bool IsThirdPartyRequest(const url::Origin& origin,
                          const url::Origin& document_origin) {
-  if (document_origin.opaque())
+  if (document_origin.opaque()) {
     return true;
+  }
 
   return !net::registry_controlled_domains::SameDomainOrHost(
       origin, document_origin,
@@ -56,10 +60,30 @@ bool IsThirdPartyRequest(const url::Origin& origin,
 
 content::GlobalRenderFrameHostId GetFrameRoutingId(
     content::RenderFrameHost* host) {
-  if (!host)
+  if (!host) {
     return content::GlobalRenderFrameHostId();
+  }
 
   return host->GetGlobalId();
+}
+
+// Returns if any value for `header` in `response_headers` matches the value
+// pattern from `flat_pattern`.
+// Note: Matches are case-insensitive, and supports * (0 or more characters) and
+// ? (0 or 1 characters) matching.
+bool HasHeaderValue(const net::HttpResponseHeaders& response_headers,
+                    std::string_view header,
+                    const flatbuffers::String* flat_pattern) {
+  auto pattern = CreateString<std::string_view>(*flat_pattern);
+
+  size_t iter = 0;
+  std::optional<std::string_view> temp;
+  while ((temp = response_headers.EnumerateHeader(&iter, header))) {
+    if (base::MatchPattern(base::ToLowerASCII(*temp), pattern)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Returns true if the request's response headers matches at least one condition
@@ -86,22 +110,21 @@ bool MatchesHeaderConditions(
 
     auto has_header_value = [&response_headers,
                              header](const flatbuffers::String* value) {
-      return response_headers.HasHeaderValue(
-          header, CreateString<std::string_view>(*value));
+      return HasHeaderValue(response_headers, header, value);
     };
 
     // The condition for `header` does not match if there's an excluded value,
     // continue to the next header.
     if (header_condition->excluded_values() &&
-        base::ranges::any_of(*header_condition->excluded_values(),
-                             has_header_value)) {
+        std::ranges::any_of(*header_condition->excluded_values(),
+                            has_header_value)) {
       continue;
     }
 
     // Match if the response contains at least one header value in
     // `header_condition->values()`.
     if (!header_condition->values() ||
-        base::ranges::any_of(*header_condition->values(), has_header_value)) {
+        std::ranges::any_of(*header_condition->values(), has_header_value)) {
       return true;
     }
   }
@@ -184,11 +207,16 @@ RequestParams::RequestParams(
       parent_routing_id(info.parent_routing_id),
       embedder_conditions_matcher(base::BindRepeating(DoEmbedderConditionsMatch,
                                                       info.frame_data.tab_id,
-                                                      response_headers)),
-      // Allow/allowAllRequest rules matched in earlier rule matching stages can
-      // influence rule matches for later matching stages. Hence this
-      // information is needed from `info`.
-      allow_rule_max_priority(info.allow_rule_max_priority) {
+                                                      response_headers)) {
+  // Allow/allowAllRequest rules matched in earlier rule matching stages can
+  // influence rule matches for later matching stages. Hence this information
+  // is needed from `info`.
+  for (auto& it : info.max_priority_allow_action) {
+    max_priority_allow_action.emplace(
+        it.first, it.second.has_value() ? std::make_optional(it.second->Clone())
+                                        : std::nullopt);
+  }
+
   is_third_party = IsThirdPartyRequest(*url, first_party_origin);
 }
 

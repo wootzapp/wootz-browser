@@ -36,10 +36,10 @@
 #include "ash/wm/work_area_insets.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "ui/aura/client/aura_constants.h"
 #include "ui/aura/client/window_parenting_client.h"
+#include "ui/base/mojom/ui_base_types.mojom-shared.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/compositor/scoped_animation_duration_scale_mode.h"
@@ -127,7 +127,7 @@ class DragWindowFromShelfControllerTest : public AshTestBase {
 
     // Force frames and wait for all throughput trackers to be gone to allow
     // animation throughput data to be passed from cc to ui.
-    while (compositor->has_throughput_trackers_for_testing()) {
+    while (compositor->has_compositor_metrics_trackers_for_testing()) {
       compositor->ScheduleFullRedraw();
       std::ignore = ui::WaitForNextFrameToBePresented(compositor,
                                                       base::Milliseconds(500));
@@ -155,7 +155,7 @@ class DragWindowFromShelfControllerTest : public AshTestBase {
                                           bounds, display::kInvalidDisplayId);
     child->Show();
 
-    child->SetProperty(aura::client::kModalKey, ui::MODAL_TYPE_WINDOW);
+    child->SetProperty(aura::client::kModalKey, ui::mojom::ModalType::kWindow);
     wm::SetModalParent(child.get(), transient_parent);
     return child;
   }
@@ -277,9 +277,6 @@ TEST_F(DragWindowFromShelfControllerTest, HideHomeLauncherDuringDraggingTest) {
 // Test that the "No recent items" label is not visible (not created) while
 // dragging from shelf. Regression test for http://b/326091611.
 TEST_F(DragWindowFromShelfControllerTest, NoWindowsWidget) {
-  base::test::ScopedFeatureList scoped_feature_list(
-      features::kFasterSplitScreenSetup);
-
   const gfx::Rect shelf_bounds = GetShelfBounds();
   auto window = CreateTestWindow();
   StartDrag(window.get(), shelf_bounds.CenterPoint());
@@ -465,6 +462,50 @@ TEST_F(DragWindowFromShelfControllerTest, RestoreWindowToOriginalBounds) {
   EXPECT_TRUE(window->layer()->GetTargetTransform().IsIdentity());
   EXPECT_FALSE(overview_controller->InOverviewSession());
   EXPECT_EQ(split_view_controller()->primary_window(), window.get());
+}
+
+// Test that sequence in b/368630347 doesn't crash.
+TEST_F(DragWindowFromShelfControllerTest,
+       RestoreWindowToOriginalBoundsInterruptedByHomeScreen) {
+  OverviewController* const overview_controller = OverviewController::Get();
+  UpdateDisplay("500x400");
+  const gfx::Rect shelf_bounds = GetShelfBounds();
+  auto window = CreateTestWindow();
+  const gfx::Rect display_bounds = display::Screen::GetScreen()
+                                       ->GetDisplayNearestWindow(window.get())
+                                       .bounds();
+
+  // Drag window enough distance to start overview, but not so much that it
+  // goes to its target location in the overview grid.
+  StartDrag(window.get(), shelf_bounds.CenterPoint());
+  Drag(gfx::Point(200, 200), 0.f, 1.f);
+  EXPECT_TRUE(overview_controller->InOverviewSession());
+  DragWindowFromShelfControllerTestApi().WaitUntilOverviewIsShown(
+      window_drag_controller());
+
+  // End drag. Window should be restored to its original bounds via a
+  // `WindowScaleAnimation`.
+  ui::ScopedAnimationDurationScaleMode animation_scale(
+      ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
+  EndDrag(
+      gfx::Point(
+          200,
+          display_bounds.bottom() -
+              DragWindowFromShelfController::GetReturnToMaximizedThreshold() +
+              1),
+      std::nullopt);
+
+  // `WindowScaleAnimation` should be running, and while that's happening,
+  // user provides some input to go back to the home screen. This should
+  // immediately end the ongoing overview session.
+  ASSERT_TRUE(Shell::Get()->app_list_controller()->GoHome(
+      display::Screen::GetScreen()->GetPrimaryDisplay().id()));
+  ASSERT_FALSE(overview_controller->InOverviewSession());
+
+  // User then enters overview through some other method. This should destroy
+  // the ongoing `WindowScaleAnimation`.
+  ASSERT_TRUE(EnterOverview());
+  ASSERT_TRUE(overview_controller->InOverviewSession());
 }
 
 // Test if overview is active and splitview is not active, fling in overview may
@@ -1299,8 +1340,6 @@ TEST_F(DragWindowFromShelfControllerTest,
 
   ui::ScopedAnimationDurationScaleMode animation_scale(
       ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
-  UpdateDisplay("1366x768");
-
   auto window = CreateTestWindow();
   auto window_transient = CreateTransientModalChildWindow(
       window.get(), gfx::Rect(0, 20, 1366, 728));
@@ -1328,11 +1367,11 @@ TEST_F(DragWindowFromShelfControllerTest,
       overview_controller->overview_session()->GetGridWithRootWindow(
           Shell::GetPrimaryRootWindow());
   EXPECT_TRUE(overview_grid);
-  ASSERT_EQ(1u, overview_grid->window_list().size());
-
-  auto* overview_item = overview_grid->window_list()[0].get();
+  const auto& overview_items = overview_grid->item_list();
+  ASSERT_EQ(1u, overview_items.size());
 
   // Press on `overview_item` to exit overview mode and show windows.
+  auto* overview_item = overview_items[0].get();
   auto* event_generator = GetEventGenerator();
   event_generator->set_current_screen_location(
       gfx::ToRoundedPoint(overview_item->GetTransformedBounds().CenterPoint()));
@@ -1412,7 +1451,6 @@ TEST_F(DragWindowFromShelfControllerTest, DestroyTransientWhileAnimating) {
 // Tests that destroying a dragged window in split view will not cause crash.
 TEST_F(DragWindowFromShelfControllerTest,
        DestroyWindowDuringDraggingInSplitView) {
-  UpdateDisplay("500x400");
   const gfx::Rect shelf_bounds = GetShelfBounds();
 
   // Create a window and snapped to the left in split screen.
@@ -1432,7 +1470,6 @@ TEST_F(DragWindowFromShelfControllerTest,
 // Tests that there should be no crash if we exit overview by switching desks
 // during window dragging. See details in http://b/326074747.
 TEST_F(DragWindowFromShelfControllerTest, NoCrashDuringDraggingIfExitOverview) {
-  UpdateDisplay("500x400");
   ui::ScopedAnimationDurationScaleMode animation_scale(
       ui::ScopedAnimationDurationScaleMode::NON_ZERO_DURATION);
 
@@ -1460,6 +1497,29 @@ TEST_F(DragWindowFromShelfControllerTest, NoCrashDuringDraggingIfExitOverview) {
   Drag(gfx::Point(200, 100), 0.f, 1.f);
 
   EndDrag(GetShelfBounds().CenterPoint(), /*velocity_y=*/std::nullopt);
+}
+
+// Tests that the transient child of a window in split view remains visible.
+TEST_F(DragWindowFromShelfControllerTest, DragInSplitViewWithTransientChild) {
+  const gfx::Rect shelf_bounds = GetShelfBounds();
+
+  // Create a window and snapped to the left in split screen.
+  auto window1 = CreateTestWindow();
+  split_view_controller()->SnapWindow(window1.get(), SnapPosition::kPrimary);
+  // Create another window with a transient child and snapped to the right
+  auto window2 = CreateTestWindow();
+  split_view_controller()->SnapWindow(window2.get(), SnapPosition::kSecondary);
+  auto transient_child_window = CreateTransientModalChildWindow(
+      window2.get(), gfx::Rect(300, 20, 150, 200));
+
+  // Try to drag the left window from shelf.
+  StartDrag(window1.get(), shelf_bounds.left_center());
+  Drag(gfx::Point(0, 200), 1.f, 1.f);
+  DragWindowFromShelfControllerTestApi().WaitUntilOverviewIsShown(
+      window_drag_controller());
+  EndDrag(gfx::Point(0, 200), /*velocity_y=*/std::nullopt);
+
+  EXPECT_TRUE(transient_child_window->IsVisible());
 }
 
 class FloatDragWindowFromShelfControllerTest
@@ -1573,8 +1633,6 @@ TEST_F(FloatDragWindowFromShelfControllerTest, WindowStatePreserved) {
 // Tests that the correct window (if any) gets chosen by the shelf layout
 // manager when there is a floated window.
 TEST_F(FloatDragWindowFromShelfControllerTest, DraggingFloatedWindow) {
-  UpdateDisplay("800x600");
-
   auto floated_window = CreateFloatedWindow();
 
   // Start dragging on the shelf, but not under the floated window. Verify that
@@ -1626,8 +1684,6 @@ TEST_F(FloatDragWindowFromShelfControllerTest, DraggingFloatedWindow) {
 // there is a floated and maximized window.
 TEST_F(FloatDragWindowFromShelfControllerTest,
        DraggingFloatedAndMaximizedWindow) {
-  UpdateDisplay("800x600");
-
   // Create one maximized and one floated window.
   auto maximized_window = CreateTestWindow();
   auto floated_window = CreateFloatedWindow();
@@ -1666,8 +1722,6 @@ TEST_F(FloatDragWindowFromShelfControllerTest,
 // there are floated and snapped windows.
 TEST_F(FloatDragWindowFromShelfControllerTest,
        DraggingFloatedAndSnappedWindow) {
-  UpdateDisplay("800x600");
-
   // Create two snapped and one floated window.
   auto left_window = CreateTestWindow();
   auto right_window = CreateTestWindow();
@@ -1723,6 +1777,30 @@ TEST_F(FloatDragWindowFromShelfControllerTest,
   EXPECT_TRUE(WindowState::Get(left_window.get())->IsSnapped());
   EXPECT_TRUE(WindowState::Get(right_window.get())->IsSnapped());
   EXPECT_TRUE(WindowState::Get(floated_window.get())->IsFloated());
+}
+
+TEST_F(FloatDragWindowFromShelfControllerTest,
+       DragFloatedWindowWithTransientChildWindow) {
+  // Create one maximized, one floated window and one child of the floated
+  // window.
+  auto maximized_window = CreateTestWindow();
+  auto floated_window = CreateFloatedWindow();
+  auto transient_child_window = CreateTransientModalChildWindow(
+      floated_window.get(), gfx::Rect(0, 20, 1366, 728));
+  wm::TransientWindowManager::GetOrCreate(transient_child_window.get())
+      ->set_parent_controls_visibility(true);
+  wm::ActivateWindow(floated_window.get());
+
+  // Try to drag the maximized window from shelf.
+  // This should keep the floated window visible.
+  StartDrag(maximized_window.get(), GetShelfBounds().CenterPoint());
+  Drag(gfx::Point(0, 200), 1.f, 1.f);
+  DragWindowFromShelfControllerTestApi().WaitUntilOverviewIsShown(
+      window_drag_controller());
+  EndDrag(gfx::Point(0, 200), /*velocity_y=*/std::nullopt);
+
+  // The transient child of the floated window is visible.
+  EXPECT_TRUE(transient_child_window->IsVisible());
 }
 
 }  // namespace ash

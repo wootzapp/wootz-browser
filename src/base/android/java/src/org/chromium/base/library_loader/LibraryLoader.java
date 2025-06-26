@@ -16,8 +16,6 @@ import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.JNINamespace;
-import org.jni_zero.NativeLibraryLoadedStatus;
-import org.jni_zero.NativeLibraryLoadedStatus.NativeLibraryLoadedStatusProvider;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.BaseSwitches;
@@ -34,6 +32,8 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.UmaRecorderHolder;
 import org.chromium.build.BuildConfig;
 import org.chromium.build.NativeLibraries;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -41,29 +41,24 @@ import java.lang.annotation.RetentionPolicy;
 import javax.annotation.concurrent.GuardedBy;
 
 /**
- * This class provides functionality to load and register the native libraries.
- * Callers are allowed to separate loading the libraries from initializing
- * them. When a zygote process is used (WebView or AppZygote) the per process
- * initialization happens after the application processes are forked from the
- * zygote process.
+ * This class provides functionality to load and register the native libraries. Callers are allowed
+ * to separate loading the libraries from initializing them. When a zygote process is used (WebView
+ * or AppZygote) the per process initialization happens after the application processes are forked
+ * from the zygote process.
  *
- * The libraries may be loaded and initialized from any thread. Synchronization
- * primitives are used to ensure that overlapping requests from different
- * threads are handled sequentially.
+ * <p>The libraries may be loaded and initialized from any thread. Synchronization primitives are
+ * used to ensure that overlapping requests from different threads are handled sequentially.
  *
- * See also base/android/library_loader/library_loader_hooks.cc, which contains
- * the native counterpart to this class.
+ * <p>See also base/android/library_loader/library_loader_hooks.cc, which contains the native
+ * counterpart to this class.
  */
+@NullMarked
 @JNINamespace("base::android")
 public class LibraryLoader {
     private static final String TAG = "LibraryLoader";
 
     // Constant guarding debug logging in this class.
     static final boolean DEBUG = false;
-
-    // Compile time switch for sharing RELRO between the browser and the app zygote.
-    // TODO(crbug.com/40159355): remove when the issue is closed.
-    private static final boolean ALLOW_CHROMIUM_LINKER_IN_ZYGOTE = true;
 
     // Shared preferences key for the background thread pool setting.
     private static final String BACKGROUND_THREAD_POOL_KEY = "background_thread_pool_enabled";
@@ -93,6 +88,7 @@ public class LibraryLoader {
     @Retention(RetentionPolicy.SOURCE)
     private @interface LoadState {
         int NOT_LOADED = 0;
+        // TODO(crbug.com/404880581): Make this a boolean.
         int MAIN_DEX_LOADED = 1;
         int LOADED = 2;
     }
@@ -125,10 +121,10 @@ public class LibraryLoader {
     // Always accessed via getLinker() because the choice of the class can be influenced by
     // public setLinkerImplementation() below.
     @GuardedBy("mLock")
-    private Linker mLinker;
+    private @Nullable Linker mLinker;
 
     @GuardedBy("mLock")
-    private NativeLibraryPreloader mLibraryPreloader;
+    private @Nullable NativeLibraryPreloader mLibraryPreloader;
 
     @GuardedBy("mLock")
     private boolean mLibraryPreloaderCalled;
@@ -137,11 +133,6 @@ public class LibraryLoader {
     // This is exposed to clients.
     @GuardedBy("mLock")
     private boolean mLoadedByZygote;
-
-    // One-way switch becomes true when the Java command line is switched to
-    // native.
-    @GuardedBy("mLock")
-    private boolean mCommandLineSwitched;
 
     // Enumeration telling which init* methods were used, and therefore
     // which process the library is loaded in.
@@ -158,43 +149,43 @@ public class LibraryLoader {
     @VisibleForTesting public static boolean sOverrideNativeLibraryCannotBeLoadedForTesting;
 
     // Allow embedders to register a callback to handle native library load failures.
-    public static Callback<UnsatisfiedLinkError> sLoadFailedCallback;
+    public static @Nullable Callback<UnsatisfiedLinkError> sLoadFailedCallback;
 
     // Returns true when sharing RELRO between the browser process and the app zygote should *not*
     // be attempted.
     public static boolean mainProcessIntendsToProvideRelroFd() {
-        return !ALLOW_CHROMIUM_LINKER_IN_ZYGOTE || Build.VERSION.SDK_INT <= Build.VERSION_CODES.R;
+        return Build.VERSION.SDK_INT <= Build.VERSION_CODES.R;
     }
 
     /**
      * Inner class encapsulating points of communication between instances of LibraryLoader in
      * different processes.
      *
-     * Usage:
+     * <p>Usage:
      *
-     * 0. In the main (Browser) process this mediator can be bypassed by
-     *    {@link LibraryLoader#ensureInitialized()}. It is convenient for targets that do not pay
-     *    attention to RELRO sharing and load time statistics, but it is also more error prone. The
-     *    {@link #ensureInitializedInMainProcess()} is recommended.
+     * <p>0. In the main (Browser) process this mediator can be bypassed by {@link
+     * LibraryLoader#ensureInitialized()}. It is convenient for targets that do not pay attention to
+     * RELRO sharing and load time statistics, but it is also more error prone. The {@link
+     * #ensureInitializedInMainProcess()} is recommended.
      *
-     * 1. For a {@link LibraryLoader} requiring the knowledge of the load address before
-     *    initialization, {@link #takeLoadAddressFromBundle(Bundle)} should be called first. It is
-     *    done very early after establishing a Binder connection.
+     * <p>1. For a {@link LibraryLoader} requiring the knowledge of the load address before
+     * initialization, {@link #takeLoadAddressFromBundle(Bundle)} should be called first. It is done
+     * very early after establishing a Binder connection.
      *
-     * 2. After the load address is received, the object needs to be initialized using one of
-     *    {@link #ensureInitializedInMainProcess()}, {@link #initInChildProcess()} and
-     *    {@link #initInAppZygote()}. For the main process the subsequent calls to initialization
-     *    are ignored, primarily to simplify tests.
+     * <p>2. After the load address is received, the object needs to be initialized using one of
+     * {@link #ensureInitializedInMainProcess()}, {@link #initInChildProcess()} and {@link
+     * #initInAppZygote()}. For the main process the subsequent calls to initialization are ignored,
+     * primarily to simplify tests.
      *
-     * 3. Later {@link #putLoadAddressToBundle(Bundle)} and
-     *    {@link #takeLoadAddressFromBundle(Bundle)} should be called for passing the RELRO
-     *    information between library loaders.
+     * <p>3. Later {@link #putLoadAddressToBundle(Bundle)} and {@link
+     * #takeLoadAddressFromBundle(Bundle)} should be called for passing the RELRO information
+     * between library loaders.
      *
-     * Internally the {@link LibraryLoader} may ignore these messages because it can fall back to
+     * <p>Internally the {@link LibraryLoader} may ignore these messages because it can fall back to
      * not sharing RELRO.
      *
-     * In general the class is *not* thread safe. The client must guarantee that the steps 1-3 above
-     * happen sequentially in the memory model sense. After that the class is safe to use from
+     * <p>In general the class is *not* thread safe. The client must guarantee that the steps 1-3
+     * above happen sequentially in the memory model sense. After that the class is safe to use from
      * multiple threads concurrently.
      */
     public class MultiProcessMediator {
@@ -423,15 +414,6 @@ public class LibraryLoader {
         if (DEBUG) {
             logLinkerUsed();
         }
-        if (BuildConfig.ENABLE_ASSERTS) {
-            NativeLibraryLoadedStatus.setProvider(
-                    new NativeLibraryLoadedStatusProvider() {
-                        @Override
-                        public boolean areNativeMethodsReady() {
-                            return isMainDexLoaded();
-                        }
-                    });
-        }
     }
 
     /**
@@ -585,8 +567,8 @@ public class LibraryLoader {
     /**
      * Checks whether the native library is fully loaded.
      *
-     * @deprecated: please avoid using in new code:
-     * https://crsrc.org/c/base/android/jni_generator/README.md#testing-for-readiness-use-get
+     * @deprecated please avoid using in new code:
+     *     https://crsrc.org/c/base/android/jni_generator/README.md#testing-for-readiness-use-get
      */
     @Deprecated
     @VisibleForTesting
@@ -603,8 +585,8 @@ public class LibraryLoader {
     /**
      * Checks whether the native library is fully loaded and initialized.
      *
-     * @deprecated: please avoid using in new code:
-     * https://chromium.googlesource.com/chromium/src/+/main/base/android/jni_generator/README.md#testing-for-readiness_use
+     * @deprecated please avoid using in new code:
+     *     https://chromium.googlesource.com/chromium/src/+/main/base/android/jni_generator/README.md#testing-for-readiness_use
      */
     @Deprecated
     public boolean isInitialized() {
@@ -777,22 +759,18 @@ public class LibraryLoader {
     // initialization is done. This is okay in the WebView's case since the
     // JNI is already loaded by this point.
     public void switchCommandLineForWebView() {
-        synchronized (mLock) {
-            ensureCommandLineSwitchedAlreadyLocked();
-        }
+        ensureCommandLineSwitched();
     }
 
     // Switch the CommandLine over from Java to native if it hasn't already been done.
-    // This must happen after the code is loaded and after JNI is ready (since after the
-    // switch the Java CommandLine will delegate all calls the native CommandLine).
-    @GuardedBy("mLock")
-    private void ensureCommandLineSwitchedAlreadyLocked() {
+    // Must happen as soon as native is loaded to ensure flags are available when queried.
+    private void ensureCommandLineSwitched() {
         assert isMainDexLoaded();
-        if (mCommandLineSwitched) {
-            return;
+        // TODO(agrieve): We should fail rather than silently initialize here.
+        if (!CommandLine.isInitialized()) {
+            CommandLine.init(null);
         }
-        CommandLine.enableNativeProxy();
-        mCommandLineSwitched = true;
+        CommandLine.getInstance().switchToNativeImpl();
     }
 
     /**
@@ -822,7 +800,7 @@ public class LibraryLoader {
             }
         }
 
-        ensureCommandLineSwitchedAlreadyLocked();
+        ensureCommandLineSwitched();
 
         // Invoke content::LibraryLoaded() in //content/app/android/library_loader_hooks.cc
         // via a hook stored in //base/android/library_loader/library_loader_hooks.cc.
@@ -853,9 +831,8 @@ public class LibraryLoader {
     /**
      * Overrides the library loader (normally with a mock) for testing.
      *
-     * @deprecated: please avoid using in new code:
-     * https://chromium.googlesource.com/chromium/src/+/main/base/android/jni_generator/README.md#testing-for-readiness_use
-     *
+     * @deprecated please avoid using in new code:
+     *     https://chromium.googlesource.com/chromium/src/+/main/base/android/jni_generator/README.md#testing-for-readiness_use
      * @param loader the mock library loader.
      */
     @Deprecated

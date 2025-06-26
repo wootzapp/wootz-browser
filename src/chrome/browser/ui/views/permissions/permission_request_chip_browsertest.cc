@@ -6,7 +6,6 @@
 #include "base/strings/strcat.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -15,7 +14,7 @@
 #include "chrome/browser/ui/test/test_browser_dialog.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
-#include "chrome/browser/ui/views/permissions/chip_controller.h"
+#include "chrome/browser/ui/views/permissions/chip/chip_controller.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/permissions/permission_request_manager_test_api.h"
@@ -56,8 +55,7 @@ LocationBarView* GetLocationBarView(Browser* browser) {
 }  // namespace
 
 class PermissionRequestChipGestureSensitiveBrowserTest
-    : public InProcessBrowserTest {
-};
+    : public InProcessBrowserTest {};
 
 IN_PROC_BROWSER_TEST_F(PermissionRequestChipGestureSensitiveBrowserTest,
                        ChipFinalizedWhenInteractingWithOmnibox) {
@@ -193,7 +191,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestChipGestureSensitiveBrowserTest,
   EXPECT_TRUE(manager->IsRequestInProgress());
   EXPECT_FALSE(observer.request_shown());
   EXPECT_TRUE(observer.is_view_recreate_failed());
-  EXPECT_FALSE(manager->view_for_testing());
+  EXPECT_FALSE(manager->GetCurrentPrompt());
 
   EXPECT_FALSE(content::EvalJs(main_rfh, kCheckMicrophone,
                                content::EXECUTE_SCRIPT_DEFAULT_OPTIONS, 1)
@@ -201,7 +199,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestChipGestureSensitiveBrowserTest,
 
   metrics::SubprocessMetricsProvider::MergeHistogramDeltasForTesting();
   histograms.ExpectBucketCount(
-      "Permissions.Prompt.AudioCapture.Gesture.Attempt", true, 1);
+      "Permissions.Prompt.AudioCapture.Gesture.Attempt", false, 1);
 }
 
 IN_PROC_BROWSER_TEST_F(PermissionRequestChipGestureSensitiveBrowserTest,
@@ -295,8 +293,7 @@ IN_PROC_BROWSER_TEST_F(PermissionRequestChipGestureSensitiveBrowserTest,
 }
 
 class PermissionRequestChipGestureInsensitiveBrowserTest
-    : public InProcessBrowserTest {
-};
+    : public InProcessBrowserTest {};
 
 IN_PROC_BROWSER_TEST_F(PermissionRequestChipGestureInsensitiveBrowserTest,
                        CallbacksResetWhenInteractingWithOmnibox) {
@@ -370,14 +367,9 @@ class PermissionRequestChipBrowserUiTest : public UiBrowserTest {
           gfx::Animation::RichAnimationRenderMode::FORCE_DISABLED);
 };
 
-// TODO(crbug.com/340578724): Flaky on Windows.
-#if BUILDFLAG(IS_WIN)
-#define MAYBE_InvokeUi_geolocation DISABLED_InvokeUi_geolocation
-#else
-#define MAYBE_InvokeUi_geolocation InvokeUi_geolocation
-#endif
+// Flaky b/40261456
 IN_PROC_BROWSER_TEST_F(PermissionRequestChipBrowserUiTest,
-                       MAYBE_InvokeUi_geolocation) {
+                       DISABLED_InvokeUi_geolocation) {
   ShowAndVerifyUi();
 }
 

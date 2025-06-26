@@ -29,14 +29,12 @@ OomScorePolicyChromeOS::~OomScorePolicyChromeOS() = default;
 
 void OomScorePolicyChromeOS::OnPassedToGraph(Graph* graph) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  graph_ = graph;
   graph->AddPageNodeObserver(this);
 }
 
 void OomScorePolicyChromeOS::OnTakenFromGraph(Graph* graph) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   graph->RemovePageNodeObserver(this);
-  graph_ = nullptr;
 }
 
 void OomScorePolicyChromeOS::OnPageNodeAdded(const PageNode* page_node) {
@@ -45,6 +43,10 @@ void OomScorePolicyChromeOS::OnPageNodeAdded(const PageNode* page_node) {
 
 void OomScorePolicyChromeOS::OnBeforePageNodeRemoved(
     const PageNode* page_node) {
+  HandlePageNodeEventsThrottled();
+}
+
+void OomScorePolicyChromeOS::OnIsFocusedChanged(const PageNode* page_node) {
   HandlePageNodeEventsThrottled();
 }
 
@@ -66,24 +68,20 @@ void OomScorePolicyChromeOS::HandlePageNodeEventsThrottled() {
 }
 
 void OomScorePolicyChromeOS::HandlePageNodeEvents() {
-  PageDiscardingHelper* discarding_helper =
-      PageDiscardingHelper::GetFromGraph(graph_);
+  DiscardEligibilityPolicy* eligibility_policy =
+      DiscardEligibilityPolicy::GetFromGraph(GetOwningGraph());
 
-  std::vector<const PageNode*> page_nodes = graph_->GetAllPageNodes();
-
+  Graph::NodeSetView<const PageNode*> all_page_nodes =
+      GetOwningGraph()->GetAllPageNodes();
   std::vector<PageNodeSortProxy> candidates;
+  candidates.reserve(all_page_nodes.size());
 
-  for (const auto* page_node : page_nodes) {
-    PageDiscardingHelper::CanDiscardResult can_discard_result =
-        discarding_helper->CanDiscard(
-            page_node, PageDiscardingHelper::DiscardReason::URGENT);
-    bool is_marked =
-        (can_discard_result == PageDiscardingHelper::CanDiscardResult::kMarked);
-    bool is_protected = (can_discard_result ==
-                         PageDiscardingHelper::CanDiscardResult::kProtected);
+  for (const PageNode* page_node : all_page_nodes) {
+    CanDiscardResult can_discard_result = eligibility_policy->CanDiscard(
+        page_node, DiscardEligibilityPolicy::DiscardReason::URGENT);
     bool is_visible = page_node->IsVisible();
     bool is_focused = page_node->IsFocused();
-    candidates.emplace_back(page_node, is_marked, is_visible, is_protected,
+    candidates.emplace_back(page_node, can_discard_result, is_visible,
                             is_focused,
                             page_node->GetTimeSinceLastVisibilityChange());
   }

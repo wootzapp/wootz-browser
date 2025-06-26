@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/check_is_test.h"
 #include "base/command_line.h"
 #include "base/containers/contains.h"
 #include "base/containers/fixed_flat_map.h"
@@ -28,12 +29,12 @@
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/launch_utils.h"
+#include "chrome/browser/lifetime/termination_notification.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/startup/infobar_utils.h"
-#include "chrome/browser/ui/startup/launch_mode_recorder.h"
 #include "chrome/browser/ui/startup/startup_browser_creator.h"
 #include "chrome/browser/ui/startup/startup_browser_creator_impl.h"
 #include "chrome/browser/ui/startup/startup_types.h"
@@ -46,7 +47,6 @@
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_registry_update.h"
-#include "chrome/browser/web_applications/web_app_sync_bridge.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
@@ -58,8 +58,7 @@
 #include "third_party/blink/public/common/security/protocol_handler_security_level.h"
 #include "url/gurl.h"
 
-namespace web_app {
-namespace startup {
+namespace web_app::startup {
 
 namespace {
 
@@ -68,17 +67,9 @@ base::OnceClosure& GetStartupDoneCallback() {
   return *instance;
 }
 
-// TODO(https::/crbug.com/1366137): Remove this when LaunchMode is removed.
-OldLaunchMode ConvertOpenModeToLaunchMode(OpenMode open_mode) {
-  static constexpr auto kModeMap =
-      base::MakeFixedFlatMap<OpenMode, OldLaunchMode>({
-          {OpenMode::kInTab, OldLaunchMode::kAsWebAppInTab},
-          {OpenMode::kUnknown, OldLaunchMode::kUnknownWebApp},
-          {OpenMode::kInWindowByUrl, OldLaunchMode::kAsWebAppInWindowByUrl},
-          {OpenMode::kInWindowByAppId, OldLaunchMode::kAsWebAppInWindowByAppId},
-          {OpenMode::kInWindowOther, OldLaunchMode::kAsWebAppInWindowOther},
-      });
-  return kModeMap.at(open_mode);
+base::OnceClosure& GetBrowserShutdownCompleteCallback() {
+  static base::NoDestructor<base::OnceClosure> instance;
+  return *instance;
 }
 
 // Encapsulates web app startup logic. This object keeps itself alive via ref
@@ -98,8 +89,9 @@ class StartupWebAppCreator
       chrome::startup::IsFirstRun is_first_run) {
     std::string app_id = command_line.GetSwitchValueASCII(switches::kAppId);
     // There must be a kAppId switch arg in the command line to launch.
-    if (app_id.empty())
+    if (app_id.empty()) {
       return false;
+    }
 
     // Ensure keep alive registry is available and is not shutting down before
     // attempting a web apps launch.
@@ -142,28 +134,35 @@ class StartupWebAppCreator
         is_first_run_(is_first_run),
         app_id_(app_id),
         provider_(WebAppProvider::GetForWebApps(profile_)),
-        profile_keep_alive_(
+        profile_keep_alive_(std::make_unique<ScopedProfileKeepAlive>(
             profile,
-            ProfileKeepAliveOrigin::kWebAppPermissionDialogWindow),
-        keep_alive_(KeepAliveOrigin::WEB_APP_INTENT_PICKER,
-                    KeepAliveRestartOption::DISABLED) {
+            ProfileKeepAliveOrigin::kWebAppPermissionDialogWindow)),
+        keep_alive_(std::make_unique<ScopedKeepAlive>(
+            KeepAliveOrigin::WEB_APP_INTENT_PICKER,
+            KeepAliveRestartOption::DISABLED)),
+        subscription_(browser_shutdown::AddAppTerminatingCallback(
+            base::BindOnce(&StartupWebAppCreator::OnBrowserShutdown,
+                           base::Unretained(this)))) {
     DCHECK(provider_);
   }
 
   ~StartupWebAppCreator() {
     auto startup_done = std::move(GetStartupDoneCallback());
-    if (startup_done)
+    if (startup_done) {
       std::move(startup_done).Run();
+    }
   }
 
   void Start() {
-    if (MaybeLaunchProtocolHandler() == LaunchResult::kHandled)
+    if (MaybeLaunchProtocolHandler() == LaunchResult::kHandled) {
       return;
+    }
 
     DCHECK(protocol_url_.is_empty());
 
-    if (MaybeLaunchFileHandler() == LaunchResult::kHandled)
+    if (MaybeLaunchFileHandler() == LaunchResult::kHandled) {
       return;
+    }
 
     DCHECK(file_launch_infos_.empty());
 
@@ -177,8 +176,9 @@ class StartupWebAppCreator
   void LaunchApp() {
     if (file_launch_infos_.empty()) {
       std::optional<GURL> protocol;
-      if (!protocol_url_.is_empty())
+      if (!protocol_url_.is_empty()) {
         protocol = protocol_url_;
+      }
       provider_->scheduler().LaunchApp(
           app_id_, command_line_, cur_dir_,
           /*url_handler_launch_url=*/std::nullopt, protocol,
@@ -223,8 +223,9 @@ class StartupWebAppCreator
         break;
       }
     }
-    if (protocol_url.is_empty())
+    if (protocol_url.is_empty()) {
       return LaunchResult::kNotHandled;
+    }
 
     // Check if the user has already disallowed this app to launch the protocol.
     // This check takes priority over checking if the protocol is handled
@@ -239,8 +240,9 @@ class StartupWebAppCreator
     }
 
     // Check if this app has registered as a handler for the protocol.
-    if (!registrar.IsRegisteredLaunchProtocol(app_id_, protocol_url.scheme()))
+    if (!registrar.IsRegisteredLaunchProtocol(app_id_, protocol_url.scheme())) {
       return LaunchResult::kNotHandled;
+    }
 
     protocol_url_ = protocol_url;
 
@@ -265,14 +267,16 @@ class StartupWebAppCreator
   LaunchResult MaybeLaunchFileHandler() {
     std::vector<base::FilePath> launch_files =
         apps::GetLaunchFilesFromCommandLine(command_line_);
-    if (launch_files.empty())
+    if (launch_files.empty()) {
       return LaunchResult::kNotHandled;
+    }
 
     file_launch_infos_ = provider_->os_integration_manager()
                              .file_handler_manager()
                              .GetMatchingFileHandlerUrls(app_id_, launch_files);
-    if (file_launch_infos_.empty())
+    if (file_launch_infos_.empty()) {
       return LaunchResult::kNotHandled;
+    }
 
     const WebApp* web_app = provider_->registrar_unsafe().GetAppById(app_id_);
     DCHECK(web_app);
@@ -294,15 +298,15 @@ class StartupWebAppCreator
       case ApiApprovalState::kDisallowed:
         // The disallowed case should have been handled by
         // `GetMatchingFileHandlerURL()`.
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
     return LaunchResult::kHandled;
   }
 
   void OnPersistUserChoiceCompleted(bool allowed) {
-    if (allowed)
+    if (allowed) {
       LaunchApp();
+    }
     // `this` will be deleted.
   }
 
@@ -334,12 +338,25 @@ class StartupWebAppCreator
                      base::WeakPtr<content::WebContents> web_contents,
                      apps::LaunchContainer container) {
     // The finalization step should only occur for the first app launch.
-    if (app_window_has_been_launched_)
+    if (app_window_has_been_launched_) {
       return;
+    }
 
     FinalizeWebAppLaunch(open_mode_, command_line_, is_first_run_,
                          browser.get(), container);
     app_window_has_been_launched_ = true;
+  }
+
+  void OnBrowserShutdown() {
+    profile_keep_alive_.reset();
+    keep_alive_.reset();
+
+    auto browser_shutdown_complete =
+        std::move(GetBrowserShutdownCompleteCallback());
+    if (browser_shutdown_complete) {
+      CHECK_IS_TEST();
+      std::move(browser_shutdown_complete).Run();
+    }
   }
 
   // Command line for this launch.
@@ -355,8 +372,11 @@ class StartupWebAppCreator
 
   // This object keeps the profile and browser process alive while determining
   // whether to launch a window.
-  ScopedProfileKeepAlive profile_keep_alive_;
-  ScopedKeepAlive keep_alive_;
+  std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive_;
+  std::unique_ptr<ScopedKeepAlive> keep_alive_;
+
+  // Registration for AddAppTerminatingCallback().
+  base::CallbackListSubscription subscription_;
 
   std::optional<OpenMode> open_mode_;
 
@@ -386,8 +406,9 @@ void FinalizeWebAppLaunch(std::optional<OpenMode> app_open_mode,
                           chrome::startup::IsFirstRun is_first_run,
                           Browser* browser,
                           apps::LaunchContainer container) {
-  if (!browser)
+  if (!browser) {
     return;
+  }
 
   OpenMode mode = OpenMode::kUnknown;
 
@@ -401,8 +422,7 @@ void FinalizeWebAppLaunch(std::optional<OpenMode> app_open_mode,
       mode = OpenMode::kInTab;
       break;
     case apps::LaunchContainer::kLaunchContainerPanelDeprecated:
-      NOTREACHED_IN_MIGRATION();
-      [[fallthrough]];
+      NOTREACHED();
     case apps::LaunchContainer::kLaunchContainerNone:
       DCHECK(!browser->is_type_app());
       break;
@@ -411,8 +431,6 @@ void FinalizeWebAppLaunch(std::optional<OpenMode> app_open_mode,
   // Log in a histogram the different ways web apps are opened. See
   // OpenMode enum for the values of the buckets.
   base::UmaHistogramEnumeration("WebApp.OpenMode", mode);
-
-  OldLaunchModeRecorder().SetLaunchMode(ConvertOpenModeToLaunchMode(mode));
 
   AddInfoBarsIfNecessary(browser, browser->profile(), command_line,
                          is_first_run,
@@ -425,5 +443,9 @@ void SetStartupDoneCallbackForTesting(base::OnceClosure callback) {
   GetStartupDoneCallback() = std::move(callback);
 }
 
-}  // namespace startup
-}  // namespace web_app
+void SetBrowserShutdownCompleteCallbackForTesting(base::OnceClosure callback) {
+  CHECK_IS_TEST();
+  GetBrowserShutdownCompleteCallback() = std::move(callback);
+}
+
+}  // namespace web_app::startup

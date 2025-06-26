@@ -7,10 +7,6 @@
 #include <memory>
 #include <string>
 
-#include "ash/constants/ash_features.h"
-#include "ash/constants/ash_switches.h"
-#include "base/command_line.h"
-#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/ash/glanceables/glanceables_keyed_service.h"
 #include "chrome/test/base/browser_with_test_window_test.h"
 #include "chrome/test/base/testing_profile.h"
@@ -22,27 +18,9 @@ namespace ash {
 class GlanceablesKeyedServiceFactoryTest : public BrowserWithTestWindowTest {
  public:
   TestingProfile* CreateProfile(const std::string& profile_name) override {
-    auto* profile =
-        profile_manager()->CreateTestingProfile(profile_name,
-                                                /*is_main_profile=*/true);
-    OnUserProfileCreated(profile_name, profile);
-    return profile;
+    return profile_manager()->CreateTestingProfile(profile_name);
   }
-
- protected:
-  base::test::ScopedFeatureList feature_list_{features::kGlanceablesV2};
 };
-
-TEST_F(GlanceablesKeyedServiceFactoryTest, NoSupportWhenFeatureIsDisabled) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitWithFeatures(/*enabled_features=*/{}, /*disabled_features=*/{
-                                    features::kGlanceablesV2});
-  base::CommandLine::ForCurrentProcess()->AppendSwitch(
-      switches::kGlanceablesIgnoreEnableMergeRequestBuildFlag);
-
-  EXPECT_FALSE(
-      GlanceablesKeyedServiceFactory::GetInstance()->GetService(GetProfile()));
-}
 
 TEST_F(GlanceablesKeyedServiceFactoryTest, NoSupportForGuestProfile) {
   std::unique_ptr<TestingProfile> guest_profile =

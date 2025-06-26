@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {html} from '//resources/lit/v3_0/lit.rollup.js';
+import {html, nothing} from '//resources/lit/v3_0/lit.rollup.js';
+
 import type {CrDialogElement} from './cr_dialog.js';
-import {nothing} from '//resources/lit/v3_0/lit.rollup.js';
 
 export function getHtml(this: CrDialogElement) {
   // clang-format off
@@ -23,14 +23,17 @@ export function getHtml(this: CrDialogElement) {
       ${this.showCloseButton ? html`
         <cr-icon-button id="close" class="icon-clear"
             aria-label="${this.closeText || nothing}"
+            title="${this.closeText || nothing}"
             @click="${this.cancel}" @keypress="${this.onCloseKeypress_}">
         </cr-icon-button>
        ` : ''}
     </div>
     <slot name="header"></slot>
-    <div class="body-container" id="container" show-bottom-shadow
+    <div class="body-container cr-scrollable" id="container"
         part="body-container">
+      <div class="cr-scrollable-top"></div>
       <slot name="body"></slot>
+      <div class="cr-scrollable-bottom"></div>
     </div>
     <slot name="button-container"></slot>
     <slot name="footer"></slot>

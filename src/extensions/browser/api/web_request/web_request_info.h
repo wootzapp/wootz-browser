@@ -12,8 +12,10 @@
 #include <string>
 #include <vector>
 
+#include "base/containers/flat_map.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/values.h"
+#include "content/public/browser/child_process_id.h"
 #include "content/public/browser/global_routing_id.h"
 #include "extensions/browser/api/declarative_net_request/request_action.h"
 #include "extensions/browser/api/web_request/web_request_resource_type.h"
@@ -69,7 +71,7 @@ struct WebRequestInfoInitParams {
   bool is_web_view = false;
   int web_view_instance_id = -1;
   int web_view_rules_registry_id = -1;
-  int web_view_embedder_process_id = -1;
+  content::ChildProcessId web_view_embedder_process_id;
   ExtensionApiFrameIdMap::FrameData frame_data;
   bool is_service_worker_script = false;
   std::optional<int64_t> navigation_id;
@@ -174,11 +176,10 @@ struct WebRequestInfo {
   const bool is_web_view;
 
   // If |is_web_view| is true, the instance ID, rules registry ID, and embedder
-  // process ID pertaining to the webview instance. Note that for browser-side
-  // navigation requests, |web_view_embedder_process_id| is always -1.
+  // process ID pertain to the webview instance.
   const int web_view_instance_id;
   const int web_view_rules_registry_id;
-  const int web_view_embedder_process_id;
+  const content::ChildProcessId web_view_embedder_process_id;
 
   // The Declarative Net Request (DNR) actions associated with this request that
   // are matched during the onBeforeRequest stage. Mutable since this is lazily
@@ -188,11 +189,12 @@ struct WebRequestInfo {
       dnr_actions;
 
   // A map from an extension ID to the highest priority matching allow or
-  // allowAllRequests rule's priority for this request. This is set from the
-  // same field as what's in declarative_net_request::RequestParams so it can be
-  // used between different request stages where DNR rules will be matched.
-  mutable base::flat_map<ExtensionId, std::optional<uint64_t>>
-      allow_rule_max_priority;
+  // allowAllRequests rule for this request. This is set from the same field as
+  // what's in declarative_net_request::RequestParams so it can be used between
+  // different request stages where DNR rules will be matched.
+  mutable base::flat_map<ExtensionId,
+                         std::optional<declarative_net_request::RequestAction>>
+      max_priority_allow_action;
 
   const bool is_service_worker_script;
 

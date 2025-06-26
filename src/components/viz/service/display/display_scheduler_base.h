@@ -36,12 +36,6 @@ class VIZ_SERVICE_EXPORT DisplaySchedulerClient {
 
   virtual bool DrawAndSwap(const DrawAndSwapParams& params) = 0;
   virtual void DidFinishFrame(const BeginFrameAck& ack) = 0;
-  // Returns the estimated time required from Draw Start to Swap End based on
-  // a historical `percentile`, or a default value if there is insufficient
-  // data, or the system is currently missing deadlines.
-  virtual base::TimeDelta GetEstimatedDisplayDrawTime(
-      const base::TimeDelta interval,
-      double percentile) const = 0;
 };
 
 class VIZ_SERVICE_EXPORT DisplaySchedulerBase
@@ -63,7 +57,8 @@ class VIZ_SERVICE_EXPORT DisplaySchedulerBase
   // with the |boost_type| boost type.
   virtual void ReportFrameTime(
       base::TimeDelta frame_time,
-      base::flat_set<base::PlatformThreadId> thread_ids,
+      base::flat_set<base::PlatformThreadId> animation_thread_ids,
+      base::flat_set<base::PlatformThreadId> renderer_main_thread_ids,
       base::TimeTicks draw_start,
       HintSession::BoostType boost_type) = 0;
 

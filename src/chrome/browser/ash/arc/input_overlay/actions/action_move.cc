@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/browser/ash/arc/input_overlay/actions/action_move.h"
 
 #include <algorithm>
@@ -10,7 +15,6 @@
 
 #include "base/check_op.h"
 #include "base/containers/contains.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ash/arc/input_overlay/actions/action.h"
 #include "chrome/browser/ash/arc/input_overlay/touch_id_manager.h"
@@ -72,11 +76,6 @@ class ActionMove::ActionMoveMouseView : public ActionView {
     labels_ = ActionLabel::Show(this, ActionType::MOVE, *input_binding);
   }
 
-  // TODO(b/241966781): rewrite for Beta once design is ready.
-  void OnKeyBindingChange(ActionLabel* action_label,
-                          ui::DomCode code) override {
-    NOTIMPLEMENTED();
-  }
   void OnBindingToKeyboard() override { NOTIMPLEMENTED(); }
   void OnBindingToMouse(std::string mouse_action) override { NOTIMPLEMENTED(); }
   void AddTouchPoint() override { NOTIMPLEMENTED(); }
@@ -126,35 +125,6 @@ class ActionMove::ActionMoveKeyView : public ActionView {
         labels_[i]->SetTextActionLabel(std::move(GetDisplayText(keys[i])));
       }
     }
-  }
-
-  void OnKeyBindingChange(ActionLabel* action_label,
-                          ui::DomCode code) override {
-    DCHECK_EQ(labels_.size(), kActionMoveKeysSize);
-    if (labels_.size() != kActionMoveKeysSize) {
-      return;
-    }
-    auto it = base::ranges::find(labels_, action_label);
-    DCHECK(it != labels_.end());
-    if (it == labels_.end()) {
-      return;
-    }
-
-    const auto& input_binding = action_->GetCurrentDisplayedInput();
-    DCHECK_EQ(input_binding.keys().size(), kActionMoveKeysSize);
-    std::vector<ui::DomCode> new_keys = input_binding.keys();
-    new_keys[it - labels_.begin()] = code;
-
-    // If there is duplicate key in its own action, take the key away from
-    // previous index.
-    if (const int unassigned_index = input_binding.GetIndexOfKey(code);
-        unassigned_index != -1) {
-      new_keys[unassigned_index] = ui::DomCode::NONE;
-      labels_[unassigned_index]->SetDisplayMode(DisplayMode::kEditedUnbound);
-    }
-
-    auto input_element = InputElement::CreateActionMoveKeyElement(new_keys);
-    ChangeInputBinding(action_, action_label, std::move(input_element));
   }
 
   // TODO(cuicuiruan): Remove this for post MVP for editing `ActionMove`.
@@ -389,19 +359,12 @@ std::unique_ptr<ActionView> ActionMove::CreateView(
 }
 
 void ActionMove::UnbindInput(const InputElement& input_element) {
-  if (!pending_input_) {
-    pending_input_ = std::make_unique<InputElement>(*current_input_);
-  }
   if (IsKeyboardBound(input_element)) {
     // It might be partially overlapped and only remove the keys overlapped.
     for (auto code : input_element.keys()) {
-      for (size_t i = 0; i < pending_input_->keys().size(); i++) {
-        if (code == pending_input_->keys()[i]) {
-          pending_input_->SetKey(i, ui::DomCode::NONE);
-          if (!IsBeta() && action_view_) {
-            action_view_->set_unbind_label_index(i);
-          }
-          PostUnbindInputProcess();
+      for (size_t i = 0; i < current_input_->keys().size(); i++) {
+        if (code == current_input_->keys()[i]) {
+          current_input_->SetKey(i, ui::DomCode::NONE);
         }
       }
     }
@@ -420,7 +383,7 @@ bool ActionMove::RewriteKeyEvent(const ui::KeyEvent* key_event,
                                  const gfx::Transform* rotation_transform,
                                  std::list<ui::TouchEvent>& rewritten_events) {
   auto keys = current_input_->keys();
-  auto it = base::ranges::find(keys, key_event->code());
+  auto it = std::ranges::find(keys, key_event->code());
   if (it == keys.end()) {
     return false;
   }
@@ -433,7 +396,7 @@ bool ActionMove::RewriteKeyEvent(const ui::KeyEvent* key_event,
   size_t index = it - keys.begin();
   DCHECK(index < kActionMoveKeysSize);
 
-  if (key_event->type() == ui::ET_KEY_PRESSED) {
+  if (key_event->type() == ui::EventType::kKeyPressed) {
     // TODO(b/308486017): "Modifier key + regular key" support is TBD. Currently
     // it is not supported.
     if (ContainShortcutEventFlags(key_event)) {
@@ -504,12 +467,13 @@ bool ActionMove::RewriteMouseEvent(
   last_touch_root_location_ =
       TransformLocationInPixels(content_bounds, mouse_location_f);
 
-  if (type == ui::ET_MOUSE_ENTERED || type == ui::ET_MOUSE_PRESSED) {
+  if (type == ui::EventType::kMouseEntered ||
+      type == ui::EventType::kMousePressed) {
     DCHECK(!touch_id_);
   }
-  // Mouse might be unlocked before ui::ET_MOUSE_EXITED, so no need to check
-  // ui::ET_MOUSE_EXITED.
-  if (type == ui::ET_MOUSE_RELEASED) {
+  // Mouse might be unlocked before ui::EventType::kMouseExited, so no need to
+  // check ui::EventType::kMouseExited.
+  if (type == ui::EventType::kMouseReleased) {
     DCHECK(touch_id_);
   }
   if (!touch_id_) {
@@ -519,10 +483,12 @@ bool ActionMove::RewriteMouseEvent(
     if (!CreateTouchPressedEvent(mouse_event->time_stamp(), rewritten_events)) {
       return false;
     }
-  } else if (type == ui::ET_MOUSE_EXITED || type == ui::ET_MOUSE_RELEASED) {
+  } else if (type == ui::EventType::kMouseExited ||
+             type == ui::EventType::kMouseReleased) {
     CreateTouchReleasedEvent(mouse_event->time_stamp(), rewritten_events);
   } else {
-    DCHECK(type == ui::ET_MOUSE_MOVED || type == ui::ET_MOUSE_DRAGGED);
+    DCHECK(type == ui::EventType::kMouseMoved ||
+           type == ui::EventType::kMouseDragged);
     CreateTouchMovedEvent(mouse_event->time_stamp(), rewritten_events);
   }
   return true;

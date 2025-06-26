@@ -2,19 +2,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "gin/array_buffer.h"
 
 #include <stddef.h>
 #include <stdlib.h>
 
-#include "base/allocator/partition_allocator/src/partition_alloc/page_allocator.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_alloc.h"
-#include "base/allocator/partition_allocator/src/partition_alloc/partition_root.h"
 #include "base/bits.h"
 #include "base/check_op.h"
 #include "base/no_destructor.h"
 #include "build/build_config.h"
 #include "gin/per_isolate_data.h"
+#include "partition_alloc/page_allocator.h"
+#include "partition_alloc/partition_alloc.h"
+#include "partition_alloc/partition_root.h"
 #include "v8/include/v8-initialization.h"
 
 #if BUILDFLAG(IS_POSIX)
@@ -26,9 +31,6 @@
 #endif  // BUILDFLAG(IS_POSIX)
 
 namespace gin {
-
-static_assert(V8_ARRAY_BUFFER_INTERNAL_FIELD_COUNT == 2,
-              "array buffers must have two internal fields");
 
 // ArrayBufferAllocator -------------------------------------------------------
 partition_alloc::PartitionRoot* ArrayBufferAllocator::partition_ = nullptr;
@@ -81,9 +83,17 @@ ArrayBufferAllocator* ArrayBufferAllocator::SharedInstance() {
 // static
 void ArrayBufferAllocator::InitializePartition() {
   partition_alloc::PartitionOptions opts;
-  opts.star_scan_quarantine = partition_alloc::PartitionOptions::kAllowed;
   opts.backup_ref_ptr = partition_alloc::PartitionOptions::kDisabled;
   opts.use_configurable_pool = partition_alloc::PartitionOptions::kAllowed;
+
+  // TODO(crbug.com/40274683): This will disappear when we reduce
+  // freelist impl selection to a compile-time seam.
+  opts.use_pool_offset_freelists = partition_alloc::PartitionOptions::kEnabled;
+
+  // TODO(crbug.com/333443437): Remove this user-configurable toggle and
+  // default all buckets to "small" single-slot spans.
+  opts.use_small_single_slot_spans =
+      partition_alloc::PartitionOptions::kEnabled;
 
   static base::NoDestructor<partition_alloc::PartitionAllocator>
       partition_allocator(opts);
@@ -189,7 +199,7 @@ class ArrayBufferSharedMemoryMapper : public base::SharedMemoryMapper {
     if (!mapping)
       return std::nullopt;
 
-    return base::make_span(reinterpret_cast<uint8_t*>(mapping), size);
+    return base::span(reinterpret_cast<uint8_t*>(mapping), size);
   }
 
   void Unmap(base::span<uint8_t> mapping) override {

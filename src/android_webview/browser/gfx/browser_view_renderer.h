@@ -88,6 +88,8 @@ class BrowserViewRenderer : public content::SynchronousCompositorClient,
   bool OnDrawHardware();
   bool OnDrawSoftware(SkCanvas* canvas);
 
+  float GetVelocityInPixelsPerSecond();
+
   bool NeedToDrawBackgroundColor();
 
   // CapturePicture API methods.
@@ -163,7 +165,7 @@ class BrowserViewRenderer : public content::SynchronousCompositorClient,
 
   void AddBeginFrameCompletionCallback(base::OnceClosure callback) override;
 
-  void SetThreadIds(const std::vector<int32_t>& thread_ids) override;
+  void SetThreads(const std::vector<viz::Thread>& threads) override;
 
   // CompositorFrameProducer overrides
   base::WeakPtr<CompositorFrameProducer> GetWeakPtr() override;
@@ -227,8 +229,7 @@ class BrowserViewRenderer : public content::SynchronousCompositorClient,
   // view renderer's state.
   std::string ToString() const;
 
-  // Must be called on the Browser IO thread.
-  void InitBrowserIOThreadId();
+  void SetBrowserIOThreadId(base::PlatformThreadId thread_id);
 
   const raw_ptr<BrowserViewRendererClient> client_;
   const scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner_;
@@ -242,7 +243,9 @@ class BrowserViewRenderer : public content::SynchronousCompositorClient,
   // A map from compositor's per-WebView unique ID to the compositor's raw
   // pointer. A raw pointer here is fine because the entry will be erased when
   // a compositor is destroyed.
-  std::map<viz::FrameSinkId, content::SynchronousCompositor*> compositor_map_;
+  std::map<viz::FrameSinkId,
+           raw_ptr<content::SynchronousCompositor, CtnExperimental>>
+      compositor_map_;
 
   bool is_paused_;
   bool view_visible_;
@@ -294,7 +297,7 @@ class BrowserViewRenderer : public content::SynchronousCompositorClient,
 
   std::unique_ptr<BeginFrameSourceWebView> begin_frame_source_;
 
-  std::vector<int32_t> renderer_thread_ids_;
+  std::vector<viz::Thread> renderer_threads_;
   base::PlatformThreadId browser_io_thread_id_ = base::kInvalidThreadId;
 
   base::WeakPtrFactory<BrowserViewRenderer> weak_ptr_factory_{this};

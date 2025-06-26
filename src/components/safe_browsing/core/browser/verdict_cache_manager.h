@@ -5,6 +5,12 @@
 #ifndef COMPONENTS_SAFE_BROWSING_CORE_BROWSER_VERDICT_CACHE_MANAGER_H_
 #define COMPONENTS_SAFE_BROWSING_CORE_BROWSER_VERDICT_CACHE_MANAGER_H_
 
+#include <memory>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "base/gtest_prod_util.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
@@ -93,6 +99,13 @@ class VerdictCacheManager : public history::HistoryServiceObserver,
 
   safe_browsing::ClientSideDetectionType
   GetCachedRealTimeUrlClientSideDetectionType(const GURL& url);
+
+  // Returns true if the most matching verdict to the provided url contains a
+  // LlamaForcedTriggerInfo. |out_llama_forced_trigger_info| will hold the cache
+  // result.
+  bool GetCachedRealTimeLlamaForcedTriggerInfo(
+      const GURL& url,
+      safe_browsing::LlamaForcedTriggerInfo* out_llama_forced_trigger_info);
 
   // Creates a page load token that is tied with the hostname of the |url|.
   // The token is stored in memory.
@@ -200,10 +213,12 @@ class VerdictCacheManager : public history::HistoryServiceObserver,
   void CacheArtificialUnsafeRealTimeUrlVerdictFromSwitch();
 
   // This adds a cached verdict for a URL that has artificially been marked as
-  // safe or unsafe (depending on |is_unsafe|). This applies to URL real-time
-  // lookups.
-  void CacheArtificialRealTimeUrlVerdict(const std::string& url_string,
-                                         bool is_unsafe);
+  // safe or unsafe (depending on |verdict_type| and |threat_type|). This
+  // applies to URL real-time lookups.
+  void CacheArtificialRealTimeUrlVerdict(
+      const std::string& url_string,
+      RTLookupResponse::ThreatInfo::VerdictType verdict_type,
+      std::optional<RTLookupResponse::ThreatInfo::ThreatType> threat_type);
 
   // This adds a cached verdict for a URL that has artificially been marked as
   // unsafe using the command line flag "mark_as_phish_guard_phishing". This

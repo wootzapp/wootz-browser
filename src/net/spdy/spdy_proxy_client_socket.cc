@@ -11,6 +11,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/location.h"
+#include "base/notimplemented.h"
 #include "base/notreached.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
@@ -157,7 +158,7 @@ NextProto SpdyProxyClientSocket::GetNegotiatedProtocol() const {
   // Do not delegate to `spdy_stream_`. While `spdy_stream_` negotiated ALPN
   // with the proxy, this object represents the tunneled TCP connection to the
   // origin.
-  return kProtoUnknown;
+  return NextProto::kProtoUnknown;
 }
 
 bool SpdyProxyClientSocket::GetSSLInfo(SSLInfo* ssl_info) {
@@ -336,9 +337,7 @@ int SpdyProxyClientSocket::DoLoop(int last_io_result) {
             NetLogEventType::HTTP_TRANSACTION_TUNNEL_READ_HEADERS, rv);
         break;
       default:
-        NOTREACHED_IN_MIGRATION() << "bad state";
-        rv = ERR_UNEXPECTED;
-        break;
+        NOTREACHED() << "bad state";
     }
   } while (rv != ERR_IO_PENDING && next_state_ != STATE_DISCONNECTED &&
            next_state_ != STATE_OPEN);
@@ -388,7 +387,7 @@ int SpdyProxyClientSocket::DoSendRequest() {
                        NetLogEventType::HTTP_TRANSACTION_SEND_TUNNEL_HEADERS,
                        request_line, &request_.extra_headers);
 
-  spdy::Http2HeaderBlock headers;
+  quiche::HttpHeaderBlock headers;
   CreateSpdyHeadersFromHttpRequest(request_, std::nullopt,
                                    request_.extra_headers, &headers);
 
@@ -456,10 +455,10 @@ void SpdyProxyClientSocket::OnHeadersSent() {
 }
 
 void SpdyProxyClientSocket::OnEarlyHintsReceived(
-    const spdy::Http2HeaderBlock& headers) {}
+    const quiche::HttpHeaderBlock& headers) {}
 
 void SpdyProxyClientSocket::OnHeadersReceived(
-    const spdy::Http2HeaderBlock& response_headers) {
+    const quiche::HttpHeaderBlock& response_headers) {
   // If we've already received the reply, existing headers are too late.
   // TODO(mbelshe): figure out a way to make HEADERS frames useful after the
   //                initial response.
@@ -525,10 +524,11 @@ void SpdyProxyClientSocket::OnDataSent() {
                                 weak_factory_.GetWeakPtr(), rv));
 }
 
-void SpdyProxyClientSocket::OnTrailers(const spdy::Http2HeaderBlock& trailers) {
+void SpdyProxyClientSocket::OnTrailers(
+    const quiche::HttpHeaderBlock& trailers) {
   // |spdy_stream_| is of type SPDY_BIDIRECTIONAL_STREAM, so trailers are
   // combined with response headers and this method will not be calld.
-  NOTREACHED_IN_MIGRATION();
+  DUMP_WILL_BE_NOTREACHED();
 }
 
 void SpdyProxyClientSocket::OnClose(int status)  {

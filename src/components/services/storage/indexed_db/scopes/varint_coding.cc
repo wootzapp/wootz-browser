@@ -2,17 +2,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/services/storage/indexed_db/scopes/varint_coding.h"
+
+#include <array>
 
 #include "base/check_op.h"
 
-namespace content {
+namespace content::indexed_db {
 
 void EncodeVarInt(int64_t from, std::string* into) {
   DCHECK_GE(from, 0);
   // A temporary array is used to amortize the costs of the string modification.
   static constexpr size_t kMaxBytesForUInt64VarInt = 10;
-  char temp[kMaxBytesForUInt64VarInt];
+  std::array<char, kMaxBytesForUInt64VarInt> temp;
   uint64_t n = static_cast<uint64_t>(from);
   size_t temp_index = 0;
   do {
@@ -24,7 +31,7 @@ void EncodeVarInt(int64_t from, std::string* into) {
     temp[temp_index] = c;
     ++temp_index;
   } while (n);
-  into->append(temp, temp_index);
+  into->append(temp.data(), temp_index);
 }
 
 bool DecodeVarInt(std::string_view* from, int64_t* into) {
@@ -45,4 +52,4 @@ bool DecodeVarInt(std::string_view* from, int64_t* into) {
   return true;
 }
 
-}  // namespace content
+}  // namespace content::indexed_db

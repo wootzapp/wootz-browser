@@ -6,10 +6,8 @@
 
 #include <memory>
 
-#include "base/containers/contains.h"
-#include "base/containers/flat_set.h"
+#include "base/containers/fixed_flat_set.h"
 #include "base/memory/raw_ptr.h"
-#include "base/no_destructor.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/browser_view_layout_delegate.h"
 #include "chrome/browser/ui/views/frame/contents_layout_manager.h"
@@ -42,9 +40,7 @@ class MockBrowserViewLayoutDelegate : public BrowserViewLayoutDelegate {
   void set_should_draw_tab_strip(bool visible) {
     should_draw_tab_strip_ = visible;
   }
-  void set_toolbar_visible(bool visible) {
-    toolbar_visible_ = visible;
-  }
+  void set_toolbar_visible(bool visible) { toolbar_visible_ = visible; }
   void set_bookmark_bar_visible(bool visible) {
     bookmark_bar_visible_ = visible;
   }
@@ -87,27 +83,22 @@ class MockBrowserViewLayoutDelegate : public BrowserViewLayoutDelegate {
   }
   bool SupportsWindowFeature(
       const Browser::WindowFeature feature) const override {
-    static const base::NoDestructor<base::flat_set<Browser::WindowFeature>>
-        supported_features{{
+    static constexpr auto kSupportedFeatures =
+        base::MakeFixedFlatSet<Browser::WindowFeature>({
             Browser::FEATURE_TABSTRIP,
             Browser::FEATURE_TOOLBAR,
             Browser::FEATURE_LOCATIONBAR,
             Browser::FEATURE_BOOKMARKBAR,
-        }};
-    return base::Contains(*supported_features, feature);
+        });
+    return kSupportedFeatures.contains(feature);
   }
-  gfx::NativeView GetHostView() const override { return gfx::NativeView(); }
   gfx::NativeView GetHostViewForAnchoring() const override {
     return gfx::NativeView();
   }
-  bool BrowserIsSystemWebApp() const override { return false; }
-  bool BrowserIsWebApp() const override { return false; }
-  bool BrowserIsTypeApp() const override { return false; }
-  bool BrowserIsTypeNormal() const override { return true; }
   bool HasFindBarController() const override { return false; }
   void MoveWindowForFindBarIfNecessary() const override {}
   bool IsWindowControlsOverlayEnabled() const override { return false; }
-  void UpdateWindowControlsOverlay(const gfx::Rect& rect) const override {}
+  void UpdateWindowControlsOverlay(const gfx::Rect& rect) override {}
   bool ShouldLayoutTabStrip() const override { return true; }
   int GetExtraInfobarOffset() const override { return 0; }
 
@@ -175,7 +166,7 @@ class BrowserViewLayoutTest : public ChromeViewsTestBase {
   BrowserViewLayoutTest(const BrowserViewLayoutTest&) = delete;
   BrowserViewLayoutTest& operator=(const BrowserViewLayoutTest&) = delete;
 
-  ~BrowserViewLayoutTest() override {}
+  ~BrowserViewLayoutTest() override = default;
 
   BrowserViewLayout* layout() { return layout_; }
   MockBrowserViewLayoutDelegate* delegate() { return delegate_; }
@@ -222,17 +213,26 @@ class BrowserViewLayoutTest : public ChromeViewsTestBase {
     devtools_web_view_ = contents_container_->AddChildView(
         CreateFixedSizeView(gfx::Size(800, 600)));
     devtools_web_view_->SetVisible(false);
+    devtools_scrim_view_ = contents_container_->AddChildView(
+        CreateFixedSizeView(gfx::Size(800, 600)));
+    devtools_scrim_view_->SetVisible(false);
     contents_web_view_ = contents_container_->AddChildView(
         CreateFixedSizeView(gfx::Size(800, 600)));
+    contents_scrim_view_ = contents_container_->AddChildView(
+        CreateFixedSizeView(gfx::Size(800, 600)));
+    lens_overlay_view_ = contents_container_->AddChildView(
+        CreateFixedSizeView(gfx::Size(800, 600)));
     contents_container_->SetLayoutManager(
-        std::make_unique<ContentsLayoutManager>(devtools_web_view_,
-                                                contents_web_view_));
+        std::make_unique<ContentsLayoutManager>(
+            devtools_web_view_, devtools_scrim_view_, contents_web_view_,
+            lens_overlay_view_, contents_scrim_view_,
+            /*contents_border_view=*/nullptr, /*watermark_view=*/nullptr));
 
     auto delegate = std::make_unique<MockBrowserViewLayoutDelegate>();
     delegate_ = delegate.get();
     auto layout = std::make_unique<BrowserViewLayout>(
         std::move(delegate),
-        /*browser_view=*/nullptr, top_container_,
+        /*browser_view=*/nullptr, /*window_scrim=*/nullptr, top_container_,
         /*web_app_frame_toolbar=*/nullptr,
         /*web_app_window_title=*/nullptr, tab_strip_region_view, tab_strip_,
         toolbar_, infobar_container_, contents_container_,
@@ -244,6 +244,13 @@ class BrowserViewLayoutTest : public ChromeViewsTestBase {
     layout->set_webui_tab_strip(webui_tab_strip());
     layout_ = layout.get();
     browser_view_->SetLayoutManager(std::move(layout));
+  }
+
+  void TearDown() override {
+    // Avoid dangling pointers.
+    layout_ = nullptr;
+    browser_view_->SetLayoutManager(nullptr);
+    ChromeViewsTestBase::TearDown();
   }
 
   // For the purposes of this test, boolean values are directly set on a
@@ -272,6 +279,9 @@ class BrowserViewLayoutTest : public ChromeViewsTestBase {
   raw_ptr<views::View> contents_container_;
   raw_ptr<views::View> contents_web_view_;
   raw_ptr<views::View> devtools_web_view_;
+  raw_ptr<views::View> devtools_scrim_view_;
+  raw_ptr<views::View> contents_scrim_view_;
+  raw_ptr<views::View> lens_overlay_view_;
 
   std::unique_ptr<MockImmersiveModeController> immersive_mode_controller_;
 };
@@ -339,6 +349,9 @@ TEST_F(BrowserViewLayoutTest, LayoutDownloadShelf) {
   constexpr int kTop = kBottom - kHeight;
   EXPECT_EQ(kTop, layout()->LayoutDownloadShelf(kBottom));
   EXPECT_EQ(gfx::Rect(0, kTop, 0, kHeight), download_shelf->bounds());
+
+  // avoid dangling pointer.
+  layout()->set_download_shelf(nullptr);
 }
 
 TEST_F(BrowserViewLayoutTest, LayoutContentsWithTopControlsSlideBehavior) {

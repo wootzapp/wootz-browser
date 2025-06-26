@@ -8,7 +8,7 @@
 
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
-#include "ash/focus_cycler.h"
+#include "ash/focus/focus_cycler.h"
 #include "ash/ime/ime_controller_impl.h"
 #include "ash/keyboard/ui/keyboard_ui_controller.h"
 #include "ash/keyboard/ui/keyboard_util.h"
@@ -41,6 +41,7 @@
 #include "ash/test/ash_test_base.h"
 #include "ash/test/test_ash_web_view_factory.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller_test_api.h"
+#include "ash/wm/window_pin_util.h"
 #include "base/command_line.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
@@ -51,6 +52,7 @@
 #include "components/prefs/testing_pref_service.h"
 #include "components/proxy_config/pref_proxy_config_tracker_impl.h"
 #include "components/session_manager/session_manager_types.h"
+#include "testing/gtest/include/gtest/gtest.h"
 #include "ui/events/event.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/keycodes/keyboard_codes_posix.h"
@@ -58,6 +60,7 @@
 #include "ui/gfx/image/image.h"
 
 using session_manager::SessionState;
+using testing::NotNull;
 
 namespace ash {
 
@@ -229,6 +232,35 @@ TEST_F(StatusAreaWidgetTest, DateTrayRoundedCornerBehavior) {
             TrayBackgroundView::RoundedCornerBehavior::kStartRounded);
 }
 
+class LockedFullscreenStatusAreaWidgetTest
+    : public AshTestBase,
+      public testing::WithParamInterface<bool> {
+ protected:
+  bool IsLocked() const { return GetParam(); }
+};
+
+TEST_P(LockedFullscreenStatusAreaWidgetTest,
+       TrayBubbleVisibilityWithPinnedWindow) {
+  // Create a window for testing purposes.
+  const std::unique_ptr<aura::Window> window = CreateTestWindow();
+
+  // Show the unified system tray bubble before pinning the window.
+  auto* const status_area_widget = GetPrimaryShelf()->GetStatusAreaWidget();
+  ASSERT_THAT(status_area_widget, NotNull());
+  auto* const unified_system_tray = status_area_widget->unified_system_tray();
+  ASSERT_THAT(unified_system_tray, NotNull());
+  unified_system_tray->ShowBubble();
+  ASSERT_TRUE(unified_system_tray->IsBubbleShown());
+
+  // Pin the window and verify tray bubble visibility.
+  PinWindow(window.get(), IsLocked());
+  EXPECT_EQ(unified_system_tray->IsBubbleShown(), !IsLocked());
+}
+
+INSTANTIATE_TEST_SUITE_P(LockedFullscreenStatusAreaWidgetTests,
+                         LockedFullscreenStatusAreaWidgetTest,
+                         testing::Bool());
+
 class SystemTrayFocusTestObserver : public SystemTrayObserver {
  public:
   SystemTrayFocusTestObserver() = default;
@@ -280,7 +312,7 @@ class StatusAreaWidgetFocusTest : public AshTestBase {
   }
 
   void GenerateTabEvent(bool reverse) {
-    ui::KeyEvent tab_pressed(ui::ET_KEY_PRESSED, ui::VKEY_TAB,
+    ui::KeyEvent tab_pressed(ui::EventType::kKeyPressed, ui::VKEY_TAB,
                              reverse ? ui::EF_SHIFT_DOWN : ui::EF_NONE);
     StatusAreaWidgetTestHelper::GetStatusAreaWidget()->OnKeyEvent(&tab_pressed);
   }
@@ -390,11 +422,11 @@ class UnifiedStatusAreaWidgetTest : public AshTestBase {
     // Initializing NetworkHandler before ash is more like production.
     AshTestBase::SetUp();
     network_handler_test_helper_.RegisterPrefs(profile_prefs_.registry(),
-                                               local_state_.registry());
+                                               local_state()->registry());
     PrefProxyConfigTrackerImpl::RegisterPrefs(profile_prefs_.registry());
 
     network_handler_test_helper_.InitializePrefs(&profile_prefs_,
-                                                 &local_state_);
+                                                 local_state());
 
     // Networking stubs may have asynchronous initialization.
     base::RunLoop().RunUntilIdle();
@@ -447,7 +479,7 @@ TEST_F(StatusAreaWidgetVirtualKeyboardTest,
   status->ime_menu_tray()->SetVisiblePreferred(true);
 
   keyboard_ui_controller()->ShowKeyboard(false /* locked */);
-  ASSERT_TRUE(keyboard::WaitUntilShown());
+  ASSERT_TRUE(keyboard::test::WaitUntilShown());
 
   // The keyboard should hide when clicked.
   ui::test::EventGenerator* generator = GetEventGenerator();
@@ -456,7 +488,7 @@ TEST_F(StatusAreaWidgetVirtualKeyboardTest,
           ->GetBoundsInScreen()
           .CenterPoint());
   generator->ClickLeftButton();
-  ASSERT_TRUE(keyboard::WaitUntilHidden());
+  ASSERT_TRUE(keyboard::test::WaitUntilHidden());
 }
 
 // See https://crbug.com/897672.
@@ -468,14 +500,14 @@ TEST_F(StatusAreaWidgetVirtualKeyboardTest,
   status->ime_menu_tray()->SetVisiblePreferred(true);
 
   keyboard_ui_controller()->ShowKeyboard(false /* locked */);
-  ASSERT_TRUE(keyboard::WaitUntilShown());
+  ASSERT_TRUE(keyboard::test::WaitUntilShown());
 
   // The keyboard should hide when tapped.
   ui::test::EventGenerator* generator = GetEventGenerator();
   generator->GestureTapAt(status->virtual_keyboard_tray_for_testing()
                               ->GetBoundsInScreen()
                               .CenterPoint());
-  ASSERT_TRUE(keyboard::WaitUntilHidden());
+  ASSERT_TRUE(keyboard::test::WaitUntilHidden());
 }
 
 TEST_F(StatusAreaWidgetVirtualKeyboardTest, ClickingHidesVirtualKeyboard) {
@@ -490,12 +522,12 @@ TEST_F(StatusAreaWidgetVirtualKeyboardTest, ClickingHidesVirtualKeyboard) {
   generator->ClickLeftButton();
 
   // Times out if test fails.
-  ASSERT_TRUE(keyboard::WaitUntilHidden());
+  ASSERT_TRUE(keyboard::test::WaitUntilHidden());
 }
 
 TEST_F(StatusAreaWidgetVirtualKeyboardTest, TappingHidesVirtualKeyboard) {
   keyboard_ui_controller()->ShowKeyboard(false /* locked */);
-  ASSERT_TRUE(keyboard::WaitUntilShown());
+  ASSERT_TRUE(keyboard::test::WaitUntilShown());
 
   ui::test::EventGenerator* generator = GetEventGenerator();
   generator->set_current_screen_location(
@@ -505,12 +537,12 @@ TEST_F(StatusAreaWidgetVirtualKeyboardTest, TappingHidesVirtualKeyboard) {
   generator->PressTouch();
 
   // Times out if test fails.
-  ASSERT_TRUE(keyboard::WaitUntilHidden());
+  ASSERT_TRUE(keyboard::test::WaitUntilHidden());
 }
 
 TEST_F(StatusAreaWidgetVirtualKeyboardTest, DoesNotHideLockedVirtualKeyboard) {
   keyboard_ui_controller()->ShowKeyboard(true /* locked */);
-  ASSERT_TRUE(keyboard::WaitUntilShown());
+  ASSERT_TRUE(keyboard::test::WaitUntilShown());
 
   ui::test::EventGenerator* generator = GetEventGenerator();
   generator->set_current_screen_location(
@@ -519,10 +551,10 @@ TEST_F(StatusAreaWidgetVirtualKeyboardTest, DoesNotHideLockedVirtualKeyboard) {
           .CenterPoint());
 
   generator->ClickLeftButton();
-  EXPECT_FALSE(keyboard::IsKeyboardHiding());
+  EXPECT_FALSE(keyboard::test::IsKeyboardHiding());
 
   generator->PressTouch();
-  EXPECT_FALSE(keyboard::IsKeyboardHiding());
+  EXPECT_FALSE(keyboard::test::IsKeyboardHiding());
 }
 
 class StatusAreaWidgetCollapseStateTest : public AshTestBase {

@@ -82,18 +82,21 @@ void ClientControlledState::HandleTransitionEvents(WindowState* window_state,
           window_state, window_state->GetRestoreWindowState(), event);
       break;
     case WM_EVENT_SHOW_INACTIVE:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
     default:
-      NOTREACHED_IN_MIGRATION() << "Unknown event :" << event->type();
+      NOTREACHED() << "Unknown event :" << event->type();
   }
 }
 
 void ClientControlledState::AttachState(
     WindowState* window_state,
-    WindowState::State* state_in_previous_mode) {}
+    WindowState::State* state_in_previous_mode) {
+  window_state->is_client_controlled_ = true;
+}
 
-void ClientControlledState::DetachState(WindowState* window_state) {}
+void ClientControlledState::DetachState(WindowState* window_state) {
+  window_state->is_client_controlled_ = false;
+}
 
 void ClientControlledState::HandleWorkspaceEvents(WindowState* window_state,
                                                   const WMEvent* event) {
@@ -175,8 +178,7 @@ void ClientControlledState::HandleCompoundEvents(WindowState* window_state,
       CycleSnap(window_state, event->type());
       break;
     default:
-      NOTREACHED_IN_MIGRATION() << "Invalid event :" << event->type();
-      break;
+      NOTREACHED() << "Invalid event :" << event->type();
   }
 }
 
@@ -222,8 +224,7 @@ void ClientControlledState::HandleBoundsEvents(WindowState* window_state,
                 bounds, bounds_change_animation_duration_);
             break;
           case WindowState::BoundsChangeAnimationType::kAnimateZero:
-            NOTREACHED_IN_MIGRATION();
-            break;
+            NOTREACHED();
         }
         next_bounds_change_animation_type_ =
             WindowState::BoundsChangeAnimationType::kNone;
@@ -252,7 +253,7 @@ void ClientControlledState::HandleBoundsEvents(WindowState* window_state,
       break;
     }
     default:
-      NOTREACHED_IN_MIGRATION() << "Unknown event:" << event->type();
+      NOTREACHED() << "Unknown event:" << event->type();
   }
 }
 

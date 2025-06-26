@@ -23,10 +23,10 @@
 #include "content/public/test/browser_test.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/login/login_manager_test.h"
 #include "chromeos/ash/components/browser_context_helper/browser_context_helper.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 class Profile;
 
@@ -36,8 +36,9 @@ namespace {
 constexpr char kCaseId[] = "case-id";
 constexpr char kEmail[] = "test@test.com";
 constexpr char kIssueDescription[] = "fake issue description";
+constexpr char kUploadId[] = "testing_id";
 
-class SupportToolUtilTest : public PlatformBrowserTest {
+class SupportToolUtilTest : public InProcessBrowserTest {
  public:
   SupportToolUtilTest() = default;
 
@@ -49,21 +50,21 @@ class SupportToolUtilTest : public PlatformBrowserTest {
     policy::BrowserPolicyConnector::SetPolicyProviderForTesting(
         &policy_provider_);
     policy::PushProfilePolicyConnectorProviderForTesting(&policy_provider_);
-    PlatformBrowserTest::SetUpInProcessBrowserTestFixture();
+    InProcessBrowserTest::SetUpInProcessBrowserTestFixture();
   }
 
  protected:
   testing::NiceMock<policy::MockConfigurationPolicyProvider> policy_provider_;
 };
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 
 class SupportToolUtilLoginScreenTest : public ash::LoginManagerTest {
  public:
   SupportToolUtilLoginScreenTest() = default;
 };
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace
 
@@ -101,14 +102,14 @@ IN_PROC_BROWSER_TEST_F(SupportToolUtilTest, GetSupportToolHandler) {
       GetAllAvailableDataCollectorsOnDevice();
 
   std::unique_ptr<SupportToolHandler> handler = GetSupportToolHandler(
-      kCaseId, kEmail, kIssueDescription, browser()->profile(),
+      kCaseId, kEmail, kIssueDescription, kUploadId, browser()->profile(),
       std::set<support_tool::DataCollectorType>(data_collectors.begin(),
                                                 data_collectors.end()));
   EXPECT_EQ(data_collectors.size(),
             handler->GetDataCollectorsForTesting().size());
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 // Verifies that all data collectors available on login screen are added to
 // `SupportToolHandler`.
 IN_PROC_BROWSER_TEST_F(SupportToolUtilLoginScreenTest, GetSupportToolHandler) {
@@ -125,7 +126,7 @@ IN_PROC_BROWSER_TEST_F(SupportToolUtilLoginScreenTest, GetSupportToolHandler) {
       support_tool::DataCollectorType::SIGN_IN_STATE};
 
   std::unique_ptr<SupportToolHandler> handler = GetSupportToolHandler(
-      kCaseId, kEmail, kIssueDescription, signin_profile,
+      kCaseId, kEmail, kIssueDescription, kUploadId, signin_profile,
       std::set<support_tool::DataCollectorType>(all_data_collectors.begin(),
                                                 all_data_collectors.end()));
   EXPECT_EQ(all_data_collectors.size() - excluded_data_collectors.size(),
@@ -133,9 +134,9 @@ IN_PROC_BROWSER_TEST_F(SupportToolUtilLoginScreenTest, GetSupportToolHandler) {
 
   // Verify that the data collectors are excluded when they're not supported on
   // login screen.
-  handler = GetSupportToolHandler(kCaseId, kEmail, kIssueDescription,
+  handler = GetSupportToolHandler(kCaseId, kEmail, kIssueDescription, kUploadId,
                                   signin_profile, excluded_data_collectors);
   EXPECT_EQ(0U, handler->GetDataCollectorsForTesting().size());
 }
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)

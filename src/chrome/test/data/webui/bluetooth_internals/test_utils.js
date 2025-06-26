@@ -21,14 +21,18 @@ export class TestBluetoothInternalsHandler extends TestBrowserProxy {
   constructor(handle) {
     super([
       'checkSystemPermissions',
-      // <if expr="chromeos_ash">
+      // <if expr="is_chromeos">
       'completeRestartSystemBluetooth',
       // </if>
-      'getAdapter', 'getDebugLogsChangeHandler', 'requestLocationServices',
+      'getAdapter',
+      'getDebugLogsChangeHandler',
+      'requestLocationServices',
       'requestSystemPermissions',
-      // <if expr="chromeos_ash">
+      // <if expr="is_chromeos">
       'restartSystemBluetooth',
       // </if>
+      'startBtsnoop',
+      'isBtsnoopFeatureEnabled',
     ]);
 
     this.receiver_ = new BluetoothInternalsHandlerReceiver(this);
@@ -37,7 +41,7 @@ export class TestBluetoothInternalsHandler extends TestBrowserProxy {
     this.needNearbyDevicesPermission = false;
     this.needLocationServices = false;
     this.canRequestPermissions = false;
-    // <if expr="chromeos_ash">
+    // <if expr="is_chromeos">
     this.pendingRestartSystemBluetoothRequest_ = null;
     // </if>
   }
@@ -72,7 +76,17 @@ export class TestBluetoothInternalsHandler extends TestBrowserProxy {
     return {};
   }
 
-  // <if expr="chromeos_ash">
+  async startBtsnoop() {
+    this.methodCalled('startBtsnoop');
+    return {btsnoop: null};
+  }
+
+  async isBtsnoopFeatureEnabled() {
+    this.methodCalled('isBtsnoopFeatureEnabled');
+    return {enabled: false};
+  }
+
+  // <if expr="is_chromeos">
   restartSystemBluetooth() {
     this.methodCalled('restartSystemBluetooth');
     return new Promise((resolve, reject) => {

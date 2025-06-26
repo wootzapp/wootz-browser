@@ -6,7 +6,6 @@
 
 #include "build/build_config.h"
 #include "components/background_sync/background_sync_permission_context.h"
-#include "components/permissions/contexts/accessibility_permission_context.h"
 #include "components/permissions/contexts/camera_pan_tilt_zoom_permission_context.h"
 #include "components/permissions/contexts/clipboard_read_write_permission_context.h"
 #include "components/permissions/contexts/clipboard_sanitized_write_permission_context.h"
@@ -20,6 +19,7 @@
 #include "components/permissions/contexts/sensor_permission_context.h"
 #include "components/permissions/contexts/wake_lock_permission_context.h"
 #include "components/permissions/contexts/webxr_permission_context.h"
+#include "device/vr/buildflags/buildflags.h"
 
 #if BUILDFLAG(IS_ANDROID)
 #include "components/permissions/contexts/geolocation_permission_context_android.h"
@@ -28,7 +28,12 @@
 
 #if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
 #include "components/permissions/contexts/geolocation_permission_context_system.h"
+#include "services/device/public/cpp/device_features.h"
 #endif  // BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+
+#if BUILDFLAG(ENABLE_VR)
+#include "device/vr/public/cpp/features.h"
+#endif
 
 namespace embedder_support {
 
@@ -53,9 +58,6 @@ CreateDefaultPermissionContexts(content::BrowserContext* browser_context,
   DCHECK(delegates.media_stream_device_enumerator);
   DCHECK(delegates.nfc_permission_context_delegate);
 
-  permission_contexts[ContentSettingsType::ACCESSIBILITY_EVENTS] =
-      std::make_unique<permissions::AccessibilityPermissionContext>(
-          browser_context);
   permission_contexts[ContentSettingsType::AR] =
       std::make_unique<permissions::WebXrPermissionContext>(
           browser_context, ContentSettingsType::AR);
@@ -79,16 +81,30 @@ CreateDefaultPermissionContexts(content::BrowserContext* browser_context,
           std::move(delegates.geolocation_permission_context_delegate),
           is_regular_profile);
 #elif BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
-  permission_contexts[ContentSettingsType::GEOLOCATION] =
-      std::make_unique<permissions::GeolocationPermissionContextSystem>(
-          browser_context,
-          std::move(delegates.geolocation_permission_context_delegate));
+  if (features::IsOsLevelGeolocationPermissionSupportEnabled()) {
+    permission_contexts[ContentSettingsType::GEOLOCATION] =
+        std::make_unique<permissions::GeolocationPermissionContextSystem>(
+            browser_context,
+            std::move(delegates.geolocation_permission_context_delegate));
+  } else {
+    permission_contexts[ContentSettingsType::GEOLOCATION] =
+        std::make_unique<permissions::GeolocationPermissionContext>(
+            browser_context,
+            std::move(delegates.geolocation_permission_context_delegate));
+  }
 #else
   permission_contexts[ContentSettingsType::GEOLOCATION] =
       std::make_unique<permissions::GeolocationPermissionContext>(
           browser_context,
           std::move(delegates.geolocation_permission_context_delegate));
 #endif  // BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(ENABLE_VR)
+  if (device::features::IsHandTrackingEnabled()) {
+    permission_contexts[ContentSettingsType::HAND_TRACKING] =
+        std::make_unique<permissions::WebXrPermissionContext>(
+            browser_context, ContentSettingsType::HAND_TRACKING);
+  }
+#endif
   permission_contexts[ContentSettingsType::KEYBOARD_LOCK] =
       std::make_unique<permissions::KeyboardLockPermissionContext>(
           browser_context);

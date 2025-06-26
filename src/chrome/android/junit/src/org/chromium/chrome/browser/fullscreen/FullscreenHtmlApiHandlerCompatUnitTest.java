@@ -22,19 +22,18 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.UserDataHost;
 import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.tab.Tab;
@@ -53,8 +52,7 @@ public class FullscreenHtmlApiHandlerCompatUnitTest {
     private static final int DEVICE_HEIGHT = 1600;
     private static final int SYSTEM_UI_HEIGHT = 100;
 
-    @Rule public TestRule mProcessor = new Features.JUnitProcessor();
-
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     private Activity mActivity;
     @Mock private TabBrowserControlsConstraintsHelper mTabBrowserControlsConstraintsHelper;
     @Mock private Tab mTab;
@@ -82,7 +80,6 @@ public class FullscreenHtmlApiHandlerCompatUnitTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         mActivity = Robolectric.buildActivity(Activity.class).setup().get();
         mHost = new UserDataHost();
         doReturn(mHost).when(mTab).getUserDataHost();

@@ -5,12 +5,14 @@
 #include "third_party/blink/renderer/platform/widget/input/widget_input_handler_impl.h"
 
 #include <utility>
+#include <variant>
 
 #include "base/check.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/task/current_thread.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "mojo/public/cpp/bindings/self_owned_associated_receiver.h"
 #include "third_party/blink/public/common/features.h"
@@ -63,14 +65,14 @@ WidgetInputHandlerImpl::~WidgetInputHandlerImpl() = default;
 void WidgetInputHandlerImpl::SetReceiver(
     mojo::PendingReceiver<mojom::blink::WidgetInputHandler>
         interface_receiver) {
-  if (absl::holds_alternative<Receiver>(receiver_)) {
-    auto& receiver = absl::get<Receiver>(receiver_);
+  if (std::holds_alternative<Receiver>(receiver_)) {
+    auto& receiver = std::get<Receiver>(receiver_);
     receiver.Bind(std::move(interface_receiver));
     receiver.set_disconnect_handler(base::BindOnce(
         &WidgetInputHandlerImpl::Release, base::Unretained(this)));
   } else {
-    CHECK(absl::holds_alternative<DirectReceiver>(receiver_));
-    auto& receiver = absl::get<DirectReceiver>(receiver_);
+    CHECK(std::holds_alternative<DirectReceiver>(receiver_));
+    auto& receiver = std::get<DirectReceiver>(receiver_);
     receiver.Bind(std::move(interface_receiver));
     receiver.set_disconnect_handler(base::BindOnce(
         &WidgetInputHandlerImpl::Release, base::Unretained(this)));
@@ -165,13 +167,15 @@ void WidgetInputHandlerImpl::RequestCompositionUpdates(bool immediate_request,
 void WidgetInputHandlerImpl::DispatchEvent(
     std::unique_ptr<WebCoalescedInputEvent> event,
     DispatchEventCallback callback) {
-  TRACE_EVENT0("input", "WidgetInputHandlerImpl::DispatchEvent");
+  TRACE_EVENT0("input,input.scrolling",
+               "WidgetInputHandlerImpl::DispatchEvent");
   input_handler_manager_->DispatchEvent(std::move(event), std::move(callback));
 }
 
 void WidgetInputHandlerImpl::DispatchNonBlockingEvent(
     std::unique_ptr<WebCoalescedInputEvent> event) {
-  TRACE_EVENT0("input", "WidgetInputHandlerImpl::DispatchNonBlockingEvent");
+  TRACE_EVENT0("input,input.scrolling",
+               "WidgetInputHandlerImpl::DispatchNonBlockingEvent");
   input_handler_manager_->DispatchEvent(std::move(event),
                                         DispatchEventCallback());
 }
@@ -220,9 +224,11 @@ void WidgetInputHandlerImpl::GetFrameWidgetInputHandler(
 void WidgetInputHandlerImpl::UpdateBrowserControlsState(
     cc::BrowserControlsState constraints,
     cc::BrowserControlsState current,
-    bool animate) {
-  input_handler_manager_->UpdateBrowserControlsState(constraints, current,
-                                                     animate);
+    bool animate,
+    const std::optional<cc::BrowserControlsOffsetTagModifications>&
+        offset_tag_modifications) {
+  input_handler_manager_->UpdateBrowserControlsState(
+      constraints, current, animate, offset_tag_modifications);
 }
 
 void WidgetInputHandlerImpl::RunOnMainThread(base::OnceClosure closure) {

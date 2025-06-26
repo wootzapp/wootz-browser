@@ -15,7 +15,6 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/grit/branded_strings.h"
@@ -30,19 +29,15 @@
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS)
-#include "chrome/browser/chromeos/tast_support/stack_sampling_recorder.h"
 #include "chrome/installer/util/google_update_settings.h"
+#include "components/metrics/call_stacks/stack_sampling_recorder.h"
 #endif
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/lacros/dbus/lacros_dbus_thread_manager.h"
-#endif
-
-#if defined(USE_DBUS) && !BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(USE_DBUS) && !BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/dbus_memory_pressure_evaluator_linux.h"
 #endif
 
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
 #include "base/linux_util.h"
 #include "chrome/common/chrome_paths_internal.h"
 #include "chrome/common/chrome_switches.h"
@@ -55,20 +50,18 @@ ChromeBrowserMainPartsLinux::ChromeBrowserMainPartsLinux(
     StartupData* startup_data)
     : ChromeBrowserMainPartsPosix(is_integration_test, startup_data) {}
 
-ChromeBrowserMainPartsLinux::~ChromeBrowserMainPartsLinux() {
-}
+ChromeBrowserMainPartsLinux::~ChromeBrowserMainPartsLinux() = default;
 
 void ChromeBrowserMainPartsLinux::PostCreateMainMessageLoop() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
 #if BUILDFLAG(IS_CHROMEOS)
-  if (command_line->HasSwitch(
-          chromeos::tast_support::kRecordStackSamplingDataSwitch)) {
+  if (command_line->HasSwitch(metrics::kRecordStackSamplingDataSwitch)) {
     stack_sampling_recorder_ =
-        base::MakeRefCounted<chromeos::tast_support::StackSamplingRecorder>();
+        base::MakeRefCounted<metrics::StackSamplingRecorder>();
     stack_sampling_recorder_->Start();
   }
-  // Don't initialize DBus here. Ash and Lacros Bluetooth DBusManager
-  // initialization depend on FeatureList, and is done elsewhere.
+  // Don't initialize DBus here. Bluetooth DBusManager initialization depends on
+  // FeatureList, and is done elsewhere.
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if !BUILDFLAG(IS_CHROMEOS)
@@ -106,7 +99,7 @@ void ChromeBrowserMainPartsLinux::PostMainMessageLoopRun() {
 #endif
 
 void ChromeBrowserMainPartsLinux::PreProfileInit() {
-#if !BUILDFLAG(IS_CHROMEOS_ASH)
+#if !BUILDFLAG(IS_CHROMEOS)
   // Needs to be called after we have chrome::DIR_USER_DATA and
   // g_browser_process.  This happens in PreCreateThreads.
   // base::GetLinuxDistro() will initialize its value if needed.
@@ -118,7 +111,7 @@ void ChromeBrowserMainPartsLinux::PreProfileInit() {
   ChromeBrowserMainPartsPosix::PreProfileInit();
 }
 
-#if defined(USE_DBUS) && !BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(USE_DBUS) && !BUILDFLAG(IS_CHROMEOS)
 void ChromeBrowserMainPartsLinux::PostBrowserStart() {
   // static_cast is safe because this is the only implementation of
   // MemoryPressureMonitor.
@@ -131,10 +124,9 @@ void ChromeBrowserMainPartsLinux::PostBrowserStart() {
         std::make_unique<DbusMemoryPressureEvaluatorLinux>(
             monitor->CreateVoter()));
   }
-
   ChromeBrowserMainPartsPosix::PostBrowserStart();
 }
-#endif  // defined(USE_DBUS) && !BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(USE_DBUS) && !BUILDFLAG(IS_CHROMEOS)
 
 void ChromeBrowserMainPartsLinux::PostDestroyThreads() {
 #if BUILDFLAG(IS_CHROMEOS)

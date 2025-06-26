@@ -8,15 +8,19 @@
 #include <optional>
 #include <string>
 
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
 #include "net/base/idempotency.h"
 #include "net/base/net_export.h"
 #include "net/base/network_anonymization_key.h"
 #include "net/base/network_isolation_key.h"
 #include "net/base/privacy_mode.h"
+#include "net/base/reconnect_notifier.h"
 #include "net/base/request_priority.h"
 #include "net/dns/public/secure_dns_policy.h"
 #include "net/http/http_request_headers.h"
+#include "net/shared_dictionary/shared_dictionary.h"
+#include "net/shared_dictionary/shared_dictionary_getter.h"
 #include "net/socket/socket_tag.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "url/gurl.h"
@@ -55,6 +59,9 @@ struct NET_EXPORT HttpRequestInfo {
   // True if it is a subframe's document resource.
   bool is_subframe_document_resource = false;
 
+  // True if it is a main frame navigation.
+  bool is_main_frame_navigation = false;
+
   // Any extra request headers (including User-Agent).
   HttpRequestHeaders extra_headers;
 
@@ -80,7 +87,7 @@ struct NET_EXPORT HttpRequestInfo {
   SocketTag socket_tag;
 
   // Network traffic annotation received from URL request.
-  net::MutableNetworkTrafficAnnotationTag traffic_annotation;
+  MutableNetworkTrafficAnnotationTag traffic_annotation;
 
   // Reporting upload nesting depth of this request.
   //
@@ -102,6 +109,11 @@ struct NET_EXPORT HttpRequestInfo {
   // dictionaries between different frame origins.
   std::optional<url::Origin> frame_origin;
 
+  // The origin of the context which initiated this request. nullptr for
+  // browser-initiated navigations. For more info, see
+  // `URLRequest::initiator()`.
+  std::optional<url::Origin> initiator;
+
   // Idempotency of the request, which determines that if it is safe to enable
   // 0-RTT for the request. By default, 0-RTT is only enabled for safe
   // HTTP methods, i.e., GET, HEAD, OPTIONS, and TRACE. For other methods,
@@ -109,7 +121,7 @@ struct NET_EXPORT HttpRequestInfo {
   // replay the request. If the request has any side effects, those effects can
   // happen multiple times. It is only safe to enable the 0-RTT if it is known
   // that the request is idempotent.
-  net::Idempotency idempotency = net::DEFAULT_IDEMPOTENCY;
+  Idempotency idempotency = DEFAULT_IDEMPOTENCY;
 
   // If not null, the value is used to evaluate whether the cache entry should
   // be bypassed; if is null, that means the request site does not match the
@@ -119,6 +131,14 @@ struct NET_EXPORT HttpRequestInfo {
   // Use as ID to mark the cache entry when persisting. Should be a positive
   // number once set.
   std::optional<int64_t> browser_run_id;
+
+  // Used to get a shared dictionary for the request. This may be null if the
+  // request does not use a shared dictionary.
+  SharedDictionaryGetter dictionary_getter;
+
+  // Used to notify when a reconnect-attempt may be invoked (e.g. when a
+  // connection was closed, or when the connection could not be established).
+  std::optional<ConnectionManagementConfig> connection_management_config;
 };
 
 }  // namespace net

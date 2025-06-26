@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // A mini-zygote specifically for Native Client.
 
 #include "components/nacl/loader/nacl_helper_linux.h"
@@ -278,7 +283,7 @@ bool HandleForkRequest(std::vector<base::ScopedFD> child_fds,
   if (child_pid == 0) {
     ChildNaClLoaderInit(std::move(child_fds), system_info, nacl_sandbox,
                         channel_id, args);
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   // I am the parent.
@@ -520,5 +525,5 @@ int main(int argc, char* argv[]) {
     // against malicious IPC requests.
     DCHECK(request_handled);
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }

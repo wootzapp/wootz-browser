@@ -6,7 +6,6 @@
 
 #include "base/check.h"
 #include "base/notreached.h"
-#include "third_party/abseil-cpp/absl/base/attributes.h"
 #include "ui/gfx/swap_result.h"
 #include "ui/gl/gl_context.h"
 #include "ui/gl/gl_surface_format.h"
@@ -15,7 +14,7 @@ namespace gl {
 
 namespace {
 
-ABSL_CONST_INIT thread_local GLSurface* current_surface = nullptr;
+constinit thread_local GLSurface* current_surface = nullptr;
 
 }  // namespace
 
@@ -45,10 +44,6 @@ bool GLSurface::Recreate() {
   return false;
 }
 
-bool GLSurface::DeferDraws() {
-  return false;
-}
-
 bool GLSurface::SupportsPostSubBuffer() {
   return false;
 }
@@ -64,7 +59,7 @@ unsigned int GLSurface::GetBackingFramebufferObject() {
 void GLSurface::SwapBuffersAsync(SwapCompletionCallback completion_callback,
                                  PresentationCallback presentation_callback,
                                  gfx::FrameData data) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 gfx::SwapResult GLSurface::PostSubBuffer(int x,
@@ -83,18 +78,11 @@ void GLSurface::PostSubBufferAsync(int x,
                                    SwapCompletionCallback completion_callback,
                                    PresentationCallback presentation_callback,
                                    gfx::FrameData data) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 bool GLSurface::OnMakeCurrent(GLContext* context) {
   return true;
-}
-
-bool GLSurface::SetBackbufferAllocation(bool allocated) {
-  return true;
-}
-
-void GLSurface::SetFrontbufferAllocation(bool allocated) {
 }
 
 void* GLSurface::GetShareHandle() {
@@ -139,7 +127,7 @@ bool GLSurface::SupportsSwapTimestamps() const {
 }
 
 void GLSurface::SetEnableSwapTimestamps() {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 int GLSurface::GetBufferCount() const {
@@ -162,6 +150,10 @@ bool GLSurface::IsCurrent() {
   return GetCurrent() == this;
 }
 
+EGLNativeWindowType GLSurface::GetNativeWindow() const {
+  return 0;
+}
+
 // static
 void GLSurface::SetForcedGpuPreference(GpuPreference gpu_preference) {
   DCHECK_EQ(GpuPreference::kDefault, forced_gpu_preference_);
@@ -177,12 +169,13 @@ GpuPreference GLSurface::AdjustGpuPreference(GpuPreference gpu_preference) {
     case GpuPreference::kHighPerformance:
       return forced_gpu_preference_;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return GpuPreference::kDefault;
+      NOTREACHED();
   }
 }
 
 GLSurface::~GLSurface() {
+  // InvalidateWeakPtrs should be called from the most concrete class.
+  CHECK(!weak_ptr_factory_.HasWeakPtrs());
   if (GetCurrent() == this) {
     ClearCurrent();
   }
@@ -194,6 +187,18 @@ void GLSurface::ClearCurrent() {
 
 void GLSurface::SetCurrent() {
   current_surface = this;
+}
+
+base::WeakPtr<GLSurface> GLSurface::AsWeakPtr() {
+  return weak_ptr_factory_.GetWeakPtr();
+}
+
+void GLSurface::InvalidateWeakPtrs() {
+  weak_ptr_factory_.InvalidateWeakPtrs();
+}
+
+bool GLSurface::HasWeakPtrs() {
+  return weak_ptr_factory_.HasWeakPtrs();
 }
 
 bool GLSurface::ExtensionsContain(const char* c_extensions, const char* name) {

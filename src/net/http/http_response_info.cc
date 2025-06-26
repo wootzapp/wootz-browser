@@ -78,6 +78,7 @@ enum {
   RESPONSE_INFO_WAS_ALPN = 1 << 14,
 
   // This bit is set if the request was fetched via an explicit proxy.
+  // This bit is deprecated.
   RESPONSE_INFO_WAS_PROXY = 1 << 15,
 
   // This bit is set if the response info has an SSL connection status field.
@@ -140,6 +141,12 @@ enum {
   // This bit is set if the request usd a shared dictionary for decoding its
   // body.
   RESPONSE_EXTRA_INFO_DID_USE_SHARED_DICTIONARY = 1,
+
+  // This bit is set if the response has valid `proxy_chain`.
+  RESPONSE_EXTRA_INFO_HAS_PROXY_CHAIN = 1 << 1,
+
+  // This bit is set if the response has original_response_time.
+  RESPONSE_EXTRA_INFO_HAS_ORIGINAL_RESPONSE_TIME = 1 << 2
 };
 
 HttpResponseInfo::HttpResponseInfo() = default;
@@ -183,6 +190,14 @@ bool HttpResponseInfo::InitFromPickle(const base::Pickle& pickle,
   if (!iter.ReadInt64(&time_val))
     return false;
   response_time = Time::FromInternalValue(time_val);
+
+  // Read original-response-time
+  if ((extra_flags & RESPONSE_EXTRA_INFO_HAS_ORIGINAL_RESPONSE_TIME) != 0) {
+    if (!iter.ReadInt64(&time_val)) {
+      return false;
+    }
+    original_response_time = Time::FromInternalValue(time_val);
+  }
 
   // Read response-headers
   headers = base::MakeRefCounted<HttpResponseHeaders>(&iter);
@@ -301,8 +316,6 @@ bool HttpResponseInfo::InitFromPickle(const base::Pickle& pickle,
 
   was_alpn_negotiated = (flags & RESPONSE_INFO_WAS_ALPN) != 0;
 
-  was_fetched_via_proxy = (flags & RESPONSE_INFO_WAS_PROXY) != 0;
-
   *response_truncated = (flags & RESPONSE_INFO_TRUNCATED) != 0;
 
   did_use_http_auth = (flags & RESPONSE_INFO_USE_HTTP_AUTHENTICATION) != 0;
@@ -354,12 +367,27 @@ bool HttpResponseInfo::InitFromPickle(const base::Pickle& pickle,
 
   did_use_shared_dictionary =
       (extra_flags & RESPONSE_EXTRA_INFO_DID_USE_SHARED_DICTIONARY) != 0;
+
+  if (extra_flags & RESPONSE_EXTRA_INFO_HAS_PROXY_CHAIN) {
+    if (!proxy_chain.InitFromPickle(&iter)) {
+      return false;
+    }
+  }
+
   return true;
 }
 
-void HttpResponseInfo::Persist(base::Pickle* pickle,
-                               bool skip_transient_headers,
-                               bool response_truncated) const {
+std::unique_ptr<base::Pickle> HttpResponseInfo::MakePickle(
+    bool skip_transient_headers,
+    bool response_truncated) const {
+  auto pickle = std::make_unique<base::Pickle>();
+  // Pre-reserve memory for the Pickle contents to reduce allocations and
+  // copies. This doesn't affect the size of the data that is written to disk.
+  // The Pickle object only lives long enough to be written to disk, so it
+  // doesn't matter if we briefly overallocate memory. 10,900 bytes is enough to
+  // cover 99% percentile of HttpResponseInfo pickle sizes based on Dev/Canary
+  // data from 2025-01-20 (the mean is 4,773).
+  pickle->Reserve(10900);
   int flags = RESPONSE_INFO_VERSION;
   int extra_flags = 0;
   if (ssl_info.is_valid()) {
@@ -382,8 +410,6 @@ void HttpResponseInfo::Persist(base::Pickle* pickle,
     flags |= RESPONSE_INFO_WAS_ALPN;
     flags |= RESPONSE_INFO_HAS_ALPN_NEGOTIATED_PROTOCOL;
   }
-  if (was_fetched_via_proxy)
-    flags |= RESPONSE_INFO_WAS_PROXY;
   if (connection_info != HttpConnectionInfo::kUNKNOWN) {
     flags |= RESPONSE_INFO_HAS_CONNECTION_INFO;
   }
@@ -409,16 +435,18 @@ void HttpResponseInfo::Persist(base::Pickle* pickle,
     extra_flags |= RESPONSE_EXTRA_INFO_DID_USE_SHARED_DICTIONARY;
   }
 
-  if (extra_flags) {
-    flags |= RESPONSE_INFO_HAS_EXTRA_FLAGS;
+  if (proxy_chain.IsValid()) {
+    extra_flags |= RESPONSE_EXTRA_INFO_HAS_PROXY_CHAIN;
   }
 
+  extra_flags |= RESPONSE_EXTRA_INFO_HAS_ORIGINAL_RESPONSE_TIME;
+  flags |= RESPONSE_INFO_HAS_EXTRA_FLAGS;
+
   pickle->WriteInt(flags);
-  if (extra_flags) {
-    pickle->WriteInt(extra_flags);
-  }
+  pickle->WriteInt(extra_flags);
   pickle->WriteInt64(request_time.ToInternalValue());
   pickle->WriteInt64(response_time.ToInternalValue());
+  pickle->WriteInt64(original_response_time.ToInternalValue());
 
   HttpResponseHeaders::PersistOptions persist_options =
       HttpResponseHeaders::PERSIST_RAW;
@@ -432,17 +460,17 @@ void HttpResponseInfo::Persist(base::Pickle* pickle,
                       HttpResponseHeaders::PERSIST_SANS_SECURITY_STATE;
   }
 
-  headers->Persist(pickle, persist_options);
+  headers->Persist(pickle.get(), persist_options);
 
   if (ssl_info.is_valid()) {
-    ssl_info.cert->Persist(pickle);
+    ssl_info.cert->Persist(pickle.get());
     pickle->WriteUInt32(ssl_info.cert_status);
     if (ssl_info.connection_status != 0)
       pickle->WriteInt(ssl_info.connection_status);
   }
 
   if (vary_data.is_valid())
-    vary_data.Persist(pickle);
+    vary_data.Persist(pickle.get());
 
   pickle->WriteString(remote_endpoint.ToStringWithoutPort());
   pickle->WriteUInt16(remote_endpoint.port());
@@ -474,6 +502,11 @@ void HttpResponseInfo::Persist(base::Pickle* pickle,
   if (browser_run_id.has_value()) {
     pickle->WriteInt64(browser_run_id.value());
   }
+
+  if (proxy_chain.IsValid()) {
+    proxy_chain.Persist(pickle.get());
+  }
+  return pickle;
 }
 
 bool HttpResponseInfo::DidUseQuic() const {
@@ -524,6 +557,10 @@ bool HttpResponseInfo::DidUseQuic() const {
     case HttpConnectionInfo::kQUIC_2_DRAFT_8:
       return true;
   }
+}
+
+bool HttpResponseInfo::WasFetchedViaProxy() const {
+  return proxy_chain.IsValid() && !proxy_chain.is_direct();
 }
 
 }  // namespace net

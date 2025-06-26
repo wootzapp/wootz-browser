@@ -6,13 +6,21 @@
 
 #include <cstdint>
 #include <initializer_list>
+#include <sstream>
 
 #include "base/logging.h"
 #include "base/test/test.pb.h"
+#include "components/optimization_guide/core/model_execution/multimodal_message.h"
 #include "components/optimization_guide/core/model_execution/on_device_model_execution_proto_descriptors.h"
+#include "components/optimization_guide/core/model_execution/test/feature_config_builder.h"
+#include "components/optimization_guide/core/model_execution/test/request_builder.h"
 #include "components/optimization_guide/proto/descriptors.pb.h"
 #include "components/optimization_guide/proto/features/compose.pb.h"
+#include "components/optimization_guide/proto/features/example_for_testing.pb.h"
+#include "components/optimization_guide/proto/features/prompt_api.pb.h"
 #include "components/optimization_guide/proto/features/tab_organization.pb.h"
+#include "components/optimization_guide/proto/substitution.pb.h"
+#include "services/on_device_model/ml/chrome_ml_audio_buffer.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -20,16 +28,161 @@ namespace optimization_guide {
 
 namespace {
 
+using ::google::protobuf::RepeatedPtrField;
+
+using Substitutions = RepeatedPtrField<proto::SubstitutedString>;
+
 class SubstitutionTest : public testing::Test {
  public:
   SubstitutionTest() = default;
   ~SubstitutionTest() override = default;
 };
 
-void MkProtoField(proto::ProtoField* f, std::initializer_list<int32_t> tags) {
-  for (int32_t tag : tags) {
-    f->add_proto_descriptors()->set_tag_number(tag);
+// ComposeRequest::page_metadata.page_title
+auto PageTitleField() {
+  return ProtoField({3, 2});
+}
+// ComposeRequest::rewrite_params.tone
+auto ToneField() {
+  return ProtoField({8, 2});
+}
+// ComposeRequest::rewrite_params.length
+auto LengthField() {
+  return ProtoField({8, 3});
+}
+// TabOrganizationRequest::tabs
+auto TabsField() {
+  return ProtoField({1});
+}
+// Tab::tab_id
+auto TabId() {
+  return ProtoField({1});
+}
+// Tab::title
+auto TabTitle() {
+  return ProtoField({2});
+}
+
+// PromptApiRequest::prompts
+auto InitialPromptsField() {
+  return ProtoField({1});
+}
+// PromptApiRequest::current_prompts
+auto PromptHistoryField() {
+  return ProtoField({2});
+}
+// PromptApiRequest::current_prompts
+auto CurrentPromptField() {
+  return ProtoField({3});
+}
+// PromptApiPrompt::role
+auto RoleField() {
+  return ProtoField({1});
+}
+// PromptApiPrompt::content
+auto ContentField() {
+  return ProtoField({2});
+}
+
+auto Condition(proto::ProtoField&& p,
+               proto::OperatorType op,
+               proto::Value&& val) {
+  proto::Condition c;
+  *c.mutable_proto_field() = std::move(p);
+  c.set_operator_type(op);
+  *c.mutable_value() = std::move(val);
+  return c;
+}
+
+auto ConditionList(proto::ConditionEvaluationType t,
+                   std::initializer_list<proto::Condition> conds) {
+  proto::ConditionList l;
+  l.set_condition_evaluation_type(t);
+  for (const auto& cond : conds) {
+    *l.add_conditions() = std::move(cond);
   }
+  return l;
+}
+
+// A simple expression that evaluates to "Cond: {name} {matched/not_matched} ".
+auto ConditionCheckExpr(const std::string& cond_name,
+                        proto::ConditionList&& cond_list) {
+  proto::SubstitutedString expr;
+  expr.set_string_template("Cond: %s %s ");
+  expr.add_substitutions()->add_candidates()->set_raw_string(cond_name);
+  auto* sub = expr.add_substitutions();
+  auto* c = sub->add_candidates();
+  c->set_raw_string("matched");
+  *c->mutable_conditions() = std::move(cond_list);
+  sub->add_candidates()->set_raw_string("not_matched");
+  return expr;
+}
+
+auto EnumCaseConditionList(proto::ProtoField&& field, auto v) {
+  return ConditionList(
+      proto::CONDITION_EVALUATION_TYPE_OR,
+      {
+          Condition(std::move(field), proto::OPERATOR_TYPE_EQUAL_TO,
+                    Int32Proto(static_cast<uint32_t>(v))),
+      });
+}
+
+proto::PromptApiPrompt RolePrompt(proto::PromptApiRole role,
+                                  std::string content) {
+  proto::PromptApiPrompt prompt;
+  prompt.set_role(role);
+  prompt.set_text(content);
+  return prompt;
+}
+
+proto::SubstitutedString ResolvePromptApiPrompt() {
+  proto::SubstitutedString prompt_expr;
+  prompt_expr.set_string_template("%s%s%s");
+  {
+    auto* role = prompt_expr.add_substitutions();
+    auto* sys = role->add_candidates();
+    *sys->mutable_conditions() =
+        EnumCaseConditionList(RoleField(), proto::PROMPT_API_ROLE_SYSTEM);
+    sys->set_control_token(proto::CONTROL_TOKEN_SYSTEM);
+    auto* user = role->add_candidates();
+    *user->mutable_conditions() =
+        EnumCaseConditionList(RoleField(), proto::PROMPT_API_ROLE_USER);
+    user->set_control_token(proto::CONTROL_TOKEN_USER);
+    auto* assistant = role->add_candidates();
+    assistant->set_control_token(proto::CONTROL_TOKEN_MODEL);
+  }
+  *prompt_expr.add_substitutions()->add_candidates()->mutable_proto_field() =
+      ContentField();
+  prompt_expr.add_substitutions()->add_candidates()->set_control_token(
+      proto::CONTROL_TOKEN_END);
+  return prompt_expr;
+}
+
+auto PromptApiConfig() {
+  google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
+  auto* root = subs.Add();
+  root->set_string_template("%s%s%s%s");
+  {
+    auto* range =
+        root->add_substitutions()->add_candidates()->mutable_range_expr();
+    *range->mutable_proto_field() = InitialPromptsField();
+    *range->mutable_expr() = ResolvePromptApiPrompt();
+  }
+  {
+    auto* range =
+        root->add_substitutions()->add_candidates()->mutable_range_expr();
+    *range->mutable_proto_field() = PromptHistoryField();
+    *range->mutable_expr() = ResolvePromptApiPrompt();
+  }
+  {
+    auto* range =
+        root->add_substitutions()->add_candidates()->mutable_range_expr();
+    *range->mutable_proto_field() = CurrentPromptField();
+    *range->mutable_expr() = ResolvePromptApiPrompt();
+  }
+  root->add_substitutions()->add_candidates()->set_control_token(
+      proto::CONTROL_TOKEN_MODEL);
+  return subs;
 }
 
 TEST_F(SubstitutionTest, RawString) {
@@ -40,10 +193,32 @@ TEST_F(SubstitutionTest, RawString) {
 
   base::test::TestMessage request;
   request.set_test("some test");
-  auto result = CreateSubstitutions(request, subs);
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
 
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(result->input_string, "hello this is a %test%");
+  EXPECT_EQ(result->ToString(), "hello this is a %test%");
+  EXPECT_FALSE(result->should_ignore_input_context);
+}
+
+TEST_F(SubstitutionTest, ControlTokens) {
+  google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
+  auto* substitution = subs.Add();
+  substitution->set_string_template("%s%s%s%s");
+  substitution->add_substitutions()->add_candidates()->set_control_token(
+      proto::CONTROL_TOKEN_SYSTEM);
+  substitution->add_substitutions()->add_candidates()->set_control_token(
+      proto::CONTROL_TOKEN_MODEL);
+  substitution->add_substitutions()->add_candidates()->set_control_token(
+      proto::CONTROL_TOKEN_USER);
+  substitution->add_substitutions()->add_candidates()->set_control_token(
+      proto::CONTROL_TOKEN_END);
+
+  base::test::TestMessage request;
+  request.set_test("some test");
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->ToString(), "<system><model><user><end>");
   EXPECT_FALSE(result->should_ignore_input_context);
 }
 
@@ -55,7 +230,7 @@ TEST_F(SubstitutionTest, BadTemplate) {
 
   base::test::TestMessage request;
   request.set_test("some test");
-  auto result = CreateSubstitutions(request, subs);
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
 
   ASSERT_FALSE(result.has_value());
 }
@@ -65,24 +240,18 @@ TEST_F(SubstitutionTest, ProtoField) {
   auto* substitution = subs.Add();
   substitution->set_string_template("hello this is a test: %s %s");
   substitution->set_should_ignore_input_context(true);
-  auto* proto_field2 = substitution->add_substitutions()
-                           ->add_candidates()
-                           ->mutable_proto_field();
-  proto_field2->add_proto_descriptors()->set_tag_number(3);
-  proto_field2->add_proto_descriptors()->set_tag_number(2);
-  auto* proto_field3 = substitution->add_substitutions()
-                           ->add_candidates()
-                           ->mutable_proto_field();
-  proto_field3->add_proto_descriptors()->set_tag_number(7);
-  proto_field3->add_proto_descriptors()->set_tag_number(1);
+  *substitution->add_substitutions()->add_candidates()->mutable_proto_field() =
+      PageTitleField();
+  *substitution->add_substitutions()->add_candidates()->mutable_proto_field() =
+      UserInputField();
 
   proto::ComposeRequest request;
   request.mutable_page_metadata()->set_page_title("nested");
   request.mutable_generate_params()->set_user_input("inner type");
-  auto result = CreateSubstitutions(request, subs);
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
 
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(result->input_string, "hello this is a test: nested inner type");
+  EXPECT_EQ(result->ToString(), "hello this is a test: nested inner type");
   EXPECT_TRUE(result->should_ignore_input_context);
 }
 
@@ -90,131 +259,329 @@ TEST_F(SubstitutionTest, BadProtoField) {
   google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
   auto* substitution = subs.Add();
   substitution->set_string_template("hello this is a test: %s");
-  auto* proto_field = substitution->add_substitutions()
-                          ->add_candidates()
-                          ->mutable_proto_field();
-  proto_field->add_proto_descriptors()->set_tag_number(10000);
+  *substitution->add_substitutions()->add_candidates()->mutable_proto_field() =
+      ProtoField({10000});
 
   proto::ComposeRequest request;
   request.mutable_page_metadata()->set_page_title("nested");
 
-  auto result = CreateSubstitutions(request, subs);
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
 
   EXPECT_FALSE(result);
 }
 
 TEST_F(SubstitutionTest, Conditions) {
-  google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
-  auto* execute_substitution = subs.Add();
-  execute_substitution->set_string_template("hello this is a test: %s %s");
-  auto* substitution1_proto_field = execute_substitution->add_substitutions()
-                                        ->add_candidates()
-                                        ->mutable_proto_field();
-  substitution1_proto_field->add_proto_descriptors()->set_tag_number(8);
-  substitution1_proto_field->add_proto_descriptors()->set_tag_number(1);
-  auto* substitution2 = execute_substitution->add_substitutions();
-  auto* arg1 = substitution2->add_candidates();
-  auto* proto_field1 = arg1->mutable_proto_field();
-  proto_field1->add_proto_descriptors()->set_tag_number(3);
-  proto_field1->add_proto_descriptors()->set_tag_number(1);
-  auto* arg1_conditions = arg1->mutable_conditions();
-  arg1_conditions->set_condition_evaluation_type(
-      proto::CONDITION_EVALUATION_TYPE_OR);
-  auto* arg1_c1 = arg1_conditions->add_conditions();
-  auto* arg1_c1_proto_field = arg1_c1->mutable_proto_field();
-  arg1_c1_proto_field->add_proto_descriptors()->set_tag_number(8);
-  arg1_c1_proto_field->add_proto_descriptors()->set_tag_number(2);
-  arg1_c1->set_operator_type(proto::OPERATOR_TYPE_EQUAL_TO);
-  arg1_c1->mutable_value()->set_int32_value(1);
-  auto* arg1_c2 = arg1_conditions->add_conditions();
-  arg1_c2->mutable_proto_field()->add_proto_descriptors()->set_tag_number(8);
-  arg1_c2->mutable_proto_field()->add_proto_descriptors()->set_tag_number(2);
-  arg1_c2->set_operator_type(proto::OPERATOR_TYPE_EQUAL_TO);
-  arg1_c1->mutable_value()->set_int32_value(2);
-  auto* arg2 = substitution2->add_candidates();
-  auto* proto_field2 = arg2->mutable_proto_field();
-  proto_field2->add_proto_descriptors()->set_tag_number(3);
-  proto_field2->add_proto_descriptors()->set_tag_number(2);
-  auto* arg2_conditions = arg2->mutable_conditions();
-  arg2_conditions->set_condition_evaluation_type(
-      proto::CONDITION_EVALUATION_TYPE_OR);
-  auto* arg2_c1 = arg2_conditions->add_conditions();
-  auto* arg2_c1_proto_field = arg2_c1->mutable_proto_field();
-  arg2_c1_proto_field->add_proto_descriptors()->set_tag_number(8);
-  arg2_c1_proto_field->add_proto_descriptors()->set_tag_number(3);
-  arg2_c1->set_operator_type(proto::OPERATOR_TYPE_EQUAL_TO);
-  arg2_c1->mutable_value()->set_int32_value(1);
-  auto* arg2_c2 = arg2_conditions->add_conditions();
-  arg2_c2->mutable_proto_field()->add_proto_descriptors()->set_tag_number(8);
-  arg2_c2->mutable_proto_field()->add_proto_descriptors()->set_tag_number(3);
-  arg2_c2->set_operator_type(proto::OPERATOR_TYPE_EQUAL_TO);
-  arg2_c1->mutable_value()->set_int32_value(2);
-
-  auto* execute_substitution2 = subs.Add();
-  execute_substitution2->set_string_template("should be ignored: %s");
-  execute_substitution2->add_substitutions()->add_candidates()->set_raw_string(
-      "also ignored");
-  auto* es2_conditions = execute_substitution2->mutable_conditions();
-  es2_conditions->set_condition_evaluation_type(
-      proto::CONDITION_EVALUATION_TYPE_AND);
-  auto* c1 = es2_conditions->add_conditions();
-  auto* c1_proto_field = c1->mutable_proto_field();
-  c1_proto_field->add_proto_descriptors()->set_tag_number(8);
-  c1_proto_field->add_proto_descriptors()->set_tag_number(2);
-  c1->set_operator_type(proto::OPERATOR_TYPE_NOT_EQUAL_TO);
-  c1->mutable_value()->set_int32_value(0);
-
   proto::ComposeRequest request;
-  request.mutable_rewrite_params()->set_previous_response("this is my input");
+  // COMPOSE_LONGER == 2
   request.mutable_rewrite_params()->set_length(proto::COMPOSE_LONGER);
-  request.mutable_page_metadata()->set_page_title("title");
-  request.mutable_page_metadata()->set_page_url("url");
+  // rewrite_params.tone is implicitly 0 / UNSPECIFIED_TONE
 
-  auto result = CreateSubstitutions(request, subs);
+  // True conditions
+  const auto length_is_2 =
+      Condition(LengthField(), proto::OPERATOR_TYPE_EQUAL_TO, Int32Proto(2));
+  const auto tone_not_1 =
+      Condition(ToneField(), proto::OPERATOR_TYPE_NOT_EQUAL_TO, Int32Proto(1));
+
+  // False conditions
+  const auto length_is_1 =
+      Condition(LengthField(), proto::OPERATOR_TYPE_EQUAL_TO, Int32Proto(1));
+  const auto tone_is_1 =
+      Condition(ToneField(), proto::OPERATOR_TYPE_EQUAL_TO, Int32Proto(1));
+
+  google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
+  *subs.Add() = ConditionCheckExpr(
+      "false_or_false", ConditionList(proto::CONDITION_EVALUATION_TYPE_OR,
+                                      {tone_is_1, length_is_1}));
+  *subs.Add() = ConditionCheckExpr(
+      "false_or_true", ConditionList(proto::CONDITION_EVALUATION_TYPE_OR,
+                                     {tone_is_1, length_is_2}));
+  *subs.Add() = ConditionCheckExpr(
+      "false_and_true", ConditionList(proto::CONDITION_EVALUATION_TYPE_AND,
+                                      {length_is_1, tone_not_1}));
+  *subs.Add() = ConditionCheckExpr(
+      "true_and_true", ConditionList(proto::CONDITION_EVALUATION_TYPE_AND,
+                                     {length_is_2, tone_not_1}));
+
+  auto* dropped_expr = subs.Add();
+  dropped_expr->set_string_template("dropped_expr");
+  dropped_expr->set_should_ignore_input_context(true);
+  *dropped_expr->mutable_conditions() =
+      ConditionList(proto::CONDITION_EVALUATION_TYPE_AND, {length_is_1});
+
+  auto* kept_expr = subs.Add();
+  kept_expr->set_string_template("kept_expr");
+  *kept_expr->mutable_conditions() =
+      ConditionList(proto::CONDITION_EVALUATION_TYPE_AND, {length_is_2});
+
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
 
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(result->input_string,
-            "hello this is a test: this is my input title");
+  EXPECT_EQ(result->ToString(),
+            "Cond: false_or_false not_matched "
+            "Cond: false_or_true matched "
+            "Cond: false_and_true not_matched "
+            "Cond: true_and_true matched "
+            "kept_expr");
   EXPECT_FALSE(result->should_ignore_input_context);
 }
 
-TEST_F(SubstitutionTest, Repeated) {
+// Make a simple request with two tabs.
+proto::TabOrganizationRequest TwoTabRequest() {
+  proto::TabOrganizationRequest request;
+  auto* tabs = request.mutable_tabs();
+  {
+    auto* t1 = tabs->Add();
+    t1->set_title("tabA");
+    t1->set_tab_id(10);
+  }
+  {
+    auto* t1 = tabs->Add();
+    t1->set_title("tabB");
+    t1->set_tab_id(20);
+  }
+  return request;
+}
+
+// Evaluate an expression over a list of tabs.
+// The substititon should produce a string like "Tabs: E,E,"
+// Where "E" is the 'expr' evaluated over the list of tabs.
+proto::SubstitutedString TabsExpr(const proto::StringSubstitution& expr) {
+  proto::SubstitutedString root;
+  root.set_string_template("Tabs: %s");
+  auto* range =
+      root.add_substitutions()->add_candidates()->mutable_range_expr();
+  *range->mutable_proto_field() = TabsField();
+
+  auto* substitution = range->mutable_expr();
+  substitution->set_string_template("%s,");
+  substitution->add_substitutions()->MergeFrom(expr);
+
+  return root;
+}
+
+TEST_F(SubstitutionTest, RepeatedRawField) {
   google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
   {
-    auto* s1 = subs.Add();
-    s1->set_string_template("hello this is a test: %s");
-    auto* re = s1->add_substitutions()->add_candidates()->mutable_range_expr();
-    MkProtoField(re->mutable_proto_field(), {1});  // tabs
-    auto* s2 = re->mutable_expr();
-    s2->set_string_template("%s-%s ");
-    MkProtoField(
-        s2->add_substitutions()->add_candidates()->mutable_proto_field(),
-        {1});  // tab_id
-    MkProtoField(
-        s2->add_substitutions()->add_candidates()->mutable_proto_field(),
-        {2});  // title
+    proto::StringSubstitution expr;
+    expr.add_candidates()->set_raw_string("E");
+    subs.Add()->MergeFrom(TabsExpr(expr));
   }
-
-  proto::TabOrganizationRequest request;
-  {
-    auto* tabs = request.mutable_tabs();
-    {
-      auto* t1 = tabs->Add();
-      t1->set_title("tabone");
-      t1->set_tab_id(1);
-    }
-    {
-      auto* t1 = tabs->Add();
-      t1->set_title("tabtwo");
-      t1->set_tab_id(2);
-    }
-  }
-
-  auto result = CreateSubstitutions(request, subs);
-
+  proto::TabOrganizationRequest request = TwoTabRequest();
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(result->input_string, "hello this is a test: 1-tabone 2-tabtwo ");
+  EXPECT_EQ(result->ToString(), "Tabs: E,E,");
   EXPECT_FALSE(result->should_ignore_input_context);
+}
+
+TEST_F(SubstitutionTest, RepeatedProtoField) {
+  google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
+  {
+    proto::StringSubstitution expr;
+    *expr.add_candidates()->mutable_proto_field() = TabTitle();
+    subs.Add()->MergeFrom(TabsExpr(expr));
+  }
+  proto::TabOrganizationRequest request = TwoTabRequest();
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->ToString(), "Tabs: tabA,tabB,");
+  EXPECT_FALSE(result->should_ignore_input_context);
+}
+
+TEST_F(SubstitutionTest, RepeatedZeroBasedIndexField) {
+  google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
+  {
+    proto::StringSubstitution expr;
+    expr.add_candidates()->mutable_index_expr();
+    subs.Add()->MergeFrom(TabsExpr(expr));
+  }
+  proto::TabOrganizationRequest request = TwoTabRequest();
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->ToString(), "Tabs: 0,1,");
+  EXPECT_FALSE(result->should_ignore_input_context);
+}
+
+TEST_F(SubstitutionTest, RepeatedOneBasedIndexField) {
+  google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
+  {
+    proto::StringSubstitution expr;
+    expr.add_candidates()->mutable_index_expr()->set_one_based(true);
+    subs.Add()->MergeFrom(TabsExpr(expr));
+  }
+  proto::TabOrganizationRequest request = TwoTabRequest();
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->ToString(), "Tabs: 1,2,");
+  EXPECT_FALSE(result->should_ignore_input_context);
+}
+
+TEST_F(SubstitutionTest, RepeatedCondition) {
+  google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
+  {
+    proto::StringSubstitution expr;
+    auto* c1 = expr.add_candidates();
+    auto* c2 = expr.add_candidates();
+    c1->set_raw_string("Ten");
+    *c1->mutable_conditions() = ConditionList(
+        proto::CONDITION_EVALUATION_TYPE_OR,
+        {
+            Condition(TabId(), proto::OPERATOR_TYPE_EQUAL_TO, Int64Proto(10)),
+        });
+    c2->set_raw_string("NotTen");
+    subs.Add()->MergeFrom(TabsExpr(expr));
+  }
+  proto::TabOrganizationRequest request = TwoTabRequest();
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request), subs);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->ToString(), "Tabs: Ten,NotTen,");
+  EXPECT_FALSE(result->should_ignore_input_context);
+}
+
+TEST_F(SubstitutionTest, PromptApiNShot) {
+  // https://github.com/explainers-by-googlers/prompt-api?tab=readme-ov-file#n-shot-prompting
+  proto::PromptApiRequest request;
+  *request.add_initial_prompts() =
+      RolePrompt(proto::PROMPT_API_ROLE_SYSTEM,
+                 "Predict up to 5 emojis as a response to a "
+                 "comment. Output emojis, comma-separated.");
+  *request.add_initial_prompts() =
+      RolePrompt(proto::PROMPT_API_ROLE_USER, "This is amazing!");
+  *request.add_initial_prompts() =
+      RolePrompt(proto::PROMPT_API_ROLE_ASSISTANT, "❤️, ➕");
+  *request.add_initial_prompts() =
+      RolePrompt(proto::PROMPT_API_ROLE_USER, "LGTM");
+  *request.add_initial_prompts() =
+      RolePrompt(proto::PROMPT_API_ROLE_ASSISTANT, "👍, 🚢");
+  *request.add_current_prompts() =
+      RolePrompt(proto::PROMPT_API_ROLE_USER, "Back to the drawing board");
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request),
+                                    PromptApiConfig());
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->ToString(),
+            "<system>Predict up to 5 emojis as a response to a comment. Output "
+            "emojis, comma-separated.<end>"
+            "<user>This is amazing!<end>"
+            "<model>❤️, ➕<end>"
+            "<user>LGTM<end>"
+            "<model>👍, 🚢<end>"
+            "<user>Back to the drawing board<end>"
+            "<model>");
+}
+
+TEST_F(SubstitutionTest, PromptApiPersistence) {
+  // https://github.com/explainers-by-googlers/prompt-api#session-persistence-and-cloning
+  proto::PromptApiRequest request;
+  *request.add_initial_prompts() = RolePrompt(
+      proto::PROMPT_API_ROLE_SYSTEM,
+      "You are a friendly, helpful assistant specialized in clothing choices.");
+  *request.add_prompt_history() =
+      RolePrompt(proto::PROMPT_API_ROLE_USER,
+                 "What should I wear today? It's sunny and I'm unsure between "
+                 "a t-shirt and a polo.");
+  *request.add_prompt_history() =
+      RolePrompt(proto::PROMPT_API_ROLE_ASSISTANT, "Wear the t-shirt!");
+  *request.add_current_prompts() =
+      RolePrompt(proto::PROMPT_API_ROLE_USER,
+                 "That sounds great, but oh no, it's actually going to rain! "
+                 "New advice??");
+  auto result = CreateSubstitutions(MultimodalMessageReadView(request),
+                                    PromptApiConfig());
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->ToString(),
+            "<system>You are a friendly, helpful assistant specialized in "
+            "clothing choices.<end>"
+            "<user>What should I wear today? It's sunny and I'm unsure between "
+            "a t-shirt and a polo.<end>"
+            "<model>Wear the t-shirt!<end>"
+            "<user>That sounds great, but oh no, it's actually going to rain! "
+            "New advice??<end>"
+            "<model>");
+}
+
+auto MediaSubstitutionConfig() {
+  using RequestProto = ::optimization_guide::proto::ExampleForTestingRequest;
+  using NestedProto = ::optimization_guide::proto::ExampleForTestingMessage;
+  google::protobuf::RepeatedPtrField<proto::SubstitutedString> subs;
+  auto* root = subs.Add();
+  root->set_string_template("%s");
+  *root->add_substitutions()
+       ->add_candidates()
+       ->mutable_media_field()
+       ->mutable_proto_field() = ProtoField(
+      {RequestProto::kNested1FieldNumber, NestedProto::kMediaFieldNumber});
+  return subs;
+}
+
+ml::AudioBuffer CreateAudioBuffer() {
+  ml::AudioBuffer b;
+  b.num_channels = 1;
+  b.num_frames = 1;
+  b.sample_rate_hz = 60;
+  return b;
+}
+
+TEST_F(SubstitutionTest, Image) {
+  using RequestProto = ::optimization_guide::proto::ExampleForTestingRequest;
+  using NestedProto = ::optimization_guide::proto::ExampleForTestingMessage;
+  MultimodalMessage request{RequestProto()};
+  request.edit()
+      .GetMutableMessage(RequestProto::kNested1FieldNumber)
+      .Set(NestedProto::kMediaFieldNumber, CreateBlackSkBitmap(1, 1));
+  std::optional<SubstitutionResult> result =
+      CreateSubstitutions(request.read(), MediaSubstitutionConfig());
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->ToString(), "<image>");
+}
+
+TEST_F(SubstitutionTest, Audio) {
+  using RequestProto = ::optimization_guide::proto::ExampleForTestingRequest;
+  using NestedProto = ::optimization_guide::proto::ExampleForTestingMessage;
+  MultimodalMessage request{RequestProto()};
+  request.edit()
+      .GetMutableMessage(RequestProto::kNested1FieldNumber)
+      .Set(NestedProto::kMediaFieldNumber, CreateAudioBuffer());
+  std::optional<SubstitutionResult> result =
+      CreateSubstitutions(request.read(), MediaSubstitutionConfig());
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->ToString(), "<audio>");
+}
+
+TEST_F(SubstitutionTest, ExcludesEmptyPieces) {
+  // We should not omit pieces for empty strings, so that empty outputs
+  // can be filtered.
+  using RequestProto = ::optimization_guide::proto::ExampleForTestingRequest;
+
+  Substitutions substitutions = []() {
+    Substitutions result;
+    auto expr1 = result.Add();
+    // Empty strings between placeholders
+    expr1->set_string_template("%s%s%s");
+    {
+      // Empty range
+      auto* range =
+          expr1->add_substitutions()->add_candidates()->mutable_range_expr();
+      *range->mutable_proto_field() =
+          ProtoField({RequestProto::kRepeatedFieldFieldNumber});
+      range->mutable_expr()->set_string_template("item");
+    }
+    {
+      // Empty string field
+      *expr1->add_substitutions()->add_candidates()->mutable_proto_field() =
+          ProtoField({RequestProto::kStringValueFieldNumber});
+    }
+    {
+      // Empty raw string
+      expr1->add_substitutions()->add_candidates()->set_raw_string("");
+    }
+    return result;
+  }();
+
+  MultimodalMessage request{RequestProto()};
+  std::optional<SubstitutionResult> result =
+      CreateSubstitutions(request.read(), substitutions);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->ToString(), "");
+  EXPECT_EQ(result->input->pieces.size(), 0u);
 }
 
 }  // namespace

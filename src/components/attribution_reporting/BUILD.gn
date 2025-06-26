@@ -3,16 +3,15 @@
 # found in the LICENSE file.
 
 import("//mojo/public/tools/bindings/mojom.gni")
-import("//testing/libfuzzer/fuzzer_test.gni")
-import("//testing/test.gni")
 
 mojom("mojom") {
   sources = [
+    "debug_types.mojom",
     "os_registration_error.mojom",
     "registration_eligibility.mojom",
     "source_registration_error.mojom",
     "source_registration_time_config.mojom",
-    "summary_window_operator.mojom",
+    "summary_operator.mojom",
     "trigger_data_matching.mojom",
     "trigger_registration_error.mojom",
   ]
@@ -40,8 +39,16 @@ component("features") {
 
 component("attribution_reporting") {
   sources = [
+    "aggregatable_debug_reporting_config.cc",
+    "aggregatable_debug_reporting_config.h",
     "aggregatable_dedup_key.cc",
     "aggregatable_dedup_key.h",
+    "aggregatable_filtering_id_max_bytes.cc",
+    "aggregatable_filtering_id_max_bytes.h",
+    "aggregatable_named_budget_candidate.cc",
+    "aggregatable_named_budget_candidate.h",
+    "aggregatable_named_budget_defs.cc",
+    "aggregatable_named_budget_defs.h",
     "aggregatable_trigger_config.cc",
     "aggregatable_trigger_config.h",
     "aggregatable_trigger_data.cc",
@@ -52,7 +59,14 @@ component("attribution_reporting") {
     "aggregatable_values.h",
     "aggregation_keys.cc",
     "aggregation_keys.h",
+    "attribution_scopes_data.cc",
+    "attribution_scopes_data.h",
+    "attribution_scopes_set.cc",
+    "attribution_scopes_set.h",
+    "attribution_src_request_status.h",
     "constants.h",
+    "debug_types.cc",
+    "debug_types.h",
     "destination_set.cc",
     "destination_set.h",
     "eligibility.cc",
@@ -135,17 +149,24 @@ source_set("unit_tests") {
   testonly = true
 
   sources = [
+    "aggregatable_debug_reporting_config_unittest.cc",
     "aggregatable_dedup_key_unittest.cc",
+    "aggregatable_filtering_id_max_bytes_unittest.cc",
+    "aggregatable_named_budget_candidate_unittest.cc",
+    "aggregatable_named_budget_defs_unittest.cc",
     "aggregatable_trigger_config_unittest.cc",
     "aggregatable_trigger_data_unittest.cc",
     "aggregatable_utils_unittest.cc",
     "aggregatable_values_unittest.cc",
     "aggregation_keys_unittest.cc",
+    "attribution_scopes_data_unittest.cc",
+    "attribution_scopes_set_unittest.cc",
     "destination_set_unittest.cc",
     "eligibility_unittest.cc",
     "event_level_epsilon_unittest.cc",
     "event_report_windows_unittest.cc",
     "event_trigger_data_unittest.cc",
+    "filters_fuzztest.cc",
     "filters_unittest.cc",
     "max_event_level_reports_unittest.cc",
     "os_registration_unittest.cc",
@@ -163,11 +184,14 @@ source_set("unit_tests") {
 
   deps = [
     ":attribution_reporting",
+    ":fuzzer_support",
     ":test_support",
     "//base",
+    "//base/test:fuzztest_support",
     "//base/test:test_support",
     "//services/network/public/mojom:mojom_headers",
     "//testing/gtest",
+    "//third_party/fuzztest",
   ]
 }
 
@@ -185,58 +209,6 @@ source_set("test_support") {
   ]
 
   deps = [ "//base" ]
-}
-
-fuzzer_test("parse_info_header_fuzzer") {
-  sources = [ "parse_info_header_fuzzer.cc" ]
-  deps = [
-    ":attribution_reporting",
-    "//base",
-    "//base:i18n",
-  ]
-
-  seed_corpus =
-      "//components/attribution_reporting/parse_info_header_fuzzer_corpus/"
-}
-
-fuzzer_test("parse_os_header_fuzzer") {
-  sources = [ "parse_os_header_fuzzer.cc" ]
-  deps = [
-    ":attribution_reporting",
-    "//base",
-    "//base:i18n",
-  ]
-
-  seed_corpus =
-      "//components/attribution_reporting/parse_os_header_fuzzer_corpus/"
-}
-
-fuzzer_test("source_registration_fuzzer") {
-  sources = [ "source_registration_fuzzer.cc" ]
-  deps = [
-    ":attribution_reporting",
-    "//base",
-    "//base:i18n",
-    "//testing/libfuzzer/proto:json_proto",
-    "//testing/libfuzzer/proto:json_proto_converter",
-    "//third_party/libprotobuf-mutator",
-  ]
-  seed_corpus =
-      "//components/attribution_reporting/source_registration_fuzzer_corpus"
-}
-
-fuzzer_test("trigger_registration_fuzzer") {
-  sources = [ "trigger_registration_fuzzer.cc" ]
-  deps = [
-    ":attribution_reporting",
-    "//base",
-    "//base:i18n",
-    "//testing/libfuzzer/proto:json_proto",
-    "//testing/libfuzzer/proto:json_proto_converter",
-    "//third_party/libprotobuf-mutator",
-  ]
-  seed_corpus =
-      "//components/attribution_reporting/trigger_registration_fuzzer_corpus"
 }
 
 mojom("registration_mojom") {
@@ -264,6 +236,11 @@ mojom("registration_mojom") {
   cpp_typemaps = [
     {
       types = [
+        {
+          mojom = "attribution_reporting.mojom.AggregatableValuesValue"
+          cpp = "::attribution_reporting::AggregatableValuesValue"
+          forward_declaration = "namespace attribution_reporting { class AggregatableValuesValue; }"
+        },
         {
           mojom = "attribution_reporting.mojom.SuitableOrigin"
           cpp = "::attribution_reporting::SuitableOrigin"
@@ -375,6 +352,46 @@ mojom("registration_mojom") {
           forward_declaration =
               "namespace attribution_reporting { class TriggerSpecs; }"
         },
+        {
+          mojom = "attribution_reporting.mojom.SourceAggregatableDebugReportingConfig"
+          cpp =
+              "::attribution_reporting::SourceAggregatableDebugReportingConfig"
+          forward_declaration = "namespace attribution_reporting { class SourceAggregatableDebugReportingConfig; }"
+        },
+        {
+          mojom = "attribution_reporting.mojom.AggregatableDebugReportingConfig"
+          cpp = "::attribution_reporting::AggregatableDebugReportingConfig"
+          forward_declaration = "namespace attribution_reporting { struct AggregatableDebugReportingConfig; }"
+        },
+        {
+          mojom = "attribution_reporting.mojom.AggregatableDebugReportingContribution"
+          cpp =
+              "::attribution_reporting::AggregatableDebugReportingContribution"
+          forward_declaration = "namespace attribution_reporting { class AggregatableDebugReportingContribution; }"
+        },
+        {
+          mojom = "attribution_reporting.mojom.AttributionScopesSet"
+          cpp = "::attribution_reporting::AttributionScopesSet"
+          forward_declaration =
+              "namespace attribution_reporting { class AttributionScopesSet; }"
+        },
+        {
+          mojom = "attribution_reporting.mojom.AttributionScopesData"
+          cpp = "::attribution_reporting::AttributionScopesData"
+          default_constructible = false
+          forward_declaration =
+              "namespace attribution_reporting { class AttributionScopesData; }"
+        },
+        {
+          mojom = "attribution_reporting.mojom.AggregatableNamedBudgetDefs"
+          cpp = "::attribution_reporting::AggregatableNamedBudgetDefs"
+          forward_declaration = "namespace attribution_reporting { class AggregatableNamedBudgetDefs; }"
+        },
+        {
+          mojom = "attribution_reporting.mojom.AggregatableNamedBudgetCandidate"
+          cpp = "::attribution_reporting::AggregatableNamedBudgetCandidate"
+          forward_declaration = "namespace attribution_reporting { class AggregatableNamedBudgetCandidate; }"
+        },
       ]
       traits_headers = [ "registration_mojom_traits.h" ]
       traits_public_deps = [ ":registration_mojom_traits" ]
@@ -424,6 +441,10 @@ mojom("registration_header_error_mojom") {
           mojom = "attribution_reporting.mojom.RegistrationHeaderError"
           cpp = "::attribution_reporting::RegistrationHeaderError"
           forward_declaration = "namespace attribution_reporting { struct RegistrationHeaderError; }"
+
+          # Avoid expensive copies by forcing Mojo methods to take the type by
+          # value, not const ref
+          move_only = true
         },
         {
           mojom = "attribution_reporting.mojom.RegistrationHeaderErrorDetails"
@@ -478,28 +499,17 @@ source_set("fuzzer_support") {
   ]
 }
 
-test("privacy_math_fuzztest") {
-  sources = [ "privacy_math_fuzztest.cc" ]
+mojom("data_host_mojom") {
+  sources = [ "data_host.mojom" ]
 
-  fuzztests = [ "PrivacyMathTest.SingleSpecNumStatesMatchesRecursive" ]
-
-  deps = [
-    ":attribution_reporting",
-    ":fuzzer_support",
-    ":test_support",
-    "//third_party/fuzztest:fuzztest_gtest_main",
-  ]
-}
-
-test("filters_fuzztest") {
-  sources = [ "filters_fuzztest.cc" ]
-
-  fuzztests = [ "FilterDataTest.Matches" ]
+  generate_java = true
 
   deps = [
-    ":attribution_reporting",
-    ":fuzzer_support",
-    ":test_support",
-    "//third_party/fuzztest:fuzztest_gtest_main",
+    ":registration_header_error_mojom",
+    ":registration_mojom",
   ]
+
+  export_class_attribute_blink = "PLATFORM_EXPORT"
+  export_define_blink = "BLINK_PLATFORM_IMPLEMENTATION=1"
+  export_header_blink = "third_party/blink/renderer/platform/platform_export.h"
 }

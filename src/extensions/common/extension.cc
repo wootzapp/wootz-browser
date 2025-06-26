@@ -16,6 +16,7 @@
 #include "base/base64.h"
 #include "base/command_line.h"
 #include "base/containers/contains.h"
+#include "base/containers/map_util.h"
 #include "base/files/file_path.h"
 #include "base/i18n/rtl.h"
 #include "base/json/json_writer.h"
@@ -68,6 +69,9 @@ constexpr char kKeyBeginFooterMarker[] = "-----END";
 constexpr char kKeyInfoEndMarker[] = "KEY-----";
 constexpr char kPublic[] = "PUBLIC";
 constexpr char kPrivate[] = "PRIVATE";
+
+// Bail out on larger inputs to prevent out-of-memory failures.
+constexpr int kMaxInputSizeBytes = 100 * 1024;
 
 bool ContainsReservedCharacters(const base::FilePath& path) {
   // We should disallow backslash '\\' as file path separator even on Windows,
@@ -124,19 +128,23 @@ bool IsManifestSupported(int manifest_version,
   bool allow_legacy_extensions =
       base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kAllowLegacyExtensionManifests);
-  if (type == Manifest::TYPE_EXTENSION && allow_legacy_extensions)
+  if (type == Manifest::TYPE_EXTENSION && allow_legacy_extensions) {
     return true;
+  }
 
-  if ((creation_flags & Extension::REQUIRE_MODERN_MANIFEST_VERSION) != 0)
+  if ((creation_flags & Extension::REQUIRE_MODERN_MANIFEST_VERSION) != 0) {
     return false;
+  }
 
   static constexpr int kMinimumExtensionManifestVersion = 2;
-  if (type == Manifest::TYPE_EXTENSION)
+  if (type == Manifest::TYPE_EXTENSION) {
     return manifest_version >= kMinimumExtensionManifestVersion;
+  }
 
   static constexpr int kMinimumPlatformAppManifestVersion = 2;
-  if (type == Manifest::TYPE_PLATFORM_APP)
+  if (type == Manifest::TYPE_PLATFORM_APP) {
     return manifest_version >= kMinimumPlatformAppManifestVersion;
+  }
 
   return true;
 }
@@ -148,16 +156,6 @@ bool ComputeExtensionID(const base::Value::Dict& manifest,
                         int creation_flags,
                         std::u16string* error,
                         ExtensionId* extension_id) {
-  // wootzapp name based ext id generation
-  if (const base::Value* ext_name = manifest.Find("name")) {
-      std::string name = ext_name->GetString();
-      if (name != "Web Store") { // hardcode for default ext
-        *extension_id = crx_file::id_util::GenerateId(name);
-        LOG(ERROR) << "Wootzapp: Generated ext id: " << *extension_id;
-        return true;
-      }
-  }
-
   if (const base::Value* public_key = manifest.Find(keys::kPublicKey)) {
     std::string public_key_bytes;
     if (!public_key->is_string() ||
@@ -180,8 +178,7 @@ bool ComputeExtensionID(const base::Value::Dict& manifest,
   // reloading the extension.
   *extension_id = crx_file::id_util::GenerateIdForPath(path);
   if (extension_id->empty()) {
-    NOTREACHED_IN_MIGRATION() << "Could not create ID from path.";
-    return false;
+    NOTREACHED() << "Could not create ID from path.";
   }
   return true;
 }
@@ -247,8 +244,8 @@ scoped_refptr<Extension> Extension::Create(const base::FilePath& path,
                            utf8_error);
 }
 
-// TODO(sungguk): Continue removing std::string errors and replacing
-// with std::u16string. See http://crbug.com/71980.
+// TODO(crbug.com/41317803): Continue removing std::string errors and replacing
+// with std::u16string.
 scoped_refptr<Extension> Extension::Create(const base::FilePath& path,
                                            ManifestLocation location,
                                            const base::Value::Dict& value,
@@ -282,14 +279,16 @@ scoped_refptr<Extension> Extension::Create(const base::FilePath& path,
   scoped_refptr<Extension> extension = new Extension(path, std::move(manifest));
   extension->install_warnings_.swap(install_warnings);
 
+  // Some manifest parsing may require the dynamic URL to be present on the
+  // extension; instantiate it now.
+  extension->guid_ = base::Uuid::GenerateRandomV4();
+  extension->dynamic_url_ = Extension::GetBaseURLFromExtensionId(
+      extension->guid_.AsLowercaseString());
+
   if (!extension->InitFromValue(flags, &error)) {
     *utf8_error = base::UTF16ToUTF8(error);
     return nullptr;
   }
-
-  extension->guid_ = base::Uuid::GenerateRandomV4();
-  extension->dynamic_url_ = Extension::GetBaseURLFromExtensionId(
-      extension->guid_.AsLowercaseString());
 
   return extension;
 }
@@ -301,25 +300,27 @@ Manifest::Type Extension::GetType() const {
 
 // static
 GURL Extension::GetResourceURL(const GURL& extension_url,
-                               const std::string& relative_path) {
+                               std::string_view relative_path) {
   DCHECK(extension_url.SchemeIs(kExtensionScheme));
   return extension_url.Resolve(relative_path);
 }
 
 bool Extension::ResourceMatches(const URLPatternSet& pattern_set,
-                                const std::string& resource) const {
+                                std::string_view resource) const {
   return pattern_set.MatchesURL(extension_url_.Resolve(resource));
 }
 
 ExtensionResource Extension::GetResource(std::string_view relative_path) const {
   // We have some legacy data where resources have leading slashes.
   // See: http://crbug.com/121164
-  if (!relative_path.empty() && relative_path[0] == '/')
+  if (!relative_path.empty() && relative_path[0] == '/') {
     relative_path.remove_prefix(1);
+  }
   base::FilePath relative_file_path =
       base::FilePath::FromUTF8Unsafe(relative_path);
-  if (ContainsReservedCharacters(relative_file_path))
+  if (ContainsReservedCharacters(relative_file_path)) {
     return ExtensionResource();
+  }
   ExtensionResource r(id(), path(), relative_file_path);
   if ((creation_flags() & Extension::FOLLOW_SYMLINKS_ANYWHERE)) {
     r.set_follow_symlinks_anywhere();
@@ -329,8 +330,9 @@ ExtensionResource Extension::GetResource(std::string_view relative_path) const {
 
 ExtensionResource Extension::GetResource(
     const base::FilePath& relative_file_path) const {
-  if (ContainsReservedCharacters(relative_file_path))
+  if (ContainsReservedCharacters(relative_file_path)) {
     return ExtensionResource();
+  }
   ExtensionResource r(id(), path(), relative_file_path);
   if ((creation_flags() & Extension::FOLLOW_SYMLINKS_ANYWHERE)) {
     r.set_follow_symlinks_anywhere();
@@ -342,53 +344,57 @@ ExtensionResource Extension::GetResource(
 // util class in base:
 // http://code.google.com/p/chromium/issues/detail?id=13572
 // static
-bool Extension::ParsePEMKeyBytes(const std::string& input,
-                                 std::string* output) {
+bool Extension::ParsePEMKeyBytes(std::string_view input, std::string* output) {
   DCHECK(output);
-  if (!output)
+  if (!output || input.length() == 0 || input.length() > kMaxInputSizeBytes) {
     return false;
-  if (input.length() == 0)
-    return false;
+  }
 
-  std::string working = input;
+  std::string working{input};
   if (base::StartsWith(working, kKeyBeginHeaderMarker,
                        base::CompareCase::SENSITIVE)) {
     working = base::CollapseWhitespaceASCII(working, true);
     size_t header_pos = working.find(kKeyInfoEndMarker,
       sizeof(kKeyBeginHeaderMarker) - 1);
-    if (header_pos == std::string::npos)
+    if (header_pos == std::string::npos) {
       return false;
+    }
     size_t start_pos = header_pos + sizeof(kKeyInfoEndMarker) - 1;
     size_t end_pos = working.rfind(kKeyBeginFooterMarker);
-    if (end_pos == std::string::npos)
+    if (end_pos == std::string::npos) {
       return false;
-    if (start_pos >= end_pos)
+    }
+    if (start_pos >= end_pos) {
       return false;
+    }
 
     working = working.substr(start_pos, end_pos - start_pos);
-    if (working.length() == 0)
+    if (working.length() == 0) {
       return false;
+    }
   }
 
   return base::Base64Decode(working, output);
 }
 
 // static
-bool Extension::ProducePEM(const std::string& input, std::string* output) {
+bool Extension::ProducePEM(std::string_view input, std::string* output) {
   DCHECK(output);
-  if (input.empty())
+  if (input.empty()) {
     return false;
+  }
   *output = base::Base64Encode(input);
   return true;
 }
 
 // static
-bool Extension::FormatPEMForFileOutput(const std::string& input,
+bool Extension::FormatPEMForFileOutput(std::string_view input,
                                        std::string* output,
                                        bool is_public) {
   DCHECK(output);
-  if (input.length() == 0)
+  if (input.length() == 0) {
     return false;
+  }
   *output = "";
   output->append(kKeyBeginHeaderMarker);
   output->append(" ");
@@ -428,16 +434,19 @@ url::Origin Extension::CreateOriginFromExtensionId(
 }
 
 bool Extension::OverlapsWithOrigin(const GURL& origin) const {
-  if (url() == origin)
+  if (url() == origin) {
     return true;
+  }
 
-  if (web_extent().is_empty())
+  if (web_extent().is_empty()) {
     return false;
+  }
 
   // Note: patterns and extents ignore port numbers.
   URLPattern origin_only_pattern(kValidWebExtentSchemes);
-  if (!origin_only_pattern.SetScheme(origin.scheme()))
+  if (!origin_only_pattern.SetScheme(origin.scheme())) {
     return false;
+  }
   origin_only_pattern.SetHost(origin.host());
   origin_only_pattern.SetPath("/*");
 
@@ -447,19 +456,24 @@ bool Extension::OverlapsWithOrigin(const GURL& origin) const {
   return web_extent().OverlapsWith(origin_only_pattern_list);
 }
 
-Extension::ManifestData* Extension::GetManifestData(const std::string& key)
-    const {
+Extension::ManifestData* Extension::GetManifestData(
+    std::string_view key) const {
   DCHECK(finished_parsing_manifest_ || thread_checker_.CalledOnValidThread());
   auto iter = manifest_data_.find(key);
-  if (iter != manifest_data_.end())
+  if (iter != manifest_data_.end()) {
     return iter->second.get();
+  }
   return nullptr;
 }
 
-void Extension::SetManifestData(const std::string& key,
+void Extension::SetManifestData(std::string_view key,
                                 std::unique_ptr<Extension::ManifestData> data) {
   DCHECK(!finished_parsing_manifest_ && thread_checker_.CalledOnValidThread());
-  manifest_data_[key] = std::move(data);
+  // TODO(crbug.com/376532871): This helper avoids creating a temporary string
+  // to lookup `key` in `manifest_data_`, if key is already present. The helper
+  // can be removed with C++26, where std::map supports heterogenous key args
+  // on `std::map::operator[]()` and `std::map::insert_or_assign()`.
+  base::InsertOrAssign(manifest_data_, key, std::move(data));
 }
 
 void Extension::SetGUID(const ExtensionGuid& guid) {
@@ -499,14 +513,16 @@ std::string Extension::DifferentialFingerprint() const {
   // synthesize a 2.VERSION fingerprint for use. For more information, see
   // https://github.com/google/omaha/blob/master/doc/ServerProtocolV3.md#packages--fingerprints
   if (const std::string* fingerprint =
-          manifest_->FindStringPath(keys::kDifferentialFingerprint))
+          manifest_->FindStringPath(keys::kDifferentialFingerprint)) {
     return *fingerprint;
+  }
   return "2." + VersionString();
 }
 
 std::string Extension::GetVersionForDisplay() const {
-  if (version_name_.size() > 0)
+  if (version_name_.size() > 0) {
     return version_name_;
+  }
   return VersionString();
 }
 
@@ -588,11 +604,13 @@ bool Extension::InitFromValue(int flags, std::u16string* error) {
 
   // Important to load manifest version first because many other features
   // depend on its value.
-  if (!LoadManifestVersion(error))
+  if (!LoadManifestVersion(error)) {
     return false;
+  }
 
-  if (!LoadRequiredFeatures(error))
+  if (!LoadRequiredFeatures(error)) {
     return false;
+  }
 
   if (const std::string* temp = manifest()->FindStringPath(keys::kPublicKey)) {
     // We don't need to validate because ComputeExtensionId() already did that.
@@ -605,15 +623,18 @@ bool Extension::InitFromValue(int flags, std::u16string* error) {
   // Load App settings. LoadExtent at least has to be done before
   // ParsePermissions(), because the valid permissions depend on what type of
   // package this is.
-  if (is_app() && !LoadAppFeatures(error))
+  if (is_app() && !LoadAppFeatures(error)) {
     return false;
+  }
 
   permissions_parser_ = std::make_unique<PermissionsParser>();
-  if (!permissions_parser_->Parse(this, error))
+  if (!permissions_parser_->Parse(this, error)) {
     return false;
+  }
 
-  if (!LoadSharedFeatures(error))
+  if (!LoadSharedFeatures(error)) {
     return false;
+  }
 
   permissions_parser_->Finalize(this);
   permissions_parser_.reset();
@@ -628,9 +649,9 @@ bool Extension::InitFromValue(int flags, std::u16string* error) {
 }
 
 bool Extension::LoadRequiredFeatures(std::u16string* error) {
-  if (!LoadName(error) ||
-      !LoadVersion(error))
+  if (!LoadName(error) || !LoadVersion(error)) {
     return false;
+  }
   return true;
 }
 
@@ -685,8 +706,9 @@ bool Extension::LoadExtent(const char* key,
                            const char* value_error,
                            std::u16string* error) {
   const base::Value* temp_pattern_value = manifest_->FindPath(key);
-  if (temp_pattern_value == nullptr)
+  if (temp_pattern_value == nullptr) {
     return true;
+  }
 
   if (!temp_pattern_value->is_list()) {
     *error = base::ASCIIToUTF16(list_error);
@@ -750,9 +772,9 @@ bool Extension::LoadExtent(const char* key,
 
 bool Extension::LoadSharedFeatures(std::u16string* error) {
   if (!LoadDescription(error) ||
-      !ManifestHandler::ParseExtension(this, error) ||
-      !LoadShortName(error))
+      !ManifestHandler::ParseExtension(this, error) || !LoadShortName(error)) {
     return false;
+  }
 
   return true;
 }
@@ -796,8 +818,9 @@ bool Extension::LoadManifestVersion(std::u16string* error) {
     return false;
   }
 
-  if (!warning.empty())
+  if (!warning.empty()) {
     AddInstallWarning(InstallWarning(warning, keys::kManifestVersion));
+  }
 
   return true;
 }

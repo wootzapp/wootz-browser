@@ -9,8 +9,8 @@
 #include <string>
 
 #import "base/memory/raw_ptr.h"
-#include "components/reading_list/core/reading_list_model_observer.h"
-#include "ios/web/public/web_state_observer.h"
+#import "components/reading_list/core/reading_list_model_observer.h"
+#import "ios/web/public/web_state_observer.h"
 #import "ios/web/public/web_state_user_data.h"
 
 namespace base {
@@ -155,8 +155,6 @@ class OfflinePageTabHelper : public web::WebStateUserData<OfflinePageTabHelper>,
   bool dont_reload_online_on_next_navigation_ = false;
   // Whether a reload navigation has just been triggered.
   bool reloading_from_offline_ = false;
-
-  WEB_STATE_USER_DATA_KEY_DECL();
 
   // Member variables should appear before the WeakPtrFactory, to ensure
   // that any WeakPtrs to OfflinePageTabHelper are invalidated before its

@@ -87,13 +87,10 @@ void CollectSolidEdges(Vector<ExclusionSpaceInternal::ShelfEdge>* edges,
                        LayoutUnit block_offset,
                        Vector<ExclusionSpaceInternal::ShelfEdge>* out_edges) {
   *out_edges = std::move(*edges);
-  for (auto* it = out_edges->begin(); it != out_edges->end();) {
-    if ((*it).block_end <= block_offset) {
-      it = out_edges->erase(it);
-    } else {
-      ++it;
-    }
-  }
+  auto it = std::remove_if(
+      out_edges->begin(), out_edges->end(),
+      [&](const auto& edge) { return edge.block_end <= block_offset; });
+  out_edges->erase(it, out_edges->end());
 }
 
 // Returns true if the area defined by the given offset and inline_size
@@ -158,7 +155,7 @@ LayoutOpportunity CreateLayoutOpportunity(
 }  // namespace
 
 ExclusionSpaceInternal::ExclusionSpaceInternal()
-    : exclusions_(MakeGarbageCollected<ExclusionAreaPtrArray>()),
+    : exclusions_(MakeGarbageCollected<GCedExclusionAreaPtrArray>()),
       track_shape_exclusions_(false),
       has_break_before_left_float_(false),
       has_break_before_right_float_(false),
@@ -245,9 +242,8 @@ void ExclusionSpaceInternal::Add(const ExclusionArea* exclusion) {
     } else {
       // Perform a copy-on-write if the number of exclusions has gone out of
       // sync.
-      auto* exclusions = MakeGarbageCollected<ExclusionAreaPtrArray>();
-      exclusions->AppendRange(exclusions_->begin(),
-                              exclusions_->begin() + num_exclusions_);
+      auto* exclusions = MakeGarbageCollected<GCedExclusionAreaPtrArray>();
+      exclusions->AppendSpan(base::span(*exclusions_).first(num_exclusions_));
       exclusions_ = exclusions;
     }
   }
@@ -271,7 +267,7 @@ void ExclusionSpaceInternal::Add(const ExclusionArea* exclusion) {
 
   // Update the members used for clearance calculations.
   LayoutUnit clear_offset = exclusion->rect.BlockEndOffset();
-  if (UNLIKELY(exclusion->IsForInitialLetterBox())) {
+  if (exclusion->IsForInitialLetterBox()) [[unlikely]] {
     if (exclusion->type == EFloat::kLeft) {
       initial_letter_left_clear_offset_ =
           std::max(initial_letter_left_clear_offset_, clear_offset);
@@ -289,15 +285,17 @@ void ExclusionSpaceInternal::Add(const ExclusionArea* exclusion) {
       // Perform a copy-on-write if the number of exclusions has gone out of
       // sync.
       const auto& source_exclusions = *exclusions_;
-      exclusions_ = MakeGarbageCollected<ExclusionAreaPtrArray>();
+      exclusions_ = MakeGarbageCollected<GCedExclusionAreaPtrArray>();
       exclusions_->resize(num_exclusions_ + 1);
-      const auto* const source_end =
-          source_exclusions.begin() + num_exclusions_;
+      const auto source_span =
+          base::span(source_exclusions).first(num_exclusions_);
+      const auto source_end = source_span.end();
       // Initial-letters are special in that they can be inserted "before"
       // other floats. Ensure we insert |exclusion| in the correct place
       // (ascent order by block-start).
-      auto* destination = exclusions_->begin();
-      for (auto* it = source_exclusions.begin(); it != source_end; ++it) {
+      auto destination_span = base::span(*exclusions_);
+      auto destination = destination_span.begin();
+      for (auto it = source_span.begin(); it != source_end; ++it) {
         if (exclusion->rect.BlockStartOffset() <
             (*it)->rect.BlockStartOffset()) {
           *destination = exclusion;
@@ -306,9 +304,10 @@ void ExclusionSpaceInternal::Add(const ExclusionArea* exclusion) {
         }
         *destination++ = *it;
       }
-      if (destination != exclusions_->end())
+      if (destination != destination_span.end()) {
         *destination++ = exclusion;
-      DCHECK_EQ(destination, exclusions_->end());
+      }
+      DCHECK(destination == destination_span.end());
     }
     num_exclusions_++;
 
@@ -691,16 +690,17 @@ void ExclusionSpaceInternal::DerivedGeometry::IterateAllLayoutOpportunities(
     const BfcOffset& offset,
     const LayoutUnit available_inline_size,
     const LambdaFunc& lambda) const {
-  auto* shelves_it = shelves_.begin();
-  auto* areas_it = areas_.begin();
-
-  auto* const shelves_end = shelves_.end();
-  auto* const areas_end = areas_.end();
+  auto shelves_span = base::span(shelves_);
+  auto areas_span = base::span(areas_);
+  auto shelves_it = shelves_span.begin();
+  auto areas_it = areas_span.begin();
+  auto const shelves_end = shelves_span.end();
+  auto const areas_end = areas_span.end();
 
   while (shelves_it != shelves_end || areas_it != areas_end) {
     // We should never exhaust the opportunities list before the shelves list,
     // as there is always an infinitely sized shelf at the very end.
-    DCHECK_NE(shelves_it, shelves_end);
+    DCHECK(shelves_it != shelves_end);
     const Shelf& shelf = *shelves_it;
 
     if (areas_it != areas_end) {
@@ -763,13 +763,13 @@ ExclusionSpaceInternal::GetDerivedGeometry(
     DCHECK_LE(num_exclusions_, exclusions_->size());
     DCHECK_GE(num_exclusions_, 1u);
 
-    const auto* begin = exclusions_->begin();
-    const auto* end = begin + num_exclusions_;
-    DCHECK_LE(end, exclusions_->end());
+    auto span = base::span(*exclusions_).first(num_exclusions_);
+    const auto begin = span.begin();
+    const auto end = span.end();
 
     // Find the first exclusion whose block-start offset is "after" the
     // |block_offset_limit|.
-    auto* it = std::lower_bound(
+    auto it = std::lower_bound(
         begin, end, block_offset_limit,
         [](const auto& exclusion, const auto& block_offset) -> bool {
           return exclusion->rect.BlockStartOffset() < block_offset;

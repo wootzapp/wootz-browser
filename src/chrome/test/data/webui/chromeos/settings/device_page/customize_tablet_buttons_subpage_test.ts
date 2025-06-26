@@ -2,8 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {SettingsCustomizeTabletButtonsSubpageElement} from 'chrome://os-settings/lazy_load.js';
-import {fakeGraphicsTabletButtonActions, fakeGraphicsTablets, FakeInputDeviceSettingsProvider, getInputDeviceSettingsProvider, GraphicsTablet, Router, routes, setupFakeInputDeviceSettingsProvider} from 'chrome://os-settings/os_settings.js';
+import 'chrome://os-settings/lazy_load.js';
+
+import type {SettingsCustomizeTabletButtonsSubpageElement} from 'chrome://os-settings/lazy_load.js';
+import type {FakeInputDeviceSettingsProvider, GraphicsTablet} from 'chrome://os-settings/os_settings.js';
+import {fakeGraphicsTabletButtonActions, fakeGraphicsTablets, getInputDeviceSettingsProvider, Router, routes, setupFakeInputDeviceSettingsProvider} from 'chrome://os-settings/os_settings.js';
 import {assertDeepEquals, assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 
@@ -62,7 +65,7 @@ suite('<settings-customize-tablet-buttons-subpage>', () => {
         assertEquals(Router.getInstance().currentRoute, routes.DEVICE);
       });
 
-  test('button action list fetched from provider', async () => {
+  test('button action list fetched from provider', () => {
     const graphicsTablet: GraphicsTablet = page.selectedTablet;
     assertTrue(!!graphicsTablet);
     assertEquals(graphicsTablet.id, fakeGraphicsTablets[0]!.id);
@@ -72,10 +75,9 @@ suite('<settings-customize-tablet-buttons-subpage>', () => {
     assertDeepEquals(buttonActionList, expectedActionList);
   });
 
-  test('hasLauncherButton fetched from provider', async () => {
-    const expectedHasLauncherButton =
-        (await provider.hasLauncherButton())?.hasLauncherButton;
-    assertEquals(page.get('hasLauncherButton_'), expectedHasLauncherButton);
+  test('getMetaKeyToDisplay fetched from provider', async () => {
+    const expectedMetaKey = (await provider.getMetaKeyToDisplay())?.metaKey;
+    assertEquals(page.get('metaKey_'), expectedMetaKey);
   });
 
   test('button name change triggers settings update', async () => {
@@ -83,7 +85,7 @@ suite('<settings-customize-tablet-buttons-subpage>', () => {
     assertTrue(!!provider);
     assertEquals(provider.getSetGraphicsTabletSettingsCallCount(), 0);
     const buttonName =
-        page!.selectedTablet!.settings!.tabletButtonRemappings[0]!.name;
+        page!.selectedTablet.settings.tabletButtonRemappings[0]!.name;
     assertEquals(buttonName, 'Back Button');
     page.set(
         `selectedTablet.settings.tabletButtonRemappings.0.name`,
@@ -107,4 +109,28 @@ suite('<settings-customize-tablet-buttons-subpage>', () => {
     observed_devices = provider.getObservedDevices();
     assertEquals(0, observed_devices.length);
   });
+
+  test(
+      'verify tablet button nudge header with metadata or no metadata',
+      async () => {
+        // On the first tablet subpage without metadata.
+        assertEquals(
+            Router.getInstance().currentRoute, routes.CUSTOMIZE_TABLET_BUTTONS);
+        assertEquals(
+            'Add or locate buttons on your tablet',
+            page.shadowRoot!.querySelector<HTMLElement>(
+                                '.help-title')!.textContent!.trim());
+        // Go to the second tablet subpage with metadata.
+        const url = new URLSearchParams({
+          'graphicsTabletId': encodeURIComponent(fakeGraphicsTablets[1]!.id),
+        });
+        await Router.getInstance().setCurrentRoute(
+            routes.CUSTOMIZE_TABLET_BUTTONS,
+            /* dynamicParams= */ url, /* removeSearch= */ true);
+        await flushTasks();
+        assertEquals(
+            'Locate buttons on your tablet',
+            page.shadowRoot!.querySelector<HTMLElement>(
+                                '.help-title')!.textContent!.trim());
+      });
 });

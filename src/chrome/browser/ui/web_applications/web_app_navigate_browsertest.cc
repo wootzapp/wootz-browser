@@ -30,15 +30,6 @@ class WebAppNavigateBrowserTest : public WebAppBrowserTestBase {
   }
 };
 
-namespace {
-
-void NavigateAndWaitUntilSetAsLastActive(NavigateParams* params) {
-  Navigate(params);
-  ui_test_utils::WaitForBrowserSetLastActive(params->browser);
-}
-
-}  // namespace
-
 // This test verifies that navigating with "open_pwa_window_if_possible = true"
 // opens a new app window if there is an installed Web App for the URL.
 IN_PROC_BROWSER_TEST_F(WebAppNavigateBrowserTest,
@@ -68,6 +59,7 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigateBrowserTest,
   NavigateParams params(MakeNavigateParams());
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   params.open_pwa_window_if_possible = false;
+  params.pwa_navigation_capturing_force_off = true;
   Navigate(&params);
 
   EXPECT_EQ(browser(), params.browser);
@@ -90,34 +82,37 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigateBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(WebAppNavigateBrowserTest, NewPopup) {
-  BrowserList* const browser_list = BrowserList::GetInstance();
   InstallPWA(GetGoogleURL());
 
+  Browser* active_browser;
   {
     NavigateParams params(MakeNavigateParams());
     params.disposition = WindowOpenDisposition::NEW_WINDOW;
     params.open_pwa_window_if_possible = true;
-    NavigateAndWaitUntilSetAsLastActive(&params);
+    Navigate(&params);
+    active_browser = params.browser;
   }
-  Browser* const app_browser = browser_list->GetLastActive();
+  Browser* const app_browser = active_browser;
   const webapps::AppId app_id = app_browser->app_controller()->app_id();
 
   {
     NavigateParams params(MakeNavigateParams());
     params.disposition = WindowOpenDisposition::NEW_WINDOW;
     params.app_id = app_id;
-    NavigateAndWaitUntilSetAsLastActive(&params);
+    Navigate(&params);
+    active_browser = params.browser;
   }
   content::WebContents* const web_contents =
-      browser_list->GetLastActive()->tab_strip_model()->GetActiveWebContents();
+      active_browser->tab_strip_model()->GetActiveWebContents();
 
   {
     // From a browser tab, a popup window opens.
     NavigateParams params(MakeNavigateParams());
     params.disposition = WindowOpenDisposition::NEW_POPUP;
     params.source_contents = web_contents;
-    NavigateAndWaitUntilSetAsLastActive(&params);
-    EXPECT_FALSE(browser_list->GetLastActive()->app_controller());
+    Navigate(&params);
+    active_browser = params.browser;
+    EXPECT_FALSE(active_browser->app_controller());
   }
 
   {
@@ -125,9 +120,9 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigateBrowserTest, NewPopup) {
     NavigateParams params(MakeNavigateParams());
     params.app_id = app_id;
     params.disposition = WindowOpenDisposition::NEW_POPUP;
-    NavigateAndWaitUntilSetAsLastActive(&params);
-    EXPECT_EQ(browser_list->GetLastActive()->app_controller()->app_id(),
-              app_id);
+    Navigate(&params);
+    active_browser = params.browser;
+    EXPECT_EQ(active_browser->app_controller()->app_id(), app_id);
   }
 
   {
@@ -135,9 +130,9 @@ IN_PROC_BROWSER_TEST_F(WebAppNavigateBrowserTest, NewPopup) {
     NavigateParams params(MakeNavigateParams());
     params.browser = app_browser;
     params.disposition = WindowOpenDisposition::NEW_POPUP;
-    NavigateAndWaitUntilSetAsLastActive(&params);
-    EXPECT_EQ(browser_list->GetLastActive()->app_controller()->app_id(),
-              app_id);
+    Navigate(&params);
+    active_browser = params.browser;
+    EXPECT_EQ(active_browser->app_controller()->app_id(), app_id);
   }
 }
 

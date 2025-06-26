@@ -4,6 +4,7 @@
 
 package org.chromium.components.webapk.lib.client;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.components.webapk.lib.common.WebApkConstants.WEBAPK_PACKAGE_PREFIX;
 import static org.chromium.components.webapk.lib.common.WebApkMetaDataKeys.SCOPE;
 import static org.chromium.components.webapk.lib.common.WebApkMetaDataKeys.START_URL;
@@ -12,19 +13,25 @@ import static org.chromium.components.webapk.lib.common.WebApkMetaDataKeys.WEB_M
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.content.pm.Signature;
+import android.os.Bundle;
 import android.os.StrictMode;
 import android.text.TextUtils;
 
 import androidx.annotation.IntDef;
-import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 
+import org.chromium.base.IntentUtils;
 import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.ThreadUtils;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.components.webapk.lib.common.WebApkMetaDataKeys;
 import org.chromium.ui.widget.Toast;
 
 import java.io.IOException;
@@ -44,6 +51,7 @@ import java.util.List;
  * Checks whether a URL belongs to a WebAPK, and whether a WebAPK is signed by the WebAPK Minting
  * Server.
  */
+@NullMarked
 public class WebApkValidator {
     private static final String TAG = "WebApkValidator";
     private static final String KEY_FACTORY = "EC"; // aka "ECDSA"
@@ -52,9 +60,9 @@ public class WebApkValidator {
             "https://www.google.com/maps"; // Matches scope.
     private static final boolean DEBUG = false;
 
-    private static byte[] sExpectedSignature;
-    private static byte[] sCommentSignedPublicKeyBytes;
-    private static PublicKey sCommentSignedPublicKey;
+    private static byte @Nullable [] sExpectedSignature;
+    private static byte @Nullable [] sCommentSignedPublicKeyBytes;
+    private static @Nullable PublicKey sCommentSignedPublicKey;
     private static boolean sOverrideValidation;
 
     @IntDef({
@@ -133,13 +141,25 @@ public class WebApkValidator {
         return null;
     }
 
-    private static void showDeprecationWarning(Context context, String appName) {
+    private static void showDeprecationWarning(
+            Context context, String appName, @StringRes int resId) {
         assert ThreadUtils.runningOnUiThread();
-        String text =
-                context.getResources()
-                        .getString(R.string.webapk_mapsgo_deprecation_warning, appName);
+        String text = context.getString(resId, appName);
         Toast toast = Toast.makeText(context, text, Toast.LENGTH_SHORT);
         toast.show();
+    }
+
+    private static @Nullable Bundle extractWebApkMetaData(
+            Context context, String webApkPackageName) {
+        PackageManager packageManager = context.getPackageManager();
+        try {
+            ApplicationInfo appInfo =
+                    packageManager.getApplicationInfo(
+                            webApkPackageName, PackageManager.GET_META_DATA);
+            return appInfo.metaData;
+        } catch (PackageManager.NameNotFoundException e) {
+            return null;
+        }
     }
 
     /**
@@ -151,7 +171,8 @@ public class WebApkValidator {
      * @param url The URL the package must be able to handle.
      * @return Whether the URL can be handled by that package.
      */
-    public static boolean canWebApkHandleUrl(Context context, String webApkPackage, String url) {
+    public static boolean canWebApkHandleUrl(
+            Context context, String webApkPackage, String url, int minShellVersion) {
         List<ResolveInfo> infos = resolveInfosForUrlAndOptionalPackage(context, url, webApkPackage);
         for (ResolveInfo info : infos) {
             if (info.activityInfo != null) {
@@ -162,9 +183,24 @@ public class WebApkValidator {
                         continue;
                     case ValidationResult.MAPS_LITE:
                         String name = info.loadLabel(context.getPackageManager()).toString();
-                        showDeprecationWarning(context, name);
+                        showDeprecationWarning(
+                                context, name, R.string.webapk_mapsgo_deprecation_warning);
                         return false;
                     case ValidationResult.V1_WEB_APK:
+                        int shellApkVersion =
+                                IntentUtils.safeGetInt(
+                                        assumeNonNull(
+                                                extractWebApkMetaData(context, webApkPackage)),
+                                        WebApkMetaDataKeys.SHELL_APK_VERSION,
+                                        0);
+                        if (0 < shellApkVersion && shellApkVersion < minShellVersion) {
+                            showDeprecationWarning(
+                                    context,
+                                    info.loadLabel(context.getPackageManager()).toString(),
+                                    R.string.webapk_deprecation_warning);
+                            return false;
+                        }
+                        return true;
                     case ValidationResult.COMMENT_SIGNED:
                         return true;
                     default:
@@ -203,7 +239,9 @@ public class WebApkValidator {
         StrictMode.ThreadPolicy policy = StrictMode.allowThreadDiskReads();
         try {
             return context.getPackageManager()
-                    .queryIntentActivities(intent, PackageManager.GET_RESOLVED_FILTER);
+                    .queryIntentActivities(
+                            intent,
+                            PackageManager.GET_RESOLVED_FILTER | PackageManager.GET_META_DATA);
         } catch (Exception e) {
             // We used to catch only java.util.MissingResourceException, but we need to catch
             // more exceptions to handle "Package manager has died" exception.
@@ -315,7 +353,7 @@ public class WebApkValidator {
      *     WebApk exists. If package isn't specified, the intent may create a disambiguation dialog
      *     when started.
      */
-    public static Intent createWebApkIntentForUrlAndOptionalPackage(
+    public static @Nullable Intent createWebApkIntentForUrlAndOptionalPackage(
             String url, @Nullable String applicationPackage) {
         Intent intent;
         try {

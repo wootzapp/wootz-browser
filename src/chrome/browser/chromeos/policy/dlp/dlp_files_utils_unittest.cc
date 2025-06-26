@@ -6,7 +6,7 @@
 
 #include "chrome/browser/chromeos/policy/dlp/test/dlp_files_test_base.h"
 #include "chromeos/dbus/dlp/dlp_service.pb.h"
-#include "components/enterprise/data_controls/component.h"
+#include "components/enterprise/data_controls/core/browser/component.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using testing::_;
@@ -62,7 +62,7 @@ TEST_F(DlpFilesUtilsTest, IsFilesTransferBlocked_NoneBlocked) {
       kExampleSourcePattern1, kExampleSourcePattern2, std::string()};
 
   EXPECT_CALL(
-      *rules_manager_,
+      *rules_manager(),
       IsRestrictedComponent(_, data_controls::Component::kOneDrive, _, _, _))
       .WillOnce(testing::Return(DlpRulesManager::Level::kReport))
       .WillOnce(testing::Return(DlpRulesManager::Level::kWarn));
@@ -76,7 +76,7 @@ TEST_F(DlpFilesUtilsTest, IsFilesTransferBlocked_SomeBlocked) {
       kExampleSourcePattern1, kExampleSourcePattern2, std::string()};
 
   EXPECT_CALL(
-      *rules_manager_,
+      *rules_manager(),
       IsRestrictedComponent(_, data_controls::Component::kOneDrive, _, _, _))
       .WillOnce(testing::Return(DlpRulesManager::Level::kReport))
       .WillOnce(testing::Return(DlpRulesManager::Level::kBlock));

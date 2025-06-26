@@ -37,6 +37,7 @@
 #include "third_party/blink/renderer/core/probe/core_probes.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/bindings/parkable_string_manager.h"
+#include "third_party/blink/renderer/platform/wtf/text/strcat.h"
 #include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
 
 namespace blink {
@@ -127,9 +128,9 @@ static bool ValidateOffsetCount(unsigned offset,
   if (offset > length) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kIndexSizeError,
-        "The offset " + String::Number(offset) +
-            " is greater than the node's length (" + String::Number(length) +
-            ").");
+        WTF::StrCat({"The offset ", String::Number(offset),
+                     " is greater than the node's length (",
+                     String::Number(length), ")."}));
     return false;
   }
 
@@ -265,7 +266,13 @@ Node* CharacterData::Clone(Document& factory,
                            ContainerNode* append_to,
                            ExceptionState& append_exception_state) const {
   CharacterData* clone = CloneWithData(factory, data());
-  PartRoot::CloneParts(*this, *clone, cloning_data);
+  if (cloning_data.Has(CloneOption::kPreserveDOMPartsMinimalAPI) &&
+      HasNodePart()) {
+    DCHECK(RuntimeEnabledFeatures::DOMPartsAPIMinimalEnabled());
+    clone->SetHasNodePart();
+  } else if (cloning_data.Has(CloneOption::kPreserveDOMParts)) {
+    PartRoot::CloneParts(*this, *clone, cloning_data);
+  }
   if (append_to) {
     append_to->AppendChild(clone, append_exception_state);
   }

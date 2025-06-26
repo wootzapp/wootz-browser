@@ -28,7 +28,7 @@
     HTMLConstructor
 ] interface HTMLIFrameElement : HTMLElement {
     [CEReactions, Reflect, URL] attribute USVString src;
-    [CEReactions, Reflect, RaisesException=Setter] attribute HTMLString srcdoc;
+    [CEReactions, Reflect] attribute HTMLString srcdoc;
     [CEReactions, Reflect] attribute DOMString name;
     [PutForwards=value] readonly attribute DOMTokenList sandbox;
     // Note: The seamless attribute was once supported, but was removed.
@@ -60,7 +60,7 @@
     [RuntimeEnabled=TopicsAPI, SecureContext, CEReactions, Reflect] attribute boolean browsingTopics;
 
     // Protected Audience (https://wicg.github.io/turtledove)
-    [RuntimeEnabled=FledgeNegativeTargeting, SecureContext, CEReactions, Reflect] attribute boolean adAuctionHeaders;
+    [SecureContext, CEReactions, Reflect] attribute boolean adAuctionHeaders;
 
     // Iframes credentialless
     // https://github.com/WICG/anonymous-iframe

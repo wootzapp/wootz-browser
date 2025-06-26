@@ -4,13 +4,19 @@
 
 package org.chromium.chrome.browser.tab_group_sync;
 
+import android.text.TextUtils;
+
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.Supplier;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.preferences.Pref;
-import org.chromium.chrome.browser.tabmodel.TabModel;
-import org.chromium.chrome.browser.tasks.tab_groups.TabGroupModelFilter;
+import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.components.prefs.PrefService;
+import org.chromium.components.tab_group_sync.ClosingSource;
 import org.chromium.components.tab_group_sync.LocalTabGroupId;
+import org.chromium.components.tab_group_sync.OpeningSource;
 import org.chromium.components.tab_group_sync.SavedTabGroup;
 import org.chromium.components.tab_group_sync.TabGroupSyncService;
 import org.chromium.components.tab_group_sync.TriggerSource;
@@ -21,13 +27,13 @@ import org.chromium.components.tab_group_sync.TriggerSource;
  * to the tab model. Additionally manages disabling and enabling local observers to avoid looping
  * updates back to sync. Updates for other windows are ignored.
  */
+@NullMarked
 public final class TabGroupSyncRemoteObserver implements TabGroupSyncService.Observer {
     private static final String TAG = "TG.RemoteObserver";
     private final TabGroupModelFilter mTabGroupModelFilter;
     private final TabGroupSyncService mTabGroupSyncService;
     private final LocalTabGroupMutationHelper mLocalTabGroupMutationHelper;
     private final Callback<Boolean> mEnableLocalObserverCallback;
-    private final Runnable mOnSyncInitializedCallback;
     private final PrefService mPrefService;
     private final Supplier<Boolean> mIsActiveWindowSupplier;
 
@@ -39,7 +45,6 @@ public final class TabGroupSyncRemoteObserver implements TabGroupSyncService.Obs
      * @param tabGroupSyncService The sync backend to observe.
      * @param localTabGroupMutationHelper Helper class for mutation of local tab model and groups.
      * @param enableLocalObserverCallback Callback to enable/disable local observation.
-     * @param onSyncInitializedCallback Callback to be notified about sync backend initialization.
      * @param prefService The {@link PrefService} to check the value of auto-open.
      * @param isActiveWindowSupplier To query whether we are in the active window.
      */
@@ -48,14 +53,12 @@ public final class TabGroupSyncRemoteObserver implements TabGroupSyncService.Obs
             TabGroupSyncService tabGroupSyncService,
             LocalTabGroupMutationHelper localTabGroupMutationHelper,
             Callback<Boolean> enableLocalObserverCallback,
-            Runnable onSyncInitializedCallback,
             PrefService prefService,
             Supplier<Boolean> isActiveWindowSupplier) {
         mTabGroupModelFilter = tabGroupModelFilter;
         mTabGroupSyncService = tabGroupSyncService;
         mLocalTabGroupMutationHelper = localTabGroupMutationHelper;
         mEnableLocalObserverCallback = enableLocalObserverCallback;
-        mOnSyncInitializedCallback = onSyncInitializedCallback;
         mPrefService = prefService;
         mIsActiveWindowSupplier = isActiveWindowSupplier;
 
@@ -69,21 +72,36 @@ public final class TabGroupSyncRemoteObserver implements TabGroupSyncService.Obs
     }
 
     @Override
-    public void onInitialized() {
-        mOnSyncInitializedCallback.run();
-    }
+    public void onInitialized() {}
 
     @Override
     public void onTabGroupAdded(SavedTabGroup tabGroup, @TriggerSource int source) {
         if (source != TriggerSource.REMOTE) return;
         if (!mIsActiveWindowSupplier.get()) return;
+        if (tabGroup.syncId == null) return;
+        if (mTabGroupSyncService.wasTabGroupClosedLocally(tabGroup.syncId)) return;
 
         LogUtils.log(TAG, "onTabGroupAdded, tabGroup = " + tabGroup);
+        boolean isCollaboration = !TextUtils.isEmpty(tabGroup.collaborationId);
+        if (tabGroup.localId != null && isCollaboration) {
+            // For shared tab groups join flow, it could happen that the tab group has been already
+            // opened locally and the posted onTabGroupAdded event from TabGroupSyncService arrives
+            // later. Ignore it quietly.
+            return;
+        }
+
         assert tabGroup.localId == null;
-        if (!mPrefService.getBoolean(Pref.AUTO_OPEN_SYNCED_TAB_GROUPS)) return;
+
+        // Shared tab groups should always auto-open if supported.
+        boolean isAutoOpenEnabled =
+                ChromeFeatureList.isEnabled(ChromeFeatureList.TAB_GROUP_SYNC_AUTO_OPEN_KILL_SWITCH)
+                        && (mPrefService.getBoolean(Pref.AUTO_OPEN_SYNCED_TAB_GROUPS)
+                                || isCollaboration);
+        if (!isAutoOpenEnabled) return;
 
         mEnableLocalObserverCallback.onResult(false);
-        mLocalTabGroupMutationHelper.createNewTabGroup(tabGroup);
+        mLocalTabGroupMutationHelper.createNewTabGroup(
+                tabGroup, OpeningSource.AUTO_OPENED_FROM_SYNC);
         mEnableLocalObserverCallback.onResult(true);
     }
 
@@ -119,14 +137,19 @@ public final class TabGroupSyncRemoteObserver implements TabGroupSyncService.Obs
         if (!TabGroupSyncUtils.isInCurrentWindow(mTabGroupModelFilter, localId)) return;
 
         mEnableLocalObserverCallback.onResult(false);
-        mLocalTabGroupMutationHelper.closeTabGroup(localId);
+        mLocalTabGroupMutationHelper.closeTabGroup(localId, ClosingSource.DELETED_FROM_SYNC);
         mEnableLocalObserverCallback.onResult(true);
     }
 
     @Override
     public void onTabGroupRemoved(String syncId, @TriggerSource int source) {}
 
-    private TabModel getTabModel() {
-        return mTabGroupModelFilter.getTabModel();
+    @Override
+    public void onTabGroupLocalIdChanged(
+            String syncTabGroupId, @Nullable LocalTabGroupId localTabGroupId) {}
+
+    @Override
+    public void onLocalObservationModeChanged(boolean observeLocalChanges) {
+        mEnableLocalObserverCallback.onResult(observeLocalChanges);
     }
 }

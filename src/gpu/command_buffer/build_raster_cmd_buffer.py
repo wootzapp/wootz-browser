@@ -204,22 +204,6 @@ _FUNCTION_INFO = {
     'result': ['uint32_t'],
     'trace_level': 2,
   },
-  'ConvertYUVAMailboxesToRGBINTERNAL': {
-    'decoder_func': 'DoConvertYUVAMailboxesToRGBINTERNAL',
-    'internal': True,
-    'type': 'PUT',
-    'count': 144, #GL_MAILBOX_SIZE_CHROMIUM x5 + 16 floats
-    'unit_test': False,
-    'trace_level': 2,
-  },
-  'ConvertRGBAToYUVAMailboxesINTERNAL': {
-    'decoder_func': 'DoConvertRGBAToYUVAMailboxesINTERNAL',
-    'internal': True,
-    'type': 'PUT',
-    'count': 80, #GL_MAILBOX_SIZE_CHROMIUM x5
-    'unit_test': False,
-    'trace_level': 2,
-  },
   'Finish': {
     'impl_func': False,
     'client_test': False,
@@ -327,6 +311,7 @@ _FUNCTION_INFO = {
   },
   'RasterCHROMIUM': {
     'decoder_func': 'DoRasterCHROMIUM',
+    'type': 'Custom',
     'internal': True,
     'impl_func': True,
     'cmd_args': 'GLuint raster_shm_id, GLuint raster_shm_offset,'
@@ -360,6 +345,12 @@ _FUNCTION_INFO = {
     'unit_test': False,
   },
   'DeletePaintCachePathsINTERNAL': {
+    'type': 'DELn',
+    'internal': True,
+    'unit_test': False,
+    'data_transfer_methods': ['immediate', 'shm'],
+  },
+  'DeletePaintCacheEffectsINTERNAL': {
     'type': 'DELn',
     'internal': True,
     'unit_test': False,

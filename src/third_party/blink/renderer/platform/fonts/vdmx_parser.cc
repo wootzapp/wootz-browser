@@ -68,7 +68,7 @@ bool ParseVDMX(int* y_max,
   auto vdmx =
       // TODO(crbug.com/40284755): ParseVDMX should receive a span, not a
       // pointer and length.
-      UNSAFE_BUFFERS(base::span(vdmx_ptr, vdmx_length));
+      UNSAFE_TODO(base::span(vdmx_ptr, vdmx_length));
 
   // We ignore the version. Future tables should be backwards compatible with
   // this layout.
@@ -124,7 +124,7 @@ bool ParseVDMX(int* y_max,
       return false;
     }
     // Now we read from the offset table to get the offset of another array.
-    group_offset = base::numerics::U16FromBigEndian(
+    group_offset = base::U16FromBigEndian(
         vdmx.subspan(offset_of_group_offset).first<2u>());
   }
 

@@ -6,17 +6,19 @@
 
 #include <stddef.h>
 #include <stdint.h>
+
 #include <utility>
 
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/task/common/task_annotator.h"
 #include "base/time/time.h"
+#include "base/tracing/protos/chrome_track_event.pbzero.h"
 #include "build/build_config.h"
 #include "cc/metrics/event_metrics.h"
 #include "cc/paint/element_id.h"
 #include "cc/trees/latency_info_swap_promise_monitor.h"
 #include "cc/trees/layer_tree_host.h"
-#include "services/tracing/public/cpp/perfetto/flow_event_utils.h"
 #include "services/tracing/public/cpp/perfetto/macros.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/input/web_gesture_device.h"
@@ -38,7 +40,6 @@
 #include <android/keycodes.h>
 #endif
 
-using perfetto::protos::pbzero::ChromeLatencyInfo;
 using perfetto::protos::pbzero::TrackEvent;
 
 namespace blink {
@@ -79,8 +80,7 @@ void LogPassiveEventListenersUma(WebInputEventResult result,
         enum_value = PASSIVE_LISTENER_UMA_ENUM_CANCELABLE;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
 
   UMA_HISTOGRAM_ENUMERATION("Event.PassiveListeners", enum_value,
@@ -304,18 +304,17 @@ void WidgetBaseInputHandler::HandleInputEvent(
   ImeEventGuard guard(widget_->GetWeakPtr());
 #endif
 
-  TRACE_EVENT1("renderer,benchmark,rail",
+  TRACE_EVENT1("renderer,benchmark,rail,input.scrolling",
                "WidgetBaseInputHandler::OnHandleInputEvent", "event",
                WebInputEvent::GetName(input_event.GetType()));
   int64_t trace_id = coalesced_event.latency_info().trace_id();
   TRACE_EVENT("input,benchmark,latencyInfo", "LatencyInfo.Flow",
-              [trace_id](perfetto::EventContext ctx) {
-                ChromeLatencyInfo* info =
-                    ctx.event()->set_chrome_latency_info();
-                info->set_trace_id(trace_id);
-                info->set_step(ChromeLatencyInfo::STEP_HANDLE_INPUT_EVENT_MAIN);
-                tracing::FillFlowEvent(ctx, TrackEvent::LegacyEvent::FLOW_INOUT,
-                                       trace_id);
+              [&](perfetto::EventContext ctx) {
+                base::TaskAnnotator::EmitTaskTimingDetails(ctx);
+                ui::LatencyInfo::FillTraceEvent(
+                    ctx, trace_id,
+                    perfetto::protos::pbzero::ChromeLatencyInfo2::Step::
+                        STEP_HANDLE_INPUT_EVENT_MAIN);
               });
 
   ui::LatencyInfo swap_latency_info(coalesced_event.latency_info());
@@ -517,30 +516,6 @@ void WidgetBaseInputHandler::HandleInputEvent(
   DCHECK(handling_state.injected_scroll_params().empty());
 }
 
-bool WidgetBaseInputHandler::DidOverscrollFromBlink(
-    const gfx::Vector2dF& overscroll_delta,
-    const gfx::Vector2dF& accumulated_overscroll,
-    const gfx::PointF& position,
-    const gfx::Vector2dF& velocity,
-    const cc::OverscrollBehavior& behavior) {
-  // We aren't currently handling an event. Allow the processing to be
-  // dispatched separately from the ACK.
-  if (!handling_input_state_)
-    return true;
-
-  // If we're currently handling an event, stash the overscroll data such that
-  // it can be bundled in the event ack.
-  std::unique_ptr<InputHandlerProxy::DidOverscrollParams> params =
-      std::make_unique<InputHandlerProxy::DidOverscrollParams>();
-  params->accumulated_overscroll = accumulated_overscroll;
-  params->latest_overscroll_delta = overscroll_delta;
-  params->current_fling_velocity = velocity;
-  params->causal_event_viewport_point = position;
-  params->overscroll_behavior = behavior;
-  handling_input_state_->set_event_overscroll(std::move(params));
-  return false;
-}
-
 void WidgetBaseInputHandler::InjectScrollbarGestureScroll(
     const gfx::Vector2dF& delta,
     ui::ScrollGranularity granularity,
@@ -602,8 +577,6 @@ void WidgetBaseInputHandler::HandleInjectedScrollGestures(
     // allows end to end latency to be logged for the injected scroll, annotated
     // with the correct type.
     ui::LatencyInfo scrollbar_latency_info(original_latency_info);
-    scrollbar_latency_info.set_source_event_type(
-        ui::SourceEventType::SCROLLBAR);
     scrollbar_latency_info.AddLatencyNumber(
         ui::LatencyComponentType::INPUT_EVENT_LATENCY_RENDERER_MAIN_COMPONENT);
 

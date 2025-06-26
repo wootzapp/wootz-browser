@@ -2,15 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef SANDBOX_WIN_SRC_SANDBOX_NT_UTIL_H_
 #define SANDBOX_WIN_SRC_SANDBOX_NT_UTIL_H_
 
 #include <intrin.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <memory>
 
+#include <memory>
 #include <optional>
+
 #include "base/containers/span.h"
 #include "base/memory/raw_ptr_exclusion.h"
 #include "sandbox/win/src/nt_internals.h"
@@ -203,8 +209,7 @@ class AutoProtectMemory {
 
  private:
   bool changed_;
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #addr-of
+  // RAW_PTR_EXCLUSION: not managed by PartitionAlloc.
   RAW_PTR_EXCLUSION void* address_;
   size_t bytes_;
   ULONG old_protect_;

@@ -4,14 +4,19 @@
 
 #include "chrome/browser/touch_to_fill/password_manager/touch_to_fill_controller_autofill_delegate.h"
 
+#include <algorithm>
+#include <memory>
+
 #include "base/base64.h"
 #include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/metrics/histogram_functions.h"
-#include "base/ranges/algorithm.h"
 #include "base/types/pass_key.h"
+#include "chrome/browser/password_manager/android/access_loss/password_access_loss_warning_bridge_impl.h"
+#include "chrome/browser/password_manager/android/grouped_affiliations/acknowledge_grouped_credential_sheet_controller.h"
 #include "chrome/browser/password_manager/android/local_passwords_migration_warning_util.h"
+#include "chrome/browser/password_manager/android/password_manager_ui_util_android.h"
 #include "chrome/browser/password_manager/chrome_password_manager_client.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/touch_to_fill/password_manager/touch_to_fill_controller.h"
@@ -22,22 +27,22 @@
 #include "components/password_manager/core/browser/password_credential_filler.h"
 #include "components/password_manager/core/browser/password_form.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
+#include "components/url_formatter/elide_url.h"
 #include "content/public/browser/web_contents.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 #include "services/metrics/public/cpp/ukm_recorder.h"
 #include "ui/gfx/native_widget_types.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 namespace {
 
-using ToShowVirtualKeyboard =
-    password_manager::PasswordManagerDriver::ToShowVirtualKeyboard;
 using password_manager::UiCredential;
 
 // Returns whether there is at least one credential with a non-empty username.
 bool ContainsNonEmptyUsername(
     const base::span<const UiCredential>& credentials) {
-  return base::ranges::any_of(credentials, [](const UiCredential& credential) {
+  return std::ranges::any_of(credentials, [](const UiCredential& credential) {
     return !credential.username().empty();
   });
 }
@@ -46,7 +51,7 @@ bool ContainsNonEmptyUsername(
 
 // No-op constructor for tests.
 TouchToFillControllerAutofillDelegate::TouchToFillControllerAutofillDelegate(
-    base::PassKey<TouchToFillControllerAutofillTest>,
+    base::PassKey<class TouchToFillControllerAutofillTest>,
     password_manager::PasswordManagerClient* password_client,
     content::WebContents* web_contents,
     std::unique_ptr<device_reauth::DeviceAuthenticator> authenticator,
@@ -56,7 +61,7 @@ TouchToFillControllerAutofillDelegate::TouchToFillControllerAutofillDelegate(
     const password_manager::PasswordForm* form_to_fill,
     autofill::FieldRendererId focused_field_renderer_id,
     ShowHybridOption should_show_hybrid_option,
-    ShowPasswordMigrationWarningCallback show_password_migration_warning)
+    std::unique_ptr<PasswordAccessLossWarningBridge> data_loss_warning_bridge)
     : password_client_(password_client),
       web_contents_(web_contents),
       authenticator_(std::move(authenticator)),
@@ -64,9 +69,8 @@ TouchToFillControllerAutofillDelegate::TouchToFillControllerAutofillDelegate(
       filler_(std::move(filler)),
       form_to_fill_(form_to_fill),
       focused_field_renderer_id_(focused_field_renderer_id),
-      show_password_migration_warning_(
-          std::move(show_password_migration_warning)),
-      should_show_hybrid_option_(should_show_hybrid_option) {}
+      should_show_hybrid_option_(should_show_hybrid_option),
+      access_loss_warning_bridge_(std::move(data_loss_warning_bridge)) {}
 
 TouchToFillControllerAutofillDelegate::TouchToFillControllerAutofillDelegate(
     ChromePasswordManagerClient* password_client,
@@ -88,9 +92,9 @@ TouchToFillControllerAutofillDelegate::TouchToFillControllerAutofillDelegate(
       filler_(std::move(filler)),
       form_to_fill_(form_to_fill),
       focused_field_renderer_id_(focused_field_renderer_id),
-      show_password_migration_warning_(
-          base::BindRepeating(&local_password_migration::ShowWarning)),
       should_show_hybrid_option_(should_show_hybrid_option),
+      access_loss_warning_bridge_(
+          std::make_unique<PasswordAccessLossWarningBridgeImpl>()),
       source_id_(password_client->web_contents()
                      ->GetPrimaryMainFrame()
                      ->GetPageUkmSourceId()) {}
@@ -131,10 +135,12 @@ void TouchToFillControllerAutofillDelegate::OnCredentialSelected(
   ukm::builders::TouchToFill_Shown(source_id_)
       .SetUserAction(static_cast<int64_t>(UserAction::kSelectedCredential))
       .Record(ukm::UkmRecorder::Get());
-  if (!password_client_->CanUseBiometricAuthForFilling(authenticator_.get())) {
+
+  if (!password_client_->IsReauthBeforeFillingRequired(authenticator_.get())) {
     FillCredential(credential);
     return;
   }
+
   // `this` notifies the authenticator when it is destructed, resulting in
   // the callback being reset by the authenticator. Therefore, it is safe
   // to use base::Unretained.
@@ -192,7 +198,7 @@ void TouchToFillControllerAutofillDelegate::OnHybridSignInSelected(
     return;
   }
 
-  webauthn_delegate_->ShowAndroidHybridSignIn();
+  webauthn_delegate_->LaunchSecurityKeyOrHybridFlow();
 
   CleanUpFillerAndReportOutcome(TouchToFillOutcome::kHybridSignInSelected,
                                 /*show_virtual_keyboard=*/false);
@@ -219,7 +225,6 @@ void TouchToFillControllerAutofillDelegate::OnCredManDismissed(
   if (!filler_) {
     return;
   }
-  filler_->Dismiss(ToShowVirtualKeyboard(false));
   std::move(action_completed).Run();
 }
 
@@ -229,15 +234,6 @@ GURL TouchToFillControllerAutofillDelegate::GetFrameUrl() {
 }
 
 bool TouchToFillControllerAutofillDelegate::ShouldShowTouchToFill() {
-  if (!base::FeatureList::IsEnabled(
-          password_manager::features::kPasswordSuggestionBottomSheetV2)) {
-    // For password suggesion bottom sheet version 1 all the conditions for
-    // showing TTF are checked in the renderer (see
-    // `PasswordAutofillAgent::TryToShowKeyboardReplacingSurface`). That's why
-    // no additional checks are needed here.
-    return true;
-  }
-
   if (!form_to_fill_) {
     return false;
   }
@@ -301,24 +297,40 @@ void TouchToFillControllerAutofillDelegate::OnReauthCompleted(
 
 void TouchToFillControllerAutofillDelegate::FillCredential(
     const UiCredential& credential) {
-  CHECK(action_complete_);
-  CHECK(filler_);
-
   // Do not trigger autosubmission if the password migration warning is being
   // shown because it interrupts the nomal workflow.
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents_->GetBrowserContext());
+  PrefService* prefs = profile->GetPrefs();
   filler_->UpdateTriggerSubmission(
       ShouldTriggerSubmission() &&
-      !local_password_migration::ShouldShowWarning(
-          Profile::FromBrowserContext(web_contents_->GetBrowserContext())));
-  filler_->FillUsernameAndPassword(credential.username(),
-                                   credential.password());
-  ShowPasswordMigrationWarningIfNeeded();
+      !access_loss_warning_bridge_->ShouldShowAccessLossNoticeSheet(
+          prefs, /*called_at_startup=*/false));
+  filler_->FillUsernameAndPassword(
+      credential.username(), credential.password(),
+      base::BindOnce(
+          &TouchToFillControllerAutofillDelegate::OnFillingCredentialComplete,
+          base::Unretained(this), credential.username()));
+}
 
-  if (ShouldTriggerSubmission()) {
-    password_client_->StartSubmissionTrackingAfterTouchToFill(
-        credential.username());
+void TouchToFillControllerAutofillDelegate::OnFillingCredentialComplete(
+    const std::u16string& username,
+    bool triggered_submission) {
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents_->GetBrowserContext());
+  PrefService* prefs = profile->GetPrefs();
+  if (access_loss_warning_bridge_->ShouldShowAccessLossNoticeSheet(
+          prefs, /*called_at_startup=*/false)) {
+    access_loss_warning_bridge_->MaybeShowAccessLossNoticeSheet(
+        prefs, web_contents_->GetTopLevelNativeWindow(), profile,
+        /*called_at_startup=*/false,
+        password_manager_android_util::PasswordAccessLossWarningTriggers::
+            kTouchToFill);
   }
 
+  if (triggered_submission) {
+    password_client_->StartSubmissionTrackingAfterTouchToFill(username);
+  }
   CleanUpFillerAndReportOutcome(TouchToFillOutcome::kCredentialFilled,
                                 /*show_virtual_keyboard=*/false);
   std::move(action_complete_).Run();
@@ -339,20 +351,6 @@ void TouchToFillControllerAutofillDelegate::CleanUpFillerAndReportOutcome(
   if (!url.is_empty()) {
     password_client_->MarkSharedCredentialsAsNotified(url);
   }
-  filler_->Dismiss(ToShowVirtualKeyboard(show_virtual_keyboard));
   filler_.reset();
   base::UmaHistogramEnumeration("PasswordManager.TouchToFill.Outcome", outcome);
-}
-
-void TouchToFillControllerAutofillDelegate::
-    ShowPasswordMigrationWarningIfNeeded() {
-  if (!local_password_migration::ShouldShowWarning(
-          Profile::FromBrowserContext(web_contents_->GetBrowserContext()))) {
-    return;
-  }
-  show_password_migration_warning_.Run(
-      web_contents_->GetTopLevelNativeWindow(),
-      Profile::FromBrowserContext(web_contents_->GetBrowserContext()),
-      password_manager::metrics_util::PasswordMigrationWarningTriggers::
-          kTouchToFill);
 }

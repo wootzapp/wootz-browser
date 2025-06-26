@@ -149,10 +149,11 @@ class CSSGradientValue : public CSSImageGeneratorValue {
                 const ComputedStyle&) const;
   void AddDeprecatedStops(GradientDesc&,
                           const Document&,
-                          const ComputedStyle&) const;
+                          const ComputedStyle&,
+                          const CSSToLengthConversionData&) const;
   void AddComputedStops(const ComputedStyle&,
                         bool allow_visited_style,
-                        const HeapVector<CSSGradientColorStop, 2>& stops,
+                        const HeapVector<CSSGradientColorStop, 1>& stops,
                         CSSValuePhase value_phase);
 
   void AppendCSSTextForColorStops(StringBuilder&,
@@ -162,7 +163,7 @@ class CSSGradientValue : public CSSImageGeneratorValue {
   bool Equals(const CSSGradientValue&) const;
 
   // Stops
-  HeapVector<CSSGradientColorStop, 2> stops_;
+  HeapVector<CSSGradientColorStop, 1> stops_;
   CSSGradientType gradient_type_;
   bool repeating_ : 1;
   bool is_cacheable_ : 1;

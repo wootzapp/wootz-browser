@@ -6,6 +6,7 @@
 
 #include <va/va.h>
 
+#include <array>
 #include <memory>
 #include <vector>
 
@@ -55,12 +56,13 @@ class VaapiUtilsTest : public testing::Test {
 };
 
 TEST_F(VaapiUtilsTest, ScopedVABuffer) {
-  const std::pair<VABufferType, size_t> kBufferParameters[] = {
-      {VASliceDataBufferType, 1024},
-      {VAEncCodedBufferType, 2048},
-      {VAProcPipelineParameterBufferType,
-       sizeof(VAProcPipelineParameterBuffer)},
-  };
+  const auto kBufferParameters =
+      std::to_array<std::pair<VABufferType, size_t>>({
+          {VASliceDataBufferType, 1024},
+          {VAEncCodedBufferType, 2048},
+          {VAProcPipelineParameterBufferType,
+           sizeof(VAProcPipelineParameterBuffer)},
+      });
   constexpr gfx::Size kCodedSize(64, 64);
   ASSERT_TRUE(vaapi_wrapper_->CreateContext(kCodedSize));
   for (size_t i = 0; i < std::size(kBufferParameters); i++) {

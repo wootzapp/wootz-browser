@@ -3,7 +3,8 @@
 // found in the LICENSE file.
 
 import {PrivacyHubBrowserProxyImpl} from 'chrome://os-settings/lazy_load.js';
-import {CrDialogElement, createRouterForTesting, CrRadioGroupElement, GeolocationAccessLevel, OsSettingsPrivacyPageElement, PageStatus, PeripheralDataAccessBrowserProxyImpl, Router, routes, SecureDnsMode, settingMojom, SettingsToggleButtonElement, SyncBrowserProxy, SyncBrowserProxyImpl} from 'chrome://os-settings/os_settings.js';
+import type {CrDialogElement, CrRadioGroupElement, OsSettingsPrivacyPageElement, SettingsToggleButtonElement, SyncBrowserProxy} from 'chrome://os-settings/os_settings.js';
+import {createRouterForTesting, GeolocationAccessLevel, PageStatus, PeripheralDataAccessBrowserProxyImpl, Router, routes, SecureDnsMode, settingMojom, SyncBrowserProxyImpl} from 'chrome://os-settings/os_settings.js';
 import {assert} from 'chrome://resources/js/assert.js';
 import {webUIListenerCallback} from 'chrome://resources/js/cr.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
@@ -24,7 +25,7 @@ const CROS_SETTING_PREF_NAME = 'cros.device.peripheral_data_access_enabled';
 const LOCAL_STATE_PREF_NAME =
     'settings.local_state_device_pci_data_access_enabled';
 
-suite('with isRevampWayfindingEnabled set to true', () => {
+suite('Deep linking in old sync page', () => {
   let privacyPage: OsSettingsPrivacyPageElement;
   let browserProxy: TestPeripheralDataAccessBrowserProxy;
   let syncBrowserProxy: SyncBrowserProxy&TestSyncBrowserProxy;
@@ -38,9 +39,6 @@ suite('with isRevampWayfindingEnabled set to true', () => {
   }
 
   setup(() => {
-    loadTimeData.overrideValues({
-      isRevampWayfindingEnabled: true,
-    });
     const testRouter = createRouterForTesting();
     Router.resetInstanceForTesting(testRouter);
 
@@ -62,7 +60,7 @@ suite('with isRevampWayfindingEnabled set to true', () => {
     await waitAfterNextRender(privacyPage);
 
     // Load the sync page.
-    Router.getInstance().navigateTo(routes.SYNC);
+    Router.getInstance().navigateTo(routes.OS_SYNC_SETUP);
     await flushTasks();
 
     // Make the sync page configurable.
@@ -81,6 +79,9 @@ suite('with isRevampWayfindingEnabled set to true', () => {
       bookmarksManaged: false,
       bookmarksRegistered: false,
       bookmarksSynced: false,
+      cookiesManaged: false,
+      cookiesRegistered: false,
+      cookiesSynced: false,
       encryptAllData: false,
       extensionsManaged: false,
       extensionsRegistered: false,
@@ -94,6 +95,9 @@ suite('with isRevampWayfindingEnabled set to true', () => {
       preferencesManaged: false,
       preferencesRegistered: false,
       preferencesSynced: false,
+      productComparisonManaged: false,
+      productComparisonRegistered: false,
+      productComparisonSynced: false,
       readingListManaged: false,
       readingListRegistered: false,
       readingListSynced: false,
@@ -131,7 +135,7 @@ suite('with isRevampWayfindingEnabled set to true', () => {
     const syncEncryptionOptionsSettingId =
         settingMojom.Setting.kNonSplitSyncEncryptionOptions.toString();
     params.append('settingId', syncEncryptionOptionsSettingId);
-    Router.getInstance().navigateTo(routes.SYNC, params);
+    Router.getInstance().navigateTo(routes.OS_SYNC_SETUP, params);
 
     // Flush to make sure the dropdown expands.
     flush();
@@ -375,8 +379,12 @@ suite('<os-settings-privacy-page>', () => {
   test('Lock screen row is focused when returning from subpage', async () => {
     Router.getInstance().navigateTo(routes.OS_PRIVACY);
 
+    const tokenLabel = loadTimeData.getBoolean('isAuthPanelEnabled') ?
+        'authTokenReply_' :
+        'authTokenInfo_';
+
     const quickUnlockPrivateApi = new FakeQuickUnlockPrivate();
-    privacyPage.set('authTokenInfo_', quickUnlockPrivateApi.getFakeToken());
+    privacyPage.set(tokenLabel, quickUnlockPrivateApi.getFakeToken());
 
     const triggerSelector = '#lockScreenRow';
     const subpageTrigger =
@@ -403,13 +411,17 @@ suite('<os-settings-privacy-page>', () => {
       fingerprintUnlockEnabled: true,
     });
 
+    const tokenLabel = loadTimeData.getBoolean('isAuthPanelEnabled') ?
+        'authTokenReply_' :
+        'authTokenInfo_';
+
     privacyPage = document.createElement('os-settings-privacy-page');
     document.body.appendChild(privacyPage);
 
     await waitAfterNextRender(privacyPage);
 
     const quickUnlockPrivateApi = new FakeQuickUnlockPrivate();
-    privacyPage['authTokenInfo_'] = quickUnlockPrivateApi.getFakeToken();
+    privacyPage[tokenLabel] = quickUnlockPrivateApi.getFakeToken();
 
     Router.getInstance().navigateTo(routes.LOCK_SCREEN);
     flush();
@@ -447,13 +459,16 @@ suite('<os-settings-privacy-page>', () => {
     fingerprintTrigger.click();
 
     // Invalidate the auth token by firing an event.
-    assertNotEquals(undefined, privacyPage.get('authTokenInfo_'));
+    assertNotEquals(undefined, privacyPage.get(tokenLabel));
     const event = new CustomEvent('invalidate-auth-token-requested');
     lockScreenPage.dispatchEvent(event);
-    assertEquals(undefined, privacyPage.get('authTokenInfo_'));
+    assertEquals(undefined, privacyPage.get(tokenLabel));
 
     assertEquals(routes.FINGERPRINT, Router.getInstance().currentRoute);
-    assertTrue(privacyPage.get('showPasswordPromptDialog_'));
+
+    if (!loadTimeData.getBoolean('isAuthPanelEnabled')) {
+      assertTrue(privacyPage.get('showPasswordPromptDialog_'));
+    }
   });
 
   test('Smart privacy hidden when both features disabled', async () => {

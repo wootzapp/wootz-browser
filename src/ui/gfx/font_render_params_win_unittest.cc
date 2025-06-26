@@ -49,8 +49,9 @@ TEST_F(FontRenderParamsTest, SystemFontSettingsDisabled) {
 TEST_F(FontRenderParamsTest, DefaultRegistryState) {
   // Ensure that with the feature enabled, the values of `FontRenderParams`
   // match the associated registry key values.
-  base::test::ScopedFeatureList scoped_features(
-      features::kUseGammaContrastRegistrySettings);
+  base::test::ScopedFeatureList scoped_features;
+  scoped_features.InitWithFeatures(
+      {features::kUseGammaContrastRegistrySettings}, {});
 
   FontRenderParams params =
       GetFontRenderParams(FontRenderParamsQuery(), nullptr);
@@ -90,6 +91,36 @@ TEST_F(FontRenderParamsTest, OverrideRegistryValues) {
   // `kUseGammaContrastRegistrySettings` is enabled.
   base::test::ScopedFeatureList scoped_features(
       features::kUseGammaContrastRegistrySettings);
+
+  // Override the registry to maintain test machine state.
+  ASSERT_NO_FATAL_FAILURE(
+      registry_override_manager_.OverrideRegistry(HKEY_CURRENT_USER));
+
+  base::win::RegKey key = FontUtilWin::GetTextSettingsRegistryKey(KEY_WRITE);
+
+  if (key.Valid()) {
+    // Write non-default values for contrast and gamma.
+    DWORD contrast = 75;
+    ASSERT_EQ(key.WriteValue(L"EnhancedContrastLevel", contrast),
+              ERROR_SUCCESS);
+    DWORD gamma = 1900;
+    ASSERT_EQ(key.WriteValue(L"GammaLevel", gamma), ERROR_SUCCESS);
+    key.Close();
+
+    // Verify that the contrast and gamma getters return non-defaults above.
+    EXPECT_FLOAT_EQ(
+        FontUtilWin::GetContrastFromRegistry() * kContrastMultiplier, contrast);
+    EXPECT_FLOAT_EQ(FontUtilWin::GetGammaFromRegistry() * kGammaMultiplier,
+                    gamma);
+  }
+}
+
+TEST_F(FontRenderParamsTest, OverrideRegistryValuesAndIncreaseContrast) {
+  // Ensure that registry values have precedence over the increased contrast
+  // flag.
+  base::test::ScopedFeatureList scoped_features;
+  scoped_features.InitWithFeatures(
+      {features::kUseGammaContrastRegistrySettings}, {});
 
   // Override the registry to maintain test machine state.
   ASSERT_NO_FATAL_FAILURE(

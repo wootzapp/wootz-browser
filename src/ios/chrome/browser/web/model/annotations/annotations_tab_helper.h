@@ -21,7 +21,6 @@
 
 @protocol CRWWebViewHandlerDelegate;
 @protocol MiniMapCommands;
-@protocol ParcelTrackingOptInCommands;
 @protocol UnitConversionCommands;
 @class UIViewController;
 
@@ -43,11 +42,6 @@ class AnnotationsTabHelper : public web::AnnotationsTextObserver,
 
   // Sets the MiniMapCommands that can display mini maps.
   void SetMiniMapCommands(id<MiniMapCommands> mini_map_handler);
-
-  // Sets the ParcelTrackingOptInCommands that can display the parcel tracking
-  // opt-in prompt.
-  void SetParcelTrackingOptInCommands(
-      id<ParcelTrackingOptInCommands> parcel_tracking_handler);
 
   // Sets the UnitConversionCommands that can display unit conversion.
   void SetUnitConversionCommands(
@@ -78,8 +72,6 @@ class AnnotationsTabHelper : public web::AnnotationsTextObserver,
       web::WebState* web_state,
       web::PageLoadCompletionStatus load_completion_status) override;
 
-  WEB_STATE_USER_DATA_KEY_DECL();
-
  private:
   friend class WebStateUserData<AnnotationsTabHelper>;
 
@@ -93,15 +85,8 @@ class AnnotationsTabHelper : public web::AnnotationsTextObserver,
       int seq_id,
       std::optional<std::vector<web::TextAnnotation>> deferred);
 
-  // Records the measurement detection, and triggers the parcel tracking UI
-  // display if the given list of annotations contains at least one parcel
-  // number and the user is eligible for the prompt. Removes parcels from
-  // `annotations_list`.
+  // Records the measurement detection from the input `annotations_list`.c
   void ProcessAnnotations(std::vector<web::TextAnnotation>& annotations_list);
-
-  // Triggers the parcel tracking UI display for the given parcel
-  // list `parcels`.
-  void MaybeShowParcelTrackingUI(NSArray<CustomTextCheckingResult*>* parcels);
 
   // Puts annotations data in `match_cache_` and replaces it with a uuid key
   // to be passed to JS and expect back in `OnClick`. Builds `decorations`
@@ -113,8 +98,6 @@ class AnnotationsTabHelper : public web::AnnotationsTextObserver,
   UIViewController* base_view_controller_ = nil;
 
   id<MiniMapCommands> mini_map_handler_ = nil;
-
-  id<ParcelTrackingOptInCommands> parcel_tracking_handler_ = nil;
 
   id<UnitConversionCommands> unit_conversion_handler_ = nil;
 

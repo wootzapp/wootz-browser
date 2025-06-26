@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "chrome/browser/ui/views/frame/windows_caption_button.h"
+
 #include <memory>
 
 #include "base/numerics/safe_conversions.h"
@@ -36,7 +37,7 @@ WindowsCaptionButton::WindowsCaptionButton(
   SetAnimateOnStateChange(true);
   // Not focusable by default, only for accessibility.
   SetFocusBehavior(FocusBehavior::ACCESSIBLE_ONLY);
-  SetAccessibleName(accessible_name);
+  GetViewAccessibility().SetName(accessible_name);
   SetID(button_type);
 }
 
@@ -134,11 +135,12 @@ void WindowsCaptionButton::OnPaintBackground(gfx::Canvas* canvas) {
   }
 
   SkAlpha alpha;
-  if (GetState() == STATE_PRESSED)
+  if (GetState() == STATE_PRESSED) {
     alpha = pressed_alpha;
-  else
+  } else {
     alpha = gfx::Tween::IntValueBetween(hover_animation().GetCurrentValue(),
                                         SK_AlphaTRANSPARENT, hovered_alpha);
+  }
   canvas->FillRect(bounds, SkColorSetA(base_color, alpha));
 }
 
@@ -167,7 +169,7 @@ int WindowsCaptionButton::GetButtonDisplayOrderIndex() const {
       button_display_order = 2;
       break;
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 
   // Reverse the ordering if we're in RTL mode
@@ -241,7 +243,7 @@ void WindowsCaptionButton::PaintSymbol(gfx::Canvas* canvas) {
     }
 
     default:
-      NOTREACHED_NORETURN();
+      NOTREACHED();
   }
 }
 

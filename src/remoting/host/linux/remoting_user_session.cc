@@ -6,6 +6,11 @@
 // proper PAM session. It will generally be run as root and drop privileges to
 // the specified user before running the me2me session script.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 // Usage: user-session start [--foreground] [--user user] [-- SCRIPT_ARGS...]
 //
 // Options:
@@ -43,7 +48,8 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
-#include "base/memory/raw_ptr_exclusion.h"
+#include "base/memory/raw_ptr.h"
+#include "base/notreached.h"
 #include "base/process/launch.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
@@ -99,8 +105,7 @@ void PrintUsage() {
 // Shell-escapes a single argument in a way that is compatible with various
 // different shells. Returns nullopt when argument contains a newline, which
 // can't be represented in a cross-shell fashion.
-std::optional<std::string> ShellEscapeArgument(
-    const std::string_view argument) {
+std::optional<std::string> ShellEscapeArgument(std::string_view argument) {
   std::string result;
   for (char character : argument) {
     // csh in particular doesn't provide a good way to handle this
@@ -184,8 +189,8 @@ class PamHandle {
   PamHandle(const char* service_name,
             const char* user,
             const struct pam_conv* pam_conversation) {
-    last_return_code_ =
-        pam_start(service_name, user, pam_conversation, &pam_handle_);
+    last_return_code_ = pam_start(service_name, user, pam_conversation,
+                                  &pam_handle_.AsEphemeralRawAddr());
     if (last_return_code_ != PAM_SUCCESS) {
       pam_handle_ = nullptr;
     }
@@ -283,9 +288,7 @@ class PamHandle {
   }
 
  private:
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #addr-of
-  RAW_PTR_EXCLUSION pam_handle_t* pam_handle_ = nullptr;
+  raw_ptr<pam_handle_t> pam_handle_ = nullptr;
   int last_return_code_ = PAM_SUCCESS;
 };
 
@@ -737,7 +740,7 @@ void Daemonize() {
       PCHECK(setuid(real_uid) == 0) << "setuid failed";
       close(kMessageFd);
       WaitForMessagesAndExit(read_fd, log_file.path);
-      CHECK(false);
+      NOTREACHED();
     }
   }
 

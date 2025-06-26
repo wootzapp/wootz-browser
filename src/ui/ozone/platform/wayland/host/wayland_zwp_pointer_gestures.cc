@@ -7,7 +7,6 @@
 #include <wayland-util.h>
 
 #include "base/logging.h"
-#include "build/chromeos_buildflags.h"
 #include "ui/gfx/geometry/vector2d_f.h"
 #include "ui/ozone/platform/wayland/common/wayland_util.h"
 #include "ui/ozone/platform/wayland/host/wayland_connection.h"
@@ -105,7 +104,7 @@ void WaylandZwpPointerGestures::OnPinchBegin(
   self->current_scale_ = 1;
 
   self->delegate_->OnPinchEvent(
-      ET_GESTURE_PINCH_BEGIN, gfx::Vector2dF() /*delta*/,
+      EventType::kGesturePinchBegin, gfx::Vector2dF() /*delta*/,
       wl::EventMillisecondsToTimeTicks(time), self->obj_.id());
 }
 
@@ -120,7 +119,6 @@ void WaylandZwpPointerGestures::OnPinchUpdate(
     wl_fixed_t rotation) {
   auto* self = static_cast<WaylandZwpPointerGestures*>(data);
 
-#if !BUILDFLAG(IS_CHROMEOS_LACROS)
   // During the pinch zoom session, libinput sends the current scale relative to
   // the start of the session.  On the other hand, the compositor expects the
   // change of the scale relative to the previous update in form of a multiplier
@@ -130,16 +128,9 @@ void WaylandZwpPointerGestures::OnPinchUpdate(
   const auto scale_delta = new_scale / self->current_scale_;
   self->current_scale_ = new_scale;
 
-#else
-  // TODO(crbug.com/40215394): Remove this code when exo is fixed.
-  // Exo currently sends relative scale values so it should be passed along to
-  // Chrome without modification until exo can be fixed.
-  const auto scale_delta = wl_fixed_to_double(scale);
-#endif
-
   gfx::Vector2dF delta = {static_cast<float>(wl_fixed_to_double(dx)),
                           static_cast<float>(wl_fixed_to_double(dy))};
-  self->delegate_->OnPinchEvent(ET_GESTURE_PINCH_UPDATE, delta,
+  self->delegate_->OnPinchEvent(EventType::kGesturePinchUpdate, delta,
                                 wl::EventMillisecondsToTimeTicks(time),
                                 self->obj_.id(), scale_delta);
 }
@@ -153,7 +144,7 @@ void WaylandZwpPointerGestures::OnPinchEnd(
   auto* self = static_cast<WaylandZwpPointerGestures*>(data);
 
   self->delegate_->OnPinchEvent(
-      ET_GESTURE_PINCH_END, gfx::Vector2dF() /*delta*/,
+      EventType::kGesturePinchEnd, gfx::Vector2dF() /*delta*/,
       wl::EventMillisecondsToTimeTicks(time), self->obj_.id());
 }
 
@@ -169,7 +160,7 @@ void WaylandZwpPointerGestures::OnHoldBegin(
   auto* self = static_cast<WaylandZwpPointerGestures*>(data);
 
   self->delegate_->OnHoldEvent(
-      ET_TOUCH_PRESSED, fingers, wl::EventMillisecondsToTimeTicks(time),
+      EventType::kTouchPressed, fingers, wl::EventMillisecondsToTimeTicks(time),
       self->obj_.id(), wl::EventDispatchPolicy::kImmediate);
 }
 #endif
@@ -185,7 +176,7 @@ void WaylandZwpPointerGestures::OnHoldEnd(
   auto* self = static_cast<WaylandZwpPointerGestures*>(data);
 
   self->delegate_->OnHoldEvent(
-      cancelled ? ET_TOUCH_CANCELLED : ET_TOUCH_RELEASED, 0,
+      cancelled ? EventType::kTouchCancelled : EventType::kTouchReleased, 0,
       wl::EventMillisecondsToTimeTicks(time), self->obj_.id(),
       wl::EventDispatchPolicy::kImmediate);
 }

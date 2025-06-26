@@ -314,8 +314,7 @@ void ThemeHelperMac::LoadSystemColorsForCurrentAppearance(
         values[i] = NSColorToSkColor(NSColor.selectedTextBackgroundColor);
         break;
       case blink::MacSystemColorID::kCount:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
     }
   }
 }
@@ -326,31 +325,17 @@ void ThemeHelperMac::LoadSystemColors() {
   base::span<SkColor> values = writable_color_map_.GetMemoryAsSpan<SkColor>(
       blink::kMacSystemColorIDCount * blink::kMacSystemColorSchemeCount);
 
-  if (@available(macOS 11, *)) {
-    [[NSAppearance appearanceNamed:NSAppearanceNameAqua]
-        performAsCurrentDrawingAppearance:^{
-          LoadSystemColorsForCurrentAppearance(values.subspan(
-              0, static_cast<size_t>(blink::MacSystemColorID::kCount)));
-        }];
-    [[NSAppearance appearanceNamed:NSAppearanceNameDarkAqua]
-        performAsCurrentDrawingAppearance:^{
-          LoadSystemColorsForCurrentAppearance(values.subspan(
-              static_cast<size_t>(blink::MacSystemColorID::kCount),
-              static_cast<size_t>(blink::MacSystemColorID::kCount)));
-        }];
-  } else {
-    NSAppearance* saved_appearance = NSAppearance.currentAppearance;
-    NSAppearance.currentAppearance =
-        [NSAppearance appearanceNamed:NSAppearanceNameAqua];
-    LoadSystemColorsForCurrentAppearance(values.subspan(
-        0, static_cast<size_t>(blink::MacSystemColorID::kCount)));
-    NSAppearance.currentAppearance =
-        [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-    LoadSystemColorsForCurrentAppearance(
-        values.subspan(static_cast<size_t>(blink::MacSystemColorID::kCount),
-                       static_cast<size_t>(blink::MacSystemColorID::kCount)));
-    NSAppearance.currentAppearance = saved_appearance;
-  }
+  [[NSAppearance appearanceNamed:NSAppearanceNameAqua]
+      performAsCurrentDrawingAppearance:^{
+        LoadSystemColorsForCurrentAppearance(
+            values.first<blink::kMacSystemColorIDCount>());
+      }];
+  [[NSAppearance appearanceNamed:NSAppearanceNameDarkAqua]
+      performAsCurrentDrawingAppearance:^{
+        LoadSystemColorsForCurrentAppearance(
+            values.subspan<blink::kMacSystemColorIDCount,
+                           blink::kMacSystemColorIDCount>());
+      }];
 }
 
 void ThemeHelperMac::OnRenderProcessHostCreated(
@@ -367,6 +352,13 @@ void ThemeHelperMac::OnRenderProcessHostCreated(
   content::mojom::Renderer* renderer = process_host->GetRendererInterface();
   renderer->UpdateScrollbarTheme(std::move(params));
   SendSystemColorsChangedMessage(renderer);
+}
+
+void ThemeHelperMac::SetAccentColorForTesting(SkColor accent_color) {
+  auto values = writable_color_map_.GetMemoryAsSpan<SkColor>(
+      blink::kMacSystemColorIDCount * blink::kMacSystemColorSchemeCount);
+  values[static_cast<size_t>(blink::MacSystemColorID::kControlAccentColor)] =
+      accent_color;
 }
 
 }  // namespace content

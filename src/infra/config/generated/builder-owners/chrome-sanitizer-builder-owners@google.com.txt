@@ -12,6 +12,8 @@ ci/Linux MSan Builder
 ci/Linux MSan Tests
 ci/Linux TSan Builder
 ci/Linux TSan Tests
+ci/Linux UBSan Builder
+ci/Linux UBSan Tests
 ci/MSAN Release (chained origins)
 ci/MSAN Release (no origins)
 ci/Mac ASAN Release
@@ -26,9 +28,7 @@ ci/WebKit Linux Leak
 ci/WebKit Linux MSAN
 ci/Win ASan Release
 ci/Win ASan Release Media
-ci/android-asan
 ci/chromeos-amd64-generic-asan-rel
 ci/ios-asan
-ci/linux-lacros-asan-lsan-rel
-ci/linux-ubsan-vptr
 ci/win-asan
+try/linux_chromium_ubsan_rel_ng

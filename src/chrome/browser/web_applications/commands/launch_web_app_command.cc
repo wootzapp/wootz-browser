@@ -12,8 +12,13 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_applications/commands/web_app_command.h"
 #include "chrome/browser/web_applications/locks/app_lock.h"
+#include "chrome/browser/web_applications/mojom/user_display_mode.mojom-shared.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_test_override.h"
+#include "chrome/browser/web_applications/proto/web_app_install_state.pb.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
+#include "chrome/browser/web_applications/web_app_registrar.h"
+#include "chrome/browser/web_applications/web_app_registry_update.h"
+#include "chrome/browser/web_applications/web_app_sync_bridge.h"
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 
@@ -47,19 +52,21 @@ LaunchWebAppCommand::~LaunchWebAppCommand() = default;
 
 void LaunchWebAppCommand::StartWithLock(std::unique_ptr<AppLock> lock) {
   lock_ = std::move(lock);
-  if (!lock_->registrar().IsInstalled(params_.app_id)) {
+  if (!lock_->registrar().IsInRegistrar(params_.app_id)) {
     GetMutableDebugValue().Set("error", "not_installed");
     CompleteAndSelfDestruct(CommandResult::kFailure, nullptr, nullptr,
                             apps::LaunchContainer::kLaunchContainerNone);
     return;
   }
 
+  const WebApp* current_app = lock_->registrar().GetAppById(params_.app_id);
+  CHECK(current_app);
+
   bool is_standalone_launch =
       params_.container == apps::LaunchContainer::kLaunchContainerWindow ||
       (launch_setting_ ==
            LaunchWebAppWindowSetting::kOverrideWithWebAppConfig &&
-       lock_->registrar().GetAppUserDisplayMode(params_.app_id) !=
-           mojom::UserDisplayMode::kBrowser);
+       current_app->user_display_mode() != mojom::UserDisplayMode::kBrowser);
 
   GetMutableDebugValue().Set("is_standalone_launch", is_standalone_launch);
   if (is_standalone_launch) {
@@ -69,22 +76,40 @@ void LaunchWebAppCommand::StartWithLock(std::unique_ptr<AppLock> lock) {
     CHECK_OS_INTEGRATION_ALLOWED();
   }
 
-  std::optional<proto::WebAppOsIntegrationState> os_integration =
+  bool needs_os_integration_sync = false;
+
+  // Upgrade to fully installed if needed.
+  if (is_standalone_launch &&
+      lock_->registrar().GetInstallState(params_.app_id) !=
+          proto::INSTALLED_WITH_OS_INTEGRATION) {
+    ScopedRegistryUpdate update = lock_->sync_bridge().BeginUpdate();
+    update->UpdateApp(params_.app_id)
+        ->SetInstallState(proto::INSTALLED_WITH_OS_INTEGRATION);
+    needs_os_integration_sync = true;
+  }
+
+  std::optional<proto::os_state::WebAppOsIntegration> os_integration =
       lock_->registrar().GetAppCurrentOsIntegrationState(params_.app_id);
   CHECK(os_integration);
-  bool needs_os_integration_sync =
-      !os_integration->has_shortcut() && is_standalone_launch;
   GetMutableDebugValue().Set("needs_os_integration_sync",
                              needs_os_integration_sync);
 
   base::ConcurrentClosures completion;
 
   if (needs_os_integration_sync) {
+    // TODO(crbug.com/339451551): Remove adding to desktop on linux after the
+    // OsIntegrationTestOverride can use the xdg install command to detect
+    // install.
+    SynchronizeOsOptions options;
+#if BUILDFLAG(IS_LINUX)
+    options.add_shortcut_to_desktop = true;
+#endif
     lock_->os_integration_manager().Synchronize(
         params_.app_id,
         base::BindOnce(&LaunchWebAppCommand::OnOsIntegrationSynchronized,
                        weak_factory_.GetWeakPtr())
-            .Then(completion.CreateClosure()));
+            .Then(completion.CreateClosure()),
+        options);
   }
 
   // Note: In tests this can synchronously call FirstRunServiceCompleted and

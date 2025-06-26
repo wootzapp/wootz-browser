@@ -6,14 +6,14 @@
 
 #include "base/check_is_test.h"
 #include "base/logging.h"
+#include "media/base/video_codecs.h"
 #include "media/gpu/windows/format_utils.h"
 #include "media/gpu/windows/supported_profile_helpers.h"
 #include "third_party/microsoft_dxheaders/src/include/directx/d3dx12_core.h"
 
 namespace media {
 
-D3D12ReferenceFrameList::D3D12ReferenceFrameList(
-    Microsoft::WRL::ComPtr<ID3D12VideoDecoderHeap> heap)
+D3D12ReferenceFrameList::D3D12ReferenceFrameList(ComD3D12VideoDecoderHeap heap)
     : heap_(std::move(heap)) {
   std::fill(heaps_.begin(), heaps_.end(), heap_.Get());
 }
@@ -39,7 +39,45 @@ void D3D12ReferenceFrameList::emplace(size_t index,
   subresources_[index] = subresource;
 }
 
-Microsoft::WRL::ComPtr<ID3D12Device> CreateD3D12Device(IDXGIAdapter* adapter) {
+ScopedD3D12ResourceMap::ScopedD3D12ResourceMap() = default;
+
+ScopedD3D12ResourceMap::~ScopedD3D12ResourceMap() {
+  Commit();
+}
+
+bool ScopedD3D12ResourceMap::Map(ID3D12Resource* resource,
+                                 UINT subresource,
+                                 const D3D12_RANGE* read_range) {
+  CHECK(data_.empty());
+  CHECK(resource);
+  CHECK_EQ(resource->GetDesc().Dimension, D3D12_RESOURCE_DIMENSION_BUFFER);
+  void* data;
+  HRESULT hr = resource->Map(subresource, read_range, &data);
+  if (FAILED(hr)) {
+    LOG(ERROR) << "Failed to Map D3D12Resource: "
+               << logging::SystemErrorCodeToString(hr);
+    return false;
+  }
+  resource_ = resource;
+  subresource_ = subresource;
+  // SAFETY: A successful |ID3D12Resource::Map()| sets |data| with valid
+  // address, and for D3D12_RESOURCE_DIMENSION_BUFFER resource, the length is
+  // its |Width|. We will also reset the |data_| before we |Unmap()|.
+  data_ = UNSAFE_BUFFERS(
+      base::span(static_cast<uint8_t*>(data),
+                 static_cast<size_t>(resource_->GetDesc().Width)));
+  return true;
+}
+
+void ScopedD3D12ResourceMap::Commit(const D3D12_RANGE* written_range) {
+  if (!data_.empty()) {
+    data_ = {};
+    resource_->Unmap(subresource_, written_range);
+    resource_ = nullptr;
+  }
+}
+
+ComD3D12Device CreateD3D12Device(IDXGIAdapter* adapter) {
   if (!adapter) {
     // We've had at least a couple of scenarios where two calls to EnumAdapters
     // return different default adapters on multi-adapter systems due to race
@@ -48,7 +86,7 @@ Microsoft::WRL::ComPtr<ID3D12Device> CreateD3D12Device(IDXGIAdapter* adapter) {
     CHECK_IS_TEST();
   }
 
-  Microsoft::WRL::ComPtr<ID3D12Device> device;
+  ComD3D12Device device;
   HRESULT hr =
       D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device));
   if (FAILED(hr)) {
@@ -100,12 +138,17 @@ GUID GetD3D12VideoDecodeGUID(VideoCodecProfile profile,
     case VP9PROFILE_PROFILE2:
       return D3D12_VIDEO_DECODE_PROFILE_VP9_10BIT_PROFILE2;
 #if BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
+    // Per DirectX Video Acceleration Specification for High Efficiency Video
+    // Coding - 7.4, DXVA_ModeHEVC_VLD_Main GUID can be used for both main and
+    // main still picture profile.
     case HEVCPROFILE_MAIN:
+    case HEVCPROFILE_MAIN_STILL_PICTURE:
       return D3D12_VIDEO_DECODE_PROFILE_HEVC_MAIN;
     case HEVCPROFILE_MAIN10:
       return D3D12_VIDEO_DECODE_PROFILE_HEVC_MAIN10;
     case HEVCPROFILE_REXT:
-      return GetHEVCRangeExtensionPrivateGUID(bitdepth, chroma_sampling);
+      return GetHEVCRangeExtensionGUID(bitdepth, chroma_sampling,
+                                       /*use_dxva_device_for_hevc_rext=*/true);
 #endif  // BUILDFLAG(ENABLE_HEVC_PARSER_AND_HW_DECODER)
     case AV1PROFILE_PROFILE_MAIN:
       return D3D12_VIDEO_DECODE_PROFILE_AV1_PROFILE0;

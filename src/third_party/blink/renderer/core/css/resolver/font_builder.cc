@@ -53,6 +53,12 @@ void FontBuilder::DidChangeWritingMode() {
   Set(PropertySetFlag::kWritingMode);
 }
 
+void FontBuilder::DidChangeTextSizeAdjust() {
+  // text-size-adjust affects font-size during style building, and needs to
+  // invalidate the font description.
+  Set(PropertySetFlag::kTextSizeAdjust);
+}
+
 FontFamily FontBuilder::StandardFontFamily() const {
   const AtomicString& standard_font_family = StandardFontFamilyName();
   return FontFamily(standard_font_family,
@@ -72,9 +78,6 @@ AtomicString FontBuilder::StandardFontFamilyName() const {
 AtomicString FontBuilder::GenericFontFamilyName(
     FontDescription::GenericFamilyType generic_family) const {
   switch (generic_family) {
-    default:
-      NOTREACHED_IN_MIGRATION();
-      [[fallthrough]];
     case FontDescription::kNoFamily:
       return AtomicString();
     // While the intention is to phase out kWebkitBodyFamily, it should still
@@ -91,6 +94,8 @@ AtomicString FontBuilder::GenericFontFamilyName(
       return font_family_names::kCursive;
     case FontDescription::kFantasyFamily:
       return font_family_names::kFantasy;
+    default:
+      NOTREACHED();
   }
 }
 
@@ -214,13 +219,13 @@ void FontBuilder::SetFontOpticalSizing(OpticalSizing font_optical_sizing) {
 
 void FontBuilder::SetFontPalette(scoped_refptr<const FontPalette> palette) {
   Set(PropertySetFlag::kFontPalette);
-  font_description_.SetFontPalette(palette);
+  font_description_.SetFontPalette(std::move(palette));
 }
 
 void FontBuilder::SetFontVariantAlternates(
     scoped_refptr<const FontVariantAlternates> variant_alternates) {
   Set(PropertySetFlag::kFontVariantAlternates);
-  font_description_.SetFontVariantAlternates(variant_alternates);
+  font_description_.SetFontVariantAlternates(std::move(variant_alternates));
 }
 
 void FontBuilder::SetFontSmoothing(FontSmoothingMode font_smoothing_mode) {
@@ -287,15 +292,22 @@ void FontBuilder::SetVariantEmoji(FontVariantEmoji variant_emoji) {
 }
 
 float FontBuilder::GetComputedSizeFromSpecifiedSize(
-    FontDescription& font_description,
-    float effective_zoom,
+    const FontDescription& font_description,
+    const ComputedStyleBuilder& builder,
     float specified_size) {
   DCHECK(document_);
-  float zoom_factor = effective_zoom;
+  float zoom_factor = builder.EffectiveZoom();
   // Apply the text zoom factor preference. The preference is exposed in
   // accessibility settings in Chrome for Android to improve readability.
   if (LocalFrame* frame = document_->GetFrame()) {
     zoom_factor *= frame->TextZoomFactor();
+  }
+
+  if (!builder.GetTextSizeAdjust().IsAuto()) {
+    Settings* settings = document_->GetSettings();
+    if (settings && settings->GetTextAutosizingEnabled()) {
+      zoom_factor *= builder.GetTextSizeAdjust().Multiplier();
+    }
   }
 
   return FontSizeFunctions::GetComputedSizeFromSpecifiedSize(
@@ -370,9 +382,9 @@ void FontBuilder::UpdateAdjustedSize(FontDescription& font_description,
   // FontDescription::EffectiveFontSize.
   font_description.SetAdjustedSize(computed_size);
 
-  Font font(font_description, font_selector);
+  Font* font = MakeGarbageCollected<Font>(font_description, font_selector);
 
-  const SimpleFontData* font_data = font.PrimaryFont();
+  const SimpleFontData* font_data = font->PrimaryFont();
   if (!font_data) {
     return;
   }
@@ -397,8 +409,7 @@ void FontBuilder::UpdateAdjustedSize(FontDescription& font_description,
 void FontBuilder::UpdateComputedSize(FontDescription& font_description,
                                      const ComputedStyleBuilder& builder) {
   float computed_size = GetComputedSizeFromSpecifiedSize(
-      font_description, builder.EffectiveZoom(),
-      font_description.SpecifiedSize());
+      font_description, builder, font_description.SpecifiedSize());
   computed_size = TextAutosizer::ComputeAutosizedFontSize(
       computed_size, builder.TextAutosizingMultiplier(),
       builder.EffectiveZoom());
@@ -585,7 +596,8 @@ bool FontBuilder::UpdateFontDescription(FontDescription& description,
       description.SetVariantEmoji(font_description_.VariantEmoji());
     }
   }
-  if (!modified && !IsSet(PropertySetFlag::kEffectiveZoom)) {
+  if (!modified && !IsSet(PropertySetFlag::kEffectiveZoom) &&
+      !IsSet(PropertySetFlag::kTextSizeAdjust)) {
     return false;
   }
 
@@ -620,7 +632,7 @@ FontSelector* FontBuilder::ComputeFontSelector(
   if (IsSet(PropertySetFlag::kFamily)) {
     return FontSelectorFromTreeScope(family_tree_scope_);
   } else {
-    return builder.GetFont().GetFontSelector();
+    return builder.GetFont()->GetFontSelector();
   }
 }
 
@@ -650,7 +662,7 @@ void FontBuilder::CreateFont(ComputedStyleBuilder& builder,
   FontSelector* font_selector = ComputeFontSelector(builder);
   UpdateAdjustedSize(description, font_selector);
 
-  builder.SetFont(Font(description, font_selector));
+  builder.SetFont(MakeGarbageCollected<Font>(description, font_selector));
   flags_ = 0;
 }
 
@@ -670,7 +682,7 @@ void FontBuilder::CreateInitialFont(ComputedStyleBuilder& builder) {
   font_description.SetOrientation(builder.ComputeFontOrientation());
 
   FontSelector* font_selector = document_->GetStyleEngine().GetFontSelector();
-  builder.SetFont(Font(font_description, font_selector));
+  builder.SetFont(MakeGarbageCollected<Font>(font_description, font_selector));
 }
 
 }  // namespace blink

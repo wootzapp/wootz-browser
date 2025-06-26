@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <map>
 #include <optional>
 #include <sstream>
@@ -16,7 +17,6 @@
 #include "base/metrics/histogram_base.h"
 #include "base/metrics/statistics_recorder.h"
 #include "base/path_service.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -30,6 +30,8 @@
 #include "chrome/browser/autofill/automated_tests/cache_replayer.h"
 #include "chrome/browser/autofill/captured_sites_test_utils.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/autofill/autofill_popup_controller_impl.h"
+#include "chrome/browser/ui/autofill/autofill_popup_controller_impl_test_api.h"
 #include "chrome/browser/ui/autofill/autofill_suggestion_controller.h"
 #include "chrome/browser/ui/autofill/chrome_autofill_client.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -39,13 +41,14 @@
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/autofill/content/browser/content_autofill_driver.h"
-#include "components/autofill/content/browser/content_autofill_driver_factory.h"
-#include "components/autofill/core/browser/autofill_test_utils.h"
-#include "components/autofill/core/browser/browser_autofill_manager.h"
-#include "components/autofill/core/browser/browser_autofill_manager_test_delegate.h"
+#include "components/autofill/content/browser/scoped_autofill_managers_observation.h"
 #include "components/autofill/core/browser/field_types.h"
+#include "components/autofill/core/browser/foundations/autofill_manager.h"
+#include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
+#include "components/autofill/core/browser/foundations/browser_autofill_manager_test_delegate.h"
 #include "components/autofill/core/browser/geo/state_names.h"
 #include "components/autofill/core/browser/proto/server.pb.h"
+#include "components/autofill/core/browser/test_utils/autofill_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
 #include "components/autofill/core/common/autofill_regexes.h"
 #include "components/autofill/core/common/autofill_util.h"
@@ -68,7 +71,6 @@ using captured_sites_test_utils::TestRecipeReplayer;
 using captured_sites_test_utils::WebPageReplayServerWrapper;
 
 namespace autofill {
-
 namespace {
 
 // The timeout for actions like bringing up the Autofill popup or showing the
@@ -98,6 +100,69 @@ autofill::ElementExpr GetElementByXpath(const std::string& xpath) {
   return autofill::ElementExpr(base::StringPrintf(
       "automation_helper.getElementByXpath(`%s`)", xpath.c_str()));
 }
+
+std::optional<std::vector<std::string>> GetExpectedFormSignatures(
+    const base::FilePath& recipe_file_path) {
+  std::optional<base::Value::Dict> recipe =
+      captured_sites_test_utils::ReadRecipeFile(recipe_file_path);
+  if (!recipe) {
+    VLOG(1) << "Failed to read recipe file: " << recipe_file_path.value();
+    return std::nullopt;
+  }
+
+  base::Value::List* form_signatures_list =
+      recipe.value().FindList("formSignaturesSubmitted");
+  if (!form_signatures_list) {
+    VLOG(1) << "No expected form signatures in recipe.";
+    return std::nullopt;
+  }
+  std::vector<std::string> form_signatures;
+  for (const base::Value& item : *form_signatures_list) {
+    if (!item.is_string()) {
+      VLOG(1) << "Expected form signature is not a string.";
+      continue;
+    }
+    form_signatures.push_back(item.GetString());
+  }
+  return form_signatures;
+}
+
+// Used to verify that the expected form signatures are submitted during the
+// test.
+class FormSubmissionCounter : public autofill::AutofillManager::Observer {
+ public:
+  explicit FormSubmissionCounter(content::WebContents* web_contents) {
+    autofill_managers_observation_.Observe(
+        web_contents, autofill::ScopedAutofillManagersObservation::
+                          InitializationPolicy::kObservePreexistingManagers);
+  }
+  ~FormSubmissionCounter() override = default;
+
+  // AutofillManager::Observer:
+  void OnFormSubmitted(autofill::AutofillManager& manager,
+                       const autofill::FormData& form_data) override {
+    actual_form_signatures_submitted_.insert(base::NumberToString(
+        autofill::CalculateFormSignature(form_data).value()));
+  }
+
+  void VerifyFormSubmissions(
+      std::optional<std::vector<std::string>> expected_form_signatures) {
+    if (!expected_form_signatures.has_value()) {
+      LOG(WARNING) << "No expected form signatures found!";
+      return;
+    }
+    EXPECT_THAT(actual_form_signatures_submitted_,
+                ::testing::IsSupersetOf(*expected_form_signatures))
+        << "At least one expected form signature was not found to be "
+           "submitted. Expected form signatures are listed in the .test recipe "
+           "file for each site.";
+  }
+
+ private:
+  std::set<std::string> actual_form_signatures_submitted_;
+  autofill::ScopedAutofillManagersObservation autofill_managers_observation_{
+      this};
+};
 
 // Implements the `kAutofillCapturedSiteTestsMetricsScraper` testing feature.
 class MetricsScraper {
@@ -130,12 +195,12 @@ class MetricsScraper {
     std::vector<std::string> histogram_names;
     for (base::HistogramBase* histogram :
          base::StatisticsRecorder::GetHistograms()) {
-      const std::string& name = histogram->histogram_name();
+      const auto& name = histogram->histogram_name();
       if (MatchesRegex(base::UTF8ToUTF16(name), *histogram_regex_)) {
-        histogram_names.push_back(name);
+        histogram_names.emplace_back(name);
       }
     }
-    base::ranges::sort(histogram_names);
+    std::ranges::sort(histogram_names);
 
     // Output the samples of all `histogram_names` to `output_file`.
     std::stringstream output;
@@ -159,7 +224,6 @@ class MetricsScraper {
   const base::HistogramTester histogram_tester_;
 };
 
-}  // namespace
 
 class AutofillCapturedSitesInteractiveTest
     : public AutofillUiTest,
@@ -176,8 +240,7 @@ class AutofillCapturedSitesInteractiveTest
     content::WebContents* web_contents =
         content::WebContents::FromRenderFrameHost(frame);
     auto& autofill_manager = static_cast<BrowserAutofillManager&>(
-        ContentAutofillDriverFactory::FromWebContents(web_contents)
-            ->DriverForFrame(frame->GetMainFrame())
+        ContentAutofillDriver::GetForRenderFrameHost(frame->GetMainFrame())
             ->GetAutofillManager());
     test_delegate()->Observe(autofill_manager);
 
@@ -292,6 +355,8 @@ class AutofillCapturedSitesInteractiveTest
     recipe_replayer_ =
         std::make_unique<captured_sites_test_utils::TestRecipeReplayer>(
             browser(), this);
+    profile_controller_ =
+        std::make_unique<captured_sites_test_utils::ProfileDataController>();
 
     SetServerUrlLoader(std::make_unique<test::ServerUrlLoader>(
         std::make_unique<test::ServerCacheReplayer>(
@@ -300,6 +365,8 @@ class AutofillCapturedSitesInteractiveTest
                 test::ServerCacheReplayer::kOptionSplitRequestsByForm)));
 
     metrics_scraper_ = MetricsScraper::MaybeCreate(GetParam().site_name);
+    form_submission_counter_ =
+        std::make_unique<FormSubmissionCounter>(GetWebContents());
 
     browser()->profile()->GetPrefs()->SetBoolean(prefs::kSafeBrowsingEnabled,
                                                  false);
@@ -338,19 +405,24 @@ class AutofillCapturedSitesInteractiveTest
     // prediction. Test will check this attribute on all the relevant input
     // elements in a form to determine if the form is ready for interaction.
     feature_list_.InitWithFeaturesAndParameters(
-        /*enabled_features=*/{{features::test::kAutofillServerCommunication,
-                               {}},
-                              {features::test::kAutofillShowTypePredictions,
-                               {}},
-                              {features::kAutofillParsingPatternProvider,
-                               {{"prediction_source", "nextgen"}}},
-                              {features::test::
-                                   kAutofillCapturedSiteTestsUseAutofillFlow,
-                               {}}},
-        /*disabled_features=*/{features::kAutofillOverwritePlaceholdersOnly,
-                               features::kAutofillSkipPreFilledFields});
+        /*enabled_features=*/
+        {{features::test::kAutofillServerCommunication, {}},
+         {features::test::kAutofillShowTypePredictions,
+          {
+              // TODO(crbug.com/410879924): Investigate why the test fails when
+              // kAutofillShowTypePredictions is enabled without parameters.
+              {features::test::kAutofillShowTypePredictionsAsTitleParam.name,
+               "true"},
+          }},
+         {features::test::kAutofillCapturedSiteTestsUseAutofillFlow, {}}},
+        /*disabled_features=*/{features::kAutofillSkipPreFilledFields});
     command_line->AppendSwitchASCII(
         variations::switches::kVariationsOverrideCountry, "us");
+    // SelectParserRelaxation affects the results from the test data because the
+    // test data may have unclosed <select> tags. Since SelectParserRelaxation
+    // is not enabled by default, we are disabling it for these tests.
+    command_line->AppendSwitchASCII("disable-blink-features",
+                                    "SelectParserRelaxation");
     AutofillUiTest::SetUpCommandLine(command_line);
     SetUpHostResolverRules(command_line);
     captured_sites_test_utils::TestRecipeReplayer::SetUpCommandLine(
@@ -366,12 +438,16 @@ class AutofillCapturedSitesInteractiveTest
     return recipe_replayer_.get();
   }
 
+  FormSubmissionCounter* form_submission_counter() {
+    return form_submission_counter_.get();
+  }
+
  private:
   [[nodiscard]] testing::AssertionResult ShowAutofillSuggestion(
       const std::string& target_element_xpath,
-      const std::vector<std::string> iframe_path,
+      const std::vector<std::string>& iframe_path,
       content::RenderFrameHost* frame) {
-    auto disable_popup_timing_checks = [&frame]() {
+    auto disable_popup_timing_checks = [&frame] {
       auto* web_contents = content::WebContents::FromRenderFrameHost(frame);
       CHECK_NE(web_contents, nullptr);
       auto* client =
@@ -379,7 +455,8 @@ class AutofillCapturedSitesInteractiveTest
       CHECK_NE(client, nullptr);
       if (base::WeakPtr<AutofillSuggestionController> controller =
               client->suggestion_controller_for_testing()) {
-        controller->DisableThresholdForTesting(true);
+        test_api(static_cast<AutofillPopupControllerImpl&>(*controller))
+            .DisableThreshold(true);
       }
     };
     // First, automation should focus on the frame containing the autofill
@@ -472,12 +549,12 @@ class AutofillCapturedSitesInteractiveTest
   std::unique_ptr<captured_sites_test_utils::TestRecipeReplayer>
       recipe_replayer_;
   std::unique_ptr<captured_sites_test_utils::ProfileDataController>
-      profile_controller_ =
-          std::make_unique<captured_sites_test_utils::ProfileDataController>();
+      profile_controller_;
 
   base::test::ScopedFeatureList feature_list_;
   std::unique_ptr<test::ServerUrlLoader> server_url_loader_;
   std::unique_ptr<MetricsScraper> metrics_scraper_;
+  std::unique_ptr<FormSubmissionCounter> form_submission_counter_;
 };
 
 IN_PROC_BROWSER_TEST_P(AutofillCapturedSitesInteractiveTest, Recipe) {
@@ -500,6 +577,9 @@ IN_PROC_BROWSER_TEST_P(AutofillCapturedSitesInteractiveTest, Recipe) {
       captured_sites_test_utils::GetCommandFilePath());
   if (!test_completed)
     ADD_FAILURE() << "Full execution was unable to complete.";
+
+  form_submission_counter()->VerifyFormSubmissions(
+      GetExpectedFormSignatures(GetParam().recipe_file_path));
 
   std::vector<testing::AssertionResult> validation_failures =
       recipe_replayer()->GetValidationFailures();
@@ -620,4 +700,5 @@ INSTANTIATE_TEST_SUITE_P(
     testing::ValuesIn(GetCapturedSites(GetReplayFilesRootDirectory())),
     captured_sites_test_utils::GetParamAsString());
 
+}  // namespace
 }  // namespace autofill

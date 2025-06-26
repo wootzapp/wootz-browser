@@ -4,13 +4,13 @@
 
 #include "ui/gfx/x/window_cache.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "base/containers/adapters.h"
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
@@ -149,7 +149,7 @@ Window WindowCache::GetWindowAtPoint(gfx::Point point_px,
   point_px -= gfx::Vector2d(info->x_px, info->y_px);
   if (info->bounding_rects_px && info->input_rects_px) {
     for (const auto& rects : {info->bounding_rects_px, info->input_rects_px}) {
-      if (!base::ranges::any_of(*rects, [&point_px](const Rectangle& x_rect) {
+      if (!std::ranges::any_of(*rects, [&point_px](const Rectangle& x_rect) {
             gfx::Rect rect{x_rect.x, x_rect.y, x_rect.width, x_rect.height};
             return rect.Contains(point_px);
           })) {
@@ -196,8 +196,8 @@ void WindowCache::OnEvent(const Event& event) {
       if (auto* siblings = GetChildren(info->parent)) {
         Window window = configure->window;
         Window above = configure->above_sibling;
-        auto src = base::ranges::find(*siblings, window);
-        auto dst = base::ranges::find(*siblings, above);
+        auto src = std::ranges::find(*siblings, window);
+        auto dst = std::ranges::find(*siblings, above);
         auto end = siblings->end();
         if (src != end && (dst != end || above == Window::None)) {
           dst = above == Window::None ? siblings->begin() : ++dst;
@@ -385,9 +385,13 @@ void WindowCache::OnGetPropertyResponse(Window window,
       if (response->format == CHAR_BIT * sizeof(int32_t) &&
           response->value_len == 4) {
         const int32_t* frame_extents = response->value->cast_to<int32_t>();
-        info->gtk_frame_extents_px =
-            gfx::Insets::TLBR(frame_extents[2], frame_extents[0],
-                              frame_extents[3], frame_extents[1]);
+        // This is safe: we've checked (in the condition above) that the
+        // response contains four int32_ts. It would be nice if instead
+        // GetPropertyResponse had a way to convert its value safely into a
+        // span<T> for some T.
+        UNSAFE_BUFFERS(info->gtk_frame_extents_px = gfx::Insets::TLBR(
+                           frame_extents[2], frame_extents[0], frame_extents[3],
+                           frame_extents[1]));
       } else {
         info->gtk_frame_extents_px = gfx::Insets();
       }
@@ -405,8 +409,7 @@ void WindowCache::OnGetRectanglesResponse(
         info->bounding_rects_px = std::move(response->rectangles);
         break;
       case Shape::Sk::Clip:
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
       case Shape::Sk::Input:
         info->input_rects_px = std::move(response->rectangles);
         break;

@@ -8,6 +8,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.os.Build;
 
 import androidx.test.annotation.UiThreadTest;
 import androidx.test.filters.MediumTest;
@@ -19,12 +20,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseActivityTestRule;
+import org.chromium.base.test.util.MaxAndroidSdkLevel;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.R;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.permissions.PermissionCallback;
 import org.chromium.ui.test.util.BlankUiTestActivity;
@@ -33,6 +36,8 @@ import org.chromium.ui.test.util.BlankUiTestActivity;
 @RunWith(ChromeJUnit4ClassRunner.class)
 public class SaveBitmapDelegateTest {
     private SaveBitmapDelegate mSaveBitmapDelegate;
+
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Rule
     public BaseActivityTestRule<BlankUiTestActivity> mActivityTestRule =
@@ -46,12 +51,10 @@ public class SaveBitmapDelegateTest {
 
     @Before
     public void setUp() throws Exception {
-        MockitoAnnotations.initMocks(this);
-
         mActivityTestRule.launchActivity(null);
         Activity activity = mActivityTestRule.getActivity();
         mPermissionDelegate =
-                TestThreadUtils.runOnUiThreadBlocking(() -> new TestWindowAndroid(activity));
+                ThreadUtils.runOnUiThreadBlocking(() -> new TestWindowAndroid(activity));
         Bitmap bitmap = Bitmap.createBitmap(10, 10, Bitmap.Config.ALPHA_8);
         mSaveBitmapDelegate =
                 new SaveBitmapDelegate(
@@ -69,12 +72,15 @@ public class SaveBitmapDelegateTest {
 
     @After
     public void tearDown() {
-        TestThreadUtils.runOnUiThreadBlocking(() -> mPermissionDelegate.destroy());
+        ThreadUtils.runOnUiThreadBlocking(() -> mPermissionDelegate.destroy());
     }
 
     @Test
     @MediumTest
     @UiThreadTest
+    @MaxAndroidSdkLevel(
+            value = Build.VERSION_CODES.S_V2,
+            reason = "Permission request is not made on T+")
     public void testSaveWithPermission() {
         mPermissionDelegate.setHasPermission(true);
         mSaveBitmapDelegate.save();
@@ -87,6 +93,9 @@ public class SaveBitmapDelegateTest {
     @Test
     @MediumTest
     @UiThreadTest
+    @MaxAndroidSdkLevel(
+            value = Build.VERSION_CODES.S_V2,
+            reason = "Permission request is not made on T+")
     public void testSaveWithoutPermissionCanNotAsk() {
         mPermissionDelegate.setHasPermission(false);
         mPermissionDelegate.setCanRequestPermission(false);
@@ -99,7 +108,7 @@ public class SaveBitmapDelegateTest {
     }
 
     /** Test implementation of {@link WindowAndroid}. */
-    private class TestWindowAndroid extends WindowAndroid {
+    private static class TestWindowAndroid extends WindowAndroid {
         private boolean mHasPermission;
         private boolean mCanRequestPermission;
 
@@ -108,11 +117,7 @@ public class SaveBitmapDelegateTest {
         private int mPermissionResult = PackageManager.PERMISSION_GRANTED;
 
         public TestWindowAndroid(Context context) {
-            super(context);
-        }
-
-        public void setPermissionResults(int result) {
-            mPermissionResult = result;
+            super(context, /* trackOcclusion= */ true);
         }
 
         public void setHasPermission(boolean hasPermission) {

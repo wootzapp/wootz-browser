@@ -2,27 +2,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
-#endif
-
 #ifndef BASE_CONTAINERS_FLAT_TREE_H_
 #define BASE_CONTAINERS_FLAT_TREE_H_
 
 #include <algorithm>
 #include <array>
 #include <compare>
+#include <concepts>
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <ranges>
 #include <type_traits>
 #include <utility>
 
 #include "base/check.h"
 #include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/memory/raw_ptr_exclusion.h"
-#include "base/ranges/algorithm.h"
 
 namespace base {
 
@@ -43,7 +40,8 @@ constexpr bool is_sorted_and_unique(const Range& range, Comp comp) {
   // Being unique implies that there are no adjacent elements that
   // compare equal. So this checks that each element is strictly less
   // than the element after it.
-  return ranges::adjacent_find(range, std::not_fn(comp)) == ranges::end(range);
+  return std::ranges::adjacent_find(range, std::not_fn(comp)) ==
+         std::ranges::end(range);
 }
 
 // Helper inspired by C++20's std::to_array to convert a C-style array to a
@@ -54,15 +52,15 @@ constexpr bool is_sorted_and_unique(const Range& range, Comp comp) {
 // elements.
 //
 // Reference: https://en.cppreference.com/w/cpp/container/array/to_array
-template <typename U, typename T, size_t N, size_t... I>
-constexpr std::array<U, N> ToArrayImpl(const T (&data)[N],
-                                       std::index_sequence<I...>) {
-  return {{data[I]...}};
-}
-
 template <typename U, typename T, size_t N>
+  requires(std::constructible_from<U, T>)
 constexpr std::array<U, N> ToArray(const T (&data)[N]) {
-  return ToArrayImpl<U>(data, std::make_index_sequence<N>());
+  auto impl = [&]<size_t... I>(std::index_sequence<I...>) {
+    // SAFETY: `impl` is called with `make_index_sequence<N>`, so the largest
+    // `I` will be `N - 1`.
+    return std::array<U, N>({UNSAFE_BUFFERS(data[I])...});
+  };
+  return impl(std::make_index_sequence<N>());
 }
 
 // Helper that calls `container.reserve(std::size(source))`.
@@ -249,7 +247,16 @@ class flat_tree {
   // This method inserts the values from the range [first, last) into the
   // current tree.
   template <class InputIterator>
+    requires(std::input_iterator<InputIterator>)
   void insert(InputIterator first, InputIterator last);
+  template <class InputIteratorPtr>
+  UNSAFE_BUFFER_USAGE void insert(InputIteratorPtr* first,
+                                  InputIteratorPtr* last);
+
+  // Inserts the all values from the `range` into the current tree.
+  template <class Range>
+    requires(std::ranges::input_range<Range>)
+  void insert_range(Range&& range);
 
   template <class... Args>
   std::pair<iterator, bool> emplace(Args&&... args);
@@ -423,8 +430,9 @@ class flat_tree {
   std::pair<iterator, bool> insert_or_assign(V&& val) {
     auto position = lower_bound(GetKeyFromValue()(val));
 
-    if (position == end() || value_comp()(val, *position))
+    if (position == end() || value_comp()(val, *position)) {
       return {body_.emplace(position, std::forward<V>(val)), true};
+    }
 
     *position = std::forward<V>(val);
     return {position, false};
@@ -539,7 +547,7 @@ template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
 flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::flat_tree(
     std::initializer_list<value_type> ilist,
     const KeyCompare& comp)
-    : flat_tree(std::begin(ilist), std::end(ilist), comp) {}
+    : flat_tree(std::ranges::begin(ilist), std::ranges::end(ilist), comp) {}
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
 template <class InputIterator>
@@ -575,7 +583,10 @@ flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::flat_tree(
     sorted_unique_t,
     std::initializer_list<value_type> ilist,
     const KeyCompare& comp)
-    : flat_tree(sorted_unique, std::begin(ilist), std::end(ilist), comp) {}
+    : flat_tree(sorted_unique,
+                std::ranges::begin(ilist),
+                std::ranges::end(ilist),
+                comp) {}
 
 // ----------------------------------------------------------------------------
 // Assignments.
@@ -647,7 +658,7 @@ auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::begin()
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
 constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::begin()
     const -> const_iterator {
-  return ranges::begin(body_);
+  return std::ranges::begin(body_);
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
@@ -664,7 +675,7 @@ auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::end() -> iterator {
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
 constexpr auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::end()
     const -> const_iterator {
-  return ranges::end(body_);
+  return std::ranges::end(body_);
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
@@ -745,23 +756,36 @@ auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::insert(
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
+template <class InputIteratorPtr>
+UNSAFE_BUFFER_USAGE void
+flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::insert(
+    InputIteratorPtr* input_begin,
+    InputIteratorPtr* input_end) {
+  // SAFETY: The caller must ensure the pointers are a valid pair.
+  auto s = UNSAFE_BUFFERS(base::span(input_begin, input_end));
+  insert(s.begin(), s.end());
+}
+
+template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
 template <class InputIterator>
+  requires(std::input_iterator<InputIterator>)
 void flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::insert(
-    InputIterator first,
-    InputIterator last) {
-  if (first == last)
+    InputIterator input_begin,
+    InputIterator input_end) {
+  if (input_begin == input_end) {
     return;
+  }
 
   // Dispatch to single element insert if the input range contains a single
   // element.
-  if (std::forward_iterator<InputIterator> && std::next(first) == last) {
-    insert(end(), *first);
+  if (std::next(input_begin) == input_end) {
+    insert(end(), *input_begin);
     return;
   }
 
   // Provide a convenience lambda to obtain an iterator pointing past the last
   // old element. This needs to be dymanic due to possible re-allocations.
-  auto middle = [this, size = size()] {
+  auto prior_end = [this, size = size()] {
     return std::next(begin(), static_cast<difference_type>(size));
   };
 
@@ -770,20 +794,29 @@ void flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::insert(
 
   // Loop over the input range while appending new values and overwriting
   // existing ones, if applicable. Keep track of the first insertion point.
-  for (; first != last; ++first) {
-    std::pair<iterator, bool> result = append_unique(begin(), middle(), *first);
-    if (result.second) {
+  for (auto it = input_begin; it != input_end; ++it) {
+    auto [inserted_at, inserted] = append_unique(begin(), prior_end(), *it);
+    if (inserted) {
       pos_first_new =
-          std::min(pos_first_new, std::distance(begin(), result.first));
+          std::min(pos_first_new, std::distance(begin(), inserted_at));
     }
   }
 
   // The new elements might be unordered and contain duplicates, so post-process
   // the just inserted elements and merge them with the rest, inserting them at
   // the previously found spot.
-  sort_and_unique(middle(), end());
-  std::inplace_merge(std::next(begin(), pos_first_new), middle(), end(),
+  sort_and_unique(prior_end(), end());
+  std::inplace_merge(std::next(begin(), pos_first_new), prior_end(), end(),
                      value_comp());
+}
+
+template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
+template <class Range>
+  requires(std::ranges::input_range<Range>)
+void flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::insert_range(
+    Range&& range) {
+  // SAFETY: A range should return a valid begin/end even if they are pointers.
+  UNSAFE_BUFFERS(insert(std::ranges::begin(range), std::ranges::end(range)));
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
@@ -956,8 +989,9 @@ auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::equal_range(
   auto lower = lower_bound(key);
 
   KeyValueCompare comp(comp_);
-  if (lower == end() || comp(key, *lower))
+  if (lower == end() || comp(key, *lower)) {
     return {lower, lower};
+  }
 
   return {lower, std::next(lower)};
 }
@@ -977,8 +1011,9 @@ auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::equal_range(
   auto lower = lower_bound(key);
 
   KeyValueCompare comp(comp_);
-  if (lower == end() || comp(key, *lower))
+  if (lower == end() || comp(key, *lower)) {
     return {lower, lower};
+  }
 
   return {lower, std::next(lower)};
 }
@@ -993,7 +1028,7 @@ template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
 auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::lower_bound(
     const Key& key) const -> const_iterator {
   KeyValueCompare comp(comp_);
-  return ranges::lower_bound(*this, key, comp);
+  return std::ranges::lower_bound(*this, key, comp);
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
@@ -1014,7 +1049,7 @@ auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::lower_bound(
   const KeyTypeOrK<K>& key_ref = key;
 
   KeyValueCompare comp(comp_);
-  return ranges::lower_bound(*this, key_ref, comp);
+  return std::ranges::lower_bound(*this, key_ref, comp);
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
@@ -1027,7 +1062,7 @@ template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
 auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::upper_bound(
     const Key& key) const -> const_iterator {
   KeyValueCompare comp(comp_);
-  return ranges::upper_bound(*this, key, comp);
+  return std::ranges::upper_bound(*this, key, comp);
 }
 
 template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
@@ -1048,7 +1083,7 @@ auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::upper_bound(
   const KeyTypeOrK<K>& key_ref = key;
 
   KeyValueCompare comp(comp_);
-  return ranges::upper_bound(*this, key_ref, comp);
+  return std::ranges::upper_bound(*this, key_ref, comp);
 }
 
 // ----------------------------------------------------------------------------
@@ -1074,8 +1109,9 @@ auto flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::emplace_key_args(
     const K& key,
     Args&&... args) -> std::pair<iterator, bool> {
   auto lower = lower_bound(key);
-  if (lower == end() || comp_(key, GetKeyFromValue()(*lower)))
+  if (lower == end() || comp_(key, GetKeyFromValue()(*lower))) {
     return {unsafe_emplace(lower, std::forward<Args>(args)...), true};
+  }
   return {lower, false};
 }
 
@@ -1114,10 +1150,10 @@ size_t EraseIf(
     base::internal::flat_tree<Key, GetKeyFromValue, KeyCompare, Container>&
         container,
     Predicate pred) {
-  auto it = ranges::remove_if(container, pred);
-  size_t removed = std::distance(it, container.end());
-  container.erase(it, container.end());
-  return removed;
+  auto removed = std::ranges::remove_if(container, pred);
+  size_t num_removed = removed.size();
+  container.erase(removed.begin(), removed.end());
+  return num_removed;
 }
 
 }  // namespace base

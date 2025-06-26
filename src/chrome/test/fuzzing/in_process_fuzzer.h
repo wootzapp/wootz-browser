@@ -26,10 +26,7 @@ struct InProcessFuzzerOptions {
   RunLoopTimeoutBehavior run_loop_timeout_behavior =
       RunLoopTimeoutBehavior::kDefault;
 
-  // Overrides the default 60s run loop timeout set by `BrowserTestBase`. See
-  // https://source.chromium.org/chromium/chromium/src/+/main:content/public/test/browser_test_base.cc?q=ScopedRunLoopTimeout.
-  // Mind that it doesn't guarantee that this will be the maximum time a fuzzing
-  // loop will take since ScopedRunLoopTimeout can be nested.
+  // Sets the timeout for the "Fuzz" method to complete.
   std::optional<base::TimeDelta> run_loop_timeout = std::nullopt;
 };
 
@@ -91,6 +88,11 @@ class InProcessFuzzer : virtual public InProcessBrowserTest {
   // prepended automatically.
   virtual base::CommandLine::StringVector GetChromiumCommandLineArguments();
 
+  // Override if (unusually) your fuzzer should use Chromium in multi-
+  // process mode. This can make results more realistic, but impedes
+  // collection of coverage from the renderer.
+  virtual bool UseSingleProcessMode();
+
  protected:
   // Callback to actually do your fuzzing. This is called from the UI thread,
   // so you should take care not to block the thread too long. If you need
@@ -114,6 +116,10 @@ class InProcessFuzzer : virtual public InProcessBrowserTest {
   // If the test case turns out not actually to be infinite, step 3 could
   // cause a UaF, so this pattern can probably be improved in future.
   void DeclareInfiniteLoop() { exit_after_fuzz_case_ = true; }
+
+  // Whether we're in corpus merging mode. Some fuzzers behave specially
+  // in this mode for efficiency reasons.
+  bool InMergeMode() const;
 
  private:
   int DoFuzz(const uint8_t* data, size_t size);

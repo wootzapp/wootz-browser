@@ -42,6 +42,9 @@ struct DMServerJobResult {
   DeviceManagementStatus dm_status =
       DeviceManagementStatus::DM_STATUS_REQUEST_INVALID;
 
+  // HTTP response codes of the DMServer.
+  int response_code = 0;
+
   // The parsed response proto received from DMServer. This could be empty
   // in case of errors.
   enterprise_management::DeviceManagementResponse response;
@@ -92,6 +95,7 @@ class POLICY_EXPORT DMServerJobConfiguration : public JobConfigurationBase {
     DMAuth auth_data = DMAuth::NoAuth();
     std::optional<std::string> profile_id = std::nullopt;
     std::optional<std::string> oauth_token = std::nullopt;
+    bool use_cookies = false;
     scoped_refptr<network::SharedURLLoaderFactory> factory;
     DMServerJobConfiguration::Callback callback;
   };

@@ -9,6 +9,8 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import static org.chromium.android_webview.test.OnlyRunIn.ProcessMode.EITHER_PROCESS;
+
 import androidx.test.filters.MediumTest;
 
 import org.hamcrest.Matchers;
@@ -36,6 +38,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 @RunWith(AwJUnit4ClassRunner.class)
 @MediumTest
+@OnlyRunIn(EITHER_PROCESS) // These tests don't use the renderer process
 @Batch(Batch.PER_CLASS)
 public class AwMetricsLogUploaderTest {
     private static final ChromeUserMetricsExtension SAMPLE_TEST_METRICS_LOG =
@@ -58,7 +61,7 @@ public class AwMetricsLogUploaderTest {
 
     @Test
     public void testSendingData_withPreBinding() throws Throwable {
-        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* waitForResults= */ true);
+        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* isAsync= */ true);
         uploader.initialize();
         int status = uploader.log(SAMPLE_TEST_METRICS_LOG.toByteArray());
         Assert.assertEquals(HttpURLConnection.HTTP_OK, status);
@@ -69,7 +72,7 @@ public class AwMetricsLogUploaderTest {
 
     @Test
     public void testSendingData_withoutPreBinding() throws Throwable {
-        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* waitForResults= */ true);
+        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* isAsync= */ true);
         int status = uploader.log(SAMPLE_TEST_METRICS_LOG.toByteArray());
         Assert.assertEquals(HttpURLConnection.HTTP_OK, status);
         ChromeUserMetricsExtension receivedLog = mPlatformServiceBridge.waitForNextMetricsLog();
@@ -89,7 +92,7 @@ public class AwMetricsLogUploaderTest {
                 mock(LinkedBlockingQueue.class);
         when(mockedResultsQueue.poll(anyLong(), any())).thenReturn(null);
 
-        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* waitForResults= */ true);
+        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* isAsync= */ true);
         int status = uploader.log(SAMPLE_TEST_METRICS_LOG.toByteArray(), mockedResultsQueue);
 
         Assert.assertEquals(HttpURLConnection.HTTP_CLIENT_TIMEOUT, status);
@@ -107,7 +110,7 @@ public class AwMetricsLogUploaderTest {
                             throw exceptionThrown;
                         });
 
-        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* waitForResults= */ true);
+        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* isAsync= */ true);
         int status = uploader.log(SAMPLE_TEST_METRICS_LOG.toByteArray(), mockedResultsQueue);
 
         Assert.assertEquals(expectedStatus, status);
@@ -120,14 +123,14 @@ public class AwMetricsLogUploaderTest {
         // We should still get a success code since this code is not waiting for this.
         mPlatformServiceBridge.setLogMetricsBlockingStatus(1);
 
-        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* waitForResults= */ false);
+        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* isAsync= */ false);
         int status = uploader.log(SAMPLE_TEST_METRICS_LOG.toByteArray());
         Assert.assertEquals(HttpURLConnection.HTTP_OK, status);
     }
 
     @Test
     public void testSendingMultipleLogs() throws Throwable {
-        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* waitForResults= */ true);
+        AwMetricsLogUploader uploader = new AwMetricsLogUploader(/* isAsync= */ true);
         uploader.initialize();
 
         final int numberOfLogs = 5;

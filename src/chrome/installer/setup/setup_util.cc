@@ -4,6 +4,11 @@
 //
 // This file declares util functions for setup project.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chrome/installer/setup/setup_util.h"
 
 #include <objbase.h>
@@ -13,6 +18,7 @@
 #include <stddef.h>
 #include <wtsapi32.h>
 
+#include <algorithm>
 #include <initializer_list>
 #include <iterator>
 #include <limits>
@@ -33,7 +39,6 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/version.h"
@@ -59,10 +64,6 @@
 #include "chrome/installer/util/util_constants.h"
 #include "chrome/installer/util/work_item.h"
 #include "chrome/installer/util/work_item_list.h"
-#include "components/zucchini/zucchini.h"
-#include "components/zucchini/zucchini_integration.h"
-#include "courgette/courgette.h"
-#include "courgette/third_party/bsdiff/bsdiff.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 
 namespace installer {
@@ -136,74 +137,6 @@ void RemoveLegacyChromeAppCommands(const InstallerState& installer_state) {
 }  // namespace
 
 const char kUnPackStatusMetricsName[] = "Setup.Install.LzmaUnPackStatus";
-
-int CourgettePatchFiles(const base::FilePath& src,
-                        const base::FilePath& patch,
-                        const base::FilePath& dest) {
-  VLOG(1) << "Applying Courgette patch " << patch.value() << " to file "
-          << src.value() << " and generating file " << dest.value();
-
-  if (src.empty() || patch.empty() || dest.empty())
-    return installer::PATCH_INVALID_ARGUMENTS;
-
-  const courgette::Status patch_status = courgette::ApplyEnsemblePatch(
-      src.value().c_str(), patch.value().c_str(), dest.value().c_str());
-  const int exit_code =
-      (patch_status != courgette::C_OK)
-          ? static_cast<int>(patch_status) + kCourgetteErrorOffset
-          : 0;
-
-  LOG_IF(ERROR, exit_code) << "Failed to apply Courgette patch "
-                           << patch.value() << " to file " << src.value()
-                           << " and generating file " << dest.value()
-                           << ". err=" << exit_code;
-
-  return exit_code;
-}
-
-int BsdiffPatchFiles(const base::FilePath& src,
-                     const base::FilePath& patch,
-                     const base::FilePath& dest) {
-  VLOG(1) << "Applying bsdiff patch " << patch.value() << " to file "
-          << src.value() << " and generating file " << dest.value();
-
-  if (src.empty() || patch.empty() || dest.empty())
-    return installer::PATCH_INVALID_ARGUMENTS;
-
-  const int patch_status = bsdiff::ApplyBinaryPatch(src, patch, dest);
-  const int exit_code =
-      patch_status != bsdiff::OK ? patch_status + kBsdiffErrorOffset : 0;
-
-  LOG_IF(ERROR, exit_code) << "Failed to apply bsdiff patch " << patch.value()
-                           << " to file " << src.value()
-                           << " and generating file " << dest.value()
-                           << ". err=" << exit_code;
-
-  return exit_code;
-}
-
-int ZucchiniPatchFiles(const base::FilePath& src,
-                       const base::FilePath& patch,
-                       const base::FilePath& dest) {
-  VLOG(1) << "Applying Zucchini patch " << patch.value() << " to file "
-          << src.value() << " and generating file " << dest.value();
-
-  if (src.empty() || patch.empty() || dest.empty())
-    return installer::PATCH_INVALID_ARGUMENTS;
-
-  const zucchini::status::Code patch_status = zucchini::Apply(src, patch, dest);
-  const int exit_code =
-      (patch_status != zucchini::status::kStatusSuccess)
-          ? static_cast<int>(patch_status) + kZucchiniErrorOffset
-          : 0;
-
-  LOG_IF(ERROR, exit_code) << "Failed to apply Zucchini patch " << patch.value()
-                           << " to file " << src.value()
-                           << " and generating file " << dest.value()
-                           << ". err=" << exit_code;
-
-  return exit_code;
-}
 
 base::Version* GetMaxVersionFromArchiveDir(const base::FilePath& chrome_path) {
   VLOG(1) << "Looking for Chrome version folder under " << chrome_path.value();
@@ -303,8 +236,7 @@ bool DeleteFileFromTempProcess(const base::FilePath& path,
       PAPCFUNC exit_process =
           reinterpret_cast<PAPCFUNC>(::GetProcAddress(kernel32, "ExitProcess"));
       if (!sleep || !delete_file || !exit_process) {
-        NOTREACHED_IN_MIGRATION();
-        ok = FALSE;
+        NOTREACHED();
       } else {
         ::QueueUserAPC(sleep, pi.hThread, delay_before_delete_ms);
         ::QueueUserAPC(delete_file, pi.hThread,
@@ -390,7 +322,7 @@ void DeleteRegistryKeyPartial(
     const std::vector<std::wstring>& keys_to_preserve) {
   // Downcase the list of keys to preserve (all must be ASCII strings).
   std::set<std::wstring> lowered_keys_to_preserve;
-  base::ranges::transform(
+  std::ranges::transform(
       keys_to_preserve,
       std::inserter(lowered_keys_to_preserve, lowered_keys_to_preserve.begin()),
       [](const std::wstring& str) {
@@ -813,6 +745,12 @@ base::FilePath GetElevationServicePath(const base::FilePath& target_path,
                                        const base::Version& version) {
   return target_path.AppendASCII(version.GetString())
       .Append(kElevationServiceExe);
+}
+
+base::FilePath GetTracingServicePath(const base::FilePath& target_path,
+                                     const base::Version& version) {
+  return target_path.AppendASCII(version.GetString())
+      .Append(kElevatedTracingServiceExe);
 }
 
 void AddUpdateDowngradeVersionItem(HKEY root,

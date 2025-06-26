@@ -26,8 +26,10 @@
 #include "ui/gfx/color_palette.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/favicon_size.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/border.h"
+#include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/layout/box_layout.h"
@@ -76,7 +78,7 @@ class ColorPickerElementView : public views::Button {
         color_name_(color_name) {
     DCHECK(selected_callback_);
 
-    SetAccessibleName(color_name);
+    GetViewAccessibility().SetName(color_name);
     SetInstallFocusRingOnFocus(true);
     views::HighlightPathGenerator::Install(
         this, std::make_unique<ColorPickerHighlightPathGenerator>());
@@ -95,6 +97,12 @@ class ColorPickerElementView : public views::Button {
 
     views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::OFF);
     SetAnimateOnStateChange(true);
+    GetViewAccessibility().SetRole(ax::mojom::Role::kRadioButton);
+    GetViewAccessibility().SetCheckedState(
+        selected_ ? ax::mojom::CheckedState::kTrue
+                  : ax::mojom::CheckedState::kFalse);
+
+    UpdateCachedTooltipText();
   }
 
   ~ColorPickerElementView() override = default;
@@ -104,12 +112,20 @@ class ColorPickerElementView : public views::Button {
       return;
     }
     selected_ = selected;
+    UpdateAccessibleCheckedState();
     SchedulePaint();
   }
 
   bool GetSelected() const { return selected_; }
 
   // views::Button:
+
+  void UpdateAccessibleCheckedState() override {
+    GetViewAccessibility().SetCheckedState(
+        selected_ ? ax::mojom::CheckedState::kTrue
+                  : ax::mojom::CheckedState::kFalse);
+  }
+
   bool IsGroupFocusTraversable() const override {
     // Tab should only focus the selected element.
     return false;
@@ -120,16 +136,7 @@ class ColorPickerElementView : public views::Button {
     return parent()->GetSelectedViewForGroup(group);
   }
 
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override {
-    views::Button::GetAccessibleNodeData(node_data);
-    node_data->role = ax::mojom::Role::kRadioButton;
-    node_data->SetCheckedState(GetSelected() ? ax::mojom::CheckedState::kTrue
-                                             : ax::mojom::CheckedState::kFalse);
-  }
-
-  std::u16string GetTooltipText(const gfx::Point& p) const override {
-    return color_name_;
-  }
+  void UpdateCachedTooltipText() { SetTooltipText(color_name_); }
 
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override {
@@ -143,8 +150,6 @@ class ColorPickerElementView : public views::Button {
     size.Enlarge(insets.width(), insets.height());
     return size;
   }
-
-  int GetHeightForWidth(int width) const override { return width; }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {
     // Paint a colored circle surrounded by a bit of empty space.
@@ -166,6 +171,7 @@ class ColorPickerElementView : public views::Button {
   }
 
  private:
+  FRIEND_TEST_ALL_PREFIXES(ColorPickerViewTest, TooltipText);
   // Paints a ring in our color circle to indicate selection or mouse hover.
   // Does nothing if not selected or hovered.
   void PaintSelectionIndicator(gfx::Canvas* canvas) {
@@ -180,7 +186,8 @@ class ColorPickerElementView : public views::Button {
     flags.setStyle(cc::PaintFlags::kStroke_Style);
     flags.setStrokeWidth(kThickness);
     flags.setAntiAlias(true);
-    flags.setColor(bubble_view_->color());
+    flags.setColor(bubble_view_->background_color().ResolveToSkColor(
+        bubble_view_->GetColorProvider()));
 
     gfx::RectF indicator_bounds(GetContentsBounds());
     indicator_bounds.Inset(gfx::InsetsF(kInset));
@@ -192,7 +199,7 @@ class ColorPickerElementView : public views::Button {
   void ButtonPressed() {
     // Pressing this a second time shouldn't do anything.
     if (!selected_) {
-      selected_ = true;
+      SetSelected(true);
       SchedulePaint();
       selected_callback_.Run(this);
     }
@@ -249,12 +256,9 @@ ColorPickerView::ColorPickerView(
 
   auto* layout = SetLayoutManager(std::make_unique<views::FlexLayout>());
   layout->SetOrientation(views::LayoutOrientation::kHorizontal)
-      .SetDefault(
-          views::kFlexBehaviorKey,
-          views::FlexSpecification(views::MinimumFlexSizeRule::kPreferred,
-                                   views::MaximumFlexSizeRule::kUnbounded)
-              .WithAlignment(views::LayoutAlignment::kCenter)
-              .WithWeight(1));
+      .SetDefault(views::kFlexBehaviorKey,
+                  views::FlexSpecification().WithAlignment(
+                      views::LayoutAlignment::kCenter));
 }
 
 ColorPickerView::~ColorPickerView() = default;

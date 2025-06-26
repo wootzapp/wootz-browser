@@ -5,6 +5,7 @@
 #include "components/embedder_support/android/util/android_stream_reader_url_loader.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -29,7 +30,9 @@
 #include "net/http/http_util.h"
 #include "services/network/public/cpp/cors/cors.h"
 #include "services/network/public/cpp/features.h"
+#include "services/network/public/cpp/loading_params.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
+#include "services/network/public/mojom/cookie_manager.mojom.h"
 
 namespace embedder_support {
 
@@ -127,7 +130,7 @@ class InputStreamReaderWrapper
 
  private:
   friend class base::RefCountedThreadSafe<InputStreamReaderWrapper>;
-  ~InputStreamReaderWrapper() {}
+  ~InputStreamReaderWrapper() = default;
 
   std::unique_ptr<InputStream> input_stream_;
   std::unique_ptr<InputStreamReader> input_stream_reader_;
@@ -143,7 +146,8 @@ AndroidStreamReaderURLLoader::AndroidStreamReaderURLLoader(
     mojo::PendingRemote<network::mojom::URLLoaderClient> client,
     const net::MutableNetworkTrafficAnnotationTag& traffic_annotation,
     std::unique_ptr<ResponseDelegate> response_delegate,
-    std::optional<SecurityOptions> security_options)
+    std::optional<SecurityOptions> security_options,
+    std::optional<SetCookieHeader> set_cookie_header)
     : resource_request_(CopyResourceRequest(resource_request)),
       response_head_(network::mojom::URLResponseHead::New()),
       reject_cors_request_(false),
@@ -153,7 +157,8 @@ AndroidStreamReaderURLLoader::AndroidStreamReaderURLLoader(
       writable_handle_watcher_(FROM_HERE,
                                mojo::SimpleWatcher::ArmingPolicy::MANUAL,
                                base::SequencedTaskRunner::GetCurrentDefault()),
-      start_time_(base::Time::Now()) {
+      start_time_(base::Time::Now()),
+      set_cookie_header_(set_cookie_header) {
   DCHECK(response_delegate_);
   // If there is a client error, clean up the request.
   client_.set_disconnect_handler(
@@ -175,7 +180,7 @@ AndroidStreamReaderURLLoader::AndroidStreamReaderURLLoader(
       resource_request_.mode, is_request_considered_same_origin);
 }
 
-AndroidStreamReaderURLLoader::~AndroidStreamReaderURLLoader() {}
+AndroidStreamReaderURLLoader::~AndroidStreamReaderURLLoader() = default;
 
 void AndroidStreamReaderURLLoader::FollowRedirect(
     const std::vector<std::string>& removed_headers,
@@ -184,8 +189,6 @@ void AndroidStreamReaderURLLoader::FollowRedirect(
     const std::optional<GURL>& new_url) {}
 void AndroidStreamReaderURLLoader::SetPriority(net::RequestPriority priority,
                                                int intra_priority_value) {}
-void AndroidStreamReaderURLLoader::PauseReadingBodyFromNet() {}
-void AndroidStreamReaderURLLoader::ResumeReadingBodyFromNet() {}
 
 void AndroidStreamReaderURLLoader::Start(
     std::unique_ptr<InputStream> input_stream) {
@@ -264,21 +267,12 @@ void AndroidStreamReaderURLLoader::OnInputStreamOpened(
   input_stream_reader_wrapper_ = base::MakeRefCounted<InputStreamReaderWrapper>(
       std::move(input_stream), std::move(input_stream_reader));
 
-  if (base::FeatureList::IsEnabled(features::kInputStreamOptimizations) &&
-      !byte_range_.IsValid()) {
-    // If the byte range is invalid, this means there was no range header and
-    // the whole response is wanted. In this case, no blocking calls are made to
-    // the underlying input stream, so it should be safe to do this without
-    // posting to a background thread.
-    OnReaderSeekCompleted(input_stream_reader_wrapper_->Seek(byte_range_));
-  } else {
-    base::ThreadPool::PostTaskAndReplyWithResult(
-        FROM_HERE, {base::MayBlock()},
-        base::BindOnce(&InputStreamReaderWrapper::Seek,
-                       input_stream_reader_wrapper_, byte_range_),
-        base::BindOnce(&AndroidStreamReaderURLLoader::OnReaderSeekCompleted,
-                       weak_factory_.GetWeakPtr()));
-  }
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock()},
+      base::BindOnce(&InputStreamReaderWrapper::Seek,
+                     input_stream_reader_wrapper_, byte_range_),
+      base::BindOnce(&AndroidStreamReaderURLLoader::OnReaderSeekCompleted,
+                     weak_factory_.GetWeakPtr()));
 }
 
 void AndroidStreamReaderURLLoader::OnReaderSeekCompleted(int result) {
@@ -348,9 +342,8 @@ void AndroidStreamReaderURLLoader::SendBody() {
   options.struct_size = sizeof(MojoCreateDataPipeOptions);
   options.flags = MOJO_CREATE_DATA_PIPE_FLAG_NONE;
   options.element_num_bytes = 1;
-  options.capacity_num_bytes =
-      network::features::GetDataPipeDefaultAllocationSize(
-          network::features::DataPipeAllocationSize::kLargerSizeIfPossible);
+  options.capacity_num_bytes = network::GetDataPipeDefaultAllocationSize(
+      network::DataPipeAllocationSize::kLargerSizeIfPossible);
   if (CreateDataPipe(&options, producer_handle_, consumer_handle_) !=
       MOJO_RESULT_OK) {
     RequestComplete(net::ERR_FAILED);
@@ -375,9 +368,34 @@ void AndroidStreamReaderURLLoader::SendBody() {
   ReadMore();
 }
 
+void AndroidStreamReaderURLLoader::SetCookies() {
+  if (!set_cookie_header_.has_value()) {
+    return;
+  }
+
+  const std::string_view kSetCookieHeader("Set-Cookie");
+
+  if (response_head_->headers->HasHeader(kSetCookieHeader)) {
+    std::optional<base::Time> server_time =
+        response_head_->headers->GetDateValue();
+
+    size_t iter = 0;
+
+    while (
+        std::optional<std::string_view> cookie_string =
+            response_head_->headers->EnumerateHeader(&iter, kSetCookieHeader)) {
+      // TODO(crbug.com/378650092): This std::move() is incorrect. It's unclear
+      // what the intention of the code is, but this should be fixed.
+      std::move(set_cookie_header_)
+          ->Run(resource_request_, *cookie_string, server_time);
+    }
+  }
+}
+
 void AndroidStreamReaderURLLoader::SendResponseToClient() {
   DCHECK(consumer_handle_.is_valid());
   DCHECK(client_.is_bound());
+  SetCookies();
   cache_response_ =
       response_delegate_->ShouldCacheResponse(response_head_.get());
   client_->OnReceiveResponse(std::move(response_head_),
@@ -536,12 +554,13 @@ bool AndroidStreamReaderURLLoader::ParseRange(
     const net::HttpRequestHeaders& headers) {
   DCHECK(thread_checker_.CalledOnValidThread());
 
-  std::string range_header;
-  if (headers.GetHeader(net::HttpRequestHeaders::kRange, &range_header)) {
+  std::optional<std::string> range_header =
+      headers.GetHeader(net::HttpRequestHeaders::kRange);
+  if (range_header) {
     // This loader only cares about the Range header so that we know how many
     // bytes in the stream to skip and how many to read after that.
     std::vector<net::HttpByteRange> ranges;
-    if (net::HttpUtil::ParseRangeHeader(range_header, &ranges)) {
+    if (net::HttpUtil::ParseRangeHeader(*range_header, &ranges)) {
       // In case of multi-range request only use the first range.
       // We don't support multirange requests.
       if (ranges.size() == 1)

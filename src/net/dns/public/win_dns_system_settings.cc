@@ -8,17 +8,16 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
-#include <optional>
 #include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/free_deleter.h"
 #include "base/sequence_checker.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -141,7 +140,7 @@ ReadAdapterDnsAddresses() {
   for (unsigned tries = 0; (tries < 3) && (rv == ERROR_BUFFER_OVERFLOW);
        tries++) {
     out.reset(static_cast<PIP_ADAPTER_ADDRESSES>(malloc(len)));
-    memset(out.get(), 0, len);
+    UNSAFE_TODO(memset(out.get(), 0, len));
     rv = GetAdaptersAddresses(AF_UNSPEC,
                               GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_UNICAST |
                               GAA_FLAG_SKIP_MULTICAST |

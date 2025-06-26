@@ -11,6 +11,7 @@
 #include "base/files/file_path.h"
 #include "third_party/skia/include/core/SkSurfaceProps.h"
 #include "third_party/skia/include/core/SkTypes.h"
+#include "ui/base/ui_base_features.h"
 #include "ui/gfx/win/direct_write.h"
 
 namespace gfx {

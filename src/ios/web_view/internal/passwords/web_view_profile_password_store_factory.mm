@@ -60,7 +60,8 @@ WebViewProfilePasswordStoreFactory::BuildServiceInstanceFor(
     web::BrowserState* context) const {
   std::unique_ptr<password_manager::LoginDatabase> login_db(
       password_manager::CreateLoginDatabaseForProfileStorage(
-          context->GetStatePath()));
+          context->GetStatePath(),
+          WebViewBrowserState::FromBrowserState(context)->GetPrefs()));
 
   scoped_refptr<base::SequencedTaskRunner> main_task_runner(
       base::SequencedTaskRunner::GetCurrentDefault());
@@ -76,7 +77,8 @@ WebViewProfilePasswordStoreFactory::BuildServiceInstanceFor(
           std::make_unique<password_manager::PasswordStoreBuiltInBackend>(
               std::move(login_db),
               syncer::WipeModelUponSyncDisabledBehavior::kNever,
-              WebViewBrowserState::FromBrowserState(context)->GetPrefs()));
+              WebViewBrowserState::FromBrowserState(context)->GetPrefs(),
+              ApplicationContext::GetInstance()->GetOSCryptAsync()));
   store->Init(/*prefs=*/nullptr, /*affiliated_match_helper=*/nullptr);
   return store;
 }

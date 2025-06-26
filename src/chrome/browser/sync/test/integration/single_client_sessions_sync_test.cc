@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "base/base64.h"
+#include "base/containers/to_vector.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
@@ -42,6 +43,7 @@
 #include "components/sync/protocol/session_specifics.pb.h"
 #include "components/sync/protocol/sync.pb.h"
 #include "components/sync/protocol/sync_entity.pb.h"
+#include "components/sync/service/glue/sync_transport_data_prefs.h"
 #include "components/sync/test/sessions_hierarchy.h"
 #include "components/sync_sessions/session_store.h"
 #include "components/sync_sessions/session_sync_service.h"
@@ -61,7 +63,6 @@ using fake_server::SessionsHierarchy;
 using history_helper::GetUrlFromClient;
 using sessions_helper::CheckInitialState;
 using sessions_helper::CloseTab;
-using sessions_helper::ExecJs;
 using sessions_helper::GetLocalWindows;
 using sessions_helper::GetSessionData;
 using sessions_helper::MoveTab;
@@ -71,12 +72,17 @@ using sessions_helper::NavigateTabForward;
 using sessions_helper::OpenTab;
 using sessions_helper::OpenTabAtIndex;
 using sessions_helper::ScopedWindowMap;
+using sessions_helper::SessionEntitiesChecker;
 using sessions_helper::SyncedSessionVector;
 using sessions_helper::WaitForTabsToLoad;
 using sessions_helper::WindowsMatch;
 using sync_sessions::SessionSyncTestHelper;
-using testing::IsEmpty;
+using testing::_;
 using testing::UnorderedElementsAre;
+
+MATCHER_P(SessionHeader, session_tag, "") {
+  return arg.has_header() && arg.session_tag() == session_tag;
+}
 
 static const char* kBaseFragmentURL =
     "data:text/html,<html><title>Fragment</title><body></body></html>";
@@ -99,26 +105,6 @@ std::unique_ptr<net::test_server::HttpResponse> FaviconServerRequestHandler(
   return std::move(http_response);
 }
 
-class IsHistoryURLSyncedChecker : public SingleClientStatusChangeChecker {
- public:
-  IsHistoryURLSyncedChecker(const std::string& url,
-                            fake_server::FakeServer* fake_server,
-                            syncer::SyncServiceImpl* service)
-      : SingleClientStatusChangeChecker(service),
-        url_(url),
-        fake_server_(fake_server) {}
-
-  // StatusChangeChecker implementation.
-  bool IsExitConditionSatisfied(std::ostream* os) override {
-    *os << "Waiting for URLs to be commited to the server";
-    return fake_server_->GetCommittedHistoryURLs().count(url_) != 0;
-  }
-
- private:
-  const std::string url_;
-  const raw_ptr<fake_server::FakeServer> fake_server_;
-};
-
 class IsIconURLSyncedChecker : public SingleClientStatusChangeChecker {
  public:
   IsIconURLSyncedChecker(const std::string& page_url,
@@ -134,7 +120,7 @@ class IsIconURLSyncedChecker : public SingleClientStatusChangeChecker {
   bool IsExitConditionSatisfied(std::ostream* os) override {
     *os << "Waiting for URLs to be commited to the server";
     std::vector<sync_pb::SyncEntity> sessions =
-        fake_server_->GetSyncEntitiesByModelType(syncer::SESSIONS);
+        fake_server_->GetSyncEntitiesByDataType(syncer::SESSIONS);
     for (const sync_pb::SyncEntity& entity : sessions) {
       const sync_pb::SessionSpecifics& session_specifics =
           entity.specifics().session();
@@ -250,8 +236,7 @@ class SingleClientSessionsSyncTest : public SyncTest {
   }
 
   // Block until the expected hierarchy is recorded on the FakeServer for
-  // profile 0. This will time out if the hierarchy is never
-  // recorded.
+  // profile 0. This will time out if the hierarchy is never recorded.
   void WaitForHierarchyOnServer(
       const fake_server::SessionsHierarchy& hierarchy) {
     SessionHierarchyMatchChecker checker(hierarchy, GetSyncService(0),
@@ -270,18 +255,20 @@ class SingleClientSessionsSyncTest : public SyncTest {
   // SyncServiceImpl and waits for change to propagate to sync engine.
   void UpdateCookieJarAccountsAndWait(std::vector<CoreAccountInfo> accounts,
                                       bool expected_cookie_jar_mismatch) {
-    signin::AccountsInCookieJarInfo cookies;
-    cookies.accounts_are_fresh = true;
-    for (const CoreAccountInfo& account : accounts) {
-      cookies.signed_in_accounts.emplace_back();
-      cookies.signed_in_accounts.back().id = account.account_id;
-      cookies.signed_in_accounts.back().gaia_id = account.gaia;
-      cookies.signed_in_accounts.back().email = account.email;
-    }
+    std::vector<gaia::ListedAccount> signed_in_accounts =
+        base::ToVector(accounts, [](const CoreAccountInfo& account) {
+          gaia::ListedAccount listed_account;
+          listed_account.id = account.account_id;
+          listed_account.gaia_id = account.gaia;
+          listed_account.email = account.email;
+          return listed_account;
+        });
+    signin::AccountsInCookieJarInfo cookies(/*accounts_are_fresh=*/true,
+                                            signed_in_accounts);
     base::RunLoop run_loop;
     EXPECT_EQ(expected_cookie_jar_mismatch,
               GetClient(0)->service()->HasCookieJarMismatch(
-                  cookies.signed_in_accounts));
+                  cookies.GetPotentiallyInvalidSignedInAccounts()));
     GetClient(0)->service()->OnAccountsInCookieUpdatedWithCallback(
         cookies, run_loop.QuitClosure());
     run_loop.Run();
@@ -296,7 +283,7 @@ class SingleClientSessionsSyncTest : public SyncTest {
 };
 
 IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest,
-                       RequireProxyTabsForUiDelegate) {
+                       RequireUserSelectableTypeTabsForUiDelegate) {
   ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
   ASSERT_TRUE(CheckInitialState(0));
 
@@ -318,24 +305,129 @@ IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest, Sanity) {
   ScopedWindowMap old_windows;
   GURL url = embedded_test_server()->GetURL("/sync/simple.html");
   ASSERT_TRUE(OpenTab(0, url));
-  ASSERT_TRUE(GetLocalWindows(0, &old_windows));
-  ASSERT_TRUE(UpdatedProgressMarkerChecker(GetSyncService(0)).Wait());
+  EXPECT_TRUE(GetLocalWindows(0, &old_windows));
+  EXPECT_TRUE(UpdatedProgressMarkerChecker(GetSyncService(0)).Wait());
 
   // Get foreign session data from client 0.
   SyncedSessionVector sessions;
-  ASSERT_FALSE(GetSessionData(0, &sessions));
-  ASSERT_EQ(0U, sessions.size());
+  EXPECT_FALSE(GetSessionData(0, &sessions));
+  EXPECT_EQ(0U, sessions.size());
 
   // Verify client didn't change.
   ScopedWindowMap new_windows;
   ASSERT_TRUE(GetLocalWindows(0, &new_windows));
-  ASSERT_TRUE(WindowsMatch(old_windows, new_windows));
+  EXPECT_TRUE(WindowsMatch(old_windows, new_windows));
+
+  WaitForURLOnServer(url);
+}
+
+IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest, PRE_SessionStartTime) {
+  const base::Time initial_time = base::Time::Now();
+  ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
+
+  ASSERT_TRUE(CheckInitialState(0));
+
+  // Add a tab and wait for it to sync.
+  GURL url =
+      embedded_test_server()->GetURL("www.host1.com", "/sync/simple.html");
+  ASSERT_TRUE(OpenTab(0, url));
+  EXPECT_TRUE(UpdatedProgressMarkerChecker(GetSyncService(0)).Wait());
 
   WaitForURLOnServer(url);
 
-  EXPECT_THAT(GetFakeServer()->GetCommittedHistoryURLs(),
-              UnorderedElementsAre(url.spec()));
+  // Ensure the session start time was properly populated in the header.
+  std::vector<sync_pb::SyncEntity> entities =
+      fake_server_->GetSyncEntitiesByDataType(syncer::SESSIONS);
+  EXPECT_EQ(entities.size(), 2u);
+  bool found_header = false;
+  for (const sync_pb::SyncEntity& entity : entities) {
+    const sync_pb::SessionSpecifics session = entity.specifics().session();
+    if (session.has_header()) {
+      found_header = true;
+      EXPECT_TRUE(session.header().has_session_start_time_unix_epoch_millis());
+      EXPECT_GE(base::Time::FromMillisecondsSinceUnixEpoch(
+                    session.header().session_start_time_unix_epoch_millis()),
+                initial_time);
+    }
+  }
+  EXPECT_TRUE(found_header);
 }
+
+IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest, SessionStartTime) {
+  const base::Time initial_time = base::Time::Now();
+  ASSERT_TRUE(SetupClients()) << "SetupSync() failed.";
+
+  // Open another tab and wait for it to sync, just to ensure everything's up
+  // to date.
+  GURL url =
+      embedded_test_server()->GetURL("www.host2.com", "/sync/simple.html");
+  ASSERT_TRUE(OpenTab(0, url));
+  EXPECT_TRUE(UpdatedProgressMarkerChecker(GetSyncService(0)).Wait());
+
+  WaitForURLOnServer(url);
+
+  // Ensure the session start time in the header was *not* updated.
+  std::vector<sync_pb::SyncEntity> entities =
+      fake_server_->GetSyncEntitiesByDataType(syncer::SESSIONS);
+  EXPECT_EQ(entities.size(), 2u);
+  bool found_header = false;
+  for (const sync_pb::SyncEntity& entity : entities) {
+    const sync_pb::SessionSpecifics session = entity.specifics().session();
+    if (session.has_header()) {
+      found_header = true;
+      EXPECT_TRUE(session.header().has_session_start_time_unix_epoch_millis());
+      // `initial_time` is after the browser restart, so the session start time
+      // should be before that.
+      EXPECT_LT(base::Time::FromMillisecondsSinceUnixEpoch(
+                    session.header().session_start_time_unix_epoch_millis()),
+                initial_time);
+    }
+  }
+  EXPECT_TRUE(found_header);
+}
+
+#if !BUILDFLAG(IS_CHROMEOS)
+// Regression test for crbug.com/361256057.
+IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest, UpdateSessionTag) {
+  ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
+
+  ASSERT_TRUE(CheckInitialState(0));
+
+  std::string first_cache_guid;
+  {
+    syncer::SyncTransportDataPrefs prefs(
+        GetProfile(0)->GetPrefs(),
+        GetClient(0)->GetGaiaIdHashForPrimaryAccount());
+    first_cache_guid = prefs.GetCacheGuid();
+  }
+
+  // Note: The only tab that exists is an NTP, which is not interesting and thus
+  // not uploaded. So the only SESSIONS entity on the server is now a header.
+  ASSERT_TRUE(SessionEntitiesChecker(
+                  UnorderedElementsAre(SessionHeader(first_cache_guid)))
+                  .Wait());
+
+  // Disable Sync, then turn it on again with a different account.
+  GetClient(0)->SignOutPrimaryAccount();
+  GetClient(0)->SetUsernameForFutureSignins("account2@gmail.com");
+  ASSERT_TRUE(GetClient(0)->SetupSync());
+
+  std::string second_cache_guid;
+  {
+    syncer::SyncTransportDataPrefs prefs(
+        GetProfile(0)->GetPrefs(),
+        GetClient(0)->GetGaiaIdHashForPrimaryAccount());
+    second_cache_guid = prefs.GetCacheGuid();
+  }
+  ASSERT_NE(first_cache_guid, second_cache_guid);
+
+  // Ensure that a session header with the new cache GUID was uploaded.
+  EXPECT_TRUE(SessionEntitiesChecker(
+                  UnorderedElementsAre(SessionHeader(first_cache_guid),
+                                       SessionHeader(second_cache_guid)))
+                  .Wait());
+}
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest, NavigateInTab) {
   ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
@@ -351,9 +443,6 @@ IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest, NavigateInTab) {
 
   NavigateTab(0, url2);
   WaitForHierarchyOnServer(SessionsHierarchy({{url2.spec()}}));
-
-  EXPECT_THAT(GetFakeServer()->GetCommittedHistoryURLs(),
-              UnorderedElementsAre(url1.spec(), url2.spec()));
 }
 
 IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest,
@@ -376,87 +465,12 @@ IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest,
 
   NavigateTab(0, url2);
   WaitForHierarchyOnServer(SessionsHierarchy({{url2.spec()}}));
-
-  EXPECT_THAT(GetFakeServer()->GetCommittedHistoryURLs(), IsEmpty());
 }
 
 IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest, NoSessions) {
   ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
 
   WaitForHierarchyOnServer(SessionsHierarchy());
-}
-
-IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest, NavigateThenCloseTab) {
-  ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
-  ASSERT_TRUE(CheckInitialState(0));
-
-  GURL url1 =
-      embedded_test_server()->GetURL("www.host1.com", "/sync/simple.html");
-  GURL url2 =
-      embedded_test_server()->GetURL("www.host2.com", "/sync/simple.html");
-  GURL url3 =
-      embedded_test_server()->GetURL("www.host3.com", "/sync/simple.html");
-  GURL url4 =
-      embedded_test_server()->GetURL("www.host4.com", "/sync/simple.html");
-
-  // Two tabs are opened initially.
-  ASSERT_TRUE(OpenTab(0, url1));
-  ASSERT_TRUE(OpenTab(0, url2));
-  WaitForHierarchyOnServer(SessionsHierarchy({{url1.spec(), url2.spec()}}));
-
-  // Close one of the two tabs immediately after issuing an navigation. We also
-  // issue another navigation to make sure association logic kicks in.
-  NavigateTab(0, url3);
-  ASSERT_TRUE(WaitForTabsToLoad(0, {url1, url3}));
-  CloseTab(/*browser_index=*/0, /*tab_index=*/1);
-  NavigateTab(0, url4);
-
-  ASSERT_TRUE(
-      IsHistoryURLSyncedChecker(url4.spec(), GetFakeServer(), GetSyncService(0))
-          .Wait());
-
-  // All URLs should be synced, for synced history to be complete. In
-  // particular, |url3| should be synced despite the tab being closed.
-  EXPECT_TRUE(
-      IsHistoryURLSyncedChecker(url3.spec(), GetFakeServer(), GetSyncService(0))
-          .Wait());
-}
-
-IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest,
-                       NavigateThenCloseTabThenOpenTab) {
-  ASSERT_TRUE(SetupSync()) << "SetupSync() failed.";
-  ASSERT_TRUE(CheckInitialState(0));
-
-  GURL url1 =
-      embedded_test_server()->GetURL("www.host1.com", "/sync/simple.html");
-  GURL url2 =
-      embedded_test_server()->GetURL("www.host2.com", "/sync/simple.html");
-  GURL url3 =
-      embedded_test_server()->GetURL("www.host3.com", "/sync/simple.html");
-  GURL url4 =
-      embedded_test_server()->GetURL("www.host4.com", "/sync/simple.html");
-
-  // Two tabs are opened initially.
-  ASSERT_TRUE(OpenTab(0, url1));
-  ASSERT_TRUE(OpenTab(0, url2));
-  WaitForHierarchyOnServer(SessionsHierarchy({{url1.spec(), url2.spec()}}));
-
-  // Close one of the two tabs immediately after issuing an navigation. In
-  // addition, a new tab is opened.
-  NavigateTab(0, url3);
-  ASSERT_TRUE(WaitForTabsToLoad(0, {url1, url3}));
-  CloseTab(/*browser_index=*/0, /*tab_index=*/1);
-  ASSERT_TRUE(OpenTab(0, url4));
-
-  ASSERT_TRUE(
-      IsHistoryURLSyncedChecker(url4.spec(), GetFakeServer(), GetSyncService(0))
-          .Wait());
-
-  // All URLs should be synced, for synced history to be complete. In
-  // particular, |url3| should be synced despite the tab being closed.
-  EXPECT_TRUE(
-      IsHistoryURLSyncedChecker(url3.spec(), GetFakeServer(), GetSyncService(0))
-          .Wait());
 }
 
 IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest, TimestampMatchesHistory) {
@@ -667,14 +681,14 @@ IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest,
   WaitForHierarchyOnServer(SessionsHierarchy());
 
   std::vector<sync_pb::SyncEntity> entities =
-      fake_server_->GetSyncEntitiesByModelType(syncer::SESSIONS);
+      fake_server_->GetSyncEntitiesByDataType(syncer::SESSIONS);
   for (const sync_pb::SyncEntity& entity : entities) {
     EXPECT_NE(kForeignSessionTag, entity.specifics().session().session_tag());
   }
 
   EXPECT_EQ(3, histogram_tester.GetBucketCount(
-                   "Sync.ModelTypeEntityChange3.SESSION",
-                   syncer::ModelTypeEntityChange::kLocalDeletion));
+                   "Sync.DataTypeEntityChange.SESSION",
+                   syncer::DataTypeEntityChange::kLocalDeletion));
 }
 
 IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest,
@@ -713,14 +727,14 @@ IN_PROC_BROWSER_TEST_F(SingleClientSessionsSyncTest,
   WaitForHierarchyOnServer(SessionsHierarchy());
 
   std::vector<sync_pb::SyncEntity> entities =
-      fake_server_->GetSyncEntitiesByModelType(syncer::SESSIONS);
+      fake_server_->GetSyncEntitiesByDataType(syncer::SESSIONS);
   for (const sync_pb::SyncEntity& entity : entities) {
     EXPECT_NE(kForeignSessionTag, entity.specifics().session().session_tag());
   }
 
   EXPECT_EQ(2, histogram_tester.GetBucketCount(
-                   "Sync.ModelTypeEntityChange3.SESSION",
-                   syncer::ModelTypeEntityChange::kLocalDeletion));
+                   "Sync.DataTypeEntityChange.SESSION",
+                   syncer::DataTypeEntityChange::kLocalDeletion));
 }
 
 // Regression test for crbug.com/915133 that verifies the browser doesn't crash

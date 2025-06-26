@@ -14,10 +14,6 @@ import {handleTreeSlotChange, isTreeItem, isXfTree} from './xf_tree_util.js';
  */
 export const TREE_ITEM_INDENT = 20;
 
-/**
- * TODO(b/285977941): Remove the closure annotation here.
- * @constructor
- */
 @customElement('xf-tree-item')
 export class XfTreeItem extends XfBase {
   /**
@@ -188,7 +184,7 @@ export class XfTreeItem extends XfBase {
   @state() private level_ = 1;
 
   @query('li') private $treeItem_!: HTMLLIElement;
-  @query('.tree-row') private $treeRow_!: HTMLDivElement;
+  @query('.tree-row') private $treeRow_!: HTMLElement;
   @query('slot:not([name])') private $childrenSlot_!: HTMLSlotElement;
 
   /** The child tree items. */
@@ -508,6 +504,7 @@ function getCSS() {
       display: none;
       font: var(--cros-body-2-font);
       height: 20px;
+      width: 100%;
       margin: 0 10px;
       outline: 2px solid var(--cros-sys-focus_ring);
       overflow: hidden;

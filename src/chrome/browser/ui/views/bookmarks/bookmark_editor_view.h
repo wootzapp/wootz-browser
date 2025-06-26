@@ -17,8 +17,10 @@
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
 #include "components/bookmarks/browser/bookmark_model_observer.h"
 #include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/base/models/simple_menu_model.h"
 #include "ui/base/models/tree_node_model.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
+#include "ui/base/mojom/menu_source_type.mojom-forward.h"
+#include "ui/menus/simple_menu_model.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
@@ -29,7 +31,7 @@ namespace views {
 class LabelButton;
 class MenuRunner;
 class TreeView;
-}
+}  // namespace views
 
 class BookmarkEditorViewTest;
 class GURL;
@@ -56,7 +58,14 @@ class BookmarkEditorView : public BookmarkEditor,
 
  public:
   // Type of node in the tree. Public purely for testing.
-  typedef ui::TreeNodeWithValue<int64_t> EditorNode;
+  struct EditorNodeData {
+    enum class Type { kRoot, kTitle, kFolder };
+    Type type;
+    // bookmark_node_id only makes sense for kFolder, but may be zero for a new
+    // folder before a corresponding entry has been added to the bookmark model.
+    int64_t bookmark_node_id = 0;
+  };
+  typedef ui::TreeNodeWithValue<EditorNodeData> EditorNode;
 
   // Model for the TreeView. Trivial subclass that doesn't allow titles with
   // empty strings. Public purely for testing.
@@ -73,7 +82,6 @@ class BookmarkEditorView : public BookmarkEditor,
   };
 
   BookmarkEditorView(Profile* profile,
-                     const bookmarks::BookmarkNode* parent,
                      const EditDetails& details,
                      BookmarkEditor::Configuration configuration,
                      BookmarkEditor::OnSaveCallback on_save_callback);
@@ -82,12 +90,11 @@ class BookmarkEditorView : public BookmarkEditor,
   ~BookmarkEditorView() override;
 
   // views::DialogDelegateView:
-  bool IsDialogButtonEnabled(ui::DialogButton button) const override;
+  bool IsDialogButtonEnabled(ui::mojom::DialogButton button) const override;
 
   // views::View:
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override;
-  void GetAccessibleNodeData(ui::AXNodeData* node_data) override;
 
   // views::TreeViewController:
   void OnTreeViewSelectionChanged(views::TreeView* tree_view) override;
@@ -111,9 +118,10 @@ class BookmarkEditorView : public BookmarkEditor,
   void Show(gfx::NativeWindow parent);
 
   // views::ContextMenuController:
-  void ShowContextMenuForViewImpl(views::View* source,
-                                  const gfx::Point& point,
-                                  ui::MenuSourceType source_type) override;
+  void ShowContextMenuForViewImpl(
+      views::View* source,
+      const gfx::Point& point,
+      ui::mojom::MenuSourceType source_type) override;
 
  private:
   friend class BookmarkEditorViewTest;
@@ -153,6 +161,12 @@ class BookmarkEditorView : public BookmarkEditor,
   // starred.
   void ExpandAndSelect();
 
+  // Returns true if a bookmark folder is currently selected.
+  bool IsBookmarkFolderSelected() const;
+
+  // Returns true if `node` can be edited.
+  bool CanEdit(ui::TreeModelNode* node) const;
+
   // Creates a returns the new root node. This invokes CreateNodes to do
   // the real work.
   std::unique_ptr<EditorNode> CreateRootNode();
@@ -172,17 +186,17 @@ class BookmarkEditorView : public BookmarkEditor,
   // Recursively adds newly created folders and sets the title of nodes to
   // match the user edited title.
   //
-  // bb_node gives the BookmarkNode the edits are to be applied to, with b_node
-  // the source of the edits.
+  // target_node gives the BookmarkNode the edits are to be applied to, with
+  // source_node the source of the edits.
   //
-  // If b_node == parent_b_node, parent_bb_node is set to bb_node. This is
-  // used to determine the new BookmarkNode parent based on the EditorNode
-  // parent.
+  // If source_node == parent_source_node, parent_target_node is set to
+  // target_node. This is used to determine the new BookmarkNode parent based on
+  // the EditorNode parent.
   void ApplyNameChangesAndCreateNewFolders(
-      const bookmarks::BookmarkNode* bb_node,
-      BookmarkEditorView::EditorNode* b_node,
-      BookmarkEditorView::EditorNode* parent_b_node,
-      const bookmarks::BookmarkNode** parent_bb_node);
+      const bookmarks::BookmarkNode* target_node,
+      BookmarkEditorView::EditorNode* source_node,
+      BookmarkEditorView::EditorNode* parent_source_node,
+      const bookmarks::BookmarkNode** parent_target_node);
 
   // Returns the current url the user has input.
   GURL GetInputURL() const;
@@ -201,6 +215,11 @@ class BookmarkEditorView : public BookmarkEditor,
   // added to the model and returned. This does NOT start editing. This is used
   // internally by NewFolder and broken into a separate method for testing.
   EditorNode* AddNewFolder(EditorNode* parent);
+
+  // Creates a title and a URL field if the dialog is adding/editing a bookmark
+  // that is not a folder. If the dialog is for adding/editing a folder, creates
+  // only a title field.
+  void AddLabels();
 
   // If |editor_node| is expanded it's added to |expanded_nodes| and this is
   // recursively invoked for all the children.
@@ -232,15 +251,12 @@ class BookmarkEditorView : public BookmarkEditor,
   // Used to create a new folder.
   raw_ptr<views::LabelButton> new_folder_button_ = nullptr;
 
-  // The text field used for editing the URL.
+  // The text field used for editing the URL. Null if this is a `MOVE` dialog or
+  // treating a folder rather than a bookmark.
   raw_ptr<views::Textfield> url_tf_ = nullptr;
 
-  // The text field used for editing the title.
+  // The text field used for editing the title. Null if this is a `MOVE` dialog.
   raw_ptr<views::Textfield> title_tf_ = nullptr;
-
-  // Initial parent to select. Is only used if |details_.existing_node| is
-  // NULL.
-  raw_ptr<const bookmarks::BookmarkNode> parent_;
 
   const EditDetails details_;
 
@@ -252,10 +268,6 @@ class BookmarkEditorView : public BookmarkEditor,
   raw_ptr<bookmarks::BookmarkModel> bb_model_;
   // Corresponding expanded state tracker.
   raw_ptr<BookmarkExpandedStateTracker> expanded_state_tracker_;
-
-  // If true, we're running the menu for the bookmark bar or other bookmarks
-  // nodes.
-  bool running_menu_for_root_ = false;
 
   // Is the tree shown?
   const bool show_tree_;

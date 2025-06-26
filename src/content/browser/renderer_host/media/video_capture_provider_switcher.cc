@@ -33,7 +33,9 @@ class VideoCaptureDeviceLauncherSwitcher : public VideoCaptureDeviceLauncher {
       Callbacks* callbacks,
       base::OnceClosure done_cb,
       mojo::PendingRemote<video_effects::mojom::VideoEffectsProcessor>
-          video_effects_processor) override {
+          video_effects_processor,
+      mojo::PendingRemote<media::mojom::ReadonlyVideoEffectsManager>
+          readonly_video_effects_manager) override {
     if (stream_type == blink::mojom::MediaStreamType::DEVICE_VIDEO_CAPTURE) {
       // Use of Unretained() is safe, because |media_device_launcher_| is owned
       // by |this|.
@@ -43,7 +45,8 @@ class VideoCaptureDeviceLauncherSwitcher : public VideoCaptureDeviceLauncher {
       return media_device_launcher_->LaunchDeviceAsync(
           device_id, stream_type, params, std::move(receiver),
           std::move(connection_lost_cb), callbacks, std::move(done_cb),
-          std::move(video_effects_processor));
+          std::move(video_effects_processor),
+          std::move(readonly_video_effects_manager));
     }
     // Use of Unretained() is safe, because |other_types_launcher_| is owned by
     // |this|.
@@ -53,7 +56,8 @@ class VideoCaptureDeviceLauncherSwitcher : public VideoCaptureDeviceLauncher {
     return other_types_launcher_->LaunchDeviceAsync(
         device_id, stream_type, params, std::move(receiver),
         std::move(connection_lost_cb), callbacks, std::move(done_cb),
-        std::move(video_effects_processor));
+        std::move(video_effects_processor),
+        std::move(readonly_video_effects_manager));
   }
 
   void AbortLaunch() override {
@@ -89,6 +93,22 @@ VideoCaptureProviderSwitcher::CreateDeviceLauncher() {
   return std::make_unique<VideoCaptureDeviceLauncherSwitcher>(
       media_device_capture_provider_->CreateDeviceLauncher(),
       other_types_capture_provider_->CreateDeviceLauncher());
+}
+
+void VideoCaptureProviderSwitcher::OpenNativeScreenCapturePicker(
+    DesktopMediaID::Type type,
+    base::OnceCallback<void(DesktopMediaID::Id)> created_callback,
+    base::OnceCallback<void(webrtc::DesktopCapturer::Source)> picker_callback,
+    base::OnceCallback<void()> cancel_callback,
+    base::OnceCallback<void()> error_callback) {
+  other_types_capture_provider_->OpenNativeScreenCapturePicker(
+      type, std::move(created_callback), std::move(picker_callback),
+      std::move(cancel_callback), std::move(error_callback));
+}
+
+void VideoCaptureProviderSwitcher::CloseNativeScreenCapturePicker(
+    DesktopMediaID device_id) {
+  other_types_capture_provider_->CloseNativeScreenCapturePicker(device_id);
 }
 
 }  // namespace content

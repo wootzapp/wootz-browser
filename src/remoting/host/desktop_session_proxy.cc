@@ -165,16 +165,6 @@ std::string DesktopSessionProxy::GetCapabilities() const {
     result += protocol::kTouchEventsCapability;
   }
 
-  if (options_.enable_file_transfer()) {
-    result += " ";
-    result += protocol::kFileTransferCapability;
-  }
-
-  if (options_.enable_remote_open_url() && IsRemoteOpenUrlSupported()) {
-    result += " ";
-    result += protocol::kRemoteOpenUrlCapability;
-  }
-
   if (options_.enable_remote_webauthn()) {
     result += " ";
     result += protocol::kRemoteWebAuthnCapability;
@@ -209,9 +199,7 @@ void DesktopSessionProxy::SetCapabilities(const std::string& capabilities) {
 
 bool DesktopSessionProxy::OnMessageReceived(const IPC::Message& message) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  NOTREACHED_IN_MIGRATION()
-      << "Received unexpected IPC type: " << message.type();
-  return false;
+  NOTREACHED() << "Received unexpected IPC type: " << message.type();
 }
 
 void DesktopSessionProxy::OnChannelConnected(int32_t peer_pid) {
@@ -392,12 +380,16 @@ DesktopSessionProxy::GetKeyboardCurrentLayout() const {
   return keyboard_layout_;
 }
 
-void DesktopSessionProxy::DisconnectSession(protocol::ErrorCode error) {
+void DesktopSessionProxy::DisconnectSession(
+    protocol::ErrorCode error,
+    const std::string& error_details,
+    const SourceLocation& error_location) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   // Disconnect the client session if it hasn't been disconnected yet.
   if (client_session_control_.get()) {
-    client_session_control_->DisconnectSession(error);
+    client_session_control_->DisconnectSession(error, error_details,
+                                               error_location);
   }
 }
 
@@ -693,6 +685,24 @@ void DesktopSessionProxy::OnKeyboardLayoutChanged(
   keyboard_layout_ = layout;
   if (keyboard_layout_monitor_) {
     keyboard_layout_monitor_->OnKeyboardChanged(layout);
+  }
+}
+
+void DesktopSessionProxy::OnLocalMouseMoveDetected(
+    const webrtc::DesktopVector& new_position) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  if (client_session_control_) {
+    client_session_control_->OnLocalPointerMoved(new_position,
+                                                 ui::EventType::kMouseMoved);
+  }
+}
+
+void DesktopSessionProxy::OnLocalKeyboardInputDetected(int32_t usb_keycode) {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+
+  if (client_session_control_) {
+    client_session_control_->OnLocalKeyPressed(usb_keycode);
   }
 }
 

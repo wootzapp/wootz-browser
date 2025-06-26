@@ -72,8 +72,9 @@ void CloseWidgetView::OnEvent(ui::Event* event) {
     GetWidget()->native_widget_private()->CloseNow();
   } else {
     View::OnEvent(event);
-    if (!event->IsTouchEvent())
+    if (!event->IsTouchEvent()) {
       event->SetHandled();
+    }
   }
 }
 
@@ -94,7 +95,7 @@ void EventCountView::ResetCounts() {
 
 void EventCountView::OnMouseMoved(const ui::MouseEvent& event) {
   // MouseMove events are not re-dispatched from the RootView.
-  ++event_count_[ui::ET_MOUSE_MOVED];
+  ++event_count_[ui::EventType::kMouseMoved];
   last_flags_ = 0;
 }
 
@@ -117,8 +118,9 @@ void EventCountView::OnGestureEvent(ui::GestureEvent* event) {
 void EventCountView::RecordEvent(ui::Event* event) {
   ++event_count_[event->type()];
   last_flags_ = event->flags();
-  if (handle_mode_ == CONSUME_EVENTS)
+  if (handle_mode_ == HandleMode::kConsumeEvents) {
     event->SetHandled();
+  }
 }
 
 BEGIN_METADATA(EventCountView)

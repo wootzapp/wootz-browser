@@ -4,12 +4,14 @@
 
 #include "chrome/browser/ui/webui/settings/captions_handler.h"
 
+#include <string>
 #include <unordered_set>
+
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
+#include "base/timer/timer.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
 #include "chrome/grit/branded_strings.h"
@@ -22,9 +24,10 @@
 #include "content/public/browser/web_ui.h"
 #include "media/base/media_switches.h"
 #include "ui/base/l10n/l10n_util.h"
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+
+#if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 #include "chrome/browser/accessibility/caption_settings_dialog.h"
@@ -56,17 +59,16 @@ base::Value::List SortByDisplayName(
 namespace settings {
 
 CaptionsHandler::CaptionsHandler(PrefService* prefs) : prefs_(prefs) {
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
   soda_available_ =
       base::FeatureList::IsEnabled(ash::features::kOnDeviceSpeechRecognition);
-#elif BUILDFLAG(IS_CHROMEOS_LACROS)
-  soda_available_ = false;
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 }
 
 CaptionsHandler::~CaptionsHandler() {
-  if (soda_available_)
+  if (soda_available_) {
     speech::SodaInstaller::GetInstance()->RemoveObserver(this);
+  }
 }
 
 void CaptionsHandler::RegisterMessages() {
@@ -97,13 +99,15 @@ void CaptionsHandler::RegisterMessages() {
 }
 
 void CaptionsHandler::OnJavascriptAllowed() {
-  if (soda_available_)
+  if (soda_available_) {
     speech::SodaInstaller::GetInstance()->AddObserver(this);
+  }
 }
 
 void CaptionsHandler::OnJavascriptDisallowed() {
-  if (soda_available_)
+  if (soda_available_) {
     speech::SodaInstaller::GetInstance()->RemoveObserver(this);
+  }
 }
 
 void CaptionsHandler::HandleLiveCaptionSectionReady(
@@ -159,7 +163,8 @@ base::Value::List CaptionsHandler::GetAvailableLanguagePacks() {
   std::vector<std::string> enabled_and_available_languages;
   std::vector<base::Value::Dict> available_language_packs;
   {
-    auto enabled_languages = speech::GetLiveCaptionEnabledLanguages();
+    auto enabled_languages =
+        speech::SodaInstaller::GetInstance()->GetLiveCaptionEnabledLanguages();
     auto available_languages =
         speech::SodaInstaller::GetInstance()->GetAvailableLanguages();
     auto available_languages_set = std::unordered_set<std::string>(
@@ -171,6 +176,23 @@ base::Value::List CaptionsHandler::GetAvailableLanguagePacks() {
       }
     }
   }
+  // On ChromeOS we have already checked config availability on disk via the
+  // installer, so we don't need to check the speech::kLanguageComponentConfigs
+  // list.
+#if BUILDFLAG(IS_CHROMEOS)
+  for (const auto& language_name : enabled_and_available_languages) {
+    base::Value::Dict available_language_pack;
+    available_language_pack.Set(kCodeKey, language_name);
+    available_language_pack.Set(
+        kDisplayNameKey,
+        speech::GetLanguageDisplayName(
+            language_name, g_browser_process->GetApplicationLocale()));
+    available_language_pack.Set(
+        kNativeDisplayNameKey,
+        speech::GetLanguageDisplayName(language_name, language_name));
+    available_language_packs.push_back(std::move(available_language_pack));
+  }
+#else
   for (const auto& config : speech::kLanguageComponentConfigs) {
     if (config.language_code != speech::LanguageCode::kNone &&
         base::Contains(enabled_and_available_languages, config.language_name)) {
@@ -187,7 +209,7 @@ base::Value::List CaptionsHandler::GetAvailableLanguagePacks() {
       available_language_packs.push_back(std::move(available_language_pack));
     }
   }
-
+#endif
   return SortByDisplayName(std::move(available_language_packs));
 }
 
@@ -224,8 +246,9 @@ void CaptionsHandler::OnSodaInstalled(speech::LanguageCode language_code) {
     // early. We do not check for a matching language if multi-language is
     // enabled because we show all of the languages' download status in the UI,
     // even ones that are not currently selected.
-    if (!prefs::IsLanguageCodeForLiveCaption(language_code, prefs_))
+    if (!prefs::IsLanguageCodeForLiveCaption(language_code, prefs_)) {
       return;
+    }
     speech::SodaInstaller::GetInstance()->RemoveObserver(this);
   }
 
@@ -233,6 +256,10 @@ void CaptionsHandler::OnSodaInstalled(speech::LanguageCode language_code) {
                     base::Value(l10n_util::GetStringUTF16(
                         IDS_SETTINGS_CAPTIONS_LIVE_CAPTION_DOWNLOAD_COMPLETE)),
                     base::Value(speech::GetLanguageName(language_code)));
+  newly_installed_languages_.insert(language_code);
+
+  installed_string_timer_.Start(FROM_HERE, base::Seconds(30), this,
+                                &CaptionsHandler::OnSodaInstallCleanProgress);
 }
 
 void CaptionsHandler::OnSodaInstallError(
@@ -300,6 +327,16 @@ void CaptionsHandler::OnSodaProgress(speech::LanguageCode language_code,
       base::Value(l10n_util::GetStringFUTF16Int(
           IDS_SETTINGS_CAPTIONS_LIVE_CAPTION_DOWNLOAD_PROGRESS, progress)),
       base::Value(speech::GetLanguageName(language_code)));
+}
+
+void CaptionsHandler::OnSodaInstallCleanProgress() {
+  for (const auto& language_code : newly_installed_languages_) {
+    // Update the webui to show an empty str for progress.
+    FireWebUIListener("soda-download-progress-changed",
+                      base::Value(std::u16string()),
+                      base::Value(speech::GetLanguageName(language_code)));
+  }
+  newly_installed_languages_.clear();
 }
 
 }  // namespace settings

@@ -67,8 +67,8 @@ class CONTENT_EXPORT RenderFrameDevToolsAgentHost
   // whether DevToolsAgentHost has actually been created.
   static bool ShouldCreateDevToolsForHost(RenderFrameHostImpl* rfh);
 
-  // This method is called when new frame is created for an emebedded page
-  // (portal or fenced frame) or local root navigation.
+  // This method is called when new frame is created for an embedded page
+  // (fenced frame) or local root navigation.
   static scoped_refptr<RenderFrameDevToolsAgentHost>
   CreateForLocalRootOrEmbeddedPageNavigation(NavigationRequest* request);
   static scoped_refptr<RenderFrameDevToolsAgentHost> FindForDangling(
@@ -86,7 +86,6 @@ class CONTENT_EXPORT RenderFrameDevToolsAgentHost
 
   void OnNavigationRequestWillBeSent(
       const NavigationRequest& navigation_request);
-  void UpdatePortals();
   void DidCreateFencedFrame(FencedFrame* fenced_frame);
 
   // DevToolsAgentHost overrides.
@@ -136,7 +135,7 @@ class CONTENT_EXPORT RenderFrameDevToolsAgentHost
   ~RenderFrameDevToolsAgentHost() override;
 
   // DevToolsAgentHostImpl overrides.
-  bool AttachSession(DevToolsSession* session, bool acquire_wake_lock) override;
+  bool AttachSession(DevToolsSession* session) override;
   void DetachSession(DevToolsSession* session) override;
   void InspectElement(RenderFrameHost* frame_host, int x, int y) override;
   void UpdateRendererChannel(bool force) override;
@@ -152,7 +151,7 @@ class CONTENT_EXPORT RenderFrameDevToolsAgentHost
   void DidFinishNavigation(NavigationHandle* navigation_handle) override;
   void RenderFrameHostChanged(RenderFrameHost* old_host,
                               RenderFrameHost* new_host) override;
-  void FrameDeleted(int frame_tree_node_id) override;
+  void FrameDeleted(FrameTreeNodeId frame_tree_node_id) override;
   void RenderFrameDeleted(RenderFrameHost* rfh) override;
   void OnVisibilityChanged(content::Visibility visibility) override;
 

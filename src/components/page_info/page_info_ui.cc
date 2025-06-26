@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "components/page_info/page_info_ui.h"
 
 #include <utility>
@@ -11,7 +16,6 @@
 #include "base/feature_list.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/page_info/core/features.h"
@@ -198,6 +202,8 @@ base::span<const PageInfoUI::PermissionUIInfo> GetContentSettingsUIInfo() {
        IDS_SITE_SETTINGS_TYPE_VR_MID_SENTENCE},
       {ContentSettingsType::AR, IDS_SITE_SETTINGS_TYPE_AR,
        IDS_SITE_SETTINGS_TYPE_AR_MID_SENTENCE},
+      {ContentSettingsType::HAND_TRACKING, IDS_SITE_SETTINGS_TYPE_HAND_TRACKING,
+       IDS_SITE_SETTINGS_TYPE_HAND_TRACKING_MID_SENTENCE},
       {ContentSettingsType::CAMERA_PAN_TILT_ZOOM,
        IDS_SITE_SETTINGS_TYPE_CAMERA_PAN_TILT_ZOOM,
        IDS_SITE_SETTINGS_TYPE_CAMERA_PAN_TILT_ZOOM_MID_SENTENCE},
@@ -213,23 +219,30 @@ base::span<const PageInfoUI::PermissionUIInfo> GetContentSettingsUIInfo() {
       {ContentSettingsType::AUTOMATIC_FULLSCREEN,
        IDS_SITE_SETTINGS_TYPE_AUTOMATIC_FULLSCREEN,
        IDS_SITE_SETTINGS_TYPE_AUTOMATIC_FULLSCREEN_MID_SENTENCE},
+      {ContentSettingsType::FILE_SYSTEM_WRITE_GUARD,
+       IDS_SITE_SETTINGS_TYPE_FILE_SYSTEM_ACCESS_WRITE,
+       IDS_SITE_SETTINGS_TYPE_FILE_SYSTEM_ACCESS_WRITE_MID_SENTENCE},
+      {ContentSettingsType::LOCAL_NETWORK_ACCESS,
+       IDS_SITE_SETTINGS_TYPE_LOCAL_NETWORK_ACCESS,
+       IDS_SITE_SETTINGS_TYPE_LOCAL_NETWORK_ACCESS_MID_SENTENCE},
 #if !BUILDFLAG(IS_ANDROID)
       // Page Info Permissions that are not defined in Android.
       {ContentSettingsType::AUTO_PICTURE_IN_PICTURE,
        IDS_SITE_SETTINGS_TYPE_AUTO_PICTURE_IN_PICTURE,
        IDS_SITE_SETTINGS_TYPE_AUTO_PICTURE_IN_PICTURE_MID_SENTENCE},
       {ContentSettingsType::CAPTURED_SURFACE_CONTROL,
-       IDS_SITE_SETTINGS_TYPE_CAPTURED_SURFACE_CONTROL,
-       IDS_SITE_SETTINGS_TYPE_CAPTURED_SURFACE_CONTROL_MID_SENTENCE},
-      {ContentSettingsType::FILE_SYSTEM_WRITE_GUARD,
-       IDS_SITE_SETTINGS_TYPE_FILE_SYSTEM_ACCESS_WRITE,
-       IDS_SITE_SETTINGS_TYPE_FILE_SYSTEM_ACCESS_WRITE_MID_SENTENCE},
+       IDS_SITE_SETTINGS_TYPE_CAPTURED_SURFACE_CONTROL_SHARED_TABS,
+       IDS_SITE_SETTINGS_TYPE_CAPTURED_SURFACE_CONTROL_SHARED_TABS_MID_SENTENCE},
+      {ContentSettingsType::KEYBOARD_LOCK, IDS_SITE_SETTINGS_TYPE_KEYBOARD_LOCK,
+       IDS_SITE_SETTINGS_TYPE_KEYBOARD_LOCK_MID_SENTENCE},
       {ContentSettingsType::LOCAL_FONTS, IDS_SITE_SETTINGS_TYPE_FONT_ACCESS,
        IDS_SITE_SETTINGS_TYPE_FONT_ACCESS_MID_SENTENCE},
       {ContentSettingsType::HID_GUARD, IDS_SITE_SETTINGS_TYPE_HID_DEVICES,
        IDS_SITE_SETTINGS_TYPE_HID_DEVICES_MID_SENTENCE},
       {ContentSettingsType::IMAGES, IDS_SITE_SETTINGS_TYPE_IMAGES,
        IDS_SITE_SETTINGS_TYPE_IMAGES_MID_SENTENCE},
+      {ContentSettingsType::POINTER_LOCK, IDS_SITE_SETTINGS_TYPE_POINTER_LOCK,
+       IDS_SITE_SETTINGS_TYPE_POINTER_LOCK_MID_SENTENCE},
       {ContentSettingsType::SERIAL_GUARD, IDS_SITE_SETTINGS_TYPE_SERIAL_PORTS,
        IDS_SITE_SETTINGS_TYPE_SERIAL_PORTS_MID_SENTENCE},
       {ContentSettingsType::WEB_PRINTING, IDS_SITE_SETTINGS_TYPE_WEB_PRINTING,
@@ -237,6 +250,9 @@ base::span<const PageInfoUI::PermissionUIInfo> GetContentSettingsUIInfo() {
       {ContentSettingsType::WINDOW_MANAGEMENT,
        IDS_SITE_SETTINGS_TYPE_WINDOW_MANAGEMENT,
        IDS_SITE_SETTINGS_TYPE_WINDOW_MANAGEMENT_MID_SENTENCE},
+      {ContentSettingsType::WEB_APP_INSTALLATION,
+       IDS_SITE_SETTINGS_TYPE_WEB_APP_INSTALLATION,
+       IDS_SITE_SETTINGS_TYPE_WEB_APP_INSTALLATION_MID_SENTENCE},
 #endif
   };
   return kPermissionUIInfo;
@@ -277,7 +293,7 @@ CreateSecurityDescriptionForSafetyTip(
   return security_description;
 }
 
-// Gets the actual setting for a ContentSettingType, taking into account what
+// Gets the actual setting for a ContentSettingsType, taking into account what
 // the default setting value is and whether Html5ByDefault is enabled.
 ContentSetting GetEffectiveSetting(ContentSettingsType type,
                                    ContentSetting setting,
@@ -292,15 +308,6 @@ ContentSetting GetEffectiveSetting(ContentSettingsType type,
     effective_setting = CONTENT_SETTING_ASK;
 
   return effective_setting;
-}
-
-void SetTargetContentSetting(PageInfo::PermissionInfo& permission,
-                             ContentSetting target_setting) {
-  // If content setting's default setting matches target setting, set
-  // default setting to avoid crearing a site exception.
-  permission.setting = permission.default_setting == target_setting
-                           ? CONTENT_SETTING_DEFAULT
-                           : target_setting;
 }
 
 void CreateOppositeToDefaultSiteException(
@@ -354,6 +361,9 @@ std::u16string GetPermissionAskStateString(ContentSettingsType type) {
     case ContentSettingsType::AUTOMATIC_DOWNLOADS:
       message_id = IDS_PAGE_INFO_STATE_TEXT_AUTOMATIC_DOWNLOADS_ASK;
       break;
+    case ContentSettingsType::HAND_TRACKING:
+      message_id = IDS_PAGE_INFO_STATE_TEXT_HAND_TRACKING_ASK;
+      break;
     case ContentSettingsType::VR:
       message_id = IDS_PAGE_INFO_STATE_TEXT_VR_ASK;
       break;
@@ -368,6 +378,9 @@ std::u16string GetPermissionAskStateString(ContentSettingsType type) {
       break;
     case ContentSettingsType::IDLE_DETECTION:
       message_id = IDS_PAGE_INFO_STATE_TEXT_IDLE_DETECTION_ASK;
+      break;
+    case ContentSettingsType::LOCAL_NETWORK_ACCESS:
+      message_id = IDS_PAGE_INFO_STATE_TEXT_LOCAL_NETWORK_ACCESS_ASK;
       break;
     // Guard content settings:
     case ContentSettingsType::USB_GUARD:
@@ -394,8 +407,22 @@ std::u16string GetPermissionAskStateString(ContentSettingsType type) {
     case ContentSettingsType::AUTO_PICTURE_IN_PICTURE:
       message_id = IDS_PAGE_INFO_STATE_TEXT_AUTO_PICTURE_IN_PICTURE_ASK;
       break;
+    case ContentSettingsType::KEYBOARD_LOCK:
+      message_id = IDS_PAGE_INFO_STATE_TEXT_KEYBOARD_LOCK_ASK;
+      break;
+    case ContentSettingsType::POINTER_LOCK:
+      message_id = IDS_PAGE_INFO_STATE_TEXT_POINTER_LOCK_ASK;
+      break;
+    case ContentSettingsType::WEB_APP_INSTALLATION:
+      message_id = IDS_PAGE_INFO_STATE_TEXT_WEB_APP_INSTALLATION_ASK;
+      break;
+#if BUILDFLAG(IS_CHROMEOS)
+    case ContentSettingsType::WEB_PRINTING:
+      message_id = IDS_PAGE_INFO_STATE_TEXT_WEB_PRINTING_ASK;
+      break;
+#endif
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   if (message_id == kInvalidResourceID)
@@ -410,10 +437,10 @@ PageInfoUI::CookiesNewInfo::CookiesNewInfo(CookiesNewInfo&& cookie_info) =
     default;
 PageInfoUI::CookiesNewInfo::~CookiesNewInfo() = default;
 
-PageInfoUI::CookiesFpsInfo::CookiesFpsInfo(const std::u16string& owner_name)
+PageInfoUI::CookiesRwsInfo::CookiesRwsInfo(const std::u16string& owner_name)
     : owner_name(owner_name) {}
 
-PageInfoUI::CookiesFpsInfo::~CookiesFpsInfo() = default;
+PageInfoUI::CookiesRwsInfo::~CookiesRwsInfo() = default;
 
 PageInfoUI::ChosenObjectInfo::ChosenObjectInfo(
     const PageInfo::ChooserUIInfo& ui_info,
@@ -450,21 +477,19 @@ PageInfoUI::GetSecurityDescription(const IdentityInfo& identity_info) const {
       break;
     case PageInfo::SAFE_BROWSING_STATUS_MALWARE:
       return CreateSecurityDescription(SecuritySummaryColor::RED,
-                                       IDS_PAGE_INFO_MALWARE_SUMMARY_NEW,
-                                       IDS_PAGE_INFO_MALWARE_DETAILS_NEW,
+                                       IDS_PAGE_INFO_SAFE_BROWSING_SUMMARY,
+                                       IDS_PAGE_INFO_MALWARE_DETAILS,
                                        SecurityDescriptionType::SAFE_BROWSING);
     case PageInfo::SAFE_BROWSING_STATUS_SOCIAL_ENGINEERING:
-      return CreateSecurityDescription(
-          SecuritySummaryColor::RED,
-          IDS_PAGE_INFO_SOCIAL_ENGINEERING_SUMMARY_NEW,
-          IDS_PAGE_INFO_SOCIAL_ENGINEERING_DETAILS_NEW,
-          SecurityDescriptionType::SAFE_BROWSING);
+      return CreateSecurityDescription(SecuritySummaryColor::RED,
+                                       IDS_PAGE_INFO_SAFE_BROWSING_SUMMARY,
+                                       IDS_PAGE_INFO_SOCIAL_ENGINEERING_DETAILS,
+                                       SecurityDescriptionType::SAFE_BROWSING);
     case PageInfo::SAFE_BROWSING_STATUS_UNWANTED_SOFTWARE:
-      return CreateSecurityDescription(
-          SecuritySummaryColor::RED,
-          IDS_PAGE_INFO_UNWANTED_SOFTWARE_SUMMARY_NEW,
-          IDS_PAGE_INFO_UNWANTED_SOFTWARE_DETAILS_NEW,
-          SecurityDescriptionType::SAFE_BROWSING);
+      return CreateSecurityDescription(SecuritySummaryColor::RED,
+                                       IDS_PAGE_INFO_SAFE_BROWSING_SUMMARY,
+                                       IDS_PAGE_INFO_UNWANTED_SOFTWARE_DETAILS,
+                                       SecurityDescriptionType::SAFE_BROWSING);
     case PageInfo::SAFE_BROWSING_STATUS_SAVED_PASSWORD_REUSE: {
 #if BUILDFLAG(FULL_SAFE_BROWSING)
       auto security_description = CreateSecurityDescription(
@@ -473,9 +498,9 @@ PageInfoUI::GetSecurityDescription(const IdentityInfo& identity_info) const {
           SecurityDescriptionType::SAFE_BROWSING);
       security_description->details = identity_info.safe_browsing_details;
       return security_description;
+#else
+      NOTREACHED();
 #endif
-      NOTREACHED_IN_MIGRATION();
-      break;
     }
     case PageInfo::SAFE_BROWSING_STATUS_SIGNED_IN_SYNC_PASSWORD_REUSE:
     case PageInfo::SAFE_BROWSING_STATUS_SIGNED_IN_NON_SYNC_PASSWORD_REUSE:
@@ -486,9 +511,9 @@ PageInfoUI::GetSecurityDescription(const IdentityInfo& identity_info) const {
           SecurityDescriptionType::SAFE_BROWSING);
       security_description->details = identity_info.safe_browsing_details;
       return security_description;
+#else
+      NOTREACHED();
 #endif
-      NOTREACHED_IN_MIGRATION();
-      break;
     }
     case PageInfo::SAFE_BROWSING_STATUS_BILLING:
       return CreateSecurityDescription(SecuritySummaryColor::RED,
@@ -520,8 +545,8 @@ PageInfoUI::GetSecurityDescription(const IdentityInfo& identity_info) const {
                                        IDS_PAGE_INFO_INTERNAL_PAGE,
                                        SecurityDescriptionType::INTERNAL);
     case PageInfo::SITE_IDENTITY_STATUS_EV_CERT:
+    case PageInfo::SITE_IDENTITY_STATUS_1QWAC_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_CERT:
-    case PageInfo::SITE_IDENTITY_STATUS_ADMIN_PROVIDED_CERT:
       switch (identity_info.connection_status) {
         case PageInfo::SITE_CONNECTION_STATUS_INSECURE_ACTIVE_SUBRESOURCE:
           return CreateSecurityDescription(
@@ -558,11 +583,10 @@ PageInfoUI::GetSecurityDescription(const IdentityInfo& identity_info) const {
     case PageInfo::SITE_IDENTITY_STATUS_INTERNAL_PAGE:
       // Internal pages on desktop have their own UI implementations which
       // should never call this function.
-      NOTREACHED_IN_MIGRATION();
-      [[fallthrough]];
+      NOTREACHED();
     case PageInfo::SITE_IDENTITY_STATUS_EV_CERT:
+    case PageInfo::SITE_IDENTITY_STATUS_1QWAC_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_CERT:
-    case PageInfo::SITE_IDENTITY_STATUS_ADMIN_PROVIDED_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_ISOLATED_WEB_APP:
       switch (identity_info.connection_status) {
         case PageInfo::SITE_CONNECTION_STATUS_INSECURE_ACTIVE_SUBRESOURCE:
@@ -581,18 +605,10 @@ PageInfoUI::GetSecurityDescription(const IdentityInfo& identity_info) const {
                                            IDS_PAGE_INFO_MIXED_CONTENT_DETAILS,
                                            SecurityDescriptionType::CONNECTION);
         default:
-
-          auto description = CreateSecurityDescription(
-              SecuritySummaryColor::GREEN, IDS_PAGE_INFO_SECURE_SUMMARY,
-              IDS_PAGE_INFO_SECURE_DETAILS,
-              SecurityDescriptionType::CONNECTION);
-          if (identity_info.identity_status ==
-              PageInfo::SITE_IDENTITY_STATUS_ADMIN_PROVIDED_CERT) {
-            description->details = l10n_util::GetStringFUTF16(
-                IDS_PAGE_INFO_ADMIN_PROVIDED_CERT_DETAILS,
-                base::UTF8ToUTF16(identity_info.site_identity));
-          }
-          return description;
+          return CreateSecurityDescription(SecuritySummaryColor::GREEN,
+                                           IDS_PAGE_INFO_SECURE_SUMMARY,
+                                           IDS_PAGE_INFO_SECURE_DETAILS,
+                                           SecurityDescriptionType::CONNECTION);
       }
     case PageInfo::SITE_IDENTITY_STATUS_DEPRECATED_SIGNATURE_ALGORITHM:
     case PageInfo::SITE_IDENTITY_STATUS_UNKNOWN:
@@ -614,8 +630,7 @@ std::u16string PageInfoUI::PermissionTypeToUIString(ContentSettingsType type) {
     if (info.type == type)
       return l10n_util::GetStringUTF16(info.string_id);
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::u16string();
+  NOTREACHED();
 }
 
 // static
@@ -625,8 +640,7 @@ std::u16string PageInfoUI::PermissionTypeToUIStringMidSentence(
     if (info.type == type)
       return l10n_util::GetStringUTF16(info.string_id_mid_sentence);
   }
-  NOTREACHED_IN_MIGRATION();
-  return std::u16string();
+  NOTREACHED();
 }
 
 // static
@@ -646,6 +660,14 @@ std::u16string PageInfoUI::PermissionTooltipUiString(
           IDS_PAGE_INFO_SELECTOR_TOOLTIP,
           PageInfoUI::PermissionTypeToUIString(type));
   }
+}
+
+// static
+std::u16string PageInfoUI::PermissionSubpageButtonTooltipString(
+    ContentSettingsType type) {
+  return l10n_util::GetStringFUTF16(
+      IDS_PAGE_INFO_PERMISSIONS_SUBPAGE_BUTTON_TOOLTIP,
+      PageInfoUI::PermissionTypeToUIStringMidSentence(type));
 }
 
 // static
@@ -701,8 +723,7 @@ std::u16string PageInfoUI::PermissionActionToUIString(
     case SettingSource::kAllowList:
     case SettingSource::kNone:
     default:
-      NOTREACHED_IN_MIGRATION();
-      return std::u16string();
+      NOTREACHED();
   }
   int button_text_id = button_text_ids[effective_setting];
 
@@ -738,7 +759,7 @@ std::u16string PageInfoUI::PermissionStateToUIString(
 #if !BUILDFLAG(IS_ANDROID)
       } else if (permission.is_one_time) {
         DCHECK_EQ(permission.source, SettingSource::kUser);
-        DCHECK(permissions::PermissionUtil::CanPermissionBeAllowedOnce(
+        DCHECK(permissions::PermissionUtil::DoesSupportTemporaryGrants(
             permission.type));
         message_id = IDS_PAGE_INFO_STATE_TEXT_ALLOWED_ONCE;
 #endif
@@ -768,7 +789,7 @@ std::u16string PageInfoUI::PermissionStateToUIString(
     case CONTENT_SETTING_ASK:
       return GetPermissionAskStateString(permission.type);
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   return l10n_util::GetStringUTF16(message_id);
@@ -845,7 +866,7 @@ std::u16string PageInfoUI::PermissionAutoBlockedToUIString(
         PermissionStatus::ASK, content::PermissionStatusSource::UNSPECIFIED);
     if (permissions::PermissionUtil::IsPermission(permission.type)) {
       blink::PermissionType permission_type =
-          permissions::PermissionUtil::ContentSettingTypeToPermissionType(
+          permissions::PermissionUtil::ContentSettingsTypeToPermissionType(
               permission.type);
       permission_result = delegate->GetPermissionResult(permission_type);
     } else if (permission.type == ContentSettingsType::FEDERATED_IDENTITY_API) {
@@ -881,12 +902,12 @@ void PageInfoUI::ToggleBetweenAllowAndBlock(
   switch (permission.setting) {
     case CONTENT_SETTING_ALLOW:
       DCHECK_EQ(opposite_to_block_setting, CONTENT_SETTING_ALLOW);
-      SetTargetContentSetting(permission, CONTENT_SETTING_BLOCK);
+      permission.setting = CONTENT_SETTING_BLOCK;
       permission.is_one_time = false;
       permission.is_in_use = false;
       break;
     case CONTENT_SETTING_BLOCK:
-      SetTargetContentSetting(permission, opposite_to_block_setting);
+      permission.setting = opposite_to_block_setting;
       permission.is_one_time = false;
       permission.is_in_use = false;
       break;
@@ -896,7 +917,7 @@ void PageInfoUI::ToggleBetweenAllowAndBlock(
 
       // If one-time permissions are supported, permission should go from
       // default state to allow once state, not directly to allow.
-      if (permissions::PermissionUtil::CanPermissionBeAllowedOnce(
+      if (permissions::PermissionUtil::DoesSupportTemporaryGrants(
               permission.type)) {
         permission.is_one_time = true;
       }
@@ -905,11 +926,10 @@ void PageInfoUI::ToggleBetweenAllowAndBlock(
     }
     case CONTENT_SETTING_ASK:
       DCHECK_EQ(opposite_to_block_setting, CONTENT_SETTING_ASK);
-      SetTargetContentSetting(permission, CONTENT_SETTING_BLOCK);
+      permission.setting = CONTENT_SETTING_BLOCK;
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 
@@ -921,7 +941,7 @@ void PageInfoUI::ToggleBetweenRememberAndForget(
     case CONTENT_SETTING_ALLOW: {
       // If one-time permissions are supported, toggle is_one_time.
       // Otherwise, go directly to default.
-      if (permissions::PermissionUtil::CanPermissionBeAllowedOnce(
+      if (permissions::PermissionUtil::DoesSupportTemporaryGrants(
               permission.type)) {
         permission.is_one_time = !permission.is_one_time;
       } else {
@@ -947,8 +967,7 @@ void PageInfoUI::ToggleBetweenRememberAndForget(
       }
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 
@@ -982,11 +1001,11 @@ int PageInfoUI::GetIdentityIconID(PageInfo::SiteIdentityStatus status) {
     case PageInfo::SITE_IDENTITY_STATUS_INTERNAL_PAGE:
     case PageInfo::SITE_IDENTITY_STATUS_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_EV_CERT:
+    case PageInfo::SITE_IDENTITY_STATUS_1QWAC_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_ISOLATED_WEB_APP:
       return IDR_PAGEINFO_GOOD;
     case PageInfo::SITE_IDENTITY_STATUS_NO_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_ERROR:
-    case PageInfo::SITE_IDENTITY_STATUS_ADMIN_PROVIDED_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_DEPRECATED_SIGNATURE_ALGORITHM:
       return IDR_PAGEINFO_BAD;
   }
@@ -1019,9 +1038,9 @@ int PageInfoUI::GetIdentityIconColorID(PageInfo::SiteIdentityStatus status) {
     case PageInfo::SITE_IDENTITY_STATUS_INTERNAL_PAGE:
     case PageInfo::SITE_IDENTITY_STATUS_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_EV_CERT:
+    case PageInfo::SITE_IDENTITY_STATUS_1QWAC_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_ISOLATED_WEB_APP:
       return IDR_PAGEINFO_GOOD_COLOR;
-    case PageInfo::SITE_IDENTITY_STATUS_ADMIN_PROVIDED_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_NO_CERT:
     case PageInfo::SITE_IDENTITY_STATUS_DEPRECATED_SIGNATURE_ALGORITHM:
       return IDR_PAGEINFO_WARNING_COLOR;

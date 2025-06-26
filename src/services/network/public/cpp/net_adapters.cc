@@ -7,10 +7,14 @@
 #include <limits>
 
 #include "base/check_op.h"
+#include "base/containers/span.h"
 #include "net/base/net_errors.h"
-#include "services/network/public/cpp/features.h"
 
 namespace network {
+
+namespace {
+constexpr size_t kMaxBufSize = 64 * 1024;
+}
 
 NetToMojoPendingBuffer::NetToMojoPendingBuffer(
     mojo::ScopedDataPipeProducerHandle handle,
@@ -27,20 +31,18 @@ NetToMojoPendingBuffer::~NetToMojoPendingBuffer() {
 MojoResult NetToMojoPendingBuffer::BeginWrite(
     mojo::ScopedDataPipeProducerHandle* handle,
     scoped_refptr<NetToMojoPendingBuffer>* pending) {
-  void* buf = nullptr;
-  const size_t kMaxBufSize = features::GetNetAdapterMaxBufSize();
-  size_t num_bytes = kMaxBufSize;
+  base::span<uint8_t> buf;
   MojoResult result =
-      (*handle)->BeginWriteData(&buf, &num_bytes, MOJO_WRITE_DATA_FLAG_NONE);
+      (*handle)->BeginWriteData(kMaxBufSize, MOJO_WRITE_DATA_FLAG_NONE, buf);
   if (result != MOJO_RESULT_OK) {
     *pending = nullptr;
     return result;
   }
-  if (num_bytes > kMaxBufSize) {
-    num_bytes = kMaxBufSize;
+  if (buf.size() > kMaxBufSize) {
+    buf = buf.first(kMaxBufSize);
   }
   *pending = new NetToMojoPendingBuffer(std::move(*handle),
-                                        {static_cast<char*>(buf), num_bytes});
+                                        base::as_writable_chars(buf));
   return MOJO_RESULT_OK;
 }
 
@@ -53,14 +55,14 @@ mojo::ScopedDataPipeProducerHandle NetToMojoPendingBuffer::Complete(
 
 NetToMojoIOBuffer::NetToMojoIOBuffer(
     scoped_refptr<NetToMojoPendingBuffer> pending_buffer,
-    int offset)
-    : net::WrappedIOBuffer(base::make_span(*pending_buffer).subspan(offset)),
+    size_t offset)
+    : net::WrappedIOBuffer(base::span(*pending_buffer).subspan(offset)),
       pending_buffer_(std::move(pending_buffer)) {}
 
 NetToMojoIOBuffer::~NetToMojoIOBuffer() {
   // Avoid dangling ptr should this destructor remove the last reference
   // to `pending_buffer_`.
-  data_ = nullptr;
+  ClearSpan();
 }
 
 MojoToNetPendingBuffer::MojoToNetPendingBuffer(
@@ -76,16 +78,15 @@ MojoToNetPendingBuffer::~MojoToNetPendingBuffer() = default;
 MojoResult MojoToNetPendingBuffer::BeginRead(
     mojo::ScopedDataPipeConsumerHandle* handle,
     scoped_refptr<MojoToNetPendingBuffer>* pending) {
-  const void* buffer = nullptr;
-  size_t num_bytes = 0;
+  base::span<const uint8_t> buffer;
   MojoResult result =
-      (*handle)->BeginReadData(&buffer, &num_bytes, MOJO_READ_DATA_FLAG_NONE);
+      (*handle)->BeginReadData(MOJO_READ_DATA_FLAG_NONE, buffer);
   if (result != MOJO_RESULT_OK) {
     *pending = nullptr;
     return result;
   }
-  *pending = new MojoToNetPendingBuffer(
-      std::move(*handle), {static_cast<const char*>(buffer), num_bytes});
+  *pending = new MojoToNetPendingBuffer(std::move(*handle),
+                                        base::as_string_view(buffer));
   return MOJO_RESULT_OK;
 }
 
@@ -117,7 +118,7 @@ MojoToNetIOBuffer::~MojoToNetIOBuffer() {
 
   // Prevent dangling ptr should this destructor remove the last reference
   // to `pending_buffer_`.
-  data_ = nullptr;
+  ClearSpan();
 }
 
 }  // namespace network

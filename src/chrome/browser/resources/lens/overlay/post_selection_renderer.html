@@ -1,16 +1,13 @@
 <style>
   :host {
     /* Variables controlling the rendered post selection */
-    --post-selection-corner-horizontal-length: 22px;
-    --post-selection-corner-vertical-length: 22px;
-    --post-selection-corner-radius: 12px;
     --post-selection-corner-width: 4px;
     --post-selection-corner-hitbox-max-size: 40px;
     position: relative;
   }
 
   #postSelectionScrim {
-    background-color: #151C26;
+    background-color: var(--color-scrim);
     height: 100%;
     opacity: 20%;
     transition: opacity cubic-bezier(0.2, 0.0, 0, 1.0) 400ms;
@@ -19,11 +16,12 @@
 
   /** Render the selected part of the image again so it appears glowing over
       the scrim */
-  #backgroundImage {
+  #backgroundImageCanvas {
     clip-path: rect(var(--selection-top)
                     calc(var(--selection-left) + var(--selection-width))
                     calc(var(--selection-top) + var(--selection-height))
-                    var(--selection-left));
+                    var(--selection-left)
+                    round var(--post-selection-cutout-corner-radius));
     height: 100%;
     inset: 0;
     object-fit: contain;
@@ -32,16 +30,27 @@
   }
 
   #postSelection {
+    /* Scrim is rendered here too, so that the rendered screenshot is dark
+     * as if it were under the scrim as well. */
+    background-color: var(--color-scrim);
+    border-radius: var(--post-selection-cutout-corner-radius);
     height: var(--selection-height);
     left: var(--selection-left);
     margin: auto;
+    opacity: 5%;
     position: absolute;
     top: var(--selection-top);
+    transition: opacity 100ms cubic-bezier(0.3, 0, 1, 1);
     width: var(--selection-width);
+  }
+
+  :host([should-darken-scrim]) #postSelection {
+    opacity: 20%;
   }
 
   #selectionCorners {
     background-image: paint(post-selection);
+    forced-color-adjust: none;
     height: calc(var(--selection-height) +
                     (2 * var(--post-selection-corner-width)));
     left: calc(var(--selection-left) - var(--post-selection-corner-width));
@@ -49,14 +58,7 @@
     top: calc(var(--selection-top) - var(--post-selection-corner-width));
     width: calc(var(--selection-width) +
                    (2 * var(--post-selection-corner-width)));
-  }
-
-  :host([enable-selection-dragging]) #selectionCorners {
-    cursor: all-scroll;
-  }
-
-  .draggable {
-    pointer-events: all;
+    z-index: 5; /* Position above words. */
   }
 
   .corner-hit-box {
@@ -65,9 +67,9 @@
     max-width: var(--post-selection-corner-hitbox-max-size);
     min-height: var(--post-selection-corner-length);
     min-width: var(--post-selection-corner-length);
+    pointer-events: all;
     position: absolute;
     width: 50%;
-    z-index: 5; /* Position above words. */
   }
 
   #topLeft {
@@ -102,13 +104,14 @@
     style$="[[getScrimStyleProperties(height, width)]]">
 </div>
 <div hidden$="[[!hasSelection(height, width)]]">
-  <img id="backgroundImage" src="[[screenshotDataUri]]">
-  <!-- This inner postSelection div isn't technically required, but helps make
-   testing easier and more readable. -->
+  <canvas id="backgroundImageCanvas" height="[[canvasPhysicalHeight]]"
+      width="[[canvasPhysicalWidth]]"
+      style$="height: [[canvasHeight]]px; width: [[canvasWidth]]px;">
+  </canvas>
   <div id="postSelection"></div>
-  <div id="selectionCorners" class="draggable">
+  <div id="selectionCorners">
     <template is="dom-repeat" items="[[cornerIds]]">
-      <div id="[[item]]" class="corner-hit-box draggable"></div>
+      <div id="[[item]]" class="corner-hit-box"></div>
     </template>
   </div>
 </div>

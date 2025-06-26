@@ -88,8 +88,6 @@ class CONTENT_EXPORT ServiceWorkerSubresourceLoader
     kStarted,
     // A redirect happened, waiting for FollowRedirect().
     kSentRedirect,
-    // The response head has been sent to |url_loader_client_|.
-    kSentHeader,
     // The data pipe for the response body has been sent to
     // |url_loader_client_|. The body is being written to the pipe.
     kSentBody,
@@ -135,18 +133,15 @@ class CONTENT_EXPORT ServiceWorkerSubresourceLoader
       const std::optional<GURL>& new_url) override;
   void SetPriority(net::RequestPriority priority,
                    int intra_priority_value) override;
-  void PauseReadingBodyFromNet() override;
-  void ResumeReadingBodyFromNet() override;
 
   int StartBlobReading(mojo::ScopedDataPipeConsumerHandle* body_pipe);
   void OnSideDataReadingComplete(mojo::ScopedDataPipeConsumerHandle data_pipe,
                                  std::optional<mojo_base::BigBuffer> metadata);
   void OnBodyReadingComplete(int net_error);
 
-  // ServiceWorkerResourceLoader overrides:
-  void CommitResponseHeaders(
-      const network::mojom::URLResponseHeadPtr&) override;
+  void SetCommitResponsibility(FetchResponseFrom fetch_response_from) override;
 
+  // ServiceWorkerResourceLoader overrides:
   // Calls url_loader_client_->OnReceiveResponse() with given |response_head|,
   // |response_body|, and |cached_metadata|.
   void CommitResponseBody(
@@ -212,10 +207,6 @@ class CONTENT_EXPORT ServiceWorkerSubresourceLoader
 
   void TransitionToStatus(Status new_status);
 
-  // If eligible, dispatch the network request which races the ServiceWorker
-  // fetch handler.
-  bool MaybeStartRaceNetworkRequest();
-
   // Returns false if fails to start race network request.
   // A caller should handle the case.
   bool StartRaceNetworkRequest();
@@ -227,6 +218,9 @@ class CONTENT_EXPORT ServiceWorkerSubresourceLoader
 
   void DidCacheStorageMatch(base::TimeTicks event_dispatch_time,
                             blink::mojom::MatchResultPtr result);
+
+  void MaybeDeleteThis();
+  bool IsResponseAlreadyCommittedByRaceNetworkRequest();
 
   network::mojom::URLResponseHeadPtr response_head_;
   std::optional<net::RedirectInfo> redirect_info_;

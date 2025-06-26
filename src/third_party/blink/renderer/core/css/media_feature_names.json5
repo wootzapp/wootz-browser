@@ -77,5 +77,6 @@
     "inverted-colors",
     "scripting",
     "resizable",
+    "scrollable",
   ],
 }

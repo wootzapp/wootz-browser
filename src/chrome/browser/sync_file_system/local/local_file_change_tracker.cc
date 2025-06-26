@@ -73,7 +73,7 @@ class LocalFileChangeTracker::TrackerDB {
 };
 
 LocalFileChangeTracker::ChangeInfo::ChangeInfo() : change_seq(-1) {}
-LocalFileChangeTracker::ChangeInfo::~ChangeInfo() {}
+LocalFileChangeTracker::ChangeInfo::~ChangeInfo() = default;
 
 // LocalFileChangeTracker ------------------------------------------------------
 
@@ -112,6 +112,14 @@ void LocalFileChangeTracker::OnCreateFileFrom(const FileSystemURL& url,
                                               const FileSystemURL& src) {
   RecordChange(url, FileChange(FileChange::FILE_CHANGE_ADD_OR_UPDATE,
                                SYNC_FILE_TYPE_FILE));
+}
+
+void LocalFileChangeTracker::OnMoveFileFrom(const FileSystemURL& url,
+                                            const FileSystemURL& src) {
+  RecordChange(url, FileChange(FileChange::FILE_CHANGE_ADD_OR_UPDATE,
+                               SYNC_FILE_TYPE_FILE));
+  RecordChange(src,
+               FileChange(FileChange::FILE_CHANGE_DELETE, SYNC_FILE_TYPE_FILE));
 }
 
 void LocalFileChangeTracker::OnRemoveFile(const FileSystemURL& url) {
@@ -461,8 +469,7 @@ void LocalFileChangeTracker::ResetForURL(const storage::FileSystemURL& url,
 
   std::string serialized_url;
   if (!SerializeSyncableFileSystemURL(url, &serialized_url)) {
-    NOTREACHED_IN_MIGRATION() << "Failed to serialize: " << url.DebugString();
-    return;
+    NOTREACHED() << "Failed to serialize: " << url.DebugString();
   }
   batch->Delete(serialized_url);
 }
@@ -503,8 +510,7 @@ SyncStatusCode LocalFileChangeTracker::TrackerDB::Init(
     case REPAIR_ON_CORRUPTION:
       return Repair(path);
   }
-  NOTREACHED_IN_MIGRATION();
-  return SYNC_DATABASE_ERROR_FAILED;
+  NOTREACHED();
 }
 
 SyncStatusCode LocalFileChangeTracker::TrackerDB::Repair(

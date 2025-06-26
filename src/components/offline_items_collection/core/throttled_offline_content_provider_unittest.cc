@@ -39,7 +39,7 @@ class TriggerSingleReentrantUpdateHelper
       : ScopedMockObserver(provider),
         wrapped_provider_(wrapped_provider),
         new_item_(new_item) {}
-  ~TriggerSingleReentrantUpdateHelper() override {}
+  ~TriggerSingleReentrantUpdateHelper() override = default;
 
   void OnItemUpdated(const OfflineItem& item,
                      const std::optional<UpdateDelta>& update_delta) override {
@@ -63,7 +63,7 @@ class ThrottledOfflineContentProviderTest : public testing::Test {
         current_default_handle_(task_runner_),
         delay_(base::Seconds(1)),
         provider_(delay_, &wrapped_provider_) {}
-  ~ThrottledOfflineContentProviderTest() override {}
+  ~ThrottledOfflineContentProviderTest() override = default;
 
   MOCK_METHOD1(OnGetAllItemsDone,
                void(const OfflineContentProvider::OfflineItemList&));
@@ -334,23 +334,23 @@ TEST_F(ThrottledOfflineContentProviderTest, TestPokingProviderFlushesQueue) {
 
   // Set up reentrancy calls back into the provider.
   EXPECT_CALL(wrapped_provider_, OpenItem(_, _))
-      .WillRepeatedly(InvokeWithoutArgs([=]() {
+      .WillRepeatedly(InvokeWithoutArgs([=, this]() {
         wrapped_provider_.NotifyOnItemUpdated(item2, std::nullopt);
       }));
   EXPECT_CALL(wrapped_provider_, RemoveItem(_))
-      .WillRepeatedly(InvokeWithoutArgs([=]() {
+      .WillRepeatedly(InvokeWithoutArgs([=, this]() {
         wrapped_provider_.NotifyOnItemUpdated(item3, std::nullopt);
       }));
   EXPECT_CALL(wrapped_provider_, CancelDownload(_))
-      .WillRepeatedly(InvokeWithoutArgs([=]() {
+      .WillRepeatedly(InvokeWithoutArgs([=, this]() {
         wrapped_provider_.NotifyOnItemUpdated(item4, std::nullopt);
       }));
   EXPECT_CALL(wrapped_provider_, PauseDownload(_))
-      .WillRepeatedly(InvokeWithoutArgs([=]() {
+      .WillRepeatedly(InvokeWithoutArgs([=, this]() {
         wrapped_provider_.NotifyOnItemUpdated(item5, std::nullopt);
       }));
   EXPECT_CALL(wrapped_provider_, ResumeDownload(_))
-      .WillRepeatedly(InvokeWithoutArgs([=]() {
+      .WillRepeatedly(InvokeWithoutArgs([=, this]() {
         wrapped_provider_.NotifyOnItemUpdated(item6, std::nullopt);
       }));
 

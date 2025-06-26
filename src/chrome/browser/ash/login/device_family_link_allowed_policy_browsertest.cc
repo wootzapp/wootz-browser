@@ -14,7 +14,6 @@
 #include "chrome/browser/ash/login/test/user_auth_config.h"
 #include "chrome/browser/ash/login/test/user_policy_mixin.h"
 #include "chrome/browser/ash/login/wizard_controller.h"
-#include "chrome/browser/ash/net/delay_network_call.h"
 #include "chrome/browser/ash/policy/core/device_policy_cros_browser_test.h"
 #include "chrome/browser/lifetime/application_lifetime_chromeos.h"
 #include "chrome/browser/lifetime/termination_notification.h"
@@ -27,17 +26,18 @@
 #include "components/user_manager/user_manager.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace ash {
 namespace {
 
 const char kFamilyLinkUser[] = "fl@gmail.com";
-const char kFamilyLinkGaiaID[] = "111111";
+const GaiaId::Literal kFamilyLinkGaiaID("111111");
 const char kRegularUser[] = "regular@gmail.com";
-const char kRegularGaiaID[] = "222222";
+const GaiaId::Literal kRegularGaiaID("222222");
 const char kSchoolUser[] = "student@edu.com";
-const char kSchoolGaiaID[] = "333333";
+const GaiaId::Literal kSchoolGaiaID("333333");
 const char kSchoolAllowlist[] = "*@edu.com";
 
 }  // namespace
@@ -92,9 +92,6 @@ class DeviceFamilyLinkAllowedPolicyTest : public LoginManagerTest {
   }
 
   void LoginFamilyLinkUser() {
-    // TODO(b/333450354): Determine why this is necessary and fix.
-    SetDelayNetworkCallsForTesting(true);
-
     login_manager_.SkipPostLoginScreens();
     UserContext user_context =
         LoginManagerMixin::CreateDefaultUserContext(family_link_user_);
@@ -102,7 +99,7 @@ class DeviceFamilyLinkAllowedPolicyTest : public LoginManagerTest {
     fake_gaia_.SetupFakeGaiaForChildUser(
         family_link_user_.account_id.GetUserEmail(),
         family_link_user_.account_id.GetGaiaId(),
-        FakeGaiaMixin::kFakeRefreshToken, false /*issue_any_scope_token*/);
+        FakeGaiaMixin::kFakeRefreshToken, /*issue_any_scope_token=*/true);
     login_manager_.AttemptLoginUsingAuthenticator(
         user_context, std::make_unique<StubAuthenticatorBuilder>(user_context));
   }

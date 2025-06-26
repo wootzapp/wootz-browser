@@ -135,6 +135,9 @@ class PredictionManager : public PredictionModelDownloadObserver {
   std::vector<optimization_guide_internals::mojom::DownloadedModelInfoPtr>
   GetDownloadedModelsInfoForWebUI() const;
 
+  base::flat_map<std::string, bool> GetOnDeviceSupplementaryModelsInfoForWebUI()
+      const;
+
   // Initialize the model metadata fetching and downloads.
   void MaybeInitializeModelDownloads(
       download::BackgroundDownloadService* background_download_service);
@@ -356,6 +359,9 @@ class PredictionManager : public PredictionModelDownloadObserver {
 
   // The path to the directory containing the models.
   base::FilePath models_dir_path_;
+
+  // Whether to check for Google API key configuration.
+  bool should_check_google_api_key_configuration_ = true;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

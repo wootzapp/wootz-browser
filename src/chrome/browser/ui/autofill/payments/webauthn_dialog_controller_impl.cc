@@ -24,12 +24,14 @@ WebauthnDialogControllerImpl::~WebauthnDialogControllerImpl() {
   // WebauthnDialogView::dtor() being called, but the reference to
   // controller is not reset. Need to reset via WebauthnDialogView::Hide()
   // to avoid crash.
-  if (dialog_model_)
+  if (dialog_model_) {
     dialog_model_->SetDialogState(WebauthnDialogState::kInactive);
+  }
 }
 
 void WebauthnDialogControllerImpl::ShowOfferDialog(
-    AutofillClient::WebauthnDialogCallback offer_dialog_callback) {
+    payments::PaymentsAutofillClient::WebauthnDialogCallback
+        offer_dialog_callback) {
   DCHECK(!dialog_model_);
 
   callback_ = std::move(offer_dialog_callback);
@@ -38,7 +40,8 @@ void WebauthnDialogControllerImpl::ShowOfferDialog(
 }
 
 void WebauthnDialogControllerImpl::ShowVerifyPendingDialog(
-    AutofillClient::WebauthnDialogCallback verify_pending_dialog_callback) {
+    payments::PaymentsAutofillClient::WebauthnDialogCallback
+        verify_pending_dialog_callback) {
   DCHECK(!dialog_model_);
 
   callback_ = std::move(verify_pending_dialog_callback);
@@ -48,8 +51,9 @@ void WebauthnDialogControllerImpl::ShowVerifyPendingDialog(
 }
 
 bool WebauthnDialogControllerImpl::CloseDialog() {
-  if (!dialog_model_)
+  if (!dialog_model_) {
     return false;
+  }
 
   dialog_model_->SetDialogState(WebauthnDialogState::kInactive);
   return true;
@@ -97,8 +101,7 @@ void WebauthnDialogControllerImpl::OnCancelButtonClicked() {
     case WebauthnDialogState::kUnknown:
     case WebauthnDialogState::kInactive:
     case WebauthnDialogState::kOfferError:
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
   }
 }
 

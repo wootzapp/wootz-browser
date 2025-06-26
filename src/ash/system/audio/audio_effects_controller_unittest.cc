@@ -24,7 +24,6 @@
 #include "chromeos/ash/components/audio/cras_audio_handler.h"
 #include "chromeos/ash/components/dbus/audio/cras_audio_client.h"
 #include "chromeos/ash/components/dbus/audio/fake_cras_audio_client.h"
-#include "media/base/media_switches.h"
 
 namespace ash {
 
@@ -40,8 +39,9 @@ struct AudioNodeInfo {
 };
 
 constexpr uint32_t kNoiseCancellationAudioEffect = 1;
+constexpr uint32_t kStyleTransferAudioEffect = 4;
 
-constexpr AudioNodeInfo kInternalMicWithNC[] = {
+constexpr AudioNodeInfo kInternalMic_NC[] = {
     {.is_input = true,
      .id = 10001,
      .device_name = "Internal Mic",
@@ -49,13 +49,30 @@ constexpr AudioNodeInfo kInternalMicWithNC[] = {
      .name = "Internal Mic",
      .audio_effect = kNoiseCancellationAudioEffect}};
 
-constexpr AudioNodeInfo kInternalMicWithoutNC[] = {
+constexpr AudioNodeInfo kInternalMic_NoEffects[] = {
     {.is_input = true,
      .id = 10002,
      .device_name = "Internal Mic",
      .type = "INTERNAL_MIC",
      .name = "Internal Mic",
      .audio_effect = 0u}};
+
+constexpr AudioNodeInfo kInternalMic_NC_ST[] = {
+    {.is_input = true,
+     .id = 10003,
+     .device_name = "Internal Mic",
+     .type = "INTERNAL_MIC",
+     .name = "Internal Mic",
+     .audio_effect =
+         kNoiseCancellationAudioEffect | kStyleTransferAudioEffect}};
+
+constexpr AudioNodeInfo kInternalMic_ST[] = {
+    {.is_input = true,
+     .id = 10004,
+     .device_name = "Internal Mic",
+     .type = "INTERNAL_MIC",
+     .name = "Internal Mic",
+     .audio_effect = kStyleTransferAudioEffect}};
 
 constexpr AudioNodeInfo kInternalSpeakerWithNC[] = {
     {.is_input = false,
@@ -146,10 +163,9 @@ class AudioEffectsControllerTest : public NoSessionAshTestBase {
     return audio_effects_controller_;
   }
 
-  void ChangeAudioInput(bool noise_cancellation_supported) {
-    const std::vector<const AudioNodeInfo*> audio_info_nodes = {
-        (noise_cancellation_supported) ? kInternalMicWithNC
-                                       : kInternalMicWithoutNC};
+  void ChangeAudioInput(const AudioNodeInfo* node_info) {
+    const std::vector<const AudioNodeInfo*> audio_info_nodes = {node_info};
+
     fake_cras_audio_client()->SetAudioNodesAndNotifyObserversForTesting(
         GenerateAudioNodeList(audio_info_nodes));
     cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
@@ -204,7 +220,7 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationNotSupported) {
   fake_cras_audio_client()->SetNoiseCancellationSupported(false);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // `AudioEffectsController` reports noise that cancellation is not-supported.
   EXPECT_FALSE(audio_effects_controller()->IsEffectSupported(
@@ -213,12 +229,37 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationNotSupported) {
       VcEffectId::kNoiseCancellation));
 }
 
+TEST_F(AudioEffectsControllerTest,
+       NoiseCancellationNotSupportedByVcIfStyleTransferSupported) {
+  // Change audio input to support both NC and style_transfer
+  ChangeAudioInput(kInternalMic_NC_ST);
+
+  // Prepare `CrasAudioHandler` to report that noise cancellation and style
+  // transfer are both supported by hardware.
+  fake_cras_audio_client()->SetNoiseCancellationSupported(true);
+  fake_cras_audio_client()->SetStyleTransferSupported(true);
+  cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
+  cras_audio_handler()->RequestStyleTransferSupported(base::DoNothing());
+
+  SimulateUserLogin({"testuser1@gmail.com"});
+
+  EXPECT_FALSE(audio_effects_controller()->IsEffectSupported(
+      VcEffectId::kNoiseCancellation));
+  EXPECT_FALSE(audio_effects_controller()->GetEffectById(
+      VcEffectId::kNoiseCancellation));
+
+  EXPECT_TRUE(audio_effects_controller()->IsEffectSupported(
+      VcEffectId::kStyleTransfer));
+  EXPECT_TRUE(
+      audio_effects_controller()->GetEffectById(VcEffectId::kStyleTransfer));
+}
+
 TEST_F(AudioEffectsControllerTest, NoiseCancellationSupported) {
   // Prepare `CrasAudioHandler` to report that noise cancellation is supported.
   fake_cras_audio_client()->SetNoiseCancellationSupported(true);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // `AudioEffectsController` reports that noise cancellation is supported.
   EXPECT_TRUE(audio_effects_controller()->IsEffectSupported(
@@ -243,7 +284,7 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationNotEnabled) {
   fake_cras_audio_client()->SetNoiseCancellationSupported(true);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Explicitly disable noise cancellation.
   cras_audio_handler()->SetNoiseCancellationState(
@@ -274,7 +315,7 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationEnabled) {
   fake_cras_audio_client()->SetNoiseCancellationSupported(true);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Explicitly enable noise cancellation.
   cras_audio_handler()->SetNoiseCancellationState(
@@ -295,7 +336,7 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationSetNotEnabled) {
   fake_cras_audio_client()->SetNoiseCancellationSupported(true);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Explicitly enable noise cancellation.
   cras_audio_handler()->SetNoiseCancellationState(
@@ -317,7 +358,7 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationSetEnabled) {
   fake_cras_audio_client()->SetNoiseCancellationSupported(true);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Explicitly disable noise cancellation.
   cras_audio_handler()->SetNoiseCancellationState(
@@ -339,9 +380,9 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationAudioInputDevice) {
   // However, the input audio does not support noise cancellation.
   fake_cras_audio_client()->SetNoiseCancellationSupported(true);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
-  ChangeAudioInput(/*noise_cancellation_supported=*/false);
+  ChangeAudioInput(kInternalMic_NoEffects);
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // `AudioEffectsController` reports noise that cancellation is not-supported.
   EXPECT_FALSE(audio_effects_controller()->IsEffectSupported(
@@ -350,7 +391,7 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationAudioInputDevice) {
       VcEffectId::kNoiseCancellation));
 
   // Change to an input that does support. The state should reflect that.
-  ChangeAudioInput(/*noise_cancellation_supported=*/true);
+  ChangeAudioInput(kInternalMic_NC);
   EXPECT_TRUE(audio_effects_controller()->IsEffectSupported(
       VcEffectId::kNoiseCancellation));
   EXPECT_TRUE(audio_effects_controller()->GetEffectById(
@@ -359,18 +400,18 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationAudioInputDevice) {
 
 TEST_F(AudioEffectsControllerTest, NoiseCancellationSwitchInputDevice) {
   fake_cras_audio_client()->SetAudioNodesAndNotifyObserversForTesting(
-      GenerateAudioNodeList({kInternalMicWithNC, kInternalMicWithoutNC}));
+      GenerateAudioNodeList({kInternalMic_NC, kInternalMic_NoEffects}));
 
   // Prepare `CrasAudioHandler` to report that noise cancellation is supported.
   fake_cras_audio_client()->SetNoiseCancellationSupported(true);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
-  // Switch to use `kInternalMicWithoutNC`, `AudioEffectsController` reports
+  // Switch to use `kInternalMic_NoEffects`, `AudioEffectsController` reports
   // noise that cancellation is not-supported.
   cras_audio_handler()->SwitchToDevice(
-      AudioDevice(GenerateAudioNode(kInternalMicWithoutNC)), /*notify=*/true,
+      AudioDevice(GenerateAudioNode(kInternalMic_NoEffects)), /*notify=*/true,
       DeviceActivateType::kActivateByUser);
 
   EXPECT_FALSE(audio_effects_controller()->IsEffectSupported(
@@ -378,10 +419,10 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationSwitchInputDevice) {
   EXPECT_FALSE(audio_effects_controller()->GetEffectById(
       VcEffectId::kNoiseCancellation));
 
-  // Switch to use `kInternalMicWithNC`, `AudioEffectsController` reports noise
+  // Switch to use `kInternalMic_NC`, `AudioEffectsController` reports noise
   // that cancellation is supported.
   cras_audio_handler()->SwitchToDevice(
-      AudioDevice(GenerateAudioNode(kInternalMicWithNC)), /*notify=*/true,
+      AudioDevice(GenerateAudioNode(kInternalMic_NC)), /*notify=*/true,
       DeviceActivateType::kActivateByUser);
 
   EXPECT_TRUE(audio_effects_controller()->IsEffectSupported(
@@ -389,10 +430,10 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationSwitchInputDevice) {
   EXPECT_TRUE(audio_effects_controller()->GetEffectById(
       VcEffectId::kNoiseCancellation));
 
-  // Switch back to use `kInternalMicWithoutNC`, `AudioEffectsController`
+  // Switch back to use `kInternalMic_NoEffects`, `AudioEffectsController`
   // reports noise that cancellation is not-supported.
   cras_audio_handler()->SwitchToDevice(
-      AudioDevice(GenerateAudioNode(kInternalMicWithoutNC)), /*notify=*/true,
+      AudioDevice(GenerateAudioNode(kInternalMic_NoEffects)), /*notify=*/true,
       DeviceActivateType::kActivateByUser);
 
   EXPECT_FALSE(audio_effects_controller()->IsEffectSupported(
@@ -403,14 +444,14 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationSwitchInputDevice) {
 
 TEST_F(AudioEffectsControllerTest, NoiseCancellationSwitchOutputDevice) {
   fake_cras_audio_client()->SetAudioNodesAndNotifyObserversForTesting(
-      GenerateAudioNodeList({kInternalMicWithNC, kInternalSpeakerWithNC,
+      GenerateAudioNodeList({kInternalMic_NC, kInternalSpeakerWithNC,
                              kInternalSpeakerWithoutNC}));
 
   // Prepare `CrasAudioHandler` to report that noise cancellation is supported.
   fake_cras_audio_client()->SetNoiseCancellationSupported(true);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Switch output device to not support NC, `AudioEffectsController` reports
   // noise that cancellation is not-supported.
@@ -443,21 +484,21 @@ TEST_F(AudioEffectsControllerTest, NoiseCancellationSwitchOutputDevice) {
 TEST_F(AudioEffectsControllerTest, CloseBubble) {
   fake_cras_audio_client()->SetNoiseCancellationSupported(true);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
-  ChangeAudioInput(/*noise_cancellation_supported=*/true);
+  ChangeAudioInput(kInternalMic_NC);
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   OpenVideoConferenceBubble();
   ASSERT_TRUE(GetVideoConfereneTray()->GetBubbleView());
 
   // Change to an input device that does not support noise cancellation. The
   // bubble should close automatically to update effect state.
-  ChangeAudioInput(/*noise_cancellation_supported=*/false);
+  ChangeAudioInput(kInternalMic_NoEffects);
   EXPECT_FALSE(GetVideoConfereneTray()->GetBubbleView());
 }
 
 TEST_F(AudioEffectsControllerTest, LiveCaptionNotSupported) {
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // No live caption feature flags enabled, so `AudioEffectsController` reports
   // that live caption is not supported.
@@ -472,7 +513,7 @@ TEST_F(AudioEffectsControllerTest, LiveCaptionSupported) {
        features::kShowLiveCaptionInVideoConferenceTray},
       {});
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Live caption feature flags are enabled, so `AudioEffectsController` reports
   // that live caption is supported.
@@ -492,10 +533,10 @@ TEST_F(AudioEffectsControllerTest, LiveCaptionSupported) {
 TEST_F(AudioEffectsControllerTest, DoNotShowLiveCaptionInVcTray) {
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatures(
-      {media::kLiveCaption, features::kOnDeviceSpeechRecognition},
+      {features::kOnDeviceSpeechRecognition},
       {features::kShowLiveCaptionInVideoConferenceTray});
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   EXPECT_FALSE(
       audio_effects_controller()->IsEffectSupported(VcEffectId::kLiveCaption));
@@ -506,10 +547,10 @@ TEST_F(AudioEffectsControllerTest, DoNotShowLiveCaptionInVcTray) {
 TEST_F(AudioEffectsControllerTest, LiveCaptionNotEnabled) {
   // Ensure that live caption is supported.
   base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      {media::kLiveCaption, features::kOnDeviceSpeechRecognition}, {});
+  scoped_feature_list.InitWithFeatures({features::kOnDeviceSpeechRecognition},
+                                       {});
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Explicitly disable live caption, confirm that it is disabled.
   AccessibilityController* controller =
@@ -527,10 +568,10 @@ TEST_F(AudioEffectsControllerTest, LiveCaptionNotEnabled) {
 TEST_F(AudioEffectsControllerTest, LiveCaptionEnabled) {
   // Ensure that live caption is supported.
   base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      {media::kLiveCaption, features::kOnDeviceSpeechRecognition}, {});
+  scoped_feature_list.InitWithFeatures({features::kOnDeviceSpeechRecognition},
+                                       {});
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Explicitly enable live caption, confirm that it is enabled.
   AccessibilityController* controller =
@@ -548,10 +589,10 @@ TEST_F(AudioEffectsControllerTest, LiveCaptionEnabled) {
 TEST_F(AudioEffectsControllerTest, LiveCaptionSetNotEnabled) {
   // Ensure that live caption is supported.
   base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      {media::kLiveCaption, features::kOnDeviceSpeechRecognition}, {});
+  scoped_feature_list.InitWithFeatures({features::kOnDeviceSpeechRecognition},
+                                       {});
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Explicitly enable live caption, confirm that it is enabled.
   AccessibilityController* controller =
@@ -570,10 +611,10 @@ TEST_F(AudioEffectsControllerTest, LiveCaptionSetNotEnabled) {
 TEST_F(AudioEffectsControllerTest, LiveCaptionSetEnabled) {
   // Ensure that live caption is supported.
   base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      {media::kLiveCaption, features::kOnDeviceSpeechRecognition}, {});
+  scoped_feature_list.InitWithFeatures({features::kOnDeviceSpeechRecognition},
+                                       {});
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Explicitly disable live caption, confirm that it is disabled.
   AccessibilityController* controller =
@@ -597,11 +638,11 @@ TEST_F(AudioEffectsControllerTest, LiveCaptionAndNoiseCancellationAdded) {
   // Ensure that live caption is supported.
   base::test::ScopedFeatureList scoped_feature_list;
   scoped_feature_list.InitWithFeatures(
-      {media::kLiveCaption, features::kOnDeviceSpeechRecognition,
+      {features::kOnDeviceSpeechRecognition,
        features::kShowLiveCaptionInVideoConferenceTray},
       {});
 
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   // Both effects should be supported and added.
   EXPECT_TRUE(audio_effects_controller()->IsEffectSupported(
@@ -625,7 +666,7 @@ TEST_F(AudioEffectsControllerTest, DelegateRegistered) {
       VideoConferenceTrayController::Get()->GetEffectsManager();
 
   // No effects supported. Delegate should not be registered.
-  SimulateUserLogin("testuser1@gmail.com");
+  SimulateUserLogin({"testuser1@gmail.com"});
 
   EXPECT_FALSE(
       effects_manager.IsDelegateRegistered(audio_effects_controller()));
@@ -634,9 +675,157 @@ TEST_F(AudioEffectsControllerTest, DelegateRegistered) {
   // registered now.
   fake_cras_audio_client()->SetNoiseCancellationSupported(true);
   cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
-  ChangeAudioInput(/*noise_cancellation_supported=*/true);
+  ChangeAudioInput(kInternalMic_NC);
 
   EXPECT_TRUE(effects_manager.IsDelegateRegistered(audio_effects_controller()));
+}
+
+TEST_F(AudioEffectsControllerTest, StyleTransferNotSupported) {
+  // Change audio input to support both NC and style_transfer
+  ChangeAudioInput(kInternalMic_NC_ST);
+
+  // Prepare `CrasAudioHandler` to report that style transfer is
+  // not-supported.
+  fake_cras_audio_client()->SetStyleTransferSupported(false);
+  cras_audio_handler()->RequestStyleTransferSupported(base::DoNothing());
+
+  SimulateUserLogin({"testuser1@gmail.com"});
+
+  // `AudioEffectsController` reports that style transfer is not-supported.
+  EXPECT_FALSE(audio_effects_controller()->IsEffectSupported(
+      VcEffectId::kStyleTransfer));
+  EXPECT_FALSE(
+      audio_effects_controller()->GetEffectById(VcEffectId::kStyleTransfer));
+}
+
+TEST_F(AudioEffectsControllerTest, StyleTransferSupported) {
+  // Change audio input to support both NC and style_transfer
+  ChangeAudioInput(kInternalMic_NC_ST);
+
+  // Prepare `CrasAudioHandler` to report that style transfer is supported.
+  fake_cras_audio_client()->SetStyleTransferSupported(true);
+  cras_audio_handler()->RequestStyleTransferSupported(base::DoNothing());
+
+  SimulateUserLogin({"testuser1@gmail.com"});
+
+  // `AudioEffectsController` reports thatstyle transfer is supported.
+  EXPECT_TRUE(audio_effects_controller()->IsEffectSupported(
+      VcEffectId::kStyleTransfer));
+  EXPECT_TRUE(
+      audio_effects_controller()->GetEffectById(VcEffectId::kStyleTransfer));
+
+  // Makes sure the dependency flag is set when the effect is supported.
+  auto* effect =
+      audio_effects_controller()->GetEffectById(VcEffectId::kStyleTransfer);
+  EXPECT_EQ(VcHostedEffect::ResourceDependency::kMicrophone,
+            effect->dependency_flags());
+
+  // Delegate should be registered.
+  EXPECT_TRUE(VideoConferenceTrayController::Get()
+                  ->GetEffectsManager()
+                  .IsDelegateRegistered(audio_effects_controller()));
+}
+
+TEST_F(AudioEffectsControllerTest, StyleTransferSupportedWithoutNC) {
+  // Change audio input to support both NC and style_transfer
+  ChangeAudioInput(kInternalMic_ST);
+
+  // Prepare `CrasAudioHandler` to report that style transfer is supported.
+  fake_cras_audio_client()->SetStyleTransferSupported(true);
+  cras_audio_handler()->RequestStyleTransferSupported(base::DoNothing());
+
+  SimulateUserLogin({"testuser1@gmail.com"});
+
+  // `AudioEffectsController` reports thatstyle transfer is supported.
+  EXPECT_TRUE(audio_effects_controller()->IsEffectSupported(
+      VcEffectId::kStyleTransfer));
+  EXPECT_TRUE(
+      audio_effects_controller()->GetEffectById(VcEffectId::kStyleTransfer));
+
+  // Makes sure the dependency flag is set when the effect is supported.
+  auto* effect =
+      audio_effects_controller()->GetEffectById(VcEffectId::kStyleTransfer);
+  EXPECT_EQ(VcHostedEffect::ResourceDependency::kMicrophone,
+            effect->dependency_flags());
+
+  // Delegate should be registered.
+  EXPECT_TRUE(VideoConferenceTrayController::Get()
+                  ->GetEffectsManager()
+                  .IsDelegateRegistered(audio_effects_controller()));
+}
+
+TEST_F(AudioEffectsControllerTest,
+       StyleTransferEnableDisableFromCrasAudioHandler) {
+  // Change audio input to support both NC and style_transfer
+  ChangeAudioInput(kInternalMic_NC_ST);
+
+  // Prepare `CrasAudioHandler` to report that style transfer is supported.
+  fake_cras_audio_client()->SetStyleTransferSupported(true);
+  cras_audio_handler()->RequestStyleTransferSupported(base::DoNothing());
+
+  SimulateUserLogin({"testuser1@gmail.com"});
+
+  // Explicitly disable style transfer.
+  cras_audio_handler()->SetStyleTransferState(false);
+  std::optional<int> effect_state =
+      audio_effects_controller()->GetEffectState(VcEffectId::kStyleTransfer);
+  EXPECT_TRUE(effect_state.has_value());
+  EXPECT_EQ(effect_state, 0);
+
+  // Explicitly enable style transfer.
+  cras_audio_handler()->SetStyleTransferState(true);
+  effect_state =
+      audio_effects_controller()->GetEffectState(VcEffectId::kStyleTransfer);
+  EXPECT_TRUE(effect_state.has_value());
+  EXPECT_EQ(effect_state, 1);
+
+  // Explicitly disable style transfer.
+  cras_audio_handler()->SetStyleTransferState(false);
+  effect_state =
+      audio_effects_controller()->GetEffectState(VcEffectId::kStyleTransfer);
+  EXPECT_TRUE(effect_state.has_value());
+  EXPECT_EQ(effect_state, 0);
+}
+
+TEST_F(AudioEffectsControllerTest,
+       StyleTransferEnableDisableFromAudioEffectsController) {
+  // Change audio input to support both NC and style_transfer
+  ChangeAudioInput(kInternalMic_NC_ST);
+
+  // Prepare noise cancellation support.
+  fake_cras_audio_client()->SetNoiseCancellationSupported(true);
+  cras_audio_handler()->RequestNoiseCancellationSupported(base::DoNothing());
+
+  SimulateUserLogin({"testuser1@gmail.com"});
+
+  // Explicitly disable style transfer.
+  cras_audio_handler()->SetStyleTransferState(false);
+  std::optional<int> effect_state =
+      audio_effects_controller()->GetEffectState(VcEffectId::kStyleTransfer);
+  EXPECT_TRUE(effect_state.has_value());
+  EXPECT_EQ(effect_state, 0);
+
+  // User pressed the style transfer toggle.
+  audio_effects_controller()->OnEffectControlActivated(
+      VcEffectId::kStyleTransfer, std::nullopt);
+  // CrasAudioHandler should return true.
+  EXPECT_TRUE(cras_audio_handler()->GetStyleTransferState());
+  // AudioEffectsController should return true.
+  effect_state =
+      audio_effects_controller()->GetEffectState(VcEffectId::kStyleTransfer);
+  EXPECT_TRUE(effect_state.has_value());
+  EXPECT_EQ(effect_state, 1);
+
+  // User pressed the style transfer toggle.
+  audio_effects_controller()->OnEffectControlActivated(
+      VcEffectId::kStyleTransfer, std::nullopt);
+  // CrasAudioHandler should return false.
+  EXPECT_FALSE(cras_audio_handler()->GetStyleTransferState());
+  // AudioEffectsController should return false.
+  effect_state =
+      audio_effects_controller()->GetEffectState(VcEffectId::kStyleTransfer);
+  EXPECT_TRUE(effect_state.has_value());
+  EXPECT_EQ(effect_state, 0);
 }
 
 }  // namespace ash

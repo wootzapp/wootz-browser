@@ -5,6 +5,7 @@
 load("//lib/builder_config.star", "builder_config")
 load("//lib/builders.star", "builder", "cpu", "defaults", "os", "siso")
 load("//lib/gn_args.star", "gn_args")
+load("//lib/targets.star", "targets")
 
 luci.bucket(
     name = "webrtc",
@@ -41,10 +42,17 @@ defaults.set(
     properties = {
         "perf_dashboard_machine_group": "ChromiumWebRTC",
     },
+    reclient_enabled = False,
     service_account = "chromium-ci-builder@chops-service-accounts.iam.gserviceaccount.com",
     siso_enabled = True,
     siso_project = siso.project.DEFAULT_TRUSTED,
     siso_remote_jobs = siso.remote_jobs.DEFAULT,
+)
+
+targets.builder_defaults.set(
+    mixins = [
+        "chromium-tester-service-account",
+    ],
 )
 
 # Builders are defined in lexicographic order by name
@@ -57,7 +65,7 @@ builder(
             apply_configs = ["android"],
         ),
         chromium_config = builder_config.chromium_config(
-            config = "chromium",
+            config = "base_config",
             apply_configs = [
                 "dcheck",
                 "mb",
@@ -74,11 +82,13 @@ builder(
     gn_args = gn_args.config(
         configs = [
             "android_builder",
+            "android_with_static_analysis",
             "debug_static_builder",
-            "reclient",
+            "remoteexec",
             "arm64",
         ],
     ),
+    targets = targets.bundle(),
 )
 
 builder(
@@ -91,7 +101,7 @@ builder(
             apply_configs = ["android"],
         ),
         chromium_config = builder_config.chromium_config(
-            config = "chromium",
+            config = "base_config",
             apply_configs = [
                 "dcheck",
                 "mb",
@@ -104,6 +114,17 @@ builder(
         ),
         android_config = builder_config.android_config(config = "base_config"),
         build_gs_bucket = "chromium-webrtc",
+    ),
+    targets = targets.bundle(
+        targets = [
+            "webrtc_chromium_simple_gtests",
+        ],
+        mixins = [
+            "chromium_pixel_2_pie",
+        ],
+    ),
+    targets_settings = targets.settings(
+        os_type = targets.os_type.ANDROID,
     ),
 )
 
@@ -130,7 +151,14 @@ builder(
         configs = [
             "gpu_tests",
             "release_builder",
-            "reclient",
+            "remoteexec",
+            "linux",
+            "x64",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "remoting_unittests",
         ],
     ),
 )
@@ -152,6 +180,14 @@ builder(
             target_platform = builder_config.target_platform.LINUX,
         ),
         build_gs_bucket = "chromium-webrtc",
+    ),
+    targets = targets.bundle(
+        targets = [
+            "webrtc_chromium_gtests",
+        ],
+        mixins = [
+            "linux-jammy",
+        ],
     ),
 )
 
@@ -178,7 +214,14 @@ builder(
         configs = [
             "gpu_tests",
             "release_builder",
-            "reclient",
+            "remoteexec",
+            "mac",
+            "x64",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "remoting_unittests",
         ],
     ),
     os = os.MAC_ANY,
@@ -201,6 +244,14 @@ builder(
             target_platform = builder_config.target_platform.MAC,
         ),
         build_gs_bucket = "chromium-webrtc",
+    ),
+    targets = targets.bundle(
+        targets = [
+            "webrtc_chromium_gtests",
+        ],
+        mixins = [
+            "mac_default_x64",
+        ],
     ),
 )
 
@@ -226,10 +277,17 @@ builder(
     gn_args = gn_args.config(
         configs = [
             "release_builder",
-            "reclient",
+            "remoteexec",
             "minimal_symbols",
             "no_com_init_hooks",
             "chrome_with_codecs",
+            "win",
+            "x64",
+        ],
+    ),
+    targets = targets.bundle(
+        additional_compile_targets = [
+            "remoting_unittests",
         ],
     ),
     os = os.WINDOWS_ANY,
@@ -252,5 +310,19 @@ builder(
             target_platform = builder_config.target_platform.WIN,
         ),
         build_gs_bucket = "chromium-webrtc",
+    ),
+    targets = targets.bundle(
+        targets = [
+            "webrtc_chromium_gtests",
+        ],
+        mixins = [
+            targets.mixin(
+                swarming = targets.swarming(
+                    dimensions = {
+                        "os": "Windows-10",
+                    },
+                ),
+            ),
+        ],
     ),
 )

@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "chrome/browser/extensions/extension_garbage_collector.h"
+
 #include <stddef.h>
 
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/values.h"
-#include "chrome/browser/extensions/crx_installer.h"
-#include "chrome/browser/extensions/extension_garbage_collector.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/extension_service_test_base.h"
 #include "chrome/browser/extensions/install_tracker.h"
@@ -48,43 +48,7 @@ class ExtensionGarbageCollectorUnitTest : public ExtensionServiceTestBase {
     // Wait for GarbageCollectExtensions task to complete.
     content::RunAllTasksUntilIdle();
   }
-
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
-
-// Test that partially deleted extensions are cleaned up during startup.
-TEST_F(ExtensionGarbageCollectorUnitTest, CleanupOnStartup) {
-  feature_list_.InitAndDisableFeature(
-      extensions_features::kExtensionsZipFileInstalledInProfileDir);
-  const ExtensionId kExtensionId = "behllobkkfkfnphdnhnkndlbkcpglgmj";
-
-  InitPluginService();
-  InitializeGoodInstalledExtensionService();
-
-  // Simulate that one of them got partially deleted by clearing its pref.
-  {
-    ScopedDictPrefUpdate update(profile_->GetPrefs(), pref_names::kExtensions);
-    update->Remove(kExtensionId);
-  }
-
-  service_->Init();
-  GarbageCollectExtensions();
-
-  base::FileEnumerator dirs(extensions_install_dir(),
-                            false,  // not recursive
-                            base::FileEnumerator::DIRECTORIES);
-  size_t count = 0;
-  while (!dirs.Next().empty())
-    count++;
-
-  // We should have only gotten two extensions now.
-  EXPECT_EQ(2u, count);
-
-  // And extension1 dir should now be toast.
-  base::FilePath extension_dir =
-      extensions_install_dir().AppendASCII(kExtensionId);
-  ASSERT_FALSE(base::PathExists(extension_dir));
-}
 
 // TODO(crbug.com/40875193): The test extension good_juKvIh seems to error on
 // install with "Manifest file is missing or unreadable" despite the manifest
@@ -97,8 +61,6 @@ TEST_F(ExtensionGarbageCollectorUnitTest, CleanupOnStartup) {
 // up during startup.
 TEST_F(ExtensionGarbageCollectorUnitTest,
        CleanupUnpackedOnStartup_DeleteWhenNoLongerInstalled) {
-  feature_list_.InitAndEnableFeature(
-      extensions_features::kExtensionsZipFileInstalledInProfileDir);
   const ExtensionId kExtensionId = "lckcjklfapeiadkadngidmocpbkemckm";
 
   InitPluginService();
@@ -130,8 +92,6 @@ TEST_F(ExtensionGarbageCollectorUnitTest,
 
 TEST_F(ExtensionGarbageCollectorUnitTest,
        CleanupUnpackedOnStartup_DoNotDeleteWhenStillInstalled) {
-  feature_list_.InitAndEnableFeature(
-      extensions_features::kExtensionsZipFileInstalledInProfileDir);
   const ExtensionId kExtensionId = "lckcjklfapeiadkadngidmocpbkemckm";
 
   InitPluginService();
@@ -180,9 +140,7 @@ TEST_F(ExtensionGarbageCollectorUnitTest, NoCleanupDuringInstall) {
   service_->Init();
 
   // Simulate a CRX installation.
-  auto installer = CrxInstaller::CreateSilent(service_);
-  InstallTracker::Get(profile_.get())
-      ->OnBeginCrxInstall(*installer, kExtensionId);
+  InstallTracker::Get(profile_.get())->OnBeginCrxInstall(kExtensionId);
 
   GarbageCollectExtensions();
 
@@ -193,7 +151,7 @@ TEST_F(ExtensionGarbageCollectorUnitTest, NoCleanupDuringInstall) {
 
   // Finish CRX installation and re-run garbage collection.
   InstallTracker::Get(profile_.get())
-      ->OnFinishCrxInstall(*installer, kExtensionId, false);
+      ->OnFinishCrxInstall(base::FilePath(), kExtensionId, nullptr, false);
   GarbageCollectExtensions();
 
   // extension1 dir should be gone
@@ -208,7 +166,7 @@ TEST_F(ExtensionGarbageCollectorUnitTest, GarbageCollectWithPendingUpdates) {
   ExtensionServiceInitParams params;
   ASSERT_TRUE(params.ConfigureByTestDataDirectory(
       data_dir().AppendASCII("pending_updates")));
-  InitializeExtensionService(params);
+  InitializeExtensionService(std::move(params));
 
   // This is the directory that is going to be deleted, so make sure it actually
   // is there before the garbage collection.
@@ -236,7 +194,7 @@ TEST_F(ExtensionGarbageCollectorUnitTest, UpdateOnStartup) {
   ExtensionServiceInitParams params;
   ASSERT_TRUE(params.ConfigureByTestDataDirectory(
       data_dir().AppendASCII("pending_updates")));
-  InitializeExtensionService(params);
+  InitializeExtensionService(std::move(params));
 
   // This is the directory that is going to be deleted, so make sure it actually
   // is there before the garbage collection.

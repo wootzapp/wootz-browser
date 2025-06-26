@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <map>
 #include <optional>
@@ -22,7 +23,6 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/path_service.h"
 #include "base/strings/strcat.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_path_override.h"
@@ -47,7 +47,7 @@ namespace {
 // Provides mock environment variables values based on a stored map.
 class MockEnvironment : public base::Environment {
  public:
-  MockEnvironment() {}
+  MockEnvironment() = default;
 
   MockEnvironment(const MockEnvironment&) = delete;
   MockEnvironment& operator=(const MockEnvironment&) = delete;
@@ -56,13 +56,11 @@ class MockEnvironment : public base::Environment {
     variables_[std::string(name)] = value;
   }
 
-  bool GetVar(std::string_view variable_name, std::string* result) override {
-    if (base::Contains(variables_, std::string(variable_name))) {
-      *result = variables_[std::string(variable_name)];
-      return true;
+  std::optional<std::string> GetVar(std::string_view variable_name) override {
+    if (!base::Contains(variables_, std::string(variable_name))) {
+      return std::nullopt;
     }
-
-    return false;
+    return variables_[std::string(variable_name)];
   }
 
   bool SetVar(std::string_view variable_name,
@@ -267,7 +265,7 @@ TEST(ShellIntegrationTest, GetUniqueWebShortcutUnique) {
 
 TEST(ShellIntegrationTest, GetDesktopFileContents) {
   const base::FilePath kChromeExePath("/opt/google/chrome/google-chrome");
-  const struct {
+  struct TestCases {
     const char* const url;
     const char* const title;
     const char* const icon_name;
@@ -275,7 +273,8 @@ TEST(ShellIntegrationTest, GetDesktopFileContents) {
     const char* const mime_type;
     bool nodisplay;
     const char* const expected_output;
-  } test_cases[] = {
+  };
+  const auto test_cases = std::to_array<TestCases>({
       // Real-world case.
       {"http://gmail.com", "GMail", "chrome-http__gmail.com", "", "", false,
 
@@ -398,7 +397,8 @@ TEST(ShellIntegrationTest, GetDesktopFileContents) {
        "Exec=/opt/google/chrome/google-chrome --app=https://paint.app/\n"
        "Icon=chrome-https__paint.app\n"
        "Categories=Image\n"
-       "StartupWMClass=paint.app\n"}};
+       "StartupWMClass=paint.app\n"},
+  });
 
   for (size_t i = 0; i < std::size(test_cases); i++) {
     SCOPED_TRACE(i);
@@ -416,14 +416,15 @@ TEST(ShellIntegrationTest, GetDesktopFileContents) {
 
 TEST(ShellIntegrationTest, GetDesktopFileContentsForApps) {
   const base::FilePath kChromeExePath("/opt/google/chrome/google-chrome");
-  const struct {
+  struct TestCases {
     const char* const url;
     const char* const title;
     const char* const icon_name;
     bool nodisplay;
     std::set<web_app::DesktopActionInfo> action_info;
     const char* const expected_output;
-  } test_cases[] = {
+  };
+  const auto test_cases = std::to_array<TestCases>({
       // Test Shortcut Menu actions.
       {"https://example.app",
        "Lawful example",
@@ -477,7 +478,7 @@ TEST(ShellIntegrationTest, GetDesktopFileContentsForApps) {
        "Exec=/opt/google/chrome/google-chrome --app-id=TestAppId "
        "--app-launch-url-for-shortcuts-menu-item=https://example.com/"
        "action%%205\n"},
-  };
+  });
 
   for (size_t i = 0; i < std::size(test_cases); i++) {
     SCOPED_TRACE(i);
@@ -494,11 +495,12 @@ TEST(ShellIntegrationTest, GetDesktopFileContentsForApps) {
 }
 
 TEST(ShellIntegrationTest, GetDirectoryFileContents) {
-  const struct {
+  struct TestCases {
     const char* const title;
     const char* const icon_name;
     const char* const expected_output;
-  } test_cases[] = {
+  };
+  const auto test_cases = std::to_array<TestCases>({
       // Real-world case.
       {"Chrome Apps", "chrome-apps",
 
@@ -521,7 +523,7 @@ TEST(ShellIntegrationTest, GetDirectoryFileContents) {
        "Icon=chromium-browser\n"
 #endif
       },
-  };
+  });
 
   for (size_t i = 0; i < std::size(test_cases); i++) {
     SCOPED_TRACE(i);

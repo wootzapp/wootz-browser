@@ -4,8 +4,7 @@
 
 import("//extensions/buildflags/buildflags.gni")
 
-assert(enable_extensions,
-       "Cannot depend on extensions because enable_extensions=false.")
+assert(enable_extensions_core)
 
 source_set("test") {
   sources = [
@@ -22,6 +21,7 @@ source_set("test") {
   deps = [
     "//base",
     "//content/public/common",
+    "//extensions/browser/api:extensions_api_client",
     "//extensions/common",
     "//extensions/common/api",
   ]

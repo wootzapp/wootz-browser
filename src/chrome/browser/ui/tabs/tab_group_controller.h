@@ -18,7 +18,6 @@ class TabGroupController {
  public:
   virtual void CreateTabGroup(const tab_groups::TabGroupId& group) = 0;
   virtual void OpenTabGroupEditor(const tab_groups::TabGroupId& group) = 0;
-  virtual void ChangeTabGroupContents(const tab_groups::TabGroupId& group) = 0;
   virtual void ChangeTabGroupVisuals(
       const tab_groups::TabGroupId& group,
       const TabGroupChange::VisualsChange& visuals) = 0;
@@ -32,7 +31,7 @@ class TabGroupController {
   virtual int GetTabCount() const = 0;
 
  protected:
-  virtual ~TabGroupController() {}
+  virtual ~TabGroupController() = default;
 };
 
 #endif  // CHROME_BROWSER_UI_TABS_TAB_GROUP_CONTROLLER_H_

@@ -159,19 +159,34 @@ WASAPIAudioOutputStream::WASAPIAudioOutputStream(
 }
 
 WASAPIAudioOutputStream::~WASAPIAudioOutputStream() {
-  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_);
+  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_.raw());
 
   StopAudioSessionEventListener();
 }
 
 bool WASAPIAudioOutputStream::Open() {
-  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_);
+  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_.raw());
   SendLogMessage("%s([opened=%s])", __func__, opened_ ? "true" : "false");
   if (opened_)
     return true;
 
   DCHECK(!audio_client_.Get());
   DCHECK(!audio_render_client_.Get());
+
+  enable_audio_offload_ = params_.RequireOffload();
+  if (enable_audio_offload_ &&
+      (params_.latency_tag() != AudioLatency::Type::kPlayback ||
+       params_.IsBitstreamFormat())) {
+    // Fail fast for audio offload request on latency-senstive streams, so
+    // they can switch to non-offload mode immediately. Also we must avoid
+    // audio offload for bitstream formats. AudioRendererImpl has already
+    // guaranteed this, the check here is just for extra safety.
+    SendLogMessage(
+        "%s => (INFO: Not enrolling into audio offload for stream without "
+        "latency tag set to kPlayback, or the stream is in bitstream format.",
+        __func__);
+    return false;
+  }
 
   const bool communications_device =
       device_id_.empty() ? (device_role_ == eCommunications) : false;
@@ -185,7 +200,6 @@ bool WASAPIAudioOutputStream::Open() {
   }
 
   HRESULT hr = S_FALSE;
-  enable_audio_offload_ = params_.RequireOffload();
 
   if (share_mode_ == AUDCLNT_SHAREMODE_SHARED && enable_audio_offload_) {
     enable_audio_offload_ =
@@ -239,16 +253,18 @@ bool WASAPIAudioOutputStream::Open() {
     if (enable_audio_offload_) {
       audio_client->GetBufferSize(&preferred_frames_per_buffer);
 
-      // if the granted buffer size is not the same as requested buffer size
-      // re-initializing audio bus.
+      // TODO(crbug.com/348468130) : Consider reinitializing `audio_bus_` and
+      // handling mismatch of `packet_size_frames_` and
+      // `preferred_frames_per_buffer`.
+      // If `packet_size_frames_` doesn't match the preferred size, fallback to
+      // not offloading. This might happen after a device change.
       if (packet_size_frames_ != preferred_frames_per_buffer) {
-        AudioParameters params = AudioParameters(params_);
-        params.set_frames_per_buffer(preferred_frames_per_buffer);
-        audio_bus_ = AudioBus::Create(params);
-        // For Offload case GetBuffer API requires the preferred buffer size to
-        // be used or it will fail.
-        packet_size_frames_ = preferred_frames_per_buffer;
-        packet_size_bytes_ = params.GetBytesPerBuffer(kSampleFormatS16);
+        SendLogMessage(
+            "%s => (INFO: Requested buffer size in frames mismatch. "
+            "Disable audio offload for the stream.",
+            __func__);
+        // Return here to allow falling back to non-offload mode.
+        return false;
       }
     } else {
       preferred_frames_per_buffer = AudioTimestampHelper::TimeToFrames(
@@ -335,7 +351,7 @@ bool WASAPIAudioOutputStream::Open() {
 
 void WASAPIAudioOutputStream::Start(AudioSourceCallback* callback) {
   DVLOG(1) << "WASAPIAudioOutputStream::Start()";
-  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_);
+  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_.raw());
   CHECK(callback);
   CHECK(opened_);
   SendLogMessage("%s([opened=%s, started=%s])", __func__,
@@ -422,7 +438,7 @@ void WASAPIAudioOutputStream::Start(AudioSourceCallback* callback) {
 
 void WASAPIAudioOutputStream::Stop() {
   DVLOG(1) << "WASAPIAudioOutputStream::Stop()";
-  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_);
+  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_.raw());
   SendLogMessage("%s([started=%s])", __func__,
                  render_thread_ ? "true" : "false");
 
@@ -470,7 +486,7 @@ void WASAPIAudioOutputStream::Stop() {
 
 void WASAPIAudioOutputStream::Close() {
   DVLOG(1) << "WASAPIAudioOutputStream::Close()";
-  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_);
+  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_.raw());
   SendLogMessage("%s()", __func__);
 
   StopAudioSessionEventListener();
@@ -1013,7 +1029,7 @@ void WASAPIAudioOutputStream::ReportAndResetStats() {
 }
 
 void WASAPIAudioOutputStream::StartAudioSessionEventListener() {
-  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_);
+  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_.raw());
 
   if (session_listener_) {
     // Already started listening!
@@ -1041,7 +1057,7 @@ void WASAPIAudioOutputStream::StartAudioSessionEventListener() {
 }
 
 void WASAPIAudioOutputStream::StopAudioSessionEventListener() {
-  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_);
+  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_.raw());
 
   if (!session_listener_) {
     // Already stopped listening!
@@ -1060,7 +1076,7 @@ void WASAPIAudioOutputStream::StopAudioSessionEventListener() {
 }
 
 void WASAPIAudioOutputStream::OnDeviceChanged() {
-  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_);
+  DCHECK_EQ(GetCurrentThreadId(), creating_thread_id_.raw());
 
   device_changed_ = true;
   if (source_)

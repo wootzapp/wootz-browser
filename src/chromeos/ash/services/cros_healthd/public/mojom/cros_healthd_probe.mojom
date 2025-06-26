@@ -161,18 +161,18 @@ struct ProcessInfo {
   // Unused memory available to the process, in KiB. This will always be
   // |total_memory_kib| - |resident_memory_kib|.
   uint32 free_memory_kib@8;
-  // The sum of bytes passed to system read calls. This includes terminal
-  // I/O and is independent of whether the physical disk is accessed.
+  // The sum of bytes passed to system read calls. This includes terminal I/O
+  // and is independent of whether the physical disk is accessed.
   uint64 bytes_read@9;
-  // The sum of bytes passed to system write calls. This includes terminal
-  // I/O and is independent of whether the physical disk is accessed.
+  // The sum of bytes passed to system write calls. This includes terminal I/O
+  // and is independent of whether the physical disk is accessed.
   uint64 bytes_written@10;
   // Attempted count of read syscalls.
   uint64 read_system_calls@11;
   // Attempted count of write syscalls.
   uint64 write_system_calls@12;
-  // Attempt to count the number of bytes which this process really did cause
-  // to be fetched from the storage layer.
+  // Attempt to count the number of bytes which this process really did cause to
+  // be fetched from the storage layer.
   uint64 physical_bytes_read@13;
   // Attempt to count the number of bytes which this process caused to be sent
   // to the storage layer.
@@ -268,8 +268,10 @@ union BlockDeviceVendor {
   uint32 nvme_subsystem_vendor@0;
   uint16 emmc_oemid@1;
   uint16 other@2;
+
   [MinVersion=1, Default]
   uint64 unknown@3;
+
   [MinVersion=2]
   uint16 jedec_manfid@4;
 };
@@ -282,6 +284,7 @@ union BlockDeviceProduct {
   uint32 nvme_subsystem_device@0;
   uint64 emmc_pnm@1;
   uint16 other@2;
+
   [MinVersion=1, Default]
   uint64 unknown@3;
 };
@@ -294,6 +297,7 @@ union BlockDeviceRevision {
   uint8 nvme_pcie_rev@0;
   uint8 emmc_prv@1;
   uint16 other@2;
+
   [MinVersion=1, Default]
   uint64 unknown@3;
 };
@@ -306,20 +310,26 @@ union BlockDeviceFirmware {
   uint64 nvme_firmware_rev@0;
   uint64 emmc_fwrev@1;
   uint16 other@2;
+
   [MinVersion=1, Default]
   uint64 unknown@3;
+
   [MinVersion=2]
   uint64 ufs_fwrev@4;
 };
 
 // Purpose of the storage device.
 //
-// NextMinVersion: 1, NextIndex: 3
+// NextMinVersion: 2, NextIndex: 4
 [Stable, Extensible]
 enum StorageDevicePurpose {
   [Default] kUnknown = 0,
+  // The storage device is the root device which ChromeOS boots from.
   kBootDevice = 1,
-  kSwapDevice = 2,
+  // DEPRECATED. See b/287120238.
+  DEPRECATED_kSwapDevice = 2,
+  // The storage device is not the root device which ChromeOS boots from.
+  [MinVersion=1] kNonBootDevice = 3,
 };
 
 // NVMe-specific device info.
@@ -380,7 +390,7 @@ union BlockDeviceInfo {
 
 // Information related to a specific non-removable block device.
 //
-// NextMinVersion: 3, NextIndex: 19
+// NextMinVersion: 4, NextIndex: 20
 [Stable]
 struct NonRemovableBlockDeviceInfo {
   // IO statistics
@@ -438,6 +448,9 @@ struct NonRemovableBlockDeviceInfo {
   // String representatil of the device FW version
   [MinVersion=2]
   string? firmware_string@18;
+  // Whether the block device is a spinning disk.
+  [MinVersion=3]
+  bool? is_rotational@19;
 };
 
 // CPU probe result. Can either be populated with the CpuInfo or an error
@@ -661,8 +674,8 @@ struct TimezoneInfo {
   string region@1;
 };
 
-// Memory probe result. Can either be populated with the MemoryInfo or an
-// error retrieving the information.
+// Memory probe result. Can either be populated with the MemoryInfo or an error
+// retrieving the information.
 [Stable]
 union MemoryResult {
   // Valid MemoryInfo.
@@ -673,10 +686,11 @@ union MemoryResult {
 
 // Memory information.
 //
-// NextMinVersion: 2, NextIndex: 5
+// NextMinVersion: 3, NextIndex: 16
 [Stable]
 struct MemoryInfo {
-  // Total memory, in KiB.
+  // Computed total memory including memory reserved for the kernel, etc.,
+  // in KiB.
   uint32 total_memory_kib@0;
   // Free memory, in KiB.
   uint32 free_memory_kib@1;
@@ -687,6 +701,39 @@ struct MemoryInfo {
   // Memory Encryption info.
   [MinVersion=1]
   MemoryEncryptionInfo? memory_encryption_info@4;
+  // Relatively temporary storage for raw disk blocks, in KiB.
+  [MinVersion=2]
+  uint64? buffers_kib@5;
+  // In-memory cache for files read from the disk, in KiB.
+  [MinVersion=2]
+  uint64? page_cache_kib@6;
+  // Shared memory, used in tmpfs, in KiB.
+  [MinVersion=2]
+  uint64? shared_memory_kib@7;
+  // More recently used memory, in KiB.
+  [MinVersion=2]
+  uint64? active_memory_kib@8;
+  // Less recently used memory, in KiB.
+  [MinVersion=2]
+  uint64? inactive_memory_kib@9;
+  // Total swap memory, in KiB.
+  [MinVersion=2]
+  uint64? total_swap_memory_kib@10;
+  // Free swap memory, in KiB.
+  [MinVersion=2]
+  uint64? free_swap_memory_kib@11;
+  // The swapped back memory in KiB, but is still in the swap.
+  [MinVersion=2]
+  uint64? cached_swap_memory_kib@12;
+  // Kernal-used memory, in KiB.
+  [MinVersion=2]
+  uint64? total_slab_memory_kib@13;
+  // Reclaimable slab memory, in KiB.
+  [MinVersion=2]
+  uint64? reclaimable_slab_memory_kib@14;
+  // Unreclaimable slab memory, in KiB.
+  [MinVersion=2]
+  uint64? unreclaimable_slab_memory_kib@15;
 };
 
 // NextMinVersion: 1, NextIndex: 4
@@ -950,6 +997,7 @@ struct OsInfo {
     // 32 bit platform.
     k32 = 3,
   };
+
   [MinVersion=2]
   EfiPlatformSize efi_platform_size@5;
 };
@@ -1433,6 +1481,7 @@ struct PciBusInfo {
   // Note that not every device has these fields.
   [MinVersion=1]
   NullableUint16? sub_vendor_id@6;
+
   [MinVersion=1]
   NullableUint16? sub_device_id@7;
 };
@@ -1954,13 +2003,19 @@ struct TouchscreenDevice {
 
 // Data of a touchpad device.
 //
-// NextMinVersion: 1, NextIndex: 2
+// NextMinVersion: 2, NextIndex: 4
 [Stable]
 struct TouchpadDevice {
   // The input device of this touchpad.
   InputDevice input_device@0;
   // The kernel driver in use.
   string driver_name@1;
+  // The touchpad vendor id
+  [MinVersion=1]
+  string? vendor_id@2;
+  // the touchpad product id
+  [MinVersion=1]
+  string? product_id@3;
 };
 
 // Data of a input device.
@@ -2161,14 +2216,14 @@ struct TelemetryInfo {
   // Information about boot performance. Only present when kBootPerformance was
   // included in the categories input to ProbeTelemetryInfo.
   BootPerformanceResult? boot_performance_result@12;
-  // Information about the bus devices. Only present when kBus was included
-  // in the categories input to ProbeTelemetryInfo.
+  // Information about the bus devices. Only present when kBus was included in
+  // the categories input to ProbeTelemetryInfo.
   BusResult? bus_result@13;
   // Information about the system. Only present when kSystem was included in the
   // categories input to ProbeTelemetryInfo.
   SystemResult? system_result@14;
-  // Information about the tpm. Only present when kTpm was included in
-  // the categories input to ProbeTelemetryInfo.
+  // Information about the tpm. Only present when kTpm was included in the
+  // categories input to ProbeTelemetryInfo.
   TpmResult? tpm_result@15;
   // Information about the graphics. Only present when kGraphics was included in
   // the categories input to ProbeTelemetryInfo.
@@ -2182,8 +2237,8 @@ struct TelemetryInfo {
   // ProbeTelemetryInfo.
   [MinVersion=2]
   NetworkInterfaceResult? network_interface_result@18;
-  // Information about the input software and hardware. Only present when
-  // kInput was included in the categories input to ProbeTelemetryInfo.
+  // Information about the input software and hardware. Only present when kInput
+  // was included in the categories input to ProbeTelemetryInfo.
   [MinVersion=3]
   InputResult? input_result@19;
   // Information about audio hardware. Only present when kAudioHardware was

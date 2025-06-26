@@ -18,23 +18,17 @@
 
 namespace blink {
 
-bool LayoutBoxUtils::SkipContainingBlockForPercentHeightCalculation(
-    const LayoutBlock* cb) {
-  return LayoutBox::SkipContainingBlockForPercentHeightCalculation(cb);
-}
-
-LayoutUnit LayoutBoxUtils::InlineSize(const LayoutBox& box) {
+LayoutUnit BoxInlineSize(const LayoutBox& box) {
   DCHECK_GT(box.PhysicalFragmentCount(), 0u);
 
   // TODO(almaher): We can't assume all fragments will have the same inline
   // size.
-  return box.GetPhysicalFragment(0u)
-      ->Size()
-      .ConvertToLogical(box.StyleRef().GetWritingMode())
+  return ToLogicalSize(box.GetPhysicalFragment(0u)->Size(),
+                       box.StyleRef().GetWritingMode())
       .inline_size;
 }
 
-LayoutUnit LayoutBoxUtils::TotalBlockSize(const LayoutBox& box) {
+LayoutUnit BoxTotalBlockSize(const LayoutBox& box) {
   wtf_size_t num_fragments = box.PhysicalFragmentCount();
   DCHECK_GT(num_fragments, 0u);
 
@@ -43,9 +37,8 @@ LayoutUnit LayoutBoxUtils::TotalBlockSize(const LayoutBox& box) {
   LayoutUnit total_block_size;
   while (num_fragments > 0) {
     LayoutUnit block_size =
-        box.GetPhysicalFragment(num_fragments - 1)
-            ->Size()
-            .ConvertToLogical(box.StyleRef().GetWritingMode())
+        ToLogicalSize(box.GetPhysicalFragment(num_fragments - 1)->Size(),
+                      box.StyleRef().GetWritingMode())
             .block_size;
     if (block_size > LayoutUnit()) {
       total_block_size += block_size;
@@ -62,13 +55,12 @@ LayoutUnit LayoutBoxUtils::TotalBlockSize(const LayoutBox& box) {
   return total_block_size;
 }
 
-// static
-LayoutPoint LayoutBoxUtils::ComputeLocation(
+DeprecatedLayoutPoint ComputeBoxLocation(
     const PhysicalBoxFragment& child_fragment,
     PhysicalOffset offset,
     const PhysicalBoxFragment& container_fragment,
     const BlockBreakToken* previous_container_break_token) {
-  if (UNLIKELY(container_fragment.Style().IsFlippedBlocksWritingMode())) {
+  if (container_fragment.Style().IsFlippedBlocksWritingMode()) [[unlikely]] {
     // Move the physical offset to the right side of the child fragment,
     // relative to the right edge of the container fragment. This is the
     // block-start offset in vertical-rl, and the legacy engine expects always
@@ -77,7 +69,7 @@ LayoutPoint LayoutBoxUtils::ComputeLocation(
                   child_fragment.Size().width;
   }
 
-  if (UNLIKELY(previous_container_break_token)) {
+  if (previous_container_break_token) [[unlikely]] {
     // Add the amount of block-size previously (in previous fragmentainers)
     // consumed by the container fragment. This will map the child's offset
     // nicely into the flow thread coordinate system used by the legacy engine.
@@ -90,7 +82,7 @@ LayoutPoint LayoutBoxUtils::ComputeLocation(
     }
   }
 
-  return offset.ToLayoutPoint();
+  return offset.FaultyToDeprecatedLayoutPoint();
 }
 
 }  // namespace blink

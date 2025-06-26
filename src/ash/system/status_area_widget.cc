@@ -7,12 +7,12 @@
 #include <memory>
 #include <string>
 
+#include "ash/annotator/annotation_tray.h"
 #include "ash/capture_mode/stop_recording_button_tray.h"
 #include "ash/constants/ash_features.h"
 #include "ash/constants/ash_switches.h"
 #include "ash/constants/tray_background_view_catalog.h"
 #include "ash/keyboard/ui/keyboard_ui_controller.h"
-#include "ash/projector/projector_annotation_tray.h"
 #include "ash/public/cpp/shelf_config.h"
 #include "ash/session/session_controller_impl.h"
 #include "ash/shelf/drag_handle.h"
@@ -21,6 +21,7 @@
 #include "ash/shelf/shelf_widget.h"
 #include "ash/shell.h"
 #include "ash/system/accessibility/dictation_button_tray.h"
+#include "ash/system/accessibility/mouse_keys/mouse_keys_tray.h"
 #include "ash/system/accessibility/select_to_speak/select_to_speak_tray.h"
 #include "ash/system/eche/eche_tray.h"
 #include "ash/system/focus_mode/focus_mode_tray.h"
@@ -45,12 +46,14 @@
 #include "ash/system/video_conference/video_conference_tray.h"
 #include "ash/system/virtual_keyboard/virtual_keyboard_tray.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
+#include "ash/wm/window_pin_util.h"
 #include "ash/wm_mode/wm_mode_button_tray.h"
 #include "base/command_line.h"
 #include "base/containers/adapters.h"
 #include "base/i18n/time_formatting.h"
 #include "base/metrics/histogram_macros.h"
 #include "chromeos/ash/services/assistant/public/cpp/features.h"
+#include "chromeos/ui/base/window_pin_type.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/display/display.h"
@@ -69,15 +72,17 @@ StatusAreaWidget::StatusAreaWidget(aura::Window* status_container, Shelf* shelf)
   DCHECK(status_container);
   DCHECK(shelf);
   views::Widget::InitParams params(
+      views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET,
       views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
   params.delegate = status_area_widget_delegate_.get();
   params.name = "StatusAreaWidget";
   params.opacity = views::Widget::InitParams::WindowOpacity::kTranslucent;
-  params.ownership = views::Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
   params.parent = status_container;
   Init(std::move(params));
   set_focus_on_creation(false);
   SetContentsView(status_area_widget_delegate_);
+
+  Shell::Get()->AddShellObserver(this);
 }
 
 void StatusAreaWidget::Initialize() {
@@ -90,15 +95,15 @@ void StatusAreaWidget::Initialize() {
     video_conference_tray_ =
         AddTrayButton(std::make_unique<VideoConferenceTray>(shelf_));
   }
-  if (features::IsFocusModeEnabled()) {
-    focus_mode_tray_ = AddTrayButton(std::make_unique<FocusModeTray>(shelf_));
-  }
+  focus_mode_tray_ = AddTrayButton(std::make_unique<FocusModeTray>(shelf_));
   holding_space_tray_ =
       AddTrayButton(std::make_unique<HoldingSpaceTray>(shelf_));
   logout_button_tray_ =
       AddTrayButton(std::make_unique<LogoutButtonTray>(shelf_));
   dictation_button_tray_ = AddTrayButton(std::make_unique<DictationButtonTray>(
       shelf_, TrayBackgroundViewCatalogName::kDictationStatusArea));
+  mouse_keys_tray_ = AddTrayButton(std::make_unique<MouseKeysTray>(
+      shelf_, TrayBackgroundViewCatalogName::kMouseKeysStatusArea));
   select_to_speak_tray_ = AddTrayButton(std::make_unique<SelectToSpeakTray>(
       shelf_, TrayBackgroundViewCatalogName::kSelectToSpeakStatusArea));
   ime_menu_tray_ = AddTrayButton(std::make_unique<ImeMenuTray>(shelf_));
@@ -108,8 +113,7 @@ void StatusAreaWidget::Initialize() {
   stop_recording_button_tray_ =
       AddTrayButton(std::make_unique<StopRecordingButtonTray>(shelf_));
 
-  projector_annotation_tray_ =
-      AddTrayButton(std::make_unique<ProjectorAnnotationTray>(shelf_));
+  annotation_tray_ = AddTrayButton(std::make_unique<AnnotationTray>(shelf_));
 
   palette_tray_ = AddTrayButton(std::make_unique<PaletteTray>(shelf_));
 
@@ -174,6 +178,7 @@ void StatusAreaWidget::Initialize() {
 }
 
 StatusAreaWidget::~StatusAreaWidget() {
+  Shell::Get()->RemoveShellObserver(this);
   Shell::Get()->session_controller()->RemoveObserver(this);
 
   // Resets `animation_controller_` before destroying
@@ -299,6 +304,7 @@ void StatusAreaWidget::LogVisiblePodCountMetric() {
       case TrayBackgroundViewCatalogName::kWmMode:
       case TrayBackgroundViewCatalogName::kVideoConferenceTray:
       case TrayBackgroundViewCatalogName::kFocusMode:
+      case TrayBackgroundViewCatalogName::kMouseKeysStatusArea:
         if (!tray_button->GetVisible()) {
           continue;
         }
@@ -393,6 +399,18 @@ void StatusAreaWidget::UpdateTargetBoundsForGesture(int shelf_position) {
   }
 }
 
+void StatusAreaWidget::OnPinnedStateChanged(aura::Window* pinned_window) {
+  // Close all tray bubbles when in locked fullscreen mode to prevent users from
+  // exiting this mode.
+  if (GetWindowPinType(pinned_window) ==
+      chromeos::WindowPinType::kTrustedPinned) {
+    for (ash::TrayBackgroundView* const tray_button : tray_buttons_) {
+      tray_button->CloseBubble(
+          TrayBackgroundView::CloseReason::kWindowActivation);
+    }
+  }
+}
+
 void StatusAreaWidget::HandleLocaleChange() {
   // Here we force the layer's bounds to be updated for text direction (if
   // needed).
@@ -480,12 +498,11 @@ void StatusAreaWidget::CalculateButtonVisibilityForCollapsedState() {
 }
 
 void StatusAreaWidget::EnsureTrayOrder() {
-  if (projector_annotation_tray_) {
-    status_area_widget_delegate_->ReorderChildView(projector_annotation_tray_,
-                                                   1);
+  if (annotation_tray_) {
+    status_area_widget_delegate_->ReorderChildView(annotation_tray_, 1);
   }
-  status_area_widget_delegate_->ReorderChildView(
-      stop_recording_button_tray_, projector_annotation_tray_ ? 2 : 1);
+  status_area_widget_delegate_->ReorderChildView(stop_recording_button_tray_,
+                                                 annotation_tray_ ? 2 : 1);
 }
 
 StatusAreaWidget::CollapseState StatusAreaWidget::CalculateCollapseState()
@@ -624,6 +641,12 @@ bool StatusAreaWidget::OnNativeWidgetActivationChanged(bool active) {
   return true;
 }
 
+void StatusAreaWidget::InitializeTrayButtonsAccessibleNavFocus() {
+  for (TrayBackgroundView* tray_button : tray_buttons_) {
+    tray_button->UpdateAccessibleNavFocus(shelf_);
+  }
+}
+
 void StatusAreaWidget::SetOpenShelfPodBubble(
     TrayBubbleView* open_shelf_pod_bubble) {
   if (open_shelf_pod_bubble_ == open_shelf_pod_bubble) {
@@ -653,6 +676,10 @@ void StatusAreaWidget::SetOpenShelfPodBubble(
       /*bubble_shown=*/open_shelf_pod_bubble_);
 }
 
+void StatusAreaWidget::InitializeAccessibleProperties() {
+  status_area_widget_delegate()->UpdateAccessiblePreviousAndNextFocus();
+}
+
 void StatusAreaWidget::OnViewIsDeleting(views::View* observed_view) {
   CHECK(observed_view == notification_center_tray_);
   notification_center_tray_->RemoveObserver(this);
@@ -675,7 +702,7 @@ void StatusAreaWidget::OnMouseEvent(ui::MouseEvent* event) {
   // virtual keyboard.
   gfx::Point location = event->location();
   views::View::ConvertPointFromWidget(virtual_keyboard_tray_, &location);
-  if (event->type() == ui::ET_MOUSE_PRESSED &&
+  if (event->type() == ui::EventType::kMousePressed &&
       !virtual_keyboard_tray_->HitTestPoint(location)) {
     keyboard::KeyboardUIController::Get()->HideKeyboardImplicitlyByUser();
   }
@@ -687,7 +714,7 @@ void StatusAreaWidget::OnGestureEvent(ui::GestureEvent* event) {
   // virtual keyboard.
   gfx::Point location = event->location();
   views::View::ConvertPointFromWidget(virtual_keyboard_tray_, &location);
-  if (event->type() == ui::ET_GESTURE_TAP_DOWN &&
+  if (event->type() == ui::EventType::kGestureTapDown &&
       !virtual_keyboard_tray_->HitTestPoint(location)) {
     keyboard::KeyboardUIController::Get()->HideKeyboardImplicitlyByUser();
   }

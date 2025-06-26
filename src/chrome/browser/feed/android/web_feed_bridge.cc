@@ -16,7 +16,7 @@
 #include "base/notreached.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "chrome/browser/android/tab_android.h"
-#include "chrome/browser/feed/android/jni_headers/WebFeedBridge_jni.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/feed/feed_service_factory.h"
 #include "chrome/browser/feed/web_feed_page_information_fetcher.h"
 #include "chrome/browser/feed/web_feed_util.h"
@@ -33,7 +33,12 @@
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_types.h"
 #include "components/keyed_service/core/service_access_type.h"
+#include "components/variations/service/variations_service.h"
 #include "url/android/gurl_android.h"
+#include "url/origin.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/browser/feed/android/jni_headers/WebFeedBridge_jni.h"
 
 class Profile;
 
@@ -100,8 +105,7 @@ base::android::ScopedJavaLocalRef<jobject> ToJava(
     JNIEnv* env,
     const WebFeedMetadata& metadata) {
   return Java_WebFeedMetadata_Constructor(
-      env, ToJavaWebFeedId(env, metadata.web_feed_id),
-      base::android::ConvertUTF8ToJavaString(env, metadata.title),
+      env, ToJavaWebFeedId(env, metadata.web_feed_id), metadata.title,
       url::GURLAndroid::FromNativeGURL(env, metadata.publisher_url),
       static_cast<int>(metadata.subscription_status),
       static_cast<int>(metadata.availability_status), metadata.is_recommended,
@@ -136,10 +140,8 @@ base::android::ScopedJavaLocalRef<jobject> ToJava(
 base::android::ScopedJavaLocalRef<jobject> ToJava(
     JNIEnv* env,
     const WebFeedSubscriptions::QueryWebFeedResult& result) {
-  return Java_QueryResult_Constructor(
-      env, base::android::ConvertUTF8ToJavaString(env, result.web_feed_id),
-      base::android::ConvertUTF8ToJavaString(env, result.title),
-      base::android::ConvertUTF8ToJavaString(env, result.url));
+  return Java_QueryResult_Constructor(env, result.web_feed_id, result.title,
+                                      result.url);
 }
 
 base::android::ScopedJavaLocalRef<jobject> ToJava(
@@ -222,13 +224,11 @@ static void JNI_WebFeedBridge_FollowWebFeed(
 }
 
 static jboolean JNI_WebFeedBridge_IsCormorantEnabledForLocale(JNIEnv* env) {
-  return feed::IsCormorantEnabledForLocale(
-      country_codes::GetCurrentCountryCode());
+  return JNI_WebFeedBridge_IsWebFeedEnabled(env);
 }
 
 static jboolean JNI_WebFeedBridge_IsWebFeedEnabled(JNIEnv* env) {
-  return feed::IsWebFeedEnabledForLocale(
-      country_codes::GetCurrentCountryCode());
+  return feed::IsWebFeedEnabledForLocale(FeedServiceFactory::GetCountry());
 }
 
 static void JNI_WebFeedBridge_FollowWebFeedById(
@@ -369,9 +369,9 @@ static void JNI_WebFeedBridge_GetRecentVisitCountsToHost(
   auto begin_time =
       base::Time::Now() -
       base::Days(GetFeedConfig().webfeed_accelerator_recent_visit_history_days);
-  history_service->GetDailyVisitsToHost(
-      url::GURLAndroid::ToNativeGURL(env, j_url), begin_time, end_time,
-      std::move(callback), &TaskTracker());
+  history_service->GetDailyVisitsToOrigin(
+      url::Origin::Create(url::GURLAndroid::ToNativeGURL(env, j_url)),
+      begin_time, end_time, std::move(callback), &TaskTracker());
 }
 
 static void JNI_WebFeedBridge_IncrementFollowedFromWebPageMenuCount(
@@ -385,7 +385,7 @@ static void JNI_WebFeedBridge_IncrementFollowedFromWebPageMenuCount(
 
 static void JNI_WebFeedBridge_QueryWebFeed(
     JNIEnv* env,
-    const base::android::JavaParamRef<jstring>& url,
+    std::string& url,
     const base::android::JavaParamRef<jobject>& j_callback) {
   base::OnceCallback<void(WebFeedSubscriptions::QueryWebFeedResult)> callback =
       AdaptQueryWebFeedResultCallback(j_callback);
@@ -394,14 +394,12 @@ static void JNI_WebFeedBridge_QueryWebFeed(
     std::move(callback).Run({});
     return;
   }
-  subscriptions->QueryWebFeed(
-      GURL(base::android::ConvertJavaStringToUTF8(env, url)),
-      std::move(callback));
+  subscriptions->QueryWebFeed(GURL(url), std::move(callback));
 }
 
 static void JNI_WebFeedBridge_QueryWebFeedId(
     JNIEnv* env,
-    const base::android::JavaParamRef<jstring>& id,
+    std::string& id,
     const base::android::JavaParamRef<jobject>& j_callback) {
   base::OnceCallback<void(WebFeedSubscriptions::QueryWebFeedResult)> callback =
       AdaptQueryWebFeedResultCallback(j_callback);
@@ -410,7 +408,6 @@ static void JNI_WebFeedBridge_QueryWebFeedId(
     std::move(callback).Run({});
     return;
   }
-  subscriptions->QueryWebFeedId(base::android::ConvertJavaStringToUTF8(env, id),
-                                std::move(callback));
+  subscriptions->QueryWebFeedId(id, std::move(callback));
 }
 }  // namespace feed

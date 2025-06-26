@@ -9,26 +9,30 @@
 
 #include "base/files/file_util.h"
 #include "base/path_service.h"
+#include "base/scoped_observation.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/mock_callback.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
 #include "base/time/time.h"
 #include "base/token.h"
 #include "build/build_config.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/search/background/ntp_background_service_factory.h"
+#include "chrome/browser/search/background/ntp_custom_background_service_factory.h"
 #include "chrome/browser/search/background/ntp_custom_background_service_observer.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/themes/theme_syncable_service.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/search/instant_types.h"
 #include "chrome/common/url_constants.h"
+#include "chrome/test/base/testing_browser_process.h"
 #include "chrome/test/base/testing_profile.h"
-#include "components/search/ntp_features.h"
+#include "components/application_locale_storage/application_locale_storage.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/test_utils.h"
@@ -52,7 +56,6 @@ class MockNtpCustomBackgroundServiceObserver
     : public NtpCustomBackgroundServiceObserver {
  public:
   MOCK_METHOD0(OnCustomBackgroundImageUpdated, void());
-  MOCK_METHOD0(OnNtpCustomBackgroundServiceShuttingDown, void());
 };
 
 class MockThemeService : public ThemeService {
@@ -70,8 +73,9 @@ class MockThemeService : public ThemeService {
 class MockNtpBackgroundService : public NtpBackgroundService {
  public:
   explicit MockNtpBackgroundService(
+      ApplicationLocaleStorage* application_locale_storage,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
-      : NtpBackgroundService(url_loader_factory) {}
+      : NtpBackgroundService(application_locale_storage, url_loader_factory) {}
   MOCK_CONST_METHOD1(IsValidBackdropCollection, bool(const std::string&));
   MOCK_METHOD(void,
               VerifyImageURL,
@@ -80,6 +84,7 @@ class MockNtpBackgroundService : public NtpBackgroundService {
 };
 
 std::unique_ptr<TestingProfile> MakeTestingProfile(
+    ApplicationLocaleStorage* application_locale_storage,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
   {
     TestingProfile::Builder profile_builder;
@@ -92,15 +97,16 @@ std::unique_ptr<TestingProfile> MakeTestingProfile(
     profile_builder.AddTestingFactory(
         NtpBackgroundServiceFactory::GetInstance(),
         base::BindRepeating(
-            [](scoped_refptr<network::SharedURLLoaderFactory>
+            [](ApplicationLocaleStorage* application_locale_storage,
+               scoped_refptr<network::SharedURLLoaderFactory>
                    url_loader_factory,
                content::BrowserContext* context)
                 -> std::unique_ptr<KeyedService> {
               return std::make_unique<
                   testing::NiceMock<MockNtpBackgroundService>>(
-                  url_loader_factory);
+                  application_locale_storage, url_loader_factory);
             },
-            url_loader_factory));
+            application_locale_storage, url_loader_factory));
     profile_builder.SetSharedURLLoaderFactory(url_loader_factory);
     auto profile = profile_builder.Build();
     TemplateURLServiceFactory::GetInstance()->SetTestingFactoryAndUse(
@@ -137,8 +143,12 @@ base::Time GetReferenceTime() {
 class NtpCustomBackgroundServiceTest : public testing::Test {
  public:
   NtpCustomBackgroundServiceTest()
-      : profile_(
-            MakeTestingProfile(test_url_loader_factory_.GetSafeWeakWrapper())),
+      : application_locale_storage_(TestingBrowserProcess::GetGlobal()
+                                        ->GetFeatures()
+                                        ->application_locale_storage()),
+        profile_(
+            MakeTestingProfile(application_locale_storage_,
+                               test_url_loader_factory_.GetSafeWeakWrapper())),
         mock_theme_service_(static_cast<MockThemeService*>(
             ThemeServiceFactory::GetForProfile(profile_.get()))),
         mock_ntp_background_service_(static_cast<MockNtpBackgroundService*>(
@@ -146,9 +156,12 @@ class NtpCustomBackgroundServiceTest : public testing::Test {
 
   void SetUp() override {
     custom_background_service_ =
-        std::make_unique<NtpCustomBackgroundService>(profile_.get());
-    custom_background_service_->AddObserver(&observer_);
+        NtpCustomBackgroundServiceFactory::GetForProfile(profile_.get());
+    scoped_observation_.Observe(custom_background_service_);
+    application_locale_storage_->Set("foo");
   }
+
+  void TearDown() override { scoped_observation_.Reset(); }
 
   void SetUpResponseWithNetworkError(const GURL& load_url) {
     test_url_loader_factory_.AddResponse(load_url.spec(), std::string(),
@@ -177,13 +190,17 @@ class NtpCustomBackgroundServiceTest : public testing::Test {
   // NOTE: The initialization order of these members matters.
   content::BrowserTaskEnvironment task_environment_;
   network::TestURLLoaderFactory test_url_loader_factory_;
+  raw_ptr<ApplicationLocaleStorage> application_locale_storage_;
   std::unique_ptr<TestingProfile> profile_;
   base::SimpleTestClock clock_;
   MockNtpCustomBackgroundServiceObserver observer_;
   raw_ptr<MockThemeService> mock_theme_service_;
   raw_ptr<MockNtpBackgroundService> mock_ntp_background_service_;
   base::HistogramTester histogram_tester_;
-  std::unique_ptr<NtpCustomBackgroundService> custom_background_service_;
+  raw_ptr<NtpCustomBackgroundService> custom_background_service_;
+  base::ScopedObservation<NtpCustomBackgroundService,
+                          NtpCustomBackgroundServiceObserver>
+      scoped_observation_{&observer_};
   data_decoder::test::InProcessDataDecoder in_process_data_decoder_;
 };
 
@@ -310,15 +327,19 @@ TEST_F(NtpCustomBackgroundServiceTest, UpdatingPrefUpdatesNtpTheme) {
 
   sync_preferences::TestingPrefServiceSyncable* pref_service =
       profile().GetTestingPrefService();
-  pref_service->SetUserPref(prefs::kNtpCustomBackgroundDict,
-                            GetBackgroundInfoAsDict(kUrlFoo, GURL()));
+  pref_service->SetUserPref(
+      std::string(GetThemePrefNameInMigration(
+          ThemePrefInMigration::kNtpCustomBackgroundDict)),
+      GetBackgroundInfoAsDict(kUrlFoo, GURL()));
 
   auto custom_background = custom_background_service_->GetCustomBackground();
   EXPECT_EQ(kUrlFoo, custom_background->custom_background_url);
   EXPECT_TRUE(custom_background_service_->IsCustomBackgroundSet());
 
-  pref_service->SetUserPref(prefs::kNtpCustomBackgroundDict,
-                            GetBackgroundInfoAsDict(kUrlBar, GURL()));
+  pref_service->SetUserPref(
+      std::string(GetThemePrefNameInMigration(
+          ThemePrefInMigration::kNtpCustomBackgroundDict)),
+      GetBackgroundInfoAsDict(kUrlBar, GURL()));
 
   custom_background = custom_background_service_->GetCustomBackground();
   EXPECT_EQ(kUrlBar, custom_background->custom_background_url);
@@ -377,8 +398,10 @@ TEST_F(NtpCustomBackgroundServiceTest, SyncPrefOverridesAndRemovesLocalImage) {
   EXPECT_TRUE(base::PathExists(path));
 
   // Update custom_background info via Sync.
-  pref_service->SetUserPref(prefs::kNtpCustomBackgroundDict,
-                            GetBackgroundInfoAsDict(kUrl, GURL()));
+  pref_service->SetUserPref(
+      std::string(GetThemePrefNameInMigration(
+          ThemePrefInMigration::kNtpCustomBackgroundDict)),
+      GetBackgroundInfoAsDict(kUrl, GURL()));
   task_environment_.RunUntilIdle();
 
   auto custom_background = custom_background_service_->GetCustomBackground();
@@ -698,16 +721,9 @@ TEST_F(NtpCustomBackgroundServiceTest, ConfirmBackgroundChanges) {
   EXPECT_TRUE(custom_background_service_->IsCustomBackgroundSet());
 }
 
-TEST_F(NtpCustomBackgroundServiceTest, TestUpdateCustomBackgroundColor) {
-  // TODO (crbug/1520873): Fix and re-enable or remove if no longer relevant.
-  if (features::IsChromeRefresh2023()) {
-    GTEST_SKIP();
-  }
-  // Turn on Color Extraction feature.
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitAndEnableFeature(
-      ntp_features::kCustomizeChromeColorExtraction);
-
+// TODO (crbug/1520873): Fix and re-enable or remove if no longer relevant.
+TEST_F(NtpCustomBackgroundServiceTest,
+       DISABLED_TestUpdateCustomBackgroundColor) {
   EXPECT_CALL(observer_, OnCustomBackgroundImageUpdated).Times(2);
   EXPECT_CALL(mock_theme_service(), BuildAutogeneratedThemeFromColor).Times(1);
   SkBitmap bitmap;
@@ -801,8 +817,7 @@ TEST_F(NtpCustomBackgroundServiceTest, TestUpdateCustomLocalBackgroundColor) {
 }
 
 // Most of the color extraction pipeline is tested above. The only thing tested
-// here is that when kChromeRefresh2023 is enabled, we call
-// SetUserColorAndBrowserColorVariant() instead of
+// here is that we call SetUserColorAndBrowserColorVariant() instead of
 // BuildAutogeneratedThemeFromColor().
 TEST_F(NtpCustomBackgroundServiceTest, TestUpdateCustomBackgroundColorGM3) {
   // Create image that is one color so that we know what the extracted color

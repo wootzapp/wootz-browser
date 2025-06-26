@@ -43,7 +43,6 @@
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/layout/layout_embedded_object.h"
 #include "third_party/blink/renderer/platform/network/mime/mime_type_registry.h"
-#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 
 namespace blink {
 
@@ -83,7 +82,7 @@ bool HTMLObjectElement::IsPresentationAttribute(
 void HTMLObjectElement::CollectStyleForPresentationAttribute(
     const QualifiedName& name,
     const AtomicString& value,
-    MutableCSSPropertyValueSet* style) {
+    HeapVector<CSSPropertyValue, 8>& style) {
   if (name == html_names::kBorderAttr)
     ApplyBorderAttributeToStyle(value, style);
   else
@@ -175,8 +174,7 @@ void HTMLObjectElement::ReloadPluginOnAttributeChange(
   } else if (name == html_names::kClassidAttr) {
     needs_invalidation = true;
   } else {
-    NOTREACHED_IN_MIGRATION();
-    needs_invalidation = false;
+    NOTREACHED();
   }
   SetNeedsPluginUpdate(true);
   if (needs_invalidation)
@@ -323,7 +321,9 @@ void HTMLObjectElement::RenderFallbackContent(
     }
   }
 
-  // TODO(dcheng): Detach the content frame here.
+  // To discard the nested browsing context, detach the content frame.
+  DisconnectContentFrame();
+
   UseCounter::Count(GetDocument(), WebFeature::kHTMLObjectElementFallback);
   use_fallback_content_ = true;
   ReattachFallbackContent();
@@ -374,6 +374,10 @@ HTMLFormElement* HTMLObjectElement::formOwner() const {
   return ListedElement::Form();
 }
 
+HTMLElement* HTMLObjectElement::formForBinding() const {
+  return ListedElement::RetargetedForm();
+}
+
 bool HTMLObjectElement::UseFallbackContent() const {
   return HTMLPlugInElement::UseFallbackContent() || use_fallback_content_;
 }
@@ -403,23 +407,6 @@ bool HTMLObjectElement::DidFinishLoading() const {
 
 int HTMLObjectElement::DefaultTabIndex() const {
   return 0;
-}
-
-const HTMLObjectElement* ToHTMLObjectElementFromListedElement(
-    const ListedElement* element) {
-  SECURITY_DCHECK(!element || !element->IsFormControlElement());
-  const HTMLObjectElement* object_element =
-      static_cast<const HTMLObjectElement*>(element);
-  // We need to assert after the cast because ListedElement doesn't
-  // have hasTagName.
-  SECURITY_DCHECK(!object_element ||
-                  object_element->HasTagName(html_names::kObjectTag));
-  return object_element;
-}
-
-const HTMLObjectElement& ToHTMLObjectElementFromListedElement(
-    const ListedElement& element) {
-  return *ToHTMLObjectElementFromListedElement(&element);
 }
 
 }  // namespace blink

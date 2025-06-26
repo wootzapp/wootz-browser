@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <stdint.h>
 
 #include "base/bits.h"
@@ -47,7 +52,7 @@ TEST_P(H26xAnnexBBitstreamBuilderAppendBitsTest, AppendAndVerifyBits) {
 
   EXPECT_EQ(b.BytesInBuffer(), num_bytes);
 
-  const uint8_t* ptr = b.data();
+  const uint8_t* ptr = b.data().data();
   uint64_t got = GetDataFromBuffer(ptr, num_bits);
   uint64_t expected = kTestPattern;
 
@@ -68,7 +73,7 @@ TEST_F(H26xAnnexBBitstreamBuilderAppendBitsTest, VerifyFlushAndBitsInBuffer) {
   EXPECT_EQ(b.BytesInBuffer(), num_bytes);
   EXPECT_EQ(b.BitsInBuffer(), num_bits);
 
-  const uint8_t* ptr = b.data();
+  const uint8_t* ptr = b.data().data();
   uint64_t got = GetDataFromBuffer(ptr, num_bits);
   uint64_t expected = kTestPattern;
   expected &= ((1ull << num_bits) - 1);

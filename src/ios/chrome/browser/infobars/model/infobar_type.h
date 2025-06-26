@@ -27,12 +27,14 @@ enum class InfobarType {
   kInfobarTypeTailoredSecurityService = 8,
   // Message Infobar for Sync Error.
   kInfobarTypeSyncError = 9,
-  // Message Infobar for Tab Pickup.
-  kInfobarTypeTabPickup = 10,
-  // Message Infobar for Parcel Tracking.
-  kInfobarTypeParcelTracking = 11,
+  // 10 was used for a Tab Pickup, do not use.
+  // 11 was used for Parcel Tracking, do not use.
   // Message Infobar for Enhanced Safe Browsing.
-  kInfobarTypeEnhancedSafeBrowsing = 12
+  kInfobarTypeEnhancedSafeBrowsing = 12,
+  // Message Infobar for non modal sign-in promo.
+  kInfobarTypeSignin = 13,
+  // Message Infobar for collaboration group update.
+  kInfobarTypeCollaborationGroup = 14
 };
 
 // Message "Confirm Infobars" types, these are the generic kInfobarTypeConfirm

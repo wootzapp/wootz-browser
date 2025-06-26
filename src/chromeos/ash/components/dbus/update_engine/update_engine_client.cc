@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -16,7 +17,6 @@
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chromeos/ash/components/dbus/update_engine/fake_update_engine_client.h"
@@ -751,7 +751,7 @@ class UpdateEngineClientDesktopFake : public UpdateEngineClient {
         next_operation = update_engine::Operation::UPDATED_NEED_REBOOT;
         break;
       default:
-        NOTREACHED_IN_MIGRATION();
+        NOTREACHED();
     }
     last_status_.set_current_operation(next_operation);
     for (auto& observer : observers_)

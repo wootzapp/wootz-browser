@@ -8,8 +8,8 @@
  * subsection settings in system settings.
  */
 
-import '../icons.html.js';
 import '../settings_shared.css.js';
+import 'chrome://resources/ash/common/bluetooth/bluetooth_battery_icon_percentage.js';
 import 'chrome://resources/ash/common/cr_elements/localized_link/localized_link.js';
 import 'chrome://resources/ash/common/cr_elements/cr_radio_button/cr_radio_button.js';
 import 'chrome://resources/ash/common/cr_elements/cr_shared_vars.css.js';
@@ -17,22 +17,27 @@ import '../controls/settings_radio_group.js';
 import '../controls/settings_slider.js';
 import '../controls/settings_toggle_button.js';
 import './input_device_settings_shared.css.js';
+import './per_device_app_installed_row.js';
+import './per_device_install_row.js';
+import './per_device_subsection_header.js';
 import 'chrome://resources/ash/common/cr_elements/cr_slider/cr_slider.js';
 
-import {CrLinkRowElement} from 'chrome://resources/ash/common/cr_elements/cr_link_row/cr_link_row.js';
+import type {CrLinkRowElement} from 'chrome://resources/ash/common/cr_elements/cr_link_row/cr_link_row.js';
 import {I18nMixin} from 'chrome://resources/ash/common/cr_elements/i18n_mixin.js';
+import {assert} from 'chrome://resources/js/assert.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
-import {PolymerElementProperties} from 'chrome://resources/polymer/v3_0/polymer/interfaces.js';
+import type {PolymerElementProperties} from 'chrome://resources/polymer/v3_0/polymer/interfaces.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {DeepLinkingMixin} from '../common/deep_linking_mixin.js';
-import {isRevampWayfindingEnabled} from '../common/load_time_booleans.js';
 import {RouteObserverMixin} from '../common/route_observer_mixin.js';
 import {Setting} from '../mojom-webui/setting.mojom-webui.js';
-import {Route, Router, routes} from '../router.js';
+import type {Route} from '../router.js';
+import {Router, routes} from '../router.js';
 
 import {getInputDeviceSettingsProvider} from './input_device_mojo_interface_provider.js';
-import {CustomizationRestriction, InputDeviceSettingsProviderInterface, Mouse, MousePolicies, MouseSettings} from './input_device_settings_types.js';
+import type {InputDeviceSettingsProviderInterface, Mouse, MousePolicies, MouseSettings} from './input_device_settings_types.js';
+import {CompanionAppState, CustomizationRestriction} from './input_device_settings_types.js';
 import {getPrefPolicyFields, settingsAreEqual} from './input_device_settings_utils.js';
 import {getTemplate} from './per_device_mouse_subsection.html.js';
 
@@ -112,7 +117,7 @@ export class SettingsPerDeviceMouseSubsectionElement extends
         value: true,
       },
 
-      swapPrimaryOptions: {
+      swapPrimaryOptions_: {
         readOnly: true,
         type: Array,
         value() {
@@ -152,33 +157,12 @@ export class SettingsPerDeviceMouseSubsectionElement extends
         readOnly: true,
       },
 
-      isRevampWayfindingEnabled_: {
-        type: Boolean,
-        value: () => {
-          return isRevampWayfindingEnabled();
-        },
-      },
-
       mouse: {
         type: Object,
       },
 
       mousePolicies: {
         type: Object,
-      },
-
-      /**
-       * Used by DeepLinkingMixin to focus this page's deep links.
-       */
-      supportedSettingIds: {
-        type: Object,
-        value: () => new Set<Setting>([
-          Setting.kMouseSwapPrimaryButtons,
-          Setting.kMouseReverseScrolling,
-          Setting.kMouseAcceleration,
-          Setting.kMouseScrollAcceleration,
-          Setting.kMouseSpeed,
-        ]),
       },
 
       mouseIndex: {
@@ -200,6 +184,14 @@ export class SettingsPerDeviceMouseSubsectionElement extends
       currentMouseChanged: {
         type: Boolean,
       },
+
+      isWelcomeExperienceEnabled: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('enableWelcomeExperience');
+        },
+        readOnly: true,
+      },
     };
   }
 
@@ -216,7 +208,7 @@ export class SettingsPerDeviceMouseSubsectionElement extends
     ];
   }
 
-  override currentRouteChanged(route: Route): void {
+  override currentRouteChanged(route: Route) {
     // Avoid override currentMouseChanged when on the customization subpage.
     if (route === routes.CUSTOMIZE_MOUSE_BUTTONS) {
       return;
@@ -246,6 +238,17 @@ export class SettingsPerDeviceMouseSubsectionElement extends
     this.currentMouseChanged = false;
   }
 
+  isWelcomeExperienceEnabled: boolean;
+
+  // DeepLinkingMixin override
+  override supportedSettingIds = new Set<Setting>([
+    Setting.kMouseSwapPrimaryButtons,
+    Setting.kMouseReverseScrolling,
+    Setting.kMouseAcceleration,
+    Setting.kMouseScrollAcceleration,
+    Setting.kMouseSpeed,
+  ]);
+
   private mouse: Mouse;
   protected mousePolicies: MousePolicies;
   private primaryRightPref: chrome.settingsPrivate.PrefObject;
@@ -260,9 +263,11 @@ export class SettingsPerDeviceMouseSubsectionElement extends
       getInputDeviceSettingsProvider();
   private mouseIndex: number;
   private isLastDevice: boolean;
-  private isRevampWayfindingEnabled_: boolean;
   private customizationRestriction: CustomizationRestriction;
   private currentMouseChanged: boolean;
+  private readonly allowScrollSettings_: boolean;
+  private readonly sensitivityValues_: number[];
+  private readonly swapPrimaryOptions_: Array<{value: boolean, name: string}>;
 
   private showCustomizeButtonRow(): boolean {
     return (this.customizationRestriction !==
@@ -274,6 +279,14 @@ export class SettingsPerDeviceMouseSubsectionElement extends
     return this.customizationRestriction ===
         CustomizationRestriction.kDisallowCustomizations &&
         this.isPeripheralCustomizationEnabled_;
+  }
+
+  private showInstallAppRow(): boolean {
+    return this.mouse.appInfo?.state === CompanionAppState.kAvailable;
+  }
+
+  private onInstallCompanionAppButtonClicked(): void {
+    window.open(this.mouse.appInfo?.actionLink);
   }
 
   private updateSettingsToCurrentPrefs(): void {
@@ -387,11 +400,14 @@ export class SettingsPerDeviceMouseSubsectionElement extends
     this.currentMouseChanged = true;
   }
 
-  private getMouseAccelerationDescription(): string {
-    if (this.isRevampWayfindingEnabled_) {
-      return this.i18n('mouseAccelerationDescription');
-    }
-    return '';
+  private isCompanionAppInstalled(): boolean {
+    return this.mouse.appInfo?.state === CompanionAppState.kInstalled;
+  }
+
+  private onCompanionAppRowClick(): void {
+    assert(this.mouse.appInfo);
+    this.inputDeviceSettingsProvider.launchCompanionApp(
+        this.mouse.appInfo.packageId || '');
   }
 }
 

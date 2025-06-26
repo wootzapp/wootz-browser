@@ -8,27 +8,24 @@
 #include <string>
 #include <vector>
 
+#include "ash/constants/web_app_id_constants.h"
 #include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
-#include "build/chromeos_buildflags.h"
+#include "build/build_config.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom-shared.h"
 #include "chrome/browser/web_applications/preinstalled_web_apps/preinstalled_web_app_definition_utils.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
-#include "chrome/browser/web_applications/web_app_id_constants.h"
+#include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/grit/preinstalled_web_apps_resources.h"
 #include "components/webapps/common/web_app_id.h"
 #include "third_party/blink/public/mojom/manifest/display_mode.mojom-shared.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-#include "chromeos/startup/browser_params_proxy.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_LACROS)
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 #include "ash/constants/ash_features.h"
 #include "chrome/browser/ash/drive/file_system_util.h"
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 namespace web_app {
 namespace {
@@ -115,11 +112,7 @@ constexpr Translation kNameTranslations[] = {
 
 #if BUILDFLAG(IS_CHROMEOS)
 bool IsDriveFsBulkPinningAvailable() {
-#if BUILDFLAG(IS_CHROMEOS_LACROS)
-  return chromeos::BrowserParamsProxy::Get()->IsDriveFsBulkPinningAvailable();
-#elif BUILDFLAG(IS_CHROMEOS_ASH)
   return drive::util::IsDriveFsBulkPinningAvailable();
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
@@ -136,7 +129,7 @@ ExternalInstallOptions GetConfigForGoogleDocs(bool is_standalone_tabbed) {
 
   options.user_type_allowlist = {"unmanaged", "managed", "child"};
   options.uninstall_and_replace.push_back("aohghmighlieiainnegkcijnfilokake");
-  options.expected_app_id = kGoogleDocsAppId;
+  options.expected_app_id = ash::kGoogleDocsAppId;
 
 #if BUILDFLAG(IS_CHROMEOS)
   if (IsDriveFsBulkPinningAvailable()) {
@@ -153,11 +146,14 @@ ExternalInstallOptions GetConfigForGoogleDocs(bool is_standalone_tabbed) {
   options.only_use_app_info_factory = true;
   options.app_info_factory = base::BindRepeating(
       [](bool is_standalone_tabbed) {
-        auto info = std::make_unique<WebAppInstallInfo>();
+        GURL start_url =
+            GURL("https://docs.google.com/document/?usp=installed_webapp");
+        // `manifest_id` must remain fixed even if start_url changes.
+        webapps::ManifestId manifest_id = GenerateManifestIdFromStartUrlOnly(
+            GURL("https://docs.google.com/document/?usp=installed_webapp"));
+        auto info = std::make_unique<WebAppInstallInfo>(manifest_id, start_url);
         info->title =
             base::UTF8ToUTF16(GetTranslatedName("Docs", kNameTranslations));
-        info->start_url =
-            GURL("https://docs.google.com/document/?usp=installed_webapp");
         info->scope = GURL("https://docs.google.com/document/");
         info->display_mode =
             is_standalone_tabbed ? DisplayMode::kTabbed : DisplayMode::kBrowser;

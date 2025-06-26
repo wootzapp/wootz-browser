@@ -55,7 +55,7 @@ TEST_F(TextSuggestionControllerTest, ApplySpellCheckSuggestion) {
       "<div contenteditable>"
       "spllchck"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
 
   GetDocument().Markers().AddActiveSuggestionMarker(
@@ -95,7 +95,7 @@ TEST_F(TextSuggestionControllerTest, MAYBE_ApplyTextSuggestion) {
       "<div contenteditable>"
       "word1 word2 word3 word4"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   auto* text = To<Text>(div->firstChild());
 
   // Add marker on "word1". This marker should *not* be cleared by the
@@ -206,7 +206,7 @@ TEST_F(TextSuggestionControllerTest,
       "<div contenteditable>"
       "mispelled"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   auto* text = To<Text>(div->firstChild());
 
   // Add marker on "mispelled". This marker should be cleared by the replace
@@ -239,12 +239,56 @@ TEST_F(TextSuggestionControllerTest,
   EXPECT_EQ("misspelled", text->textContent());
 }
 
+TEST_F(TextSuggestionControllerTest,
+       ApplyingMisspellingTextSuggestionShouldNotChangeDOM) {
+  SetBodyContent(
+      "<div contenteditable>"
+      "<span style='color: rgb(255, 0, 0);'>"
+      "this is a mispelled."
+      "</span>"
+      "</div>");
+  Element* div = QuerySelector("div");
+  Element* span = To<Element>(div->firstChild());
+  Text* text = To<Text>(span->firstChild());
+
+  // Add marker on "mispelled". This marker should be cleared by the replace
+  // operation.
+  GetDocument().Markers().AddSuggestionMarker(
+      EphemeralRange(Position(text, 10), Position(text, 19)),
+      SuggestionMarkerProperties::Builder()
+          .SetType(SuggestionMarker::SuggestionType::kMisspelling)
+          .SetSuggestions(Vector<String>({"misspelled"}))
+          .Build());
+
+  // Check the tag for the marker that was just added (the current tag value is
+  // not reset between test cases).
+  int32_t marker_tag =
+      To<SuggestionMarker>(GetDocument().Markers().MarkersFor(*text)[0].Get())
+          ->Tag();
+
+  // Select immediately before "mispelled".
+  GetDocument().GetFrame()->Selection().SetSelection(
+      SelectionInDOMTree::Builder()
+          .SetBaseAndExtent(Position(text, 10), Position(text, 10))
+          .Build(),
+      SetSelectionOptions());
+
+  // Replace "mispelled" with "misspelled".
+  GetDocument().GetFrame()->GetTextSuggestionController().ApplyTextSuggestion(
+      marker_tag, 0);
+
+  EXPECT_EQ(0u, GetDocument().Markers().MarkersFor(*text).size());
+  EXPECT_EQ(
+      "<span style=\"color: rgb(255, 0, 0);\">this is a misspelled.</span>",
+      div->innerHTML());
+}
+
 TEST_F(TextSuggestionControllerTest, DeleteActiveSuggestionRange_DeleteAtEnd) {
   SetBodyContent(
       "<div contenteditable>"
       "word1 word2"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
 
   // Mark "word2" as the active suggestion range
@@ -272,7 +316,7 @@ TEST_F(TextSuggestionControllerTest,
       "<div contenteditable>"
       "word1 word2 word3"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
 
   // Mark "word2" as the active suggestion range
@@ -292,7 +336,7 @@ TEST_F(TextSuggestionControllerTest,
       .DeleteActiveSuggestionRange();
 
   // One of the extra spaces around "word2" should have been removed
-  EXPECT_EQ("word1\xA0word3", text->textContent());
+  EXPECT_EQ("word1 word3", text->textContent());
 }
 
 TEST_F(TextSuggestionControllerTest,
@@ -301,7 +345,7 @@ TEST_F(TextSuggestionControllerTest,
       "<div contenteditable>"
       "word1 word2"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
 
   // Mark "word1" as the active suggestion range
@@ -331,7 +375,7 @@ TEST_F(TextSuggestionControllerTest,
       "<div contenteditable>"
       "word1"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
 
   // Mark "word1" as the active suggestion range
@@ -364,7 +408,7 @@ TEST_F(TextSuggestionControllerTest,
       "<div contenteditable>"
       "word1word2 word3"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
 
   // Mark "word2" as the active suggestion range
@@ -383,7 +427,7 @@ TEST_F(TextSuggestionControllerTest,
       ->GetTextSuggestionController()
       .DeleteActiveSuggestionRange();
 
-  EXPECT_EQ("word1\xA0word3", text->textContent());
+  EXPECT_EQ("word1 word3", text->textContent());
 }
 
 TEST_F(TextSuggestionControllerTest,
@@ -392,7 +436,7 @@ TEST_F(TextSuggestionControllerTest,
       "<div contenteditable>"
       "word1 word2word3"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
 
   // Mark "word2" as the active suggestion range
@@ -411,7 +455,7 @@ TEST_F(TextSuggestionControllerTest,
       ->GetTextSuggestionController()
       .DeleteActiveSuggestionRange();
 
-  EXPECT_EQ("word1\xA0word3", text->textContent());
+  EXPECT_EQ("word1 word3", text->textContent());
 }
 
 TEST_F(TextSuggestionControllerTest,
@@ -420,7 +464,7 @@ TEST_F(TextSuggestionControllerTest,
       "<div contenteditable>"
       "word1word2"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
 
   // Mark "word1" as the active suggestion range
@@ -448,7 +492,7 @@ TEST_F(TextSuggestionControllerTest,
       "<div contenteditable>"
       "embiggen"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   Node* text = div->firstChild();
 
   // Mark "embiggen" as misspelled
@@ -497,7 +541,7 @@ TEST_F(TextSuggestionControllerTest, SuggestionMarkerWithEmptySuggestion) {
       "<div contenteditable>"
       "hello"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   auto* text = To<Text>(div->firstChild());
 
   // Set suggestion marker with empty suggestion list.
@@ -547,7 +591,7 @@ TEST_F(TextSuggestionControllerTest, SuggestionMarkerWithSuggestion) {
       "<div contenteditable>"
       "hello"
       "</div>");
-  Element* div = GetDocument().QuerySelector(AtomicString("div"));
+  Element* div = QuerySelector("div");
   auto* text = To<Text>(div->firstChild());
 
   // Set suggestion marker with two suggestions.

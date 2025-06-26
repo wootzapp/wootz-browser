@@ -79,9 +79,7 @@ BitMapBlocklistState BlocklistStateToBitMapBlocklistState(
     case BLOCKLISTED_POTENTIALLY_UNWANTED:
       return BitMapBlocklistState::BLOCKLISTED_POTENTIALLY_UNWANTED;
     case BLOCKLISTED_UNKNOWN:
-      NOTREACHED_IN_MIGRATION()
-          << "The unknown state should not be added into prefs.";
-      return BitMapBlocklistState::NOT_BLOCKLISTED;
+      NOTREACHED() << "The unknown state should not be added into prefs.";
   }
 }
 
@@ -121,8 +119,9 @@ void AddOmahaBlocklistState(const ExtensionId& extension_id,
                             BitMapBlocklistState state,
                             ExtensionPrefs* extension_prefs) {
   extension_prefs->ModifyBitMapPrefBits(
-      extension_id, static_cast<int>(state), ExtensionPrefs::BIT_MAP_PREF_ADD,
-      kPrefOmahaBlocklistState, static_cast<int>(kDefaultBitMapBlocklistState));
+      extension_id, static_cast<int>(state),
+      ExtensionPrefs::BitMapPrefOperation::kAdd, kPrefOmahaBlocklistState,
+      static_cast<int>(kDefaultBitMapBlocklistState));
 }
 
 void RemoveOmahaBlocklistState(const ExtensionId& extension_id,
@@ -130,7 +129,7 @@ void RemoveOmahaBlocklistState(const ExtensionId& extension_id,
                                ExtensionPrefs* extension_prefs) {
   extension_prefs->ModifyBitMapPrefBits(
       extension_id, static_cast<int>(state),
-      ExtensionPrefs::BIT_MAP_PREF_REMOVE, kPrefOmahaBlocklistState,
+      ExtensionPrefs::BitMapPrefOperation::kRemove, kPrefOmahaBlocklistState,
       static_cast<int>(kDefaultBitMapBlocklistState));
 }
 
@@ -155,7 +154,8 @@ void AddAcknowledgedBlocklistState(const ExtensionId& extension_id,
                                    BitMapBlocklistState state,
                                    ExtensionPrefs* extension_prefs) {
   extension_prefs->ModifyBitMapPrefBits(
-      extension_id, static_cast<int>(state), ExtensionPrefs::BIT_MAP_PREF_ADD,
+      extension_id, static_cast<int>(state),
+      ExtensionPrefs::BitMapPrefOperation::kAdd,
       kPrefAcknowledgedBlocklistState,
       static_cast<int>(kDefaultBitMapBlocklistState));
 }
@@ -166,7 +166,8 @@ void RemoveAcknowledgedBlocklistState(
     extensions::ExtensionPrefs* extension_prefs) {
   extension_prefs->ModifyBitMapPrefBits(
       extension_id, static_cast<int>(state),
-      ExtensionPrefs::BIT_MAP_PREF_REMOVE, kPrefAcknowledgedBlocklistState,
+      ExtensionPrefs::BitMapPrefOperation::kRemove,
+      kPrefAcknowledgedBlocklistState,
       static_cast<int>(kDefaultBitMapBlocklistState));
 }
 

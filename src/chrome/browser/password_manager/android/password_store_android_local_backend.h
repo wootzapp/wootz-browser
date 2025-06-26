@@ -10,29 +10,25 @@
 
 namespace syncer {
 class SyncService;
-class ModelTypeControllerDelegate;
+class DataTypeControllerDelegate;
 }  // namespace syncer
 
 namespace password_manager {
 
 class AffiliatedMatchHelper;
-class PasswordAffiliationSourceAdapter;
 
 // This class processes passwords stored in local storage (not associated to any
 // account).
 class PasswordStoreAndroidLocalBackend : public PasswordStoreBackend,
                                          public PasswordStoreAndroidBackend {
  public:
-  PasswordStoreAndroidLocalBackend(
-      PrefService* prefs,
-      PasswordAffiliationSourceAdapter& password_affiliation_adapter);
+  explicit PasswordStoreAndroidLocalBackend(PrefService* prefs);
 
   // Only for testing.
   PasswordStoreAndroidLocalBackend(
       std::unique_ptr<PasswordStoreAndroidBackendBridgeHelper> bridge_helper,
       std::unique_ptr<PasswordManagerLifecycleHelper> lifecycle_helper,
-      PrefService* prefs,
-      PasswordAffiliationSourceAdapter& password_affiliation_adapter);
+      PrefService* prefs);
   ~PasswordStoreAndroidLocalBackend() override;
 
   // PasswordStoreBackend implementation.
@@ -46,8 +42,6 @@ class PasswordStoreAndroidLocalBackend : public PasswordStoreBackend,
   void GetAllLoginsWithAffiliationAndBrandingAsync(
       LoginsOrErrorReply callback) override;
   void GetAutofillableLoginsAsync(LoginsOrErrorReply callback) override;
-  void GetAllLoginsForAccountAsync(std::string account,
-                                   LoginsOrErrorReply callback) override;
   void FillMatchingLoginsAsync(
       LoginsOrErrorReply callback,
       bool include_psl,
@@ -61,22 +55,16 @@ class PasswordStoreAndroidLocalBackend : public PasswordStoreBackend,
   void RemoveLoginAsync(const base::Location& location,
                         const PasswordForm& form,
                         PasswordChangesOrErrorReply callback) override;
-  void RemoveLoginsByURLAndTimeAsync(
-      const base::Location& location,
-      const base::RepeatingCallback<bool(const GURL&)>& url_filter,
-      base::Time delete_begin,
-      base::Time delete_end,
-      base::OnceCallback<void(bool)> sync_completion,
-      PasswordChangesOrErrorReply callback) override;
   void RemoveLoginsCreatedBetweenAsync(
       const base::Location& location,
       base::Time delete_begin,
       base::Time delete_end,
+      base::OnceCallback<void(bool)> sync_completion,
       PasswordChangesOrErrorReply callback) override;
   void DisableAutoSignInForOriginsAsync(
       const base::RepeatingCallback<bool(const GURL&)>& origin_filter,
       base::OnceClosure completion) override;
-  std::unique_ptr<syncer::ModelTypeControllerDelegate>
+  std::unique_ptr<syncer::DataTypeControllerDelegate>
   CreateSyncControllerDelegate() override;
   void OnSyncServiceInitialized(syncer::SyncService* sync_service) override;
   void RecordAddLoginAsyncCalledFromTheStore() override;
@@ -86,8 +74,7 @@ class PasswordStoreAndroidLocalBackend : public PasswordStoreBackend,
 
  private:
   // PasswordStoreAndroidBackend implementation.
-  PasswordStoreBackendErrorRecoveryType RecoverOnErrorAndReturnResult(
-      AndroidBackendAPIErrorCode error) override;
+  void RecoverOnError(AndroidBackendAPIErrorCode error) override;
   void OnCallToGMSCoreSucceeded() override;
   std::string GetAccountToRetryOperation() override;
   PasswordStoreBackendMetricsRecorder::PasswordStoreAndroidBackendType

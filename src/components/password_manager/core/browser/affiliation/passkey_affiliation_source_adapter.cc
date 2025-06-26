@@ -47,6 +47,12 @@ PasskeyAffiliationSourceAdapter::~PasskeyAffiliationSourceAdapter() {
 
 void PasskeyAffiliationSourceAdapter::GetFacets(
     AffiliationSource::ResultCallback response_callback) {
+  // This can happen in tests.
+  if (!passkey_model_) {
+    std::move(response_callback).Run({});
+    return;
+  }
+
   std::vector<sync_pb::WebauthnCredentialSpecifics> passkeys =
       passkey_model_->GetAllPasskeys();
   std::vector<FacetURI> result;
@@ -99,5 +105,7 @@ void PasskeyAffiliationSourceAdapter::OnPasskeyModelShuttingDown() {
   passkey_model_observation_.Reset();
   passkey_model_ = nullptr;
 }
+
+void PasskeyAffiliationSourceAdapter::OnPasskeyModelIsReady(bool is_ready) {}
 
 }  // namespace password_manager

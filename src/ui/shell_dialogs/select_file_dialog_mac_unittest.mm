@@ -2,9 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #import "ui/shell_dialogs/select_file_dialog_mac.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+
+#include <algorithm>
 
 #import "base/apple/foundation_util.h"
 #include "base/files/file_util.h"
@@ -12,7 +19,6 @@
 #include "base/mac/mac_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/sys_string_conversions.h"
@@ -22,6 +28,7 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/gtest_mac.h"
 #include "testing/platform_test.h"
+#include "ui/gfx/native_widget_types.h"
 #include "ui/shell_dialogs/select_file_policy.h"
 
 #define EXPECT_EQ_BOOL(a, b) \
@@ -57,12 +64,6 @@ class SelectFileDialogMacTest : public PlatformTest,
   SelectFileDialogMacTest(const SelectFileDialogMacTest&) = delete;
   SelectFileDialogMacTest& operator=(const SelectFileDialogMacTest&) = delete;
 
-  // Overridden from SelectFileDialog::Listener.
-  void FileSelected(const SelectedFileInfo& file,
-                    int index,
-                    void* params) override {}
-  void FileSelectionCanceled(void* params) override {}
-
  protected:
   base::test::TaskEnvironment task_environment_ = base::test::TaskEnvironment(
       base::test::TaskEnvironment::MainThreadType::UI);
@@ -74,7 +75,6 @@ class SelectFileDialogMacTest : public PlatformTest,
     raw_ptr<SelectFileDialog::FileTypeInfo> file_types = nullptr;
     int file_type_index = 0;
     base::FilePath::StringType default_extension;
-    raw_ptr<void> params = nullptr;
   };
 
   // Helper method to create a dialog with the given `args`. Returns the created
@@ -90,7 +90,8 @@ class SelectFileDialogMacTest : public PlatformTest,
 
     dialog_->SelectFile(args.type, args.title, args.default_path,
                         args.file_types, args.file_type_index,
-                        args.default_extension, parent_window, args.params);
+                        args.default_extension,
+                        gfx::NativeWindow(parent_window), nullptr);
 
     // At this point, the Mojo IPC to show the dialog is queued up. Spin the
     // message loop to get the Mojo IPC to happen.
@@ -525,8 +526,7 @@ TEST_F(SelectFileDialogMacTest, KeepExtensionVisible) {
   EXPECT_FALSE(panel.extensionHidden);
 }
 
-// TODO(crbug.com/40900143): This has been flaky.
-TEST_F(SelectFileDialogMacTest, DISABLED_DontCrashWithBogusExtension) {
+TEST_F(SelectFileDialogMacTest, DontCrashWithBogusExtension) {
   SelectFileDialog::FileTypeInfo file_type_info;
   file_type_info.extensions = {{"bogus type", "j.pg"}};
 

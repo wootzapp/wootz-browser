@@ -6,10 +6,11 @@
 
 #include <algorithm>
 
+#include "base/compiler_specific.h"
 #include "base/containers/contains.h"
 #include "base/logging.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/text/icu_error.h"
 #include "third_party/blink/renderer/platform/wtf/text/character_names.h"
 #include "third_party/blink/renderer/platform/wtf/threading.h"
@@ -25,10 +26,11 @@ namespace {
 // https://docs.microsoft.com/en-us/typography/opentype/spec/scripttags
 inline UScriptCode GetScriptForOpenType(UChar32 ch, UErrorCode* status) {
   UScriptCode script = uscript_getScript(ch, status);
-  if (UNLIKELY(U_FAILURE(*status)))
+  if (U_FAILURE(*status)) [[unlikely]] {
     return script;
-  if (UNLIKELY(script == USCRIPT_KATAKANA ||
-               script == USCRIPT_KATAKANA_OR_HIRAGANA)) {
+  }
+  if (script == USCRIPT_KATAKANA || script == USCRIPT_KATAKANA_OR_HIRAGANA)
+      [[unlikely]] {
     return USCRIPT_HIRAGANA;
   }
   return script;
@@ -41,7 +43,7 @@ inline bool IsHanScript(UScriptCode script) {
 
 inline UScriptCode FirstHanScript(
     const ScriptRunIterator::UScriptCodeList& list) {
-  const auto* const result = base::ranges::find_if(list, IsHanScript);
+  const auto result = std::ranges::find_if(list, IsHanScript);
   if (result != list.end())
     return *result;
   return USCRIPT_INVALID_CODE;
@@ -60,8 +62,7 @@ ScriptRunIterator::UScriptCodeList GetHanScriptExtensions() {
     list.resize(count);
     return list;
   }
-  NOTREACHED_IN_MIGRATION();
-  return ScriptRunIterator::UScriptCodeList();
+  NOTREACHED();
 }
 
 // This function updates the script list to the Han ideographic-based scripts if
@@ -99,11 +100,10 @@ void FixScriptsByEastAsianWidth(UChar32 ch,
     // U+300C in https://www.unicode.org/Public/UNIDATA/ScriptExtensions.txt.
     DEFINE_STATIC_LOCAL(ScriptRunIterator::UScriptCodeList, han_scripts,
                         (GetHanScriptExtensions()));
-    if (UNLIKELY(han_scripts.empty())) {
+    if (han_scripts.empty()) [[unlikely]] {
       // When |GetHanScriptExtensions| returns an empty list, replacing with it
       // will crash later, which makes the analysis complicated.
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     }
     set->Shrink(0);
     set->AppendVector(han_scripts);
@@ -113,9 +113,6 @@ void FixScriptsByEastAsianWidth(UChar32 ch,
 }  // namespace
 
 typedef ScriptData::PairedBracketType PairedBracketType;
-
-constexpr int ScriptRunIterator::kMaxScriptCount;
-constexpr int ScriptData::kMaxScriptCount;
 
 ScriptData::~ScriptData() = default;
 
@@ -164,11 +161,14 @@ void ICUScriptData::GetScripts(UChar32 ch, UScriptCodeList& dst) const {
     // Not common or primary, with extensions that are not in order. We know
     // the primary, so we insert it at the front and swap the previous front
     // to somewhere else in the list.
-    auto* it = std::find(dst.begin() + 1, dst.end(), primary_script);
+    auto it =
+        std::find(UNSAFE_TODO(dst.begin() + 1), dst.end(), primary_script);
     if (it == dst.end()) {
       dst.push_back(primary_script);
+      std::swap(dst.front(), dst.back());
+    } else {
+      std::swap(*dst.begin(), *it);
     }
-    std::swap(*dst.begin(), *it);
     return;
   }
 
@@ -220,11 +220,10 @@ const ICUScriptData* ICUScriptData::Instance() {
   return &icu_script_data_instance;
 }
 
-ScriptRunIterator::ScriptRunIterator(const UChar* text,
-                                     wtf_size_t length,
+ScriptRunIterator::ScriptRunIterator(base::span<const UChar> text,
                                      const ScriptData* data)
-    : text_(text),
-      length_(length),
+    : text_(text.data()),
+      length_(base::checked_cast<wtf_size_t>(text.size())),
       brackets_fixup_depth_(0),
       next_set_(std::make_unique<UScriptCodeList>()),
       ahead_set_(std::make_unique<UScriptCodeList>()),
@@ -233,7 +232,7 @@ ScriptRunIterator::ScriptRunIterator(const UChar* text,
       ahead_pos_(0),
       common_preferred_(USCRIPT_COMMON),
       script_data_(data) {
-  DCHECK(text);
+  DCHECK(text.data());
   DCHECK(data);
 
   if (ahead_pos_ < length_) {
@@ -242,13 +241,13 @@ ScriptRunIterator::ScriptRunIterator(const UChar* text,
     // resolution between current_set_ and next_set_ in MergeSets() leads to
     // choosing the script of the first consumed character.
     current_set_.push_back(USCRIPT_COMMON);
-    U16_NEXT(text_, ahead_pos_, length_, ahead_character_);
+    UNSAFE_TODO(U16_NEXT(text_, ahead_pos_, length_, ahead_character_));
     script_data_->GetScripts(ahead_character_, *ahead_set_);
   }
 }
 
-ScriptRunIterator::ScriptRunIterator(const UChar* text, wtf_size_t length)
-    : ScriptRunIterator(text, length, ICUScriptData::Instance()) {}
+ScriptRunIterator::ScriptRunIterator(base::span<const UChar> text)
+    : ScriptRunIterator(text, ICUScriptData::Instance()) {}
 
 bool ScriptRunIterator::Consume(unsigned* limit, UScriptCode* script) {
   if (current_set_.empty()) {
@@ -353,11 +352,11 @@ bool ScriptRunIterator::MergeSets() {
     return false;
   }
 
-  auto* current_set_it = current_set_.begin();
-  auto* current_end = current_set_.end();
+  auto current_set_it = current_set_.begin();
+  auto current_end = current_set_.end();
   // Most of the time, this is the only one.
   // Advance the current iterator, we won't need to check it again later.
-  UScriptCode priority_script = *current_set_it++;
+  UScriptCode priority_script = UNSAFE_TODO(*current_set_it++);
 
   // If next is common or inherited, the only thing that might change
   // is the common preferred script.
@@ -384,32 +383,32 @@ bool ScriptRunIterator::MergeSets() {
 
   // Establish the priority script, if we have one.
   // First try current priority script.
-  auto* next_it = next_set_->begin();
-  auto* next_end = next_set_->end();
+  auto next_it = next_set_->begin();
+  auto next_end = next_set_->end();
   if (!have_priority) {
     // So try next priority script.
     // Skip the first current script, we already know it's not there.
     // Advance the next iterator, later we won't need to check it again.
-    priority_script = *next_it++;
+    priority_script = UNSAFE_TODO(*next_it++);
     have_priority =
         std::find(current_set_it, current_end, priority_script) != current_end;
   }
 
   // Note that we can never write more scripts into the current vector than
   // it already contains, so currentWriteIt won't ever exceed the size/capacity.
-  auto* current_write_it = current_set_.begin();
+  auto current_write_it = current_set_.begin();
   if (have_priority) {
     // keep the priority script.
-    *current_write_it++ = priority_script;
+    UNSAFE_TODO(*current_write_it++ = priority_script);
   }
 
   if (next_it != next_end) {
     // Iterate over the remaining current scripts, and keep them if
     // they occur in the remaining next scripts.
     while (current_set_it != current_end) {
-      UScriptCode sc = *current_set_it++;
+      UScriptCode sc = UNSAFE_TODO(*current_set_it++);
       if (std::find(next_it, next_end, sc) != next_end) {
-        *current_write_it++ = sc;
+        UNSAFE_TODO(*current_write_it++ = sc);
       }
     }
   }
@@ -469,7 +468,22 @@ bool ScriptRunIterator::Fetch(wtf_size_t* pos, UChar32* ch) {
     return true;
   }
 
-  U16_NEXT(text_, ahead_pos_, length_, ahead_character_);
+  UNSAFE_TODO(U16_NEXT(text_, ahead_pos_, length_, ahead_character_));
+
+  if (!next_set_->empty() && next_set_->front() != USCRIPT_COMMON &&
+      U_GET_GC_MASK(ahead_character_) & U_GC_M_MASK &&
+      RuntimeEnabledFeatures::ScriptRunIteratorCombiningMarksEnabled())
+      [[unlikely]] {
+    // A combining mark--whatever its Script property value--should inherit the
+    // script property value of its base character.
+    // https://www.unicode.org/reports/tr24/#Nonspacing_Marks
+    // `USCRIPT_COMMON` could try looking for more context, but the script of
+    // the combining mark may be still useful, and is backward compatible.
+    // https://www.unicode.org/reports/tr24/#Common
+    *ahead_set_ = *next_set_;
+    return true;
+  }
+
   script_data_->GetScripts(ahead_character_, *ahead_set_);
   if (ahead_set_->empty()) {
     // No scripts for this character. This has already been logged, so

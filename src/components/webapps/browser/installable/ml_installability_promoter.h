@@ -43,7 +43,8 @@ class AppBannerManager;
 class MlInstallOperationTracker;
 class SiteManifestMetricsTask;
 
-constexpr base::TimeDelta kTimeToWaitForWebContentsObservers = base::Seconds(3);
+constexpr base::TimeDelta kTimeToWaitForWebContentsObservers =
+    base::Seconds(10);
 
 struct SiteInstallMetrics {
   bool is_fully_installed;
@@ -113,8 +114,12 @@ class MLInstallabilityPromoter
       scoped_refptr<base::SequencedTaskRunner> task_runner);
   void AwaitMetricsCollectionTasksCompleteForTesting();
 
-  bool IsPendingVisibilityForTesting() {
+  bool IsPendingVisibilityForTesting() const {
     return state_ == MLPipelineState::kWaitingForVisibility;
+  }
+
+  bool IsCompleteForTesting() const {
+    return state_ == MLPipelineState::kComplete;
   }
 
  private:
@@ -160,7 +165,9 @@ class MLInstallabilityPromoter
 
   // content::ServiceWorkerContextObserver overrides
   void OnRegistrationStored(int64_t registration_id,
-                            const GURL& scope) override;
+                            const GURL& scope,
+                            const content::ServiceWorkerRegistrationInformation&
+                                service_worker_info) override;
   void OnDestruct(content::ServiceWorkerContext* context) override;
 
   void ResetRunningStagesAndTasksMaybeReportResult();

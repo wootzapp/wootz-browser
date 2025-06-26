@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ash/webui/camera_app_ui/camera_app_ui.h"
 
 #include "ash/public/cpp/window_properties.h"
@@ -17,7 +22,7 @@
 #include "base/memory/ref_counted_memory.h"
 #include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
-#include "components/arc/intent_helper/arc_intent_helper_bridge.h"
+#include "chromeos/ash/experiences/arc/intent_helper/arc_intent_helper_bridge.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/media_device_salt/media_device_salt_service.h"
 #include "content/public/browser/browser_context.h"
@@ -87,8 +92,7 @@ void CreateAndAddCameraAppUIHTMLSource(content::BrowserContext* browser_context,
   ash::EnableTrustedTypesCSP(source);
 
   // Add all settings resources.
-  source->AddResourcePaths(
-      base::make_span(kAshCameraAppResources, kAshCameraAppResourcesSize));
+  source->AddResourcePaths(kAshCameraAppResources);
 
   delegate->PopulateLoadTimeData(source);
 
@@ -203,8 +207,7 @@ CreateCameraAppDeviceProvider(
 std::unique_ptr<CameraAppHelperImpl> CreateCameraAppHelper(
     CameraAppUI* camera_app_ui,
     content::BrowserContext* browser_context,
-    aura::Window* window,
-    HoldingSpaceClient* holding_space_client) {
+    aura::Window* window) {
   DCHECK_NE(window, nullptr);
   auto handle_result_callback =
       base::BindRepeating(&HandleCameraResult, browser_context);
@@ -213,7 +216,7 @@ std::unique_ptr<CameraAppHelperImpl> CreateCameraAppHelper(
 
   return std::make_unique<CameraAppHelperImpl>(
       camera_app_ui, std::move(handle_result_callback),
-      std::move(send_broadcast_callback), window, holding_space_client);
+      std::move(send_broadcast_callback), window);
 }
 
 }  // namespace
@@ -252,22 +255,14 @@ CameraAppUI::CameraAppUI(content::WebUI* web_ui,
   auto* allowlist = WebUIAllowlist::GetOrCreate(browser_context);
   const url::Origin host_origin =
       url::Origin::Create(GURL(kChromeUICameraAppURL));
-  allowlist->RegisterAutoGrantedPermission(
-      host_origin, ContentSettingsType::MEDIASTREAM_MIC);
-  allowlist->RegisterAutoGrantedPermission(
-      host_origin, ContentSettingsType::MEDIASTREAM_CAMERA);
-  allowlist->RegisterAutoGrantedPermission(
-      host_origin, ContentSettingsType::CAMERA_PAN_TILT_ZOOM);
-  allowlist->RegisterAutoGrantedPermission(
-      host_origin, ContentSettingsType::FILE_SYSTEM_READ_GUARD);
-  allowlist->RegisterAutoGrantedPermission(
-      host_origin, ContentSettingsType::FILE_SYSTEM_WRITE_GUARD);
-  allowlist->RegisterAutoGrantedPermission(host_origin,
-                                           ContentSettingsType::COOKIES);
-  allowlist->RegisterAutoGrantedPermission(host_origin,
-                                           ContentSettingsType::IDLE_DETECTION);
-
-  delegate_->SetLaunchDirectory();
+  allowlist->RegisterAutoGrantedPermissions(
+      host_origin,
+      {ContentSettingsType::MEDIASTREAM_MIC,
+       ContentSettingsType::MEDIASTREAM_CAMERA,
+       ContentSettingsType::CAMERA_PAN_TILT_ZOOM,
+       ContentSettingsType::FILE_SYSTEM_READ_GUARD,
+       ContentSettingsType::FILE_SYSTEM_WRITE_GUARD,
+       ContentSettingsType::COOKIES, ContentSettingsType::IDLE_DETECTION});
 
   window()->SetProperty(kMinimizeOnBackKey, false);
 
@@ -301,8 +296,7 @@ void CameraAppUI::BindInterface(
 void CameraAppUI::BindInterface(
     mojo::PendingReceiver<camera_app::mojom::CameraAppHelper> receiver) {
   helper_ = CreateCameraAppHelper(
-      this, web_ui()->GetWebContents()->GetBrowserContext(), window(),
-      delegate_->GetHoldingSpaceClient());
+      this, web_ui()->GetWebContents()->GetBrowserContext(), window());
   helper_->Bind(std::move(receiver));
 }
 

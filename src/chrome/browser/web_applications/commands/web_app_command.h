@@ -12,15 +12,14 @@
 #include <type_traits>
 
 #include "base/functional/bind.h"
-#include "base/functional/bind_internal.h"
 #include "base/functional/callback.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/weak_ptr.h"
 #include "base/sequence_checker.h"
 #include "base/strings/to_string.h"
 #include "base/types/pass_key.h"
 #include "base/values.h"
+#include "chrome/browser/web_applications/commands/command_result.h"
 #include "chrome/browser/web_applications/commands/internal/command_internal.h"
 #include "components/webapps/common/web_app_id.h"
 
@@ -106,6 +105,7 @@ class WebAppLockManager;
 template <typename LockType, typename... CallbackArgs>
 class WebAppCommand : public internal::CommandWithLock<LockType> {
  public:
+  using PassKey = base::PassKey<WebAppCommand>;
   using LockDescription = LockType::LockDescription;
   using CallbackType = base::OnceCallback<void(CallbackArgs...)>;
   using ShutdownArgumentsTuple = std::tuple<std::decay_t<CallbackArgs>...>;
@@ -136,7 +136,7 @@ class WebAppCommand : public internal::CommandWithLock<LockType> {
     CHECK(!callback_.is_null());
   }
 
-  ~WebAppCommand() override {}
+  ~WebAppCommand() override = default;
 
   base::OnceClosure TakeCallbackWithShutdownArgs(
       base::PassKey<WebAppCommandManager>) override {

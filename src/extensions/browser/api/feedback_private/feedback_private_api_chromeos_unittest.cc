@@ -89,8 +89,9 @@ class FeedbackPrivateApiUnittest : public FeedbackPrivateApiUnittestBase {
 
     std::optional<base::Value> result_value =
         RunFunctionAndReturnValue(function.get(), ParamsToJSON(params));
-    if (!result_value)
+    if (!result_value) {
       return testing::AssertionFailure() << "No result";
+    }
 
     auto result = ReadLogSourceResult::FromValue(*result_value);
     if (!result) {
@@ -754,7 +755,6 @@ TEST_F(FeedbackPrivateApiUnittest, SendFeedbackInfoAiFlow) {
   EXPECT_EQ(FeedbackCommon::GetChromeBrowserProductId(),
             feedback_info->product_id);
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
   auto chromeos_ai_metadata = base::Value::Dict();
   chromeos_ai_metadata.Set(feedback::kSeaPenMetadataKey, "true");
   feedback_info = api->CreateFeedbackInfo(
@@ -768,7 +768,6 @@ TEST_F(FeedbackPrivateApiUnittest, SendFeedbackInfoAiFlow) {
       chromeos_ai_metadata);
 
   EXPECT_EQ(FeedbackCommon::GetChromeOSProductId(), feedback_info->product_id);
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 }
 
 }  // namespace extensions

@@ -6,33 +6,39 @@
 #define COMPONENTS_AUTOFILL_CORE_BROWSER_METRICS_PAYMENTS_IBAN_METRICS_H_
 
 #include "base/time/time.h"
-#include "components/autofill/core/browser/autofill_client.h"
-#include "components/autofill/core/browser/data_model/iban.h"
+#include "components/autofill/core/browser/data_model/payments/iban.h"
+#include "components/autofill/core/browser/foundations/autofill_client.h"
 #include "components/autofill/core/browser/metrics/autofill_metrics.h"
 
 namespace autofill::autofill_metrics {
 
 // This includes all possible results.
-// They will be used in metrics, and should not be renumbered.
-enum class SaveIbanBubbleResult {
-  // The user explicitly accepted the bubble by clicking the ok button.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// A java IntDef@ is generated from this.
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.autofill
+enum class SaveIbanPromptResult {
+  // The user explicitly accepted the prompt by clicking the ok button.
   kAccepted = 0,
-  // The user explicitly cancelled the bubble by clicking the cancel button.
+  // The user explicitly cancelled the prompt by clicking the cancel button.
   kCancelled = 1,
-  // The user explicitly closed the bubble with the close button or ESC.
+  // The user explicitly closed the prompt with the close button or ESC.
   kClosed = 2,
-  // The user did not interact with the bubble.
+  // The user did not interact with the prompt.
   kNotInteracted = 3,
-  // The bubble lost focus and was deactivated.
+  // The prompt lost focus and was deactivated.
   kLostFocus = 4,
-  // The reason why the bubble is closed is not clear. Possible reason is the
+  // The reason why the prompt is closed is not clear. Possible reason is the
   // logging function is invoked before the closed reason is correctly set.
   kUnknown = 5,
   kMaxValue = kUnknown,
 };
 
 // Metrics to track event when the IBAN prompt is offered.
-// They will be used in metrics, and should not be renumbered.
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+// A java IntDef@ is generated from this.
+// GENERATED_JAVA_ENUM_PACKAGE: org.chromium.components.autofill
 enum class SaveIbanPromptOffer {
   // The prompt is actually shown.
   kShown = 0,
@@ -55,14 +61,22 @@ enum class IbanSuggestionsEvent {
   // suggestions for the same field, or if the user alternates between this IBAN
   // field and the other non-IBAN fields.
   kIbanSuggestionsShownOnce = 1,
-  // An individual IBAN suggestion was selected.
-  kIbanSuggestionSelected = 2,
-  // An individual IBAN suggestion was selected. Logged only once per IBAN
+  // An individual local IBAN suggestion was selected.
+  kLocalIbanSuggestionSelected = 2,
+  // An individual local IBAN suggestion was selected. Logged only once per IBAN
   // field. It won't log more than once if the user repeatedly selects IBAN
   // suggestion for the same field, or if the user alternates between this IBAN
   // field and the other non-IBAN fields and then click on IBAN suggestion.
-  kIbanSuggestionSelectedOnce = 3,
-  kMaxValue = kIbanSuggestionSelectedOnce,
+  kLocalIbanSuggestionSelectedOnce = 3,
+
+  // An individual server IBAN suggestion was selected.
+  kServerIbanSuggestionSelected = 4,
+  // An individual server IBAN suggestion was selected. Logged only once per
+  // IBAN field. It won't log more than once if the user repeatedly selects IBAN
+  // suggestion for the same field, or if the user alternates between this IBAN
+  // field and the other non-IBAN fields and then click on IBAN suggestion.
+  kServerIbanSuggestionSelectedOnce = 5,
+  kMaxValue = kServerIbanSuggestionSelectedOnce,
 };
 
 // Metrics to track the site blocklist status when showing IBAN suggestions.
@@ -117,7 +131,7 @@ enum class UploadIbanActionMetric {
 void LogStoredIbanMetrics(
     const std::vector<std::unique_ptr<Iban>>& local_ibans,
     const std::vector<std::unique_ptr<Iban>>& server_ibans,
-    const base::TimeDelta& disused_data_threshold);
+    base::TimeDelta disused_data_threshold);
 
 // Logs the number of days since the given IBAN was last used.
 void LogDaysSinceLastIbanUse(const Iban& iban);
@@ -135,19 +149,19 @@ void LogIbanSaveNotOfferedDueToMaxStrikesMetric(
 void LogUploadIbanMetric(UploadIbanOriginMetric origin_metric,
                          UploadIbanActionMetric action_metric);
 
-// Logs when IBAN save bubble is offered to users.
-void LogSaveIbanBubbleOfferMetric(SaveIbanPromptOffer metric,
+// Logs when IBAN save prompt is offered to users.
+void LogSaveIbanPromptOfferMetric(SaveIbanPromptOffer metric,
                                   bool is_reshow,
                                   bool is_upload_save);
 
-// Logs when the user makes a decision on the IBAN save bubble.
-void LogSaveIbanBubbleResultMetric(SaveIbanBubbleResult metric,
+// Logs when the user makes a decision on the IBAN save prompt.
+void LogSaveIbanPromptResultMetric(SaveIbanPromptResult metric,
                                    bool is_reshow,
                                    bool is_upload_save);
 
-// Logs when the user accepts the bubble to save an IBAN.
+// Logs when the user accepts the prompt to save an IBAN.
 // `save_with_nickname` donates the user has input a nickname.
-void LogSaveIbanBubbleResultSavedWithNicknameMetric(bool save_with_nickname,
+void LogSaveIbanPromptResultSavedWithNicknameMetric(bool save_with_nickname,
                                                     bool is_upload_save);
 
 // Logs metrics related to IBAN individual suggestions being shown or selected.
@@ -174,6 +188,20 @@ void LogServerIbanUnmaskLatency(base::TimeDelta latency, bool is_successful);
 
 // Logs the status for fetching a server IBAN in IbanAccessManager.
 void LogServerIbanUnmaskStatus(bool is_successful);
+
+// Logs that IBAN save was offered for the given country.
+void LogIbanSaveOfferedCountry(std::string_view country_code);
+
+// Logs that IBAN save was accepted for the given country.
+void LogIbanSaveAcceptedCountry(std::string_view country_code);
+
+// Logs that an IBAN was selected to be filled for the given country.
+void LogIbanSelectedCountry(std::string_view country_code);
+
+// Logs whether an IBAN was saved locally after a server save failure.
+// If `iban_saved_locally` is true, a new IBAN was saved locally. Otherwise, it
+// indicates that an existing local IBAN was not saved again.
+void LogIbanUploadSaveFailed(bool iban_saved_locally);
 
 }  // namespace autofill::autofill_metrics
 

@@ -8,10 +8,12 @@ import android.app.Activity;
 
 import androidx.annotation.Nullable;
 
+import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.offlinepages.DownloadUiActionFlags;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge;
 import org.chromium.chrome.browser.offlinepages.RequestCoordinatorBridge;
+import org.chromium.chrome.browser.preloading.AndroidPrerenderManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
@@ -24,9 +26,9 @@ import org.chromium.ui.mojom.WindowOpenDisposition;
 /** {@link NativePageNavigationDelegate} implementation. */
 public class NativePageNavigationDelegateImpl implements NativePageNavigationDelegate {
     private final Profile mProfile;
-    private final TabModelSelector mTabModelSelector;
-    private final Tab mTab;
 
+    protected final TabModelSelector mTabModelSelector;
+    protected final Tab mTab;
     protected final Activity mActivity;
     protected final NativePageHost mHost;
 
@@ -41,6 +43,11 @@ public class NativePageNavigationDelegateImpl implements NativePageNavigationDel
         mHost = host;
         mTabModelSelector = tabModelSelector;
         mTab = tab;
+    }
+
+    @Override
+    public boolean isOpenInIncognitoEnabled() {
+        return IncognitoUtils.isIncognitoModeEnabled(mProfile);
     }
 
     @Override
@@ -82,11 +89,13 @@ public class NativePageNavigationDelegateImpl implements NativePageNavigationDel
 
     @Override
     public Tab openUrlInGroup(int windowOpenDisposition, LoadUrlParams loadUrlParams) {
-        return mTabModelSelector.openNewTab(
-                loadUrlParams,
-                TabLaunchType.FROM_LONGPRESS_BACKGROUND_IN_GROUP,
-                mTab,
-                /* incognito= */ false);
+        Tab newTab =
+                mTabModelSelector.openNewTab(
+                        loadUrlParams,
+                        TabLaunchType.FROM_LONGPRESS_BACKGROUND_IN_GROUP,
+                        mTab,
+                        /* incognito= */ false);
+        return newTab;
     }
 
     private void openUrlInNewWindow(LoadUrlParams loadUrlParams) {
@@ -121,6 +130,13 @@ public class NativePageNavigationDelegateImpl implements NativePageNavigationDel
                             url,
                             OfflinePageBridge.NTP_SUGGESTIONS_NAMESPACE,
                             /* userRequested= */ true);
+        }
+    }
+
+    @Override
+    public void initAndroidPrerenderManager(AndroidPrerenderManager androidPrerenderManager) {
+        if (mTab != null) {
+            androidPrerenderManager.initializeWithTab(mTab);
         }
     }
 }

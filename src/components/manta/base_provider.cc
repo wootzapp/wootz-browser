@@ -4,37 +4,59 @@
 
 #include "components/manta/base_provider.h"
 
+#include "base/containers/fixed_flat_map.h"
+#include "base/version_info/channel.h"
+#include "components/manta/proto/manta.pb.h"
+
 namespace manta {
 namespace {
-constexpr char kHttpMethod[] = "POST";
+constexpr HttpMethod kHttpMethod = HttpMethod::kPost;
+constexpr char kHttpMethodString[] = "POST";
 constexpr char kHttpContentType[] = "application/x-protobuf";
 constexpr char kOAuthScope[] = "https://www.googleapis.com/auth/mdi.aratea";
-constexpr base::TimeDelta kTimeout = base::Seconds(30);
 constexpr char kAutopushEndpointUrl[] =
     "https://autopush-aratea-pa.sandbox.googleapis.com/generate";
 constexpr char kProdEndpointUrl[] = "https://aratea-pa.googleapis.com/generate";
 
+using manta::proto::ChromeClientInfo;
+
+ChromeClientInfo::Channel ConvertChannel(version_info::Channel channel) {
+  static constexpr auto kChannelMap =
+      base::MakeFixedFlatMap<version_info::Channel,
+                             manta::proto::ChromeClientInfo::Channel>(
+          {{version_info::Channel::UNKNOWN, ChromeClientInfo::UNKNOWN},
+           {version_info::Channel::CANARY, ChromeClientInfo::CANARY},
+           {version_info::Channel::DEV, ChromeClientInfo::DEV},
+           {version_info::Channel::BETA, ChromeClientInfo::BETA},
+           {version_info::Channel::STABLE, ChromeClientInfo::STABLE}});
+  auto iter = kChannelMap.find(channel);
+  if (iter == kChannelMap.end()) {
+    return manta::proto::ChromeClientInfo::UNKNOWN;
+  }
+  return iter->second;
+}
 }  // namespace
 
 std::string GetProviderEndpoint(bool use_prod) {
   return use_prod ? kProdEndpointUrl : kAutopushEndpointUrl;
 }
-// BaseProvider::BaseProvider() : is_demo_mode_(false), chrome_version_("") {}
-BaseProvider::BaseProvider() : is_demo_mode_(false) {}
+
+BaseProvider::BaseProvider() = default;
+
+BaseProvider::BaseProvider(
+    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+    signin::IdentityManager* identity_manager)
+    : BaseProvider(url_loader_factory, identity_manager, ProviderParams()) {}
+
 BaseProvider::BaseProvider(
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
     signin::IdentityManager* identity_manager,
-    bool is_demo_mode,
-    const std::string& chrome_version,
-    const std::string& locale)
+    const ProviderParams& provider_params)
     : url_loader_factory_(url_loader_factory),
-      is_demo_mode_(is_demo_mode),
-      chrome_version_(chrome_version),
-      locale_(locale) {
-  // Guest mode and demo mode also have valid identity_manager instance, so it's
-  // OK to CHECK here.
-  CHECK(identity_manager);
-  identity_manager_observation_.Observe(identity_manager);
+      provider_params_(provider_params) {
+  if (identity_manager) {
+    identity_manager_observation_.Observe(identity_manager);
+  }
 }
 
 BaseProvider::~BaseProvider() = default;
@@ -52,8 +74,10 @@ void BaseProvider::RequestInternal(
     const net::NetworkTrafficAnnotationTag& annotation_tag,
     manta::proto::Request& request,
     const MantaMetricType metric_type,
-    MantaProtoResponseCallback done_callback) {
-  if (!is_demo_mode_ && !identity_manager_observation_.IsObserving()) {
+    MantaProtoResponseCallback done_callback,
+    const base::TimeDelta timeout) {
+  if (!provider_params_.use_api_key &&
+      !identity_manager_observation_.IsObserving()) {
     std::move(done_callback)
         .Run(nullptr, {MantaStatusCode::kNoIdentityManager});
     return;
@@ -63,13 +87,17 @@ void BaseProvider::RequestInternal(
   auto* client_info = request.mutable_client_info();
   client_info->set_client_type(manta::proto::ClientInfo::CHROME);
 
-  if (!chrome_version_.empty()) {
+  if (!provider_params_.chrome_version.empty()) {
     client_info->mutable_chrome_client_info()->set_chrome_version(
-        chrome_version_);
+        provider_params_.chrome_version);
   }
 
-  if (!locale_.empty()) {
-    client_info->mutable_chrome_client_info()->set_locale(locale_);
+  client_info->mutable_chrome_client_info()->set_chrome_channel(
+      ConvertChannel(provider_params_.chrome_channel));
+
+  if (!provider_params_.locale.empty()) {
+    client_info->mutable_chrome_client_info()->set_locale(
+        provider_params_.locale);
   }
 
   std::string serialized_request;
@@ -77,9 +105,9 @@ void BaseProvider::RequestInternal(
 
   base::Time start_time = base::Time::Now();
 
-  if (is_demo_mode_) {
+  if (provider_params_.use_api_key) {
     std::unique_ptr<EndpointFetcher> fetcher = CreateEndpointFetcherForDemoMode(
-        url, annotation_tag, serialized_request);
+        url, annotation_tag, serialized_request, timeout);
     EndpointFetcher* const fetcher_ptr = fetcher.get();
     fetcher_ptr->PerformRequest(
         base::BindOnce(&OnEndpointFetcherComplete, std::move(done_callback),
@@ -87,7 +115,7 @@ void BaseProvider::RequestInternal(
         nullptr);
   } else {
     std::unique_ptr<EndpointFetcher> fetcher = CreateEndpointFetcher(
-        url, oauth_consumer_name, annotation_tag, serialized_request);
+        url, oauth_consumer_name, annotation_tag, serialized_request, timeout);
     EndpointFetcher* const fetcher_ptr = fetcher.get();
     fetcher_ptr->Fetch(base::BindOnce(&OnEndpointFetcherComplete,
                                       std::move(done_callback), start_time,
@@ -99,17 +127,18 @@ std::unique_ptr<EndpointFetcher> BaseProvider::CreateEndpointFetcher(
     const GURL& url,
     const std::string& oauth_consumer_name,
     const net::NetworkTrafficAnnotationTag& annotation_tag,
-    const std::string& post_data) {
+    const std::string& post_data,
+    const base::TimeDelta timeout) {
   CHECK(identity_manager_observation_.IsObserving());
   const std::vector<std::string>& scopes{kOAuthScope};
   return std::make_unique<EndpointFetcher>(
       /*url_loader_factory=*/url_loader_factory_,
       /*oauth_consumer_name=*/oauth_consumer_name,
       /*url=*/url,
-      /*http_method=*/kHttpMethod,
+      /*http_method=*/kHttpMethodString,
       /*content_type=*/kHttpContentType,
       /*scopes=*/scopes,
-      /*timeout=*/kTimeout,
+      /*timeout=*/timeout,
       /*post_data=*/post_data,
       /*annotation_tag=*/annotation_tag,
       /*identity_manager=*/identity_manager_observation_.GetSource(),
@@ -119,19 +148,20 @@ std::unique_ptr<EndpointFetcher> BaseProvider::CreateEndpointFetcher(
 std::unique_ptr<EndpointFetcher> BaseProvider::CreateEndpointFetcherForDemoMode(
     const GURL& url,
     const net::NetworkTrafficAnnotationTag& annotation_tag,
-    const std::string& post_data) {
+    const std::string& post_data,
+    const base::TimeDelta timeout) {
   return std::make_unique<EndpointFetcher>(
       /*url_loader_factory=*/url_loader_factory_,
       /*url=*/url,
-      /*http_method=*/kHttpMethod,
       /*content_type=*/kHttpContentType,
-      /*timeout=*/kTimeout,
+      /*timeout=*/timeout,
       /*post_data=*/post_data,
       /*headers=*/std::vector<std::string>(),
       /*cors_exempt_headers=*/std::vector<std::string>(),
-      /*annotation_tag=*/annotation_tag,
       // ChromeOS always uses the stable channel API key
-      /*is_stable_channel=*/true);
+      version_info::Channel::STABLE,
+      EndpointFetcher::RequestParams::Builder(kHttpMethod, annotation_tag)
+          .Build());
 }
 
 }  // namespace manta

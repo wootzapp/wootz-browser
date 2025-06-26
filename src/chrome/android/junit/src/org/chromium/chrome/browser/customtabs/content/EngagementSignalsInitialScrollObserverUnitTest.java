@@ -24,15 +24,14 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.customtabs.content.TabObserverRegistrar.CustomTabTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabHidingType;
 import org.chromium.content.browser.GestureListenerManagerImpl;
 import org.chromium.content_public.browser.GestureStateListener;
 import org.chromium.content_public.browser.LoadCommittedDetails;
-import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContentsObserver;
+import org.chromium.content_public.browser.test.mock.MockWebContents;
 import org.chromium.url.JUnitTestGURLs;
 
 /** Unit tests for {@link EngagementSignalsInitialScrollObserver}. */
@@ -44,8 +43,6 @@ public class EngagementSignalsInitialScrollObserverUnitTest {
     @Rule
     public final CustomTabActivityContentTestEnvironment env =
             new CustomTabActivityContentTestEnvironment();
-
-    @Rule public Features.JUnitProcessor processor = new Features.JUnitProcessor();
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -149,7 +146,7 @@ public class EngagementSignalsInitialScrollObserverUnitTest {
     private WebContentsObserver captureWebContentsObserver() {
         ArgumentCaptor<WebContentsObserver> webContentsObserverArgumentCaptor =
                 ArgumentCaptor.forClass(WebContentsObserver.class);
-        WebContents webContents = env.tabProvider.getTab().getWebContents();
+        MockWebContents webContents = (MockWebContents) env.tabProvider.getTab().getWebContents();
         verify(webContents).addObserver(webContentsObserverArgumentCaptor.capture());
         return webContentsObserverArgumentCaptor.getValue();
     }

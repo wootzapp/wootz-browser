@@ -7,6 +7,8 @@
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/task/sequenced_task_runner.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
 #include "components/component_updater/android/background_task_update_scheduler_jni_headers/UpdateScheduler_jni.h"
 
 namespace component_updater {
@@ -29,8 +31,8 @@ BackgroundTaskUpdateScheduler::BackgroundTaskUpdateScheduler() {
 BackgroundTaskUpdateScheduler::~BackgroundTaskUpdateScheduler() = default;
 
 void BackgroundTaskUpdateScheduler::Schedule(
-    const base::TimeDelta& initial_delay,
-    const base::TimeDelta& delay,
+    base::TimeDelta initial_delay,
+    base::TimeDelta delay,
     const UserTask& user_task,
     const OnStopTaskCallback& on_stop) {
   user_task_ = user_task;

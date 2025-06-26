@@ -9,36 +9,55 @@
 
 #include <memory>
 #include <string_view>
+
 #include "base/android/scoped_java_ref.h"
+
+class TabModel;
+
+namespace ui {
+class WindowAndroid;
+}
 
 namespace autofill {
 
 class AutofillSaveIbanDelegate;
+struct AutofillSaveIbanUiInfo;
 
 // Bridge class owned by ChromeAutofillClient providing an entry point
 // to trigger the save IBAN bottom sheet on Android.
 class AutofillSaveIbanBottomSheetBridge {
  public:
-  AutofillSaveIbanBottomSheetBridge();
+  // The window and tab model must not be null.
+  AutofillSaveIbanBottomSheetBridge(ui::WindowAndroid* window_android,
+                                    TabModel* tab_model);
 
   AutofillSaveIbanBottomSheetBridge(const AutofillSaveIbanBottomSheetBridge&) =
       delete;
   AutofillSaveIbanBottomSheetBridge& operator=(
       const AutofillSaveIbanBottomSheetBridge&) = delete;
 
-  ~AutofillSaveIbanBottomSheetBridge();
+  virtual ~AutofillSaveIbanBottomSheetBridge();
 
   // Requests to show the save IBAN bottom sheet.
-  void RequestShowContent(std::u16string_view iban_label,
+  void RequestShowContent(const AutofillSaveIbanUiInfo& ui_info,
                           std::unique_ptr<AutofillSaveIbanDelegate> delegate);
+
+  // Hides the save IBAN bottom sheet.
+  virtual void Hide();
 
   void OnUiAccepted(JNIEnv* env, const std::u16string& user_provided_nickname);
   void OnUiCanceled(JNIEnv* env);
   void OnUiIgnored(JNIEnv* env);
 
-  void ResetSaveIbanDelegate();
+ protected:
+  // Used in tests to inject dependencies.
+  explicit AutofillSaveIbanBottomSheetBridge(
+      base::android::ScopedJavaGlobalRef<jobject>
+          java_autofill_save_iban_bottom_sheet_bridge);
 
  private:
+  void ResetSaveIbanDelegate();
+
   base::android::ScopedJavaGlobalRef<jobject>
       java_autofill_save_iban_bottom_sheet_bridge_;
   std::unique_ptr<AutofillSaveIbanDelegate> save_iban_delegate_;

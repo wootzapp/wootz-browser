@@ -6,9 +6,9 @@ import type {HistoryAppElement, HistoryEntry, HistoryListElement} from 'chrome:/
 import {BrowserServiceImpl, ensureLazyLoaded} from 'chrome://history/history.js';
 import {isMac} from 'chrome://resources/js/platform.js';
 import {getDeepActiveElement} from 'chrome://resources/js/util.js';
-import {pressAndReleaseKeyOn} from 'chrome://resources/polymer/v3_0/iron-test-helpers/mock-interactions.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
+import {pressAndReleaseKeyOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
 import {flushTasks, waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
 import {eventToPromise} from 'chrome://webui-test/test_util.js';
 
@@ -32,10 +32,12 @@ suite('<history-list>', function() {
     document.body.innerHTML = window.trustedTypes!.emptyHTML;
     testService = new TestBrowserService();
     BrowserServiceImpl.setInstance(testService);
-    testService.setQueryResult({
-      info: createHistoryInfo(),
-      value: TEST_HISTORY_RESULTS,
-    });
+    testService.handler.setResultFor('queryHistory', Promise.resolve({
+      results: {
+        info: createHistoryInfo(),
+        value: TEST_HISTORY_RESULTS,
+      },
+    }));
 
     app = document.createElement('history-app');
     document.body.appendChild(app);
@@ -100,7 +102,7 @@ suite('<history-list>', function() {
 
     pressAndReleaseKeyOn(focused, 37, [], 'ArrowLeft');
     flush();
-    focused = items[2]!.shadowRoot!.querySelector('#bookmark-star')!;
+    focused = items[2]!.shadowRoot.querySelector('#bookmark-star')!;
     assertEquals(focused, getDeepActiveElement());
     assertTrue(items[2]!.getFocusRow().isActive());
     assertFalse(items[3]!.getFocusRow().isActive());

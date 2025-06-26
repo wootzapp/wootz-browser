@@ -39,12 +39,9 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_SYSTEM) StatisticsProviderImpl
     StatisticsSources(StatisticsSources&& other);
     StatisticsSources& operator=(StatisticsSources&& other);
 
-    // Command line for retrieving a single RO_VPD entry, whose key name must
-    // be appended to the command. (Or, a fake tool.)
-    std::vector<std::string> vpd_ro_tool;
-    // Command line for retrieving a single RW_VPD entry, whose key name must
-    // be appended to the command. (Or, a fake tool.)
-    std::vector<std::string> vpd_rw_tool;
+    // Command line for retrieving a filtered list of VPD key/value pairs. (Or,
+    // a fake tool.)
+    base::CommandLine vpd_tool{base::CommandLine::NO_PROGRAM};
     // Binary to fake crossystem tool with arguments. E.g. echo.
     base::CommandLine crossystem_tool{base::CommandLine::NO_PROGRAM};
 
@@ -88,6 +85,8 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_SYSTEM) StatisticsProviderImpl
 
   VpdStatus GetVpdStatus() const override;
 
+  LoadingState GetLoadingState() const override;
+
  private:
   using MachineFlags = base::flat_map<std::string, bool>;
 
@@ -124,9 +123,12 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_SYSTEM) StatisticsProviderImpl
   std::optional<std::string_view> GetRegionalInformation(
       std::string_view name) const;
 
+  // Shorthand to check internal state if loading has already started.
+  bool HasLoadingStarted() const;
+
   StatisticsSources sources_;
 
-  bool load_statistics_started_;
+  LoadingState loading_state_;
   NameValuePairsParser::NameValueMap machine_info_;
   MachineFlags machine_flags_;
   // Statistics extracted from region file and associated with `kRegionKey`
@@ -137,12 +139,9 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_SYSTEM) StatisticsProviderImpl
 
   // Stores VPD partitions status.
   // VPD partition or partitions are considered in invalid state if:
-  // 1. Status file or VPD file is missing: both RO_VPD and RW_VPD are
-  //    considered being invalid.
-  // 2. Partition key is missing in the status file: corresponding partition is
-  //    considered being invalid.
-  // 3. Partition key has invalid value: corresponding partition is considered
-  //    being invalid.
+  // 1. The VPD dump program encounters an error.
+  // 2. The region in question (RO or RW) is reported invalid (e.g., erased or
+  //    corrupted).
   VpdStatus vpd_status_{VpdStatus::kUnknown};
 
   // Lock held when `statistics_loaded_` is signaled and when

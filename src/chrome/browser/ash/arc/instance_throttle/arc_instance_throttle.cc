@@ -4,10 +4,6 @@
 
 #include "chrome/browser/ash/arc/instance_throttle/arc_instance_throttle.h"
 
-#include "ash/components/arc/arc_browser_context_keyed_service_factory_base.h"
-#include "ash/components/arc/arc_features.h"
-#include "ash/components/arc/mojom/power.mojom.h"
-#include "ash/components/arc/session/arc_bridge_service.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
@@ -17,13 +13,16 @@
 #include "chrome/browser/ash/arc/instance_throttle/arc_active_window_throttle_observer.h"
 #include "chrome/browser/ash/arc/instance_throttle/arc_app_launch_throttle_observer.h"
 #include "chrome/browser/ash/arc/instance_throttle/arc_boot_phase_throttle_observer.h"
-#include "chrome/browser/ash/arc/instance_throttle/arc_kiosk_mode_throttle_observer.h"
 #include "chrome/browser/ash/arc/instance_throttle/arc_pip_window_throttle_observer.h"
 #include "chrome/browser/ash/arc/instance_throttle/arc_power_throttle_observer.h"
 #include "chrome/browser/ash/arc/instance_throttle/arc_provisioning_throttle_observer.h"
 #include "chrome/browser/ash/arc/instance_throttle/arc_switch_throttle_observer.h"
 #include "chromeos/ash/components/dbus/concierge/concierge_client.h"
 #include "chromeos/ash/components/dbus/session_manager/session_manager_client.h"
+#include "chromeos/ash/experiences/arc/arc_browser_context_keyed_service_factory_base.h"
+#include "chromeos/ash/experiences/arc/arc_features.h"
+#include "chromeos/ash/experiences/arc/mojom/power.mojom.h"
+#include "chromeos/ash/experiences/arc/session/arc_bridge_service.h"
 
 namespace arc {
 
@@ -294,7 +293,6 @@ ArcInstanceThrottle::ArcInstanceThrottle(content::BrowserContext* context,
   AddObserver(std::make_unique<ArcActiveWindowThrottleObserver>());
   AddObserver(std::make_unique<ArcAppLaunchThrottleObserver>());
   AddObserver(std::make_unique<ArcBootPhaseThrottleObserver>());
-  AddObserver(std::make_unique<ArcKioskModeThrottleObserver>());
   AddObserver(std::make_unique<ArcPipWindowThrottleObserver>());
   AddObserver(std::make_unique<ArcPowerThrottleObserver>());
   AddObserver(std::make_unique<ArcProvisioningThrottleObserver>());
@@ -302,7 +300,7 @@ ArcInstanceThrottle::ArcInstanceThrottle(content::BrowserContext* context,
   // This one is controlled by ash::ArcPowerControlHandler.
   AddObserver(std::make_unique<ash::ThrottleObserver>(
       kChromeArcPowerControlPageObserver));
-  if (base::FeatureList::IsEnabled(arc::kUnthrottleOnActiveAudio)) {
+  if (base::FeatureList::IsEnabled(arc::kUnthrottleOnActiveAudioV2)) {
     AddObserver(std::make_unique<ArcActiveAudioThrottleObserver>());
   }
 
@@ -344,7 +342,7 @@ void ArcInstanceThrottle::OnBootTypeRetrieved(mojom::BootType boot_type) {
       never_enforce_quota_ = true;
       return;
   }
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void ArcInstanceThrottle::ThrottleInstance(bool should_throttle) {
@@ -380,10 +378,6 @@ void ArcInstanceThrottle::ThrottleInstance(bool should_throttle) {
     // * ArcSwitchThrottleObserver:
     //   This is for disabling throttling for testing. If the observer gets
     //   activated, the quota shouldn't be applied either.
-    //
-    // * ArcKioskModeThrottleObserver:
-    //   If this gets activated, ARC will be used for Kiosk. There's no point in
-    //   applying quota since ARC will always be foreground.
     //
     // * ArcProvisioningThrottleObserver:
     //   If this gets activated, the provisioning is ongoing. The quota

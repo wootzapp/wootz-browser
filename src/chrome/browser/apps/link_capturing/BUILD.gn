@@ -2,8 +2,8 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("//build/config/chromeos/ui_mode.gni")
 import("//chrome/browser/buildflags.gni")
+import("//extensions/buildflags/buildflags.gni")
 
 # assert(!is_android)
 
@@ -12,8 +12,6 @@ source_set("link_capturing") {
     "apps_intent_picker_delegate.h",
     "intent_picker_info.cc",
     "intent_picker_info.h",
-    "link_capturing_features.cc",
-    "link_capturing_features.h",
     "link_capturing_navigation_throttle.cc",
     "link_capturing_navigation_throttle.h",
     "link_capturing_tab_data.cc",
@@ -31,15 +29,19 @@ source_set("link_capturing") {
     "//base",
     "//chrome/browser/profiles:profile",
     # "//chrome/browser/web_applications",
+    "//chrome/browser/web_applications:features",
     "//chrome/common:chrome_features",
     "//components/keep_alive_registry",
     "//components/page_load_metrics/browser",
+    "//components/page_load_metrics/google/browser",
     "//components/webapps/common:common",
     "//content/public/browser",
-    "//extensions/common",
     "//third_party/abseil-cpp:absl",
     "//url",
   ]
+  if (enable_extensions) {
+    deps += [ "//extensions/common" ]
+  }
 
   if (is_chromeos) {
     sources += [
@@ -47,13 +49,23 @@ source_set("link_capturing") {
       "chromeos_apps_intent_picker_delegate.h",
       "chromeos_link_capturing_delegate.cc",
       "chromeos_link_capturing_delegate.h",
+      "chromeos_reimpl_navigation_capturing_throttle.cc",
+      "chromeos_reimpl_navigation_capturing_throttle.h",
       "metrics/intent_handling_metrics.cc",
       "metrics/intent_handling_metrics.h",
+      "navigation_capturing_settings_cros_impl.cc",
+      "navigation_capturing_settings_cros_impl.h",
     ]
     deps += [
       "//ash/webui/projector_app/public/cpp",
       "//chrome/browser/apps/app_service",
+      "//chromeos/ash/experiences/arc",
     ]
+
+    # Needed only to allow circular includes.
+    deps += [ "//chrome/browser/chromeos/arc" ]
+
+    allow_circular_includes_from = [ "//chrome/browser/chromeos/arc" ]
   } else {
     sources += [
       "enable_link_capturing_infobar_delegate.cc",
@@ -71,10 +83,6 @@ source_set("link_capturing") {
       "//components/vector_icons",
     ]
   }
-
-  if (is_chromeos_ash) {
-    deps += [ "//ash/components/arc:arc" ]
-  }
 }
 
 source_set("test_support") {
@@ -87,9 +95,14 @@ source_set("test_support") {
     ":link_capturing",
     "//base/test:test_support",
     "//chrome/browser:test_support",
+    "//chrome/browser/web_applications:features",
     # "//chrome/browser/web_applications:web_applications",
     "//chrome/common:chrome_features",
+    "//chrome/test:test_support",
+    "//chrome/test:test_support_ui",
     "//components/webapps/common",
+    "//content/test:test_support",
+    "//testing/gtest",
   ]
 }
 
@@ -99,6 +112,10 @@ source_set("unit_tests") {
   deps = [
     ":link_capturing",
     "//base/test:test_support",
+    "//chrome/browser/ui/views/toolbar",
+    "//chrome/browser/web_applications:features",
+    "//chrome/test:test_support",
+    "//content/test:test_support",
     "//testing/gtest",
     "//ui/base:base",
     "//ui/display:test_support",
@@ -112,9 +129,7 @@ source_set("unit_tests") {
     ]
     deps += [
       "//chrome/browser/apps/app_service",
-      "//chrome/test:test_support",
       "//components/prefs:test_support",
-      "//content/test:test_support",
     ]
   }
 }
@@ -124,20 +139,17 @@ source_set("unit_tests") {
 #   testonly = true
 
 #   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
-
+# 
 #   sources = [ "link_capturing_navigation_throttle_browsertest.cc" ]
-
-#   if (is_chromeos) {
-#     sources += [ "chromeos_link_capturing_delegate_browsertest.cc" ]
-#   }
 
 #   deps = [
 #     ":link_capturing",
 #     ":test_support",
-#     # "//chrome/browser/apps/app_service:app_registry_cache_waiter",
+#     "//chrome/browser/apps/app_service:app_registry_cache_waiter",
 #     "//chrome/browser/ui",
-#     # "//chrome/browser/web_applications",
-#     # "//chrome/browser/web_applications:web_applications_test_support",
+#     "//chrome/browser/ui/tabs:tab_strip",
+#     "//chrome/browser/web_applications",
+#     "//chrome/browser/web_applications:web_applications_test_support",
 #     "//chrome/common:chrome_features",
 #     "//chrome/test:test_support",
 #     "//chrome/test:test_support_ui",

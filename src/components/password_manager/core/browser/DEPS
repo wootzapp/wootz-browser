@@ -3,6 +3,7 @@ include_rules = [
   "+components/autofill/core/browser",
   "+components/device_reauth",
   "+components/favicon/core",
+  "+components/favicon_base",
   "+components/keyed_service/core",
   "+components/profile_metrics",
   "+components/pref_registry",
@@ -10,6 +11,7 @@ include_rules = [
   "+components/safe_browsing/buildflags.h",
   "+components/safe_browsing/core/browser/password_protection",
   "+components/safe_browsing/core/common/safe_browsing_prefs.h",
+  "+components/password_manager/content/common/web_ui_constants.h",
   "+components/safe_browsing/core/common/features.h",
   "+components/signin/public",
   "+components/sync/base",
@@ -27,15 +29,18 @@ include_rules = [
   "+components/webauthn",
   "+components/webdata/common",
   "+crypto",
+  "+device/fido/features.h",
   "+google_apis",
   "+grit",
   "+mojo/public/cpp/bindings",
   "+net",
   "+services/metrics/public/cpp",
+  "+services/metrics/public/mojom",
   "+services/network/public/cpp",
   "+services/network/public/mojom",
   "+services/network/test",
   "+third_party/zxcvbn-cpp",
+  "+components/credential_management"
 ]
 
 specific_include_rules = {

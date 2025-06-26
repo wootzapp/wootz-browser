@@ -17,6 +17,7 @@
 #include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
 #include "base/version.h"
+#include "chrome/updater/branded_constants.h"
 #include "chrome/updater/check_for_updates_task.h"
 #include "chrome/updater/configurator.h"
 #include "chrome/updater/persisted_data.h"
@@ -30,6 +31,7 @@ namespace updater {
 namespace {
 
 constexpr char kQualificationInitialVersion[] = "0.1";
+constexpr char kQualificationUpdatesSuppressedVersion[] = "0.2";
 
 class UpdateServiceInternalQualifyingImpl : public UpdateServiceInternal {
  public:
@@ -89,7 +91,15 @@ class UpdateServiceInternalQualifyingImpl : public UpdateServiceInternal {
     DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
     RegistrationRequest registration;
     registration.app_id = kQualificationAppId;
-    registration.version = base::Version(kQualificationInitialVersion);
+
+    // If the update check period is set to zero, the updater is pre-qualified
+    // by registering a higher version of the qualification app. This is because
+    // the qualification app update will not happen if the update check period
+    // is set to zero.
+    registration.version =
+        base::Version(config_->NextCheckDelay().is_zero()
+                          ? kQualificationUpdatesSuppressedVersion
+                          : kQualificationInitialVersion);
     base::MakeRefCounted<UpdateServiceImpl>(GetUpdaterScope(), config_)
         ->RegisterApp(registration,
                       base::BindOnce(&UpdateServiceInternalQualifyingImpl::
@@ -114,13 +124,14 @@ class UpdateServiceInternalQualifyingImpl : public UpdateServiceInternal {
     // an `Update` task for `kQualificationAppId`.
     base::MakeRefCounted<CheckForUpdatesTask>(
         config_, GetUpdaterScope(),
+        /*task_name=*/"Update(kQualificationAppId)",
         base::BindOnce(
             &UpdateServiceImpl::Update,
             base::MakeRefCounted<UpdateServiceImpl>(GetUpdaterScope(), config_),
             base::ToLowerASCII(kQualificationAppId), "",
             UpdateService::Priority::kBackground,
             UpdateService::PolicySameVersionUpdate::kNotAllowed,
-            base::DoNothing()))
+            /*language=*/"", base::DoNothing()))
         ->Run(base::BindOnce(
             &UpdateServiceInternalQualifyingImpl::UpdateCheckDone, this,
             std::move(callback)));

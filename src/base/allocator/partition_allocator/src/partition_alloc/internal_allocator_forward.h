@@ -71,8 +71,9 @@ template <typename T>
 void DestroyAtInternalPartition(T* ptr);
 
 // A deleter for `std::unique_ptr<T>`.
-struct PA_COMPONENT_EXPORT(PARTITION_ALLOC) InternalPartitionDeleter final {
-  void operator()(void* ptr) const;
+template <typename T>
+struct InternalPartitionDeleter final {
+  void operator()(T* ptr) const { DestroyAtInternalPartition(ptr); }
 };
 
 }  // namespace partition_alloc::internal

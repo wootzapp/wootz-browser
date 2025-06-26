@@ -5,6 +5,7 @@
 #include "third_party/blink/renderer/platform/testing/test_paint_artifact.h"
 
 #include <memory>
+
 #include "cc/layers/layer.h"
 #include "cc/paint/paint_flags.h"
 #include "third_party/blink/renderer/platform/graphics/paint/display_item_client.h"
@@ -13,6 +14,7 @@
 #include "third_party/blink/renderer/platform/graphics/paint/paint_artifact.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_record.h"
 #include "third_party/blink/renderer/platform/graphics/paint/paint_recorder.h"
+#include "third_party/blink/renderer/platform/graphics/paint/scroll_paint_property_node.h"
 #include "third_party/blink/renderer/platform/graphics/skia/skia_utils.h"
 #include "ui/gfx/geometry/skia_conversions.h"
 
@@ -63,14 +65,15 @@ TestPaintArtifact& TestPaintArtifact::RectDrawing(const gfx::Rect& bounds,
   return RectDrawing(NewClient(), bounds, color);
 }
 
-TestPaintArtifact& TestPaintArtifact::ForeignLayer(
+TestPaintArtifact& TestPaintArtifact::ForeignLayerChunk(
     scoped_refptr<cc::Layer> layer,
-    const gfx::Point& offset) {
+    const gfx::Point& origin) {
   DEFINE_STATIC_DISPLAY_ITEM_CLIENT(client, "ForeignLayer");
+  Chunk().Bounds(gfx::Rect(origin, layer->bounds()));
   paint_artifact_->GetDisplayItemList()
       .AllocateAndConstruct<ForeignLayerDisplayItem>(
           client->Id(), DisplayItem::kForeignLayerFirst, std::move(layer),
-          offset, RasterEffectOutset::kNone,
+          origin, RasterEffectOutset::kNone,
           client->GetPaintInvalidationReason());
   paint_artifact_->RecordDebugInfo(client->Id(), client->DebugName(),
                                    client->OwnerNodeId());
@@ -111,9 +114,9 @@ TestPaintArtifact& TestPaintArtifact::ScrollHitTestChunk(
     const PropertyTreeState& contents_state) {
   const auto& scroll_translation = contents_state.Transform();
   DCHECK(scroll_translation.ScrollNode());
-  Chunk(client).Properties(*scroll_translation.Parent(),
-                           *contents_state.Clip().Parent(),
-                           contents_state.Effect());
+  Chunk(client, DisplayItem::kScrollHitTest)
+      .Properties(*scroll_translation.Parent(), *contents_state.Clip().Parent(),
+                  contents_state.Effect());
   auto& chunk = paint_artifact_->GetPaintChunks().back();
   chunk.hit_test_opaqueness = cc::HitTestOpaqueness::kOpaque;
   auto& hit_test_data = chunk.EnsureHitTestData();
@@ -226,7 +229,7 @@ FakeDisplayItemClient& TestPaintArtifact::Client(wtf_size_t i) const {
 void TestPaintArtifact::DidAddDisplayItem() {
   auto& chunk = paint_artifact_->GetPaintChunks().back();
   DCHECK_EQ(chunk.end_index, paint_artifact_->GetDisplayItemList().size() - 1);
-  const auto& item = paint_artifact_->GetDisplayItemList().back();
+  const auto& item = UNSAFE_TODO(paint_artifact_->GetDisplayItemList().back());
   chunk.bounds.Union(item.VisualRect());
   if (item.DrawsContent()) {
     chunk.drawable_bounds.Union(item.VisualRect());

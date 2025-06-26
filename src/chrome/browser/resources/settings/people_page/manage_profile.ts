@@ -11,7 +11,6 @@ import 'chrome://resources/cr_elements/cr_input/cr_input.js';
 import 'chrome://resources/cr_elements/cr_toggle/cr_toggle.js';
 import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import 'chrome://resources/cr_components/theme_color_picker/theme_color_picker.js';
-import 'chrome://resources/polymer/v3_0/iron-flex-layout/iron-flex-layout-classes.js';
 import '../settings_shared.css.js';
 import 'chrome://resources/cr_elements/cr_profile_avatar_selector/cr_profile_avatar_selector.js';
 
@@ -51,9 +50,9 @@ export class SettingsManageProfileElement extends
   static get properties() {
     return {
       /**
-       * The newly selected avatar. Populated only if the user manually changes
-       * the avatar selection. The observer ensures that the changes are
-       * propagated to the C++.
+       * The newly selected avatar. Defaults to null, populated only if the user
+       * manually changes the avatar selection. The observer ensures that the
+       * changes are propagated to the C++.
        */
       profileAvatar_: {
         type: Object,
@@ -90,6 +89,14 @@ export class SettingsManageProfileElement extends
        */
       isProfileShortcutSettingVisible_: Boolean,
 
+      hasEnterpriseLabel_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('hasEnterpriseLabel');
+        },
+      },
+
+
       /**
        * TODO(dpapad): Move this back to the HTML file when the Polymer2 version
        * of the code is deleted. Because of "\" being a special character in a
@@ -103,13 +110,14 @@ export class SettingsManageProfileElement extends
     };
   }
 
-  private profileAvatar_: AvatarIcon;
-  profileName: string;
-  private hasProfileShortcut_: boolean;
-  availableIcons: AvatarIcon[];
-  syncStatus: SyncStatus|null;
-  private isProfileShortcutSettingVisible_: boolean;
-  private pattern_: string;
+  declare private profileAvatar_: AvatarIcon;
+  declare profileName: string;
+  declare private hasProfileShortcut_: boolean;
+  declare availableIcons: AvatarIcon[];
+  declare syncStatus: SyncStatus|null;
+  declare private isProfileShortcutSettingVisible_: boolean;
+  declare private hasEnterpriseLabel_: boolean;
+  declare private pattern_: string;
   private browserProxy_: ManageProfileBrowserProxy =
       ManageProfileBrowserProxyImpl.getInstance();
 
@@ -175,6 +183,10 @@ export class SettingsManageProfileElement extends
    * Handler for when the profile avatar is changed by the user.
    */
   private profileAvatarChanged_() {
+    if (this.profileAvatar_ === null) {
+      return;
+    }
+
     if (this.profileAvatar_.isGaiaAvatar) {
       this.browserProxy_.setProfileIconToGaiaAvatar();
     } else {

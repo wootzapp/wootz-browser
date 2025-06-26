@@ -11,10 +11,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Matchers;
@@ -25,11 +26,14 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.util.browser.sync.SyncTestUtil;
 import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
+import org.chromium.components.sync.DataType;
+import org.chromium.components.sync.LocalDataDescription;
 import org.chromium.components.sync.PassphraseType;
 import org.chromium.components.sync.UserSelectableType;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Set;
 
 /** Test suite for Sync. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -48,22 +52,6 @@ public class SyncTest {
                 },
                 SyncTestUtil.TIMEOUT_MS,
                 SyncTestUtil.INTERVAL_MS);
-    }
-
-    @Test
-    @LargeTest
-    @Feature({"Sync"})
-    @DisabledTest(message = "https://crbug.com/1197554")
-    public void testSignInAndOut() {
-        CoreAccountInfo accountInfo = mSyncTestRule.setUpAccountAndEnableSyncForTesting();
-
-        // Signing out should disable sync.
-        mSyncTestRule.signOut();
-        Assert.assertFalse(SyncTestUtil.isSyncFeatureEnabled());
-
-        // Signing back in should re-enable sync.
-        mSyncTestRule.signinAndEnableSync(accountInfo);
-        Assert.assertTrue("Sync should be re-enabled.", SyncTestUtil.isSyncFeatureActive());
     }
 
     @Test
@@ -142,7 +130,6 @@ public class SyncTest {
     @Test
     @LargeTest
     @Feature({"Sync"})
-    @DisabledTest(message = "https://crbug.com/334124078")
     public void testIsSyncingUnencryptedUrlsWhileUsingTrustedVaultPassprhase() {
         mSyncTestRule.getFakeServerHelper().setTrustedVaultNigori(new byte[] {1, 2, 3, 4});
         mSyncTestRule.setUpAccountAndEnableSyncForTesting();
@@ -186,5 +173,35 @@ public class SyncTest {
         // isSyncingUnencryptedUrls() should return false with CUSTOM_PASSPHRASE no matter which
         // datatypes are enabled.
         waitForIsSyncingUnencryptedUrls(false);
+    }
+
+    @Test
+    @LargeTest
+    @Feature({"Sync"})
+    public void testGetLocalDataDescription() throws Exception {
+        CoreAccountInfo accountInfo = mSyncTestRule.setUpAccountAndSignInForTesting();
+        Assert.assertEquals(accountInfo, mSyncTestRule.getPrimaryAccount(ConsentLevel.SIGNIN));
+
+        CallbackHelper callbackHelper = new CallbackHelper();
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mSyncTestRule
+                            .getSyncService()
+                            .getLocalDataDescriptions(
+                                    Set.of(
+                                            DataType.BOOKMARKS,
+                                            DataType.PASSWORDS,
+                                            DataType.READING_LIST),
+                                    localDataDescriptionsMap -> {
+                                        int sum =
+                                                localDataDescriptionsMap.values().stream()
+                                                        .map(LocalDataDescription::itemCount)
+                                                        .reduce(0, Integer::sum);
+                                        Assert.assertEquals(0, sum);
+                                        callbackHelper.notifyCalled();
+                                        return;
+                                    });
+                });
+        callbackHelper.waitForOnly();
     }
 }

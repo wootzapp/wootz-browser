@@ -23,8 +23,9 @@ class COMPONENT_EXPORT(MAHI_PUBLIC_CPP) MahiMediaAppEventsProxy {
     virtual void OnPdfGetFocus(const base::UnguessableToken client_id) {}
     // The context menu here is not the system context menu but the one
     // implemented by the media app.
-    virtual void OnPdfContextMenuShown(const gfx::Rect& anchor_bounds) {}
+    virtual void OnPdfContextMenuShown(const gfx::Rect& anchor) {}
     virtual void OnPdfContextMenuHide() {}
+    virtual void OnPdfClosed(const base::UnguessableToken client_id) {}
   };
 
   MahiMediaAppEventsProxy(const MahiMediaAppEventsProxy&) = delete;
@@ -36,8 +37,9 @@ class COMPONENT_EXPORT(MAHI_PUBLIC_CPP) MahiMediaAppEventsProxy {
 
   virtual void OnPdfGetFocus(const base::UnguessableToken client_id) = 0;
   virtual void OnPdfContextMenuShown(const base::UnguessableToken client_id,
-                                     const gfx::Rect& anchor_bounds) = 0;
+                                     const gfx::Rect& anchor) = 0;
   virtual void OnPdfContextMenuHide() = 0;
+  virtual void OnPdfClosed(const base::UnguessableToken client_id) = 0;
   virtual void AddObserver(Observer*) = 0;
   virtual void RemoveObserver(Observer*) = 0;
 

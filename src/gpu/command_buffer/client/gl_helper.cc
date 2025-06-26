@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "gpu/command_buffer/client/gl_helper.h"
 
 #include <stddef.h>
@@ -11,6 +16,7 @@
 #include <string>
 #include <utility>
 
+#include "base/atomicops.h"
 #include "base/bits.h"
 #include "base/check_op.h"
 #include "base/containers/contains.h"
@@ -203,9 +209,9 @@ class GLHelper::CopyTextureToImpl final {
           bytes_per_pixel(bytes_per_pixel_),
           bytes_per_row(bytes_per_row_),
           row_stride_bytes(row_stride_bytes_),
-          pixels(pixels_),
           flip_y(flip_y_),
-          callback(std::move(callback_)) {}
+          callback(std::move(callback_)),
+          pixels(pixels_) {}
 
     bool done = false;
     bool result = false;
@@ -213,9 +219,9 @@ class GLHelper::CopyTextureToImpl final {
     size_t bytes_per_pixel;
     size_t bytes_per_row;
     size_t row_stride_bytes;
-    raw_ptr<unsigned char> pixels;
     bool flip_y;
     base::OnceCallback<void(bool)> callback;
+    raw_ptr<unsigned char> pixels;
     GLuint buffer = 0;
     GLuint query = 0;
   };
@@ -452,8 +458,11 @@ void GLHelper::CopyTextureToImpl::ReadbackDone(Request* finished_request) {
           dst += dst_stride * (request->size.height() - 1);
           dst_stride = -dst_stride;
         }
+        // We need to use `RelaxedAtomicWriteMemcpy` because we might be writing
+        // into memory observed by JS at the same time.
         for (int y = 0; y < request->size.height(); y++) {
-          memcpy(dst, src, bytes_to_copy);
+          base::subtle::RelaxedAtomicWriteMemcpy(
+              base::span(dst, bytes_to_copy), base::span(src, bytes_to_copy));
           dst += dst_stride;
           src += src_stride;
         }

@@ -29,7 +29,7 @@ class NET_EXPORT_PRIVATE QuicSessionKey {
                  const NetworkAnonymizationKey& network_anonymization_key,
                  SecureDnsPolicy secure_dns_policy,
                  bool require_dns_https_alpn);
-  QuicSessionKey(const std::string& host,
+  QuicSessionKey(std::string host,
                  uint16_t port,
                  PrivacyMode privacy_mode,
                  const ProxyChain& proxy_chain,
@@ -39,6 +39,7 @@ class NET_EXPORT_PRIVATE QuicSessionKey {
                  SecureDnsPolicy secure_dns_policy,
                  bool require_dns_https_alpn);
   QuicSessionKey(const quic::QuicServerId& server_id,
+                 PrivacyMode privacy_mode,
                  const ProxyChain& proxy_chain,
                  SessionUsage session_usage,
                  const SocketTag& socket_tag,
@@ -46,6 +47,9 @@ class NET_EXPORT_PRIVATE QuicSessionKey {
                  SecureDnsPolicy secure_dns_policy,
                  bool require_dns_https_alpn);
   QuicSessionKey(const QuicSessionKey& other);
+  QuicSessionKey(QuicSessionKey&& other);
+  QuicSessionKey& operator=(const QuicSessionKey& other);
+  QuicSessionKey& operator=(QuicSessionKey&& other);
   ~QuicSessionKey() = default;
 
   // Needed to be an element of std::set.
@@ -64,10 +68,7 @@ class NET_EXPORT_PRIVATE QuicSessionKey {
 
   const std::string& host() const { return server_id_.host(); }
 
-  PrivacyMode privacy_mode() const {
-    return server_id_.privacy_mode_enabled() ? PRIVACY_MODE_ENABLED
-                                             : PRIVACY_MODE_DISABLED;
-  }
+  PrivacyMode privacy_mode() const { return privacy_mode_; }
 
   const quic::QuicServerId& server_id() const { return server_id_; }
 
@@ -87,12 +88,13 @@ class NET_EXPORT_PRIVATE QuicSessionKey {
 
  private:
   quic::QuicServerId server_id_;
+  PrivacyMode privacy_mode_ = PRIVACY_MODE_DISABLED;
   ProxyChain proxy_chain_;
-  SessionUsage session_usage_;
+  SessionUsage session_usage_ = SessionUsage::kDestination;
   SocketTag socket_tag_;
   // Used to separate requests made in different contexts.
   NetworkAnonymizationKey network_anonymization_key_;
-  SecureDnsPolicy secure_dns_policy_;
+  SecureDnsPolicy secure_dns_policy_ = SecureDnsPolicy::kAllow;
   bool require_dns_https_alpn_ = false;
 };
 

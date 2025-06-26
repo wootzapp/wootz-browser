@@ -10,6 +10,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <map>
 #include <optional>
 #include <string>
@@ -32,6 +33,7 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/time/time.h"
 #include "base/version.h"
+#include "chrome/updater/branded_constants.h"
 #include "chrome/updater/constants.h"
 #include "chrome/updater/updater_branding.h"
 #include "chrome/updater/updater_scope.h"
@@ -140,11 +142,11 @@ bool IsInstallScriptExecutable(const base::FilePath& script_path) {
 int RunExecutable(const base::FilePath& existence_checker_path,
                   const std::string& ap,
                   const std::string& arguments,
-                  const std::optional<base::FilePath>& installer_data_file,
-                  const UpdaterScope& scope,
+                  std::optional<base::FilePath> installer_data_file,
+                  UpdaterScope scope,
                   const base::Version& pv,
                   bool usage_stats_enabled,
-                  const base::TimeDelta& timeout,
+                  base::TimeDelta timeout,
                   const base::FilePath& unpacked_path) {
   if (!base::PathExists(unpacked_path)) {
     VLOG(1) << "File path (" << unpacked_path << ") does not exist.";
@@ -175,12 +177,17 @@ int RunExecutable(const base::FilePath& existence_checker_path,
     command.AppendArgPath(existence_checker_path);
     command.AppendArg(pv.GetString());
 
+    // Provide a small PATH to provide a predictable execution environment,
+    // including ksadmin on the PATH. If updating this logic, please keep the
+    // install script test in sync with the behavior here.
+    // LINT.IfChange(InstallerEnvPath)
     std::string env_path = "/bin:/usr/bin";
     std::optional<base::FilePath> ksadmin_path =
         GetKSAdminPath(GetUpdaterScope());
     if (ksadmin_path) {
       env_path = base::StrCat({env_path, ":", ksadmin_path->DirName().value()});
     }
+    // LINT.ThenChange(/chrome/installer/mac/keystone_install_test.sh:InstallerEnvPath)
 
     base::ScopedFD read_fd, write_fd;
     {
@@ -217,7 +224,10 @@ int RunExecutable(const base::FilePath& existence_checker_path,
 
     int exit_code = 0;
     VLOG(1) << "Running " << command.GetCommandLineString();
-    base::Process proc = base::LaunchProcess(command, options);
+    const base::Process proc = base::LaunchProcess(command, options);
+    if (!proc.IsValid()) {
+      return static_cast<int>(InstallErrors::kExecutableWaitForExitFailed);
+    }
 
     // Close write_fd to generate EOF in the read loop below.
     write_fd.reset();
@@ -257,8 +267,9 @@ int RunExecutable(const base::FilePath& existence_checker_path,
 
     VLOG(1) << "Output from " << executable << ": " << output;
 
-    if (!proc.WaitForExitWithTimeout(deadline - base::Time::Now(),
-                                     &exit_code)) {
+    if (!proc.WaitForExitWithTimeout(
+            std::max(deadline - base::Time::Now(), base::TimeDelta()),
+            &exit_code)) {
       return static_cast<int>(InstallErrors::kExecutableWaitForExitFailed);
     }
     if (exit_code != 0) {
@@ -389,12 +400,12 @@ int InstallFromApp(const base::FilePath& app_file_path,
 int InstallFromArchive(const base::FilePath& file_path,
                        const base::FilePath& existence_checker_path,
                        const std::string& ap,
-                       const UpdaterScope& scope,
+                       UpdaterScope scope,
                        const base::Version& pv,
                        const std::string& arguments,
-                       const std::optional<base::FilePath>& installer_data_file,
+                       std::optional<base::FilePath> installer_data_file,
                        const bool usage_stats_enabled,
-                       const base::TimeDelta& timeout) {
+                       base::TimeDelta timeout) {
   const std::map<std::string,
                  int (*)(const base::FilePath&,
                          base::OnceCallback<int(const base::FilePath&)>)>

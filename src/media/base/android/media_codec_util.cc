@@ -15,12 +15,15 @@
 #include "base/containers/contains.h"
 #include "base/logging.h"
 #include "base/strings/string_util.h"
+#include "base/system/sys_info.h"
 #include "media/base/android/media_codec_bridge.h"
-#include "media/base/android/media_jni_headers/CodecProfileLevelList_jni.h"
-#include "media/base/android/media_jni_headers/MediaCodecUtil_jni.h"
 #include "media/base/video_codecs.h"
 #include "third_party/re2/src/re2/re2.h"
 #include "url/gurl.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "media/base/android/media_jni_headers/CodecProfileLevelList_jni.h"
+#include "media/base/android/media_jni_headers/MediaCodecUtil_jni.h"
 
 using base::android::AttachCurrentThread;
 using base::android::ConvertJavaStringToUTF8;
@@ -64,20 +67,44 @@ static CodecProfileLevel MediaCodecProfileLevelToChromiumProfileLevel(
   return {codec, profile, level};
 }
 
-static bool IsSupportedAndroidMimeType(const std::string& mime_type) {
-  std::vector<std::string> supported{
-      kMp3MimeType, kAacMimeType,         kOpusMimeType, kVorbisMimeType,
-      kAvcMimeType, kDolbyVisionMimeType, kHevcMimeType, kVp8MimeType,
-      kVp9MimeType, kAv1MimeType};
-  return base::Contains(supported, mime_type);
+static bool IsDecoderSupportedByDevice(const std::string& android_mime_type) {
+  if (android_mime_type == kVp8MimeType) {
+    std::string hardware = base::SysInfo::GetAndroidBuildID();
+    // MediaTek decoders do not work properly on vp8. See
+    // http://crbug.com/446974 and http://crbug.com/597836.
+    if (hardware.starts_with("mt")) {
+      if (base::android::BuildInfo::GetInstance()->sdk_int() <
+          base::android::SDK_VERSION_P) {
+        return false;
+      }
+      // MediaTek chipsets after 'Android T' are compatible with vp8.
+      if (base::android::BuildInfo::GetInstance()->sdk_int() <
+          base::android::SDK_VERSION_T) {
+        // The following chipsets have been confirmed by MediaTek to work on P+
+        return hardware.starts_with("mt5599") ||
+               hardware.starts_with("mt5895") ||
+               hardware.starts_with("mt8768") ||
+               hardware.starts_with("mt8696") || hardware.starts_with("mt5887");
+      }
+    }
+  } else if (android_mime_type == kVp9MimeType) {
+    // Nexus Player VP9 decoder performs poorly at >= 1080p resolution.
+    if (base::SysInfo::HardwareModelName() == "Nexus Player") {
+      return false;
+    }
+  } else if (android_mime_type == kAv1MimeType) {
+    if (base::android::BuildInfo::GetInstance()->sdk_int() <
+        base::android::SDK_VERSION_Q) {
+      return false;
+    }
+  }
+  return true;
 }
 
-static bool IsDecoderSupportedByDevice(const std::string& android_mime_type) {
-  DCHECK(IsSupportedAndroidMimeType(android_mime_type));
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jstring> j_mime =
-      ConvertUTF8ToJavaString(env, android_mime_type);
-  return Java_MediaCodecUtil_isDecoderSupportedForDevice(env, j_mime);
+static jboolean JNI_MediaCodecUtil_IsDecoderSupportedForDevice(
+    JNIEnv* env,
+    std::string& mime_type) {
+  return IsDecoderSupportedByDevice(mime_type);
 }
 
 static bool IsEncoderSupportedByDevice(const std::string& android_mime_type) {
@@ -114,14 +141,12 @@ std::string MediaCodecUtil::CodecToAndroidMimeType(AudioCodec codec) {
 std::string MediaCodecUtil::CodecToAndroidMimeType(AudioCodec codec,
                                                    SampleFormat sample_format) {
   // Passthrough is possible for some bitstream formats.
-  const bool is_passthrough = sample_format == kSampleFormatDts ||
-                              sample_format == kSampleFormatDtsxP2 ||
-                              sample_format == kSampleFormatAc3 ||
-                              sample_format == kSampleFormatEac3 ||
-                              sample_format == kSampleFormatMpegHAudio;
-
-  if (IsPassthroughAudioFormat(codec) || is_passthrough)
+  if (sample_format == kSampleFormatDts ||
+      sample_format == kSampleFormatDtsxP2 ||
+      sample_format == kSampleFormatAc3 || sample_format == kSampleFormatEac3 ||
+      sample_format == kSampleFormatMpegHAudio) {
     return kBitstreamAudioMimeType;
+  }
 
   switch (codec) {
     case AudioCodec::kMP3:
@@ -272,20 +297,6 @@ bool MediaCodecUtil::IsSetOutputSurfaceSupported() {
 }
 
 // static
-bool MediaCodecUtil::IsPassthroughAudioFormat(AudioCodec codec) {
-  switch (codec) {
-    case AudioCodec::kAC3:
-    case AudioCodec::kEAC3:
-    case AudioCodec::kDTS:
-    case AudioCodec::kDTSXP2:
-    case AudioCodec::kMpegHAudio:
-      return true;
-    default:
-      return false;
-  }
-}
-
-// static
 std::optional<gfx::Size> MediaCodecUtil::LookupCodedSizeAlignment(
     std::string_view name,
     std::optional<int> host_sdk_int) {
@@ -310,6 +321,7 @@ std::optional<gfx::Size> MediaCodecUtil::LookupCodedSizeAlignment(
   using base::android::SDK_VERSION_Q;
   using base::android::SDK_VERSION_R;
   using base::android::SDK_VERSION_Sv2;
+  using base::android::SDK_VERSION_U;
   constexpr CodecAlignment kCodecAlignmentMap[] = {
       // Codec2 software decoders.
       {"c2.android.avc", gfx::Size(128, 2), SDK_VERSION_Sv2},
@@ -324,6 +336,7 @@ std::optional<gfx::Size> MediaCodecUtil::LookupCodedSizeAlignment(
       {"omx.google.(h264|hevc|vp8|vp9)", gfx::Size(2, 2)},
 
       // Google AV1 hardware decoder.
+      {"c2.google.av1", gfx::Size(64, 16), SDK_VERSION_U},
       {"c2.google.av1", gfx::Size(64, 8)},
 
       // Qualcomm
@@ -410,7 +423,7 @@ bool MediaCodecUtil::IsKnownUnaccelerated(VideoCodec codec,
   // MediaTek hardware vp8 is known slower than the software implementation.
   if (base::StartsWith(codec_name, "OMX.MTK.") && codec == VideoCodec::kVP8) {
     // We may still reject VP8 hardware decoding later on certain chipsets,
-    // see isDecoderSupportedForDevice(). We don't have the the chipset ID
+    // see IsDecoderSupportedByDevice(). We don't have the the chipset ID
     // here to check now though.
     return base::android::BuildInfo::GetInstance()->sdk_int() < SDK_VERSION_P;
   }

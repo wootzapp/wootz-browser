@@ -36,9 +36,11 @@
 #include "base/containers/span.h"
 #include "base/dcheck_is_on.h"
 #include "base/types/strong_alias.h"
+#include "build/build_config.h"
 #include "third_party/blink/renderer/platform/fonts/canvas_rotation_in_vertical.h"
 #include "third_party/blink/renderer/platform/fonts/glyph.h"
 #include "third_party/blink/renderer/platform/fonts/opentype/open_type_math_stretch_data.h"
+#include "third_party/blink/renderer/platform/fonts/shaping/glyph_index_result.h"
 #include "third_party/blink/renderer/platform/fonts/simple_font_data.h"
 #include "third_party/blink/renderer/platform/geometry/layout_unit.h"
 #include "third_party/blink/renderer/platform/heap/collection_support/heap_vector.h"
@@ -53,12 +55,18 @@
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/vector2d_f.h"
 
+#if defined(ARCH_CPU_X86_64) || defined(ARCH_CPU_ARM64)
+#define USE_SIMD_FOR_COMPUTING_GLYPH_BOUNDS 1
+#endif
+
 struct hb_buffer_t;
 
 namespace blink {
 
 struct CharacterRange;
 class Font;
+struct GlyphIndexResult;
+struct ShapeResultRun;
 template <typename TextContainerType>
 class PLATFORM_EXPORT ShapeResultSpacing;
 class TextRun;
@@ -77,7 +85,7 @@ struct ShapeResultCharacterData {
 
   ShapeResultCharacterData() = default;
 
-  void SetCachedData(float new_x_position,
+  void SetCachedData(LayoutUnit new_x_position,
                      bool new_is_cluster_base,
                      bool new_safe_to_break_before) {
     x_position = new_x_position;
@@ -85,7 +93,7 @@ struct ShapeResultCharacterData {
     safe_to_break_before = new_safe_to_break_before;
   }
 
-  float x_position = 0;
+  LayoutUnit x_position;
   // Set for the logical first character of a cluster.
   unsigned is_cluster_base : 1 = false;
   unsigned safe_to_break_before : 1 = false;
@@ -136,21 +144,13 @@ typedef void (*GraphemeClusterCallback)(void* context,
 
 class PLATFORM_EXPORT ShapeResult : public GarbageCollected<ShapeResult> {
  public:
-  ShapeResult(const SimpleFontData*,
-              unsigned start_index,
-              unsigned num_characters,
-              TextDirection);
-  ShapeResult(const Font*,
-              unsigned start_index,
-              unsigned num_characters,
-              TextDirection);
+  ShapeResult(unsigned start_index, unsigned num_characters, TextDirection);
   ShapeResult(const ShapeResult&);
 
   void Trace(Visitor*) const;
 
   static ShapeResult* CreateEmpty(const ShapeResult& other) {
-    return MakeGarbageCollected<ShapeResult>(other.primary_font_.Get(), 0, 0,
-                                             other.Direction());
+    return MakeGarbageCollected<ShapeResult>(0, 0, other.Direction());
   }
   static const ShapeResult* CreateForTabulationCharacters(
       const Font* font,
@@ -181,7 +181,6 @@ class PLATFORM_EXPORT ShapeResult : public GarbageCollected<ShapeResult> {
   LayoutUnit SnappedWidth() const { return LayoutUnit::FromFloatCeil(width_); }
   unsigned NumCharacters() const { return num_characters_; }
   unsigned NumGlyphs() const { return num_glyphs_; }
-  const SimpleFontData* PrimaryFont() const { return primary_font_.Get(); }
   bool HasFallbackFonts(const SimpleFontData* primary_font) const;
 
   // TODO(eae): Remove start_x and return value once ShapeResultBuffer has been
@@ -274,9 +273,9 @@ class PLATFORM_EXPORT ShapeResult : public GarbageCollected<ShapeResult> {
   // Fast versions of OffsetForPosition and PositionForOffset that operates on
   // a cache (that needs to be pre-computed using EnsurePositionData) and that
   // does not take partial glyphs into account.
-  unsigned CachedOffsetForPosition(float x) const;
-  float CachedPositionForOffset(unsigned offset) const;
-  float CachedWidth(unsigned start_offset, unsigned end_offset) const;
+  unsigned CachedOffsetForPosition(LayoutUnit x) const;
+  LayoutUnit CachedPositionForOffset(unsigned offset) const;
+  LayoutUnit CachedWidth(unsigned start_offset, unsigned end_offset) const;
 
   // Returns the next or previous offsets respectively at which it is safe to
   // break without reshaping. Operates on a cache (that needs to be pre-computed
@@ -291,13 +290,15 @@ class PLATFORM_EXPORT ShapeResult : public GarbageCollected<ShapeResult> {
   // |text_start_offset| adjusts the character index in the ShapeResult before
   // giving it to |ShapeResultSpacing|. It can be negative if
   // |StartIndex()| is larger than the text in |ShapeResultSpacing|.
-  void ApplySpacing(ShapeResultSpacing<String>&, int text_start_offset = 0);
+  //
+  // The function returns spacing amount on the right of the last glyph.
+  float ApplySpacing(ShapeResultSpacing<String>&, int text_start_offset = 0);
   ShapeResult* ApplySpacingToCopy(ShapeResultSpacing<TextRun>&,
                                   const TextRun&) const;
   // Add `expansion` space before the first glyph.
-  void ApplyLeadingExpansion(float expansion);
+  void ApplyLeadingExpansion(LayoutUnit expansion);
   // Add `expansion` space after the last glyph.
-  void ApplyTrailingExpansion(float expansion);
+  void ApplyTrailingExpansion(LayoutUnit expansion);
 
   // Adds spacing between ideograph character and non-ideograph character for
   // the property of text-autospace.
@@ -412,11 +413,10 @@ class PLATFORM_EXPORT ShapeResult : public GarbageCollected<ShapeResult> {
   String ToString() const;
   void ToString(StringBuilder*) const;
 
-  struct RunInfo;
-  RunInfo* InsertRunForTesting(unsigned start_index,
-                               unsigned num_characters,
-                               TextDirection,
-                               Vector<uint16_t> safe_break_offsets = {});
+  ShapeResultRun* InsertRunForTesting(unsigned start_index,
+                                      unsigned num_characters,
+                                      TextDirection,
+                                      Vector<uint16_t> safe_break_offsets = {});
 #if DCHECK_IS_ON()
   void CheckConsistency() const;
 #endif
@@ -432,24 +432,6 @@ class PLATFORM_EXPORT ShapeResult : public GarbageCollected<ShapeResult> {
 
   template <typename Iterator>
   void AddUnsafeToBreak(Iterator offsets_begin, const Iterator offsets_end);
-
-  struct GlyphIndexResult {
-    STACK_ALLOCATED();
-
-   public:
-    // The total number of characters of runs_[0..run_index - 1].
-    unsigned characters_on_left_runs = 0;
-
-    // Those are the left and right character indexes of the group of glyphs
-    // that were selected by OffsetForPosition.
-    unsigned left_character_index = 0;
-    unsigned right_character_index = 0;
-
-    // The glyph origin of the glyph.
-    float origin_x = 0;
-    // The advance of the glyph.
-    float advance = 0;
-  };
 
   void OffsetForPosition(float target_x,
                          BreakGlyphsOption,
@@ -471,61 +453,73 @@ class PLATFORM_EXPORT ShapeResult : public GarbageCollected<ShapeResult> {
   void RecalcCharacterPositions() const;
 
   template <typename TextContainerType>
-  void ApplySpacingImpl(ShapeResultSpacing<TextContainerType>&,
-                        int text_start_offset = 0);
+  float ApplySpacingImpl(ShapeResultSpacing<TextContainerType>&,
+                         int text_start_offset = 0);
   template <bool is_horizontal_run>
-  void ComputeGlyphPositions(ShapeResult::RunInfo*,
+  void ComputeGlyphPositions(ShapeResultRun*,
                              unsigned start_glyph,
                              unsigned num_glyphs,
                              hb_buffer_t*);
-  // Inserts as many glyphs as possible as a RunInfo, and sets
+  // Inserts as many glyphs as possible as a ShapeResultRun, and sets
   // |next_start_glyph| to the start index of the remaining glyphs to be
   // inserted.
-  void InsertRun(ShapeResult::RunInfo*,
+  void InsertRun(ShapeResultRun*,
                  unsigned start_glyph,
                  unsigned num_glyphs,
                  unsigned* next_start_glyph,
                  hb_buffer_t*);
-  void InsertRun(ShapeResult::RunInfo*);
+  void InsertRun(ShapeResultRun*);
   void ReorderRtlRuns(unsigned run_size_before);
 
   template <bool is_horizontal_run, bool has_non_zero_glyph_offsets>
-  void ComputeRunInkBounds(const ShapeResult::RunInfo&,
+  void ComputeRunInkBounds(const ShapeResultRun&,
                            float run_advance,
                            gfx::RectF* ink_bounds) const;
 
+  template <bool is_horizontal_run, bool has_non_zero_glyph_offsets>
+  void ComputeRunInkBoundsScalar(const ShapeResultRun&,
+                                 float run_advance,
+                                 gfx::RectF* ink_bounds) const;
+#if defined(USE_SIMD_FOR_COMPUTING_GLYPH_BOUNDS)
+  template <bool is_horizontal_run, bool has_non_zero_glyph_offsets>
+  void ComputeRunInkBoundsVectorized(const ShapeResultRun&,
+                                     float run_advance,
+                                     gfx::RectF* ink_bounds) const;
+#endif  // defined(USE_SIMD_FOR_COMPUTING_GLYPH_BOUNDS)
+
   // Common signatures with ShapeResultView, to templatize algorithms.
-  const HeapVector<Member<RunInfo>>& RunsOrParts() const { return runs_; }
+  const HeapVector<Member<ShapeResultRun>, 1>& RunsOrParts() const {
+    return runs_;
+  }
   unsigned StartIndexOffsetForRun() const { return 0; }
 
-  // The total width. This is the sum of `RunInfo::width_`.
-  // It's mutable because `RecalcCharacterPositions()` recalculates this.
-  // This should be in sync with `CharacterPositionData::width_`.
-  mutable float width_ = 0;
+  // Stores x-positions for quick mapping between offsets and x-positions.
+  // Unlike the ShapeResultRun and GlyphData, which operates in glyph order,
+  // this class stores a map between character index and the total accumulated
+  // advance for each character. Allowing constant time mapping from character
+  // index to x-position and O(log n) time, using binary search, from
+  // x-position to character index.
+  mutable HeapVector<ShapeResultCharacterData> character_position_;
+
+  HeapVector<Member<ShapeResultRun>, 1> runs_;
 
   // Only used by CachingWordShapeIterator and stored here for memory reduction
   // reasons. See https://crbug.com/955776
   // TODO(eae): Remove once LayoutNG lands. https://crbug.com/591099
   Member<DeprecatedInkBounds> deprecated_ink_bounds_ = nullptr;
 
-  HeapVector<Member<RunInfo>> runs_;
-
-  // Stores x-positions for quick mapping between offsets and x-positions.
-  // Unlike the RunInfo and GlyphData, which operates in glyph order, this
-  // class stores a map between character index and the total accumulated
-  // advance for each character. Allowing constant time mapping from character
-  // index to x-position and O(log n) time, using binary search, from
-  // x-position to character index.
-  mutable HeapVector<ShapeResultCharacterData> character_position_;
-  Member<const SimpleFontData> primary_font_;
+  // The total width. This is the sum of `ShapeResultRun::width_`.
+  // It's mutable because `RecalcCharacterPositions()` recalculates this.
+  // This should be in sync with `CharacterPositionData::width_`.
+  mutable float width_ = 0;
 
   unsigned start_index_ = 0;
   unsigned num_characters_ = 0;
   unsigned num_glyphs_ : 29 = 0;
 
   // Overall direction for the TextRun, dictates which order each individual
-  // sub run (represented by RunInfo structs in the m_runs vector) can have a
-  // different text direction.
+  // sub run (represented by ShapeResultRun structs in the m_runs vector) can
+  // have a different text direction.
   unsigned direction_ : 1 = static_cast<unsigned>(TextDirection::kLtr);
 
   // Tracks whether any runs contain glyphs with a y-offset != 0.
@@ -549,7 +543,7 @@ class PLATFORM_EXPORT ShapeResult : public GarbageCollected<ShapeResult> {
   float ForEachGlyphImpl(float initial_advance,
                          GlyphCallback,
                          void* context,
-                         const RunInfo& run) const;
+                         const ShapeResultRun& run) const;
 
   template <bool has_non_zero_glyph_offsets>
   float ForEachGlyphImpl(float initial_advance,
@@ -558,7 +552,7 @@ class PLATFORM_EXPORT ShapeResult : public GarbageCollected<ShapeResult> {
                          unsigned index_offset,
                          GlyphCallback,
                          void* context,
-                         const RunInfo& run) const;
+                         const ShapeResultRun& run) const;
 
   // Internal implementation of `ApplyTextAutoSpacing`. The iterator can be
   // Vector::iterator or Vector::reverse_iterator, depending on the text
@@ -573,5 +567,7 @@ PLATFORM_EXPORT std::ostream& operator<<(std::ostream&, const ShapeResult&);
 
 WTF_ALLOW_CLEAR_UNUSED_SLOTS_WITH_MEM_FUNCTIONS(blink::ShapeResult::ShapeRange)
 WTF_ALLOW_CLEAR_UNUSED_SLOTS_WITH_MEM_FUNCTIONS(blink::ShapeResult::RunFontData)
+WTF_ALLOW_MOVE_INIT_AND_COMPARE_WITH_MEM_FUNCTIONS(
+    blink::ShapeResultCharacterData)
 
 #endif  // THIRD_PARTY_BLINK_RENDERER_PLATFORM_FONTS_SHAPING_SHAPE_RESULT_H_

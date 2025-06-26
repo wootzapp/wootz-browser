@@ -8,10 +8,7 @@
 #include <memory>
 
 #include "base/no_destructor.h"
-#include "components/keyed_service/core/keyed_service.h"
-#include "components/keyed_service/ios/browser_state_keyed_service_factory.h"
-
-class ChromeBrowserState;
+#include "ios/chrome/browser/shared/model/profile/profile_keyed_service_factory_ios.h"
 
 namespace language {
 class UrlLanguageHistogram;
@@ -21,15 +18,10 @@ namespace user_prefs {
 class PrefRegistrySyncable;
 }
 
-class UrlLanguageHistogramFactory : public BrowserStateKeyedServiceFactory {
+class UrlLanguageHistogramFactory : public ProfileKeyedServiceFactoryIOS {
  public:
+  static language::UrlLanguageHistogram* GetForProfile(ProfileIOS* profile);
   static UrlLanguageHistogramFactory* GetInstance();
-  static language::UrlLanguageHistogram* GetForBrowserState(
-      ChromeBrowserState* browser_state);
-
-  UrlLanguageHistogramFactory(const UrlLanguageHistogramFactory&) = delete;
-  UrlLanguageHistogramFactory& operator=(const UrlLanguageHistogramFactory&) =
-      delete;
 
  private:
   friend class base::NoDestructor<UrlLanguageHistogramFactory>;

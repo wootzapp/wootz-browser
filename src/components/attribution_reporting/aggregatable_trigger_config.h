@@ -10,9 +10,13 @@
 
 #include "base/component_export.h"
 #include "base/types/expected.h"
-#include "base/values.h"
+#include "components/attribution_reporting/aggregatable_filtering_id_max_bytes.h"
 #include "components/attribution_reporting/source_registration_time_config.mojom.h"
 #include "components/attribution_reporting/trigger_registration_error.mojom-forward.h"
+
+namespace base {
+class DictValue;
+}  // namespace base
 
 namespace attribution_reporting {
 
@@ -20,11 +24,12 @@ class COMPONENT_EXPORT(ATTRIBUTION_REPORTING) AggregatableTriggerConfig {
  public:
   static base::expected<AggregatableTriggerConfig,
                         mojom::TriggerRegistrationError>
-  Parse(base::Value::Dict&);
+  Parse(base::DictValue&);
 
   static std::optional<AggregatableTriggerConfig> Create(
       mojom::SourceRegistrationTimeConfig,
-      std::optional<std::string> trigger_context_id);
+      std::optional<std::string> trigger_context_id,
+      AggregatableFilteringIdsMaxBytes);
 
   AggregatableTriggerConfig();
 
@@ -39,7 +44,13 @@ class COMPONENT_EXPORT(ATTRIBUTION_REPORTING) AggregatableTriggerConfig {
   friend bool operator==(const AggregatableTriggerConfig&,
                          const AggregatableTriggerConfig&) = default;
 
-  void Serialize(base::Value::Dict&) const;
+  void Serialize(base::DictValue&) const;
+
+  // Returns true when this config requires that a report be sent
+  // unconditionally, i.e., if there is no report created a null report should
+  // be sent.
+  // https://wicg.github.io/attribution-reporting-api/#should-send-a-report-unconditionally
+  bool ShouldCauseAReportToBeSentUnconditionally() const;
 
   mojom::SourceRegistrationTimeConfig source_registration_time_config() const {
     return source_registration_time_config_;
@@ -49,14 +60,21 @@ class COMPONENT_EXPORT(ATTRIBUTION_REPORTING) AggregatableTriggerConfig {
     return trigger_context_id_;
   }
 
+  AggregatableFilteringIdsMaxBytes aggregatable_filtering_id_max_bytes() const {
+    return aggregatable_filtering_id_max_bytes_;
+  }
+
  private:
   AggregatableTriggerConfig(mojom::SourceRegistrationTimeConfig,
-                            std::optional<std::string> trigger_context_id);
+                            std::optional<std::string> trigger_context_id,
+                            AggregatableFilteringIdsMaxBytes);
 
   mojom::SourceRegistrationTimeConfig source_registration_time_config_ =
       mojom::SourceRegistrationTimeConfig::kExclude;
 
   std::optional<std::string> trigger_context_id_;
+
+  AggregatableFilteringIdsMaxBytes aggregatable_filtering_id_max_bytes_;
 };
 
 }  // namespace attribution_reporting

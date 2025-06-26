@@ -17,18 +17,12 @@
 #include "ash/system/time/date_helper.h"
 #include "base/i18n/time_formatting.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "components/user_manager/user_type.h"
 #include "ui/views/layout/table_layout.h"
 
 namespace ash::calendar_utils {
-
-bool IsForGlanceablesV2() {
-  // Use the same flags for Glanceables Time Management so that the new UI is
-  // turned on for both calendar and the time management glanceables at the same
-  // time.
-  return features::AreAnyGlanceablesTimeManagementViewsEnabled();
-}
 
 bool IsMultiCalendarEnabled() {
   return features::IsMultiCalendarSupportEnabled();

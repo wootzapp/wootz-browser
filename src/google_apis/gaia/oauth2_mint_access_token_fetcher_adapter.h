@@ -7,10 +7,12 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "base/component_export.h"
 #include "base/functional/callback.h"
 #include "base/memory/ref_counted.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "google_apis/gaia/oauth2_access_token_fetcher.h"
 #include "google_apis/gaia/oauth2_mint_token_flow.h"
 
@@ -30,11 +32,12 @@ class COMPONENT_EXPORT(GOOGLE_APIS) OAuth2MintAccessTokenFetcherAdapter
       base::RepeatingCallback<std::unique_ptr<OAuth2MintTokenFlow>(
           OAuth2MintTokenFlow::Delegate*,
           OAuth2MintTokenFlow::Parameters)>;
+  using TokenDecryptor = base::RepeatingCallback<std::string(std::string_view)>;
 
   explicit OAuth2MintAccessTokenFetcherAdapter(
       OAuth2AccessTokenConsumer* consumer,
       scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-      const std::string& user_gaia_id,
+      const GaiaId& user_gaia_id,
       const std::string& refresh_token,
       const std::string& device_id,
       const std::string& client_version,
@@ -55,27 +58,30 @@ class COMPONENT_EXPORT(GOOGLE_APIS) OAuth2MintAccessTokenFetcherAdapter
 
   // Virtual for testing.
   virtual void SetBindingKeyAssertion(std::string assertion);
+  virtual void SetTokenDecryptor(TokenDecryptor decryptor);
 
   void SetOAuth2MintTokenFlowFactoryForTesting(
       OAuth2MintTokenFlowFactory factory);
 
  private:
   // OAuth2MintTokenFlow::Delegate:
-  void OnMintTokenSuccess(const std::string& access_token,
-                          const std::set<std::string>& granted_scopes,
-                          int time_to_live) override;
+  void OnMintTokenSuccess(
+      const OAuth2MintTokenFlow::MintTokenResult& result) override;
   void OnMintTokenFailure(const GoogleServiceAuthError& error) override;
   void OnRemoteConsentSuccess(
       const RemoteConsentResolutionData& resolution_data) override;
 
+  void RecordMetricsAndFireError(const GoogleServiceAuthError& error);
+
   const scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
-  const std::string user_gaia_id_;
+  const GaiaId user_gaia_id_;
   const std::string refresh_token_;
   const std::string device_id_;
   const std::string client_version_;
   const std::string client_channel_;
 
   std::string binding_key_assertion_;
+  TokenDecryptor token_decryptor_;
 
   OAuth2MintTokenFlowFactory mint_token_flow_factory_for_testing_;
 

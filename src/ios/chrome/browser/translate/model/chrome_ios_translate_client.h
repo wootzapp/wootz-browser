@@ -57,7 +57,6 @@ class ChromeIOSTranslateClient
   PrefService* GetPrefs() override;
   std::unique_ptr<translate::TranslatePrefs> GetTranslatePrefs() override;
   language::AcceptLanguagesService* GetAcceptLanguagesService() override;
-  int GetInfobarIconID() const override;
   std::unique_ptr<infobars::InfoBar> CreateInfoBar(
       std::unique_ptr<translate::TranslateInfoBarDelegate> delegate)
       const override;
@@ -102,8 +101,6 @@ class ChromeIOSTranslateClient
 
   // Metrics recorder for page load events.
   std::unique_ptr<translate::TranslateMetricsLogger> translate_metrics_logger_;
-
-  WEB_STATE_USER_DATA_KEY_DECL();
 };
 
 #endif  // IOS_CHROME_BROWSER_TRANSLATE_MODEL_CHROME_IOS_TRANSLATE_CLIENT_H_

@@ -7,6 +7,7 @@
 #include "base/notreached.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/compositor/layer.h"
+#include "ui/views/accessibility/view_accessibility.h"
 
 namespace ash {
 
@@ -25,9 +26,7 @@ constexpr base::TimeDelta kReloadFadeInDuration1_5 = base::Milliseconds(400);
 }  // namespace
 
 BirchChipLoaderView::BirchChipLoaderView() {
-  SetPaintToLayer();
-  layer()->SetFillsBoundsOpaquely(false);
-  SetAccessibleName(u"Birch Chip Loader View");
+  GetViewAccessibility().SetName(u"Birch Chip Loader View");
 }
 
 BirchChipLoaderView::~BirchChipLoaderView() = default;
@@ -90,9 +89,11 @@ void BirchChipLoaderView::AddAnimationToBuilder(
           .SetOpacity(loader_layer, 0.0f);
       return;
     case Type::kNone:
-      NOTREACHED_NORETURN() << "Please set a loading type for birch bar loader";
+      NOTREACHED() << "Please set a loading type for birch bar loader";
   }
 }
+
+void BirchChipLoaderView::Init(BirchItem* item) {}
 
 const BirchItem* BirchChipLoaderView::GetItem() const {
   return nullptr;

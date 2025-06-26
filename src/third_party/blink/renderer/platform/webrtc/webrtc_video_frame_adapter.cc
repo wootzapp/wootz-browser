@@ -18,6 +18,7 @@
 #include "gpu/command_buffer/client/raster_interface.h"
 #include "gpu/command_buffer/client/shared_image_interface.h"
 #include "gpu/command_buffer/common/shared_image_capabilities.h"
+#include "gpu/command_buffer/common/shared_image_usage.h"
 #include "media/base/simple_sync_token_client.h"
 #include "media/base/video_frame.h"
 #include "media/base/video_types.h"
@@ -64,51 +65,26 @@ class Context : public media::RenderableGpuMemoryBufferVideoFramePool::Context {
       : gpu_factories_(gpu_factories),
         raster_context_provider_(std::move(raster_context_provider)) {}
 
-  std::unique_ptr<gfx::GpuMemoryBuffer> CreateGpuMemoryBuffer(
-      const gfx::Size& size,
-      gfx::BufferFormat format,
-      gfx::BufferUsage usage) override {
-    return GpuMemoryBufferManager()->CreateGpuMemoryBuffer(
-        size, format, usage, gpu::kNullSurfaceHandle, nullptr);
-  }
-
   scoped_refptr<gpu::ClientSharedImage> CreateSharedImage(
-      gfx::GpuMemoryBuffer* gpu_memory_buffer,
+      const gfx::Size& size,
+      gfx::BufferUsage buffer_usage,
       const viz::SharedImageFormat& si_format,
       const gfx::ColorSpace& color_space,
-      GrSurfaceOrigin surface_origin,
-      SkAlphaType alpha_type,
-      uint32_t usage,
+      gpu::SharedImageUsageSet usage,
       gpu::SyncToken& sync_token) override {
     auto* sii = SharedImageInterface();
     if (!sii) {
       return nullptr;
     }
     auto client_shared_image = sii->CreateSharedImage(
-        {si_format, gpu_memory_buffer->GetSize(), color_space, surface_origin,
-         alpha_type, usage, "WebRTCVideoFramePool"},
-        gpu_memory_buffer->CloneHandle());
-    CHECK(client_shared_image);
-    sync_token = sii->GenVerifiedSyncToken();
-    return client_shared_image;
-  }
-
-  scoped_refptr<gpu::ClientSharedImage> CreateSharedImage(
-      gfx::GpuMemoryBuffer* gpu_memory_buffer,
-      gfx::BufferPlane plane,
-      const gfx::ColorSpace& color_space,
-      GrSurfaceOrigin surface_origin,
-      SkAlphaType alpha_type,
-      uint32_t usage,
-      gpu::SyncToken& sync_token) override {
-    auto* sii = SharedImageInterface();
-    if (!sii)
+        {si_format, size, color_space, usage, "WebRTCVideoFramePool"},
+        gpu::kNullSurfaceHandle, buffer_usage);
+    if (!client_shared_image) {
       return nullptr;
-    auto client_shared_image = sii->CreateSharedImage(
-        gpu_memory_buffer, GpuMemoryBufferManager(), plane,
-        {color_space, surface_origin, alpha_type, usage,
-         "WebRTCVideoFramePool"});
-    CHECK(client_shared_image);
+    }
+#if BUILDFLAG(IS_MAC)
+    client_shared_image->SetColorSpaceOnNativeBuffer(color_space);
+#endif
     sync_token = sii->GenVerifiedSyncToken();
     return client_shared_image;
   }
@@ -116,21 +92,17 @@ class Context : public media::RenderableGpuMemoryBufferVideoFramePool::Context {
   void DestroySharedImage(
       const gpu::SyncToken& sync_token,
       scoped_refptr<gpu::ClientSharedImage> shared_image) override {
-    auto* sii = SharedImageInterface();
-    if (!sii)
-      return;
-    sii->DestroySharedImage(sync_token, std::move(shared_image));
+    CHECK(shared_image);
+    shared_image->UpdateDestructionSyncToken(sync_token);
+  }
+
+  const gpu::SharedImageCapabilities& GetCapabilities() override {
+    return SharedImageInterface()->GetCapabilities();
   }
 
  private:
   gpu::SharedImageInterface* SharedImageInterface() const {
     return raster_context_provider_->SharedImageInterface();
-  }
-
-  gpu::GpuMemoryBufferManager* GpuMemoryBufferManager() const {
-    auto* manager = gpu_factories_->GpuMemoryBufferManager();
-    DCHECK(manager);
-    return manager;
   }
 
   raw_ptr<media::GpuVideoAcceleratorFactories> gpu_factories_;
@@ -224,7 +196,7 @@ bool CanUseGpuMemoryBufferReadback(
 scoped_refptr<media::VideoFrame>
 WebRtcVideoFrameAdapter::SharedResources::ConstructVideoFrameFromTexture(
     scoped_refptr<media::VideoFrame> source_frame) {
-  RTC_DCHECK(source_frame->HasTextures());
+  RTC_DCHECK(source_frame->HasSharedImage());
 
   auto raster_context_provider = GetRasterContextProvider();
   if (!raster_context_provider) {
@@ -243,19 +215,6 @@ WebRtcVideoFrameAdapter::SharedResources::ConstructVideoFrameFromTexture(
                                         raster_context_provider));
     }
 
-    auto origin = source_frame->metadata().texture_origin_is_top_left
-                      ? kTopLeft_GrSurfaceOrigin
-                      : kBottomLeft_GrSurfaceOrigin;
-
-    // TODO(crbug.com/1224279): This assumes that all frames are 8-bit sRGB.
-    // Expose the color space and pixel format that is backing
-    // `image->GetMailboxHolder()`, or, alternatively, expose an accelerated
-    // SkImage.
-    auto format = (source_frame->format() == media::PIXEL_FORMAT_XBGR ||
-                   source_frame->format() == media::PIXEL_FORMAT_ABGR)
-                      ? viz::SinglePlaneFormat::kRGBA_8888
-                      : viz::SinglePlaneFormat::kBGRA_8888;
-
     scoped_refptr<media::VideoFrame> dst_frame;
     {
       // Blocking is necessary to create the GpuMemoryBuffer from this thread.
@@ -265,11 +224,13 @@ WebRtcVideoFrameAdapter::SharedResources::ConstructVideoFrameFromTexture(
     }
 
     if (dst_frame) {
-      const bool copy_succeeded = media::CopyRGBATextureToVideoFrame(
-          raster_context_provider.get(), format, source_frame->coded_size(),
-          source_frame->ColorSpace(), origin, source_frame->mailbox_holder(0),
-          dst_frame.get());
-      if (copy_succeeded) {
+      CHECK(dst_frame->HasSharedImage());
+      std::optional<gpu::SyncToken> blit_done_sync_token =
+          media::CopyRGBATextureToVideoFrame(
+              raster_context_provider.get(), source_frame->coded_size(),
+              source_frame->shared_image(), source_frame->acquire_sync_token(),
+              dst_frame.get());
+      if (blit_done_sync_token) {
         // CopyRGBATextureToVideoFrame() operates on mailboxes and not frames,
         // so we must manually copy over properties relevant to the encoder.
         // TODO(https://crbug.com/1272852): Consider bailing out of this path if
@@ -292,17 +253,13 @@ WebRtcVideoFrameAdapter::SharedResources::ConstructVideoFrameFromTexture(
 #if BUILDFLAG(IS_WIN)
         // For shared memory GMBs on Windows we needed to explicitly request a
         // copy from the shared image GPU texture to the GMB.
-        DCHECK(dst_frame->HasGpuMemoryBuffer());
-        DCHECK_EQ(dst_frame->GetGpuMemoryBuffer()->GetType(),
-                  gfx::SHARED_MEMORY_BUFFER);
-        gpu::SyncToken blit_done_sync_token;
-        ri->GenUnverifiedSyncTokenCHROMIUM(blit_done_sync_token.GetData());
+        CHECK(dst_frame->HasMappableGpuBuffer());
+        CHECK(!dst_frame->HasNativeGpuMemoryBuffer());
 
         auto* sii = raster_context_provider->SharedImageInterface();
-        for (size_t plane = 0; plane < dst_frame->NumTextures(); ++plane) {
-          const auto& mailbox = dst_frame->mailbox_holder(plane).mailbox;
-          sii->CopyToGpuMemoryBuffer(blit_done_sync_token, mailbox);
-        }
+
+        const auto& mailbox = dst_frame->shared_image()->mailbox();
+        sii->CopyToGpuMemoryBuffer(*blit_done_sync_token, mailbox);
 
         // Synchronize RasterInterface with SharedImageInterface.
         auto copy_to_gmb_done_sync_token = sii->GenUnverifiedSyncToken();
@@ -319,9 +276,7 @@ WebRtcVideoFrameAdapter::SharedResources::ConstructVideoFrameFromTexture(
         // synchronized with the GPU.
         gpu::SyncToken empty_sync_token;
         media::SimpleSyncTokenClient simple_client(empty_sync_token);
-        for (size_t plane = 0; plane < dst_frame->NumTextures(); ++plane) {
-          dst_frame->UpdateMailboxHolderSyncToken(plane, &simple_client);
-        }
+        dst_frame->UpdateAcquireSyncToken(empty_sync_token);
         dst_frame->UpdateReleaseSyncToken(&simple_client);
 
         auto vf = ConstructVideoFrameFromGpu(std::move(dst_frame));
@@ -340,8 +295,7 @@ WebRtcVideoFrameAdapter::SharedResources::ConstructVideoFrameFromTexture(
   }
 
   return media::ReadbackTextureBackedFrameToMemorySync(
-      *source_frame, ri, raster_context_provider->ContextCapabilities(),
-      &pool_for_mapped_frames_);
+      *source_frame, ri, &pool_for_mapped_frames_);
 }
 
 scoped_refptr<media::VideoFrame>
@@ -426,27 +380,32 @@ WebRtcVideoFrameAdapter::ScaledBuffer::ScaledBuffer(
     ScaledBufferSize size)
     : parent_(std::move(parent)), size_(std::move(size)) {}
 
-rtc::scoped_refptr<webrtc::I420BufferInterface>
+webrtc::scoped_refptr<webrtc::I420BufferInterface>
 WebRtcVideoFrameAdapter::ScaledBuffer::ToI420() {
   return parent_->GetOrCreateFrameBufferForSize(size_)->ToI420();
 }
 
-rtc::scoped_refptr<webrtc::VideoFrameBuffer>
+scoped_refptr<media::VideoFrame>
+WebRtcVideoFrameAdapter::ScaledBuffer::getMediaVideoFrame() const {
+  return parent_->getMediaVideoFrame();
+}
+
+webrtc::scoped_refptr<webrtc::VideoFrameBuffer>
 WebRtcVideoFrameAdapter::ScaledBuffer::GetMappedFrameBuffer(
-    rtc::ArrayView<webrtc::VideoFrameBuffer::Type> types) {
+    webrtc::ArrayView<webrtc::VideoFrameBuffer::Type> types) {
   auto frame_buffer = parent_->GetOrCreateFrameBufferForSize(size_);
   return base::Contains(types, frame_buffer->type()) ? frame_buffer : nullptr;
 }
 
-rtc::scoped_refptr<webrtc::VideoFrameBuffer>
+webrtc::scoped_refptr<webrtc::VideoFrameBuffer>
 WebRtcVideoFrameAdapter::ScaledBuffer::CropAndScale(int offset_x,
                                                     int offset_y,
                                                     int crop_width,
                                                     int crop_height,
                                                     int scaled_width,
                                                     int scaled_height) {
-  return rtc::scoped_refptr<webrtc::VideoFrameBuffer>(
-      new rtc::RefCountedObject<ScaledBuffer>(
+  return webrtc::scoped_refptr<webrtc::VideoFrameBuffer>(
+      new webrtc::RefCountedObject<ScaledBuffer>(
           parent_,
           size_.CropAndScale(offset_x, offset_y, crop_width, crop_height,
                              scaled_width, scaled_height)));
@@ -479,34 +438,34 @@ WebRtcVideoFrameAdapter::~WebRtcVideoFrameAdapter() {
   }
 }
 
-rtc::scoped_refptr<webrtc::I420BufferInterface>
+webrtc::scoped_refptr<webrtc::I420BufferInterface>
 WebRtcVideoFrameAdapter::ToI420() {
   return GetOrCreateFrameBufferForSize(full_size_)->ToI420();
 }
 
-rtc::scoped_refptr<webrtc::VideoFrameBuffer>
+webrtc::scoped_refptr<webrtc::VideoFrameBuffer>
 WebRtcVideoFrameAdapter::GetMappedFrameBuffer(
-    rtc::ArrayView<webrtc::VideoFrameBuffer::Type> types) {
+    webrtc::ArrayView<webrtc::VideoFrameBuffer::Type> types) {
   auto frame_buffer = GetOrCreateFrameBufferForSize(full_size_);
   return base::Contains(types, frame_buffer->type()) ? frame_buffer : nullptr;
 }
 
 // Soft-applies cropping and scaling. The result is a ScaledBuffer.
-rtc::scoped_refptr<webrtc::VideoFrameBuffer>
+webrtc::scoped_refptr<webrtc::VideoFrameBuffer>
 WebRtcVideoFrameAdapter::CropAndScale(int offset_x,
                                       int offset_y,
                                       int crop_width,
                                       int crop_height,
                                       int scaled_width,
                                       int scaled_height) {
-  return rtc::scoped_refptr<webrtc::VideoFrameBuffer>(
-      new rtc::RefCountedObject<ScaledBuffer>(
+  return webrtc::scoped_refptr<webrtc::VideoFrameBuffer>(
+      new webrtc::RefCountedObject<ScaledBuffer>(
           this,
           full_size_.CropAndScale(offset_x, offset_y, crop_width, crop_height,
                                   scaled_width, scaled_height)));
 }
 
-rtc::scoped_refptr<webrtc::VideoFrameBuffer>
+webrtc::scoped_refptr<webrtc::VideoFrameBuffer>
 WebRtcVideoFrameAdapter::GetOrCreateFrameBufferForSize(
     const ScaledBufferSize& size) {
   base::AutoLock auto_lock(adapted_frames_lock_);
@@ -529,7 +488,7 @@ WebRtcVideoFrameAdapter::AdaptedFrame WebRtcVideoFrameAdapter::AdaptBestFrame(
     // Scaling is needed. Consider if there is a previously adapted frame we can
     // scale from. This would be a smaller scaling operation than scaling from
     // the full resolution `frame_`.
-    rtc::scoped_refptr<webrtc::VideoFrameBuffer> best_webrtc_frame;
+    webrtc::scoped_refptr<webrtc::VideoFrameBuffer> best_webrtc_frame;
     double best_frame_scale_factor = 1.0;
     for (const auto& adapted_frame : adapted_frames_) {
       // For simplicity, ignore frames where the cropping is not identical to a
@@ -547,7 +506,7 @@ WebRtcVideoFrameAdapter::AdaptedFrame WebRtcVideoFrameAdapter::AdaptBestFrame(
       }
     }
     if (best_webrtc_frame) {
-      rtc::scoped_refptr<webrtc::VideoFrameBuffer> adapted_webrtc_frame =
+      webrtc::scoped_refptr<webrtc::VideoFrameBuffer> adapted_webrtc_frame =
           best_webrtc_frame->Scale(size.natural_size.width(),
                                    size.natural_size.height());
       return AdaptedFrame(size, nullptr, adapted_webrtc_frame);
@@ -574,7 +533,7 @@ WebRtcVideoFrameAdapter::AdaptedFrame WebRtcVideoFrameAdapter::AdaptBestFrame(
     media_frame = media::VideoFrame::WrapVideoFrame(
         frame_, frame_->format(), visible_rect, size.natural_size);
   }
-  rtc::scoped_refptr<webrtc::VideoFrameBuffer> adapted_webrtc_frame =
+  webrtc::scoped_refptr<webrtc::VideoFrameBuffer> adapted_webrtc_frame =
       ConvertToWebRtcVideoFrameBuffer(media_frame, shared_resources_);
   return AdaptedFrame(size, media_frame, adapted_webrtc_frame);
 }

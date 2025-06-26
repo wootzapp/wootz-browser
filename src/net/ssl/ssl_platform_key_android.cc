@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/ssl/ssl_platform_key_android.h"
 
 #include <strings.h>
@@ -137,7 +142,7 @@ class SSLPlatformKeyAndroid : public ThreadedSSLPrivateKey::Delegate {
     }
 
     std::optional<std::vector<uint8_t>> padded =
-        AddPSSPadding(pubkey_.get(), md, base::make_span(digest, digest_len));
+        AddPSSPadding(pubkey_.get(), md, base::span(digest, digest_len));
     if (!padded) {
       return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
     }

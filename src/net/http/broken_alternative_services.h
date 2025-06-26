@@ -173,8 +173,9 @@ class NET_EXPORT_PRIVATE BrokenAlternativeServices {
   friend class HttpServerPropertiesPeer;
 
   struct AlternativeServiceHash {
-    size_t operator()(const net::AlternativeService& entry) const {
-      return entry.protocol ^ std::hash<std::string>()(entry.host) ^ entry.port;
+    size_t operator()(const AlternativeService& entry) const {
+      return static_cast<size_t>(entry.protocol) ^
+             std::hash<std::string>()(entry.host) ^ entry.port;
     }
   };
 

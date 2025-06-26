@@ -5,31 +5,32 @@
 #ifndef MEDIA_GPU_WINDOWS_D3D12_HELPERS_H_
 #define MEDIA_GPU_WINDOWS_D3D12_HELPERS_H_
 
-#include <d3d12.h>
-#include <d3d12video.h>
-#include <dxgi.h>
-#include <wrl.h>
-
 #include <array>
-#include <memory>
 
+#include "base/containers/span.h"
+#include "base/memory/raw_span.h"
 #include "media/base/limits.h"
 #include "media/base/video_codecs.h"
-#include "media/base/video_types.h"
-#include "media/filters/vp9_parser.h"
 #include "media/gpu/h264_dpb.h"
 #include "media/gpu/media_gpu_export.h"
-#include "media/video/h265_parser.h"
+#include "media/gpu/windows/d3d_com_defs.h"
+#include "media/parsers/h265_parser.h"
+#include "media/parsers/vp9_parser.h"
 #include "third_party/abseil-cpp/absl/container/inlined_vector.h"
 #include "third_party/libgav1/src/src/utils/constants.h"
 
 namespace media {
 
+struct D3D12HeapProperties {
+  constexpr static D3D12_HEAP_PROPERTIES kDefault{D3D12_HEAP_TYPE_DEFAULT};
+  constexpr static D3D12_HEAP_PROPERTIES kUpload{D3D12_HEAP_TYPE_UPLOAD};
+  constexpr static D3D12_HEAP_PROPERTIES kReadback{D3D12_HEAP_TYPE_READBACK};
+};
+
 // Manages reference frame buffers, for reference frame descriptors to index on.
 class MEDIA_GPU_EXPORT D3D12ReferenceFrameList {
  public:
-  explicit D3D12ReferenceFrameList(
-      Microsoft::WRL::ComPtr<ID3D12VideoDecoderHeap> heap);
+  explicit D3D12ReferenceFrameList(ComD3D12VideoDecoderHeap heap);
   ~D3D12ReferenceFrameList();
 
   void WriteTo(D3D12_VIDEO_DECODE_REFERENCE_FRAMES* dest);
@@ -45,7 +46,7 @@ class MEDIA_GPU_EXPORT D3D12ReferenceFrameList {
                 static_cast<size_t>(libgav1::kNumReferenceFrameTypes)}) +
       limits::kMaxVideoFrames + 2;
 
-  Microsoft::WRL::ComPtr<ID3D12VideoDecoderHeap> heap_;
+  ComD3D12VideoDecoderHeap heap_;
   size_t size_ = 0;
   // D3D12_VIDEO_DECODE_REFERENCE_FRAMES has ID3D12Resource** ppTexture2Ds, so
   // we have to store raw pointer array here. The pointers are only passed to
@@ -61,8 +62,34 @@ class MEDIA_GPU_EXPORT D3D12ReferenceFrameList {
   std::array<ID3D12VideoDecoderHeap*, kMaxSize> heaps_;
 };
 
-MEDIA_GPU_EXPORT Microsoft::WRL::ComPtr<ID3D12Device> CreateD3D12Device(
-    IDXGIAdapter* adapter);
+// A scoped class managing the |Map()| and |Unmap()| of a |ID3D12Resource|. The
+// instances of this class are expected to live shortly since it relies on the
+// validity of the underlying |ID3D12Resource|.
+// Note: Since the Map() operation may fail, the |data()| must be checked
+// before use.
+class MEDIA_GPU_EXPORT ScopedD3D12ResourceMap {
+ public:
+  ScopedD3D12ResourceMap();
+  ~ScopedD3D12ResourceMap();
+
+  bool Map(ID3D12Resource* resource,
+           UINT subresource = 0,
+           const D3D12_RANGE* read_range = nullptr);
+
+  // The mapped memory span. It can be empty if there is no successful |Map()|
+  // call.
+  base::span<uint8_t> data() const { return data_; }
+
+  // |Unmap()| the resource with given |written_range|, if it is not committed.
+  void Commit(const D3D12_RANGE* written_range = nullptr);
+
+ private:
+  raw_ptr<ID3D12Resource> resource_ = nullptr;
+  UINT subresource_ = 0;
+  base::raw_span<uint8_t> data_;
+};
+
+MEDIA_GPU_EXPORT ComD3D12Device CreateD3D12Device(IDXGIAdapter* adapter);
 
 // In D3D12 resource barriers, subresource id is not only being composed of mip
 // level id and array index id, but also plane id. This method is to create an

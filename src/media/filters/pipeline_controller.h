@@ -139,7 +139,8 @@ class MEDIA_EXPORT PipelineController {
   void SetVolume(float volume);
   void SetLatencyHint(std::optional<base::TimeDelta> latency_hint);
   void SetPreservesPitch(bool preserves_pitch);
-  void SetWasPlayedWithUserActivation(bool was_played_with_user_activation);
+  void SetWasPlayedWithUserActivationAndHighMediaEngagement(
+      bool was_played_with_user_activation_and_high_media_engagement);
   base::TimeDelta GetMediaTime() const;
   Ranges<base::TimeDelta> GetBufferedTimeRanges() const;
   base::TimeDelta GetMediaDuration() const;
@@ -155,6 +156,10 @@ class MEDIA_EXPORT PipelineController {
   // Used to fire the OnTrackChangeComplete function which is captured in a
   // OnceCallback, and doesn't play nicely with gmock.
   void FireOnTrackChangeCompleteForTesting(State set_to);
+
+  // Sets a flag indicating whether to render muted audio to the active sink or
+  // switch to a null sink.
+  void SetRenderMutedAudio(bool render_muted_audio);
 
  private:
   // Attempts to make progress from the current state to the target state.

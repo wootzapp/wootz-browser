@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.password_check;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.chrome.browser.password_check.PasswordCheckProperties.CompromisedCredentialProperties.COMPROMISED_CREDENTIAL;
 import static org.chromium.chrome.browser.password_check.PasswordCheckProperties.CompromisedCredentialProperties.CREDENTIAL_HANDLER;
 import static org.chromium.chrome.browser.password_check.PasswordCheckProperties.CompromisedCredentialProperties.FAVICON_OR_FALLBACK;
@@ -31,12 +32,14 @@ import androidx.appcompat.app.AlertDialog;
 
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
+import org.chromium.build.annotations.Initializer;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.password_check.helper.PasswordCheckChangePasswordHelper;
 import org.chromium.chrome.browser.password_check.helper.PasswordCheckIconHelper;
 import org.chromium.chrome.browser.password_manager.PasswordCheckReferrer;
 import org.chromium.chrome.browser.password_manager.settings.PasswordAccessReauthenticationHelper;
 import org.chromium.chrome.browser.password_manager.settings.PasswordAccessReauthenticationHelper.ReauthReason;
-import org.chromium.components.browser_ui.settings.SettingsLauncher;
 import org.chromium.ui.modelutil.ListModel;
 import org.chromium.ui.modelutil.MVCListAdapter.ListItem;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -50,6 +53,7 @@ import java.util.List;
  * Contains the logic for the PasswordCheck component. It sets the state of the model and reacts to
  * events like clicks.
  */
+@NullMarked
 class PasswordCheckMediator
         implements PasswordCheckCoordinator.CredentialEventHandler, PasswordCheck.Observer {
     private static long sStatusUpdateDelayMillis = 1000;
@@ -59,8 +63,7 @@ class PasswordCheckMediator
     private PropertyModel mModel;
     private PasswordCheckComponentUi.Delegate mDelegate;
     private Runnable mLaunchCheckupInAccount;
-    private HashSet<CompromisedCredential> mPreCheckSet;
-    private final SettingsLauncher mSettingsLauncher;
+    private @Nullable HashSet<CompromisedCredential> mPreCheckSet;
     private final PasswordCheckIconHelper mIconHelper;
     private long mLastStatusUpdate;
     private boolean mCctIsOpened;
@@ -68,14 +71,13 @@ class PasswordCheckMediator
     PasswordCheckMediator(
             PasswordCheckChangePasswordHelper changePasswordDelegate,
             PasswordAccessReauthenticationHelper reauthenticationHelper,
-            SettingsLauncher settingsLauncher,
             PasswordCheckIconHelper passwordCheckIconHelper) {
         mChangePasswordDelegate = changePasswordDelegate;
         mReauthenticationHelper = reauthenticationHelper;
-        mSettingsLauncher = settingsLauncher;
         mIconHelper = passwordCheckIconHelper;
     }
 
+    @Initializer
     void initialize(
             PropertyModel model,
             PasswordCheckComponentUi.Delegate delegate,
@@ -347,7 +349,7 @@ class PasswordCheckMediator
     }
 
     private PasswordCheck getPasswordCheck() {
-        PasswordCheck passwordCheck = PasswordCheckFactory.getOrCreate(mSettingsLauncher);
+        PasswordCheck passwordCheck = PasswordCheckFactory.getOrCreate();
         assert passwordCheck != null : "Password Check UI component needs native counterpart!";
         return passwordCheck;
     }
@@ -399,6 +401,7 @@ class PasswordCheckMediator
                         return lhs.isOnlyPhished() ? -1 : 1;
                     }
 
+                    assumeNonNull(mPreCheckSet);
                     boolean lhsInitial = mPreCheckSet.contains(lhs);
                     boolean rhsInitial = mPreCheckSet.contains(rhs);
                     // If one is the in initial set and the other one isn't, then the credential in

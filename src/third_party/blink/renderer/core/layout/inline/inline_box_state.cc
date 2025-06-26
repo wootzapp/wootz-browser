@@ -25,17 +25,6 @@ namespace blink {
 
 namespace {
 
-FontHeight FontHeightWithLeading(const ComputedStyle& style,
-                                 const Font& font,
-                                 const FontMetrics& font_metrics,
-                                 FontBaseline baseline_type) {
-  FontHeight metrics = font_metrics.GetFontHeight(baseline_type);
-  const LayoutUnit line_height = style.ComputedLineHeightAsFixed(font);
-  const FontHeight leading = CalculateLeadingSpace(line_height, metrics);
-  metrics.AddLeading(leading);
-  return metrics;
-}
-
 FontHeight ComputeEmphasisMarkOutsets(const ComputedStyle& style,
                                       const Font& font) {
   if (style.GetTextEmphasisMark() == TextEmphasisMark::kNone)
@@ -60,8 +49,8 @@ InlineBoxState::InlineBoxState(const InlineBoxState&& state)
     : fragment_start(state.fragment_start),
       item(state.item),
       style(state.style),
+      font(state.font),
       scaled_font(state.scaled_font),
-      has_scaled_font(state.has_scaled_font),
       scaling_factor(state.scaling_factor),
       metrics(state.metrics),
       text_metrics(state.text_metrics),
@@ -70,17 +59,14 @@ InlineBoxState::InlineBoxState(const InlineBoxState&& state)
       alignment_type(state.alignment_type),
       has_start_edge(state.has_start_edge),
       has_end_edge(state.has_end_edge),
-      margin_inline_start(state.margin_inline_start),
-      margin_inline_end(state.margin_inline_end),
+      margins(state.margins),
       borders(state.borders),
       padding(state.padding),
       pending_descendants(std::move(state.pending_descendants)),
       include_used_fonts(state.include_used_fonts),
       has_box_placeholder(state.has_box_placeholder),
       needs_box_fragment(state.needs_box_fragment),
-      is_svg_text(state.is_svg_text) {
-  font = has_scaled_font ? &scaled_font : state.font;
-}
+      is_svg_text(state.is_svg_text) {}
 
 void InlineBoxState::ResetStyle(const ComputedStyle& style_ref,
                                 bool is_svg,
@@ -89,14 +75,13 @@ void InlineBoxState::ResetStyle(const ComputedStyle& style_ref,
   is_svg_text = is_svg;
   if (!is_svg_text) {
     scaling_factor = 1.0f;
-    has_scaled_font = false;
-    font = &style->GetFont();
+    scaled_font = nullptr;
+    font = style->GetFont();
     return;
   }
-  has_scaled_font = true;
-  LayoutSVGInlineText::ComputeNewScaledFontForStyle(
-      layout_object, scaling_factor, scaled_font);
-  font = &scaled_font;
+  scaled_font = LayoutSVGInlineText::ComputeNewScaledFontForStyle(
+      layout_object, scaling_factor);
+  font = scaled_font;
   switch (style_ref.AlignmentBaseline()) {
     case EAlignmentBaseline::kAuto:
     case EAlignmentBaseline::kBaseline:
@@ -179,19 +164,17 @@ void InlineBoxState::AdjustEdges(const ComputedStyle& style,
                                  FontHeight& metrics) {
   DCHECK(should_apply_over || should_apply_under);
   const SimpleFontData* font_data = font.PrimaryFont();
-  if (UNLIKELY(!font_data)) {
+  if (!font_data) [[unlikely]] {
     return;
   }
   const FontMetrics& font_metrics = font_data->GetFontMetrics();
-  std::optional<FontHeight> font_height_with_leading;
   const TextBoxEdge text_box_edge = style.GetTextBoxEdge();
   if (should_apply_over) {
     switch (text_box_edge.Over()) {
-      case TextBoxEdge::Type::kLeading:
-        font_height_with_leading =
-            FontHeightWithLeading(style, font, font_metrics, baseline_type);
-        metrics.ascent = font_height_with_leading->ascent;
-        break;
+      case TextBoxEdge::Type::kAuto:
+        // `text-box-edge: auto` copies the value from `line-fit-edge`, which
+        // isn't implemented yet. Behaves the same as `text` when
+        // `line-fit-edge` has the initial value.
       case TextBoxEdge::Type::kText:
         metrics.ascent = font_metrics.FixedAscent(baseline_type);
         break;
@@ -202,19 +185,16 @@ void InlineBoxState::AdjustEdges(const ComputedStyle& style,
         metrics.ascent = font_metrics.FixedXHeight(baseline_type);
         break;
       case TextBoxEdge::Type::kAlphabetic:
-        NOTREACHED_NORETURN();
+        NOTREACHED();
     }
   }
 
   if (should_apply_under) {
     switch (text_box_edge.Under()) {
-      case TextBoxEdge::Type::kLeading:
-        if (!font_height_with_leading) {
-          font_height_with_leading =
-              FontHeightWithLeading(style, font, font_metrics, baseline_type);
-        }
-        metrics.descent = font_height_with_leading->descent;
-        break;
+      case TextBoxEdge::Type::kAuto:
+        // `text-box-edge: auto` copies the value from `line-fit-edge`, which
+        // isn't implemented yet. Behaves the same as `text` when
+        // `line-fit-edge` has the initial value.
       case TextBoxEdge::Type::kText:
         metrics.descent = font_metrics.FixedDescent(baseline_type);
         break;
@@ -225,7 +205,7 @@ void InlineBoxState::AdjustEdges(const ComputedStyle& style,
         break;
       case TextBoxEdge::Type::kCap:
       case TextBoxEdge::Type::kEx:
-        NOTREACHED_NORETURN();
+        NOTREACHED();
     }
   }
 }
@@ -244,16 +224,16 @@ void InlineBoxState::EnsureTextMetrics(const ComputedStyle& styleref,
 
 void InlineBoxState::AccumulateUsedFonts(const ShapeResultView* shape_result) {
   const auto baseline_type = style->GetFontBaseline();
-  HeapHashSet<Member<const SimpleFontData>> fallback_fonts;
-  ClearCollectionScope clear_scope(&fallback_fonts);
-  shape_result->FallbackFonts(&fallback_fonts);
-  for (const SimpleFontData* const fallback_font : fallback_fonts) {
-    FontHeight fallback_metrics =
-        fallback_font->GetFontMetrics().GetFontHeight(baseline_type);
+  HeapHashSet<Member<const SimpleFontData>> used_fonts =
+      shape_result->UsedFonts();
+  ClearCollectionScope clear_scope(&used_fonts);
+  for (const auto& used_font : used_fonts) {
+    FontHeight used_metrics =
+        used_font->GetFontMetrics().GetFontHeight(baseline_type);
     FontHeight leading_space = CalculateLeadingSpace(
-        fallback_font->GetFontMetrics().FixedLineSpacing(), fallback_metrics);
-    fallback_metrics.AddLeading(leading_space);
-    metrics.Unite(fallback_metrics);
+        used_font->GetFontMetrics().FixedLineSpacing(), used_metrics);
+    used_metrics.AddLeading(leading_space);
+    metrics.Unite(used_metrics);
   }
 }
 
@@ -262,17 +242,17 @@ LayoutUnit InlineBoxState::TextTop(FontBaseline baseline_type) const {
     return text_top;
   if (const SimpleFontData* font_data = font->PrimaryFont())
     return -font_data->GetFontMetrics().FixedAscent(baseline_type);
-  NOTREACHED_IN_MIGRATION();
-  return LayoutUnit();
+  NOTREACHED();
 }
 
 bool InlineBoxState::CanAddTextOfStyle(const ComputedStyle& text_style) const {
   if (text_style.VerticalAlign() != EVerticalAlign::kBaseline)
     return false;
   DCHECK(style);
-  if (style == &text_style || &style->GetFont() == &text_style.GetFont() ||
-      style->GetFont().PrimaryFont() == text_style.GetFont().PrimaryFont())
+  if (style == &text_style || style->GetFont() == text_style.GetFont() ||
+      style->GetFont()->PrimaryFont() == text_style.GetFont()->PrimaryFont()) {
     return true;
+  }
   return false;
 }
 
@@ -300,7 +280,7 @@ InlineBoxState* InlineLayoutStateStack::OnBeginPlaceItems(
     for (InlineBoxState& box : stack_) {
       box.fragment_start = line_box->size();
       if (box.needs_box_fragment) {
-        DCHECK_NE(&box, stack_.begin());
+        DCHECK_NE(&box, stack_.data());
         AddBoxFragmentPlaceholder(&box, line_box, baseline_type);
       }
       if (!line_height_quirk)
@@ -366,8 +346,7 @@ InlineBoxState* InlineLayoutStateStack::OnOpenTag(
   box->ResetStyle(style, is_svg_text_, *item.GetLayoutObject());
   box->item = &item;
   box->has_start_edge = true;
-  box->margin_inline_start = item_result.margins.inline_start;
-  box->margin_inline_end = item_result.margins.inline_end;
+  box->margins = item_result.margins;
   box->borders = item_result.borders;
   box->padding = item_result.padding;
   if (space.IsInsideRepeatableContent()) {
@@ -425,8 +404,9 @@ void InlineLayoutStateStack::EndBoxState(const ConstraintSpace& space,
       ApplyBaselineShift(box, line_box, baseline_type);
 
   // We are done here if there is no parent box.
-  if (box == stack_.begin())
+  if (box == stack_.data()) {
     return;
+  }
   InlineBoxState& parent_box = *std::prev(box);
 
   // Unite the metrics to the parent box.
@@ -460,7 +440,7 @@ void InlineLayoutStateStack::AddBoxFragmentPlaceholder(
     InlineBoxState* box,
     LogicalLineItems* line_box,
     FontBaseline baseline_type) {
-  DCHECK(box != stack_.begin() &&
+  DCHECK(box != stack_.data() &&
          box->item->Type() != InlineItem::kAtomicInline);
   box->has_box_placeholder = true;
 
@@ -504,10 +484,12 @@ void InlineLayoutStateStack::AddBoxData(const ConstraintSpace& space,
       box->fragment_start, fragment_end, box->item, placeholder.Size());
   box_data.borders = box->borders;
   box_data.padding = box->padding;
+  box_data.margin_line_over = box->margins.line_over;
+  box_data.margin_line_under = box->margins.line_under;
   if (box->has_start_edge) {
     box_data.has_line_left_edge = true;
-    box_data.margin_line_left = box->margin_inline_start;
-    box_data.margin_border_padding_line_left = box->margin_inline_start +
+    box_data.margin_line_left = box->margins.inline_start;
+    box_data.margin_border_padding_line_left = box->margins.inline_start +
                                                box->borders.inline_start +
                                                box->padding.inline_start;
   } else {
@@ -516,8 +498,8 @@ void InlineLayoutStateStack::AddBoxData(const ConstraintSpace& space,
   }
   if (box->has_end_edge) {
     box_data.has_line_right_edge = true;
-    box_data.margin_line_right = box->margin_inline_end;
-    box_data.margin_border_padding_line_right = box->margin_inline_end +
+    box_data.margin_line_right = box->margins.inline_end;
+    box_data.margin_border_padding_line_right = box->margins.inline_end +
                                                 box->borders.inline_end +
                                                 box->padding.inline_end;
   } else {
@@ -532,11 +514,15 @@ void InlineLayoutStateStack::AddBoxData(const ConstraintSpace& space,
   }
 
   for (const auto& logical_column : ruby_column_list_) {
-    unsigned base_start = logical_column->start_index;
-    if (box->fragment_start <= base_start && base_start < fragment_end) {
+    // Skip a LogicalRubyColumn for which PlaceRubyAnnotation() is not done yet.
+    if (!logical_column->annotation_items) {
+      continue;
+    }
+    if (box->fragment_start <= logical_column->start_index &&
+        logical_column->EndIndex() <= fragment_end) {
       if (!box_data.ruby_column_list) {
         box_data.ruby_column_list =
-            MakeGarbageCollected<HeapVector<Member<LogicalRubyColumn>>>();
+            MakeGarbageCollected<GCedHeapVector<Member<LogicalRubyColumn>>>();
       }
       box_data.ruby_column_list->push_back(logical_column);
     }
@@ -561,6 +547,21 @@ void InlineLayoutStateStack::AddBoxData(const ConstraintSpace& space,
   placeholder.inline_size = advance;
   DCHECK(!placeholder.children_count);
   box_data_list_.pop_back();
+}
+
+std::optional<std::pair<LayoutUnit, LayoutUnit>>
+InlineLayoutStateStack::AnnotationBoxBlockAxisMargins() const {
+  if (!HasBoxFragments() || box_data_list_[0].fragment_start != 0) {
+    return std::nullopt;
+  }
+  const BoxData& data = box_data_list_[0];
+  if (data.padding.BlockSum() == LayoutUnit() &&
+      data.borders.BlockSum() == LayoutUnit() &&
+      data.margin_line_over == LayoutUnit() &&
+      data.margin_line_under == LayoutUnit()) {
+    return std::nullopt;
+  }
+  return std::make_pair(data.margin_line_over, data.margin_line_under);
 }
 
 void InlineLayoutStateStack::ChildInserted(unsigned index) {
@@ -626,8 +627,9 @@ void InlineLayoutStateStack::UpdateAfterReorder(LogicalLineItems* line_box) {
 
   // If any inline fragmentation occurred due to BiDi reorder, append them and
   // adjust box edges.
-  if (UNLIKELY(!fragmented_boxes.empty()))
+  if (!fragmented_boxes.empty()) [[unlikely]] {
     UpdateFragmentedBoxDataEdges(&fragmented_boxes);
+  }
 
 #if DCHECK_IS_ON()
   // Check all BoxData have ranges.
@@ -965,15 +967,15 @@ const LayoutResult* InlineLayoutStateStack::BoxData::CreateBoxFragment(
   box.SetBoxType(PhysicalFragment::kInlineBox);
   box.SetStyleVariant(item->GetStyleVariant());
 
-  if (UNLIKELY(is_opaque)) {
+  if (is_opaque) [[unlikely]] {
     box.SetIsOpaque();
-    box.SetSidesToInclude({false, false, false, false});
+    box.SetSidesToInclude(LineLogicalBoxSides(false, false, false, false));
   } else {
     // Inline boxes have block start/end borders, even when its containing block
     // was fragmented. Fragmenting a line box in block direction is not
     // supported today.
-    box.SetSidesToInclude(
-        {true, has_line_right_edge, true, has_line_left_edge});
+    box.SetSidesToInclude(LineLogicalBoxSides(true, has_line_right_edge, true,
+                                              has_line_left_edge));
   }
 
   auto handle_box_child = [&](LogicalLineItem& child) {
@@ -1021,14 +1023,18 @@ const LayoutResult* InlineLayoutStateStack::BoxData::CreateBoxFragment(
   }
   if (ruby_column_list) {
     for (auto& logical_column : *ruby_column_list) {
-      for (unsigned i = 0; i < logical_column->annotation_items->size(); ++i) {
-        LogicalLineItem& child = (*logical_column->annotation_items)[i];
+      auto& annotation_items = *logical_column->annotation_items;
+      if (annotation_items.WasPropagated()) {
+        continue;
+      }
+      for (unsigned i = 0; i < annotation_items.size(); ++i) {
+        LogicalLineItem& child = annotation_items[i];
         if (child.children_count) {
           i += child.children_count - 1;
         }
         handle_box_child(child);
       }
-      logical_column->annotation_items->SetPropagated();
+      annotation_items.SetPropagated();
     }
     ruby_column_list.Clear();
   }
@@ -1043,6 +1049,7 @@ const LayoutResult* InlineLayoutStateStack::BoxData::CreateBoxFragment(
 
 void InlineLayoutStateStack::BoxData::Trace(Visitor* visitor) const {
   visitor->Trace(ruby_column_list);
+  visitor->Trace(item);
 }
 
 InlineLayoutStateStack::PositionPending
@@ -1051,7 +1058,7 @@ InlineLayoutStateStack::ApplyBaselineShift(InlineBoxState* box,
                                            FontBaseline baseline_type) {
   // The `vertical-align` property should not apply to the line wrapper for
   // block-in-inline.
-  if (UNLIKELY(has_block_in_inline_)) {
+  if (has_block_in_inline_) [[unlikely]] {
     DCHECK(box->pending_descendants.empty());
     return kPositionNotPending;
   }
@@ -1077,15 +1084,14 @@ InlineLayoutStateStack::ApplyBaselineShift(InlineBoxState* box,
             baseline_shift = text_bottom - child.metrics.descent;
             break;
           }
-          NOTREACHED_IN_MIGRATION();
+          DUMP_WILL_BE_NOTREACHED();
           break;
         case EVerticalAlign::kTop:
         case EVerticalAlign::kBottom:
           has_top_or_bottom = true;
           continue;
         default:
-          NOTREACHED_IN_MIGRATION();
-          continue;
+          NOTREACHED();
       }
       child.metrics.Move(baseline_shift);
       box->metrics.Unite(child.metrics);
@@ -1109,8 +1115,7 @@ InlineLayoutStateStack::ApplyBaselineShift(InlineBoxState* box,
           case EVerticalAlign::kTextBottom:
             continue;
           default:
-            NOTREACHED_IN_MIGRATION();
-            continue;
+            NOTREACHED();
         }
         child.metrics.Move(baseline_shift);
         box->metrics.Unite(child.metrics);
@@ -1126,8 +1131,8 @@ InlineLayoutStateStack::ApplyBaselineShift(InlineBoxState* box,
   if (!is_svg_text_ && vertical_align == EVerticalAlign::kBaseline)
     return kPositionNotPending;
 
-  if (UNLIKELY(box->item &&
-               IsA<LayoutTextCombine>(box->item->GetLayoutObject()))) {
+  if (box->item && IsA<LayoutTextCombine>(box->item->GetLayoutObject()))
+      [[unlikely]] {
     // Text content in text-combine-upright:all is layout in horizontally, so
     // we don't need to move text combine box.
     // See "text-combine-shrink-to-fit.html".
@@ -1187,10 +1192,14 @@ InlineLayoutStateStack::ApplyBaselineShift(InlineBoxState* box,
   // Because |box| is an item in |stack_|, |box[-1]| is its parent box.
   // If this box doesn't have a parent; i.e., this box is a line box,
   // 'vertical-align' has no effect.
-  DCHECK(box >= stack_.begin() && box < stack_.end());
-  if (box == stack_.begin())
+  // TODO(crbug.com/351564777): Resolve a buffer safety issue.
+  DCHECK(box >= stack_.data() &&
+         box < UNSAFE_TODO(stack_.data() + stack_.size()));
+  if (box == stack_.data()) {
     return kPositionNotPending;
-  InlineBoxState& parent_box = box[-1];
+  }
+  // TODO(crbug.com/351564777): Resolve a buffer safety issue.
+  InlineBoxState& parent_box = UNSAFE_TODO(box[-1]);
 
   switch (vertical_align) {
     case EVerticalAlign::kSub:
@@ -1212,7 +1221,7 @@ InlineLayoutStateStack::ApplyBaselineShift(InlineBoxState* box,
     case EVerticalAlign::kMiddle:
       baseline_shift = (box->metrics.ascent - box->metrics.descent) / 2;
       if (const SimpleFontData* parent_font_data =
-              parent_box.style->GetFont().PrimaryFont()) {
+              parent_box.style->GetFont()->PrimaryFont()) {
         baseline_shift -= LayoutUnit::FromFloatRound(
             parent_font_data->GetFontMetrics().XHeight() / 2);
       }
@@ -1225,7 +1234,8 @@ InlineLayoutStateStack::ApplyBaselineShift(InlineBoxState* box,
       // 'top' and 'bottom' require the layout size of the nearest ancestor that
       // has 'top' or 'bottom', or the line box if none.
       InlineBoxState* ancestor = &parent_box;
-      for (; ancestor != stack_.begin(); --ancestor) {
+      // TODO(crbug.com/351564777): Resolve a buffer safety issue.
+      for (; ancestor != stack_.data(); UNSAFE_TODO(--ancestor)) {
         if (ancestor->style->VerticalAlign() == EVerticalAlign::kTop ||
             ancestor->style->VerticalAlign() == EVerticalAlign::kBottom)
           break;
@@ -1256,12 +1266,15 @@ LayoutUnit InlineLayoutStateStack::ComputeAlignmentBaselineShift(
              metrics.FixedAscent(box->alignment_type);
   }
 
-  if (box == stack_.begin())
+  if (box == stack_.data()) {
     return result;
-  if (const auto* font_data = box[-1].font->PrimaryFont()) {
+  }
+  // TODO(crbug.com/351564777): Resolve a buffer safety issue.
+  if (const auto* font_data = UNSAFE_TODO(box[-1]).font->PrimaryFont()) {
     const FontMetrics& parent_metrics = font_data->GetFontMetrics();
-    result -= parent_metrics.FixedAscent(box[-1].style->GetFontBaseline()) -
-              parent_metrics.FixedAscent(box[-1].alignment_type);
+    result -= parent_metrics.FixedAscent(
+                  UNSAFE_TODO(box[-1]).style->GetFontBaseline()) -
+              parent_metrics.FixedAscent(UNSAFE_TODO(box[-1]).alignment_type);
   }
 
   return result;
@@ -1365,8 +1378,7 @@ void InlineBoxState::CheckSame(const InlineBoxState& other) const {
   DCHECK_EQ(has_start_edge, other.has_start_edge);
   // |has_end_edge| may not match because it will be computed in |OnCloseTag|.
 
-  DCHECK_EQ(margin_inline_start, other.margin_inline_start);
-  DCHECK_EQ(margin_inline_end, other.margin_inline_end);
+  DCHECK_EQ(margins, other.margins);
   DCHECK_EQ(borders, other.borders);
   DCHECK_EQ(padding, other.padding);
 

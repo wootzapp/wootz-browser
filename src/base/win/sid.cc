@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <algorithm>
 #include <iterator>
 #include <map>
 #include <utility>
@@ -24,12 +25,10 @@
 #include "base/check.h"
 #include "base/no_destructor.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util_win.h"
 #include "base/win/scoped_handle.h"
 #include "base/win/scoped_localalloc.h"
 #include "base/win/windows_version.h"
-#include "third_party/boringssl/src/include/openssl/crypto.h"
 #include "third_party/boringssl/src/include/openssl/sha.h"
 
 namespace base::win {
@@ -131,7 +130,6 @@ Sid Sid::FromNamedCapability(const std::wstring& capability_name) {
   if (known_cap != known_capabilities->end()) {
     return FromKnownCapability(known_cap->second);
   }
-  CRYPTO_library_init();
   static_assert((SHA256_DIGEST_LENGTH / sizeof(DWORD)) ==
                 SECURITY_APP_PACKAGE_RID_COUNT);
   DWORD rids[(SHA256_DIGEST_LENGTH / sizeof(DWORD)) + 2];
@@ -225,8 +223,9 @@ std::optional<Sid> Sid::FromSddlString(const std::wstring& sddl_sid) {
 
 std::optional<Sid> Sid::FromPSID(PSID sid) {
   DCHECK(sid);
-  if (!sid || !::IsValidSid(sid))
+  if (!sid || !::IsValidSid(sid)) {
     return std::nullopt;
+  }
   return Sid(sid, ::GetLengthSid(sid));
 }
 
@@ -248,8 +247,9 @@ std::optional<std::vector<Sid>> Sid::FromSddlStringVector(
   converted_sids.reserve(sddl_sids.size());
   for (const std::wstring& sddl_sid : sddl_sids) {
     std::optional<Sid> sid = FromSddlString(sddl_sid);
-    if (!sid)
+    if (!sid) {
       return std::nullopt;
+    }
     converted_sids.push_back(std::move(*sid));
   }
   return converted_sids;
@@ -258,23 +258,23 @@ std::optional<std::vector<Sid>> Sid::FromSddlStringVector(
 std::vector<Sid> Sid::FromNamedCapabilityVector(
     const std::vector<std::wstring>& capability_names) {
   std::vector<Sid> sids;
-  ranges::transform(capability_names, std::back_inserter(sids),
-                    FromNamedCapability);
+  std::ranges::transform(capability_names, std::back_inserter(sids),
+                         FromNamedCapability);
   return sids;
 }
 
 std::vector<Sid> Sid::FromKnownCapabilityVector(
     const std::vector<WellKnownCapability>& capabilities) {
   std::vector<Sid> sids;
-  ranges::transform(capabilities, std::back_inserter(sids),
-                    FromKnownCapability);
+  std::ranges::transform(capabilities, std::back_inserter(sids),
+                         FromKnownCapability);
   return sids;
 }
 
 std::vector<Sid> Sid::FromKnownSidVector(
     const std::vector<WellKnownSid>& known_sids) {
   std::vector<Sid> sids;
-  ranges::transform(known_sids, std::back_inserter(sids), FromKnownSid);
+  std::ranges::transform(known_sids, std::back_inserter(sids), FromKnownSid);
   return sids;
 }
 
@@ -292,8 +292,9 @@ PSID Sid::GetPSID() const {
 
 std::optional<std::wstring> Sid::ToSddlString() const {
   LPWSTR sid = nullptr;
-  if (!::ConvertSidToStringSid(GetPSID(), &sid))
+  if (!::ConvertSidToStringSid(GetPSID(), &sid)) {
     return std::nullopt;
+  }
   auto sid_ptr = TakeLocalAlloc(sid);
   return sid_ptr.get();
 }

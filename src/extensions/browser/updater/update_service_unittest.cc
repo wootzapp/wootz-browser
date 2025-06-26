@@ -50,8 +50,6 @@
 
 namespace {
 
-using UpdateClientEvents = update_client::UpdateClient::Observer::Events;
-
 class FakeUpdateClient : public update_client::UpdateClient {
  public:
   FakeUpdateClient();
@@ -110,7 +108,7 @@ class FakeUpdateClient : public update_client::UpdateClient {
                       CrxStateChangeCallback crx_state_change_callback,
                       bool is_foreground,
                       update_client::Callback callback) override {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 
   bool GetCrxUpdateState(
@@ -331,11 +329,6 @@ class FakeExtensionSystem : public MockExtensionSystem {
     }
   }
 
-  bool FinishDelayedInstallationIfReady(const ExtensionId& extension_id,
-                                        bool install_immediately) override {
-    return false;
-  }
-
   AllowlistState GetExtensionAllowlistState(const ExtensionId& extension_id) {
     if (!base::Contains(extension_allowlist_states_, extension_id))
       return ALLOWLIST_UNDEFINED;
@@ -448,27 +441,6 @@ class UpdateServiceTest : public ExtensionsTest {
     update_client::CrxInstaller* installer = data->at(0)->installer.get();
     ASSERT_NE(installer, nullptr);
 
-    // The GetInstalledFile method is used when processing differential updates
-    // to get a path to an existing file in an extension. We want to test a
-    // number of scenarios to be user we handle invalid relative paths, don't
-    // accidentally return paths outside the extension's dir, etc.
-    base::FilePath tmp;
-    EXPECT_TRUE(installer->GetInstalledFile(foo_js.MaybeAsASCII(), &tmp));
-    EXPECT_EQ(temp_dir.GetPath().Append(foo_js), tmp) << tmp.value();
-
-    EXPECT_TRUE(installer->GetInstalledFile(bar_html.MaybeAsASCII(), &tmp));
-    EXPECT_EQ(temp_dir.GetPath().Append(bar_html), tmp) << tmp.value();
-
-    EXPECT_FALSE(installer->GetInstalledFile("does_not_exist", &tmp));
-    EXPECT_FALSE(installer->GetInstalledFile("does/not/exist", &tmp));
-    EXPECT_FALSE(installer->GetInstalledFile("/does/not/exist", &tmp));
-    EXPECT_FALSE(installer->GetInstalledFile("C:\\tmp", &tmp));
-
-    base::FilePath system_temp_dir;
-    ASSERT_TRUE(base::GetTempDir(&system_temp_dir));
-    EXPECT_FALSE(
-        installer->GetInstalledFile(system_temp_dir.MaybeAsASCII(), &tmp));
-
     // Test the install callback.
     base::ScopedTempDir new_version_dir;
     ASSERT_TRUE(new_version_dir.CreateUniqueTempDir());
@@ -479,8 +451,10 @@ class UpdateServiceTest : public ExtensionsTest {
         base::BindOnce(
             [](bool* done, const update_client::CrxInstaller::Result& result) {
               *done = true;
-              EXPECT_EQ(0, result.error);
-              EXPECT_EQ(0, result.extended_error);
+              EXPECT_EQ(result.result.category,
+                        update_client::ErrorCategory::kNone);
+              EXPECT_EQ(result.result.code, 0);
+              EXPECT_EQ(result.result.extra, 0);
             },
             &done));
 

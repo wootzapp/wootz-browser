@@ -19,15 +19,14 @@ import static org.chromium.chrome.browser.keyboard_accessory.button_group_compon
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.task.test.CustomShadowAsyncTask;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData;
 import org.chromium.ui.modelutil.ListObservable;
 import org.chromium.ui.modelutil.PropertyKey;
@@ -40,7 +39,7 @@ import org.chromium.ui.modelutil.PropertyObservable.PropertyObserver;
         manifest = Config.NONE,
         shadows = {CustomShadowAsyncTask.class})
 public class KeyboardAccessoryButtonGroupControllerTest {
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
     @Mock private PropertyObserver<PropertyKey> mMockPropertyObserver;
     @Mock private ListObservable.ListObserver<Void> mMockTabListObserver;
@@ -57,8 +56,6 @@ public class KeyboardAccessoryButtonGroupControllerTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-
         mCoordinator = new KeyboardAccessoryButtonGroupCoordinator();
         mMediator = mCoordinator.getMediatorForTesting();
         mModel = mCoordinator.getModelForTesting();

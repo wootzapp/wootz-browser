@@ -13,48 +13,41 @@ import androidx.test.filters.SmallTest;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
-import org.chromium.chrome.browser.profiles.OTRProfileID;
+import org.chromium.chrome.browser.profiles.OtrProfileId;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
+import org.chromium.components.browser_ui.notifications.NotificationProxyUtils;
 import org.chromium.components.offline_items_collection.ContentId;
 import org.chromium.components.offline_items_collection.LegacyHelpers;
 import org.chromium.components.offline_items_collection.OfflineItem.Progress;
 import org.chromium.components.offline_items_collection.OfflineItemProgressUnit;
 import org.chromium.components.offline_items_collection.PendingState;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.url.GURL;
 
 import java.util.UUID;
 
 /** Tests of {@link DownloadNotificationService}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@DisableFeatures({ChromeFeatureList.DOWNLOADS_MIGRATE_TO_JOBS_API})
 @Batch(Batch.UNIT_TESTS)
 public class DownloadNotificationServiceTest {
     private static final ContentId ID1 =
             LegacyHelpers.buildLegacyContentId(false, UUID.randomUUID().toString());
 
-    @Rule public TestRule mFeaturesProcessor = new Features.JUnitProcessor();
-
     private MockDownloadNotificationService mDownloadNotificationService;
     private DownloadForegroundServiceManagerTest.MockDownloadForegroundServiceManager
             mDownloadForegroundServiceManager;
-    private OTRProfileID mPrimaryOTRProfileID = OTRProfileID.getPrimaryOTRProfileID();
+    private OtrProfileId mPrimaryOtrProfileId = OtrProfileId.getPrimaryOtrProfileId();
 
     @Before
     public void setUp() {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mDownloadNotificationService = new MockDownloadNotificationService();
                     mDownloadForegroundServiceManager =
@@ -63,12 +56,14 @@ public class DownloadNotificationServiceTest {
                     mDownloadNotificationService.setDownloadForegroundServiceManager(
                             mDownloadForegroundServiceManager);
                 });
+        NotificationProxyUtils.setNotificationEnabledForTest(true);
     }
 
     @After
     public void tearDown() {
         ChromeSharedPreferences.getInstance()
                 .removeKey(ChromePreferenceKeys.DOWNLOAD_PENDING_DOWNLOAD_NOTIFICATIONS);
+        NotificationProxyUtils.setNotificationEnabledForTest(null);
     }
 
     @Test
@@ -84,7 +79,7 @@ public class DownloadNotificationServiceTest {
                 100L,
                 1L,
                 1L,
-                mPrimaryOTRProfileID,
+                mPrimaryOtrProfileId,
                 true,
                 false,
                 null,
@@ -104,7 +99,7 @@ public class DownloadNotificationServiceTest {
                 "test",
                 /* isResumable= */ true,
                 /* isAutoResumable= */ false,
-                mPrimaryOTRProfileID,
+                mPrimaryOtrProfileId,
                 false,
                 null,
                 null,
@@ -126,7 +121,7 @@ public class DownloadNotificationServiceTest {
                 100L,
                 1L,
                 1L,
-                mPrimaryOTRProfileID,
+                mPrimaryOtrProfileId,
                 true,
                 false,
                 null,
@@ -145,7 +140,7 @@ public class DownloadNotificationServiceTest {
                 "",
                 "test",
                 1L,
-                mPrimaryOTRProfileID,
+                mPrimaryOtrProfileId,
                 true,
                 true,
                 null,
@@ -172,7 +167,7 @@ public class DownloadNotificationServiceTest {
                 100L,
                 1L,
                 1L,
-                mPrimaryOTRProfileID,
+                mPrimaryOtrProfileId,
                 true,
                 false,
                 null,
@@ -192,7 +187,7 @@ public class DownloadNotificationServiceTest {
                 "test",
                 /* isResumable= */ true,
                 /* isAutoResumable= */ true,
-                mPrimaryOTRProfileID,
+                mPrimaryOtrProfileId,
                 false,
                 null,
                 null,
@@ -227,7 +222,7 @@ public class DownloadNotificationServiceTest {
                 100L,
                 1L,
                 1L,
-                mPrimaryOTRProfileID,
+                mPrimaryOtrProfileId,
                 true,
                 false,
                 null,
@@ -247,7 +242,7 @@ public class DownloadNotificationServiceTest {
                 "test",
                 /* isResumable= */ false,
                 /* isAutoResumable= */ true,
-                mPrimaryOTRProfileID,
+                mPrimaryOtrProfileId,
                 false,
                 null,
                 null,

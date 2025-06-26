@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chromecast/media/audio/cast_audio_renderer.h"
 
 #include <stdint.h>
@@ -22,7 +27,7 @@
 #include "media/base/renderer_client.h"
 #include "media/filters/decrypting_demuxer_stream.h"
 #include "net/base/io_buffer.h"
-#include "third_party/blink/public/common/browser_interface_broker_proxy.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 
 #define RUN_ON_MAIN_THREAD(method, ...)                     \
   main_task_runner_->PostTask(                              \
@@ -208,8 +213,8 @@ void CastAudioRenderer::SetPreservesPitch(bool preverves_pitch) {
   NOTIMPLEMENTED();
 }
 
-void CastAudioRenderer::SetWasPlayedWithUserActivation(
-    bool was_played_with_user_activation) {
+void CastAudioRenderer::SetWasPlayedWithUserActivationAndHighMediaEngagement(
+    bool was_played_with_user_activation_and_high_media_engagement) {
   NOTIMPLEMENTED();
 }
 
@@ -252,7 +257,7 @@ void CastAudioRenderer::SetPlaybackRate(double playback_rate) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   DCHECK(output_connection_);
 
-  playback_rate = base::ranges::clamp(playback_rate, 0.0, 2.0);
+  playback_rate = std::ranges::clamp(playback_rate, 0.0, 2.0);
   {
     base::AutoLock lock(timeline_lock_);
     if (playback_rate == 0.0) {

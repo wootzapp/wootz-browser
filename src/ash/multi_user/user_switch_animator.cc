@@ -4,6 +4,7 @@
 
 #include "ash/multi_user/user_switch_animator.h"
 
+#include <algorithm>
 #include <memory>
 
 #include "ash/multi_user/multi_user_window_manager_impl.h"
@@ -17,8 +18,8 @@
 #include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "ui/aura/client/aura_constants.h"
+#include "ui/base/mojom/window_show_state.mojom.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_animation_observer.h"
 #include "ui/compositor/layer_tree_owner.h"
@@ -78,7 +79,7 @@ class MaximizedWindowAnimationWatcher : public ui::ImplicitAnimationObserver {
 void PutMruWindowLast(
     std::vector<raw_ptr<aura::Window, VectorExperimental>>* window_list) {
   DCHECK(window_list);
-  auto it = base::ranges::find_if(*window_list, &wm::IsActiveWindow);
+  auto it = std::ranges::find_if(*window_list, &wm::IsActiveWindow);
   if (it == window_list->end())
     return;
   // Move the active window to the end of the list.
@@ -123,8 +124,9 @@ bool UserSwitchAnimator::CoversScreen(aura::Window* window) {
   // Full screen covers the screen naturally. Since a normal window can have the
   // same size as the work area, we only compare the bounds against the work
   // area.
-  if (wm::WindowStateIs(window, ui::SHOW_STATE_FULLSCREEN))
+  if (wm::WindowStateIs(window, ui::mojom::WindowShowState::kFullscreen)) {
     return true;
+  }
   gfx::Rect bounds = window->GetBoundsInScreen();
   gfx::Rect work_area =
       display::Screen::GetScreen()->GetDisplayNearestWindow(window).work_area();
@@ -152,8 +154,7 @@ void UserSwitchAnimator::AdvanceUserTransitionAnimation() {
       animation_step_ = ANIMATION_STEP_ENDED;
       break;
     case ANIMATION_STEP_ENDED:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 
@@ -239,7 +240,8 @@ void UserSwitchAnimator::TransitionWindows(AnimationStep animation_step) {
               owner_->window_to_entry().find(window);
           DCHECK(itr != owner_->window_to_entry().end());
           if (show_for_account_id != itr->second->owner() &&
-              wm::WindowStateIs(window, ui::SHOW_STATE_MINIMIZED)) {
+              wm::WindowStateIs(window,
+                                ui::mojom::WindowShowState::kMinimized)) {
             owner_->ShowWindowForUserIntern(window, itr->second->owner());
             wm::Unminimize(window);
             continue;
@@ -310,7 +312,8 @@ void UserSwitchAnimator::TransitionWindows(AnimationStep animation_step) {
       if (!mru_list.empty()) {
         aura::Window* window = mru_list[0];
         if (owner_->IsWindowOnDesktopOfUser(window, new_account_id_) &&
-            !wm::WindowStateIs(window, ui::SHOW_STATE_MINIMIZED)) {
+            !wm::WindowStateIs(window,
+                               ui::mojom::WindowShowState::kMinimized)) {
           // Several unit tests come here without an activation client.
           wm::ActivationClient* client =
               wm::GetActivationClient(window->GetRootWindow());
@@ -323,8 +326,7 @@ void UserSwitchAnimator::TransitionWindows(AnimationStep animation_step) {
       break;
     }
     case ANIMATION_STEP_ENDED:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
 }
 

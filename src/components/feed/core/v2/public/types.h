@@ -16,6 +16,7 @@
 #include "base/version.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "components/version_info/channel.h"
+#include "google_apis/gaia/gaia_id.h"
 #include "url/gurl.h"
 
 namespace feed {
@@ -25,13 +26,13 @@ namespace feed {
 // Sync is disabled, AccountInfo should be empty.
 struct AccountInfo {
   AccountInfo();
-  AccountInfo(const std::string& gaia, const std::string& email);
+  AccountInfo(const GaiaId& gaia, const std::string& email);
   explicit AccountInfo(CoreAccountInfo account_info);
   bool operator==(const AccountInfo& rhs) const;
   bool operator!=(const AccountInfo& rhs) const { return !(*this == rhs); }
   bool IsEmpty() const;
 
-  std::string gaia;
+  GaiaId gaia;
   std::string email;
 };
 std::ostream& operator<<(std::ostream& os, const AccountInfo& o);
@@ -58,7 +59,6 @@ enum class AccountTokenFetchStatus {
 struct ChromeInfo {
   version_info::Channel channel{};
   base::Version version;
-  bool start_surface = false;
   bool is_new_tab_search_engine_url_android_enabled = false;
 };
 // Device display metrics.
@@ -75,9 +75,11 @@ using ImageFetchId = base::IdTypeU32<class ImageFetchIdClass>;
 
 struct NetworkResponseInfo {
   NetworkResponseInfo();
-  ~NetworkResponseInfo();
   NetworkResponseInfo(const NetworkResponseInfo&);
+  NetworkResponseInfo(NetworkResponseInfo&&);
   NetworkResponseInfo& operator=(const NetworkResponseInfo&);
+  NetworkResponseInfo& operator=(NetworkResponseInfo&&);
+  ~NetworkResponseInfo();
 
   // A union of net::Error (if the request failed) and the http
   // status code(if the request succeeded in reaching the server).
@@ -271,10 +273,8 @@ enum class StreamKind : int {
   kFollowing = 2,
   // Single Web Feed (Cormorant) stream.
   kSingleWebFeed = 3,
-  // Kid-friendly content stream.
-  kSupervisedUser = 4,
 
-  kMaxValue = kSupervisedUser,
+  kMaxValue = kSingleWebFeed,
 };
 
 // Singe Web entry points

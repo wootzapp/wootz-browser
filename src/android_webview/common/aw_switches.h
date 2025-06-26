@@ -29,6 +29,9 @@ extern const char kWebViewForceDisable3pcs[];
 extern const char kWebViewForceCrashJava[];
 extern const char kWebViewForceCrashNative[];
 extern const char kWebViewUseSeparateResourceContext[];
+extern const char kDebugBsa[];
+extern const char kWebViewInterceptedCookieHeader[];
+extern const char kWebViewUseStartupTasksLogic[];
 
 }  // namespace switches
 

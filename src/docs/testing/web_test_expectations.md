@@ -209,16 +209,16 @@ files. You can follow the steps below for easier review.
 * [TestExpectations](../../third_party/blink/web_tests/TestExpectations): The
   main test failure suppression file. In theory, this should be used for
   temporarily marking tests as flaky.
-* [ChromeTestExpectations](/third_party/blink/web_tests/ChromeTestExpectations):
-  Tests that fail under Chrome but pass under content shell.
-  Tests absent from this file inherit expectations from `TestExpectations` and
-  other files.
   See [the `run_wpt_tests.py` doc](run_web_platform_tests.md) for information
   about WPT coverage for Chrome.
 * [ASANExpectations](../../third_party/blink/web_tests/ASANExpectations):
   Tests that fail under ASAN.
+* [CfTTestExpectations](../../third_party/blink/web_tests/CfTTestExpectations):
+  Tests that fail under Chrome for Testing
 * [LeakExpectations](../../third_party/blink/web_tests/LeakExpectations):
   Tests that have memory leaks under the leak checker.
+* [MobileTestExpectations](../../third_party/blink/web_tests/MobileTestExpectations)
+  Tests that fails under Chrome Android and Chrome WebView platform.
 * [MSANExpectations](../../third_party/blink/web_tests/MSANExpectations):
   Tests that fail under MSAN.
 * [NeverFixTests](../../third_party/blink/web_tests/NeverFixTests): Tests
@@ -282,11 +282,10 @@ The syntax of a line is roughly:
   `Bug(username)`.
 * If no modifiers are specified, the test applies to all of the configurations
   applicable to that file.
-* If specified, modifiers can be one of `Fuchsia`, `Mac`, `Mac10.13`,
-  `Mac10.14`, `Mac10.15`, `Mac11`, `Mac11-arm64`, `Mac12`, `Mac12-arm64`,
-  `Mac13`, `Mac13-arm64`, `Mac14`, `Mac14-arm64`, `Linux`, `Chrome`, `Win`,
-  `Win10.20h2`, `Win11`, `iOS17-Simulator`, and, optionally, `Release`, or
-  `Debug`.
+* If specified, modifiers can be one of `Fuchsia`, `Mac`, `Mac11`,
+  `Mac11-arm64`, `Mac12`, `Mac12-arm64`, `Mac13`, `Mac13-arm64`, `Mac14`,
+  `Mac14-arm64`, `Mac15`, `Mac15-arm64`, `Linux`, `Chrome`, `Win`, `Win10.20h2`,
+  `Win11`, `iOS17-Simulator`, and, optionally, `Release`, or `Debug`.
   Check the `# tags: ...` comments [at the top of each
   file](/third_party/blink/web_tests/TestExpectations#1) to see which modifiers
   that file supports.

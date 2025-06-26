@@ -5,8 +5,11 @@
 #ifndef COMPONENTS_VIZ_COMMON_QUADS_SHARED_QUAD_STATE_H_
 #define COMPONENTS_VIZ_COMMON_QUADS_SHARED_QUAD_STATE_H_
 
+#include <memory>
 #include <optional>
+#include <utility>
 
+#include "components/viz/common/quads/offset_tag.h"
 #include "components/viz/common/viz_common_export.h"
 #include "third_party/skia/include/core/SkBlendMode.h"
 #include "ui/gfx/geometry/mask_filter_info.h"
@@ -72,13 +75,13 @@ class VIZ_COMMON_EXPORT SharedQuadState {
   float opacity = 1.0f;
   SkBlendMode blend_mode = SkBlendMode::kSrcOver;
   int sorting_context_id = 0;
-  // Optionally set by the client with a stable ID for the layer that produced
-  // the DrawQuad(s). This is used to help identify that DrawQuad(s) in one
-  // frame came from the same layer as DrawQuads() from a previous frame, even
-  // if they changed position or other attributes.
+  // Optionally set by the client as a performance hint for viz with a stable ID
+  // for the layer that produced the DrawQuad(s). This is used to help identify
+  // that DrawQuad(s) in one frame came from the same layer as DrawQuads() from
+  // a previous frame, even if they changed position or other attributes.
   uint32_t layer_id = 0;
   // Used by SurfaceAggregator to namespace layer_ids from different clients.
-  uint32_t layer_namespace_id = 0;
+  std::pair<uint32_t, uint32_t> layer_namespace_id;
   // Used by SurfaceAggregator to decide whether to merge quads for a surface
   // into their target render pass. It is a performance optimization by avoiding
   // render passes as much as possible.
@@ -90,6 +93,10 @@ class VIZ_COMMON_EXPORT SharedQuadState {
   // TODO(crbug.com/40072194): Consider moving this member out of this struct
   // and into the quads themselves.
   std::optional<size_t> overlay_damage_index;
+
+  // If not zero then the quads can be offset by some provided value. Offset is
+  // in target content space.
+  OffsetTag offset_tag;
 };
 
 }  // namespace viz

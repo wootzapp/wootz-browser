@@ -4,6 +4,7 @@
 
 #include "components/reporting/encryption/encryption.h"
 
+#include <array>
 #include <memory>
 #include <vector>
 
@@ -192,8 +193,14 @@ TEST_F(EncryptionTest, NoPublicKey) {
 }
 
 TEST_F(EncryptionTest, EncryptAndDecryptMultiple) {
-  constexpr const char* kTestStrings[] = {"Rec1",    "Rec22",    "Rec333",
-                                          "Rec4444", "Rec55555", "Rec666666"};
+  constexpr const auto kTestStrings = std::to_array<const char*>({
+      "Rec1",
+      "Rec22",
+      "Rec333",
+      "Rec4444",
+      "Rec55555",
+      "Rec666666",
+  });
   // Encrypted records.
   std::vector<EncryptedRecord> encrypted_records;
 

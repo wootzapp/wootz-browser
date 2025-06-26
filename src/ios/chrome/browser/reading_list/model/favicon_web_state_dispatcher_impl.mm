@@ -8,7 +8,7 @@
 #import "components/favicon/ios/web_favicon_driver.h"
 #import "components/keyed_service/core/service_access_type.h"
 #import "ios/chrome/browser/favicon/model/favicon_service_factory.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/web/public/web_state.h"
 
 namespace {
@@ -38,13 +38,12 @@ FaviconWebStateDispatcherImpl::RequestWebState() {
   std::unique_ptr<web::WebState> web_state =
       web::WebState::Create(web_state_create_params);
 
-  ChromeBrowserState* original_browser_state =
-      ChromeBrowserState::FromBrowserState(browser_state_);
+  ProfileIOS* original_profile = ProfileIOS::FromBrowserState(browser_state_);
 
   favicon::WebFaviconDriver::CreateForWebState(
       web_state.get(),
-      ios::FaviconServiceFactory::GetForBrowserState(
-          original_browser_state, ServiceAccessType::EXPLICIT_ACCESS));
+      ios::FaviconServiceFactory::GetForProfile(
+          original_profile, ServiceAccessType::EXPLICIT_ACCESS));
 
   return web_state;
 }

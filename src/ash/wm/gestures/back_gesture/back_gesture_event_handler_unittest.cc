@@ -26,6 +26,7 @@
 #include "ash/wm/overview/overview_controller.h"
 #include "ash/wm/splitview/split_view_divider.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller_test_api.h"
+#include "ash/wm/window_pin_util.h"
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
 #include "ash/wm/wm_event.h"
@@ -71,7 +72,8 @@ class BackGestureEventHandlerTest : public AshTestBase {
       delegate = std::make_unique<TestShellDelegate>();
       delegate->SetCanGoBack(false);
     }
-    AshTestBase::SetUp(std::move(delegate));
+    set_shell_delegate(std::move(delegate));
+    AshTestBase::SetUp();
 
     RecreateTopWindow(chromeos::AppType::BROWSER);
     TabletModeControllerTestApi().EnterTabletMode();
@@ -302,14 +304,14 @@ TEST_F(BackGestureEventHandlerTest, CancelOnScreenRotation) {
 
   gfx::Point start(0, 100);
   gfx::Point update_and_end(200, 100);
-  SendTouchEvent(start, ui::ET_TOUCH_PRESSED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_MOVED);
+  SendTouchEvent(start, ui::EventType::kTouchPressed);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchMoved);
   // Rotate the screen by 270 degree during drag.
   test_api.SetDisplayRotation(display::Display::ROTATE_270,
                               display::Display::RotationSource::ACTIVE);
   EXPECT_EQ(test_api.GetCurrentOrientation(),
             chromeos::OrientationType::kPortraitPrimary);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_RELEASED);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchReleased);
   // Left edge swipe back should be cancelled due to screen rotation, so the
   // fling event with velocity larger than |kFlingVelocityForGoingBack| above
   // will not trigger actual going back.
@@ -325,8 +327,8 @@ TEST_F(BackGestureEventHandlerTest, DestroyWindowDuringDrag) {
 
   gfx::Point start(0, 100);
   gfx::Point update_and_end(200, 100);
-  SendTouchEvent(start, ui::ET_TOUCH_PRESSED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_MOVED);
+  SendTouchEvent(start, ui::EventType::kTouchPressed);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchMoved);
   ResetTopWindow();
   EXPECT_EQ(0, target_back_press.accelerator_count());
   EXPECT_EQ(0, target_back_release.accelerator_count());
@@ -423,9 +425,9 @@ TEST_F(BackGestureEventHandlerTest, BackGestureInSplitViewMode) {
   ASSERT_EQ(right_window.get(), window_util::GetActiveWindow());
   gfx::Point start(0, 10);
   gfx::Point update_and_end(kSwipingDistanceForGoingBack + 10, 10);
-  SendTouchEvent(start, ui::ET_TOUCH_PRESSED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_MOVED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_RELEASED);
+  SendTouchEvent(start, ui::EventType::kTouchPressed);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchMoved);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchReleased);
   // Swiping from the left of the display in LandscapePrimary further than
   // |kSwipingDistanceForGoingBack| should activate the physically left snapped
   // window, which is |left_window| and it should go back to the previous page.
@@ -439,9 +441,9 @@ TEST_F(BackGestureEventHandlerTest, BackGestureInSplitViewMode) {
   start = gfx::Point(divider_bounds.x(), 10);
   update_and_end =
       gfx::Point(divider_bounds.x() + kSwipingDistanceForGoingBack + 10, 10);
-  SendTouchEvent(start, ui::ET_TOUCH_PRESSED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_MOVED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_RELEASED);
+  SendTouchEvent(start, ui::EventType::kTouchPressed);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchMoved);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchReleased);
   // Swiping from the split view divider in LandscapePrimary further than
   // |kSwipingDistanceForGoingBack| should activate the physically right snapped
   // window, which is |right_window| and it should go back to the previous page.
@@ -455,9 +457,9 @@ TEST_F(BackGestureEventHandlerTest, BackGestureInSplitViewMode) {
   EXPECT_EQ(test_api.GetCurrentOrientation(),
             chromeos::OrientationType::kLandscapeSecondary);
 
-  SendTouchEvent(start, ui::ET_TOUCH_PRESSED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_MOVED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_RELEASED);
+  SendTouchEvent(start, ui::EventType::kTouchPressed);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchMoved);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchReleased);
   // Swiping from the split view divider in LandscapeSecondary further than
   // |kSwipingDistanceForGoingBack| should activate the physically right snapped
   // window, which is |left_window| and it should go back to the previous page.
@@ -467,9 +469,9 @@ TEST_F(BackGestureEventHandlerTest, BackGestureInSplitViewMode) {
 
   start = gfx::Point(0, 10);
   update_and_end = gfx::Point(kSwipingDistanceForGoingBack + 10, 10);
-  SendTouchEvent(start, ui::ET_TOUCH_PRESSED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_MOVED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_RELEASED);
+  SendTouchEvent(start, ui::EventType::kTouchPressed);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchMoved);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchReleased);
   // Swiping from the left of the display in LandscapeSecondary further than
   // |kSwipingDistanceForGoingBack| should activate the physically left snapped
   // window, which is |right_window| and it should go back to the previous page.
@@ -483,9 +485,9 @@ TEST_F(BackGestureEventHandlerTest, BackGestureInSplitViewMode) {
   EXPECT_EQ(test_api.GetCurrentOrientation(),
             chromeos::OrientationType::kPortraitPrimary);
 
-  SendTouchEvent(start, ui::ET_TOUCH_PRESSED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_MOVED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_RELEASED);
+  SendTouchEvent(start, ui::EventType::kTouchPressed);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchMoved);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchReleased);
   // Swiping from the left of the top half of the display in PortraitPrimary
   // further than |kSwipingDistanceForGoingBack| should activate the physically
   // top snapped window, which is |right_window|, and it should go back to the
@@ -499,9 +501,9 @@ TEST_F(BackGestureEventHandlerTest, BackGestureInSplitViewMode) {
           false);
   start = gfx::Point(0, divider_bounds.bottom() + 10);
   update_and_end = gfx::Point(kSwipingDistanceForGoingBack + 10, start.y());
-  SendTouchEvent(start, ui::ET_TOUCH_PRESSED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_MOVED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_RELEASED);
+  SendTouchEvent(start, ui::EventType::kTouchPressed);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchMoved);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchReleased);
   // Swiping from the left of the bottom half of the display in PortraitPrimary
   // further than |kSwipingDistanceForGoingBack| should activate the physically
   // bottom snapped window, which is |right_window|, and it should go back to
@@ -516,9 +518,9 @@ TEST_F(BackGestureEventHandlerTest, BackGestureInSplitViewMode) {
   EXPECT_EQ(test_api.GetCurrentOrientation(),
             chromeos::OrientationType::kPortraitSecondary);
 
-  SendTouchEvent(start, ui::ET_TOUCH_PRESSED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_MOVED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_RELEASED);
+  SendTouchEvent(start, ui::EventType::kTouchPressed);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchMoved);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchReleased);
   // Swiping from the left of the bottom half of the display in
   // PortraitSecondary further than |kSwipingDistanceForGoingBack| should
   // activate the physically bottom snapped window, which is |left_window|, and
@@ -529,9 +531,9 @@ TEST_F(BackGestureEventHandlerTest, BackGestureInSplitViewMode) {
 
   start = gfx::Point(0, 10);
   update_and_end = gfx::Point(kSwipingDistanceForGoingBack + 10, 10);
-  SendTouchEvent(start, ui::ET_TOUCH_PRESSED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_MOVED);
-  SendTouchEvent(update_and_end, ui::ET_TOUCH_RELEASED);
+  SendTouchEvent(start, ui::EventType::kTouchPressed);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchMoved);
+  SendTouchEvent(update_and_end, ui::EventType::kTouchReleased);
   // Swiping from the left of the top half of the display in PortraitSecondary
   // further than |kSwipingDistanceForGoingBack| should activate the physically
   // top snapped window, which is |right_window| and it should go back to the
@@ -903,10 +905,10 @@ TEST_F(BackGestureEventHandlerTest, CancelledEventOnSecondFinger) {
   EXPECT_EQ(1, target_back_press.accelerator_count());
   EXPECT_EQ(1, target_back_release.accelerator_count());
   generator->ReleaseTouchId(1);
-  // Manually dispatch a ui::ET_TOUCH_CANCELLED event to the second finger to
-  // simulate what's happending in real world.
+  // Manually dispatch a ui::EventType::kTouchCancelled event to the second
+  // finger to simulate what's happending in real world.
   ui::TouchEvent event = ui::TouchEvent(
-      ui::ET_TOUCH_CANCELLED, start_point, base::TimeTicks::Now(),
+      ui::EventType::kTouchCancelled, start_point, base::TimeTicks::Now(),
       ui::PointerDetails(ui::EventPointerType::kTouch,
                          /*pointer_id=*/1, /*radius_x=*/5.0f,
                          /*radius_y=*/5.0, /*force=*/1.0f));
@@ -967,6 +969,25 @@ TEST_F(BackGestureEventHandlerTestCantGoBack, NonMinimizeableApp) {
   // Make the top window non minimizeable.
   top_window()->SetProperty(aura::client::kResizeBehaviorKey,
                             aura::client::kResizeBehaviorNone);
+  GenerateBackSequence();
+  EXPECT_TRUE(WindowState::Get(top_window())->IsMinimized());
+}
+
+TEST_F(BackGestureEventHandlerTestCantGoBack, LockedFullscreen) {
+  RecreateTopWindow(chromeos::AppType::SYSTEM_APP);
+  PinWindow(top_window(), /*trusted=*/true);
+  GenerateBackSequence();
+  ASSERT_FALSE(WindowState::Get(top_window())->IsMinimized());
+
+  // Verify that the back gesture will minimize the window once it is unpinned.
+  UnpinWindow(top_window());
+  GenerateBackSequence();
+  EXPECT_TRUE(WindowState::Get(top_window())->IsMinimized());
+}
+
+TEST_F(BackGestureEventHandlerTestCantGoBack, PinnedWindow) {
+  RecreateTopWindow(chromeos::AppType::SYSTEM_APP);
+  PinWindow(top_window(), /*trusted=*/false);
   GenerateBackSequence();
   EXPECT_TRUE(WindowState::Get(top_window())->IsMinimized());
 }

@@ -12,6 +12,19 @@ import("//build/buildflag_header.gni")
 import("//build/config/features.gni")
 import("//build/config/sanitizers/sanitizers.gni")
 
+# This file is depended upon from builds that don't include all
+# of Chromium, so nothing in here should assume the existence of
+# Chromium or Blink. It's OK for subdirectories (e.g. the fuzzers
+# or research subdirectories) to have dependencies on other parts
+# of Chromium, but not this file.
+
+declare_args() {
+  # Build individual_fuzztest_wrapper if use_fuzztest_wrapper is set.
+  # Some projects doesn't have //base and cannot build
+  # individual_fuzztest_wrapper.
+  use_fuzztest_wrapper = true
+}
+
 # Temporary target for legacy reasons. Some third party repos explicitly
 # refer to libfuzzer_main though they should refer to fuzzer_engine_main
 # instead, and so do some infrastructure repos. We should migrate them
@@ -61,6 +74,8 @@ if (fuzzing_engine_supports_custom_main) {
         # Centipede based fuzzers require the centipede runner in order to fuzz.
         "//third_party/fuzztest:centipede",
       ]
+    } else if (use_fuzzilli) {
+      deps = [ "//testing/libfuzzer/fuzzilli:fuzzilli_driver" ]
     }
   }
 }
@@ -125,34 +140,48 @@ if (use_fuzzing_engine) {
   }
 }
 
-if (build_with_chromium && use_blink) {
-  source_set("renderer_fuzzing") {
-    testonly = true
-    sources = [
-      "renderer_fuzzing/renderer_fuzzing.cc",
-      "renderer_fuzzing/renderer_fuzzing.h",
-    ]
-    deps = [
-      "//base",
-      "//third_party/blink/public:blink",
-    ]
-  }
-}
-
 buildflag_header("fuzztest_wrapper_buildflags") {
   header = "fuzztest_wrapper_buildflags.h"
   flags = [ "USE_CENTIPEDE=$use_centipede" ]
 }
 
-# A wrapper that knows how to execute a single fuzztest within a binary
-# containing many fuzztests.
-# Unlike fuzztests themselves, this depends on :is_a_fuzz_target
-# so that the build jobs know to build all these.
-source_set("individual_fuzztest_wrapper") {
-  sources = [ "//testing/libfuzzer/fuzztest_wrapper.cpp" ]
+if (use_fuzztest_wrapper) {
+  # A wrapper that knows how to execute a single fuzztest within a binary
+  # containing many fuzztests.
+  # Unlike fuzztests themselves, this depends on :is_a_fuzz_target
+  # so that the build jobs know to build all these.
+  source_set("individual_fuzztest_wrapper") {
+    sources = [ "//testing/libfuzzer/fuzztest_wrapper.cpp" ]
+    deps = [
+      ":fuzztest_wrapper_buildflags",
+      ":is_a_fuzz_target",
+      "//base",
+    ]
+  }
+}
+
+source_set("fuzztest_init_support") {
+  testonly = true
+  sources = [
+    "fuzztest_init_helper.cc",
+    "fuzztest_init_helper.h",
+  ]
+}
+
+buildflag_header("confirm_fuzztest_init_buildflags") {
+  header = "confirm_fuzztest_init_buildflags.h"
+  flags =
+      [ "REGISTER_FUZZTESTS_IN_TEST_SUITES=$register_fuzztests_in_test_suites" ]
+}
+
+# Contains a static initializer which will arrange for fuzztests to be
+# registered. Usually invoked from testing/test.gni
+source_set("confirm_fuzztest_init") {
+  sources = [ "confirm_fuzztest_init.cc" ]
+  testonly = true
   deps = [
-    ":fuzztest_wrapper_buildflags",
-    ":is_a_fuzz_target",
-    "//base",
+    ":confirm_fuzztest_init_buildflags",
+    ":fuzztest_init_support",
+    "//third_party/fuzztest:init_fuzztest",
   ]
 }

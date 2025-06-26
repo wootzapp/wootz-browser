@@ -11,14 +11,23 @@ if (is_android) {
 _JAVAP_PATH = "//third_party/jdk/current/bin/javap"
 
 declare_args() {
-  # Enables JNI multiplexing to reduce JNI native methods overhead.
-  # When we want to "enable" this, we can use this line instead/
-  # allow_jni_multiplexing = !is_java_debug && is_component_build == false
-  allow_jni_multiplexing = false
-
-  # Use hashed symbol names to reduce JNI symbol overhead.
-  use_hashed_jni_names = !is_java_debug
+  # Enables JNI multiplexing to reduce JNI native methods overhead. Component
+  # build must be false as most components are not visible to the base component
+  # which dispatches out to every component. Disabling for cronet, at least for
+  # now, since it needs to be able to convert GN to Soong build rules, which we
+  # don't want to do right now. use_hashed_jni_names is required until we can
+  # determine method names (and namespaces) of all java->native functions.
+  enable_jni_multiplexing =
+      !is_java_debug && !is_component_build && !is_cronet_build
 }
+
+declare_args() {
+  # Use hashed symbol names to reduce JNI symbol overhead when not multiplexing.
+  use_hashed_jni_names = !enable_jni_multiplexing && !is_java_debug
+}
+
+assert(!use_hashed_jni_names || !enable_jni_multiplexing,
+       "Multiplexing requires that hashed names be disabled.")
 
 # Use a dedicated include dir so that files can #include headers from other
 # toolchains without affecting non-JNI #includes.
@@ -29,6 +38,15 @@ if (target_os == "android") {
   # within default_toolchain.
   jni_headers_dir = "$root_gen_dir/jni_headers"
 }
+
+_cronet_renaming_extra_args = [
+  # keep in sync with //components/cronet/android/BUILD.gn renaming_rules
+  "--package-prefix",
+  "internal",
+
+  "--package-prefix-filter",
+  "org.jni_zero",
+]
 
 _jni_zero_dir = "//third_party/jni_zero"
 
@@ -62,11 +80,13 @@ template("_invoke_jni_zero") {
     inputs += rebase_path([
                             "codegen/called_by_native_header.py",
                             "codegen/convert_type.py",
+                            "codegen/gen_jni_java.py",
                             "codegen/header_common.py",
                             "codegen/natives_header.py",
                             "codegen/placeholder_gen_jni_java.py",
                             "codegen/placeholder_java_type.py",
                             "codegen/proxy_impl_java.py",
+                            "codegen/register_natives.py",
                             "common.py",
                             "java_lang_classes.py",
                             "java_types.py",
@@ -100,12 +120,8 @@ template("_invoke_jni_zero") {
 #   manual_jni_registration: Manually do JNI registration - required for feature
 #     splits which provide their own native library. (optional)
 #   namespace: Registration functions will be wrapped into this. (optional)
-#   require_native_mocks: Enforce that any native calls using
-#     org.jni_zero.NativeMethods must have a mock set
-#     (optional).
-#   enable_native_mocks: Allow native calls using
-#     org.jni_zero.NativeMethods to be mocked in tests
-#     (optional).
+#   priority_java_targets: List of java targets that, if using multiplexing,
+#     will always be placed first in the sequential switch numbers. (optional)
 #
 # Example
 #   generate_jni_registration("chrome_jni_registration") {
@@ -130,6 +146,22 @@ template("generate_jni_registration") {
     # When apk or bundle module targets are uses, do not pull metadata from
     # their native library deps.
     walk_keys = [ "java_walk_keys" ]
+  }
+
+  if (enable_jni_multiplexing && defined(invoker.priority_java_targets)) {
+    # This is intended for WebView, so we can only look at Java sources. This
+    # is becuase WebView's java is a strict subset of it's native, so we don't
+    # need to take the intersection of it's native and java.
+    _priority_java_sources_list =
+        "$target_gen_dir/$target_name.priority_javasources.txt"
+    jni_sources_list("${target_name}__priority_java_sources") {
+      deps = invoker.priority_java_targets
+      output = _priority_java_sources_list
+
+      # When apk or bundle module targets are uses, do not pull metadata from
+      # their native library deps.
+      walk_keys = [ "java_walk_keys" ]
+    }
   }
 
   _invoke_jni_zero(target_name) {
@@ -177,15 +209,6 @@ template("generate_jni_registration") {
       args += [ "--use-proxy-hash" ]
     }
 
-    if (defined(invoker.enable_native_mocks) && invoker.enable_native_mocks) {
-      args += [ "--enable-proxy-mocks" ]
-
-      if (defined(invoker.require_native_mocks) &&
-          invoker.require_native_mocks) {
-        args += [ "--require-mocks" ]
-      }
-    }
-
     if (defined(invoker.remove_uncalled_jni) && invoker.remove_uncalled_jni) {
       args += [ "--remove-uncalled-methods" ]
     }
@@ -194,18 +217,7 @@ template("generate_jni_registration") {
       args += [ "--add-stubs-for-missing-native" ]
     }
 
-    _manual_jni_registration = defined(invoker.manual_jni_registration) &&
-                               invoker.manual_jni_registration
-    _enable_jni_multiplexing = defined(invoker.enable_jni_multiplexing) &&
-                               invoker.enable_jni_multiplexing
-    if (_manual_jni_registration) {
-      args += [ "--manual-jni-registration" ]
-    }
-    if (_enable_jni_multiplexing) {
-      args += [ "--enable-jni-multiplexing" ]
-    }
-
-    if (_manual_jni_registration || _enable_jni_multiplexing) {
+    if (defined(invoker.cpp_codegen_output)) {
       _cpp_codegen_output = invoker.cpp_codegen_output
       outputs += [ _cpp_codegen_output ]
       args += [
@@ -218,6 +230,30 @@ template("generate_jni_registration") {
         # generated C++ file.
         "//third_party/jni_zero:jni_include_dir",
       ]
+      if (defined(invoker.manual_jni_registration) &&
+          invoker.manual_jni_registration) {
+        args += [ "--manual-jni-registration" ]
+      }
+      if (enable_jni_multiplexing) {
+        args += [ "--enable-jni-multiplexing" ]
+
+        if (defined(_priority_java_sources_list)) {
+          args += [
+            "--priority-java-sources-file",
+            rebase_path(_priority_java_sources_list, root_build_dir),
+          ]
+        }
+        if (defined(invoker.never_omit_switch_num) &&
+            invoker.never_omit_switch_num) {
+          args += [ "--never-omit-switch-num" ]
+        }
+      }
+    } else {
+      not_needed(invoker,
+                 [
+                   "never_omit_switch_num",
+                   "priority_java_targets",
+                 ])
     }
 
     if (defined(invoker.namespace)) {
@@ -226,6 +262,11 @@ template("generate_jni_registration") {
 
     if (defined(invoker.module_name)) {
       args += [ "--module-name=${invoker.module_name}" ]
+    }
+
+    # Cronet needs to rename jni_zero classes
+    if (defined(is_cronet_build) && is_cronet_build) {
+      args += _cronet_renaming_extra_args
     }
   }
 }
@@ -254,7 +295,6 @@ template("generate_jni_impl") {
 
       # Depending on the action name to avoid cross-toolchain native deps.
       public_deps = [ ":$_jni_zero_action_target_name($default_toolchain)" ]
-      deps = [ "//third_party/jni_zero" ]
       metadata = {
         shared_libraries_barrier = []
       }
@@ -329,12 +369,20 @@ template("generate_jni_impl") {
           args += [ "--use-proxy-hash" ]
         }
 
-        if (defined(invoker.enable_jni_multiplexing) &&
-            invoker.enable_jni_multiplexing) {
+        if (enable_jni_multiplexing) {
           args += [ "--enable-jni-multiplexing" ]
         }
         if (defined(invoker.namespace)) {
           args += [ "--namespace=${invoker.namespace}" ]
+        }
+        if (defined(invoker.enable_definition_macros) &&
+            invoker.enable_definition_macros) {
+          args += [ "--enable-definition-macros" ]
+        }
+
+        # Cronet needs to rename jni_zero classes
+        if (defined(is_cronet_build) && is_cronet_build) {
+          args += _cronet_renaming_extra_args
         }
       } else {
         if (is_robolectric) {
@@ -369,7 +417,8 @@ template("generate_jni_impl") {
       }
 
       foreach(_name, _input_names) {
-        _name = get_path_info(_name, "name") + "_jni.h"
+        _name =
+            string_replace(get_path_info(_name, "name"), "\$", "__") + "_jni.h"
         outputs += [ "$_jni_output_dir/$_name" ]
 
         # Avoid passing GN lists because not all webrtc embedders use //build.
@@ -387,6 +436,7 @@ template("generate_jni_impl") {
     if (_from_source) {
       java_library("${_final_target_name}_java") {
         forward_variables_from(invoker, TESTONLY_AND_VISIBILITY)
+        requires_android = true
         srcjars = [
           _srcjar_output,
           _placeholder_srcjar_output,
@@ -399,8 +449,18 @@ template("generate_jni_impl") {
         prevent_excluded_classes_from_classpath = true
         deps = [
           ":$_jni_zero_action_target_name",
-          "//third_party/jni_zero:jni_zero_java",
+          "//third_party/jni_zero:gendeps_java",
         ]
+        if (defined(invoker.public_deps)) {
+          public_deps = []
+          foreach(_dep, invoker.public_deps) {
+            public_deps += [ "${_dep}_java" ]
+          }
+        }
+      }
+    } else {
+      java_group("${_final_target_name}_java") {
+        # Allows target to appear as a public_dep of another generate_jni().
       }
     }
 
@@ -440,16 +500,16 @@ template("generate_jni_impl") {
 #     ]
 #   }
 template("generate_jni") {
+  assert(
+      filter_exclude([ target_name ], [ "*jni*" ]) == [],
+      "generate_jni() targets must contain \"jni\" in their names (a \"_jni\" suffix is common). Found \"$target_name\"")
   generate_jni_impl(target_name) {
     forward_variables_from(invoker, "*", TESTONLY_AND_VISIBILITY)
     forward_variables_from(invoker, TESTONLY_AND_VISIBILITY)
     metadata = {
-      jni_source_files = sources
-
-      # This field is only used by Cronet team during the translation
-      # of the GN build targets to Soong modules. From a pure
-      # GN perspective, it is unused.
-      jni_source_files_abs = get_path_info(sources, "abspath")
+      # keep as abspath as this is used by cronet team
+      # to convert JNI registration targets from GN to BP (GN2BP).
+      jni_source_files = get_path_info(sources, "abspath")
     }
   }
 }
@@ -501,7 +561,7 @@ template("native_with_jni") {
   _manual_jni_registration = defined(invoker.manual_jni_registration) &&
                              invoker.manual_jni_registration
   _needs_cpp_codegen =
-      (_manual_jni_registration || allow_jni_multiplexing) &&
+      (_manual_jni_registration || enable_jni_multiplexing) &&
       !(defined(invoker.collect_inputs_only) && invoker.collect_inputs_only)
   _needs_native_dep = _enable_underlying_native && _needs_cpp_codegen
   if ((_needs_cpp_codegen && current_toolchain == default_toolchain) ||
@@ -534,7 +594,6 @@ template("native_with_jni") {
       native_deps = invoker.deps
 
       if (defined(invoker.testonly) && invoker.testonly) {
-        enable_native_mocks = true
         if (!defined(invoker.add_stubs_for_missing_jni)) {
           add_stubs_for_missing_jni = true
         }
@@ -543,9 +602,6 @@ template("native_with_jni") {
         }
       }
       if (_needs_cpp_codegen) {
-        if (allow_jni_multiplexing) {
-          enable_jni_multiplexing = true
-        }
         cpp_codegen_output = _registration_cpp_codegen_output
       }
       forward_variables_from(invoker,
@@ -555,7 +611,9 @@ template("native_with_jni") {
                                "manual_jni_registration",
                                "module_name",
                                "namespace",
+                               "never_omit_switch_num",
                                "remove_uncalled_jni",
+                               "priority_java_targets",
                              ])
     }
   } else {
@@ -566,7 +624,9 @@ template("native_with_jni") {
                  "manual_jni_registration",
                  "module_name",
                  "namespace",
+                 "never_omit_switch_num",
                  "remove_uncalled_jni",
+                 "priority_java_targets",
                ])
   }
 

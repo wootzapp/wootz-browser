@@ -135,7 +135,7 @@ bool QuicProxyClientSocket::WasEverUsed() const {
 NextProto QuicProxyClientSocket::GetNegotiatedProtocol() const {
   // Do not delegate to `session_`. While `session_` negotiates ALPN with the
   // proxy, this object represents the tunneled TCP connection to the origin.
-  return kProtoUnknown;
+  return NextProto::kProtoUnknown;
 }
 
 bool QuicProxyClientSocket::GetSSLInfo(SSLInfo* ssl_info) {
@@ -306,9 +306,7 @@ int QuicProxyClientSocket::DoLoop(int last_io_result) {
             NetLogEventType::HTTP_TRANSACTION_TUNNEL_READ_HEADERS, rv);
         break;
       default:
-        NOTREACHED_IN_MIGRATION() << "bad state";
-        rv = ERR_UNEXPECTED;
-        break;
+        NOTREACHED() << "bad state";
     }
   } while (rv != ERR_IO_PENDING && next_state_ != STATE_DISCONNECTED &&
            next_state_ != STATE_CONNECT_COMPLETE);
@@ -358,7 +356,7 @@ int QuicProxyClientSocket::DoSendRequest() {
                        NetLogEventType::HTTP_TRANSACTION_SEND_TUNNEL_HEADERS,
                        request_line, &request_.extra_headers);
 
-  spdy::Http2HeaderBlock headers;
+  quiche::HttpHeaderBlock headers;
   CreateSpdyHeadersFromHttpRequest(request_, std::nullopt,
                                    request_.extra_headers, &headers);
 
@@ -434,7 +432,7 @@ int QuicProxyClientSocket::DoReadReplyComplete(int result) {
 }
 
 void QuicProxyClientSocket::OnReadResponseHeadersComplete(int result) {
-  // Convert the now-populated spdy::Http2HeaderBlock to HttpResponseInfo
+  // Convert the now-populated quiche::HttpHeaderBlock to HttpResponseInfo
   if (result > 0)
     result = ProcessResponseHeaders(response_header_block_);
 
@@ -443,7 +441,7 @@ void QuicProxyClientSocket::OnReadResponseHeadersComplete(int result) {
 }
 
 int QuicProxyClientSocket::ProcessResponseHeaders(
-    const spdy::Http2HeaderBlock& headers) {
+    const quiche::HttpHeaderBlock& headers) {
   if (SpdyHeadersToHttpResponse(headers, &response_) != OK) {
     DLOG(WARNING) << "Invalid headers";
     return ERR_QUIC_PROTOCOL_ERROR;

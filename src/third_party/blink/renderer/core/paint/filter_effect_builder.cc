@@ -124,12 +124,17 @@ Vector<float> SepiaMatrix(double amount) {
 }  // namespace
 
 FilterEffectBuilder::FilterEffectBuilder(const gfx::RectF& reference_box,
+                                         std::optional<gfx::SizeF> viewport,
                                          float zoom,
                                          Color current_color,
                                          mojom::blink::ColorScheme color_scheme,
                                          const cc::PaintFlags* fill_flags,
                                          const cc::PaintFlags* stroke_flags)
     : reference_box_(reference_box),
+      viewport_(
+          RuntimeEnabledFeatures::SvgFilterUserSpaceViewportForNonSvgEnabled()
+              ? viewport
+              : std::nullopt),
       zoom_(zoom),
       shorthand_scale_(1),
       current_color_(current_color),
@@ -414,7 +419,7 @@ CompositorFilterOperations FilterEffectBuilder::BuildFilterOperations(
             filters.AppendHueRotateFilter(amount);
             break;
           default:
-            NOTREACHED_IN_MIGRATION();
+            NOTREACHED();
         }
         break;
       }
@@ -423,12 +428,11 @@ CompositorFilterOperations FilterEffectBuilder::BuildFilterOperations(
       case FilterOperation::OperationType::kComponentTransfer:
       case FilterOperation::OperationType::kTurbulence:
         // These filter types only exist for Canvas filters.
-        NOTREACHED_IN_MIGRATION();
-        break;
+        NOTREACHED();
       case FilterOperation::OperationType::kColorMatrix: {
         Vector<float> matrix_values =
             To<ColorMatrixFilterOperation>(*op).Values();
-        filters.AppendColorMatrixFilter(matrix_values);
+        filters.AppendColorMatrixFilter(std::move(matrix_values));
         break;
       }
       case FilterOperation::OperationType::kInvert:
@@ -450,13 +454,13 @@ CompositorFilterOperations FilterEffectBuilder::BuildFilterOperations(
             filters.AppendContrastFilter(amount);
             break;
           default:
-            NOTREACHED_IN_MIGRATION();
+            NOTREACHED();
         }
         break;
       }
       case FilterOperation::OperationType::kBlur: {
         float pixel_radius =
-            To<BlurFilterOperation>(*op).StdDeviation().GetFloatValue();
+            To<BlurFilterOperation>(*op).StdDeviation().Pixels();
         pixel_radius *= shorthand_scale_;
         filters.AppendBlurFilter(pixel_radius);
         break;
@@ -480,8 +484,6 @@ CompositorFilterOperations FilterEffectBuilder::BuildFilterOperations(
             paint_filter_builder::BuildBoxReflectFilter(reflection, nullptr));
         break;
       }
-      case FilterOperation::OperationType::kNone:
-        break;
     }
     // TODO(fs): When transitioning from a reference filter using "linearRGB"
     // to a filter function we should insert a conversion (like the one below)
@@ -513,10 +515,17 @@ Filter* FilterEffectBuilder::BuildReferenceFilter(
   if (auto* resource_container = resource->ResourceContainerNoCycleCheck())
     resource_container->ClearInvalidationMask();
 
+  std::optional<gfx::SizeF> unzoomed_viewport;
+  if (viewport_) {
+    gfx::SizeF unzoomed = *viewport_;
+    unzoomed.InvScale(zoom_);
+    unzoomed_viewport = unzoomed;
+  }
+
   gfx::RectF filter_region =
       LayoutSVGResourceContainer::ResolveRectangle<SVGFilterElement>(
           *filter_element, filter_element->filterUnits()->CurrentEnumValue(),
-          reference_box_);
+          reference_box_, unzoomed_viewport);
   bool primitive_bounding_box_mode =
       filter_element->primitiveUnits()->CurrentEnumValue() ==
       SVGUnitTypes::kSvgUnitTypeObjectboundingbox;
@@ -524,14 +533,17 @@ Filter* FilterEffectBuilder::BuildReferenceFilter(
       primitive_bounding_box_mode ? Filter::kBoundingBox : Filter::kUserSpace;
   auto* result = MakeGarbageCollected<Filter>(reference_box_, filter_region,
                                               zoom_, unit_scaling);
-  // TODO(fs): We rely on the presence of a node map here to opt-in to the
-  // check for an empty filter region. The reason for this is that we lack a
-  // viewport to resolve against for HTML content. This is crbug.com/512453.
   // If the filter has an empty region, then return a Filter without any
   // primitives since the behavior in these two cases (no primitives, empty
   // region) should match.
-  if (node_map && filter_region.IsEmpty())
-    return result;
+  if (filter_region.IsEmpty()) {
+    // TODO(fs): We rely on the presence of a node map here to opt-in to the
+    // check for an empty filter region. The reason for this is that we lack a
+    // viewport to resolve against for HTML content. This is crbug.com/512453.
+    if (viewport_ || node_map) {
+      return result;
+    }
+  }
 
   if (!previous_effect)
     previous_effect = result->GetSourceGraphic();

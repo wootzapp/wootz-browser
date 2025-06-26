@@ -20,20 +20,23 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.ApplicationTestUtils;
 import org.chromium.base.test.util.Batch;
+import org.chromium.base.test.util.Features;
+import org.chromium.chrome.browser.device_reauth.ReauthenticatorBridge;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.device_lock.DeviceLockActivityLauncher;
+import org.chromium.components.signin.SigninFeatures;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 
 /** Tests for {@link DeviceLockCoordinator}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @Batch(Batch.UNIT_TESTS)
+@Features.EnableFeatures(SigninFeatures.UNO_FOR_AUTO)
 public class DeviceLockCoordinatorTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -46,7 +49,6 @@ public class DeviceLockCoordinatorTest {
 
     @Before
     public void setUpTest() {
-        MockitoAnnotations.initMocks(this);
         mActivityTestRule.setFinishActivity(true);
 
         mActivityTestRule.launchActivity(null);
@@ -68,7 +70,8 @@ public class DeviceLockCoordinatorTest {
     @SmallTest
     public void testDeviceLockCoordinator_simpleTest() {
         DeviceLockCoordinator deviceLockCoordinator =
-                new DeviceLockCoordinator(mMockDelegate, null, null, mActivity, null);
+                new DeviceLockCoordinator(
+                        mMockDelegate, null, (ReauthenticatorBridge) null, mActivity, null);
         assertNotEquals(deviceLockCoordinator, null);
         verify(mMockDelegate, times(1)).setView(any());
 

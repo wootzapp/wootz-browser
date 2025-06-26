@@ -463,22 +463,19 @@ AXLanguageDetectionManager::GetLanguageAnnotationForStringAttribute(
   return language_annotation;
 }
 
-AXLanguageDetectionObserver::AXLanguageDetectionObserver(AXTree* tree)
-    : tree_(tree) {
+AXLanguageDetectionObserver::AXLanguageDetectionObserver(AXTree* tree) {
   // We expect the feature flag to have be checked before this Observer is
   // constructed, this should have been checked by
   // RegisterLanguageDetectionObserver.
   DCHECK(AXLanguageDetectionManager::IsDynamicLanguageDetectionEnabled());
 
-  tree_->AddObserver(this);
+  observation_.Observe(tree);
 }
 
-AXLanguageDetectionObserver::~AXLanguageDetectionObserver() {
-  tree_->RemoveObserver(this);
-}
+AXLanguageDetectionObserver::~AXLanguageDetectionObserver() = default;
 
 void AXLanguageDetectionObserver::OnAtomicUpdateFinished(
-    ui::AXTree* tree,
+    AXTree* tree,
     bool root_changed,
     const std::vector<Change>& changes) {
   // TODO(chrishall): We likely want to re-consider updating or resetting

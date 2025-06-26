@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "pdf/pdfium/pdfium_form_filler.h"
 
 #include <algorithm>
@@ -731,11 +736,11 @@ PDFiumFormFiller::EngineInIsolateScope::EngineInIsolateScope(
 }
 
 PDFiumFormFiller::EngineInIsolateScope::EngineInIsolateScope(
-    EngineInIsolateScope&&) = default;
+    EngineInIsolateScope&&) noexcept = default;
 
 PDFiumFormFiller::EngineInIsolateScope&
-PDFiumFormFiller::EngineInIsolateScope::operator=(EngineInIsolateScope&&) =
-    default;
+PDFiumFormFiller::EngineInIsolateScope::operator=(
+    EngineInIsolateScope&&) noexcept = default;
 
 PDFiumFormFiller::EngineInIsolateScope::~EngineInIsolateScope() = default;
 

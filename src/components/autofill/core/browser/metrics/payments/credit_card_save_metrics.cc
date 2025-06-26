@@ -8,6 +8,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
 #include "base/strings/strcat.h"
+#include "components/autofill/core/browser/payments/payments_autofill_client.h"
 #include "services/metrics/public/cpp/ukm_builders.h"
 
 namespace autofill::autofill_metrics {
@@ -38,7 +39,7 @@ void LogCardUploadDecisionsUkm(ukm::UkmRecorder* ukm_recorder,
 void LogCardUploadEnabledMetric(
     CardUploadEnabled metric_value,
     AutofillMetrics::PaymentsSigninState sync_state) {
-  const std::string parent_metric = std::string("Autofill.CardUploadEnabled");
+  const std::string parent_metric = std::string("Autofill.CardUploadEnabled2");
   base::UmaHistogramEnumeration(parent_metric, metric_value);
 
   const std::string child_metric =
@@ -70,7 +71,7 @@ void LogSaveCardPromptOfferMetric(
     SaveCardPromptOffer metric,
     bool is_uploading,
     bool is_reshow,
-    AutofillClient::SaveCreditCardOptions options,
+    payments::PaymentsAutofillClient::SaveCreditCardOptions options,
     AutofillMetrics::PaymentsSigninState sync_state) {
   DCHECK_LE(metric, SaveCardPromptOffer::kMaxValue);
   std::string base_histogram_name = "Autofill.SaveCreditCardPromptOffer";
@@ -104,7 +105,7 @@ void LogSaveCardPromptOfferMetric(
                                   metric);
   }
   if (options.card_save_type ==
-      AutofillClient::CardSaveType::kCardSaveWithCvc) {
+      payments::PaymentsAutofillClient::CardSaveType::kCardSaveWithCvc) {
     base::UmaHistogramEnumeration(
         metric_with_destination_and_show + ".SavingWithCvc", metric);
   }
@@ -114,8 +115,9 @@ void LogSaveCardPromptResultMetric(
     SaveCardPromptResult metric,
     bool is_uploading,
     bool is_reshow,
-    AutofillClient::SaveCreditCardOptions options,
-    AutofillMetrics::PaymentsSigninState sync_state) {
+    payments::PaymentsAutofillClient::SaveCreditCardOptions options,
+    AutofillMetrics::PaymentsSigninState sync_state,
+    bool has_saved_cards) {
   DCHECK_LE(metric, SaveCardPromptResult::kMaxValue);
   std::string base_histogram_name = "Autofill.SaveCreditCardPromptResult";
   std::string destination = is_uploading ? ".Upload" : ".Local";
@@ -148,9 +150,18 @@ void LogSaveCardPromptResultMetric(
                                   metric);
   }
   if (options.card_save_type ==
-      AutofillClient::CardSaveType::kCardSaveWithCvc) {
+      payments::PaymentsAutofillClient::CardSaveType::kCardSaveWithCvc) {
     base::UmaHistogramEnumeration(
         metric_with_destination_and_show + ".SavingWithCvc", metric);
+  }
+  if (!is_reshow) {
+    base::UmaHistogramEnumeration(
+        base::StrCat(
+            {base_histogram_name, destination,
+             has_saved_cards ? ".UserHasSavedCards" : ".UserHasNoCards"}),
+        metric);
+    base::UmaHistogramEnumeration(
+        base::StrCat({base_histogram_name, destination, ".Aggregate"}), metric);
   }
 }
 
@@ -235,11 +246,25 @@ void LogCreditCardUploadConfirmationViewResultMetric(
       base::StrCat({base_histogram_name, is_card_uploaded_name}), metric);
 }
 
+void LogGetCardUploadDetailsRequestLatencyMetric(base::TimeDelta duration,
+                                                 bool is_successful) {
+  std::string_view base_histogram_name =
+      "Autofill.PaymentsNetworkInterface.RequestLatency."
+      "GetCardUploadDetails";
+  std::string_view is_successful_name = is_successful ? ".Success" : ".Failure";
+
+  // Record the metric twice to get the duration for all call types and bucketed
+  // based on success.
+  base::UmaHistogramLongTimes(base::StrCat({base_histogram_name}), duration);
+  base::UmaHistogramLongTimes(
+      base::StrCat({base_histogram_name, is_successful_name}), duration);
+}
+
 // Clank-specific metrics.
 void LogSaveCreditCardPromptResult(
     SaveCreditCardPromptResult event,
     bool is_upload,
-    AutofillClient::SaveCreditCardOptions options) {
+    payments::PaymentsAutofillClient::SaveCreditCardOptions options) {
   if (!is_upload) {
     base::UmaHistogramEnumeration("Autofill.CreditCardSaveFlowResult.Local",
                                   event);

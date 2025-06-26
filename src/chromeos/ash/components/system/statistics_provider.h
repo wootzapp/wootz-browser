@@ -31,11 +31,6 @@ inline constexpr char kShouldSendRlzPingValueTrue[] = "1";
 // allowed to be sent. It is in the format of "yyyy-mm-dd".
 inline constexpr char kRlzEmbargoEndDateKey[] = "rlz_embargo_end_date";
 
-// The key present in VPD that indicates the date after which enterprise
-// management pings are allowed to be sent. It is in the format of "yyyy-mm-dd".
-inline constexpr char kEnterpriseManagementEmbargoEndDateKey[] =
-    "enterprise_management_embargo_end_date";
-
 // Customization ID key.
 inline constexpr char kCustomizationIdKey[] = "customization_id";
 
@@ -158,6 +153,12 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_SYSTEM) StatisticsProvider {
     kFalse,
   };
 
+  enum class LoadingState {
+    kNotStarted,
+    kStarted,
+    kFinished,
+  };
+
   // Converts `value` to bool. Returns corresponding true or false, or
   // `default_value` if unset.
   static bool FlagValueToBool(FlagValue value, bool default_value);
@@ -205,6 +206,9 @@ class COMPONENT_EXPORT(CHROMEOS_ASH_COMPONENTS_SYSTEM) StatisticsProvider {
 
   // Returns the status of RO_VPD and RW_VPD partitions.
   virtual VpdStatus GetVpdStatus() const = 0;
+
+  // Get the current state of loading VPD data.
+  virtual LoadingState GetLoadingState() const = 0;
 
   // Get the Singleton instance.
   static StatisticsProvider* GetInstance();

@@ -5,9 +5,14 @@
 #include "third_party/blink/renderer/core/css/properties/css_parsing_utils.h"
 
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/blink/renderer/core/css/css_math_function_value.h"
+#include "third_party/blink/renderer/core/css/css_progress_value.h"
+#include "third_party/blink/renderer/core/css/css_scroll_value.h"
+#include "third_party/blink/renderer/core/css/css_view_value.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser_context.h"
 #include "third_party/blink/renderer/core/css/parser/css_parser_token_stream.h"
 #include "third_party/blink/renderer/core/css/parser/css_tokenizer.h"
+#include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/core/execution_context/security_context.h"
 #include "third_party/blink/renderer/core/html/html_html_element.h"
 #include "third_party/blink/renderer/core/testing/dummy_page_holder.h"
@@ -47,15 +52,13 @@ TEST(CSSParsingUtilsTest, Revert) {
 }
 
 double ConsumeAngleValue(String target) {
-  auto tokens = CSSTokenizer(target).TokenizeToEOF();
-  CSSParserTokenRange range(tokens);
-  return ConsumeAngle(range, *MakeContext(), std::nullopt)->ComputeDegrees();
+  CSSParserTokenStream stream(target);
+  return ConsumeAngle(stream, *MakeContext(), std::nullopt)->ComputeDegrees();
 }
 
 double ConsumeAngleValue(String target, double min, double max) {
-  auto tokens = CSSTokenizer(target).TokenizeToEOF();
-  CSSParserTokenRange range(tokens);
-  return ConsumeAngle(range, *MakeContext(), std::nullopt, min, max)
+  CSSParserTokenStream stream(target);
+  return ConsumeAngle(stream, *MakeContext(), std::nullopt, min, max)
       ->ComputeDegrees();
 }
 
@@ -68,7 +71,7 @@ TEST(CSSParsingUtilsTest, ConsumeAngles) {
 
   EXPECT_EQ(kMaxDegreeValue, ConsumeAngleValue("calc(infinity * 1deg)"));
   EXPECT_EQ(-kMaxDegreeValue, ConsumeAngleValue("calc(-infinity * 1deg)"));
-  EXPECT_EQ(kMaxDegreeValue, ConsumeAngleValue("calc(NaN * 1deg)"));
+  EXPECT_EQ(0, ConsumeAngleValue("calc(NaN * 1deg)"));
 
   // Math function with min and max ranges
 
@@ -76,45 +79,26 @@ TEST(CSSParsingUtilsTest, ConsumeAngles) {
   EXPECT_EQ(100, ConsumeAngleValue("calc(3.40282e+38deg)", -100, 100));
 }
 
-TEST(CSSParsingUtilsTest, AtIdent_Range) {
+TEST(CSSParsingUtilsTest, AtIdent) {
   String text = "foo,bar,10px";
-  auto tokens = CSSTokenizer(text).TokenizeToEOF();
-  CSSParserTokenRange range(tokens);
-  EXPECT_FALSE(AtIdent(range.Consume(), "bar"));  // foo
-  EXPECT_FALSE(AtIdent(range.Consume(), "bar"));  // ,
-  EXPECT_TRUE(AtIdent(range.Consume(), "bar"));   // bar
-  EXPECT_FALSE(AtIdent(range.Consume(), "bar"));  // ,
-  EXPECT_FALSE(AtIdent(range.Consume(), "bar"));  // 10px
-  EXPECT_FALSE(AtIdent(range.Consume(), "bar"));  // EOF
+  CSSParserTokenStream stream(text);
+  EXPECT_FALSE(AtIdent(stream.Peek(), "bar"));  // foo
+  stream.Consume();
+  EXPECT_FALSE(AtIdent(stream.Peek(), "bar"));  // ,
+  stream.Consume();
+  EXPECT_TRUE(AtIdent(stream.Peek(), "bar"));  // bar
+  stream.Consume();
+  EXPECT_FALSE(AtIdent(stream.Peek(), "bar"));  // ,
+  stream.Consume();
+  EXPECT_FALSE(AtIdent(stream.Peek(), "bar"));  // 10px
+  stream.Consume();
+  EXPECT_FALSE(AtIdent(stream.Peek(), "bar"));  // EOF
+  stream.Consume();
 }
 
-TEST(CSSParsingUtilsTest, AtIdent_Stream) {
+TEST(CSSParsingUtilsTest, ConsumeIfIdent) {
   String text = "foo,bar,10px";
-  CSSTokenizer tokenizer(text);
-  CSSParserTokenStream stream(tokenizer);
-  EXPECT_FALSE(AtIdent(stream.Consume(), "bar"));  // foo
-  EXPECT_FALSE(AtIdent(stream.Consume(), "bar"));  // ,
-  EXPECT_TRUE(AtIdent(stream.Consume(), "bar"));   // bar
-  EXPECT_FALSE(AtIdent(stream.Consume(), "bar"));  // ,
-  EXPECT_FALSE(AtIdent(stream.Consume(), "bar"));  // 10px
-  EXPECT_FALSE(AtIdent(stream.Consume(), "bar"));  // EOF
-}
-
-TEST(CSSParsingUtilsTest, ConsumeIfIdent_Range) {
-  String text = "foo,bar,10px";
-  auto tokens = CSSTokenizer(text).TokenizeToEOF();
-  CSSParserTokenRange range(tokens);
-  EXPECT_TRUE(AtIdent(range.Peek(), "foo"));
-  EXPECT_FALSE(ConsumeIfIdent(range, "bar"));
-  EXPECT_TRUE(AtIdent(range.Peek(), "foo"));
-  EXPECT_TRUE(ConsumeIfIdent(range, "foo"));
-  EXPECT_EQ(kCommaToken, range.Peek().GetType());
-}
-
-TEST(CSSParsingUtilsTest, ConsumeIfIdent_Stream) {
-  String text = "foo,bar,10px";
-  CSSTokenizer tokenizer(text);
-  CSSParserTokenStream stream(tokenizer);
+  CSSParserTokenStream stream(text);
   EXPECT_TRUE(AtIdent(stream.Peek(), "foo"));
   EXPECT_FALSE(ConsumeIfIdent(stream, "bar"));
   EXPECT_TRUE(AtIdent(stream.Peek(), "foo"));
@@ -122,45 +106,26 @@ TEST(CSSParsingUtilsTest, ConsumeIfIdent_Stream) {
   EXPECT_EQ(kCommaToken, stream.Peek().GetType());
 }
 
-TEST(CSSParsingUtilsTest, AtDelimiter_Range) {
+TEST(CSSParsingUtilsTest, AtDelimiter) {
   String text = "foo,<,10px";
-  auto tokens = CSSTokenizer(text).TokenizeToEOF();
-  CSSParserTokenRange range(tokens);
-  EXPECT_FALSE(AtDelimiter(range.Consume(), '<'));  // foo
-  EXPECT_FALSE(AtDelimiter(range.Consume(), '<'));  // ,
-  EXPECT_TRUE(AtDelimiter(range.Consume(), '<'));   // <
-  EXPECT_FALSE(AtDelimiter(range.Consume(), '<'));  // ,
-  EXPECT_FALSE(AtDelimiter(range.Consume(), '<'));  // 10px
-  EXPECT_FALSE(AtDelimiter(range.Consume(), '<'));  // EOF
+  CSSParserTokenStream stream(text);
+  EXPECT_FALSE(AtDelimiter(stream.Peek(), '<'));  // foo
+  stream.Consume();
+  EXPECT_FALSE(AtDelimiter(stream.Peek(), '<'));  // ,
+  stream.Consume();
+  EXPECT_TRUE(AtDelimiter(stream.Peek(), '<'));  // <
+  stream.Consume();
+  EXPECT_FALSE(AtDelimiter(stream.Peek(), '<'));  // ,
+  stream.Consume();
+  EXPECT_FALSE(AtDelimiter(stream.Peek(), '<'));  // 10px
+  stream.Consume();
+  EXPECT_FALSE(AtDelimiter(stream.Peek(), '<'));  // EOF
+  stream.Consume();
 }
 
-TEST(CSSParsingUtilsTest, AtDelimiter_Stream) {
-  String text = "foo,<,10px";
-  CSSTokenizer tokenizer(text);
-  CSSParserTokenStream stream(tokenizer);
-  EXPECT_FALSE(AtDelimiter(stream.Consume(), '<'));  // foo
-  EXPECT_FALSE(AtDelimiter(stream.Consume(), '<'));  // ,
-  EXPECT_TRUE(AtDelimiter(stream.Consume(), '<'));   // <
-  EXPECT_FALSE(AtDelimiter(stream.Consume(), '<'));  // ,
-  EXPECT_FALSE(AtDelimiter(stream.Consume(), '<'));  // 10px
-  EXPECT_FALSE(AtDelimiter(stream.Consume(), '<'));  // EOF
-}
-
-TEST(CSSParsingUtilsTest, ConsumeIfDelimiter_Range) {
+TEST(CSSParsingUtilsTest, ConsumeIfDelimiter) {
   String text = "<,=,10px";
-  auto tokens = CSSTokenizer(text).TokenizeToEOF();
-  CSSParserTokenRange range(tokens);
-  EXPECT_TRUE(AtDelimiter(range.Peek(), '<'));
-  EXPECT_FALSE(ConsumeIfDelimiter(range, '='));
-  EXPECT_TRUE(AtDelimiter(range.Peek(), '<'));
-  EXPECT_TRUE(ConsumeIfDelimiter(range, '<'));
-  EXPECT_EQ(kCommaToken, range.Peek().GetType());
-}
-
-TEST(CSSParsingUtilsTest, ConsumeIfDelimiter_Stream) {
-  String text = "<,=,10px";
-  CSSTokenizer tokenizer(text);
-  CSSParserTokenStream stream(tokenizer);
+  CSSParserTokenStream stream(text);
   EXPECT_TRUE(AtDelimiter(stream.Peek(), '<'));
   EXPECT_FALSE(ConsumeIfDelimiter(stream, '='));
   EXPECT_TRUE(AtDelimiter(stream.Peek(), '<'));
@@ -168,39 +133,36 @@ TEST(CSSParsingUtilsTest, ConsumeIfDelimiter_Stream) {
   EXPECT_EQ(kCommaToken, stream.Peek().GetType());
 }
 
-TEST(CSSParsingUtilsTest, ConsumeAnyValue) {
+TEST(CSSParsingUtilsTest, ConsumeAnyValue_Stream) {
   struct {
     // The input string to parse as <any-value>.
     const char* input;
-    // The expected result from ConsumeAnyValue.
-    bool expected;
-    // The serialization of the tokens remaining in the range.
+    // The serialization of the tokens remaining in the stream.
     const char* remainder;
   } tests[] = {
-      {"1", true, ""},
-      {"1px", true, ""},
-      {"1px ", true, ""},
-      {"ident", true, ""},
-      {"(([ident]))", true, ""},
-      {" ( ( 1 ) ) ", true, ""},
-      {"rgb(1, 2, 3)", true, ""},
-      {"rgb(1, 2, 3", true, ""},
-      {"!!!;;;", true, ""},
-      {"asdf)", false, ")"},
-      {")asdf", false, ")asdf"},
-      {"(ab)cd) e", false, ") e"},
-      {"(as]df) e", false, " e"},
-      {"(a b [ c { d ) e } f ] g h) i", false, " i"},
-      {"a url(() b", false, "url(() b"},
+      {"1", ""},
+      {"1px", ""},
+      {"1px ", ""},
+      {"ident", ""},
+      {"(([ident]))", ""},
+      {" ( ( 1 ) ) ", ""},
+      {"rgb(1, 2, 3)", ""},
+      {"rgb(1, 2, 3", ""},
+      {"!!!;;;", ""},
+      {"asdf)", ")"},
+      {")asdf", ")asdf"},
+      {"(ab)cd) e", ") e"},
+      {"(as]df) e", "(as]df) e"},
+      {"(a b [ c { d ) e } f ] g h) i", "(a b [ c { d ) e } f ] g h) i"},
+      {"a url(() b", "url(() b"},
   };
 
   for (const auto& test : tests) {
     String input(test.input);
     SCOPED_TRACE(input);
-    auto tokens = CSSTokenizer(input).TokenizeToEOF();
-    CSSParserTokenRange range(tokens);
-    EXPECT_EQ(test.expected, css_parsing_utils::ConsumeAnyValue(range));
-    EXPECT_EQ(String(test.remainder), range.Serialize());
+    CSSParserTokenStream stream(input);
+    css_parsing_utils::ConsumeAnyValue(stream);
+    EXPECT_EQ(String(test.remainder), stream.RemainingText().ToString());
   }
 }
 
@@ -214,19 +176,17 @@ TEST(CSSParsingUtilsTest, DashedIdent) {
       {"body", false},   {"0", false},     {"#FFAA00", false},
   };
   for (auto& expectation : expectations) {
-    auto tokens = CSSTokenizer(expectation.css_text).TokenizeToEOF();
-    CSSParserTokenRange range(tokens);
-    EXPECT_EQ(css_parsing_utils::IsDashedIdent(range.Peek()),
+    CSSParserTokenStream stream(expectation.css_text);
+    EXPECT_EQ(css_parsing_utils::IsDashedIdent(stream.Peek()),
               expectation.is_dashed_indent);
   }
 }
 
 TEST(CSSParsingUtilsTest, ConsumeAbsoluteColor) {
   auto ConsumeColorForTest = [](String css_text, auto func) {
-    auto tokens = CSSTokenizer(css_text).TokenizeToEOF();
-    CSSParserTokenRange range(tokens);
+    CSSParserTokenStream stream(css_text);
     CSSParserContext* context = MakeContext();
-    return func(range, *context);
+    return func(stream, *context);
   };
 
   struct {
@@ -252,9 +212,8 @@ TEST(CSSParsingUtilsTest, ConsumeAbsoluteColor) {
        nullptr},
   };
   for (auto& expectation : expectations) {
-    EXPECT_EQ(ConsumeColorForTest(
-                  expectation.css_text,
-                  css_parsing_utils::ConsumeColor<CSSParserTokenRange>),
+    EXPECT_EQ(ConsumeColorForTest(expectation.css_text,
+                                  css_parsing_utils::ConsumeColor),
               expectation.consume_color_expectation);
     EXPECT_EQ(ConsumeColorForTest(expectation.css_text,
                                   css_parsing_utils::ConsumeAbsoluteColor),
@@ -264,9 +223,8 @@ TEST(CSSParsingUtilsTest, ConsumeAbsoluteColor) {
 
 TEST(CSSParsingUtilsTest, InternalColorsOnlyAllowedInUaMode) {
   auto ConsumeColorForTest = [](String css_text, CSSParserMode mode) {
-    auto tokens = CSSTokenizer(css_text).TokenizeToEOF();
-    CSSParserTokenRange range(tokens);
-    return css_parsing_utils::ConsumeColor(range, *MakeContext(mode));
+    CSSParserTokenStream stream(css_text);
+    return css_parsing_utils::ConsumeColor(stream, *MakeContext(mode));
   };
 
   struct {
@@ -307,7 +265,7 @@ TEST(CSSParsingUtilsTest, InternalColorsOnlyAllowedInUaMode) {
   }
 }
 
-// Verify that the state of CSSParserTokenRange is preserved
+// Verify that the state of CSSParserTokenStream is preserved
 // for failing <color> values.
 TEST(CSSParsingUtilsTest, ConsumeColorRangePreservation) {
   const char* tests[] = {
@@ -317,19 +275,17 @@ TEST(CSSParsingUtilsTest, ConsumeColorRangePreservation) {
   for (const char*& test : tests) {
     String input(test);
     SCOPED_TRACE(input);
-    Vector<CSSParserToken, 32> tokens = CSSTokenizer(input).TokenizeToEOF();
-    CSSParserTokenRange range(tokens);
-    EXPECT_EQ(nullptr, css_parsing_utils::ConsumeColor(range, *MakeContext()));
-    EXPECT_EQ(test, range.Serialize());
+    CSSParserTokenStream stream(input);
+    EXPECT_EQ(nullptr, css_parsing_utils::ConsumeColor(stream, *MakeContext()));
+    EXPECT_EQ(test, stream.RemainingText());
   }
 }
 
-TEST(CSSParsingUtilsTest, InternalPositionTryOptionsInUAMode) {
-  auto ConsumePositionTryOptionForTest = [](String css_text,
-                                            CSSParserMode mode) {
-    CSSTokenizer tokenizer(css_text);
-    CSSParserTokenStream stream(tokenizer);
-    return css_parsing_utils::ConsumeSinglePositionTryOption(
+TEST(CSSParsingUtilsTest, InternalPositionTryFallbacksInUAMode) {
+  auto ConsumePositionTryFallbackForTest = [](String css_text,
+                                              CSSParserMode mode) {
+    CSSParserTokenStream stream(css_text);
+    return css_parsing_utils::ConsumeSinglePositionTryFallback(
         stream, *MakeContext(mode));
   };
 
@@ -346,15 +302,95 @@ TEST(CSSParsingUtilsTest, InternalPositionTryOptionsInUAMode) {
       {.css_text = "-internal-foo", .allow_ua = true, .allow_other = false},
   };
   for (auto& expectation : expectations) {
-    EXPECT_EQ(ConsumePositionTryOptionForTest(expectation.css_text,
-                                              kHTMLStandardMode) != nullptr,
+    EXPECT_EQ(ConsumePositionTryFallbackForTest(expectation.css_text,
+                                                kHTMLStandardMode) != nullptr,
               expectation.allow_other);
-    EXPECT_EQ(ConsumePositionTryOptionForTest(expectation.css_text,
-                                              kHTMLQuirksMode) != nullptr,
+    EXPECT_EQ(ConsumePositionTryFallbackForTest(expectation.css_text,
+                                                kHTMLQuirksMode) != nullptr,
               expectation.allow_other);
-    EXPECT_EQ(ConsumePositionTryOptionForTest(expectation.css_text,
-                                              kUASheetMode) != nullptr,
+    EXPECT_EQ(ConsumePositionTryFallbackForTest(expectation.css_text,
+                                                kUASheetMode) != nullptr,
               expectation.allow_ua);
+  }
+}
+
+// crbug.com/364340016
+TEST(CSSParsingUtilsTest, ConsumePositionTryFallbacksInUAMode) {
+  String css_text = "block-start span-inline-end";
+  CSSParserTokenStream stream(css_text);
+  CSSValue* value = css_parsing_utils::ConsumePositionTryFallbacks(
+      stream, *MakeContext(kUASheetMode));
+  ASSERT_TRUE(value);
+  EXPECT_EQ("block-start span-inline-end", value->CssText());
+}
+
+namespace {
+
+cssvalue::CSSProgressValue* MakeProgressTypeValue(
+    const CSSValue& progress,
+    const CSSValue* easing_function = nullptr) {
+  return MakeGarbageCollected<cssvalue::CSSProgressValue>(progress,
+                                                          easing_function);
+}
+
+}  // namespace
+
+TEST(CSSParsingUtilsTest, ConsumeProgressType) {
+  CSSValue* number_0_3 = MakeGarbageCollected<CSSNumericLiteralValue>(
+      0.3, CSSPrimitiveValue::UnitType::kNumber);
+  CSSValue* function_number_0_3 =
+      CSSMathFunctionValue::Create(CSSMathExpressionNumericLiteral::Create(
+          0.3, CSSPrimitiveValue::UnitType::kNumber));
+  CSSValue* linear =
+      MakeGarbageCollected<CSSIdentifierValue>(CSSValueID::kLinear);
+  CSSValue* view =
+      MakeGarbageCollected<cssvalue::CSSViewValue>(nullptr, nullptr);
+  CSSValue* scroll =
+      MakeGarbageCollected<cssvalue::CSSScrollValue>(nullptr, nullptr);
+  CSSValue* custom_ident =
+      MakeGarbageCollected<CSSCustomIdentValue>(AtomicString("--test"));
+  struct {
+    STACK_ALLOCATED();
+
+   public:
+    String input;
+    CSSValue* output;
+  } expectations[]{
+      /* number and percent */
+      {"30%", MakeProgressTypeValue(*number_0_3)},
+      {"calc(30%)", nullptr},
+      {"0.3", MakeProgressTypeValue(*number_0_3)},
+      {"calc(0.3)", MakeProgressTypeValue(*function_number_0_3)},
+      {"30% by linear", MakeProgressTypeValue(*number_0_3, linear)},
+      {"calc(30% by linear)", nullptr},
+      {"0.3 by linear", MakeProgressTypeValue(*number_0_3, linear)},
+      {"calc(0.3) by linear",
+       MakeProgressTypeValue(*function_number_0_3, linear)},
+      /* animation timeline */
+      {"auto", nullptr},
+      {"auto by linear", nullptr},
+      {"none by linear", nullptr},
+      {"none by linear", nullptr},
+      {"scroll()", MakeProgressTypeValue(*scroll)},
+      {"scroll() by linear", MakeProgressTypeValue(*scroll, linear)},
+      {"view()", MakeProgressTypeValue(*view)},
+      {"view() by linear", MakeProgressTypeValue(*view, linear)},
+      {"--test", MakeProgressTypeValue(*custom_ident)},
+      {"--test by linear", MakeProgressTypeValue(*custom_ident, linear)},
+      /* rejected cases */
+      {"calc(30 * 1%)", nullptr},
+      {"30px", nullptr},
+      {"test", nullptr},
+  };
+  for (auto& expectation : expectations) {
+    CSSParserTokenStream stream(expectation.input);
+    CSSValue* progress =
+        css_parsing_utils::ConsumeProgressType(stream, *MakeContext());
+    if (!expectation.output) {
+      EXPECT_FALSE(progress);
+    } else {
+      EXPECT_TRUE(*progress == *expectation.output);
+    }
   }
 }
 

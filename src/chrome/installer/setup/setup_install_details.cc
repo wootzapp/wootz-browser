@@ -24,14 +24,14 @@ namespace {
 const install_static::InstallConstants* FindInstallMode(
     const base::CommandLine& command_line) {
   // Search for a mode whose switch is on the command line.
-  for (int i = 1; i < install_static::NUM_INSTALL_MODES; ++i) {
+  for (size_t i = 1; i < install_static::kInstallModes.size(); ++i) {
     const install_static::InstallConstants& mode =
         install_static::kInstallModes[i];
     if (command_line.HasSwitch(mode.install_switch))
       return &mode;
   }
   // The first mode is always the default if all else fails.
-  return &install_static::kInstallModes[0];
+  return &install_static::kInstallModes.front();
 }
 
 // Returns the value of `switch_name` from `command_line` if it is present, or

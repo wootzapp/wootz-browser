@@ -39,10 +39,11 @@ static_assert(G_PRIORITY_DEFAULT < kPriorityFdWatch &&
 // to block forever, 0 to return right away, or a timeout in milliseconds from
 // now.
 int GetTimeIntervalMilliseconds(TimeTicks next_task_time) {
-  if (next_task_time.is_null())
+  if (next_task_time.is_null()) {
     return 0;
-  else if (next_task_time.is_max())
+  } else if (next_task_time.is_max()) {
     return -1;
+  }
 
   auto timeout_ms =
       (next_task_time - TimeTicks::Now()).InMillisecondsRoundedUp();
@@ -52,7 +53,7 @@ int GetTimeIntervalMilliseconds(TimeTicks next_task_time) {
 
 bool RunningOnMainThread() {
   auto pid = getpid();
-  auto tid = PlatformThread::CurrentId();
+  auto tid = PlatformThread::CurrentId().raw();
   return pid > 0 && tid > 0 && pid == tid;
 }
 
@@ -446,8 +447,9 @@ MessagePumpGlib::FdWatchController::~FdWatchController() {
 }
 
 bool MessagePumpGlib::FdWatchController::StopWatchingFileDescriptor() {
-  if (!IsInitialized())
+  if (!IsInitialized()) {
     return false;
+  }
 
   g_source_destroy(source_);
   g_source_unref(source_.ExtractAsDangling());
@@ -474,8 +476,9 @@ bool MessagePumpGlib::FdWatchController::InitOrUpdate(int fd,
     poll_fd_ = std::make_unique<GPollFD>();
     poll_fd_->fd = fd;
   } else {
-    if (poll_fd_->fd != fd)
+    if (poll_fd_->fd != fd) {
       return false;
+    }
     // Combine old/new event masks.
     event_flags |= poll_fd_->events;
     // Destroy previous source
@@ -509,15 +512,17 @@ bool MessagePumpGlib::FdWatchController::Attach(MessagePumpGlib* pump) {
 }
 
 void MessagePumpGlib::FdWatchController::NotifyCanRead() {
-  if (!watcher_)
+  if (!watcher_) {
     return;
+  }
   DCHECK(poll_fd_);
   watcher_->OnFileCanReadWithoutBlocking(poll_fd_->fd);
 }
 
 void MessagePumpGlib::FdWatchController::NotifyCanWrite() {
-  if (!watcher_)
+  if (!watcher_) {
     return;
+  }
   DCHECK(poll_fd_);
   watcher_->OnFileCanWriteWithoutBlocking(poll_fd_->fd);
 }
@@ -581,8 +586,9 @@ bool MessagePumpGlib::HandleObserverCheck() {
 // Return the timeout we want passed to poll.
 int MessagePumpGlib::HandlePrepare() {
   // |state_| may be null during tests.
-  if (!state_)
+  if (!state_) {
     return 0;
+  }
 
   const int next_wakeup_millis =
       GetTimeIntervalMilliseconds(state_->next_work_info.delayed_run_time);
@@ -599,8 +605,9 @@ int MessagePumpGlib::HandlePrepare() {
 }
 
 bool MessagePumpGlib::HandleCheck() {
-  if (!state_)  // state_ may be null during tests.
+  if (!state_) {  // state_ may be null during tests.
     return false;
+  }
 
   // Ensure pump is awake.
   EnsureSetScopedWorkItem();
@@ -619,7 +626,7 @@ bool MessagePumpGlib::HandleCheck() {
     char msg[2];
     const long num_bytes = HANDLE_EINTR(read(wakeup_pipe_read_, msg, 2));
     if (num_bytes < 1) {
-      NOTREACHED_IN_MIGRATION() << "Error reading from the wakeup pipe.";
+      NOTREACHED() << "Error reading from the wakeup pipe.";
     }
     DCHECK((num_bytes == 1 && msg[0] == '!') ||
            (num_bytes == 2 && msg[0] == '!' && msg[1] == '!'));
@@ -683,8 +690,9 @@ void MessagePumpGlib::Run(Delegate* delegate) {
     more_work_is_plausible = g_main_context_iteration(context_, block);
     OnExitFromGlib();
 
-    if (state_->should_quit)
+    if (state_->should_quit) {
       break;
+    }
 
     // Contingency 4.2.1
     EnsureClearedScopedWorkItem();
@@ -695,15 +703,18 @@ void MessagePumpGlib::Run(Delegate* delegate) {
     --state_->do_work_depth;
 
     more_work_is_plausible |= state_->next_work_info.is_immediate();
-    if (state_->should_quit)
+    if (state_->should_quit) {
       break;
+    }
 
-    if (more_work_is_plausible)
+    if (more_work_is_plausible) {
       continue;
+    }
 
-    more_work_is_plausible = state_->delegate->DoIdleWork();
-    if (state_->should_quit)
+    state_->delegate->DoIdleWork();
+    if (state_->should_quit) {
       break;
+    }
   }
 
   state_ = previous_state;
@@ -713,7 +724,7 @@ void MessagePumpGlib::Quit() {
   if (state_) {
     state_->should_quit = true;
   } else {
-    NOTREACHED_IN_MIGRATION() << "Quit called outside Run!";
+    NOTREACHED() << "Quit called outside Run!";
   }
 }
 
@@ -723,8 +734,7 @@ void MessagePumpGlib::ScheduleWork() {
   // we are sleeping in a poll that we will wake up.
   char msg = '!';
   if (HANDLE_EINTR(write(wakeup_pipe_write_, &msg, 1)) != 1) {
-    NOTREACHED_IN_MIGRATION()
-        << "Could not write to the UI message loop wakeup pipe!";
+    NOTREACHED() << "Could not write to the UI message loop wakeup pipe!";
   }
 }
 
@@ -751,10 +761,12 @@ void MessagePumpGlib::HandleFdWatchDispatch(FdWatchController* controller) {
     bool controller_was_destroyed = false;
     controller->was_destroyed_ = &controller_was_destroyed;
     controller->NotifyCanWrite();
-    if (!controller_was_destroyed)
+    if (!controller_was_destroyed) {
       controller->NotifyCanRead();
-    if (!controller_was_destroyed)
+    }
+    if (!controller_was_destroyed) {
       controller->was_destroyed_ = nullptr;
+    }
   } else if (flags & G_IO_IN) {
     controller->NotifyCanRead();
   } else if (flags & G_IO_OUT) {

@@ -8,6 +8,7 @@
 #include "ash/wallpaper/wallpaper_utils/sea_pen_metadata_utils.h"
 #include "ash/webui/common/mojom/sea_pen.mojom.h"
 #include "ash/webui/personalization_app/test/personalization_app_mojom_banned_mocha_test_base.h"
+#include "base/containers/span.h"
 #include "base/functional/callback_helpers.h"
 #include "base/test/gtest_tags.h"
 #include "base/test/test_future.h"
@@ -30,9 +31,9 @@ namespace {
 std::string CreateJpgBytes() {
   SkBitmap bitmap = gfx::test::CreateBitmap(1);
   bitmap.allocN32Pixels(1, 1);
-  std::vector<unsigned char> data;
-  gfx::JPEGCodec::Encode(bitmap, /*quality=*/100, &data);
-  return std::string(data.begin(), data.end());
+  std::optional<std::vector<uint8_t>> data =
+      gfx::JPEGCodec::Encode(bitmap, /*quality=*/100);
+  return std::string(base::as_string_view(data.value()));
 }
 
 }  // namespace
@@ -70,22 +71,35 @@ class PersonalizationAppSeaPenBrowserTest
         "screenplay-1bacd0f6-45cb-4dbd-a5df-cde7dedae42d");
     PersonalizationAppMochaTestBase::SetUpOnMainThread();
 
-    //  Creates a fake SeaPen image and saves it to disk.
-    auto* sea_pen_wallpaper_manager = SeaPenWallpaperManager::GetInstance();
-    DCHECK(sea_pen_wallpaper_manager);
-    const AccountId account_id = GetAccountId(browser()->profile());
-    const SeaPenImage sea_pen_image = {CreateJpgBytes(), 323};
+    //  Creates fake SeaPen images with template and free text queries and save
+    //  them to disk.
     const base::flat_map<mojom::SeaPenTemplateChip, mojom::SeaPenTemplateOption>
         options({{mojom::SeaPenTemplateChip::kFlowerColor,
                   mojom::SeaPenTemplateOption::kFlowerColorBlue},
                  {mojom::SeaPenTemplateChip::kFlowerType,
                   mojom::SeaPenTemplateOption::kFlowerTypeRose}});
-    const mojom::SeaPenQueryPtr search_query =
+    const mojom::SeaPenQueryPtr search_template_query =
         mojom::SeaPenQuery::NewTemplateQuery(mojom::SeaPenTemplateQuery::New(
             mojom::SeaPenTemplateId::kFlower, options,
             mojom::SeaPenUserVisibleQuery::New("test template query",
                                                "test template title")));
-    ASSERT_TRUE(ash::IsValidTemplateQuery(search_query->get_template_query()));
+    ASSERT_TRUE(
+        ash::IsValidTemplateQuery(search_template_query->get_template_query()));
+    SaveSampleSeaPenImageToDisk(search_template_query, 323);
+
+    const mojom::SeaPenQueryPtr search_text_query =
+        mojom::SeaPenQuery::NewTextQuery("test free text query");
+    SaveSampleSeaPenImageToDisk(search_text_query, 543);
+  }
+
+  //  Creates a fake SeaPen image using `search_query` and saves it to disk as
+  //  `image_id`.jpg.
+  void SaveSampleSeaPenImageToDisk(const mojom::SeaPenQueryPtr& search_query,
+                                   uint32_t image_id) {
+    auto* sea_pen_wallpaper_manager = SeaPenWallpaperManager::GetInstance();
+    DCHECK(sea_pen_wallpaper_manager);
+    const AccountId account_id = GetAccountId(browser()->profile());
+    const SeaPenImage sea_pen_image = {CreateJpgBytes(), image_id};
     base::test::TestFuture<bool> save_image_future;
     sea_pen_wallpaper_manager->SaveSeaPenImage(account_id, sea_pen_image,
                                                std::move(search_query),

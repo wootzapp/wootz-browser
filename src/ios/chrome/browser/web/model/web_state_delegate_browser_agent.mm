@@ -7,8 +7,9 @@
 #import "base/strings/sys_string_conversions.h"
 #import "components/content_settings/core/browser/host_content_settings_map.h"
 #import "components/content_settings/core/common/content_settings.h"
-#import "components/supervised_user/core/browser/supervised_user_preferences.h"
 #import "ios/chrome/browser/content_settings/model/host_content_settings_map_factory.h"
+#import "ios/chrome/browser/context_menu/ui_bundled/context_menu_configuration_provider.h"
+#import "ios/chrome/browser/dialogs/ui_bundled/nsurl_protection_space_util.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_callback_manager.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_modality.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_request.h"
@@ -17,11 +18,10 @@
 #import "ios/chrome/browser/overlays/model/public/web_content_area/http_auth_overlay.h"
 #import "ios/chrome/browser/overlays/model/public/web_content_area/insecure_form_overlay.h"
 #import "ios/chrome/browser/permissions/model/permissions_tab_helper.h"
-#import "ios/chrome/browser/shared/model/browser_state/chrome_browser_state.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_tab_helper.h"
+#import "ios/chrome/browser/supervised_user/model/supervised_user_capabilities.h"
 #import "ios/chrome/browser/tab_insertion/model/tab_insertion_browser_agent.h"
-#import "ios/chrome/browser/ui/context_menu/context_menu_configuration_provider.h"
-#import "ios/chrome/browser/ui/dialogs/nsurl_protection_space_util.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "ios/chrome/browser/web/model/blocked_popup_tab_helper.h"
@@ -30,8 +30,7 @@
 #import "ios/components/security_interstitials/ios_blocking_page_tab_helper.h"
 #import "ios/web/public/permissions/permissions.h"
 #import "ios/web/public/ui/context_menu_params.h"
-
-BROWSER_USER_DATA_KEY_IMPL(WebStateDelegateBrowserAgent)
+#import "ios/web/public/ui/crw_web_view_proxy.h"
 
 namespace {
 // Callback for HTTP authentication dialogs. This callback is a standalone
@@ -68,15 +67,14 @@ void OnInsecureFormWarningResponse(base::OnceCallback<void(bool)> callback,
 // content setting when a parent has explicitly set site settings controls to
 // block permissions.
 bool IsMicOrCameraAccessSubjectToParentalControls(
-    ChromeBrowserState* browser_state,
+    ProfileIOS* profile,
     NSArray<NSNumber*>* permissions) {
-  if (!browser_state || !supervised_user::IsSubjectToParentalControls(
-                            *browser_state->GetPrefs())) {
+  if (!profile || !supervised_user::IsSubjectToParentalControls(profile)) {
     return false;
   }
 
   HostContentSettingsMap* host_content_settings_map =
-      ios::HostContentSettingsMapFactory::GetForBrowserState(browser_state);
+      ios::HostContentSettingsMapFactory::GetForProfile(profile);
   CHECK(host_content_settings_map);
 
   ContentSetting default_mic_setting =
@@ -185,8 +183,9 @@ void WebStateDelegateBrowserAgent::BrowserDestroyed(Browser* browser) {
   DCHECK_EQ(web_state_list_, web_state_list);
 
   // Remove all web state delegates.
-  for (int index = 0; index < web_state_list_->count(); ++index)
+  for (int index = 0; index < web_state_list_->count(); ++index) {
     web_state_list_->GetWebStateAt(index)->SetDelegate(nullptr);
+  }
 
   web_state_observations_.RemoveAllObservations();
   web_state_list_observation_.Reset();
@@ -215,8 +214,9 @@ web::WebState* WebStateDelegateBrowserAgent::CreateNewWebState(
   // (typically deleting a WebState and then activating another as a side
   // effect). See crbug.com/988504 for details. In this case, the request to
   // create a new WebState is silently dropped.
-  if (web_state_list_->IsMutating())
+  if (web_state_list_->IsMutating()) {
     return nullptr;
+  }
 
   // Check if requested web state is a popup and block it if necessary.
   if (!initiated_by_user) {
@@ -243,8 +243,9 @@ web::WebState* WebStateDelegateBrowserAgent::CreateNewWebState(
 
 void WebStateDelegateBrowserAgent::CloseWebState(web::WebState* source) {
   int index = web_state_list_->GetIndexOfWebState(source);
-  if (index != WebStateList::kInvalidIndex)
+  if (index != WebStateList::kInvalidIndex) {
     web_state_list_->CloseWebStateAt(index, WebStateList::CLOSE_USER_ACTION);
+  }
 }
 
 web::WebState* WebStateDelegateBrowserAgent::OpenURLFromWebState(
@@ -313,7 +314,7 @@ void WebStateDelegateBrowserAgent::ShowRepostFormWarningDialog(
     }
 
     case web::FormWarningType::kNone:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 }
 
@@ -327,12 +328,10 @@ void WebStateDelegateBrowserAgent::HandlePermissionsDecisionRequest(
     web::WebState* source,
     NSArray<NSNumber*>* permissions,
     web::WebStatePermissionDecisionHandler handler) {
-  ChromeBrowserState* chrome_browser_state =
-      ChromeBrowserState::FromBrowserState(source->GetBrowserState());
+  ProfileIOS* profile = ProfileIOS::FromBrowserState(source->GetBrowserState());
   // For supervised users, sites can be denied permission to access camera or
   // mic by default. In this case, we do not show the dialog.
-  if (IsMicOrCameraAccessSubjectToParentalControls(chrome_browser_state,
-                                                   permissions)) {
+  if (IsMicOrCameraAccessSubjectToParentalControls(profile, permissions)) {
     handler(web::PermissionDecisionDeny);
     return;
   }
@@ -350,8 +349,9 @@ void WebStateDelegateBrowserAgent::OnAuthRequired(
   std::string message = base::SysNSStringToUTF8(
       nsurlprotectionspace_util::MessageForHTTPAuth(protection_space));
   std::string default_username;
-  if (proposed_credential.user)
+  if (proposed_credential.user) {
     default_username = base::SysNSStringToUTF8(proposed_credential.user);
+  }
   std::unique_ptr<OverlayRequest> request =
       OverlayRequest::CreateWithConfig<HTTPAuthOverlayRequestConfig>(
           nsurlprotectionspace_util::RequesterOrigin(protection_space), message,
@@ -381,8 +381,9 @@ void WebStateDelegateBrowserAgent::ContextMenuWillCommitWithAnimator(
     web::WebState* source,
     id<UIContextMenuInteractionCommitAnimating> animator) {
   GURL url_to_load = [context_menu_provider_ URLToLoad];
-  if (!url_to_load.is_valid())
+  if (!url_to_load.is_valid()) {
     return;
+  }
 
   UrlLoadParams params = UrlLoadParams::InCurrentTab(url_to_load);
   UrlLoadingBrowserAgent::FromBrowser(browser_)->Load(params);
@@ -391,6 +392,12 @@ void WebStateDelegateBrowserAgent::ContextMenuWillCommitWithAnimator(
 id<CRWResponderInputView> WebStateDelegateBrowserAgent::GetResponderInputView(
     web::WebState* source) {
   return input_view_provider_;
+}
+
+void WebStateDelegateBrowserAgent::OnNewWebViewCreated(web::WebState* source) {
+  // Focusing a newly-created web view allows it to request auth-based API. See
+  // crbug.com/369996712.
+  [source->GetWebViewProxy() becomeFirstResponder];
 }
 
 void WebStateDelegateBrowserAgent::SetWebStateDelegate(

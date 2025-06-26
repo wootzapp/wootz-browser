@@ -4,49 +4,8 @@
 
 #include "base/android/token_android.h"
 
-#include "build/robolectric_buildflags.h"
-
-#if BUILDFLAG(IS_ROBOLECTRIC)
-#include "base/base_robolectric_jni/TokenBase_jni.h"  // nogncheck
-#include "base/base_robolectric_jni/Token_jni.h"      // nogncheck
-#else
-#include "base/base_jni/TokenBase_jni.h"
-#include "base/base_jni/Token_jni.h"
-#endif
-
-namespace jni_zero {
-template <>
-BASE_EXPORT base::Token FromJniType<base::Token>(
-    JNIEnv* env,
-    const JavaRef<jobject>& j_object) {
-  return base::android::TokenAndroid::FromJavaToken(env, j_object);
-}
-template <>
-BASE_EXPORT std::optional<base::Token> FromJniType<std::optional<base::Token>>(
-    JNIEnv* env,
-    const JavaRef<jobject>& j_object) {
-  if (!j_object) {
-    return std::nullopt;
-  }
-  return base::android::TokenAndroid::FromJavaToken(env, j_object);
-}
-
-template <>
-BASE_EXPORT ScopedJavaLocalRef<jobject> ToJniType<base::Token>(
-    JNIEnv* env,
-    const base::Token& token) {
-  return base::android::TokenAndroid::Create(env, token);
-}
-template <>
-BASE_EXPORT ScopedJavaLocalRef<jobject> ToJniType<std::optional<base::Token>>(
-    JNIEnv* env,
-    const std::optional<base::Token>& token) {
-  if (!token) {
-    return nullptr;
-  }
-  return base::android::TokenAndroid::Create(env, token.value());
-}
-}  // namespace jni_zero
+#include "base/base_minimal_jni/TokenBase_jni.h"
+#include "base/base_minimal_jni/Token_jni.h"
 
 namespace base::android {
 
@@ -70,3 +29,5 @@ static base::Token JNI_Token_CreateRandom(JNIEnv* env) {
 }
 
 }  // namespace base::android
+
+DEFINE_JNI_FOR_Token()

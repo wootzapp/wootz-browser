@@ -6,14 +6,18 @@ package org.chromium.chrome.browser.omnibox.suggestions;
 
 import android.view.View;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.RecyclerView.LayoutManager;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+
 /** Selection manager for RecyclerViews. */
+@NullMarked
 public class RecyclerViewSelectionController
         implements RecyclerView.OnChildAttachStateChangeListener {
+    private static final int ADVANCE_EXPOSE_VIEWS = 2;
     private int mSelectedItemIndex = RecyclerView.NO_POSITION;
     private LayoutManager mLayoutManager;
 
@@ -65,9 +69,13 @@ public class RecyclerViewSelectionController
         setSelectedItem(RecyclerView.NO_POSITION);
     }
 
-    /** Move selection to the next element on the list. */
-    public void selectNextItem() {
-        if (mLayoutManager == null || mLayoutManager.getItemCount() == 0) return;
+    /**
+     * Move selection to the next element on the list.
+     *
+     * @return true, if change resulted in an item being highlighted
+     */
+    public boolean selectNextItem() {
+        if (mLayoutManager == null || mLayoutManager.getItemCount() == 0) return false;
 
         // Note: this is also the index selected if there are no more selectable views after the
         // current one.
@@ -92,11 +100,16 @@ public class RecyclerViewSelectionController
         }
 
         setSelectedItem(nextSelectableItemIndex);
+        return mSelectedItemIndex != RecyclerView.NO_POSITION;
     }
 
-    /** Move selection to the previous element on the list. */
-    public void selectPreviousItem() {
-        if (mLayoutManager == null || mLayoutManager.getItemCount() == 0) return;
+    /**
+     * Move selection to the previous element on the list.
+     *
+     * @return true, if change resulted in an item being highlighted
+     */
+    public boolean selectPreviousItem() {
+        if (mLayoutManager == null || mLayoutManager.getItemCount() == 0) return false;
 
         // Note: this is also the index selected if there are no more selectable views after the
         // current one.
@@ -123,11 +136,11 @@ public class RecyclerViewSelectionController
         }
 
         setSelectedItem(nextSelectableItemIndex);
+        return mSelectedItemIndex != RecyclerView.NO_POSITION;
     }
 
     /** Retrieve currently selected element. */
-    @Nullable
-    public View getSelectedView() {
+    public @Nullable View getSelectedView() {
         return mLayoutManager.findViewByPosition(mSelectedItemIndex);
     }
 
@@ -149,8 +162,22 @@ public class RecyclerViewSelectionController
             previousSelectedView.setSelected(false);
         }
 
+        // Ensure additional views are exposed when tabbing through items.
+        // This has the additional benefit of
+        // - presenting the extra views to the user so they don't have to tab through to them to see
+        //   them, and
+        // - instantiating these extra views, so these can be evaluated when the user tabs through
+        //   the list.
+        // If we don't expose additional views, the user may occasionally be unable to tab through
+        // the list; the LayoutManager may report <null> when we request a view at a specific
+        // position, because the view is not yet bound when we need it.
+        int exposeUntilViewIndex =
+                (mSelectedItemIndex < index)
+                        ? Math.min(index + ADVANCE_EXPOSE_VIEWS, mLayoutManager.getItemCount() - 1)
+                        : Math.max(index - ADVANCE_EXPOSE_VIEWS, 0);
+        mLayoutManager.scrollToPosition(exposeUntilViewIndex);
+
         mSelectedItemIndex = index;
-        mLayoutManager.scrollToPosition(index == RecyclerView.NO_POSITION ? 0 : index);
 
         View currentSelectedView = mLayoutManager.findViewByPosition(index);
         if (currentSelectedView != null) {

@@ -4,9 +4,9 @@
 
 #include "chrome/browser/ash/app_list/arc/arc_usb_host_permission_manager_factory.h"
 
-#include "ash/components/arc/usb/usb_host_bridge.h"
 #include "chrome/browser/ash/app_list/arc/arc_app_list_prefs_factory.h"
 #include "chrome/browser/ash/app_list/arc/arc_usb_host_permission_manager.h"
+#include "chromeos/ash/experiences/arc/usb/usb_host_bridge.h"
 #include "content/public/browser/browser_context.h"
 
 namespace arc {
@@ -36,6 +36,9 @@ ArcUsbHostPermissionManagerFactory::ArcUsbHostPermissionManagerFactory()
               // TODO(crbug.com/40257657): Check if this service is needed in
               // Guest mode.
               .WithGuest(ProfileSelection::kRedirectedToOriginal)
+              // TODO(crbug.com/41488885): Check if this service is needed for
+              // Ash Internals.
+              .WithAshInternals(ProfileSelection::kRedirectedToOriginal)
               .Build()) {
   DependsOn(ArcAppListPrefsFactory::GetInstance());
   DependsOn(ArcUsbHostBridge::GetFactory());

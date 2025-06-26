@@ -76,7 +76,7 @@ class ResponseBuffer : public base::RefCountedThreadSafe<ResponseBuffer> {
 
  private:
   friend class base::RefCountedThreadSafe<ResponseBuffer>;
-  ~ResponseBuffer() {}
+  ~ResponseBuffer() = default;
 
   std::string response_;
   int result_;
@@ -105,8 +105,7 @@ void SendFileOnIOThread(const std::string& device_serial,
 
 std::string GetSerialFromEnvironment() {
   std::unique_ptr<base::Environment> env(base::Environment::Create());
-  std::string serial;
-  return env->GetVar("ANDROID_SERIAL", &serial) ? serial : "";
+  return env->GetVar("ANDROID_SERIAL").value_or("");
 }
 
 }  // namespace
@@ -118,7 +117,7 @@ AdbImpl::AdbImpl(
   CHECK(io_task_runner_.get());
 }
 
-AdbImpl::~AdbImpl() {}
+AdbImpl::~AdbImpl() = default;
 
 Status AdbImpl::GetDevices(std::vector<std::string>* devices) {
   const std::string& serial_from_env = GetSerialFromEnvironment();
@@ -213,7 +212,7 @@ Status AdbImpl::SetCommandLineFile(const std::string& device_serial,
 Status AdbImpl::CheckAppInstalled(
     const std::string& device_serial, const std::string& package) {
   std::string response;
-  std::string command = "pm path " + package;
+  std::string command = "pm path --user cur " + package;
   Status status = ExecuteHostShellCommand(device_serial, command, &response);
   if (!status.IsOk())
     return status;

@@ -6,9 +6,9 @@
 
 #include "chrome/browser/web_applications/web_app.h"
 #include "chrome/browser/web_applications/web_app_sync_bridge.h"
+#include "components/sync/model/data_type_sync_bridge.h"
 #include "components/sync/model/entity_change.h"
 #include "components/sync/model/metadata_change_list.h"
-#include "components/sync/model/model_type_sync_bridge.h"
 
 namespace web_app {
 
@@ -64,7 +64,8 @@ void DeleteApps(WebAppSyncBridge& sync_bridge,
   syncer::EntityChangeList entity_changes;
 
   for (const webapps::AppId& app_id : app_ids_to_delete) {
-    auto entity_change = syncer::EntityChange::CreateDelete(app_id);
+    auto entity_change =
+        syncer::EntityChange::CreateDelete(app_id, syncer::EntityData());
     entity_changes.push_back(std::move(entity_change));
   }
 

@@ -59,7 +59,7 @@ class WebTestWebFrameWidgetImpl : public WebFrameWidgetImpl,
   FrameWidgetTestHelper* GetFrameWidgetTestHelperForTesting() override;
 
   // FrameWidget overrides.
-  void RequestDecode(const cc::PaintImage&,
+  void RequestDecode(const cc::DrawImage&,
                      base::OnceCallback<void(bool)>) override;
 
  private:
@@ -74,7 +74,7 @@ class WebTestWebFrameWidgetImpl : public WebFrameWidgetImpl,
   void DidAutoResize(const gfx::Size& size) override;
 
   // WidgetBaseClient overrides:
-  void ScheduleAnimation() override;
+  void ScheduleAnimation(bool urgent) override;
   void WillBeginMainFrame() override;
   void ScheduleAnimationForWebTests() override;
   bool AllowsScrollResampling() override { return false; }

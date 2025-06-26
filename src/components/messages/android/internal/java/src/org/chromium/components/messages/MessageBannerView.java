@@ -4,6 +4,8 @@
 
 package org.chromium.components.messages;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.animation.LayoutTransition;
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -14,21 +16,24 @@ import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import androidx.annotation.ColorInt;
-import androidx.annotation.Nullable;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.core.graphics.drawable.RoundedBitmapDrawable;
 import androidx.core.widget.ImageViewCompat;
 import androidx.swiperefreshlayout.widget.CircularProgressDrawable;
 
 import org.chromium.base.SysUtils;
+import org.chromium.base.supplier.Supplier;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
-import org.chromium.components.browser_ui.widget.BoundedLinearLayout;
 import org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils;
 import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener;
 import org.chromium.components.browser_ui.widget.gesture.SwipeGestureListener.SwipeHandler;
@@ -37,32 +42,39 @@ import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.listmenu.BasicListMenu;
 import org.chromium.ui.listmenu.ListMenu;
 import org.chromium.ui.listmenu.ListMenuButton;
-import org.chromium.ui.listmenu.ListMenuButton.PopupMenuShownListener;
-import org.chromium.ui.listmenu.ListMenuButtonDelegate;
+import org.chromium.ui.listmenu.ListMenuDelegate;
+import org.chromium.ui.listmenu.ListMenuHost.PopupMenuShownListener;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.PropertyModel;
+import org.chromium.ui.util.MotionEventUtils;
+import org.chromium.ui.widget.ChromeImageButton;
 
 /** View representing the message banner. */
-public class MessageBannerView extends BoundedLinearLayout {
+@NullMarked
+public class MessageBannerView extends RelativeLayout {
+    private View mMessageBanner;
     private ImageView mIconView;
     private TextView mTitle;
     private TextViewWithCompoundDrawables mDescription;
     private @PrimaryWidgetAppearance int mPrimaryWidgetAppearance =
             PrimaryWidgetAppearance.BUTTON_IF_TEXT_IS_SET;
     private TextView mPrimaryButton;
-    private String mPrimaryButtonText;
+    private @Nullable String mPrimaryButtonText;
     private Drawable mPrimaryButtonDrawable;
     private ListMenuButton mSecondaryButton;
+    private boolean mEnableCloseButton;
+    private ChromeImageButton mCloseButton;
     private View mDivider;
-    private String mSecondaryButtonMenuText;
-    private Runnable mSecondaryActionCallback;
-    private ListMenuButtonDelegate mSecondaryMenuButtonDelegate;
-    private SwipeGestureListener mSwipeGestureDetector;
-    private Runnable mOnTitleChanged;
+    private @Nullable String mSecondaryButtonMenuText;
+    private @Nullable Runnable mSecondaryActionCallback;
+    private @Nullable ListMenuDelegate mSecondaryMenuButtonDelegate;
+    private @Nullable SwipeGestureListener mSwipeGestureDetector;
+    private @Nullable Runnable mOnTitleChanged;
     private int mCornerRadius = -1;
-    private PopupMenuShownListener mPopupMenuShownListener;
-    private Drawable mDescriptionDrawable;
+    private @Nullable PopupMenuShownListener mPopupMenuShownListener;
+    private @Nullable Drawable mDescriptionDrawable;
     private boolean mOverrideSecondaryIconContentDescription = true;
+    private @Nullable Supplier<Boolean> mIsWithinTapProtectionPeriodSupplier;
 
     public MessageBannerView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
@@ -71,11 +83,13 @@ public class MessageBannerView extends BoundedLinearLayout {
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
+        mMessageBanner = findViewById(R.id.message_banner);
         mTitle = findViewById(R.id.message_title);
         mDescription = findViewById(R.id.message_description);
         mPrimaryButton = findViewById(R.id.message_primary_button);
         mIconView = findViewById(R.id.message_icon);
         mSecondaryButton = findViewById(R.id.message_secondary_button);
+        mCloseButton = findViewById(R.id.message_close_button);
         mDivider = findViewById(R.id.message_divider);
         mSecondaryButton.setOnClickListener(
                 (View v) -> {
@@ -85,7 +99,8 @@ public class MessageBannerView extends BoundedLinearLayout {
         mainContent.getLayoutTransition().enableTransitionType(LayoutTransition.CHANGING);
         // Elevation does not work on low end device.
         if (SysUtils.isLowEndDevice()) {
-            setBackgroundResource(R.drawable.popup_bg);
+            mMessageBanner.setBackground(
+                    AppCompatResources.getDrawable(getContext(), R.drawable.dialog_bg_baseline));
         }
         mPrimaryButtonDrawable = mPrimaryButton.getBackground();
     }
@@ -93,7 +108,7 @@ public class MessageBannerView extends BoundedLinearLayout {
     void enableA11y(boolean enabled) {
         setImportantForAccessibility(
                 enabled
-                        ? IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                        ? IMPORTANT_FOR_ACCESSIBILITY_YES
                         : IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
     }
 
@@ -225,6 +240,14 @@ public class MessageBannerView extends BoundedLinearLayout {
                 });
     }
 
+    void enableCloseButton(boolean enable) {
+        mEnableCloseButton = enable;
+    }
+
+    void setCloseButtonClickListener(OnClickListener listener) {
+        mCloseButton.setOnClickListener(listener);
+    }
+
     void setSecondaryIcon(Drawable icon) {
         mSecondaryButton.setImageDrawable(icon);
         mSecondaryButton.setVisibility(VISIBLE);
@@ -251,7 +274,7 @@ public class MessageBannerView extends BoundedLinearLayout {
         mSecondaryButton.setMenuMaxWidth(getResources().getDimensionPixelSize(dimenId));
     }
 
-    void setSecondaryMenuButtonDelegate(ListMenuButtonDelegate delegate) {
+    void setSecondaryMenuButtonDelegate(ListMenuDelegate delegate) {
         mSecondaryButton.dismiss();
         mSecondaryMenuButtonDelegate = delegate;
     }
@@ -265,8 +288,12 @@ public class MessageBannerView extends BoundedLinearLayout {
         mSwipeGestureDetector = new MessageSwipeGestureListener(getContext(), handler);
     }
 
-    void setOnTitleChanged(Runnable runnable) {
+    void setOnTitleChanged(@Nullable Runnable runnable) {
         mOnTitleChanged = runnable;
+    }
+
+    void setTapProtectionSupplier(Supplier<Boolean> supplier) {
+        mIsWithinTapProtectionPeriodSupplier = supplier;
     }
 
     void dismissSecondaryMenuIfShown() {
@@ -276,9 +303,10 @@ public class MessageBannerView extends BoundedLinearLayout {
     void enableLargeIcon(boolean enabled) {
         int smallSize = getResources().getDimensionPixelSize(R.dimen.message_icon_size);
         int largeSize = getResources().getDimensionPixelSize(R.dimen.message_icon_size_large);
-        LayoutParams params = (LayoutParams) mIconView.getLayoutParams();
+        ViewGroup.LayoutParams params = mIconView.getLayoutParams();
         if (enabled) {
-            params.height = params.width = largeSize;
+            params.height = largeSize;
+            params.width = largeSize;
         } else {
             params.width = LayoutParams.WRAP_CONTENT;
             params.height = smallSize;
@@ -373,6 +401,27 @@ public class MessageBannerView extends BoundedLinearLayout {
         mPrimaryButton.setEllipsize(null);
     }
 
+    @Override
+    public void setElevation(float elevation) {
+        mMessageBanner.setElevation(elevation);
+    }
+
+    @Override
+    protected boolean dispatchHoverEvent(MotionEvent event) {
+        // TODO(crbug.com/315815559): pressing the button will trigger an unexpected exit, which
+        // will make the close button disappear. Check #isPrimaryButton to prevent from that.
+        // Remove the check once the fix lands.
+        if (mEnableCloseButton && MotionEventUtils.isMouseEvent(event)) {
+            if (event.getAction() == MotionEvent.ACTION_HOVER_ENTER) {
+                findViewById(R.id.message_close_button).setVisibility(VISIBLE);
+            } else if (event.getAction() == MotionEvent.ACTION_HOVER_EXIT
+                    && MotionEventUtils.isPrimaryButton(event.getActionButton())) {
+                findViewById(R.id.message_close_button).setVisibility(GONE);
+            }
+        }
+        return super.dispatchHoverEvent(event);
+    }
+
     /**
      * Overriding onMeasure for set a proper height for primary button. By design, the primary
      * button should fill all the remaining vertical space. If it includes very long text which
@@ -383,7 +432,7 @@ public class MessageBannerView extends BoundedLinearLayout {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         mPrimaryButton.setMinHeight(0); // Reset min height for measuring.
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-        int containerHeight = getMeasuredHeight();
+        int containerHeight = mMessageBanner.getMeasuredHeight();
         int btnWidth = mPrimaryButton.getMeasuredWidth();
         int wSpec = MeasureSpec.makeMeasureSpec(btnWidth, MeasureSpec.EXACTLY);
         int hSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED);
@@ -393,7 +442,8 @@ public class MessageBannerView extends BoundedLinearLayout {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
-    private ListMenuButtonDelegate buildDelegateForSingleMenuItem() {
+    private ListMenuDelegate buildDelegateForSingleMenuItem() {
+        assumeNonNull(mSecondaryButtonMenuText);
         MVCListAdapter.ListItem listItem =
                 BrowserUiListMenuUtils.buildMenuListItem(mSecondaryButtonMenuText, 0, 0, true);
         MVCListAdapter.ModelList menuItems = new MVCListAdapter.ModelList();
@@ -410,7 +460,7 @@ public class MessageBannerView extends BoundedLinearLayout {
         BasicListMenu listMenu =
                 BrowserUiListMenuUtils.getBasicListMenu(getContext(), menuItems, listMenuDelegate);
 
-        return new ListMenuButtonDelegate() {
+        return new ListMenuDelegate() {
             @Override
             public ListMenu getListMenu() {
                 return listMenu;
@@ -418,16 +468,27 @@ public class MessageBannerView extends BoundedLinearLayout {
         };
     }
 
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        return isWithinTapProtectionPeriod() || super.onInterceptTouchEvent(ev);
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (isWithinTapProtectionPeriod()) return true;
         if (mSwipeGestureDetector != null) {
             return mSwipeGestureDetector.onTouchEvent(event) || super.onTouchEvent(event);
         }
         return super.onTouchEvent(event);
     }
 
-    private class MessageSwipeGestureListener extends SwipeGestureListener {
+    private boolean isWithinTapProtectionPeriod() {
+        return mIsWithinTapProtectionPeriodSupplier != null
+                && Boolean.TRUE.equals(mIsWithinTapProtectionPeriodSupplier.get());
+    }
+
+    private static class MessageSwipeGestureListener extends SwipeGestureListener {
         public MessageSwipeGestureListener(Context context, SwipeHandler handler) {
             super(context, handler);
         }
@@ -440,5 +501,13 @@ public class MessageBannerView extends BoundedLinearLayout {
 
     ListMenuButton getSecondaryButtonForTesting() {
         return mSecondaryButton;
+    }
+
+    float getElevationForTesting() {
+        return mMessageBanner.getElevation();
+    }
+
+    public View getMainContentForTesting() {
+        return findViewById(R.id.message_banner);
     }
 }

@@ -78,6 +78,8 @@
 #include "base/compiler_specific.h"
 #include "base/numerics/clamped_math.h"
 #include "build/build_config.h"
+// TODO(crbug.com/354842935): Remove this include once other modules don't
+// accidentally (transitively) depend on it anymore.
 #include "build/chromeos_buildflags.h"
 
 #if BUILDFLAG(IS_FUCHSIA)
@@ -96,8 +98,8 @@
 #endif
 
 #if BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
-#include <unistd.h>
 #include <sys/time.h>
+#include <unistd.h>
 #endif
 
 #if BUILDFLAG(IS_WIN)
@@ -132,7 +134,7 @@ constexpr bool isnan(double d) {
   return d != d;
 }
 
-}
+}  // namespace
 
 // TimeDelta ------------------------------------------------------------------
 
@@ -260,8 +262,9 @@ class BASE_EXPORT TimeDelta {
     return *this = (*this - other);
   }
   constexpr TimeDelta operator-() const {
-    if (!is_inf())
+    if (!is_inf()) {
       return TimeDelta(-delta_);
+    }
     return (delta_ < 0) ? Max() : Min();
   }
 
@@ -298,8 +301,9 @@ class BASE_EXPORT TimeDelta {
     return ToDouble() / a.ToDouble();
   }
   constexpr int64_t IntDiv(TimeDelta a) const {
-    if (!is_inf() && !a.is_zero())
+    if (!is_inf() && !a.is_zero()) {
       return int64_t{delta_ / a.delta_};
+    }
 
     // For consistency, use the same edge case CHECKs and behavior as the code
     // above.
@@ -340,8 +344,9 @@ class BASE_EXPORT TimeDelta {
   // Returns a double representation of this TimeDelta's tick count.  In
   // particular, Max()/Min() are converted to +/-infinity.
   constexpr double ToDouble() const {
-    if (!is_inf())
+    if (!is_inf()) {
       return static_cast<double>(delta_);
+    }
     return (delta_ < 0) ? -std::numeric_limits<double>::infinity()
                         : std::numeric_limits<double>::infinity();
   }
@@ -351,8 +356,9 @@ class BASE_EXPORT TimeDelta {
 };
 
 constexpr TimeDelta TimeDelta::operator+(TimeDelta other) const {
-  if (!other.is_inf())
+  if (!other.is_inf()) {
     return TimeDelta(delta_ + other.delta_);
+  }
 
   // Additions involving two infinities are only valid if signs match.
   CHECK(!is_inf() || (delta_ == other.delta_));
@@ -360,8 +366,9 @@ constexpr TimeDelta TimeDelta::operator+(TimeDelta other) const {
 }
 
 constexpr TimeDelta TimeDelta::operator-(TimeDelta other) const {
-  if (!other.is_inf())
+  if (!other.is_inf()) {
     return TimeDelta(delta_ - other.delta_);
+  }
 
   // Subtractions involving two infinities are only valid if signs differ.
   CHECK_NE(int64_t{delta_}, int64_t{other.delta_});
@@ -387,7 +394,7 @@ namespace time_internal {
 // classes. Each subclass provides for strong type-checking to ensure
 // semantically meaningful comparison/math of time values from the same clock
 // source or timeline.
-template<class TimeClass>
+template <class TimeClass>
 class TimeBase {
  public:
   static constexpr int64_t kHoursPerDay = 24;
@@ -409,6 +416,8 @@ class TimeBase {
       kMicrosecondsPerHour * kHoursPerDay;
   static constexpr int64_t kMicrosecondsPerWeek = kMicrosecondsPerDay * 7;
   static constexpr int64_t kNanosecondsPerMicrosecond = 1000;
+  static constexpr int64_t kNanosecondsPerMillisecond =
+      kNanosecondsPerMicrosecond * kMicrosecondsPerMillisecond;
   static constexpr int64_t kNanosecondsPerSecond =
       kNanosecondsPerMicrosecond * kMicrosecondsPerSecond;
 
@@ -428,8 +437,8 @@ class TimeBase {
   constexpr bool is_min() const { return *this == Min(); }
   constexpr bool is_inf() const { return is_min() || is_max(); }
 
-  // Returns the maximum/minimum times, which should be greater/less than than
-  // any reasonable time with which we might compare it.
+  // Returns the maximum/minimum times, which should be non-null and
+  // greater/less than than any reasonable time with which we might compare it.
   static constexpr TimeClass Max() {
     return TimeClass(std::numeric_limits<int64_t>::max());
   }
@@ -456,7 +465,8 @@ class TimeBase {
 #if !defined(__aarch64__) && BUILDFLAG(IS_ANDROID)
   NOINLINE  // https://crbug.com/1369775
 #endif
-  constexpr TimeDelta operator-(const TimeBase<TimeClass>& other) const;
+      constexpr TimeDelta
+      operator-(const TimeBase<TimeClass>& other) const;
 
   // Return a new time modified by some delta.
   constexpr TimeClass operator+(TimeDelta delta) const;
@@ -954,8 +964,9 @@ constexpr int TimeDelta::InMinutes() const {
 }
 
 constexpr double TimeDelta::InSecondsF() const {
-  if (!is_inf())
+  if (!is_inf()) {
     return static_cast<double>(delta_) / Time::kMicrosecondsPerSecond;
+  }
   return (delta_ < 0) ? -std::numeric_limits<double>::infinity()
                       : std::numeric_limits<double>::infinity();
 }
@@ -1062,8 +1073,9 @@ constexpr TimeClass TimeBase<TimeClass>::operator-(TimeDelta delta) const {
 
 // static
 constexpr Time Time::FromTimeT(time_t tt) {
-  if (tt == 0)
+  if (tt == 0) {
     return Time();  // Preserve 0 so we can tell it doesn't exist.
+  }
   return (tt == std::numeric_limits<time_t>::max())
              ? Max()
              : (UnixEpoch() + Seconds(tt));
@@ -1179,6 +1191,19 @@ class BASE_EXPORT TimeTicks : public time_internal::TimeBase<TimeTicks> {
   // microsecond.
   static TimeTicks Now();
 
+  // Lower overhead, lower resolution platform-dependent tick count representing
+  // "right now." The resolution may be as coarse as ~15.6ms on Windows and
+  // single digit ms on other platforms. LowResolutionNow() can be used in place
+  // of Now() to reduce overhead of high frequency timekeeping where the finer
+  // resolution of Now() is not required. Generally, prefer to use Now() over
+  // LowResolutionNow() unless profiling shows measurable overhead.
+  //
+  // Note: LowResolutionNow() and Now() are NOT comparable. They use different
+  // underlying clocks on some platforms (e.g. Mac, iOS). On other platforms the
+  // monotonically non-decreasing property of TimeTicks does not hold for mixed
+  // comparisons.
+  static TimeTicks LowResolutionNow();
+
   // Returns true if the high resolution clock is working on this system and
   // Now() will return high resolution values. Note that, on systems where the
   // high resolution clock works but is deemed inefficient, the low resolution
@@ -1221,7 +1246,7 @@ class BASE_EXPORT TimeTicks : public time_internal::TimeBase<TimeTicks> {
   // milliseconds) performed by uptimeMillis().
   static TimeTicks FromUptimeMillis(int64_t uptime_millis_value);
 
-#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_ANDROID)
   // Converts to TimeTicks the value obtained from System.nanoTime(). This
@@ -1253,6 +1278,14 @@ class BASE_EXPORT TimeTicks : public time_internal::TimeBase<TimeTicks> {
   // realtime clock to establish a reference point.  This function will return
   // the same value for the duration of the application, but will be different
   // in future application runs.
+  // DEPRECATED:
+  // Because TimeTicks increments can get suspended on some platforms (e.g. Mac)
+  // and because this function returns a static value, this value will not get
+  // suspension time into account on those platforms.
+  // As TimeTicks is intended to be used to track a process duration and not an
+  // absolute time, if you plan to use this function, please consider using a
+  // Time instead.
+  // TODO(crbug.com/355423207): Remove function.
   static TimeTicks UnixEpoch();
 
   static void SetSharedUnixEpoch(TimeTicks);
@@ -1316,10 +1349,26 @@ class BASE_EXPORT LiveTicks : public time_internal::TimeBase<LiveTicks> {
   constexpr explicit LiveTicks(int64_t us) : TimeBase(us) {}
 };
 
+// For logging use only.
+BASE_EXPORT std::ostream& operator<<(std::ostream& os, LiveTicks live_ticks);
+
 // ThreadTicks ----------------------------------------------------------------
 
-// Represents a clock, specific to a particular thread, than runs only while the
-// thread is running.
+// Represents a thread-specific clock that runs only while the thread is
+// scheduled. This has the effect of counting time spent actually executing
+// code, but not time spent blocked (e.g. on I/O), or ready and waiting to be
+// run.
+//
+// Note: This is typically significantly more expensive than TimeTicks. For
+// instance, on Linux-based systems, it requires a true system call, whereas
+// TimeTicks::Now() calls are usually handled through the vDSO. This does not
+// matter if a couple us of overhead is not important to you, but do not call
+// this in a tight loop, or for sub-microsecond intervals.
+//
+// For instance, in 2024 on a Linux system, in a simple loop:
+// - TimeTicks::Now() takes 27ns per loop iteration
+// - ThreadTicks::Now() takes 875ns per loop iteration. Actual cost is likely
+//   higher in Chromium due to the sandbox (seccomp-BPF).
 class BASE_EXPORT ThreadTicks : public time_internal::TimeBase<ThreadTicks> {
  public:
   constexpr ThreadTicks() : TimeBase(0) {}

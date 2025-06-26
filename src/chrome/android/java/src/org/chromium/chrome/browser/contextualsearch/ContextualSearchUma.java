@@ -17,7 +17,6 @@ import org.chromium.chrome.browser.compositor.bottombar.OverlayPanel.PanelState;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanel.StateChangeReason;
 import org.chromium.chrome.browser.contextualsearch.ResolvedSearchTerm.CardTag;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.components.sync.SyncService;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -233,23 +232,8 @@ public class ContextualSearchUma {
     }
 
     /**
-     * Logs whether search results were seen for a Tap gesture, for all users and sync-enabled
-     * users. For sync-enabled users we log to a separate histogram for that sub-population in order
-     * to help validate the Ranker Tap Suppression model results (since they are trained on UKM data
-     * which approximately reflects this sync-enabled population).
-     * @param wasPanelSeen Whether the panel was seen.
-     */
-    public static void logTapResultsSeen(boolean wasPanelSeen, @Nullable SyncService syncService) {
-        RecordHistogram.recordBooleanHistogram(
-                "Search.ContextualSearch.Tap.ResultsSeen", wasPanelSeen);
-        if (syncService != null && syncService.isSyncFeatureEnabled()) {
-            RecordHistogram.recordBooleanHistogram(
-                    "Search.ContextualSearch.Tap.SyncEnabled.ResultsSeen", wasPanelSeen);
-        }
-    }
-
-    /**
-     * Logs whether search results were seen for all gestures.  Recorded for all users.
+     * Logs whether search results were seen for all gestures. Recorded for all users.
+     *
      * @param wasPanelSeen Whether the panel was seen.
      */
     public static void logAllResultsSeen(boolean wasPanelSeen) {

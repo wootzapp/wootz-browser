@@ -4,12 +4,14 @@
 
 package org.chromium.chrome.browser.ui.appmenu;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
 import android.app.Activity;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -43,8 +45,6 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import android.os.Bundle;
 import androidx.annotation.ColorInt;
 import androidx.annotation.IdRes;
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
 
 import org.chromium.chrome.browser.extensions.ExtensionInfo;
 import org.chromium.chrome.browser.extensions.Extensions;
@@ -62,13 +62,29 @@ import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.base.version_info.VersionInfo;
 import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.ViewAndroidDelegate;
+import androidx.annotation.VisibleForTesting;
+import androidx.appcompat.content.res.AppCompatResources;
+import androidx.core.content.ContextCompat;
+
 import org.chromium.base.Callback;
 import org.chromium.base.SysUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
+import org.chromium.build.annotations.EnsuresNonNullIf;
+import org.chromium.build.annotations.Initializer;
+import org.chromium.build.annotations.MonotonicNonNull;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+import org.chromium.build.annotations.RequiresNonNull;
+import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;
 import org.chromium.chrome.browser.ui.appmenu.internal.R;
-import org.chromium.components.browser_ui.styles.ChromeColors;
+import org.chromium.components.browser_ui.styles.SemanticColorUtils;
+import android.widget.BaseAdapter;
+
+import java.beans.Visibility;
+import java.security.cert.Extension;
+import java.util.HashMap;
 import org.chromium.components.browser_ui.widget.chips.ChipView;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter;
 import org.chromium.components.browser_ui.widget.highlight.ViewHighlighter.HighlightParams;
@@ -77,12 +93,8 @@ import org.chromium.ui.modelutil.MVCListAdapter.ModelList;
 import org.chromium.ui.modelutil.ModelListAdapter;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.widget.Toast;
-import android.widget.BaseAdapter;
 
-import java.beans.Visibility;
-import java.security.cert.Extension;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import android.widget.ImageView;
@@ -108,7 +120,6 @@ import androidx.appcompat.content.res.AppCompatResources;
 import android.app.Activity;
 import android.content.pm.ActivityInfo;
 
-
 /**
  * Shows a popup of menuitems anchored to a host view. When a item is selected
  * we call
@@ -117,6 +128,7 @@ import android.content.pm.ActivityInfo;
  * - Only visible MenuItems are shown.
  * - Disabled items are grayed out.
  */
+@NullMarked
 /*
  * This class has been revamped by Devendra(dkt) by adding
  * BottomSheetDialogFragment
@@ -130,7 +142,7 @@ public class AppMenu extends BottomSheetDialogFragment
     private static final float LAST_ITEM_SHOW_FRACTION = 0.5f;
 
     /** A means of reporting an exception/stack without crashing. */
-    private static Callback<Throwable> sExceptionReporter;
+    private static @MonotonicNonNull Callback<Throwable> sExceptionReporter;
 
     private int mItemRowHeight;
     private int mVerticalFadeDistance;
@@ -139,14 +151,18 @@ public class AppMenu extends BottomSheetDialogFragment
     private int mChipHighlightExtension;
     private int[] mTempLocation;
 
+    private @Nullable PopupWindow mPopup;
+    private @Nullable ListView mListView;
     private GridView mGridView;
     private static final int GRID_COLUMNS = 3; // Adjust as needed
     private boolean alreadyReverted;
 
-    private ModelListAdapter mAdapter;
+    private @Nullable ModelListAdapter mAdapter;
     private AppMenuHandlerImpl mHandler;
+    private @Nullable View mFooterView;
     private int mCurrentScreenRotation = -1;
     private boolean mIsByPermanentButton;
+    private @Nullable AnimatorSet mMenuItemEnterAnimator;
     private long mMenuShownTimeMs;
     private boolean mSelectedItemBeforeDismiss;
     private ModelList mModelList;
@@ -173,6 +189,7 @@ public class AppMenu extends BottomSheetDialogFragment
      * @param res           Resources object used to get dimensions and style
      *                      attributes.
      */
+
     // By Devendra(dkt)
     // Required empty constructor
     public AppMenu() {
@@ -207,15 +224,13 @@ public class AppMenu extends BottomSheetDialogFragment
      * {@code menuRowId} have
      * changed. This should be called if icons, titles, etc. are changing for a
      * particular menu
-     * item while the menu is open.
-     * 
+     *
      * @param menuRowId The id of the menu item to change. This must be a row id and
-     *                  not a child
-     *                  id.crollView = new NestedScrollView(getContext());
+     *                  not a child id.
      */
     public void menuItemContentChanged(int menuRowId) {
         // Make sure we have all the valid state objects we need.
-        if (mAdapter == null || mModelList == null || mGridView == null) {
+        if (mAdapter == null || mPopup == null || mListView == null) {
             return;
         }
 
@@ -341,7 +356,8 @@ public class AppMenu extends BottomSheetDialogFragment
                 }
             });
 
-            // Set minimal padding on the WebView itself
+
+        // Set minimal padding on the WebView itself
             webView.setPadding(0, 0, 0, 0);
 
             // Ensure the WebView fills its container
@@ -353,24 +369,25 @@ public class AppMenu extends BottomSheetDialogFragment
             // webView.setBackgroundColor(Color.parseColor("#1C1E21")); // Dark background
             // color
         }
-
+        
         viewWrapper.addView(mThinWebView.getView());
 
         // Apply same corner radius to the wrapper for consistency
         float wrapperCornerRadius = dpToPx(16);
         viewWrapper.setClipToOutline(true);
         viewWrapper.setOutlineProvider(new ViewOutlineProvider() {
-            @Override
-            public void getOutline(View view, Outline outline) {
-                outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), wrapperCornerRadius);
-            }
-        });
 
-        // Set background color to wrapper as well
-        // viewWrapper.setBackgroundColor(Color.parseColor("#1C1E21"));
-
-        return viewWrapper;
+    @Override
+    public void getOutline(View view, Outline outline) {
+        outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), wrapperCornerRadius);
     }
+
+    });
+
+    // Set background color to wrapper as well
+    // viewWrapper.setBackgroundColor(Color.parseColor("#1C1E21"));
+
+    return viewWrapper;}
 
     private void returnToAppMenu() {
         View view = getView();
@@ -426,21 +443,22 @@ public class AppMenu extends BottomSheetDialogFragment
         // Set up bottom sheet callback to maintain bottom margin when expanded
         BottomSheetBehavior<View> behavior = BottomSheetBehavior.from(parent);
         behavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
-            @Override
-            public void onStateChanged(@NonNull View bottomSheet, int newState) {
-                if (newState == BottomSheetBehavior.STATE_EXPANDED) {
-                    bottomSheet.setPadding(0, 0, 0, marginInPixels);
-                } else {
-                    bottomSheet.setPadding(0, 0, 0, 0);
-                }
-            }
 
-            @Override
-            public void onSlide(@NonNull View bottomSheet, float slideOffset) {
-                // Not needed for this implementation
-            }
-        });
+    @Override
+    public void onStateChanged(@NonNull View bottomSheet, int newState) {
+        if (newState == BottomSheetBehavior.STATE_EXPANDED) {
+            bottomSheet.setPadding(0, 0, 0, marginInPixels);
+        } else {
+            bottomSheet.setPadding(0, 0, 0, 0);
+        }
     }
+
+    @Override
+    public void onSlide(@NonNull View bottomSheet, float slideOffset) {
+        // Not needed for this implementation
+    }
+
+    });}
 
     private int dpToPx(int dp) {
         float density = getResources().getDisplayMetrics().density;
@@ -450,17 +468,18 @@ public class AppMenu extends BottomSheetDialogFragment
     private void createExtensionsRow() {
         Context context = getContext();
         View view = getView();
-        if (view == null) return;
+        if (view == null)
+            return;
 
         View extensionsDivider = view.findViewById(R.id.extensions_divider);
         LinearLayout extensionsContainer = view.findViewById(R.id.app_menu_extensions_container);
         HorizontalScrollView scrollView = view.findViewById(R.id.extensions_scroll_view);
         LinearLayout parent = view.findViewById(R.id.app_menu_extensions);
 
-        if (mHandler != null && 
-            (mHandler.getActivityTab() == null || // Tab switcher case
-             mHandler.getActivityTab().isIncognito() || // Incognito case
-               mHandler.getActivityTab().isCustomTab())) { //For custom tabs
+        if (mHandler != null &&
+                (mHandler.getActivityTab() == null || // Tab switcher case
+                        mHandler.getActivityTab().isIncognito() || // Incognito case
+                        mHandler.getActivityTab().isCustomTab())) { // For custom tabs
             // Hide all extension-related views
             extensionsDivider.setVisibility(View.GONE);
             scrollView.setVisibility(View.GONE);
@@ -486,8 +505,8 @@ public class AppMenu extends BottomSheetDialogFragment
             Log.d(TAG, "Is on extension store: " + isOnExtensionStore);
             Log.d(TAG, "URL comparison: '" + currentUrl + "' vs 'wootzapp://flow-store/'");
         } else {
-            Log.d(TAG, "Handler or ActivityTab is null. Handler: " + (mHandler != null) + 
-                  ", ActivityTab: " + (mHandler != null ? mHandler.getActivityTab() != null : "handler null"));
+            Log.d(TAG, "Handler or ActivityTab is null. Handler: " + (mHandler != null) +
+                    ", ActivityTab: " + (mHandler != null ? mHandler.getActivityTab() != null : "handler null"));
         }
 
         // Only add the "Add Extension" button if we're not on the extension store
@@ -580,6 +599,7 @@ public class AppMenu extends BottomSheetDialogFragment
         if (tab != null) {
             tab.loadUrl(params);
             dismiss(); // Dismiss the app menu after loading the URL
+
         } else {
             Log.e(TAG, "Cannot open website: tab is null");
             Toast.makeText(getContext(), "Cannot open website at this time", Toast.LENGTH_SHORT).show();
@@ -588,16 +608,17 @@ public class AppMenu extends BottomSheetDialogFragment
 
     private void showDeleteExtensionDialog(int extensionIndex) {
         Context context = getContext();
-        if (context == null) return;
-        
+        if (context == null)
+            return;
+
         ExtensionInfo extension = Extensions.getExtensionsInfo().get(extensionIndex);
         String extensionName = extension.getName();
 
-        if("Wootz Wallet".equals(extensionName)){
+        if ("Wootz Wallet".equals(extensionName)) {
             Toast.makeText(context, "You cannot remove this extension", Toast.LENGTH_SHORT).show();
             return;
         }
-        
+
         new androidx.appcompat.app.AlertDialog.Builder(context)
                 .setTitle("Delete Extension")
                 .setMessage("Do you want to delete this extension?")
@@ -652,6 +673,7 @@ public class AppMenu extends BottomSheetDialogFragment
                 returnToAppMenu(); // Return to the main menu on error
             }
         }
+
     }
 
     @Override
@@ -681,10 +703,12 @@ public class AppMenu extends BottomSheetDialogFragment
         }
         return false;
     }
+
     boolean isCreated = false;
+
     @Override
     public void show(@NonNull FragmentManager manager, @Nullable String tag) {
-    
+
         Log.d(TAG, Extensions.getExtensionsInfo().toString());
 
         Log.d(TAG, "show called with tag: " + tag);
@@ -744,6 +768,7 @@ public class AppMenu extends BottomSheetDialogFragment
         }
         // this dismiss is added after the option is selected
         dismiss();
+        mHandler.onOptionsItemSelected(id);
     }
 
     @Override
@@ -752,6 +777,7 @@ public class AppMenu extends BottomSheetDialogFragment
         if (!model.get(AppMenuItemProperties.ENABLED))
             return false;
         Log.d(TAG, "After the conditional check in onItemLongClick");
+
         mSelectedItemBeforeDismiss = true;
         CharSequence titleCondensed = model.get(AppMenuItemProperties.TITLE_CONDENSED);
         CharSequence message = TextUtils.isEmpty(titleCondensed)
@@ -763,6 +789,8 @@ public class AppMenu extends BottomSheetDialogFragment
     @VisibleForTesting
     boolean showToastForItem(CharSequence message, View view) {
         Context context = view.getContext();
+        // final @ColorInt int backgroundColor = ContextCompat.getColor(context,
+        // R.color.toast_color);
         final @ColorInt int backgroundColor = ChromeColors.getSurfaceColor(context, R.dimen.toast_elevation);
         return new Toast.Builder(context)
                 .withText(message)
@@ -798,6 +826,7 @@ public class AppMenu extends BottomSheetDialogFragment
      * @param newModelList The new menu item list will be displayed.
      * @param adapter      The adapter for visible items in the Menu.
      */
+    @Initializer
     void updateMenu(ModelList newModelList, ModelListAdapter adapter) {
         mModelList = newModelList;
         mAdapter = adapter;
@@ -814,6 +843,7 @@ public class AppMenu extends BottomSheetDialogFragment
      * @param itemId The id of the menu item to find.
      * @return The {@link PropertyModel} has the given id. null if not found.
      */
+    @Nullable
     PropertyModel getMenuItemPropertyModel(int itemId) {
         for (int i = 0; i < mModelList.size(); i++) {
             PropertyModel model = mModelList.get(i).model;
@@ -841,6 +871,7 @@ public class AppMenu extends BottomSheetDialogFragment
             mAdapter.notifyDataSetChanged();
     }
 
+    @RequiresNonNull("mPopup")
     private void inflateHeader(int headerResourceId, View contentView) {
         if (headerResourceId == 0)
             return;
@@ -865,30 +896,46 @@ public class AppMenu extends BottomSheetDialogFragment
             mHandler.onFooterViewInflated(footerView);
     }
 
-    private void recordTimeToTakeActionHistogram() {
-        final String histogramName = "Mobile.AppMenu.TimeToTakeAction."
-                + (mSelectedItemBeforeDismiss ? "SelectedItem" : "Abandoned");
-        final long timeToTakeActionMs = SystemClock.elapsedRealtime() - mMenuShownTimeMs;
-        RecordHistogram.recordMediumTimesHistogram(histogramName, timeToTakeActionMs);
-    }
+    titleView.setText(title);
 
-    private int getMenuItemHeight(
-            int itemId, Context context, @Nullable List<CustomViewBinder> customViewBinders) {
-        // Check if |item| is custom type
-        if (customViewBinders != null) {
-            for (int i = 0; i < customViewBinders.size(); i++) {
-                CustomViewBinder binder = customViewBinders.get(i);
-                if (binder.getItemViewType(itemId) != CustomViewBinder.NOT_HANDLED) {
-                    return binder.getPixelHeight(context);
-                }
-            }
+    boolean isEnabled = model
+            .get(AppMenuItemProperties.ENABLED);view.setEnabled(isEnabled);view.setAlpha(isEnabled?1.0f:0.5f);
+    }}}
+
+    @Override
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.app_menu_bottom_sheet_layout, container, false);
+
+        LinearLayout contentLayout = view.findViewById(R.id.app_menu_content);
+
+        // Add extensions row
+        createExtensionsRow();
+        // contentLayout.addView(createExtensionsRow(), 0); // Add at the top
+
+        mGridView = view.findViewById(R.id.app_menu_grid);
+        mGridView.setNumColumns(GRID_COLUMNS);
+
+        if (mModelList == null) {
+            return view;
         }
-        return mItemRowHeight;
+
+        mGridAdapter = new GridAdapter(getContext(), mModelList);
+        mGridView.setAdapter(mGridAdapter);
+
+        mGridView.setOnItemClickListener(this);
+
+        // ImageButton backButton = view.findViewById(R.id.back_to_menu_button);
+        // backButton.setOnClickListener(v -> returnToAppMenu());
+
+        return view;
     }
 
-    /** @param reporter A means of reporting an exception without crashing. */
-    static void setExceptionReporter(Callback<Throwable> reporter) {
-        sExceptionReporter = reporter;
+    public String getCurrentUrl() {
+        if (mHandler == null || mHandler.getActivityTab() == null) {
+            return null;
+        }
+        String currentUrl = mHandler.getActivityTab().getUrl().getSpec();
+        return currentUrl;
     }
 
     public void setHeaderResourceId(int headerResourceId) {
@@ -927,12 +974,14 @@ public class AppMenu extends BottomSheetDialogFragment
             updateValidItems();
         }
 
-        public void updateValidItems() {
-            if (mModelList == null) {
+    }
+
+    public void updateValidItems() {
+                if (mModelList == null) {
                 return;
             }
-
-            mDisplayToOriginalPosition = new HashMap<>();
+    @RequiresNonNull("mListView")
+    mDisplayToOriginalPosition = new HashMap<>();
             mValidItemPositions = new ArrayList<>();
             for (int i = 0; i < mModelList.size(); i++) {
                 PropertyModel model = mModelList.get(i).model;
@@ -944,118 +993,101 @@ public class AppMenu extends BottomSheetDialogFragment
             notifyDataSetChanged();
         }
 
-        private boolean isValidMenuItem(PropertyModel model) {
-            return model != null &&
-                    !TextUtils.isEmpty(model.get(AppMenuItemProperties.TITLE)) &&
-                    model.get(AppMenuItemProperties.ICON) != null;
-        }
-
-        @Override
-        public int getCount() {
-            return mValidItemPositions.size();
-        }
-
-        @Override
-        public Object getItem(int position) {
-            int originalPosition = mValidItemPositions.get(position);
-            return mModelList.get(originalPosition).model;
-        }
-
-        @Override
-        public long getItemId(int position) {
-            return mValidItemPositions.get(position);
-        }
-
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            if (convertView == null) {
-                convertView = mInflater.inflate(R.layout.grid_item_layout, parent, false);
-                convertView.setTag(new ViewHolder(convertView));
-            }
-
-            ViewHolder holder = (ViewHolder) convertView.getTag();
-            PropertyModel model = (PropertyModel) getItem(position);
-            holder.bindModel(model, convertView);
-
-            return convertView;
-        }
-
-        private class ViewHolder {
-            ImageView iconView;
-            TextView titleView;
-
-            ViewHolder(View view) {
-                iconView = view.findViewById(R.id.item_icon);
-                titleView = view.findViewById(R.id.item_title);
-            }
-
-            void bindModel(PropertyModel model, View view) {
-                Drawable icon = model.get(AppMenuItemProperties.ICON);
-                CharSequence title = model.get(AppMenuItemProperties.TITLE);
-
-                if (icon != null) {
-                    Drawable adaptiveIcon = DrawableCompat.wrap(icon.mutate());
-                    DrawableCompat.setTint(adaptiveIcon, titleView.getCurrentTextColor());
-                    iconView.setImageDrawable(adaptiveIcon);
-                } else {
-                    iconView.setImageDrawable(null);
-                }
-
-                if (title != null) {
-                    title = title.toString()
-                            .substring(0, 1)
-                            .toUpperCase() + title.toString().substring(1);
-                }
-
-                if (title != null) {
-                    title = title.toString()
-                            .substring(0, 1)
-                            .toUpperCase() + title.toString().substring(1);
-                }
-
-                titleView.setText(title);
-
-                boolean isEnabled = model.get(AppMenuItemProperties.ENABLED);
-                view.setEnabled(isEnabled);
-                view.setAlpha(isEnabled ? 1.0f : 0.5f);
-            }
-        }
+    private boolean isValidMenuItem(PropertyModel model) {
+        return model != null &&
+                !TextUtils.isEmpty(model.get(AppMenuItemProperties.TITLE)) &&
+                model.get(AppMenuItemProperties.ICON) != null;
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.app_menu_bottom_sheet_layout, container, false);
-
-        LinearLayout contentLayout = view.findViewById(R.id.app_menu_content);
-
-        // Add extensions row
-        createExtensionsRow();
-        // contentLayout.addView(createExtensionsRow(), 0); // Add at the top
-
-        mGridView = view.findViewById(R.id.app_menu_grid);
-        mGridView.setNumColumns(GRID_COLUMNS);
-
-        if (mModelList == null) {
-            return view;
-        }
-
-        mGridAdapter = new GridAdapter(getContext(), mModelList);
-        mGridView.setAdapter(mGridAdapter);
-
-        mGridView.setOnItemClickListener(this);
-
-        // ImageButton backButton = view.findViewById(R.id.back_to_menu_button);
-        // backButton.setOnClickListener(v -> returnToAppMenu());
-
-        return view;
+    public int getCount() {
+        return mValidItemPositions.size();
     }
 
-    public String getCurrentUrl() {
-        if (mHandler == null || mHandler.getActivityTab() == null) {
-            return null;
-        }
-        String currentUrl = mHandler.getActivityTab().getUrl().getSpec();
-        return currentUrl;
+    @Override
+    public Object getItem(int position) {
+        int originalPosition = mValidItemPositions.get(position);
+        return mModelList.get(originalPosition).model;
     }
 
+    @Override
+    public long getItemId(int position) {
+        return mValidItemPositions.get(position);
+    }
+
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent) {
+        if (convertView == null) {
+            convertView = mInflater.inflate(R.layout.grid_item_layout, parent, false);
+            convertView.setTag(new ViewHolder(convertView));
+        }
+
+        ViewHolder holder = (ViewHolder) convertView.getTag();
+        PropertyModel model = (PropertyModel) getItem(position);
+        holder.bindModel(model, convertView);
+
+        return convertView;
+    }
+
+    @RequiresNonNull("mListView")
+    private class ViewHolder {
+        ImageView iconView;
+        TextView titleView;
+
+        ViewHolder(View view) {
+            iconView = view.findViewById(R.id.item_icon);
+            titleView = view.findViewById(R.id.item_title);
+        }
+
+        void bindModel(PropertyModel model, View view) {
+            Drawable icon = model.get(AppMenuItemProperties.ICON);
+            CharSequence title = model.get(AppMenuItemProperties.TITLE);
+
+            if (icon != null) {
+                Drawable adaptiveIcon = DrawableCompat.wrap(icon.mutate());
+                DrawableCompat.setTint(adaptiveIcon, titleView.getCurrentTextColor());
+                iconView.setImageDrawable(adaptiveIcon);
+            } else {
+                iconView.setImageDrawable(null);
+            }
+
+            if (title != null) {
+                title = title.toString()
+                        .substring(0, 1)
+                        .toUpperCase() + title.toString().substring(1);
+    }
+
+    if (title != null) {
+        title = title.toString()
+                .substring(0, 1)
+                .toUpperCase() + title.toString().substring(1);
+    }
+
+        private void recordTimeToTakeActionHistogram() {
+            final String histogramName = "Mobile.AppMenu.TimeToTakeAction."
+                    + (mSelectedItemBeforeDismiss ? "SelectedItem" : "Abandoned");
+            final long timeToTakeActionMs = SystemClock.elapsedRealtime() - mMenuShownTimeMs;
+            RecordHistogram.deprecatedRecordMediumTimesHistogram(histogramName, timeToTakeActionMs);
+        }
+
+        private int getMenuItemHeight(
+                int itemId, Context context, @Nullable List<CustomViewBinder> customViewBinders) {
+            // Check if |item| is custom type
+            if (customViewBinders != null) {
+                for (int i = 0; i < customViewBinders.size(); i++) {
+                    CustomViewBinder binder = customViewBinders.get(i);
+                    if (binder.getItemViewType(itemId) != CustomViewBinder.NOT_HANDLED) {
+                        return binder.getPixelHeight(context);
+                    }
+                }
+            }
+            return mItemRowHeight;
+        }
+
+        /**
+         * @param reporter A means of reporting an exception without crashing.
+         */
+        static void setExceptionReporter(Callback<Throwable> reporter) {
+            sExceptionReporter = reporter;
+        }
 }

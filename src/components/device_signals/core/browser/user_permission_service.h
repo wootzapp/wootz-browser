@@ -70,15 +70,18 @@ class UserPermissionService : public KeyedService {
   // to a Profile). Returns `kGranted` if collection is allowed.
   virtual UserPermission CanCollectSignals() const = 0;
 
+  // Variant of `CanCollectSignals` function but checks if context-aware signals
+  // can be collected for signals reporting. With current privacy requirements,
+  // PII signals collection can only happen when the device is managed and
+  // affiliated. Note: `kGranted` means all signals can be collected,
+  // `kMissingConsent` means only non-PII signals can be collected.
+  virtual UserPermission CanCollectReportSignals() const = 0;
+
   // Returns whether the user has explicitly agreed to device signals being
   // shared or not. Depending on the current management context, the returned
   // value could be false even though signals can be collected. This function
   // is exposed publicly mostly for debugging purposes.
   virtual bool HasUserConsented() const = 0;
-
-  // Will evaluate whether the user's consent should be reset or not based on
-  // the current management context.
-  virtual void ResetUserConsentIfNeeded() = 0;
 };
 
 }  // namespace device_signals

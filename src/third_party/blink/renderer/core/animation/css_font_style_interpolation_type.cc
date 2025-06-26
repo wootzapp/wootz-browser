@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "base/memory/ptr_util.h"
-#include "third_party/blink/renderer/core/css/css_primitive_value_mappings.h"
+#include "third_party/blink/renderer/core/css/css_identifier_value.h"
 #include "third_party/blink/renderer/core/css/resolver/style_builder_converter.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/platform/wtf/math_extras.h"
@@ -59,15 +59,16 @@ InterpolationValue CSSFontStyleInterpolationType::MaybeConvertInherit(
 
 InterpolationValue CSSFontStyleInterpolationType::MaybeConvertValue(
     const CSSValue& value,
-    const StyleResolverState* state,
+    const StyleResolverState& state,
     ConversionCheckers& conversion_checkers) const {
-  auto* identifier_value = DynamicTo<CSSIdentifierValue>(value);
+  const auto* identifier_value = DynamicTo<CSSIdentifierValue>(value);
   if (identifier_value &&
       identifier_value->GetValueID() == CSSValueID::kItalic) {
     return nullptr;
   }
-  return CreateFontStyleValue(
-      StyleBuilderConverterBase::ConvertFontStyle(value));
+  // TODO(40946458): Don't resolve angle here, use unresolved version instead.
+  return CreateFontStyleValue(StyleBuilderConverterBase::ConvertFontStyle(
+      state.CssToLengthConversionData(), value));
 }
 
 InterpolationValue
@@ -80,9 +81,10 @@ void CSSFontStyleInterpolationType::ApplyStandardPropertyValue(
     const InterpolableValue& interpolable_value,
     const NonInterpolableValue*,
     StyleResolverState& state) const {
-  state.GetFontBuilder().SetStyle(FontSelectionValue(
-      ClampTo(To<InterpolableNumber>(interpolable_value).Value(),
-              kMinObliqueValue, kMaxObliqueValue)));
+  state.GetFontBuilder().SetStyle(
+      FontSelectionValue(ClampTo(To<InterpolableNumber>(interpolable_value)
+                                     .Value(state.CssToLengthConversionData()),
+                                 kMinObliqueValue, kMaxObliqueValue)));
 }
 
 }  // namespace blink

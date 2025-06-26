@@ -4,7 +4,6 @@
 
 #include "chrome/browser/supervised_user/supervised_user_google_auth_navigation_throttle.h"
 
-#include "base/strings/string_piece.h"
 #include "chrome/browser/signin/chrome_signin_client_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/supervised_user/child_accounts/child_account_service_factory.h"
@@ -26,12 +25,16 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace {
+
 constexpr char kExampleURL[] = "http://www.example1.com/123";
 constexpr char kGoogleSearchURL[] = "https://www.google.com/search?q=test";
 constexpr char kGoogleHomeURL[] = "https://www.google.com";
 constexpr char kYoutubeDomain[] = "https://www.youtube.com";
 constexpr char kChildTestEmail[] = "child@example.com";
-constexpr char kTestGaiaId[] = "abcedf";
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+constexpr char kYoutubeAccountsDomain[] = "https://accounts.youtube.com";
+#endif
 
 std::unique_ptr<KeyedService> BuildTestSigninClient(
     content::BrowserContext* context) {
@@ -44,36 +47,64 @@ std::unique_ptr<KeyedService> CreateMockSyncService(
   return std::make_unique<syncer::MockSyncService>();
 }
 
-}  // namespace
+class MockNavigationSubframeHandle : public content::MockNavigationHandle {
+ public:
+  MockNavigationSubframeHandle(const GURL& url,
+                               content::RenderFrameHost* render_frame_host)
+      : content::MockNavigationHandle(url, render_frame_host) {}
+  content::FrameType GetNavigatingFrameType() const override {
+    return content::FrameType::kSubframe;
+  }
+};
 
 class SupervisedUserGoogleAuthNavigationThrottleTest
     : public ChromeRenderViewHostTestHarness {
  public:
-  void SetUp() override { ChromeRenderViewHostTestHarness::SetUp(); }
+  void TearDown() final {
+    subframe_ = nullptr;
+    ChromeRenderViewHostTestHarness::TearDown();
+  }
 
   signin::IdentityManager* identity_manager() {
     return IdentityManagerFactory::GetForProfile(profile());
   }
 
   void SetUserAsSupervised() {
+    SetPrimaryAccount(identity_manager(), kChildTestEmail,
+                      signin::ConsentLevel::kSignin);
     profile()->SetIsSupervisedProfile();
     ASSERT_TRUE(profile()->IsChild());
   }
 
   TestingProfile::TestingFactories GetTestingFactories() const override {
-    return {{SyncServiceFactory::GetInstance(),
-             base::BindRepeating(&CreateMockSyncService)},
-            {ChromeSigninClientFactory::GetInstance(),
-             base::BindRepeating(&BuildTestSigninClient)}};
+    return {TestingProfile::TestingFactory{
+                SyncServiceFactory::GetInstance(),
+                base::BindRepeating(&CreateMockSyncService)},
+            TestingProfile::TestingFactory{
+                ChromeSigninClientFactory::GetInstance(),
+                base::BindRepeating(&BuildTestSigninClient)}};
   }
 
   std::unique_ptr<SupervisedUserGoogleAuthNavigationThrottle>
-  CreateNavigationThrottle(const GURL& url, bool skip_jni_call = true) {
-    handle =
-        std::make_unique<::testing::NiceMock<content::MockNavigationHandle>>(
-            url, main_rfh());
+  CreateNavigationThrottle(const GURL& url,
+                           bool skip_jni_call = true,
+                           bool for_subframe = false) {
+    if (for_subframe) {
+      content::RenderFrameHostTester::For(main_rfh())
+          ->InitializeRenderFrameIfNeeded();
+      subframe_ = content::RenderFrameHostTester::For(main_rfh())
+                      ->AppendChild("subframe");
+      handle_ =
+          std::make_unique<::testing::NiceMock<MockNavigationSubframeHandle>>(
+              url, subframe_);
+    } else {
+      handle_ =
+          std::make_unique<::testing::NiceMock<content::MockNavigationHandle>>(
+              url, main_rfh());
+    }
+
     std::unique_ptr<SupervisedUserGoogleAuthNavigationThrottle> throttle =
-        SupervisedUserGoogleAuthNavigationThrottle::MaybeCreate(handle.get());
+        SupervisedUserGoogleAuthNavigationThrottle::MaybeCreate(handle_.get());
 
     if (skip_jni_call) {
       throttle->set_skip_jni_call_for_testing(true);
@@ -94,14 +125,21 @@ class SupervisedUserGoogleAuthNavigationThrottleTest
   }
 
  private:
-  std::unique_ptr<content::MockNavigationHandle> handle;
+  std::unique_ptr<content::MockNavigationHandle> handle_;
+  raw_ptr<content::RenderFrameHost> subframe_;
 };
 
 TEST_F(SupervisedUserGoogleAuthNavigationThrottleTest,
        NavigationForValidSignedinSupervisedUsers) {
   SetUserAsSupervised();
+#if !BUILDFLAG(IS_ANDROID)
+  SetRefreshTokenForPrimaryAccount(identity_manager());
+#endif
   signin::SetListAccountsResponseOneAccountWithParams(
-      {kChildTestEmail, kTestGaiaId,
+      {kChildTestEmail,
+       identity_manager()
+           ->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin)
+           .gaia,
        /* valid = */ true,
        /* is_signed_out = */ false,
        /* verified = */ true},
@@ -133,11 +171,19 @@ TEST_F(SupervisedUserGoogleAuthNavigationThrottleTest,
 }
 
 TEST_F(SupervisedUserGoogleAuthNavigationThrottleTest,
-       NavigationForInvalidSignedinSupervisedUsers) {
+       NavigationForPendingSignedInSupervisedUsers) {
   SetUserAsSupervised();
+#if !BUILDFLAG(IS_ANDROID)
+  SetInvalidRefreshTokenForPrimaryAccount(
+      identity_manager(),
+      signin_metrics::SourceForRefreshTokenOperation::kUnknown);
+#endif  // !BUILDFLAG(IS_ANDROID)
   // An invalid, signed-in account is not authenticated.
   signin::SetListAccountsResponseOneAccountWithParams(
-      {kChildTestEmail, kTestGaiaId,
+      {kChildTestEmail,
+       identity_manager()
+           ->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin)
+           .gaia,
        /* valid = */ false,
        /* is_signed_out = */ false,
        /* verified = */ true},
@@ -145,12 +191,30 @@ TEST_F(SupervisedUserGoogleAuthNavigationThrottleTest,
   identity_manager()->GetAccountsCookieMutator()->TriggerCookieJarUpdate();
   content::RunAllTasksUntilIdle();
 
-  // For a supervised account that is not authenticated navigation to Google and
-  // Youtube are deferred until they are signed in.
+  // For a supervised account that is in the pending state, navigation to Google
+  // and YouTube can be subject to throttling.
   EXPECT_EQ(content::NavigationThrottle::PROCEED,
             CreateNavigationThrottle(GURL(kExampleURL))->WillStartRequest());
-
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+  // On desktop platforms, non-YouTube navigation are permitted.
+  EXPECT_EQ(
+      content::NavigationThrottle::PROCEED,
+      CreateNavigationThrottle(GURL(kGoogleSearchURL))->WillStartRequest());
+  EXPECT_EQ(content::NavigationThrottle::PROCEED,
+            CreateNavigationThrottle(GURL(kGoogleHomeURL))->WillStartRequest());
+  // YouTube navigation is cancelled and accompanied with a re-authentication
+  // interstitial.
+  content::NavigationThrottle::ThrottleCheckResult youtube_navigation_throttle =
+      CreateNavigationThrottle(GURL(kYoutubeDomain))->WillStartRequest();
+  EXPECT_EQ(content::NavigationThrottle::CANCEL,
+            youtube_navigation_throttle.action());
+  EXPECT_EQ(net::ERR_BLOCKED_BY_CLIENT,
+            youtube_navigation_throttle.net_error_code());
+  EXPECT_NE(std::string::npos,
+            youtube_navigation_throttle.error_page_content()->find(
+                "supervised-user-verify"));
+#elif BUILDFLAG(IS_CHROMEOS)
+  // For ChromeOS, navigation to Google and YouTube are deferred.
   EXPECT_EQ(
       content::NavigationThrottle::DEFER,
       CreateNavigationThrottle(GURL(kGoogleSearchURL))->WillStartRequest());
@@ -159,22 +223,13 @@ TEST_F(SupervisedUserGoogleAuthNavigationThrottleTest,
   EXPECT_EQ(content::NavigationThrottle::DEFER,
             CreateNavigationThrottle(GURL(kYoutubeDomain))->WillStartRequest());
 #elif BUILDFLAG(IS_ANDROID)
-  SetPrimaryAccount(identity_manager(), kChildTestEmail,
-                    signin::ConsentLevel::kSignin);
+  // For Android, navigation to Google and YouTube are deferred.
   EXPECT_EQ(content::NavigationThrottle::DEFER,
             CreateNavigationThrottle(GURL(kGoogleSearchURL), true)
                 ->WillStartRequest());
   EXPECT_EQ(content::NavigationThrottle::DEFER,
             CreateNavigationThrottle(GURL(kGoogleHomeURL))->WillStartRequest());
   EXPECT_EQ(content::NavigationThrottle::DEFER,
-            CreateNavigationThrottle(GURL(kYoutubeDomain))->WillStartRequest());
-#else
-  EXPECT_EQ(
-      content::NavigationThrottle::PROCEED,
-      CreateNavigationThrottle(GURL(kGoogleSearchURL))->WillStartRequest());
-  EXPECT_EQ(content::NavigationThrottle::PROCEED,
-            CreateNavigationThrottle(GURL(kGoogleHomeURL))->WillStartRequest());
-  EXPECT_EQ(content::NavigationThrottle::PROCEED,
             CreateNavigationThrottle(GURL(kYoutubeDomain))->WillStartRequest());
 #endif
 
@@ -189,6 +244,56 @@ TEST_F(SupervisedUserGoogleAuthNavigationThrottleTest,
   EXPECT_EQ(content::NavigationThrottle::CANCEL,
             prenderedThrottle->WillStartRequest());
 }
+
+// In order to correctly perform authentication to youtube.com, its
+// infrastructure (accounts.youtube.com) must be allowed.
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+TEST_F(
+    SupervisedUserGoogleAuthNavigationThrottleTest,
+    NavigationForPendingSignedInSupervisedUsersAllowsYouTubeInfrastructureInSubframes) {
+  SetUserAsSupervised();
+  SetInvalidRefreshTokenForPrimaryAccount(
+      identity_manager(),
+      signin_metrics::SourceForRefreshTokenOperation::kUnknown);
+  // An invalid, signed-in account is not authenticated.
+  signin::SetListAccountsResponseOneAccountWithParams(
+      {kChildTestEmail,
+       identity_manager()
+           ->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin)
+           .gaia,
+       /*valid=*/false,
+       /*is_signed_out=*/false,
+       /*verified=*/true},
+      GetTestURLLoaderFactory());
+  identity_manager()->GetAccountsCookieMutator()->TriggerCookieJarUpdate();
+  content::RunAllTasksUntilIdle();
+
+  // Regular youtube content is not allowed, neither in subframe nor in main
+  // frame.
+  EXPECT_EQ(
+      content::NavigationThrottle::CANCEL,
+      CreateNavigationThrottle(GURL(kYoutubeDomain), /*skip_jni_call=*/true,
+                               /*for_subframe=*/true)
+          ->WillStartRequest());
+  EXPECT_EQ(
+      content::NavigationThrottle::CANCEL,
+      CreateNavigationThrottle(GURL(kYoutubeDomain), /*skip_jni_call=*/true,
+                               /*for_subframe=*/false)
+          ->WillStartRequest());
+
+  // But youtube accounts infrastructure is allowed (only in subframes).
+  EXPECT_EQ(content::NavigationThrottle::PROCEED,
+            CreateNavigationThrottle(GURL(kYoutubeAccountsDomain),
+                                     /*skip_jni_call=*/true,
+                                     /*for_subframe=*/true)
+                ->WillStartRequest());
+  EXPECT_EQ(content::NavigationThrottle::CANCEL,
+            CreateNavigationThrottle(GURL(kYoutubeAccountsDomain),
+                                     /*skip_jni_call=*/true,
+                                     /*for_subframe=*/false)
+                ->WillStartRequest());
+}
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
 
 TEST_F(SupervisedUserGoogleAuthNavigationThrottleTest,
        NavigationForNotFreshSupervisedUsers) {
@@ -223,3 +328,5 @@ TEST_F(SupervisedUserGoogleAuthNavigationThrottleTest, NavigationForNonUsers) {
   // Throttling is not required for non supervised accounts.
   EXPECT_EQ(nullptr, CreateNavigationThrottle(GURL(kExampleURL), false));
 }
+
+}  // namespace

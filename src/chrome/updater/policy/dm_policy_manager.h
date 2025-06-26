@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "base/memory/scoped_refptr.h"
-#include "chrome/updater/device_management/dm_storage.h"
+#include "chrome/enterprise_companion/device_management_storage/dm_storage.h"
 #include "chrome/updater/policy/manager.h"
 #include "chrome/updater/protos/omaha_settings.pb.h"
 
@@ -19,10 +19,10 @@ namespace updater {
 // The DMPolicyManager returns device management policies for managed machines.
 class DMPolicyManager : public PolicyManagerInterface {
  public:
-  DMPolicyManager(
+  explicit DMPolicyManager(
       const ::wireless_android_enterprise_devicemanagement::
           OmahaSettingsClientProto& omaha_settings,
-      const std::optional<bool>& override_is_managed_device = std::nullopt);
+      std::optional<bool> override_is_managed_device = std::nullopt);
   DMPolicyManager(const DMPolicyManager&) = delete;
   DMPolicyManager& operator=(const DMPolicyManager&) = delete;
 
@@ -64,9 +64,15 @@ class DMPolicyManager : public PolicyManagerInterface {
       omaha_settings_;
 };
 
+// Read the Omaha settings from DM storage.
+std::optional<
+    wireless_android_enterprise_devicemanagement::OmahaSettingsClientProto>
+GetOmahaPolicySettings(
+    scoped_refptr<device_management_storage::DMStorage> dm_storage);
+
 // A factory method to create a DM policy manager.
 scoped_refptr<PolicyManagerInterface> CreateDMPolicyManager(
-    const std::optional<bool>& override_is_managed_device);
+    std::optional<bool> override_is_managed_device);
 
 }  // namespace updater
 

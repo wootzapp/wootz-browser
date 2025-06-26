@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "chrome/android/chrome_jni_headers/PageInfoAboutThisSiteController_jni.h"
 
 #include <jni.h>
 #include "base/android/jni_array.h"
@@ -19,6 +18,9 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/web_contents.h"
 #include "url/android/gurl_android.h"
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "chrome/android/chrome_jni_headers/PageInfoAboutThisSiteController_jni.h"
 
 static jboolean JNI_PageInfoAboutThisSiteController_IsFeatureEnabled(
     JNIEnv* env) {
@@ -54,7 +56,7 @@ JNI_PageInfoAboutThisSiteController_GetSiteInfo(
   // Serialize the proto to pass it to Java. This will copy the whole object
   // but it only contains a few strings and ints and this method is called only
   // when PageInfo is opened.
-  int size = info->ByteSize();
+  size_t size = info->ByteSizeLong();
   std::vector<uint8_t> data(size);
   info->SerializeToArray(data.data(), size);
   return base::android::ToJavaByteArray(env, data);

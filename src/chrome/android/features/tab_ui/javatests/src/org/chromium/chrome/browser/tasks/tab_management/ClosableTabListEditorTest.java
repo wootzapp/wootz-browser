@@ -4,8 +4,6 @@
 
 package org.chromium.chrome.browser.tasks.tab_management;
 
-import static org.chromium.chrome.browser.flags.ChromeFeatureList.TAB_TO_GTS_ANIMATION;
-
 import android.view.ViewGroup;
 
 import androidx.test.espresso.Espresso;
@@ -19,25 +17,30 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.Mockito;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.Callback;
 import org.chromium.base.SysUtils;
+import org.chromium.base.ThreadUtils;
+import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.test.util.Batch;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.RecyclerViewPosition;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.chrome.browser.tasks.tab_management.TabListEditorCoordinator.CreationMode;
+import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.chrome.test.util.ChromeTabUtils;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
+import org.chromium.ui.modaldialog.ModalDialogManager;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -45,7 +48,6 @@ import java.util.List;
 
 /** End-to-end test for closable TabListEditor. */
 @RunWith(ChromeJUnit4ClassRunner.class)
-@DisableFeatures(TAB_TO_GTS_ANIMATION)
 @Batch(Batch.PER_CLASS)
 public class ClosableTabListEditorTest {
     @ClassRule
@@ -56,47 +58,57 @@ public class ClosableTabListEditorTest {
     public BlankCTATabInitialStateRule mBlankCTATabInitialStateRule =
             new BlankCTATabInitialStateRule(sActivityTestRule, false);
 
-    @Mock private Callback<RecyclerViewPosition> mSetRecyclerViewPosition;
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
-    private TabListEditorTestingRobot mRobot = new TabListEditorTestingRobot();
+    @Mock private Callback<RecyclerViewPosition> mSetRecyclerViewPosition;
+    @Mock private TabListEditorCoordinator.NavigationProvider mNavigationProvider;
+    @Mock private ModalDialogManager mModalDialogManager;
+
+    private final TabListEditorTestingRobot mRobot = new TabListEditorTestingRobot();
 
     private TabModelSelector mTabModelSelector;
     private TabListEditorCoordinator.TabListEditorController mTabListEditorController;
     private TabListEditorLayout mTabListEditorLayout;
     private TabListEditorCoordinator mTabListEditorCoordinator;
     private WeakReference<TabListEditorLayout> mRef;
+    private ObservableSupplierImpl<EdgeToEdgeController> mEdgeToEdgeSupplier;
 
     private ViewGroup mParentView;
     private SnackbarManager mSnackbarManager;
 
     @Before
     public void setUp() throws Exception {
-        MockitoAnnotations.initMocks(this);
         mTabModelSelector = sActivityTestRule.getActivity().getTabModelSelector();
         mParentView = (ViewGroup) sActivityTestRule.getActivity().findViewById(R.id.coordinator);
         mSnackbarManager = sActivityTestRule.getActivity().getSnackbarManager();
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
-                    var currentTabModelFilterSupplier =
+                    var currentTabGroupModelFilterSupplier =
                             mTabModelSelector
-                                    .getTabModelFilterProvider()
-                                    .getCurrentTabModelFilterSupplier();
+                                    .getTabGroupModelFilterProvider()
+                                    .getCurrentTabGroupModelFilterSupplier();
+                    mEdgeToEdgeSupplier = new ObservableSupplierImpl<>();
                     mTabListEditorCoordinator =
                             new TabListEditorCoordinator(
                                     sActivityTestRule.getActivity(),
-                                    mParentView,
-                                    sActivityTestRule.getActivity().getBrowserControlsManager(),
-                                    currentTabModelFilterSupplier,
-                                    () -> mTabModelSelector.getModel(false),
-                                    sActivityTestRule.getActivity().getTabContentManager(),
-                                    mSetRecyclerViewPosition,
-                                    getMode(),
                                     sActivityTestRule
                                             .getActivity()
                                             .getCompositorViewHolderForTesting(),
+                                    mParentView,
+                                    sActivityTestRule.getActivity().getBrowserControlsManager(),
+                                    currentTabGroupModelFilterSupplier,
+                                    sActivityTestRule.getActivity().getTabContentManager(),
+                                    mSetRecyclerViewPosition,
+                                    getMode(),
                                     /* displayGroups= */ true,
                                     mSnackbarManager,
-                                    TabProperties.TabActionState.CLOSABLE);
+                                    /* bottomSheetController= */ null,
+                                    TabProperties.TabActionState.CLOSABLE,
+                                    /* gridCardOnClickListenerProvider= */ null,
+                                    mModalDialogManager,
+                                    /* desktopWindowStateManager= */ null,
+                                    mEdgeToEdgeSupplier,
+                                    CreationMode.FULL_SCREEN);
 
                     mTabListEditorController = mTabListEditorCoordinator.getController();
                     mTabListEditorLayout =
@@ -112,7 +124,7 @@ public class ClosableTabListEditorTest {
                 Espresso.pressBack();
             }
 
-            TestThreadUtils.runOnUiThreadBlocking(
+            ThreadUtils.runOnUiThreadBlocking(
                     () -> {
                         if (mTabListEditorController.isVisible()) {
                             mTabListEditorController.hide();
@@ -127,7 +139,7 @@ public class ClosableTabListEditorTest {
                 TabUiTestHelper.leaveTabSwitcher(sActivityTestRule.getActivity());
             }
         }
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mSnackbarManager.dismissAllSnackbars();
                 });
@@ -177,6 +189,39 @@ public class ClosableTabListEditorTest {
         mRobot.resultRobot.verifyTabListEditorIsVisible();
     }
 
+    @Test
+    @MediumTest
+    public void testCustomToolbarTitle() {
+        prepareBlankTab(2, false);
+        List<Tab> tabs = getTabsInCurrentTabModel();
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mTabListEditorController.show(
+                            tabs, new ArrayList<>(), /* recyclerViewPosition= */ null);
+                    mTabListEditorController.setToolbarTitle("testing");
+                });
+
+        mRobot.resultRobot.verifyTabListEditorIsVisible().verifyToolbarSelectionText("testing");
+    }
+
+    @Test
+    @MediumTest
+    public void testCustomNavigationProvider() {
+        prepareBlankTab(2, false);
+        List<Tab> tabs = getTabsInCurrentTabModel();
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mTabListEditorController.show(
+                            tabs, new ArrayList<>(), /* recyclerViewPosition= */ null);
+                    mTabListEditorController.setNavigationProvider(mNavigationProvider);
+                    mTabListEditorController.handleBackPress();
+                });
+
+        Mockito.verify(mNavigationProvider).goBack();
+    }
+
     /** Retrieves all tabs from the current tab model */
     private List<Tab> getTabsInCurrentTabModel() {
         List<Tab> tabs = new ArrayList<>();
@@ -190,10 +235,10 @@ public class ClosableTabListEditorTest {
     }
 
     private void showTabListEditor(List<Tab> tabs) {
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mTabListEditorController.show(
-                            tabs, /* preSelectedTabCount= */ 0, /* recyclerViewPosition= */ null);
+                            tabs, new ArrayList<>(), /* recyclerViewPosition= */ null);
                 });
     }
 }

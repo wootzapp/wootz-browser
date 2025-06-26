@@ -6,6 +6,10 @@
 
 #include <ostream>
 
+#include "base/not_fatal_until.h"
+#include "ui/ozone/platform/wayland/host/wayland_connection.h"
+#include "ui/ozone/platform/wayland/host/wayland_syncobj_timeline.h"
+
 namespace ui {
 
 WaylandBufferHandle::WaylandBufferHandle(WaylandBufferBacking* backing)
@@ -29,13 +33,18 @@ void WaylandBufferHandle::OnWlBufferCreated(wl::Object<wl_buffer> wl_buffer) {
     wl_buffer_add_listener(wl_buffer_.get(), &kBufferListener, this);
   }
 
+  if (backing_->connection()->linux_drm_syncobj_manager_v1()) {
+    release_timeline_ =
+        WaylandSyncobjReleaseTimeline::Create(backing_->connection());
+  }
+
   if (!created_callback_.is_null())
     std::move(created_callback_).Run();
 }
 
 void WaylandBufferHandle::OnExplicitRelease(WaylandSurface* requestor) {
   auto it = released_callbacks_.find(requestor);
-  DCHECK(it != released_callbacks_.end());
+  CHECK(it != released_callbacks_.end(), base::NotFatalUntil::M130);
   released_callbacks_.erase(it);
 }
 

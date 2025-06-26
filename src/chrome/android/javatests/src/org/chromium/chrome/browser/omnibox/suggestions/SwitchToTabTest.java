@@ -4,11 +4,13 @@
 
 package org.chromium.chrome.browser.omnibox.suggestions;
 
+import static org.chromium.base.test.util.Batch.PER_CLASS;
 import static org.chromium.base.test.util.CriteriaHelper.DEFAULT_POLLING_INTERVAL;
 import static org.chromium.chrome.browser.multiwindow.MultiWindowTestHelper.moveActivityToFront;
 import static org.chromium.chrome.browser.multiwindow.MultiWindowTestHelper.waitForSecondChromeTabbedActivity;
 
 import android.app.Activity;
+import android.os.Build;
 import android.text.TextUtils;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -25,10 +27,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.ChromeTabbedActivity2;
@@ -40,13 +44,14 @@ import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionView;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.test.ChromeActivityTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
-import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.chrome.test.R;
+import org.chromium.chrome.test.transit.ChromeTransitTestRules;
+import org.chromium.chrome.test.transit.FreshCtaTransitTestRule;
+import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.chrome.test.util.ChromeTabUtils;
 import org.chromium.chrome.test.util.MenuUtils;
 import org.chromium.chrome.test.util.OmniboxTestUtils;
 import org.chromium.components.omnibox.AutocompleteMatch;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.content_public.browser.test.util.TestTouchUtils;
 import org.chromium.net.test.EmbeddedTestServer;
 import org.chromium.net.test.ServerCertificate;
@@ -54,22 +59,25 @@ import org.chromium.net.test.ServerCertificate;
 import java.util.List;
 
 /** Tests of the Switch To Tab feature. */
+@Batch(PER_CLASS)
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 public class SwitchToTabTest {
     @Rule
-    public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
+    public FreshCtaTransitTestRule mActivityTestRule =
+            ChromeTransitTestRules.freshChromeTabbedActivityRule();
 
     private static final int INVALID_INDEX = -1;
     private static final long SEARCH_ACTIVITY_MAX_TIME_TO_POLL = 10000L;
 
     private EmbeddedTestServer mTestServer;
+    private WebPageStation mStartingPage;
     private OmniboxTestUtils mOmnibox;
 
     @Before
     public void setUp() throws InterruptedException {
-        mActivityTestRule.startMainActivityOnBlankPage();
-        mOmnibox = new OmniboxTestUtils(mActivityTestRule.getActivity());
+        mStartingPage = mActivityTestRule.startOnBlankPage();
+        mOmnibox = new OmniboxTestUtils(mStartingPage.getActivity());
     }
 
     /**
@@ -84,7 +92,7 @@ public class SwitchToTabTest {
 
         mOmnibox.requestFocus();
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     urlBar.setText(text);
                 });
@@ -225,13 +233,14 @@ public class SwitchToTabTest {
 
         List<ImageView> buttonsList = baseSuggestionView.getActionButtons();
         Assert.assertNotNull(buttonsList);
-        Assert.assertEquals(buttonsList.size(), 1);
+        Assert.assertEquals(1, buttonsList.size());
         TestTouchUtils.performClickOnMainSync(
                 InstrumentationRegistry.getInstrumentation(), buttonsList.get(0));
     }
 
     @Test
     @MediumTest
+    @DisableIf.Build(sdk_is_greater_than = Build.VERSION_CODES.P, message = "crbug.com/1195129")
     public void testSwitchToTabSuggestion() throws InterruptedException {
         mTestServer =
                 EmbeddedTestServer.createAndStartHTTPSServer(
@@ -291,8 +300,7 @@ public class SwitchToTabTest {
         moveActivityToFront(cta1);
 
         // Switch back to cta1, and try to switch to "about.html" in cta2.
-        LocationBarLayout locationBarLayout =
-                (LocationBarLayout) cta1.findViewById(R.id.location_bar);
+        LocationBarLayout locationBarLayout = cta1.findViewById(R.id.location_bar);
         typeAndClickMatchingTabMatchSuggestion(cta1, locationBarLayout, aboutTab);
 
         CriteriaHelper.pollUiThread(
@@ -306,6 +314,7 @@ public class SwitchToTabTest {
 
     @Test
     @MediumTest
+    @DisableIf.Build(sdk_is_greater_than = Build.VERSION_CODES.P, message = "crbug.com/1195129")
     public void testNoSwitchToIncognitoTabFromNormalModel() throws InterruptedException {
         mTestServer =
                 EmbeddedTestServer.createAndStartHTTPSServer(

@@ -528,7 +528,7 @@ void AutomationV8Bindings::SendTreeChangeEvent(
   automation_v8_router_->DispatchEvent("automationInternal.onTreeChange", args);
 }
 
-void AutomationV8Bindings::SendNodesRemovedEvent(const ui::AXTreeID& tree_id,
+void AutomationV8Bindings::SendNodesRemovedEvent(const AXTreeID& tree_id,
                                                  const std::vector<int>& ids) {
   base::Value::List args;
   args.Append(tree_id.ToString());
@@ -543,8 +543,7 @@ void AutomationV8Bindings::SendNodesRemovedEvent(const ui::AXTreeID& tree_id,
                                        args);
 }
 
-void AutomationV8Bindings::SendChildTreeIDEvent(
-    const ui::AXTreeID& child_tree_id) {
+void AutomationV8Bindings::SendChildTreeIDEvent(const AXTreeID& child_tree_id) {
   base::Value::List args;
   args.Append(child_tree_id.ToString());
   automation_v8_router_->DispatchEvent("automationInternal.onChildTreeID",
@@ -559,7 +558,7 @@ void AutomationV8Bindings::SendTreeDestroyedEvent(const AXTreeID& tree_id) {
 }
 
 void AutomationV8Bindings::SendGetTextLocationResult(
-    const ui::AXActionData& data,
+    const AXActionData& data,
     const std::optional<gfx::Rect>& rect) {
   base::Value::Dict params;
   params.Set("treeID", data.target_tree_id.ToString());
@@ -581,7 +580,7 @@ void AutomationV8Bindings::SendGetTextLocationResult(
       "automationInternal.onGetTextLocationResult", args);
 }
 
-void AutomationV8Bindings::SendActionResultEvent(const ui::AXActionData& data,
+void AutomationV8Bindings::SendActionResultEvent(const AXActionData& data,
                                                  bool result) {
   base::Value::List args;
   args.Append(data.target_tree_id.ToString());
@@ -604,9 +603,9 @@ void AutomationV8Bindings::SendAutomationEvent(
   event_params.Set("targetID", base::Value(event.id));
   event_params.Set("eventType", base::Value(automation_event_type_str));
 
-  event_params.Set("eventFrom", base::Value(ui::ToString(event.event_from)));
+  event_params.Set("eventFrom", base::Value(ToString(event.event_from)));
   event_params.Set("eventFromAction",
-                   base::Value(ui::ToString(event.event_from_action)));
+                   base::Value(ToString(event.event_from_action)));
   event_params.Set("actionRequestID", base::Value(event.action_request_id));
   event_params.Set("mouseX", base::Value(mouse_location.x()));
   event_params.Set("mouseY", base::Value(mouse_location.y()));
@@ -615,11 +614,10 @@ void AutomationV8Bindings::SendAutomationEvent(
   base::Value::List value_intents;
   for (const auto& intent : event.event_intents) {
     base::Value::Dict dict;
-    dict.Set("command", base::Value(ui::ToString(intent.command)));
-    dict.Set("inputEventType",
-             base::Value(ui::ToString(intent.input_event_type)));
-    dict.Set("textBoundary", base::Value(ui::ToString(intent.text_boundary)));
-    dict.Set("moveDirection", base::Value(ui::ToString(intent.move_direction)));
+    dict.Set("command", base::Value(ToString(intent.command)));
+    dict.Set("inputEventType", base::Value(ToString(intent.input_event_type)));
+    dict.Set("textBoundary", base::Value(ToString(intent.text_boundary)));
+    dict.Set("moveDirection", base::Value(ToString(intent.move_direction)));
     value_intents.Append(std::move(dict));
   }
 
@@ -631,8 +629,7 @@ void AutomationV8Bindings::SendAutomationEvent(
       "automationInternal.onAccessibilityEvent", args);
 }
 
-void AutomationV8Bindings::SendTreeSerializationError(
-    const ui::AXTreeID& tree_id) {
+void AutomationV8Bindings::SendTreeSerializationError(const AXTreeID& tree_id) {
   base::Value::List args;
   args.Append(tree_id.ToString());
   automation_v8_router_->DispatchEvent(
@@ -656,7 +653,6 @@ void AutomationV8Bindings::AddV8Routes() {
   automation_v8_router_->RouteHandlerFunction(#FN, wrapper);
   ROUTE_FUNCTION(GetChildIDAtIndex);
   ROUTE_FUNCTION(GetFocus);
-  ROUTE_FUNCTION(GetHtmlAttributes);
   ROUTE_FUNCTION(CreateAutomationPosition);
   ROUTE_FUNCTION(GetAccessibilityFocus);
   ROUTE_FUNCTION(StringAXTreeIDToUnguessableToken);
@@ -720,8 +716,7 @@ void AutomationV8Bindings::AddV8Routes() {
       "GetIsSelectionBackward",
       [](v8::Isolate* isolate, v8::ReturnValue<v8::Value> result,
          AutomationAXTreeWrapper* tree_wrapper) {
-        const AXNode* anchor = tree_wrapper->GetNodeFromTree(
-            tree_wrapper->GetTreeID(),
+        const AXNode* anchor = tree_wrapper->GetNode(
             tree_wrapper->GetUnignoredSelection().anchor_object_id);
         if (!anchor)
           return;
@@ -958,11 +953,10 @@ void AutomationV8Bindings::AddV8Routes() {
          AXNode* node, const std::string& attribute_name) {
         auto attribute =
             ParseAXEnum<ax::mojom::BoolAttribute>(attribute_name.c_str());
-        bool attr_value;
-        if (!node->GetBoolAttribute(attribute, &attr_value))
+        if (!node->HasBoolAttribute(attribute)) {
           return;
-
-        result.Set(attr_value);
+        }
+        result.Set(node->GetBoolAttribute(attribute));
       });
   RouteNodeIDPlusAttributeFunction(
       "GetIntAttribute",
@@ -978,8 +972,10 @@ void AutomationV8Bindings::AddV8Routes() {
         } else if (attribute == ax::mojom::IntAttribute::kSetSize &&
                    node->GetSetSize()) {
           attr_value = *node->GetSetSize();
-        } else if (!node->GetIntAttribute(attribute, &attr_value)) {
+        } else if (!node->HasIntAttribute(attribute)) {
           return;
+        } else {
+          attr_value = node->GetIntAttribute(attribute);
         }
 
         result.Set(v8::Integer::New(isolate, attr_value));
@@ -1009,10 +1005,12 @@ void AutomationV8Bindings::AddV8Routes() {
          AXNode* node, const std::string& attribute_name) {
         auto attribute =
             ParseAXEnum<ax::mojom::FloatAttribute>(attribute_name.c_str());
-        float attr_value;
 
-        if (!node->GetFloatAttribute(attribute, &attr_value))
+        if (!node->HasFloatAttribute(attribute)) {
           return;
+        }
+
+        float attr_value = node->GetFloatAttribute(attribute);
 
         double intpart, fracpart;
         fracpart = modf(attr_value, &intpart);
@@ -1059,17 +1057,6 @@ void AutomationV8Bindings::AddV8Routes() {
               .Check();
         }
         result.Set(array_result);
-      });
-  RouteNodeIDPlusAttributeFunction(
-      "GetHtmlAttribute",
-      [](v8::Isolate* isolate, v8::ReturnValue<v8::Value> result, AXTree* tree,
-         AXNode* node, const std::string& attribute_name) {
-        std::string attribute_value;
-        if (!node->GetHtmlAttribute(attribute_name.c_str(), &attribute_value))
-          return;
-
-        result.Set(v8::String::NewFromUtf8(isolate, attribute_value.c_str())
-                       .ToLocalChecked());
       });
   RouteNodeIDFunction(
       "GetNameFrom",
@@ -1180,8 +1167,7 @@ void AutomationV8Bindings::AddV8Routes() {
                 node->GetStringListAttribute(
                     ax::mojom::StringListAttribute::kCustomActionDescriptions);
             if (custom_action_ids.size() != custom_action_descriptions.size()) {
-              NOTREACHED_IN_MIGRATION();
-              return;
+              NOTREACHED();
             }
 
             v8::Local<v8::Context> context = isolate->GetCurrentContext();
@@ -1218,10 +1204,10 @@ void AutomationV8Bindings::AddV8Routes() {
         // directly
         //     on the AXNode.
         // The doDefault action is implied by having a default action verb.
-        int default_action_verb =
-            static_cast<int>(ax::mojom::DefaultActionVerb::kNone);
-        if (node->GetIntAttribute(ax::mojom::IntAttribute::kDefaultActionVerb,
-                                  &default_action_verb) &&
+        int default_action_verb = static_cast<int>(
+            node->GetIntAttribute(ax::mojom::IntAttribute::kDefaultActionVerb));
+        if (node->HasIntAttribute(
+                ax::mojom::IntAttribute::kDefaultActionVerb) &&
             default_action_verb !=
                 static_cast<int>(ax::mojom::DefaultActionVerb::kNone)) {
           standard_actions.push_back(ToString(
@@ -1621,28 +1607,6 @@ void AutomationV8Bindings::SetDesktopID(
       AXTreeID::FromString(*v8::String::Utf8Value(args.GetIsolate(), args[0])));
 }
 
-void AutomationV8Bindings::GetHtmlAttributes(
-    const v8::FunctionCallbackInfo<v8::Value>& args) const {
-  v8::Isolate* isolate = automation_v8_router_->GetIsolate();
-  if (args.Length() < 2 || !args[0]->IsString() || !args[1]->IsNumber())
-    automation_v8_router_->ThrowInvalidArgumentsException();
-
-  AXTreeID tree_id =
-      AXTreeID::FromString(*v8::String::Utf8Value(isolate, args[0]));
-  int node_id =
-      args[1]->Int32Value(automation_v8_router_->GetContext()).FromMaybe(0);
-
-  AXNode* node =
-      automation_tree_manager_owner_->GetNodeFromTree(tree_id, node_id);
-  if (!node)
-    return;
-
-  gin::DataObjectBuilder dst(isolate);
-  for (const auto& pair : node->data().html_attributes)
-    dst.Set(pair.first, pair.second);
-  args.GetReturnValue().Set(dst.Build());
-}
-
 void AutomationV8Bindings::GetChildIDAtIndex(
     const v8::FunctionCallbackInfo<v8::Value>& args) const {
   if (args.Length() < 3 || !args[2]->IsNumber()) {
@@ -1996,8 +1960,8 @@ void AutomationV8Bindings::GetState(
 void AutomationV8Bindings::GetImageAnnotation(
     v8::Isolate* isolate,
     v8::ReturnValue<v8::Value> result,
-    ui::AutomationAXTreeWrapper* tree_wrapper,
-    ui::AXNode* node) const {
+    AutomationAXTreeWrapper* tree_wrapper,
+    AXNode* node) const {
   std::string status_string = std::string();
   auto status = node->data().GetImageAnnotationStatus();
   switch (status) {

@@ -36,19 +36,21 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.browser.autofill.PersonalDataManager;
-import org.chromium.chrome.browser.autofill.PersonalDataManagerFactory;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.autofill.AutofillImageFetcher;
+import org.chromium.chrome.browser.autofill.AutofillImageFetcherFactory;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
+import org.chromium.chrome.browser.keyboard_accessory.AccessorySuggestionType;
 import org.chromium.chrome.browser.keyboard_accessory.AccessoryTabType;
 import org.chromium.chrome.browser.keyboard_accessory.R;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData;
+import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.LoyaltyCardInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.PromoCodeInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData.UserInfo;
 import org.chromium.chrome.browser.keyboard_accessory.data.UserInfoField;
@@ -57,7 +59,6 @@ import org.chromium.chrome.browser.keyboard_accessory.sheet_tabs.AccessorySheetT
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.ChromeTabbedActivityTestRule;
 import org.chromium.components.browser_ui.widget.chips.ChipView;
-import org.chromium.content_public.browser.test.util.TestThreadUtils;
 import org.chromium.url.GURL;
 
 import java.util.Optional;
@@ -77,18 +78,18 @@ public class CreditCardAccessorySheetViewTest {
     private AccessorySheetTabItemsModel mModel;
     private AtomicReference<RecyclerView> mView = new AtomicReference<>();
 
+    @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
+
     @Rule
     public ChromeTabbedActivityTestRule mActivityTestRule = new ChromeTabbedActivityTestRule();
 
-    @Mock PersonalDataManager mMockPersonalDataManager;
+    @Mock AutofillImageFetcher mMockImageFetcher;
 
     @Before
     public void setUp() throws InterruptedException {
-        MockitoAnnotations.initMocks(this);
-
         mActivityTestRule.startMainActivityOnBlankPage();
-        PersonalDataManagerFactory.setInstanceForTesting(mMockPersonalDataManager);
-        TestThreadUtils.runOnUiThreadBlocking(
+        AutofillImageFetcherFactory.setInstanceForTesting(mMockImageFetcher);
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel = new AccessorySheetTabItemsModel();
                     AccessorySheetCoordinator accessorySheet =
@@ -116,7 +117,7 @@ public class CreditCardAccessorySheetViewTest {
                                                         CreditCardAccessorySheetCoordinator
                                                                 .createUiConfiguration(
                                                                         view.getContext(),
-                                                                        mMockPersonalDataManager),
+                                                                        mMockImageFetcher),
                                                         mModel);
                                             }
 
@@ -145,7 +146,7 @@ public class CreditCardAccessorySheetViewTest {
     public void testAddingCaptionsToTheModelRendersThem() {
         assertThat(mView.get().getChildCount(), is(0));
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.add(
                             new AccessorySheetDataPiece(
@@ -165,7 +166,7 @@ public class CreditCardAccessorySheetViewTest {
         final AtomicBoolean clicked = new AtomicBoolean();
         assertThat(mView.get().getChildCount(), is(0));
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.add(
                             new AccessorySheetDataPiece(
@@ -196,34 +197,28 @@ public class CreditCardAccessorySheetViewTest {
         // Verify that the icon is correctly set.
         ImageView iconImageView = (ImageView) mView.get().getChildAt(0).findViewById(R.id.icon);
         Drawable expectedIcon =
-                ChromeFeatureList.isEnabled(
-                                ChromeFeatureList.AUTOFILL_ENABLE_NEW_CARD_ART_AND_NETWORK_IMAGES)
-                        ? mActivityTestRule.getActivity().getDrawable(R.drawable.visa_metadata_card)
-                        : mActivityTestRule.getActivity().getDrawable(R.drawable.visa_card);
+                mActivityTestRule.getActivity().getDrawable(R.drawable.visa_metadata_card);
         assertTrue(getBitmap(expectedIcon).sameAs(getBitmap(iconImageView.getDrawable())));
         // Chips are clickable:
-        TestThreadUtils.runOnUiThreadBlocking(findChipView(R.id.cc_number)::performClick);
+        ThreadUtils.runOnUiThreadBlocking(findChipView(R.id.cc_number)::performClick);
         assertThat(clicked.get(), is(true));
         clicked.set(false);
-        TestThreadUtils.runOnUiThreadBlocking(findChipView(R.id.exp_month)::performClick);
+        ThreadUtils.runOnUiThreadBlocking(findChipView(R.id.exp_month)::performClick);
         assertThat(clicked.get(), is(true));
     }
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.AUTOFILL_ENABLE_NEW_CARD_ART_AND_NETWORK_IMAGES})
-    public void testAddingUserInfoWithIconUrl_iconCachedInPersonalDataManager()
-            throws ExecutionException {
+    public void testAddingUserInfoWithIconUrl_iconCachedInImageFetcher() throws ExecutionException {
         GURL iconUrl = mock(GURL.class);
         when(iconUrl.isValid()).thenReturn(true);
         when(iconUrl.getSpec()).thenReturn(CUSTOM_ICON_URL);
-        // Return the cached image when
-        // PersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable is called for the
+        // Return the cached image when AutofillImageFetcher.getImageIfAvailable is called for the
         // above url.
-        when(mMockPersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable(any(), any()))
+        when(mMockImageFetcher.getImageIfAvailable(any(), any()))
                 .thenReturn(Optional.of(TEST_CARD_ART_IMAGE));
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.add(
                             new AccessorySheetDataPiece(
@@ -251,7 +246,7 @@ public class CreditCardAccessorySheetViewTest {
         assertThat(getChipText(R.id.exp_year), is("2034"));
         assertThat(getChipText(R.id.cardholder), is("Kirby Puckett"));
         // Verify that the icon is set to the cached image returned by
-        // PersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable.
+        // AutofillImageFetcher.getImageIfAvailable.
         ImageView iconImageView = (ImageView) mView.get().getChildAt(0).findViewById(R.id.icon);
         assertTrue(
                 ((BitmapDrawable) iconImageView.getDrawable())
@@ -261,17 +256,16 @@ public class CreditCardAccessorySheetViewTest {
 
     @Test
     @MediumTest
-    public void testAddingUserInfoWithIconUrl_iconNotCachedInPersonalDataManager()
+    public void testAddingUserInfoWithIconUrl_iconNotCachedInAutofillImageFetcher()
             throws ExecutionException {
         GURL iconUrl = mock(GURL.class);
         when(iconUrl.isValid()).thenReturn(true);
         when(iconUrl.getSpec()).thenReturn(CUSTOM_ICON_URL);
-        // Return null when PersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable is
-        // called for the above url.
-        when(mMockPersonalDataManager.getCustomImageForAutofillSuggestionIfAvailable(any(), any()))
-                .thenReturn(Optional.empty());
+        // Return null to AutofillImageFetcher.getImageIfAvailable to indicate that the image is not
+        // present in the cache.
+        when(mMockImageFetcher.getImageIfAvailable(any(), any())).thenReturn(Optional.empty());
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.add(
                             new AccessorySheetDataPiece(
@@ -301,10 +295,7 @@ public class CreditCardAccessorySheetViewTest {
         // Verify that the icon is set to the drawable corresponding to `visaCC`.
         ImageView iconImageView = (ImageView) mView.get().getChildAt(0).findViewById(R.id.icon);
         Drawable expectedIcon =
-                ChromeFeatureList.isEnabled(
-                                ChromeFeatureList.AUTOFILL_ENABLE_NEW_CARD_ART_AND_NETWORK_IMAGES)
-                        ? mActivityTestRule.getActivity().getDrawable(R.drawable.visa_metadata_card)
-                        : mActivityTestRule.getActivity().getDrawable(R.drawable.visa_card);
+                mActivityTestRule.getActivity().getDrawable(R.drawable.visa_metadata_card);
         assertTrue(getBitmap(expectedIcon).sameAs(getBitmap(iconImageView.getDrawable())));
     }
 
@@ -313,20 +304,42 @@ public class CreditCardAccessorySheetViewTest {
     public void testAddingUnselectableFieldsRendersUnclickabeChips() {
         assertThat(mView.get().getChildCount(), is(0));
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     UserInfo infoWithUnclickableField = new UserInfo("", false);
                     infoWithUnclickableField.addField(
-                            new UserInfoField(
-                                    "4111111111111111", "4111111111111111", "", false, null));
+                            new UserInfoField.Builder()
+                                    .setSuggestionType(AccessorySuggestionType.CREDIT_CARD_NUMBER)
+                                    .setDisplayText("4111111111111111")
+                                    .setA11yDescription("4111111111111111")
+                                    .build());
                     infoWithUnclickableField.addField(
-                            new UserInfoField("", "", "month", false, null));
+                            new UserInfoField.Builder()
+                                    .setSuggestionType(
+                                            AccessorySuggestionType.CREDIT_CARD_EXPIRATION_MONTH)
+                                    .setDisplayText("month")
+                                    .setId("month")
+                                    .build());
                     infoWithUnclickableField.addField(
-                            new UserInfoField("", "", "year", false, null));
+                            new UserInfoField.Builder()
+                                    .setSuggestionType(
+                                            AccessorySuggestionType.CREDIT_CARD_EXPIRATION_YEAR)
+                                    .setDisplayText("year")
+                                    .setId("year")
+                                    .build());
                     infoWithUnclickableField.addField(
-                            new UserInfoField("", "", "name", false, null));
+                            new UserInfoField.Builder()
+                                    .setSuggestionType(
+                                            AccessorySuggestionType.CREDIT_CARD_NAME_FULL)
+                                    .setDisplayText("name")
+                                    .setId("name")
+                                    .build());
                     infoWithUnclickableField.addField(
-                            new UserInfoField("", "", "cvc", false, null));
+                            new UserInfoField.Builder()
+                                    .setSuggestionType(AccessorySuggestionType.CREDIT_CARD_CVC)
+                                    .setDisplayText("cvc")
+                                    .setId("cvc")
+                                    .build());
                     mModel.add(
                             new AccessorySheetDataPiece(
                                     infoWithUnclickableField,
@@ -351,7 +364,7 @@ public class CreditCardAccessorySheetViewTest {
         final AtomicBoolean clicked = new AtomicBoolean();
         assertThat(mView.get().getChildCount(), is(0));
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.add(
                             new AccessorySheetDataPiece(
@@ -385,7 +398,7 @@ public class CreditCardAccessorySheetViewTest {
         final String kWarning = "Insecure, so filling is no.";
         assertThat(mView.get().getChildCount(), is(0));
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mModel.add(
                             new AccessorySheetDataPiece(
@@ -399,12 +412,10 @@ public class CreditCardAccessorySheetViewTest {
 
         CriteriaHelper.pollUiThread(() -> Criteria.checkThat(mView.get().getChildCount(), is(2)));
 
-        assertThat(mView.get().getChildAt(0), instanceOf(LinearLayout.class));
-        LinearLayout warning = (LinearLayout) mView.get().getChildAt(0);
-        assertThat(warning.findViewById(R.id.tab_title), instanceOf(TextView.class));
-        TextView warningText = warning.findViewById(R.id.tab_title);
-        assertThat(warningText.isShown(), is(true));
-        assertThat(warningText.getText(), is(kWarning));
+        assertThat(mView.get().getChildAt(0), instanceOf(TextView.class));
+        TextView warningView = (TextView) mView.get().getChildAt(0);
+        assertThat(warningView.isShown(), is(true));
+        assertThat(warningView.getText(), is(kWarning));
     }
 
     @Test
@@ -416,17 +427,18 @@ public class CreditCardAccessorySheetViewTest {
         final AtomicBoolean clicked = new AtomicBoolean();
         assertThat(mView.get().getChildCount(), is(0));
 
-        TestThreadUtils.runOnUiThreadBlocking(
+        ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     PromoCodeInfo info = new PromoCodeInfo();
-                    info.setPromoCode(
-                            new UserInfoField(
-                                    kPromoCode,
-                                    "Promo code for test store",
-                                    "",
-                                    false,
-                                    item -> clicked.set(true)));
-                    info.setDetailsText(kDetailsText);
+
+                    info.initialize(
+                            /* promoCode= */ new UserInfoField.Builder()
+                                    .setSuggestionType(AccessorySuggestionType.PROMO_CODE)
+                                    .setDisplayText(kPromoCode)
+                                    .setA11yDescription("Promo code for test store")
+                                    .setCallback(item -> clicked.set(true))
+                                    .build(),
+                            /* detailsText= */ kDetailsText);
                     mModel.add(
                             new AccessorySheetDataPiece(
                                     info, AccessorySheetDataPiece.Type.PROMO_CODE_INFO));
@@ -461,7 +473,58 @@ public class CreditCardAccessorySheetViewTest {
                         .getDrawable(R.drawable.ic_logo_googleg_24dp);
         assertTrue(getBitmap(expectedIcon).sameAs(getBitmap(iconImageView.getDrawable())));
         // Chips are clickable:
-        TestThreadUtils.runOnUiThreadBlocking(findChipView(R.id.promo_code)::performClick);
+        ThreadUtils.runOnUiThreadBlocking(findChipView(R.id.promo_code)::performClick);
+        assertThat(clicked.get(), is(true));
+    }
+
+    @Test
+    @MediumTest
+    public void testAddingLoyaltyCardInfoToTheModelRendersClickableActions()
+            throws ExecutionException {
+        final String kMerchantName = "CVS Pharmacy";
+        final String kLoyaltyCardNumber = "987654321";
+        final AtomicBoolean clicked = new AtomicBoolean();
+        assertThat(mView.get().getChildCount(), is(0));
+
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    LoyaltyCardInfo info =
+                            new LoyaltyCardInfo(
+                                    kMerchantName,
+                                    new UserInfoField.Builder()
+                                            .setSuggestionType(AccessorySuggestionType.LOYALTY_CARD)
+                                            .setDisplayText(kLoyaltyCardNumber)
+                                            .setA11yDescription(kLoyaltyCardNumber)
+                                            .setCallback(item -> clicked.set(true))
+                                            .build());
+
+                    mModel.add(
+                            new AccessorySheetDataPiece(
+                                    "No payment methods", AccessorySheetDataPiece.Type.TITLE));
+                    mModel.add(
+                            new AccessorySheetDataPiece(
+                                    info, AccessorySheetDataPiece.Type.LOYALTY_CARD_INFO));
+                    mModel.add(
+                            new AccessorySheetDataPiece(
+                                    new KeyboardAccessoryData.FooterCommand(
+                                            "Manage loyalty cards", null),
+                                    AccessorySheetDataPiece.Type.FOOTER_COMMAND));
+                });
+
+        // mView's child count should be 3: no payment methods message, loyalty card field, and
+        // footer command.
+        CriteriaHelper.pollUiThread(() -> Criteria.checkThat(mView.get().getChildCount(), is(3)));
+
+        // Check that the titles are correct:
+        LoyaltyCardInfoView loyaltyCardView = (LoyaltyCardInfoView) mView.get().getChildAt(1);
+        assertThat(loyaltyCardView.getMerchantName().isShown(), is(true));
+        assertThat(loyaltyCardView.getMerchantName().getText(), is(kMerchantName));
+        assertThat(
+                loyaltyCardView.getLoyaltyCardNumber().getPrimaryTextView().getText(),
+                is(kLoyaltyCardNumber));
+
+        // Chips are clickable:
+        ThreadUtils.runOnUiThreadBlocking(loyaltyCardView.getLoyaltyCardNumber()::performClick);
         assertThat(clicked.get(), is(true));
     }
 
@@ -476,11 +539,40 @@ public class CreditCardAccessorySheetViewTest {
             AtomicBoolean clickRecorder) {
         UserInfo info = new UserInfo(origin, true, iconUrl);
         info.addField(
-                new UserInfoField(number, number, "", false, item -> clickRecorder.set(true)));
-        info.addField(new UserInfoField(month, month, "", false, item -> clickRecorder.set(true)));
-        info.addField(new UserInfoField(year, year, "", false, item -> clickRecorder.set(true)));
-        info.addField(new UserInfoField(name, name, "", false, item -> clickRecorder.set(true)));
-        info.addField(new UserInfoField(cvc, cvc, "", false, item -> clickRecorder.set(true)));
+                new UserInfoField.Builder()
+                        .setSuggestionType(AccessorySuggestionType.CREDIT_CARD_NUMBER)
+                        .setDisplayText(number)
+                        .setA11yDescription(number)
+                        .setCallback(item -> clickRecorder.set(true))
+                        .build());
+        info.addField(
+                new UserInfoField.Builder()
+                        .setSuggestionType(AccessorySuggestionType.CREDIT_CARD_EXPIRATION_MONTH)
+                        .setDisplayText(month)
+                        .setA11yDescription(month)
+                        .setCallback(item -> clickRecorder.set(true))
+                        .build());
+        info.addField(
+                new UserInfoField.Builder()
+                        .setSuggestionType(AccessorySuggestionType.CREDIT_CARD_EXPIRATION_YEAR)
+                        .setDisplayText(year)
+                        .setA11yDescription(year)
+                        .setCallback(item -> clickRecorder.set(true))
+                        .build());
+        info.addField(
+                new UserInfoField.Builder()
+                        .setSuggestionType(AccessorySuggestionType.CREDIT_CARD_NAME_FULL)
+                        .setDisplayText(name)
+                        .setA11yDescription(name)
+                        .setCallback(item -> clickRecorder.set(true))
+                        .build());
+        info.addField(
+                new UserInfoField.Builder()
+                        .setSuggestionType(AccessorySuggestionType.CREDIT_CARD_CVC)
+                        .setDisplayText(cvc)
+                        .setA11yDescription(cvc)
+                        .setCallback(item -> clickRecorder.set(true))
+                        .build());
         return info;
     }
 

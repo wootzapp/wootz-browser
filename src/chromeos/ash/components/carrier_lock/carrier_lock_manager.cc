@@ -8,6 +8,7 @@
 
 #include "ash/constants/ash_features.h"
 #include "base/base64.h"
+#include "base/compiler_specific.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
@@ -48,13 +49,9 @@ const char kFirmwareVariantPath[] =
 const char kManufacturerNamePath[] =
     "/run/chromeos-config/v1/branding/oem-name";
 const char kModelNamePath[] = "/run/chromeos-config/v1/name";
+const char kMachineAttestedId[] = "attested_device_id";
 const char kMachineModelName[] = "model_name";
 const char kMachineOemName[] = "oem_name";
-
-// values of feature parameter LastConfigDateDelta
-const int kLastConfigDefault = -2;
-const int kLastConfigSetToday = -1;
-const int kLastConfigKeepDate = 0;
 
 constexpr net::BackoffEntry::Policy kRetryBackoffPolicy = {
     0,               // Number of initial errors before using exponential delay.
@@ -260,9 +257,6 @@ void CarrierLockManager::RegisterLocalPrefs(PrefRegistrySimple* registry) {
 
 // static
 ModemLockStatus CarrierLockManager::GetModemLockStatus() {
-  if (!ash::features::IsCellularCarrierLockEnabled()) {
-    return ModemLockStatus::kNotLocked;
-  }
   if (!g_instance || !g_instance->local_state_) {
     return ModemLockStatus::kUnknown;
   }
@@ -312,20 +306,6 @@ void CarrierLockManager::OnSessionStateChanged() {
 }
 
 void CarrierLockManager::Initialize() {
-  const int last_config = features::kCellularCarrierLockLastConfig.Get();
-
-  if (last_config > kLastConfigDefault) {
-    VLOG(2) << "Last config option is set to " << last_config;
-    if (last_config == kLastConfigSetToday) {
-      local_state_->SetTime(kLastConfigTimePref, base::Time());
-    }
-    if (last_config > kLastConfigKeepDate) {
-      local_state_->SetTime(kLastConfigTimePref,
-                            base::Time::Now() - base::Days(last_config));
-    }
-    local_state_->SetBoolean(kDisableManagerPref, false);
-  }
-
   configuration_state_ = ConfigurationState::kNone;
   error_counter_ = local_state_->GetInteger(kErrorCounterPref);
 
@@ -373,7 +353,7 @@ void CarrierLockManager::Initialize() {
     base::File file(oem_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
     int64_t length = file.GetLength();
     base::FixedArray<char> buffer(length + 1);
-    file.Read(0, buffer.data(), length);
+    UNSAFE_TODO(file.Read(0, buffer.data(), length));
     buffer[length] = '\0';
     manufacturer_ = buffer.data();
   } else {
@@ -385,7 +365,7 @@ void CarrierLockManager::Initialize() {
     base::File file(model_path, base::File::FLAG_OPEN | base::File::FLAG_READ);
     int64_t length = file.GetLength();
     base::FixedArray<char> buffer(length + 1);
-    file.Read(0, buffer.data(), length);
+    UNSAFE_TODO(file.Read(0, buffer.data(), length));
     buffer[length] = '\0';
     model_ = buffer.data();
   } else {
@@ -461,8 +441,7 @@ void CarrierLockManager::DevicePropertiesUpdated(const DeviceState* device) {
     return;
   }
 
-  bool is_manager_enabled = (ash::features::IsCellularCarrierLockEnabled() &&
-                             !local_state_->GetBoolean(kDisableManagerPref));
+  bool is_manager_enabled = !local_state_->GetBoolean(kDisableManagerPref);
   bool is_modem_configured =
       !local_state_->GetTime(kLastConfigTimePref).is_null();
 
@@ -626,6 +605,11 @@ void CarrierLockManager::CheckState() {
       manufacturer_ = oem.value();
       LOG(WARNING) << "Manufacturer changed to " << manufacturer_ << ".";
     }
+    if (const std::optional<std::string_view> attested_id =
+            statistics->GetMachineStatistic(kMachineAttestedId)) {
+      attested_id_ = attested_id.value();
+      LOG(WARNING) << "Attested ID set to " << attested_id_ << ".";
+    }
   }
 
   // First configuration, check PSM claim.
@@ -734,6 +718,7 @@ void CarrierLockManager::RequestConfig() {
   }
 
   config_->RequestConfig(serial_, imei_, manufacturer_, model_, fcm_token_,
+                         attested_id_,
                          base::BindOnce(&CarrierLockManager::ConfigCallback,
                                         weak_ptr_factory_.GetWeakPtr()));
 }

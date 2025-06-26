@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
+#pragma allow_unsafe_libc_calls
+#endif
+
 #include "chrome/browser/media/webrtc/native_desktop_media_list.h"
 
 #include <stddef.h>
@@ -133,12 +138,12 @@ class MockObserver : public DesktopMediaListObserver {
 
 class FakeScreenCapturer : public ThumbnailCapturer {
  public:
-  FakeScreenCapturer() {}
+  FakeScreenCapturer() = default;
 
   FakeScreenCapturer(const FakeScreenCapturer&) = delete;
   FakeScreenCapturer& operator=(const FakeScreenCapturer&) = delete;
 
-  ~FakeScreenCapturer() override {}
+  ~FakeScreenCapturer() override = default;
 
   // ThumbnailCapturer implementation.
   void Start(Consumer* consumer) override { consumer_ = consumer; }
@@ -178,7 +183,7 @@ class FakeWindowCapturer : public ThumbnailCapturer {
   FakeWindowCapturer(const FakeWindowCapturer&) = delete;
   FakeWindowCapturer& operator=(const FakeWindowCapturer&) = delete;
 
-  ~FakeWindowCapturer() override {}
+  ~FakeWindowCapturer() override = default;
 
   void SetWindowList(const SourceList& list) {
     base::AutoLock lock(window_list_lock_);
@@ -294,8 +299,9 @@ class NativeDesktopMediaListTest : public ChromeViewsTestBase {
 #if defined(USE_AURA)
   views::UniqueWidgetPtr CreateDesktopWidget() {
     views::UniqueWidgetPtr widget(std::make_unique<views::Widget>());
-    views::Widget::InitParams params;
-    params.type = views::Widget::InitParams::TYPE_WINDOW_FRAMELESS;
+    views::Widget::InitParams params(
+        views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET,
+        views::Widget::InitParams::TYPE_WINDOW_FRAMELESS);
     params.accept_events = false;
     params.native_widget = new views::DesktopNativeWidgetAura(widget.get());
     params.bounds = gfx::Rect(0, 0, 20, 20);
@@ -377,7 +383,8 @@ class NativeDesktopMediaListTest : public ChromeViewsTestBase {
 #endif  // BUILDFLAG(IS_WIN)
     model_ = std::make_unique<NativeDesktopMediaList>(
         DesktopMediaList::Type::kWindow,
-        base::WrapUnique(window_capturer_.get()), add_current_process_windows);
+        base::WrapUnique(window_capturer_.get()), add_current_process_windows,
+        /*auto_show_delegated_source_list=*/true);
   }
 
   void UpdateModel() {
@@ -706,8 +713,7 @@ TEST_F(NativeDesktopMediaListTest, EmptyThumbnail) {
                             &run_loop)));
   // Called upon webrtc::DesktopCapturer::CaptureFrame() call.
   ON_CALL(observer_, OnSourceThumbnailChanged(_))
-      .WillByDefault(
-          testing::InvokeWithoutArgs([]() { NOTREACHED_IN_MIGRATION(); }));
+      .WillByDefault(testing::InvokeWithoutArgs([]() { NOTREACHED(); }));
 
   model_->StartUpdating(&observer_);
 

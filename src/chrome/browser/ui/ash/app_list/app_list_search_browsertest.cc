@@ -2,12 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "ash/app_list/app_list_controller_impl.h"
 #include "ash/app_list/app_list_public_test_util.h"
 #include "ash/app_list/test/app_list_test_helper.h"
 #include "ash/app_list/views/app_list_search_view.h"
 #include "ash/app_list/views/search_box_view.h"
 #include "ash/app_list/views/search_result_list_view.h"
 #include "ash/constants/ash_features.h"
+#include "ash/constants/web_app_id_constants.h"
 #include "ash/public/cpp/app_list/app_list_types.h"
 #include "ash/public/cpp/test/app_list_test_api.h"
 #include "ash/public/cpp/window_properties.h"
@@ -25,7 +27,6 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/ash/system_web_apps/system_web_app_ui_utils.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
-#include "chrome/browser/web_applications/web_app_id_constants.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "components/app_constants/constants.h"
@@ -40,6 +41,13 @@ class AppListSearchBrowserTest : public InProcessBrowserTest {
   void SearchForSystemApp(aura::Window* primary_root_window,
                           const std::u16string app_query,
                           const std::string app_id) {
+    // Disables sunfish nudge as it can take click event for clicking the top
+    // result. Remove this once sunfish nudge becomes dismissed automatically
+    // with a start of launcher search.
+    // TODO(crbug.com/385385395): sunfish nudge should be dismissed if launcher
+    // search starts.
+    AppListControllerImpl::SetSunfishNudgeDisabledForTest(true);
+
     // Ensure the System app is installed.
     Profile* profile = ProfileManager::GetActiveUserProfile();
     ASSERT_TRUE(profile);
@@ -99,12 +107,6 @@ class AppListSearchBrowserTest : public InProcessBrowserTest {
   }
 };
 
-class AppListSearchWithAppShortcutsBrowserTest
-    : public AppListSearchBrowserTest {
-  base::test::ScopedFeatureList scoped_feature_list_{
-      chromeos::features::kCrosWebAppShortcutUiUpdate};
-};
-
 class AppListSearchWithCustomizableShortcutsBrowserTest
     : public AppListSearchBrowserTest {
   base::test::ScopedFeatureList scoped_feature_list_{
@@ -112,7 +114,7 @@ class AppListSearchWithCustomizableShortcutsBrowserTest
 };
 
 IN_PROC_BROWSER_TEST_F(AppListSearchBrowserTest, SearchBuiltInApps) {
-  const std::string app_id = web_app::kOsSettingsAppId;
+  const std::string app_id = ash::kOsSettingsAppId;
   aura::Window* const primary_root_window = Shell::GetPrimaryRootWindow();
 
   SearchForSystemApp(primary_root_window, u"Settings", app_id);
@@ -132,8 +134,7 @@ IN_PROC_BROWSER_TEST_F(AppListSearchBrowserTest, SearchBuiltInApps) {
 
 IN_PROC_BROWSER_TEST_F(AppListSearchBrowserTest, OpenFeedbackApp) {
   aura::Window* const primary_root_window = Shell::GetPrimaryRootWindow();
-  SearchForSystemApp(primary_root_window, u"Feedback",
-                     web_app::kOsFeedbackAppId);
+  SearchForSystemApp(primary_root_window, u"Feedback", ash::kOsFeedbackAppId);
 
   GURL feedback_url = GURL(kChromeUIOSFeedbackUrl);
   content::TestNavigationObserver navigation_observer(feedback_url);
@@ -152,7 +153,7 @@ IN_PROC_BROWSER_TEST_F(AppListSearchBrowserTest, OpenFeedbackApp) {
 IN_PROC_BROWSER_TEST_F(AppListSearchBrowserTest, OpenShortcutsApp) {
   aura::Window* const primary_root_window = Shell::GetPrimaryRootWindow();
   SearchForSystemApp(primary_root_window, u"Key Shortcuts",
-                     web_app::kShortcutCustomizationAppId);
+                     ash::kShortcutCustomizationAppId);
 
   GURL shortcut_customization_url = GURL(kChromeUIShortcutCustomizationAppURL);
   content::TestNavigationObserver navigation_observer(
@@ -175,7 +176,7 @@ IN_PROC_BROWSER_TEST_F(AppListSearchWithCustomizableShortcutsBrowserTest,
   // Launch the app from the Launcher via searching for a shortcut
   aura::Window* const primary_root_window = Shell::GetPrimaryRootWindow();
   SearchForSystemApp(primary_root_window, u"Open notifications",
-                     web_app::kShortcutCustomizationAppId);
+                     ash::kShortcutCustomizationAppId);
 
   GURL shortcut_customization_url = GURL(kChromeUIShortcutCustomizationAppURL);
   content::TestNavigationObserver navigation_observer(
@@ -190,77 +191,6 @@ IN_PROC_BROWSER_TEST_F(AppListSearchWithCustomizableShortcutsBrowserTest,
   Browser* shortcut_customization_browser = FindSystemWebAppBrowser(
       browser()->profile(), SystemWebAppType::SHORTCUT_CUSTOMIZATION);
   EXPECT_TRUE(shortcut_customization_browser);
-}
-
-IN_PROC_BROWSER_TEST_F(AppListSearchWithAppShortcutsBrowserTest,
-                       SearchWebAppShortcut) {
-  Profile* profile = ProfileManager::GetActiveUserProfile();
-  ASSERT_TRUE(profile);
-  // Associate `client` with the current profile.
-  AppListClientImpl* client = AppListClientImpl::GetInstance();
-  ASSERT_TRUE(client);
-  client->UpdateProfile();
-
-  // Show the launcher.
-  aura::Window* const primary_root_window = Shell::GetPrimaryRootWindow();
-  client->ShowAppList(ash::AppListShowSource::kSearchKey);
-  AppListTestApi().WaitForBubbleWindowInRootWindow(
-      primary_root_window,
-      /*wait_for_opening_animation=*/true);
-
-  // The search box should be active.
-  SearchBoxView* search_box_view = GetSearchBoxView();
-  ASSERT_TRUE(search_box_view);
-  EXPECT_TRUE(search_box_view->is_search_box_active());
-
-  // Install a web based app shortcut.
-  GURL shortcut_url = GURL("http://example.org/");
-  std::u16string shortcut_name = u"Example";
-  web_app::test::InstallShortcut(
-      profile, base::UTF16ToUTF8(shortcut_name), shortcut_url,
-      /*create_default_icon =*/true, /*is_policy_install=*/false);
-
-  // Search for the shortcut and wait for the result.
-  const std::u16string app_query = u"Example";
-  app_list::SearchResultsChangedWaiter results_changed_waiter(
-      AppListClientImpl::GetInstance()->search_controller(),
-      {app_list::ResultType::kAppShortcutV2});
-  app_list::ResultsWaiter results_waiter(app_query);
-
-  AppListTestApi().SimulateSearch(app_query);
-
-  results_changed_waiter.Wait();
-  results_waiter.Wait();
-
-  // Search UI updates are scheduled by posting a task on the main thread, run
-  // loop to run scheduled result update tasks.
-  base::RunLoop().RunUntilIdle();
-
-  SearchResultListView* top_result_list =
-      AppListTestApi().GetTopVisibleSearchResultListView();
-  ASSERT_TRUE(top_result_list);
-  EXPECT_EQ(top_result_list->list_type_for_test(),
-            SearchResultListView::SearchResultListType::kAppShortcuts);
-  SearchResultView* top_result_view = top_result_list->GetResultViewAt(0);
-  ASSERT_TRUE(top_result_view);
-  ASSERT_TRUE(top_result_view->result());
-
-  EXPECT_EQ(u"Example", top_result_view->result()->title());
-
-  ActiveWindowWaiter window_waiter(primary_root_window);
-
-  // Open the search result by clicking on it.
-  ui::test::EventGenerator event_generator(primary_root_window);
-  event_generator.MoveMouseTo(
-      top_result_view->GetBoundsInScreen().CenterPoint());
-  event_generator.ClickLeftButton();
-
-  // Wait for the app shortcut window to activate.
-  aura::Window* app_window = window_waiter.Wait();
-  ASSERT_TRUE(app_window);
-  EXPECT_EQ(
-      app_constants::kChromeAppId,
-      ShelfID::Deserialize(app_window->GetProperty(ash::kShelfIDKey)).app_id);
 }
 
 }  // namespace

@@ -12,7 +12,7 @@ namespace features {
 // the flag "kEnableBleV2" owned by Nearby Connections.
 BASE_FEATURE(kEnableNearbyBleV2,
              "EnableNearbyBleV2",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables the use of Extended Advertising from within the implementation of BLE
 // V2, for incremental testing purposes. Assumes that the caller will also check
@@ -25,7 +25,7 @@ BASE_FEATURE(kEnableNearbyBleV2ExtendedAdvertising,
 // V2, for incremental testing purposes. Assumes that the caller will also check
 // if the hardware supports the GATT server dual role.
 BASE_FEATURE(kEnableNearbyBleV2GattServer,
-             "kEnableNearbyBleV2GattServer",
+             "EnableNearbyBleV2GattServer",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables the use of Bluetooth Classic advertising from within the
@@ -40,6 +40,11 @@ BASE_FEATURE(kEnableNearbyBluetoothClassicScanning,
              "EnableNearbyBluetoothClassicScanning",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
+// Enables use of mDNS discovery in Nearby Connections for Nearby Share.
+BASE_FEATURE(kEnableNearbyMdns,
+             "EnableNearbyMdns",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
 // Enables use of WebRTC in Nearby Connections for Nearby Share.
 BASE_FEATURE(kNearbySharingWebRtc,
              "NearbySharingWebRtc",
@@ -48,7 +53,7 @@ BASE_FEATURE(kNearbySharingWebRtc,
 // Enables use of WifiDirect in Nearby Share.
 BASE_FEATURE(kNearbySharingWifiDirect,
              "NearbySharingWifiDirect",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Enables use of WifiLan in Nearby Share.
 BASE_FEATURE(kNearbySharingWifiLan,
@@ -73,6 +78,10 @@ bool IsNearbyBluetoothClassicAdvertisingEnabled() {
 
 bool IsNearbyBluetoothClassicScanningEnabled() {
   return base::FeatureList::IsEnabled(kEnableNearbyBluetoothClassicScanning);
+}
+
+bool IsNearbyMdnsEnabled() {
+  return base::FeatureList::IsEnabled(kEnableNearbyMdns);
 }
 
 }  // namespace features

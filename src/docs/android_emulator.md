@@ -16,38 +16,52 @@ target_cpu = "x86"  # or "x64" if you have an x86_64 emulator
 
 See http://go/clank-emulator/
 
-### Using Prebuilt CIPD packages
+### Using Prebuilt AVD configurations.
 
-Chromium has a set of prebuilt images stored as CIPD packages. These are used
-by various builders to run tests on the emulator. Their configurations are
-currently stored in [`//tools/android/avd/proto`](../tools/android/avd/proto/).
+Chromium has a set of prebuilt AVD configurations stored as CIPD packages.
+These are used by various builders to run tests on the emulator. Their
+configurations are currently stored in [`//tools/android/avd/proto`](../tools/android/avd/proto/).
 You can run this command to list them:
 ```sh
 tools/android/avd/avd.py list
 ```
 
-| Configurations | Android Version | CPU Arch| AVD Target | Builder |
+| Configurations | Android Version | Form Factor | Builder |
 |:-------------- |:--------------- |:------- |:---------- |:------- |
-| `generic_android19.textpb` | K | x86 | google_apis | N/A |
-| `generic_android22.textpb` | L | x86 | google_apis | N/A |
-| `generic_android23.textpb` | M | x86 | google_apis | N/A |
-| `generic_android27.textpb` | O | x86 | google_apis | N/A |
-| `android_28_google_apis_x86.textpb` | P | x86 | google_apis | [android-pie-x86-rel][android-pie-x86-rel] |
-| `android_29_google_apis_x86.textpb` | 10 (Q) | x86 | google_apis | N/A |
-| `android_30_google_apis_x86.textpb` | 11 (R) | x86 | google_apis | [android-11-x86-rel][android-11-x86-rel] |
-| `android_31_google_apis_x64.textpb` | 12 (S) | x86_64 | google_apis | [android-12-x64-rel][android-12-x64-rel] |
-| `android_32_google_apis_x64_foldable.textpb` | 12L (S_V2) | x86_64 | google_apis | [android-12l-x64-dbg-tests][android-12l-x64-dbg-tests] |
-| `android_33_google_apis_x64.textpb` | 13 (T) | x86_64 | google_apis | [android-13-x64-rel][android-13-x64-rel] |
-| `android_34_google_apis_x64.textpb` | 14 (U) | x86_64 | google_apis | [android-14-x64-rel][android-14-x64-rel] |
+| `generic_android26.textpb` | 8.0 (O) | Phone | [android-oreo-x86-rel][android-oreo-x86-rel] |
+| `generic_android27.textpb` | 8.1 (O_MR1) | Phone | N/A |
+| `android_28_google_apis_x86.textpb` | 9 (P) | Phone | [android-pie-x86-rel][android-pie-x86-rel] |
+| `android_29_google_apis_x86.textpb` | 10 (Q) | Phone | N/A |
+| `android_30_google_apis_x86.textpb` | 11 (R) | Phone | [android-11-x86-rel][android-11-x86-rel] |
+| `android_31_google_apis_x64.textpb` | 12 (S) | Phone | [android-12-x64-rel][android-12-x64-rel] |
+| `android_32_google_apis_x64_foldable.textpb` | 12L (S_V2) | Foldable Phone | [android-12l-x64-dbg-tests][android-12l-x64-dbg-tests] |
+| `android_32_google_apis_x64_foldable_landscape.textpb` | 12L (S_V2) | Foldable Phone (Landscape) | [android-12l-landscape-x64-dbg-tests][android-12l-landscape-x64-dbg-tests] |
+| `android_33_google_apis_x64.textpb` | 13 (T) | Phone | [android-13-x64-rel][android-13-x64-rel] |
+| `android_34_google_apis_x64.textpb` | 14 (U) | Phone | [android-14-x64-rel][android-14-x64-rel] |
+| `android_35_google_apis_x64.textpb` | 15 (V) | Phone | [android-15-x64-rel][android-15-x64-rel] |
+| `android_35_google_apis_x64_tablet.textpb` | 15 (V) | Tablet | [android-15-tablet-x64-dbg-tests][android-15-tablet-x64-dbg-tests] |
+| `android_35_google_apis_x64_tablet_landscape.textpb` | 15 (V) | Tablet (Landscape) | [android-15-tablet-landscape-x64-dbg-tests][android-15-tablet-landscape-x64-dbg-tests] |
 
 You can use these configuration files to run the same emulator images locally.
 
+[android-oreo-x86-rel]: https://ci.chromium.org/p/chromium/builders/ci/android-oreo-x86-rel
 [android-pie-x86-rel]: https://ci.chromium.org/p/chromium/builders/ci/android-pie-x86-rel
 [android-11-x86-rel]: https://ci.chromium.org/p/chromium/builders/ci/android-11-x86-rel
 [android-12-x64-rel]: https://ci.chromium.org/p/chromium/builders/ci/android-12-x64-rel
 [android-12l-x64-dbg-tests]: https://ci.chromium.org/p/chromium/builders/ci/android-12l-x64-dbg-tests
+[android-12l-landscape-x64-dbg-tests]: https://ci.chromium.org/p/chromium/builders/ci/android-12l-landscape-x64-dbg-tests
 [android-13-x64-rel]: https://ci.chromium.org/p/chromium/builders/ci/android-13-x64-rel
 [android-14-x64-rel]: https://ci.chromium.org/p/chromium/builders/ci/android-14-x64-rel
+[android-15-x64-rel]: https://ci.chromium.org/p/chromium/builders/ci/android-15-x64-rel
+[android-15-tablet-x64-dbg-tests]: https://ci.chromium.org/ui/p/chromium/builders/ci/android-15-tablet-x64-dbg-tests
+[android-15-tablet-landscape-x64-dbg-tests]: https://ci.chromium.org/ui/p/chromium/builders/ci/android-15-tablet-landscape-x64-dbg-tests
+
+> Note: New AVD configurations for LOCAL development are also available now,
+> whose file names end with `_local`, i.e. `*_local.textpb`.
+>
+> The only difference is that these configs has 12GB storage space instead of
+> 4GB on the non-local ones. Larger storage space makes it easier for developers
+> to install large APKs without hitting the space issue.
 
 #### Prerequisite
 
@@ -86,7 +100,7 @@ down. This is how builders run the emulator.
 
     ```
       $ out/Debug/bin/run_base_unittests \
-          --avd-config tools/android/avd/proto/generic_android28.textpb
+          --avd-config tools/android/avd/proto/android_33_google_apis_x64.textpb
     ```
 
  * `--emulator-count`
@@ -96,7 +110,7 @@ down. This is how builders run the emulator.
 
     ```
       $ out/Debug/bin/run_base_unittests \
-          --avd-config tools/android/avd/proto/generic_android28.textpb \
+          --avd-config tools/android/avd/proto/android_33_google_apis_x64.textpb \
           --emulator-count 4
     ```
 
@@ -107,7 +121,7 @@ down. This is how builders run the emulator.
 
     ```
     $ out/Debug/bin/run_base_unittests \
-          --avd-config tools/android/avd/proto/generic_android28.textpb \
+          --avd-config tools/android/avd/proto/android_33_google_apis_x64.textpb \
           --emulator-enable-network
     ```
 
@@ -118,7 +132,7 @@ down. This is how builders run the emulator.
 
     ```
       $ out/Debug/bin/run_base_unittests \
-          --avd-config tools/android/avd/proto/generic_android28.textpb \
+          --avd-config tools/android/avd/proto/android_33_google_apis_x64.textpb \
           --emulator-window
     ```
 
@@ -135,7 +149,7 @@ To manage emulator lifetime independently, use `tools/android/avd/avd.py`.
 
     ```
       $ tools/android/avd/avd.py start \
-          --avd-config tools/android/avd/proto/generic_android28.textpb
+          --avd-config tools/android/avd/proto/android_33_google_apis_x64.textpb
     ```
 
     > Note: `avd.py start` will start an emulator instance and then terminate.
@@ -148,7 +162,7 @@ To manage emulator lifetime independently, use `tools/android/avd/avd.py`.
 
     ```
       $ tools/android/avd/avd.py start \
-          --avd-config tools/android/avd/proto/generic_android28.textpb \
+          --avd-config tools/android/avd/proto/android_33_google_apis_x64.textpb \
           --enable-network
     ```
 
@@ -159,7 +173,7 @@ To manage emulator lifetime independently, use `tools/android/avd/avd.py`.
 
     ```
       $ tools/android/avd/avd.py start \
-          --avd-config tools/android/avd/proto/generic_android28.textpb \
+          --avd-config tools/android/avd/proto/android_33_google_apis_x64.textpb \
           --emulator-window
     ```
 
@@ -175,7 +189,7 @@ To manage emulator lifetime independently, use `tools/android/avd/avd.py`.
 
     ```
       $ tools/android/avd/avd.py start \
-          --avd-config tools/android/avd/proto/generic_android28.textpb \
+          --avd-config tools/android/avd/proto/android_33_google_apis_x64.textpb \
           --no-read-only
     ```
 
@@ -186,7 +200,7 @@ To manage emulator lifetime independently, use `tools/android/avd/avd.py`.
 
     ```
       $ tools/android/avd/avd.py start \
-          --avd-config tools/android/avd/proto/generic_android28.textpb \
+          --avd-config tools/android/avd/proto/android_33_google_apis_x64.textpb \
           --wipe-data
     ```
 
@@ -209,7 +223,7 @@ To manage emulator lifetime independently, use `tools/android/avd/avd.py`.
 
     ```
       $ tools/android/avd/avd.py start \
-          --avd-config tools/android/avd/proto/generic_android28.textpb \
+          --avd-config tools/android/avd/proto/android_33_google_apis_x64.textpb \
           --debug-tags init,snapshot
     ```
 

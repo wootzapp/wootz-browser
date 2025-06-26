@@ -37,15 +37,15 @@ base::flat_map<gfx::BufferFormat, std::vector<uint64_t>> GetDawnModifierMap(
 
   for (int i = 0; i <= static_cast<int>(gfx::BufferFormat::LAST); i++) {
     gfx::BufferFormat buffer_format = static_cast<gfx::BufferFormat>(i);
-    auto si_format = viz::GetSinglePlaneSharedImageFormat(buffer_format);
+    auto si_format = viz::GetSharedImageFormat(buffer_format);
     auto wgpu_format = ToDawnFormat(si_format);
     if (wgpu_format == wgpu::TextureFormat::Undefined) {
       modifier_map.emplace(buffer_format, std::vector<uint64_t>());
       continue;
     }
 
-    wgpu::DrmFormatCapabilities drmCapabilities;
-    wgpu::FormatCapabilities formatCapabilities;
+    wgpu::DawnDrmFormatCapabilities drmCapabilities;
+    wgpu::DawnFormatCapabilities formatCapabilities;
     formatCapabilities.nextInChain = &drmCapabilities;
     adapter.GetFormatCapabilities(wgpu_format, &formatCapabilities);
 

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "cc/test/layer_tree_json_parser.h"
 
 #include <stddef.h>
@@ -117,7 +122,7 @@ scoped_refptr<Layer> ParseTreeFromValue(const base::Value& val,
 
     new_layer = nine_patch_layer;
   } else if (*layer_type == "TextureLayer") {
-    new_layer = TextureLayer::CreateForMailbox(nullptr);
+    new_layer = TextureLayer::Create(nullptr);
   } else if (*layer_type == "PictureLayer") {
     new_layer = PictureLayer::Create(content_client);
   } else {  // Type "Layer" or "unknown"

@@ -4,22 +4,28 @@
 
 package org.chromium.chrome.browser.tabpersistence;
 
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.TabState;
 
 import java.nio.ByteBuffer;
 
 /** Interface for serializing and deserializing {@link TabState} */
+@NullMarked
 public interface TabStateSerializer {
 
     /**
-     * @param tabState {@link TabState} to be serializsed
+     * @param tabState {@link TabState} to be serialized
+     * @param contentsStateBytes copy of the {@link
+     *     org.chromium.chrome.browser.tab.WebContentsState} bytes. WebContentsState should not be
+     *     written to the file directly because it could be memory mapped from the same file.
      * @return serialized {@link TabState} in the form of a ByteBuffer
      */
-    ByteBuffer serialize(TabState tabState);
+    ByteBuffer serialize(TabState tabState, byte[] contentsStateBytes);
 
     /**
      * @param byteBuffer serialized {@link TabState}
-     * @return deserialized {@link TabState}
+     * @return deserialized {@link TabState} or null if it failed.
      */
-    TabState deserialize(ByteBuffer byteBuffer);
+    @Nullable TabState deserialize(ByteBuffer byteBuffer);
 }

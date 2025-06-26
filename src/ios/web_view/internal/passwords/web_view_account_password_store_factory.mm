@@ -19,6 +19,7 @@
 #import "components/password_manager/core/browser/password_store/password_store_built_in_backend.h"
 #import "components/password_manager/core/browser/password_store_factory_util.h"
 #import "components/prefs/pref_service.h"
+#import "ios/web_view/internal/app/application_context.h"
 
 namespace ios_web_view {
 
@@ -61,14 +62,15 @@ WebViewAccountPasswordStoreFactory::BuildServiceInstanceFor(
 
   std::unique_ptr<password_manager::LoginDatabase> login_db(
       password_manager::CreateLoginDatabaseForAccountStorage(
-          browser_state->GetStatePath()));
+          browser_state->GetStatePath(), browser_state->GetPrefs()));
 
   scoped_refptr<password_manager::PasswordStore> ps =
       new password_manager::PasswordStore(
           std::make_unique<password_manager::PasswordStoreBuiltInBackend>(
               std::move(login_db),
               syncer::WipeModelUponSyncDisabledBehavior::kAlways,
-              browser_state->GetPrefs()));
+              browser_state->GetPrefs(),
+              ApplicationContext::GetInstance()->GetOSCryptAsync()));
 
   ps->Init(browser_state->GetPrefs(), /*affiliated_match_helper=*/nullptr);
 

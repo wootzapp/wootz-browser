@@ -13,11 +13,13 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import android.app.Activity;
 import android.content.Context;
@@ -32,23 +34,25 @@ import androidx.test.filters.SmallTest;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.Token;
+import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.base.test.util.JniMocker;
 import org.chromium.chrome.browser.app.ChromeActivity;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.components.autofill.AutofillFeatures;
 import org.chromium.components.autofill.AutofillProvider;
+import org.chromium.components.prefs.PrefService;
+import org.chromium.components.user_prefs.UserPrefs;
+import org.chromium.components.user_prefs.UserPrefsJni;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.ui.base.WindowAndroid;
@@ -62,10 +66,7 @@ public class TabUnitTest {
     private static final int TAB1_ID = 456;
     private static final int TAB2_ID = 789;
 
-    @Rule public TestRule mFeaturesProcessorRule = new Features.JUnitProcessor();
-
-    @Rule public JniMocker mocker = new JniMocker();
-
+    @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
     @Mock private AutofillProvider mAutofillProvider;
     @Mock private Profile mProfile;
     @Mock private WindowAndroid mWindowAndroid;
@@ -81,22 +82,26 @@ public class TabUnitTest {
     @Mock private WebContents mWebContents;
     @Mock private View mNativePageView;
     @Mock private ChromeActivity mChromeActivity;
+    @Mock private UserPrefs.Natives mUserPrefsNatives;
+    @Mock private PrefService mPrefs;
     @Mock TabImpl.Natives mNativeMock;
 
     private TabImpl mTab;
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
 
         doReturn(mWeakReferenceActivity).when(mWindowAndroid).getActivity();
         doReturn(mWeakReferenceContext).when(mWindowAndroid).getContext();
+        doReturn(new ObservableSupplierImpl<>(false)).when(mWindowAndroid).getOcclusionSupplier();
         doReturn(mActivity).when(mWeakReferenceActivity).get();
         doReturn(mContext).when(mWeakReferenceContext).get();
         doReturn(mContext).when(mContext).getApplicationContext();
+        UserPrefsJni.setInstanceForTesting(mUserPrefsNatives);
+        when(mUserPrefsNatives.get(mProfile)).thenReturn(mPrefs);
 
         mTab =
-                new TabImpl(TAB1_ID, mProfile, null) {
+                new TabImpl(TAB1_ID, mProfile, TabLaunchType.FROM_CHROME_UI) {
                     @Override
                     public boolean isInitialized() {
                         return true;
@@ -199,8 +204,43 @@ public class TabUnitTest {
 
     @Test
     @SmallTest
+    public void testSetTabHasSensitiveContentWithChange() {
+        TabStateAttributes.createForTab(mTab, TabCreationState.FROZEN_ON_RESTORE);
+        TabStateAttributes attributes = TabStateAttributes.from(mTab);
+
+        assertThat(
+                attributes.getDirtinessState(), equalTo(TabStateAttributes.DirtinessState.CLEAN));
+        assertFalse(mTab.getTabHasSensitiveContent());
+
+        mTab.setTabHasSensitiveContent(true);
+        verify(mObserver).onTabContentSensitivityChanged(mTab, true);
+        assertTrue(mTab.getTabHasSensitiveContent());
+        assertThat(
+                attributes.getDirtinessState(), equalTo(TabStateAttributes.DirtinessState.UNTIDY));
+    }
+
+    @Test
+    @SmallTest
+    public void testSetTabHasSensitiveContentWithoutChange() {
+        TabStateAttributes.createForTab(mTab, TabCreationState.FROZEN_ON_RESTORE);
+        TabStateAttributes attributes = TabStateAttributes.from(mTab);
+
+        assertThat(
+                attributes.getDirtinessState(), equalTo(TabStateAttributes.DirtinessState.CLEAN));
+        assertFalse(mTab.getTabHasSensitiveContent());
+
+        mTab.setTabHasSensitiveContent(false);
+
+        verify(mObserver, never()).onTabContentSensitivityChanged(any(Tab.class), anyBoolean());
+        assertFalse(mTab.getTabHasSensitiveContent());
+        assertThat(
+                attributes.getDirtinessState(), equalTo(TabStateAttributes.DirtinessState.CLEAN));
+    }
+
+    @Test
+    @SmallTest
     public void testFreezeDetachedNativePage() {
-        mocker.mock(TabImplJni.TEST_HOOKS, mNativeMock);
+        TabImplJni.setInstanceForTesting(mNativeMock);
 
         doReturn(mTabWebContentsDelegateAndroid)
                 .when(mDelegateFactory)
@@ -214,7 +254,7 @@ public class TabUnitTest {
         doReturn(mChromeActivity).when(mWeakReferenceContext).get();
 
         mTab =
-                new TabImpl(TAB1_ID, mProfile, null) {
+                new TabImpl(TAB1_ID, mProfile, TabLaunchType.FROM_CHROME_UI) {
                     @Override
                     public WindowAndroid getWindowAndroid() {
                         return mWindowAndroid;
@@ -272,7 +312,24 @@ public class TabUnitTest {
     @Test
     @SmallTest
     @EnableFeatures({AutofillFeatures.AUTOFILL_VIRTUAL_VIEW_STRUCTURE_ANDROID})
+    public void testAutofillUnavailableWithoutPref() {
+        when(mPrefs.getBoolean(TabImpl.AUTOFILL_PREF_USES_VIRTUAL_STRUCTURE)).thenReturn(false);
+        assertFalse(mTab.providesAutofillStructure());
+        mTab.setAutofillProvider(null);
+
+        mTab.onProvideAutofillVirtualStructure(mock(ViewStructure.class), 0);
+        verify(mAutofillProvider, never()).onProvideAutoFillVirtualStructure(any(), anyInt());
+
+        mTab.autofill(new SparseArray<AutofillValue>());
+        verify(mAutofillProvider, never()).autofill(any());
+    }
+
+    @Test
+    @SmallTest
+    @EnableFeatures({AutofillFeatures.AUTOFILL_VIRTUAL_VIEW_STRUCTURE_ANDROID})
     public void testAutofillRequestsHandledByProvider() {
+        when(mPrefs.getBoolean(TabImpl.AUTOFILL_PREF_USES_VIRTUAL_STRUCTURE)).thenReturn(true);
+        when(mProfile.isNativeInitialized()).thenReturn(true);
         assertTrue(mTab.providesAutofillStructure());
 
         ViewStructure structure = mock(ViewStructure.class);

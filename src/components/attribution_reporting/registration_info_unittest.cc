@@ -6,142 +6,140 @@
 
 #include <string_view>
 
+#include "base/test/gmock_expected_support.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "components/attribution_reporting/registrar.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/fuzztest/src/fuzztest/fuzztest.h"
 
 namespace attribution_reporting {
 namespace {
+
+using ::base::test::ErrorIs;
+using ::base::test::ValueIs;
 
 TEST(RegistrationInfoTest, ParseInfo) {
   const struct {
     const char* description;
     std::string_view header;
-    base::expected<RegistrationInfo, RegistrationInfoError>
-        expected_cross_app_web_enabled;
-    base::expected<RegistrationInfo, RegistrationInfoError>
-        expected_cross_app_web_disabled;
+    ::testing::Matcher<base::expected<RegistrationInfo, RegistrationInfoError>>
+        matches;
   } kTestCases[] = {
       {
           "empty",
           "",
-          RegistrationInfo(),
-          RegistrationInfo(),
+          ValueIs(RegistrationInfo()),
       },
       {
           "all-fields",
           "preferred-platform=os,report-header-errors",
-          RegistrationInfo{
+          ValueIs(RegistrationInfo{
               .preferred_platform = Registrar::kOs,
               .report_header_errors = true,
-          },
-          RegistrationInfo{
-              .report_header_errors = true,
-          },
+          }),
       },
       {
           "list",
           R"("foo", "bar")",
-          base::unexpected(RegistrationInfoError()),
-          base::unexpected(RegistrationInfoError()),
+          ErrorIs(RegistrationInfoError::kRootInvalid),
       },
       {
           "prefer-web",
           "preferred-platform=web",
-          RegistrationInfo{
+          ValueIs(RegistrationInfo{
               .preferred_platform = Registrar::kWeb,
-          },
-          RegistrationInfo(),
+          }),
       },
       {
           "prefer-os",
           "preferred-platform=os",
-          RegistrationInfo{
+          ValueIs(RegistrationInfo{
               .preferred_platform = Registrar::kOs,
-          },
-          RegistrationInfo(),
+          }),
       },
       {
           "preferred-platform-parameter-ignored",
           "preferred-platform=os;abc",
-          RegistrationInfo{
+          ValueIs(RegistrationInfo{
               .preferred_platform = Registrar::kOs,
-          },
-          RegistrationInfo(),
+          }),
       },
       {
           "preferred-platform-missing-value",
           "preferred-platform",
-          base::unexpected(RegistrationInfoError()),
-          RegistrationInfo(),
+          ErrorIs(RegistrationInfoError::kInvalidPreferredPlatform),
       },
       {
           "preferred-platform-unknown-value",
           "preferred-platform=abc",
-          base::unexpected(RegistrationInfoError()),
-          RegistrationInfo(),
+          ErrorIs(RegistrationInfoError::kInvalidPreferredPlatform),
       },
       {
           "preferred-platform-invalid-type",
           "preferred-platform=\"os\"",
-          base::unexpected(RegistrationInfoError()),
-          RegistrationInfo(),
+          ErrorIs(RegistrationInfoError::kInvalidPreferredPlatform),
       },
       {
           "preferred-platform-inner-list",
           "preferred-platform=(foo bar)",
-          base::unexpected(RegistrationInfoError()),
-          RegistrationInfo(),
+          ErrorIs(RegistrationInfoError::kInvalidPreferredPlatform),
       },
       {
           "unknown-field",
           "unknown",
-          RegistrationInfo(),
-          RegistrationInfo(),
+          ValueIs(RegistrationInfo()),
       },
       {
           "report-header-errors",
           "report-header-errors",
-          RegistrationInfo{
+          ValueIs(RegistrationInfo{
               .report_header_errors = true,
-          },
-          RegistrationInfo{
-              .report_header_errors = true,
-          },
+          }),
       },
       {
           "report-header-errors-parameter-ignored",
           "report-header-errors=?0;abc",
-          RegistrationInfo{
+          ValueIs(RegistrationInfo{
               .report_header_errors = false,
-          },
-          RegistrationInfo{
-              .report_header_errors = false,
-          },
+          }),
       },
       {
           "report-header-errors-invalid-type",
           "report-header-errors=abc",
-          base::unexpected(RegistrationInfoError()),
-          base::unexpected(RegistrationInfoError()),
+          ErrorIs(RegistrationInfoError::kInvalidReportHeaderErrors),
       },
       {
           "report-header-errors-inner-list",
           "report-header-errors=(foo bar)",
-          base::unexpected(RegistrationInfoError()),
-          base::unexpected(RegistrationInfoError()),
+          ErrorIs(RegistrationInfoError::kInvalidReportHeaderErrors),
       },
   };
 
+  static constexpr char kRegistrationInfoErrorMetric[] =
+      "Conversions.RegistrationInfoError";
+
   for (const auto& test_case : kTestCases) {
     SCOPED_TRACE(test_case.description);
-    EXPECT_EQ(RegistrationInfo::ParseInfo(test_case.header,
-                                          /*cross_app_web_enabled=*/true),
-              test_case.expected_cross_app_web_enabled);
-    EXPECT_EQ(RegistrationInfo::ParseInfo(test_case.header,
-                                          /*cross_app_web_enabled=*/false),
-              test_case.expected_cross_app_web_disabled);
+
+    base::HistogramTester histograms;
+    auto info = RegistrationInfo::ParseInfo(test_case.header);
+    EXPECT_THAT(info, test_case.matches);
+    if (info.has_value()) {
+      histograms.ExpectTotalCount(kRegistrationInfoErrorMetric, 0);
+    } else {
+      histograms.ExpectUniqueSample(kRegistrationInfoErrorMetric, info.error(),
+                                    1);
+    }
   }
 }
+
+void Parses(std::string_view input) {
+  std::ignore = RegistrationInfo::ParseInfo(input);
+}
+
+FUZZ_TEST(RegistrationInfoTest, Parses)
+    .WithDomains(fuzztest::Arbitrary<std::string>());
 
 }  // namespace
 }  // namespace attribution_reporting

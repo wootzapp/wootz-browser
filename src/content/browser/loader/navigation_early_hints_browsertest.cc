@@ -39,6 +39,7 @@
 #include "net/test/embedded_test_server/http_response.h"
 #include "net/test/quic_simple_test_server.h"
 #include "net/test/test_data_directory.h"
+#include "net/third_party/quiche/src/quiche/common/http/http_header_block.h"
 #include "services/network/public/cpp/network_switches.h"
 #include "services/network/public/mojom/early_hints.mojom.h"
 #include "services/network/public/mojom/link_header.mojom.h"
@@ -65,16 +66,16 @@ struct ResponseEntry {
   }
 
   void AddEarlyHints(const std::vector<HeaderField>& header_fields) {
-    spdy::Http2HeaderBlock hints_headers;
+    quiche::HttpHeaderBlock hints_headers;
     for (const auto& header : header_fields)
       hints_headers.AppendValueOrAddHeader(header.name, header.value);
     early_hints.push_back(std::move(hints_headers));
   }
 
   std::string path;
-  spdy::Http2HeaderBlock headers;
+  quiche::HttpHeaderBlock headers;
   std::string body;
-  std::vector<spdy::Http2HeaderBlock> early_hints;
+  std::vector<quiche::HttpHeaderBlock> early_hints;
 };
 
 const char kPageWithHintedScriptPath[] = "/page_with_hinted_js.html";
@@ -350,8 +351,9 @@ class NavigationEarlyHintsTest : public DevToolsProtocolTest {
                                               const std::string& title) {
     std::u16string title16 = base::ASCIIToUTF16(title);
     TitleWatcher title_watcher(shell()->web_contents(), title16);
-    if (!NavigateToURL(shell(), url, expected_commit_url))
+    if (!NavigateToURL(shell(), url, expected_commit_url)) {
       return false;
+    }
     return title16 == title_watcher.WaitAndGetTitle();
   }
 
@@ -367,8 +369,9 @@ class NavigationEarlyHintsTest : public DevToolsProtocolTest {
   PreloadedResources WaitForPreloadedResources(RenderFrameHostImpl* rfh) {
     base::RunLoop loop;
     PreloadedResources result;
-    if (!GetEarlyHintsManager(rfh))
+    if (!GetEarlyHintsManager(rfh)) {
       return result;
+    }
 
     GetEarlyHintsManager(rfh)->WaitForPreloadsFinishedForTesting(
         base::BindLambdaForTesting([&](PreloadedResources preloaded_resources) {
@@ -419,8 +422,9 @@ class NavigationEarlyHintsTest : public DevToolsProtocolTest {
       return std::move(response);
     }
 
-    if (relative_url.path() != kHintedScriptPath)
+    if (relative_url.path() != kHintedScriptPath) {
       return nullptr;
+    }
 
     auto response = std::make_unique<net::test_server::BasicHttpResponse>();
     response->set_code(net::HTTP_OK);
@@ -752,8 +756,9 @@ IN_PROC_BROWSER_TEST_F(NavigationEarlyHintsTest, NetworkAnonymizationKey) {
       base::BindLambdaForTesting(
           [&](const GURL& request_url,
               const network::URLLoaderCompletionStatus& status) {
-            if (request_url != kHintedScriptUrl)
+            if (request_url != kHintedScriptUrl) {
               return;
+            }
             is_cached = status.exists_in_cache;
           }),
       base::NullCallback());
@@ -827,7 +832,9 @@ IN_PROC_BROWSER_TEST_F(NavigationEarlyHintsTest, DevtoolsEventsForEarlyHint) {
   EXPECT_TRUE(WaitForLoadStop(shell()->web_contents()));
 
   Attach();
-  SendCommandAsync("Network.enable");
+  // Send this synchronously, otherwise it might not be sent yet when the
+  // navigation start and the message sending gets suspended.
+  SendCommandSync("Network.enable");
   GURL target_url =
       net::QuicSimpleTestServer::GetFileURL(kPageWithHintedScriptPath);
   EXPECT_TRUE(NavigateToURL(shell(), target_url, target_url));
@@ -934,7 +941,7 @@ IN_PROC_BROWSER_TEST_F(NavigationEarlyHintsPrerenderTest,
   RegisterResponse(entry);
 
   // Loads a page in the prerender.
-  int host_id = prerender_helper()->AddPrerender(
+  FrameTreeNodeId host_id = prerender_helper()->AddPrerender(
       net::QuicSimpleTestServer::GetFileURL(kPageWithHintedScriptPath));
   RenderFrameHostImpl* prerender_rfh = static_cast<RenderFrameHostImpl*>(
       prerender_helper()->GetPrerenderedMainFrameHost(host_id));

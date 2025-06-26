@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "services/network/public/mojom/restricted_cookie_manager.mojom-blink.h"
+#include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_promise_resolver.h"
 #include "third_party/blink/renderer/bindings/core/v8/v8_throw_dom_exception.h"
 #include "third_party/blink/renderer/bindings/modules/v8/v8_cookie_list_item.h"
@@ -122,7 +123,7 @@ ScriptPromise<IDLUndefined> CookieStoreManager::subscribe(
                               exception_state);
     if (backend_subscription.is_null()) {
       DCHECK(exception_state.HadException());
-      return ScriptPromise<IDLUndefined>();
+      return EmptyPromise();
     }
     backend_subscriptions.push_back(std::move(backend_subscription));
   }
@@ -148,7 +149,7 @@ ScriptPromise<IDLUndefined> CookieStoreManager::unsubscribe(
                               exception_state);
     if (backend_subscription.is_null()) {
       DCHECK(exception_state.HadException());
-      return ScriptPromise<IDLUndefined>();
+      return EmptyPromise();
     }
     backend_subscriptions.push_back(std::move(backend_subscription));
   }

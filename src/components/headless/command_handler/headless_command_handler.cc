@@ -180,7 +180,7 @@ bool GetCommandDictAndOutputPaths(base::Value::Dict* commands,
         base::ToLowerASCII(path.FinalExtension());
 
     static constexpr auto kImageFileTypes =
-        base::MakeFixedFlatMap<base::FilePath::StringPieceType, const char*>({
+        base::MakeFixedFlatMap<base::FilePath::StringViewType, const char*>({
             {FILE_PATH_LITERAL(".jpeg"), "jpeg"},
             {FILE_PATH_LITERAL(".jpg"), "jpeg"},
             {FILE_PATH_LITERAL(".png"), "png"},
@@ -260,8 +260,7 @@ bool GetCommandDictAndOutputPaths(base::Value::Dict* commands,
 }
 
 bool WriteFileTask(base::FilePath file_path, std::string file_data) {
-  auto file_span = base::make_span(
-      reinterpret_cast<const uint8_t*>(file_data.data()), file_data.size());
+  auto file_span = base::as_byte_span(file_data);
   if (!base::WriteFile(file_path, file_span)) {
     PLOG(ERROR) << "Failed to write file " << file_path;
     return false;

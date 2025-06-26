@@ -41,11 +41,11 @@ inline constexpr char kDlcLoadStatusHistogram[] =
 
 // Ensures that |value_| is within the range {min_, max_}. If it isn't, this
 // will print a nice error message.
-#define EXPECT_WITHIN_RANGE(min_, value_, max_)                \
-  ({                                                           \
-    EXPECT_TRUE(min_ <= value_ && value_ <= max_)              \
-        << "Expected " << value_ << " to be within the range " \
-        << "{" << min_ << ", " << max_ << "}.";                \
+#define EXPECT_WITHIN_RANGE(min_, value_, max_)                               \
+  ({                                                                          \
+    EXPECT_TRUE(min_ <= value_ && value_ <= max_)                             \
+        << "Expected " << value_ << " to be within the range " << "{" << min_ \
+        << ", " << max_ << "}.";                                              \
   })
 
 }  // namespace
@@ -56,17 +56,22 @@ inline constexpr char kDlcLoadStatusHistogram[] =
 class DISABLED_AssistantBrowserTest : public MixinBasedInProcessBrowserTest,
                                       public testing::WithParamInterface<bool> {
  public:
-  DISABLED_AssistantBrowserTest() {
+  DISABLED_AssistantBrowserTest()
+      : DISABLED_AssistantBrowserTest(/*disable_sandbox=*/true) {}
+
+  explicit DISABLED_AssistantBrowserTest(bool disable_sandbox) {
     // Do not log to file in test. Otherwise multiple tests may create/delete
     // the log file at the same time. See http://crbug.com/1307868.
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
         switches::kDisableLibAssistantLogfile);
 
-    // In browser tests, the fake_s3_server uses gRPC framework, which is not
-    // allowed in the sandbox by default. Instead of enabling and setting up the
-    // gRPC policy, we do not enable sandbox in the tests.
-    base::CommandLine::ForCurrentProcess()->AppendSwitch(
-        sandbox::policy::switches::kNoSandbox);
+    if (disable_sandbox) {
+      // In browser tests, the fake_s3_server uses gRPC framework, which is not
+      // allowed in the sandbox by default. Instead of enabling and setting up
+      // the gRPC policy, we do not enable sandbox in the tests.
+      base::CommandLine::ForCurrentProcess()->AppendSwitch(
+          sandbox::policy::switches::kNoSandbox);
+    }
   }
 
   DISABLED_AssistantBrowserTest(const DISABLED_AssistantBrowserTest&) = delete;
@@ -78,8 +83,9 @@ class DISABLED_AssistantBrowserTest : public MixinBasedInProcessBrowserTest,
   AssistantTestMixin* tester() { return &tester_; }
 
   void ShowAssistantUi() {
-    if (!tester()->IsVisible())
+    if (!tester()->IsVisible()) {
       tester()->PressAssistantKey();
+    }
 
     // Make sure that the app list bubble finished showing.
     AppListTestApi().WaitForBubbleWindow(
@@ -87,8 +93,9 @@ class DISABLED_AssistantBrowserTest : public MixinBasedInProcessBrowserTest,
   }
 
   void CloseAssistantUi() {
-    if (tester()->IsVisible())
+    if (tester()->IsVisible()) {
       tester()->PressAssistantKey();
+    }
   }
 
   void InitializeBrightness() {
@@ -151,6 +158,18 @@ class DISABLED_AssistantBrowserTest : public MixinBasedInProcessBrowserTest,
   AssistantTestMixin tester_{&mixin_host_, this, embedded_test_server(), kMode,
                              kVersion};
 };
+
+class DISABLED_AssistantBrowserTestWithSandbox
+    : public DISABLED_AssistantBrowserTest {
+ public:
+  DISABLED_AssistantBrowserTestWithSandbox()
+      : DISABLED_AssistantBrowserTest(/*disable_sandbox=*/false) {}
+};
+
+// Tests that Assistant can start up with sandbox.
+IN_PROC_BROWSER_TEST_F(DISABLED_AssistantBrowserTestWithSandbox, Ready) {
+  tester()->StartAssistantAndWaitForReady();
+}
 
 IN_PROC_BROWSER_TEST_F(DISABLED_AssistantBrowserTest,
                        ShouldOpenAssistantUiWhenPressingAssistantKey) {

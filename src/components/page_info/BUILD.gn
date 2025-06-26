@@ -12,7 +12,6 @@ static_library("page_info") {
 
   deps = [
     "//base",
-    "//build:chromeos_buildflags",
     "//components/browsing_data/content",
     "//components/browsing_data/core",
     "//components/content_settings/browser",
@@ -55,4 +54,19 @@ static_library("page_info") {
   } else {
     deps += [ "//ui/native_theme" ]
   }
+}
+
+source_set("unit_tests") {
+  testonly = true
+
+  sources = [ "page_info_ui_unittest.cc" ]
+
+  deps = [
+    ":page_info",
+    "//base",
+    "//components/strings:components_strings_grit",
+    "//testing/gmock",
+    "//testing/gtest",
+    "//ui/base:base",
+  ]
 }

@@ -4,12 +4,12 @@
 
 #include "net/spdy/header_coalescer.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 
-#include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/trace_event/memory_usage_estimator.h"
@@ -38,7 +38,7 @@ void NetLogInvalidHeader(const NetLogWithSource& net_log,
 }
 
 bool ContainsUppercaseAscii(std::string_view str) {
-  return base::ranges::any_of(str, base::IsAsciiUpper<char>);
+  return std::ranges::any_of(str, base::IsAsciiUpper<char>);
 }
 
 }  // namespace
@@ -55,7 +55,7 @@ void HeaderCoalescer::OnHeader(std::string_view key, std::string_view value) {
   }
 }
 
-spdy::Http2HeaderBlock HeaderCoalescer::release_headers() {
+quiche::HttpHeaderBlock HeaderCoalescer::release_headers() {
   DCHECK(headers_valid_);
   headers_valid_ = false;
   return std::move(headers_);

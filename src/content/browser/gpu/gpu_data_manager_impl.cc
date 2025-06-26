@@ -78,7 +78,12 @@ bool GpuDataManagerImpl::Initialized() {
 
 void GpuDataManagerImpl::BlocklistWebGLForTesting() {
   base::AutoLock auto_lock(lock_);
-  private_->BlocklistWebGLForTesting();
+  private_->BlocklistWebGLForTesting();  // IN-TEST
+}
+
+void GpuDataManagerImpl::SetSkiaGraphiteEnabledForTesting(bool enabled) {
+  base::AutoLock auto_lock(lock_);
+  private_->SetSkiaGraphiteEnabledForTesting(enabled);  // IN-TEST
 }
 
 gpu::GPUInfo GpuDataManagerImpl::GetGPUInfo() {
@@ -143,6 +148,11 @@ void GpuDataManagerImpl::DisableHardwareAcceleration() {
 bool GpuDataManagerImpl::HardwareAccelerationEnabled() {
   base::AutoLock auto_lock(lock_);
   return private_->HardwareAccelerationEnabled();
+}
+
+bool GpuDataManagerImpl::IsGpuRasterizationForUIEnabled() {
+  base::AutoLock auto_lock(lock_);
+  return private_->IsGpuRasterizationForUIEnabled();
 }
 
 void GpuDataManagerImpl::AppendGpuCommandLine(base::CommandLine* command_line,
@@ -351,7 +361,7 @@ void GpuDataManagerImpl::UnblockDomainFrom3DAPIs(const GURL& url) {
 
 void GpuDataManagerImpl::DisableDomainBlockingFor3DAPIsForTesting() {
   base::AutoLock auto_lock(lock_);
-  private_->DisableDomainBlockingFor3DAPIsForTesting();
+  private_->DisableDomainBlockingFor3DAPIsForTesting();  // IN-TEST
 }
 
 gpu::GpuMode GpuDataManagerImpl::GetGpuMode() const {
@@ -362,6 +372,11 @@ gpu::GpuMode GpuDataManagerImpl::GetGpuMode() const {
 void GpuDataManagerImpl::FallBackToNextGpuMode() {
   base::AutoLock auto_lock(lock_);
   private_->FallBackToNextGpuMode();
+}
+
+void GpuDataManagerImpl::FallBackToNextGpuModeDueToCrash() {
+  base::AutoLock auto_lock(lock_);
+  private_->FallBackToNextGpuModeDueToCrash();
 }
 
 bool GpuDataManagerImpl::CanFallback() const {

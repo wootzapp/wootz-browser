@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "ash/system/night_light/night_light_controller_impl.h"
 
 #include <algorithm>
@@ -21,6 +26,7 @@
 #include "ash/strings/grit/ash_strings.h"
 #include "ash/system/geolocation/geolocation_controller.h"
 #include "ash/system/model/system_tray_model.h"
+#include "ash/system/night_light/night_light_metrics_recorder.h"
 #include "base/functional/bind.h"
 #include "base/i18n/time_formatting.h"
 #include "base/logging.h"
@@ -97,6 +103,9 @@ constexpr base::TimeDelta kManualAnimationDuration = base::Seconds(1);
 // AnimationDurationType::kLong.
 constexpr base::TimeDelta kAutomaticAnimationDuration = base::Seconds(60);
 
+// The size of the window for color temperature moving average calculations.
+constexpr unsigned long kMovingAverageWindowSize = 20u;
+
 // The color temperature animation frames per second.
 constexpr int kNightLightAnimationFrameRate = 15;
 
@@ -121,8 +130,7 @@ int GetTemperatureRange(float temperature) {
 // The matrix will be affected by the current |ambient_temperature_| if
 // |apply_ambient_temperature| is true. This matrix should be applied to
 // sRGB-encoded colors.
-SkM44 MatrixFromTemperature(float temperature,
-                            bool apply_ambient_temperature) {
+SkM44 MatrixFromTemperature(float temperature, bool apply_ambient_temperature) {
   SkM44 matrix;
   if (temperature != 0.0f) {
     const float blue_scale =
@@ -215,7 +223,6 @@ void ApplyTemperatureToHost(aura::WindowTreeHost* host, float temperature) {
 // by the current |ambient_temperature_| if GetAmbientColorEnabled() returns
 // true.
 void ApplyTemperatureToAllDisplays(float temperature) {
-
   Shell* shell = Shell::Get();
   WindowTreeHostManager* wth_manager = shell->window_tree_host_manager();
   for (int64_t display_id :
@@ -319,7 +326,6 @@ class ColorTemperatureAnimation : public gfx::LinearAnimation,
   float start_temperature_ = 0.0f;
   float current_temperature_ = 0.0f;
   float target_temperature_ = 0.0f;
-
 };
 
 NightLightControllerImpl::NightLightControllerImpl()
@@ -328,15 +334,18 @@ NightLightControllerImpl::NightLightControllerImpl()
                        prefs::kNightLightCustomStartTime,
                        prefs::kNightLightCustomEndTime),
       temperature_animation_(std::make_unique<ColorTemperatureAnimation>()),
+      night_light_metrics_recorder_(
+          std::make_unique<NightLightMetricsRecorder>()),
+      ambient_temperature_sensor_values_(kMovingAverageWindowSize),
       ambient_temperature_(kNeutralColorTemperatureInKelvin),
       weak_ptr_factory_(this) {
-  Shell::Get()->window_tree_host_manager()->AddObserver(this);
+  Shell::Get()->display_manager()->AddDisplayManagerObserver(this);
   aura::Env::GetInstance()->AddObserver(this);
 }
 
 NightLightControllerImpl::~NightLightControllerImpl() {
   aura::Env::GetInstance()->RemoveObserver(this);
-  Shell::Get()->window_tree_host_manager()->RemoveObserver(this);
+  Shell::Get()->display_manager()->RemoveDisplayManagerObserver(this);
 }
 
 // static
@@ -354,7 +363,8 @@ void NightLightControllerImpl::RegisterProfilePrefs(
                                 kDefaultStartTimeOffsetMinutes);
   registry->RegisterIntegerPref(prefs::kNightLightCustomEndTime,
                                 kDefaultEndTimeOffsetMinutes);
-  registry->RegisterBooleanPref(prefs::kAmbientColorEnabled, true);
+  registry->RegisterBooleanPref(prefs::kAmbientColorEnabled,
+                                !features::IsAmbientEQDefaultOff());
   registry->RegisterBooleanPref(prefs::kAutoNightLightNotificationDismissed,
                                 false);
 }
@@ -408,8 +418,7 @@ float NightLightControllerImpl::RemapAmbientColorTemperature(
                   kTable[i].output_temperature);
     }
   }
-  NOTREACHED_IN_MIGRATION();
-  return 0;
+  NOTREACHED();
 }
 
 // static
@@ -484,7 +493,7 @@ void NightLightControllerImpl::Toggle() {
   SetEnabled(!IsNightLightEnabled());
 }
 
-void NightLightControllerImpl::OnDisplayConfigurationChanged() {
+void NightLightControllerImpl::OnDidApplyDisplayChanges() {
   ReapplyColorTemperatures();
 }
 
@@ -517,8 +526,9 @@ void NightLightControllerImpl::Click(
   // Body has been clicked.
   SystemTrayClient* tray_client = shell->system_tray_model()->client();
   auto* session_controller = shell->session_controller();
-  if (session_controller->ShouldEnableSettings() && tray_client)
+  if (session_controller->ShouldEnableSettings() && tray_client) {
     tray_client->ShowDisplaySettings();
+  }
 
   UMA_HISTOGRAM_ENUMERATION(kAutoNightLightNotificationStateHistogram,
                             AutoNightLightNotificationState::kBodyClicked);
@@ -534,17 +544,22 @@ void NightLightControllerImpl::Click(
 
 void NightLightControllerImpl::AmbientColorChanged(
     const int32_t color_temperature) {
+  ambient_temperature_sensor_values_.AddSample(color_temperature);
+
+  // Use the moving average to calculate the remapped_color_temperature instead
+  // of using the sensor color temp directly since the sensor data can be noisy.
   const float remapped_color_temperature =
-      RemapAmbientColorTemperature(color_temperature);
+      RemapAmbientColorTemperature(ambient_temperature_sensor_values_.Mean());
   const float temperature_difference =
       remapped_color_temperature - ambient_temperature_;
   const float abs_temperature_difference = std::abs(temperature_difference);
   // We adjust the ambient color temperature only if the difference with
-  // the last ambient temperature computed is greated than a threshold to
-  // avoid changing it too often when the powerd readings are noisy.
-  constexpr float kAmbientColorChangeThreshold = 100.0f;
-  if (abs_temperature_difference < kAmbientColorChangeThreshold)
+  // the average ambient temperature computed is greater than a threshold to
+  // avoid changing it too often which can cause performance issues.
+  constexpr float kAmbientColorChangeThreshold = 50.0f;
+  if (abs_temperature_difference < kAmbientColorChangeThreshold) {
     return;
+  }
 
   ambient_temperature_ +=
       (temperature_difference / abs_temperature_difference) *
@@ -603,8 +618,9 @@ void NightLightControllerImpl::ShowAutoNightLightNotification() {
 
 void NightLightControllerImpl::
     DisableShowingFutureAutoNightLightNotification() {
-  if (Shell::Get()->session_controller()->IsUserSessionBlocked())
+  if (Shell::Get()->session_controller()->IsUserSessionBlocked()) {
     return;
+  }
 
   if (active_user_pref_service()) {
     active_user_pref_service()->SetBoolean(
@@ -634,11 +650,11 @@ void NightLightControllerImpl::ReapplyColorTemperatures() {
       IsNightLightEnabled() ? GetColorTemperature() : 0.0f;
   if (temperature_animation_->is_animating()) {
     // Do not interrupt an on-going animation towards the same target value.
-    if (temperature_animation_->target_temperature() == target_temperature)
+    if (temperature_animation_->target_temperature() == target_temperature) {
       return;
+    }
 
-    NOTREACHED_IN_MIGRATION();
-    temperature_animation_->Stop();
+    NOTREACHED();
   }
 
   ApplyTemperatureToAllDisplays(target_temperature);

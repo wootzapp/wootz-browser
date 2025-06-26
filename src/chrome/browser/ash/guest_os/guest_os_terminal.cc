@@ -21,11 +21,14 @@
 #include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/menu_item_constants.h"
 #include "chrome/browser/apps/app_service/menu_util.h"
+#include "chrome/browser/ash/bruschetta/bruschetta_util.h"
 #include "chrome/browser/ash/crostini/crostini_features.h"
 #include "chrome/browser/ash/crostini/crostini_installer.h"
+#include "chrome/browser/ash/crostini/crostini_installer_factory.h"
 #include "chrome/browser/ash/crostini/crostini_util.h"
 #include "chrome/browser/ash/guest_os/guest_os_pref_names.h"
 #include "chrome/browser/ash/guest_os/public/guest_os_service.h"
+#include "chrome/browser/ash/guest_os/public/guest_os_service_factory.h"
 #include "chrome/browser/ash/guest_os/public/guest_os_terminal_provider.h"
 #include "chrome/browser/ash/guest_os/public/types.h"
 #include "chrome/browser/browser_process.h"
@@ -257,7 +260,7 @@ void LaunchTerminalWithIntent(
     }
   }
 
-  auto* registry = guest_os::GuestOsService::GetForProfile(profile)
+  auto* registry = guest_os::GuestOsServiceFactory::GetForProfile(profile)
                        ->TerminalProviderRegistry();
   auto* provider = registry->Get(guest_id);
 
@@ -268,7 +271,8 @@ void LaunchTerminalWithIntent(
       // would bring up the installer, so keep that behaviour. Only applies to
       // the default Crostini VM, anything else is only accessible if the target
       // VM is installed.
-      auto* installer = crostini::CrostiniInstaller::GetForProfile(profile);
+      auto* installer =
+          crostini::CrostiniInstallerFactory::GetForProfile(profile);
       if (installer) {
         installer->ShowDialog(crostini::CrostiniUISurface::kAppList);
       }
@@ -545,6 +549,10 @@ void AddTerminalMenuItems(Profile* profile, apps::MenuItems& menu_items) {
     apps::AddCommandItem(ash::SHUTDOWN_GUEST_OS,
                          IDS_CROSTINI_SHUT_DOWN_LINUX_MENU_ITEM, menu_items);
   }
+  if (bruschetta::IsBruschettaRunning(profile)) {
+    apps::AddCommandItem(ash::SHUTDOWN_BRUSCHETTA_OS,
+                         IDS_BRUSCHETTA_SHUT_DOWN_LINUX_MENU_ITEM, menu_items);
+  }
 }
 
 void AddTerminalMenuShortcuts(
@@ -567,7 +575,7 @@ void AddTerminalMenuShortcuts(
   gfx::ImageSkia crostini_mascot_icon = icon(kCrostiniMascotIcon);
   std::vector<std::pair<std::string, std::string>> connections =
       GetSSHConnections(profile);
-  auto* registry = guest_os::GuestOsService::GetForProfile(profile)
+  auto* registry = guest_os::GuestOsServiceFactory::GetForProfile(profile)
                        ->TerminalProviderRegistry();
   if (connections.size() > 0 || registry->List().size() > 0) {
     apps::AddSeparator(ui::DOUBLE_SEPARATOR, menu_items);

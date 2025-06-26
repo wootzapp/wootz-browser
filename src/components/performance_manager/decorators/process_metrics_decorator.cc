@@ -16,11 +16,11 @@
 #include "build/build_config.h"
 #include "components/performance_manager/graph/frame_node_impl.h"
 #include "components/performance_manager/graph/graph_impl.h"
-#include "components/performance_manager/graph/node_attached_data_impl.h"
 #include "components/performance_manager/graph/process_node_impl.h"
 #include "components/performance_manager/graph/system_node_impl.h"
 #include "components/performance_manager/graph/worker_node_impl.h"
 #include "components/performance_manager/public/features.h"
+#include "components/performance_manager/public/graph/graph.h"
 #include "components/performance_manager/public/graph/node_data_describer_registry.h"
 #include "components/performance_manager/public/graph/node_data_describer_util.h"
 #include "components/performance_manager/resource_attribution/attribution_impl_helpers.h"
@@ -83,19 +83,14 @@ ProcessMetricsDecorator::RegisterInterestForProcessMetrics(Graph* graph) {
 void ProcessMetricsDecorator::OnPassedToGraph(Graph* graph) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   CHECK_EQ(state_, State::kStopped);
-  graph_ = graph;
-  graph_->RegisterObject(this);
-  graph_->GetNodeDataDescriberRegistry()->RegisterDescriber(
+  graph->GetNodeDataDescriberRegistry()->RegisterDescriber(
       this, "ProcessMetricsDecorator");
 }
 
 void ProcessMetricsDecorator::OnTakenFromGraph(Graph* graph) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK_EQ(graph, graph_);
   StopTimer();
-  graph_->GetNodeDataDescriberRegistry()->UnregisterDescriber(this);
-  graph_->UnregisterObject(this);
-  graph_ = nullptr;
+  graph->GetNodeDataDescriberRegistry()->UnregisterDescriber(this);
   CHECK_EQ(state_, State::kStopped);
 }
 
@@ -109,12 +104,6 @@ base::Value::Dict ProcessMetricsDecorator::DescribeSystemNodeData(
           TimeDeltaFromNowToValue(refresh_timer_.desired_run_time()));
   ret.Set("state", static_cast<int>(state_));
   return ret;
-}
-
-void ProcessMetricsDecorator::SetGraphForTesting(Graph* graph) {
-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  CHECK_EQ(state_, State::kStopped);
-  graph_ = graph;
 }
 
 bool ProcessMetricsDecorator::IsTimerRunningForTesting() const {
@@ -255,7 +244,7 @@ void ProcessMetricsDecorator::DidGetMemoryUsage(
   }
 
   CHECK(process_dumps);
-  auto* graph_impl = GraphImpl::FromGraph(graph_);
+  auto* graph_impl = GraphImpl::FromGraph(GetOwningGraph());
 
   // Refresh the process nodes with the data contained in |process_dumps|.
   // Processes for which we don't receive any data will retain the previously
@@ -275,6 +264,10 @@ void ProcessMetricsDecorator::DidGetMemoryUsage(
     // RSS and PMF to each node proportionally to its V8 heap size.
     uint64_t process_rss = process_dump_iter.os_dump().resident_set_kb;
     process_node->set_resident_set_kb(process_rss);
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+    process_node->set_private_swap_kb(
+        process_dump_iter.os_dump().private_footprint_swap_kb);
+#endif
     resource_attribution::SplitResourceAmongFrameAndWorkerImpls(
         process_rss, process_node, &FrameNodeImpl::SetResidentSetKbEstimate,
         &WorkerNodeImpl::SetResidentSetKbEstimate);
@@ -286,7 +279,7 @@ void ProcessMetricsDecorator::DidGetMemoryUsage(
         &WorkerNodeImpl::SetPrivateFootprintKbEstimate);
   }
 
-  GraphImpl::FromGraph(graph_)
+  GraphImpl::FromGraph(GetOwningGraph())
       ->GetSystemNodeImpl()
       ->OnProcessMemoryMetricsAvailable();
 }

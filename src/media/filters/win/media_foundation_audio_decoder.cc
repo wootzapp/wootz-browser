@@ -2,12 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
+#include "media/filters/win/media_foundation_audio_decoder.h"
+
 #include <mfapi.h>
 #include <mferror.h>
 #include <stdint.h>
 #include <wmcodecdsp.h>
 
 #include "base/auto_reset.h"
+#include "base/containers/span.h"
+#include "base/containers/span_writer.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/task/bind_post_task.h"
@@ -21,7 +30,6 @@
 #include "media/base/timestamp_constants.h"
 #include "media/base/win/mf_helpers.h"
 #include "media/base/win/mf_initializer.h"
-#include "media/filters/win/media_foundation_audio_decoder.h"
 
 namespace media {
 
@@ -129,7 +137,7 @@ bool PopulateInputSample(IMFSample* sample, const DecoderBuffer& input) {
   RETURN_ON_FAILURE(!current_length, "Input length is zero", false);
   RETURN_ON_FAILURE(input.size() <= max_length, "Input length is too long",
                     false);
-  destination.first(input.size()).copy_from(input);
+  destination.copy_prefix_from(input);
 
   hr = buffer->SetCurrentLength(input.size());
   RETURN_ON_HR_FAILURE(hr, "Failed to set buffer length", false);
@@ -523,7 +531,7 @@ MediaFoundationAudioDecoder::PumpOutput(PumpState pump_state) {
   DWORD current_length = 0;
   uint8_t* destination_ptr = nullptr;
   RETURN_ON_HR_FAILURE(
-      output_buffer->Lock(&destination_ptr, NULL, &current_length),
+      output_buffer->Lock(&destination_ptr, nullptr, &current_length),
       "Failed to lock output buffer", OutputStatus::kFailed);
   // SAFETY: IMFMediaBuffer::Lock returns a pointer that points to at least
   // `current_length` many bytes (and up to a larger max, which we discard).
@@ -551,7 +559,11 @@ MediaFoundationAudioDecoder::PumpOutput(PumpState pump_state) {
     audio_buffer =
         AudioBuffer::CreateBuffer(kSampleFormatF32, channel_layout_,
                                   channel_count_, sample_rate_, frames, pool_);
-    base::SpanWriter<uint8_t> channel_data = audio_buffer->channel_data();
+    auto channel_data = base::SpanWriter<uint8_t>(
+        // TODO(crbug.com/40284755): channel_data() should be an array of spans,
+        // not unbounded pointers. This span is constructed unsoundly.
+        UNSAFE_TODO(base::span(audio_buffer->channel_data()[0u],
+                               frames * channel_count_ * 4u)));
     for (uint64_t i = 0; i < frames; i++) {
       for (uint64_t ch = 0; ch < channel_count_; ch++) {
         auto a = static_cast<int8_t>(destination[0u]);
@@ -562,6 +574,7 @@ MediaFoundationAudioDecoder::PumpOutput(PumpState pump_state) {
         pcmi |= (int32_t{c} << 24) & 0xff000000;
         destination = destination.subspan(3u);
         CHECK(channel_data.Write(base::byte_span_from_ref(
+            base::allow_nonunique_obj,
             SignedInt32SampleTypeTraits::ToFloat(pcmi))));
       }
     }

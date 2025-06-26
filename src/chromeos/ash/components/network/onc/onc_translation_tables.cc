@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "chromeos/ash/components/network/onc/onc_translation_tables.h"
 
 #include <cstddef>
@@ -289,14 +294,14 @@ const FieldTranslationEntry static_or_saved_ipconfig_fields[] = {
     {::onc::ipconfig::kSearchDomains, shill::kSearchDomainsProperty},
     {::onc::ipconfig::kIncludedRoutes, shill::kIncludedRoutesProperty},
     {::onc::ipconfig::kExcludedRoutes, shill::kExcludedRoutesProperty},
+    {::onc::ipconfig::kMTU, shill::kMtuProperty},
     {nullptr}};
 
 struct OncValueTranslationEntry {
-  // This field is not a raw_ptr<> because it was filtered by the rewriter
-  // for: #global-scope
+  // These fields are not raw_ptr<>s because each layer of pointer only ever
+  // points to statically-allocated data which is never freed, and thus can
+  // never dangle.
   RAW_PTR_EXCLUSION const chromeos::onc::OncValueSignature* onc_signature;
-  // This field is not a raw_ptr<> because it was filtered by the rewriter
-  // for: #global-scope
   RAW_PTR_EXCLUSION const FieldTranslationEntry* field_translation_table;
 };
 
@@ -332,12 +337,11 @@ const OncValueTranslationEntry onc_value_translation_table[] = {
     {nullptr}};
 
 struct NestedShillDictionaryEntry {
-  // This field is not a raw_ptr<> because it was filtered by the rewriter
-  // for: #global-scope
+  // These fields are not raw_ptr<>s because each layer of pointer only ever
+  // points to statically-allocated data which is never freed, and thus can
+  // never dangle.
   RAW_PTR_EXCLUSION const chromeos::onc::OncValueSignature* onc_signature;
   // nullptr terminated list of Shill property keys.
-  // This field is not a raw_ptr<> because it was filtered by the rewriter
-  // for: #global-scope
   RAW_PTR_EXCLUSION const char* const* shill_property_path;
 };
 

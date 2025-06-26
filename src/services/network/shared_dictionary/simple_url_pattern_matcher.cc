@@ -4,12 +4,12 @@
 
 #include "services/network/shared_dictionary/simple_url_pattern_matcher.h"
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <string_view>
 
 #include "base/logging.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -197,9 +197,7 @@ SimpleUrlPatternMatcher::CreatePatternInit(
   // input.
   // https://urlpattern.spec.whatwg.org/#parse-a-constructor-string
   liburlpattern::ConstructorStringParser constructor_string_parser(
-      constructor_string,
-      liburlpattern::ConstructorStringParser::StringParserOptions{
-          .more_wildcards = true});
+      constructor_string);
   std::optional<Component> protocol_component;
   bool protocol_matches_a_special_scheme_flag = false;
   absl::Status result = constructor_string_parser.Parse(
@@ -218,7 +216,7 @@ SimpleUrlPatternMatcher::CreatePatternInit(
         // Spec: If the result of running protocol component matches a special
         // scheme given protocol component is true, then set parser’s protocol
         // matches a special scheme flag to true.
-        protocol_matches_a_special_scheme_flag = base::ranges::any_of(
+        protocol_matches_a_special_scheme_flag = std::ranges::any_of(
             url::GetStandardSchemes(),
             [&protocol_component](const std::string& scheme) {
               return protocol_component->Match(scheme);
@@ -392,8 +390,7 @@ SimpleUrlPatternMatcher::CreatePatternInit(
   //   processedInit["port"] is its corresponding default port, then set
   //   processedInit["port"] to the empty string.
   if (port) {
-    int default_port =
-        url::DefaultPortForScheme(protocol->data(), protocol->size());
+    int default_port = url::DefaultPortForScheme(*protocol);
     if (default_port != url::PORT_UNSPECIFIED &&
         base::NumberToString(default_port) == *port) {
       port = "";
@@ -433,10 +430,10 @@ SimpleUrlPatternMatcher::CreateFromPatternInit(
     }
     protocol_component = std::move(protocol_component_result.value());
     protocol_matches_a_special_scheme_flag =
-        base::ranges::any_of(url::GetStandardSchemes(),
-                             [&protocol_component](const std::string& scheme) {
-                               return protocol_component->Match(scheme);
-                             });
+        std::ranges::any_of(url::GetStandardSchemes(),
+                            [&protocol_component](const std::string& scheme) {
+                              return protocol_component->Match(scheme);
+                            });
   }
 
 #define MAYBE_COMPILE_PATTERN(type, callback, options)                       \

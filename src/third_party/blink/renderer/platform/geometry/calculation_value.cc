@@ -45,7 +45,7 @@ CalculationValue::~CalculationValue() {
 }
 
 float CalculationValue::Evaluate(float max_value,
-                                 const Length::EvaluationInput& input) const {
+                                 const EvaluationInput& input) const {
   float value = ClampTo<float>(
       is_expression_ ? data_.expression->Evaluate(max_value, input)
                      : Pixels() + Percent() / 100 * max_value);
@@ -175,6 +175,38 @@ bool CalculationValue::HasStretch() const {
     return false;
   }
   return data_.expression->HasStretch();
+}
+
+bool CalculationValue::HasMinContent() const {
+  if (!IsExpression()) {
+    return false;
+  }
+  return data_.expression->HasContentOrIntrinsicSize() &&
+         data_.expression->HasMinContent();
+}
+
+bool CalculationValue::HasMaxContent() const {
+  if (!IsExpression()) {
+    return false;
+  }
+  return data_.expression->HasContentOrIntrinsicSize() &&
+         data_.expression->HasMaxContent();
+}
+
+bool CalculationValue::HasFitContent() const {
+  if (!IsExpression()) {
+    return false;
+  }
+  return data_.expression->HasContentOrIntrinsicSize() &&
+         data_.expression->HasFitContent();
+}
+
+bool CalculationValue::HasOnlyFixedAndPercent() const {
+  if (!IsExpression()) {
+    return true;
+  }
+  return !data_.expression->HasAutoOrContentOrIntrinsicSize() &&
+         !data_.expression->HasStretch();
 }
 
 }  // namespace blink

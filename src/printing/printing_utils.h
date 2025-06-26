@@ -14,12 +14,7 @@
 #include "base/component_export.h"
 #include "base/containers/span.h"
 #include "build/build_config.h"
-#include "build/chromeos_buildflags.h"
 #include "printing/buildflags/buildflags.h"
-
-#if BUILDFLAG(USE_CUPS) && !BUILDFLAG(IS_CHROMEOS_ASH)
-
-#endif
 
 #if BUILDFLAG(IS_WIN)
 #include "base/win/win_handle_types.h"
@@ -50,7 +45,7 @@ std::u16string FormatDocumentTitleWithOwnerAndLength(
     const std::u16string& title,
     size_t length);
 
-#if BUILDFLAG(USE_CUPS) && !BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(USE_CUPS)
 // Returns the paper size (microns) most common in the locale to the nearest
 // millimeter. Defaults to ISO A4 for an empty or invalid locale.
 COMPONENT_EXPORT(PRINTING_BASE)

@@ -29,9 +29,8 @@ namespace {
 
 webapps::AppId InstallTestWebApp(Profile* profile) {
   const GURL example_url = GURL("http://example.org/");
-  auto app_info = std::make_unique<WebAppInstallInfo>();
+  auto app_info = WebAppInstallInfo::CreateWithStartUrlForTesting(example_url);
   app_info->title = u"Test app";
-  app_info->start_url = example_url;
   app_info->scope = example_url;
   apps::ProtocolHandlerInfo protocol_handler;
   protocol_handler.protocol = "web+test";
@@ -73,8 +72,8 @@ IN_PROC_BROWSER_TEST_F(
     WebAppProtocolHandlerIntentPickerDialog_EscapeDoesNotRememberPreference) {
   ProtocolHandlerLaunchDialogView::SetDefaultRememberSelectionForTesting(true);
   ShowDialogAndCloseWithReason(views::Widget::ClosedReason::kEscKeyPressed,
-                               /*allowed=*/false,
-                               /*remember_user_choice=*/false);
+                               /*expected_allowed=*/false,
+                               /*expected_remember_user_choice=*/false);
 }
 
 IN_PROC_BROWSER_TEST_F(ProtocolHandlerLaunchDialogBrowserTest,
@@ -82,8 +81,8 @@ IN_PROC_BROWSER_TEST_F(ProtocolHandlerLaunchDialogBrowserTest,
   ProtocolHandlerLaunchDialogView::SetDefaultRememberSelectionForTesting(true);
   ShowDialogAndCloseWithReason(
       views::Widget::ClosedReason::kCancelButtonClicked,
-      /*allowed=*/false,
-      /*remember_user_choice=*/true);
+      /*expected_allowed=*/false,
+      /*expected_remember_user_choice=*/true);
 }
 
 IN_PROC_BROWSER_TEST_F(
@@ -91,8 +90,8 @@ IN_PROC_BROWSER_TEST_F(
     ProtocolHandlerIntentPickerDialog_DisallowDoNotRemember) {
   ShowDialogAndCloseWithReason(
       views::Widget::ClosedReason::kCancelButtonClicked,
-      /*allowed=*/false,
-      /*remember_user_choice=*/false);
+      /*expected_allowed=*/false,
+      /*expected_remember_user_choice=*/false);
 }
 
 IN_PROC_BROWSER_TEST_F(ProtocolHandlerLaunchDialogBrowserTest,
@@ -100,16 +99,16 @@ IN_PROC_BROWSER_TEST_F(ProtocolHandlerLaunchDialogBrowserTest,
   ProtocolHandlerLaunchDialogView::SetDefaultRememberSelectionForTesting(true);
   ShowDialogAndCloseWithReason(
       views::Widget::ClosedReason::kAcceptButtonClicked,
-      /*allowed=*/true,
-      /*remember_user_choice=*/true);
+      /*expected_allowed=*/true,
+      /*expected_remember_user_choice=*/true);
 }
 
 IN_PROC_BROWSER_TEST_F(ProtocolHandlerLaunchDialogBrowserTest,
                        ProtocolHandlerIntentPickerDialog_AcceptDoNotRemember) {
   ShowDialogAndCloseWithReason(
       views::Widget::ClosedReason::kAcceptButtonClicked,
-      /*allowed=*/true,
-      /*remember_user_choice=*/false);
+      /*expected_allowed=*/true,
+      /*expected_remember_user_choice=*/false);
 }
 
 class WebAppProtocolHandlerIntentPickerDialogInteractiveBrowserTest

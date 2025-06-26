@@ -4,9 +4,11 @@
 
 #include "components/performance_manager/execution_context_priority/inherit_client_priority_voter.h"
 
+#include <optional>
 #include <utility>
 
 #include "base/check.h"
+#include "base/not_fatal_until.h"
 #include "components/performance_manager/public/execution_context/execution_context.h"
 #include "components/performance_manager/public/execution_context/execution_context_registry.h"
 #include "components/performance_manager/public/graph/graph.h"
@@ -30,38 +32,65 @@ const execution_context::ExecutionContext* GetExecutionContext(
       ->GetExecutionContextForWorkerNode(worker_node);
 }
 
+std::optional<Vote> GetVoteFromClient(const FrameNode* client_frame_node) {
+  const base::TaskPriority client_priority =
+      client_frame_node->GetPriorityAndReason().priority();
+
+  if (client_priority == base::TaskPriority::BEST_EFFORT) {
+    return std::nullopt;
+  }
+
+  return Vote(client_priority,
+              InheritClientPriorityVoter::kPriorityInheritedReason);
+}
+
+std::optional<Vote> GetVoteFromClient(const WorkerNode* client_worker_node) {
+  const base::TaskPriority client_priority =
+      client_worker_node->GetPriorityAndReason().priority();
+
+  // Don't cast a vote with the default priority as it wouldn't have any effect
+  // anyways, and this prevent unnecessary work in the aggregators.
+  if (client_priority == base::TaskPriority::BEST_EFFORT) {
+    return std::nullopt;
+  }
+
+  return Vote(client_priority,
+              InheritClientPriorityVoter::kPriorityInheritedReason);
+}
+
 }  // namespace
 
 // InheritClientPriorityVoter ------------------------------------------
 
 // static
 const char InheritClientPriorityVoter::kPriorityInheritedReason[] =
-    "Priority inherited.";
+    "Priority inherited from client(s).";
 
-InheritClientPriorityVoter::InheritClientPriorityVoter(
-    VotingChannel voting_channel) {
-  DCHECK(voting_channel.IsValid());
-  voter_id_ = voting_channel.voter_id();
-  max_vote_aggregator_.SetUpstreamVotingChannel(std::move(voting_channel));
-}
+InheritClientPriorityVoter::InheritClientPriorityVoter() = default;
 
 InheritClientPriorityVoter::~InheritClientPriorityVoter() = default;
 
-void InheritClientPriorityVoter::InitializeOnGraph(Graph* graph) {
+void InheritClientPriorityVoter::InitializeOnGraph(
+    Graph* graph,
+    VotingChannel voting_channel) {
+  voter_id_ = voting_channel.voter_id();
+  max_vote_aggregator_.SetUpstreamVotingChannel(std::move(voting_channel));
+
   graph->AddFrameNodeObserver(this);
   graph->AddWorkerNodeObserver(this);
 }
 
 void InheritClientPriorityVoter::TearDownOnGraph(Graph* graph) {
-  graph->RemoveFrameNodeObserver(this);
   graph->RemoveWorkerNodeObserver(this);
+  graph->RemoveFrameNodeObserver(this);
+
+  voter_id_ = VoterId();
+  max_vote_aggregator_.ResetUpstreamVotingChannel();
 }
 
 void InheritClientPriorityVoter::OnFrameNodeAdded(const FrameNode* frame_node) {
-  bool inserted = voting_channels_
-                      .emplace(GetExecutionContext(frame_node),
-                               max_vote_aggregator_.GetVotingChannel())
-                      .second;
+  const auto [_, inserted] = voting_channels_.emplace(
+      GetExecutionContext(frame_node), max_vote_aggregator_.GetVotingChannel());
   DCHECK(inserted);
   DCHECK(frame_node->GetChildWorkerNodes().empty());
 }
@@ -86,12 +115,10 @@ void InheritClientPriorityVoter::OnPriorityAndReasonChanged(
   // priority.
 
   auto it = voting_channels_.find(GetExecutionContext(frame_node));
-  DCHECK(it != voting_channels_.end());
-
+  CHECK(it != voting_channels_.end(), base::NotFatalUntil::M130);
   auto& voting_channel = it->second;
 
-  const Vote inherited_vote(frame_node->GetPriorityAndReason().priority(),
-                            kPriorityInheritedReason);
+  const std::optional<Vote> inherited_vote = GetVoteFromClient(frame_node);
   for (const WorkerNode* child_worker_node :
        frame_node->GetChildWorkerNodes()) {
     const ExecutionContext* child_execution_context =
@@ -102,10 +129,9 @@ void InheritClientPriorityVoter::OnPriorityAndReasonChanged(
 
 void InheritClientPriorityVoter::OnWorkerNodeAdded(
     const WorkerNode* worker_node) {
-  bool inserted = voting_channels_
-                      .emplace(GetExecutionContext(worker_node),
-                               max_vote_aggregator_.GetVotingChannel())
-                      .second;
+  const auto [_, inserted] =
+      voting_channels_.emplace(GetExecutionContext(worker_node),
+                               max_vote_aggregator_.GetVotingChannel());
   DCHECK(inserted);
   DCHECK(worker_node->GetChildWorkers().empty());
 }
@@ -125,13 +151,11 @@ void InheritClientPriorityVoter::OnClientFrameAdded(
 
   // Get the voting channel for the client.
   auto it = voting_channels_.find(GetExecutionContext(client_frame_node));
-  DCHECK(it != voting_channels_.end());
-  auto* voting_channel = &it->second;
+  CHECK(it != voting_channels_.end(), base::NotFatalUntil::M130);
+  auto& voting_channel = it->second;
 
-  const Vote inherited_vote(
-      client_frame_node->GetPriorityAndReason().priority(),
-      kPriorityInheritedReason);
-  voting_channel->SubmitVote(GetExecutionContext(worker_node), inherited_vote);
+  const std::optional<Vote> vote = GetVoteFromClient(client_frame_node);
+  voting_channel.SubmitVote(GetExecutionContext(worker_node), vote);
 }
 
 void InheritClientPriorityVoter::OnBeforeClientFrameRemoved(
@@ -142,10 +166,10 @@ void InheritClientPriorityVoter::OnBeforeClientFrameRemoved(
 
   // Get the voting channel for the client.
   auto it = voting_channels_.find(GetExecutionContext(client_frame_node));
-  DCHECK(it != voting_channels_.end());
-  auto* voting_channel = &it->second;
+  CHECK(it != voting_channels_.end(), base::NotFatalUntil::M130);
+  auto& voting_channel = it->second;
 
-  voting_channel->InvalidateVote(GetExecutionContext(worker_node));
+  voting_channel.InvalidateVote(GetExecutionContext(worker_node));
 }
 
 void InheritClientPriorityVoter::OnClientWorkerAdded(
@@ -156,13 +180,12 @@ void InheritClientPriorityVoter::OnClientWorkerAdded(
 
   // Get the voting channel for the client.
   auto it = voting_channels_.find(GetExecutionContext(client_worker_node));
-  DCHECK(it != voting_channels_.end());
-  auto* voting_channel = &it->second;
+  CHECK(it != voting_channels_.end(), base::NotFatalUntil::M130);
+  auto& voting_channel = it->second;
 
-  const Vote inherited_vote(
-      client_worker_node->GetPriorityAndReason().priority(),
-      kPriorityInheritedReason);
-  voting_channel->SubmitVote(GetExecutionContext(worker_node), inherited_vote);
+  const std::optional<Vote> inherited_vote =
+      GetVoteFromClient(client_worker_node);
+  voting_channel.SubmitVote(GetExecutionContext(worker_node), inherited_vote);
 }
 
 void InheritClientPriorityVoter::OnBeforeClientWorkerRemoved(
@@ -173,10 +196,10 @@ void InheritClientPriorityVoter::OnBeforeClientWorkerRemoved(
 
   // Get the voting channel for the client.
   auto it = voting_channels_.find(GetExecutionContext(client_worker_node));
-  DCHECK(it != voting_channels_.end());
-  auto* voting_channel = &it->second;
+  CHECK(it != voting_channels_.end(), base::NotFatalUntil::M130);
+  auto& voting_channel = it->second;
 
-  voting_channel->InvalidateVote(GetExecutionContext(worker_node));
+  voting_channel.InvalidateVote(GetExecutionContext(worker_node));
 }
 
 void InheritClientPriorityVoter::OnPriorityAndReasonChanged(
@@ -192,11 +215,10 @@ void InheritClientPriorityVoter::OnPriorityAndReasonChanged(
   // priority.
 
   auto it = voting_channels_.find(GetExecutionContext(worker_node));
-  DCHECK(it != voting_channels_.end());
+  CHECK(it != voting_channels_.end(), base::NotFatalUntil::M130);
   auto& voting_channel = it->second;
 
-  const Vote inherited_vote(worker_node->GetPriorityAndReason().priority(),
-                            kPriorityInheritedReason);
+  const std::optional<Vote> inherited_vote = GetVoteFromClient(worker_node);
   for (const WorkerNode* child_worker_node : worker_node->GetChildWorkers()) {
     const ExecutionContext* child_execution_context =
         GetExecutionContext(child_worker_node);

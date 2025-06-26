@@ -56,8 +56,6 @@ class PasswordStoreProxyBackend final : public PasswordStoreBackend,
   void GetAllLoginsWithAffiliationAndBrandingAsync(
       LoginsOrErrorReply callback) override;
   void GetAutofillableLoginsAsync(LoginsOrErrorReply callback) override;
-  void GetAllLoginsForAccountAsync(std::string account,
-                                   LoginsOrErrorReply callback) override;
   void FillMatchingLoginsAsync(
       LoginsOrErrorReply callback,
       bool include_psl,
@@ -71,23 +69,17 @@ class PasswordStoreProxyBackend final : public PasswordStoreBackend,
   void RemoveLoginAsync(const base::Location& location,
                         const PasswordForm& form,
                         PasswordChangesOrErrorReply callback) override;
-  void RemoveLoginsByURLAndTimeAsync(
-      const base::Location& location,
-      const base::RepeatingCallback<bool(const GURL&)>& url_filter,
-      base::Time delete_begin,
-      base::Time delete_end,
-      base::OnceCallback<void(bool)> sync_completion,
-      PasswordChangesOrErrorReply callback) override;
   void RemoveLoginsCreatedBetweenAsync(
       const base::Location& location,
       base::Time delete_begin,
       base::Time delete_end,
+      base::OnceCallback<void(bool)> sync_completion,
       PasswordChangesOrErrorReply callback) override;
   void DisableAutoSignInForOriginsAsync(
       const base::RepeatingCallback<bool(const GURL&)>& origin_filter,
       base::OnceClosure completion) override;
   SmartBubbleStatsStore* GetSmartBubbleStatsStore() override;
-  std::unique_ptr<syncer::ModelTypeControllerDelegate>
+  std::unique_ptr<syncer::DataTypeControllerDelegate>
   CreateSyncControllerDelegate() override;
   void OnSyncServiceInitialized(syncer::SyncService* sync_service) override;
   void RecordAddLoginAsyncCalledFromTheStore() override;
@@ -105,30 +97,11 @@ class PasswordStoreProxyBackend final : public PasswordStoreBackend,
       RemoteChangesReceived remote_form_changes_received,
       std::optional<PasswordStoreChangeList> changes);
 
-  // Helper used to determine main *and* fallback backends.
-  // The account store doesn't use any fallback backend.
-  // The profile store only uses the built-in backend as a fallback
-  // if it's being used for synced passwords (pre store split).
+  // Helper used to determine on which backend to run operations.
   bool UsesAndroidBackendAsMainBackend();
-
-  // Retries to execute operation on |built_in_backend| in case of an
-  // unrecoverable error inside |android_backend|. |retry_callback| is the
-  // pending operation with binded parameters, |result_callback| is the original
-  // operation callback.
-  // |ResultT| is the resulting type of the backend operation that will be
-  // passed to the result callback. Could be either |LoginsResultOrError| or
-  // |PasswordChangesOrError|.
-  template <typename ResultT>
-  void MaybeFallbackOnOperation(
-      base::OnceCallback<void(base::OnceCallback<void(ResultT)> callback)>
-          retry_callback,
-      const base::StrongAlias<struct MethodNameTag, std::string>& method_name,
-      base::OnceCallback<void(ResultT)> result_callback,
-      ResultT result);
 
   // Clears all passwords from `built_in_backend_` if all conditions bellow are
   // satisfied:
-  // - `kUnifiedPasswordManagerSyncOnlyInGMSCore` feature flag is enabled
   // - Password sync is enabled
   // - initial UPM migration was finished and there was no unenrollment
   void MaybeClearBuiltInBackend();

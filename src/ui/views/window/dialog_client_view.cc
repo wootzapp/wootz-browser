@@ -9,17 +9,19 @@
 #include <utility>
 #include <vector>
 
+#include "base/auto_reset.h"
 #include "base/check.h"
 #include "base/memory/raw_ptr.h"
-#include "base/ranges/algorithm.h"
 #include "build/build_config.h"
 #include "ui/base/interaction/element_identifier.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
 #include "ui/events/keycodes/keyboard_codes.h"
+#include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/button.h"
@@ -61,11 +63,11 @@ gfx::Size GetBoundingSizeForVerticalStack(const gfx::Size& size1,
 
 constexpr ui::ElementIdentifier kNoElementId;
 
-ui::ElementIdentifier GetButtonId(ui::DialogButton type) {
+ui::ElementIdentifier GetButtonId(ui::mojom::DialogButton type) {
   switch (type) {
-    case ui::DialogButton::DIALOG_BUTTON_OK:
+    case ui::mojom::DialogButton::kOk:
       return DialogClientView::kOkButtonElementId;
-    case ui::DialogButton::DIALOG_BUTTON_CANCEL:
+    case ui::mojom::DialogButton::kCancel:
       return DialogClientView::kCancelButtonElementId;
     default:
       return kNoElementId;
@@ -135,8 +137,9 @@ gfx::Size DialogClientView::CalculatePreferredSize(
   const int fixed_width = GetDialogDelegate()->fixed_width();
   if (fixed_width) {
     const int content_width = fixed_width - content_margins.width();
-    contents_size = gfx::Size(content_width,
-                              ClientView::GetHeightForWidth(content_width));
+    contents_size = ClientView::CalculatePreferredSize(
+        views::SizeBounds(content_width, {}));
+    contents_size.set_width(content_width);
   } else {
     SizeBounds content_available_size(available_size);
     content_available_size.Enlarge(-content_margins.width(),
@@ -183,21 +186,22 @@ void DialogClientView::VisibilityChanged(View* starting_from, bool is_visible) {
   input_protector_->VisibilityChanged(is_visible);
 }
 
-#if BUILDFLAG(IS_CHROMEOS_ASH)
+#if BUILDFLAG(IS_CHROMEOS)
 
-void DialogClientView::UpdateWindowRoundedCorners(int corner_radius) {
+void DialogClientView::UpdateWindowRoundedCorners(
+    const gfx::RoundedCornersF& window_radii) {
   DCHECK(GetWidget());
 
-  const gfx::RoundedCornersF radii(0, 0, corner_radius, corner_radius);
-
-  // Chromeos has rounded windows. A dialog can use native frame i.e look like
+  // ChromeOS has rounded windows. A dialog can use native frame i.e look like
   // a top-level window. For ChromeOS, dialogs use `NonClientFrameViewAsh`
   // as native frame. The top corners will be rounded by the frame_view and
   // client-view is responsible for rounding the bottom corners.
-  SetBackgroundRadii(radii);
+  const gfx::RoundedCornersF background_radii(0, 0, window_radii.lower_right(),
+                                              window_radii.lower_left());
+  SetBackgroundRadii(background_radii);
 }
 
-#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 ProposedLayout DialogClientView::CalculateProposedLayout(
     const SizeBounds& size_bounds) const {
@@ -220,6 +224,15 @@ ProposedLayout DialogClientView::CalculateProposedLayout(
   layouts.host_size =
       gfx::Size(size_bounds.width().value(), size_bounds.height().value());
   return layouts;
+}
+
+void DialogClientView::SetBackgroundColor(ui::ColorId background_color_id) {
+  if (background_color_id_ == background_color_id) {
+    return;
+  }
+
+  background_color_id_ = background_color_id;
+  UpdateBackground();
 }
 
 bool DialogClientView::AcceleratorPressed(const ui::Accelerator& accelerator) {
@@ -309,8 +322,7 @@ void DialogClientView::UpdateBackground() {
 
   if (dialog && !dialog->use_custom_frame()) {
     SetBackground(views::CreateRoundedRectBackground(
-        GetColorProvider()->GetColor(ui::kColorDialogBackground),
-        background_radii_));
+        GetColorProvider()->GetColor(background_color_id_), background_radii_));
   }
 }
 
@@ -335,15 +347,13 @@ void DialogClientView::UpdateDialogButtons() {
   InvalidateLayout();
 }
 
-void DialogClientView::UpdateDialogButton(
-    raw_ptr<MdTextButton, DanglingUntriaged>* member,
-    ui::DialogButton type) {
+void DialogClientView::UpdateDialogButton(raw_ptr<MdTextButton>* member,
+                                          ui::mojom::DialogButton type) {
   DialogDelegate* const delegate = GetDialogDelegate();
-  if (!(delegate->GetDialogButtons() & type)) {
+  if (!(delegate->buttons() & static_cast<int>(type))) {
     if (*member) {
-      button_row_container_->RemoveChildViewT(*member);
+      button_row_container_->RemoveChildViewT(std::exchange(*member, nullptr));
     }
-    *member = nullptr;
     return;
   }
 
@@ -379,20 +389,21 @@ void DialogClientView::UpdateDialogButton(
       .BuildChildren();
 }
 
-void DialogClientView::ButtonPressed(ui::DialogButton type,
+void DialogClientView::ButtonPressed(ui::mojom::DialogButton type,
                                      const ui::Event& event) {
   DialogDelegate* const delegate = GetDialogDelegate();
   if (!delegate || input_protector_->IsPossiblyUnintendedInteraction(event)) {
     return;
   }
 
-  DCHECK(type == ui::DIALOG_BUTTON_OK || type == ui::DIALOG_BUTTON_CANCEL);
-  if (type == ui::DIALOG_BUTTON_OK &&
+  DCHECK(type == ui::mojom::DialogButton::kOk ||
+         type == ui::mojom::DialogButton::kCancel);
+  if (type == ui::mojom::DialogButton::kOk &&
       !delegate->ShouldIgnoreButtonPressedEventHandling(ok_button_, event)) {
     delegate->AcceptDialog();
   }
 
-  if (type == ui::DIALOG_BUTTON_CANCEL &&
+  if (type == ui::mojom::DialogButton::kCancel &&
       !delegate->ShouldIgnoreButtonPressedEventHandling(cancel_button_,
                                                         event)) {
     delegate->CancelDialog();
@@ -458,7 +469,7 @@ void DialogClientView::SetupLayout() {
 
   std::array<View*, kNumButtons> views = GetButtonRowViews();
 
-  if (base::ranges::count(views, nullptr) == kNumButtons) {
+  if (std::ranges::count(views, nullptr) == kNumButtons) {
     return;
   }
 
@@ -547,12 +558,12 @@ void DialogClientView::SetupLayout() {
 }
 
 void DialogClientView::UpdateButtonsFromModel() {
-  if (PlatformStyle::kIsOkButtonLeading) {
-    UpdateDialogButton(&ok_button_, ui::DIALOG_BUTTON_OK);
-    UpdateDialogButton(&cancel_button_, ui::DIALOG_BUTTON_CANCEL);
+  if constexpr (PlatformStyle::kIsOkButtonLeading) {
+    UpdateDialogButton(&ok_button_, ui::mojom::DialogButton::kOk);
+    UpdateDialogButton(&cancel_button_, ui::mojom::DialogButton::kCancel);
   } else {
-    UpdateDialogButton(&cancel_button_, ui::DIALOG_BUTTON_CANCEL);
-    UpdateDialogButton(&ok_button_, ui::DIALOG_BUTTON_OK);
+    UpdateDialogButton(&cancel_button_, ui::mojom::DialogButton::kCancel);
+    UpdateDialogButton(&ok_button_, ui::mojom::DialogButton::kOk);
   }
 }
 
