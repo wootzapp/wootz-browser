@@ -33,7 +33,7 @@
 #include "ui/shell_dialogs/selected_file_info.h"
 #include "third_party/blink/public/mojom/choosers/file_chooser.mojom.h"
 #include "mojo/public/cpp/bindings/receiver.h"
-#include "components/automation_agent/browser/automation_controller.h"
+#include "components/automation_agent/content/browser/automation_controller.h"
 
 #include "base/functional/callback.h"
 
@@ -378,27 +378,21 @@ class WootzReplaceAdFunction : public ExtensionFunction {
 class WootzGetPageStateFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("wootz.getPageState", WOOTZ_GET_PAGE_STATE)
- protected:
-  ~WootzGetPageStateFunction() override {}
   ResponseAction Run() override;
 
  private:
-  void OnGetPageStateComplete(
-      automation_agent::AutomationController* controller,
-      base::Value::Dict result);
+  void OnGetPageStateComplete(bool success, const std::string& state);
+  base::WeakPtrFactory<WootzGetPageStateFunction> weak_factory_{this};
 };
 
 class WootzPerformActionFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("wootz.performAction", WOOTZ_PERFORM_ACTION)
- protected:
-  ~WootzPerformActionFunction() override {}
   ResponseAction Run() override;
 
  private:
-  void OnActionComplete(
-      automation_agent::AutomationController* controller,
-      bool success);
+  void OnActionComplete(bool success);
+  base::WeakPtrFactory<WootzPerformActionFunction> weak_factory_{this};
 };
 
 }  // namespace extensions

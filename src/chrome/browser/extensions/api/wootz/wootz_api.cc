@@ -58,6 +58,10 @@
 #include "components/zk_proof/tls_info/tls_data_store.h"
 #include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+#include "components/automation_agent/content/browser/automation_controller.h"
+#include "components/automation_agent/content/browser/automation_controller_factory.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
 
 namespace extensions {
 
@@ -1407,68 +1411,109 @@ ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
 }
 
 ExtensionFunction::ResponseAction WootzGetPageStateFunction::Run() {
-  // Validate arguments
-  if (args().empty() || !args()[0].is_dict()) {
-    return RespondNow(Error("Invalid arguments"));
-  }
-  LOG(INFO) << "Kartik: Getting page state, args: " << args().size();
+  content::WebContents* web_contents = TabModelList::GetCurrentTabModel()->GetActiveWebContents();
 
-  const base::Value::Dict& options = args()[0].GetDict();
-  bool debug_mode = options.FindBool("debugMode").value_or(false);
-  bool include_hidden = options.FindBool("includeHidden").value_or(false);
+  if (!web_contents) {
+    LOG(ERROR) << "WootzGetPageStateFunction: No web contents found";
+    return RespondNow(Error("No active tab found"));
+  }
+
+  bool debug_mode = false;
+  bool include_hidden = false;
   
-  auto* controller = new automation_agent::AutomationController();
+  // Parse options from arguments
+  if (args().size() >= 1 && args()[0].is_dict()) {
+    const base::Value::Dict& options = args()[0].GetDict();
+    debug_mode = options.FindBool("debugMode").value_or(false);
+    include_hidden = options.FindBool("includeHidden").value_or(false);
+  }
+
+  LOG(INFO) << "AutomationAgent: GetPageState called from Extension";
+  LOG(INFO) << "AutomationAgent: debug_mode: " << debug_mode;
+  LOG(INFO) << "AutomationAgent: include_hidden: " << include_hidden;
+
+  auto* factory = automation::AutomationControllerFactory::FromWebContents(web_contents);
+  if (!factory) {
+    return RespondNow(Error("AutomationControllerFactory not available"));
+  }
+
+  auto* controller = factory->GetDriverForFrame(web_contents->GetPrimaryMainFrame());
+  if (!controller) {
+    return RespondNow(Error("AutomationController not available"));
+  }
+
   controller->GetPageState(
-      debug_mode,
-      include_hidden,
+      debug_mode, include_hidden,
       base::BindOnce(&WootzGetPageStateFunction::OnGetPageStateComplete,
-                     this,
-                     base::Owned(controller)));
+                     weak_factory_.GetWeakPtr()));
 
   return RespondLater();
 }
 
-void WootzGetPageStateFunction::OnGetPageStateComplete(
-    automation_agent::AutomationController* controller,
-    base::Value::Dict result) {
-  LOG(INFO) << "Kartik: OnGetPageStateComplete, result: " << result.size();
+void WootzGetPageStateFunction::OnGetPageStateComplete(bool success, const std::string& state) {
+  if (!success) {
+    Respond(Error("Failed to get page state"));
+    return;
+  }
+
+  // Parse state as JSON and create response matching schema
+  absl::optional<base::Value> parsed = base::JSONReader::Read(state);
+  if (!parsed || !parsed->is_dict()) {
+    Respond(Error("Failed to parse page state"));
+    return;
+  }
+
+  base::Value::Dict result;
+  result.Set("success", true);
+  result.Set("pageState", std::move(*parsed));
+
   Respond(WithArguments(std::move(result)));
 }
 
 ExtensionFunction::ResponseAction WootzPerformActionFunction::Run() {
+  content::WebContents* web_contents = TabModelList::GetCurrentTabModel()->GetActiveWebContents();
+
+  if (!web_contents) {
+    LOG(ERROR) << "WootzPerformActionFunction: No web contents found";
+    return RespondNow(Error("No active tab found"));
+  }
+
+  // Validate arguments
   if (args().size() < 2 || !args()[0].is_string() || !args()[1].is_dict()) {
     return RespondNow(Error("Invalid arguments"));
   }
+
   LOG(INFO) << "Kartik: WootzPerformActionFunction::Run, args: " << args().size();
   const std::string& action = args()[0].GetString();
   const base::Value::Dict& action_params = args()[1].GetDict();
-  
-  const std::string* selector = action_params.FindString("selector");
-  const std::string* text = action_params.FindString("text");
-  const std::string* direction = action_params.FindString("direction");
 
-  auto* controller = new automation_agent::AutomationController();
+  LOG(INFO) << "AutomationAgent: PerformAction called from Extension";
+  LOG(INFO) << "AutomationAgent: action: " << action;
+
+  auto* factory = automation::AutomationControllerFactory::FromWebContents(web_contents);
+  if (!factory) {
+    return RespondNow(Error("AutomationControllerFactory not available"));
+  }
+
+  auto* controller = factory->GetDriverForFrame(web_contents->GetPrimaryMainFrame());
+  if (!controller) {
+    return RespondNow(Error("AutomationController not available"));
+  }
+
   controller->PerformAction(
-      action,
-      selector ? *selector : "",
-      text ? *text : "",
-      direction ? *direction : "",
+      action, action_params,
       base::BindOnce(&WootzPerformActionFunction::OnActionComplete,
-                     this,
-                     base::Owned(controller)));
+                     weak_factory_.GetWeakPtr()));
 
   return RespondLater();
 }
 
-void WootzPerformActionFunction::OnActionComplete(
-    automation_agent::AutomationController* controller,
-    bool success) {
-  LOG(INFO) << "Kartik: OnActionComplete, success: " << success;
-  if (success) {
-    Respond(NoArguments());
-  } else {
+void WootzPerformActionFunction::OnActionComplete(bool success) {
+  if (!success) {
     Respond(Error("Failed to perform action"));
+    return;
   }
+  Respond(NoArguments());
 }
 
 }  // namespace extensions
