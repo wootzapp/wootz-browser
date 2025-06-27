@@ -13,7 +13,9 @@ namespace automation {
 AutomationControllerFactory::AutomationControllerFactory(
     content::WebContents* web_contents)
     : content::WebContentsObserver(web_contents),
-      content::WebContentsUserData<AutomationControllerFactory>(*web_contents) {}
+      content::WebContentsUserData<AutomationControllerFactory>(*web_contents) {
+  // Any initialization if needed
+}
 
 AutomationControllerFactory::~AutomationControllerFactory() = default;
 

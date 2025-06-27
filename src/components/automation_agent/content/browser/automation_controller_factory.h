@@ -37,6 +37,15 @@ class AutomationControllerFactory
   AutomationController* GetDriverForFrame(
       content::RenderFrameHost* render_frame_host);
 
+  static void CreateForWebContents(content::WebContents* web_contents) {
+    DCHECK(web_contents);
+    if (!FromWebContents(web_contents)) {
+      web_contents->SetUserData(
+          UserDataKey(),
+          base::WrapUnique(new AutomationControllerFactory(web_contents)));
+    }
+  }
+
  private:
   friend class content::WebContentsUserData<AutomationControllerFactory>;
 
