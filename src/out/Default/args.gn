@@ -13,3 +13,4 @@ enable_extensions=true
 is_java_debug = false
 android_static_analysis = "off"
 cc_wrapper="env CCACHE_SLOPPINESS=time_macros ccache"
+use_siso = false

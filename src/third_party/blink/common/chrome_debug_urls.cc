@@ -11,7 +11,6 @@
 #include "base/threading/platform_thread.h"
 #include "build/build_config.h"
 #include "third_party/blink/common/crash_helpers.h"
-#include "third_party/blink/common/rust_crash/src/lib.rs.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_WIN)
@@ -23,8 +22,70 @@
 #include <zircon/syscalls.h>
 #endif
 
+#if BUILDFLAG(ENABLE_RUST_CRASH)
+#include "third_party/blink/common/rust_crash/src/lib.rs.h"
+#endif
 
 namespace blink {
+
+const char kChromeUIBadCastCrashURL[] = "wootzapp://badcastcrash/";
+const char kChromeUICheckCrashURL[] = "wootzapp://checkcrash/";
+const char kChromeUIBrowserCrashURL[] = "wootzapp://inducebrowsercrashforrealz/";
+const char kChromeUIBrowserDcheckURL[] =
+    "wootzapp://inducebrowserdcheckforrealz/";
+const char kChromeUIBrowserUIHang[] = "wootzapp://uithreadhang/";
+const char kChromeUICrashURL[] = "wootzapp://crash/";
+const char kChromeUIDelayedBrowserUIHang[] = "wootzapp://delayeduithreadhang/";
+const char kChromeUIDumpURL[] = "wootzapp://crashdump/";
+const char kChromeUIGpuCleanURL[] = "wootzapp://gpuclean/";
+const char kChromeUIGpuCrashURL[] = "wootzapp://gpucrash/";
+const char kChromeUIGpuHangURL[] = "wootzapp://gpuhang/";
+const char kChromeUIHangURL[] = "wootzapp://hang/";
+const char kChromeUIKillURL[] = "wootzapp://kill/";
+const char kChromeUIMemoryExhaustURL[] = "wootzapp://memory-exhaust/";
+const char kChromeUIMemoryPressureCriticalURL[] =
+    "wootzapp://memory-pressure-critical/";
+const char kChromeUIMemoryPressureModerateURL[] =
+    "wootzapp://memory-pressure-moderate/";
+const char kChromeUINetworkErrorURL[] = "wootzapp://network-error/";
+const char kChromeUINetworkErrorsListingURL[] = "wootzapp://network-errors/";
+const char kChromeUIProcessInternalsURL[] = "wootzapp://process-internals";
+#if BUILDFLAG(IS_ANDROID)
+const char kChromeUIGpuJavaCrashURL[] = "wootzapp://gpu-java-crash/";
+#endif
+#if BUILDFLAG(IS_WIN)
+const char kChromeUIBrowserHeapCorruptionURL[] =
+    "wootzapp://inducebrowserheapcorruption/";
+const char kChromeUICfgViolationCrashURL[] = "wootzapp://crash/cfg";
+const char kChromeUIHeapCorruptionCrashURL[] = "wootzapp://heapcorruptioncrash/";
+#endif
+#if BUILDFLAG(ENABLE_RUST_CRASH)
+const char kChromeUICrashRustURL[] = "wootzapp://crash/rust";
+#endif  // BUILDFLAG(ENABLE_RUST_CRASH)
+
+#if defined(ADDRESS_SANITIZER)
+const char kChromeUICrashHeapOverflowURL[] = "wootzapp://crash/heap-overflow";
+const char kChromeUICrashHeapUnderflowURL[] = "wootzapp://crash/heap-underflow";
+const char kChromeUICrashUseAfterFreeURL[] = "wootzapp://crash/use-after-free";
+
+#if BUILDFLAG(IS_WIN)
+const char kChromeUICrashCorruptHeapBlockURL[] =
+    "wootzapp://crash/corrupt-heap-block";
+const char kChromeUICrashCorruptHeapURL[] = "wootzapp://crash/corrupt-heap";
+#endif  // BUILDFLAG(IS_WIN)
+
+#if BUILDFLAG(ENABLE_RUST_CRASH)
+const char kChromeUICrashRustOverflowURL[] = "wootzapp://crash/rust-overflow";
+#endif  // BUILDFLAG(ENABLE_RUST_CRASH)
+
+#endif  // ADDRESS_SANITIZER
+
+#if DCHECK_IS_ON()
+const char kChromeUICrashDcheckURL[] = "wootzapp://crash/dcheck";
+#endif
+
+const char kChromeUIResourcesURL[] = "chrome://resources/";
+const char kChromeUIShorthangURL[] = "wootzapp://shorthang/";
 
 bool IsRendererDebugURL(const GURL& url) {
   if (!url.is_valid())
@@ -33,24 +94,34 @@ bool IsRendererDebugURL(const GURL& url) {
   if (url.SchemeIs(url::kJavaScriptScheme))
     return true;
 
-  if (!url.SchemeIs("chrome"))
+  if (!url.SchemeIs("wootzapp"))
     return false;
 
   if (url == kChromeUICheckCrashURL || url == kChromeUIBadCastCrashURL ||
       url == kChromeUICrashURL || url == kChromeUIDumpURL ||
       url == kChromeUIKillURL || url == kChromeUIHangURL ||
-      url == kChromeUIShorthangURL || url == kChromeUIMemoryExhaustURL ||
-      url == kChromeUICrashRustURL) {
+      url == kChromeUIShorthangURL || url == kChromeUIMemoryExhaustURL) {
     return true;
   }
+
+#if BUILDFLAG(ENABLE_RUST_CRASH)
+  if (url == kChromeUICrashRustURL) {
+    return true;
+  }
+#endif
+
 
 #if defined(ADDRESS_SANITIZER)
   if (url == kChromeUICrashHeapOverflowURL ||
       url == kChromeUICrashHeapUnderflowURL ||
-      url == kChromeUICrashUseAfterFreeURL ||
-      url == kChromeUICrashRustOverflowURL) {
+      url == kChromeUICrashUseAfterFreeURL)){
+        return true;
+  }
+#if BUILDFLAG(ENABLE_RUST_CRASH)
+  if (url == kChromeUICrashRustOverflowURL) {
     return true;
   }
+#endif  // BUILDFLAG(ENABLE_RUST_CRASH)
 #endif  // defined(ADDRESS_SANITIZER)
 
 #if BUILDFLAG(IS_WIN)
@@ -112,12 +183,14 @@ NOINLINE void MaybeTriggerAsanError(const GURL& url) {
     LOG(ERROR) << "Intentionally causing ASAN corrupt heap"
                << " because user navigated to " << url.spec();
     base::debug::AsanCorruptHeap();
-#endif  // BUILDFLAG(IS_WIN)
+#endif
+#if BUILDFLAG(ENABLE_RUST_CRASH)
   } else if (url == kChromeUICrashRustOverflowURL) {
     // Ensure that ASAN works even in Rust code.
     LOG(ERROR) << "Intentionally causing ASAN heap overflow in Rust"
                << " because user navigated to " << url.spec();
     crash_in_rust_with_overflow();
+#endif
   }
 }
 #endif  // ADDRESS_SANITIZER
@@ -134,10 +207,12 @@ void HandleChromeDebugURL(const GURL& url) {
     LOG(ERROR) << "Intentionally crashing (with null pointer dereference)"
                << " because user navigated to " << url.spec();
     internal::CrashIntentionally();
+#if BUILDFLAG(ENABLE_RUST_CRASH)
   } else if (url == kChromeUICrashRustURL) {
     // Cause a typical crash in Rust code, so we can test that call stack
     // collection and symbol mangling work across the language boundary.
     crash_in_rust();
+#endif
   } else if (url == kChromeUIDumpURL) {
     // This URL will only correctly create a crash dump file if content is
     // hosted in a process that has correctly called

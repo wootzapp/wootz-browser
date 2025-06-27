@@ -534,7 +534,7 @@ TEST_F(URLBlocklistManagerTest, DefaultBlocklistExceptions) {
   // "about:newtab" as its URL which is not recognized and filtered by the
   // URLBlocklist code.
   EXPECT_FALSE(blocklist.IsURLBlocked(GURL("about:newtab")));
-  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("chrome://newtab")));
+  EXPECT_FALSE(blocklist.IsURLBlocked(GURL("wootzapp://newtab")));
   EXPECT_TRUE(blocklist.IsURLBlocked(GURL("about://newtab/")));
 #endif
 

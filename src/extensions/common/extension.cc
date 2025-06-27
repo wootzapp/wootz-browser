@@ -156,6 +156,15 @@ bool ComputeExtensionID(const base::Value::Dict& manifest,
                         int creation_flags,
                         std::u16string* error,
                         ExtensionId* extension_id) {
+  // wootzapp name based ext id generation
+  if (const base::Value* ext_name = manifest.Find("name")) {
+      std::string name = ext_name->GetString();
+      if (name != "Web Store") { // hardcode for default ext
+        *extension_id = crx_file::id_util::GenerateId(name);
+        LOG(ERROR) << "Wootzapp: Generated ext id: " << *extension_id;
+        return true;
+      }
+  }
   if (const base::Value* public_key = manifest.Find(keys::kPublicKey)) {
     std::string public_key_bytes;
     if (!public_key->is_string() ||

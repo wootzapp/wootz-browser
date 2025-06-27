@@ -104,6 +104,16 @@ std::string GetPermissionRequestString(RequestTypeForUma type) {
       return "VR";
     case RequestTypeForUma::PERMISSION_AR:
       return "AR";
+      case RequestTypeForUma::PERMISSION_WOOTZ_ETHEREUM:
+      return "WootzEtherum";
+    case RequestTypeForUma::PERMISSION_WOOTZ_SOLANA:
+      return "WootzSolana";
+    case RequestTypeForUma::PERMISSION_WOOTZ_GOOGLE_SIGN_IN_PERMISSION:
+      return "WootzGoogleSignInPermission";
+    case RequestTypeForUma::PERMISSION_WOOTZ_LOCALHOST_PERMISSION:
+      return "WootzLocalhostPermission";
+    case RequestTypeForUma::PERMISSION_WIDEVINE:
+      return "Widevine";
     case RequestTypeForUma::PERMISSION_HAND_TRACKING:
       return "HandTracking";
     case RequestTypeForUma::PERMISSION_STORAGE_ACCESS:

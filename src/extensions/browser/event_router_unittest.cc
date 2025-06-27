@@ -469,7 +469,7 @@ TEST_F(EventRouterTest, WebUIEventsDoNotCrossIncognitoBoundaries) {
   FeatureProvider provider;
   auto feature = std::make_unique<SimpleFeature>();
   feature->set_name("test feature");
-  feature->set_matches({"chrome://settings/*"});
+  feature->set_matches({"wootzapp://settings/*"});
   provider.AddFeature(event_name, std::move(feature));
 
   ExtensionAPI api;
@@ -481,9 +481,9 @@ TEST_F(EventRouterTest, WebUIEventsDoNotCrossIncognitoBoundaries) {
   content::MockRenderProcessHost otr_rph(incognito_context());
 
   // Add event listeners, as if we had created two real WebUIs, one in a regular
-  // profile and one in an otr profile. Note that the string chrome://settings
+  // profile and one in an otr profile. Note that the string wootzapp://settings
   // is hardcoded into the api permissions of settingsPrivate.
-  GURL dummy_url("chrome://settings/test");
+  GURL dummy_url("wootzapp://settings/test");
   router.AddEventListenerForURL(event_name, &regular_rph, dummy_url);
   router.AddEventListenerForURL(event_name, &otr_rph, dummy_url);
 

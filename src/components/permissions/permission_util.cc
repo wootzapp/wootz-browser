@@ -112,6 +112,16 @@ RequestTypeForUma PermissionUtil::GetUmaValueForRequestType(
   switch (request_type) {
     case RequestType::kArSession:
       return RequestTypeForUma::PERMISSION_AR;
+    case RequestType::kWootzEthereum:
+      return RequestTypeForUma::PERMISSION_WOOTZ_ETHEREUM;
+    case RequestType::kWootzSolana:
+      return RequestTypeForUma::PERMISSION_WOOTZ_SOLANA;
+    case RequestType::kWootzGoogleSignInPermission:
+      return RequestTypeForUma::PERMISSION_WOOTZ_GOOGLE_SIGN_IN_PERMISSION;
+    case RequestType::kWootzLocalhostAccessPermission:
+      return RequestTypeForUma::PERMISSION_WOOTZ_LOCALHOST_PERMISSION;
+    case RequestType::kWidevine:
+      return RequestTypeForUma::PERMISSION_WIDEVINE;
 #if !BUILDFLAG(IS_ANDROID)
     case RequestType::kCameraPanTiltZoom:
       return RequestTypeForUma::PERMISSION_CAMERA_PAN_TILT_ZOOM;
@@ -472,6 +482,10 @@ ContentSettingsType PermissionUtil::PermissionTypeToContentSettingsTypeSafe(
       return ContentSettingsType::VR;
     case PermissionType::AR:
       return ContentSettingsType::AR;
+    case PermissionType::WOOTZ_ETHEREUM:
+      return ContentSettingsType::WOOTZ_ETHEREUM;
+    case PermissionType::WOOTZ_SOLANA:
+      return ContentSettingsType::WOOTZ_SOLANA;
     case PermissionType::SMART_CARD:
       return ContentSettingsType::SMART_CARD_DATA;
     case PermissionType::STORAGE_ACCESS_GRANT:

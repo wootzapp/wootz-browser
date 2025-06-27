@@ -409,7 +409,7 @@ void RuntimeAPI::MaybeCancelRunningDelayedRestartTimer() {
 void RuntimeAPI::OnExtensionsReady() {
   // We're done restarting Chrome after an update.
   dispatch_chrome_updated_event_ = false;
-  delegate_->AddUpdateObserver(this);
+  // delegate_->AddUpdateObserver(this);
 }
 
 RuntimeAPI::RestartAfterDelayStatus RuntimeAPI::ScheduleDelayedRestart(

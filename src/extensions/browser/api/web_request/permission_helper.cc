@@ -56,6 +56,9 @@ void BrowserContextKeyedAPIFactory<
   // Used in CanCrossIncognito().
   DependsOn(ExtensionPrefsFactory::GetInstance());
 
+  if (ExtensionsAPIClient::Get())
+    for (auto* factory : ExtensionsAPIClient::Get()->GetFactoryDependencies())
+      DependsOn(factory);
   // `ShouldHideBrowserNetworkRequest()` relies on the ExtensionsAPIClient,
   // which itself uses varioius KeyedServices. Thus, this KeyedService
   // implicitly depends upon those.

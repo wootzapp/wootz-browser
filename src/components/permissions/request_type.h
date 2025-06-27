@@ -21,6 +21,11 @@ namespace permissions {
 // defined on the platforms where they are used and should be kept alphabetized.
 enum class RequestType {
   kArSession,
+  kWootzEthereum, 
+  kWootzSolana,
+  kWootzGoogleSignInPermission, 
+  kWootzLocalhostAccessPermission,
+  kWidevine,
 #if !BUILDFLAG(IS_ANDROID)
   kCameraPanTiltZoom,
 #endif

@@ -124,6 +124,8 @@ size_t Aead::KeyLength() const {
 }
 
 size_t Aead::NonceLength() const {
+  if (nonce_length_)
+    return nonce_length_;
   return EVP_AEAD_nonce_length(aead_);
 }
 

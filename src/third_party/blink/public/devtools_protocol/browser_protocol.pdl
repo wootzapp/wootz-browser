@@ -8504,6 +8504,8 @@ domain Page
       display-capture
       document-domain
       encrypted-media
+      ethereum
+      solana
       execution-while-out-of-viewport
       execution-while-not-rendered
       fenced-unpartitioned-storage-read

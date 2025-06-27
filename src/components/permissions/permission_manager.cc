@@ -219,6 +219,7 @@ void PermissionManager::RequestPermissions(
     const content::PermissionRequestDescription& request_description,
     base::OnceCallback<void(const std::vector<PermissionStatus>&)>
         permission_status_callback) {
+  LOG(ERROR) << "JANGID: RequestPermissions called";
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   RequestPermissionsInternal(render_frame_host, request_description,
                              std::move(permission_status_callback));
@@ -229,10 +230,19 @@ void PermissionManager::RequestPermissionsInternal(
     const content::PermissionRequestDescription& request_description,
     base::OnceCallback<void(const std::vector<PermissionStatus>&)>
         permission_status_callback) {
+  LOG(ERROR) << "JANGID: RequestPermissionsInternal - Requesting origin: " 
+             << request_description.requesting_origin.spec();
+  LOG(ERROR) << "JANGID: Number of permissions requested: " 
+             << request_description.permissions.size();
   std::vector<blink::mojom::PermissionDescriptorPtr> permissions;
   permissions.reserve(request_description.permissions.size());
   for (const auto& permission : request_description.permissions) {
     permissions.push_back(permission.Clone());
+  }
+
+  LOG(ERROR) << "JANGID: Transformed permissions size: " << permissions.size();
+  for (const auto& perm : permissions) {
+    LOG(ERROR) << "JANGID: Permission type: " << static_cast<int>(perm);
   }
 
   base::OnceCallback<void(const std::vector<ContentSetting>&)> callback =
@@ -240,11 +250,13 @@ void PermissionManager::RequestPermissionsInternal(
                      std::move(permission_status_callback));
 
   if (request_description.permissions.empty()) {
+    LOG(ERROR) << "JANGID: No permissions to process, returning empty vector";
     std::move(callback).Run(std::vector<ContentSetting>());
     return;
   }
 
   auto request_local_id = request_local_id_generator_.GenerateNextId();
+  LOG(ERROR) << "JANGID: Generated request_local_id: " << request_local_id;
   pending_requests_.AddWithID(
       std::make_unique<PendingRequest>(
           render_frame_host, std::move(permissions), std::move(callback)),
@@ -253,6 +265,7 @@ void PermissionManager::RequestPermissionsInternal(
   const PermissionRequestID request_id(render_frame_host, request_local_id);
   const GURL embedding_origin = GetEmbeddingOrigin(
       render_frame_host, request_description.requesting_origin);
+  LOG(ERROR) << "JANGID: Embedding origin: " << embedding_origin.spec();
   for (size_t i = 0; i < request_description.permissions.size(); ++i) {
     const ContentSettingsType permission =
         PermissionUtil::PermissionTypeToContentSettingsType(
@@ -261,9 +274,26 @@ void PermissionManager::RequestPermissionsInternal(
     const GURL canonical_requesting_origin = PermissionUtil::GetCanonicalOrigin(
         permission, request_description.requesting_origin, embedding_origin);
 
+    LOG(ERROR) << "JANGID: Processing permission " << i 
+               << " of type: " << static_cast<int>(permission);
+    LOG(ERROR) << "JANGID: Canonical requesting origin: " 
+               << canonical_requesting_origin.spec();
+
     auto response_callback = std::make_unique<PermissionResponseCallback>(
         weak_factory_.GetWeakPtr(), request_local_id, i);
     PermissionContextBase* context = GetPermissionContext(permission);
+
+    if (!context) {
+      LOG(ERROR) << "JANGID: No context found for permission type: " 
+                 << static_cast<int>(permission);
+    }
+    
+    if (PermissionUtil::IsPermissionBlockedInPartition(
+            permission, request_description.requesting_origin,
+            render_frame_host->GetProcess())) {
+      LOG(ERROR) << "JANGID: Permission blocked in partition";
+    }
+
     if (!context || PermissionUtil::IsPermissionBlockedInPartition(
                         permission, request_description.requesting_origin,
                         render_frame_host->GetProcess())) {
@@ -272,6 +302,7 @@ void PermissionManager::RequestPermissionsInternal(
       continue;
     }
 
+    LOG(ERROR) << "JANGID: Blocking permission due to missing context or partition block";
     context->RequestPermission(
         PermissionRequestData(
             context, request_id, request_description,
@@ -280,6 +311,7 @@ void PermissionManager::RequestPermissionsInternal(
             &PermissionResponseCallback::OnPermissionsRequestResponseStatus,
             std::move(response_callback)));
   }
+  LOG(ERROR) << "JANGID: Completed processing all permissions";
 }
 
 void PermissionManager::ResetPermission(PermissionType permission,
@@ -302,6 +334,13 @@ void PermissionManager::RequestPermissionsFromCurrentDocument(
     base::OnceCallback<void(const std::vector<PermissionStatus>&)>
         permission_status_callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (!forced_requesting_origin_.is_empty()) {                         
+    auto desc = std::move(request_description);                        
+    desc.requesting_origin = forced_requesting_origin_;                
+    RequestPermissionsInternal(render_frame_host, desc,                
+                               std::move(permission_status_callback)); 
+    return;                                                            
+  }
   RequestPermissionsInternal(render_frame_host, request_description,
                              std::move(permission_status_callback));
 }
@@ -354,6 +393,7 @@ PermissionManager::GetPermissionResultForCurrentDocument(
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   const GURL requesting_origin =
+      !forced_requesting_origin_.is_empty() ? forced_requesting_origin_:
       PermissionUtil::GetLastCommittedOriginAsURL(render_frame_host);
   const GURL embedding_origin =
       GetEmbeddingOrigin(render_frame_host, requesting_origin);

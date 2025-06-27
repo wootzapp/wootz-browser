@@ -185,6 +185,28 @@ std::unique_ptr<ActionInfo> ActionInfo::Load(
     }
   }
 
+    if (const base::Value* default_widget = dict.Find(keys::kActionDefaultWidget)) {
+      const std::string* widget_url_str = default_widget->GetIfString();
+      if (!widget_url_str) {
+        *error = errors::kInvalidActionDefaultWidget;
+        return nullptr;
+      }
+
+      if (!widget_url_str->empty()) {
+        GURL widget_url = Extension::GetResourceURL(extension->url(), *widget_url_str);
+
+        if (!widget_url.is_valid()) {
+          *error = errors::kInvalidActionDefaultWidget;
+          return nullptr;
+        }
+
+        result->default_widget_url = widget_url;
+      } else {
+        // An empty string is treated as having no widget.
+        DCHECK(result->default_widget_url.is_empty());
+      }
+    }
+
   if (const base::Value* default_state = dict.Find(keys::kActionDefaultState)) {
     // The `default_state` key is only valid for TYPE_ACTION; throw an error for
     // others.

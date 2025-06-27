@@ -115,7 +115,7 @@ void EnsureApiBrowserContextKeyedServiceFactoriesBuilt() {
 #endif
   ContentSettingsService::GetFactoryInstance();
   FeedbackPrivateAPI::GetFactoryInstance();
-  HidDeviceManager::GetFactoryInstance();
+  // HidDeviceManager::GetFactoryInstance();
 #if BUILDFLAG(IS_CHROMEOS)
   MediaPerceptionAPIManager::GetFactoryInstance();
 #endif

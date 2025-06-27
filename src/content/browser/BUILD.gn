@@ -152,6 +152,7 @@ source_set("browser") {
     "//components/viz/host",
     "//components/web_package",
     "//content:content_resources",
+    "//components/zk_proof",
     "//content/browser/aggregation_service/proto:aggregatable_report_proto",
     "//content/browser/attribution_reporting:attribution_reporting_proto",
     "//content/browser/attribution_reporting:internals_mojo_bindings",

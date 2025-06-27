@@ -236,12 +236,14 @@ class CrxInstaller : public base::RefCountedThreadSafe<CrxInstaller> {
   // Returns the path to the installed `file`. If there is no such path (for
   // example because no version of the item is installed), returns nullopt.
   // Called on the main sequence, can't block.
+  virtual bool IsWootzComponent() const;
   virtual std::optional<base::FilePath> GetInstalledFile(
       const std::string& file) = 0;
 
   // Called when a CRX has been unregistered and all versions should
   // be uninstalled from disk. Returns true if uninstallation is supported,
   // and false otherwise.
+  
   virtual bool Uninstall() = 0;
 
  protected:

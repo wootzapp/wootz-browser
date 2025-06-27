@@ -130,6 +130,18 @@ class CONTENT_EXPORT PermissionControllerDelegate {
   // Unregisters from permission status change notifications. This function
   // is only called by PermissionController. In any other cases, please call the
   // `PermissionController::UnsubscribeFromPermissionStatusChange`.
+  //   virtual void UnsubscribeFromPermisPermissionControllerDelegateNotUsed() {}                                  
+//   virtual void RequestPermissionsForOrigin(                                 
+//       const std::vector<blink::PermissionType>& permissions,                
+//       content::RenderFrameHost* render_frame_host,                          
+//       const GURL& requesting_origin, bool user_gesture,                     
+//       base::OnceCallback<void(                                              
+//           const std::vector<blink::mojom::PermissionStatus>&)> callback) {} 
+                                                                            
+  virtual blink::mojom::PermissionStatus GetPermissionStatusForOrigin(      
+      blink::PermissionType permission,                                     
+      content::RenderFrameHost* render_frame_host,                          
+      const GURL& requesting_origin);     
   virtual void UnsubscribeFromPermissionStatusChange(
       content::PermissionController::SubscriptionId subscription_id) {}
 

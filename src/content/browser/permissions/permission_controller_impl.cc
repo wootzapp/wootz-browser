@@ -70,6 +70,10 @@ PermissionToSchedulingFeature(PermissionType permission_name) {
     case PermissionType::NUM:
     case PermissionType::SENSORS:
     case PermissionType::AR:
+    case PermissionType::WOOTZ_ETHEREUM:  
+    case PermissionType::WOOTZ_SOLANA:  
+    // case PermissionType::WOOTZ_GOOGLE_SIGN_IN:            
+    // case PermissionType::WOOTZ_LOCALHOST_ACCESS: 
     case PermissionType::VR:
     case PermissionType::HAND_TRACKING:
     case PermissionType::CAMERA_PAN_TILT_ZOOM:

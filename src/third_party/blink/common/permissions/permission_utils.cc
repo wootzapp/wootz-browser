@@ -69,6 +69,10 @@ std::string GetPermissionString(PermissionType permission) {
       return "VR";
     case PermissionType::AR:
       return "AR";
+    case PermissionType::WOOTZ_ETHEREUM:
+      return "WootzEtherum";
+    case PermissionType::WOOTZ_SOLANA:
+      return "WootzSolana";
     case PermissionType::HAND_TRACKING:
       return "HandTracking";
     case PermissionType::SMART_CARD:
@@ -136,6 +140,8 @@ PermissionTypeToPermissionsPolicyFeature(PermissionType permission) {
       return network::mojom::PermissionsPolicyFeature::kWebXr;
     case PermissionType::AR:
       return network::mojom::PermissionsPolicyFeature::kWebXr;
+    case PermissionType::WOOTZ_ETHEREUM:
+    case PermissionType::WOOTZ_SOLANA:
     case PermissionType::SMART_CARD:
       return network::mojom::PermissionsPolicyFeature::kSmartCard;
     case PermissionType::WEB_PRINTING:

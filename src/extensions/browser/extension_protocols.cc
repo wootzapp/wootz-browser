@@ -174,7 +174,7 @@ ResourceInfo ReadResourceInfo(const extensions::ExtensionResource& resource,
 
   return ResourceInfo(file_path, last_modified_time, size);
 }
-
+#if 0
 bool ExtensionCanLoadInIncognito(bool is_main_frame,
                                  const Extension* extension,
                                  bool extension_enabled_in_incognito) {
@@ -190,6 +190,7 @@ bool ExtensionCanLoadInIncognito(bool is_main_frame,
   // and an incognito tab prevents that.
   return IncognitoInfo::IsSplitMode(extension);
 }
+#endif
 
 // Returns true if an chrome-extension:// resource should be allowed to load.
 // Pass true for |is_incognito| only for incognito profiles and not Chrome OS
@@ -206,6 +207,8 @@ bool AllowExtensionResourceLoad(const network::ResourceRequest& request,
                                 const ExtensionSet& extensions,
                                 const ProcessMap& process_map,
                                 const GURL& upstream_url) {
+  return true;
+#if 0
   const bool is_main_frame =
       destination == network::mojom::RequestDestination::kDocument;
   if (is_incognito &&
@@ -255,6 +258,7 @@ bool AllowExtensionResourceLoad(const network::ResourceRequest& request,
 
   // No special exceptions for cross-process loading. Block the load.
   return false;
+#endif
 }
 
 // Returns true if the given URL references an icon in the given extension.

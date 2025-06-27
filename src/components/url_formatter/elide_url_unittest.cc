@@ -447,7 +447,7 @@ const OriginTestData common_tests[] = {
      u"wss://www.google.com", u"wss://www.google.com", u"www.google.com"},
     {"Unusual non-secure scheme (ftp)", "ftp://www.google.com/",
      u"ftp://www.google.com", u"ftp://www.google.com", u"ftp://www.google.com"},
-    {"Unlisted scheme (chrome)", "chrome://version", u"chrome://version",
+    {"Unlisted scheme (wootzapp)", "chrome://version", u"chrome://version",
      u"chrome://version", u"chrome://version"},
     {"HTTP IP address", "http://173.194.65.103", u"http://173.194.65.103",
      u"173.194.65.103", u"http://173.194.65.103"},

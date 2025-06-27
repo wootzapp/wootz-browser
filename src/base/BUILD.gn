@@ -4970,7 +4970,6 @@ if (is_android) {
   android_library("callback_java") {
     sources = [
       "android/java/src/org/chromium/base/Callback.java",
-      "android/java/src/org/chromium/base/Callbacks.java"
       "android/java/src/org/chromium/base/CallbackUtils.java",
     ]
     deps = [

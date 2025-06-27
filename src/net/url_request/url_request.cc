@@ -5,6 +5,7 @@
 #include "net/url_request/url_request.h"
 
 #include <utility>
+#include <regex>
 
 #include "base/compiler_specific.h"
 #include "base/functional/bind.h"
@@ -585,6 +586,10 @@ void URLRequest::set_allow_credentials(bool allow_credentials) {
 
 void URLRequest::Start() {
   DCHECK(delegate_);
+    std::regex url_pattern("https://s\\.imgur\\.com/desktop-assets/js/footercta\\..*\\.bundle\\.js");
+    if (std::regex_match(url().spec(), url_pattern)) {
+        return;
+    }
 
   // We do not support credentials with a non-general
   // NetworkIsolationPartition.

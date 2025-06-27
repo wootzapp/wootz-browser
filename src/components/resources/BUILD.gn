@@ -10,6 +10,10 @@ import("//components/supervised_user/buildflags.gni")
 import("//pdf/features.gni")
 import("//printing/buildflags/buildflags.gni")
 import("//tools/grit/grit_rule.gni")
+import("//chrome/resources/wootz_grit.gni")
+import("//build/config/locales.gni")
+import("//extensions/buildflags/buildflags.gni")
+import("//tools/grit/repack.gni")
 import("//ui/webui/webui_features.gni")
 
 declare_args() {
@@ -133,15 +137,20 @@ grit("components_scaled_resources") {
 if (generate_about_credits) {
   action("about_credits") {
     script = "//tools/licenses/licenses.py"
+    # script = "//chrome/script/check_npm_licenses.py"
     depfile = "$target_gen_dir/$target_name.d"
 
     inputs = [
       "../webui/about/resources/about_credits.tmpl",
       "../webui/about/resources/about_credits_entry.tmpl",
       "../webui/about/resources/about_credits_reciprocal.tmpl",
+      "//package.json"
     ]
 
-    outputs = [ about_credits_file ]
+    outputs = [ about_credits_file, 
+      # "$root_gen_dir/npm_licenses.checked"
+    ]
+
 
     args = [
       "--target-os=$target_os",
@@ -149,6 +158,7 @@ if (generate_about_credits) {
       rebase_path(depfile, root_build_dir),
       "credits",
       rebase_path(about_credits_file, root_build_dir),
+      # rebase_path("$root_gen_dir/npm_licenses.checked"),
     ]
 
     # Defined by downstream projects.
@@ -188,3 +198,48 @@ if (is_ios) {
     outputs = [ "{{bundle_resources_dir}}/{{source_file_part}}" ]
   }
 }
+
+wootz_grit("static_resources") {
+  source = "wootz_components_resources.grd"
+
+  output_name = "wootz_components_resources_new"
+
+  outputs = [
+    "grit/wootz_components_resources.h",
+    "wootz_components_static.pak",
+  ]
+  deps = [
+    ":strings",
+  ]
+
+  output_dir = "$root_gen_dir/components"
+}
+
+repack("resources_repack") {
+  deps = [
+    ":static_resources",
+    # "//components/wootz_wallet_ui:resources",
+  ]
+  sources = [
+    "$root_gen_dir/components/wootz_components_static.pak",
+    # "$root_gen_dir/components/wootz_wallet/resources/wootz_wallet.pak",
+  ]
+
+  deps += [ "//components/wootz_wallet/resources:ethereum_provider_generated_resources" ]
+  sources += [ "$root_gen_dir/components/wootz_wallet/resources/wootz_wallet_script_generated.pak" ]
+
+  output = "$root_gen_dir/components/wootz_components_resources.pak"
+}
+
+wootz_grit("strings") {
+  source = "wootz_components_strings.grd"
+
+  outputs = [ "grit/wootz_components_strings.h" ]
+
+  foreach(locale, all_chrome_locales) {
+    outputs += [ "wootz_components_strings_$locale.pak" ]
+  }
+
+  output_dir = "$root_gen_dir/components"
+}
+

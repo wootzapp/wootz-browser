@@ -117,6 +117,11 @@ class PermissionRequest {
       bool format_origin_bold);
 #endif
 
+bool SupportsLifetime() const;
+  void SetLifetime(std::optional<base::TimeDelta> lifetime);
+  const std::optional<base::TimeDelta>& GetLifetime() const;
+  std::optional<base::TimeDelta> lifetime_;
+  
   // Returns a weak pointer to this instance.
   base::WeakPtr<PermissionRequest> GetWeakPtr();
 

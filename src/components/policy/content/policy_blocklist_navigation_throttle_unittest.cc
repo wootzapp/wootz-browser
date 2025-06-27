@@ -302,7 +302,7 @@ TEST_P(PolicyBlocklistNavigationThrottleTest, SafeSites_Schemes) {
   // WebUI documents are not allowed.
   auto navigation_simulator =
       content::NavigationSimulator::CreateBrowserInitiated(
-          GURL("chrome://settings"), RenderViewHostTestHarness::web_contents());
+          GURL("wootzapp://settings"), RenderViewHostTestHarness::web_contents());
   navigation_simulator->SetAutoAdvance(false);
   navigation_simulator->Start();
   ASSERT_FALSE(navigation_simulator->IsDeferred());

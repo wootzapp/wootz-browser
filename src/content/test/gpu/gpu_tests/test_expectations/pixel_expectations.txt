@@ -417,6 +417,8 @@ crbug.com/1290953 [ android android-pixel-4 android-webview-instrumentation ] Pi
 crbug.com/1290953 [ android android-pixel-4 android-webview-instrumentation ] Pixel_CanvasLowLatency2DImageData [ Failure ]
 
 crbug.com/40241616 [ android android-sm-a137f ] Pixel_CanvasLowLatencyWebGLAlphaFalse [ Failure ]
+crbug.com/1517110 [ debug-x64 no-clang-coverage nvidia-0x2184 nvidia_lt_31.0.15.4601 renderer-skia-gl target-cpu-64 win10 ] Pixel_Video_* [ RetryOnFailure ]
+
 crbug.com/1372141 [ android android-sm-a236b ] Pixel_CanvasLowLatencyWebGLAlphaFalse [ Failure ]
 
 crbug.com/1474611 [ mac nvidia angle-opengl graphite-disabled ] Pixel_WebGLGreenTriangle_NonChromiumImage_NoAA_NoAlpha [ Failure ]
@@ -437,6 +439,8 @@ crbug.com/40937765 [ android android-pixel-6 renderer-skia-vulkan ] Pixel_Video_
 
 # ChromeOS failures
 crbug.com/345146895 [ chromeos cros-chrome chromeos-board-amd64-generic renderer-skia-gl ] Pixel_RenderPasses [ Failure ]
+crbug.com/339457781 [ android android-SM-S911U1 renderer-skia-vulkan ] Pixel_Video_BackdropFilter [ RetryOnFailure ]
+
 
 # Failures on fuchsia
 crbug.com/40935289 [ fuchsia fuchsia-board-qemu-x64 ] Pixel_WebGLFloat [ Failure ]

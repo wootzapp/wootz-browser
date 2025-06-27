@@ -29,6 +29,7 @@ inline constexpr char kAboutPage[] = "about_page";
 inline constexpr char kAction[] = "action";
 inline constexpr char kActionDefaultIcon[] = "default_icon";
 inline constexpr char kActionDefaultPopup[] = "default_popup";
+inline constexpr char kActionDefaultWidget[] = "default_widget";
 inline constexpr char kActionDefaultState[] = "default_state";
 inline constexpr char kActionDefaultTitle[] = "default_title";
 inline constexpr char kApp[] = "app";
@@ -288,6 +289,8 @@ inline constexpr char kInvalidActionDefaultIconMimeType[] =
     "Invalid mime type for 'default_icon'.";
 inline constexpr char16_t kInvalidActionDefaultPopup[] =
     u"Invalid type for 'default_popup'.";
+inline constexpr char16_t kInvalidActionDefaultWidget[] =
+    u"Invalid type for 'default_widget'.";
 inline constexpr char16_t kInvalidActionDefaultState[] =
     u"Invalid value for 'default_state'.";
 inline constexpr char16_t kInvalidActionDefaultTitle[] =

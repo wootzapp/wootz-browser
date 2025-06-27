@@ -76,6 +76,22 @@ dependencies {
     compile 'com.google.protobuf:protobuf-javalite:4.28.0'
     compile 'javax.inject:javax.inject:1'
 
+    // branch sdk
+    compile 'io.branch.sdk.android:library:5.16.2'
+
+    // Google Play referrer & Advertising ID
+    compile 'com.google.android.gms:play-services-ads-identifier:18.0.1'
+    compile 'com.android.installreferrer:installreferrer:2.2'
+
+    // Samsung Galaxy Store referrer support
+    compile 'store.galaxy.samsung.installreferrer:samsung_galaxystore_install_referrer:4.0.0'
+
+    // Huawei AppGallery
+    compile 'com.huawei.hms:ads-identifier:3.4.39.302'
+
+    // Xiaomi GetApps store referrer
+    compile 'io.branch.sdk.android:xiaomi:1.0.0'
+
     // Needed by androidx.room, but by default it selects a lower version that
     // does not exist in CIPD.
     compile 'org.jetbrains.kotlinx:atomicfu-jvm:0.23.2'

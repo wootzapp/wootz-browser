@@ -210,7 +210,7 @@ void CoreExtensionsRendererAPIProvider::PopulateSourceMap(
 // TODO(https://crbug.com/356905053): Figure out mojo bindings for
 // desktop-android builds. Currently, the full bindings aren't generated.
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-      {"mojo_bindings", IDR_MOJO_MOJO_BINDINGS_JS},
+    //   {"mojo_bindings", IDR_MOJO_MOJO_BINDINGS_JS},
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS)

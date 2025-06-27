@@ -928,6 +928,53 @@ if (!limit_android_deps) {
     ]
   }
 
+   # Base Sentry JAR
+  android_library("sentry_base_java") {
+    jar_path = "libs/io_sentry_sentry_android/sentry-6.28.0.jar"
+    deps = [
+      "//third_party/androidx:androidx_annotation_annotation_java",
+    ]
+  }
+
+  # Sentry Android Core
+  android_aar_prebuilt("sentry_android_core_java") {
+    aar_path = "libs/io_sentry_sentry_android/sentry-android-core-6.28.0.aar"
+    info_path = "libs/io_sentry_sentry_android/sentry_android_core.info"
+    deps = [
+      ":sentry_base_java",
+      "//third_party/androidx:androidx_annotation_annotation_java",
+    ]
+  }
+
+  # Main Sentry Android
+  android_aar_prebuilt("sentry_android_java") {
+    aar_path = "libs/io_sentry_sentry_android/sentry-android-6.28.0.aar"
+    info_path = "libs/io_sentry_sentry_android/sentry_android.info"
+    deps = [
+      ":sentry_base_java",
+      ":sentry_android_core_java",
+      "//third_party/androidx:androidx_annotation_annotation_java",
+    ]
+  }
+
+  # Add this to disable the missing integrations
+  config("sentry_config") {
+    defines = [
+      "SENTRY_DISABLE_FRAGMENT_INTEGRATION",
+      "SENTRY_DISABLE_TIMBER_INTEGRATION",
+    ]
+  }
+
+  # Convenience group target
+  java_group("sentry_java") {
+    public_deps = [
+      ":sentry_android_java",
+      ":sentry_android_core_java",
+      ":sentry_base_java",
+    ]
+    public_configs = [ ":sentry_config" ]
+  }
+
   # This is generated, do not edit. Update BuildConfigGenerator.groovy instead.
   if (google_play_services_package == "//third_party/android_deps") {
     java_prebuilt("google_firebase_firebase_annotations_java") {
@@ -1209,6 +1256,113 @@ if (!limit_android_deps) {
       "//third_party/androidx:*",
     ]
     testonly = true
+  }
+  
+  # Branch SDK - Main library
+  android_aar_prebuilt("io_branch_sdk_android_library_java") {
+    aar_path = "libs/io_branch_sdk_android_library/library-5.16.2.aar"
+    info_path = "libs/io_branch_sdk_android_library/io_branch_sdk_android_library.info"
+    enable_bytecode_checks = false
+
+    visibility = [
+      ":*",
+      "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
+    ]
+    deps = [
+      "//third_party/androidx:androidx_annotation_annotation_java",
+      ":com_google_android_gms_play_services_ads_identifier_java",
+      ":com_android_installreferrer_installreferrer_java",
+    ]
+  }
+
+  # Samsung Galaxy Store Referrer
+  android_aar_prebuilt("store_galaxy_samsung_installreferrer_java") {
+    aar_path = "libs/store_galaxy_samsung_installreferrer/samsung_galaxystore_install_referrer-4.0.0.aar"
+    info_path = "libs/store_galaxy_samsung_installreferrer/store_galaxy_samsung_installreferrer.info"
+    enable_bytecode_checks = false
+
+    visibility = [
+      ":*",
+      "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
+    ]
+  }
+
+  # Huawei HMS Ads Identifier
+  android_aar_prebuilt("com_huawei_hms_ads_identifier_java") {
+    aar_path = "libs/com_huawei_hms_ads_identifier/ads-identifier-3.4.39.302.aar"
+    info_path = "libs/com_huawei_hms_ads_identifier/com_huawei_hms_ads_identifier.info"
+    enable_bytecode_checks = false
+
+    visibility = [
+      ":*",
+      "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
+    ]
+  }
+
+  # Xiaomi GetApps Referrer
+  android_aar_prebuilt("io_branch_sdk_android_xiaomi_java") {
+    aar_path = "libs/io_branch_sdk_android_xiaomi/homereferrer-1.0.0.7.aar"
+    info_path = "libs/io_branch_sdk_android_xiaomi/io_branch_sdk_android_xiaomi.info"
+    enable_bytecode_checks = false
+
+    visibility = [
+      ":*",
+      "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
+    ]
+    deps = [ ":io_branch_sdk_android_library_java" ]
+  }
+
+  # Convenience group target for Branch SDK
+  java_group("branch_sdk_java") {
+    public_deps = [
+      ":io_branch_sdk_android_library_java",
+      ":store_galaxy_samsung_installreferrer_java",
+      ":com_huawei_hms_ads_identifier_java",
+      ":io_branch_sdk_android_xiaomi_java",
+    ]
+    
+    # Add visibility for the convenience group
+    visibility = [
+      ":*",
+      "//third_party/androidx:*",
+      "//chrome/android:*",
+    ]
+  }
+
+  # Google Play Services Ads Identifier
+  android_aar_prebuilt("com_google_android_gms_play_services_ads_identifier_java") {
+    aar_path = "libs/com_google_android_gms_play_services_ads_identifier/play-services-ads-identifier-18.0.1.aar"
+    info_path = "libs/com_google_android_gms_play_services_ads_identifier/com_google_android_gms_play_services_ads_identifier.info"
+    enable_bytecode_checks = false
+
+    visibility = [
+      ":*",
+      "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
+    ]
+    # deps = [
+    #   "//third_party/android_deps:com_google_android_gms_play_services_basement_java",
+    # ]
+  }
+
+  # Android Install Referrer
+  android_aar_prebuilt("com_android_installreferrer_installreferrer_java") {
+    aar_path = "libs/com_android_installreferrer_installreferrer/installreferrer-2.2.aar"
+    info_path = "libs/com_android_installreferrer_installreferrer/com_android_installreferrer_installreferrer.info"
+    enable_bytecode_checks = false
+
+    visibility = [
+      ":*",
+      "//third_party/androidx:*",
+      "//chrome/android:*",  # Add visibility for Chrome Android
+    ]
+    # deps = [
+    #   "//third_party/android_deps:com_google_android_gms_play_services_basement_java",
+    # ]
   }
 }
 # === Generated Code End ===

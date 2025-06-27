@@ -784,6 +784,8 @@ void WebRequestAPI::OnExtensionLoaded(content::BrowserContext* browser_context,
   bool update_may_have_proxies = false;
   if (HasAnyWebRequestPermissions(*extension)) {
     ++web_request_extension_count_;
+    if (web_request_extension_count_ < 0)
+      web_request_extension_count_ = 0;
     update_may_have_proxies = true;
   }
   if (HasAnyDeclarativeWebRequestPermissions(*extension)) {

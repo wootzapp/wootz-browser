@@ -187,6 +187,9 @@ class PermissionManager : public KeyedService,
   // the unefficient addition/removal of items.
   SubscriptionTypeCounts subscription_type_counts_;
 
+  friend class WootzPermissionManager; 
+  GURL forced_requesting_origin_;
+
   PermissionContextMap permission_contexts_;
 
   bool is_shutting_down_ = false;

@@ -24,8 +24,8 @@ using device::HidDeviceFilter;
 
 namespace {
 
-const char kErrorPermissionDenied[] = "Permission to access device was denied.";
-const char kErrorInvalidDeviceId[] = "Invalid HID device ID.";
+// const char kErrorPermissionDenied[] = "Permission to access device was denied.";
+// const char kErrorInvalidDeviceId[] = "Invalid HID device ID.";
 const char kErrorFailedToOpenDevice[] = "Failed to open HID device.";
 const char kErrorConnectionNotFound[] = "Connection not established.";
 const char kErrorTransfer[] = "Transfer failed.";
@@ -36,6 +36,7 @@ base::Value::Dict PopulateHidConnection(int connection_id) {
   return connection_value.ToValue();
 }
 
+#if 0
 void ConvertHidDeviceFilter(const hid::DeviceFilter& input,
                             HidDeviceFilter* output) {
   if (input.vendor_id) {
@@ -51,6 +52,7 @@ void ConvertHidDeviceFilter(const hid::DeviceFilter& input,
     output->SetUsage(*input.usage);
   }
 }
+#endif
 
 }  // namespace
 
@@ -65,29 +67,29 @@ ExtensionFunction::ResponseAction HidGetDevicesFunction::Run() {
       hid::GetDevices::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(parameters);
 
-  HidDeviceManager* device_manager = HidDeviceManager::Get(browser_context());
-  CHECK(device_manager);
+  // HidDeviceManager* device_manager = HidDeviceManager::Get(browser_context());
+  // CHECK(device_manager);
 
-  std::vector<HidDeviceFilter> filters;
-  if (parameters->options.filters) {
-    filters.resize(parameters->options.filters->size());
-    for (size_t i = 0; i < parameters->options.filters->size(); ++i) {
-      ConvertHidDeviceFilter(parameters->options.filters->at(i), &filters[i]);
-    }
-  }
-  if (parameters->options.vendor_id) {
-    HidDeviceFilter legacy_filter;
-    legacy_filter.SetVendorId(*parameters->options.vendor_id);
-    if (parameters->options.product_id) {
-      legacy_filter.SetProductId(*parameters->options.product_id);
-    }
-    filters.push_back(legacy_filter);
-  }
+  // std::vector<HidDeviceFilter> filters;
+  // if (parameters->options.filters) {
+  //   filters.resize(parameters->options.filters->size());
+  //   for (size_t i = 0; i < parameters->options.filters->size(); ++i) {
+  //     ConvertHidDeviceFilter(parameters->options.filters->at(i), &filters[i]);
+  //   }
+  // }
+  // if (parameters->options.vendor_id) {
+  //   HidDeviceFilter legacy_filter;
+  //   legacy_filter.SetVendorId(*parameters->options.vendor_id);
+  //   if (parameters->options.product_id) {
+  //     legacy_filter.SetProductId(*parameters->options.product_id);
+  //   }
+  //   filters.push_back(legacy_filter);
+  // }
 
-  device_manager->GetApiDevices(
-      extension(), filters,
-      base::BindOnce(&HidGetDevicesFunction::OnEnumerationComplete, this));
-  return RespondLater();
+  // device_manager->GetApiDevices(
+  //     extension(), filters,
+  //     base::BindOnce(&HidGetDevicesFunction::OnEnumerationComplete, this));
+  return RespondNow(Error("not implemented"));
 }
 
 void HidGetDevicesFunction::OnEnumerationComplete(base::Value::List devices) {
@@ -104,27 +106,27 @@ ExtensionFunction::ResponseAction HidConnectFunction::Run() {
       hid::Connect::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(parameters);
 
-  HidDeviceManager* device_manager = HidDeviceManager::Get(browser_context());
-  CHECK(device_manager);
+  // HidDeviceManager* device_manager = HidDeviceManager::Get(browser_context());
+  // CHECK(device_manager);
 
-  connection_manager_ =
-      ApiResourceManager<HidConnectionResource>::Get(browser_context());
-  CHECK(connection_manager_);
+  // connection_manager_ =
+  //     ApiResourceManager<HidConnectionResource>::Get(browser_context());
+  // CHECK(connection_manager_);
 
-  const device::mojom::HidDeviceInfo* device_info =
-      device_manager->GetDeviceInfo(parameters->device_id);
-  if (!device_info) {
-    return RespondNow(Error(kErrorInvalidDeviceId));
-  }
+  // const device::mojom::HidDeviceInfo* device_info =
+  //     device_manager->GetDeviceInfo(parameters->device_id);
+  // if (!device_info) {
+  //   return RespondNow(Error(kErrorInvalidDeviceId));
+  // }
 
-  if (!device_manager->HasPermission(extension(), *device_info, true)) {
-    return RespondNow(Error(kErrorPermissionDenied));
-  }
+  // if (!device_manager->HasPermission(extension(), *device_info, true)) {
+  //   return RespondNow(Error(kErrorPermissionDenied));
+  // }
 
-  device_manager->Connect(
-      device_info->guid,
-      base::BindOnce(&HidConnectFunction::OnConnectComplete, this));
-  return RespondLater();
+  // device_manager->Connect(
+  //     device_info->guid,
+  //     base::BindOnce(&HidConnectFunction::OnConnectComplete, this));
+  return RespondLater(Error("Not Implemented"));
 }
 
 void HidConnectFunction::OnConnectComplete(
